@@ -1,0 +1,30 @@
+[Unit]
+Description=Flapjack Metering Agent
+Documentation=https://github.com/gridl/flapjack_dev
+After=network-online.target flapjack.service
+Wants=network-online.target
+
+[Service]
+Type=exec
+User=fjcloud
+Group=fjcloud
+
+EnvironmentFile=-/etc/fjcloud/metering-env
+ExecStart=/usr/local/bin/fj-metering-agent
+
+Restart=always
+RestartSec=10
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=fj-metering-agent
+
+[Install]
+WantedBy=multi-user.target

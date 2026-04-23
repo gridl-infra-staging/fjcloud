@@ -1,0 +1,23 @@
+[Unit]
+Description=fjcloud Aggregation Job (nightly usage rollup)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=fjcloud
+Group=fjcloud
+
+EnvironmentFile=-/etc/fjcloud/env
+ExecStart=/usr/local/bin/fjcloud-aggregation-job
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=fjcloud-aggregation-job

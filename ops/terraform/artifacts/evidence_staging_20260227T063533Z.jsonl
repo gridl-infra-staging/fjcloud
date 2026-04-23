@@ -1,0 +1,3 @@
+{"command":"preflight:aws_creds","timestamp":"2026-02-27T06:35:34Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"preflight:ami_exists","timestamp":"2026-02-27T06:35:34Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"preflight:dns_delegation","timestamp":"2026-02-27T06:35:34Z","verdict":"FAIL","output":"Domain nameserver delegation mismatch for flapjack.cloud.","artifact_path":""}

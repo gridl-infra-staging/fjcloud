@@ -1,0 +1,6 @@
+{"command":"preflight:aws_creds","timestamp":"2026-02-27T05:28:47Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"preflight:ami_exists","timestamp":"2026-02-27T05:28:47Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"runtime:migrate_fail","timestamp":"2026-02-27T05:28:47Z","verdict":"FAIL","output":"Migration failed for environment staging.","artifact_path":""}
+{"command":"preflight:aws_creds","timestamp":"2026-02-27T05:28:47Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"preflight:ami_exists","timestamp":"2026-02-27T05:28:47Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"runtime:migrate_idempotency","timestamp":"2026-02-27T05:28:48Z","verdict":"FAIL","output":"Migration idempotency check failed: second run of migrate.sh exited non-zero.","artifact_path":""}

@@ -1,0 +1,59 @@
+[package]
+name    = "api"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "fjcloud-api"
+path = "src/main.rs"
+
+[dependencies]
+serde              = { workspace = true }
+serde_json         = { workspace = true }
+uuid               = { workspace = true }
+chrono             = { workspace = true }
+tokio              = { workspace = true }
+thiserror          = { workspace = true }
+anyhow             = { workspace = true }
+tracing            = { workspace = true }
+tracing-subscriber = { workspace = true }
+sqlx               = { workspace = true }
+async-trait        = "0.1"
+axum               = { workspace = true }
+tower-http         = { version = "0.5", features = ["cors", "trace", "catch-panic", "request-id"] }
+jsonwebtoken       = "9"
+subtle             = "2"
+argon2             = "0.5"
+rand               = "0.8"
+hex                = "0.4"
+billing            = { path = "../billing" }
+pricing-calculator = { path = "../pricing-calculator" }
+rust_decimal       = { workspace = true }
+async-stripe       = { version = "0.41", default-features = false, features = ["runtime-tokio-hyper", "billing", "checkout", "chrono"] }
+hmac               = "0.12"
+sha2               = "0.10"
+aws-config         = { workspace = true }
+aws-sdk-route53    = { workspace = true }
+aws-sdk-ec2        = { workspace = true }
+aws-sdk-ssm        = { workspace = true }
+aws-sdk-s3         = { workspace = true }
+aws-sdk-sesv2      = { workspace = true }
+base64             = "0.22"
+reqwest            = { workspace = true }
+moka               = { version = "0.12", features = ["sync"] }
+prometheus         = "0.14"
+rsa                = { version = "0.9", features = ["pem", "sha2"] }
+aes-gcm            = { workspace = true }
+quick-xml          = { workspace = true }
+utoipa             = { version = "5.4", features = ["axum_extras", "chrono", "uuid", "decimal"] }
+utoipa-scalar      = { version = "0.2", features = ["axum"] }
+
+[dev-dependencies]
+tower = { version = "0.4", features = ["util"] }
+http-body-util = "0.1"
+rust_decimal_macros = { workspace = true }
+wiremock = "0.6"
+aggregation-job = { path = "../aggregation-job" }

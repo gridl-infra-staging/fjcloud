@@ -1,0 +1,2 @@
+{"command":"preflight:aws_creds","timestamp":"2026-02-27T05:28:44Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"runtime:acm_not_issued","timestamp":"2026-02-27T05:28:45Z","verdict":"FAIL","output":"ACM certificate for flapjack.cloud status is 'PENDING_VALIDATION', expected ISSUED.","artifact_path":""}

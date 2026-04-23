@@ -1,0 +1,28 @@
+{"command":"preflight:aws_creds","timestamp":"2026-02-27T05:31:45Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"preflight:ami_exists","timestamp":"2026-02-27T05:31:45Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"preflight:release_artifact","timestamp":"2026-02-27T05:31:45Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"preflight:dns_delegation","timestamp":"2026-02-27T05:31:45Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"terraform plan","timestamp":"2026-02-27T05:31:45Z","verdict":"PASS","output":"plan captured","artifact_path":"/Users/stuart/repos/gridl/fjcloud/ops/terraform/artifacts/plan_staging_20260227T053145Z.txt"}
+{"command":"assert:acm_cert_issued","timestamp":"2026-02-27T05:31:45Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"assert:alb_https_listener","timestamp":"2026-02-27T05:31:45Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"assert:target_group_healthy","timestamp":"2026-02-27T05:31:45Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"assert:health_fail","timestamp":"2026-02-27T05:31:45Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"deploy.sh","timestamp":"2026-02-27T05:31:45Z","verdict":"PASS","output":"exit 0","artifact_path":""}
+{"command":"assert:deploy_health_fail","timestamp":"2026-02-27T05:31:45Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"runtime:rollback_fail","timestamp":"2026-02-27T05:31:45Z","verdict":"FAIL","output":"Rollback to SHA b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3 failed for environment staging.","artifact_path":""}
+{"command":"preflight:aws_creds","timestamp":"2026-02-27T05:31:46Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"preflight:ami_exists","timestamp":"2026-02-27T05:31:46Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"preflight:release_artifact","timestamp":"2026-02-27T05:31:46Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"preflight:dns_delegation","timestamp":"2026-02-27T05:31:46Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"terraform plan","timestamp":"2026-02-27T05:31:46Z","verdict":"PASS","output":"plan captured","artifact_path":"/Users/stuart/repos/gridl/fjcloud/ops/terraform/artifacts/plan_staging_20260227T053145Z.txt"}
+{"command":"assert:acm_cert_issued","timestamp":"2026-02-27T05:31:46Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"assert:alb_https_listener","timestamp":"2026-02-27T05:31:46Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"assert:target_group_healthy","timestamp":"2026-02-27T05:31:46Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"assert:health_fail","timestamp":"2026-02-27T05:31:46Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"deploy.sh","timestamp":"2026-02-27T05:31:46Z","verdict":"PASS","output":"exit 0","artifact_path":""}
+{"command":"assert:deploy_health_fail","timestamp":"2026-02-27T05:31:46Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"migrate.sh (run 1)","timestamp":"2026-02-27T05:31:46Z","verdict":"PASS","output":"exit 0","artifact_path":""}
+{"command":"migrate.sh (run 2 idempotency)","timestamp":"2026-02-27T05:31:46Z","verdict":"PASS","output":"exit 0","artifact_path":""}
+{"command":"rollback.sh","timestamp":"2026-02-27T05:31:46Z","verdict":"PASS","output":"exit 0","artifact_path":""}
+{"command":"assert:health_fail","timestamp":"2026-02-27T05:31:46Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"assert:target_group_healthy","timestamp":"2026-02-27T05:31:46Z","verdict":"PASS","output":"","artifact_path":""}

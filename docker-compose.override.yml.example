@@ -1,0 +1,48 @@
+# =============================================================================
+# Docker Compose Override — Hot-Reload Development
+# =============================================================================
+# Copy this file to docker-compose.override.yml to enable local source mounting.
+# Docker Compose automatically merges override files with docker-compose.yml.
+#
+#   cp docker-compose.override.yml.example docker-compose.override.yml
+#   docker compose up -d postgres     # start only Postgres in Docker
+#   cargo run -p api                  # run API natively (faster iteration)
+#   cd web && npm run dev             # run web natively (HMR)
+#
+# Or use the overrides below to run everything in Docker with hot reload.
+
+services:
+  api:
+    build:
+      target: builder
+    volumes:
+      - ./infra:/build
+      - cargo-cache:/usr/local/cargo/registry
+    command: ["cargo", "watch", "-x", "run -p api"]
+
+  web:
+    volumes:
+      - ./web:/app
+      - /app/node_modules
+    command: ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
+
+  # ---------------------------------------------------------------------------
+  # Optional: Flapjack search engine
+  # ---------------------------------------------------------------------------
+  # Uncomment to add a local flapjack instance. Requires either:
+  #   - A pre-built flapjack Docker image, or
+  #   - The flapjack_dev repo checked out at ../flapjack_dev
+  #
+  # flapjack:
+  #   image: flapjack:latest
+  #   # Or build from source:
+  #   # build:
+  #   #   context: ../flapjack_dev
+  #   #   dockerfile: Dockerfile
+  #   ports:
+  #     - "7799:7799"
+  #   environment:
+  #     FLAPJACK_PORT: "7799"
+
+volumes:
+  cargo-cache:

@@ -1,0 +1,21 @@
+[package]
+name = "aggregation-job"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "aggregation_job"
+path = "src/lib.rs"
+
+[[bin]]
+name = "fjcloud-aggregation-job"
+path = "src/main.rs"
+
+[dependencies]
+anyhow      = { workspace = true }
+chrono      = { workspace = true }
+sqlx        = { workspace = true }
+thiserror   = { workspace = true }
+tokio       = { workspace = true }
+tracing     = { workspace = true }
+tracing-subscriber = { workspace = true }

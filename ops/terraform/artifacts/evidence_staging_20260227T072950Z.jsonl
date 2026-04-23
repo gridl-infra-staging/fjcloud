@@ -1,0 +1,1 @@
+{"command":"preflight:aws_creds","timestamp":"2026-02-27T07:29:51Z","verdict":"FAIL","output":"AWS credentials are missing or invalid.","artifact_path":""}

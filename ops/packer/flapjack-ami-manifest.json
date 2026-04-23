@@ -1,0 +1,14 @@
+{
+  "builds": [
+    {
+      "name": "flapjack",
+      "builder_type": "amazon-ebs",
+      "build_time": 1775676563,
+      "files": null,
+      "artifact_id": "us-east-1:ami-078228dbe86117d85",
+      "packer_run_uuid": "a21e199e-b209-3c9c-faa5-4f0fd762741d",
+      "custom_data": null
+    }
+  ],
+  "last_run_uuid": "a21e199e-b209-3c9c-faa5-4f0fd762741d"
+}

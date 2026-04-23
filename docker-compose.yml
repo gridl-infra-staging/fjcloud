@@ -1,0 +1,93 @@
+# =============================================================================
+# Flapjack Cloud Local Dev Stack
+# =============================================================================
+# Usage:
+#   cp .env.local.example .env.local   # fill in values
+#   docker compose up -d               # start all services
+#   docker compose logs -f api         # tail API logs
+#   docker compose down                # stop all services
+#   docker compose down -v             # stop and remove data volumes
+#
+# See docs/runbooks/local-dev.md for full instructions.
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: fjcloud_dev
+      POSTGRES_USER: griddle
+      POSTGRES_PASSWORD: griddle_local
+    ports:
+      - "${LOCAL_DB_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./infra/migrations:/migrations:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U griddle -d fjcloud_dev"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+  # --- Local S3 (SeaweedFS) ---
+  # Lightweight S3-compatible object store for local cold storage.
+  # Replaces InMemoryObjectStore with persistent storage that survives restarts.
+  seaweedfs:
+    image: chrislusf/seaweedfs
+    command: server -s3 -s3.config=/etc/seaweedfs/s3_config.json
+    ports:
+      - "${LOCAL_S3_PORT:-8333}:8333"
+    volumes:
+      - s3data:/data
+      - ./ops/seaweedfs_s3_config.json:/etc/seaweedfs/s3_config.json:ro
+    healthcheck:
+      test: ["CMD-SHELL", "code=$$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8333/ || true); test \"$$code\" = 200 -o \"$$code\" = 403"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # --- Local Email (Mailpit) ---
+  # Catches all outgoing email from MailpitEmailService.
+  # Web UI + API: http://localhost:8025
+  # SMTP: localhost:1025 (unused — we use the HTTP JSON API directly).
+  mailpit:
+    image: axllent/mailpit
+    ports:
+      - "${LOCAL_SMTP_PORT:-1025}:1025"
+      - "${LOCAL_MAILPIT_UI_PORT:-8025}:8025"
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8025/api/v1/info"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  api:
+    build:
+      context: ./infra
+      dockerfile: Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://griddle:griddle_local@postgres:5432/fjcloud_dev
+      JWT_SECRET: local-dev-jwt-secret-change-me-32chars
+      ADMIN_KEY: local-dev-admin-key
+      LISTEN_ADDR: 0.0.0.0:3001
+      RUST_LOG: info,api=debug
+    ports:
+      - "3001:3001"
+
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    depends_on:
+      - api
+    environment:
+      API_BASE_URL: http://api:3001
+      ADMIN_KEY: local-dev-admin-key
+    ports:
+      - "5173:5173"
+
+volumes:
+  pgdata:
+  s3data:

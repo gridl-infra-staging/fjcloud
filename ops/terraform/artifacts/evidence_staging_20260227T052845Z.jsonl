@@ -1,0 +1,4 @@
+{"command":"preflight:aws_creds","timestamp":"2026-02-27T05:28:45Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"runtime:alb_no_listener","timestamp":"2026-02-27T05:28:45Z","verdict":"FAIL","output":"ALB 'fjcloud-staging-alb' has no HTTPS listener on port 443.","artifact_path":""}
+{"command":"preflight:aws_creds","timestamp":"2026-02-27T05:28:45Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"runtime:tg_unhealthy","timestamp":"2026-02-27T05:28:45Z","verdict":"FAIL","output":"Target group 'fjcloud-staging-api-tg' has no healthy targets.","artifact_path":""}

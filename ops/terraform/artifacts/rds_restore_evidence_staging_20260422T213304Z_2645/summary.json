@@ -1,0 +1,13 @@
+{
+  "cleanup_lifecycle": "manual cleanup required: delete the restored DB instance after verification and evidence capture",
+  "env": "staging",
+  "reason": null,
+  "restore_command": "aws rds restore-db-instance-to-point-in-time --region us-east-1 --source-db-instance-identifier fjcloud-staging --target-db-instance-identifier fjcloud-staging-restore-20260422213307 --restore-time 2026-04-22T21:29:35+00:00 ",
+  "restore_mode": "pitr",
+  "result": "pass",
+  "source_db_instance_id": "fjcloud-staging",
+  "status": "dry-run",
+  "target_db_instance_id": "fjcloud-staging-restore-20260422213307",
+  "target_endpoint": "",
+  "target_status": "dry-run"
+}

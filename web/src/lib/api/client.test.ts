@@ -1,0 +1,967 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { ApiClient, ApiRequestError } from './client';
+import type {
+	AuthResponse,
+	MessageResponse,
+	UsageSummaryResponse,
+	DailyUsageEntry,
+	InvoiceListItem,
+	SetupIntentResponse,
+	PaymentMethod,
+	EstimatedBillResponse,
+	ApiKeyListItem,
+	CreateApiKeyResponse,
+	CustomerProfileResponse,
+	OnboardingStatus,
+	FlapjackCredentials,
+	AybInstance,
+	CreateAybInstanceRequest,
+	PricingCompareRequest,
+	PricingCompareResponse
+} from './types';
+import { BASE_URL, mockFetch, createClient, createAuthenticatedClient } from './client.test.shared';
+
+describe('ApiClient', () => {
+	let client: ApiClient;
+
+	beforeEach(() => {
+		client = createClient();
+	});
+
+	describe('constructor', () => {
+		it('strips trailing slash from base URL', () => {
+			const c = new ApiClient('http://localhost:3000/');
+			// Verify by making a request and checking the URL
+			const fetch = mockFetch(200, { message: 'ok' });
+			c.setFetch(fetch);
+			c.healthCheck();
+			expect(fetch).toHaveBeenCalledWith('http://localhost:3000/health', expect.any(Object));
+		});
+	});
+
+	describe('auth endpoints', () => {
+		it('POST /auth/register sends correct body and returns AuthResponse', async () => {
+			const expected: AuthResponse = { token: 'jwt-123', customer_id: 'uuid-1' };
+			const fetch = mockFetch(201, expected);
+			client.setFetch(fetch);
+
+			const result = await client.register({
+				name: 'Alice',
+				email: 'alice@example.com',
+				password: 'password123'
+			});
+
+			expect(fetch).toHaveBeenCalledWith(`${BASE_URL}/auth/register`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ name: 'Alice', email: 'alice@example.com', password: 'password123' })
+			});
+			expect(result).toEqual(expected);
+		});
+
+		it('POST /auth/login sends correct body and returns AuthResponse', async () => {
+			const expected: AuthResponse = { token: 'jwt-456', customer_id: 'uuid-2' };
+			const fetch = mockFetch(200, expected);
+			client.setFetch(fetch);
+
+			const result = await client.login({ email: 'bob@example.com', password: 'pass1234' });
+
+			expect(fetch).toHaveBeenCalledWith(`${BASE_URL}/auth/login`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ email: 'bob@example.com', password: 'pass1234' })
+			});
+			expect(result).toEqual(expected);
+		});
+
+		it('POST /auth/verify-email sends token', async () => {
+			const expected: MessageResponse = { message: 'email verified' };
+			const fetch = mockFetch(200, expected);
+			client.setFetch(fetch);
+
+			const result = await client.verifyEmail({ token: 'verify-token-abc' });
+
+			expect(fetch).toHaveBeenCalledWith(`${BASE_URL}/auth/verify-email`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ token: 'verify-token-abc' })
+			});
+			expect(result).toEqual(expected);
+		});
+
+		it('POST /auth/forgot-password sends email', async () => {
+			const expected: MessageResponse = { message: 'if an account exists...' };
+			const fetch = mockFetch(200, expected);
+			client.setFetch(fetch);
+
+			const result = await client.forgotPassword({ email: 'carol@example.com' });
+
+			expect(fetch).toHaveBeenCalledWith(`${BASE_URL}/auth/forgot-password`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ email: 'carol@example.com' })
+			});
+			expect(result).toEqual(expected);
+		});
+
+		it('POST /auth/reset-password sends token and new password', async () => {
+			const expected: MessageResponse = { message: 'password has been reset' };
+			const fetch = mockFetch(200, expected);
+			client.setFetch(fetch);
+
+			const result = await client.resetPassword({
+				token: 'reset-token-xyz',
+				new_password: 'newpass123'
+			});
+
+			expect(fetch).toHaveBeenCalledWith(`${BASE_URL}/auth/reset-password`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ token: 'reset-token-xyz', new_password: 'newpass123' })
+			});
+			expect(result).toEqual(expected);
+		});
+	});
+
+	describe('authenticated endpoints', () => {
+		beforeEach(() => {
+			client = createAuthenticatedClient();
+		});
+
+		it('GET /usage includes auth header', async () => {
+			const expected: UsageSummaryResponse = {
+				month: '2026-02',
+				total_search_requests: 100,
+				total_write_operations: 50,
+				avg_storage_gb: 1.5,
+				avg_document_count: 10000,
+				by_region: []
+			};
+			const fetch = mockFetch(200, expected);
+			client.setFetch(fetch);
+
+			const result = await client.getUsage();
+
+			expect(fetch).toHaveBeenCalledWith(`${BASE_URL}/usage`, {
+				method: 'GET',
+				headers: {
+					'Content-Type': 'application/json',
+					Authorization: 'Bearer my-jwt-token'
+				}
+			});
+			expect(result).toEqual(expected);
+		});
+
+		it('GET /usage with month param appends query string', async () => {
+			const fetch = mockFetch(200, {
+				month: '2026-01',
+				total_search_requests: 0,
+				total_write_operations: 0,
+				avg_storage_gb: 0,
+				avg_document_count: 0,
+				by_region: []
+			});
+			client.setFetch(fetch);
+
+			await client.getUsage('2026-01');
+
+			expect(fetch).toHaveBeenCalledWith(`${BASE_URL}/usage?month=2026-01`, {
+				method: 'GET',
+				headers: {
+					'Content-Type': 'application/json',
+					Authorization: 'Bearer my-jwt-token'
+				}
+			});
+		});
+
+		it('GET /usage/daily returns daily entries', async () => {
+			const expected: DailyUsageEntry[] = [
+				{
+					date: '2026-02-01',
+					region: 'us-east-1',
+					search_requests: 1000,
+					write_operations: 100,
+					storage_gb: 1.0,
+					document_count: 5000
+				}
+			];
+			const fetch = mockFetch(200, expected);
+			client.setFetch(fetch);
+
+			const result = await client.getUsageDaily();
+
+			expect(fetch).toHaveBeenCalledWith(`${BASE_URL}/usage/daily`, {
+				method: 'GET',
+				headers: {
+					'Content-Type': 'application/json',
+					Authorization: 'Bearer my-jwt-token'
+				}
+			});
+			expect(result).toEqual(expected);
+		});
+
+		it('GET /usage/daily with month param appends query string', async () => {
+			const fetch = mockFetch(200, []);
+			client.setFetch(fetch);
+
+			await client.getUsageDaily('2026-01');
+
+			expect(fetch).toHaveBeenCalledWith(`${BASE_URL}/usage/daily?month=2026-01`, {
+				method: 'GET',
+				headers: {
+					'Content-Type': 'application/json',
+					Authorization: 'Bearer my-jwt-token'
+				}
+			});
+		});
+
+		it('GET /invoices returns list', async () => {
+			const expected: InvoiceListItem[] = [
+				{
+					id: 'inv-1',
+					period_start: '2026-01-01',
+					period_end: '2026-01-31',
+					subtotal_cents: 5000,
+					total_cents: 5000,
+					status: 'draft',
+					minimum_applied: false,
+					created_at: '2026-01-15T00:00:00Z'
+				}
+			];
+			const fetch = mockFetch(200, expected);
+			client.setFetch(fetch);
+
+			const result = await client.getInvoices();
+
+			expect(fetch).toHaveBeenCalledWith(`${BASE_URL}/invoices`, {
+				method: 'GET',
+				headers: {
+					'Content-Type': 'application/json',
+					Authorization: 'Bearer my-jwt-token'
+				}
+			});
+			expect(result).toEqual(expected);
+		});
+
+		it('GET /invoices/:id returns detail', async () => {
+			const fetch = mockFetch(200, { id: 'inv-1', customer_id: 'c-1', line_items: [] });
+			client.setFetch(fetch);
+
+			await client.getInvoice('inv-1');
+
+			expect(fetch).toHaveBeenCalledWith(`${BASE_URL}/invoices/inv-1`, {
+				method: 'GET',
+				headers: {
+					'Content-Type': 'application/json',
+					Authorization: 'Bearer my-jwt-token'
+				}
+			});
+		});
+
+		it('GET /invoices/:id encodes untrusted invoice IDs before building the path', async () => {
+			const fetch = mockFetch(200, { id: 'inv-1', customer_id: 'c-1', line_items: [] });
+			client.setFetch(fetch);
+
+			await client.getInvoice('../usage?month=2026-01');
+
+			expect(fetch).toHaveBeenCalledWith(
+				`${BASE_URL}/invoices/..%2Fusage%3Fmonth%3D2026-01`,
+				expect.any(Object)
+			);
+		});
+
+		it('POST /billing/setup-intent returns client_secret', async () => {
+			const expected: SetupIntentResponse = { client_secret: 'seti_secret_123' };
+			const fetch = mockFetch(200, expected);
+			client.setFetch(fetch);
+
+			const result = await client.createSetupIntent();
+
+			expect(fetch).toHaveBeenCalledWith(`${BASE_URL}/billing/setup-intent`, {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+					Authorization: 'Bearer my-jwt-token'
+				},
+				body: undefined
+			});
+			expect(result).toEqual(expected);
+		});
+
+		it('GET /billing/payment-methods returns list', async () => {
+			const expected: PaymentMethod[] = [
+				{
+					id: 'pm_1',
+					card_brand: 'visa',
+					last4: '4242',
+					exp_month: 12,
+					exp_year: 2027,
+					is_default: true
+				}
+			];
+			const fetch = mockFetch(200, expected);
+			client.setFetch(fetch);
+
+			const result = await client.getPaymentMethods();
+
+			expect(fetch).toHaveBeenCalledWith(`${BASE_URL}/billing/payment-methods`, {
+				method: 'GET',
+				headers: {
+					'Content-Type': 'application/json',
+					Authorization: 'Bearer my-jwt-token'
+				}
+			});
+			expect(result).toEqual(expected);
+		});
+
+		it('DELETE /billing/payment-methods/:pm_id sends correct request', async () => {
+			const fetch = mockFetch(204, {});
+			client.setFetch(fetch);
+
+			await client.deletePaymentMethod('pm_abc');
+
+			expect(fetch).toHaveBeenCalledWith(`${BASE_URL}/billing/payment-methods/pm_abc`, {
+				method: 'DELETE',
+				headers: {
+					'Content-Type': 'application/json',
+					Authorization: 'Bearer my-jwt-token'
+				}
+			});
+		});
+
+		it('DELETE /billing/payment-methods/:pm_id encodes untrusted payment method IDs', async () => {
+			const fetch = mockFetch(204, {});
+			client.setFetch(fetch);
+
+			await client.deletePaymentMethod('../subscription');
+
+			expect(fetch).toHaveBeenCalledWith(
+				`${BASE_URL}/billing/payment-methods/..%2Fsubscription`,
+				expect.any(Object)
+			);
+		});
+
+		it('POST /billing/payment-methods/:pm_id/default sends correct request', async () => {
+			const fetch = mockFetch(204, {});
+			client.setFetch(fetch);
+
+			await client.setDefaultPaymentMethod('pm_xyz');
+
+			expect(fetch).toHaveBeenCalledWith(`${BASE_URL}/billing/payment-methods/pm_xyz/default`, {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+					Authorization: 'Bearer my-jwt-token'
+				},
+				body: undefined
+			});
+		});
+
+		it('POST /billing/payment-methods/:pm_id/default encodes untrusted payment method IDs', async () => {
+			const fetch = mockFetch(204, {});
+			client.setFetch(fetch);
+
+			await client.setDefaultPaymentMethod('../subscription');
+
+			expect(fetch).toHaveBeenCalledWith(
+				`${BASE_URL}/billing/payment-methods/..%2Fsubscription/default`,
+				expect.any(Object)
+			);
+		});
+
+		it('GET /billing/estimate returns estimated bill', async () => {
+			const expected: EstimatedBillResponse = {
+				month: '2026-02',
+				subtotal_cents: 5000,
+				total_cents: 5000,
+				line_items: [
+					{
+						description: 'Search requests',
+						quantity: '10.0',
+						unit: 'requests_1k',
+						unit_price_cents: '50',
+						amount_cents: 500,
+						region: 'us-east-1'
+					}
+				],
+				minimum_applied: false
+			};
+			const fetch = mockFetch(200, expected);
+			client.setFetch(fetch);
+
+			const result = await client.getEstimatedBill();
+
+			expect(fetch).toHaveBeenCalledWith(`${BASE_URL}/billing/estimate`, {
+				method: 'GET',
+				headers: {
+					'Content-Type': 'application/json',
+					Authorization: 'Bearer my-jwt-token'
+				}
+			});
+			expect(result).toEqual(expected);
+		});
+
+		it('GET /billing/estimate with month param appends query string', async () => {
+			const fetch = mockFetch(200, {
+				month: '2026-01',
+				subtotal_cents: 0,
+				total_cents: 500,
+				line_items: [],
+				minimum_applied: true
+			});
+			client.setFetch(fetch);
+
+			await client.getEstimatedBill('2026-01');
+
+			expect(fetch).toHaveBeenCalledWith(`${BASE_URL}/billing/estimate?month=2026-01`, {
+				method: 'GET',
+				headers: {
+					'Content-Type': 'application/json',
+					Authorization: 'Bearer my-jwt-token'
+				}
+			});
+		});
+
+		it('DELETE /billing/payment-methods returns undefined for 204', async () => {
+			const fetch = mockFetch(204, {});
+			client.setFetch(fetch);
+
+			const result = await client.deletePaymentMethod('pm_abc');
+
+			expect(result).toBeUndefined();
+		});
+
+		it('POST /api-keys sends request body with management scopes and returns gridl_live_ key', async () => {
+			const expected: CreateApiKeyResponse = {
+				id: 'key-1',
+				name: 'My Key',
+				key: 'gridl_live_abc123def456abc123def456ab',
+				key_prefix: 'gridl_live_abc12',
+				scopes: ['indexes:read', 'indexes:write'],
+				created_at: '2026-02-15T00:00:00Z'
+			};
+			const fetch = mockFetch(200, expected);
+			client.setFetch(fetch);
+
+			const result = await client.createApiKey({
+				name: 'My Key',
+				scopes: ['indexes:read', 'indexes:write']
+			});
+
+			expect(fetch).toHaveBeenCalledWith(`${BASE_URL}/api-keys`, {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+					Authorization: 'Bearer my-jwt-token'
+				},
+				body: JSON.stringify({ name: 'My Key', scopes: ['indexes:read', 'indexes:write'] })
+			});
+			expect(result).toEqual(expected);
+			expect(result.key).toMatch(/^gridl_live_/);
+		});
+
+		it('GET /api-keys returns list of keys with gridl_live_ prefix', async () => {
+			const expected: ApiKeyListItem[] = [
+				{
+					id: 'key-1',
+					name: 'My Key',
+					key_prefix: 'gridl_live_abc12',
+					scopes: ['search'],
+					last_used_at: null,
+					created_at: '2026-02-15T00:00:00Z'
+				}
+			];
+			const fetch = mockFetch(200, expected);
+			client.setFetch(fetch);
+
+			const result = await client.getApiKeys();
+
+			expect(fetch).toHaveBeenCalledWith(`${BASE_URL}/api-keys`, {
+				method: 'GET',
+				headers: {
+					'Content-Type': 'application/json',
+					Authorization: 'Bearer my-jwt-token'
+				}
+			});
+			expect(result).toEqual(expected);
+			expect(result[0].key_prefix).toMatch(/^gridl_live_/);
+		});
+
+		it('DELETE /api-keys/:id sends correct request', async () => {
+			const fetch = mockFetch(204, {});
+			client.setFetch(fetch);
+
+			const result = await client.deleteApiKey('key-abc');
+
+			expect(fetch).toHaveBeenCalledWith(`${BASE_URL}/api-keys/key-abc`, {
+				method: 'DELETE',
+				headers: {
+					'Content-Type': 'application/json',
+					Authorization: 'Bearer my-jwt-token'
+				}
+			});
+			expect(result).toBeUndefined();
+		});
+
+		it('DELETE /api-keys/:id encodes untrusted API key IDs', async () => {
+			const fetch = mockFetch(204, {});
+			client.setFetch(fetch);
+
+			await client.deleteApiKey('../billing/subscription');
+
+			expect(fetch).toHaveBeenCalledWith(
+				`${BASE_URL}/api-keys/..%2Fbilling%2Fsubscription`,
+				expect.any(Object)
+			);
+		});
+
+		it('GET /account returns customer profile', async () => {
+			const expected: CustomerProfileResponse = {
+				id: 'cust-1',
+				name: 'Alice',
+				email: 'alice@example.com',
+				email_verified: true,
+				billing_plan: 'free',
+				created_at: '2026-01-15T00:00:00Z'
+			};
+			const fetch = mockFetch(200, expected);
+			client.setFetch(fetch);
+
+			const result = await client.getProfile();
+
+			expect(fetch).toHaveBeenCalledWith(`${BASE_URL}/account`, {
+				method: 'GET',
+				headers: {
+					'Content-Type': 'application/json',
+					Authorization: 'Bearer my-jwt-token'
+				}
+			});
+			expect(result).toEqual(expected);
+		});
+
+		it('PATCH /account sends name update', async () => {
+			const expected: CustomerProfileResponse = {
+				id: 'cust-1',
+				name: 'New Name',
+				email: 'alice@example.com',
+				email_verified: true,
+				billing_plan: 'free',
+				created_at: '2026-01-15T00:00:00Z'
+			};
+			const fetch = mockFetch(200, expected);
+			client.setFetch(fetch);
+
+			const result = await client.updateProfile({ name: 'New Name' });
+
+			expect(fetch).toHaveBeenCalledWith(`${BASE_URL}/account`, {
+				method: 'PATCH',
+				headers: {
+					'Content-Type': 'application/json',
+					Authorization: 'Bearer my-jwt-token'
+				},
+				body: JSON.stringify({ name: 'New Name' })
+			});
+			expect(result).toEqual(expected);
+		});
+
+		it('POST /account/change-password sends password change', async () => {
+			const fetch = mockFetch(204, {});
+			client.setFetch(fetch);
+
+			await client.changePassword({
+				current_password: 'oldpass',
+				new_password: 'newpass123'
+			});
+
+			expect(fetch).toHaveBeenCalledWith(`${BASE_URL}/account/change-password`, {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+					Authorization: 'Bearer my-jwt-token'
+				},
+				body: JSON.stringify({ current_password: 'oldpass', new_password: 'newpass123' })
+			});
+		});
+
+		it('DELETE /account sends password re-auth payload', async () => {
+			const fetch = mockFetch(204, {});
+			client.setFetch(fetch);
+
+			const result = await client.deleteAccount('current-password-123');
+
+			expect(fetch).toHaveBeenCalledWith(`${BASE_URL}/account`, {
+				method: 'DELETE',
+				headers: {
+					'Content-Type': 'application/json',
+					Authorization: 'Bearer my-jwt-token'
+				},
+				body: JSON.stringify({ password: 'current-password-123' })
+			});
+			expect(result).toBeUndefined();
+		});
+
+		it('GET /allyourbase/instances includes auth header and returns instance rows', async () => {
+			const expected: AybInstance[] = [
+				{
+					id: '8df00b9f-cf30-4300-bfd4-8f25ca5da39b',
+					ayb_slug: 'acme-primary',
+					ayb_cluster_id: 'cluster-01',
+					ayb_url: 'https://acme-primary.allyourbase.cloud',
+					status: 'ready',
+					plan: 'starter',
+					created_at: '2026-03-17T00:00:00Z',
+					updated_at: '2026-03-17T01:00:00Z'
+				}
+			];
+			const fetch = mockFetch(200, expected);
+			client.setFetch(fetch);
+
+			const result = await client.getAybInstances();
+
+			expect(fetch).toHaveBeenCalledWith(`${BASE_URL}/allyourbase/instances`, {
+				method: 'GET',
+				headers: {
+					'Content-Type': 'application/json',
+					Authorization: 'Bearer my-jwt-token'
+				}
+			});
+			expect(result).toEqual(expected);
+		});
+
+		it('POST /allyourbase/instances sends the create payload and returns the created instance', async () => {
+			const payload: CreateAybInstanceRequest = {
+				name: 'Acme Primary',
+				slug: 'acme-primary',
+				plan: 'starter'
+			};
+			const expected: AybInstance = {
+				id: '8df00b9f-cf30-4300-bfd4-8f25ca5da39b',
+				ayb_slug: 'acme-primary',
+				ayb_cluster_id: 'cluster-01',
+				ayb_url: 'https://acme-primary.allyourbase.cloud',
+				status: 'provisioning',
+				plan: 'starter',
+				created_at: '2026-03-22T00:00:00Z',
+				updated_at: '2026-03-22T00:00:00Z'
+			};
+			const fetch = mockFetch(201, expected);
+			client.setFetch(fetch);
+
+			const result = await client.createAybInstance(payload);
+
+			expect(fetch).toHaveBeenCalledWith(`${BASE_URL}/allyourbase/instances`, {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+					Authorization: 'Bearer my-jwt-token'
+				},
+				body: JSON.stringify(payload)
+			});
+			expect(result).toEqual(expected);
+		});
+
+		it('DELETE /allyourbase/instances/:id returns undefined for 204', async () => {
+			const fetch = mockFetch(204, {});
+			client.setFetch(fetch);
+
+			const result = await client.deleteAybInstance('8df00b9f-cf30-4300-bfd4-8f25ca5da39b');
+
+			expect(fetch).toHaveBeenCalledWith(
+				`${BASE_URL}/allyourbase/instances/8df00b9f-cf30-4300-bfd4-8f25ca5da39b`,
+				{
+					method: 'DELETE',
+					headers: {
+						'Content-Type': 'application/json',
+						Authorization: 'Bearer my-jwt-token'
+					}
+				}
+			);
+			expect(result).toBeUndefined();
+		});
+
+		it('DELETE /allyourbase/instances/:id surfaces 503 as ApiRequestError', async () => {
+			const fetch = mockFetch(503, { error: 'service_not_configured' });
+			client.setFetch(fetch);
+
+			await expect(
+				client.deleteAybInstance('8df00b9f-cf30-4300-bfd4-8f25ca5da39b')
+			).rejects.toMatchObject({
+				name: 'ApiRequestError',
+				status: 503,
+				message: 'service_not_configured'
+			});
+		});
+	});
+
+	describe('error handling', () => {
+		it('throws ApiRequestError on non-ok response', async () => {
+			const fetch = mockFetch(409, { error: 'email already registered' });
+			client.setFetch(fetch);
+
+			await expect(
+				client.register({ name: 'A', email: 'dup@test.com', password: '12345678' })
+			).rejects.toThrow(ApiRequestError);
+		});
+
+		it('ApiRequestError contains status and message from response', async () => {
+			const fetch = mockFetch(400, { error: 'invalid email' });
+			client.setFetch(fetch);
+
+			try {
+				await client.login({ email: 'bad', password: 'x' });
+				expect.fail('should have thrown');
+			} catch (e) {
+				expect(e).toBeInstanceOf(ApiRequestError);
+				const err = e as ApiRequestError;
+				expect(err.status).toBe(400);
+				expect(err.message).toBe('invalid email');
+			}
+		});
+
+		it('ApiRequestError preserves x-request-id and response headers from backend errors', async () => {
+			const fetch = vi.fn().mockResolvedValue(
+				new Response(JSON.stringify({ error: 'service unavailable' }), {
+					status: 503,
+					headers: {
+						'content-type': 'application/json',
+						'x-request-id': 'req-test-123'
+					}
+				})
+			);
+			client.setFetch(fetch);
+
+			try {
+				await client.healthCheck();
+				expect.fail('should have thrown');
+			} catch (e) {
+				expect(e).toBeInstanceOf(ApiRequestError);
+				const err = e as ApiRequestError;
+				expect(err.status).toBe(503);
+				expect(err.message).toBe('service unavailable');
+				expect(err.requestId).toBe('req-test-123');
+				expect(err.headers?.get('x-request-id')).toBe('req-test-123');
+			}
+		});
+
+		it('falls back to unknown error when non-JSON error response is returned', async () => {
+			const fetch = vi.fn().mockResolvedValue(
+				new Response('this-is-not-json', {
+					status: 502,
+					headers: {
+						'content-type': 'application/json',
+						'x-request-id': 'req-test-nonjson-456'
+					}
+				})
+			);
+			client.setFetch(fetch);
+
+			try {
+				await client.healthCheck();
+				expect.fail('should have thrown');
+			} catch (e) {
+				expect(e).toBeInstanceOf(ApiRequestError);
+				const err = e as ApiRequestError;
+				expect(err.status).toBe(502);
+				expect(err.message).toBe('unknown error');
+				expect(err.requestId).toBe('req-test-nonjson-456');
+				expect(err.headers?.get('x-request-id')).toBe('req-test-nonjson-456');
+			}
+		});
+
+		it('handles network errors gracefully', async () => {
+			const fetch = vi.fn().mockRejectedValue(new Error('network failure'));
+			client.setFetch(fetch);
+
+			await expect(client.healthCheck()).rejects.toThrow('network failure');
+		});
+	});
+
+	describe('health check', () => {
+		it('GET /health with no auth', async () => {
+			const fetch = mockFetch(200, { status: 'ok' });
+			client.setFetch(fetch);
+
+			await client.healthCheck();
+
+			expect(fetch).toHaveBeenCalledWith(`${BASE_URL}/health`, {
+				method: 'GET',
+				headers: { 'Content-Type': 'application/json' }
+			});
+		});
+	});
+
+	describe('pricing comparison (public)', () => {
+		const validWorkload: PricingCompareRequest = {
+			document_count: 100_000,
+			avg_document_size_bytes: 2048,
+			search_requests_per_month: 1_000_000,
+			write_operations_per_month: 50_000,
+			sort_directions: 2,
+			num_indexes: 1,
+			high_availability: false
+		};
+
+		const sampleResponse: PricingCompareResponse = {
+			workload: validWorkload,
+			estimates: [
+				{
+					provider: 'Algolia',
+					monthly_total_cents: 50000,
+					line_items: [
+						{
+							description: 'Search requests',
+							quantity: '1000.0',
+							unit: 'searches_1k',
+							unit_price_cents: '50',
+							amount_cents: 50000
+						}
+					],
+					assumptions: ['Standard pricing'],
+					plan_name: 'Pro'
+				}
+			],
+			generated_at: '2026-03-18T00:00:00Z'
+		};
+
+		it('POST /pricing/compare sends workload and returns comparison result', async () => {
+			const fetch = mockFetch(200, sampleResponse);
+			client.setFetch(fetch);
+
+			const result = await client.comparePricing(validWorkload);
+
+			expect(fetch).toHaveBeenCalledWith(`${BASE_URL}/pricing/compare`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify(validWorkload)
+			});
+			expect(result).toEqual(sampleResponse);
+		});
+
+		it('POST /pricing/compare omits auth header even for an authenticated client', async () => {
+			const authenticatedClient = createAuthenticatedClient();
+			const fetch = mockFetch(200, sampleResponse);
+			authenticatedClient.setFetch(fetch);
+
+			await authenticatedClient.comparePricing(validWorkload);
+
+			expect(fetch).toHaveBeenCalledWith(`${BASE_URL}/pricing/compare`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify(validWorkload)
+			});
+		});
+
+		it('response contains estimates sorted cheapest-first', async () => {
+			const multiEstimateResponse: PricingCompareResponse = {
+				workload: validWorkload,
+				estimates: [
+					{
+						provider: 'TypesenseCloud',
+						monthly_total_cents: 3000,
+						line_items: [],
+						assumptions: [],
+						plan_name: null
+					},
+					{
+						provider: 'Algolia',
+						monthly_total_cents: 50000,
+						line_items: [],
+						assumptions: [],
+						plan_name: 'Pro'
+					}
+				],
+				generated_at: '2026-03-18T00:00:00Z'
+			};
+			const fetch = mockFetch(200, multiEstimateResponse);
+			client.setFetch(fetch);
+
+			const result = await client.comparePricing(validWorkload);
+
+			expect(result.estimates.length).toBeGreaterThanOrEqual(2);
+			for (let i = 1; i < result.estimates.length; i++) {
+				expect(result.estimates[i].monthly_total_cents).toBeGreaterThanOrEqual(
+					result.estimates[i - 1].monthly_total_cents
+				);
+			}
+		});
+
+		it('throws ApiRequestError on 400 validation error', async () => {
+			const fetch = mockFetch(400, { error: 'document_count must be positive' });
+			client.setFetch(fetch);
+
+			await expect(
+				client.comparePricing({ ...validWorkload, document_count: -1 })
+			).rejects.toMatchObject({
+				name: 'ApiRequestError',
+				status: 400,
+				message: 'document_count must be positive'
+			});
+		});
+
+		it('throws ApiRequestError on 422 for malformed request', async () => {
+			const fetch = mockFetch(422, { error: 'missing required fields' });
+			client.setFetch(fetch);
+
+			// Simulate a partial workload that would fail server-side
+			await expect(client.comparePricing(validWorkload)).rejects.toMatchObject({
+				name: 'ApiRequestError',
+				status: 422
+			});
+		});
+	});
+
+	describe('onboarding endpoints', () => {
+		beforeEach(() => {
+			client = createAuthenticatedClient();
+		});
+
+		it('GET /onboarding/status returns onboarding state', async () => {
+			const expected: OnboardingStatus = {
+				has_payment_method: true,
+				has_region: true,
+				region_ready: true,
+				has_index: true,
+				has_api_key: true,
+				completed: true,
+				billing_plan: 'free',
+				free_tier_limits: {
+					max_searches_per_month: 50000,
+					max_records: 100000,
+					max_storage_gb: 10,
+					max_indexes: 1
+				},
+				flapjack_url: 'https://vm-abc.flapjack.foo',
+				suggested_next_step: "You're all set!"
+			};
+			const fetch = mockFetch(200, expected);
+			client.setFetch(fetch);
+
+			const result = await client.getOnboardingStatus();
+
+			expect(fetch).toHaveBeenCalledWith(`${BASE_URL}/onboarding/status`, {
+				method: 'GET',
+				headers: { 'Content-Type': 'application/json', Authorization: 'Bearer my-jwt-token' }
+			});
+			expect(result).toEqual(expected);
+		});
+
+		it('POST /onboarding/credentials returns credentials', async () => {
+			const expected: FlapjackCredentials = {
+				endpoint: 'https://vm-abc.flapjack.foo',
+				api_key: 'fj_search_abc123',
+				application_id: 'flapjack'
+			};
+			const fetch = mockFetch(200, expected);
+			client.setFetch(fetch);
+
+			const result = await client.generateCredentials();
+
+			expect(fetch).toHaveBeenCalledWith(`${BASE_URL}/onboarding/credentials`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json', Authorization: 'Bearer my-jwt-token' },
+				body: undefined
+			});
+			expect(result).toEqual(expected);
+		});
+	});
+});

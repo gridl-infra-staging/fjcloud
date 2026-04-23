@@ -1,0 +1,249 @@
+/**
+ * Full — Admin Page Shells + Admin Workflows
+ *
+ * Smoke coverage for admin routes not covered by fleet.spec.ts,
+ * plus row-level quick-action control coverage.
+ * Each shell test proves the route renders its heading plus the primary
+ * table or deterministic empty state.
+ *
+ * Detail-page suspend/reactivate and impersonation workflows live in
+ * customer-detail.spec.ts (the single owner for those flows).
+ *
+ * Auth: uses .auth/admin.json (loaded via chromium:admin project).
+ * Fleet.spec.ts remains the sole owner of nav inventory, login-page,
+ * and unauthenticated-redirect coverage.
+ */
+
+import { expect, test } from '../../../fixtures/fixtures';
+import type { Locator, Page } from '@playwright/test';
+
+// ---------------------------------------------------------------------------
+// Helper: navigate to an admin page via sidebar link or direct goto.
+// Sidebar clicks are route-entry steps, not nav inventory assertions.
+// ---------------------------------------------------------------------------
+
+async function navigateToAdminPage(page: Page, path: string, heading: string): Promise<void> {
+	await page.goto(path);
+	await expect(page.getByRole('heading', { name: heading })).toBeVisible();
+}
+
+async function waitForBillingSectionsToResolve(page: Page): Promise<{
+	failedRows: Locator;
+	draftRows: Locator;
+	failedEmptyState: Locator;
+	draftEmptyState: Locator;
+}> {
+	const failedSection = page.getByTestId('failed-invoices-section');
+	const draftSection = page.getByTestId('draft-invoices-section');
+	const failedRows = page.getByTestId('failed-invoice-row');
+	const draftRows = page.getByTestId('draft-invoice-row');
+	const failedEmptyState = failedSection.getByText('No failed invoices.');
+	const draftEmptyState = draftSection.getByText('No draft invoices awaiting finalization.');
+
+	// Wait for each billing section to resolve before treating missing rows as a seeded-data blocker.
+	await expect
+		.poll(async () => (await failedRows.count()) + (await failedEmptyState.count()), {
+			message: 'failed invoice section should render either seeded rows or its empty state'
+		})
+		.toBeGreaterThan(0);
+	await expect
+		.poll(async () => (await draftRows.count()) + (await draftEmptyState.count()), {
+			message: 'draft invoice section should render either seeded rows or its empty state'
+		})
+		.toBeGreaterThan(0);
+
+	return { failedRows, draftRows, failedEmptyState, draftEmptyState };
+}
+
+// ---------------------------------------------------------------------------
+// Nav-backed pages: Customers, Migrations, Replicas
+// ---------------------------------------------------------------------------
+
+test.describe('Admin page shells — nav-backed', () => {
+	test('Customers page renders heading and table or empty state', async ({ page }) => {
+		await navigateToAdminPage(page, '/admin/customers', 'Customer Management');
+
+		// Assert table body OR empty-state text — one must be visible
+		const tableBody = page.getByTestId('customers-table-body');
+		const emptyState = page.getByText('No customers found.');
+		await expect(tableBody.or(emptyState)).toBeVisible();
+	});
+
+	test('Migrations page renders heading and active/recent sections', async ({ page }) => {
+		await navigateToAdminPage(page, '/admin/migrations', 'Migration Management');
+
+		// Active migrations section: table or empty state
+		const activeTable = page.getByTestId('active-migrations-table');
+		const activeEmpty = page.getByText('No active migrations.');
+		await expect(activeTable.or(activeEmpty)).toBeVisible();
+
+		// Recent migrations section: table or empty state
+		const recentTable = page.getByTestId('recent-migrations-table');
+		const recentEmpty = page.getByText('No recent migrations.');
+		await expect(recentTable.or(recentEmpty)).toBeVisible();
+	});
+
+	test('Replicas page renders heading and table or empty state', async ({ page }) => {
+		await navigateToAdminPage(page, '/admin/replicas', 'Replica Management');
+
+		const tableBody = page.getByTestId('replicas-table-body');
+		const emptyState = page.getByText('No replicas found.');
+		await expect(tableBody.or(emptyState)).toBeVisible();
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Remaining pages: Billing, Alerts, Cold Storage
+// ---------------------------------------------------------------------------
+
+test.describe('Admin page shells — remaining', () => {
+	test('Billing page renders seeded failed and draft invoice row content', async ({ page }) => {
+		await navigateToAdminPage(page, '/admin/billing', 'Billing Review');
+
+		await expect(page.getByTestId('failed-invoices-section')).toBeVisible();
+		await expect(page.getByTestId('draft-invoices-section')).toBeVisible();
+		const { failedRows, draftRows, failedEmptyState, draftEmptyState } =
+			await waitForBillingSectionsToResolve(page);
+
+		if (await failedRows.count()) {
+			const failedRow = failedRows.first();
+			await expect(failedRow.getByTestId('failed-invoice-customer')).toHaveText(/\S+/);
+			await expect(failedRow.getByTestId('failed-invoice-email')).toHaveText(/@/);
+			await expect(failedRow.getByTestId('failed-invoice-amount')).toHaveText(/^\$\d/);
+		} else {
+			await expect(failedEmptyState).toBeVisible();
+		}
+
+		if (await draftRows.count()) {
+			const draftRow = draftRows.first();
+			await expect(draftRow.getByTestId('draft-invoice-customer')).toHaveText(/\S+/);
+			await expect(draftRow.getByTestId('draft-invoice-email')).toHaveText(/@/);
+			await expect(draftRow.getByTestId('draft-invoice-amount')).toHaveText(/^\$\d/);
+		} else {
+			await expect(draftEmptyState).toBeVisible();
+		}
+	});
+
+	test('Billing Run Billing flow renders visible confirmation text', async ({ page }) => {
+		await navigateToAdminPage(page, '/admin/billing', 'Billing Review');
+
+		await page.getByTestId('run-billing-button').click();
+		await expect(page.getByTestId('confirm-billing-button')).toBeVisible();
+		await page.getByLabel('Billing month').fill('2026-02');
+		await page.getByTestId('confirm-billing-button').click();
+		await expect(page.getByTestId('billing-feedback-message')).toContainText('Billing complete');
+	});
+
+	test('Billing Bulk Finalize flow renders visible confirmation text', async ({ page }) => {
+		await navigateToAdminPage(page, '/admin/billing', 'Billing Review');
+		const { draftRows, draftEmptyState } = await waitForBillingSectionsToResolve(page);
+
+		if (await draftRows.count()) {
+			await page.getByTestId('bulk-finalize-button').click();
+			await expect(page.getByTestId('billing-feedback-message')).toContainText(
+				'Bulk finalize complete'
+			);
+		} else {
+			await expect(page.getByTestId('bulk-finalize-button')).toHaveCount(0);
+			await expect(draftEmptyState).toBeVisible();
+		}
+	});
+
+	test('Alerts page renders heading and table or empty state', async ({ page }) => {
+		await navigateToAdminPage(page, '/admin/alerts', 'Alerts');
+
+		const tableBody = page.getByTestId('alerts-table-body');
+		const emptyState = page.getByText('No alerts found.');
+		await expect(tableBody.or(emptyState)).toBeVisible();
+	});
+
+	test('Cold Storage page renders heading and table or empty state', async ({ page }) => {
+		// Cold Storage has no sidebar nav item — go directly
+		await page.goto('/admin/cold');
+
+		await expect(page.getByRole('heading', { name: 'Cold Storage' })).toBeVisible();
+
+		const tableBody = page.getByTestId('cold-table-body');
+		const emptyState = page.getByText('No indexes in cold storage.');
+		await expect(tableBody.or(emptyState)).toBeVisible();
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Helper: navigate to customers page, search for a specific seeded customer,
+// and return the matching row once it is visible.
+// ---------------------------------------------------------------------------
+
+async function findCustomerRow(
+	page: Page,
+	customerName: string,
+	status: 'active' | 'suspended' | 'deleted'
+): Promise<import('@playwright/test').Locator> {
+	const customerRow = (): Locator =>
+		page
+			.getByTestId('customers-table-body')
+			.getByRole('row')
+			.filter({ has: page.getByRole('link', { name: customerName }) })
+			.first();
+
+	await expect(async () => {
+		await navigateToAdminPage(page, '/admin/customers', 'Customer Management');
+		await page.getByTestId('status-filter').selectOption(status);
+		await page.getByTestId('customer-search').fill(customerName);
+		await expect(customerRow().getByRole('link', { name: customerName })).toBeVisible({
+			timeout: 10_000
+		});
+	}).toPass({
+		intervals: [1_000, 2_000, 3_000, 4_000],
+		timeout: 30_000
+	});
+
+	return customerRow();
+}
+
+// ---------------------------------------------------------------------------
+// Customer quick actions and status-gated controls
+// ---------------------------------------------------------------------------
+
+test.describe('Admin customer actions', () => {
+	test('Active customer row shows quick-suspend and quick-impersonate', async ({
+		page,
+		createUser
+	}) => {
+		const seed = Date.now();
+		const customerName = `Admin Pages Active ${seed}`;
+		await createUser(
+			`admin-pages-active-${seed}@e2e.griddle.test`,
+			'TestPassword123!',
+			customerName
+		);
+		const row = await findCustomerRow(page, customerName, 'active');
+
+		// Active rows must show both quick-suspend and quick-impersonate
+		await expect(row.getByTestId('quick-suspend')).toBeVisible();
+		await expect(row.getByTestId('quick-impersonate')).toBeVisible();
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Customer list data truthfulness
+// ---------------------------------------------------------------------------
+
+test.describe('Admin customer list truthfulness', () => {
+	test('Customer row renders "—" for unavailable index count and truthful invoice status', async ({
+		page,
+		createUser
+	}) => {
+		const seed = Date.now();
+		const customerName = `Admin Truthful ${seed}`;
+		await createUser(`admin-truthful-${seed}@e2e.griddle.test`, 'TestPassword123!', customerName);
+		const row = await findCustomerRow(page, customerName, 'active');
+
+		// No admin index-count endpoint exists — column must render "—"
+		await expect(row.getByTestId('index-count')).toHaveText('—');
+
+		// Single source of truth: the loader returns the explicit "none" sentinel
+		// when invoice data is available but the customer has zero invoices.
+		await expect(row.getByTestId('invoice-status')).toHaveText('none');
+	});
+});

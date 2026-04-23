@@ -1,0 +1,20 @@
+{
+  "identities": [
+    {
+      "name": "griddle_local",
+      "credentials": [
+        {
+          "accessKey": "griddle_local_s3",
+          "secretKey": "griddle_local_s3_secret"
+        }
+      ],
+      "actions": [
+        "Admin",
+        "Read",
+        "List",
+        "Tagging",
+        "Write"
+      ]
+    }
+  ]
+}

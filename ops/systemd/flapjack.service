@@ -1,0 +1,32 @@
+[Unit]
+Description=Flapjack Search Engine
+Documentation=https://github.com/gridl/flapjack_dev
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=exec
+User=flapjack
+Group=flapjack
+
+WorkingDirectory=/var/lib/flapjack
+EnvironmentFile=/etc/flapjack/env
+ExecStart=/usr/local/bin/flapjack
+
+Restart=always
+RestartSec=5
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/flapjack /var/log/flapjack
+PrivateTmp=true
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=flapjack
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,21 @@
+{"command":"preflight:aws_creds","timestamp":"2026-02-27T07:36:45Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"preflight:ami_exists","timestamp":"2026-02-27T07:36:45Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"preflight:dns_delegation","timestamp":"2026-02-27T07:36:45Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"terraform plan","timestamp":"2026-02-27T07:36:45Z","verdict":"PASS","output":"plan captured","artifact_path":"/Users/stuart/repos/gridl/fjcloud/ops/terraform/artifacts/plan_staging_20260227T073645Z.txt"}
+{"command":"assert:acm_cert_issued","timestamp":"2026-02-27T07:36:45Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"runtime:alb_no_listener","timestamp":"2026-02-27T07:36:45Z","verdict":"FAIL","output":"ALB 'fjcloud-staging-alb' has no HTTPS listener on port 443.","artifact_path":""}
+{"command":"preflight:aws_creds","timestamp":"2026-02-27T07:36:45Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"preflight:ami_exists","timestamp":"2026-02-27T07:36:45Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"preflight:dns_delegation","timestamp":"2026-02-27T07:36:45Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"terraform plan","timestamp":"2026-02-27T07:36:45Z","verdict":"PASS","output":"plan captured","artifact_path":"/Users/stuart/repos/gridl/fjcloud/ops/terraform/artifacts/plan_staging_20260227T073645Z.txt"}
+{"command":"assert:acm_cert_issued","timestamp":"2026-02-27T07:36:45Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"assert:alb_https_listener","timestamp":"2026-02-27T07:36:45Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"runtime:tg_unhealthy","timestamp":"2026-02-27T07:36:45Z","verdict":"FAIL","output":"Target group 'fjcloud-staging-api-tg' has no healthy targets.","artifact_path":""}
+{"command":"preflight:aws_creds","timestamp":"2026-02-27T07:36:46Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"preflight:ami_exists","timestamp":"2026-02-27T07:36:46Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"preflight:dns_delegation","timestamp":"2026-02-27T07:36:46Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"terraform plan","timestamp":"2026-02-27T07:36:46Z","verdict":"PASS","output":"plan captured","artifact_path":"/Users/stuart/repos/gridl/fjcloud/ops/terraform/artifacts/plan_staging_20260227T073645Z.txt"}
+{"command":"assert:acm_cert_issued","timestamp":"2026-02-27T07:36:46Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"assert:alb_https_listener","timestamp":"2026-02-27T07:36:46Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"assert:target_group_healthy","timestamp":"2026-02-27T07:36:46Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"runtime:health_fail","timestamp":"2026-02-27T07:36:46Z","verdict":"FAIL","output":"Health endpoint https://api.flapjack.cloud/health did not return 200 after 1 attempts.","artifact_path":""}

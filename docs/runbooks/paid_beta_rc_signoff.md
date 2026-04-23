@@ -1,0 +1,140 @@
+# Paid-Beta RC Signoff Runbook
+
+Reusable operator runbook for the paid-beta RC coordinator path in
+`scripts/launch/run_full_backend_validation.sh`.
+
+## Purpose
+
+- Run the coordinator in a way that preserves existing `--dry-run --sha=<GIT_SHA>` behavior.
+- Interpret operator-facing JSON output for paid-beta RC mode.
+- Route each delegated proof to its canonical owner doc/script instead of copying internals.
+
+## Out Of Scope
+
+- Browser environment setup details beyond the owner scripts/runbooks.
+- Terraform provisioning internals beyond owner scripts/runbooks.
+- Live credential provisioning, secret creation, or secret rotation.
+- Dated evidence snapshots and command transcripts in this runbook.
+- Rewriting blocker priority wording in `ROADMAP.md` or `PRIORITIES.md`.
+
+## Operator Prerequisites
+
+- Run from repo root with `bash`, `python3`, and the project scripts available.
+- Choose a commit SHA and pass it explicitly (`--sha=<GIT_SHA>`).
+- For required credentialed proofs, provide:
+  - readable `--credential-env-file=<path>` outside git
+  - `--billing-month=<YYYY-MM>`
+  - `--staging-smoke-ami-id=<ami-id>`
+- Keep secrets out of docs and terminal transcripts committed to git.
+
+## Canonical Coordinator Commands
+
+Dry-run compatibility command:
+
+```bash
+bash scripts/launch/run_full_backend_validation.sh --dry-run --sha=<GIT_SHA>
+```
+
+Paid-beta RC coordinator command:
+
+```bash
+bash scripts/launch/run_full_backend_validation.sh \
+  --paid-beta-rc \
+  --sha=<GIT_SHA> \
+  --artifact-dir=<dir> \
+  --credential-env-file=<path> \
+  --billing-month=<YYYY-MM> \
+  --staging-smoke-ami-id=<ami-id>
+```
+
+The RC mode syntax above mirrors the script usage contract in
+`scripts/launch/run_full_backend_validation.sh`.
+
+## Operator-Facing JSON Interpretation
+
+Interpret the final JSON payload as follows:
+
+- `mode=paid_beta_rc`: confirms RC mode output.
+- `ready`: readiness gate result for required proofs.
+- `verdict`: overall verdict (`pass` or `fail`).
+- `steps[]`: ordered proof results with per-step `status`, `reason`, and elapsed time.
+- Step status values:
+  - `pass`: proof succeeded.
+  - `fail`: proof executed and failed.
+  - `blocked`: proof could not run because required inputs/credentials were missing.
+
+Required proof rule: if a required proof is `blocked`, readiness is not achieved.
+That run must remain `ready=false` with a failing verdict.
+local_signoff is useful local evidence only.
+local webhook replay acceptance is local/mock evidence only.
+local/mock pass results do not satisfy credentialed billing/webhook/SES proof.
+
+Current paid-beta RC step names are validated by the coordinator output and the
+Stage 2 coverage in `scripts/tests/full_backend_validation_test.sh` (see the
+paid-beta RC pass-path assertions), not this runbook. Current names:
+
+- `cargo_workspace_tests`
+- `backend_launch_gate`
+- `local_signoff`
+- `ses_readiness`
+- `staging_billing_rehearsal`
+- `browser_preflight`
+- `browser_auth_setup`
+- `terraform_static_guardrails`
+- `staging_runtime_smoke`
+
+## Delegated Proof Owners
+
+Use owner artifacts below instead of duplicating step internals here:
+
+- Local signoff:
+  - `docs/runbooks/local-dev.md`
+  - `docs/LOCAL_LAUNCH_READINESS.md`
+- SES readiness:
+  - `docs/runbooks/email-production.md`
+  - `scripts/validate_ses_readiness.sh`
+- Staging billing rehearsal:
+  - `docs/runbooks/staging_billing_dry_run.md`
+  - `scripts/staging_billing_rehearsal.sh`
+- Webhook proof boundaries:
+  - local webhook replay acceptance is local/mock evidence only: `scripts/stripe_webhook_replay_fixture.sh`
+  - credentialed live webhook proof must come from: `scripts/launch/live_e2e_evidence.sh` and `docs/runbooks/aws_live_e2e_guardrails.md`
+- Browser preflight and auth setup:
+  - `scripts/e2e-preflight.sh`
+  - `scripts/launch/run_full_backend_validation.sh` (browser delegated command builders, including auth setup wiring)
+- Terraform static and runtime smoke:
+  - `ops/terraform/tests_stage7_static.sh`
+  - `ops/terraform/tests_stage8_static.sh`
+  - `ops/terraform/tests_stage7_runtime_smoke.sh`
+  - `docs/runbooks/infra-terraform-apply.md`
+
+Credentialed SES, billing, runtime-smoke, and live webhook proof must come from
+their canonical owner scripts/artifacts before RC readiness can pass.
+
+## Current Blocker Reasons Emitted By The Coordinator
+
+The reasons below are current machine-readable emissions from
+`scripts/launch/run_full_backend_validation.sh` and should be interpreted as
+coordinator output, not rewritten by this runbook.
+
+- SES delegated proof blockers:
+  - `credentialed_ses_identity_missing`
+  - `credentialed_env_file_missing`
+  - `credentialed_env_file_parse_failed`
+- Staging billing rehearsal blockers:
+  - `credentialed_billing_env_file_missing`
+  - `credentialed_billing_month_missing`
+  - delegated billing classifications from `scripts/staging_billing_rehearsal.sh`
+    (passed through when the delegated summary reports blocked/failed)
+- Staging runtime smoke blocker:
+  - `credentialed_staging_smoke_inputs_missing`
+
+If any required proof is blocked, keep the run in `ready=false`; do not treat a
+blocked required proof as ready/pass.
+
+## Evidence Safety
+
+- Do not paste credential values, account identifiers, or live command transcripts here.
+- Do not add dated RC evidence snapshots in this runbook.
+- For dated live DNS/HTTPS/SES status, use `docs/runbooks/staging-evidence.md`
+  as the current evidence authority.

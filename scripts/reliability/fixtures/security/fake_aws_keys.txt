@@ -1,0 +1,7 @@
+# This is a FAKE secret for testing purposes only - DO NOT USE
+# This file exists to validate the secret scan detection in Stage 4
+AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE
+AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+STRIPE_SECRET_LIVE=sk_live_abcdefghijklmnopqrstuvwxyz1234567890
+STRIPE_SECRET_TEST=sk_test_ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890
+FLAPJACK_SECRET=fj_abcdefghijklmnopqrstuvwxyz1234567890

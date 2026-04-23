@@ -1,0 +1,23 @@
+{
+  "cleanup_lifecycle": {
+    "delete_command": "aws rds delete-db-instance --region us-east-1 --no-cli-pager --db-instance-identifier fjcloud-staging-restore-20260422213307 --skip-final-snapshot --delete-automated-backups",
+    "delete_confirmed_absent_via": "aws rds describe-db-instances --region us-east-1 --no-cli-pager --db-instance-identifier fjcloud-staging-restore-20260422213307",
+    "delete_confirmed_at_utc": "2026-04-22T22:07:21.533915+00:00",
+    "delete_requested_at_utc": "2026-04-22T22:04:59.668919+00:00",
+    "phase": "cleanup",
+    "sql_skip_reason": "wrapper poll did not reach available; summary status=fail",
+    "sql_verification": "skipped",
+    "status": "completed",
+    "target_db_instance_id": "fjcloud-staging-restore-20260422213307"
+  },
+  "env": "staging",
+  "reason": "target did not become available within 1800s",
+  "restore_command": "aws rds restore-db-instance-to-point-in-time --region us-east-1 --source-db-instance-identifier fjcloud-staging --target-db-instance-identifier fjcloud-staging-restore-20260422213307 --restore-time 2026-04-22T21:29:35+00:00 ",
+  "restore_mode": "pitr",
+  "result": "fail",
+  "source_db_instance_id": "fjcloud-staging",
+  "status": "fail",
+  "target_db_instance_id": "fjcloud-staging-restore-20260422213307",
+  "target_endpoint": "fjcloud-staging-restore-20260422213307.*.us-east-1.rds.amazonaws.com",
+  "target_status": "backing-up"
+}

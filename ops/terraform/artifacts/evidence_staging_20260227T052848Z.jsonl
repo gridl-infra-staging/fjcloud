@@ -1,0 +1,5 @@
+{"command":"preflight:aws_creds","timestamp":"2026-02-27T05:28:48Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"preflight:ami_exists","timestamp":"2026-02-27T05:28:48Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"runtime:rollback_fail","timestamp":"2026-02-27T05:28:48Z","verdict":"FAIL","output":"Rollback to SHA b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3 failed for environment staging.","artifact_path":""}
+{"command":"preflight:aws_creds","timestamp":"2026-02-27T05:28:48Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"preflight:ami_exists","timestamp":"2026-02-27T05:28:48Z","verdict":"PASS","output":"","artifact_path":""}

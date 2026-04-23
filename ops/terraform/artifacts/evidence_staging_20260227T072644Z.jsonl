@@ -1,0 +1,10 @@
+{"command":"preflight:aws_creds","timestamp":"2026-02-27T07:26:44Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"preflight:ami_exists","timestamp":"2026-02-27T07:26:44Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"preflight:dns_delegation","timestamp":"2026-02-27T07:26:45Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"terraform plan","timestamp":"2026-02-27T07:26:45Z","verdict":"PASS","output":"plan captured","artifact_path":"/Users/stuart/repos/gridl/fjcloud/ops/terraform/artifacts/plan_staging_20260227T072644Z.txt"}
+{"command":"assert:acm_cert_issued","timestamp":"2026-02-27T07:26:45Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"assert:alb_https_listener","timestamp":"2026-02-27T07:26:45Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"assert:target_group_healthy","timestamp":"2026-02-27T07:26:45Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"assert:health_fail","timestamp":"2026-02-27T07:26:45Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"migrate.sh (run 1)","timestamp":"2026-02-27T07:26:45Z","verdict":"PASS","output":"exit 0","artifact_path":""}
+{"command":"runtime:migrate_idempotency","timestamp":"2026-02-27T07:26:45Z","verdict":"FAIL","output":"Migration idempotency check failed: second run of migrate.sh exited non-zero.","artifact_path":""}

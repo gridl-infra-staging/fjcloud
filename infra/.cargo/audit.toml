@@ -1,0 +1,9 @@
+# Cargo audit configuration
+# See: https://github.com/rustsec/rustsec/tree/main/cargo-audit
+
+[advisories]
+# RUSTSEC-2023-0071: rsa crate Marvin Attack timing sidechannel (severity 5.9 medium).
+# No upstream fix available as of 2026-03. Used in provisioner/oci.rs for OCI request
+# signing — low practical risk (server-side, not exposed to timing oracle attacks).
+# Re-evaluate when rsa crate publishes a fix.
+ignore = ["RUSTSEC-2023-0071"]

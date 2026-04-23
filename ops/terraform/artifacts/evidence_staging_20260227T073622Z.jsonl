@@ -1,0 +1,11 @@
+{"command":"preflight:aws_creds","timestamp":"2026-02-27T07:36:22Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"preflight:ami_exists","timestamp":"2026-02-27T07:36:22Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"preflight:dns_delegation","timestamp":"2026-02-27T07:36:22Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"terraform plan","timestamp":"2026-02-27T07:36:22Z","verdict":"PASS","output":"plan captured","artifact_path":"/Users/stuart/repos/gridl/fjcloud/ops/terraform/artifacts/plan_staging_20260227T073622Z.txt"}
+{"command":"runtime:acm_not_issued","timestamp":"2026-02-27T07:36:22Z","verdict":"FAIL","output":"ACM certificate for flapjack.cloud status is 'PENDING_VALIDATION', expected ISSUED.","artifact_path":""}
+{"command":"preflight:aws_creds","timestamp":"2026-02-27T07:36:22Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"preflight:ami_exists","timestamp":"2026-02-27T07:36:22Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"preflight:dns_delegation","timestamp":"2026-02-27T07:36:23Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"terraform plan","timestamp":"2026-02-27T07:36:23Z","verdict":"PASS","output":"plan captured","artifact_path":"/Users/stuart/repos/gridl/fjcloud/ops/terraform/artifacts/plan_staging_20260227T073622Z.txt"}
+{"command":"assert:acm_cert_issued","timestamp":"2026-02-27T07:36:23Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"runtime:alb_no_listener","timestamp":"2026-02-27T07:36:23Z","verdict":"FAIL","output":"ALB 'fjcloud-staging-alb' has no HTTPS listener on port 443.","artifact_path":""}

@@ -1,0 +1,2 @@
+This file contains a fake AWS access key for testing the secret scanner.
+aws_access_key_id = AKIAIOSFODNN7EXAMPLE

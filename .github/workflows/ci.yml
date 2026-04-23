@@ -1,0 +1,255 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: deploy-staging-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rust-test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: fjcloud_test
+          POSTGRES_USER: fjcloud
+          POSTGRES_PASSWORD: password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U fjcloud -d fjcloud_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      CARGO_INCREMENTAL: "0"
+      # Disable debug info for test binaries — each binary with AWS SDK deps
+      # is 500 MB+ with debug info, which exhausts the runner's disk when
+      # linking all workspace test binaries sequentially.  Without debug info
+      # each binary shrinks to ~50 MB.
+      CARGO_PROFILE_TEST_DEBUG: "0"
+      # Rust 1.86+ defaults to LLD on x86_64-linux, but LLD maps the entire
+      # output binary into RAM.  A single api test binary (with AWS SDK deps)
+      # exceeds the 7 GB runner RAM + 8 GB swap.  GNU ld (bfd) streams output
+      # and fits comfortably.
+      RUSTFLAGS: "-Clink-arg=-fuse-ld=bfd"
+    steps:
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/share/boost
+          sudo apt-get clean
+          df -h /
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Seed reliability profile artifacts
+        run: bash scripts/reliability/seed-test-profiles.sh
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # stable
+      - name: Set up rust cache
+        uses: Swatinem/rust-cache@ad397744b0d591a723ab90405b7247fac0e6b8db # v2
+        with:
+          workspaces: infra
+      - name: Set up swap space
+        run: |
+          if [ -f /swapfile ]; then
+            sudo swapoff /swapfile 2>/dev/null || true
+            sudo rm -f /swapfile
+          fi
+          sudo fallocate -l 8G /swapfile
+          sudo chmod 600 /swapfile
+          sudo mkswap /swapfile
+          sudo swapon /swapfile
+      - name: Run rust tests
+        working-directory: infra
+        run: cargo test --workspace -j 1
+
+  rust-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Run CI workflow contract tests
+        run: bash scripts/tests/ci_workflow_test.sh
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # stable
+      - name: Set up rust cache
+        uses: Swatinem/rust-cache@ad397744b0d591a723ab90405b7247fac0e6b8db # v2
+        with:
+          workspaces: infra
+      - name: Check formatting
+        working-directory: infra
+        run: cargo fmt --check
+      - name: Run clippy
+        working-directory: infra
+        run: cargo clippy --workspace -- -D warnings
+
+  migration-test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: fjcloud_test
+          POSTGRES_USER: fjcloud
+          POSTGRES_PASSWORD: password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U fjcloud -d fjcloud_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # stable
+      - name: Install sqlx-cli
+        run: cargo install sqlx-cli --version 0.8.6 --no-default-features --features postgres
+      - name: Run migration test
+        env:
+          DATABASE_URL: postgres://fjcloud:password@127.0.0.1:5432/fjcloud_test
+        run: sqlx migrate run --source infra/migrations --database-url "$DATABASE_URL"
+
+  web-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Set up Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 20
+      - name: Run web tests
+        working-directory: web
+        run: |
+          npm ci
+          npm test
+
+  check-sizes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Check source file size limits
+        run: bash scripts/check-sizes.sh
+
+  web-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Set up Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 20
+      - name: Install dependencies
+        working-directory: web
+        run: npm ci
+      - name: Run svelte-check
+        working-directory: web
+        run: npm run check
+      - name: Run eslint
+        working-directory: web
+        run: npx eslint .
+      - name: Run browser-unmocked lint
+        working-directory: web
+        run: npm run lint:e2e
+      - name: Run screen spec coverage contract
+        run: bash scripts/tests/screen_specs_coverage_test.sh
+
+  playwright:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Set up Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 20
+      - name: Install dependencies
+        working-directory: web
+        run: npm ci
+      - name: Install Playwright browsers
+        working-directory: web
+        run: npx playwright install --with-deps chromium
+      - name: Run Playwright tests
+        working-directory: web
+        run: npx playwright test
+
+  secret-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+      - name: Run gitleaks (PR diff)
+        if: github.event_name == 'pull_request'
+        uses: gitleaks/gitleaks-action@dcedce43c6f43de0b836d1fe38946645c9c638dc # v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+      - name: Install gitleaks CLI (main full history)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          GITLEAKS_VERSION=8.24.3
+          curl -sSL "https://github.com/zricethezav/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            | tar -xz gitleaks
+          sudo install -m 0755 gitleaks /usr/local/bin/gitleaks
+      - name: Run gitleaks (main full history)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: gitleaks detect --redact -v --exit-code=2
+
+  deploy-staging:
+    needs:
+      [
+        rust-test,
+        rust-lint,
+        migration-test,
+        web-test,
+        check-sizes,
+        web-lint,
+        playwright,
+        secret-scan,
+      ]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      id-token: write
+      contents: read
+    env:
+      AWS_REGION: us-east-1
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@ff717079ee2060e4bcee96c4779b553acc87447c # v4
+        with:
+          role-to-assume: ${{ secrets.DEPLOY_IAM_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # stable
+      - name: Set up rust cache
+        uses: Swatinem/rust-cache@ad397744b0d591a723ab90405b7247fac0e6b8db # v2
+        with:
+          workspaces: infra
+      - name: Build release binaries
+        working-directory: infra
+        run: |
+          cargo build --release -p api -p aggregation-job -p metering-agent
+          mv target/release/fjcloud-api fjcloud-api
+          mv target/release/fj-metering-agent fj-metering-agent
+          mv target/release/fjcloud-aggregation-job fjcloud-aggregation-job
+      - name: Upload release artifacts
+        run: |
+          ARTIFACT_PREFIX="staging/${GITHUB_SHA}/"
+          EXISTING_OBJECT_COUNT="$(aws s3api list-objects-v2 --bucket fjcloud-releases-staging --prefix "${ARTIFACT_PREFIX}" --max-items 1 --query 'length(Contents)' --output text)"
+          if [[ "$EXISTING_OBJECT_COUNT" != "None" && "$EXISTING_OBJECT_COUNT" != "0" ]]; then
+            echo "ERROR: release artifacts already exist for ${GITHUB_SHA} (${EXISTING_OBJECT_COUNT} objects at ${ARTIFACT_PREFIX})"
+            exit 1
+          fi
+          aws s3 cp infra/fjcloud-api s3://fjcloud-releases-staging/staging/${GITHUB_SHA}/fjcloud-api
+          aws s3 cp infra/fj-metering-agent s3://fjcloud-releases-staging/staging/${GITHUB_SHA}/fj-metering-agent
+          aws s3 cp infra/fjcloud-aggregation-job s3://fjcloud-releases-staging/staging/${GITHUB_SHA}/fjcloud-aggregation-job
+          aws s3 sync infra/migrations s3://fjcloud-releases-staging/staging/${GITHUB_SHA}/migrations
+          aws s3 cp ops/scripts/migrate.sh s3://fjcloud-releases-staging/staging/${GITHUB_SHA}/scripts/migrate.sh
+          aws s3 cp ops/scripts/lib/generate_ssm_env.sh s3://fjcloud-releases-staging/staging/${GITHUB_SHA}/scripts/generate_ssm_env.sh
+      - name: Trigger API deploy
+        run: bash ops/scripts/deploy.sh staging "${GITHUB_SHA}"

@@ -23,7 +23,7 @@ profiling run. |
 
 files can keep their imports unchanged. |
 | integration_helpers.rs | Stub summary for /Users/stuart/parallel_development/fjcloud_dev/MAR17_11_2_data_management_features/fjcloud_dev/infra/api/tests/common/integration_helpers.rs. |
-| mocks.rs | Stub summary for /Users/stuart/parallel_development/fjcloud_dev/mar21_pricing_model_hardening/fjcloud_dev/infra/api/tests/common/mocks.rs. |
+| mocks.rs | Stub summary for mocks.rs. |
 | storage_metering_test_support.rs | Stub summary for /Users/stuart/parallel_development/fjcloud_dev/MAR17_11_2_data_management_features/fjcloud_dev/infra/api/tests/common/storage_metering_test_support.rs. |
 | storage_s3_object_route_support.rs | Stub summary for /Users/stuart/parallel_development/fjcloud_dev/MAR17_11_2_data_management_features/fjcloud_dev/infra/api/tests/common/storage_s3_object_route_support.rs. |
 | storage_s3_signed_router_harness.rs | Stub summary for /Users/stuart/parallel_development/fjcloud_dev/mar19_3_load_testing_chaos/fjcloud_dev/infra/api/tests/common/storage_s3_signed_router_harness.rs. |

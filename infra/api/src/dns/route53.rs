@@ -4,7 +4,7 @@ use aws_sdk_route53::types::{
     Change, ChangeAction, ChangeBatch, ResourceRecord, ResourceRecordSet, RrType,
 };
 
-use super::{DnsError, DnsManager};
+use super::{hostname_for_domain, DnsError, DnsManager};
 
 pub struct Route53DnsManager {
     client: aws_sdk_route53::Client,
@@ -119,13 +119,7 @@ impl DnsManager for Route53DnsManager {
 }
 
 fn fqdn_for_domain(domain: &str, hostname: &str) -> String {
-    if hostname.ends_with('.') {
-        hostname.to_string()
-    } else if hostname.ends_with(&format!(".{domain}")) || hostname == domain {
-        format!("{hostname}.")
-    } else {
-        format!("{hostname}.{domain}.")
-    }
+    format!("{}.", hostname_for_domain(domain, hostname))
 }
 
 #[cfg(test)]

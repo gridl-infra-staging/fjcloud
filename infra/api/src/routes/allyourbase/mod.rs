@@ -9,6 +9,7 @@ use uuid::Uuid;
 
 use crate::auth::AuthenticatedTenant;
 use crate::errors::ApiError;
+use crate::helpers::{lock_account_lifecycle, require_active_customer};
 use crate::models::ayb_tenant::{AybTenant, AybTenantStatus, NewAybTenant};
 use crate::models::PlanTier;
 use crate::services::ayb_admin::{AybAdminClient, AybAdminError, CreateTenantRequest};
@@ -140,6 +141,12 @@ pub async fn create_instance(
     Json(body): Json<CreateAybInstanceRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
     let input = validate_create_request(body)?;
+    let _account_lifecycle_lock = lock_account_lifecycle(&state, tenant.customer_id).await?;
+
+    // Re-check customer activity inside the lifecycle lock so stale JWTs that
+    // authenticated before a concurrent delete cannot create new AYB state.
+    require_active_customer(state.customer_repo.as_ref(), tenant.customer_id).await?;
+
     let active_instance_count = state
         .ayb_tenant_repo
         .find_active_by_customer(tenant.customer_id)

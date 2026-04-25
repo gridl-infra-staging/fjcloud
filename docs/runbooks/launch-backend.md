@@ -157,6 +157,7 @@ Complete all items before beginning the rollout.
 
   - Load `DATABASE_URL` or `INTEGRATION_DB_URL` into the current shell or session manager before running the command. Do not place database credentials directly on the command line.
   - Expected JSON shape: `{"passed": true/false, "checks": [...], "elapsed_ms": N}`
+  - Usage evidence is keyed to `recorded_at` (`latest_recorded_at` detail from `usage_records_populated` and rollup freshness checks anchored to latest `usage_records` `recorded_at`).
 
 - [ ] Release artifacts uploaded to S3: `s3://fjcloud-releases-prod/prod/<sha>/`
   - Binaries: `fjcloud-api`, `fjcloud-aggregation-job`, `fj-metering-agent`
@@ -409,7 +410,7 @@ aws ssm start-session --target <instance-id>
 systemctl status fj-metering-agent
 
 # Check usage_records table has recent entries (via DB)
-psql "$DATABASE_URL" -c "SELECT COUNT(*) FROM usage_records WHERE created_at >= NOW() - INTERVAL '1 hour'"
+psql "$DATABASE_URL" -c "SELECT COUNT(*) FROM usage_records WHERE recorded_at >= NOW() - INTERVAL '1 hour'"
 ```
 
 ```text

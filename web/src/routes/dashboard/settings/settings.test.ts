@@ -29,6 +29,17 @@ const sampleProfile: CustomerProfileResponse = {
 	created_at: '2026-01-15T08:00:00Z'
 };
 
+const accountExportFixture = {
+	profile: {
+		id: 'cust-export-1',
+		name: 'Export User',
+		email: 'export@example.com',
+		email_verified: true,
+		billing_plan: 'shared',
+		created_at: '2026-04-22T17:00:00Z'
+	}
+} as const;
+
 type SettingsForm = ComponentProps<typeof SettingsPage>['form'];
 
 function renderSettings(opts: { profile?: CustomerProfileResponse; form?: SettingsForm } = {}) {
@@ -94,6 +105,94 @@ describe('Settings page', () => {
 		).toBeInTheDocument();
 	});
 
+	it('renders account-data export panel form with POST ?/exportAccount action', () => {
+		renderSettings();
+
+		const exportButton = screen.getByRole('button', { name: 'Export account data' });
+		const exportForm = exportButton.closest('form');
+		if (!(exportForm instanceof HTMLFormElement)) {
+			throw new Error('Expected export button inside export-account form');
+		}
+
+		expect(exportForm).toHaveAttribute('method', 'POST');
+		expect(exportForm).toHaveAttribute('action', '?/exportAccount');
+	});
+
+	it('renders customer-facing export status/download affordance from successful export form state', () => {
+		renderSettings({
+			form: {
+				accountExportSuccess: 'Account export ready',
+				accountExport: accountExportFixture
+			} as SettingsForm
+		});
+
+		expect(screen.getByTestId('account-export-status')).toBeInTheDocument();
+		expect(screen.getByTestId('account-export-status')).toHaveTextContent('Account export ready');
+		expect(screen.getAllByRole('status')).toHaveLength(1);
+		expect(screen.getByRole('button', { name: 'Download account export' })).toBeInTheDocument();
+
+		const renderedText = document.body.textContent ?? '';
+		for (const sensitiveFieldName of [
+			'password_hash',
+			'$argon2',
+			'stripe_customer_id',
+			'api_keys',
+			'key_hash',
+			'email_verify_token',
+			'password_reset_token',
+			'quota_warning_sent_at',
+			'object_storage_egress_carryforward_cents',
+			'status',
+			'updated_at',
+			'deleted_at'
+		]) {
+			expect(renderedText).not.toContain(sensitiveFieldName);
+		}
+	});
+
+	it('downloads account export JSON from form payload without a second API call', async () => {
+		const objectUrl = 'blob:account-export';
+		const fetchSpy = vi.spyOn(globalThis, 'fetch');
+		const createObjectUrlSpy = vi.spyOn(URL, 'createObjectURL').mockReturnValue(objectUrl);
+		const revokeObjectUrlSpy = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
+		const anchorClickSpy = vi
+			.spyOn(HTMLAnchorElement.prototype, 'click')
+			.mockImplementation(() => {
+				throw new Error('browser blocked download');
+			});
+
+		try {
+			renderSettings({
+				form: {
+					accountExportSuccess: 'Account export ready',
+					accountExport: accountExportFixture
+				} as SettingsForm
+			});
+
+			const downloadButton = screen.getByRole('button', { name: 'Download account export' });
+			await fireEvent.click(downloadButton);
+
+			expect(fetchSpy).not.toHaveBeenCalled();
+			expect(createObjectUrlSpy).toHaveBeenCalledTimes(1);
+			const [blobArg] = createObjectUrlSpy.mock.calls[0] as [Blob];
+			expect(blobArg).toBeInstanceOf(Blob);
+			expect(blobArg.type).toBe('application/json');
+			await expect(blobArg.text()).resolves.toBe(JSON.stringify(accountExportFixture, null, 2));
+			expect(revokeObjectUrlSpy).toHaveBeenCalledWith(objectUrl);
+
+			const expectedFilename = 'flapjack-account-export-2026-04-22T17-00-00Z.json';
+			const leakedDownloadAnchors = Array.from(document.querySelectorAll('a')).filter(
+				(anchor) => anchor.download === expectedFilename
+			);
+			expect(leakedDownloadAnchors).toHaveLength(0);
+		} finally {
+			anchorClickSpy.mockRestore();
+			revokeObjectUrlSpy.mockRestore();
+			createObjectUrlSpy.mockRestore();
+			fetchSpy.mockRestore();
+		}
+	});
+
 	it('renders delete-account danger zone with exact warning copy and open-action label', () => {
 		renderSettings();
 
@@ -101,7 +200,7 @@ describe('Settings page', () => {
 		expect(screen.getByRole('heading', { level: 2, name: 'Delete Account' })).toBeInTheDocument();
 		expect(
 			screen.getByText(
-				'This permanently deletes your account and all associated resources. This action cannot be undone.'
+				'This deactivates your account and signs you out. You must delete any active AllYourBase instance first. Retained audit records may remain. This action cannot be undone.'
 			)
 		).toBeInTheDocument();
 		expect(screen.getByRole('button', { name: 'Delete account' })).toBeInTheDocument();
@@ -128,7 +227,7 @@ describe('Settings page', () => {
 		expect(confirmDeleteCheckbox).toHaveAttribute('name', 'confirm_delete');
 		expect(confirmDeleteCheckbox).toBeRequired();
 
-		expect(screen.getByRole('button', { name: 'Permanently delete account' })).toBeDisabled();
+		expect(screen.getByRole('button', { name: 'Confirm account deletion' })).toBeDisabled();
 		expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
 	});
 

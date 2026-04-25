@@ -34,7 +34,7 @@ ENVEOF
 #!/bin/bash
 if [[ "$*" == *"api.cloudflare.com/client/v4/zones/cf_zone_foo_test"* ]]; then
   if [[ "$*" == *"dns_records"* ]]; then
-    printf '{"success":true,"result":[{"name":"flapjack.foo","type":"CNAME","content":"fjcloud-staging-alb-1511805790.us-east-1.elb.amazonaws.com"},{"name":"api.flapjack.foo","type":"CNAME","content":"fjcloud-staging-alb-1511805790.us-east-1.elb.amazonaws.com"},{"name":"www.flapjack.foo","type":"CNAME","content":"fjcloud-staging-alb-1511805790.us-east-1.elb.amazonaws.com"},{"name":"cloud.flapjack.foo","type":"CNAME","content":"fjcloud-staging-alb-1511805790.us-east-1.elb.amazonaws.com"}]}'
+    printf '{"success":true,"result":[{"name":"flapjack.foo","type":"CNAME","content":"fjcloud-staging-alb-1511805790.us-east-1.elb.amazonaws.com","proxied":false},{"name":"api.flapjack.foo","type":"CNAME","content":"fjcloud-staging-alb-1511805790.us-east-1.elb.amazonaws.com","proxied":false},{"name":"www.flapjack.foo","type":"CNAME","content":"fjcloud-staging-alb-1511805790.us-east-1.elb.amazonaws.com","proxied":false},{"name":"cloud.flapjack.foo","type":"CNAME","content":"flapjack-cloud.pages.dev","proxied":true}]}'
     exit 0
   fi
   printf '{"success":true,"result":{"id":"cf_zone_foo_test","name":"flapjack.foo","account":{"id":"acct_123","name":"Example Account"},"plan":{"id":"plan_free","name":"Free Website"}}}'

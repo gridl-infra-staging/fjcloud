@@ -70,15 +70,17 @@ describe('Dashboard logs page', () => {
 		const rows = within(panel).getAllByRole('row');
 		// header row + 2 data rows
 		expect(rows).toHaveLength(3);
-		// Newest first: saveSettings before search
-		expect(within(rows[1]).getByText('PATCH')).toBeInTheDocument();
-		expect(within(rows[1]).getByText('?/saveSettings')).toBeInTheDocument();
-		expect(within(rows[1]).getByText('503')).toBeInTheDocument();
-		expect(within(rows[1]).getByText('47 ms')).toBeInTheDocument();
-		expect(within(rows[2]).getByText('POST')).toBeInTheDocument();
-		expect(within(rows[2]).getByText('?/search')).toBeInTheDocument();
-		expect(within(rows[2]).getByText('200')).toBeInTheDocument();
-		expect(within(rows[2]).getByText('12 ms')).toBeInTheDocument();
+		// Newest first: saveSettings before search.
+		const firstDataRow = within(panel).getByTestId('api-log-row-0');
+		const secondDataRow = within(panel).getByTestId('api-log-row-1');
+		expect(within(firstDataRow).getByText('PATCH')).toBeInTheDocument();
+		expect(within(firstDataRow).getByText('?/saveSettings')).toBeInTheDocument();
+		expect(within(firstDataRow).getByText('503')).toBeInTheDocument();
+		expect(within(firstDataRow).getByText('47 ms')).toBeInTheDocument();
+		expect(within(secondDataRow).getByText('POST')).toBeInTheDocument();
+		expect(within(secondDataRow).getByText('?/search')).toBeInTheDocument();
+		expect(within(secondDataRow).getByText('200')).toBeInTheDocument();
+		expect(within(secondDataRow).getByText('12 ms')).toBeInTheDocument();
 	});
 
 	it('expands request detail when a row is clicked', async () => {

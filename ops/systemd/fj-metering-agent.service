@@ -3,6 +3,7 @@ Description=Flapjack Metering Agent
 Documentation=https://github.com/gridl/flapjack_dev
 After=network-online.target flapjack.service
 Wants=network-online.target
+ConditionPathExists=/etc/fjcloud/metering-env
 
 [Service]
 Type=exec

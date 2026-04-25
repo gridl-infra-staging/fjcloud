@@ -69,7 +69,7 @@ variable "live_e2e_monthly_spend_limit_usd" {
 }
 
 variable "live_e2e_budget_action_enabled" {
-  description = "Enable AWS Budgets action enforcement for live E2E resources. Defaults to disabled until operators provide canonical action inputs."
+  description = "Enable AWS Budgets Actions auto-enforcement for live E2E resources. Defaults to disabled. For pre-launch fjcloud staging this is intentionally left disabled per the 2026-04-23 operator decision: alert-only notifications (see ops/scripts and docs/runbooks/staging-evidence.md) give the same signal without the risk of an auto-attached IAM policy locking staging out on breach. Enable only with a bounded-blast-radius role + policy pairing."
   type        = bool
   default     = false
 }

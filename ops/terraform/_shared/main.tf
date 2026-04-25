@@ -65,6 +65,24 @@ module "compute" {
   instance_profile_name = "fjcloud-instance-profile"
 }
 
+# Runtime-only provisioning inputs are owned by the dedicated runtime_params
+# module. deploy.sh regenerates /etc/fjcloud/env on the host exclusively from
+# Parameter Store, so these parameters must exist before a runtime deploy.
+# Parameter NAMES (/fjcloud/${env}/*) are the external contract and preserved
+# identically across the move.
+module "runtime_params" {
+  source = "../runtime_params"
+
+  env                   = var.env
+  ami_id                = var.ami_id
+  subnet_id             = element(module.networking.public_subnet_ids, 0)
+  security_group_ids    = module.networking.sg_flapjack_vm_id
+  key_pair_name         = module.compute.ssh_key_pair_name
+  instance_profile_name = "fjcloud-instance-profile"
+  cloudflare_zone_id    = var.cloudflare_zone_id
+  dns_domain            = var.domain
+}
+
 module "dns" {
   source = "../dns"
 
@@ -99,4 +117,42 @@ import {
   for_each = local.existing_public_record_ids
   to       = module.dns.cloudflare_dns_record.public[each.key]
   id       = "${var.cloudflare_zone_id}/${each.value}"
+}
+
+# Safe state migration for 2026-04-24 move of runtime SSM parameters into
+# the dedicated runtime_params module. Prevents destroy+create of live
+# SSM parameters that deploy.sh reads from Parameter Store at host boot.
+moved {
+  from = aws_ssm_parameter.runtime_aws_ami_id
+  to   = module.runtime_params.aws_ssm_parameter.runtime_aws_ami_id
+}
+
+moved {
+  from = aws_ssm_parameter.runtime_aws_subnet_id
+  to   = module.runtime_params.aws_ssm_parameter.runtime_aws_subnet_id
+}
+
+moved {
+  from = aws_ssm_parameter.runtime_aws_security_group_ids
+  to   = module.runtime_params.aws_ssm_parameter.runtime_aws_security_group_ids
+}
+
+moved {
+  from = aws_ssm_parameter.runtime_aws_key_pair_name
+  to   = module.runtime_params.aws_ssm_parameter.runtime_aws_key_pair_name
+}
+
+moved {
+  from = aws_ssm_parameter.runtime_aws_instance_profile_name
+  to   = module.runtime_params.aws_ssm_parameter.runtime_aws_instance_profile_name
+}
+
+moved {
+  from = aws_ssm_parameter.runtime_cloudflare_zone_id
+  to   = module.runtime_params.aws_ssm_parameter.runtime_cloudflare_zone_id
+}
+
+moved {
+  from = aws_ssm_parameter.runtime_dns_domain
+  to   = module.runtime_params.aws_ssm_parameter.runtime_dns_domain
 }

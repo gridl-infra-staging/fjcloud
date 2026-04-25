@@ -307,6 +307,74 @@ test_discovery_backed_proposal_generation_includes_monitoring_inputs() {
     assert_no_terraform_calls
 }
 
+test_monthly_equivalent_600_proposal_keeps_single_budget_limit_surface() {
+    require_budget_guardrail_script_for_contract "monthly-equivalent budget proposal contract" || return 0
+    setup_workspace
+
+    local principal_arn policy_arn role_name execution_role_arn spend_limit expected_api expected_db expected_alb run_dir summary_payload proposal_path
+    principal_arn="arn:aws:iam::123456789012:user/live-e2e-budget-approver"
+    policy_arn="arn:aws:iam::123456789012:policy/live-e2e-budget-policy"
+    role_name="live-e2e-budget-target-role"
+    execution_role_arn="arn:aws:iam::123456789012:role/live-e2e-budget-execution"
+    spend_limit="600"
+    expected_api="$(mock_discovery_value "staging" "api_instance_id")"
+    expected_db="$(mock_discovery_value "staging" "db_instance_identifier")"
+    expected_alb="$(mock_discovery_value "staging" "alb_arn_suffix")"
+
+    _run_budget_guardrail_prep --args "--env staging --region us-east-1 --artifact-dir $TEST_WORKSPACE/artifacts \
+--monthly-spend-limit-usd $spend_limit \
+--budget-action-principal-arn $principal_arn \
+--budget-action-policy-arn $policy_arn \
+--budget-action-role-name $role_name \
+--budget-action-execution-role-arn $execution_role_arn"
+
+    assert_eq "$RUN_EXIT_CODE" "0" "monthly-equivalent 600 input should produce proposal artifact"
+    assert_valid_json "$RUN_STDOUT" "monthly-equivalent proposal run should emit valid JSON"
+    assert_eq "$(json_field "$RUN_STDOUT" "status")" "proposal_ready" "monthly-equivalent proposal run should report proposal_ready status"
+
+    run_dir="$(find_run_artifact_dir "$TEST_WORKSPACE/artifacts")"
+    summary_payload="$(read_file_or_empty "$run_dir/summary.json")"
+    proposal_path="$run_dir/proposal.auto.tfvars.example"
+    assert_status_and_summary_match "$RUN_STDOUT" "$run_dir" "proposal_ready"
+    assert_proposal_variables_contract "$RUN_STDOUT" "$run_dir" "false" \
+        "$principal_arn" "$policy_arn" "$role_name" "$execution_role_arn" "$spend_limit" \
+        "staging" "us-east-1" "$expected_api" "$expected_db" "$expected_alb"
+
+    if python3 - "$summary_payload" "$proposal_path" <<'PY'
+import json
+import pathlib
+import re
+import sys
+
+summary = json.loads(sys.argv[1])
+proposal_path = pathlib.Path(sys.argv[2])
+proposed = summary.get("proposed_variables")
+if not isinstance(proposed, dict):
+    raise SystemExit(1)
+
+spend_keys = sorted([k for k in proposed.keys() if "spend_limit_usd" in k])
+if spend_keys != ["live_e2e_monthly_spend_limit_usd"]:
+    raise SystemExit(2)
+if float(proposed.get("live_e2e_monthly_spend_limit_usd")) != 600.0:
+    raise SystemExit(3)
+if proposed.get("live_e2e_budget_action_enabled") is not False:
+    raise SystemExit(4)
+
+text = proposal_path.read_text(encoding="utf-8")
+file_spend_keys = re.findall(r'(?m)^\s*(live_e2e_[A-Za-z0-9_]*spend_limit_usd)\s*=', text)
+if file_spend_keys != ["live_e2e_monthly_spend_limit_usd"]:
+    raise SystemExit(5)
+if len(re.findall(r'(?m)^\s*live_e2e_budget_action_enabled\s*=\s*false\s*$', text)) != 1:
+    raise SystemExit(6)
+PY
+    then
+        pass "monthly-equivalent proposal emits only live_e2e_monthly_spend_limit_usd and keeps live_e2e_budget_action_enabled false without --enable-action-proposal"
+    else
+        fail "monthly-equivalent proposal emits only live_e2e_monthly_spend_limit_usd and keeps live_e2e_budget_action_enabled false without --enable-action-proposal"
+    fi
+    assert_no_terraform_calls
+}
+
 test_first_proposal_does_not_require_existing_budget() {
     require_budget_guardrail_script_for_contract "missing-budget proposal contract" || return 0
     setup_workspace
@@ -523,6 +591,7 @@ run_all_tests() {
     test_primary_blocked_input_reports_exact_missing_fields
     test_partial_input_blocked_list_is_precise_and_contains_no_placeholders
     test_discovery_backed_proposal_generation_includes_monitoring_inputs
+    test_monthly_equivalent_600_proposal_keeps_single_budget_limit_surface
     test_first_proposal_does_not_require_existing_budget
     test_proposal_file_escapes_untrusted_string_values
     test_missing_or_ambiguous_discovery_stays_blocked_without_plan_artifact

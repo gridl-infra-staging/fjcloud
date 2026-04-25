@@ -8,16 +8,14 @@ import type {
 	InvoiceListItem,
 	SetupIntentResponse,
 	PaymentMethod,
+	CreateBillingPortalSessionRequest,
+	CreateBillingPortalSessionResponse,
 	EstimatedBillResponse,
 	ApiKeyListItem,
 	CreateApiKeyResponse,
 	CustomerProfileResponse,
-	OnboardingStatus,
-	FlapjackCredentials,
 	AybInstance,
-	CreateAybInstanceRequest,
-	PricingCompareRequest,
-	PricingCompareResponse
+	CreateAybInstanceRequest
 } from './types';
 import { BASE_URL, mockFetch, createClient, createAuthenticatedClient } from './client.test.shared';
 
@@ -369,6 +367,29 @@ describe('ApiClient', () => {
 			);
 		});
 
+		it('POST /billing/portal sends server-owned return_url and returns portal_url', async () => {
+			const requestBody: CreateBillingPortalSessionRequest = {
+				return_url: 'https://app.example.com/dashboard/billing'
+			};
+			const expected: CreateBillingPortalSessionResponse = {
+				portal_url: 'https://billing.stripe.com/session/test_123'
+			};
+			const fetch = mockFetch(200, expected);
+			client.setFetch(fetch);
+
+			const result = await client.createBillingPortalSession(requestBody);
+
+			expect(fetch).toHaveBeenCalledWith(`${BASE_URL}/billing/portal`, {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+					Authorization: 'Bearer my-jwt-token'
+				},
+				body: JSON.stringify(requestBody)
+			});
+			expect(result).toEqual(expected);
+		});
+
 		it('GET /billing/estimate returns estimated bill', async () => {
 			const expected: EstimatedBillResponse = {
 				month: '2026-02',
@@ -539,6 +560,32 @@ describe('ApiClient', () => {
 			expect(result).toEqual(expected);
 		});
 
+		it('GET /account/export returns account export payload', async () => {
+			const expected = {
+				profile: {
+					id: 'cust-export-1',
+					name: 'Export User',
+					email: 'export@example.com',
+					email_verified: true,
+					billing_plan: 'shared' as const,
+					created_at: '2026-04-22T17:00:00Z'
+				}
+			};
+			const fetch = mockFetch(200, expected);
+			client.setFetch(fetch);
+
+			const result = await client.exportAccount();
+
+			expect(fetch).toHaveBeenCalledWith(`${BASE_URL}/account/export`, {
+				method: 'GET',
+				headers: {
+					'Content-Type': 'application/json',
+					Authorization: 'Bearer my-jwt-token'
+				}
+			});
+			expect(result).toEqual(expected);
+		});
+
 		it('PATCH /account sends name update', async () => {
 			const expected: CustomerProfileResponse = {
 				id: 'cust-1',
@@ -693,275 +740,4 @@ describe('ApiClient', () => {
 		});
 	});
 
-	describe('error handling', () => {
-		it('throws ApiRequestError on non-ok response', async () => {
-			const fetch = mockFetch(409, { error: 'email already registered' });
-			client.setFetch(fetch);
-
-			await expect(
-				client.register({ name: 'A', email: 'dup@test.com', password: '12345678' })
-			).rejects.toThrow(ApiRequestError);
-		});
-
-		it('ApiRequestError contains status and message from response', async () => {
-			const fetch = mockFetch(400, { error: 'invalid email' });
-			client.setFetch(fetch);
-
-			try {
-				await client.login({ email: 'bad', password: 'x' });
-				expect.fail('should have thrown');
-			} catch (e) {
-				expect(e).toBeInstanceOf(ApiRequestError);
-				const err = e as ApiRequestError;
-				expect(err.status).toBe(400);
-				expect(err.message).toBe('invalid email');
-			}
-		});
-
-		it('ApiRequestError preserves x-request-id and response headers from backend errors', async () => {
-			const fetch = vi.fn().mockResolvedValue(
-				new Response(JSON.stringify({ error: 'service unavailable' }), {
-					status: 503,
-					headers: {
-						'content-type': 'application/json',
-						'x-request-id': 'req-test-123'
-					}
-				})
-			);
-			client.setFetch(fetch);
-
-			try {
-				await client.healthCheck();
-				expect.fail('should have thrown');
-			} catch (e) {
-				expect(e).toBeInstanceOf(ApiRequestError);
-				const err = e as ApiRequestError;
-				expect(err.status).toBe(503);
-				expect(err.message).toBe('service unavailable');
-				expect(err.requestId).toBe('req-test-123');
-				expect(err.headers?.get('x-request-id')).toBe('req-test-123');
-			}
-		});
-
-		it('falls back to unknown error when non-JSON error response is returned', async () => {
-			const fetch = vi.fn().mockResolvedValue(
-				new Response('this-is-not-json', {
-					status: 502,
-					headers: {
-						'content-type': 'application/json',
-						'x-request-id': 'req-test-nonjson-456'
-					}
-				})
-			);
-			client.setFetch(fetch);
-
-			try {
-				await client.healthCheck();
-				expect.fail('should have thrown');
-			} catch (e) {
-				expect(e).toBeInstanceOf(ApiRequestError);
-				const err = e as ApiRequestError;
-				expect(err.status).toBe(502);
-				expect(err.message).toBe('unknown error');
-				expect(err.requestId).toBe('req-test-nonjson-456');
-				expect(err.headers?.get('x-request-id')).toBe('req-test-nonjson-456');
-			}
-		});
-
-		it('handles network errors gracefully', async () => {
-			const fetch = vi.fn().mockRejectedValue(new Error('network failure'));
-			client.setFetch(fetch);
-
-			await expect(client.healthCheck()).rejects.toThrow('network failure');
-		});
-	});
-
-	describe('health check', () => {
-		it('GET /health with no auth', async () => {
-			const fetch = mockFetch(200, { status: 'ok' });
-			client.setFetch(fetch);
-
-			await client.healthCheck();
-
-			expect(fetch).toHaveBeenCalledWith(`${BASE_URL}/health`, {
-				method: 'GET',
-				headers: { 'Content-Type': 'application/json' }
-			});
-		});
-	});
-
-	describe('pricing comparison (public)', () => {
-		const validWorkload: PricingCompareRequest = {
-			document_count: 100_000,
-			avg_document_size_bytes: 2048,
-			search_requests_per_month: 1_000_000,
-			write_operations_per_month: 50_000,
-			sort_directions: 2,
-			num_indexes: 1,
-			high_availability: false
-		};
-
-		const sampleResponse: PricingCompareResponse = {
-			workload: validWorkload,
-			estimates: [
-				{
-					provider: 'Algolia',
-					monthly_total_cents: 50000,
-					line_items: [
-						{
-							description: 'Search requests',
-							quantity: '1000.0',
-							unit: 'searches_1k',
-							unit_price_cents: '50',
-							amount_cents: 50000
-						}
-					],
-					assumptions: ['Standard pricing'],
-					plan_name: 'Pro'
-				}
-			],
-			generated_at: '2026-03-18T00:00:00Z'
-		};
-
-		it('POST /pricing/compare sends workload and returns comparison result', async () => {
-			const fetch = mockFetch(200, sampleResponse);
-			client.setFetch(fetch);
-
-			const result = await client.comparePricing(validWorkload);
-
-			expect(fetch).toHaveBeenCalledWith(`${BASE_URL}/pricing/compare`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify(validWorkload)
-			});
-			expect(result).toEqual(sampleResponse);
-		});
-
-		it('POST /pricing/compare omits auth header even for an authenticated client', async () => {
-			const authenticatedClient = createAuthenticatedClient();
-			const fetch = mockFetch(200, sampleResponse);
-			authenticatedClient.setFetch(fetch);
-
-			await authenticatedClient.comparePricing(validWorkload);
-
-			expect(fetch).toHaveBeenCalledWith(`${BASE_URL}/pricing/compare`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify(validWorkload)
-			});
-		});
-
-		it('response contains estimates sorted cheapest-first', async () => {
-			const multiEstimateResponse: PricingCompareResponse = {
-				workload: validWorkload,
-				estimates: [
-					{
-						provider: 'TypesenseCloud',
-						monthly_total_cents: 3000,
-						line_items: [],
-						assumptions: [],
-						plan_name: null
-					},
-					{
-						provider: 'Algolia',
-						monthly_total_cents: 50000,
-						line_items: [],
-						assumptions: [],
-						plan_name: 'Pro'
-					}
-				],
-				generated_at: '2026-03-18T00:00:00Z'
-			};
-			const fetch = mockFetch(200, multiEstimateResponse);
-			client.setFetch(fetch);
-
-			const result = await client.comparePricing(validWorkload);
-
-			expect(result.estimates.length).toBeGreaterThanOrEqual(2);
-			for (let i = 1; i < result.estimates.length; i++) {
-				expect(result.estimates[i].monthly_total_cents).toBeGreaterThanOrEqual(
-					result.estimates[i - 1].monthly_total_cents
-				);
-			}
-		});
-
-		it('throws ApiRequestError on 400 validation error', async () => {
-			const fetch = mockFetch(400, { error: 'document_count must be positive' });
-			client.setFetch(fetch);
-
-			await expect(
-				client.comparePricing({ ...validWorkload, document_count: -1 })
-			).rejects.toMatchObject({
-				name: 'ApiRequestError',
-				status: 400,
-				message: 'document_count must be positive'
-			});
-		});
-
-		it('throws ApiRequestError on 422 for malformed request', async () => {
-			const fetch = mockFetch(422, { error: 'missing required fields' });
-			client.setFetch(fetch);
-
-			// Simulate a partial workload that would fail server-side
-			await expect(client.comparePricing(validWorkload)).rejects.toMatchObject({
-				name: 'ApiRequestError',
-				status: 422
-			});
-		});
-	});
-
-	describe('onboarding endpoints', () => {
-		beforeEach(() => {
-			client = createAuthenticatedClient();
-		});
-
-		it('GET /onboarding/status returns onboarding state', async () => {
-			const expected: OnboardingStatus = {
-				has_payment_method: true,
-				has_region: true,
-				region_ready: true,
-				has_index: true,
-				has_api_key: true,
-				completed: true,
-				billing_plan: 'free',
-				free_tier_limits: {
-					max_searches_per_month: 50000,
-					max_records: 100000,
-					max_storage_gb: 10,
-					max_indexes: 1
-				},
-				flapjack_url: 'https://vm-abc.flapjack.foo',
-				suggested_next_step: "You're all set!"
-			};
-			const fetch = mockFetch(200, expected);
-			client.setFetch(fetch);
-
-			const result = await client.getOnboardingStatus();
-
-			expect(fetch).toHaveBeenCalledWith(`${BASE_URL}/onboarding/status`, {
-				method: 'GET',
-				headers: { 'Content-Type': 'application/json', Authorization: 'Bearer my-jwt-token' }
-			});
-			expect(result).toEqual(expected);
-		});
-
-		it('POST /onboarding/credentials returns credentials', async () => {
-			const expected: FlapjackCredentials = {
-				endpoint: 'https://vm-abc.flapjack.foo',
-				api_key: 'fj_search_abc123',
-				application_id: 'flapjack'
-			};
-			const fetch = mockFetch(200, expected);
-			client.setFetch(fetch);
-
-			const result = await client.generateCredentials();
-
-			expect(fetch).toHaveBeenCalledWith(`${BASE_URL}/onboarding/credentials`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json', Authorization: 'Bearer my-jwt-token' },
-				body: undefined
-			});
-			expect(result).toEqual(expected);
-		});
-	});
 });

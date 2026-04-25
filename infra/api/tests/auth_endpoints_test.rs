@@ -1251,6 +1251,7 @@ async fn customer_serialization_omits_sensitive_fields() {
         email: "alice@example.com".to_string(),
         stripe_customer_id: None,
         status: "active".to_string(),
+        deleted_at: None,
         billing_plan: "free".to_string(),
         quota_warning_sent_at: None,
         created_at: now,

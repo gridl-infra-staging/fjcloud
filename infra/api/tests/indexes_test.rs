@@ -776,6 +776,42 @@ async fn create_auto_provisions_shared_vm_when_existing_vms_are_at_capacity() {
 }
 
 #[tokio::test]
+async fn create_auto_provisioned_vm_retries_transient_unreachable_proxy() {
+    let Some(setup) = setup_capacity_exhaustion_auto_provision_test(false).await else {
+        return;
+    };
+    setup
+        .http_client
+        .push_error(ProxyError::Unreachable("dns still propagating".into()));
+    setup.http_client.push_json_response(200, json!({}));
+
+    let resp = setup
+        .app
+        .oneshot(
+            Request::builder()
+                .method(http::Method::POST)
+                .uri("/indexes")
+                .header("content-type", "application/json")
+                .header("authorization", format!("Bearer {}", setup.jwt))
+                .body(Body::from(
+                    json!({"name": "warmup-retry", "region": "us-east-1"}).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    let (status, body) = response_json(resp).await;
+    assert_eq!(status, StatusCode::CREATED, "body={body:?}");
+
+    let requests = setup.http_client.take_requests();
+    assert_eq!(requests.len(), 2, "fresh shared VM should retry once");
+    assert_eq!(requests[0].method, reqwest::Method::POST);
+    assert_eq!(requests[1].method, reqwest::Method::POST);
+    assert_eq!(requests[0].url, requests[1].url);
+}
+
+#[tokio::test]
 async fn create_auto_provisioned_vm_is_active_and_receives_index_assignment() {
     use api::repos::tenant_repo::TenantRepo;
     use api::repos::vm_inventory_repo::VmInventoryRepo;
@@ -833,6 +869,37 @@ async fn create_auto_provisioned_vm_is_active_and_receives_index_assignment() {
         format!("{}/1/indexes", auto_vm.flapjack_url),
         "index create should be routed to the auto-provisioned VM"
     );
+}
+
+#[tokio::test]
+async fn create_existing_shared_vm_unreachable_returns_503_without_retry() {
+    let setup = setup_proxy_test().await;
+    setup
+        .http_client
+        .push_error(ProxyError::Unreachable("connection refused".into()));
+
+    let resp = setup
+        .app
+        .oneshot(
+            Request::builder()
+                .method(http::Method::POST)
+                .uri("/indexes")
+                .header("content-type", "application/json")
+                .header("authorization", format!("Bearer {}", setup.jwt))
+                .body(Body::from(
+                    json!({"name": "existing-unreachable", "region": "us-east-1"}).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    let (status, body) = response_json(resp).await;
+    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(body["error"], "backend temporarily unavailable");
+
+    let requests = setup.http_client.take_requests();
+    assert_eq!(requests.len(), 1, "existing shared VM should fail fast");
 }
 
 #[tokio::test]

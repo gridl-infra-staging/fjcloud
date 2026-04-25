@@ -121,6 +121,17 @@ resource "aws_cloudtrail" "cloudtrail" {
 
 # Stage 1 spend-control ownership: keep the budget contract in monitoring.
 # The budget itself is only created when operators provide a monthly limit.
+#
+# Pre-launch operational note: as of 2026-04-23, fjcloud-staging runs an
+# out-of-band alert-only budget named `fjcloud-staging-monthly` created via
+# AWS CLI (see docs/runbooks/staging-evidence.md "AWS Budget And Spend
+# Alerting"). That budget exists specifically because the operator declined
+# auto-enforcement via `aws_budgets_budget_action` below and wanted email
+# alerts without standing up the 4 IAM enforcement inputs. Setting
+# `var.live_e2e_monthly_spend_limit_usd` here would create a second budget
+# named `fjcloud-<env>-live-e2e-spend` — intentional duplication should be
+# avoided; either import the existing manual budget into this resource, or
+# delete the manual budget before setting the variable.
 resource "aws_budgets_budget" "live_e2e_spend" {
   count = local.live_e2e_budget_configured ? 1 : 0
 

@@ -1,15 +1,39 @@
 mod common;
 
-use api::repos::CustomerRepo;
+use api::models::ayb_tenant::{AybTenant, NewAybTenant};
+use api::repos::{AybTenantRepo, CustomerRepo};
+use api::repos::{InMemoryAybTenantRepo, RepoError};
+use api::services::ayb_admin::{
+    AybAdminClient, AybAdminError, AybTenantResponse, CreateTenantRequest,
+};
+use async_trait::async_trait;
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
-use common::{create_test_jwt, mock_repo};
+use chrono::{Duration, SecondsFormat, Utc};
+use common::{
+    create_test_jwt, mock_repo, new_ready_ayb_tenant, seed_ayb_tenant_repo,
+    test_state_with_ayb_tenant_repo, TestStateBuilder,
+};
 use http_body_util::BodyExt;
+use rust_decimal::Decimal;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
+use tokio::sync::oneshot;
 use tower::ServiceExt;
 use uuid::Uuid;
 
 fn test_app(customer_repo: std::sync::Arc<common::MockCustomerRepo>) -> axum::Router {
     api::router::build_router(common::test_state_with_repo(customer_repo))
+}
+
+fn test_app_with_api_key_repo(
+    customer_repo: std::sync::Arc<common::MockCustomerRepo>,
+    api_key_repo: std::sync::Arc<common::MockApiKeyRepo>,
+) -> axum::Router {
+    api::router::build_router(common::test_state_with_api_key_repo(
+        customer_repo,
+        api_key_repo,
+    ))
 }
 
 async fn body_json(body: Body) -> serde_json::Value {
@@ -26,6 +50,118 @@ async fn resp_json(resp: axum::response::Response) -> serde_json::Value {
 /// Hash a password using argon2 (same as the API does internally).
 fn hash_password(password: &str) -> String {
     api::password::hash_password(password).expect("hashing should not fail in tests")
+}
+
+struct BlockingCreateAybClient {
+    entered_tx: Mutex<Option<oneshot::Sender<()>>>,
+    release_rx: Mutex<Option<oneshot::Receiver<()>>>,
+}
+
+impl BlockingCreateAybClient {
+    fn new(entered_tx: oneshot::Sender<()>, release_rx: oneshot::Receiver<()>) -> Arc<Self> {
+        Arc::new(Self {
+            entered_tx: Mutex::new(Some(entered_tx)),
+            release_rx: Mutex::new(Some(release_rx)),
+        })
+    }
+}
+
+#[async_trait]
+impl AybAdminClient for BlockingCreateAybClient {
+    fn base_url(&self) -> &str {
+        "https://mock.ayb.test"
+    }
+
+    fn cluster_id(&self) -> &str {
+        "cluster-01"
+    }
+
+    async fn create_tenant(
+        &self,
+        request: CreateTenantRequest,
+    ) -> Result<AybTenantResponse, AybAdminError> {
+        if let Some(tx) = self.entered_tx.lock().unwrap().take() {
+            let _ = tx.send(());
+        }
+
+        let release_rx = { self.release_rx.lock().unwrap().take() };
+        if let Some(rx) = release_rx {
+            let _ = rx.await;
+        }
+
+        Ok(AybTenantResponse {
+            tenant_id: format!("ayb-tid-{}", Uuid::new_v4()),
+            name: request.name,
+            slug: request.slug,
+            state: "ready".to_string(),
+            plan_tier: request.plan_tier,
+        })
+    }
+
+    async fn delete_tenant(&self, _tenant_id: &str) -> Result<AybTenantResponse, AybAdminError> {
+        unimplemented!("delete_tenant not used in this test")
+    }
+}
+
+struct BlockFirstFindActiveAybTenantRepo {
+    inner: Arc<InMemoryAybTenantRepo>,
+    blocked_once: AtomicBool,
+    entered_tx: Mutex<Option<oneshot::Sender<()>>>,
+    release_rx: Mutex<Option<oneshot::Receiver<()>>>,
+}
+
+impl BlockFirstFindActiveAybTenantRepo {
+    fn new(
+        inner: Arc<InMemoryAybTenantRepo>,
+        entered_tx: oneshot::Sender<()>,
+        release_rx: oneshot::Receiver<()>,
+    ) -> Arc<Self> {
+        Arc::new(Self {
+            inner,
+            blocked_once: AtomicBool::new(false),
+            entered_tx: Mutex::new(Some(entered_tx)),
+            release_rx: Mutex::new(Some(release_rx)),
+        })
+    }
+}
+
+#[async_trait]
+impl AybTenantRepo for BlockFirstFindActiveAybTenantRepo {
+    async fn create(&self, tenant: NewAybTenant) -> Result<AybTenant, RepoError> {
+        self.inner.create(tenant).await
+    }
+
+    async fn find_active_by_customer(
+        &self,
+        customer_id: Uuid,
+    ) -> Result<Vec<AybTenant>, RepoError> {
+        if !self.blocked_once.swap(true, Ordering::SeqCst) {
+            if let Some(tx) = self.entered_tx.lock().unwrap().take() {
+                let _ = tx.send(());
+            }
+
+            let release_rx = { self.release_rx.lock().unwrap().take() };
+            if let Some(rx) = release_rx {
+                let _ = rx.await;
+            }
+        }
+
+        self.inner.find_active_by_customer(customer_id).await
+    }
+
+    async fn find_active_by_customer_and_id(
+        &self,
+        customer_id: Uuid,
+        id: Uuid,
+    ) -> Result<Option<AybTenant>, RepoError> {
+        self.inner
+            .find_active_by_customer_and_id(customer_id, id)
+            .await
+    }
+
+    async fn soft_delete_for_customer(&self, customer_id: Uuid, id: Uuid) -> Result<(), RepoError> {
+        self.inner.soft_delete_for_customer(customer_id, id).await
+    }
 }
 
 struct DeletedAccountContext {
@@ -213,6 +349,120 @@ async fn get_profile_returns_shared_billing_plan() {
 }
 
 #[tokio::test]
+async fn account_export_returns_exact_profile_payload_without_sensitive_fields() {
+    let customer_repo = mock_repo();
+    let api_key_repo = common::mock_api_key_repo();
+    let customer = customer_repo.seed_verified_shared_customer("Export User", "export@example.com");
+    let token = create_test_jwt(customer.id);
+    let app = test_app_with_api_key_repo(customer_repo.clone(), api_key_repo.clone());
+
+    let seeded_stripe_id = "cus_sensitive_export_123";
+    let seeded_email_verify_token = "verify-token-sensitive-export";
+    let seeded_password_reset_token = "reset-token-sensitive-export";
+    let seeded_api_key_name = "sensitive-export-key-name";
+    let seeded_api_key_prefix = "fjx_sensitive_prefix";
+    let seeded_api_key_hash = "sensitive-export-key-hash";
+    let seeded_quota_warning_at = Utc::now();
+
+    customer_repo
+        .set_stripe_customer_id(customer.id, seeded_stripe_id)
+        .await
+        .expect("seed stripe customer id");
+    customer_repo
+        .set_email_verify_token(
+            customer.id,
+            seeded_email_verify_token,
+            seeded_quota_warning_at + Duration::hours(1),
+        )
+        .await
+        .expect("seed email verify token");
+    customer_repo
+        .set_password_reset_token(
+            customer.id,
+            seeded_password_reset_token,
+            seeded_quota_warning_at + Duration::hours(2),
+        )
+        .await
+        .expect("seed password reset token");
+    customer_repo
+        .set_quota_warning_sent_at(customer.id, seeded_quota_warning_at)
+        .await
+        .expect("seed quota warning timestamp");
+    customer_repo
+        .set_object_storage_egress_carryforward_cents(customer.id, Decimal::new(1250, 2))
+        .await
+        .expect("seed egress carry-forward cents");
+    api_key_repo.seed(
+        customer.id,
+        seeded_api_key_name,
+        seeded_api_key_hash,
+        seeded_api_key_prefix,
+        vec!["indexes:read".to_string()],
+    );
+
+    let resp = app
+        .oneshot(
+            Request::get("/account/export")
+                .header("authorization", format!("Bearer {token}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    let status = resp.status();
+    let cache_control = resp
+        .headers()
+        .get("cache-control")
+        .and_then(|value| value.to_str().ok())
+        .map(str::to_owned);
+    let bytes = resp.into_body().collect().await.unwrap().to_bytes();
+    let raw_body = String::from_utf8(bytes.to_vec()).expect("response body should be utf-8");
+
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(cache_control.as_deref(), Some("private, no-store"));
+
+    let json: serde_json::Value =
+        serde_json::from_str(&raw_body).expect("account export response should be valid JSON");
+    let expected = serde_json::json!({
+        "profile": {
+            "id": customer.id.to_string(),
+            "name": "Export User",
+            "email": "export@example.com",
+            "email_verified": true,
+            "billing_plan": "shared",
+            "created_at": customer.created_at.to_rfc3339_opts(SecondsFormat::AutoSi, true)
+        }
+    });
+
+    assert_eq!(json, expected);
+
+    for forbidden_term in [
+        "password_hash",
+        "$argon2",
+        "stripe_customer_id",
+        seeded_stripe_id,
+        "api_keys",
+        "key_hash",
+        seeded_api_key_hash,
+        seeded_api_key_prefix,
+        seeded_api_key_name,
+        "email_verify_token",
+        "password_reset_token",
+        "quota_warning_sent_at",
+        "object_storage_egress_carryforward_cents",
+        "status",
+        "updated_at",
+        "deleted_at",
+    ] {
+        assert!(
+            !raw_body.contains(forbidden_term),
+            "export response leaked forbidden term: {forbidden_term}"
+        );
+    }
+}
+
+#[tokio::test]
 async fn get_profile_canonicalizes_non_lowercase_billing_plan() {
     let repo = mock_repo();
     let customer = repo.seed("Casey", "casey@example.com");
@@ -298,6 +548,14 @@ async fn account_endpoints_401_without_auth() {
     let resp = app
         .clone()
         .oneshot(Request::get("/account").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+
+    // GET /account/export
+    let resp = app
+        .clone()
+        .oneshot(Request::get("/account/export").body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
@@ -471,6 +729,274 @@ async fn delete_account_with_correct_password_succeeds() {
         .await
         .unwrap();
     assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn delete_account_with_active_ayb_tenant_returns_409_and_preserves_active_customer() {
+    let repo = mock_repo();
+    let hashed = hash_password("realpassword");
+    let customer = repo
+        .create_with_password("User", "user@example.com", &hashed)
+        .await
+        .unwrap();
+    let token = create_test_jwt(customer.id);
+    let ayb_repo = seed_ayb_tenant_repo();
+    ayb_repo
+        .create(new_ready_ayb_tenant(customer.id))
+        .await
+        .expect("active AYB tenant seed should succeed");
+    let app = api::router::build_router(test_state_with_ayb_tenant_repo(repo.clone(), ayb_repo));
+
+    let resp = app
+        .oneshot(
+            Request::builder()
+                .method("DELETE")
+                .uri("/account")
+                .header("authorization", format!("Bearer {token}"))
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    serde_json::json!({ "password": "realpassword" }).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::CONFLICT);
+
+    let json = body_json(resp.into_body()).await;
+    assert_eq!(
+        json["error"],
+        "Delete your active AllYourBase instance before deleting your account."
+    );
+
+    let persisted_customer = repo
+        .find_by_id(customer.id)
+        .await
+        .expect("mock repo lookup should succeed")
+        .expect("customer row should still exist");
+    assert_eq!(
+        persisted_customer.status, "active",
+        "conflict path must not soft-delete the customer"
+    );
+}
+
+#[tokio::test]
+async fn delete_account_concurrent_ayb_create_keeps_customer_active_and_avoids_orphan_state() {
+    let customer_repo = mock_repo();
+    let hashed = hash_password("realpassword");
+    let customer = customer_repo
+        .create_with_password("User", "user@example.com", &hashed)
+        .await
+        .unwrap();
+    let token = create_test_jwt(customer.id);
+    let ayb_repo = seed_ayb_tenant_repo();
+    let (entered_tx, entered_rx) = oneshot::channel();
+    let (release_tx, release_rx) = oneshot::channel();
+    let client = BlockingCreateAybClient::new(entered_tx, release_rx);
+
+    let mut state = TestStateBuilder::new()
+        .with_customer_repo(customer_repo.clone())
+        .with_ayb_admin_client(client)
+        .build();
+    state.ayb_tenant_repo = ayb_repo.clone();
+    let app = api::router::build_router(state);
+
+    let create_task = tokio::spawn({
+        let app = app.clone();
+        let token = token.clone();
+        async move {
+            app.oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/allyourbase/instances")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        serde_json::json!({
+                            "name": "Primary",
+                            "slug": format!("acct-race-{}", &Uuid::new_v4().to_string()[..8]),
+                            "plan": "starter"
+                        })
+                        .to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .expect("create request should complete")
+        }
+    });
+
+    entered_rx
+        .await
+        .expect("create flow should reach AYB create call");
+
+    let delete_task = tokio::spawn({
+        let app = app.clone();
+        let token = token.clone();
+        async move {
+            app.oneshot(
+                Request::builder()
+                    .method("DELETE")
+                    .uri("/account")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        serde_json::json!({ "password": "realpassword" }).to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .expect("delete request should complete")
+        }
+    });
+
+    let _ = release_tx.send(());
+
+    let create_resp = create_task
+        .await
+        .expect("create task should join without panicking");
+    let delete_resp = delete_task
+        .await
+        .expect("delete task should join without panicking");
+
+    assert_eq!(create_resp.status(), StatusCode::CREATED);
+    assert_eq!(delete_resp.status(), StatusCode::CONFLICT);
+
+    let persisted_customer = customer_repo
+        .find_by_id(customer.id)
+        .await
+        .expect("mock repo lookup should succeed")
+        .expect("customer row should still exist");
+    assert_eq!(
+        persisted_customer.status, "active",
+        "concurrent create/delete must not leave a soft-deleted customer"
+    );
+
+    let active_tenants = ayb_repo
+        .find_active_by_customer(customer.id)
+        .await
+        .expect("active tenant lookup should succeed");
+    assert_eq!(
+        active_tenants.len(),
+        1,
+        "create should persist one active AYB tenant row"
+    );
+}
+
+#[tokio::test]
+async fn delete_account_concurrent_delete_first_blocks_stale_token_create_and_persists_no_tenant() {
+    let customer_repo = mock_repo();
+    let hashed = hash_password("realpassword");
+    let customer = customer_repo
+        .create_with_password("User", "user@example.com", &hashed)
+        .await
+        .unwrap();
+    let token = create_test_jwt(customer.id);
+
+    let inner_ayb_repo = seed_ayb_tenant_repo();
+    let (delete_entered_tx, delete_entered_rx) = oneshot::channel();
+    let (release_delete_tx, release_delete_rx) = oneshot::channel();
+    let blocking_ayb_repo = BlockFirstFindActiveAybTenantRepo::new(
+        inner_ayb_repo.clone(),
+        delete_entered_tx,
+        release_delete_rx,
+    );
+
+    let (create_entered_tx, _create_entered_rx) = oneshot::channel();
+    let (release_create_tx, release_create_rx) = oneshot::channel();
+    let client = BlockingCreateAybClient::new(create_entered_tx, release_create_rx);
+    let _ = release_create_tx.send(());
+
+    let mut state = TestStateBuilder::new()
+        .with_customer_repo(customer_repo.clone())
+        .with_ayb_admin_client(client)
+        .build();
+    state.ayb_tenant_repo = blocking_ayb_repo;
+    let app = api::router::build_router(state);
+
+    let delete_task = tokio::spawn({
+        let app = app.clone();
+        let token = token.clone();
+        async move {
+            app.oneshot(
+                Request::builder()
+                    .method("DELETE")
+                    .uri("/account")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        serde_json::json!({ "password": "realpassword" }).to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .expect("delete request should complete")
+        }
+    });
+
+    delete_entered_rx
+        .await
+        .expect("delete flow should hold lifecycle lock before soft-delete");
+
+    let create_task = tokio::spawn({
+        let app = app.clone();
+        let token = token.clone();
+        async move {
+            app.oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/allyourbase/instances")
+                    .header("authorization", format!("Bearer {token}"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        serde_json::json!({
+                            "name": "Primary",
+                            "slug": format!("acct-stale-{}", &Uuid::new_v4().to_string()[..8]),
+                            "plan": "starter"
+                        })
+                        .to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .expect("create request should complete")
+        }
+    });
+
+    tokio::task::yield_now().await;
+    let _ = release_delete_tx.send(());
+
+    let delete_resp = delete_task
+        .await
+        .expect("delete task should join without panicking");
+    let create_resp = create_task
+        .await
+        .expect("create task should join without panicking");
+
+    assert_eq!(delete_resp.status(), StatusCode::NO_CONTENT);
+    assert_eq!(create_resp.status(), StatusCode::NOT_FOUND);
+
+    let create_json = body_json(create_resp.into_body()).await;
+    assert_eq!(create_json["error"], "customer not found");
+
+    let persisted_customer = customer_repo
+        .find_by_id(customer.id)
+        .await
+        .expect("mock repo lookup should succeed")
+        .expect("customer row should still exist");
+    assert_eq!(
+        persisted_customer.status, "deleted",
+        "delete-first ordering should soft-delete the customer"
+    );
+
+    let active_tenants = inner_ayb_repo
+        .find_active_by_customer(customer.id)
+        .await
+        .expect("active tenant lookup should succeed");
+    assert!(
+        active_tenants.is_empty(),
+        "stale-token create must not persist AYB tenants after delete succeeds"
+    );
 }
 
 #[tokio::test]

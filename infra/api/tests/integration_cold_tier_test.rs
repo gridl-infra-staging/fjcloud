@@ -121,9 +121,13 @@ async fn ensure_bucket_exists(client: &aws_sdk_s3::Client, bucket: &str) -> Resu
         Ok(_) => Ok(()),
         Err(err) => {
             let msg = err.to_string();
-            if msg.contains("BucketAlreadyOwnedByYou") || msg.contains("BucketAlreadyExists") {
-                Ok(())
-            } else if client.head_bucket().bucket(bucket).send().await.is_ok() {
+            let create_reported_existing_bucket =
+                msg.contains("BucketAlreadyOwnedByYou") || msg.contains("BucketAlreadyExists");
+            // Some S3-compatible stores report existing buckets differently, so
+            // fall back to a HEAD check before treating create_bucket as fatal.
+            let bucket_exists = create_reported_existing_bucket
+                || client.head_bucket().bucket(bucket).send().await.is_ok();
+            if bucket_exists {
                 Ok(())
             } else {
                 Err(format!(

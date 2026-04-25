@@ -21,6 +21,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/live_gate.sh"
+# shellcheck source=psql_path.sh
+source "$SCRIPT_DIR/psql_path.sh"
 
 # --------------------------------------------------------------------------
 # Helper: resolve the database connection URL

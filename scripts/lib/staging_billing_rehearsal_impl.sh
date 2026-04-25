@@ -1,3 +1,6 @@
+# shellcheck source=psql_path.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/psql_path.sh"
+
 ENV_FILE=""
 BILLING_MONTH=""
 CONFIRM_LIVE_MUTATION=0

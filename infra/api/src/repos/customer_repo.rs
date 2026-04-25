@@ -29,6 +29,10 @@ pub trait CustomerRepo {
         email: Option<&str>,
     ) -> Result<Option<Customer>, RepoError>;
     async fn soft_delete(&self, id: Uuid) -> Result<bool, RepoError>;
+    async fn list_deleted_before_cutoff(
+        &self,
+        cutoff: DateTime<Utc>,
+    ) -> Result<Vec<Customer>, RepoError>;
 
     // Email verification
     async fn set_email_verify_token(

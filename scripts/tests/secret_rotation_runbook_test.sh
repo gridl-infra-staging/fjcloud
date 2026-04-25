@@ -108,6 +108,8 @@ test_launch_and_incident_docs_link_secret_rotation_runbook() {
     incident_content="$(cat "$INCIDENT_RUNBOOK_PATH")"
 
     assert_contains "$launch_content" "docs/runbooks/secret_rotation.md" "launch-backend runbook should link to secret rotation runbook"
+    assert_contains "$launch_content" "SELECT COUNT(*) FROM usage_records WHERE recorded_at >= NOW() - INTERVAL '1 hour'" "launch-backend runbook should use recorded_at for usage_records recency checks"
+    assert_not_contains "$launch_content" "SELECT COUNT(*) FROM usage_records WHERE created_at >= NOW() - INTERVAL '1 hour'" "launch-backend runbook should not use created_at for usage_records recency checks"
     assert_contains "$incident_content" "docs/runbooks/secret_rotation.md" "incident-response runbook should link to secret rotation runbook"
 }
 

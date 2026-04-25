@@ -1,0 +1,22 @@
+# Bounce destination discovery (Stage 4)
+
+Live discovery input: aws sesv2 get-email-identity --email-identity flapjack.foo
+- Live identity artifact: docs/runbooks/evidence/ses-deliverability/20260424_boundary_proof/bounce_live_domain_identity.json
+- Checked-in comparison artifact: docs/runbooks/evidence/ses-deliverability/20260424_boundary_proof/domain_identity.json
+- Checked-in DNS input: docs/runbooks/evidence/ses-deliverability/20260424_boundary_proof/dns_mail_from_mx.txt
+- Checked-in reconciliation input: docs/runbooks/evidence/ses-deliverability/20260424_boundary_proof/reconciliation_summary.md
+- Historical transcript input: docs/runbooks/evidence/ses-deliverability/20260423T202158Z_ses_boundary_proof_full.txt
+
+Live FeedbackForwardingStatus: True
+Checked-in FeedbackForwardingStatus: True
+Live MailFromDomain: mail.flapjack.foo
+Checked-in MailFromDomain: mail.flapjack.foo
+Live MailFromDomainStatus: SUCCESS
+Checked-in MailFromDomainStatus: SUCCESS
+dns_mail_from_mx.txt first line: # dig MX mail.flapjack.foo
+Historical transcript feedback MX line: MX: 10 feedback-smtp.us-east-1.amazonses.com.
+Reconciliation summary MailFrom lines:
+- | MAIL FROM status should be `PENDING` until AWS poll completes. | `docs/runbooks/staging-evidence.md:54` | `domain_identity.json` (`MailFromDomainStatus=SUCCESS`) | `drift` |
+- - The preserved transcript reports `MailFromDomainStatus: PENDING` and includes historical live-send MessageIds; this conflicts with current read-only Stage 1 evidence (`domain_identity.json` now reports `MailFromDomainStatus=SUCCESS`).
+
+Discovery outcome: Feedback forwarding is enabled and MAIL FROM points at Amazon SES feedback MX. No checked-in repo retrieval owner was found for programmatic bounce-event capture from this destination.

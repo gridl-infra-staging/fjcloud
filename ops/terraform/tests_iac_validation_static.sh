@@ -114,6 +114,8 @@ assert_file_exists "$cloud_init_file" "cloud_init.rs exists"
 assert_file_contains "$cloud_init_file" 'FLAPJACK_URL=' "cloud_init.rs writes FLAPJACK_URL to metering env"
 assert_file_contains "$cloud_init_file" 'NODE_ID=' "cloud_init.rs writes NODE_ID to metering env"
 assert_file_contains "$cloud_init_file" 'INTERNAL_KEY=' "cloud_init.rs writes INTERNAL_KEY to metering env"
+assert_file_contains "$cloud_init_file" 'TENANT_MAP_URL=' "cloud_init.rs writes TENANT_MAP_URL to metering env"
+assert_file_contains "$cloud_init_file" 'COLD_STORAGE_USAGE_URL=' "cloud_init.rs writes COLD_STORAGE_USAGE_URL to metering env"
 
 assert_file_exists "$packer_file" "flapjack-ami.pkr.hcl exists"
 assert_file_contains "$packer_file" 'source "amazon-ebs"' "packer template uses amazon-ebs source"
@@ -126,6 +128,7 @@ assert_file_contains "$packer_file" 'required_version' "packer template declares
 # ============================================================================
 
 # Packer must provision the three staging binaries, not legacy flapjack alone
+assert_file_contains "$packer_file" '\$\{var.binary_dir\}/flapjack' "Packer template provisions flapjack engine binary"
 assert_file_contains "$packer_file" 'fjcloud-api' "Packer template provisions fjcloud-api binary"
 assert_file_contains "$packer_file" 'fjcloud-aggregation-job' "Packer template provisions fjcloud-aggregation-job binary"
 assert_file_contains "$packer_file" 'fj-metering-agent' "Packer template provisions fj-metering-agent binary"
@@ -143,6 +146,7 @@ assert_file_contains "$packer_file" 'Env' "Packer template tags AMI with Env"
 assert_file_contains "$packer_file" 'variable "env"' "Packer template declares env variable"
 
 # Packer binary install must match deploy.sh BINARIES array contract
+assert_file_contains "$packer_file" 'install.*flapjack.*/usr/local/bin/flapjack' "Packer installs flapjack to /usr/local/bin/flapjack"
 assert_file_contains "$packer_file" 'install.*fjcloud-api.*/usr/local/bin' "Packer installs fjcloud-api to /usr/local/bin"
 assert_file_contains "$packer_file" 'install.*fjcloud-aggregation-job.*/usr/local/bin' "Packer installs fjcloud-aggregation-job to /usr/local/bin"
 assert_file_contains "$packer_file" 'install.*fj-metering-agent.*/usr/local/bin' "Packer installs fj-metering-agent to /usr/local/bin"

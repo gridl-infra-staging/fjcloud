@@ -44,9 +44,11 @@ function expectCustomerSafeBoundary(failure: NormalizedBrowserFailure): void {
 
 describe('client runtime browser-failure contract', () => {
 	const originalPathname = globalThis.location.pathname;
+	const originalSearch = globalThis.location.search;
 
 	afterEach(() => {
-		window.history.replaceState({}, '', originalPathname);
+		window.history.replaceState({}, '', `${originalPathname}${originalSearch}`);
+		vi.unstubAllGlobals();
 	});
 
 	it('normalizes uncaught error events into customer-safe boundary data without backend correlation claims', async () => {
@@ -125,62 +127,179 @@ describe('client runtime browser-failure contract', () => {
 		removeSpy.mockRestore();
 	});
 
-	it('reports browser runtime failures with sanitized metadata and explicit absent backend correlation', async () => {
-		const { reportBrowserRuntimeFailure } = await loadBrowserRuntimeContract();
-		const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-		window.history.replaceState({}, '', '/status');
+	it('attempts one best-effort POST with sanitized browser-runtime metadata only', async () => {
+		const { normalizeBrowserRuntimeFailure, reportBrowserRuntimeFailure } =
+			await loadBrowserRuntimeContract();
+		const fetchMock = vi.fn().mockResolvedValue({ ok: true } as Response);
+		vi.stubGlobal('fetch', fetchMock);
+		window.history.replaceState(
+			{},
+			'',
+			'/status?token=secret&redirect=http://localhost:5432'
+		);
 
-		reportBrowserRuntimeFailure({
-			status: 500,
-			error: {
-				message:
-					"We're experiencing a temporary issue. Please try again shortly or check our status page for updates.",
-				supportReference: 'web-abc123def456'
-			}
+		const normalizedFailure = normalizeBrowserRuntimeFailure({
+			type: 'error',
+			message: 'ECONNREFUSED 127.0.0.1:5432 for redirect=localhost',
+			filename: 'http://localhost:5173/src/routes/+layout.svelte?token=secret',
+			lineno: 18,
+			colno: 7,
+			error: new Error('request=req-backend-123 postgres.internal:5432')
 		});
+		reportBrowserRuntimeFailure(normalizedFailure);
+
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+		expect(fetchMock).toHaveBeenCalledWith(
+			'/browser-errors',
+			expect.objectContaining({
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: expect.any(String),
+				credentials: 'omit',
+				keepalive: true
+			})
+		);
+
+		const [, requestInit] = fetchMock.mock.calls[0] as [string, RequestInit];
+		const payload = JSON.parse(String(requestInit.body)) as Record<string, unknown>;
+		const payloadKeys = Object.keys(payload).sort();
+		const expectedKeys = [
+			'backend_correlation',
+			'event_type',
+			'path',
+			'scope',
+			'status',
+			'support_reference'
+		].sort();
+		const forbiddenTopLevelKeys = [
+			'message',
+			'stack',
+			'filename',
+			'lineno',
+			'colno',
+			'error',
+			'reason',
+			'token',
+			'secret',
+			'redirect',
+			'localhost',
+			'5432',
+			'backend_request_id',
+			'backendRequestId'
+		];
+		const forbiddenPayloadContent = [
+			'token',
+			'secret',
+			'redirect',
+			'localhost',
+			'5432',
+			'req-backend'
+		];
+		const serializedPayload = JSON.stringify(payload).toLowerCase();
+
+		expect(payloadKeys).toEqual(expectedKeys);
+		expect(payload.path).toBe('/status');
+		expect(payload.status).toBe(500);
+		expect(payload.scope).toBe('public');
+		expect(payload.event_type).toBe('browser_runtime');
+		expect(payload.support_reference).toMatch(SUPPORT_REFERENCE_PATTERN);
+		expect(payload.backend_correlation).toBe('absent');
+		for (const key of forbiddenTopLevelKeys) {
+			expect(payload).not.toHaveProperty(key);
+		}
+		for (const snippet of forbiddenPayloadContent) {
+			expect(serializedPayload).not.toContain(snippet);
+		}
+	});
+
+	it('submits dashboard scope derived from pathname without duplicating scope logic', async () => {
+		const { normalizeBrowserRuntimeFailure, reportBrowserRuntimeFailure } =
+			await loadBrowserRuntimeContract();
+		const fetchMock = vi.fn().mockResolvedValue({ ok: true } as Response);
+		vi.stubGlobal('fetch', fetchMock);
+		window.history.replaceState({}, '', '/dashboard/billing');
+
+		const normalizedFailure = normalizeBrowserRuntimeFailure({
+			type: 'error',
+			message: 'runtime failure in dashboard',
+			error: new Error('dashboard rejection')
+		});
+		reportBrowserRuntimeFailure(normalizedFailure);
+
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+		const [, requestInit] = fetchMock.mock.calls[0] as [string, RequestInit];
+		const payload = JSON.parse(String(requestInit.body)) as Record<string, unknown>;
+		expect(payload.scope).toBe('dashboard');
+	});
+
+	it('preserves the sanitized console fallback while attempting centralized reporting', async () => {
+		const { normalizeBrowserRuntimeFailure, reportBrowserRuntimeFailure } =
+			await loadBrowserRuntimeContract();
+		const fetchMock = vi.fn().mockResolvedValue({ ok: true } as Response);
+		const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+		vi.stubGlobal('fetch', fetchMock);
+		window.history.replaceState({}, '', '/status?token=secret');
+
+		const normalizedFailure = normalizeBrowserRuntimeFailure({
+			type: 'error',
+			message: 'ECONNREFUSED localhost:5432',
+			error: new Error('request=req-backend-123')
+		});
+		reportBrowserRuntimeFailure(normalizedFailure);
 
 		expect(consoleErrorSpy).toHaveBeenCalledTimes(1);
 		expect(consoleErrorSpy).toHaveBeenCalledWith(
 			'browser runtime error reported',
 			expect.objectContaining({
-				status: 500,
 				path: '/status',
 				scope: 'public',
-				support_reference: 'web-abc123def456',
+				status: 500,
+				event_type: 'browser_runtime',
+				support_reference: expect.stringMatching(SUPPORT_REFERENCE_PATTERN),
 				backend_correlation: 'absent'
 			})
 		);
-		expect(consoleErrorSpy).toHaveBeenCalledWith(
-			expect.any(String),
-			expect.not.objectContaining({ backend_request_id: expect.anything() })
-		);
-
-		consoleErrorSpy.mockRestore();
+		expect(fetchMock).toHaveBeenCalledTimes(1);
 	});
 
-	it('reports dashboard runtime failures with dashboard scope derived from pathname', async () => {
-		const { reportBrowserRuntimeFailure } = await loadBrowserRuntimeContract();
-		const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-		window.history.replaceState({}, '', '/dashboard/billing');
+	it('treats failed report submission as best effort without mutating normalized failure data', async () => {
+		const { normalizeBrowserRuntimeFailure, reportBrowserRuntimeFailure } =
+			await loadBrowserRuntimeContract();
+		const fetchMock = vi.fn().mockRejectedValue(new Error('submission failed'));
+		vi.stubGlobal('fetch', fetchMock);
+		window.history.replaceState({}, '', '/status?token=secret');
 
-		reportBrowserRuntimeFailure({
-			status: 500,
-			error: {
-				message:
-					"We're experiencing a temporary issue. Please try again shortly or check our status page for updates.",
-				supportReference: 'web-abc123def456'
-			}
+		const normalizedFailure = normalizeBrowserRuntimeFailure({
+			type: 'unhandledrejection',
+			reason: new Error('runtime crash')
 		});
+		const failureSnapshot = JSON.parse(
+			JSON.stringify(normalizedFailure)
+		) as NormalizedBrowserFailure;
 
-		expect(consoleErrorSpy).toHaveBeenCalledTimes(1);
-		expect(consoleErrorSpy).toHaveBeenCalledWith(
-			'browser runtime error reported',
+		expect(() => reportBrowserRuntimeFailure(normalizedFailure)).not.toThrow();
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+		expect(fetchMock).toHaveBeenCalledWith(
+			'/browser-errors',
 			expect.objectContaining({
-				path: '/dashboard/billing',
-				scope: 'dashboard'
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: expect.any(String),
+				credentials: 'omit',
+				keepalive: true
 			})
 		);
+		expect(normalizedFailure).toEqual(failureSnapshot);
 
-		consoleErrorSpy.mockRestore();
+		const boundaryCopy = buildBoundaryCopy(
+			{
+				status: normalizedFailure.status,
+				errorMessage: normalizedFailure.error.message,
+				scope: 'public'
+			},
+			normalizedFailure.error.supportReference
+		);
+		expect(boundaryCopy.supportReference).toMatch(SUPPORT_REFERENCE_PATTERN);
+		expect(boundaryCopy.supportReference).toBe(normalizedFailure.error.supportReference);
 	});
 });

@@ -201,6 +201,165 @@ async fn setup_intent_400_no_stripe_customer() {
 }
 
 // ===========================================================================
+// POST /billing/portal
+// ===========================================================================
+
+#[tokio::test]
+async fn billing_portal_returns_portal_url_and_forwards_return_url() {
+    let customer_repo = mock_repo();
+    let customer = seed_stripe_customer(&customer_repo, "Acme", "acme@example.com").await;
+    let stripe_svc = mock_stripe_service();
+    stripe_svc.set_billing_portal_url("https://billing.stripe.com/p/session/test_portal");
+    let app = test_app_with_stripe(customer_repo, mock_invoice_repo(), stripe_svc.clone());
+
+    let jwt = create_test_jwt(customer.id);
+    let return_url = "https://app.fjcloud.dev/billing";
+    let resp = app
+        .oneshot(
+            Request::post("/billing/portal")
+                .header("authorization", format!("Bearer {jwt}"))
+                .header("content-type", "application/json")
+                .body(Body::from(json!({ "return_url": return_url }).to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = body_json(resp).await;
+    assert_eq!(
+        body["portal_url"],
+        "https://billing.stripe.com/p/session/test_portal"
+    );
+
+    let calls = stripe_svc
+        .billing_portal_session_calls
+        .lock()
+        .unwrap()
+        .clone();
+    assert_eq!(calls.len(), 1);
+    assert_eq!(calls[0].0, customer.stripe_customer_id.unwrap());
+    assert_eq!(calls[0].1, return_url);
+}
+
+#[tokio::test]
+async fn billing_portal_400_no_stripe_customer() {
+    let customer_repo = mock_repo();
+    let customer = customer_repo.seed("Acme", "acme@example.com");
+
+    let app = test_app_with_stripe(customer_repo, mock_invoice_repo(), mock_stripe_service());
+
+    let jwt = create_test_jwt(customer.id);
+    let resp = app
+        .oneshot(
+            Request::post("/billing/portal")
+                .header("authorization", format!("Bearer {jwt}"))
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    json!({"return_url":"https://app.fjcloud.dev/billing"}).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+    let body = body_json(resp).await;
+    assert_eq!(body["error"], "no stripe customer linked");
+}
+
+#[tokio::test]
+async fn billing_portal_401_without_auth() {
+    let app = test_app_with_stripe(mock_repo(), mock_invoice_repo(), mock_stripe_service());
+
+    let resp = app
+        .oneshot(
+            Request::post("/billing/portal")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    json!({"return_url":"https://app.fjcloud.dev/billing"}).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn billing_portal_401_invalid_auth_token() {
+    let app = test_app_with_stripe(mock_repo(), mock_invoice_repo(), mock_stripe_service());
+
+    let resp = app
+        .oneshot(
+            Request::post("/billing/portal")
+                .header("authorization", "Bearer not-a-jwt")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    json!({"return_url":"https://app.fjcloud.dev/billing"}).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn suspended_customer_gets_403_on_billing_portal() {
+    let customer_repo = mock_repo();
+    let customer = seed_stripe_customer(&customer_repo, "Acme", "acme@example.com").await;
+    customer_repo.suspend(customer.id).await.unwrap();
+
+    let app = test_app_with_stripe(customer_repo, mock_invoice_repo(), mock_stripe_service());
+
+    let jwt = create_test_jwt(customer.id);
+    let resp = app
+        .oneshot(
+            Request::post("/billing/portal")
+                .header("authorization", format!("Bearer {jwt}"))
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    json!({"return_url":"https://app.fjcloud.dev/billing"}).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn billing_portal_503_when_stripe_unconfigured() {
+    let customer_repo = mock_repo();
+    let customer = seed_stripe_customer(&customer_repo, "Acme", "acme@example.com").await;
+    let stripe_svc = mock_stripe_service();
+    stripe_svc.set_not_configured(true);
+    let app = test_app_with_stripe(customer_repo, mock_invoice_repo(), stripe_svc);
+
+    let jwt = create_test_jwt(customer.id);
+    let resp = app
+        .oneshot(
+            Request::post("/billing/portal")
+                .header("authorization", format!("Bearer {jwt}"))
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    json!({"return_url":"https://app.fjcloud.dev/billing"}).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::SERVICE_UNAVAILABLE);
+    let body = body_json(resp).await;
+    assert_eq!(body["error"], "service_not_configured");
+}
+
+// ===========================================================================
 // GET /billing/payment-methods
 // ===========================================================================
 

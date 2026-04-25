@@ -50,6 +50,9 @@ pub const TEST_WEBHOOK_SECRET: &str = "test-webhook-secret";
 fn lazy_pool() -> sqlx::PgPool {
     PgPoolOptions::new()
         .max_connections(1)
+        // Keep fallback-to-in-process lock paths fast in unit tests that use a
+        // connect_lazy pool with no real Postgres server.
+        .acquire_timeout(std::time::Duration::from_millis(200))
         .connect_lazy("postgres://fake:fake@localhost/fake_db")
         .expect("connect_lazy should never fail")
 }

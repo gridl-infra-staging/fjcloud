@@ -55,14 +55,15 @@ Implemented now (repo-owned):
 
 Operator-blocked live prerequisites:
 
-- Provide canonical values for all operator-owned prep inputs:
-  - `--env`
-  - `--region`
-  - `--monthly-spend-limit-usd`
-  - `--budget-action-principal-arn`
-  - `--budget-action-policy-arn`
-  - `--budget-action-role-name`
-  - `--budget-action-execution-role-arn`
+- Budget-period semantics are already decided: `$20/day` means `$600/month` via `live_e2e_monthly_spend_limit_usd`, and strict calendar-day enforcement is not implemented.
+- The current prep artifact status is `blocked` until operators provide the remaining identity/resource inputs:
+  - `api_instance_id` via `--api-instance-id`
+  - `db_instance_identifier` via `--db-instance-identifier`
+  - `alb_arn_suffix` via `--alb-arn-suffix`
+  - `live_e2e_budget_action_principal_arn` via `--budget-action-principal-arn`
+  - `live_e2e_budget_action_policy_arn` via `--budget-action-policy-arn`
+  - `live_e2e_budget_action_role_name` via `--budget-action-role-name`
+  - `live_e2e_budget_action_execution_role_arn` via `--budget-action-execution-role-arn`
 - Keep `ops/terraform/monitoring/variables.tf` as the canonical variable/default contract; treat generated `proposal.auto.tfvars.example` as run-scoped input materialization, not a second default table.
 - Apply with explicit `live_e2e_budget_action_enabled=true` only when live enforcement is intended.
 
@@ -154,7 +155,7 @@ bash scripts/launch/live_e2e_evidence.sh \
   --domain flapjack.foo \
   --artifact-dir <dir> \
   --ami-id <ami-xxxxxxxxxxxxxxxxx> \
-  --env-file /Users/stuart/repos/gridl/fjcloud/.secret/.env.secret
+  --env-file .secret/.env.secret
 ```
 
 Optional live operations are intentionally explicit:
@@ -282,7 +283,8 @@ Implemented now:
 
 Operator-blocked (intentionally unresolved):
 
-- Canonical monthly spend ceiling selection and budget-action principal/policy/role/execution-role ownership inputs.
+- Budget-period semantics are fixed to monthly-equivalent: `$20/day` means `$600/month` via `live_e2e_monthly_spend_limit_usd`; strict calendar-day enforcement is not implemented in the current contract.
+- The current prep artifact remains `blocked` until operators supply these missing field/flag pairs: `api_instance_id`/`--api-instance-id`, `db_instance_identifier`/`--db-instance-identifier`, `alb_arn_suffix`/`--alb-arn-suffix`, `live_e2e_budget_action_principal_arn`/`--budget-action-principal-arn`, `live_e2e_budget_action_policy_arn`/`--budget-action-policy-arn`, `live_e2e_budget_action_role_name`/`--budget-action-role-name`, and `live_e2e_budget_action_execution_role_arn`/`--budget-action-execution-role-arn`.
 - Explicit live apply with `live_e2e_budget_action_enabled=true` when enforcement is intended.
 - SES live readiness gates and credentialed live billing/webhook evidence for scheduled live runs.
 

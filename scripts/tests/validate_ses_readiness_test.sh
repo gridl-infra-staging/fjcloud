@@ -232,7 +232,7 @@ test_validate_ses_readiness_passes_verified_email_identity_without_dkim() {
 }
 
 test_validate_ses_readiness_passes_email_identity_inherited_from_verified_domain() {
-    local mock_dir call_log output exit_code calls line_count
+    local mock_dir call_log output exit_code calls line_count production_access_detail
     mock_dir="$(new_mock_aws_dir)"
     call_log="$mock_dir/aws_calls.log"
     init_call_log "$call_log"
@@ -246,8 +246,16 @@ test_validate_ses_readiness_passes_email_identity_inherited_from_verified_domain
     assert_eq "${exit_code:-0}" "0" "validate-ses-readiness should pass when an email sender inherits a verified domain identity"
     assert_valid_json "$output" "validate-ses-readiness inherited-domain output should be valid JSON"
     assert_json_bool_field "$output" "passed" "true" "inherited-domain output should report passed=true"
+    assert_eq "$(json_step_field "$output" "production_access" "passed")" "true" \
+        "inherited-domain output should keep production_access step passed=true"
+    production_access_detail="$(json_step_field "$output" "production_access" "detail")"
+    assert_contains "$production_access_detail" "ProductionAccessEnabled=true (production access enabled)" "inherited-domain output should report production access enabled"
+    assert_not_contains "$production_access_detail" "sandbox" "inherited-domain output should not label ProductionAccessEnabled=true as sandboxed"
+    assert_not_contains "$output" "ProductionAccessEnabled=false" "inherited-domain output should not include a sandbox blocker state"
+    assert_not_contains "$output" "current-state sandbox" "inherited-domain output should not regress to stale current-state sandbox wording"
     assert_contains "$(json_step_field "$output" "identity_verified" "detail")" "inherited domain identity 'flapjack.foo'" "inherited-domain output should name the domain identity"
     assert_contains "$(json_step_field "$output" "identity_verified" "detail")" "email identity 'system@flapjack.foo'" "inherited-domain output should name the requested sender"
+    assert_not_contains "$output" "noreply@flapjack.foo" "inherited-domain output should not drift to non-canonical sender wording"
     assert_contains "$(json_step_field "$output" "dkim_verified" "detail")" "DkimAttributes.Status=SUCCESS" "inherited-domain output should verify DKIM on the domain identity"
     assert_eq "$line_count" "3" "inherited-domain path should call get-account, email identity, then domain identity"
     assert_contains "$calls" "sesv2 get-email-identity --email-identity=system@flapjack.foo" "inherited-domain path should first try the sender identity"

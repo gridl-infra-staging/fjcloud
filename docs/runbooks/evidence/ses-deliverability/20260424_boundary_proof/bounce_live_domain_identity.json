@@ -1,0 +1,57 @@
+{
+    "IdentityType": "DOMAIN",
+    "FeedbackForwardingStatus": true,
+    "VerifiedForSendingStatus": true,
+    "DkimAttributes": {
+        "SigningEnabled": true,
+        "Status": "SUCCESS",
+        "Tokens": [
+            "52evdzqlkiebbauhe6az2v5towsz2dk4",
+            "a76vb5g3t4par7ncph6gemrtxwfdfo5f",
+            "7e7tprovcaugklqyn5aenrl4xxfnpm4r"
+        ],
+        "SigningHostedZone": "dkim.amazonses.com",
+        "SigningAttributesOrigin": "AWS_SES",
+        "NextSigningKeyLength": "RSA_2048_BIT",
+        "CurrentSigningKeyLength": "RSA_2048_BIT",
+        "LastKeyGenerationTimestamp": "2026-04-20T21:16:52.047000-04:00"
+    },
+    "MailFromAttributes": {
+        "MailFromDomain": "mail.flapjack.foo",
+        "MailFromDomainStatus": "SUCCESS",
+        "BehaviorOnMxFailure": "USE_DEFAULT_VALUE"
+    },
+    "Policies": {},
+    "Tags": [
+        {
+            "Key": "managed-by",
+            "Value": "terraform"
+        },
+        {
+            "Key": "Env",
+            "Value": "staging"
+        },
+        {
+            "Key": "env",
+            "Value": "staging"
+        },
+        {
+            "Key": "service",
+            "Value": "fjcloud"
+        },
+        {
+            "Key": "Name",
+            "Value": "fjcloud-staging-ses-domain"
+        }
+    ],
+    "VerificationStatus": "SUCCESS",
+    "VerificationInfo": {
+        "LastCheckedTimestamp": "2026-04-24T00:14:25.140000-04:00",
+        "LastSuccessTimestamp": "2026-04-24T00:14:25.409000-04:00",
+        "SOARecord": {
+            "PrimaryNameServer": "alfred.ns.cloudflare.com",
+            "AdminEmail": "dns.cloudflare.com",
+            "SerialNumber": 2402461412
+        }
+    }
+}

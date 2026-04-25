@@ -269,6 +269,42 @@ EOF
 }
 
 # ---------------------------------------------------------------------------
+# Test: default secret path resolves from repo root when override is unset
+# ---------------------------------------------------------------------------
+test_default_secret_path_uses_repo_root() {
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    local repo_secret_dir="$REPO_ROOT/.secret"
+    local repo_secret_file="$repo_secret_dir/.env.secret"
+    local repo_secret_backup="$tmp_dir/repo.env.secret.backup"
+    trap 'restore_repo_env_file "'"$tmp_dir"'/.env.local.backup"; if [ -f "'"$repo_secret_backup"'" ]; then mkdir -p "'"$repo_secret_dir"'"; cp "'"$repo_secret_backup"'" "'"$repo_secret_file"'"; else rm -f "'"$repo_secret_file"'"; fi; rm -rf "'"$tmp_dir"'"' RETURN
+
+    backup_repo_env_file "$tmp_dir/.env.local.backup" || true
+    rm -f "$REPO_ROOT/.env.local"
+
+    if [ -f "$repo_secret_file" ]; then
+        cp "$repo_secret_file" "$repo_secret_backup"
+    fi
+
+    mkdir -p "$repo_secret_dir"
+    cat > "$repo_secret_file" <<'EOF'
+ADMIN_KEY=admin_from_repo_root_default_secret
+EOF
+
+    local output exit_code=0
+    output=$(env -u FJCLOUD_SECRET_FILE bash "$BOOTSTRAP_SCRIPT" 2>&1) || exit_code=$?
+
+    assert_eq "$exit_code" "0" "bootstrap should succeed when default repo-root secret file exists"
+    assert_contains "$output" "BOOTSTRAP_OK" \
+        "should emit BOOTSTRAP_OK when using default repo-root secret file"
+
+    local admin_key
+    admin_key=$(grep '^ADMIN_KEY=' "$REPO_ROOT/.env.local" | head -1 | cut -d= -f2-)
+    assert_eq "$admin_key" "admin_from_repo_root_default_secret" \
+        "ADMIN_KEY should come from default repo-root secret file when override is unset"
+}
+
+# ---------------------------------------------------------------------------
 # Test: FJCLOUD_SECRET_FILE env var overrides default secret path
 # ---------------------------------------------------------------------------
 test_secret_file_env_override() {
@@ -364,6 +400,7 @@ test_fails_without_example_template
 test_generated_values_are_random
 test_preserves_non_placeholder_values
 test_secret_source_overrides_template
+test_default_secret_path_uses_repo_root
 test_secret_file_env_override
 test_fallback_without_secret_source
 test_secret_source_preserves_non_overlapping_values

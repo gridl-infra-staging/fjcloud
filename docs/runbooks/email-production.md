@@ -120,14 +120,18 @@ Interpret `summary.json` fields as follows:
 - `deliverability_boundaries`: explicit unproven boundaries that remain open (SPF, MAIL FROM, bounce/complaint handling, first-send evidence, inbox-receipt proof).
 - `redaction`: confirms sensitive values and full email bodies are redacted in wrapper artifacts.
 
-Current verified blocker state as of 2026-04-23:
+Current verified Stage 1 truth snapshot as of 2026-04-23:
 
-- `aws sesv2 get-account --region us-east-1` reports `SendingEnabled=true` and
-  `ProductionAccessEnabled=false`, so the account is still sandboxed.
-- The shared secret inventory at
-  `/Users/stuart/repos/gridl/fjcloud/.secret/.env.secret` currently parses with
-  `load_env_file`, but it does not currently provide the wrapper's canonical SES
-  inputs (`SES_FROM_ADDRESS` / `SES_REGION`).
+- Canonical SES env source path for current operator runs:
+  `.secret/.env.secret` from repo root (or explicit `--env-file` override for alternate checkouts).
+- Historical Stage 1 env source snapshot:
+  `/Users/stuart/repos/gridl-infra-dev/fjcloud_dev/.secret/.env.secret`.
+- Canonical sender identity: `system@flapjack.foo`, using inherited `flapjack.foo` domain identity/DKIM readiness.
+- Account readiness snapshot: `SendingEnabled=true` and `ProductionAccessEnabled=true (production access enabled)`.
+- Checked-in Stage 1 boundary-proof owners: `docs/runbooks/evidence/ses-deliverability/20260424_boundary_proof/reconciliation_summary.md` and `docs/runbooks/evidence/ses-deliverability/20260424_boundary_proof/drift_blocker.md`; treat `docs/runbooks/evidence/ses-deliverability/20260423T202158Z_ses_boundary_proof_full.txt` as historical context only.
+- Stage 3 first-send companion owner: `docs/runbooks/evidence/ses-deliverability/20260424_boundary_proof/first_send_retrieval_status.md` records the wrapper run path and retrieval-owner status without closing first-send/inbox boundaries.
+- Stage 4/5 bounce+complaint companion owners: `docs/runbooks/evidence/ses-deliverability/20260424_boundary_proof/bounce_blocker.txt` and `docs/runbooks/evidence/ses-deliverability/20260424_boundary_proof/complaint_blocker.txt` (or `bounce_event.json` / `complaint_event.json` if checked-in retrieval proof exists).
+- Latest Stage 4 wrapper artifact (current source of truth): `/Users/stuart/.matt/projects/fjcloud_dev-cd6902f9/apr23_am_1_ses_deliverability_refined.md-4c6ea1bd/artifacts/stage_04_ses_deliverability/fjcloud_ses_deliverability_evidence_20260423T063739Z_63867/summary.json` reports `overall_verdict=pass` with `account_status.status=pass`, `identity_status.status=pass`, `recipient_preflight.status=pass`, and `send_attempt.status=pass`; `sender.from_address` / `sender.region` are intentionally redacted as `REDACTED` in the artifact.
 - The preserved Stage 3 artifact is a blocked-path evidence run rather than a passing live-send proof: `/tmp/fjcloud_ses_stage3_F4LfPY/artifacts/fjcloud_ses_deliverability_evidence_20260423T010330Z_76079/summary.json` records `overall_verdict=blocked` with empty `sender` inputs and blocked prerequisite states.
 
 ### Check Current Account Status Directly
@@ -139,7 +143,6 @@ aws sesv2 get-account --region us-east-1
 Key fields in the response:
 
 - `SendingEnabled: true` — sending is active
-- `ProductionAccessEnabled: false` — still in **sandbox mode**
 - `ProductionAccessEnabled: true` — in **production mode**
 
 ### Sandbox Limitations

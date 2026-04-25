@@ -1,8 +1,8 @@
-//! Stub summary for /Users/stuart/parallel_development/fjcloud_dev/MAR17_11_2_data_management_features/fjcloud_dev/infra/api/src/helpers.rs.
-
 use crate::errors::ApiError;
 use crate::models::Customer;
+use crate::repos::advisory_lock::{account_lifecycle_lock_key, advisory_lock, AdvisoryLockGuard};
 use crate::repos::CustomerRepo;
+use crate::state::AppState;
 use tracing::warn;
 use uuid::Uuid;
 
@@ -51,6 +51,23 @@ pub async fn require_active_customer(
     }
 
     Ok(customer)
+}
+
+pub async fn lock_account_lifecycle<'a>(
+    state: &'a AppState,
+    customer_id: Uuid,
+) -> Result<AdvisoryLockGuard<'a>, ApiError> {
+    let lock_key = account_lifecycle_lock_key(&state.pool, customer_id)
+        .await
+        .map_err(|e| {
+            ApiError::ServiceUnavailable(format!(
+                "failed to compute account lifecycle lock key: {e}"
+            ))
+        })?;
+
+    advisory_lock(&state.pool, lock_key).await.map_err(|e| {
+        ApiError::ServiceUnavailable(format!("failed to acquire account lifecycle lock: {e}"))
+    })
 }
 
 #[cfg(test)]
@@ -248,6 +265,13 @@ mod tests {
             panic!("not used in this test");
         }
 
+        async fn list_deleted_before_cutoff(
+            &self,
+            _cutoff: chrono::DateTime<Utc>,
+        ) -> Result<Vec<Customer>, RepoError> {
+            panic!("not used in this test");
+        }
+
         async fn set_email_verify_token(
             &self,
             _id: Uuid,
@@ -337,16 +361,25 @@ mod tests {
     /// Test helper: creates a [`Customer`] with the given status and sensible
     /// defaults for all other fields.
     fn build_customer(status: &str) -> Customer {
+        let updated_at = Utc::now();
+        let created_at = if status == "deleted" {
+            // Deleted fixtures represent retained rows with prior creation time.
+            updated_at - chrono::Duration::minutes(5)
+        } else {
+            updated_at
+        };
+
         Customer {
             id: Uuid::new_v4(),
             name: "test".to_string(),
             email: "test@example.com".to_string(),
             stripe_customer_id: Some("cus_123".to_string()),
             status: status.to_string(),
+            deleted_at: (status == "deleted").then_some(updated_at),
             billing_plan: "free".to_string(),
             quota_warning_sent_at: None,
-            created_at: Utc::now(),
-            updated_at: Utc::now(),
+            created_at,
+            updated_at,
             password_hash: None,
             email_verified_at: Some(Utc::now()),
             email_verify_token: None,

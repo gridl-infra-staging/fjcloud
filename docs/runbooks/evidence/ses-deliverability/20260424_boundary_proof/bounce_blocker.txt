@@ -1,0 +1,31 @@
+# Stage 4 bounce retrieval blocker (2026-04-24)
+
+Bounce simulator send was executed and recorded in:
+- docs/runbooks/evidence/ses-deliverability/20260424_boundary_proof/bounce_send_response.json
+
+Live discovery inputs consulted before retrieval ownership decision:
+- Live discovery command: aws sesv2 get-email-identity --email-identity flapjack.foo --region us-east-1
+- aws sesv2 get-email-identity --email-identity flapjack.foo --region us-east-1 (saved at docs/runbooks/evidence/ses-deliverability/20260424_boundary_proof/bounce_live_domain_identity.json)
+- docs/runbooks/evidence/ses-deliverability/20260424_boundary_proof/domain_identity.json
+- docs/runbooks/evidence/ses-deliverability/20260424_boundary_proof/dns_mail_from_mx.txt
+- docs/runbooks/evidence/ses-deliverability/20260424_boundary_proof/reconciliation_summary.md
+- docs/runbooks/evidence/ses-deliverability/20260423T202158Z_ses_boundary_proof_full.txt
+- docs/runbooks/evidence/ses-deliverability/20260424_boundary_proof/bounce_destination_discovery.txt
+
+Discovered feedback destination evidence:
+- MAIL FROM MX points at feedback-smtp.us-east-1.amazonses.com
+- SES identity reports FeedbackForwardingStatus=true
+
+Missing retrieval owner:
+- No checked-in repo owner retrieves SES bounce/complaint feedback events from this destination path.
+- scripts/lib/staging_billing_rehearsal_email_evidence.sh is Mailpit-only and does not own SES feedback retrieval.
+- Bounce retrieval owner gap: no checked-in repo owner currently polls or ingests SES bounce feedback events into a Stage 4 checked-in bounce evidence artifact for this feedback destination path.
+- Minimum unblocking change: extend `scripts/lib/staging_billing_rehearsal_email_evidence.sh` to add a repo-owned, automated SES bounce retrieval step that writes a checked-in artifact under `docs/runbooks/evidence/ses-deliverability/20260424_boundary_proof/` and keeps `deliverability_boundaries.bounce_complaint_handling=unproven` until event proof is observed.
+
+No manual mailbox validation is allowed.
+Out-of-scope in this stage:
+- mailbox UI inspection
+- ad hoc SNS/SQS polling
+- one-off CloudWatch retrieval recipes
+
+deliverability_boundaries.bounce_complaint_handling=unproven

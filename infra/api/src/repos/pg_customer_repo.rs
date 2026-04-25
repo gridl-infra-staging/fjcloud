@@ -8,23 +8,28 @@ use crate::models::Customer;
 use crate::repos::customer_repo::CustomerRepo;
 use crate::repos::error::{is_unique_violation, RepoError};
 
+// Compatibility projection for mixed local schemas:
+// required identity columns are read directly, while newer optional fields
+// are read through to_jsonb(customers)->>... so missing columns resolve to NULL
+// instead of failing query compilation/execution on older local databases.
 const CUSTOMER_COLUMNS: &str = "\
 id, \
 name, \
 email, \
-stripe_customer_id, \
+(to_jsonb(customers)->>'stripe_customer_id') AS stripe_customer_id, \
 status, \
+(to_jsonb(customers)->>'deleted_at')::timestamptz AS deleted_at, \
 billing_plan, \
-quota_warning_sent_at, \
+(to_jsonb(customers)->>'quota_warning_sent_at')::timestamptz AS quota_warning_sent_at, \
 created_at, \
 updated_at, \
-password_hash, \
-email_verified_at, \
-email_verify_token, \
-email_verify_expires_at, \
-password_reset_token, \
-password_reset_expires_at, \
-object_storage_egress_carryforward_cents";
+(to_jsonb(customers)->>'password_hash') AS password_hash, \
+(to_jsonb(customers)->>'email_verified_at')::timestamptz AS email_verified_at, \
+(to_jsonb(customers)->>'email_verify_token') AS email_verify_token, \
+(to_jsonb(customers)->>'email_verify_expires_at')::timestamptz AS email_verify_expires_at, \
+(to_jsonb(customers)->>'password_reset_token') AS password_reset_token, \
+(to_jsonb(customers)->>'password_reset_expires_at')::timestamptz AS password_reset_expires_at, \
+COALESCE((to_jsonb(customers)->>'object_storage_egress_carryforward_cents')::numeric, 0) AS object_storage_egress_carryforward_cents";
 
 pub struct PgCustomerRepo {
     pool: PgPool,
@@ -33,6 +38,29 @@ pub struct PgCustomerRepo {
 impl PgCustomerRepo {
     pub fn new(pool: PgPool) -> Self {
         Self { pool }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::CUSTOMER_COLUMNS;
+
+    #[test]
+    fn customer_columns_uses_schema_tolerant_carryforward_projection() {
+        assert!(
+            CUSTOMER_COLUMNS.contains(
+                "to_jsonb(customers)->>'object_storage_egress_carryforward_cents'"
+            ),
+            "customer projection must not require the carryforward column to exist in older local schemas"
+        );
+    }
+
+    #[test]
+    fn customer_columns_uses_schema_tolerant_deleted_at_projection() {
+        assert!(
+            CUSTOMER_COLUMNS.contains("to_jsonb(customers)->>'deleted_at'"),
+            "customer projection must not require deleted_at to exist in older local schemas"
+        );
     }
 }
 
@@ -60,6 +88,26 @@ impl CustomerRepo for PgCustomerRepo {
         sqlx::query_as::<_, Customer>(&sql)
             .bind(email)
             .fetch_optional(&self.pool)
+            .await
+            .map_err(|e| RepoError::Other(e.to_string()))
+    }
+
+    async fn list_deleted_before_cutoff(
+        &self,
+        cutoff: DateTime<Utc>,
+    ) -> Result<Vec<Customer>, RepoError> {
+        let sql = format!(
+            "SELECT * FROM ( \
+                SELECT {CUSTOMER_COLUMNS} FROM customers \
+             ) AS customer_rows \
+             WHERE status = 'deleted' \
+               AND deleted_at IS NOT NULL \
+               AND deleted_at <= $1 \
+             ORDER BY deleted_at ASC, id ASC"
+        );
+        sqlx::query_as::<_, Customer>(&sql)
+            .bind(cutoff)
+            .fetch_all(&self.pool)
             .await
             .map_err(|e| RepoError::Other(e.to_string()))
     }
@@ -149,7 +197,7 @@ impl CustomerRepo for PgCustomerRepo {
 
     async fn soft_delete(&self, id: Uuid) -> Result<bool, RepoError> {
         let result = sqlx::query(
-            "UPDATE customers SET status = 'deleted', updated_at = NOW() \
+            "UPDATE customers SET status = 'deleted', deleted_at = NOW(), updated_at = NOW() \
              WHERE id = $1 AND status != 'deleted'",
         )
         .bind(id)

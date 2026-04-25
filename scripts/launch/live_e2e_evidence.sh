@@ -438,6 +438,7 @@ run_runtime_smoke_check() {
         if capture_owner_logs \
             "$runtime_stdout_log" \
             "$runtime_stderr_log" \
+            bash \
             "$RUNTIME_SMOKE_SCRIPT" \
             --env "$LIVE_E2E_ENV" \
             --domain "$LIVE_E2E_DOMAIN" \
@@ -452,6 +453,7 @@ run_runtime_smoke_check() {
         if capture_owner_logs \
             "$runtime_stdout_log" \
             "$runtime_stderr_log" \
+            bash \
             "$RUNTIME_SMOKE_SCRIPT" \
             --env "$LIVE_E2E_ENV" \
             --domain "$LIVE_E2E_DOMAIN" \

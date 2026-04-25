@@ -19,6 +19,7 @@ pub struct CloudInitParams {
     pub customer_id: String,
     pub node_id: String,
     pub region: String,
+    pub environment: String,
     pub secrets: SecretDelivery,
 }
 
@@ -31,14 +32,17 @@ pub fn generate_cloud_init(params: &CloudInitParams) -> String {
     let customer_id = &params.customer_id;
     let node_id = &params.node_id;
     let region = &params.region;
+    let environment = &params.environment;
 
     let secret_block = match &params.secrets {
         SecretDelivery::AwsSsm { region: ssm_region } => {
             let quoted_region = shell_single_quote(ssm_region);
             format!(
                 r#"# Read secrets from AWS SSM Parameter Store
-DB_URL=$(aws ssm get-parameter --name "/fjcloud/db-url" --with-decryption --query "Parameter.Value" --output text --region {quoted_region})
-API_KEY=$(aws ssm get-parameter --name "/fjcloud/$NODE_ID/api-key" --with-decryption --query "Parameter.Value" --output text --region {quoted_region})"#
+DB_URL=$(aws ssm get-parameter --name "/fjcloud/$ENVIRONMENT/database_url" --with-decryption --query "Parameter.Value" --output text --region {quoted_region})
+API_KEY=$(aws ssm get-parameter --name "/fjcloud/$NODE_ID/api-key" --with-decryption --query "Parameter.Value" --output text --region {quoted_region})
+DNS_DOMAIN=$(aws ssm get-parameter --name "/fjcloud/$ENVIRONMENT/dns_domain" --query "Parameter.Value" --output text --region {quoted_region})
+INTERNAL_AUTH_TOKEN=$(aws ssm get-parameter --name "/fjcloud/$ENVIRONMENT/internal_auth_token" --with-decryption --query "Parameter.Value" --output text --region {quoted_region})"#
             )
         }
         SecretDelivery::Direct { db_url, api_key } => format!(
@@ -53,6 +57,7 @@ API_KEY={}"#,
     let quoted_customer_id = shell_single_quote(customer_id);
     let quoted_node_id = shell_single_quote(node_id);
     let quoted_region = shell_single_quote(region);
+    let quoted_environment = shell_single_quote(environment);
 
     format!(
         r#"#!/bin/bash
@@ -65,8 +70,9 @@ logger -t "$LOG_TAG" "starting bootstrap (user-data)"
 CUSTOMER_ID={quoted_customer_id}
 NODE_ID={quoted_node_id}
 REGION={quoted_region}
+ENVIRONMENT={quoted_environment}
 
-logger -t "$LOG_TAG" "customer_id=$CUSTOMER_ID node_id=$NODE_ID region=$REGION"
+logger -t "$LOG_TAG" "customer_id=$CUSTOMER_ID node_id=$NODE_ID region=$REGION environment=$ENVIRONMENT"
 
 {secret_block}
 
@@ -79,9 +85,11 @@ ENVEOF
 
 cat > /etc/flapjack/metering-env <<ENVEOF
 DATABASE_URL=$DB_URL
-FLAPJACK_URL=http://127.0.0.1:7700
+FLAPJACK_URL=http://$NODE_ID:7700
 FLAPJACK_API_KEY=$API_KEY
-INTERNAL_KEY=$API_KEY
+INTERNAL_KEY=$INTERNAL_AUTH_TOKEN
+TENANT_MAP_URL=https://api.$DNS_DOMAIN/internal/tenant-map
+COLD_STORAGE_USAGE_URL=https://api.$DNS_DOMAIN/internal/cold-storage-usage
 CUSTOMER_ID=$CUSTOMER_ID
 NODE_ID=$NODE_ID
 REGION=$REGION
@@ -90,9 +98,23 @@ ENVEOF
 chmod 600 /etc/flapjack/env /etc/flapjack/metering-env
 chown flapjack:flapjack /etc/flapjack/env /etc/flapjack/metering-env
 
+# Override the baked unit from the current AMI so newly launched VMs always
+# use the flapjack-owned env file contract, even before the AMI is rebuilt.
+mkdir -p /etc/systemd/system/fj-metering-agent.service.d
+cat > /etc/systemd/system/fj-metering-agent.service.d/runtime-env.conf <<'UNITEOF'
+[Unit]
+ConditionPathExists=/etc/flapjack/metering-env
+
+[Service]
+User=flapjack
+Group=flapjack
+EnvironmentFile=-/etc/flapjack/metering-env
+UNITEOF
+
 logger -t "$LOG_TAG" "env files written"
 
 # Enable and start services
+systemctl daemon-reload
 systemctl enable flapjack fj-metering-agent
 systemctl start flapjack fj-metering-agent
 
@@ -112,6 +134,7 @@ mod tests {
             customer_id: "cust-123".to_string(),
             node_id: "node-abc".to_string(),
             region: "us-east-1".to_string(),
+            environment: "staging".to_string(),
             secrets: SecretDelivery::AwsSsm {
                 region: "us-east-1".to_string(),
             },
@@ -122,6 +145,15 @@ mod tests {
         assert!(script.contains("CUSTOMER_ID='cust-123'"));
         assert!(script.contains("NODE_ID='node-abc'"));
         assert!(script.contains("REGION='us-east-1'"));
+        assert!(script.contains("ENVIRONMENT='staging'"));
+        assert!(script.contains(r#"/fjcloud/$ENVIRONMENT/database_url"#));
+        assert!(script.contains(r#"/fjcloud/$ENVIRONMENT/internal_auth_token"#));
+        assert!(script.contains("runtime-env.conf"));
+        assert!(script.contains("ConditionPathExists=/etc/flapjack/metering-env"));
+        assert!(script.contains("TENANT_MAP_URL=https://api.$DNS_DOMAIN/internal/tenant-map"));
+        assert!(script.contains(
+            "COLD_STORAGE_USAGE_URL=https://api.$DNS_DOMAIN/internal/cold-storage-usage"
+        ));
         assert!(script.contains("systemctl start flapjack"));
     }
 
@@ -132,6 +164,7 @@ mod tests {
             customer_id: "cust-456".to_string(),
             node_id: "node-xyz".to_string(),
             region: "eu-central-1".to_string(),
+            environment: "prod".to_string(),
             secrets: SecretDelivery::Direct {
                 db_url: "postgres://db.example.com/fjcloud".to_string(),
                 api_key: "sk-secret-key".to_string(),
@@ -146,6 +179,7 @@ mod tests {
         assert!(script.contains("Secrets delivered via user-data (Hetzner)"));
         assert!(script.contains("postgres://db.example.com/fjcloud"));
         assert!(script.contains("sk-secret-key"));
+        assert!(script.contains("User=flapjack"));
         assert!(script.contains("systemctl start flapjack"));
     }
 
@@ -156,6 +190,7 @@ mod tests {
             customer_id: "cust".to_string(),
             node_id: "node".to_string(),
             region: "eu-central-1".to_string(),
+            environment: "prod".to_string(),
             secrets: SecretDelivery::Direct {
                 db_url: "postgres://user:pass@db.example.com/fjcloud".to_string(),
                 api_key: "sk-'unsafe'-$HOME-$(whoami)".to_string(),
@@ -196,6 +231,7 @@ mod tests {
             customer_id: "cust-$(whoami)".to_string(),
             node_id: "node-`id`".to_string(),
             region: "us-east-1\"; rm -rf /; \"".to_string(),
+            environment: "staging$(rm -rf /)".to_string(),
             secrets: SecretDelivery::AwsSsm {
                 region: "us-east-1\"; rm -rf /; \"".to_string(),
             },
@@ -238,6 +274,10 @@ mod tests {
                 "SSM --region must not use double quotes: {ssm_line}"
             );
         }
+        assert!(
+            script.contains("ENVIRONMENT='staging$(rm -rf /)'"),
+            "ENVIRONMENT must be single-quoted for shell safety"
+        );
     }
 
     #[test]
@@ -246,6 +286,7 @@ mod tests {
             customer_id: "c".to_string(),
             node_id: "n".to_string(),
             region: "r".to_string(),
+            environment: "staging".to_string(),
             secrets: SecretDelivery::AwsSsm {
                 region: "r".to_string(),
             },

@@ -52,6 +52,7 @@ export interface MockFns {
 	deleteSynonym: ReturnType<typeof ViType.fn>;
 	saveQsConfig: ReturnType<typeof ViType.fn>;
 	deleteQsConfig: ReturnType<typeof ViType.fn>;
+	createIndexKey: ReturnType<typeof ViType.fn>;
 	getDictionaryLanguages: ReturnType<typeof ViType.fn>;
 	searchDictionaryEntries: ReturnType<typeof ViType.fn>;
 	batchDictionaryEntries: ReturnType<typeof ViType.fn>;
@@ -153,6 +154,125 @@ export function makeLoadArgs(urlSuffix = ''): unknown {
 		params: { name: 'products' },
 		url: new URL(`http://localhost/dashboard/indexes/products${urlSuffix}`)
 	} as never;
+}
+
+/**
+ * Build the `$lib/server/api` mock-module factory body from a per-file
+ * MockFns set. Each test split file still needs its own top-level
+ * `vi.mock('$lib/server/api', () => apiClientFactoryFor(mocks))` because
+ * vi.mock is hoisted, but the 50-line ApiClient surface lives here once.
+ *
+ * Caller must pass `vi` from `vitest` so the factory can construct
+ * `vi.fn()` for unmapped methods (recommend/chat) without importing
+ * vitest from this shared module.
+ */
+export function apiClientFactoryFor(
+	m: MockFns,
+	makeFn: () => ReturnType<typeof ViType.fn>
+): { createApiClient: ReturnType<typeof ViType.fn> } {
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	return {
+		createApiClient: makeFn().mockReturnValue({
+			getIndex: m.getIndex,
+			getIndexSettings: m.getIndexSettings,
+			listReplicas: m.listReplicas,
+			getInternalRegions: m.getInternalRegions,
+			addObjects: m.addObjects,
+			browseObjects: m.browseObjects,
+			deleteObject: m.deleteObject,
+			searchRules: m.searchRules,
+			searchSynonyms: m.searchSynonyms,
+			getPersonalizationStrategy: m.getPersonalizationStrategy,
+			savePersonalizationStrategy: m.savePersonalizationStrategy,
+			deletePersonalizationStrategy: m.deletePersonalizationStrategy,
+			getPersonalizationProfile: m.getPersonalizationProfile,
+			deletePersonalizationProfile: m.deletePersonalizationProfile,
+			recommend: makeFn(),
+			chat: makeFn(),
+			getQsConfig: m.getQsConfig,
+			getQsStatus: m.getQsStatus,
+			getAnalyticsTopSearches: m.getAnalyticsTopSearches,
+			getAnalyticsSearchCount: m.getAnalyticsSearchCount,
+			getAnalyticsNoResults: m.getAnalyticsNoResults,
+			getAnalyticsNoResultRate: m.getAnalyticsNoResultRate,
+			getAnalyticsStatus: m.getAnalyticsStatus,
+			getDebugEvents: m.getDebugEvents,
+			listExperiments: m.listExperiments,
+			createExperiment: m.createExperiment,
+			deleteExperiment: m.deleteExperiment,
+			startExperiment: m.startExperiment,
+			stopExperiment: m.stopExperiment,
+			concludeExperiment: m.concludeExperiment,
+			getExperimentResults: m.getExperimentResults,
+			updateIndexSettings: m.updateIndexSettings,
+			saveRule: m.saveRule,
+			deleteRule: m.deleteRule,
+			saveSynonym: m.saveSynonym,
+			deleteSynonym: m.deleteSynonym,
+			saveQsConfig: m.saveQsConfig,
+			deleteQsConfig: m.deleteQsConfig,
+			createIndexKey: m.createIndexKey,
+			getDictionaryLanguages: m.getDictionaryLanguages,
+			searchDictionaryEntries: m.searchDictionaryEntries,
+			batchDictionaryEntries: m.batchDictionaryEntries,
+			getSecuritySources: m.getSecuritySources,
+			appendSecuritySource: m.appendSecuritySource,
+			deleteSecuritySource: m.deleteSecuritySource
+		})
+	};
+}
+
+/**
+ * Allocate a fresh MockFns instance with `vi.fn()` for every method.
+ * Use inside `vi.hoisted(() => createMockFns(vi.fn))` so the resulting
+ * mocks are available to the hoisted `vi.mock` factory.
+ */
+export function createMockFns(makeFn: () => ReturnType<typeof ViType.fn>): MockFns {
+	return {
+		getIndex: makeFn(),
+		getIndexSettings: makeFn(),
+		listReplicas: makeFn(),
+		getInternalRegions: makeFn(),
+		addObjects: makeFn(),
+		browseObjects: makeFn(),
+		deleteObject: makeFn(),
+		searchRules: makeFn(),
+		searchSynonyms: makeFn(),
+		getPersonalizationStrategy: makeFn(),
+		savePersonalizationStrategy: makeFn(),
+		deletePersonalizationStrategy: makeFn(),
+		getPersonalizationProfile: makeFn(),
+		deletePersonalizationProfile: makeFn(),
+		getQsConfig: makeFn(),
+		getQsStatus: makeFn(),
+		getAnalyticsTopSearches: makeFn(),
+		getAnalyticsSearchCount: makeFn(),
+		getAnalyticsNoResults: makeFn(),
+		getAnalyticsNoResultRate: makeFn(),
+		getAnalyticsStatus: makeFn(),
+		getDebugEvents: makeFn(),
+		listExperiments: makeFn(),
+		createExperiment: makeFn(),
+		deleteExperiment: makeFn(),
+		startExperiment: makeFn(),
+		stopExperiment: makeFn(),
+		concludeExperiment: makeFn(),
+		getExperimentResults: makeFn(),
+		updateIndexSettings: makeFn(),
+		saveRule: makeFn(),
+		deleteRule: makeFn(),
+		saveSynonym: makeFn(),
+		deleteSynonym: makeFn(),
+		saveQsConfig: makeFn(),
+		deleteQsConfig: makeFn(),
+		createIndexKey: makeFn(),
+		getDictionaryLanguages: makeFn(),
+		searchDictionaryEntries: makeFn(),
+		batchDictionaryEntries: makeFn(),
+		getSecuritySources: makeFn(),
+		appendSecuritySource: makeFn(),
+		deleteSecuritySource: makeFn()
+	};
 }
 
 /** Creates the standard action call arguments. */

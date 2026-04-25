@@ -1,4 +1,3 @@
-//! Stub summary for /Users/stuart/parallel_development/fjcloud_dev/MAR17_11_2_data_management_features/fjcloud_dev/infra/metering-agent/src/storage.rs.
 use chrono::Utc;
 
 use super::record;
@@ -116,7 +115,7 @@ pub fn build_storage_usage_records(
         records.push(record::build_usage_record(
             &ctx,
             attribution.customer_id,
-            &tenant.id,
+            &attribution.tenant_id,
             record::EventType::StorageBytes,
             tenant.bytes,
         ));
@@ -188,6 +187,7 @@ pub async fn fetch_cold_storage_usage(
 ) -> anyhow::Result<Vec<ColdStorageUsageEntry>> {
     let response = http
         .get(cfg.cold_storage_usage_url())
+        .header("x-internal-key", &cfg.internal_key)
         .send()
         .await?
         .error_for_status()?;
@@ -197,10 +197,54 @@ pub async fn fetch_cold_storage_usage(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use axum::{extract::State, http::HeaderMap, routing::get, Router};
     use dashmap::DashMap;
     use std::sync::Arc;
+    use tokio::net::TcpListener;
 
     use crate::config::Config;
+
+    #[derive(Clone)]
+    struct HeaderCaptureState {
+        observed_key: Arc<std::sync::Mutex<Option<String>>>,
+        payload: Arc<String>,
+    }
+
+    async fn spawn_cold_storage_server(
+        state: HeaderCaptureState,
+    ) -> (String, tokio::task::JoinHandle<()>) {
+        let app = Router::new()
+            .route(
+                "/internal/cold-storage-usage",
+                get(capture_cold_storage_headers),
+            )
+            .with_state(state);
+        let listener = TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("listener should bind");
+        let addr = listener.local_addr().expect("listener should expose addr");
+        let handle = tokio::spawn(async move {
+            axum::serve(listener, app)
+                .await
+                .expect("test server should run");
+        });
+        (format!("http://{addr}"), handle)
+    }
+
+    async fn capture_cold_storage_headers(
+        State(state): State<HeaderCaptureState>,
+        headers: HeaderMap,
+    ) -> String {
+        let observed = headers
+            .get("x-internal-key")
+            .and_then(|value| value.to_str().ok())
+            .map(ToOwned::to_owned);
+        *state
+            .observed_key
+            .lock()
+            .expect("header capture mutex should lock") = observed;
+        (*state.payload).clone()
+    }
 
     /// Guards the cold-storage tier filter: only indexes whose tenant-map tier
     /// is `"cold"` should produce a `StorageBytes` record from
@@ -216,6 +260,7 @@ mod tests {
         let cfg = Config {
             flapjack_url: "http://localhost:7700".to_string(),
             flapjack_api_key: "test-key".to_string(),
+            internal_key: "test-key".to_string(),
             scrape_interval: std::time::Duration::from_secs(60),
             storage_poll_interval: std::time::Duration::from_secs(300),
             tenant_map_refresh_interval: std::time::Duration::from_secs(300),
@@ -235,6 +280,7 @@ mod tests {
             "cold-idx".to_string(),
             super::super::tenant_map::TenantAttribution {
                 customer_id,
+                tenant_id: "cold-idx".to_string(),
                 tier: "cold".to_string(),
             },
         );
@@ -242,6 +288,7 @@ mod tests {
             "active-idx".to_string(),
             super::super::tenant_map::TenantAttribution {
                 customer_id,
+                tenant_id: "active-idx".to_string(),
                 tier: "active".to_string(),
             },
         );
@@ -268,5 +315,50 @@ mod tests {
         assert_eq!(records[0].tenant_id, "cold-idx");
         assert_eq!(records[0].value, 10);
         assert_eq!(records[0].event_type, record::EventType::StorageBytes);
+    }
+
+    #[tokio::test]
+    async fn fetch_cold_storage_usage_sends_internal_key_header() {
+        let observed_key = Arc::new(std::sync::Mutex::new(None));
+        let payload = Arc::new(
+            r#"[{"customer_id":"00000000-0000-0000-0000-000000000000","tenant_id":"cold-idx","size_bytes":42}]"#
+                .to_string(),
+        );
+        let state = HeaderCaptureState {
+            observed_key: Arc::clone(&observed_key),
+            payload: Arc::clone(&payload),
+        };
+        let (base_url, handle) = spawn_cold_storage_server(state).await;
+        let cfg = Config {
+            flapjack_url: "http://localhost:7700".to_string(),
+            flapjack_api_key: "node-api-key".to_string(),
+            internal_key: "internal-key-123".to_string(),
+            scrape_interval: std::time::Duration::from_secs(60),
+            storage_poll_interval: std::time::Duration::from_secs(300),
+            tenant_map_refresh_interval: std::time::Duration::from_secs(300),
+            database_url: "postgres://localhost/test".to_string(),
+            customer_id: uuid::Uuid::new_v4(),
+            node_id: "node-a".to_string(),
+            region: "us-east-1".to_string(),
+            health_port: 9091,
+            tenant_map_url: format!("{base_url}/internal/tenant-map"),
+            cold_storage_usage_url: format!("{base_url}/internal/cold-storage-usage"),
+        };
+        let http = reqwest::Client::new();
+
+        let entries = fetch_cold_storage_usage(&cfg, &http)
+            .await
+            .expect("cold storage usage request should succeed");
+
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].size_bytes, 42);
+        assert_eq!(
+            observed_key
+                .lock()
+                .expect("header capture mutex should lock")
+                .clone(),
+            Some("internal-key-123".to_string())
+        );
+        handle.abort();
     }
 }

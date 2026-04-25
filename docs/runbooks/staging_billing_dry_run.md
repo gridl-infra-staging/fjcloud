@@ -100,7 +100,7 @@ invoice IDs, customer emails, and other sensitive operator context.
 - `metering_evidence` step runs `check_usage_records_populated` and `check_rollup_current`.
 - `live_mutation_guard` enforces `--month`, `--confirm-live-mutation`, `ADMIN_KEY`, and DB evidence URL preconditions.
 - `live_mutation_attempt` performs billing mutation via `POST /admin/billing/run` only after guard success.
-- Evidence convergence then validates DB invoice rows and Stripe webhook processing before reporting success.
+- Evidence convergence then validates DB invoice rows and billing-run Stripe webhook processing before reporting success.
 
 ## Failure Classification Model
 
@@ -150,4 +150,6 @@ For dated infrastructure status (DNS cutover, ACM, SES, public health), use `doc
 - Runtime service selection in `infra/api/src/startup.rs` selects `MailpitEmailService` only when `MAILPIT_API_URL` is configured in local/dev noop mode; otherwise that local/dev path falls back to `NoopEmailService`, while SES-mode startup selects `SesEmailService`.
 - Best-effort (non-blocking) invoice-ready send semantics are implemented in `infra/api/src/invoicing/stripe_sync.rs` via `send_invoice_ready_email_best_effort`.
 - Delivery transports for SES and the local Mailpit sink are implemented in `infra/api/src/services/email.rs`.
-- Rehearsal runtime email evidence in `scripts/lib/staging_billing_rehearsal_email_evidence.sh` fails closed as `invoice_email_evidence_unsupported` when `MAILPIT_API_URL` is not available.
+- Rehearsal runtime email evidence in `scripts/lib/staging_billing_rehearsal_email_evidence.sh` fails closed as `invoice_email_evidence_delegated` when `MAILPIT_API_URL` is not available on SES-backed staging.
+- Live SES delivery proof for that delegated staging path is owned by the SES deliverability wrapper in `scripts/launch/ses_deliverability_evidence.sh`.
+- SES inbox-delivery closure for delegated staging runs is owned by `docs/runbooks/email-production.md` plus `scripts/launch/ses_deliverability_evidence.sh`; the billing rehearsal does not claim inbox-delivery closure when Mailpit is absent.

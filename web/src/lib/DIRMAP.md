@@ -7,6 +7,7 @@
 | flapjack-search-client.ts | Stub summary for flapjack-search-client.ts. |
 | landing-pricing.ts | Stub summary for /Users/stuart/parallel_development/fjcloud_dev/mar19_1_frontend_test_suite/fjcloud_dev/web/src/lib/landing-pricing.ts. |
 | pricing.ts | Shared marketing pricing constants used by the landing page pricing table. |
+| public_api.ts | Canonical public API origin used by unauthenticated marketing surfaces. |
 
 | Directory | Summary |
 | --- | --- |

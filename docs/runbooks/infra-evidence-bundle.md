@@ -156,7 +156,7 @@ bash scripts/launch/live_e2e_evidence.sh \
   --env staging \
   --domain flapjack.foo \
   --artifact-dir <dir> \
-  --env-file /Users/stuart/repos/gridl/fjcloud/.secret/.env.secret \
+  --env-file .secret/.env.secret \
   --ami-id <ami-xxxxxxxxxxxxxxxxx>
 ```
 

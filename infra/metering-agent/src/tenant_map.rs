@@ -1,4 +1,3 @@
-//! Stub summary for /Users/stuart/parallel_development/fjcloud_dev/MAR17_11_2_data_management_features/fjcloud_dev/infra/metering-agent/src/tenant_map.rs.
 use std::sync::Arc;
 #[cfg(test)]
 use std::time::{Duration, Instant};
@@ -12,12 +11,15 @@ pub type TenantCustomerMap = Arc<DashMap<String, TenantAttribution>>;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TenantAttribution {
     pub customer_id: uuid::Uuid,
+    pub tenant_id: String,
     pub tier: String,
 }
 
 #[derive(Debug, Clone, serde::Deserialize)]
 pub struct TenantMapEntry {
     pub tenant_id: String,
+    #[serde(default)]
+    pub flapjack_uid: Option<String>,
     pub customer_id: uuid::Uuid,
     pub vm_id: Option<uuid::Uuid>,
     #[serde(default)]
@@ -51,6 +53,7 @@ pub async fn fetch_tenant_map(
 ) -> anyhow::Result<Vec<TenantMapEntry>> {
     let response = http
         .get(cfg.tenant_map_url())
+        .header("x-internal-key", &cfg.internal_key)
         .send()
         .await?
         .error_for_status()?;
@@ -104,13 +107,32 @@ pub fn replace_tenant_map_cache(
             continue;
         }
 
+        let canonical_tenant_id = entry.tenant_id;
+        let alias_flapjack_uid = entry.flapjack_uid;
+        let customer_id = entry.customer_id;
+        let tier = entry.tier;
+
         tenant_map.insert(
-            entry.tenant_id,
+            canonical_tenant_id.clone(),
             TenantAttribution {
-                customer_id: entry.customer_id,
-                tier: entry.tier,
+                customer_id,
+                tenant_id: canonical_tenant_id.clone(),
+                tier: tier.clone(),
             },
         );
+
+        if let Some(flapjack_uid) = alias_flapjack_uid {
+            if flapjack_uid != canonical_tenant_id && !tenant_map.contains_key(&flapjack_uid) {
+                tenant_map.insert(
+                    flapjack_uid,
+                    TenantAttribution {
+                        customer_id,
+                        tenant_id: canonical_tenant_id,
+                        tier,
+                    },
+                );
+            }
+        }
     }
 }
 
@@ -158,8 +180,48 @@ pub async fn refresh_tenant_map(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use axum::{extract::State, http::HeaderMap, routing::get, Router};
     use std::time::{Duration, Instant};
+    use tokio::net::TcpListener;
     use uuid::Uuid;
+
+    #[derive(Clone)]
+    struct HeaderCaptureState {
+        observed_key: Arc<std::sync::Mutex<Option<String>>>,
+    }
+
+    async fn spawn_tenant_map_server(
+        state: HeaderCaptureState,
+    ) -> (String, tokio::task::JoinHandle<()>) {
+        let app = Router::new()
+            .route("/internal/tenant-map", get(capture_tenant_map_headers))
+            .with_state(state);
+        let listener = TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("listener should bind");
+        let addr = listener.local_addr().expect("listener should expose addr");
+        let handle = tokio::spawn(async move {
+            axum::serve(listener, app)
+                .await
+                .expect("test server should run");
+        });
+        (format!("http://{addr}"), handle)
+    }
+
+    async fn capture_tenant_map_headers(
+        State(state): State<HeaderCaptureState>,
+        headers: HeaderMap,
+    ) -> String {
+        let observed = headers
+            .get("x-internal-key")
+            .and_then(|value| value.to_str().ok())
+            .map(ToOwned::to_owned);
+        *state
+            .observed_key
+            .lock()
+            .expect("header capture mutex should lock") = observed;
+        "[]".to_string()
+    }
 
     // ---- Pure function tests ------------------------------------------------
 
@@ -236,6 +298,7 @@ mod tests {
             "products".to_string(),
             TenantAttribution {
                 customer_id: cid,
+                tenant_id: "products".to_string(),
                 tier: "active".to_string(),
             },
         );
@@ -256,6 +319,7 @@ mod tests {
             "cold-idx".to_string(),
             TenantAttribution {
                 customer_id: Uuid::new_v4(),
+                tenant_id: "cold-idx".to_string(),
                 tier: "cold".to_string(),
             },
         );
@@ -263,6 +327,25 @@ mod tests {
             resolve_tenant_attribution(&map, "cold-idx").unwrap().tier,
             "cold"
         );
+    }
+
+    #[test]
+    fn resolve_tenant_attribution_alias_preserves_canonical_tenant_id() {
+        let map: TenantCustomerMap = Arc::new(DashMap::new());
+        let cid = Uuid::new_v4();
+        map.insert(
+            format!("{}_products", cid.as_simple()),
+            TenantAttribution {
+                customer_id: cid,
+                tenant_id: "products".to_string(),
+                tier: "active".to_string(),
+            },
+        );
+
+        let result = resolve_tenant_attribution(&map, &format!("{}_products", cid.as_simple()))
+            .expect("flapjack uid alias should resolve");
+        assert_eq!(result.customer_id, cid);
+        assert_eq!(result.tenant_id, "products");
     }
 
     // ---- replace_tenant_map_cache edge cases --------------------------------
@@ -283,6 +366,7 @@ mod tests {
             vec![
                 TenantMapEntry {
                     tenant_id: "a".to_string(),
+                    flapjack_uid: None,
                     customer_id: c1,
                     vm_id: None,
                     flapjack_url: None,
@@ -290,6 +374,7 @@ mod tests {
                 },
                 TenantMapEntry {
                     tenant_id: "b".to_string(),
+                    flapjack_uid: None,
                     customer_id: c2,
                     vm_id: None,
                     flapjack_url: None,
@@ -317,6 +402,7 @@ mod tests {
             vec![
                 TenantMapEntry {
                     tenant_id: "dup".to_string(),
+                    flapjack_uid: None,
                     customer_id: first,
                     vm_id: None,
                     flapjack_url: None,
@@ -324,6 +410,7 @@ mod tests {
                 },
                 TenantMapEntry {
                     tenant_id: "dup".to_string(),
+                    flapjack_uid: None,
                     customer_id: second,
                     vm_id: None,
                     flapjack_url: None,
@@ -336,6 +423,45 @@ mod tests {
         assert_eq!(map.get("dup").unwrap().customer_id, first);
     }
 
+    #[tokio::test]
+    async fn fetch_tenant_map_sends_internal_key_header() {
+        let observed_key = Arc::new(std::sync::Mutex::new(None));
+        let state = HeaderCaptureState {
+            observed_key: Arc::clone(&observed_key),
+        };
+        let (base_url, handle) = spawn_tenant_map_server(state).await;
+        let cfg = Config {
+            flapjack_url: "http://localhost:7700".to_string(),
+            flapjack_api_key: "node-api-key".to_string(),
+            internal_key: "internal-key-123".to_string(),
+            scrape_interval: Duration::from_secs(60),
+            storage_poll_interval: Duration::from_secs(300),
+            tenant_map_refresh_interval: Duration::from_secs(300),
+            database_url: "postgres://localhost/test".to_string(),
+            customer_id: Uuid::new_v4(),
+            node_id: "node-a".to_string(),
+            region: "us-east-1".to_string(),
+            health_port: 9091,
+            tenant_map_url: format!("{base_url}/internal/tenant-map"),
+            cold_storage_usage_url: format!("{base_url}/internal/cold-storage-usage"),
+        };
+        let http = reqwest::Client::new();
+
+        let entries = fetch_tenant_map(&cfg, &http)
+            .await
+            .expect("tenant map request should succeed");
+
+        assert!(entries.is_empty());
+        assert_eq!(
+            observed_key
+                .lock()
+                .expect("header capture mutex should lock")
+                .clone(),
+            Some("internal-key-123".to_string())
+        );
+        handle.abort();
+    }
+
     #[test]
     fn replace_cache_clears_old_entries() {
         let map: TenantCustomerMap = Arc::new(DashMap::new());
@@ -343,6 +469,7 @@ mod tests {
             "old".to_string(),
             TenantAttribution {
                 customer_id: Uuid::new_v4(),
+                tenant_id: "old".to_string(),
                 tier: "active".to_string(),
             },
         );
@@ -366,6 +493,7 @@ mod tests {
             vec![
                 TenantMapEntry {
                     tenant_id: "with-url".to_string(),
+                    flapjack_uid: None,
                     customer_id: Uuid::new_v4(),
                     vm_id: None,
                     flapjack_url: Some("http://localhost:7700".to_string()),
@@ -373,6 +501,7 @@ mod tests {
                 },
                 TenantMapEntry {
                     tenant_id: "no-url".to_string(),
+                    flapjack_uid: None,
                     customer_id: Uuid::new_v4(),
                     vm_id: None,
                     flapjack_url: None,
@@ -391,8 +520,42 @@ mod tests {
         let json = r#"{"tenant_id": "t1", "customer_id": "00000000-0000-0000-0000-000000000001"}"#;
         let entry: TenantMapEntry = serde_json::from_str(json).unwrap();
         assert_eq!(entry.tier, "active");
+        assert!(entry.flapjack_uid.is_none());
         assert!(entry.vm_id.is_none());
         assert!(entry.flapjack_url.is_none());
+    }
+
+    #[test]
+    fn replace_cache_stores_flapjack_uid_alias() {
+        let map: TenantCustomerMap = Arc::new(DashMap::new());
+        let customer_id = Uuid::new_v4();
+        let flapjack_uid = format!("{}_products", customer_id.as_simple());
+        replace_tenant_map_cache(
+            &map,
+            vec![TenantMapEntry {
+                tenant_id: "products".to_string(),
+                flapjack_uid: Some(flapjack_uid.clone()),
+                customer_id,
+                vm_id: None,
+                flapjack_url: Some("http://localhost:7700".to_string()),
+                tier: "active".to_string(),
+            }],
+            "http://localhost:7700",
+        );
+
+        assert_eq!(map.len(), 2);
+        assert_eq!(
+            map.get("products")
+                .expect("canonical tenant id should be cached")
+                .tenant_id,
+            "products"
+        );
+        assert_eq!(
+            map.get(&flapjack_uid)
+                .expect("flapjack uid alias should be cached")
+                .tenant_id,
+            "products"
+        );
     }
 
     // ---- Existing integration-style tests -----------------------------------
@@ -417,6 +580,7 @@ mod tests {
             vec![
                 TenantMapEntry {
                     tenant_id: "products".to_string(),
+                    flapjack_uid: Some(format!("{}_products", local_customer.as_simple())),
                     customer_id: local_customer,
                     vm_id: Some(Uuid::new_v4()),
                     flapjack_url: Some(local_url.to_string()),
@@ -424,6 +588,7 @@ mod tests {
                 },
                 TenantMapEntry {
                     tenant_id: "products".to_string(),
+                    flapjack_uid: Some(format!("{}_products", remote_customer.as_simple())),
                     customer_id: remote_customer,
                     vm_id: Some(Uuid::new_v4()),
                     flapjack_url: Some("https://vm-remote.flapjack.foo".to_string()),
@@ -433,11 +598,19 @@ mod tests {
             "https://vm-local.flapjack.foo/",
         );
 
-        assert_eq!(tenant_map.len(), 1);
+        assert_eq!(tenant_map.len(), 2);
         assert_eq!(
             tenant_map
                 .get("products")
                 .expect("local products mapping should be present")
+                .value()
+                .customer_id,
+            local_customer
+        );
+        assert_eq!(
+            tenant_map
+                .get(&format!("{}_products", local_customer.as_simple()))
+                .expect("local flapjack uid alias should be present")
                 .value()
                 .customer_id,
             local_customer
@@ -464,6 +637,7 @@ mod tests {
             "products".to_string(),
             TenantAttribution {
                 customer_id: first_customer,
+                tenant_id: "products".to_string(),
                 tier: "active".to_string(),
             },
         );
@@ -477,6 +651,7 @@ mod tests {
             vec![
                 TenantMapEntry {
                     tenant_id: "products".to_string(),
+                    flapjack_uid: Some(format!("{}_products", first_customer.as_simple())),
                     customer_id: first_customer,
                     vm_id: None,
                     flapjack_url: Some(local_flapjack_url.to_string()),
@@ -484,6 +659,7 @@ mod tests {
                 },
                 TenantMapEntry {
                     tenant_id: "new-index".to_string(),
+                    flapjack_uid: None,
                     customer_id: Uuid::new_v4(),
                     vm_id: None,
                     flapjack_url: Some(local_flapjack_url.to_string()),
@@ -504,6 +680,7 @@ mod tests {
             vec![
                 TenantMapEntry {
                     tenant_id: "products".to_string(),
+                    flapjack_uid: Some(format!("{}_products", first_customer.as_simple())),
                     customer_id: first_customer,
                     vm_id: None,
                     flapjack_url: Some(local_flapjack_url.to_string()),
@@ -511,6 +688,7 @@ mod tests {
                 },
                 TenantMapEntry {
                     tenant_id: "new-index".to_string(),
+                    flapjack_uid: None,
                     customer_id: new_customer,
                     vm_id: None,
                     flapjack_url: Some(local_flapjack_url.to_string()),

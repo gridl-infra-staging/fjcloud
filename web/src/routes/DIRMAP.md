@@ -9,10 +9,11 @@
 | --- | --- |
 | admin | The admin directory provides server-side loaders and UI pages for managing the platform's core administrative functions, including customer/tenant accounts, billing invoices, system alerts with filtering, and migrations. |
 | api | The api directory provides SvelteKit server endpoints for pricing operations and batch search requests. |
-| dashboard | The dashboard directory is a SvelteKit application providing customer-facing management pages for billing setup, database provisioning, index management, data migration from Algolia, and account onboarding. |
+| dashboard | The dashboard directory provides the customer-facing portal for fjcloud account management, handling user onboarding, billing setup through Stripe, database instance provisioning, search index management, and data migration from Algolia. |
 | forgot-password | — |
 | login | — |
 | logout | — |
+| pricing | — |
 | reset-password | — |
 | signup | — |
 | status | — |

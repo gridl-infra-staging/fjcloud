@@ -35,6 +35,11 @@ resource "aws_instance" "api" {
   key_name                    = aws_key_pair.api_ssh.key_name
   associate_public_ip_address = false
 
+  # user_data only runs on first boot, so editing it should not force EC2
+  # replacement. The AMI bakes the same package list; existing hosts are
+  # reconciled out-of-band (SSM / runbook) rather than by replacement.
+  user_data_replace_on_change = false
+
   metadata_options {
     http_endpoint               = "enabled"
     http_tokens                 = "required"
@@ -59,8 +64,11 @@ resource "aws_instance" "api" {
     chown fjcloud:fjcloud /etc/fjcloud /var/log/fjcloud
     chmod 0750 /etc/fjcloud
 
-    # Install dependencies
-    dnf install -y aws-cli jq
+    # Install dependencies. postgresql16 provides `psql`, which the staging
+    # metering rehearsal owner and RDS restore verification path both require
+    # when they run from this host. The AMI also bakes postgresql16 so new
+    # AMIs do not depend on user_data for this package.
+    dnf install -y aws-cli jq postgresql16
 
     # Set hostname
     hostnamectl set-hostname "fjcloud-api-${var.env}"

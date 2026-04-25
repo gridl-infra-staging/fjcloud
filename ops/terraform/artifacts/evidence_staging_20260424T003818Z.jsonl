@@ -1,0 +1,3 @@
+{"command":"preflight:aws_creds","timestamp":"2026-04-24T00:38:19Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"preflight:ami_exists","timestamp":"2026-04-24T00:38:19Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"preflight:cloudflare_dns","timestamp":"2026-04-24T00:38:19Z","verdict":"FAIL","output":"CLOUDFLARE_API_TOKEN or CLOUDFLARE_EDIT_READ_ZONE_DNS_API_TOKEN_FLAPJACK_FOO is missing from /Users/stuart/.matt/projects/fjcloud_dev-fbeae273/apr23_pm_6_launch_coordination_and_rc_signoff.md-998f7042/artifacts/stage_03_paid_beta_rc/rc_run_20260424T003133Z/stage3_rc_credentials_kv.","artifact_path":""}

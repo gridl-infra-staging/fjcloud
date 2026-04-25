@@ -1,3 +1,4 @@
+//! Binary entrypoint for the Flapjack Cloud API service.
 
 use api::config::Config;
 use api::dns::DnsManager;

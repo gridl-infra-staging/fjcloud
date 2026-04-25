@@ -4,13 +4,13 @@
 # Staging API host: runs fjcloud-api, fjcloud-aggregation-job, fj-metering-agent
 # Customer VMs: run flapjack engine via bootstrap.sh (reads IMDS tags at boot)
 #
-# Binary contract (must match deploy.sh BINARIES array):
-#   fjcloud-api, fjcloud-aggregation-job, fj-metering-agent
+# Binary contract for the dual-use AMI:
+#   flapjack, fjcloud-api, fjcloud-aggregation-job, fj-metering-agent
 #
 # Prerequisites:
 #   - Packer >= 1.9 with amazon plugin
 #   - AWS credentials with EC2/AMI permissions
-#   - Staging binaries in ../build/ (fjcloud-api, fjcloud-aggregation-job, fj-metering-agent)
+#   - Staging binaries in ../build/ (flapjack, fjcloud-api, fjcloud-aggregation-job, fj-metering-agent)
 #   - systemd unit files in ../systemd/
 #   - bootstrap script in ../user-data/
 #
@@ -51,7 +51,7 @@ variable "instance_type" {
 variable "binary_dir" {
   type        = string
   default     = "../build"
-  description = "Directory containing fjcloud-api, fjcloud-aggregation-job, and fj-metering-agent binaries"
+  description = "Directory containing flapjack, fjcloud-api, fjcloud-aggregation-job, and fj-metering-agent binaries"
 }
 
 variable "env" {
@@ -100,7 +100,12 @@ source "amazon-ebs" "flapjack" {
 build {
   sources = ["source.amazon-ebs.flapjack"]
 
-  # --- Copy staging binaries (must match deploy.sh BINARIES array) ---
+  # --- Copy AMI binaries ---
+  provisioner "file" {
+    source      = "${var.binary_dir}/flapjack"
+    destination = "/tmp/flapjack"
+  }
+
   provisioner "file" {
     source      = "${var.binary_dir}/fjcloud-api"
     destination = "/tmp/fjcloud-api"
@@ -159,7 +164,10 @@ build {
     inline = [
       # System packages (aws-cli is the AL2023 package name for AWS CLI v2)
       "sudo dnf update -y",
-      "sudo dnf install -y aws-cli jq gcc cargo",
+      # postgresql16 bakes in `psql` so the staging metering rehearsal and
+      # RDS restore-drill verification owners can run DB evidence checks
+      # from the API host without operator-side tooling installs.
+      "sudo dnf install -y aws-cli jq gcc cargo postgresql16",
       "cargo install sqlx-cli --version 0.8.3 --no-default-features --features postgres,rustls",
       "sudo install -m 0755 /home/ec2-user/.cargo/bin/sqlx /usr/local/bin/sqlx",
       "sudo chmod +x /usr/local/bin/sqlx",
@@ -174,7 +182,10 @@ build {
       "sudo mkdir -p /var/log/flapjack /etc/flapjack",
       "sudo chown flapjack:flapjack /var/lib/flapjack /var/log/flapjack /etc/flapjack",
 
-      # Install staging binaries (matches deploy.sh BINARIES array)
+      # Install binaries needed by the dual-use AMI. Shared VMs start the
+      # flapjack engine directly from the baked image, while the staging API
+      # host later refreshes the fjcloud binaries via deploy.sh.
+      "sudo install -m 0755 /tmp/flapjack /usr/local/bin/flapjack",
       "sudo install -m 0755 /tmp/fjcloud-api /usr/local/bin/fjcloud-api",
       "sudo install -m 0755 /tmp/fjcloud-aggregation-job /usr/local/bin/fjcloud-aggregation-job",
       "sudo install -m 0755 /tmp/fj-metering-agent /usr/local/bin/fj-metering-agent",
@@ -207,7 +218,7 @@ build {
       "sudo install -m 0644 /tmp/logrotate-flapjack /etc/logrotate.d/flapjack",
 
       # Clean up temp files
-      "rm -f /tmp/fjcloud-api /tmp/fjcloud-aggregation-job /tmp/fj-metering-agent /tmp/flapjack.service /tmp/fj-metering-agent.service /tmp/fjcloud-api.service /tmp/fjcloud-aggregation-job.service /tmp/fjcloud-aggregation-job.timer /tmp/bootstrap.sh /tmp/logrotate-flapjack",
+      "rm -f /tmp/flapjack /tmp/fjcloud-api /tmp/fjcloud-aggregation-job /tmp/fj-metering-agent /tmp/flapjack.service /tmp/fj-metering-agent.service /tmp/fjcloud-api.service /tmp/fjcloud-aggregation-job.service /tmp/fjcloud-aggregation-job.timer /tmp/bootstrap.sh /tmp/logrotate-flapjack",
     ]
   }
 

@@ -158,6 +158,7 @@ fn unknown_billing_plan_defaults_to_free_minimum_via_customer_enum() {
         email: "unknown@example.com".to_string(),
         stripe_customer_id: None,
         status: "active".to_string(),
+        deleted_at: None,
         billing_plan: "enterprise".to_string(),
         quota_warning_sent_at: None,
         created_at: Utc::now(),

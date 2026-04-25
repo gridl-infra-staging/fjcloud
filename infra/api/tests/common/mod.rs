@@ -2,6 +2,7 @@
 // that are used by one test file appear unused in others. Suppress false positives.
 #![allow(dead_code)]
 
+pub mod ayb_test_support;
 pub mod builders;
 pub mod capacity_profiles;
 pub mod flapjack_proxy_test_support;
@@ -12,6 +13,7 @@ pub mod mocks;
 pub mod storage_metering_test_support;
 pub mod storage_s3_object_route_support;
 
+pub use ayb_test_support::*;
 pub use builders::*;
 pub use mocks::*;
 

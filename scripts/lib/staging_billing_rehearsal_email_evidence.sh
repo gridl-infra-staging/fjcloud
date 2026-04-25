@@ -19,6 +19,31 @@
 # TODO: Document extract_required_invoice_email_pairs_json.
 # TODO: Document extract_required_invoice_email_pairs_json.
 # TODO: Document extract_required_invoice_email_pairs_json.
+# TODO: Document extract_required_invoice_email_pairs_json.
+# TODO: Document extract_required_invoice_email_pairs_json.
+# TODO: Document extract_required_invoice_email_pairs_json.
+# TODO: Document extract_required_invoice_email_pairs_json.
+# TODO: Document extract_required_invoice_email_pairs_json.
+# TODO: Document extract_required_invoice_email_pairs_json.
+# TODO: Document extract_required_invoice_email_pairs_json.
+# TODO: Document extract_required_invoice_email_pairs_json.
+# TODO: Document extract_required_invoice_email_pairs_json.
+# TODO: Document extract_required_invoice_email_pairs_json.
+# TODO: Document extract_required_invoice_email_pairs_json.
+# TODO: Document extract_required_invoice_email_pairs_json.
+# TODO: Document extract_required_invoice_email_pairs_json.
+# TODO: Document extract_required_invoice_email_pairs_json.
+# TODO: Document extract_required_invoice_email_pairs_json.
+# TODO: Document extract_required_invoice_email_pairs_json.
+# TODO: Document extract_required_invoice_email_pairs_json.
+# TODO: Document extract_required_invoice_email_pairs_json.
+# TODO: Document extract_required_invoice_email_pairs_json.
+# TODO: Document extract_required_invoice_email_pairs_json.
+# TODO: Document extract_required_invoice_email_pairs_json.
+# TODO: Document extract_required_invoice_email_pairs_json.
+# TODO: Document extract_required_invoice_email_pairs_json.
+# TODO: Document extract_required_invoice_email_pairs_json.
+# TODO: Document extract_required_invoice_email_pairs_json.
 extract_required_invoice_email_pairs_json() {
     python3 - "$INVOICE_ROWS_JSON" "$CREATED_INVOICE_IDS_JSON" <<'PY' || true
 import json
@@ -216,8 +241,8 @@ PY
 }
 
 set_invoice_email_unsupported_runtime() {
-    EVIDENCE_LAST_CLASSIFICATION="invoice_email_evidence_unsupported"
-    EVIDENCE_LAST_DETAIL="MAILPIT_API_URL is not configured; staging runtime email evidence is not observable."
+    EVIDENCE_LAST_CLASSIFICATION="invoice_email_evidence_delegated"
+    EVIDENCE_LAST_DETAIL="MAILPIT_API_URL is not configured; staging runtime invoice email evidence remains delegated to SES-backed proof."
     EVIDENCE_TERMINAL_FAILURE=1
     INVOICE_EMAIL_PAYLOAD='{"required_pairs":[],"emails_required":0,"emails_with_messages":0,"matched_pairs":[],"missing_pairs":[],"missing_invoice_ids":[],"mailpit_message_ids":[]}'
 }

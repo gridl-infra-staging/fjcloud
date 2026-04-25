@@ -24,6 +24,11 @@ resource "random_password" "db" {
   special = false # avoid shell-escaping headaches in connection strings
 }
 
+resource "random_password" "internal_auth_token" {
+  length  = 48
+  special = false # token is passed via HTTP headers and env files
+}
+
 resource "aws_db_instance" "main" {
   identifier     = "fjcloud-${var.env}"
   engine         = "postgres"
@@ -89,6 +94,16 @@ resource "aws_ssm_parameter" "database_url" {
 
   tags = {
     Name = "fjcloud-${var.env}-database-url"
+  }
+}
+
+resource "aws_ssm_parameter" "internal_auth_token" {
+  name  = "/fjcloud/${var.env}/internal_auth_token"
+  type  = "SecureString"
+  value = random_password.internal_auth_token.result
+
+  tags = {
+    Name = "fjcloud-${var.env}-internal-auth-token"
   }
 }
 

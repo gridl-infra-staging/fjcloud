@@ -50,6 +50,7 @@ setup_workspace() {
     cp "$REPO_ROOT/scripts/staging_billing_dry_run.sh" "$TEST_WORKSPACE/scripts/"
     cp "$REPO_ROOT/scripts/lib/env.sh" "$TEST_WORKSPACE/scripts/lib/"
     cp "$REPO_ROOT/scripts/lib/metering_checks.sh" "$TEST_WORKSPACE/scripts/lib/"
+    cp "$REPO_ROOT/scripts/lib/psql_path.sh" "$TEST_WORKSPACE/scripts/lib/"
     cp "$REPO_ROOT/scripts/lib/validation_json.sh" "$TEST_WORKSPACE/scripts/lib/"
     cp "$REPO_ROOT/scripts/lib/live_gate.sh" "$TEST_WORKSPACE/scripts/lib/"
     cp "$REPO_ROOT/scripts/lib/billing_rehearsal_steps.sh" "$TEST_WORKSPACE/scripts/lib/"

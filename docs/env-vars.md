@@ -342,6 +342,40 @@ Variables consumed by `scripts/staging_billing_dry_run.sh`. This runner is inten
 | `STAGING_STRIPE_WEBHOOK_URL` | No\*     | —                  | `staging_billing_dry_run.sh`              | Public Stripe webhook URL for staging. Must use `https://` and target `/webhooks/stripe`. Missing or non-HTTPS values are classified as the Cloudflare/DNS blocker because Stripe requires a publicly reachable HTTPS endpoint for registered webhook delivery                             |
 | `STRIPE_SECRET_KEY`          | No\*     | —                  | API runtime, `staging_billing_dry_run.sh` | Stripe sandbox secret key used by the staging API itself. For this rehearsal it must start with `sk_test_`; `sk_live_` is rejected so the dry-run path cannot be pointed at live mode by mistake. Canonical naming and compatibility behavior are defined in the `## Stripe` section above |
 
+## Synthetic Traffic Seeder (Staging Contract)
+
+Variables consumed by `scripts/launch/seed_synthetic_traffic.sh` and the Stage 5 live-proof seam in `scripts/tests/seed_synthetic_traffic_test.sh`.
+This synthetic traffic seeder section documents the staging contract only.
+
+### Execute mode contract (`seed_synthetic_traffic.sh`)
+
+Execute mode reuses existing core environment variables from `preflight_env()`; no seeder-only execute env family is defined.
+
+| Variable | Required for `--execute` | Description |
+| --- | --- | --- |
+| `DATABASE_URL` | Yes | PostgreSQL DSN used by proof queries and staging evidence checks. |
+| `API_URL` | Yes | Admin API base URL used by tenant/index provisioning calls. |
+| `ADMIN_KEY` | Yes | Admin auth key used for `/admin/*` requests. |
+| `FLAPJACK_URL` | Yes | Default flapjack endpoint used for index provisioning fallback and direct traffic. |
+| `FLAPJACK_API_KEY` | No (test/local override seam) | Optional override forwarded as `X-Algolia-API-Key` to direct-node calls. When unset, the seeder resolves the per-node admin key from SSM (`/fjcloud/{vm-hostname}/api-key`) on each `flapjack_url`, matching how the production scheduler authenticates against shared VMs. Operators on staging should leave this unset and rely on AWS SSM credentials in the caller environment. Tests still set `FLAPJACK_API_KEY` to bypass SSM. |
+| `AWS_DEFAULT_REGION` | No (defaults `us-east-1`) | Used by the seeder's per-VM SSM lookup when `FLAPJACK_API_KEY` is unset. Caller IAM must allow `ssm:GetParameter` on `/fjcloud/{vm-hostname}/api-key` paths in this region. |
+
+Selector boundary as implemented:
+- Execute mode supports only `--tenant A`.
+- `--tenant B`, `--tenant C`, and `--tenant all` remain descriptive in `--dry-run` and fail fast in execute mode as `unsupported selector`.
+- In plain terms: --tenant B, --tenant C, and --tenant all are unsupported selectors for execute mode.
+
+### Stage 5 live-proof harness gates (`seed_synthetic_traffic_test.sh`)
+
+These gates are test-harness controls for the optional staging seam and are separate from `preflight_env()`:
+
+| Variable | Required | Default | Description |
+| --- | --- | --- | --- |
+| `RUN_SYNTHETIC_STAGING_LIVE_TESTS` | No | `0` | Must be `1` to enable the gated live staging seam. |
+| `SYNTHETIC_STAGING_LIVE_ACK` | Conditionally | unset | Must equal `i-know-this-hits-staging` when live seam is enabled. |
+| `SYNTHETIC_STAGING_ENV_FILE` | Conditionally | unset | Path to the env file sourced by the live seam before execute and `psql` checks. |
+| `SYNTHETIC_STAGING_DURATION_MINUTES` | No | `5` | Optional execute-duration override used only by the live seam command wrapper. |
+
 ## SvelteKit Web Portal
 
 | Variable                        | Required | Default                 | Description                                                        |

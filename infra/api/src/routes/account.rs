@@ -1,4 +1,5 @@
 use axum::extract::State;
+use axum::http::header;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::Json;
@@ -9,10 +10,14 @@ use uuid::Uuid;
 
 use crate::auth::AuthenticatedTenant;
 use crate::errors::{ApiError, ErrorResponse};
+use crate::helpers::lock_account_lifecycle;
 use crate::models::{BillingPlan, Customer};
 use crate::password::{hash_password, verify_password};
 use crate::state::AppState;
 use crate::validation::{validate_length, validate_password, MAX_NAME_LEN, MAX_PASSWORD_LEN};
+
+const ACTIVE_AYB_DELETE_CONFLICT_MESSAGE: &str =
+    "Delete your active AllYourBase instance before deleting your account.";
 
 #[derive(Debug, Serialize, ToSchema)]
 pub struct CustomerProfileResponse {
@@ -22,6 +27,15 @@ pub struct CustomerProfileResponse {
     pub email_verified: bool,
     pub billing_plan: BillingPlan,
     pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct AccountExportResponse {
+    /// Export intentionally includes only the customer-safe profile row and
+    /// excludes password hash, Stripe/customer billing internals, API keys,
+    /// verification/reset tokens, status, updated_at, quota-warning, and
+    /// object-storage carry-forward fields.
+    pub profile: CustomerProfileResponse,
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
@@ -87,6 +101,30 @@ pub async fn get_profile(
 ) -> Result<impl IntoResponse, ApiError> {
     let customer = find_customer(&state, tenant.customer_id).await?;
     Ok(Json(CustomerProfileResponse::from(customer)))
+}
+
+// GET /account/export
+#[utoipa::path(
+    get,
+    path = "/account/export",
+    tag = "Account",
+    responses(
+        (status = 200, description = "Account export payload", body = AccountExportResponse),
+        (status = 401, description = "Authentication required", body = ErrorResponse),
+        (status = 404, description = "Customer not found", body = ErrorResponse),
+    )
+)]
+pub async fn export_account(
+    tenant: AuthenticatedTenant,
+    State(state): State<AppState>,
+) -> Result<impl IntoResponse, ApiError> {
+    let customer = find_customer(&state, tenant.customer_id).await?;
+    Ok((
+        [(header::CACHE_CONTROL, "private, no-store")],
+        Json(AccountExportResponse {
+            profile: CustomerProfileResponse::from(customer),
+        }),
+    ))
 }
 
 // PATCH /account
@@ -179,6 +217,7 @@ pub async fn change_password(
     request_body = DeleteAccountRequest,
     responses(
         (status = 204, description = "Account deleted"),
+        (status = 409, description = "Active AllYourBase instance must be deleted first", body = ErrorResponse),
         (status = 401, description = "Authentication required", body = ErrorResponse),
         (status = 400, description = "Validation error", body = ErrorResponse),
         (status = 404, description = "Customer not found", body = ErrorResponse),
@@ -189,6 +228,8 @@ pub async fn change_password(
 /// **Auth:** JWT (`AuthenticatedTenant`).
 /// Requires the customer's current password as confirmation. Sets the
 /// customer status to "deleted" (soft delete — row retained for audit).
+/// Rejects deletion with 409 while the customer still has active local
+/// AllYourBase tenant rows.
 /// Returns 204 on success.
 pub async fn delete_account(
     tenant: AuthenticatedTenant,
@@ -202,6 +243,18 @@ pub async fn delete_account(
 
     if !verify_password(&req.password, password_hash) {
         return Err(ApiError::BadRequest("password is incorrect".into()));
+    }
+
+    let _account_lifecycle_lock = lock_account_lifecycle(&state, tenant.customer_id).await?;
+
+    let active_ayb_tenants = state
+        .ayb_tenant_repo
+        .find_active_by_customer(tenant.customer_id)
+        .await?;
+    if !active_ayb_tenants.is_empty() {
+        return Err(ApiError::Conflict(
+            ACTIVE_AYB_DELETE_CONFLICT_MESSAGE.into(),
+        ));
     }
 
     let deleted = state.customer_repo.soft_delete(tenant.customer_id).await?;

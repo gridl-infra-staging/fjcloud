@@ -1,4 +1,3 @@
-//! Stub summary for /Users/stuart/parallel_development/fjcloud_dev/MAR17_11_2_data_management_features/fjcloud_dev/infra/api/src/routes/billing.rs.
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
@@ -16,6 +15,16 @@ use crate::state::AppState;
 #[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct SetupIntentResponse {
     pub client_secret: String,
+}
+
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
+pub struct CreateBillingPortalSessionRequest {
+    pub return_url: String,
+}
+
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+pub struct BillingPortalSessionResponse {
+    pub portal_url: String,
 }
 
 #[derive(Debug, Serialize, utoipa::ToSchema)]
@@ -96,6 +105,41 @@ pub async fn create_setup_intent(
         .await?;
 
     Ok(Json(SetupIntentResponse { client_secret }))
+}
+
+// POST /billing/portal
+#[utoipa::path(
+    post,
+    path = "/billing/portal",
+    tag = "Billing",
+    request_body = CreateBillingPortalSessionRequest,
+    responses(
+        (status = 200, description = "Billing portal session created", body = BillingPortalSessionResponse),
+        (status = 401, description = "Authentication required", body = ErrorResponse),
+        (status = 400, description = "Bad request", body = ErrorResponse),
+        (status = 404, description = "Customer not found", body = ErrorResponse),
+        (status = 503, description = "Stripe not configured", body = ErrorResponse),
+    )
+)]
+pub async fn create_billing_portal_session(
+    tenant: AuthenticatedTenant,
+    State(state): State<AppState>,
+    Json(req): Json<CreateBillingPortalSessionRequest>,
+) -> Result<impl IntoResponse, ApiError> {
+    let stripe_customer_id = get_stripe_customer_id(&state, tenant.customer_id).await?;
+    let session = state
+        .stripe_service
+        .create_billing_portal_session(
+            &stripe_customer_id,
+            &crate::stripe::CreatePortalSessionRequest {
+                return_url: req.return_url,
+            },
+        )
+        .await?;
+
+    Ok(Json(BillingPortalSessionResponse {
+        portal_url: session.url,
+    }))
 }
 
 // GET /billing/payment-methods

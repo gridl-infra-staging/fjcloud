@@ -431,7 +431,21 @@ cloudflare_record_matches_alb() {
     | tr '}' '\n' \
     | rg -F "\"name\":\"${record_name}\"" \
     | rg -F '"type":"CNAME"' \
+    | rg -F '"proxied":false' \
     | rg -q 'elb.amazonaws.com'
+}
+
+cloudflare_record_matches_pages() {
+  local records_json="$1"
+  local record_name="$2"
+  local expected_target="$3"
+  printf '%s' "$records_json" \
+    | tr '}' '\n' \
+    | rg -F "\"name\":\"${record_name}\"" \
+    | rg -F '"type":"CNAME"' \
+    | rg -F "\"content\":\"${expected_target}\"" \
+    | rg -F '"proxied":true' \
+    >/dev/null
 }
 
 assert_acm_cert_issued() {
@@ -525,16 +539,17 @@ Expected: at least 1 target with state 'healthy'."
   evidence_log "assert:target_group_healthy" "PASS"
 }
 
-# Verify the Cloudflare zone contains the public ALB routing records Terraform
-# owns. We intentionally assert CNAME-to-ELB shape instead of exact IPs because
-# Cloudflare flattens apex CNAME responses and ALB IPs rotate.
+# Verify the Cloudflare zone contains the canonical public routing records
+# Terraform owns. Apex/api/www stay DNS-only ALB routes, while cloud stays
+# proxied to the current Pages host until the dedicated cloud-host deploy path
+# replaces it. We intentionally assert CNAME targets instead of exact IPs
+# because Cloudflare flattens apex CNAME responses and ALB IPs rotate.
 assert_cloudflare_public_records() {
   local response expected_name
-  local expected_names=(
+  local alb_backed_names=(
     "$DOMAIN"
     "api.${DOMAIN}"
     "www.${DOMAIN}"
-    "cloud.${DOMAIN}"
   )
 
   if ! response="$(cloudflare_api_get "/zones/${CLOUDFLARE_ZONE_ID}/dns_records?type=CNAME&per_page=100" 2>&1)"; then
@@ -543,13 +558,19 @@ assert_cloudflare_public_records() {
       "Verify Cloudflare token permissions and inspect DNS records for ${DOMAIN}."
   fi
 
-  for expected_name in "${expected_names[@]}"; do
+  for expected_name in "${alb_backed_names[@]}"; do
     if ! cloudflare_record_matches_alb "$response" "$expected_name"; then
       runtime_fail "$EXIT_DNS_RECORD_MISMATCH" "dns_record_mismatch" \
         "Cloudflare record ${expected_name} is missing or does not CNAME to an ALB target." \
         "Expected ${expected_name} to be a DNS-only CNAME pointing at an AWS ALB (*.elb.amazonaws.com). Check the Cloudflare DNS tab and Terraform state."
     fi
   done
+
+  if ! cloudflare_record_matches_pages "$response" "cloud.${DOMAIN}" "flapjack-cloud.pages.dev"; then
+    runtime_fail "$EXIT_DNS_RECORD_MISMATCH" "dns_record_mismatch" \
+      "Cloudflare record cloud.${DOMAIN} is missing or does not route to the expected Pages host." \
+      "Expected cloud.${DOMAIN} to stay proxied to flapjack-cloud.pages.dev until the full cloud-host deploy path replaces the current Pages-backed surface."
+  fi
 
   evidence_log "assert:cloudflare_public_records" "PASS"
 }
@@ -643,9 +664,9 @@ echo "==> verifying target group health"
 assert_target_group_healthy
 echo "    OK: target group has healthy targets"
 
-echo "==> verifying Cloudflare public ALB records"
+echo "==> verifying Cloudflare public routing records"
 assert_cloudflare_public_records
-echo "    OK: Cloudflare public records target the ALB"
+echo "    OK: Cloudflare public records match the canonical ALB/Pages split"
 
 echo "==> verifying SES identity and DKIM status"
 assert_ses_identity_verified

@@ -160,7 +160,7 @@ async fn provision_creates_deployment_with_provisioning_status() {
     );
     assert_eq!(
         updated.flapjack_url.as_deref(),
-        Some(format!("https://{expected_hostname}").as_str())
+        Some(format!("http://{expected_hostname}:7700").as_str())
     );
 }
 
@@ -1862,7 +1862,7 @@ async fn provision_hostname_uses_flapjack_foo_domain() {
     );
     assert_eq!(
         updated.flapjack_url.as_deref(),
-        Some(format!("https://{expected_hostname}").as_str()),
+        Some(format!("http://{expected_hostname}:7700").as_str()),
         "provisioned URL must use flapjack.foo domain"
     );
 }

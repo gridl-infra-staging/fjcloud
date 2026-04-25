@@ -12,6 +12,7 @@ use crate::errors::ApiError;
 use crate::helpers::require_active_customer;
 use crate::models::resource_vector::ResourceVector;
 use crate::models::vm_inventory::NewVmInventory;
+use crate::repos::RepoError;
 use crate::state::AppState;
 use crate::vm_providers::{AWS_VM_PROVIDER, BARE_METAL_VM_PROVIDER};
 
@@ -106,6 +107,20 @@ pub async fn seed_index(
         validate_seed_flapjack_url(flapjack_url)?;
     }
 
+    // 1b. Idempotent fast-path: if the tenant already exists, short-circuit
+    //     before allocating any new infrastructure. This guards against
+    //     leaking fresh deployments, SSM admin keys, or vm_inventory rows
+    //     on rerun — failure modes that the linear path would otherwise
+    //     introduce on a (customer_id, tenant_id) collision.
+    if state
+        .tenant_repo
+        .find_raw(customer_id, &req.name)
+        .await?
+        .is_some()
+    {
+        return resolve_existing_seed_index(&state, customer_id, &req.name).await;
+    }
+
     // 2. Find or create a running deployment in the requested region.
     let deployments = state
         .deployment_repo
@@ -158,11 +173,21 @@ pub async fn seed_index(
         None
     };
 
-    // 4. Create the tenant (index) record directly.
-    let tenant = state
+    // 4. Create the tenant (index) record directly. The seeder is rerun
+    //    multiple times against the same staging customer; surface an
+    //    already-existing index as the existing index's metadata so the
+    //    caller can resolve the live endpoint without a separate lookup.
+    let tenant = match state
         .tenant_repo
         .create(customer_id, &req.name, deployment.id)
-        .await?;
+        .await
+    {
+        Ok(tenant) => tenant,
+        Err(RepoError::Conflict(_)) => {
+            return resolve_existing_seed_index(&state, customer_id, &req.name).await;
+        }
+        Err(other) => return Err(other.into()),
+    };
 
     // 5. If flapjack_url provided, link the tenant to the prepared VM.
     let endpoint = if let Some(vm) = seeded_vm {
@@ -194,6 +219,61 @@ pub async fn seed_index(
 
     Ok((
         StatusCode::CREATED,
+        Json(SeedIndexResponse {
+            name: tenant.tenant_id,
+            region: deployment.region,
+            status: "healthy".to_string(),
+            endpoint,
+        }),
+    ))
+}
+
+/// Idempotency seam: when an index already exists for `(customer_id, name)`,
+/// resolve its current flapjack endpoint and return a `200 OK` response so
+/// reruns of the synthetic seeder can recover the existing endpoint without
+/// having to delete-and-recreate. Falls back to a `None` endpoint when the
+/// live VM lookup fails (e.g. tenant exists but no `vm_id` linkage yet).
+async fn resolve_existing_seed_index(
+    state: &AppState,
+    customer_id: Uuid,
+    name: &str,
+) -> Result<(StatusCode, Json<SeedIndexResponse>), ApiError> {
+    // `find_raw` reads only the customer_tenants row and avoids the
+    // deployments-join requirement that `find_by_name` imposes — that
+    // matters for both the live PG path (faster, no implicit join) and the
+    // unit-test mock, whose join surface is intentionally narrower.
+    let tenant = state
+        .tenant_repo
+        .find_raw(customer_id, name)
+        .await?
+        .ok_or_else(|| {
+            ApiError::Internal(format!(
+                "tenant_repo.create reported conflict but find_raw('{name}') returned None"
+            ))
+        })?;
+    let deployment = state
+        .deployment_repo
+        .find_by_id(tenant.deployment_id)
+        .await?
+        .ok_or_else(|| {
+            ApiError::Internal(format!(
+                "tenant '{name}' references missing deployment {}",
+                tenant.deployment_id
+            ))
+        })?;
+    let endpoint = match crate::routes::indexes::resolve_flapjack_target(
+        state,
+        customer_id,
+        name,
+        tenant.deployment_id,
+    )
+    .await
+    {
+        Ok(Some(target)) => Some(target.flapjack_url),
+        Ok(None) | Err(_) => None,
+    };
+    Ok((
+        StatusCode::OK,
         Json(SeedIndexResponse {
             name: tenant.tenant_id,
             region: deployment.region,

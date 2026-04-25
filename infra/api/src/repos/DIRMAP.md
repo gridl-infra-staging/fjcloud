@@ -3,7 +3,7 @@
 
 | File | Summary |
 | --- | --- |
-| advisory_lock.rs | Stub summary for /Users/stuart/parallel_development/fjcloud_dev/MAR17_11_2_data_management_features/fjcloud_dev/infra/api/src/repos/advisory_lock.rs. |
+| advisory_lock.rs | Stub summary for advisory_lock.rs. |
 | api_key_repo.rs | Stub summary for /Users/stuart/parallel_development/fjcloud_dev/MAR17_11_2_data_management_features/fjcloud_dev/infra/api/src/repos/api_key_repo.rs. |
 | cold_snapshot_repo.rs | Stub summary for /Users/stuart/parallel_development/fjcloud_dev/MAR17_11_2_data_management_features/fjcloud_dev/infra/api/src/repos/cold_snapshot_repo.rs. |
 | customer_repo.rs | Stub summary for /Users/stuart/parallel_development/fjcloud_dev/MAR17_11_2_data_management_features/fjcloud_dev/infra/api/src/repos/customer_repo.rs. |
@@ -20,7 +20,7 @@
 | pg_api_key_repo.rs | Stub summary for /Users/stuart/parallel_development/fjcloud_dev/MAR17_11_2_data_management_features/fjcloud_dev/infra/api/src/repos/pg_api_key_repo.rs. |
 | pg_ayb_tenant_repo.rs | Stub summary for /Users/stuart/parallel_development/fjcloud_dev/MAR17_11_2_data_management_features/fjcloud_dev/infra/api/src/repos/pg_ayb_tenant_repo.rs. |
 | pg_cold_snapshot_repo.rs | Stub summary for /Users/stuart/parallel_development/fjcloud_dev/MAR17_11_2_data_management_features/fjcloud_dev/infra/api/src/repos/pg_cold_snapshot_repo.rs. |
-| pg_customer_repo.rs | Stub summary for /Users/stuart/parallel_development/fjcloud_dev/mar21_pricing_model_hardening/fjcloud_dev/infra/api/src/repos/pg_customer_repo.rs. |
+| pg_customer_repo.rs | Stub summary for pg_customer_repo.rs. |
 | pg_deployment_repo.rs | Stub summary for /Users/stuart/parallel_development/fjcloud_dev/MAR17_11_2_data_management_features/fjcloud_dev/infra/api/src/repos/pg_deployment_repo.rs. |
 | pg_index_migration_repo.rs | Stub summary for /Users/stuart/parallel_development/fjcloud_dev/MAR17_11_2_data_management_features/fjcloud_dev/infra/api/src/repos/pg_index_migration_repo.rs. |
 | pg_index_replica_repo.rs | Stub summary for /Users/stuart/parallel_development/fjcloud_dev/MAR17_11_2_data_management_features/fjcloud_dev/infra/api/src/repos/pg_index_replica_repo.rs. |

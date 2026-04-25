@@ -76,23 +76,30 @@ bash ops/scripts/rds_restore_drill.sh staging \
 After AWS reports the target instance as available, connect to the restored target endpoint and run sanity queries.
 
 ```bash
-# Example: capture a single evidence log with all query results.
-psql "postgres://<user>:<password>@<restored-target-endpoint>:5432/<db_name>" <<'SQL' | tee docs/runbooks/evidence/database-recovery/20260422T031500Z_staging_restore_verification.txt
-SELECT COUNT(*) FROM tenants;
-SELECT COUNT(*) FROM invoices WHERE created_at > now() - interval '7 days';
-SELECT COUNT(*) FROM deployments WHERE status = 'running';
-SELECT COUNT(*) FROM usage_records WHERE recorded_at > now() - interval '1 day';
+# Example: capture a single evidence log with all query results without putting the
+# DB password in shell history or process arguments. The password file must be
+# owner-only (`chmod 600`) and contain:
+#   <restored-target-endpoint>:5432:<db_name>:<user>:<password>
+PGPASSFILE=/secure/path/restore.pgpass \
+psql "host=<restored-target-endpoint> port=5432 dbname=<db_name> user=<user> sslmode=require" <<'SQL' | tee docs/runbooks/evidence/database-recovery/20260422T031500Z_staging_restore_verification.txt
+SELECT COUNT(*) AS customers_total FROM customers;
+SELECT COUNT(*) AS customer_tenants_total FROM customer_tenants;
+SELECT COUNT(*) AS invoices_last_7d FROM invoices WHERE created_at > now() - interval '7 days';
+SELECT COUNT(*) AS deployments_running FROM customer_deployments WHERE status = 'running';
+SELECT COUNT(*) AS usage_records_last_1d FROM usage_records WHERE recorded_at > now() - interval '1 day';
 SQL
 ```
 
 Verification requirements:
 
-- `tenants` count must be nonzero for environments with seeded or live tenants.
-- `deployments` running count must match the known expected environment state at drill time.
+- `customers` count must be nonzero for environments with seeded or live customers.
+- `customer_deployments` running count must match the known expected environment state at drill time.
 - Recent invoices and usage rows should be nonzero when billing or metering activity exists in the selected recovery window.
+- Environments with no customer/usage activity (e.g., a freshly-cut staging environment with no seeded customers) will legitimately return zero counts. In that case, capture the zero-count output together with `SELECT COUNT(*) FROM _sqlx_migrations` and `SELECT MAX(version) FROM _sqlx_migrations` to prove the restored schema/migration state is consistent with the source DB. Do not claim restore proof unless the evidence file explicitly notes the empty-baseline condition.
+- Do not pass live DB passwords on the `psql` command line; use an owner-only `PGPASSFILE` or an equivalent secret-loading mechanism.
 - Store command output and notes under `docs/runbooks/evidence/database-recovery/`.
 - Status docs may claim restore proof only when this evidence path contains captured sanity-query output from a real gated execution that reached `available`.
-- The staging run attempted on `2026-04-22` ended with a wrapper `fail` verdict while the target remained `backing-up`, so it does not satisfy the restore-proof contract.
+- The staging run attempted on `2026-04-23` reached `available` after the wrapper's initial poll window; operator verification on the same day captured the canonical evidence file `docs/runbooks/evidence/database-recovery/20260423T201333Z_staging_restore_verification.txt` (schema intact, 39 migrations present, zero-count data expected for the empty staging baseline).
 
 ## Cutover boundaries (drill only)
 

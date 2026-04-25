@@ -57,6 +57,18 @@ pub struct CheckoutSessionResponse {
     pub url: String,
 }
 
+/// Input for creating a Stripe Billing Portal session.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreatePortalSessionRequest {
+    pub return_url: String,
+}
+
+/// Response from creating a Stripe Billing Portal session.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PortalSessionResponse {
+    pub url: String,
+}
+
 /// Build a deterministic idempotency key for invoice create+finalize requests.
 pub fn invoice_create_idempotency_key(
     customer_id: Uuid,
@@ -99,6 +111,12 @@ pub trait StripeService: Send + Sync {
     async fn create_customer(&self, name: &str, email: &str) -> Result<String, StripeError>;
 
     async fn create_setup_intent(&self, stripe_customer_id: &str) -> Result<String, StripeError>;
+
+    async fn create_billing_portal_session(
+        &self,
+        stripe_customer_id: &str,
+        request: &CreatePortalSessionRequest,
+    ) -> Result<PortalSessionResponse, StripeError>;
 
     async fn list_payment_methods(
         &self,

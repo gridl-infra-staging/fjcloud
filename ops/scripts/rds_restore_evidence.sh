@@ -18,7 +18,7 @@ SELECT_HELPER_SCRIPT="$SCRIPT_DIR/lib/rds_restore_selection.py"
 RUNBOOK_PATH="$REPO_ROOT/docs/runbooks/database-backup-recovery.md"
 
 REGION="us-east-1"
-DEFAULT_ENV_FILE="/Users/stuart/repos/gridl/fjcloud/.secret/.env.secret"
+DEFAULT_ENV_FILE="$REPO_ROOT/.secret/.env.secret"
 
 ENV=""
 ARTIFACT_DIR=""
@@ -399,8 +399,8 @@ validate_args() {
     exit 1
   fi
 
-  if [[ ! -x "$DRILL_SCRIPT" ]]; then
-    echo "ERROR: expected executable delegate script at $DRILL_SCRIPT"
+  if [[ ! -f "$DRILL_SCRIPT" || ! -r "$DRILL_SCRIPT" ]]; then
+    echo "ERROR: expected readable delegate script at $DRILL_SCRIPT"
     exit 1
   fi
 }
@@ -608,10 +608,10 @@ run_drill() {
 
   set +e
   if [[ "$WRAPPER_EXECUTE" == true ]]; then
-    drill_output="$(PATH="$delegate_path" "$DRILL_SCRIPT" "${drill_args[@]}" 2>&1)"
+    drill_output="$(PATH="$delegate_path" bash "$DRILL_SCRIPT" "${drill_args[@]}" 2>&1)"
     drill_exit=$?
   else
-    drill_output="$(PATH="$delegate_path" env -u RDS_RESTORE_DRILL_EXECUTE "$DRILL_SCRIPT" "${drill_args[@]}" 2>&1)"
+    drill_output="$(PATH="$delegate_path" env -u RDS_RESTORE_DRILL_EXECUTE bash "$DRILL_SCRIPT" "${drill_args[@]}" 2>&1)"
     drill_exit=$?
   fi
   set -e

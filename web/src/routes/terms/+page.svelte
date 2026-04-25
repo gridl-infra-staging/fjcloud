@@ -1,60 +1,136 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
-	import { BETA_FEEDBACK_MAILTO } from '$lib/format';
+	import {
+		BETA_FEEDBACK_MAILTO,
+		LEGAL_DRAFT_BANNER_TEXT,
+		LEGAL_ENTITY_NAME,
+		SUPPORT_EMAIL
+	} from '$lib/format';
 </script>
 
 <svelte:head>
-	<title>Terms of Service — Flapjack Cloud</title>
+	<title>Terms of Service (Draft) — Flapjack Cloud</title>
 </svelte:head>
 
-<main class="mx-auto max-w-3xl px-6 py-12">
-	<a href={resolve('/')} class="text-sm font-medium text-blue-600 hover:text-blue-800"
-		>Back to Flapjack Cloud</a
-	>
-	<h1 class="mt-6 text-3xl font-bold text-gray-900">Terms of Service</h1>
-	<p class="mt-4 text-gray-600">
-		These terms describe access to Flapjack Cloud during public beta. By creating an account, you
-		agree to use the service responsibly, keep credentials secure, and avoid workloads that abuse,
-		disrupt, or attempt unauthorized access to the platform or other tenants.
-	</p>
+<div class="min-h-screen bg-[#fff8ea] text-[#1f1b18]">
+	<div class="border-b-2 border-[#78b8b2] bg-[#d9f2ef]">
+		<div
+			class="mx-auto flex max-w-4xl flex-col gap-2 px-6 py-3 text-sm text-[#1f1b18] sm:flex-row sm:items-center sm:justify-between"
+		>
+			<p class="flex items-center gap-3">
+				<span class="inline-flex rounded-full bg-[#ffb3c7] px-3 py-1 text-xs font-black uppercase tracking-[0.18em]">
+					Draft
+				</span>
+				<span>{LEGAL_DRAFT_BANNER_TEXT}</span>
+			</p>
+		</div>
+	</div>
 
-	<section class="mt-8 space-y-4 text-sm text-gray-700">
-		<h2 class="text-lg font-semibold text-gray-900">Beta availability</h2>
-		<p>
-			Public beta features, limits, and pricing may change before general availability. Beta support
-			is email-based with a target response within 48 business hours.
-		</p>
-		<h2 class="text-lg font-semibold text-gray-900">Billing and accounts</h2>
-		<p>
-			Prices are shown in USD. If paid billing is enabled for your account, invoices follow the
-			prices shown on the Flapjack Cloud website and in the product at the time of use.
-		</p>
-		<h2 class="text-lg font-semibold text-gray-900">Delivery</h2>
-		<p>
-			Flapjack Cloud is a digital service. Nothing is shipped. Account access is provided through
-			the web dashboard and API after signup.
-		</p>
-		<h2 class="text-lg font-semibold text-gray-900">Cancellation</h2>
-		<p>
-			You can cancel by closing your account or contacting support. Usage already incurred may still
-			be billed.
-		</p>
-		<h2 class="text-lg font-semibold text-gray-900">Refunds</h2>
-		<p>
-			Refund requests are reviewed for duplicate charges, billing errors, or service unavailability.
-			Approved refunds are returned to the original payment method when possible.
-		</p>
-		<h2 class="text-lg font-semibold text-gray-900">Payment security</h2>
-		<p>
-			Payment details are handled by Stripe over HTTPS. Flapjack Cloud does not store full card
-			numbers.
-		</p>
-		<h2 class="text-lg font-semibold text-gray-900">Contact</h2>
-		<p>
-			Questions about these terms should be sent through the shared support channel.
-			<a href={BETA_FEEDBACK_MAILTO} class="font-medium text-blue-600 hover:text-blue-800"
-				>Email support</a
-			>.
-		</p>
-	</section>
-</main>
+	<main class="mx-auto max-w-4xl px-6 py-12">
+		<a href={resolve('/')} class="text-sm font-medium text-[#b83f5f] hover:text-[#8d2842]">
+			Back to Flapjack Cloud
+		</a>
+
+		<article class="mt-6 space-y-8 rounded-3xl border border-[#e3d7bf] bg-white/90 p-8 shadow-sm">
+			<header class="space-y-4">
+				<p class="text-sm font-black uppercase tracking-[0.18em] text-[#8d2842]">
+					{LEGAL_ENTITY_NAME}
+				</p>
+				<h1 class="text-3xl font-black text-[#1f1b18] sm:text-4xl">Terms of Service (Draft)</h1>
+				<p class="max-w-3xl text-base leading-7 text-[#4b4640]">
+					These draft terms describe the pre-launch Flapjack Cloud service. They are a review
+					template for public beta signup, not final legal advice or a final launch contract.
+				</p>
+			</header>
+
+			<section class="space-y-3">
+				<h2 class="text-xl font-bold text-[#1f1b18]">Definitions</h2>
+				<p class="leading-7 text-[#4b4640]">
+					“Service” means the hosted Flapjack Cloud dashboard, API endpoints, and related support
+					tools. “Customer Content” means data the customer uploads or indexes through the service.
+				</p>
+			</section>
+
+			<section class="space-y-3">
+				<h2 class="text-xl font-bold text-[#1f1b18]">Service</h2>
+				<p class="leading-7 text-[#4b4640]">
+					Flapjack Cloud is provided during public beta for evaluation and early production trials.
+					Features, quotas, and availability may change before general availability.
+				</p>
+			</section>
+
+			<section class="space-y-3">
+				<h2 class="text-xl font-bold text-[#1f1b18]">Acceptable Use</h2>
+				<p class="leading-7 text-[#4b4640]">
+					Customers must not use the service for unlawful content, abusive traffic, credential theft,
+					or attempts to disrupt other tenants or platform operations.
+				</p>
+			</section>
+
+			<section class="space-y-3">
+				<h2 class="text-xl font-bold text-[#1f1b18]">Subscription and Payment</h2>
+				<p class="leading-7 text-[#4b4640]">
+					Paid usage, if enabled for an account, is billed in USD according to pricing shown in the
+					product and on the public pricing surface at the time of use. [REVIEW: refund and tax
+					wording]
+				</p>
+			</section>
+
+			<section class="space-y-3">
+				<h2 class="text-xl font-bold text-[#1f1b18]">Term and Termination</h2>
+				<p class="leading-7 text-[#4b4640]">
+					These draft beta terms apply while the account remains active. Either side may stop beta
+					access, but accrued charges and reasonable shutdown obligations may survive termination.
+				</p>
+			</section>
+
+			<section class="space-y-3">
+				<h2 class="text-xl font-bold text-[#1f1b18]">IP and License</h2>
+				<p class="leading-7 text-[#4b4640]">
+					Customers keep ownership of Customer Content. The service grants a limited, revocable right
+					to use the hosted platform during the beta term.
+				</p>
+			</section>
+
+			<section class="space-y-3">
+				<h2 class="text-xl font-bold text-[#1f1b18]">Disclaimers</h2>
+				<p class="leading-7 text-[#4b4640]">
+					The beta service is offered as-is and as-available. [REVIEW: warranty disclaimer scope]
+				</p>
+			</section>
+
+			<section class="space-y-3">
+				<h2 class="text-xl font-bold text-[#1f1b18]">Limitation of Liability</h2>
+				<p class="leading-7 text-[#4b4640]">
+					These draft terms are expected to cap liability and exclude indirect damages, subject to
+					final legal review. [REVIEW: liability cap amount and carve-outs]
+				</p>
+			</section>
+
+			<section class="space-y-3">
+				<h2 class="text-xl font-bold text-[#1f1b18]">Indemnification</h2>
+				<p class="leading-7 text-[#4b4640]">
+					Customers are expected to be responsible for claims arising from Customer Content, unlawful
+					use, or misuse of the service. [REVIEW: indemnity scope]
+				</p>
+			</section>
+
+			<section class="space-y-3">
+				<h2 class="text-xl font-bold text-[#1f1b18]">Governing Law</h2>
+				<p class="leading-7 text-[#4b4640]">[REVIEW: governing law state/country]</p>
+			</section>
+
+			<section class="space-y-3">
+				<h2 class="text-xl font-bold text-[#1f1b18]">Contact</h2>
+				<p class="leading-7 text-[#4b4640]">
+					Questions about these draft terms should be sent to
+					<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- mailto links must stay scheme URLs -->
+					<a href={BETA_FEEDBACK_MAILTO} class="font-semibold text-[#b83f5f] underline hover:text-[#8d2842]">
+						{SUPPORT_EMAIL}
+					</a>
+					before launch sign-off.
+				</p>
+			</section>
+		</article>
+	</main>
+</div>

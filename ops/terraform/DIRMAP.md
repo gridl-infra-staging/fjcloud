@@ -22,7 +22,9 @@ provision_bootstrap.sh is the counterpart to validate_bootstrap.sh:
 it CREATES the AWS bootstrap resources that validate_bootstrap.sh checks. |
 | tests_rds_restore_drill_unit.sh | Stub summary for tests_rds_restore_drill_unit.sh. |
 | tests_rds_restore_evidence_static.sh | Static ownership assertions for ops/scripts/rds_restore_evidence.sh. |
-| tests_rds_restore_evidence_unit.sh | Stub summary for tests_rds_restore_evidence_unit.sh. |
+| tests_rds_restore_evidence_unit.sh | Red-phase contract tests for ops/scripts/rds_restore_evidence.sh.
+Stage 1 intentionally locks the behavior contract before wrapper implementation. |
+| tests_rds_restore_evidence_unit_execute_and_poll_contract.sh | Stub summary for tests_rds_restore_evidence_unit_execute_and_poll_contract.sh. |
 | tests_rds_restore_evidence_unit_selection_helper_contract.sh | Selection-helper fail-row regression coverage extracted from the main unit harness. |
 | tests_runbooks_static.sh | Static content tests for infrastructure runbooks.
 TDD red phase for Task 5 — Backend Runbook Finalization.

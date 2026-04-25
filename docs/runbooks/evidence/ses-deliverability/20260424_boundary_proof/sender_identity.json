@@ -1,0 +1,8 @@
+{
+  "lookup": "aws sesv2 get-email-identity",
+  "email_identity": "system@flapjack.foo",
+  "region": "us-east-1",
+  "status": "error",
+  "error": "An error occurred (NotFoundException) when calling the GetEmailIdentity operation: Email identity <system@flapjack.foo> does not exist.",
+  "note": "Direct email-identity lookup failed; readiness contract may inherit verified domain identity."
+}

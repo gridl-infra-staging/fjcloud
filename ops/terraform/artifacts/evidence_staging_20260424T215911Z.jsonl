@@ -1,0 +1,8 @@
+{"command":"preflight:aws_creds","timestamp":"2026-04-24T21:59:12Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"preflight:ami_exists","timestamp":"2026-04-24T21:59:12Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"preflight:cloudflare_dns","timestamp":"2026-04-24T21:59:13Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"terraform plan","timestamp":"2026-04-24T21:59:43Z","verdict":"PASS","output":"plan captured","artifact_path":"/Users/stuart/parallel_development/fjcloud_dev/apr24_1pm_t2_1_stage7_runtime_rerun/fjcloud_dev/ops/terraform/artifacts/plan_staging_20260424T215911Z.txt"}
+{"command":"assert:acm_cert_issued","timestamp":"2026-04-24T21:59:44Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"assert:alb_https_listener","timestamp":"2026-04-24T21:59:45Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"assert:target_group_healthy","timestamp":"2026-04-24T21:59:45Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"runtime:dns_record_mismatch","timestamp":"2026-04-24T21:59:46Z","verdict":"FAIL","output":"Cloudflare record cloud.flapjack.foo is missing or does not CNAME to an ALB target.","artifact_path":""}

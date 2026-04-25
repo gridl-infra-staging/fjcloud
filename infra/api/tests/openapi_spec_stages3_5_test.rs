@@ -8,10 +8,11 @@ mod common;
 fn spec_contains_billing_operations() {
     let spec = common::openapi_spec_json();
 
-    // All 10 billing paths with correct HTTP methods
+    // All 11 billing paths with correct HTTP methods
     let billing_ops: &[(&str, &str)] = &[
         ("/billing/estimate", "get"),
         ("/billing/setup-intent", "post"),
+        ("/billing/portal", "post"),
         ("/billing/checkout-session", "post"),
         ("/billing/payment-methods", "get"),
         ("/billing/payment-methods/{pm_id}", "delete"),
@@ -57,6 +58,7 @@ fn spec_billing_deprecated_routes_marked_deprecated() {
     let active_ops = [
         "/paths/~1billing~1estimate/get",
         "/paths/~1billing~1setup-intent/post",
+        "/paths/~1billing~1portal/post",
         "/paths/~1billing~1payment-methods/get",
         "/paths/~1billing~1payment-methods~1{pm_id}/delete",
         "/paths/~1billing~1payment-methods~1{pm_id}~1default/post",
@@ -78,10 +80,11 @@ fn spec_billing_deprecated_routes_marked_deprecated() {
 fn spec_authenticated_billing_routes_document_401() {
     let spec = common::openapi_spec_json();
 
-    // All 10 billing operations must document 401 with ErrorResponse
+    // All 11 billing operations must document 401 with ErrorResponse
     let billing_401_refs = [
         "/paths/~1billing~1estimate/get/responses/401/content/application~1json/schema/$ref",
         "/paths/~1billing~1setup-intent/post/responses/401/content/application~1json/schema/$ref",
+        "/paths/~1billing~1portal/post/responses/401/content/application~1json/schema/$ref",
         "/paths/~1billing~1checkout-session/post/responses/401/content/application~1json/schema/$ref",
         "/paths/~1billing~1payment-methods/get/responses/401/content/application~1json/schema/$ref",
         "/paths/~1billing~1payment-methods~1{pm_id}/delete/responses/401/content/application~1json/schema/$ref",
@@ -106,6 +109,8 @@ fn spec_contains_billing_schemas() {
 
     let billing_schemas = [
         "SetupIntentResponse",
+        "CreateBillingPortalSessionRequest",
+        "BillingPortalSessionResponse",
         "PaymentMethodResponse",
         "EstimateLineItem",
         "EstimatedBillResponse",
@@ -127,6 +132,31 @@ fn spec_contains_billing_schemas() {
     assert!(
         spec.pointer("/components/schemas/PlanTier").is_some(),
         "spec must contain PlanTier schema from billing crate"
+    );
+}
+
+#[test]
+fn spec_billing_portal_uses_dedicated_request_response_schemas() {
+    let spec = common::openapi_spec_json();
+
+    let request_schema = spec
+        .pointer("/paths/~1billing~1portal/post/requestBody/content/application~1json/schema/$ref")
+        .and_then(|v| v.as_str());
+    assert_eq!(
+        request_schema,
+        Some("#/components/schemas/CreateBillingPortalSessionRequest"),
+        "portal endpoint must use dedicated request schema"
+    );
+
+    let response_schema = spec
+        .pointer(
+            "/paths/~1billing~1portal/post/responses/200/content/application~1json/schema/$ref",
+        )
+        .and_then(|v| v.as_str());
+    assert_eq!(
+        response_schema,
+        Some("#/components/schemas/BillingPortalSessionResponse"),
+        "portal endpoint must use dedicated response schema"
     );
 }
 

@@ -2,8 +2,8 @@
  * Full — Billing
  *
  * Verifies the complete billing surface:
- *   - Load-and-verify: billing page renders the Payment Methods heading
- *   - Add payment method link is present
+ *   - Load-and-verify: billing page renders the Billing heading
+ *   - Billing page exposes a single Stripe portal handoff path or the unavailable card
  *   - Invoices page renders (empty or with rows)
  *   - Invoice detail page renders heading, dates, and line items
  *   - Invoice PDF download link renders when backend provides pdf_url
@@ -11,21 +11,25 @@
 
 import { test, expect } from '../../fixtures/fixtures';
 
-test.describe('Billing / Payment Methods page', () => {
-	test('load-and-verify: billing page renders Payment Methods heading', async ({ page }) => {
+test.describe('Billing page', () => {
+	test('load-and-verify: billing page renders Billing heading', async ({ page }) => {
 		// Act: navigate to billing
 		await page.goto('/dashboard/billing');
 
 		// Assert: page-specific heading (not sidebar "Billing" nav link)
-		await expect(page.getByRole('heading', { name: 'Payment Methods' })).toBeVisible();
+		await expect(page.getByRole('heading', { name: 'Billing' })).toBeVisible();
 	});
 
-	test('billing page exposes the correct local payment-method state', async ({ page }) => {
+	test('billing page exposes manage-billing handoff or deterministic unavailable state', async ({
+		page
+	}) => {
 		await page.goto('/dashboard/billing');
 
-		const addPaymentMethodLinks = page.getByRole('link', { name: 'Add payment method' });
-		if ((await addPaymentMethodLinks.count()) > 0) {
-			await expect(addPaymentMethodLinks.first()).toBeVisible();
+		const manageBillingButton = page.getByRole('button', { name: 'Manage billing' });
+		if ((await manageBillingButton.count()) > 0) {
+			await expect(manageBillingButton).toBeVisible();
+			await expect(page.locator('form[action=\"?/manageBilling\"]')).toBeVisible();
+			await expect(page.getByRole('link', { name: 'Add payment method' })).toHaveCount(0);
 			return;
 		}
 
@@ -35,27 +39,7 @@ test.describe('Billing / Payment Methods page', () => {
 				'Stripe is not available in this environment. Payment method management is disabled.'
 			)
 		).toBeVisible();
-	});
-
-	test('billing setup navigation works when payment-method management is available', async ({
-		page
-	}) => {
-		await page.goto('/dashboard/billing');
-
-		const addPaymentMethodLinks = page.getByRole('link', { name: 'Add payment method' });
-		if ((await addPaymentMethodLinks.count()) === 0) {
-			// eslint-disable-next-line playwright/no-skipped-test -- Stripe setup is an environment precondition
-			test.skip(
-				true,
-				'Stripe-backed payment method setup is unavailable in this local environment'
-			);
-		}
-
-		await addPaymentMethodLinks.first().click();
-
-		await expect(page).toHaveURL(/\/dashboard\/billing\/setup/);
-		// Setup page renders the payment form heading
-		await expect(page.getByRole('heading', { name: 'Add Payment Method' })).toBeVisible();
+		await expect(manageBillingButton).toHaveCount(0);
 	});
 });
 
@@ -114,6 +98,6 @@ test.describe('Invoice detail page', () => {
 		await expect(page.getByRole('columnheader', { name: 'Region' })).toBeVisible();
 		const downloadPdfLink = page.getByRole('link', { name: 'Download PDF' });
 		await expect(downloadPdfLink).toBeVisible();
-		await expect(downloadPdfLink).toHaveAttribute('href', /\/pdf$/);
+		await expect(downloadPdfLink).toHaveAttribute('href', /\/pdf(?:\?|$)/);
 	});
 });

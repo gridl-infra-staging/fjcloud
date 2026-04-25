@@ -4,6 +4,9 @@
 //! them in sequence, staying as a short orchestrator. No behavior changes —
 //! this is a pure structural refactor.
 
+mod unconfigured_stripe;
+use unconfigured_stripe::UnconfiguredStripeService;
+
 use crate::config::Config;
 use crate::dns;
 use crate::provisioner;
@@ -26,7 +29,6 @@ use crate::startup_env::{
 };
 use crate::state::AppState;
 use crate::stripe::live::LiveStripeService;
-use crate::stripe::StripeError;
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -64,80 +66,6 @@ pub async fn init_object_store(
             };
             (store, resolver)
         }
-    }
-}
-
-/// A no-op StripeService that returns `NotConfigured` for all operations.
-/// Used when STRIPE_SECRET_KEY is not set.
-struct UnconfiguredStripeService;
-
-#[async_trait::async_trait]
-impl crate::stripe::StripeService for UnconfiguredStripeService {
-    async fn create_customer(&self, _: &str, _: &str) -> Result<String, StripeError> {
-        Err(StripeError::NotConfigured)
-    }
-    async fn create_setup_intent(&self, _: &str) -> Result<String, StripeError> {
-        Err(StripeError::NotConfigured)
-    }
-    async fn list_payment_methods(
-        &self,
-        _: &str,
-    ) -> Result<Vec<crate::stripe::PaymentMethodSummary>, StripeError> {
-        Err(StripeError::NotConfigured)
-    }
-    async fn detach_payment_method(&self, _: &str) -> Result<(), StripeError> {
-        Err(StripeError::NotConfigured)
-    }
-    async fn set_default_payment_method(&self, _: &str, _: &str) -> Result<(), StripeError> {
-        Err(StripeError::NotConfigured)
-    }
-    async fn create_and_finalize_invoice(
-        &self,
-        _: &str,
-        _: &[crate::stripe::StripeInvoiceLineItem],
-        _: Option<&std::collections::HashMap<String, String>>,
-        _: Option<&str>,
-    ) -> Result<crate::stripe::FinalizedInvoice, StripeError> {
-        Err(StripeError::NotConfigured)
-    }
-    fn construct_webhook_event(
-        &self,
-        _: &str,
-        _: &str,
-        _: &str,
-    ) -> Result<crate::stripe::StripeEvent, StripeError> {
-        Err(StripeError::NotConfigured)
-    }
-    async fn create_checkout_session(
-        &self,
-        _: &str,
-        _: &str,
-        _: &str,
-        _: &str,
-        _: Option<&std::collections::HashMap<String, String>>,
-    ) -> Result<crate::stripe::CheckoutSessionResponse, StripeError> {
-        Err(StripeError::NotConfigured)
-    }
-    async fn retrieve_subscription(
-        &self,
-        _: &str,
-    ) -> Result<crate::stripe::SubscriptionData, StripeError> {
-        Err(StripeError::NotConfigured)
-    }
-    async fn cancel_subscription(
-        &self,
-        _: &str,
-        _: bool,
-    ) -> Result<crate::stripe::SubscriptionData, StripeError> {
-        Err(StripeError::NotConfigured)
-    }
-    async fn update_subscription_price(
-        &self,
-        _: &str,
-        _: &str,
-        _: &str,
-    ) -> Result<crate::stripe::SubscriptionData, StripeError> {
-        Err(StripeError::NotConfigured)
     }
 }
 
@@ -354,20 +282,45 @@ pub fn init_dns_manager(
 ) -> (Arc<dyn dns::DnsManager>, String) {
     let dns_domain = resolve_dns_domain();
 
-    let manager: Arc<dyn dns::DnsManager> = match std::env::var("DNS_HOSTED_ZONE_ID").ok() {
-        Some(zone_id) => {
-            let r53_client = aws_sdk_route53::Client::new(aws_sdk_config);
-            tracing::info!("DNS configured: zone={zone_id}, domain={dns_domain}");
-            Arc::new(dns::route53::Route53DnsManager::new(
-                r53_client,
-                zone_id,
-                dns_domain.clone(),
-            ))
-        }
-        None => {
-            tracing::warn!("DNS_HOSTED_ZONE_ID not set — DNS operations will fail");
-            Arc::new(dns::UnconfiguredDnsManager)
-        }
+    let cloudflare_api_token = std::env::var("CLOUDFLARE_API_TOKEN")
+        .ok()
+        .or_else(|| std::env::var("CLOUDFLARE_EDIT_READ_ZONE_DNS_API_TOKEN_FLAPJACK_FOO").ok())
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+    let cloudflare_zone_id = std::env::var("CLOUDFLARE_ZONE_ID")
+        .ok()
+        .or_else(|| std::env::var("CLOUDFLARE_ZONE_ID_FLAPJACK_FOO").ok())
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+
+    let manager: Arc<dyn dns::DnsManager> = if let (Some(api_token), Some(zone_id)) =
+        (cloudflare_api_token, cloudflare_zone_id)
+    {
+        tracing::info!("DNS configured: provider=cloudflare, zone={zone_id}, domain={dns_domain}");
+        Arc::new(dns::cloudflare::CloudflareDnsManager::new(
+            reqwest::Client::new(),
+            api_token,
+            zone_id,
+            dns_domain.clone(),
+        ))
+    } else if let Some(zone_id) = std::env::var("DNS_HOSTED_ZONE_ID")
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+    {
+        let r53_client = aws_sdk_route53::Client::new(aws_sdk_config);
+        tracing::info!("DNS configured: provider=route53, zone={zone_id}, domain={dns_domain}");
+        Arc::new(dns::route53::Route53DnsManager::new(
+            r53_client,
+            zone_id,
+            dns_domain.clone(),
+        ))
+    } else {
+        tracing::warn!(
+            "No DNS provider configured — set CLOUDFLARE_API_TOKEN+CLOUDFLARE_ZONE_ID \
+                 (or flapjack.foo aliases) or DNS_HOSTED_ZONE_ID"
+        );
+        Arc::new(dns::UnconfiguredDnsManager)
     };
 
     (manager, dns_domain)

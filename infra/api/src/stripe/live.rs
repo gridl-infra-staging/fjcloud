@@ -1,16 +1,17 @@
-//! Stub summary for /Users/stuart/parallel_development/fjcloud_dev/MAR17_11_2_data_management_features/fjcloud_dev/infra/api/src/stripe/live.rs.
 use async_trait::async_trait;
 use hmac::{Hmac, Mac};
 use sha2::Sha256;
 use stripe::{
-    Client, CollectionMethod, CreateCustomer, CreateInvoice, CreateInvoiceItem, CreateSetupIntent,
-    Customer, CustomerInvoiceSettings, FinalizeInvoiceParams, Invoice, ListPaymentMethods,
-    PaymentMethod, PaymentMethodTypeFilter, RequestStrategy, SetupIntent, UpdateCustomer,
+    BillingPortalSession, Client, CollectionMethod, CreateBillingPortalSession, CreateCustomer,
+    CreateInvoice, CreateInvoiceItem, CreateSetupIntent, Customer, CustomerInvoiceSettings,
+    FinalizeInvoiceParams, Invoice, ListPaymentMethods, PaymentMethod, PaymentMethodTypeFilter,
+    RequestStrategy, SetupIntent, UpdateCustomer,
 };
 
 use super::{
-    CheckoutSessionResponse, FinalizedInvoice, PaymentMethodSummary, StripeError, StripeEvent,
-    StripeInvoiceLineItem, StripeService, SubscriptionData, SubscriptionItem,
+    CheckoutSessionResponse, CreatePortalSessionRequest, FinalizedInvoice, PaymentMethodSummary,
+    PortalSessionResponse, StripeError, StripeEvent, StripeInvoiceLineItem, StripeService,
+    SubscriptionData, SubscriptionItem,
 };
 
 type HmacSha256 = Hmac<Sha256>;
@@ -175,6 +176,25 @@ impl StripeService for LiveStripeService {
         intent
             .client_secret
             .ok_or_else(|| StripeError::Api("setup intent missing client_secret".into()))
+    }
+
+    async fn create_billing_portal_session(
+        &self,
+        stripe_customer_id: &str,
+        request: &CreatePortalSessionRequest,
+    ) -> Result<PortalSessionResponse, StripeError> {
+        let customer_id = stripe_customer_id
+            .parse()
+            .map_err(|_| StripeError::Api("invalid customer ID".into()))?;
+
+        let mut params = CreateBillingPortalSession::new(customer_id);
+        params.return_url = Some(request.return_url.as_str());
+
+        let session = BillingPortalSession::create(&self.client, params)
+            .await
+            .map_err(|e| StripeError::Api(e.to_string()))?;
+
+        Ok(PortalSessionResponse { url: session.url })
     }
 
     /// Lists Card-type payment methods for the customer, fetching the customer

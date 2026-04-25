@@ -1,4 +1,6 @@
+//! Route assembly helpers for the public API, dashboard, and internal subtrees.
 use axum::{
+    extract::DefaultBodyLimit,
     middleware,
     routing::{delete, get, post},
     Router,
@@ -9,20 +11,29 @@ use crate::routes::account;
 use crate::routes::admin::nest_admin_subtree;
 use crate::routes::auth;
 use crate::routes::billing;
+use crate::routes::browser_error_reporting;
 use crate::routes::health;
 use crate::routes::indexes;
 use crate::routes::migration;
 use crate::routes::onboarding;
 use crate::routes::pricing;
+use crate::routes::public_site;
 use crate::routes::webhooks;
 use crate::state::AppState;
 use utoipa::OpenApi;
 use utoipa_scalar::{Scalar, Servable as _};
 
+const BROWSER_ERROR_ROUTE_BODY_LIMIT_BYTES: usize = 4096;
+
 pub(super) fn build_auth_rate_limited_routes(
     auth_rate_limiter: super::RateLimiter,
 ) -> Router<AppState> {
     Router::new()
+        .route(
+            "/browser-errors",
+            post(browser_error_reporting::report_browser_error)
+                .layer(DefaultBodyLimit::max(BROWSER_ERROR_ROUTE_BODY_LIMIT_BYTES)),
+        )
         .route("/auth/register", post(auth::register))
         .route("/auth/login", post(auth::login))
         .route("/auth/forgot-password", post(auth::forgot_password))
@@ -68,6 +79,13 @@ pub(super) fn build_router_without_layers(
     ));
 
     Router::new()
+        .route("/", get(public_site::landing_page))
+        .route("/robots.txt", get(public_site::robots_txt))
+        .route("/favicon.ico", get(public_site::favicon))
+        .route(
+            "/flapjack_cloud_preview.png",
+            get(public_site::preview_image),
+        )
         .merge(auth_rate_limited_routes)
         .route("/health", get(health::health))
         .merge(Scalar::with_url("/docs", ApiDoc::openapi()))
@@ -132,6 +150,10 @@ fn add_billing_routes(router: Router<AppState>) -> Router<AppState> {
         .route("/billing/estimate", get(billing::get_estimate))
         .route("/billing/setup-intent", post(billing::create_setup_intent))
         .route(
+            "/billing/portal",
+            post(billing::create_billing_portal_session),
+        )
+        .route(
             "/billing/checkout-session",
             post(billing::create_checkout_session),
         )
@@ -172,6 +194,7 @@ fn add_account_and_api_key_routes(router: Router<AppState>) -> Router<AppState> 
                 .patch(account::update_profile)
                 .delete(account::delete_account),
         )
+        .route("/account/export", get(account::export_account))
         .route("/account/change-password", post(account::change_password))
         .route(
             "/api-keys",

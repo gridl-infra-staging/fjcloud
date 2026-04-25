@@ -3,14 +3,19 @@
  *
  * Verifies pages that are accessible without authentication:
  *   - Landing page (/)
+ *   - Public beta page (/beta)
+ *   - Legal pages (/terms, /privacy, /dpa)
+ *   - Public error boundary (missing routes)
  *   - Status page (/status)
  *
  * These tests do not use stored auth state.
  */
 
 import { test, expect } from '@playwright/test';
+import { formatCents } from '../../../src/lib/format';
 import { MARKETING_PRICING } from '../../../src/lib/pricing';
 import { assertPricingCalculatorOutcome } from '../../fixtures/public-pages';
+import { assertSharedLegalPageContract } from '../../fixtures/legal_page_playwright_helpers';
 
 // Unauthenticated — no stored auth state needed
 test.use({ storageState: { cookies: [], origins: [] } });
@@ -119,6 +124,68 @@ test.describe('Landing page', () => {
 	});
 });
 
+test.describe('Pricing page', () => {
+	test('renders pricing-first copy and public links for unauthenticated users', async ({ page }) => {
+		await page.goto('/pricing');
+		const pricingMain = page.getByTestId('pricing-page-main');
+
+		await expect(pricingMain).toBeVisible();
+		await expect(pricingMain).not.toContainText(/Page not found|Not found/i);
+		await expect(page.getByRole('heading', { name: /pricing/i })).toBeVisible();
+		await expect(pricingMain).toContainText(MARKETING_PRICING.free_tier_promise);
+		await expect(pricingMain).toContainText(`${MARKETING_PRICING.free_tier_mb} MB`);
+		await expect(pricingMain).toContainText('Hot index storage');
+		await expect(pricingMain).toContainText('Cold snapshot storage');
+		await expect(pricingMain).toContainText(formatCents(MARKETING_PRICING.minimum_spend_cents));
+
+		const primaryCta = pricingMain.getByRole('link', { name: MARKETING_PRICING.cta_label });
+		await expect(primaryCta).toHaveAttribute('href', '/signup');
+		await expect(
+			page.getByRole('navigation').getByRole('link', { name: 'Log In' })
+		).toHaveAttribute('href', '/login');
+		await expect(
+			page.getByRole('navigation').getByRole('link', { name: 'Sign Up' })
+		).toHaveAttribute('href', '/signup');
+
+		const regionTable = pricingMain.getByRole('table', { name: 'Region multipliers' });
+		const regionRows = regionTable.getByRole('row');
+		await expect(regionRows).toHaveCount(MARKETING_PRICING.region_pricing.length + 1);
+		for (let rowIndex = 0; rowIndex < MARKETING_PRICING.region_pricing.length; rowIndex += 1) {
+			const expectedRegion = MARKETING_PRICING.region_pricing[rowIndex];
+			const renderedRow = regionRows.nth(rowIndex + 1);
+			await expect(renderedRow.getByRole('rowheader')).toHaveText(expectedRegion.display_name);
+			await expect(renderedRow.getByRole('cell')).toHaveText(expectedRegion.multiplier);
+		}
+
+		await expect(pricingMain).not.toContainText('What you get');
+		await expect(pricingMain).not.toContainText('Quick facts');
+		await expect(pricingMain).not.toContainText('Support reference');
+		await expect(pricingMain).not.toContainText('Go home');
+		await expect(pricingMain).not.toContainText('The page you requested is not available.');
+		await expect(pricingMain).not.toContainText('Not found');
+		await expect(page.getByTestId('landing-pricing-calculator')).toHaveCount(0);
+		await expect(page.getByRole('link', { name: 'Terms' }).first()).toHaveAttribute('href', '/terms');
+		await expect(page.getByRole('link', { name: 'Privacy' }).first()).toHaveAttribute(
+			'href',
+			'/privacy'
+		);
+		await expect(page.getByRole('link', { name: 'DPA' }).first()).toHaveAttribute('href', '/dpa');
+		await expect(page.getByRole('link', { name: 'Status' }).first()).toHaveAttribute('href', '/status');
+	});
+
+	test('pricing header Log In link navigates to /login', async ({ page }) => {
+		await page.goto('/pricing');
+		await expect(page.getByTestId('pricing-page-main')).toBeVisible();
+
+		const loginLink = page.getByRole('navigation').getByRole('link', { name: 'Log In' });
+		await expect(loginLink).toHaveAttribute('href', '/login');
+		await loginLink.click();
+
+		await expect(page).toHaveURL(/\/login/);
+		await expect(page.getByRole('heading', { name: 'Log in to Flapjack Cloud' })).toBeVisible();
+	});
+});
+
 test.describe('Public beta and legal pages', () => {
 	test('beta page explains launch scope, support target, feedback, and GA timing', async ({
 		page
@@ -140,20 +207,54 @@ test.describe('Public beta and legal pages', () => {
 		await expect(page.getByRole('link', { name: 'DPA' })).toHaveAttribute('href', '/dpa');
 	});
 
-	test('legal pages are reachable from public routes', async ({ page }) => {
-		await page.goto('/terms');
-		await expect(page.getByRole('heading', { name: 'Terms of Service' })).toBeVisible();
-		await expect(page.getByRole('main')).toContainText('public beta');
+	test('legal routes expose the shared draft contract for public users', async ({ page }) => {
+		const legalPages = [
+			{ path: '/terms', heading: 'Terms of Service (Draft)' },
+			{ path: '/privacy', heading: 'Privacy Policy (Draft)' },
+			{ path: '/dpa', heading: 'Data Processing Addendum (Draft)' }
+		];
 
-		await page.goto('/privacy');
-		await expect(page.getByRole('heading', { name: 'Privacy Policy' })).toBeVisible();
-		await expect(page.getByRole('main')).toContainText('Data export');
+		for (const legalPage of legalPages) {
+			await page.goto(legalPage.path);
+			await expect(page).toHaveURL(new RegExp(`${legalPage.path}$`));
+			const pageHeading = page.getByRole('heading', {
+				name: legalPage.heading,
+				level: 1,
+				exact: true
+			});
+			await expect(pageHeading).toHaveCount(1);
+			await expect(pageHeading).toBeVisible();
+			await assertSharedLegalPageContract(page);
+		}
+	});
+});
 
-		await page.goto('/dpa');
-		await expect(page.getByRole('heading', { name: 'Data Processing Addendum' })).toBeVisible();
-		await expect(page.getByRole('main')).toContainText('Data Processing Addendum');
-		await expect(page.getByRole('main')).toContainText('subprocessor questions');
-		await expect(page.getByRole('main')).not.toContainText('subprocesser');
+test.describe('Public error boundary', () => {
+	test('unmapped public route renders recovery copy, support reference, and support contact link', async ({
+		page
+	}) => {
+		await page.goto(`/missing-public-route-${Date.now()}`);
+
+		await expect(page.getByRole('heading', { name: 'Page not found' })).toBeVisible();
+		await expect(page.getByRole('main')).toContainText(
+			/The page you requested is not available\.|Not found/i
+		);
+		const primaryCta = page.getByRole('link', { name: 'Go home' });
+		await expect(primaryCta).toBeVisible();
+		await expect(primaryCta).toHaveAttribute('href', '/');
+
+		const supportReferenceLabel = page.getByRole('main').getByText('Support reference');
+		await expect(supportReferenceLabel).toHaveCount(1);
+		await expect(supportReferenceLabel).toBeVisible();
+
+		const supportReferenceToken = page.getByRole('main').getByText(/^web-[a-f0-9]{12}$/);
+		await expect(supportReferenceToken).toHaveCount(1);
+		await expect(supportReferenceToken).toBeVisible();
+
+		await expect(page.getByRole('link', { name: 'support@flapjack.foo' })).toHaveAttribute(
+			'href',
+			/mailto:support@flapjack\.foo\?subject=/
+		);
 	});
 });
 

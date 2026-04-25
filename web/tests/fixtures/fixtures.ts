@@ -12,12 +12,18 @@
 import { test as base, expect } from '@playwright/test';
 import { createSeedSearchableIndexFactory, type SeedSearchableIndexFn } from './searchable-index';
 import {
+	cleanupDatabaseRoutePersistedInstance,
+	seedDatabaseRoutePersistedInstance,
+	type SeededDatabaseRouteState
+} from './database_route_seed_helper';
+import {
 	requireLoopbackHttpUrl,
 	resolveFixtureEnv,
 	resolveRequiredFixtureUserCredentials
 } from '../../playwright.config.contract';
 import { requireAdminApiKey, requireNonEmptyString } from './contract-guards';
-import type { EstimatedBillResponse } from '../../src/lib/api/types';
+import type { AybInstance, EstimatedBillResponse } from '../../src/lib/api/types';
+import { statusLabel } from '../../src/lib/format';
 
 // ---------------------------------------------------------------------------
 // Internal HTTP helpers — never imported by spec files
@@ -69,7 +75,7 @@ function formatAdminKeyFingerprint(adminKey?: string): string {
 	}
 
 	const normalizedAdminKey = adminKey.trim();
-	return `${normalizedAdminKey.slice(0, 4)} (len=${normalizedAdminKey.length})`;
+	return `(present, len=${normalizedAdminKey.length})`;
 }
 
 function formatResponseDiagnostic(responseStatus?: number, responseUrl?: string): string {
@@ -667,6 +673,19 @@ type SeedInvoiceWithPdfUrlFn = () => Promise<{ id: string }>;
 type CreateUserFn = (email: string, password: string, name?: string) => Promise<CreatedFixtureUser>;
 type LoginAsFn = (email: string, password: string) => Promise<string>;
 type GetEstimatedBillFn = (month?: string) => Promise<EstimatedBillResponse | null>;
+type DatabaseRoutePersistedExpectation = {
+	id: string;
+	statusLabel: string;
+	aybUrl: string;
+	aybSlug: string;
+	aybClusterId: string;
+	plan: string;
+};
+type DatabaseRouteArrangeState = {
+	branch: 'persisted';
+	instance: DatabaseRoutePersistedExpectation;
+};
+type ArrangeDatabaseRouteStateFn = () => Promise<DatabaseRouteArrangeState>;
 type SeedMultiUserScenarioFn = () => Promise<{
 	primaryUser: CreatedFixtureUser;
 	secondaryUser: CreatedFixtureUser;
@@ -698,6 +717,8 @@ type E2eFixtures = {
 	loginAs: LoginAsFn;
 	/** Fetch the authenticated customer's current estimated bill. */
 	getEstimatedBill: GetEstimatedBillFn;
+	/** Arrange deterministic persisted database state and return expected route assertions. */
+	arrangeDatabaseRouteState: ArrangeDatabaseRouteStateFn;
 	/** Seed two unique users for multi-user workflows. */
 	seedMultiUserScenario: SeedMultiUserScenarioFn;
 	/** Reactivate a suspended customer through the existing admin route. */
@@ -712,6 +733,17 @@ type E2eInternalFixtures = {
 	/** Internal registry used by fixtures to clean up test-created customers. */
 	_trackCustomerForCleanup: TrackCustomerForCleanupFn;
 };
+
+function toDatabaseRoutePersistedExpectation(instance: AybInstance): DatabaseRoutePersistedExpectation {
+	return {
+		id: instance.id,
+		statusLabel: statusLabel(instance.status),
+		aybUrl: instance.ayb_url,
+		aybSlug: instance.ayb_slug,
+		aybClusterId: instance.ayb_cluster_id,
+		plan: instance.plan
+	};
+}
 
 // ---------------------------------------------------------------------------
 // Extended test object
@@ -811,6 +843,52 @@ export const test = base.extend<E2eFixtures & E2eInternalFixtures>({
 				month
 			});
 		});
+	},
+
+	arrangeDatabaseRouteState: async ({}, use) => {
+		const seededDatabaseRows: SeededDatabaseRouteState[] = [];
+
+		const arrangeState: ArrangeDatabaseRouteStateFn = async () => {
+			const customerId = await getCustomerId();
+			const listRes = await apiCall('GET', '/allyourbase/instances');
+			if (!listRes.ok) {
+				throw new Error(
+					`arrangeDatabaseRouteState failed to list instances: ${listRes.status} ${await listRes.text()}`
+				);
+			}
+			const instances = (await listRes.json()) as AybInstance[];
+
+			if (instances.length > 1) {
+				throw new Error(
+					`arrangeDatabaseRouteState expected at most one active instance, found ${instances.length}`
+				);
+			}
+
+			if (instances.length === 1) {
+				return {
+					branch: 'persisted',
+					instance: toDatabaseRoutePersistedExpectation(instances[0])
+				};
+			}
+
+			const seededState = seedDatabaseRoutePersistedInstance(customerId);
+			seededDatabaseRows.push(seededState);
+
+			return {
+				branch: 'persisted',
+				instance: toDatabaseRoutePersistedExpectation(seededState.instance)
+			};
+		};
+
+		await use(arrangeState);
+
+		for (const seededRow of seededDatabaseRows) {
+			try {
+				cleanupDatabaseRoutePersistedInstance(seededRow);
+			} catch {
+				/* ignore fixture teardown failures */
+			}
+		}
 	},
 
 	seedMultiUserScenario: async ({ createUser }, use) => {

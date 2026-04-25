@@ -30,7 +30,7 @@ export BACKEND_LIVE_GATE=1
 # export STRIPE_WEBHOOK_FORWARD_TO=http://localhost:3099/webhooks/stripe
 ```
 
-Canonical Stripe secret naming is documented in [`docs/env-vars.md`](../env-vars.md#stripe). For staging operator workflows that source a shared secret inventory, use `/Users/stuart/repos/gridl/fjcloud/.secret/.env.secret`.
+Canonical Stripe secret naming is documented in [`docs/env-vars.md`](../env-vars.md#stripe). For staging operator workflows, use the repo-local `.secret/.env.secret` by default (or `FJCLOUD_SECRET_FILE` when explicitly overriding).
 
 ## 1. AWS + Terraform
 

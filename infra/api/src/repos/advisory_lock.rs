@@ -1,9 +1,9 @@
-//! Stub summary for /Users/stuart/parallel_development/fjcloud_dev/MAR17_11_2_data_management_features/fjcloud_dev/infra/api/src/repos/advisory_lock.rs.
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock};
 
 use sqlx::{PgPool, Postgres, Transaction};
 use tokio::sync::{Mutex as AsyncMutex, OwnedMutexGuard};
+use uuid::Uuid;
 
 use crate::repos::error::RepoError;
 
@@ -22,6 +22,26 @@ pub async fn auto_provision_lock_key(pool: &PgPool, region: &str) -> Result<i64,
         Err(err) if is_connection_error(&err) => Ok(in_process_lock_key(region)),
         Err(err) => Err(RepoError::Other(format!(
             "failed to compute advisory lock key: {err}"
+        ))),
+    }
+}
+
+pub async fn account_lifecycle_lock_key(
+    pool: &PgPool,
+    customer_id: Uuid,
+) -> Result<i64, RepoError> {
+    let customer_id = customer_id.to_string();
+    match sqlx::query_scalar::<_, i64>("SELECT hashtext('account_lifecycle_' || $1)::bigint")
+        .bind(&customer_id)
+        .fetch_one(pool)
+        .await
+    {
+        Ok(key) => Ok(key),
+        Err(err) if is_connection_error(&err) => Ok(in_process_named_lock_key(&format!(
+            "account_lifecycle_{customer_id}"
+        ))),
+        Err(err) => Err(RepoError::Other(format!(
+            "failed to compute account lifecycle advisory lock key: {err}"
         ))),
     }
 }
@@ -77,8 +97,12 @@ fn is_connection_error(err: &sqlx::Error) -> bool {
 }
 
 fn in_process_lock_key(region: &str) -> i64 {
+    in_process_named_lock_key(&format!("auto_provision_{region}"))
+}
+
+fn in_process_named_lock_key(lock_name: &str) -> i64 {
     let mut hash = 0xcbf29ce484222325u64;
-    for byte in format!("auto_provision_{region}").bytes() {
+    for byte in lock_name.bytes() {
         hash ^= u64::from(byte);
         hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
     }

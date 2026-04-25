@@ -75,16 +75,17 @@ The metering agent scrapes Flapjack /metrics, computes deltas, and writes
 usage_records to Postgres. |
 | stripe_webhook_replay_fixture.sh | Stub summary for stripe_webhook_replay_fixture.sh. |
 | validate-metering.sh | Validate metering pipeline health against a live database and emit JSON. |
-| validate-stripe.sh | Validate Stripe test-mode billing lifecycle and emit machine-readable JSON. |
+| validate-stripe.sh | Stub summary for validate-stripe.sh. |
 | validate_ses_readiness.sh | Stub summary for validate_ses_readiness.sh. |
 | web-dev.sh | web-dev.sh — Start the SvelteKit dev server with repo-local auth env loaded. |
 
 | Directory | Summary |
 | --- | --- |
 | chaos | Chaos engineering scripts for testing Flapjack high-availability failover detection, including region kill and restart operations that validate the health monitor's ability to identify unhealthy deployments within its 60-second cycle threshold. |
-| launch | The launch directory contains shell scripts for backend validation and evidence collection, including full backend validation, live-E2E evidence gathering, deployment verification, and SES email deliverability checks. |
-| lib | This lib directory contains shared bash utility scripts for environment parsing and configuration loading, health checks, live-gate enforcement, security plus billing and metering validation, Stripe integration checks, and staging rehearsal helpers. |
+| launch | The launch directory contains validation and evidence-collection scripts for the billing system launch, including backend validation, synthetic traffic seeding for testing billing rehearsal, and email deliverability verification. |
+| lib | This lib directory contains shared bash utility functions for backend staging workflows, including environment parsing, Stripe integration, metering and billing validation, health checks, and preflight gate enforcement. |
 | load | The load directory contains shell scripts and utilities for running load tests and performance regression detection on the fjcloud system. |
 | reliability | The reliability directory contains profiling and security validation scripts that measure fjcloud's capacity across document tiers (1k, 10k, 100k) and run automated security gates (cargo audit, secret scanning, unsafe code detection). |
+| stripe | The stripe directory contains operational scripts for configuring Stripe billing infrastructure, including a script to set up the Stripe Customer Portal against specific accounts and a stub for catalog creation. |
 | tests | The tests directory contains shared shell script utilities and helpers for integration testing and local development, including assertion helpers, mock infrastructure for cargo tests, and harnesses for staging billing rehearsals, billing validation, chaos testing, and local development state management. |
 <!-- [scrai:end] -->

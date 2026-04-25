@@ -144,6 +144,36 @@ EOF
         "E2E_ADMIN_KEY should resolve from ADMIN_KEY in .env.local"
 }
 
+test_admin_key_is_optional_when_playwright_owns_web_server() {
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    backup_preflight_env_files "$tmp_dir"
+    trap 'restore_preflight_env_files "'"$tmp_dir"'"; rm -rf "'"$tmp_dir"'"; trap - RETURN' RETURN
+
+    rm -f "$REPO_ROOT/.env.local"
+    rm -f "$REPO_ROOT/web/.env.local"
+
+    local all_probes_succeed_curl_body='for arg in "$@"; do
+    case "$arg" in
+        http://localhost:*/auth/login)
+            printf 200
+            exit 0
+            ;;
+    esac
+done
+exit 0'
+
+    local output
+    output=$(run_preflight_isolated_with_curl_body "$tmp_dir" "$all_probes_succeed_curl_body")
+
+    assert_not_contains "$output" "FAIL: E2E_ADMIN_KEY" \
+        "preflight should not require an explicit admin key when Playwright owns the local web server"
+    assert_contains "$output" "Playwright will generate a local admin key" \
+        "preflight should explain why an explicit admin key is optional on the spawned-web-server path"
+    assert_contains "$output" "PREFLIGHT PASSED" \
+        "preflight should pass when the default local Playwright runtime can satisfy admin auth setup"
+}
+
 test_seeded_user_credentials_default_from_seed() {
     local tmp_dir
     tmp_dir=$(mktemp -d)
@@ -281,7 +311,7 @@ EOF
         "the mocked BASE_URL probe should still pass while verifying API_BASE_URL precedence"
 }
 
-test_missing_admin_key_names_exact_prerequisite() {
+test_missing_admin_key_names_exact_prerequisite_for_external_base_url() {
     local tmp_dir
     tmp_dir=$(mktemp -d)
     backup_preflight_env_files "$tmp_dir"
@@ -292,12 +322,12 @@ test_missing_admin_key_names_exact_prerequisite() {
     rm -f "$REPO_ROOT/web/.env.local"
 
     local output
-    output=$(run_preflight_isolated "$tmp_dir")
+    output=$(run_preflight_isolated "$tmp_dir" "BASE_URL=http://localhost:4173")
 
-    # Error should name the exact missing variable
+    # Error should name the exact missing variable when an externally managed
+    # BASE_URL means Playwright cannot inject a matching web-server admin key.
     assert_contains "$output" "FAIL: E2E_ADMIN_KEY" \
-        "should report E2E_ADMIN_KEY as missing when ADMIN_KEY unavailable"
-    # Error should mention the fallback source so operators know where to configure it
+        "should report E2E_ADMIN_KEY as missing when an external BASE_URL needs an explicit admin key"
     assert_contains "$output" "ADMIN_KEY" \
         "should mention ADMIN_KEY as the fallback source"
     assert_contains "$output" ".env.local" \
@@ -555,11 +585,12 @@ main() {
     echo ""
 
     test_admin_key_resolves_from_env_local
+    test_admin_key_is_optional_when_playwright_owns_web_server
     test_seeded_user_credentials_default_from_seed
     test_explicit_e2e_overrides_preserved
     test_layered_env_files_feed_preflight_fallback_chain
     test_api_base_url_override_drives_api_probe
-    test_missing_admin_key_names_exact_prerequisite
+    test_missing_admin_key_names_exact_prerequisite_for_external_base_url
     test_service_connectivity_failure_includes_bootstrap_remediation
     test_preflight_skips_web_probe_when_playwright_starts_web_server
     test_auth_login_failure_is_reported_before_browser_run

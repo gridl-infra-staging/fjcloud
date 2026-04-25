@@ -28,6 +28,12 @@ test_runbook_references_readiness_contract_and_identity_source() {
     assert_contains "$content" "--identity" "runbook should document readiness command identity argument"
     assert_contains "$content" "SES_FROM_ADDRESS" "runbook should document canonical SES identity input source"
     assert_contains "$content" "canonical SES identity input" "runbook should call out the single canonical identity input"
+    assert_contains "$content" "/Users/stuart/repos/gridl-infra-dev/fjcloud_dev/.secret/.env.secret" \
+        "runbook should keep the canonical Stage 1 env source path in the identity-source contract"
+    assert_contains "$content" "system@flapjack.foo" \
+        "runbook should keep system@flapjack.foo in the readiness identity-source contract"
+    assert_contains "$content" "ProductionAccessEnabled=true" \
+        "runbook should keep production-access-enabled truth in the readiness identity-source contract"
 }
 
 test_runbook_cross_references_existing_staging_identity_proof() {
@@ -108,6 +114,67 @@ test_runbook_documents_blocked_prerequisites_and_preserved_stage3_status() {
         "runbook should document sandbox non-simulator verified-recipient requirement"
 }
 
+test_runbook_requires_stage1_truth_values_and_removes_stale_snapshot() {
+    local content
+    content="$(cat "$RUNBOOK_PATH")"
+
+    assert_contains "$content" "/Users/stuart/repos/gridl-infra-dev/fjcloud_dev/.secret/.env.secret" \
+        "runbook should document the canonical Stage 1 env source path"
+    assert_contains "$content" "system@flapjack.foo" \
+        "runbook should document system@flapjack.foo as the canonical sender identity"
+    assert_contains "$content" 'inherited `flapjack.foo` domain identity/DKIM' \
+        "runbook should document inherited flapjack.foo domain identity/DKIM for sender readiness"
+    assert_contains "$content" "ProductionAccessEnabled=true (production access enabled)" \
+        "runbook should document current production-access enabled state from Stage 1 truth"
+
+    assert_not_contains "$content" "ProductionAccessEnabled=false" \
+        "runbook should not preserve stale ProductionAccessEnabled=false blocker wording"
+    assert_not_contains "$content" "still sandboxed" \
+        "runbook should not preserve stale current-state sandbox wording"
+    assert_not_contains "$content" "noreply@flapjack.foo" \
+        "runbook should not drift to noreply@flapjack.foo as canonical sender identity"
+    assert_not_contains "$content" "noreply@flapjack.cloud" \
+        "runbook should not preserve stale flapjack.cloud sender references"
+    assert_not_contains "$content" "/Users/stuart/repos/gridl/fjcloud/.secret/.env.secret" \
+        "runbook should not preserve the stale /Users/stuart/repos/gridl/fjcloud/.secret/.env.secret path"
+}
+
+test_runbook_anchors_stage1_boundary_proof_surface() {
+    local content
+    content="$(cat "$RUNBOOK_PATH")"
+
+    assert_contains "$content" "docs/runbooks/evidence/ses-deliverability/20260424_boundary_proof/reconciliation_summary.md" \
+        "runbook should reference the Stage 1 checked-in reconciliation_summary owner path"
+    assert_contains "$content" "docs/runbooks/evidence/ses-deliverability/20260424_boundary_proof/drift_blocker.md" \
+        "runbook should reference the Stage 1 checked-in drift_blocker owner path"
+    assert_contains "$content" "docs/runbooks/evidence/ses-deliverability/20260424_boundary_proof/first_send_retrieval_status.md" \
+        "runbook should reference the Stage 3 first_send_retrieval_status companion artifact path"
+    assert_contains "$content" "/Users/stuart/.matt/projects/fjcloud_dev-cd6902f9/apr23_am_1_ses_deliverability_refined.md-4c6ea1bd/artifacts/stage_04_ses_deliverability/fjcloud_ses_deliverability_evidence_20260423T063739Z_63867" \
+        "runbook should reference the canonical Stage 4 wrapper run directory path"
+    if [[ "$content" == *"bounce_blocker.txt"* ]] || [[ "$content" == *"bounce_event.json"* ]]; then
+        pass "runbook references a Stage 4 bounce companion artifact path"
+    else
+        fail "runbook should reference either bounce_blocker.txt or bounce_event.json for Stage 4 bounce evidence status"
+    fi
+    if [[ "$content" == *"complaint_blocker.txt"* ]] || [[ "$content" == *"complaint_event.json"* ]]; then
+        pass "runbook references a Stage 5 complaint companion artifact path"
+    else
+        fail "runbook should reference either complaint_blocker.txt or complaint_event.json for Stage 5 complaint evidence status"
+    fi
+    assert_contains "$content" "20260423T202158Z_ses_boundary_proof_full.txt" \
+        "runbook should reference the preserved transcript path for historical context only"
+    assert_not_contains "$content" "docs/runbooks/evidence/ses-deliverability/20260424_boundary_proof/summary.json" \
+        "runbook should not introduce a second checked-in summary.json owner under Stage 1 boundary-proof evidence"
+    assert_not_contains "$content" "proof complete" \
+        "runbook should not claim proof-complete wording while deliverability boundaries remain open"
+    assert_not_contains "$content" "proof captured" \
+        "runbook should not claim proof-captured wording while deliverability boundaries remain open"
+    assert_not_contains "$content" "proof-complete" \
+        "runbook should not claim proof-complete marker wording while deliverability boundaries remain open"
+    assert_not_contains "$content" "proof-captured" \
+        "runbook should not claim proof-captured marker wording while deliverability boundaries remain open"
+}
+
 echo "=== SES runbook contract tests ==="
 test_runbook_references_readiness_contract_and_identity_source
 test_runbook_cross_references_existing_staging_identity_proof
@@ -116,6 +183,8 @@ test_runbook_documents_unproven_deliverability_boundaries
 test_runbook_distinguishes_email_and_domain_identity_checks
 test_runbook_preserves_optional_live_send_smoke_context
 test_runbook_documents_blocked_prerequisites_and_preserved_stage3_status
+test_runbook_requires_stage1_truth_values_and_removes_stale_snapshot
+test_runbook_anchors_stage1_boundary_proof_surface
 
 echo "=== Results: $PASS_COUNT passed, $FAIL_COUNT failed ==="
 [ "$FAIL_COUNT" -eq 0 ]

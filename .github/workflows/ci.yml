@@ -224,19 +224,26 @@ jobs:
         with:
           role-to-assume: ${{ secrets.DEPLOY_IAM_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # stable
-      - name: Set up rust cache
-        uses: Swatinem/rust-cache@ad397744b0d591a723ab90405b7247fac0e6b8db # v2
-        with:
-          workspaces: infra
-      - name: Build release binaries
-        working-directory: infra
+      - name: Build release binaries in Amazon Linux 2023
         run: |
-          cargo build --release -p api -p aggregation-job -p metering-agent
-          mv target/release/fjcloud-api fjcloud-api
-          mv target/release/fj-metering-agent fj-metering-agent
-          mv target/release/fjcloud-aggregation-job fjcloud-aggregation-job
+          # Staging instances run Amazon Linux 2023 (glibc 2.34). Build in the
+          # same userland so uploaded ARM binaries do not pick up newer Ubuntu
+          # glibc symbols like GLIBC_2.38 and fail at runtime on the fleet.
+          docker run --rm \
+            --platform linux/arm64 \
+            -v "${GITHUB_WORKSPACE}:/work" \
+            -w /work/infra \
+            public.ecr.aws/amazonlinux/amazonlinux:2023 \
+            bash -lc '
+              set -euo pipefail
+              dnf install -y curl gcc gcc-c++ git openssl-devel pkgconfig perl-FindBin tar gzip
+              curl https://sh.rustup.rs -sSf | sh -s -- -y --profile minimal
+              source "$HOME/.cargo/env"
+              cargo build --release -p api -p aggregation-job -p metering-agent
+              mv target/release/fjcloud-api fjcloud-api
+              mv target/release/fj-metering-agent fj-metering-agent
+              mv target/release/fjcloud-aggregation-job fjcloud-aggregation-job
+            '
       - name: Upload release artifacts
         run: |
           ARTIFACT_PREFIX="staging/${GITHUB_SHA}/"

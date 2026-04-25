@@ -87,6 +87,25 @@ check_var() {
     fi
 }
 
+check_admin_key_prerequisite() {
+    if [ -n "${E2E_ADMIN_KEY:-}" ]; then
+        echo "  OK: E2E_ADMIN_KEY is set"
+        return
+    fi
+
+    # When Playwright owns the local web server (BASE_URL unset), the runner
+    # injects a matching ephemeral admin key into both process.env and the
+    # spawned server env. An explicit key is only required when BASE_URL points
+    # at an externally managed frontend that Playwright cannot reconfigure.
+    if [ -z "${BASE_URL:-}" ]; then
+        echo "  OK: Playwright will generate a local admin key for the spawned web frontend"
+        return
+    fi
+
+    echo "FAIL: E2E_ADMIN_KEY is not set — set E2E_ADMIN_KEY or ADMIN_KEY in .env.local when using BASE_URL to target an existing web frontend$(shared_remediation_suffix)" >&2
+    errors=$((errors + 1))
+}
+
 check_service() {
     local success_message="$1"
     local failure_message="$2"
@@ -152,7 +171,7 @@ echo ""
 echo "--- Required environment variables ---"
 check_var E2E_USER_EMAIL "set E2E_USER_EMAIL or run scripts/seed_local.sh first"
 check_var E2E_USER_PASSWORD "set E2E_USER_PASSWORD or run scripts/seed_local.sh first"
-check_var E2E_ADMIN_KEY "set E2E_ADMIN_KEY or ADMIN_KEY in .env.local"
+check_admin_key_prerequisite
 
 echo ""
 echo "--- Onboarding prerequisites ---"

@@ -19,6 +19,7 @@ use crate::state::AppState;
 use super::RateLimiter;
 
 const DEFAULT_CLOUD_CORS_ALLOWED_ORIGIN: &str = "https://cloud.flapjack.foo";
+const ROBOTS_HEADER_VALUE: &str = "noindex, nofollow, noarchive, nosnippet, noimageindex";
 
 pub(super) const TRUST_PROXY_HEADERS_FOR_RATE_LIMIT_ENV: &str =
     "TRUST_PROXY_HEADERS_FOR_RATE_LIMIT";
@@ -69,7 +70,8 @@ fn parse_positive_u32_env_var(env_key: &str, default_value: u32) -> u32 {
 
 /// Appends security headers to every response: HSTS with a two-year max-age
 /// and `includeSubDomains`, `X-Content-Type-Options: nosniff`,
-/// `X-Frame-Options: DENY`, and `X-XSS-Protection: 1; mode=block`.
+/// `X-Frame-Options: DENY`, `X-XSS-Protection: 1; mode=block`, and beta
+/// crawler controls.
 pub(super) async fn security_headers_middleware(request: Request, next: Next) -> Response {
     let mut response = next.run(request).await;
     let headers = response.headers_mut();
@@ -85,6 +87,12 @@ pub(super) async fn security_headers_middleware(request: Request, next: Next) ->
     headers.insert(
         HeaderName::from_static("x-xss-protection"),
         HeaderValue::from_static("1; mode=block"),
+    );
+    // The site should be accessible to Stripe reviewers and link unfurl bots,
+    // but not indexed while public beta copy and product surfaces are changing.
+    headers.insert(
+        HeaderName::from_static("x-robots-tag"),
+        HeaderValue::from_static(ROBOTS_HEADER_VALUE),
     );
     response
 }
@@ -528,7 +536,7 @@ mod tests {
         assert!(
             default_cors_allowed_origins()
                 .iter()
-                .any(|origin| origin == &expected_origin),
+                .any(|origin| origin == expected_origin),
             "default CORS origins must include the shared DNS domain"
         );
     }

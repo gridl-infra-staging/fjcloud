@@ -1,7 +1,7 @@
 # IAM role and instance profile for fjcloud VM instances.
 #
-# Grants SSM read access so VMs can fetch secrets (DB URL, API key)
-# at boot via the bootstrap user-data script.
+# Grants the staging API enough access to bootstrap per-node secrets and
+# manage customer EC2 instances that fetch those secrets at boot.
 #
 # Usage:
 #   cd ops/iam
@@ -44,7 +44,7 @@ resource "aws_iam_role" "fjcloud_instance" {
 }
 
 # --------------------------------------------------------------------------
-# Policy — SSM read-only for /fjcloud/* parameters
+# Policy — SSM read/write for /fjcloud/* parameters
 # --------------------------------------------------------------------------
 
 resource "aws_iam_role_policy" "fjcloud_ssm_read" {
@@ -55,9 +55,46 @@ resource "aws_iam_role_policy" "fjcloud_ssm_read" {
     Version = "2012-10-17"
     Statement = [{
       Effect   = "Allow"
-      Action   = ["ssm:GetParameter", "ssm:GetParametersByPath"]
+      Action = [
+        "ssm:GetParameter",
+        "ssm:GetParametersByPath",
+        "ssm:PutParameter",
+        "ssm:DeleteParameter",
+      ]
       Resource = "arn:aws:ssm:*:*:parameter/fjcloud/*"
     }]
+  })
+}
+
+# --------------------------------------------------------------------------
+# Policy — EC2 lifecycle control for customer-managed VMs
+# --------------------------------------------------------------------------
+
+resource "aws_iam_role_policy" "fjcloud_ec2_control" {
+  name = "fjcloud-ec2-control"
+  role = aws_iam_role.fjcloud_instance.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "ec2:RunInstances",
+          "ec2:DescribeInstances",
+          "ec2:StartInstances",
+          "ec2:StopInstances",
+          "ec2:TerminateInstances",
+          "ec2:CreateTags",
+        ]
+        Resource = "*"
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["iam:PassRole"]
+        Resource = aws_iam_role.fjcloud_instance.arn
+      },
+    ]
   })
 }
 

@@ -5,6 +5,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 SES_WRAPPER_SCRIPT="$REPO_ROOT/scripts/launch/ses_deliverability_evidence.sh"
+FIRST_SEND_RETRIEVAL_STATUS_DOC="$REPO_ROOT/docs/runbooks/evidence/ses-deliverability/20260424_boundary_proof/first_send_retrieval_status.md"
 
 # shellcheck source=lib/test_runner.sh
 source "$SCRIPT_DIR/lib/test_runner.sh"
@@ -136,7 +137,7 @@ write_secret_fixture_env_file() {
 AWS_ACCESS_KEY_ID=AKIATESTDELIVERABILITY
 AWS_SECRET_ACCESS_KEY=fake-ses-secret-value
 AWS_SESSION_TOKEN=fake-ses-session-token
-SES_FROM_ADDRESS=noreply-contract@flapjack.foo
+SES_FROM_ADDRESS=system@flapjack.foo
 SES_REGION=us-east-1
 SES_TEST_RECIPIENT=deliverability-recipient@flapjack.foo
 ENVFILE
@@ -440,15 +441,31 @@ test_readiness_delegation_runs_before_live_send_and_preserves_artifact() {
     cargo_line="$(grep -n '^cargo|' "$TEST_CALL_LOG" | head -1 | cut -d: -f1 || true)"
 
     assert_contains "$calls" "readiness|" "wrapper should delegate readiness to scripts/validate_ses_readiness.sh"
-    assert_contains "$calls" "--identity noreply-contract@flapjack.foo" "readiness delegate should use SES_FROM_ADDRESS identity"
+    assert_contains "$calls" "--identity system@flapjack.foo" "readiness delegate should use SES_FROM_ADDRESS identity"
     assert_contains "$calls" "--region us-east-1" "readiness delegate should use SES_REGION"
+    assert_eq "$(json_field "$RUN_STDOUT" "overall_verdict")" "pass" \
+        "production-access readiness with a verified non-simulator recipient should pass"
+    assert_eq "$(json_field "$RUN_STDOUT" "account_status.is_sandbox")" "false" \
+        "production-access readiness should not mark account status as sandboxed"
+    assert_eq "$(json_field "$RUN_STDOUT" "account_status.status")" "pass" \
+        "production-access readiness should set account_status.status=pass"
+    assert_eq "$(json_field "$RUN_STDOUT" "recipient_preflight.is_mailbox_simulator")" "false" \
+        "non-simulator recipient fixture should be tracked as non-simulator"
+    assert_contains "$(json_field "$RUN_STDOUT" "account_status.detail")" "ProductionAccessEnabled=true" \
+        "production-access readiness should include ProductionAccessEnabled=true detail"
+    assert_not_contains "$(json_field "$RUN_STDOUT" "account_status.detail")" "sandbox" \
+        "production-access readiness should not label ProductionAccessEnabled=true as sandbox blocked"
+    assert_not_contains "$RUN_STDOUT" "ProductionAccessEnabled=false" \
+        "production-access readiness should not regress to ProductionAccessEnabled=false wording"
+    assert_not_contains "$RUN_STDOUT" "still sandboxed" \
+        "production-access readiness should not regress to stale current-state sandbox wording"
     if [ -n "$readiness_line" ] && [ -n "$cargo_line" ] && [ "$readiness_line" -lt "$cargo_line" ]; then
         pass "wrapper should invoke readiness before cargo live-send seam"
     else
         fail "wrapper should invoke readiness before cargo live-send seam"
     fi
     assert_not_contains "$calls" "aws|CALLER=wrapper|AWS_PAGER=<empty>|sesv2 get-account" "wrapper must not duplicate account readiness outside readiness owner"
-    assert_no_wrapper_sender_readiness_call "$calls" "noreply-contract@flapjack.foo" "wrapper must not duplicate sender readiness outside readiness owner"
+    assert_no_wrapper_sender_readiness_call "$calls" "system@flapjack.foo" "wrapper must not duplicate sender readiness outside readiness owner"
 
     run_dir="$(find_single_run_dir "$TEST_WORKSPACE/artifacts")"
     readiness_artifact="$(find_readiness_artifact "$run_dir")"
@@ -511,8 +528,10 @@ test_sandbox_readiness_reports_blocked_without_live_send() {
     assert_valid_json "$RUN_STDOUT" "sandbox readiness stdout should be valid JSON"
     assert_valid_json "$summary_payload" "sandbox readiness summary.json should be valid JSON"
     assert_eq "$(json_field "$RUN_STDOUT" "overall_verdict")" "blocked" "sandbox readiness should set run verdict blocked"
+    assert_eq "$(json_field "$RUN_STDOUT" "account_status.is_sandbox")" "true" "sandbox readiness should set account_status.is_sandbox=true"
     assert_contains "$RUN_STDOUT" "sandbox" "sandbox readiness output should include stable sandbox blocker detail"
     assert_contains "$RUN_STDOUT" "ProductionAccessEnabled=false" "sandbox readiness should include remediation detail"
+    assert_not_contains "$RUN_STDOUT" "ProductionAccessEnabled=true" "sandbox readiness output should not include production-access enabled detail"
     assert_not_contains "$calls" "cargo|" "sandbox without recipient preflight should not run cargo live-send seam"
 }
 
@@ -567,7 +586,7 @@ test_live_send_delegation_to_canonical_ignored_test() {
         fail "wrapper should invoke cargo for live-send seam when readiness and recipient preflight pass"
     fi
     assert_contains "$cargo_line" "SES_LIVE_TEST=1" "wrapper must set SES_LIVE_TEST=1 for delegated cargo run"
-    assert_contains "$cargo_line" "SES_FROM_ADDRESS=noreply-contract@flapjack.foo" "wrapper must pass SES_FROM_ADDRESS to cargo"
+    assert_contains "$cargo_line" "SES_FROM_ADDRESS=system@flapjack.foo" "wrapper must pass SES_FROM_ADDRESS to cargo"
     assert_contains "$cargo_line" "SES_REGION=us-east-1" "wrapper must pass SES_REGION to cargo"
     assert_contains "$cargo_line" "SES_TEST_RECIPIENT=deliverability-recipient@flapjack.foo" "wrapper must pass SES_TEST_RECIPIENT to cargo"
     assert_contains "$cargo_line" "test -p api --test email_test ses_live_smoke_sends_verification_email -- --ignored" "wrapper must target canonical ignored live smoke seam"
@@ -644,7 +663,7 @@ test_missing_explicit_ses_region_blocks_before_cargo() {
         "missing explicit SES_REGION must not perform wrapper-owned recipient identity AWS lookups"
     assert_not_contains "$calls" "cargo|" \
         "missing explicit SES_REGION must not invoke cargo with an empty SES region"
-    assert_not_contains "$calls" "readiness|AWS_PAGER=<empty>|--identity noreply-contract@flapjack.foo --region " \
+    assert_not_contains "$calls" "readiness|AWS_PAGER=<empty>|--identity system@flapjack.foo --region " \
         "readiness owner should not receive an explicit empty region argument"
 }
 
@@ -673,7 +692,7 @@ test_ambient_env_overrides_env_file_for_canonical_inputs() {
         "readiness delegation should prefer ambient SES_FROM_ADDRESS over env-file value"
     assert_contains "$readiness_line" "--region us-west-2" \
         "readiness delegation should prefer ambient SES_REGION over env-file value"
-    assert_not_contains "$readiness_line" "--identity noreply-contract@flapjack.foo" \
+    assert_not_contains "$readiness_line" "--identity system@flapjack.foo" \
         "readiness delegation should not fall back to env-file SES_FROM_ADDRESS when ambient value is exported"
     assert_not_contains "$readiness_line" "--region us-east-1" \
         "readiness delegation should not fall back to env-file SES_REGION when ambient value is exported"
@@ -685,6 +704,8 @@ test_ambient_env_overrides_env_file_for_canonical_inputs() {
         "live-send delegation should use ambient SES_TEST_RECIPIENT"
     assert_not_contains "$cargo_line" "SES_TEST_RECIPIENT=deliverability-recipient@flapjack.foo" \
         "live-send delegation should not use env-file SES_TEST_RECIPIENT when ambient value is exported"
+    assert_not_contains "$RUN_STDOUT" "/Users/stuart/repos/gridl/fjcloud/.secret/.env.secret" \
+        "wrapper summary should not hard-code the stale /Users/stuart/repos/gridl/fjcloud/.secret/.env.secret source path"
     assert_eq "$(json_field "$RUN_STDOUT" "recipient_preflight.source")" "explicit" \
         "ambient SES_TEST_RECIPIENT should remain explicit recipient source"
     assert_eq "$(json_field "$RUN_STDOUT" "recipient_preflight.recipient")" "REDACTED" \
@@ -694,6 +715,7 @@ test_ambient_env_overrides_env_file_for_canonical_inputs() {
 }
 
 test_summary_schema_and_proof_boundaries_contract() {
+    local boundaries_payload
     setup_workspace
     require_wrapper_for_contract "summary schema boundaries contract" || return 0
 
@@ -708,12 +730,70 @@ test_summary_schema_and_proof_boundaries_contract() {
     assert_eq "$(json_has_field "$RUN_STDOUT" "send_attempt")" "true" "summary must include send_attempt"
     assert_eq "$(json_has_field "$RUN_STDOUT" "suppression_check")" "true" "summary must include suppression_check"
     assert_eq "$(json_has_field "$RUN_STDOUT" "deliverability_boundaries")" "true" "summary must include deliverability_boundaries"
+    assert_eq "$(json_field "$RUN_STDOUT" "suppression_check.status")" "not_checked" \
+        "summary suppression_check.status should remain not_checked until explicit suppression checks are run"
+    boundaries_payload="$(json_field "$RUN_STDOUT" "deliverability_boundaries")"
+    assert_contains "$boundaries_payload" "unproven" "summary boundaries should explicitly remain unproven"
+    assert_contains "$RUN_STDOUT" "\"spf\":\"unproven\"" "summary boundaries should keep spf set to unproven"
+    assert_contains "$RUN_STDOUT" "\"mail_from\":\"unproven\"" "summary boundaries should keep mail_from set to unproven"
+    assert_contains "$RUN_STDOUT" "\"bounce_complaint_handling\":\"unproven\"" \
+        "summary boundaries should keep bounce_complaint_handling set to unproven"
+    assert_contains "$RUN_STDOUT" "\"first_send_evidence\":\"unproven\"" \
+        "summary boundaries should keep first_send_evidence set to unproven"
+    assert_contains "$RUN_STDOUT" "\"inbox_receipt_proof\":\"unproven\"" \
+        "summary boundaries should keep inbox_receipt_proof set to unproven"
     assert_contains "$RUN_STDOUT" "SPF" "summary boundaries must keep SPF unproven"
     assert_contains "$RUN_STDOUT" "MAIL FROM" "summary boundaries must keep MAIL FROM unproven"
     assert_contains "$RUN_STDOUT" "bounce/complaint" "summary boundaries must keep bounce/complaint handling unproven"
     assert_contains "$RUN_STDOUT" "first-send" "summary boundaries must keep first-send evidence unproven"
     assert_contains "$RUN_STDOUT" "inbox-receipt" "summary boundaries must keep inbox-receipt evidence unproven"
     assert_contains "$RUN_STDOUT" "not_checked" "suppression should remain not_checked unless explicit suppression check runs"
+    assert_not_contains "$RUN_STDOUT" "\"spf\":\"pass\"" "summary boundaries should not claim spf proof closure"
+    assert_not_contains "$RUN_STDOUT" "\"mail_from\":\"pass\"" "summary boundaries should not claim mail_from proof closure"
+    assert_not_contains "$RUN_STDOUT" "\"bounce_complaint_handling\":\"pass\"" \
+        "summary boundaries should not claim bounce/complaint proof closure"
+    assert_not_contains "$RUN_STDOUT" "\"first_send_evidence\":\"pass\"" \
+        "summary boundaries should not claim first-send proof closure"
+    assert_not_contains "$RUN_STDOUT" "\"inbox_receipt_proof\":\"pass\"" \
+        "summary boundaries should not claim inbox-receipt proof closure"
+    assert_not_contains "$RUN_STDOUT" "proof-complete" "summary boundaries should not claim proof-complete state"
+    assert_not_contains "$RUN_STDOUT" "proof complete" "summary boundaries should not claim proof complete state"
+    assert_not_contains "$RUN_STDOUT" "proof-captured" "summary boundaries should not claim proof-captured state"
+    assert_not_contains "$RUN_STDOUT" "proof captured" "summary boundaries should not claim proof captured state"
+}
+
+test_stage3_first_send_retrieval_status_artifact_contract() {
+    local content
+    if [ -f "$FIRST_SEND_RETRIEVAL_STATUS_DOC" ]; then
+        pass "Stage 3 first_send_retrieval_status.md artifact exists"
+    else
+        fail "Stage 3 first_send_retrieval_status.md artifact should exist at $FIRST_SEND_RETRIEVAL_STATUS_DOC"
+        return
+    fi
+
+    content="$(read_file_or_empty "$FIRST_SEND_RETRIEVAL_STATUS_DOC")"
+    assert_contains "$content" "Wrapper run directory:" \
+        "Stage 3 retrieval status artifact should record the wrapper run directory"
+    assert_contains "$content" "Chosen recipient class:" \
+        "Stage 3 retrieval status artifact should record the recipient class"
+    if [[ "$content" == *"Missing retrieval owner:"* ]]; then
+        fail "retrieval status artifact should not pass on send-side success alone when non-simulator retrieval ownership is still missing"
+        assert_contains "$content" "Supplemental retrieval owner path:" \
+            "retrieval status artifact should declare a repo-owned supplemental retrieval owner path for first non-simulator proof"
+        assert_contains "$content" "Inbox/header evidence path:" \
+            "retrieval status artifact should declare a repo-owned inbox/header evidence path for first non-simulator proof"
+        assert_contains "$content" "No manual mailbox validation is allowed." \
+            "retrieval blocker artifact should enforce no-manual-validation stop condition"
+        assert_contains "$content" "deliverability_boundaries.first_send_evidence=unproven" \
+            "retrieval blocker artifact should keep first_send_evidence boundary unproven"
+        assert_contains "$content" "deliverability_boundaries.inbox_receipt_proof=unproven" \
+            "retrieval blocker artifact should keep inbox_receipt_proof boundary unproven"
+    elif [[ "$content" == *"Supplemental retrieval owner path:"* ]]; then
+        assert_contains "$content" "Inbox/header evidence path:" \
+            "retrieval status artifact should link repo-owned inbox/header evidence when retrieval ownership exists"
+    else
+        fail "retrieval status artifact should explicitly declare retrieval ownership contract fields"
+    fi
 }
 
 test_noninteractive_aws_contract_for_wrapper_and_readiness_calls() {
@@ -790,8 +870,8 @@ test_explicit_self_recipient_does_not_duplicate_sender_readiness() {
 
     _run_ses_deliverability \
         --args "--artifact-dir $TEST_WORKSPACE/artifacts --env-file $TEST_WORKSPACE/fixtures/ses_contract.env" \
-        "SES_TEST_RECIPIENT=noreply-contract@flapjack.foo" \
-        "SES_FROM_ADDRESS=noreply-contract@flapjack.foo" \
+        "SES_TEST_RECIPIENT=system@flapjack.foo" \
+        "SES_FROM_ADDRESS=system@flapjack.foo" \
         "SES_DELIV_AWS_ACCOUNT_MODE=production" \
         "SES_DELIV_AWS_SENDER_MODE=verified_domain" \
         "SES_DELIV_CARGO_STDOUT=test ses_live_smoke_sends_verification_email ... ok"
@@ -799,7 +879,7 @@ test_explicit_self_recipient_does_not_duplicate_sender_readiness() {
     local calls
     calls="$(read_file_or_empty "$TEST_CALL_LOG")"
 
-    assert_no_wrapper_sender_readiness_call "$calls" "noreply-contract@flapjack.foo" \
+    assert_no_wrapper_sender_readiness_call "$calls" "system@flapjack.foo" \
         "explicit self-recipient must not trigger wrapper-owned sender identity lookup"
     assert_eq "$(json_field "$RUN_STDOUT" "recipient_preflight.status")" "pass" \
         "self-recipient should pass preflight via readiness-owner delegation"
@@ -819,6 +899,7 @@ test_live_send_false_positive_contract
 test_missing_explicit_ses_region_blocks_before_cargo
 test_ambient_env_overrides_env_file_for_canonical_inputs
 test_summary_schema_and_proof_boundaries_contract
+test_stage3_first_send_retrieval_status_artifact_contract
 test_noninteractive_aws_contract_for_wrapper_and_readiness_calls
 test_redaction_contract_for_stdout_summary_and_logs
 run_test_summary

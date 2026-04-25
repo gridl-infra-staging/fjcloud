@@ -124,6 +124,14 @@ export interface SetupIntentResponse {
 	client_secret: string;
 }
 
+export interface CreateBillingPortalSessionRequest {
+	return_url: string;
+}
+
+export interface CreateBillingPortalSessionResponse {
+	portal_url: string;
+}
+
 export interface PaymentMethod {
 	id: string;
 	card_brand: string;
@@ -165,6 +173,10 @@ export interface CustomerProfileResponse {
 	email_verified: boolean;
 	billing_plan: 'free' | 'shared';
 	created_at: string;
+}
+
+export interface AccountExportResponse {
+	profile: CustomerProfileResponse;
 }
 
 export interface UpdateProfileRequest {
@@ -726,61 +738,22 @@ export interface ApiError {
 }
 
 // Dictionary types (dictionary entry management)
-export type DictionaryName = 'stopwords' | 'plurals' | 'compounds';
-
-export interface DictionaryCount {
-	nbCustomEntries: number;
-}
-
-export interface LanguageDictionaryCounts {
-	stopwords: DictionaryCount | null;
-	plurals: DictionaryCount | null;
-	compounds: DictionaryCount | null;
-}
-
-export type DictionaryLanguagesResponse = Record<string, LanguageDictionaryCounts>;
-
-export interface DictionaryEntry {
-	objectID: string;
-	language: string;
-	word?: string;
-	words?: string[];
-	decomposition?: string[];
-	state?: string;
-	[key: string]: unknown;
-}
-
-export interface DictionarySearchRequest {
-	query: string;
-	language?: string;
-	page?: number;
-	hitsPerPage?: number;
-}
-
-export interface DictionarySearchResponse {
-	hits: DictionaryEntry[];
-	nbHits: number;
-	page: number;
-	nbPages: number;
-}
-
-export type DictionaryBatchAction = 'addEntry' | 'deleteEntry';
-
-export interface DictionaryBatchOperation {
-	action: DictionaryBatchAction;
-	body: Record<string, unknown>;
-}
-
-export interface DictionaryBatchRequest {
-	clearExistingDictionaryEntries?: boolean;
-	requests: DictionaryBatchOperation[];
-}
-
-export interface DictionaryBatchResponse {
-	taskID: number;
-	updatedAt: string;
-	[key: string]: unknown;
-}
+// Dictionary types live in their own module to keep this barrel file
+// under the size-limit gate. Consumers continue to import from
+// `$lib/api/types` — the re-export preserves the public surface.
+export type {
+	DictionaryName,
+	DictionaryCount,
+	LanguageDictionaryCounts,
+	DictionaryLanguagesResponse,
+	DictionaryEntry,
+	DictionarySearchRequest,
+	DictionarySearchResponse,
+	DictionaryBatchAction,
+	DictionaryBatchOperation,
+	DictionaryBatchRequest,
+	DictionaryBatchResponse
+} from './types_dictionary';
 
 // Security Sources types
 export interface SecuritySource {
@@ -792,63 +765,23 @@ export interface SecuritySourcesResponse {
 	sources: SecuritySource[];
 }
 
-// Pricing comparison types (public endpoint — no auth required)
-export interface PricingCompareRequest {
-	document_count: number;
-	avg_document_size_bytes: number;
-	search_requests_per_month: number;
-	write_operations_per_month: number;
-	sort_directions: number;
-	num_indexes: number;
-	high_availability: boolean;
-}
+// Pricing comparison types live in their own module to keep this barrel
+// file under the size-limit gate. Consumers continue to import from
+// `$lib/api/types` — the re-export preserves the public surface.
+export type {
+	PricingCompareRequest,
+	PricingCostLineItem,
+	PricingEstimate,
+	PricingCompareResponse
+} from './types_pricing';
 
-export interface PricingCostLineItem {
-	description: string;
-	quantity: string;
-	unit: string;
-	unit_price_cents: string;
-	amount_cents: number;
-}
-
-export interface PricingEstimate {
-	provider: string;
-	monthly_total_cents: number;
-	line_items: PricingCostLineItem[];
-	assumptions: string[];
-	plan_name: string | null;
-}
-
-export interface PricingCompareResponse {
-	workload: PricingCompareRequest;
-	estimates: PricingEstimate[];
-	generated_at: string;
-}
-
-// --- Algolia Migration ---
-
-export interface AlgoliaIndexInfo {
-	name: string;
-	entries: number;
-	lastBuildTimeS: number;
-}
-
-export interface AlgoliaIndexListResponse {
-	indexes: AlgoliaIndexInfo[];
-}
-
-export interface AlgoliaListRequest {
-	appId: string;
-	apiKey: string;
-}
-
-export interface AlgoliaMigrateRequest {
-	appId: string;
-	apiKey: string;
-	sourceIndex: string;
-}
-
-export interface AlgoliaMigrateResponse {
-	taskId: string;
-	message: string;
-}
+// Algolia migration types live in their own module to keep this barrel
+// file under the size-limit gate. Consumers continue to import from
+// `$lib/api/types` — the re-export preserves the public surface.
+export type {
+	AlgoliaIndexInfo,
+	AlgoliaIndexListResponse,
+	AlgoliaListRequest,
+	AlgoliaMigrateRequest,
+	AlgoliaMigrateResponse
+} from './types_algolia_migration';

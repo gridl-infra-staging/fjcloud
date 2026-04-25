@@ -56,8 +56,9 @@
 						<td colspan="4" class="px-3 py-4 text-sm text-gray-600">No API calls recorded</td>
 					</tr>
 				{:else}
-					{#each logEntries as entry (entry.id)}
+					{#each logEntries as entry, index (entry.id)}
 						<tr
+							data-testid={`api-log-row-${index}`}
 							onclick={() => {
 								selectedEntryId = entry.id;
 							}}

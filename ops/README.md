@@ -22,7 +22,11 @@ ops/
 
 - [Packer](https://developer.hashicorp.com/packer) >= 1.9
 - AWS credentials with EC2 + AMI permissions
-- Pre-built ARM64 binaries for `flapjack` and `fj-metering-agent` in `ops/build/`
+- Pre-built Linux ARM64 binaries in `ops/build/` for:
+  - `flapjack`
+  - `fjcloud-api`
+  - `fjcloud-aggregation-job`
+  - `fj-metering-agent`
 
 ### Build steps
 
@@ -30,6 +34,8 @@ ops/
 # 1. Place binaries
 mkdir -p ops/build
 cp /path/to/flapjack ops/build/flapjack
+cp /path/to/fjcloud-api ops/build/fjcloud-api
+cp /path/to/fjcloud-aggregation-job ops/build/fjcloud-aggregation-job
 cp /path/to/fj-metering-agent ops/build/fj-metering-agent
 
 # 2. Initialize Packer plugins
@@ -109,13 +115,13 @@ The bootstrap script reads these SSM parameters at boot:
 
 | Parameter | Description | Created by |
 |-----------|-------------|------------|
-| `/fjcloud/db-url` | PostgreSQL connection string | Manual (one-time setup) |
+| `/fjcloud/{environment}/database_url` | PostgreSQL connection string | Manual (one-time setup) |
 | `/fjcloud/{node_id}/api-key` | Flapjack API key for this node | Provisioning service (automatic) |
 
-Set up the global DB URL parameter before launching any VMs:
+Set up the environment-scoped DB URL parameter before launching any VMs:
 
 ```bash
-aws ssm put-parameter --name "/fjcloud/db-url" \
+aws ssm put-parameter --name "/fjcloud/staging/database_url" \
   --type SecureString --value "postgres://..."
 ```
 

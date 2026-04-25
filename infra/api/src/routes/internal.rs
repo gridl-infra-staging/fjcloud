@@ -11,11 +11,13 @@ use subtle::ConstantTimeEq;
 use uuid::Uuid;
 
 use crate::errors::ApiError;
+use crate::routes::indexes::flapjack_index_uid;
 use crate::state::AppState;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct TenantMapEntry {
     pub tenant_id: String,
+    pub flapjack_uid: String,
     pub customer_id: Uuid,
     pub vm_id: Option<Uuid>,
     pub flapjack_url: Option<String>,
@@ -42,16 +44,25 @@ pub struct RegionEntryResponse {
 ///
 /// **Auth:** `x-internal-key` header (internal service auth).
 /// Caches deployment URL lookups to avoid repeated DB hits when multiple
-/// tenants share a deployment. Used by the metering agent and aggregation job.
+/// tenants share a deployment. Falls back to `vm_inventory.flapjack_url`
+/// when the deployment row has no URL — this matches the seeded shared-VM
+/// path (`POST /admin/tenants/:id/indexes` with `flapjack_url`), which
+/// stores the routable URL on the VM rather than the deployment. Without
+/// the fallback, the metering agent on the shared VM filters those
+/// tenants out (it skips entries whose `flapjack_url` doesn't match
+/// `local_flapjack_url`), and `usage_records` for those tenants never
+/// gets written. Used by the metering agent and aggregation job.
 pub async fn tenant_map(
     State(state): State<AppState>,
 ) -> Result<Json<Vec<TenantMapEntry>>, ApiError> {
     let tenants = state.tenant_repo.list_active_global().await?;
     let mut deployment_url_cache: HashMap<Uuid, Option<String>> = HashMap::new();
+    let mut vm_url_cache: HashMap<Uuid, Option<String>> = HashMap::new();
     let mut response = Vec::with_capacity(tenants.len());
 
     for tenant in tenants {
-        let flapjack_url = if let Some(cached) = deployment_url_cache.get(&tenant.deployment_id) {
+        let mut flapjack_url = if let Some(cached) = deployment_url_cache.get(&tenant.deployment_id)
+        {
             cached.clone()
         } else {
             let fetched = state
@@ -63,7 +74,25 @@ pub async fn tenant_map(
             fetched
         };
 
+        if flapjack_url.is_none() {
+            if let Some(vm_id) = tenant.vm_id {
+                let vm_url = if let Some(cached) = vm_url_cache.get(&vm_id) {
+                    cached.clone()
+                } else {
+                    let fetched = state
+                        .vm_inventory_repo
+                        .get(vm_id)
+                        .await?
+                        .map(|vm| vm.flapjack_url);
+                    vm_url_cache.insert(vm_id, fetched.clone());
+                    fetched
+                };
+                flapjack_url = vm_url;
+            }
+        }
+
         response.push(TenantMapEntry {
+            flapjack_uid: flapjack_index_uid(tenant.customer_id, &tenant.tenant_id),
             tenant_id: tenant.tenant_id,
             customer_id: tenant.customer_id,
             vm_id: tenant.vm_id,

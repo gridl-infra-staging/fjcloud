@@ -43,6 +43,18 @@ declare -A SSM_TO_ENV=(
   [jwt_secret]="JWT_SECRET"
   [admin_key]="ADMIN_KEY"
 
+  # Shared-VM provisioning — infra/api/src/provisioner/aws.rs
+  [aws_ami_id]="AWS_AMI_ID"
+  [aws_subnet_id]="AWS_SUBNET_ID"
+  [aws_security_group_ids]="AWS_SECURITY_GROUP_IDS"
+  [aws_key_pair_name]="AWS_KEY_PAIR_NAME"
+  [aws_instance_profile_name]="AWS_INSTANCE_PROFILE_NAME"
+
+  # Shared-VM DNS routing — infra/api/src/startup.rs::init_dns_manager
+  [cloudflare_api_token]="CLOUDFLARE_API_TOKEN"
+  [cloudflare_zone_id]="CLOUDFLARE_ZONE_ID"
+  [dns_domain]="DNS_DOMAIN"
+
   # Stripe — config.rs::from_reader (optional until Stage 7 activates them)
   [stripe_secret_key]="STRIPE_SECRET_KEY"
   [stripe_publishable_key]="STRIPE_PUBLISHABLE_KEY"

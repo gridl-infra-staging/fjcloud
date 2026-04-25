@@ -3,7 +3,7 @@
 
 | File | Summary |
 | --- | --- |
-| aws.rs | Stub summary for /Users/stuart/parallel_development/fjcloud_dev/mar19_3_load_testing_chaos/fjcloud_dev/infra/api/src/provisioner/aws.rs. |
+| aws.rs | Stub summary for aws.rs. |
 | cloud_init.rs | Stub summary for /Users/stuart/parallel_development/fjcloud_dev/MAR17_11_2_data_management_features/fjcloud_dev/infra/api/src/provisioner/cloud_init.rs. |
 | env_config.rs | Shared environment-variable parsing helpers for provisioner configuration.
 

@@ -5,6 +5,8 @@ import { mapAuthActionFailure } from '$lib/server/auth-action-errors';
 import { authCookieOptions } from '$lib/server/auth-cookies';
 import { AUTH_COOKIE, COOKIE_MAX_AGE } from '$lib/config';
 
+export const prerender = false;
+
 export const actions = {
 	default: async ({ request, cookies, url, fetch }) => {
 		const data = await request.formData();

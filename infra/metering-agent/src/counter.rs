@@ -1,4 +1,3 @@
-//! Stub summary for /Users/stuart/parallel_development/fjcloud_dev/mar19_3_load_testing_chaos/fjcloud_dev/infra/metering-agent/src/counter.rs.
 use dashmap::DashMap;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -161,7 +160,7 @@ fn build_counter_delta_records(
             records.push(record::build_usage_record(
                 &ctx,
                 tenant.customer_id,
-                tenant_id,
+                &tenant.tenant_id,
                 event_type,
                 value as i64,
             ));
@@ -210,7 +209,7 @@ fn build_document_count_records(
         records.push(record::build_usage_record(
             &ctx,
             tenant.customer_id,
-            tenant_id,
+            &tenant.tenant_id,
             record::EventType::DocumentCount,
             doc_count as i64,
         ));
@@ -238,6 +237,7 @@ mod tests {
         Config {
             flapjack_url: "http://localhost:7700".to_string(),
             flapjack_api_key: "test-key".to_string(),
+            internal_key: "test-key".to_string(),
             scrape_interval: std::time::Duration::from_secs(60),
             storage_poll_interval: std::time::Duration::from_secs(300),
             tenant_map_refresh_interval: std::time::Duration::from_secs(300),
@@ -260,6 +260,7 @@ mod tests {
             name.to_string(),
             TenantAttribution {
                 customer_id,
+                tenant_id: name.to_string(),
                 tier: "active".to_string(),
             },
         );
@@ -287,6 +288,7 @@ mod tests {
             "products".to_string(),
             TenantAttribution {
                 customer_id: customer_a,
+                tenant_id: "products".to_string(),
                 tier: "active".to_string(),
             },
         );
@@ -294,6 +296,7 @@ mod tests {
             "orders".to_string(),
             TenantAttribution {
                 customer_id: customer_b,
+                tenant_id: "orders".to_string(),
                 tier: "active".to_string(),
             },
         );
@@ -360,6 +363,7 @@ mod tests {
             "known".to_string(),
             TenantAttribution {
                 customer_id: customer,
+                tenant_id: "known".to_string(),
                 tier: "active".to_string(),
             },
         );
@@ -395,6 +399,54 @@ mod tests {
         assert!(records.iter().all(|r| r.tenant_id != "unknown"));
     }
 
+    #[test]
+    fn metering_uses_canonical_tenant_id_when_metrics_use_flapjack_uid() {
+        let cfg = test_config();
+        let state: TenantStateMap = Arc::new(DashMap::new());
+        let tenant_map: TenantCustomerMap = Arc::new(DashMap::new());
+        let customer_id = Uuid::new_v4();
+        let flapjack_uid = format!("{}_products", customer_id.as_simple());
+
+        tenant_map.insert(
+            flapjack_uid.clone(),
+            TenantAttribution {
+                customer_id,
+                tenant_id: "products".to_string(),
+                tier: "active".to_string(),
+            },
+        );
+
+        state.insert(flapjack_uid.clone(), CounterState::default());
+
+        let mut metrics = crate::scraper::FlapjackMetrics::default();
+        metrics
+            .search_requests_total
+            .insert(flapjack_uid.clone(), 10);
+        metrics.documents_count.insert(flapjack_uid, 4);
+
+        let first_records =
+            build_counter_usage_records(&cfg, &metrics, &state, &tenant_map, Utc::now());
+        assert!(
+            first_records
+                .iter()
+                .all(|record| record.tenant_id == "products"),
+            "first scrape should establish state using the canonical tenant id"
+        );
+
+        let mut metrics2 = crate::scraper::FlapjackMetrics::default();
+        metrics2
+            .search_requests_total
+            .insert(format!("{}_products", customer_id.as_simple()), 12);
+        metrics2
+            .documents_count
+            .insert(format!("{}_products", customer_id.as_simple()), 5);
+        let records = build_counter_usage_records(&cfg, &metrics2, &state, &tenant_map, Utc::now());
+        assert!(
+            records.iter().all(|record| record.tenant_id == "products"),
+            "billing rows should store the customer-facing tenant id"
+        );
+    }
+
     /// Guards the cold-tier exclusion from live counter metrics.
     ///
     /// Indexes in the `cold` or `restoring` tier must not appear in counter
@@ -412,6 +464,7 @@ mod tests {
             "active".to_string(),
             TenantAttribution {
                 customer_id,
+                tenant_id: "active".to_string(),
                 tier: "active".to_string(),
             },
         );
@@ -419,6 +472,7 @@ mod tests {
             "cold".to_string(),
             TenantAttribution {
                 customer_id,
+                tenant_id: "cold".to_string(),
                 tier: "cold".to_string(),
             },
         );
@@ -426,6 +480,7 @@ mod tests {
             "restoring".to_string(),
             TenantAttribution {
                 customer_id,
+                tenant_id: "restoring".to_string(),
                 tier: "restoring".to_string(),
             },
         );

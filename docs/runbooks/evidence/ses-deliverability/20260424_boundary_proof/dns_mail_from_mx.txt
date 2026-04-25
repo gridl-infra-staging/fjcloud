@@ -1,0 +1,2 @@
+# dig MX mail.flapjack.foo
+10 feedback-smtp.us-east-1.amazonses.com.

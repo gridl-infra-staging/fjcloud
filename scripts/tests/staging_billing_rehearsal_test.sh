@@ -364,10 +364,10 @@ test_live_mutation_fails_when_email_runtime_is_unsupported() {
     local artifact_dir
     artifact_dir="$(find_artifact_dir)"
     assert_stage3_evidence_artifacts_exist "$artifact_dir"
-    assert_eq "$(json_file_field "$artifact_dir/summary.json" "classification")" "invoice_email_evidence_unsupported" \
-        "missing runtime email observability should fail closed"
-    assert_eq "$(json_file_field "$artifact_dir/invoice_email.json" "classification")" "invoice_email_evidence_unsupported" \
-        "invoice_email artifact should preserve unsupported-runtime classification"
+    assert_eq "$(json_file_field "$artifact_dir/summary.json" "classification")" "invoice_email_evidence_delegated" \
+        "missing runtime email observability should emit delegated staging classification"
+    assert_eq "$(json_file_field "$artifact_dir/invoice_email.json" "classification")" "invoice_email_evidence_delegated" \
+        "invoice_email artifact should preserve delegated staging classification"
 }
 
 test_blocker_path_keeps_json_summary_and_blocked_step_artifacts() {

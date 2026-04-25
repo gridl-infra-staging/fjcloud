@@ -75,7 +75,7 @@ assert_contains_active "$monitor_main_file" 'for_each[[:space:]]*=[[:space:]]*to
 
 echo ""
 echo "--- Monitoring resource count ---"
-assert_resource_count "$monitor_main_file" 13 "monitoring/main.tf has exactly 13 resources (1 topic + 1 subscription + 6 alarms + 5 CloudTrail/export resources)"
+assert_resource_count "$monitor_main_file" 15 "monitoring/main.tf has exactly 15 resources (1 topic + 1 subscription + 5 CloudTrail/export resources + 2 budget resources + 6 alarms)"
 
 echo ""
 echo "--- API CPU alarm ---"

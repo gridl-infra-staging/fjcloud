@@ -1,7 +1,3 @@
-//! Stub summary for infra/api/tests/common/mocks.rs.
-//! Stub summary for infra/api/tests/common/mocks.rs.
-//! Stub summary for infra/api/tests/common/mocks.rs.
-//! Stub summary for infra/api/tests/common/mocks.rs.
 #![allow(dead_code)]
 
 use api::dns::mock::MockDnsManager;
@@ -35,8 +31,9 @@ use api::services::migration::{
     MigrationRequest,
 };
 use api::stripe::{
-    CheckoutSessionResponse, FinalizedInvoice, PaymentMethodSummary, StripeError, StripeEvent,
-    StripeInvoiceLineItem, StripeService, SubscriptionData,
+    CheckoutSessionResponse, CreatePortalSessionRequest, FinalizedInvoice, PaymentMethodSummary,
+    PortalSessionResponse, StripeError, StripeEvent, StripeInvoiceLineItem, StripeService,
+    SubscriptionData,
 };
 use async_trait::async_trait;
 use chrono::{DateTime, NaiveDate, Utc};
@@ -54,6 +51,41 @@ pub struct MockCustomerRepo {
 }
 
 impl MockCustomerRepo {
+    fn build_customer(
+        name: &str,
+        email: &str,
+        status: &str,
+        password_hash: Option<&str>,
+    ) -> Customer {
+        let updated_at = Utc::now();
+        let created_at = if status == "deleted" {
+            // Deleted fixtures represent retained rows (created in the past).
+            updated_at - chrono::Duration::minutes(5)
+        } else {
+            updated_at
+        };
+
+        Customer {
+            id: Uuid::new_v4(),
+            name: name.to_string(),
+            email: email.to_string(),
+            stripe_customer_id: None,
+            status: status.to_string(),
+            deleted_at: (status == "deleted").then_some(updated_at),
+            billing_plan: "free".to_string(),
+            quota_warning_sent_at: None,
+            created_at,
+            updated_at,
+            password_hash: password_hash.map(str::to_string),
+            email_verified_at: None,
+            email_verify_token: None,
+            email_verify_expires_at: None,
+            password_reset_token: None,
+            password_reset_expires_at: None,
+            object_storage_egress_carryforward_cents: Decimal::ZERO,
+        }
+    }
+
     pub fn new() -> Self {
         Self {
             customers: Mutex::new(Vec::new()),
@@ -71,25 +103,7 @@ impl MockCustomerRepo {
     /// Seed the mock with an already-deleted customer (for 404 tests).
     pub fn seed_deleted(&self, name: &str, email: &str) -> Customer {
         let mut customers = self.customers.lock().unwrap();
-        let now = Utc::now();
-        let customer = Customer {
-            id: Uuid::new_v4(),
-            name: name.to_string(),
-            email: email.to_string(),
-            stripe_customer_id: None,
-            status: "deleted".to_string(),
-            billing_plan: "free".to_string(),
-            quota_warning_sent_at: None,
-            created_at: now,
-            updated_at: now,
-            password_hash: None,
-            email_verified_at: None,
-            email_verify_token: None,
-            email_verify_expires_at: None,
-            password_reset_token: None,
-            password_reset_expires_at: None,
-            object_storage_egress_carryforward_cents: Decimal::ZERO,
-        };
+        let customer = Self::build_customer(name, email, "deleted", None);
         customers.push(customer.clone());
         customer
     }
@@ -97,25 +111,7 @@ impl MockCustomerRepo {
     /// Seed the mock with a customer for testing.
     pub fn seed(&self, name: &str, email: &str) -> Customer {
         let mut customers = self.customers.lock().unwrap();
-        let now = Utc::now();
-        let customer = Customer {
-            id: Uuid::new_v4(),
-            name: name.to_string(),
-            email: email.to_string(),
-            stripe_customer_id: None,
-            status: "active".to_string(),
-            billing_plan: "free".to_string(),
-            quota_warning_sent_at: None,
-            created_at: now,
-            updated_at: now,
-            password_hash: None,
-            email_verified_at: None,
-            email_verify_token: None,
-            email_verify_expires_at: None,
-            password_reset_token: None,
-            password_reset_expires_at: None,
-            object_storage_egress_carryforward_cents: Decimal::ZERO,
-        };
+        let customer = Self::build_customer(name, email, "active", None);
         customers.push(customer.clone());
         customer
     }
@@ -174,25 +170,7 @@ impl CustomerRepo for MockCustomerRepo {
             return Err(RepoError::Conflict("email already exists".into()));
         }
 
-        let now = Utc::now();
-        let customer = Customer {
-            id: Uuid::new_v4(),
-            name: name.to_string(),
-            email: email.to_string(),
-            stripe_customer_id: None,
-            status: "active".to_string(),
-            billing_plan: "free".to_string(),
-            quota_warning_sent_at: None,
-            created_at: now,
-            updated_at: now,
-            password_hash: None,
-            email_verified_at: None,
-            email_verify_token: None,
-            email_verify_expires_at: None,
-            password_reset_token: None,
-            password_reset_expires_at: None,
-            object_storage_egress_carryforward_cents: Decimal::ZERO,
-        };
+        let customer = Self::build_customer(name, email, "active", None);
         customers.push(customer.clone());
         Ok(customer)
     }
@@ -212,25 +190,7 @@ impl CustomerRepo for MockCustomerRepo {
             return Err(RepoError::Conflict("email already exists".into()));
         }
 
-        let now = Utc::now();
-        let customer = Customer {
-            id: Uuid::new_v4(),
-            name: name.to_string(),
-            email: email.to_string(),
-            stripe_customer_id: None,
-            status: "active".to_string(),
-            billing_plan: "free".to_string(),
-            quota_warning_sent_at: None,
-            created_at: now,
-            updated_at: now,
-            password_hash: Some(password_hash.to_string()),
-            email_verified_at: None,
-            email_verify_token: None,
-            email_verify_expires_at: None,
-            password_reset_token: None,
-            password_reset_expires_at: None,
-            object_storage_egress_carryforward_cents: Decimal::ZERO,
-        };
+        let customer = Self::build_customer(name, email, "active", Some(password_hash));
         customers.push(customer.clone());
         Ok(customer)
     }
@@ -289,12 +249,37 @@ impl CustomerRepo for MockCustomerRepo {
 
         match customer {
             Some(c) => {
+                let deleted_at = Utc::now();
                 c.status = "deleted".to_string();
-                c.updated_at = Utc::now();
+                c.deleted_at = Some(deleted_at);
+                c.updated_at = deleted_at;
                 Ok(true)
             }
             None => Ok(false),
         }
+    }
+
+    async fn list_deleted_before_cutoff(
+        &self,
+        cutoff: DateTime<Utc>,
+    ) -> Result<Vec<Customer>, RepoError> {
+        let customers = self.customers.lock().unwrap();
+        let mut deleted_customers: Vec<Customer> = customers
+            .iter()
+            .filter(|customer| {
+                customer.status == "deleted"
+                    && customer
+                        .deleted_at
+                        .is_some_and(|deleted_at| deleted_at <= cutoff)
+            })
+            .cloned()
+            .collect();
+        deleted_customers.sort_by(|a, b| {
+            a.deleted_at
+                .cmp(&b.deleted_at)
+                .then_with(|| a.id.cmp(&b.id))
+        });
+        Ok(deleted_customers)
     }
 
     /// Implements `CustomerRepo::set_email_verify_token`. Stores the token and
@@ -1384,6 +1369,7 @@ type CheckoutSessionCall = (
     String,
     Option<std::collections::HashMap<String, String>>,
 );
+type BillingPortalSessionCall = (String, String); // (customer_id, return_url)
 
 pub struct MockStripeService {
     pub customers: Mutex<Vec<(String, String, String)>>, // (id, name, email)
@@ -1393,6 +1379,9 @@ pub struct MockStripeService {
     pub should_fail: Mutex<bool>,
     pub checkout_sessions: Mutex<Vec<CheckoutSessionResponse>>,
     pub checkout_session_calls: Mutex<Vec<CheckoutSessionCall>>,
+    pub billing_portal_session_calls: Mutex<Vec<BillingPortalSessionCall>>,
+    pub billing_portal_url: Mutex<String>,
+    pub should_be_unconfigured: Mutex<bool>,
     // (customer_id, price_id, success_url, cancel_url, metadata)
     pub cancel_subscription_calls: Mutex<Vec<(String, bool)>>, // (subscription_id, cancel_at_period_end)
     pub update_subscription_calls: Mutex<Vec<(String, String, String)>>, // (subscription_id, new_price_id, proration_behavior)
@@ -1410,6 +1399,11 @@ impl MockStripeService {
             should_fail: Mutex::new(false),
             checkout_sessions: Mutex::new(Vec::new()),
             checkout_session_calls: Mutex::new(Vec::new()),
+            billing_portal_session_calls: Mutex::new(Vec::new()),
+            billing_portal_url: Mutex::new(
+                "https://billing.stripe.com/p/session/mock_portal".to_string(),
+            ),
+            should_be_unconfigured: Mutex::new(false),
             cancel_subscription_calls: Mutex::new(Vec::new()),
             update_subscription_calls: Mutex::new(Vec::new()),
             create_and_finalize_calls: Mutex::new(Vec::new()),
@@ -1419,6 +1413,14 @@ impl MockStripeService {
 
     pub fn set_should_fail(&self, fail: bool) {
         *self.should_fail.lock().unwrap() = fail;
+    }
+
+    pub fn set_not_configured(&self, not_configured: bool) {
+        *self.should_be_unconfigured.lock().unwrap() = not_configured;
+    }
+
+    pub fn set_billing_portal_url(&self, portal_url: &str) {
+        *self.billing_portal_url.lock().unwrap() = portal_url.to_string();
     }
 
     pub fn seed_payment_method(&self, pm: PaymentMethodSummary) {
@@ -1452,6 +1454,26 @@ impl StripeService for MockStripeService {
             return Err(StripeError::Api("mock failure".into()));
         }
         Ok(format!("seti_secret_{stripe_customer_id}"))
+    }
+
+    async fn create_billing_portal_session(
+        &self,
+        stripe_customer_id: &str,
+        request: &CreatePortalSessionRequest,
+    ) -> Result<PortalSessionResponse, StripeError> {
+        if *self.should_be_unconfigured.lock().unwrap() {
+            return Err(StripeError::NotConfigured);
+        }
+        if *self.should_fail.lock().unwrap() {
+            return Err(StripeError::Api("mock failure".into()));
+        }
+        self.billing_portal_session_calls
+            .lock()
+            .unwrap()
+            .push((stripe_customer_id.to_string(), request.return_url.clone()));
+        Ok(PortalSessionResponse {
+            url: self.billing_portal_url.lock().unwrap().clone(),
+        })
     }
 
     /// Implements `StripeService::list_payment_methods`. Returns all seeded

@@ -1,4 +1,3 @@
-//! Defines Customer and BillingPlan types with tests for plan parsing, serialization, and carryforward field handling.
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
@@ -60,6 +59,7 @@ pub struct Customer {
     pub email: String,
     pub stripe_customer_id: Option<String>,
     pub status: String,
+    pub deleted_at: Option<DateTime<Utc>>,
     pub billing_plan: String,
     pub quota_warning_sent_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
@@ -90,6 +90,29 @@ impl Customer {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn build_test_customer(billing_plan: &str, carryforward: Decimal) -> Customer {
+        let now = Utc::now();
+        Customer {
+            id: Uuid::new_v4(),
+            name: "Test".to_string(),
+            email: "test@example.com".to_string(),
+            stripe_customer_id: None,
+            status: "active".to_string(),
+            deleted_at: None,
+            billing_plan: billing_plan.to_string(),
+            quota_warning_sent_at: None,
+            created_at: now,
+            updated_at: now,
+            password_hash: None,
+            email_verified_at: None,
+            email_verify_token: None,
+            email_verify_expires_at: None,
+            password_reset_token: None,
+            password_reset_expires_at: None,
+            object_storage_egress_carryforward_cents: carryforward,
+        }
+    }
 
     #[test]
     fn billing_plan_from_str_free() {
@@ -163,24 +186,7 @@ mod tests {
     /// Verifies that `"shared"` parses to `BillingPlan::Shared`.
     #[test]
     fn billing_plan_enum_method_valid_plan() {
-        let customer = Customer {
-            id: Uuid::new_v4(),
-            name: "Test".to_string(),
-            email: "test@example.com".to_string(),
-            stripe_customer_id: None,
-            status: "active".to_string(),
-            billing_plan: "shared".to_string(),
-            quota_warning_sent_at: None,
-            created_at: Utc::now(),
-            updated_at: Utc::now(),
-            password_hash: None,
-            email_verified_at: None,
-            email_verify_token: None,
-            email_verify_expires_at: None,
-            password_reset_token: None,
-            password_reset_expires_at: None,
-            object_storage_egress_carryforward_cents: Decimal::ZERO,
-        };
+        let customer = build_test_customer("shared", Decimal::ZERO);
         assert_eq!(customer.billing_plan_enum(), BillingPlan::Shared);
     }
 
@@ -188,48 +194,14 @@ mod tests {
     /// `BillingPlan::Free`.
     #[test]
     fn billing_plan_enum_method_unknown_defaults_to_free() {
-        let customer = Customer {
-            id: Uuid::new_v4(),
-            name: "Test".to_string(),
-            email: "test@example.com".to_string(),
-            stripe_customer_id: None,
-            status: "active".to_string(),
-            billing_plan: "enterprise".to_string(),
-            quota_warning_sent_at: None,
-            created_at: Utc::now(),
-            updated_at: Utc::now(),
-            password_hash: None,
-            email_verified_at: None,
-            email_verify_token: None,
-            email_verify_expires_at: None,
-            password_reset_token: None,
-            password_reset_expires_at: None,
-            object_storage_egress_carryforward_cents: Decimal::ZERO,
-        };
+        let customer = build_test_customer("enterprise", Decimal::ZERO);
         assert_eq!(customer.billing_plan_enum(), BillingPlan::Free);
     }
 
     /// Verify that newly constructed customers initialize `object_storage_egress_carryforward_cents` to zero.
     #[test]
     fn new_customer_carryforward_defaults_to_zero() {
-        let customer = Customer {
-            id: Uuid::new_v4(),
-            name: "Test".to_string(),
-            email: "test@example.com".to_string(),
-            stripe_customer_id: None,
-            status: "active".to_string(),
-            billing_plan: "free".to_string(),
-            quota_warning_sent_at: None,
-            created_at: Utc::now(),
-            updated_at: Utc::now(),
-            password_hash: None,
-            email_verified_at: None,
-            email_verify_token: None,
-            email_verify_expires_at: None,
-            password_reset_token: None,
-            password_reset_expires_at: None,
-            object_storage_egress_carryforward_cents: Decimal::ZERO,
-        };
+        let customer = build_test_customer("free", Decimal::ZERO);
         assert_eq!(
             customer.object_storage_egress_carryforward_cents,
             Decimal::ZERO
@@ -239,24 +211,7 @@ mod tests {
     /// Verify that `object_storage_egress_carryforward_cents` is excluded from serialized JSON even when non-zero.
     #[test]
     fn carryforward_not_in_serialized_json() {
-        let customer = Customer {
-            id: Uuid::new_v4(),
-            name: "Test".to_string(),
-            email: "test@example.com".to_string(),
-            stripe_customer_id: None,
-            status: "active".to_string(),
-            billing_plan: "free".to_string(),
-            quota_warning_sent_at: None,
-            created_at: Utc::now(),
-            updated_at: Utc::now(),
-            password_hash: None,
-            email_verified_at: None,
-            email_verify_token: None,
-            email_verify_expires_at: None,
-            password_reset_token: None,
-            password_reset_expires_at: None,
-            object_storage_egress_carryforward_cents: Decimal::new(37, 2),
-        };
+        let customer = build_test_customer("free", Decimal::new(37, 2));
         let json = serde_json::to_value(&customer).unwrap();
         assert!(
             json.get("object_storage_egress_carryforward_cents")

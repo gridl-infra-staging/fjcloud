@@ -111,9 +111,12 @@ terraform plan \
   -var="cloudflare_zone_id=${CLOUDFLARE_ZONE_ID}"
 ```
 
-The expected public records are `flapjack.foo`, `api.flapjack.foo`,
-`www.flapjack.foo`, `cloud.flapjack.foo`, and AWS-generated ACM validation
-CNAMEs.
+The expected public records are:
+
+- `flapjack.foo`, `api.flapjack.foo`, and `www.flapjack.foo` as DNS-only
+  `CNAME`s to the staging ALB
+- `cloud.flapjack.foo` as a proxied `CNAME` to `flapjack-cloud.pages.dev`
+- AWS-generated ACM validation CNAMEs
 
 ## Cloudflare Validation (Required for ACM / HTTPS / SES)
 
@@ -128,8 +131,8 @@ bash ops/terraform/tests_stage7_runtime_smoke.sh \
   --apply
 ```
 
-The smoke harness validates Cloudflare records, ACM status, ALB target health,
-SES identity/DKIM, and `https://api.flapjack.foo/health`.
+The smoke harness validates the canonical Cloudflare routing split, ACM status,
+ALB target health, SES identity/DKIM, and `https://api.flapjack.foo/health`.
 
 Useful direct DNS checks:
 

@@ -67,20 +67,20 @@ if [ -z "$DB_URL" ]; then
 fi
 
 usage_count="$(to_int_or_zero "$(run_query "SELECT COUNT(*) FROM usage_records")")"
-latest_usage="$(run_query "SELECT COALESCE(MAX(created_at)::text, '') FROM usage_records")"
+latest_usage="$(run_query "SELECT COALESCE(MAX(recorded_at)::text, '') FROM usage_records")"
 latest_usage="$(trim "$latest_usage")"
 
 rollup_count="$(to_int_or_zero "$(run_query "SELECT COUNT(*) FROM usage_daily")")"
 latest_rollup="$(run_query "SELECT COALESCE(MAX(aggregated_at)::text, '') FROM usage_daily")"
 latest_rollup="$(trim "$latest_rollup")"
 
-fresh_rollup_count="$(to_int_or_zero "$(run_query "SELECT COUNT(*) FROM usage_daily WHERE aggregated_at >= (SELECT MAX(created_at) - INTERVAL '48 hours' FROM usage_records)")")"
+fresh_rollup_count="$(to_int_or_zero "$(run_query "SELECT COUNT(*) FROM usage_daily WHERE aggregated_at >= (SELECT MAX(recorded_at) - INTERVAL '48 hours' FROM usage_records)")")"
 overlap_customer_count="$(to_int_or_zero "$(run_query "SELECT COUNT(*) FROM (SELECT DISTINCT u.customer_id FROM usage_records u INNER JOIN usage_daily d ON d.customer_id = u.customer_id) t")")"
 
 all_passed=true
 
 if [ "$usage_count" -gt 0 ]; then
-    append_check "usage_records_populated" true "usage_records count=$usage_count latest_created_at=${latest_usage:-unknown}"
+    append_check "usage_records_populated" true "usage_records count=$usage_count latest_recorded_at=${latest_usage:-unknown}"
 else
     append_check "usage_records_populated" false "usage_records has no rows" "usage_records_empty"
     all_passed=false
@@ -94,9 +94,9 @@ else
 fi
 
 if [ "$fresh_rollup_count" -gt 0 ]; then
-    append_check "rollup_freshness" true "Found $fresh_rollup_count rollups within 48h of latest usage_records data"
+    append_check "rollup_freshness" true "Found $fresh_rollup_count rollups within 48h of latest usage_records recorded_at"
 else
-    append_check "rollup_freshness" false "No rollups within 48h of latest usage_records data" "rollup_stale"
+    append_check "rollup_freshness" false "No rollups within 48h of latest usage_records recorded_at" "rollup_stale"
     all_passed=false
 fi
 

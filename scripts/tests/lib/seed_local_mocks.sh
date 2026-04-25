@@ -79,6 +79,34 @@
 # TODO: Document write_mock_curl.
 # TODO: Document write_mock_curl.
 # TODO: Document write_mock_curl.
+# TODO: Document write_mock_curl.
+# TODO: Document write_mock_curl.
+# TODO: Document write_mock_curl.
+# TODO: Document write_mock_curl.
+# TODO: Document write_mock_curl.
+# TODO: Document write_mock_curl.
+# TODO: Document write_mock_curl.
+# TODO: Document write_mock_curl.
+# TODO: Document write_mock_curl.
+# TODO: Document write_mock_curl.
+# TODO: Document write_mock_curl.
+# TODO: Document write_mock_curl.
+# TODO: Document write_mock_curl.
+# TODO: Document write_mock_curl.
+# TODO: Document write_mock_curl.
+# TODO: Document write_mock_curl.
+# TODO: Document write_mock_curl.
+# TODO: Document write_mock_curl.
+# TODO: Document write_mock_curl.
+# TODO: Document write_mock_curl.
+# TODO: Document write_mock_curl.
+# TODO: Document write_mock_curl.
+# TODO: Document write_mock_curl.
+# TODO: Document write_mock_curl.
+# TODO: Document write_mock_curl.
+# TODO: Document write_mock_curl.
+# TODO: Document write_mock_curl.
+# TODO: Document write_mock_curl.
 write_mock_curl() {
     local path="$1" log_path="$2"
     local state_dir
@@ -136,7 +164,188 @@ stateful_http_code() {
         printf '%s' "$next_code"
     fi
 }
+synthetic_tenant_name_from_request() {
+    if [[ "$request_body" == *'"name":"demo-shared-free"'* ]]; then
+        printf '%s' "demo-shared-free"
+    elif [[ "$request_body" == *'"name":"demo-small-dedicated"'* ]]; then
+        printf '%s' "demo-small-dedicated"
+    elif [[ "$request_body" == *'"name":"demo-medium-dedicated"'* ]]; then
+        printf '%s' "demo-medium-dedicated"
+    else
+        printf '%s' "demo-shared-free"
+    fi
+}
+synthetic_tenant_id_for_name() {
+    case "$1" in
+        demo-shared-free) printf '%s' "11111111-1111-1111-1111-111111111111" ;;
+        demo-small-dedicated) printf '%s' "22222222-2222-2222-2222-222222222222" ;;
+        demo-medium-dedicated) printf '%s' "33333333-3333-3333-3333-333333333333" ;;
+        *) printf '%s' "11111111-1111-1111-1111-111111111111" ;;
+    esac
+}
+synthetic_tenant_name_for_id() {
+    case "$1" in
+        11111111-1111-1111-1111-111111111111) printf '%s' "demo-shared-free" ;;
+        22222222-2222-2222-2222-222222222222) printf '%s' "demo-small-dedicated" ;;
+        33333333-3333-3333-3333-333333333333) printf '%s' "demo-medium-dedicated" ;;
+        *) printf '%s' "demo-shared-free" ;;
+    esac
+}
+synthetic_endpoint_for_tenant_name() {
+    case "$1" in
+        demo-shared-free) printf '%s' "http://synthetic-node-a.test" ;;
+        demo-small-dedicated) printf '%s' "http://synthetic-node-b.test" ;;
+        demo-medium-dedicated) printf '%s' "http://synthetic-node-c.test" ;;
+        *) printf '%s' "http://synthetic-node-a.test" ;;
+    esac
+}
+next_synthetic_storage_mb() {
+    local sequence="${MOCK_SYNTHETIC_STORAGE_MB_SEQUENCE:-}"
+    local default_value="${MOCK_SYNTHETIC_STORAGE_MB:-0}"
+    if [ -z "$sequence" ]; then
+        printf '%s' "$default_value"
+        return 0
+    fi
+
+    local state_file="${STATE_DIR}/synthetic_storage.count"
+    local call_count=0
+    if [ -f "$state_file" ]; then
+        call_count="$(cat "$state_file")"
+    fi
+    call_count=$((call_count + 1))
+    printf '%s' "$call_count" > "$state_file"
+
+    local selected
+    selected="$(printf '%s' "$sequence" | tr ',' '\n' | sed -n "${call_count}p")"
+    if [ -z "$selected" ]; then
+        selected="$(printf '%s' "$sequence" | awk -F',' '{print $NF}')"
+    fi
+    if [ -z "$selected" ]; then
+        selected="$default_value"
+    fi
+    printf '%s' "$selected"
+}
+increment_counter_file() {
+    local counter_path="$1"
+    if [ -z "$counter_path" ]; then
+        return 0
+    fi
+
+    local current_count=0
+    if [ -f "$counter_path" ]; then
+        current_count="$(cat "$counter_path")"
+    fi
+    current_count=$((current_count + 1))
+    printf '%s' "$current_count" > "$counter_path"
+}
+next_state_counter() {
+    local state_key="$1"
+    local state_file="${STATE_DIR}/${state_key}"
+    local current_count=0
+    if [ -f "$state_file" ]; then
+        current_count="$(cat "$state_file")"
+    fi
+    current_count=$((current_count + 1))
+    printf '%s' "$current_count" > "$state_file"
+    printf '%s' "$current_count"
+}
 case "$url" in
+    http://synthetic-api.test/health)
+        echo '{"status":"ok"}'
+        exit 0
+        ;;
+    http://synthetic-api.test/admin/tenants)
+        if [ "$method" = "GET" ]; then
+            printf '[{"id":"11111111-1111-1111-1111-111111111111","name":"demo-shared-free","email":"demo-shared-free@synthetic-seed.invalid","status":"active","billing_plan":"shared"},{"id":"22222222-2222-2222-2222-222222222222","name":"demo-small-dedicated","email":"demo-small-dedicated@synthetic-seed.invalid","status":"active","billing_plan":"dedicated"},{"id":"33333333-3333-3333-3333-333333333333","name":"demo-medium-dedicated","email":"demo-medium-dedicated@synthetic-seed.invalid","status":"active","billing_plan":"dedicated"}]\n200'
+            exit 0
+        fi
+        tenant_name="$(synthetic_tenant_name_from_request)"
+        tenant_id="$(synthetic_tenant_id_for_name "$tenant_name")"
+        synthetic_create_code="${MOCK_SYNTHETIC_CREATE_STATUS_CODE:-}"
+        if [ -z "$synthetic_create_code" ]; then
+            synthetic_create_code="$(stateful_http_code "synthetic_create_${tenant_name}.count" "201" "409")"
+        fi
+        if [ "$synthetic_create_code" = "201" ]; then
+            printf '{"id":"%s","name":"%s","email":"%s@synthetic-seed.invalid","status":"active","billing_plan":"free","created_at":"2026-04-24T00:00:00Z","updated_at":"2026-04-24T00:00:00Z"}\n201' \
+                "$tenant_id" \
+                "$tenant_name" \
+                "$tenant_name"
+        else
+            if [ "${MOCK_SYNTHETIC_CREATE_409_INCLUDE_ID:-1}" = "1" ]; then
+                printf '{"error":"tenant already exists","id":"%s"}\n409' "$tenant_id"
+            else
+                printf '{"error":"tenant already exists"}\n409'
+            fi
+        fi
+        exit 0
+        ;;
+    http://synthetic-api.test/admin/tenants/*/indexes)
+        synthetic_tenant_id="${url##*/admin/tenants/}"
+        synthetic_tenant_id="${synthetic_tenant_id%%/indexes*}"
+        synthetic_tenant_name="$(synthetic_tenant_name_for_id "$synthetic_tenant_id")"
+        synthetic_endpoint="$(synthetic_endpoint_for_tenant_name "$synthetic_tenant_name")"
+        printf '{"name":"%s","region":"us-east-1","status":"healthy","endpoint":"%s"}\n201' \
+            "$synthetic_tenant_name" \
+            "$synthetic_endpoint"
+        exit 0
+        ;;
+    http://synthetic-api.test/admin/tenants/*)
+        if [ "$method" = "PUT" ]; then
+            synthetic_tenant_id="${url##*/admin/tenants/}"
+            synthetic_tenant_id="${synthetic_tenant_id%%\?*}"
+            synthetic_tenant_name="$(synthetic_tenant_name_for_id "$synthetic_tenant_id")"
+            printf '{"id":"%s","name":"%s","email":"%s@synthetic-seed.invalid","status":"active","billing_plan":"dedicated","created_at":"2026-04-24T00:00:00Z","updated_at":"2026-04-24T00:00:00Z"}\n200' \
+                "$synthetic_tenant_id" \
+                "$synthetic_tenant_name" \
+                "$synthetic_tenant_name"
+            exit 0
+        fi
+        ;;
+    http://synthetic-flapjack.test/internal/storage*|http://synthetic-node-a.test/internal/storage*|http://synthetic-node-b.test/internal/storage*|http://synthetic-node-c.test/internal/storage*)
+        synthetic_storage_mb="$(next_synthetic_storage_mb)"
+        synthetic_storage_bytes=$((synthetic_storage_mb * 1048576))
+        # Default mirrors the live flapjack engine's `{customer_hex}_{name}`
+        # tenant id contract: the mocked admin/tenants response uses
+        # customer_id `11111111-1111-1111-1111-111111111111`, so the
+        # canonical default uid is its dash-stripped form prefixed to the
+        # tenant A index name. Tests that pre-write fixture mappings with a
+        # different customer_id can override via MOCK_SYNTHETIC_STORAGE_UID.
+        synthetic_storage_uid="${MOCK_SYNTHETIC_STORAGE_UID:-11111111111111111111111111111111_demo-shared-free}"
+        synthetic_other_uid="${MOCK_SYNTHETIC_STORAGE_OTHER_TENANT_UID:-unrelated-tenant}"
+        synthetic_other_mb="${MOCK_SYNTHETIC_STORAGE_OTHER_TENANT_MB:-0}"
+        synthetic_other_bytes=$((synthetic_other_mb * 1048576))
+        printf '{"tenants":[{"id":"%s","bytes":%s},{"id":"%s","bytes":%s}]}\n200' \
+            "$synthetic_other_uid" \
+            "$synthetic_other_bytes" \
+            "$synthetic_storage_uid" \
+            "$synthetic_storage_bytes"
+        exit 0
+        ;;
+    http://synthetic-flapjack.test/1/indexes/*/documents|http://synthetic-node-a.test/1/indexes/*/documents|http://synthetic-node-b.test/1/indexes/*/documents|http://synthetic-node-c.test/1/indexes/*/documents)
+        increment_counter_file "${MOCK_SYNTHETIC_DIRECT_DOCUMENTS_COUNT_PATH:-}"
+        printf '{"taskUid":"synthetic-seed"}\n200'
+        exit 0
+        ;;
+    http://synthetic-flapjack.test/1/indexes/*/batch|http://synthetic-node-a.test/1/indexes/*/batch|http://synthetic-node-b.test/1/indexes/*/batch|http://synthetic-node-c.test/1/indexes/*/batch)
+        increment_counter_file "${MOCK_SYNTHETIC_DIRECT_DOCUMENTS_COUNT_PATH:-}"
+        printf '{"taskUid":"synthetic-seed"}\n200'
+        exit 0
+        ;;
+    http://synthetic-flapjack.test/1/indexes/*/query|http://synthetic-node-a.test/1/indexes/*/query|http://synthetic-node-b.test/1/indexes/*/query|http://synthetic-node-c.test/1/indexes/*/query)
+        synthetic_query_call="$(next_state_counter "synthetic_query.count")"
+        increment_counter_file "${MOCK_SYNTHETIC_DIRECT_QUERY_COUNT_PATH:-}"
+        synthetic_fail_query_on_call="${MOCK_SYNTHETIC_FAIL_QUERY_ON_CALL:-0}"
+        if [ "$synthetic_fail_query_on_call" -gt 0 ] && [ "$synthetic_query_call" -eq "$synthetic_fail_query_on_call" ]; then
+            printf '{"error":"synthetic query failure"}\n500'
+            exit 0
+        fi
+        printf '{"taskUid":"synthetic-seed"}\n200'
+        exit 0
+        ;;
+    http://synthetic-flapjack.test/health|http://synthetic-node-a.test/health|http://synthetic-node-b.test/health|http://synthetic-node-c.test/health)
+        echo '{"status":"ok"}'
+        exit 0
+        ;;
     http://localhost:3001/health|http://127.0.0.1:3001/health)
         echo '{"status":"ok"}'
         exit 0

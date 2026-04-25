@@ -245,7 +245,9 @@ impl ProvisioningService {
     fn derive_provisioning_hostname(&self, deployment_id: &Uuid) -> (String, String) {
         let short_id = &deployment_id.to_string()[..8];
         let hostname = format!("vm-{short_id}.{}", self.dns_domain);
-        let flapjack_url = format!("https://{hostname}");
+        // Provisioned flapjack nodes listen on port 7700, and the current VM
+        // security group only admits that internal API-to-node traffic.
+        let flapjack_url = format!("http://{hostname}:7700");
         (hostname, flapjack_url)
     }
 

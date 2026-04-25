@@ -9,6 +9,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 EVIDENCE_SCRIPT_SOURCE="$ROOT_DIR/ops/scripts/rds_restore_evidence.sh"
 SELECT_HELPER_SCRIPT_SOURCE="$ROOT_DIR/ops/scripts/lib/rds_restore_selection.py"
+RUNBOOK_SOURCE="$ROOT_DIR/docs/runbooks/database-backup-recovery.md"
 
 WORK_DIR=""
 MOCK_BIN=""
@@ -20,6 +21,7 @@ UNSAFE_ENV_MARKER=""
 LAST_OUTPUT=""
 LAST_EXIT_CODE=0
 DATE_COUNTER_FILE=""
+RUNBOOK_PATH=""
 
 setup() {
   WORK_DIR="$(mktemp -d)"
@@ -32,9 +34,11 @@ setup() {
   DATE_COUNTER_FILE="$WORK_DIR/date_counter"
 
   mkdir -p "$WORK_DIR/ops/scripts/lib" "$MOCK_BIN" "$ARTIFACT_ROOT" "$WORK_DIR/inputs" "$WORK_DIR/tmp"
+  mkdir -p "$WORK_DIR/docs/runbooks"
   : > "$MOCK_AWS_LOG"
   : > "$MOCK_DRILL_LOG"
   : > "$MOCK_DRILL_ENV_LOG"
+  RUNBOOK_PATH="$WORK_DIR/docs/runbooks/database-backup-recovery.md"
 
   if [[ -f "$EVIDENCE_SCRIPT_SOURCE" ]]; then
     cp "$EVIDENCE_SCRIPT_SOURCE" "$WORK_DIR/ops/scripts/rds_restore_evidence.sh"
@@ -43,6 +47,9 @@ setup() {
   if [[ -f "$SELECT_HELPER_SCRIPT_SOURCE" ]]; then
     cp "$SELECT_HELPER_SCRIPT_SOURCE" "$WORK_DIR/ops/scripts/lib/rds_restore_selection.py"
     chmod +x "$WORK_DIR/ops/scripts/lib/rds_restore_selection.py"
+  fi
+  if [[ -f "$RUNBOOK_SOURCE" ]]; then
+    cp "$RUNBOOK_SOURCE" "$RUNBOOK_PATH"
   fi
 
   cat > "$MOCK_BIN/aws" <<'AWSMOCK'
@@ -60,11 +67,6 @@ if [[ "$1" == "rds" && "$2" == "describe-db-instances" ]]; then
     IS_TARGET_DESCRIBE=1
   fi
 
-  if [[ " $* " == *" --db-instance-identifier fjcloud-staging-restore-live "* ]]; then
-    echo "mocked poll describe-db-instances failure" >&2
-    exit 58
-  fi
-
   if [[ "$IS_TARGET_DESCRIBE" -eq 1 && "$DISCOVERY_MODE" == "poll_describe_error" ]]; then
     echo "mocked poll describe-db-instances failure" >&2
     exit 58
@@ -78,7 +80,7 @@ if [[ "$1" == "rds" && "$2" == "describe-db-instances" ]]; then
   if [[ "$IS_TARGET_DESCRIBE" -eq 1 ]]; then
     target_id="$(printf '%s' "$*" | sed -n 's/.*--db-instance-identifier \([^ ]*\).*/\1/p')"
     cat <<JSON
-{"DBInstances":[{"DBInstanceIdentifier":"$target_id","Engine":"postgres","DBInstanceStatus":"available","Endpoint":{"Address":"$target_id.example.amazonaws.com"}}]}
+{"DBInstances":[{"DBInstanceIdentifier":"$target_id","Engine":"postgres","DBInstanceStatus":"available","Endpoint":{"Address":"$target_id.cluster-contract.us-east-1.rds.amazonaws.com"}}]}
 JSON
     exit 0
   fi
@@ -456,6 +458,49 @@ PY
   fi
 }
 
+extract_runbook_sql_like_wrapper() {
+  local runbook_path="$1"
+  awk '
+    /<<'\''SQL'\''/ {in_sql=1; next}
+    in_sql && /^SQL$/ {exit}
+    in_sql {print}
+  ' "$runbook_path"
+}
+
+assert_verification_sql_matches_runbook() {
+  local verification_sql_path="$1"
+  local runbook_path="$2"
+  local label="$3"
+  local expected_sql=""
+  local expected_file=""
+  local actual_file=""
+
+  if [[ ! -f "$verification_sql_path" || ! -f "$runbook_path" ]]; then
+    fail "$label"
+    return
+  fi
+
+  expected_sql="$(extract_runbook_sql_like_wrapper "$runbook_path")"
+  if [[ -z "$expected_sql" ]]; then
+    fail "$label (runbook SQL block missing)"
+    return
+  fi
+
+  expected_file="$(mktemp "$WORK_DIR/tmp/expected_sql.XXXXXX")"
+  actual_file="$(mktemp "$WORK_DIR/tmp/actual_sql.XXXXXX")"
+
+  printf '%s\n' "$expected_sql" > "$expected_file"
+  cat "$verification_sql_path" > "$actual_file"
+
+  if cmp -s "$expected_file" "$actual_file"; then
+    pass "$label"
+  else
+    fail "$label"
+  fi
+
+  rm -f "$expected_file" "$actual_file"
+}
+
 echo ""
 echo "=== RDS Restore Evidence Wrapper Contract Tests (Red) ==="
 
@@ -470,6 +515,21 @@ fi
 echo ""
 echo "--- env-loading + aws cli guardrails ---"
 setup
+mkdir -p "$WORK_DIR/.secret"
+cat > "$WORK_DIR/.secret/.env.secret" <<'ENVDEFAULT'
+AWS_ACCESS_KEY_ID=AKIADEFAULTREPO
+AWS_SECRET_ACCESS_KEY=default-repo-secret
+AWS_SESSION_TOKEN=default-repo-session
+AWS_DEFAULT_REGION=us-east-1
+ENVDEFAULT
+run_wrapper --env RDS_RESTORE_DRILL_EXECUTE=1 -- staging --artifact-dir "$ARTIFACT_ROOT" --execute
+if [[ "$LAST_EXIT_CODE" -eq 0 ]]; then
+  pass "live execution without --env-file uses readable default repo-root env secret file"
+else
+  fail "live execution without --env-file uses readable default repo-root env secret file"
+fi
+assert_log_contains "$MOCK_DRILL_ENV_LOG" '^AWS_ACCESS_KEY_ID=AKIADEFAULTREPO$' "default repo-root env file values are loaded for live execution"
+
 run_wrapper -- staging --artifact-dir "$ARTIFACT_ROOT" --execute --env-file "$WORK_DIR/inputs/missing.secret"
 if [[ "$LAST_EXIT_CODE" -ne 0 ]]; then
   pass "live execution requires readable secret env file"
@@ -535,6 +595,7 @@ if [[ -n "$run_dir" ]]; then
   assert_file_exists "$run_dir/restore_request.json" "restore_request.json is written"
   assert_file_exists "$run_dir/verification.sql" "verification.sql is written"
   assert_file_exists "$run_dir/verification.txt" "verification.txt is written"
+  assert_verification_sql_matches_runbook "$run_dir/verification.sql" "$RUNBOOK_PATH" "verification.sql exactly matches canonical runbook SQL block"
 
   if [[ -f "$run_dir/summary.json" ]]; then
     assert_summary_has_required_fields "$run_dir/summary.json" "summary.json includes machine-readable required fields"
@@ -595,6 +656,7 @@ assert_log_not_contains "$MOCK_AWS_LOG" 'restore-db-instance-from-db-snapshot|re
 teardown
 
 source "$SCRIPT_DIR/tests_rds_restore_evidence_unit_selection_helper_contract.sh"
+source "$SCRIPT_DIR/tests_rds_restore_evidence_unit_execute_and_poll_contract.sh"
 
 echo ""
 echo "--- delegated gate artifact contract ---"
@@ -726,63 +788,6 @@ else
 fi
 assert_log_contains "$MOCK_DRILL_LOG" '--snapshot-id rds:fjcloud-staging-2026-04-22-05-00' "snapshot fallback selects newest exact-source snapshot"
 assert_log_not_contains "$MOCK_DRILL_LOG" '--snapshot-id rds:fjcloud-staging-foreign-2026-04-22-06-00' "snapshot fallback rejects substring-matching foreign source snapshots"
-teardown
-
-echo ""
-echo "--- live poll failure artifact contract ---"
-setup
-run_wrapper --env RDS_RESTORE_DRILL_EXECUTE=1 --env RDS_RESTORE_TEST_FAKE_DATE_MODE=fast_timeout -- staging --artifact-dir "$ARTIFACT_ROOT" --env-file "$WORK_DIR/inputs/env.secret" --execute --target-db-instance-id fjcloud-staging-restore-live
-if [[ "$LAST_EXIT_CODE" -ne 0 ]]; then
-  pass "live poll describe failures return non-zero"
-else
-  fail "live poll describe failures return non-zero"
-fi
-
-run_dir="$(single_run_dir "$ARTIFACT_ROOT")"
-if [[ -n "$run_dir" ]]; then
-  pass "live poll describe failures still create run-scoped directory"
-else
-  fail "live poll describe failures still create run-scoped directory"
-fi
-
-if [[ -n "$run_dir" ]]; then
-  assert_file_exists "$run_dir/summary.json" "live poll describe failure still writes summary artifact"
-  assert_file_exists "$run_dir/verification.sql" "live poll describe failure still writes verification.sql"
-  assert_file_exists "$run_dir/verification.txt" "live poll describe failure still writes verification.txt"
-  if [[ -f "$run_dir/summary.json" ]]; then
-    assert_file_contains "$run_dir/summary.json" '"status"[[:space:]]*:[[:space:]]*"fail"' "live poll describe failure summary status is fail"
-    assert_file_contains "$run_dir/summary.json" 'aws poll describe-db-instances failed' "live poll describe failure summary records AWS polling failure reason"
-  fi
-fi
-teardown
-
-setup
-run_wrapper --env RDS_RESTORE_DRILL_EXECUTE=1 --env RDS_RESTORE_TEST_DISCOVERY_MODE=poll_invalid_json -- staging --artifact-dir "$ARTIFACT_ROOT" --env-file "$WORK_DIR/inputs/env.secret" --execute
-if [[ "$LAST_EXIT_CODE" -ne 0 ]]; then
-  pass "live poll invalid json failures return non-zero"
-else
-  fail "live poll invalid json failures return non-zero"
-fi
-
-run_dir="$(single_run_dir "$ARTIFACT_ROOT")"
-if [[ -n "$run_dir" ]]; then
-  pass "live poll invalid json failures still create run-scoped directory"
-else
-  fail "live poll invalid json failures still create run-scoped directory"
-fi
-
-if [[ -n "$run_dir" ]]; then
-  assert_file_exists "$run_dir/summary.json" "live poll invalid json failure still writes summary artifact"
-  assert_file_exists "$run_dir/verification.sql" "live poll invalid json failure still writes verification.sql"
-  assert_file_exists "$run_dir/verification.txt" "live poll invalid json failure still writes verification.txt"
-  if [[ -f "$run_dir/summary.json" ]]; then
-    assert_file_contains "$run_dir/summary.json" '"status"[[:space:]]*:[[:space:]]*"fail"' "live poll invalid json failure summary status is fail"
-    assert_file_contains "$run_dir/summary.json" 'failed to parse poll describe-db-instances payload for target' "live poll invalid json summary records parse failure reason"
-  fi
-  if [[ -f "$run_dir/verification.txt" ]]; then
-    assert_file_contains "$run_dir/verification.txt" '^reason=failed to parse poll describe-db-instances payload for target' "live poll invalid json verification notes parse failure reason"
-  fi
-fi
 teardown
 
 test_summary "RDS restore evidence wrapper red contract checks"

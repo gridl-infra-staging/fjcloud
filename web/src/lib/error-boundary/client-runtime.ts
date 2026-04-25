@@ -77,6 +77,7 @@ function buildBrowserRuntimeReport(
 		path: pathname,
 		status: failure.status,
 		scope: resolveBoundaryScope(pathname),
+		event_type: 'browser_runtime',
 		support_reference: failure.error.supportReference,
 		backend_correlation: 'absent'
 	};
@@ -104,7 +105,26 @@ export function normalizeBrowserRuntimeFailure(input: unknown): NormalizedBrowse
 }
 
 export function reportBrowserRuntimeFailure(failure: NormalizedBrowserFailure): void {
-	console.error('browser runtime error reported', buildBrowserRuntimeReport(failure));
+	// Fire-and-forget redacted client reports with backend_correlation='absent':
+	// browser runtime crashes are not associated with backend request IDs.
+	const report = buildBrowserRuntimeReport(failure);
+	console.error('browser runtime error reported', report);
+
+	try {
+		const request = globalThis.fetch('/browser-errors', {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json'
+			},
+			body: JSON.stringify(report),
+			credentials: 'omit',
+			keepalive: true
+		});
+
+		void request.catch(() => undefined);
+	} catch {
+		// Best-effort only: reporting failures must not break runtime recovery.
+	}
 }
 
 export function installBrowserRuntimeFailureListeners(

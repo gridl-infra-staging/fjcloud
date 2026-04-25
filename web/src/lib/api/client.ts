@@ -14,11 +14,14 @@ import type {
 	InvoiceDetailResponse,
 	EstimatedBillResponse,
 	SetupIntentResponse,
+	CreateBillingPortalSessionRequest,
+	CreateBillingPortalSessionResponse,
 	PaymentMethod,
 	ApiKeyListItem,
 	CreateApiKeyRequest,
 	CreateApiKeyResponse,
 	CustomerProfileResponse,
+	AccountExportResponse,
 	UpdateProfileRequest,
 	ChangePasswordRequest,
 	AybInstance,
@@ -233,6 +236,12 @@ export class ApiClient extends BaseClient {
 		return this.api('POST', `/billing/payment-methods/${this.pathSegment(pmId)}/default`);
 	}
 
+	createBillingPortalSession(
+		req: CreateBillingPortalSessionRequest
+	): Promise<CreateBillingPortalSessionResponse> {
+		return this.api('POST', '/billing/portal', req);
+	}
+
 	// --- API Keys ---
 
 	createApiKey(req: CreateApiKeyRequest): Promise<CreateApiKeyResponse> {
@@ -251,6 +260,10 @@ export class ApiClient extends BaseClient {
 
 	getProfile(): Promise<CustomerProfileResponse> {
 		return this.api('GET', '/account');
+	}
+
+	exportAccount(): Promise<AccountExportResponse> {
+		return this.api('GET', '/account/export');
 	}
 
 	updateProfile(req: UpdateProfileRequest): Promise<CustomerProfileResponse> {

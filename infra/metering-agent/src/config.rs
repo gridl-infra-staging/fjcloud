@@ -11,6 +11,11 @@ pub struct Config {
     pub flapjack_url: String,
     /// API key for the flapjack node.
     pub flapjack_api_key: String,
+    /// Internal auth token for control-plane `/internal/*` endpoints.
+    ///
+    /// Older nodes reused the flapjack API key for this path, so we keep a
+    /// fallback to preserve compatibility during rolling upgrades.
+    pub internal_key: String,
     /// How often to scrape the /metrics endpoint.
     pub scrape_interval: Duration,
     /// How often to poll /internal/storage for disk-usage gauges.
@@ -71,6 +76,7 @@ impl Config {
 
         let flapjack_url = require("FLAPJACK_URL")?.trim_end_matches('/').to_string();
         let flapjack_api_key = require("FLAPJACK_API_KEY")?;
+        let internal_key = read("INTERNAL_KEY").unwrap_or_else(|_| flapjack_api_key.clone());
         let database_url = require("DATABASE_URL")?;
         let node_id = require("NODE_ID")?;
         let region = require("REGION")?;
@@ -114,6 +120,7 @@ impl Config {
         Ok(Config {
             flapjack_url,
             flapjack_api_key,
+            internal_key,
             scrape_interval,
             storage_poll_interval,
             tenant_map_refresh_interval,
@@ -177,6 +184,8 @@ mod tests {
     fn loads_valid_config() {
         let cfg = Config::from_reader(valid_env).expect("should parse");
         assert_eq!(cfg.flapjack_url, "http://localhost:7700");
+        assert_eq!(cfg.flapjack_api_key, "test-key");
+        assert_eq!(cfg.internal_key, "test-key");
         assert_eq!(cfg.node_id, "node-a");
         assert_eq!(cfg.region, "us-east-1");
         assert_eq!(cfg.scrape_interval, Duration::from_secs(60));
@@ -265,6 +274,7 @@ mod tests {
     #[test]
     fn custom_tenant_map_values_are_respected() {
         let cfg = Config::from_reader(|key| match key {
+            "INTERNAL_KEY" => Ok("internal-key-123".into()),
             "TENANT_MAP_REFRESH_INTERVAL_SECS" => Ok("120".into()),
             "TENANT_MAP_URL" => Ok("https://api.flapjack.foo/internal/tenant-map/".into()),
             "COLD_STORAGE_USAGE_URL" => {
@@ -275,6 +285,7 @@ mod tests {
             other => valid_env(other),
         })
         .unwrap();
+        assert_eq!(cfg.internal_key, "internal-key-123");
         assert_eq!(cfg.tenant_map_refresh_interval, Duration::from_secs(120));
         assert_eq!(
             cfg.tenant_map_url(),

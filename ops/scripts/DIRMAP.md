@@ -19,7 +19,14 @@ Called by deploy.sh via SSM or manually. |
 Idempotent counterpart to validate_bootstrap.sh: creates the resources
 that validate_bootstrap.sh checks. |
 | rds_restore_drill.sh | Stub summary for rds_restore_drill.sh. |
-| rds_restore_evidence.sh | Stub summary for rds_restore_evidence.sh. |
+| rds_restore_evidence.sh | rds_restore_evidence.sh — wrapper around rds_restore_drill.sh for evidence artifacts.
+
+This script owns:
+- input discovery and wrapper-level execution gating
+- run-scoped artifact generation
+- live-only polling and verification artifact wiring
+
+Restore API command construction remains delegated to rds_restore_drill.sh. |
 | rollback.sh | rollback.sh — Roll back to a previous release via SSM
 Does NOT run migrations (never roll back migrations).
 
@@ -41,5 +48,5 @@ Prerequisites checked:
 
 | Directory | Summary |
 | --- | --- |
-| lib | This lib directory contains operational helpers for fjcloud infrastructure: deployment validation, SSM parameter-to-environment mapping for service startup, and RDS restore utilities. |
+| lib | This lib directory contains shared deployment and operational utilities: deploy validation gate checks, SSM parameter-to-environment-variable mapping and loading, and RDS restore tooling. |
 <!-- [scrai:end] -->

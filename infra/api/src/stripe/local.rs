@@ -1,3 +1,4 @@
+//! Local in-memory Stripe implementation used by development and tests.
 
 use async_trait::async_trait;
 use hmac::{Hmac, Mac};
@@ -6,8 +7,9 @@ use std::sync::{Arc, Mutex};
 use uuid::Uuid;
 
 use super::{
-    CheckoutSessionResponse, FinalizedInvoice, PaymentMethodSummary, StripeError, StripeEvent,
-    StripeInvoiceLineItem, StripeService, SubscriptionData, SubscriptionItem,
+    CheckoutSessionResponse, CreatePortalSessionRequest, FinalizedInvoice, PaymentMethodSummary,
+    PortalSessionResponse, StripeError, StripeEvent, StripeInvoiceLineItem, StripeService,
+    SubscriptionData, SubscriptionItem,
 };
 
 type HmacSha256 = Hmac<Sha256>;
@@ -236,6 +238,16 @@ impl StripeService for LocalStripeService {
         // Return a synthetic client secret. In local dev, the frontend won't
         // actually talk to Stripe — it just needs a non-empty string.
         Ok(format!("seti_secret_{stripe_customer_id}"))
+    }
+
+    async fn create_billing_portal_session(
+        &self,
+        stripe_customer_id: &str,
+        _request: &CreatePortalSessionRequest,
+    ) -> Result<PortalSessionResponse, StripeError> {
+        Ok(PortalSessionResponse {
+            url: format!("http://localhost:3000/local-billing-portal/{stripe_customer_id}"),
+        })
     }
 
     async fn list_payment_methods(

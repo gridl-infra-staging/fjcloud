@@ -27,8 +27,7 @@ async function expectSidebarNavigation(
 	});
 
 	await expect(link).toHaveAttribute('href', options.href);
-	await page.goto(options.href);
-	await expect(page).toHaveURL(options.url);
+	await Promise.all([page.waitForURL(options.url), link.click()]);
 	await expect(page.getByRole('heading', { name: options.heading })).toBeVisible();
 }
 
@@ -88,6 +87,81 @@ test.describe('Dashboard page', () => {
 		});
 	});
 
+	test('sidebar link to Database reaches persisted instance details', async ({
+		page,
+		arrangeDatabaseRouteState
+	}) => {
+		const arrangedState = await arrangeDatabaseRouteState();
+
+		await page.goto('/dashboard');
+		const databaseLink = page.getByRole('navigation').getByRole('link', {
+			name: 'Database',
+			exact: true
+		});
+		await expect(databaseLink).toHaveAttribute('href', '/dashboard/database');
+
+		await databaseLink.click();
+		await expect(page).toHaveURL(/\/dashboard\/database/);
+		await expect(page.getByRole('heading', { name: 'Database' })).toBeVisible();
+
+		if (arrangedState.branch !== 'persisted') {
+			throw new Error(`Unexpected database arrange branch: ${arrangedState.branch}`);
+		}
+		await expect(page.getByText('AllYourBase Instance')).toBeVisible();
+		await expect(page.getByText(arrangedState.instance.id)).toBeVisible();
+		await expect(page.getByText(arrangedState.instance.statusLabel)).toBeVisible();
+		await expect(page.getByText('Database URL')).toBeVisible();
+		await expect(page.getByText(arrangedState.instance.aybUrl)).toBeVisible();
+		await expect(page.getByText('Slug')).toBeVisible();
+		await expect(page.getByText(arrangedState.instance.aybSlug)).toBeVisible();
+		await expect(page.getByText('Cluster ID')).toBeVisible();
+		await expect(page.getByText(arrangedState.instance.aybClusterId)).toBeVisible();
+		await expect(page.getByText('Plan')).toBeVisible();
+		await expect(page.getByText(arrangedState.instance.plan)).toBeVisible();
+		await expect(page.getByTestId('create-instance-form')).toHaveCount(0);
+	});
+
+	test('logs route shows save-settings entry from shared dashboard log path', async ({
+		page,
+		seedIndex,
+		testRegion
+	}) => {
+		const indexName = `dash-logs-${Date.now()}`;
+		await seedIndex(indexName, testRegion);
+
+		await page.goto(`/dashboard/indexes/${encodeURIComponent(indexName)}`);
+		await expect(page.getByRole('heading', { name: indexName })).toBeVisible();
+
+		await page.getByRole('tab', { name: 'Settings' }).click();
+		const settingsSection = page.getByTestId('settings-section');
+		await expect(settingsSection).toBeVisible();
+		await settingsSection.getByRole('button', { name: 'Save Settings' }).click();
+		await expect(settingsSection.getByText('Settings saved.')).toBeVisible();
+
+		const logsLink = page.getByRole('navigation').getByRole('link', { name: 'Logs', exact: true });
+		await expect(logsLink).toHaveAttribute('href', '/dashboard/logs');
+		await logsLink.click();
+
+		await expect(page).toHaveURL(/\/dashboard\/logs/);
+		await expect(page.getByRole('heading', { name: 'API Logs' })).toBeVisible();
+
+		const logPanel = page.getByTestId('search-log-panel');
+		const firstDataRow = logPanel.getByTestId('api-log-row-0');
+		await expect(firstDataRow).toContainText('?/saveSettings');
+		await expect(firstDataRow).toContainText('POST');
+		await expect(firstDataRow).toContainText('200');
+
+		await firstDataRow.click();
+		await expect(logPanel.getByText('"method": "POST"')).toBeVisible();
+		await expect(logPanel.getByText('"url": "?/saveSettings"')).toBeVisible();
+		await expect(logPanel.getByText('"status": 200')).toBeVisible();
+		await expect(logPanel.getByText('"settingsSaved": true')).toBeVisible();
+
+		await logPanel.getByRole('button', { name: 'Clear' }).click();
+		await expect(logPanel.getByText('No API calls recorded')).toBeVisible();
+		await expect(logPanel.getByText('Request')).toHaveCount(0);
+	});
+
 	test('dashboard shows "Manage indexes" link when indexes exist', async ({
 		page,
 		seedIndex,
@@ -110,7 +184,7 @@ test.describe('Dashboard page', () => {
 		const widget = page.getByTestId('estimated-bill');
 
 		if (!estimate) {
-			// No rate card or API error — widget must be hidden
+			// No estimate exists yet — widget must be hidden
 			await expect(widget).toHaveCount(0);
 			return;
 		}
@@ -135,7 +209,7 @@ test.describe('Dashboard page', () => {
 		const widget = page.getByTestId('estimated-bill');
 
 		if (!estimate) {
-			// No rate card or API error — widget must be hidden
+			// No estimate exists yet — widget must be hidden
 			await expect(widget).toHaveCount(0);
 			return;
 		}
@@ -240,5 +314,34 @@ test.describe('Plan-aware dashboard features', () => {
 
 		await expect(page.getByTestId('billing-prompt')).toHaveCount(0);
 		await expect(page.getByTestId('billing-cta')).toHaveCount(0);
+	});
+});
+
+test.describe('Dashboard error boundary', () => {
+	test('unmapped dashboard route renders dashboard recovery copy with one support reference', async ({
+		page
+	}) => {
+		await page.goto(`/dashboard/missing-route-${Date.now()}`);
+
+		await expect(page.getByRole('heading', { name: 'Page not found' })).toBeVisible();
+		await expect(page.getByRole('main')).toContainText(
+			/The page you requested is not available\.|Not found/i
+		);
+		const primaryCta = page.getByRole('link', { name: 'Go to dashboard' });
+		await expect(primaryCta).toBeVisible();
+		await expect(primaryCta).toHaveAttribute('href', '/dashboard');
+
+		const supportReferenceLabel = page.getByRole('main').getByText('Support reference');
+		await expect(supportReferenceLabel).toHaveCount(1);
+		await expect(supportReferenceLabel).toBeVisible();
+
+		const supportReferenceToken = page.getByRole('main').getByText(/^web-[a-f0-9]{12}$/);
+		await expect(supportReferenceToken).toHaveCount(1);
+		await expect(supportReferenceToken).toBeVisible();
+
+		await expect(page.getByRole('link', { name: 'support@flapjack.foo' })).toHaveAttribute(
+			'href',
+			/mailto:support@flapjack\.foo\?subject=/
+		);
 	});
 });

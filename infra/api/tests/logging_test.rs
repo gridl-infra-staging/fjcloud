@@ -63,13 +63,10 @@ fn find_request_completed_event(events: &[Value]) -> Option<&Value> {
 }
 
 fn find_request_completed_event_for_path<'a>(events: &'a [Value], path: &str) -> Option<&'a Value> {
-    events
-        .iter()
-        .filter(|event| {
-            event_message(event) == Some("request completed")
-                && extract_event_field(event, "path") == Some(path)
-        })
-        .last()
+    events.iter().rfind(|event| {
+        event_message(event) == Some("request completed")
+            && extract_event_field(event, "path") == Some(path)
+    })
 }
 
 fn extract_event_field<'a>(event: &'a Value, field: &str) -> Option<&'a str> {

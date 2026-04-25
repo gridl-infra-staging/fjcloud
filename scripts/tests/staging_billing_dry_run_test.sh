@@ -248,8 +248,20 @@ test_runbook_email_evidence_contract_matches_runtime_owners() {
         "runbook should still point to services/email.rs for Mailpit sink behavior"
     assert_contains "$email_contract_section" "scripts/lib/staging_billing_rehearsal_email_evidence.sh" \
         "runbook should cite runtime rehearsal email evidence owner script"
+    assert_contains "$email_contract_section" "invoice_email_evidence_delegated" \
+        "runbook should lock delegated staging classification for missing-Mailpit staging rehearsal runs"
+    assert_contains "$email_contract_section" "scripts/launch/ses_deliverability_evidence.sh" \
+        "runbook should route live SES delivery proof to the SES deliverability owner"
+    assert_contains "$email_contract_section" "docs/runbooks/email-production.md" \
+        "runbook should route SES inbox-delivery closure to the SES production runbook owner"
+    assert_contains "$email_contract_section" "owned by the SES deliverability wrapper" \
+        "runbook should explicitly describe delegated staging-to-SES ownership"
+    assert_contains "$email_contract_section" "does not claim inbox-delivery closure when Mailpit is absent" \
+        "runbook should keep missing-Mailpit staging classification as delegated evidence, not inbox closure"
     assert_not_contains "$email_contract_section" 'SES invoice-ready sends are fire-and-forget in `infra/api/src/services/email.rs`.' \
         "runbook should not attribute best-effort fire-and-forget behavior to services/email.rs"
+    assert_not_contains "$email_contract_section" "invoice_email_evidence_unsupported" \
+        "runbook should no longer describe missing-Mailpit staging as a generic unsupported runtime classification"
 }
 
 echo "=== staging_billing_dry_run.sh tests ==="

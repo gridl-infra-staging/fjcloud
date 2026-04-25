@@ -71,11 +71,23 @@ test_failed_run_artifact_follow_up_uses_wrapper_run_dir() {
     assert_not_contains "$content" 'artifact path from `ops/terraform/artifacts/`' "guardrails runbook should not direct failed runs to a fixed artifact root"
 }
 
+test_staging_evidence_tracks_latest_runtime_rerun_artifact() {
+    local content
+    content="$(read_doc "$STAGING_EVIDENCE_DOC")"
+
+    assert_contains "$content" "/Users/stuart/.matt/projects/fjcloud_dev-17570fdc/live_e2e_runtime_rerun_artifacts/fjcloud_live_e2e_evidence_20260424T215911Z_59523/summary.json" "staging-evidence should cite the exact latest wrapper-selected summary.json path"
+    assert_contains "$content" '`overall_verdict=fail`' "staging-evidence should record the latest wrapper rerun verdict"
+    assert_contains "$content" "runtime_smoke.log" "staging-evidence should point runtime triage at the captured runtime_smoke.log artifact"
+}
+
 test_budget_guardrail_prep_artifact_contract_is_documented() {
     local content
     content="$(read_doc "$GUARDRAILS_DOC")"
 
+    assert_contains "$content" '`$20/day` means `$600/month`' 'guardrails runbook should document monthly-equivalent $20/day interpretation'
+    assert_contains "$content" "strict calendar-day enforcement is not implemented" "guardrails runbook should document that strict calendar-day enforcement is not implemented"
     assert_contains "$content" "proposal_ready" "guardrails runbook should describe proposal_ready prep status"
+    assert_contains "$content" '`blocked`' "guardrails runbook should document blocked prep status explicitly"
     assert_contains "$content" "--budget-guardrail-artifact" "guardrails runbook should document validate_all --budget-guardrail-artifact entrypoint"
     assert_contains "$content" "proposal.auto.tfvars.example" "guardrails runbook should document proposal var-file artifact"
     assert_contains "$content" "terraform_plan_command.txt" "guardrails runbook should document plan command artifact"
@@ -84,6 +96,20 @@ test_budget_guardrail_prep_artifact_contract_is_documented() {
     assert_contains "$content" "plan_command" "guardrails runbook should document blocked omission of plan_command payload"
     assert_contains "$content" "proposed_variables" "guardrails runbook should document blocked omission of proposed_variables payload"
     assert_contains "$content" "omits" "guardrails runbook should explicitly call out blocked-artifact omission semantics"
+    assert_contains "$content" "api_instance_id" "guardrails runbook should list blocked api_instance_id requirement"
+    assert_contains "$content" "db_instance_identifier" "guardrails runbook should list blocked db_instance_identifier requirement"
+    assert_contains "$content" "alb_arn_suffix" "guardrails runbook should list blocked alb_arn_suffix requirement"
+    assert_contains "$content" "live_e2e_budget_action_principal_arn" "guardrails runbook should list blocked budget action principal requirement"
+    assert_contains "$content" "live_e2e_budget_action_policy_arn" "guardrails runbook should list blocked budget action policy requirement"
+    assert_contains "$content" "live_e2e_budget_action_role_name" "guardrails runbook should list blocked budget action role requirement"
+    assert_contains "$content" "live_e2e_budget_action_execution_role_arn" "guardrails runbook should list blocked budget action execution role requirement"
+    assert_contains "$content" "--api-instance-id" "guardrails runbook should list blocked --api-instance-id flag"
+    assert_contains "$content" "--db-instance-identifier" "guardrails runbook should list blocked --db-instance-identifier flag"
+    assert_contains "$content" "--alb-arn-suffix" "guardrails runbook should list blocked --alb-arn-suffix flag"
+    assert_contains "$content" "--budget-action-principal-arn" "guardrails runbook should list blocked --budget-action-principal-arn flag"
+    assert_contains "$content" "--budget-action-policy-arn" "guardrails runbook should list blocked --budget-action-policy-arn flag"
+    assert_contains "$content" "--budget-action-role-name" "guardrails runbook should list blocked --budget-action-role-name flag"
+    assert_contains "$content" "--budget-action-execution-role-arn" "guardrails runbook should list blocked --budget-action-execution-role-arn flag"
     assert_not_contains "$content" "collect_missing_fields" "guardrails runbook should not expose prep-script internal helper names"
     assert_not_contains "$content" "emit_blocked_summary" "guardrails runbook should not expose prep-script internal helper names"
     assert_not_contains "$content" "emit_proposal_summary" "guardrails runbook should not expose prep-script internal helper names"
@@ -127,11 +153,32 @@ test_summary_json_lane_contract_and_blocked_semantics_are_documented() {
     assert_contains "$content" 'blocked credentialed billing rows keep `artifact_path` empty' "guardrails runbook should document blocked credentialed artifact_path behavior"
 }
 
+test_runbooks_use_repo_local_secret_file_contract() {
+    local doc content
+    for doc in "${DOC_FILES[@]}"; do
+        content="$(read_doc "$doc")"
+        assert_contains "$content" ".secret/.env.secret" "$(basename "$doc") should document the repo-local secret file contract"
+        assert_not_contains "$content" "/Users/stuart/repos/gridl/fjcloud/.secret/.env.secret" "$(basename "$doc") should not keep the deprecated shared absolute secret path"
+    done
+}
+
 test_docs_do_not_include_secret_like_values() {
     if grep -Eq "AKIA|sk_live|sk_test|whsec_" "$STAGING_EVIDENCE_DOC" "$GUARDRAILS_DOC" "$INFRA_BUNDLE_DOC"; then
         fail "runbooks should not contain secret-looking values"
     else
         pass "runbooks avoid secret-looking values"
+    fi
+
+    if grep -Eq "arn:aws:iam::[0-9]{12}" "$GUARDRAILS_DOC"; then
+        fail "guardrails runbook should not contain private IAM account IDs"
+    else
+        pass "guardrails runbook avoids private IAM account IDs"
+    fi
+
+    if grep -Eq "(^|[^0-9])[0-9]{12}([^0-9]|$)" "$GUARDRAILS_DOC"; then
+        fail "guardrails runbook should not contain private 12-digit account identifiers"
+    else
+        pass "guardrails runbook avoids private 12-digit account identifiers"
     fi
 
     if grep -Eq "(^|[^A-Z0-9_])(AWS_[A-Z0-9_]*|CLOUDFLARE_[A-Z0-9_]*|STRIPE_[A-Z0-9_]*)=" "$STAGING_EVIDENCE_DOC" "$GUARDRAILS_DOC" "$INFRA_BUNDLE_DOC"; then
@@ -150,10 +197,12 @@ run_all_tests() {
     test_wrapper_entrypoint_artifact_dir_and_summary_are_documented
     test_owner_script_boundary_is_preserved
     test_failed_run_artifact_follow_up_uses_wrapper_run_dir
+    test_staging_evidence_tracks_latest_runtime_rerun_artifact
     test_budget_guardrail_prep_artifact_contract_is_documented
     test_infra_bundle_uses_staging_evidence_as_current_status_authority
     test_safety_contract_is_documented
     test_summary_json_lane_contract_and_blocked_semantics_are_documented
+    test_runbooks_use_repo_local_secret_file_contract
     test_docs_do_not_include_secret_like_values
     run_test_summary
 }

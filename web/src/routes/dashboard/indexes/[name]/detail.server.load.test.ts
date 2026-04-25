@@ -51,6 +51,7 @@ const deleteSynonymMock = vi.fn();
 const saveQsConfigMock = vi.fn();
 const deleteQsConfigMock = vi.fn();
 const getDictionaryLanguagesMock = vi.fn();
+const createIndexKeyMock = vi.fn();
 const searchDictionaryEntriesMock = vi.fn();
 const batchDictionaryEntriesMock = vi.fn();
 const getSecuritySourcesMock = vi.fn();
@@ -157,6 +158,7 @@ const mocks: MockFns = {
 	deleteSynonym: deleteSynonymMock,
 	saveQsConfig: saveQsConfigMock,
 	deleteQsConfig: deleteQsConfigMock,
+	createIndexKey: createIndexKeyMock,
 	getDictionaryLanguages: getDictionaryLanguagesMock,
 	searchDictionaryEntries: searchDictionaryEntriesMock,
 	batchDictionaryEntries: batchDictionaryEntriesMock,

@@ -10,7 +10,7 @@ vi.mock('$lib/server/api', () => ({
 	}))
 }));
 
-import { actions } from './+page.server';
+import { actions, prerender as loginPrerender } from './+page.server';
 
 function toFormData(entries: Record<string, string>): FormData {
 	const fd = new FormData();
@@ -29,6 +29,12 @@ function makeEvent(
 		url: new URL(url)
 	} as never;
 }
+
+describe('login route prerender contract', () => {
+	it('opts out of prerender because it defines form actions', () => {
+		expect(loginPrerender).toBe(false);
+	});
+});
 
 describe('Login server action', () => {
 	beforeEach(() => {

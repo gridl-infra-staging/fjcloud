@@ -267,10 +267,14 @@ fn spec_contains_lifecycle_operations() {
         "spec must contain POST /onboarding/credentials"
     );
 
-    // Account routes — GET/PATCH/DELETE on /account plus change-password
+    // Account routes — GET/PATCH/DELETE on /account plus export and change-password
     assert!(
         spec.pointer("/paths/~1account/get").is_some(),
         "spec must contain GET /account"
+    );
+    assert!(
+        spec.pointer("/paths/~1account~1export/get").is_some(),
+        "spec must contain GET /account/export"
     );
     assert!(
         spec.pointer("/paths/~1account/patch").is_some(),
@@ -310,6 +314,7 @@ fn spec_contains_lifecycle_schemas() {
         "FreeTierLimitsResponse",
         "CredentialsResponse",
         "CustomerProfileResponse",
+        "AccountExportResponse",
         "UpdateProfileRequest",
         "ChangePasswordRequest",
         "DeleteAccountRequest",
@@ -334,6 +339,7 @@ fn spec_lifecycle_routes_do_not_override_bearer_with_public_security() {
         "/paths/~1onboarding~1status/get/security",
         "/paths/~1onboarding~1credentials/post/security",
         "/paths/~1account/get/security",
+        "/paths/~1account~1export/get/security",
         "/paths/~1account/patch/security",
         "/paths/~1account/delete/security",
         "/paths/~1account~1change-password/post/security",
@@ -405,6 +411,7 @@ fn spec_authenticated_stage2_routes_document_401_error_response() {
         "/paths/~1onboarding~1status/get/responses/401/content/application~1json/schema/$ref",
         "/paths/~1onboarding~1credentials/post/responses/401/content/application~1json/schema/$ref",
         "/paths/~1account/get/responses/401/content/application~1json/schema/$ref",
+        "/paths/~1account~1export/get/responses/401/content/application~1json/schema/$ref",
         "/paths/~1account/patch/responses/401/content/application~1json/schema/$ref",
         "/paths/~1account/delete/responses/401/content/application~1json/schema/$ref",
         "/paths/~1account~1change-password/post/responses/401/content/application~1json/schema/$ref",
@@ -420,6 +427,18 @@ fn spec_authenticated_stage2_routes_document_401_error_response() {
             "{response_ref} must reference ErrorResponse for auth failures"
         );
     }
+}
+
+#[test]
+fn spec_delete_account_documents_409_conflict_error_response() {
+    let spec = common::openapi_spec_json();
+
+    assert_eq!(
+        spec.pointer("/paths/~1account/delete/responses/409/content/application~1json/schema/$ref")
+            .and_then(|value| value.as_str()),
+        Some("#/components/schemas/ErrorResponse"),
+        "DELETE /account must document 409 ErrorResponse for active AllYourBase conflicts"
+    );
 }
 
 // Stage 3–5 tests are in openapi_spec_stages3_5_test.rs

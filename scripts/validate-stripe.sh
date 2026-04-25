@@ -11,6 +11,78 @@ json_get_field() { validation_json_get_field "$@"; }
 append_step() { validation_append_step "$@"; }
 emit_result() { validation_emit_result "$@"; }
 
+json_get_path() {
+    local json_body="$1"
+    local field_path="$2"
+    python3 - "$json_body" "$field_path" <<'PY' || true
+import json
+import sys
+
+body = sys.argv[1]
+field_path = sys.argv[2]
+try:
+    data = json.loads(body)
+except Exception:
+    print("")
+    raise SystemExit(0)
+
+value = data
+for segment in field_path.split("."):
+    if isinstance(value, dict):
+        value = value.get(segment, "")
+    else:
+        value = ""
+        break
+
+if value is None:
+    print("")
+elif isinstance(value, (int, float, bool)):
+    print(str(value).lower() if isinstance(value, bool) else str(value))
+else:
+    print(str(value))
+PY
+}
+
+stripe_error_context() {
+    local request_id="${STRIPE_REQUEST_ID:-}"
+    local error_type error_code error_message request_log_url
+    local parts=()
+    local joined=""
+    local part=""
+
+    error_type="$(json_get_path "${STRIPE_BODY:-}" "error.type")"
+    error_code="$(json_get_path "${STRIPE_BODY:-}" "error.code")"
+    error_message="$(json_get_path "${STRIPE_BODY:-}" "error.message")"
+    request_log_url="$(json_get_path "${STRIPE_BODY:-}" "error.request_log_url")"
+
+    if [ -n "$request_id" ]; then
+        parts+=("request_id=$request_id")
+    fi
+    if [ -n "$error_type" ]; then
+        parts+=("type=$error_type")
+    fi
+    if [ -n "$error_code" ]; then
+        parts+=("code=$error_code")
+    fi
+    if [ -n "$error_message" ]; then
+        parts+=("message=$error_message")
+    fi
+    if [ -n "$request_log_url" ]; then
+        parts+=("log=$request_log_url")
+    fi
+
+    for part in "${parts[@]}"; do
+        if [ -n "$joined" ]; then
+            joined="$joined; "
+        fi
+        joined="$joined$part"
+    done
+
+    if [ -n "$joined" ]; then
+        printf ' (%s)' "$joined"
+    fi
+}
+
 # The Stripe secret is sent via Basic Auth, so this live validation script must
 # never allow an env override to redirect requests to a non-Stripe host.
 require_stripe_api_base() {
@@ -32,20 +104,29 @@ stripe_request() {
     shift 2
 
     local stripe_secret_key="$STRIPE_SECRET_KEY_EFFECTIVE"
-    local response
-    if ! response="$(curl -sS -w "\n%{http_code}" -u "$stripe_secret_key:" -X "$method" "$STRIPE_API_BASE$path" "$@" 2>&1)"; then
+    local header_file body_file http_code curl_output
+    header_file="$(mktemp)"
+    body_file="$(mktemp)"
+
+    if ! curl_output="$(curl -sS -D "$header_file" -o "$body_file" -w "%{http_code}" -u "$stripe_secret_key:" -X "$method" "$STRIPE_API_BASE$path" "$@" 2>&1)"; then
         STRIPE_HTTP_CODE="000"
-        STRIPE_BODY="$response"
+        STRIPE_BODY="$curl_output"
+        STRIPE_REQUEST_ID=""
+        rm -f "$header_file" "$body_file"
         return 1
     fi
 
-    STRIPE_HTTP_CODE="$(printf '%s\n' "$response" | tail -1)"
-    STRIPE_BODY="$(printf '%s\n' "$response" | sed '$d')"
+    http_code="$(printf '%s' "$curl_output" | tail -n 1)"
+    STRIPE_HTTP_CODE="$http_code"
+    STRIPE_BODY="$(cat "$body_file")"
+    STRIPE_REQUEST_ID="$(awk 'BEGIN { IGNORECASE=1 } /^Request-Id:/ { sub(/\r$/, "", $2); print $2; exit }' "$header_file")"
+    rm -f "$header_file" "$body_file"
     return 0
 }
 
 STRIPE_API_BASE="${STRIPE_API_BASE:-https://api.stripe.com}"
 STRIPE_SECRET_KEY_EFFECTIVE=""
+STRIPE_REQUEST_ID=""
 
 require_stripe_api_base
 
@@ -67,7 +148,7 @@ if ! stripe_request POST "/v1/customers" -d "description=fjcloud-stage5-validati
     exit 1
 fi
 if [ "$STRIPE_HTTP_CODE" != "200" ] && [ "$STRIPE_HTTP_CODE" != "201" ]; then
-    append_step "create_customer" false "Stripe customer creation failed with HTTP $STRIPE_HTTP_CODE"
+    append_step "create_customer" false "Stripe customer creation failed with HTTP $STRIPE_HTTP_CODE$(stripe_error_context)"
     emit_result false
     exit 1
 fi
@@ -85,22 +166,28 @@ if ! stripe_request POST "/v1/payment_methods/pm_card_visa/attach" -d "customer=
     exit 1
 fi
 if [ "$STRIPE_HTTP_CODE" != "200" ]; then
-    append_step "attach_payment_method" false "Attach payment method failed with HTTP $STRIPE_HTTP_CODE"
+    append_step "attach_payment_method" false "Attach payment method failed with HTTP $STRIPE_HTTP_CODE$(stripe_error_context)"
+    emit_result false
+    exit 1
+fi
+ATTACHED_PAYMENT_METHOD_ID="$(json_get_field "$STRIPE_BODY" "id")"
+if [ -z "$ATTACHED_PAYMENT_METHOD_ID" ]; then
+    append_step "attach_payment_method" false "Stripe attach response did not include payment method id"
     emit_result false
     exit 1
 fi
 
-if ! stripe_request POST "/v1/customers/$CUSTOMER_ID" -d "invoice_settings[default_payment_method]=pm_card_visa"; then
+if ! stripe_request POST "/v1/customers/$CUSTOMER_ID" -d "invoice_settings[default_payment_method]=$ATTACHED_PAYMENT_METHOD_ID"; then
     append_step "attach_payment_method" false "curl failure while setting default payment method: ${STRIPE_BODY:-unknown error}"
     emit_result false
     exit 1
 fi
 if [ "$STRIPE_HTTP_CODE" != "200" ]; then
-    append_step "attach_payment_method" false "Set default payment method failed with HTTP $STRIPE_HTTP_CODE"
+    append_step "attach_payment_method" false "Set default payment method failed with HTTP $STRIPE_HTTP_CODE$(stripe_error_context)"
     emit_result false
     exit 1
 fi
-append_step "attach_payment_method" true "Attached and set pm_card_visa as default"
+append_step "attach_payment_method" true "Attached and set $ATTACHED_PAYMENT_METHOD_ID as default"
 
 if ! stripe_request POST "/v1/invoiceitems" -d "customer=$CUSTOMER_ID" -d "amount=100" -d "currency=usd" -d "description=stage5-validation"; then
     append_step "create_and_pay_invoice" false "curl failure while creating invoice item: ${STRIPE_BODY:-unknown error}"
@@ -108,7 +195,7 @@ if ! stripe_request POST "/v1/invoiceitems" -d "customer=$CUSTOMER_ID" -d "amoun
     exit 1
 fi
 if [ "$STRIPE_HTTP_CODE" != "200" ] && [ "$STRIPE_HTTP_CODE" != "201" ]; then
-    append_step "create_and_pay_invoice" false "Create invoice item failed with HTTP $STRIPE_HTTP_CODE"
+    append_step "create_and_pay_invoice" false "Create invoice item failed with HTTP $STRIPE_HTTP_CODE$(stripe_error_context)"
     emit_result false
     exit 1
 fi
@@ -119,7 +206,7 @@ if ! stripe_request POST "/v1/invoices" -d "customer=$CUSTOMER_ID" -d "collectio
     exit 1
 fi
 if [ "$STRIPE_HTTP_CODE" != "200" ] && [ "$STRIPE_HTTP_CODE" != "201" ]; then
-    append_step "create_and_pay_invoice" false "Create invoice failed with HTTP $STRIPE_HTTP_CODE"
+    append_step "create_and_pay_invoice" false "Create invoice failed with HTTP $STRIPE_HTTP_CODE$(stripe_error_context)"
     emit_result false
     exit 1
 fi
@@ -136,7 +223,7 @@ if ! stripe_request POST "/v1/invoices/$INVOICE_ID/pay"; then
     exit 1
 fi
 if [ "$STRIPE_HTTP_CODE" != "200" ]; then
-    append_step "create_and_pay_invoice" false "Pay invoice failed with HTTP $STRIPE_HTTP_CODE"
+    append_step "create_and_pay_invoice" false "Pay invoice failed with HTTP $STRIPE_HTTP_CODE$(stripe_error_context)"
     emit_result false
     exit 1
 fi

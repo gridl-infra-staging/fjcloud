@@ -19,6 +19,7 @@ prep_script_file="ops/scripts/live_e2e_budget_guardrail_prep.sh"
 validate_all_file="ops/terraform/validate_all.sh"
 strategy_doc_file="docs/design/aws_e2e_strategy.md"
 constraints_doc_file="docs/research/aws_e2e_external_constraints.md"
+stage1_budget_decision_file="deliverables/stage_01_budget_period_semantics_decision.md"
 
 assert_resource_ownership() {
   local resource_type="$1"
@@ -69,6 +70,10 @@ assert_resource_ownership "aws_budgets_budget" "$monitor_main_file" "AWS Budgets
 assert_resource_ownership "aws_budgets_budget_action" "$monitor_main_file" "AWS Budgets action resources are owned in monitoring/main.tf"
 assert_contains_active "$monitor_main_file" '^[[:space:]]*resource[[:space:]]+"aws_budgets_budget"[[:space:]]+"[^"]+"' "Monitoring module declares aws_budgets_budget"
 assert_contains_active "$monitor_main_file" '^[[:space:]]*resource[[:space:]]+"aws_budgets_budget_action"[[:space:]]+"[^"]+"' "Monitoring module declares aws_budgets_budget_action"
+assert_contains_active "$monitor_main_file" 'live_e2e_budget_configured[[:space:]]*=[[:space:]]*var\.live_e2e_monthly_spend_limit_usd[[:space:]]*!=[[:space:]]*null' "Budget gate remains derived from live_e2e_monthly_spend_limit_usd null-check"
+assert_contains_active "$monitor_main_file" 'count[[:space:]]*=[[:space:]]*local\.live_e2e_budget_configured[[:space:]]*\?[[:space:]]*1[[:space:]]*:[[:space:]]*0' "Budget resource remains null-gated by local.live_e2e_budget_configured"
+assert_contains_active "$monitor_main_file" 'limit_amount[[:space:]]*=[[:space:]]*format\("%\.2f",[[:space:]]*var\.live_e2e_monthly_spend_limit_usd\)' "Budget limit_amount is formatted from live_e2e_monthly_spend_limit_usd"
+assert_contains_active "$monitor_main_file" 'time_unit[[:space:]]*=[[:space:]]*"MONTHLY"' "Budget time_unit remains MONTHLY"
 assert_contains_active "$monitor_main_file" 'count[[:space:]]*=[[:space:]]*var\.live_e2e_budget_action_enabled[[:space:]]*\?[[:space:]]*1[[:space:]]*:[[:space:]]*0' "Budget action is disabled by default unless explicitly enabled"
 assert_contains_active "$monitor_vars_file" '^[[:space:]]*variable[[:space:]]+"live_e2e_budget_action_enabled"' "monitoring/variables.tf exposes budget-action gate"
 assert_contains_active "$monitor_vars_file" '^[[:space:]]*variable[[:space:]]+"live_e2e_monthly_spend_limit_usd"' "monitoring/variables.tf exposes monthly spend limit input"
@@ -81,6 +86,21 @@ assert_contains_active "$monitor_vars_file" 'default[[:space:]]*=[[:space:]]*fal
 assert_contains_active "$monitor_outputs_file" '^[[:space:]]*output[[:space:]]+"live_e2e_budget_name"' "monitoring/outputs.tf exposes budget name"
 assert_contains_active "$monitor_outputs_file" '^[[:space:]]*output[[:space:]]+"live_e2e_budget_action_enabled"' "monitoring/outputs.tf exposes budget-action enabled state"
 assert_contains_active "$monitor_main_file" 'depends_on[[:space:]]*=[[:space:]]*\[aws_budgets_budget\.live_e2e_spend\]' "Budget action explicitly depends on budget creation"
+assert_file_contains "$prep_script_file" 'LIVE_E2E_MONTHLY_SPEND_LIMIT_USD:live_e2e_monthly_spend_limit_usd:--monthly-spend-limit-usd' "prep script maps budget limit through live_e2e_monthly_spend_limit_usd only"
+
+monitor_budget_limit_surface_count="$(rg -n '^[[:space:]]*variable[[:space:]]+"live_e2e_.*spend_limit_usd"' "$monitor_vars_file" | wc -l | tr -d ' ')"
+if [[ "$monitor_budget_limit_surface_count" == "1" ]]; then
+  pass "monitoring/variables.tf keeps exactly one live_e2e_*spend_limit_usd input surface"
+else
+  fail "monitoring/variables.tf keeps exactly one live_e2e_*spend_limit_usd input surface (found $monitor_budget_limit_surface_count)"
+fi
+
+shared_budget_limit_surface_count="$(rg -n '^[[:space:]]*variable[[:space:]]+"live_e2e_.*spend_limit_usd"' "$shared_vars_file" | wc -l | tr -d ' ')"
+if [[ "$shared_budget_limit_surface_count" == "1" ]]; then
+  pass "_shared/variables.tf keeps exactly one live_e2e_*spend_limit_usd pass-through input surface"
+else
+  fail "_shared/variables.tf keeps exactly one live_e2e_*spend_limit_usd pass-through input surface (found $shared_budget_limit_surface_count)"
+fi
 
 assert_not_contains_active "$shared_main_file" '^[[:space:]]*resource[[:space:]]+"aws_cloudtrail"[[:space:]]+"[^"]+"' "_shared/main.tf does not directly own CloudTrail resources"
 assert_not_contains_active "$shared_main_file" '^[[:space:]]*resource[[:space:]]+"aws_budgets_budget"[[:space:]]+"[^"]+"' "_shared/main.tf does not directly own aws_budgets_budget"
@@ -247,5 +267,16 @@ assert_file_not_contains "$strategy_doc_file" 'Monitoring module currently owns 
 assert_file_contains "$constraints_doc_file" '^## CloudWatch and CloudTrail Evidence Capture Constraints' "Constraints doc keeps CloudWatch/CloudTrail constraint section"
 assert_file_contains "$constraints_doc_file" 'CloudTrail ownership is resolved in Terraform' "Constraints doc records that CloudTrail ownership is now resolved"
 assert_file_contains "$constraints_doc_file" 'Which IAM principal should approve/operate AWS Budgets actions for test-runner EC2/RDS resources' "Constraints doc explicitly keeps unresolved budget-action principal question"
+
+echo ""
+echo "--- Stage 1 budget-period decision deliverable contract ---"
+assert_file_exists "$stage1_budget_decision_file" "Stage 1 budget-period decision deliverable exists"
+assert_file_contains "$stage1_budget_decision_file" '^\# Stage 1 Budget Period Semantics Decision' "Decision deliverable has canonical Stage 1 decision heading"
+assert_file_contains "$stage1_budget_decision_file" 'https://docs\.aws\.amazon\.com/aws-cost-management/latest/APIReference/API_budgets_Budget\.html' "Decision deliverable cites AWS Budgets API Budget.TimeUnit reference"
+assert_file_contains "$stage1_budget_decision_file" 'https://docs\.aws\.amazon\.com/cost-management/latest/userguide/create-cost-budget\.html' "Decision deliverable cites AWS cost budget period reference"
+assert_file_contains "$stage1_budget_decision_file" 'https://raw\.githubusercontent\.com/hashicorp/terraform-provider-aws/main/website/docs/r/budgets_budget\.html\.markdown' "Decision deliverable cites Terraform aws_budgets_budget time_unit reference"
+assert_file_contains "$stage1_budget_decision_file" '\$20/day guardrail intent is implemented as a monthly-equivalent ceiling via live_e2e_monthly_spend_limit_usd' "Decision deliverable records Stage 2 monthly-equivalent interpretation"
+assert_file_contains "$stage1_budget_decision_file" 'Exact calendar-day enforcement remains a Stage 3 implementation gap if strict per-day enforcement is required\.' "Decision deliverable records Stage 3 daily-enforcement gap conditionally"
+assert_file_contains "$stage1_budget_decision_file" 'Open questions: none' "Decision deliverable explicitly closes Stage 1 open questions"
 
 test_summary "Stage 8 static checks"

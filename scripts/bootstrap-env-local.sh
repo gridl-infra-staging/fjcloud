@@ -9,7 +9,7 @@
 #
 # The external secret source is resolved from (in order):
 #   - FJCLOUD_SECRET_FILE env var (explicit override)
-#   - Default path: ~/repos/gridl/fjcloud/.secret/.env.secret
+#   - Default path: $REPO_ROOT/.secret/.env.secret
 #
 # Exits cleanly when .env.local already exists so reruns never clobber hand
 # edits. Keys in the secret source that don't appear in the template are
@@ -31,7 +31,7 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 ENV_LOCAL="$REPO_ROOT/.env.local"
 ENV_EXAMPLE="$REPO_ROOT/.env.local.example"
-DEFAULT_SECRET_PATH="$HOME/repos/gridl/fjcloud/.secret/.env.secret"
+DEFAULT_SECRET_PATH="$REPO_ROOT/.secret/.env.secret"
 SECRET_FILE="${FJCLOUD_SECRET_FILE:-$DEFAULT_SECRET_PATH}"
 
 # Exit cleanly when .env.local already exists — never overwrite hand edits.

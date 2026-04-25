@@ -1,3 +1,4 @@
+pub mod cloudflare;
 pub mod mock;
 pub mod route53;
 
@@ -36,5 +37,14 @@ impl DnsManager for UnconfiguredDnsManager {
 
     async fn delete_record(&self, _hostname: &str) -> Result<(), DnsError> {
         Err(DnsError::NotConfigured)
+    }
+}
+
+fn hostname_for_domain(domain: &str, hostname: &str) -> String {
+    let trimmed = hostname.trim_end_matches('.');
+    if trimmed == domain || trimmed.ends_with(&format!(".{domain}")) {
+        trimmed.to_string()
+    } else {
+        format!("{trimmed}.{domain}")
     }
 }

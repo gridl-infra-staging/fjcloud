@@ -1,0 +1,4 @@
+readiness_exit=0
+account_exit=0
+sender_exit=254
+domain_exit=0

@@ -6,6 +6,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 RUNBOOK_PATH="$REPO_ROOT/docs/runbooks/paid_beta_rc_signoff.md"
 READINESS_DOC="$REPO_ROOT/docs/LOCAL_LAUNCH_READINESS.md"
+EMAIL_RUNBOOK_PATH="$REPO_ROOT/docs/runbooks/email-production.md"
+AGENTS_PATH="$REPO_ROOT/AGENTS.md"
+CLAUDE_PATH="$REPO_ROOT/CLAUDE.md"
+CANONICAL_SECRET_ENV_HINT=".secret/.env.secret"
+HISTORICAL_STAGE1_SECRET_PATH="/Users/stuart/repos/gridl-infra-dev/fjcloud_dev/.secret/.env.secret"
+DEPRECATED_SHARED_SECRET_PATH="/Users/stuart/repos/gridl""/fjcloud/.secret/.env.secret"
 
 # shellcheck source=lib/test_runner.sh
 source "$SCRIPT_DIR/lib/test_runner.sh"
@@ -72,13 +78,40 @@ test_runbook_links_delegated_proof_owners() {
     assert_contains "$content" "docs/LOCAL_LAUNCH_READINESS.md" "runbook should link local signoff canonical context"
     assert_contains "$content" "docs/runbooks/email-production.md" "runbook should link SES runbook owner"
     assert_contains "$content" "scripts/validate_ses_readiness.sh" "runbook should link SES readiness owner script"
+    assert_contains "$content" "scripts/launch/ses_deliverability_evidence.sh" "runbook should link SES deliverability evidence owner script"
     assert_contains "$content" "docs/runbooks/staging_billing_dry_run.md" "runbook should link billing rehearsal runbook owner"
     assert_contains "$content" "scripts/staging_billing_rehearsal.sh" "runbook should link billing rehearsal owner script"
+    assert_contains "$content" "credentialed live webhook proof must come from" "runbook should keep live webhook proof outside the billing rehearsal owner boundary"
+    assert_contains "$content" "scripts/launch/live_e2e_evidence.sh" "runbook should keep credentialed live webhook proof delegated to live E2E evidence owner"
+    assert_contains "$content" "docs/runbooks/aws_live_e2e_guardrails.md" "runbook should keep credentialed live webhook proof delegated to live E2E guardrails runbook"
     assert_contains "$content" "scripts/e2e-preflight.sh" "runbook should link browser preflight owner script"
     assert_contains "$content" "ops/terraform/tests_stage7_static.sh" "runbook should link Terraform stage7 static owner"
     assert_contains "$content" "ops/terraform/tests_stage8_static.sh" "runbook should link Terraform stage8 static owner"
     assert_contains "$content" "ops/terraform/tests_stage7_runtime_smoke.sh" "runbook should link Terraform runtime smoke owner"
     assert_contains "$content" "docs/runbooks/infra-terraform-apply.md" "runbook should link Terraform apply runbook owner"
+}
+
+test_credential_env_path_owner_is_unambiguous() {
+    local rc_content ses_content agents_content claude_content
+    rc_content="$(cat "$RUNBOOK_PATH")"
+    ses_content="$(cat "$EMAIL_RUNBOOK_PATH")"
+    agents_content="$(cat "$AGENTS_PATH")"
+    claude_content="$(cat "$CLAUDE_PATH")"
+
+    assert_contains "$rc_content" "--credential-env-file=<path>" "RC runbook should keep explicit credential-env-file input"
+    assert_contains "$agents_content" "$CANONICAL_SECRET_ENV_HINT" "AGENTS should declare canonical repo-local secret path guidance"
+    assert_contains "$claude_content" "$CANONICAL_SECRET_ENV_HINT" "CLAUDE should declare canonical repo-local secret path guidance"
+    assert_contains "$ses_content" "$CANONICAL_SECRET_ENV_HINT" "SES runbook should match canonical repo-local secret path guidance"
+    assert_contains "$ses_content" "$HISTORICAL_STAGE1_SECRET_PATH" "SES runbook should preserve the historical Stage 1 snapshot path"
+    assert_not_contains "$ses_content" "$DEPRECATED_SHARED_SECRET_PATH" "SES runbook should not retain the deprecated shared secret path"
+}
+
+test_staging_smoke_ami_source_owner_is_documented() {
+    local content
+    content="$(cat "$RUNBOOK_PATH")"
+
+    assert_contains "$content" "ops/README.md" "runbook should point to ops README as AMI source owner command guidance"
+    assert_contains "$content" "flapjack-ami-manifest.json" "runbook should point to AMI manifest artifact as a source seam"
 }
 
 test_runbook_documents_blocker_reasons_and_ready_false_rule() {
@@ -91,6 +124,9 @@ test_runbook_documents_blocker_reasons_and_ready_false_rule() {
     assert_contains "$content" "credentialed_billing_env_file_missing" "runbook should document billing env file blocker reason"
     assert_contains "$content" "credentialed_billing_month_missing" "runbook should document billing month blocker reason"
     assert_contains "$content" "delegated billing classifications" "runbook should call out delegated billing classifications"
+    assert_contains "$content" "billing evidence boundaries" "runbook should call out delegated billing evidence boundaries"
+    assert_contains "$content" "scripts/staging_billing_rehearsal.sh" "runbook should attribute delegated billing classifications to the rehearsal owner script"
+    assert_contains "$content" 'delegated `result` and `classification` passthrough' "runbook should state coordinator passthrough semantics for delegated billing proofs"
     assert_contains "$content" "credentialed_staging_smoke_inputs_missing" "runbook should document staging smoke blocker reason"
     assert_contains "$content" "ready=false" "runbook should state blocked required proofs force ready=false"
     assert_contains "$content" "local_signoff is useful local evidence only" "runbook should keep local_signoff scoped to local evidence"
@@ -118,6 +154,8 @@ test_runbook_exists_and_has_required_sections
 test_runbook_documents_canonical_coordinator_commands
 test_runbook_documents_operator_facing_json_contract
 test_runbook_links_delegated_proof_owners
+test_credential_env_path_owner_is_unambiguous
+test_staging_smoke_ami_source_owner_is_documented
 test_runbook_documents_blocker_reasons_and_ready_false_rule
 test_runbook_discoverability_and_evidence_safety
 run_test_summary

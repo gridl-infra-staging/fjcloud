@@ -3,17 +3,18 @@
 Concise launch-readiness evidence snapshot for the current checked-in repo state.
 
 This file is intentionally not a second roadmap. It links the canonical docs that own the underlying status and records the exact evidence surfaces a future session should check first.
+For the evergreen checklist shell that points at those owners, use [`docs/runbooks/beta_launch_readiness.md`](./beta_launch_readiness.md).
 
 ## Summary Table
 
-| Area | Status | Evidence | Next Owner |
-|------|--------|----------|------------|
-| Local signoff | COMPLETE (local evidence) | Canonical local signoff contract in [`docs/LOCAL_LAUNCH_READINESS.md`](../LOCAL_LAUNCH_READINESS.md) and the Apr 19 run-scoped pass referenced by current roadmap/priorities status | None for local-only scope |
-| Staging infra | DEPLOYED | [`docs/runbooks/staging-evidence.md`](./staging-evidence.md) and [`docs/runbooks/staging-validation-20260409.md`](./staging-validation-20260409.md) | Infra / launch docs |
-| Browser signoff | COMPLETE (supported-runtime local slice) | Current checked-in browser status in [`ROADMAP.md`](../../ROADMAP.md) | None for current supported-runtime slice |
-| Cloudflare and DNS | COMPLETE for staging public access | DNS cutover update in [`docs/runbooks/staging-evidence.md`](./staging-evidence.md) | None unless public DNS changes again |
-| Billing dry run | PREP COMPLETE, EXECUTION OUTSTANDING | [`docs/runbooks/staging_billing_dry_run.md`](./staging_billing_dry_run.md), [`ROADMAP.md`](../../ROADMAP.md), [`PRIORITIES.md`](../../PRIORITIES.md) | Credentialed staging billing lane |
-| Remaining launch blockers | LIVE CREDENTIALS / EVIDENCE | Current open items in [`ROADMAP.md`](../../ROADMAP.md) and [`PRIORITIES.md`](../../PRIORITIES.md) | Launch owner |
+| Area                      | Status                                   | Evidence                                                                                                                                                                            | Next Owner                               |
+| ------------------------- | ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------- |
+| Local signoff             | COMPLETE (local evidence)                | Canonical local signoff contract in [`docs/LOCAL_LAUNCH_READINESS.md`](../LOCAL_LAUNCH_READINESS.md) and the Apr 19 run-scoped pass referenced by current roadmap/priorities status | None for local-only scope                |
+| Staging infra             | DEPLOYED                                 | [`docs/runbooks/staging-evidence.md`](./staging-evidence.md) and [`docs/runbooks/staging-validation-20260409.md`](./staging-validation-20260409.md)                                 | Infra / launch docs                      |
+| Browser signoff           | COMPLETE (supported-runtime local slice) | Current checked-in browser status in [`ROADMAP.md`](../../ROADMAP.md)                                                                                                               | None for current supported-runtime slice |
+| Cloudflare and DNS        | COMPLETE for staging public access       | DNS cutover update in [`docs/runbooks/staging-evidence.md`](./staging-evidence.md)                                                                                                  | None unless public DNS changes again     |
+| Billing dry run           | PREP COMPLETE, EXECUTION OUTSTANDING     | [`docs/runbooks/staging_billing_dry_run.md`](./staging_billing_dry_run.md), [`ROADMAP.md`](../../ROADMAP.md), [`PRIORITIES.md`](../../PRIORITIES.md)                                | Credentialed staging billing lane        |
+| Remaining launch blockers | LIVE CREDENTIALS / EVIDENCE              | Current open items in [`ROADMAP.md`](../../ROADMAP.md) and [`PRIORITIES.md`](../../PRIORITIES.md)                                                                                   | Launch owner                             |
 
 This table is a historical 2026-04-20 snapshot. Current blocker interpretation
 must come from canonical owners:
@@ -73,7 +74,7 @@ live wrapper `summary.json` lane semantics.
 - Canonical open-work item:
   - `ROADMAP.md` still tracks “End-to-end billing dry-run evidence against a credentialed test environment” as open.
 - Command surface for the prep lane:
-  - `bash scripts/staging_billing_dry_run.sh --check --env-file <clean staging env file>`
+  - `bash scripts/staging_billing_dry_run.sh --check --env-file .secret/.env.secret`
 
 ## Deferred And Future
 

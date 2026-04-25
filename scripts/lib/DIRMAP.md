@@ -4,6 +4,7 @@
 | File | Summary |
 | --- | --- |
 | billing_rehearsal_steps.sh | Shared planned-step list for staging billing preflight/rehearsal JSON output. |
+| deterministic_batch_payload.sh | Stub summary for deterministic_batch_payload.sh. |
 | env.sh | Shared environment file loading — single source of truth for local env parsing.
 
 Exports:
@@ -44,6 +45,7 @@ REASON: codes:
   rollup_stale         usage_daily has no rollups within freshness window. |
 | migrate.sh | Stub summary for migrate.sh. |
 | process.sh | Stub summary for process.sh. |
+| psql_path.sh | Stub summary for psql_path.sh. |
 | security_checks.sh | Security validation checks for the backend reliability gate.
 
 Three automated checks:
@@ -56,7 +58,15 @@ On failure, emits REASON:<code> to stderr for structured reason extraction. |
 | staging_billing_rehearsal_email_evidence.sh | Stub summary for staging_billing_rehearsal_email_evidence.sh. |
 | staging_billing_rehearsal_evidence.sh | Stub summary for staging_billing_rehearsal_evidence.sh. |
 | staging_billing_rehearsal_flow.sh | Flow helpers for scripts/staging_billing_rehearsal.sh. |
+| staging_billing_rehearsal_impl.sh | shellcheck source=psql_path.sh. |
 | staging_billing_rehearsal_live_mutation.sh | Live mutation execution helpers for staging billing rehearsal. |
+| stripe_account.sh | Shared explicit-account secret-key resolver for Stripe shell scripts.
+
+Contract:
+  - --account <name> resolves STRIPE_SECRET_KEY_<name>.
+  - Resolved key is exported to canonical STRIPE_SECRET_KEY only for the
+    current script invocation.
+  - Without --account, canonical STRIPE_SECRET_KEY must already be present. |
 | stripe_checks.sh | Stripe validation checks for the backend launch gate.
 
 Each check function uses live_gate_require to enforce preconditions:

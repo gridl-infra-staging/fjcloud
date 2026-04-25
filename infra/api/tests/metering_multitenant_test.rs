@@ -2,6 +2,7 @@ mod common;
 
 use api::provisioner::region_map::RegionConfig;
 use api::repos::tenant_repo::TenantRepo;
+use api::repos::vm_inventory_repo::VmInventoryRepo;
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use common::{mock_flapjack_proxy, mock_repo, MockTenantRepo};
@@ -133,6 +134,10 @@ async fn tenant_map_endpoint_returns_all_active_tenants() {
     assert_eq!(products["customer_id"], customer_a.id.to_string());
     assert_eq!(products["vm_id"], vm_a.to_string());
     assert_eq!(products["flapjack_url"], "https://vm-a.flapjack.foo");
+    assert_eq!(
+        products["flapjack_uid"],
+        format!("{}_products", customer_a.id.as_simple())
+    );
 
     let orders = arr
         .iter()
@@ -141,8 +146,97 @@ async fn tenant_map_endpoint_returns_all_active_tenants() {
     assert_eq!(orders["customer_id"], customer_b.id.to_string());
     assert_eq!(orders["vm_id"], vm_b.to_string());
     assert_eq!(orders["flapjack_url"], "https://vm-b.flapjack.foo");
+    assert_eq!(
+        orders["flapjack_uid"],
+        format!("{}_orders", customer_b.id.as_simple())
+    );
 
     assert!(arr.iter().all(|entry| entry["tenant_id"] != "old-index"));
+}
+
+/// Contract test: when a tenant is attached to a shared VM via the seeded
+/// flow (`POST /admin/tenants/:id/indexes` with `flapjack_url`), the
+/// deployment row has `flapjack_url=NULL` and the routable URL lives on
+/// `vm_inventory`. The `/internal/tenant-map` endpoint must fall back to
+/// the VM's URL so the metering agent on the shared VM doesn't filter the
+/// tenant out (it skips entries whose flapjack_url is None or doesn't
+/// match the local URL). Without this fallback, `usage_records` for
+/// shared-VM tenants is never written.
+#[tokio::test]
+async fn tenant_map_falls_back_to_vm_inventory_url_when_deployment_has_none() {
+    let customer_repo = mock_repo();
+    let customer = customer_repo.seed("Carol", "carol@example.com");
+
+    let deployment_repo = common::mock_deployment_repo();
+    // Provision the deployment with flapjack_url = None — this is the
+    // seeded shared-VM contract from admin/indexes.rs::seed_index, which
+    // delegates routable-URL ownership to vm_inventory.
+    let deployment = deployment_repo.seed_provisioned(
+        customer.id,
+        "e2e-node-shared",
+        "us-east-1",
+        "t4g.medium",
+        api::vm_providers::BARE_METAL_VM_PROVIDER,
+        "running",
+        None,
+    );
+
+    let vm_inventory_repo = common::mock_vm_inventory_repo();
+    let vm = vm_inventory_repo
+        .create(api::models::vm_inventory::NewVmInventory {
+            region: "us-east-1".into(),
+            provider: api::vm_providers::BARE_METAL_VM_PROVIDER.into(),
+            hostname: "vm-shared-aaaaaaaa.flapjack.foo".into(),
+            flapjack_url: "http://vm-shared-aaaaaaaa.flapjack.foo:7700".into(),
+            capacity: serde_json::json!({"cpu_cores": 8, "memory_gb": 32, "disk_gb": 500}),
+        })
+        .await
+        .unwrap();
+
+    let tenant_repo: Arc<MockTenantRepo> = Arc::new(MockTenantRepo::new());
+    tenant_repo.seed_deployment(
+        deployment.id,
+        &deployment.region,
+        deployment.flapjack_url.as_deref(),
+        &deployment.health_status,
+        &deployment.status,
+    );
+    tenant_repo
+        .create(customer.id, "demo-shared-free", deployment.id)
+        .await
+        .unwrap();
+    tenant_repo
+        .set_vm_id(customer.id, "demo-shared-free", vm.id)
+        .await
+        .unwrap();
+
+    let app = common::test_app_with_indexes_and_vm_inventory(
+        customer_repo,
+        deployment_repo,
+        tenant_repo,
+        mock_flapjack_proxy(),
+        vm_inventory_repo,
+    );
+
+    let req = internal_get("/internal/tenant-map");
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let body = resp.into_body().collect().await.unwrap().to_bytes();
+    let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    let arr = json
+        .as_array()
+        .expect("tenant map response should be an array");
+
+    let entry = arr
+        .iter()
+        .find(|e| e["tenant_id"] == "demo-shared-free")
+        .expect("seeded shared-VM tenant should appear in tenant-map");
+    assert_eq!(
+        entry["flapjack_url"], "http://vm-shared-aaaaaaaa.flapjack.foo:7700",
+        "tenant-map must fall back to vm_inventory.flapjack_url when deployment.flapjack_url is null; otherwise the metering agent filters this tenant out and usage_records is never written"
+    );
+    assert_eq!(entry["vm_id"], vm.id.to_string());
 }
 
 #[tokio::test]

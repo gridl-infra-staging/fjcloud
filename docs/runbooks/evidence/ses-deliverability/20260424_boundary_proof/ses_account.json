@@ -1,0 +1,25 @@
+{
+    "DedicatedIpAutoWarmupEnabled": true,
+    "EnforcementStatus": "HEALTHY",
+    "ProductionAccessEnabled": true,
+    "SendQuota": {
+        "Max24HourSend": 50000.0,
+        "MaxSendRate": 14.0,
+        "SentLast24Hours": 1.0
+    },
+    "SendingEnabled": true,
+    "Details": {
+        "MailType": "TRANSACTIONAL",
+        "WebsiteURL": "https://cloud.flapjack.foo",
+        "ContactLanguage": "EN",
+        "UseCaseDescription": "Flapjack Cloud transactional email for account verification, password reset, billing invoices, quota warnings, support/account notifications, and security notices. Recipients are application users or account contacts who requested service emails. Bounce and complaint handling will be monitored through SES reputation/account dashboards and CloudWatch before broader launch.",
+        "AdditionalContactEmailAddresses": [
+            "hi@flapjack.foo",
+            "support@flapjack.foo"
+        ],
+        "ReviewDetails": {
+            "Status": "GRANTED",
+            "CaseId": "177691331300187"
+        }
+    }
+}

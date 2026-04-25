@@ -6,6 +6,6 @@
 
 | Directory | Summary |
 | --- | --- |
-| src | The infra/api/src directory contains the modular backend implementation of the fjcloud HTTP API server, organized into core layers for routing, authentication, billing, and data access, along with infrastructure services for provisioning, Stripe integration, DNS management, and secret storage. |
-| tests | The tests directory provides shared test infrastructure for the fjcloud API suite, including utilities, fixtures, and mock helpers for capacity profiles, flapjack proxy stubs, index routes, storage metering, and S3 routing. |
+| src | The src directory implements the fjcloud HTTP API server (built with axum), containing route handlers for billing, authentication, indexing, and cloud operations alongside supporting infrastructure for multi-cloud VM provisioning, Stripe integration, DNS management, repository data access, secrets handling, and request middleware. |
+| tests | The tests directory provides shared test utilities and fixtures for the fjcloud API test suite, including mock clients, capacity profiles for scheduler testing, and integration helpers for index routing and S3 operations. |
 <!-- [scrai:end] -->

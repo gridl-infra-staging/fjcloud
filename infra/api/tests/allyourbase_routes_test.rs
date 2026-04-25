@@ -2,13 +2,15 @@ mod common;
 
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
-use common::{create_test_jwt, mock_repo, MockCustomerRepo, TestStateBuilder};
+use common::{
+    create_test_jwt, mock_repo, new_ready_ayb_tenant, seed_ayb_tenant_repo,
+    test_state_with_ayb_tenant_repo, MockCustomerRepo, TestStateBuilder,
+};
 use http_body_util::BodyExt;
 use std::sync::Arc;
 use tower::ServiceExt;
 use uuid::Uuid;
 
-use api::models::ayb_tenant::{AybTenantStatus, NewAybTenant};
 use api::repos::ayb_tenant_repo::AybTenantRepo;
 use api::repos::InMemoryAybTenantRepo;
 use api::router::build_router;
@@ -19,37 +21,6 @@ use api::state::AppState;
 use async_trait::async_trait;
 use billing::plan::PlanTier;
 use std::sync::Mutex;
-
-// ---------------------------------------------------------------------------
-// Local helpers (builders.rs is near 800-line limit — keep helpers here)
-// ---------------------------------------------------------------------------
-
-fn seed_ayb_tenant_repo() -> Arc<InMemoryAybTenantRepo> {
-    Arc::new(InMemoryAybTenantRepo::new())
-}
-
-fn new_ayb_tenant(customer_id: Uuid) -> NewAybTenant {
-    NewAybTenant {
-        customer_id,
-        ayb_tenant_id: format!("ayb-tid-{}", Uuid::new_v4()),
-        ayb_slug: format!("slug-{}", &Uuid::new_v4().to_string()[..8]),
-        ayb_cluster_id: "cluster-01".to_string(),
-        ayb_url: "https://ayb.test/cluster-01".to_string(),
-        status: AybTenantStatus::Ready,
-        plan: PlanTier::Starter,
-    }
-}
-
-fn test_state_with_ayb(
-    customer_repo: Arc<MockCustomerRepo>,
-    ayb_repo: Arc<InMemoryAybTenantRepo>,
-) -> AppState {
-    let mut state = TestStateBuilder::new()
-        .with_customer_repo(customer_repo)
-        .build();
-    state.ayb_tenant_repo = ayb_repo;
-    state
-}
 
 async fn body_json(body: Body) -> serde_json::Value {
     let bytes = body.collect().await.unwrap().to_bytes();
@@ -155,10 +126,13 @@ async fn list_instances_returns_customer_tenants() {
     let customer_repo = mock_repo();
     let customer = customer_repo.seed("Test User", "test@example.com");
     let ayb_repo = seed_ayb_tenant_repo();
-    let tenant = ayb_repo.create(new_ayb_tenant(customer.id)).await.unwrap();
+    let tenant = ayb_repo
+        .create(new_ready_ayb_tenant(customer.id))
+        .await
+        .unwrap();
 
     let token = create_test_jwt(customer.id);
-    let app = build_router(test_state_with_ayb(customer_repo, ayb_repo));
+    let app = build_router(test_state_with_ayb_tenant_repo(customer_repo, ayb_repo));
 
     let req = Request::builder()
         .method("GET")
@@ -185,7 +159,7 @@ async fn list_instances_empty_when_no_tenants() {
     let ayb_repo = seed_ayb_tenant_repo();
 
     let token = create_test_jwt(customer.id);
-    let app = build_router(test_state_with_ayb(customer_repo, ayb_repo));
+    let app = build_router(test_state_with_ayb_tenant_repo(customer_repo, ayb_repo));
 
     let req = Request::builder()
         .method("GET")
@@ -214,16 +188,16 @@ async fn list_instances_customer_isolation() {
     let ayb_repo = seed_ayb_tenant_repo();
 
     ayb_repo
-        .create(new_ayb_tenant(customer_a.id))
+        .create(new_ready_ayb_tenant(customer_a.id))
         .await
         .unwrap();
     ayb_repo
-        .create(new_ayb_tenant(customer_b.id))
+        .create(new_ready_ayb_tenant(customer_b.id))
         .await
         .unwrap();
 
     let token_a = create_test_jwt(customer_a.id);
-    let app = build_router(test_state_with_ayb(customer_repo, ayb_repo));
+    let app = build_router(test_state_with_ayb_tenant_repo(customer_repo, ayb_repo));
 
     let req = Request::builder()
         .method("GET")
@@ -252,16 +226,16 @@ async fn get_instance_customer_isolation() {
     let ayb_repo = seed_ayb_tenant_repo();
 
     ayb_repo
-        .create(new_ayb_tenant(customer_a.id))
+        .create(new_ready_ayb_tenant(customer_a.id))
         .await
         .unwrap();
     let tenant_b = ayb_repo
-        .create(new_ayb_tenant(customer_b.id))
+        .create(new_ready_ayb_tenant(customer_b.id))
         .await
         .unwrap();
 
     let token_a = create_test_jwt(customer_a.id);
-    let app = build_router(test_state_with_ayb(customer_repo, ayb_repo));
+    let app = build_router(test_state_with_ayb_tenant_repo(customer_repo, ayb_repo));
 
     // Customer A tries to fetch customer B's instance by local ID
     let req = Request::builder()
@@ -285,14 +259,17 @@ async fn list_instances_excludes_soft_deleted() {
     let customer = customer_repo.seed("Test User", "test@example.com");
     let ayb_repo = seed_ayb_tenant_repo();
 
-    let tenant = ayb_repo.create(new_ayb_tenant(customer.id)).await.unwrap();
+    let tenant = ayb_repo
+        .create(new_ready_ayb_tenant(customer.id))
+        .await
+        .unwrap();
     ayb_repo
         .soft_delete_for_customer(customer.id, tenant.id)
         .await
         .unwrap();
 
     let token = create_test_jwt(customer.id);
-    let app = build_router(test_state_with_ayb(customer_repo, ayb_repo));
+    let app = build_router(test_state_with_ayb_tenant_repo(customer_repo, ayb_repo));
 
     let req = Request::builder()
         .method("GET")
@@ -318,7 +295,10 @@ async fn get_instance_returns_404_for_soft_deleted() {
     let customer = customer_repo.seed("Test User", "test@example.com");
     let ayb_repo = seed_ayb_tenant_repo();
 
-    let tenant = ayb_repo.create(new_ayb_tenant(customer.id)).await.unwrap();
+    let tenant = ayb_repo
+        .create(new_ready_ayb_tenant(customer.id))
+        .await
+        .unwrap();
     let tenant_id = tenant.id;
     ayb_repo
         .soft_delete_for_customer(customer.id, tenant_id)
@@ -326,7 +306,7 @@ async fn get_instance_returns_404_for_soft_deleted() {
         .unwrap();
 
     let token = create_test_jwt(customer.id);
-    let app = build_router(test_state_with_ayb(customer_repo, ayb_repo));
+    let app = build_router(test_state_with_ayb_tenant_repo(customer_repo, ayb_repo));
 
     let req = Request::builder()
         .method("GET")
@@ -349,10 +329,13 @@ async fn get_instance_by_local_id() {
     let customer = customer_repo.seed("Test User", "test@example.com");
     let ayb_repo = seed_ayb_tenant_repo();
 
-    let tenant = ayb_repo.create(new_ayb_tenant(customer.id)).await.unwrap();
+    let tenant = ayb_repo
+        .create(new_ready_ayb_tenant(customer.id))
+        .await
+        .unwrap();
 
     let token = create_test_jwt(customer.id);
-    let app = build_router(test_state_with_ayb(customer_repo, ayb_repo));
+    let app = build_router(test_state_with_ayb_tenant_repo(customer_repo, ayb_repo));
 
     let req = Request::builder()
         .method("GET")
@@ -377,10 +360,13 @@ async fn get_instance_by_upstream_ayb_id_returns_404() {
     let customer = customer_repo.seed("Test User", "test@example.com");
     let ayb_repo = seed_ayb_tenant_repo();
 
-    let tenant = ayb_repo.create(new_ayb_tenant(customer.id)).await.unwrap();
+    let tenant = ayb_repo
+        .create(new_ready_ayb_tenant(customer.id))
+        .await
+        .unwrap();
 
     let token = create_test_jwt(customer.id);
-    let app = build_router(test_state_with_ayb(customer_repo, ayb_repo));
+    let app = build_router(test_state_with_ayb_tenant_repo(customer_repo, ayb_repo));
 
     // Use the upstream AYB tenant ID (a string, not a UUID) — should NOT resolve
     let req = Request::builder()
@@ -407,7 +393,7 @@ async fn get_instance_nonexistent_returns_404() {
     let ayb_repo = seed_ayb_tenant_repo();
 
     let token = create_test_jwt(customer.id);
-    let app = build_router(test_state_with_ayb(customer_repo, ayb_repo));
+    let app = build_router(test_state_with_ayb_tenant_repo(customer_repo, ayb_repo));
 
     let req = Request::builder()
         .method("GET")
@@ -461,7 +447,10 @@ async fn delete_instance_returns_204() {
     let customer_repo = mock_repo();
     let customer = customer_repo.seed("Test User", "test@example.com");
     let ayb_repo = seed_ayb_tenant_repo();
-    let tenant = ayb_repo.create(new_ayb_tenant(customer.id)).await.unwrap();
+    let tenant = ayb_repo
+        .create(new_ready_ayb_tenant(customer.id))
+        .await
+        .unwrap();
 
     let client = MockDeleteAybClient::succeeding();
     let token = create_test_jwt(customer.id);
@@ -487,7 +476,10 @@ async fn delete_instance_second_delete_returns_404_after_soft_delete() {
     let customer_repo = mock_repo();
     let customer = customer_repo.seed("Test User", "test@example.com");
     let ayb_repo = seed_ayb_tenant_repo();
-    let tenant = ayb_repo.create(new_ayb_tenant(customer.id)).await.unwrap();
+    let tenant = ayb_repo
+        .create(new_ready_ayb_tenant(customer.id))
+        .await
+        .unwrap();
 
     let client = MockDeleteAybClient::succeeding();
     let token = create_test_jwt(customer.id);
@@ -534,11 +526,11 @@ async fn delete_instance_customer_isolation() {
     let ayb_repo = seed_ayb_tenant_repo();
 
     ayb_repo
-        .create(new_ayb_tenant(customer_a.id))
+        .create(new_ready_ayb_tenant(customer_a.id))
         .await
         .unwrap();
     let tenant_b = ayb_repo
-        .create(new_ayb_tenant(customer_b.id))
+        .create(new_ready_ayb_tenant(customer_b.id))
         .await
         .unwrap();
 
@@ -567,7 +559,10 @@ async fn delete_instance_idempotent_when_ayb_returns_not_found() {
     let customer_repo = mock_repo();
     let customer = customer_repo.seed("Test User", "test@example.com");
     let ayb_repo = seed_ayb_tenant_repo();
-    let tenant = ayb_repo.create(new_ayb_tenant(customer.id)).await.unwrap();
+    let tenant = ayb_repo
+        .create(new_ready_ayb_tenant(customer.id))
+        .await
+        .unwrap();
 
     // AYB says tenant already gone upstream — treat as delete-complete
     let client = MockDeleteAybClient::not_found();
@@ -594,11 +589,14 @@ async fn delete_instance_503_when_ayb_client_not_configured() {
     let customer_repo = mock_repo();
     let customer = customer_repo.seed("Test User", "test@example.com");
     let ayb_repo = seed_ayb_tenant_repo();
-    let tenant = ayb_repo.create(new_ayb_tenant(customer.id)).await.unwrap();
+    let tenant = ayb_repo
+        .create(new_ready_ayb_tenant(customer.id))
+        .await
+        .unwrap();
 
     // No AybAdminClient configured — state.ayb_admin_client is None
     let token = create_test_jwt(customer.id);
-    let app = build_router(test_state_with_ayb(customer_repo, ayb_repo));
+    let app = build_router(test_state_with_ayb_tenant_repo(customer_repo, ayb_repo));
 
     let req = Request::builder()
         .method("DELETE")
@@ -619,7 +617,10 @@ async fn delete_instance_propagates_upstream_failure() {
     let customer_repo = mock_repo();
     let customer = customer_repo.seed("Test User", "test@example.com");
     let ayb_repo = seed_ayb_tenant_repo();
-    let tenant = ayb_repo.create(new_ayb_tenant(customer.id)).await.unwrap();
+    let tenant = ayb_repo
+        .create(new_ready_ayb_tenant(customer.id))
+        .await
+        .unwrap();
 
     // AYB service is down
     let client = MockDeleteAybClient::unavailable();
@@ -646,7 +647,10 @@ async fn delete_instance_hides_raw_upstream_error_text() {
     let customer_repo = mock_repo();
     let customer = customer_repo.seed("Test User", "test@example.com");
     let ayb_repo = seed_ayb_tenant_repo();
-    let tenant = ayb_repo.create(new_ayb_tenant(customer.id)).await.unwrap();
+    let tenant = ayb_repo
+        .create(new_ready_ayb_tenant(customer.id))
+        .await
+        .unwrap();
 
     let client = MockDeleteAybClient::bad_request();
     let token = create_test_jwt(customer.id);

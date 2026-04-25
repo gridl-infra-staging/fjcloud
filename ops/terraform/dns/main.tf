@@ -11,24 +11,30 @@ locals {
       type    = "CNAME"
       content = aws_lb.api.dns_name
       ttl     = var.dns_ttl
+      proxied = false
     }
     api = {
       name    = local.api_domain
       type    = "CNAME"
       content = aws_lb.api.dns_name
       ttl     = var.dns_ttl
+      proxied = false
     }
     www = {
       name    = local.www_domain
       type    = "CNAME"
       content = aws_lb.api.dns_name
       ttl     = var.dns_ttl
+      proxied = false
     }
     cloud = {
       name    = local.cloud_domain
       type    = "CNAME"
-      content = aws_lb.api.dns_name
-      ttl     = var.dns_ttl
+      # The canonical cloud hostname still uses the existing Pages-backed web
+      # deploy while runtime/API traffic stays on the ALB-backed hosts.
+      content = "flapjack-cloud.pages.dev"
+      ttl     = 1
+      proxied = true
     }
   }
 
@@ -224,6 +230,6 @@ resource "cloudflare_dns_record" "public" {
   type    = each.value.type
   content = each.value.content
   ttl     = each.value.ttl
-  proxied = false
-  comment = "fjcloud ${var.env} public ALB route"
+  proxied = each.value.proxied
+  comment = "fjcloud ${var.env} public route"
 }

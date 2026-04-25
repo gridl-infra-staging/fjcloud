@@ -768,6 +768,84 @@ async fn seed_index_with_flapjack_url_does_not_leave_tenant_when_vm_key_setup_fa
     );
 }
 
+/// Idempotency contract: when a tenant's index already exists, re-seeding
+/// must return `200 OK` with the existing endpoint instead of `409`. This
+/// is the contract the synthetic-traffic seeder relies on when re-running
+/// against staging from a fresh operator workspace.
+#[tokio::test]
+async fn seed_index_returns_existing_endpoint_on_rerun_instead_of_409() {
+    let customer_repo = std::sync::Arc::new(MockCustomerRepo::new());
+    let customer = customer_repo.seed("Acme", "acme@test.com");
+    let deployment_repo = std::sync::Arc::new(MockDeploymentRepo::new());
+    let tenant_repo = common::mock_tenant_repo();
+    let vm_inventory_repo = mock_vm_inventory_repo();
+
+    let proxy = mock_flapjack_proxy_with_secrets(std::sync::Arc::new(
+        api::secrets::mock::MockNodeSecretManager::new(),
+    ));
+
+    let app = common::test_app_with_indexes_and_vm_inventory(
+        customer_repo,
+        deployment_repo,
+        tenant_repo.clone(),
+        proxy,
+        vm_inventory_repo,
+    );
+
+    let make_request = || {
+        Request::builder()
+            .method("POST")
+            .uri(format!("/admin/tenants/{}/indexes", customer.id))
+            .header("X-Admin-Key", TEST_ADMIN_KEY)
+            .header("Content-Type", "application/json")
+            .body(axum::body::Body::from(
+                json!({
+                    "name": "rerun-me",
+                    "region": "us-east-1",
+                    "flapjack_url": "http://localhost:7700"
+                })
+                .to_string(),
+            ))
+            .unwrap()
+    };
+
+    let first = app.clone().oneshot(make_request()).await.unwrap();
+    assert_eq!(first.status(), StatusCode::CREATED);
+    let first_body = axum::body::to_bytes(first.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let first_resp: serde_json::Value = serde_json::from_slice(&first_body).unwrap();
+    let first_endpoint = first_resp["endpoint"].as_str().unwrap_or("").to_string();
+    assert_eq!(first_endpoint, "http://localhost:7700");
+
+    let second = app.oneshot(make_request()).await.unwrap();
+    assert_eq!(
+        second.status(),
+        StatusCode::OK,
+        "second seed of an existing index should return 200, not 409, so reruns can recover the existing endpoint"
+    );
+    let second_body = axum::body::to_bytes(second.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let second_resp: serde_json::Value = serde_json::from_slice(&second_body).unwrap();
+    assert_eq!(
+        second_resp["name"], "rerun-me",
+        "rerun response should echo the existing tenant id"
+    );
+    assert_eq!(
+        second_resp["endpoint"]
+            .as_str()
+            .map(|s| s.to_string())
+            .unwrap_or_default(),
+        first_endpoint,
+        "rerun response should expose the same flapjack endpoint as the original create"
+    );
+    assert_eq!(
+        second_resp["status"], "healthy",
+        "rerun response should mark the existing index as healthy"
+    );
+}
+
 #[tokio::test]
 async fn seed_index_with_flapjack_url_rejects_non_http_scheme() {
     let customer_repo = Arc::new(MockCustomerRepo::new());

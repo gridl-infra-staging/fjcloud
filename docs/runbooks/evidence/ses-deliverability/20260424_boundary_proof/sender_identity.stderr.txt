@@ -1,0 +1,2 @@
+
+An error occurred (NotFoundException) when calling the GetEmailIdentity operation: Email identity <system@flapjack.foo> does not exist.

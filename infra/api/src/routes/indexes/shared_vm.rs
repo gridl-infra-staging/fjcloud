@@ -1,4 +1,15 @@
 use super::*;
+use crate::services::flapjack_proxy::ProxyError;
+use std::time::Duration;
+use tokio::time::sleep;
+
+const NEW_SHARED_VM_CREATE_RETRY_ATTEMPTS: usize = 20;
+const NEW_SHARED_VM_CREATE_RETRY_INTERVAL: Duration = Duration::from_secs(3);
+
+struct SelectedSharedVm {
+    vm: crate::models::vm_inventory::VmInventory,
+    just_provisioned: bool,
+}
 
 pub(super) async fn create_index_on_shared_vm(
     state: &AppState,
@@ -6,22 +17,16 @@ pub(super) async fn create_index_on_shared_vm(
     index_name: &str,
     region: &str,
 ) -> Result<Response, ApiError> {
-    let vm = select_shared_vm_for_new_index(state, region, &ResourceVector::zero()).await?;
+    let selected_vm =
+        select_shared_vm_for_new_index(state, region, &ResourceVector::zero()).await?;
+    let vm = selected_vm.vm;
     ensure_shared_vm_has_admin_key(state, &vm).await?;
     let (deployment_id, target) =
         create_shared_deployment(state, customer_id, index_name, region, &vm).await?;
 
     // Use the tenant-scoped flapjack UID already computed in the target so
     // same-name indexes from different customers are isolated on the shared VM.
-    state
-        .flapjack_proxy
-        .create_index(
-            &target.flapjack_url,
-            &target.node_id,
-            region,
-            &target.flapjack_uid,
-        )
-        .await?;
+    create_shared_vm_index_with_warmup_retry(state, &target, selected_vm.just_provisioned).await?;
 
     let tenant = state
         .tenant_repo
@@ -109,9 +114,19 @@ fn build_shared_vm_loads(
 fn select_placed_vm(
     new_index_resources: &ResourceVector,
     candidate_vms: &[crate::models::vm_inventory::VmInventory],
-) -> Option<crate::models::vm_inventory::VmInventory> {
-    place_index(new_index_resources, &build_shared_vm_loads(candidate_vms))
-        .and_then(|placed_vm_id| candidate_vms.iter().find(|v| v.id == placed_vm_id).cloned())
+) -> Option<SelectedSharedVm> {
+    place_index(new_index_resources, &build_shared_vm_loads(candidate_vms)).and_then(
+        |placed_vm_id| {
+            candidate_vms
+                .iter()
+                .find(|v| v.id == placed_vm_id)
+                .cloned()
+                .map(|vm| SelectedSharedVm {
+                    vm,
+                    just_provisioned: false,
+                })
+        },
+    )
 }
 
 /// Select the best shared VM in a region for placing a new index, auto-provisioning
@@ -120,7 +135,7 @@ async fn select_shared_vm_for_new_index(
     state: &AppState,
     region: &str,
     new_index_resources: &ResourceVector,
-) -> Result<crate::models::vm_inventory::VmInventory, ApiError> {
+) -> Result<SelectedSharedVm, ApiError> {
     let baseline_vms = state
         .vm_inventory_repo
         .list_active(Some(region))
@@ -159,7 +174,10 @@ async fn select_shared_vm_for_new_index(
         .cloned();
 
     if let Some(vm) = newly_visible_vm {
-        return Ok(vm);
+        return Ok(SelectedSharedVm {
+            vm,
+            just_provisioned: true,
+        });
     }
 
     let provider = state
@@ -173,9 +191,66 @@ async fn select_shared_vm_for_new_index(
         .provisioning_service
         .auto_provision_shared_vm(state.vm_inventory_repo.as_ref(), region, provider)
         .await
+        .map(|vm| SelectedSharedVm {
+            vm,
+            just_provisioned: true,
+        })
         .map_err(|e| {
             ApiError::ServiceUnavailable(format!("failed to auto-provision shared VM: {e}"))
         })
+}
+
+async fn create_shared_vm_index_with_warmup_retry(
+    state: &AppState,
+    target: &ResolvedFlapjackTarget,
+    just_provisioned: bool,
+) -> Result<(), ApiError> {
+    let attempts = if just_provisioned {
+        NEW_SHARED_VM_CREATE_RETRY_ATTEMPTS
+    } else {
+        1
+    };
+
+    for attempt in 0..attempts {
+        match state
+            .flapjack_proxy
+            .create_index(
+                &target.flapjack_url,
+                &target.node_id,
+                &target.region,
+                &target.flapjack_uid,
+            )
+            .await
+        {
+            Ok(()) => return Ok(()),
+            Err(ProxyError::Unreachable(message)) if just_provisioned && attempt + 1 < attempts => {
+                tracing::warn!(
+                    flapjack_url = %target.flapjack_url,
+                    node_id = %target.node_id,
+                    attempt = attempt + 1,
+                    attempts,
+                    error = %message,
+                    "fresh shared VM not reachable yet; retrying index create"
+                );
+                sleep(NEW_SHARED_VM_CREATE_RETRY_INTERVAL).await;
+            }
+            Err(ProxyError::Timeout) if just_provisioned && attempt + 1 < attempts => {
+                tracing::warn!(
+                    flapjack_url = %target.flapjack_url,
+                    node_id = %target.node_id,
+                    attempt = attempt + 1,
+                    attempts,
+                    "fresh shared VM timed out during index create; retrying"
+                );
+                sleep(NEW_SHARED_VM_CREATE_RETRY_INTERVAL).await;
+            }
+            Err(error) => return Err(error.into()),
+        }
+    }
+
+    Err(ApiError::ServiceUnavailable(
+        "backend temporarily unavailable".into(),
+    ))
 }
 
 /// Create a deployment row and return the resolved flapjack target for a

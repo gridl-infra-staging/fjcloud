@@ -6,5 +6,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| fixtures | This fixtures directory contains authentication setup files and test helper utilities for the Playwright browser test suite, including project-specific auth configurations for admin, customer journeys, and onboarding tests, plus helper functions for search preview and searchable index creation. |
+| fixtures | This fixtures directory contains Playwright test setup files and helper utilities for the fjcloud web test suite, including authentication setup flows for different user types and database seeding helpers. |
 <!-- [scrai:end] -->

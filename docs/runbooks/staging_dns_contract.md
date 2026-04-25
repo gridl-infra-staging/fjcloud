@@ -1,6 +1,6 @@
 ## Purpose
 
-Establish the single staging DNS contract for follow-on infrastructure stages. This artifact records the 2026-04-20 correction that `flapjack.foo`, not `flapjack.cloud`, is the owned public domain for fjcloud staging, and the later 2026-04-21 evidence that the Cloudflare/DNS cutover is now complete.
+Establish the single staging DNS contract for follow-on infrastructure stages. This artifact records the 2026-04-20 correction that `flapjack.foo`, not `flapjack.cloud`, is the owned public domain for fjcloud staging, the 2026-04-21 cutover evidence, and the 2026-04-25 reconciliation that locked the checked-in Terraform/runtime-smoke contract to the live ALB-plus-Pages routing split.
 
 ## Canonical Staging Domain
 
@@ -26,7 +26,7 @@ Decision status: finalized.
 | `PRIORITIES.md:43` | Cloudflare must publish `flapjack.foo` public records. |
 | `ops/terraform/_shared/variables.tf` | Root Terraform `domain` default is `flapjack.foo`. |
 | `ops/terraform/dns/variables.tf` | DNS module `domain` default is `flapjack.foo`. |
-| `ops/terraform/dns/main.tf` | Public ALB, ACM validation, and SES DKIM DNS records are parameterized by `var.domain` and published through Cloudflare. |
+| `ops/terraform/dns/main.tf` | Public DNS records are parameterized by `var.domain`; apex/api/www target the staging ALB and `cloud` stays proxied to `flapjack-cloud.pages.dev`. ACM validation and SES DKIM records are also published through Cloudflare. |
 | `ops/scripts/validate_bootstrap.sh` | Bootstrap validation checks the Cloudflare `flapjack.foo` zone. |
 | `docs/env-vars.md` | Documents canonical Cloudflare env vars plus the `FLAPJACK_FOO` token/zone aliases. |
 
@@ -34,13 +34,27 @@ Decision status: finalized.
 
 This document keeps the original contract and its historical troubleshooting notes, but the live-status authority is now [`docs/runbooks/staging-evidence.md`](./staging-evidence.md).
 
-Current live status recorded there on 2026-04-21:
+Historical cutover status recorded there on 2026-04-21:
 
 - Public hosts routed through Cloudflare: `flapjack.foo`, `api.flapjack.foo`, `www.flapjack.foo`, `cloud.flapjack.foo`.
 - ACM certificate status: `ISSUED`.
 - SES identity status: `SUCCESS`.
 - SES DKIM status: `SUCCESS`.
 - Public health check: `https://api.flapjack.foo/health` returned `200`.
+
+Latest live reconciliation recorded on 2026-04-25:
+
+- `cloud.flapjack.foo` currently exists in Cloudflare as a proxied `CNAME`
+  pointing to `flapjack-cloud.pages.dev`.
+- The checked-in Terraform DNS contract in `ops/terraform/dns/main.tf` and the
+  runtime owner in `ops/terraform/tests_stage7_runtime_smoke.sh` now match that
+  provider-side truth instead of forcing `cloud.flapjack.foo` onto the staging
+  ALB.
+- `web/svelte.config.js` and `web/src/routes/+layout.ts` now describe the
+  Pages-backed `cloud` surface as a current deployment detail rather than as a
+  contradictory ownership claim.
+- `bash ops/terraform/tests_stage7_runtime_smoke.sh --env staging --domain flapjack.foo --ami-id ami-078228dbe86117d85 --env-file /Users/stuart/repos/gridl-infra-dev/fjcloud_dev/.secret/.env.secret`
+  passed on 2026-04-25, so `dns_record_mismatch` is no longer an active DNS-contract blocker.
 
 Historical notes from the 2026-04-20 correction lane:
 
@@ -49,7 +63,7 @@ Historical notes from the 2026-04-20 correction lane:
 - Prior AWS ACM and SES resources were aligned to `flapjack.cloud`; those are historical and should not drive new staging DNS work.
 - `dig +short NS flapjack.foo @1.1.1.1` returned Cloudflare nameservers.
 - `api.flapjack.foo` had no public A/CNAME in the earlier read-only DNS check.
-- `/Users/stuart/repos/gridl-infra-dev/fjcloud_dev/.secret/.env.secret` contains `CLOUDFLARE_EDIT_READ_ZONE_DNS_API_TOKEN_FLAPJACK_FOO` and `CLOUDFLARE_ZONE_ID_FLAPJACK_FOO`.
+- Historical secret-source snapshot only (not active guidance): `/Users/stuart/repos/gridl-infra-dev/fjcloud_dev/.secret/.env.secret` contained `CLOUDFLARE_EDIT_READ_ZONE_DNS_API_TOKEN_FLAPJACK_FOO` and `CLOUDFLARE_ZONE_ID_FLAPJACK_FOO`.
 - An earlier read-only Cloudflare lookup returned HTTP 403 with code `9109` (`Invalid access token`); that specific credential issue is historical and is no longer the current blocker per the 2026-04-21 staging evidence update.
 
 ## Public DNS Record Matrix
@@ -59,7 +73,7 @@ Historical notes from the 2026-04-20 correction lane:
 | `flapjack.foo` | `ops/terraform/dns/main.tf` `local.public_dns_records.apex` | `CNAME` | Staging ALB DNS name | DNS-only, `var.dns_ttl` | `dig +short CNAME flapjack.foo @1.1.1.1` |
 | `api.flapjack.foo` | `local.public_dns_records.api` | `CNAME` | Staging ALB DNS name | DNS-only, `var.dns_ttl` | `dig +short CNAME api.flapjack.foo @1.1.1.1` |
 | `www.flapjack.foo` | `local.public_dns_records.www` | `CNAME` | Staging ALB DNS name | DNS-only, `var.dns_ttl` | `dig +short CNAME www.flapjack.foo @1.1.1.1` |
-| `cloud.flapjack.foo` | `local.public_dns_records.cloud` | `CNAME` | Staging ALB DNS name | DNS-only, `var.dns_ttl` | `dig +short CNAME cloud.flapjack.foo @1.1.1.1` |
+| `cloud.flapjack.foo` | `local.public_dns_records.cloud` | `CNAME` | `flapjack-cloud.pages.dev` | Proxied, TTL `1` | `dig +short CNAME cloud.flapjack.foo @1.1.1.1` |
 | ACM validation names | `cloudflare_dns_record.cert_validation` | `CNAME` | AWS ACM generated validation values | DNS-only, TTL 60 | `aws acm describe-certificate --certificate-arn <arn> --query 'Certificate.DomainValidationOptions'` |
 | SES DKIM names | `cloudflare_dns_record.ses_dkim` | `CNAME` | AWS SES generated DKIM values | DNS-only, `var.dns_ttl` | `aws sesv2 get-email-identity --email-identity flapjack.foo --region us-east-1` |
 
@@ -71,20 +85,27 @@ Historical notes from the 2026-04-20 correction lane:
 
 ## Current Blockers
 
-No active DNS-contract blocker is recorded in the latest staging evidence.
+There is no active DNS-contract blocker after the 2026-04-25 reconciliation.
 
-- Cloudflare zone access, public records, ACM issuance, SES verification, and public API health are all recorded as complete in [`docs/runbooks/staging-evidence.md`](./staging-evidence.md).
-- Remaining launch blockers are outside the DNS contract: Stripe staging credentials, credentialed billing evidence, and one unrelated cold-storage encryption drift representation in Terraform evidence.
+- Cloudflare zone access, ACM issuance, SES verification, public API health,
+  and the checked-in DNS owner contract are all aligned in
+  [`docs/runbooks/staging-evidence.md`](./staging-evidence.md).
+- Remaining launch blockers exist outside the DNS contract, especially the
+  staging seed-index / billing-lane runtime failure documented in
+  [`docs/runbooks/staging-evidence.md`](./staging-evidence.md).
 
 ## Validation
 
 Run these when re-validating the DNS contract after a future public-DNS change:
 
+- Default local secret source for current reruns is `/Users/stuart/repos/gridl-infra-dev/fjcloud_dev/.secret/.env.secret` (or explicit `--env-file` override if using a different checkout layout).
+
 ```bash
 bash ops/terraform/tests_stage7_runtime_smoke.sh \
   --env staging \
   --domain flapjack.foo \
-  --ami-id <current-staging-ami-id>
+  --ami-id <current-staging-ami-id> \
+  --env-file /Users/stuart/repos/gridl-infra-dev/fjcloud_dev/.secret/.env.secret
 ```
 
-The smoke harness validates Cloudflare zone access, public CNAMEs, ACM issuance, ALB HTTPS routing, SES DKIM verification, and `https://api.flapjack.foo/health`.
+The smoke harness validates Cloudflare zone access, the ALB/Pages public-route split, ACM issuance, ALB HTTPS routing, SES DKIM verification, and `https://api.flapjack.foo/health`.

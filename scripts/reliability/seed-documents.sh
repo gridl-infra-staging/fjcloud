@@ -9,6 +9,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/metrics.sh
 source "$SCRIPT_DIR/lib/metrics.sh"
+# shellcheck source=../lib/deterministic_batch_payload.sh
+source "$SCRIPT_DIR/../lib/deterministic_batch_payload.sh"
 
 TIER="${1:?Usage: seed-documents.sh <1k|10k|100k>}"
 API_BASE="${2:-http://localhost:${API_PORT}}"
@@ -44,32 +46,8 @@ while [ "$inserted" -lt "$DOC_COUNT" ]; do
     remaining=$((DOC_COUNT - inserted))
     current_batch=$((remaining < BATCH_SIZE ? remaining : BATCH_SIZE))
 
-    # Generate deterministic batch using seed + offset
-    batch_json="$(python3 -c "
-import json, hashlib
-
-seed = $SEED
-offset = $inserted
-count = $current_batch
-
-requests = []
-for i in range(count):
-    doc_id = offset + i
-    # Deterministic content from seed + doc_id
-    h = hashlib.sha256(f'{seed}:{doc_id}'.encode()).hexdigest()
-    requests.append({
-        'action': 'addObject',
-        'body': {
-            'objectID': f'doc-{doc_id}',
-            'title': f'Document {doc_id}',
-            'body': f'Deterministic content {h[:32]}',
-            'category': ['alpha', 'beta', 'gamma', 'delta'][doc_id % 4],
-            'score': (doc_id * 17 + seed) % 1000 / 10.0,
-            'tags': [f'tag{(doc_id * 3 + j) % 20}' for j in range(3)]
-        }
-    })
-print(json.dumps({'requests': requests}))
-")"
+    # Generate deterministic batch using seed + offset.
+    batch_json="$(deterministic_batch_payload "$SEED" "$inserted" "$current_batch")"
 
     # POST batch to flapjack using the current authenticated batch contract.
     curl_flapjack POST "${FLAPJACK_BASE}/1/indexes/${INDEX_NAME}/batch" \

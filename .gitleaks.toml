@@ -9,59 +9,43 @@
 #     scripts/stripe/ and scripts/validate-stripe.sh. Stripe test keys
 #     are public-info per Stripe's docs (they only authenticate test-mode
 #     API requests).
-#   - Internal test placeholders (`fjcloud-internal-token`,
-#     `dummy-bearer-token`, `placeholder-secret-...`) that match
-#     gitleaks' generic-api-key regex but are obvious sentinel values.
+#   - The reliability suite's documented fake-secret fixtures
+#     (`scripts/reliability/fixtures/security/fake_aws_keys.txt`) which
+#     exist specifically to verify secret-scan detection works.
 #
 # Reasoning: an empty `gitleaks detect --exit-code=2` is required by the
 # staging CI secret-scan job. Without these allowlists the job fails on
 # obvious test fixtures; with them, real production secrets still get
-# flagged because the allowlist conditions are scoped narrowly.
+# flagged because the allowlist conditions are scoped narrowly to known
+# fixture file paths and Stripe's well-known test-key prefixes.
+#
+# Format note: gitleaks 8.24.3 (used by staging CI) supports a single
+# `[allowlist]` table rather than the newer `[[allowlists]]` array of
+# tables. We use the older single-table form so the same config works
+# across both versions.
 
 [extend]
 useDefault = true
 
-[[allowlists]]
-description = "Test fixtures and test-only files (Rust, TS, shell)"
+[allowlist]
+description = "fjcloud false-positive allowlist for test fixtures and Stripe test keys"
 paths = [
     '''.*_test\.(rs|ts)$''',
     '''.*\.test\.(rs|ts)$''',
     '''infra/api/tests/.*''',
-    '''infra/metering-agent/src/(config|storage|tenant_map)\.rs''',
-    '''ops/terraform/tests_.*\.sh$''',
-    '''scripts/tests/.*\.sh$''',
-    '''web/src/lib/auth/(guard|jwt)\.test\.ts$''',
-]
-
-[[allowlists]]
-description = "Stripe TEST-mode keys (curl -u sk_test_*) — public per Stripe docs"
-regexes = [
-    '''sk_test_[A-Za-z0-9]{16,}''',
-    '''rk_test_[A-Za-z0-9]{16,}''',
-]
-
-[[allowlists]]
-description = "INTERNAL_AUTH_TOKEN configuration test fixtures in API config"
-paths = [
     '''infra/api/src/config\.rs$''',
-]
-
-[[allowlists]]
-description = "SQL migration documenting storage-key columns; the literal is column commentary"
-paths = [
+    '''infra/metering-agent/src/(config|storage|tenant_map)\.rs''',
     '''infra/migrations/030_storage_service\.sql$''',
-]
-
-[[allowlists]]
-description = "Stripe lifecycle scripts that authenticate via curl -u sk_test_*"
-paths = [
+    '''ops/terraform/tests_.*\.sh$''',
+    '''ops/scripts/live_e2e_budget_guardrail_prep\.sh$''',
+    '''scripts/tests/.*\.sh$''',
     '''scripts/stripe/.*\.sh$''',
     '''scripts/lib/stripe_checks\.sh$''',
     '''scripts/validate-stripe\.sh$''',
+    '''scripts/reliability/fixtures/security/.*''',
+    '''web/src/lib/auth/(guard|jwt)\.test\.ts$''',
 ]
-
-[[allowlists]]
-description = "Live-E2E ops prep script: api_instance_id is an EC2 ID, not a secret"
-paths = [
-    '''ops/scripts/live_e2e_budget_guardrail_prep\.sh$''',
+regexes = [
+    '''sk_test_[A-Za-z0-9]{16,}''',
+    '''rk_test_[A-Za-z0-9]{16,}''',
 ]

@@ -397,8 +397,8 @@ impl SchedulerService {
         vm_per_index: &HashMap<Uuid, HashMap<String, ResourceVector>>,
     ) {
         let active_index_keys: HashSet<String> = vm_per_index
-            .iter()
-            .flat_map(|(_, per_index)| per_index.keys().cloned())
+            .values()
+            .flat_map(|per_index| per_index.keys().cloned())
             .collect();
 
         self.noisy_neighbor_first_seen

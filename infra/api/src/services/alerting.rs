@@ -167,7 +167,7 @@ impl AlertService for MockAlertService {
         }
         let alerts = self.alerts.lock().unwrap();
         let mut sorted: Vec<AlertRecord> = alerts.clone();
-        sorted.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+        sorted.sort_by_key(|alert| std::cmp::Reverse(alert.created_at));
         sorted.truncate(limit as usize);
         Ok(sorted)
     }

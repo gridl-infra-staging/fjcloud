@@ -191,11 +191,10 @@ fn parse_garage_error_xml(xml: &str) -> Option<ParsedGarageError> {
                 }
                 open_tags.push(tag);
             }
-            Ok(Event::Empty(_empty)) => {
-                if open_tags.is_empty() || closed_error_root {
-                    return None;
-                }
+            Ok(Event::Empty(_empty)) if open_tags.is_empty() || closed_error_root => {
+                return None;
             }
+            Ok(Event::Empty(_empty)) => {}
             Ok(Event::Text(text)) => {
                 let value = text.unescape().ok()?.into_owned();
                 if open_tags.is_empty() {

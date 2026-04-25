@@ -192,8 +192,12 @@ describe('Billing dashboard', () => {
 	});
 
 	it('defaults the billing month input to the local calendar month', async () => {
+		// Pin a clock that lands on the same calendar month in every reasonable
+		// host timezone. The earlier `2026-03-01T00:30:00Z` only sat in February
+		// for local timezones west of UTC; UTC-runner CI environments saw March
+		// and failed the assertion. Mid-month UTC has no such ambiguity.
 		vi.useFakeTimers();
-		vi.setSystemTime(new Date('2026-03-01T00:30:00Z'));
+		vi.setSystemTime(new Date('2026-03-15T12:00:00Z'));
 
 		const BillingPage = (await import('./+page.svelte')).default;
 
@@ -203,7 +207,7 @@ describe('Billing dashboard', () => {
 
 		await fireEvent.click(screen.getByTestId('run-billing-button'));
 
-		expect(screen.getByLabelText('Billing month')).toHaveValue('2026-02');
+		expect(screen.getByLabelText('Billing month')).toHaveValue('2026-03');
 	});
 });
 

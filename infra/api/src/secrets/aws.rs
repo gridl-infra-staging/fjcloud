@@ -3,6 +3,7 @@ use async_trait::async_trait;
 use rand::RngCore;
 
 use super::{NodeSecretError, NodeSecretManager};
+use aws_sdk_ssm::operation::get_parameter::GetParameterError;
 
 /// AWS SSM Parameter Store implementation of `NodeSecretManager`.
 ///
@@ -29,6 +30,24 @@ impl SsmNodeSecretManager {
 
     fn previous_parameter_name(node_id: &str) -> String {
         format!("/fjcloud/{node_id}/api-key-previous")
+    }
+
+    /// Preserve modeled missing-parameter errors before the AWS SDK's Display
+    /// implementation collapses them into the generic "service error" string.
+    /// Seed-index creation relies on this remaining distinguishable so the
+    /// existing "create the missing key" recovery path can run.
+    fn map_get_parameter_error<R>(
+        param_name: &str,
+        error: aws_sdk_ssm::error::SdkError<GetParameterError, R>,
+    ) -> NodeSecretError {
+        if error
+            .as_service_error()
+            .is_some_and(|service_error| service_error.is_parameter_not_found())
+        {
+            return NodeSecretError::Api(format!("parameter not found: {param_name}"));
+        }
+
+        NodeSecretError::Api(format!("SSM GetParameter failed: {error}"))
     }
 }
 
@@ -103,7 +122,7 @@ impl NodeSecretManager for SsmNodeSecretManager {
             .with_decryption(true)
             .send()
             .await
-            .map_err(|e| NodeSecretError::Api(format!("SSM GetParameter failed: {e}")))?;
+            .map_err(|error| Self::map_get_parameter_error(&param_name, error))?;
 
         output
             .parameter()
@@ -220,6 +239,8 @@ impl NodeSecretManager for SsmNodeSecretManager {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use aws_sdk_ssm::error::SdkError;
+    use aws_sdk_ssm::types::error::ParameterNotFound;
 
     /// Verifies the generated key has the `fj_live_` prefix and is 72
     /// characters long.
@@ -256,6 +277,32 @@ mod tests {
         assert_eq!(
             SsmNodeSecretManager::parameter_name("node-abc123"),
             "/fjcloud/node-abc123/api-key"
+        );
+    }
+
+    #[test]
+    fn maps_parameter_not_found_get_error_to_missing_secret_error() {
+        let sdk_error = SdkError::service_error(
+            GetParameterError::ParameterNotFound(
+                ParameterNotFound::builder()
+                    .message("missing parameter")
+                    .build(),
+            ),
+            (),
+        );
+
+        let mapped = SsmNodeSecretManager::map_get_parameter_error(
+            "/fjcloud/node-abc123/api-key",
+            sdk_error,
+        );
+
+        assert!(
+            crate::services::flapjack_node::is_missing_node_secret_error(&mapped),
+            "mapped missing-parameter errors must stay recognizable so seeded deployments can backfill the missing key"
+        );
+        assert!(
+            matches!(mapped, NodeSecretError::Api(message) if message.contains("parameter not found")),
+            "mapped missing-parameter errors should preserve an actionable missing-secret message"
         );
     }
 }

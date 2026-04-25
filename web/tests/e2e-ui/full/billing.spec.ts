@@ -28,7 +28,8 @@ test.describe('Billing page', () => {
 		const manageBillingButton = page.getByRole('button', { name: 'Manage billing' });
 		if ((await manageBillingButton.count()) > 0) {
 			await expect(manageBillingButton).toBeVisible();
-			await expect(page.locator('form[action=\"?/manageBilling\"]')).toBeVisible();
+			// eslint-disable-next-line playwright/no-raw-locators -- form lookup by action attr; no role-based or text-based locator equivalent for SvelteKit form actions
+			await expect(page.locator('form[action="?/manageBilling"]')).toBeVisible();
 			await expect(page.getByRole('link', { name: 'Add payment method' })).toHaveCount(0);
 			return;
 		}

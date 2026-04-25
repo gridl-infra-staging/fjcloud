@@ -936,9 +936,13 @@ describe('e2e fixture user helpers', () => {
 		});
 
 		expect(failureMessage).toContain('API URL: http://localhost:3001');
-		expect(failureMessage).toContain('Admin key fingerprint: abcd (len=26)');
+		// Per the 25beb7d7 "matt: posthoc security" tightening, the fingerprint
+		// no longer leaks any prefix chars of the admin key — only presence
+		// and length.
+		expect(failureMessage).toContain('Admin key fingerprint: (present, len=26)');
 		expect(failureMessage).not.toContain(fullAdminKey);
 		expect(failureMessage).not.toContain('secret-super-long-key');
+		expect(failureMessage).not.toContain('abcd');
 		expect(failureMessage).toContain('scripts/bootstrap-env-local.sh');
 		expect(failureMessage).toContain('scripts/api-dev.sh');
 	});
@@ -958,8 +962,10 @@ describe('e2e fixture user helpers', () => {
 		expect(failureMessage).toContain(
 			'Login response: status 401 at http://localhost:3001/admin/login'
 		);
-		expect(failureMessage).toContain('Admin key fingerprint: admi (len=15)');
+		// Privacy-safe fingerprint format (post 25beb7d7): no prefix chars.
+		expect(failureMessage).toContain('Admin key fingerprint: (present, len=15)');
 		expect(failureMessage).not.toContain('admin-key-12345');
+		expect(failureMessage).not.toContain('Admin key fingerprint: admi');
 		expect(failureMessage).toContain('scripts/bootstrap-env-local.sh');
 		expect(failureMessage).toContain('scripts/api-dev.sh');
 		expect(failureMessage).toContain('docs/runbooks/local-dev.md');

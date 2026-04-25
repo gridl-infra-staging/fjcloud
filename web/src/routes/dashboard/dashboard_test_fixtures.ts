@@ -1,4 +1,9 @@
-import type { DailyUsageEntry, Index, OnboardingStatus, UsageSummaryResponse } from '$lib/api/types';
+import type {
+	DailyUsageEntry,
+	Index,
+	OnboardingStatus,
+	UsageSummaryResponse
+} from '$lib/api/types';
 
 export const sampleUsage: UsageSummaryResponse = {
 	month: '2026-02',

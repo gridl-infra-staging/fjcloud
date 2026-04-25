@@ -56,7 +56,16 @@ describe('ApiClient - index endpoints', () => {
 
 	it('GET /indexes returns list of indexes', async () => {
 		const expected: Index[] = [
-			{ name: 'products', region: 'us-east-1', endpoint: 'https://vm-abc.flapjack.foo', entries: 1500, data_size_bytes: 204800, status: 'ready', tier: 'active', created_at: '2026-02-15T10:00:00Z' }
+			{
+				name: 'products',
+				region: 'us-east-1',
+				endpoint: 'https://vm-abc.flapjack.foo',
+				entries: 1500,
+				data_size_bytes: 204800,
+				status: 'ready',
+				tier: 'active',
+				created_at: '2026-02-15T10:00:00Z'
+			}
 		];
 		const fetch = mockFetch(200, expected);
 		client.setFetch(fetch);
@@ -71,7 +80,16 @@ describe('ApiClient - index endpoints', () => {
 	});
 
 	it('GET /indexes/:name returns single index', async () => {
-		const expected: Index = { name: 'products', region: 'us-east-1', endpoint: 'https://vm-abc.flapjack.foo', entries: 1500, data_size_bytes: 204800, status: 'ready', tier: 'active', created_at: '2026-02-15T10:00:00Z' };
+		const expected: Index = {
+			name: 'products',
+			region: 'us-east-1',
+			endpoint: 'https://vm-abc.flapjack.foo',
+			entries: 1500,
+			data_size_bytes: 204800,
+			status: 'ready',
+			tier: 'active',
+			created_at: '2026-02-15T10:00:00Z'
+		};
 		const fetch = mockFetch(200, expected);
 		client.setFetch(fetch);
 
@@ -85,7 +103,16 @@ describe('ApiClient - index endpoints', () => {
 	});
 
 	it('POST /indexes sends name and region', async () => {
-		const expected: Index = { name: 'products', region: 'us-east-1', endpoint: 'https://vm-abc.flapjack.foo', entries: 0, data_size_bytes: 0, status: 'ready', tier: 'active', created_at: '2026-02-15T10:00:00Z' };
+		const expected: Index = {
+			name: 'products',
+			region: 'us-east-1',
+			endpoint: 'https://vm-abc.flapjack.foo',
+			entries: 0,
+			data_size_bytes: 0,
+			status: 'ready',
+			tier: 'active',
+			created_at: '2026-02-15T10:00:00Z'
+		};
 		const fetch = mockFetch(201, expected);
 		client.setFetch(fetch);
 
@@ -543,9 +570,7 @@ describe('ApiClient - index endpoints', () => {
 
 		it('POST /indexes/:name/dictionaries/:dictionary_name/search sends search body', async () => {
 			const expected: DictionarySearchResponse = {
-				hits: [
-					{ objectID: 'en-the', language: 'en', word: 'the', state: 'enabled' }
-				],
+				hits: [{ objectID: 'en-the', language: 'en', word: 'the', state: 'enabled' }],
 				nbHits: 1,
 				page: 0,
 				nbPages: 1
@@ -553,14 +578,22 @@ describe('ApiClient - index endpoints', () => {
 			const fetch = mockFetch(200, expected);
 			client.setFetch(fetch);
 
-			const body: DictionarySearchRequest = { query: 'the', language: 'en', page: 0, hitsPerPage: 20 };
+			const body: DictionarySearchRequest = {
+				query: 'the',
+				language: 'en',
+				page: 0,
+				hitsPerPage: 20
+			};
 			const result = await client.searchDictionaryEntries('products', 'stopwords', body);
 
-			expect(fetch).toHaveBeenCalledWith(`${BASE_URL}/indexes/products/dictionaries/stopwords/search`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json', Authorization: 'Bearer my-jwt-token' },
-				body: JSON.stringify(body)
-			});
+			expect(fetch).toHaveBeenCalledWith(
+				`${BASE_URL}/indexes/products/dictionaries/stopwords/search`,
+				{
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json', Authorization: 'Bearer my-jwt-token' },
+					body: JSON.stringify(body)
+				}
+			);
 			expect(result).toEqual(expected);
 		});
 
@@ -589,17 +622,23 @@ describe('ApiClient - index endpoints', () => {
 			const body: DictionaryBatchRequest = {
 				clearExistingDictionaryEntries: false,
 				requests: [
-					{ action: 'addEntry', body: { objectID: 'en-custom', language: 'en', word: 'custom', state: 'enabled' } },
+					{
+						action: 'addEntry',
+						body: { objectID: 'en-custom', language: 'en', word: 'custom', state: 'enabled' }
+					},
 					{ action: 'deleteEntry', body: { objectID: 'en-the' } }
 				]
 			};
 			const result = await client.batchDictionaryEntries('products', 'stopwords', body);
 
-			expect(fetch).toHaveBeenCalledWith(`${BASE_URL}/indexes/products/dictionaries/stopwords/batch`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json', Authorization: 'Bearer my-jwt-token' },
-				body: JSON.stringify(body)
-			});
+			expect(fetch).toHaveBeenCalledWith(
+				`${BASE_URL}/indexes/products/dictionaries/stopwords/batch`,
+				{
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json', Authorization: 'Bearer my-jwt-token' },
+					body: JSON.stringify(body)
+				}
+			);
 			expect(result).toEqual(expected);
 		});
 	});
@@ -607,9 +646,7 @@ describe('ApiClient - index endpoints', () => {
 	describe('security sources', () => {
 		it('GET /indexes/:name/security/sources returns sources list', async () => {
 			const expected = {
-				sources: [
-					{ source: '192.168.1.0/24', description: 'Office network' }
-				]
+				sources: [{ source: '192.168.1.0/24', description: 'Office network' }]
 			};
 			const fetch = mockFetch(200, expected);
 			client.setFetch(fetch);
@@ -660,11 +697,17 @@ describe('ApiClient - index endpoints', () => {
 
 	describe('index keys', () => {
 		it('POST /indexes/:name/keys sends description and acl', async () => {
-			const expected: FlapjackApiKey = { key: 'fj_search_abc123', createdAt: '2026-02-21T00:00:00Z' };
+			const expected: FlapjackApiKey = {
+				key: 'fj_search_abc123',
+				createdAt: '2026-02-21T00:00:00Z'
+			};
 			const fetch = mockFetch(200, expected);
 			client.setFetch(fetch);
 
-			const result = await client.createIndexKey('products', 'production key', ['search', 'browse']);
+			const result = await client.createIndexKey('products', 'production key', [
+				'search',
+				'browse'
+			]);
 
 			expect(fetch).toHaveBeenCalledWith(`${BASE_URL}/indexes/products/keys`, {
 				method: 'POST',

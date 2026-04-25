@@ -45,16 +45,25 @@
 			</div>
 		{/if}
 		{#if securitySourceAppendError}
-			<div class="mb-3 rounded-md bg-red-50 p-3 text-sm text-red-700">{securitySourceAppendError}</div>
+			<div class="mb-3 rounded-md bg-red-50 p-3 text-sm text-red-700">
+				{securitySourceAppendError}
+			</div>
 		{/if}
 		{#if securitySourceDeleteError}
-			<div class="mb-3 rounded-md bg-red-50 p-3 text-sm text-red-700">{securitySourceDeleteError}</div>
+			<div class="mb-3 rounded-md bg-red-50 p-3 text-sm text-red-700">
+				{securitySourceDeleteError}
+			</div>
 		{/if}
 	</div>
 
 	<div class="rounded-lg bg-white p-6 shadow">
 		<h3 class="mb-3 text-base font-medium text-gray-900">Add Source</h3>
-		<form method="POST" action="?/appendSecuritySource" use:enhance class="grid gap-3 md:grid-cols-3">
+		<form
+			method="POST"
+			action="?/appendSecuritySource"
+			use:enhance
+			class="grid gap-3 md:grid-cols-3"
+		>
 			<div>
 				<label for="security-source-input" class="mb-1 block text-sm font-medium text-gray-700">
 					Source
@@ -70,7 +79,10 @@
 				/>
 			</div>
 			<div>
-				<label for="security-source-description" class="mb-1 block text-sm font-medium text-gray-700">
+				<label
+					for="security-source-description"
+					class="mb-1 block text-sm font-medium text-gray-700"
+				>
 					Description
 				</label>
 				<input

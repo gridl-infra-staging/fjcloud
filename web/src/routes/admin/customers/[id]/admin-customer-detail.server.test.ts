@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
-import { _parseOptionalU32 as parseOptionalU32, _parseOptionalU64 as parseOptionalU64 } from './+page.server';
+import {
+	_parseOptionalU32 as parseOptionalU32,
+	_parseOptionalU64 as parseOptionalU64
+} from './+page.server';
 import {
 	ADMIN_SESSION_COOKIE,
 	clearAdminSessionsForTest,
@@ -91,7 +94,8 @@ function actionContext(
 			body: new URLSearchParams(formParams)
 		}),
 		fetch: async (input: string | URL | Request, init?: RequestInit) => {
-			const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+			const url =
+				typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
 			return fetchHandler(url, init);
 		},
 		params: { id: 'aaaaaaaa-0002-0000-0000-000000000002' },
@@ -105,7 +109,8 @@ function actionContext(
 function loadContext(fetchHandler: (url: string, init?: RequestInit) => Promise<Response>) {
 	return {
 		fetch: async (input: string | URL | Request, init?: RequestInit) => {
-			const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+			const url =
+				typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
 			return fetchHandler(url, init);
 		},
 		params: { id: 'aaaaaaaa-0002-0000-0000-000000000002' },
@@ -178,7 +183,12 @@ describe('actions.updateQuotas', () => {
 
 		let capturedBody = '';
 		const ctx = actionContext(
-			{ max_query_rps: '250', max_write_rps: '', max_storage_bytes: '4294967296', max_indexes: '20' },
+			{
+				max_query_rps: '250',
+				max_write_rps: '',
+				max_storage_bytes: '4294967296',
+				max_indexes: '20'
+			},
 			async (_url, init) => {
 				capturedBody = String(init?.body ?? '');
 				return new Response(JSON.stringify({}), { status: 200 });
@@ -252,14 +262,11 @@ describe('actions.terminateDeployment', () => {
 		let capturedMethod = '';
 		const deploymentId = 'bbbbbbbb-0001-0000-0000-000000000001';
 
-		const ctx = actionContext(
-			{ deployment_id: deploymentId },
-			async (url, init) => {
-				capturedUrl = url;
-				capturedMethod = init?.method ?? 'GET';
-				return new Response(JSON.stringify({}), { status: 200 });
-			}
-		);
+		const ctx = actionContext({ deployment_id: deploymentId }, async (url, init) => {
+			capturedUrl = url;
+			capturedMethod = init?.method ?? 'GET';
+			return new Response(JSON.stringify({}), { status: 200 });
+		});
 
 		const result = await actions.terminateDeployment(ctx);
 

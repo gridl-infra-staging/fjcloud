@@ -25,7 +25,9 @@
 		<aside class="flex w-64 flex-col border-r border-violet-900/40 bg-slate-900/90">
 			<div class="px-6 py-5">
 				<p class="text-sm font-semibold uppercase tracking-wide text-violet-300">Admin Panel</p>
-				<p class="mt-2 inline-flex rounded-full border border-violet-500/50 bg-violet-500/20 px-2 py-1 text-xs font-semibold text-violet-200">
+				<p
+					class="mt-2 inline-flex rounded-full border border-violet-500/50 bg-violet-500/20 px-2 py-1 text-xs font-semibold text-violet-200"
+				>
 					{data.environment}
 				</p>
 			</div>

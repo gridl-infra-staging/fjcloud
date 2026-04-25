@@ -52,7 +52,6 @@ import type {
 	DebugEventsResponse
 } from '$lib/api/types';
 
-
 const PERIOD_TO_DAYS: Record<string, number> = {
 	'7d': 7,
 	'30d': 30,
@@ -96,7 +95,12 @@ function isTransientPreviewKeyFailure(error: unknown): boolean {
 		return false;
 	}
 
-	if (error.status === 404 || error.status === 429 || error.status === 500 || error.status === 503) {
+	if (
+		error.status === 404 ||
+		error.status === 429 ||
+		error.status === 500 ||
+		error.status === 503
+	) {
 		return true;
 	}
 
@@ -129,10 +133,10 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 			noResultRate,
 			topSearches,
 			noResults,
-				analyticsStatus,
-				experiments,
-				debugEvents
-			] = await Promise.all([
+			analyticsStatus,
+			experiments,
+			debugEvents
+		] = await Promise.all([
 			retryTransientDashboardApiRequest(() => api.getIndex(name)),
 			api.getIndexSettings(name).catch(() => null),
 			api.listReplicas(name).catch(() => []),
@@ -151,14 +155,14 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 			api.getAnalyticsNoResults(name, analyticsTopParams).catch(() => null),
 			api.getAnalyticsStatus(name).catch(() => null),
 			api.listExperiments(name).catch(() => null),
-				api
-					.getDebugEvents(name, {
-						limit: 100,
-						from: defaultEventsFrom,
-						until: defaultEventsUntil
-					})
-					.catch((): DebugEventsResponse | null => null)
-			]);
+			api
+				.getDebugEvents(name, {
+					limit: 100,
+					from: defaultEventsFrom,
+					until: defaultEventsUntil
+				})
+				.catch((): DebugEventsResponse | null => null)
+		]);
 
 		const experimentResults: Record<string, ExperimentResults> = {};
 		if (experiments?.abtests?.length) {
@@ -179,18 +183,18 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 			}
 		}
 
-			const [dictionaries, securitySources] = await Promise.all([
-				loadDictionariesPayload(
-					api,
-					name,
-					url.searchParams.get('dictionary'),
-					url.searchParams.get('dictionaryLang')
-				),
-				loadSecuritySourcesPayload(api, name)
-			]);
+		const [dictionaries, securitySources] = await Promise.all([
+			loadDictionariesPayload(
+				api,
+				name,
+				url.searchParams.get('dictionary'),
+				url.searchParams.get('dictionaryLang')
+			),
+			loadSecuritySourcesPayload(api, name)
+		]);
 
-			return {
-				index,
+		return {
+			index,
 			settings,
 			replicas,
 			regions,
@@ -205,13 +209,13 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 			topSearches,
 			noResults,
 			analyticsStatus,
-				experiments,
-				experimentResults,
-				analyticsPeriod,
-				debugEvents,
-				dictionaries,
-				securitySources
-			};
+			experiments,
+			experimentResults,
+			analyticsPeriod,
+			debugEvents,
+			dictionaries,
+			securitySources
+		};
 	} catch (e) {
 		if (isDashboardSessionExpiredError(e)) {
 			redirect(303, DASHBOARD_SESSION_EXPIRED_REDIRECT);
@@ -270,7 +274,9 @@ export const actions: Actions = {
 			await api.createReplica(params.name, region);
 			return { replicaCreated: true };
 		} catch (e) {
-			return failForDashboardAction(e, { replicaError: errorMessage(e, 'Failed to create replica') });
+			return failForDashboardAction(e, {
+				replicaError: errorMessage(e, 'Failed to create replica')
+			});
 		}
 	},
 	saveSettings: async ({ request, locals, params }) => {
@@ -290,7 +296,9 @@ export const actions: Actions = {
 			await api.updateIndexSettings(params.name, settings);
 			return { settingsSaved: true };
 		} catch (e) {
-			return failForDashboardAction(e, { settingsError: errorMessage(e, 'Failed to save settings') });
+			return failForDashboardAction(e, {
+				settingsError: errorMessage(e, 'Failed to save settings')
+			});
 		}
 	},
 	saveRule: async ({ request, locals, params }) => {
@@ -360,7 +368,9 @@ export const actions: Actions = {
 			await api.deleteSynonym(params.name, objectID);
 			return { synonymDeleted: true };
 		} catch (e) {
-			return failForDashboardAction(e, { synonymError: errorMessage(e, 'Failed to delete synonym') });
+			return failForDashboardAction(e, {
+				synonymError: errorMessage(e, 'Failed to delete synonym')
+			});
 		}
 	},
 	uploadDocuments: async ({ request, locals, params }) => {
@@ -421,7 +431,9 @@ export const actions: Actions = {
 		try {
 			strategy = parseJsonObject<PersonalizationStrategy>(rawStrategy, 'strategy');
 		} catch (e) {
-			return failForDashboardAction(e, { personalizationError: errorMessage(e, 'Invalid strategy JSON') });
+			return failForDashboardAction(e, {
+				personalizationError: errorMessage(e, 'Invalid strategy JSON')
+			});
 		}
 
 		const api = createApiClient(locals.user?.token);
@@ -452,7 +464,10 @@ export const actions: Actions = {
 
 		const api = createApiClient(locals.user?.token);
 		try {
-			const profile: PersonalizationProfile = await api.getPersonalizationProfile(params.name, userToken);
+			const profile: PersonalizationProfile = await api.getPersonalizationProfile(
+				params.name,
+				userToken
+			);
 			return { personalizationProfile: profile };
 		} catch (e) {
 			return failForDashboardAction(e, {
@@ -487,7 +502,9 @@ export const actions: Actions = {
 				throw new Error('request.requests must be an array');
 			}
 		} catch (e) {
-			return failForDashboardAction(e, { recommendationsError: errorMessage(e, 'Invalid recommendations JSON') });
+			return failForDashboardAction(e, {
+				recommendationsError: errorMessage(e, 'Invalid recommendations JSON')
+			});
 		}
 
 		const api = createApiClient(locals.user?.token);
@@ -566,7 +583,9 @@ export const actions: Actions = {
 		try {
 			config = parseJsonObject<QsConfig>(rawConfig, 'config');
 		} catch (e) {
-			return failForDashboardAction(e, { qsConfigError: errorMessage(e, 'Invalid suggestions config JSON') });
+			return failForDashboardAction(e, {
+				qsConfigError: errorMessage(e, 'Invalid suggestions config JSON')
+			});
 		}
 
 		const api = createApiClient(locals.user?.token);
@@ -574,7 +593,9 @@ export const actions: Actions = {
 			await api.saveQsConfig(params.name, config);
 			return { qsConfigSaved: true };
 		} catch (e) {
-			return failForDashboardAction(e, { qsConfigError: errorMessage(e, 'Failed to save suggestions config') });
+			return failForDashboardAction(e, {
+				qsConfigError: errorMessage(e, 'Failed to save suggestions config')
+			});
 		}
 	},
 	deleteQsConfig: async ({ locals, params }) => {
@@ -583,7 +604,9 @@ export const actions: Actions = {
 			await api.deleteQsConfig(params.name);
 			return { qsConfigDeleted: true };
 		} catch (e) {
-			return failForDashboardAction(e, { qsConfigError: errorMessage(e, 'Failed to delete suggestions config') });
+			return failForDashboardAction(e, {
+				qsConfigError: errorMessage(e, 'Failed to delete suggestions config')
+			});
 		}
 	},
 	createExperiment: async ({ request, locals, params }) => {
@@ -595,7 +618,9 @@ export const actions: Actions = {
 		try {
 			experiment = parseJsonObject<CreateExperimentRequest>(rawExperiment, 'experiment');
 		} catch (e) {
-			return failForDashboardAction(e, { experimentError: errorMessage(e, 'Invalid experiment JSON') });
+			return failForDashboardAction(e, {
+				experimentError: errorMessage(e, 'Invalid experiment JSON')
+			});
 		}
 
 		const api = createApiClient(locals.user?.token);
@@ -603,7 +628,9 @@ export const actions: Actions = {
 			await api.createExperiment(params.name, experiment);
 			return { experimentCreated: true };
 		} catch (e) {
-			return failForDashboardAction(e, { experimentError: errorMessage(e, 'Failed to create experiment') });
+			return failForDashboardAction(e, {
+				experimentError: errorMessage(e, 'Failed to create experiment')
+			});
 		}
 	},
 	deleteExperiment: async ({ request, locals, params }) => {
@@ -612,7 +639,9 @@ export const actions: Actions = {
 		try {
 			experimentID = parsePositiveInt(data.get('experimentID'), 'experimentID');
 		} catch (e) {
-			return failForDashboardAction(e, { experimentError: errorMessage(e, 'Invalid experiment ID') });
+			return failForDashboardAction(e, {
+				experimentError: errorMessage(e, 'Invalid experiment ID')
+			});
 		}
 
 		const api = createApiClient(locals.user?.token);
@@ -620,7 +649,9 @@ export const actions: Actions = {
 			await api.deleteExperiment(params.name, experimentID);
 			return { experimentDeleted: true };
 		} catch (e) {
-			return failForDashboardAction(e, { experimentError: errorMessage(e, 'Failed to delete experiment') });
+			return failForDashboardAction(e, {
+				experimentError: errorMessage(e, 'Failed to delete experiment')
+			});
 		}
 	},
 	startExperiment: async ({ request, locals, params }) => {
@@ -629,7 +660,9 @@ export const actions: Actions = {
 		try {
 			experimentID = parsePositiveInt(data.get('experimentID'), 'experimentID');
 		} catch (e) {
-			return failForDashboardAction(e, { experimentError: errorMessage(e, 'Invalid experiment ID') });
+			return failForDashboardAction(e, {
+				experimentError: errorMessage(e, 'Invalid experiment ID')
+			});
 		}
 
 		const api = createApiClient(locals.user?.token);
@@ -637,7 +670,9 @@ export const actions: Actions = {
 			await api.startExperiment(params.name, experimentID);
 			return { experimentStarted: true };
 		} catch (e) {
-			return failForDashboardAction(e, { experimentError: errorMessage(e, 'Failed to start experiment') });
+			return failForDashboardAction(e, {
+				experimentError: errorMessage(e, 'Failed to start experiment')
+			});
 		}
 	},
 	stopExperiment: async ({ request, locals, params }) => {
@@ -646,7 +681,9 @@ export const actions: Actions = {
 		try {
 			experimentID = parsePositiveInt(data.get('experimentID'), 'experimentID');
 		} catch (e) {
-			return failForDashboardAction(e, { experimentError: errorMessage(e, 'Invalid experiment ID') });
+			return failForDashboardAction(e, {
+				experimentError: errorMessage(e, 'Invalid experiment ID')
+			});
 		}
 
 		const api = createApiClient(locals.user?.token);
@@ -654,7 +691,9 @@ export const actions: Actions = {
 			await api.stopExperiment(params.name, experimentID);
 			return { experimentStopped: true };
 		} catch (e) {
-			return failForDashboardAction(e, { experimentError: errorMessage(e, 'Failed to stop experiment') });
+			return failForDashboardAction(e, {
+				experimentError: errorMessage(e, 'Failed to stop experiment')
+			});
 		}
 	},
 	concludeExperiment: async ({ request, locals, params }) => {
@@ -663,7 +702,9 @@ export const actions: Actions = {
 		try {
 			experimentID = parsePositiveInt(data.get('experimentID'), 'experimentID');
 		} catch (e) {
-			return failForDashboardAction(e, { experimentError: errorMessage(e, 'Invalid experiment ID') });
+			return failForDashboardAction(e, {
+				experimentError: errorMessage(e, 'Invalid experiment ID')
+			});
 		}
 
 		const rawConclusion = (data.get('conclusion') as string)?.trim();
@@ -673,7 +714,9 @@ export const actions: Actions = {
 		try {
 			conclusion = parseJsonObject<ConcludeExperimentRequest>(rawConclusion, 'conclusion');
 		} catch (e) {
-			return failForDashboardAction(e, { experimentError: errorMessage(e, 'Invalid conclusion JSON') });
+			return failForDashboardAction(e, {
+				experimentError: errorMessage(e, 'Invalid conclusion JSON')
+			});
 		}
 
 		const api = createApiClient(locals.user?.token);
@@ -681,7 +724,9 @@ export const actions: Actions = {
 			await api.concludeExperiment(params.name, experimentID, conclusion);
 			return { experimentConcluded: true };
 		} catch (e) {
-			return failForDashboardAction(e, { experimentError: errorMessage(e, 'Failed to conclude experiment') });
+			return failForDashboardAction(e, {
+				experimentError: errorMessage(e, 'Failed to conclude experiment')
+			});
 		}
 	},
 	refreshEvents: async ({ request, locals, params }) => {
@@ -734,7 +779,9 @@ export const actions: Actions = {
 			await api.deleteReplica(params.name, replicaId);
 			return { replicaDeleted: true };
 		} catch (e) {
-			return failForDashboardAction(e, { replicaError: errorMessage(e, 'Failed to remove replica') });
+			return failForDashboardAction(e, {
+				replicaError: errorMessage(e, 'Failed to remove replica')
+			});
 		}
 	},
 	delete: async ({ locals, params }) => {

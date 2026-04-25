@@ -53,12 +53,14 @@
 				Send product feedback, bug reports, or launch questions by email so the maintainer can track
 				requests in one place.
 			</p>
+			<!-- eslint-disable svelte/no-navigation-without-resolve -- mailto: scheme, not an internal path -->
 			<a
 				href={BETA_FEEDBACK_MAILTO}
 				class="mt-3 inline-block text-sm font-medium text-blue-600 hover:text-blue-800"
 			>
 				Email support
 			</a>
+			<!-- eslint-enable svelte/no-navigation-without-resolve -->
 		</section>
 		<section class="rounded-xl border border-gray-200 bg-white p-6">
 			<h2 class="text-lg font-semibold text-gray-900">General availability</h2>

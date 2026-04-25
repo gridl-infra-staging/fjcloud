@@ -121,9 +121,7 @@ describe('Migrate page', () => {
 	});
 
 	it('index list shows migrate forms with hidden appId and sourceIndex from server, apiKey from client state', () => {
-		const indexes: AlgoliaIndexInfo[] = [
-			{ name: 'products', entries: 5000, lastBuildTimeS: 12 }
-		];
+		const indexes: AlgoliaIndexInfo[] = [{ name: 'products', entries: 5000, lastBuildTimeS: 12 }];
 
 		const { container } = renderMigratePage({
 			indexes,
@@ -158,8 +156,8 @@ describe('Migrate page', () => {
 		});
 
 		// 1 credentials form + 2 migrate forms = at least 3 enhance calls
-		const enhancedActions = enhanceMock.mock.calls.map(
-			(call: [HTMLFormElement]) => call[0].getAttribute('action')
+		const enhancedActions = enhanceMock.mock.calls.map((call: [HTMLFormElement]) =>
+			call[0].getAttribute('action')
 		);
 		expect(enhancedActions.filter((a: string | null) => a === '?/listIndexes')).toHaveLength(1);
 		expect(enhancedActions.filter((a: string | null) => a === '?/migrate')).toHaveLength(2);

@@ -13,11 +13,7 @@
  * All output passes through the sanitization layer before reaching the store.
  */
 
-import {
-	sanitizeLogEntry,
-	type RawLogCapture,
-	type SanitizedLogEntry
-} from './sanitization';
+import { sanitizeLogEntry, type RawLogCapture, type SanitizedLogEntry } from './sanitization';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -105,27 +101,27 @@ const MUTATION_ROUTE_MATCHERS: MutationRouteMatcher[] = [
 				: r.replicaCreated
 					? '?/createReplica'
 					: '?/replicaAction',
-		errorField: 'replicaError',
+		errorField: 'replicaError'
 	}),
 	createMutationRouteMatcher({
 		fieldNames: ['deleted', 'deleteError'],
 		resolveUrl: '?/delete',
-		errorField: 'deleteError',
+		errorField: 'deleteError'
 	}),
 	createMutationRouteMatcher({
 		fieldNames: ['settingsSaved', 'settingsError'],
 		resolveUrl: '?/saveSettings',
-		errorField: 'settingsError',
+		errorField: 'settingsError'
 	}),
 	createMutationRouteMatcher({
 		fieldNames: ['ruleSaved', 'ruleDeleted', 'ruleError'],
 		resolveUrl: (r) => (r.ruleDeleted ? '?/deleteRule' : '?/saveRule'),
-		errorField: 'ruleError',
+		errorField: 'ruleError'
 	}),
 	createMutationRouteMatcher({
 		fieldNames: ['synonymSaved', 'synonymDeleted', 'synonymError'],
 		resolveUrl: (r) => (r.synonymDeleted ? '?/deleteSynonym' : '?/saveSynonym'),
-		errorField: 'synonymError',
+		errorField: 'synonymError'
 	}),
 	createMutationRouteMatcher({
 		fieldNames: [
@@ -150,7 +146,7 @@ const MUTATION_ROUTE_MATCHERS: MutationRouteMatcher[] = [
 	createMutationRouteMatcher({
 		fieldNames: ['qsConfigSaved', 'qsConfigDeleted', 'qsConfigError'],
 		resolveUrl: (r) => (r.qsConfigDeleted ? '?/deleteQsConfig' : '?/saveQsConfig'),
-		errorField: 'qsConfigError',
+		errorField: 'qsConfigError'
 	}),
 	createMutationRouteMatcher({
 		fieldNames: [
@@ -173,7 +169,7 @@ const MUTATION_ROUTE_MATCHERS: MutationRouteMatcher[] = [
 							: r.experimentCreated
 								? '?/createExperiment'
 								: '?/experimentAction',
-		errorField: 'experimentError',
+		errorField: 'experimentError'
 	}),
 	createMutationRouteMatcher({
 		fieldNames: ['refreshedEvents', 'eventsError'],
@@ -228,7 +224,7 @@ function sanitizeFormLogPayload(
 
 /**
  * Match a form result against registered mutation route patterns and resolve a sanitized log entry.
- * 
+ *
  * @param result - The form result to match against mutation patterns
  * @param lastSubmittedAction - The submitted action URL, used to disambiguate ambiguous mutations
  * @returns A sanitized log entry if a matching pattern is found, null otherwise

@@ -197,11 +197,7 @@ export const actions = {
 			const { token } = await client.createToken(params.id, IMPERSONATION_MAX_AGE);
 			const cookieOptions = authCookieOptions(url, IMPERSONATION_MAX_AGE, '/');
 			cookies.set(AUTH_COOKIE, token, cookieOptions);
-			cookies.set(
-				IMPERSONATION_COOKIE,
-				`/admin/customers/${params.id}`,
-				cookieOptions
-			);
+			cookies.set(IMPERSONATION_COOKIE, `/admin/customers/${params.id}`, cookieOptions);
 		} catch (err) {
 			return actionError(err, 'Failed to create impersonation token');
 		}
@@ -230,7 +226,7 @@ export const actions = {
 		} catch (err) {
 			return actionError(err, 'Failed to terminate deployment');
 		}
-}
+	}
 } satisfies Actions;
 
 export function _parseOptionalU32(value: FormDataEntryValue | null): number | undefined {

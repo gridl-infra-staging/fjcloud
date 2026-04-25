@@ -47,7 +47,9 @@ describe('flapjack-search-client', () => {
 	});
 
 	it('builds client options with the bearer auth contract used by the snippets', () => {
-		expect(buildFlapjackSearchClientOptions('https://vm-abc.flapjack.foo', 'fj_search_123')).toEqual({
+		expect(
+			buildFlapjackSearchClientOptions('https://vm-abc.flapjack.foo', 'fj_search_123')
+		).toEqual({
 			hosts: [
 				{
 					url: 'vm-abc.flapjack.foo',
@@ -69,9 +71,7 @@ describe('flapjack-search-client', () => {
 		vi.stubGlobal('fetch', fetchMock);
 
 		const client = createFlapjackInstantSearchClient('http://127.0.0.1:7700/', 'fj_search_123');
-		const result = await client.search([
-			{ indexName: 'cust_products', params: 'query=Rust' }
-		]);
+		const result = await client.search([{ indexName: 'cust_products', params: 'query=Rust' }]);
 
 		expect(fetchMock).toHaveBeenCalledWith('http://127.0.0.1:7700/1/indexes/*/queries', {
 			method: 'POST',

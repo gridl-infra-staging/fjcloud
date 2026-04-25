@@ -16,21 +16,15 @@ describe('contract-guards', () => {
 		});
 
 		it('throws with the provided message for empty string', () => {
-			expect(() => requireNonEmptyString('', 'field is required')).toThrow(
-				'field is required'
-			);
+			expect(() => requireNonEmptyString('', 'field is required')).toThrow('field is required');
 		});
 
 		it('throws with the provided message for whitespace-only string', () => {
-			expect(() => requireNonEmptyString('   ', 'field is required')).toThrow(
-				'field is required'
-			);
+			expect(() => requireNonEmptyString('   ', 'field is required')).toThrow('field is required');
 		});
 
 		it('throws with the provided message for tab/newline-only string', () => {
-			expect(() => requireNonEmptyString('\t\n', 'field is required')).toThrow(
-				'field is required'
-			);
+			expect(() => requireNonEmptyString('\t\n', 'field is required')).toThrow('field is required');
 		});
 	});
 
@@ -62,9 +56,7 @@ describe('contract-guards', () => {
 		});
 
 		it('throws when admin key is empty string', () => {
-			expect(() => requireAdminApiKey('')).toThrow(
-				'E2E_ADMIN_KEY must be set for admin API calls'
-			);
+			expect(() => requireAdminApiKey('')).toThrow('E2E_ADMIN_KEY must be set for admin API calls');
 		});
 
 		it('throws when admin key is whitespace only', () => {

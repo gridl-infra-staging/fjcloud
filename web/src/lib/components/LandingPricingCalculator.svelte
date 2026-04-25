@@ -115,7 +115,10 @@
 	}
 </script>
 
-<section class="mt-10 rounded-xl border border-gray-200 bg-gray-50 p-6" data-testid="landing-pricing-calculator">
+<section
+	class="mt-10 rounded-xl border border-gray-200 bg-gray-50 p-6"
+	data-testid="landing-pricing-calculator"
+>
 	<h3 class="text-xl font-semibold text-gray-900">Interactive pricing calculator</h3>
 	<p class="mt-2 text-sm text-gray-600">
 		Estimate your monthly cost and compare Flapjack Cloud with other hosted search options.
@@ -194,19 +197,27 @@
 	</form>
 
 	{#if errorMessage}
-		<p class="mt-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
+		<p
+			class="mt-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
+			role="alert"
+		>
 			{errorMessage}
 		</p>
 	{/if}
 
 	{#if resultRows.length > 0}
-		<div class="mt-6 overflow-hidden rounded-lg border border-gray-200 bg-white" data-testid="landing-pricing-results">
+		<div
+			class="mt-6 overflow-hidden rounded-lg border border-gray-200 bg-white"
+			data-testid="landing-pricing-results"
+		>
 			<table class="w-full">
 				<thead class="bg-gray-50">
 					<tr class="border-b border-gray-200">
 						<th class="px-4 py-3 text-left text-sm font-semibold text-gray-900">Provider</th>
 						<th class="px-4 py-3 text-left text-sm font-semibold text-gray-900">Plan</th>
-						<th class="px-4 py-3 text-right text-sm font-semibold text-gray-900">Monthly estimate</th>
+						<th class="px-4 py-3 text-right text-sm font-semibold text-gray-900"
+							>Monthly estimate</th
+						>
 					</tr>
 				</thead>
 				<tbody>
@@ -217,7 +228,9 @@
 						>
 							<td class="px-4 py-3 text-sm font-medium text-gray-900">{row.provider}</td>
 							<td class="px-4 py-3 text-sm text-gray-600">{row.planName}</td>
-							<td class="px-4 py-3 text-right text-sm font-semibold text-gray-900">{row.monthlyTotalLabel}</td>
+							<td class="px-4 py-3 text-right text-sm font-semibold text-gray-900"
+								>{row.monthlyTotalLabel}</td
+							>
 						</tr>
 					{/each}
 				</tbody>

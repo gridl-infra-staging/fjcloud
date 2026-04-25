@@ -138,7 +138,10 @@ describe('Index detail page — Settings', () => {
 	it('hybrid embedder select updates settings JSON draft', async () => {
 		renderPage({
 			settings: {
-				embedders: { default: { source: 'userProvided', dimensions: 384 }, openai: { source: 'openAi', dimensions: 1536 } },
+				embedders: {
+					default: { source: 'userProvided', dimensions: 384 },
+					openai: { source: 'openAi', dimensions: 1536 }
+				},
 				hybrid: { semanticRatio: 0.5, embedder: 'default' }
 			}
 		});
@@ -199,9 +202,7 @@ describe('Index detail page — Settings', () => {
 		};
 
 		expect(parsedSettings.embedders.default).toEqual({ source: 'userProvided' });
-		expect(
-			(screen.getByLabelText(/default.*dimensions/i) as HTMLInputElement).value
-		).toBe('');
+		expect((screen.getByLabelText(/default.*dimensions/i) as HTMLInputElement).value).toBe('');
 	});
 
 	it('editing embedder source updates settings JSON draft', async () => {
@@ -338,7 +339,9 @@ describe('Index detail page — Settings', () => {
 
 		await fireEvent.input(settingsTextarea, { target: { value: '{}' } });
 		await fireEvent.change(modeSelect, { target: { value: 'standard' } });
-		expect(screen.queryByText(/settings json must be a valid json object/i)).not.toBeInTheDocument();
+		expect(
+			screen.queryByText(/settings json must be a valid json object/i)
+		).not.toBeInTheDocument();
 	});
 
 	it('rehydrates hybrid and embedder controls when server settings change', async () => {
@@ -382,9 +385,7 @@ describe('Index detail page — Settings', () => {
 		await openTab('Rules');
 		await openTab('Settings');
 
-		expect(getSettingsTextarea().value).toBe(
-			'{"searchableAttributes":["title","sku"]}'
-		);
+		expect(getSettingsTextarea().value).toBe('{"searchableAttributes":["title","sku"]}');
 	});
 
 	it('rehydrates settings draft when server settings payload changes', async () => {

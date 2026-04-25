@@ -241,7 +241,9 @@ describe('Settings page server', () => {
 		});
 
 		it('returns customer-safe delete-account error without clobbering other settings form state', async () => {
-			deleteAccountMock.mockRejectedValue(new ApiRequestError(400, 'Current password is incorrect'));
+			deleteAccountMock.mockRejectedValue(
+				new ApiRequestError(400, 'Current password is incorrect')
+			);
 
 			const result = await actions.deleteAccount(
 				makeRequest({ password: 'wrong-password', confirm_delete: 'on' })

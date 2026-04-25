@@ -218,7 +218,9 @@ describe('SynonymsTab', () => {
 			const deleteForms = container.querySelectorAll('form[action="?/deleteSynonym"]');
 			expect(deleteForms.length).toBe(1);
 
-			const hiddenInput = deleteForms[0].querySelector('input[name="objectID"]') as HTMLInputElement;
+			const hiddenInput = deleteForms[0].querySelector(
+				'input[name="objectID"]'
+			) as HTMLInputElement;
 			expect(hiddenInput.value).toBe('laptop-syn');
 		});
 

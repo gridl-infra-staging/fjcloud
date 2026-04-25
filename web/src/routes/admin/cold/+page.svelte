@@ -28,7 +28,9 @@
 	{:else}
 		<div class="overflow-x-auto rounded-lg border border-slate-700">
 			<table class="w-full text-left text-sm">
-				<thead class="border-b border-slate-700 bg-slate-900/80 text-xs uppercase tracking-wide text-slate-400">
+				<thead
+					class="border-b border-slate-700 bg-slate-900/80 text-xs uppercase tracking-wide text-slate-400"
+				>
 					<tr>
 						<th class="px-4 py-3">Index</th>
 						<th class="px-4 py-3">Customer</th>

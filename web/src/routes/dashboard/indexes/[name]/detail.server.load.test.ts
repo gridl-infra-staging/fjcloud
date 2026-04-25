@@ -297,9 +297,9 @@ describe('Index detail page server -- load', () => {
 
 		expect(result.rules).toBeNull();
 		expect(result.synonyms).toBeNull();
-	expect(result.personalizationStrategy).toBeNull();
-	expect(result.documents).toEqual({ ...EMPTY_DOCUMENTS });
-	expect(result.qsConfig).toBeNull();
+		expect(result.personalizationStrategy).toBeNull();
+		expect(result.documents).toEqual({ ...EMPTY_DOCUMENTS });
+		expect(result.qsConfig).toBeNull();
 		expect(result.qsStatus).toBeNull();
 		expect(result.searchCount).toBeNull();
 		expect(result.noResultRate).toBeNull();

@@ -30,9 +30,7 @@ describe('Reset password server action', () => {
 	});
 
 	it('fails with 400 when password is missing', async () => {
-		const result = await actions.default(
-			makeEvent({ password: '', confirm_password: '' })
-		);
+		const result = await actions.default(makeEvent({ password: '', confirm_password: '' }));
 		expect(result).toEqual(
 			expect.objectContaining({
 				status: 400,

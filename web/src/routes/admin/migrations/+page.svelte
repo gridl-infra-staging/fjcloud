@@ -28,7 +28,9 @@
 			{form.error}
 		</p>
 	{:else if form?.message}
-		<p class="rounded-md border border-green-500/40 bg-green-950/30 px-3 py-2 text-sm text-green-200">
+		<p
+			class="rounded-md border border-green-500/40 bg-green-950/30 px-3 py-2 text-sm text-green-200"
+		>
 			{form.message}
 		</p>
 	{/if}
@@ -70,13 +72,20 @@
 	<div class="space-y-3">
 		<h3 class="text-lg font-medium text-slate-100">Active Migrations</h3>
 		{#if activeMigrations.length === 0}
-			<p class="rounded-md border border-slate-700 bg-slate-800/40 px-3 py-2 text-sm text-slate-400">
+			<p
+				class="rounded-md border border-slate-700 bg-slate-800/40 px-3 py-2 text-sm text-slate-400"
+			>
 				No active migrations.
 			</p>
 		{:else}
-			<div class="overflow-x-auto rounded-lg border border-slate-700" data-testid="active-migrations-table">
+			<div
+				class="overflow-x-auto rounded-lg border border-slate-700"
+				data-testid="active-migrations-table"
+			>
 				<table class="w-full text-left text-sm">
-					<thead class="border-b border-slate-700 bg-slate-800/80 text-xs uppercase tracking-wide text-slate-400">
+					<thead
+						class="border-b border-slate-700 bg-slate-800/80 text-xs uppercase tracking-wide text-slate-400"
+					>
 						<tr>
 							<th class="px-4 py-3">Index</th>
 							<th class="px-4 py-3">Status</th>
@@ -91,14 +100,20 @@
 							<tr class="transition hover:bg-slate-800/40">
 								<td class="px-4 py-3 font-medium text-slate-200">{migration.index_name}</td>
 								<td class="px-4 py-3">
-									<span class="inline-flex rounded-full border px-2 py-0.5 text-xs font-medium {adminBadgeColor(migration.status)}">
+									<span
+										class="inline-flex rounded-full border px-2 py-0.5 text-xs font-medium {adminBadgeColor(
+											migration.status
+										)}"
+									>
 										{migration.status}
 									</span>
 								</td>
 								<td class="px-4 py-3 font-mono text-xs text-slate-400">{migration.source_vm_id}</td>
 								<td class="px-4 py-3 font-mono text-xs text-slate-400">{migration.dest_vm_id}</td>
 								<td class="px-4 py-3 text-slate-300">{migration.requested_by}</td>
-								<td class="px-4 py-3 text-xs text-slate-400">{formatTimestamp(migration.started_at)}</td>
+								<td class="px-4 py-3 text-xs text-slate-400"
+									>{formatTimestamp(migration.started_at)}</td
+								>
 							</tr>
 						{/each}
 					</tbody>
@@ -110,13 +125,20 @@
 	<div class="space-y-3">
 		<h3 class="text-lg font-medium text-slate-100">Recent Migrations</h3>
 		{#if recentMigrations.length === 0}
-			<p class="rounded-md border border-slate-700 bg-slate-800/40 px-3 py-2 text-sm text-slate-400">
+			<p
+				class="rounded-md border border-slate-700 bg-slate-800/40 px-3 py-2 text-sm text-slate-400"
+			>
 				No recent migrations.
 			</p>
 		{:else}
-			<div class="overflow-x-auto rounded-lg border border-slate-700" data-testid="recent-migrations-table">
+			<div
+				class="overflow-x-auto rounded-lg border border-slate-700"
+				data-testid="recent-migrations-table"
+			>
 				<table class="w-full text-left text-sm">
-					<thead class="border-b border-slate-700 bg-slate-800/80 text-xs uppercase tracking-wide text-slate-400">
+					<thead
+						class="border-b border-slate-700 bg-slate-800/80 text-xs uppercase tracking-wide text-slate-400"
+					>
 						<tr>
 							<th class="px-4 py-3">Index</th>
 							<th class="px-4 py-3">Status</th>
@@ -131,13 +153,19 @@
 							<tr class="transition hover:bg-slate-800/40">
 								<td class="px-4 py-3 font-medium text-slate-200">{migration.index_name}</td>
 								<td class="px-4 py-3">
-									<span class="inline-flex rounded-full border px-2 py-0.5 text-xs font-medium {adminBadgeColor(migration.status)}">
+									<span
+										class="inline-flex rounded-full border px-2 py-0.5 text-xs font-medium {adminBadgeColor(
+											migration.status
+										)}"
+									>
 										{migration.status}
 									</span>
 								</td>
 								<td class="px-4 py-3 font-mono text-xs text-slate-400">{migration.source_vm_id}</td>
 								<td class="px-4 py-3 font-mono text-xs text-slate-400">{migration.dest_vm_id}</td>
-								<td class="px-4 py-3 text-xs text-slate-400">{formatTimestamp(migration.completed_at)}</td>
+								<td class="px-4 py-3 text-xs text-slate-400"
+									>{formatTimestamp(migration.completed_at)}</td
+								>
 								<td class="px-4 py-3 text-xs text-red-300">{migration.error ?? '—'}</td>
 							</tr>
 						{/each}

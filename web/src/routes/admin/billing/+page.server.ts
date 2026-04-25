@@ -98,9 +98,9 @@ export const actions = {
 
 	bulkFinalize: async ({ request, fetch }) => {
 		const formData = await request.formData();
-		const invoiceIds = formData.getAll('invoice_ids').filter(
-			(id): id is string => typeof id === 'string' && id.trim().length > 0
-		);
+		const invoiceIds = formData
+			.getAll('invoice_ids')
+			.filter((id): id is string => typeof id === 'string' && id.trim().length > 0);
 
 		if (invoiceIds.length === 0) {
 			return fail(400, { success: false, error: 'No invoice IDs provided' });

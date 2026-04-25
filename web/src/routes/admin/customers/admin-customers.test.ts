@@ -89,11 +89,7 @@ describe('Admin customer detail', () => {
 		const result = await load({
 			fetch: async (input: string | URL | Request) => {
 				const url =
-					typeof input === 'string'
-						? input
-						: input instanceof URL
-							? input.toString()
-							: input.url;
+					typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
 
 				if (url.includes(`/admin/tenants/${tenantId}/deployments`)) {
 					return new Response('deployment service unavailable', { status: 503 });
@@ -170,7 +166,9 @@ describe('Admin customer detail', () => {
 			}
 		} as never);
 
-		expect(capturedUrl).toContain('/admin/customers/aaaaaaaa-0002-0000-0000-000000000002/reactivate');
+		expect(capturedUrl).toContain(
+			'/admin/customers/aaaaaaaa-0002-0000-0000-000000000002/reactivate'
+		);
 		expect(capturedMethod).toBe('POST');
 		expect(result).toEqual({ success: true, message: 'Customer reactivated' });
 	});
@@ -223,7 +221,10 @@ describe('Admin customer detail', () => {
 	it.each([
 		{
 			name: 'reactivate',
-			invoke: (actions: Awaited<typeof import('./[id]/+page.server')>['actions'], fetchSpy: ReturnType<typeof vi.fn>) =>
+			invoke: (
+				actions: Awaited<typeof import('./[id]/+page.server')>['actions'],
+				fetchSpy: ReturnType<typeof vi.fn>
+			) =>
 				actions.reactivate({
 					request: new Request('http://localhost/admin/customers/aaaaaaaa-0002/reactivate', {
 						method: 'POST',
@@ -236,7 +237,10 @@ describe('Admin customer detail', () => {
 		},
 		{
 			name: 'updateQuotas',
-			invoke: (actions: Awaited<typeof import('./[id]/+page.server')>['actions'], fetchSpy: ReturnType<typeof vi.fn>) =>
+			invoke: (
+				actions: Awaited<typeof import('./[id]/+page.server')>['actions'],
+				fetchSpy: ReturnType<typeof vi.fn>
+			) =>
 				actions.updateQuotas({
 					request: new Request('http://localhost/admin/customers/aaaaaaaa-0002/quotas', {
 						method: 'POST',
@@ -249,7 +253,10 @@ describe('Admin customer detail', () => {
 		},
 		{
 			name: 'syncStripe',
-			invoke: (actions: Awaited<typeof import('./[id]/+page.server')>['actions'], fetchSpy: ReturnType<typeof vi.fn>) =>
+			invoke: (
+				actions: Awaited<typeof import('./[id]/+page.server')>['actions'],
+				fetchSpy: ReturnType<typeof vi.fn>
+			) =>
 				actions.syncStripe({
 					request: new Request('http://localhost/admin/customers/aaaaaaaa-0002/sync-stripe', {
 						method: 'POST',
@@ -262,7 +269,10 @@ describe('Admin customer detail', () => {
 		},
 		{
 			name: 'softDelete',
-			invoke: (actions: Awaited<typeof import('./[id]/+page.server')>['actions'], fetchSpy: ReturnType<typeof vi.fn>) =>
+			invoke: (
+				actions: Awaited<typeof import('./[id]/+page.server')>['actions'],
+				fetchSpy: ReturnType<typeof vi.fn>
+			) =>
 				actions.softDelete({
 					request: new Request('http://localhost/admin/customers/aaaaaaaa-0002', {
 						method: 'POST',
@@ -275,7 +285,10 @@ describe('Admin customer detail', () => {
 		},
 		{
 			name: 'terminateDeployment',
-			invoke: (actions: Awaited<typeof import('./[id]/+page.server')>['actions'], fetchSpy: ReturnType<typeof vi.fn>) =>
+			invoke: (
+				actions: Awaited<typeof import('./[id]/+page.server')>['actions'],
+				fetchSpy: ReturnType<typeof vi.fn>
+			) =>
 				actions.terminateDeployment({
 					request: new Request('http://localhost/admin/customers/aaaaaaaa-0002/deployments', {
 						method: 'POST',
@@ -546,13 +559,13 @@ describe('Admin customer detail', () => {
 			fetch: async (input: string | URL | Request, init?: RequestInit) => {
 				capturedUrl = typeof input === 'string' ? input : input.toString();
 				capturedMethod = init?.method ?? 'GET';
-					return new Response(JSON.stringify({ message: 'customer suspended' }), { status: 200 });
-				},
-				params: { id: 'aaaaaaaa-0001-0000-0000-000000000001' },
-				cookies: {
-					get: (name: string) => (name === ADMIN_SESSION_COOKIE ? adminSession.id : undefined)
-				}
-			} as never);
+				return new Response(JSON.stringify({ message: 'customer suspended' }), { status: 200 });
+			},
+			params: { id: 'aaaaaaaa-0001-0000-0000-000000000001' },
+			cookies: {
+				get: (name: string) => (name === ADMIN_SESSION_COOKIE ? adminSession.id : undefined)
+			}
+		} as never);
 
 		expect(capturedUrl).toContain('/admin/customers/aaaaaaaa-0001-0000-0000-000000000001/suspend');
 		expect(capturedMethod).toBe('POST');

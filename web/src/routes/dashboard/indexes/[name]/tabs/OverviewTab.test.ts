@@ -57,7 +57,7 @@ describe('OverviewTab — Connect Your App snippets', () => {
 
 		const snippetArea = within(connectSection).getByTestId('snippet-panel');
 		const text = snippetArea.textContent ?? '';
-		expect(text).toContain("liteClient as algoliasearch");
+		expect(text).toContain('liteClient as algoliasearch');
 		expect(text).toContain("from 'algoliasearch/lite'");
 		expect(text).toContain('baseHeaders');
 		expect(text).toContain("accept: 'readWrite'");
@@ -78,7 +78,7 @@ describe('OverviewTab — Connect Your App snippets', () => {
 
 		const snippetArea = within(connectSection).getByTestId('snippet-panel');
 		const text = snippetArea.textContent ?? '';
-		expect(text).toContain("liteClient as algoliasearch");
+		expect(text).toContain('liteClient as algoliasearch');
 		expect(text).toContain("from 'algoliasearch/lite'");
 		expect(text).toContain('baseHeaders');
 		expect(text).toContain("accept: 'readWrite'");
@@ -99,7 +99,7 @@ describe('OverviewTab — Connect Your App snippets', () => {
 
 		const snippetArea = within(connectSection).getByTestId('snippet-panel');
 		const text = snippetArea.textContent ?? '';
-		expect(text).toContain("liteClient as algoliasearch");
+		expect(text).toContain('liteClient as algoliasearch');
 		expect(text).toContain("from 'algoliasearch/lite'");
 		expect(text).toContain('baseHeaders');
 		expect(text).toContain("accept: 'readWrite'");
@@ -121,10 +121,12 @@ describe('connect-your-app snippet helpers', () => {
 			appId: 'griddle'
 		});
 
-		expect(buildSnippetContext('http://vm-replica-eu.flapjack.foo:7700', 'products')).toMatchObject({
-			host: 'vm-replica-eu.flapjack.foo:7700',
-			protocol: 'http'
-		});
+		expect(buildSnippetContext('http://vm-replica-eu.flapjack.foo:7700', 'products')).toMatchObject(
+			{
+				host: 'vm-replica-eu.flapjack.foo:7700',
+				protocol: 'http'
+			}
+		);
 	});
 
 	it('emits protocol-aware Algolia host config in the generated client setup', () => {

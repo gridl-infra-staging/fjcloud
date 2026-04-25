@@ -48,10 +48,10 @@ async function waitForCreateIndexSuccess(
 		.poll(
 			async () => {
 				if (await indexInTable.isVisible().catch(() => false)) return 'table';
-				if (!options?.requireTableRow && await provisioningMsg.isVisible().catch(() => false)) {
+				if (!options?.requireTableRow && (await provisioningMsg.isVisible().catch(() => false))) {
 					return 'provisioning';
 				}
-				if (!options?.requireTableRow && await createdMsg.isVisible().catch(() => false)) {
+				if (!options?.requireTableRow && (await createdMsg.isVisible().catch(() => false))) {
 					return 'created';
 				}
 				return 'pending';
@@ -67,12 +67,14 @@ async function submitCreateIndexForm(page: Page, name: string, regionId?: string
 	const regionRadios = form.getByRole('radio');
 
 	if (regionId) {
-		const targetIndex = await regionRadios.evaluateAll((inputs, targetRegionId) =>
-			inputs.findIndex((input) => {
-				const radio = input as HTMLInputElement;
-				return !radio.disabled && radio.value === targetRegionId;
-			}),
-		regionId);
+		const targetIndex = await regionRadios.evaluateAll(
+			(inputs, targetRegionId) =>
+				inputs.findIndex((input) => {
+					const radio = input as HTMLInputElement;
+					return !radio.disabled && radio.value === targetRegionId;
+				}),
+			regionId
+		);
 		if (targetIndex < 0) {
 			const observedRegions = await regionRadios.evaluateAll((inputs) =>
 				inputs
@@ -93,10 +95,10 @@ async function submitCreateIndexForm(page: Page, name: string, regionId?: string
 	} else {
 		// Region radios are optional in some environments.
 		// Click the first region label card if any radios are present.
-		if (await regionRadios.count() > 0) {
-			const firstRegionId = await regionRadios.first().evaluate(
-				(el) => (el as HTMLInputElement).value
-			);
+		if ((await regionRadios.count()) > 0) {
+			const firstRegionId = await regionRadios
+				.first()
+				.evaluate((el) => (el as HTMLInputElement).value);
 			await form.getByText(firstRegionId, { exact: true }).click();
 		}
 	}
@@ -114,7 +116,7 @@ async function captureRuntimeRegionsFromCreateForm(page: Page): Promise<Captured
 				id: radio.value.trim(),
 				label: labelText.replace(/\s+/g, ' ').trim(),
 				checked: radio.checked,
-				disabled: radio.disabled,
+				disabled: radio.disabled
 			};
 		})
 	);
@@ -148,16 +150,20 @@ async function captureRuntimeRegionsFromCreateForm(page: Page): Promise<Captured
 
 	return {
 		defaultRegionId: defaultRegion.id,
-		secondRegionId: secondRegion.id,
+		secondRegionId: secondRegion.id
 	};
 }
 
-async function expectIndexRegionRow(page: Page, indexName: string, regionId: string): Promise<void> {
+async function expectIndexRegionRow(
+	page: Page,
+	indexName: string,
+	regionId: string
+): Promise<void> {
 	const row = page.getByRole('row').filter({
-		has: page.getByRole('link', { name: indexName, exact: true }),
+		has: page.getByRole('link', { name: indexName, exact: true })
 	});
 	await expect(row.getByRole('cell', { name: regionId, exact: true })).toBeVisible({
-		timeout: 15_000,
+		timeout: 15_000
 	});
 }
 
@@ -211,7 +217,7 @@ test.describe('Indexes list page', () => {
 	test('create index through the UI adds it to the table', async ({
 		page,
 		cleanupFixtureIndexes,
-		registerIndexForCleanup,
+		registerIndexForCleanup
 	}) => {
 		const name = `e2e-create-${Date.now()}`;
 
@@ -229,7 +235,7 @@ test.describe('Indexes list page', () => {
 		page,
 		cleanupFixtureIndexes,
 		seedIndex,
-		registerIndexForCleanup,
+		registerIndexForCleanup
 	}) => {
 		const defaultRegionIndexName = `e2e-default-region-${Date.now()}`;
 		const secondRegionIndexName = `e2e-second-region-${Date.now()}`;
@@ -257,7 +263,7 @@ test.describe('Indexes list page', () => {
 			new RegExp(`/dashboard/indexes/${encodeURIComponent(secondRegionIndexName)}`)
 		);
 		await expect(page.getByRole('heading', { name: secondRegionIndexName })).toBeVisible({
-			timeout: 10_000,
+			timeout: 10_000
 		});
 		await expectOverviewRegionStat(page, runtimeRegions.secondRegionId);
 	});
@@ -266,7 +272,7 @@ test.describe('Indexes list page', () => {
 		page,
 		cleanupFixtureIndexes,
 		seedIndex,
-		testRegion,
+		testRegion
 	}) => {
 		const name = `e2e-duplicate-${Date.now()}`;
 		await cleanupFixtureIndexes();
@@ -302,7 +308,7 @@ test.describe('Index detail page', () => {
 	test('detail page has a delete button with confirmation', async ({
 		page,
 		seedIndex,
-		testRegion,
+		testRegion
 	}) => {
 		test.setTimeout(120_000);
 		const name = `e2e-del-${Date.now()}`;
@@ -316,7 +322,7 @@ test.describe('Index detail page', () => {
 
 	test('Search Preview tab shows real search results from Flapjack', async ({
 		page,
-		seedSearchableIndex,
+		seedSearchableIndex
 	}) => {
 		test.setTimeout(120_000);
 		const name = `e2e-search-${Date.now()}`;
@@ -346,8 +352,8 @@ test.describe('Index detail page', () => {
 		await submitSearchPreviewQuery(page, query);
 
 		// Assert: the expected hit text appears in the search preview hits area
-		await expect(
-			page.getByTestId('instantsearch-hits').getByText(expectedHitText)
-		).toBeVisible({ timeout: 60_000 });
+		await expect(page.getByTestId('instantsearch-hits').getByText(expectedHitText)).toBeVisible({
+			timeout: 60_000
+		});
 	});
 });

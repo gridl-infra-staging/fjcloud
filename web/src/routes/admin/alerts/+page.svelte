@@ -88,7 +88,9 @@
 	{:else}
 		<div class="overflow-x-auto rounded-lg border border-slate-700">
 			<table class="w-full text-left text-sm">
-				<thead class="border-b border-slate-700 bg-slate-900/80 text-xs uppercase tracking-wide text-slate-400">
+				<thead
+					class="border-b border-slate-700 bg-slate-900/80 text-xs uppercase tracking-wide text-slate-400"
+				>
 					<tr>
 						<th class="px-4 py-3">Timestamp</th>
 						<th class="px-4 py-3">Severity</th>
@@ -122,7 +124,9 @@
 										{expandedMetadataIds.has(alert.id) ? 'Hide metadata' : 'View metadata'}
 									</button>
 									{#if expandedMetadataIds.has(alert.id)}
-										<div class="mt-2 space-y-1 rounded-md border border-slate-700 bg-slate-900 p-2 text-xs">
+										<div
+											class="mt-2 space-y-1 rounded-md border border-slate-700 bg-slate-900 p-2 text-xs"
+										>
 											{#each metadataEntries(alert.metadata) as [key, value] (key)}
 												<p class="text-slate-300">
 													<span class="font-semibold text-slate-100">{key}:</span>

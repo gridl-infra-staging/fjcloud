@@ -20,12 +20,13 @@
 		return status === filter;
 	}
 
-	const filteredReplicas = $derived(replicas.filter((r) => matchesStatusFilter(r.status, statusFilter)));
+	const filteredReplicas = $derived(
+		replicas.filter((r) => matchesStatusFilter(r.status, statusFilter))
+	);
 
 	function shortId(id: string): string {
 		return id.split('-')[0];
 	}
-
 </script>
 
 <svelte:head>
@@ -110,7 +111,9 @@
 							<td class="px-4 py-3 font-medium text-violet-300">{replica.tenant_id}</td>
 							<td class="px-4 py-3">
 								<span
-									class="inline-flex rounded-full border px-2 py-0.5 text-xs font-medium {adminBadgeColor(replica.status)}"
+									class="inline-flex rounded-full border px-2 py-0.5 text-xs font-medium {adminBadgeColor(
+										replica.status
+									)}"
 								>
 									{replica.status}
 								</span>

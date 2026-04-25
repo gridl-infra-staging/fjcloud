@@ -68,7 +68,18 @@ describe('Index detail page — Search Preview browser behavior', () => {
 	});
 
 	it('shows unavailable state for cold tier index', async () => {
-		renderPage({ index: { name: 'products', region: 'us-east-1', endpoint: 'https://vm.flapjack.foo', entries: 0, data_size_bytes: 0, status: 'ready', tier: 'cold', created_at: '2026-01-01T00:00:00Z' } });
+		renderPage({
+			index: {
+				name: 'products',
+				region: 'us-east-1',
+				endpoint: 'https://vm.flapjack.foo',
+				entries: 0,
+				data_size_bytes: 0,
+				status: 'ready',
+				tier: 'cold',
+				created_at: '2026-01-01T00:00:00Z'
+			}
+		});
 		await openTab('Search Preview');
 
 		expect(screen.getByText(/not available/i)).toBeInTheDocument();

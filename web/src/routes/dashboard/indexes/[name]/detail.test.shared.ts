@@ -293,9 +293,27 @@ export const sampleReplicas: IndexReplicaSummary[] = [
 ];
 
 export const sampleRegions: InternalRegion[] = [
-	{ id: 'us-east-1', provider: 'aws', provider_location: 'us-east-1', display_name: 'US East (Virginia)', available: true },
-	{ id: 'eu-central-1', provider: 'hetzner', provider_location: 'fsn1', display_name: 'EU Central (Germany)', available: true },
-	{ id: 'eu-north-1', provider: 'hetzner', provider_location: 'hel1', display_name: 'EU North (Helsinki)', available: true }
+	{
+		id: 'us-east-1',
+		provider: 'aws',
+		provider_location: 'us-east-1',
+		display_name: 'US East (Virginia)',
+		available: true
+	},
+	{
+		id: 'eu-central-1',
+		provider: 'hetzner',
+		provider_location: 'fsn1',
+		display_name: 'EU Central (Germany)',
+		available: true
+	},
+	{
+		id: 'eu-north-1',
+		provider: 'hetzner',
+		provider_location: 'hel1',
+		display_name: 'EU North (Helsinki)',
+		available: true
+	}
 ];
 
 export const sampleDebugEvents = {

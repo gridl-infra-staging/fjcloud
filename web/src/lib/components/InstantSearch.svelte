@@ -30,6 +30,10 @@
 	let activeRequest = 0;
 
 	function buildSearchParams(nextQuery: string): string {
+		// Local non-reactive URLSearchParams: built and stringified inside this
+		// function, never stored in $state. SvelteURLSearchParams is unnecessary
+		// because there is nothing for Svelte's reactivity system to track.
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity
 		const params = new URLSearchParams();
 		params.set('query', nextQuery);
 		return params.toString();
@@ -134,7 +138,7 @@
 		{:else if searchSubmitted && hits.length === 0}
 			<p class="text-gray-500">No results found.</p>
 		{:else}
-			{#each hits as hit}
+			{#each hits as hit, idx (hit.objectID ?? `hit-${idx}`)}
 				<article class="hit-item">
 					<strong>{hit.title ?? hit.objectID ?? 'Untitled result'}</strong>
 					{#if hit.body}
@@ -190,4 +194,4 @@
 		word-break: break-all;
 		margin-top: 0.25rem;
 	}
- </style>
+</style>

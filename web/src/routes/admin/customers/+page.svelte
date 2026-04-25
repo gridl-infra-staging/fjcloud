@@ -100,7 +100,10 @@
 				</thead>
 				<tbody data-testid="customers-table-body" class="divide-y divide-slate-700/50">
 					{#each filteredCustomers as customer (customer.id)}
-						<tr data-testid={`customer-row-${customer.id}`} class="transition hover:bg-slate-800/40">
+						<tr
+							data-testid={`customer-row-${customer.id}`}
+							class="transition hover:bg-slate-800/40"
+						>
 							<td class="px-4 py-3">
 								<a
 									href={resolve(`/admin/customers/${customer.id}`)}
@@ -112,19 +115,25 @@
 							<td class="px-4 py-3 text-slate-300">{customer.email}</td>
 							<td class="px-4 py-3">
 								<span
-									class="inline-flex rounded-full border px-2 py-0.5 text-xs font-medium {adminBadgeColor(customer.status)}"
+									class="inline-flex rounded-full border px-2 py-0.5 text-xs font-medium {adminBadgeColor(
+										customer.status
+									)}"
 								>
 									{customer.status}
 								</span>
 							</td>
 							<td class="px-4 py-3 text-xs text-slate-400">{formatDate(customer.created_at)}</td>
-							<td class="px-4 py-3 text-slate-300" data-testid="index-count">{customer.index_count ?? '—'}</td>
+							<td class="px-4 py-3 text-slate-300" data-testid="index-count"
+								>{customer.index_count ?? '—'}</td
+							>
 							<td class="px-4 py-3" data-testid="invoice-status">
 								{#if customer.last_invoice_status === null}
 									<span class="text-slate-500">—</span>
 								{:else}
 									<span
-										class="inline-flex rounded-full border px-2 py-0.5 text-xs font-medium {adminBadgeColor(customer.last_invoice_status)}"
+										class="inline-flex rounded-full border px-2 py-0.5 text-xs font-medium {adminBadgeColor(
+											customer.last_invoice_status
+										)}"
 									>
 										{customer.last_invoice_status}
 									</span>
@@ -133,7 +142,11 @@
 							<td class="px-4 py-3">
 								<div class="flex gap-1">
 									{#if customer.status === 'active'}
-										<form method="POST" action={detailActionUrl(customer.id, 'suspend')} use:enhance={handleQuickAction}>
+										<form
+											method="POST"
+											action={detailActionUrl(customer.id, 'suspend')}
+											use:enhance={handleQuickAction}
+										>
 											<button
 												type="submit"
 												data-testid="quick-suspend"
@@ -144,7 +157,11 @@
 										</form>
 									{/if}
 									{#if customer.status !== 'deleted'}
-										<form method="POST" action={detailActionUrl(customer.id, 'impersonate')} use:enhance={handleQuickAction}>
+										<form
+											method="POST"
+											action={detailActionUrl(customer.id, 'impersonate')}
+											use:enhance={handleQuickAction}
+										>
 											<button
 												type="submit"
 												data-testid="quick-impersonate"

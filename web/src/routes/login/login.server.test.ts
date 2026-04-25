@@ -62,7 +62,9 @@ describe('Login server action', () => {
 		loginMock.mockResolvedValue({ token: 'jwt-token' });
 
 		await expect(
-			actions.default(makeEvent({ email: '  USER@Example.COM  ', password: 'password123' }, setCookie))
+			actions.default(
+				makeEvent({ email: '  USER@Example.COM  ', password: 'password123' }, setCookie)
+			)
 		).rejects.toMatchObject({ status: 303, location: '/dashboard' });
 
 		expect(loginMock).toHaveBeenCalledWith({

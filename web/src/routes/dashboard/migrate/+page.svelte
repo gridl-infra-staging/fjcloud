@@ -54,9 +54,14 @@
 	{/if}
 
 	{#if migrationStarted}
-		<div data-testid="migration-success" class="rounded-lg border border-green-500/40 bg-green-950/20 p-4">
+		<div
+			data-testid="migration-success"
+			class="rounded-lg border border-green-500/40 bg-green-950/20 p-4"
+		>
 			<p class="text-sm font-medium text-green-200">Migration started</p>
-			<p class="mt-1 text-sm text-slate-300">Task ID: <code class="text-slate-100">{form?.taskId}</code></p>
+			<p class="mt-1 text-sm text-slate-300">
+				Task ID: <code class="text-slate-100">{form?.taskId}</code>
+			</p>
 			{#if form?.message}
 				<p class="mt-1 text-sm text-slate-400">{form.message}</p>
 			{/if}
@@ -111,13 +116,17 @@
 		<div data-testid="index-list" class="space-y-3">
 			<h3 class="text-lg font-medium text-slate-100">Source Indexes</h3>
 			{#if indexes.length === 0}
-				<p class="rounded-md border border-slate-700 bg-slate-800/40 px-3 py-2 text-sm text-slate-400">
+				<p
+					class="rounded-md border border-slate-700 bg-slate-800/40 px-3 py-2 text-sm text-slate-400"
+				>
 					No indexes found in this Algolia application.
 				</p>
 			{:else}
 				<div class="overflow-x-auto rounded-lg border border-slate-700">
 					<table class="w-full text-left text-sm">
-						<thead class="border-b border-slate-700 bg-slate-800/80 text-xs uppercase tracking-wide text-slate-400">
+						<thead
+							class="border-b border-slate-700 bg-slate-800/80 text-xs uppercase tracking-wide text-slate-400"
+						>
 							<tr>
 								<th class="px-4 py-3">Index</th>
 								<th class="px-4 py-3">Entries</th>

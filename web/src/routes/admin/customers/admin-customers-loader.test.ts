@@ -32,7 +32,8 @@ function mockAdminFetch(options: {
 	>;
 }) {
 	return async (input: string | URL | Request) => {
-		const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+		const url =
+			typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
 
 		if (url.endsWith('/admin/tenants')) {
 			return new Response(JSON.stringify(options.tenants), {
@@ -102,7 +103,8 @@ describe('Admin customers list loader', () => {
 			depends: vi.fn()
 		} as never);
 
-		const customers = (result as { customers: Array<{ last_invoice_status: string | null }> }).customers;
+		const customers = (result as { customers: Array<{ last_invoice_status: string | null }> })
+			.customers;
 		// The most recent invoice (by created_at) has status 'failed'
 		expect(customers[0].last_invoice_status).toBe('failed');
 	});
@@ -118,7 +120,8 @@ describe('Admin customers list loader', () => {
 			depends: vi.fn()
 		} as never);
 
-		const customers = (result as { customers: Array<{ last_invoice_status: string | null }> }).customers;
+		const customers = (result as { customers: Array<{ last_invoice_status: string | null }> })
+			.customers;
 		expect(customers[0].last_invoice_status).toBe('none');
 	});
 
@@ -133,7 +136,8 @@ describe('Admin customers list loader', () => {
 			depends: vi.fn()
 		} as never);
 
-		const customers = (result as { customers: Array<{ last_invoice_status: string | null }> }).customers;
+		const customers = (result as { customers: Array<{ last_invoice_status: string | null }> })
+			.customers;
 		// Unavailable sentinel: null means the API call failed
 		expect(customers[0].last_invoice_status).toBeNull();
 	});

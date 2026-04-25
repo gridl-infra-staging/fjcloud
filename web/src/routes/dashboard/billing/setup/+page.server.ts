@@ -18,6 +18,9 @@ export const load: PageServerLoad = async ({ locals }) => {
 				billingUnavailable: true as const
 			};
 		}
-		return { clientSecret: null as string | null, error: 'Unable to load payment setup. Please try again.' as string | null };
+		return {
+			clientSecret: null as string | null,
+			error: 'Unable to load payment setup. Please try again.' as string | null
+		};
 	}
 };

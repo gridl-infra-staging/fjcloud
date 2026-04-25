@@ -183,8 +183,12 @@ describe('Invoice detail page', () => {
 		const dateGrid = createdLabel.closest('div')?.parentElement;
 		const createdSection = createdLabel.closest('div');
 		expect(dateGrid).not.toBeNull();
-		const finalizedSection = within(dateGrid as HTMLElement).getByText('Finalized').closest('div');
-		const paidSection = within(dateGrid as HTMLElement).getByText('Paid').closest('div');
+		const finalizedSection = within(dateGrid as HTMLElement)
+			.getByText('Finalized')
+			.closest('div');
+		const paidSection = within(dateGrid as HTMLElement)
+			.getByText('Paid')
+			.closest('div');
 		expect(createdSection).not.toBeNull();
 		expect(finalizedSection).not.toBeNull();
 		expect(paidSection).not.toBeNull();
@@ -192,7 +196,9 @@ describe('Invoice detail page', () => {
 			within(createdSection as HTMLElement).getByText(formatDate(sampleInvoiceDetail.created_at))
 		).toBeInTheDocument();
 		expect(
-			within(finalizedSection as HTMLElement).getByText(formatDate(sampleInvoiceDetail.finalized_at))
+			within(finalizedSection as HTMLElement).getByText(
+				formatDate(sampleInvoiceDetail.finalized_at)
+			)
 		).toBeInTheDocument();
 		expect(
 			within(paidSection as HTMLElement).getByText(formatDate(sampleInvoiceDetail.paid_at))

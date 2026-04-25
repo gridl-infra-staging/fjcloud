@@ -214,10 +214,7 @@ describe('deriveFormLogEntry', () => {
 
 	it('derives a stop experiment entry using lastSubmittedAction', async () => {
 		const { deriveFormLogEntry } = await import('./dashboard-instrumentation');
-		const entry = deriveFormLogEntry(
-			{ experimentStopped: true },
-			'?/stopExperiment'
-		);
+		const entry = deriveFormLogEntry({ experimentStopped: true }, '?/stopExperiment');
 
 		expect(entry).not.toBeNull();
 		expect(entry!.url).toBe('?/stopExperiment');
@@ -280,10 +277,7 @@ describe('deriveFormLogEntry', () => {
 	it('ignores unrelated lastSubmittedAction for experiment routes', async () => {
 		const { deriveFormLogEntry } = await import('./dashboard-instrumentation');
 		// Pass a lastSubmittedAction that doesn't match any allowed experiment route
-		const entry = deriveFormLogEntry(
-			{ experimentCreated: true },
-			'?/saveSettings'
-		);
+		const entry = deriveFormLogEntry({ experimentCreated: true }, '?/saveSettings');
 		expect(entry).not.toBeNull();
 		// Should resolve from result fields, not from wrong lastSubmittedAction
 		expect(entry!.url).toBe('?/createExperiment');

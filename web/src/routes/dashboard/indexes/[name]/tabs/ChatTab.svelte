@@ -36,7 +36,9 @@
 
 <div class="mb-6 rounded-lg bg-white p-6 shadow" data-testid="chat-section" data-index={index.name}>
 	<h2 class="mb-4 text-lg font-medium text-gray-900">Chat</h2>
-	<p class="mb-4 text-sm text-gray-600">Ask questions about this index using the JSON chat endpoint.</p>
+	<p class="mb-4 text-sm text-gray-600">
+		Ask questions about this index using the JSON chat endpoint.
+	</p>
 
 	{#if chatError}
 		<div class="mb-4 rounded-md bg-red-50 p-3 text-sm text-red-700">{chatError}</div>
@@ -85,9 +87,12 @@
 			<p class="mb-2 text-xs text-gray-500">
 				Conversation ID: {chatResponse.conversationId} · Query ID: {chatResponse.queryID}
 			</p>
-			<pre class="overflow-x-auto whitespace-pre-wrap rounded bg-white p-3 font-mono text-xs text-gray-700"
-				>{JSON.stringify(chatResponse.sources, null, 2)}</pre
-			>
+			<pre
+				class="overflow-x-auto whitespace-pre-wrap rounded bg-white p-3 font-mono text-xs text-gray-700">{JSON.stringify(
+					chatResponse.sources,
+					null,
+					2
+				)}</pre>
 		</div>
 	{:else}
 		<p class="text-sm text-gray-500">No chat response yet.</p>

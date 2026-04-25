@@ -100,9 +100,7 @@ describe('MerchandisingTab', () => {
 			render(MerchandisingTab, { props: defaultProps() });
 
 			expect(screen.getByText('Enter a search query')).toBeInTheDocument();
-			expect(
-				screen.getByText(/search and then pin or hide results/i)
-			).toBeInTheDocument();
+			expect(screen.getByText(/search and then pin or hide results/i)).toBeInTheDocument();
 		});
 	});
 
@@ -186,9 +184,7 @@ describe('MerchandisingTab', () => {
 
 			await fireEvent.click(screen.getByRole('button', { name: 'Pin prod-1' }));
 
-			expect(
-				screen.getByRole('button', { name: 'Reset Merchandising' })
-			).toBeInTheDocument();
+			expect(screen.getByRole('button', { name: 'Reset Merchandising' })).toBeInTheDocument();
 			expect(screen.getByRole('button', { name: 'Save as Rule' })).toBeInTheDocument();
 		});
 
@@ -215,9 +211,7 @@ describe('MerchandisingTab', () => {
 
 			const form = container.querySelector('form[action="?/saveRule"]');
 			expect(form).not.toBeNull();
-			expect(
-				screen.getByRole('button', { name: 'Confirm Save Rule' })
-			).toBeInTheDocument();
+			expect(screen.getByRole('button', { name: 'Confirm Save Rule' })).toBeInTheDocument();
 		});
 
 		it('saveRule form has hidden objectID and rule inputs', async () => {
@@ -289,7 +283,8 @@ describe('MerchandisingTab', () => {
 			fireEvent.input(input);
 			await tick();
 
-			const form = screen.getByRole('button', { name: 'Search Merchandising Results' })
+			const form = screen
+				.getByRole('button', { name: 'Search Merchandising Results' })
 				.closest('form') as HTMLFormElement;
 			fireEvent.submit(form);
 			await tick();

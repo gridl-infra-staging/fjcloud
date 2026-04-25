@@ -20,7 +20,10 @@
 	</div>
 
 	{#if errorMessage}
-		<div role="alert" class="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+		<div
+			role="alert"
+			class="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700"
+		>
 			<p>{errorMessage}</p>
 		</div>
 	{/if}
@@ -29,7 +32,9 @@
 		<div data-testid="key-reveal" class="mb-6 rounded-lg border border-green-200 bg-green-50 p-4">
 			<p class="mb-2 font-medium text-green-800">API key created successfully</p>
 			<p class="mb-2 text-sm text-green-700">This key won't be shown again. Copy it now.</p>
-			<code class="block break-all rounded bg-white p-3 font-mono text-sm text-gray-900">{createdKey}</code>
+			<code class="block break-all rounded bg-white p-3 font-mono text-sm text-gray-900"
+				>{createdKey}</code
+			>
 		</div>
 	{/if}
 
@@ -93,7 +98,9 @@
 							<td class="px-4 py-3">
 								<div class="flex flex-wrap gap-1">
 									{#each key.scopes as scope (scope)}
-										<span class="rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">{scopeLabel(scope)}</span>
+										<span class="rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700"
+											>{scopeLabel(scope)}</span
+										>
 									{/each}
 								</div>
 							</td>

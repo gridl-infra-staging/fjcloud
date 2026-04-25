@@ -3,7 +3,13 @@
 	import { invalidateAll } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import type { ActionResult, SubmitFunction } from '@sveltejs/kit';
-	import { formatDate, formatBytes, formatNumber, indexStatusBadgeColor, statusLabel } from '$lib/format';
+	import {
+		formatDate,
+		formatBytes,
+		formatNumber,
+		indexStatusBadgeColor,
+		statusLabel
+	} from '$lib/format';
 	import type { Index, InternalRegion } from '$lib/api/types';
 
 	let { data, form: formResult } = $props();
@@ -42,7 +48,9 @@
 		<h1 class="text-2xl font-bold text-gray-900">Indexes</h1>
 		<button
 			type="button"
-			onclick={() => { showCreateForm = !showCreateForm; }}
+			onclick={() => {
+				showCreateForm = !showCreateForm;
+			}}
 			class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
 		>
 			Create Index
@@ -50,16 +58,25 @@
 	</div>
 
 	{#if formResult?.error === 'quota_exceeded'}
-		<div data-testid="quota-exceeded-callout" class="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+		<div
+			data-testid="quota-exceeded-callout"
+			class="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800"
+		>
 			<p class="font-medium">You've reached your free plan index limit.</p>
 			<p class="mt-1">
 				Delete an existing index or
-				<a href="/dashboard/billing" class="font-medium text-amber-900 underline hover:text-amber-700">upgrade your plan</a>
+				<a
+					href={resolve('/dashboard/billing')}
+					class="font-medium text-amber-900 underline hover:text-amber-700">upgrade your plan</a
+				>
 				to create more.
 			</p>
 		</div>
 	{:else if formResult?.error}
-		<div role="alert" class="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+		<div
+			role="alert"
+			class="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700"
+		>
 			<p>{formResult.error}</p>
 		</div>
 	{/if}
@@ -75,7 +92,9 @@
 			<h2 class="mb-4 text-lg font-medium text-gray-900">Create a new index</h2>
 			<form method="POST" action="?/create" use:enhance={refreshIndexesAfterAction}>
 				<div class="mb-4">
-					<label for="index-name" class="mb-1 block text-sm font-medium text-gray-700">Index name</label>
+					<label for="index-name" class="mb-1 block text-sm font-medium text-gray-700"
+						>Index name</label
+					>
 					<input
 						id="index-name"
 						type="text"
@@ -93,7 +112,8 @@
 					<div class="grid grid-cols-2 gap-3">
 						{#each regions as region (region.id)}
 							<label
-								class="cursor-pointer rounded-lg border-2 p-3 transition-colors {selectedRegion === region.id
+								class="cursor-pointer rounded-lg border-2 p-3 transition-colors {selectedRegion ===
+								region.id
 									? 'border-blue-500 bg-blue-50'
 									: 'border-gray-200 hover:border-gray-300'}"
 							>
@@ -123,7 +143,9 @@
 					</button>
 					<button
 						type="button"
-						onclick={() => { showCreateForm = false; }}
+						onclick={() => {
+							showCreateForm = false;
+						}}
 						class="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
 					>
 						Cancel
@@ -155,13 +177,20 @@
 					{#each indexes as idx (idx.name)}
 						<tr>
 							<td class="px-4 py-3 font-medium text-gray-900">
-								<a href={resolve(`/dashboard/indexes/${idx.name}`)} class="text-blue-600 hover:text-blue-500 hover:underline">
+								<a
+									href={resolve(`/dashboard/indexes/${idx.name}`)}
+									class="text-blue-600 hover:text-blue-500 hover:underline"
+								>
 									{idx.name}
 								</a>
 							</td>
 							<td class="px-4 py-3 text-gray-600">{idx.region}</td>
 							<td class="px-4 py-3">
-								<span class="inline-flex rounded-full px-2 py-0.5 text-xs font-medium {indexStatusBadgeColor(idx.status)}">
+								<span
+									class="inline-flex rounded-full px-2 py-0.5 text-xs font-medium {indexStatusBadgeColor(
+										idx.status
+									)}"
+								>
 									{statusLabel(idx.status)}
 								</span>
 							</td>

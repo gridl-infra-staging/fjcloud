@@ -7,7 +7,7 @@ import {
 	PLAYWRIGHT_PROJECT_CONTRACTS,
 	parseDotenvFile,
 	resolvePlaywrightRuntime,
-	type PlaywrightProjectContract,
+	type PlaywrightProjectContract
 } from './playwright.config.contract';
 
 /**
@@ -43,14 +43,14 @@ const webEnv = parseDotenvFile(resolve(process.cwd(), '.env.local'));
 applyPlaywrightProcessEnvDefaults({
 	processEnv: process.env,
 	repoEnv,
-	webEnv,
+	webEnv
 });
 const fallbackJwtSecret = randomBytes(32).toString('hex');
 const runtimeContract = resolvePlaywrightRuntime({
 	processEnv: process.env,
 	repoEnv,
 	webEnv,
-	fallbackJwtSecret,
+	fallbackJwtSecret
 });
 
 /** Map a contract-defined project shape to a Playwright-native project config,
@@ -75,7 +75,7 @@ function toPlaywrightProject(project: PlaywrightProjectContract): PlaywrightTest
 		name: project.name,
 		testMatch: project.testMatch,
 		...(project.dependencies ? { dependencies: project.dependencies } : {}),
-		...(Object.keys(use).length > 0 ? { use } : {}),
+		...(Object.keys(use).length > 0 ? { use } : {})
 	};
 }
 
@@ -90,12 +90,12 @@ export default defineConfig({
 	use: {
 		baseURL: runtimeContract.baseURL,
 		trace: 'on-first-retry',
-		screenshot: 'only-on-failure',
+		screenshot: 'only-on-failure'
 	},
 
 	projects: PLAYWRIGHT_PROJECT_CONTRACTS.map(toPlaywrightProject),
 
 	// Optionally start the web server. With reuseExistingServer the dev server
 	// must already be running (the Rust API cannot be started from here).
-	webServer: runtimeContract.webServer,
+	webServer: runtimeContract.webServer
 });

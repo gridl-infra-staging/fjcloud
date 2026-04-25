@@ -53,7 +53,9 @@
 
 <div class="space-y-6">
 	<div class="flex items-center gap-3">
-		<a href={resolve('/admin/fleet')} class="text-sm text-violet-400 hover:text-violet-300">&larr; Fleet</a>
+		<a href={resolve('/admin/fleet')} class="text-sm text-violet-400 hover:text-violet-300"
+			>&larr; Fleet</a
+		>
 		<h2 class="text-xl font-semibold text-white">{data.vm.hostname}</h2>
 		<span
 			class="inline-flex rounded-full border px-2 py-0.5 text-xs font-medium {adminBadgeColor(

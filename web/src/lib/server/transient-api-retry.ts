@@ -27,9 +27,7 @@ export async function retryTransientDashboardApiRequest<T>(
 				throw error;
 			}
 
-			await sleep(
-				Math.min(INITIAL_TRANSIENT_DELAY_MS * (attempt + 1), MAX_TRANSIENT_DELAY_MS)
-			);
+			await sleep(Math.min(INITIAL_TRANSIENT_DELAY_MS * (attempt + 1), MAX_TRANSIENT_DELAY_MS));
 		}
 	}
 
@@ -52,9 +50,7 @@ export async function retryTransientAdminApiRequest<T>(operation: () => Promise<
 				throw error;
 			}
 
-			await sleep(
-				Math.min(INITIAL_TRANSIENT_DELAY_MS * (attempt + 1), MAX_TRANSIENT_DELAY_MS)
-			);
+			await sleep(Math.min(INITIAL_TRANSIENT_DELAY_MS * (attempt + 1), MAX_TRANSIENT_DELAY_MS));
 		}
 	}
 

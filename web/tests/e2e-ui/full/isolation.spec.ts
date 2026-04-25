@@ -195,10 +195,10 @@ test.describe('Cross-tenant index isolation', () => {
 		await generatePreviewKeyAndWaitForWidget(page);
 		await submitSearchPreviewQuery(page, 'Isolation');
 		await expect
-			.poll(
-				async () => page.getByTestId('instantsearch-hits').textContent(),
-				{ timeout: 60_000, message: `Waiting for hits to include ${userAHit}` }
-			)
+			.poll(async () => page.getByTestId('instantsearch-hits').textContent(), {
+				timeout: 60_000,
+				message: `Waiting for hits to include ${userAHit}`
+			})
 			.toContain(userAHit);
 		await expect(page.getByTestId('instantsearch-hits').getByText(userBHit)).toHaveCount(0);
 
@@ -214,10 +214,10 @@ test.describe('Cross-tenant index isolation', () => {
 			await generatePreviewKeyAndWaitForWidget(userBPage);
 			await submitSearchPreviewQuery(userBPage, 'Isolation');
 			await expect
-				.poll(
-					async () => userBPage.getByTestId('instantsearch-hits').textContent(),
-					{ timeout: 60_000, message: `Waiting for hits to include ${userBHit}` }
-				)
+				.poll(async () => userBPage.getByTestId('instantsearch-hits').textContent(), {
+					timeout: 60_000,
+					message: `Waiting for hits to include ${userBHit}`
+				})
 				.toContain(userBHit);
 			await expect(userBPage.getByTestId('instantsearch-hits').getByText(userAHit)).toHaveCount(0);
 		} finally {

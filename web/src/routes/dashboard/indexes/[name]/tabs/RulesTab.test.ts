@@ -198,16 +198,16 @@ describe('RulesTab', () => {
 			const deleteForms = container.querySelectorAll('form[action="?/deleteRule"]');
 			expect(deleteForms.length).toBe(1);
 
-			const hiddenInput = deleteForms[0].querySelector('input[name="objectID"]') as HTMLInputElement;
+			const hiddenInput = deleteForms[0].querySelector(
+				'input[name="objectID"]'
+			) as HTMLInputElement;
 			expect(hiddenInput.value).toBe('boost-shoes');
 		});
 
 		it('delete button has accessible label with rule objectID', () => {
 			render(RulesTab, { props: defaultProps() });
 
-			expect(
-				screen.getByRole('button', { name: /delete rule boost-shoes/i })
-			).toBeInTheDocument();
+			expect(screen.getByRole('button', { name: /delete rule boost-shoes/i })).toBeInTheDocument();
 		});
 	});
 });

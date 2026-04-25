@@ -77,9 +77,7 @@ export function parseDictionaryEntryFromForm(
 		}
 		const words = parseDelimitedValues(rawWords);
 		if (words.length < 2) {
-			throw new Error(
-				'entryWords must include at least two comma-separated values for plurals'
-			);
+			throw new Error('entryWords must include at least two comma-separated values for plurals');
 		}
 		return { ...baseEntry, words };
 	}

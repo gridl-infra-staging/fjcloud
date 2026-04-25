@@ -91,9 +91,7 @@ describe('POST /api/search/[name]', () => {
 
 		const event = makeRequestEvent(
 			{
-				requests: [
-					{ indexName: 'attacker-controlled-index', params: { query: 'test' } }
-				]
+				requests: [{ indexName: 'attacker-controlled-index', params: { query: 'test' } }]
 			},
 			{ name: 'products' }
 		);

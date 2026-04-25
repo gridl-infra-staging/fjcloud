@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { ApiClient, ApiRequestError } from './client';
+import { describe, it, expect, beforeEach } from 'vitest';
+import { ApiClient } from './client';
 import type {
 	AuthResponse,
 	MessageResponse,
@@ -739,5 +739,4 @@ describe('ApiClient', () => {
 			});
 		});
 	});
-
 });

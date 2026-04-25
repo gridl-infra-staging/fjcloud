@@ -46,12 +46,7 @@ export type SanitizedLogEntry = {
 // ---------------------------------------------------------------------------
 
 /** Headers that must never appear in log entries (matched case-insensitively). */
-const REDACTED_HEADER_NAMES = new Set([
-	'authorization',
-	'cookie',
-	'x-api-key',
-	'set-cookie'
-]);
+const REDACTED_HEADER_NAMES = new Set(['authorization', 'cookie', 'x-api-key', 'set-cookie']);
 
 /** Body field names that carry credentials (matched case-insensitively). */
 const SENSITIVE_BODY_FIELDS = new Set([
@@ -77,9 +72,7 @@ export const MAX_RESPONSE_BODY_LENGTH = 8_192;
 // ---------------------------------------------------------------------------
 
 /** Remove auth-bearing headers, returning only safe ones. */
-export function redactHeaders(
-	headers: Record<string, string>
-): Record<string, string> {
+export function redactHeaders(headers: Record<string, string>): Record<string, string> {
 	const result: Record<string, string> = {};
 	for (const [key, value] of Object.entries(headers)) {
 		if (!REDACTED_HEADER_NAMES.has(key.toLowerCase())) {

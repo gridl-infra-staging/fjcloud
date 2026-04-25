@@ -16,8 +16,7 @@
 	let lastHydratedSettingsText = $state('');
 	let settingsControlError = $state('');
 	const settingsFromServerText = $derived(JSON.stringify(settings ?? {}, null, 2));
-	const QUICK_CONTROL_ERROR =
-		'Settings JSON must be a valid JSON object to use quick controls.';
+	const QUICK_CONTROL_ERROR = 'Settings JSON must be a valid JSON object to use quick controls.';
 
 	$effect(() => {
 		if (settingsFromServerText !== lastHydratedSettingsText) {
@@ -42,12 +41,10 @@
 		return typeof value === 'object' && value !== null && !Array.isArray(value);
 	}
 
-	function getEmbedderEntries(
-		value: unknown
-	): [string, Record<string, unknown>][] {
+	function getEmbedderEntries(value: unknown): [string, Record<string, unknown>][] {
 		if (!isRecord(value)) return [];
-		return Object.entries(value).filter(
-			(entry): entry is [string, Record<string, unknown>] => isRecord(entry[1])
+		return Object.entries(value).filter((entry): entry is [string, Record<string, unknown>] =>
+			isRecord(entry[1])
 		);
 	}
 
@@ -242,176 +239,180 @@
 	});
 </script>
 
-		<div class="mb-6 rounded-lg bg-white p-6 shadow" data-testid="settings-section">
-			<h2 class="mb-4 text-lg font-medium text-gray-900">Settings</h2>
+<div class="mb-6 rounded-lg bg-white p-6 shadow" data-testid="settings-section">
+	<h2 class="mb-4 text-lg font-medium text-gray-900">Settings</h2>
+	<p class="mb-4 text-sm text-gray-600">
+		Update index settings as JSON. Changes are forwarded directly to the index API.
+	</p>
+
+	{#if settingsSaved}
+		<div class="mb-4 rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-700">
+			Settings saved.
+		</div>
+	{/if}
+
+	{#if settingsError}
+		<div class="mb-4 rounded-md bg-red-50 p-3 text-sm text-red-700">{settingsError}</div>
+	{/if}
+
+	<form method="POST" action="?/saveSettings" use:enhance>
+		<div class="mb-6 rounded-md border border-gray-200 p-4">
+			<h3 class="mb-3 text-sm font-semibold text-gray-900">Vector, Hybrid, and Re-ranking</h3>
 			<p class="mb-4 text-sm text-gray-600">
-				Update index settings as JSON. Changes are forwarded directly to the index API.
+				These controls update the same Settings JSON draft below before save.
 			</p>
 
-			{#if settingsSaved}
-				<div class="mb-4 rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-700">
-					Settings saved.
+			{#if settingsControlError}
+				<div class="mb-4 rounded-md bg-red-50 p-3 text-sm text-red-700">{settingsControlError}</div>
+			{/if}
+
+			<div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+				<div>
+					<label for="settings-mode" class="mb-1 block text-sm font-medium text-gray-700"
+						>Mode</label
+					>
+					<select
+						id="settings-mode"
+						value={modeValue}
+						onchange={handleModeChange}
+						class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+					>
+						<option value="standard">standard</option>
+						<option value="neuralSearch">neuralSearch</option>
+					</select>
 				</div>
-			{/if}
 
-			{#if settingsError}
-				<div class="mb-4 rounded-md bg-red-50 p-3 text-sm text-red-700">{settingsError}</div>
-			{/if}
+				<div class="flex flex-col gap-3">
+					<label class="inline-flex items-center gap-2 text-sm text-gray-700">
+						<input type="checkbox" checked={embeddersEnabled} onchange={handleEmbeddersToggle} />
+						<span>Enable Embedders</span>
+					</label>
 
-			<form method="POST" action="?/saveSettings" use:enhance>
-				<div class="mb-6 rounded-md border border-gray-200 p-4">
-					<h3 class="mb-3 text-sm font-semibold text-gray-900">Vector, Hybrid, and Re-ranking</h3>
-					<p class="mb-4 text-sm text-gray-600">
-						These controls update the same Settings JSON draft below before save.
-					</p>
+					<label class="inline-flex items-center gap-2 text-sm text-gray-700">
+						<input type="checkbox" checked={hybridEnabled} onchange={handleHybridToggle} />
+						<span>Enable Hybrid Search</span>
+					</label>
 
-					{#if settingsControlError}
-						<div class="mb-4 rounded-md bg-red-50 p-3 text-sm text-red-700">{settingsControlError}</div>
+					{#if hybridEnabled}
+						<div class="ml-6 flex flex-col gap-3">
+							<div>
+								<label for="settings-semantic-ratio" class="mb-1 block text-sm text-gray-700"
+									>Semantic Ratio</label
+								>
+								<input
+									id="settings-semantic-ratio"
+									type="range"
+									min="0"
+									max="1"
+									step="0.1"
+									value={semanticRatioValue}
+									oninput={(event) =>
+										setHybridSemanticRatio((event.currentTarget as HTMLInputElement).value)}
+									class="w-full"
+								/>
+								<span class="text-xs text-gray-500">{semanticRatioValue}</span>
+							</div>
+							<div>
+								<label for="settings-hybrid-embedder" class="mb-1 block text-sm text-gray-700"
+									>Hybrid Embedder</label
+								>
+								<select
+									id="settings-hybrid-embedder"
+									value={hybridEmbedderValue}
+									onchange={(event) =>
+										setHybridEmbedder((event.currentTarget as HTMLSelectElement).value)}
+									class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+								>
+									{#each hybridEmbedderOptions as name (name)}
+										<option value={name}>{name}</option>
+									{/each}
+								</select>
+							</div>
+						</div>
 					{/if}
 
-					<div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-						<div>
-							<label for="settings-mode" class="mb-1 block text-sm font-medium text-gray-700">Mode</label>
-							<select
-								id="settings-mode"
-								value={modeValue}
-								onchange={handleModeChange}
-								class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-							>
-								<option value="standard">standard</option>
-								<option value="neuralSearch">neuralSearch</option>
-							</select>
-						</div>
+					<label class="inline-flex items-center gap-2 text-sm text-gray-700">
+						<input type="checkbox" checked={reRankingEnabled} onchange={handleReRankingToggle} />
+						<span>Enable Re-ranking</span>
+					</label>
 
-						<div class="flex flex-col gap-3">
-							<label class="inline-flex items-center gap-2 text-sm text-gray-700">
-								<input
-									type="checkbox"
-									checked={embeddersEnabled}
-									onchange={handleEmbeddersToggle}
-								/>
-								<span>Enable Embedders</span>
-							</label>
-
-							<label class="inline-flex items-center gap-2 text-sm text-gray-700">
-								<input
-									type="checkbox"
-									checked={hybridEnabled}
-									onchange={handleHybridToggle}
-								/>
-								<span>Enable Hybrid Search</span>
-							</label>
-
-							{#if hybridEnabled}
-								<div class="ml-6 flex flex-col gap-3">
-									<div>
-										<label for="settings-semantic-ratio" class="mb-1 block text-sm text-gray-700">Semantic Ratio</label>
-										<input
-											id="settings-semantic-ratio"
-											type="range"
-											min="0"
-											max="1"
-											step="0.1"
-											value={semanticRatioValue}
-											oninput={(event) => setHybridSemanticRatio((event.currentTarget as HTMLInputElement).value)}
-											class="w-full"
-										/>
-										<span class="text-xs text-gray-500">{semanticRatioValue}</span>
-									</div>
-									<div>
-										<label for="settings-hybrid-embedder" class="mb-1 block text-sm text-gray-700">Hybrid Embedder</label>
-										<select
-											id="settings-hybrid-embedder"
-											value={hybridEmbedderValue}
-											onchange={(event) => setHybridEmbedder((event.currentTarget as HTMLSelectElement).value)}
-											class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-										>
-											{#each hybridEmbedderOptions as name (name)}
-												<option value={name}>{name}</option>
-											{/each}
-										</select>
-									</div>
-								</div>
-							{/if}
-
-							<label class="inline-flex items-center gap-2 text-sm text-gray-700">
-								<input
-									type="checkbox"
-									checked={reRankingEnabled}
-									onchange={handleReRankingToggle}
-								/>
-								<span>Enable Re-ranking</span>
-							</label>
-
-							<div>
-								<label for="settings-reranking-filter" class="mb-1 block text-sm text-gray-700">
-									Re-ranking Apply Filter
-								</label>
-								<input
-									id="settings-reranking-filter"
-									type="text"
-									value={reRankingApplyFilterValue}
-									oninput={handleReRankingApplyFilterInput}
-									placeholder="brand:Nike"
-									class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-								/>
-							</div>
-						</div>
+					<div>
+						<label for="settings-reranking-filter" class="mb-1 block text-sm text-gray-700">
+							Re-ranking Apply Filter
+						</label>
+						<input
+							id="settings-reranking-filter"
+							type="text"
+							value={reRankingApplyFilterValue}
+							oninput={handleReRankingApplyFilterInput}
+							placeholder="brand:Nike"
+							class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+						/>
 					</div>
 				</div>
-
-				{#if embeddersEnabled && embedderEntries.length > 0}
-					<div class="mb-6 rounded-md border border-gray-200 p-4">
-						<h3 class="mb-3 text-sm font-semibold text-gray-900">Embedder Configuration</h3>
-						{#each embedderEntries as [name, config] (name)}
-							<div class="mb-3 rounded-md border border-gray-100 p-3">
-								<span class="mb-2 block text-sm font-medium text-gray-800">{name}</span>
-								<div class="grid grid-cols-1 gap-3 md:grid-cols-2">
-									<div>
-										<label for="embedder-{name}-source" class="mb-1 block text-sm text-gray-700">{name} source</label>
-										<select
-											id="embedder-{name}-source"
-											value={typeof config.source === 'string' ? config.source : ''}
-											onchange={(event) => setEmbedderSource(name, (event.currentTarget as HTMLSelectElement).value)}
-											class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-										>
-											<option value="userProvided">userProvided</option>
-											<option value="openAi">openAi</option>
-											<option value="huggingFace">huggingFace</option>
-											<option value="ollama">ollama</option>
-											<option value="rest">rest</option>
-										</select>
-									</div>
-									<div>
-										<label for="embedder-{name}-dimensions" class="mb-1 block text-sm text-gray-700">{name} dimensions</label>
-										<input
-											id="embedder-{name}-dimensions"
-											type="number"
-											value={typeof config.dimensions === 'number' ? config.dimensions : ''}
-											oninput={(event) => setEmbedderDimensions(name, (event.currentTarget as HTMLInputElement).value)}
-											class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-										/>
-									</div>
-								</div>
-							</div>
-						{/each}
-					</div>
-				{/if}
-
-				<label for="settings-json" class="mb-2 block text-sm font-medium text-gray-700">Settings JSON</label>
-				<textarea
-					id="settings-json"
-					name="settings"
-					aria-label="Settings JSON"
-					bind:value={settingsText}
-					rows="16"
-					class="mb-4 w-full rounded-md border border-gray-300 p-3 font-mono text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-				></textarea>
-				<button
-					type="submit"
-					class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-				>
-					Save Settings
-				</button>
-			</form>
+			</div>
 		</div>
+
+		{#if embeddersEnabled && embedderEntries.length > 0}
+			<div class="mb-6 rounded-md border border-gray-200 p-4">
+				<h3 class="mb-3 text-sm font-semibold text-gray-900">Embedder Configuration</h3>
+				{#each embedderEntries as [name, config] (name)}
+					<div class="mb-3 rounded-md border border-gray-100 p-3">
+						<span class="mb-2 block text-sm font-medium text-gray-800">{name}</span>
+						<div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+							<div>
+								<label for="embedder-{name}-source" class="mb-1 block text-sm text-gray-700"
+									>{name} source</label
+								>
+								<select
+									id="embedder-{name}-source"
+									value={typeof config.source === 'string' ? config.source : ''}
+									onchange={(event) =>
+										setEmbedderSource(name, (event.currentTarget as HTMLSelectElement).value)}
+									class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+								>
+									<option value="userProvided">userProvided</option>
+									<option value="openAi">openAi</option>
+									<option value="huggingFace">huggingFace</option>
+									<option value="ollama">ollama</option>
+									<option value="rest">rest</option>
+								</select>
+							</div>
+							<div>
+								<label for="embedder-{name}-dimensions" class="mb-1 block text-sm text-gray-700"
+									>{name} dimensions</label
+								>
+								<input
+									id="embedder-{name}-dimensions"
+									type="number"
+									value={typeof config.dimensions === 'number' ? config.dimensions : ''}
+									oninput={(event) =>
+										setEmbedderDimensions(name, (event.currentTarget as HTMLInputElement).value)}
+									class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+								/>
+							</div>
+						</div>
+					</div>
+				{/each}
+			</div>
+		{/if}
+
+		<label for="settings-json" class="mb-2 block text-sm font-medium text-gray-700"
+			>Settings JSON</label
+		>
+		<textarea
+			id="settings-json"
+			name="settings"
+			aria-label="Settings JSON"
+			bind:value={settingsText}
+			rows="16"
+			class="mb-4 w-full rounded-md border border-gray-300 p-3 font-mono text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+		></textarea>
+		<button
+			type="submit"
+			class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+		>
+			Save Settings
+		</button>
+	</form>
+</div>

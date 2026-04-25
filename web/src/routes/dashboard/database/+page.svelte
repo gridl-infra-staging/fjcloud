@@ -63,13 +63,19 @@
 	</div>
 
 	{#if loadError}
-		<div role="alert" class="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+		<div
+			role="alert"
+			class="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700"
+		>
 			<p>{loadError}</p>
 		</div>
 	{/if}
 
 	{#if form?.error}
-		<div role="alert" class="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+		<div
+			role="alert"
+			class="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700"
+		>
 			<p>{form.error}</p>
 		</div>
 	{/if}
@@ -86,9 +92,7 @@
 					We couldn't load the persisted database instance state for this account.
 				</p>
 			{:else if provisioningUnavailable}
-				<p class="mt-2 text-sm text-gray-600">
-					Create a new database instance to get started.
-				</p>
+				<p class="mt-2 text-sm text-gray-600">Create a new database instance to get started.</p>
 				<form
 					method="POST"
 					action="?/create"
@@ -142,7 +146,9 @@
 					</button>
 				</form>
 			{:else}
-				<p class="mt-2 text-sm text-gray-600">No persisted database instance found for this account.</p>
+				<p class="mt-2 text-sm text-gray-600">
+					No persisted database instance found for this account.
+				</p>
 			{/if}
 		</div>
 	{:else}
@@ -152,7 +158,11 @@
 					<h2 class="text-lg font-medium text-gray-900">AllYourBase Instance</h2>
 					<p class="mt-1 text-sm text-gray-500">{instance.id}</p>
 				</div>
-				<span class="inline-flex rounded-full px-2 py-0.5 text-xs font-medium {indexStatusBadgeColor(instance.status)}">
+				<span
+					class="inline-flex rounded-full px-2 py-0.5 text-xs font-medium {indexStatusBadgeColor(
+						instance.status
+					)}"
+				>
 					{statusLabel(instance.status)}
 				</span>
 			</div>

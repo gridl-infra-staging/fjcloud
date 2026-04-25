@@ -54,9 +54,7 @@
 	function isAsciiAlphaNumeric(char: string | undefined): boolean {
 		return Boolean(
 			char &&
-				((char >= 'a' && char <= 'z') ||
-					(char >= 'A' && char <= 'Z') ||
-					(char >= '0' && char <= '9'))
+			((char >= 'a' && char <= 'z') || (char >= 'A' && char <= 'Z') || (char >= '0' && char <= '9'))
 		);
 	}
 
@@ -191,17 +189,15 @@
 
 	<!-- Step indicators -->
 	{#if wizardStep !== 'completed' && wizardStep !== 'billing'}
-			<div class="mb-8 flex items-center justify-center gap-2" data-testid="step-indicators">
-				{#each [1, 2, 3] as stepNum (stepNum)}
+		<div class="mb-8 flex items-center justify-center gap-2" data-testid="step-indicators">
+			{#each [1, 2, 3] as stepNum (stepNum)}
 				{@const active =
 					(stepNum === 1 && wizardStep === 'choose') ||
 					(stepNum === 2 && wizardStep === 'preparing') ||
-					(stepNum === 3 &&
-						(wizardStep === 'generating' || wizardStep === 'credentials'))}
+					(stepNum === 3 && (wizardStep === 'generating' || wizardStep === 'credentials'))}
 				{@const done =
 					(stepNum === 1 && wizardStep !== 'choose') ||
-					(stepNum === 2 &&
-						(wizardStep === 'generating' || wizardStep === 'credentials'))}
+					(stepNum === 2 && (wizardStep === 'generating' || wizardStep === 'credentials'))}
 				<div
 					class="flex h-8 w-8 items-center justify-center rounded-full text-sm font-medium {active
 						? 'bg-blue-600 text-white'
@@ -219,35 +215,52 @@
 	{/if}
 
 	{#if wizardStep === 'billing'}
-		<div class="rounded-lg border border-amber-200 bg-amber-50 p-6 shadow-sm" data-testid="billing-setup-gate">
+		<div
+			class="rounded-lg border border-amber-200 bg-amber-50 p-6 shadow-sm"
+			data-testid="billing-setup-gate"
+		>
 			<h2 class="text-lg font-medium text-amber-900">Billing setup required</h2>
-			<p class="mt-2 text-sm text-amber-800">Your shared plan needs a payment method before onboarding can continue.</p>
-			<a href={resolve("/dashboard/billing/setup")} class="mt-4 inline-block rounded-md bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700">Set up billing</a>
+			<p class="mt-2 text-sm text-amber-800">
+				Your shared plan needs a payment method before onboarding can continue.
+			</p>
+			<a
+				href={resolve('/dashboard/billing/setup')}
+				class="mt-4 inline-block rounded-md bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700"
+				>Set up billing</a
+			>
 		</div>
 	{:else if wizardStep === 'unavailable'}
-		<div class="rounded-lg border border-gray-200 bg-white p-6 shadow-sm" data-testid="onboarding-status-unavailable">
+		<div
+			class="rounded-lg border border-gray-200 bg-white p-6 shadow-sm"
+			data-testid="onboarding-status-unavailable"
+		>
 			<h2 class="text-lg font-medium text-gray-900">Unable to load setup status</h2>
-			<p class="mt-2 text-sm text-gray-600">Refresh this page to retry loading your onboarding progress.</p>
-			<a href={resolve("/dashboard")} class="mt-4 inline-block rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800">Back to dashboard</a>
+			<p class="mt-2 text-sm text-gray-600">
+				Refresh this page to retry loading your onboarding progress.
+			</p>
+			<a
+				href={resolve('/dashboard')}
+				class="mt-4 inline-block rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800"
+				>Back to dashboard</a
+			>
 		</div>
-	<!-- Step 1: Choose region & name index -->
+		<!-- Step 1: Choose region & name index -->
 	{:else if wizardStep === 'choose'}
 		<div data-testid="onboarding-step-1">
 			<div class="rounded-lg bg-white p-6 shadow">
-				<h2 class="mb-4 text-lg font-medium text-gray-900">
-					Choose a region & name your index
-				</h2>
+				<h2 class="mb-4 text-lg font-medium text-gray-900">Choose a region & name your index</h2>
 				{#if planContext?.billing_plan === 'free'}
-					<p class="mb-4 text-sm text-blue-700">No credit card required while you are on the Free plan.</p>
+					<p class="mb-4 text-sm text-blue-700">
+						No credit card required while you are on the Free plan.
+					</p>
 				{/if}
 
 				<form method="POST" action="?/createIndex" use:enhance={preserveWizardStepOnSuccess}>
-
 					<!-- Region picker -->
 					<fieldset class="mb-6">
 						<legend class="mb-3 text-sm font-medium text-gray-700">Region</legend>
 						<div class="grid grid-cols-2 gap-3">
-						{#each REGIONS as region (region.id)}
+							{#each REGIONS as region (region.id)}
 								<label
 									class="cursor-pointer rounded-lg border-2 p-4 transition-colors {selectedRegion ===
 									region.id
@@ -261,9 +274,7 @@
 										bind:group={selectedRegion}
 										class="sr-only"
 									/>
-									<span class="block text-sm font-medium text-gray-900"
-										>{region.name}</span
-									>
+									<span class="block text-sm font-medium text-gray-900">{region.name}</span>
 									<span class="mt-1 block text-xs text-gray-500">{region.id}</span>
 								</label>
 							{/each}
@@ -287,10 +298,7 @@
 							maxlength={64}
 						/>
 						{#if hasValidationError && validationError}
-							<p
-								class="mt-1 text-sm text-red-600"
-								data-testid="index-name-error"
-							>
+							<p class="mt-1 text-sm text-red-600" data-testid="index-name-error">
 								{validationError}
 							</p>
 						{/if}
@@ -337,9 +345,7 @@
 								/>
 							</svg>
 						</div>
-						<h2 class="mb-2 text-lg font-medium text-gray-900">
-							Your index is ready!
-						</h2>
+						<h2 class="mb-2 text-lg font-medium text-gray-900">Your index is ready!</h2>
 						<p class="mb-6 text-sm text-gray-500">Creating your index now...</p>
 
 						<form method="POST" action="?/retryIndex" use:enhance={preserveWizardStepOnSuccess}>
@@ -356,10 +362,21 @@
 				{:else if pollTimedOut}
 					<!-- Polling timed out — offer to keep waiting or contact support -->
 					<div class="text-center" data-testid="preparing-timeout">
-						<div class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-amber-100">
-							<svg class="h-6 w-6 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-									d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" />
+						<div
+							class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-amber-100"
+						>
+							<svg
+								class="h-6 w-6 text-amber-600"
+								fill="none"
+								stroke="currentColor"
+								viewBox="0 0 24 24"
+							>
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									stroke-width="2"
+									d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z"
+								/>
 							</svg>
 						</div>
 						<h2 class="mb-2 text-lg font-medium text-gray-900">Taking longer than expected</h2>
@@ -386,11 +403,7 @@
 							class="mx-auto mb-4 flex h-12 w-12 items-center justify-center"
 							data-testid="preparing-spinner"
 						>
-							<svg
-								class="h-8 w-8 animate-spin text-blue-600"
-								fill="none"
-								viewBox="0 0 24 24"
-							>
+							<svg class="h-8 w-8 animate-spin text-blue-600" fill="none" viewBox="0 0 24 24">
 								<circle
 									class="opacity-25"
 									cx="12"
@@ -408,15 +421,18 @@
 						</div>
 						<h2 class="mb-2 text-lg font-medium text-gray-900">Preparing index</h2>
 						<p class="text-sm text-gray-500">{preparingMessage}</p>
-						<p class="mt-4 text-xs text-gray-400">
-							This usually takes a minute or two.
-						</p>
+						<p class="mt-4 text-xs text-gray-400">This usually takes a minute or two.</p>
 					</div>
 				{/if}
 
 				<!-- Hidden retry form for auto-polling -->
 				{#if onboardingStatus && !onboardingStatus.region_ready}
-					<form method="POST" action="?/retryIndex" use:enhance={preserveWizardStepOnSuccess} class="hidden">
+					<form
+						method="POST"
+						action="?/retryIndex"
+						use:enhance={preserveWizardStepOnSuccess}
+						class="hidden"
+					>
 						<input type="hidden" name="name" value={savedIndexName} />
 						<input type="hidden" name="region" value={savedRegion} />
 					</form>
@@ -464,8 +480,7 @@
 					<div class="flex items-center gap-2">
 						<code
 							class="flex-1 rounded-md bg-gray-100 px-3 py-2 text-sm text-gray-900"
-							data-testid="credential-endpoint"
-							>{credentials.endpoint}</code
+							data-testid="credential-endpoint">{credentials.endpoint}</code
 						>
 						<button
 							id="copy-endpoint"
@@ -484,8 +499,7 @@
 					<div class="flex items-center gap-2">
 						<code
 							class="flex-1 rounded-md bg-gray-100 px-3 py-2 text-sm text-gray-900"
-							data-testid="credential-api-key"
-							>{credentials.api_key}</code
+							data-testid="credential-api-key">{credentials.api_key}</code
 						>
 						<button
 							id="copy-api-key"
@@ -523,7 +537,7 @@ curl -X POST '${credentials.endpoint}/1/indexes/${savedIndexName}/batch' \\
 				</details>
 
 				<a
-					href={resolve("/dashboard")}
+					href={resolve('/dashboard')}
 					class="block w-full rounded-md bg-blue-600 px-4 py-2 text-center text-sm font-medium text-white hover:bg-blue-700"
 				>
 					Go to Dashboard
@@ -536,7 +550,7 @@ curl -X POST '${credentials.endpoint}/1/indexes/${savedIndexName}/batch' \\
 		<div class="rounded-lg bg-white p-6 text-center shadow">
 			<p class="text-gray-500">You've already completed onboarding.</p>
 			<a
-				href={resolve("/dashboard")}
+				href={resolve('/dashboard')}
 				class="mt-4 inline-block text-sm font-medium text-blue-600 hover:text-blue-500"
 			>
 				Go to Dashboard
@@ -544,18 +558,14 @@ curl -X POST '${credentials.endpoint}/1/indexes/${savedIndexName}/batch' \\
 		</div>
 
 		<!-- Step 3 loading: index created but need credentials -->
-		{:else if wizardStep === 'generating'}
-			<div data-testid="onboarding-step-3">
-				<div class="rounded-lg bg-white p-6 text-center shadow">
-					<div
-						class="mx-auto mb-4 flex h-12 w-12 items-center justify-center"
+	{:else if wizardStep === 'generating'}
+		<div data-testid="onboarding-step-3">
+			<div class="rounded-lg bg-white p-6 text-center shadow">
+				<div
+					class="mx-auto mb-4 flex h-12 w-12 items-center justify-center"
 					data-testid="credentials-spinner"
 				>
-					<svg
-						class="h-8 w-8 animate-spin text-blue-600"
-						fill="none"
-						viewBox="0 0 24 24"
-					>
+					<svg class="h-8 w-8 animate-spin text-blue-600" fill="none" viewBox="0 0 24 24">
 						<circle
 							class="opacity-25"
 							cx="12"
@@ -570,22 +580,21 @@ curl -X POST '${credentials.endpoint}/1/indexes/${savedIndexName}/batch' \\
 							d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
 						/>
 					</svg>
+				</div>
+				<h2 class="mb-2 text-lg font-medium text-gray-900">Generating your credentials...</h2>
+				{#if formResult?.error}
+					<div
+						class="mb-4 rounded-md bg-red-50 p-3 text-left text-sm text-red-700"
+						data-testid="onboarding-step-3-error"
+						role="alert"
+					>
+						{formResult.error}
 					</div>
-					<h2 class="mb-2 text-lg font-medium text-gray-900">Generating your credentials...</h2>
-					{#if formResult?.error}
-						<div
-							class="mb-4 rounded-md bg-red-50 p-3 text-left text-sm text-red-700"
-							data-testid="onboarding-step-3-error"
-							role="alert"
-						>
-							{formResult.error}
-						</div>
-					{/if}
-					<form method="POST" action="?/getCredentials" use:enhance={preserveWizardStepAlways}>
-
-						<button
-							type="submit"
-							class="mt-4 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+				{/if}
+				<form method="POST" action="?/getCredentials" use:enhance={preserveWizardStepAlways}>
+					<button
+						type="submit"
+						class="mt-4 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
 					>
 						Get Credentials
 					</button>

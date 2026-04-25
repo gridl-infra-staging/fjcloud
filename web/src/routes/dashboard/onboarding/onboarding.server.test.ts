@@ -101,9 +101,7 @@ describe('Onboarding server actions', () => {
 	});
 
 	it('getCredentials preserves upstream 400 messages from the API boundary', async () => {
-		generateCredentialsMock.mockRejectedValue(
-			new ApiRequestError(400, 'Create an index first')
-		);
+		generateCredentialsMock.mockRejectedValue(new ApiRequestError(400, 'Create an index first'));
 
 		const result = await actions.getCredentials({
 			locals: { user: { token: 'jwt-token' } }

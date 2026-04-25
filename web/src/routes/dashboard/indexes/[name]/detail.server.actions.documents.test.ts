@@ -110,8 +110,7 @@ import { actions } from './+page.server';
 // Tests
 // ---------------------------------------------------------------------------
 
-
-describe("Index detail page server -- actions (documents)", () => {
+describe('Index detail page server -- actions (documents)', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 	});
@@ -308,7 +307,9 @@ describe("Index detail page server -- actions (documents)", () => {
 	});
 
 	it('addDocument action rejects empty submissions with fail(400)', async () => {
-		const result = await actions.addDocument(makeActionArgs('addDocument', new FormData()) as never);
+		const result = await actions.addDocument(
+			makeActionArgs('addDocument', new FormData()) as never
+		);
 
 		expect(result).toEqual(
 			expect.objectContaining({
@@ -380,7 +381,9 @@ describe("Index detail page server -- actions (documents)", () => {
 		const formData = new FormData();
 		formData.set('objectID', 'obj-1');
 
-		const result = await actions.deleteDocument(makeActionArgs('deleteDocument', formData) as never);
+		const result = await actions.deleteDocument(
+			makeActionArgs('deleteDocument', formData) as never
+		);
 
 		expect(deleteObjectMock).toHaveBeenCalledWith('products', 'obj-1');
 		expect(browseObjectsMock).toHaveBeenCalledWith('products', { query: '', hitsPerPage: 20 });
@@ -404,7 +407,9 @@ describe("Index detail page server -- actions (documents)", () => {
 		const formData = new FormData();
 		formData.set('objectID', 'obj-1');
 
-		const result = await actions.deleteDocument(makeActionArgs('deleteDocument', formData) as never);
+		const result = await actions.deleteDocument(
+			makeActionArgs('deleteDocument', formData) as never
+		);
 
 		expect(result).toEqual(
 			expect.objectContaining({
@@ -479,7 +484,9 @@ describe("Index detail page server -- actions (documents)", () => {
 	it('deleteDocument action rejects missing objectID with fail(400)', async () => {
 		const formData = new FormData();
 
-		const result = await actions.deleteDocument(makeActionArgs('deleteDocument', formData) as never);
+		const result = await actions.deleteDocument(
+			makeActionArgs('deleteDocument', formData) as never
+		);
 
 		expect(result).toEqual(
 			expect.objectContaining({
@@ -544,5 +551,4 @@ describe("Index detail page server -- actions (documents)", () => {
 		);
 		expect(getDebugEventsMock).not.toHaveBeenCalled();
 	});
-
 });

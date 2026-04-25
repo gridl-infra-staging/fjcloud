@@ -17,9 +17,7 @@ describe('Billing setup page server load', () => {
 	});
 
 	it('returns billingUnavailable when API responds with service_not_configured', async () => {
-		createSetupIntentMock.mockRejectedValue(
-			new ApiRequestError(503, 'service_not_configured')
-		);
+		createSetupIntentMock.mockRejectedValue(new ApiRequestError(503, 'service_not_configured'));
 
 		const result = await load({
 			locals: { user: { token: 'jwt-token' } }
@@ -33,9 +31,7 @@ describe('Billing setup page server load', () => {
 	});
 
 	it('returns billingUnavailable when API responds with no stripe customer linked', async () => {
-		createSetupIntentMock.mockRejectedValue(
-			new ApiRequestError(400, 'no stripe customer linked')
-		);
+		createSetupIntentMock.mockRejectedValue(new ApiRequestError(400, 'no stripe customer linked'));
 
 		const result = await load({
 			locals: { user: { token: 'jwt-token' } }
@@ -49,9 +45,7 @@ describe('Billing setup page server load', () => {
 	});
 
 	it('returns the generic setup error for unrelated failures', async () => {
-		createSetupIntentMock.mockRejectedValue(
-			new ApiRequestError(500, 'internal server error')
-		);
+		createSetupIntentMock.mockRejectedValue(new ApiRequestError(500, 'internal server error'));
 
 		const result = await load({
 			locals: { user: { token: 'jwt-token' } }
@@ -64,9 +58,7 @@ describe('Billing setup page server load', () => {
 	});
 
 	it('returns the generic setup error for other 400 responses', async () => {
-		createSetupIntentMock.mockRejectedValue(
-			new ApiRequestError(400, 'customer not found')
-		);
+		createSetupIntentMock.mockRejectedValue(new ApiRequestError(400, 'customer not found'));
 
 		const result = await load({
 			locals: { user: { token: 'jwt-token' } }

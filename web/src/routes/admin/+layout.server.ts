@@ -4,7 +4,11 @@
 import { env } from '$env/dynamic/private';
 import { redirect } from '@sveltejs/kit';
 import type { LayoutServerLoad } from './$types';
-import { ADMIN_SESSION_COOKIE, getAdminSession, purgeExpiredAdminSessions } from '$lib/server/admin-session';
+import {
+	ADMIN_SESSION_COOKIE,
+	getAdminSession,
+	purgeExpiredAdminSessions
+} from '$lib/server/admin-session';
 
 export const load: LayoutServerLoad = async ({ cookies, url }) => {
 	purgeExpiredAdminSessions();

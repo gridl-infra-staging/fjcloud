@@ -163,7 +163,11 @@ describe('ApiClient - analytics and experiments', () => {
 				name: 'Ranking test',
 				variants: [
 					{ index: 'products', trafficPercentage: 50 },
-					{ index: 'products', trafficPercentage: 50, customSearchParameters: { enableRules: false } }
+					{
+						index: 'products',
+						trafficPercentage: 50,
+						customSearchParameters: { enableRules: false }
+					}
 				],
 				configuration: {
 					minimumDetectableEffect: { size: 0.05 },

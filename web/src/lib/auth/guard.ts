@@ -5,7 +5,10 @@ export interface AuthUser {
 	token: string;
 }
 
-export function resolveAuth(cookieValue: string | undefined, jwtSecret: string | undefined): AuthUser | null {
+export function resolveAuth(
+	cookieValue: string | undefined,
+	jwtSecret: string | undefined
+): AuthUser | null {
 	if (!cookieValue) return null;
 	if (!jwtSecret) return null;
 	if (!isJwtHs256SignatureValid(cookieValue, jwtSecret)) return null;

@@ -100,7 +100,7 @@ describe('buildFrameworkSnippets', () => {
 	it('vanilla snippet uses instantsearch.js imports', () => {
 		const snippets = buildFrameworkSnippets(ctx);
 		const vanilla = snippets.find((s) => s.id === 'vanilla')!;
-		expect(vanilla.instantSearchSetup).toContain("instantsearch.js");
+		expect(vanilla.instantSearchSetup).toContain('instantsearch.js');
 		expect(vanilla.instantSearchSetup).toContain('search.start()');
 	});
 

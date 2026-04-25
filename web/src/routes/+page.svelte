@@ -311,8 +311,8 @@
 					<a href={resolve('/privacy')} class="text-[#b83f5f] hover:text-[#8d2842]">Privacy</a>
 					<a href={resolve('/dpa')} class="text-[#b83f5f] hover:text-[#8d2842]">DPA</a>
 					<a href={resolve('/status')} class="text-[#b83f5f] hover:text-[#8d2842]">Status</a>
-						<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- mailto links must stay scheme URLs -->
-						<a href={BETA_FEEDBACK_MAILTO} class="text-[#b83f5f] hover:text-[#8d2842]">Contact</a>
+					<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- mailto links must stay scheme URLs -->
+					<a href={BETA_FEEDBACK_MAILTO} class="text-[#b83f5f] hover:text-[#8d2842]">Contact</a>
 				</div>
 			</div>
 		</section>

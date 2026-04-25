@@ -215,11 +215,9 @@ describe('DocumentsTab — file-selection preview', () => {
 		render(DocumentsTab, defaultProps());
 
 		const input = screen.getByLabelText(/upload json or csv file/i) as HTMLInputElement;
-		const file = new File(
-			[JSON.stringify([{ objectID: 'obj-1' }])],
-			'data.json',
-			{ type: 'application/json' }
-		);
+		const file = new File([JSON.stringify([{ objectID: 'obj-1' }])], 'data.json', {
+			type: 'application/json'
+		});
 
 		await fireEvent.change(input, { target: { files: [file] } });
 		expect(await screen.findByText(/detected format: json/i)).toBeInTheDocument();
@@ -229,11 +227,9 @@ describe('DocumentsTab — file-selection preview', () => {
 		render(DocumentsTab, defaultProps());
 
 		const input = screen.getByLabelText(/upload json or csv file/i) as HTMLInputElement;
-		const file = new File(
-			[JSON.stringify([{ objectID: 'obj-1' }])],
-			'my-data.json',
-			{ type: 'application/json' }
-		);
+		const file = new File([JSON.stringify([{ objectID: 'obj-1' }])], 'my-data.json', {
+			type: 'application/json'
+		});
 
 		await fireEvent.change(input, { target: { files: [file] } });
 		expect(await screen.findByText(/selected file: my-data\.json/i)).toBeInTheDocument();
@@ -249,9 +245,12 @@ describe('DocumentsTab — cursor navigation', () => {
 	});
 
 	it('hides cursor navigation when no cursor exists', () => {
-		render(DocumentsTab, defaultProps({
-			documents: { ...sampleDocuments, cursor: null }
-		}));
+		render(
+			DocumentsTab,
+			defaultProps({
+				documents: { ...sampleDocuments, cursor: null }
+			})
+		);
 
 		expect(screen.queryByRole('button', { name: /load next page/i })).not.toBeInTheDocument();
 		expect(screen.queryByText(/next cursor/i)).not.toBeInTheDocument();
@@ -272,24 +271,31 @@ describe('DocumentsTab — cursor navigation', () => {
 
 describe('DocumentsTab — hidden query/hitsPerPage propagation', () => {
 	it('propagates canonical query and hitsPerPage across upload, add, browse, and delete forms', () => {
-		const { container } = render(DocumentsTab, defaultProps({
-			documents: {
-				...sampleDocuments,
-				query: 'category:guides',
-				hitsPerPage: 40
-			}
-		}));
+		const { container } = render(
+			DocumentsTab,
+			defaultProps({
+				documents: {
+					...sampleDocuments,
+					query: 'category:guides',
+					hitsPerPage: 40
+				}
+			})
+		);
 
 		const canonicalQueryInputs = [
 			container.querySelector('form[action="?/uploadDocuments"] input[name="query"]'),
 			container.querySelector('form[action="?/addDocument"] input[name="query"]'),
-			container.querySelector('form[action="?/browseDocuments"] input[type="hidden"][name="query"]'),
+			container.querySelector(
+				'form[action="?/browseDocuments"] input[type="hidden"][name="query"]'
+			),
 			container.querySelector('form[action="?/deleteDocument"] input[name="query"]')
 		] as HTMLInputElement[];
 		const canonicalHitsInputs = [
 			container.querySelector('form[action="?/uploadDocuments"] input[name="hitsPerPage"]'),
 			container.querySelector('form[action="?/addDocument"] input[name="hitsPerPage"]'),
-			container.querySelector('form[action="?/browseDocuments"] input[type="hidden"][name="hitsPerPage"]'),
+			container.querySelector(
+				'form[action="?/browseDocuments"] input[type="hidden"][name="hitsPerPage"]'
+			),
 			container.querySelector('form[action="?/deleteDocument"] input[name="hitsPerPage"]')
 		] as HTMLInputElement[];
 
@@ -304,13 +310,16 @@ describe('DocumentsTab — hidden query/hitsPerPage propagation', () => {
 	});
 
 	it('keeps canonical values pinned while browse drafts change', async () => {
-		const { container } = render(DocumentsTab, defaultProps({
-			documents: {
-				...sampleDocuments,
-				query: 'category:guides',
-				hitsPerPage: 40
-			}
-		}));
+		const { container } = render(
+			DocumentsTab,
+			defaultProps({
+				documents: {
+					...sampleDocuments,
+					query: 'category:guides',
+					hitsPerPage: 40
+				}
+			})
+		);
 
 		// Edit the draft inputs
 		await fireEvent.input(screen.getByRole('textbox', { name: /browse query/i }), {

@@ -110,8 +110,7 @@ import { actions } from './+page.server';
 // Tests
 // ---------------------------------------------------------------------------
 
-
-describe("Index detail page server -- actions (security sources)", () => {
+describe('Index detail page server -- actions (security sources)', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 	});

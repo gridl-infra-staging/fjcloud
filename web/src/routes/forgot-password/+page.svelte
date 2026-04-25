@@ -20,7 +20,7 @@
 				If an account exists with that email, you'll receive a password reset link shortly.
 			</div>
 			<p class="mt-4 text-center text-sm text-gray-600">
-				<a href={resolve("/login")} class="font-medium text-blue-600 hover:text-blue-500">
+				<a href={resolve('/login')} class="font-medium text-blue-600 hover:text-blue-500">
 					Back to login
 				</a>
 			</p>
@@ -50,7 +50,7 @@
 			</form>
 
 			<p class="mt-4 text-center text-sm text-gray-600">
-				<a href={resolve("/login")} class="font-medium text-blue-600 hover:text-blue-500">
+				<a href={resolve('/login')} class="font-medium text-blue-600 hover:text-blue-500">
 					Back to login
 				</a>
 			</p>

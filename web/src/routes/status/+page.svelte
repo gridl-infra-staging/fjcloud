@@ -90,6 +90,7 @@
 				View beta scope
 			</a>
 			<span class="mx-2 text-gray-300">|</span>
+			<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- mailto: scheme, not an internal path -->
 			<a href={BETA_FEEDBACK_MAILTO} class="text-sm font-medium text-blue-600 hover:text-blue-800">
 				Email support
 			</a>

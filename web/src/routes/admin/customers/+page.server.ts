@@ -25,9 +25,7 @@ export type AdminCustomersPageData = {
 };
 
 /** Extract the status of the most-recent invoice by `created_at`, or "none" if empty. */
-function latestInvoiceStatus(
-	invoices: Array<{ status: string; created_at: string }>
-): string {
+function latestInvoiceStatus(invoices: Array<{ status: string; created_at: string }>): string {
 	if (invoices.length === 0) return 'none';
 
 	let latestInvoice = invoices[0];

@@ -258,9 +258,7 @@ describe('Public error boundary (+error.svelte)', () => {
 			expect(
 				screen.queryByText(/ECONNREFUSED|localhost|127\.0\.0\.1|postgres\.internal|5432/i)
 			).not.toBeInTheDocument();
-			expect(
-				screen.queryByText(/backend[_-]?request[_-]?id|req-backend/i)
-			).not.toBeInTheDocument();
+			expect(screen.queryByText(/backend[_-]?request[_-]?id|req-backend/i)).not.toBeInTheDocument();
 		}
 	);
 

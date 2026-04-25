@@ -23,7 +23,17 @@ describe('Indexes page server load', () => {
 	});
 
 	it('loads indexes and available regions for index creation', async () => {
-		const indexes = [{ name: 'products', region: 'us-east-1', endpoint: null, entries: 0, data_size_bytes: 0, status: 'ready', created_at: '2026-02-15T10:00:00Z' }];
+		const indexes = [
+			{
+				name: 'products',
+				region: 'us-east-1',
+				endpoint: null,
+				entries: 0,
+				data_size_bytes: 0,
+				status: 'ready',
+				created_at: '2026-02-15T10:00:00Z'
+			}
+		];
 		const regions = [
 			{
 				id: 'us-east-1',

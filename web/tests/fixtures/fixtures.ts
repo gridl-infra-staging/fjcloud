@@ -734,7 +734,9 @@ type E2eInternalFixtures = {
 	_trackCustomerForCleanup: TrackCustomerForCleanupFn;
 };
 
-function toDatabaseRoutePersistedExpectation(instance: AybInstance): DatabaseRoutePersistedExpectation {
+function toDatabaseRoutePersistedExpectation(
+	instance: AybInstance
+): DatabaseRoutePersistedExpectation {
 	return {
 		id: instance.id,
 		statusLabel: statusLabel(instance.status),

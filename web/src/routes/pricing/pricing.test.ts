@@ -100,7 +100,9 @@ describe('Pricing page', () => {
 
 		expect(screen.getByRole('heading', { level: 1, name: /pricing/i })).toBeInTheDocument();
 		expect(screen.getByText(MARKETING_PRICING.free_tier_promise)).toBeInTheDocument();
-		expect(screen.getByText(new RegExp(`${MARKETING_PRICING.free_tier_mb}\\s+MB`))).toBeInTheDocument();
+		expect(
+			screen.getByText(new RegExp(`${MARKETING_PRICING.free_tier_mb}\\s+MB`))
+		).toBeInTheDocument();
 
 		const pricingMain = screen.getByTestId('pricing-page-main');
 		const cta = within(pricingMain).getByRole('link', { name: MARKETING_PRICING.cta_label });
@@ -117,8 +119,12 @@ describe('Pricing page', () => {
 
 		expect(within(pricingMain).getByText('Hot index storage')).toBeInTheDocument();
 		expect(within(pricingMain).getByText('Cold snapshot storage')).toBeInTheDocument();
-		expect(within(pricingMain).getByText(MARKETING_PRICING.storage_rate_per_mb_month)).toBeInTheDocument();
-		expect(within(pricingMain).getByText(MARKETING_PRICING.cold_storage_rate_per_gb_month)).toBeInTheDocument();
+		expect(
+			within(pricingMain).getByText(MARKETING_PRICING.storage_rate_per_mb_month)
+		).toBeInTheDocument();
+		expect(
+			within(pricingMain).getByText(MARKETING_PRICING.cold_storage_rate_per_gb_month)
+		).toBeInTheDocument();
 		expect(
 			within(pricingMain).getByText(formatCents(pricingWithLargeMinimumSpend.minimum_spend_cents))
 		).toBeInTheDocument();

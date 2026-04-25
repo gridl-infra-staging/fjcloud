@@ -188,7 +188,9 @@ describe('Index detail page — Read Replicas', () => {
 		await fireEvent.click(addBtn);
 
 		const select = within(section).getByLabelText(/target region/i);
-		const options = Array.from(select.querySelectorAll('option')).map(o => o.getAttribute('value'));
+		const options = Array.from(select.querySelectorAll('option')).map((o) =>
+			o.getAttribute('value')
+		);
 		// Primary region (us-east-1) must be excluded
 		expect(options).not.toContain('us-east-1');
 		// Non-primary available regions must be present
@@ -204,7 +206,9 @@ describe('Index detail page — Read Replicas', () => {
 		await fireEvent.click(addBtn);
 
 		const select = within(section).getByLabelText(/target region/i);
-		const options = Array.from(select.querySelectorAll('option')).map(o => o.getAttribute('value'));
+		const options = Array.from(select.querySelectorAll('option')).map((o) =>
+			o.getAttribute('value')
+		);
 		// eu-central-1 excluded — active replica exists there
 		expect(options).not.toContain('eu-central-1');
 		// eu-north-1 still available
@@ -243,7 +247,8 @@ describe('Index detail page — cross-tab draft persistence', () => {
 		await openTab('Suggestions');
 
 		expect(
-			(screen.getByRole('textbox', { name: /query suggestions json/i }) as HTMLTextAreaElement).value
+			(screen.getByRole('textbox', { name: /query suggestions json/i }) as HTMLTextAreaElement)
+				.value
 		).toBe('{"indexName":"products","sourceIndices":[],"languages":["en","fr"]}');
 	});
 });
@@ -270,7 +275,9 @@ describe('Index detail page — Documents and Dictionaries tab shell contract', 
 		const { container } = renderPage();
 
 		await openTab('Documents');
-		const documentsDraft = screen.getByRole('textbox', { name: /record json/i }) as HTMLTextAreaElement;
+		const documentsDraft = screen.getByRole('textbox', {
+			name: /record json/i
+		}) as HTMLTextAreaElement;
 		await fireEvent.input(documentsDraft, {
 			target: { value: '{"objectID":"doc-draft","title":"Draft"}' }
 		});
@@ -297,9 +304,9 @@ describe('Index detail page — Documents and Dictionaries tab shell contract', 
 		expect(hiddenDictionaryDraft?.value).toBe('draft-stopword');
 
 		await openTab('Documents');
-		expect((screen.getByRole('textbox', { name: /record json/i }) as HTMLTextAreaElement).value).toContain(
-			'doc-draft'
-		);
+		expect(
+			(screen.getByRole('textbox', { name: /record json/i }) as HTMLTextAreaElement).value
+		).toContain('doc-draft');
 
 		await openTab('Dictionaries');
 		expect((screen.getByRole('textbox', { name: /object id/i }) as HTMLInputElement).value).toBe(

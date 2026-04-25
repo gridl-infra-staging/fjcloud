@@ -21,7 +21,7 @@ import {
 	resolveRequiredFixtureAdminKey,
 	resolveRequiredFixtureUserCredentials,
 	resolvePlaywrightRuntime,
-	sanitizeWebServerEnv,
+	sanitizeWebServerEnv
 } from '../../playwright.config.contract';
 
 type MutableEnv = Record<string, string | undefined>;
@@ -58,7 +58,7 @@ describe('playwright config contract', () => {
 				'export API_URL=http://localhost:3001',
 				'BASE_URL=http://127.0.0.1:4174',
 				'INVALID-KEY=ignored',
-				'JWT_SECRET="quoted-secret"',
+				'JWT_SECRET="quoted-secret"'
 			].join('\n')
 		);
 
@@ -66,7 +66,7 @@ describe('playwright config contract', () => {
 			expect(parseDotenvFile(envFilePath)).toEqual({
 				API_URL: 'http://localhost:3001',
 				BASE_URL: 'http://127.0.0.1:4174',
-				JWT_SECRET: 'quoted-secret',
+				JWT_SECRET: 'quoted-secret'
 			});
 		} finally {
 			rmSync(tmpPath, { recursive: true, force: true });
@@ -77,10 +77,10 @@ describe('playwright config contract', () => {
 		expect(
 			sanitizeWebServerEnv({
 				API_URL: 'http://localhost:3001',
-				BASE_URL: undefined,
+				BASE_URL: undefined
 			})
 		).toEqual({
-			API_URL: 'http://localhost:3001',
+			API_URL: 'http://localhost:3001'
 		});
 	});
 
@@ -89,21 +89,19 @@ describe('playwright config contract', () => {
 			processEnv: {},
 			repoEnv: {
 				SEED_USER_EMAIL: 'repo-seed@example.com',
-				DATABASE_URL: 'postgres://repo-user:repo-pass@localhost:5432/fjcloud',
+				DATABASE_URL: 'postgres://repo-user:repo-pass@localhost:5432/fjcloud'
 			},
 			webEnv: {
 				E2E_ADMIN_KEY: 'web-e2e-admin',
 				E2E_USER_EMAIL: 'web-e2e@example.com',
-				E2E_USER_PASSWORD: 'web-e2e-password',
-			},
+				E2E_USER_PASSWORD: 'web-e2e-password'
+			}
 		});
 
 		expect(processEnv.E2E_ADMIN_KEY).toBe('web-e2e-admin');
 		expect(processEnv.E2E_USER_EMAIL).toBe('web-e2e@example.com');
 		expect(processEnv.E2E_USER_PASSWORD).toBe('web-e2e-password');
-		expect(processEnv.DATABASE_URL).toBe(
-			'postgres://repo-user:repo-pass@localhost:5432/fjcloud'
-		);
+		expect(processEnv.DATABASE_URL).toBe('postgres://repo-user:repo-pass@localhost:5432/fjcloud');
 	});
 
 	it('applyPlaywrightProcessEnvDefaults falls back from ADMIN_KEY and seed env when direct E2E_* vars are absent', () => {
@@ -112,19 +110,17 @@ describe('playwright config contract', () => {
 			repoEnv: {
 				ADMIN_KEY: 'repo-admin',
 				SEED_USER_EMAIL: 'repo-seed@example.com',
-				DATABASE_URL: 'postgres://repo-user:repo-pass@localhost:5432/fjcloud',
+				DATABASE_URL: 'postgres://repo-user:repo-pass@localhost:5432/fjcloud'
 			},
 			webEnv: {
-				SEED_USER_PASSWORD: 'web-seed-password',
-			},
+				SEED_USER_PASSWORD: 'web-seed-password'
+			}
 		});
 
 		expect(processEnv.E2E_ADMIN_KEY).toBe('repo-admin');
 		expect(processEnv.E2E_USER_EMAIL).toBe('repo-seed@example.com');
 		expect(processEnv.E2E_USER_PASSWORD).toBe('web-seed-password');
-		expect(processEnv.DATABASE_URL).toBe(
-			'postgres://repo-user:repo-pass@localhost:5432/fjcloud'
-		);
+		expect(processEnv.DATABASE_URL).toBe('postgres://repo-user:repo-pass@localhost:5432/fjcloud');
 	});
 
 	it('applyPlaywrightProcessEnvDefaults preserves explicit E2E overrides and uses documented defaults', () => {
@@ -133,12 +129,12 @@ describe('playwright config contract', () => {
 				E2E_ADMIN_KEY: 'explicit-admin',
 				E2E_USER_EMAIL: 'explicit@example.com',
 				E2E_USER_PASSWORD: 'explicit-password',
-				DATABASE_URL: 'postgres://explicit-user:explicit-pass@localhost:5432/fjcloud',
+				DATABASE_URL: 'postgres://explicit-user:explicit-pass@localhost:5432/fjcloud'
 			},
 			repoEnv: {
-				ADMIN_KEY: 'repo-admin',
+				ADMIN_KEY: 'repo-admin'
 			},
-			webEnv: {},
+			webEnv: {}
 		});
 
 		expect(processEnv.E2E_ADMIN_KEY).toBe('explicit-admin');
@@ -151,7 +147,7 @@ describe('playwright config contract', () => {
 		const defaultedEnv = applyEnvDefaults({
 			processEnv: {},
 			repoEnv: {},
-			webEnv: {},
+			webEnv: {}
 		});
 		expect(defaultedEnv.E2E_USER_EMAIL).toBe(DEFAULT_E2E_USER_EMAIL);
 		expect(defaultedEnv.E2E_USER_PASSWORD).toBe(DEFAULT_E2E_USER_PASSWORD);
@@ -163,11 +159,11 @@ describe('playwright config contract', () => {
 		const runtime = resolvePlaywrightRuntime({
 			processEnv: {
 				BASE_URL: 'http://127.0.0.1:4174',
-				E2E_ADMIN_KEY: 'e2e-key',
+				E2E_ADMIN_KEY: 'e2e-key'
 			},
 			repoEnv: { ADMIN_KEY: 'repo-key' },
 			webEnv: { ADMIN_KEY: 'web-key' },
-			fallbackJwtSecret: 'fallback-jwt',
+			fallbackJwtSecret: 'fallback-jwt'
 		});
 
 		expect(runtime.baseURL).toBe('http://127.0.0.1:4174');
@@ -181,7 +177,7 @@ describe('playwright config contract', () => {
 				processEnv: { BASE_URL: 'https://staging.example.com' },
 				repoEnv: {},
 				webEnv: {},
-				fallbackJwtSecret: 'fallback-jwt',
+				fallbackJwtSecret: 'fallback-jwt'
 			})
 		).toThrow(
 			'BASE_URL must use a local loopback host (localhost, 127.0.0.1, or [::1]) for credentialed local browser runs'
@@ -194,7 +190,7 @@ describe('playwright config contract', () => {
 				processEnv: {},
 				repoEnv: { API_BASE_URL: 'https://api.example.com' },
 				webEnv: {},
-				fallbackJwtSecret: 'fallback-jwt',
+				fallbackJwtSecret: 'fallback-jwt'
 			})
 		).toThrow(
 			'API_BASE_URL must use a local loopback host (localhost, 127.0.0.1, or [::1]) for credentialed local browser runs'
@@ -206,7 +202,7 @@ describe('playwright config contract', () => {
 			processEnv: {},
 			repoEnv: {},
 			webEnv: {},
-			fallbackJwtSecret: 'fallback-jwt',
+			fallbackJwtSecret: 'fallback-jwt'
 		});
 
 		expect(runtime.baseURL).toBe(DEFAULT_PLAYWRIGHT_BASE_URL);
@@ -215,7 +211,7 @@ describe('playwright config contract', () => {
 			env: runtime.webServerEnv,
 			url: DEFAULT_PLAYWRIGHT_BASE_URL,
 			reuseExistingServer: false,
-			timeout: 30_000,
+			timeout: 30_000
 		});
 		expect(runtime.webServerEnv.ADMIN_KEY).toBe(DEFAULT_PLAYWRIGHT_ADMIN_KEY);
 		expect(runtime.webServerEnv.API_BASE_URL).toBe(DEFAULT_API_URL);
@@ -230,9 +226,9 @@ describe('playwright config contract', () => {
 					processEnv: { ADMIN_KEY: 'process-admin' },
 					repoEnv: { ADMIN_KEY: 'repo-admin' },
 					webEnv: { ADMIN_KEY: 'web-admin' },
-					fallbackJwtSecret: 'fallback-jwt',
+					fallbackJwtSecret: 'fallback-jwt'
 				}),
-				expected: 'web-admin',
+				expected: 'web-admin'
 			},
 			{
 				name: 'repo ADMIN_KEY',
@@ -240,9 +236,9 @@ describe('playwright config contract', () => {
 					processEnv: { ADMIN_KEY: 'process-admin' },
 					repoEnv: { ADMIN_KEY: 'repo-admin' },
 					webEnv: {},
-					fallbackJwtSecret: 'fallback-jwt',
+					fallbackJwtSecret: 'fallback-jwt'
 				}),
-				expected: 'repo-admin',
+				expected: 'repo-admin'
 			},
 			{
 				name: 'process ADMIN_KEY',
@@ -250,10 +246,10 @@ describe('playwright config contract', () => {
 					processEnv: { ADMIN_KEY: 'process-admin' },
 					repoEnv: {},
 					webEnv: {},
-					fallbackJwtSecret: 'fallback-jwt',
+					fallbackJwtSecret: 'fallback-jwt'
 				}),
-				expected: 'process-admin',
-			},
+				expected: 'process-admin'
+			}
 		];
 
 		for (const { name, runtime, expected } of cases) {
@@ -263,8 +259,12 @@ describe('playwright config contract', () => {
 
 	it('project contracts preserve narrow-lane wiring for setup and admin/browser projects', () => {
 		expect(projectContractsByName['setup:user']?.testMatch).toEqual(/fixtures\/auth\.setup\.ts/);
-		expect(projectContractsByName['setup:admin']?.testMatch).toEqual(/fixtures\/admin\.auth\.setup\.ts/);
-		expect(projectContractsByName['setup:onboarding']?.testMatch).toEqual(/fixtures\/onboarding\.auth\.setup\.ts/);
+		expect(projectContractsByName['setup:admin']?.testMatch).toEqual(
+			/fixtures\/admin\.auth\.setup\.ts/
+		);
+		expect(projectContractsByName['setup:onboarding']?.testMatch).toEqual(
+			/fixtures\/onboarding\.auth\.setup\.ts/
+		);
 		expect(projectContractsByName['setup:customer-journeys']?.testMatch).toEqual(
 			/fixtures\/customer-journeys\.auth\.setup\.ts/
 		);
@@ -273,7 +273,9 @@ describe('playwright config contract', () => {
 		expect(projectContractsByName.chromium?.use?.desktopBrowser).toBe('chromium');
 		expect(projectContractsByName.chromium?.use?.storageState).toBe(PLAYWRIGHT_STORAGE_STATE.user);
 
-		expect(projectContractsByName['chromium:onboarding']?.dependencies).toEqual(['setup:onboarding']);
+		expect(projectContractsByName['chromium:onboarding']?.dependencies).toEqual([
+			'setup:onboarding'
+		]);
 		expect(projectContractsByName['chromium:onboarding']?.use?.desktopBrowser).toBe('chromium');
 		expect(projectContractsByName['chromium:onboarding']?.use?.storageState).toBe(
 			PLAYWRIGHT_STORAGE_STATE.onboarding
@@ -281,25 +283,33 @@ describe('playwright config contract', () => {
 		expect(projectContractsByName['chromium:customer-journeys']?.dependencies).toEqual([
 			'setup:customer-journeys'
 		]);
-		expect(projectContractsByName['chromium:customer-journeys']?.use?.desktopBrowser).toBe('chromium');
+		expect(projectContractsByName['chromium:customer-journeys']?.use?.desktopBrowser).toBe(
+			'chromium'
+		);
 		expect(projectContractsByName['chromium:customer-journeys']?.use?.storageState).toBe(
 			PLAYWRIGHT_STORAGE_STATE.customerJourneys
 		);
 
 		expect(projectContractsByName['chromium:admin']?.dependencies).toEqual(['setup:admin']);
 		expect(projectContractsByName['chromium:admin']?.use?.desktopBrowser).toBe('chromium');
-		expect(projectContractsByName['chromium:admin']?.use?.storageState).toBe(PLAYWRIGHT_STORAGE_STATE.admin);
+		expect(projectContractsByName['chromium:admin']?.use?.storageState).toBe(
+			PLAYWRIGHT_STORAGE_STATE.admin
+		);
 
 		expect(PLAYWRIGHT_DESKTOP_DEVICE.firefox).toBe('Desktop Firefox');
 		expect(PLAYWRIGHT_DESKTOP_DEVICE.webkit).toBe('Desktop Safari');
 
 		expect(projectContractsByName['firefox:public']?.use?.desktopBrowser).toBe('firefox');
 		expect(projectContractsByName['firefox:smoke']?.dependencies).toEqual(['setup:user']);
-		expect(projectContractsByName['firefox:smoke']?.use?.storageState).toBe(PLAYWRIGHT_STORAGE_STATE.user);
+		expect(projectContractsByName['firefox:smoke']?.use?.storageState).toBe(
+			PLAYWRIGHT_STORAGE_STATE.user
+		);
 
 		expect(projectContractsByName['webkit:public']?.use?.desktopBrowser).toBe('webkit');
 		expect(projectContractsByName['webkit:smoke']?.dependencies).toEqual(['setup:user']);
-		expect(projectContractsByName['webkit:smoke']?.use?.storageState).toBe(PLAYWRIGHT_STORAGE_STATE.user);
+		expect(projectContractsByName['webkit:smoke']?.use?.storageState).toBe(
+			PLAYWRIGHT_STORAGE_STATE.user
+		);
 	});
 
 	describe('resolveFixtureEnv', () => {
@@ -311,7 +321,7 @@ describe('playwright config contract', () => {
 				userEmail: undefined,
 				userPassword: undefined,
 				testRegion: DEFAULT_TEST_REGION,
-				flapjackUrl: DEFAULT_FLAPJACK_URL,
+				flapjackUrl: DEFAULT_FLAPJACK_URL
 			});
 		});
 
@@ -376,7 +386,7 @@ describe('playwright config contract', () => {
 				E2E_USER_EMAIL: 'e2e@test.com',
 				E2E_USER_PASSWORD: 'pass',
 				E2E_TEST_REGION: 'ap-south-1',
-				FLAPJACK_URL: 'http://127.0.0.1:7700',
+				FLAPJACK_URL: 'http://127.0.0.1:7700'
 			});
 			expect(env).toEqual({
 				apiUrl: 'http://localhost:3001',
@@ -384,7 +394,7 @@ describe('playwright config contract', () => {
 				userEmail: 'e2e@test.com',
 				userPassword: 'pass',
 				testRegion: 'ap-south-1',
-				flapjackUrl: 'http://127.0.0.1:7700',
+				flapjackUrl: 'http://127.0.0.1:7700'
 			});
 		});
 	});
@@ -394,11 +404,11 @@ describe('playwright config contract', () => {
 			expect(
 				resolveRequiredFixtureUserCredentials({
 					E2E_USER_EMAIL: 'user@test.com',
-					E2E_USER_PASSWORD: 'secret123',
+					E2E_USER_PASSWORD: 'secret123'
 				})
 			).toEqual({
 				email: 'user@test.com',
-				password: 'secret123',
+				password: 'secret123'
 			});
 		});
 
@@ -412,40 +422,36 @@ describe('playwright config contract', () => {
 			expect(() =>
 				resolveRequiredFixtureUserCredentials({
 					E2E_USER_EMAIL: '  \t ',
-					E2E_USER_PASSWORD: 'secret123',
+					E2E_USER_PASSWORD: 'secret123'
 				})
-			).toThrow(
-				'E2E_USER_EMAIL and E2E_USER_PASSWORD must be set to run browser-unmocked tests'
-			);
+			).toThrow('E2E_USER_EMAIL and E2E_USER_PASSWORD must be set to run browser-unmocked tests');
 		});
 
 		it('rejects whitespace-only user password', () => {
 			expect(() =>
 				resolveRequiredFixtureUserCredentials({
 					E2E_USER_EMAIL: 'user@test.com',
-					E2E_USER_PASSWORD: '   ',
+					E2E_USER_PASSWORD: '   '
 				})
-			).toThrow(
-				'E2E_USER_EMAIL and E2E_USER_PASSWORD must be set to run browser-unmocked tests'
-			);
+			).toThrow('E2E_USER_EMAIL and E2E_USER_PASSWORD must be set to run browser-unmocked tests');
 		});
 
 		it('trims user email but preserves the exact password value', () => {
 			expect(
 				resolveRequiredFixtureUserCredentials({
 					E2E_USER_EMAIL: '  user@test.com  ',
-					E2E_USER_PASSWORD: '  secret123  ',
+					E2E_USER_PASSWORD: '  secret123  '
 				})
 			).toEqual({
 				email: 'user@test.com',
-				password: '  secret123  ',
+				password: '  secret123  '
 			});
 		});
 
 		it('resolves required admin key from fixture env', () => {
 			expect(
 				resolveRequiredFixtureAdminKey({
-					E2E_ADMIN_KEY: 'admin-key',
+					E2E_ADMIN_KEY: 'admin-key'
 				})
 			).toBe('admin-key');
 		});
@@ -453,7 +459,7 @@ describe('playwright config contract', () => {
 		it('falls back to ADMIN_KEY when E2E_ADMIN_KEY is unset', () => {
 			expect(
 				resolveRequiredFixtureAdminKey({
-					ADMIN_KEY: 'server-admin-key',
+					ADMIN_KEY: 'server-admin-key'
 				})
 			).toBe('server-admin-key');
 		});
@@ -467,17 +473,15 @@ describe('playwright config contract', () => {
 		it('rejects whitespace-only admin key', () => {
 			expect(() =>
 				resolveRequiredFixtureAdminKey({
-					E2E_ADMIN_KEY: '  \t\n  ',
+					E2E_ADMIN_KEY: '  \t\n  '
 				})
-			).toThrow(
-				'E2E_ADMIN_KEY must be set to run admin browser-unmocked tests'
-			);
+			).toThrow('E2E_ADMIN_KEY must be set to run admin browser-unmocked tests');
 		});
 
 		it('preserves the exact admin key value', () => {
 			expect(
 				resolveRequiredFixtureAdminKey({
-					E2E_ADMIN_KEY: '  admin-key  ',
+					E2E_ADMIN_KEY: '  admin-key  '
 				})
 			).toBe('  admin-key  ');
 		});
@@ -494,64 +498,64 @@ describe('playwright config contract', () => {
 					input: {
 						processEnv: { E2E_ADMIN_KEY: 'pos1', ADMIN_KEY: 'pos6' },
 						repoEnv: { E2E_ADMIN_KEY: 'pos3', ADMIN_KEY: 'pos5' },
-						webEnv: { E2E_ADMIN_KEY: 'pos2', ADMIN_KEY: 'pos4' },
+						webEnv: { E2E_ADMIN_KEY: 'pos2', ADMIN_KEY: 'pos4' }
 					},
-					expected: 'pos1',
+					expected: 'pos1'
 				},
 				{
 					label: 'position 2 wins',
 					input: {
 						processEnv: { ADMIN_KEY: 'pos6' },
 						repoEnv: { E2E_ADMIN_KEY: 'pos3', ADMIN_KEY: 'pos5' },
-						webEnv: { E2E_ADMIN_KEY: 'pos2', ADMIN_KEY: 'pos4' },
+						webEnv: { E2E_ADMIN_KEY: 'pos2', ADMIN_KEY: 'pos4' }
 					},
-					expected: 'pos2',
+					expected: 'pos2'
 				},
 				{
 					label: 'position 3 wins',
 					input: {
 						processEnv: { ADMIN_KEY: 'pos6' },
 						repoEnv: { E2E_ADMIN_KEY: 'pos3', ADMIN_KEY: 'pos5' },
-						webEnv: { ADMIN_KEY: 'pos4' },
+						webEnv: { ADMIN_KEY: 'pos4' }
 					},
-					expected: 'pos3',
+					expected: 'pos3'
 				},
 				{
 					label: 'position 4 wins',
 					input: {
 						processEnv: { ADMIN_KEY: 'pos6' },
 						repoEnv: { ADMIN_KEY: 'pos5' },
-						webEnv: { ADMIN_KEY: 'pos4' },
+						webEnv: { ADMIN_KEY: 'pos4' }
 					},
-					expected: 'pos4',
+					expected: 'pos4'
 				},
 				{
 					label: 'position 5 wins',
 					input: {
 						processEnv: { ADMIN_KEY: 'pos6' },
 						repoEnv: { ADMIN_KEY: 'pos5' },
-						webEnv: {},
+						webEnv: {}
 					},
-					expected: 'pos5',
+					expected: 'pos5'
 				},
 				{
 					label: 'position 6 wins',
 					input: {
 						processEnv: { ADMIN_KEY: 'pos6' },
 						repoEnv: {},
-						webEnv: {},
+						webEnv: {}
 					},
-					expected: 'pos6',
+					expected: 'pos6'
 				},
 				{
 					label: 'position 7 wins',
 					input: {
 						processEnv: {},
 						repoEnv: {},
-						webEnv: {},
+						webEnv: {}
 					},
-					expected: DEFAULT_PLAYWRIGHT_ADMIN_KEY,
-				},
+					expected: DEFAULT_PLAYWRIGHT_ADMIN_KEY
+				}
 			];
 
 			for (const { label, input, expected } of cases) {
@@ -569,46 +573,46 @@ describe('playwright config contract', () => {
 					input: {
 						processEnv: { E2E_USER_EMAIL: 'pos1', SEED_USER_EMAIL: 'pos4' },
 						repoEnv: { E2E_USER_EMAIL: 'pos3', SEED_USER_EMAIL: 'pos5' },
-						webEnv: { E2E_USER_EMAIL: 'pos2', SEED_USER_EMAIL: 'pos6' },
+						webEnv: { E2E_USER_EMAIL: 'pos2', SEED_USER_EMAIL: 'pos6' }
 					},
-					expected: 'pos1',
+					expected: 'pos1'
 				},
 				{
 					label: 'position 4 wins',
 					input: {
 						processEnv: { SEED_USER_EMAIL: 'pos4' },
 						repoEnv: { SEED_USER_EMAIL: 'pos5' },
-						webEnv: { SEED_USER_EMAIL: 'pos6' },
+						webEnv: { SEED_USER_EMAIL: 'pos6' }
 					},
-					expected: 'pos4',
+					expected: 'pos4'
 				},
 				{
 					label: 'position 5 wins',
 					input: {
 						processEnv: {},
 						repoEnv: { SEED_USER_EMAIL: 'pos5' },
-						webEnv: { SEED_USER_EMAIL: 'pos6' },
+						webEnv: { SEED_USER_EMAIL: 'pos6' }
 					},
-					expected: 'pos5',
+					expected: 'pos5'
 				},
 				{
 					label: 'position 6 wins',
 					input: {
 						processEnv: {},
 						repoEnv: {},
-						webEnv: { SEED_USER_EMAIL: 'pos6' },
+						webEnv: { SEED_USER_EMAIL: 'pos6' }
 					},
-					expected: 'pos6',
+					expected: 'pos6'
 				},
 				{
 					label: 'position 7 wins',
 					input: {
 						processEnv: {},
 						repoEnv: {},
-						webEnv: {},
+						webEnv: {}
 					},
-					expected: DEFAULT_E2E_USER_EMAIL,
-				},
+					expected: DEFAULT_E2E_USER_EMAIL
+				}
 			];
 
 			for (const { label, input, expected } of cases) {
@@ -642,7 +646,7 @@ describe('playwright config contract', () => {
 		it('admin specs do NOT match the non-admin chromium project', () => {
 			const adminSpecs = [
 				'tests/e2e-ui/full/admin/customer-detail.spec.ts',
-				'tests/e2e-ui/full/admin/some-future-admin.spec.ts',
+				'tests/e2e-ui/full/admin/some-future-admin.spec.ts'
 			];
 			for (const specPath of adminSpecs) {
 				expect(projectContractsByName.chromium?.testMatch.test(specPath)).toBe(false);
@@ -665,7 +669,7 @@ describe('playwright config contract', () => {
 				processEnv,
 				repoEnv: {},
 				webEnv: {},
-				fallbackJwtSecret: 'test-jwt-secret',
+				fallbackJwtSecret: 'test-jwt-secret'
 			});
 			expect(runtime.webServerEnv.ADMIN_KEY).toBe(processEnv.E2E_ADMIN_KEY);
 		});
@@ -676,7 +680,7 @@ describe('playwright config contract', () => {
 			const processEnv = applyEnvDefaults({
 				processEnv: {},
 				repoEnv: { SEED_USER_EMAIL: 'seed@repo.test' },
-				webEnv: { SEED_USER_PASSWORD: 'seed-web-pass' },
+				webEnv: { SEED_USER_PASSWORD: 'seed-web-pass' }
 			});
 
 			const fixtureEnv = resolveFixtureEnv(processEnv);
@@ -692,7 +696,7 @@ describe('playwright config contract', () => {
 			const processEnv = applyEnvDefaults({
 				processEnv: {},
 				repoEnv: { ADMIN_KEY: 'repo-admin-key' },
-				webEnv: {},
+				webEnv: {}
 			});
 
 			const fixtureEnv = resolveFixtureEnv(processEnv);
@@ -710,10 +714,10 @@ describe('playwright config contract', () => {
 				processEnv: {
 					E2E_ADMIN_KEY: 'explicit-admin',
 					E2E_USER_EMAIL: 'explicit@test.com',
-					E2E_USER_PASSWORD: 'explicit-pass',
+					E2E_USER_PASSWORD: 'explicit-pass'
 				},
 				repoEnv: {},
-				webEnv: {},
+				webEnv: {}
 			});
 
 			const fixtureEnv = resolveFixtureEnv(processEnv);

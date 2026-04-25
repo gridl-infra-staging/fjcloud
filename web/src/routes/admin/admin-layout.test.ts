@@ -91,8 +91,14 @@ describe('Admin layout and auth', () => {
 		expect(screen.getByRole('heading', { name: 'Admin Panel' })).toBeInTheDocument();
 		expect(screen.getByText('staging')).toBeInTheDocument();
 		expect(screen.getByRole('link', { name: 'Fleet' })).toHaveAttribute('href', '/admin/fleet');
-		expect(screen.getByRole('link', { name: 'Customers' })).toHaveAttribute('href', '/admin/customers');
-		expect(screen.getByRole('link', { name: 'Migrations' })).toHaveAttribute('href', '/admin/migrations');
+		expect(screen.getByRole('link', { name: 'Customers' })).toHaveAttribute(
+			'href',
+			'/admin/customers'
+		);
+		expect(screen.getByRole('link', { name: 'Migrations' })).toHaveAttribute(
+			'href',
+			'/admin/migrations'
+		);
 		expect(screen.getByRole('link', { name: 'Billing' })).toHaveAttribute('href', '/admin/billing');
 		expect(screen.getByRole('link', { name: 'Alerts' })).toHaveAttribute('href', '/admin/alerts');
 		expect(screen.getByRole('link', { name: 'Log Out' })).toHaveAttribute('href', '/admin/logout');
@@ -481,14 +487,14 @@ describe('Admin client', () => {
 	});
 
 	it('retries admin requests when the API responds with 429', async () => {
-		const timeoutSpy = vi
-			.spyOn(globalThis, 'setTimeout')
-			.mockImplementation(((handler: TimerHandler) => {
-				if (typeof handler === 'function') {
-					handler();
-				}
-				return 0 as unknown as ReturnType<typeof setTimeout>;
-			}) as unknown as typeof setTimeout);
+		const timeoutSpy = vi.spyOn(globalThis, 'setTimeout').mockImplementation(((
+			handler: TimerHandler
+		) => {
+			if (typeof handler === 'function') {
+				handler();
+			}
+			return 0 as unknown as ReturnType<typeof setTimeout>;
+		}) as unknown as typeof setTimeout);
 
 		const fetchSpy = vi
 			.fn()
@@ -498,7 +504,9 @@ describe('Admin client', () => {
 					headers: { 'Retry-After': '1' }
 				})
 			)
-			.mockResolvedValueOnce(new Response(JSON.stringify([{ id: 'tenant-1', name: 'Retry Tenant' }]), { status: 200 }));
+			.mockResolvedValueOnce(
+				new Response(JSON.stringify([{ id: 'tenant-1', name: 'Retry Tenant' }]), { status: 200 })
+			);
 
 		const { AdminClient } = await import('$lib/admin-client');
 		const client = new AdminClient('http://localhost:3000', 'test-key');

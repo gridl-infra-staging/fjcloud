@@ -40,10 +40,7 @@ vi.mock('$lib/components/InstantSearch.svelte', () => ({
 
 import IndexDetailPage from './+page.svelte';
 import { clearLog } from '$lib/api-logs/store';
-import {
-	sampleSecuritySources,
-	createMockPageData
-} from './detail.test.shared';
+import { sampleSecuritySources, createMockPageData } from './detail.test.shared';
 
 type DetailPageOverrides = Parameters<typeof createMockPageData>[0];
 type DetailPageForm = ComponentProps<typeof IndexDetailPage>['form'];
@@ -191,10 +188,9 @@ describe('Index detail page — Security Sources tab', () => {
 		const formSources = {
 			sources: [{ source: '172.16.0.0/12', description: 'Form override' }]
 		};
-		renderPage(
-			{ securitySources: sampleSecuritySources },
-			{ securitySources: formSources } as DetailPageForm
-		);
+		renderPage({ securitySources: sampleSecuritySources }, {
+			securitySources: formSources
+		} as DetailPageForm);
 		await openTab('Security Sources');
 
 		const section = screen.getByTestId('security-sources-section');

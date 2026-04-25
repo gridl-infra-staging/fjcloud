@@ -132,11 +132,7 @@ describe('client runtime browser-failure contract', () => {
 			await loadBrowserRuntimeContract();
 		const fetchMock = vi.fn().mockResolvedValue({ ok: true } as Response);
 		vi.stubGlobal('fetch', fetchMock);
-		window.history.replaceState(
-			{},
-			'',
-			'/status?token=secret&redirect=http://localhost:5432'
-		);
+		window.history.replaceState({}, '', '/status?token=secret&redirect=http://localhost:5432');
 
 		const normalizedFailure = normalizeBrowserRuntimeFailure({
 			type: 'error',

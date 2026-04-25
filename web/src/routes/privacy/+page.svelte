@@ -18,7 +18,9 @@
 			class="mx-auto flex max-w-4xl flex-col gap-2 px-6 py-3 text-sm text-[#1f1b18] sm:flex-row sm:items-center sm:justify-between"
 		>
 			<p class="flex items-center gap-3">
-				<span class="inline-flex rounded-full bg-[#ffb3c7] px-3 py-1 text-xs font-black uppercase tracking-[0.18em]">
+				<span
+					class="inline-flex rounded-full bg-[#ffb3c7] px-3 py-1 text-xs font-black uppercase tracking-[0.18em]"
+				>
 					Draft
 				</span>
 				<span>{LEGAL_DRAFT_BANNER_TEXT}</span>
@@ -71,8 +73,8 @@
 			<section class="space-y-3">
 				<h2 class="text-xl font-bold text-[#1f1b18]">Retention</h2>
 				<p class="leading-7 text-[#4b4640]">
-					Operational, billing, and audit records may be retained for security, fraud prevention, and
-					compliance needs even after account closure. [REVIEW: exact retention periods]
+					Operational, billing, and audit records may be retained for security, fraud prevention,
+					and compliance needs even after account closure. [REVIEW: exact retention periods]
 				</p>
 			</section>
 
@@ -93,10 +95,14 @@
 				<h2 class="text-xl font-bold text-[#1f1b18]">Contact</h2>
 				<p class="leading-7 text-[#4b4640]">
 					Privacy, export, deletion, and retention questions should be sent to
-					<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- mailto links must stay scheme URLs -->
-					<a href={BETA_FEEDBACK_MAILTO} class="font-semibold text-[#b83f5f] underline hover:text-[#8d2842]">
+					<!-- eslint-disable svelte/no-navigation-without-resolve -- mailto links must stay scheme URLs -->
+					<a
+						href={BETA_FEEDBACK_MAILTO}
+						class="font-semibold text-[#b83f5f] underline hover:text-[#8d2842]"
+					>
 						{SUPPORT_EMAIL}
 					</a>
+					<!-- eslint-enable svelte/no-navigation-without-resolve -->
 					. [REVIEW: mailing address]
 				</p>
 			</section>

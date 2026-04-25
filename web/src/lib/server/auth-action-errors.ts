@@ -83,7 +83,9 @@ export function customerFacingErrorMessage(error: unknown, fallback: string): st
 function resolveAuthFailureMessage(error: unknown): string {
 	const { fallbackMessage, preserveSafeErrorMessage } = resolveAuthFailure(error);
 
-	return preserveSafeErrorMessage ? customerFacingErrorMessage(error, fallbackMessage) : fallbackMessage;
+	return preserveSafeErrorMessage
+		? customerFacingErrorMessage(error, fallbackMessage)
+		: fallbackMessage;
 }
 
 /**

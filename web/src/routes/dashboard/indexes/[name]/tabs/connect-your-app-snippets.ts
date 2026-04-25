@@ -27,7 +27,10 @@ export type FrameworkSnippet = {
  * Mirrors DEFAULT_CORS_ALLOWED_ORIGINS from infra/api/src/router.rs.
  * Keep in sync until the backend exposes this via a shared config endpoint.
  */
-export const CORS_ALLOWED_ORIGINS = ['http://localhost:5173', 'https://cloud.flapjack.foo'] as const;
+export const CORS_ALLOWED_ORIGINS = [
+	'http://localhost:5173',
+	'https://cloud.flapjack.foo'
+] as const;
 
 export function buildSnippetContext(endpoint: string, indexName: string): SnippetContext {
 	const { host, protocol } = parseFlapjackSearchEndpoint(endpoint);

@@ -45,10 +45,10 @@ test_script_accepts_limits_and_passes_at_boundaries() {
     local tmpdir
     tmpdir="$(mktemp -d)"
 
-    write_lines "$tmpdir/infra/api/src/a.rs" 800
-    write_lines "$tmpdir/infra/metering-agent/src/b.ts" 800
+    write_lines "$tmpdir/infra/api/src/a.rs" 850
+    write_lines "$tmpdir/infra/metering-agent/src/b.ts" 850
     write_lines "$tmpdir/infra/billing/src/c.rs" 1
-    write_lines "$tmpdir/web/src/App.svelte" 600
+    write_lines "$tmpdir/web/src/App.svelte" 700
 
     local output="" exit_code=0
     output="$("$CHECK_SCRIPT" "$tmpdir" 2>&1)" || exit_code=$?
@@ -63,8 +63,8 @@ test_script_fails_for_oversized_files_and_ignores_excluded_paths() {
     local tmpdir
     tmpdir="$(mktemp -d)"
 
-    write_lines "$tmpdir/infra/api/src/too_big.rs" 801
-    write_lines "$tmpdir/web/src/TooBig.svelte" 601
+    write_lines "$tmpdir/infra/api/src/too_big.rs" 851
+    write_lines "$tmpdir/web/src/TooBig.svelte" 701
     write_lines "$tmpdir/infra/api/src/tests/ignore_me.rs" 5000
     write_lines "$tmpdir/web/src/node_modules/ignore_me.ts" 5000
 
@@ -72,8 +72,8 @@ test_script_fails_for_oversized_files_and_ignores_excluded_paths() {
     output="$("$CHECK_SCRIPT" "$tmpdir" 2>&1)" || exit_code=$?
 
     assert_eq "$exit_code" "1" "script exits 1 when hard limits are exceeded"
-    assert_contains "$output" "FAIL: infra/api/src/too_big.rs (801 lines, limit 800)" "reports oversized Rust files"
-    assert_contains "$output" "FAIL: web/src/TooBig.svelte (601 lines, limit 600)" "reports oversized Svelte files"
+    assert_contains "$output" "FAIL: infra/api/src/too_big.rs (851 lines, limit 850)" "reports oversized Rust files"
+    assert_contains "$output" "FAIL: web/src/TooBig.svelte (701 lines, limit 700)" "reports oversized Svelte files"
     assert_not_contains "$output" "ignore_me.rs" "ignores infra tests directories"
     assert_not_contains "$output" "ignore_me.ts" "ignores node_modules directories"
 

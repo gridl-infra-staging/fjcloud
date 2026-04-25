@@ -3,8 +3,15 @@
  */
 import { fail } from '@sveltejs/kit';
 import { createApiClient } from '$lib/server/api';
-import { customerFacingErrorMessage, mapDashboardSessionFailure } from '$lib/server/auth-action-errors';
-import type { AddObjectsRequest, BrowseObjectsRequest, BrowseObjectsResponse } from '$lib/api/types';
+import {
+	customerFacingErrorMessage,
+	mapDashboardSessionFailure
+} from '$lib/server/auth-action-errors';
+import type {
+	AddObjectsRequest,
+	BrowseObjectsRequest,
+	BrowseObjectsResponse
+} from '$lib/api/types';
 
 export const DEFAULT_DOCUMENT_HITS_PER_PAGE = 20;
 
@@ -100,11 +107,15 @@ export function normalizeDocumentsBrowseResponse(
 	}
 
 	const hits = Array.isArray(result.hits)
-		? result.hits.filter((hit): hit is Record<string, unknown> => typeof hit === 'object' && hit !== null)
+		? result.hits.filter(
+				(hit): hit is Record<string, unknown> => typeof hit === 'object' && hit !== null
+			)
 		: [];
 
 	const nbHits =
-		typeof result.nbHits === 'number' && Number.isFinite(result.nbHits) ? result.nbHits : hits.length;
+		typeof result.nbHits === 'number' && Number.isFinite(result.nbHits)
+			? result.nbHits
+			: hits.length;
 	const page = typeof result.page === 'number' && Number.isFinite(result.page) ? result.page : 0;
 	const nbPages =
 		typeof result.nbPages === 'number' && Number.isFinite(result.nbPages) ? result.nbPages : 0;

@@ -109,7 +109,10 @@ describe('DictionariesTab — error banners', () => {
 	});
 
 	it('shows save error banner', () => {
-		render(DictionariesTab, defaultProps({ dictionarySaveError: 'entryWord is required for stopwords' }));
+		render(
+			DictionariesTab,
+			defaultProps({ dictionarySaveError: 'entryWord is required for stopwords' })
+		);
 		expect(screen.getByText(/entryword is required for stopwords/i)).toBeInTheDocument();
 	});
 
@@ -136,7 +139,9 @@ describe('DictionariesTab — empty vs populated entries state', () => {
 	it('renders per-entry delete control wired to deleteDictionaryEntry action', () => {
 		const { container } = render(DictionariesTab, defaultProps());
 
-		expect(screen.getByRole('button', { name: /delete dictionary entry stop-the/i })).toBeInTheDocument();
+		expect(
+			screen.getByRole('button', { name: /delete dictionary entry stop-the/i })
+		).toBeInTheDocument();
 		expect(container.querySelector('form[action="?/deleteDictionaryEntry"]')).not.toBeNull();
 	});
 });
@@ -227,7 +232,10 @@ describe('DictionariesTab — canonical selector pinning across save/delete form
 				nbPages: 1
 			}
 		};
-		const { container } = render(DictionariesTab, defaultProps({ dictionaries: multiLanguageDictionaries }));
+		const { container } = render(
+			DictionariesTab,
+			defaultProps({ dictionaries: multiLanguageDictionaries })
+		);
 
 		// Change browse drafts
 		await fireEvent.change(screen.getByLabelText(/dictionary type/i), {
@@ -272,7 +280,10 @@ describe('DictionariesTab — canonical selector pinning across save/delete form
 				nbPages: 1
 			}
 		};
-		const { container } = render(DictionariesTab, defaultProps({ dictionaries: nonDefaultDictionaries }));
+		const { container } = render(
+			DictionariesTab,
+			defaultProps({ dictionaries: nonDefaultDictionaries })
+		);
 
 		const dictionarySelect = screen.getByLabelText(/dictionary type/i) as HTMLSelectElement;
 		const languageSelect = screen.getByLabelText(/^language$/i) as HTMLSelectElement;

@@ -18,7 +18,9 @@
 			class="mx-auto flex max-w-4xl flex-col gap-2 px-6 py-3 text-sm text-[#1f1b18] sm:flex-row sm:items-center sm:justify-between"
 		>
 			<p class="flex items-center gap-3">
-				<span class="inline-flex rounded-full bg-[#ffb3c7] px-3 py-1 text-xs font-black uppercase tracking-[0.18em]">
+				<span
+					class="inline-flex rounded-full bg-[#ffb3c7] px-3 py-1 text-xs font-black uppercase tracking-[0.18em]"
+				>
 					Draft
 				</span>
 				<span>{LEGAL_DRAFT_BANNER_TEXT}</span>
@@ -62,8 +64,8 @@
 			<section class="space-y-3">
 				<h2 class="text-xl font-bold text-[#1f1b18]">Acceptable Use</h2>
 				<p class="leading-7 text-[#4b4640]">
-					Customers must not use the service for unlawful content, abusive traffic, credential theft,
-					or attempts to disrupt other tenants or platform operations.
+					Customers must not use the service for unlawful content, abusive traffic, credential
+					theft, or attempts to disrupt other tenants or platform operations.
 				</p>
 			</section>
 
@@ -87,8 +89,8 @@
 			<section class="space-y-3">
 				<h2 class="text-xl font-bold text-[#1f1b18]">IP and License</h2>
 				<p class="leading-7 text-[#4b4640]">
-					Customers keep ownership of Customer Content. The service grants a limited, revocable right
-					to use the hosted platform during the beta term.
+					Customers keep ownership of Customer Content. The service grants a limited, revocable
+					right to use the hosted platform during the beta term.
 				</p>
 			</section>
 
@@ -110,8 +112,8 @@
 			<section class="space-y-3">
 				<h2 class="text-xl font-bold text-[#1f1b18]">Indemnification</h2>
 				<p class="leading-7 text-[#4b4640]">
-					Customers are expected to be responsible for claims arising from Customer Content, unlawful
-					use, or misuse of the service. [REVIEW: indemnity scope]
+					Customers are expected to be responsible for claims arising from Customer Content,
+					unlawful use, or misuse of the service. [REVIEW: indemnity scope]
 				</p>
 			</section>
 
@@ -124,10 +126,14 @@
 				<h2 class="text-xl font-bold text-[#1f1b18]">Contact</h2>
 				<p class="leading-7 text-[#4b4640]">
 					Questions about these draft terms should be sent to
-					<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- mailto links must stay scheme URLs -->
-					<a href={BETA_FEEDBACK_MAILTO} class="font-semibold text-[#b83f5f] underline hover:text-[#8d2842]">
+					<!-- eslint-disable svelte/no-navigation-without-resolve -- mailto links must stay scheme URLs -->
+					<a
+						href={BETA_FEEDBACK_MAILTO}
+						class="font-semibold text-[#b83f5f] underline hover:text-[#8d2842]"
+					>
 						{SUPPORT_EMAIL}
 					</a>
+					<!-- eslint-enable svelte/no-navigation-without-resolve -->
 					before launch sign-off.
 				</p>
 			</section>

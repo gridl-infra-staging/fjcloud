@@ -90,11 +90,12 @@ describe('LandingPricingCalculator', () => {
 	});
 
 	it('submits the backend compare payload without synthetic region fields', async () => {
-		const fetchMock = vi.fn(async () =>
-			new Response(JSON.stringify(sampleResponse), {
-				status: 200,
-				headers: { 'Content-Type': 'application/json' }
-			})
+		const fetchMock = vi.fn(
+			async () =>
+				new Response(JSON.stringify(sampleResponse), {
+					status: 200,
+					headers: { 'Content-Type': 'application/json' }
+				})
 		);
 		vi.stubGlobal('fetch', fetchMock);
 
@@ -122,11 +123,12 @@ describe('LandingPricingCalculator', () => {
 	it('renders upstream error message when compare request fails', async () => {
 		vi.stubGlobal(
 			'fetch',
-			vi.fn(async () =>
-				new Response(JSON.stringify({ error: 'document_count must be positive' }), {
-					status: 400,
-					headers: { 'Content-Type': 'application/json' }
-				})
+			vi.fn(
+				async () =>
+					new Response(JSON.stringify({ error: 'document_count must be positive' }), {
+						status: 400,
+						headers: { 'Content-Type': 'application/json' }
+					})
 			)
 		);
 
@@ -140,11 +142,12 @@ describe('LandingPricingCalculator', () => {
 	it('falls back to a stable error message when a 200 payload is malformed', async () => {
 		vi.stubGlobal(
 			'fetch',
-			vi.fn(async () =>
-				new Response(JSON.stringify({ generated_at: '2026-03-19T00:00:00Z' }), {
-					status: 200,
-					headers: { 'Content-Type': 'application/json' }
-				})
+			vi.fn(
+				async () =>
+					new Response(JSON.stringify({ generated_at: '2026-03-19T00:00:00Z' }), {
+						status: 200,
+						headers: { 'Content-Type': 'application/json' }
+					})
 			)
 		);
 
@@ -159,11 +162,12 @@ describe('LandingPricingCalculator', () => {
 	it('displays the Flapjack Cloud provider while preserving upstream estimate order', async () => {
 		vi.stubGlobal(
 			'fetch',
-			vi.fn(async () =>
-				new Response(JSON.stringify(sampleResponse), {
-					status: 200,
-					headers: { 'Content-Type': 'application/json' }
-				})
+			vi.fn(
+				async () =>
+					new Response(JSON.stringify(sampleResponse), {
+						status: 200,
+						headers: { 'Content-Type': 'application/json' }
+					})
 			)
 		);
 
@@ -195,11 +199,12 @@ describe('LandingPricingCalculator', () => {
 		};
 		vi.stubGlobal(
 			'fetch',
-			vi.fn(async () =>
-				new Response(JSON.stringify(legacyResponse), {
-					status: 200,
-					headers: { 'Content-Type': 'application/json' }
-				})
+			vi.fn(
+				async () =>
+					new Response(JSON.stringify(legacyResponse), {
+						status: 200,
+						headers: { 'Content-Type': 'application/json' }
+					})
 			)
 		);
 

@@ -1,12 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiRequestError } from '$lib/api/client';
-import {
-	EMPTY_DOCUMENTS,
-	EMPTY_DICTIONARIES,
-	EMPTY_DICTIONARY_ENTRIES,
-	EMPTY_SECURITY_SOURCES,
-	makeActionArgs
-} from './detail.server.test.shared';
+import { makeActionArgs } from './detail.server.test.shared';
 
 // ---------------------------------------------------------------------------
 // Mock function references (must be declared before vi.mock)
@@ -162,12 +156,18 @@ describe('Index detail page server -- actions', () => {
 				name: 'Ranking test',
 				variants: [
 					{ index: 'products', trafficPercentage: 50 },
-					{ index: 'products', trafficPercentage: 50, customSearchParameters: { enableRules: false } }
+					{
+						index: 'products',
+						trafficPercentage: 50,
+						customSearchParameters: { enableRules: false }
+					}
 				]
 			})
 		);
 
-		const result = await actions.createExperiment(makeActionArgs('createExperiment', formData) as never);
+		const result = await actions.createExperiment(
+			makeActionArgs('createExperiment', formData) as never
+		);
 
 		expect(createExperimentMock).toHaveBeenCalledWith('products', {
 			name: 'Ranking test',
@@ -185,7 +185,9 @@ describe('Index detail page server -- actions', () => {
 		const formData = new FormData();
 		formData.set('experimentID', '7');
 
-		const result = await actions.deleteExperiment(makeActionArgs('deleteExperiment', formData) as never);
+		const result = await actions.deleteExperiment(
+			makeActionArgs('deleteExperiment', formData) as never
+		);
 
 		expect(deleteExperimentMock).toHaveBeenCalledWith('products', 7);
 		expect(result).toEqual({ experimentDeleted: true });
@@ -195,12 +197,16 @@ describe('Index detail page server -- actions', () => {
 		const formData = new FormData();
 		formData.set('experimentID', '0');
 
-		const result = await actions.deleteExperiment(makeActionArgs('deleteExperiment', formData) as never);
+		const result = await actions.deleteExperiment(
+			makeActionArgs('deleteExperiment', formData) as never
+		);
 
 		expect(result).toEqual(
 			expect.objectContaining({
 				status: 400,
-				data: expect.objectContaining({ experimentError: 'experimentID must be a positive integer' })
+				data: expect.objectContaining({
+					experimentError: 'experimentID must be a positive integer'
+				})
 			})
 		);
 		expect(deleteExperimentMock).not.toHaveBeenCalled();
@@ -212,7 +218,9 @@ describe('Index detail page server -- actions', () => {
 		const formData = new FormData();
 		formData.set('experimentID', '7');
 
-		const result = await actions.startExperiment(makeActionArgs('startExperiment', formData) as never);
+		const result = await actions.startExperiment(
+			makeActionArgs('startExperiment', formData) as never
+		);
 
 		expect(startExperimentMock).toHaveBeenCalledWith('products', 7);
 		expect(result).toEqual({ experimentStarted: true });
@@ -224,7 +232,9 @@ describe('Index detail page server -- actions', () => {
 		const formData = new FormData();
 		formData.set('experimentID', '7');
 
-		const result = await actions.stopExperiment(makeActionArgs('stopExperiment', formData) as never);
+		const result = await actions.stopExperiment(
+			makeActionArgs('stopExperiment', formData) as never
+		);
 
 		expect(stopExperimentMock).toHaveBeenCalledWith('products', 7);
 		expect(result).toEqual({ experimentStopped: true });
@@ -379,7 +389,6 @@ describe('Index detail page server -- actions', () => {
 		expect(result).toEqual({ synonymDeleted: true });
 	});
 
-
 	it('saveQsConfig action calls saveQsConfig API with parsed config JSON', async () => {
 		saveQsConfigMock.mockResolvedValue({ status: 'updated' });
 
@@ -421,7 +430,10 @@ describe('Index detail page server -- actions', () => {
 	});
 
 	it('createPreviewKey action calls createIndexKey with search ACL and returns key', async () => {
-		createIndexKeyMock.mockResolvedValue({ key: 'fj_preview_abc123', createdAt: '2026-03-15T00:00:00Z' });
+		createIndexKeyMock.mockResolvedValue({
+			key: 'fj_preview_abc123',
+			createdAt: '2026-03-15T00:00:00Z'
+		});
 
 		const result = await actions.createPreviewKey(
 			makeActionArgs('createPreviewKey', new FormData()) as never

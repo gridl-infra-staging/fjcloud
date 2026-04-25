@@ -186,7 +186,7 @@ describe('Dashboard layout server load', () => {
 		getProfileMock.mockResolvedValue(freeProfile);
 		getOnboardingStatusMock.mockResolvedValue(freeOnboarding);
 
-		const result = (await load(makeEvent('/admin/customers/cust-1'))) !;
+		const result = (await load(makeEvent('/admin/customers/cust-1')))!;
 
 		expect(result.impersonation).toEqual({ returnPath: '/admin/customers/cust-1' });
 	});

@@ -6,7 +6,10 @@
 	import type { BillingInvoice } from './+page.server';
 	import { formatCents, formatDate } from '$lib/format';
 
-	let { data, form } = $props<{ data: { invoices: BillingInvoice[] }; form?: { error?: string; message?: string } }>();
+	let { data, form } = $props<{
+		data: { invoices: BillingInvoice[] };
+		form?: { error?: string; message?: string };
+	}>();
 
 	let showBillingConfirm = $state(false);
 	let billingMonth = $state(formatBillingMonthValue(new Date()));
@@ -107,7 +110,10 @@
 					<tbody class="divide-y divide-slate-700/50">
 						{#each failedInvoices as invoice (invoice.id)}
 							<tr data-testid="failed-invoice-row" class="transition hover:bg-slate-800/40">
-								<td data-testid="failed-invoice-customer" class="px-4 py-3 font-medium text-slate-200">
+								<td
+									data-testid="failed-invoice-customer"
+									class="px-4 py-3 font-medium text-slate-200"
+								>
 									{invoice.customer_name}
 								</td>
 								<td data-testid="failed-invoice-email" class="px-4 py-3 text-slate-300">
@@ -174,7 +180,10 @@
 					<tbody class="divide-y divide-slate-700/50">
 						{#each draftInvoices as invoice (invoice.id)}
 							<tr data-testid="draft-invoice-row" class="transition hover:bg-slate-800/40">
-								<td data-testid="draft-invoice-customer" class="px-4 py-3 font-medium text-slate-200">
+								<td
+									data-testid="draft-invoice-customer"
+									class="px-4 py-3 font-medium text-slate-200"
+								>
 									{invoice.customer_name}
 								</td>
 								<td data-testid="draft-invoice-email" class="px-4 py-3 text-slate-300">

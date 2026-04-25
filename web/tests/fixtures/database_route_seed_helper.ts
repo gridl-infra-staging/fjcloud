@@ -46,10 +46,17 @@ function parseSeededInstanceRow(output: string): AybInstance {
 
 	const [id, ayb_slug, ayb_cluster_id, ayb_url, status, plan, created_at, updated_at] =
 		seededRow.split('|');
-	if (!id || !ayb_slug || !ayb_cluster_id || !ayb_url || !status || !plan || !created_at || !updated_at) {
-		throw new Error(
-			`database route fixture seed returned malformed row. Output: ${output}`
-		);
+	if (
+		!id ||
+		!ayb_slug ||
+		!ayb_cluster_id ||
+		!ayb_url ||
+		!status ||
+		!plan ||
+		!created_at ||
+		!updated_at
+	) {
+		throw new Error(`database route fixture seed returned malformed row. Output: ${output}`);
 	}
 
 	return {

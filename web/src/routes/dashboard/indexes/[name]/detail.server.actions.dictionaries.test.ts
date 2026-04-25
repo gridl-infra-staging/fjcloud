@@ -114,8 +114,7 @@ import { actions } from './+page.server';
 // Tests
 // ---------------------------------------------------------------------------
 
-
-describe("Index detail page server -- actions (dictionaries)", () => {
+describe('Index detail page server -- actions (dictionaries)', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 	});
@@ -410,7 +409,9 @@ describe("Index detail page server -- actions (dictionaries)", () => {
 
 		expect(batchDictionaryEntriesMock).toHaveBeenCalledWith('products', 'stopwords', {
 			clearExistingDictionaryEntries: false,
-			requests: [{ action: 'addEntry', body: { objectID: 'stop-the', language: 'en', word: 'the' } }]
+			requests: [
+				{ action: 'addEntry', body: { objectID: 'stop-the', language: 'en', word: 'the' } }
+			]
 		});
 		expect(searchDictionaryEntriesMock).toHaveBeenCalledWith('products', 'stopwords', {
 			query: '',

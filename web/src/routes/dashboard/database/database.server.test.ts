@@ -44,9 +44,7 @@ function buildDeleteRequest(id = '8df00b9f-cf30-4300-bfd4-8f25ca5da39b') {
 	});
 }
 
-function buildCreateRequest(
-	fields: { name?: string; slug?: string; plan?: string } = {}
-) {
+function buildCreateRequest(fields: { name?: string; slug?: string; plan?: string } = {}) {
 	return new Request(databaseRouteUrl, {
 		method: 'POST',
 		body: new URLSearchParams({
@@ -310,9 +308,7 @@ describe('Database page server', () => {
 	});
 
 	it('create action surfaces 503 failures as user-facing error', async () => {
-		createAybInstanceMock.mockRejectedValue(
-			new ApiRequestError(503, 'service_not_configured')
-		);
+		createAybInstanceMock.mockRejectedValue(new ApiRequestError(503, 'service_not_configured'));
 
 		const result = await submitCreate();
 
@@ -391,9 +387,7 @@ describe('Database page server', () => {
 	});
 
 	it('delete action surfaces 503 failures as user-facing error', async () => {
-		deleteAybInstanceMock.mockRejectedValue(
-			new ApiRequestError(503, 'service_not_configured')
-		);
+		deleteAybInstanceMock.mockRejectedValue(new ApiRequestError(503, 'service_not_configured'));
 
 		const result = await submitDelete();
 

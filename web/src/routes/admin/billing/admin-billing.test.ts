@@ -212,16 +212,46 @@ describe('Billing page server load', () => {
 		const { load } = await import('./+page.server');
 
 		const tenants = [
-			{ id: 'cust-0001', name: 'Acme Corp', email: 'ops@acme.dev', status: 'active', created_at: '2026-01-01T00:00:00Z' },
-			{ id: 'cust-0002', name: 'Beta Labs', email: 'billing@beta.dev', status: 'active', created_at: '2026-01-01T00:00:00Z' }
+			{
+				id: 'cust-0001',
+				name: 'Acme Corp',
+				email: 'ops@acme.dev',
+				status: 'active',
+				created_at: '2026-01-01T00:00:00Z'
+			},
+			{
+				id: 'cust-0002',
+				name: 'Beta Labs',
+				email: 'billing@beta.dev',
+				status: 'active',
+				created_at: '2026-01-01T00:00:00Z'
+			}
 		];
 
 		const invoicesByCust: Record<string, unknown[]> = {
 			'cust-0001': [
-				{ id: 'inv-001', period_start: '2026-02-01', period_end: '2026-02-28', subtotal_cents: 5000, total_cents: 5000, status: 'paid', minimum_applied: false, created_at: '2026-03-01T00:00:00Z' }
+				{
+					id: 'inv-001',
+					period_start: '2026-02-01',
+					period_end: '2026-02-28',
+					subtotal_cents: 5000,
+					total_cents: 5000,
+					status: 'paid',
+					minimum_applied: false,
+					created_at: '2026-03-01T00:00:00Z'
+				}
 			],
 			'cust-0002': [
-				{ id: 'inv-002', period_start: '2026-02-01', period_end: '2026-02-28', subtotal_cents: 3000, total_cents: 3000, status: 'draft', minimum_applied: false, created_at: '2026-03-01T00:00:00Z' }
+				{
+					id: 'inv-002',
+					period_start: '2026-02-01',
+					period_end: '2026-02-28',
+					subtotal_cents: 3000,
+					total_cents: 3000,
+					status: 'draft',
+					minimum_applied: false,
+					created_at: '2026-03-01T00:00:00Z'
+				}
 			]
 		};
 
@@ -267,21 +297,75 @@ describe('Billing page server load', () => {
 		const { load } = await import('./+page.server');
 
 		const tenants = [
-			{ id: 'tenant-acme', name: 'Acme Corp', email: 'ops@acme.dev', status: 'active', created_at: '2026-01-01T00:00:00Z' },
-			{ id: 'tenant-beta', name: 'Beta Labs', email: 'billing@beta.dev', status: 'active', created_at: '2026-01-01T00:00:00Z' },
-			{ id: 'tenant-gamma', name: 'Gamma Inc', email: 'team@gamma.dev', status: 'active', created_at: '2026-01-01T00:00:00Z' }
+			{
+				id: 'tenant-acme',
+				name: 'Acme Corp',
+				email: 'ops@acme.dev',
+				status: 'active',
+				created_at: '2026-01-01T00:00:00Z'
+			},
+			{
+				id: 'tenant-beta',
+				name: 'Beta Labs',
+				email: 'billing@beta.dev',
+				status: 'active',
+				created_at: '2026-01-01T00:00:00Z'
+			},
+			{
+				id: 'tenant-gamma',
+				name: 'Gamma Inc',
+				email: 'team@gamma.dev',
+				status: 'active',
+				created_at: '2026-01-01T00:00:00Z'
+			}
 		];
 
 		const invoicesByTenant: Record<string, unknown[]> = {
 			'tenant-acme': [
-				{ id: 'inv-100', period_start: '2026-02-01', period_end: '2026-02-28', subtotal_cents: 5000, total_cents: 5000, status: 'draft', minimum_applied: false, created_at: '2026-03-02T09:00:00Z' },
-				{ id: 'inv-090', period_start: '2026-02-01', period_end: '2026-02-28', subtotal_cents: 3000, total_cents: 3000, status: 'failed', minimum_applied: false, created_at: '2026-03-02T09:00:00Z' }
+				{
+					id: 'inv-100',
+					period_start: '2026-02-01',
+					period_end: '2026-02-28',
+					subtotal_cents: 5000,
+					total_cents: 5000,
+					status: 'draft',
+					minimum_applied: false,
+					created_at: '2026-03-02T09:00:00Z'
+				},
+				{
+					id: 'inv-090',
+					period_start: '2026-02-01',
+					period_end: '2026-02-28',
+					subtotal_cents: 3000,
+					total_cents: 3000,
+					status: 'failed',
+					minimum_applied: false,
+					created_at: '2026-03-02T09:00:00Z'
+				}
 			],
 			'tenant-beta': [
-				{ id: 'inv-200', period_start: '2026-02-01', period_end: '2026-02-28', subtotal_cents: 8000, total_cents: 8000, status: 'paid', minimum_applied: false, created_at: '2026-03-02T09:00:00Z' }
+				{
+					id: 'inv-200',
+					period_start: '2026-02-01',
+					period_end: '2026-02-28',
+					subtotal_cents: 8000,
+					total_cents: 8000,
+					status: 'paid',
+					minimum_applied: false,
+					created_at: '2026-03-02T09:00:00Z'
+				}
 			],
 			'tenant-gamma': [
-				{ id: 'inv-300', period_start: '2026-02-01', period_end: '2026-02-28', subtotal_cents: 12000, total_cents: 12000, status: 'paid', minimum_applied: false, created_at: '2026-03-03T12:00:00Z' }
+				{
+					id: 'inv-300',
+					period_start: '2026-02-01',
+					period_end: '2026-02-28',
+					subtotal_cents: 12000,
+					total_cents: 12000,
+					status: 'paid',
+					minimum_applied: false,
+					created_at: '2026-03-03T12:00:00Z'
+				}
 			]
 		};
 
@@ -313,12 +397,9 @@ describe('Billing page server load', () => {
 			depends: () => {}
 		} as never);
 
-		expect(result!.invoices.map((invoice: BillingInvoice) => `${invoice.id}:${invoice.customer_name}`)).toEqual([
-			'inv-300:Gamma Inc',
-			'inv-090:Acme Corp',
-			'inv-100:Acme Corp',
-			'inv-200:Beta Labs'
-		]);
+		expect(
+			result!.invoices.map((invoice: BillingInvoice) => `${invoice.id}:${invoice.customer_name}`)
+		).toEqual(['inv-300:Gamma Inc', 'inv-090:Acme Corp', 'inv-100:Acme Corp', 'inv-200:Beta Labs']);
 		expect(result!.invoices[1].customer_email).toBe('ops@acme.dev');
 	});
 });
@@ -334,7 +415,7 @@ describe('Admin client billing methods', () => {
 		client.setFetch(async (input: string | URL | Request, init?: RequestInit) => {
 			capturedUrl = typeof input === 'string' ? input : input.toString();
 			capturedMethod = init?.method ?? 'GET';
-			capturedBody = init?.body as string ?? '';
+			capturedBody = (init?.body as string) ?? '';
 			return new Response(
 				JSON.stringify({
 					month: '2026-02',
@@ -433,10 +514,9 @@ describe('Billing page server actions', () => {
 			}),
 			fetch: async (input: string | URL | Request) => {
 				capturedUrls.push(typeof input === 'string' ? input : input.toString());
-				return new Response(
-					JSON.stringify({ id: 'inv-001', status: 'finalized' }),
-					{ status: 200 }
-				);
+				return new Response(JSON.stringify({ id: 'inv-001', status: 'finalized' }), {
+					status: 200
+				});
 			}
 		} as never);
 
@@ -465,9 +545,7 @@ describe('Billing page server actions', () => {
 			fetch: async () => new Response('', { status: 200 })
 		} as never);
 
-		expect(result).toEqual(
-			expect.objectContaining({ status: 400 })
-		);
+		expect(result).toEqual(expect.objectContaining({ status: 400 }));
 	});
 
 	it('runBilling action rejects malformed month input before calling the admin API', async () => {
@@ -543,7 +621,8 @@ describe('Billing page server actions', () => {
 				status: 500,
 				data: expect.objectContaining({
 					success: false,
-					error: 'Bulk finalize failed: inv-001: finalize endpoint unavailable; inv-002: finalize endpoint unavailable'
+					error:
+						'Bulk finalize failed: inv-001: finalize endpoint unavailable; inv-002: finalize endpoint unavailable'
 				})
 			})
 		);
@@ -579,7 +658,8 @@ describe('Billing page server actions', () => {
 			expect.objectContaining({
 				success: false,
 				finalized: 1,
-				error: 'Bulk finalize partially failed after finalizing 1 invoice: inv-002: finalize endpoint unavailable'
+				error:
+					'Bulk finalize partially failed after finalizing 1 invoice: inv-002: finalize endpoint unavailable'
 			})
 		);
 		expect(result).not.toHaveProperty('status');

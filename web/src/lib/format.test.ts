@@ -65,7 +65,20 @@ describe('formatUnitPrice', () => {
 
 describe('formatPeriod', () => {
 	it('formats all 12 months correctly', () => {
-		const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+		const months = [
+			'Jan',
+			'Feb',
+			'Mar',
+			'Apr',
+			'May',
+			'Jun',
+			'Jul',
+			'Aug',
+			'Sep',
+			'Oct',
+			'Nov',
+			'Dec'
+		];
 		for (let i = 0; i < 12; i++) {
 			const m = String(i + 1).padStart(2, '0');
 			expect(formatPeriod(`2026-${m}-01`)).toBe(`${months[i]} 2026`);

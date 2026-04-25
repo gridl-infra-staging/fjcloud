@@ -77,7 +77,6 @@ test.describe('Settings page', () => {
 
 		await expect(page.getByRole('alert')).toBeVisible({ timeout: 5_000 });
 	});
-
 });
 
 test.describe('Settings password change lifecycle', () => {
@@ -87,7 +86,7 @@ test.describe('Settings password change lifecycle', () => {
 
 	test('change password, log out, re-authenticate with new password', async ({
 		page,
-		createUser,
+		createUser
 	}) => {
 		const email = `settings-reauth-${Date.now()}@e2e.griddle.test`;
 		const oldPassword = 'OldPassword123!';
@@ -114,7 +113,7 @@ test.describe('Settings password change lifecycle', () => {
 
 		// Assert: password change success message
 		await expect(page.getByText('Password changed successfully')).toBeVisible({
-			timeout: 5_000,
+			timeout: 5_000
 		});
 
 		// Step 3: Log out

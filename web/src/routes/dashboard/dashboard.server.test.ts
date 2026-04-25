@@ -73,10 +73,12 @@ describe('Dashboard page server load', () => {
 		getEstimatedBillMock.mockRejectedValue(new Error('no rate card'));
 	});
 
-	function event(opts: {
-		planContext?: typeof freePlanContext | typeof sharedPlanContext;
-		month?: string;
-	} = {}) {
+	function event(
+		opts: {
+			planContext?: typeof freePlanContext | typeof sharedPlanContext;
+			month?: string;
+		} = {}
+	) {
 		if (opts.planContext) {
 			parentMock.mockResolvedValue({ planContext: opts.planContext });
 		}

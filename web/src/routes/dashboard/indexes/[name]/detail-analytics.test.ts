@@ -25,9 +25,7 @@ vi.mock('layerchart', () => ({
 }));
 
 import IndexDetailPage from './+page.svelte';
-import {
-	createMockPageData
-} from './detail.test.shared';
+import { createMockPageData } from './detail.test.shared';
 
 afterEach(() => {
 	cleanup();
@@ -133,7 +131,9 @@ describe('Index detail page — Merchandising', () => {
 		await fireEvent.click(screen.getByRole('tab', { name: 'Merchandising' }));
 		const form = container.querySelector('form[action="?/search"]');
 		expect(form).not.toBeNull();
-		expect(screen.getByRole('button', { name: 'Search Merchandising Results' })).toBeInTheDocument();
+		expect(
+			screen.getByRole('button', { name: 'Search Merchandising Results' })
+		).toBeInTheDocument();
 	});
 
 	it('merchandising search results show pin/hide actions after search', async () => {

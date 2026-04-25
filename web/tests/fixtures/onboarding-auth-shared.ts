@@ -2,7 +2,11 @@ import { test as setup, expect } from '@playwright/test';
 import { quoteSqlLiteral, runSqlWithPsqlFallback } from './postgres_psql_helper';
 
 /** Verify the SQL output confirms exactly one customer row was email-verified. */
-export function assertSingleVerifiedCustomer(output: string, email: string, transport: string): void {
+export function assertSingleVerifiedCustomer(
+	output: string,
+	email: string,
+	transport: string
+): void {
 	const lines = output
 		.split('\n')
 		.map((line) => line.trim())
@@ -35,7 +39,7 @@ export function verifyFreshSignupEmail(email: string): void {
 		'SELECT COUNT(*) FROM customers',
 		`WHERE email = ${quoteSqlLiteral(email)}`,
 		'  AND email_verified_at IS NOT NULL',
-		"  AND status != 'deleted';",
+		"  AND status != 'deleted';"
 	].join('\n');
 
 	const output = runSqlWithPsqlFallback(
@@ -46,10 +50,7 @@ export function verifyFreshSignupEmail(email: string): void {
 	assertSingleVerifiedCustomer(output, email, 'psql');
 }
 
-export function registerFreshOnboardingAccount(
-	setupName: string,
-	storageStatePath: string
-): void {
+export function registerFreshOnboardingAccount(setupName: string, storageStatePath: string): void {
 	setup(setupName, async ({ page }) => {
 		const timestamp = Date.now();
 		const name = `Onboarding Test ${timestamp}`;
@@ -67,14 +68,14 @@ export function registerFreshOnboardingAccount(
 		const signupAlert = page.getByRole('alert');
 		await Promise.race([
 			page.waitForURL(/\/dashboard/, { timeout: 15_000 }),
-			signupAlert.waitFor({ state: 'visible', timeout: 15_000 }),
+			signupAlert.waitFor({ state: 'visible', timeout: 15_000 })
 		]);
 
 		if (!/\/dashboard/.test(page.url())) {
 			const alertText = await signupAlert.textContent();
 			throw new Error(
 				`Signup setup failed before reaching /dashboard. Alert: "${alertText?.trim() ?? '(none)'}". ` +
-				'Check API_URL, JWT_SECRET, and that the registration endpoint is accepting new users.'
+					'Check API_URL, JWT_SECRET, and that the registration endpoint is accepting new users.'
 			);
 		}
 

@@ -38,6 +38,7 @@
 		if (redirectedForSessionExpiry) return;
 		if (!hasSessionExpiredFormMarker(page.form)) return;
 		redirectedForSessionExpiry = true;
+		// eslint-disable-next-line svelte/no-navigation-without-resolve -- DASHBOARD_SESSION_EXPIRED_REDIRECT carries a query string (`?reason=...`) that resolve() rejects as a typed route literal; the path itself is statically owned by $lib/auth-session-contracts.
 		void goto(DASHBOARD_SESSION_EXPIRED_REDIRECT);
 	});
 </script>
@@ -83,12 +84,14 @@
 				{/if}
 			</div>
 			<div class="flex items-center gap-4">
+				<!-- eslint-disable svelte/no-navigation-without-resolve -- mailto: scheme, not an internal path -->
 				<a
 					href={BETA_FEEDBACK_MAILTO}
 					class="text-sm font-medium text-blue-600 hover:text-blue-800"
 				>
 					Send feedback
 				</a>
+				<!-- eslint-enable svelte/no-navigation-without-resolve -->
 				<span class="text-sm text-gray-700">{displayName}</span>
 				<form method="POST" action="/logout" use:enhance>
 					<button

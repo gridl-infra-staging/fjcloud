@@ -52,7 +52,10 @@ describe('mapAuthActionFailure', () => {
 	});
 
 	it('replaces unsafe ApiRequestError details with a generic auth message', () => {
-		const error = new ApiRequestError(401, 'PG::ConnectionBad: could not connect to localhost:5432');
+		const error = new ApiRequestError(
+			401,
+			'PG::ConnectionBad: could not connect to localhost:5432'
+		);
 		const result = mapAuthActionFailure(error);
 		expect(result.status).toBe(401);
 		expect(result.errors.form).toBe('Authentication request could not be completed');
@@ -92,7 +95,10 @@ describe('mapDashboardSessionFailure', () => {
 		const result = mapDashboardSessionFailure(error);
 		expect(result).not.toBeNull();
 		// SvelteKit ActionFailure wraps data; access via .data
-		const wrapper = result as unknown as { status: number; data: { _authSessionExpired: boolean; error: string } };
+		const wrapper = result as unknown as {
+			status: number;
+			data: { _authSessionExpired: boolean; error: string };
+		};
 		expect(wrapper.data._authSessionExpired).toBe(true);
 		expect(wrapper.data.error).toBe('Unauthorized');
 		expect(wrapper.status).toBe(401);
@@ -102,7 +108,10 @@ describe('mapDashboardSessionFailure', () => {
 		const error = new ApiRequestError(403, 'Forbidden');
 		const result = mapDashboardSessionFailure(error);
 		expect(result).not.toBeNull();
-		const wrapper = result as unknown as { status: number; data: { _authSessionExpired: boolean; error: string } };
+		const wrapper = result as unknown as {
+			status: number;
+			data: { _authSessionExpired: boolean; error: string };
+		};
 		expect(wrapper.data._authSessionExpired).toBe(true);
 		expect(wrapper.data.error).toBe('Forbidden');
 		expect(wrapper.status).toBe(403);
@@ -148,7 +157,10 @@ describe('mapDashboardSessionFailure', () => {
 		const error = new ApiRequestError(403, 'Forbidden');
 		const result = mapDashboardSessionFailure(error);
 		expect(result).not.toBeNull();
-		const wrapper = result as unknown as { status: number; data: { _authSessionExpired: boolean; error: string } };
+		const wrapper = result as unknown as {
+			status: number;
+			data: { _authSessionExpired: boolean; error: string };
+		};
 		expect(wrapper.data._authSessionExpired).toBe(true);
 	});
 });
@@ -175,9 +187,9 @@ describe('DASHBOARD_SESSION_EXPIRED_REDIRECT', () => {
 
 describe('customerFacingErrorMessage', () => {
 	it('preserves safe local validation copy', () => {
-		expect(customerFacingErrorMessage(new Error('request.requests must be an array'), 'fallback')).toBe(
-			'request.requests must be an array'
-		);
+		expect(
+			customerFacingErrorMessage(new Error('request.requests must be an array'), 'fallback')
+		).toBe('request.requests must be an array');
 	});
 
 	it('falls back for unsafe backend internals', () => {

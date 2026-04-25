@@ -111,7 +111,12 @@
 
 	<div class="rounded-lg bg-white p-6 shadow">
 		<h3 class="mb-3 text-base font-medium text-gray-900">Browse Entries</h3>
-		<form method="POST" action="?/browseDictionaryEntries" use:enhance class="grid gap-3 md:grid-cols-3">
+		<form
+			method="POST"
+			action="?/browseDictionaryEntries"
+			use:enhance
+			class="grid gap-3 md:grid-cols-3"
+		>
 			<div>
 				<label for="dictionary-type" class="mb-1 block text-sm font-medium text-gray-700">
 					Dictionary Type
@@ -129,7 +134,9 @@
 				</select>
 			</div>
 			<div>
-				<label for="dictionary-language" class="mb-1 block text-sm font-medium text-gray-700">Language</label>
+				<label for="dictionary-language" class="mb-1 block text-sm font-medium text-gray-700"
+					>Language</label
+				>
 				{#if hasLanguageOptions}
 					<select
 						id="dictionary-language"
@@ -169,14 +176,19 @@
 	<div class="rounded-lg bg-white p-6 shadow">
 		<h3 class="mb-3 text-base font-medium text-gray-900">Add Entry</h3>
 		<p class="mb-3 text-xs text-gray-500">
-			Active selector: <span class="font-mono">{canonicalDictionary}/{canonicalLanguage || '-'}</span>
+			Active selector: <span class="font-mono"
+				>{canonicalDictionary}/{canonicalLanguage || '-'}</span
+			>
 		</p>
 		<form method="POST" action="?/saveDictionaryEntry" use:enhance class="space-y-3">
 			<input type="hidden" name="dictionary" value={canonicalDictionary} />
 			<input type="hidden" name="language" value={canonicalLanguage} />
 
 			<div>
-				<label for="dictionary-entry-object-id" class="mb-1 block text-sm font-medium text-gray-700">
+				<label
+					for="dictionary-entry-object-id"
+					class="mb-1 block text-sm font-medium text-gray-700"
+				>
 					Object ID
 				</label>
 				<input
@@ -225,7 +237,10 @@
 
 			{#if canonicalDictionary === 'compounds'}
 				<div>
-					<label for="dictionary-entry-decomposition" class="mb-1 block text-sm font-medium text-gray-700">
+					<label
+						for="dictionary-entry-decomposition"
+						class="mb-1 block text-sm font-medium text-gray-700"
+					>
 						Decomposition
 					</label>
 					<input
@@ -271,7 +286,12 @@
 								</button>
 							</form>
 						</div>
-						<pre class="overflow-x-auto rounded bg-gray-50 p-2 text-xs text-gray-700">{JSON.stringify(entry, null, 2)}</pre>
+						<pre
+							class="overflow-x-auto rounded bg-gray-50 p-2 text-xs text-gray-700">{JSON.stringify(
+								entry,
+								null,
+								2
+							)}</pre>
 					</div>
 				{/each}
 			</div>

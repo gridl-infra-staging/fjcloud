@@ -1,11 +1,11 @@
-	<script lang="ts">
-		import { resolve } from '$app/paths';
-		import { BETA_FEEDBACK_MAILTO, SUPPORT_EMAIL, formatCents } from '$lib/format';
+<script lang="ts">
+	import { resolve } from '$app/paths';
+	import { BETA_FEEDBACK_MAILTO, SUPPORT_EMAIL, formatCents } from '$lib/format';
 
-		let { data } = $props();
-		let pricing = $derived(data.pricing);
-		let regionPricing = $derived(pricing.region_pricing ?? []);
-	</script>
+	let { data } = $props();
+	let pricing = $derived(data.pricing);
+	let regionPricing = $derived(pricing.region_pricing ?? []);
+</script>
 
 <svelte:head>
 	<title>Pricing - Flapjack Cloud</title>
@@ -51,8 +51,7 @@
 				</p>
 				<p class="mt-4 text-sm font-bold text-[#2d2925]">{pricing.free_tier_promise}</p>
 				<p class="mt-3 text-sm leading-6 text-[#3f3a34]">
-					Every account includes {pricing.free_tier_mb} MB of hot index storage before paid billing
-					starts.
+					Every account includes {pricing.free_tier_mb} MB of hot index storage before paid billing starts.
 				</p>
 				<a href={resolve('/signup')} class="diner-button mt-8 px-6 py-3 text-sm">
 					{pricing.cta_label}
@@ -93,7 +92,10 @@
 			{#if regionPricing.length > 0}
 				<section class="raised shadow-on-cream mt-8 border-2 border-[#1f1b18] bg-white p-5">
 					<h2 class="text-xl font-black text-[#1f1b18]">Region multipliers</h2>
-					<table class="mt-4 w-full border-collapse text-left text-sm" aria-label="Region multipliers">
+					<table
+						class="mt-4 w-full border-collapse text-left text-sm"
+						aria-label="Region multipliers"
+					>
 						<thead>
 							<tr class="border-b border-[#d7d0c2]">
 								<th scope="col" class="px-2 py-3 font-black">Region</th>

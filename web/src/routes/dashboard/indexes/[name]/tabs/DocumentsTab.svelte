@@ -183,7 +183,12 @@
 				<div class="mb-4 space-y-2 rounded-md border border-gray-200 p-3">
 					<p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Preview</p>
 					{#each uploadPreviewRecords as record, previewIndex (`preview-${previewIndex}`)}
-						<pre class="overflow-x-auto rounded bg-gray-50 p-2 text-xs text-gray-700">{JSON.stringify(record, null, 2)}</pre>
+						<pre
+							class="overflow-x-auto rounded bg-gray-50 p-2 text-xs text-gray-700">{JSON.stringify(
+								record,
+								null,
+								2
+							)}</pre>
 					{/each}
 				</div>
 			{/if}
@@ -231,7 +236,12 @@
 
 	<div class="rounded-lg bg-white p-6 shadow">
 		<h3 class="mb-3 text-base font-medium text-gray-900">Browse & Delete</h3>
-		<form method="POST" action="?/browseDocuments" use:enhance class="mb-4 grid gap-3 md:grid-cols-3">
+		<form
+			method="POST"
+			action="?/browseDocuments"
+			use:enhance
+			class="mb-4 grid gap-3 md:grid-cols-3"
+		>
 			<div>
 				<label for="documents-browse-query" class="mb-1 block text-sm font-medium text-gray-700"
 					>Browse Query</label
@@ -317,7 +327,12 @@
 								</button>
 							</form>
 						</div>
-						<pre class="overflow-x-auto rounded bg-gray-50 p-2 text-xs text-gray-700">{JSON.stringify(hit, null, 2)}</pre>
+						<pre
+							class="overflow-x-auto rounded bg-gray-50 p-2 text-xs text-gray-700">{JSON.stringify(
+								hit,
+								null,
+								2
+							)}</pre>
 					</div>
 				{/each}
 			</div>

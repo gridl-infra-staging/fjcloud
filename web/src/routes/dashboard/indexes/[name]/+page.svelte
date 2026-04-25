@@ -46,10 +46,7 @@
 	import SecuritySourcesTab from './tabs/SecuritySourcesTab.svelte';
 	import SynonymsTab from './tabs/SynonymsTab.svelte';
 	import SearchLogPanel from './SearchLogPanel.svelte';
-	import {
-		deriveFormLogEntry,
-		extractFormAction
-	} from '$lib/api-logs/dashboard-instrumentation';
+	import { deriveFormLogEntry, extractFormAction } from '$lib/api-logs/dashboard-instrumentation';
 	import { appendLogEntry } from '$lib/api-logs/store';
 
 	let { data, form: formResult } = $props();
@@ -108,7 +105,9 @@
 	const analyticsStatus: AnalyticsStatusResponse | null = $derived(data.analyticsStatus ?? null);
 	const analyticsPeriod: '7d' | '30d' | '90d' = $derived(data.analyticsPeriod ?? '7d');
 	const experiments: ExperimentListResponse = $derived(data.experiments ?? emptyExperiments);
-	const experimentResultsMap: Record<string, ExperimentResults> = $derived(data.experimentResults ?? {});
+	const experimentResultsMap: Record<string, ExperimentResults> = $derived(
+		data.experimentResults ?? {}
+	);
 	const documents: BrowseObjectsResponse = $derived(
 		formResult?.documents ?? data.documents ?? emptyDocuments
 	);
@@ -117,8 +116,12 @@
 		formResult?.securitySources ?? data.securitySources ?? { sources: [] }
 	);
 	const loadedDebugEvents: DebugEventsResponse | null = $derived(data.debugEvents ?? null);
-	const refreshedDebugEvents: DebugEventsResponse | null = $derived(formResult?.refreshedEvents ?? null);
-	const debugEvents: DebugEventsResponse | null = $derived(refreshedDebugEvents ?? loadedDebugEvents);
+	const refreshedDebugEvents: DebugEventsResponse | null = $derived(
+		formResult?.refreshedEvents ?? null
+	);
+	const debugEvents: DebugEventsResponse | null = $derived(
+		refreshedDebugEvents ?? loadedDebugEvents
+	);
 
 	const analyticsUnavailable: boolean = $derived(
 		analyticsStatus === null ||
@@ -289,13 +292,21 @@
 			>
 				Search Log
 			</button>
-			<span class="inline-flex rounded-full px-3 py-1 text-sm font-medium {indexStatusBadgeColor(index.status)}">
+			<span
+				class="inline-flex rounded-full px-3 py-1 text-sm font-medium {indexStatusBadgeColor(
+					index.status
+				)}"
+			>
 				{statusLabel(index.status)}
 			</span>
 		</div>
 	</div>
 
-	<div role="tablist" aria-label="Index detail sections" class="mb-6 inline-flex rounded-lg border border-gray-200 bg-white p-1">
+	<div
+		role="tablist"
+		aria-label="Index detail sections"
+		class="mb-6 inline-flex rounded-lg border border-gray-200 bg-white p-1"
+	>
 		{#each TAB_DEFINITIONS as tab (tab.id)}
 			<button
 				type="button"
@@ -303,7 +314,9 @@
 				aria-selected={activeTab === tab.id}
 				data-testid={`tab-${tab.id}`}
 				onclick={() => activateTab(tab.id)}
-				class="rounded-md px-4 py-2 text-sm font-medium {activeTab === tab.id ? 'bg-blue-600 text-white' : 'text-gray-700 hover:bg-gray-100'}"
+				class="rounded-md px-4 py-2 text-sm font-medium {activeTab === tab.id
+					? 'bg-blue-600 text-white'
+					: 'text-gray-700 hover:bg-gray-100'}"
 			>
 				{tab.label}
 			</button>
@@ -404,7 +417,14 @@
 
 	{#if visitedTabs.suggestions}
 		<div hidden={activeTab !== 'suggestions'}>
-			<SuggestionsTab {qsConfig} {qsStatus} {qsConfigError} {qsConfigSaved} {qsConfigDeleted} {index} />
+			<SuggestionsTab
+				{qsConfig}
+				{qsStatus}
+				{qsConfigError}
+				{qsConfigSaved}
+				{qsConfigDeleted}
+				{index}
+			/>
 		</div>
 	{/if}
 
@@ -459,5 +479,5 @@
 		</div>
 	{/if}
 
-		<SearchLogPanel bind:visible={showSearchLog} />
-	</div>
+	<SearchLogPanel bind:visible={showSearchLog} />
+</div>

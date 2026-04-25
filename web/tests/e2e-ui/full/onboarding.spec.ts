@@ -33,7 +33,7 @@ async function restoreFreshOnboardingBanner(
 	await page.goto('/dashboard/indexes');
 
 	const createdRow = page.getByRole('row').filter({
-		has: page.getByRole('link', { name: indexName }),
+		has: page.getByRole('link', { name: indexName })
 	});
 	const deleteButton = createdRow.getByRole('button', { name: 'Delete' });
 

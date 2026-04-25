@@ -42,7 +42,10 @@ export function buildFlapjackSearchHost(endpoint: string): FlapjackSearchHost {
 	};
 }
 
-export function buildFlapjackSearchClientOptions(endpoint: string, apiKey: string): {
+export function buildFlapjackSearchClientOptions(
+	endpoint: string,
+	apiKey: string
+): {
 	hosts: [FlapjackSearchHost];
 	baseHeaders: { Authorization: string };
 } {
@@ -56,7 +59,10 @@ export function buildFlapjackSearchClientOptions(endpoint: string, apiKey: strin
 	};
 }
 
-export function createFlapjackInstantSearchClient(endpoint: string, apiKey: string): {
+export function createFlapjackInstantSearchClient(
+	endpoint: string,
+	apiKey: string
+): {
 	search(requests: InstantSearchRequest[]): Promise<InstantSearchResponse>;
 	searchForFacetValues(): Promise<{ results: never[] }>;
 	clearCache(): void;

@@ -264,13 +264,14 @@ export async function saveDictionaryEntryAction({
 		const sessionFailure = mapDashboardSessionFailure(error);
 		if (sessionFailure) return sessionFailure;
 
-		const { payload, sessionFailure: refreshSessionFailure } = await fetchCanonicalDictionariesPayload(
-			api,
-			indexName,
-			selection.dictionary,
-			selection.language,
-			{ captureSessionFailure: true }
-		);
+		const { payload, sessionFailure: refreshSessionFailure } =
+			await fetchCanonicalDictionariesPayload(
+				api,
+				indexName,
+				selection.dictionary,
+				selection.language,
+				{ captureSessionFailure: true }
+			);
 		if (refreshSessionFailure) return refreshSessionFailure;
 		return fail(400, {
 			dictionarySaveError: errorMessage(error, 'Failed to save dictionary entry'),
@@ -345,13 +346,14 @@ export async function deleteDictionaryEntryAction({
 		const sessionFailure = mapDashboardSessionFailure(error);
 		if (sessionFailure) return sessionFailure;
 
-		const { payload, sessionFailure: refreshSessionFailure } = await fetchCanonicalDictionariesPayload(
-			api,
-			indexName,
-			selection.dictionary,
-			selection.language,
-			{ captureSessionFailure: true }
-		);
+		const { payload, sessionFailure: refreshSessionFailure } =
+			await fetchCanonicalDictionariesPayload(
+				api,
+				indexName,
+				selection.dictionary,
+				selection.language,
+				{ captureSessionFailure: true }
+			);
 		if (refreshSessionFailure) return refreshSessionFailure;
 		return fail(400, {
 			dictionaryDeleteError: errorMessage(error, 'Failed to delete dictionary entry'),

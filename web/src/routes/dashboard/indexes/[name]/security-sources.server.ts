@@ -17,7 +17,10 @@ type SecuritySourceActionArgs = {
 	token: string | undefined;
 };
 
-function failForSecuritySourceAction<T extends Record<string, unknown>>(error: unknown, payload: T) {
+function failForSecuritySourceAction<T extends Record<string, unknown>>(
+	error: unknown,
+	payload: T
+) {
 	const sessionFailure = mapDashboardSessionFailure(error);
 	if (sessionFailure) return sessionFailure;
 	return fail(400, payload);

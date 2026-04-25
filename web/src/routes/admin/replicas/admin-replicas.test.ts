@@ -133,9 +133,21 @@ describe('Admin replicas page', () => {
 				environment: 'test',
 				isAuthenticated: true,
 				replicas: [
-					makeReplica({ id: 'aaaaaaaa-0001-0000-0000-000000000001', tenant_id: 'products', status: 'active' }),
-					makeReplica({ id: 'aaaaaaaa-0002-0000-0000-000000000002', tenant_id: 'orders', status: 'syncing' }),
-					makeReplica({ id: 'aaaaaaaa-0003-0000-0000-000000000003', tenant_id: 'logs', status: 'replicating' })
+					makeReplica({
+						id: 'aaaaaaaa-0001-0000-0000-000000000001',
+						tenant_id: 'products',
+						status: 'active'
+					}),
+					makeReplica({
+						id: 'aaaaaaaa-0002-0000-0000-000000000002',
+						tenant_id: 'orders',
+						status: 'syncing'
+					}),
+					makeReplica({
+						id: 'aaaaaaaa-0003-0000-0000-000000000003',
+						tenant_id: 'logs',
+						status: 'replicating'
+					})
 				]
 			}
 		});
@@ -154,8 +166,16 @@ describe('Admin replicas page', () => {
 				environment: 'test',
 				isAuthenticated: true,
 				replicas: [
-					makeReplica({ id: 'aaaaaaaa-0001-0000-0000-000000000001', tenant_id: 'products', status: 'active' }),
-					makeReplica({ id: 'aaaaaaaa-0002-0000-0000-000000000002', tenant_id: 'orders', status: 'replicating' })
+					makeReplica({
+						id: 'aaaaaaaa-0001-0000-0000-000000000001',
+						tenant_id: 'products',
+						status: 'active'
+					}),
+					makeReplica({
+						id: 'aaaaaaaa-0002-0000-0000-000000000002',
+						tenant_id: 'orders',
+						status: 'replicating'
+					})
 				]
 			}
 		});

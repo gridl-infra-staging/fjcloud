@@ -38,8 +38,7 @@ async function submitCredentialsAndListIndexes(
 	await page.getByLabel('API Key').fill(apiKey);
 
 	const listIndexesRequest = page.waitForResponse(
-		(response) =>
-			response.request().method() === 'POST' && response.url().includes('?/listIndexes')
+		(response) => response.request().method() === 'POST' && response.url().includes('?/listIndexes')
 	);
 	await page.getByTestId('list-indexes-button').click();
 	await listIndexesRequest;
@@ -65,10 +64,7 @@ async function openMigrationPageWithRealIndexes(page: Page): Promise<void> {
 	requireRealAlgoliaCredentials();
 	await openMigrationPage(page);
 	await submitCredentialsAndListIndexes(page, REAL_ALGOLIA_APP_ID, REAL_ALGOLIA_API_KEY);
-	skipWhenNoActiveDeployment(
-		await getMigrationErrorText(page),
-		'success-path'
-	);
+	skipWhenNoActiveDeployment(await getMigrationErrorText(page), 'success-path');
 }
 
 async function getMigrationErrorText(page: Page): Promise<string> {
@@ -85,7 +81,11 @@ test.describe('Migration recovery page', () => {
 
 	test('bad credentials show a visible non-empty migration error', async ({ page }) => {
 		await openMigrationPage(page);
-		await submitCredentialsAndListIndexes(page, 'fake-app-id-first-attempt', 'fake-api-key-first-attempt');
+		await submitCredentialsAndListIndexes(
+			page,
+			'fake-app-id-first-attempt',
+			'fake-api-key-first-attempt'
+		);
 
 		const migrationError = page.getByTestId('migration-error');
 		await expect(migrationError).toBeVisible();
@@ -97,7 +97,11 @@ test.describe('Migration recovery page', () => {
 
 	test('after a bad-credentials error, the credentials form remains editable', async ({ page }) => {
 		await openMigrationPage(page);
-		await submitCredentialsAndListIndexes(page, 'fake-app-id-editability', 'fake-api-key-editability');
+		await submitCredentialsAndListIndexes(
+			page,
+			'fake-app-id-editability',
+			'fake-api-key-editability'
+		);
 
 		const migrationError = page.getByTestId('migration-error');
 		await expect(migrationError).toBeVisible();
@@ -115,7 +119,9 @@ test.describe('Migration recovery page', () => {
 		await expect(apiKeyInput).toHaveValue('fake-api-key-editability-updated');
 	});
 
-	test('second bad-credentials retry returns to one stable alert while form stays reusable', async ({ page }) => {
+	test('second bad-credentials retry returns to one stable alert while form stays reusable', async ({
+		page
+	}) => {
 		await openMigrationPage(page);
 		await submitCredentialsAndListIndexes(page, 'fake-app-id-retry-one', 'fake-api-key-retry-one');
 

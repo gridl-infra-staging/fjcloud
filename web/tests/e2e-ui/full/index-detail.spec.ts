@@ -55,7 +55,7 @@ test.describe('Index detail tabs', () => {
 	test('load-and-verify: seeded detail route lazy-mounts one tab on first click', async ({
 		page,
 		seedIndex,
-		testRegion,
+		testRegion
 	}) => {
 		await openSeededIndexDetailPage(page, seedIndex, testRegion, 'e2e-detail-load-verify');
 
@@ -67,7 +67,7 @@ test.describe('Index detail tabs', () => {
 	test('Settings tab lazy-mounts and shows Settings JSON editor', async ({
 		page,
 		seedIndex,
-		testRegion,
+		testRegion
 	}) => {
 		await openSeededIndexDetailPage(page, seedIndex, testRegion, 'e2e-detail-settings');
 
@@ -79,7 +79,7 @@ test.describe('Index detail tabs', () => {
 	test('Documents tab lazy-mounts and shows upload and browse controls', async ({
 		page,
 		seedIndex,
-		testRegion,
+		testRegion
 	}) => {
 		await openSeededIndexDetailPage(page, seedIndex, testRegion, 'e2e-detail-documents');
 
@@ -91,7 +91,7 @@ test.describe('Index detail tabs', () => {
 	test('Dictionaries tab lazy-mounts and shows browse and add entry controls', async ({
 		page,
 		seedIndex,
-		testRegion,
+		testRegion
 	}) => {
 		await openSeededIndexDetailPage(page, seedIndex, testRegion, 'e2e-detail-dictionaries');
 
@@ -111,7 +111,7 @@ test.describe('Index detail tabs', () => {
 	test('Synonyms tab lazy-mounts and shows empty state', async ({
 		page,
 		seedIndex,
-		testRegion,
+		testRegion
 	}) => {
 		await openSeededIndexDetailPage(page, seedIndex, testRegion, 'e2e-detail-synonyms');
 
@@ -123,7 +123,7 @@ test.describe('Index detail tabs', () => {
 	test('Chat tab lazy-mounts and shows query input and empty response', async ({
 		page,
 		seedIndex,
-		testRegion,
+		testRegion
 	}) => {
 		await openSeededIndexDetailPage(page, seedIndex, testRegion, 'e2e-detail-chat');
 

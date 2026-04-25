@@ -5,7 +5,10 @@ import { fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { createApiClient } from '$lib/server/api';
 import { ApiRequestError } from '$lib/api/client';
-import { customerFacingErrorMessage, mapDashboardSessionFailure } from '$lib/server/auth-action-errors';
+import {
+	customerFacingErrorMessage,
+	mapDashboardSessionFailure
+} from '$lib/server/auth-action-errors';
 
 const GENERIC_ACTION_ERROR = 'An unexpected error occurred';
 
@@ -25,9 +28,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null;
 }
 
-type ParsedCredentials =
-	| { appId: string; apiKey: string }
-	| { error: string };
+type ParsedCredentials = { appId: string; apiKey: string } | { error: string };
 
 function parseAlgoliaCredentials(formData: FormData): ParsedCredentials {
 	const appId = (formData.get('appId') as string | null)?.trim();
@@ -49,10 +50,11 @@ function parseIndexListResponse(result: unknown): { indexes: unknown[] } {
 		throw new Error('Unexpected list-indexes response from API');
 	}
 
-	const indexes =
-		Array.isArray(result.indexes) ? result.indexes
-		: Array.isArray(result.items) ? result.items
-		: null;
+	const indexes = Array.isArray(result.indexes)
+		? result.indexes
+		: Array.isArray(result.items)
+			? result.items
+			: null;
 	if (!indexes) {
 		throw new Error('Unexpected list-indexes response from API');
 	}
@@ -71,9 +73,11 @@ function parseMigrationStartResponse(result: unknown): { taskId: string; message
 	}
 
 	const message =
-		typeof result.message === 'string' && result.message.length > 0 ? result.message
-		: typeof result.status === 'string' && result.status.length > 0 ? result.status
-		: 'Migration started';
+		typeof result.message === 'string' && result.message.length > 0
+			? result.message
+			: typeof result.status === 'string' && result.status.length > 0
+				? result.status
+				: 'Migration started';
 
 	return {
 		taskId: String(taskId),

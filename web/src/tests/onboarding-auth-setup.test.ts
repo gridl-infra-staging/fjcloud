@@ -71,9 +71,9 @@ describe('onboarding auth setup helpers', () => {
 		});
 
 		it('includes the transport name in the error message', () => {
-			expect(() =>
-				assertSingleVerifiedCustomer('0\n', 'u@t.com', 'docker compose psql')
-			).toThrow(/docker compose psql/);
+			expect(() => assertSingleVerifiedCustomer('0\n', 'u@t.com', 'docker compose psql')).toThrow(
+				/docker compose psql/
+			);
 		});
 	});
 

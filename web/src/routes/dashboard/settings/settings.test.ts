@@ -155,11 +155,9 @@ describe('Settings page', () => {
 		const fetchSpy = vi.spyOn(globalThis, 'fetch');
 		const createObjectUrlSpy = vi.spyOn(URL, 'createObjectURL').mockReturnValue(objectUrl);
 		const revokeObjectUrlSpy = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
-		const anchorClickSpy = vi
-			.spyOn(HTMLAnchorElement.prototype, 'click')
-			.mockImplementation(() => {
-				throw new Error('browser blocked download');
-			});
+		const anchorClickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {
+			throw new Error('browser blocked download');
+		});
 
 		try {
 			renderSettings({

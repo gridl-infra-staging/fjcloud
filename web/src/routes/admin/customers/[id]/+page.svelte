@@ -67,7 +67,9 @@
 				<div class="mt-3">
 					<span
 						data-testid="customer-status"
-						class="inline-flex rounded-full border px-2 py-0.5 text-xs font-medium {adminBadgeColor(data.tenant.status)}"
+						class="inline-flex rounded-full border px-2 py-0.5 text-xs font-medium {adminBadgeColor(
+							data.tenant.status
+						)}"
 					>
 						{data.tenant.status}
 					</span>
@@ -131,11 +133,15 @@
 		</div>
 
 		{#if form?.error}
-			<p class="mt-3 rounded-md border border-red-500/40 bg-red-950/30 px-3 py-2 text-sm text-red-200">
+			<p
+				class="mt-3 rounded-md border border-red-500/40 bg-red-950/30 px-3 py-2 text-sm text-red-200"
+			>
 				{form.error}
 			</p>
 		{:else if form?.message}
-			<p class="mt-3 rounded-md border border-green-500/40 bg-green-950/30 px-3 py-2 text-sm text-green-200">
+			<p
+				class="mt-3 rounded-md border border-green-500/40 bg-green-950/30 px-3 py-2 text-sm text-green-200"
+			>
 				{form.message}
 			</p>
 		{/if}
@@ -193,7 +199,9 @@
 			{:else}
 				<div class="mt-3 overflow-x-auto rounded-lg border border-slate-700">
 					<table class="w-full text-left text-sm">
-						<thead class="border-b border-slate-700 bg-slate-800/80 text-xs uppercase tracking-wide text-slate-400">
+						<thead
+							class="border-b border-slate-700 bg-slate-800/80 text-xs uppercase tracking-wide text-slate-400"
+						>
 							<tr>
 								<th class="px-4 py-3">Name</th>
 								<th class="px-4 py-3">Region</th>
@@ -210,7 +218,12 @@
 									<td class="px-4 py-3 text-slate-300">{index.region}</td>
 									<td class="px-4 py-3 text-slate-300">{index.status}</td>
 									<td class="px-4 py-3">
-										<span data-testid="tier-badge" class="inline-flex rounded-full border px-2 py-0.5 text-xs font-medium {tierBadgeClass(index.tier ?? 'active')}">
+										<span
+											data-testid="tier-badge"
+											class="inline-flex rounded-full border px-2 py-0.5 text-xs font-medium {tierBadgeClass(
+												index.tier ?? 'active'
+											)}"
+										>
 											{index.tier ?? 'active'}
 										</span>
 									</td>
@@ -245,7 +258,9 @@
 			{:else}
 				<div class="mt-3 overflow-x-auto rounded-lg border border-slate-700">
 					<table class="w-full text-left text-sm">
-						<thead class="border-b border-slate-700 bg-slate-800/80 text-xs uppercase tracking-wide text-slate-400">
+						<thead
+							class="border-b border-slate-700 bg-slate-800/80 text-xs uppercase tracking-wide text-slate-400"
+						>
 							<tr>
 								<th class="px-4 py-3">Region</th>
 								<th class="px-4 py-3">Status</th>
@@ -259,12 +274,20 @@
 								<tr>
 									<td class="px-4 py-3 text-slate-300">{deployment.region}</td>
 									<td class="px-4 py-3">
-										<span class="inline-flex rounded-full border px-2 py-0.5 text-xs font-medium {adminBadgeColor(deployment.status)}">
+										<span
+											class="inline-flex rounded-full border px-2 py-0.5 text-xs font-medium {adminBadgeColor(
+												deployment.status
+											)}"
+										>
 											{deployment.status}
 										</span>
 									</td>
 									<td class="px-4 py-3">
-										<span class="inline-flex rounded-full border px-2 py-0.5 text-xs font-medium {adminBadgeColor(deployment.health_status)}">
+										<span
+											class="inline-flex rounded-full border px-2 py-0.5 text-xs font-medium {adminBadgeColor(
+												deployment.health_status
+											)}"
+										>
 											{deployment.health_status}
 										</span>
 									</td>
@@ -314,7 +337,9 @@
 					</div>
 					<div class="rounded-md border border-slate-700 bg-slate-800/60 p-3">
 						<p class="text-xs uppercase tracking-wide text-slate-400">Avg Storage (GB)</p>
-						<p class="mt-1 text-lg font-semibold text-white">{data.usage.avg_storage_gb.toFixed(2)}</p>
+						<p class="mt-1 text-lg font-semibold text-white">
+							{data.usage.avg_storage_gb.toFixed(2)}
+						</p>
 					</div>
 					<div class="rounded-md border border-slate-700 bg-slate-800/60 p-3">
 						<p class="text-xs uppercase tracking-wide text-slate-400">Avg Documents</p>
@@ -339,7 +364,9 @@
 			{:else}
 				<div class="mt-3 overflow-x-auto rounded-lg border border-slate-700">
 					<table class="w-full text-left text-sm">
-						<thead class="border-b border-slate-700 bg-slate-800/80 text-xs uppercase tracking-wide text-slate-400">
+						<thead
+							class="border-b border-slate-700 bg-slate-800/80 text-xs uppercase tracking-wide text-slate-400"
+						>
 							<tr>
 								<th class="px-4 py-3">Period</th>
 								<th class="px-4 py-3">Amount</th>
@@ -355,7 +382,11 @@
 									</td>
 									<td class="px-4 py-3 text-slate-100">{centsToDollars(invoice.total_cents)}</td>
 									<td class="px-4 py-3">
-										<span class="inline-flex rounded-full border px-2 py-0.5 text-xs font-medium {adminBadgeColor(invoice.status)}">
+										<span
+											class="inline-flex rounded-full border px-2 py-0.5 text-xs font-medium {adminBadgeColor(
+												invoice.status
+											)}"
+										>
 											{invoice.status}
 										</span>
 									</td>
@@ -476,7 +507,9 @@
 				{:else}
 					<div class="mt-4 overflow-x-auto rounded-lg border border-slate-700">
 						<table class="w-full text-left text-sm">
-							<thead class="border-b border-slate-700 bg-slate-800/80 text-xs uppercase tracking-wide text-slate-400">
+							<thead
+								class="border-b border-slate-700 bg-slate-800/80 text-xs uppercase tracking-wide text-slate-400"
+							>
 								<tr>
 									<th class="px-4 py-3">Index</th>
 									<th class="px-4 py-3">Query RPS</th>

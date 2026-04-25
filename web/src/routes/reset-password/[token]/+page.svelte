@@ -18,7 +18,7 @@
 			</div>
 			<p class="mt-4 text-center">
 				<a
-					href={resolve("/login")}
+					href={resolve('/login')}
 					class="inline-block rounded bg-blue-600 px-6 py-2 font-medium text-white hover:bg-blue-700"
 				>
 					Log in

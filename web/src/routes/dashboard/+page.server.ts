@@ -6,10 +6,7 @@ import type {
 	Index
 } from '$lib/api/types';
 import { createApiClient } from '$lib/server/api';
-import {
-	fallbackDashboardPlanContext,
-	type DashboardPlanContext
-} from './plan-context';
+import { fallbackDashboardPlanContext, type DashboardPlanContext } from './plan-context';
 import { retryTransientDashboardApiRequest } from '$lib/server/transient-api-retry';
 
 const emptyUsage: UsageSummaryResponse = {

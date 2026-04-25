@@ -170,7 +170,6 @@ export function apiClientFactoryFor(
 	m: MockFns,
 	makeFn: () => ReturnType<typeof ViType.fn>
 ): { createApiClient: ReturnType<typeof ViType.fn> } {
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	return {
 		createApiClient: makeFn().mockReturnValue({
 			getIndex: m.getIndex,
@@ -278,10 +277,10 @@ export function createMockFns(makeFn: () => ReturnType<typeof ViType.fn>): MockF
 /** Creates the standard action call arguments. */
 export function makeActionArgs(actionName: string, formData: FormData): unknown {
 	return {
-		request: new Request(
-			`http://localhost/dashboard/indexes/products?/${actionName}`,
-			{ method: 'POST', body: formData }
-		),
+		request: new Request(`http://localhost/dashboard/indexes/products?/${actionName}`, {
+			method: 'POST',
+			body: formData
+		}),
 		locals: { user: { customerId: 'cust-1', token: 'jwt-token' } },
 		params: { name: 'products' }
 	} as never;

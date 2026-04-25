@@ -18,14 +18,14 @@ export default [
 	{
 		files: ['**/*.spec.ts'],
 		languageOptions: {
-			parser: tseslint.parser,
-		},
+			parser: tseslint.parser
+		}
 	},
 
 	// Playwright recommended rules cover the core set
 	{
 		...playwright.configs['flat/recommended'],
-		files: ['**/*.spec.ts'],
+		files: ['**/*.spec.ts']
 	},
 
 	// Additional hardening on top of recommended.
@@ -59,7 +59,7 @@ export default [
 					selector:
 						"CallExpression[callee.object.name='request'][callee.property.name=/^(get|post|put|patch|delete|head|fetch)$/]",
 					message:
-						'API calls are not allowed in spec files. Move data seeding and teardown to tests/fixtures/fixtures.ts.',
+						'API calls are not allowed in spec files. Move data seeding and teardown to tests/fixtures/fixtures.ts.'
 				},
 
 				// ----------------------------------------------------------------
@@ -68,7 +68,7 @@ export default [
 				{
 					selector: "CallExpression[callee.property.name='waitForTimeout']",
 					message:
-						'waitForTimeout() is banned. Use Playwright auto-waiting or assertion timeouts: await expect(locator).toBeVisible({ timeout: 10000 })',
+						'waitForTimeout() is banned. Use Playwright auto-waiting or assertion timeouts: await expect(locator).toBeVisible({ timeout: 10000 })'
 				},
 
 				// ----------------------------------------------------------------
@@ -76,45 +76,40 @@ export default [
 				// ----------------------------------------------------------------
 				{
 					selector: "CallExpression[callee.property.name='dispatchEvent']",
-					message:
-						'dispatchEvent() is banned. Interact through visible UI elements only.',
+					message: 'dispatchEvent() is banned. Interact through visible UI elements only.'
 				},
 				{
 					selector: "CallExpression[callee.property.name='setExtraHTTPHeaders']",
-					message:
-						'setExtraHTTPHeaders() is banned. Use fixtures for auth setup.',
+					message: 'setExtraHTTPHeaders() is banned. Use fixtures for auth setup.'
 				},
 
 				// ----------------------------------------------------------------
 				// Ban CSS class selectors:  page.locator('.foo')
 				// ----------------------------------------------------------------
 				{
-					selector:
-						"CallExpression[callee.property.name='locator'] > Literal[value=/^\\./]",
+					selector: "CallExpression[callee.property.name='locator'] > Literal[value=/^\\./]",
 					message:
-						'CSS class selectors are banned. Use getByRole, getByText, getByLabel, getByTestId, or add a data-testid attribute to the component.',
+						'CSS class selectors are banned. Use getByRole, getByText, getByLabel, getByTestId, or add a data-testid attribute to the component.'
 				},
 
 				// ----------------------------------------------------------------
 				// Ban XPath selectors:  page.locator('//div[3]/button')
 				// ----------------------------------------------------------------
 				{
-					selector:
-						"CallExpression[callee.property.name='locator'] > Literal[value=/^\\/\\//]",
+					selector: "CallExpression[callee.property.name='locator'] > Literal[value=/^\\/\\//]",
 					message:
-						'XPath selectors are banned. Use getByRole, getByText, getByLabel, or getByTestId instead.',
+						'XPath selectors are banned. Use getByRole, getByText, getByLabel, or getByTestId instead.'
 				},
 
 				// ----------------------------------------------------------------
 				// Ban attribute selectors:  page.locator('[name="foo"]')
 				// ----------------------------------------------------------------
 				{
-					selector:
-						"CallExpression[callee.property.name='locator'] > Literal[value=/^\\[/]",
+					selector: "CallExpression[callee.property.name='locator'] > Literal[value=/^\\[/]",
 					message:
-						'Attribute selectors are banned. Use getByLabel, getByRole, or add an accessible label / data-testid to the element.',
-				},
-			],
-		},
-	},
+						'Attribute selectors are banned. Use getByLabel, getByRole, or add an accessible label / data-testid to the element.'
+				}
+			]
+		}
+	}
 ];

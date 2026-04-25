@@ -125,7 +125,9 @@ test.describe('Landing page', () => {
 });
 
 test.describe('Pricing page', () => {
-	test('renders pricing-first copy and public links for unauthenticated users', async ({ page }) => {
+	test('renders pricing-first copy and public links for unauthenticated users', async ({
+		page
+	}) => {
 		await page.goto('/pricing');
 		const pricingMain = page.getByTestId('pricing-page-main');
 
@@ -164,13 +166,19 @@ test.describe('Pricing page', () => {
 		await expect(pricingMain).not.toContainText('The page you requested is not available.');
 		await expect(pricingMain).not.toContainText('Not found');
 		await expect(page.getByTestId('landing-pricing-calculator')).toHaveCount(0);
-		await expect(page.getByRole('link', { name: 'Terms' }).first()).toHaveAttribute('href', '/terms');
+		await expect(page.getByRole('link', { name: 'Terms' }).first()).toHaveAttribute(
+			'href',
+			'/terms'
+		);
 		await expect(page.getByRole('link', { name: 'Privacy' }).first()).toHaveAttribute(
 			'href',
 			'/privacy'
 		);
 		await expect(page.getByRole('link', { name: 'DPA' }).first()).toHaveAttribute('href', '/dpa');
-		await expect(page.getByRole('link', { name: 'Status' }).first()).toHaveAttribute('href', '/status');
+		await expect(page.getByRole('link', { name: 'Status' }).first()).toHaveAttribute(
+			'href',
+			'/status'
+		);
 	});
 
 	test('pricing header Log In link navigates to /login', async ({ page }) => {

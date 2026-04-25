@@ -296,7 +296,7 @@ describe('truncateResponseBody', () => {
 		const result = truncateResponseBody(longString);
 		expect(typeof result).toBe('string');
 		expect((result as string).length).toBeLessThanOrEqual(MAX_RESPONSE_BODY_LENGTH + 50);
-		expect((result as string)).toContain('[truncated]');
+		expect(result as string).toContain('[truncated]');
 	});
 
 	it('truncates large object responses to a summary', () => {

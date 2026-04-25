@@ -22,8 +22,7 @@ export const load: PageServerLoad = async ({ fetch, depends }) => {
 
 		const activeIds = new Set(activeMigrations.map((migration) => migration.id));
 		const recentMigrations = recentMigrationsRaw.filter(
-			(migration) =>
-				!activeIds.has(migration.id) && !ACTIVE_STATUSES.has(migration.status)
+			(migration) => !activeIds.has(migration.id) && !ACTIVE_STATUSES.has(migration.status)
 		);
 
 		return { activeMigrations, recentMigrations };

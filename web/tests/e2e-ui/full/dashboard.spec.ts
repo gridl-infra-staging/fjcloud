@@ -23,7 +23,7 @@ async function expectSidebarNavigation(
 
 	const link = page.getByRole('navigation').getByRole('link', {
 		name: options.linkName,
-		...(options.exact ? { exact: true } : {}),
+		...(options.exact ? { exact: true } : {})
 	});
 
 	await expect(link).toHaveAttribute('href', options.href);
@@ -83,7 +83,7 @@ test.describe('Dashboard page', () => {
 			linkName: 'Settings',
 			heading: 'Settings',
 			url: /\/dashboard\/settings/,
-			href: '/dashboard/settings',
+			href: '/dashboard/settings'
 		});
 	});
 
@@ -162,10 +162,7 @@ test.describe('Dashboard page', () => {
 		await expect(logPanel.getByText('Request')).toHaveCount(0);
 	});
 
-	test('dashboard shows "Manage indexes" link when indexes exist', async ({
-		page,
-		seedIndex,
-	}) => {
+	test('dashboard shows "Manage indexes" link when indexes exist', async ({ page, seedIndex }) => {
 		const name = `dash-idx-${Date.now()}`;
 		await seedIndex(name);
 
@@ -254,16 +251,12 @@ test.describe('Plan-aware dashboard features', () => {
 		// The billing prompt appears for shared-plan users without a payment method
 		const billingPrompt = page.getByTestId('billing-prompt');
 		await expect(billingPrompt).toBeVisible();
-		await expect(
-			billingPrompt.getByText('Add a payment method to continue setup')
-		).toBeVisible();
+		await expect(billingPrompt.getByText('Add a payment method to continue setup')).toBeVisible();
 
 		// Navigate via the "Add payment method" link
 		await billingPrompt.getByRole('link', { name: 'Add payment method' }).click();
 		await expect(page).toHaveURL(/\/dashboard\/billing\/setup/);
-		await expect(
-			page.getByRole('heading', { name: 'Add Payment Method' })
-		).toBeVisible();
+		await expect(page.getByRole('heading', { name: 'Add Payment Method' })).toBeVisible();
 	});
 
 	test('layout billing CTA navigates to billing page', async ({ page }) => {
@@ -278,9 +271,7 @@ test.describe('Plan-aware dashboard features', () => {
 		// Navigate via the "Set up billing" link in the layout CTA
 		await cta.getByRole('link', { name: 'Set up billing' }).click();
 		await expect(page).toHaveURL(/\/dashboard\/billing/);
-		await expect(
-			page.getByRole('heading', { name: 'Payment Methods' })
-		).toBeVisible();
+		await expect(page.getByRole('heading', { name: 'Payment Methods' })).toBeVisible();
 	});
 
 	test('free-tier progress is hidden for shared-plan users', async ({ page }) => {
@@ -294,7 +285,7 @@ test.describe('Plan-aware dashboard features', () => {
 
 	test('free-plan dashboard shows free-tier usage without shared-plan billing prompts', async ({
 		page,
-		setBillingPlan,
+		setBillingPlan
 	}) => {
 		await setBillingPlan('free');
 		await page.goto('/dashboard');

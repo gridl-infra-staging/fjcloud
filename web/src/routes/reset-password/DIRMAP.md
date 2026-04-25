@@ -1,10 +1,12 @@
 <!-- [scrai:start] -->
+
 ## reset-password
 
 | File | Summary |
-| --- | --- |
+| ---- | ------- |
 
 | Directory | Summary |
-| --- | --- |
-| [token] | — |
+| --------- | ------- |
+| [token]   | —       |
+
 <!-- [scrai:end] -->

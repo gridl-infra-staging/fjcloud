@@ -118,7 +118,9 @@ describe('e2e fixture user helpers', () => {
 		vi.useFakeTimers();
 		const fetchMock = vi
 			.fn()
-			.mockResolvedValueOnce(new Response(JSON.stringify({ error: 'too many requests' }), { status: 429 }))
+			.mockResolvedValueOnce(
+				new Response(JSON.stringify({ error: 'too many requests' }), { status: 429 })
+			)
 			.mockResolvedValueOnce(
 				makeJsonResponse(201, {
 					customer_id: 'cust-789',
@@ -175,7 +177,9 @@ describe('e2e fixture user helpers', () => {
 		vi.useFakeTimers();
 		const fetchMock = vi
 			.fn()
-			.mockResolvedValueOnce(new Response(JSON.stringify({ error: 'too many requests' }), { status: 429 }))
+			.mockResolvedValueOnce(
+				new Response(JSON.stringify({ error: 'too many requests' }), { status: 429 })
+			)
 			.mockResolvedValueOnce(
 				makeJsonResponse(200, {
 					customer_id: 'cust-123',
@@ -229,9 +233,9 @@ describe('e2e fixture user helpers', () => {
 	});
 
 	it('adminReactivateCustomerById calls POST /admin/customers/:id/reactivate', async () => {
-		const fetchMock = vi.fn().mockResolvedValue(
-			makeJsonResponse(200, { message: 'customer reactivated' })
-		);
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValue(makeJsonResponse(200, { message: 'customer reactivated' }));
 
 		await adminReactivateCustomerById({
 			apiUrl: 'http://localhost:3001',
@@ -301,19 +305,18 @@ describe('e2e fixture user helpers', () => {
 		});
 
 		expect(estimate?.month).toBe('2026-03');
-		expect(fetchMock).toHaveBeenCalledWith(
-			'http://localhost:3001/billing/estimate?month=2026-03',
-			{
-				method: 'GET',
-				headers: { Authorization: 'Bearer tok-abc' }
-			}
-		);
+		expect(fetchMock).toHaveBeenCalledWith('http://localhost:3001/billing/estimate?month=2026-03', {
+			method: 'GET',
+			headers: { Authorization: 'Bearer tok-abc' }
+		});
 	});
 
 	it('fetchEstimatedBillForToken returns null for 404 (no estimate data)', async () => {
-		const fetchMock = vi.fn().mockResolvedValue(
-			new Response(JSON.stringify({ error: 'no active rate card' }), { status: 404 })
-		);
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValue(
+				new Response(JSON.stringify({ error: 'no active rate card' }), { status: 404 })
+			);
 
 		const estimate = await fetchEstimatedBillForToken({
 			apiUrl: 'http://localhost:3001',
@@ -329,9 +332,9 @@ describe('e2e fixture user helpers', () => {
 	});
 
 	it('fetchEstimatedBillForToken throws on auth errors (401/403)', async () => {
-		const fetchMock = vi.fn().mockResolvedValue(
-			new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 })
-		);
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValue(new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 }));
 
 		await expect(
 			fetchEstimatedBillForToken({
@@ -343,9 +346,11 @@ describe('e2e fixture user helpers', () => {
 	});
 
 	it('fetchEstimatedBillForToken throws on server errors (5xx)', async () => {
-		const fetchMock = vi.fn().mockResolvedValue(
-			new Response(JSON.stringify({ error: 'internal error' }), { status: 500 })
-		);
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValue(
+				new Response(JSON.stringify({ error: 'internal error' }), { status: 500 })
+			);
 
 		await expect(
 			fetchEstimatedBillForToken({
@@ -407,18 +412,14 @@ describe('e2e fixture user helpers', () => {
 				})
 			}
 		);
-		expect(fetchMock).toHaveBeenNthCalledWith(
-			3,
-			'http://localhost:3001/indexes/shared-index',
-			{
-				method: 'GET',
-				headers: {
-					'Content-Type': 'application/json',
-					Authorization: 'Bearer tok-abc'
-				},
-				body: undefined
-			}
-		);
+		expect(fetchMock).toHaveBeenNthCalledWith(3, 'http://localhost:3001/indexes/shared-index', {
+			method: 'GET',
+			headers: {
+				'Content-Type': 'application/json',
+				Authorization: 'Bearer tok-abc'
+			},
+			body: undefined
+		});
 	});
 
 	it('seedIndexForCustomerViaAdmin fails fast when required auth contract is missing', async () => {
@@ -601,12 +602,14 @@ describe('e2e fixture user helpers', () => {
 		const globalFetchMock = vi.fn().mockResolvedValue(makeJsonResponse(200, { taskID: 1 }));
 		vi.stubGlobal('fetch', globalFetchMock);
 
-		const apiCallMock = vi.fn()
+		const apiCallMock = vi
+			.fn()
 			.mockResolvedValueOnce(makeJsonResponse(200, { key: 'search-key' }))
 			.mockResolvedValueOnce(
 				makeJsonResponse(200, { hits: [{ title: 'Rust Programming Language' }] })
 			);
-		const adminApiCallMock = vi.fn()
+		const adminApiCallMock = vi
+			.fn()
 			.mockResolvedValueOnce(makeJsonResponse(201, { name: 'factory-index' }));
 		const getCustomerIdMock = vi.fn().mockResolvedValue('cust-factory');
 		const waitForSeededIndexMock = vi.fn().mockResolvedValue(undefined);
@@ -617,17 +620,17 @@ describe('e2e fixture user helpers', () => {
 			adminApiCall: adminApiCallMock,
 			getCustomerId: getCustomerIdMock,
 			waitForSeededIndex: waitForSeededIndexMock,
-			flapjackUrl: 'http://127.0.0.1:9900',
+			flapjackUrl: 'http://127.0.0.1:9900'
 		});
 
 		await seedFn('factory-index');
 
 		// The admin create call should pass the injected flapjackUrl
-		expect(adminApiCallMock).toHaveBeenCalledWith(
-			'POST',
-			'/admin/tenants/cust-factory/indexes',
-			{ name: 'factory-index', region: 'us-east-1', flapjack_url: 'http://127.0.0.1:9900' }
-		);
+		expect(adminApiCallMock).toHaveBeenCalledWith('POST', '/admin/tenants/cust-factory/indexes', {
+			name: 'factory-index',
+			region: 'us-east-1',
+			flapjack_url: 'http://127.0.0.1:9900'
+		});
 		// The ingest call (via global fetch) should use the injected flapjackUrl
 		expect(globalFetchMock).toHaveBeenCalledWith(
 			'http://127.0.0.1:9900/1/indexes/custfactory_factory-index/batch',
@@ -661,12 +664,14 @@ describe('e2e fixture user helpers', () => {
 		const globalFetchMock = vi.fn().mockResolvedValue(makeJsonResponse(200, { taskID: 1 }));
 		vi.stubGlobal('fetch', globalFetchMock);
 
-		const apiCallMock = vi.fn()
+		const apiCallMock = vi
+			.fn()
 			.mockResolvedValueOnce(makeJsonResponse(200, { key: 'search-key' }))
 			.mockResolvedValueOnce(
 				makeJsonResponse(200, { hits: [{ title: 'Rust Programming Language' }] })
 			);
-		const adminApiCallMock = vi.fn()
+		const adminApiCallMock = vi
+			.fn()
 			.mockResolvedValueOnce(makeJsonResponse(201, { name: 'factory-index' }));
 		const getCustomerIdMock = vi.fn().mockResolvedValue('cust-factory');
 		const waitForSeededIndexMock = vi.fn().mockResolvedValue(undefined);
@@ -676,17 +681,17 @@ describe('e2e fixture user helpers', () => {
 			apiCall: apiCallMock,
 			adminApiCall: adminApiCallMock,
 			getCustomerId: getCustomerIdMock,
-			waitForSeededIndex: waitForSeededIndexMock,
+			waitForSeededIndex: waitForSeededIndexMock
 		});
 
 		await seedFn('factory-index');
 
 		// Should use DEFAULT_FLAPJACK_URL from contract
-		expect(adminApiCallMock).toHaveBeenCalledWith(
-			'POST',
-			'/admin/tenants/cust-factory/indexes',
-			{ name: 'factory-index', region: 'us-east-1', flapjack_url: DEFAULT_FLAPJACK_URL }
-		);
+		expect(adminApiCallMock).toHaveBeenCalledWith('POST', '/admin/tenants/cust-factory/indexes', {
+			name: 'factory-index',
+			region: 'us-east-1',
+			flapjack_url: DEFAULT_FLAPJACK_URL
+		});
 	});
 
 	it('createSeedSearchableIndexFactory rejects non-loopback flapjackUrl overrides', async () => {
@@ -712,9 +717,11 @@ describe('e2e fixture user helpers', () => {
 	});
 
 	it('loginAsUser throws on auth failure (401)', async () => {
-		const fetchMock = vi.fn().mockResolvedValue(
-			new Response(JSON.stringify({ error: 'invalid credentials' }), { status: 401 })
-		);
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValue(
+				new Response(JSON.stringify({ error: 'invalid credentials' }), { status: 401 })
+			);
 
 		await expect(
 			loginAsUser({
@@ -730,7 +737,9 @@ describe('e2e fixture user helpers', () => {
 		vi.useFakeTimers();
 		const fetchMock = vi
 			.fn()
-			.mockResolvedValue(new Response(JSON.stringify({ error: 'too many requests' }), { status: 429 }));
+			.mockResolvedValue(
+				new Response(JSON.stringify({ error: 'too many requests' }), { status: 429 })
+			);
 
 		const promise = loginAsUser({
 			apiUrl: 'http://localhost:3001',
@@ -783,9 +792,9 @@ describe('e2e fixture user helpers', () => {
 	});
 
 	it('createRegisteredUser throws on non-ok API response', async () => {
-		const fetchMock = vi.fn().mockResolvedValue(
-			new Response(JSON.stringify({ error: 'email taken' }), { status: 409 })
-		);
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValue(new Response(JSON.stringify({ error: 'email taken' }), { status: 409 }));
 
 		await expect(
 			createRegisteredUser({
@@ -802,7 +811,9 @@ describe('e2e fixture user helpers', () => {
 		vi.useFakeTimers();
 		const fetchMock = vi
 			.fn()
-			.mockResolvedValue(new Response(JSON.stringify({ error: 'too many requests' }), { status: 429 }));
+			.mockResolvedValue(
+				new Response(JSON.stringify({ error: 'too many requests' }), { status: 429 })
+			);
 
 		const promise = createRegisteredUser({
 			apiUrl: 'http://localhost:3001',

@@ -10,9 +10,7 @@
  * Validates and sanitizes the impersonation return path.
  * Returns the path if it is a local /admin URL that survives URL normalization unchanged.
  */
-export function sanitizeImpersonationReturnPath(
-	value: string | undefined
-): string | null {
+export function sanitizeImpersonationReturnPath(value: string | undefined): string | null {
 	if (!value) return null;
 
 	let parsed: URL;

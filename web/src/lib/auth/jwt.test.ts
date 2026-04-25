@@ -10,7 +10,10 @@ function b64UrlEncodeJson(value: Record<string, unknown>): string {
 		.replace(/=+$/, '');
 }
 
-function makeJwt(payload: Record<string, unknown>, secret = 'jwt-secret-for-tests-1234567890'): string {
+function makeJwt(
+	payload: Record<string, unknown>,
+	secret = 'jwt-secret-for-tests-1234567890'
+): string {
 	const header = b64UrlEncodeJson({ alg: 'HS256', typ: 'JWT' });
 	const body = b64UrlEncodeJson(payload);
 	const signature = createHmac('sha256', secret)

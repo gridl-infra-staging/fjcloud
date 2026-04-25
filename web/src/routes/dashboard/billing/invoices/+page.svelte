@@ -37,7 +37,11 @@
 						<tr class="border-b border-gray-100">
 							<td class="px-6 py-4 text-gray-900">{formatPeriod(invoice.period_start)}</td>
 							<td class="px-6 py-4">
-								<span class="rounded-full px-2.5 py-0.5 text-xs font-medium {statusColor(invoice.status)}">
+								<span
+									class="rounded-full px-2.5 py-0.5 text-xs font-medium {statusColor(
+										invoice.status
+									)}"
+								>
 									{statusLabel(invoice.status)}
 								</span>
 							</td>

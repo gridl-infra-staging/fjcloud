@@ -7,7 +7,8 @@ import { authCookieOptions } from '$lib/server/auth-cookies';
 import { AUTH_COOKIE, COOKIE_MAX_AGE } from '$lib/config';
 import { validateSignupPassword } from './signup-validation';
 
-const SIGNUP_FAILURE_MESSAGE = 'We could not create your account. Please check your details and try again.';
+const SIGNUP_FAILURE_MESSAGE =
+	'We could not create your account. Please check your details and try again.';
 
 export const actions = {
 	default: async ({ request, cookies, url, fetch }) => {

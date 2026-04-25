@@ -15,15 +15,7 @@ const config = {
 			// standing claim that the canonical cloud hostname should stay
 			// Pages-backed forever.
 			crawl: false,
-			entries: [
-				'/',
-				'/pricing',
-				'/beta',
-				'/terms',
-				'/privacy',
-				'/dpa',
-				'/status'
-			],
+			entries: ['/', '/pricing', '/beta', '/terms', '/privacy', '/dpa', '/status'],
 			handleUnseenRoutes: 'ignore'
 		}
 	}

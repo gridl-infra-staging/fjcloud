@@ -16,7 +16,7 @@ describe('escapeInstantSearchHtml', () => {
 	});
 
 	it('escapes single quotes', () => {
-		expect(escapeInstantSearchHtml("it's")).toBe("it&#39;s");
+		expect(escapeInstantSearchHtml("it's")).toBe('it&#39;s');
 	});
 
 	it('escapes all special characters together', () => {

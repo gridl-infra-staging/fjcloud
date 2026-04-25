@@ -15,8 +15,7 @@ const AYB_DELETE_UNAVAILABLE_ERROR =
 	'Database provisioning is currently unavailable. Please try again later.';
 const AYB_CREATE_UNAVAILABLE_ERROR =
 	'Database creation is currently unavailable. Please try again later.';
-const AYB_CREATE_CONFLICT_ERROR =
-	'A database instance already exists for this account.';
+const AYB_CREATE_CONFLICT_ERROR = 'A database instance already exists for this account.';
 const AYB_DUPLICATE_INSTANCE_ERROR =
 	'Multiple active database instances were found for this account. Please contact support before continuing.';
 const AYB_LOAD_UNAVAILABLE_ERROR =

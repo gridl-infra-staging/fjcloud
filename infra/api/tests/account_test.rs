@@ -826,8 +826,15 @@ async fn delete_account_concurrent_ayb_create_keeps_customer_active_and_avoids_o
         }
     });
 
-    entered_rx
+    // Bound the wait: if the create handler short-circuits before reaching
+    // client.create_tenant() (e.g. because lock_account_lifecycle returns
+    // 503 in a misconfigured test pool), the BlockingCreateAybClient still
+    // owns entered_tx via the AppState, so a plain `.await` would hang
+    // forever. Failing loudly at 30s makes that misconfiguration a test
+    // assertion instead of a CI timeout.
+    tokio::time::timeout(std::time::Duration::from_secs(30), entered_rx)
         .await
+        .expect("create flow should reach AYB create call within 30s")
         .expect("create flow should reach AYB create call");
 
     let delete_task = tokio::spawn({
@@ -934,8 +941,12 @@ async fn delete_account_concurrent_delete_first_blocks_stale_token_create_and_pe
         }
     });
 
-    delete_entered_rx
+    // Bound the wait so a handler that 503s before reaching find_active_by_customer
+    // surfaces as an assertion failure, not a hang (see corresponding guard in
+    // delete_account_concurrent_ayb_create_keeps_customer_active for context).
+    tokio::time::timeout(std::time::Duration::from_secs(30), delete_entered_rx)
         .await
+        .expect("delete flow should reach find_active_by_customer within 30s")
         .expect("delete flow should hold lifecycle lock before soft-delete");
 
     let create_task = tokio::spawn({

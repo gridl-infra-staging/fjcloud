@@ -49,7 +49,7 @@ async fn slack_formats_message_correctly() {
     // We don't need a real DB or HTTP — just test the formatting method.
     let pool = PgPoolOptions::new()
         .max_connections(1)
-        .connect_lazy("postgres://fake:fake@localhost/fake_db")
+        .connect_lazy("postgres://test:test@127.0.0.1:1/test")
         .expect("connect_lazy should never fail");
 
     let http_client = reqwest::Client::new();
@@ -278,7 +278,7 @@ async fn get_recent_alerts_with_non_positive_limit_returns_empty() {
 async fn discord_formats_message_correctly() {
     let pool = PgPoolOptions::new()
         .max_connections(1)
-        .connect_lazy("postgres://fake:fake@localhost/fake_db")
+        .connect_lazy("postgres://test:test@127.0.0.1:1/test")
         .expect("connect_lazy should never fail");
 
     let http_client = reqwest::Client::new();

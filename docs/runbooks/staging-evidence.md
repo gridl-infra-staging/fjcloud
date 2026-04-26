@@ -124,45 +124,54 @@ Note: Actual IDs are in the Terraform state file (`ops/terraform/_shared/terrafo
   attribution map, leaving `usage_records` for tenant A permanently at
   zero even after live writes converged storage to 96 MB. The fallback is
   contract-tested by
-  `tenant_map_falls_back_to_vm_inventory_url_when_deployment_has_none` in
-  `infra/api/tests/metering_multitenant_test.rs`. The deployed staging
-  API binary has not yet picked up the new fallback, so live
-  `usage_records` for tenant A remain blocked on the next staging deploy.
+  `tenant_map_falls_back_to_vm_inventory_url_when_deployment_has_none`
+  (positive case) and
+  `tenant_map_keeps_flapjack_url_null_when_neither_deployment_nor_vm_has_one`
+  (negative case) in `infra/api/tests/metering_multitenant_test.rs`.
+  The deployed staging API binary has not yet picked up the new fallback
+  (currently at SSM `/fjcloud/staging/last_deploy_sha=250019a6`, an
+  early-March pre-fix commit). Live `usage_records` for tenant A remain
+  blocked on the next staging deploy.
 
-  Post-deploy verification template (run after the staging API binary
-  picks up the fix):
+  Stage F note: the `playwright` CI job has been red since 2026-03-15
+  because the workflow runs `npx playwright test` with no backing
+  postgres / API / dev-server services, so every test fails with
+  `TypeError: fetch failed` on auth setup. That blocked
+  `deploy-staging` for 6+ weeks. Commit `da007362` removed `playwright`
+  from `deploy-staging.needs` (it stays advisory and surfaces failures
+  in CI annotations), so the rest of the gate (rust-test, rust-lint,
+  migration-test, web-test, web-lint, check-sizes, secret-scan) can
+  finally ship the April fixes. The targeted long-tail follow-up is
+  `chatting/apr25_pm_2_playwright_ci_services_plan.md`.
+
+  Post-deploy verification (run after the staging API binary picks up
+  the fix). The end-to-end recipe is owned by
+  `scripts/launch/capture_stage_d_evidence.sh`, which sequences:
+
+  1. `post_deploy_verify_tenant_map.sh` — assert tenant A's
+     `flapjack_url` is non-null in `/internal/tenant-map`.
+  2. Re-run `seed_synthetic_traffic.sh --tenant A --execute
+     --i-know-this-hits-staging --duration-minutes
+     "${STAGE_D_SEEDER_DURATION_MINUTES:-3}"`.
+  3. Sleep `${STAGE_D_SCHEDULER_WAIT_SECONDS:-320}` for one scheduler
+     scrape + aggregation cycle.
+  4. Assert `/admin/tenants/${TENANT_A_CUSTOMER_ID}/usage` is non-zero.
+  5. Refresh `/opt/fjcloud-runtime-fix/<sha>/src/` on the staging EC2
+     host and drive `staging_billing_rehearsal.sh --month $(date -u
+     +%Y-%m) --confirm-live-mutation` via `ssm_exec_staging.sh`.
+
+  Operator entry point:
 
   ```bash
   set -a; source .secret/.env.secret; set +a
   eval "$(bash scripts/launch/hydrate_seeder_env_from_ssm.sh staging)"
-  CUSTOMER_ID="0a65f0b7-14b3-4e08-acf6-2222a02c7858"
-  TOKEN=$(aws ssm get-parameter \
-      --name /fjcloud/staging/internal_auth_token \
-      --with-decryption --region us-east-1 \
-      --query Parameter.Value --output text)
-
-  # 1) tenant-map must return a non-null flapjack_url for tenant A.
-  curl -sS "${API_URL}/internal/tenant-map" -H "x-internal-key: $TOKEN" \
-    | python3 -c '
-  import sys, json
-  for e in json.load(sys.stdin):
-      if e["customer_id"] == "0a65f0b7-14b3-4e08-acf6-2222a02c7858":
-          assert e["flapjack_url"] is not None, e
-          print("OK tenant-map flapjack_url:", e["flapjack_url"])
-          break
-  '
-
-  # 2) Re-run the seeder to produce fresh writes (1 min is enough).
-  bash scripts/launch/seed_synthetic_traffic.sh \
-      --tenant A --execute --i-know-this-hits-staging --duration-minutes 1
-
-  # 3) Wait one scheduler cycle (SCHEDULER_SCRAPE_INTERVAL_SECS, default 300s).
-  sleep 320
-
-  # 4) Confirm usage non-zero.
-  curl -sS "${API_URL}/admin/tenants/${CUSTOMER_ID}/usage" \
-      -H "x-admin-key: ${ADMIN_KEY}"
+  bash scripts/launch/capture_stage_d_evidence.sh
   ```
+
+  Each step is fail-closed and writes its artifact under
+  `docs/runbooks/evidence/staging-billing-rehearsal/<run_ts>_stage_d_capture/`.
+  Do NOT inline the recipe here — extend the script and its
+  `scripts/tests/operator_helpers_smoke_test.sh` smoke tests instead.
 
   Pre-fix observable state captured 2026-04-25 20:35Z (deployed API still
   on prior binary):

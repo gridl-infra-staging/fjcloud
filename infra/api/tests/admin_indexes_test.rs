@@ -846,6 +846,96 @@ async fn seed_index_returns_existing_endpoint_on_rerun_instead_of_409() {
     );
 }
 
+/// Idempotency guarantee at the API surface: a rerun must NOT allocate
+/// a fresh deployment row or vm_inventory row. The test does not
+/// distinguish between the fast-path (`c4a83033`) and the
+/// conflict-handler seam (`ed90bc90`) — either alone is sufficient to
+/// hold collaborator counts at 1, because `find_or_create_vm` and the
+/// deployment-lookup step are themselves find-or-create. The
+/// fast-path is a CPU-cycle optimization on top of that guarantee, not
+/// an independent leak fix; this test pins the disjunctive contract
+/// (the fast-path OR the conflict handler keeps allocation idempotent),
+/// which is what the staging seeder operationally depends on.
+#[tokio::test]
+async fn seed_index_rerun_does_not_allocate_fresh_deployment_or_vm() {
+    let customer_repo = std::sync::Arc::new(MockCustomerRepo::new());
+    let customer = customer_repo.seed("Acme", "acme@test.com");
+    let deployment_repo = std::sync::Arc::new(MockDeploymentRepo::new());
+    let tenant_repo = common::mock_tenant_repo();
+    let vm_inventory_repo = mock_vm_inventory_repo();
+    let proxy = mock_flapjack_proxy_with_secrets(std::sync::Arc::new(
+        api::secrets::mock::MockNodeSecretManager::new(),
+    ));
+
+    let app = common::test_app_with_indexes_and_vm_inventory(
+        customer_repo,
+        deployment_repo.clone(),
+        tenant_repo,
+        proxy,
+        vm_inventory_repo.clone(),
+    );
+
+    let make_request = || {
+        Request::builder()
+            .method("POST")
+            .uri(format!("/admin/tenants/{}/indexes", customer.id))
+            .header("X-Admin-Key", TEST_ADMIN_KEY)
+            .header("Content-Type", "application/json")
+            .body(axum::body::Body::from(
+                json!({
+                    "name": "stable-tenant",
+                    "region": "us-east-1",
+                    "flapjack_url": "http://localhost:7700"
+                })
+                .to_string(),
+            ))
+            .unwrap()
+    };
+
+    // First call: creates one deployment + one VM.
+    let first = app.clone().oneshot(make_request()).await.unwrap();
+    assert_eq!(first.status(), StatusCode::CREATED);
+
+    let deployments_after_first = deployment_repo
+        .list_by_customer(customer.id, false)
+        .await
+        .unwrap();
+    let vms_after_first = vm_inventory_repo.list_active(None).await.unwrap();
+    assert_eq!(deployments_after_first.len(), 1);
+    assert_eq!(vms_after_first.len(), 1);
+    let deployment_id_after_first = deployments_after_first[0].id;
+    let vm_id_after_first = vms_after_first[0].id;
+
+    // Second call: must short-circuit BEFORE allocating anything new.
+    let second = app.oneshot(make_request()).await.unwrap();
+    assert_eq!(second.status(), StatusCode::OK);
+
+    let deployments_after_second = deployment_repo
+        .list_by_customer(customer.id, false)
+        .await
+        .unwrap();
+    let vms_after_second = vm_inventory_repo.list_active(None).await.unwrap();
+
+    assert_eq!(
+        deployments_after_second.len(),
+        1,
+        "rerun must not allocate a second deployment row"
+    );
+    assert_eq!(
+        deployments_after_second[0].id, deployment_id_after_first,
+        "rerun must reuse the existing deployment id, not re-create"
+    );
+    assert_eq!(
+        vms_after_second.len(),
+        1,
+        "rerun must not register a fresh vm_inventory row"
+    );
+    assert_eq!(
+        vms_after_second[0].id, vm_id_after_first,
+        "rerun must reuse the existing vm_inventory id"
+    );
+}
+
 #[tokio::test]
 async fn seed_index_with_flapjack_url_rejects_non_http_scheme() {
     let customer_repo = Arc::new(MockCustomerRepo::new());

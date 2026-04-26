@@ -51,9 +51,18 @@ fn lazy_pool() -> sqlx::PgPool {
     PgPoolOptions::new()
         .max_connections(1)
         // Keep fallback-to-in-process lock paths fast in unit tests that use a
-        // connect_lazy pool with no real Postgres server.
+        // connect_lazy pool with no real Postgres server. Port 1 is reserved
+        // (TCPMUX) and reliably refuses connections, so `pool.begin()` always
+        // surfaces `sqlx::Error::Io(connection refused)` — which
+        // `repos::advisory_lock::is_connection_error` correctly classifies as
+        // "DB unavailable, fall back to in-process lock". Pointing at
+        // `localhost/fake_db` instead caused CI hangs (account_test
+        // concurrent-ayb deadlock) when the postgres:16 service container
+        // was reachable but the `fake` user/db did not exist: sqlx returned
+        // `Database` (auth failure), which the connection-error classifier
+        // missed, so handlers returned 503 before signaling test channels.
         .acquire_timeout(std::time::Duration::from_millis(200))
-        .connect_lazy("postgres://fake:fake@localhost/fake_db")
+        .connect_lazy("postgres://test:test@127.0.0.1:1/test")
         .expect("connect_lazy should never fail")
 }
 

@@ -239,6 +239,77 @@ async fn tenant_map_falls_back_to_vm_inventory_url_when_deployment_has_none() {
     assert_eq!(entry["vm_id"], vm.id.to_string());
 }
 
+/// Regression guard: when neither the deployment row nor any
+/// `vm_inventory` row carries a routable `flapjack_url`, the
+/// `tenant-map` fallback should leave `flapjack_url: null` rather than
+/// fabricate one. The metering agent treats null as "drop the tenant"
+/// (which is the legitimate behavior for an index that has not yet
+/// been placed on a shared VM); a future regression that backfilled
+/// some default placeholder would silently route writes to nowhere.
+#[tokio::test]
+async fn tenant_map_keeps_flapjack_url_null_when_neither_deployment_nor_vm_has_one() {
+    let customer_repo = mock_repo();
+    let customer = customer_repo.seed("Dave", "dave@example.com");
+
+    let deployment_repo = common::mock_deployment_repo();
+    let deployment = deployment_repo.seed_provisioned(
+        customer.id,
+        "e2e-node-no-url",
+        "us-east-1",
+        "t4g.medium",
+        api::vm_providers::BARE_METAL_VM_PROVIDER,
+        "running",
+        None,
+    );
+
+    let vm_inventory_repo = common::mock_vm_inventory_repo();
+    // Note: NO vm_inventory row created here — tenant.vm_id is None,
+    // so the fallback has nowhere to look.
+
+    let tenant_repo: Arc<MockTenantRepo> = Arc::new(MockTenantRepo::new());
+    tenant_repo.seed_deployment(
+        deployment.id,
+        &deployment.region,
+        deployment.flapjack_url.as_deref(),
+        &deployment.health_status,
+        &deployment.status,
+    );
+    tenant_repo
+        .create(customer.id, "demo-shared-free", deployment.id)
+        .await
+        .unwrap();
+    // intentionally NOT linking via set_vm_id
+
+    let app = common::test_app_with_indexes_and_vm_inventory(
+        customer_repo,
+        deployment_repo,
+        tenant_repo,
+        mock_flapjack_proxy(),
+        vm_inventory_repo,
+    );
+
+    let req = internal_get("/internal/tenant-map");
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let body = resp.into_body().collect().await.unwrap().to_bytes();
+    let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    let arr = json.as_array().expect("array response");
+    let entry = arr
+        .iter()
+        .find(|e| e["tenant_id"] == "demo-shared-free")
+        .expect("tenant should still be present in the map");
+
+    assert!(
+        entry["flapjack_url"].is_null(),
+        "flapjack_url should remain null when neither deployment nor vm has one; got {entry}"
+    );
+    assert!(
+        entry["vm_id"].is_null(),
+        "vm_id should remain null when set_vm_id was never called; got {entry}"
+    );
+}
+
 #[tokio::test]
 async fn internal_regions_endpoint_returns_available_regions() {
     let app = common::test_app();

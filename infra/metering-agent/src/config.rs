@@ -11,6 +11,14 @@ pub struct Config {
     pub flapjack_url: String,
     /// API key for the flapjack node.
     pub flapjack_api_key: String,
+    /// Application-Id sent alongside the API key on flapjack engine
+    /// requests. The engine's auth check rejects requests with only the
+    /// API key (HTTP 403, "Invalid Application-ID or API key"), so this
+    /// must be set or the engine endpoints will all 403 — which is what
+    /// caused the staging metering pipeline to silently produce zero
+    /// usage_records before this field was wired up. Defaults to
+    /// "flapjack" to match the value the synthetic-traffic seeder uses.
+    pub flapjack_application_id: String,
     /// Internal auth token for control-plane `/internal/*` endpoints.
     ///
     /// Older nodes reused the flapjack API key for this path, so we keep a
@@ -76,6 +84,8 @@ impl Config {
 
         let flapjack_url = require("FLAPJACK_URL")?.trim_end_matches('/').to_string();
         let flapjack_api_key = require("FLAPJACK_API_KEY")?;
+        let flapjack_application_id =
+            read("FLAPJACK_APPLICATION_ID").unwrap_or_else(|_| "flapjack".to_string());
         let internal_key = read("INTERNAL_KEY").unwrap_or_else(|_| flapjack_api_key.clone());
         let database_url = require("DATABASE_URL")?;
         let node_id = require("NODE_ID")?;
@@ -120,6 +130,7 @@ impl Config {
         Ok(Config {
             flapjack_url,
             flapjack_api_key,
+            flapjack_application_id,
             internal_key,
             scrape_interval,
             storage_poll_interval,

@@ -48,6 +48,7 @@ pub async fn poll_storage(
     let resp: StorageResponse = http
         .get(cfg.storage_url())
         .header("X-Algolia-API-Key", &cfg.flapjack_api_key)
+        .header("X-Algolia-Application-Id", &cfg.flapjack_application_id)
         .send()
         .await?
         .error_for_status()?
@@ -260,6 +261,7 @@ mod tests {
         let cfg = Config {
             flapjack_url: "http://localhost:7700".to_string(),
             flapjack_api_key: "test-key".to_string(),
+            flapjack_application_id: "flapjack".to_string(),
             internal_key: "test-key".to_string(),
             scrape_interval: std::time::Duration::from_secs(60),
             storage_poll_interval: std::time::Duration::from_secs(300),
@@ -317,6 +319,94 @@ mod tests {
         assert_eq!(records[0].event_type, record::EventType::StorageBytes);
     }
 
+    /// Regression guard: `poll_storage` must send BOTH `X-Algolia-API-Key`
+    /// and `X-Algolia-Application-Id` on the GET to the local flapjack
+    /// engine. Until this was added (this commit), staging metering was
+    /// silently 403'ing on every scrape because the engine rejects
+    /// requests with only the API key — `usage_records` therefore never
+    /// populated, the staging billing rehearsal halted at the
+    /// `usage_records_empty` gate, and Stage D evidence could not be
+    /// captured. The header-capture mock fails the test if either
+    /// header is missing.
+    #[tokio::test]
+    async fn poll_storage_sends_api_key_and_application_id_headers() {
+        use std::sync::Mutex;
+
+        #[derive(Clone)]
+        struct StorageHeaderCapture {
+            api_key: Arc<Mutex<Option<String>>>,
+            app_id: Arc<Mutex<Option<String>>>,
+        }
+        async fn capture_storage_headers(
+            State(state): State<StorageHeaderCapture>,
+            headers: HeaderMap,
+        ) -> &'static str {
+            *state.api_key.lock().unwrap() = headers
+                .get("x-algolia-api-key")
+                .and_then(|v| v.to_str().ok())
+                .map(ToOwned::to_owned);
+            *state.app_id.lock().unwrap() = headers
+                .get("x-algolia-application-id")
+                .and_then(|v| v.to_str().ok())
+                .map(ToOwned::to_owned);
+            r#"{"tenants":[]}"#
+        }
+
+        let api_key = Arc::new(Mutex::new(None));
+        let app_id = Arc::new(Mutex::new(None));
+        let app = Router::new()
+            .route("/internal/storage", get(capture_storage_headers))
+            .with_state(StorageHeaderCapture {
+                api_key: Arc::clone(&api_key),
+                app_id: Arc::clone(&app_id),
+            });
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+
+        let cfg = Config {
+            flapjack_url: format!("http://{addr}"),
+            flapjack_api_key: "node-api-key".to_string(),
+            flapjack_application_id: "flapjack".to_string(),
+            internal_key: "internal-key-123".to_string(),
+            scrape_interval: std::time::Duration::from_secs(60),
+            storage_poll_interval: std::time::Duration::from_secs(300),
+            tenant_map_refresh_interval: std::time::Duration::from_secs(300),
+            database_url: "postgres://localhost/test".to_string(),
+            customer_id: uuid::Uuid::new_v4(),
+            node_id: "node-a".to_string(),
+            region: "us-east-1".to_string(),
+            health_port: 9091,
+            tenant_map_url: "http://127.0.0.1:0/internal/tenant-map".to_string(),
+            cold_storage_usage_url: "http://127.0.0.1:0/internal/cold-storage-usage".to_string(),
+        };
+        struct NoopWriter;
+        #[async_trait::async_trait]
+        impl record::UsageRecordWriter for NoopWriter {
+            async fn write(&self, _rec: &record::UsageRecord) -> anyhow::Result<()> {
+                Ok(())
+            }
+        }
+        let http = reqwest::Client::new();
+        let writer = NoopWriter;
+        let tenant_map: super::super::tenant_map::TenantCustomerMap = Arc::new(DashMap::new());
+        // We don't care if the cold-storage call fails (no server) — only the
+        // /internal/storage call's headers matter for this regression.
+        let _ = poll_storage(&cfg, &writer, &http, &tenant_map).await;
+
+        assert_eq!(
+            api_key.lock().unwrap().clone(),
+            Some("node-api-key".to_string()),
+            "X-Algolia-API-Key header must be sent on /internal/storage"
+        );
+        assert_eq!(
+            app_id.lock().unwrap().clone(),
+            Some("flapjack".to_string()),
+            "X-Algolia-Application-Id header must be sent on /internal/storage; flapjack engine 403s without it"
+        );
+        server.abort();
+    }
+
     #[tokio::test]
     async fn fetch_cold_storage_usage_sends_internal_key_header() {
         let observed_key = Arc::new(std::sync::Mutex::new(None));
@@ -332,6 +422,7 @@ mod tests {
         let cfg = Config {
             flapjack_url: "http://localhost:7700".to_string(),
             flapjack_api_key: "node-api-key".to_string(),
+            flapjack_application_id: "flapjack".to_string(),
             internal_key: "internal-key-123".to_string(),
             scrape_interval: std::time::Duration::from_secs(60),
             storage_poll_interval: std::time::Duration::from_secs(300),

@@ -533,8 +533,13 @@ ensure_customer_and_tenant() {
   index_response="$(admin_call "POST" "/admin/tenants/${customer_id}/indexes" -d "$index_payload")"
   index_status="$(http_response_status "$index_response")"
   index_body="$(http_response_body "$index_response")"
+  # 201: first-time create. 200: rerun returning the existing index's
+  #   endpoint (post-c4a83033 idempotent fast-path). 409: very narrow
+  #   race window in older API binaries — keep accepting it for
+  #   backward compatibility with staging hosts that have not yet
+  #   picked up the fast-path.
   case "$index_status" in
-    201|409)
+    200|201|409)
       index_name="$(printf '%s\n' "$index_body" | parse_json_field "name" 2>/dev/null || true)"
       index_endpoint="$(printf '%s\n' "$index_body" | parse_json_field "endpoint" 2>/dev/null || true)"
       if [ -n "$index_name" ]; then

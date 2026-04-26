@@ -433,6 +433,7 @@ mod tests {
         let cfg = Config {
             flapjack_url: "http://localhost:7700".to_string(),
             flapjack_api_key: "node-api-key".to_string(),
+            flapjack_application_id: "flapjack".to_string(),
             internal_key: "internal-key-123".to_string(),
             scrape_interval: Duration::from_secs(60),
             storage_poll_interval: Duration::from_secs(300),

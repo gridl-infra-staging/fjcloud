@@ -35,6 +35,7 @@ pub async fn scrape_and_record(
     let body = http
         .get(cfg.metrics_url())
         .header("X-Algolia-API-Key", &cfg.flapjack_api_key)
+        .header("X-Algolia-Application-Id", &cfg.flapjack_application_id)
         .send()
         .await?
         .error_for_status()?
@@ -237,6 +238,7 @@ mod tests {
         Config {
             flapjack_url: "http://localhost:7700".to_string(),
             flapjack_api_key: "test-key".to_string(),
+            flapjack_application_id: "flapjack".to_string(),
             internal_key: "test-key".to_string(),
             scrape_interval: std::time::Duration::from_secs(60),
             storage_poll_interval: std::time::Duration::from_secs(300),

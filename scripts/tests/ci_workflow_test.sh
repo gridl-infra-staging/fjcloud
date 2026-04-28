@@ -220,6 +220,8 @@ assert_job_contains_regex "playwright" 'uses:\s+actions/upload-artifact@' "playw
 assert_job_contains_regex "playwright" 'path:\s+\|' "playwright artifact upload uses explicit multi-path block"
 assert_job_contains_regex "playwright" 'web/playwright-report' "playwright artifact upload includes playwright-report"
 assert_job_contains_regex "playwright" 'web/test-results' "playwright artifact upload includes test-results"
+assert_job_contains_regex "playwright" '^\s+/tmp/fjcloud-api\.log$' "playwright artifact upload includes API readiness log"
+assert_job_contains_regex "playwright" '^\s+/tmp/fjcloud-web\.log$' "playwright artifact upload includes web readiness log"
 
 assert_job_contains_regex "secret-scan" 'uses:\s+actions/checkout@' "secret-scan has checkout step"
 assert_job_contains_regex "secret-scan" 'gitleaks' "secret-scan uses gitleaks"

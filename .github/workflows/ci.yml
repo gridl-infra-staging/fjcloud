@@ -247,6 +247,8 @@ jobs:
           path: |
             web/playwright-report
             web/test-results
+            /tmp/fjcloud-api.log
+            /tmp/fjcloud-web.log
           if-no-files-found: warn
       - name: Stop API and web servers
         if: always()

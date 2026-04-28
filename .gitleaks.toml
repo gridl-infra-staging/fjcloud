@@ -41,6 +41,7 @@ paths = [
     '''scripts/tests/.*\.sh$''',
     '''scripts/stripe/.*\.sh$''',
     '''scripts/lib/stripe_checks\.sh$''',
+    '''scripts/lib/stripe_request\.sh$''',
     '''scripts/validate-stripe\.sh$''',
     '''scripts/reliability/fixtures/security/.*''',
     '''web/src/lib/auth/(guard|jwt)\.test\.ts$''',

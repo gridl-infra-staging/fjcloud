@@ -1,0 +1,17 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+# LEAK_PROOF_SHARED_GATE_BYPASS: seed captured while `find_active_index_summary()`
+# ownership filtering was intentionally weakened, producing a real cross-tenant
+# proxy attempt detected by `run_case_operation()` / `assert_proxy_target()`.
+# LEAK_PROOF_FAILURE_SIGNATURE: bob-foreign-shared-helper-on-alice-index: foreign tenant should be denied
+# REPLAY_PROOF_SAVED_CASE_FIRST: this seed is replay-asserted by
+# `tenant_isolation_proptest_saved_case_replays_before_random_generation()`,
+# which sets `cases=0` and still observes failure via persisted replay.
+# REPLAY_PROOF_COMMAND: reran unchanged
+# `cd infra && cargo test -p api --test tenant_isolation_proptest tenant_isolation_proptest_route_family -- --nocapture`
+# to confirm the saved case replayed before random generation.
+cc fb8c5f90c4f59e9301787d55bd01317b574391ffd0ff1ee70d0e7b252bf98385 # shrinks to shared_owner_route_case = RouteCase { label: "rules_get", method: GET, route_path_suffix: "/rules/aui-h1ox", json_body: None, expected_success_status: 200, expected_success_body: RuleObjectId("aui-h1ox"), expected_proxy_method: GET, expected_proxy_path_suffix: "/rules/aui-h1ox" }

@@ -12,6 +12,14 @@ MOCK
     chmod +x "$path"
 }
 
+new_mock_command_dir() {
+    local command_name="$1" script_body="$2"
+    local mock_dir
+    mock_dir="$(mktemp -d)"
+    write_mock_script "$mock_dir/$command_name" "$script_body"
+    echo "$mock_dir"
+}
+
 backup_repo_env_file() {
     local backup_path="$1"
     if [ -f "$REPO_ROOT/.env.local" ]; then

@@ -128,10 +128,28 @@ Note: Actual IDs are in the Terraform state file (`ops/terraform/_shared/terrafo
   (positive case) and
   `tenant_map_keeps_flapjack_url_null_when_neither_deployment_nor_vm_has_one`
   (negative case) in `infra/api/tests/metering_multitenant_test.rs`.
-  The deployed staging API binary has not yet picked up the new fallback
-  (currently at SSM `/fjcloud/staging/last_deploy_sha=250019a6`, an
-  early-March pre-fix commit). Live `usage_records` for tenant A remain
-  blocked on the next staging deploy.
+  **Resolved 2026-04-26:** the staging API binary deploy completed via
+  a hand-driven SSM build/swap pipeline because the GitHub Actions
+  `deploy-staging` job was missing the `DEPLOY_IAM_ROLE_ARN` OIDC role
+  at that time. The Apr 27 follow-up restored the checked-in
+  repo/IAM/workflow OIDC deploy contract; what remains is a fresh
+  current-main deploy/rerun through that restored path, not an unknown
+  missing-role defect. SSM `/fjcloud/staging/last_deploy_sha` now points
+  at `d905f90affd45104bc95526acc0a48ca96c7c8ae`. The
+  tenant-map fallback is verified live: tenant A returns
+  `flapjack_url=http://vm-shared-f2b9c8a6.flapjack.foo:7700`. Live
+  `usage_records` for tenant A populate every 60s, `usage_daily` rolls
+  up correctly, and a paid Stripe invoice
+  (`in_1TQLr2KH9mdklKeIlzBNFR4M`) was produced end-to-end. Full
+  evidence: `docs/runbooks/evidence/staging-billing-rehearsal/20260426T060756Z_paid_lifecycle/SUMMARY.md`.
+  Three additional blockers were discovered + fixed during the same
+  pass: 001 migration in-place mutation broke sqlx checksum check
+  (`102659b7`), seeder rejected 200 OK from idempotent seed_index
+  (`27571c15`), and `fj-metering-agent` was 403'ing on every flapjack
+  scrape because it sent only `X-Algolia-API-Key` (the engine requires
+  `X-Algolia-Application-Id` too — `ec6a7669`). The metering
+  Application-Id bug had silently blocked every prior staging
+  rehearsal at `usage_records_empty`.
 
   Stage F note: the `playwright` CI job has been red since 2026-03-15
   because the workflow runs `npx playwright test` with no backing
@@ -156,9 +174,13 @@ Note: Actual IDs are in the Terraform state file (`ops/terraform/_shared/terrafo
   3. Sleep `${STAGE_D_SCHEDULER_WAIT_SECONDS:-320}` for one scheduler
      scrape + aggregation cycle.
   4. Assert `/admin/tenants/${TENANT_A_CUSTOMER_ID}/usage` is non-zero.
-  5. Refresh `/opt/fjcloud-runtime-fix/<sha>/src/` on the staging EC2
-     host and drive `staging_billing_rehearsal.sh --month $(date -u
-     +%Y-%m) --confirm-live-mutation` via `ssm_exec_staging.sh`.
+  5. Read the deployed sha from SSM `/fjcloud/staging/last_deploy_sha`,
+     materialize the rehearsal env file on the EC2 host from staging
+     SSM (so credentials never traverse the operator side), and drive
+     `staging_billing_rehearsal.sh --env-file <generated> --month
+     $(date -u +%Y-%m) --confirm-live-mutation` against the runtime
+     checkout the deploy step already populated at
+     `/opt/fjcloud-runtime-fix/<sha>/src/`.
 
   Operator entry point:
 
@@ -362,9 +384,13 @@ Contract notes:
 - Artifacts are run-scoped under caller-supplied `--artifact-dir` as
   `fjcloud_live_e2e_evidence_<timestamp>_<pid>/...`, and `summary.json` is the
   run-level source of truth for machine-readable verdicts.
-- If required live prerequisites are missing, the wrapper records a `blocked`
-  verdict in `summary.json` and exits `0`; `fail` means an executed owner
-  assertion failed and needs triage via the captured logs.
+- Wrapper status/value interpretation is owned by
+  `docs/runbooks/aws_live_e2e_guardrails.md`; this document is only the dated
+  evidence index for that owner lane.
+- Paid-beta RC taxonomy and `<artifact-dir>/summary.json` contract interpretation
+  is owned by `docs/runbooks/paid_beta_rc_signoff.md` (script owner:
+  `scripts/launch/run_full_backend_validation.sh` `emit_result_json` /
+  `emit_final_result`).
 
 ## Current External Blockers
 
@@ -439,10 +465,14 @@ Contract notes:
     `ops/terraform/tests_stage7_runtime_smoke.sh`.
     That preserved failure is now historical for the DNS-record subcase: the
     latest direct runtime-owner rerun passed on 2026-04-25 after the checked-in
-    Cloudflare contract was reconciled. `bash ops/terraform/tests_stage8_static.sh`
-    still reports the pre-existing `_shared/main.tf remains wiring-only (no
-    direct aws_* resources)` failure because `_shared/main.tf` currently owns
-    `aws_ssm_parameter` resources.
+    Cloudflare contract was reconciled. As of 2026-04-27 the runtime-parameter
+    ownership is reconciled: `ops/terraform/_shared/main.tf` delegates runtime
+    parameters via `module "runtime_params"`, `ops/terraform/runtime_params/main.tf`
+    exclusively owns the `aws_ssm_parameter` `runtime_*` resources, and the
+    `moved {}` migration blocks in `_shared/main.tf` are intentionally retained
+    as a safe state-migration guard. `bash ops/terraform/tests_stage8_static.sh`
+    now passes the ownership contract end-to-end (108/108), including the
+    `_shared/main.tf remains wiring-only (no direct aws_* resources)` assertion.
 - SES deliverability evidence status (2026-04-23): canonical Stage 4 wrapper
   evidence passed at `/Users/stuart/.matt/projects/fjcloud_dev-cd6902f9/apr23_am_1_ses_deliverability_refined.md-4c6ea1bd/artifacts/stage_04_ses_deliverability/fjcloud_ses_deliverability_evidence_20260423T063739Z_63867/summary.json`
   (`overall_verdict=pass`; readiness/account/identity/recipient/send-attempt

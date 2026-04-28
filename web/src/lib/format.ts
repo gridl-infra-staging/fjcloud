@@ -51,6 +51,24 @@ export function formatDate(dateStr: string | null | undefined): string {
 }
 
 /**
+ * Format a Date or ISO string as a coarse relative time for admin/operator views.
+ */
+export function formatRelativeTime(
+	input: Date | string | null | undefined,
+	now = new Date()
+): string {
+	if (input == null) return '\u2014';
+	const then = typeof input === 'string' ? new Date(input) : input;
+	if (isNaN(then.getTime())) return '\u2014';
+
+	const secondsAgo = Math.max(0, Math.floor((now.getTime() - then.getTime()) / 1000));
+	if (secondsAgo < 60) return 'just now';
+	if (secondsAgo < 3600) return `${Math.floor(secondsAgo / 60)}m ago`;
+	if (secondsAgo < 86400) return `${Math.floor(secondsAgo / 3600)}h ago`;
+	return `${Math.floor(secondsAgo / 86400)} days ago`;
+}
+
+/**
  * Capitalize first letter of a status string.
  */
 export function statusLabel(status: string): string {
@@ -197,6 +215,7 @@ const ADMIN_BADGE_COLORS: Record<string, string> = {
 	healthy: 'bg-green-500/20 text-green-300 border-green-500/40',
 	paid: 'bg-green-500/20 text-green-300 border-green-500/40',
 	completed: 'bg-green-500/20 text-green-300 border-green-500/40',
+	green: 'bg-green-500/20 text-green-300 border-green-500/40',
 	// Blue — in-progress/informational
 	provisioning: 'bg-blue-500/20 text-blue-300 border-blue-500/40',
 	syncing: 'bg-blue-500/20 text-blue-300 border-blue-500/40',
@@ -209,6 +228,7 @@ const ADMIN_BADGE_COLORS: Record<string, string> = {
 	removing: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/40',
 	suspended: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/40',
 	rolled_back: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/40',
+	yellow: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/40',
 	// Amber — soft-warning (invoice/migration)
 	cutting_over: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
 	finalized: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
@@ -216,6 +236,9 @@ const ADMIN_BADGE_COLORS: Record<string, string> = {
 	failed: 'bg-red-500/20 text-red-300 border-red-500/40',
 	unhealthy: 'bg-red-500/20 text-red-300 border-red-500/40',
 	deleted: 'bg-red-500/20 text-red-300 border-red-500/40',
+	red: 'bg-red-500/20 text-red-300 border-red-500/40',
+	// Gray — neutral/unknown billing posture
+	grey: 'bg-gray-500/20 text-gray-300 border-gray-500/40',
 	// Slate — terminal-neutral
 	decommissioned: 'bg-slate-500/20 text-slate-300 border-slate-500/40'
 };

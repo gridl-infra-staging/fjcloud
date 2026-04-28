@@ -61,13 +61,21 @@ Interpret the final JSON payload as follows:
 - `ready`: readiness gate result for required proofs.
 - `verdict`: overall verdict (`pass` or `fail`).
 - `steps[]`: ordered proof results with per-step `status`, `reason`, and elapsed time.
-- Step status values:
+- `summary.json`: canonical machine-readable artifact at `<artifact-dir>/summary.json`;
+  stdout prints the same final JSON object for compatibility.
+- Step status values (legacy `blocked` is removed):
   - `pass`: proof succeeded.
   - `fail`: proof executed and failed.
-  - `blocked`: proof could not run because required inputs/credentials were missing.
+  - `external_secret_missing`: required external credentials/secrets were unavailable.
+  - `live_evidence_gap`: live proof inputs/evidence were not yet available.
+  - `skipped`: explicit non-critical bypass only.
 
-Required proof rule: if a required proof is `blocked`, readiness is not achieved.
-That run must remain `ready=false` with a failing verdict.
+Required proof rule: if a required proof is `fail`, `external_secret_missing`, or
+`live_evidence_gap`, readiness is not achieved and the run must remain
+`ready=false` with a failing verdict.
+Critical browser rule: `browser_preflight` and `browser_auth_setup` are critical
+surfaces; if either is `skipped`, the coordinator promotes it to `fail`.
+The promoted reason is `critical_surface_skipped`.
 local_signoff is useful local evidence only.
 local webhook replay acceptance is local/mock evidence only.
 local/mock pass results do not satisfy credentialed billing/webhook/SES proof.
@@ -115,26 +123,26 @@ Use owner artifacts below instead of duplicating step internals here:
 Credentialed SES, billing, runtime-smoke, and live webhook proof must come from
 their canonical owner scripts/artifacts before RC readiness can pass.
 
-## Current Blocker Reasons Emitted By The Coordinator
+## Current Gap Reasons Emitted By The Coordinator
 
 The reasons below are current machine-readable emissions from
 `scripts/launch/run_full_backend_validation.sh` and should be interpreted as
 coordinator output, not rewritten by this runbook.
 
-- SES delegated proof blockers:
+- SES delegated proof gaps:
   - `credentialed_ses_identity_missing`
   - `credentialed_env_file_missing`
   - `credentialed_env_file_parse_failed`
-- Staging billing rehearsal blockers:
+- Staging billing rehearsal gaps:
   - `credentialed_billing_env_file_missing`
   - `credentialed_billing_month_missing`
   - delegated billing classifications and billing evidence boundaries from `scripts/staging_billing_rehearsal.sh`
-    (delegated `result` and `classification` passthrough when the delegated summary reports blocked/failed)
-- Staging runtime smoke blocker:
+    (delegated `result` and `classification` passthrough; delegated `blocked` maps to `live_evidence_gap`)
+- Staging runtime smoke gap:
   - `credentialed_staging_smoke_inputs_missing`
 
-If any required proof is blocked, keep the run in `ready=false`; do not treat a
-blocked required proof as ready/pass.
+If any required proof reports `fail`, `external_secret_missing`, or
+`live_evidence_gap`, keep the run in `ready=false`; do not treat that as ready/pass.
 
 ## Evidence Safety
 
@@ -143,3 +151,4 @@ blocked required proof as ready/pass.
 - Live SES delivery and inbox proof remain delegated to `docs/runbooks/email-production.md` plus `scripts/launch/ses_deliverability_evidence.sh`.
 - For dated live DNS/HTTPS/SES status, use `docs/runbooks/staging-evidence.md`
   as the current evidence authority.
+- For strategic priority and sequencing text, use `ROADMAP.md`.

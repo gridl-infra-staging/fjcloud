@@ -10,5 +10,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| providers | — |
+| providers | The providers directory contains multiple pricing calculator implementations (Algolia, AWS OpenSearch, Griddle, Meilisearch variants) with a central registry module that registers all available providers. |
 <!-- [scrai:end] -->

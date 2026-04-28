@@ -87,40 +87,6 @@ test.describe('Dashboard page', () => {
 		});
 	});
 
-	test('sidebar link to Database reaches persisted instance details', async ({
-		page,
-		arrangeDatabaseRouteState
-	}) => {
-		const arrangedState = await arrangeDatabaseRouteState();
-
-		await page.goto('/dashboard');
-		const databaseLink = page.getByRole('navigation').getByRole('link', {
-			name: 'Database',
-			exact: true
-		});
-		await expect(databaseLink).toHaveAttribute('href', '/dashboard/database');
-
-		await databaseLink.click();
-		await expect(page).toHaveURL(/\/dashboard\/database/);
-		await expect(page.getByRole('heading', { name: 'Database' })).toBeVisible();
-
-		if (arrangedState.branch !== 'persisted') {
-			throw new Error(`Unexpected database arrange branch: ${arrangedState.branch}`);
-		}
-		await expect(page.getByText('AllYourBase Instance')).toBeVisible();
-		await expect(page.getByText(arrangedState.instance.id)).toBeVisible();
-		await expect(page.getByText(arrangedState.instance.statusLabel)).toBeVisible();
-		await expect(page.getByText('Database URL')).toBeVisible();
-		await expect(page.getByText(arrangedState.instance.aybUrl)).toBeVisible();
-		await expect(page.getByText('Slug')).toBeVisible();
-		await expect(page.getByText(arrangedState.instance.aybSlug)).toBeVisible();
-		await expect(page.getByText('Cluster ID')).toBeVisible();
-		await expect(page.getByText(arrangedState.instance.aybClusterId)).toBeVisible();
-		await expect(page.getByText('Plan')).toBeVisible();
-		await expect(page.getByText(arrangedState.instance.plan)).toBeVisible();
-		await expect(page.getByTestId('create-instance-form')).toHaveCount(0);
-	});
-
 	test('logs route shows save-settings entry from shared dashboard log path', async ({
 		page,
 		seedIndex,

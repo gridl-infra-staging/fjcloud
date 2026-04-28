@@ -8,14 +8,13 @@ import type {
 	InvoiceListItem,
 	SetupIntentResponse,
 	PaymentMethod,
+	SubscriptionResponse,
 	CreateBillingPortalSessionRequest,
 	CreateBillingPortalSessionResponse,
 	EstimatedBillResponse,
 	ApiKeyListItem,
 	CreateApiKeyResponse,
-	CustomerProfileResponse,
-	AybInstance,
-	CreateAybInstanceRequest
+	CustomerProfileResponse
 } from './types';
 import { BASE_URL, mockFetch, createClient, createAuthenticatedClient } from './client.test.shared';
 
@@ -390,6 +389,48 @@ describe('ApiClient', () => {
 			expect(result).toEqual(expected);
 		});
 
+		it('GET /billing/subscription returns the current subscription', async () => {
+			const expected: SubscriptionResponse = {
+				id: 'sub_test_123',
+				plan_tier: 'shared',
+				status: 'active',
+				current_period_end: '2026-05-31',
+				cancel_at_period_end: true
+			};
+			const fetch = mockFetch(200, expected);
+			client.setFetch(fetch);
+
+			const result = await client.getSubscription();
+
+			expect(fetch).toHaveBeenCalledWith(`${BASE_URL}/billing/subscription`, {
+				method: 'GET',
+				headers: {
+					'Content-Type': 'application/json',
+					Authorization: 'Bearer my-jwt-token'
+				}
+			});
+			expect(result).toEqual(expected);
+		});
+
+		it('GET /billing/subscription preserves status, current_period_end, and cancel_at_period_end', async () => {
+			const expected: SubscriptionResponse = {
+				id: 'sub_test_456',
+				plan_tier: 'shared',
+				status: 'canceled',
+				current_period_end: '2026-06-30',
+				cancel_at_period_end: false
+			};
+			const fetch = mockFetch(200, expected);
+			client.setFetch(fetch);
+
+			const result = await client.getSubscription();
+
+			expect(result.status).toBe('canceled');
+			expect(result.current_period_end).toBe('2026-06-30');
+			expect(result.cancel_at_period_end).toBe(false);
+			expect(result).toEqual(expected);
+		});
+
 		it('GET /billing/estimate returns estimated bill', async () => {
 			const expected: EstimatedBillResponse = {
 				month: '2026-02',
@@ -647,96 +688,5 @@ describe('ApiClient', () => {
 			expect(result).toBeUndefined();
 		});
 
-		it('GET /allyourbase/instances includes auth header and returns instance rows', async () => {
-			const expected: AybInstance[] = [
-				{
-					id: '8df00b9f-cf30-4300-bfd4-8f25ca5da39b',
-					ayb_slug: 'acme-primary',
-					ayb_cluster_id: 'cluster-01',
-					ayb_url: 'https://acme-primary.allyourbase.cloud',
-					status: 'ready',
-					plan: 'starter',
-					created_at: '2026-03-17T00:00:00Z',
-					updated_at: '2026-03-17T01:00:00Z'
-				}
-			];
-			const fetch = mockFetch(200, expected);
-			client.setFetch(fetch);
-
-			const result = await client.getAybInstances();
-
-			expect(fetch).toHaveBeenCalledWith(`${BASE_URL}/allyourbase/instances`, {
-				method: 'GET',
-				headers: {
-					'Content-Type': 'application/json',
-					Authorization: 'Bearer my-jwt-token'
-				}
-			});
-			expect(result).toEqual(expected);
-		});
-
-		it('POST /allyourbase/instances sends the create payload and returns the created instance', async () => {
-			const payload: CreateAybInstanceRequest = {
-				name: 'Acme Primary',
-				slug: 'acme-primary',
-				plan: 'starter'
-			};
-			const expected: AybInstance = {
-				id: '8df00b9f-cf30-4300-bfd4-8f25ca5da39b',
-				ayb_slug: 'acme-primary',
-				ayb_cluster_id: 'cluster-01',
-				ayb_url: 'https://acme-primary.allyourbase.cloud',
-				status: 'provisioning',
-				plan: 'starter',
-				created_at: '2026-03-22T00:00:00Z',
-				updated_at: '2026-03-22T00:00:00Z'
-			};
-			const fetch = mockFetch(201, expected);
-			client.setFetch(fetch);
-
-			const result = await client.createAybInstance(payload);
-
-			expect(fetch).toHaveBeenCalledWith(`${BASE_URL}/allyourbase/instances`, {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json',
-					Authorization: 'Bearer my-jwt-token'
-				},
-				body: JSON.stringify(payload)
-			});
-			expect(result).toEqual(expected);
-		});
-
-		it('DELETE /allyourbase/instances/:id returns undefined for 204', async () => {
-			const fetch = mockFetch(204, {});
-			client.setFetch(fetch);
-
-			const result = await client.deleteAybInstance('8df00b9f-cf30-4300-bfd4-8f25ca5da39b');
-
-			expect(fetch).toHaveBeenCalledWith(
-				`${BASE_URL}/allyourbase/instances/8df00b9f-cf30-4300-bfd4-8f25ca5da39b`,
-				{
-					method: 'DELETE',
-					headers: {
-						'Content-Type': 'application/json',
-						Authorization: 'Bearer my-jwt-token'
-					}
-				}
-			);
-			expect(result).toBeUndefined();
-		});
-
-		it('DELETE /allyourbase/instances/:id surfaces 503 as ApiRequestError', async () => {
-			const fetch = mockFetch(503, { error: 'service_not_configured' });
-			client.setFetch(fetch);
-
-			await expect(
-				client.deleteAybInstance('8df00b9f-cf30-4300-bfd4-8f25ca5da39b')
-			).rejects.toMatchObject({
-				name: 'ApiRequestError',
-				status: 503,
-				message: 'service_not_configured'
-			});
-		});
 	});
 });

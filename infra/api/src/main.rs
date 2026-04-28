@@ -8,7 +8,6 @@ use api::repos::{ColdSnapshotRepo, IndexReplicaRepo, PgIndexReplicaRepo};
 use api::secrets::NodeSecretManager;
 use api::services::access_tracker::AccessTracker;
 use api::services::alerting::AlertService;
-use api::services::ayb_admin::{AybAdminClient, ReqwestAybAdminClient};
 use api::services::cold_tier::{FlapjackNodeClient, ReqwestNodeClient};
 use api::services::discovery::DiscoveryService;
 use api::services::email::EmailService;
@@ -57,7 +56,6 @@ struct WiredServices {
     node_client: Arc<dyn FlapjackNodeClient>,
     cold_snapshot_repo: Arc<dyn ColdSnapshotRepo + Send + Sync>,
     restore_service: Arc<RestoreService>,
-    ayb_admin_client: Option<Arc<dyn AybAdminClient + Send + Sync>>,
 }
 
 /// Startup bootstrap outputs needed to wire services and build AppState.
@@ -197,7 +195,6 @@ async fn wire_app_state_phase(bootstrap: StartupBootstrapPhase) -> anyhow::Resul
         node_client,
         cold_snapshot_repo,
         restore_service,
-        ayb_admin_client,
     } = wired_services;
     let api::startup::StorageComponents {
         storage_bucket_repo,
@@ -221,7 +218,6 @@ async fn wire_app_state_phase(bootstrap: StartupBootstrapPhase) -> anyhow::Resul
         index_migration_repo,
         cold_snapshot_repo: _repo_cold_snapshot_repo,
         restore_job_repo: _restore_job_repo,
-        ayb_tenant_repo,
     } = repos;
 
     let state = AppState {
@@ -268,8 +264,6 @@ async fn wire_app_state_phase(bootstrap: StartupBootstrapPhase) -> anyhow::Resul
         garage_proxy,
         s3_object_metering,
         storage_master_key,
-        ayb_admin_client,
-        ayb_tenant_repo,
     };
     let background_deps = api::startup::BackgroundDeps {
         node_secret_manager,
@@ -462,17 +456,6 @@ async fn wire_control_plane_services(
         node_client.clone(),
         Arc::clone(&rt.node_secret_manager),
     ));
-    let ayb_admin_client: Option<Arc<dyn AybAdminClient + Send + Sync>> =
-        match &inputs.cfg.ayb_admin {
-            Some(ayb_cfg) => {
-                tracing::info!("AYB admin configured (cluster: {})", ayb_cfg.cluster_id);
-                Some(Arc::new(ReqwestAybAdminClient::new(ayb_cfg)))
-            }
-            None => {
-                tracing::info!("AYB admin not configured — operations will return 503");
-                None
-            }
-        };
     if inputs.cfg.internal_auth_token.is_none() {
         tracing::warn!("INTERNAL_AUTH_TOKEN not set — /internal/* reject (fail-closed)");
     }
@@ -501,7 +484,6 @@ async fn wire_control_plane_services(
         node_client,
         cold_snapshot_repo,
         restore_service,
-        ayb_admin_client,
     })
 }
 

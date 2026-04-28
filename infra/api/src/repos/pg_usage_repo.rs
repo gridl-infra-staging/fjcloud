@@ -6,7 +6,8 @@ use uuid::Uuid;
 
 use crate::models::UsageDaily;
 use crate::repos::error::RepoError;
-use crate::repos::usage_repo::UsageRepo;
+use crate::repos::usage_repo::{rolling_window_for_days, UsageRepo, UsageSummary};
+use crate::usage::summarize_usage_totals;
 
 pub struct PgUsageRepo {
     pool: PgPool,
@@ -70,5 +71,13 @@ impl UsageRepo for PgUsageRepo {
         .fetch_one(&self.pool)
         .await
         .map_err(|e| RepoError::Other(e.to_string()))
+    }
+
+    async fn summary_for(&self, customer_id: Uuid, days: u32) -> Result<UsageSummary, RepoError> {
+        let (start_date, end_date) = rolling_window_for_days(days)?;
+        let rows = self
+            .get_daily_usage(customer_id, start_date, end_date)
+            .await?;
+        Ok(summarize_usage_totals(&rows))
     }
 }

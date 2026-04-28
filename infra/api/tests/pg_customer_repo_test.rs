@@ -51,6 +51,34 @@ async fn cleanup_customer(pool: &PgPool, email: &str) {
         .ok();
 }
 
+async fn cleanup_customer_graph(pool: &PgPool, customer_ids: &[Uuid]) {
+    sqlx::query("DELETE FROM customer_tenants WHERE customer_id = ANY($1)")
+        .bind(customer_ids.to_vec())
+        .execute(pool)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM customer_deployments WHERE customer_id = ANY($1)")
+        .bind(customer_ids.to_vec())
+        .execute(pool)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM subscriptions WHERE customer_id = ANY($1)")
+        .bind(customer_ids.to_vec())
+        .execute(pool)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM invoices WHERE customer_id = ANY($1)")
+        .bind(customer_ids.to_vec())
+        .execute(pool)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM customers WHERE id = ANY($1)")
+        .bind(customer_ids.to_vec())
+        .execute(pool)
+        .await
+        .ok();
+}
+
 /// Minimal row shape used to inspect retention metadata directly from SQL.
 #[derive(sqlx::FromRow)]
 struct CustomerDeletionMetadataRaw {
@@ -441,4 +469,194 @@ async fn deleted_customer_cutoff_selector_tie_breaks_equal_deleted_at_by_id() {
 
     cleanup_customer(&pool, &first_deleted_email).await;
     cleanup_customer(&pool, &second_deleted_email).await;
+}
+
+#[tokio::test]
+async fn list_aggregates_billing_health_inputs_without_duplicate_customer_rows() {
+    let Some(pool) = connect_and_migrate().await else {
+        return;
+    };
+    let repo = PgCustomerRepo::new(pool.clone());
+    let first_email = format!(
+        "list-health-first-{}@integration.test",
+        &Uuid::new_v4().to_string()[..8]
+    );
+    let second_email = format!(
+        "list-health-second-{}@integration.test",
+        &Uuid::new_v4().to_string()[..8]
+    );
+
+    let first = repo
+        .create("List Health First", &first_email)
+        .await
+        .expect("create first customer");
+    let second = repo
+        .create("List Health Second", &second_email)
+        .await
+        .expect("create second customer");
+
+    let first_deployment_id = Uuid::new_v4();
+    let second_deployment_id = Uuid::new_v4();
+    let first_short = &first.id.to_string()[..8];
+    let second_short = &second.id.to_string()[..8];
+
+    sqlx::query(
+        "INSERT INTO customer_deployments (id, customer_id, node_id, region, vm_type, vm_provider) \
+         VALUES ($1, $2, $3, $4, $5, $6)",
+    )
+    .bind(first_deployment_id)
+    .bind(first.id)
+    .bind(format!("node-list-health-{first_short}"))
+    .bind("us-east-1")
+    .bind("t4g.small")
+    .bind("aws")
+    .execute(&pool)
+    .await
+    .expect("insert first deployment");
+
+    sqlx::query(
+        "INSERT INTO customer_deployments (id, customer_id, node_id, region, vm_type, vm_provider) \
+         VALUES ($1, $2, $3, $4, $5, $6)",
+    )
+    .bind(second_deployment_id)
+    .bind(second.id)
+    .bind(format!("node-list-health-{second_short}"))
+    .bind("us-east-1")
+    .bind("t4g.small")
+    .bind("aws")
+    .execute(&pool)
+    .await
+    .expect("insert second deployment");
+
+    let older_access = chrono::Utc::now() - chrono::Duration::hours(4);
+    let newest_access = chrono::Utc::now() - chrono::Duration::minutes(5);
+    sqlx::query(
+        "INSERT INTO customer_tenants (customer_id, tenant_id, deployment_id, last_accessed_at) \
+         VALUES ($1, $2, $3, $4), ($5, $6, $7, $8), ($9, $10, $11, $12)",
+    )
+    .bind(first.id)
+    .bind(format!("tenant-list-health-a-{first_short}"))
+    .bind(first_deployment_id)
+    .bind(older_access)
+    .bind(first.id)
+    .bind(format!("tenant-list-health-b-{first_short}"))
+    .bind(first_deployment_id)
+    .bind(newest_access)
+    .bind(second.id)
+    .bind(format!("tenant-list-health-a-{second_short}"))
+    .bind(second_deployment_id)
+    .bind(chrono::Utc::now() - chrono::Duration::minutes(30))
+    .execute(&pool)
+    .await
+    .expect("insert tenant rows");
+
+    let subscription_period_start = chrono::NaiveDate::from_ymd_opt(2026, 1, 1).unwrap();
+    let subscription_period_end = chrono::NaiveDate::from_ymd_opt(2026, 1, 31).unwrap();
+    // Migration 029 allows at most one non-canceled subscription per customer.
+    // This fixture therefore proves the list query against the real schema
+    // contract: one non-canceled row plus newer canceled rows that must be
+    // ignored by the subscription summary join.
+    let non_canceled_created_at = chrono::Utc::now() - chrono::Duration::hours(6);
+    let newest_canceled_created_at = chrono::Utc::now() - chrono::Duration::hours(1);
+    sqlx::query(
+        "INSERT INTO subscriptions \
+            (customer_id, stripe_subscription_id, stripe_price_id, plan_tier, status, \
+             current_period_start, current_period_end, cancel_at_period_end, created_at, updated_at) \
+         VALUES \
+            ($1, $2, $3, $4, $5, $6, $7, FALSE, $8, $8), \
+            ($9, $10, $11, $12, $13, $14, $15, FALSE, $16, $16), \
+            ($17, $18, $19, $20, $21, $22, $23, FALSE, $24, $24)",
+    )
+    .bind(first.id)
+    .bind(format!("sub-list-health-trialing-{first_short}"))
+    .bind("price_test_trialing")
+    .bind("starter")
+    .bind("trialing")
+    .bind(subscription_period_start)
+    .bind(subscription_period_end)
+    .bind(non_canceled_created_at)
+    .bind(first.id)
+    .bind(format!("sub-list-health-canceled-{first_short}"))
+    .bind("price_test_canceled")
+    .bind("starter")
+    .bind("canceled")
+    .bind(subscription_period_start)
+    .bind(subscription_period_end)
+    .bind(newest_canceled_created_at)
+    .bind(second.id)
+    .bind(format!("sub-list-health-canceled-{second_short}"))
+    .bind("price_test_second_canceled")
+    .bind("starter")
+    .bind("canceled")
+    .bind(subscription_period_start)
+    .bind(subscription_period_end)
+    .bind(newest_canceled_created_at)
+    .execute(&pool)
+    .await
+    .expect("insert subscription rows");
+
+    sqlx::query(
+        "INSERT INTO invoices (customer_id, period_start, period_end, subtotal_cents, total_cents, status) \
+         VALUES \
+            ($1, DATE '2026-01-01', DATE '2026-01-31', 100, 100, 'failed'), \
+            ($2, DATE '2026-02-01', DATE '2026-02-28', 200, 200, 'failed'), \
+            ($3, DATE '2026-03-01', DATE '2026-03-31', 300, 300, 'paid'), \
+            ($4, DATE '2026-01-01', DATE '2026-01-31', 100, 100, 'paid')",
+    )
+    .bind(first.id)
+    .bind(first.id)
+    .bind(first.id)
+    .bind(second.id)
+    .execute(&pool)
+    .await
+    .expect("insert invoice rows");
+
+    let list = repo.list().await.expect("list customers");
+    let seeded_rows: Vec<_> = list
+        .into_iter()
+        .filter(|row| row.id == first.id || row.id == second.id)
+        .collect();
+    assert_eq!(
+        seeded_rows.len(),
+        2,
+        "list must return exactly one row per customer even with multi-row joins"
+    );
+
+    let first_row = seeded_rows
+        .iter()
+        .find(|row| row.id == first.id)
+        .expect("first seeded customer should be in list output");
+    assert_eq!(
+        first_row.last_accessed_at,
+        Some(newest_access),
+        "list should project MAX(customer_tenants.last_accessed_at) per customer"
+    );
+    assert_eq!(
+        first_row.subscription_status.as_deref(),
+        Some("trialing"),
+        "list should ignore newer canceled subscriptions and project the remaining non-canceled status"
+    );
+    assert_eq!(
+        first_row.overdue_invoice_count, 2,
+        "list should count only failed invoices for overdue tally"
+    );
+
+    let second_row = seeded_rows
+        .iter()
+        .find(|row| row.id == second.id)
+        .expect("second seeded customer should be in list output");
+    assert!(
+        second_row.last_accessed_at.is_some(),
+        "customer with one tenant should project that tenant's last_accessed_at"
+    );
+    assert_eq!(
+        second_row.subscription_status, None,
+        "customer with only canceled subscriptions should have null subscription_status"
+    );
+    assert_eq!(
+        second_row.overdue_invoice_count, 0,
+        "customer with no failed invoices should have overdue_invoice_count = 0"
+    );
+
+    cleanup_customer_graph(&pool, &[first.id, second.id]).await;
 }

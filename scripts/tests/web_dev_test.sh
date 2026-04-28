@@ -28,13 +28,25 @@ setup_repo_env() {
     local tmp_dir="$1"
     WEB_DEV_ENV_BACKUP=$(backup_repo_path "$REPO_ROOT/.env.local" "$tmp_dir/.env.local.backup")
     WEB_DEV_WEB_ENV_BACKUP=$(backup_repo_path "$REPO_ROOT/web/.env.local" "$tmp_dir/web.env.local.backup")
+    WEB_DEV_VITE_BACKUP=$(backup_repo_path "$REPO_ROOT/web/node_modules/.bin/vite" "$tmp_dir/vite.backup")
 }
 
 restore_repo_env() {
     restore_repo_path "$REPO_ROOT/.env.local" "${WEB_DEV_ENV_BACKUP:-}"
     restore_repo_path "$REPO_ROOT/web/.env.local" "${WEB_DEV_WEB_ENV_BACKUP:-}"
+    restore_repo_path "$REPO_ROOT/web/node_modules/.bin/vite" "${WEB_DEV_VITE_BACKUP:-}"
     WEB_DEV_ENV_BACKUP=""
     WEB_DEV_WEB_ENV_BACKUP=""
+    WEB_DEV_VITE_BACKUP=""
+}
+
+ensure_repo_vite_runtime_stub() {
+    mkdir -p "$REPO_ROOT/web/node_modules/.bin"
+    cat > "$REPO_ROOT/web/node_modules/.bin/vite" <<'EOF'
+#!/usr/bin/env bash
+exit 0
+EOF
+    chmod +x "$REPO_ROOT/web/node_modules/.bin/vite"
 }
 
 write_mock_npm() {
@@ -64,6 +76,7 @@ test_loads_repo_root_env_and_defaults_api_base_url() {
     setup_repo_env "$tmp_dir"
     write_local_dev_env_file "$REPO_ROOT/.env.local" "postgres://local-test:local-pass@localhost:5432/local_dev_test"
     rm -f "$REPO_ROOT/web/.env.local"
+    ensure_repo_vite_runtime_stub
 
     local call_log="$tmp_dir/npm.log"
     mkdir -p "$tmp_dir/bin"
@@ -99,6 +112,7 @@ test_forwards_caller_strictness_flags_once_without_contradictions() {
     setup_repo_env "$tmp_dir"
     write_local_dev_env_file "$REPO_ROOT/.env.local" "postgres://local-test:local-pass@localhost:5432/local_dev_test"
     rm -f "$REPO_ROOT/web/.env.local"
+    ensure_repo_vite_runtime_stub
 
     local call_log_with_flag="$tmp_dir/npm-with-flag.log"
     local call_log_with_value="$tmp_dir/npm-with-value.log"
@@ -147,6 +161,7 @@ API_BASE_URL=http://localhost:3222
 JWT_SECRET=web-file-jwt-secret
 ADMIN_KEY=web-file-admin-key
 EOF
+    ensure_repo_vite_runtime_stub
 
     local call_log="$tmp_dir/npm.log"
     mkdir -p "$tmp_dir/bin"
@@ -185,6 +200,7 @@ EOF
     cat > "$REPO_ROOT/web/.env.local" <<'EOF'
 EXTRA_LAYERED_VAR=web-file-value
 EOF
+    ensure_repo_vite_runtime_stub
 
     local call_log="$tmp_dir/npm.log"
     mkdir -p "$tmp_dir/bin"
@@ -218,6 +234,7 @@ API_BASE_URL=http://localhost:3444
 JWT_SECRET=web-file-jwt-secret
 ADMIN_KEY=web-file-admin-key
 EOF
+    ensure_repo_vite_runtime_stub
 
     local call_log="$tmp_dir/npm.log"
     mkdir -p "$tmp_dir/bin"
@@ -333,6 +350,39 @@ EOF
         "should explain the missing JWT secret requirement"
 }
 
+test_fails_fast_with_actionable_message_when_vite_runtime_missing() {
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    trap 'restore_repo_env; rm -rf "'"$tmp_dir"'"' RETURN
+
+    setup_repo_env "$tmp_dir"
+    write_local_dev_env_file "$REPO_ROOT/.env.local" "postgres://local-test:local-pass@localhost:5432/local_dev_test"
+    rm -f "$REPO_ROOT/web/.env.local"
+    rm -f "$REPO_ROOT/web/node_modules/.bin/vite"
+
+    local call_log="$tmp_dir/npm.log"
+    mkdir -p "$tmp_dir/bin"
+    write_mock_npm "$tmp_dir/bin/npm" "$call_log"
+
+    local output exit_code=0
+    output=$(
+        PATH="$tmp_dir/bin:$PATH" \
+        bash "$REPO_ROOT/scripts/web-dev.sh" 2>&1
+    ) || exit_code=$?
+
+    assert_eq "$exit_code" "1" "should fail fast when vite runtime is missing"
+    assert_contains "$output" "web/node_modules/.bin/vite is missing or not executable" \
+        "should name the missing vite runtime path"
+    assert_contains "$output" "cd web && npm ci" \
+        "should include an actionable install command for missing vite runtime"
+
+    if [ -e "$call_log" ]; then
+        fail "should fail before invoking npm when vite runtime is missing"
+    else
+        pass "should fail before invoking npm when vite runtime is missing"
+    fi
+}
+
 test_web_wrapper_uses_shared_env_parser_contract() {
     local script_content
     script_content=$(cat "$REPO_ROOT/scripts/web-dev.sh")
@@ -356,6 +406,7 @@ main() {
     test_rejects_executable_shell_content_in_repo_env_file
     test_rejects_executable_shell_content_in_web_env_file
     test_requires_auth_env_after_loading
+    test_fails_fast_with_actionable_message_when_vite_runtime_missing
     test_web_wrapper_uses_shared_env_parser_contract
 
     echo ""

@@ -10,6 +10,8 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 source "$REPO_ROOT/scripts/lib/live_gate.sh"
 source "$REPO_ROOT/scripts/lib/stripe_checks.sh"
 source "$REPO_ROOT/scripts/lib/env.sh"
+source "$REPO_ROOT/scripts/lib/full_backend_validation_cli.sh"
+source "$REPO_ROOT/scripts/lib/full_backend_validation_json.sh"
 CARGO_BIN="${FULL_VALIDATION_CARGO_BIN:-cargo}"
 BACKEND_GATE_SCRIPT="${FULL_VALIDATION_BACKEND_GATE_SCRIPT:-$REPO_ROOT/scripts/launch/backend_launch_gate.sh}"
 LOCAL_SIGNOFF_SCRIPT="${FULL_VALIDATION_LOCAL_SIGNOFF_SCRIPT:-$REPO_ROOT/scripts/local-signoff.sh}"
@@ -21,6 +23,9 @@ TERRAFORM_STAGE8_STATIC_SCRIPT="${FULL_VALIDATION_TERRAFORM_STAGE8_STATIC_SCRIPT
 TERRAFORM_STAGE7_RUNTIME_SMOKE_SCRIPT="${FULL_VALIDATION_TERRAFORM_STAGE7_RUNTIME_SMOKE_SCRIPT:-$REPO_ROOT/ops/terraform/tests_stage7_runtime_smoke.sh}"
 PLAYWRIGHT_BIN="${FULL_VALIDATION_PLAYWRIGHT_BIN:-npx}"
 PLAYWRIGHT_WEB_DIR="${FULL_VALIDATION_PLAYWRIGHT_WEB_DIR:-$REPO_ROOT/web}"
+OUTSIDE_AWS_HEALTH_SCRIPT="${FULL_VALIDATION_OUTSIDE_AWS_HEALTH_SCRIPT:-$REPO_ROOT/scripts/canary/outside_aws_health_check.sh}"
+SES_INBOUND_ROUNDTRIP_SCRIPT="${FULL_VALIDATION_SES_INBOUND_ROUNDTRIP_SCRIPT:-$REPO_ROOT/scripts/validate_inbound_email_roundtrip.sh}"
+CANARY_CUSTOMER_LOOP_SCRIPT="${FULL_VALIDATION_CANARY_CUSTOMER_LOOP_SCRIPT:-$REPO_ROOT/scripts/canary/customer_loop_synthetic.sh}"
 SHA_OVERRIDE=""
 MODE="live"
 ARTIFACT_DIR=""
@@ -37,6 +42,8 @@ STEP_STATUSES=()
 STEP_REASONS=()
 STEP_ELAPSED_MS=()
 STEP_COMMAND=()
+DELEGATED_SKIP_EXIT_CODE=3
+CRITICAL_BROWSER_STEPS=("browser_preflight" "browser_auth_setup" "browser_signup_paid" "browser_portal_cancel")
 print_usage() {
     cat <<'USAGE'
 Usage:
@@ -79,41 +86,6 @@ is_valid_ami_id() {
 }
 DELEGATED_JSON_RESULT=""
 DELEGATED_JSON_CLASSIFICATION=""
-parse_delegated_billing_summary() {
-    local json_body="$1"
-    DELEGATED_JSON_RESULT=""
-    DELEGATED_JSON_CLASSIFICATION=""
-    if ! command -v python3 >/dev/null 2>&1; then
-        return 1
-    fi
-    local parsed_result="" parsed_classification="" parsed_line="" parsed_index=0
-    while IFS= read -r parsed_line; do
-        if [ "$parsed_index" -eq 0 ]; then
-            parsed_result="$parsed_line"
-        elif [ "$parsed_index" -eq 1 ]; then
-            parsed_classification="$parsed_line"
-        fi
-        parsed_index=$((parsed_index + 1))
-    done < <(
-        python3 - "$json_body" <<'PY' 2>/dev/null || true
-import json
-import sys
-body = sys.argv[1]
-try:
-    payload = json.loads(body)
-except Exception:
-    print("")
-    print("")
-    raise SystemExit(0)
-result = payload.get("result", "")
-classification = payload.get("classification", "")
-print("" if result is None else str(result))
-print("" if classification is None else str(classification))
-PY
-    )
-    DELEGATED_JSON_RESULT="$parsed_result"
-    DELEGATED_JSON_CLASSIFICATION="$parsed_classification"
-}
 resolve_sha() {
     if [ -n "$SHA_OVERRIDE" ]; then
         printf '%s\n' "$SHA_OVERRIDE"
@@ -125,77 +97,6 @@ resolve_sha() {
         return 0
     fi
     return 1
-}
-emit_result_json() {
-    local verdict="$1"
-    local mode="$2"
-    local start_ms="$3"
-    local ready="$4"
-    local end_ms total_elapsed
-    end_ms="$(_ms_now)"
-    total_elapsed=$((end_ms - start_ms))
-    local names_encoded statuses_encoded reasons_encoded elapsed_encoded preflight_encoded=""
-    names_encoded="$(printf '%s\x1f' "${STEP_NAMES[@]:-}")"
-    statuses_encoded="$(printf '%s\x1f' "${STEP_STATUSES[@]:-}")"
-    reasons_encoded="$(printf '%s\x1f' "${STEP_REASONS[@]:-}")"
-    elapsed_encoded="$(printf '%s\x1f' "${STEP_ELAPSED_MS[@]:-}")"
-    if [ "${#PRE_FLIGHT_FAILURES[@]}" -gt 0 ]; then
-        preflight_encoded="$(printf '%s\x1f' "${PRE_FLIGHT_FAILURES[@]}")"
-    fi
-    NAMES="$names_encoded" \
-    STATUSES="$statuses_encoded" \
-    REASONS="$reasons_encoded" \
-    ELAPSED="$elapsed_encoded" \
-    PREFLIGHT="$preflight_encoded" \
-    VERDICT="$verdict" \
-    MODE="$mode" \
-    TOTAL_ELAPSED="$total_elapsed" \
-    READY="$ready" \
-    python3 -c '
-import json
-import os
-from datetime import datetime, timezone
-def decode(key):
-    raw = os.environ.get(key, "")
-    if raw == "":
-        return []
-    parts = raw.split("\x1f")
-    if parts and parts[-1] == "":
-        parts = parts[:-1]
-    return parts
-names = decode("NAMES")
-statuses = decode("STATUSES")
-reasons = decode("REASONS")
-elapsed = decode("ELAPSED")
-preflight_failures = decode("PREFLIGHT")
-steps = []
-for idx, name in enumerate(names):
-    status = statuses[idx] if idx < len(statuses) else "fail"
-    reason = reasons[idx] if idx < len(reasons) else ""
-    elapsed_raw = elapsed[idx] if idx < len(elapsed) else "0"
-    try:
-        elapsed_ms = int(elapsed_raw)
-    except Exception:
-        elapsed_ms = 0
-    steps.append({
-        "name": name,
-        "status": status,
-        "reason": reason,
-        "elapsed_ms": elapsed_ms,
-    })
-ts = datetime.now(timezone.utc).replace(microsecond=0).strftime("%Y-%m-%dT%H:%M:%SZ")
-obj = {
-    "elapsed_ms": int(os.environ.get("TOTAL_ELAPSED", "0")),
-    "mode": os.environ.get("MODE", "live"),
-    "ready": os.environ.get("READY", "false").lower() == "true",
-    "steps": steps,
-    "timestamp": ts,
-    "verdict": os.environ.get("VERDICT", "fail"),
-}
-if preflight_failures:
-    obj["preflight_failures"] = preflight_failures
-print(json.dumps(obj, sort_keys=True))
-'
 }
 run_preflight() {
     PRE_FLIGHT_FAILURES=()
@@ -294,6 +195,15 @@ resolve_credential_value() {
     fi
     return 1
 }
+resolve_first_available_credential_value() {
+    local key value value_status
+    for key in "$@"; do
+        value="$(resolve_credential_value "$key")" && { printf '%s\n' "$value"; return 0; }
+        value_status=$?
+        [ "$value_status" -eq 2 ] || [ "$value_status" -eq 3 ] && return "$value_status"
+    done
+    return 1
+}
 run_step_local_signoff() {
     local start_ms end_ms elapsed status reason
     start_ms="$(_ms_now)"
@@ -319,7 +229,7 @@ run_step_ses_readiness() {
     local shell_ses_identity="${SES_FROM_ADDRESS:-}"
     ses_identity="$(resolve_credential_value "SES_FROM_ADDRESS")" || ses_identity_status=$?
     if [ "$ses_identity_status" -ne 0 ]; then
-        status="blocked"
+        status="external_secret_missing"
         case "$ses_identity_status" in
             2)
                 reason="credentialed_env_file_parse_failed"
@@ -340,7 +250,7 @@ run_step_ses_readiness() {
     if [ "$ses_region_status" -eq 2 ]; then
         end_ms="$(_ms_now)"
         elapsed=$((end_ms - start_ms))
-        append_step "ses_readiness" "blocked" "credentialed_env_file_parse_failed" "$elapsed"
+        append_step "ses_readiness" "external_secret_missing" "credentialed_env_file_parse_failed" "$elapsed"
         return 2
     fi
     if [ "$ses_region_status" -eq 3 ]; then
@@ -352,7 +262,7 @@ run_step_ses_readiness() {
         else
             end_ms="$(_ms_now)"
             elapsed=$((end_ms - start_ms))
-            append_step "ses_readiness" "blocked" "credentialed_env_file_missing" "$elapsed"
+            append_step "ses_readiness" "external_secret_missing" "credentialed_env_file_missing" "$elapsed"
             return 2
         fi
     fi
@@ -380,13 +290,13 @@ run_step_staging_billing_rehearsal() {
     if [ -z "$CREDENTIAL_ENV_FILE" ] || [ ! -f "$CREDENTIAL_ENV_FILE" ] || [ ! -r "$CREDENTIAL_ENV_FILE" ]; then
         end_ms="$(_ms_now)"
         elapsed=$((end_ms - start_ms))
-        append_step "staging_billing_rehearsal" "blocked" "credentialed_billing_env_file_missing" "$elapsed"
+        append_step "staging_billing_rehearsal" "external_secret_missing" "credentialed_billing_env_file_missing" "$elapsed"
         return 2
     fi
     if [ -z "$BILLING_MONTH" ]; then
         end_ms="$(_ms_now)"
         elapsed=$((end_ms - start_ms))
-        append_step "staging_billing_rehearsal" "blocked" "credentialed_billing_month_missing" "$elapsed"
+        append_step "staging_billing_rehearsal" "live_evidence_gap" "credentialed_billing_month_missing" "$elapsed"
         return 2
     fi
     local output="" exit_code=0
@@ -401,10 +311,16 @@ run_step_staging_billing_rehearsal() {
     delegated_result="$DELEGATED_JSON_RESULT"
     delegated_classification="$DELEGATED_JSON_CLASSIFICATION"
     if [ "$delegated_result" = "blocked" ]; then
-        status="blocked"
+        status="live_evidence_gap"
         reason="$delegated_classification"
         if [ -z "$reason" ]; then
             reason="staging_billing_rehearsal_blocked"
+        fi
+    elif [ "$delegated_result" = "skipped" ] && [ "$exit_code" -eq 0 ]; then
+        status="skipped"
+        reason="$delegated_classification"
+        if [ -z "$reason" ]; then
+            reason="staging_billing_rehearsal_skipped"
         fi
     elif [ "$delegated_result" = "failed" ]; then
         status="fail"
@@ -424,7 +340,7 @@ run_step_staging_billing_rehearsal() {
         reason="staging_billing_rehearsal_output_invalid"
     fi
     append_step "staging_billing_rehearsal" "$status" "$reason" "$elapsed"
-    if [ "$status" = "pass" ]; then
+    if [ "$status" = "pass" ] || [ "$status" = "skipped" ]; then
         return 0
     fi
     return 1
@@ -478,11 +394,17 @@ run_delegated_command_step() {
     if [ "$exit_code" -eq 0 ]; then
         status="pass"
         reason=""
+    elif [ "$exit_code" -eq "$DELEGATED_SKIP_EXIT_CODE" ]; then
+        status="skipped"
+        reason="${step_name}_skipped"
     else
         status="fail"
         reason="$fail_reason"
     fi
     append_step "$step_name" "$status" "$reason" "$elapsed"
+    if [ "$status" = "skipped" ]; then
+        return 0
+    fi
     return "$exit_code"
 }
 run_step_browser_preflight() {
@@ -528,37 +450,11 @@ run_step_staging_runtime_smoke() {
     if [ -z "$STAGING_SMOKE_AMI_ID" ] || [ -z "$CREDENTIAL_ENV_FILE" ] || [ ! -f "$CREDENTIAL_ENV_FILE" ] || [ ! -r "$CREDENTIAL_ENV_FILE" ]; then
         end_ms="$(_ms_now)"
         elapsed=$((end_ms - start_ms))
-        append_step "staging_runtime_smoke" "blocked" "credentialed_staging_smoke_inputs_missing" "$elapsed"
+        append_step "staging_runtime_smoke" "live_evidence_gap" "credentialed_staging_smoke_inputs_missing" "$elapsed"
         return 2
     fi
     build_staging_runtime_smoke_command
     run_delegated_command_step "staging_runtime_smoke" "staging_runtime_smoke_failed" "" "${STEP_COMMAND[@]}"
-}
-backend_gate_reason_from_json() {
-    local payload="$1"
-    python3 -c '
-import json,sys
-try:
-    data = json.loads(sys.stdin.read())
-except Exception:
-    print("backend launch gate returned invalid JSON")
-    raise SystemExit(0)
-if data.get("verdict") == "pass":
-    print("")
-else:
-    gates = data.get("gates", [])
-    if isinstance(gates, list):
-        failures = []
-        for gate in gates:
-            if isinstance(gate, dict) and gate.get("status") == "fail":
-                name = gate.get("name", "unknown")
-                reason = gate.get("reason", "")
-                failures.append(f"{name}: {reason}" if reason else str(name))
-        if failures:
-            print("; ".join(failures))
-            raise SystemExit(0)
-    print(str(data.get("reason", "backend launch gate failed")))
-' <<< "$payload"
 }
 run_step_backend_launch_gate() {
     local sha="$1"
@@ -616,109 +512,6 @@ reset_run_state() {
     STEP_ELAPSED_MS=()
     PRE_FLIGHT_FAILURES=()
 }
-parse_cli_args() {
-    local arg
-    for arg in "$@"; do
-        case "$arg" in
-            --help)
-                print_usage
-                return 10
-                ;;
-            --dry-run)
-                if [ -n "$EXPLICIT_MODE" ] && [ "$EXPLICIT_MODE" != "dry_run" ]; then
-                    echo "ERROR: --dry-run cannot be combined with --paid-beta-rc" >&2
-                    print_usage >&2
-                    return 2
-                fi
-                EXPLICIT_MODE="dry_run"
-                ;;
-            --paid-beta-rc)
-                if [ -n "$EXPLICIT_MODE" ] && [ "$EXPLICIT_MODE" != "paid_beta_rc" ]; then
-                    echo "ERROR: --paid-beta-rc cannot be combined with --dry-run" >&2
-                    print_usage >&2
-                    return 2
-                fi
-                EXPLICIT_MODE="paid_beta_rc"
-                ;;
-            --sha=*)
-                SHA_OVERRIDE="${arg#--sha=}"
-                ;;
-            --artifact-dir=*)
-                ARTIFACT_DIR="${arg#--artifact-dir=}"
-                ;;
-            --credential-env-file=*)
-                CREDENTIAL_ENV_FILE="${arg#--credential-env-file=}"
-                ;;
-            --billing-month=*)
-                BILLING_MONTH="${arg#--billing-month=}"
-                ;;
-            --staging-smoke-ami-id=*)
-                STAGING_SMOKE_AMI_ID="${arg#--staging-smoke-ami-id=}"
-                ;;
-            *)
-                echo "ERROR: unknown argument '$arg'" >&2
-                print_usage >&2
-                return 2
-                ;;
-        esac
-    done
-    return 0
-}
-validate_cli_args() {
-    if [ -n "$SHA_OVERRIDE" ] && ! is_valid_sha "$SHA_OVERRIDE"; then
-        echo "ERROR: --sha must be a 40-character lowercase hexadecimal commit SHA" >&2
-        return 2
-    fi
-    if [ -n "$BILLING_MONTH" ] && ! is_valid_billing_month "$BILLING_MONTH"; then
-        echo "ERROR: --billing-month must use YYYY-MM format with month 01-12" >&2
-        return 2
-    fi
-    if [ -n "$STAGING_SMOKE_AMI_ID" ] && ! is_valid_ami_id "$STAGING_SMOKE_AMI_ID"; then
-        echo "ERROR: --staging-smoke-ami-id must use AMI ID format (ami-xxxxxxxx or ami-xxxxxxxxxxxxxxxxx)" >&2
-        return 2
-    fi
-    return 0
-}
-resolve_mode() {
-    if [ -n "$EXPLICIT_MODE" ]; then
-        MODE="$EXPLICIT_MODE"
-        return
-    fi
-    if [ "${DRY_RUN:-0}" = "1" ]; then
-        MODE="dry_run"
-    fi
-}
-resolve_optional_sha() {
-    if resolve_sha >/dev/null 2>&1; then
-        resolve_sha
-    else
-        printf '\n'
-    fi
-}
-prepare_mode_requirements() {
-    local start_ms="$1"
-    if [ "$MODE" = "live" ]; then
-        if ! run_preflight; then
-            emit_result_json "fail" "$MODE" "$start_ms" "false"
-            return 1
-        fi
-        RESOLVED_SHA="$(resolve_sha)"
-        return 0
-    fi
-    if [ "$MODE" = "paid_beta_rc" ]; then
-        if [ -z "$RESOLVED_SHA" ]; then
-            PRE_FLIGHT_FAILURES=("missing git SHA (pass --sha=<sha> or ensure git rev-parse HEAD works)")
-            emit_result_json "fail" "$MODE" "$start_ms" "false"
-            return 1
-        fi
-        if ! ensure_rc_artifact_dir; then
-            PRE_FLIGHT_FAILURES=("unable to prepare --artifact-dir path")
-            emit_result_json "fail" "$MODE" "$start_ms" "false"
-            return 1
-        fi
-    fi
-    return 0
-}
 execute_required_step() {
     local step_function="$1"
     shift
@@ -727,27 +520,157 @@ execute_required_step() {
         READY="false"
     fi
 }
+run_paid_beta_rc_rust_step() {
+    local step_name="$1" fail_reason="$2" classify_skip_as_secret_missing="$3" command="$4"
+    local start_ms end_ms elapsed output="" exit_code=0
+    start_ms="$(_ms_now)"
+    output="$(cd "$REPO_ROOT/infra" && bash -lc "$command" 2>&1)" || exit_code=$?
+    end_ms="$(_ms_now)"
+    elapsed=$((end_ms - start_ms))
+    if [ "$classify_skip_as_secret_missing" = "1" ] && [[ "$output" == *"SKIP:"* ]]; then
+        append_step "$step_name" "external_secret_missing" "database_skip_marker" "$elapsed"
+        return 2
+    fi
+    if [ "$exit_code" -eq 0 ]; then
+        append_step "$step_name" "pass" "" "$elapsed"
+        return 0
+    fi
+    append_step "$step_name" "fail" "$fail_reason" "$elapsed"
+    return "$exit_code"
+}
+append_paid_beta_rc_constant_step() {
+    local step_name="$1" status="$2" reason="$3"
+    local start_ms end_ms elapsed
+    start_ms="$(_ms_now)"
+    end_ms="$(_ms_now)"
+    elapsed=$((end_ms - start_ms))
+    append_step "$step_name" "$status" "$reason" "$elapsed"
+    if [ "$status" = "pass" ] || [ "$status" = "skipped" ]; then
+        return 0
+    fi
+    return 2
+}
+run_step_paid_beta_rc_ses_inbound() {
+    local start_ms end_ms elapsed exit_code=0 ses_identity="" ses_region=""
+    local ses_identity_status=0 ses_region_status=0
+    start_ms="$(_ms_now)"
+    ses_identity="$(resolve_credential_value "SES_FROM_ADDRESS")" || ses_identity_status=$?
+    ses_region="$(resolve_credential_value "SES_REGION")" || ses_region_status=$?
+    if [ "$ses_identity_status" -ne 0 ] || [ "$ses_region_status" -ne 0 ]; then
+        end_ms="$(_ms_now)"; elapsed=$((end_ms - start_ms))
+        append_step "ses_inbound" "external_secret_missing" "credentialed_ses_inbound_inputs_missing" "$elapsed"; return 2
+    fi
+    env SES_FROM_ADDRESS="$ses_identity" SES_REGION="$ses_region" bash "$SES_INBOUND_ROUNDTRIP_SCRIPT" >/dev/null 2>&1 || exit_code=$?
+    end_ms="$(_ms_now)"; elapsed=$((end_ms - start_ms))
+    case "$exit_code" in
+        0) append_step "ses_inbound" "pass" "" "$elapsed" ;;
+        21) append_step "ses_inbound" "fail" "ses_inbound_roundtrip_timeout" "$elapsed" ;;
+        22) append_step "ses_inbound" "fail" "ses_inbound_auth_verdict_failed" "$elapsed" ;;
+        1) append_step "ses_inbound" "fail" "ses_inbound_roundtrip_runtime_failed" "$elapsed" ;;
+        2) append_step "ses_inbound" "fail" "ses_inbound_roundtrip_usage_failed" "$elapsed" ;;
+        *) append_step "ses_inbound" "fail" "ses_inbound_roundtrip_runtime_failed" "$elapsed" ;;
+    esac
+    [ "$exit_code" -eq 0 ] && return 0
+    return "$exit_code"
+}
+run_step_paid_beta_rc_canary_customer_loop() {
+    local start_ms end_ms elapsed exit_code=0 canary_admin_key="" canary_stripe_key=""
+    local canary_admin_key_status=0 canary_stripe_key_status=0
+    start_ms="$(_ms_now)"
+    canary_admin_key="$(resolve_first_available_credential_value "ADMIN_KEY" "FLAPJACK_ADMIN_KEY")" || canary_admin_key_status=$?
+    canary_stripe_key="$(resolve_first_available_credential_value "STRIPE_SECRET_KEY" "STRIPE_TEST_SECRET_KEY")" || canary_stripe_key_status=$?
+    if [ "$canary_admin_key_status" -ne 0 ] || [ "$canary_stripe_key_status" -ne 0 ]; then
+        end_ms="$(_ms_now)"; elapsed=$((end_ms - start_ms))
+        append_step "canary_customer_loop" "external_secret_missing" "credentialed_canary_customer_loop_inputs_missing" "$elapsed"; return 2
+    fi
+    env ADMIN_KEY="$canary_admin_key" STRIPE_SECRET_KEY="$canary_stripe_key" CANARY_RC_READINESS_MODE=1 bash "$CANARY_CUSTOMER_LOOP_SCRIPT" >/dev/null 2>&1 || exit_code=$?
+    end_ms="$(_ms_now)"; elapsed=$((end_ms - start_ms))
+    if [ "$exit_code" -eq 0 ]; then
+        append_step "canary_customer_loop" "pass" "" "$elapsed"; return 0
+    fi
+    append_step "canary_customer_loop" "fail" "canary_customer_loop_failed" "$elapsed"
+    return "$exit_code"
+}
 run_required_paid_beta_rc_steps() {
     execute_required_step run_step_local_signoff
     execute_required_step run_step_ses_readiness
-    # Required credentialed proof: missing env/month is intentionally blocked,
-    # and blocked must keep ready=false with a legacy-compatible fail verdict.
     execute_required_step run_step_staging_billing_rehearsal
     execute_required_step run_step_browser_preflight
     execute_required_step run_step_browser_auth_setup
     execute_required_step run_step_terraform_static_guardrails
     execute_required_step run_step_staging_runtime_smoke
+    execute_required_step run_paid_beta_rc_rust_step "admin_broadcast" "admin_broadcast_failed" "1" "\"$CARGO_BIN\" test -p api --test admin_broadcast_test -- --ignored"
+    execute_required_step run_paid_beta_rc_rust_step "billing_health_last_activity" "billing_health_last_activity_failed" "1" "\"$CARGO_BIN\" test -p api --test pg_customer_repo_test && \"$CARGO_BIN\" test -p api --test tenants_test"
+    execute_required_step run_paid_beta_rc_rust_step "audit_timeline" "audit_timeline_failed" "1" "\"$CARGO_BIN\" test -p api --test admin_audit_view_test -- --ignored && \"$CARGO_BIN\" test -p api --test admin_token_audit_test -- --ignored"
+    execute_required_step run_paid_beta_rc_rust_step "status_runtime" "status_runtime_failed" "0" "\"$CARGO_BIN\" test -p api --test onboarding_test status_response_uses_region_not_deployment_field_names"
+    execute_required_step run_step_paid_beta_rc_ses_inbound
+    execute_required_step run_step_paid_beta_rc_canary_customer_loop
+    execute_required_step run_delegated_command_step "canary_outside_aws" "canary_outside_aws_failed" "" bash "$OUTSIDE_AWS_HEALTH_SCRIPT"
+    execute_required_step run_paid_beta_rc_rust_step "stripe_webhook_signature_matrix_idempotency" "stripe_webhook_signature_matrix_idempotency_failed" "0" "\"$CARGO_BIN\" test -p api --test stripe_webhook_signature_test && \"$CARGO_BIN\" test -p api --test stripe_webhook_event_matrix_test && \"$CARGO_BIN\" test -p api --test stripe_webhook_idempotency_test"
+    execute_required_step append_paid_beta_rc_constant_step "test_clock" "live_evidence_gap" "stripe_test_clock_full_cycle_owner_requires_live_mode"
+    execute_required_step run_paid_beta_rc_rust_step "tenant_isolation" "tenant_isolation_failed" "0" "\"$CARGO_BIN\" test -p api --test tenant_isolation_proptest tenant_isolation_proptest_route_family"
+    execute_required_step run_paid_beta_rc_rust_step "signup_abuse" "signup_abuse_failed" "0" "\"$CARGO_BIN\" test -p api --test signup_abuse_test"
+    execute_required_step append_paid_beta_rc_constant_step "browser_signup_paid" "skipped" "browser_signup_paid_readiness_mode_missing"
+    execute_required_step append_paid_beta_rc_constant_step "browser_portal_cancel" "skipped" "browser_portal_cancel_readiness_mode_missing"
+}
+is_critical_browser_step() {
+    local step_name="$1"
+    local critical
+    for critical in "${CRITICAL_BROWSER_STEPS[@]}"; do
+        if [ "$critical" = "$step_name" ]; then
+            return 0
+        fi
+    done
+    return 1
+}
+promote_critical_browser_skip_failures() {
+    local idx
+    for idx in "${!STEP_NAMES[@]}"; do
+        if ! is_critical_browser_step "${STEP_NAMES[$idx]}"; then
+            continue
+        fi
+        if [ "${STEP_STATUSES[$idx]}" = "skipped" ]; then
+            STEP_STATUSES[$idx]="fail"
+            STEP_REASONS[$idx]="critical_surface_skipped"
+        fi
+    done
+}
+recompute_outcome_from_steps() {
+    OVERALL_FAILED=0
+    READY="true"
+    local status
+    for status in "${STEP_STATUSES[@]}"; do
+        case "$status" in
+            pass|skipped)
+                ;;
+            fail|live_evidence_gap|external_secret_missing)
+                OVERALL_FAILED=1
+                READY="false"
+                return 0
+                ;;
+            *)
+                OVERALL_FAILED=1
+                READY="false"
+                return 0
+                ;;
+        esac
+    done
 }
 emit_final_result() {
     local start_ms="$1"
+    promote_critical_browser_skip_failures
+    recompute_outcome_from_steps
     local verdict="pass"
     if [ "$OVERALL_FAILED" -ne 0 ]; then
         verdict="fail"
     fi
-    emit_result_json "$verdict" "$MODE" "$start_ms" "$READY"
-    if [ "$OVERALL_FAILED" -ne 0 ]; then
-        return 1
+    local final_json
+    final_json="$(emit_result_json "$verdict" "$MODE" "$start_ms" "$READY")"
+    if [ "$MODE" = "paid_beta_rc" ] && [ -n "$ARTIFACT_DIR" ]; then
+        printf '%s\n' "$final_json" > "$ARTIFACT_DIR/summary.json"
     fi
+    printf '%s\n' "$final_json"
+    [ "$OVERALL_FAILED" -ne 0 ] && return 1
     return 0
 }
 run_full_backend_validation() {
@@ -756,12 +679,8 @@ run_full_backend_validation() {
     reset_run_state
     local parse_status
     parse_cli_args "$@" || parse_status=$?
-    if [ "${parse_status:-0}" -eq 10 ]; then
-        return 0
-    fi
-    if [ "${parse_status:-0}" -ne 0 ]; then
-        return "$parse_status"
-    fi
+    [ "${parse_status:-0}" -eq 10 ] && return 0
+    [ "${parse_status:-0}" -ne 0 ] && return "$parse_status"
     validate_cli_args || return $?
     resolve_mode
     RESOLVED_SHA="$(resolve_optional_sha)"

@@ -12,5 +12,6 @@ Account selection (see docs/design/secret_sources.md#stripe-multi-account):
                        Operators working with multiple Stripe accounts
                        keep each account's key under a namespaced name
                        in .secret/.env.secret (e.g. |
-| create_catalog.sh | Stub summary for create_catalog.sh. |
+| create_catalog.sh | Create the canonical Flapjack Stripe product catalog against a specific
+Stripe account. |
 <!-- [scrai:end] -->

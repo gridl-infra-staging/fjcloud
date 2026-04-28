@@ -1,3 +1,4 @@
+#![cfg(feature = "proptest-tests")]
 mod common;
 
 use std::cell::{Cell, RefCell};
@@ -51,6 +52,12 @@ struct TenantIsolationHarness {
     alice: TenantFixture,
     bob: TenantFixture,
     http_client: Arc<MockFlapjackHttpClient>,
+}
+
+#[derive(Clone, Copy, Debug)]
+enum PropertyExecutionMode {
+    Strict,
+    DeliberateLeakyHarness,
 }
 
 #[derive(Clone, Debug)]
@@ -385,6 +392,77 @@ async fn run_case_operation(
     }
 }
 
+async fn assert_tenant_isolation_property_body(
+    harness: &TenantIsolationHarness,
+    shared_owner_route_case: &RouteCase,
+    mode: PropertyExecutionMode,
+) {
+    let search_route_case = RouteCase::search();
+    let shared_owner_allowed_response = shared_owner_route_case.allowed_response_body();
+    let search_allowed_response = search_route_case.allowed_response_body();
+    harness.http_client.push_json_response(
+        shared_owner_route_case.expected_success_status.as_u16(),
+        shared_owner_allowed_response,
+    );
+    harness.http_client.push_json_response(
+        search_route_case.expected_success_status.as_u16(),
+        search_allowed_response,
+    );
+
+    // Shared owner-helper seam: same-tenant control on Alice index.
+    run_case_operation(
+        harness,
+        shared_owner_route_case,
+        &harness.alice,
+        &harness.alice,
+        true,
+        "alice-control-shared-helper-on-alice-index",
+    )
+    .await;
+    let shared_helper_foreign_target = match mode {
+        PropertyExecutionMode::Strict => &harness.alice,
+        PropertyExecutionMode::DeliberateLeakyHarness => &harness.bob,
+    };
+    // Shared owner-helper seam: foreign access Bob -> Alice must deny and never proxy.
+    // DeliberateLeakyHarness intentionally points the "foreign" call at Bob's own index so
+    // this assertion fails and proves the property is non-vacuous.
+    run_case_operation(
+        harness,
+        shared_owner_route_case,
+        &harness.bob,
+        shared_helper_foreign_target,
+        false,
+        "bob-foreign-shared-helper-on-alice-index",
+    )
+    .await;
+    // Search seam keeps its own inline tenant lookup: same-tenant control on Bob index.
+    run_case_operation(
+        harness,
+        &search_route_case,
+        &harness.bob,
+        &harness.bob,
+        true,
+        "bob-control-search-inline-on-bob-index",
+    )
+    .await;
+    // Search seam foreign direction Alice -> Bob must also deny and never proxy.
+    run_case_operation(
+        harness,
+        &search_route_case,
+        &harness.alice,
+        &harness.bob,
+        false,
+        "alice-foreign-search-inline-on-bob-index",
+    )
+    .await;
+
+    assert_eq!(
+        harness.http_client.request_count(),
+        2,
+        "exactly the two same-tenant control operations should proxy"
+    );
+}
+
 fn assert_proxy_target(
     request: &FlapjackHttpRequest,
     route_case: &RouteCase,
@@ -421,7 +499,7 @@ fn assert_proxy_target(
 
 fn tenant_isolation_proptest_config() -> ProptestConfig {
     ProptestConfig {
-        cases: 1,
+        cases: 16,
         failure_persistence: Some(Box::new(FileFailurePersistence::Direct(
             TENANT_ISOLATION_PROPTEST_REGRESSION_PATH,
         ))),
@@ -440,6 +518,18 @@ fn replay_only_runner() -> TestRunner {
     let mut config = tenant_isolation_proptest_config();
     config.cases = 0;
     TestRunner::new(config)
+}
+
+fn panic_payload_to_string(payload: Box<dyn std::any::Any + Send>) -> String {
+    let payload = match payload.downcast::<String>() {
+        Ok(message) => return *message,
+        Err(payload) => payload,
+    };
+    let payload = match payload.downcast::<&'static str>() {
+        Ok(message) => return (*message).to_string(),
+        Err(payload) => payload,
+    };
+    format!("non-string panic payload type: {:?}", payload.type_id())
 }
 
 #[test]
@@ -559,6 +649,40 @@ fn tenant_isolation_proptest_saved_case_replays_committed_route_label_first() {
     );
 }
 
+#[test]
+fn tenant_isolation_proptest_deliberate_leaky_variant_trips_failure_signature() {
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    let panic_result = std::panic::catch_unwind(|| {
+        runtime.block_on(async {
+            let harness = setup_tenant_isolation_harness().await;
+            assert_tenant_isolation_property_body(
+                &harness,
+                &RouteCase::settings_update(),
+                PropertyExecutionMode::DeliberateLeakyHarness,
+            )
+            .await;
+        });
+    });
+
+    assert!(
+        panic_result.is_err(),
+        "deliberate leak harness variant must fail the shared property assertions"
+    );
+    let panic_message = panic_payload_to_string(
+        panic_result
+            .err()
+            .expect("panic payload must exist when deliberate leak assertion fails"),
+    );
+    assert!(
+        panic_message.contains(TENANT_ISOLATION_LEAK_FAILURE_SIGNATURE),
+        "panic should contain foreign denial failure signature: \
+         {TENANT_ISOLATION_LEAK_FAILURE_SIGNATURE}; got: {panic_message}"
+    );
+}
+
 proptest! {
     #![proptest_config(tenant_isolation_proptest_config())]
 
@@ -571,69 +695,12 @@ proptest! {
 
         runtime.block_on(async {
             let harness = setup_tenant_isolation_harness().await;
-            let search_route_case = RouteCase::search();
-
-            let shared_owner_allowed_response = shared_owner_route_case.allowed_response_body();
-            let search_allowed_response = search_route_case.allowed_response_body();
-            harness
-                .http_client
-                .push_json_response(
-                    shared_owner_route_case.expected_success_status.as_u16(),
-                    shared_owner_allowed_response,
-                );
-            harness
-                .http_client
-                .push_json_response(
-                    search_route_case.expected_success_status.as_u16(),
-                    search_allowed_response,
-                );
-
-            // Shared owner-helper seam: same-tenant control on Alice index.
-            run_case_operation(
+            assert_tenant_isolation_property_body(
                 &harness,
                 &shared_owner_route_case,
-                &harness.alice,
-                &harness.alice,
-                true,
-                "alice-control-shared-helper-on-alice-index",
+                PropertyExecutionMode::Strict,
             )
             .await;
-            // Shared owner-helper seam: foreign access Bob -> Alice must deny and never proxy.
-            run_case_operation(
-                &harness,
-                &shared_owner_route_case,
-                &harness.bob,
-                &harness.alice,
-                false,
-                "bob-foreign-shared-helper-on-alice-index",
-            )
-            .await;
-            // Search seam keeps its own inline tenant lookup: same-tenant control on Bob index.
-            run_case_operation(
-                &harness,
-                &search_route_case,
-                &harness.bob,
-                &harness.bob,
-                true,
-                "bob-control-search-inline-on-bob-index",
-            )
-            .await;
-            // Search seam foreign direction Alice -> Bob must also deny and never proxy.
-            run_case_operation(
-                &harness,
-                &search_route_case,
-                &harness.alice,
-                &harness.bob,
-                false,
-                "alice-foreign-search-inline-on-bob-index",
-            )
-            .await;
-
-            assert_eq!(
-                harness.http_client.request_count(),
-                2,
-                "exactly the two same-tenant control operations should proxy"
-            );
         });
     }
 }

@@ -7,6 +7,8 @@ set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/test_helpers.sh"
 
 workflow_file=".github/workflows/ci.yml"
+deploy_validation_file="ops/scripts/lib/deploy_validation.sh"
+deploy_script_file="ops/scripts/deploy.sh"
 
 assert_pattern_count_at_least() {
   local file="$1"
@@ -19,6 +21,79 @@ assert_pattern_count_at_least() {
     pass "$description"
   else
     fail "$description (found $count, expected at least $expected_minimum)"
+  fi
+}
+
+job_block() {
+  local job_name="$1"
+  awk -v job="$job_name" '
+    $0 ~ "^  " job ":$" { in_job=1; print; next }
+    in_job && $0 ~ "^  [a-zA-Z0-9_-]+:$" { exit }
+    in_job { print }
+  ' "$workflow_file"
+}
+
+assert_deploy_staging_uses_only_pinned_configure_aws_credentials() {
+  local block action_lines invalid_lines
+  block="$(job_block "deploy-staging")"
+  action_lines="$(printf '%s\n' "$block" | rg 'configure-aws-credentials@' || true)"
+  if [[ -z "$action_lines" ]]; then
+    fail "deploy-staging defines configure-aws-credentials usage"
+    return
+  fi
+
+  invalid_lines="$(printf '%s\n' "$action_lines" | rg -v 'configure-aws-credentials@ff717079ee2060e4bcee96c4779b553acc87447c' || true)"
+  if [[ -n "$invalid_lines" ]]; then
+    fail "deploy-staging does not use floating or unpinned configure-aws-credentials refs"
+  else
+    pass "deploy-staging does not use floating or unpinned configure-aws-credentials refs"
+  fi
+}
+
+assert_deploy_staging_role_to_assume_secret_only() {
+  local block role_lines invalid_lines
+  block="$(job_block "deploy-staging")"
+  role_lines="$(printf '%s\n' "$block" | rg 'role-to-assume:' || true)"
+  if [[ -z "$role_lines" ]]; then
+    fail "deploy-staging defines role-to-assume"
+    return
+  fi
+
+  invalid_lines="$(printf '%s\n' "$role_lines" | rg -v 'role-to-assume:\s*\$\{\{\s*secrets\.DEPLOY_IAM_ROLE_ARN\s*\}\}' || true)"
+  if [[ -n "$invalid_lines" ]]; then
+    fail "deploy-staging role-to-assume is secret-backed only"
+  else
+    pass "deploy-staging role-to-assume is secret-backed only"
+  fi
+}
+
+assert_aws_actions_in_line_range_exact() {
+  local file="$1"
+  local start_line="$2"
+  local end_line="$3"
+  local label="$4"
+  shift 4
+  local expected actual
+
+  expected="$(
+    printf '%s\n' "$@" | sort -u
+  )"
+  actual="$(
+    awk -v start="$start_line" -v end="$end_line" '
+      NR >= start && NR <= end {
+        if (match($0, /aws[[:space:]]+[a-z0-9-]+[[:space:]]+[a-z0-9-]+/)) {
+          action = substr($0, RSTART, RLENGTH)
+          gsub(/[[:space:]]+/, " ", action)
+          print action
+        }
+      }
+    ' "$file" | sort -u
+  )"
+
+  if [[ "$actual" == "$expected" ]]; then
+    pass "$label"
+  else
+    fail "$label (expected actions: [$expected] actual actions: [$actual])"
   fi
 }
 
@@ -43,6 +118,7 @@ assert_file_contains "$workflow_file" '^  rust-test:' "workflow defines rust-tes
 assert_file_contains "$workflow_file" '^  rust-lint:' "workflow defines rust-lint job"
 assert_file_contains "$workflow_file" '^  migration-test:' "workflow defines migration-test job"
 assert_file_contains "$workflow_file" '^  web-test:' "workflow defines web-test job"
+assert_file_contains "$workflow_file" '^  playwright:' "workflow defines playwright job"
 assert_file_contains "$workflow_file" '^  deploy-staging:' "workflow defines deploy-staging job"
 
 assert_file_contains "$workflow_file" 'needs:' "deploy-staging declares job dependencies"
@@ -52,8 +128,8 @@ assert_file_contains "$workflow_file" 'migration-test,' "deploy-staging waits fo
 assert_file_contains "$workflow_file" 'web-test,' "deploy-staging waits for web-test"
 assert_file_contains "$workflow_file" 'check-sizes,' "deploy-staging waits for check-sizes"
 assert_file_contains "$workflow_file" 'web-lint,' "deploy-staging waits for web-lint"
-assert_file_contains "$workflow_file" 'playwright,' "deploy-staging waits for playwright"
 assert_file_contains "$workflow_file" 'secret-scan,' "deploy-staging waits for secret-scan"
+assert_file_not_contains "$workflow_file" 'playwright,' "deploy-staging keeps playwright advisory (not a blocking need)"
 assert_file_contains "$workflow_file" "if: github.ref == 'refs/heads/main' && github.event_name == 'push'" "deploy-staging is restricted to main push events"
 
 echo ""
@@ -84,9 +160,38 @@ echo ""
 echo "--- Hardening checks ---"
 assert_file_not_contains "$workflow_file" 'AWS_ACCESS_KEY_ID:\s*\$\{\{\s*secrets\.AWS_ACCESS_KEY_ID\s*\}\}' "workflow does not use AWS_ACCESS_KEY_ID secret"
 assert_file_not_contains "$workflow_file" 'AWS_SECRET_ACCESS_KEY:\s*\$\{\{\s*secrets\.AWS_SECRET_ACCESS_KEY\s*\}\}' "workflow does not use AWS_SECRET_ACCESS_KEY secret"
-assert_file_contains "$workflow_file" 'uses:\s*aws-actions/configure-aws-credentials@ff717079ee2060e4bcee96c4779b553acc87447c' "deploy job configures AWS credentials via GitHub OIDC action"
-assert_file_contains "$workflow_file" 'role-to-assume:\s*\$\{\{\s*secrets\.DEPLOY_IAM_ROLE_ARN\s*\}\}' "deploy job assumes IAM role from GitHub secret"
-assert_file_contains "$workflow_file" 'id-token:\s*write' "workflow grants id-token: write for OIDC"
+assert_file_not_contains "$workflow_file" 'configure-aws-credentials@v[0-9]+' "workflow does not use floating configure-aws-credentials tags"
+assert_deploy_staging_uses_only_pinned_configure_aws_credentials
+assert_deploy_staging_role_to_assume_secret_only
+
+echo ""
+echo "--- Release bucket boundary checks ---"
+assert_file_contains "$workflow_file" 'aws s3api list-objects-v2 --bucket fjcloud-releases-staging --prefix "\$\{ARTIFACT_PREFIX\}" --max-items 1' "workflow enforces list-before-write against staging release bucket"
+assert_file_contains "$workflow_file" 's3://fjcloud-releases-staging/staging/\$\{GITHUB_SHA\}/fjcloud-api' "workflow upload path is scoped to staging SHA for fjcloud-api"
+assert_file_contains "$workflow_file" 's3://fjcloud-releases-staging/staging/\$\{GITHUB_SHA\}/fj-metering-agent' "workflow upload path is scoped to staging SHA for fj-metering-agent"
+assert_file_contains "$workflow_file" 's3://fjcloud-releases-staging/staging/\$\{GITHUB_SHA\}/fjcloud-aggregation-job' "workflow upload path is scoped to staging SHA for fjcloud-aggregation-job"
+assert_file_contains "$workflow_file" 's3://fjcloud-releases-staging/staging/\$\{GITHUB_SHA\}/migrations' "workflow upload path is scoped to staging SHA for migrations"
+assert_file_contains "$workflow_file" 's3://fjcloud-releases-staging/staging/\$\{GITHUB_SHA\}/scripts/migrate\.sh' "workflow upload path is scoped to staging SHA for migrate.sh"
+assert_file_contains "$workflow_file" 's3://fjcloud-releases-staging/staging/\$\{GITHUB_SHA\}/scripts/generate_ssm_env\.sh' "workflow upload path is scoped to staging SHA for generate_ssm_env.sh"
+assert_file_contains "$deploy_validation_file" 'bucket="fjcloud-releases-\$\{env\}"' "deploy validation derives release bucket from env"
+assert_file_contains "$deploy_validation_file" 'prefix="\$\{env\}/\$\{sha\}/"' "deploy validation uses env/SHA prefix contract"
+assert_file_contains "$deploy_validation_file" 'aws s3api list-objects-v2' "deploy validation uses s3api list-objects-v2 for predeploy read/list"
+assert_file_contains "$deploy_validation_file" '[[:space:]]--region "\$region"' "deploy validation list-objects-v2 call uses explicit region"
+assert_file_contains "$deploy_validation_file" '[[:space:]]--bucket "\$bucket"' "deploy validation list-objects-v2 call reads from derived bucket variable"
+assert_file_contains "$deploy_validation_file" '[[:space:]]--prefix "\$prefix"' "deploy validation list-objects-v2 call reads from derived prefix variable"
+
+echo ""
+echo "--- Deploy caller AWS action surface checks ---"
+assert_aws_actions_in_line_range_exact "$deploy_script_file" 68 105 "deploy caller discovery/save block keeps expected AWS action set" \
+  "aws ec2 describe-instances" \
+  "aws ssm get-parameter" \
+  "aws ssm put-parameter"
+assert_aws_actions_in_line_range_exact "$deploy_script_file" 246 313 "deploy caller command/poll block keeps expected AWS action set" \
+  "aws ssm put-parameter" \
+  "aws ssm send-command" \
+  "aws ssm get-command-invocation" \
+  "aws ssm delete-parameter"
+assert_file_contains "$deploy_script_file" 'document-name[[:space:]]+"AWS-RunShellScript"' "deploy caller uses AWS-RunShellScript document for remote execution"
 
 echo ""
 echo "--- Infra service/test contract checks ---"

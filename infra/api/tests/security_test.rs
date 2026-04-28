@@ -277,6 +277,46 @@ async fn auth_rate_limit_sets_retry_after_header() {
     );
 }
 
+/// Test 4b: verify-email should be protected by the auth rate limiter.
+#[tokio::test]
+async fn verify_email_rate_limit_sets_retry_after_header() {
+    let _lock = security_env_lock()
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+
+    let app = build_router_with_auth_rate_config(
+        common::test_state(),
+        1,
+        std::time::Duration::from_secs(60),
+    );
+    let ip = "203.0.113.114";
+
+    let first = app
+        .clone()
+        .oneshot(json_post(
+            "/auth/verify-email",
+            json!({ "token": "unknown-token" }),
+            ip,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(first.status(), StatusCode::BAD_REQUEST);
+
+    let second = app
+        .oneshot(json_post(
+            "/auth/verify-email",
+            json!({ "token": "unknown-token" }),
+            ip,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(second.status(), StatusCode::TOO_MANY_REQUESTS);
+    assert!(
+        second.headers().get("retry-after").is_some(),
+        "rate-limited verify-email response should include retry-after header"
+    );
+}
+
 /// Test 5: public pricing comparison should also be rate-limited per-IP.
 #[tokio::test]
 async fn pricing_compare_rate_limit_returns_429_after_threshold() {

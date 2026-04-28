@@ -502,7 +502,6 @@ fn spec_contains_only_stage_1_through_5_paths() {
         "/usage",
         "/invoices",
         "/pricing",
-        "/allyourbase",
         "/migration",
     ];
 
@@ -536,7 +535,6 @@ fn spec_contains_only_stage_1_through_5_paths() {
         "/indexes/{name}/experiments",
         "/indexes/{name}/events/debug",
         "/indexes/{name}/keys",
-        "/allyourbase/instances",
         "/migration/algolia/list-indexes",
         "/pricing/compare",
     ];

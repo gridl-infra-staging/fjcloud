@@ -61,10 +61,16 @@ fi
 
 if [[ "${1:-}" == "s3api" && "${2:-}" == "list-objects-v2" ]]; then
     case "$mode" in
-        happy|auth_failure)
+        happy|happy_body_match|auth_failure)
+            if [[ "$mode" == "happy_body_match" ]]; then
+                cat <<'JSON'
+{"Contents":[{"Key":"e2e-emails/ses-delivery-object-001"}]}
+JSON
+            else
             cat <<JSON
 {"Contents":[{"Key":"e2e-emails/${nonce}.eml"}]}
 JSON
+            fi
             ;;
         timeout)
             cat <<'JSON'
@@ -82,14 +88,14 @@ fi
 if [[ "${1:-}" == "s3api" && "${2:-}" == "get-object" ]]; then
     output_path="${@: -1}"
     case "$mode" in
-        happy)
+        happy|happy_body_match)
             cat > "$output_path" <<'RFC822'
 From: sender@example.com
 To: receiver@example.com
 Subject: inbound test
 Authentication-Results: mx.google.com; dkim=pass header.i=@flapjack.foo; spf=pass smtp.mailfrom=flapjack.foo; dmarc=pass header.from=flapjack.foo
 
-hello
+nonce marker: stage2contractnonce
 RFC822
             ;;
         auth_failure)
@@ -151,6 +157,26 @@ test_roundtrip_happy_path_contract() {
     assert_contains "$output" '"name":"auth_verdict"' "happy-path output should include auth_verdict step"
 }
 
+test_roundtrip_happy_path_when_nonce_is_only_in_message_content() {
+    local mock_dir call_log output exit_code poll_detail get_object_count
+    mock_dir="$(new_mock_command_dir "aws" "$(roundtrip_mock_aws_body)")"
+    call_log="$mock_dir/aws_calls.log"
+    : > "$call_log"
+
+    output="$(run_roundtrip happy_body_match "$mock_dir" "$call_log")" || exit_code=$?
+
+    poll_detail="$(json_step_field "$output" "poll_inbox_s3" "detail")"
+    get_object_count="$(grep -c '^s3api get-object ' "$call_log" || true)"
+    rm -rf "$mock_dir"
+
+    assert_eq "${exit_code:-0}" "0" "roundtrip script should pass when nonce is only in message content"
+    assert_valid_json "$output" "content-match output should be valid JSON"
+    assert_json_bool_field "$output" "passed" "true" "content-match output should report passed=true"
+    assert_eq "$(json_step_field "$output" "poll_inbox_s3" "passed")" "true" "content-match should pass poll_inbox_s3 step"
+    assert_contains "$poll_detail" "e2e-emails/ses-delivery-object-001" "content-match should report the opaque poll key selected by helper"
+    assert_eq "$get_object_count" "2" "content-match should fetch RFC822 during polling and again for auth parsing"
+}
+
 test_roundtrip_timeout_has_stage_owned_exit_code_and_json() {
     local mock_dir call_log output exit_code poll_detail
     mock_dir="$(new_mock_command_dir "aws" "$(roundtrip_mock_aws_body)")"
@@ -189,6 +215,7 @@ test_roundtrip_auth_failure_has_distinct_exit_code_and_component_name() {
 
 echo "=== validate_inbound_email_roundtrip.sh tests ==="
 test_roundtrip_happy_path_contract
+test_roundtrip_happy_path_when_nonce_is_only_in_message_content
 test_roundtrip_timeout_has_stage_owned_exit_code_and_json
 test_roundtrip_auth_failure_has_distinct_exit_code_and_component_name
 

@@ -17,7 +17,7 @@ id, \
 name, \
 email, \
 (to_jsonb(customers)->>'stripe_customer_id') AS stripe_customer_id, \
-status, \
+    customers.status, \
 (to_jsonb(customers)->>'deleted_at')::timestamptz AS deleted_at, \
 billing_plan, \
 (to_jsonb(customers)->>'quota_warning_sent_at')::timestamptz AS quota_warning_sent_at, \
@@ -39,11 +39,40 @@ impl PgCustomerRepo {
     pub fn new(pool: PgPool) -> Self {
         Self { pool }
     }
+
+    fn list_customers_sql() -> String {
+        format!(
+            "SELECT {CUSTOMER_COLUMNS}, \
+                    tenant_summary.last_accessed_at AS last_accessed_at, \
+                    subscription_summary.status AS subscription_status, \
+                    COALESCE(invoice_summary.overdue_invoice_count, 0) AS overdue_invoice_count \
+             FROM customers \
+             LEFT JOIN ( \
+                SELECT customer_id, MAX(last_accessed_at) AS last_accessed_at \
+                FROM customer_tenants \
+                GROUP BY customer_id \
+             ) AS tenant_summary ON tenant_summary.customer_id = customers.id \
+             LEFT JOIN ( \
+                SELECT DISTINCT ON (customer_id) customer_id, status \
+                FROM subscriptions \
+                WHERE status != 'canceled' \
+                ORDER BY customer_id, created_at DESC \
+             ) AS subscription_summary ON subscription_summary.customer_id = customers.id \
+             LEFT JOIN ( \
+                SELECT customer_id, COUNT(*) AS overdue_invoice_count \
+                FROM invoices \
+                WHERE status = 'failed' \
+                GROUP BY customer_id \
+             ) AS invoice_summary ON invoice_summary.customer_id = customers.id \
+             ORDER BY customers.created_at DESC"
+        )
+    }
 }
 
 #[cfg(test)]
+#[allow(clippy::items_after_test_module)]
 mod tests {
-    use super::CUSTOMER_COLUMNS;
+    use super::{PgCustomerRepo, CUSTOMER_COLUMNS};
 
     #[test]
     fn customer_columns_uses_schema_tolerant_carryforward_projection() {
@@ -62,12 +91,33 @@ mod tests {
             "customer projection must not require deleted_at to exist in older local schemas"
         );
     }
+
+    #[test]
+    fn customer_columns_qualifies_status_for_joined_list_query() {
+        assert!(
+            CUSTOMER_COLUMNS.contains("customers.status"),
+            "customer projection must qualify customers.status so the list join cannot hit ambiguous status resolution"
+        );
+    }
+
+    #[test]
+    fn list_sql_uses_shared_subscription_summary_join() {
+        let sql = PgCustomerRepo::list_customers_sql();
+        assert!(
+            !sql.contains("LEFT JOIN LATERAL"),
+            "customer list query must avoid a per-customer lateral subscription probe"
+        );
+        assert!(
+            sql.contains("DISTINCT ON (customer_id)"),
+            "customer list query should compute one latest non-canceled subscription row per customer before joining"
+        );
+    }
 }
 
 #[async_trait]
 impl CustomerRepo for PgCustomerRepo {
     async fn list(&self) -> Result<Vec<Customer>, RepoError> {
-        let sql = format!("SELECT {CUSTOMER_COLUMNS} FROM customers ORDER BY created_at DESC");
+        let sql = Self::list_customers_sql();
         sqlx::query_as::<_, Customer>(&sql)
             .fetch_all(&self.pool)
             .await

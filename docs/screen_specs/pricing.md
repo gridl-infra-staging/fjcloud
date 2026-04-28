@@ -17,6 +17,8 @@ The `/pricing` route is a public unauthenticated screen that reuses the existing
 
 Landing-only framing stays on `/` (for example: broader product feature storytelling, quick-facts panel, and full mixed marketing sections). The `/pricing` route should avoid introducing a parallel pricing copy source or alternate pricing constants.
 
+Stage 4 backend-alignment drift detection must extend this same owner: compare `web/src/lib/pricing.ts::MARKETING_PRICING` against normalized admin rate-card data exposed as `web/src/lib/admin-client.ts::AdminRateCard` via `getTenantRateCard()` and backed by `infra/api/src/routes/admin/rate_cards.rs::get_rate_card()`. Do not introduce a second checked-in pricing snapshot.
+
 ## Required States
 
 - Loading: server-rendered first paint with complete static pricing content; no client-only loading state is required.
@@ -40,13 +42,19 @@ Landing-only framing stays on `/` (for example: broader product feature storytel
 - [ ] Region multiplier content preserves current shared ordering and values (`US East (Virginia)`, `EU West (Ireland)`, `EU Central (Germany)`, `EU North (Helsinki)`, `US East (Ashburn)`, `US West (Oregon)` with multipliers `1.00x`, `1.00x`, `0.70x`, `0.75x`, `0.80x`, `0.80x`).
 - [ ] `/pricing` does not introduce landing-only product-framing sections as required content for pricing comprehension.
 - [ ] CTA and public links stay inside the current public-route system and do not introduce new route dependencies.
+- [ ] Stage 4 drift detection compares `MARKETING_PRICING` to normalized admin rate-card data (`AdminRateCard` via `getTenantRateCard()` / `get_rate_card()`) without introducing duplicate pricing constants.
 
 ## Current Implementation Gaps
 
-None known for the mapped launch-critical behavior.
+Stage 4 backend-alignment drift detection is a planned gap. The current route/browser coverage validates `MARKETING_PRICING` rendering and link behavior but does not yet compare those values to admin rate-card data.
 
 ## Automated Coverage
 
 - Browser-unmocked tests: `web/tests/e2e-ui/full/public-pages.spec.ts` (`Pricing page` block validates first-paint pricing body/link expectations, the shared `250 MB` allowance, and rejects landing-only or fallback error framing on `/pricing`).
 - Component tests: `web/src/routes/pricing/pricing.test.ts` (route-level `/pricing` body contract, MARKETING_PRICING-consumption assertions including the shared `250 MB` allowance, ordered region multipliers, and landing-only exclusion assertions).
 - Server/contract tests: `web/src/lib/pricing.test.ts` (canonical shared pricing constants consumed by public routes).
+- Stage 4 extension rule: add backend-alignment assertions by extending the same route/browser owners above, not by introducing a parallel pricing fixture lane or Rust-side pricing parser helper.
+
+## Open Questions
+
+- None for Stage 3 contract lock.

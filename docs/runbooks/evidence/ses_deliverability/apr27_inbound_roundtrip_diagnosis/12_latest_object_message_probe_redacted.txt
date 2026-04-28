@@ -1,0 +1,6 @@
+s3_key=e2e-emails/pduv3vl4vl23a7ihp2hkne3iss3afu84gedgido1
+key_contains_inbound_probe_token=False
+subject=fjcloud inbound roundtrip probe inbound-probe-20260427T231147Z-10508
+to=<redacted>@test.flapjack.foo
+auth_results_present=True
+detected_nonce_token=<redacted_nonce>

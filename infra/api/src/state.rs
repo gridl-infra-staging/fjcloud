@@ -8,7 +8,6 @@ use crate::dns::DnsManager;
 use crate::provisioner::region_map::RegionConfig;
 use crate::provisioner::VmProvisioner;
 use crate::repos::ApiKeyRepo;
-use crate::repos::AybTenantRepo;
 use crate::repos::ColdSnapshotRepo;
 use crate::repos::CustomerRepo;
 use crate::repos::DeploymentRepo;
@@ -24,7 +23,6 @@ use crate::repos::UsageRepo;
 use crate::repos::VmInventoryRepo;
 use crate::repos::WebhookEventRepo;
 use crate::services::alerting::AlertService;
-use crate::services::ayb_admin::AybAdminClient;
 use crate::services::discovery::DiscoveryService;
 use crate::services::email::EmailService;
 use crate::services::flapjack_proxy::FlapjackProxy;
@@ -90,6 +88,4 @@ pub struct AppState {
     pub garage_proxy: Arc<GarageProxy>,
     pub s3_object_metering: Arc<S3ObjectMeteringService>,
     pub storage_master_key: [u8; 32],
-    pub ayb_admin_client: Option<Arc<dyn AybAdminClient + Send + Sync>>,
-    pub ayb_tenant_repo: Arc<dyn AybTenantRepo + Send + Sync>,
 }

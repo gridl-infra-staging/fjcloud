@@ -114,6 +114,25 @@ async fn mock_email_rejects_whitespace_recipient() {
     assert!(err.to_string().contains("must not be empty"));
 }
 
+#[tokio::test]
+async fn mock_email_service_records_broadcast_plain_text_as_pre_wrapped_html() {
+    let service = MockEmailService::new();
+    let recipient = "broadcast@test.com";
+    let subject = "Planned maintenance";
+    let text_body = "Maintenance starts at 02:00 UTC";
+
+    service
+        .send_broadcast_email(recipient, subject, Option::<&str>::None, Some(text_body))
+        .await
+        .unwrap();
+
+    let emails = service.sent_emails();
+    assert_eq!(emails.len(), 1);
+    assert_eq!(emails[0].to, recipient);
+    assert_eq!(emails[0].subject, subject);
+    assert_eq!(emails[0].body, format!("<pre>{text_body}</pre>"));
+}
+
 // ---------------------------------------------------------------------------
 // NoopEmailService tests
 // ---------------------------------------------------------------------------
@@ -144,6 +163,15 @@ async fn noop_email_accepts_non_empty_recipient_for_all_methods() {
         .send_quota_warning_email(recipient, "requests", 90.0, 900, 1000)
         .await
         .expect("quota warning should be accepted");
+    service
+        .send_broadcast_email(
+            recipient,
+            "Maintenance notice",
+            Some("<p>Planned maintenance at 02:00 UTC</p>"),
+            None,
+        )
+        .await
+        .expect("broadcast should be accepted");
 }
 
 #[tokio::test]
@@ -184,6 +212,20 @@ async fn noop_email_rejects_blank_or_whitespace_recipient_with_record_validation
             .expect_err("blank/whitespace recipients must fail");
         assert_eq!(
             quota_err.to_string(),
+            "invalid email request: recipient email must not be empty"
+        );
+
+        let broadcast_err = service
+            .send_broadcast_email(
+                recipient,
+                "Maintenance notice",
+                Some("<p>Planned maintenance at 02:00 UTC</p>"),
+                None,
+            )
+            .await
+            .expect_err("blank/whitespace recipients must fail");
+        assert_eq!(
+            broadcast_err.to_string(),
             "invalid email request: recipient email must not be empty"
         );
     }
@@ -434,6 +476,23 @@ async fn mailpit_quota_warning_sends_correct_payload_and_tag() {
     assert!(html.contains("92.5%"));
     assert!(html.contains("9250"));
     assert!(html.contains("10000"));
+}
+
+#[tokio::test]
+async fn mailpit_broadcast_sends_pre_wrapped_text_payload_and_tag() {
+    let server = MockServer::start().await;
+    mount_mailpit_ok(&server).await;
+    let svc = mailpit_service(&server.uri());
+    let subject = "Maintenance notice";
+    let text_body = "Planned maintenance at 02:00 UTC";
+
+    svc.send_broadcast_email("ops@example.com", subject, None, Some(text_body))
+        .await
+        .expect("should succeed");
+
+    let body = single_request_json(&server).await;
+    assert_common_payload(&body, "ops@example.com", subject, "broadcast");
+    assert_eq!(body["HTML"], format!("<pre>{text_body}</pre>"));
 }
 
 #[tokio::test]

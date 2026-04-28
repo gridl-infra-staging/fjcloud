@@ -1,4 +1,3 @@
-//! Stub summary for /Users/stuart/parallel_development/fjcloud_dev/mar23_pm_2_admin_ui_enhancements/fjcloud_dev/infra/api/src/routes/admin/tenants.rs.
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
@@ -13,7 +12,15 @@ use std::str::FromStr;
 use crate::auth::AdminAuth;
 use crate::errors::ApiError;
 use crate::helpers::require_active_customer;
-use crate::models::{BillingPlan, Customer};
+use crate::models::{BillingPlan, Customer, InvoiceRow};
+use crate::repos::usage_repo::UsageSummary;
+use crate::routes::invoices::InvoiceListItem;
+use crate::services::audit_log::{
+    list_audit_log_for_target_tenant, write_audit_log, AuditLogRow, ACTION_CUSTOMER_REACTIVATED,
+    ACTION_CUSTOMER_SUSPENDED, ACTION_QUOTAS_UPDATED, ACTION_STRIPE_SYNC, ACTION_TENANT_CREATED,
+    ACTION_TENANT_DELETED, ACTION_TENANT_UPDATED, ADMIN_SENTINEL_ACTOR_ID,
+};
+use crate::services::billing_health::{self, BillingHealth};
 use crate::state::AppState;
 use crate::validation::{validate_email, validate_length, MAX_NAME_LEN};
 
@@ -41,6 +48,10 @@ pub struct TenantResponse {
     pub email: String,
     pub status: String,
     pub billing_plan: String,
+    pub last_accessed_at: Option<DateTime<Utc>>,
+    pub subscription_status: Option<String>,
+    pub overdue_invoice_count: i64,
+    pub billing_health: BillingHealth,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -75,15 +86,31 @@ pub struct TenantQuotasResponse {
     pub indexes: Vec<TenantIndexQuota>,
 }
 
+#[derive(Debug, Serialize)]
+pub struct CustomerSnapshotResponse {
+    pub usage_summary: UsageSummary,
+    pub open_invoices: Vec<InvoiceListItem>,
+    pub recent_audit: Vec<AuditLogRow>,
+}
+
 impl From<Customer> for TenantResponse {
     fn from(c: Customer) -> Self {
         let billing_plan = c.billing_plan_enum().to_string();
+        let billing_health = billing_health::derive(
+            &c.status,
+            c.subscription_status.as_deref(),
+            c.overdue_invoice_count,
+        );
         Self {
             id: c.id,
             name: c.name,
             email: c.email,
             status: c.status,
             billing_plan,
+            last_accessed_at: c.last_accessed_at,
+            subscription_status: c.subscription_status,
+            overdue_invoice_count: c.overdue_invoice_count,
+            billing_health,
             created_at: c.created_at,
             updated_at: c.updated_at,
         }
@@ -124,6 +151,33 @@ fn quota_values(
     }
 }
 
+fn update_tenant_changed_fields(req: &UpdateTenantRequest) -> Vec<&'static str> {
+    let mut changed = Vec::with_capacity(3);
+    if req.name.is_some() {
+        changed.push("name");
+    }
+    if req.email.is_some() {
+        changed.push("email");
+    }
+    if req.billing_plan.is_some() {
+        changed.push("billing_plan");
+    }
+    changed
+}
+
+/// Open invoices are every lifecycle state except closed settlement states.
+fn is_open_invoice_status(status: &str) -> bool {
+    !matches!(status, "paid" | "refunded")
+}
+
+fn open_invoices_for_snapshot(invoices: &[InvoiceRow]) -> Vec<InvoiceListItem> {
+    invoices
+        .iter()
+        .filter(|invoice| is_open_invoice_status(&invoice.status))
+        .map(InvoiceListItem::from)
+        .collect()
+}
+
 // ---------------------------------------------------------------------------
 // Handlers
 // ---------------------------------------------------------------------------
@@ -143,6 +197,27 @@ pub async fn create_tenant(
     let email = normalized_tenant_email(&req.email)?;
 
     let customer = state.customer_repo.create(name, &email).await?;
+
+    if let Err(err) = write_audit_log(
+        &state.pool,
+        ADMIN_SENTINEL_ACTOR_ID,
+        ACTION_TENANT_CREATED,
+        Some(customer.id),
+        json!({
+            "tenant_id": customer.id,
+            "name": &customer.name,
+            "email": &customer.email
+        }),
+    )
+    .await
+    {
+        tracing::error!(
+            error = %err,
+            customer_id = %customer.id,
+            "failed to write tenant_created audit_log row"
+        );
+    }
+
     Ok((StatusCode::CREATED, Json(TenantResponse::from(customer))))
 }
 
@@ -180,6 +255,8 @@ pub async fn update_tenant(
     Path(id): Path<Uuid>,
     Json(req): Json<UpdateTenantRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
+    let changed = update_tenant_changed_fields(&req);
+
     if req.name.is_none() && req.email.is_none() && req.billing_plan.is_none() {
         return Err(ApiError::BadRequest("no fields to update".into()));
     }
@@ -229,6 +306,22 @@ pub async fn update_tenant(
         customer.billing_plan = plan_str.clone();
     }
 
+    if let Err(err) = write_audit_log(
+        &state.pool,
+        ADMIN_SENTINEL_ACTOR_ID,
+        ACTION_TENANT_UPDATED,
+        Some(id),
+        json!({ "changed": changed }),
+    )
+    .await
+    {
+        tracing::error!(
+            error = %err,
+            customer_id = %id,
+            "failed to write tenant_updated audit_log row"
+        );
+    }
+
     Ok(Json(TenantResponse::from(customer)))
 }
 
@@ -239,6 +332,22 @@ pub async fn delete_tenant(
 ) -> Result<impl IntoResponse, ApiError> {
     let deleted = state.customer_repo.soft_delete(id).await?;
     if deleted {
+        if let Err(err) = write_audit_log(
+            &state.pool,
+            ADMIN_SENTINEL_ACTOR_ID,
+            ACTION_TENANT_DELETED,
+            Some(id),
+            json!({}),
+        )
+        .await
+        {
+            tracing::error!(
+                error = %err,
+                customer_id = %id,
+                "failed to write tenant_deleted audit_log row"
+            );
+        }
+
         Ok(StatusCode::NO_CONTENT)
     } else {
         Err(ApiError::NotFound("tenant not found".into()))
@@ -276,6 +385,22 @@ pub async fn sync_stripe(
         .set_stripe_customer_id(customer_id, &stripe_id)
         .await?;
 
+    if let Err(err) = write_audit_log(
+        &state.pool,
+        ADMIN_SENTINEL_ACTOR_ID,
+        ACTION_STRIPE_SYNC,
+        Some(customer_id),
+        json!({ "stripe_customer_id": &stripe_id }),
+    )
+    .await
+    {
+        tracing::error!(
+            error = %err,
+            customer_id = %customer_id,
+            "failed to write stripe_sync audit_log row"
+        );
+    }
+
     Ok(Json(json!({
         "message": "stripe customer created and linked",
         "stripe_customer_id": stripe_id
@@ -304,6 +429,22 @@ pub async fn reactivate_customer(
 
     state.customer_repo.reactivate(customer_id).await?;
 
+    if let Err(err) = write_audit_log(
+        &state.pool,
+        ADMIN_SENTINEL_ACTOR_ID,
+        ACTION_CUSTOMER_REACTIVATED,
+        Some(customer_id),
+        json!({}),
+    )
+    .await
+    {
+        tracing::error!(
+            error = %err,
+            customer_id = %customer_id,
+            "failed to write customer_reactivated audit_log row"
+        );
+    }
+
     Ok(message_response("customer reactivated"))
 }
 
@@ -329,7 +470,75 @@ pub async fn suspend_customer(
 
     state.customer_repo.suspend(customer_id).await?;
 
+    if let Err(err) = write_audit_log(
+        &state.pool,
+        ADMIN_SENTINEL_ACTOR_ID,
+        ACTION_CUSTOMER_SUSPENDED,
+        Some(customer_id),
+        json!({}),
+    )
+    .await
+    {
+        tracing::error!(
+            error = %err,
+            customer_id = %customer_id,
+            "failed to write customer_suspended audit_log row"
+        );
+    }
+
     Ok(message_response("customer suspended"))
+}
+
+// GET /admin/customers/:id/audit
+/// `GET /admin/customers/{id}/audit` — read audit-log rows for one customer.
+///
+/// **Auth:** `AdminAuth`.
+/// Returns up to the newest 100 rows for the requested customer, newest-first.
+pub async fn get_customer_audit(
+    _auth: AdminAuth,
+    State(state): State<AppState>,
+    Path(customer_id): Path<Uuid>,
+) -> Result<impl IntoResponse, ApiError> {
+    state
+        .customer_repo
+        .find_by_id(customer_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("customer not found".into()))?;
+
+    let rows: Vec<AuditLogRow> = list_audit_log_for_target_tenant(&state.pool, customer_id)
+        .await
+        .map_err(|err| ApiError::Internal(format!("failed to read customer audit log: {err}")))?;
+    Ok(Json(rows))
+}
+
+/// `GET /admin/customers/{id}/snapshot` — recent usage, open invoices, and audit rows.
+pub async fn get_customer_snapshot(
+    _auth: AdminAuth,
+    State(state): State<AppState>,
+    Path(customer_id): Path<Uuid>,
+) -> Result<impl IntoResponse, ApiError> {
+    state
+        .customer_repo
+        .find_by_id(customer_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("customer not found".into()))?;
+
+    let usage_summary: UsageSummary = state.usage_repo.summary_for(customer_id, 7).await?;
+    let invoices = state.invoice_repo.list_by_customer(customer_id).await?;
+    let open_invoices = open_invoices_for_snapshot(&invoices);
+    let recent_audit: Vec<AuditLogRow> = list_audit_log_for_target_tenant(&state.pool, customer_id)
+        .await
+        .map_err(|err| {
+            ApiError::Internal(format!(
+                "failed to read customer audit log for snapshot: {err}"
+            ))
+        })?;
+
+    Ok(Json(CustomerSnapshotResponse {
+        usage_summary,
+        open_invoices,
+        recent_audit,
+    }))
 }
 
 pub async fn get_quotas(
@@ -358,6 +567,11 @@ pub async fn update_quotas(
     require_active_customer(state.customer_repo.as_ref(), customer_id).await?;
 
     let update_payload = quota_update_payload(&req)?;
+    let mut quota_keys = update_payload
+        .as_object()
+        .map(|map| map.keys().cloned().collect::<Vec<_>>())
+        .unwrap_or_default();
+    quota_keys.sort();
 
     let tenants = state.tenant_repo.list_raw_by_customer(customer_id).await?;
     for tenant in &tenants {
@@ -368,6 +582,24 @@ pub async fn update_quotas(
         state
             .tenant_quota_service
             .invalidate_quota(customer_id, &tenant.tenant_id);
+    }
+
+    if !tenants.is_empty() {
+        if let Err(err) = write_audit_log(
+            &state.pool,
+            ADMIN_SENTINEL_ACTOR_ID,
+            ACTION_QUOTAS_UPDATED,
+            Some(customer_id),
+            json!({ "quota_keys": quota_keys }),
+        )
+        .await
+        {
+            tracing::error!(
+                error = %err,
+                customer_id = %customer_id,
+                "failed to write quotas_updated audit_log row"
+            );
+        }
     }
 
     let response = quotas_response(&state, customer_id).await?;

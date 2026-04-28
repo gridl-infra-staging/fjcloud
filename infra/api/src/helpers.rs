@@ -386,6 +386,9 @@ mod tests {
             email_verify_expires_at: None,
             password_reset_token: None,
             password_reset_expires_at: None,
+            last_accessed_at: None,
+            subscription_status: None,
+            overdue_invoice_count: 0,
             object_storage_egress_carryforward_cents: Decimal::ZERO,
         }
     }

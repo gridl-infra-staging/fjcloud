@@ -1,0 +1,19 @@
+{
+  "Rule": {
+    "Actions": [
+      {
+        "S3Action": {
+          "BucketName": "flapjack-cloud-releases",
+          "ObjectKeyPrefix": "e2e-emails/"
+        }
+      }
+    ],
+    "Enabled": true,
+    "Name": "mailpail-to-s3",
+    "Recipients": [
+      "test.flapjack.foo"
+    ],
+    "ScanEnabled": true,
+    "TlsPolicy": "Optional"
+  }
+}

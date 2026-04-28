@@ -6,5 +6,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| src | The billing crate's core modules implement the invoice generation and pricing logic for fjcloud, including rate card management, pricing calculations, billing plan definitions, and data aggregation for billing cycles. |
+| src | The billing crate contains the invoice generation pipeline: aggregating raw metering records into billing-period summaries, applying rate-card pricing logic to calculate invoices, and defining shared billing types and plan configurations. |
 <!-- [scrai:end] -->

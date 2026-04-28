@@ -40,7 +40,6 @@ declare -a HELPERS=(
     "scripts/launch/ssm_exec_staging.sh"
     "scripts/launch/post_deploy_verify_tenant_map.sh"
     "scripts/launch/capture_stage_d_evidence.sh"
-    "scripts/launch/refresh_staging_runtime_checkout.sh"
     "scripts/launch/hydrate_seeder_env_from_ssm.sh"
 )
 

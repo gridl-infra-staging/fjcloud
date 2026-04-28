@@ -11,9 +11,9 @@
  * These tests do not use stored auth state.
  */
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../../fixtures/fixtures';
 import { formatCents } from '../../../src/lib/format';
-import { MARKETING_PRICING } from '../../../src/lib/pricing';
+import { MARKETING_PRICING, pricingContractSnapshotFromMarketing } from '../../../src/lib/pricing';
 import { assertPricingCalculatorOutcome } from '../../fixtures/public-pages';
 import { assertSharedLegalPageContract } from '../../fixtures/legal_page_playwright_helpers';
 
@@ -126,10 +126,13 @@ test.describe('Landing page', () => {
 
 test.describe('Pricing page', () => {
 	test('renders pricing-first copy and public links for unauthenticated users', async ({
-		page
+		page,
+		getDisposableTenantRateCardSnapshot
 	}) => {
 		await page.goto('/pricing');
 		const pricingMain = page.getByTestId('pricing-page-main');
+		const backendSnapshot = await getDisposableTenantRateCardSnapshot();
+		const marketingSnapshot = pricingContractSnapshotFromMarketing(MARKETING_PRICING);
 
 		await expect(pricingMain).toBeVisible();
 		await expect(pricingMain).not.toContainText(/Page not found|Not found/i);
@@ -139,6 +142,10 @@ test.describe('Pricing page', () => {
 		await expect(pricingMain).toContainText('Hot index storage');
 		await expect(pricingMain).toContainText('Cold snapshot storage');
 		await expect(pricingMain).toContainText(formatCents(MARKETING_PRICING.minimum_spend_cents));
+		expect(backendSnapshot).toEqual(marketingSnapshot);
+		await expect(pricingMain).toContainText(backendSnapshot.storage_rate_per_mb_month);
+		await expect(pricingMain).toContainText(backendSnapshot.cold_storage_rate_per_gb_month);
+		await expect(pricingMain).toContainText(formatCents(backendSnapshot.minimum_spend_cents));
 
 		const primaryCta = pricingMain.getByRole('link', { name: MARKETING_PRICING.cta_label });
 		await expect(primaryCta).toHaveAttribute('href', '/signup');
@@ -151,9 +158,9 @@ test.describe('Pricing page', () => {
 
 		const regionTable = pricingMain.getByRole('table', { name: 'Region multipliers' });
 		const regionRows = regionTable.getByRole('row');
-		await expect(regionRows).toHaveCount(MARKETING_PRICING.region_pricing.length + 1);
-		for (let rowIndex = 0; rowIndex < MARKETING_PRICING.region_pricing.length; rowIndex += 1) {
-			const expectedRegion = MARKETING_PRICING.region_pricing[rowIndex];
+		await expect(regionRows).toHaveCount(backendSnapshot.region_pricing.length + 1);
+		for (let rowIndex = 0; rowIndex < backendSnapshot.region_pricing.length; rowIndex += 1) {
+			const expectedRegion = backendSnapshot.region_pricing[rowIndex];
 			const renderedRow = regionRows.nth(rowIndex + 1);
 			await expect(renderedRow.getByRole('rowheader')).toHaveText(expectedRegion.display_name);
 			await expect(renderedRow.getByRole('cell')).toHaveText(expectedRegion.multiplier);

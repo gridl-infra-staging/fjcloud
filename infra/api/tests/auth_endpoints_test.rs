@@ -118,6 +118,18 @@ impl EmailService for AlwaysFailEmailService {
             "forced test failure".to_string(),
         ))
     }
+
+    async fn send_broadcast_email(
+        &self,
+        _to: &str,
+        _subject: &str,
+        _html_body: Option<&str>,
+        _text_body: Option<&str>,
+    ) -> Result<(), EmailError> {
+        Err(EmailError::DeliveryFailed(
+            "forced test failure".to_string(),
+        ))
+    }
 }
 
 async fn build_index_capable_auth_app(
@@ -597,6 +609,10 @@ async fn verification_with_valid_token_marks_verified() {
         .unwrap();
     assert!(updated.email_verified_at.is_some());
     assert!(updated.email_verify_token.is_none());
+    assert!(
+        updated.stripe_customer_id.is_some(),
+        "verify-email should trigger Stripe customer creation"
+    );
 
     // Verified customer can now create an index
     let create_req = json_post_bearer(
@@ -1262,6 +1278,9 @@ async fn customer_serialization_omits_sensitive_fields() {
         email_verify_expires_at: Some(now),
         password_reset_token: Some("reset-token-456".to_string()),
         password_reset_expires_at: Some(now),
+        last_accessed_at: None,
+        subscription_status: None,
+        overdue_invoice_count: 0,
         object_storage_egress_carryforward_cents: rust_decimal::Decimal::new(37, 2),
     };
 
@@ -1643,6 +1662,10 @@ async fn signup_creates_unverified_customer() {
     assert!(
         customer.email_verify_token.is_some(),
         "newly registered customer should have a verification token"
+    );
+    assert!(
+        customer.stripe_customer_id.is_none(),
+        "newly registered customer should not have stripe_customer_id before email verification"
     );
 }
 

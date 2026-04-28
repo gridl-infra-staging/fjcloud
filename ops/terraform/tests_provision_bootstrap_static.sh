@@ -49,6 +49,8 @@ echo "--- provision_bootstrap.sh: S3 releases bucket ---"
 assert_file_contains "$provision_file" 'fjcloud-releases-\$\{ENV\}' "uses env-specific releases bucket name"
 # Releases bucket also needs versioning and public access block
 assert_file_contains "$provision_file" 'RELEASES_BUCKET' "uses RELEASES_BUCKET variable"
+assert_file_contains "$provision_file" 'service_status\.json exception' "documents service_status.json exception for reruns"
+assert_file_contains "$provision_file" 'RestrictPublicBuckets=true on every rerun' "documents rerun behavior that resets public policy flags"
 
 # ---------------------------------------------------------------------------
 # DynamoDB lock table provisioning

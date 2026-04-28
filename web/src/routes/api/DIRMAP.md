@@ -1,13 +1,11 @@
 <!-- [scrai:start] -->
-
 ## api
 
 | File | Summary |
-| ---- | ------- |
+| --- | --- |
 
-| Directory | Summary                                                                                                                                                                                                            |
-| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| pricing   | The pricing directory contains SvelteKit server endpoints for pricing operations, including a compare endpoint that accepts POST requests with pricing comparison parameters and forwards them to the backend API. |
-| search    | This directory provides a POST endpoint that processes batch search requests against named indexes with authentication and request validation built in.                                                            |
-
+| Directory | Summary |
+| --- | --- |
+| pricing | The pricing directory contains a SvelteKit API endpoint for pricing comparison functionality. |
+| search | This SvelteKit server route handles POST requests to execute searches against Flapjack indexes, validating authentication and parsing batched search requests before delegating to the executeIndexSearch service. |
 <!-- [scrai:end] -->

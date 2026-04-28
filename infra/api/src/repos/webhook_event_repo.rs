@@ -22,4 +22,12 @@ pub trait WebhookEventRepo {
 
     /// Mark a webhook event as successfully processed.
     async fn mark_processed(&self, stripe_event_id: &str) -> Result<(), RepoError>;
+
+    /// Resolve the most recent Stripe invoice id observed for a payment-intent id.
+    /// Used for webhook payloads (for example `charge.refunded`) that omit
+    /// `data.object.invoice` but include `data.object.payment_intent`.
+    async fn find_latest_invoice_id_by_payment_intent(
+        &self,
+        payment_intent_id: &str,
+    ) -> Result<Option<String>, RepoError>;
 }

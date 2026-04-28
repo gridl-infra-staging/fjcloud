@@ -114,29 +114,69 @@ test_inbox_find_matching_object_key() {
     fi
 
     while [[ "$attempt" -le "$max_attempts" ]]; do
-        local list_json matched_key
+        local list_json match_candidates matched_key
         if ! list_json="$(AWS_PAGER="" aws s3api list-objects-v2 --bucket "$bucket" --prefix "$prefix" --region "$region" --output json --no-cli-pager 2>/dev/null)"; then
             echo "aws s3api list-objects-v2 failed for s3://$bucket/$prefix" >&2
             return 1
         fi
 
-        matched_key="$(python3 - "$list_json" "$nonce" <<'PY' || true
+        match_candidates="$(python3 - "$list_json" "$nonce" <<'PY' || true
 import json
 import sys
+from datetime import datetime, timezone
+
 payload = json.loads(sys.argv[1])
 nonce = sys.argv[2]
-for item in payload.get("Contents", []) or []:
+
+contents = payload.get("Contents", []) or []
+for item in contents:
     key = item.get("Key", "")
     if nonce in key:
-        print(key)
-        break
+        print(f"KEY:{key}")
+        raise SystemExit(0)
+
+def parse_last_modified(item):
+    value = item.get("LastModified", "")
+    if not value:
+        return datetime.min.replace(tzinfo=timezone.utc)
+    try:
+        if value.endswith("Z"):
+            value = value[:-1] + "+00:00"
+        return datetime.fromisoformat(value)
+    except Exception:
+        return datetime.min.replace(tzinfo=timezone.utc)
+
+for item in sorted(contents, key=parse_last_modified, reverse=True)[:25]:
+    key = item.get("Key", "")
+    if key:
+        print(f"CAND:{key}")
 PY
 )"
 
+        matched_key="$(printf '%s\n' "$match_candidates" | awk -F'KEY:' 'NR==1 && /^KEY:/{print $2}')"
         if [[ -n "$matched_key" ]]; then
             printf '%s\n' "$matched_key"
             return 0
         fi
+
+        # SES inbound keys are not required to contain the probe nonce, so fall back
+        # to scanning recent message payloads for the nonce token when key-match fails.
+        while IFS= read -r candidate_line; do
+            local candidate_key candidate_rfc822
+            if [[ "$candidate_line" != CAND:* ]]; then
+                continue
+            fi
+            candidate_key="${candidate_line#CAND:}"
+            if [[ -z "$candidate_key" ]]; then
+                continue
+            fi
+
+            candidate_rfc822="$(test_inbox_fetch_rfc822 "$bucket" "$candidate_key" "$region" 2>/dev/null || true)"
+            if [[ -n "$candidate_rfc822" && "$candidate_rfc822" == *"$nonce"* ]]; then
+                printf '%s\n' "$candidate_key"
+                return 0
+            fi
+        done <<< "$match_candidates"
 
         if [[ "$attempt" -lt "$max_attempts" && "$sleep_seconds" -gt 0 ]]; then
             sleep "$sleep_seconds"

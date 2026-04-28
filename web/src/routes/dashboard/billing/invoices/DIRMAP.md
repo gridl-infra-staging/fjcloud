@@ -1,12 +1,10 @@
 <!-- [scrai:start] -->
-
 ## invoices
 
 | File | Summary |
-| ---- | ------- |
+| --- | --- |
 
 | Directory | Summary |
-| --------- | ------- |
-| [id]      | —       |
-
+| --- | --- |
+| [id] | — |
 <!-- [scrai:end] -->

@@ -313,16 +313,7 @@ async fn handle_subscription_created(
     state: &AppState,
     data: &serde_json::Value,
 ) -> Result<(), ApiError> {
-    let payload = match parse_subscription_payload_from_event(state, data) {
-        Some(payload) => payload,
-        None => {
-            tracing::warn!(
-                "customer.subscription.created event missing required subscription fields"
-            );
-            return Ok(());
-        }
-    };
-    apply_subscription_payload(state, payload, SubscriptionStatusAction::Create).await
+    handle_subscription_change(state, data, "created", SubscriptionStatusAction::Create).await
 }
 
 /// DEPRECATED for invoice totals — preserved for quota enforcement and legacy compatibility.
@@ -621,17 +612,52 @@ async fn handle_charge_refunded(
     state: &AppState,
     data: &serde_json::Value,
 ) -> Result<(), ApiError> {
-    let stripe_invoice_id = match data["object"]["invoice"].as_str() {
-        Some(id) => id,
-        None => {
-            tracing::warn!("charge.refunded event missing invoice id in charge object");
-            return Ok(());
+    let mut stripe_invoice_id = data["object"]["invoice"].as_str().map(str::to_string);
+
+    if stripe_invoice_id.is_none() {
+        if let Some(payment_intent_id) = data["object"]["payment_intent"].as_str() {
+            stripe_invoice_id = state
+                .webhook_event_repo
+                .find_latest_invoice_id_by_payment_intent(payment_intent_id)
+                .await?;
         }
+    }
+
+    if stripe_invoice_id.is_none() {
+        if let Some(stripe_customer_id) = data["object"]["customer"].as_str() {
+            if let Some(customer) = state
+                .customer_repo
+                .find_by_stripe_customer_id(stripe_customer_id)
+                .await?
+            {
+                let amount_refunded = data["object"]["amount_refunded"].as_i64();
+                let mut invoices = state.invoice_repo.list_by_customer(customer.id).await?;
+                invoices.sort_by_key(|invoice| invoice.paid_at);
+                invoices.reverse();
+
+                stripe_invoice_id = invoices.into_iter().find_map(|invoice| {
+                    if invoice.status != "paid" {
+                        return None;
+                    }
+                    if amount_refunded.is_some_and(|amount| invoice.total_cents != amount) {
+                        return None;
+                    }
+                    invoice.stripe_invoice_id
+                });
+            }
+        }
+    }
+
+    let Some(stripe_invoice_id) = stripe_invoice_id else {
+        tracing::warn!(
+            "charge.refunded event missing invoice mapping (invoice/payment_intent/customer fallback all unresolved)"
+        );
+        return Ok(());
     };
 
     if let Some(invoice) = state
         .invoice_repo
-        .find_by_stripe_invoice_id(stripe_invoice_id)
+        .find_by_stripe_invoice_id(&stripe_invoice_id)
         .await?
     {
         if invoice.status == "paid" {

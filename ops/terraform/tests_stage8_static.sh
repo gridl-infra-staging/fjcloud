@@ -20,6 +20,7 @@ validate_all_file="ops/terraform/validate_all.sh"
 strategy_doc_file="docs/design/aws_e2e_strategy.md"
 constraints_doc_file="docs/research/aws_e2e_external_constraints.md"
 stage1_budget_decision_file="deliverables/stage_01_budget_period_semantics_decision.md"
+runtime_params_main_file="ops/terraform/runtime_params/main.tf"
 
 assert_resource_ownership() {
   local resource_type="$1"
@@ -119,6 +120,31 @@ assert_contains_active "$shared_main_file" 'live_e2e_budget_action_principal_arn
 assert_contains_active "$shared_main_file" 'live_e2e_budget_action_policy_arn[[:space:]]*=[[:space:]]*var\.live_e2e_budget_action_policy_arn' "_shared/main.tf passes through action policy ARN to monitoring"
 assert_contains_active "$shared_main_file" 'live_e2e_budget_action_role_name[[:space:]]*=[[:space:]]*var\.live_e2e_budget_action_role_name' "_shared/main.tf passes through action role name to monitoring"
 assert_contains_active "$shared_main_file" 'live_e2e_budget_action_execution_role_arn[[:space:]]*=[[:space:]]*var\.live_e2e_budget_action_execution_role_arn' "_shared/main.tf passes through action execution-role ARN to monitoring"
+
+echo ""
+echo "--- Runtime parameter ownership contract ---"
+assert_file_exists "$runtime_params_main_file" "runtime_params/main.tf exists"
+assert_contains_active "$shared_main_file" '^[[:space:]]*module[[:space:]]+"runtime_params"' "_shared/main.tf delegates runtime parameters via module \"runtime_params\""
+# Runtime SSM parameters use the runtime_* logical-name prefix. data/main.tf
+# legitimately owns its own non-runtime aws_ssm_parameter resources (db_password,
+# database_url, internal_auth_token, cold_bucket_name), so the ownership contract
+# is scoped to the runtime_* prefix rather than every aws_ssm_parameter resource.
+runtime_ssm_hits="$(rg -n '^[[:space:]]*resource[[:space:]]+"aws_ssm_parameter"[[:space:]]+"runtime_[^"]+"' ops/terraform --glob '!*.sh' || true)"
+if [[ -z "$runtime_ssm_hits" ]]; then
+  fail "Runtime aws_ssm_parameter resources (runtime_*) are owned in runtime_params/main.tf (none found)"
+elif echo "$runtime_ssm_hits" | rg -qv "^${runtime_params_main_file}:"; then
+  fail "Runtime aws_ssm_parameter resources (runtime_*) are owned in runtime_params/main.tf (found runtime_* outside ${runtime_params_main_file})"
+else
+  pass "Runtime aws_ssm_parameter resources (runtime_*) are owned in runtime_params/main.tf"
+fi
+assert_not_contains_active "$shared_main_file" '^[[:space:]]*resource[[:space:]]+"aws_ssm_parameter"[[:space:]]+"runtime_' "_shared/main.tf does not directly own runtime aws_ssm_parameter resources"
+assert_contains_active "$shared_main_file" 'to[[:space:]]*=[[:space:]]*module\.runtime_params\.aws_ssm_parameter\.runtime_aws_ami_id' "_shared/main.tf retains moved-block migration for runtime_aws_ami_id"
+assert_contains_active "$shared_main_file" 'to[[:space:]]*=[[:space:]]*module\.runtime_params\.aws_ssm_parameter\.runtime_aws_subnet_id' "_shared/main.tf retains moved-block migration for runtime_aws_subnet_id"
+assert_contains_active "$shared_main_file" 'to[[:space:]]*=[[:space:]]*module\.runtime_params\.aws_ssm_parameter\.runtime_aws_security_group_ids' "_shared/main.tf retains moved-block migration for runtime_aws_security_group_ids"
+assert_contains_active "$shared_main_file" 'to[[:space:]]*=[[:space:]]*module\.runtime_params\.aws_ssm_parameter\.runtime_aws_key_pair_name' "_shared/main.tf retains moved-block migration for runtime_aws_key_pair_name"
+assert_contains_active "$shared_main_file" 'to[[:space:]]*=[[:space:]]*module\.runtime_params\.aws_ssm_parameter\.runtime_aws_instance_profile_name' "_shared/main.tf retains moved-block migration for runtime_aws_instance_profile_name"
+assert_contains_active "$shared_main_file" 'to[[:space:]]*=[[:space:]]*module\.runtime_params\.aws_ssm_parameter\.runtime_cloudflare_zone_id' "_shared/main.tf retains moved-block migration for runtime_cloudflare_zone_id"
+assert_contains_active "$shared_main_file" 'to[[:space:]]*=[[:space:]]*module\.runtime_params\.aws_ssm_parameter\.runtime_dns_domain' "_shared/main.tf retains moved-block migration for runtime_dns_domain"
 
 echo ""
 echo "--- Stage 3 budget-guardrail plan-gating contract ---"

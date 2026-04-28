@@ -278,3 +278,59 @@ Optionally set `SES_TEST_RECIPIENT` to send to a different safe recipient. If om
 Mailbox simulator recipients (`*@simulator.amazonses.com`) satisfy wrapper preflight and allow send-evidence runs without inbox-receipt proof.
 
 In sandbox mode, non-simulator recipients must be verified; otherwise the wrapper reports recipient-preflight blocked and does not attempt the live-send seam.
+
+## Inbound Test Inbox
+
+Inbound SES operability uses a shared test inbox contract:
+
+- Verified recipient domain: `test.flapjack.foo`
+- Active receipt rule: `mailpail-to-s3`
+- S3 sink: `s3://flapjack-cloud-releases/e2e-emails/`
+
+Primary probe entrypoints:
+
+- `scripts/validate_inbound_email_roundtrip.sh` — full outbound-to-inbound roundtrip (send probe, poll S3 sink, fetch RFC822, assert `Authentication-Results` verdicts).
+- `scripts/probe_ses_simulator_send.sh` — send-only simulator probe for `bounce|complaint` destinations.
+- `scripts/canary/support_email_deliverability.sh` — canary wrapper that delegates to the roundtrip probe.
+
+Source contracts and parsers:
+
+- `scripts/lib/test_inbox_helpers.sh`
+- `scripts/lib/parse_inbound_auth_headers.py`
+
+### Override Environment Variables
+
+`scripts/validate_inbound_email_roundtrip.sh` supports the following overrides:
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `INBOUND_ROUNDTRIP_S3_URI` | `s3://flapjack-cloud-releases/e2e-emails/` | S3 sink URI to poll for inbound RFC822 objects |
+| `INBOUND_ROUNDTRIP_POLL_MAX_ATTEMPTS` | `30` | Maximum S3 poll attempts before timeout |
+| `INBOUND_ROUNDTRIP_POLL_SLEEP_SEC` | `2` | Sleep interval (seconds) between poll attempts |
+| `INBOUND_ROUNDTRIP_NONCE` | auto-generated | Explicit nonce override for deterministic probe IDs |
+| `INBOUND_ROUNDTRIP_RECIPIENT_DOMAIN` | `test.flapjack.foo` | Recipient domain for the roundtrip probe |
+| `INBOUND_ROUNDTRIP_RECIPIENT_LOCALPART` | `roundtrip-<nonce>` | Recipient local part used to construct probe address |
+
+### Simulator Destinations
+
+Use mailbox simulator destinations for send-dispatch probes:
+
+- `bounce@simulator.amazonses.com`
+- `complaint@simulator.amazonses.com`
+
+Acceptance criterion for simulator probes is a non-empty `MessageId` in the JSON output from `scripts/probe_ses_simulator_send.sh`.
+
+Important boundary: simulator probes verify send-dispatch only. They do not verify handler-side-effect processing in fjcloud. See `docs/research/ses_bounce_complaint_gap.md` for the explicit open gap.
+
+### Evidence Interpretation
+
+Use `docs/runbooks/evidence/ses-deliverability/` as the evidence tree for inbound probe outcomes.
+
+Current baseline: `docs/runbooks/evidence/ses-deliverability/20260427_stage5_live_probe/`.
+
+Interpretation contract:
+
+- `roundtrip.json` must contain steps `send_probe`, `poll_inbox_s3`, `fetch_rfc822`, and `auth_verdict`.
+- `roundtrip.json` passes only when `auth_verdict` reports `dkim=pass`, `spf=pass`, and `dmarc=pass`.
+- `simulator_bounce.json` and `simulator_complaint.json` contain `send_probe`.
+- Simulator JSON passes only when `send_probe` includes a non-empty `message_id`/`MessageId`.

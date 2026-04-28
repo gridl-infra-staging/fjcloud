@@ -1,4 +1,3 @@
-//! Route assembly helpers for the public API, dashboard, and internal subtrees.
 use axum::{
     extract::DefaultBodyLimit,
     middleware,
@@ -36,6 +35,7 @@ pub(super) fn build_auth_rate_limited_routes(
         )
         .route("/auth/register", post(auth::register))
         .route("/auth/login", post(auth::login))
+        .route("/auth/verify-email", post(auth::verify_email))
         .route("/auth/forgot-password", post(auth::forgot_password))
         .route("/auth/resend-verification", post(auth::resend_verification))
         .route("/pricing/compare", post(pricing::compare))
@@ -90,7 +90,6 @@ pub(super) fn build_router_without_layers(
         .route("/health", get(health::health))
         .merge(Scalar::with_url("/docs", ApiDoc::openapi()))
         .merge(tenant_routes)
-        .route("/auth/verify-email", post(auth::verify_email))
         .route("/auth/reset-password", post(auth::reset_password))
         .route("/webhooks/stripe", post(webhooks::stripe_webhook))
         .nest("/internal", internal)
@@ -123,7 +122,6 @@ fn tenant_authenticated_routes() -> Router<AppState> {
     let tenant_routes = add_index_analytics_routes(tenant_routes);
     let tenant_routes = add_index_experiment_debug_and_key_routes(tenant_routes);
 
-    let tenant_routes = add_allyourbase_routes(tenant_routes);
     let tenant_routes = add_migration_routes(tenant_routes);
 
     add_onboarding_routes(tenant_routes)
@@ -376,20 +374,6 @@ fn add_index_experiment_debug_and_key_routes(router: Router<AppState>) -> Router
             get(indexes::get_debug_events),
         )
         .route("/indexes/:name/keys", post(indexes::create_key))
-}
-
-fn add_allyourbase_routes(router: Router<AppState>) -> Router<AppState> {
-    router
-        .route(
-            "/allyourbase/instances",
-            get(crate::routes::allyourbase::list_instances)
-                .post(crate::routes::allyourbase::create_instance),
-        )
-        .route(
-            "/allyourbase/instances/:id",
-            get(crate::routes::allyourbase::get_instance)
-                .delete(crate::routes::allyourbase::delete_instance),
-        )
 }
 
 fn add_migration_routes(router: Router<AppState>) -> Router<AppState> {

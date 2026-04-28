@@ -34,6 +34,38 @@ variable "alert_emails" {
   default     = []
 }
 
+variable "canary_image" {
+  description = "Canonical canary image publication input. The deploy workflow publishes this tag to the monitoring-owned ECR repository."
+  type = object({
+    tag = string
+  })
+  default = {
+    tag = "pending-publication"
+  }
+
+  validation {
+    condition     = trimspace(var.canary_image.tag) != ""
+    error_message = "canary_image.tag must be non-empty."
+  }
+}
+
+variable "canary_schedule" {
+  description = "Canonical canary schedule input. Keep disabled until operators explicitly activate runtime execution."
+  type = object({
+    expression = string
+    enabled    = bool
+  })
+  default = {
+    expression = "rate(15 minutes)"
+    enabled    = false
+  }
+
+  validation {
+    condition     = can(regex("^(rate|cron)\\(", trimspace(var.canary_schedule.expression)))
+    error_message = "canary_schedule.expression must start with rate( or cron(."
+  }
+}
+
 variable "cloudtrail_name_override" {
   description = "Optional explicit CloudTrail trail name; defaults to fjcloud-<env>-guardrails when empty"
   type        = string
@@ -115,5 +147,114 @@ variable "live_e2e_budget_action_execution_role_arn" {
   validation {
     condition     = var.live_e2e_budget_action_execution_role_arn == "" || can(regex("^arn:", var.live_e2e_budget_action_execution_role_arn))
     error_message = "live_e2e_budget_action_execution_role_arn must be empty or an ARN."
+  }
+}
+
+# T0.4 — CloudWatch billing alarm threshold.
+#
+# CRITICAL: AWS/Billing EstimatedCharges is the CUMULATIVE MONTHLY total —
+# not a daily delta. The metric counts up across the calendar month and
+# resets on the 1st. So a threshold like 50 USD will trip on day 2 of every
+# month (cumulative > 50) and stay tripped until the next monthly reset —
+# permanent false-positive paging.
+#
+# Correct semantics for THIS alarm (cumulative-monthly metric):
+#   - Set threshold ABOVE the expected monthly spend ceiling.
+#   - The alarm fires when we EXCEED the monthly budget, with ~6h latency
+#     vs AWS Budgets's monthly-email cadence.
+#   - It does NOT catch a sub-budget runaway spike (e.g. $200 spent in 1h
+#     when budget is $600/mo). That requires a metric-math expression on
+#     the rate-of-change; out of scope for Tier 0. T2.X may add it.
+#
+# Default 700 USD: slightly above the current 600 USD/mo Stuart budget,
+# so the alarm fires when something has overspent the monthly cap rather
+# than during normal accumulation. Adjust per-environment via tfvars.
+variable "billing_alarm_threshold_usd" {
+  description = "USD threshold for the AWS billing alarm (compared to AWS/Billing EstimatedCharges, which is CUMULATIVE for the current calendar month — set ABOVE expected monthly spend, not as a per-day rate)."
+  type        = number
+  default     = 700
+
+  validation {
+    condition     = var.billing_alarm_threshold_usd > 0
+    error_message = "billing_alarm_threshold_usd must be greater than 0."
+  }
+}
+
+variable "support_email_canary_image_uri" {
+  description = "Optional explicit image URI (or digest URI) for the support-email canary Lambda. When empty, monitoring composes URI from its ECR repository URL plus support_email_canary_image_tag."
+  type        = string
+  default     = ""
+}
+
+variable "support_email_canary_image_tag" {
+  description = "Tag used with monitoring-owned ECR repository when support_email_canary_image_uri is not explicitly set."
+  type        = string
+  default     = "latest"
+}
+
+variable "support_email_canary_ses_from_address" {
+  description = "SES sender identity used by support-email canary runtime as SES_FROM_ADDRESS."
+  type        = string
+  default     = "system@flapjack.foo"
+
+  validation {
+    condition     = can(regex("^[^@[:space:]]+@[^@[:space:]]+$", var.support_email_canary_ses_from_address))
+    error_message = "support_email_canary_ses_from_address must be an email address."
+  }
+}
+
+variable "support_email_canary_schedule_expression" {
+  description = "EventBridge schedule expression for support-email canary runs."
+  type        = string
+  default     = "rate(6 hours)"
+
+  validation {
+    condition     = can(regex("^(rate|cron)\\(.*\\)$", var.support_email_canary_schedule_expression))
+    error_message = "support_email_canary_schedule_expression must be a valid EventBridge rate(...) or cron(...) expression."
+  }
+}
+
+variable "support_email_canary_inbound_roundtrip_s3_uri" {
+  description = "S3 URI passed to INBOUND_ROUNDTRIP_S3_URI for support-email canary runtime."
+  type        = string
+  default     = "s3://flapjack-cloud-releases/e2e-emails/"
+
+  validation {
+    condition     = can(regex("^s3://[^/]+(/.*)?$", var.support_email_canary_inbound_roundtrip_s3_uri))
+    error_message = "support_email_canary_inbound_roundtrip_s3_uri must be an s3:// URI."
+  }
+}
+
+variable "support_email_canary_recipient_domain_default" {
+  description = "Default INBOUND_ROUNDTRIP_RECIPIENT_DOMAIN for support-email canary runtime."
+  type        = string
+  default     = "test.flapjack.foo"
+}
+
+variable "support_email_canary_recipient_local_part_default" {
+  description = "Optional fixed INBOUND_ROUNDTRIP_RECIPIENT_LOCALPART for support-email canary runtime. Leave empty to use script-generated nonce local parts."
+  type        = string
+  default     = ""
+}
+
+variable "support_email_canary_slack_webhook_parameter_name" {
+  description = "Optional explicit SSM parameter name for Slack webhook URL. Empty defaults to /fjcloud/<env>/slack_webhook_url."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = var.support_email_canary_slack_webhook_parameter_name == "" || can(regex("^/", var.support_email_canary_slack_webhook_parameter_name))
+    error_message = "support_email_canary_slack_webhook_parameter_name must start with '/' when set."
+  }
+}
+
+variable "support_email_canary_discord_webhook_parameter_name" {
+  description = "Optional explicit SSM parameter name for Discord webhook URL. Empty defaults to /fjcloud/<env>/discord_webhook_url."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = var.support_email_canary_discord_webhook_parameter_name == "" || can(regex("^/", var.support_email_canary_discord_webhook_parameter_name))
+    error_message = "support_email_canary_discord_webhook_parameter_name must start with '/' when set."
   }
 }

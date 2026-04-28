@@ -59,6 +59,16 @@ Review the plan output carefully:
 - Verify no unexpected deletions
 - Confirm environment-specific values are correct
 
+Canary runtime contract notes (post-Stage-5 handoff boundary):
+- Keep `canary_schedule.enabled = false` during initial `terraform plan/apply` until the canary image has been published and operators are ready to activate runtime execution.
+- Publish the canary image to the monitoring-owned ECR repository first, then set `canary_image.tag` to the published tag in your plan/apply inputs.
+- Example var overrides for initial rollout prep:
+  ```bash
+  -var='canary_image={tag="pending-publication"}' \
+  -var='canary_schedule={expression="rate(15 minutes)",enabled=false}'
+  ```
+- Runtime activation (setting `canary_schedule.enabled=true`) is a separate operator action after image publication and post-apply verification.
+
 Expected output:
 ```
 Plan: X to add, Y to change, Z to destroy.

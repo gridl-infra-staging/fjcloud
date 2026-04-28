@@ -8,6 +8,9 @@ janitor_script="ops/scripts/live_e2e_ttl_janitor.sh"
 bootstrap_script="ops/user-data/bootstrap.sh"
 cloud_init_file="infra/api/src/provisioner/cloud_init.rs"
 packer_file="ops/packer/flapjack-ami.pkr.hcl"
+publication_script="ops/terraform/publish_support_email_canary_image.sh"
+publication_dockerfile="ops/terraform/support_email_canary/Dockerfile"
+publication_lambda_handler="ops/terraform/support_email_canary/lambda_handler.py"
 
 assert_file_exists "$validate_script" "validate_all.sh exists"
 if [[ -x "$validate_script" ]]; then
@@ -49,6 +52,21 @@ assert_file_contains "$janitor_script" 'test_run_id' "live_e2e_ttl_janitor.sh re
 assert_file_contains "$janitor_script" 'owner' "live_e2e_ttl_janitor.sh requires owner tag"
 assert_file_contains "$janitor_script" 'ttl_expires_at' "live_e2e_ttl_janitor.sh requires ttl_expires_at tag"
 assert_file_contains "$janitor_script" 'environment' "live_e2e_ttl_janitor.sh requires environment tag"
+
+assert_file_exists "$publication_script" "publish_support_email_canary_image.sh exists"
+if [[ -x "$publication_script" ]]; then
+  pass "publish_support_email_canary_image.sh is executable"
+else
+  fail "publish_support_email_canary_image.sh is executable"
+fi
+assert_file_exists "$publication_dockerfile" "support_email_canary Dockerfile exists"
+assert_file_exists "$publication_lambda_handler" "support_email_canary lambda_handler.py exists"
+assert_file_contains "$publication_script" 'docker build' "publish script builds support_email_canary image"
+assert_file_contains "$publication_script" 'docker push' "publish script pushes support_email_canary image"
+assert_file_contains "$publication_script" 'support_email_canary/Dockerfile' "publish script uses support_email_canary Dockerfile"
+assert_file_contains "$publication_dockerfile" 'scripts/canary/support_email_deliverability.sh' "support_email_canary Dockerfile delegates to support_email_deliverability.sh"
+assert_file_contains "$publication_dockerfile" 'scripts/validate_inbound_email_roundtrip.sh' "support_email_canary Dockerfile delegates to validate_inbound_email_roundtrip.sh"
+assert_file_contains "$publication_lambda_handler" 'support_email_deliverability.sh' "support_email_canary lambda handler delegates to support_email_deliverability.sh"
 
 tmp_output="$(mktemp)"
 if PATH="/usr/bin:/bin" bash "$validate_script" >"$tmp_output" 2>&1; then

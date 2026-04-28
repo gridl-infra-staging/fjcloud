@@ -198,7 +198,7 @@ describe('Settings page', () => {
 		expect(screen.getByRole('heading', { level: 2, name: 'Delete Account' })).toBeInTheDocument();
 		expect(
 			screen.getByText(
-				'This deactivates your account and signs you out. You must delete any active AllYourBase instance first. Retained audit records may remain. This action cannot be undone.'
+				'This deactivates your account and signs you out. Retained audit records may remain. This action cannot be undone.'
 			)
 		).toBeInTheDocument();
 		expect(screen.getByRole('button', { name: 'Delete account' })).toBeInTheDocument();

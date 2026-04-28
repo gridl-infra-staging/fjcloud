@@ -290,3 +290,73 @@ describe('actions.terminateDeployment', () => {
 		expect(data.error).toBeTruthy();
 	});
 });
+
+// ---------------------------------------------------------------------------
+// T0.2 — actions.impersonate must pass purpose='impersonation' to the API.
+//
+// Why this test exists: the API handler at infra/api/src/routes/admin/tokens.rs
+// only writes an audit_log row when the body field `purpose` equals the exact
+// string "impersonation". If the SvelteKit form action forgets to pass it,
+// every operator impersonation event is silently invisible in T1.4's
+// per-customer audit view. This test asserts the body shape end-to-end:
+// captures the actual JSON sent to /admin/tokens and checks the field.
+// ---------------------------------------------------------------------------
+
+describe('actions.impersonate', () => {
+	it('POSTs purpose="impersonation" to /admin/tokens', async () => {
+		const { actions } = await import('./+page.server');
+
+		let capturedUrl = '';
+		let capturedBody = '';
+		const ctx = actionContext({}, async (url, init) => {
+			capturedUrl = url;
+			capturedBody = String(init?.body ?? '');
+			// Return a minimal successful token response so the action
+			// proceeds through cookie-set + redirect — but the redirect
+			// throws SvelteKit's `Redirect` symbol; we catch it below.
+			return new Response(
+				JSON.stringify({ token: 'test-token', expires_at: '2099-01-01T00:00:00Z' }),
+				{ status: 200, headers: { 'content-type': 'application/json' } }
+			);
+		});
+
+		// Augment the actionContext with the SvelteKit-specific bits the
+		// impersonate action uses but updateQuotas doesn't: a `url` and a
+		// cookies.set() spy. Cast through `unknown` so TS doesn't complain
+		// about the partial cookies impl — the test only exercises the
+		// branch up to the first cookies.set() and never reads them back.
+		const cookieJar = new Map<string, string>();
+		const ctxAny = ctx as unknown as {
+			url: URL;
+			cookies: {
+				get: (n: string) => string | undefined;
+				set: (n: string, v: string) => void;
+			};
+		};
+		ctxAny.url = new URL('http://localhost/admin/customers/test-id');
+		const originalGet = ctxAny.cookies.get;
+		ctxAny.cookies = {
+			get: originalGet,
+			set: (name: string, value: string) => {
+				cookieJar.set(name, value);
+			}
+		};
+
+		// SvelteKit's `redirect()` throws — catch and ignore so the test
+		// can inspect the captured fetch.
+		try {
+			await actions.impersonate(ctx);
+		} catch {
+			// ignore expected redirect throw
+		}
+
+		expect(capturedUrl).toContain('/admin/tokens');
+		const parsed = JSON.parse(capturedBody) as Record<string, unknown>;
+		// Discriminating: a regression that drops purpose would leave parsed.purpose
+		// undefined and this assertion would fail.
+		expect(parsed.purpose).toBe('impersonation');
+		// Sanity: customer_id is the path param, expires_in_secs is set.
+		expect(parsed.customer_id).toBe('aaaaaaaa-0002-0000-0000-000000000002');
+		expect(parsed.expires_in_secs).toBeTypeOf('number');
+	});
+});

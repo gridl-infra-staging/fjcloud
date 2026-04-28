@@ -116,10 +116,6 @@ pub const BEARER_SCHEME_NAME: &str = "bearer_jwt";
         // Stage 5 — Debug events and index keys
         crate::routes::indexes::debug::get_debug_events,
         crate::routes::indexes::lifecycle::create_key,
-        // Stage 5 — AllYourBase instances
-        crate::routes::allyourbase::list_instances,
-        crate::routes::allyourbase::get_instance,
-        crate::routes::allyourbase::delete_instance,
         // Stage 5 — Algolia migration
         crate::routes::migration::algolia_list_indexes,
         crate::routes::migration::algolia_migrate,
@@ -180,8 +176,6 @@ pub const BEARER_SCHEME_NAME: &str = "bearer_jwt";
         crate::routes::invoices::InvoiceDetailResponse,
         // Stage 5 — Index keys DTO
         crate::routes::indexes::CreateKeyRequest,
-        // Stage 5 — AllYourBase DTO
-        crate::routes::allyourbase::InstanceResponse,
     ))
 )]
 pub struct ApiDoc;

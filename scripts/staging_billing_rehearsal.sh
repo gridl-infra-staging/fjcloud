@@ -21,6 +21,8 @@ source "$RUNNER_DIR/lib/staging_billing_rehearsal_flow.sh"
 source "$RUNNER_DIR/lib/staging_billing_rehearsal_evidence.sh"
 # shellcheck source=lib/staging_billing_rehearsal_live_mutation.sh
 source "$RUNNER_DIR/lib/staging_billing_rehearsal_live_mutation.sh"
+# shellcheck source=lib/staging_billing_rehearsal_reset.sh
+source "$RUNNER_DIR/lib/staging_billing_rehearsal_reset.sh"
 # shellcheck source=lib/staging_billing_rehearsal_impl.sh
 source "$RUNNER_DIR/lib/staging_billing_rehearsal_impl.sh"
 

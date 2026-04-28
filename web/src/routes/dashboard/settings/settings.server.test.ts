@@ -260,32 +260,6 @@ describe('Settings page server', () => {
 			expect(wrapper.data.success).toBeUndefined();
 		});
 
-		it('maps backend 409 conflict to deleteAccountError without clobbering other settings form state', async () => {
-			deleteAccountMock.mockRejectedValue(
-				new ApiRequestError(
-					409,
-					'Delete your active AllYourBase instance before deleting your account.'
-				)
-			);
-
-			const result = await actions.deleteAccount(
-				makeRequest({ password: 'valid-password', confirm_delete: 'on' })
-			);
-			expect(result).toEqual(
-				expect.objectContaining({
-					status: 400,
-					data: {
-						deleteAccountError:
-							'Delete your active AllYourBase instance before deleting your account.'
-					}
-				})
-			);
-
-			const wrapper = result as unknown as { data: Record<string, unknown> };
-			expect(wrapper.data.error).toBeUndefined();
-			expect(wrapper.data.success).toBeUndefined();
-		});
-
 		it('returns shared session-expired payload on auth expiry', async () => {
 			deleteAccountMock.mockRejectedValue(new ApiRequestError(401, 'Unauthorized'));
 

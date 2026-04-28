@@ -2,11 +2,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ApiRequestError } from '$lib/api/client';
 
 const getPaymentMethodsMock = vi.fn();
+const getSubscriptionMock = vi.fn();
 const createBillingPortalSessionMock = vi.fn();
 
 vi.mock('$lib/server/api', () => ({
 	createApiClient: vi.fn(() => ({
 		getPaymentMethods: getPaymentMethodsMock,
+		getSubscription: getSubscriptionMock,
 		createBillingPortalSession: createBillingPortalSessionMock
 	}))
 }));
@@ -22,6 +24,7 @@ describe('billing route prerender contract', () => {
 describe('Billing page server load', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
+		getSubscriptionMock.mockRejectedValue(new ApiRequestError(404, 'no subscription found'));
 	});
 
 	it('returns billingUnavailable false when payment methods API is available', async () => {
@@ -32,7 +35,9 @@ describe('Billing page server load', () => {
 		} as never);
 
 		expect(result).toEqual({
-			billingUnavailable: false
+			billingUnavailable: false,
+			subscriptionCancelledBannerText: null,
+			subscriptionRecoveryBannerText: null
 		});
 	});
 
@@ -44,8 +49,11 @@ describe('Billing page server load', () => {
 		} as never);
 
 		expect(result).toEqual({
-			billingUnavailable: true
+			billingUnavailable: true,
+			subscriptionCancelledBannerText: null,
+			subscriptionRecoveryBannerText: null
 		});
+		expect(getSubscriptionMock).not.toHaveBeenCalled();
 	});
 
 	it('keeps billing action available when API responds with no stripe customer linked', async () => {
@@ -56,8 +64,11 @@ describe('Billing page server load', () => {
 		} as never);
 
 		expect(result).toEqual({
-			billingUnavailable: false
+			billingUnavailable: false,
+			subscriptionCancelledBannerText: null,
+			subscriptionRecoveryBannerText: null
 		});
+		expect(getSubscriptionMock).not.toHaveBeenCalled();
 	});
 
 	it('rethrows no stripe customer linked when status is not 400', async () => {
@@ -84,6 +95,121 @@ describe('Billing page server load', () => {
 
 		await expect(load({ locals: { user: { token: 'jwt-token' } } } as never)).rejects.toThrow(
 			'internal server error'
+		);
+	});
+
+	it('adds the exact cancellation banner copy when subscription is canceling at period end', async () => {
+		getPaymentMethodsMock.mockResolvedValue([]);
+		getSubscriptionMock.mockResolvedValue({
+			id: 'sub_test_123',
+			plan_tier: 'shared',
+			status: 'active',
+			current_period_end: '2026-05-31',
+			cancel_at_period_end: true
+		});
+
+		const result = await load({
+			locals: { user: { token: 'jwt-token' } }
+		} as never);
+
+		expect(result).toEqual({
+			billingUnavailable: false,
+			subscriptionCancelledBannerText: 'Subscription cancelled, ends 2026-05-31',
+			subscriptionRecoveryBannerText: null
+		});
+	});
+
+	it('keeps the exact cancellation banner copy for already-canceled subscriptions', async () => {
+		getPaymentMethodsMock.mockResolvedValue([]);
+		getSubscriptionMock.mockResolvedValue({
+			id: 'sub_test_456',
+			plan_tier: 'shared',
+			status: 'canceled',
+			current_period_end: '2026-06-30',
+			cancel_at_period_end: false
+		});
+
+		const result = await load({
+			locals: { user: { token: 'jwt-token' } }
+		} as never);
+
+		expect(result).toEqual({
+			billingUnavailable: false,
+			subscriptionCancelledBannerText: 'Subscription cancelled, ends 2026-06-30',
+			subscriptionRecoveryBannerText: null
+		});
+	});
+
+	it('returns payment recovery banner copy when subscription is past_due', async () => {
+		getPaymentMethodsMock.mockResolvedValue([]);
+		getSubscriptionMock.mockResolvedValue({
+			id: 'sub_test_recovery',
+			plan_tier: 'shared',
+			status: 'past_due',
+			current_period_end: '2026-07-31',
+			cancel_at_period_end: false
+		});
+
+		const result = await load({
+			locals: { user: { token: 'jwt-token' } }
+		} as never);
+
+		expect(result).toEqual({
+			billingUnavailable: false,
+			subscriptionCancelledBannerText: null,
+			subscriptionRecoveryBannerText:
+				'Payment failed for your subscription. Update your payment method to recover access.'
+		});
+	});
+
+	it('ignores missing-subscription responses when deriving the banner state', async () => {
+		getPaymentMethodsMock.mockResolvedValue([]);
+		getSubscriptionMock.mockRejectedValue(new ApiRequestError(404, 'no subscription found'));
+
+		const result = await load({
+			locals: { user: { token: 'jwt-token' } }
+		} as never);
+
+		expect(result).toEqual({
+			billingUnavailable: false,
+			subscriptionCancelledBannerText: null,
+			subscriptionRecoveryBannerText: null
+		});
+	});
+
+	it('ignores missing billing-customer responses from the subscription endpoint', async () => {
+		getPaymentMethodsMock.mockResolvedValue([]);
+		getSubscriptionMock.mockRejectedValue(new ApiRequestError(400, 'no stripe customer linked'));
+
+		const result = await load({
+			locals: { user: { token: 'jwt-token' } }
+		} as never);
+
+		expect(result).toEqual({
+			billingUnavailable: false,
+			subscriptionCancelledBannerText: null,
+			subscriptionRecoveryBannerText: null
+		});
+	});
+
+	it('redirects to login when subscription lookup hits an expired session', async () => {
+		getPaymentMethodsMock.mockResolvedValue([]);
+		getSubscriptionMock.mockRejectedValue(new ApiRequestError(401, 'Unauthorized'));
+
+		await expect(load({ locals: { user: { token: 'jwt-token' } } } as never)).rejects.toMatchObject(
+			{
+				status: 303,
+				location: '/login?reason=session_expired'
+			}
+		);
+	});
+
+	it('rethrows unexpected subscription lookup failures', async () => {
+		getPaymentMethodsMock.mockResolvedValue([]);
+		getSubscriptionMock.mockRejectedValue(new ApiRequestError(500, 'subscription service error'));
+
+		await expect(load({ locals: { user: { token: 'jwt-token' } } } as never)).rejects.toThrow(
+			'subscription service error'
 		);
 	});
 });

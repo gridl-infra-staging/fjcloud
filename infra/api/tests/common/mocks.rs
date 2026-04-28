@@ -15,6 +15,7 @@ use api::repos::index_migration_repo::IndexMigrationRepo;
 use api::repos::invoice_repo::{InvoiceRepo, NewInvoice, NewLineItem};
 use api::repos::subscription_repo::{NewSubscription, SubscriptionRepo};
 use api::repos::tenant_repo::TenantRepo;
+use api::repos::usage_repo::{rolling_window_for_days, UsageSummary};
 use api::repos::vm_inventory_repo::VmInventoryRepo;
 use api::repos::webhook_event_repo::WebhookEventRepo;
 use api::repos::{
@@ -24,7 +25,7 @@ use api::repos::{
 use api::secrets::mock::MockNodeSecretManager;
 use api::services::alerting::MockAlertService;
 use api::services::cold_tier::{ColdTierError, FlapjackNodeClient};
-use api::services::email::MockEmailService;
+use api::services::email::{EmailError, EmailService, MockEmailService};
 use api::services::flapjack_proxy::FlapjackProxy;
 use api::services::migration::{
     MigrationHttpClient, MigrationHttpClientError, MigrationHttpRequest, MigrationHttpResponse,
@@ -35,11 +36,12 @@ use api::stripe::{
     PortalSessionResponse, StripeError, StripeEvent, StripeInvoiceLineItem, StripeService,
     SubscriptionData,
 };
+use api::usage::summarize_usage_totals;
 use async_trait::async_trait;
 use chrono::{DateTime, NaiveDate, Utc};
 use rust_decimal::Decimal;
 use std::collections::{HashMap, VecDeque};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use uuid::Uuid;
 
@@ -82,6 +84,9 @@ impl MockCustomerRepo {
             email_verify_expires_at: None,
             password_reset_token: None,
             password_reset_expires_at: None,
+            last_accessed_at: None,
+            subscription_status: None,
+            overdue_invoice_count: 0,
             object_storage_egress_carryforward_cents: Decimal::ZERO,
         }
     }
@@ -140,6 +145,25 @@ impl MockCustomerRepo {
             stored.billing_plan = customer.billing_plan.clone();
         }
         customer
+    }
+
+    /// Override Stage 1 billing-health input fields on a stored customer fixture.
+    pub fn seed_billing_health_inputs(
+        &self,
+        customer_id: Uuid,
+        last_accessed_at: Option<DateTime<Utc>>,
+        subscription_status: Option<&str>,
+        overdue_invoice_count: i64,
+    ) -> Customer {
+        let mut customers = self.customers.lock().unwrap();
+        let customer = customers
+            .iter_mut()
+            .find(|c| c.id == customer_id)
+            .expect("customer fixture should exist before overriding billing-health inputs");
+        customer.last_accessed_at = last_accessed_at;
+        customer.subscription_status = subscription_status.map(str::to_string);
+        customer.overdue_invoice_count = overdue_invoice_count;
+        customer.clone()
     }
 }
 
@@ -967,6 +991,21 @@ impl UsageRepo for MockUsageRepo {
             .map(|r| r.search_requests)
             .sum())
     }
+
+    async fn summary_for(&self, customer_id: Uuid, days: u32) -> Result<UsageSummary, RepoError> {
+        let (start_date, end_date) = rolling_window_for_days(days)?;
+        let rows: Vec<UsageDaily> = {
+            let rows = self.rows.lock().unwrap();
+            rows.iter()
+                .filter(|r| {
+                    r.customer_id == customer_id && r.date >= start_date && r.date <= end_date
+                })
+                .cloned()
+                .collect()
+        };
+
+        Ok(summarize_usage_totals(&rows))
+    }
 }
 
 pub fn mock_usage_repo() -> Arc<MockUsageRepo> {
@@ -1688,24 +1727,144 @@ pub fn mock_email_service() -> Arc<MockEmailService> {
     Arc::new(MockEmailService::new())
 }
 
+/// Shared email double for integration tests that need deterministic
+/// per-recipient failures while still delegating all successful sends to a
+/// real email-service implementation (typically [`MockEmailService`]).
+pub struct FailableEmailService {
+    delegate: Arc<dyn EmailService>,
+    broadcast_attempts: AtomicUsize,
+    attempted_recipients: Mutex<Vec<String>>,
+    broadcast_failures: Mutex<HashMap<String, String>>,
+}
+
+impl FailableEmailService {
+    pub fn new(delegate: Arc<dyn EmailService>) -> Self {
+        Self {
+            delegate,
+            broadcast_attempts: AtomicUsize::new(0),
+            attempted_recipients: Mutex::new(Vec::new()),
+            broadcast_failures: Mutex::new(HashMap::new()),
+        }
+    }
+
+    pub fn with_mock_delegate() -> (Arc<Self>, Arc<MockEmailService>) {
+        let delegate = Arc::new(MockEmailService::new());
+        let service = Arc::new(Self::new(delegate.clone() as Arc<dyn EmailService>));
+        (service, delegate)
+    }
+
+    pub fn attempt_count(&self) -> usize {
+        self.broadcast_attempts.load(Ordering::SeqCst)
+    }
+
+    pub fn attempted_recipients(&self) -> Vec<String> {
+        self.attempted_recipients.lock().unwrap().clone()
+    }
+
+    pub fn fail_recipient(&self, email: &str, reason: &str) {
+        self.broadcast_failures
+            .lock()
+            .unwrap()
+            .insert(email.to_string(), reason.to_string());
+    }
+}
+
+#[async_trait]
+impl EmailService for FailableEmailService {
+    async fn send_verification_email(
+        &self,
+        to: &str,
+        verify_token: &str,
+    ) -> Result<(), EmailError> {
+        self.delegate
+            .send_verification_email(to, verify_token)
+            .await
+    }
+
+    async fn send_password_reset_email(
+        &self,
+        to: &str,
+        reset_token: &str,
+    ) -> Result<(), EmailError> {
+        self.delegate
+            .send_password_reset_email(to, reset_token)
+            .await
+    }
+
+    async fn send_invoice_ready_email(
+        &self,
+        to: &str,
+        invoice_id: &str,
+        invoice_url: &str,
+        pdf_url: Option<&str>,
+    ) -> Result<(), EmailError> {
+        self.delegate
+            .send_invoice_ready_email(to, invoice_id, invoice_url, pdf_url)
+            .await
+    }
+
+    async fn send_quota_warning_email(
+        &self,
+        to: &str,
+        metric: &str,
+        percent_used: f64,
+        current_usage: u64,
+        limit: u64,
+    ) -> Result<(), EmailError> {
+        self.delegate
+            .send_quota_warning_email(to, metric, percent_used, current_usage, limit)
+            .await
+    }
+
+    async fn send_broadcast_email(
+        &self,
+        to: &str,
+        subject: &str,
+        html_body: Option<&str>,
+        text_body: Option<&str>,
+    ) -> Result<(), EmailError> {
+        self.broadcast_attempts.fetch_add(1, Ordering::SeqCst);
+        self.attempted_recipients
+            .lock()
+            .unwrap()
+            .push(to.to_string());
+
+        if let Some(reason) = self.broadcast_failures.lock().unwrap().get(to).cloned() {
+            return Err(EmailError::DeliveryFailed(reason));
+        }
+
+        self.delegate
+            .send_broadcast_email(to, subject, html_body, text_body)
+            .await
+    }
+}
+
 // ---------------------------------------------------------------------------
 // MockWebhookEventRepo
 // ---------------------------------------------------------------------------
 
 pub struct MockWebhookEventRepo {
     events: Mutex<HashMap<String, bool>>,
+    payloads: Mutex<Vec<(String, serde_json::Value)>>,
 }
 
 impl MockWebhookEventRepo {
     pub fn new() -> Self {
         Self {
             events: Mutex::new(HashMap::new()),
+            payloads: Mutex::new(Vec::new()),
         }
     }
 
     /// Return the number of unique events stored.
     pub fn event_count(&self) -> usize {
         self.events.lock().unwrap().len()
+    }
+
+    /// Return the processed-state for a specific Stripe event ID.
+    /// `None` means the event has never been seen.
+    pub fn processed_state(&self, stripe_event_id: &str) -> Option<bool> {
+        self.events.lock().unwrap().get(stripe_event_id).copied()
     }
 }
 
@@ -1720,8 +1879,8 @@ impl WebhookEventRepo for MockWebhookEventRepo {
     async fn try_insert(
         &self,
         stripe_event_id: &str,
-        _event_type: &str,
-        _payload: &serde_json::Value,
+        event_type: &str,
+        payload: &serde_json::Value,
     ) -> Result<bool, RepoError> {
         let mut events = self.events.lock().unwrap();
         match events.get(stripe_event_id).copied() {
@@ -1729,6 +1888,10 @@ impl WebhookEventRepo for MockWebhookEventRepo {
             Some(false) => Ok(true),
             None => {
                 events.insert(stripe_event_id.to_string(), false);
+                self.payloads
+                    .lock()
+                    .unwrap()
+                    .push((event_type.to_string(), payload.clone()));
                 Ok(true)
             }
         }
@@ -1738,6 +1901,33 @@ impl WebhookEventRepo for MockWebhookEventRepo {
         let mut events = self.events.lock().unwrap();
         events.insert(stripe_event_id.to_string(), true);
         Ok(())
+    }
+
+    async fn find_latest_invoice_id_by_payment_intent(
+        &self,
+        payment_intent_id: &str,
+    ) -> Result<Option<String>, RepoError> {
+        let payloads = self.payloads.lock().unwrap();
+        for (event_type, payload) in payloads.iter().rev() {
+            if event_type != "invoice.payment_succeeded" && event_type != "invoice.paid" {
+                continue;
+            }
+
+            let object = &payload["data"]["object"];
+            let matches_payment_intent = object
+                .get("payment_intent")
+                .and_then(|value| value.as_str())
+                .is_some_and(|value| value == payment_intent_id);
+            if !matches_payment_intent {
+                continue;
+            }
+
+            if let Some(invoice_id) = object.get("id").and_then(|value| value.as_str()) {
+                return Ok(Some(invoice_id.to_string()));
+            }
+        }
+
+        Ok(None)
     }
 }
 

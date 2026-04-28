@@ -4,11 +4,16 @@ data "aws_caller_identity" "current" {}
 data "aws_partition" "current" {}
 
 locals {
-  cloudtrail_name               = var.cloudtrail_name_override != "" ? var.cloudtrail_name_override : "fjcloud-${var.env}-guardrails"
-  cloudtrail_export_bucket_name = var.cloudtrail_export_bucket_name != "" ? var.cloudtrail_export_bucket_name : "fjcloud-${var.env}-cloudtrail-export"
-  cloudtrail_source_arn         = "arn:${data.aws_partition.current.partition}:cloudtrail:${var.region}:${data.aws_caller_identity.current.account_id}:trail/${local.cloudtrail_name}"
-  live_e2e_budget_name          = "fjcloud-${var.env}-live-e2e-spend"
-  live_e2e_budget_configured    = var.live_e2e_monthly_spend_limit_usd != null
+  cloudtrail_name                                = var.cloudtrail_name_override != "" ? var.cloudtrail_name_override : "fjcloud-${var.env}-guardrails"
+  cloudtrail_export_bucket_name                  = var.cloudtrail_export_bucket_name != "" ? var.cloudtrail_export_bucket_name : "fjcloud-${var.env}-cloudtrail-export"
+  cloudtrail_source_arn                          = "arn:${data.aws_partition.current.partition}:cloudtrail:${var.region}:${data.aws_caller_identity.current.account_id}:trail/${local.cloudtrail_name}"
+  live_e2e_budget_name                           = "fjcloud-${var.env}-live-e2e-spend"
+  live_e2e_budget_configured                     = var.live_e2e_monthly_spend_limit_usd != null
+  customer_loop_canary_ecr_repository_name       = "fjcloud-${var.env}-customer-loop-canary"
+  customer_loop_canary_function_name             = "fjcloud-${var.env}-customer-loop-canary"
+  customer_loop_canary_schedule_rule_name        = "fjcloud-${var.env}-customer-loop-canary"
+  customer_loop_canary_image_uri                 = "${aws_ecr_repository.customer_loop_canary.repository_url}:${var.canary_image.tag}"
+  customer_loop_canary_quiet_until_parameter_arn = "arn:${data.aws_partition.current.partition}:ssm:${var.region}:${data.aws_caller_identity.current.account_id}:parameter/fjcloud/${var.env}/canary_quiet_until"
 }
 
 resource "aws_sns_topic" "alerts" {
@@ -25,6 +30,129 @@ resource "aws_sns_topic_subscription" "email" {
   topic_arn = aws_sns_topic.alerts.arn
   protocol  = "email"
   endpoint  = each.key
+}
+
+# Stage 5 canary packaging ownership: monitoring owns the canonical ECR path
+# and Lambda/EventBridge wiring, while the runtime behavior remains in
+# scripts/canary/customer_loop_synthetic.sh.
+resource "aws_ecr_repository" "customer_loop_canary" {
+  name                 = local.customer_loop_canary_ecr_repository_name
+  image_tag_mutability = "IMMUTABLE"
+
+  image_scanning_configuration {
+    scan_on_push = true
+  }
+}
+
+# Keep image history bounded so repeated SHA pushes do not grow indefinitely.
+resource "aws_ecr_lifecycle_policy" "customer_loop_canary" {
+  repository = aws_ecr_repository.customer_loop_canary.name
+  policy = jsonencode({
+    rules = [
+      {
+        rulePriority = 1
+        description  = "Keep the 50 most recent canary image tags"
+        selection = {
+          tagStatus   = "any"
+          countType   = "imageCountMoreThan"
+          countNumber = 50
+        }
+        action = {
+          type = "expire"
+        }
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role" "customer_loop_canary_lambda" {
+  name = "fjcloud-${var.env}-customer-loop-canary-lambda"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Service = "lambda.amazonaws.com"
+        }
+        Action = "sts:AssumeRole"
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy" "customer_loop_canary_lambda" {
+  name = "fjcloud-${var.env}-customer-loop-canary-lambda"
+  role = aws_iam_role.customer_loop_canary_lambda.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "logs:CreateLogGroup"
+        ]
+        Resource = "arn:${data.aws_partition.current.partition}:logs:${var.region}:${data.aws_caller_identity.current.account_id}:*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "logs:CreateLogStream",
+          "logs:PutLogEvents"
+        ]
+        Resource = "arn:${data.aws_partition.current.partition}:logs:${var.region}:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/${local.customer_loop_canary_function_name}:*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "ssm:GetParameter"
+        ]
+        Resource = local.customer_loop_canary_quiet_until_parameter_arn
+      }
+    ]
+  })
+}
+
+resource "aws_lambda_function" "customer_loop_canary" {
+  function_name = local.customer_loop_canary_function_name
+  role          = aws_iam_role.customer_loop_canary_lambda.arn
+  package_type  = "Image"
+  image_uri     = local.customer_loop_canary_image_uri
+  timeout       = 900
+  memory_size   = 512
+
+  image_config {
+    # This command intentionally points at the existing canary owner script.
+    command = ["scripts/canary/customer_loop_synthetic.sh"]
+  }
+
+  environment {
+    variables = {
+      ENVIRONMENT       = var.env
+      CANARY_AWS_REGION = var.region
+    }
+  }
+}
+
+resource "aws_cloudwatch_event_rule" "customer_loop_canary" {
+  name                = local.customer_loop_canary_schedule_rule_name
+  description         = "Scheduled trigger for customer loop synthetic canary"
+  schedule_expression = var.canary_schedule.expression
+  is_enabled          = var.canary_schedule.enabled
+}
+
+resource "aws_cloudwatch_event_target" "customer_loop_canary" {
+  rule      = aws_cloudwatch_event_rule.customer_loop_canary.name
+  target_id = "customer-loop-canary"
+  arn       = aws_lambda_function.customer_loop_canary.arn
+}
+
+resource "aws_lambda_permission" "customer_loop_canary_eventbridge" {
+  statement_id  = "AllowExecutionFromEventBridgeSchedule"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.customer_loop_canary.function_name
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.customer_loop_canary.arn
 }
 
 # CloudTrail ownership stays in monitoring so audit evidence and alarming live
@@ -354,5 +482,65 @@ resource "aws_cloudwatch_metric_alarm" "alb_p99_target_response_time" {
 
   dimensions = {
     LoadBalancer = var.alb_arn_suffix
+  }
+}
+
+# ---------------------------------------------------------------------------
+# AWS account cumulative-monthly charges > threshold (T0.4 — budget-exceeded page).
+#
+# What this catches: cumulative monthly spend has already crossed the
+# operator-set threshold (default 700 USD, slightly above the 600 USD/mo
+# budget). Pages within ~6h of the breach via the existing
+# aws_sns_topic.alerts — much faster than AWS Budgets's monthly-email
+# cadence, which would only surface the overspend at month-end.
+#
+# What this does NOT catch: sub-budget spikes (e.g. a runaway loop
+# spending 200 USD in one hour while still under the monthly cap). That
+# requires a metric-math rate-of-change expression which AWS/Billing's
+# 6h publish cadence makes brittle. Out of scope for Tier 0; T2.X may
+# add it as a supplementary alarm.
+#
+# Three AWS-Billing-specific quirks worth keeping in mind so a future
+# agent doesn't undo them:
+#
+#   1. EstimatedCharges is published ONLY in us-east-1. The
+#      `provider = aws.us_east_1` line below is REQUIRED — without it,
+#      the alarm receives no data points and never fires. See
+#      providers.tf for the alias definition.
+#
+#   2. The metric is CUMULATIVE FOR THE CURRENT CALENDAR MONTH (a
+#      monotonically-increasing running total that resets on the 1st),
+#      not a daily delta. Setting the threshold to a small per-day
+#      number (e.g. 50 USD) would alarm permanently mid-month —
+#      see variables.tf:billing_alarm_threshold_usd for the
+#      semantically-correct tuning.
+#
+#   3. AWS publishes EstimatedCharges every ~6h with a 24-72h delay,
+#      so the smallest meaningful period is 21600s. Tighter periods
+#      evaluate against missing data points and produce noise.
+# ---------------------------------------------------------------------------
+resource "aws_cloudwatch_metric_alarm" "billing_estimated_charges_high" {
+  provider = aws.us_east_1
+
+  alarm_name          = "fjcloud-${var.env}-billing-estimated-charges-high"
+  alarm_description   = "AWS cumulative monthly charges crossed the configured threshold"
+  comparison_operator = "GreaterThanThreshold"
+  metric_name         = "EstimatedCharges"
+  namespace           = "AWS/Billing"
+  statistic           = "Maximum"
+  period              = 21600 # 6h — AWS/Billing's published cadence
+  evaluation_periods  = 1
+  threshold           = var.billing_alarm_threshold_usd
+  treat_missing_data  = "notBreaching"
+  datapoints_to_alarm = 1
+
+  # Reuse the existing alerts SNS topic — same routing as every other
+  # operational alarm in this module, including email subscriptions in
+  # var.alert_emails. No new topic / subscription needed.
+  alarm_actions = [aws_sns_topic.alerts.arn]
+  ok_actions    = [aws_sns_topic.alerts.arn]
+
+  dimensions = {
+    Currency = "USD"
   }
 }

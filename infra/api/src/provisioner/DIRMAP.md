@@ -14,7 +14,7 @@ Every provisioner (OCI, GCP, Hetzner) needs to read typed values from env
 vars with consistent trimming, empty-value rejection, and error messages.
 
 This module is the single source of truth for that logic. |
-| hetzner.rs | Stub summary for /Users/stuart/parallel_development/fjcloud_dev/MAR17_11_2_data_management_features/fjcloud_dev/infra/api/src/provisioner/hetzner.rs. |
+| hetzner.rs | Stub summary for hetzner.rs. |
 | mock.rs | Stub summary for /Users/stuart/parallel_development/fjcloud_dev/MAR17_11_2_data_management_features/fjcloud_dev/infra/api/src/provisioner/mock.rs. |
 | multi.rs | Stub summary for /Users/stuart/parallel_development/fjcloud_dev/MAR17_11_2_data_management_features/fjcloud_dev/infra/api/src/provisioner/multi.rs. |
 | region_map.rs | Stub summary for /Users/stuart/parallel_development/fjcloud_dev/MAR17_11_2_data_management_features/fjcloud_dev/infra/api/src/provisioner/region_map.rs. |
@@ -22,6 +22,6 @@ This module is the single source of truth for that logic. |
 
 | Directory | Summary |
 | --- | --- |
-| gcp | The gcp module provides Google Compute Engine VM provisioning, handling instance creation, deletion, and lifecycle management (start/stop) through the GCP Compute API. |
-| oci | This directory contains OCI (Oracle Cloud Infrastructure) provisioner integration code, with an API client module for OCI interactions. |
+| gcp | The gcp directory contains the GCP provisioner module, with an api_client.rs file handling Google Cloud API interactions and a mod.rs file defining the module structure. |
+| oci | The oci directory contains provisioning code for Oracle Cloud Infrastructure, including an API client for OCI service interactions and module-level definitions for the OCI provisioner integration. |
 <!-- [scrai:end] -->

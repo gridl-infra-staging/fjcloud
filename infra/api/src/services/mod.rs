@@ -1,6 +1,7 @@
 pub mod access_tracker;
 pub mod alerting;
-pub mod ayb_admin;
+pub mod audit_log;
+pub mod billing_health;
 pub mod cold_tier;
 pub mod discovery;
 pub mod email;

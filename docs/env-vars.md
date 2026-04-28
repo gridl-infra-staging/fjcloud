@@ -38,24 +38,23 @@ Compatibility note: `STRIPE_SECRET_KEY` is the canonical operator-facing variabl
 | --------------------- | -------- | ------- | --------------------------------------------------------------------------------------------------------------- |
 | `INTERNAL_AUTH_TOKEN` | No       | —       | Bearer token for `/internal/*` endpoints (service-to-service auth). If unset, all internal endpoints return 401 |
 
-## AllYourBase (AYB) Admin
-
-All three variables must be set together or all omitted. Partial configuration is rejected at startup.
-
-| Variable             | Required | Default | Description                                                                                                                                                                     |
-| -------------------- | -------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `AYB_BASE_URL`       | No\*     | —       | AYB admin API base URL (must be a valid `https://` URL, or a loopback `http://localhost` / `127.0.0.1` / `[::1]` URL for local development). Example: `https://ayb.example.com` |
-| `AYB_CLUSTER_ID`     | No\*     | —       | AYB cluster identifier for tenant provisioning                                                                                                                                  |
-| `AYB_ADMIN_PASSWORD` | No\*     | —       | AYB admin password for bearer-token authentication (kept in memory only)                                                                                                        |
-
-\*All three are required when AYB integration is enabled. When all are absent, the API boots without the AYB admin client: read routes still serve local persisted state, while AYB operations that call the upstream admin API return 503.
-
 ## Email (SES)
 
 | Variable           | Required | Default | Description                                                                                                                                                                                                           |
 | ------------------ | -------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `SES_FROM_ADDRESS` | Prod     | —       | Sender address for transactional emails (e.g., `system@flapjack.foo`). When `ENVIRONMENT` is `local`/`dev`/`development`, `NODE_SECRET_BACKEND=memory`, and both SES vars are absent, startup uses `NoopEmailService` |
 | `SES_REGION`       | Prod     | —       | AWS region for SES API calls (e.g., `us-east-1`). When `ENVIRONMENT` is `local`/`dev`/`development`, `NODE_SECRET_BACKEND=memory`, and both SES vars are absent, startup uses `NoopEmailService`                      |
+
+## SES Inbound Test Probe
+
+| Variable | Required | Default | Description |
+| --- | --- | --- | --- |
+| `INBOUND_ROUNDTRIP_S3_URI` | No | `s3://flapjack-cloud-releases/e2e-emails/` | S3 sink URI polled by `scripts/validate_inbound_email_roundtrip.sh` when searching for inbound test inbox objects |
+| `INBOUND_ROUNDTRIP_POLL_MAX_ATTEMPTS` | No | `30` | Max S3 poll attempts before the inbound roundtrip probe times out |
+| `INBOUND_ROUNDTRIP_POLL_SLEEP_SEC` | No | `2` | Sleep interval in seconds between S3 poll attempts |
+| `INBOUND_ROUNDTRIP_NONCE` | No | auto-generated | Optional explicit nonce override used to build deterministic probe subject/body and recipient local part |
+| `INBOUND_ROUNDTRIP_RECIPIENT_DOMAIN` | No | `test.flapjack.foo` | Recipient domain for probe delivery target |
+| `INBOUND_ROUNDTRIP_RECIPIENT_LOCALPART` | No | `roundtrip-<nonce>` | Recipient local part used to build `<localpart>@<domain>` probe address |
 
 ## Email (Mailpit — Local Dev)
 

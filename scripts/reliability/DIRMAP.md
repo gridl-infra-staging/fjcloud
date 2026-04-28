@@ -61,5 +61,5 @@ Usage:
 | Directory | Summary |
 | --- | --- |
 | fixtures | — |
-| lib | This is a reliability operations library containing scripts for infrastructure monitoring, metrics collection, capacity profile analysis, and security validation. |
+| lib | This library directory contains utilities for backend reliability profiling and validation, including shared metric capture functions, capacity profile parsing, and security checks for the reliability gate. |
 <!-- [scrai:end] -->

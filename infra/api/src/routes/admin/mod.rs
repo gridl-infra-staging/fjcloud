@@ -1,4 +1,5 @@
 pub mod alerts;
+pub mod broadcast;
 pub mod cold;
 pub mod deployments;
 pub mod indexes;
@@ -64,7 +65,13 @@ pub fn admin_routes() -> Router<AppState> {
             post(tenants::reactivate_customer),
         )
         .route("/customers/:id/suspend", post(tenants::suspend_customer))
+        .route("/customers/:id/audit", get(tenants::get_customer_audit))
+        .route(
+            "/customers/:id/snapshot",
+            get(tenants::get_customer_snapshot),
+        )
         .route("/alerts", get(alerts::list_alerts))
+        .route("/broadcast", post(broadcast::broadcast_email))
         .route("/cold", get(cold::list_cold_snapshots))
         .route("/cold/:snapshot_id", get(cold::get_cold_snapshot))
         .route("/cold/:snapshot_id/restore", post(cold::admin_restore))

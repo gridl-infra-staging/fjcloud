@@ -1,4 +1,4 @@
-//! Stub summary for /Users/stuart/parallel_development/fjcloud_dev/MAR17_11_2_data_management_features/fjcloud_dev/infra/metering-agent/src/config.rs.
+use std::net::IpAddr;
 use std::time::Duration;
 use thiserror::Error;
 use uuid::Uuid;
@@ -38,6 +38,12 @@ pub struct Config {
     pub node_id: String,
     /// Cloud region label (e.g. "us-east-1"). Used for billing dimension.
     pub region: String,
+    /// Deployment environment label for alert payload metadata (e.g. "staging").
+    pub environment: String,
+    /// Optional Slack webhook URL for breaker transition alerts.
+    pub slack_webhook_url: Option<String>,
+    /// Optional Discord webhook URL for breaker transition alerts.
+    pub discord_webhook_url: Option<String>,
     /// Port for the health HTTP endpoint (default 9091).
     pub health_port: u16,
     /// Tenant-map endpoint URL used for index->customer attribution.
@@ -81,8 +87,14 @@ impl Config {
                 }),
             }
         };
+        let read_optional_trimmed = |key: &str| {
+            read(key)
+                .ok()
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty())
+        };
 
-        let flapjack_url = require("FLAPJACK_URL")?.trim_end_matches('/').to_string();
+        let flapjack_url = validate_service_url("FLAPJACK_URL", &require("FLAPJACK_URL")?)?;
         let flapjack_api_key = require("FLAPJACK_API_KEY")?;
         let flapjack_application_id =
             read("FLAPJACK_APPLICATION_ID").unwrap_or_else(|_| "flapjack".to_string());
@@ -90,6 +102,22 @@ impl Config {
         let database_url = require("DATABASE_URL")?;
         let node_id = require("NODE_ID")?;
         let region = require("REGION")?;
+        let environment = read("ENVIRONMENT")
+            .map(|raw| {
+                let trimmed = raw.trim();
+                if trimmed.is_empty() {
+                    "unknown".to_string()
+                } else {
+                    trimmed.to_string()
+                }
+            })
+            .unwrap_or_else(|_| "unknown".to_string());
+        let slack_webhook_url = read_optional_trimmed("SLACK_WEBHOOK_URL")
+            .map(|url| validate_https_or_loopback_url("SLACK_WEBHOOK_URL", &url))
+            .transpose()?;
+        let discord_webhook_url = read_optional_trimmed("DISCORD_WEBHOOK_URL")
+            .map(|url| validate_https_or_loopback_url("DISCORD_WEBHOOK_URL", &url))
+            .transpose()?;
 
         let customer_id = {
             let raw = require("CUSTOMER_ID")?;
@@ -104,15 +132,22 @@ impl Config {
             Duration::from_secs(parse_u64_opt("STORAGE_POLL_INTERVAL_SECS", 300)?);
         let tenant_map_refresh_interval =
             Duration::from_secs(parse_u64_opt("TENANT_MAP_REFRESH_INTERVAL_SECS", 300)?);
-        let health_port = parse_u64_opt("HEALTH_PORT", 9091)? as u16;
-        let tenant_map_url = read("TENANT_MAP_URL")
-            .unwrap_or_else(|_| "http://127.0.0.1:3001/internal/tenant-map".to_string())
-            .trim_end_matches('/')
-            .to_string();
-        let cold_storage_usage_url = read("COLD_STORAGE_USAGE_URL")
-            .unwrap_or_else(|_| "http://127.0.0.1:3001/internal/cold-storage-usage".to_string())
-            .trim_end_matches('/')
-            .to_string();
+        let health_port_raw = parse_u64_opt("HEALTH_PORT", 9091)?;
+        let health_port = u16::try_from(health_port_raw).map_err(|_| ConfigError::Invalid {
+            var: "HEALTH_PORT".to_string(),
+            reason: format!("must be between 0 and {}", u16::MAX),
+        })?;
+        let tenant_map_url = validate_https_or_loopback_url(
+            "TENANT_MAP_URL",
+            &read("TENANT_MAP_URL")
+                .unwrap_or_else(|_| "http://127.0.0.1:3001/internal/tenant-map".to_string()),
+        )?;
+        let cold_storage_usage_url = validate_https_or_loopback_url(
+            "COLD_STORAGE_USAGE_URL",
+            &read("COLD_STORAGE_USAGE_URL").unwrap_or_else(|_| {
+                "http://127.0.0.1:3001/internal/cold-storage-usage".to_string()
+            }),
+        )?;
 
         if node_id.is_empty() {
             return Err(ConfigError::Invalid {
@@ -139,6 +174,9 @@ impl Config {
             customer_id,
             node_id,
             region,
+            environment,
+            slack_webhook_url,
+            discord_webhook_url,
             health_port,
             tenant_map_url,
             cold_storage_usage_url,
@@ -160,6 +198,69 @@ impl Config {
     pub fn cold_storage_usage_url(&self) -> String {
         self.cold_storage_usage_url.clone()
     }
+}
+
+fn validate_service_url(var: &str, raw: &str) -> Result<String, ConfigError> {
+    let url = parse_http_url(var, raw)?;
+    Ok(url.as_str().trim_end_matches('/').to_string())
+}
+
+fn validate_https_or_loopback_url(var: &str, raw: &str) -> Result<String, ConfigError> {
+    let url = parse_http_url(var, raw)?;
+    if url.scheme() == "http" && !host_is_loopback(&url) {
+        return Err(ConfigError::Invalid {
+            var: var.to_string(),
+            reason: "must use https unless host is loopback".to_string(),
+        });
+    }
+    Ok(url.as_str().trim_end_matches('/').to_string())
+}
+
+fn parse_http_url(var: &str, raw: &str) -> Result<reqwest::Url, ConfigError> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return Err(ConfigError::Invalid {
+            var: var.to_string(),
+            reason: "must not be empty".to_string(),
+        });
+    }
+
+    let url = reqwest::Url::parse(trimmed).map_err(|err| ConfigError::Invalid {
+        var: var.to_string(),
+        reason: err.to_string(),
+    })?;
+
+    if !matches!(url.scheme(), "http" | "https") {
+        return Err(ConfigError::Invalid {
+            var: var.to_string(),
+            reason: "must use http or https".to_string(),
+        });
+    }
+    if url.host_str().is_none() {
+        return Err(ConfigError::Invalid {
+            var: var.to_string(),
+            reason: "must include a host".to_string(),
+        });
+    }
+    if !url.username().is_empty() || url.password().is_some() {
+        return Err(ConfigError::Invalid {
+            var: var.to_string(),
+            reason: "must not include embedded credentials".to_string(),
+        });
+    }
+
+    Ok(url)
+}
+
+fn host_is_loopback(url: &reqwest::Url) -> bool {
+    let Some(host) = url.host_str() else {
+        return false;
+    };
+    host.eq_ignore_ascii_case("localhost")
+        || host
+            .parse::<IpAddr>()
+            .map(|ip| ip.is_loopback())
+            .unwrap_or(false)
 }
 
 // ============================================================================
@@ -199,6 +300,9 @@ mod tests {
         assert_eq!(cfg.internal_key, "test-key");
         assert_eq!(cfg.node_id, "node-a");
         assert_eq!(cfg.region, "us-east-1");
+        assert_eq!(cfg.environment, "unknown");
+        assert!(cfg.slack_webhook_url.is_none());
+        assert!(cfg.discord_webhook_url.is_none());
         assert_eq!(cfg.scrape_interval, Duration::from_secs(60));
         assert_eq!(cfg.storage_poll_interval, Duration::from_secs(300));
         assert_eq!(cfg.tenant_map_refresh_interval, Duration::from_secs(300));
@@ -305,6 +409,131 @@ mod tests {
         assert_eq!(
             cfg.cold_storage_usage_url(),
             "https://api.flapjack.foo/internal/cold-storage-usage"
+        );
+    }
+
+    #[test]
+    fn alert_webhook_urls_keep_both_channels_when_present() {
+        let cfg = Config::from_reader(|key| match key {
+            "SLACK_WEBHOOK_URL" => Ok("https://hooks.slack.test/services/A/B/C".into()),
+            "DISCORD_WEBHOOK_URL" => Ok("https://discord.test/api/webhooks/123".into()),
+            other => valid_env(other),
+        })
+        .unwrap();
+        assert_eq!(
+            cfg.slack_webhook_url.as_deref(),
+            Some("https://hooks.slack.test/services/A/B/C")
+        );
+        assert_eq!(
+            cfg.discord_webhook_url.as_deref(),
+            Some("https://discord.test/api/webhooks/123")
+        );
+    }
+
+    #[test]
+    fn environment_var_is_loaded_and_trimmed() {
+        let cfg = Config::from_reader(|key| match key {
+            "ENVIRONMENT" => Ok("  staging  ".into()),
+            other => valid_env(other),
+        })
+        .unwrap();
+        assert_eq!(cfg.environment, "staging");
+    }
+
+    #[test]
+    fn blank_environment_var_falls_back_to_unknown() {
+        let cfg = Config::from_reader(|key| match key {
+            "ENVIRONMENT" => Ok(" \n\t ".into()),
+            other => valid_env(other),
+        })
+        .unwrap();
+        assert_eq!(cfg.environment, "unknown");
+    }
+
+    #[test]
+    fn alert_webhook_urls_trim_whitespace_independently() {
+        let cfg = Config::from_reader(|key| match key {
+            "SLACK_WEBHOOK_URL" => Ok("  https://hooks.slack.test/services/A/B/C  ".into()),
+            "DISCORD_WEBHOOK_URL" => Ok("  https://discord.test/api/webhooks/123  ".into()),
+            other => valid_env(other),
+        })
+        .unwrap();
+        assert_eq!(
+            cfg.slack_webhook_url.as_deref(),
+            Some("https://hooks.slack.test/services/A/B/C")
+        );
+        assert_eq!(
+            cfg.discord_webhook_url.as_deref(),
+            Some("https://discord.test/api/webhooks/123")
+        );
+    }
+
+    #[test]
+    fn blank_webhook_urls_become_none() {
+        let cfg = Config::from_reader(|key| match key {
+            "SLACK_WEBHOOK_URL" => Ok("   ".into()),
+            "DISCORD_WEBHOOK_URL" => Ok("\n\t ".into()),
+            other => valid_env(other),
+        })
+        .unwrap();
+        assert!(cfg.slack_webhook_url.is_none());
+        assert!(cfg.discord_webhook_url.is_none());
+    }
+
+    #[test]
+    fn out_of_range_health_port_returns_error() {
+        let err = Config::from_reader(|key| match key {
+            "HEALTH_PORT" => Ok("70000".into()),
+            other => valid_env(other),
+        })
+        .unwrap_err();
+        assert!(matches!(err, ConfigError::Invalid { ref var, .. } if var == "HEALTH_PORT"));
+    }
+
+    #[test]
+    fn remote_http_webhook_url_is_rejected() {
+        let err = Config::from_reader(|key| match key {
+            "SLACK_WEBHOOK_URL" => Ok("http://hooks.slack.test/services/A/B/C".into()),
+            other => valid_env(other),
+        })
+        .unwrap_err();
+        assert!(matches!(err, ConfigError::Invalid { ref var, .. } if var == "SLACK_WEBHOOK_URL"));
+    }
+
+    #[test]
+    fn loopback_http_webhook_url_is_allowed() {
+        let cfg = Config::from_reader(|key| match key {
+            "SLACK_WEBHOOK_URL" => Ok("http://127.0.0.1:8080/webhook".into()),
+            other => valid_env(other),
+        })
+        .unwrap();
+        assert_eq!(
+            cfg.slack_webhook_url.as_deref(),
+            Some("http://127.0.0.1:8080/webhook")
+        );
+    }
+
+    #[test]
+    fn remote_http_internal_urls_are_rejected() {
+        let err = Config::from_reader(|key| match key {
+            "TENANT_MAP_URL" => Ok("http://api.flapjack.foo/internal/tenant-map".into()),
+            other => valid_env(other),
+        })
+        .unwrap_err();
+        assert!(matches!(err, ConfigError::Invalid { ref var, .. } if var == "TENANT_MAP_URL"));
+    }
+
+    #[test]
+    fn urls_with_embedded_credentials_are_rejected() {
+        let err = Config::from_reader(|key| match key {
+            "COLD_STORAGE_USAGE_URL" => {
+                Ok("https://user:secret@api.flapjack.foo/internal/cold-storage-usage".into())
+            }
+            other => valid_env(other),
+        })
+        .unwrap_err();
+        assert!(
+            matches!(err, ConfigError::Invalid { ref var, .. } if var == "COLD_STORAGE_USAGE_URL")
         );
     }
 }

@@ -38,6 +38,8 @@ REGION="us-east-1"
 S3_BUCKET="fjcloud-releases-${ENV}"
 S3_PREFIX="${ENV}/${SHA}"
 SSM_LAST_SHA="/fjcloud/${ENV}/last_deploy_sha"
+SSM_CANARY_QUIET_UNTIL="/fjcloud/${ENV}/canary_quiet_until"
+CANARY_QUIET_WINDOW_SECONDS=1800
 
 if [[ "$ENV" != "staging" && "$ENV" != "prod" ]]; then
   echo "ERROR: env must be 'staging' or 'prod' (got: ${ENV})"
@@ -146,9 +148,20 @@ aws s3 cp "s3://${S3_BUCKET}/${S3_PREFIX}/scripts/migrate.sh" "${SCRIPTS_DIR}/mi
 aws s3 cp "s3://${S3_BUCKET}/${S3_PREFIX}/scripts/generate_ssm_env.sh" "${SCRIPTS_DIR}/generate_ssm_env.sh" --region "$REGION"
 chmod +x "${SCRIPTS_DIR}/migrate.sh" "${SCRIPTS_DIR}/generate_ssm_env.sh"
 
-# --- Generate /etc/fjcloud/env from SSM parameters ---
-echo "==> [instance] Generating env file from SSM"
+# --- Generate runtime env files from SSM parameters ---
+echo "==> [instance] Generating runtime env files from SSM"
 "${SCRIPTS_DIR}/generate_ssm_env.sh" "$ENV"
+METERING_ENV_FILE="/etc/fjcloud/metering-env"
+if [[ ! -s "$METERING_ENV_FILE" ]]; then
+  echo "ERROR: missing metering runtime env contract at $METERING_ENV_FILE"
+  exit 1
+fi
+for var_name in DATABASE_URL FLAPJACK_URL FLAPJACK_API_KEY INTERNAL_KEY CUSTOMER_ID NODE_ID REGION ENVIRONMENT TENANT_MAP_URL COLD_STORAGE_USAGE_URL SLACK_WEBHOOK_URL DISCORD_WEBHOOK_URL; do
+  if ! grep -q "^${var_name}=" "$METERING_ENV_FILE"; then
+    echo "ERROR: $METERING_ENV_FILE missing ${var_name}"
+    exit 1
+  fi
+done
 
 # --- Run migrations (fail fast before binary swap) ---
 echo "==> [instance] Running migrations"
@@ -218,6 +231,26 @@ INSTANCE_SCRIPT="${INSTANCE_SCRIPT//__REGION__/$REGION}"
 # ---------------------------------------------------------------------------
 # Send SSM command
 # ---------------------------------------------------------------------------
+
+CANARY_QUIET_UNTIL="$(
+  python3 - "$CANARY_QUIET_WINDOW_SECONDS" <<'PY'
+from datetime import datetime, timedelta, timezone
+import sys
+
+quiet_window_seconds = int(sys.argv[1])
+quiet_until = datetime.now(timezone.utc) + timedelta(seconds=quiet_window_seconds)
+print(quiet_until.replace(microsecond=0).strftime("%Y-%m-%dT%H:%M:%SZ"))
+PY
+)"
+
+aws ssm put-parameter \
+  --region "$REGION" \
+  --name "$SSM_CANARY_QUIET_UNTIL" \
+  --value "$CANARY_QUIET_UNTIL" \
+  --type String \
+  --overwrite
+
+echo "==> Set canary quiet window until ${CANARY_QUIET_UNTIL}"
 
 echo "==> Sending SSM command to ${INSTANCE_ID}"
 

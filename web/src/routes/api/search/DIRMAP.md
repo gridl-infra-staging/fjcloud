@@ -1,12 +1,10 @@
 <!-- [scrai:start] -->
-
 ## search
 
 | File | Summary |
-| ---- | ------- |
+| --- | --- |
 
-| Directory | Summary                                                                                                                                   |
-| --------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| [name]    | Implements a POST endpoint that processes batch search requests against a named index, with authentication checks and request validation. |
-
+| Directory | Summary |
+| --- | --- |
+| [name] | This SvelteKit server route handles POST requests to execute searches against Flapjack indexes, validating authentication and parsing batched search requests before delegating to the executeIndexSearch service. |
 <!-- [scrai:end] -->

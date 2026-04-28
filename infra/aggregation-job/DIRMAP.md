@@ -6,5 +6,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| src | The aggregation-job is an async Rust CLI that connects to PostgreSQL, configures logging, and executes a daily rollup query to aggregate metering data for billing cycles, reporting the number of affected rows. |
+| src | The aggregation-job is a daily rollup job that initializes structured logging, loads PostgreSQL configuration from environment variables, and executes a parameterized rollup SQL query for a target date window. |
 <!-- [scrai:end] -->

@@ -141,6 +141,14 @@ export interface PaymentMethod {
 	is_default: boolean;
 }
 
+export interface SubscriptionResponse {
+	id: string;
+	plan_tier: string;
+	status: string;
+	current_period_end: string;
+	cancel_at_period_end: boolean;
+}
+
 // API Key types
 export interface ApiKeyListItem {
 	id: string;
@@ -186,32 +194,6 @@ export interface UpdateProfileRequest {
 export interface ChangePasswordRequest {
 	current_password: string;
 	new_password: string;
-}
-
-export interface AybInstance {
-	id: string;
-	ayb_slug: string;
-	ayb_cluster_id: string;
-	ayb_url: string;
-	status: string;
-	plan: AybPlanTier;
-	created_at: string;
-	updated_at: string;
-}
-
-export const AYB_PLAN_OPTIONS = [
-	{ value: 'free', label: 'Free' },
-	{ value: 'starter', label: 'Starter' },
-	{ value: 'pro', label: 'Pro' },
-	{ value: 'enterprise', label: 'Enterprise' }
-] as const;
-
-export type AybPlanTier = (typeof AYB_PLAN_OPTIONS)[number]['value'];
-
-export interface CreateAybInstanceRequest {
-	name: string;
-	slug: string;
-	plan: AybPlanTier;
 }
 
 // Index types (Stage 5 — customer-facing index management)

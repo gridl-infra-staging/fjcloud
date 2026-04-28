@@ -44,6 +44,19 @@
 # TODO: Document extract_required_invoice_email_pairs_json.
 # TODO: Document extract_required_invoice_email_pairs_json.
 # TODO: Document extract_required_invoice_email_pairs_json.
+# TODO: Document extract_required_invoice_email_pairs_json.
+# TODO: Document extract_required_invoice_email_pairs_json.
+# TODO: Document extract_required_invoice_email_pairs_json.
+# TODO: Document extract_required_invoice_email_pairs_json.
+# TODO: Document extract_required_invoice_email_pairs_json.
+# TODO: Document extract_required_invoice_email_pairs_json.
+# TODO: Document extract_required_invoice_email_pairs_json.
+# TODO: Document extract_required_invoice_email_pairs_json.
+# TODO: Document extract_required_invoice_email_pairs_json.
+# TODO: Document extract_required_invoice_email_pairs_json.
+# TODO: Document extract_required_invoice_email_pairs_json.
+# TODO: Document extract_required_invoice_email_pairs_json.
+# TODO: Document extract_required_invoice_email_pairs_json.
 extract_required_invoice_email_pairs_json() {
     python3 - "$INVOICE_ROWS_JSON" "$CREATED_INVOICE_IDS_JSON" <<'PY' || true
 import json

@@ -6,7 +6,11 @@ import {
 	clearAdminSessionsForTest,
 	createAdminSession
 } from '$lib/server/admin-session';
-import { ACTIVE_DETAIL_FIXTURE, DETAIL_FIXTURE } from './admin-customer-detail.test-fixtures';
+import {
+	ACTIVE_DETAIL_FIXTURE,
+	DETAIL_FIXTURE,
+	POPULATED_AUDIT_FIXTURE_ROWS
+} from './admin-customer-detail.test-fixtures';
 
 vi.mock('$app/forms', () => ({
 	applyAction: vi.fn(),
@@ -126,6 +130,92 @@ describe('Admin customer detail', () => {
 		expect((result as { usage: typeof DETAIL_FIXTURE.usage }).usage).toEqual(DETAIL_FIXTURE.usage);
 	});
 
+	it('detail load requests customer audit rows and keeps an unavailable sentinel on optional failure', async () => {
+		const { load } = await import('./[id]/+page.server');
+		const tenantId = DETAIL_FIXTURE.tenant.id;
+		const auditPath = `/admin/customers/${tenantId}/audit`;
+
+		const json = (body: unknown) =>
+			new Response(JSON.stringify(body), {
+				status: 200,
+				headers: { 'content-type': 'application/json' }
+			});
+
+		const requestedUrls: string[] = [];
+		const successful = await load({
+			fetch: async (input: string | URL | Request) => {
+				const url =
+					typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+				requestedUrls.push(url);
+
+				if (url.includes(auditPath)) {
+					return json(POPULATED_AUDIT_FIXTURE_ROWS);
+				}
+				if (url.includes(`/admin/tenants/${tenantId}/usage`)) {
+					return json(DETAIL_FIXTURE.usage);
+				}
+				if (url.includes(`/admin/tenants/${tenantId}/rate-card`)) {
+					return json(DETAIL_FIXTURE.rateCard);
+				}
+				if (url.includes(`/admin/tenants/${tenantId}/quotas`)) {
+					return json(DETAIL_FIXTURE.quotas);
+				}
+				if (url.includes(`/admin/tenants/${tenantId}/deployments`)) {
+					return json(DETAIL_FIXTURE.deployments);
+				}
+				if (url.includes(`/admin/tenants/${tenantId}/invoices`)) {
+					return json(DETAIL_FIXTURE.invoices);
+				}
+				if (url.includes(`/admin/tenants/${tenantId}`)) {
+					return json(DETAIL_FIXTURE.tenant);
+				}
+				return new Response('not found', { status: 404 });
+			},
+			params: { id: tenantId },
+			depends: vi.fn()
+		} as never);
+
+		expect(requestedUrls.some((url) => url.includes(auditPath))).toBe(true);
+		expect((successful as { audit: typeof POPULATED_AUDIT_FIXTURE_ROWS }).audit).toEqual(
+			POPULATED_AUDIT_FIXTURE_ROWS
+		);
+
+		const withAuditFailure = await load({
+			fetch: async (input: string | URL | Request) => {
+				const url =
+					typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+
+				if (url.includes(auditPath)) {
+					return new Response('audit service unavailable', { status: 503 });
+				}
+				if (url.includes(`/admin/tenants/${tenantId}/usage`)) {
+					return json(DETAIL_FIXTURE.usage);
+				}
+				if (url.includes(`/admin/tenants/${tenantId}/rate-card`)) {
+					return json(DETAIL_FIXTURE.rateCard);
+				}
+				if (url.includes(`/admin/tenants/${tenantId}/quotas`)) {
+					return json(DETAIL_FIXTURE.quotas);
+				}
+				if (url.includes(`/admin/tenants/${tenantId}/deployments`)) {
+					return json(DETAIL_FIXTURE.deployments);
+				}
+				if (url.includes(`/admin/tenants/${tenantId}/invoices`)) {
+					return json(DETAIL_FIXTURE.invoices);
+				}
+				if (url.includes(`/admin/tenants/${tenantId}`)) {
+					return json(DETAIL_FIXTURE.tenant);
+				}
+				return new Response('not found', { status: 404 });
+			},
+			params: { id: tenantId },
+			depends: vi.fn()
+		} as never);
+
+		expect((withAuditFailure as { audit: null }).audit).toBeNull();
+		expect((withAuditFailure as { tenant: { id: string } }).tenant.id).toBe(tenantId);
+	});
+
 	it('shows customer detail tabs', async () => {
 		const CustomerDetailPage = (await import('./[id]/+page.svelte')).default;
 
@@ -139,6 +229,7 @@ describe('Admin customer detail', () => {
 		expect(screen.getByRole('button', { name: 'Usage' })).toBeInTheDocument();
 		expect(screen.getByRole('button', { name: 'Invoices' })).toBeInTheDocument();
 		expect(screen.getByRole('button', { name: 'Rate Card' })).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: 'Audit' })).toBeInTheDocument();
 	});
 
 	it('reactivate action calls the admin API endpoint', async () => {

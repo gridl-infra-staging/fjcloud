@@ -44,6 +44,26 @@ parse_args_token() {
             PARSE_ARGS_SHIFT=1
             return 0
             ;;
+        --reset-test-state)
+            RESET_TEST_STATE=1
+            PARSE_ARGS_SHIFT=1
+            return 0
+            ;;
+        --confirm-test-tenant)
+            [ "$#" -ge 2 ] || {
+                set_blocked_summary "test_tenant_confirmation_required" \
+                    "--confirm-test-tenant requires a tenant UUID value."
+                return 1
+            }
+            CONFIRM_TEST_TENANT_ID="$2"
+            PARSE_ARGS_SHIFT=2
+            return 0
+            ;;
+        --confirm-test-tenant=*)
+            CONFIRM_TEST_TENANT_ID="${1#--confirm-test-tenant=}"
+            PARSE_ARGS_SHIFT=1
+            return 0
+            ;;
         --help|-h)
             print_usage
             exit 0
@@ -71,9 +91,24 @@ validate_parsed_args() {
             "--month is required when --confirm-live-mutation is provided."
         return 1
     fi
-    if [ -n "$BILLING_MONTH" ] && [ "$CONFIRM_LIVE_MUTATION" -ne 1 ]; then
+    if [ -n "$BILLING_MONTH" ] && [ "$RESET_TEST_STATE" -ne 1 ] && [ "$CONFIRM_LIVE_MUTATION" -ne 1 ]; then
         set_blocked_summary "live_mutation_confirmation_required" \
             "--confirm-live-mutation is required when --month is provided."
+        return 1
+    fi
+    if [ "$RESET_TEST_STATE" -eq 1 ] && [ "$CONFIRM_LIVE_MUTATION" -eq 1 ]; then
+        set_blocked_summary "reset_mode_live_mutation_conflict" \
+            "--confirm-live-mutation cannot be combined with --reset-test-state."
+        return 1
+    fi
+    if [ "$RESET_TEST_STATE" -eq 1 ] && [ -z "$CONFIRM_TEST_TENANT_ID" ]; then
+        set_blocked_summary "test_tenant_confirmation_required" \
+            "--confirm-test-tenant is required when --reset-test-state is provided."
+        return 1
+    fi
+    if [ -n "$CONFIRM_TEST_TENANT_ID" ] && [ "$RESET_TEST_STATE" -ne 1 ]; then
+        set_blocked_summary "reset_test_state_required" \
+            "--reset-test-state is required when --confirm-test-tenant is provided."
         return 1
     fi
     return 0
@@ -164,6 +199,17 @@ run_rehearsal_flow() {
 
     clear_rehearsal_input_env
     load_layered_env_files "$ENV_FILE"
+
+    if ! validate_test_tenant_allowlist; then
+        return 0
+    fi
+
+    if [ "$RESET_TEST_STATE" -eq 1 ]; then
+        if ! run_reset_flow; then
+            return 0
+        fi
+        return 0
+    fi
 
     if ! run_preflight_owner; then
         handle_preflight_failure

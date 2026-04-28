@@ -117,46 +117,70 @@ fi
 echo "OK: usage_records have non-zero rows for tenant A"
 
 # -----------------------------------------------------------------------------
-# Step 5a: refresh /opt/fjcloud-runtime-fix on staging so the rehearsal
-# runs against current main, not whatever stale checkout was left there
+# Step 5: drive the rehearsal via SSM. The rehearsal must run on the
+# staging EC2 host (DATABASE_URL is RDS-internal). The deployed sha's
+# source is already at /opt/fjcloud-runtime-fix/<sha>/src/ from the
+# deploy step — no separate "refresh" hop needed (and the prior
+# git-clone-based refresh broke the moment the staging mirror became
+# private). The rehearsal env file is materialized on the EC2 host
+# from SSM so credentials never traverse the operator side.
 # -----------------------------------------------------------------------------
-echo "==> [5a/5] refresh /opt/fjcloud-runtime-fix from staging mirror HEAD"
-if ! bash "$SCRIPT_DIR/refresh_staging_runtime_checkout.sh" \
-    > "${ARTIFACT_DIR}/05a_runtime_checkout_refresh.log" 2>&1; then
-  echo "FAIL: refresh_staging_runtime_checkout.sh exited non-zero. See ${ARTIFACT_DIR}/05a_runtime_checkout_refresh.log" >&2
-  tail -40 "${ARTIFACT_DIR}/05a_runtime_checkout_refresh.log" >&2
-  exit 1
-fi
-refreshed_path="$(grep -E "^REFRESHED_RUNTIME_PATH=" "${ARTIFACT_DIR}/05a_runtime_checkout_refresh.log" | tail -1 | sed 's/^REFRESHED_RUNTIME_PATH=//')"
-if [ -z "$refreshed_path" ]; then
-  echo "FAIL: refresh wrapper did not emit REFRESHED_RUNTIME_PATH" >&2
-  exit 1
-fi
-echo "OK: staging runtime checkout refreshed at ${refreshed_path}"
-
-# -----------------------------------------------------------------------------
-# Step 5b: drive the rehearsal via SSM against the freshly-refreshed
-# checkout (DATABASE_URL is RDS-internal, so the rehearsal can only run
-# from the staging EC2 host)
-# -----------------------------------------------------------------------------
-echo "==> [5b/5] drive staging billing rehearsal via SSM"
+echo "==> [5/5] drive staging billing rehearsal via SSM"
 month="$(date -u +%Y-%m)"
 echo "    month: ${month}"
-echo "    runtime: ${refreshed_path}"
 
-REHEARSAL_CMD="cd ${refreshed_path} && bash scripts/staging_billing_rehearsal.sh \
-  --month ${month} --confirm-live-mutation"
+# Heredoc-as-script: read sha, verify the runtime checkout exists
+# (deploy precondition), generate env from SSM, run rehearsal.
+read -r -d '' REHEARSAL_REMOTE_SCRIPT <<'REMOTE_EOF' || true
+set -euo pipefail
+REGION="us-east-1"
+ssm_get() {
+  aws ssm get-parameter --name "$1" --with-decryption --region "$REGION" \
+    --query Parameter.Value --output text
+}
+SHA="$(ssm_get /fjcloud/staging/last_deploy_sha)"
+SRC_DIR="/opt/fjcloud-runtime-fix/${SHA}/src"
+REHEARSAL_SH="${SRC_DIR}/scripts/staging_billing_rehearsal.sh"
+if [[ ! -f "$REHEARSAL_SH" ]]; then
+  echo "ERROR: ${REHEARSAL_SH} missing — deploy step must populate the source" >&2
+  exit 1
+fi
+ENV_FILE="$(mktemp /tmp/fjcloud-rehearsal-env.XXXXXX)"
+chmod 600 "$ENV_FILE"
+trap 'rm -f "$ENV_FILE"' EXIT
+DATABASE_URL=$(ssm_get /fjcloud/staging/database_url)
+ADMIN_KEY=$(ssm_get /fjcloud/staging/admin_key)
+STRIPE_SECRET_KEY=$(ssm_get /fjcloud/staging/stripe_secret_key)
+STRIPE_WEBHOOK_SECRET=$(ssm_get /fjcloud/staging/stripe_webhook_secret)
+cat > "$ENV_FILE" <<ENV_EOF
+STAGING_API_URL=https://api.flapjack.foo
+STAGING_STRIPE_WEBHOOK_URL=https://api.flapjack.foo/webhooks/stripe
+STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
+STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
+ADMIN_KEY=${ADMIN_KEY}
+DATABASE_URL=${DATABASE_URL}
+ENV_EOF
+cd "$SRC_DIR"
+# __MONTH__ is a placeholder substituted operator-side after the outer
+# heredoc is read (the outer heredoc is single-quoted to keep the inner
+# `${STRIPE_SECRET_KEY}` etc. unexpanded until the script runs on EC2).
+bash scripts/staging_billing_rehearsal.sh \
+  --env-file "$ENV_FILE" \
+  --month "__MONTH__" \
+  --confirm-live-mutation
+REMOTE_EOF
+REHEARSAL_CMD="${REHEARSAL_REMOTE_SCRIPT//__MONTH__/${month}}"
 
 # The rehearsal sequences many DB+Stripe steps; the default 300s SSM
 # wrapper timeout is tight. Give it 15 min before declaring TimedOut.
 if ! SSM_EXEC_TIMEOUT_SECONDS="${STAGE_D_REHEARSAL_TIMEOUT_SECONDS:-900}" \
     bash "$SCRIPT_DIR/ssm_exec_staging.sh" "$REHEARSAL_CMD" \
-    > "${ARTIFACT_DIR}/05b_rehearsal_via_ssm.log" 2>&1; then
-  echo "WARN: rehearsal via SSM exited non-zero. Inspect ${ARTIFACT_DIR}/05b_rehearsal_via_ssm.log" >&2
-  tail -40 "${ARTIFACT_DIR}/05b_rehearsal_via_ssm.log" >&2
+    > "${ARTIFACT_DIR}/05_rehearsal_via_ssm.log" 2>&1; then
+  echo "WARN: rehearsal via SSM exited non-zero. Inspect ${ARTIFACT_DIR}/05_rehearsal_via_ssm.log" >&2
+  tail -40 "${ARTIFACT_DIR}/05_rehearsal_via_ssm.log" >&2
   exit 1
 fi
-tail -20 "${ARTIFACT_DIR}/05b_rehearsal_via_ssm.log"
+tail -20 "${ARTIFACT_DIR}/05_rehearsal_via_ssm.log"
 
 echo
 echo "==> DONE. Stage D evidence captured under:"

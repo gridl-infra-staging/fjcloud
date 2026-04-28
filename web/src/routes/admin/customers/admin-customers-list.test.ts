@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/svelte';
 import { fireEvent } from '@testing-library/dom';
+import type { AdminCustomerListItem } from './+page.server';
+import { adminBadgeColor } from '$lib/format';
 
 const applyActionMock = vi.fn();
 const invalidateMock = vi.fn();
@@ -32,59 +34,112 @@ vi.mock('$env/dynamic/private', () => ({
 	env: new Proxy({}, { get: (_target, prop) => process.env[prop as string] })
 }));
 
-type CustomerListItem = {
-	id: string;
-	name: string;
-	email: string;
-	status: string;
-	created_at: string;
-	index_count: number | null;
-	last_invoice_status: string | null;
-};
-
 const ACTIVE_CUSTOMER_ID = 'aaaaaaaa-0001-0000-0000-000000000001';
 const SUSPENDED_CUSTOMER_ID = 'aaaaaaaa-0002-0000-0000-000000000002';
 const DELETED_CUSTOMER_ID = 'aaaaaaaa-0003-0000-0000-000000000003';
+const YELLOW_OVERDUE_ID = 'aaaaaaaa-0004-0000-0000-000000000004';
+const GREY_NO_SUB_ID = 'aaaaaaaa-0005-0000-0000-000000000005';
+const YELLOW_INCOMPLETE_ID = 'aaaaaaaa-0006-0000-0000-000000000006';
 
-// Fixtures cover the three truthful states the loader can produce:
-//   Acme  -> real invoice status ("paid"), index_count null (unavailable)
-//   Beta  -> "none" invoice status (no invoices), index_count null
-//   Gamma -> null invoice status (API error), index_count null
-const CUSTOMER_FIXTURES: CustomerListItem[] = [
+// Fixtures cover every rendered billing-health state, plus both distinct yellow paths.
+const CUSTOMER_FIXTURES = [
 	{
 		id: ACTIVE_CUSTOMER_ID,
 		name: 'Acme Corp',
 		email: 'ops@acme.dev',
 		status: 'active',
-		created_at: '2026-02-10T12:00:00Z',
-		index_count: null,
-		last_invoice_status: 'paid'
+		billing_plan: 'shared',
+		last_accessed_at: '2026-04-20T12:00:00Z',
+		subscription_status: 'active',
+		overdue_invoice_count: 0,
+		billing_health: 'green',
+		created_at: '2026-04-25T12:00:00Z',
+		updated_at: '2026-04-20T12:00:00Z',
+		index_count: null
 	},
 	{
-		id: SUSPENDED_CUSTOMER_ID,
+		id: YELLOW_INCOMPLETE_ID,
 		name: 'Beta Labs',
 		email: 'billing@beta.dev',
-		status: 'suspended',
-		created_at: '2026-02-11T12:00:00Z',
-		index_count: null,
-		last_invoice_status: 'none'
+		status: 'active',
+		billing_plan: 'shared',
+		last_accessed_at: '2026-04-27T10:00:00Z',
+		subscription_status: 'incomplete',
+		overdue_invoice_count: 0,
+		billing_health: 'yellow',
+		created_at: '2026-04-24T18:00:00Z',
+		updated_at: '2026-04-27T10:00:00Z',
+		index_count: null
+	},
+	{
+		id: GREY_NO_SUB_ID,
+		name: 'Epsilon Works',
+		email: 'team@epsilon.dev',
+		status: 'active',
+		billing_plan: 'free',
+		last_accessed_at: '2026-04-24T12:00:00Z',
+		subscription_status: null,
+		overdue_invoice_count: 0,
+		billing_health: 'grey',
+		created_at: '2026-04-24T12:00:00Z',
+		updated_at: '2026-04-24T12:00:00Z',
+		index_count: null
 	},
 	{
 		id: DELETED_CUSTOMER_ID,
 		name: 'Gamma Inc',
 		email: 'team@gamma.dev',
 		status: 'deleted',
-		created_at: '2026-02-12T12:00:00Z',
-		index_count: null,
-		last_invoice_status: null
+		billing_plan: 'free',
+		last_accessed_at: null,
+		subscription_status: 'active',
+		overdue_invoice_count: 3,
+		billing_health: 'grey',
+		created_at: '2026-04-23T12:00:00Z',
+		updated_at: '2026-04-10T08:00:00Z',
+		index_count: null
+	},
+	{
+		id: YELLOW_OVERDUE_ID,
+		name: 'Delta Systems',
+		email: 'finance@delta.dev',
+		status: 'active',
+		billing_plan: 'shared',
+		last_accessed_at: '2026-04-27T11:56:00Z',
+		subscription_status: 'active',
+		overdue_invoice_count: 2,
+		billing_health: 'yellow',
+		created_at: '2026-04-22T12:00:00Z',
+		updated_at: '2026-04-27T11:56:00Z',
+		index_count: null
+	},
+	{
+		id: SUSPENDED_CUSTOMER_ID,
+		name: 'Zeta Holdings',
+		email: 'ops@zeta.dev',
+		status: 'suspended',
+		billing_plan: 'free',
+		last_accessed_at: '2026-04-18T09:00:00Z',
+		subscription_status: 'past_due',
+		overdue_invoice_count: 0,
+		billing_health: 'red',
+		created_at: '2026-04-21T12:00:00Z',
+		updated_at: '2026-04-18T09:00:00Z',
+		index_count: null
 	}
 ];
 
-async function renderCustomersPage(customers: CustomerListItem[] | null = CUSTOMER_FIXTURES) {
+async function renderCustomersPage(
+	customers: Array<Record<string, unknown>> | null = CUSTOMER_FIXTURES
+) {
 	const CustomersPage = (await import('./+page.svelte')).default;
 
 	render(CustomersPage, {
-		data: { environment: 'test', isAuthenticated: true, customers }
+		data: {
+			environment: 'test',
+			isAuthenticated: true,
+			customers: customers as unknown as AdminCustomerListItem[] | null
+		}
 	});
 }
 
@@ -110,21 +165,26 @@ beforeEach(() => {
 afterEach(() => {
 	cleanup();
 	delete process.env.ADMIN_KEY;
+	vi.useRealTimers();
 	applyActionMock.mockReset();
 	invalidateMock.mockReset();
 	vi.clearAllMocks();
 });
 
 describe('Admin customers list', () => {
+	// Stage 4 contract owner: verify customer-table columns and structure.
 	it('renders customer table rows', async () => {
 		await renderCustomersPage();
 
 		expect(screen.getByRole('columnheader', { name: /name/i })).toBeInTheDocument();
 		expect(screen.getByRole('columnheader', { name: /email/i })).toBeInTheDocument();
 		expect(screen.getByRole('columnheader', { name: /status/i })).toBeInTheDocument();
+		expect(screen.getByRole('columnheader', { name: /last activity/i })).toBeInTheDocument();
+		expect(screen.getByRole('columnheader', { name: /billing health/i })).toBeInTheDocument();
+		expect(screen.queryByRole('columnheader', { name: /last invoice/i })).not.toBeInTheDocument();
 
 		const rows = within(screen.getByTestId('customers-table-body')).getAllByRole('row');
-		expect(rows).toHaveLength(3);
+		expect(rows).toHaveLength(6);
 		expect(screen.getByText('Acme Corp')).toBeInTheDocument();
 		expect(screen.getByText('Beta Labs')).toBeInTheDocument();
 	});
@@ -151,27 +211,87 @@ describe('Admin customers list', () => {
 	it('renders "—" in Indexes column when index_count is null', async () => {
 		await renderCustomersPage();
 
-		// All three fixtures have index_count: null, so every row should show "—"
+		// All fixtures have index_count: null, so every row should show "—"
 		const rows = within(screen.getByTestId('customers-table-body')).getAllByRole('row');
 		for (const row of rows) {
 			expect(within(row).getByTestId('index-count')).toHaveTextContent('—');
 		}
 	});
 
-	it('renders "—" for null invoice status and "none" for the "none" sentinel', async () => {
+	// Stage 4 contract owner: verify last-activity rendering semantics.
+	it('renders relative last-activity values and em dash for missing activity', async () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(new Date('2026-04-27T12:00:00Z'));
+
 		await renderCustomersPage();
 
-		// Acme has last_invoice_status: 'paid' -> renders "paid"
-		const acmeRow = customerRow(ACTIVE_CUSTOMER_ID);
-		expect(within(acmeRow).getByTestId('invoice-status')).toHaveTextContent('paid');
+		expect(screen.getByTestId(`last-activity-cell-${ACTIVE_CUSTOMER_ID}`)).toHaveTextContent(
+			'7 days ago'
+		);
+		expect(screen.getByTestId(`last-activity-cell-${YELLOW_INCOMPLETE_ID}`)).toHaveTextContent(
+			'2h ago'
+		);
+		expect(screen.getByTestId(`last-activity-cell-${YELLOW_OVERDUE_ID}`)).toHaveTextContent(
+			'4m ago'
+		);
+		expect(screen.getByTestId(`last-activity-cell-${DELETED_CUSTOMER_ID}`)).toHaveTextContent(
+			'—'
+		);
+	});
 
-		// Beta has last_invoice_status: 'none' -> renders "none"
-		const betaRow = customerRow(SUSPENDED_CUSTOMER_ID);
-		expect(within(betaRow).getByTestId('invoice-status')).toHaveTextContent('none');
+	// Stage 4 contract owner: verify billing-health badge rendering semantics.
+	it('renders billing-health badges with the expected label and color class', async () => {
+		await renderCustomersPage();
 
-		// Gamma has last_invoice_status: null -> renders "—" (unavailable)
-		const gammaRow = customerRow(DELETED_CUSTOMER_ID);
-		expect(within(gammaRow).getByTestId('invoice-status')).toHaveTextContent('—');
+		for (const customer of CUSTOMER_FIXTURES) {
+			const badge = screen.getByTestId(`billing-health-badge-${customer.id}`);
+			expect(badge).toHaveTextContent(
+				customer.billing_health.charAt(0).toUpperCase() + customer.billing_health.slice(1)
+			);
+			expect(badge.className).toContain(adminBadgeColor(customer.billing_health));
+		}
+	});
+
+	// Stage 4 contract owner: verify billing-health sort and tie-break behavior.
+	it('sorts billing health red to yellow to grey to green with created_at tie-breaks', async () => {
+		await renderCustomersPage();
+		const sortToggle = screen.getByTestId('sort-billing-health');
+		expect(sortToggle).toHaveTextContent(/default/i);
+
+		const initialRows = within(screen.getByTestId('customers-table-body'))
+			.getAllByRole('row')
+			.map((row) => row.getAttribute('data-testid'));
+		expect(initialRows).toEqual([
+			`customer-row-${ACTIVE_CUSTOMER_ID}`,
+			`customer-row-${YELLOW_INCOMPLETE_ID}`,
+			`customer-row-${GREY_NO_SUB_ID}`,
+			`customer-row-${DELETED_CUSTOMER_ID}`,
+			`customer-row-${YELLOW_OVERDUE_ID}`,
+			`customer-row-${SUSPENDED_CUSTOMER_ID}`
+		]);
+
+		await fireEvent.click(sortToggle);
+		expect(sortToggle).toHaveTextContent(/sorted/i);
+
+		const sortedRows = within(screen.getByTestId('customers-table-body'))
+			.getAllByRole('row')
+			.map((row) => row.getAttribute('data-testid'));
+		expect(sortedRows).toEqual([
+			`customer-row-${SUSPENDED_CUSTOMER_ID}`,
+			`customer-row-${YELLOW_INCOMPLETE_ID}`,
+			`customer-row-${YELLOW_OVERDUE_ID}`,
+			`customer-row-${GREY_NO_SUB_ID}`,
+			`customer-row-${DELETED_CUSTOMER_ID}`,
+			`customer-row-${ACTIVE_CUSTOMER_ID}`
+		]);
+
+		await fireEvent.click(sortToggle);
+		expect(sortToggle).toHaveTextContent(/default/i);
+
+		const resetRows = within(screen.getByTestId('customers-table-body'))
+			.getAllByRole('row')
+			.map((row) => row.getAttribute('data-testid'));
+		expect(resetRows).toEqual(initialRows);
 	});
 });
 

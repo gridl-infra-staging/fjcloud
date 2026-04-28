@@ -1,0 +1,1 @@
+{"name":"webhook","result":"passed","classification":"webhook_ready","detail":"Webhook evidence converged for all created invoice IDs.","payload":{"rows": [{"invoice_id": "e7806ad2-977d-4f4b-9ff9-95c7ddab49e3", "stripe_invoice_id": "in_1TR4Y2KH9mdklKeI6OXXpo17", "processed_at": "2026-04-28T05:51:09Z"}], "required_invoice_ids": ["e7806ad2-977d-4f4b-9ff9-95c7ddab49e3"]}}

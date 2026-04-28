@@ -54,7 +54,6 @@ pub(crate) fn s3_test_config(rps: u32) -> Config {
         stripe_success_url: "http://localhost".to_string(),
         stripe_cancel_url: "http://localhost".to_string(),
         internal_auth_token: None,
-        ayb_admin: None,
     }
 }
 

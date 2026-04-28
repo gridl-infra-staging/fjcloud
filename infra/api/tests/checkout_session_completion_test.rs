@@ -1,51 +1,16 @@
 mod common;
 
-use std::sync::Arc;
-
 use api::models::{Customer, PlanTier, SubscriptionStatus};
 use api::repos::subscription_repo::NewSubscription;
 use api::repos::{CustomerRepo, SubscriptionRepo};
 use api::stripe::{SubscriptionData, SubscriptionItem};
-use axum::body::Body;
-use axum::http::{Request, StatusCode};
+use axum::http::StatusCode;
 use chrono::NaiveDate;
 use serde_json::json;
 use tower::ServiceExt;
 
-use common::{
-    mock_deployment_repo, mock_invoice_repo, mock_rate_card_repo, mock_repo,
-    mock_subscription_repo, mock_usage_repo, mock_webhook_event_repo, test_state_all_with_stripe,
-    MockCustomerRepo, MockStripeService, MockSubscriptionRepo, MockWebhookEventRepo,
-};
-
-fn webhook_request(body: &str) -> Request<Body> {
-    Request::post("/webhooks/stripe")
-        .header("content-type", "application/json")
-        .header("stripe-signature", "mock-sig")
-        .body(Body::from(body.to_string()))
-        .unwrap()
-}
-
-fn test_app_with_webhook(
-    customer_repo: Arc<MockCustomerRepo>,
-    subscription_repo: Arc<MockSubscriptionRepo>,
-    webhook_event_repo: Arc<MockWebhookEventRepo>,
-    stripe_service: Arc<MockStripeService>,
-) -> axum::Router {
-    let mut state = test_state_all_with_stripe(
-        customer_repo,
-        mock_deployment_repo(),
-        mock_usage_repo(),
-        mock_rate_card_repo(),
-        mock_invoice_repo(),
-        stripe_service,
-    );
-
-    state.subscription_repo = subscription_repo;
-    state.webhook_event_repo = webhook_event_repo;
-
-    api::router::build_router(state)
-}
+use common::stripe_webhook_test_support::{mock_stripe_webhook_app, webhook_request};
+use common::{mock_repo, mock_subscription_repo, mock_webhook_event_repo, MockCustomerRepo};
 
 async fn seed_customer_with_stripe(repo: &MockCustomerRepo, email: &str) -> Customer {
     let customer = repo.seed("Test Customer", email);
@@ -84,8 +49,9 @@ async fn checkout_session_completed_creates_subscription_from_stripe_data_withou
         }],
     });
 
-    let app = test_app_with_webhook(
+    let app = mock_stripe_webhook_app(
         customer_repo.clone(),
+        common::mock_invoice_repo(),
         subscription_repo.clone(),
         webhook_event_repo,
         stripe_service,
@@ -147,8 +113,9 @@ async fn checkout_session_completed_replay_is_idempotent() {
         }],
     });
 
-    let app = test_app_with_webhook(
+    let app = mock_stripe_webhook_app(
         customer_repo,
+        common::mock_invoice_repo(),
         subscription_repo.clone(),
         webhook_event_repo,
         stripe_service,
@@ -230,8 +197,9 @@ async fn checkout_session_completed_updates_existing_subscription_period_and_pla
         }],
     });
 
-    let app = test_app_with_webhook(
+    let app = mock_stripe_webhook_app(
         customer_repo,
+        common::mock_invoice_repo(),
         subscription_repo.clone(),
         webhook_event_repo,
         stripe_service,
@@ -281,8 +249,9 @@ async fn checkout_session_completed_missing_subscription_is_ignored_gracefully()
     let subscription_repo = mock_subscription_repo();
     let stripe_service = common::mock_stripe_service();
 
-    let app = test_app_with_webhook(
+    let app = mock_stripe_webhook_app(
         customer_repo,
+        common::mock_invoice_repo(),
         subscription_repo.clone(),
         webhook_event_repo,
         stripe_service,
@@ -329,8 +298,9 @@ async fn checkout_session_completed_for_unknown_stripe_customer_is_ignored() {
         }],
     });
 
-    let app = test_app_with_webhook(
+    let app = mock_stripe_webhook_app(
         customer_repo,
+        common::mock_invoice_repo(),
         subscription_repo.clone(),
         webhook_event_repo,
         stripe_service,

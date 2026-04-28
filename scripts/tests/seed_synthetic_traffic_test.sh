@@ -217,6 +217,7 @@ run_seed_synthetic_execute() {
         MOCK_SYNTHETIC_STORAGE_OTHER_TENANT_UID="${MOCK_SYNTHETIC_STORAGE_OTHER_TENANT_UID:-}" \
         MOCK_SYNTHETIC_CREATE_STATUS_CODE="${MOCK_SYNTHETIC_CREATE_STATUS_CODE:-}" \
         MOCK_SYNTHETIC_CREATE_409_INCLUDE_ID="${MOCK_SYNTHETIC_CREATE_409_INCLUDE_ID:-}" \
+        MOCK_SYNTHETIC_INDEX_STATUS="${MOCK_SYNTHETIC_INDEX_STATUS:-}" \
         MOCK_SYNTHETIC_DIRECT_DOCUMENTS_COUNT_PATH="${MOCK_SYNTHETIC_DIRECT_DOCUMENTS_COUNT_PATH:-}" \
         MOCK_SYNTHETIC_DIRECT_QUERY_COUNT_PATH="${MOCK_SYNTHETIC_DIRECT_QUERY_COUNT_PATH:-}" \
         MOCK_SYNTHETIC_FAIL_QUERY_ON_CALL="${MOCK_SYNTHETIC_FAIL_QUERY_ON_CALL:-}" \
@@ -498,6 +499,52 @@ test_provisioning_contract_rerun_is_idempotent_without_duplicate_create_calls() 
         assert_not_contains "$mapping_payload" '"tenant_uid"' "tenant mapping artifact should stop using deprecated tenant_uid key"
     else
         fail "tenant mapping artifact should be written for rerun idempotency"
+    fi
+}
+
+# Regression guard: post-c4a83033 the API's POST /admin/tenants/:id/indexes
+# returns 200 OK (not 201, not 409) on rerun against an existing
+# (customer_id, tenant_id) pair. Until commit 27571c15 the seeder rejected
+# anything other than 201|409, so the first live Stage D capture against the
+# new staging API binary failed at seed_index with status=200. This test
+# pins the 200-OK contract at the seeder boundary so a future revert of
+# the case-statement update fails loudly. Tested separately from the
+# rerun-idempotency test above because that one always sees 201 from the
+# default mock — masking this exact regression.
+test_seed_index_accepts_200_ok_from_idempotent_rerun_path() {
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+
+    local curl_log="$tmp_dir/curl.log"
+    local psql_log="$tmp_dir/psql.log"
+    local psql_stdin="$tmp_dir/psql.stdin"
+    local mapping_backup="$tmp_dir/tenant_a_mapping.backup"
+    trap 'restore_tenant_a_mapping_artifact "'"$mapping_backup"'"; rm -rf "'"$tmp_dir"'"' RETURN
+
+    stash_tenant_a_mapping_artifact "$mapping_backup"
+    setup_mock_workspace "$tmp_dir" "$curl_log" "$psql_log" "$psql_stdin"
+
+    clear_mock_logs "$curl_log" "$psql_log" "$psql_stdin"
+    # Force the indexes mock to return 200 OK (rerun path) instead of the
+    # default 201. Everything else (mapping artifact, sustained traffic)
+    # should still complete normally.
+    MOCK_SYNTHETIC_DURATION_MINUTES="0" \
+    MOCK_SYNTHETIC_INDEX_STATUS="200" \
+    MOCK_SYNTHETIC_STORAGE_MB_SEQUENCE="200,200" \
+        run_seed_synthetic_execute "$tmp_dir" "A"
+
+    assert_eq "$RUN_EXIT_CODE" "0" \
+        "seed_index returning 200 (idempotent rerun) must NOT fail the seeder"
+    if [ -f "$TENANT_A_MAPPING_PATH" ]; then
+        local mapping_payload
+        mapping_payload="$(cat "$TENANT_A_MAPPING_PATH")"
+        # The mapping artifact is the operational signal that the seeder
+        # accepted the rerun and wrote downstream-usable state, not just
+        # that the script returned 0.
+        assert_contains "$mapping_payload" '"flapjack_uid"' \
+            "200-OK rerun must still produce a tenant mapping artifact for sustained traffic"
+    else
+        fail "200-OK rerun should still write the tenant mapping artifact"
     fi
 }
 
@@ -1190,6 +1237,7 @@ main() {
             test_execute_guard_fails_closed_for_all_selectors_before_mutations
             test_provisioning_contract_first_run_pins_create_update_and_index_fields
             test_provisioning_contract_rerun_is_idempotent_without_duplicate_create_calls
+            test_seed_index_accepts_200_ok_from_idempotent_rerun_path
             test_provisioning_contract_recovers_when_create_409_omits_customer_id
             ;;
         stage3)
@@ -1215,6 +1263,7 @@ main() {
             test_execute_guard_fails_closed_for_all_selectors_before_mutations
             test_provisioning_contract_first_run_pins_create_update_and_index_fields
             test_provisioning_contract_rerun_is_idempotent_without_duplicate_create_calls
+            test_seed_index_accepts_200_ok_from_idempotent_rerun_path
             test_provisioning_contract_recovers_when_create_409_omits_customer_id
             test_storage_floor_contract_skips_backfill_when_target_already_met
             test_storage_floor_contract_polls_until_usage_converges

@@ -18,6 +18,8 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # shellcheck source=lib/validation_json.sh
 source "$SCRIPT_DIR/lib/validation_json.sh"
+# shellcheck source=lib/http_json.sh
+source "$SCRIPT_DIR/lib/http_json.sh"
 
 # Local aliases for shared validation helpers (short names used throughout).
 append_step() { validation_append_step "$@"; }
@@ -87,39 +89,8 @@ init_artifact_dir() {
 # runner. Production/local runs still default to scripts/seed_local.sh.
 SEED_LOCAL_SCRIPT="${SEED_LOCAL_SCRIPT:-$REPO_ROOT/scripts/seed_local.sh}"
 
-api_json_call() {
-    local method="$1" path="$2"
-    shift 2
-    curl -sS -X "$method" "${API_URL}${path}" \
-        -H "Content-Type: application/json" \
-        "$@"
-}
-
-admin_call() {
-    local method="$1" path="$2"
-    shift 2
-    api_json_call "$method" "$path" \
-        -H "x-admin-key: ${ADMIN_KEY}" \
-        "$@"
-}
-
-tenant_call() {
-    local method="$1" path="$2" token="$3"
-    shift 3
-    api_json_call "$method" "$path" \
-        -H "Authorization: Bearer ${token}" \
-        "$@"
-}
-
 HTTP_RESPONSE_BODY=""
 HTTP_RESPONSE_CODE=""
-
-capture_json_response() {
-    local response
-    response=$("$@" -w "\n%{http_code}" 2>/dev/null) || true
-    HTTP_RESPONSE_CODE=$(echo "$response" | tail -1)
-    HTTP_RESPONSE_BODY=$(echo "$response" | sed '$d')
-}
 
 run_seed_twice() {
     log "Running seed_local.sh (pass 1)..."
@@ -222,7 +193,7 @@ verify_signup_via_mailpit() {
 import json, sys, re
 msg = json.loads(sys.argv[1])
 text = msg.get("Text","") + msg.get("HTML","")
-m = re.search(r"verify-email[?&]token=([A-Za-z0-9_-]+)", text)
+m = re.search(r"verify-email(?:/|[?&]token=)([A-Za-z0-9_-]+)", text)
 if m: print(m.group(1))
 else: print("")
 ' "$msg_body" 2>/dev/null || true)

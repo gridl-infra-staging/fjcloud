@@ -40,10 +40,6 @@ fn spec_contains_stage5_operations() {
         ("/indexes/{name}/events/debug", "get"),
         // Index keys
         ("/indexes/{name}/keys", "post"),
-        // AllYourBase instances
-        ("/allyourbase/instances", "get"),
-        ("/allyourbase/instances/{id}", "get"),
-        ("/allyourbase/instances/{id}", "delete"),
         // Algolia migration
         ("/migration/algolia/list-indexes", "post"),
         ("/migration/algolia/migrate", "post"),

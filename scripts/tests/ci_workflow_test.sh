@@ -103,6 +103,68 @@ assert_job_not_contains_regex() {
   fi
 }
 
+step_block() {
+  local job_name="$1"
+  local step_name="$2"
+  job_block "$job_name" | awk -v step="$step_name" '
+    $0 ~ "^[[:space:]]+- name: " step "$" { in_step=1; print; next }
+    in_step && $0 ~ "^[[:space:]]+- name: " { exit }
+    in_step { print }
+  '
+}
+
+assert_step_contains_regex() {
+  local job_name="$1"
+  local step_name="$2"
+  local pattern="$3"
+  local msg="$4"
+  local block
+  block="$(step_block "$job_name" "$step_name")"
+  block="$(printf '%s\n' "$block" | grep -Ev '^[[:space:]]*#')"
+  if [[ -z "$block" ]]; then
+    fail "$msg (step missing in $job_name: $step_name)"
+    return
+  fi
+
+  if _grep -n "$pattern" <<<"$block" >/dev/null 2>&1; then
+    pass "$msg"
+  else
+    fail "$msg (pattern not found in $job_name/$step_name: $pattern)"
+  fi
+}
+
+step_line_number() {
+  local job_name="$1"
+  local step_name="$2"
+  local block
+  block="$(job_block "$job_name")"
+  printf '%s\n' "$block" | awk -v step="$step_name" '
+    $0 ~ "^[[:space:]]+- name: " step "$" { print NR; exit }
+  '
+}
+
+assert_step_order() {
+  local job_name="$1"
+  local first_step="$2"
+  local second_step="$3"
+  local msg="$4"
+  local first_line second_line
+
+  first_line="$(step_line_number "$job_name" "$first_step")"
+  second_line="$(step_line_number "$job_name" "$second_step")"
+
+  if [[ -z "$first_line" || -z "$second_line" ]]; then
+    fail "$msg (missing step in $job_name: $first_step -> $second_step)"
+    return
+  fi
+
+  if (( first_line < second_line )); then
+    pass "$msg"
+  else
+    fail "$msg (order wrong in $job_name: $first_step line $first_line, $second_step line $second_line)"
+  fi
+}
+
 assert_all_uses_are_sha_pinned() {
   local invalid
   invalid="$(_grep -n '^\s*uses:\s+[[:graph:]]+@|^\s*-\s*uses:\s+[[:graph:]]+@' "$WORKFLOW_FILE" | _grep -v '@[0-9a-f]{40}(\s+#.*)?$' || true)"
@@ -222,6 +284,15 @@ assert_job_contains_regex "playwright" 'web/playwright-report' "playwright artif
 assert_job_contains_regex "playwright" 'web/test-results' "playwright artifact upload includes test-results"
 assert_job_contains_regex "playwright" '^\s+/tmp/fjcloud-api\.log$' "playwright artifact upload includes API readiness log"
 assert_job_contains_regex "playwright" '^\s+/tmp/fjcloud-web\.log$' "playwright artifact upload includes web readiness log"
+assert_step_contains_regex "playwright" 'Upload Playwright artifacts' 'if:\s+always\(\)' "playwright artifact upload always runs for failure evidence"
+assert_step_contains_regex "playwright" 'Stop API and web servers' 'if:\s+always\(\)' "playwright cleanup always runs"
+assert_step_order "playwright" 'Run migrations' 'Start API server' "playwright runs migrations before starting the API"
+assert_step_order "playwright" 'Start API server' 'Wait for API and web readiness' "playwright starts the API before readiness polling"
+assert_step_order "playwright" 'Start web server' 'Wait for API and web readiness' "playwright starts the web server before readiness polling"
+assert_step_order "playwright" 'Wait for API and web readiness' 'Install Playwright browsers' "playwright readiness polling completes before browser install"
+assert_step_order "playwright" 'Install Playwright browsers' 'Run Playwright tests' "playwright installs browsers before running tests"
+assert_step_order "playwright" 'Run Playwright tests' 'Upload Playwright artifacts' "playwright uploads artifacts after the test step"
+assert_step_order "playwright" 'Upload Playwright artifacts' 'Stop API and web servers' "playwright stops background servers after artifact collection"
 
 assert_job_contains_regex "secret-scan" 'uses:\s+actions/checkout@' "secret-scan has checkout step"
 assert_job_contains_regex "secret-scan" 'gitleaks' "secret-scan uses gitleaks"
@@ -235,8 +306,15 @@ assert_job_not_contains_regex "secret-scan" 'args:\s+git' "secret-scan does not 
 assert_job_not_contains_regex "secret-scan" '--log-opts=' "main full-history scan does not use commit-range log opts"
 
 assert_job_contains_regex "deploy-staging" 'uses:\s+actions/checkout@' "deploy-staging has checkout step"
-assert_job_contains_regex "deploy-staging" 'uses:\s+aws-actions/configure-aws-credentials@' "deploy-staging has AWS credentials step"
+assert_job_contains_regex "deploy-staging" 'permissions:' "deploy-staging declares explicit permissions"
+assert_job_contains_regex "deploy-staging" 'id-token:\s+write' "deploy-staging grants id-token: write for GitHub OIDC"
+assert_job_contains_regex "deploy-staging" 'contents:\s+read' "deploy-staging grants contents: read"
+assert_job_contains_regex "deploy-staging" 'uses:\s+aws-actions/configure-aws-credentials@ff717079ee2060e4bcee96c4779b553acc87447c' "deploy-staging pins AWS credentials action by commit SHA"
+assert_job_contains_regex "deploy-staging" 'role-to-assume:\s+\$\{\{\s*secrets\.DEPLOY_IAM_ROLE_ARN\s*\}\}' "deploy-staging assumes role from secret-backed role-to-assume"
 assert_job_contains_regex "deploy-staging" 'name:\s+Build release binaries' "deploy-staging has build step"
+assert_job_not_contains_regex "deploy-staging" 'dnf install -y curl' "deploy-staging does not install curl package in Amazon Linux (curl-minimal conflict)"
+assert_job_not_contains_regex "deploy-staging" 'curl\s+https://sh\.rustup\.rs.*\|\s*sh' "deploy-staging avoids curl-pipe-shell remote installer execution"
+assert_job_contains_regex "deploy-staging" 'dnf install -y .*rust.*cargo' "deploy-staging installs rust/cargo from distro packages"
 assert_job_contains_regex "deploy-staging" 'name:\s+Upload release artifacts' "deploy-staging has S3 upload step"
 assert_job_contains_regex "deploy-staging" 'name:\s+Trigger API deploy' "deploy-staging has deploy trigger step"
 assert_job_contains_regex "deploy-staging" 'needs:' "deploy-staging declares required gate dependencies"
@@ -245,12 +323,20 @@ for required_gate in rust-test rust-lint migration-test web-test check-sizes web
 done
 assert_job_not_contains_regex "deploy-staging" '^\s*playwright,\s*$' "deploy-staging keeps playwright advisory (outside needs)"
 assert_job_contains_regex "deploy-staging" "if:\s+github\\.ref == 'refs/heads/main' && github\\.event_name == 'push'" "deploy-staging is gated to main push"
+assert_job_contains_regex "deploy-staging" 'ARTIFACT_PREFIX="staging/\$\{GITHUB_SHA\}/"' "deploy-staging scopes artifact prefix to staging SHA path"
+assert_job_contains_regex "deploy-staging" 'aws s3api list-objects-v2 --bucket fjcloud-releases-staging --prefix "\$\{ARTIFACT_PREFIX\}" --max-items 1' "deploy-staging performs pre-write S3 list-objects-v2 overwrite guard for staging bucket"
+assert_job_contains_regex "deploy-staging" 'aws s3 cp infra/fjcloud-api s3://fjcloud-releases-staging/staging/\$\{GITHUB_SHA\}/fjcloud-api' "deploy-staging uploads fjcloud-api to staging SHA path"
+assert_job_contains_regex "deploy-staging" 'aws s3 cp infra/fj-metering-agent s3://fjcloud-releases-staging/staging/\$\{GITHUB_SHA\}/fj-metering-agent' "deploy-staging uploads fj-metering-agent to staging SHA path"
+assert_job_contains_regex "deploy-staging" 'aws s3 cp infra/fjcloud-aggregation-job s3://fjcloud-releases-staging/staging/\$\{GITHUB_SHA\}/fjcloud-aggregation-job' "deploy-staging uploads fjcloud-aggregation-job to staging SHA path"
+assert_job_contains_regex "deploy-staging" 'aws s3 sync infra/migrations s3://fjcloud-releases-staging/staging/\$\{GITHUB_SHA\}/migrations' "deploy-staging uploads infra/migrations to staging SHA path"
+assert_job_contains_regex "deploy-staging" 'aws s3 cp ops/scripts/migrate.sh s3://fjcloud-releases-staging/staging/\$\{GITHUB_SHA\}/scripts/migrate.sh' "deploy-staging uploads migrate.sh to staging SHA path"
+assert_job_contains_regex "deploy-staging" 'aws s3 cp ops/scripts/lib/generate_ssm_env.sh s3://fjcloud-releases-staging/staging/\$\{GITHUB_SHA\}/scripts/generate_ssm_env.sh' "deploy-staging uploads generate_ssm_env.sh to staging SHA path"
+assert_job_contains_regex "deploy-staging" 'bash ops/scripts/deploy\.sh staging "\$\{GITHUB_SHA\}"' "deploy-staging triggers staging deploy with GitHub SHA"
 
 assert_contains_regex 'cargo fmt --check' "workflow includes cargo fmt --check"
 assert_all_uses_are_sha_pinned
 assert_deploy_uploads_use_git_sha
 assert_deploy_has_s3_overwrite_guard
-assert_job_contains_regex "deploy-staging" 'generate_ssm_env\.sh' "deploy-staging uploads generate_ssm_env.sh to S3"
 
 echo ""
 echo "Summary: ${PASS_COUNT} passed, ${FAIL_COUNT} failed"

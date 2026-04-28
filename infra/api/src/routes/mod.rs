@@ -1,6 +1,5 @@
 pub mod account;
 pub mod admin;
-pub mod allyourbase;
 pub mod api_keys;
 pub mod auth;
 pub mod billing;

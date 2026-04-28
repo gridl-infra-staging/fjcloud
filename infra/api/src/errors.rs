@@ -6,7 +6,6 @@ use serde_json::json;
 use utoipa::ToSchema;
 
 use crate::repos::RepoError;
-use crate::services::ayb_admin::AybAdminError;
 use crate::services::flapjack_proxy::ProxyError;
 use crate::services::provisioning::ProvisioningError;
 use crate::stripe::StripeError;
@@ -120,26 +119,6 @@ impl From<StripeError> for ApiError {
         match err {
             StripeError::NotConfigured => ApiError::ServiceNotConfigured("billing".into()),
             other => ApiError::Internal(other.to_string()),
-        }
-    }
-}
-
-impl From<AybAdminError> for ApiError {
-    fn from(err: AybAdminError) -> Self {
-        match err {
-            AybAdminError::BadRequest(msg) => ApiError::BadRequest(msg),
-            AybAdminError::NotFound(msg) => ApiError::NotFound(msg),
-            AybAdminError::Conflict(msg) => ApiError::Conflict(msg),
-            AybAdminError::ServiceUnavailable => {
-                ApiError::ServiceUnavailable("AYB service unavailable".into())
-            }
-            AybAdminError::Unauthorized => {
-                ApiError::Internal("AYB admin authentication failed".into())
-            }
-            AybAdminError::Internal(msg) => {
-                tracing::error!("AYB admin error: {msg}");
-                ApiError::Internal("AYB admin operation failed".into())
-            }
         }
     }
 }
@@ -310,56 +289,5 @@ mod tests {
             error_status_and_body(ApiError::ServiceNotConfigured("billing".into())).await;
         assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
         assert_eq!(body, json!({"error": "service_not_configured"}));
-    }
-
-    // ─── AybAdminError → ApiError conversion tests ─────────────────────
-
-    #[tokio::test]
-    async fn ayb_admin_bad_request_returns_400() {
-        let err: ApiError = AybAdminError::BadRequest("tenant is already deleted".into()).into();
-        let (status, body) = error_status_and_body(err).await;
-        assert_eq!(status, StatusCode::BAD_REQUEST);
-        assert_eq!(body, json!({"error": "tenant is already deleted"}));
-    }
-
-    #[tokio::test]
-    async fn ayb_admin_not_found_returns_404() {
-        let err: ApiError = AybAdminError::NotFound("tenant not found".into()).into();
-        let (status, body) = error_status_and_body(err).await;
-        assert_eq!(status, StatusCode::NOT_FOUND);
-        assert_eq!(body, json!({"error": "tenant not found"}));
-    }
-
-    #[tokio::test]
-    async fn ayb_admin_conflict_returns_409() {
-        let err: ApiError = AybAdminError::Conflict("tenant already exists".into()).into();
-        let (status, body) = error_status_and_body(err).await;
-        assert_eq!(status, StatusCode::CONFLICT);
-        assert_eq!(body, json!({"error": "tenant already exists"}));
-    }
-
-    #[tokio::test]
-    async fn ayb_admin_service_unavailable_returns_503() {
-        let err: ApiError = AybAdminError::ServiceUnavailable.into();
-        let (status, body) = error_status_and_body(err).await;
-        assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
-        assert_eq!(body, json!({"error": "AYB service unavailable"}));
-    }
-
-    #[tokio::test]
-    async fn ayb_admin_unauthorized_returns_internal_without_leaking() {
-        let err: ApiError = AybAdminError::Unauthorized.into();
-        let (status, body) = error_status_and_body(err).await;
-        assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR);
-        assert_eq!(body, json!({"error": "internal server error"}));
-    }
-
-    #[tokio::test]
-    async fn ayb_admin_internal_returns_internal_without_leaking() {
-        let err: ApiError = AybAdminError::Internal("raw upstream message".into()).into();
-        let (status, body) = error_status_and_body(err).await;
-        assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR);
-        // Must NOT expose raw upstream details
-        assert_eq!(body, json!({"error": "internal server error"}));
     }
 }

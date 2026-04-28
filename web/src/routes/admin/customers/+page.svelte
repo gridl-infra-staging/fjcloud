@@ -3,18 +3,34 @@
 	import { invalidate } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import type { AdminCustomerListItem } from './+page.server';
-	import { adminBadgeColor, formatDate } from '$lib/format';
+	import { adminBadgeColor, formatDate, formatRelativeTime, statusLabel } from '$lib/format';
 
 	let { data } = $props();
 
 	let searchQuery = $state('');
 	let statusFilter = $state('all');
+	let sortMode = $state<'default' | 'health'>('default');
+
+	type BillingHealthStatus = AdminCustomerListItem['billing_health'];
+
+	// Red-first ordering matches the operator workflow: surface the riskiest
+	// customer billing states before healthy rows when the sort is enabled.
+	const BILLING_HEALTH_RANK: Record<BillingHealthStatus, number> = {
+		red: 0,
+		yellow: 1,
+		grey: 2,
+		green: 3
+	};
 
 	const customersUnavailable = $derived(data.customers === null);
 	const customers = $derived((data.customers ?? []) as AdminCustomerListItem[]);
 
-	const filteredCustomers = $derived(
-		customers.filter((customer) => {
+	function createdAtMs(customer: AdminCustomerListItem): number {
+		return new Date(customer.created_at).getTime();
+	}
+
+	const filteredCustomers = $derived.by(() => {
+		const filtered = customers.filter((customer) => {
 			const normalizedQuery = searchQuery.trim().toLowerCase();
 			const matchesSearch =
 				normalizedQuery.length === 0 ||
@@ -22,12 +38,29 @@
 				customer.email.toLowerCase().includes(normalizedQuery);
 			const matchesStatus = statusFilter === 'all' || customer.status === statusFilter;
 			return matchesSearch && matchesStatus;
-		})
-	);
+		});
+
+		if (sortMode === 'default') {
+			return filtered;
+		}
+
+		return [...filtered].sort((left, right) => {
+			const rankDelta =
+				BILLING_HEALTH_RANK[left.billing_health] - BILLING_HEALTH_RANK[right.billing_health];
+			if (rankDelta !== 0) {
+				return rankDelta;
+			}
+			return createdAtMs(right) - createdAtMs(left);
+		});
+	});
 
 	/** Build the detail-route action URL for a given customer and action name. */
 	function detailActionUrl(customerId: string, action: string): string {
 		return resolve(`/admin/customers/${customerId}?/${action}`);
+	}
+
+	function toggleBillingHealthSort(): void {
+		sortMode = sortMode === 'default' ? 'health' : 'default';
 	}
 
 	function handleQuickAction() {
@@ -93,8 +126,21 @@
 						<th class="px-4 py-3">Email</th>
 						<th class="px-4 py-3">Status</th>
 						<th class="px-4 py-3">Created</th>
+						<th class="px-4 py-3">Last activity</th>
 						<th class="px-4 py-3">Indexes</th>
-						<th class="px-4 py-3">Last Invoice</th>
+						<th class="px-4 py-3">
+							<button
+								type="button"
+								data-testid="sort-billing-health"
+								onclick={toggleBillingHealthSort}
+								class="inline-flex items-center gap-2 text-xs uppercase tracking-wide text-slate-400 transition hover:text-slate-200"
+							>
+								Billing health
+								<span class="text-[10px] text-slate-500">
+									{sortMode === 'health' ? 'sorted' : 'default'}
+								</span>
+							</button>
+						</th>
 						<th class="px-4 py-3">Actions</th>
 					</tr>
 				</thead>
@@ -123,21 +169,24 @@
 								</span>
 							</td>
 							<td class="px-4 py-3 text-xs text-slate-400">{formatDate(customer.created_at)}</td>
+							<td
+								class="px-4 py-3 text-slate-300"
+								data-testid={`last-activity-cell-${customer.id}`}
+							>
+								{formatRelativeTime(customer.last_accessed_at)}
+							</td>
 							<td class="px-4 py-3 text-slate-300" data-testid="index-count"
 								>{customer.index_count ?? '—'}</td
 							>
-							<td class="px-4 py-3" data-testid="invoice-status">
-								{#if customer.last_invoice_status === null}
-									<span class="text-slate-500">—</span>
-								{:else}
-									<span
-										class="inline-flex rounded-full border px-2 py-0.5 text-xs font-medium {adminBadgeColor(
-											customer.last_invoice_status
-										)}"
-									>
-										{customer.last_invoice_status}
-									</span>
-								{/if}
+							<td class="px-4 py-3">
+								<span
+									data-testid={`billing-health-badge-${customer.id}`}
+									class="inline-flex rounded-full border px-2 py-0.5 text-xs font-medium {adminBadgeColor(
+										customer.billing_health
+									)}"
+								>
+									{statusLabel(customer.billing_health)}
+								</span>
 							</td>
 							<td class="px-4 py-3">
 								<div class="flex gap-1">

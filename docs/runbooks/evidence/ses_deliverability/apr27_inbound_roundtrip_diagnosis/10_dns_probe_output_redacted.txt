@@ -1,0 +1,7 @@
+# dig +short MX test.flapjack.foo
+10 inbound-smtp.us-east-1.amazonaws.com.
+
+# dig +short TXT test.flapjack.foo
+
+# dig +short TXT _dmarc.flapjack.foo
+"v=DMARC1; p=none; rua=mailto:<redacted>@flapjack.foo"

@@ -26,10 +26,6 @@ test_runbook_documents_soft_delete_contract() {
     content="$(cat "$RUNBOOK_PATH")"
 
     assert_contains "$content" "DELETE /account" "runbook should reference DELETE /account"
-    assert_contains "$content" "409 Conflict" \
-        "runbook should document the active-AllYourBase 409 precondition"
-    assert_contains "$content" "active local AllYourBase tenant row" \
-        "runbook should document the active-AllYourBase deletion precondition"
     assert_contains "$content" "CustomerRepo::soft_delete" "runbook should reference CustomerRepo::soft_delete"
     assert_contains "$content" "customers.status = 'deleted'" "runbook should reference customers.status = 'deleted'"
     assert_contains "$content" "deleted_at metadata" \
@@ -66,6 +62,22 @@ test_runbook_documents_export_and_not_implemented_boundaries() {
         "runbook should state retention duration automation is not implemented"
 }
 
+test_runbook_documents_beta_launch_policy_section_and_owner_anchors() {
+    local content
+    content="$(cat "$RUNBOOK_PATH")"
+
+    assert_contains "$content" "## Beta launch policy" \
+        "runbook should include a dedicated beta launch policy section"
+    assert_contains "$content" "infra/api/src/routes/account.rs::delete_account" \
+        "runbook should reference delete_account owner path"
+    assert_contains "$content" "infra/api/src/routes/account.rs::export_account" \
+        "runbook should reference export_account owner path"
+    assert_contains "$content" "web/src/routes/dashboard/settings/+page.server.ts::actions.exportAccount" \
+        "runbook should reference settings export action owner path"
+    assert_contains "$content" "CustomerRepo::soft_delete retention boundary" \
+        "runbook should explicitly label the soft-delete retention boundary owner"
+}
+
 test_roadmap_documents_delete_precondition_and_status_gaps() {
     local open_items_section account_data_status_block
     open_items_section="$(
@@ -87,8 +99,6 @@ test_roadmap_documents_delete_precondition_and_status_gaps() {
 
     assert_contains "$account_data_status_block" "- Account-data policy status coverage is implemented via \`docs/runbooks/account_data_policy.md\`;" \
         "ROADMAP should keep the canonical account-data status owner in Open / Not Yet Implemented"
-    assert_contains "$account_data_status_block" "account deletion remains soft-delete and now requires no active local AllYourBase tenant rows before \`DELETE /account\` can succeed" \
-        "ROADMAP should document the active-AllYourBase delete precondition"
     assert_contains "$account_data_status_block" "deleted_at metadata exists" \
         "ROADMAP should document deleted_at metadata for retained soft-delete rows"
     assert_contains "$account_data_status_block" "future cutoff-based cleanup selector exists via \`CustomerRepo::list_deleted_before_cutoff\` / \`PgCustomerRepo::list_deleted_before_cutoff\`" \
@@ -105,6 +115,7 @@ echo "=== account data policy runbook contract tests ==="
 test_runbook_documents_soft_delete_contract
 test_runbook_documents_auth_and_admin_audit_visibility
 test_runbook_documents_export_and_not_implemented_boundaries
+test_runbook_documents_beta_launch_policy_section_and_owner_anchors
 test_roadmap_documents_delete_precondition_and_status_gaps
 
 echo "=== Results: $PASS_COUNT passed, $FAIL_COUNT failed ==="

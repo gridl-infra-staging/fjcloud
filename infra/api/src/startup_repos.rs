@@ -3,9 +3,9 @@
 // Extracted from main() to keep main.rs under the 800-line limit.
 
 use crate::repos::{
-    PgApiKeyRepo, PgAybTenantRepo, PgColdSnapshotRepo, PgCustomerRepo, PgDeploymentRepo,
-    PgIndexMigrationRepo, PgInvoiceRepo, PgRateCardRepo, PgRestoreJobRepo, PgSubscriptionRepo,
-    PgTenantRepo, PgUsageRepo, PgVmInventoryRepo, PgWebhookEventRepo,
+    PgApiKeyRepo, PgColdSnapshotRepo, PgCustomerRepo, PgDeploymentRepo, PgIndexMigrationRepo,
+    PgInvoiceRepo, PgRateCardRepo, PgRestoreJobRepo, PgSubscriptionRepo, PgTenantRepo, PgUsageRepo,
+    PgVmInventoryRepo, PgWebhookEventRepo,
 };
 use sqlx::PgPool;
 use std::sync::Arc;
@@ -25,7 +25,6 @@ pub struct PgRepos {
     pub index_migration_repo: Arc<PgIndexMigrationRepo>,
     pub cold_snapshot_repo: Arc<PgColdSnapshotRepo>,
     pub restore_job_repo: Arc<PgRestoreJobRepo>,
-    pub ayb_tenant_repo: Arc<PgAybTenantRepo>,
 }
 
 /// Construct every Pg-backed repo from a shared connection pool.
@@ -44,6 +43,5 @@ pub fn init_pg_repos(pool: &PgPool) -> PgRepos {
         index_migration_repo: Arc::new(PgIndexMigrationRepo::new(pool.clone())),
         cold_snapshot_repo: Arc::new(PgColdSnapshotRepo::new(pool.clone())),
         restore_job_repo: Arc::new(PgRestoreJobRepo::new(pool.clone())),
-        ayb_tenant_repo: Arc::new(PgAybTenantRepo::new(pool.clone())),
     }
 }

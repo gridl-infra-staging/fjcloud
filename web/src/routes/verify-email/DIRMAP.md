@@ -1,12 +1,10 @@
 <!-- [scrai:start] -->
-
 ## verify-email
 
 | File | Summary |
-| ---- | ------- |
+| --- | --- |
 
 | Directory | Summary |
-| --------- | ------- |
-| [token]   | —       |
-
+| --- | --- |
+| [token] | — |
 <!-- [scrai:end] -->

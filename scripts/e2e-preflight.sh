@@ -15,6 +15,8 @@ SHARED_REMEDIATION="Run scripts/bootstrap-env-local.sh to bootstrap .env.local, 
 
 # shellcheck source=lib/env.sh
 source "$SCRIPT_DIR/lib/env.sh"
+# shellcheck source=lib/web_runtime.sh
+source "$SCRIPT_DIR/lib/web_runtime.sh"
 
 extract_contract_string_constant() {
     local constant_name="$1"
@@ -118,6 +120,7 @@ check_service() {
 
     echo "FAIL: $failure_message$(shared_remediation_suffix)" >&2
     errors=$((errors + 1))
+    return 1
 }
 
 json_login_payload() {
@@ -204,10 +207,13 @@ echo "--- Service connectivity ---"
 # Browser setup touches the API through both fixture-side API_URL and the
 # spawned web server's API_BASE_URL, so preflight must honor either override.
 api_url="${API_URL:-${API_BASE_URL:-$CONTRACT_DEFAULT_API_URL}}"
-check_service \
+api_is_ready=0
+if check_service \
     "API is reachable at ${api_url}/health" \
-    "API is not reachable at ${api_url}/health — start it first" \
-    "${api_url}/health"
+    "API is not ready yet at ${api_url}/health — wait for scripts/api-dev.sh cold-start compile to finish" \
+    "${api_url}/health"; then
+    api_is_ready=1
+fi
 
 base_url="${BASE_URL:-$CONTRACT_DEFAULT_BASE_URL}"
 # Keep the preflight ownership boundary aligned with resolvePlaywrightRuntime():
@@ -221,13 +227,17 @@ if [ -n "${BASE_URL:-}" ]; then
         "Web frontend is not reachable at ${base_url} — start it first" \
         "${base_url}"
 else
-    echo "  OK: Playwright will start the local web frontend at ${base_url}"
+    if has_web_vite_runtime "$REPO_ROOT"; then
+        echo "  OK: Playwright will start the local web frontend at ${base_url}"
+    else
+        echo "FAIL: $(web_vite_runtime_missing_message) — owner: scripts/web-dev.sh$(shared_remediation_suffix)" >&2
+        errors=$((errors + 1))
+    fi
 fi
 
 echo ""
 echo "--- Browser auth readiness ---"
-if [ -n "${E2E_USER_EMAIL:-}" ] && [ -n "${E2E_USER_PASSWORD:-}" ] \
-    && curl -sf "${api_url}/health" > /dev/null 2>&1; then
+if [ "$api_is_ready" -eq 1 ] && [ -n "${E2E_USER_EMAIL:-}" ] && [ -n "${E2E_USER_PASSWORD:-}" ]; then
     check_browser_auth_login "$api_url" "$E2E_USER_EMAIL" "$E2E_USER_PASSWORD"
 fi
 

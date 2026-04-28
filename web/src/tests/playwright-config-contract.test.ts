@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { describe, expect, it } from 'vitest';
@@ -155,6 +155,42 @@ describe('playwright config contract', () => {
 		expect(defaultedEnv.DATABASE_URL).toBeUndefined();
 	});
 
+	it('applyPlaywrightProcessEnvDefaults propagates Mailpit and Stripe webhook env for fixture-owned billing lanes', () => {
+		const processEnv = applyEnvDefaults({
+			processEnv: {},
+			repoEnv: {
+				MAILPIT_API_URL: 'http://localhost:8025',
+				STRIPE_WEBHOOK_SECRET: 'whsec_repo'
+			},
+			webEnv: {
+				STRIPE_WEBHOOK_SECRET: 'whsec_web'
+			}
+		});
+
+		expect(processEnv.MAILPIT_API_URL).toBe('http://localhost:8025');
+		expect(processEnv.STRIPE_WEBHOOK_SECRET).toBe('whsec_web');
+	});
+
+	it('applyPlaywrightProcessEnvDefaults preserves explicit shell overrides for Mailpit and Stripe webhook env', () => {
+		const processEnv = applyEnvDefaults({
+			processEnv: {
+				MAILPIT_API_URL: 'http://127.0.0.1:18025',
+				STRIPE_WEBHOOK_SECRET: 'whsec_process'
+			},
+			repoEnv: {
+				MAILPIT_API_URL: 'http://localhost:8025',
+				STRIPE_WEBHOOK_SECRET: 'whsec_repo'
+			},
+			webEnv: {
+				MAILPIT_API_URL: 'http://localhost:28025',
+				STRIPE_WEBHOOK_SECRET: 'whsec_web'
+			}
+		});
+
+		expect(processEnv.MAILPIT_API_URL).toBe('http://127.0.0.1:18025');
+		expect(processEnv.STRIPE_WEBHOOK_SECRET).toBe('whsec_process');
+	});
+
 	it('resolvePlaywrightRuntime disables webServer when BASE_URL is overridden to local rerun URL', () => {
 		const runtime = resolvePlaywrightRuntime({
 			processEnv: {
@@ -195,6 +231,17 @@ describe('playwright config contract', () => {
 		).toThrow(
 			'API_BASE_URL must use a local loopback host (localhost, 127.0.0.1, or [::1]) for credentialed local browser runs'
 		);
+	});
+
+	it('resolvePlaywrightRuntime prefers explicit process API_BASE_URL overrides for local reruns', () => {
+		const runtime = resolvePlaywrightRuntime({
+			processEnv: { API_BASE_URL: 'http://127.0.0.1:4100' },
+			repoEnv: { API_BASE_URL: 'http://127.0.0.1:4200' },
+			webEnv: { API_BASE_URL: 'http://127.0.0.1:4300' },
+			fallbackJwtSecret: 'fallback-jwt'
+		});
+
+		expect(runtime.webServerEnv.API_BASE_URL).toBe('http://127.0.0.1:4100');
 	});
 
 	it('resolvePlaywrightRuntime uses default base URL and admin fallback chain without BASE_URL override', () => {
@@ -289,6 +336,9 @@ describe('playwright config contract', () => {
 		expect(projectContractsByName['chromium:customer-journeys']?.use?.storageState).toBe(
 			PLAYWRIGHT_STORAGE_STATE.customerJourneys
 		);
+		expect(projectContractsByName['chromium:signup']?.dependencies).toBeUndefined();
+		expect(projectContractsByName['chromium:signup']?.use?.desktopBrowser).toBe('chromium');
+		expect(projectContractsByName['chromium:signup']?.use?.storageState).toBeUndefined();
 
 		expect(projectContractsByName['chromium:admin']?.dependencies).toEqual(['setup:admin']);
 		expect(projectContractsByName['chromium:admin']?.use?.desktopBrowser).toBe('chromium');
@@ -651,6 +701,36 @@ describe('playwright config contract', () => {
 			for (const specPath of adminSpecs) {
 				expect(projectContractsByName.chromium?.testMatch.test(specPath)).toBe(false);
 			}
+		});
+
+		it('signup_to_paid_invoice.spec.ts matches chromium:signup only', () => {
+			const specPath = 'tests/e2e-ui/full/signup_to_paid_invoice.spec.ts';
+			expect(projectContractsByName['chromium:signup']?.testMatch.test(specPath)).toBe(true);
+			expect(projectContractsByName.chromium?.testMatch.test(specPath)).toBe(false);
+			expect(projectContractsByName['chromium:customer-journeys']?.testMatch.test(specPath)).toBe(
+				false
+			);
+			expect(projectContractsByName['chromium:signup']?.dependencies).toBeUndefined();
+			expect(projectContractsByName['chromium:signup']?.use?.storageState).toBeUndefined();
+		});
+
+		it('signup_to_paid_invoice.spec.ts does not mask billing/verification failures as skips', () => {
+			const signupSpecSource = readFileSync(
+				join(process.cwd(), 'tests/e2e-ui/full/signup_to_paid_invoice.spec.ts'),
+				'utf8'
+			);
+			expect(signupSpecSource).not.toMatch(
+				/catch\s*\(\s*error\s*\)\s*\{[\s\S]*test\.skip\(true,\s*`Signup paid-invoice preconditions unavailable:/
+			);
+		});
+	});
+
+	describe('Stage 6 signup fixture cleanup wiring', () => {
+		it('arrangePaidInvoiceForFreshSignup fixture threads _trackCustomerForCleanup', () => {
+			const fixtureSource = readFileSync(join(process.cwd(), 'tests/fixtures/fixtures.ts'), 'utf8');
+			expect(fixtureSource).toMatch(
+				/arrangePaidInvoiceForFreshSignup:\s*async\s*\(\{\s*_trackCustomerForCleanup\s*\},\s*use\)\s*=>\s*\{[\s\S]*arrangePaidInvoiceForFreshSignup\(\{\s*email,\s*password,\s*trackCustomerForCleanup:\s*_trackCustomerForCleanup/
+			);
 		});
 	});
 

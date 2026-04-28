@@ -84,7 +84,7 @@
 							<p class="font-black">Minimum paid spend</p>
 							<p class="text-[#4b4640]">per month</p>
 						</div>
-						<p class="text-lg font-black">{formatCents(pricing.minimum_spend_cents ?? 1000)}</p>
+						<p class="text-lg font-black">{formatCents(pricing.minimum_spend_cents)}</p>
 					</div>
 				</div>
 			</section>

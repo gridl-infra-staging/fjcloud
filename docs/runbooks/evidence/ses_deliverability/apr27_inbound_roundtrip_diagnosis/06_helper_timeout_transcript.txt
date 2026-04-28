@@ -1,0 +1,4 @@
+command: source scripts/lib/test_inbox_helpers.sh; test_inbox_find_matching_object_key flapjack-cloud-releases e2e-emails/ <redacted_nonce> us-east-1 1 0
+exit_code: 124
+stdout_stderr:
+

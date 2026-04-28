@@ -30,6 +30,14 @@ assert_contains() {
         pass "$msg"
     fi
 }
+assert_not_contains() {
+    local actual="$1" unexpected_substr="$2" msg="$3"
+    if [[ "$actual" == *"$unexpected_substr"* ]]; then
+        fail "$msg (unexpected substring '$unexpected_substr' found in '$actual')"
+    else
+        pass "$msg"
+    fi
+}
 assert_json_field() {
     local json="$1" field="$2" expected="$3" msg="$4"
     local actual
@@ -87,6 +95,10 @@ json_step_count() {
     local json="$1"
     python3 -c "import json,sys; print(len(json.loads(sys.stdin.read()).get('steps', [])))" <<< "$json" 2>/dev/null || echo "0"
 }
+normalize_json() {
+    local json="$1"
+    python3 -c 'import json,sys; print(json.dumps(json.loads(sys.stdin.read()), sort_keys=True))' <<< "$json" 2>/dev/null || echo ""
+}
 write_mock_script() {
     local path="$1"
     local body="$2"
@@ -101,8 +113,10 @@ run_orchestrator() {
     tmp_dir="$(mktemp -d)"
     local stdout_file="$tmp_dir/stdout"
     local stderr_file="$tmp_dir/stderr"
+    local default_outside_aws_script="$tmp_dir/mock_default_outside_aws.sh"
+    write_mock_script "$default_outside_aws_script" 'exit 0'
     local exit_code=0
-    if "$@" >"$stdout_file" 2>"$stderr_file"; then
+    if FULL_VALIDATION_OUTSIDE_AWS_HEALTH_SCRIPT="$default_outside_aws_script" "$@" >"$stdout_file" 2>"$stderr_file"; then
         exit_code=0
     else
         exit_code=$?
@@ -277,6 +291,11 @@ test_orchestrator_collects_all_results_even_on_failure() {
     assert_eq "$(json_step_status "$RUN_STDOUT" "cargo_workspace_tests")" "fail" "cargo step should be fail"
     assert_eq "$(json_step_status "$RUN_STDOUT" "backend_launch_gate")" "pass" "backend gate step should still run and be recorded"
 }
+test_paid_beta_rc_replaces_legacy_blocked_emissions() {
+    local blocked_step_hits
+    blocked_step_hits="$(grep -n 'append_step .*\"blocked\"' "$ORCH_SCRIPT" || true)"
+    assert_eq "$blocked_step_hits" "" "coordinator should remove legacy blocked status emissions from append_step callsites"
+}
 test_paid_beta_rc_blocks_missing_credentialed_inputs() {
     local tmp_dir
     tmp_dir="$(mktemp -d)"
@@ -297,12 +316,12 @@ test_paid_beta_rc_blocks_missing_credentialed_inputs() {
     rm -rf "$tmp_dir"
     assert_eq "$RUN_EXIT_CODE" "1" "paid-beta-rc should fail when required credentialed inputs are missing"
     assert_json_field "$RUN_STDOUT" "mode" "paid_beta_rc" "paid-beta-rc output mode should be paid_beta_rc"
-    assert_json_bool_field "$RUN_STDOUT" "ready" "false" "paid-beta-rc should report ready=false when required proofs are blocked"
-    assert_json_field "$RUN_STDOUT" "verdict" "fail" "paid-beta-rc should preserve fail verdict when blocked"
+    assert_json_bool_field "$RUN_STDOUT" "ready" "false" "paid-beta-rc should report ready=false when required proofs are missing"
+    assert_json_field "$RUN_STDOUT" "verdict" "fail" "paid-beta-rc should preserve fail verdict when required proofs are missing"
     assert_eq "$(json_step_status "$RUN_STDOUT" "local_signoff")" "pass" "local_signoff should run and pass when mocked"
-    assert_eq "$(json_step_status "$RUN_STDOUT" "ses_readiness")" "blocked" "ses_readiness should be blocked without identity input"
+    assert_eq "$(json_step_status "$RUN_STDOUT" "ses_readiness")" "external_secret_missing" "ses_readiness should report missing live secret without identity input"
     assert_eq "$(json_step_reason "$RUN_STDOUT" "ses_readiness")" "credentialed_ses_identity_missing" "ses_readiness should report credentialed_ses_identity_missing"
-    assert_eq "$(json_step_status "$RUN_STDOUT" "staging_billing_rehearsal")" "blocked" "staging_billing_rehearsal should be blocked without billing inputs"
+    assert_eq "$(json_step_status "$RUN_STDOUT" "staging_billing_rehearsal")" "external_secret_missing" "staging_billing_rehearsal should report missing live secret without billing env inputs"
     assert_eq "$(json_step_reason "$RUN_STDOUT" "staging_billing_rehearsal")" "credentialed_billing_env_file_missing" "staging_billing_rehearsal should report credentialed_billing_env_file_missing"
 }
 test_paid_beta_rc_blocks_when_billing_month_missing() {
@@ -331,7 +350,7 @@ EOF
     assert_json_bool_field "$RUN_STDOUT" "ready" "false" "paid-beta-rc should report ready=false when billing month is missing"
     assert_json_field "$RUN_STDOUT" "verdict" "fail" "paid-beta-rc should preserve fail verdict when billing month is missing"
     assert_eq "$(json_step_status "$RUN_STDOUT" "ses_readiness")" "pass" "ses_readiness should pass with identity loaded from env file"
-    assert_eq "$(json_step_status "$RUN_STDOUT" "staging_billing_rehearsal")" "blocked" "staging_billing_rehearsal should be blocked when month is missing"
+    assert_eq "$(json_step_status "$RUN_STDOUT" "staging_billing_rehearsal")" "live_evidence_gap" "staging_billing_rehearsal should report live evidence gap when month is missing"
     assert_eq "$(json_step_reason "$RUN_STDOUT" "staging_billing_rehearsal")" "credentialed_billing_month_missing" "staging_billing_rehearsal should report credentialed_billing_month_missing"
 }
 test_paid_beta_rc_blocks_staging_runtime_smoke_without_opt_in_inputs() {
@@ -368,13 +387,13 @@ exit 99'
     runtime_invocations="$(cat "$runtime_invocations_file" 2>/dev/null || true)"
     rm -rf "$tmp_dir"
     assert_eq "$RUN_EXIT_CODE" "1" "paid-beta-rc should fail when staging runtime smoke prerequisites are missing"
-    assert_json_bool_field "$RUN_STDOUT" "ready" "false" "paid-beta-rc should keep ready=false when staging runtime smoke is blocked"
-    assert_json_field "$RUN_STDOUT" "verdict" "fail" "paid-beta-rc should preserve fail verdict when staging runtime smoke is blocked"
-    assert_eq "$(json_step_status "$RUN_STDOUT" "staging_runtime_smoke")" "blocked" "staging_runtime_smoke should be blocked when explicit inputs are missing"
+    assert_json_bool_field "$RUN_STDOUT" "ready" "false" "paid-beta-rc should keep ready=false when staging runtime smoke is not yet credentialed"
+    assert_json_field "$RUN_STDOUT" "verdict" "fail" "paid-beta-rc should preserve fail verdict when staging runtime smoke is not yet credentialed"
+    assert_eq "$(json_step_status "$RUN_STDOUT" "staging_runtime_smoke")" "live_evidence_gap" "staging_runtime_smoke should report live_evidence_gap when explicit inputs are missing"
     assert_eq "$(json_step_reason "$RUN_STDOUT" "staging_runtime_smoke")" "credentialed_staging_smoke_inputs_missing" "staging_runtime_smoke should report credentialed_staging_smoke_inputs_missing"
     assert_eq "$runtime_invocations" "" "staging_runtime_smoke should not invoke runtime script when explicit inputs are missing"
 }
-test_paid_beta_rc_propagates_delegated_billing_blocked_state() {
+test_paid_beta_rc_propagates_delegated_billing_live_evidence_gap() {
     local tmp_dir
     tmp_dir="$(mktemp -d)"
     local credential_env_file
@@ -400,11 +419,11 @@ exit 1'
             --credential-env-file="$credential_env_file" --billing-month=2026-03
     rm -rf "$tmp_dir"
     assert_eq "$RUN_EXIT_CODE" "1" "paid-beta-rc should fail when delegated billing proof returns blocked"
-    assert_json_bool_field "$RUN_STDOUT" "ready" "false" "paid-beta-rc should keep ready=false when delegated billing proof is blocked"
-    assert_json_field "$RUN_STDOUT" "verdict" "fail" "paid-beta-rc should preserve fail verdict when delegated billing proof is blocked"
-    assert_eq "$(json_step_status "$RUN_STDOUT" "local_signoff")" "pass" "local_signoff pass should not mask delegated billing blocked classification"
-    assert_eq "$(json_step_status "$RUN_STDOUT" "ses_readiness")" "pass" "ses_readiness pass should not mask delegated billing blocked classification"
-    assert_eq "$(json_step_status "$RUN_STDOUT" "staging_billing_rehearsal")" "blocked" "staging_billing_rehearsal should preserve delegated blocked result"
+    assert_json_bool_field "$RUN_STDOUT" "ready" "false" "paid-beta-rc should keep ready=false when delegated billing proof has a live evidence gap"
+    assert_json_field "$RUN_STDOUT" "verdict" "fail" "paid-beta-rc should preserve fail verdict when delegated billing proof has a live evidence gap"
+    assert_eq "$(json_step_status "$RUN_STDOUT" "local_signoff")" "pass" "local_signoff pass should not mask delegated billing live evidence gap classification"
+    assert_eq "$(json_step_status "$RUN_STDOUT" "ses_readiness")" "pass" "ses_readiness pass should not mask delegated billing live evidence gap classification"
+    assert_eq "$(json_step_status "$RUN_STDOUT" "staging_billing_rehearsal")" "live_evidence_gap" "staging_billing_rehearsal should map delegated blocked result to live_evidence_gap"
     assert_eq "$(json_step_reason "$RUN_STDOUT" "staging_billing_rehearsal")" "repo_default_env_file_rejected" "staging_billing_rehearsal should preserve delegated blocked classification"
 }
 test_paid_beta_rc_uses_shell_identity_when_credential_file_missing() {
@@ -437,7 +456,7 @@ exit 0'
     assert_json_bool_field "$RUN_STDOUT" "ready" "false" "paid-beta-rc should remain not ready when billing env file is missing"
     assert_json_field "$RUN_STDOUT" "verdict" "fail" "paid-beta-rc should preserve fail verdict when billing env file is missing"
     assert_eq "$(json_step_status "$RUN_STDOUT" "ses_readiness")" "pass" "ses_readiness should pass with shell-provided identity even when credential env file is missing"
-    assert_eq "$(json_step_status "$RUN_STDOUT" "staging_billing_rehearsal")" "blocked" "staging_billing_rehearsal should stay blocked when env file is missing"
+    assert_eq "$(json_step_status "$RUN_STDOUT" "staging_billing_rehearsal")" "external_secret_missing" "staging_billing_rehearsal should report external_secret_missing when env file is missing"
     assert_eq "$(json_step_reason "$RUN_STDOUT" "staging_billing_rehearsal")" "credentialed_billing_env_file_missing" "staging_billing_rehearsal should report credentialed_billing_env_file_missing"
     assert_contains "$ses_args" "--identity shell-beta@example.com" "ses_readiness should delegate shell-provided identity"
 }
@@ -451,10 +470,15 @@ test_paid_beta_rc_pass_path_reports_ready_true() {
     cat > "$credential_env_file" <<'EOF'
 SES_FROM_ADDRESS=beta@example.com
 SES_REGION=us-east-1
+FLAPJACK_ADMIN_KEY=file_admin_key
+STRIPE_TEST_SECRET_KEY=sk_test_from_file
 EOF
     local ses_args_file billing_args_file staging_smoke_ami_id
     ses_args_file="$tmp_dir/ses_args.txt"
     billing_args_file="$tmp_dir/billing_args.txt"
+    local ses_inbound_probe_file canary_probe_file
+    ses_inbound_probe_file="$tmp_dir/ses_inbound_probe.txt"
+    canary_probe_file="$tmp_dir/canary_probe.txt"
     staging_smoke_ami_id="ami-12345678"
     mkdir -p "$tmp_dir/bin"
     write_mock_script "$tmp_dir/mock_cargo.sh" 'exit 0'
@@ -488,16 +512,40 @@ exit 0'
     write_mock_script "$tmp_dir/mock_runtime_smoke.sh" '
 printf "staging_runtime_smoke|%s|%s\n" "$PWD" "$*" >> "${INVOCATION_LOG_FILE:?}"
 exit 0'
+    write_mock_script "$tmp_dir/mock_ses_inbound_roundtrip.sh" '
+if [ -z "${SES_FROM_ADDRESS:-}" ] || [ -z "${SES_REGION:-}" ]; then
+    echo "SES_FROM_ADDRESS and SES_REGION are required" >&2
+    exit 96
+fi
+printf "from=%s region=%s\n" "$SES_FROM_ADDRESS" "$SES_REGION" > "${SES_INBOUND_PROBE_FILE:?}"
+exit 0'
+    write_mock_script "$tmp_dir/mock_canary_customer_loop.sh" '
+if [ "${CANARY_RC_READINESS_MODE:-0}" != "1" ]; then
+    echo "CANARY_RC_READINESS_MODE=1 is required in RC delegation mode" >&2
+    exit 97
+fi
+if [ -z "${ADMIN_KEY:-}" ] || [ -z "${STRIPE_SECRET_KEY:-}" ]; then
+    echo "ADMIN_KEY and STRIPE_SECRET_KEY are required" >&2
+    exit 98
+fi
+printf "admin=%s stripe=%s readiness=%s\n" "$ADMIN_KEY" "$STRIPE_SECRET_KEY" "$CANARY_RC_READINESS_MODE" > "${CANARY_PROBE_FILE:?}"
+exit 0'
     write_mock_script "$tmp_dir/bin/npx" '
 printf "browser_auth_setup|%s|%s\n" "$PWD" "$*" >> "${INVOCATION_LOG_FILE:?}"
 exit 0'
     run_orchestrator env \
         SES_FROM_ADDRESS="" \
         SES_REGION="" \
+        ADMIN_KEY="" \
+        FLAPJACK_ADMIN_KEY="" \
+        STRIPE_SECRET_KEY="" \
+        STRIPE_TEST_SECRET_KEY="" \
         PATH="$tmp_dir/bin:$PATH" \
         EXPECTED_ARTIFACT_DIR="$artifact_dir" \
         SES_ARGS_FILE="$ses_args_file" \
         BILLING_ARGS_FILE="$billing_args_file" \
+        SES_INBOUND_PROBE_FILE="$ses_inbound_probe_file" \
+        CANARY_PROBE_FILE="$canary_probe_file" \
         INVOCATION_LOG_FILE="$invocation_log_file" \
         FULL_VALIDATION_CARGO_BIN="$tmp_dir/mock_cargo.sh" \
         FULL_VALIDATION_BACKEND_GATE_SCRIPT="$tmp_dir/mock_backend_gate.sh" \
@@ -508,18 +556,26 @@ exit 0'
         FULL_VALIDATION_TERRAFORM_STAGE7_STATIC_SCRIPT="$tmp_dir/mock_tf_static_stage7.sh" \
         FULL_VALIDATION_TERRAFORM_STAGE8_STATIC_SCRIPT="$tmp_dir/mock_tf_static_stage8.sh" \
         FULL_VALIDATION_TERRAFORM_STAGE7_RUNTIME_SMOKE_SCRIPT="$tmp_dir/mock_runtime_smoke.sh" \
+        FULL_VALIDATION_SES_INBOUND_ROUNDTRIP_SCRIPT="$tmp_dir/mock_ses_inbound_roundtrip.sh" \
+        FULL_VALIDATION_CANARY_CUSTOMER_LOOP_SCRIPT="$tmp_dir/mock_canary_customer_loop.sh" \
         bash "$ORCH_SCRIPT" --paid-beta-rc --sha=aabbccddee00112233445566778899aabbccddee \
             --credential-env-file="$credential_env_file" --billing-month=2026-03 --artifact-dir="$artifact_dir" \
             --staging-smoke-ami-id="$staging_smoke_ami_id"
-    local ses_args billing_args invocation_log
+    local ses_args billing_args invocation_log summary_json normalized_stdout normalized_summary
+    local ses_inbound_probe canary_probe
     ses_args="$(cat "$ses_args_file" 2>/dev/null || true)"
     billing_args="$(cat "$billing_args_file" 2>/dev/null || true)"
+    ses_inbound_probe="$(cat "$ses_inbound_probe_file" 2>/dev/null || true)"
+    canary_probe="$(cat "$canary_probe_file" 2>/dev/null || true)"
     invocation_log="$(cat "$invocation_log_file" 2>/dev/null || true)"
+    summary_json="$(cat "$artifact_dir/summary.json" 2>/dev/null || true)"
+    normalized_stdout="$(normalize_json "$RUN_STDOUT")"
+    normalized_summary="$(normalize_json "$summary_json")"
     rm -rf "$tmp_dir"
-    assert_eq "$RUN_EXIT_CODE" "0" "paid-beta-rc should exit 0 on full pass path"
+    assert_eq "$RUN_EXIT_CODE" "1" "paid-beta-rc should remain non-pass while Tier-1 critical surfaces are unproven"
     assert_json_field "$RUN_STDOUT" "mode" "paid_beta_rc" "paid-beta-rc output mode should be paid_beta_rc"
-    assert_json_bool_field "$RUN_STDOUT" "ready" "true" "paid-beta-rc should report ready=true when all required proofs pass"
-    assert_json_field "$RUN_STDOUT" "verdict" "pass" "paid-beta-rc should preserve pass verdict on pass path"
+    assert_json_bool_field "$RUN_STDOUT" "ready" "false" "paid-beta-rc should report ready=false while Tier-1 proof gaps remain"
+    assert_json_field "$RUN_STDOUT" "verdict" "fail" "paid-beta-rc should preserve fail verdict while Tier-1 proof gaps remain"
     assert_eq "$(json_step_status "$RUN_STDOUT" "cargo_workspace_tests")" "pass" "cargo step should pass on RC pass path"
     assert_eq "$(json_step_status "$RUN_STDOUT" "backend_launch_gate")" "pass" "backend launch gate should pass on RC pass path"
     assert_eq "$(json_step_status "$RUN_STDOUT" "local_signoff")" "pass" "local_signoff should pass on RC pass path"
@@ -528,18 +584,110 @@ exit 0'
     assert_eq "$(json_step_status "$RUN_STDOUT" "browser_preflight")" "pass" "browser_preflight should pass on RC pass path"
     assert_eq "$(json_step_status "$RUN_STDOUT" "browser_auth_setup")" "pass" "browser_auth_setup should pass on RC pass path"
     assert_eq "$(json_step_status "$RUN_STDOUT" "terraform_static_guardrails")" "pass" "terraform_static_guardrails should pass on RC pass path"
-    assert_eq "$(json_step_status "$RUN_STDOUT" "staging_runtime_smoke")" "pass" "staging_runtime_smoke should pass on RC pass path with explicit inputs"
-    assert_eq "$(json_step_count "$RUN_STDOUT")" "9" "paid-beta-rc pass path should include Stage 1 and Stage 2 required proof rows"
+    assert_eq "$(json_step_status "$RUN_STDOUT" "staging_runtime_smoke")" "pass" "staging_runtime_smoke should pass on RC path with explicit inputs"
+    assert_eq "$(json_step_status "$RUN_STDOUT" "admin_broadcast")" "pass" "Tier-1 admin_broadcast should be recorded on RC path"
+    assert_eq "$(json_step_status "$RUN_STDOUT" "billing_health_last_activity")" "pass" "Tier-1 billing_health_last_activity should be recorded on RC path"
+    assert_eq "$(json_step_status "$RUN_STDOUT" "audit_timeline")" "pass" "Tier-1 audit_timeline should be recorded on RC path"
+    assert_eq "$(json_step_status "$RUN_STDOUT" "status_runtime")" "pass" "Tier-1 status_runtime should be recorded on RC path"
+    assert_eq "$(json_step_status "$RUN_STDOUT" "ses_inbound")" "pass" "Tier-1 ses_inbound should pass when delegated roundtrip owner succeeds"
+    assert_eq "$(json_step_status "$RUN_STDOUT" "canary_customer_loop")" "pass" "Tier-1 canary_customer_loop should pass when delegated owner succeeds"
+    assert_eq "$(json_step_status "$RUN_STDOUT" "canary_outside_aws")" "pass" "Tier-1 canary_outside_aws should run as direct readiness probe"
+    assert_eq "$(json_step_status "$RUN_STDOUT" "stripe_webhook_signature_matrix_idempotency")" "pass" "Tier-1 webhook matrix step should be recorded on RC path"
+    assert_eq "$(json_step_status "$RUN_STDOUT" "test_clock")" "live_evidence_gap" "Tier-1 test_clock should remain non-pass in readiness mode"
+    assert_eq "$(json_step_status "$RUN_STDOUT" "tenant_isolation")" "pass" "Tier-1 tenant_isolation should be recorded on RC path"
+    assert_eq "$(json_step_status "$RUN_STDOUT" "signup_abuse")" "pass" "Tier-1 signup_abuse should be recorded on RC path"
+    assert_eq "$(json_step_status "$RUN_STDOUT" "browser_signup_paid")" "fail" "Tier-1 browser_signup_paid should be promoted to fail by critical reducer"
+    assert_eq "$(json_step_status "$RUN_STDOUT" "browser_portal_cancel")" "fail" "Tier-1 browser_portal_cancel should be promoted to fail by critical reducer"
+    assert_eq "$(json_step_count "$RUN_STDOUT")" "22" "paid-beta-rc path should include Stage 1 plus Tier-1 proof rows"
+    assert_not_contains "$RUN_STDOUT" '"blocked"' "paid-beta-rc pass payload should not include legacy blocked status"
+    assert_eq "$normalized_stdout" "$normalized_summary" "paid-beta-rc should write summary.json with the same final JSON emitted to stdout"
     assert_contains "$ses_args" "--identity beta@example.com" "ses_readiness should receive resolved identity"
     assert_contains "$ses_args" "--region us-east-1" "ses_readiness should receive resolved region"
     assert_contains "$billing_args" "--env-file $credential_env_file" "billing rehearsal should receive env file"
     assert_contains "$billing_args" "--month 2026-03" "billing rehearsal should receive billing month"
     assert_contains "$billing_args" "--confirm-live-mutation" "billing rehearsal should require live mutation confirmation flag"
+    assert_contains "$ses_inbound_probe" "from=beta@example.com region=us-east-1" "ses_inbound delegated owner should receive resolved SES credentials"
+    assert_contains "$canary_probe" "admin=file_admin_key stripe=sk_test_from_file readiness=1" "canary delegated owner should receive resolved credentials and RC readiness flag"
     assert_contains "$invocation_log" "browser_preflight|$PWD|" "browser preflight should run from repo root without extra args"
     assert_contains "$invocation_log" "browser_auth_setup|$REPO_ROOT/web|playwright test -c playwright.config.ts tests/fixtures/auth.setup.ts tests/fixtures/admin.auth.setup.ts --project=setup:user --project=setup:admin --reporter=line" "browser auth setup should delegate exact playwright command in web dir"
     assert_contains "$invocation_log" "terraform_stage7_static|$PWD|" "terraform stage7 static guardrail should delegate without extra args"
     assert_contains "$invocation_log" "terraform_stage8_static|$PWD|" "terraform stage8 static guardrail should delegate without extra args"
     assert_contains "$invocation_log" "staging_runtime_smoke|$PWD|--env-file $credential_env_file --ami-id $staging_smoke_ami_id --env staging" "staging runtime smoke should delegate exact opt-in command"
+}
+test_paid_beta_rc_keeps_non_critical_skip_as_skipped() {
+    local tmp_dir
+    tmp_dir="$(mktemp -d)"
+    local credential_env_file
+    credential_env_file="$tmp_dir/credentials.env"
+    cat > "$credential_env_file" <<'EOF'
+SES_FROM_ADDRESS=beta@example.com
+SES_REGION=us-east-1
+EOF
+    mkdir -p "$tmp_dir/bin"
+    write_mock_script "$tmp_dir/mock_cargo.sh" 'exit 0'
+    write_mock_script "$tmp_dir/mock_backend_gate.sh" 'echo "{\"verdict\":\"pass\"}"; exit 0'
+    write_mock_script "$tmp_dir/mock_local_signoff.sh" 'exit 0'
+    write_mock_script "$tmp_dir/mock_ses.sh" 'exit 0'
+    write_mock_script "$tmp_dir/mock_billing.sh" 'echo "{\"result\":\"skipped\",\"classification\":\"operator_opt_out\"}"; exit 0'
+    write_mock_script "$tmp_dir/mock_browser_preflight.sh" 'exit 0'
+    write_mock_script "$tmp_dir/mock_tf_static_stage7.sh" 'exit 0'
+    write_mock_script "$tmp_dir/mock_tf_static_stage8.sh" 'exit 0'
+    write_mock_script "$tmp_dir/mock_runtime_smoke.sh" 'exit 0'
+    write_mock_script "$tmp_dir/bin/npx" 'exit 0'
+    run_orchestrator env \
+        PATH="$tmp_dir/bin:$PATH" \
+        FULL_VALIDATION_CARGO_BIN="$tmp_dir/mock_cargo.sh" \
+        FULL_VALIDATION_BACKEND_GATE_SCRIPT="$tmp_dir/mock_backend_gate.sh" \
+        FULL_VALIDATION_LOCAL_SIGNOFF_SCRIPT="$tmp_dir/mock_local_signoff.sh" \
+        FULL_VALIDATION_SES_READINESS_SCRIPT="$tmp_dir/mock_ses.sh" \
+        FULL_VALIDATION_STAGING_BILLING_REHEARSAL_SCRIPT="$tmp_dir/mock_billing.sh" \
+        FULL_VALIDATION_BROWSER_PREFLIGHT_SCRIPT="$tmp_dir/mock_browser_preflight.sh" \
+        FULL_VALIDATION_TERRAFORM_STAGE7_STATIC_SCRIPT="$tmp_dir/mock_tf_static_stage7.sh" \
+        FULL_VALIDATION_TERRAFORM_STAGE8_STATIC_SCRIPT="$tmp_dir/mock_tf_static_stage8.sh" \
+        FULL_VALIDATION_TERRAFORM_STAGE7_RUNTIME_SMOKE_SCRIPT="$tmp_dir/mock_runtime_smoke.sh" \
+        bash "$ORCH_SCRIPT" --paid-beta-rc --sha=aabbccddee00112233445566778899aabbccddee \
+            --credential-env-file="$credential_env_file" --billing-month=2026-03 --staging-smoke-ami-id=ami-12345678
+    rm -rf "$tmp_dir"
+    assert_eq "$(json_step_status "$RUN_STDOUT" "staging_billing_rehearsal")" "skipped" "non-critical delegated skip should remain skipped"
+    assert_eq "$(json_step_reason "$RUN_STDOUT" "staging_billing_rehearsal")" "operator_opt_out" "non-critical delegated skip should preserve classification reason"
+}
+test_paid_beta_rc_promotes_critical_browser_skip_to_fail() {
+    local tmp_dir
+    tmp_dir="$(mktemp -d)"
+    local credential_env_file
+    credential_env_file="$tmp_dir/credentials.env"
+    cat > "$credential_env_file" <<'EOF'
+SES_FROM_ADDRESS=beta@example.com
+SES_REGION=us-east-1
+EOF
+    mkdir -p "$tmp_dir/bin"
+    write_mock_script "$tmp_dir/mock_cargo.sh" 'exit 0'
+    write_mock_script "$tmp_dir/mock_backend_gate.sh" 'echo "{\"verdict\":\"pass\"}"; exit 0'
+    write_mock_script "$tmp_dir/mock_local_signoff.sh" 'exit 0'
+    write_mock_script "$tmp_dir/mock_ses.sh" 'exit 0'
+    write_mock_script "$tmp_dir/mock_billing.sh" 'exit 0'
+    write_mock_script "$tmp_dir/mock_browser_preflight.sh" 'exit 3'
+    write_mock_script "$tmp_dir/mock_tf_static_stage7.sh" 'exit 0'
+    write_mock_script "$tmp_dir/mock_tf_static_stage8.sh" 'exit 0'
+    write_mock_script "$tmp_dir/mock_runtime_smoke.sh" 'exit 0'
+    write_mock_script "$tmp_dir/bin/npx" 'exit 0'
+    run_orchestrator env \
+        PATH="$tmp_dir/bin:$PATH" \
+        FULL_VALIDATION_CARGO_BIN="$tmp_dir/mock_cargo.sh" \
+        FULL_VALIDATION_BACKEND_GATE_SCRIPT="$tmp_dir/mock_backend_gate.sh" \
+        FULL_VALIDATION_LOCAL_SIGNOFF_SCRIPT="$tmp_dir/mock_local_signoff.sh" \
+        FULL_VALIDATION_SES_READINESS_SCRIPT="$tmp_dir/mock_ses.sh" \
+        FULL_VALIDATION_STAGING_BILLING_REHEARSAL_SCRIPT="$tmp_dir/mock_billing.sh" \
+        FULL_VALIDATION_BROWSER_PREFLIGHT_SCRIPT="$tmp_dir/mock_browser_preflight.sh" \
+        FULL_VALIDATION_TERRAFORM_STAGE7_STATIC_SCRIPT="$tmp_dir/mock_tf_static_stage7.sh" \
+        FULL_VALIDATION_TERRAFORM_STAGE8_STATIC_SCRIPT="$tmp_dir/mock_tf_static_stage8.sh" \
+        FULL_VALIDATION_TERRAFORM_STAGE7_RUNTIME_SMOKE_SCRIPT="$tmp_dir/mock_runtime_smoke.sh" \
+        bash "$ORCH_SCRIPT" --paid-beta-rc --sha=aabbccddee00112233445566778899aabbccddee \
+            --credential-env-file="$credential_env_file" --billing-month=2026-03 --staging-smoke-ami-id=ami-12345678
+    rm -rf "$tmp_dir"
+    assert_eq "$RUN_EXIT_CODE" "1" "critical browser skip should fail paid-beta-rc run"
+    assert_eq "$(json_step_status "$RUN_STDOUT" "browser_preflight")" "fail" "critical browser skip should be promoted to fail"
+    assert_eq "$(json_step_reason "$RUN_STDOUT" "browser_preflight")" "critical_surface_skipped" "critical browser skip should expose a deterministic promoted reason"
 }
 test_paid_beta_rc_default_artifact_dir_does_not_touch_docs_evidence() {
     local tmp_dir
@@ -590,7 +738,7 @@ exit 0'
             --credential-env-file="$credential_env_file" --billing-month=2026-03 --staging-smoke-ami-id=ami-12345678
     after_count="$(find "$docs_evidence_dir" -maxdepth 1 -type f -name 'backend_gate_*.json' | wc -l | tr -d ' ')"
     rm -rf "$tmp_dir"
-    assert_eq "$RUN_EXIT_CODE" "0" "paid-beta-rc should pass without writing to docs evidence by default"
+    assert_eq "$RUN_EXIT_CODE" "1" "paid-beta-rc should remain non-pass by default while Tier-1 critical surfaces are unproven"
     assert_eq "$before_count" "$after_count" "paid-beta-rc default artifact path should not create docs/launch/evidence backend files"
 }
 test_live_preflight_catches_all_missing_credentials() {
@@ -665,12 +813,15 @@ main() {
     test_orchestrator_rejects_invalid_billing_month_argument
     test_orchestrator_rejects_invalid_staging_smoke_ami_argument
     test_orchestrator_collects_all_results_even_on_failure
+    test_paid_beta_rc_replaces_legacy_blocked_emissions
     test_paid_beta_rc_blocks_missing_credentialed_inputs
     test_paid_beta_rc_blocks_when_billing_month_missing
     test_paid_beta_rc_blocks_staging_runtime_smoke_without_opt_in_inputs
-    test_paid_beta_rc_propagates_delegated_billing_blocked_state
+    test_paid_beta_rc_propagates_delegated_billing_live_evidence_gap
     test_paid_beta_rc_uses_shell_identity_when_credential_file_missing
     test_paid_beta_rc_pass_path_reports_ready_true
+    test_paid_beta_rc_keeps_non_critical_skip_as_skipped
+    test_paid_beta_rc_promotes_critical_browser_skip_to_fail
     test_paid_beta_rc_default_artifact_dir_does_not_touch_docs_evidence
     test_live_preflight_catches_all_missing_credentials
     test_live_preflight_passes_when_all_credentials_present

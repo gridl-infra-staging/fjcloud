@@ -2,7 +2,6 @@
 // that are used by one test file appear unused in others. Suppress false positives.
 #![allow(dead_code)]
 
-pub mod ayb_test_support;
 pub mod builders;
 pub mod capacity_profiles;
 pub mod flapjack_proxy_test_support;
@@ -10,10 +9,11 @@ pub mod indexes_route_test_support;
 #[cfg(not(test))]
 pub mod integration_helpers;
 pub mod mocks;
+pub mod poll;
 pub mod storage_metering_test_support;
 pub mod storage_s3_object_route_support;
+pub mod stripe_webhook_test_support;
 
-pub use ayb_test_support::*;
 pub use builders::*;
 pub use mocks::*;
 
@@ -41,59 +41,18 @@ pub fn openapi_spec_json() -> serde_json::Value {
     serde_json::from_str(&json_str).expect("spec JSON should parse")
 }
 
-/// Generate a valid JWT signed with `TEST_JWT_SECRET`, expiring in 1 hour.
-pub fn create_test_jwt(customer_id: Uuid) -> String {
-    let now = std::time::SystemTime::now()
+fn unix_now() -> usize {
+    std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
-        .as_secs() as usize;
-
-    let claims = Claims {
-        sub: customer_id.to_string(),
-        exp: now + 3600,
-        iat: now,
-    };
-
-    jsonwebtoken::encode(
-        &Header::default(),
-        &claims,
-        &EncodingKey::from_secret(TEST_JWT_SECRET.as_bytes()),
-    )
-    .expect("JWT encoding should not fail")
+        .as_secs() as usize
 }
 
-/// Generate an expired JWT (exp = now - 3600, well past the 60-second leeway).
-pub fn create_expired_jwt(customer_id: Uuid) -> String {
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_secs() as usize;
-
+fn encode_jwt(customer_id: Uuid, exp: usize, iat: usize, secret: &str) -> String {
     let claims = Claims {
         sub: customer_id.to_string(),
-        exp: now - 3600,
-        iat: now - 7200,
-    };
-
-    jsonwebtoken::encode(
-        &Header::default(),
-        &claims,
-        &EncodingKey::from_secret(TEST_JWT_SECRET.as_bytes()),
-    )
-    .expect("JWT encoding should not fail")
-}
-
-/// Generate a JWT signed with a custom secret (for wrong-secret tests).
-pub fn create_jwt_with_secret(customer_id: Uuid, secret: &str) -> String {
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_secs() as usize;
-
-    let claims = Claims {
-        sub: customer_id.to_string(),
-        exp: now + 3600,
-        iat: now,
+        exp,
+        iat,
     };
 
     jsonwebtoken::encode(
@@ -102,6 +61,24 @@ pub fn create_jwt_with_secret(customer_id: Uuid, secret: &str) -> String {
         &EncodingKey::from_secret(secret.as_bytes()),
     )
     .expect("JWT encoding should not fail")
+}
+
+/// Generate a valid JWT signed with `TEST_JWT_SECRET`, expiring in 1 hour.
+pub fn create_test_jwt(customer_id: Uuid) -> String {
+    let now = unix_now();
+    encode_jwt(customer_id, now + 3600, now, TEST_JWT_SECRET)
+}
+
+/// Generate an expired JWT (exp = now - 3600, well past the 60-second leeway).
+pub fn create_expired_jwt(customer_id: Uuid) -> String {
+    let now = unix_now();
+    encode_jwt(customer_id, now - 3600, now - 7200, TEST_JWT_SECRET)
+}
+
+/// Generate a JWT signed with a custom secret (for wrong-secret tests).
+pub fn create_jwt_with_secret(customer_id: Uuid, secret: &str) -> String {
+    let now = unix_now();
+    encode_jwt(customer_id, now + 3600, now, secret)
 }
 
 /// Start a tiny HTTP server that responds to GET /health with the given status code.

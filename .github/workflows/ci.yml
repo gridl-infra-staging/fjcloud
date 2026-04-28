@@ -68,7 +68,7 @@ jobs:
         run: cargo test --workspace -j 1
       - name: Run tenant isolation property test
         working-directory: infra
-        run: cargo test -p api --test tenant_isolation_proptest
+        run: cargo test -p api --test tenant_isolation_proptest --features proptest-tests
 
   rust-lint:
     runs-on: ubuntu-latest
@@ -284,19 +284,10 @@ jobs:
         run: gitleaks detect --redact -v --exit-code=2
 
   deploy-staging:
-    # The `playwright` job is intentionally omitted from the deploy gate.
-    # The current `playwright:` job runs `npx playwright test` against a
-    # webServer that the workflow never bootstraps (no postgres service,
-    # no API server background task, no SvelteKit dev server) so the
-    # tests can never connect — every run since 2026-03-15 has failed
-    # with `TypeError: fetch failed` on hundreds of cases. That has
-    # blocked staging deploys for 6+ weeks. The targeted fix is to wire
-    # up the missing services in the playwright job; until that lands,
-    # leaving playwright outside `needs` lets the rest of the gate
-    # (rust-test, rust-lint, migration-test, web-test, web-lint,
-    # check-sizes, secret-scan) actually deploy useful change. Playwright
-    # still runs and surfaces failures in CI annotations — it is just
-    # advisory rather than gating.
+    # The `playwright` job remains advisory and is intentionally omitted from
+    # the deploy gate. It still runs on every CI pass, publishes logs/artifacts,
+    # and surfaces failures in annotations without blocking the rest of the
+    # staging deploy contract.
     needs:
       [
         rust-test,
@@ -333,9 +324,8 @@ jobs:
             public.ecr.aws/amazonlinux/amazonlinux:2023 \
             bash -lc '
               set -euo pipefail
-              dnf install -y curl gcc gcc-c++ git openssl-devel pkgconfig perl-FindBin tar gzip
-              curl https://sh.rustup.rs -sSf | sh -s -- -y --profile minimal
-              source "$HOME/.cargo/env"
+              # Use distro-signed Rust toolchain packages; avoid curl-pipe-shell installers.
+              dnf install -y gcc gcc-c++ git openssl-devel pkgconfig perl-FindBin tar gzip rust cargo
               cargo build --release -p api -p aggregation-job -p metering-agent
               mv target/release/fjcloud-api fjcloud-api
               mv target/release/fj-metering-agent fj-metering-agent

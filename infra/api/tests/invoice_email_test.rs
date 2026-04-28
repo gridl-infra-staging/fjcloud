@@ -161,6 +161,16 @@ impl EmailService for FailingInvoiceEmailService {
     ) -> Result<(), EmailError> {
         Ok(())
     }
+
+    async fn send_broadcast_email(
+        &self,
+        _to: &str,
+        _subject: &str,
+        _html_body: Option<&str>,
+        _text_body: Option<&str>,
+    ) -> Result<(), EmailError> {
+        Ok(())
+    }
 }
 
 #[tokio::test]

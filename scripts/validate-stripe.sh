@@ -5,6 +5,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib/validation_json.sh"
 source "$SCRIPT_DIR/lib/stripe_checks.sh"
+source "$SCRIPT_DIR/lib/stripe_request.sh"
 
 # Local aliases for shared validation helpers (short names used throughout).
 json_get_field() { validation_json_get_field "$@"; }
@@ -96,32 +97,6 @@ require_stripe_api_base() {
     append_step "require_stripe_api_base" false "STRIPE_API_BASE must be https://api.stripe.com"
     emit_result false
     exit 1
-}
-
-stripe_request() {
-    local method="$1"
-    local path="$2"
-    shift 2
-
-    local stripe_secret_key="$STRIPE_SECRET_KEY_EFFECTIVE"
-    local header_file body_file http_code curl_output
-    header_file="$(mktemp)"
-    body_file="$(mktemp)"
-
-    if ! curl_output="$(curl -sS -D "$header_file" -o "$body_file" -w "%{http_code}" -u "$stripe_secret_key:" -X "$method" "$STRIPE_API_BASE$path" "$@" 2>&1)"; then
-        STRIPE_HTTP_CODE="000"
-        STRIPE_BODY="$curl_output"
-        STRIPE_REQUEST_ID=""
-        rm -f "$header_file" "$body_file"
-        return 1
-    fi
-
-    http_code="$(printf '%s' "$curl_output" | tail -n 1)"
-    STRIPE_HTTP_CODE="$http_code"
-    STRIPE_BODY="$(cat "$body_file")"
-    STRIPE_REQUEST_ID="$(awk 'BEGIN { IGNORECASE=1 } /^Request-Id:/ { sub(/\r$/, "", $2); print $2; exit }' "$header_file")"
-    rm -f "$header_file" "$body_file"
-    return 0
 }
 
 STRIPE_API_BASE="${STRIPE_API_BASE:-https://api.stripe.com}"

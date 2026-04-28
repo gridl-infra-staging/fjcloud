@@ -4,8 +4,17 @@
 	import type { ActionResult, SubmitFunction } from '@sveltejs/kit';
 	import type { PageData } from './$types';
 	import { adminBadgeColor, formatDate } from '$lib/format';
+	import AuditTimeline from './AuditTimeline.svelte';
 
-	type TabId = 'info' | 'indexes' | 'deployments' | 'usage' | 'invoices' | 'rate-card' | 'quotas';
+	type TabId =
+		| 'info'
+		| 'indexes'
+		| 'deployments'
+		| 'usage'
+		| 'invoices'
+		| 'rate-card'
+		| 'quotas'
+		| 'audit';
 
 	let { data, form } = $props<{ data: PageData; form?: { error?: string; message?: string } }>();
 	let activeTab = $state<TabId>('info');
@@ -17,7 +26,8 @@
 		{ id: 'usage', label: 'Usage' },
 		{ id: 'invoices', label: 'Invoices' },
 		{ id: 'rate-card', label: 'Rate Card' },
-		{ id: 'quotas', label: 'Quotas' }
+		{ id: 'quotas', label: 'Quotas' },
+		{ id: 'audit', label: 'Audit' }
 	];
 
 	function centsToDollars(cents: number): string {
@@ -538,5 +548,9 @@
 				<p class="mt-3 text-sm text-slate-400">Quota data unavailable.</p>
 			{/if}
 		</div>
+	{/if}
+
+	{#if activeTab === 'audit'}
+		<AuditTimeline audit={data.audit} />
 	{/if}
 </div>

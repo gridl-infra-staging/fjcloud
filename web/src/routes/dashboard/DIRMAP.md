@@ -1,20 +1,17 @@
 <!-- [scrai:start] -->
-
 ## dashboard
 
-| File              | Summary                                                                                                                                             |
-| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| +layout.server.ts | Stub summary for /Users/stuart/parallel_development/fjcloud_dev/mar19_1_frontend_test_suite/fjcloud_dev/web/src/routes/dashboard/+layout.server.ts. |
-| +page.server.ts   | Stub summary for /Users/stuart/parallel_development/fjcloud_dev/mar19_1_frontend_test_suite/fjcloud_dev/web/src/routes/dashboard/+page.server.ts.   |
+| File | Summary |
+| --- | --- |
+| +layout.server.ts | Stub summary for /Users/stuart/parallel_development/fjcloud_dev/mar23_pm_2_admin_ui_enhancements/fjcloud_dev/web/src/routes/dashboard/+layout.server.ts. |
+| +page.server.ts | Stub summary for +page.server.ts. |
 
-| Directory  | Summary                                                                                                                                                                                                                                                                                      |
-| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| api-keys   | —                                                                                                                                                                                                                                                                                            |
-| billing    | The billing directory contains server-side logic for the billing setup page, with a Stripe setup intent function that returns a client secret for payment configuration while handling customer validation and service availability errors.                                                  |
-| database   | The database directory contains a SvelteKit page server that loads and manages user database instances (AYB) from the API, handling instance provisioning status and providing a delete action with comprehensive error handling for various failure scenarios.                              |
-| indexes    | The indexes directory is the dashboard page for managing user indexes, providing server-side logic to fetch user indexes and available regions with session expiration detection.                                                                                                            |
-| migrate    | This server-side handler provides two actions for migrating data from Algolia: listIndexes validates credentials and retrieves available indexes, and migrate initiates the migration process given source credentials and index selection, with robust error handling and response parsing. |
-| onboarding | The onboarding page server module loads the user's onboarding status from the API and redirects to the dashboard if complete, while providing actions to create indexes and generate API credentials during the setup flow.                                                                  |
-| settings   | —                                                                                                                                                                                                                                                                                            |
-
+| Directory | Summary |
+| --- | --- |
+| api-keys | — |
+| billing | The billing directory contains the customer-facing billing portal routes, including a main dashboard page and a setup subpage for configuring Stripe payment methods via setup intents. |
+| indexes | The indexes directory is the SvelteKit dashboard interface for managing Flapjack search indexes, providing a list view that fetches user indexes and regions, and per-index pages with features for document handling, security configuration, and integration code snippets. |
+| migrate | The migrate directory contains a SvelteKit server-side page handler for the dashboard migration feature, currently with stub documentation that needs to be expanded. |
+| onboarding | The onboarding directory contains a SvelteKit server-side route that handles the initial user onboarding flow for the fjcloud platform. |
+| settings | — |
 <!-- [scrai:end] -->

@@ -1,19 +1,16 @@
 #![allow(dead_code)]
 
-//! Stub summary for /Users/stuart/parallel_development/fjcloud_dev/MAR17_11_2_data_management_features/fjcloud_dev/infra/api/tests/common/builders.rs.
 use api::dns::mock::MockDnsManager;
 use api::provisioner::mock::MockVmProvisioner;
 use api::provisioner::region_map::RegionConfig;
 use api::repos::index_migration_repo::IndexMigrationRepo;
 use api::repos::tenant_repo::TenantRepo;
 use api::repos::vm_inventory_repo::VmInventoryRepo;
-use api::repos::InMemoryAybTenantRepo;
 use api::repos::InMemoryColdSnapshotRepo;
 use api::repos::InMemoryStorageBucketRepo;
 use api::repos::InMemoryStorageKeyRepo;
 use api::router::build_router;
 use api::services::alerting::MockAlertService;
-use api::services::ayb_admin::AybAdminClient;
 use api::services::email::EmailService;
 use api::services::flapjack_proxy::FlapjackProxy;
 use api::services::metrics::MetricsCollector;
@@ -56,11 +53,11 @@ fn lazy_pool() -> sqlx::PgPool {
         // surfaces `sqlx::Error::Io(connection refused)` — which
         // `repos::advisory_lock::is_connection_error` correctly classifies as
         // "DB unavailable, fall back to in-process lock". Pointing at
-        // `localhost/fake_db` instead caused CI hangs (account_test
-        // concurrent-ayb deadlock) when the postgres:16 service container
-        // was reachable but the `fake` user/db did not exist: sqlx returned
-        // `Database` (auth failure), which the connection-error classifier
-        // missed, so handlers returned 503 before signaling test channels.
+        // `localhost/fake_db` instead caused CI hangs in concurrent integration
+        // tests when the postgres:16 service container was reachable but the
+        // `fake` user/db did not exist: sqlx returned `Database` (auth failure),
+        // which the connection-error classifier missed, so handlers returned
+        // 503 before signaling test channels.
         .acquire_timeout(std::time::Duration::from_millis(200))
         .connect_lazy("postgres://test:test@127.0.0.1:1/test")
         .expect("connect_lazy should never fail")
@@ -190,7 +187,6 @@ fn mock_provisioning_service(
 /// - `FlapjackProxy`: mock (no real flapjack node)
 /// - `GarageProxy`: points at `http://127.0.0.1:3900` (safe; never called in unit tests)
 /// - `StorageMasterKey`: all-zero 32-byte key (deterministic encryption in tests)
-/// - `AybAdminClient`: `None` (AllyourBase integration disabled by default)
 ///
 /// Call `build()` for an [`AppState`] or `build_app()` for a fully-wired
 /// axum [`Router`].
@@ -232,8 +228,6 @@ pub struct TestStateBuilder {
     garage_admin_client: Arc<dyn GarageAdminClient>,
     garage_proxy: Arc<GarageProxy>,
     storage_master_key: [u8; 32],
-    ayb_admin_client: Option<Arc<dyn AybAdminClient + Send + Sync>>,
-    ayb_tenant_repo: Arc<InMemoryAybTenantRepo>,
 }
 
 impl TestStateBuilder {
@@ -284,8 +278,6 @@ impl TestStateBuilder {
             garage_admin_client: mock_garage_admin_client(),
             garage_proxy: test_garage_proxy(),
             storage_master_key: [0u8; 32],
-            ayb_admin_client: None,
-            ayb_tenant_repo: Arc::new(InMemoryAybTenantRepo::new()),
         }
     }
 
@@ -513,8 +505,6 @@ impl TestStateBuilder {
             garage_proxy: self.garage_proxy,
             s3_object_metering,
             storage_master_key: self.storage_master_key,
-            ayb_admin_client: self.ayb_admin_client,
-            ayb_tenant_repo: self.ayb_tenant_repo,
         }
     }
 
@@ -540,11 +530,6 @@ impl TestStateBuilder {
 
     pub fn with_garage_proxy(mut self, garage_proxy: Arc<GarageProxy>) -> Self {
         self.garage_proxy = garage_proxy;
-        self
-    }
-
-    pub fn with_ayb_admin_client(mut self, client: Arc<dyn AybAdminClient + Send + Sync>) -> Self {
-        self.ayb_admin_client = Some(client);
         self
     }
 

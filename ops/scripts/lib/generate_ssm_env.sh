@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
-# generate_ssm_env.sh — Read SSM parameters and write /etc/fjcloud/env
+# generate_ssm_env.sh — Read SSM parameters and write runtime env files.
 #
-# Single source of truth for the SSM-param-name → env-var-name mapping.
+# Single source of truth for the SSM-param-name -> env-var-name mapping.
 # Called on-instance before service restart to populate the EnvironmentFile
-# referenced by systemd units (fjcloud-api.service, fjcloud-aggregation-job.service).
+# contracts referenced by systemd units:
+#   - /etc/fjcloud/env            (fjcloud-api, fjcloud-aggregation-job)
+#   - /etc/fjcloud/metering-env   (fj-metering-agent)
 #
 # Usage: generate_ssm_env.sh <env>
 #   env: staging | prod
@@ -21,6 +23,7 @@ ENV="$1"
 REGION="${AWS_DEFAULT_REGION:-us-east-1}"
 SSM_PREFIX="/fjcloud/${ENV}"
 ENV_FILE="/etc/fjcloud/env"
+METERING_ENV_FILE="/etc/fjcloud/metering-env"
 
 if [[ "$ENV" != "staging" && "$ENV" != "prod" ]]; then
   echo "ERROR: env must be 'staging' or 'prod' (got: ${ENV})"
@@ -28,7 +31,7 @@ if [[ "$ENV" != "staging" && "$ENV" != "prod" ]]; then
 fi
 
 # ---------------------------------------------------------------------------
-# SSM param name → env var name mapping
+# SSM param name -> env var name mapping
 #
 # Keys are the SSM parameter suffix (after /fjcloud/<env>/).
 # Values are the env var names that infra/api/src/config.rs::from_reader and
@@ -83,6 +86,10 @@ declare -A SSM_TO_ENV=(
 
   # Internal auth — config.rs::from_reader
   [internal_auth_token]="INTERNAL_AUTH_TOKEN"
+
+  # Alert webhook URLs — read by infra/api/src/startup.rs::init_alert_service.
+  [slack_webhook_url]="SLACK_WEBHOOK_URL"
+  [discord_webhook_url]="DISCORD_WEBHOOK_URL"
 )
 
 # ---------------------------------------------------------------------------
@@ -94,6 +101,8 @@ declare -A STATIC_VARS=(
   [ENVIRONMENT]="${ENV}"
   [NODE_SECRET_BACKEND]="ssm"
 )
+
+declare -A RESOLVED_VARS=()
 
 # ---------------------------------------------------------------------------
 # Fetch SSM parameters
@@ -113,15 +122,7 @@ if [[ -z "$SSM_OUTPUT" ]]; then
 fi
 
 # ---------------------------------------------------------------------------
-# Build env file content
-# ---------------------------------------------------------------------------
-
-# ---------------------------------------------------------------------------
-# Write env file atomically
-#
-# Write lines directly with printf '%s\n' instead of building a string and
-# using printf '%b', which would corrupt values containing backslash sequences
-# (e.g., \n, \t in DATABASE_URL passwords or encryption keys).
+# Write /etc/fjcloud/env atomically
 # ---------------------------------------------------------------------------
 
 mkdir -p "$(dirname "$ENV_FILE")"
@@ -136,6 +137,7 @@ TMPFILE=$(mktemp "${ENV_FILE}.XXXXXX")
 
   # Static vars first
   for var_name in "${!STATIC_VARS[@]}"; do
+    RESOLVED_VARS["$var_name"]="${STATIC_VARS[$var_name]}"
     printf '%s\n' "${var_name}=${STATIC_VARS[$var_name]}"
   done
 } > "$TMPFILE"
@@ -153,6 +155,7 @@ while IFS= read -r line; do
 
   if [[ -n "${SSM_TO_ENV[$suffix]+_}" ]]; then
     env_var="${SSM_TO_ENV[$suffix]}"
+    RESOLVED_VARS["$env_var"]="$param_value"
     printf '%s\n' "${env_var}=${param_value}" >> "$TMPFILE"
     MAPPED_COUNT=$((MAPPED_COUNT + 1))
   else
@@ -164,6 +167,7 @@ data = json.load(sys.stdin)
 for p in data.get('Parameters', []):
     print(f\"{p['Name']}|{p['Value']}\")
 ")
+
 chmod 0600 "$TMPFILE"
 chown fjcloud:fjcloud "$TMPFILE" 2>/dev/null || true
 mv "$TMPFILE" "$ENV_FILE"
@@ -173,3 +177,90 @@ if [[ ${#SKIPPED_LIST[@]} -gt 0 ]]; then
   echo "    Skipped SSM params (no mapping):"
   printf '  %s\n' "${SKIPPED_LIST[@]}"
 fi
+
+# ---------------------------------------------------------------------------
+# Write /etc/fjcloud/metering-env from the same owner chain + node metadata
+# ---------------------------------------------------------------------------
+
+fetch_imds_token() {
+  curl -fsS -X PUT "http://169.254.169.254/latest/api/token" \
+    -H "X-aws-ec2-metadata-token-ttl-seconds: 21600"
+}
+
+imds_get() {
+  local path="$1"
+  local url="http://169.254.169.254/latest/${path}"
+  if [[ -n "${IMDS_TOKEN:-}" ]]; then
+    curl -fsS -H "X-aws-ec2-metadata-token: ${IMDS_TOKEN}" "$url"
+  else
+    curl -fsS "$url"
+  fi
+}
+
+IMDS_TOKEN="$(fetch_imds_token 2>/dev/null || true)"
+INSTANCE_REGION="$(imds_get meta-data/placement/region 2>/dev/null || true)"
+if [[ -n "$INSTANCE_REGION" ]]; then
+  REGION="$INSTANCE_REGION"
+fi
+
+CUSTOMER_ID="$(imds_get meta-data/tags/instance/customer_id 2>/dev/null || true)"
+NODE_ID="$(imds_get meta-data/tags/instance/node_id 2>/dev/null || true)"
+
+if [[ -z "$CUSTOMER_ID" || "$CUSTOMER_ID" == "None" || "$CUSTOMER_ID" == "404 - Not Found" ]]; then
+  echo "ERROR: missing required IMDS instance tag customer_id"
+  exit 1
+fi
+if [[ -z "$NODE_ID" || "$NODE_ID" == "None" || "$NODE_ID" == "404 - Not Found" ]]; then
+  echo "ERROR: missing required IMDS instance tag node_id"
+  exit 1
+fi
+
+FLAPJACK_API_KEY=$(aws ssm get-parameter \
+  --name "/fjcloud/${NODE_ID}/api-key" \
+  --with-decryption \
+  --query "Parameter.Value" \
+  --output text \
+  --region "$REGION")
+
+DATABASE_URL="${RESOLVED_VARS[DATABASE_URL]:-}"
+DNS_DOMAIN="${RESOLVED_VARS[DNS_DOMAIN]:-}"
+INTERNAL_KEY="${RESOLVED_VARS[INTERNAL_AUTH_TOKEN]:-${FLAPJACK_API_KEY}}"
+ENVIRONMENT_VALUE="${RESOLVED_VARS[ENVIRONMENT]:-${ENV}}"
+SLACK_WEBHOOK_URL="${RESOLVED_VARS[SLACK_WEBHOOK_URL]:-}"
+DISCORD_WEBHOOK_URL="${RESOLVED_VARS[DISCORD_WEBHOOK_URL]:-}"
+
+if [[ -z "$DATABASE_URL" ]]; then
+  echo "ERROR: DATABASE_URL missing from ${ENV_FILE} mapping"
+  exit 1
+fi
+if [[ -z "$DNS_DOMAIN" ]]; then
+  echo "ERROR: DNS_DOMAIN missing from ${ENV_FILE} mapping"
+  exit 1
+fi
+
+METERING_TMPFILE=$(mktemp "${METERING_ENV_FILE}.XXXXXX")
+
+{
+  printf '%s\n' "# Generated by generate_ssm_env.sh — do not edit manually"
+  printf '%s\n' "# Environment: ${ENVIRONMENT_VALUE}"
+  printf '%s\n' "# Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  echo ""
+  printf '%s\n' "DATABASE_URL=${DATABASE_URL}"
+  printf '%s\n' "FLAPJACK_URL=http://${NODE_ID}:7700"
+  printf '%s\n' "FLAPJACK_API_KEY=${FLAPJACK_API_KEY}"
+  printf '%s\n' "INTERNAL_KEY=${INTERNAL_KEY}"
+  printf '%s\n' "CUSTOMER_ID=${CUSTOMER_ID}"
+  printf '%s\n' "NODE_ID=${NODE_ID}"
+  printf '%s\n' "REGION=${REGION}"
+  printf '%s\n' "ENVIRONMENT=${ENVIRONMENT_VALUE}"
+  printf '%s\n' "TENANT_MAP_URL=https://api.${DNS_DOMAIN}/internal/tenant-map"
+  printf '%s\n' "COLD_STORAGE_USAGE_URL=https://api.${DNS_DOMAIN}/internal/cold-storage-usage"
+  printf '%s\n' "SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL}"
+  printf '%s\n' "DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL}"
+} > "$METERING_TMPFILE"
+
+chmod 0600 "$METERING_TMPFILE"
+chown fjcloud:fjcloud "$METERING_TMPFILE" 2>/dev/null || true
+mv "$METERING_TMPFILE" "$METERING_ENV_FILE"
+
+echo "==> Wrote ${METERING_ENV_FILE} (metering runtime contract)"

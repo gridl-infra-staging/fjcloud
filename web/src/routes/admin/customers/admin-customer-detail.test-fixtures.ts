@@ -4,15 +4,46 @@
  * Keep the canonical tab-content fixture data in one module so extracted tests
  * cannot drift when the detail surface changes.
  */
-export const DETAIL_FIXTURE = {
-	tenant: {
-		id: 'aaaaaaaa-0002-0000-0000-000000000002',
-		name: 'Beta Labs',
-		email: 'billing@beta.dev',
-		status: 'suspended',
-		created_at: '2026-02-11T12:00:00Z',
-		stripe_customer_id: 'cus_123'
+import type { AdminAuditRow, AdminTenantDetail } from '$lib/admin-client';
+
+export const POPULATED_AUDIT_FIXTURE_ROWS: AdminAuditRow[] = [
+	{
+		id: 'eeeeeeee-0001-0000-0000-000000000001',
+		actor_id: '00000000-0000-0000-0000-000000000000',
+		action: 'customer_suspended',
+		target_tenant_id: 'aaaaaaaa-0002-0000-0000-000000000002',
+		metadata: { reason: 'billing_review' },
+		created_at: '2026-04-01T11:30:00Z'
 	},
+	{
+		id: 'eeeeeeee-0002-0000-0000-000000000002',
+		actor_id: '00000000-0000-0000-0000-000000000000',
+		action: 'quotas_updated',
+		target_tenant_id: 'aaaaaaaa-0002-0000-0000-000000000002',
+		metadata: { max_query_rps: 120 },
+		created_at: '2026-03-30T12:00:00Z'
+	}
+];
+
+export const EMPTY_AUDIT_FIXTURE_ROWS: AdminAuditRow[] = [];
+
+const DETAIL_TENANT_FIXTURE = {
+	id: 'aaaaaaaa-0002-0000-0000-000000000002',
+	name: 'Beta Labs',
+	email: 'billing@beta.dev',
+	status: 'suspended',
+	billing_plan: 'starter',
+	last_accessed_at: '2026-04-18T09:00:00Z',
+	subscription_status: 'past_due',
+	overdue_invoice_count: 1,
+	billing_health: 'yellow',
+	created_at: '2026-02-11T12:00:00Z',
+	updated_at: '2026-04-18T09:00:00Z',
+	stripe_customer_id: 'cus_123'
+} satisfies AdminTenantDetail;
+
+export const DETAIL_FIXTURE = {
+	tenant: DETAIL_TENANT_FIXTURE,
 	indexes: [
 		{ name: 'products', region: 'us-east-1', status: 'ready', entries: 1200, tier: 'active' },
 		{ name: 'orders', region: 'eu-west-1', status: 'ready', entries: 320, tier: 'cold' }
@@ -116,7 +147,8 @@ export const DETAIL_FIXTURE = {
 				}
 			}
 		]
-	}
+	},
+	audit: POPULATED_AUDIT_FIXTURE_ROWS
 };
 
 export const ACTIVE_DETAIL_FIXTURE = {

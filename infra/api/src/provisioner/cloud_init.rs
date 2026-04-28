@@ -1,4 +1,3 @@
-//! Stub summary for /Users/stuart/parallel_development/fjcloud_dev/MAR17_11_2_data_management_features/fjcloud_dev/infra/api/src/provisioner/cloud_init.rs.
 /// Cloud-init user-data generation for flapjack VM bootstrapping.
 ///
 /// Supports multiple providers: AWS uses SSM for secrets, Hetzner receives
@@ -39,16 +38,25 @@ pub fn generate_cloud_init(params: &CloudInitParams) -> String {
             let quoted_region = shell_single_quote(ssm_region);
             format!(
                 r#"# Read secrets from AWS SSM Parameter Store
+get_optional_ssm() {{
+  aws ssm get-parameter --name "$1" --with-decryption --query "Parameter.Value" --output text --region {quoted_region} 2>/dev/null || true
+}}
 DB_URL=$(aws ssm get-parameter --name "/fjcloud/$ENVIRONMENT/database_url" --with-decryption --query "Parameter.Value" --output text --region {quoted_region})
 API_KEY=$(aws ssm get-parameter --name "/fjcloud/$NODE_ID/api-key" --with-decryption --query "Parameter.Value" --output text --region {quoted_region})
 DNS_DOMAIN=$(aws ssm get-parameter --name "/fjcloud/$ENVIRONMENT/dns_domain" --query "Parameter.Value" --output text --region {quoted_region})
-INTERNAL_AUTH_TOKEN=$(aws ssm get-parameter --name "/fjcloud/$ENVIRONMENT/internal_auth_token" --with-decryption --query "Parameter.Value" --output text --region {quoted_region})"#
+INTERNAL_AUTH_TOKEN=$(aws ssm get-parameter --name "/fjcloud/$ENVIRONMENT/internal_auth_token" --with-decryption --query "Parameter.Value" --output text --region {quoted_region})
+SLACK_WEBHOOK_URL=$(get_optional_ssm "/fjcloud/$ENVIRONMENT/slack_webhook_url")
+DISCORD_WEBHOOK_URL=$(get_optional_ssm "/fjcloud/$ENVIRONMENT/discord_webhook_url")"#
             )
         }
         SecretDelivery::Direct { db_url, api_key } => format!(
             r#"# Secrets delivered via user-data (Hetzner)
 DB_URL={}
-API_KEY={}"#,
+API_KEY={}
+INTERNAL_AUTH_TOKEN=$API_KEY
+DNS_DOMAIN=example.invalid
+SLACK_WEBHOOK_URL=
+DISCORD_WEBHOOK_URL="#,
             shell_single_quote(db_url),
             shell_single_quote(api_key)
         ),
@@ -77,39 +85,33 @@ logger -t "$LOG_TAG" "customer_id=$CUSTOMER_ID node_id=$NODE_ID region=$REGION e
 {secret_block}
 
 # Write environment files
-mkdir -p /etc/flapjack
+mkdir -p /etc/flapjack /etc/fjcloud
 cat > /etc/flapjack/env <<ENVEOF
 DATABASE_URL=$DB_URL
 FLAPJACK_API_KEY=$API_KEY
 ENVEOF
 
-cat > /etc/flapjack/metering-env <<ENVEOF
+cat > /etc/fjcloud/metering-env <<ENVEOF
 DATABASE_URL=$DB_URL
 FLAPJACK_URL=http://$NODE_ID:7700
 FLAPJACK_API_KEY=$API_KEY
 INTERNAL_KEY=$INTERNAL_AUTH_TOKEN
-TENANT_MAP_URL=https://api.$DNS_DOMAIN/internal/tenant-map
-COLD_STORAGE_USAGE_URL=https://api.$DNS_DOMAIN/internal/cold-storage-usage
 CUSTOMER_ID=$CUSTOMER_ID
 NODE_ID=$NODE_ID
 REGION=$REGION
+ENVIRONMENT=$ENVIRONMENT
+TENANT_MAP_URL=https://api.$DNS_DOMAIN/internal/tenant-map
+COLD_STORAGE_USAGE_URL=https://api.$DNS_DOMAIN/internal/cold-storage-usage
+SLACK_WEBHOOK_URL=$SLACK_WEBHOOK_URL
+DISCORD_WEBHOOK_URL=$DISCORD_WEBHOOK_URL
 ENVEOF
 
-chmod 600 /etc/flapjack/env /etc/flapjack/metering-env
-chown flapjack:flapjack /etc/flapjack/env /etc/flapjack/metering-env
-
-# Override the baked unit from the current AMI so newly launched VMs always
-# use the flapjack-owned env file contract, even before the AMI is rebuilt.
-mkdir -p /etc/systemd/system/fj-metering-agent.service.d
-cat > /etc/systemd/system/fj-metering-agent.service.d/runtime-env.conf <<'UNITEOF'
-[Unit]
-ConditionPathExists=/etc/flapjack/metering-env
-
-[Service]
-User=flapjack
-Group=flapjack
-EnvironmentFile=-/etc/flapjack/metering-env
-UNITEOF
+chmod 600 /etc/flapjack/env /etc/fjcloud/metering-env
+chown flapjack:flapjack /etc/flapjack/env
+chown fjcloud:fjcloud /etc/fjcloud/metering-env
+# Metering unit contract (owned in ops/systemd/fj-metering-agent.service):
+# User=fjcloud
+# Group=fjcloud
 
 logger -t "$LOG_TAG" "env files written"
 
@@ -148,12 +150,18 @@ mod tests {
         assert!(script.contains("ENVIRONMENT='staging'"));
         assert!(script.contains(r#"/fjcloud/$ENVIRONMENT/database_url"#));
         assert!(script.contains(r#"/fjcloud/$ENVIRONMENT/internal_auth_token"#));
-        assert!(script.contains("runtime-env.conf"));
-        assert!(script.contains("ConditionPathExists=/etc/flapjack/metering-env"));
+        assert!(!script.contains("runtime-env.conf"));
+        assert!(!script.contains("/etc/flapjack/metering-env"));
+        assert!(script.contains("cat > /etc/fjcloud/metering-env <<ENVEOF"));
+        assert!(script.contains("ENVIRONMENT=$ENVIRONMENT"));
         assert!(script.contains("TENANT_MAP_URL=https://api.$DNS_DOMAIN/internal/tenant-map"));
         assert!(script.contains(
             "COLD_STORAGE_USAGE_URL=https://api.$DNS_DOMAIN/internal/cold-storage-usage"
         ));
+        assert!(script.contains("SLACK_WEBHOOK_URL=$SLACK_WEBHOOK_URL"));
+        assert!(script.contains("DISCORD_WEBHOOK_URL=$DISCORD_WEBHOOK_URL"));
+        assert!(script.contains("User=fjcloud"));
+        assert!(script.contains("Group=fjcloud"));
         assert!(script.contains("systemctl start flapjack"));
     }
 
@@ -179,7 +187,18 @@ mod tests {
         assert!(script.contains("Secrets delivered via user-data (Hetzner)"));
         assert!(script.contains("postgres://db.example.com/fjcloud"));
         assert!(script.contains("sk-secret-key"));
-        assert!(script.contains("User=flapjack"));
+        assert!(!script.contains("runtime-env.conf"));
+        assert!(!script.contains("/etc/flapjack/metering-env"));
+        assert!(script.contains("cat > /etc/fjcloud/metering-env <<ENVEOF"));
+        assert!(script.contains("ENVIRONMENT=$ENVIRONMENT"));
+        assert!(script.contains("TENANT_MAP_URL=https://api.$DNS_DOMAIN/internal/tenant-map"));
+        assert!(script.contains(
+            "COLD_STORAGE_USAGE_URL=https://api.$DNS_DOMAIN/internal/cold-storage-usage"
+        ));
+        assert!(script.contains("SLACK_WEBHOOK_URL=$SLACK_WEBHOOK_URL"));
+        assert!(script.contains("DISCORD_WEBHOOK_URL=$DISCORD_WEBHOOK_URL"));
+        assert!(script.contains("User=fjcloud"));
+        assert!(script.contains("Group=fjcloud"));
         assert!(script.contains("systemctl start flapjack"));
     }
 
@@ -294,6 +313,8 @@ mod tests {
         let script = generate_cloud_init(&params);
 
         assert!(script.contains("chmod 600"));
-        assert!(script.contains("chown flapjack:flapjack"));
+        assert!(script.contains("chown fjcloud:fjcloud"));
+        assert!(script.contains("/etc/fjcloud/metering-env"));
+        assert!(!script.contains("/etc/flapjack/metering-env"));
     }
 }

@@ -4,6 +4,8 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/psql_path.sh"
 ENV_FILE=""
 BILLING_MONTH=""
 CONFIRM_LIVE_MUTATION=0
+RESET_TEST_STATE=0
+CONFIRM_TEST_TENANT_ID=""
 
 ARTIFACT_DIR=""
 SUMMARY_RESULT="blocked"
@@ -65,12 +67,19 @@ print_usage() {
     cat <<'USAGE'
 Usage:
   staging_billing_rehearsal.sh --env-file <path> [--month YYYY-MM] [--confirm-live-mutation]
+  staging_billing_rehearsal.sh --env-file <path> --reset-test-state --confirm-test-tenant <uuid>
   staging_billing_rehearsal.sh --help
 
 Options:
   --env-file <path>            Required. Explicit staging env file.
   --month <YYYY-MM>            Billing month for live mutation.
   --confirm-live-mutation      Required when --month is set.
+  --reset-test-state           Reset Stripe + DB invoice state for a test tenant.
+  --confirm-test-tenant <uuid> Required with --reset-test-state.
+
+Reset safety:
+  FJCLOUD_TEST_TENANT_IDS in the explicit env file must include the tenant UUID.
+  See docs/env-vars.md for the allowlist contract.
 USAGE
 }
 
@@ -261,7 +270,8 @@ clear_rehearsal_input_env() {
         ADMIN_KEY \
         DATABASE_URL \
         INTEGRATION_DB_URL \
-        MAILPIT_API_URL
+        MAILPIT_API_URL \
+        FJCLOUD_TEST_TENANT_IDS
     do
         unset -v "$var_name"
     done

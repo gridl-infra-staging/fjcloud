@@ -319,6 +319,27 @@ async fn create_api_key_rejects_too_many_scopes() {
 // ===========================================================================
 
 #[tokio::test]
+async fn admin_broadcast_requires_html_or_text_body() {
+    let app = common::test_app();
+
+    let req = admin_json_post(
+        "/admin/broadcast",
+        serde_json::json!({
+            "subject": "maintenance-notice",
+            "dry_run": true
+        }),
+    );
+
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+    let msg = error_message(resp).await;
+    assert!(
+        msg.contains("requires html_body or text_body"),
+        "expected body validation error, got: {msg}"
+    );
+}
+
+#[tokio::test]
 async fn admin_create_tenant_rejects_invalid_email() {
     let app = common::test_app();
 

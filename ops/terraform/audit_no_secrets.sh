@@ -4,12 +4,28 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+SCAN_ROOT="$REPO_ROOT"
+
+# shellcheck source=../../scripts/lib/secret_audit_parsing.sh
+source "$REPO_ROOT/scripts/lib/secret_audit_parsing.sh"
+
+require_option_value() {
+  local option_name="$1"
+  local option_value="${2-}"
+
+  if [[ -z "$option_value" || "$option_value" == --* ]]; then
+    echo "Missing value for $option_name" >&2
+    echo "Usage: $0 [--root <repo-root>]" >&2
+    exit 2
+  fi
+}
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --root)
-      ROOT_DIR="$2"
+      require_option_value "$1" "${2-}"
+      SCAN_ROOT="$2"
       shift 2
       ;;
     *)
@@ -20,146 +36,15 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [[ ! -d "$ROOT_DIR" ]]; then
-  echo "Root directory not found: $ROOT_DIR" >&2
+if [[ ! -d "$SCAN_ROOT" ]]; then
+  echo "Root directory not found: $SCAN_ROOT" >&2
   exit 2
 fi
-
-strip_tf_comments() {
-  local file="$1"
-  awk '
-    BEGIN { in_block_comment = 0 }
-    {
-      line = $0
-      out = ""
-      in_string = 0
-      escaped = 0
-      i = 1
-      while (i <= length(line)) {
-        ch = substr(line, i, 1)
-        next_ch = (i < length(line)) ? substr(line, i + 1, 1) : ""
-
-        if (in_block_comment) {
-          if (ch == "*" && next_ch == "/") {
-            in_block_comment = 0
-            i += 2
-            continue
-          }
-          i++
-          continue
-        }
-
-        if (in_string) {
-          out = out ch
-          if (escaped) {
-            escaped = 0
-          } else if (ch == "\\") {
-            escaped = 1
-          } else if (ch == "\"") {
-            in_string = 0
-          }
-          i++
-          continue
-        }
-
-        if (ch == "\"") {
-          in_string = 1
-          out = out ch
-          i++
-          continue
-        }
-
-        if (ch == "#" || (ch == "/" && next_ch == "/")) {
-          break
-        }
-
-        if (ch == "/" && next_ch == "*") {
-          in_block_comment = 1
-          i += 2
-          continue
-        }
-
-        out = out ch
-        i++
-      }
-
-      gsub(/^[[:space:]]+|[[:space:]]+$/, "", out)
-      if (out ~ /^[[:space:]]*$/) { next }
-      print out
-    }
-  ' "$file"
-}
-
-extract_workflow_secret_refs() {
-  local file="$1"
-  awk '
-    function emit_secret_hits(text,   rest, hit) {
-      rest = text
-      while (match(rest, /secrets\.[A-Za-z0-9_]+|secrets\[[[:space:]]*'\''[A-Za-z0-9_]+'\''[[:space:]]*\]|secrets\[[[:space:]]*"[A-Za-z0-9_]+"[[:space:]]*\]/)) {
-        hit = substr(rest, RSTART, RLENGTH)
-        print hit
-        rest = substr(rest, RSTART + RLENGTH)
-      }
-    }
-
-    {
-      line = $0
-      out = ""
-      in_single = 0
-      in_double = 0
-      escaped = 0
-
-      for (i = 1; i <= length(line); i++) {
-        ch = substr(line, i, 1)
-
-        if (in_double) {
-          out = out ch
-          if (escaped) {
-            escaped = 0
-          } else if (ch == "\\") {
-            escaped = 1
-          } else if (ch == "\"") {
-            in_double = 0
-          }
-          continue
-        }
-
-        if (in_single) {
-          out = out ch
-          if (ch == "'\''") {
-            in_single = 0
-          }
-          continue
-        }
-
-        if (ch == "\"") {
-          in_double = 1
-          out = out ch
-          continue
-        }
-
-        if (ch == "'\''") {
-          in_single = 1
-          out = out ch
-          continue
-        }
-
-        if (ch == "#") {
-          break
-        }
-
-        out = out ch
-      }
-
-      emit_secret_hits(out)
-    }
-  ' "$file"
-}
 
 tf_files=()
 while IFS= read -r file; do
   tf_files+=("$file")
-done < <(rg --files "$ROOT_DIR" -g '*.tf' -g '!.terraform/**' -g '!.mike/**')
+done < <(rg --files "$SCAN_ROOT" -g '*.tf' -g '!.terraform/**' -g '!.mike/**')
 
 tf_hits=()
 if [[ "${#tf_files[@]}" -gt 0 ]]; then
@@ -184,10 +69,10 @@ if [[ "${#tf_files[@]}" -gt 0 ]]; then
 fi
 
 workflow_files=()
-if [[ -d "$ROOT_DIR/.github/workflows" ]]; then
+if [[ -d "$SCAN_ROOT/.github/workflows" ]]; then
   while IFS= read -r wf; do
     workflow_files+=("$wf")
-  done < <(rg --files "$ROOT_DIR/.github/workflows" -g '*.yml' -g '*.yaml')
+  done < <(rg --files "$SCAN_ROOT/.github/workflows" -g '*.yml' -g '*.yaml')
 fi
 
 allowed_secrets=("DEPLOY_IAM_ROLE_ARN" "GITHUB_TOKEN" "GITLEAKS_LICENSE")

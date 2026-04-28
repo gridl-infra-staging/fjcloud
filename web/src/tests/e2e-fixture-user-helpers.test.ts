@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
 	adminReactivateCustomerById,
 	createRegisteredUser,
+	fetchDisposableTenantRateCardSnapshot,
 	fetchEstimatedBillForToken,
 	formatFixtureSetupFailure,
 	loginAsUser,
@@ -284,6 +285,88 @@ describe('e2e fixture user helpers', () => {
 		).rejects.toThrow('adminReactivateCustomerById requires a non-empty customerId');
 
 		expect(fetchMock).not.toHaveBeenCalled();
+	});
+
+	it('fetchDisposableTenantRateCardSnapshot reads backend rate-card without tenant override writes', async () => {
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValueOnce(
+				makeJsonResponse(201, {
+					customer_id: 'cust-rate-card',
+					token: 'fixture-token'
+				})
+			)
+			.mockResolvedValueOnce(
+				makeJsonResponse(200, {
+					id: 'default-rate-card',
+					name: 'Default',
+					storage_rate_per_mb_month: '0.0500',
+					cold_storage_rate_per_gb_month: '0.0200',
+					object_storage_rate_per_gb_month: '0.0300',
+					object_storage_egress_rate_per_gb: '0.0900',
+					region_multipliers: {
+						'us-east-1': '1',
+						'eu-west-1': '1',
+						'eu-central-1': '0.70',
+						'eu-north-1': '0.75',
+						'us-east-2': '0.80',
+						'us-west-1': '0.80'
+					},
+					minimum_spend_cents: 1000,
+					shared_minimum_spend_cents: 500,
+					has_override: false,
+					override_fields: {}
+				})
+			);
+		const trackedCustomerIds: string[] = [];
+
+		const snapshot = await fetchDisposableTenantRateCardSnapshot({
+			apiUrl: 'http://localhost:3001',
+			adminKey: 'admin-key',
+			seed: 'fixed-seed',
+			fetchImpl: fetchMock as unknown as typeof fetch,
+			trackCustomerForCleanup: (customerId) => trackedCustomerIds.push(customerId)
+		});
+
+		expect(snapshot).toEqual({
+			storage_rate_per_mb_month: '$0.05',
+			cold_storage_rate_per_gb_month: '$0.02',
+			minimum_spend_cents: 1000,
+			region_pricing: [
+				{ id: 'us-east-1', display_name: 'US East (Virginia)', multiplier: '1.00x' },
+				{ id: 'eu-west-1', display_name: 'EU West (Ireland)', multiplier: '1.00x' },
+				{ id: 'eu-central-1', display_name: 'EU Central (Germany)', multiplier: '0.70x' },
+				{ id: 'eu-north-1', display_name: 'EU North (Helsinki)', multiplier: '0.75x' },
+				{ id: 'us-east-2', display_name: 'US East (Ashburn)', multiplier: '0.80x' },
+				{ id: 'us-west-1', display_name: 'US West (Oregon)', multiplier: '0.80x' }
+			]
+		});
+		expect(trackedCustomerIds).toEqual(['cust-rate-card']);
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+		expect(fetchMock).toHaveBeenNthCalledWith(1, 'http://localhost:3001/auth/register', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({
+				name: 'Pricing Rate Card fixed-seed',
+				email: 'pricing-rate-card-fixed-seed@e2e.griddle.test',
+				password: 'TestPassword123!'
+			})
+		});
+		expect(fetchMock).toHaveBeenNthCalledWith(
+			2,
+			'http://localhost:3001/admin/tenants/cust-rate-card/rate-card',
+			{
+				method: 'GET',
+				headers: {
+					'Content-Type': 'application/json',
+					'x-admin-key': 'admin-key'
+				},
+				body: undefined
+			}
+		);
+		expect(fetchMock.mock.calls.some(([, init]) => (init as RequestInit).method === 'PUT')).toBe(
+			false
+		);
 	});
 
 	it('fetchEstimatedBillForToken includes month query when provided', async () => {

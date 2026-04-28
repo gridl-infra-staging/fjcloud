@@ -137,7 +137,10 @@ fn build_counter_delta_records(
             continue;
         }
 
-        let mut entry = state.entry(tenant_id.clone()).or_default();
+        // Delta state belongs to the canonical tenant id, not the flapjack
+        // label observed in this scrape, so alias/canonical label changes do
+        // not reset the billing baseline mid-stream.
+        let mut entry = state.entry(tenant.tenant_id.clone()).or_default();
         let write_total = totals.write_totals.get(tenant_id).copied().unwrap_or(0);
         let indexed_total = totals.indexed_totals.get(tenant_id).copied().unwrap_or(0);
         let deleted_total = totals.deleted_totals.get(tenant_id).copied().unwrap_or(0);
@@ -247,6 +250,9 @@ mod tests {
             customer_id: Uuid::new_v4(),
             node_id: "node-a".to_string(),
             region: "us-east-1".to_string(),
+            environment: "test".to_string(),
+            slack_webhook_url: None,
+            discord_webhook_url: None,
             health_port: 9091,
             tenant_map_url: "http://127.0.0.1:3001/internal/tenant-map".to_string(),
             cold_storage_usage_url: "http://127.0.0.1:3001/internal/cold-storage-usage".to_string(),
@@ -447,6 +453,57 @@ mod tests {
             records.iter().all(|record| record.tenant_id == "products"),
             "billing rows should store the customer-facing tenant id"
         );
+    }
+
+    #[test]
+    fn metering_preserves_counter_state_across_alias_to_canonical_label_change() {
+        let cfg = test_config();
+        let state: TenantStateMap = Arc::new(DashMap::new());
+        let tenant_map: TenantCustomerMap = Arc::new(DashMap::new());
+        let customer_id = Uuid::new_v4();
+        let flapjack_uid = format!("{}_products", customer_id.as_simple());
+
+        tenant_map.insert(
+            "products".to_string(),
+            TenantAttribution {
+                customer_id,
+                tenant_id: "products".to_string(),
+                tier: "active".to_string(),
+            },
+        );
+        tenant_map.insert(
+            flapjack_uid.clone(),
+            TenantAttribution {
+                customer_id,
+                tenant_id: "products".to_string(),
+                tier: "active".to_string(),
+            },
+        );
+
+        let mut alias_metrics = crate::scraper::FlapjackMetrics::default();
+        alias_metrics.search_requests_total.insert(flapjack_uid, 10);
+        let first_records =
+            build_counter_usage_records(&cfg, &alias_metrics, &state, &tenant_map, Utc::now());
+        assert_eq!(
+            first_records.len(),
+            0,
+            "first scrape should establish the baseline only"
+        );
+
+        let mut canonical_metrics = crate::scraper::FlapjackMetrics::default();
+        canonical_metrics
+            .search_requests_total
+            .insert("products".to_string(), 12);
+        let second_records =
+            build_counter_usage_records(&cfg, &canonical_metrics, &state, &tenant_map, Utc::now());
+
+        let search_records: Vec<_> = second_records
+            .iter()
+            .filter(|record| record.event_type == record::EventType::SearchRequests)
+            .collect();
+        assert_eq!(search_records.len(), 1);
+        assert_eq!(search_records[0].tenant_id, "products");
+        assert_eq!(search_records[0].value, 2);
     }
 
     /// Guards the cold-tier exclusion from live counter metrics.

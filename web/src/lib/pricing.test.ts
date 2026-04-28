@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { MARKETING_PRICING } from './pricing';
+import type { AdminRateCard } from './admin-client';
+import {
+	MARKETING_PRICING,
+	pricingContractSnapshotFromAdminRateCard,
+	pricingContractSnapshotFromMarketing
+} from './pricing';
+import { marketingPricingPageData } from '../routes/marketing_pricing';
+import { load as pricingPageLoad } from '../routes/pricing/+page';
 
 describe('pricing constants', () => {
 	describe('MARKETING_PRICING', () => {
@@ -51,6 +58,47 @@ describe('pricing constants', () => {
 				{ id: 'us-east-2', display_name: 'US East (Ashburn)', multiplier: '0.80x' },
 				{ id: 'us-west-1', display_name: 'US West (Oregon)', multiplier: '0.80x' }
 			]);
+		});
+
+		it('keeps marketing route and /pricing load contract pinned to the same MARKETING_PRICING reference', async () => {
+			const marketingPageData = marketingPricingPageData();
+			const pricingLoadData = await pricingPageLoad({} as never);
+			expect(pricingLoadData).toBeDefined();
+			if (!pricingLoadData) {
+				throw new Error('pricing page load returned no data');
+			}
+
+			expect(marketingPageData.pricing).toBe(MARKETING_PRICING);
+			expect(pricingLoadData.pricing).toBe(MARKETING_PRICING);
+			expect(pricingLoadData.pricing).toBe(marketingPageData.pricing);
+		});
+
+		it('normalizes backend admin rate-card JSON into the same pricing contract snapshot', () => {
+			const backendRateCard: AdminRateCard = {
+				id: '6fb8de77-ea6e-45c6-ac77-1de2f91f3201',
+				name: 'Default',
+				storage_rate_per_mb_month: '0.050',
+				cold_storage_rate_per_gb_month: '0.02',
+				object_storage_rate_per_gb_month: '0.03',
+				object_storage_egress_rate_per_gb: '0.09',
+				region_multipliers: {
+					'us-east-1': '1',
+					'eu-west-1': '1.00',
+					'eu-central-1': '0.7',
+					'eu-north-1': '0.7500',
+					'us-east-2': '0.8',
+					'us-west-1': '0.80'
+				},
+				minimum_spend_cents: 1000,
+				shared_minimum_spend_cents: 500,
+				has_override: false,
+				override_fields: {}
+			};
+
+			const marketingSnapshot = pricingContractSnapshotFromMarketing(MARKETING_PRICING);
+			const adminSnapshot = pricingContractSnapshotFromAdminRateCard(backendRateCard);
+
+			expect(adminSnapshot).toEqual(marketingSnapshot);
 		});
 	});
 });

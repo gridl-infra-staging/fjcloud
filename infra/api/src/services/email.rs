@@ -98,6 +98,14 @@ pub trait EmailService: Send + Sync {
         current_usage: u64,
         limit: u64,
     ) -> Result<(), EmailError>;
+
+    async fn send_broadcast_email(
+        &self,
+        to: &str,
+        subject: &str,
+        html_body: Option<&str>,
+        text_body: Option<&str>,
+    ) -> Result<(), EmailError>;
 }
 
 fn validate_recipient_email(to: &str) -> Result<(), EmailError> {
@@ -111,6 +119,33 @@ fn validate_recipient_email(to: &str) -> Result<(), EmailError> {
 
 fn normalize_app_base_url(app_base_url: impl Into<String>) -> String {
     app_base_url.into().trim_end_matches('/').to_string()
+}
+
+fn resolve_broadcast_html_body(
+    html_body: Option<&str>,
+    text_body: Option<&str>,
+) -> Result<String, EmailError> {
+    if let Some(html) = html_body {
+        if html.trim().is_empty() {
+            return Err(EmailError::InvalidRequest(
+                "broadcast html body must not be empty".to_string(),
+            ));
+        }
+        return Ok(html.to_string());
+    }
+
+    if let Some(text) = text_body {
+        if text.trim().is_empty() {
+            return Err(EmailError::InvalidRequest(
+                "broadcast text body must not be empty".to_string(),
+            ));
+        }
+        return Ok(format!("<pre>{text}</pre>"));
+    }
+
+    Err(EmailError::InvalidRequest(
+        "broadcast email requires html_body or text_body".to_string(),
+    ))
 }
 
 pub struct MockEmailService {
@@ -275,6 +310,20 @@ impl EmailService for MockEmailService {
             quota_warning_email_html(metric, percent_used, current_usage, limit),
         )
     }
+
+    async fn send_broadcast_email(
+        &self,
+        to: &str,
+        subject: &str,
+        html_body: Option<&str>,
+        text_body: Option<&str>,
+    ) -> Result<(), EmailError> {
+        self.record(
+            to,
+            subject,
+            resolve_broadcast_html_body(html_body, text_body)?,
+        )
+    }
 }
 
 #[async_trait]
@@ -314,6 +363,18 @@ impl EmailService for NoopEmailService {
         _limit: u64,
     ) -> Result<(), EmailError> {
         validate_recipient_email(to)
+    }
+
+    async fn send_broadcast_email(
+        &self,
+        to: &str,
+        _subject: &str,
+        html_body: Option<&str>,
+        text_body: Option<&str>,
+    ) -> Result<(), EmailError> {
+        validate_recipient_email(to)?;
+        resolve_broadcast_html_body(html_body, text_body)?;
+        Ok(())
     }
 }
 
@@ -374,6 +435,17 @@ impl EmailService for SesEmailService {
             &quota_warning_email_html(metric, percent_used, current_usage, limit),
         )
         .await
+    }
+
+    async fn send_broadcast_email(
+        &self,
+        to: &str,
+        subject: &str,
+        html_body: Option<&str>,
+        text_body: Option<&str>,
+    ) -> Result<(), EmailError> {
+        let broadcast_html = resolve_broadcast_html_body(html_body, text_body)?;
+        self.send_html_email(to, subject, &broadcast_html).await
     }
 }
 
@@ -584,6 +656,18 @@ impl EmailService for MailpitEmailService {
             "quota-warning",
         )
         .await
+    }
+
+    async fn send_broadcast_email(
+        &self,
+        to: &str,
+        subject: &str,
+        html_body: Option<&str>,
+        text_body: Option<&str>,
+    ) -> Result<(), EmailError> {
+        let broadcast_html = resolve_broadcast_html_body(html_body, text_body)?;
+        self.send_mailpit_email(to, subject, &broadcast_html, "broadcast")
+            .await
     }
 }
 

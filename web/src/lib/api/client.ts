@@ -17,6 +17,7 @@ import type {
 	CreateBillingPortalSessionRequest,
 	CreateBillingPortalSessionResponse,
 	PaymentMethod,
+	SubscriptionResponse,
 	ApiKeyListItem,
 	CreateApiKeyRequest,
 	CreateApiKeyResponse,
@@ -24,8 +25,6 @@ import type {
 	AccountExportResponse,
 	UpdateProfileRequest,
 	ChangePasswordRequest,
-	AybInstance,
-	CreateAybInstanceRequest,
 	Index,
 	CreateIndexResponse,
 	SearchResult,
@@ -242,6 +241,10 @@ export class ApiClient extends BaseClient {
 		return this.api('POST', '/billing/portal', req);
 	}
 
+	getSubscription(): Promise<SubscriptionResponse> {
+		return this.api('GET', '/billing/subscription');
+	}
+
 	// --- API Keys ---
 
 	createApiKey(req: CreateApiKeyRequest): Promise<CreateApiKeyResponse> {
@@ -276,20 +279,6 @@ export class ApiClient extends BaseClient {
 
 	deleteAccount(password: string): Promise<void> {
 		return this.api('DELETE', '/account', { password });
-	}
-
-	// --- AllYourBase Instances ---
-
-	getAybInstances(): Promise<AybInstance[]> {
-		return this.api('GET', '/allyourbase/instances');
-	}
-
-	deleteAybInstance(id: string): Promise<void> {
-		return this.api('DELETE', `/allyourbase/instances/${this.pathSegment(id)}`);
-	}
-
-	createAybInstance(body: CreateAybInstanceRequest): Promise<AybInstance> {
-		return this.api('POST', '/allyourbase/instances', body);
 	}
 
 	// --- Indexes ---

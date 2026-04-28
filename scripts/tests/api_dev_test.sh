@@ -26,6 +26,11 @@ source "$SCRIPT_DIR/lib/local_dev_test_state.sh"
 # shellcheck source=lib/test_helpers.sh
 source "$SCRIPT_DIR/lib/test_helpers.sh"
 
+write_mock_lsof_reports_free() {
+    local path="$1"
+    write_mock_script "$path" 'exit 1'
+}
+
 test_api_dev_rejects_executable_env_local_content() {
     local tmp_dir
     tmp_dir=$(mktemp -d)
@@ -41,6 +46,7 @@ EOF
 
     mkdir -p "$tmp_dir/bin"
     write_mock_script "$tmp_dir/bin/cargo" 'exit 0'
+    write_mock_lsof_reports_free "$tmp_dir/bin/lsof"
 
     local output exit_code=0
     output=$(
@@ -79,6 +85,7 @@ EOF
     write_mock_script "$tmp_dir/bin/cargo" '
 echo "FLAPJACK_ADMIN_KEY=${FLAPJACK_ADMIN_KEY:-}" >> "'"$cargo_log"'"
 exit 0'
+    write_mock_lsof_reports_free "$tmp_dir/bin/lsof"
 
     local output exit_code=0
     output=$(
@@ -111,6 +118,7 @@ EOF
     write_mock_script "$tmp_dir/bin/cargo" '
 echo "REPLICATION_CYCLE_INTERVAL_SECS=${REPLICATION_CYCLE_INTERVAL_SECS:-}" >> "'"$cargo_log"'"
 exit 0'
+    write_mock_lsof_reports_free "$tmp_dir/bin/lsof"
 
     local output exit_code=0
     output=$(
@@ -143,6 +151,7 @@ EOF
     write_mock_script "$tmp_dir/bin/cargo" '
 echo "REPLICATION_CYCLE_INTERVAL_SECS=${REPLICATION_CYCLE_INTERVAL_SECS:-}" >> "'"$cargo_log"'"
 exit 0'
+    write_mock_lsof_reports_free "$tmp_dir/bin/lsof"
 
     local output exit_code=0
     output=$(
@@ -160,6 +169,293 @@ exit 0'
         "api-dev should preserve explicit replication interval overrides"
 }
 
+test_api_dev_unsets_skip_email_verification_by_default() {
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    trap 'restore_repo_path "'"$REPO_ROOT/.env.local"'" "${API_DEV_ENV_BACKUP:-}"; rm -rf "'"$tmp_dir"'"' RETURN
+
+    API_DEV_ENV_BACKUP=$(backup_repo_path "$REPO_ROOT/.env.local" "$tmp_dir/.env.local.backup")
+    cat > "$REPO_ROOT/.env.local" <<'EOF'
+DATABASE_URL=postgres://local-test:local-pass@localhost:5432/local_dev_test
+LISTEN_ADDR=127.0.0.1:4311
+SKIP_EMAIL_VERIFICATION=1
+EOF
+
+    mkdir -p "$tmp_dir/bin"
+    local cargo_log="$tmp_dir/cargo.log"
+    write_mock_script "$tmp_dir/bin/cargo" '
+echo "SKIP_EMAIL_VERIFICATION=${SKIP_EMAIL_VERIFICATION:-}" >> "'"$cargo_log"'"
+exit 0'
+    write_mock_lsof_reports_free "$tmp_dir/bin/lsof"
+
+    local output exit_code=0
+    output=$(
+        PATH="$tmp_dir/bin:$PATH" \
+        bash "$REPO_ROOT/scripts/api-dev.sh" 2>&1
+    ) || exit_code=$?
+
+    assert_eq "$exit_code" "0" \
+        "api-dev should start when SKIP_EMAIL_VERIFICATION is set in .env.local"
+
+    local cargo_calls
+    cargo_calls=$(cat "$cargo_log" 2>/dev/null || true)
+    assert_contains "$cargo_calls" "SKIP_EMAIL_VERIFICATION=" \
+        "api-dev should pass an explicit empty SKIP_EMAIL_VERIFICATION by default"
+    assert_not_contains "$cargo_calls" "SKIP_EMAIL_VERIFICATION=1" \
+        "api-dev should disable SKIP_EMAIL_VERIFICATION by default for strict local proofs"
+}
+
+test_api_dev_preserves_skip_email_verification_with_explicit_opt_in() {
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    trap 'restore_repo_path "'"$REPO_ROOT/.env.local"'" "${API_DEV_ENV_BACKUP:-}"; rm -rf "'"$tmp_dir"'"' RETURN
+
+    API_DEV_ENV_BACKUP=$(backup_repo_path "$REPO_ROOT/.env.local" "$tmp_dir/.env.local.backup")
+    cat > "$REPO_ROOT/.env.local" <<'EOF'
+DATABASE_URL=postgres://local-test:local-pass@localhost:5432/local_dev_test
+LISTEN_ADDR=127.0.0.1:4312
+SKIP_EMAIL_VERIFICATION=1
+EOF
+
+    mkdir -p "$tmp_dir/bin"
+    local cargo_log="$tmp_dir/cargo.log"
+    write_mock_script "$tmp_dir/bin/cargo" '
+echo "SKIP_EMAIL_VERIFICATION=${SKIP_EMAIL_VERIFICATION:-}" >> "'"$cargo_log"'"
+exit 0'
+    write_mock_lsof_reports_free "$tmp_dir/bin/lsof"
+
+    local output exit_code=0
+    output=$(
+        PATH="$tmp_dir/bin:$PATH" \
+        API_DEV_ALLOW_SKIP_EMAIL_VERIFICATION=1 \
+        bash "$REPO_ROOT/scripts/api-dev.sh" 2>&1
+    ) || exit_code=$?
+
+    assert_eq "$exit_code" "0" \
+        "api-dev should start when skip-email-verification opt-in is set"
+
+    local cargo_calls
+    cargo_calls=$(cat "$cargo_log" 2>/dev/null || true)
+    assert_contains "$cargo_calls" "SKIP_EMAIL_VERIFICATION=1" \
+        "api-dev should preserve SKIP_EMAIL_VERIFICATION when explicitly opted in"
+}
+
+test_api_dev_fails_fast_when_listen_port_is_in_use() {
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    trap 'restore_repo_path "'"$REPO_ROOT/.env.local"'" "${API_DEV_ENV_BACKUP:-}"; rm -rf "'"$tmp_dir"'"' RETURN
+
+    API_DEV_ENV_BACKUP=$(backup_repo_path "$REPO_ROOT/.env.local" "$tmp_dir/.env.local.backup")
+    cat > "$REPO_ROOT/.env.local" <<'EOF'
+DATABASE_URL=postgres://local-test:local-pass@localhost:5432/local_dev_test
+LISTEN_ADDR=127.0.0.1:4313
+EOF
+
+    mkdir -p "$tmp_dir/bin"
+    local cargo_log="$tmp_dir/cargo.log"
+    write_mock_script "$tmp_dir/bin/cargo" '
+echo "cargo should not run when listen port is occupied" >> "'"$cargo_log"'"
+exit 0'
+    write_mock_script "$tmp_dir/bin/lsof" '
+if [ "${1:-}" = "-i" ] && [ "${2:-}" = ":4313" ]; then
+    exit 0
+fi
+exit 1'
+
+    local output exit_code=0
+    output=$(
+        PATH="$tmp_dir/bin:$PATH" \
+        bash "$REPO_ROOT/scripts/api-dev.sh" 2>&1
+    ) || exit_code=$?
+
+    assert_eq "$exit_code" "1" \
+        "api-dev should fail fast when LISTEN_ADDR is already occupied"
+    assert_contains "$output" "port 4313 is already in use" \
+        "api-dev should report the occupied LISTEN_ADDR port"
+
+    local cargo_calls
+    cargo_calls=$(cat "$cargo_log" 2>/dev/null || true)
+    assert_eq "$cargo_calls" "" \
+        "api-dev should not invoke cargo when listen port availability checks fail"
+}
+
+test_api_dev_prefers_mailpit_over_ses_by_default() {
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    trap 'restore_repo_path "'"$REPO_ROOT/.env.local"'" "${API_DEV_ENV_BACKUP:-}"; rm -rf "'"$tmp_dir"'"' RETURN
+
+    API_DEV_ENV_BACKUP=$(backup_repo_path "$REPO_ROOT/.env.local" "$tmp_dir/.env.local.backup")
+    cat > "$REPO_ROOT/.env.local" <<'EOF'
+DATABASE_URL=postgres://local-test:local-pass@localhost:5432/local_dev_test
+LISTEN_ADDR=127.0.0.1:4314
+MAILPIT_API_URL=http://localhost:8025
+SES_FROM_ADDRESS=system@flapjack.foo
+SES_REGION=us-east-1
+EOF
+
+    mkdir -p "$tmp_dir/bin"
+    local cargo_log="$tmp_dir/cargo.log"
+    write_mock_script "$tmp_dir/bin/cargo" '
+echo "MAILPIT_API_URL=${MAILPIT_API_URL:-}" >> "'"$cargo_log"'"
+echo "SES_FROM_ADDRESS=${SES_FROM_ADDRESS:-}" >> "'"$cargo_log"'"
+echo "SES_REGION=${SES_REGION:-}" >> "'"$cargo_log"'"
+exit 0'
+    write_mock_lsof_reports_free "$tmp_dir/bin/lsof"
+
+    local output exit_code=0
+    output=$(
+        PATH="$tmp_dir/bin:$PATH" \
+        bash "$REPO_ROOT/scripts/api-dev.sh" 2>&1
+    ) || exit_code=$?
+
+    assert_eq "$exit_code" "0" \
+        "api-dev should start when both Mailpit and SES env vars are present"
+
+    local cargo_calls
+    cargo_calls=$(cat "$cargo_log" 2>/dev/null || true)
+    assert_contains "$cargo_calls" "MAILPIT_API_URL=http://localhost:8025" \
+        "api-dev should preserve MAILPIT_API_URL for local verification flows"
+    assert_contains "$cargo_calls" "SES_FROM_ADDRESS=" \
+        "api-dev should clear SES_FROM_ADDRESS by default when Mailpit is configured"
+    assert_contains "$cargo_calls" "SES_REGION=" \
+        "api-dev should clear SES_REGION by default when Mailpit is configured"
+    assert_not_contains "$cargo_calls" "SES_FROM_ADDRESS=system@flapjack.foo" \
+        "api-dev should avoid SES mode by default in local Mailpit workflows"
+    assert_not_contains "$cargo_calls" "SES_REGION=us-east-1" \
+        "api-dev should avoid SES mode by default in local Mailpit workflows"
+}
+
+test_api_dev_preserves_ses_with_explicit_opt_in() {
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    trap 'restore_repo_path "'"$REPO_ROOT/.env.local"'" "${API_DEV_ENV_BACKUP:-}"; rm -rf "'"$tmp_dir"'"' RETURN
+
+    API_DEV_ENV_BACKUP=$(backup_repo_path "$REPO_ROOT/.env.local" "$tmp_dir/.env.local.backup")
+    cat > "$REPO_ROOT/.env.local" <<'EOF'
+DATABASE_URL=postgres://local-test:local-pass@localhost:5432/local_dev_test
+LISTEN_ADDR=127.0.0.1:4315
+MAILPIT_API_URL=http://localhost:8025
+SES_FROM_ADDRESS=system@flapjack.foo
+SES_REGION=us-east-1
+EOF
+
+    mkdir -p "$tmp_dir/bin"
+    local cargo_log="$tmp_dir/cargo.log"
+    write_mock_script "$tmp_dir/bin/cargo" '
+echo "SES_FROM_ADDRESS=${SES_FROM_ADDRESS:-}" >> "'"$cargo_log"'"
+echo "SES_REGION=${SES_REGION:-}" >> "'"$cargo_log"'"
+exit 0'
+    write_mock_lsof_reports_free "$tmp_dir/bin/lsof"
+
+    local output exit_code=0
+    output=$(
+        PATH="$tmp_dir/bin:$PATH" \
+        API_DEV_ALLOW_SES_EMAIL=1 \
+        bash "$REPO_ROOT/scripts/api-dev.sh" 2>&1
+    ) || exit_code=$?
+
+    assert_eq "$exit_code" "0" \
+        "api-dev should start when SES opt-in is set"
+
+    local cargo_calls
+    cargo_calls=$(cat "$cargo_log" 2>/dev/null || true)
+    assert_contains "$cargo_calls" "SES_FROM_ADDRESS=system@flapjack.foo" \
+        "api-dev should preserve SES_FROM_ADDRESS when explicit SES opt-in is set"
+    assert_contains "$cargo_calls" "SES_REGION=us-east-1" \
+        "api-dev should preserve SES_REGION when explicit SES opt-in is set"
+}
+
+test_api_dev_defaults_to_local_stripe_mode_even_with_live_keys_present() {
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    trap 'restore_repo_path "'"$REPO_ROOT/.env.local"'" "${API_DEV_ENV_BACKUP:-}"; rm -rf "'"$tmp_dir"'"' RETURN
+
+    API_DEV_ENV_BACKUP=$(backup_repo_path "$REPO_ROOT/.env.local" "$tmp_dir/.env.local.backup")
+    cat > "$REPO_ROOT/.env.local" <<'EOF'
+DATABASE_URL=postgres://local-test:local-pass@localhost:5432/local_dev_test
+LISTEN_ADDR=127.0.0.1:4316
+STRIPE_SECRET_KEY=sk_test_stage_lane_contract
+STRIPE_PUBLISHABLE_KEY=pk_test_stage_lane_contract
+EOF
+
+    mkdir -p "$tmp_dir/bin"
+    local cargo_log="$tmp_dir/cargo.log"
+    write_mock_script "$tmp_dir/bin/cargo" '
+echo "STRIPE_LOCAL_MODE=${STRIPE_LOCAL_MODE:-}" >> "'"$cargo_log"'"
+echo "STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY:-}" >> "'"$cargo_log"'"
+echo "STRIPE_PUBLISHABLE_KEY=${STRIPE_PUBLISHABLE_KEY:-}" >> "'"$cargo_log"'"
+echo "STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET:-}" >> "'"$cargo_log"'"
+exit 0'
+    write_mock_lsof_reports_free "$tmp_dir/bin/lsof"
+
+    local output exit_code=0
+    output=$(
+        PATH="$tmp_dir/bin:$PATH" \
+        bash "$REPO_ROOT/scripts/api-dev.sh" 2>&1
+    ) || exit_code=$?
+
+    assert_eq "$exit_code" "0" \
+        "api-dev should start with local-stripe defaults when live keys are present in .env.local"
+
+    local cargo_calls
+    cargo_calls=$(cat "$cargo_log" 2>/dev/null || true)
+    assert_contains "$cargo_calls" "STRIPE_LOCAL_MODE=1" \
+        "api-dev should enable STRIPE_LOCAL_MODE by default for local proof lanes"
+    assert_contains "$cargo_calls" "STRIPE_SECRET_KEY=" \
+        "api-dev should clear STRIPE_SECRET_KEY by default so API startup uses local stripe service"
+    assert_contains "$cargo_calls" "STRIPE_PUBLISHABLE_KEY=" \
+        "api-dev should clear STRIPE_PUBLISHABLE_KEY by default alongside STRIPE_SECRET_KEY"
+    assert_contains "$cargo_calls" "STRIPE_WEBHOOK_SECRET=whsec_local_dev_secret" \
+        "api-dev should provide a deterministic local webhook secret when defaulting to local stripe mode"
+    assert_not_contains "$cargo_calls" "STRIPE_SECRET_KEY=sk_test_stage_lane_contract" \
+        "api-dev should not keep live stripe secrets active unless explicitly opted in"
+}
+
+test_api_dev_preserves_live_stripe_keys_with_explicit_opt_in() {
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    trap 'restore_repo_path "'"$REPO_ROOT/.env.local"'" "${API_DEV_ENV_BACKUP:-}"; rm -rf "'"$tmp_dir"'"' RETURN
+
+    API_DEV_ENV_BACKUP=$(backup_repo_path "$REPO_ROOT/.env.local" "$tmp_dir/.env.local.backup")
+    cat > "$REPO_ROOT/.env.local" <<'EOF'
+DATABASE_URL=postgres://local-test:local-pass@localhost:5432/local_dev_test
+LISTEN_ADDR=127.0.0.1:4317
+STRIPE_LOCAL_MODE=1
+STRIPE_SECRET_KEY=sk_test_stage_lane_contract
+STRIPE_PUBLISHABLE_KEY=pk_test_stage_lane_contract
+STRIPE_WEBHOOK_SECRET=whsec_stage_lane_contract
+EOF
+
+    mkdir -p "$tmp_dir/bin"
+    local cargo_log="$tmp_dir/cargo.log"
+    write_mock_script "$tmp_dir/bin/cargo" '
+echo "STRIPE_LOCAL_MODE=${STRIPE_LOCAL_MODE:-}" >> "'"$cargo_log"'"
+echo "STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY:-}" >> "'"$cargo_log"'"
+echo "STRIPE_PUBLISHABLE_KEY=${STRIPE_PUBLISHABLE_KEY:-}" >> "'"$cargo_log"'"
+echo "STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET:-}" >> "'"$cargo_log"'"
+exit 0'
+    write_mock_lsof_reports_free "$tmp_dir/bin/lsof"
+
+    local output exit_code=0
+    output=$(
+        PATH="$tmp_dir/bin:$PATH" \
+        API_DEV_ALLOW_LIVE_STRIPE=1 \
+        bash "$REPO_ROOT/scripts/api-dev.sh" 2>&1
+    ) || exit_code=$?
+
+    assert_eq "$exit_code" "0" \
+        "api-dev should start when explicit live-stripe opt-in is set"
+
+    local cargo_calls
+    cargo_calls=$(cat "$cargo_log" 2>/dev/null || true)
+    assert_contains "$cargo_calls" "STRIPE_SECRET_KEY=sk_test_stage_lane_contract" \
+        "api-dev should preserve STRIPE_SECRET_KEY when live-stripe opt-in is set"
+    assert_contains "$cargo_calls" "STRIPE_PUBLISHABLE_KEY=pk_test_stage_lane_contract" \
+        "api-dev should preserve STRIPE_PUBLISHABLE_KEY when live-stripe opt-in is set"
+    assert_contains "$cargo_calls" "STRIPE_WEBHOOK_SECRET=whsec_stage_lane_contract" \
+        "api-dev should preserve explicit webhook secret when live-stripe opt-in is set"
+}
+
 main() {
     echo "=== api-dev.sh tests ==="
     echo ""
@@ -168,6 +464,13 @@ main() {
     test_api_dev_preserves_explicit_flapjack_admin_key
     test_api_dev_defaults_replication_orchestrator_to_effectively_disabled
     test_api_dev_preserves_explicit_replication_cycle_interval
+    test_api_dev_unsets_skip_email_verification_by_default
+    test_api_dev_preserves_skip_email_verification_with_explicit_opt_in
+    test_api_dev_fails_fast_when_listen_port_is_in_use
+    test_api_dev_prefers_mailpit_over_ses_by_default
+    test_api_dev_preserves_ses_with_explicit_opt_in
+    test_api_dev_defaults_to_local_stripe_mode_even_with_live_keys_present
+    test_api_dev_preserves_live_stripe_keys_with_explicit_opt_in
 
     echo ""
     echo "=== Results: $PASS_COUNT passed, $FAIL_COUNT failed ==="

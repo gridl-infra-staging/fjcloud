@@ -154,6 +154,8 @@ assert_file_contains "$systemd_timer_file" 'OnCalendar=\*-\*-\* 01:00:00 UTC' "T
 assert_file_contains "$systemd_timer_file" 'Persistent=true' "Timer is persistent (catches missed runs)"
 
 # Metering agent security check (existing file)
+assert_file_contains "$systemd_metering_file" 'ConditionPathExists=/etc/fjcloud/metering-env' "Metering agent condition path uses /etc/fjcloud/metering-env"
+assert_file_contains "$systemd_metering_file" 'EnvironmentFile=-/etc/fjcloud/metering-env' "Metering agent EnvironmentFile uses /etc/fjcloud/metering-env"
 assert_file_contains "$systemd_metering_file" 'NoNewPrivileges=true' "Metering agent has NoNewPrivileges=true"
 assert_file_contains "$systemd_metering_file" 'ProtectSystem=strict' "Metering agent has ProtectSystem=strict"
 assert_file_contains "$systemd_metering_file" 'ProtectHome=true' "Metering agent has ProtectHome=true"

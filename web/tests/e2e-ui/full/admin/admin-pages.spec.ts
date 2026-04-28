@@ -63,10 +63,11 @@ test.describe('Admin page shells — nav-backed', () => {
 	test('Customers page renders heading and table or empty state', async ({ page }) => {
 		await navigateToAdminPage(page, '/admin/customers', 'Customer Management');
 
-		// Assert table body OR empty-state text — one must be visible
 		const tableBody = page.getByTestId('customers-table-body');
 		const emptyState = page.getByText('No customers found.');
+		const unavailableState = page.getByText('Customer data unavailable.');
 		await expect(tableBody.or(emptyState)).toBeVisible();
+		await expect(unavailableState).toHaveCount(0);
 	});
 
 	test('Migrations page renders heading and active/recent sections', async ({ page }) => {
@@ -230,20 +231,127 @@ test.describe('Admin customer actions', () => {
 // ---------------------------------------------------------------------------
 
 test.describe('Admin customer list truthfulness', () => {
-	test('Customer row renders "—" for unavailable index count and truthful invoice status', async ({
+	const BILLING_HEALTH_LABEL_RANK: Record<string, number> = {
+		Red: 0,
+		Yellow: 1,
+		Grey: 2,
+		Green: 3
+	};
+
+	test('Billing-health sort ties are ordered by newest customer first', async ({
 		page,
 		createUser
 	}) => {
 		const seed = Date.now();
-		const customerName = `Admin Truthful ${seed}`;
-		await createUser(`admin-truthful-${seed}@e2e.griddle.test`, 'TestPassword123!', customerName);
-		const row = await findCustomerRow(page, customerName, 'active');
+		const customerPrefix = `Admin Sort Tie ${seed}`;
+		const olderName = `${customerPrefix} Older`;
+		const newerName = `${customerPrefix} Newer`;
 
-		// No admin index-count endpoint exists — column must render "—"
-		await expect(row.getByTestId('index-count')).toHaveText('—');
+		await createUser(`admin-sort-tie-older-${seed}@e2e.griddle.test`, 'TestPassword123!', olderName);
+		// Ensure distinct created_at values for deterministic createdAtMs tie-break ordering.
+		await page.waitForTimeout(1_100);
+		await createUser(`admin-sort-tie-newer-${seed}@e2e.griddle.test`, 'TestPassword123!', newerName);
 
-		// Single source of truth: the loader returns the explicit "none" sentinel
-		// when invoice data is available but the customer has zero invoices.
-		await expect(row.getByTestId('invoice-status')).toHaveText('none');
+		await navigateToAdminPage(page, '/admin/customers', 'Customer Management');
+		await page.getByTestId('customer-search').fill(customerPrefix);
+
+		const tableBody = page.getByTestId('customers-table-body');
+		await expect
+			.poll(async () => tableBody.getByRole('row').count(), {
+				message: 'expected exactly the two seeded same-severity customers'
+			})
+			.toBe(2);
+
+		const sortBillingHealth = page.getByTestId('sort-billing-health');
+		await sortBillingHealth.click();
+		await expect(sortBillingHealth).toContainText('sorted');
+
+		const sortedRows = await tableBody.getByRole('row').evaluateAll((rows) =>
+			rows.map((row) => ({
+				customerName: row.querySelector('a')?.textContent?.trim() ?? '',
+				billingHealth: row
+					.querySelector('[data-testid^="billing-health-badge-"]')
+					?.textContent?.trim() ?? ''
+			}))
+		);
+
+		expect(sortedRows).toHaveLength(2);
+		expect(sortedRows.map((row) => row.customerName)).toEqual([newerName, olderName]);
+		expect(sortedRows[0]?.billingHealth).toBe(sortedRows[1]?.billingHealth);
+	});
+
+	test('Customer list exposes billing-health and last-activity columns', async ({
+		page,
+		createUser
+	}) => {
+		const seed = Date.now();
+		const customerPrefix = `Admin Billing Health ${seed}`;
+		const firstName = `${customerPrefix} First`;
+		const secondName = `${customerPrefix} Second`;
+
+		await createUser(
+			`admin-billing-health-suspend-${seed}@e2e.griddle.test`,
+			'TestPassword123!',
+			firstName
+		);
+		await createUser(
+			`admin-billing-health-active-${seed}@e2e.griddle.test`,
+			'TestPassword123!',
+			secondName
+		);
+
+		await navigateToAdminPage(page, '/admin/customers', 'Customer Management');
+		await page.getByTestId('customer-search').fill(customerPrefix);
+
+		const tableBody = page.getByTestId('customers-table-body');
+		await expect(tableBody).toBeVisible();
+		await expect
+			.poll(async () => tableBody.getByRole('row').count(), {
+				message: 'expected exactly the two seeded customers in the filtered list'
+			})
+			.toBe(2);
+
+		const sortBillingHealth = page.getByTestId('sort-billing-health');
+		await expect(sortBillingHealth).toBeVisible();
+		const firstRow = tableBody.getByRole('row').first();
+		await expect(firstRow.getByTestId('index-count')).toHaveText('—');
+		await expect(firstRow.locator('[data-testid^="billing-health-badge-"]')).toHaveText(
+			/Green|Yellow|Red|Grey/
+		);
+		await expect(firstRow.locator('[data-testid^="last-activity-"]')).toHaveText(
+			/—|just now|\d+m ago|\d+h ago|\d+ days ago/
+		);
+
+		await sortBillingHealth.click();
+		await expect(sortBillingHealth).toContainText('sorted');
+
+		const sortedRows = await tableBody.getByRole('row').evaluateAll((rows) =>
+			rows.map((row) => ({
+				rowTestId: row.getAttribute('data-testid') ?? '',
+				billingHealth: row
+					.querySelector('[data-testid^="billing-health-badge-"]')
+					?.textContent?.trim() ?? ''
+			}))
+		);
+		expect(sortedRows.length).toBeGreaterThan(1);
+
+		const sortedRanks = sortedRows.map(({ rowTestId, billingHealth }) => {
+			expect(rowTestId).toMatch(/^customer-row-/);
+			const rank = BILLING_HEALTH_LABEL_RANK[billingHealth];
+			expect(rank).not.toBeUndefined();
+			return rank;
+		});
+		expect(sortedRanks).toEqual([...sortedRanks].sort((left, right) => left - right));
+
+		const sortedLabels = sortedRows.map((row) => row.billingHealth);
+		const distinctLabelsInRenderedOrder = sortedLabels.filter(
+			(label, index) => index === 0 || sortedLabels[index - 1] !== label
+		);
+		expect(distinctLabelsInRenderedOrder.length).toBeGreaterThan(0);
+
+		const expectedDistinctLabelOrder = ['Red', 'Yellow', 'Grey', 'Green'].filter((label) =>
+			distinctLabelsInRenderedOrder.includes(label)
+		);
+		expect(distinctLabelsInRenderedOrder).toEqual(expectedDistinctLabelOrder);
 	});
 });

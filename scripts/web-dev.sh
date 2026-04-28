@@ -8,6 +8,8 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # shellcheck source=lib/env.sh
 source "$SCRIPT_DIR/lib/env.sh"
+# shellcheck source=lib/web_runtime.sh
+source "$SCRIPT_DIR/lib/web_runtime.sh"
 
 log() { echo "[web-dev] $*"; }
 die() {
@@ -57,6 +59,8 @@ API_BASE_URL="${API_BASE_URL:-http://localhost:3001}"
 export API_BASE_URL
 export JWT_SECRET
 export ADMIN_KEY
+
+has_web_vite_runtime "$REPO_ROOT" || die "$(web_vite_runtime_missing_message)"
 
 log "Starting web dev server with API_BASE_URL=$API_BASE_URL"
 cd "$REPO_ROOT/web"

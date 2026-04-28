@@ -1,14 +1,5 @@
 //! Stub summary for /Users/stuart/parallel_development/fjcloud_dev/MAR17_11_2_data_management_features/fjcloud_dev/infra/api/src/config.rs.
-use reqwest::Url;
-use std::net::IpAddr;
 use thiserror::Error;
-
-#[derive(Debug, Clone)]
-pub struct AybAdminConfig {
-    pub base_url: String,
-    pub cluster_id: String,
-    pub admin_password: String,
-}
 
 #[derive(Debug, Clone)]
 pub struct Config {
@@ -24,7 +15,6 @@ pub struct Config {
     pub stripe_success_url: String,
     pub stripe_cancel_url: String,
     pub internal_auth_token: Option<String>,
-    pub ayb_admin: Option<AybAdminConfig>,
 }
 
 #[derive(Debug, Error)]
@@ -44,7 +34,7 @@ impl Config {
 
     /// Builds configuration from a generic key→value reader closure.
     /// Requires `DATABASE_URL`, `JWT_SECRET` (≥32 chars), and `ADMIN_KEY` (≥16 chars).
-    /// Stripe keys, internal auth token, and AYB admin config are all optional.
+    /// Stripe keys and internal auth token are optional.
     pub fn from_reader<F>(read: F) -> Result<Self, ConfigError>
     where
         F: Fn(&str) -> Option<String>,
@@ -85,8 +75,6 @@ impl Config {
             })
             .transpose()?;
 
-        let ayb_admin = parse_ayb_admin_config(&read)?;
-
         Ok(Config {
             database_url,
             listen_addr,
@@ -100,7 +88,6 @@ impl Config {
             stripe_success_url,
             stripe_cancel_url,
             internal_auth_token,
-            ayb_admin,
         })
     }
 }
@@ -109,68 +96,6 @@ fn parse_u32_with_default(value: Option<String>, default_value: u32) -> Result<u
     match value {
         Some(raw) => raw.trim().parse::<u32>().map_err(|_| ()),
         None => Ok(default_value),
-    }
-}
-
-/// Parses AYB admin configuration with all-or-nothing semantics: all three of
-/// `AYB_BASE_URL`, `AYB_CLUSTER_ID`, and `AYB_ADMIN_PASSWORD` must be present or
-/// absent together. Validates the base URL scheme (HTTPS required, HTTP allowed
-/// only for localhost).
-fn parse_ayb_admin_config(
-    read: &dyn Fn(&str) -> Option<String>,
-) -> Result<Option<AybAdminConfig>, ConfigError> {
-    let base_url = read("AYB_BASE_URL").map(|s| s.trim().to_string());
-    let cluster_id = read("AYB_CLUSTER_ID").map(|s| s.trim().to_string());
-    let admin_password = read("AYB_ADMIN_PASSWORD").map(|s| s.trim().to_string());
-
-    match (&base_url, &cluster_id, &admin_password) {
-        (None, None, None) => return Ok(None),
-        (Some(_), Some(_), Some(_)) => {}
-        _ => {
-            return Err(ConfigError::Invalid(
-                "AYB_BASE_URL, AYB_CLUSTER_ID, and AYB_ADMIN_PASSWORD must all be set or all be unset".to_string(),
-            ));
-        }
-    }
-
-    let base_url = base_url.unwrap();
-    let cluster_id = cluster_id.unwrap();
-    let admin_password = admin_password.unwrap();
-
-    if base_url.is_empty() {
-        return Err(ConfigError::Invalid("AYB_BASE_URL".to_string()));
-    }
-    if cluster_id.is_empty() {
-        return Err(ConfigError::Invalid("AYB_CLUSTER_ID".to_string()));
-    }
-    if admin_password.is_empty() {
-        return Err(ConfigError::Invalid("AYB_ADMIN_PASSWORD".to_string()));
-    }
-
-    let parsed_base_url =
-        Url::parse(&base_url).map_err(|_| ConfigError::Invalid("AYB_BASE_URL".to_string()))?;
-    if !ayb_base_url_uses_allowed_transport(&parsed_base_url) {
-        return Err(ConfigError::Invalid("AYB_BASE_URL".to_string()));
-    }
-
-    Ok(Some(AybAdminConfig {
-        base_url,
-        cluster_id,
-        admin_password,
-    }))
-}
-
-fn ayb_base_url_uses_allowed_transport(parsed_base_url: &Url) -> bool {
-    match parsed_base_url.scheme() {
-        "https" => true,
-        "http" => parsed_base_url.host_str().is_some_and(|host| {
-            host.eq_ignore_ascii_case("localhost")
-                || host
-                    .parse::<IpAddr>()
-                    .map(|ip| ip.is_loopback())
-                    .unwrap_or(false)
-        }),
-        _ => false,
     }
 }
 
@@ -209,7 +134,6 @@ mod tests {
         assert!(cfg.stripe_publishable_key.is_none());
         assert!(cfg.stripe_webhook_secret.is_none());
         assert!(cfg.internal_auth_token.is_none());
-        assert!(cfg.ayb_admin.is_none());
     }
 
     /// Verifies that Stripe and internal auth keys are optional in config,
@@ -383,171 +307,5 @@ mod tests {
         ])))
         .expect("32-char JWT_SECRET should be accepted");
         assert_eq!(cfg.jwt_secret, secret_32);
-    }
-
-    // ─── AybAdminConfig tests ──────────────────────────────────────────
-
-    fn valid_env_with_ayb() -> impl Fn(&str) -> Option<String> {
-        reader(HashMap::from([
-            ("DATABASE_URL", "postgres://localhost/fjcloud"),
-            ("JWT_SECRET", "super-secret-key-for-testing-1234"),
-            ("ADMIN_KEY", "admin-bootstrap-key-for-testing"),
-            ("AYB_BASE_URL", "https://ayb.example.com"),
-            ("AYB_CLUSTER_ID", "cluster-01"),
-            ("AYB_ADMIN_PASSWORD", "s3cret-admin-pw"),
-        ]))
-    }
-
-    #[test]
-    fn ayb_admin_all_present_parses_successfully() {
-        let cfg =
-            Config::from_reader(valid_env_with_ayb()).expect("should parse with all AYB vars");
-        let ayb = cfg.ayb_admin.expect("ayb_admin should be Some");
-        assert_eq!(ayb.base_url, "https://ayb.example.com");
-        assert_eq!(ayb.cluster_id, "cluster-01");
-        assert_eq!(ayb.admin_password, "s3cret-admin-pw");
-    }
-
-    #[test]
-    fn ayb_admin_all_absent_returns_none() {
-        let cfg = Config::from_reader(valid_env()).expect("should parse without AYB vars");
-        assert!(cfg.ayb_admin.is_none());
-    }
-
-    #[test]
-    fn ayb_admin_values_are_trimmed() {
-        let cfg = Config::from_reader(reader(HashMap::from([
-            ("DATABASE_URL", "postgres://localhost/fjcloud"),
-            ("JWT_SECRET", "super-secret-key-for-testing-1234"),
-            ("ADMIN_KEY", "admin-bootstrap-key-for-testing"),
-            ("AYB_BASE_URL", "  https://ayb.example.com  "),
-            ("AYB_CLUSTER_ID", "  cluster-01  "),
-            ("AYB_ADMIN_PASSWORD", "  s3cret-admin-pw  "),
-        ])))
-        .expect("should trim AYB values");
-        let ayb = cfg.ayb_admin.expect("ayb_admin should be Some");
-        assert_eq!(ayb.base_url, "https://ayb.example.com");
-        assert_eq!(ayb.cluster_id, "cluster-01");
-        assert_eq!(ayb.admin_password, "s3cret-admin-pw");
-    }
-
-    #[test]
-    fn ayb_admin_partial_only_base_url_is_rejected() {
-        let err = Config::from_reader(reader(HashMap::from([
-            ("DATABASE_URL", "postgres://localhost/fjcloud"),
-            ("JWT_SECRET", "super-secret-key-for-testing-1234"),
-            ("ADMIN_KEY", "admin-bootstrap-key-for-testing"),
-            ("AYB_BASE_URL", "https://ayb.example.com"),
-        ])))
-        .unwrap_err();
-        assert!(matches!(err, ConfigError::Invalid(_)));
-    }
-
-    #[test]
-    fn ayb_admin_partial_only_cluster_id_is_rejected() {
-        let err = Config::from_reader(reader(HashMap::from([
-            ("DATABASE_URL", "postgres://localhost/fjcloud"),
-            ("JWT_SECRET", "super-secret-key-for-testing-1234"),
-            ("ADMIN_KEY", "admin-bootstrap-key-for-testing"),
-            ("AYB_CLUSTER_ID", "cluster-01"),
-        ])))
-        .unwrap_err();
-        assert!(matches!(err, ConfigError::Invalid(_)));
-    }
-
-    #[test]
-    fn ayb_admin_partial_only_password_is_rejected() {
-        let err = Config::from_reader(reader(HashMap::from([
-            ("DATABASE_URL", "postgres://localhost/fjcloud"),
-            ("JWT_SECRET", "super-secret-key-for-testing-1234"),
-            ("ADMIN_KEY", "admin-bootstrap-key-for-testing"),
-            ("AYB_ADMIN_PASSWORD", "s3cret-admin-pw"),
-        ])))
-        .unwrap_err();
-        assert!(matches!(err, ConfigError::Invalid(_)));
-    }
-
-    #[test]
-    fn ayb_admin_partial_two_of_three_is_rejected() {
-        let err = Config::from_reader(reader(HashMap::from([
-            ("DATABASE_URL", "postgres://localhost/fjcloud"),
-            ("JWT_SECRET", "super-secret-key-for-testing-1234"),
-            ("ADMIN_KEY", "admin-bootstrap-key-for-testing"),
-            ("AYB_BASE_URL", "https://ayb.example.com"),
-            ("AYB_CLUSTER_ID", "cluster-01"),
-        ])))
-        .unwrap_err();
-        assert!(matches!(err, ConfigError::Invalid(_)));
-    }
-
-    #[test]
-    fn ayb_admin_invalid_url_no_scheme_is_rejected() {
-        let err = Config::from_reader(reader(HashMap::from([
-            ("DATABASE_URL", "postgres://localhost/fjcloud"),
-            ("JWT_SECRET", "super-secret-key-for-testing-1234"),
-            ("ADMIN_KEY", "admin-bootstrap-key-for-testing"),
-            ("AYB_BASE_URL", "ayb.example.com"),
-            ("AYB_CLUSTER_ID", "cluster-01"),
-            ("AYB_ADMIN_PASSWORD", "s3cret-admin-pw"),
-        ])))
-        .unwrap_err();
-        assert!(matches!(err, ConfigError::Invalid(ref k) if k == "AYB_BASE_URL"));
-    }
-
-    #[test]
-    fn ayb_admin_invalid_url_malformed_but_prefixed_is_rejected() {
-        let err = Config::from_reader(reader(HashMap::from([
-            ("DATABASE_URL", "postgres://localhost/fjcloud"),
-            ("JWT_SECRET", "super-secret-key-for-testing-1234"),
-            ("ADMIN_KEY", "admin-bootstrap-key-for-testing"),
-            ("AYB_BASE_URL", "https://exa mple.com"),
-            ("AYB_CLUSTER_ID", "cluster-01"),
-            ("AYB_ADMIN_PASSWORD", "s3cret-admin-pw"),
-        ])))
-        .unwrap_err();
-        assert!(matches!(err, ConfigError::Invalid(ref k) if k == "AYB_BASE_URL"));
-    }
-
-    #[test]
-    fn ayb_admin_loopback_http_url_is_accepted() {
-        let cfg = Config::from_reader(reader(HashMap::from([
-            ("DATABASE_URL", "postgres://localhost/fjcloud"),
-            ("JWT_SECRET", "super-secret-key-for-testing-1234"),
-            ("ADMIN_KEY", "admin-bootstrap-key-for-testing"),
-            ("AYB_BASE_URL", "http://localhost:8080"),
-            ("AYB_CLUSTER_ID", "cluster-01"),
-            ("AYB_ADMIN_PASSWORD", "s3cret-admin-pw"),
-        ])))
-        .expect("http:// URL should be accepted");
-        let ayb = cfg.ayb_admin.expect("ayb_admin should be Some");
-        assert_eq!(ayb.base_url, "http://localhost:8080");
-    }
-
-    #[test]
-    fn ayb_admin_non_loopback_http_url_is_rejected() {
-        let err = Config::from_reader(reader(HashMap::from([
-            ("DATABASE_URL", "postgres://localhost/fjcloud"),
-            ("JWT_SECRET", "super-secret-key-for-testing-1234"),
-            ("ADMIN_KEY", "admin-bootstrap-key-for-testing"),
-            ("AYB_BASE_URL", "http://ayb.example.com"),
-            ("AYB_CLUSTER_ID", "cluster-01"),
-            ("AYB_ADMIN_PASSWORD", "s3cret-admin-pw"),
-        ])))
-        .unwrap_err();
-        assert!(matches!(err, ConfigError::Invalid(ref k) if k == "AYB_BASE_URL"));
-    }
-
-    #[test]
-    fn ayb_admin_empty_value_after_trim_is_rejected() {
-        let err = Config::from_reader(reader(HashMap::from([
-            ("DATABASE_URL", "postgres://localhost/fjcloud"),
-            ("JWT_SECRET", "super-secret-key-for-testing-1234"),
-            ("ADMIN_KEY", "admin-bootstrap-key-for-testing"),
-            ("AYB_BASE_URL", "https://ayb.example.com"),
-            ("AYB_CLUSTER_ID", "   "),
-            ("AYB_ADMIN_PASSWORD", "s3cret-admin-pw"),
-        ])))
-        .unwrap_err();
-        assert!(matches!(err, ConfigError::Invalid(ref k) if k == "AYB_CLUSTER_ID"));
     }
 }

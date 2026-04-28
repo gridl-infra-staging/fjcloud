@@ -1,12 +1,10 @@
 <!-- [scrai:start] -->
-
 ## fleet
 
 | File | Summary |
-| ---- | ------- |
+| --- | --- |
 
 | Directory | Summary |
-| --------- | ------- |
-| [id]      | —       |
-
+| --- | --- |
+| [id] | — |
 <!-- [scrai:end] -->

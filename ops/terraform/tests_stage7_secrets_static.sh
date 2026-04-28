@@ -7,12 +7,43 @@ set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/test_helpers.sh"
 
 audit_script="ops/terraform/audit_no_secrets.sh"
+shared_parser_script="scripts/lib/secret_audit_parsing.sh"
+consumer_audit_script="scripts/audit_secrets.sh"
 
 echo ""
 echo "=== Stage 7 Static Tests: Secret Hygiene ==="
 echo ""
 
 assert_file_exists "$audit_script" "audit_no_secrets.sh exists"
+assert_file_exists "$shared_parser_script" "shared Terraform/workflow parser exists"
+assert_file_exists "$consumer_audit_script" "scripts/audit_secrets.sh exists"
+assert_file_contains "$audit_script" "scripts/lib/secret_audit_parsing.sh" "audit_no_secrets.sh sources shared parser"
+assert_file_contains "$consumer_audit_script" "scripts/lib/secret_audit_parsing.sh" "audit_secrets.sh sources shared parser"
+assert_file_not_contains "$audit_script" "^strip_tf_comments\\(\\)" "audit_no_secrets.sh no longer defines strip_tf_comments inline"
+assert_file_not_contains "$audit_script" "^extract_workflow_secret_refs\\(\\)" "audit_no_secrets.sh no longer defines extract_workflow_secret_refs inline"
+
+run_missing_root_case() {
+    local tmpdir
+    local output_file
+    local rc
+    tmpdir="$(mktemp -d)"
+    output_file="$tmpdir/output.log"
+
+    set +e
+    bash "$audit_script" --root >"$output_file" 2>&1
+    rc=$?
+    set -e
+
+    if [[ "$rc" == "2" ]]; then
+        pass "--root without a value exits with usage error"
+    else
+        fail "--root without a value exits with usage error (got $rc)"
+    fi
+    assert_file_contains "$output_file" "Missing value for --root" "--root without a value reports the missing operand"
+    assert_file_not_contains "$output_file" "unbound variable" "--root without a value does not crash via set -u"
+
+    rm -rf "$tmpdir"
+}
 
 run_case() {
   local case_name="$1"
@@ -185,6 +216,7 @@ TOKEN_WF
   rm -rf "$tmpdir"
 }
 
+run_missing_root_case
 run_case clean 0 "Secret audit passed"
 run_case hardcoded_tf_secret 1 "Hardcoded secret-like Terraform assignments found"
 run_case hardcoded_tf_secret_with_hash 1 "Hardcoded secret-like Terraform assignments found"

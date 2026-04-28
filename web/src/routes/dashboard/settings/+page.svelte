@@ -210,8 +210,8 @@
 	>
 		<h2 class="mb-2 text-lg font-semibold text-red-700">Delete Account</h2>
 		<p class="mb-4 text-sm text-gray-700">
-			This deactivates your account and signs you out. You must delete any active AllYourBase
-			instance first. Retained audit records may remain. This action cannot be undone.
+			This deactivates your account and signs you out. Retained audit records may remain. This
+			action cannot be undone.
 		</p>
 
 		{#if showDeleteAccountConfirm}

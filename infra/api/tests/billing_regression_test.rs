@@ -19,7 +19,7 @@ use api::models::{CustomerRateOverrideRow, RateCardRow};
 use api::repos::invoice_repo::NewLineItem;
 use api::repos::storage_bucket_repo::StorageBucketRepo;
 use api::repos::RateCardRepo;
-use billing::types::BYTES_PER_GIB;
+use billing::types::{MonthlyUsageSummary, BYTES_PER_GIB};
 use chrono::{NaiveDate, TimeZone, Utc};
 use common::{
     mock_cold_snapshot_repo, mock_rate_card_repo, mock_storage_bucket_repo, mock_usage_repo,
@@ -28,6 +28,7 @@ use common::{
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 use serde_json::json;
+use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -293,42 +294,121 @@ async fn increment_bucket_egress(mocks: &MockRepos, bucket_id: Uuid, egress_byte
 
 struct HotStorageCase {
     target_mb: i64,
-    expected_subtotal_cents: i64,
-    expected_total_cents: i64,
+    region: &'static str,
+    billing_plan: BillingPlan,
+    minimum_spend_cents_override: Option<i64>,
 }
 
 const FREE_PLAN_CASES: &[HotStorageCase] = &[
+    // 68 MB * $0.05 = 340¢, pinned known-answer case for Feb 2026.
+    // Override minimum to observe the pre-clamp amount in this harness.
+    HotStorageCase {
+        target_mb: 68,
+        region: "us-east-1",
+        billing_plan: BillingPlan::Free,
+        minimum_spend_cents_override: Some(0),
+    },
     // 100 MB * $0.05 = 500¢, below 1000¢ minimum → total = 1000
     HotStorageCase {
         target_mb: 100,
-        expected_subtotal_cents: 500,
-        expected_total_cents: 1000,
+        region: "us-east-1",
+        billing_plan: BillingPlan::Free,
+        minimum_spend_cents_override: None,
     },
     // 250 MB * $0.05 = 1250¢, above minimum → total = 1250
     HotStorageCase {
         target_mb: 250,
-        expected_subtotal_cents: 1250,
-        expected_total_cents: 1250,
+        region: "us-east-1",
+        billing_plan: BillingPlan::Free,
+        minimum_spend_cents_override: None,
     },
     // 1000 MB * $0.05 = 5000¢
     HotStorageCase {
         target_mb: 1000,
-        expected_subtotal_cents: 5000,
-        expected_total_cents: 5000,
+        region: "us-east-1",
+        billing_plan: BillingPlan::Free,
+        minimum_spend_cents_override: None,
     },
     // 5000 MB * $0.05 = 25000¢
     HotStorageCase {
         target_mb: 5000,
-        expected_subtotal_cents: 25000,
-        expected_total_cents: 25000,
+        region: "us-east-1",
+        billing_plan: BillingPlan::Free,
+        minimum_spend_cents_override: None,
     },
     // 10000 MB * $0.05 = 50000¢
     HotStorageCase {
         target_mb: 10000,
-        expected_subtotal_cents: 50000,
-        expected_total_cents: 50000,
+        region: "us-east-1",
+        billing_plan: BillingPlan::Free,
+        minimum_spend_cents_override: None,
     },
 ];
+
+fn billing_rate_card_for_hot_storage_case(case: &HotStorageCase) -> billing::rate_card::RateCard {
+    let base_card = production_rate_card_row();
+    let effective_card_row = if let Some(minimum_spend_cents) = case.minimum_spend_cents_override {
+        base_card
+            .with_overrides(&json!({"minimum_spend_cents": minimum_spend_cents}))
+            .expect("minimum spend override should parse")
+    } else {
+        base_card
+    };
+
+    effective_card_row
+        .to_billing_rate_card()
+        .expect("production rate card should convert to billing crate format")
+}
+
+fn expected_hot_storage_totals(case: &HotStorageCase) -> (i64, i64) {
+    let (period_start, period_end) = feb_2026_bounds();
+    let billing_rate_card = billing_rate_card_for_hot_storage_case(case);
+    let usage_summary = MonthlyUsageSummary {
+        customer_id: Uuid::new_v4(),
+        period_start,
+        period_end,
+        region: case.region.to_string(),
+        total_search_requests: 0,
+        total_write_operations: 0,
+        storage_mb_months: Decimal::from(case.target_mb),
+        cold_storage_gb_months: Decimal::ZERO,
+        object_storage_gb_months: Decimal::ZERO,
+        object_storage_egress_gb: Decimal::ZERO,
+    };
+
+    let pricing_calc = billing::pricing::calculate_invoice(&usage_summary, &billing_rate_card);
+    let minimum_cents = match case.billing_plan {
+        BillingPlan::Free => billing_rate_card.minimum_spend_cents,
+        BillingPlan::Shared => billing_rate_card.shared_minimum_spend_cents,
+    };
+    let total_cents = pricing_calc.subtotal_cents.max(minimum_cents);
+    (pricing_calc.subtotal_cents, total_cents)
+}
+
+fn assert_hot_storage_amounts(
+    invoice: &GeneratedInvoice,
+    case: &HotStorageCase,
+    expected_subtotal_cents: i64,
+    expected_total_cents: i64,
+) {
+    let mb_month_item = assert_single_line_item_by_unit(invoice, "mb_months");
+    assert_eq!(mb_month_item.region, case.region);
+    assert_eq!(
+        mb_month_item.amount_cents, expected_subtotal_cents,
+        "mb_months amount mismatch for {} MB: got {}, expected {}",
+        case.target_mb, mb_month_item.amount_cents, expected_subtotal_cents,
+    );
+    assert_eq!(
+        invoice.subtotal_cents, expected_subtotal_cents,
+        "subtotal mismatch for {} MB: got {}, expected {}",
+        case.target_mb, invoice.subtotal_cents, expected_subtotal_cents,
+    );
+    assert_eq!(
+        invoice.total_cents, expected_total_cents,
+        "total mismatch for {} MB: got {}, expected {}",
+        case.target_mb, invoice.total_cents, expected_total_cents,
+    );
+}
 
 #[tokio::test]
 async fn free_plan_hot_storage_regression() {
@@ -336,26 +416,84 @@ async fn free_plan_hot_storage_regression() {
         let mocks = setup_repos();
         let customer_id = Uuid::new_v4();
 
-        seed_constant_daily_usage(&mocks.usage_repo, customer_id, case.target_mb, "us-east-1");
+        seed_constant_daily_usage(&mocks.usage_repo, customer_id, case.target_mb, case.region);
 
-        let invoice = generate_invoice(&mocks, customer_id, BillingPlan::Free).await;
+        if let Some(minimum_spend_cents) = case.minimum_spend_cents_override {
+            let active_card = mocks
+                .rate_card_repo
+                .get_active()
+                .await
+                .expect("get_active should succeed")
+                .expect("active card should exist");
+            mocks.rate_card_repo.seed_override(CustomerRateOverrideRow {
+                customer_id,
+                rate_card_id: active_card.id,
+                overrides: json!({"minimum_spend_cents": minimum_spend_cents}),
+                created_at: Utc::now(),
+            });
+        }
+
+        let invoice = generate_invoice(&mocks, customer_id, case.billing_plan).await;
 
         assert_invoice_invariants(&invoice);
+        assert_no_line_items_by_unit(&invoice, "requests_1k");
+        assert_no_line_items_by_unit(&invoice, "write_ops_1k");
 
-        // Exactly one hot-storage line item.
-        assert_single_line_item_by_unit(&invoice, "mb_months");
-
-        assert_eq!(
-            invoice.subtotal_cents, case.expected_subtotal_cents,
-            "subtotal mismatch for {} MB: got {}, expected {}",
-            case.target_mb, invoice.subtotal_cents, case.expected_subtotal_cents,
-        );
-        assert_eq!(
-            invoice.total_cents, case.expected_total_cents,
-            "total mismatch for {} MB: got {}, expected {}",
-            case.target_mb, invoice.total_cents, case.expected_total_cents,
+        let (expected_subtotal_cents, expected_total_cents) = expected_hot_storage_totals(case);
+        assert_hot_storage_amounts(
+            &invoice,
+            case,
+            expected_subtotal_cents,
+            expected_total_cents,
         );
     }
+}
+
+#[tokio::test]
+async fn free_plan_hot_storage_mutation_proof() {
+    let case = FREE_PLAN_CASES
+        .iter()
+        .find(|candidate| candidate.target_mb == 68)
+        .expect("68 MB free-plan case should exist");
+
+    let mocks = setup_repos();
+    let customer_id = Uuid::new_v4();
+    seed_constant_daily_usage(&mocks.usage_repo, customer_id, case.target_mb, case.region);
+
+    if let Some(minimum_spend_cents) = case.minimum_spend_cents_override {
+        let active_card = mocks
+            .rate_card_repo
+            .get_active()
+            .await
+            .expect("get_active should succeed")
+            .expect("active card should exist");
+        mocks.rate_card_repo.seed_override(CustomerRateOverrideRow {
+            customer_id,
+            rate_card_id: active_card.id,
+            overrides: json!({"minimum_spend_cents": minimum_spend_cents}),
+            created_at: Utc::now(),
+        });
+    }
+
+    let invoice = generate_invoice(&mocks, customer_id, case.billing_plan).await;
+    assert_invoice_invariants(&invoice);
+    assert_no_line_items_by_unit(&invoice, "requests_1k");
+    assert_no_line_items_by_unit(&invoice, "write_ops_1k");
+
+    let (expected_subtotal_cents, expected_total_cents) = expected_hot_storage_totals(case);
+    let panic_result = catch_unwind(AssertUnwindSafe(|| {
+        assert_hot_storage_amounts(
+            &invoice,
+            case,
+            expected_subtotal_cents + 1,
+            expected_total_cents,
+        );
+    }));
+
+    assert!(
+        panic_result.is_err(),
+        "expected +1 cent mutation to panic in shared hot-storage assertions",
+    );
 }
 
 // ---------------------------------------------------------------------------

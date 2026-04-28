@@ -113,6 +113,8 @@ run_demo_stack() {
         "API" \
         "$PID_DIR/api.pid" \
         "$PID_DIR/api.log" \
+        env \
+        API_DEV_ALLOW_SKIP_EMAIL_VERIFICATION=1 \
         "$SCRIPT_DIR/api-dev.sh"
     wait_for_health "http://127.0.0.1:3001/health" "api" 90 \
         || { log "API failed; see $PID_DIR/api.log"; exit 1; }

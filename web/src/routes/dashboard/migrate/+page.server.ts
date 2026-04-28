@@ -1,6 +1,3 @@
-/**
- * @module Stub summary for /Users/stuart/parallel_development/fjcloud_dev/mar19_2_feature_gaps/fjcloud_dev/web/src/routes/dashboard/migrate/+page.server.ts.
- */
 import { fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { createApiClient } from '$lib/server/api';

@@ -105,12 +105,23 @@ module "monitoring" {
   db_instance_identifier                    = module.data.db_instance_identifier
   alb_arn_suffix                            = module.dns.alb_arn_suffix
   alert_emails                              = var.alert_emails
+  canary_image                              = var.canary_image
+  canary_schedule                           = var.canary_schedule
   live_e2e_monthly_spend_limit_usd          = var.live_e2e_monthly_spend_limit_usd
   live_e2e_budget_action_enabled            = var.live_e2e_budget_action_enabled
   live_e2e_budget_action_principal_arn      = var.live_e2e_budget_action_principal_arn
   live_e2e_budget_action_policy_arn         = var.live_e2e_budget_action_policy_arn
   live_e2e_budget_action_role_name          = var.live_e2e_budget_action_role_name
   live_e2e_budget_action_execution_role_arn = var.live_e2e_budget_action_execution_role_arn
+  support_email_canary_image_uri              = var.support_email_canary_image_uri
+  support_email_canary_image_tag              = var.support_email_canary_image_tag
+  support_email_canary_ses_from_address       = var.support_email_canary_ses_from_address
+  support_email_canary_schedule_expression    = var.support_email_canary_schedule_expression
+  support_email_canary_inbound_roundtrip_s3_uri = var.support_email_canary_inbound_roundtrip_s3_uri
+  support_email_canary_recipient_domain_default = var.support_email_canary_recipient_domain_default
+  support_email_canary_recipient_local_part_default = var.support_email_canary_recipient_local_part_default
+  support_email_canary_slack_webhook_parameter_name = var.support_email_canary_slack_webhook_parameter_name
+  support_email_canary_discord_webhook_parameter_name = var.support_email_canary_discord_webhook_parameter_name
 }
 
 import {

@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+# Lambda custom-runtime bootstrap for the customer-loop canary image.
+# This wrapper keeps business logic in scripts/canary/customer_loop_synthetic.sh.
+
+set -euo pipefail
+
+runtime_api="${AWS_LAMBDA_RUNTIME_API:-}"
+handler_command="${_HANDLER:-scripts/canary/customer_loop_synthetic.sh}"
+
+if [ -z "$runtime_api" ]; then
+    echo "AWS_LAMBDA_RUNTIME_API is required for Lambda runtime bootstrap" >&2
+    exit 1
+fi
+
+json_string() {
+    python3 - "$1" <<'PY'
+import json
+import sys
+
+print(json.dumps(sys.argv[1]))
+PY
+}
+
+while true; do
+    headers_file="$(mktemp)"
+    curl -sS -D "$headers_file" "http://${runtime_api}/2018-06-01/runtime/invocation/next" >/dev/null
+
+    request_id="$(
+        awk 'BEGIN { IGNORECASE=1 } /^Lambda-Runtime-Aws-Request-Id:/ { print $2 }' "$headers_file" \
+            | tr -d '\r\n'
+    )"
+    rm -f "$headers_file"
+
+    if [ -z "$request_id" ]; then
+        echo "Lambda runtime invocation request id missing" >&2
+        continue
+    fi
+
+    if (cd /workspace && bash "$handler_command"); then
+        curl -sS \
+            -X POST \
+            "http://${runtime_api}/2018-06-01/runtime/invocation/${request_id}/response" \
+            -d '{"status":"ok"}' >/dev/null
+        continue
+    fi
+
+    exit_code=$?
+    error_message="customer loop canary failed with exit code ${exit_code}"
+    error_message_json="$(json_string "$error_message")"
+    curl -sS \
+        -X POST \
+        -H "Content-Type: application/json" \
+        "http://${runtime_api}/2018-06-01/runtime/invocation/${request_id}/error" \
+        -d "{\"errorType\":\"CustomerLoopCanaryError\",\"errorMessage\":${error_message_json}}" >/dev/null
+done

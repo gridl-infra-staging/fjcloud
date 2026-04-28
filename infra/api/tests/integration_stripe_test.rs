@@ -1,7 +1,7 @@
 //! Integration tests for Stripe live validation (test mode).
 //!
 //! Two gating levels:
-//!   1. **Stripe API tests** — require `STRIPE_TEST_SECRET_KEY` env var (an `sk_test_` key).
+//!   1. **Stripe API tests** — require `STRIPE_SECRET_KEY` env var (an `sk_test_` key).
 //!      These call the real Stripe API in test mode to validate customer creation,
 //!      setup intents, payment methods, and invoice finalization.
 //!   2. **Full pipeline tests** — additionally require a live fjcloud API + DB +
@@ -15,11 +15,12 @@
 mod common;
 #[path = "common/integration_helpers.rs"]
 mod integration_helpers;
+#[path = "common/live_stripe_helpers.rs"]
+mod live_stripe_helpers;
 
 use api::repos::invoice_repo::NewLineItem;
 use api::repos::CustomerRepo;
 use api::repos::InvoiceRepo;
-use api::stripe::live::LiveStripeService;
 use api::stripe::{StripeInvoiceLineItem, StripeService};
 use axum::{
     body::Body,
@@ -30,8 +31,6 @@ use hmac::{Hmac, Mac};
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 use sha2::Sha256;
-use std::time::Instant;
-use tokio::sync::OnceCell;
 use tower::ServiceExt;
 
 use common::{
@@ -137,171 +136,50 @@ async fn finalize_invoice_in_test_router(
 /// Returns the Stripe test secret key if available. Tests that only need the
 /// Stripe API (no webhook round-trip) gate on this.
 fn stripe_test_key() -> Option<String> {
-    let key = std::env::var("STRIPE_TEST_SECRET_KEY").ok()?;
-    if key.starts_with("sk_test_") {
-        Some(key)
-    } else {
-        eprintln!("[skip] STRIPE_TEST_SECRET_KEY is set but doesn't start with sk_test_");
-        None
-    }
+    live_stripe_helpers::stripe_test_key()
 }
 
 fn stripe_webhook_secret() -> Option<String> {
-    let secret = std::env::var("STRIPE_WEBHOOK_SECRET").ok()?;
-    if secret.starts_with("whsec_") {
-        Some(secret)
-    } else {
-        eprintln!("[skip] STRIPE_WEBHOOK_SECRET is set but doesn't start with whsec_");
-        None
-    }
+    live_stripe_helpers::stripe_webhook_secret()
 }
 
-/// Returns true when both the Stripe test key and the full integration stack
-/// (API + DB + stripe listen) are available. Pipeline tests gate on this.
+/// Returns true when Stripe API-only validation is configured.
+/// This intentionally does not require webhook forwarding or INTEGRATION mode.
 fn stripe_api_available() -> bool {
-    stripe_test_key().is_some()
+    live_stripe_helpers::stripe_api_available()
 }
 
 /// Returns true when pipeline preconditions are configured. This does not
 /// prove webhook forwarding is live; use `stripe_webhook_available()` for that.
 fn stripe_webhook_configured() -> bool {
-    if stripe_webhook_secret().is_none() {
-        return false;
-    }
-    if !integration_helpers::integration_enabled() {
-        return false;
-    }
-    true
-}
-
-#[derive(Debug, Clone)]
-#[allow(dead_code)] // fields consumed by launch gate reporting
-struct WebhookProbeResult {
-    passed: bool,
-    elapsed_ms: u64,
-    detail: String,
+    live_stripe_helpers::stripe_webhook_configured()
 }
 
 /// Validates Stripe webhook delivery by running the full probe (create invoice,
 /// wait for webhook_events record). Returns structured result with timing info.
-async fn validate_stripe_webhook_delivery() -> Result<WebhookProbeResult, String> {
-    let start = Instant::now();
-
-    if !stripe_api_available() {
-        return Err("Stripe API not available (STRIPE_TEST_SECRET_KEY missing or invalid)".into());
-    }
-    if !stripe_webhook_configured() {
-        return Err(
-            "Stripe webhook not configured (STRIPE_WEBHOOK_SECRET or INTEGRATION missing)".into(),
-        );
-    }
-
-    let api_url = integration_helpers::api_base();
-    if !integration_helpers::endpoint_reachable(&api_url).await {
-        return Err(format!("API endpoint unreachable at {api_url}"));
-    }
-
-    let db_url = integration_helpers::db_url();
-    let pool = sqlx::PgPool::connect(&db_url)
-        .await
-        .map_err(|e| format!("integration DB unreachable at {db_url}: {e}"))?;
-
-    let service = build_stripe_service();
-    let probe_email = format!("stripe-probe-{}@flapjack.foo", uuid::Uuid::new_v4());
-    let stripe_customer_id = service
-        .create_customer("Stripe Probe", &probe_email)
-        .await
-        .map_err(|e| format!("failed creating Stripe probe customer: {e}"))?;
-
-    let pm_id = attach_test_payment_method(&stripe_customer_id).await;
-    if let Err(e) = service
-        .set_default_payment_method(&stripe_customer_id, &pm_id)
-        .await
-    {
-        delete_stripe_customer(&service, &stripe_customer_id).await;
-        return Err(format!(
-            "failed setting default PM for Stripe probe customer: {e}"
-        ));
-    }
-
-    let finalized = match service
-        .create_and_finalize_invoice(
-            &stripe_customer_id,
-            &[StripeInvoiceLineItem {
-                description: "Stripe webhook probe".to_string(),
-                amount_cents: 50,
-            }],
-            None,
-            None,
-        )
-        .await
-    {
-        Ok(invoice) => invoice,
-        Err(e) => {
-            delete_stripe_customer(&service, &stripe_customer_id).await;
-            return Err(format!("failed creating Stripe probe invoice: {e}"));
-        }
-    };
-
-    let mut webhook_seen = false;
-    for _ in 0..20 {
-        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-        let count: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM webhook_events \
-             WHERE event_type = 'invoice.payment_succeeded' \
-             AND payload->'data'->'object'->>'id' = $1",
-        )
-        .bind(&finalized.stripe_invoice_id)
-        .fetch_one(&pool)
-        .await
-        .unwrap_or(0);
-
-        if count > 0 {
-            webhook_seen = true;
-            break;
-        }
-    }
-
-    delete_stripe_customer(&service, &stripe_customer_id).await;
-
-    let elapsed_ms = start.elapsed().as_millis() as u64;
-    if webhook_seen {
-        Ok(WebhookProbeResult {
-            passed: true,
-            elapsed_ms,
-            detail: format!("invoice.payment_succeeded webhook received in {elapsed_ms}ms"),
-        })
-    } else {
-        Ok(WebhookProbeResult {
-            passed: false,
-            elapsed_ms,
-            detail: "webhook not received within 10s; ensure `stripe listen --forward-to localhost:3099/webhooks/stripe` is running".into(),
-        })
-    }
+async fn validate_stripe_webhook_delivery(
+) -> Result<live_stripe_helpers::WebhookProbeResult, String> {
+    live_stripe_helpers::validate_stripe_webhook_delivery().await
 }
 
-static STRIPE_WEBHOOK_AVAILABLE: OnceCell<bool> = OnceCell::const_new();
-
 /// Runtime probe for Stripe webhook forwarding (`stripe listen`).
-///
-/// Delegates to `validate_stripe_webhook_delivery()` and caches the result.
 async fn stripe_webhook_available() -> bool {
-    *STRIPE_WEBHOOK_AVAILABLE
-        .get_or_init(|| async {
-            match validate_stripe_webhook_delivery().await {
-                Ok(result) => {
-                    if !result.passed {
-                        eprintln!("[skip] {}", result.detail);
-                    }
-                    result.passed
-                }
-                Err(e) => {
-                    eprintln!("[skip] {e}");
-                    false
-                }
-            }
-        })
-        .await
+    live_stripe_helpers::stripe_webhook_available().await
+}
+
+/// Returns true only when the live webhook round-trip should run in this test
+/// owner. API-only environments should keep the mocked coverage green.
+async fn live_webhook_pipeline_ready() -> bool {
+    if !stripe_webhook_configured() {
+        return false;
+    }
+
+    let _env_guard = integration_helpers::test_env_lock();
+    if !stripe_webhook_available().await {
+        eprintln!("[skip] stripe webhook forwarding not available");
+        return false;
+    }
+    true
 }
 
 // ---------------------------------------------------------------------------
@@ -311,76 +189,31 @@ async fn stripe_webhook_available() -> bool {
 /// Validates the Stripe test key by calling GET /v1/balance.
 /// Returns Ok(()) on success, Err with descriptive message on failure.
 async fn validate_stripe_key_live() -> Result<(), String> {
-    let key = match std::env::var("STRIPE_TEST_SECRET_KEY") {
-        Ok(k) if !k.is_empty() => k,
-        _ => return Err("STRIPE_TEST_SECRET_KEY is not set".to_string()),
-    };
-    if !key.starts_with("sk_test_") {
-        return Err("STRIPE_TEST_SECRET_KEY has invalid prefix (expected sk_test_)".to_string());
-    }
-    let client = stripe::Client::new(&key);
-    stripe::Balance::retrieve(&client, None)
-        .await
-        .map_err(|e| format!("Stripe API rejected key: {e}"))?;
-    Ok(())
+    live_stripe_helpers::validate_stripe_key_live().await
 }
 
-/// Build a LiveStripeService from the test key. Panics if key is not available —
-/// callers must gate with `stripe_test_key()` first.
-fn build_stripe_service() -> LiveStripeService {
-    let key = stripe_test_key().expect("STRIPE_TEST_SECRET_KEY must be set");
-    LiveStripeService::new(&key)
+fn build_live_stripe_handles() -> live_stripe_helpers::LiveStripeHandles {
+    live_stripe_helpers::build_live_stripe_handles()
 }
 
 // ---------------------------------------------------------------------------
 // Cleanup helper — delete test customers from Stripe to avoid pollution
 // ---------------------------------------------------------------------------
 
-async fn delete_stripe_customer(_service: &LiveStripeService, customer_id: &str) {
-    // Use the stripe crate directly for deletion since StripeService trait
-    // doesn't expose delete_customer (not needed in production).
-    let client =
-        stripe::Client::new(stripe_test_key().expect("STRIPE_TEST_SECRET_KEY must be set"));
-    let cid: stripe::CustomerId = customer_id.parse().expect("invalid customer ID");
-    if let Err(e) = stripe::Customer::delete(&client, &cid).await {
-        eprintln!("[cleanup] failed to delete Stripe customer {customer_id}: {e}");
-    }
+async fn delete_stripe_customer(client: &stripe::Client, customer_id: &str) {
+    live_stripe_helpers::delete_stripe_customer(client, customer_id).await
 }
 
 /// Attach a test payment method to a customer via the Stripe API directly.
 /// Uses `pm_card_visa` — a Stripe-provided test PaymentMethod token.
-async fn attach_test_payment_method(customer_id: &str) -> String {
-    let client =
-        stripe::Client::new(stripe_test_key().expect("STRIPE_TEST_SECRET_KEY must be set"));
-    let cid: stripe::CustomerId = customer_id.parse().expect("invalid customer ID");
-
-    let pm = stripe::PaymentMethod::attach(
-        &client,
-        &"pm_card_visa".parse().expect("invalid pm token"),
-        stripe::AttachPaymentMethod { customer: cid },
-    )
-    .await
-    .expect("failed to attach test payment method");
-
-    pm.id.to_string()
+async fn attach_test_payment_method(client: &stripe::Client, customer_id: &str) -> String {
+    live_stripe_helpers::attach_test_payment_method(client, customer_id).await
 }
 
 /// Attach a declining test payment method to a customer.
 /// Uses `pm_card_chargeDeclined` — Stripe's test token that always declines.
-async fn attach_declining_payment_method(customer_id: &str) -> String {
-    let client =
-        stripe::Client::new(stripe_test_key().expect("STRIPE_TEST_SECRET_KEY must be set"));
-    let cid: stripe::CustomerId = customer_id.parse().expect("invalid customer ID");
-
-    let pm = stripe::PaymentMethod::attach(
-        &client,
-        &"pm_card_chargeDeclined".parse().expect("invalid pm token"),
-        stripe::AttachPaymentMethod { customer: cid },
-    )
-    .await
-    .expect("failed to attach declining payment method");
-
-    pm.id.to_string()
+async fn attach_declining_payment_method(client: &stripe::Client, customer_id: &str) -> String {
+    live_stripe_helpers::attach_declining_payment_method(client, customer_id).await
 }
 
 // ===========================================================================
@@ -396,7 +229,7 @@ async fn validate_stripe_key_live_succeeds_with_real_key() {
 }
 
 // ===========================================================================
-// Category 1: Stripe API tests (need STRIPE_TEST_SECRET_KEY only)
+// Category 1: Stripe API tests (need STRIPE_SECRET_KEY only)
 // ===========================================================================
 
 #[tokio::test]
@@ -404,12 +237,13 @@ async fn validate_stripe_key_live_succeeds_with_real_key() {
 async fn stripe_create_customer_in_test_mode() {
     require_live_locked!(
         validate_stripe_key_live().await.is_ok(),
-        "STRIPE_TEST_SECRET_KEY not available or rejected by Stripe API"
+        "STRIPE_SECRET_KEY not available or rejected by Stripe API"
     );
 
-    let service = build_stripe_service();
+    let stripe = build_live_stripe_handles();
 
-    let customer_id = service
+    let customer_id = stripe
+        .service
         .create_customer("FJCloud Test User", "test-integration@flapjack.foo")
         .await
         .expect("create_customer should succeed in test mode");
@@ -421,7 +255,7 @@ async fn stripe_create_customer_in_test_mode() {
     );
 
     // Cleanup
-    delete_stripe_customer(&service, &customer_id).await;
+    delete_stripe_customer(&stripe.client, &customer_id).await;
 }
 
 #[tokio::test]
@@ -429,18 +263,20 @@ async fn stripe_create_customer_in_test_mode() {
 async fn stripe_create_setup_intent_in_test_mode() {
     require_live_locked!(
         validate_stripe_key_live().await.is_ok(),
-        "STRIPE_TEST_SECRET_KEY not available or rejected by Stripe API"
+        "STRIPE_SECRET_KEY not available or rejected by Stripe API"
     );
 
-    let service = build_stripe_service();
+    let stripe = build_live_stripe_handles();
 
     // Create a customer first (setup intent requires a customer)
-    let customer_id = service
+    let customer_id = stripe
+        .service
         .create_customer("FJCloud Setup Test", "setup-test@flapjack.foo")
         .await
         .expect("create_customer should succeed");
 
-    let client_secret = service
+    let client_secret = stripe
+        .service
         .create_setup_intent(&customer_id)
         .await
         .expect("create_setup_intent should succeed in test mode");
@@ -456,7 +292,7 @@ async fn stripe_create_setup_intent_in_test_mode() {
     );
 
     // Cleanup
-    delete_stripe_customer(&service, &customer_id).await;
+    delete_stripe_customer(&stripe.client, &customer_id).await;
 }
 
 #[tokio::test]
@@ -464,31 +300,34 @@ async fn stripe_create_setup_intent_in_test_mode() {
 async fn stripe_attach_and_list_payment_methods() {
     require_live_locked!(
         validate_stripe_key_live().await.is_ok(),
-        "STRIPE_TEST_SECRET_KEY not available or rejected by Stripe API"
+        "STRIPE_SECRET_KEY not available or rejected by Stripe API"
     );
 
-    let service = build_stripe_service();
+    let stripe = build_live_stripe_handles();
 
-    let customer_id = service
+    let customer_id = stripe
+        .service
         .create_customer("FJCloud PM Test", "pm-test@flapjack.foo")
         .await
         .expect("create_customer should succeed");
 
     // Attach pm_card_visa via Stripe API directly
-    let pm_id = attach_test_payment_method(&customer_id).await;
+    let pm_id = attach_test_payment_method(&stripe.client, &customer_id).await;
     assert!(
         pm_id.starts_with("pm_"),
         "expected payment method ID to start with 'pm_', got: {pm_id}"
     );
 
     // Set as default payment method
-    service
+    stripe
+        .service
         .set_default_payment_method(&customer_id, &pm_id)
         .await
         .expect("set_default_payment_method should succeed");
 
     // List payment methods via our StripeService trait
-    let methods = service
+    let methods = stripe
+        .service
         .list_payment_methods(&customer_id)
         .await
         .expect("list_payment_methods should succeed");
@@ -502,12 +341,14 @@ async fn stripe_attach_and_list_payment_methods() {
     assert!(visa.is_default, "should be marked as default");
 
     // Detach and verify removal
-    service
+    stripe
+        .service
         .detach_payment_method(&pm_id)
         .await
         .expect("detach_payment_method should succeed");
 
-    let methods_after = service
+    let methods_after = stripe
+        .service
         .list_payment_methods(&customer_id)
         .await
         .expect("list_payment_methods should succeed after detach");
@@ -518,7 +359,7 @@ async fn stripe_attach_and_list_payment_methods() {
     );
 
     // Cleanup
-    delete_stripe_customer(&service, &customer_id).await;
+    delete_stripe_customer(&stripe.client, &customer_id).await;
 }
 
 #[tokio::test]
@@ -526,19 +367,21 @@ async fn stripe_attach_and_list_payment_methods() {
 async fn stripe_create_and_finalize_invoice() {
     require_live_locked!(
         validate_stripe_key_live().await.is_ok(),
-        "STRIPE_TEST_SECRET_KEY not available or rejected by Stripe API"
+        "STRIPE_SECRET_KEY not available or rejected by Stripe API"
     );
 
-    let service = build_stripe_service();
+    let stripe = build_live_stripe_handles();
 
-    let customer_id = service
+    let customer_id = stripe
+        .service
         .create_customer("FJCloud Invoice Test", "invoice-test@flapjack.foo")
         .await
         .expect("create_customer should succeed");
 
     // Attach payment method (required for auto-charge invoices)
-    let pm_id = attach_test_payment_method(&customer_id).await;
-    service
+    let pm_id = attach_test_payment_method(&stripe.client, &customer_id).await;
+    stripe
+        .service
         .set_default_payment_method(&customer_id, &pm_id)
         .await
         .expect("set_default_payment_method should succeed");
@@ -558,7 +401,8 @@ async fn stripe_create_and_finalize_invoice() {
     let mut metadata = std::collections::HashMap::new();
     metadata.insert("fjcloud_test".to_string(), "true".to_string());
 
-    let finalized = service
+    let finalized = stripe
+        .service
         .create_and_finalize_invoice(&customer_id, &line_items, Some(&metadata), None)
         .await
         .expect("create_and_finalize_invoice should succeed");
@@ -578,7 +422,7 @@ async fn stripe_create_and_finalize_invoice() {
     );
 
     // Cleanup
-    delete_stripe_customer(&service, &customer_id).await;
+    delete_stripe_customer(&stripe.client, &customer_id).await;
 }
 
 // ===========================================================================
@@ -605,8 +449,9 @@ async fn run_live_checkout_to_paid_invoice_end_to_end() {
         .await
         .expect("customer not found in DB");
 
-    let service = build_stripe_service();
-    let stripe_customer_id = service
+    let stripe = build_live_stripe_handles();
+    let stripe_customer_id = stripe
+        .service
         .create_customer("E2E Test", &email)
         .await
         .expect("create stripe customer");
@@ -620,8 +465,9 @@ async fn run_live_checkout_to_paid_invoice_end_to_end() {
         .expect("failed to link stripe customer");
 
     // Attach payment method + set as default
-    let pm_id = attach_test_payment_method(&stripe_customer_id).await;
-    service
+    let pm_id = attach_test_payment_method(&stripe.client, &stripe_customer_id).await;
+    stripe
+        .service
         .set_default_payment_method(&stripe_customer_id, &pm_id)
         .await
         .expect("set default pm");
@@ -635,7 +481,8 @@ async fn run_live_checkout_to_paid_invoice_end_to_end() {
     let mut metadata = std::collections::HashMap::new();
     metadata.insert("customer_id".to_string(), customer_id.to_string());
 
-    let finalized = service
+    let finalized = stripe
+        .service
         .create_and_finalize_invoice(&stripe_customer_id, &line_items, Some(&metadata), None)
         .await
         .expect("finalize invoice");
@@ -677,7 +524,7 @@ async fn run_live_checkout_to_paid_invoice_end_to_end() {
     );
 
     // Cleanup
-    delete_stripe_customer(&service, &stripe_customer_id).await;
+    delete_stripe_customer(&stripe.client, &stripe_customer_id).await;
 }
 
 async fn run_mock_checkout_to_paid_invoice_end_to_end() {
@@ -745,22 +592,23 @@ async fn run_live_webhook_idempotent() {
         .await
         .expect("failed to connect to integration DB");
 
+    let client = integration_helpers::http_client();
+    let base = integration_helpers::api_base();
+
     // Construct a synthetic webhook event and POST it twice to /webhooks/stripe.
     // The idempotency mechanism (webhook_events table) should process it only once.
     let event_id = format!("evt_test_idempotent_{}", uuid::Uuid::new_v4());
     let stripe_invoice_id = format!("in_test_idempotent_{}", uuid::Uuid::new_v4());
 
-    // Seed a matching invoice so the handler has something to mark paid
-    let customer_id: uuid::Uuid = sqlx::query_scalar("SELECT id FROM customers LIMIT 1")
+    // Create a dedicated customer so this live test does not depend on leftover DB state.
+    let email = format!("stripe-idempotent-{}@flapjack.foo", uuid::Uuid::new_v4());
+    let _jwt = integration_helpers::register_and_login(&client, &base, &email).await;
+    let customer_id: uuid::Uuid = sqlx::query_scalar("SELECT id FROM customers WHERE email = $1")
+        .bind(&email)
         .fetch_optional(&pool)
         .await
         .expect("query failed")
-        .unwrap_or_else(uuid::Uuid::nil);
-
-    require_live_locked!(
-        !customer_id.is_nil(),
-        "no customers in integration DB for idempotency test"
-    );
+        .expect("registered integration customer not found in DB");
 
     sqlx::query(
         "INSERT INTO invoices (id, customer_id, period_start, period_end, subtotal_cents, total_cents, status, stripe_invoice_id, created_at, updated_at)
@@ -797,9 +645,6 @@ async fn run_live_webhook_idempotent() {
     let timestamp = chrono::Utc::now().timestamp();
 
     let signature = build_stripe_webhook_signature(&webhook_secret, &payload_str, timestamp);
-
-    let client = integration_helpers::http_client();
-    let base = integration_helpers::api_base();
 
     // First POST — should process the event
     let resp1 = client
@@ -949,7 +794,7 @@ async fn run_live_payment_failure_on_declined_card() {
         .await
         .expect("failed to connect to integration DB");
 
-    let service = build_stripe_service();
+    let stripe = build_live_stripe_handles();
 
     // Create a test customer with a declining card
     let email = format!("stripe-dunning-{}@flapjack.foo", uuid::Uuid::new_v4());
@@ -965,7 +810,8 @@ async fn run_live_payment_failure_on_declined_card() {
         .await
         .expect("customer not found");
 
-    let stripe_customer_id = service
+    let stripe_customer_id = stripe
+        .service
         .create_customer("Dunning Test", &email)
         .await
         .expect("create stripe customer");
@@ -978,8 +824,9 @@ async fn run_live_payment_failure_on_declined_card() {
         .expect("link stripe customer");
 
     // Attach a declining card and set as default
-    let pm_id = attach_declining_payment_method(&stripe_customer_id).await;
-    service
+    let pm_id = attach_declining_payment_method(&stripe.client, &stripe_customer_id).await;
+    stripe
+        .service
         .set_default_payment_method(&stripe_customer_id, &pm_id)
         .await
         .expect("set default pm");
@@ -990,7 +837,8 @@ async fn run_live_payment_failure_on_declined_card() {
         amount_cents: 500,
     }];
 
-    let finalized = service
+    let finalized = stripe
+        .service
         .create_and_finalize_invoice(&stripe_customer_id, &line_items, None, None)
         .await
         .expect("finalize invoice");
@@ -1046,7 +894,7 @@ async fn run_live_payment_failure_on_declined_card() {
     );
 
     // Cleanup
-    delete_stripe_customer(&service, &stripe_customer_id).await;
+    delete_stripe_customer(&stripe.client, &stripe_customer_id).await;
 }
 
 async fn run_mock_payment_failure_webhook_declined_card() {
@@ -1113,9 +961,7 @@ async fn run_mock_payment_failure_webhook_declined_card() {
 async fn stripe_checkout_to_paid_invoice_end_to_end() {
     run_mock_checkout_to_paid_invoice_end_to_end().await;
 
-    if stripe_api_available() {
-        let webhook_available = stripe_webhook_available().await;
-        require_live_locked!(webhook_available, "stripe webhook forwarding not available");
+    if live_webhook_pipeline_ready().await {
         run_live_checkout_to_paid_invoice_end_to_end().await;
     }
 }
@@ -1157,39 +1003,58 @@ mod helper_tests {
     #[tokio::test]
     async fn validate_stripe_key_live_err_when_key_missing() {
         let lock = integration_helpers::test_env_lock();
-        let _guard = EnvGuard::new(&["STRIPE_TEST_SECRET_KEY"], lock);
-        std::env::remove_var("STRIPE_TEST_SECRET_KEY");
+        let _guard = EnvGuard::new(&["STRIPE_SECRET_KEY"], lock);
+        std::env::remove_var("STRIPE_SECRET_KEY");
         let result = validate_stripe_key_live().await;
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("STRIPE_TEST_SECRET_KEY"));
+        assert!(result.unwrap_err().contains("STRIPE_SECRET_KEY"));
     }
 
     #[tokio::test]
     async fn validate_stripe_key_live_err_when_key_bad_prefix() {
         let lock = integration_helpers::test_env_lock();
-        let _guard = EnvGuard::new(&["STRIPE_TEST_SECRET_KEY"], lock);
-        std::env::set_var("STRIPE_TEST_SECRET_KEY", "rk_live_bad");
+        let _guard = EnvGuard::new(&["STRIPE_SECRET_KEY"], lock);
+        std::env::set_var("STRIPE_SECRET_KEY", "sk_live_bad");
         let result = validate_stripe_key_live().await;
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("sk_test_"));
+    }
+
+    #[test]
+    fn stripe_test_key_reads_canonical_env_and_rejects_non_test_prefixes() {
+        let lock = integration_helpers::test_env_lock();
+        let _guard = EnvGuard::new(&["STRIPE_SECRET_KEY", "STRIPE_TEST_SECRET_KEY"], lock);
+
+        std::env::remove_var("STRIPE_SECRET_KEY");
+        std::env::set_var("STRIPE_TEST_SECRET_KEY", "sk_test_legacy");
+        assert!(
+            stripe_test_key().is_none(),
+            "legacy STRIPE_TEST_SECRET_KEY should not drive this owner"
+        );
+
+        std::env::set_var("STRIPE_SECRET_KEY", "sk_test_abc");
+        assert!(stripe_test_key().is_some());
+
+        std::env::set_var("STRIPE_SECRET_KEY", "sk_live_abc");
+        assert!(stripe_test_key().is_none());
+
+        std::env::set_var("STRIPE_SECRET_KEY", "rk_test_abc");
+        assert!(stripe_test_key().is_none());
     }
 
     #[tokio::test]
     async fn validate_stripe_webhook_delivery_err_when_no_key() {
         let lock = integration_helpers::test_env_lock();
         let _guard = EnvGuard::new(
-            &[
-                "STRIPE_TEST_SECRET_KEY",
-                "STRIPE_WEBHOOK_SECRET",
-                "INTEGRATION",
-            ],
+            &["STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET", "INTEGRATION"],
             lock,
         );
-        std::env::remove_var("STRIPE_TEST_SECRET_KEY");
+        std::env::remove_var("STRIPE_SECRET_KEY");
         std::env::remove_var("STRIPE_WEBHOOK_SECRET");
         std::env::remove_var("INTEGRATION");
         let result = validate_stripe_webhook_delivery().await;
         assert!(result.is_err());
+        assert!(result.unwrap_err().contains("STRIPE_SECRET_KEY"));
     }
 
     #[test]
@@ -1211,15 +1076,11 @@ mod helper_tests {
     fn webhook_configuration_requires_secret_and_integration() {
         let lock = integration_helpers::test_env_lock();
         let _guard = EnvGuard::new(
-            &[
-                "STRIPE_TEST_SECRET_KEY",
-                "STRIPE_WEBHOOK_SECRET",
-                "INTEGRATION",
-            ],
+            &["STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET", "INTEGRATION"],
             lock,
         );
 
-        std::env::set_var("STRIPE_TEST_SECRET_KEY", "sk_test_abc");
+        std::env::set_var("STRIPE_SECRET_KEY", "sk_test_abc");
         assert!(stripe_api_available());
         assert!(!stripe_webhook_configured());
 
@@ -1236,9 +1097,7 @@ mod helper_tests {
 async fn stripe_webhook_is_idempotent() {
     run_mock_webhook_idempotent().await;
 
-    if stripe_api_available() {
-        let webhook_available = stripe_webhook_available().await;
-        require_live_locked!(webhook_available, "stripe webhook forwarding not available");
+    if live_webhook_pipeline_ready().await {
         run_live_webhook_idempotent().await;
     }
 }
@@ -1247,9 +1106,7 @@ async fn stripe_webhook_is_idempotent() {
 async fn stripe_payment_failure_webhook_fires_on_declined_card() {
     run_mock_payment_failure_webhook_declined_card().await;
 
-    if stripe_api_available() {
-        let webhook_available = stripe_webhook_available().await;
-        require_live_locked!(webhook_available, "stripe webhook forwarding not available");
+    if live_webhook_pipeline_ready().await {
         run_live_payment_failure_on_declined_card().await;
     }
 }

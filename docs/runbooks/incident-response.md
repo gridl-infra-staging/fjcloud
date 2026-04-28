@@ -20,12 +20,43 @@
 - Identify affected scope (all customers, single customer, single region)
 - Assign incident owner
 
-### 3. Communication
-- Update status page (`SERVICE_STATUS` env var):
-  - `operational` → `degraded` or `outage`
-  - Set `SERVICE_STATUS_UPDATED` to current timestamp
-- Post in #incidents Slack channel
-- For P1: notify all stakeholders immediately
+### 3. Communication (customer-comms first)
+
+For customer-visible P1/P2 incidents, publish status immediately before deep investigation:
+
+```bash
+# Staging example
+bash scripts/set_status.sh staging degraded "Investigating elevated API errors"
+
+# Prod example
+bash scripts/set_status.sh prod outage "Service disruption under investigation"
+```
+
+- `bash scripts/set_status.sh <env> <status> [message]` writes `service_status.json` to `s3://fjcloud-releases-<env>/service_status.json`.
+- The command verifies the public object URL `https://fjcloud-releases-<env>.s3.amazonaws.com/service_status.json` before returning.
+- No deploy or process restart is required.
+- Omitting `[message]` clears the public incident text (the published payload omits `message`):
+  - `bash scripts/set_status.sh prod operational`
+  - `bash scripts/set_status.sh staging operational`
+- Post in #incidents Slack channel.
+- For P1: notify all stakeholders immediately.
+
+#### One-time operator setup for status publishing (repeat for staging and prod)
+
+Run these prerequisites once per releases bucket (`fjcloud-releases-staging` and `fjcloud-releases-prod`) before first use:
+
+1. Keep ACL blocking enabled, but allow policy-based public read for one object only.
+   - Keep `BlockPublicAcls=true` and `IgnorePublicAcls=true`.
+   - Set `BlockPublicPolicy=false` and `RestrictPublicBuckets=false`.
+2. Attach a bucket policy that grants `s3:GetObject` on exactly `arn:aws:s3:::fjcloud-releases-<env>/service_status.json` (no wildcard release-artifact prefixes).
+3. Configure bucket CORS for `GET` only from the matching site origin:
+   - Staging bucket origin: `https://staging.cloud.flapjack.foo`
+   - Prod bucket origin: `https://cloud.flapjack.foo`
+4. Seed the initial object before first incident command:
+   - `bash scripts/set_status.sh staging operational`
+   - `bash scripts/set_status.sh prod operational`
+
+Secret/env loading precedence is owned by [`docs/design/secret_sources.md`](../design/secret_sources.md) and enforced by `scripts/lib/env.sh::load_env_file`; do not duplicate loader rules in incident steps.
 
 ### 4. Investigation & resolution
 - Follow relevant runbook (VM health, customer suspension, invoice troubleshooting, etc.)
@@ -34,7 +65,10 @@
 - Apply fix and verify resolution
 
 ### 5. Recovery
-- Update status page back to `operational`
+- Clear customer-facing incident status as soon as mitigation is confirmed:
+  - `bash scripts/set_status.sh prod operational`
+  - `bash scripts/set_status.sh staging operational`
+  - Omitting `[message]` clears the public incident text.
 - Verify all affected customers are restored
 - Monitor for recurrence (30 minutes minimum)
 

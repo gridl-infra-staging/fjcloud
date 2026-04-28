@@ -2,6 +2,7 @@ mod common;
 
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
+use chrono::{DateTime, Utc};
 use http_body_util::BodyExt;
 use tower::ServiceExt;
 use uuid::Uuid;
@@ -37,6 +38,10 @@ async fn create_tenant_returns_201() {
     assert_eq!(json["name"], "Acme Corp");
     assert_eq!(json["email"], "admin@acme.com");
     assert_eq!(json["status"], "active");
+    assert!(json["last_accessed_at"].is_null());
+    assert!(json["subscription_status"].is_null());
+    assert_eq!(json["overdue_invoice_count"], 0);
+    assert_eq!(json["billing_health"], "grey");
     // id should be a valid UUID
     Uuid::parse_str(json["id"].as_str().unwrap()).expect("id should be a UUID");
     // created_at and updated_at should be present
@@ -113,6 +118,55 @@ async fn list_tenants_returns_200_with_data() {
 }
 
 #[tokio::test]
+async fn list_tenants_derives_billing_health_for_subscription_combinations() {
+    let repo = common::mock_repo();
+    let green_active = repo.seed("Green Active", "green_active@example.com");
+    let green_trialing = repo.seed("Green Trialing", "green_trialing@example.com");
+    let yellow_incomplete = repo.seed("Yellow Incomplete", "yellow_incomplete@example.com");
+    let yellow_overdue = repo.seed("Yellow Overdue", "yellow_overdue@example.com");
+    let red_past_due = repo.seed("Red Past Due", "red_past_due@example.com");
+    let red_unpaid = repo.seed("Red Unpaid", "red_unpaid@example.com");
+    let grey_none = repo.seed("Grey None", "grey_none@example.com");
+
+    let seeded_at = Utc::now();
+    repo.seed_billing_health_inputs(green_active.id, Some(seeded_at), Some("active"), 0);
+    repo.seed_billing_health_inputs(green_trialing.id, Some(seeded_at), Some("trialing"), 0);
+    repo.seed_billing_health_inputs(yellow_incomplete.id, Some(seeded_at), Some("incomplete"), 0);
+    repo.seed_billing_health_inputs(yellow_overdue.id, Some(seeded_at), Some("active"), 2);
+    repo.seed_billing_health_inputs(red_past_due.id, Some(seeded_at), Some("past_due"), 0);
+    repo.seed_billing_health_inputs(red_unpaid.id, Some(seeded_at), Some("unpaid"), 0);
+    repo.seed_billing_health_inputs(grey_none.id, Some(seeded_at), None, 0);
+
+    let app = common::test_app_with_repo(repo);
+    let req = Request::builder()
+        .uri("/admin/tenants")
+        .header("x-admin-key", common::TEST_ADMIN_KEY)
+        .body(Body::empty())
+        .unwrap();
+
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let json = body_json(resp).await;
+    let tenants = json.as_array().expect("response should be an array");
+
+    let find_tenant = |name: &str| -> &serde_json::Value {
+        tenants
+            .iter()
+            .find(|tenant| tenant["name"] == name)
+            .unwrap_or_else(|| panic!("tenant '{name}' should be present"))
+    };
+
+    assert_eq!(find_tenant("Green Active")["billing_health"], "green");
+    assert_eq!(find_tenant("Green Trialing")["billing_health"], "green");
+    assert_eq!(find_tenant("Yellow Incomplete")["billing_health"], "yellow");
+    assert_eq!(find_tenant("Yellow Overdue")["billing_health"], "yellow");
+    assert_eq!(find_tenant("Red Past Due")["billing_health"], "red");
+    assert_eq!(find_tenant("Red Unpaid")["billing_health"], "red");
+    assert_eq!(find_tenant("Grey None")["billing_health"], "grey");
+}
+
+#[tokio::test]
 async fn list_tenants_empty_returns_200_with_empty_array() {
     let repo = common::mock_repo();
     let app = common::test_app_with_repo(repo);
@@ -139,6 +193,13 @@ async fn list_tenants_empty_returns_200_with_empty_array() {
 async fn get_tenant_returns_200() {
     let repo = common::mock_repo();
     let customer = repo.seed("Acme", "acme@example.com");
+    let expected_last_accessed_at = Utc::now();
+    repo.seed_billing_health_inputs(
+        customer.id,
+        Some(expected_last_accessed_at),
+        Some("past_due"),
+        3,
+    );
     let app = common::test_app_with_repo(repo);
 
     let req = Request::builder()
@@ -154,6 +215,15 @@ async fn get_tenant_returns_200() {
     assert_eq!(json["id"], customer.id.to_string());
     assert_eq!(json["name"], "Acme");
     assert_eq!(json["email"], "acme@example.com");
+    let observed_last_accessed_at: DateTime<Utc> = json["last_accessed_at"]
+        .as_str()
+        .expect("last_accessed_at should be serialized")
+        .parse()
+        .expect("last_accessed_at should parse as RFC3339");
+    assert_eq!(observed_last_accessed_at, expected_last_accessed_at);
+    assert_eq!(json["subscription_status"], "past_due");
+    assert_eq!(json["overdue_invoice_count"], 3);
+    assert_eq!(json["billing_health"], "red");
 }
 
 #[tokio::test]
@@ -317,6 +387,7 @@ async fn list_tenants_includes_deleted() {
     assert_eq!(arr[0]["name"], "Active Corp");
     assert_eq!(arr[1]["name"], "Gone Corp");
     assert_eq!(arr[1]["status"], "deleted");
+    assert_eq!(arr[1]["billing_health"], "grey");
 }
 
 // ===========================================================================

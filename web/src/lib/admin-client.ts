@@ -30,16 +30,24 @@ export interface AdminProviderSummary {
 	vm_count: number;
 }
 
+export type BillingHealthStatus = 'green' | 'yellow' | 'red' | 'grey';
+
 export interface AdminTenant {
 	id: string;
 	name: string;
 	email: string;
 	status: string;
+	billing_plan: string;
+	last_accessed_at: string | null;
+	subscription_status: string | null;
+	overdue_invoice_count: number;
+	billing_health: BillingHealthStatus;
 	created_at: string;
+	updated_at: string;
 }
 
 export interface AdminTenantDetail extends AdminTenant {
-	stripe_customer_id: string | null;
+	stripe_customer_id?: string | null;
 }
 
 export interface AdminRateCard {
@@ -210,6 +218,15 @@ export interface AdminReplicaEntry {
 	updated_at: string;
 }
 
+export interface AdminAuditRow {
+	id: string;
+	actor_id: string;
+	action: string;
+	target_tenant_id: string | null;
+	metadata: unknown;
+	created_at: string;
+}
+
 export interface ColdIndexEntry {
 	customer_id: string;
 	customer_name?: string;
@@ -371,6 +388,10 @@ export class AdminClient extends BaseClient {
 		return this.get<AdminRateCard>(`/admin/tenants/${id}/rate-card`);
 	}
 
+	getCustomerAudit(id: string): Promise<AdminAuditRow[]> {
+		return this.get<AdminAuditRow[]>(`/admin/customers/${id}/audit`);
+	}
+
 	healthCheckDeployment(id: string): Promise<HealthCheckResponse> {
 		return this.post<HealthCheckResponse>(`/admin/deployments/${id}/health-check`);
 	}
@@ -387,10 +408,27 @@ export class AdminClient extends BaseClient {
 		return this.post<AdminActionResponse>(`/admin/customers/${id}/suspend`);
 	}
 
-	createToken(customerId: string, expiresInSecs?: number): Promise<CreateTokenResponse> {
+	/**
+	 * Mint a JWT for a customer via the admin API.
+	 *
+	 * `purpose` is an optional discriminator the server uses to decide whether
+	 * to write an `audit_log` row. The `?/impersonate` form action passes
+	 * `'impersonation'` so customer-trust review (T1.4 view) can show a
+	 * paper-trail of operator impersonation events. Routine token mints
+	 * (testing, ops scripts) leave `purpose` unset so audit_log stays
+	 * signal-dense.
+	 */
+	createToken(
+		customerId: string,
+		expiresInSecs?: number,
+		purpose?: string
+	): Promise<CreateTokenResponse> {
 		const body: Record<string, unknown> = { customer_id: customerId };
 		if (expiresInSecs !== undefined) {
 			body.expires_in_secs = expiresInSecs;
+		}
+		if (purpose !== undefined) {
+			body.purpose = purpose;
 		}
 		return this.post<CreateTokenResponse>('/admin/tokens', body);
 	}

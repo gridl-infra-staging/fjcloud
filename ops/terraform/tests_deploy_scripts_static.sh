@@ -41,6 +41,29 @@ assert_file_contains "$deploy_file" 'AWS-RunShellScript' "deploy.sh uses RunShel
 assert_file_not_contains "$deploy_file" 'ssh ' "deploy.sh does not use SSH"
 
 echo ""
+echo "--- deploy.sh: canary quiet-window control-plane contract ---"
+assert_file_contains "$deploy_file" 'SSM_CANARY_QUIET_UNTIL="/fjcloud/\$\{ENV\}/canary_quiet_until"' "deploy.sh defines SSM param path for canary quiet-window"
+assert_file_contains "$deploy_file" 'CANARY_QUIET_UNTIL=' "deploy.sh computes a canary quiet-window value"
+assert_file_contains "$deploy_file" 'aws ssm put-parameter' "deploy.sh writes canary quiet-window from caller side via SSM put-parameter"
+assert_file_contains "$deploy_file" '[[:space:]]--name "\$SSM_CANARY_QUIET_UNTIL"' "deploy.sh targets canary quiet-window key during caller-side SSM write"
+assert_file_contains "$deploy_file" 'strftime\("%Y-%m-%dT%H:%M:%SZ"\)' "deploy.sh quiet-window timestamp uses canonical UTC RFC3339 Zulu format"
+
+quiet_write_line=$(rg -n -- '--name "\$SSM_CANARY_QUIET_UNTIL"' "$deploy_file" | head -1 | cut -d: -f1 || true)
+send_command_line=$(rg -n 'aws ssm send-command' "$deploy_file" | head -1 | cut -d: -f1 || true)
+if [[ -n "$quiet_write_line" && -n "$send_command_line" && "$quiet_write_line" -lt "$send_command_line" ]]; then
+  pass "deploy.sh writes canary quiet-window before remote SSM send-command"
+else
+  fail "deploy.sh writes canary quiet-window before remote SSM send-command"
+fi
+
+source_count="$( (rg -n '^[[:space:]]*source \"\$SCRIPT_DIR/lib/' "$deploy_file" || true) | wc -l | tr -d '[:space:]')"
+if [[ "$source_count" == "1" ]]; then
+  pass "deploy.sh keeps deploy_validation.sh as the only sourced deploy helper owner"
+else
+  fail "deploy.sh keeps deploy_validation.sh as the only sourced deploy helper owner"
+fi
+
+echo ""
 echo "--- deploy.sh: rollback safety ---"
 assert_file_contains "$deploy_file" 'SSM_LAST_SHA="/fjcloud/.*last_deploy_sha"' "deploy.sh defines SSM param path for last deploy SHA"
 assert_file_contains "$deploy_file" 'aws ssm get-parameter' "deploy.sh reads previous SHA from SSM"
@@ -50,6 +73,10 @@ echo ""
 echo "--- deploy.sh: on-instance script contract ---"
 assert_file_contains "$deploy_file" 'aws s3 cp.*s3://.*\.new' "on-instance: downloads binaries as .new from S3"
 assert_file_contains "$deploy_file" 'aws s3 sync.*migrations' "on-instance: syncs migrations from S3"
+assert_file_contains "$deploy_file" 'generate_ssm_env\.sh.*\$ENV' "on-instance: refreshes runtime envs from SSM before restart"
+assert_file_contains "$deploy_file" '/etc/fjcloud/metering-env' "on-instance: writes metering env contract path"
+assert_file_contains "$deploy_file" 'SLACK_WEBHOOK_URL' "on-instance: metering env refresh includes Slack webhook var"
+assert_file_contains "$deploy_file" 'DISCORD_WEBHOOK_URL' "on-instance: metering env refresh includes Discord webhook var"
 assert_file_contains "$deploy_file" 'migrate\.sh.*\$ENV' "on-instance: runs migrations before binary swap"
 assert_file_contains "$deploy_file" 'mv.*\.new.*\$\{BIN_DIR\}' "on-instance: atomic binary swap via mv"
 assert_file_contains "$deploy_file" 'systemctl restart fjcloud-api' "on-instance: restarts fjcloud-api service"

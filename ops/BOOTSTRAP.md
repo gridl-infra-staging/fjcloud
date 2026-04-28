@@ -200,3 +200,4 @@ The deploy and migration scripts expect these SSM parameters to exist:
 |-----------|------|--------|
 | `/fjcloud/<env>/database_url` | SecureString | Terraform data module |
 | `/fjcloud/<env>/last_deploy_sha` | String | deploy.sh (auto-managed) |
+| `/fjcloud/<env>/canary_quiet_until` | String | deploy.sh (auto-managed control-plane key) |

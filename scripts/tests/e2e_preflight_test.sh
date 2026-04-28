@@ -33,6 +33,8 @@ fail() {
 source "$SCRIPT_DIR/lib/assertions.sh"
 # shellcheck source=lib/test_helpers.sh
 source "$SCRIPT_DIR/lib/test_helpers.sh"
+# shellcheck source=lib/local_dev_test_state.sh
+source "$SCRIPT_DIR/lib/local_dev_test_state.sh"
 
 # stage-2 preflight tests also exercise web/.env.local layering, so mirror the
 # repo .env.local backup/restore helper for the web-side env file.
@@ -58,12 +60,15 @@ backup_preflight_env_files() {
     local tmp_dir="$1"
     backup_repo_env_file "$tmp_dir/env_backup" || true
     backup_web_env_file "$tmp_dir/web_env_backup" || true
+    PREFLIGHT_VITE_BACKUP=$(backup_repo_path "$REPO_ROOT/web/node_modules/.bin/vite" "$tmp_dir/vite.backup")
 }
 
 restore_preflight_env_files() {
     local tmp_dir="$1"
     restore_repo_env_file "$tmp_dir/env_backup"
     restore_web_env_file "$tmp_dir/web_env_backup"
+    restore_repo_path "$REPO_ROOT/web/node_modules/.bin/vite" "${PREFLIGHT_VITE_BACKUP:-}"
+    PREFLIGHT_VITE_BACKUP=""
 }
 
 read_playwright_contract() {
@@ -72,6 +77,15 @@ read_playwright_contract() {
 
 read_local_dev_runbook() {
     cat "$LOCAL_DEV_RUNBOOK_FILE"
+}
+
+ensure_repo_vite_runtime_stub() {
+    mkdir -p "$REPO_ROOT/web/node_modules/.bin"
+    cat > "$REPO_ROOT/web/node_modules/.bin/vite" <<'EOF'
+#!/usr/bin/env bash
+exit 0
+EOF
+    chmod +x "$REPO_ROOT/web/node_modules/.bin/vite"
 }
 
 assert_contract_contains() {
@@ -152,6 +166,7 @@ test_admin_key_is_optional_when_playwright_owns_web_server() {
 
     rm -f "$REPO_ROOT/.env.local"
     rm -f "$REPO_ROOT/web/.env.local"
+    ensure_repo_vite_runtime_stub
 
     local all_probes_succeed_curl_body='for arg in "$@"; do
     case "$arg" in
@@ -214,6 +229,7 @@ ADMIN_KEY=web-fallback-admin-key
 SEED_USER_EMAIL=web-seed@example.com
 SEED_USER_PASSWORD=web-seed-password
 EOF
+    ensure_repo_vite_runtime_stub
 
     local verify_explicit_curl_body
     verify_explicit_curl_body=$(cat <<'EOF'
@@ -297,6 +313,7 @@ fi
 exit 1
 EOF
 )
+    ensure_repo_vite_runtime_stub
 
     local output
     output=$(run_preflight_isolated_with_curl_body "$tmp_dir" "$verify_api_base_url_curl_body" \
@@ -340,6 +357,46 @@ test_missing_admin_key_names_exact_prerequisite_for_external_base_url() {
         "preflight should not suggest alternate env-bootstrap entrypoints"
 }
 
+test_playwright_owned_frontend_reports_missing_vite_runtime_from_web_dev_owner() {
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    backup_preflight_env_files "$tmp_dir"
+    trap 'restore_preflight_env_files "'"$tmp_dir"'"; rm -rf "'"$tmp_dir"'"; trap - RETURN' RETURN
+
+    cat > "$REPO_ROOT/.env.local" <<'EOF'
+ADMIN_KEY=test-admin-key-for-preflight
+SEED_USER_EMAIL=dev@example.com
+SEED_USER_PASSWORD=localdev-password-1234
+EOF
+
+    rm -f "$REPO_ROOT/web/.env.local"
+    rm -f "$REPO_ROOT/web/node_modules/.bin/vite"
+
+    local healthy_api_and_auth_curl_body
+    healthy_api_and_auth_curl_body='for arg in "$@"; do
+    case "$arg" in
+        http://localhost:*/health)
+            exit 0
+            ;;
+        http://localhost:*/auth/login)
+            printf 200
+            exit 0
+            ;;
+    esac
+done
+exit 1'
+
+    local output
+    output=$(run_preflight_isolated_with_curl_body "$tmp_dir" "$healthy_api_and_auth_curl_body")
+
+    assert_contains "$output" "web/node_modules/.bin/vite is missing or not executable" \
+        "Playwright-owned frontend preflight should fail when the web-dev vite prerequisite is missing"
+    assert_contains "$output" "cd web && npm ci" \
+        "missing-vite failure should reuse the web-dev owner remediation command"
+    assert_contains "$output" "scripts/web-dev.sh" \
+        "missing-vite failure should route through the web-dev owner path"
+}
+
 test_service_connectivity_failure_includes_bootstrap_remediation() {
     local tmp_dir
     tmp_dir=$(mktemp -d)
@@ -356,8 +413,8 @@ EOF
     local output
     output=$(run_preflight_isolated "$tmp_dir" "BASE_URL=http://localhost:5173")
 
-    assert_contains "$output" "FAIL: API is not reachable" \
-        "service failure should include API connectivity diagnostics"
+    assert_contains "$output" "FAIL: API is not ready yet" \
+        "service failure should include API readiness diagnostics"
     assert_contains "$output" "FAIL: Web frontend is not reachable" \
         "service failure should include web connectivity diagnostics"
     assert_contains "$output" "scripts/bootstrap-env-local.sh" \
@@ -366,6 +423,50 @@ EOF
         "service connectivity failures should still reference the local-dev runbook"
     assert_not_contains "$output" ".env.local.example" \
         "service connectivity guidance should keep .env.local as the only bootstrap flow"
+}
+
+test_api_health_cold_start_failure_is_reported_before_browser_auth_probe() {
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    backup_preflight_env_files "$tmp_dir"
+    trap 'restore_preflight_env_files "'"$tmp_dir"'"; rm -rf "'"$tmp_dir"'"; trap - RETURN' RETURN
+
+    cat > "$REPO_ROOT/.env.local" <<'EOF'
+ADMIN_KEY=test-admin-key-for-preflight
+SEED_USER_EMAIL=dev@example.com
+SEED_USER_PASSWORD=localdev-password-1234
+EOF
+
+    mkdir -p "$REPO_ROOT/web/node_modules/.bin"
+    cat > "$REPO_ROOT/web/node_modules/.bin/vite" <<'EOF'
+#!/usr/bin/env bash
+exit 0
+EOF
+    chmod +x "$REPO_ROOT/web/node_modules/.bin/vite"
+
+    local cold_start_api_curl_body
+    cold_start_api_curl_body='for arg in "$@"; do
+    case "$arg" in
+        http://localhost:*/health)
+            exit 28
+            ;;
+        http://localhost:*/auth/login)
+            echo "AUTH_PROBE_SHOULD_NOT_RUN" >&2
+            exit 0
+            ;;
+    esac
+done
+exit 0'
+
+    local output
+    output=$(run_preflight_isolated_with_curl_body "$tmp_dir" "$cold_start_api_curl_body")
+
+    assert_contains "$output" "FAIL: API is not ready yet" \
+        "cold-start health misses should be reported as API readiness failures"
+    assert_not_contains "$output" "FAIL: Browser auth login failed" \
+        "preflight should not classify a cold-start API miss as an auth-route failure"
+    assert_not_contains "$output" "AUTH_PROBE_SHOULD_NOT_RUN" \
+        "preflight should skip the auth login probe until API health succeeds"
 }
 
 test_preflight_skips_web_probe_when_playwright_starts_web_server() {
@@ -381,6 +482,7 @@ ADMIN_KEY=test-admin-key-for-preflight
 SEED_USER_EMAIL=dev@example.com
 SEED_USER_PASSWORD=localdev-password-1234
 EOF
+    ensure_repo_vite_runtime_stub
 
     local api_only_curl_body
     api_only_curl_body='for arg in "$@"; do
@@ -418,6 +520,7 @@ ADMIN_KEY=test-admin-key-for-preflight
 SEED_USER_EMAIL=dev@example.com
 SEED_USER_PASSWORD=localdev-password-1234
 EOF
+    ensure_repo_vite_runtime_stub
 
     local auth_probe_failure_curl_body
     auth_probe_failure_curl_body='for arg in "$@"; do
@@ -591,7 +694,9 @@ main() {
     test_layered_env_files_feed_preflight_fallback_chain
     test_api_base_url_override_drives_api_probe
     test_missing_admin_key_names_exact_prerequisite_for_external_base_url
+    test_playwright_owned_frontend_reports_missing_vite_runtime_from_web_dev_owner
     test_service_connectivity_failure_includes_bootstrap_remediation
+    test_api_health_cold_start_failure_is_reported_before_browser_auth_probe
     test_preflight_skips_web_probe_when_playwright_starts_web_server
     test_auth_login_failure_is_reported_before_browser_run
     test_failure_hint_points_to_local_dev_runbook

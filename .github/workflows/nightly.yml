@@ -1,0 +1,35 @@
+name: Nightly Stripe Clock
+
+on:
+  schedule:
+    - cron: "17 4 * * *"
+  workflow_dispatch:
+
+jobs:
+  stripe-test-clock-live:
+    # This lane is an unattended live Stripe clock regression check.
+    # It is intentionally isolated from pull_request/push CI in ci.yml.
+    runs-on: ubuntu-latest
+    env:
+      CARGO_INCREMENTAL: "0"
+      CARGO_PROFILE_TEST_DEBUG: "0"
+      RUSTFLAGS: "-Clink-arg=-fuse-ld=bfd"
+      STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+      STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+      STRIPE_PRICE_STARTER: ${{ secrets.STRIPE_PRICE_STARTER }}
+      INTEGRATION: "1"
+      BACKEND_LIVE_GATE: "1"
+      INTEGRATION_API_BASE: ${{ secrets.INTEGRATION_API_BASE }}
+      INTEGRATION_DB_URL: ${{ secrets.INTEGRATION_DB_URL }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Run nightly workflow contract tests
+        run: bash scripts/tests/nightly_workflow_test.sh
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # stable
+      - name: Set up rust cache
+        uses: Swatinem/rust-cache@ad397744b0d591a723ab90405b7247fac0e6b8db # v2
+        with:
+          workspaces: infra
+      - name: Run stripe test-clock lifecycle lane
+        run: cd infra && cargo test -p api --test stripe_test_clock_full_cycle_test

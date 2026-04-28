@@ -174,6 +174,7 @@ test.describe('Admin customer detail workflows', () => {
 		await expect(page.getByRole('button', { name: 'Invoices' })).toBeVisible();
 		await expect(page.getByRole('button', { name: 'Rate Card' })).toBeVisible();
 		await expect(page.getByRole('button', { name: 'Quotas' })).toBeVisible();
+		await expect(page.getByRole('button', { name: 'Audit' })).toBeVisible();
 	});
 
 	test('customer detail tabs lazy-mount on click and render panel content', async ({
@@ -225,6 +226,11 @@ test.describe('Admin customer detail workflows', () => {
 		await expect(quotasHeading).toHaveCount(0);
 		await page.getByRole('button', { name: 'Quotas' }).click();
 		await expectQuotaPanelWithoutIndexes(page);
+
+		const auditHeading = page.getByRole('heading', { name: 'Audit Timeline' });
+		await expect(auditHeading).toHaveCount(0);
+		await page.getByRole('button', { name: 'Audit' }).click();
+		await expect(page.getByText('No audit events recorded for this customer yet.')).toBeVisible();
 	});
 
 	test('quota update form submits and shows success feedback', async ({

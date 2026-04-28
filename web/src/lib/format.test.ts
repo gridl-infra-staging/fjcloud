@@ -1,16 +1,17 @@
-import { describe, it, expect } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+	adminBadgeColor,
 	formatCents,
-	formatUnitPrice,
-	formatPeriod,
 	formatDate,
-	statusLabel,
-	statusColor,
 	formatBytes,
 	formatNumber,
+	formatPeriod,
+	formatRelativeTime,
+	formatUnitPrice,
 	indexStatusBadgeColor,
 	scopeLabel,
-	adminBadgeColor
+	statusColor,
+	statusLabel
 } from './format';
 
 describe('formatCents', () => {
@@ -111,6 +112,37 @@ describe('formatDate', () => {
 	it('formats UTC midnight without date shift', () => {
 		// Midnight UTC should show as Feb 1, not Jan 31
 		expect(formatDate('2026-02-01T00:00:00Z')).toMatch(/Feb 1, 2026/);
+	});
+});
+
+describe('formatRelativeTime', () => {
+	const now = new Date('2026-04-26T12:00:00Z');
+
+	afterEach(() => {
+		vi.useRealTimers();
+	});
+
+	it('returns em dash for nullish and invalid inputs', () => {
+		expect(formatRelativeTime(null, now)).toBe('\u2014');
+		expect(formatRelativeTime(undefined, now)).toBe('\u2014');
+		expect(formatRelativeTime('', now)).toBe('\u2014');
+		expect(formatRelativeTime('not-a-date', now)).toBe('\u2014');
+	});
+
+	it('returns "just now" for recent timestamps', () => {
+		expect(formatRelativeTime('2026-04-26T11:59:30Z', now)).toBe('just now');
+	});
+
+	it('formats minute-scale timestamps deterministically', () => {
+		expect(formatRelativeTime('2026-04-26T11:58:30Z', now)).toBe('1m ago');
+	});
+
+	it('formats hour-scale timestamps deterministically', () => {
+		expect(formatRelativeTime('2026-04-26T08:00:00Z', now)).toBe('4h ago');
+	});
+
+	it('formats day-scale timestamps deterministically', () => {
+		expect(formatRelativeTime('2026-04-20T12:00:00Z', now)).toBe('6 days ago');
 	});
 });
 
@@ -277,6 +309,13 @@ describe('adminBadgeColor', () => {
 	it('returns slate for decommissioned', () => {
 		expect(adminBadgeColor('decommissioned')).toContain('slate');
 		expect(adminBadgeColor('decommissioned')).toContain('bg-slate-500/20');
+	});
+
+	it('returns explicit classes for billing health statuses', () => {
+		expect(adminBadgeColor('green')).toBe('bg-green-500/20 text-green-300 border-green-500/40');
+		expect(adminBadgeColor('yellow')).toBe('bg-yellow-500/20 text-yellow-300 border-yellow-500/40');
+		expect(adminBadgeColor('red')).toBe('bg-red-500/20 text-red-300 border-red-500/40');
+		expect(adminBadgeColor('grey')).toBe('bg-gray-500/20 text-gray-300 border-gray-500/40');
 	});
 
 	it('returns slate fallback for unknown statuses', () => {

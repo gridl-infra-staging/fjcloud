@@ -3,6 +3,26 @@ output "sns_topic_arn" {
   value       = aws_sns_topic.alerts.arn
 }
 
+output "customer_loop_canary_ecr_repository_url" {
+  description = "ECR repository URL for the customer loop canary Lambda image"
+  value       = aws_ecr_repository.customer_loop_canary.repository_url
+}
+
+output "customer_loop_canary_image_uri" {
+  description = "Canonical image URI used by the customer loop canary Lambda"
+  value       = local.customer_loop_canary_image_uri
+}
+
+output "customer_loop_canary_lambda_function_arn" {
+  description = "Lambda function ARN for the customer loop canary runtime"
+  value       = aws_lambda_function.customer_loop_canary.arn
+}
+
+output "customer_loop_canary_schedule_rule_name" {
+  description = "EventBridge schedule rule name for the customer loop canary runtime"
+  value       = aws_cloudwatch_event_rule.customer_loop_canary.name
+}
+
 output "api_cpu_high_alarm_arn" {
   description = "CloudWatch alarm ARN for API CPU over 80%"
   value       = aws_cloudwatch_metric_alarm.api_cpu_high.arn
@@ -66,4 +86,34 @@ output "live_e2e_budget_configured" {
 output "live_e2e_budget_action_enabled" {
   description = "Whether live E2E AWS Budgets action enforcement is operator-enabled"
   value       = var.live_e2e_budget_action_enabled
+}
+
+output "support_email_canary_ecr_repository_url" {
+  description = "ECR repository URL for support-email canary image publication"
+  value       = aws_ecr_repository.support_email_canary.repository_url
+}
+
+output "support_email_canary_lambda_function_name" {
+  description = "Lambda function name for support-email canary"
+  value       = aws_lambda_function.support_email_canary.function_name
+}
+
+output "support_email_canary_lambda_function_arn" {
+  description = "Lambda function ARN for support-email canary"
+  value       = aws_lambda_function.support_email_canary.arn
+}
+
+output "support_email_canary_schedule_name" {
+  description = "EventBridge schedule rule name for support-email canary"
+  value       = aws_cloudwatch_event_rule.support_email_canary.name
+}
+
+output "support_email_canary_schedule_arn" {
+  description = "EventBridge schedule rule ARN for support-email canary"
+  value       = aws_cloudwatch_event_rule.support_email_canary.arn
+}
+
+output "support_email_canary_log_group_name" {
+  description = "CloudWatch log group name for support-email canary Lambda"
+  value       = aws_cloudwatch_log_group.support_email_canary.name
 }

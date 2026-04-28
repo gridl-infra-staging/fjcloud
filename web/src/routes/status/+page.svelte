@@ -1,10 +1,20 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import { BETA_FEEDBACK_MAILTO } from '$lib/format';
+	import { onMount } from 'svelte';
+	import {
+		parseRuntimeStatusPayload,
+		resolveStatusRuntimeEnvironment,
+		statusLabelForServiceStatus,
+		type ServiceStatus,
+		type StatusRouteData
+	} from './status_contract';
 
-	let { data } = $props();
-
-	type ServiceStatus = 'operational' | 'degraded' | 'outage';
+	let { data }: { data: StatusRouteData } = $props();
+	let status = $state<ServiceStatus>('operational');
+	let statusLabel = $state('All Systems Operational');
+	let lastUpdated = $state(new Date().toISOString());
+	let message = $state<string | undefined>(undefined);
 
 	const statusColors: Record<
 		ServiceStatus,
@@ -30,11 +40,46 @@
 		}
 	};
 
-	const colors = $derived(statusColors[data.status as ServiceStatus] ?? statusColors.operational);
+	const colors = $derived(statusColors[status] ?? statusColors.operational);
 
 	function formatTimestamp(iso: string): string {
 		return new Date(iso).toLocaleString();
 	}
+
+	$effect(() => {
+		status = data.status;
+		statusLabel = data.statusLabel;
+		lastUpdated = data.lastUpdated;
+		message = data.message;
+	});
+
+	onMount(async () => {
+		const runtimeEnvironment = resolveStatusRuntimeEnvironment(window.location.hostname);
+		if (!runtimeEnvironment) {
+			return;
+		}
+
+		try {
+			const response = await fetch(
+				`https://fjcloud-releases-${runtimeEnvironment}.s3.amazonaws.com/service_status.json`
+			);
+			if (!response.ok) {
+				return;
+			}
+
+			const payload = parseRuntimeStatusPayload(await response.json());
+			if (!payload) {
+				return;
+			}
+
+			status = payload.status;
+			statusLabel = statusLabelForServiceStatus(payload.status);
+			lastUpdated = payload.lastUpdated;
+			message = payload.message;
+		} catch {
+			// Keep prerendered fallback when runtime fetch/JSON parsing fails.
+		}
+	});
 </script>
 
 <svelte:head>
@@ -66,12 +111,15 @@
 		class={`mt-6 flex items-center gap-3 rounded-lg border p-5 ${colors.bg} ${colors.border}`}
 	>
 		<span class={`h-3 w-3 rounded-full ${colors.dot}`}></span>
-		<span class={`text-lg font-semibold ${colors.text}`}>{data.statusLabel}</span>
+		<span class={`text-lg font-semibold ${colors.text}`}>{statusLabel}</span>
 	</div>
 
 	<p data-testid="status-last-updated" class="mt-4 text-sm text-gray-500">
-		Last updated: {formatTimestamp(data.lastUpdated)}
+		Last updated: {formatTimestamp(lastUpdated)}
 	</p>
+	{#if message}
+		<p data-testid="status-incident-message" class="mt-2 text-sm text-gray-700">{message}</p>
+	{/if}
 
 	<div class="mt-10 rounded-lg border border-gray-200 bg-white p-6">
 		<h2 class="text-lg font-semibold text-gray-900">About this page</h2>

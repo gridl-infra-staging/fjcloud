@@ -1,5 +1,4 @@
 pub mod api_key;
-pub mod ayb_tenant;
 pub mod cold_snapshot;
 pub mod customer;
 pub mod deployment;
@@ -18,7 +17,6 @@ pub mod usage_daily;
 pub mod vm_inventory;
 
 pub use api_key::ApiKeyRow;
-pub use ayb_tenant::{AybTenant, AybTenantStatus, NewAybTenant};
 pub use cold_snapshot::{ColdSnapshot, NewColdSnapshot};
 pub use customer::{BillingPlan, Customer};
 pub use deployment::Deployment;

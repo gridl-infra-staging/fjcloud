@@ -12,6 +12,7 @@ import {
 } from '$lib/server/admin-session';
 import { authCookieOptions } from '$lib/server/auth-cookies';
 import type {
+	AdminAuditRow,
 	AdminFleetDeployment,
 	AdminRateCard,
 	AdminTenantDetail,
@@ -27,6 +28,7 @@ type CustomerDetailData = {
 	invoices: InvoiceListItem[] | null;
 	rateCard: AdminRateCard | null;
 	quotas: TenantQuotasResponse | null;
+	audit: AdminAuditRow[] | null;
 };
 
 type AdminCookieReader = { get(name: string): string | undefined };
@@ -88,12 +90,13 @@ export const load: PageServerLoad = async ({ fetch, params, depends }) => {
 		throw err;
 	}
 
-	const [deployments, usage, invoices, rateCard, quotas] = await Promise.all([
+	const [deployments, usage, invoices, rateCard, quotas, audit] = await Promise.all([
 		loadOptional(() => retryTransientAdminApiRequest(() => client.getTenantDeployments(params.id))),
 		loadOptional(() => retryTransientAdminApiRequest(() => client.getTenantUsage(params.id))),
 		loadOptional(() => retryTransientAdminApiRequest(() => client.getTenantInvoices(params.id))),
 		loadOptional(() => retryTransientAdminApiRequest(() => client.getTenantRateCard(params.id))),
-		loadOptional(() => retryTransientAdminApiRequest(() => client.getQuotas(params.id)))
+		loadOptional(() => retryTransientAdminApiRequest(() => client.getQuotas(params.id))),
+		loadOptional(() => retryTransientAdminApiRequest(() => client.getCustomerAudit(params.id)))
 	]);
 
 	return {
@@ -103,7 +106,8 @@ export const load: PageServerLoad = async ({ fetch, params, depends }) => {
 		usage,
 		invoices,
 		rateCard,
-		quotas
+		quotas,
+		audit
 	} satisfies CustomerDetailData;
 };
 
@@ -194,7 +198,15 @@ export const actions = {
 		const client = authenticatedAdminClient(fetch, cookies);
 
 		try {
-			const { token } = await client.createToken(params.id, IMPERSONATION_MAX_AGE);
+			// Pass purpose='impersonation' so the API writes an audit_log row.
+			// Without this, impersonation events look indistinguishable from
+			// routine admin token mints in T1.4's per-customer audit view —
+			// the whole point of the paper trail.
+			const { token } = await client.createToken(
+				params.id,
+				IMPERSONATION_MAX_AGE,
+				'impersonation'
+			);
 			const cookieOptions = authCookieOptions(url, IMPERSONATION_MAX_AGE, '/');
 			cookies.set(AUTH_COOKIE, token, cookieOptions);
 			cookies.set(IMPERSONATION_COOKIE, `/admin/customers/${params.id}`, cookieOptions);

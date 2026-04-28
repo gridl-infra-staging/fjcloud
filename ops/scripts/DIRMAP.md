@@ -10,15 +10,26 @@ Usage: deploy.sh <env> <git-sha>
 
 Flow:
   1. |
-| live_e2e_budget_guardrail_prep.sh | Stub summary for live_e2e_budget_guardrail_prep.sh. |
-| live_e2e_ttl_janitor.sh | Stub summary for live_e2e_ttl_janitor.sh. |
+| live_e2e_budget_guardrail_prep.sh | live_e2e_budget_guardrail_prep.sh -- prepare a non-mutating budget-action proposal. |
+| live_e2e_ttl_janitor.sh | live_e2e_ttl_janitor.sh — fail-closed TTL cleanup for disposable live-E2E resources. |
 | migrate.sh | migrate.sh — Run SQL migrations on EC2 instance
 Called by deploy.sh via SSM or manually. |
 | provision_bootstrap.sh | provision_bootstrap.sh — Create AWS bootstrap prerequisites for fjcloud
 
 Idempotent counterpart to validate_bootstrap.sh: creates the resources
 that validate_bootstrap.sh checks. |
-| rds_restore_drill.sh | Stub summary for rds_restore_drill.sh. |
+| rds_restore_drill.sh | rds_restore_drill.sh — operator-only restore rehearsal entrypoint
+
+Usage: rds_restore_drill.sh <env> [options]
+  env: staging | prod
+
+Required options:
+  --source-db-instance-id <id>
+  --target-db-instance-id <id>
+
+Exactly one restore mode is required:
+  --snapshot-id <snapshot-id>
+  --restore-time <RFC3339 timestamp>. |
 | rds_restore_evidence.sh | rds_restore_evidence.sh — wrapper around rds_restore_drill.sh for evidence artifacts.
 
 This script owns:
@@ -44,9 +55,9 @@ Prerequisites checked:
   - S3 releases bucket (versioned, public access blocked)
   - DynamoDB lock table with LockID key
   - SSM parameters (database_url as SecureString)
-  - Route53 hosted zone with DelegationSet NameServers. |
+  - Cloudflare DNS credentials for the public staging zone. |
 
 | Directory | Summary |
 | --- | --- |
-| lib | This lib directory contains shared deployment and operational utilities: deploy validation gate checks, SSM parameter-to-environment-variable mapping and loading, and RDS restore tooling. |
+| lib | Shared utilities for deployment validation, service environment configuration via SSM parameters, and RDS restoration. |
 <!-- [scrai:end] -->

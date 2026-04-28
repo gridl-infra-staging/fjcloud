@@ -15,7 +15,6 @@
 	const navItems = [
 		{ href: '/dashboard' as const, label: 'Dashboard', icon: 'home' },
 		{ href: '/dashboard/indexes' as const, label: 'Indexes', icon: 'database' },
-		{ href: '/dashboard/database' as const, label: 'Database', icon: 'database' },
 		{ href: '/dashboard/billing' as const, label: 'Billing', icon: 'credit-card' },
 		{ href: '/dashboard/api-keys' as const, label: 'API Keys', icon: 'key' },
 		{ href: '/dashboard/logs' as const, label: 'Logs', icon: 'list' },

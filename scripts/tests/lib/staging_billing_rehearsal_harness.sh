@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Shared harness helpers for staging_billing_rehearsal shell tests.
 
+# shellcheck source=staging_billing_rehearsal_reset_harness_blocks.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/staging_billing_rehearsal_reset_harness_blocks.sh"
 RUN_STDOUT=""
 RUN_EXIT_CODE=0
 TEST_WORKSPACE=""
@@ -35,6 +37,7 @@ shell_quote_for_script() {
 }
 
 setup_workspace() {
+    local test_tenant_allowlist="${1:-}"
     TEST_WORKSPACE="$(mktemp -d)"
     CLEANUP_DIRS+=("$TEST_WORKSPACE")
     TEST_CALL_LOG="$TEST_WORKSPACE/calls.log"
@@ -64,20 +67,22 @@ setup_workspace() {
     write_mock_psql
     write_mock_curl
     write_mock_stripe
-    write_explicit_env_file "$TEST_WORKSPACE/inputs/staging_rehearsal.explicit.env"
+    write_explicit_env_file "$TEST_WORKSPACE/inputs/staging_rehearsal.explicit.env" "$test_tenant_allowlist"
     write_malformed_env_file "$TEST_WORKSPACE/inputs/staging_rehearsal.malformed.env"
 }
 
 write_mock_psql() {
     local quoted_log
     quoted_log="$(shell_quote_for_script "$TEST_CALL_LOG")"
-    local invoice_attempt_file webhook_attempt_file
+    local invoice_attempt_file webhook_attempt_file reset_deleted_file
     invoice_attempt_file="$(shell_quote_for_script "$TEST_WORKSPACE/tmp/mock_psql_invoice_attempt.txt")"
     webhook_attempt_file="$(shell_quote_for_script "$TEST_WORKSPACE/tmp/mock_psql_webhook_attempt.txt")"
+    reset_deleted_file="$(shell_quote_for_script "$TEST_WORKSPACE/tmp/mock_psql_reset_deleted_ids.txt")"
 
     cat > "$TEST_WORKSPACE/bin/psql" <<MOCK
 #!/usr/bin/env bash
 echo "psql|\$*" >> $quoted_log
+RESET_DELETED_FILE=$reset_deleted_file
 sql=""
 while [ "\$#" -gt 0 ]; do
     if [ "\$1" = "-c" ] && [ "\$#" -ge 2 ]; then
@@ -167,6 +172,10 @@ if [[ "\$sql" == *"stage3_webhook_rows"* ]]; then
     esac
     exit 0
 fi
+
+MOCK
+    mock_psql_reset_script_block >> "$TEST_WORKSPACE/bin/psql"
+    cat >> "$TEST_WORKSPACE/bin/psql" <<'MOCK'
 
 echo "1"
 exit 0
@@ -380,16 +389,19 @@ write_mock_stripe() {
     local quoted_log
     quoted_log="$(shell_quote_for_script "$TEST_CALL_LOG")"
 
-    cat > "$TEST_WORKSPACE/bin/stripe" <<MOCK
+    {
+        cat <<MOCK
 #!/usr/bin/env bash
 echo "stripe|\$*" >> $quoted_log
-exit 0
 MOCK
+        mock_stripe_reset_script_block
+    } > "$TEST_WORKSPACE/bin/stripe"
     chmod +x "$TEST_WORKSPACE/bin/stripe"
 }
 
 write_explicit_env_file() {
     local path="$1"
+    local test_tenant_allowlist="${2:-}"
     cat > "$path" <<'ENVFILE'
 STAGING_API_URL=https://staging-api.example.test
 STAGING_STRIPE_WEBHOOK_URL=https://staging-api.example.test/webhooks/stripe
@@ -400,6 +412,9 @@ DATABASE_URL=postgres://griddle:griddle_local@127.0.0.1:15432/fjcloud_dev
 INTEGRATION_DB_URL=postgres://griddle:griddle_local@127.0.0.1:15432/fjcloud_dev
 MAILPIT_API_URL=https://mailpit.example.test
 ENVFILE
+    if [ -n "$test_tenant_allowlist" ]; then
+        printf 'FJCLOUD_TEST_TENANT_IDS=%s\n' "$test_tenant_allowlist" >> "$path"
+    fi
 }
 
 write_explicit_env_file_without_keys() {
@@ -733,13 +748,11 @@ assert_rehearsal_fails_as_blocker() {
     assert_artifact_path_shape "$artifact_dir" "artifact dir should match deterministic rehearsal pattern"
     assert_summary_and_step_files_exist "$artifact_dir"
     assert_valid_json_file "$artifact_dir/summary.json" "blocker summary should remain machine-readable"
-
     assert_step_detail_shape "$artifact_dir/steps/preflight.json" "preflight"
     assert_step_detail_shape "$artifact_dir/steps/metering_evidence.json" "metering_evidence"
     assert_step_detail_shape "$artifact_dir/steps/live_mutation_guard.json" "live_mutation_guard"
     assert_step_detail_shape "$artifact_dir/steps/live_mutation_attempt.json" "live_mutation_attempt"
 }
-
 assert_rehearsal_succeeds() {
     assert_eq "$RUN_EXIT_CODE" "0" "rehearsal should succeed when live mutation evidence converges"
     local artifact_dir=""

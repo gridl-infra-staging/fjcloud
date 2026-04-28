@@ -9,21 +9,21 @@
  * BROWSER_TESTING_STANDARDS_2.md.  They must never appear in *.spec.ts files.
  */
 
-import { test as base, expect } from '@playwright/test';
+import { test as base, expect, type Page } from '@playwright/test';
+import { createHmac } from 'node:crypto';
 import { createSeedSearchableIndexFactory, type SeedSearchableIndexFn } from './searchable-index';
-import {
-	cleanupDatabaseRoutePersistedInstance,
-	seedDatabaseRoutePersistedInstance,
-	type SeededDatabaseRouteState
-} from './database_route_seed_helper';
 import {
 	requireLoopbackHttpUrl,
 	resolveFixtureEnv,
 	resolveRequiredFixtureUserCredentials
 } from '../../playwright.config.contract';
 import { requireAdminApiKey, requireNonEmptyString } from './contract-guards';
-import type { AybInstance, EstimatedBillResponse } from '../../src/lib/api/types';
-import { statusLabel } from '../../src/lib/format';
+import type { EstimatedBillResponse, SubscriptionResponse } from '../../src/lib/api/types';
+import type { AdminRateCard } from '../../src/lib/admin-client';
+import {
+	pricingContractSnapshotFromAdminRateCard,
+	type MarketingPricingContractSnapshot
+} from '../../src/lib/pricing';
 
 // ---------------------------------------------------------------------------
 // Internal HTTP helpers — never imported by spec files
@@ -52,6 +52,44 @@ export type CreatedFixtureUser = {
 	password: string;
 };
 
+export type FreshSignupIdentity = {
+	name: string;
+	email: string;
+	password: string;
+};
+
+type BatchBillingResult = {
+	customer_id: string;
+	status: string;
+	invoice_id: string | null;
+	reason: string | null;
+};
+
+type BatchBillingResponse = {
+	month: string;
+	invoices_created: number;
+	invoices_skipped: number;
+	results: BatchBillingResult[];
+};
+
+type ArrangePaidInvoiceForFreshSignupResult = {
+	customerId: string;
+	invoiceId: string;
+	billingMonth: string;
+	invoiceEmailDelivered: boolean;
+	invoiceEmailMessageId: string | null;
+};
+
+type ArrangeBillingDunningForFreshSignupResult = {
+	customerId: string;
+	dunningSubscriptionStatus: string;
+};
+
+type ArrangeRefundedInvoiceForFreshSignupResult = {
+	customerId: string;
+	refundedInvoiceId: string;
+};
+
 type TrackCustomerForCleanupFn = (customerId: string) => void;
 
 const JSON_CONTENT_TYPE = { 'Content-Type': 'application/json' } as const;
@@ -68,6 +106,8 @@ type FixtureSetupFailureParams = {
 	responseUrl?: string;
 	bootstrapCommand?: string;
 };
+
+const FRESH_SIGNUP_ARRANGE_SETUP_FAILURE_ALERT_PATTERN = /service is unavailable|verify API_URL/i;
 
 function formatAdminKeyFingerprint(adminKey?: string): string {
 	if (!adminKey?.trim()) {
@@ -118,6 +158,71 @@ export function formatFixtureSetupFailure({
 	].join('\n');
 }
 
+type ThrowFreshSignupArrangeFailureParams = {
+	currentPath: string;
+	alertText?: string | null;
+	responseStatus?: number;
+	responseUrl?: string;
+};
+type ThrowBillingPortalArrangeFailureParams = {
+	currentPath: string;
+	error: unknown;
+	responseStatus?: number;
+	responseUrl?: string;
+};
+
+export function isFreshSignupArrangePrerequisiteFailure(alertText: string): boolean {
+	return FRESH_SIGNUP_ARRANGE_SETUP_FAILURE_ALERT_PATTERN.test(alertText.trim());
+}
+
+export function throwFreshSignupArrangeFailure({
+	currentPath,
+	alertText,
+	responseStatus,
+	responseUrl
+}: ThrowFreshSignupArrangeFailureParams): never {
+	throw new Error(
+		formatFixtureSetupFailure({
+			setupName: 'fresh-signup arrange',
+			expectedPath: '/dashboard',
+			currentPath,
+			apiUrl: fixtureEnv.apiUrl,
+			adminKey: fixtureEnv.adminKey,
+			alertText,
+			responseStatus,
+			responseUrl
+		})
+	);
+}
+
+/** Throws a fixture-owned fail-closed setup error for billing-portal prerequisites. */
+function throwBillingPortalArrangeFailure({
+	currentPath,
+	error,
+	responseStatus,
+	responseUrl
+}: ThrowBillingPortalArrangeFailureParams): never {
+	throw new Error(
+		formatFixtureSetupFailure({
+			setupName: 'billing-portal arrange',
+			expectedPath: '/dashboard/billing',
+			currentPath,
+			apiUrl: fixtureEnv.apiUrl,
+			adminKey: fixtureEnv.adminKey,
+			alertText: setupFailureDetailsFromError(error),
+			responseStatus,
+			responseUrl
+		})
+	);
+}
+
+function setupFailureDetailsFromError(error: unknown): string {
+	if (error instanceof Error && error.message.trim()) {
+		return error.message.trim();
+	}
+	return String(error);
+}
+
 function buildJsonRequestInit(method: string, headers: JsonHeaders, body?: unknown): RequestInit {
 	return {
 		method,
@@ -162,6 +267,14 @@ type CreateRegisteredUserParams = {
 	name?: string;
 	trackCustomerForCleanup: TrackCustomerForCleanupFn;
 	fetchImpl?: typeof fetch;
+};
+
+type FetchDisposableTenantRateCardSnapshotParams = {
+	apiUrl: string;
+	adminKey?: string;
+	trackCustomerForCleanup: TrackCustomerForCleanupFn;
+	fetchImpl?: typeof fetch;
+	seed?: string;
 };
 
 export async function createRegisteredUser({
@@ -217,6 +330,39 @@ export async function createRegisteredUser({
 	}
 
 	throw new Error('createUser failed: exhausted retries after 429 rate limiting');
+}
+
+export async function fetchDisposableTenantRateCardSnapshot({
+	apiUrl,
+	adminKey,
+	trackCustomerForCleanup,
+	fetchImpl = fetch,
+	seed
+}: FetchDisposableTenantRateCardSnapshotParams): Promise<MarketingPricingContractSnapshot> {
+	const localApiUrl = requireLoopbackHttpUrl('API_URL', apiUrl);
+	const snapshotSeed = seed ?? `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+	const disposableUser = await createRegisteredUser({
+		apiUrl: localApiUrl,
+		email: `pricing-rate-card-${snapshotSeed}@e2e.griddle.test`,
+		password: 'TestPassword123!',
+		name: `Pricing Rate Card ${snapshotSeed}`,
+		trackCustomerForCleanup,
+		fetchImpl
+	});
+	const rateCardResponse = await callJsonApi(
+		fetchImpl,
+		localApiUrl,
+		'GET',
+		`/admin/tenants/${encodeURIComponent(disposableUser.customerId)}/rate-card`,
+		{ 'x-admin-key': requireAdminApiKey(adminKey) }
+	);
+	if (!rateCardResponse.ok) {
+		throw new Error(
+			`fetchDisposableTenantRateCardSnapshot failed: ${rateCardResponse.status} ${await rateCardResponse.text()}`
+		);
+	}
+	const rateCard = (await rateCardResponse.json()) as AdminRateCard;
+	return pricingContractSnapshotFromAdminRateCard(rateCard);
 }
 
 type LoginAsUserParams = {
@@ -336,6 +482,13 @@ type AdminReactivateCustomerByIdParams = {
 	fetchImpl?: typeof fetch;
 };
 
+type AdminSuspendCustomerByIdParams = {
+	apiUrl: string;
+	customerId: string;
+	adminKey?: string;
+	fetchImpl?: typeof fetch;
+};
+
 export async function adminReactivateCustomerById({
 	apiUrl,
 	customerId,
@@ -356,6 +509,29 @@ export async function adminReactivateCustomerById({
 	);
 	if (!res.ok) {
 		throw new Error(`adminReactivateCustomer failed: ${res.status} ${await res.text()}`);
+	}
+}
+
+export async function adminSuspendCustomerById({
+	apiUrl,
+	customerId,
+	adminKey,
+	fetchImpl = fetch
+}: AdminSuspendCustomerByIdParams): Promise<void> {
+	const localApiUrl = requireLoopbackHttpUrl('API_URL', apiUrl);
+	const normalizedCustomerId = requireNonEmptyString(
+		customerId,
+		'adminSuspendCustomerById requires a non-empty customerId'
+	);
+	const res = await callJsonApi(
+		fetchImpl,
+		localApiUrl,
+		'POST',
+		`/admin/customers/${encodeURIComponent(normalizedCustomerId)}/suspend`,
+		{ 'x-admin-key': requireAdminApiKey(adminKey) }
+	);
+	if (!res.ok) {
+		throw new Error(`adminSuspendCustomer failed: ${res.status} ${await res.text()}`);
 	}
 }
 
@@ -415,8 +591,13 @@ async function getCustomerId(): Promise<string> {
 	throw new Error('GET /account failed: exhausted retries after 429 rate limiting');
 }
 
-async function apiCall(method: string, path: string, body?: unknown): Promise<Response> {
-	const token = await getAuthToken();
+async function apiCall(
+	method: string,
+	path: string,
+	body?: unknown,
+	tokenOverride?: string
+): Promise<Response> {
+	const token = tokenOverride ?? (await getAuthToken());
 	return callJsonApi(
 		fetch,
 		fixtureEnv.apiUrl,
@@ -594,8 +775,8 @@ async function createSeededIndex(
 	throw new Error(`seedIndex failed after transient create retries: ${lastFailure}`);
 }
 
-async function getCurrentBillingPlan(): Promise<'free' | 'shared'> {
-	const res = await apiCall('GET', '/account');
+async function getCurrentBillingPlan(tokenOverride?: string): Promise<'free' | 'shared'> {
+	const res = await apiCall('GET', '/account', undefined, tokenOverride);
 	if (!res.ok) {
 		throw new Error(`GET /account failed: ${res.status} ${await res.text()}`);
 	}
@@ -603,8 +784,11 @@ async function getCurrentBillingPlan(): Promise<'free' | 'shared'> {
 	return data.billing_plan;
 }
 
-async function updateBillingPlan(plan: 'free' | 'shared'): Promise<void> {
-	const customerId = await getCustomerId();
+async function updateBillingPlan(
+	plan: 'free' | 'shared',
+	customerIdOverride?: string
+): Promise<void> {
+	const customerId = customerIdOverride ?? (await getCustomerId());
 	const res = await adminApiCall('PUT', `/admin/tenants/${encodeURIComponent(customerId)}`, {
 		billing_plan: plan
 	});
@@ -613,18 +797,729 @@ async function updateBillingPlan(plan: 'free' | 'shared'): Promise<void> {
 	}
 }
 
+type ArrangeBillingPortalCustomerResult = CreatedFixtureUser & {
+	subscription: SubscriptionResponse;
+};
+
+type ArrangeBillingPortalCustomerParams = {
+	trackCustomerForCleanup: TrackCustomerForCleanupFn;
+	cancelAtPeriodEnd?: boolean;
+};
+
+type EnsureCheckoutSubscriptionParams = {
+	customerId: string;
+	token: string;
+	contextLabel: string;
+	cancelAtPeriodEnd?: boolean;
+};
+
+type ArrangePaidInvoiceForFreshSignupParams = {
+	email: string;
+	password: string;
+	trackCustomerForCleanup: TrackCustomerForCleanupFn;
+};
+
+type ArrangeInvoiceStateForFreshSignupParams = {
+	email: string;
+	password: string;
+	invoiceId: string;
+	trackCustomerForCleanup: TrackCustomerForCleanupFn;
+};
+
+type MailpitSearchResponse = {
+	messages?: Array<{ ID?: string; id?: string }>;
+	messages_count?: number;
+	total?: number;
+};
+
+function buildFreshSignupIdentity(seed?: string): FreshSignupIdentity {
+	const identitySeed = seed?.trim() || `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+	return {
+		name: `Signup Lane ${identitySeed}`,
+		email: `signup-paid-${identitySeed}@e2e.griddle.test`,
+		password: 'TestPassword123!'
+	};
+}
+
+function currentUtcBillingMonth(now = new Date()): string {
+	const month = String(now.getUTCMonth() + 1).padStart(2, '0');
+	return `${now.getUTCFullYear()}-${month}`;
+}
+
+function getMailpitApiUrl(): string {
+	const configuredMailpitApiUrl = process.env.MAILPIT_API_URL?.trim();
+	if (!configuredMailpitApiUrl) {
+		throw new Error(
+			formatFixtureSetupFailure({
+				setupName: 'fresh-signup mailpit setup',
+				expectedPath: 'MAILPIT_API_URL',
+				currentPath: '(env:MAILPIT_API_URL)',
+				apiUrl: fixtureEnv.apiUrl,
+				adminKey: fixtureEnv.adminKey,
+				alertText:
+					'MAILPIT_API_URL must be set for fresh-signup verification and invoice email checks'
+			})
+		);
+	}
+	return requireLoopbackHttpUrl('MAILPIT_API_URL', configuredMailpitApiUrl);
+}
+
+function extractMailpitMessageId(rawMessage: unknown): string | null {
+	if (!rawMessage || typeof rawMessage !== 'object') {
+		return null;
+	}
+
+	const record = rawMessage as { ID?: unknown; id?: unknown };
+	const id = record.ID ?? record.id;
+	if (typeof id !== 'string' || !id.trim()) {
+		return null;
+	}
+
+	return id;
+}
+
+function extractVerificationTokenFromMailpitPayload(payload: unknown): string | null {
+	const payloadText = JSON.stringify(payload ?? {});
+	const patterns = [/\/verify-email\/([A-Za-z0-9_-]+)/, /verify-email[?&]token=([A-Za-z0-9_-]+)/];
+
+	for (const pattern of patterns) {
+		const match = pattern.exec(payloadText);
+		const token = match?.[1];
+		if (token) {
+			return token;
+		}
+	}
+
+	return null;
+}
+
+async function fetchMailpitMessageIds(query: string): Promise<string[]> {
+	const mailpitApiUrl = getMailpitApiUrl();
+	const searchResponse = await fetch(`${mailpitApiUrl}/api/v1/search?query=${query}`);
+	if (!searchResponse.ok) {
+		throw new Error(`Mailpit search failed: ${searchResponse.status} ${await searchResponse.text()}`);
+	}
+
+	const payload = (await searchResponse.json()) as MailpitSearchResponse;
+	const messages = Array.isArray(payload.messages) ? payload.messages : [];
+	return messages.map(extractMailpitMessageId).filter((id): id is string => id !== null);
+}
+
+async function fetchMailpitMessagePayload(messageId: string): Promise<unknown> {
+	const mailpitApiUrl = getMailpitApiUrl();
+	const messageResponse = await fetch(`${mailpitApiUrl}/api/v1/message/${encodeURIComponent(messageId)}`);
+	if (!messageResponse.ok) {
+		throw new Error(
+			`Mailpit message fetch failed for ${messageId}: ${messageResponse.status} ${await messageResponse.text()}`
+		);
+	}
+	return messageResponse.json();
+}
+
+async function findVerificationTokenViaMailpit(email: string): Promise<string> {
+	const normalizedEmail = requireNonEmptyString(
+		email,
+		'findVerificationTokenViaMailpit requires a non-empty email'
+	);
+	const maxAttempts = 30;
+	const query = `to:${normalizedEmail}`;
+
+	for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+		const messageIds = await fetchMailpitMessageIds(query).catch(() => []);
+		for (const messageId of messageIds) {
+			const payload = await fetchMailpitMessagePayload(messageId).catch(() => null);
+			const token = extractVerificationTokenFromMailpitPayload(payload);
+			if (token) {
+				return token;
+			}
+		}
+
+		await sleep(1000);
+	}
+
+	throw new Error(
+		formatFixtureSetupFailure({
+			setupName: 'fresh-signup email verification token lookup',
+			expectedPath: '/verify-email/{token}',
+			currentPath: '(mailpit search)',
+			apiUrl: fixtureEnv.apiUrl,
+			adminKey: fixtureEnv.adminKey,
+			alertText: `No verification token found in Mailpit for ${normalizedEmail} after ${maxAttempts}s`
+		})
+	);
+}
+
+async function completeFreshSignupEmailVerificationViaRoute(
+	page: Page,
+	email: string
+): Promise<{ verificationToken: string }> {
+	try {
+		const verificationToken = await findVerificationTokenViaMailpit(email);
+		// Public auth pages redirect authenticated users to /dashboard, so clear
+		// auth cookies before exercising the verify-email success contract.
+		await page.context().clearCookies();
+		await page.goto(`/verify-email/${verificationToken}`);
+		await expect(page.getByRole('heading', { name: 'Email Verified' })).toBeVisible({
+			timeout: 30_000
+		});
+		return { verificationToken };
+	} catch (error) {
+		throw new Error(
+			formatFixtureSetupFailure({
+				setupName: 'fresh-signup email verification replay setup',
+				expectedPath: '/verify-email/{token}',
+				currentPath: page.url() || '(no browser url)',
+				apiUrl: fixtureEnv.apiUrl,
+				adminKey: fixtureEnv.adminKey,
+				alertText: setupFailureDetailsFromError(error)
+			})
+		);
+	}
+}
+
+async function getCustomerIdForToken(token: string): Promise<string> {
+	const accountResponse = await callJsonApi(
+		fetch,
+		fixtureEnv.apiUrl,
+		'GET',
+		'/account',
+		{ Authorization: `Bearer ${token}` }
+	);
+	if (!accountResponse.ok) {
+		throw new Error(`getCustomerIdForToken failed: ${accountResponse.status} ${await accountResponse.text()}`);
+	}
+
+	const accountPayload = (await accountResponse.json()) as { id?: string };
+	return requireNonEmptyString(
+		accountPayload.id ?? '',
+		'getCustomerIdForToken received an empty customer id'
+	);
+}
+
+async function ensureCheckoutSubscriptionReady({
+	customerId,
+	token,
+	contextLabel,
+	cancelAtPeriodEnd = false
+}: EnsureCheckoutSubscriptionParams): Promise<SubscriptionResponse> {
+	const stripeSync = await adminApiCall(
+		'POST',
+		`/admin/customers/${encodeURIComponent(customerId)}/sync-stripe`
+	);
+	if (!stripeSync.ok) {
+		throw new Error(
+			`${contextLabel} failed to sync stripe customer: ${stripeSync.status} ${await stripeSync.text()}`
+		);
+	}
+
+	const stripeSyncPayload = (await stripeSync.json()) as { stripe_customer_id?: string };
+	if (!stripeSyncPayload.stripe_customer_id) {
+		throw new Error(`${contextLabel} failed: stripe sync returned no stripe_customer_id`);
+	}
+
+	const checkout = await apiCall(
+		'POST',
+		'/billing/checkout-session',
+		{ plan_tier: 'starter' },
+		token
+	);
+	if (!checkout.ok && checkout.status !== 409) {
+		throw new Error(
+			`${contextLabel} failed to create checkout session: ${checkout.status} ${await checkout.text()}`
+		);
+	}
+
+	let subscription: SubscriptionResponse | null = null;
+	const maxSubscriptionPollAttempts = 8;
+	for (let attempt = 0; attempt < maxSubscriptionPollAttempts; attempt += 1) {
+		const response = await apiCall('GET', '/billing/subscription', undefined, token);
+		if (response.ok) {
+			subscription = (await response.json()) as SubscriptionResponse;
+			break;
+		}
+		if (response.status !== 404 && response.status !== 429) {
+			throw new Error(
+				`${contextLabel} failed to read subscription: ${response.status} ${await response.text()}`
+			);
+		}
+		await sleep(getTransientRetryDelayMs(attempt));
+	}
+
+	if (!subscription) {
+		throw new Error(`${contextLabel} timed out waiting for /billing/subscription after checkout arrangement`);
+	}
+
+	if (cancelAtPeriodEnd && !subscription.cancel_at_period_end) {
+		const cancelResponse = await apiCall(
+			'POST',
+			'/billing/subscription/cancel',
+			{ cancel_at_period_end: true },
+			token
+		);
+		if (!cancelResponse.ok) {
+			throw new Error(
+				`${contextLabel} failed to cancel subscription: ${cancelResponse.status} ${await cancelResponse.text()}`
+			);
+		}
+		subscription = (await cancelResponse.json()) as SubscriptionResponse;
+	}
+
+	return subscription;
+}
+
+/**
+ * Create a disposable customer fixture that can reach the billing portal and expose current subscription state.
+ */
+async function arrangeBillingPortalCustomer({
+	trackCustomerForCleanup,
+	cancelAtPeriodEnd = false
+}: ArrangeBillingPortalCustomerParams): Promise<ArrangeBillingPortalCustomerResult> {
+	try {
+		const seed = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+		const email = `billing-portal-${seed}@e2e.griddle.test`;
+		const password = 'TestPassword123!';
+
+		const created = await createRegisteredUser({
+			apiUrl: fixtureEnv.apiUrl,
+			email,
+			password,
+			name: `Billing Portal ${seed}`,
+			trackCustomerForCleanup
+		});
+		const token = await loginAsUser({
+			apiUrl: fixtureEnv.apiUrl,
+			email,
+			password
+		});
+
+		const currentPlan = await getCurrentBillingPlan(token);
+		if (currentPlan !== 'shared') {
+			await updateBillingPlan('shared', created.customerId);
+		}
+
+		const subscription = await ensureCheckoutSubscriptionReady({
+			customerId: created.customerId,
+			token,
+			contextLabel: 'arrangeBillingPortalCustomer',
+			cancelAtPeriodEnd
+		});
+
+		return {
+			...created,
+			token,
+			subscription
+		};
+	} catch (error) {
+		throwBillingPortalArrangeFailure({
+			currentPath: '(arrangeBillingPortalCustomer)',
+			error
+		});
+	}
+}
+
+async function resolveInvoiceIdFromBatch(
+	batch: BatchBillingResponse,
+	customerId: string,
+	token: string,
+	billingMonth: string
+): Promise<string> {
+	const customerResult = batch.results.find((result) => result.customer_id === customerId);
+	if (!customerResult) {
+		throw new Error(`arrangePaidInvoiceForFreshSignup missing batch result for customer ${customerId}`);
+	}
+
+	if (customerResult.status === 'created' && customerResult.invoice_id) {
+		return customerResult.invoice_id;
+	}
+
+	if (customerResult.status === 'skipped' && customerResult.reason === 'already_invoiced') {
+		const monthStart = `${billingMonth}-01`;
+		const invoices = await listInvoicesBestEffort(token);
+		const existing = invoices.find((invoice) => invoice.period_start === monthStart);
+		if (existing) {
+			return existing.id;
+		}
+		throw new Error(
+			`arrangePaidInvoiceForFreshSignup reported already_invoiced for ${billingMonth} but no matching invoice was visible`
+		);
+	}
+
+	throw new Error(
+		`arrangePaidInvoiceForFreshSignup unexpected batch status for customer ${customerId}: ${customerResult.status} (${customerResult.reason ?? 'no reason'})`
+	);
+}
+
+async function waitForInvoicePaid(
+	invoiceId: string,
+	token: string
+): Promise<InvoiceDetailApiItem> {
+	return waitForInvoiceStatus({
+		invoiceId,
+		token,
+		expectedStatus: 'paid',
+		contextLabel: 'arrangePaidInvoiceForFreshSignup'
+	});
+}
+
+type WaitForInvoiceStatusParams = {
+	invoiceId: string;
+	token: string;
+	expectedStatus: 'paid' | 'refunded';
+	contextLabel: string;
+};
+
+async function waitForInvoiceStatus({
+	invoiceId,
+	token,
+	expectedStatus,
+	contextLabel
+}: WaitForInvoiceStatusParams): Promise<InvoiceDetailApiItem> {
+	const maxAttempts = 30;
+	for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+		const response = await apiCall('GET', `/invoices/${encodeURIComponent(invoiceId)}`, undefined, token);
+		if (response.ok) {
+			const invoice = (await response.json()) as InvoiceDetailApiItem;
+			if (invoice.status === expectedStatus && (expectedStatus !== 'paid' || invoice.paid_at)) {
+				return invoice;
+			}
+		} else if (response.status !== 404 && response.status !== 429) {
+			throw new Error(
+				`${contextLabel} failed to read invoice ${invoiceId}: ${response.status} ${await response.text()}`
+			);
+		}
+
+		await sleep(1000);
+	}
+
+	throw new Error(
+		`${contextLabel} timed out waiting for invoice ${invoiceId} to become ${expectedStatus}`
+	);
+}
+
+function mailpitPayloadContainsAllFragments(payload: unknown, fragments: string[]): boolean {
+	const payloadText = JSON.stringify(payload ?? {}).toLowerCase();
+	return fragments.every((fragment) => payloadText.includes(fragment.toLowerCase()));
+}
+
+async function waitForInvoiceEmailEvidence(
+	email: string,
+	requiredFragments: string[] = []
+): Promise<{ messageId: string }> {
+	const normalizedEmail = requireNonEmptyString(
+		email,
+		'waitForInvoiceEmailEvidence requires a non-empty email'
+	);
+	const query = `to:${normalizedEmail}+subject:invoice`;
+	const maxAttempts = 20;
+	const normalizedFragments = requiredFragments
+		.map((fragment) => fragment.trim())
+		.filter((fragment) => fragment.length > 0);
+
+	for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+		const messageIds = await fetchMailpitMessageIds(query).catch(() => []);
+		for (const messageId of messageIds) {
+			if (normalizedFragments.length === 0) {
+				return { messageId };
+			}
+
+			const payload = await fetchMailpitMessagePayload(messageId).catch(() => null);
+			if (payload && mailpitPayloadContainsAllFragments(payload, normalizedFragments)) {
+				return { messageId };
+			}
+		}
+
+		await sleep(1000);
+	}
+
+	const fragmentsClause =
+		normalizedFragments.length > 0 ? ` containing fragments ${normalizedFragments.join(', ')}` : '';
+	throw new Error(
+		`No invoice email found in Mailpit for ${normalizedEmail}${fragmentsClause} after ${maxAttempts}s`
+	);
+}
+
+function stripeWebhookSecret(): string {
+	const secret = process.env.STRIPE_WEBHOOK_SECRET?.trim() ?? '';
+	if (!secret) {
+		throw new Error('STRIPE_WEBHOOK_SECRET must be set for fresh-signup billing lifecycle webhook setup');
+	}
+	return secret;
+}
+
+function buildStripeWebhookSignature(payload: string, timestamp: number, secret: string): string {
+	const signedPayload = `${timestamp}.${payload}`;
+	const digest = createHmac('sha256', secret).update(signedPayload).digest('hex');
+	return `t=${timestamp},v1=${digest}`;
+}
+
+async function sendStripeWebhookEvent(eventType: string, objectPayload: Record<string, unknown>): Promise<void> {
+	const payloadObject = {
+		id: `evt_e2e_${eventType.replaceAll('.', '_')}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`,
+		type: eventType,
+		data: {
+			object: objectPayload
+		}
+	};
+	const payload = JSON.stringify(payloadObject);
+	const signature = buildStripeWebhookSignature(payload, Math.floor(Date.now() / 1000), stripeWebhookSecret());
+	const response = await callJsonApi(fetch, fixtureEnv.apiUrl, 'POST', '/webhooks/stripe', {
+		'stripe-signature': signature
+	}, payloadObject);
+	if (!response.ok) {
+		throw new Error(`Stripe webhook ${eventType} failed: ${response.status} ${await response.text()}`);
+	}
+}
+
+async function waitForSubscriptionStatus(
+	token: string,
+	expectedStatus: string,
+	contextLabel: string
+): Promise<void> {
+	const maxAttempts = 30;
+
+	for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+		const response = await apiCall('GET', '/billing/subscription', undefined, token);
+		if (response.ok) {
+			const subscription = (await response.json()) as SubscriptionResponse;
+			if (subscription.status === expectedStatus) {
+				return;
+			}
+		} else if (response.status !== 404 && response.status !== 429) {
+			throw new Error(
+				`${contextLabel} failed to read subscription: ${response.status} ${await response.text()}`
+			);
+		}
+
+		await sleep(1000);
+	}
+
+	throw new Error(`${contextLabel} timed out waiting for subscription status ${expectedStatus}`);
+}
+
+async function arrangePaidInvoiceForFreshSignup({
+	email,
+	password,
+	trackCustomerForCleanup
+}: ArrangePaidInvoiceForFreshSignupParams): Promise<ArrangePaidInvoiceForFreshSignupResult> {
+	try {
+		const normalizedEmail = requireNonEmptyString(
+			email,
+			'arrangePaidInvoiceForFreshSignup requires a non-empty email and password'
+		);
+		if (!password.trim()) {
+			throw new Error('arrangePaidInvoiceForFreshSignup requires a non-empty email and password');
+		}
+
+		const token = await loginAsUser({
+			apiUrl: fixtureEnv.apiUrl,
+			email: normalizedEmail,
+			password
+		});
+		const customerId = await getCustomerIdForToken(token);
+		trackCustomerForCleanup(customerId);
+
+		const currentPlan = await getCurrentBillingPlan(token);
+		if (currentPlan !== 'shared') {
+			await updateBillingPlan('shared', customerId);
+		}
+
+		await ensureCheckoutSubscriptionReady({
+			customerId,
+			token,
+			contextLabel: 'arrangePaidInvoiceForFreshSignup'
+		});
+
+		const billingMonth = currentUtcBillingMonth();
+		const batchBillingResponse = await adminApiCall('POST', '/admin/billing/run', {
+			month: billingMonth
+		});
+		if (!batchBillingResponse.ok) {
+			throw new Error(
+				`arrangePaidInvoiceForFreshSignup failed to run batch billing: ${batchBillingResponse.status} ${await batchBillingResponse.text()}`
+			);
+		}
+
+		const batch = (await batchBillingResponse.json()) as BatchBillingResponse;
+		const invoiceId = await resolveInvoiceIdFromBatch(batch, customerId, token, billingMonth);
+		await waitForInvoicePaid(invoiceId, token);
+
+		const invoiceEmail = await waitForInvoiceEmailEvidence(normalizedEmail);
+
+		return {
+			customerId,
+			invoiceId,
+			billingMonth,
+			invoiceEmailDelivered: true,
+			invoiceEmailMessageId: invoiceEmail.messageId
+		};
+	} catch (error) {
+		throw new Error(
+			formatFixtureSetupFailure({
+				setupName: 'arrangePaidInvoiceForFreshSignup',
+				expectedPath: '/dashboard/billing/invoices/{id}',
+				currentPath: '(arrangePaidInvoiceForFreshSignup)',
+				apiUrl: fixtureEnv.apiUrl,
+				adminKey: fixtureEnv.adminKey,
+				alertText: setupFailureDetailsFromError(error)
+			})
+		);
+	}
+}
+
+type PreparedBillingInvoiceContext = {
+	customerId: string;
+	token: string;
+	normalizedInvoiceId: string;
+	stripeInvoiceId: string;
+};
+
+async function prepareBillingInvoiceContext({
+	email,
+	password,
+	invoiceId,
+	trackCustomerForCleanup,
+	contextLabel
+}: ArrangeInvoiceStateForFreshSignupParams & {
+	contextLabel: string;
+}): Promise<PreparedBillingInvoiceContext> {
+	const normalizedEmail = requireNonEmptyString(
+		email,
+		`${contextLabel} requires non-empty email, password, and invoiceId`
+	);
+	const normalizedInvoiceId = requireNonEmptyString(
+		invoiceId,
+		`${contextLabel} requires non-empty email, password, and invoiceId`
+	);
+	if (!password.trim()) {
+		throw new Error(`${contextLabel} requires non-empty email, password, and invoiceId`);
+	}
+
+	const token = await loginAsUser({
+		apiUrl: fixtureEnv.apiUrl,
+		email: normalizedEmail,
+		password
+	});
+	const customerId = await getCustomerIdForToken(token);
+	trackCustomerForCleanup(customerId);
+
+	const paidInvoice = await waitForInvoiceStatus({
+		invoiceId: normalizedInvoiceId,
+		token,
+		expectedStatus: 'paid',
+		contextLabel
+	});
+	const stripeInvoiceId = requireNonEmptyString(
+		paidInvoice.stripe_invoice_id ?? '',
+		`${contextLabel} expected paid invoice to have stripe_invoice_id`
+	);
+
+	return {
+		customerId,
+		token,
+		normalizedInvoiceId,
+		stripeInvoiceId
+	};
+}
+
+async function arrangeBillingDunningForFreshSignup({
+	email,
+	password,
+	invoiceId,
+	trackCustomerForCleanup
+}: ArrangeInvoiceStateForFreshSignupParams): Promise<ArrangeBillingDunningForFreshSignupResult> {
+	try {
+		const { customerId, token, stripeInvoiceId } = await prepareBillingInvoiceContext({
+			email,
+			password,
+			invoiceId,
+			trackCustomerForCleanup,
+			contextLabel: 'arrangeBillingDunningForFreshSignup'
+		});
+
+		await sendStripeWebhookEvent('invoice.payment_action_required', {
+			id: stripeInvoiceId
+		});
+		await waitForSubscriptionStatus(token, 'past_due', 'arrangeBillingDunningForFreshSignup');
+
+		return {
+			customerId,
+			dunningSubscriptionStatus: 'past_due'
+		};
+	} catch (error) {
+		throw new Error(
+			formatFixtureSetupFailure({
+				setupName: 'arrangeBillingDunningForFreshSignup',
+				expectedPath: '/dashboard/billing',
+				currentPath: '(arrangeBillingDunningForFreshSignup)',
+				apiUrl: fixtureEnv.apiUrl,
+				adminKey: fixtureEnv.adminKey,
+				alertText: setupFailureDetailsFromError(error)
+			})
+		);
+	}
+}
+
+async function arrangeRefundedInvoiceForFreshSignup({
+	email,
+	password,
+	invoiceId,
+	trackCustomerForCleanup
+}: ArrangeInvoiceStateForFreshSignupParams): Promise<ArrangeRefundedInvoiceForFreshSignupResult> {
+	try {
+		const { customerId, token, normalizedInvoiceId, stripeInvoiceId } = await prepareBillingInvoiceContext(
+			{
+				email,
+				password,
+				invoiceId,
+				trackCustomerForCleanup,
+				contextLabel: 'arrangeRefundedInvoiceForFreshSignup'
+			}
+		);
+
+		await sendStripeWebhookEvent('charge.refunded', {
+			invoice: stripeInvoiceId
+		});
+		await waitForInvoiceStatus({
+			invoiceId: normalizedInvoiceId,
+			token,
+			expectedStatus: 'refunded',
+			contextLabel: 'arrangeRefundedInvoiceForFreshSignup'
+		});
+
+		return {
+			customerId,
+			refundedInvoiceId: normalizedInvoiceId
+		};
+	} catch (error) {
+		throw new Error(
+			formatFixtureSetupFailure({
+				setupName: 'arrangeRefundedInvoiceForFreshSignup',
+				expectedPath: '/dashboard/billing/invoices/{id}',
+				currentPath: '(arrangeRefundedInvoiceForFreshSignup)',
+				apiUrl: fixtureEnv.apiUrl,
+				adminKey: fixtureEnv.adminKey,
+				alertText: setupFailureDetailsFromError(error)
+			})
+		);
+	}
+}
+
 type InvoiceListApiItem = {
 	id: string;
 	status: string;
+	period_start: string;
 };
 
 type InvoiceDetailApiItem = {
 	id: string;
+	status: string;
+	paid_at: string | null;
 	pdf_url: string | null;
+	stripe_invoice_id?: string | null;
 };
 
-async function listInvoicesBestEffort(): Promise<InvoiceListApiItem[]> {
-	const res = await apiCall('GET', '/invoices');
+async function listInvoicesBestEffort(tokenOverride?: string): Promise<InvoiceListApiItem[]> {
+	const res = await apiCall('GET', '/invoices', undefined, tokenOverride);
 	if (!res.ok) {
 		return [];
 	}
@@ -673,24 +1568,42 @@ type SeedInvoiceWithPdfUrlFn = () => Promise<{ id: string }>;
 type CreateUserFn = (email: string, password: string, name?: string) => Promise<CreatedFixtureUser>;
 type LoginAsFn = (email: string, password: string) => Promise<string>;
 type GetEstimatedBillFn = (month?: string) => Promise<EstimatedBillResponse | null>;
-type DatabaseRoutePersistedExpectation = {
-	id: string;
-	statusLabel: string;
-	aybUrl: string;
-	aybSlug: string;
-	aybClusterId: string;
-	plan: string;
-};
-type DatabaseRouteArrangeState = {
-	branch: 'persisted';
-	instance: DatabaseRoutePersistedExpectation;
-};
-type ArrangeDatabaseRouteStateFn = () => Promise<DatabaseRouteArrangeState>;
 type SeedMultiUserScenarioFn = () => Promise<{
 	primaryUser: CreatedFixtureUser;
 	secondaryUser: CreatedFixtureUser;
 }>;
 type AdminReactivateCustomerFn = (customerId: string) => Promise<void>;
+type AdminSuspendCustomerFn = (customerId: string) => Promise<void>;
+type GetDisposableTenantRateCardSnapshotFn = () => Promise<MarketingPricingContractSnapshot>;
+type ArrangeBillingPortalCustomerFn = (
+	cancelAtPeriodEnd?: boolean
+) => Promise<ArrangeBillingPortalCustomerResult>;
+type CreateFreshSignupIdentityFn = () => FreshSignupIdentity;
+type CompleteFreshSignupEmailVerificationFn = (
+	page: Page,
+	email: string
+) => Promise<{ verificationToken: string }>;
+type ArrangePaidInvoiceForFreshSignupFn = (
+	email: string,
+	password: string
+) => Promise<ArrangePaidInvoiceForFreshSignupResult>;
+type ArrangeBillingDunningForFreshSignupFn = (
+	email: string,
+	password: string,
+	invoiceId: string
+) => Promise<ArrangeBillingDunningForFreshSignupResult>;
+type ArrangeRefundedInvoiceForFreshSignupFn = (
+	email: string,
+	password: string,
+	invoiceId: string
+) => Promise<ArrangeRefundedInvoiceForFreshSignupResult>;
+type IsFreshSignupArrangePrerequisiteFailureFn = (alertText: string) => boolean;
+type ThrowFreshSignupArrangeFailureFn = (input: {
+	currentPath: string;
+	alertText?: string | null;
+	responseStatus?: number;
+	responseUrl?: string;
+}) => never;
 
 type E2eFixtures = {
 	/** Seed an index via the admin API and auto-delete after the test. */
@@ -717,12 +1630,30 @@ type E2eFixtures = {
 	loginAs: LoginAsFn;
 	/** Fetch the authenticated customer's current estimated bill. */
 	getEstimatedBill: GetEstimatedBillFn;
-	/** Arrange deterministic persisted database state and return expected route assertions. */
-	arrangeDatabaseRouteState: ArrangeDatabaseRouteStateFn;
 	/** Seed two unique users for multi-user workflows. */
 	seedMultiUserScenario: SeedMultiUserScenarioFn;
 	/** Reactivate a suspended customer through the existing admin route. */
 	adminReactivateCustomer: AdminReactivateCustomerFn;
+	/** Suspend an active customer through the existing admin route. */
+	adminSuspendCustomer: AdminSuspendCustomerFn;
+	/** Create a disposable tenant and return a normalized snapshot of /admin/tenants/{id}/rate-card. */
+	getDisposableTenantRateCardSnapshot: GetDisposableTenantRateCardSnapshotFn;
+	/** Provision a disposable customer fixture that can access Stripe portal with subscription state arranged. */
+	arrangeBillingPortalCustomer: ArrangeBillingPortalCustomerFn;
+	/** Create unique, deterministic signup credentials for fresh-user browser flows. */
+	createFreshSignupIdentity: CreateFreshSignupIdentityFn;
+	/** Resolve a real Mailpit token and complete /verify-email/{token} in the browser. */
+	completeFreshSignupEmailVerification: CompleteFreshSignupEmailVerificationFn;
+	/** Advance a fresh verified signup through paid billing and invoice-email evidence. */
+	arrangePaidInvoiceForFreshSignup: ArrangePaidInvoiceForFreshSignupFn;
+	/** Advance paid-invoice evidence into delinquent subscription (`past_due`) state. */
+	arrangeBillingDunningForFreshSignup: ArrangeBillingDunningForFreshSignupFn;
+	/** Mark an arranged paid invoice as refunded via Stripe webhook replay. */
+	arrangeRefundedInvoiceForFreshSignup: ArrangeRefundedInvoiceForFreshSignupFn;
+	/** Detects known prerequisite/setup failures surfaced from fresh-signup UI alerts. */
+	isFreshSignupArrangePrerequisiteFailure: IsFreshSignupArrangePrerequisiteFailureFn;
+	/** Throws a fixture-owned fail-closed setup error for fresh-signup prerequisites. */
+	throwFreshSignupArrangeFailure: ThrowFreshSignupArrangeFailureFn;
 	/** Default region for index creation (via resolveFixtureEnv). */
 	testRegion: string;
 };
@@ -733,19 +1664,6 @@ type E2eInternalFixtures = {
 	/** Internal registry used by fixtures to clean up test-created customers. */
 	_trackCustomerForCleanup: TrackCustomerForCleanupFn;
 };
-
-function toDatabaseRoutePersistedExpectation(
-	instance: AybInstance
-): DatabaseRoutePersistedExpectation {
-	return {
-		id: instance.id,
-		statusLabel: statusLabel(instance.status),
-		aybUrl: instance.ayb_url,
-		aybSlug: instance.ayb_slug,
-		aybClusterId: instance.ayb_cluster_id,
-		plan: instance.plan
-	};
-}
 
 // ---------------------------------------------------------------------------
 // Extended test object
@@ -826,6 +1744,73 @@ export const test = base.extend<E2eFixtures & E2eInternalFixtures>({
 		);
 	},
 
+	getDisposableTenantRateCardSnapshot: async ({ _trackCustomerForCleanup }, use) => {
+		await use(async () => {
+			return fetchDisposableTenantRateCardSnapshot({
+				apiUrl: fixtureEnv.apiUrl,
+				adminKey: fixtureEnv.adminKey,
+				trackCustomerForCleanup: _trackCustomerForCleanup
+			});
+		});
+	},
+
+	arrangeBillingPortalCustomer: async ({ _trackCustomerForCleanup }, use) => {
+		await use((cancelAtPeriodEnd = false) =>
+			arrangeBillingPortalCustomer({
+				trackCustomerForCleanup: _trackCustomerForCleanup,
+				cancelAtPeriodEnd
+			})
+		);
+	},
+
+	createFreshSignupIdentity: async ({}, use) => {
+		await use(() => buildFreshSignupIdentity());
+	},
+
+	completeFreshSignupEmailVerification: async ({}, use) => {
+		await use((page, email) => completeFreshSignupEmailVerificationViaRoute(page, email));
+	},
+
+	arrangePaidInvoiceForFreshSignup: async ({ _trackCustomerForCleanup }, use) => {
+		await use((email, password) =>
+			arrangePaidInvoiceForFreshSignup({
+				email,
+				password,
+				trackCustomerForCleanup: _trackCustomerForCleanup
+			})
+		);
+	},
+
+	arrangeBillingDunningForFreshSignup: async ({ _trackCustomerForCleanup }, use) => {
+		await use((email, password, invoiceId) =>
+			arrangeBillingDunningForFreshSignup({
+				email,
+				password,
+				invoiceId,
+				trackCustomerForCleanup: _trackCustomerForCleanup
+			})
+		);
+	},
+
+	arrangeRefundedInvoiceForFreshSignup: async ({ _trackCustomerForCleanup }, use) => {
+		await use((email, password, invoiceId) =>
+			arrangeRefundedInvoiceForFreshSignup({
+				email,
+				password,
+				invoiceId,
+				trackCustomerForCleanup: _trackCustomerForCleanup
+			})
+		);
+	},
+
+	isFreshSignupArrangePrerequisiteFailure: async ({}, use) => {
+		await use((alertText) => isFreshSignupArrangePrerequisiteFailure(alertText));
+	},
+
+	throwFreshSignupArrangeFailure: async ({}, use) => {
+		await use((input) => throwFreshSignupArrangeFailure(input));
+	},
+
 	loginAs: async ({}, use) => {
 		await use((email, password) =>
 			loginAsUser({
@@ -847,52 +1832,6 @@ export const test = base.extend<E2eFixtures & E2eInternalFixtures>({
 		});
 	},
 
-	arrangeDatabaseRouteState: async ({}, use) => {
-		const seededDatabaseRows: SeededDatabaseRouteState[] = [];
-
-		const arrangeState: ArrangeDatabaseRouteStateFn = async () => {
-			const customerId = await getCustomerId();
-			const listRes = await apiCall('GET', '/allyourbase/instances');
-			if (!listRes.ok) {
-				throw new Error(
-					`arrangeDatabaseRouteState failed to list instances: ${listRes.status} ${await listRes.text()}`
-				);
-			}
-			const instances = (await listRes.json()) as AybInstance[];
-
-			if (instances.length > 1) {
-				throw new Error(
-					`arrangeDatabaseRouteState expected at most one active instance, found ${instances.length}`
-				);
-			}
-
-			if (instances.length === 1) {
-				return {
-					branch: 'persisted',
-					instance: toDatabaseRoutePersistedExpectation(instances[0])
-				};
-			}
-
-			const seededState = seedDatabaseRoutePersistedInstance(customerId);
-			seededDatabaseRows.push(seededState);
-
-			return {
-				branch: 'persisted',
-				instance: toDatabaseRoutePersistedExpectation(seededState.instance)
-			};
-		};
-
-		await use(arrangeState);
-
-		for (const seededRow of seededDatabaseRows) {
-			try {
-				cleanupDatabaseRoutePersistedInstance(seededRow);
-			} catch {
-				/* ignore fixture teardown failures */
-			}
-		}
-	},
-
 	seedMultiUserScenario: async ({ createUser }, use) => {
 		await use(() => seedMultiUserScenarioWithCreateUser({ createUser }));
 	},
@@ -900,6 +1839,16 @@ export const test = base.extend<E2eFixtures & E2eInternalFixtures>({
 	adminReactivateCustomer: async ({}, use) => {
 		await use((customerId) =>
 			adminReactivateCustomerById({
+				apiUrl: fixtureEnv.apiUrl,
+				customerId,
+				adminKey: fixtureEnv.adminKey
+			})
+		);
+	},
+
+	adminSuspendCustomer: async ({}, use) => {
+		await use((customerId) =>
+			adminSuspendCustomerById({
 				apiUrl: fixtureEnv.apiUrl,
 				customerId,
 				adminKey: fixtureEnv.adminKey

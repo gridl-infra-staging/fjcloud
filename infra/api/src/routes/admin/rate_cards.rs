@@ -10,6 +10,9 @@ use crate::auth::AdminAuth;
 use crate::errors::ApiError;
 use crate::helpers::require_active_customer;
 use crate::models::RateCardRow;
+use crate::services::audit_log::{
+    write_audit_log, ACTION_RATE_CARD_OVERRIDE, ADMIN_SENTINEL_ACTOR_ID,
+};
 use crate::state::AppState;
 use crate::validation::validate_non_negative_decimal;
 
@@ -234,6 +237,29 @@ pub async fn set_rate_override(
         .rate_card_repo
         .upsert_override(customer_id, card.id, overrides_json)
         .await?;
+
+    let mut override_field_keys = override_row
+        .overrides
+        .as_object()
+        .map(|map| map.keys().cloned().collect::<Vec<_>>())
+        .unwrap_or_default();
+    override_field_keys.sort();
+
+    if let Err(err) = write_audit_log(
+        &state.pool,
+        ADMIN_SENTINEL_ACTOR_ID,
+        ACTION_RATE_CARD_OVERRIDE,
+        Some(customer_id),
+        serde_json::json!({ "override_field_keys": override_field_keys }),
+    )
+    .await
+    {
+        tracing::error!(
+            error = %err,
+            customer_id = %customer_id,
+            "failed to write rate_card_override audit_log row"
+        );
+    }
 
     let response = build_rate_card_response(&card, Some(&override_row.overrides))?;
     Ok(Json(response))

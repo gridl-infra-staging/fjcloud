@@ -16,9 +16,6 @@ use crate::password::{hash_password, verify_password};
 use crate::state::AppState;
 use crate::validation::{validate_length, validate_password, MAX_NAME_LEN, MAX_PASSWORD_LEN};
 
-const ACTIVE_AYB_DELETE_CONFLICT_MESSAGE: &str =
-    "Delete your active AllYourBase instance before deleting your account.";
-
 #[derive(Debug, Serialize, ToSchema)]
 pub struct CustomerProfileResponse {
     pub id: Uuid,
@@ -217,7 +214,6 @@ pub async fn change_password(
     request_body = DeleteAccountRequest,
     responses(
         (status = 204, description = "Account deleted"),
-        (status = 409, description = "Active AllYourBase instance must be deleted first", body = ErrorResponse),
         (status = 401, description = "Authentication required", body = ErrorResponse),
         (status = 400, description = "Validation error", body = ErrorResponse),
         (status = 404, description = "Customer not found", body = ErrorResponse),
@@ -228,8 +224,6 @@ pub async fn change_password(
 /// **Auth:** JWT (`AuthenticatedTenant`).
 /// Requires the customer's current password as confirmation. Sets the
 /// customer status to "deleted" (soft delete — row retained for audit).
-/// Rejects deletion with 409 while the customer still has active local
-/// AllYourBase tenant rows.
 /// Returns 204 on success.
 pub async fn delete_account(
     tenant: AuthenticatedTenant,
@@ -246,16 +240,6 @@ pub async fn delete_account(
     }
 
     let _account_lifecycle_lock = lock_account_lifecycle(&state, tenant.customer_id).await?;
-
-    let active_ayb_tenants = state
-        .ayb_tenant_repo
-        .find_active_by_customer(tenant.customer_id)
-        .await?;
-    if !active_ayb_tenants.is_empty() {
-        return Err(ApiError::Conflict(
-            ACTIVE_AYB_DELETE_CONFLICT_MESSAGE.into(),
-        ));
-    }
 
     let deleted = state.customer_repo.soft_delete(tenant.customer_id).await?;
     if !deleted {

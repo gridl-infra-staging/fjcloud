@@ -8,6 +8,7 @@ use utoipa::ToSchema;
 
 use crate::auth::{AuthenticatedTenant, Claims};
 use crate::errors::{ApiError, ErrorResponse};
+use crate::models::Customer;
 use crate::state::AppState;
 use crate::validation::{
     validate_email, validate_length, validate_password, MAX_NAME_LEN, MAX_PASSWORD_LEN,
@@ -92,6 +93,10 @@ fn generate_token() -> String {
     hex::encode(bytes)
 }
 
+fn email_domain(email: &str) -> Option<&str> {
+    email.rsplit_once('@').map(|(_, domain)| domain)
+}
+
 use crate::password::{hash_password, verify_password};
 
 // ---------------------------------------------------------------------------
@@ -125,6 +130,11 @@ pub async fn register(
 
     let email = req.email.trim().to_lowercase();
     validate_email(&email)?;
+    let domain =
+        email_domain(&email).ok_or_else(|| ApiError::BadRequest("invalid email address".into()))?;
+    if crate::auth::is_disposable_email_domain(domain) {
+        return Err(ApiError::BadRequest("email domain is not allowed".into()));
+    }
     validate_password(&req.password)?;
 
     let password_hash = hash_password(&req.password)?;
@@ -141,7 +151,6 @@ pub async fn register(
         })?;
 
     setup_email_verification(&state, customer.id, &email).await?;
-    create_stripe_customer_best_effort(&state, customer.id, name, &email).await;
 
     let token = issue_jwt(&customer.id.to_string(), &state.jwt_secret)?;
 
@@ -169,29 +178,59 @@ async fn setup_email_verification(
         .await
         .map_err(ApiError::from)?;
 
-    // Dev mode: auto-verify email so users can immediately create indexes
-    // without needing a working email delivery pipeline.
-    if std::env::var("SKIP_EMAIL_VERIFICATION").is_ok() {
-        if let Err(e) = state.customer_repo.verify_email(&verify_token).await {
+    // Auto-verify bypass is local-dev-only. Non-local environments must keep
+    // the verification email flow even if SKIP_EMAIL_VERIFICATION is present.
+    let skip_email_verification_requested = std::env::var("SKIP_EMAIL_VERIFICATION").is_ok();
+    let skip_email_verification_enabled = skip_email_verification_requested
+        && crate::startup_env::StartupEnvSnapshot::from_env().is_explicit_local_environment();
+
+    if skip_email_verification_enabled {
+        match state.customer_repo.verify_email(&verify_token).await {
+            Ok(Some(customer)) => {
+                tracing::info!("SKIP_EMAIL_VERIFICATION: auto-verified {}", email);
+                run_post_verification_actions(state, &customer).await;
+            }
+            Ok(None) => {
+                tracing::warn!(
+                    "SKIP_EMAIL_VERIFICATION: verification token for {} was rejected",
+                    email
+                );
+            }
+            Err(e) => {
+                tracing::warn!(
+                    "SKIP_EMAIL_VERIFICATION: failed to auto-verify {}: {e}",
+                    email
+                );
+            }
+        }
+    } else {
+        if skip_email_verification_requested {
             tracing::warn!(
-                "SKIP_EMAIL_VERIFICATION: failed to auto-verify {}: {e}",
+                "SKIP_EMAIL_VERIFICATION ignored for non-local ENVIRONMENT while registering {}",
                 email
             );
-        } else {
-            tracing::info!("SKIP_EMAIL_VERIFICATION: auto-verified {}", email);
         }
-    } else if let Err(e) = state
-        .email_service
-        .send_verification_email(email, &verify_token)
-        .await
-    {
-        tracing::warn!(
-            "failed to send verification email to {}: {e} — customer can re-request later",
-            email
-        );
+
+        if let Err(e) = state
+            .email_service
+            .send_verification_email(email, &verify_token)
+            .await
+        {
+            tracing::warn!(
+                "failed to send verification email to {}: {e} — customer can re-request later",
+                email
+            );
+        }
     }
 
     Ok(())
+}
+
+async fn run_post_verification_actions(state: &AppState, customer: &Customer) {
+    if customer.stripe_customer_id.is_none() {
+        create_stripe_customer_best_effort(state, customer.id, &customer.name, &customer.email)
+            .await;
+    }
 }
 
 /// Best-effort Stripe customer creation: creates a Stripe customer and stores
@@ -302,12 +341,13 @@ pub async fn verify_email(
     State(state): State<AppState>,
     Json(req): Json<VerifyEmailRequest>,
 ) -> Result<Json<MessageResponse>, ApiError> {
-    let _customer = state
+    let customer = state
         .customer_repo
         .verify_email(&req.token)
         .await
         .map_err(ApiError::from)?
         .ok_or_else(|| ApiError::BadRequest("invalid or expired verification token".into()))?;
+    run_post_verification_actions(&state, &customer).await;
 
     Ok(Json(MessageResponse {
         message: "email verified".into(),

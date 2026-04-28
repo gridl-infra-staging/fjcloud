@@ -88,9 +88,14 @@ export const PLAYWRIGHT_PROJECT_CONTRACTS: PlaywrightProjectContract[] = [
 		use: { desktopBrowser: 'chromium' }
 	},
 	{
+		name: 'chromium:signup',
+		testMatch: /e2e-ui\/full\/signup_to_paid_invoice\.spec\.ts/,
+		use: { desktopBrowser: 'chromium' }
+	},
+	{
 		name: 'chromium',
 		testMatch:
-			/e2e-ui\/(smoke|full)\/(?!admin|public-|onboarding\.|customer-journeys\.).+\.spec\.ts/,
+			/e2e-ui\/(smoke|full)\/(?!admin|public-|onboarding\.|customer-journeys\.|signup_to_paid_invoice\.).+\.spec\.ts/,
 		dependencies: ['setup:user'],
 		use: {
 			desktopBrowser: 'chromium',
@@ -278,14 +283,27 @@ export function applyPlaywrightProcessEnvDefaults({
 		repoEnv.DATABASE_URL,
 		webEnv.DATABASE_URL
 	);
+	assignFirstDefinedEnvValue(
+		processEnv,
+		'MAILPIT_API_URL',
+		processEnv.MAILPIT_API_URL,
+		webEnv.MAILPIT_API_URL,
+		repoEnv.MAILPIT_API_URL
+	);
+	assignFirstDefinedEnvValue(
+		processEnv,
+		'STRIPE_WEBHOOK_SECRET',
+		processEnv.STRIPE_WEBHOOK_SECRET,
+		webEnv.STRIPE_WEBHOOK_SECRET,
+		repoEnv.STRIPE_WEBHOOK_SECRET
+	);
 }
 
 /**
- * Resolve Playwright runtime configuration from a three-layer env fallback chain
- * (processEnv → repoEnv → webEnv) with loopback-only URL guardrails. Returns the
- * base URL for test navigation and, when no explicit BASE_URL is set, a webServer
- * block that launches the SvelteKit dev server with the merged env (including a
- * shared JWT_SECRET and ADMIN_KEY so cookie auth and admin routes work end-to-end).
+ * Resolve Playwright runtime configuration from process/repo/web env sources with
+ * loopback-only URL guardrails. BASE_URL stays process-owned for local reruns,
+ * API_BASE_URL follows explicit process overrides before file-backed defaults, and
+ * the spawned web server keeps its existing JWT/admin-key fallback behavior.
  */
 export function resolvePlaywrightRuntime({
 	processEnv,
@@ -299,7 +317,7 @@ export function resolvePlaywrightRuntime({
 	);
 	const apiBaseUrl = requireLoopbackHttpUrl(
 		'API_BASE_URL',
-		webEnv.API_BASE_URL ?? repoEnv.API_BASE_URL ?? processEnv.API_BASE_URL ?? DEFAULT_API_URL
+		processEnv.API_BASE_URL ?? repoEnv.API_BASE_URL ?? webEnv.API_BASE_URL ?? DEFAULT_API_URL
 	);
 	const webServerEnv = sanitizeWebServerEnv({
 		...processEnv,

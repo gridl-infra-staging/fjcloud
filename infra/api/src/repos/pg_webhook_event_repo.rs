@@ -1,4 +1,3 @@
-//! Stub summary for /Users/stuart/parallel_development/fjcloud_dev/MAR17_11_2_data_management_features/fjcloud_dev/infra/api/src/repos/pg_webhook_event_repo.rs.
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use sqlx::PgPool;
@@ -61,5 +60,23 @@ impl WebhookEventRepo for PgWebhookEventRepo {
         .map_err(|e| RepoError::Other(e.to_string()))?;
 
         Ok(())
+    }
+
+    async fn find_latest_invoice_id_by_payment_intent(
+        &self,
+        payment_intent_id: &str,
+    ) -> Result<Option<String>, RepoError> {
+        sqlx::query_scalar::<_, Option<String>>(
+            "SELECT payload->'data'->'object'->>'id' \
+             FROM webhook_events \
+             WHERE event_type IN ('invoice.payment_succeeded', 'invoice.paid') \
+               AND payload->'data'->'object'->>'payment_intent' = $1 \
+             ORDER BY created_at DESC \
+             LIMIT 1",
+        )
+        .bind(payment_intent_id)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(|e| RepoError::Other(e.to_string()))
     }
 }

@@ -4,8 +4,8 @@ use sha2::Sha256;
 use stripe::{
     BillingPortalSession, Client, CollectionMethod, CreateBillingPortalSession, CreateCustomer,
     CreateInvoice, CreateInvoiceItem, CreateSetupIntent, Customer, CustomerInvoiceSettings,
-    FinalizeInvoiceParams, Invoice, ListPaymentMethods, PaymentMethod, PaymentMethodTypeFilter,
-    RequestStrategy, SetupIntent, UpdateCustomer,
+    FinalizeInvoiceParams, Invoice, InvoicePendingInvoiceItemsBehavior, ListPaymentMethods,
+    PaymentMethod, PaymentMethodTypeFilter, RequestStrategy, SetupIntent, UpdateCustomer,
 };
 
 use super::{
@@ -119,6 +119,22 @@ fn proration_behavior_from_str(value: &str) -> Result<SubscriptionProrationBehav
             "invalid proration behavior: {value}"
         ))),
     }
+}
+
+fn build_invoice_create_params(
+    customer_id: stripe::CustomerId,
+    metadata: Option<&std::collections::HashMap<String, String>>,
+) -> CreateInvoice<'static> {
+    let mut invoice_params = CreateInvoice::new();
+    invoice_params.customer = Some(customer_id);
+    invoice_params.collection_method = Some(CollectionMethod::ChargeAutomatically);
+    invoice_params.auto_advance = Some(true);
+    invoice_params.pending_invoice_items_behavior =
+        Some(InvoicePendingInvoiceItemsBehavior::Include);
+    if let Some(meta) = metadata {
+        invoice_params.metadata = Some(meta.clone());
+    }
+    invoice_params
 }
 
 /// Converts a `stripe::Subscription` into [`SubscriptionData`], extracting
@@ -304,15 +320,8 @@ impl StripeService for LiveStripeService {
                 .map_err(|e| StripeError::Api(e.to_string()))?;
         }
 
-        // Create Invoice
-        let mut invoice_params = CreateInvoice::new();
-        invoice_params.customer = Some(customer_id);
-        invoice_params.collection_method = Some(CollectionMethod::ChargeAutomatically);
-        invoice_params.auto_advance = Some(true);
-
-        if let Some(meta) = metadata {
-            invoice_params.metadata = Some(meta.clone());
-        }
+        // Create invoice from pending line items added above.
+        let invoice_params = build_invoice_create_params(customer_id, metadata);
 
         let client = idempotency_key
             .map(|key| {
@@ -584,5 +593,16 @@ mod tests {
     fn proration_behavior_parser_rejects_invalid_values() {
         let err = proration_behavior_from_str("bad_behavior").unwrap_err();
         assert!(matches!(err, StripeError::Api(_)));
+    }
+
+    #[test]
+    fn invoice_create_params_include_pending_invoice_items() {
+        let customer_id: stripe::CustomerId = "cus_test".parse().unwrap();
+        let params = build_invoice_create_params(customer_id, None);
+        assert_eq!(
+            params.pending_invoice_items_behavior,
+            Some(InvoicePendingInvoiceItemsBehavior::Include),
+            "invoice creation must include pending invoice items so billed line items are charged"
+        );
     }
 }

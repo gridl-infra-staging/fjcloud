@@ -6,6 +6,6 @@
 
 | Directory | Summary |
 | --- | --- |
-| src | The src directory implements the fjcloud HTTP API server (built with axum), containing route handlers for billing, authentication, indexing, and cloud operations alongside supporting infrastructure for multi-cloud VM provisioning, Stripe integration, DNS management, repository data access, secrets handling, and request middleware. |
-| tests | The tests directory provides shared test utilities and fixtures for the fjcloud API test suite, including mock clients, capacity profiles for scheduler testing, and integration helpers for index routing and S3 operations. |
+| src | The fjcloud API service is a Rust-based backend that provides billing, infrastructure provisioning, authentication, and multi-region cloud management capabilities through HTTP endpoints, with modular support for Stripe payments, AWS/GCP/OCI provisioning, DNS integrations, and data persistence via PostgreSQL. |
+| tests | The tests directory contains property-based tests for tenant isolation and shared testing utilities including mock implementations for Flapjack proxy and Stripe webhooks, along with helpers for index and storage route validation. |
 <!-- [scrai:end] -->

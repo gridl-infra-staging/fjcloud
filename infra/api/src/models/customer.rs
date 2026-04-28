@@ -75,6 +75,13 @@ pub struct Customer {
     pub password_reset_token: Option<String>,
     #[serde(skip_serializing)]
     pub password_reset_expires_at: Option<DateTime<Utc>>,
+    #[sqlx(default)]
+    pub last_accessed_at: Option<DateTime<Utc>>,
+    #[sqlx(default)]
+    pub subscription_status: Option<String>,
+    #[serde(default)]
+    #[sqlx(default)]
+    pub overdue_invoice_count: i64,
     /// Sub-cent carry-forward for object-storage egress billing.
     /// Internal-only: not exposed in public JSON serialization.
     #[serde(skip_serializing)]
@@ -110,6 +117,9 @@ mod tests {
             email_verify_expires_at: None,
             password_reset_token: None,
             password_reset_expires_at: None,
+            last_accessed_at: None,
+            subscription_status: None,
+            overdue_invoice_count: 0,
             object_storage_egress_carryforward_cents: carryforward,
         }
     }
@@ -218,5 +228,80 @@ mod tests {
                 .is_none(),
             "carryforward must not appear in serialized Customer JSON"
         );
+    }
+
+    // ---------------------------------------------------------------------
+    // T0.3 — customer_auth_state contract for soft-deleted customers.
+    //
+    // The auth gate (auth/tenant.rs, auth/api_key.rs, services/storage/s3_auth.rs)
+    // ALL delegate to customer_auth_state to decide whether a JWT/API-key
+    // request is allowed through. If this function ever returns Active for
+    // a soft-deleted customer (status="deleted"), every subsequent request
+    // a customer makes after self-serve account deletion would still
+    // succeed — a "deleted account stays usable" security incident.
+    //
+    // Together with the pg_customer_repo `soft_delete_retains_row_and_is_idempotent`
+    // integration test (which proves soft_delete flips status→"deleted"
+    // and stamps deleted_at), the four tests below pin the full contract:
+    //   soft_delete --(SQL)--> status="deleted" --(this fn)--> Missing --(auth gate)--> 401.
+    //
+    // Each test asserts a single discriminating output mapping. Trying to
+    // pass any one of them with a hardcoded constant return value would
+    // fail at least one of the others — the four together are
+    // mutually-discriminating.
+    // ---------------------------------------------------------------------
+
+    /// `status="deleted"` → `Missing` so the auth gate rejects subsequent
+    /// JWTs / API-keys for the soft-deleted customer. THIS IS THE
+    /// SECURITY-LOAD-BEARING ASSERTION: a regression here is silently
+    /// "deleted account stays usable."
+    #[test]
+    fn customer_auth_state_deleted_status_is_missing() {
+        let mut customer = build_test_customer("free", Decimal::ZERO);
+        customer.status = "deleted".to_string();
+        assert_eq!(
+            customer_auth_state(Some(&customer)),
+            CustomerAuthState::Missing,
+            "status='deleted' MUST map to Missing — the auth gate's reject path"
+        );
+    }
+
+    /// `status="suspended"` → `Suspended` so the auth gate returns 403
+    /// (different from the 401 produced by Missing). Catches a regression
+    /// where the suspended branch accidentally collapses into deleted.
+    #[test]
+    fn customer_auth_state_suspended_status_is_suspended() {
+        let mut customer = build_test_customer("free", Decimal::ZERO);
+        customer.status = "suspended".to_string();
+        assert_eq!(
+            customer_auth_state(Some(&customer)),
+            CustomerAuthState::Suspended,
+            "status='suspended' MUST map to Suspended (403), NOT Missing (401)"
+        );
+    }
+
+    /// `status="active"` → `Active`. Sanity check: without this the test
+    /// pair above would pass with a `customer_auth_state` that always
+    /// returned Missing.
+    #[test]
+    fn customer_auth_state_active_status_is_active() {
+        let customer = build_test_customer("free", Decimal::ZERO);
+        // build_test_customer defaults to status='active'; assert that
+        // assumption explicitly so a future refactor of the helper
+        // doesn't silently invalidate this test.
+        assert_eq!(customer.status, "active");
+        assert_eq!(
+            customer_auth_state(Some(&customer)),
+            CustomerAuthState::Active
+        );
+    }
+
+    /// `None` (customer not found by id) → `Missing`, same path as deleted.
+    /// Documenting the equivalence so a future refactor doesn't try to
+    /// distinguish "customer never existed" from "customer was deleted"
+    /// at the auth-gate level (information-disclosure risk).
+    #[test]
+    fn customer_auth_state_none_is_missing() {
+        assert_eq!(customer_auth_state(None), CustomerAuthState::Missing);
     }
 }

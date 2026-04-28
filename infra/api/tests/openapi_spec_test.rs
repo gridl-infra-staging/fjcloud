@@ -207,7 +207,6 @@ fn spec_stage5_documents_public_security_and_response_contracts() {
     let service_unavailable_ops = [
         "/paths/~1migration~1algolia~1list-indexes/post/responses/503",
         "/paths/~1migration~1algolia~1migrate/post/responses/503",
-        "/paths/~1allyourbase~1instances~1{id}/delete/responses/503",
     ];
     for response_ptr in service_unavailable_ops {
         assert!(
@@ -427,18 +426,6 @@ fn spec_authenticated_stage2_routes_document_401_error_response() {
             "{response_ref} must reference ErrorResponse for auth failures"
         );
     }
-}
-
-#[test]
-fn spec_delete_account_documents_409_conflict_error_response() {
-    let spec = common::openapi_spec_json();
-
-    assert_eq!(
-        spec.pointer("/paths/~1account/delete/responses/409/content/application~1json/schema/$ref")
-            .and_then(|value| value.as_str()),
-        Some("#/components/schemas/ErrorResponse"),
-        "DELETE /account must document 409 ErrorResponse for active AllYourBase conflicts"
-    );
 }
 
 // Stage 3–5 tests are in openapi_spec_stages3_5_test.rs

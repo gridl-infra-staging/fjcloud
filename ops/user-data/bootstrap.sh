@@ -86,16 +86,27 @@ get_ssm() {
     --region "$REGION"
 }
 
+get_optional_ssm() {
+  aws ssm get-parameter \
+    --name "$1" \
+    --with-decryption \
+    --query "Parameter.Value" \
+    --output text \
+    --region "$REGION" 2>/dev/null || true
+}
+
 DB_URL=$(get_ssm "/fjcloud/$ENVIRONMENT/database_url")
 API_KEY=$(get_ssm "/fjcloud/$NODE_ID/api-key")
 DNS_DOMAIN=$(get_ssm "/fjcloud/$ENVIRONMENT/dns_domain")
 INTERNAL_AUTH_TOKEN=$(get_ssm "/fjcloud/$ENVIRONMENT/internal_auth_token")
+SLACK_WEBHOOK_URL=$(get_optional_ssm "/fjcloud/$ENVIRONMENT/slack_webhook_url")
+DISCORD_WEBHOOK_URL=$(get_optional_ssm "/fjcloud/$ENVIRONMENT/discord_webhook_url")
 
 # --------------------------------------------------------------------------
 # 4. Write environment files
 # --------------------------------------------------------------------------
 
-mkdir -p /etc/flapjack
+mkdir -p /etc/flapjack /etc/fjcloud
 
 # Flapjack engine env
 cat > /etc/flapjack/env <<ENVEOF
@@ -105,33 +116,24 @@ ENVEOF
 
 # Metering agent env — var names match what the binary expects
 # (see infra/metering-agent/src/config.rs)
-cat > /etc/flapjack/metering-env <<ENVEOF
+cat > /etc/fjcloud/metering-env <<ENVEOF
 DATABASE_URL=$DB_URL
 FLAPJACK_URL=http://$NODE_ID:7700
 FLAPJACK_API_KEY=$API_KEY
 INTERNAL_KEY=$INTERNAL_AUTH_TOKEN
-TENANT_MAP_URL=https://api.$DNS_DOMAIN/internal/tenant-map
-COLD_STORAGE_USAGE_URL=https://api.$DNS_DOMAIN/internal/cold-storage-usage
 CUSTOMER_ID=$CUSTOMER_ID
 NODE_ID=$NODE_ID
 REGION=$REGION
+ENVIRONMENT=$ENVIRONMENT
+TENANT_MAP_URL=https://api.$DNS_DOMAIN/internal/tenant-map
+COLD_STORAGE_USAGE_URL=https://api.$DNS_DOMAIN/internal/cold-storage-usage
+SLACK_WEBHOOK_URL=$SLACK_WEBHOOK_URL
+DISCORD_WEBHOOK_URL=$DISCORD_WEBHOOK_URL
 ENVEOF
 
-chmod 600 /etc/flapjack/env /etc/flapjack/metering-env
-chown flapjack:flapjack /etc/flapjack/env /etc/flapjack/metering-env
-
-# Override the baked systemd unit so current AMIs use the flapjack-owned env
-# file contract without requiring an AMI rebuild before the next VM launch.
-mkdir -p /etc/systemd/system/fj-metering-agent.service.d
-cat > /etc/systemd/system/fj-metering-agent.service.d/runtime-env.conf <<'UNITEOF'
-[Unit]
-ConditionPathExists=/etc/flapjack/metering-env
-
-[Service]
-User=flapjack
-Group=flapjack
-EnvironmentFile=-/etc/flapjack/metering-env
-UNITEOF
+chmod 600 /etc/flapjack/env /etc/fjcloud/metering-env
+chown flapjack:flapjack /etc/flapjack/env
+chown fjcloud:fjcloud /etc/fjcloud/metering-env
 
 logger -t "$LOG_TAG" "env files written"
 

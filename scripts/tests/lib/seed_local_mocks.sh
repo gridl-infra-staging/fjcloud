@@ -107,6 +107,19 @@
 # TODO: Document write_mock_curl.
 # TODO: Document write_mock_curl.
 # TODO: Document write_mock_curl.
+# TODO: Document write_mock_curl.
+# TODO: Document write_mock_curl.
+# TODO: Document write_mock_curl.
+# TODO: Document write_mock_curl.
+# TODO: Document write_mock_curl.
+# TODO: Document write_mock_curl.
+# TODO: Document write_mock_curl.
+# TODO: Document write_mock_curl.
+# TODO: Document write_mock_curl.
+# TODO: Document write_mock_curl.
+# TODO: Document write_mock_curl.
+# TODO: Document write_mock_curl.
+# TODO: Document write_mock_curl.
 write_mock_curl() {
     local path="$1" log_path="$2"
     local state_dir
@@ -284,9 +297,14 @@ case "$url" in
         synthetic_tenant_id="${synthetic_tenant_id%%/indexes*}"
         synthetic_tenant_name="$(synthetic_tenant_name_for_id "$synthetic_tenant_id")"
         synthetic_endpoint="$(synthetic_endpoint_for_tenant_name "$synthetic_tenant_name")"
-        printf '{"name":"%s","region":"us-east-1","status":"healthy","endpoint":"%s"}\n201' \
+        # Tests can override the seed-index status to exercise the
+        # idempotent 200-OK rerun path (post-c4a83033). The default 201
+        # remains for first-create coverage.
+        synthetic_index_status="${MOCK_SYNTHETIC_INDEX_STATUS:-201}"
+        printf '{"name":"%s","region":"us-east-1","status":"healthy","endpoint":"%s"}\n%s' \
             "$synthetic_tenant_name" \
-            "$synthetic_endpoint"
+            "$synthetic_endpoint" \
+            "$synthetic_index_status"
         exit 0
         ;;
     http://synthetic-api.test/admin/tenants/*)

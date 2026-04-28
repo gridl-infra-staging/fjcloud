@@ -6,7 +6,7 @@ use std::sync::Arc;
 use api::provisioner::mock::MockVmProvisioner;
 use api::repos::error::RepoError;
 use api::repos::index_replica_repo::IndexReplicaRepo;
-use api::repos::usage_repo::UsageRepo;
+use api::repos::usage_repo::{UsageRepo, UsageSummary};
 use api::repos::DeploymentRepo;
 use api::secrets::mock::MockNodeSecretManager;
 use api::services::migration::{MigrationHttpClientError, MigrationHttpResponse};
@@ -16,7 +16,7 @@ use api::{models::UsageDaily, router::build_router};
 use async_trait::async_trait;
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
-use chrono::NaiveDate;
+use chrono::{Duration, NaiveDate, Utc};
 use http_body_util::BodyExt;
 use tower::ServiceExt;
 use uuid::Uuid;
@@ -105,6 +105,14 @@ impl UsageRepo for FlakyUsageRepo {
         self.inner
             .get_monthly_search_count(customer_id, year, month)
             .await
+    }
+
+    async fn summary_for(&self, customer_id: Uuid, days: u32) -> Result<UsageSummary, RepoError> {
+        self.calls.fetch_add(1, Ordering::SeqCst);
+        if self.disconnected.load(Ordering::SeqCst) {
+            return Err(RepoError::Other("metering db disconnected".to_string()));
+        }
+        self.inner.summary_for(customer_id, days).await
     }
 }
 
@@ -257,6 +265,61 @@ async fn metering_db_disconnect_returns_500_with_bounded_attempts_then_recovers(
     let body = recovered.into_body().collect().await.unwrap().to_bytes();
     let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
     assert_eq!(json["total_search_requests"], 123);
+}
+
+#[tokio::test]
+async fn usage_summary_repo_call_fails_once_on_disconnect_then_recovers() {
+    let flaky_usage_repo = FlakyUsageRepo::new();
+    let customer_id = Uuid::new_v4();
+
+    let disconnected = flaky_usage_repo.summary_for(customer_id, 7).await;
+    assert!(
+        matches!(disconnected, Err(RepoError::Other(msg)) if msg.contains("metering db disconnected"))
+    );
+    assert_eq!(
+        flaky_usage_repo.call_count(),
+        1,
+        "summary_for should attempt exactly once while disconnected"
+    );
+
+    flaky_usage_repo.set_disconnected(false);
+    let today = Utc::now().date_naive();
+    let bytes_per_gb = billing::types::BYTES_PER_GIB;
+
+    flaky_usage_repo.seed(
+        customer_id,
+        today,
+        "us-east-1",
+        50,
+        5,
+        bytes_per_gb * 3,
+        300,
+    );
+    flaky_usage_repo.seed(
+        customer_id,
+        today - Duration::days(2),
+        "us-east-1",
+        70,
+        7,
+        bytes_per_gb * 5,
+        500,
+    );
+    flaky_usage_repo.seed(
+        customer_id,
+        today - Duration::days(9),
+        "us-east-1",
+        999,
+        999,
+        bytes_per_gb * 99,
+        9999,
+    );
+
+    let recovered = flaky_usage_repo.summary_for(customer_id, 7).await.unwrap();
+    assert_eq!(flaky_usage_repo.call_count(), 2);
+    assert_eq!(recovered.total_search_requests, 120);
+    assert_eq!(recovered.total_write_operations, 12);
+    assert!((recovered.avg_storage_gb - 4.0).abs() < 0.0001);
+    assert_eq!(recovered.avg_document_count, 400);
 }
 
 #[tokio::test]

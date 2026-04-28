@@ -116,6 +116,13 @@ aws s3api put-bucket-versioning \
   --versioning-configuration Status=Enabled
 
 # Public access block (idempotent)
+# NOTE: service_status.json exception handling is documented in
+# docs/runbooks/incident-response.md. This bootstrap command sets
+# BlockPublicAcls=true, IgnorePublicAcls=true, BlockPublicPolicy=true,
+# and RestrictPublicBuckets=true on every rerun.
+# If public status publishing is required, reruns reapply full bucket
+# public-access lock and operators must reapply the documented
+# service_status.json single-object exception policy/CORS afterward.
 aws s3api put-public-access-block \
   --bucket "${RELEASES_BUCKET}" \
   --region "${REGION}" \

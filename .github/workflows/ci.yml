@@ -166,6 +166,35 @@ jobs:
 
   playwright:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: fjcloud_test
+          POSTGRES_USER: fjcloud
+          POSTGRES_PASSWORD: password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U fjcloud -d fjcloud_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      mailpit:
+        image: axllent/mailpit:latest
+        ports:
+          - 8025:8025
+    env:
+      DATABASE_URL: postgres://fjcloud:password@127.0.0.1:5432/fjcloud_test
+      ENVIRONMENT: local
+      NODE_SECRET_BACKEND: memory
+      LISTEN_ADDR: 0.0.0.0:3001
+      BASE_URL: http://127.0.0.1:5173
+      API_URL: http://127.0.0.1:3001
+      MAILPIT_API_URL: http://127.0.0.1:8025
+      JWT_SECRET: playwright-ci-jwt-secret-abcdefghijklmnopqrstuvwxyz
+      ADMIN_KEY: playwright-ci-admin-key
+      E2E_ADMIN_KEY: playwright-ci-admin-key
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       - name: Set up Node.js
@@ -175,12 +204,59 @@ jobs:
       - name: Install dependencies
         working-directory: web
         run: npm ci
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # stable
+      - name: Install sqlx-cli
+        run: cargo install sqlx-cli --version 0.8.6 --no-default-features --features postgres
+      - name: Run migrations
+        run: sqlx migrate run --source infra/migrations --database-url "$DATABASE_URL"
+      - name: Start API server
+        working-directory: infra
+        run: |
+          cargo run -p api --bin fjcloud-api > /tmp/fjcloud-api.log 2>&1 &
+          echo "API_PID=$!" >> "$GITHUB_ENV"
+      - name: Start web server
+        working-directory: web
+        run: |
+          npm run dev -- --host 127.0.0.1 --port 5173 --strictPort > /tmp/fjcloud-web.log 2>&1 &
+          echo "WEB_PID=$!" >> "$GITHUB_ENV"
+      - name: Wait for API and web readiness
+        run: |
+          if ! timeout 120s bash -lc '
+            until curl -fsS "http://127.0.0.1:3001/health" >/dev/null; do sleep 1; done
+            until curl -fsS "${BASE_URL}/" >/dev/null; do sleep 1; done
+            until curl -fsS "${MAILPIT_API_URL}/api/v1/info" >/dev/null; do sleep 1; done
+          '; then
+            echo "Readiness check failed; API log follows:"
+            cat /tmp/fjcloud-api.log || true
+            echo "Readiness check failed; web log follows:"
+            cat /tmp/fjcloud-web.log || true
+            exit 1
+          fi
       - name: Install Playwright browsers
         working-directory: web
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install --with-deps chromium firefox webkit
       - name: Run Playwright tests
         working-directory: web
         run: npx playwright test
+      - name: Upload Playwright artifacts
+        if: always()
+        uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4
+        with:
+          name: playwright-artifacts
+          path: |
+            web/playwright-report
+            web/test-results
+          if-no-files-found: warn
+      - name: Stop API and web servers
+        if: always()
+        run: |
+          if [[ -n "${API_PID:-}" ]]; then
+            kill "${API_PID}" 2>/dev/null || true
+          fi
+          if [[ -n "${WEB_PID:-}" ]]; then
+            kill "${WEB_PID}" 2>/dev/null || true
+          fi
 
   secret-scan:
     runs-on: ubuntu-latest
@@ -255,7 +331,7 @@ jobs:
             public.ecr.aws/amazonlinux/amazonlinux:2023 \
             bash -lc '
               set -euo pipefail
-              dnf install -y gcc gcc-c++ git openssl-devel pkgconfig perl-FindBin tar gzip
+              dnf install -y curl gcc gcc-c++ git openssl-devel pkgconfig perl-FindBin tar gzip
               curl https://sh.rustup.rs -sSf | sh -s -- -y --profile minimal
               source "$HOME/.cargo/env"
               cargo build --release -p api -p aggregation-job -p metering-agent

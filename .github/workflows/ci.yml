@@ -66,6 +66,9 @@ jobs:
       - name: Run rust tests
         working-directory: infra
         run: cargo test --workspace -j 1
+      - name: Run tenant isolation property test
+        working-directory: infra
+        run: cargo test -p api --test tenant_isolation_proptest
 
   rust-lint:
     runs-on: ubuntu-latest
@@ -73,6 +76,10 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       - name: Run CI workflow contract tests
         run: bash scripts/tests/ci_workflow_test.sh
+      - name: Run SES support email unit seams
+        run: |
+          bash scripts/tests/validate_inbound_email_roundtrip_test.sh
+          bash scripts/tests/support_email_deliverability_test.sh
       - name: Install Rust
         uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # stable
       - name: Set up rust cache
@@ -248,7 +255,7 @@ jobs:
             public.ecr.aws/amazonlinux/amazonlinux:2023 \
             bash -lc '
               set -euo pipefail
-              dnf install -y curl gcc gcc-c++ git openssl-devel pkgconfig perl-FindBin tar gzip
+              dnf install -y gcc gcc-c++ git openssl-devel pkgconfig perl-FindBin tar gzip
               curl https://sh.rustup.rs -sSf | sh -s -- -y --profile minimal
               source "$HOME/.cargo/env"
               cargo build --release -p api -p aggregation-job -p metering-agent

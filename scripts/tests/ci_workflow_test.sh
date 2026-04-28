@@ -72,6 +72,7 @@ assert_job_contains_regex() {
   local msg="$3"
   local block
   block="$(job_block "$job_name")"
+  block="$(printf '%s\n' "$block" | grep -Ev '^[[:space:]]*#')"
   if [[ -z "$block" ]]; then
     fail "$msg (job block missing: $job_name)"
     return
@@ -159,6 +160,7 @@ assert_job_contains_regex "rust-test" 'uses:\s+actions/checkout@' "rust-test has
 assert_job_contains_regex "rust-test" 'run:\s+bash scripts/reliability/seed-test-profiles.sh' "rust-test seeds reliability profile artifacts"
 assert_job_contains_regex "rust-test" 'uses:\s+dtolnay/rust-toolchain@' "rust-test has rust toolchain setup"
 assert_job_contains_regex "rust-test" 'run:\s+cargo test --workspace' "rust-test has cargo test command"
+assert_job_contains_regex "rust-test" 'run:\s+cargo test -p api --test tenant_isolation_proptest' "rust-test runs explicit tenant isolation property test"
 
 assert_job_contains_regex "rust-lint" 'uses:\s+actions/checkout@' "rust-lint has checkout step"
 assert_job_contains_regex "rust-lint" 'uses:\s+dtolnay/rust-toolchain@' "rust-lint has rust toolchain setup"
@@ -201,12 +203,14 @@ assert_job_not_contains_regex "secret-scan" '--log-opts=' "main full-history sca
 assert_job_contains_regex "deploy-staging" 'uses:\s+actions/checkout@' "deploy-staging has checkout step"
 assert_job_contains_regex "deploy-staging" 'uses:\s+aws-actions/configure-aws-credentials@' "deploy-staging has AWS credentials step"
 assert_job_contains_regex "deploy-staging" 'name:\s+Build release binaries' "deploy-staging has build step"
+assert_job_not_contains_regex "deploy-staging" 'dnf install -y\s+curl(\s|$)' "deploy-staging must not install curl package in Amazon Linux builder"
 assert_job_contains_regex "deploy-staging" 'name:\s+Upload release artifacts' "deploy-staging has S3 upload step"
 assert_job_contains_regex "deploy-staging" 'name:\s+Trigger API deploy' "deploy-staging has deploy trigger step"
 assert_job_contains_regex "deploy-staging" 'needs:' "deploy-staging declares required gate dependencies"
-for required_gate in rust-test rust-lint migration-test web-test check-sizes web-lint playwright secret-scan; do
+for required_gate in rust-test rust-lint migration-test web-test check-sizes web-lint secret-scan; do
   assert_job_contains_regex "deploy-staging" "${required_gate},?" "deploy-staging needs ${required_gate}"
 done
+assert_job_not_contains_regex "deploy-staging" '^\s*playwright,\s*$' "deploy-staging keeps playwright advisory (outside needs)"
 assert_job_contains_regex "deploy-staging" "if:\s+github\\.ref == 'refs/heads/main' && github\\.event_name == 'push'" "deploy-staging is gated to main push"
 
 assert_contains_regex 'cargo fmt --check' "workflow includes cargo fmt --check"

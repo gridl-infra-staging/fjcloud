@@ -210,10 +210,21 @@ jobs:
         run: cargo install sqlx-cli --version 0.8.6 --no-default-features --features postgres
       - name: Run migrations
         run: sqlx migrate run --source infra/migrations --database-url "$DATABASE_URL"
+      - name: Build API binary
+        working-directory: infra
+        # Build before launching as a background process so the subsequent
+        # readiness wait timeout is bounded by API startup time only, not
+        # cargo dependency download + compilation. This unblocks the
+        # playwright job from a long-standing flake where cold-cache cargo
+        # builds exceeded the 120s readiness timeout (~5 min download +
+        # compile on a fresh runner).
+        run: cargo build -p api --bin fjcloud-api
       - name: Start API server
         working-directory: infra
         run: |
-          cargo run -p api --bin fjcloud-api > /tmp/fjcloud-api.log 2>&1 &
+          # Run the prebuilt binary instead of cargo run so launch is
+          # millisecond-scale rather than minute-scale.
+          ./target/debug/fjcloud-api > /tmp/fjcloud-api.log 2>&1 &
           echo "API_PID=$!" >> "$GITHUB_ENV"
       - name: Start web server
         working-directory: web

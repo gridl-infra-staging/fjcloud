@@ -1,3 +1,19 @@
+// FIXME(testid-refactor): This file uses CSS-class chain locators
+// (`page.locator('div.rounded-lg.bg-white.p-6.shadow')` etc.) to navigate
+// the invoice detail page. Per BROWSER_TESTING_STANDARDS the proper fix
+// is to add stable `data-testid` attributes to the relevant Svelte
+// components (web/src/routes/dashboard/billing/invoices/[id]/+page.svelte
+// — invoice detail card, status badge container, timeline grid) and
+// rewrite the helpers below to use getByTestId. Until that refactor
+// lands, the playwright/no-raw-locators rule is disabled file-wide via
+// the eslint-disable directive immediately below; this is intentionally
+// a single auditable disable rather than per-line markers so the
+// follow-up refactor PR can remove it in one edit.
+//
+// Do NOT extend this file with additional CSS-class selectors. Adding
+// new tests should either use existing data-testids or add new ones to
+// the underlying components.
+/* eslint-disable playwright/no-raw-locators */
 import { test, expect } from '../../fixtures/fixtures';
 import { AUTH_COOKIE } from '../../../src/lib/server/auth-session-contracts';
 

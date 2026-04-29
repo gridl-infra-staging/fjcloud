@@ -45,6 +45,14 @@ paths = [
     '''scripts/validate-stripe\.sh$''',
     '''scripts/reliability/fixtures/security/.*''',
     '''web/src/lib/auth/(guard|jwt)\.test\.ts$''',
+    # Per-evidence-bundle Stripe-key fingerprint files. They contain a
+    # SHA256 hex digest of the test-mode key, not the key itself. The
+    # hash is one-way, so leaking it does not expose any secret. The
+    # high-entropy hex string triggers gitleaks generic-api-key.
+    # Tightly-scoped to the exact filename pattern under
+    # docs/runbooks/evidence/ — a different file in the same dir is
+    # still scanned.
+    '''docs/runbooks/evidence/.*/stripe_key_fingerprint\.txt$''',
 ]
 regexes = [
     '''sk_test_[A-Za-z0-9]{16,}''',

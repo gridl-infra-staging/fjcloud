@@ -1,3 +1,6 @@
+//! Polling-style helpers for async test assertions where a side effect
+//! becomes observable some bounded time after the operation that triggers
+//! it (e.g., webhook handlers, eventual-consistency reads).
 
 use std::future::Future;
 use std::time::Duration;

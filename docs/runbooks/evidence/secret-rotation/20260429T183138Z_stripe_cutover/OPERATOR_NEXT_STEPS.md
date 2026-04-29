@@ -67,13 +67,15 @@ in [STAGE_2_PLAN.md](STAGE_2_PLAN.md).
 
 ## Step 1 — Confirm staging CI is green on the staging HEAD
 
-The session pushed staging twice. Final staging HEAD is **`ab878d3`**
-(corresponding to dev `b2b70a17`). The earlier `b8bfe1c9` was an
-intermediate point with the same code but missing the Stage 4 evidence
-+ handoff doc.
+This session re-synced the staging mirror multiple times as evidence
+artifacts were added. Each sync triggered a fresh staging CI run, with
+GitHub Actions auto-cancelling the previous in-flight run. So by
+morning only the LATEST staging HEAD's CI run matters; older runs
+will show as `cancelled` and that's expected.
 
 ```bash
-# Find the staging-side HEAD that we should deploy.
+# Find the current staging-side HEAD (whatever the most recent sync
+# commit is — don't hardcode a SHA, this drifts across the session).
 STAGING_SHA=$(git -C /Users/stuart/repos/gridl-infra-staging/fjcloud rev-parse HEAD)
 echo "Will deploy staging SHA: $STAGING_SHA"
 
@@ -87,12 +89,7 @@ gh run list --repo gridl-infra-staging/fjcloud --limit 5 \
 Expect: `completed	success	CI` for the staging HEAD. If it's
 `failure`, investigate before deploying — the dev-repo CI ban from
 CLAUDE.md does NOT apply to staging; staging CI failures are real
-and in-scope to debug.
-
-If only the earlier `b8bfe1c9` ran and the new `ab878d3` didn't get
-a CI trigger, you can either (a) make a trivial commit to staging
-to re-trigger, or (b) deploy `b8bfe1c9` instead — the code is
-identical, only the markdown evidence files differ.
+and in-scope to debug. If `in_progress` still, wait for it to finish.
 
 ## Step 2 — Stripe Stage 2 (SSM mutation)
 

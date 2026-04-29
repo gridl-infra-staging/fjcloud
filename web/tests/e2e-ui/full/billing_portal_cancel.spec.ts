@@ -42,6 +42,12 @@ test.describe('Billing portal cancellation', () => {
 				page
 					.waitForURL(portalUrlPattern, { timeout: 30_000 })
 					.then(() => ({ type: 'url' as const, url: page.url() })),
+				// The waitForEvent promise IS awaited — through the surrounding
+				// Promise.race(...) which is itself awaited via Promise.all on
+				// line 40. ESLint's missing-playwright-await heuristic only
+				// inspects the immediate parent expression, so it can't see the
+				// outer await chain.
+				// eslint-disable-next-line playwright/missing-playwright-await -- awaited via outer Promise.race / Promise.all
 				page.waitForEvent('requestfailed', {
 					timeout: 30_000,
 					predicate: (request) => portalUrlPattern.test(request.url())

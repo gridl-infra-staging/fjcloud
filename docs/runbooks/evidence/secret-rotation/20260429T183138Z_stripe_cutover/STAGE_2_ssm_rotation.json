@@ -1,0 +1,14 @@
+{
+  "stage": 2,
+  "timestamp_utc": "2026-04-29T19:12:34Z",
+  "ssm_param": "/fjcloud/staging/stripe_secret_key",
+  "ssm_region": "us-east-1",
+  "ssm_param_version_after": 2,
+  "old_key_prefix": "sk_test_51Sy",
+  "old_key_suffix_4": "aTLZ",
+  "new_key_prefix": "rk_test_51Sy",
+  "new_key_suffix_4": "DbeZ",
+  "rollback_backup_path": ".secret/rotation-backups/stripe_secret_key.staging.20260429T183138Z.bak",
+  "operator_caller_arn": "arn:aws:iam::213880904778:user/stuart-cli",
+  "result": "passed"
+}

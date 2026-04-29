@@ -220,12 +220,14 @@ test_no_sql_files_returns_nonzero() {
 }
 
 test_email_log_suppressed_status_migration_quotes_delivery_status_literals() {
-    local migration_file="$REPO_ROOT/infra/migrations/044_email_log_suppressed_status.sql"
+    # Path tracks the renumbered file (was 044, now 045 — see this file's
+    # commit history for the dup-042 collision fix that shifted versions).
+    local migration_file="$REPO_ROOT/infra/migrations/045_email_log_suppressed_status.sql"
     local migration_sql
     migration_sql="$(cat "$migration_file")"
 
     assert_contains "$migration_sql" "CHECK (delivery_status IN ('success', 'failed', 'suppressed'));" \
-        "044 migration should quote delivery_status literals to keep the CHECK constraint valid SQL"
+        "045 migration should quote delivery_status literals to keep the CHECK constraint valid SQL"
 }
 
 # ============================================================================

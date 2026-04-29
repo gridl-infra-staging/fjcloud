@@ -1,3 +1,7 @@
+//! Test scaffolding for Stripe webhook integration tests: builds an
+//! AppState with mock repos and a LocalStripeService, plus helpers that
+//! synthesize signed webhook request bodies the integration tests POST
+//! against the routed handler.
 
 use std::sync::Arc;
 

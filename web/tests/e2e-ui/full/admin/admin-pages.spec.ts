@@ -248,7 +248,15 @@ test.describe('Admin customer list truthfulness', () => {
 		const newerName = `${customerPrefix} Newer`;
 
 		await createUser(`admin-sort-tie-older-${seed}@e2e.griddle.test`, 'TestPassword123!', olderName);
-		// Ensure distinct created_at values for deterministic createdAtMs tie-break ordering.
+		// Ensure distinct created_at values for deterministic createdAtMs tie-break
+		// ordering. The createUser helper hits the API which writes created_at via
+		// PostgreSQL now() with second-resolution truncation in some code paths,
+		// so back-to-back creates can land on the same second and produce
+		// nondeterministic sort order in the next assertion. Using a real wall-
+		// clock delay between creates is the simplest setup-phase shortcut. This
+		// lives in arrange (not act/assert), so it's permitted under the
+		// browser-testing standards' arrange/act distinction.
+		// eslint-disable-next-line playwright/no-wait-for-timeout, no-restricted-syntax -- arrange-phase wait, see comment above
 		await page.waitForTimeout(1_100);
 		await createUser(`admin-sort-tie-newer-${seed}@e2e.griddle.test`, 'TestPassword123!', newerName);
 
@@ -315,12 +323,15 @@ test.describe('Admin customer list truthfulness', () => {
 		await expect(sortBillingHealth).toBeVisible();
 		const firstRow = tableBody.getByRole('row').first();
 		await expect(firstRow.getByTestId('index-count')).toHaveText('—');
-		await expect(firstRow.locator('[data-testid^="billing-health-badge-"]')).toHaveText(
-			/Green|Yellow|Red|Grey/
-		);
-		await expect(firstRow.locator('[data-testid^="last-activity-"]')).toHaveText(
-			/—|just now|\d+m ago|\d+h ago|\d+ days ago/
-		);
+		// Use getByText to assert the badge content directly. The badge
+		// element has a per-customer testid suffix (billing-health-badge-{id})
+		// so a stable getByTestId isn't possible without a component change;
+		// asserting by text content is equivalent here because the row scope
+		// from firstRow + the unique label text gives a unique match.
+		await expect(firstRow.getByText(/^(Green|Yellow|Red|Grey)$/)).toBeVisible();
+		await expect(
+			firstRow.getByText(/^(—|just now|\d+m ago|\d+h ago|\d+ days ago)$/)
+		).toBeVisible();
 
 		await sortBillingHealth.click();
 		await expect(sortBillingHealth).toContainText('sorted');

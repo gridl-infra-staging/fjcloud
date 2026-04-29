@@ -295,8 +295,15 @@ async fn admin_wrong_key_returns_401() {
 
 #[tokio::test]
 async fn token_issue_valid_request_returns_200() {
-    let app = common::test_app();
-    let customer_id = Uuid::new_v4();
+    // The /admin/tokens handler now requires the target customer to exist
+    // and be active (see require_token_customer in routes/admin/tokens.rs,
+    // tightened in 9c4f9c4d "Tighten admin token audit validation"). Seed
+    // a customer in the mock repo so the existence check passes; the token
+    // is then minted against that real customer's UUID.
+    let repo = common::mock_repo();
+    let customer = repo.seed("Token Issue Active", "token-issue-active@e2e.test");
+    let customer_id = customer.id;
+    let app = common::test_app_with_repo(repo);
 
     let req = Request::builder()
         .method("POST")
@@ -341,8 +348,12 @@ async fn token_issue_valid_request_returns_200() {
 
 #[tokio::test]
 async fn token_issue_custom_expiry() {
-    let app = common::test_app();
-    let customer_id = Uuid::new_v4();
+    // Same precondition as token_issue_valid_request_returns_200 — the
+    // existence check at routes/admin/tokens.rs requires a real customer.
+    let repo = common::mock_repo();
+    let customer = repo.seed("Token Issue Custom Expiry", "token-issue-custom@e2e.test");
+    let customer_id = customer.id;
+    let app = common::test_app_with_repo(repo);
 
     let req = Request::builder()
         .method("POST")

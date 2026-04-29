@@ -345,8 +345,10 @@ jobs:
       - name: Upload release artifacts
         run: |
           ARTIFACT_PREFIX="staging/${GITHUB_SHA}/"
-          EXISTING_OBJECT_COUNT="$(aws s3api list-objects-v2 --bucket fjcloud-releases-staging --prefix "${ARTIFACT_PREFIX}" --max-items 1 --query 'length(Contents)' --output text)"
-          if [[ "$EXISTING_OBJECT_COUNT" != "None" && "$EXISTING_OBJECT_COUNT" != "0" ]]; then
+          # JMESPath: default Contents to [] when the response has no objects.
+          # Without `|| `[]``, length(null) errors and aborts the step under `set -e`.
+          EXISTING_OBJECT_COUNT="$(aws s3api list-objects-v2 --bucket fjcloud-releases-staging --prefix "${ARTIFACT_PREFIX}" --max-items 1 --query 'length(Contents || `[]`)' --output text)"
+          if [[ "$EXISTING_OBJECT_COUNT" != "0" ]]; then
             echo "ERROR: release artifacts already exist for ${GITHUB_SHA} (${EXISTING_OBJECT_COUNT} objects at ${ARTIFACT_PREFIX})"
             exit 1
           fi

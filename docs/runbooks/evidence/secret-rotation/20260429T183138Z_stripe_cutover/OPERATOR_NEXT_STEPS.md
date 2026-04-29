@@ -65,18 +65,34 @@ Run them in this order, top to bottom. Stop and investigate at any
 non-zero exit. Each command's blast radius and rollback are documented
 in [STAGE_2_PLAN.md](STAGE_2_PLAN.md).
 
-## Step 1 — Confirm staging CI is green on `b8bfe1c9`
+## Step 1 — Confirm staging CI is green on the staging HEAD
+
+The session pushed staging twice. Final staging HEAD is **`ab878d3`**
+(corresponding to dev `b2b70a17`). The earlier `b8bfe1c9` was an
+intermediate point with the same code but missing the Stage 4 evidence
++ handoff doc.
 
 ```bash
-gh run list --repo gridl-infra-staging/fjcloud --limit 3 \
+# Find the staging-side HEAD that we should deploy.
+STAGING_SHA=$(git -C /Users/stuart/repos/gridl-infra-staging/fjcloud rev-parse HEAD)
+echo "Will deploy staging SHA: $STAGING_SHA"
+
+# Check CI ran and passed for it.
+gh run list --repo gridl-infra-staging/fjcloud --limit 5 \
   --json databaseId,status,conclusion,headSha,name \
-  --jq '.[] | "\(.databaseId)\t\(.status)\t\(.conclusion // "—")\t\(.name)\t\(.headSha[0:8])"'
+  --jq '.[] | select(.headSha == "'"$STAGING_SHA"'") |
+        "\(.databaseId)\t\(.status)\t\(.conclusion // "—")\t\(.name)"'
 ```
 
-Expect: the row for `b8bfe1c9` shows `completed	success	CI`. If it's
-`failure`, look at the run before deploying — investigating CI failures
-on staging is in scope (per CLAUDE.md the dev-repo CI ban does NOT
-apply to staging).
+Expect: `completed	success	CI` for the staging HEAD. If it's
+`failure`, investigate before deploying — the dev-repo CI ban from
+CLAUDE.md does NOT apply to staging; staging CI failures are real
+and in-scope to debug.
+
+If only the earlier `b8bfe1c9` ran and the new `ab878d3` didn't get
+a CI trigger, you can either (a) make a trivial commit to staging
+to re-trigger, or (b) deploy `b8bfe1c9` instead — the code is
+identical, only the markdown evidence files differ.
 
 ## Step 2 — Stripe Stage 2 (SSM mutation)
 
@@ -117,14 +133,20 @@ echo "Stage 2 OK"
 ## Step 3 — Stripe Stage 3 (deploy)
 
 ```bash
-SHA=$(git -C /Users/stuart/repos/gridl-infra-dev/fjcloud_dev rev-parse HEAD)
+# CRITICAL: SHA must be the STAGING-side commit hash that has release
+# artifacts in S3, NOT the dev-side hash. Staging CI uploads to
+# s3://fjcloud-releases-staging/staging/${GITHUB_SHA}/ where GITHUB_SHA
+# is the staging-repo commit hash (see .github/workflows/ci.yml:342-348).
+# Dev SHA b2b70a17 maps to staging SHA ab878d3 (the most recent
+# `sync: dev main b2b70a17 -> staging` commit). Use staging SHA.
+SHA=$(git -C /Users/stuart/repos/gridl-infra-staging/fjcloud rev-parse HEAD)
 test "${#SHA}" -eq 40 || { echo "ERROR: SHA length" >&2; exit 1; }
 
-# Note: deploy.sh requires the SHA to be present on the staging release
-# bucket s3://fjcloud-releases-staging/<SHA>/. Staging CI uploads on
-# successful publishing workflow. If S3 doesn't have the artifacts,
-# deploy.sh's predeploy_validate_release will fail-fast before mutating
-# anything (see ops/scripts/deploy.sh:60).
+# Confirm S3 has the artifacts before deploying. predeploy_validate_release
+# (deploy.sh:60) does this check too, but failing here is faster than
+# failing inside deploy.sh.
+aws s3 ls "s3://fjcloud-releases-staging/staging/${SHA}/fjcloud-api" \
+  || { echo "ERROR: no release artifacts at s3://fjcloud-releases-staging/staging/${SHA}/" >&2; exit 1; }
 
 bash /Users/stuart/repos/gridl-infra-dev/fjcloud_dev/ops/scripts/deploy.sh staging "$SHA"
 

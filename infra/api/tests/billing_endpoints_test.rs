@@ -2297,98 +2297,22 @@ async fn reactivate_401_no_auth() {
 // ===========================================================================
 // Register + Stripe integration
 // ===========================================================================
+//
+// The register → Stripe-customer happy path is covered in
+// `signup_abuse_test.rs`:
+//   - `stripe_customer_is_created_only_after_email_verification`
+//     (post-verification path under default config)
+//   - `skip_email_verification_uses_shared_post_verification_stripe_path_exactly_once`
+//     (SKIP_EMAIL_VERIFICATION + ENVIRONMENT=local bypass path)
+// Those tests use the env-guard / serialization infra already wired up there.
+// Do NOT re-add a register-only Stripe assertion here: post-Apr27, Stripe
+// customer creation moved to the verify-email path, so a register-only
+// assertion would either fail or pass for the wrong reason.
 
-#[tokio::test]
-async fn register_creates_stripe_customer() {
-    let customer_repo = mock_repo();
-    let stripe_svc = mock_stripe_service();
-
-    let app = test_app_with_stripe(
-        customer_repo.clone(),
-        mock_invoice_repo(),
-        stripe_svc.clone(),
-    );
-
-    let resp = app
-        .oneshot(
-            Request::post("/auth/register")
-                .header("content-type", "application/json")
-                .body(Body::from(
-                    serde_json::json!({
-                        "name": "Alice",
-                        "email": "alice@example.com",
-                        "password": "strongpassword123"
-                    })
-                    .to_string(),
-                ))
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-
-    assert_eq!(resp.status(), StatusCode::CREATED);
-
-    // Verify Stripe customer was created
-    let customers = stripe_svc.customers.lock().unwrap();
-    assert_eq!(
-        customers.len(),
-        1,
-        "should have created one Stripe customer"
-    );
-    assert_eq!(customers[0].1, "Alice");
-    assert_eq!(customers[0].2, "alice@example.com");
-
-    // Verify stripe_customer_id was stored on the customer
-    let customer = customer_repo
-        .find_by_email("alice@example.com")
-        .await
-        .unwrap()
-        .unwrap();
-    assert!(
-        customer.stripe_customer_id.is_some(),
-        "customer should have stripe_customer_id after registration"
-    );
-}
-
-#[tokio::test]
-async fn register_succeeds_even_if_stripe_fails() {
-    let customer_repo = mock_repo();
-    let stripe_svc = mock_stripe_service();
-    stripe_svc.set_should_fail(true);
-
-    let app = test_app_with_stripe(customer_repo.clone(), mock_invoice_repo(), stripe_svc);
-
-    let resp = app
-        .oneshot(
-            Request::post("/auth/register")
-                .header("content-type", "application/json")
-                .body(Body::from(
-                    serde_json::json!({
-                        "name": "Bob",
-                        "email": "bob@example.com",
-                        "password": "strongpassword123"
-                    })
-                    .to_string(),
-                ))
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-
-    // Registration should succeed even though Stripe failed
-    assert_eq!(resp.status(), StatusCode::CREATED);
-
-    // Customer should exist but without stripe_customer_id
-    let customer = customer_repo
-        .find_by_email("bob@example.com")
-        .await
-        .unwrap()
-        .unwrap();
-    assert!(
-        customer.stripe_customer_id.is_none(),
-        "stripe_customer_id should be None when Stripe call failed"
-    );
-}
+// `register_succeeds_even_if_stripe_fails` was removed: post-Apr27, register
+// itself does not call Stripe, so the test was a no-op assertion (passing
+// regardless of `stripe_svc.set_should_fail`). Stripe-failure resilience is
+// now exercised through the verify-email best-effort path.
 
 // ===========================================================================
 // POST /admin/billing/run — batch billing

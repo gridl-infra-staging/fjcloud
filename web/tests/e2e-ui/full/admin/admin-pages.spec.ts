@@ -328,12 +328,12 @@ test.describe('Admin customer list truthfulness', () => {
 		// data-testid prefix within the row to avoid the em-dash collision
 		// between index-count and last-activity (both render '—' for an
 		// unseeded customer).
-		await expect(
-			firstRow.locator('[data-testid^="billing-health-badge-"]')
-		).toHaveText(/^(Green|Yellow|Red|Grey)$/);
-		await expect(
-			firstRow.locator('[data-testid^="last-activity-cell-"]')
-		).toHaveText(/^(—|just now|\d+m ago|\d+h ago|\d+ days ago)$/);
+		await expect(firstRow.getByTestId(/^billing-health-badge-/)).toHaveText(
+			/^(Green|Yellow|Red|Grey)$/
+		);
+		await expect(firstRow.getByTestId(/^last-activity-cell-/)).toHaveText(
+			/^(—|just now|\d+m ago|\d+h ago|\d+ days ago)$/
+		);
 
 		await sortBillingHealth.click();
 		await expect(sortBillingHealth).toContainText('sorted');

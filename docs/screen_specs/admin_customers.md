@@ -43,5 +43,6 @@ Current browser tests cover active-row actions and truthfulness; broader list pa
 ## Automated Coverage
 
 - Browser-unmocked tests: `web/tests/e2e-ui/full/admin/admin-pages.spec.ts`; `web/tests/e2e-ui/full/admin/customer-detail.spec.ts`
-- Component tests: `web/src/routes/admin/customers/admin-customers.test.ts`; `web/src/routes/admin/customers/admin-customers-list.test.ts`; `web/src/routes/admin/customers/admin-customers-loader.test.ts`
+- Component tests: `web/src/routes/admin/customers/admin-customers.test.ts`; `web/src/routes/admin/customers/admin-customers-list.test.ts` <!-- TODO(loader-test): a separate component test for the +page.server.ts loader (admin-customers-loader.test.ts) is planned but not yet written; uncomment from the spec list when the file lands so the screen-specs coverage gate stays accurate. -->
+
 - Server/contract tests: admin customer route tests.

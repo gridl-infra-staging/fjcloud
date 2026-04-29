@@ -1,3 +1,7 @@
+//! fjcloud-api binary entry point: loads Config, wires up the AppState
+//! and DI graph (DNS manager, VM provisioner, repo trait objects, alert
+//! service, secret manager, etc.), runs migrations on startup, and
+//! serves the axum router on the configured listen address.
 
 use api::config::Config;
 use api::dns::DnsManager;

@@ -1,0 +1,4 @@
+COMMAND: env key names matching CLOUDFLARE
+CLOUDFLARE_Edit_zone_DNS_API_token=<redacted>
+CLOUDFLARE_X_Auth_Email=<redacted>
+CLOUDFLARE_GLOBAL_API_KEY=<redacted>

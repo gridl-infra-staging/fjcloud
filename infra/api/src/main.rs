@@ -1,4 +1,3 @@
-//! Binary entrypoint for the Flapjack Cloud API service.
 
 use api::config::Config;
 use api::dns::DnsManager;
@@ -18,6 +17,7 @@ use api::services::provisioning::ProvisioningService;
 use api::services::replica::ReplicaService;
 use api::services::restore::{RestoreConfig, RestoreService};
 use api::services::tenant_quota::{FreeTierLimits, TenantQuotaService};
+use api::services::webhook_http::{ReqwestWebhookHttpClient, WebhookHttpClient};
 use api::startup::StorageComponents;
 use api::startup_env::StartupEnvSnapshot;
 use api::startup_repos::PgRepos;
@@ -36,6 +36,7 @@ struct WiredServices {
     object_store_resolver: Arc<RegionObjectStoreResolver>,
     access_tracker: Arc<AccessTracker>,
     stripe_service: Arc<dyn StripeService>,
+    webhook_http_client: Arc<dyn WebhookHttpClient>,
     plan_registry: Arc<dyn PlanRegistry>,
     email_service: Arc<dyn EmailService>,
     vm_provisioner: Arc<dyn VmProvisioner>,
@@ -98,6 +99,7 @@ struct RuntimeServices {
     object_store_resolver: Arc<RegionObjectStoreResolver>,
     access_tracker: Arc<AccessTracker>,
     stripe_service: Arc<dyn StripeService>,
+    webhook_http_client: Arc<dyn WebhookHttpClient>,
     plan_registry: Arc<dyn PlanRegistry>,
     email_service: Arc<dyn EmailService>,
     vm_provisioner: Arc<dyn VmProvisioner>,
@@ -175,6 +177,7 @@ async fn wire_app_state_phase(bootstrap: StartupBootstrapPhase) -> anyhow::Resul
         object_store_resolver,
         access_tracker,
         stripe_service,
+        webhook_http_client,
         plan_registry,
         email_service,
         vm_provisioner,
@@ -238,6 +241,7 @@ async fn wire_app_state_phase(bootstrap: StartupBootstrapPhase) -> anyhow::Resul
         subscription_repo,
         plan_registry,
         stripe_service,
+        webhook_http_client,
         email_service,
         object_store,
         cold_snapshot_repo: cold_snapshot_repo.clone(),
@@ -342,9 +346,15 @@ async fn wire_runtime_services(inputs: &ServiceWireInputs<'_>) -> anyhow::Result
         inputs.repos.tenant_repo.clone() as Arc<dyn api::repos::TenantRepo + Send + Sync>
     ));
     let stripe_service = api::startup::init_stripe_service(inputs.cfg);
+    let webhook_http_client: Arc<dyn WebhookHttpClient> = Arc::new(ReqwestWebhookHttpClient::new(
+        reqwest::Client::builder()
+            .timeout(Duration::from_secs(10))
+            .build()?,
+    ));
     let plan_registry: Arc<dyn PlanRegistry> = Arc::new(billing::plan::EnvPlanRegistry::new());
     let email_service =
-        api::startup::init_email_service(inputs.startup_env, inputs.aws_sdk_config).await?;
+        api::startup::init_email_service(inputs.pool, inputs.startup_env, inputs.aws_sdk_config)
+            .await?;
     let (vm_providers, aws_enabled) = api::startup::init_vm_providers(inputs.aws_sdk_config);
     let (dns_manager, dns_domain) = api::startup::init_dns_manager(inputs.aws_sdk_config);
     let node_secret_manager = api::startup::init_node_secret_manager(
@@ -392,6 +402,7 @@ async fn wire_runtime_services(inputs: &ServiceWireInputs<'_>) -> anyhow::Result
         object_store_resolver,
         access_tracker,
         stripe_service,
+        webhook_http_client,
         plan_registry,
         email_service,
         vm_provisioner,
@@ -464,6 +475,7 @@ async fn wire_control_plane_services(
         object_store_resolver: rt.object_store_resolver,
         access_tracker: rt.access_tracker,
         stripe_service: rt.stripe_service,
+        webhook_http_client: rt.webhook_http_client,
         plan_registry: rt.plan_registry,
         email_service: rt.email_service,
         vm_provisioner: rt.vm_provisioner,

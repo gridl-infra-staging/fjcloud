@@ -152,3 +152,20 @@ send_critical_alert() {
 
     post_webhook_payload "$webhook_url" "$channel" "$payload"
 }
+
+discord_readback_url() {
+    local webhook_url="$1"
+    if [[ "$webhook_url" =~ [\?\&]wait= ]]; then
+        # Readback requires Discord to return created message JSON; enforce
+        # wait=true even when operators pre-configure wait=false.
+        printf '%s' "$webhook_url" | sed -E 's/([?&])wait=[^&#]*/\1wait=true/g'
+        return 0
+    fi
+
+    if [[ "$webhook_url" == *\?* ]]; then
+        printf '%s&wait=true' "$webhook_url"
+        return 0
+    fi
+
+    printf '%s?wait=true' "$webhook_url"
+}

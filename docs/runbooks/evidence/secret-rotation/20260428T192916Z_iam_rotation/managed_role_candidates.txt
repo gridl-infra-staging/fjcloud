@@ -1,0 +1,2 @@
+fjcloud-deploy
+fjcloud-instance-role

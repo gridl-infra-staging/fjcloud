@@ -1,0 +1,378 @@
+#!/usr/bin/env bash
+# probe_ses_bounce_complaint_e2e.sh — app-owned bounce/complaint suppression proof
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# shellcheck source=lib/env.sh
+source "$SCRIPT_DIR/lib/env.sh"
+# shellcheck source=lib/validation_json.sh
+source "$SCRIPT_DIR/lib/validation_json.sh"
+# shellcheck source=lib/psql_path.sh
+source "$SCRIPT_DIR/lib/psql_path.sh"
+
+EXIT_USAGE=2
+EXIT_RUNTIME=1
+PROBE_SUBJECT_PREFIX="fjcloud-ses-bounce-complaint-probe"
+SUPPRESSION_SOURCE_EXPECTED="ses_sns_webhook"
+PROBE_CUSTOMER_ID=""
+PROBE_CUSTOMER_DB_URL=""
+PROBE_CUSTOMER_SEEDED=false
+PROBE_CUSTOMER_CLEANED=false
+PROBE_CUSTOMER_CLEANUP_ERROR=""
+
+append_step() { validation_append_step "$@"; }
+emit_result() { validation_emit_result "$@"; }
+json_get_field() { validation_json_get_field "$@"; }
+
+usage_text() {
+    cat <<'USAGE'
+Usage:
+  bash scripts/probe_ses_bounce_complaint_e2e.sh <bounce|complaint> <staging-env-file>
+
+Examples:
+  bash scripts/probe_ses_bounce_complaint_e2e.sh bounce .secret/.env.secret
+  bash scripts/probe_ses_bounce_complaint_e2e.sh complaint .secret/.env.secret
+USAGE
+}
+
+usage_failure() {
+    local detail="$1"
+    append_step "preflight" false "$detail"
+    emit_result false
+    exit "$EXIT_USAGE"
+}
+
+runtime_failure() {
+    local step_name="$1"
+    local detail="$2"
+    append_step "$step_name" false "$detail"
+    if [ "$step_name" != "cleanup_probe_customer" ]; then
+        cleanup_probe_customer_on_failure "$step_name"
+    fi
+    emit_result false
+    exit "$EXIT_RUNTIME"
+}
+
+trim_compact() {
+    printf '%s' "$1" | tr '\n' ' ' | sed -E 's/[[:space:]]+/ /g; s/^ //; s/ $//'
+}
+
+sql_escape_literal() {
+    printf '%s' "$1" | sed "s/'/''/g"
+}
+
+require_positive_integer() {
+    local value="$1"
+    local name="$2"
+    if [[ ! "$value" =~ ^[0-9]+$ ]] || [ "$value" -le 0 ]; then
+        usage_failure "$name must be a positive integer; got '$value'."
+    fi
+}
+
+run_psql_query() {
+    local db_url="$1"
+    local sql="$2"
+
+    if ! psql -v ON_ERROR_STOP=1 -X -t -A "$db_url" -c "$sql"; then
+        return 1
+    fi
+}
+
+run_psql_exec() {
+    local db_url="$1"
+    local sql="$2"
+
+    run_psql_query "$db_url" "$sql" >/dev/null
+}
+
+run_psql_scalar() {
+    local db_url="$1"
+    local sql="$2"
+    local output
+
+    output="$(run_psql_query "$db_url" "$sql")" || return 1
+    printf '%s\n' "$output" | sed -n '1p' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//'
+}
+
+run_broadcast() {
+    local script_path="$1"
+    local subject="$2"
+    local text_body="$3"
+    local stderr_file="$4"
+    local response
+
+    if ! response="$(bash "$script_path" --subject "$subject" --text-body "$text_body" --live-send 2>"$stderr_file")"; then
+        return 1
+    fi
+
+    printf '%s\n' "$response"
+}
+
+cleanup_probe_customer() {
+    if [ "$PROBE_CUSTOMER_SEEDED" != true ] || [ "$PROBE_CUSTOMER_CLEANED" = true ]; then
+        return 0
+    fi
+
+    if [ -z "$PROBE_CUSTOMER_ID" ] || [ -z "$PROBE_CUSTOMER_DB_URL" ]; then
+        PROBE_CUSTOMER_CLEANUP_ERROR="Probe customer cleanup missing seeded customer id or database URL."
+        return 1
+    fi
+
+    local escaped_customer_id cleanup_soft_delete_count
+    escaped_customer_id="$(sql_escape_literal "$PROBE_CUSTOMER_ID")"
+    cleanup_soft_delete_count="$(run_psql_scalar "$PROBE_CUSTOMER_DB_URL" "
+WITH updated_rows AS (
+  UPDATE customers
+     SET status = 'deleted',
+         deleted_at = NOW(),
+         updated_at = NOW()
+   WHERE id = '$escaped_customer_id'
+   RETURNING id
+)
+SELECT COUNT(*)::BIGINT FROM updated_rows;")" || {
+        PROBE_CUSTOMER_CLEANUP_ERROR="Failed to soft-delete probe customer '$PROBE_CUSTOMER_ID'."
+        return 1
+    }
+
+    if ! [[ "$cleanup_soft_delete_count" =~ ^[0-9]+$ ]] || [ "$cleanup_soft_delete_count" -ne 1 ]; then
+        PROBE_CUSTOMER_CLEANUP_ERROR="Expected to soft-delete exactly one probe customer row (id='$PROBE_CUSTOMER_ID'); updated '$cleanup_soft_delete_count'."
+        return 1
+    fi
+
+    PROBE_CUSTOMER_CLEANED=true
+    PROBE_CUSTOMER_CLEANUP_ERROR=""
+    append_step "cleanup_probe_customer" true "Soft-deleted probe customer id '$PROBE_CUSTOMER_ID' so future broadcasts exclude the simulator recipient."
+}
+
+cleanup_probe_customer_on_failure() {
+    local failed_step="$1"
+    if [ "$PROBE_CUSTOMER_SEEDED" != true ] || [ "$PROBE_CUSTOMER_CLEANED" = true ]; then
+        return 0
+    fi
+
+    if ! cleanup_probe_customer; then
+        append_step "cleanup_probe_customer" false "${PROBE_CUSTOMER_CLEANUP_ERROR} Cleanup attempted after failing step '$failed_step'."
+    fi
+}
+
+assert_live_send_response() {
+    local response_json="$1"
+    local require_nonzero_suppressed="$2"
+
+    python3 - "$response_json" "$require_nonzero_suppressed" <<'PY'
+import json
+import sys
+
+payload_raw = sys.argv[1]
+require_nonzero = sys.argv[2].lower() == "true"
+
+try:
+    payload = json.loads(payload_raw)
+except Exception as exc:
+    raise SystemExit(f"broadcast response was not valid JSON: {exc}")
+
+mode = payload.get("mode")
+if mode != "live_send":
+    raise SystemExit(f"broadcast response mode must be 'live_send', got {mode!r}")
+
+suppressed_count = payload.get("suppressed_count")
+if not isinstance(suppressed_count, int):
+    raise SystemExit("broadcast response suppressed_count must be an integer")
+if require_nonzero and suppressed_count <= 0:
+    raise SystemExit("broadcast response suppressed_count must be > 0 on second send")
+PY
+}
+
+main() {
+    local mode="${1:-}"
+    local env_file="${2:-}"
+
+    if [ "$#" -ne 2 ]; then
+        usage_failure "Usage mismatch. $(usage_text | tr '\n' ' ' | sed -E 's/[[:space:]]+/ /g')"
+    fi
+
+    local recipient_email expected_reason audit_action
+    case "$mode" in
+        bounce)
+            recipient_email="bounce@simulator.amazonses.com"
+            expected_reason="bounce_permanent_general"
+            audit_action="ses_permanent_bounce_suppressed"
+            ;;
+        complaint)
+            recipient_email="complaint@simulator.amazonses.com"
+            expected_reason="complaint"
+            audit_action="ses_complaint_suppressed"
+            ;;
+        *)
+            usage_failure "Invalid mode '$mode'. Expected one of: bounce, complaint."
+            ;;
+    esac
+
+    if [ ! -r "$env_file" ]; then
+        usage_failure "Env file is not readable: $env_file"
+    fi
+
+    local load_error
+    if ! load_error="$( ( load_layered_env_files "$env_file" ) 2>&1 )"; then
+        usage_failure "Failed to load env file '$env_file': $(trim_compact "$load_error")"
+    fi
+    load_layered_env_files "$env_file"
+
+    local db_url="${DATABASE_URL:-${INTEGRATION_DB_URL:-}}"
+    PROBE_CUSTOMER_DB_URL="$db_url"
+    local missing_env=()
+    [ -n "${API_URL:-}" ] || missing_env+=("API_URL")
+    [ -n "${ADMIN_KEY:-}" ] || missing_env+=("ADMIN_KEY")
+    [ -n "$db_url" ] || missing_env+=("DATABASE_URL|INTEGRATION_DB_URL")
+    [ -n "${SES_FROM_ADDRESS:-}" ] || missing_env+=("SES_FROM_ADDRESS")
+    [ -n "${SES_REGION:-}" ] || missing_env+=("SES_REGION")
+
+    if [ "${#missing_env[@]}" -gt 0 ]; then
+        usage_failure "Missing required environment values: ${missing_env[*]}"
+    fi
+
+    if ! command -v psql >/dev/null 2>&1; then
+        usage_failure "psql not found on PATH; install libpq/postgresql client tools before running this probe."
+    fi
+
+    local poll_max_attempts="${SES_PROBE_POLL_MAX_ATTEMPTS:-30}"
+    local poll_sleep_sec="${SES_PROBE_POLL_SLEEP_SEC:-2}"
+    require_positive_integer "$poll_max_attempts" "SES_PROBE_POLL_MAX_ATTEMPTS"
+    require_positive_integer "$poll_sleep_sec" "SES_PROBE_POLL_SLEEP_SEC"
+
+    local run_suffix
+    run_suffix="$(date -u +%Y%m%dT%H%M%SZ)-$$"
+    local subject_first="${PROBE_SUBJECT_PREFIX}-${mode}-${run_suffix}-first"
+    local subject_second="${PROBE_SUBJECT_PREFIX}-${mode}-${run_suffix}-second"
+    local body_first="Stage5 SES probe first send mode=$mode run=$run_suffix"
+    local body_second="Stage5 SES probe second send mode=$mode run=$run_suffix"
+
+    local customer_broadcast_script="${CUSTOMER_BROADCAST_SCRIPT:-$SCRIPT_DIR/customer_broadcast.sh}"
+    if [ ! -f "$customer_broadcast_script" ]; then
+        usage_failure "customer_broadcast script not found at $customer_broadcast_script"
+    fi
+
+    append_step "preflight" true "Loaded env file '$env_file'; mode='$mode'; recipient='$recipient_email'; subject_prefix='$PROBE_SUBJECT_PREFIX'."
+
+    local escaped_recipient escaped_prefix
+    escaped_recipient="$(sql_escape_literal "$recipient_email")"
+    escaped_prefix="$(sql_escape_literal "$PROBE_SUBJECT_PREFIX")"
+
+    local customer_id
+    customer_id="$(run_psql_scalar "$db_url" "
+INSERT INTO customers (id, name, email, status, created_at, updated_at)
+VALUES (gen_random_uuid(), 'SES probe recipient', '$escaped_recipient', 'active', NOW(), NOW())
+ON CONFLICT (email) DO UPDATE SET
+  status = 'active',
+  updated_at = NOW()
+RETURNING id;")" || runtime_failure "seed_probe_customer" "Failed to upsert probe customer row for $recipient_email."
+
+    if [ -z "$customer_id" ]; then
+        runtime_failure "seed_probe_customer" "Probe customer upsert returned an empty customer id for recipient '$recipient_email'."
+    fi
+
+    local escaped_customer_id
+    escaped_customer_id="$(sql_escape_literal "$customer_id")"
+    PROBE_CUSTOMER_ID="$customer_id"
+    PROBE_CUSTOMER_SEEDED=true
+
+    run_psql_exec "$db_url" "DELETE FROM email_log WHERE recipient_email = '$escaped_recipient' AND subject LIKE '$escaped_prefix%';" \
+        || runtime_failure "seed_probe_customer" "Failed to clear prior probe-owned email_log rows for recipient '$recipient_email'."
+    run_psql_exec "$db_url" "DELETE FROM email_suppression WHERE recipient_email = '$escaped_recipient';" \
+        || runtime_failure "seed_probe_customer" "Failed to clear prior probe-owned email_suppression row for recipient '$recipient_email'."
+    run_psql_exec "$db_url" "DELETE FROM audit_log WHERE target_tenant_id = '$escaped_customer_id' AND action IN ('ses_permanent_bounce_suppressed', 'ses_complaint_suppressed');" \
+        || runtime_failure "seed_probe_customer" "Failed to clear prior suppression audit rows for customer '$customer_id'."
+
+    append_step "seed_probe_customer" true "Seeded probe customer id '$customer_id' and cleared prior probe-owned rows for recipient '$recipient_email'."
+
+    local first_stderr
+    first_stderr="$(mktemp)"
+    local first_response
+    if ! first_response="$(run_broadcast "$customer_broadcast_script" "$subject_first" "$body_first" "$first_stderr")"; then
+        local first_error
+        first_error="$(trim_compact "$(cat "$first_stderr" 2>/dev/null || true)")"
+        rm -f "$first_stderr"
+        runtime_failure "first_live_send" "First broadcast call failed for subject '$subject_first': ${first_error:-no stderr output}."
+    fi
+    rm -f "$first_stderr"
+
+    if ! assert_live_send_response "$first_response" false 2>/tmp/probe_broadcast_first_assert.err; then
+        local parse_error
+        parse_error="$(trim_compact "$(cat /tmp/probe_broadcast_first_assert.err 2>/dev/null || true)")"
+        rm -f /tmp/probe_broadcast_first_assert.err
+        runtime_failure "first_live_send" "First broadcast response contract failed: ${parse_error:-unknown error}."
+    fi
+    rm -f /tmp/probe_broadcast_first_assert.err
+    append_step "first_live_send" true "First live broadcast completed for subject '$subject_first'."
+
+    local poll_success=false
+    local last_reason=""
+    local last_source=""
+    local last_audit_count="0"
+    local attempt
+    for attempt in $(seq 1 "$poll_max_attempts"); do
+        last_reason="$(run_psql_scalar "$db_url" "SELECT suppression_reason FROM email_suppression WHERE recipient_email = '$escaped_recipient';" || true)"
+        last_source="$(run_psql_scalar "$db_url" "SELECT source FROM email_suppression WHERE recipient_email = '$escaped_recipient';" || true)"
+        last_audit_count="$(run_psql_scalar "$db_url" "SELECT COUNT(*)::BIGINT FROM audit_log WHERE target_tenant_id = '$escaped_customer_id' AND action = '$audit_action';" || true)"
+
+        if [ "$last_reason" = "$expected_reason" ] && [ "$last_source" = "$SUPPRESSION_SOURCE_EXPECTED" ] && [[ "$last_audit_count" =~ ^[0-9]+$ ]] && [ "$last_audit_count" -ge 1 ]; then
+            poll_success=true
+            break
+        fi
+
+        if [ "$attempt" -lt "$poll_max_attempts" ]; then
+            sleep "$poll_sleep_sec"
+        fi
+    done
+
+    if [ "$poll_success" != true ]; then
+        runtime_failure "poll_sns_side_effects" "Timed out waiting for suppression side effects after ${poll_max_attempts} attempts (sleep=${poll_sleep_sec}s). Last observed reason='${last_reason:-<empty>}' source='${last_source:-<empty>}' audit_count='${last_audit_count:-<empty>}'."
+    fi
+
+    append_step "poll_sns_side_effects" true "Observed suppression reason='$expected_reason', source='$SUPPRESSION_SOURCE_EXPECTED', and audit action '$audit_action'."
+
+    local second_stderr
+    second_stderr="$(mktemp)"
+    local second_response
+    if ! second_response="$(run_broadcast "$customer_broadcast_script" "$subject_second" "$body_second" "$second_stderr")"; then
+        local second_error
+        second_error="$(trim_compact "$(cat "$second_stderr" 2>/dev/null || true)")"
+        rm -f "$second_stderr"
+        runtime_failure "second_live_send" "Second broadcast call failed for subject '$subject_second': ${second_error:-no stderr output}."
+    fi
+    rm -f "$second_stderr"
+
+    if ! assert_live_send_response "$second_response" true 2>/tmp/probe_broadcast_second_assert.err; then
+        local second_parse_error
+        second_parse_error="$(trim_compact "$(cat /tmp/probe_broadcast_second_assert.err 2>/dev/null || true)")"
+        rm -f /tmp/probe_broadcast_second_assert.err
+        runtime_failure "second_live_send" "Second broadcast response contract failed: ${second_parse_error:-unknown error}."
+    fi
+    rm -f /tmp/probe_broadcast_second_assert.err
+
+    local escaped_subject_second
+    escaped_subject_second="$(sql_escape_literal "$subject_second")"
+    local suppressed_log_count
+    suppressed_log_count="$(run_psql_scalar "$db_url" "
+SELECT COUNT(*)::BIGINT
+FROM email_log
+WHERE recipient_email = '$escaped_recipient'
+  AND subject = '$escaped_subject_second'
+  AND delivery_status = 'suppressed';")" || runtime_failure "second_live_send" "Failed querying email_log suppression row for second subject '$subject_second'."
+
+    if ! [[ "$suppressed_log_count" =~ ^[0-9]+$ ]] || [ "$suppressed_log_count" -lt 1 ]; then
+        runtime_failure "second_live_send" "Expected suppressed email_log row for recipient '$recipient_email' and subject '$subject_second'; found '$suppressed_log_count'."
+    fi
+
+    local suppressed_count_reported
+    suppressed_count_reported="$(json_get_field "$second_response" "suppressed_count")"
+    append_step "second_live_send" true "Second live broadcast completed; response suppressed_count='${suppressed_count_reported:-unknown}'; email_log suppressed rows for probe recipient='$suppressed_log_count'."
+
+    cleanup_probe_customer || runtime_failure "cleanup_probe_customer" "$PROBE_CUSTOMER_CLEANUP_ERROR"
+
+    emit_result true
+    exit 0
+}
+
+main "$@"

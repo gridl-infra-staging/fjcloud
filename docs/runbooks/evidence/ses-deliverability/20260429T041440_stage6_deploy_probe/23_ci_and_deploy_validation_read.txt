@@ -1,0 +1,504 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: deploy-staging-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rust-test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: fjcloud_test
+          POSTGRES_USER: fjcloud
+          POSTGRES_PASSWORD: password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U fjcloud -d fjcloud_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      CARGO_INCREMENTAL: "0"
+      # Disable debug info for test binaries — each binary with AWS SDK deps
+      # is 500 MB+ with debug info, which exhausts the runner's disk when
+      # linking all workspace test binaries sequentially.  Without debug info
+      # each binary shrinks to ~50 MB.
+      CARGO_PROFILE_TEST_DEBUG: "0"
+      # Rust 1.86+ defaults to LLD on x86_64-linux, but LLD maps the entire
+      # output binary into RAM.  A single api test binary (with AWS SDK deps)
+      # exceeds the 7 GB runner RAM + 8 GB swap.  GNU ld (bfd) streams output
+      # and fits comfortably.
+      RUSTFLAGS: "-Clink-arg=-fuse-ld=bfd"
+    steps:
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/share/boost
+          sudo apt-get clean
+          df -h /
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Seed reliability profile artifacts
+        run: bash scripts/reliability/seed-test-profiles.sh
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # stable
+      - name: Set up rust cache
+        uses: Swatinem/rust-cache@ad397744b0d591a723ab90405b7247fac0e6b8db # v2
+        with:
+          workspaces: infra
+      - name: Set up swap space
+        run: |
+          if [ -f /swapfile ]; then
+            sudo swapoff /swapfile 2>/dev/null || true
+            sudo rm -f /swapfile
+          fi
+          sudo fallocate -l 8G /swapfile
+          sudo chmod 600 /swapfile
+          sudo mkswap /swapfile
+          sudo swapon /swapfile
+      - name: Run rust tests
+        working-directory: infra
+        run: cargo test --workspace -j 1
+      - name: Run tenant isolation property test
+        working-directory: infra
+        run: cargo test -p api --test tenant_isolation_proptest --features proptest-tests
+
+  rust-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Run CI workflow contract tests
+        run: bash scripts/tests/ci_workflow_test.sh
+      - name: Run SES support email unit seams
+        run: |
+          bash scripts/tests/validate_inbound_email_roundtrip_test.sh
+          bash scripts/tests/support_email_deliverability_test.sh
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # stable
+      - name: Set up rust cache
+        uses: Swatinem/rust-cache@ad397744b0d591a723ab90405b7247fac0e6b8db # v2
+        with:
+          workspaces: infra
+      - name: Check formatting
+        working-directory: infra
+        run: cargo fmt --check
+      - name: Run clippy
+        working-directory: infra
+        run: cargo clippy --workspace -- -D warnings
+
+  migration-test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: fjcloud_test
+          POSTGRES_USER: fjcloud
+          POSTGRES_PASSWORD: password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U fjcloud -d fjcloud_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # stable
+      - name: Install sqlx-cli
+        run: cargo install sqlx-cli --version 0.8.6 --no-default-features --features postgres
+      - name: Run migration test
+        env:
+          DATABASE_URL: postgres://fjcloud:password@127.0.0.1:5432/fjcloud_test
+        run: sqlx migrate run --source infra/migrations --database-url "$DATABASE_URL"
+
+  web-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Set up Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 20
+      - name: Run web tests
+        working-directory: web
+        run: |
+          npm ci
+          npm test
+
+  check-sizes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Check source file size limits
+        run: bash scripts/check-sizes.sh
+
+  web-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Set up Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 20
+      - name: Install dependencies
+        working-directory: web
+        run: npm ci
+      - name: Run svelte-check
+        working-directory: web
+        run: npm run check
+      - name: Run eslint
+        working-directory: web
+        run: npx eslint .
+      - name: Run browser-unmocked lint
+        working-directory: web
+        run: npm run lint:e2e
+      - name: Run screen spec coverage contract
+        run: bash scripts/tests/screen_specs_coverage_test.sh
+
+  playwright:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: fjcloud_test
+          POSTGRES_USER: fjcloud
+          POSTGRES_PASSWORD: password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U fjcloud -d fjcloud_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      mailpit:
+        image: axllent/mailpit:latest
+        ports:
+          - 8025:8025
+    env:
+      DATABASE_URL: postgres://fjcloud:password@127.0.0.1:5432/fjcloud_test
+      ENVIRONMENT: local
+      NODE_SECRET_BACKEND: memory
+      LISTEN_ADDR: 0.0.0.0:3001
+      BASE_URL: http://127.0.0.1:5173
+      API_URL: http://127.0.0.1:3001
+      MAILPIT_API_URL: http://127.0.0.1:8025
+      JWT_SECRET: playwright-ci-jwt-secret-abcdefghijklmnopqrstuvwxyz
+      ADMIN_KEY: playwright-ci-admin-key
+      E2E_ADMIN_KEY: playwright-ci-admin-key
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Set up Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 20
+      - name: Install dependencies
+        working-directory: web
+        run: npm ci
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # stable
+      - name: Install sqlx-cli
+        run: cargo install sqlx-cli --version 0.8.6 --no-default-features --features postgres
+      - name: Run migrations
+        run: sqlx migrate run --source infra/migrations --database-url "$DATABASE_URL"
+      - name: Start API server
+        working-directory: infra
+        run: |
+          cargo run -p api --bin fjcloud-api > /tmp/fjcloud-api.log 2>&1 &
+          echo "API_PID=$!" >> "$GITHUB_ENV"
+      - name: Start web server
+        working-directory: web
+        run: |
+          npm run dev -- --host 127.0.0.1 --port 5173 --strictPort > /tmp/fjcloud-web.log 2>&1 &
+          echo "WEB_PID=$!" >> "$GITHUB_ENV"
+      - name: Wait for API and web readiness
+        run: |
+          if ! timeout 120s bash -lc '
+            until curl -fsS "http://127.0.0.1:3001/health" >/dev/null; do sleep 1; done
+            until curl -fsS "${BASE_URL}/" >/dev/null; do sleep 1; done
+            until curl -fsS "${MAILPIT_API_URL}/api/v1/info" >/dev/null; do sleep 1; done
+          '; then
+            echo "Readiness check failed; API log follows:"
+            cat /tmp/fjcloud-api.log || true
+            echo "Readiness check failed; web log follows:"
+            cat /tmp/fjcloud-web.log || true
+            exit 1
+          fi
+      - name: Install Playwright browsers
+        working-directory: web
+        run: npx playwright install --with-deps chromium firefox webkit
+      - name: Run Playwright tests
+        working-directory: web
+        run: npx playwright test
+      - name: Upload Playwright artifacts
+        if: always()
+        uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4
+        with:
+          name: playwright-artifacts
+          path: |
+            web/playwright-report
+            web/test-results
+            /tmp/fjcloud-api.log
+            /tmp/fjcloud-web.log
+          if-no-files-found: warn
+      - name: Stop API and web servers
+        if: always()
+        run: |
+          if [[ -n "${API_PID:-}" ]]; then
+            kill "${API_PID}" 2>/dev/null || true
+          fi
+          if [[ -n "${WEB_PID:-}" ]]; then
+            kill "${WEB_PID}" 2>/dev/null || true
+          fi
+
+  secret-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+      - name: Run gitleaks (PR diff)
+        if: github.event_name == 'pull_request'
+        uses: gitleaks/gitleaks-action@dcedce43c6f43de0b836d1fe38946645c9c638dc # v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+      - name: Install gitleaks CLI (main full history)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          GITLEAKS_VERSION=8.24.3
+          curl -sSL "https://github.com/zricethezav/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            | tar -xz gitleaks
+          sudo install -m 0755 gitleaks /usr/local/bin/gitleaks
+      - name: Run gitleaks (main full history)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: gitleaks detect --redact -v --exit-code=2
+
+  deploy-staging:
+    # The `playwright` job remains advisory and is intentionally omitted from
+    # the deploy gate. It still runs on every CI pass, publishes logs/artifacts,
+    # and surfaces failures in annotations without blocking the rest of the
+    # staging deploy contract.
+    needs:
+      [
+        rust-test,
+        rust-lint,
+        migration-test,
+        web-test,
+        check-sizes,
+        web-lint,
+        secret-scan,
+      ]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      id-token: write
+      contents: read
+    env:
+      AWS_REGION: us-east-1
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@ff717079ee2060e4bcee96c4779b553acc87447c # v4
+        with:
+          role-to-assume: ${{ secrets.DEPLOY_IAM_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Build release binaries in Amazon Linux 2023
+        run: |
+          # Staging instances run Amazon Linux 2023 (glibc 2.34). Build in the
+          # same userland so uploaded ARM binaries do not pick up newer Ubuntu
+          # glibc symbols like GLIBC_2.38 and fail at runtime on the fleet.
+          docker run --rm \
+            --platform linux/arm64 \
+            -v "${GITHUB_WORKSPACE}:/work" \
+            -w /work/infra \
+            public.ecr.aws/amazonlinux/amazonlinux:2023 \
+            bash -lc '
+              set -euo pipefail
+              # Use distro-signed Rust toolchain packages; avoid curl-pipe-shell installers.
+              dnf install -y gcc gcc-c++ git openssl-devel pkgconfig perl-FindBin tar gzip rust cargo
+              cargo build --release -p api -p aggregation-job -p metering-agent
+              mv target/release/fjcloud-api fjcloud-api
+              mv target/release/fj-metering-agent fj-metering-agent
+              mv target/release/fjcloud-aggregation-job fjcloud-aggregation-job
+            '
+      - name: Upload release artifacts
+        run: |
+          ARTIFACT_PREFIX="staging/${GITHUB_SHA}/"
+          EXISTING_OBJECT_COUNT="$(aws s3api list-objects-v2 --bucket fjcloud-releases-staging --prefix "${ARTIFACT_PREFIX}" --max-items 1 --query 'length(Contents)' --output text)"
+          if [[ "$EXISTING_OBJECT_COUNT" != "None" && "$EXISTING_OBJECT_COUNT" != "0" ]]; then
+            echo "ERROR: release artifacts already exist for ${GITHUB_SHA} (${EXISTING_OBJECT_COUNT} objects at ${ARTIFACT_PREFIX})"
+            exit 1
+          fi
+          aws s3 cp infra/fjcloud-api s3://fjcloud-releases-staging/staging/${GITHUB_SHA}/fjcloud-api
+          aws s3 cp infra/fj-metering-agent s3://fjcloud-releases-staging/staging/${GITHUB_SHA}/fj-metering-agent
+          aws s3 cp infra/fjcloud-aggregation-job s3://fjcloud-releases-staging/staging/${GITHUB_SHA}/fjcloud-aggregation-job
+          aws s3 sync infra/migrations s3://fjcloud-releases-staging/staging/${GITHUB_SHA}/migrations
+          aws s3 cp ops/scripts/migrate.sh s3://fjcloud-releases-staging/staging/${GITHUB_SHA}/scripts/migrate.sh
+          aws s3 cp ops/scripts/lib/generate_ssm_env.sh s3://fjcloud-releases-staging/staging/${GITHUB_SHA}/scripts/generate_ssm_env.sh
+      - name: Trigger API deploy
+        run: bash ops/scripts/deploy.sh staging "${GITHUB_SHA}"
+#!/usr/bin/env bash
+# Shared pre-deployment validation adapter for deploy gate checks.
+
+set -euo pipefail
+
+DEPLOY_GATE_MODE="${DEPLOY_GATE_MODE:-mock}"
+
+# TODO: Document ci_status_is_passing.
+ci_status_is_passing() {
+  local sha="$1"
+
+  if [[ "$DEPLOY_GATE_MODE" == "mock" ]]; then
+    case "${DEPLOY_GATE_MOCK_CI_STATUS:-pass}" in
+      pass)
+        return 0
+        ;;
+      fail)
+        echo "ERROR: CI status check failed for SHA ${sha} (mock status=fail)"
+        return 1
+        ;;
+      error)
+        echo "ERROR: CI status lookup error for SHA ${sha} (mock status=error)"
+        return 2
+        ;;
+      *)
+        echo "ERROR: invalid DEPLOY_GATE_MOCK_CI_STATUS='${DEPLOY_GATE_MOCK_CI_STATUS:-}' (expected pass|fail|error)"
+        return 2
+        ;;
+    esac
+  fi
+
+  if [[ "$DEPLOY_GATE_MODE" != "live" ]]; then
+    echo "ERROR: invalid DEPLOY_GATE_MODE='${DEPLOY_GATE_MODE}' (expected mock|live)"
+    return 2
+  fi
+
+  local repo token state
+  repo="${DEPLOY_GATE_GITHUB_REPO:-${GITHUB_REPOSITORY:-}}"
+  token="${DEPLOY_GATE_GITHUB_TOKEN:-${GITHUB_TOKEN:-}}"
+
+  if [[ -z "$repo" || -z "$token" ]]; then
+    echo "ERROR: live CI status check requires DEPLOY_GATE_GITHUB_REPO/GITHUB_REPOSITORY and DEPLOY_GATE_GITHUB_TOKEN/GITHUB_TOKEN"
+    return 2
+  fi
+
+  state="$(
+    curl -fsSL \
+      -H "Authorization: Bearer ${token}" \
+      -H "Accept: application/vnd.github+json" \
+      "https://api.github.com/repos/${repo}/commits/${sha}/status" \
+      | jq -r '.state'
+  2>/dev/null || true)"
+
+  if [[ "$state" == "success" ]]; then
+    return 0
+  fi
+
+  if [[ -z "$state" || "$state" == "null" ]]; then
+    echo "ERROR: CI status lookup error for SHA ${sha} (live status unavailable)"
+    return 2
+  fi
+
+  echo "ERROR: CI status check failed for SHA ${sha} (live status=${state})"
+  return 1
+}
+
+# TODO: Document artifact_exists_for_sha.
+artifact_exists_for_sha() {
+  local env="$1"
+  local sha="$2"
+  local region="${3:-${AWS_REGION:-us-east-1}}"
+
+  if [[ "$DEPLOY_GATE_MODE" == "mock" ]]; then
+    case "${DEPLOY_GATE_MOCK_ARTIFACT_STATUS:-exists}" in
+      exists)
+        return 0
+        ;;
+      missing)
+        echo "ERROR: release artifact check failed for SHA ${sha} (mock status=missing)"
+        return 1
+        ;;
+      error)
+        echo "ERROR: release artifact lookup error for SHA ${sha} (mock status=error)"
+        return 2
+        ;;
+      *)
+        echo "ERROR: invalid DEPLOY_GATE_MOCK_ARTIFACT_STATUS='${DEPLOY_GATE_MOCK_ARTIFACT_STATUS:-}' (expected exists|missing|error)"
+        return 2
+        ;;
+    esac
+  fi
+
+  if [[ "$DEPLOY_GATE_MODE" != "live" ]]; then
+    echo "ERROR: invalid DEPLOY_GATE_MODE='${DEPLOY_GATE_MODE}' (expected mock|live)"
+    return 2
+  fi
+
+  local bucket prefix object_count
+  bucket="fjcloud-releases-${env}"
+  prefix="${env}/${sha}/"
+
+  object_count="$(
+    aws s3api list-objects-v2 \
+      --region "$region" \
+      --bucket "$bucket" \
+      --prefix "$prefix" \
+      --max-items 1 \
+      --query 'length(Contents)' \
+      --output text
+  2>/dev/null || true)"
+
+  if [[ -z "$object_count" ]]; then
+    echo "ERROR: release artifact lookup error for SHA ${sha} (live lookup failed)"
+    return 2
+  fi
+
+  if [[ "$object_count" == "None" || "$object_count" == "0" ]]; then
+    echo "ERROR: release artifact check failed for SHA ${sha} (no objects at s3://${bucket}/${prefix})"
+    return 1
+  fi
+
+  return 0
+}
+
+# TODO: Document predeploy_validate_release.
+predeploy_validate_release() {
+  local env="$1"
+  local sha="$2"
+  local region="${3:-${AWS_REGION:-us-east-1}}"
+  local status=0
+
+  echo "==> Pre-deploy validation: mode=${DEPLOY_GATE_MODE}, sha=${sha}"
+
+  ci_status_is_passing "$sha" || status=$?
+  if [[ "$status" -ne 0 ]]; then
+    if [[ "$status" -eq 2 ]]; then
+      echo "ERROR: pre-deploy validation failed for SHA ${sha}: CI status lookup error"
+    else
+      echo "ERROR: pre-deploy validation failed for SHA ${sha}: CI status is not passing"
+    fi
+    return 1
+  fi
+
+  artifact_exists_for_sha "$env" "$sha" "$region" || status=$?
+  if [[ "$status" -ne 0 ]]; then
+    if [[ "$status" -eq 2 ]]; then
+      echo "ERROR: pre-deploy validation failed for SHA ${sha}: artifact lookup error"
+    else
+      echo "ERROR: pre-deploy validation failed for SHA ${sha}: artifact missing"
+    fi
+    return 1
+  fi
+
+  echo "==> Pre-deploy validation passed for SHA ${sha}"
+}

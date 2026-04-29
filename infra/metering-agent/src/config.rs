@@ -1,7 +1,6 @@
 use std::net::IpAddr;
 use std::time::Duration;
 use thiserror::Error;
-use uuid::Uuid;
 
 /// All configuration is supplied via environment variables (12-factor).
 #[derive(Debug, Clone)]
@@ -32,8 +31,11 @@ pub struct Config {
     pub tenant_map_refresh_interval: Duration,
     /// PostgreSQL connection string for writing usage records.
     pub database_url: String,
-    /// The customer this agent is metering for.
-    pub customer_id: Uuid,
+    /// Node-level owner label used only for logs and breaker alerts.
+    ///
+    /// Shared staging hosts tag this as a non-UUID label like `staging`,
+    /// while per-record billing attribution comes from the tenant-map payload.
+    pub customer_id: String,
     /// Stable identifier for this flapjack node (used in idempotency keys).
     pub node_id: String,
     /// Cloud region label (e.g. "us-east-1"). Used for billing dimension.
@@ -119,13 +121,7 @@ impl Config {
             .map(|url| validate_https_or_loopback_url("DISCORD_WEBHOOK_URL", &url))
             .transpose()?;
 
-        let customer_id = {
-            let raw = require("CUSTOMER_ID")?;
-            Uuid::parse_str(&raw).map_err(|e| ConfigError::Invalid {
-                var: "CUSTOMER_ID".to_string(),
-                reason: e.to_string(),
-            })?
-        };
+        let customer_id = require("CUSTOMER_ID")?.trim().to_string();
 
         let scrape_interval = Duration::from_secs(parse_u64_opt("SCRAPE_INTERVAL_SECS", 60)?);
         let storage_poll_interval =
@@ -149,6 +145,12 @@ impl Config {
             }),
         )?;
 
+        if customer_id.is_empty() {
+            return Err(ConfigError::Invalid {
+                var: "CUSTOMER_ID".to_string(),
+                reason: "must not be empty".to_string(),
+            });
+        }
         if node_id.is_empty() {
             return Err(ConfigError::Invalid {
                 var: "NODE_ID".to_string(),
@@ -350,13 +352,24 @@ mod tests {
     }
 
     #[test]
-    fn invalid_customer_id_returns_error() {
+    fn blank_customer_id_returns_error() {
         let err = Config::from_reader(|key| match key {
-            "CUSTOMER_ID" => Ok("not-a-uuid".into()),
+            "CUSTOMER_ID" => Ok("   ".into()),
             other => valid_env(other),
         })
         .unwrap_err();
         assert!(matches!(err, ConfigError::Invalid { ref var, .. } if var == "CUSTOMER_ID"));
+    }
+
+    #[test]
+    fn non_uuid_customer_id_is_accepted_for_shared_host_metadata() {
+        let cfg = Config::from_reader(|key| match key {
+            "CUSTOMER_ID" => Ok("staging".into()),
+            other => valid_env(other),
+        })
+        .expect("shared-host metadata labels should not kill metering startup");
+
+        assert_eq!(cfg.customer_id, "staging");
     }
 
     #[test]

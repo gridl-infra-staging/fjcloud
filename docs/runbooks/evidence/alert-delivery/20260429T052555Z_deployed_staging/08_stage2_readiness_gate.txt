@@ -1,0 +1,13 @@
+# Stage 2 readiness gate (deployed staging webhook-mode)
+
+result=PASS
+utc_evaluated=2026-04-29T05:27:27Z
+
+evidence:
+- /etc/fjcloud/env presence check includes `DISCORD_WEBHOOK_URL=<redacted>` and `ENVIRONMENT=staging`.
+- Startup boundary captured via `systemctl show -p ActiveEnterTimestamp fjcloud-api`.
+- Boundary-scoped logs include `Discord alert webhook configured` from `init_alert_service`.
+- No fallback-only proof line (`No webhook URLs — using log-only alert service`) appeared in the boundary-scoped mode-log extraction.
+
+gate_for_stage3:
+- Proceed: deployed staging webhook-mode readiness is proven.

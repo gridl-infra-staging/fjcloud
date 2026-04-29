@@ -7,14 +7,14 @@
 #
 # Functions:
 #   resolve_stripe_secret_key      — resolves effective key (canonical first, alias fallback)
-#   check_stripe_key_present       — effective key is set with sk_test_ prefix
+#   check_stripe_key_present       — effective key is set with sk_test_ or rk_test_ prefix
 #   check_stripe_key_live          — Key authenticates against Stripe GET /v1/balance
 #   check_stripe_webhook_secret_present — STRIPE_WEBHOOK_SECRET is set with whsec_ prefix
 #   check_stripe_webhook_forwarding     — `stripe listen` process is running
 #
 # REASON: codes:
 #   stripe_key_unset                STRIPE_SECRET_KEY missing (alias fallback allowed)
-#   stripe_key_bad_prefix           Effective Stripe key does not start with sk_test_
+#   stripe_key_bad_prefix           Effective Stripe key does not start with sk_test_ or rk_test_
 #   stripe_api_timeout              Stripe API call timed out (connect or overall)
 #   stripe_auth_failed              Stripe returned authentication_error for key
 #   stripe_key_http_error           Stripe key live check returned non-200 HTTP
@@ -58,7 +58,8 @@ resolve_stripe_secret_key() {
 
 # --------------------------------------------------------------------------
 # check_stripe_key_present
-# Validates that the resolved Stripe secret key is set and has sk_test_ prefix.
+# Validates that the resolved Stripe secret key is set and has sk_test_ or
+# rk_test_ prefix.
 # --------------------------------------------------------------------------
 check_stripe_key_present() {
     local key
@@ -67,10 +68,23 @@ check_stripe_key_present() {
         return 0
     fi
 
-    if [[ "$key" != sk_test_* ]]; then
-        live_gate_fail_with_reason "stripe_key_bad_prefix" "STRIPE_SECRET_KEY must start with sk_test_ (sk_live_ keys are not allowed)"
+    if [[ "$key" != sk_test_* && "$key" != rk_test_* ]]; then
+        live_gate_fail_with_reason "stripe_key_bad_prefix" "STRIPE_SECRET_KEY must start with sk_test_ or rk_test_ (sk_live_ and rk_live_ keys are not allowed)"
         return 0
     fi
+}
+
+# --------------------------------------------------------------------------
+# stripe_curl_user_config
+# Emits curl config content on stdout so Stripe secrets never appear in the
+# process argv while still using curl's supported auth configuration.
+# --------------------------------------------------------------------------
+stripe_curl_user_config() {
+    local key="$1"
+    local escaped_key="$key"
+    escaped_key="${escaped_key//\\/\\\\}"
+    escaped_key="${escaped_key//\"/\\\"}"
+    printf 'user = "%s:"\n' "$escaped_key"
 }
 
 # --------------------------------------------------------------------------
@@ -86,17 +100,17 @@ check_stripe_key_live() {
     fi
 
     # Defensive validation for direct invocations that skip check_stripe_key_present.
-    if [[ "$key" != sk_test_* ]]; then
-        live_gate_fail_with_reason "stripe_key_bad_prefix" "STRIPE_SECRET_KEY must start with sk_test_ (sk_live_ keys are not allowed)"
+    if [[ "$key" != sk_test_* && "$key" != rk_test_* ]]; then
+        live_gate_fail_with_reason "stripe_key_bad_prefix" "STRIPE_SECRET_KEY must start with sk_test_ or rk_test_ (sk_live_ and rk_live_ keys are not allowed)"
         return 0
     fi
 
     local response http_code curl_exit=0
     if response="$(curl -s \
+        --config <(stripe_curl_user_config "$key") \
         --max-time "${GATE_INNER_TIMEOUT_SEC:-10}" \
         --connect-timeout "${GATE_INNER_TIMEOUT_SEC:-10}" \
         -w "\n%{http_code}" \
-        -u "$key:" \
         "https://api.stripe.com/v1/balance" 2>&1)"; then
         curl_exit=0
     else

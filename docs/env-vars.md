@@ -30,7 +30,7 @@ All environment variables used by the fjcloud API and web portal.
 | `STRIPE_LOCAL_MODE`         | No       | —                                       | Set to `1` to enable `LocalStripeService` — a stateful in-process Stripe mock with webhook dispatch. Used when `STRIPE_SECRET_KEY` is absent. All billing operations work offline |
 | `STRIPE_WEBHOOK_URL`        | No       | `http://localhost:3001/webhooks/stripe` | URL where `LocalStripeService` dispatches webhook events. Only used when `STRIPE_LOCAL_MODE=1`                                                                                    |
 
-Compatibility note: `STRIPE_SECRET_KEY` is the canonical operator-facing variable. Launch/validation shells currently support `STRIPE_TEST_SECRET_KEY` only as a compatibility fallback when `STRIPE_SECRET_KEY` is unset.
+Compatibility note: `STRIPE_SECRET_KEY` is the canonical operator-facing variable. Shared launch/validation helpers in `scripts/lib/stripe_checks.sh` and `scripts/validate-stripe.sh` still support `STRIPE_TEST_SECRET_KEY` only as a compatibility fallback when `STRIPE_SECRET_KEY` is unset. Staging runtime preflights such as `scripts/staging_billing_dry_run.sh` require canonical `STRIPE_SECRET_KEY` because they validate the API's actual runtime contract.
 
 ## Internal Auth
 
@@ -40,10 +40,11 @@ Compatibility note: `STRIPE_SECRET_KEY` is the canonical operator-facing variabl
 
 ## Email (SES)
 
-| Variable           | Required | Default | Description                                                                                                                                                                                                           |
-| ------------------ | -------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `SES_FROM_ADDRESS` | Prod     | —       | Sender address for transactional emails (e.g., `system@flapjack.foo`). When `ENVIRONMENT` is `local`/`dev`/`development`, `NODE_SECRET_BACKEND=memory`, and both SES vars are absent, startup uses `NoopEmailService` |
-| `SES_REGION`       | Prod     | —       | AWS region for SES API calls (e.g., `us-east-1`). When `ENVIRONMENT` is `local`/`dev`/`development`, `NODE_SECRET_BACKEND=memory`, and both SES vars are absent, startup uses `NoopEmailService`                      |
+| Variable                | Required | Default | Description                                                                                                                                                                                                                                                                                      |
+| ----------------------- | -------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `SES_FROM_ADDRESS`      | Prod     | —       | Sender address for transactional emails (e.g., `system@flapjack.foo`). When `ENVIRONMENT` is `local`/`dev`/`development`, `NODE_SECRET_BACKEND=memory`, and the full SES env family is absent, startup uses `NoopEmailService`                                                               |
+| `SES_REGION`            | Prod     | —       | AWS region for SES API calls (e.g., `us-east-1`). When `ENVIRONMENT` is `local`/`dev`/`development`, `NODE_SECRET_BACKEND=memory`, and the full SES env family is absent, startup uses `NoopEmailService`                                                                                     |
+| `SES_CONFIGURATION_SET` | Prod     | —       | SES configuration set name applied to outbound SES sends so bounce/complaint events publish through the configured SES event destination. Startup fails fast when SES mode is active and this variable is missing or blank; suppression-aware outbound checks still flow through the same central SES startup path |
 
 ## SES Inbound Test Probe
 
@@ -339,7 +340,7 @@ Variables consumed by `scripts/staging_billing_dry_run.sh`. This runner is inten
 | ---------------------------- | -------- | ------------------ | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `STAGING_API_URL`            | No\*     | —                  | `staging_billing_dry_run.sh`              | Base URL for the staging API used by the dry-run preflight. Must be an absolute `http://` or `https://` URL. `--run` probes `${STAGING_API_URL}/health`. \*Required for staging billing rehearsal                                                                                          |
 | `STAGING_STRIPE_WEBHOOK_URL` | No\*     | —                  | `staging_billing_dry_run.sh`              | Public Stripe webhook URL for staging. Must use `https://` and target `/webhooks/stripe`. Missing or non-HTTPS values are classified as the Cloudflare/DNS blocker because Stripe requires a publicly reachable HTTPS endpoint for registered webhook delivery                             |
-| `STRIPE_SECRET_KEY`          | No\*     | —                  | API runtime, `staging_billing_dry_run.sh` | Stripe sandbox secret key used by the staging API itself. For this rehearsal it must start with `sk_test_`; `sk_live_` is rejected so the dry-run path cannot be pointed at live mode by mistake. Canonical naming and compatibility behavior are defined in the `## Stripe` section above |
+| `STRIPE_SECRET_KEY`          | No\*     | —                  | API runtime, `staging_billing_dry_run.sh` | Stripe sandbox secret key used by the staging API itself. For this rehearsal it must start with `sk_test_` or `rk_test_`; `sk_live_` and `rk_live_` are rejected so the dry-run path cannot be pointed at live mode by mistake. This runner intentionally requires canonical `STRIPE_SECRET_KEY` and does not fall back to `STRIPE_TEST_SECRET_KEY` because it validates the staging API's real runtime variable |
 
 ## Synthetic Traffic Seeder (Staging Contract)
 

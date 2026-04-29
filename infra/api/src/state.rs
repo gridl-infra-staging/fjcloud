@@ -36,6 +36,7 @@ use crate::services::storage::object_metering::S3ObjectMeteringService;
 use crate::services::storage::s3_proxy::GarageProxy;
 use crate::services::storage::StorageService;
 use crate::services::tenant_quota::{FreeTierLimits, TenantQuotaService};
+use crate::services::webhook_http::WebhookHttpClient;
 use crate::stripe::StripeService;
 
 /// Central shared application state cloned into every request handler.
@@ -62,6 +63,7 @@ pub struct AppState {
     pub subscription_repo: Arc<dyn SubscriptionRepo + Send + Sync>,
     pub plan_registry: Arc<dyn PlanRegistry>,
     pub stripe_service: Arc<dyn StripeService>,
+    pub webhook_http_client: Arc<dyn WebhookHttpClient>,
     pub email_service: Arc<dyn EmailService>,
     pub webhook_event_repo: Arc<dyn WebhookEventRepo + Send + Sync>,
     pub object_store: Arc<dyn ObjectStore + Send + Sync>,

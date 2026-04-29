@@ -181,6 +181,10 @@ assert_file_contains "$deploy_validation_file" '[[:space:]]--bucket "\$bucket"' 
 assert_file_contains "$deploy_validation_file" '[[:space:]]--prefix "\$prefix"' "deploy validation list-objects-v2 call reads from derived prefix variable"
 
 echo ""
+echo "--- Runtime env mapping checks ---"
+assert_file_contains "ops/scripts/lib/generate_ssm_env.sh" '\[ses_configuration_set\]="SES_CONFIGURATION_SET"' "generate_ssm_env maps ses_configuration_set into SES_CONFIGURATION_SET"
+
+echo ""
 echo "--- Deploy caller AWS action surface checks ---"
 assert_aws_actions_in_line_range_exact "$deploy_script_file" 68 105 "deploy caller discovery/save block keeps expected AWS action set" \
   "aws ec2 describe-instances" \

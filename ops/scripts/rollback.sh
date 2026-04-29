@@ -72,6 +72,7 @@ REGION="__REGION__"
 
 BINARIES=(fjcloud-api fjcloud-aggregation-job fj-metering-agent)
 BIN_DIR="/usr/local/bin"
+SYSTEMD_ARTIFACT_DIR="/opt/fjcloud/systemd"
 
 echo "==> [instance] Rolling back to ${SHA}"
 
@@ -81,6 +82,13 @@ for bin in "${BINARIES[@]}"; do
   aws s3 cp "s3://${S3_BUCKET}/${S3_PREFIX}/${bin}" "${BIN_DIR}/${bin}.new" --region "$REGION"
   chmod +x "${BIN_DIR}/${bin}.new"
 done
+
+# --- Download and install systemd units that must converge with the repo ---
+mkdir -p "$SYSTEMD_ARTIFACT_DIR"
+aws s3 cp "s3://${S3_BUCKET}/${S3_PREFIX}/systemd/fj-metering-agent.service" "${SYSTEMD_ARTIFACT_DIR}/fj-metering-agent.service" --region "$REGION"
+install -m 0644 "${SYSTEMD_ARTIFACT_DIR}/fj-metering-agent.service" /etc/systemd/system/fj-metering-agent.service
+systemctl daemon-reload
+systemctl enable fj-metering-agent
 
 # --- Back up current binaries ---
 for bin in "${BINARIES[@]}"; do

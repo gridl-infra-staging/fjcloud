@@ -1,0 +1,629 @@
+# Terraform Apply Procedure
+
+Staging and production apply procedure for fjcloud infrastructure.
+
+Root module: `ops/terraform/_shared/main.tf`
+Backend: S3 (`fjcloud-tfstate-<env>`) + DynamoDB lock (`fjcloud-tflock`)
+
+## Prerequisites
+
+- Terraform installed (check with `terraform version`)
+- AWS CLI configured with appropriate credentials
+- Bootstrap resources created (see `ops/BOOTSTRAP.md`)
+- `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ZONE_ID` loaded for the public DNS zone.
+  For `flapjack.foo`, staging scripts also accept
+  `CLOUDFLARE_EDIT_READ_ZONE_DNS_API_TOKEN_FLAPJACK_FOO` and
+  `CLOUDFLARE_ZONE_ID_FLAPJACK_FOO`.
+
+## 1. Initialize
+
+```bash
+cd ops/terraform/_shared
+
+terraform init \
+  -backend-config="bucket=fjcloud-tfstate-staging" \
+  -backend-config="key=terraform.tfstate" \
+  -backend-config="region=us-east-1" \
+  -backend-config="dynamodb_table=fjcloud-tflock"
+```
+
+For prod, use `fjcloud-tfstate-prod`:
+
+```bash
+terraform init \
+  -backend-config="bucket=fjcloud-tfstate-prod" \
+  -backend-config="key=terraform.tfstate" \
+  -backend-config="region=us-east-1" \
+  -backend-config="dynamodb_table=fjcloud-tflock"
+```
+
+Expected output:
+```
+Terraform has been successfully initialized!
+```
+
+**Note**: Re-run `terraform init` when switching between staging and prod, or after adding new modules/providers.
+
+## 2. Plan
+
+```bash
+terraform plan \
+  -var="env=staging" \
+  -var="ami_id=ami-0123456789abcdef0" \
+  -var="domain=flapjack.foo" \
+  -var="cloudflare_zone_id=${CLOUDFLARE_ZONE_ID}"
+```
+
+Review the plan output carefully:
+- Check resource additions, changes, and destructions
+- Verify no unexpected deletions
+- Confirm environment-specific values are correct
+
+Canary runtime contract notes (post-Stage-5 handoff boundary):
+- Keep `canary_schedule.enabled = false` during initial `terraform plan/apply` until the canary image has been published and operators are ready to activate runtime execution.
+- Publish the canary image to the monitoring-owned ECR repository first, then set `canary_image.tag` to the published tag in your plan/apply inputs.
+- Example var overrides for initial rollout prep:
+  ```bash
+  -var='canary_image={tag="pending-publication"}' \
+  -var='canary_schedule={expression="rate(15 minutes)",enabled=false}'
+  ```
+- Runtime activation (setting `canary_schedule.enabled=true`) is a separate operator action after image publication and post-apply verification.
+
+Expected output:
+```
+Plan: X to add, Y to change, Z to destroy.
+```
+
+## 3. Apply
+
+```bash
+terraform apply \
+  -var="env=staging" \
+  -var="ami_id=ami-0123456789abcdef0" \
+  -var="domain=flapjack.foo" \
+  -var="cloudflare_zone_id=${CLOUDFLARE_ZONE_ID}"
+```
+
+Type `yes` when prompted to confirm.
+
+Expected output:
+```
+Apply complete! Resources: X added, Y changed, Z destroyed.
+```
+
+## 4. Adopt Existing RDS PostgreSQL Log Group (Before Apply)
+
+When `enabled_cloudwatch_logs_exports = ["postgresql"]` is active, RDS can create
+the CloudWatch log group before Terraform manages it. Terraform now owns:
+`module.data.aws_cloudwatch_log_group.rds_postgresql`.
+
+If the log group already exists, import it before `terraform apply`.
+Expected naming shape: `/aws/rds/instance/fjcloud-<env>/postgresql`.
+
+Run from `ops/terraform/_shared`:
+
+```bash
+# Staging
+terraform import \
+  -var="env=staging" \
+  -var="ami_id=ami-0123456789abcdef0" \
+  -var="domain=flapjack.foo" \
+  -var="cloudflare_zone_id=${CLOUDFLARE_ZONE_ID}" \
+  module.data.aws_cloudwatch_log_group.rds_postgresql \
+  /aws/rds/instance/fjcloud-staging/postgresql
+
+# Prod
+terraform import \
+  -var="env=prod" \
+  -var="ami_id=ami-0123456789abcdef0" \
+  -var="domain=flapjack.foo" \
+  -var="cloudflare_zone_id=${CLOUDFLARE_ZONE_ID}" \
+  module.data.aws_cloudwatch_log_group.rds_postgresql \
+  /aws/rds/instance/fjcloud-prod/postgresql
+```
+
+## 5. Post-Apply Validation
+
+Run the runtime smoke tests to verify infrastructure health:
+
+```bash
+# Full smoke test (requires DNS delegation + running instance)
+bash ops/terraform/tests_stage7_runtime_smoke.sh \
+  --env staging \
+  --domain flapjack.foo \
+  --ami-id ami-0123456789abcdef0
+
+# With apply verification
+bash ops/terraform/tests_stage7_runtime_smoke.sh \
+  --env staging \
+  --domain flapjack.foo \
+  --ami-id ami-0123456789abcdef0 \
+  --apply
+```
+
+## Rollback Procedure
+
+Terraform does not have a native "rollback" command. Recovery depends on the failure type:
+
+### Failed apply (partial) — revert config and re-apply
+
+1. Revert the `.tf` file changes that caused the failure:
+   ```bash
+   git diff ops/terraform/
+   git checkout -- ops/terraform/
+   ```
+2. Re-apply with the previous known-good configuration:
+   ```bash
+   terraform apply \
+     -var="env=staging" \
+     -var="ami_id=ami-0123456789abcdef0" \
+     -var="domain=flapjack.foo" \
+     -var="cloudflare_zone_id=${CLOUDFLARE_ZONE_ID}"
+   ```
+
+### Remove a specific problematic resource
+
+Use `terraform destroy -target` to remove only the resource causing issues:
+
+```bash
+terraform destroy -target="module.compute.aws_instance.api" \
+  -var="env=staging" \
+  -var="ami_id=ami-0123456789abcdef0" \
+  -var="domain=flapjack.foo" \
+  -var="cloudflare_zone_id=${CLOUDFLARE_ZONE_ID}"
+```
+
+Then re-apply to recreate it:
+
+```bash
+terraform apply \
+  -var="env=staging" \
+  -var="ami_id=ami-0123456789abcdef0" \
+  -var="domain=flapjack.foo" \
+  -var="cloudflare_zone_id=${CLOUDFLARE_ZONE_ID}"
+```
+
+### State corruption recovery
+
+If state becomes inconsistent with actual AWS resources:
+
+```bash
+# List resources in state
+terraform state list
+
+# Show details of a specific Cloudflare DNS resource
+terraform state show 'module.dns.cloudflare_dns_record.public["api"]'
+
+# Remove a resource from state (resource still exists in AWS, will be re-imported)
+terraform state rm 'module.compute.aws_instance.api'
+
+# Re-import an existing AWS resource into state
+terraform import \
+  -var="env=staging" \
+  -var="ami_id=ami-0123456789abcdef0" \
+  -var="domain=flapjack.foo" \
+  -var="cloudflare_zone_id=${CLOUDFLARE_ZONE_ID}" \
+  'module.dns.cloudflare_dns_record.public["api"]' "${CLOUDFLARE_ZONE_ID}/<record_id>"
+```
+
+## Module Inventory
+
+The root module (`_shared/main.tf`) composes 6 modules:
+
+| Module | Path | Purpose |
+|--------|------|---------|
+| networking | `ops/terraform/networking/` | VPC, subnets, security groups |
+| compute | `ops/terraform/compute/` | EC2 instance, instance profile |
+| data | `ops/terraform/data/` | RDS PostgreSQL, SSM params |
+| dns | `ops/terraform/dns/` | Cloudflare DNS, ACM, ALB, listeners |
+| monitoring | `ops/terraform/monitoring/` | CloudWatch alarms, SNS |
+| _shared | `ops/terraform/_shared/` | Root module, backend config |
+
+## Production Apply
+
+Production follows the same procedure with these differences:
+
+- Use `fjcloud-tfstate-prod` for backend
+- Use `env=prod` for all `-var` flags
+- **Always** apply to staging first and verify before touching prod
+- Review the plan extra carefully — prod changes are higher risk
+# Deploy, Migrate, and Rollback via SSM
+
+Full SSM-based deploy lifecycle for fjcloud. All remote execution uses AWS Systems Manager — no SSH keys required.
+
+Scripts: `ops/scripts/deploy.sh`, `ops/scripts/migrate.sh`, `ops/scripts/rollback.sh`
+
+## Pre-deploy Checklist
+
+Before deploying, verify:
+
+- [ ] Release artifacts are uploaded to S3: `s3://fjcloud-releases-<env>/<env>/<sha>/`
+  - `fjcloud-api`, `fjcloud-aggregation-job`, `fj-metering-agent` binaries
+  - `migrations/` directory with SQL files
+  - `scripts/migrate.sh`
+- [ ] EC2 instance is running: `aws ec2 describe-instances --filters "Name=tag:Name,Values=fjcloud-api-<env>" "Name=instance-state-name,Values=running"`
+- [ ] SSM agent is healthy: `aws ssm describe-instance-information --filters "Key=InstanceIds,Values=<instance-id>"`
+- [ ] SSM parameter `/fjcloud/<env>/database_url` exists (for migrations)
+- [ ] Previous deploy SHA is recorded: `aws ssm get-parameter --name "/fjcloud/<env>/last_deploy_sha"`
+
+## Deploy
+
+### Usage
+
+```bash
+ops/scripts/deploy.sh <env> <git-sha>
+```
+
+Example:
+
+```bash
+ops/scripts/deploy.sh staging abc123def456789012345678901234567890abcd
+```
+
+### What deploy.sh does
+
+1. Discovers the EC2 instance by `Name=fjcloud-api-<env>` tag
+2. Reads the current `last_deploy_sha` from SSM for rollback safety
+3. Sends an SSM `send-command` (`AWS-RunShellScript`) to the instance:
+   - Downloads binaries from `s3://fjcloud-releases-<env>/` as `.new` files
+   - Syncs migrations from S3
+   - Runs `migrate.sh <env>` (fail fast before binary swap)
+   - Backs up current binaries as `.old`
+   - Atomic binary swap via `mv`
+   - Runs `systemctl restart fjcloud-api` and `systemctl restart fj-metering-agent`
+   - Health check: `curl -sf http://127.0.0.1:3000/health`
+   - On health check failure: rolls back from `.old` backups
+4. Polls SSM via `get-command-invocation` until success or failure
+5. On success: updates `/fjcloud/<env>/last_deploy_sha` in SSM via `put-parameter`
+
+### Expected output
+
+```
+==> Discovering instance for fjcloud-api-staging...
+    Instance: i-0abc123def456
+==> Reading previous deploy SHA from SSM...
+    Previous SHA: (none)
+==> Sending deploy command via SSM...
+    Command ID: cmd-0abc123def456
+==> Polling SSM command status...
+    Status: InProgress
+    Status: Success
+==> Deploy successful! Updating last_deploy_sha...
+    SHA abc123def456789012345678901234567890abcd recorded
+```
+
+## Migrate
+
+Migrations run automatically during deploy. For manual execution (on the EC2 instance):
+
+```bash
+ops/scripts/migrate.sh <env>
+```
+
+The script:
+1. Fetches `DATABASE_URL` from SSM (`/fjcloud/<env>/database_url`) with `--with-decryption`
+2. Runs `sqlx migrate run` against the migrations directory
+3. Is idempotent — safe to re-run
+
+## Rollback
+
+### Usage
+
+```bash
+ops/scripts/rollback.sh <env> <previous-sha>
+```
+
+Example — roll back to the SHA recorded before the failed deploy:
+
+```bash
+# Check what the previous SHA was
+aws ssm get-parameter --name "/fjcloud/staging/last_deploy_sha" --query 'Parameter.Value' --output text
+
+# Roll back
+ops/scripts/rollback.sh staging <previous-sha>
+```
+
+### What rollback.sh does
+
+1. Downloads binaries for `<previous-sha>` from `s3://fjcloud-releases-<env>/`
+2. Sends SSM `send-command` to swap binaries and restart services
+3. Does **not** run migrations (never roll back migrations)
+4. Health checks after restart
+5. Updates `last_deploy_sha` in SSM on success
+
+### Expected output
+
+```
+==> Discovering instance for fjcloud-api-staging...
+    Instance: i-0abc123def456
+==> Sending rollback command via SSM...
+    Command ID: cmd-0abc123def456
+==> Polling SSM command status...
+    Status: Success
+==> Rollback successful! Updating last_deploy_sha...
+```
+
+## Verifying Deploy Success
+
+After deploy or rollback:
+
+```bash
+# Health check
+curl -sf https://api.flapjack.foo/health
+
+# Verify recorded SHA
+aws ssm get-parameter \
+  --name "/fjcloud/<env>/last_deploy_sha" \
+  --query 'Parameter.Value' --output text
+```
+
+## Troubleshooting Failed Deploys
+
+### Check SSM command output
+
+```bash
+# Get the command output (stdout + stderr)
+aws ssm get-command-invocation \
+  --command-id <command-id> \
+  --instance-id <instance-id> \
+  --query '[StandardOutputContent, StandardErrorContent]' \
+  --output text
+```
+
+### Check on-instance logs
+
+If SSM shows the command succeeded but the service is unhealthy:
+
+```bash
+# Via SSM session (interactive)
+aws ssm start-session --target <instance-id>
+
+# Check service status
+systemctl status fjcloud-api
+systemctl status fj-metering-agent
+
+# Check application logs
+journalctl -u fjcloud-api --since "10 minutes ago" --no-pager
+journalctl -u fj-metering-agent --since "10 minutes ago" --no-pager
+
+# Check if binaries exist
+ls -la /usr/local/bin/fjcloud-* /usr/local/bin/fj-*
+```
+
+### Common failure modes
+
+| Symptom | Likely Cause | Fix |
+|---------|-------------|-----|
+| SSM command `Failed` | Script error on instance | Check SSM stdout/stderr |
+| SSM command `TimedOut` | Instance hung or slow network | Check instance CPU/memory, retry |
+| Health check failed, auto-rolled back | App crash on startup | Check `journalctl -u fjcloud-api`, fix app bug |
+| Migration failed | Bad SQL or DB connectivity | Check DB connectivity, fix migration, re-deploy |
+| "Instance not found" | Wrong env or instance stopped | Verify instance is running with correct Name tag |
+# Root configuration — composes all infrastructure modules.
+#
+# Usage:
+#   cd ops/terraform/_shared
+#   terraform init -backend-config=...
+#   terraform plan -var="env=staging" -var="ami_id=ami-xxx"
+#   terraform apply -var="env=staging" -var="ami_id=ami-xxx"
+
+locals {
+  dns_public_record_names = {
+    apex  = var.domain
+    api   = "api.${var.domain}"
+    www   = "www.${var.domain}"
+    cloud = "cloud.${var.domain}"
+  }
+
+  # Staging already had manual Cloudflare Pages records for some public hosts.
+  # Discover them in the root module so Terraform can import and update them in
+  # place during the cutover instead of failing with duplicate-record errors.
+  existing_public_record_ids = {
+    for key, lookup in data.cloudflare_dns_records.existing_public :
+    key => lookup.result[0].id
+    if length(lookup.result) > 0
+  }
+}
+
+data "cloudflare_dns_records" "existing_public" {
+  for_each = local.dns_public_record_names
+
+  zone_id   = var.cloudflare_zone_id
+  type      = "CNAME"
+  max_items = 1
+
+  name = {
+    exact = each.value
+  }
+}
+
+module "networking" {
+  source = "../networking"
+
+  env    = var.env
+  region = var.region
+}
+
+module "data" {
+  source = "../data"
+
+  env                = var.env
+  region             = var.region
+  private_subnet_ids = module.networking.private_subnet_ids
+  sg_rds_id          = module.networking.sg_rds_id
+  db_instance_class  = var.db_instance_class
+}
+
+module "compute" {
+  source = "../compute"
+
+  env                   = var.env
+  region                = var.region
+  ami_id                = var.ami_id
+  api_instance_type     = var.api_instance_type
+  private_subnet_ids    = module.networking.private_subnet_ids
+  sg_api_id             = module.networking.sg_api_id
+  instance_profile_name = "fjcloud-instance-profile"
+}
+
+# Runtime-only provisioning inputs are owned by the dedicated runtime_params
+# module. deploy.sh regenerates /etc/fjcloud/env on the host exclusively from
+# Parameter Store, so these parameters must exist before a runtime deploy.
+# Parameter NAMES (/fjcloud/${env}/*) are the external contract and preserved
+# identically across the move.
+module "runtime_params" {
+  source = "../runtime_params"
+
+  env                   = var.env
+  ami_id                = var.ami_id
+  subnet_id             = element(module.networking.public_subnet_ids, 0)
+  security_group_ids    = module.networking.sg_flapjack_vm_id
+  key_pair_name         = module.compute.ssh_key_pair_name
+  instance_profile_name = "fjcloud-instance-profile"
+  cloudflare_zone_id    = var.cloudflare_zone_id
+  dns_domain            = var.domain
+  ses_configuration_set_name = module.dns.ses_configuration_set_name
+}
+
+module "dns" {
+  source = "../dns"
+
+  env                = var.env
+  region             = var.region
+  domain             = var.domain
+  cloudflare_zone_id = var.cloudflare_zone_id
+  vpc_id             = module.networking.vpc_id
+  public_subnet_ids  = module.networking.public_subnet_ids
+  sg_alb_id          = module.networking.sg_alb_id
+  api_instance_id    = module.compute.api_instance_id
+  ses_feedback_topic_arn = module.monitoring.ses_feedback_sns_topic_arn
+}
+
+module "monitoring" {
+  source = "../monitoring"
+
+  env                                       = var.env
+  region                                    = var.region
+  domain                                    = var.domain
+  api_instance_id                           = module.compute.api_instance_id
+  db_instance_identifier                    = module.data.db_instance_identifier
+  alb_arn_suffix                            = module.dns.alb_arn_suffix
+  alert_emails                              = var.alert_emails
+  canary_image                              = var.canary_image
+  canary_schedule                           = var.canary_schedule
+  live_e2e_monthly_spend_limit_usd          = var.live_e2e_monthly_spend_limit_usd
+  live_e2e_budget_action_enabled            = var.live_e2e_budget_action_enabled
+  live_e2e_budget_action_principal_arn      = var.live_e2e_budget_action_principal_arn
+  live_e2e_budget_action_policy_arn         = var.live_e2e_budget_action_policy_arn
+  live_e2e_budget_action_role_name          = var.live_e2e_budget_action_role_name
+  live_e2e_budget_action_execution_role_arn = var.live_e2e_budget_action_execution_role_arn
+  support_email_canary_image_uri              = var.support_email_canary_image_uri
+  support_email_canary_image_tag              = var.support_email_canary_image_tag
+  support_email_canary_ses_from_address       = var.support_email_canary_ses_from_address
+  support_email_canary_schedule_expression    = var.support_email_canary_schedule_expression
+  support_email_canary_inbound_roundtrip_s3_uri = var.support_email_canary_inbound_roundtrip_s3_uri
+  support_email_canary_recipient_domain_default = var.support_email_canary_recipient_domain_default
+  support_email_canary_recipient_local_part_default = var.support_email_canary_recipient_local_part_default
+  support_email_canary_slack_webhook_parameter_name = var.support_email_canary_slack_webhook_parameter_name
+  support_email_canary_discord_webhook_parameter_name = var.support_email_canary_discord_webhook_parameter_name
+}
+
+import {
+  for_each = local.existing_public_record_ids
+  to       = module.dns.cloudflare_dns_record.public[each.key]
+  id       = "${var.cloudflare_zone_id}/${each.value}"
+}
+
+# Safe state migration for 2026-04-24 move of runtime SSM parameters into
+# the dedicated runtime_params module. Prevents destroy+create of live
+# SSM parameters that deploy.sh reads from Parameter Store at host boot.
+moved {
+  from = aws_ssm_parameter.runtime_aws_ami_id
+  to   = module.runtime_params.aws_ssm_parameter.runtime_aws_ami_id
+}
+
+moved {
+  from = aws_ssm_parameter.runtime_aws_subnet_id
+  to   = module.runtime_params.aws_ssm_parameter.runtime_aws_subnet_id
+}
+
+moved {
+  from = aws_ssm_parameter.runtime_aws_security_group_ids
+  to   = module.runtime_params.aws_ssm_parameter.runtime_aws_security_group_ids
+}
+
+moved {
+  from = aws_ssm_parameter.runtime_aws_key_pair_name
+  to   = module.runtime_params.aws_ssm_parameter.runtime_aws_key_pair_name
+}
+
+moved {
+  from = aws_ssm_parameter.runtime_aws_instance_profile_name
+  to   = module.runtime_params.aws_ssm_parameter.runtime_aws_instance_profile_name
+}
+
+moved {
+  from = aws_ssm_parameter.runtime_cloudflare_zone_id
+  to   = module.runtime_params.aws_ssm_parameter.runtime_cloudflare_zone_id
+}
+
+moved {
+  from = aws_ssm_parameter.runtime_dns_domain
+  to   = module.runtime_params.aws_ssm_parameter.runtime_dns_domain
+}
+# Runtime provisioning inputs in SSM Parameter Store.
+#
+# deploy.sh regenerates /etc/fjcloud/env on the host exclusively from Parameter
+# Store, so these parameters must exist before a runtime deploy can succeed.
+#
+# Parameter NAMES are the external contract and must not change. Terraform
+# logical paths (aws_ssm_parameter.runtime_*) are internal and may be reshaped
+# freely.
+
+resource "aws_ssm_parameter" "runtime_aws_ami_id" {
+  name  = "/fjcloud/${var.env}/aws_ami_id"
+  type  = "String"
+  value = var.ami_id
+}
+
+resource "aws_ssm_parameter" "runtime_aws_subnet_id" {
+  name  = "/fjcloud/${var.env}/aws_subnet_id"
+  type  = "String"
+  value = var.subnet_id
+}
+
+resource "aws_ssm_parameter" "runtime_aws_security_group_ids" {
+  name  = "/fjcloud/${var.env}/aws_security_group_ids"
+  type  = "String"
+  value = var.security_group_ids
+}
+
+resource "aws_ssm_parameter" "runtime_aws_key_pair_name" {
+  name  = "/fjcloud/${var.env}/aws_key_pair_name"
+  type  = "String"
+  value = var.key_pair_name
+}
+
+resource "aws_ssm_parameter" "runtime_aws_instance_profile_name" {
+  name  = "/fjcloud/${var.env}/aws_instance_profile_name"
+  type  = "String"
+  value = var.instance_profile_name
+}
+
+resource "aws_ssm_parameter" "runtime_cloudflare_zone_id" {
+  name  = "/fjcloud/${var.env}/cloudflare_zone_id"
+  type  = "String"
+  value = var.cloudflare_zone_id
+}
+
+resource "aws_ssm_parameter" "runtime_dns_domain" {
+  name  = "/fjcloud/${var.env}/dns_domain"
+  type  = "String"
+  value = var.dns_domain
+}
+
+resource "aws_ssm_parameter" "runtime_ses_configuration_set" {
+  name  = "/fjcloud/${var.env}/ses_configuration_set"
+  type  = "String"
+  value = var.ses_configuration_set_name
+}

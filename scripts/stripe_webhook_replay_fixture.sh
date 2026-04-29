@@ -23,10 +23,17 @@ json_escape() { validation_json_escape "$1"; }
 MODE="check"
 TARGET_URL_OVERRIDE=""
 TARGET_URL=""
+ALLOW_STAGING_TARGET="0"
+SANCTIONED_STAGING_WEBHOOK_URL="https://api.flapjack.foo/webhooks/stripe"
 TIMESTAMP_OVERRIDE=""
 TIMESTAMP_VALUE=""
 EVENT_ID_OVERRIDE=""
 EVENT_ID_VALUE=""
+EVENT_TYPE_OVERRIDE=""
+EVENT_TYPE_VALUE="customer.updated"
+INVOICE_ID_OVERRIDE=""
+NEXT_PAYMENT_ATTEMPT_OVERRIDE=""
+ATTEMPT_COUNT_OVERRIDE=""
 PAYLOAD=""
 SIGNATURE_HEADER=""
 ENV_FILE=""
@@ -39,12 +46,14 @@ EXIT_CODE=0
 print_usage() {
     cat <<'USAGE' >&2
 Usage:
-  stripe_webhook_replay_fixture.sh [--check|--run] [--env-file <path>] [--target-url <url>] [--timestamp <unix-seconds>] [--event-id <id>]
+  stripe_webhook_replay_fixture.sh [--check|--run] [--allow-staging-target] [--env-file <path>] [--target-url <url>] [--timestamp <unix-seconds>] [--event-id <id>] [--event-type <type>] [--invoice-id <id>] [--next-payment-attempt <unix-seconds>] [--attempt-count <integer>]
   stripe_webhook_replay_fixture.sh --help
 
 Modes:
   --check    Build deterministic webhook payload + signature only (default).
   --run      Build payload + signature and POST exactly once to target URL.
+  --allow-staging-target  Permit only the sanctioned staging webhook target.
+  --event-type  Supported values: customer.updated (default), invoice.payment_failed.
 USAGE
 }
 
@@ -127,6 +136,10 @@ parse_args() {
                 MODE="run"
                 shift
                 ;;
+            --allow-staging-target)
+                ALLOW_STAGING_TARGET="1"
+                shift
+                ;;
             --target-url)
                 if [ "$#" -lt 2 ]; then
                     append_step "parse_args" false "--target-url requires a value"
@@ -164,6 +177,58 @@ parse_args() {
                 ;;
             --event-id=*)
                 EVENT_ID_OVERRIDE="${1#--event-id=}"
+                shift
+                ;;
+            --event-type)
+                if [ "$#" -lt 2 ]; then
+                    append_step "parse_args" false "--event-type requires a value"
+                    set_outcome "failed" "cli_argument_missing_value" "--event-type requires a value" 1
+                    return 1
+                fi
+                EVENT_TYPE_OVERRIDE="$2"
+                shift 2
+                ;;
+            --event-type=*)
+                EVENT_TYPE_OVERRIDE="${1#--event-type=}"
+                shift
+                ;;
+            --invoice-id)
+                if [ "$#" -lt 2 ]; then
+                    append_step "parse_args" false "--invoice-id requires a value"
+                    set_outcome "failed" "cli_argument_missing_value" "--invoice-id requires a value" 1
+                    return 1
+                fi
+                INVOICE_ID_OVERRIDE="$2"
+                shift 2
+                ;;
+            --invoice-id=*)
+                INVOICE_ID_OVERRIDE="${1#--invoice-id=}"
+                shift
+                ;;
+            --next-payment-attempt)
+                if [ "$#" -lt 2 ]; then
+                    append_step "parse_args" false "--next-payment-attempt requires a value"
+                    set_outcome "failed" "cli_argument_missing_value" "--next-payment-attempt requires a value" 1
+                    return 1
+                fi
+                NEXT_PAYMENT_ATTEMPT_OVERRIDE="$2"
+                shift 2
+                ;;
+            --next-payment-attempt=*)
+                NEXT_PAYMENT_ATTEMPT_OVERRIDE="${1#--next-payment-attempt=}"
+                shift
+                ;;
+            --attempt-count)
+                if [ "$#" -lt 2 ]; then
+                    append_step "parse_args" false "--attempt-count requires a value"
+                    set_outcome "failed" "cli_argument_missing_value" "--attempt-count requires a value" 1
+                    return 1
+                fi
+                ATTEMPT_COUNT_OVERRIDE="$2"
+                shift 2
+                ;;
+            --attempt-count=*)
+                ATTEMPT_COUNT_OVERRIDE="${1#--attempt-count=}"
                 shift
                 ;;
             --env-file)
@@ -239,8 +304,14 @@ resolve_target_url() {
     fi
 
     if ! target_url_is_loopback "$TARGET_URL"; then
-        append_step "resolve_target_url" false "target URL must resolve to a loopback host"
-        set_outcome "failed" "target_url_invalid" "target URL must resolve to localhost or another loopback host" 1
+        if [ "$ALLOW_STAGING_TARGET" = "1" ] && [ "$TARGET_URL" = "$SANCTIONED_STAGING_WEBHOOK_URL" ]; then
+            append_step "resolve_target_url" true "resolved sanctioned staging webhook target via explicit opt-in"
+            return 0
+        fi
+
+        append_step "resolve_target_url" false "target URL must resolve to a loopback host unless explicit staging opt-in is used"
+        set_outcome "failed" "target_url_invalid" \
+            "target URL must resolve to localhost/loopback, or match the sanctioned staging webhook target with --allow-staging-target" 1
         return 1
     fi
 
@@ -270,29 +341,96 @@ resolve_timestamp_and_event_id() {
     return 0
 }
 
+resolve_event_contract() {
+    if [ -n "$EVENT_TYPE_OVERRIDE" ]; then
+        EVENT_TYPE_VALUE="$EVENT_TYPE_OVERRIDE"
+    else
+        EVENT_TYPE_VALUE="customer.updated"
+    fi
+
+    case "$EVENT_TYPE_VALUE" in
+        customer.updated)
+            append_step "resolve_event_contract" true "using default customer.updated replay payload contract"
+            return 0
+            ;;
+        invoice.payment_failed)
+            if [ -z "$INVOICE_ID_OVERRIDE" ]; then
+                append_step "resolve_event_contract" false "--invoice-id is required when --event-type=invoice.payment_failed"
+                set_outcome "failed" "event_contract_invalid" "--invoice-id is required when --event-type=invoice.payment_failed" 1
+                return 1
+            fi
+            if [ -z "$NEXT_PAYMENT_ATTEMPT_OVERRIDE" ]; then
+                append_step "resolve_event_contract" false "--next-payment-attempt is required when --event-type=invoice.payment_failed"
+                set_outcome "failed" "event_contract_invalid" "--next-payment-attempt is required when --event-type=invoice.payment_failed" 1
+                return 1
+            fi
+            if [ -z "$ATTEMPT_COUNT_OVERRIDE" ]; then
+                append_step "resolve_event_contract" false "--attempt-count is required when --event-type=invoice.payment_failed"
+                set_outcome "failed" "event_contract_invalid" "--attempt-count is required when --event-type=invoice.payment_failed" 1
+                return 1
+            fi
+            if [[ ! "$NEXT_PAYMENT_ATTEMPT_OVERRIDE" =~ ^[0-9]+$ ]]; then
+                append_step "resolve_event_contract" false "--next-payment-attempt must be a unix-seconds integer"
+                set_outcome "failed" "event_contract_invalid" "--next-payment-attempt must be a unix-seconds integer" 1
+                return 1
+            fi
+            if [[ ! "$ATTEMPT_COUNT_OVERRIDE" =~ ^[0-9]+$ ]]; then
+                append_step "resolve_event_contract" false "--attempt-count must be an integer"
+                set_outcome "failed" "event_contract_invalid" "--attempt-count must be an integer" 1
+                return 1
+            fi
+            append_step "resolve_event_contract" true "using invoice.payment_failed retry payload contract"
+            return 0
+            ;;
+        *)
+            append_step "resolve_event_contract" false "unsupported --event-type value"
+            set_outcome "failed" "event_contract_invalid" "unsupported --event-type value; allowed: customer.updated, invoice.payment_failed" 1
+            return 1
+            ;;
+    esac
+}
+
 build_payload() {
-    PAYLOAD="$(python3 - "$EVENT_ID_VALUE" "$TIMESTAMP_VALUE" <<'PY'
+    PAYLOAD="$(python3 - "$EVENT_ID_VALUE" "$TIMESTAMP_VALUE" "$EVENT_TYPE_VALUE" "$INVOICE_ID_OVERRIDE" "$NEXT_PAYMENT_ATTEMPT_OVERRIDE" "$ATTEMPT_COUNT_OVERRIDE" <<'PY'
 import json
 import sys
 
 event_id = sys.argv[1]
 timestamp = int(sys.argv[2])
+event_type = sys.argv[3]
+invoice_id = sys.argv[4]
+next_payment_attempt = sys.argv[5]
+attempt_count = sys.argv[6]
 
-payload = {
-    "id": event_id,
-    "type": "customer.updated",
-    "created": timestamp,
-    "data": {
-        "object": {
-            "id": "cus_replay_fixture"
+if event_type == "invoice.payment_failed":
+    payload = {
+        "id": event_id,
+        "type": "invoice.payment_failed",
+        "created": timestamp,
+        "data": {
+            "object": {
+                "id": invoice_id,
+                "next_payment_attempt": int(next_payment_attempt),
+                "attempt_count": int(attempt_count),
+            }
+        },
+    }
+else:
+    payload = {
+        "id": event_id,
+        "type": "customer.updated",
+        "created": timestamp,
+        "data": {
+            "object": {
+                "id": "cus_replay_fixture"
+            }
         }
     }
-}
 
 print(json.dumps(payload, sort_keys=True, separators=(",", ":")))
 PY
 )"
-    append_step "build_payload" true "built deterministic customer.updated payload"
+    append_step "build_payload" true "built deterministic replay payload"
 }
 
 validate_webhook_secret() {
@@ -412,6 +550,11 @@ main() {
     fi
 
     if ! resolve_timestamp_and_event_id; then
+        emit_summary_json
+        exit "$EXIT_CODE"
+    fi
+
+    if ! resolve_event_contract; then
         emit_summary_json
         exit "$EXIT_CODE"
     fi

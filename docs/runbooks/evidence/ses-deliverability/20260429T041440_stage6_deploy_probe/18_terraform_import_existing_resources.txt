@@ -1,0 +1,207 @@
+COMMAND: terraform import module.data.aws_cloudwatch_log_group.rds_postgresql /aws/rds/instance/fjcloud-staging/postgresql
+[0m[1mdata.cloudflare_dns_records.existing_public["apex"]: Reading...[0m[0m
+[0m[1mdata.cloudflare_dns_records.existing_public["cloud"]: Reading...[0m[0m
+[0m[1mdata.cloudflare_dns_records.existing_public["www"]: Reading...[0m[0m
+[0m[1mdata.cloudflare_dns_records.existing_public["api"]: Reading...[0m[0m
+[0m[1mmodule.monitoring.data.aws_caller_identity.current: Reading...[0m[0m
+[0m[1mmodule.monitoring.data.aws_partition.current: Reading...[0m[0m
+[0m[1mmodule.monitoring.data.aws_partition.current: Read complete after 0s [id=aws][0m
+[0m[1mmodule.monitoring.data.aws_caller_identity.current: Read complete after 0s [id=213880904778][0m
+[0m[1mmodule.data.aws_cloudwatch_log_group.rds_postgresql: Importing from ID "/aws/rds/instance/fjcloud-staging/postgresql"...[0m
+[0m[1m[32mmodule.data.aws_cloudwatch_log_group.rds_postgresql: Import prepared![0m
+[0m[32m  Prepared aws_cloudwatch_log_group for import[0m
+[0m[1mmodule.data.aws_cloudwatch_log_group.rds_postgresql: Refreshing state... [id=/aws/rds/instance/fjcloud-staging/postgresql][0m
+[0m[1mdata.cloudflare_dns_records.existing_public["cloud"]: Read complete after 1s[0m
+[0m[1mdata.cloudflare_dns_records.existing_public["api"]: Read complete after 1s[0m
+[0m[1mdata.cloudflare_dns_records.existing_public["www"]: Read complete after 1s[0m
+[0m[1mdata.cloudflare_dns_records.existing_public["apex"]: Read complete after 1s[0m
+[0m[32m
+Import successful!
+
+The resources that were imported are shown above. These resources are now in
+your Terraform state and will henceforth be managed by Terraform.
+[0m
+COMMAND: terraform import module.data.aws_ssm_parameter.internal_auth_token /fjcloud/staging/internal_auth_token
+[0m[1mdata.cloudflare_dns_records.existing_public["cloud"]: Reading...[0m[0m
+[0m[1mdata.cloudflare_dns_records.existing_public["apex"]: Reading...[0m[0m
+[0m[1mdata.cloudflare_dns_records.existing_public["api"]: Reading...[0m[0m
+[0m[1mdata.cloudflare_dns_records.existing_public["www"]: Reading...[0m[0m
+[0m[1mmodule.monitoring.data.aws_caller_identity.current: Reading...[0m[0m
+[0m[1mmodule.monitoring.data.aws_partition.current: Reading...[0m[0m
+[0m[1mmodule.monitoring.data.aws_partition.current: Read complete after 0s [id=aws][0m
+[0m[1mmodule.data.aws_ssm_parameter.internal_auth_token: Importing from ID "/fjcloud/staging/internal_auth_token"...[0m
+[0m[1m[32mmodule.data.aws_ssm_parameter.internal_auth_token: Import prepared![0m
+[0m[32m  Prepared aws_ssm_parameter for import[0m
+[0m[1mmodule.data.aws_ssm_parameter.internal_auth_token: Refreshing state... [id=/fjcloud/staging/internal_auth_token][0m
+[0m[1mmodule.monitoring.data.aws_caller_identity.current: Read complete after 0s [id=213880904778][0m
+[0m[1mdata.cloudflare_dns_records.existing_public["apex"]: Read complete after 1s[0m
+[0m[1mdata.cloudflare_dns_records.existing_public["www"]: Read complete after 1s[0m
+[0m[1mdata.cloudflare_dns_records.existing_public["cloud"]: Read complete after 1s[0m
+[0m[1mdata.cloudflare_dns_records.existing_public["api"]: Read complete after 1s[0m
+[0m[32m
+Import successful!
+
+The resources that were imported are shown above. These resources are now in
+your Terraform state and will henceforth be managed by Terraform.
+[0m
+COMMAND: terraform import module.runtime_params.aws_ssm_parameter.runtime_aws_ami_id /fjcloud/staging/aws_ami_id
+[0m[1mdata.cloudflare_dns_records.existing_public["api"]: Reading...[0m[0m
+[0m[1mdata.cloudflare_dns_records.existing_public["cloud"]: Reading...[0m[0m
+[0m[1mdata.cloudflare_dns_records.existing_public["www"]: Reading...[0m[0m
+[0m[1mdata.cloudflare_dns_records.existing_public["apex"]: Reading...[0m[0m
+[0m[1mmodule.runtime_params.aws_ssm_parameter.runtime_aws_ami_id: Importing from ID "/fjcloud/staging/aws_ami_id"...[0m
+[0m[1mmodule.monitoring.data.aws_caller_identity.current: Reading...[0m[0m
+[0m[1mmodule.monitoring.data.aws_partition.current: Reading...[0m[0m
+[0m[1mmodule.monitoring.data.aws_partition.current: Read complete after 0s [id=aws][0m
+[0m[1m[32mmodule.runtime_params.aws_ssm_parameter.runtime_aws_ami_id: Import prepared![0m
+[0m[32m  Prepared aws_ssm_parameter for import[0m
+[0m[1mmodule.monitoring.data.aws_caller_identity.current: Read complete after 0s [id=213880904778][0m
+[0m[1mmodule.runtime_params.aws_ssm_parameter.runtime_aws_ami_id: Refreshing state... [id=/fjcloud/staging/aws_ami_id][0m
+[0m[1mdata.cloudflare_dns_records.existing_public["api"]: Read complete after 0s[0m
+[0m[1mdata.cloudflare_dns_records.existing_public["www"]: Read complete after 0s[0m
+[0m[1mdata.cloudflare_dns_records.existing_public["cloud"]: Read complete after 0s[0m
+[0m[1mdata.cloudflare_dns_records.existing_public["apex"]: Read complete after 0s[0m
+[0m[32m
+Import successful!
+
+The resources that were imported are shown above. These resources are now in
+your Terraform state and will henceforth be managed by Terraform.
+[0m
+COMMAND: terraform import module.runtime_params.aws_ssm_parameter.runtime_aws_subnet_id /fjcloud/staging/aws_subnet_id
+[0m[1mdata.cloudflare_dns_records.existing_public["apex"]: Reading...[0m[0m
+[0m[1mdata.cloudflare_dns_records.existing_public["cloud"]: Reading...[0m[0m
+[0m[1mdata.cloudflare_dns_records.existing_public["api"]: Reading...[0m[0m
+[0m[1mdata.cloudflare_dns_records.existing_public["www"]: Reading...[0m[0m
+[0m[1mmodule.monitoring.data.aws_caller_identity.current: Reading...[0m[0m
+[0m[1mmodule.monitoring.data.aws_partition.current: Reading...[0m[0m
+[0m[1mmodule.monitoring.data.aws_partition.current: Read complete after 1s [id=aws][0m
+[0m[1mmodule.monitoring.data.aws_caller_identity.current: Read complete after 1s [id=213880904778][0m
+[0m[1mmodule.runtime_params.aws_ssm_parameter.runtime_aws_subnet_id: Importing from ID "/fjcloud/staging/aws_subnet_id"...[0m
+[0m[1m[32mmodule.runtime_params.aws_ssm_parameter.runtime_aws_subnet_id: Import prepared![0m
+[0m[32m  Prepared aws_ssm_parameter for import[0m
+[0m[1mmodule.runtime_params.aws_ssm_parameter.runtime_aws_subnet_id: Refreshing state... [id=/fjcloud/staging/aws_subnet_id][0m
+[0m[1mdata.cloudflare_dns_records.existing_public["cloud"]: Read complete after 1s[0m
+[0m[1mdata.cloudflare_dns_records.existing_public["apex"]: Read complete after 1s[0m
+[0m[1mdata.cloudflare_dns_records.existing_public["api"]: Read complete after 1s[0m
+[0m[1mdata.cloudflare_dns_records.existing_public["www"]: Read complete after 1s[0m
+[0m[32m
+Import successful!
+
+The resources that were imported are shown above. These resources are now in
+your Terraform state and will henceforth be managed by Terraform.
+[0m
+COMMAND: terraform import module.runtime_params.aws_ssm_parameter.runtime_aws_security_group_ids /fjcloud/staging/aws_security_group_ids
+[0m[1mdata.cloudflare_dns_records.existing_public["apex"]: Reading...[0m[0m
+[0m[1mdata.cloudflare_dns_records.existing_public["www"]: Reading...[0m[0m
+[0m[1mdata.cloudflare_dns_records.existing_public["cloud"]: Reading...[0m[0m
+[0m[1mdata.cloudflare_dns_records.existing_public["api"]: Reading...[0m[0m
+[0m[1mmodule.monitoring.data.aws_caller_identity.current: Reading...[0m[0m
+[0m[1mmodule.monitoring.data.aws_partition.current: Reading...[0m[0m
+[0m[1mmodule.monitoring.data.aws_partition.current: Read complete after 0s [id=aws][0m
+[0m[1mmodule.monitoring.data.aws_caller_identity.current: Read complete after 0s [id=213880904778][0m
+[0m[1mmodule.runtime_params.aws_ssm_parameter.runtime_aws_security_group_ids: Importing from ID "/fjcloud/staging/aws_security_group_ids"...[0m
+[0m[1m[32mmodule.runtime_params.aws_ssm_parameter.runtime_aws_security_group_ids: Import prepared![0m
+[0m[32m  Prepared aws_ssm_parameter for import[0m
+[0m[1mmodule.runtime_params.aws_ssm_parameter.runtime_aws_security_group_ids: Refreshing state... [id=/fjcloud/staging/aws_security_group_ids][0m
+[0m[1mdata.cloudflare_dns_records.existing_public["cloud"]: Read complete after 1s[0m
+[0m[1mdata.cloudflare_dns_records.existing_public["www"]: Read complete after 1s[0m
+[0m[1mdata.cloudflare_dns_records.existing_public["apex"]: Read complete after 1s[0m
+[0m[1mdata.cloudflare_dns_records.existing_public["api"]: Read complete after 0s[0m
+[0m[32m
+Import successful!
+
+The resources that were imported are shown above. These resources are now in
+your Terraform state and will henceforth be managed by Terraform.
+[0m
+COMMAND: terraform import module.runtime_params.aws_ssm_parameter.runtime_aws_key_pair_name /fjcloud/staging/aws_key_pair_name
+[0m[1mdata.cloudflare_dns_records.existing_public["www"]: Reading...[0m[0m
+[0m[1mdata.cloudflare_dns_records.existing_public["cloud"]: Reading...[0m[0m
+[0m[1mdata.cloudflare_dns_records.existing_public["api"]: Reading...[0m[0m
+[0m[1mdata.cloudflare_dns_records.existing_public["apex"]: Reading...[0m[0m
+[0m[1mmodule.runtime_params.aws_ssm_parameter.runtime_aws_key_pair_name: Importing from ID "/fjcloud/staging/aws_key_pair_name"...[0m
+[0m[1m[32mmodule.runtime_params.aws_ssm_parameter.runtime_aws_key_pair_name: Import prepared![0m
+[0m[32m  Prepared aws_ssm_parameter for import[0m
+[0m[1mmodule.runtime_params.aws_ssm_parameter.runtime_aws_key_pair_name: Refreshing state... [id=/fjcloud/staging/aws_key_pair_name][0m
+[0m[1mmodule.monitoring.data.aws_partition.current: Reading...[0m[0m
+[0m[1mmodule.monitoring.data.aws_partition.current: Read complete after 0s [id=aws][0m
+[0m[1mmodule.monitoring.data.aws_caller_identity.current: Reading...[0m[0m
+[0m[1mmodule.monitoring.data.aws_caller_identity.current: Read complete after 0s [id=213880904778][0m
+[0m[1mdata.cloudflare_dns_records.existing_public["cloud"]: Read complete after 1s[0m
+[0m[1mdata.cloudflare_dns_records.existing_public["www"]: Read complete after 1s[0m
+[0m[1mdata.cloudflare_dns_records.existing_public["apex"]: Read complete after 1s[0m
+[0m[1mdata.cloudflare_dns_records.existing_public["api"]: Read complete after 1s[0m
+[0m[32m
+Import successful!
+
+The resources that were imported are shown above. These resources are now in
+your Terraform state and will henceforth be managed by Terraform.
+[0m
+COMMAND: terraform import module.runtime_params.aws_ssm_parameter.runtime_aws_instance_profile_name /fjcloud/staging/aws_instance_profile_name
+[0m[1mdata.cloudflare_dns_records.existing_public["api"]: Reading...[0m[0m
+[0m[1mdata.cloudflare_dns_records.existing_public["apex"]: Reading...[0m[0m
+[0m[1mdata.cloudflare_dns_records.existing_public["cloud"]: Reading...[0m[0m
+[0m[1mdata.cloudflare_dns_records.existing_public["www"]: Reading...[0m[0m
+[0m[1mmodule.runtime_params.aws_ssm_parameter.runtime_aws_instance_profile_name: Importing from ID "/fjcloud/staging/aws_instance_profile_name"...[0m
+[0m[1m[32mmodule.runtime_params.aws_ssm_parameter.runtime_aws_instance_profile_name: Import prepared![0m
+[0m[32m  Prepared aws_ssm_parameter for import[0m
+[0m[1mmodule.monitoring.data.aws_caller_identity.current: Reading...[0m[0m
+[0m[1mmodule.monitoring.data.aws_partition.current: Reading...[0m[0m
+[0m[1mmodule.monitoring.data.aws_partition.current: Read complete after 0s [id=aws][0m
+[0m[1mmodule.runtime_params.aws_ssm_parameter.runtime_aws_instance_profile_name: Refreshing state... [id=/fjcloud/staging/aws_instance_profile_name][0m
+[0m[1mmodule.monitoring.data.aws_caller_identity.current: Read complete after 0s [id=213880904778][0m
+[0m[1mdata.cloudflare_dns_records.existing_public["apex"]: Read complete after 0s[0m
+[0m[1mdata.cloudflare_dns_records.existing_public["api"]: Read complete after 0s[0m
+[0m[1mdata.cloudflare_dns_records.existing_public["cloud"]: Read complete after 0s[0m
+[0m[1mdata.cloudflare_dns_records.existing_public["www"]: Read complete after 0s[0m
+[0m[32m
+Import successful!
+
+The resources that were imported are shown above. These resources are now in
+your Terraform state and will henceforth be managed by Terraform.
+[0m
+COMMAND: terraform import module.runtime_params.aws_ssm_parameter.runtime_cloudflare_zone_id /fjcloud/staging/cloudflare_zone_id
+[0m[1mdata.cloudflare_dns_records.existing_public["www"]: Reading...[0m[0m
+[0m[1mdata.cloudflare_dns_records.existing_public["cloud"]: Reading...[0m[0m
+[0m[1mdata.cloudflare_dns_records.existing_public["api"]: Reading...[0m[0m
+[0m[1mdata.cloudflare_dns_records.existing_public["apex"]: Reading...[0m[0m
+[0m[1mmodule.monitoring.data.aws_caller_identity.current: Reading...[0m[0m
+[0m[1mmodule.monitoring.data.aws_partition.current: Reading...[0m[0m
+[0m[1mmodule.monitoring.data.aws_partition.current: Read complete after 0s [id=aws][0m
+[0m[1mmodule.runtime_params.aws_ssm_parameter.runtime_cloudflare_zone_id: Importing from ID "/fjcloud/staging/cloudflare_zone_id"...[0m
+[0m[1mmodule.monitoring.data.aws_caller_identity.current: Read complete after 0s [id=213880904778][0m
+[0m[1m[32mmodule.runtime_params.aws_ssm_parameter.runtime_cloudflare_zone_id: Import prepared![0m
+[0m[32m  Prepared aws_ssm_parameter for import[0m
+[0m[1mmodule.runtime_params.aws_ssm_parameter.runtime_cloudflare_zone_id: Refreshing state... [id=/fjcloud/staging/cloudflare_zone_id][0m
+[0m[1mdata.cloudflare_dns_records.existing_public["www"]: Read complete after 0s[0m
+[0m[1mdata.cloudflare_dns_records.existing_public["cloud"]: Read complete after 0s[0m
+[0m[1mdata.cloudflare_dns_records.existing_public["apex"]: Read complete after 0s[0m
+[0m[1mdata.cloudflare_dns_records.existing_public["api"]: Read complete after 0s[0m
+[0m[32m
+Import successful!
+
+The resources that were imported are shown above. These resources are now in
+your Terraform state and will henceforth be managed by Terraform.
+[0m
+COMMAND: terraform import module.runtime_params.aws_ssm_parameter.runtime_dns_domain /fjcloud/staging/dns_domain
+[0m[1mdata.cloudflare_dns_records.existing_public["cloud"]: Reading...[0m[0m
+[0m[1mdata.cloudflare_dns_records.existing_public["www"]: Reading...[0m[0m
+[0m[1mdata.cloudflare_dns_records.existing_public["api"]: Reading...[0m[0m
+[0m[1mdata.cloudflare_dns_records.existing_public["apex"]: Reading...[0m[0m
+[0m[1mmodule.monitoring.data.aws_partition.current: Reading...[0m[0m
+[0m[1mmodule.monitoring.data.aws_caller_identity.current: Reading...[0m[0m
+[0m[1mmodule.monitoring.data.aws_partition.current: Read complete after 0s [id=aws][0m
+[0m[1mmodule.runtime_params.aws_ssm_parameter.runtime_dns_domain: Importing from ID "/fjcloud/staging/dns_domain"...[0m
+[0m[1m[32mmodule.runtime_params.aws_ssm_parameter.runtime_dns_domain: Import prepared![0m
+[0m[32m  Prepared aws_ssm_parameter for import[0m
+[0m[1mmodule.monitoring.data.aws_caller_identity.current: Read complete after 0s [id=213880904778][0m
+[0m[1mmodule.runtime_params.aws_ssm_parameter.runtime_dns_domain: Refreshing state... [id=/fjcloud/staging/dns_domain][0m
+[0m[1mdata.cloudflare_dns_records.existing_public["www"]: Read complete after 1s[0m
+[0m[1mdata.cloudflare_dns_records.existing_public["api"]: Read complete after 1s[0m
+[0m[1mdata.cloudflare_dns_records.existing_public["cloud"]: Read complete after 1s[0m
+[0m[1mdata.cloudflare_dns_records.existing_public["apex"]: Read complete after 0s[0m
+[0m[32m
+Import successful!
+
+The resources that were imported are shown above. These resources are now in
+your Terraform state and will henceforth be managed by Terraform.
+[0m

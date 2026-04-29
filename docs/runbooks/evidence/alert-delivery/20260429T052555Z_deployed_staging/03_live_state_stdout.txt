@@ -1,0 +1,9 @@
+[HOST] instance_id:
+[HOST] active_enter:
+ActiveEnterTimestamp=Tue 2026-04-28 20:49:53 UTC
+[HOST] env_presence_redacted:
+ENVIRONMENT=staging
+DISCORD_WEBHOOK_URL=<redacted>
+[HOST] startup_boundary=Tue 2026-04-28 20:49:53 UTC
+[HOST] startup_mode_logs:
+

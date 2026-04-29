@@ -1,16 +1,13 @@
 import { screen } from '@testing-library/svelte';
 import { expect } from 'vitest';
 
+import { exactTextMatcher } from '$lib/exact_text_matcher';
 import { SHARED_LEGAL_PAGE_CONTRACT } from '../../tests/fixtures/legal_page_contract';
 
 type HeadingLevel = 1 | 2 | 3 | 4 | 5 | 6;
 
-function escapeForRegex(value: string): string {
-	return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
 export function exactNameMatcher(value: string): RegExp {
-	return new RegExp(`^${escapeForRegex(value)}$`);
+	return exactTextMatcher(value);
 }
 
 export function assertUniqueVisibleText(text: string): HTMLElement {
@@ -38,8 +35,36 @@ export function assertUniqueVisibleLink(name: string, href: string): HTMLAnchorE
 	return link as HTMLAnchorElement;
 }
 
+export function assertUniqueVisibleBannerBadge(label: string, companionText: string): HTMLElement {
+	const badgeCandidates = screen.getAllByText(label, { exact: true, selector: 'span' });
+	const matchingBadges = badgeCandidates.filter((badgeElement) => {
+		const container = badgeElement.parentElement;
+		if (!(container instanceof HTMLParagraphElement)) {
+			return false;
+		}
+
+		const badgePeers = Array.from(container.children).filter(
+			(child): child is HTMLSpanElement => child instanceof HTMLSpanElement
+		);
+		if (badgePeers.length !== 2) {
+			return false;
+		}
+
+		return badgePeers.some((peer) => peer !== badgeElement && peer.textContent?.trim() === companionText);
+	});
+	expect(matchingBadges).toHaveLength(1);
+	const badge = matchingBadges[0];
+	expect(badge).toBeVisible();
+	return badge;
+}
+
 export function assertSharedLegalPageContract(): void {
 	for (const check of SHARED_LEGAL_PAGE_CONTRACT) {
+		if (check.kind === 'banner-badge') {
+			assertUniqueVisibleBannerBadge(check.label, check.companionText);
+			continue;
+		}
+
 		if (check.kind === 'text') {
 			assertUniqueVisibleText(check.text);
 			continue;

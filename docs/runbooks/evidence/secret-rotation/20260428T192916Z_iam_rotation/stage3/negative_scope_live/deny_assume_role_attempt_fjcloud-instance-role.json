@@ -1,0 +1,8 @@
+{
+  "role_name": "fjcloud-instance-role",
+  "role_arn": "arn:aws:iam::213880904778:role/fjcloud-instance-role",
+  "attempted_command": "aws sts assume-role --role-arn arn:aws:iam::213880904778:role/fjcloud-instance-role --role-session-name stage3negativeprooffjcloudinstancerole --duration-seconds 900 --output json",
+  "returncode": 254,
+  "stdout": "",
+  "stderr": "\nAn error occurred (AccessDenied) when calling the AssumeRole operation: User: arn:aws:iam::213880904778:user/stuart-cli is not authorized to perform: sts:AssumeRole on resource: arn:aws:iam::213880904778:role/fjcloud-instance-role\n"
+}

@@ -1,0 +1,28 @@
+{
+  "invoice_id": "e7806ad2-977d-4f4b-9ff9-95c7ddab49e3",
+  "verdict": "CROSS_CHECK_PASSED",
+  "canonical_test_name": "infra/api/tests/billing_regression_test.rs::shared_plan_staging_bundle_known_answer_regression",
+  "persisted_invoice_values": {
+    "subtotal_cents": 11,
+    "total_cents": 500,
+    "minimum_applied": true
+  },
+  "generated_values_proven_by_stage2_regression": {
+    "subtotal_cents": 11,
+    "total_cents": 500,
+    "minimum_applied": true
+  },
+  "exact_match": {
+    "subtotal_cents": true,
+    "total_cents": true,
+    "minimum_applied": true
+  },
+  "source_artifact_paths": [
+    "docs/runbooks/evidence/staging-billing-rehearsal/20260428T055058Z_paid_lifecycle_clean/invoice_db_row.json",
+    "docs/runbooks/evidence/staging-billing-rehearsal/20260428T055058Z_paid_lifecycle_clean/invoice_line_items.json",
+    "docs/runbooks/evidence/staging-billing-rehearsal/20260428T055058Z_paid_lifecycle_clean/customer_billing_context.json",
+    "docs/runbooks/evidence/staging-billing-rehearsal/20260428T055058Z_paid_lifecycle_clean/rate_card_selection.json",
+    "docs/runbooks/evidence/staging-billing-rehearsal/20260428T055058Z_paid_lifecycle_clean/customer_rate_override.json",
+    "docs/runbooks/evidence/staging-billing-rehearsal/20260428T055058Z_paid_lifecycle_clean/usage_daily_replay_rows.json"
+  ]
+}

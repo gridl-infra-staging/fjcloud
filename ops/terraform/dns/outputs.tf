@@ -22,3 +22,8 @@ output "cloudflare_zone_id" {
   description = "Cloudflare zone ID used for public DNS records"
   value       = var.cloudflare_zone_id
 }
+
+output "ses_configuration_set_name" {
+  description = "Canonical SES configuration-set name for bounce/complaint events"
+  value       = aws_sesv2_configuration_set.feedback.configuration_set_name
+}

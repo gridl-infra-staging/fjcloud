@@ -1,0 +1,11 @@
+{
+    "EvaluationResults": [
+        {
+            "EvalActionName": "iam:CreateUser",
+            "EvalResourceName": "*",
+            "EvalDecision": "implicitDeny",
+            "MatchedStatements": [],
+            "MissingContextValues": []
+        }
+    ]
+}

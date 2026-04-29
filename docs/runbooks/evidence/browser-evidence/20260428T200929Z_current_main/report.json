@@ -1,0 +1,484 @@
+{
+  "config": {
+    "configFile": "/Users/stuart/parallel_development/fjcloud_dev/apr28_2pm_4_browser_evidence_bundle_current_main/fjcloud_dev/web/playwright.config.ts",
+    "rootDir": "/Users/stuart/parallel_development/fjcloud_dev/apr28_2pm_4_browser_evidence_bundle_current_main/fjcloud_dev/web/tests",
+    "forbidOnly": false,
+    "fullyParallel": false,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "/Users/stuart/parallel_development/fjcloud_dev/apr28_2pm_4_browser_evidence_bundle_current_main/fjcloud_dev/web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "setup:user",
+        "name": "setup:user",
+        "testDir": "/Users/stuart/parallel_development/fjcloud_dev/apr28_2pm_4_browser_evidence_bundle_current_main/fjcloud_dev/web/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/fixtures\\/auth\\.setup\\.ts/"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "/Users/stuart/parallel_development/fjcloud_dev/apr28_2pm_4_browser_evidence_bundle_current_main/fjcloud_dev/web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "setup:admin",
+        "name": "setup:admin",
+        "testDir": "/Users/stuart/parallel_development/fjcloud_dev/apr28_2pm_4_browser_evidence_bundle_current_main/fjcloud_dev/web/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/fixtures\\/admin\\.auth\\.setup\\.ts/"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "/Users/stuart/parallel_development/fjcloud_dev/apr28_2pm_4_browser_evidence_bundle_current_main/fjcloud_dev/web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "setup:onboarding",
+        "name": "setup:onboarding",
+        "testDir": "/Users/stuart/parallel_development/fjcloud_dev/apr28_2pm_4_browser_evidence_bundle_current_main/fjcloud_dev/web/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/fixtures\\/onboarding\\.auth\\.setup\\.ts/"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "/Users/stuart/parallel_development/fjcloud_dev/apr28_2pm_4_browser_evidence_bundle_current_main/fjcloud_dev/web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "setup:customer-journeys",
+        "name": "setup:customer-journeys",
+        "testDir": "/Users/stuart/parallel_development/fjcloud_dev/apr28_2pm_4_browser_evidence_bundle_current_main/fjcloud_dev/web/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/fixtures\\/customer-journeys\\.auth\\.setup\\.ts/"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "/Users/stuart/parallel_development/fjcloud_dev/apr28_2pm_4_browser_evidence_bundle_current_main/fjcloud_dev/web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium:public",
+        "name": "chromium:public",
+        "testDir": "/Users/stuart/parallel_development/fjcloud_dev/apr28_2pm_4_browser_evidence_bundle_current_main/fjcloud_dev/web/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/e2e-ui\\/(smoke|full)\\/public-.+\\.spec\\.ts/"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "/Users/stuart/parallel_development/fjcloud_dev/apr28_2pm_4_browser_evidence_bundle_current_main/fjcloud_dev/web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium:signup",
+        "name": "chromium:signup",
+        "testDir": "/Users/stuart/parallel_development/fjcloud_dev/apr28_2pm_4_browser_evidence_bundle_current_main/fjcloud_dev/web/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/e2e-ui\\/full\\/signup_to_paid_invoice\\.spec\\.ts/"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "/Users/stuart/parallel_development/fjcloud_dev/apr28_2pm_4_browser_evidence_bundle_current_main/fjcloud_dev/web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium",
+        "name": "chromium",
+        "testDir": "/Users/stuart/parallel_development/fjcloud_dev/apr28_2pm_4_browser_evidence_bundle_current_main/fjcloud_dev/web/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/e2e-ui\\/(smoke|full)\\/(?!admin|public-|onboarding\\.|customer-journeys\\.|signup_to_paid_invoice\\.).+\\.spec\\.ts/"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "/Users/stuart/parallel_development/fjcloud_dev/apr28_2pm_4_browser_evidence_bundle_current_main/fjcloud_dev/web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium:onboarding",
+        "name": "chromium:onboarding",
+        "testDir": "/Users/stuart/parallel_development/fjcloud_dev/apr28_2pm_4_browser_evidence_bundle_current_main/fjcloud_dev/web/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/e2e-ui\\/full\\/onboarding\\.spec\\.ts/"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "/Users/stuart/parallel_development/fjcloud_dev/apr28_2pm_4_browser_evidence_bundle_current_main/fjcloud_dev/web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium:customer-journeys",
+        "name": "chromium:customer-journeys",
+        "testDir": "/Users/stuart/parallel_development/fjcloud_dev/apr28_2pm_4_browser_evidence_bundle_current_main/fjcloud_dev/web/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/e2e-ui\\/full\\/customer-journeys\\.spec\\.ts/"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "/Users/stuart/parallel_development/fjcloud_dev/apr28_2pm_4_browser_evidence_bundle_current_main/fjcloud_dev/web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium:admin",
+        "name": "chromium:admin",
+        "testDir": "/Users/stuart/parallel_development/fjcloud_dev/apr28_2pm_4_browser_evidence_bundle_current_main/fjcloud_dev/web/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/e2e-ui\\/full\\/admin\\/.+\\.spec\\.ts/"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "/Users/stuart/parallel_development/fjcloud_dev/apr28_2pm_4_browser_evidence_bundle_current_main/fjcloud_dev/web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "firefox:public",
+        "name": "firefox:public",
+        "testDir": "/Users/stuart/parallel_development/fjcloud_dev/apr28_2pm_4_browser_evidence_bundle_current_main/fjcloud_dev/web/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/e2e-ui\\/full\\/public-pages\\.spec\\.ts/"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "/Users/stuart/parallel_development/fjcloud_dev/apr28_2pm_4_browser_evidence_bundle_current_main/fjcloud_dev/web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "firefox:smoke",
+        "name": "firefox:smoke",
+        "testDir": "/Users/stuart/parallel_development/fjcloud_dev/apr28_2pm_4_browser_evidence_bundle_current_main/fjcloud_dev/web/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/e2e-ui\\/smoke\\/(auth|dashboard|indexes)\\.spec\\.ts/"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "/Users/stuart/parallel_development/fjcloud_dev/apr28_2pm_4_browser_evidence_bundle_current_main/fjcloud_dev/web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "webkit:public",
+        "name": "webkit:public",
+        "testDir": "/Users/stuart/parallel_development/fjcloud_dev/apr28_2pm_4_browser_evidence_bundle_current_main/fjcloud_dev/web/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/e2e-ui\\/full\\/public-pages\\.spec\\.ts/"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "/Users/stuart/parallel_development/fjcloud_dev/apr28_2pm_4_browser_evidence_bundle_current_main/fjcloud_dev/web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "webkit:smoke",
+        "name": "webkit:smoke",
+        "testDir": "/Users/stuart/parallel_development/fjcloud_dev/apr28_2pm_4_browser_evidence_bundle_current_main/fjcloud_dev/web/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/e2e-ui\\/smoke\\/(auth|dashboard|indexes)\\.spec\\.ts/"
+        ],
+        "timeout": 30000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "html"
+      ],
+      [
+        "json"
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "runAgents": "none",
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.58.2",
+    "workers": 1,
+    "webServer": {
+      "command": "../scripts/web-dev.sh --host 127.0.0.1 --port 5173 --strictPort",
+      "env": {
+        "REDACTED": "Sensitive environment variables removed from retained evidence bundle"
+      },
+      "url": "http://localhost:5173",
+      "reuseExistingServer": false,
+      "timeout": 30000
+    }
+  },
+  "suites": [
+    {
+      "title": "fixtures/auth.setup.ts",
+      "file": "fixtures/auth.setup.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "authenticate as customer",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "setup:user",
+              "projectName": "setup:user",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "failed",
+                  "duration": 10344,
+                  "error": {
+                    "message": "Error: Customer login setup failed before reaching /dashboard. Current URL: http://localhost:5173/login\nAPI URL: http://localhost:3001\nAdmin key fingerprint: (present, len=32)\nVisible alert text: Authentication service is unavailable. Please verify API_URL and try again.\nLogin response: (none observed)\nRemediation: Run scripts/bootstrap-env-local.sh to bootstrap .env.local, then start the local stack with scripts/local-dev-up.sh and the Rust API with scripts/api-dev.sh. If you override BASE_URL, start the web frontend with scripts/web-dev.sh too. See docs/runbooks/local-dev.md for setup instructions.",
+                    "stack": "Error: Customer login setup failed before reaching /dashboard. Current URL: http://localhost:5173/login\nAPI URL: http://localhost:3001\nAdmin key fingerprint: (present, len=32)\nVisible alert text: Authentication service is unavailable. Please verify API_URL and try again.\nLogin response: (none observed)\nRemediation: Run scripts/bootstrap-env-local.sh to bootstrap .env.local, then start the local stack with scripts/local-dev-up.sh and the Rust API with scripts/api-dev.sh. If you override BASE_URL, start the web frontend with scripts/web-dev.sh too. See docs/runbooks/local-dev.md for setup instructions.\n    at /Users/stuart/parallel_development/fjcloud_dev/apr28_2pm_4_browser_evidence_bundle_current_main/fjcloud_dev/web/tests/fixtures/auth.setup.ts:52:9",
+                    "location": {
+                      "file": "/Users/stuart/parallel_development/fjcloud_dev/apr28_2pm_4_browser_evidence_bundle_current_main/fjcloud_dev/web/tests/fixtures/auth.setup.ts",
+                      "column": 9,
+                      "line": 52
+                    },
+                    "snippet": "  50 | \t\t]);\n  51 |\n> 52 | \t\tthrow new Error(\n     | \t\t      ^\n  53 | \t\t\tformatFixtureSetupFailure({\n  54 | \t\t\t\tsetupName: 'Customer login setup',\n  55 | \t\t\t\texpectedPath: '/dashboard',"
+                  },
+                  "errors": [
+                    {
+                      "location": {
+                        "file": "/Users/stuart/parallel_development/fjcloud_dev/apr28_2pm_4_browser_evidence_bundle_current_main/fjcloud_dev/web/tests/fixtures/auth.setup.ts",
+                        "column": 9,
+                        "line": 52
+                      },
+                      "message": "Error: Customer login setup failed before reaching /dashboard. Current URL: http://localhost:5173/login\nAPI URL: http://localhost:3001\nAdmin key fingerprint: (present, len=32)\nVisible alert text: Authentication service is unavailable. Please verify API_URL and try again.\nLogin response: (none observed)\nRemediation: Run scripts/bootstrap-env-local.sh to bootstrap .env.local, then start the local stack with scripts/local-dev-up.sh and the Rust API with scripts/api-dev.sh. If you override BASE_URL, start the web frontend with scripts/web-dev.sh too. See docs/runbooks/local-dev.md for setup instructions.\n\n  50 | \t\t]);\n  51 |\n> 52 | \t\tthrow new Error(\n     | \t\t      ^\n  53 | \t\t\tformatFixtureSetupFailure({\n  54 | \t\t\t\tsetupName: 'Customer login setup',\n  55 | \t\t\t\texpectedPath: '/dashboard',\n    at /Users/stuart/parallel_development/fjcloud_dev/apr28_2pm_4_browser_evidence_bundle_current_main/fjcloud_dev/web/tests/fixtures/auth.setup.ts:52:9"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-28T20:13:34.821Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "/Users/stuart/parallel_development/fjcloud_dev/apr28_2pm_4_browser_evidence_bundle_current_main/fjcloud_dev/web/test-results/fixtures-auth.setup.ts-authenticate-as-customer-setup-user/test-failed-1.png"
+                    },
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "/Users/stuart/parallel_development/fjcloud_dev/apr28_2pm_4_browser_evidence_bundle_current_main/fjcloud_dev/web/test-results/fixtures-auth.setup.ts-authenticate-as-customer-setup-user/error-context.md"
+                    }
+                  ],
+                  "errorLocation": {
+                    "file": "/Users/stuart/parallel_development/fjcloud_dev/apr28_2pm_4_browser_evidence_bundle_current_main/fjcloud_dev/web/tests/fixtures/auth.setup.ts",
+                    "column": 9,
+                    "line": 52
+                  }
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "6db7255f214771fc958b-8ad38d4213689c9057c1",
+          "file": "fixtures/auth.setup.ts",
+          "line": 20,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "title": "e2e-ui/full/signup_to_paid_invoice.spec.ts",
+      "file": "e2e-ui/full/signup_to_paid_invoice.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Fresh signup to paid invoice",
+          "file": "e2e-ui/full/signup_to_paid_invoice.spec.ts",
+          "line": 128,
+          "column": 6,
+          "specs": [
+            {
+              "title": "signs up, verifies email, reaches paid invoice evidence",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 300000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium:signup",
+                  "projectName": "chromium:signup",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 741,
+                      "error": {
+                        "message": "Error: fresh-signup arrange failed before reaching /dashboard. Current URL: http://localhost:5173/signup\nAPI URL: http://localhost:3001\nAdmin key fingerprint: (present, len=32)\nVisible alert text: Authentication service is unavailable. Please verify API_URL and try again.\nLogin response: (none observed)\nRemediation: Run scripts/bootstrap-env-local.sh to bootstrap .env.local, then start the local stack with scripts/local-dev-up.sh and the Rust API with scripts/api-dev.sh. If you override BASE_URL, start the web frontend with scripts/web-dev.sh too. See docs/runbooks/local-dev.md for setup instructions.",
+                        "stack": "Error: fresh-signup arrange failed before reaching /dashboard. Current URL: http://localhost:5173/signup\nAPI URL: http://localhost:3001\nAdmin key fingerprint: (present, len=32)\nVisible alert text: Authentication service is unavailable. Please verify API_URL and try again.\nLogin response: (none observed)\nRemediation: Run scripts/bootstrap-env-local.sh to bootstrap .env.local, then start the local stack with scripts/local-dev-up.sh and the Rust API with scripts/api-dev.sh. If you override BASE_URL, start the web frontend with scripts/web-dev.sh too. See docs/runbooks/local-dev.md for setup instructions.\n    at throwFreshSignupArrangeFailure (/Users/stuart/parallel_development/fjcloud_dev/apr28_2pm_4_browser_evidence_bundle_current_main/fjcloud_dev/web/tests/fixtures/fixtures.ts:190:8)\n    at throwFreshSignupArrangeFailure (/Users/stuart/parallel_development/fjcloud_dev/apr28_2pm_4_browser_evidence_bundle_current_main/fjcloud_dev/web/tests/fixtures/fixtures.ts:1904:24)\n    at /Users/stuart/parallel_development/fjcloud_dev/apr28_2pm_4_browser_evidence_bundle_current_main/fjcloud_dev/web/tests/e2e-ui/full/signup_to_paid_invoice.spec.ts:166:5",
+                        "location": {
+                          "file": "/Users/stuart/parallel_development/fjcloud_dev/apr28_2pm_4_browser_evidence_bundle_current_main/fjcloud_dev/web/tests/fixtures/fixtures.ts",
+                          "column": 8,
+                          "line": 190
+                        },
+                        "snippet": "\u001b[90m   at \u001b[39mfixtures/fixtures.ts:190\n\n  188 | \tresponseUrl\n  189 | }: ThrowFreshSignupArrangeFailureParams): never {\n> 190 | \tthrow new Error(\n      | \t      ^\n  191 | \t\tformatFixtureSetupFailure({\n  192 | \t\t\tsetupName: 'fresh-signup arrange',\n  193 | \t\t\texpectedPath: '/dashboard',"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/stuart/parallel_development/fjcloud_dev/apr28_2pm_4_browser_evidence_bundle_current_main/fjcloud_dev/web/tests/fixtures/fixtures.ts",
+                            "column": 8,
+                            "line": 190
+                          },
+                          "message": "Error: fresh-signup arrange failed before reaching /dashboard. Current URL: http://localhost:5173/signup\nAPI URL: http://localhost:3001\nAdmin key fingerprint: (present, len=32)\nVisible alert text: Authentication service is unavailable. Please verify API_URL and try again.\nLogin response: (none observed)\nRemediation: Run scripts/bootstrap-env-local.sh to bootstrap .env.local, then start the local stack with scripts/local-dev-up.sh and the Rust API with scripts/api-dev.sh. If you override BASE_URL, start the web frontend with scripts/web-dev.sh too. See docs/runbooks/local-dev.md for setup instructions.\n\n   at fixtures/fixtures.ts:190\n\n  188 | \tresponseUrl\n  189 | }: ThrowFreshSignupArrangeFailureParams): never {\n> 190 | \tthrow new Error(\n      | \t      ^\n  191 | \t\tformatFixtureSetupFailure({\n  192 | \t\t\tsetupName: 'fresh-signup arrange',\n  193 | \t\t\texpectedPath: '/dashboard',\n    at throwFreshSignupArrangeFailure (/Users/stuart/parallel_development/fjcloud_dev/apr28_2pm_4_browser_evidence_bundle_current_main/fjcloud_dev/web/tests/fixtures/fixtures.ts:190:8)\n    at throwFreshSignupArrangeFailure (/Users/stuart/parallel_development/fjcloud_dev/apr28_2pm_4_browser_evidence_bundle_current_main/fjcloud_dev/web/tests/fixtures/fixtures.ts:1904:24)\n    at /Users/stuart/parallel_development/fjcloud_dev/apr28_2pm_4_browser_evidence_bundle_current_main/fjcloud_dev/web/tests/e2e-ui/full/signup_to_paid_invoice.spec.ts:166:5"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-28T20:13:46.312Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/Users/stuart/parallel_development/fjcloud_dev/apr28_2pm_4_browser_evidence_bundle_current_main/fjcloud_dev/web/test-results/e2e-ui-full-signup_to_paid-43e41-aches-paid-invoice-evidence-chromium-signup/test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/stuart/parallel_development/fjcloud_dev/apr28_2pm_4_browser_evidence_bundle_current_main/fjcloud_dev/web/test-results/e2e-ui-full-signup_to_paid-43e41-aches-paid-invoice-evidence-chromium-signup/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/stuart/parallel_development/fjcloud_dev/apr28_2pm_4_browser_evidence_bundle_current_main/fjcloud_dev/web/tests/fixtures/fixtures.ts",
+                        "column": 8,
+                        "line": 190
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "5bdeec12a9212c097a4a-4e95ce95ba4b21f4d4e8",
+              "file": "e2e-ui/full/signup_to_paid_invoice.spec.ts",
+              "line": 132,
+              "column": 2
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "e2e-ui/full/billing_portal_cancel.spec.ts",
+      "file": "e2e-ui/full/billing_portal_cancel.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Billing portal cancellation",
+          "file": "e2e-ui/full/billing_portal_cancel.spec.ts",
+          "line": 19,
+          "column": 6,
+          "specs": [
+            {
+              "title": "billing portal cancel returns to billing with server-owned cancellation banner",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "a99993b0df2bca5ed927-1d0ff7d3a050e21e4a7b",
+              "file": "e2e-ui/full/billing_portal_cancel.spec.ts",
+              "line": 20,
+              "column": 2
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-04-28T20:13:31.514Z",
+    "duration": 15842.760000000002,
+    "expected": 0,
+    "skipped": 1,
+    "unexpected": 2,
+    "flaky": 0
+  }
+}

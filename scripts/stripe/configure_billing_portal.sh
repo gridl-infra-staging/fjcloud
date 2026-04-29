@@ -55,7 +55,7 @@ stripe_request() {
     header_file="$(mktemp)"
     body_file="$(mktemp)"
 
-    if ! curl_output="$(curl -sS -D "$header_file" -o "$body_file" -w "%{http_code}" -u "${STRIPE_SECRET_KEY}:" -X "$method" "https://api.stripe.com$path" "$@" 2>&1)"; then
+    if ! curl_output="$(curl -sS -D "$header_file" -o "$body_file" -w "%{http_code}" -K - -X "$method" "https://api.stripe.com$path" "$@" <<<"user = \"${STRIPE_SECRET_KEY}:\"" 2>&1)"; then
         STRIPE_HTTP_CODE="000"
         STRIPE_BODY="$curl_output"
         rm -f "$header_file" "$body_file"

@@ -7,6 +7,11 @@ dns_main_file="ops/terraform/dns/main.tf"
 dns_vars_file="ops/terraform/dns/variables.tf"
 dns_providers_file="ops/terraform/dns/providers.tf"
 dns_outputs_file="ops/terraform/dns/outputs.tf"
+monitoring_main_file="ops/terraform/monitoring/main.tf"
+monitoring_vars_file="ops/terraform/monitoring/variables.tf"
+monitoring_outputs_file="ops/terraform/monitoring/outputs.tf"
+runtime_params_main_file="ops/terraform/runtime_params/main.tf"
+runtime_params_vars_file="ops/terraform/runtime_params/variables.tf"
 shared_main_file="ops/terraform/_shared/main.tf"
 shared_outputs_file="ops/terraform/_shared/outputs.tf"
 shared_vars_file="ops/terraform/_shared/variables.tf"
@@ -334,5 +339,78 @@ assert_not_contains_active "$dns_main_file" 'sg-[0-9a-f]' \
 
 assert_not_contains_active "$dns_main_file" 'subnet-[0-9a-f]' \
   "No hardcoded subnet IDs in dns/main.tf"
+
+# ============================================================================
+# 4.X — SES feedback wiring contract
+# ============================================================================
+
+assert_contains_active "$monitoring_vars_file" 'variable "domain"' \
+  "monitoring variables: domain input exists for SNS subscription endpoint"
+
+assert_contains_active "$monitoring_main_file" 'resource "aws_sns_topic" "ses_feedback"' \
+  "monitoring defines a dedicated SNS topic for SES feedback events"
+
+assert_contains_active "$monitoring_main_file" 'resource "aws_sns_topic_subscription" "ses_feedback_webhook"' \
+  "monitoring defines an HTTPS webhook subscription for SES feedback topic"
+
+assert_contains_active "$monitoring_main_file" 'resource "aws_sns_topic_policy" "ses_feedback_publish"' \
+  "monitoring defines a dedicated SNS topic policy for SES feedback publish"
+
+assert_contains_active "$monitoring_main_file" 'Service\s*=\s*"ses\.amazonaws\.com"' \
+  "SES feedback topic policy grants publish principal to ses.amazonaws.com"
+
+assert_contains_active "$monitoring_main_file" '"sns:Publish"' \
+  "SES feedback topic policy allows sns:Publish action"
+
+assert_contains_active "$monitoring_main_file" 'topic_arn\s*=\s*aws_sns_topic\.ses_feedback\.arn' \
+  "SES feedback webhook subscription uses dedicated feedback topic"
+
+assert_contains_active "$monitoring_main_file" 'protocol\s*=\s*"https"' \
+  "SES feedback webhook subscription uses HTTPS protocol"
+
+assert_contains_active "$monitoring_main_file" 'endpoint\s*=\s*"https://api\.\$\{var\.domain\}/webhooks/ses/sns"' \
+  "SES feedback webhook subscription endpoint uses canonical api.<domain> path"
+
+assert_contains_active "$monitoring_outputs_file" 'output "ses_feedback_sns_topic_arn"' \
+  "monitoring outputs ses_feedback_sns_topic_arn"
+
+assert_contains_active "$monitoring_outputs_file" 'value\s*=\s*aws_sns_topic\.ses_feedback\.arn' \
+  "monitoring output ses_feedback_sns_topic_arn references dedicated feedback topic"
+
+assert_contains_active "$dns_vars_file" 'variable "ses_feedback_topic_arn"' \
+  "dns variables: ses_feedback_topic_arn input exists"
+
+assert_contains_active "$dns_main_file" 'resource "aws_sesv2_configuration_set"' \
+  "dns defines an SES configuration set resource"
+
+assert_contains_active "$dns_main_file" 'resource "aws_sesv2_configuration_set_event_destination"' \
+  "dns defines SES configuration set event destination"
+
+assert_contains_active "$dns_main_file" 'topic_arn\s*=\s*var\.ses_feedback_topic_arn' \
+  "SES configuration set event destination publishes to monitoring-owned feedback topic input"
+
+assert_contains_active "$dns_main_file" 'matching_event_types\s*=\s*\["BOUNCE",\s*"COMPLAINT"\]' \
+  "SES event destination includes BOUNCE and COMPLAINT event types"
+
+assert_contains_active "$dns_outputs_file" 'output "ses_configuration_set_name"' \
+  "dns outputs ses_configuration_set_name"
+
+assert_contains_active "$runtime_params_vars_file" 'variable "ses_configuration_set_name"' \
+  "runtime_params variables: ses_configuration_set_name input exists"
+
+assert_contains_active "$runtime_params_main_file" 'name\s*=\s*"/fjcloud/\$\{var\.env\}/ses_configuration_set"' \
+  "runtime_params publishes SES configuration set parameter path"
+
+assert_contains_active "$runtime_params_main_file" 'value\s*=\s*var\.ses_configuration_set_name' \
+  "runtime_params SES configuration set parameter value is module input"
+
+assert_contains_active "$shared_main_file" 'domain\s*=\s*var\.domain' \
+  "root main.tf passes domain into monitoring module"
+
+assert_contains_active "$shared_main_file" 'ses_feedback_topic_arn\s*=\s*module\.monitoring\.ses_feedback_sns_topic_arn' \
+  "root main.tf passes monitoring SES feedback topic output into dns module"
+
+assert_contains_active "$shared_main_file" 'ses_configuration_set_name\s*=\s*module\.dns\.ses_configuration_set_name' \
+  "root main.tf passes dns SES configuration set output into runtime_params module"
 
 test_summary "Stage 4 static checks"

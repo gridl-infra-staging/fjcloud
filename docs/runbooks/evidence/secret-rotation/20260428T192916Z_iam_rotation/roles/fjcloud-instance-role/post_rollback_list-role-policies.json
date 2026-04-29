@@ -1,0 +1,8 @@
+{
+    "PolicyNames": [
+        "fjcloud-ec2-control",
+        "fjcloud-s3-releases-read",
+        "fjcloud-ses-send",
+        "fjcloud-ssm-read"
+    ]
+}

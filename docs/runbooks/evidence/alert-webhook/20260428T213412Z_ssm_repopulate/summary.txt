@@ -1,0 +1,11 @@
+status=ok
+discord_source_mode=env_secret_canonical
+evidence_dir=docs/runbooks/evidence/alert-webhook/20260428T213412Z_ssm_repopulate
+caller_identity=arn:aws:iam::213880904778:user/stuart-cli
+region=us-east-1
+discord_ssm_name=/fjcloud/staging/discord_webhook_url
+discord_ssm_version=4
+discord_ssm_last_modified=2026-04-28T17:34:13.622000-04:00
+slack_populated=no (SLACK_WEBHOOK_URL absent from canonical secret source)
+runtime_mapping_owner=ops/scripts/lib/generate_ssm_env.sh (SSM_TO_ENV)
+deploy_deferred_to=stage_3_4

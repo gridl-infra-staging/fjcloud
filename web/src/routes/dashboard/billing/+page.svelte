@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { enhance } from '$app/forms';
 	import BillingUnavailableCard from '$lib/BillingUnavailableCard.svelte';
 
 	let { data, form: formResult } = $props();
@@ -62,7 +61,7 @@
 			<p class="text-sm text-gray-600">
 				Use Stripe Customer Portal to manage payment methods and subscription billing details.
 			</p>
-			<form id="manage-billing-form" method="POST" action="?/manageBilling" use:enhance>
+			<form id="manage-billing-form" method="POST" action="?/manageBilling">
 				<button
 					type="submit"
 					class="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"

@@ -18,6 +18,18 @@
 # TODO: Document stripe_request.
 # TODO: Document stripe_request.
 # TODO: Document stripe_request.
+# TODO: Document stripe_request.
+# TODO: Document stripe_request.
+# TODO: Document stripe_request.
+# TODO: Document stripe_request.
+# TODO: Document stripe_request.
+# TODO: Document stripe_request.
+# TODO: Document stripe_request.
+# TODO: Document stripe_request.
+# TODO: Document stripe_request.
+# TODO: Document stripe_request.
+# TODO: Document stripe_request.
+# TODO: Document stripe_request.
 stripe_request() {
     local method="$1"
     local path="$2"
@@ -28,7 +40,7 @@ stripe_request() {
     header_file="$(mktemp)"
     body_file="$(mktemp)"
 
-    if ! curl_output="$(curl -sS -D "$header_file" -o "$body_file" -w "%{http_code}" -u "$stripe_secret_key:" -X "$method" "$STRIPE_API_BASE$path" "$@" 2>&1)"; then
+    if ! curl_output="$(curl -sS -D "$header_file" -o "$body_file" -w "%{http_code}" --config <(printf 'user = "%s:"\n' "$stripe_secret_key") -X "$method" "$STRIPE_API_BASE$path" "$@" 2>&1)"; then
         STRIPE_HTTP_CODE="000"
         STRIPE_BODY="$curl_output"
         STRIPE_REQUEST_ID=""

@@ -81,6 +81,7 @@ module "runtime_params" {
   instance_profile_name = "fjcloud-instance-profile"
   cloudflare_zone_id    = var.cloudflare_zone_id
   dns_domain            = var.domain
+  ses_configuration_set_name = module.dns.ses_configuration_set_name
 }
 
 module "dns" {
@@ -94,6 +95,7 @@ module "dns" {
   public_subnet_ids  = module.networking.public_subnet_ids
   sg_alb_id          = module.networking.sg_alb_id
   api_instance_id    = module.compute.api_instance_id
+  ses_feedback_topic_arn = module.monitoring.ses_feedback_sns_topic_arn
 }
 
 module "monitoring" {
@@ -101,6 +103,7 @@ module "monitoring" {
 
   env                                       = var.env
   region                                    = var.region
+  domain                                    = var.domain
   api_instance_id                           = module.compute.api_instance_id
   db_instance_identifier                    = module.data.db_instance_identifier
   alb_arn_suffix                            = module.dns.alb_arn_suffix

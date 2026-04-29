@@ -120,6 +120,18 @@
 # TODO: Document write_mock_curl.
 # TODO: Document write_mock_curl.
 # TODO: Document write_mock_curl.
+# TODO: Document write_mock_curl.
+# TODO: Document write_mock_curl.
+# TODO: Document write_mock_curl.
+# TODO: Document write_mock_curl.
+# TODO: Document write_mock_curl.
+# TODO: Document write_mock_curl.
+# TODO: Document write_mock_curl.
+# TODO: Document write_mock_curl.
+# TODO: Document write_mock_curl.
+# TODO: Document write_mock_curl.
+# TODO: Document write_mock_curl.
+# TODO: Document write_mock_curl.
 write_mock_curl() {
     local path="$1" log_path="$2"
     local state_dir

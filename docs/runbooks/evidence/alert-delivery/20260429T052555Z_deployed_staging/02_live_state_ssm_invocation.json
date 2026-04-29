@@ -1,0 +1,27 @@
+$ aws ssm send-command --instance-ids <redacted-instance-id> --document-name AWS-RunShellScript --parameters file:///tmp/stage2_ssm_commands.json
+command_id=<redacted-command-id>
+final_status=Success
+
+$ aws ssm get-command-invocation --command-id <redacted-command-id> --instance-id <redacted-instance-id>
+{
+    "CommandId": "<redacted-command-id>",
+    "InstanceId": "<redacted-instance-id>",
+    "Comment": "stage2 deployed webhook readiness proof capture",
+    "DocumentName": "AWS-RunShellScript",
+    "DocumentVersion": "$DEFAULT",
+    "PluginName": "aws:runShellScript",
+    "ResponseCode": 0,
+    "ExecutionStartDateTime": "2026-04-29T05:26:28.395Z",
+    "ExecutionElapsedTime": "PT0.526S",
+    "ExecutionEndDateTime": "2026-04-29T05:26:28.395Z",
+    "Status": "Success",
+    "StatusDetails": "Success",
+    "StandardOutputContent": "[HOST] instance_id:\n[HOST] active_enter:\nActiveEnterTimestamp=Tue 2026-04-28 20:49:53 UTC\n[HOST] env_presence_redacted:\nENVIRONMENT=staging\nDISCORD_WEBHOOK_URL=<redacted>\n[HOST] startup_boundary=Tue 2026-04-28 20:49:53 UTC\n[HOST] startup_mode_logs:\n",
+    "StandardOutputUrl": "",
+    "StandardErrorContent": "/var/lib/amazon/ssm/<redacted-instance-id>/document/orchestration/<redacted-command-id>/awsrunShellScript/0.awsrunShellScript/_script.sh: line 10: rg: command not found\n",
+    "StandardErrorUrl": "",
+    "CloudWatchOutputConfig": {
+        "CloudWatchLogGroupName": "",
+        "CloudWatchOutputEnabled": false
+    }
+}

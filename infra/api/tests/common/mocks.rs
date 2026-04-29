@@ -25,12 +25,14 @@ use api::repos::{
 use api::secrets::mock::MockNodeSecretManager;
 use api::services::alerting::MockAlertService;
 use api::services::cold_tier::{ColdTierError, FlapjackNodeClient};
-use api::services::email::{EmailError, EmailService, MockEmailService};
+use api::services::email::{BroadcastDeliveryStatus, EmailError, EmailService, MockEmailService};
+use api::services::email_suppression::normalize_recipient_email;
 use api::services::flapjack_proxy::FlapjackProxy;
 use api::services::migration::{
     MigrationHttpClient, MigrationHttpClientError, MigrationHttpRequest, MigrationHttpResponse,
     MigrationRequest,
 };
+use api::services::webhook_http::WebhookHttpClient;
 use api::stripe::{
     CheckoutSessionResponse, CreatePortalSessionRequest, FinalizedInvoice, PaymentMethodSummary,
     PortalSessionResponse, StripeError, StripeEvent, StripeInvoiceLineItem, StripeService,
@@ -40,7 +42,7 @@ use api::usage::summarize_usage_totals;
 use async_trait::async_trait;
 use chrono::{DateTime, NaiveDate, Utc};
 use rust_decimal::Decimal;
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use uuid::Uuid;
@@ -932,6 +934,32 @@ impl MockUsageRepo {
         storage_bytes_avg: i64,
         documents_count_avg: i64,
     ) -> UsageDaily {
+        self.seed_with_aggregated_at(
+            customer_id,
+            date,
+            region,
+            search_requests,
+            write_operations,
+            storage_bytes_avg,
+            documents_count_avg,
+            Utc::now(),
+        )
+    }
+
+    /// Directly inserts a `UsageDaily` row with an explicit `aggregated_at`
+    /// timestamp so replay tests can preserve captured staging provenance.
+    #[allow(clippy::too_many_arguments)]
+    pub fn seed_with_aggregated_at(
+        &self,
+        customer_id: Uuid,
+        date: NaiveDate,
+        region: &str,
+        search_requests: i64,
+        write_operations: i64,
+        storage_bytes_avg: i64,
+        documents_count_avg: i64,
+        aggregated_at: DateTime<Utc>,
+    ) -> UsageDaily {
         let mut rows = self.rows.lock().unwrap();
         let row = UsageDaily {
             customer_id,
@@ -941,7 +969,7 @@ impl MockUsageRepo {
             write_operations,
             storage_bytes_avg,
             documents_count_avg,
-            aggregated_at: Utc::now(),
+            aggregated_at,
         };
         rows.push(row.clone());
         row
@@ -1018,19 +1046,33 @@ pub fn mock_usage_repo() -> Arc<MockUsageRepo> {
 
 pub struct MockRateCardRepo {
     active_card: Mutex<Option<RateCardRow>>,
+    cards_by_id: Mutex<HashMap<Uuid, RateCardRow>>,
     overrides: Mutex<HashMap<(Uuid, Uuid), CustomerRateOverrideRow>>,
+    get_active_calls: Mutex<usize>,
+    get_by_id_calls: Mutex<usize>,
+    get_override_calls: Mutex<usize>,
 }
 
 impl MockRateCardRepo {
     pub fn new() -> Self {
         Self {
             active_card: Mutex::new(None),
+            cards_by_id: Mutex::new(HashMap::new()),
             overrides: Mutex::new(HashMap::new()),
+            get_active_calls: Mutex::new(0),
+            get_by_id_calls: Mutex::new(0),
+            get_override_calls: Mutex::new(0),
         }
     }
 
     pub fn seed_active_card(&self, card: RateCardRow) {
-        *self.active_card.lock().unwrap() = Some(card);
+        let card_id = card.id;
+        *self.active_card.lock().unwrap() = Some(card.clone());
+        self.cards_by_id.lock().unwrap().insert(card_id, card);
+    }
+
+    pub fn seed_card_by_id(&self, card: RateCardRow) {
+        self.cards_by_id.lock().unwrap().insert(card.id, card);
     }
 
     pub fn seed_override(&self, ov: CustomerRateOverrideRow) {
@@ -1039,17 +1081,30 @@ impl MockRateCardRepo {
             .unwrap()
             .insert((ov.customer_id, ov.rate_card_id), ov);
     }
+
+    pub fn get_active_call_count(&self) -> usize {
+        *self.get_active_calls.lock().unwrap()
+    }
+
+    pub fn get_by_id_call_count(&self) -> usize {
+        *self.get_by_id_calls.lock().unwrap()
+    }
+
+    pub fn get_override_call_count(&self) -> usize {
+        *self.get_override_calls.lock().unwrap()
+    }
 }
 
 #[async_trait]
 impl RateCardRepo for MockRateCardRepo {
     async fn get_active(&self) -> Result<Option<RateCardRow>, RepoError> {
+        *self.get_active_calls.lock().unwrap() += 1;
         Ok(self.active_card.lock().unwrap().clone())
     }
 
     async fn get_by_id(&self, id: Uuid) -> Result<Option<RateCardRow>, RepoError> {
-        let card = self.active_card.lock().unwrap();
-        Ok(card.as_ref().filter(|c| c.id == id).cloned())
+        *self.get_by_id_calls.lock().unwrap() += 1;
+        Ok(self.cards_by_id.lock().unwrap().get(&id).cloned())
     }
 
     async fn get_override(
@@ -1057,6 +1112,7 @@ impl RateCardRepo for MockRateCardRepo {
         customer_id: Uuid,
         rate_card_id: Uuid,
     ) -> Result<Option<CustomerRateOverrideRow>, RepoError> {
+        *self.get_override_calls.lock().unwrap() += 1;
         let overrides = self.overrides.lock().unwrap();
         Ok(overrides.get(&(customer_id, rate_card_id)).cloned())
     }
@@ -1727,6 +1783,74 @@ pub fn mock_email_service() -> Arc<MockEmailService> {
     Arc::new(MockEmailService::new())
 }
 
+pub struct MockWebhookHttpClient {
+    text_responses: Mutex<HashMap<String, Result<String, String>>>,
+    success_responses: Mutex<HashMap<String, Result<(), String>>>,
+    success_calls: Mutex<Vec<String>>,
+}
+
+impl MockWebhookHttpClient {
+    pub fn new() -> Self {
+        Self {
+            text_responses: Mutex::new(HashMap::new()),
+            success_responses: Mutex::new(HashMap::new()),
+            success_calls: Mutex::new(Vec::new()),
+        }
+    }
+
+    pub fn set_text_response(&self, url: &str, response: Result<String, String>) {
+        self.text_responses
+            .lock()
+            .unwrap()
+            .insert(url.to_string(), response);
+    }
+
+    pub fn set_success_response(&self, url: &str, response: Result<(), String>) {
+        self.success_responses
+            .lock()
+            .unwrap()
+            .insert(url.to_string(), response);
+    }
+
+    pub fn success_calls(&self) -> Vec<String> {
+        self.success_calls.lock().unwrap().clone()
+    }
+}
+
+#[async_trait]
+impl WebhookHttpClient for MockWebhookHttpClient {
+    async fn get_text(&self, url: &str) -> Result<String, String> {
+        self.text_responses
+            .lock()
+            .unwrap()
+            .get(url)
+            .cloned()
+            .unwrap_or_else(|| {
+                Err(format!(
+                    "no mock webhook HTTP text response configured for URL: {url}"
+                ))
+            })
+    }
+
+    async fn get_success(&self, url: &str) -> Result<(), String> {
+        self.success_calls.lock().unwrap().push(url.to_string());
+        self.success_responses
+            .lock()
+            .unwrap()
+            .get(url)
+            .cloned()
+            .unwrap_or_else(|| {
+                Err(format!(
+                    "no mock webhook HTTP success response configured for URL: {url}"
+                ))
+            })
+    }
+}
+
+pub fn mock_webhook_http_client() -> Arc<MockWebhookHttpClient> {
+    Arc::new(MockWebhookHttpClient::new())
+}
+
 /// Shared email double for integration tests that need deterministic
 /// per-recipient failures while still delegating all successful sends to a
 /// real email-service implementation (typically [`MockEmailService`]).
@@ -1735,6 +1859,7 @@ pub struct FailableEmailService {
     broadcast_attempts: AtomicUsize,
     attempted_recipients: Mutex<Vec<String>>,
     broadcast_failures: Mutex<HashMap<String, String>>,
+    suppressed_recipients: Mutex<HashSet<String>>,
 }
 
 impl FailableEmailService {
@@ -1744,6 +1869,7 @@ impl FailableEmailService {
             broadcast_attempts: AtomicUsize::new(0),
             attempted_recipients: Mutex::new(Vec::new()),
             broadcast_failures: Mutex::new(HashMap::new()),
+            suppressed_recipients: Mutex::new(HashSet::new()),
         }
     }
 
@@ -1766,6 +1892,17 @@ impl FailableEmailService {
             .lock()
             .unwrap()
             .insert(email.to_string(), reason.to_string());
+    }
+
+    pub fn suppress_recipient(&self, email: &str) {
+        let normalized = normalize_recipient_email(email);
+        if normalized.is_empty() {
+            return;
+        }
+        self.suppressed_recipients
+            .lock()
+            .unwrap()
+            .insert(normalized);
     }
 }
 
@@ -1822,12 +1959,22 @@ impl EmailService for FailableEmailService {
         subject: &str,
         html_body: Option<&str>,
         text_body: Option<&str>,
-    ) -> Result<(), EmailError> {
+    ) -> Result<BroadcastDeliveryStatus, EmailError> {
         self.broadcast_attempts.fetch_add(1, Ordering::SeqCst);
         self.attempted_recipients
             .lock()
             .unwrap()
             .push(to.to_string());
+
+        let normalized_recipient = normalize_recipient_email(to);
+        if self
+            .suppressed_recipients
+            .lock()
+            .unwrap()
+            .contains(&normalized_recipient)
+        {
+            return Ok(BroadcastDeliveryStatus::Suppressed);
+        }
 
         if let Some(reason) = self.broadcast_failures.lock().unwrap().get(to).cloned() {
             return Err(EmailError::DeliveryFailed(reason));

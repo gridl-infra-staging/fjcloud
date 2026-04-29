@@ -4,6 +4,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+ROTATION_RUNBOOK_FILE="$REPO_ROOT/docs/runbooks/secret_rotation.md"
 source "$REPO_ROOT/scripts/tests/lib/assertions.sh"
 
 PASS_COUNT=0
@@ -164,6 +165,54 @@ JSON
         "validate-stripe alias-path machine-readable detail should include HTTP 401"
 }
 
+test_validate_stripe_accepts_restricted_canonical_key() {
+    local mock_dir response_file output
+    mock_dir="$(mktemp -d)"
+    response_file="$mock_dir/responses.json"
+    cat > "$response_file" <<'JSON'
+{"index":0,"responses":[
+  {"status":200,"body":"{\"id\":\"cus_mock_customer\"}"},
+  {"status":200,"body":"{\"id\":\"pm_attached_customer_card\"}"},
+  {"status":200,"body":"{\"id\":\"cus_mock_customer\"}"},
+  {"status":200,"body":"{\"id\":\"ii_mock_invoice_item\"}"},
+  {"status":200,"body":"{\"id\":\"in_mock_invoice\"}"},
+  {"status":200,"body":"{\"status\":\"paid\"}"}
+]}
+JSON
+    write_mock_curl_with_sequence "$mock_dir/curl"
+
+    output="$(STRIPE_SECRET_KEY='rk_test_mock' STRIPE_TEST_RESPONSE_FILE="$response_file" PATH="$mock_dir:$PATH" bash "$REPO_ROOT/scripts/validate-stripe.sh")"
+
+    assert_valid_json "$output" "validate-stripe rk_test canonical-key output should be valid JSON"
+    assert_json_bool_field "$output" "passed" "true" "validate-stripe rk_test canonical-key flow should report passed=true"
+
+    rm -rf "$mock_dir"
+}
+
+test_validate_stripe_accepts_restricted_alias_key() {
+    local mock_dir response_file output
+    mock_dir="$(mktemp -d)"
+    response_file="$mock_dir/responses.json"
+    cat > "$response_file" <<'JSON'
+{"index":0,"responses":[
+  {"status":200,"body":"{\"id\":\"cus_mock_customer\"}"},
+  {"status":200,"body":"{\"id\":\"pm_attached_customer_card\"}"},
+  {"status":200,"body":"{\"id\":\"cus_mock_customer\"}"},
+  {"status":200,"body":"{\"id\":\"ii_mock_invoice_item\"}"},
+  {"status":200,"body":"{\"id\":\"in_mock_invoice\"}"},
+  {"status":200,"body":"{\"status\":\"paid\"}"}
+]}
+JSON
+    write_mock_curl_with_sequence "$mock_dir/curl"
+
+    output="$(env -u STRIPE_SECRET_KEY STRIPE_TEST_SECRET_KEY='rk_test_alias_mock' STRIPE_TEST_RESPONSE_FILE="$response_file" PATH="$mock_dir:$PATH" bash "$REPO_ROOT/scripts/validate-stripe.sh")"
+
+    assert_valid_json "$output" "validate-stripe rk_test alias-key output should be valid JSON"
+    assert_json_bool_field "$output" "passed" "true" "validate-stripe rk_test alias-key flow should report passed=true"
+
+    rm -rf "$mock_dir"
+}
+
 test_validate_stripe_rejects_live_canonical_key_before_api_calls() {
     local mock_dir
     local call_log
@@ -228,6 +277,70 @@ MOCK
     rm -rf "$mock_dir"
 }
 
+test_validate_stripe_rejects_restricted_live_canonical_key_before_api_calls() {
+    local mock_dir
+    local call_log
+    mock_dir="$(mktemp -d)"
+    call_log="$mock_dir/curl_called.log"
+    cat > "$mock_dir/curl" <<'MOCK'
+#!/usr/bin/env bash
+echo "called" >> "$STRIPE_TEST_CALL_LOG"
+echo '{"id":"cus_mock"}'
+echo "200"
+exit 0
+MOCK
+    chmod +x "$mock_dir/curl"
+
+    local output exit_code
+    output="$(STRIPE_SECRET_KEY='rk_live_123456' STRIPE_TEST_CALL_LOG="$call_log" PATH="$mock_dir:$PATH" bash "$REPO_ROOT/scripts/validate-stripe.sh" 2>&1)" || exit_code=$?
+
+    assert_eq "${exit_code:-0}" "1" "validate-stripe should reject rk_live canonical key before API calls"
+    assert_valid_json "$output" "validate-stripe rk_live canonical-key output should be valid JSON"
+    assert_json_bool_field "$output" "passed" "false" "validate-stripe rk_live canonical-key JSON should report passed=false"
+    assert_contains "$output" "require_test_mode_stripe_secret_key" "validate-stripe rk_live canonical-key output should include test-mode key guard step"
+    assert_contains "$(json_step_detail "$output" "require_test_mode_stripe_secret_key")" "rk_test_" \
+        "validate-stripe rk_live canonical-key detail should require rk_test_ allowance text"
+    if [ -f "$call_log" ]; then
+        fail "validate-stripe should not call curl when canonical key is rk_live_"
+    else
+        pass "validate-stripe should not call curl when canonical key is rk_live_"
+    fi
+
+    rm -rf "$mock_dir"
+}
+
+test_validate_stripe_rejects_restricted_live_alias_key_before_api_calls() {
+    local mock_dir
+    local call_log
+    mock_dir="$(mktemp -d)"
+    call_log="$mock_dir/curl_called.log"
+    cat > "$mock_dir/curl" <<'MOCK'
+#!/usr/bin/env bash
+echo "called" >> "$STRIPE_TEST_CALL_LOG"
+echo '{"id":"cus_mock"}'
+echo "200"
+exit 0
+MOCK
+    chmod +x "$mock_dir/curl"
+
+    local output exit_code
+    output="$(env -u STRIPE_SECRET_KEY STRIPE_TEST_SECRET_KEY='rk_live_alias_123456' STRIPE_TEST_CALL_LOG="$call_log" PATH="$mock_dir:$PATH" bash "$REPO_ROOT/scripts/validate-stripe.sh" 2>&1)" || exit_code=$?
+
+    assert_eq "${exit_code:-0}" "1" "validate-stripe should reject rk_live alias key before API calls"
+    assert_valid_json "$output" "validate-stripe rk_live alias-key output should be valid JSON"
+    assert_json_bool_field "$output" "passed" "false" "validate-stripe rk_live alias-key JSON should report passed=false"
+    assert_contains "$output" "require_test_mode_stripe_secret_key" "validate-stripe rk_live alias-key output should include test-mode key guard step"
+    assert_contains "$(json_step_detail "$output" "require_test_mode_stripe_secret_key")" "rk_test_" \
+        "validate-stripe rk_live alias-key detail should require rk_test_ allowance text"
+    if [ -f "$call_log" ]; then
+        fail "validate-stripe should not call curl when alias key resolves to rk_live_"
+    else
+        pass "validate-stripe should not call curl when alias key resolves to rk_live_"
+    fi
+
+    rm -rf "$mock_dir"
+}
+
 test_validate_stripe_uses_attached_payment_method_id_for_default() {
     local mock_dir response_file output
     mock_dir="$(mktemp -d)"
@@ -279,14 +392,29 @@ JSON
     rm -rf "$mock_dir"
 }
 
+test_secret_rotation_runbook_avoids_inline_secret_cli_examples() {
+    local runbook
+    runbook="$(cat "$ROTATION_RUNBOOK_FILE")"
+
+    assert_contains "$runbook" "Do not paste literal secret values into the command line" \
+        "Stripe rotation runbook should warn against inline CLI secrets"
+    assert_not_contains "$runbook" "STRIPE_SECRET_KEY=<sk_test_...|rk_test_...> STRIPE_WEBHOOK_SECRET=whsec_... bash scripts/validate-stripe.sh" \
+        "Stripe rotation runbook should not teach inline secret injection on the command line"
+}
+
 echo "=== validate-stripe.sh tests ==="
 test_validate_stripe_fails_when_key_unset
 test_validate_stripe_fails_gracefully_with_invalid_key
 test_validate_stripe_alias_fallback_when_canonical_missing
+test_validate_stripe_accepts_restricted_canonical_key
+test_validate_stripe_accepts_restricted_alias_key
 test_validate_stripe_rejects_live_canonical_key_before_api_calls
 test_validate_stripe_rejects_live_alias_key_before_api_calls
+test_validate_stripe_rejects_restricted_live_canonical_key_before_api_calls
+test_validate_stripe_rejects_restricted_live_alias_key_before_api_calls
 test_validate_stripe_uses_attached_payment_method_id_for_default
 test_validate_stripe_surfaces_stripe_error_context
+test_secret_rotation_runbook_avoids_inline_secret_cli_examples
 
 echo "=== Results: $PASS_COUNT passed, $FAIL_COUNT failed ==="
 [ "$FAIL_COUNT" -eq 0 ]

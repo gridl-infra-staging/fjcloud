@@ -116,6 +116,7 @@ dependencies = [
  "http-body-util",
  "jsonwebtoken",
  "moka",
+ "openssl",
  "pricing-calculator",
  "prometheus",
  "proptest",

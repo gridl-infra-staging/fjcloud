@@ -4,6 +4,7 @@
 | File | Summary |
 | --- | --- |
 | api-dev.sh | api-dev.sh — Start the API with repo-local env files exported. |
+| audit_secrets.sh | Stub summary for audit_secrets.sh. |
 | bootstrap-env-local.sh | bootstrap-env-local.sh — Generate .env.local from .env.local.example and
 the external secret source.
 
@@ -94,10 +95,8 @@ cold-storage, and HA proof-owner scripts in strict order.
 Does NOT duplicate proof-owner internals — only calls the three scripts
 and interprets exit codes/output. |
 | local_demo.sh | One-command local demo launcher: infra + API + web + seed data + metering. |
-| probe_alert_delivery.sh | probe_alert_delivery.sh — synthetic critical alert delivery probe
-
-Purpose: verify that the Slack and/or Discord webhook URLs configured for the
-fjcloud alert pipeline ACTUALLY accept incoming POSTs. |
+| probe_alert_delivery.sh | Stub summary for probe_alert_delivery.sh. |
+| probe_ses_simulator_send.sh | Send-only SES mailbox simulator probe for bounce/complaint proof. |
 | run-aggregation-job.sh | run-aggregation-job.sh — Run the aggregation job for a target date.
 
 Rolls up raw usage_records into daily aggregates in usage_daily.
@@ -116,21 +115,14 @@ Usage:
   ./scripts/seed_local.sh              # uses defaults from .env.local
   API_URL=http://localhost:3001 ADMIN_KEY=my-key ./scripts/seed_local.sh. |
 | set_status.sh | set_status.sh — publish runtime service_status.json for /status hydration. |
-| staging_billing_dry_run.sh | staging_billing_dry_run.sh — safe staging billing preflight / rehearsal entrypoint.
-
-This script intentionally stays small and orchestration-focused. |
+| staging_billing_dry_run.sh | Stub summary for staging_billing_dry_run.sh. |
 | staging_billing_rehearsal.sh | staging_billing_rehearsal.sh — guarded staging billing mutation rehearsal. |
 | start-metering.sh | start-metering.sh — Start the metering agent for local dev.
 
 Must run AFTER seed_local.sh (needs a real customer UUID from the database).
 The metering agent scrapes Flapjack /metrics, computes deltas, and writes
 usage_records to Postgres. |
-| stripe_webhook_replay_fixture.sh | stripe_webhook_replay_fixture.sh — deterministic local webhook replay fixture.
-
-Purpose:
-- Build a safe Stripe webhook payload/signature pair for local replay checks.
-- Keep check mode non-mutating (no curl calls).
-- Allow an explicit run mode for one-shot webhook POST verification. |
+| stripe_webhook_replay_fixture.sh | Stub summary for stripe_webhook_replay_fixture.sh. |
 | validate-metering.sh | Validate metering pipeline health against a live database and emit JSON. |
 | validate-stripe.sh | Validate Stripe test-mode billing lifecycle and emit machine-readable JSON. |
 | validate_inbound_email_roundtrip.sh | Validate SES outbound-to-inbound roundtrip for the shared test inbox path. |
@@ -140,11 +132,11 @@ Purpose:
 | Directory | Summary |
 | --- | --- |
 | canary | The canary directory contains synthetic monitoring scripts for continuous end-to-end validation: customer_loop_synthetic.sh runs the full signup-to-billing flow with deterministic cleanup and alert dispatch, outside_aws_health_check.sh probes external service availability, and support_email_deliverability.sh validates inbound email roundtrips. |
-| chaos | Chaos engineering scripts for testing Flapjack region HA failover and recovery, validating health monitor detection, region failover, and tenant promotion behavior. |
-| launch | This directory contains deployment validation and staging environment orchestration scripts, including SSM-driven environment hydration, tenant-map verification, synthetic traffic seeding, and evidence capture for the launch process. |
-| lib | This lib directory contains reusable bash utility scripts that provide shared functions for the project's validation and integration workflows—including environment loading, health checks, HTTP requests, Stripe and billing operations, database migrations, metering validation, and alert dispatch. |
+| chaos | The chaos directory contains failure-injection and HA resilience test scripts that validate the system's ability to detect outages, trigger failover, and recover—including region kill/restart tests, metering service failure detection, and end-to-end failover proofs. |
+| launch | This directory contains shell scripts for deploying and validating the fjcloud billing platform in staging, including environment setup from AWS SSM, tenant configuration verification, synthetic traffic seeding, and remote command execution on EC2 infrastructure. |
+| lib | Shared bash utilities providing reusable helpers for infrastructure validation (health checks, metering, Stripe), alert dispatch, environment parsing, billing rehearsal workflows, and deployment operations used across integration tests and shell scripts. |
 | load | The load directory contains regression checking utilities for validating load testing performance, including scripts that compare offline and live load harness results to detect performance regressions. |
 | reliability | The reliability directory contains shell scripts for backend capacity profiling, security validation, and reliability gating that generate performance metrics across document tiers. |
 | stripe | The stripe directory contains operational scripts for managing Stripe integration with fjcloud: configuring the Customer Portal and creating the canonical Flapjack product catalog, both supporting multi-account operations. |
-| tests | The tests/ directory contains shell script test infrastructure, including focused smoke tests for wrapper scripts like customer_broadcast.sh and a shared lib/ of utilities supporting chaos tests, integration tests, e2e billing cycles, and staging validation. |
+| tests | Contains integration test scripts and shared shell utilities for billing cycle validation, customer broadcasts, and budget guardrails, with mocking frameworks and specialized test harnesses for chaos and end-to-end validation. |
 <!-- [scrai:end] -->

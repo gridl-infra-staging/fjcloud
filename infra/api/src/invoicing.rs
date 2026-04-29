@@ -230,6 +230,48 @@ pub async fn compute_invoice_for_customer(
     .await
 }
 
+/// Compute an invoice using an explicitly selected base rate card id.
+///
+/// This path is used by replay and audit workflows that must reproduce invoice
+/// amounts against a captured historical card rather than whichever card is
+/// currently active at execution time.
+pub async fn compute_invoice_for_customer_with_rate_card_id(
+    repos: &BillingRepos<'_>,
+    customer_id: Uuid,
+    rate_card_id: Uuid,
+    period_start: NaiveDate,
+    period_end: NaiveDate,
+    billing_plan: BillingPlan,
+    object_storage_egress_carryforward_cents: Decimal,
+) -> Result<GeneratedInvoice, ApiError> {
+    let base_card = repos
+        .rate_card_repo
+        .get_by_id(rate_card_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound(format!("rate card not found: {}", rate_card_id)))?;
+    let cold_snapshots = repos
+        .cold_snapshot_repo
+        .list_completed_for_billing(period_start, period_end)
+        .await?;
+    let storage_buckets = repos.storage_bucket_repo.list_all().await?;
+
+    let shared = SharedBillingData {
+        base_card: &base_card,
+        cold_snapshots: &cold_snapshots,
+        storage_buckets: &storage_buckets,
+    };
+    compute_invoice_for_customer_with_shared_inputs(
+        repos,
+        &shared,
+        customer_id,
+        period_start,
+        period_end,
+        billing_plan,
+        object_storage_egress_carryforward_cents,
+    )
+    .await
+}
+
 pub async fn compute_invoice_for_customer_with_shared_inputs(
     repos: &BillingRepos<'_>,
     shared: &SharedBillingData<'_>,

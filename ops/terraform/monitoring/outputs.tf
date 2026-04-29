@@ -3,6 +3,11 @@ output "sns_topic_arn" {
   value       = aws_sns_topic.alerts.arn
 }
 
+output "ses_feedback_sns_topic_arn" {
+  description = "SNS topic ARN for SES bounce/complaint webhook delivery"
+  value       = aws_sns_topic.ses_feedback.arn
+}
+
 output "customer_loop_canary_ecr_repository_url" {
   description = "ECR repository URL for the customer loop canary Lambda image"
   value       = aws_ecr_repository.customer_loop_canary.repository_url

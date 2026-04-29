@@ -30,8 +30,7 @@
 #
 # Usage:
 #   set -a; source .secret/.env.secret; set +a
-#   eval "$(bash scripts/launch/hydrate_seeder_env_from_ssm.sh staging)"
-#   bash scripts/launch/capture_stage_d_evidence.sh
+#   bash -lc 'source <(bash scripts/launch/hydrate_seeder_env_from_ssm.sh staging); bash scripts/launch/capture_stage_d_evidence.sh'
 
 set -euo pipefail
 
@@ -46,7 +45,7 @@ RUN_TS="$(date -u +%Y%m%dT%H%M%SZ)"
 ARTIFACT_DIR="${EVIDENCE_DIR}/${RUN_TS}_stage_d_capture"
 
 if [ -z "${API_URL:-}" ] || [ -z "${ADMIN_KEY:-}" ]; then
-  echo "ERROR: API_URL or ADMIN_KEY not set. Source .secret/.env.secret and eval scripts/launch/hydrate_seeder_env_from_ssm.sh staging first." >&2
+  echo "ERROR: API_URL or ADMIN_KEY not set. Source .secret/.env.secret, then run this wrapper from a shell that sources scripts/launch/hydrate_seeder_env_from_ssm.sh staging without eval." >&2
   exit 64
 fi
 

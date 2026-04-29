@@ -2,7 +2,9 @@
 	import { resolve } from '$app/paths';
 	import {
 		BETA_FEEDBACK_MAILTO,
+		LEGAL_BADGE_LABEL,
 		LEGAL_DRAFT_BANNER_TEXT,
+		LEGAL_EFFECTIVE_DATE_TEXT,
 		LEGAL_ENTITY_NAME,
 		SUPPORT_EMAIL
 	} from '$lib/format';
@@ -21,10 +23,11 @@
 				<span
 					class="inline-flex rounded-full bg-[#ffb3c7] px-3 py-1 text-xs font-black uppercase tracking-[0.18em]"
 				>
-					Draft
+					{LEGAL_BADGE_LABEL}
 				</span>
 				<span>{LEGAL_DRAFT_BANNER_TEXT}</span>
 			</p>
+			<p>{LEGAL_EFFECTIVE_DATE_TEXT}</p>
 		</div>
 	</div>
 

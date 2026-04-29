@@ -1,0 +1,24 @@
+{
+  "passed": 1,
+  "failed": 2,
+  "skipped": 0,
+  "timedOut": 0,
+  "interrupted": 0,
+  "specs": [
+    {
+      "file": "fixtures/auth.setup.ts",
+      "title": "authenticate as customer",
+      "status": "passed"
+    },
+    {
+      "file": "e2e-ui/full/signup_to_paid_invoice.spec.ts",
+      "title": "signs up, verifies email, reaches paid invoice evidence",
+      "status": "failed"
+    },
+    {
+      "file": "e2e-ui/full/billing_portal_cancel.spec.ts",
+      "title": "billing portal cancel returns to billing with server-owned cancellation banner",
+      "status": "failed"
+    }
+  ]
+}

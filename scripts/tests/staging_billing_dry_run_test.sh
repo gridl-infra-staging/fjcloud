@@ -69,6 +69,14 @@ run_dry_run_script() {
                 args+=("$1")
                 shift
                 ;;
+            --env-file)
+                args+=("$1" "$2")
+                shift 2
+                ;;
+            --env-file=*)
+                args+=("$1")
+                shift
+                ;;
             *)
                 env_args+=("$1")
                 shift
@@ -148,6 +156,38 @@ test_live_mode_looking_key_is_rejected() {
     assert_contains "$RUN_STDOUT" "stripe_live_key_rejected" "live-looking Stripe key output should classify the failure"
 }
 
+test_restricted_test_mode_key_is_accepted() {
+    make_test_tmp_dir
+    write_mock_curl 'exit 99'
+    run_dry_run_script --check "STRIPE_SECRET_KEY=rk_test_not_allowed_yet"
+
+    assert_eq "$RUN_EXIT_CODE" "0" "restricted test-mode Stripe key should pass dry-run runtime validation"
+    assert_valid_json "$RUN_STDOUT" "restricted test-mode Stripe key output should be valid JSON"
+    assert_json_bool_field "$RUN_STDOUT" "passed" "true" "restricted test-mode Stripe key should report passed=true"
+}
+
+test_alias_only_runtime_key_is_rejected_for_staging_contract() {
+    make_test_tmp_dir
+    write_mock_curl 'exit 99'
+    run_dry_run_script --check "STRIPE_SECRET_KEY=" "STRIPE_TEST_SECRET_KEY=sk_test_alias_only"
+
+    assert_eq "$RUN_EXIT_CODE" "1" "alias-only Stripe key should fail the staging runtime contract"
+    assert_valid_json "$RUN_STDOUT" "alias-only Stripe key output should be valid JSON"
+    assert_contains "$RUN_STDOUT" "STRIPE_SECRET_KEY" "alias-only Stripe key output should name the canonical runtime variable"
+    assert_contains "$RUN_STDOUT" "stripe_secret_key_missing" "alias-only Stripe key should keep the missing-canonical classification"
+}
+
+test_restricted_live_mode_key_is_rejected() {
+    make_test_tmp_dir
+    write_mock_curl 'exit 99'
+    run_dry_run_script --check "STRIPE_SECRET_KEY=rk_live_not_allowed"
+
+    assert_eq "$RUN_EXIT_CODE" "1" "restricted live Stripe key should fail"
+    assert_valid_json "$RUN_STDOUT" "restricted live Stripe key output should be valid JSON"
+    assert_contains "$RUN_STDOUT" "rk_live_" "restricted live key output should explain the rejected prefix"
+    assert_contains "$RUN_STDOUT" "stripe_live_key_rejected" "restricted live key output should classify the failure"
+}
+
 test_missing_operator_auth_path_fails_clearly() {
     make_test_tmp_dir
     write_mock_curl 'exit 99'
@@ -201,6 +241,31 @@ test_non_https_public_webhook_url_is_cloudflare_dns_blocker() {
     assert_valid_json "$RUN_STDOUT" "non-HTTPS public webhook URL output should be valid JSON"
     assert_contains "$RUN_STDOUT" "https://" "non-HTTPS public webhook URL output should explain the HTTPS requirement"
     assert_contains "$RUN_STDOUT" "dns_or_cloudflare_blocked" "non-HTTPS public webhook URL should map to DNS/Cloudflare blocker classification"
+}
+
+test_explicit_missing_env_file_fails_as_machine_readable_error() {
+    make_test_tmp_dir
+    write_mock_curl 'exit 99'
+    run_dry_run_script --check --env-file "$TEST_TMP_DIR/missing.env"
+
+    assert_eq "$RUN_EXIT_CODE" "1" "missing explicit env file should fail"
+    assert_valid_json "$RUN_STDOUT" "missing explicit env file output should be valid JSON"
+    assert_contains "$RUN_STDOUT" "Explicit env file not found" "missing explicit env file output should explain the boundary failure"
+    assert_contains "$RUN_STDOUT" "env_file_missing" "missing explicit env file should use env_file_missing classification"
+}
+
+test_explicit_invalid_env_file_fails_as_machine_readable_error() {
+    make_test_tmp_dir
+    write_mock_curl 'exit 99'
+    cat > "$TEST_TMP_DIR/invalid.env" <<'EOF'
+BAD LINE
+EOF
+    run_dry_run_script --check --env-file "$TEST_TMP_DIR/invalid.env"
+
+    assert_eq "$RUN_EXIT_CODE" "1" "invalid explicit env file should fail"
+    assert_valid_json "$RUN_STDOUT" "invalid explicit env file output should be valid JSON"
+    assert_contains "$RUN_STDOUT" "Unsupported syntax" "invalid explicit env file output should surface parser context"
+    assert_contains "$RUN_STDOUT" "env_file_invalid" "invalid explicit env file should use env_file_invalid classification"
 }
 
 test_check_mode_prints_plan_without_external_calls() {
@@ -267,10 +332,15 @@ test_runbook_email_evidence_contract_matches_runtime_owners() {
 echo "=== staging_billing_dry_run.sh tests ==="
 test_missing_runtime_stripe_secret_key_fails_clearly
 test_live_mode_looking_key_is_rejected
+test_restricted_test_mode_key_is_accepted
+test_alias_only_runtime_key_is_rejected_for_staging_contract
+test_restricted_live_mode_key_is_rejected
 test_missing_webhook_secret_fails_clearly
 test_missing_staging_api_url_fails_clearly
 test_missing_public_webhook_url_is_cloudflare_dns_blocker
 test_non_https_public_webhook_url_is_cloudflare_dns_blocker
+test_explicit_missing_env_file_fails_as_machine_readable_error
+test_explicit_invalid_env_file_fails_as_machine_readable_error
 test_missing_operator_auth_path_fails_clearly
 test_check_mode_prints_plan_without_external_calls
 test_runbook_email_evidence_contract_matches_runtime_owners

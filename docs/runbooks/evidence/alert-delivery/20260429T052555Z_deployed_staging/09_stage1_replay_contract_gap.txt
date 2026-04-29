@@ -1,0 +1,22 @@
+# Stage 3 contract gap: Stage 1 replay fixture cannot emit retry-alert payload
+
+utc_recorded=2026-04-29T06:00:00Z
+bundle=docs/runbooks/evidence/alert-delivery/20260429T052555Z_deployed_staging
+
+owner_required_for_fix=scripts/stripe_webhook_replay_fixture.sh
+owner_functions=resolve_target_url,build_payload,generate_signature_header,post_webhook_once
+
+reason_stage3_stops_before_invoice_lookup=The Stage 1 replay owner currently hardcodes a customer.updated payload and has no CLI flags to set Stripe event type or invoice retry fields required by retry-alert contract tests.
+
+missing_payload_fields_or_flags:
+- event type override for type=invoice.payment_failed
+- invoice id override at data.object.id (Stripe invoice id)
+- next payment attempt field at data.object.next_payment_attempt (non-null for retry-scheduled branch)
+- retry attempt count field at data.object.attempt_count
+
+evidence:
+- scripts/stripe_webhook_replay_fixture.sh:292-314 build_payload emits only {"type":"customer.updated","data":{"object":{"id":"cus_replay_fixture"}}}
+- scripts/stripe_webhook_replay_fixture.sh parse_args supports only target/timestamp/event-id/env-file/allow-staging-target; no payload/event-type override
+- infra/api/tests/webhook_alert_test.rs:136-206 and 589-651 require invoice.payment_failed payload with data.object.id + next_payment_attempt + attempt_count
+
+stage3_action=Stop before invoice lookup and replay per checklist; do not improvise alternate signer/curl path.

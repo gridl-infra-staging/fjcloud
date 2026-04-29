@@ -1,0 +1,142 @@
+[
+  {
+    "role": "fjcloud-deploy",
+    "expectation": "positive",
+    "name": "allow_ec2_describe",
+    "actions": [
+      "ec2:DescribeInstances"
+    ],
+    "resources": [
+      "*"
+    ],
+    "decisions": [
+      "allowed"
+    ]
+  },
+  {
+    "role": "fjcloud-deploy",
+    "expectation": "positive",
+    "name": "allow_ssm_send_command",
+    "actions": [
+      "ssm:SendCommand"
+    ],
+    "resources": [
+      "*"
+    ],
+    "decisions": [
+      "allowed"
+    ]
+  },
+  {
+    "role": "fjcloud-deploy",
+    "expectation": "positive",
+    "name": "allow_s3_put_releases",
+    "actions": [
+      "s3:PutObject"
+    ],
+    "resources": [
+      "arn:aws:s3:::fjcloud-releases-staging/deploy/test-artifact"
+    ],
+    "decisions": [
+      "allowed"
+    ]
+  },
+  {
+    "role": "fjcloud-deploy",
+    "expectation": "negative",
+    "name": "deny_iam_create_user",
+    "actions": [
+      "iam:CreateUser"
+    ],
+    "resources": [
+      "*"
+    ],
+    "decisions": [
+      "implicitDeny"
+    ]
+  },
+  {
+    "role": "fjcloud-deploy",
+    "expectation": "negative",
+    "name": "deny_ec2_terminate",
+    "actions": [
+      "ec2:TerminateInstances"
+    ],
+    "resources": [
+      "*"
+    ],
+    "decisions": [
+      "implicitDeny"
+    ]
+  },
+  {
+    "role": "fjcloud-instance-role",
+    "expectation": "positive",
+    "name": "allow_ec2_start_instances",
+    "actions": [
+      "ec2:StartInstances"
+    ],
+    "resources": [
+      "*"
+    ],
+    "decisions": [
+      "allowed"
+    ]
+  },
+  {
+    "role": "fjcloud-instance-role",
+    "expectation": "positive",
+    "name": "allow_ses_send_email",
+    "actions": [
+      "ses:SendEmail"
+    ],
+    "resources": [
+      "arn:aws:ses:us-east-1:213880904778:identity/flapjack.foo"
+    ],
+    "decisions": [
+      "allowed"
+    ]
+  },
+  {
+    "role": "fjcloud-instance-role",
+    "expectation": "positive",
+    "name": "allow_s3_get_releases",
+    "actions": [
+      "s3:GetObject"
+    ],
+    "resources": [
+      "arn:aws:s3:::fjcloud-releases-staging/deploy/test-artifact"
+    ],
+    "decisions": [
+      "allowed"
+    ]
+  },
+  {
+    "role": "fjcloud-instance-role",
+    "expectation": "negative",
+    "name": "deny_iam_create_user",
+    "actions": [
+      "iam:CreateUser"
+    ],
+    "resources": [
+      "*"
+    ],
+    "decisions": [
+      "implicitDeny"
+    ]
+  },
+  {
+    "role": "fjcloud-instance-role",
+    "expectation": "negative",
+    "name": "deny_s3_put_releases",
+    "actions": [
+      "s3:PutObject"
+    ],
+    "resources": [
+      "arn:aws:s3:::fjcloud-releases-staging/deploy/test-artifact"
+    ],
+    "decisions": [
+      "implicitDeny"
+    ]
+  }
+]

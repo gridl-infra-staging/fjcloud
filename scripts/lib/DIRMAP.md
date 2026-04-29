@@ -38,6 +38,7 @@ Contract:
 
 The local HA proof only means anything when the VM inventory and the running
 Flapjack listeners describe the same topology. |
+| full_backend_validation_cli.sh | Stub summary for full_backend_validation_cli.sh. |
 | full_backend_validation_json.sh | Stub summary for full_backend_validation_json.sh. |
 | health.sh | Shared health-check helpers for shell scripts.
 
@@ -102,7 +103,7 @@ On failure, emits REASON:<code> to stderr for structured reason extraction. |
 | staging_billing_rehearsal_email_evidence.sh | Stub summary for staging_billing_rehearsal_email_evidence.sh. |
 | staging_billing_rehearsal_evidence.sh | Stub summary for staging_billing_rehearsal_evidence.sh. |
 | staging_billing_rehearsal_flow.sh | Flow helpers for scripts/staging_billing_rehearsal.sh. |
-| staging_billing_rehearsal_impl.sh | Stub summary for staging_billing_rehearsal_impl.sh. |
+| staging_billing_rehearsal_impl.sh | shellcheck source=psql_path.sh. |
 | staging_billing_rehearsal_live_mutation.sh | Live mutation execution helpers for staging billing rehearsal. |
 | staging_billing_rehearsal_reset.sh | Reset-path helpers for staging billing rehearsal. |
 | stripe_account.sh | Shared explicit-account secret-key resolver for Stripe shell scripts.

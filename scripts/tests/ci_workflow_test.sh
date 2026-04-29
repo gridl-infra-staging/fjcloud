@@ -331,6 +331,7 @@ assert_job_contains_regex "deploy-staging" 'aws s3 cp infra/fjcloud-aggregation-
 assert_job_contains_regex "deploy-staging" 'aws s3 sync infra/migrations s3://fjcloud-releases-staging/staging/\$\{GITHUB_SHA\}/migrations' "deploy-staging uploads infra/migrations to staging SHA path"
 assert_job_contains_regex "deploy-staging" 'aws s3 cp ops/scripts/migrate.sh s3://fjcloud-releases-staging/staging/\$\{GITHUB_SHA\}/scripts/migrate.sh' "deploy-staging uploads migrate.sh to staging SHA path"
 assert_job_contains_regex "deploy-staging" 'aws s3 cp ops/scripts/lib/generate_ssm_env.sh s3://fjcloud-releases-staging/staging/\$\{GITHUB_SHA\}/scripts/generate_ssm_env.sh' "deploy-staging uploads generate_ssm_env.sh to staging SHA path"
+assert_job_contains_regex "deploy-staging" 'aws s3 cp ops/systemd/fj-metering-agent\.service s3://fjcloud-releases-staging/staging/\$\{GITHUB_SHA\}/systemd/fj-metering-agent\.service' "deploy-staging uploads fj-metering-agent.service to staging SHA path"
 assert_job_contains_regex "deploy-staging" 'bash ops/scripts/deploy\.sh staging "\$\{GITHUB_SHA\}"' "deploy-staging triggers staging deploy with GitHub SHA"
 
 assert_contains_regex 'cargo fmt --check' "workflow includes cargo fmt --check"

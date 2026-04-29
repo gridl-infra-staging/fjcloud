@@ -103,6 +103,7 @@ pub fn init_stripe_service(cfg: &Config) -> Arc<dyn crate::stripe::StripeService
 
 /// Build the email service — SES, Mailpit, or no-op depending on env.
 pub async fn init_email_service(
+    pool: &sqlx::PgPool,
     startup_env: &StartupEnvSnapshot,
     aws_sdk_config: &aws_config::SdkConfig,
 ) -> anyhow::Result<Arc<dyn crate::services::email::EmailService>> {
@@ -145,6 +146,12 @@ pub async fn init_email_service(
                 crate::services::email::SesEmailService::with_app_base_url(
                     ses_client,
                     ses_config.from_address,
+                    ses_config.configuration_set,
+                    Arc::new(
+                        crate::services::email_suppression::PgEmailSuppressionStore::new(
+                            pool.clone(),
+                        ),
+                    ),
                     app_base_url,
                 ),
             ))

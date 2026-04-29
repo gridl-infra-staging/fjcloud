@@ -111,8 +111,8 @@ if ! STRIPE_SECRET_KEY_EFFECTIVE="$(resolve_stripe_secret_key)"; then
     exit 1
 fi
 
-if [[ "$STRIPE_SECRET_KEY_EFFECTIVE" != sk_test_* ]]; then
-    append_step "require_test_mode_stripe_secret_key" false "Resolved STRIPE_SECRET_KEY must start with sk_test_"
+if [[ "$STRIPE_SECRET_KEY_EFFECTIVE" != sk_test_* && "$STRIPE_SECRET_KEY_EFFECTIVE" != rk_test_* ]]; then
+    append_step "require_test_mode_stripe_secret_key" false "Resolved STRIPE_SECRET_KEY must start with sk_test_ or rk_test_"
     emit_result false
     exit 1
 fi

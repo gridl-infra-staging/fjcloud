@@ -44,6 +44,7 @@ pub struct StartupEnvSnapshot {
     environment: Option<String>,
     ses_from_address: Option<String>,
     ses_region: Option<String>,
+    ses_configuration_set: Option<String>,
     cold_storage_bucket: Option<String>,
     cold_storage_prefix: Option<String>,
     cold_storage_region: Option<String>,
@@ -66,6 +67,7 @@ impl StartupEnvSnapshot {
             environment: read("ENVIRONMENT"),
             ses_from_address: read("SES_FROM_ADDRESS"),
             ses_region: read("SES_REGION"),
+            ses_configuration_set: read("SES_CONFIGURATION_SET"),
             cold_storage_bucket: read("COLD_STORAGE_BUCKET"),
             cold_storage_prefix: read("COLD_STORAGE_PREFIX"),
             cold_storage_region: read("COLD_STORAGE_REGION"),
@@ -123,7 +125,11 @@ impl StartupEnvSnapshot {
     }
 
     pub fn ses_family_state(&self) -> RawEnvFamilyState {
-        Self::classify_family_state(&[&self.ses_from_address, &self.ses_region])
+        Self::classify_family_state(&[
+            &self.ses_from_address,
+            &self.ses_region,
+            &self.ses_configuration_set,
+        ])
     }
 
     pub fn ses_startup_mode(&self) -> SesStartupMode {
@@ -186,6 +192,7 @@ impl StartupEnvSnapshot {
             "ENVIRONMENT" => self.environment.as_deref(),
             "SES_FROM_ADDRESS" => self.ses_from_address.as_deref(),
             "SES_REGION" => self.ses_region.as_deref(),
+            "SES_CONFIGURATION_SET" => self.ses_configuration_set.as_deref(),
             "COLD_STORAGE_BUCKET" => self.cold_storage_bucket.as_deref(),
             "COLD_STORAGE_PREFIX" => self.cold_storage_prefix.as_deref(),
             "COLD_STORAGE_REGION" => self.cold_storage_region.as_deref(),
@@ -312,6 +319,7 @@ mod tests {
         let full = snapshot_with(&[
             ("SES_FROM_ADDRESS", "ops@example.com"),
             ("SES_REGION", "us-east-1"),
+            ("SES_CONFIGURATION_SET", "ses-feedback"),
         ]);
         assert_eq!(full.ses_family_state(), RawEnvFamilyState::FullyExplicit);
     }
@@ -330,7 +338,7 @@ mod tests {
         assert!(!prod_memory.is_local_zero_dependency_mode());
     }
 
-    /// Noop email only activates in local zero-dep mode with both SES vars absent.
+    /// Noop email only activates in local zero-dep mode with all SES vars absent.
     #[test]
     fn ses_startup_mode_only_noops_for_local_mode_with_absent_ses_env() {
         let local_absent =
@@ -342,6 +350,7 @@ mod tests {
             ("NODE_SECRET_BACKEND", "memory"),
             ("SES_FROM_ADDRESS", "ops@example.com"),
             ("SES_REGION", "us-east-1"),
+            ("SES_CONFIGURATION_SET", "ses-feedback"),
         ]);
         assert_eq!(local_full.ses_startup_mode(), SesStartupMode::Ses);
 
@@ -465,11 +474,16 @@ mod tests {
     fn env_value_returns_snapshot_values_by_name() {
         let snapshot = snapshot_with(&[
             ("SES_REGION", "us-east-1"),
+            ("SES_CONFIGURATION_SET", "ses-feedback"),
             ("COLD_STORAGE_BUCKET", "fjcloud-cold"),
             ("COLD_STORAGE_ACCESS_KEY", "access-a"),
         ]);
 
         assert_eq!(snapshot.env_value("SES_REGION"), Some("us-east-1"));
+        assert_eq!(
+            snapshot.env_value("SES_CONFIGURATION_SET"),
+            Some("ses-feedback")
+        );
         assert_eq!(
             snapshot.env_value("COLD_STORAGE_BUCKET"),
             Some("fjcloud-cold")

@@ -166,11 +166,30 @@ test_canary_dispatches_one_critical_alert_on_runtime_failure() {
     rm -rf "$mock_dir"
 }
 
+test_canary_falls_back_to_raw_output_when_failure_detail_is_non_json() {
+    local mock_dir output exit_code
+    mock_dir="$(new_support_email_mock_workspace)"
+
+    output="$(
+        run_support_email_canary "$mock_dir" \
+            "SUPPORT_EMAIL_TEST_ROUNDTRIP_EXIT_CODE=7" \
+            "SUPPORT_EMAIL_TEST_ROUNDTRIP_OUTPUT=roundtrip probe crashed before json payload" \
+            "SLACK_WEBHOOK_URL=https://hooks.slack.test/services/canary" \
+            "ENVIRONMENT=dev"
+    )" || exit_code=$?
+
+    assert_eq "${exit_code:-0}" "7" "canary should preserve delegated non-timeout/non-auth exit code"
+    assert_contains "$output" "roundtrip probe crashed before json payload" "runtime fallback path should emit delegated raw output"
+    assert_single_alert_with_classification "$mock_dir/alert_calls.log" "runtime" "roundtrip probe crashed before json payload"
+    rm -rf "$mock_dir"
+}
+
 echo "=== support_email_deliverability.sh tests ==="
 test_canary_delegates_to_roundtrip_owner_on_success_without_alert_dispatch
 test_canary_dispatches_one_critical_alert_on_timeout_failure
 test_canary_dispatches_one_critical_alert_on_auth_failure
 test_canary_dispatches_one_critical_alert_on_runtime_failure
+test_canary_falls_back_to_raw_output_when_failure_detail_is_non_json
 
 echo "=== Results: $PASS_COUNT passed, $FAIL_COUNT failed ==="
 [ "$FAIL_COUNT" -eq 0 ]

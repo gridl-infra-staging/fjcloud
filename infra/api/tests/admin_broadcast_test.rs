@@ -210,6 +210,7 @@ async fn dry_run_broadcast_writes_no_email_log_rows() {
     );
     assert!(
         response_body.get("success_count").is_none()
+            && response_body.get("suppressed_count").is_none()
             && response_body.get("failure_count").is_none(),
         "dry-run response schema must stay distinct from live-send schema"
     );
@@ -305,6 +306,10 @@ async fn live_broadcast_logs_one_success_row_per_recipient() {
     assert_eq!(
         response_body.get("success_count"),
         Some(&serde_json::json!(expected_recipients.len()))
+    );
+    assert_eq!(
+        response_body.get("suppressed_count"),
+        Some(&serde_json::json!(0))
     );
     assert_eq!(
         response_body.get("failure_count"),
@@ -448,6 +453,10 @@ async fn live_broadcast_partial_failure_logs_failed_rows_and_continues() {
         Some(&serde_json::json!(2))
     );
     assert_eq!(
+        response_body.get("suppressed_count"),
+        Some(&serde_json::json!(0))
+    );
+    assert_eq!(
         response_body.get("failure_count"),
         Some(&serde_json::json!(1))
     );
@@ -479,4 +488,129 @@ async fn live_broadcast_partial_failure_logs_failed_rows_and_continues() {
             "success rows must not include an error message"
         );
     }
+}
+
+#[tokio::test]
+#[ignore = "requires DATABASE_URL"]
+async fn live_broadcast_suppressed_recipient_logs_suppressed_and_keeps_failure_count_for_real_failures(
+) {
+    let Some(db) = connect_and_migrate().await else {
+        return;
+    };
+    let pool = db.pool.clone();
+
+    let suppressed_email = unique_email("live-suppressed-0");
+    let success_email = unique_email("live-suppressed-1");
+    let failed_email = unique_email("live-suppressed-2");
+    let subject = unique_subject("live-suppressed-mixed");
+
+    let base = Utc
+        .with_ymd_and_hms(2026, 3, 1, 0, 0, 0)
+        .single()
+        .expect("valid timestamp");
+
+    // Keep predictable send order via PgCustomerRepo::list created_at DESC.
+    seed_customer(
+        &pool,
+        "Suppressed First",
+        &suppressed_email,
+        base + chrono::Duration::seconds(2),
+    )
+    .await;
+    seed_customer(
+        &pool,
+        "Success Second",
+        &success_email,
+        base + chrono::Duration::seconds(1),
+    )
+    .await;
+    seed_customer(&pool, "Failed Third", &failed_email, base).await;
+
+    let (failable_email_service, _delegate) = common::FailableEmailService::with_mock_delegate();
+    failable_email_service.suppress_recipient(&suppressed_email);
+    failable_email_service.fail_recipient(&failed_email, "forced delivery failure");
+
+    let app = build_db_backed_broadcast_app(
+        &pool,
+        failable_email_service.clone() as Arc<dyn EmailService>,
+    );
+
+    let response = app
+        .oneshot(build_broadcast_request(&subject, false))
+        .await
+        .expect("broadcast request should complete");
+    let status = response.status();
+    assert_eq!(status, StatusCode::OK);
+    let response_body = response_json(response).await;
+
+    let attempts = failable_email_service.attempted_recipients();
+    let rows = email_log_rows(&pool, &subject).await;
+    let rows_by_recipient: HashMap<String, EmailLogRow> = rows
+        .into_iter()
+        .map(|row| (row.recipient_email.clone(), row))
+        .collect();
+
+    cleanup_schema(&pool, &db.schema).await;
+
+    assert_eq!(
+        attempts,
+        vec![
+            suppressed_email.clone(),
+            success_email.clone(),
+            failed_email.clone(),
+        ],
+        "broadcast loop must keep iterating after suppressed recipients"
+    );
+    assert_eq!(
+        rows_by_recipient.len(),
+        attempts.len(),
+        "email_log must persist exactly one row per attempted recipient"
+    );
+
+    assert_eq!(
+        response_body.get("attempted_count"),
+        Some(&serde_json::json!(attempts.len()))
+    );
+    assert_eq!(
+        response_body.get("success_count"),
+        Some(&serde_json::json!(1)),
+        "only true deliveries count as success"
+    );
+    assert_eq!(
+        response_body.get("suppressed_count"),
+        Some(&serde_json::json!(1)),
+        "suppressed recipients must be reported separately"
+    );
+    assert_eq!(
+        response_body.get("failure_count"),
+        Some(&serde_json::json!(1)),
+        "failure_count must only represent real delivery failures"
+    );
+
+    let suppressed_row = rows_by_recipient
+        .get(&suppressed_email)
+        .expect("suppressed recipient row should exist");
+    assert_eq!(suppressed_row.delivery_status, "suppressed");
+    assert!(
+        suppressed_row.error_message.is_none(),
+        "suppressed rows should not carry delivery error text"
+    );
+
+    let success_row = rows_by_recipient
+        .get(&success_email)
+        .expect("success recipient row should exist");
+    assert_eq!(success_row.delivery_status, "success");
+    assert!(
+        success_row.error_message.is_none(),
+        "success rows should not include error_message"
+    );
+
+    let failed_row = rows_by_recipient
+        .get(&failed_email)
+        .expect("failed recipient row should exist");
+    assert_eq!(failed_row.delivery_status, "failed");
+    assert_eq!(
+        failed_row.error_message.as_deref(),
+        Some("forced delivery failure")
+    );
 }

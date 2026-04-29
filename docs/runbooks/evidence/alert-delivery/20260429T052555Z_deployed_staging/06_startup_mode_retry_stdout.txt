@@ -1,0 +1,6 @@
+[HOST] active_enter:
+ActiveEnterTimestamp=Tue 2026-04-28 20:49:53 UTC
+[HOST] startup_boundary=Tue 2026-04-28 20:49:53 UTC
+[HOST] startup_mode_logs:
+Apr 28 20:49:53 fjcloud-api-staging fjcloud-api[39787]: {"timestamp":"2026-04-28T20:49:53.365800Z","level":"INFO","fields":{"message":"Discord alert webhook configured"},"target":"api::startup"}
+

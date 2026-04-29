@@ -54,7 +54,7 @@ resource "aws_iam_role_policy" "fjcloud_ssm_read" {
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
-      Effect   = "Allow"
+      Effect = "Allow"
       Action = [
         "ssm:GetParameter",
         "ssm:GetParametersByPath",
@@ -139,9 +139,11 @@ resource "aws_iam_role_policy" "fjcloud_ses_send" {
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
-      Effect   = "Allow"
-      Action   = ["ses:SendEmail", "ses:SendRawEmail"]
-      Resource = "arn:aws:ses:us-east-1:*:identity/flapjack.foo"
+      Effect = "Allow"
+      Action = ["ses:SendEmail", "ses:SendRawEmail"]
+      # why: Sending mail from another account's SES identity is out of scope;
+      # bind this permission to the account already pinned by provider.tf.
+      Resource = "arn:aws:ses:us-east-1:${data.aws_caller_identity.current.account_id}:identity/flapjack.foo"
     }]
   })
 }

@@ -4,7 +4,7 @@ use api::models::vm_inventory::NewVmInventory;
 use api::repos::vm_inventory_repo::VmInventoryRepo;
 use api::repos::CustomerRepo;
 use api::router::build_router;
-use api::services::email::{EmailError, EmailService, MockEmailService};
+use api::services::email::{BroadcastDeliveryStatus, EmailError, EmailService, MockEmailService};
 use api::services::flapjack_proxy::{
     FlapjackHttpClient, FlapjackHttpRequest, FlapjackHttpResponse, FlapjackProxy, ProxyError,
 };
@@ -125,7 +125,7 @@ impl EmailService for AlwaysFailEmailService {
         _subject: &str,
         _html_body: Option<&str>,
         _text_body: Option<&str>,
-    ) -> Result<(), EmailError> {
+    ) -> Result<BroadcastDeliveryStatus, EmailError> {
         Err(EmailError::DeliveryFailed(
             "forced test failure".to_string(),
         ))

@@ -92,6 +92,7 @@ pub(super) fn build_router_without_layers(
         .merge(tenant_routes)
         .route("/auth/reset-password", post(auth::reset_password))
         .route("/webhooks/stripe", post(webhooks::stripe_webhook))
+        .route("/webhooks/ses/sns", post(webhooks::ses_sns_webhook))
         .nest("/internal", internal)
         .nest("/v1", super::v1_routes())
 }

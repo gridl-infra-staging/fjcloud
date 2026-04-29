@@ -4,6 +4,7 @@
 | File | Summary |
 | --- | --- |
 | +page.server.ts | Stub summary for /Users/stuart/parallel_development/fjcloud_dev/MAR17_11_2_data_management_features/fjcloud_dev/web/src/routes/+page.server.ts. |
+| legal_page_test_helpers.ts | Stub summary for legal_page_test_helpers.ts. |
 
 | Directory | Summary |
 | --- | --- |

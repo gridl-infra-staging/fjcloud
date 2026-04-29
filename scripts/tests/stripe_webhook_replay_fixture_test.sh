@@ -331,6 +331,57 @@ test_run_mode_posts_once_with_expected_headers_and_target() {
         "run mode stderr should not leak webhook secret value"
 }
 
+test_run_mode_supports_invoice_payment_failed_retry_payload() {
+    make_test_tmp_dir
+    write_mock_curl
+
+    local call_log="$TEST_TMP_DIR/curl_calls.log"
+    local args_log="$TEST_TMP_DIR/curl_args.log"
+
+    run_fixture_script \
+        --run \
+        --allow-staging-target \
+        --target-url "https://api.flapjack.foo/webhooks/stripe" \
+        --timestamp 1704067200 \
+        --event-id "evt_retry_alert_fixture" \
+        --event-type "invoice.payment_failed" \
+        --invoice-id "in_retry_fixture_01" \
+        --next-payment-attempt "1708300800" \
+        --attempt-count "2" \
+        "STRIPE_WEBHOOK_SECRET=whsec_retry_payload_secret" \
+        "CURL_CALL_LOG=$call_log" \
+        "CURL_ARGS_LOG=$args_log" \
+        "MOCK_CURL_HTTP_CODE=200" \
+        "MOCK_CURL_BODY={\"ok\":true}"
+
+    local curl_call_count="0"
+    if [ -f "$call_log" ]; then
+        curl_call_count="$(wc -l < "$call_log" | tr -d ' ')"
+    fi
+    local curl_args=""
+    if [ -f "$args_log" ]; then
+        curl_args="$(cat "$args_log")"
+    fi
+
+    assert_eq "$RUN_EXIT_CODE" "0" "invoice.payment_failed replay should pass on 2xx"
+    assert_valid_json "$RUN_STDOUT" "invoice.payment_failed replay should return valid JSON"
+    assert_json_string_field "$RUN_STDOUT" "result" "passed" \
+        "invoice.payment_failed replay should report passed result"
+    assert_eq "$curl_call_count" "1" "invoice.payment_failed replay should post exactly once"
+    assert_contains "$curl_args" '"type":"invoice.payment_failed"' \
+        "invoice.payment_failed replay should send invoice.payment_failed event type"
+    assert_contains "$curl_args" '"id":"in_retry_fixture_01"' \
+        "invoice.payment_failed replay should send invoice id in data.object.id"
+    assert_contains "$curl_args" '"next_payment_attempt":1708300800' \
+        "invoice.payment_failed replay should send non-null next_payment_attempt"
+    assert_contains "$curl_args" '"attempt_count":2' \
+        "invoice.payment_failed replay should send attempt_count for retry alert contract"
+    assert_not_contains "$RUN_STDOUT" "whsec_retry_payload_secret" \
+        "invoice.payment_failed replay output should redact webhook secret"
+    assert_not_contains "$RUN_STDERR" "whsec_retry_payload_secret" \
+        "invoice.payment_failed replay stderr should not leak webhook secret"
+}
+
 test_run_mode_non_2xx_fails_closed_and_redacts_error_detail() {
     make_test_tmp_dir
     write_mock_curl
@@ -493,6 +544,78 @@ test_run_mode_rejects_non_local_target_url() {
         "non-local target rejection stderr should not leak webhook secret values"
 }
 
+test_run_mode_allow_staging_target_posts_once_with_expected_signature() {
+    make_test_tmp_dir
+    write_mock_curl
+
+    local call_log="$TEST_TMP_DIR/curl_calls.log"
+    local args_log="$TEST_TMP_DIR/curl_args.log"
+    local staging_api_url="https://api.flapjack.foo"
+
+    run_fixture_script \
+        --run \
+        --allow-staging-target \
+        --timestamp 1704067200 \
+        "STRIPE_WEBHOOK_SECRET=whsec_staging_allowlist_secret" \
+        "API_URL=$staging_api_url" \
+        "CURL_CALL_LOG=$call_log" \
+        "CURL_ARGS_LOG=$args_log" \
+        "MOCK_CURL_HTTP_CODE=204" \
+        "MOCK_CURL_BODY={\"ok\":true}"
+
+    local curl_call_count="0"
+    if [ -f "$call_log" ]; then
+        curl_call_count="$(wc -l < "$call_log" | tr -d ' ')"
+    fi
+    local curl_args=""
+    if [ -f "$args_log" ]; then
+        curl_args="$(cat "$args_log")"
+    fi
+
+    assert_eq "$RUN_EXIT_CODE" "0" "run mode should allow sanctioned staging target when opt-in flag is set"
+    assert_valid_json "$RUN_STDOUT" "staging opt-in run mode should return valid JSON"
+    assert_json_string_field "$RUN_STDOUT" "result" "passed" \
+        "staging opt-in run mode should pass on 2xx response"
+    assert_json_string_field "$RUN_STDOUT" "target_url" "${staging_api_url}/webhooks/stripe" \
+        "staging opt-in run mode should resolve the sanctioned staging webhook target"
+    assert_eq "$curl_call_count" "1" "staging opt-in run mode should post exactly once"
+    assert_contains "$curl_args" "${staging_api_url}/webhooks/stripe" \
+        "staging opt-in run mode should post to sanctioned staging target"
+    assert_contains "$curl_args" "Stripe-Signature: t=1704067200,v1=" \
+        "staging opt-in run mode should include Stripe-Signature header"
+    assert_not_contains "$RUN_STDOUT" "whsec_staging_allowlist_secret" \
+        "staging opt-in run mode should redact webhook secret values"
+    assert_not_contains "$RUN_STDERR" "whsec_staging_allowlist_secret" \
+        "staging opt-in run mode stderr should not leak webhook secret values"
+}
+
+test_run_mode_allow_staging_target_still_rejects_unsanctioned_remote() {
+    make_test_tmp_dir
+    write_mock_curl
+
+    local call_log="$TEST_TMP_DIR/curl_calls.log"
+    local args_log="$TEST_TMP_DIR/curl_args.log"
+
+    run_fixture_script \
+        --run \
+        --allow-staging-target \
+        --target-url "https://api.example.test/webhooks/stripe" \
+        "STRIPE_WEBHOOK_SECRET=whsec_non_sanctioned_target_secret" \
+        "CURL_CALL_LOG=$call_log" \
+        "CURL_ARGS_LOG=$args_log"
+
+    local curl_call_count="0"
+    if [ -f "$call_log" ]; then
+        curl_call_count="$(wc -l < "$call_log" | tr -d ' ')"
+    fi
+
+    assert_eq "$RUN_EXIT_CODE" "1" "opt-in should still reject unsanctioned remote targets"
+    assert_valid_json "$RUN_STDOUT" "unsanctioned remote opt-in run should still return valid JSON"
+    assert_json_string_field "$RUN_STDOUT" "classification" "target_url_invalid" \
+        "unsanctioned remote opt-in run should retain stable target-url invalid classification"
+    assert_eq "$curl_call_count" "0" "unsanctioned remote opt-in target should be rejected before curl executes"
+}
+
 test_malformed_explicit_env_file_returns_machine_readable_json() {
     make_test_tmp_dir
     write_mock_curl
@@ -540,5 +663,8 @@ test_run_mode_transport_failure_returns_machine_readable_json
 test_missing_flag_value_returns_machine_readable_json
 test_unknown_flag_returns_machine_readable_json
 test_run_mode_rejects_non_local_target_url
+test_run_mode_allow_staging_target_posts_once_with_expected_signature
+test_run_mode_allow_staging_target_still_rejects_unsanctioned_remote
+test_run_mode_supports_invoice_payment_failed_retry_payload
 test_malformed_explicit_env_file_returns_machine_readable_json
 run_test_summary

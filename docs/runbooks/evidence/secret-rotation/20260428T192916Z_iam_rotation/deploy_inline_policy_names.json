@@ -1,0 +1,5 @@
+[
+  "fjcloud-deploy-ec2",
+  "fjcloud-deploy-s3",
+  "fjcloud-deploy-ssm"
+]

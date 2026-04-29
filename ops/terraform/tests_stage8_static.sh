@@ -21,6 +21,13 @@ strategy_doc_file="docs/design/aws_e2e_strategy.md"
 constraints_doc_file="docs/research/aws_e2e_external_constraints.md"
 stage1_budget_decision_file="deliverables/stage_01_budget_period_semantics_decision.md"
 runtime_params_main_file="ops/terraform/runtime_params/main.tf"
+iam_root_dir="ops/iam"
+iam_provider_file="ops/iam/provider.tf"
+iam_deploy_file="ops/iam/github-actions-deploy-role.tf"
+iam_instance_file="ops/iam/fjcloud-instance-role.tf"
+lane7_evidence_pointer_file=".lane7_evidence_dir"
+stage1_evidence_root_dir=""
+stage1_discovery_summary_file=""
 
 assert_resource_ownership() {
   local resource_type="$1"
@@ -42,6 +49,71 @@ assert_resource_ownership() {
   pass "$description"
 }
 
+assert_role_name_owned_in_iam_root() {
+  local role_name="$1"
+  local description="$2"
+  local all_hits terraform_hits
+
+  all_hits="$(rg -n --glob '*.tf' "^[[:space:]]*name[[:space:]]*=[[:space:]]*\"${role_name}\"" "$iam_root_dir" ops/terraform || true)"
+  terraform_hits="$(printf '%s\n' "$all_hits" | rg '^ops/terraform/' || true)"
+
+  if [[ -z "$all_hits" ]]; then
+    fail "$description (role name not declared in Terraform)"
+    return
+  fi
+
+  if [[ -n "$terraform_hits" ]]; then
+    fail "$description (found role name outside ${iam_root_dir})"
+    return
+  fi
+
+  pass "$description"
+}
+
+assert_role_name_absent_in_tf() {
+  local role_name="$1"
+  local description="$2"
+  local hits
+
+  hits="$(rg -n --glob '*.tf' "^[[:space:]]*name[[:space:]]*=[[:space:]]*\"${role_name}\"" "$iam_root_dir" ops/terraform || true)"
+  if [[ -n "$hits" ]]; then
+    fail "$description (unexpected role declaration found)"
+    return
+  fi
+
+  pass "$description"
+}
+
+load_stage1_evidence_paths() {
+  local raw_pointer
+
+  if [[ ! -f "$lane7_evidence_pointer_file" ]]; then
+    fail "Lane 7 evidence pointer file exists"
+    return 1
+  fi
+
+  raw_pointer="$(tr -d '\r' < "$lane7_evidence_pointer_file")"
+  stage1_evidence_root_dir="${raw_pointer%/}"
+  if [[ -z "$stage1_evidence_root_dir" ]]; then
+    fail "Lane 7 evidence pointer must resolve to a non-empty directory"
+    return 1
+  fi
+
+  if [[ ! -d "$stage1_evidence_root_dir" ]]; then
+    fail "Lane 7 evidence root directory exists (${stage1_evidence_root_dir})"
+    return 1
+  fi
+
+  stage1_discovery_summary_file="${stage1_evidence_root_dir}/discovery_summary.json"
+  if [[ ! -f "$stage1_discovery_summary_file" ]]; then
+    fail "Stage 1 discovery summary exists at the lane 7 evidence root"
+    return 1
+  fi
+
+  pass "Lane 7 evidence pointer resolves to an existing evidence root"
+  pass "Stage 1 discovery summary exists at the lane 7 evidence root"
+}
+
 echo ""
 echo "=== Stage 8 Static Tests: Spend + Cleanup Ownership Guardrails ==="
 echo ""
@@ -55,6 +127,90 @@ assert_file_exists "$shared_main_file" "_shared/main.tf exists"
 assert_file_exists "$shared_vars_file" "_shared/variables.tf exists"
 assert_file_exists "$validate_all_file" "validate_all.sh exists"
 assert_file_exists "$prep_script_file" "live_e2e_budget_guardrail_prep.sh exists"
+load_stage1_evidence_paths
+
+echo ""
+echo "--- Stage 2 IAM ownership and evidence-gate contract ---"
+assert_file_exists "$iam_deploy_file" "IAM deploy-role owner file exists"
+assert_file_exists "$iam_instance_file" "IAM instance-role owner file exists"
+assert_contains_active "$iam_provider_file" '^[[:space:]]*provider[[:space:]]+"aws"[[:space:]]*\{' "IAM root declares an active aws provider block in provider.tf"
+assert_contains_active "$iam_provider_file" 'allowed_account_ids[[:space:]]*=' "IAM provider guard exposes allowed_account_ids"
+assert_contains_active "$iam_deploy_file" 'token\.actions\.githubusercontent\.com:sub"[[:space:]]*=[[:space:]]*"repo:gridl-infra-staging/fjcloud:ref:refs/heads/main"' "Deploy role trust subject is pinned to staging main branch"
+assert_contains_active "$iam_instance_file" '^[[:space:]]*resource[[:space:]]+"aws_iam_role"[[:space:]]+"fjcloud_instance"' "Instance role resource remains checked in"
+assert_role_name_owned_in_iam_root "fjcloud-deploy" "Deploy role name is owned only by ops/iam"
+assert_role_name_owned_in_iam_root "fjcloud-instance-role" "Instance role name is owned only by ops/iam"
+
+local_dev_role_name="$(
+  python3 - "$stage1_discovery_summary_file" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], "r", encoding="utf-8") as handle:
+    payload = json.load(handle)
+value = payload.get("local_dev_role_name")
+if not isinstance(value, str) or not value:
+    raise SystemExit(1)
+print(value)
+PY
+)"
+
+human_sso_role_name="$(
+  python3 - "$stage1_discovery_summary_file" <<'PY'
+import json
+import re
+import sys
+
+with open(sys.argv[1], "r", encoding="utf-8") as handle:
+    payload = json.load(handle)
+managed_roles = payload.get("managed_roles")
+if not isinstance(managed_roles, list):
+    raise SystemExit(1)
+for role in managed_roles:
+    if not isinstance(role, dict):
+        continue
+    role_name = role.get("role_name")
+    category = role.get("category")
+    role_name_text = role_name if isinstance(role_name, str) else ""
+    category_text = category if isinstance(category, str) else ""
+    if re.search(r"human[-_]?sso", role_name_text, re.IGNORECASE) or re.search(r"human[-_]?sso", category_text, re.IGNORECASE):
+        print(role_name_text if role_name_text else "human_sso")
+        raise SystemExit(0)
+print("missing")
+PY
+)"
+
+staging_account_id="$(
+  python3 - "$stage1_discovery_summary_file" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], "r", encoding="utf-8") as handle:
+    payload = json.load(handle)
+value = payload.get("staging_account_id")
+if not isinstance(value, str) or not value:
+    raise SystemExit(1)
+print(value)
+PY
+)"
+
+assert_contains_active "$iam_provider_file" "allowed_account_ids[[:space:]]*=[[:space:]]*\\[\"${staging_account_id}\"\\]" "IAM provider guard is pinned to the Stage 1-discovered staging account"
+assert_contains_active "$iam_provider_file" '^[[:space:]]*data[[:space:]]+"aws_caller_identity"[[:space:]]+"current"' "IAM root exposes aws_caller_identity for account-scoped policy ARNs"
+assert_contains_active "$iam_instance_file" 'arn:aws:ses:us-east-1:\$\{data\.aws_caller_identity\.current\.account_id\}:identity/flapjack\.foo' "Instance-role SES policy derives the identity ARN from the verified caller account"
+assert_not_contains_active "$iam_instance_file" 'arn:aws:ses:us-east-1:\*:identity/flapjack\.foo' "Instance-role SES policy does not wildcard the AWS account segment"
+
+if [[ "$local_dev_role_name" == "missing" ]]; then
+  pass "Stage 1 evidence keeps local_dev optional (local_dev_role_name=missing)"
+  assert_role_name_absent_in_tf "local_dev" "No speculative local_dev role is required when Stage 1 evidence marks it missing"
+else
+  assert_role_name_owned_in_iam_root "$local_dev_role_name" "Stage 1-discovered local_dev role is owned only by ops/iam"
+fi
+
+if [[ "$human_sso_role_name" == "missing" ]]; then
+  pass "Stage 1 evidence keeps human_sso optional (managed_roles has no human_sso role)"
+  assert_role_name_absent_in_tf "human_sso" "No speculative human_sso role is required when Stage 1 evidence has none"
+else
+  assert_role_name_owned_in_iam_root "$human_sso_role_name" "Stage 1-discovered human_sso role is owned only by ops/iam"
+fi
 
 echo ""
 echo "--- CloudTrail ownership contract ---"

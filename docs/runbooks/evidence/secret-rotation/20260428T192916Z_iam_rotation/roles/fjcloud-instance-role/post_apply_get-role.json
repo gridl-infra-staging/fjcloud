@@ -1,0 +1,36 @@
+{
+    "Role": {
+        "Path": "/",
+        "RoleName": "fjcloud-instance-role",
+        "RoleId": "AROATDTCLTRFMYLOOODMQ",
+        "Arn": "arn:aws:iam::213880904778:role/fjcloud-instance-role",
+        "CreateDate": "2026-02-26T01:19:23+00:00",
+        "AssumeRolePolicyDocument": {
+            "Version": "2012-10-17",
+            "Statement": [
+                {
+                    "Effect": "Allow",
+                    "Principal": {
+                        "Service": "ec2.amazonaws.com"
+                    },
+                    "Action": "sts:AssumeRole"
+                }
+            ]
+        },
+        "MaxSessionDuration": 3600,
+        "Tags": [
+            {
+                "Key": "service",
+                "Value": "fjcloud"
+            },
+            {
+                "Key": "managed-by",
+                "Value": "terraform"
+            }
+        ],
+        "RoleLastUsed": {
+            "LastUsedDate": "2026-04-28T20:02:08+00:00",
+            "Region": "us-east-1"
+        }
+    }
+}

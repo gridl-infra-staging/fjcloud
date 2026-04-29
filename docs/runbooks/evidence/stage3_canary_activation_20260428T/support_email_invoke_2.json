@@ -1,0 +1,1 @@
+{"support_email_deliverability_script": "/opt/fjcloud/scripts/canary/support_email_deliverability.sh", "validate_inbound_email_roundtrip_script": "/opt/fjcloud/scripts/validate_inbound_email_roundtrip.sh", "return_code": 0}

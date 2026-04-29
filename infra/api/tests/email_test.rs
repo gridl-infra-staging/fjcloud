@@ -1,7 +1,9 @@
 mod common;
 
 use api::services::email::{EmailService, MockEmailService, SesConfig, SesEmailService};
+use api::services::email_suppression::InMemoryEmailSuppressionStore;
 use api::startup_env::{RawEnvFamilyState, SesStartupMode, StartupEnvSnapshot};
+use std::sync::Arc;
 
 #[tokio::test]
 async fn mock_email_service_captures_verification_email() {
@@ -159,6 +161,27 @@ fn ses_config_from_snapshot(snapshot: &StartupEnvSnapshot) -> Result<SesConfig, 
 }
 
 #[test]
+fn startup_env_snapshot_captures_ses_configuration_set_for_central_ses_parser() {
+    let snapshot = snapshot_with(&[
+        ("SES_FROM_ADDRESS", "system@flapjack.foo"),
+        ("SES_REGION", "us-east-1"),
+        ("SES_CONFIGURATION_SET", "stage2-feedback"),
+    ]);
+
+    assert_eq!(
+        snapshot.env_value("SES_CONFIGURATION_SET"),
+        Some("stage2-feedback"),
+        "startup env snapshot should expose SES_CONFIGURATION_SET via env_value()"
+    );
+
+    let config = ses_config_from_snapshot(&snapshot)
+        .expect("SesConfig::from_reader should read SES configuration from startup snapshot");
+    assert_eq!(config.from_address, "system@flapjack.foo");
+    assert_eq!(config.region, "us-east-1");
+    assert_eq!(config.configuration_set, "stage2-feedback");
+}
+
+#[test]
 fn ses_startup_mode_uses_noop_only_for_local_mode_with_absent_ses_env() {
     let memory_only = snapshot_with(&[("NODE_SECRET_BACKEND", "memory")]);
     assert_eq!(memory_only.ses_startup_mode(), SesStartupMode::Ses);
@@ -180,6 +203,7 @@ fn ses_startup_mode_uses_noop_only_for_local_mode_with_absent_ses_env() {
         ("NODE_SECRET_BACKEND", "memory"),
         ("SES_FROM_ADDRESS", "ops@example.com"),
         ("SES_REGION", "us-east-1"),
+        ("SES_CONFIGURATION_SET", "ses-feedback"),
     ]);
     assert_eq!(
         local_explicit.ses_family_state(),
@@ -247,6 +271,7 @@ fn ses_startup_mode_keeps_non_local_absent_ses_on_fail_fast_path() {
 #[test]
 fn ses_config_requires_from_address() {
     let result = SesConfig::from_reader(|k| match k {
+        "SES_CONFIGURATION_SET" => Some("ses-feedback".to_string()),
         "SES_REGION" => Some("us-east-1".to_string()),
         _ => None,
     });
@@ -265,6 +290,7 @@ fn ses_config_requires_from_address() {
 fn ses_config_rejects_empty_from_address() {
     let result = SesConfig::from_reader(|k| match k {
         "SES_FROM_ADDRESS" => Some("".to_string()),
+        "SES_CONFIGURATION_SET" => Some("ses-feedback".to_string()),
         "SES_REGION" => Some("us-east-1".to_string()),
         _ => None,
     });
@@ -275,6 +301,7 @@ fn ses_config_rejects_empty_from_address() {
 fn ses_config_rejects_whitespace_from_address() {
     let result = SesConfig::from_reader(|k| match k {
         "SES_FROM_ADDRESS" => Some("   ".to_string()),
+        "SES_CONFIGURATION_SET" => Some("ses-feedback".to_string()),
         "SES_REGION" => Some("us-east-1".to_string()),
         _ => None,
     });
@@ -288,6 +315,7 @@ fn ses_config_rejects_whitespace_from_address() {
 fn ses_config_requires_region() {
     let result = SesConfig::from_reader(|k| match k {
         "SES_FROM_ADDRESS" => Some("system@flapjack.foo".to_string()),
+        "SES_CONFIGURATION_SET" => Some("ses-feedback".to_string()),
         _ => None,
     });
     assert!(result.is_err(), "should fail when SES_REGION is missing");
@@ -302,6 +330,7 @@ fn ses_config_requires_region() {
 fn ses_config_rejects_empty_region() {
     let result = SesConfig::from_reader(|k| match k {
         "SES_FROM_ADDRESS" => Some("system@flapjack.foo".to_string()),
+        "SES_CONFIGURATION_SET" => Some("ses-feedback".to_string()),
         "SES_REGION" => Some("".to_string()),
         _ => None,
     });
@@ -312,6 +341,7 @@ fn ses_config_rejects_empty_region() {
 fn ses_config_rejects_whitespace_region() {
     let result = SesConfig::from_reader(|k| match k {
         "SES_FROM_ADDRESS" => Some("system@flapjack.foo".to_string()),
+        "SES_CONFIGURATION_SET" => Some("ses-feedback".to_string()),
         "SES_REGION" => Some("   ".to_string()),
         _ => None,
     });
@@ -322,6 +352,7 @@ fn ses_config_rejects_whitespace_region() {
 fn ses_config_parses_valid_config() {
     let config = SesConfig::from_reader(|k| match k {
         "SES_FROM_ADDRESS" => Some("system@flapjack.foo".to_string()),
+        "SES_CONFIGURATION_SET" => Some("ses-feedback".to_string()),
         "SES_REGION" => Some("us-east-1".to_string()),
         _ => None,
     })
@@ -334,12 +365,14 @@ fn ses_config_parses_valid_config() {
 fn ses_config_trims_whitespace() {
     let config = SesConfig::from_reader(|k| match k {
         "SES_FROM_ADDRESS" => Some("  system@flapjack.foo  ".to_string()),
+        "SES_CONFIGURATION_SET" => Some("  ses-feedback  ".to_string()),
         "SES_REGION" => Some("  us-west-2  ".to_string()),
         _ => None,
     })
     .expect("should parse and trim SES config");
     assert_eq!(config.from_address, "system@flapjack.foo");
     assert_eq!(config.region, "us-west-2");
+    assert_eq!(config.configuration_set, "ses-feedback");
 }
 
 // ---------------------------------------------------------------------------
@@ -351,6 +384,7 @@ fn ses_config_trims_whitespace() {
 /// Run with:
 /// ```
 /// SES_LIVE_TEST=1 SES_FROM_ADDRESS=system@flapjack.foo SES_REGION=us-east-1 \
+/// SES_CONFIGURATION_SET=stage2-feedback \
 ///   cargo test ses_live_smoke -- --ignored
 /// ```
 #[tokio::test]
@@ -370,7 +404,12 @@ async fn ses_live_smoke_sends_verification_email() {
         .region(aws_sdk_sesv2::config::Region::new(config.region))
         .build();
     let ses_client = aws_sdk_sesv2::Client::from_conf(ses_sdk_config);
-    let service = SesEmailService::new(ses_client, config.from_address);
+    let service = SesEmailService::new(
+        ses_client,
+        config.from_address,
+        config.configuration_set,
+        Arc::new(InMemoryEmailSuppressionStore::default()),
+    );
 
     service
         .send_verification_email(&test_recipient, "smoke-test-verify-token")
@@ -396,7 +435,12 @@ async fn ses_live_smoke_sends_password_reset_email() {
         .region(aws_sdk_sesv2::config::Region::new(config.region))
         .build();
     let ses_client = aws_sdk_sesv2::Client::from_conf(ses_sdk_config);
-    let service = SesEmailService::new(ses_client, config.from_address);
+    let service = SesEmailService::new(
+        ses_client,
+        config.from_address,
+        config.configuration_set,
+        Arc::new(InMemoryEmailSuppressionStore::default()),
+    );
 
     service
         .send_password_reset_email(&test_recipient, "smoke-test-reset-token")

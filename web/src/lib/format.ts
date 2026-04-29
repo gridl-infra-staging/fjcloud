@@ -178,8 +178,15 @@ export const REGIONS = DEFAULT_INTERNAL_REGIONS.map((region) => ({
 export const SUPPORT_EMAIL = 'support@flapjack.foo';
 /** Shared beta-feedback mailto so policy pages and in-app links stay aligned. */
 export const BETA_FEEDBACK_MAILTO = `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent('Flapjack Cloud beta feedback')}`;
-/** Draft legal stub banner copy shared across the public legal routes and tests. */
-export const LEGAL_DRAFT_BANNER_TEXT = '[DRAFT — pre-launch template, requires legal review]';
+/** Paid-beta badge label shown on the legal-page banner pill. */
+export const LEGAL_BADGE_LABEL = 'Paid Beta';
+/** Paid-beta legal banner copy shared across the public legal routes and tests. */
+export const LEGAL_DRAFT_BANNER_TEXT =
+	'[PAID BETA — service terms may change before general availability]';
+/** Canonical legal contract date in ISO format. */
+export const LEGAL_EFFECTIVE_DATE = '2026-04-29';
+/** Canonical legal effective-date display text shared by legal routes and tests. */
+export const LEGAL_EFFECTIVE_DATE_TEXT = `Effective date: ${LEGAL_EFFECTIVE_DATE}`;
 /** Repo-owned legal entity name used in draft legal boilerplate. */
 export const LEGAL_ENTITY_NAME = 'THIRD FORK LABS LLC';
 

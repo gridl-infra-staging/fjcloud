@@ -6,5 +6,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| src | The billing crate contains the invoice generation pipeline: aggregating raw metering records into billing-period summaries, applying rate-card pricing logic to calculate invoices, and defining shared billing types and plan configurations. |
+| src | Billing engine module that aggregates raw metering records into usage summaries, applies rate card pricing to calculate invoices, and defines shared types for billing periods and plans. |
 <!-- [scrai:end] -->

@@ -1,8 +1,5 @@
 import { test, expect } from '../../fixtures/fixtures';
-import {
-	AUTH_COOKIE,
-	DASHBOARD_SESSION_EXPIRED_REDIRECT
-} from '../../../src/lib/server/auth-session-contracts';
+import { AUTH_COOKIE } from '../../../src/lib/server/auth-session-contracts';
 
 // Dedicated unauthenticated lane: this flow must not rely on setup:user storage.
 test.use({ storageState: { cookies: [], origins: [] } });
@@ -50,6 +47,57 @@ async function assertDashboardRouteWalk(page: import('@playwright/test').Page): 
 	}
 }
 
+function invoiceDetailCard(page: import('@playwright/test').Page) {
+	return page.locator('div.rounded-lg.bg-white.p-6.shadow').first();
+}
+
+function invoiceHeaderStatusSection(page: import('@playwright/test').Page) {
+	return invoiceDetailCard(page).locator('div.flex.items-start.justify-between > div').first();
+}
+
+function invoiceTimelineGrid(page: import('@playwright/test').Page) {
+	return invoiceDetailCard(page).locator(
+		'div.mt-4.grid.grid-cols-3.gap-4.border-t.border-gray-200.pt-4.text-sm'
+	);
+}
+
+async function expectInvoiceHeaderStatusBadge(
+	page: import('@playwright/test').Page,
+	statusLabel: string
+): Promise<void> {
+	const headerStatusSection = invoiceHeaderStatusSection(page);
+	const statusBadge = headerStatusSection
+		.locator('div.mt-2 > span.rounded-full.px-2\\.5.py-0\\.5.text-xs.font-medium')
+		.filter({ hasText: new RegExp(`^${statusLabel}$`) });
+	await expect(headerStatusSection.getByText(new RegExp(`^${statusLabel}$`))).toHaveCount(1);
+	await expect(statusBadge).toHaveCount(1);
+	await expect(statusBadge).toHaveText(new RegExp(`^${statusLabel}$`));
+}
+
+async function expectInvoiceTimelineLabelsWithValues(
+	page: import('@playwright/test').Page
+): Promise<void> {
+	const timelineGrid = invoiceTimelineGrid(page);
+	await expect(timelineGrid).toBeVisible();
+
+	for (const label of ['Created', 'Finalized', 'Paid']) {
+		const timelineColumn = timelineGrid.locator('div').filter({
+			has: page.getByText(new RegExp(`^${label}$`))
+		});
+		await expect(timelineColumn).toHaveCount(1);
+		await expect(timelineColumn.getByText(new RegExp(`^${label}$`))).toBeVisible();
+		await expect(timelineColumn.locator('p').nth(1)).not.toHaveText(new RegExp(`^${label}$`));
+		await expect(timelineColumn.locator('p').nth(1)).not.toHaveText(/^\s*$/);
+	}
+}
+
+async function expectSessionExpiredRedirect(page: import('@playwright/test').Page): Promise<void> {
+	await expect(page).toHaveURL(/\/login(?:\?reason=session_expired)?$/, { timeout: 20_000 });
+	if (new URL(page.url()).searchParams.get('reason') === 'session_expired') {
+		await expect(page.getByTestId('session-expired-banner')).toBeVisible({ timeout: 20_000 });
+	}
+}
+
 async function assertExpiredSessionRedirect(page: import('@playwright/test').Page): Promise<void> {
 	await page.goto('/dashboard/indexes');
 	await expect(page.getByRole('heading', { name: 'Indexes' })).toBeVisible();
@@ -66,19 +114,13 @@ async function assertExpiredSessionRedirect(page: import('@playwright/test').Pag
 
 	await page.getByRole('button', { name: 'Create Index' }).click();
 	await page.getByLabel('Index name').fill(`session-expired-${Date.now()}`);
-	await page
-		.getByRole('radio')
-		.first()
-		.check()
-		.catch(() => {
-			/* No region radios rendered in this environment */
-		});
+	const regionRadios = page.getByRole('radio');
+	if ((await regionRadios.count()) > 0) {
+		await regionRadios.first().check();
+	}
 	await page.getByRole('button', { name: 'Create', exact: true }).click();
 
-	await expect(page).toHaveURL(/\/login(?:\?reason=session_expired)?$/, { timeout: 20_000 });
-	if (new URL(page.url()).searchParams.get('reason') === 'session_expired') {
-		await expect(page.getByTestId('session-expired-banner')).toBeVisible({ timeout: 20_000 });
-	}
+	await expectSessionExpiredRedirect(page);
 }
 
 test.describe('Fresh signup to paid invoice', () => {
@@ -161,7 +203,9 @@ test.describe('Fresh signup to paid invoice', () => {
 			new RegExp(`/dashboard/billing/invoices/${paidInvoiceEvidence.invoiceId}$`)
 		);
 		await expect(page.getByRole('heading', { name: 'Line Items' })).toBeVisible();
-		await expect(page.getByText('Paid').first()).toBeVisible();
+		await expectInvoiceHeaderStatusBadge(page, 'Paid');
+		await expectInvoiceTimelineLabelsWithValues(page);
+		await expect(invoiceDetailCard(page).getByText(/^Paid$/)).toHaveCount(2);
 		expect(paidInvoiceEvidence.invoiceEmailDelivered).toBe(true);
 
 		const dunningEvidence = await arrangeBillingDunningForFreshSignup(
@@ -201,20 +245,13 @@ test.describe('Fresh signup to paid invoice', () => {
 			new RegExp(`/dashboard/billing/invoices/${refundEvidence.refundedInvoiceId}$`)
 		);
 		await expect(page.getByRole('heading', { name: 'Line Items' })).toBeVisible();
-		await expect(page.getByText('Refunded').first()).toBeVisible();
-		await expect(page.getByText('Created')).toBeVisible();
-		await expect(page.getByText('Finalized')).toBeVisible();
-		await expect(page.getByText('Paid')).toBeVisible();
+		await expectInvoiceHeaderStatusBadge(page, 'Refunded');
+		await expectInvoiceTimelineLabelsWithValues(page);
 
 		await adminSuspendCustomer(paidInvoiceEvidence.customerId);
 		try {
 			await page.goto('/dashboard/billing');
-			await expect(page).toHaveURL(/\/login(?:\?reason=session_expired)?$/, {
-				timeout: 20_000
-			});
-			if (new URL(page.url()).searchParams.get('reason') === 'session_expired') {
-				await expect(page.getByTestId('session-expired-banner')).toBeVisible({ timeout: 20_000 });
-			}
+			await expectSessionExpiredRedirect(page);
 		} finally {
 			await adminReactivateCustomer(paidInvoiceEvidence.customerId);
 		}

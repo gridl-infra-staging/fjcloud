@@ -1,3 +1,4 @@
+use crate::services::email_suppression::EmailSuppressionStore;
 use async_trait::async_trait;
 use aws_sdk_sesv2::types::{Body, Content, Destination, EmailContent, Message};
 use std::sync::{Arc, Mutex};
@@ -65,6 +66,12 @@ pub struct SentEmail {
     pub body: String,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BroadcastDeliveryStatus {
+    Sent,
+    Suppressed,
+}
+
 /// Async trait defining the email dispatch interface.
 ///
 /// Provides typed methods for each transactional email (verification, password
@@ -105,7 +112,7 @@ pub trait EmailService: Send + Sync {
         subject: &str,
         html_body: Option<&str>,
         text_body: Option<&str>,
-    ) -> Result<(), EmailError>;
+    ) -> Result<BroadcastDeliveryStatus, EmailError>;
 }
 
 fn validate_recipient_email(to: &str) -> Result<(), EmailError> {
@@ -192,22 +199,39 @@ pub struct NoopEmailService;
 pub struct SesEmailService {
     client: aws_sdk_sesv2::Client,
     from_address: String,
+    configuration_set_name: String,
+    suppression_store: Arc<dyn EmailSuppressionStore>,
     app_base_url: String,
 }
 
 impl SesEmailService {
-    pub fn new(client: aws_sdk_sesv2::Client, from_address: impl Into<String>) -> Self {
-        Self::with_app_base_url(client, from_address, DEFAULT_APP_BASE_URL)
+    pub fn new(
+        client: aws_sdk_sesv2::Client,
+        from_address: impl Into<String>,
+        configuration_set_name: impl Into<String>,
+        suppression_store: Arc<dyn EmailSuppressionStore>,
+    ) -> Self {
+        Self::with_app_base_url(
+            client,
+            from_address,
+            configuration_set_name,
+            suppression_store,
+            DEFAULT_APP_BASE_URL,
+        )
     }
 
     pub fn with_app_base_url(
         client: aws_sdk_sesv2::Client,
         from_address: impl Into<String>,
+        configuration_set_name: impl Into<String>,
+        suppression_store: Arc<dyn EmailSuppressionStore>,
         app_base_url: impl Into<String>,
     ) -> Self {
         Self {
             client,
             from_address: from_address.into(),
+            configuration_set_name: configuration_set_name.into(),
+            suppression_store,
             app_base_url: normalize_app_base_url(app_base_url),
         }
     }
@@ -222,8 +246,17 @@ impl SesEmailService {
         to: &str,
         subject: &str,
         html_body: &str,
-    ) -> Result<(), EmailError> {
+    ) -> Result<BroadcastDeliveryStatus, EmailError> {
         validate_recipient_email(to)?;
+
+        if self
+            .suppression_store
+            .is_suppressed(to)
+            .await
+            .map_err(EmailError::DeliveryFailed)?
+        {
+            return Ok(BroadcastDeliveryStatus::Suppressed);
+        }
 
         let subject_content = Content::builder()
             .data(subject)
@@ -246,13 +279,14 @@ impl SesEmailService {
         self.client
             .send_email()
             .from_email_address(&self.from_address)
+            .configuration_set_name(&self.configuration_set_name)
             .destination(destination)
             .content(content)
             .send()
             .await
             .map_err(|e| EmailError::DeliveryFailed(e.to_string()))?;
 
-        Ok(())
+        Ok(BroadcastDeliveryStatus::Sent)
     }
 }
 
@@ -317,12 +351,13 @@ impl EmailService for MockEmailService {
         subject: &str,
         html_body: Option<&str>,
         text_body: Option<&str>,
-    ) -> Result<(), EmailError> {
+    ) -> Result<BroadcastDeliveryStatus, EmailError> {
         self.record(
             to,
             subject,
             resolve_broadcast_html_body(html_body, text_body)?,
-        )
+        )?;
+        Ok(BroadcastDeliveryStatus::Sent)
     }
 }
 
@@ -371,10 +406,10 @@ impl EmailService for NoopEmailService {
         _subject: &str,
         html_body: Option<&str>,
         text_body: Option<&str>,
-    ) -> Result<(), EmailError> {
+    ) -> Result<BroadcastDeliveryStatus, EmailError> {
         validate_recipient_email(to)?;
         resolve_broadcast_html_body(html_body, text_body)?;
-        Ok(())
+        Ok(BroadcastDeliveryStatus::Sent)
     }
 }
 
@@ -391,6 +426,7 @@ impl EmailService for SesEmailService {
             &verification_email_html_with_base_url(&self.app_base_url, verify_token),
         )
         .await
+        .map(|_| ())
     }
 
     async fn send_password_reset_email(
@@ -404,6 +440,7 @@ impl EmailService for SesEmailService {
             &password_reset_email_html_with_base_url(&self.app_base_url, reset_token),
         )
         .await
+        .map(|_| ())
     }
 
     async fn send_invoice_ready_email(
@@ -419,6 +456,7 @@ impl EmailService for SesEmailService {
             &invoice_ready_email_html(invoice_id, invoice_url, pdf_url),
         )
         .await
+        .map(|_| ())
     }
 
     async fn send_quota_warning_email(
@@ -435,6 +473,7 @@ impl EmailService for SesEmailService {
             &quota_warning_email_html(metric, percent_used, current_usage, limit),
         )
         .await
+        .map(|_| ())
     }
 
     async fn send_broadcast_email(
@@ -443,7 +482,7 @@ impl EmailService for SesEmailService {
         subject: &str,
         html_body: Option<&str>,
         text_body: Option<&str>,
-    ) -> Result<(), EmailError> {
+    ) -> Result<BroadcastDeliveryStatus, EmailError> {
         let broadcast_html = resolve_broadcast_html_body(html_body, text_body)?;
         self.send_html_email(to, subject, &broadcast_html).await
     }
@@ -664,10 +703,11 @@ impl EmailService for MailpitEmailService {
         subject: &str,
         html_body: Option<&str>,
         text_body: Option<&str>,
-    ) -> Result<(), EmailError> {
+    ) -> Result<BroadcastDeliveryStatus, EmailError> {
         let broadcast_html = resolve_broadcast_html_body(html_body, text_body)?;
         self.send_mailpit_email(to, subject, &broadcast_html, "broadcast")
-            .await
+            .await?;
+        Ok(BroadcastDeliveryStatus::Sent)
     }
 }
 
@@ -685,6 +725,7 @@ impl EmailService for MailpitEmailService {
 pub struct SesConfig {
     pub from_address: String,
     pub region: String,
+    pub configuration_set: String,
 }
 
 impl SesConfig {
@@ -703,9 +744,15 @@ impl SesConfig {
             .filter(|v| !v.is_empty())
             .ok_or("SES_REGION is required but missing or empty")?;
 
+        let configuration_set = read("SES_CONFIGURATION_SET")
+            .map(|v| v.trim().to_string())
+            .filter(|v| !v.is_empty())
+            .ok_or("SES_CONFIGURATION_SET is required but missing or empty")?;
+
         Ok(Self {
             from_address,
             region,
+            configuration_set,
         })
     }
 

@@ -8,7 +8,7 @@ use std::sync::{
 use api::models::RateCardRow;
 use api::repos::invoice_repo::NewLineItem;
 use api::repos::{CustomerRepo, InvoiceRepo};
-use api::services::email::{EmailError, EmailService, MockEmailService};
+use api::services::email::{BroadcastDeliveryStatus, EmailError, EmailService, MockEmailService};
 use async_trait::async_trait;
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
@@ -168,8 +168,8 @@ impl EmailService for FailingInvoiceEmailService {
         _subject: &str,
         _html_body: Option<&str>,
         _text_body: Option<&str>,
-    ) -> Result<(), EmailError> {
-        Ok(())
+    ) -> Result<BroadcastDeliveryStatus, EmailError> {
+        Ok(BroadcastDeliveryStatus::Sent)
     }
 }
 

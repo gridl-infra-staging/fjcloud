@@ -1,0 +1,3 @@
+Scanning staged release artifacts for SES mapping...
+/tmp/stage6_recheck.sh: line 15: mapfile: command not found
+/tmp/stage6_recheck.sh: line 16: SHAS: unbound variable

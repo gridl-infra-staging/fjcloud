@@ -79,14 +79,14 @@ Proves the production code path (`WebhookAlertService::send_alert`) actually fir
 ### Probe script — live webhook URL correctness
 
 ```bash
-# Local (URLs in your shell env, e.g. loaded from `/Users/stuart/repos/gridl-infra-dev/fjcloud_dev/.secret/.env.secret`):
-SLACK_WEBHOOK_URL=... DISCORD_WEBHOOK_URL=... bash scripts/probe_alert_delivery.sh
+# Local (URLs in your shell env, e.g. loaded from `.secret/.env.secret`):
+SLACK_WEBHOOK_URL=... DISCORD_WEBHOOK_URL=... bash scripts/probe_alert_delivery.sh --live
 
 # On a deployed instance:
-source /etc/fjcloud/env && bash scripts/probe_alert_delivery.sh
+source /etc/fjcloud/env && bash scripts/probe_alert_delivery.sh --live
 ```
 
-Probe POSTs a synthetic critical alert with a unique `nonce` in the title to each configured webhook. Asserts 2xx; exits non-zero on failure. Operator visually confirms the message arrived in the channel by searching for the nonce.
+Probe POSTs a synthetic critical alert with a unique `nonce` in the title to each configured webhook. Default mode asserts only direct webhook acceptance (2xx). `--live` / `--readback` is the Stage 4 validation mode: for Discord it appends `wait=true` and requires the webhook response body to echo the nonce back, which upgrades the probe from transport smoke test to automated delivery readback.
 
 ### Live API startup mode (the gap probe doesn't cover)
 
@@ -119,18 +119,18 @@ bash scripts/probe_alert_delivery.sh  # should exit 2
 
 Without this red-green check, "probe exits 0" could be a false positive.
 
-### Visual confirmation checklist (per channel)
+### Probe modes and proof strength
 
-- Color matches severity (red = critical).
-- Title and message render correctly (no escaped HTML / broken JSON).
-- Nonce in the title matches the probe's stdout output.
-- Channel is one Stuart actually checks daily.
+- Default mode: direct POST + 2xx only. Useful for reachability smoke checks, but not sufficient as end-to-end delivery proof.
+- `--live` / `--readback` with Discord configured: direct POST + automated nonce readback from the Discord webhook response body. This is the canonical staging proof path.
+- `--live` / `--readback` without Discord configured: the probe now fails closed, because Slack has no automated readback path.
+- Slack remains status-only in the probe today. If both channels are configured, treat Discord readback as the delivery proof and Slack as advisory redundancy.
 
 ## Alert review and manual response workflow
 
 ### What `probe_alert_delivery.sh` proves vs does not prove
 
-`bash scripts/probe_alert_delivery.sh` verifies direct Slack/Discord webhook POST acceptance plus nonce-based visual confirmation in the channel. It does not verify:
+`bash scripts/probe_alert_delivery.sh --live` verifies direct webhook POST acceptance plus Discord nonce readback when Discord is configured. Default mode without `--live` / `--readback` proves only transport acceptance. The probe does not verify:
 
 - API admin authentication.
 - API alert-dispatch code paths.
@@ -162,6 +162,23 @@ The code-side wiring is complete (SSM_TO_ENV mapping in `generate_ssm_env.sh`, p
 - [ ] Decide which Slack/Discord channels are the production targets (or "log-only is fine for invite-only beta of 5 customers" — but explicitly choose).
 - [ ] If real channels chosen: run the operator setup `aws ssm put-parameter` commands above for `staging`.
 - [ ] Redeploy staging via `bash ops/scripts/deploy.sh staging <SHA>`.
-- [ ] Run probe script and visually confirm the nonce-tagged alert arrives.
+- [ ] Run `bash scripts/probe_alert_delivery.sh --live` and capture the Discord nonce-readback success output.
 - [ ] Run the red-green check once to confirm the probe is not a false positive.
 - [ ] Repeat the operator setup for `prod` when prod is provisioned.
+
+## Stage 2 progress update (2026-04-28)
+
+- Superseded evidence (initial runs before operator secret addition):
+  - `docs/runbooks/evidence/alert-webhook/20260428T201000Z_ssm_populate/` — no mutations; both inputs absent.
+  - `docs/runbooks/evidence/alert-webhook/20260428T203204Z_ssm_populate/` — Discord via `ssm_existing_value_fallback`.
+- **Canonical evidence**: `docs/runbooks/evidence/alert-webhook/20260428T213412Z_ssm_repopulate/`
+  - Source: `DISCORD_WEBHOOK_URL` from operator-added canonical secret file, `discord_source_mode=env_secret_canonical`.
+  - Command set:
+    - `aws sts get-caller-identity` (identity: `stuart-cli`, account `213880904778`)
+    - `aws ssm put-parameter --overwrite --type SecureString --name /fjcloud/staging/discord_webhook_url --value <redacted> --region us-east-1`
+    - `aws ssm get-parameter --name /fjcloud/staging/discord_webhook_url --with-decryption --query Parameter.{Name:Name,Type:Type,Version:Version,LastModifiedDate:LastModifiedDate} --output json --region us-east-1`
+    - `aws ssm get-parameters-by-path --path /fjcloud/staging/ --with-decryption` filtered to `discord_webhook_url|slack_webhook_url`
+  - Readback: `/fjcloud/staging/discord_webhook_url` — SecureString, Version 4, LastModified `2026-04-28T17:34:13.622000-04:00`.
+  - Structural check confirms Discord path matches `generate_ssm_env.sh` `SSM_TO_ENV` suffix contract; Slack path absent (intentional).
+- Slack: `SLACK_WEBHOOK_URL` absent from canonical secret source; not populated in Stage 2.
+- Redeploy/runtime proof remains deferred to Stage 3/4.

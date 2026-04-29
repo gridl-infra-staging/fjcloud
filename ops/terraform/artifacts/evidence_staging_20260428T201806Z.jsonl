@@ -1,0 +1,10 @@
+{"command":"preflight:aws_creds","timestamp":"2026-04-28T20:18:06Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"preflight:ami_exists","timestamp":"2026-04-28T20:18:07Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"preflight:cloudflare_dns","timestamp":"2026-04-28T20:18:07Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"terraform plan","timestamp":"2026-04-28T20:18:32Z","verdict":"PASS","output":"plan captured","artifact_path":"/Users/stuart/parallel_development/fjcloud_dev/apr28_2pm_7_aws_scoped_iam_rotation/fjcloud_dev/ops/terraform/artifacts/plan_staging_20260428T201806Z.txt"}
+{"command":"assert:acm_cert_issued","timestamp":"2026-04-28T20:18:33Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"assert:alb_https_listener","timestamp":"2026-04-28T20:18:34Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"assert:target_group_healthy","timestamp":"2026-04-28T20:18:35Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"assert:cloudflare_public_records","timestamp":"2026-04-28T20:18:35Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"assert:ses_identity_verified","timestamp":"2026-04-28T20:18:35Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"assert:health_fail","timestamp":"2026-04-28T20:18:35Z","verdict":"PASS","output":"","artifact_path":""}

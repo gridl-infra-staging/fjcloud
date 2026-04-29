@@ -22,12 +22,20 @@ pub struct LiveStripeHandles {
     pub service: LiveStripeService,
 }
 
+const ACCEPTED_TEST_PREFIXES: &[&str] = &["sk_test_", "rk_test_"];
+
+fn has_accepted_test_prefix(key: &str) -> bool {
+    ACCEPTED_TEST_PREFIXES.iter().any(|p| key.starts_with(p))
+}
+
 pub fn stripe_test_key() -> Option<String> {
     let key = std::env::var("STRIPE_SECRET_KEY").ok()?;
-    if key.starts_with("sk_test_") {
+    if has_accepted_test_prefix(&key) {
         Some(key)
     } else {
-        eprintln!("[skip] STRIPE_SECRET_KEY is set but doesn't start with sk_test_");
+        eprintln!(
+            "[skip] STRIPE_SECRET_KEY is set but doesn't start with an accepted test prefix (sk_test_ or rk_test_)"
+        );
         None
     }
 }
@@ -67,8 +75,10 @@ pub async fn validate_stripe_key_live() -> Result<(), String> {
         Ok(key) if !key.is_empty() => key,
         _ => return Err("STRIPE_SECRET_KEY is not set".to_string()),
     };
-    if !key.starts_with("sk_test_") {
-        return Err("STRIPE_SECRET_KEY has invalid prefix (expected sk_test_)".to_string());
+    if !has_accepted_test_prefix(&key) {
+        return Err(
+            "STRIPE_SECRET_KEY has invalid prefix (expected sk_test_ or rk_test_)".to_string(),
+        );
     }
 
     let client = stripe::Client::new(&key);

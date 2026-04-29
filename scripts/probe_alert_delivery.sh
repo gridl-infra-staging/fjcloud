@@ -8,10 +8,9 @@
 #   - DNS / TLS / connectivity regressions to hooks.slack.com / discord.com
 #
 # Scope (what this probe IS): direct POST to the webhook URL, asserts a 2xx
-# response. Embeds a unique nonce in the alert title so the operator can
-# visually confirm in Discord/Slack that the message arrived (a 2xx alone proves
-# dispatch, not destination delivery — Discord/Slack accept invalid embed JSON
-# with 2xx in some cases).
+# response. In `--readback` / `--live` mode for Discord, it also requires the
+# webhook response body to echo the probe nonce back. Default mode remains a
+# reachability/status check only.
 #
 # Scope (what this probe IS NOT): does NOT verify that the running fjcloud-api
 # process picked up the SLACK_WEBHOOK_URL/DISCORD_WEBHOOK_URL env vars. To
@@ -32,9 +31,11 @@
 # Usage:
 #   SLACK_WEBHOOK_URL=https://hooks.slack.com/... DISCORD_WEBHOOK_URL=... \
 #       bash scripts/probe_alert_delivery.sh
+#   ... bash scripts/probe_alert_delivery.sh --readback
+#   ... bash scripts/probe_alert_delivery.sh --live
 #
 # Exit codes:
-#   0  All configured webhooks returned 2xx.
+#   0  All configured webhooks passed their configured proof mode.
 #   1  Misconfiguration — neither env var set (script can't probe nothing).
 #   2  At least one configured webhook returned non-2xx or failed to connect.
 #
@@ -48,14 +49,57 @@ DEFAULT_SECRET_FILE="${FJCLOUD_SECRET_FILE:-./.secret/.env.secret}"
 # shellcheck source=scripts/lib/alert_dispatch.sh
 source "$SCRIPT_DIR/lib/alert_dispatch.sh"
 
-# Generate a unique nonce so the operator can disambiguate THIS probe's message
-# from previous ones in the Discord/Slack channel. ${RANDOM} is bash-builtin and
-# always available — no python3 dependency for this trivial use.
+# Generate a unique nonce so the probe can correlate its own payload against the
+# Discord readback body in `--readback` / `--live` mode. ${RANDOM} is
+# bash-builtin and always available — no python3 dependency for this trivial use.
 NONCE="probe-$(date -u +%Y%m%dT%H%M%SZ)-${RANDOM}"
 SLACK_URL="${SLACK_WEBHOOK_URL:-}"
 DISCORD_URL="${DISCORD_WEBHOOK_URL:-}"
 ENVIRONMENT="${ENVIRONMENT:-unknown}"
 PROBE_SOURCE="probe_alert_delivery.sh"
+READBACK_MODE_ENV="${READBACK_MODE:-0}"
+READBACK_MODE=0
+
+is_truthy() {
+    local value="${1:-}"
+    local normalized
+    normalized="$(printf '%s' "$value" | tr '[:upper:]' '[:lower:]')"
+    case "$normalized" in
+        1|true|yes|on)
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+if is_truthy "$READBACK_MODE_ENV"; then
+    READBACK_MODE=1
+fi
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --readback|--live)
+            READBACK_MODE=1
+            ;;
+        --help|-h)
+            cat <<'EOF'
+Usage: bash scripts/probe_alert_delivery.sh [--readback|--live]
+
+Options:
+  --readback  Require Discord nonce confirmation in webhook response body.
+  --live      Alias for --readback; retained for operator workflow clarity.
+EOF
+            exit 0
+            ;;
+        *)
+            echo "ERROR: unsupported argument: $1" >&2
+            exit 1
+            ;;
+    esac
+    shift
+done
 
 if [[ -z "$SLACK_URL" && -z "$DISCORD_URL" ]]; then
     cat >&2 <<EOF
@@ -71,6 +115,14 @@ To debug on a deployed instance:
   bash scripts/probe_alert_delivery.sh
 
 See docs/runbooks/alerting.md for the operator setup procedure.
+EOF
+    exit 1
+fi
+
+if [[ "$READBACK_MODE" == "1" && -z "$DISCORD_URL" ]]; then
+    cat >&2 <<'EOF'
+ERROR: --live/--readback requires DISCORD_WEBHOOK_URL.
+Slack has no automated readback path, so status-only probing would be a false positive.
 EOF
     exit 1
 fi
@@ -95,6 +147,15 @@ probe_channel() {
         return 0
     fi
 
+    if [[ "$channel" == "discord" && "$READBACK_MODE" == "1" ]]; then
+        if probe_discord_with_readback "$webhook_url"; then
+            CHANNEL_RESULT="ok"
+            return 0
+        fi
+        CHANNEL_RESULT="fail"
+        return 1
+    fi
+
     if send_critical_alert "$channel" "$webhook_url" "$TITLE" "$MESSAGE" "$PROBE_SOURCE" "$NONCE" "$ENVIRONMENT"; then
         CHANNEL_RESULT="ok"
         return 0
@@ -102,6 +163,56 @@ probe_channel() {
 
     CHANNEL_RESULT="fail"
     return 1
+}
+
+probe_discord_with_readback() {
+    local webhook_url="$1"
+    local payload readback_url body_file curl_output http_code curl_status curl_error response_body
+
+    payload="$(build_discord_critical_payload "$TITLE" "$MESSAGE" "$PROBE_SOURCE" "$NONCE" "$ENVIRONMENT")"
+    readback_url="$(discord_readback_url "$webhook_url")"
+    body_file="$(mktemp)"
+
+    if [[ ! "$readback_url" =~ ^https://[^[:space:]]+$ ]]; then
+        echo "[FAIL] discord: webhook URL must use https://" >&2
+        rm -f "$body_file"
+        return 1
+    fi
+
+    curl_output=$(curl -sSL \
+        -X POST \
+        -H "Content-Type: application/json" \
+        -d "$payload" \
+        -o "$body_file" \
+        -w '%{http_code}' \
+        --max-time 10 \
+        "$readback_url" 2>&1) || {
+        curl_status=$?
+        curl_error="$curl_output"
+        if [[ -z "$curl_error" ]]; then
+            curl_error="curl exited with status $curl_status"
+        fi
+        echo "[FAIL] discord: transport error (curl exit $curl_status): $curl_error" >&2
+        rm -f "$body_file"
+        return 1
+    }
+
+    http_code="$curl_output"
+    if [[ ! "$http_code" =~ ^2 ]]; then
+        echo "[FAIL] discord: HTTP $http_code (expected 2xx)" >&2
+        rm -f "$body_file"
+        return 1
+    fi
+
+    response_body="$(cat "$body_file" 2>/dev/null || true)"
+    rm -f "$body_file"
+    if [[ "$response_body" != *"$NONCE"* ]]; then
+        echo "[FAIL] discord: readback confirmation missing nonce '$NONCE'" >&2
+        return 1
+    fi
+
+    echo "[OK]   discord: HTTP $http_code (readback nonce confirmed)"
+    return 0
 }
 
 probe_channel "slack" "$SLACK_URL" || ANY_FAILED=1
@@ -112,7 +223,13 @@ DISCORD_RESULT="$CHANNEL_RESULT"
 
 # Summary line — single source for log aggregation / cron grep.
 echo "==> probe summary: nonce=${NONCE} slack=${SLACK_RESULT} discord=${DISCORD_RESULT} env=${ENVIRONMENT}"
-echo "==> visually confirm the alert with title containing '${NONCE}' arrived in the channel(s) above"
+if [[ "$READBACK_MODE" == "1" && -n "$DISCORD_URL" ]]; then
+    echo "==> discord delivery proof: automated nonce readback confirmed"
+elif [[ -n "$DISCORD_URL" ]]; then
+    echo "==> discord delivery proof is status-only in default mode; rerun with --live or --readback for automated nonce confirmation"
+elif [[ -n "$SLACK_URL" ]]; then
+    echo "==> slack delivery proof is status-only; no automated readback is implemented"
+fi
 
 if [[ "$ANY_FAILED" == "1" ]]; then
     exit 2

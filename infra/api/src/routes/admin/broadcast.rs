@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use crate::auth::AdminAuth;
 use crate::errors::ApiError;
 use crate::models::Customer;
-use crate::services::email::EmailError;
+use crate::services::email::{BroadcastDeliveryStatus, EmailError};
 use crate::state::AppState;
 
 #[derive(Debug, Deserialize)]
@@ -32,6 +32,7 @@ pub struct LiveBroadcastResponse {
     pub subject: String,
     pub attempted_count: usize,
     pub success_count: usize,
+    pub suppressed_count: usize,
     pub failure_count: usize,
 }
 
@@ -124,6 +125,7 @@ pub async fn broadcast_email(
     }
 
     let mut success_count = 0usize;
+    let mut suppressed_count = 0usize;
     let mut failure_count = 0usize;
     for recipient in &recipients {
         let send_result = state
@@ -137,13 +139,24 @@ pub async fn broadcast_email(
             .await;
 
         match send_result {
-            Ok(()) => {
+            Ok(BroadcastDeliveryStatus::Sent) => {
                 success_count += 1;
                 persist_email_log_best_effort(
                     &state,
                     &recipient.email,
                     &req.subject,
                     "success",
+                    None,
+                )
+                .await;
+            }
+            Ok(BroadcastDeliveryStatus::Suppressed) => {
+                suppressed_count += 1;
+                persist_email_log_best_effort(
+                    &state,
+                    &recipient.email,
+                    &req.subject,
+                    "suppressed",
                     None,
                 )
                 .await;
@@ -170,6 +183,7 @@ pub async fn broadcast_email(
         subject: req.subject,
         attempted_count: recipients.len(),
         success_count,
+        suppressed_count,
         failure_count,
     })
     .into_response())

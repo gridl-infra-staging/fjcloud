@@ -1,4 +1,3 @@
-//! Stub summary for /Users/stuart/parallel_development/fjcloud_dev/MAR17_11_2_data_management_features/fjcloud_dev/infra/billing/src/plan.rs.
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
@@ -186,9 +185,42 @@ pub trait PlanRegistry: Send + Sync {
 /// - STRIPE_PRICE_ENTERPRISE
 pub struct EnvPlanRegistry;
 
+const LOCAL_STRIPE_FALLBACK_PRICE_IDS: [(&str, PlanTier); 3] = [
+    ("price_starter_test", PlanTier::Starter),
+    ("price_pro_test", PlanTier::Pro),
+    ("price_enterprise_test", PlanTier::Enterprise),
+];
+
 impl EnvPlanRegistry {
     pub fn new() -> Self {
         Self
+    }
+
+    fn is_local_mode_enabled() -> bool {
+        std::env::var("STRIPE_LOCAL_MODE").ok().as_deref() == Some("1")
+    }
+
+    fn stripe_price_env_var(tier: PlanTier) -> Option<&'static str> {
+        match tier {
+            PlanTier::Free => None,
+            PlanTier::Starter => Some("STRIPE_PRICE_STARTER"),
+            PlanTier::Pro => Some("STRIPE_PRICE_PRO"),
+            PlanTier::Enterprise => Some("STRIPE_PRICE_ENTERPRISE"),
+        }
+    }
+
+    fn local_fallback_price_id(tier: PlanTier) -> Option<&'static str> {
+        LOCAL_STRIPE_FALLBACK_PRICE_IDS
+            .iter()
+            .find_map(|(price_id, mapped_tier)| (*mapped_tier == tier).then_some(*price_id))
+    }
+
+    fn local_fallback_tier(price_id: &str) -> Option<PlanTier> {
+        LOCAL_STRIPE_FALLBACK_PRICE_IDS
+            .iter()
+            .find_map(|(mapped_price_id, mapped_tier)| {
+                (*mapped_price_id == price_id).then_some(*mapped_tier)
+            })
     }
 }
 
@@ -204,25 +236,32 @@ impl PlanRegistry for EnvPlanRegistry {
     }
 
     fn get_stripe_price_id(&self, tier: PlanTier) -> Option<String> {
-        match tier {
-            PlanTier::Free => None,
-            PlanTier::Starter => std::env::var("STRIPE_PRICE_STARTER").ok(),
-            PlanTier::Pro => std::env::var("STRIPE_PRICE_PRO").ok(),
-            PlanTier::Enterprise => std::env::var("STRIPE_PRICE_ENTERPRISE").ok(),
-        }
+        let env_var = Self::stripe_price_env_var(tier)?;
+
+        std::env::var(env_var).ok().or_else(|| {
+            Self::is_local_mode_enabled()
+                .then(|| Self::local_fallback_price_id(tier).map(str::to_string))
+                .flatten()
+        })
     }
 
     fn get_tier_by_price_id(&self, price_id: &str) -> Option<PlanTier> {
-        let tier_vars = [
-            ("STRIPE_PRICE_STARTER", PlanTier::Starter),
-            ("STRIPE_PRICE_PRO", PlanTier::Pro),
-            ("STRIPE_PRICE_ENTERPRISE", PlanTier::Enterprise),
-        ];
-        tier_vars.into_iter().find_map(|(env_var, tier)| {
-            std::env::var(env_var)
-                .ok()
-                .filter(|v| v == price_id)
-                .map(|_| tier)
+        let env_tier = LOCAL_STRIPE_FALLBACK_PRICE_IDS
+            .iter()
+            .filter_map(|(_, tier)| {
+                Self::stripe_price_env_var(*tier).map(|env_var| (env_var, *tier))
+            })
+            .find_map(|(env_var, tier)| {
+                std::env::var(env_var)
+                    .ok()
+                    .filter(|configured| configured == price_id)
+                    .map(|_| tier)
+            });
+
+        env_tier.or_else(|| {
+            Self::is_local_mode_enabled()
+                .then(|| Self::local_fallback_tier(price_id))
+                .flatten()
         })
     }
 }
@@ -278,6 +317,39 @@ impl PlanRegistry for StaticPlanRegistry {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::{Mutex, OnceLock};
+
+    fn plan_env_lock() -> &'static Mutex<()> {
+        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        LOCK.get_or_init(|| Mutex::new(()))
+    }
+
+    struct EnvGuard<'a> {
+        vars: Vec<(&'static str, Option<String>)>,
+        _lock: std::sync::MutexGuard<'a, ()>,
+    }
+
+    impl<'a> EnvGuard<'a> {
+        fn new(lock: std::sync::MutexGuard<'a, ()>, keys: &[&'static str]) -> Self {
+            let vars = keys
+                .iter()
+                .map(|k| (*k, std::env::var(k).ok()))
+                .collect::<Vec<_>>();
+            Self { vars, _lock: lock }
+        }
+    }
+
+    impl Drop for EnvGuard<'_> {
+        fn drop(&mut self) {
+            for (k, v) in &self.vars {
+                if let Some(value) = v {
+                    std::env::set_var(k, value);
+                } else {
+                    std::env::remove_var(k);
+                }
+            }
+        }
+    }
 
     #[test]
     fn test_plan_tier_ordering() {
@@ -438,6 +510,96 @@ mod tests {
             Some(PlanTier::Enterprise)
         );
         assert_eq!(registry.get_tier_by_price_id("unknown"), None);
+    }
+
+    #[test]
+    fn test_env_plan_registry_uses_local_mode_fallback_prices() {
+        let lock = plan_env_lock().lock().unwrap_or_else(|p| p.into_inner());
+        let _guard = EnvGuard::new(
+            lock,
+            &[
+                "STRIPE_LOCAL_MODE",
+                "STRIPE_PRICE_STARTER",
+                "STRIPE_PRICE_PRO",
+                "STRIPE_PRICE_ENTERPRISE",
+            ],
+        );
+        std::env::set_var("STRIPE_LOCAL_MODE", "1");
+        std::env::remove_var("STRIPE_PRICE_STARTER");
+        std::env::remove_var("STRIPE_PRICE_PRO");
+        std::env::remove_var("STRIPE_PRICE_ENTERPRISE");
+
+        let registry = EnvPlanRegistry::new();
+
+        assert_eq!(
+            registry.get_stripe_price_id(PlanTier::Starter),
+            Some("price_starter_test".to_string())
+        );
+        assert_eq!(
+            registry.get_stripe_price_id(PlanTier::Pro),
+            Some("price_pro_test".to_string())
+        );
+        assert_eq!(
+            registry.get_stripe_price_id(PlanTier::Enterprise),
+            Some("price_enterprise_test".to_string())
+        );
+        assert_eq!(
+            registry.get_tier_by_price_id("price_starter_test"),
+            Some(PlanTier::Starter)
+        );
+        assert_eq!(
+            registry.get_tier_by_price_id("price_pro_test"),
+            Some(PlanTier::Pro)
+        );
+        assert_eq!(
+            registry.get_tier_by_price_id("price_enterprise_test"),
+            Some(PlanTier::Enterprise)
+        );
+    }
+
+    #[test]
+    fn test_env_plan_registry_explicit_prices_override_local_fallback() {
+        let lock = plan_env_lock().lock().unwrap_or_else(|p| p.into_inner());
+        let _guard = EnvGuard::new(
+            lock,
+            &[
+                "STRIPE_LOCAL_MODE",
+                "STRIPE_PRICE_STARTER",
+                "STRIPE_PRICE_PRO",
+                "STRIPE_PRICE_ENTERPRISE",
+            ],
+        );
+        std::env::set_var("STRIPE_LOCAL_MODE", "1");
+        std::env::set_var("STRIPE_PRICE_STARTER", "price_starter_override");
+        std::env::set_var("STRIPE_PRICE_PRO", "price_pro_override");
+        std::env::set_var("STRIPE_PRICE_ENTERPRISE", "price_enterprise_override");
+
+        let registry = EnvPlanRegistry::new();
+
+        assert_eq!(
+            registry.get_stripe_price_id(PlanTier::Starter),
+            Some("price_starter_override".to_string())
+        );
+        assert_eq!(
+            registry.get_stripe_price_id(PlanTier::Pro),
+            Some("price_pro_override".to_string())
+        );
+        assert_eq!(
+            registry.get_stripe_price_id(PlanTier::Enterprise),
+            Some("price_enterprise_override".to_string())
+        );
+        assert_eq!(
+            registry.get_tier_by_price_id("price_starter_override"),
+            Some(PlanTier::Starter)
+        );
+        assert_eq!(
+            registry.get_tier_by_price_id("price_pro_override"),
+            Some(PlanTier::Pro)
+        );
+        assert_eq!(
+            registry.get_tier_by_price_id("price_enterprise_override"),
+            Some(PlanTier::Enterprise)
+        );
     }
 
     #[test]

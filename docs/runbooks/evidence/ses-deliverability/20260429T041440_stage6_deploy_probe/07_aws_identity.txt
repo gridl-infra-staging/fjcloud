@@ -1,0 +1,6 @@
+COMMAND: aws sts get-caller-identity
+{
+    "UserId": "AIDATDTCLTRFKVSWMJCGQ",
+    "Account": "213880904778",
+    "Arn": "arn:aws:iam::213880904778:user/stuart-cli"
+}

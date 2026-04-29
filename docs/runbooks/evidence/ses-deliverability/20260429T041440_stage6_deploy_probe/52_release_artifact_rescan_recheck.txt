@@ -1,0 +1,3 @@
+Scanning staged release artifacts for SES mapping...
+TOTAL_SHAS=19
+FOUND_SHA=NONE

@@ -48,3 +48,9 @@ resource "aws_ssm_parameter" "runtime_dns_domain" {
   type  = "String"
   value = var.dns_domain
 }
+
+resource "aws_ssm_parameter" "runtime_ses_configuration_set" {
+  name  = "/fjcloud/${var.env}/ses_configuration_set"
+  type  = "String"
+  value = var.ses_configuration_set_name
+}

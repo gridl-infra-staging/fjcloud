@@ -7,6 +7,7 @@ locals {
   cloudtrail_name                                = var.cloudtrail_name_override != "" ? var.cloudtrail_name_override : "fjcloud-${var.env}-guardrails"
   cloudtrail_export_bucket_name                  = var.cloudtrail_export_bucket_name != "" ? var.cloudtrail_export_bucket_name : "fjcloud-${var.env}-cloudtrail-export"
   cloudtrail_source_arn                          = "arn:${data.aws_partition.current.partition}:cloudtrail:${var.region}:${data.aws_caller_identity.current.account_id}:trail/${local.cloudtrail_name}"
+  ses_configuration_set_source_arn_pattern       = "arn:${data.aws_partition.current.partition}:ses:${var.region}:${data.aws_caller_identity.current.account_id}:configuration-set/*"
   live_e2e_budget_name                           = "fjcloud-${var.env}-live-e2e-spend"
   live_e2e_budget_configured                     = var.live_e2e_monthly_spend_limit_usd != null
   customer_loop_canary_ecr_repository_name       = "fjcloud-${var.env}-customer-loop-canary"
@@ -30,6 +31,47 @@ resource "aws_sns_topic_subscription" "email" {
   topic_arn = aws_sns_topic.alerts.arn
   protocol  = "email"
   endpoint  = each.key
+}
+
+resource "aws_sns_topic" "ses_feedback" {
+  name = "fjcloud-ses-feedback-${var.env}"
+
+  tags = {
+    Name = "fjcloud-ses-feedback-${var.env}"
+  }
+}
+
+resource "aws_sns_topic_policy" "ses_feedback_publish" {
+  arn = aws_sns_topic.ses_feedback.arn
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "AllowSESPublishFromAccountConfigurationSets"
+        Effect = "Allow"
+        Principal = {
+          Service = "ses.amazonaws.com"
+        }
+        Action   = "sns:Publish"
+        Resource = aws_sns_topic.ses_feedback.arn
+        Condition = {
+          StringEquals = {
+            "aws:SourceAccount" = data.aws_caller_identity.current.account_id
+          }
+          ArnLike = {
+            "aws:SourceArn" = local.ses_configuration_set_source_arn_pattern
+          }
+        }
+      }
+    ]
+  })
+}
+
+resource "aws_sns_topic_subscription" "ses_feedback_webhook" {
+  topic_arn = aws_sns_topic.ses_feedback.arn
+  protocol  = "https"
+  endpoint  = "https://api.${var.domain}/webhooks/ses/sns"
 }
 
 # Stage 5 canary packaging ownership: monitoring owns the canonical ECR path

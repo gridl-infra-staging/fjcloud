@@ -42,3 +42,8 @@ variable "dns_domain" {
   description = "Root DNS domain (e.g. flapjack.foo)"
   type        = string
 }
+
+variable "ses_configuration_set_name" {
+  description = "SES configuration set name consumed by application runtime"
+  type        = string
+}

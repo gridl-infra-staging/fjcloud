@@ -146,18 +146,18 @@ validate_runtime_stripe_key() {
     fi
 
     # Reject live keys loudly so the runner cannot be pointed at real money flow.
-    if [[ "$STRIPE_SECRET_KEY" == sk_live_* ]]; then
+    if [[ "$STRIPE_SECRET_KEY" == sk_live_* || "$STRIPE_SECRET_KEY" == rk_live_* ]]; then
         record_failure \
             "stripe_secret_key_mode" \
-            "STRIPE_SECRET_KEY must use an sk_test_ key; sk_live_ keys are not allowed for this dry run" \
+            "STRIPE_SECRET_KEY must use an sk_test_ or rk_test_ key; sk_live_ and rk_live_ keys are not allowed for this dry run" \
             "stripe_live_key_rejected"
         return 0
     fi
 
-    if [[ "$STRIPE_SECRET_KEY" != sk_test_* ]]; then
+    if [[ "$STRIPE_SECRET_KEY" != sk_test_* && "$STRIPE_SECRET_KEY" != rk_test_* ]]; then
         record_failure \
             "stripe_secret_key_prefix" \
-            "STRIPE_SECRET_KEY must start with sk_test_" \
+            "STRIPE_SECRET_KEY must start with sk_test_ or rk_test_" \
             "stripe_secret_key_invalid"
         return 0
     fi
@@ -218,13 +218,30 @@ run_non_mutating_health_probe() {
 }
 
 load_explicit_env_files() {
+    local env_file load_error
+
     # This script intentionally does not read repo-local .env.local files.
     # Staging preflight must only trust explicitly supplied env files or the
     # caller's shell exports; otherwise a developer's local-dev credentials can
     # make staging checks pass for the wrong reasons.
-    if [ "${#ENV_FILES[@]}" -gt 0 ]; then
-        load_layered_env_files "${ENV_FILES[@]}"
+    if [ "${#ENV_FILES[@]}" -eq 0 ]; then
+        return 0
     fi
+
+    for env_file in "${ENV_FILES[@]}"; do
+        if [ ! -f "$env_file" ]; then
+            record_failure "env_file_present" "Explicit env file not found: $env_file" "env_file_missing"
+            return 1
+        fi
+    done
+
+    if ! load_error="$( ( load_layered_env_files "${ENV_FILES[@]}" ) 2>&1 )"; then
+        load_error="${load_error//$'\n'/ }"
+        record_failure "env_file_load" "${load_error:-Failed to load explicit env file(s)}" "env_file_invalid"
+        return 1
+    fi
+
+    load_layered_env_files "${ENV_FILES[@]}"
 }
 
 parse_args() {
@@ -262,7 +279,10 @@ parse_args() {
 
 main() {
     parse_args "$@"
-    load_explicit_env_files
+    if ! load_explicit_env_files; then
+        emit_preflight_result false "$FIRST_FAILURE_CLASSIFICATION"
+        exit 1
+    fi
 
     validate_staging_api_url
     validate_public_webhook_url

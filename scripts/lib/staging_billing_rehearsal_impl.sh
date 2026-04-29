@@ -327,6 +327,19 @@ emit_required_step_artifacts() {
         "$INVOICE_EMAIL_PAYLOAD" > "$ARTIFACT_DIR/invoice_email.json"
 }
 
+write_json_artifact_file() {
+    local artifact_path="$1"
+    local json_payload="$2"
+
+    if ! is_valid_json "$json_payload"; then
+        return 1
+    fi
+
+    printf '%s\n' "$json_payload" > "$artifact_path"
+    chmod 600 "$artifact_path"
+    return 0
+}
+
 emit_summary_and_exit() {
     local exit_code="$1"
     local elapsed_ms summary_class_json summary_detail_json artifact_dir_json

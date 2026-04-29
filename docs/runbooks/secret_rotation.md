@@ -12,6 +12,18 @@ For SES setup and readiness details, use [`docs/runbooks/email-production.md`](e
 - The API currently uses a single `JWT_SECRET` with no overlap window for old and new tokens.
 - Rotations here are deploy-time cutovers; no live in-process secret reload is implemented.
 
+## IAM Rotation Evidence Pointer
+
+The IAM role/policy rotation evidence for `apr28_2pm_7_aws_scoped_iam_rotation` is immutable input from Stages 1-3 and is owned as an evidence bundle, not as procedure text in this runbook:
+
+- `docs/runbooks/evidence/secret-rotation/20260428T192916Z_iam_rotation/`
+- `docs/runbooks/evidence/secret-rotation/20260428T192916Z_iam_rotation/discovery_summary.json`
+- `docs/runbooks/evidence/secret-rotation/20260428T192916Z_iam_rotation/iam_plan.json`
+- `docs/runbooks/evidence/secret-rotation/20260428T192916Z_iam_rotation/stage3/simulations/summary.json`
+- `docs/runbooks/evidence/secret-rotation/20260428T192916Z_iam_rotation/stage3/live_path_deploy_staging_success_62fabe596675b28023c8d374125cd4c758110f36_ssm_get_command_invocation.json`
+
+This runbook continues to own only Stripe/SES/JWT procedure steps. IAM role/policy specifics should be read from the evidence bundle above.
+
 ## Stripe Rotation
 
 ### Contract Anchors
@@ -27,9 +39,26 @@ For SES setup and readiness details, use [`docs/runbooks/email-production.md`](e
 
 `STRIPE_SECRET_KEY` is the canonical operator variable. `STRIPE_TEST_SECRET_KEY` is a compatibility fallback only when `STRIPE_SECRET_KEY` is unset.
 
+### Stage 1 Prerequisite Gate (non-mutating)
+
+Before any Stripe cutover mutation steps, run:
+
+```bash
+FJCLOUD_SECRET_FILE="${FJCLOUD_SECRET_FILE:-.secret/.env.secret}" \
+  bash scripts/stripe_cutover_prereqs.sh
+```
+
+The gate must pass before proceeding. It writes a redacted prerequisite bundle to `docs/runbooks/evidence/secret-rotation/<UTC-stamp>_stripe_cutover/` by default and exits non-zero with `REASON: prerequisite_missing` when required inputs are missing.
+
+Required Stage 1 inputs in the secret source:
+
+- `STRIPE_SECRET_KEY_RESTRICTED=rk_test_...`
+- `# STRIPE_RESTRICTED_KEY_ID=<id_visible_in_dashboard>`
+- `# STRIPE_OLD_KEY_ID=<id_visible_in_dashboard>`
+
 ### Prechecks
 
-1. Confirm the new Stripe key is available as `STRIPE_SECRET_KEY` and starts with `sk_test_` for non-live validation contexts.
+1. Confirm the new Stripe key is available as `STRIPE_SECRET_KEY` and starts with `sk_test_` or `rk_test_` for non-live validation contexts.
 2. Confirm `STRIPE_WEBHOOK_SECRET` is available and starts with `whsec_`.
 3. Confirm the current shell/environment does not rely on `STRIPE_TEST_SECRET_KEY` unless explicitly using compatibility fallback behavior.
 
@@ -48,14 +77,15 @@ For SES setup and readiness details, use [`docs/runbooks/email-production.md`](e
 
 ### Post-rotation verification
 
-1. Run:
+1. Load the rotated `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` into the current shell from your approved secret source. Do not paste literal secret values into the command line because shell history and process inspection can expose them.
+2. Run:
 
 ```bash
-STRIPE_SECRET_KEY=sk_test_... STRIPE_WEBHOOK_SECRET=whsec_... bash scripts/validate-stripe.sh
+bash scripts/validate-stripe.sh
 ```
 
-2. Confirm output JSON reports `"passed": true`.
-3. If launch validation is in scope, run the relevant Stripe checks from [`docs/runbooks/launch-backend.md`](launch-backend.md).
+3. Confirm output JSON reports `"passed": true`.
+4. If launch validation is in scope, run the relevant Stripe checks from [`docs/runbooks/launch-backend.md`](launch-backend.md).
 
 ## SES Rotation
 

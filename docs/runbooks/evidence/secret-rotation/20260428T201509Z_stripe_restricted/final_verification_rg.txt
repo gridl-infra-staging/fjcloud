@@ -1,0 +1,553 @@
+scripts/stripe/create_catalog.sh:68:  api -G "https://api.stripe.com/v1/products" \
+scripts/stripe/create_catalog.sh:77:  api -G "https://api.stripe.com/v1/prices" \
+scripts/stripe/create_catalog.sh:86:  api -X POST "https://api.stripe.com/v1/products" \
+scripts/stripe/create_catalog.sh:97:  local args=(-X POST "https://api.stripe.com/v1/prices"
+scripts/stripe/create_catalog.sh:115:account_id=$(api https://api.stripe.com/v1/account | jq -r '.id')
+scripts/stripe/configure_billing_portal.sh:104:if ! stripe_request GET "/v1/account"; then
+scripts/stripe/configure_billing_portal.sh:115:if ! stripe_request GET "/v1/billing_portal/configurations" -G --data-urlencode "active=true" --data-urlencode "limit=100"; then
+scripts/stripe/configure_billing_portal.sh:125:    if ! stripe_request POST "/v1/billing_portal/configurations/${DEFAULT_CONFIGURATION_ID}" "${PORTAL_FEATURE_ARGS[@]}"; then
+scripts/stripe/configure_billing_portal.sh:132:    if ! stripe_request POST "/v1/billing_portal/configurations" "${PORTAL_FEATURE_ARGS[@]}"; then
+scripts/local-signoff-commerce.sh:184:        messages=$(curl -sS "${MAILPIT_API_URL}/api/v1/search?query=to:${email}" 2>/dev/null) || true
+scripts/local-signoff-commerce.sh:195:        msg_body=$(curl -sS "${MAILPIT_API_URL}/api/v1/message/${message_id}" 2>/dev/null) || true
+scripts/local-signoff-commerce.sh:294:        messages=$(curl -sS "${MAILPIT_API_URL}/api/v1/search?query=to:${email}+subject:invoice" 2>/dev/null) || true
+scripts/DIRMAP.md:150:| stripe | The stripe directory contains operational scripts for managing Stripe integration with fjcloud: configuring the Customer Portal and creating the canonical Flapjack product catalog, both supporting multi-account operations. |
+infra/api/tests/stripe_webhook_idempotency_test.rs:8:use api::stripe::local::generate_webhook_signature;
+infra/api/src/stripe/live.rs:5:use stripe::{
+infra/api/src/stripe/live.rs:20:    stripe::generated::billing::subscription::SubscriptionProrationBehavior;
+infra/api/src/stripe/live.rs:101:fn subscription_status_to_str(status: stripe::SubscriptionStatus) -> &'static str {
+infra/api/src/stripe/live.rs:103:        stripe::SubscriptionStatus::Active => "active",
+infra/api/src/stripe/live.rs:104:        stripe::SubscriptionStatus::PastDue => "past_due",
+infra/api/src/stripe/live.rs:105:        stripe::SubscriptionStatus::Trialing => "trialing",
+infra/api/src/stripe/live.rs:106:        stripe::SubscriptionStatus::Canceled => "canceled",
+infra/api/src/stripe/live.rs:107:        stripe::SubscriptionStatus::Unpaid => "unpaid",
+infra/api/src/stripe/live.rs:108:        stripe::SubscriptionStatus::Incomplete => "incomplete",
+infra/api/src/stripe/live.rs:109:        stripe::SubscriptionStatus::IncompleteExpired => "incomplete_expired",
+infra/api/src/stripe/live.rs:110:        stripe::SubscriptionStatus::Paused => "paused",
+infra/api/src/stripe/live.rs:126:    customer_id: stripe::CustomerId,
+infra/api/src/stripe/live.rs:141:/// Converts a `stripe::Subscription` into [`SubscriptionData`], extracting
+infra/api/src/stripe/live.rs:143:fn subscription_to_data(subscription: stripe::Subscription) -> SubscriptionData {
+infra/api/src/stripe/live.rs:224:        let customer_id: stripe::CustomerId = stripe_customer_id
+infra/api/src/stripe/live.rs:309:        let customer_id: stripe::CustomerId = stripe_customer_id
+infra/api/src/stripe/live.rs:317:            params.currency = Some(stripe::Currency::USD);
+infra/api/src/stripe/live.rs:320:            stripe::InvoiceItem::create(&self.client, params)
+infra/api/src/stripe/live.rs:398:        use stripe::CheckoutSessionMode;
+infra/api/src/stripe/live.rs:399:        use stripe::CreateCheckoutSession;
+infra/api/src/stripe/live.rs:400:        use stripe::CreateCheckoutSessionLineItems;
+infra/api/src/stripe/live.rs:402:        let customer_id: stripe::CustomerId = stripe_customer_id
+infra/api/src/stripe/live.rs:418:        let session = stripe::CheckoutSession::create(&self.client, params)
+infra/api/src/stripe/live.rs:434:        use stripe::SubscriptionId;
+infra/api/src/stripe/live.rs:440:        let subscription = stripe::Subscription::retrieve(&self.client, &sub_id, &[])
+infra/api/src/stripe/live.rs:454:        use stripe::SubscriptionId;
+infra/api/src/stripe/live.rs:455:        use stripe::UpdateSubscription;
+infra/api/src/stripe/live.rs:464:            stripe::Subscription::update(&self.client, &sub_id, params)
+infra/api/src/stripe/live.rs:468:            use stripe::CancelSubscription;
+infra/api/src/stripe/live.rs:470:            stripe::Subscription::cancel(&self.client, &sub_id, params)
+infra/api/src/stripe/live.rs:486:        use stripe::SubscriptionId;
+infra/api/src/stripe/live.rs:487:        use stripe::UpdateSubscription;
+infra/api/src/stripe/live.rs:488:        use stripe::UpdateSubscriptionItems;
+infra/api/src/stripe/live.rs:494:        let current_subscription = stripe::Subscription::retrieve(&self.client, &sub_id, &[])
+infra/api/src/stripe/live.rs:512:        let subscription = stripe::Subscription::update(&self.client, &sub_id, params)
+infra/api/src/stripe/live.rs:602:        let customer_id: stripe::CustomerId = "cus_test".parse().unwrap();
+infra/api/src/stripe/mod.rs:13:    #[error("stripe API error: {0}")]
+infra/api/src/stripe/mod.rs:16:    #[error("stripe not configured")]
+infra/api/tests/checkout_session_completion_test.rs:6:use api::stripe::{SubscriptionData, SubscriptionItem};
+scripts/validate-stripe.sh:122:if ! stripe_request POST "/v1/customers" -d "description=fjcloud-stage5-validation"; then
+scripts/validate-stripe.sh:140:if ! stripe_request POST "/v1/payment_methods/pm_card_visa/attach" -d "customer=$CUSTOMER_ID"; then
+scripts/validate-stripe.sh:157:if ! stripe_request POST "/v1/customers/$CUSTOMER_ID" -d "invoice_settings[default_payment_method]=$ATTACHED_PAYMENT_METHOD_ID"; then
+scripts/validate-stripe.sh:169:if ! stripe_request POST "/v1/invoiceitems" -d "customer=$CUSTOMER_ID" -d "amount=100" -d "currency=usd" -d "description=stage5-validation"; then
+scripts/validate-stripe.sh:180:if ! stripe_request POST "/v1/invoices" -d "customer=$CUSTOMER_ID" -d "collection_method=charge_automatically" -d "auto_advance=false"; then
+scripts/validate-stripe.sh:197:if ! stripe_request POST "/v1/invoices/$INVOICE_ID/pay"; then
+scripts/lib/staging_billing_rehearsal_reset.sh:238:    stripe_list_output="$(_gate_timeout "$timeout_sec" stripe invoices list --customer "$RESET_STRIPE_CUSTOMER_ID" --limit 100 --format json)"
+scripts/lib/staging_billing_rehearsal_reset.sh:265:            RESET_STRIPE_BLOCKED_DETAIL="Stripe invoice ${stripe_invoice_id} was not returned by stripe invoices list."
+scripts/lib/staging_billing_rehearsal_reset.sh:272:                stripe invoices delete "$stripe_invoice_id" >/dev/null 2>&1 || {
+scripts/lib/staging_billing_rehearsal_reset.sh:281:                stripe invoices void "$stripe_invoice_id" >/dev/null 2>&1 || {
+infra/api/tests/stripe_webhook_signature_test.rs:8:use api::stripe::local::generate_webhook_signature;
+infra/api/tests/stripe_webhook_signature_test.rs:141:            .expect("seeded customer has stripe id"),
+infra/api/tests/stripe_webhook_signature_test.rs:239:            .expect("seeded customer has stripe id"),
+scripts/stripe_webhook_replay_fixture.sh:239:    if [[ "$TARGET_URL" != */webhooks/stripe ]]; then
+scripts/live-backend-gate.sh:503:        "check_stripe_key_live"
+scripts/lib/DIRMAP.md:125:  check_stripe_key_live          — Key authenticates against Stripe GET /v1/balance
+scripts/lib/DIRMAP.md:127:  check_stripe_webhook_forwarding     — `stripe listen` process is running
+scripts/lib/DIRMAP.md:137:  stripe_listen_not_running       No running "stripe listen" process. |
+scripts/staging_billing_dry_run.sh:132:    if [[ "$STAGING_STRIPE_WEBHOOK_URL" != */webhooks/stripe ]]; then
+scripts/staging_billing_dry_run.sh:135:            "STAGING_STRIPE_WEBHOOK_URL should target the /webhooks/stripe route" \
+infra/api/tests/admin_audit_view_test.rs:366:        .expect("stripe customer id")
+scripts/lib/stripe_checks.sh:11:#   check_stripe_key_live          — Key authenticates against Stripe GET /v1/balance
+scripts/lib/stripe_checks.sh:13:#   check_stripe_webhook_forwarding     — `stripe listen` process is running
+scripts/lib/stripe_checks.sh:23:#   stripe_listen_not_running       No running "stripe listen" process
+scripts/lib/stripe_checks.sh:78:# check_stripe_key_live
+scripts/lib/stripe_checks.sh:79:# Calls Stripe GET /v1/balance to verify the key actually authenticates.
+scripts/lib/stripe_checks.sh:82:check_stripe_key_live() {
+scripts/lib/stripe_checks.sh:101:        "https://api.stripe.com/v1/balance" 2>&1)"; then
+scripts/lib/stripe_checks.sh:114:            "Stripe GET /v1/balance failed before HTTP response (curl exit $curl_exit)"
+scripts/lib/stripe_checks.sh:133:            "Stripe GET /v1/balance returned HTTP $http_code — expected 200"
+scripts/lib/stripe_checks.sh:156:# Builds the webhook URL operators should use with `stripe listen --forward-to`.
+scripts/lib/stripe_checks.sh:202:# Checks that a `stripe listen` process is running (via pgrep).
+scripts/lib/stripe_checks.sh:205:    if ! pgrep -f "stripe listen" >/dev/null 2>&1; then
+scripts/lib/stripe_checks.sh:209:            "No 'stripe listen' process detected — run: stripe listen --forward-to ${forward_to}"
+scripts/lib/staging_billing_rehearsal_email_evidence.sh:216:print(f"{base_url}/api/v1/search?query={encoded_query}")
+scripts/lib/staging_billing_rehearsal_email_evidence.sh:342:        message_url="${MAILPIT_API_URL%/}/api/v1/message/${candidate_message_id}"
+infra/api/tests/subscription_lifecycle_test.rs:5:use api::stripe::{SubscriptionData, SubscriptionItem};
+scripts/tests/staging_billing_rehearsal_test.sh:613:    message_call="$(grep '^curl|.*api/v1/message/msg-inv_stage3_a' "$TEST_CALL_LOG" | head -1 || true)"
+scripts/tests/staging_billing_rehearsal_test.sh:614:    assert_contains "$message_call" "/api/v1/message/msg-inv_stage3_a" \
+scripts/tests/staging_billing_rehearsal_test.sh:666:    mailpit_line="$(first_call_line_matching '^curl|.*/api/v1/search')"
+scripts/tests/staging_billing_rehearsal_test.sh:699:    mailpit_call="$(grep '^curl|.*api/v1/search' "$TEST_CALL_LOG" | head -1 || true)"
+scripts/reliability/run_backend_reliability_gate.sh:204:    run_check_or_skip "check_stripe_key_live" "check_stripe_key_live"
+infra/api/tests/email_service_test.rs:372:        .and(path("/api/v1/send"))
+infra/api/tests/email_service_test.rs:515:        .and(path("/api/v1/send"))
+infra/api/tests/email_service_test.rs:539:        .and(path("/api/v1/send"))
+scripts/tests/live_backend_gate_test.sh:104:        type check_stripe_key_live >/dev/null 2>&1 && echo 'FN:check_stripe_key_live'
+scripts/tests/live_backend_gate_test.sh:117:    assert_contains "$output" "FN:check_stripe_key_live" "check_stripe_key_live should be defined"
+scripts/tests/live_backend_gate_test.sh:153:        check_stripe_key_live() { return 0; }
+scripts/tests/live_backend_gate_test.sh:191:        check_stripe_key_live() { return 0; }
+scripts/tests/live_backend_gate_test.sh:212:    assert_contains "$stderr" "check_stripe_key_live" "stderr should show check_stripe_key_live"
+scripts/tests/live_backend_gate_test.sh:233:        check_stripe_key_live() { return 0; }
+scripts/tests/live_backend_gate_test.sh:277:        check_stripe_key_live() { return 0; }
+scripts/tests/live_backend_gate_test.sh:313:        check_stripe_key_live() { return 0; }
+scripts/tests/live_backend_gate_test.sh:362:        check_stripe_key_live() { return 0; }
+scripts/tests/live_backend_gate_test.sh:404:        check_stripe_key_live() { return 0; }
+scripts/tests/live_backend_gate_test.sh:444:        check_stripe_key_live() { exit 1; }
+scripts/tests/live_backend_gate_test.sh:485:        check_stripe_key_live() { return 0; }
+scripts/tests/live_backend_gate_test.sh:529:        check_stripe_key_live() { return 0; }
+scripts/tests/live_backend_gate_test.sh:567:        check_stripe_key_live() { return 0; }
+scripts/tests/live_backend_gate_test.sh:595:    # Checklist Stage 1 RED: skipped stripe check in launch mode must fail gate.
+scripts/tests/live_backend_gate_test.sh:607:            echo '[skip] stripe key intentionally skipped' >&2
+scripts/tests/live_backend_gate_test.sh:610:        check_stripe_key_live() { return 0; }
+scripts/tests/live_backend_gate_test.sh:621:    assert_eq "${exit_code:-0}" "1" "launch mode should fail when stripe check is skipped"
+scripts/tests/live_backend_gate_test.sh:622:    assert_eq "$(json_field "$stdout" passed)" "false" "JSON passed should be false when stripe check is skipped"
+scripts/tests/live_backend_gate_test.sh:638:        check_stripe_key_live() { return 0; }
+scripts/tests/live_backend_gate_test.sh:669:            echo '[skip] skipped stripe precondition' >&2
+scripts/tests/live_backend_gate_test.sh:672:        check_stripe_key_live() { return 0; }
+scripts/tests/live_backend_gate_test.sh:710:        check_stripe_key_live() { return 0; }
+scripts/tests/live_backend_gate_test.sh:744:        check_stripe_key_live() { return 0; }
+scripts/tests/live_backend_gate_test.sh:792:        check_stripe_key_live() { return 0; }
+scripts/tests/live_backend_gate_test.sh:854:    assert_eq "$first_two" "check_stripe_key_present check_stripe_key_live" \
+scripts/tests/live_backend_gate_test.sh:855:        "gate check ordering should keep stripe key checks first and unchanged"
+scripts/tests/live_backend_gate_test.sh:876:        check_stripe_key_live() { return 0; }
+scripts/tests/live_backend_gate_test.sh:1012:        check_stripe_key_live() { return 0; }
+scripts/tests/live_backend_gate_test.sh:1049:        check_stripe_key_live() { return 0; }
+scripts/tests/live_backend_gate_test.sh:1093:        check_stripe_key_live() { sleep 5; }
+scripts/tests/live_backend_gate_test.sh:1110:    if r.get('name') == 'check_stripe_key_live':
+scripts/tests/live_backend_gate_test.sh:1131:        check_stripe_key_live() { return 0; }
+scripts/tests/live_backend_gate_test.sh:1181:        check_stripe_key_live() { exit 1; }
+scripts/tests/live_backend_gate_test.sh:1376:        check_stripe_key_live()             { return 0; }
+scripts/tests/live_backend_gate_test.sh:1411:check_stripe_key_live() { return 0; }
+scripts/tests/live_backend_gate_test.sh:1481:        "check_stripe_key_live")"
+scripts/tests/live_backend_gate_test.sh:1482:    assert_contains "$output" "REASON:" "check_stripe_key_live failure should emit REASON"
+scripts/tests/stripe_webhook_replay_fixture_test.sh:321:        "run mode should post to the resolved /webhooks/stripe target"
+infra/api/tests/discovery_test.rs:338:                .uri("/v1/discover?index=products")
+infra/api/tests/discovery_test.rs:833:                .uri("/v1/discover?index=products")
+infra/api/tests/discovery_test.rs:872:                .uri("/v1/discover?index=missing")
+infra/api/tests/discovery_test.rs:926:                .uri("/v1/discover?index=secret-index")
+infra/api/tests/discovery_test.rs:988:                .uri("/v1/discover?index=migrating-idx")
+infra/api/tests/discovery_test.rs:1051:                .uri("/v1/discover?index=products")
+infra/api/tests/discovery_test.rs:1086:                .uri("/v1/discover?index=anything")
+scripts/tests/canary_shared_seam_reuse_test.sh:50:        "validate-stripe owner should source scripts/lib/stripe_request.sh"
+scripts/tests/validate_stripe_test.sh:111:    assert_eq "${exit_code:-0}" "1" "validate-stripe should fail when STRIPE_SECRET_KEY is unset"
+scripts/tests/validate_stripe_test.sh:112:    assert_valid_json "$output" "validate-stripe unset-key output should be valid JSON"
+scripts/tests/validate_stripe_test.sh:113:    assert_json_bool_field "$output" "passed" "false" "validate-stripe unset-key JSON should report passed=false"
+scripts/tests/validate_stripe_test.sh:114:    assert_contains "$output" "require_stripe_secret_key" "validate-stripe unset-key output should include canonical key check step"
+scripts/tests/validate_stripe_test.sh:116:        "validate-stripe unset-key detail should reference canonical env var"
+scripts/tests/validate_stripe_test.sh:135:    assert_eq "${exit_code:-0}" "1" "validate-stripe should fail with invalid Stripe key"
+scripts/tests/validate_stripe_test.sh:136:    assert_valid_json "$output" "validate-stripe invalid-key output should be valid JSON"
+scripts/tests/validate_stripe_test.sh:137:    assert_json_bool_field "$output" "passed" "false" "validate-stripe invalid-key JSON should report passed=false"
+scripts/tests/validate_stripe_test.sh:138:    assert_contains "$output" "create_customer" "validate-stripe invalid-key output should include create_customer step"
+scripts/tests/validate_stripe_test.sh:140:        "validate-stripe invalid-key machine-readable detail should include HTTP 401"
+scripts/tests/validate_stripe_test.sh:159:    assert_eq "${exit_code:-0}" "1" "validate-stripe alias compatibility path should still produce machine-readable failure output"
+scripts/tests/validate_stripe_test.sh:160:    assert_valid_json "$output" "validate-stripe alias-path output should be valid JSON"
+scripts/tests/validate_stripe_test.sh:161:    assert_json_bool_field "$output" "passed" "false" "validate-stripe alias-path JSON should report passed=false"
+scripts/tests/validate_stripe_test.sh:162:    assert_contains "$output" "create_customer" "validate-stripe alias-path output should include create_customer step"
+scripts/tests/validate_stripe_test.sh:164:        "validate-stripe alias-path machine-readable detail should include HTTP 401"
+scripts/tests/validate_stripe_test.sh:185:    assert_valid_json "$output" "validate-stripe rk_test canonical-key output should be valid JSON"
+scripts/tests/validate_stripe_test.sh:186:    assert_json_bool_field "$output" "passed" "true" "validate-stripe rk_test canonical-key flow should report passed=true"
+scripts/tests/validate_stripe_test.sh:209:    assert_valid_json "$output" "validate-stripe rk_test alias-key output should be valid JSON"
+scripts/tests/validate_stripe_test.sh:210:    assert_json_bool_field "$output" "passed" "true" "validate-stripe rk_test alias-key flow should report passed=true"
+scripts/tests/validate_stripe_test.sh:232:    assert_eq "${exit_code:-0}" "1" "validate-stripe should reject live canonical key before API calls"
+scripts/tests/validate_stripe_test.sh:233:    assert_valid_json "$output" "validate-stripe live canonical-key output should be valid JSON"
+scripts/tests/validate_stripe_test.sh:234:    assert_json_bool_field "$output" "passed" "false" "validate-stripe live canonical-key JSON should report passed=false"
+scripts/tests/validate_stripe_test.sh:235:    assert_contains "$output" "require_test_mode_stripe_secret_key" "validate-stripe live canonical-key output should include test-mode key guard step"
+scripts/tests/validate_stripe_test.sh:237:        "validate-stripe live canonical-key detail should require sk_test_ prefix"
+scripts/tests/validate_stripe_test.sh:239:        fail "validate-stripe should not call curl when canonical key is sk_live_"
+scripts/tests/validate_stripe_test.sh:241:        pass "validate-stripe should not call curl when canonical key is sk_live_"
+scripts/tests/validate_stripe_test.sh:264:    assert_eq "${exit_code:-0}" "1" "validate-stripe should reject live alias key before API calls"
+scripts/tests/validate_stripe_test.sh:265:    assert_valid_json "$output" "validate-stripe live alias-key output should be valid JSON"
+scripts/tests/validate_stripe_test.sh:266:    assert_json_bool_field "$output" "passed" "false" "validate-stripe live alias-key JSON should report passed=false"
+scripts/tests/validate_stripe_test.sh:267:    assert_contains "$output" "require_test_mode_stripe_secret_key" "validate-stripe live alias-key output should include test-mode key guard step"
+scripts/tests/validate_stripe_test.sh:269:        "validate-stripe live alias-key detail should require sk_test_ prefix"
+scripts/tests/validate_stripe_test.sh:271:        fail "validate-stripe should not call curl when alias key resolves to sk_live_"
+scripts/tests/validate_stripe_test.sh:273:        pass "validate-stripe should not call curl when alias key resolves to sk_live_"
+scripts/tests/validate_stripe_test.sh:296:    assert_eq "${exit_code:-0}" "1" "validate-stripe should reject rk_live canonical key before API calls"
+scripts/tests/validate_stripe_test.sh:297:    assert_valid_json "$output" "validate-stripe rk_live canonical-key output should be valid JSON"
+scripts/tests/validate_stripe_test.sh:298:    assert_json_bool_field "$output" "passed" "false" "validate-stripe rk_live canonical-key JSON should report passed=false"
+scripts/tests/validate_stripe_test.sh:299:    assert_contains "$output" "require_test_mode_stripe_secret_key" "validate-stripe rk_live canonical-key output should include test-mode key guard step"
+scripts/tests/validate_stripe_test.sh:301:        "validate-stripe rk_live canonical-key detail should require rk_test_ allowance text"
+scripts/tests/validate_stripe_test.sh:303:        fail "validate-stripe should not call curl when canonical key is rk_live_"
+scripts/tests/validate_stripe_test.sh:305:        pass "validate-stripe should not call curl when canonical key is rk_live_"
+scripts/tests/validate_stripe_test.sh:328:    assert_eq "${exit_code:-0}" "1" "validate-stripe should reject rk_live alias key before API calls"
+scripts/tests/validate_stripe_test.sh:329:    assert_valid_json "$output" "validate-stripe rk_live alias-key output should be valid JSON"
+scripts/tests/validate_stripe_test.sh:330:    assert_json_bool_field "$output" "passed" "false" "validate-stripe rk_live alias-key JSON should report passed=false"
+scripts/tests/validate_stripe_test.sh:331:    assert_contains "$output" "require_test_mode_stripe_secret_key" "validate-stripe rk_live alias-key output should include test-mode key guard step"
+scripts/tests/validate_stripe_test.sh:333:        "validate-stripe rk_live alias-key detail should require rk_test_ allowance text"
+scripts/tests/validate_stripe_test.sh:335:        fail "validate-stripe should not call curl when alias key resolves to rk_live_"
+scripts/tests/validate_stripe_test.sh:337:        pass "validate-stripe should not call curl when alias key resolves to rk_live_"
+scripts/tests/validate_stripe_test.sh:361:    assert_valid_json "$output" "validate-stripe success-path output should be valid JSON"
+scripts/tests/validate_stripe_test.sh:362:    assert_json_bool_field "$output" "passed" "true" "validate-stripe success-path JSON should report passed=true"
+scripts/tests/validate_stripe_test.sh:364:        "validate-stripe should use the attached payment method id in success details"
+scripts/tests/validate_stripe_test.sh:382:    assert_eq "${exit_code:-0}" "1" "validate-stripe should fail with mock Stripe error context"
+scripts/tests/validate_stripe_test.sh:383:    assert_valid_json "$output" "validate-stripe Stripe-error output should be valid JSON"
+scripts/tests/validate_stripe_test.sh:385:        "validate-stripe should include the Stripe request id in failure details"
+scripts/tests/validate_stripe_test.sh:387:        "validate-stripe should include the Stripe error message in failure details"
+scripts/tests/validate_stripe_test.sh:389:        "validate-stripe should include the Stripe request log URL in failure details"
+infra/api/tests/billing_endpoints_test.rs:16:use api::stripe::{invoice_create_idempotency_key, PaymentMethodSummary};
+infra/api/tests/billing_endpoints_test.rs:81:/// Build a test app with all repos and a custom stripe service.
+infra/api/tests/billing_endpoints_test.rs:200:    assert_eq!(body["error"], "no stripe customer linked");
+infra/api/tests/billing_endpoints_test.rs:268:    assert_eq!(body["error"], "no stripe customer linked");
+infra/api/tests/billing_endpoints_test.rs:737:    stripe_service.seed_subscription(api::stripe::SubscriptionData {
+infra/api/tests/billing_endpoints_test.rs:746:            .expect("seeded customer has stripe id")
+infra/api/tests/billing_endpoints_test.rs:748:        items: vec![api::stripe::SubscriptionItem {
+infra/api/tests/billing_endpoints_test.rs:792:    stripe_service.seed_subscription(api::stripe::SubscriptionData {
+infra/api/tests/billing_endpoints_test.rs:801:            .expect("seeded customer has stripe id")
+infra/api/tests/billing_endpoints_test.rs:803:        items: vec![api::stripe::SubscriptionItem {
+infra/api/tests/billing_endpoints_test.rs:1521:    // Finalization should fail (500 from stripe error)
+infra/api/tests/billing_endpoints_test.rs:1524:    // Watermark must NOT advance when stripe fails
+infra/api/tests/billing_endpoints_test.rs:1528:        "watermark must not advance when stripe finalization fails"
+infra/api/tests/billing_endpoints_test.rs:1538:        "carry-forward must remain unchanged when stripe finalization fails"
+infra/api/tests/billing_endpoints_test.rs:2796:    // Suspended customer with stripe — should be skipped
+infra/api/tests/billing_endpoints_test.rs:3530:    stripe_service.seed_subscription(api::stripe::SubscriptionData {
+infra/api/tests/billing_endpoints_test.rs:3537:        items: vec![api::stripe::SubscriptionItem {
+infra/api/tests/onboarding_test.rs:111:    // Set stripe customer ID on the customer
+infra/api/tests/onboarding_test.rs:118:    stripe_service.seed_payment_method(api::stripe::PaymentMethodSummary {
+infra/api/tests/onboarding_test.rs:163:    stripe_service.seed_payment_method(api::stripe::PaymentMethodSummary {
+infra/api/tests/onboarding_test.rs:239:    stripe_service.seed_payment_method(api::stripe::PaymentMethodSummary {
+infra/api/tests/onboarding_test.rs:298:    stripe_service.seed_payment_method(api::stripe::PaymentMethodSummary {
+infra/api/tests/billing_estimate_test.rs:181:        "seeded customer should have no stripe customer id"
+infra/api/tests/stripe_test_clock_full_cycle_test.rs:13:use api::stripe::StripeService;
+infra/api/tests/stripe_test_clock_full_cycle_test.rs:17:    delete_stripe_customer, stripe_webhook_available, validate_stripe_key_live,
+infra/api/tests/stripe_test_clock_full_cycle_test.rs:52:    client: &stripe::Client,
+infra/api/tests/stripe_test_clock_full_cycle_test.rs:55:) -> stripe::TestHelpersTestClock {
+infra/api/tests/stripe_test_clock_full_cycle_test.rs:56:    let mut params = stripe::CreateTestClock::new();
+infra/api/tests/stripe_test_clock_full_cycle_test.rs:60:    stripe::TestHelpersTestClock::create(client, &params)
+infra/api/tests/stripe_test_clock_full_cycle_test.rs:66:    client: &stripe::Client,
+infra/api/tests/stripe_test_clock_full_cycle_test.rs:67:    clock_id: &stripe::TestHelpersTestClockId,
+infra/api/tests/stripe_test_clock_full_cycle_test.rs:69:) -> stripe::TestHelpersTestClock {
+infra/api/tests/stripe_test_clock_full_cycle_test.rs:78:                let clock = stripe::TestHelpersTestClock::retrieve(&client, &clock_id)
+infra/api/tests/stripe_test_clock_full_cycle_test.rs:83:                    Some(stripe::TestHelpersTestClockStatus::Ready)
+infra/api/tests/stripe_test_clock_full_cycle_test.rs:93:    client: &stripe::Client,
+infra/api/tests/stripe_test_clock_full_cycle_test.rs:94:    clock_id: &stripe::TestHelpersTestClockId,
+infra/api/tests/stripe_test_clock_full_cycle_test.rs:97:) -> stripe::TestHelpersTestClock {
+infra/api/tests/stripe_test_clock_full_cycle_test.rs:98:    let params = stripe::AdvanceTestClock { frozen_time };
+infra/api/tests/stripe_test_clock_full_cycle_test.rs:100:    stripe::TestHelpersTestClock::advance(client, clock_id, &params)
+infra/api/tests/stripe_test_clock_full_cycle_test.rs:107:async fn delete_test_clock(client: &stripe::Client, clock_id: &stripe::TestHelpersTestClockId) {
+infra/api/tests/stripe_test_clock_full_cycle_test.rs:108:    if let Err(err) = stripe::TestHelpersTestClock::delete(client, clock_id).await {
+infra/api/tests/stripe_test_clock_full_cycle_test.rs:114:    client: &stripe::Client,
+infra/api/tests/stripe_test_clock_full_cycle_test.rs:116:    clock_id: &stripe::TestHelpersTestClockId,
+infra/api/tests/stripe_test_clock_full_cycle_test.rs:118:    let mut params = stripe::CreateCustomer::new();
+infra/api/tests/stripe_test_clock_full_cycle_test.rs:123:    let customer = stripe::Customer::create(client, params)
+infra/api/tests/stripe_test_clock_full_cycle_test.rs:131:    client: &stripe::Client,
+infra/api/tests/stripe_test_clock_full_cycle_test.rs:136:    let customer_id: stripe::CustomerId = stripe_customer_id
+infra/api/tests/stripe_test_clock_full_cycle_test.rs:140:    let mut params = stripe::CreateSubscription::new(customer_id);
+infra/api/tests/stripe_test_clock_full_cycle_test.rs:141:    params.items = Some(vec![stripe::CreateSubscriptionItems {
+infra/api/tests/stripe_test_clock_full_cycle_test.rs:146:    params.trial_end = Some(stripe::Scheduled::at(trial_end_unix));
+infra/api/tests/stripe_test_clock_full_cycle_test.rs:148:    let subscription = stripe::Subscription::create(client, params)
+infra/api/tests/stripe_test_clock_full_cycle_test.rs:156:    client: &stripe::Client,
+infra/api/tests/stripe_test_clock_full_cycle_test.rs:160:    let subscription_id: stripe::SubscriptionId = stripe_subscription_id
+infra/api/tests/stripe_test_clock_full_cycle_test.rs:163:    let mut params = stripe::UpdateSubscription::new();
+infra/api/tests/stripe_test_clock_full_cycle_test.rs:166:    stripe::Subscription::update(client, &subscription_id, params)
+infra/api/tests/stripe_test_clock_full_cycle_test.rs:870:    client: &stripe::Client,
+infra/api/tests/stripe_test_clock_full_cycle_test.rs:873:    let subscription_id: stripe::SubscriptionId = stripe_subscription_id.parse().ok()?;
+infra/api/tests/stripe_test_clock_full_cycle_test.rs:874:    let subscription = stripe::Subscription::retrieve(client, &subscription_id, &[])
+infra/api/tests/stripe_test_clock_full_cycle_test.rs:977:        validate_stripe_key_live().await.is_ok(),
+infra/api/tests/stripe_test_clock_full_cycle_test.rs:990:        "stripe webhook forwarding unavailable; run stripe listen --forward-to localhost:3099/webhooks/stripe"
+infra/api/tests/stripe_test_clock_full_cycle_test.rs:1005:    let stripe = build_live_stripe_handles();
+infra/api/tests/stripe_test_clock_full_cycle_test.rs:1211:        let starter_price: stripe::PriceId = starter_price_id
+infra/api/tests/stripe_test_clock_full_cycle_test.rs:1214:        let starter_price = stripe::Price::retrieve(&stripe.client, &starter_price, &[])
+infra/api/tests/stripe_test_clock_full_cycle_test.rs:1229:                let stripe_subscription_id: stripe::SubscriptionId =
+infra/api/tests/stripe_test_clock_full_cycle_test.rs:1231:                let mut params = stripe::ListInvoices::new();
+infra/api/tests/stripe_test_clock_full_cycle_test.rs:1234:                let invoices = stripe::Invoice::list(&stripe_client, &params).await.ok()?;
+infra/api/tests/stripe_test_clock_full_cycle_test.rs:1246:                                stripe::InvoiceBillingReason::SubscriptionCreate
+infra/api/tests/stripe_test_clock_full_cycle_test.rs:1247:                                    | stripe::InvoiceBillingReason::SubscriptionCycle
+infra/api/tests/stripe_test_clock_full_cycle_test.rs:1522:    let second_invoice_stripe_id: stripe::InvoiceId = second_invoice_stripe_id
+infra/api/tests/stripe_test_clock_full_cycle_test.rs:1524:        .expect("second finalized invoice stripe id should parse");
+infra/api/tests/stripe_test_clock_full_cycle_test.rs:1525:    if let Err(err) = stripe::Invoice::pay(&stripe.client, &second_invoice_stripe_id).await {
+infra/api/tests/stripe_test_clock_full_cycle_test.rs:1631:    let recovered_invoice_id: stripe::InvoiceId = recovered_invoice_stripe_id
+infra/api/tests/stripe_test_clock_full_cycle_test.rs:1634:    stripe::Invoice::pay(&stripe.client, &recovered_invoice_id)
+infra/api/tests/stripe_test_clock_full_cycle_test.rs:1708:    let paid_stripe_invoice = stripe::Invoice::retrieve(&stripe.client, &recovered_invoice_id, &[])
+infra/api/tests/stripe_test_clock_full_cycle_test.rs:1717:    let mut refund_params = stripe::CreateRefund::new();
+infra/api/tests/stripe_test_clock_full_cycle_test.rs:1736:            let payment_intent_id: stripe::PaymentIntentId = payment_intent_id
+infra/api/tests/stripe_test_clock_full_cycle_test.rs:1740:                stripe::PaymentIntent::retrieve(&stripe.client, &payment_intent_id, &[])
+infra/api/tests/stripe_test_clock_full_cycle_test.rs:1751:    stripe::Refund::create(&stripe.client, refund_params)
+scripts/tests/seed_local_test.sh:785:        "should call sync-stripe for the shared-plan user"
+scripts/tests/seed_local_test.sh:787:        "should call sync-stripe for the free-plan user"
+scripts/tests/seed_local_test.sh:823:        "should not call sync-stripe when STRIPE_LOCAL_MODE is unset"
+scripts/tests/seed_local_test.sh:866:        pass "both runs should call sync-stripe for both users (found $sync_stripe_count calls)"
+scripts/tests/seed_local_test.sh:868:        fail "both runs should call sync-stripe for both users (expected >= 4, found $sync_stripe_count)"
+scripts/local-dev-up.sh:234:if start_optional_service "mailpit" "http://localhost:${LOCAL_MAILPIT_UI_PORT:-8025}/api/v1/info" 15; then
+scripts/tests/local_signoff_commerce_test.sh:371:    */api/v1/search*)
+scripts/tests/local_signoff_commerce_test.sh:380:    */api/v1/message/msg-001)
+scripts/tests/local_signoff_commerce_test.sh:498:        "should call sync-stripe endpoint to verify Stripe linkage"
+scripts/tests/local_signoff_commerce_test.sh:500:        "should authenticate sync-stripe with x-admin-key"
+scripts/tests/local_signoff_commerce_test.sh:517:    assert_contains "$calls" "/api/v1/search" \
+infra/api/tests/stripe_local_dispatch_test.rs:10:use api::stripe::local::{generate_webhook_signature, LocalStripeService};
+infra/api/tests/stripe_local_dispatch_test.rs:11:use api::stripe::{StripeError, StripeInvoiceLineItem, StripeService};
+infra/api/tests/stripe_webhook_event_matrix_test.rs:8:use api::stripe::{SubscriptionData, SubscriptionItem};
+infra/api/tests/common/mocks.rs:35:use api::stripe::{
+infra/api/tests/common/mocks.rs:3117:                "stripe subscription id already in use".into(),
+scripts/canary/customer_loop_synthetic.sh:283:        mark_failure "sync_stripe" "sync-stripe returned HTTP ${HTTP_RESPONSE_CODE:-unknown}"
+scripts/canary/customer_loop_synthetic.sh:289:        mark_failure "sync_stripe" "sync-stripe response missing stripe_customer_id"
+scripts/canary/customer_loop_synthetic.sh:293:    log "stripe sync succeeded (stripe_customer_id=${CANARY_STRIPE_CUSTOMER_ID})"
+scripts/canary/customer_loop_synthetic.sh:321:    if ! stripe_request POST "/v1/payment_methods/pm_card_visa/attach" -d "customer=$CANARY_STRIPE_CUSTOMER_ID"; then
+scripts/canary/customer_loop_synthetic.sh:336:    if ! stripe_request POST "/v1/customers/$CANARY_STRIPE_CUSTOMER_ID" \
+infra/api/tests/common/stripe_webhook_test_support.rs:7:use api::stripe::local::LocalStripeService;
+scripts/tests/gate_strictness_test.sh:101:        check_stripe_key_live() { return 0; }
+scripts/tests/gate_strictness_test.sh:154:            echo '[skip] stripe key check skipped' >&2
+scripts/tests/gate_strictness_test.sh:157:        check_stripe_key_live() { return 0; }
+scripts/tests/gate_strictness_test.sh:169:        "launch mode should fail when stripe check is skipped"
+scripts/tests/gate_strictness_test.sh:171:        "launch mode skipped stripe check should set passed=false"
+scripts/tests/gate_strictness_test.sh:186:        check_stripe_key_live() { return 0; }
+scripts/tests/gate_strictness_test.sh:218:            echo '[skip] stripe key check skipped in dev mode' >&2
+scripts/tests/gate_strictness_test.sh:221:        check_stripe_key_live() { return 0; }
+scripts/tests/gate_strictness_test.sh:259:        check_stripe_key_live() { return 0; }
+scripts/tests/gate_strictness_test.sh:291:        check_stripe_key_live() { return 0; }
+scripts/tests/gate_strictness_test.sh:353:        check_stripe_key_live() { return 0; }
+scripts/tests/gate_strictness_test.sh:398:        check_stripe_key_live() { return 0; }
+scripts/tests/gate_strictness_test.sh:456:        check_stripe_key_live() { return 0; }
+scripts/tests/gate_strictness_test.sh:505:        check_stripe_key_live() { return 0; }
+scripts/tests/gate_strictness_test.sh:526:    local expected="check_stripe_key_present,check_stripe_key_live,check_stripe_webhook_secret_present,check_stripe_webhook_forwarding,check_usage_records_populated,check_rollup_current,rust_validation_tests"
+scripts/tests/gate_strictness_test.sh:528:        "check ordering must be fixed: stripe -> metering -> rust"
+scripts/tests/gate_strictness_test.sh:541:check_stripe_key_live() { return 0; }
+scripts/tests/gate_strictness_test.sh:596:        check_stripe_key_live() { return 0; }
+scripts/tests/gate_strictness_test.sh:635:        check_stripe_key_live() { return 0; }
+scripts/tests/gate_strictness_test.sh:677:        check_stripe_key_live() { return 0; }
+scripts/tests/gate_strictness_test.sh:725:        check_stripe_key_live() { return 0; }
+scripts/tests/gate_strictness_test.sh:769:        check_stripe_key_live() { return 0; }
+scripts/tests/gate_strictness_test.sh:804:        check_stripe_key_live() { return 0; }
+scripts/tests/gate_strictness_test.sh:839:        check_stripe_key_live() { exit 1; }
+scripts/tests/seed_synthetic_traffic_test.sh:1063:        "seeder plan doc should keep sync-stripe readiness claims evidence-bound"
+infra/api/src/DIRMAP.md:44:| stripe | The stripe module provides Stripe integration for the billing system, with both live production and local in-memory implementations. |
+infra/api/tests/common/live_stripe_helpers.rs:2:use api::stripe::live::LiveStripeService;
+infra/api/tests/common/live_stripe_helpers.rs:3:use api::stripe::{StripeInvoiceLineItem, StripeService};
+infra/api/tests/common/live_stripe_helpers.rs:22:    pub client: stripe::Client,
+infra/api/tests/common/live_stripe_helpers.rs:69:        client: stripe::Client::new(&key),
+infra/api/tests/common/live_stripe_helpers.rs:74:/// TODO: Document validate_stripe_key_live.
+infra/api/tests/common/live_stripe_helpers.rs:75:pub async fn validate_stripe_key_live() -> Result<(), String> {
+infra/api/tests/common/live_stripe_helpers.rs:86:    let client = stripe::Client::new(&key);
+infra/api/tests/common/live_stripe_helpers.rs:87:    stripe::Balance::retrieve(&client, None)
+infra/api/tests/common/live_stripe_helpers.rs:93:pub async fn delete_stripe_customer(client: &stripe::Client, customer_id: &str) {
+infra/api/tests/common/live_stripe_helpers.rs:94:    let customer_id: stripe::CustomerId = customer_id.parse().expect("invalid customer ID");
+infra/api/tests/common/live_stripe_helpers.rs:95:    if let Err(err) = stripe::Customer::delete(client, &customer_id).await {
+infra/api/tests/common/live_stripe_helpers.rs:100:pub async fn attach_test_payment_method(client: &stripe::Client, customer_id: &str) -> String {
+infra/api/tests/common/live_stripe_helpers.rs:101:    let customer_id: stripe::CustomerId = customer_id.parse().expect("invalid customer ID");
+infra/api/tests/common/live_stripe_helpers.rs:102:    let payment_method = stripe::PaymentMethod::attach(
+infra/api/tests/common/live_stripe_helpers.rs:105:        stripe::AttachPaymentMethod {
+infra/api/tests/common/live_stripe_helpers.rs:116:pub async fn attach_declining_payment_method(client: &stripe::Client, customer_id: &str) -> String {
+infra/api/tests/common/live_stripe_helpers.rs:117:    let customer_id: stripe::CustomerId = customer_id.parse().expect("invalid customer ID");
+infra/api/tests/common/live_stripe_helpers.rs:118:    let payment_method = stripe::PaymentMethod::attach(
+infra/api/tests/common/live_stripe_helpers.rs:123:        stripe::AttachPaymentMethod {
+infra/api/tests/common/live_stripe_helpers.rs:157:    let stripe = build_live_stripe_handles();
+infra/api/tests/common/live_stripe_helpers.rs:229:            detail: "webhook not received within 10s; ensure `stripe listen --forward-to localhost:3099/webhooks/stripe` is running".to_string(),
+scripts/tests/staging_billing_rehearsal_reset_test.sh:106:    assert_eq "$RUN_EXIT_CODE" "0" "reset should succeed for draft/open/uncollectible stripe invoices"
+scripts/tests/staging_billing_rehearsal_reset_test.sh:115:        "reset should list stripe invoices for the target customer"
+scripts/tests/staging_billing_rehearsal_reset_test.sh:117:        "draft stripe invoices should be deleted"
+scripts/tests/staging_billing_rehearsal_reset_test.sh:119:        "open stripe invoices should be voided"
+scripts/tests/staging_billing_rehearsal_reset_test.sh:121:        "uncollectible stripe invoices should be voided"
+scripts/tests/staging_billing_rehearsal_reset_test.sh:123:        "draft stripe invoices must never hit the void path"
+scripts/tests/staging_billing_rehearsal_reset_test.sh:130:        pass "DB invoice deletion should happen after stripe cleanup succeeds"
+scripts/tests/staging_billing_rehearsal_reset_test.sh:132:        fail "DB invoice deletion must run after stripe cleanup (delete=${stripe_delete_line:-missing} void=${stripe_void_line:-missing} db=${db_delete_line:-missing})"
+scripts/tests/staging_billing_rehearsal_reset_test.sh:142:    assert_eq "$RUN_EXIT_CODE" "0" "paid stripe invoices should not block reset completion"
+scripts/tests/staging_billing_rehearsal_reset_test.sh:149:        "paid stripe invoices should still allow reset_completed classification"
+scripts/tests/staging_billing_rehearsal_reset_test.sh:151:        "paid stripe invoices must never hit the void path"
+scripts/tests/staging_billing_rehearsal_reset_test.sh:153:        "paid stripe invoices must never hit the delete path"
+scripts/tests/staging_billing_rehearsal_reset_test.sh:155:        "DB cleanup should include paid stripe invoice IDs"
+scripts/tests/staging_billing_rehearsal_reset_test.sh:166:    assert_eq "$RUN_EXIT_CODE" "0" "paid invoice rows without stripe IDs should not block reset completion"
+scripts/tests/staging_billing_rehearsal_reset_test.sh:173:        "paid invoice rows without stripe IDs should still produce reset_completed"
+scripts/tests/staging_billing_rehearsal_reset_test.sh:175:        "missing stripe IDs should not trigger stripe void calls"
+scripts/tests/staging_billing_rehearsal_reset_test.sh:177:        "missing stripe IDs should not trigger stripe delete calls"
+scripts/tests/staging_billing_rehearsal_reset_test.sh:188:    assert_eq "$RUN_EXIT_CODE" "0" "draft invoice rows without stripe IDs should not block reset completion"
+scripts/tests/staging_billing_rehearsal_reset_test.sh:195:        "draft invoice rows without stripe IDs should still produce reset_completed"
+scripts/tests/staging_billing_rehearsal_reset_test.sh:197:        "missing stripe IDs should not trigger stripe void calls"
+scripts/tests/staging_billing_rehearsal_reset_test.sh:199:        "missing stripe IDs should not trigger stripe delete calls"
+scripts/tests/staging_billing_rehearsal_reset_test.sh:211:        "reset path with a DB row whose stripe invoice is missing from stripe list"
+scripts/tests/staging_billing_rehearsal_reset_test.sh:216:        "DB delete should include cleared stripe invoice IDs"
+scripts/tests/staging_billing_rehearsal_reset_test.sh:218:        "DB delete must not include stripe invoice IDs that were not cleared"
+scripts/tests/staging_billing_rehearsal_reset_test.sh:244:        "second reset no-op should not issue additional stripe delete calls"
+scripts/tests/staging_billing_rehearsal_reset_test.sh:246:        "second reset no-op should not issue additional stripe void calls"
+infra/api/tests/stripe_billing_test.rs:5:use api::stripe::invoice_create_idempotency_key;
+infra/api/tests/stripe_billing_test.rs:452:use api::stripe::StripeService;
+infra/api/tests/stripe_billing_test.rs:487:    svc.seed_payment_method(api::stripe::PaymentMethodSummary {
+infra/api/tests/stripe_billing_test.rs:504:    svc.seed_payment_method(api::stripe::PaymentMethodSummary {
+infra/api/tests/stripe_billing_test.rs:532:    let line_items = vec![api::stripe::StripeInvoiceLineItem {
+infra/api/tests/stripe_billing_test.rs:548:    let line_items = vec![api::stripe::StripeInvoiceLineItem {
+scripts/tests/api_dev_test.sh:398:        "api-dev should start with local-stripe defaults when live keys are present in .env.local"
+scripts/tests/api_dev_test.sh:405:        "api-dev should clear STRIPE_SECRET_KEY by default so API startup uses local stripe service"
+scripts/tests/api_dev_test.sh:409:        "api-dev should provide a deterministic local webhook secret when defaulting to local stripe mode"
+scripts/tests/api_dev_test.sh:411:        "api-dev should not keep live stripe secrets active unless explicitly opted in"
+scripts/tests/api_dev_test.sh:447:        "api-dev should start when explicit live-stripe opt-in is set"
+scripts/tests/api_dev_test.sh:452:        "api-dev should preserve STRIPE_SECRET_KEY when live-stripe opt-in is set"
+scripts/tests/api_dev_test.sh:454:        "api-dev should preserve STRIPE_PUBLISHABLE_KEY when live-stripe opt-in is set"
+scripts/tests/api_dev_test.sh:456:        "api-dev should preserve explicit webhook secret when live-stripe opt-in is set"
+scripts/tests/configure_billing_portal_test.sh:179:    https://api.stripe.com/v1/account)
+scripts/tests/configure_billing_portal_test.sh:182:    https://api.stripe.com/v1/products)
+scripts/tests/configure_billing_portal_test.sh:189:    https://api.stripe.com/v1/prices)
+scripts/tests/configure_billing_portal_test.sh:228:    assert_contains "$calls" '"url": "https://api.stripe.com/v1/account"' "configure_billing_portal should fetch the active Stripe account first"
+scripts/tests/configure_billing_portal_test.sh:229:    assert_contains "$calls" '"url": "https://api.stripe.com/v1/billing_portal/configurations"' "configure_billing_portal should query portal configurations"
+scripts/tests/configure_billing_portal_test.sh:230:    assert_contains "$calls" '"url": "https://api.stripe.com/v1/billing_portal/configurations/bpc_existing"' "configure_billing_portal should update the existing default configuration"
+scripts/tests/configure_billing_portal_test.sh:277:    assert_contains "$calls" '"url": "https://api.stripe.com/v1/billing_portal/configurations"' "configure_billing_portal should create a configuration when none exists"
+scripts/tests/configure_billing_portal_test.sh:292:    assert_contains "$(cat "$call_log")" 'sk_live_catalog_regression:|GET|https://api.stripe.com/v1/account' "create_catalog should still resolve STRIPE_SECRET_KEY_<account> for --account runs"
+infra/api/tests/account_test.rs:246:        .expect("seed stripe customer id");
+scripts/tests/stripe_checks_test.sh:273:# check_stripe_key_live tests
+scripts/tests/stripe_checks_test.sh:276:test_check_stripe_key_live_fails_on_401() {
+scripts/tests/stripe_checks_test.sh:293:        check_stripe_key_live
+scripts/tests/stripe_checks_test.sh:298:    assert_eq "${exit_code:-0}" "1" "check_stripe_key_live should fail on authentication error (gate on)"
+scripts/tests/stripe_checks_test.sh:302:test_check_stripe_key_live_emits_reason_code_on_auth_fail() {
+scripts/tests/stripe_checks_test.sh:317:        check_stripe_key_live
+scripts/tests/stripe_checks_test.sh:322:    assert_eq "${exit_code:-0}" "1" "check_stripe_key_live should fail on authentication error (gate on)"
+scripts/tests/stripe_checks_test.sh:326:test_check_stripe_key_live_passes_on_success() {
+scripts/tests/stripe_checks_test.sh:343:        check_stripe_key_live
+scripts/tests/stripe_checks_test.sh:349:    assert_eq "${exit_code:-0}" "0" "check_stripe_key_live should pass with valid API response"
+scripts/tests/stripe_checks_test.sh:353:test_check_stripe_key_live_passes_on_restricted_test_key_success() {
+scripts/tests/stripe_checks_test.sh:368:        check_stripe_key_live
+scripts/tests/stripe_checks_test.sh:374:    assert_eq "${exit_code:-0}" "0" "check_stripe_key_live should pass with restricted rk_test_ key"
+scripts/tests/stripe_checks_test.sh:378:test_check_stripe_key_live_skips_when_gate_off() {
+scripts/tests/stripe_checks_test.sh:395:        check_stripe_key_live
+scripts/tests/stripe_checks_test.sh:401:    assert_eq "${exit_code:-0}" "0" "check_stripe_key_live should skip when gate is off"
+scripts/tests/stripe_checks_test.sh:405:test_check_stripe_key_live_emits_timeout_reason() {
+scripts/tests/stripe_checks_test.sh:418:        check_stripe_key_live
+scripts/tests/stripe_checks_test.sh:424:        "check_stripe_key_live should return 124 when curl times out"
+scripts/tests/stripe_checks_test.sh:443:        check_stripe_key_live
+scripts/tests/stripe_checks_test.sh:449:        "check_stripe_key_live should return 124 when curl exits 28 timeout"
+scripts/tests/stripe_checks_test.sh:469:        check_stripe_key_live
+scripts/tests/stripe_checks_test.sh:475:        "check_stripe_key_live should return 124 when curl connect phase times out"
+scripts/tests/stripe_checks_test.sh:480:test_check_stripe_key_live_falls_back_to_alias_when_canonical_missing() {
+scripts/tests/stripe_checks_test.sh:495:        check_stripe_key_live
+scripts/tests/stripe_checks_test.sh:501:    assert_eq "${exit_code:-0}" "0" "check_stripe_key_live should allow STRIPE_TEST_SECRET_KEY fallback when canonical is absent"
+scripts/tests/stripe_checks_test.sh:505:test_check_stripe_key_live_prefers_canonical_over_alias() {
+scripts/tests/stripe_checks_test.sh:534:        check_stripe_key_live
+scripts/tests/stripe_checks_test.sh:540:    assert_eq "${exit_code:-0}" "0" "check_stripe_key_live should use canonical key when both canonical and alias are set"
+scripts/tests/stripe_checks_test.sh:544:test_check_stripe_key_live_rejects_sk_live_before_curl_call() {
+scripts/tests/stripe_checks_test.sh:562:        check_stripe_key_live
+scripts/tests/stripe_checks_test.sh:565:    assert_eq "${exit_code:-0}" "1" "check_stripe_key_live should reject sk_live_ key before Stripe API call"
+scripts/tests/stripe_checks_test.sh:568:        fail "check_stripe_key_live should not call curl when canonical key is sk_live_"
+scripts/tests/stripe_checks_test.sh:570:        pass "check_stripe_key_live should not call curl when canonical key is sk_live_"
+scripts/tests/stripe_checks_test.sh:576:test_check_stripe_key_live_rejects_rk_live_before_curl_call() {
+scripts/tests/stripe_checks_test.sh:594:        check_stripe_key_live
+scripts/tests/stripe_checks_test.sh:597:    assert_eq "${exit_code:-0}" "1" "check_stripe_key_live should reject rk_live_ key before Stripe API call"
+scripts/tests/stripe_checks_test.sh:600:        fail "check_stripe_key_live should not call curl when canonical key is rk_live_"
+scripts/tests/stripe_checks_test.sh:602:        pass "check_stripe_key_live should not call curl when canonical key is rk_live_"
+scripts/tests/stripe_checks_test.sh:695:    assert_eq "${exit_code:-0}" "1" "check_stripe_webhook_forwarding should fail when no stripe listen process (gate on)"
+scripts/tests/stripe_checks_test.sh:696:    assert_contains "$output" "stripe listen" "output should mention stripe listen"
+scripts/tests/stripe_checks_test.sh:716:    assert_eq "${exit_code:-0}" "1" "check_stripe_webhook_forwarding should fail when no stripe listen process (gate on)"
+scripts/tests/stripe_checks_test.sh:726:# Simulate finding a "stripe listen" process
+scripts/tests/stripe_checks_test.sh:744:    assert_eq "${exit_code:-0}" "0" "check_stripe_webhook_forwarding should pass when stripe listen is running"
+scripts/tests/stripe_checks_test.sh:799:echo "--- check_stripe_key_live ---"
+scripts/tests/stripe_checks_test.sh:800:test_check_stripe_key_live_fails_on_401
+scripts/tests/stripe_checks_test.sh:801:test_check_stripe_key_live_emits_reason_code_on_auth_fail
+scripts/tests/stripe_checks_test.sh:802:test_check_stripe_key_live_passes_on_success
+scripts/tests/stripe_checks_test.sh:803:test_check_stripe_key_live_passes_on_restricted_test_key_success
+scripts/tests/stripe_checks_test.sh:804:test_check_stripe_key_live_skips_when_gate_off
+scripts/tests/stripe_checks_test.sh:805:test_check_stripe_key_live_emits_timeout_reason
+scripts/tests/stripe_checks_test.sh:808:test_check_stripe_key_live_falls_back_to_alias_when_canonical_missing
+scripts/tests/stripe_checks_test.sh:809:test_check_stripe_key_live_prefers_canonical_over_alias
+scripts/tests/stripe_checks_test.sh:810:test_check_stripe_key_live_rejects_sk_live_before_curl_call
+scripts/tests/stripe_checks_test.sh:811:test_check_stripe_key_live_rejects_rk_live_before_curl_call
+scripts/tests/ci_workflow_test.sh:276:assert_job_contains_regex "playwright" 'curl -fsS "\$\{MAILPIT_API_URL\}/api/v1/info"' "playwright readiness checks mailpit API endpoint"
+infra/api/tests/integration_stripe_test.rs:8://!      `stripe listen --forward-to localhost:3099/webhooks/stripe` running.
+infra/api/tests/integration_stripe_test.rs:24:use api::stripe::{StripeInvoiceLineItem, StripeService};
+infra/api/tests/integration_stripe_test.rs:165:/// Runtime probe for Stripe webhook forwarding (`stripe listen`).
+infra/api/tests/integration_stripe_test.rs:179:        eprintln!("[skip] stripe webhook forwarding not available");
+infra/api/tests/integration_stripe_test.rs:189:/// Validates the Stripe test key by calling GET /v1/balance.
+infra/api/tests/integration_stripe_test.rs:191:async fn validate_stripe_key_live() -> Result<(), String> {
+infra/api/tests/integration_stripe_test.rs:192:    live_stripe_helpers::validate_stripe_key_live().await
+infra/api/tests/integration_stripe_test.rs:203:async fn delete_stripe_customer(client: &stripe::Client, customer_id: &str) {
+infra/api/tests/integration_stripe_test.rs:209:async fn attach_test_payment_method(client: &stripe::Client, customer_id: &str) -> String {
+infra/api/tests/integration_stripe_test.rs:215:async fn attach_declining_payment_method(client: &stripe::Client, customer_id: &str) -> String {
+infra/api/tests/integration_stripe_test.rs:224:async fn validate_stripe_key_live_succeeds_with_real_key() {
+infra/api/tests/integration_stripe_test.rs:225:    if validate_stripe_key_live().await.is_err() {
+infra/api/tests/integration_stripe_test.rs:226:        eprintln!("[skip] validate_stripe_key_live() failed — key missing or invalid");
+infra/api/tests/integration_stripe_test.rs:239:        validate_stripe_key_live().await.is_ok(),
+infra/api/tests/integration_stripe_test.rs:243:    let stripe = build_live_stripe_handles();
+infra/api/tests/integration_stripe_test.rs:265:        validate_stripe_key_live().await.is_ok(),
+infra/api/tests/integration_stripe_test.rs:269:    let stripe = build_live_stripe_handles();
+infra/api/tests/integration_stripe_test.rs:302:        validate_stripe_key_live().await.is_ok(),
+infra/api/tests/integration_stripe_test.rs:306:    let stripe = build_live_stripe_handles();
+infra/api/tests/integration_stripe_test.rs:369:        validate_stripe_key_live().await.is_ok(),
+infra/api/tests/integration_stripe_test.rs:373:    let stripe = build_live_stripe_handles();
+infra/api/tests/integration_stripe_test.rs:429:// Category 2: Full pipeline tests (need integration stack + stripe listen)
+infra/api/tests/integration_stripe_test.rs:452:    let stripe = build_live_stripe_handles();
+infra/api/tests/integration_stripe_test.rs:457:        .expect("create stripe customer");
+infra/api/tests/integration_stripe_test.rs:465:        .expect("failed to link stripe customer");
+infra/api/tests/integration_stripe_test.rs:502:    //    (stripe listen forwards webhook from Stripe → our API)
+infra/api/tests/integration_stripe_test.rs:555:        .expect("mock finalized invoice should include stripe id");
+infra/api/tests/integration_stripe_test.rs:746:        .expect("mock finalized invoice should include stripe id");
+infra/api/tests/integration_stripe_test.rs:749:        .expect("mock customer must have stripe id");
+infra/api/tests/integration_stripe_test.rs:797:    let stripe = build_live_stripe_handles();
+infra/api/tests/integration_stripe_test.rs:817:        .expect("create stripe customer");
+infra/api/tests/integration_stripe_test.rs:824:        .expect("link stripe customer");
+infra/api/tests/integration_stripe_test.rs:923:        .expect("mock finalized invoice should include stripe id");
+infra/api/tests/integration_stripe_test.rs:973:        stripe_webhook_secret, validate_stripe_key_live, validate_stripe_webhook_delivery,
+infra/api/tests/integration_stripe_test.rs:1004:    async fn validate_stripe_key_live_err_when_key_missing() {
+infra/api/tests/integration_stripe_test.rs:1008:        let result = validate_stripe_key_live().await;
+infra/api/tests/integration_stripe_test.rs:1014:    async fn validate_stripe_key_live_err_when_key_bad_prefix() {
+infra/api/tests/integration_stripe_test.rs:1019:        let err = validate_stripe_key_live().await.unwrap_err();
+infra/api/tests/integration_stripe_test.rs:1026:        let err = validate_stripe_key_live().await.unwrap_err();
+scripts/tests/nightly_workflow_test.sh:145:assert_job_contains_regex "stripe-test-clock-live" 'run:\s+cd infra && cargo test -p api --test stripe_test_clock_full_cycle_test' "stripe-test-clock-live runs only the stripe test-clock test"
+infra/api/src/config.rs:152:        .expect("should parse with stripe keys");
+scripts/tests/run_backend_reliability_gate_test.sh:169:check_stripe_key_live() {
+scripts/tests/run_backend_reliability_gate_test.sh:170:    run_mock_check "check_stripe_key_live" "REASON: LIVE_CHECK_PASS" "REASON: LIVE_CHECK_FAIL"
+scripts/tests/run_backend_reliability_gate_test.sh:235:    assert_eq "$check_names" "compile_check,clippy_check,reliability_profile_tests,reliability_scheduler_tests,reliability_replication_tests,reliability_api_crash_tests,reliability_cold_tier_tests,reliability_metering_tests,security_secret_scan,security_dep_audit,security_sql_guard,security_cmd_injection,security_sql_guard_tests,load_gate,check_stripe_key_present,check_stripe_key_live,check_stripe_webhook_secret_present,check_stripe_webhook_forwarding,check_usage_records_populated,check_rollup_current,rust_validation_tests" \
+scripts/tests/run_backend_reliability_gate_test.sh:315:        check_stripe_key_live() { return 0; }
+infra/api/src/invoicing/stripe_sync.rs:262:) -> Vec<crate::stripe::StripeInvoiceLineItem> {
+infra/api/src/invoicing/stripe_sync.rs:265:        .map(|li| crate::stripe::StripeInvoiceLineItem {
+infra/api/src/invoicing/stripe_sync.rs:347:    let idempotency_key = crate::stripe::invoice_create_idempotency_key(
+infra/api/src/invoicing/stripe_sync.rs:362:        .map_err(|e| ApiError::Internal(format!("stripe error: {e}")))?;
+scripts/tests/secret_rotation_runbook_test.sh:71:    assert_contains "$content" "check_stripe_key_live" "runbook should reference check_stripe_key_live"
+infra/api/src/services/email.rs:515:/// (`POST /api/v1/send`). Used in local dev when `MAILPIT_API_URL` is set.
+infra/api/src/services/email.rs:556:    /// Build the Mailpit JSON payload and POST it to /api/v1/send.
+infra/api/src/services/email.rs:567:        // Mailpit POST /api/v1/send JSON format.
+infra/api/src/services/email.rs:568:        // See: https://mailpit.axllent.com/docs/api-v1/view.html#post-/api/v1/send
+infra/api/src/services/email.rs:577:        let url = format!("{}/api/v1/send", self.api_url.trim_end_matches('/'));
+infra/api/src/repos/pg_subscription_repo.rs:46:                    "subscription already exists for this customer or stripe subscription id"
+infra/api/src/provisioner/hetzner.rs:177:    /// POSTs to `/v1/servers` with bearer auth and returns the created `HetznerServer`.
+infra/api/src/provisioner/hetzner.rs:184:            .post(format!("{}/v1/servers", self.base_url))
+infra/api/src/provisioner/hetzner.rs:204:    /// DELETEs `/v1/servers/{id}` with bearer auth.
+infra/api/src/provisioner/hetzner.rs:208:            .delete(format!("{}/v1/servers/{}", self.base_url, id))
+infra/api/src/provisioner/hetzner.rs:222:    /// POSTs to `/v1/servers/{id}/actions/shutdown` with bearer auth.
+infra/api/src/provisioner/hetzner.rs:227:                "{}/v1/servers/{}/actions/shutdown",
+infra/api/src/provisioner/hetzner.rs:243:    /// POSTs to `/v1/servers/{id}/actions/poweron` with bearer auth.
+infra/api/src/provisioner/hetzner.rs:248:                "{}/v1/servers/{}/actions/poweron",
+infra/api/src/provisioner/hetzner.rs:264:    /// GETs `/v1/servers/{id}` with bearer auth. Returns `VmNotFound` on 404.
+infra/api/src/provisioner/hetzner.rs:268:            .get(format!("{}/v1/servers/{}", self.base_url, id))
+infra/api/src/startup.rs:8:use unconfigured_stripe::UnconfiguredStripeService;
+infra/api/src/startup.rs:31:use crate::stripe::live::LiveStripeService;
+infra/api/src/startup.rs:73:pub fn init_stripe_service(cfg: &Config) -> Arc<dyn crate::stripe::StripeService> {
+infra/api/src/startup.rs:90:                    crate::stripe::local::LocalStripeService::new(webhook_secret, webhook_url);
+scripts/tests/lib/staging_billing_rehearsal_harness.sh:271:    */api/v1/search*)
+scripts/tests/lib/staging_billing_rehearsal_harness.sh:298:    */api/v1/message/*)
+scripts/tests/lib/staging_billing_rehearsal_harness.sh:304:        msg_id="${url##*/api/v1/message/}"
+infra/api/src/state.rs:39:use crate::stripe::StripeService;
+infra/api/src/main.rs:25:use api::stripe::StripeService;
+infra/api/src/startup/unconfigured_stripe.rs:9:use crate::stripe::StripeError;
+infra/api/src/startup/unconfigured_stripe.rs:15:impl crate::stripe::StripeService for UnconfiguredStripeService {
+infra/api/src/startup/unconfigured_stripe.rs:25:        _: &crate::stripe::CreatePortalSessionRequest,
+infra/api/src/startup/unconfigured_stripe.rs:26:    ) -> Result<crate::stripe::PortalSessionResponse, StripeError> {
+infra/api/src/startup/unconfigured_stripe.rs:32:    ) -> Result<Vec<crate::stripe::PaymentMethodSummary>, StripeError> {
+infra/api/src/startup/unconfigured_stripe.rs:44:        _: &[crate::stripe::StripeInvoiceLineItem],
+infra/api/src/startup/unconfigured_stripe.rs:47:    ) -> Result<crate::stripe::FinalizedInvoice, StripeError> {
+infra/api/src/startup/unconfigured_stripe.rs:55:    ) -> Result<crate::stripe::StripeEvent, StripeError> {
+infra/api/src/startup/unconfigured_stripe.rs:65:    ) -> Result<crate::stripe::CheckoutSessionResponse, StripeError> {
+infra/api/src/startup/unconfigured_stripe.rs:71:    ) -> Result<crate::stripe::SubscriptionData, StripeError> {
+infra/api/src/startup/unconfigured_stripe.rs:78:    ) -> Result<crate::stripe::SubscriptionData, StripeError> {
+infra/api/src/startup/unconfigured_stripe.rs:86:    ) -> Result<crate::stripe::SubscriptionData, StripeError> {
+infra/api/src/errors.rs:12:use crate::stripe::StripeError;
+scripts/tests/lib/seed_local_mocks.sh:454:            printf '{"error":"stripe sync failed"}\n500'
+scripts/tests/lib/seed_local_mocks.sh:459:            printf '{"message":"stripe customer created and linked","stripe_customer_id":"cus_mock_%s"}\n200' "$sync_customer"
+infra/api/src/routes/admin/tenants.rs:384:        .map_err(|e| ApiError::Internal(format!("stripe error: {e}")))?;
+infra/api/src/routes/admin/tenants.rs:408:        "message": "stripe customer created and linked",
+infra/api/src/routes/admin/invoices.rs:106:        .ok_or_else(|| ApiError::BadRequest("customer has no stripe account linked".into()))?;
+infra/api/src/routes/admin/invoices.rs:282:                    "batch billing: stripe finalization failed for customer {}: {:?}",
+infra/api/src/routes/billing.rs:54:        .ok_or_else(|| ApiError::BadRequest("no stripe customer linked".into()))
+infra/api/src/routes/billing.rs:136:            &crate::stripe::CreatePortalSessionRequest {
+infra/api/src/routes/billing.rs:359:        ApiError::BadRequest(format!("no stripe price configured for plan: {}", tier))
+infra/api/src/routes/billing.rs:532:    data: crate::stripe::SubscriptionData,
+infra/api/src/routes/webhooks.rs:387:                "subscription event skipped: no customer for stripe customer id {}",
+infra/api/src/routes/webhooks.rs:394:                "failed to resolve customer from stripe customer id {}: {err}",
+infra/api/src/routes/webhooks.rs:518:    data: &crate::stripe::SubscriptionData,

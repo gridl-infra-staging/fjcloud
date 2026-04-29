@@ -322,11 +322,46 @@ Acceptance criterion for simulator probes is a non-empty `MessageId` in the JSON
 
 Important boundary: simulator probes verify send-dispatch only. They do not verify handler-side-effect processing in fjcloud. See `docs/research/ses_bounce_complaint_gap.md` for the explicit open gap.
 
+### Bounce/Complaint Handling Gap (Follow-on Owner Contract)
+
+`bounce_complaint_handling=unproven`
+
+This runbook remains the operator-facing contract for the gap. Keep deep rationale in `docs/research/ses_bounce_complaint_gap.md` and avoid duplicating a second analysis owner here.
+
+Canonical staging proof owner for this boundary:
+
+- `scripts/probe_ses_bounce_complaint_e2e.sh`
+
+Probe contract:
+
+- Required inputs: `bounce|complaint` mode plus one explicit staging env-file path.
+- Env-file must provide `API_URL`, `ADMIN_KEY`, `DATABASE_URL` or `INTEGRATION_DB_URL`, `SES_FROM_ADDRESS`, and `SES_REGION`.
+- Subject convention: the script owns the stable prefix `fjcloud-ses-bounce-complaint-probe` and appends a per-run suffix.
+- Timeout contract: bounded SNS side-effect polling with `SES_PROBE_POLL_MAX_ATTEMPTS` (default `30`) and `SES_PROBE_POLL_SLEEP_SEC` (default `2`).
+- Proof sequence:
+  - First live send via `scripts/customer_broadcast.sh --live-send`.
+  - Poll for webhook side effects and assert one suppression row (`email_suppression`) plus one correlated audit action in `audit_log`.
+  - Second live send via `scripts/customer_broadcast.sh --live-send` and assert `/admin/broadcast` still returns `mode="live_send"` with non-zero `suppressed_count`.
+  - Assert row-level suppression evidence in `email_log` for the second subject (`delivery_status='suppressed'`) at the dedicated simulator recipient.
+
+Targeted validation commands:
+
+```bash
+bash scripts/tests/probe_ses_bounce_complaint_e2e_smoke.sh
+bash scripts/tests/customer_broadcast_smoke.sh
+cd infra && cargo test -p api --test admin_broadcast_test -- --ignored live_broadcast_suppressed_recipient_logs_suppressed_and_keeps_failure_count_for_real_failures
+cd infra && cargo test -p api --test ses_bounce_complaint_handler_test -- --ignored
+```
+
+Status rule: do not promote this boundary based only on simulator dispatch checks; keep `bounce_complaint_handling=unproven` until staging evidence proves the full app path end-to-end.
+
 ### Evidence Interpretation
 
 Use `docs/runbooks/evidence/ses-deliverability/` as the evidence tree for inbound probe outcomes.
 
-Current baseline: `docs/runbooks/evidence/ses-deliverability/20260427_stage5_live_probe/`.
+Current baseline: `docs/runbooks/evidence/ses-deliverability/20260428T195818Z_deliverability_canary/` (captured via `source scripts/lib/env.sh && load_env_file .secret/.env.secret && bash scripts/canary/support_email_deliverability.sh` twice).
+Baseline proof artifacts: `docs/runbooks/evidence/ses-deliverability/20260428T195818Z_deliverability_canary/run_1.json`, `run_2.json`, and `gate_summary.json`.
+Stage 3 live roundtrip proof artifact remains: `docs/runbooks/evidence/ses-deliverability/20260428T194527Z_stage3_live_probe/roundtrip.json`.
 
 Interpretation contract:
 

@@ -1,0 +1,168 @@
+
+* main CI · 25098729424
+Triggered via push about 20 minutes ago
+
+JOBS
+* rust-test (ID 73604370551)
+X web-lint in 57s (ID 73604370588)
+  ✓ Set up job
+  ✓ Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+  ✓ Set up Node.js
+  ✓ Install dependencies
+  ✓ Run svelte-check
+  ✓ Run eslint
+  X Run browser-unmocked lint
+  - Run screen spec coverage contract
+  - Post Set up Node.js
+  ✓ Post Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+  ✓ Complete job
+✓ rust-lint in 5m18s (ID 73604370591)
+X migration-test in 2m16s (ID 73604370627)
+  ✓ Set up job
+  ✓ Initialize containers
+  ✓ Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+  ✓ Install Rust
+  ✓ Install sqlx-cli
+  X Run migration test
+  ✓ Post Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+  ✓ Stop containers
+  ✓ Complete job
+X secret-scan in 1m23s (ID 73604370631)
+  ✓ Set up job
+  ✓ Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+  - Run gitleaks (PR diff)
+  ✓ Install gitleaks CLI (main full history)
+  X Run gitleaks (main full history)
+  ✓ Post Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+  ✓ Complete job
+X check-sizes in 6s (ID 73604370656)
+  ✓ Set up job
+  ✓ Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+  X Check source file size limits
+  ✓ Post Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+  ✓ Complete job
+X playwright in 2m32s (ID 73604370715)
+  ✓ Set up job
+  ✓ Initialize containers
+  ✓ Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+  ✓ Set up Node.js
+  ✓ Install dependencies
+  ✓ Install Rust
+  ✓ Install sqlx-cli
+  X Run migrations
+  - Start API server
+  - Start web server
+  - Wait for API and web readiness
+  - Install Playwright browsers
+  - Run Playwright tests
+  ✓ Upload Playwright artifacts
+  ✓ Stop API and web servers
+  - Post Set up Node.js
+  ✓ Post Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+  ✓ Stop containers
+  ✓ Complete job
+✓ web-test in 3m13s (ID 73604370754)
+
+ANNOTATIONS
+! Node.js 20 actions are deprecated. The following actions are running on Node.js 20 and may not work as expected: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5. Actions will be forced to run with Node.js 24 by default starting June 2nd, 2026. Node.js 20 will be removed from the runner on September 16th, 2026. Please check if updated versions of these actions are available that support Node.js 24. To opt into Node.js 24 now, set the FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true environment variable on the runner or in your workflow file. Once Node.js 24 becomes the default, you can temporarily opt out by setting ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION=true. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+web-lint: .github#2
+
+X Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators
+web-lint: web/tests/e2e-ui/full/signup_to_paid_invoice.spec.ts#59
+
+X Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators
+web-lint: web/tests/e2e-ui/full/signup_to_paid_invoice.spec.ts#55
+
+X Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators
+web-lint: web/tests/e2e-ui/full/signup_to_paid_invoice.spec.ts#51
+
+X 'waitForEvent' must be awaited or returned
+web-lint: web/tests/e2e-ui/full/billing_portal_cancel.spec.ts#45
+
+X Attribute selectors are banned. Use getByLabel, getByRole, or add an accessible label / data-testid to the element                  
+web-lint: web/tests/e2e-ui/full/admin/admin-pages.spec.ts#321
+
+X Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators                                
+web-lint: web/tests/e2e-ui/full/admin/admin-pages.spec.ts#321
+
+X Attribute selectors are banned. Use getByLabel, getByRole, or add an accessible label / data-testid to the element                  
+web-lint: web/tests/e2e-ui/full/admin/admin-pages.spec.ts#318
+
+X Usage of raw locator detected. Use methods like .getByRole() or .getByText() instead of raw locators                                
+web-lint: web/tests/e2e-ui/full/admin/admin-pages.spec.ts#318
+
+X waitForTimeout() is banned. Use Playwright auto-waiting or assertion timeouts: await expect(locator).toBeVisible({ timeout: 10000 })
+web-lint: web/tests/e2e-ui/full/admin/admin-pages.spec.ts#252
+
+X Unexpected use of page.waitForTimeout()                                                                                             
+web-lint: web/tests/e2e-ui/full/admin/admin-pages.spec.ts#252
+
+! Avoid calling `expect` conditionally                                                                                                
+web-lint: web/tests/e2e-ui/full/admin/admin-pages.spec.ts#124
+
+! Avoid calling `expect` conditionally                                                                                                
+web-lint: web/tests/e2e-ui/full/admin/admin-pages.spec.ts#122
+
+! Avoid calling `expect` conditionally                                                                                                
+web-lint: web/tests/e2e-ui/full/admin/admin-pages.spec.ts#121
+
+! Avoid calling `expect` conditionally                                                                                                
+web-lint: web/tests/e2e-ui/full/admin/admin-pages.spec.ts#120
+
+! Avoid having conditionals in tests                                                                                                  
+web-lint: web/tests/e2e-ui/full/admin/admin-pages.spec.ts#118
+
+! Avoid calling `expect` conditionally                                                                                                
+web-lint: web/tests/e2e-ui/full/admin/admin-pages.spec.ts#115
+
+! Avoid calling `expect` conditionally                                                                                                
+web-lint: web/tests/e2e-ui/full/admin/admin-pages.spec.ts#113
+
+! Avoid calling `expect` conditionally                                                                                                
+web-lint: web/tests/e2e-ui/full/admin/admin-pages.spec.ts#112
+
+! Avoid calling `expect` conditionally                                                                                                
+web-lint: web/tests/e2e-ui/full/admin/admin-pages.spec.ts#111
+
+! Avoid having conditionals in tests                                                                                                  
+web-lint: web/tests/e2e-ui/full/admin/admin-pages.spec.ts#109
+
+! Node.js 20 actions are deprecated. The following actions are running on Node.js 20 and may not work as expected: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5, Swatinem/rust-cache@ad397744b0d591a723ab90405b7247fac0e6b8db. Actions will be forced to run with Node.js 24 by default starting June 2nd, 2026. Node.js 20 will be removed from the runner on September 16th, 2026. Please check if updated versions of these actions are available that support Node.js 24. To opt into Node.js 24 now, set the FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true environment variable on the runner or in your workflow file. Once Node.js 24 becomes the default, you can temporarily opt out by setting ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION=true. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+rust-lint: .github#2
+
+! Node.js 20 actions are deprecated. The following actions are running on Node.js 20 and may not work as expected: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5. Actions will be forced to run with Node.js 24 by default starting June 2nd, 2026. Node.js 20 will be removed from the runner on September 16th, 2026. Please check if updated versions of these actions are available that support Node.js 24. To opt into Node.js 24 now, set the FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true environment variable on the runner or in your workflow file. Once Node.js 24 becomes the default, you can temporarily opt out by setting ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION=true. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+migration-test: .github#2
+
+X Process completed with exit code 1.
+migration-test: .github#52
+
+! Node.js 20 actions are deprecated. The following actions are running on Node.js 20 and may not work as expected: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5. Actions will be forced to run with Node.js 24 by default starting June 2nd, 2026. Node.js 20 will be removed from the runner on September 16th, 2026. Please check if updated versions of these actions are available that support Node.js 24. To opt into Node.js 24 now, set the FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true environment variable on the runner or in your workflow file. Once Node.js 24 becomes the default, you can temporarily opt out by setting ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION=true. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+secret-scan: .github#2
+
+X Process completed with exit code 2.
+secret-scan: .github#1734
+
+! Node.js 20 actions are deprecated. The following actions are running on Node.js 20 and may not work as expected: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5. Actions will be forced to run with Node.js 24 by default starting June 2nd, 2026. Node.js 20 will be removed from the runner on September 16th, 2026. Please check if updated versions of these actions are available that support Node.js 24. To opt into Node.js 24 now, set the FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true environment variable on the runner or in your workflow file. Once Node.js 24 becomes the default, you can temporarily opt out by setting ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION=true. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+check-sizes: .github#2
+
+X Process completed with exit code 1.
+check-sizes: .github#6
+
+! Node.js 20 actions are deprecated. The following actions are running on Node.js 20 and may not work as expected: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5, actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808. Actions will be forced to run with Node.js 24 by default starting June 2nd, 2026. Node.js 20 will be removed from the runner on September 16th, 2026. Please check if updated versions of these actions are available that support Node.js 24. To opt into Node.js 24 now, set the FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true environment variable on the runner or in your workflow file. Once Node.js 24 becomes the default, you can temporarily opt out by setting ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION=true. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+playwright: .github#2
+
+! No files were found with the provided path: web/playwright-report
+web/test-results
+/tmp/fjcloud-api.log
+/tmp/fjcloud-web.log. No artifacts will be uploaded.
+playwright: .github#29
+
+X Process completed with exit code 1.
+playwright: .github#61
+
+! Node.js 20 actions are deprecated. The following actions are running on Node.js 20 and may not work as expected: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5. Actions will be forced to run with Node.js 24 by default starting June 2nd, 2026. Node.js 20 will be removed from the runner on September 16th, 2026. Please check if updated versions of these actions are available that support Node.js 24. To opt into Node.js 24 now, set the FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true environment variable on the runner or in your workflow file. Once Node.js 24 becomes the default, you can temporarily opt out by setting ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION=true. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+web-test: .github#2
+
+
+For more information about a job, try: gh run view --job=<job-id>
+View this run on GitHub: https://github.com/gridl-infra-dev/fjcloud_dev/actions/runs/25098729424

@@ -1,0 +1,26 @@
+{
+    "RoleName": "fjcloud-deploy",
+    "PolicyName": "fjcloud-deploy-ssm",
+    "PolicyDocument": {
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Action": [
+                    "ssm:GetParameter",
+                    "ssm:PutParameter",
+                    "ssm:DeleteParameter"
+                ],
+                "Effect": "Allow",
+                "Resource": "arn:aws:ssm:*:*:parameter/fjcloud/*"
+            },
+            {
+                "Action": [
+                    "ssm:SendCommand",
+                    "ssm:GetCommandInvocation"
+                ],
+                "Effect": "Allow",
+                "Resource": "*"
+            }
+        ]
+    }
+}

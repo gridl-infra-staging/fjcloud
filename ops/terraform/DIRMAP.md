@@ -34,8 +34,7 @@ the key commands, sections, and procedures documented in the checklist. |
 | tests_stage5_static.sh | Static validation tests for Stage 5: Deploy & Migration Scripts
 TDD: these tests define the contract; scripts must satisfy them.
 Run from the repo root: bash ops/terraform/tests_stage5_static.sh. |
-| tests_stage6_static.sh | Static validation tests for Stage 6: CI/CD Pipeline
-TDD: these tests define the contract; workflow must satisfy them. |
+| tests_stage6_static.sh | Stub summary for tests_stage6_static.sh. |
 | tests_stage7_preflight_static.sh | Static contract tests for preflight checks in tests_stage7_runtime_smoke.sh.
 Ensures all required preflight validations are wired and cannot be silently removed.
 
@@ -55,8 +54,7 @@ and cannot be silently removed. |
 | tests_stage7_runtime_unit.sh | Behavioral tests for runtime smoke assertions in tests_stage7_runtime_smoke.sh.
 Exercises ACM, ALB, target-group, health, deploy, migrate, and rollback paths
 via mock AWS/curl/terraform/bash commands — no live infrastructure required. |
-| tests_stage7_secrets_static.sh | Static validation tests for Stage 7 secret hygiene.
-TDD contract for audit_no_secrets.sh behavior. |
+| tests_stage7_secrets_static.sh | Stub summary for tests_stage7_secrets_static.sh. |
 | tests_stage7_static.sh | Static validation tests for Stage 7: Monitoring & Final Validation
 TDD: these tests define the contract; Terraform code must satisfy them. |
 | tests_stage8_static.sh | Static validation tests for Stage 8: spend + cleanup guardrail ownership.

@@ -1,0 +1,17 @@
+# Stage 3 supplemental live destination probe
+
+utc_recorded=2026-04-29T17:10:28Z
+instance_id=<redacted-instance-id>
+ssm_command_id=<redacted-command-id>
+ssm_status=Success
+ssm_response_code=0
+command=set -a; source /etc/fjcloud/env; set +a; bash scripts/probe_alert_delivery.sh --live (executed from temporary host workspace with owner script content)
+
+stdout:
+- probe_exit|0
+- [OK]   discord: HTTP 200 (readback nonce confirmed)
+- ==> probe summary: nonce=probe-20260429T171023Z-17268 slack=skipped discord=ok env=staging
+- ==> discord delivery proof: automated nonce readback confirmed
+
+stderr:
+- <empty>

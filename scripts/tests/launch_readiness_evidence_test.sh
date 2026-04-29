@@ -15,10 +15,20 @@ ROADMAP_DOC="$REPO_ROOT/ROADMAP.md"
 PRIORITIES_DOC="$REPO_ROOT/PRIORITIES.md"
 GAPS_AND_RISKS_DOC="$REPO_ROOT/docs/checklists/apr21_pm_2_post_phase6_gaps_and_risks.md"
 STAGING_EVIDENCE_DOC="$REPO_ROOT/docs/runbooks/staging-evidence.md"
+PAID_LIFECYCLE_BUNDLE_DIR="$REPO_ROOT/docs/runbooks/evidence/staging-billing-rehearsal/20260428T055058Z_paid_lifecycle_clean"
+PAID_LIFECYCLE_SUMMARY_DOC="$PAID_LIFECYCLE_BUNDLE_DIR/SUMMARY.md"
+PAID_LIFECYCLE_CROSS_CHECK_RESULT_DOC="$PAID_LIFECYCLE_BUNDLE_DIR/cross_check_result.json"
+PAID_LIFECYCLE_CROSS_CHECK_COMPUTATION_DOC="$PAID_LIFECYCLE_BUNDLE_DIR/cross_check_computation.md"
+IMPLEMENTED_ROADMAP_DOC="$REPO_ROOT/roadmap/implemented.md"
+RUNBOOK_SES_DOC="$REPO_ROOT/docs/runbooks/email-production.md"
+SES_BOUNCE_COMPLAINT_GAP_DOC="$REPO_ROOT/docs/research/ses_bounce_complaint_gap.md"
 SES_DELIVERABILITY_BOUNDARY_PROOF_ARTIFACT="$REPO_ROOT/docs/runbooks/evidence/ses-deliverability/20260423T202158Z_ses_boundary_proof_full.txt"
 SES_BOUNDARY_PROOF_RECONCILIATION="$REPO_ROOT/docs/runbooks/evidence/ses-deliverability/20260424_boundary_proof/reconciliation_summary.md"
+SES_STAGE3_LIVE_PROBE_DIR="$REPO_ROOT/docs/runbooks/evidence/ses-deliverability/20260428T194527Z_stage3_live_probe"
+SES_STAGE4_CANARY_DIR="$REPO_ROOT/docs/runbooks/evidence/ses-deliverability/20260428T195818Z_deliverability_canary"
 BETA_CHECKLIST_DOC="$REPO_ROOT/docs/runbooks/beta_launch_readiness.md"
 STAGE1_OWNER_MAP_CHECKLIST="/Users/stuart/.matt/projects/fjcloud_dev-c1b01a59/apr24_1pm_t1_4_beta_launch_readiness_doc.md-1ea79f64/checklists/stage_01_checklist.md"
+ALERT_DELIVERY_CURRENT_BUNDLE_FILE="$REPO_ROOT/docs/runbooks/evidence/alert-delivery/.current_bundle"
 
 # shellcheck source=lib/test_runner.sh
 source "$SCRIPT_DIR/lib/test_runner.sh"
@@ -69,6 +79,125 @@ owner_resolves_to_stage1_class() {
     done <<< "$owner_paths"
 
     return 0
+}
+
+assert_file_exists() {
+    local path="$1" msg="$2"
+    if [ -f "$path" ]; then
+        pass "$msg"
+    else
+        fail "$msg (missing file: $path)"
+    fi
+}
+
+assert_stage3_roundtrip_contract() {
+    local json_path="$1" msg="$2"
+    if python3 - "$json_path" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], "r", encoding="utf-8") as handle:
+    payload = json.load(handle)
+
+if payload.get("passed") is not True:
+    raise SystemExit(1)
+
+steps = payload.get("steps")
+if not isinstance(steps, list):
+    raise SystemExit(1)
+
+expected_names = ["send_probe", "poll_inbox_s3", "fetch_rfc822", "auth_verdict"]
+actual_names = [step.get("name") for step in steps]
+if actual_names != expected_names:
+    raise SystemExit(1)
+
+for step in steps:
+    if step.get("passed") is not True:
+        raise SystemExit(1)
+
+auth_detail = steps[-1].get("detail", "")
+for verdict in ("dkim=pass", "spf=pass", "dmarc=pass"):
+    if verdict not in auth_detail:
+        raise SystemExit(1)
+PY
+    then
+        pass "$msg"
+    else
+        fail "$msg (unexpected Stage 3 roundtrip contract)"
+    fi
+}
+
+assert_stage4_canary_run_contract() {
+    local json_path="$1" expected_probe_marker="$2"
+    if python3 - "$json_path" "$expected_probe_marker" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], "r", encoding="utf-8") as handle:
+    payload = json.load(handle)
+
+if payload.get("passed") is not True:
+    raise SystemExit(1)
+
+steps = payload.get("steps")
+if not isinstance(steps, list):
+    raise SystemExit(1)
+
+expected_names = ["send_probe", "poll_inbox_s3", "fetch_rfc822", "auth_verdict"]
+actual_names = [step.get("name") for step in steps]
+if actual_names != expected_names:
+    raise SystemExit(1)
+
+for step in steps:
+    if step.get("passed") is not True:
+        raise SystemExit(1)
+
+if sys.argv[2] not in steps[0].get("detail", ""):
+    raise SystemExit(1)
+if "dkim=pass" not in steps[-1].get("detail", ""):
+    raise SystemExit(1)
+if "spf=pass" not in steps[-1].get("detail", ""):
+    raise SystemExit(1)
+if "dmarc=pass" not in steps[-1].get("detail", ""):
+    raise SystemExit(1)
+PY
+    then
+        pass "canary run artifact $(basename "$json_path") preserves live probe contract"
+    else
+        fail "canary run artifact $(basename "$json_path") should preserve live probe contract"
+    fi
+}
+
+assert_stage4_gate_summary_contract() {
+    local json_path="$1" msg="$2"
+    if python3 - "$json_path" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], "r", encoding="utf-8") as handle:
+    payload = json.load(handle)
+
+runs = payload.get("runs")
+if not isinstance(runs, list) or len(runs) != 2:
+    raise SystemExit(1)
+
+for expected_run, run_payload in enumerate(runs, start=1):
+    if run_payload.get("run") != expected_run:
+        raise SystemExit(1)
+    for field in ("json_found", "passed_true", "auth_verdict_passed", "run_gate_passed"):
+        if run_payload.get(field) is not True:
+            raise SystemExit(1)
+    if run_payload.get("exit_code") != 0:
+        raise SystemExit(1)
+
+if payload.get("all_runs_gate_passed") is not True:
+    raise SystemExit(1)
+PY
+    then
+        pass "$msg"
+    else
+        fail "$msg (unexpected Stage 4 gate summary contract)"
+    fi
 }
 
 test_evidence_bundle_exists_with_repo_safe_filename() {
@@ -127,10 +256,29 @@ test_evidence_bundle_covers_required_sections() {
 }
 
 test_evidence_bundle_has_no_secret_like_values() {
+    local current_alert_bundle current_alert_bundle_dir docs_to_scan
+    current_alert_bundle="$(cat "$ALERT_DELIVERY_CURRENT_BUNDLE_FILE")"
+    current_alert_bundle_dir="$REPO_ROOT/$current_alert_bundle"
+
     if grep -Eq "AKIA|sk_live|sk_test|whsec_|CLOUDFLARE.*=" "$EVIDENCE_FILE"; then
         fail "evidence bundle should not contain secret-looking values"
     else
         pass "evidence bundle avoids secret-looking values"
+    fi
+
+    docs_to_scan="$(
+        cat "$ROADMAP_DOC" "$STAGING_EVIDENCE_DOC" "$IMPLEMENTED_ROADMAP_DOC" \
+            "$current_alert_bundle_dir/01_instance_and_sha.txt" \
+            "$current_alert_bundle_dir/02_live_state_ssm_invocation.json" \
+            "$current_alert_bundle_dir/04_live_state_stderr.txt" \
+            "$current_alert_bundle_dir/05_startup_mode_retry_invocation.json" \
+            "$current_alert_bundle_dir/10_invoice_candidate.txt" \
+            "$current_alert_bundle_dir/15_stage3_verdict.txt"
+    )"
+    if printf '%s' "$docs_to_scan" | grep -Eq '"UserId":[[:space:]]*"AIDA|arn:aws:iam::[0-9]{12}:user/|"Account":[[:space:]]*"[0-9]{12}"|account[[:space:]]+[0-9]{12}|identity:[[:space:]]*`[^`]+`, account[[:space:]]*`[0-9]{12}`|arn:aws:lambda:[^:]+:[0-9]{12}:function:|i-[0-9a-f]{17}|command_id=[0-9a-f-]{36}|ssm_command_id=[0-9a-f-]{36}|"CommandId":[[:space:]]*"[0-9a-f-]{36}"|"InstanceId":[[:space:]]*"i-[0-9a-f]{17}"|--command-id[[:space:]][0-9a-f-]{36}|--instance-ids[[:space:]]i-[0-9a-f]{17}|/var/lib/amazon/ssm/i-[0-9a-f]{17}/'; then
+        fail "status docs and current alert bundle should redact operator identity and direct infra identifiers"
+    else
+        pass "status docs and current alert bundle redact operator identity and direct infra identifiers"
     fi
 }
 
@@ -166,6 +314,8 @@ test_status_docs_reference_stage123_canonical_artifacts() {
         "status docs should reference the canonical Stage 4 wrapper run directory path"
     assert_contains "$status_docs_content" "docs/runbooks/evidence/ses-deliverability/20260424_boundary_proof/first_send_retrieval_status.md" \
         "status docs should reference the Stage 3 first_send_retrieval_status companion artifact path"
+    assert_contains "$status_docs_content" "docs/runbooks/evidence/ses-deliverability/20260428T194527Z_stage3_live_probe/roundtrip.json" \
+        "status docs should reference the latest Stage 3 live inbox roundtrip.json proof path"
     if [[ "$status_docs_content" == *"bounce_blocker.txt"* ]] || [[ "$status_docs_content" == *"bounce_event.json"* ]]; then
         pass "status docs reference a Stage 4 bounce companion artifact path"
     else
@@ -238,6 +388,10 @@ test_status_docs_preserve_stage123_residual_boundaries() {
         "status docs should reference alarm triage runbook"
     assert_contains "$status_docs_content" "docs/runbooks/launch-backend.md" \
         "status docs should reference launch backend triage runbook"
+    assert_contains "$staging_evidence_content" "bash scripts/launch/capture_stage_d_evidence.sh" \
+        "staging evidence should keep the wrapper as the Stage D operator entry point"
+    assert_contains "$staging_evidence_content" 'Do not `eval "$(bash scripts/launch/hydrate_seeder_env_from_ssm.sh staging)"`' \
+        "staging evidence should explicitly forbid eval of hydrate_seeder_env_from_ssm output"
     assert_contains "$status_docs_content" "/aws/rds/instance/fjcloud-<env>/postgresql" \
         "status docs should reference the RDS PostgreSQL CloudWatch log group"
     assert_contains "$status_docs_content" "journalctl" \
@@ -254,11 +408,36 @@ test_status_docs_preserve_stage123_residual_boundaries() {
         "status docs should not preserve proof complete SES boundary phrasing"
     assert_not_contains "$status_docs_content" "boundary proof is captured" \
         "status docs should not preserve boundary-proof-captured SES phrasing"
+    assert_not_contains "$staging_evidence_content" $'set -a; source .secret/.env.secret; set +a\n  eval "$(bash scripts/launch/hydrate_seeder_env_from_ssm.sh staging)"\n  bash scripts/launch/capture_stage_d_evidence.sh' \
+        "staging evidence should not keep the old operator snippet that evals helper-generated exports"
 
     assert_not_contains "$risk_content" "API application logs are centralized in CloudWatch" \
         "risk doc should not claim centralized API application logs in CloudWatch"
     assert_not_contains "$risk_content" "CloudWatch is the source of truth for API application logs" \
         "risk doc should not claim CloudWatch as API application log source of truth"
+}
+
+test_status_docs_track_bounce_complaint_follow_on_owner_breadcrumb() {
+    local roadmap_content runbook_content research_content status_docs_content
+    roadmap_content="$(cat "$ROADMAP_DOC")"
+    runbook_content="$(cat "$RUNBOOK_SES_DOC")"
+    research_content="$(cat "$SES_BOUNCE_COMPLAINT_GAP_DOC")"
+    status_docs_content="$(printf '%s\n%s\n%s\n' "$roadmap_content" "$runbook_content" "$research_content")"
+
+    assert_contains "$roadmap_content" "docs/runbooks/email-production.md" \
+        "roadmap SES breadcrumb should point operators to the email-production runbook owner"
+    assert_contains "$roadmap_content" "docs/research/ses_bounce_complaint_gap.md" \
+        "roadmap SES breadcrumb should point operators to the SES bounce/complaint gap rationale owner"
+    assert_contains "$roadmap_content" "infra/api/src/services/email.rs::SesEmailService::send_html_email" \
+        "roadmap SES breadcrumb should track the outbound configuration-set attachment seam owner"
+    assert_contains "$roadmap_content" "ops/terraform/dns/main.tf" \
+        "roadmap SES breadcrumb should track DNS Terraform SES event wiring owner"
+    assert_contains "$roadmap_content" "ops/terraform/monitoring/" \
+        "roadmap SES breadcrumb should track monitoring Terraform SES event-destination wiring owner"
+    assert_contains "$roadmap_content" "infra/api/src/routes/webhooks.rs" \
+        "roadmap SES breadcrumb should track the existing API ingress seam candidate"
+    assert_contains "$status_docs_content" "bounce_complaint_handling=unproven" \
+        "status docs should continue to preserve explicit bounce/complaint unproven status language"
 }
 
 test_saved_ses_boundary_artifact_requires_real_suppression_snapshot() {
@@ -514,6 +693,63 @@ test_beta_checklist_items_require_ordered_owner_acceptance_status_and_stage1_own
     fi
 }
 
+test_stage34_deliverability_evidence_artifacts_preserve_documented_contract() {
+    local stage3_command_path stage3_exit_path stage3_roundtrip_path stage3_stderr_path
+    local stage4_command_env_path stage4_gate_summary_path stage4_run1_exit_path stage4_run2_exit_path
+    local stage4_run1_json_path stage4_run2_json_path
+    local stage3_command stage3_exit stage3_stderr stage4_command_env stage4_run1_exit stage4_run2_exit
+
+    stage3_command_path="$SES_STAGE3_LIVE_PROBE_DIR/command.txt"
+    stage3_exit_path="$SES_STAGE3_LIVE_PROBE_DIR/exit_status.txt"
+    stage3_roundtrip_path="$SES_STAGE3_LIVE_PROBE_DIR/roundtrip.json"
+    stage3_stderr_path="$SES_STAGE3_LIVE_PROBE_DIR/roundtrip.stderr"
+
+    stage4_command_env_path="$SES_STAGE4_CANARY_DIR/command_and_env.txt"
+    stage4_gate_summary_path="$SES_STAGE4_CANARY_DIR/gate_summary.json"
+    stage4_run1_exit_path="$SES_STAGE4_CANARY_DIR/run_1.exit"
+    stage4_run2_exit_path="$SES_STAGE4_CANARY_DIR/run_2.exit"
+    stage4_run1_json_path="$SES_STAGE4_CANARY_DIR/run_1.json"
+    stage4_run2_json_path="$SES_STAGE4_CANARY_DIR/run_2.json"
+
+    assert_file_exists "$stage3_command_path" "Stage 3 live probe command evidence should exist"
+    assert_file_exists "$stage3_exit_path" "Stage 3 live probe exit-status evidence should exist"
+    assert_file_exists "$stage3_roundtrip_path" "Stage 3 live probe JSON evidence should exist"
+    assert_file_exists "$stage3_stderr_path" "Stage 3 live probe stderr evidence should exist"
+    assert_file_exists "$stage4_command_env_path" "Stage 4 canary command/env evidence should exist"
+    assert_file_exists "$stage4_gate_summary_path" "Stage 4 canary gate summary evidence should exist"
+    assert_file_exists "$stage4_run1_exit_path" "Stage 4 canary run_1 exit evidence should exist"
+    assert_file_exists "$stage4_run2_exit_path" "Stage 4 canary run_2 exit evidence should exist"
+    assert_file_exists "$stage4_run1_json_path" "Stage 4 canary run_1 JSON evidence should exist"
+    assert_file_exists "$stage4_run2_json_path" "Stage 4 canary run_2 JSON evidence should exist"
+
+    stage3_command="$(cat "$stage3_command_path")"
+    stage3_exit="$(tr -d '\n\r' < "$stage3_exit_path")"
+    stage3_stderr="$(cat "$stage3_stderr_path")"
+    stage4_command_env="$(cat "$stage4_command_env_path")"
+    stage4_run1_exit="$(tr -d '\n\r' < "$stage4_run1_exit_path")"
+    stage4_run2_exit="$(tr -d '\n\r' < "$stage4_run2_exit_path")"
+
+    assert_contains "$stage3_command" "source scripts/lib/env.sh && load_env_file .secret/.env.secret && bash scripts/validate_inbound_email_roundtrip.sh" \
+        "Stage 3 live probe command evidence should preserve the canonical credentialed roundtrip command"
+    assert_eq "$stage3_exit" "0" "Stage 3 live probe exit status should be zero"
+    assert_eq "$stage3_stderr" "" "Stage 3 live probe stderr should stay empty for the checked-in passing artifact"
+    assert_stage3_roundtrip_contract "$stage3_roundtrip_path" \
+        "Stage 3 live probe JSON should preserve the documented roundtrip verdict contract"
+
+    assert_contains "$stage4_command_env" "command: source scripts/lib/env.sh && load_env_file .secret/.env.secret && bash scripts/canary/support_email_deliverability.sh" \
+        "Stage 4 canary command evidence should preserve the canonical delegated canary command"
+    assert_contains "$stage4_command_env" "env_source: scripts/lib/env.sh + .secret/.env.secret" \
+        "Stage 4 canary command evidence should preserve the canonical env source"
+    assert_contains "$stage4_command_env" "captured_at_utc:" \
+        "Stage 4 canary command evidence should record capture time"
+    assert_eq "$stage4_run1_exit" "0" "Stage 4 canary run_1 exit status should be zero"
+    assert_eq "$stage4_run2_exit" "0" "Stage 4 canary run_2 exit status should be zero"
+    assert_stage4_gate_summary_contract "$stage4_gate_summary_path" \
+        "Stage 4 canary gate summary should require both consecutive runs to pass"
+    assert_stage4_canary_run_contract "$stage4_run1_json_path" "roundtrip-inbound-probe-"
+    assert_stage4_canary_run_contract "$stage4_run2_json_path" "roundtrip-inbound-probe-"
+}
+
 test_beta_checklist_citations_and_antipattern_guards() {
     local beta_content beta_content_lower
     if ! beta_content="$(load_beta_checklist_content)"; then
@@ -558,11 +794,26 @@ test_beta_checklist_citations_and_antipattern_guards() {
 }
 
 test_status_docs_align_to_preserved_stage3_rc_verdict() {
-    local roadmap_content priorities_content staging_evidence_content status_docs_content
+    local roadmap_content priorities_content staging_evidence_content implemented_content status_docs_content
+    local current_alert_bundle current_alert_bundle_dir stage3_verdict_path stage3_branch_path
     roadmap_content="$(cat "$ROADMAP_DOC")"
     priorities_content="$(cat "$REPO_ROOT/PRIORITIES.md")"
     staging_evidence_content="$(cat "$STAGING_EVIDENCE_DOC")"
-    status_docs_content="$(printf '%s\n%s\n%s\n' "$roadmap_content" "$priorities_content" "$staging_evidence_content")"
+    implemented_content="$(cat "$IMPLEMENTED_ROADMAP_DOC")"
+    status_docs_content="$(printf '%s\n%s\n%s\n%s\n' "$roadmap_content" "$priorities_content" "$staging_evidence_content" "$implemented_content")"
+    current_alert_bundle="$(cat "$ALERT_DELIVERY_CURRENT_BUNDLE_FILE")"
+    current_alert_bundle_dir="$REPO_ROOT/$current_alert_bundle"
+    stage3_verdict_path="$current_alert_bundle_dir/15_stage3_verdict.txt"
+    stage3_branch_path="$current_alert_bundle_dir/$(awk -F= '/^branch_executed=/{print $2; exit}' "$stage3_verdict_path")"
+
+    if [ -d "$current_alert_bundle_dir" ]; then
+        pass "current alert-delivery bundle pointer should resolve to an existing bundle directory"
+    else
+        fail "current alert-delivery bundle pointer should resolve to an existing bundle directory ($current_alert_bundle_dir)"
+    fi
+
+    assert_file_exists "$stage3_verdict_path" "resolved alert-delivery bundle should include the Stage 3 verdict artifact"
+    assert_file_exists "$stage3_branch_path" "resolved alert-delivery bundle should include the Stage 3 branch artifact named by branch_executed"
 
     assert_contains "$status_docs_content" "ready=false" \
         "status docs should reflect the preserved Stage 3 paid-beta RC ready=false result"
@@ -578,10 +829,65 @@ test_status_docs_align_to_preserved_stage3_rc_verdict() {
         "status docs should point to the staging runtime smoke owner command"
     assert_contains "$status_docs_content" "scripts/e2e-preflight.sh" \
         "status docs should point to the browser preflight owner command"
+    assert_contains "$staging_evidence_content" "docs/runbooks/evidence/alert-delivery/.current_bundle" \
+        "staging evidence should treat .current_bundle as the active alert-delivery evidence pointer"
+    assert_contains "$roadmap_content" "docs/runbooks/evidence/alert-delivery/.current_bundle" \
+        "roadmap should reuse .current_bundle as the active alert-delivery evidence pointer"
+    assert_contains "$status_docs_content" "$current_alert_bundle" \
+        "status docs should match the current alert-delivery bundle path resolved by .current_bundle"
+    assert_contains "$implemented_content" "docs/runbooks/evidence/alert-delivery/20260429T052555Z_deployed_staging" \
+        "implemented roadmap should preserve the resolved historical deployed-alert bundle path"
+    assert_contains "$status_docs_content" "result=precondition_gap" \
+        "status docs should preserve Stage 3 result=precondition_gap as the current deployed-alert outcome"
+    assert_contains "$status_docs_content" "status='finalized' AND stripe_invoice_id IS NOT NULL" \
+        "status docs should preserve the Stage 3 invoice predicate behind result=precondition_gap"
+    assert_contains "$status_docs_content" "08_stage2_readiness_gate.txt" \
+        "status docs should preserve Stage 2 readiness-gate pass evidence in the deployed-alert lane"
+    assert_contains "$status_docs_content" "alerts.delivery_status='sent'" \
+        "status docs should preserve the authoritative AlertService acceptance proof contract"
+    assert_contains "$status_docs_content" "Discord nonce readback" \
+        "status docs should preserve Discord nonce readback as supplemental destination confirmation"
     assert_not_contains "$status_docs_content" "final launch coordination is pending" \
         "status docs should not use stale launch-coordination-pending prose after Stage 3 preserved fail verdict"
     assert_not_contains "$status_docs_content" "remaining launch work is to seed staging with synthetic customer traffic" \
         "status docs should not collapse remaining launch work into synthetic-traffic-only wording"
+    assert_not_contains "$status_docs_content" "Stage 4 proof still missing" \
+        "status docs should not claim Stage 4 proof is missing after preserving the deployed-alert bundle"
+    assert_not_contains "$status_docs_content" "Stage 4 still owns live alert-delivery proof" \
+        "status docs should not use stale Stage 4 ownership wording after doc-closure rewiring"
+}
+
+test_paid_lifecycle_cross_check_pointers_stay_aligned() {
+    local summary_content roadmap_content staging_evidence_content status_docs_content expected_verdict
+    summary_content="$(cat "$PAID_LIFECYCLE_SUMMARY_DOC")"
+    roadmap_content="$(cat "$ROADMAP_DOC")"
+    staging_evidence_content="$(cat "$STAGING_EVIDENCE_DOC")"
+    status_docs_content="$(printf '%s\n%s\n%s\n' "$summary_content" "$roadmap_content" "$staging_evidence_content")"
+
+    assert_file_exists "$PAID_LIFECYCLE_CROSS_CHECK_RESULT_DOC" \
+        "paid-lifecycle bundle should include cross_check_result.json"
+    assert_file_exists "$PAID_LIFECYCLE_CROSS_CHECK_COMPUTATION_DOC" \
+        "paid-lifecycle bundle should include cross_check_computation.md"
+    assert_contains "$summary_content" "cross_check_result.json" \
+        "bundle summary should cite cross_check_result.json as verdict SSOT"
+    assert_contains "$summary_content" "cross_check_computation.md" \
+        "bundle summary should cite cross_check_computation.md as derived operator companion"
+
+    if [[ "$summary_content" == *"CROSS_CHECK_PASSED"* ]]; then
+        expected_verdict="CROSS_CHECK_PASSED"
+    else
+        expected_verdict="CROSS_CHECK_DEFERRED"
+    fi
+    assert_contains "$roadmap_content" "$expected_verdict" \
+        "roadmap Apr 28 cross-check references should mirror the bundle verdict token"
+    assert_contains "$staging_evidence_content" "$expected_verdict" \
+        "staging evidence Apr 28 paid-lifecycle paragraph should mirror the bundle verdict token"
+    assert_contains "$status_docs_content" "docs/runbooks/evidence/staging-billing-rehearsal/20260428T055058Z_paid_lifecycle_clean/" \
+        "paid-lifecycle status docs should keep the canonical bundle-of-record path"
+    assert_contains "$status_docs_content" "cross_check_result.json" \
+        "paid-lifecycle status docs should cite cross_check_result.json"
+    assert_contains "$status_docs_content" "cross_check_computation.md" \
+        "paid-lifecycle status docs should cite cross_check_computation.md"
 }
 
 echo "=== launch_readiness_evidence docs tests ==="
@@ -592,9 +898,12 @@ test_evidence_bundle_covers_required_sections
 test_evidence_bundle_has_no_secret_like_values
 test_status_docs_reference_stage123_canonical_artifacts
 test_status_docs_preserve_stage123_residual_boundaries
+test_status_docs_track_bounce_complaint_follow_on_owner_breadcrumb
 test_saved_ses_boundary_artifact_requires_real_suppression_snapshot
+test_stage34_deliverability_evidence_artifacts_preserve_documented_contract
 test_status_docs_track_stage1_boundary_proof_drift
 test_status_docs_align_to_preserved_stage3_rc_verdict
+test_paid_lifecycle_cross_check_pointers_stay_aligned
 test_beta_checklist_exists_with_repo_safe_filename
 test_beta_checklist_top_of_file_authority_and_deferral_language
 test_beta_checklist_has_required_sections_in_stage1_order

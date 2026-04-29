@@ -1,0 +1,90 @@
+{
+  "Roles": [
+    {
+      "Path": "/",
+      "RoleName": "fjcloud-deploy",
+      "RoleId": "AROATDTCLTRFFPMG57PWB",
+      "Arn": "arn:aws:iam::213880904778:role/fjcloud-deploy",
+      "CreateDate": "2026-04-28T01:05:41+00:00",
+      "AssumeRolePolicyDocument": {
+        "Version": "2012-10-17",
+        "Statement": [
+          {
+            "Effect": "Allow",
+            "Principal": {
+              "Federated": "arn:aws:iam::213880904778:oidc-provider/token.actions.githubusercontent.com"
+            },
+            "Action": "sts:AssumeRoleWithWebIdentity",
+            "Condition": {
+              "StringEquals": {
+                "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
+                "token.actions.githubusercontent.com:sub": "repo:gridl-infra-staging/fjcloud:ref:refs/heads/main"
+              }
+            }
+          }
+        ]
+      },
+      "MaxSessionDuration": 3600
+    },
+    {
+      "Path": "/",
+      "RoleName": "fjcloud-instance-role",
+      "RoleId": "AROATDTCLTRFMYLOOODMQ",
+      "Arn": "arn:aws:iam::213880904778:role/fjcloud-instance-role",
+      "CreateDate": "2026-02-26T01:19:23+00:00",
+      "AssumeRolePolicyDocument": {
+        "Version": "2012-10-17",
+        "Statement": [
+          {
+            "Effect": "Allow",
+            "Principal": {
+              "Service": "ec2.amazonaws.com"
+            },
+            "Action": "sts:AssumeRole"
+          }
+        ]
+      },
+      "MaxSessionDuration": 3600
+    },
+    {
+      "Path": "/",
+      "RoleName": "fjcloud-staging-customer-loop-canary-lambda",
+      "RoleId": "AROATDTCLTRFHYPQIS7H3",
+      "Arn": "arn:aws:iam::213880904778:role/fjcloud-staging-customer-loop-canary-lambda",
+      "CreateDate": "2026-04-28T00:50:42+00:00",
+      "AssumeRolePolicyDocument": {
+        "Version": "2012-10-17",
+        "Statement": [
+          {
+            "Effect": "Allow",
+            "Principal": {
+              "Service": "lambda.amazonaws.com"
+            },
+            "Action": "sts:AssumeRole"
+          }
+        ]
+      },
+      "MaxSessionDuration": 3600
+    },
+    {
+      "Path": "/",
+      "RoleName": "fjcloud-staging-support-email-canary-lambda-role",
+      "RoleId": "AROATDTCLTRFESERT256Z",
+      "Arn": "arn:aws:iam::213880904778:role/fjcloud-staging-support-email-canary-lambda-role",
+      "CreateDate": "2026-04-28T00:50:42+00:00",
+      "AssumeRolePolicyDocument": {
+        "Version": "2012-10-17",
+        "Statement": [
+          {
+            "Effect": "Allow",
+            "Principal": {
+              "Service": "lambda.amazonaws.com"
+            },
+            "Action": "sts:AssumeRole"
+          }
+        ]
+      },
+      "MaxSessionDuration": 3600
+    }
+  ]
+}

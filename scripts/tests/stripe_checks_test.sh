@@ -1,26 +1,18 @@
 #!/usr/bin/env bash
-# Tests for scripts/lib/stripe_checks.sh: Stripe validation check functions.
-# Validates script logic without requiring real Stripe API keys — uses
-# controlled env vars in subshells and mock curl responses.
-
+# Tests for scripts/lib/stripe_checks.sh using controlled env vars and mock curl responses.
 set -euo pipefail
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-
 PASS_COUNT=0
 FAIL_COUNT=0
-
 fail() {
     echo "FAIL: $*" >&2
     FAIL_COUNT=$((FAIL_COUNT + 1))
 }
-
 pass() {
     echo "PASS: $1"
     PASS_COUNT=$((PASS_COUNT + 1))
 }
-
 assert_eq() {
     local actual="$1" expected="$2" msg="$3"
     if [ "$actual" != "$expected" ]; then
@@ -29,7 +21,6 @@ assert_eq() {
         pass "$msg"
     fi
 }
-
 assert_contains() {
     local actual="$1" expected_substr="$2" msg="$3"
     if [[ "$actual" != *"$expected_substr"* ]]; then
@@ -38,7 +29,6 @@ assert_contains() {
         pass "$msg"
     fi
 }
-
 assert_not_contains() {
     local actual="$1" unexpected_substr="$2" msg="$3"
     if [[ "$actual" == *"$unexpected_substr"* ]]; then
@@ -47,11 +37,7 @@ assert_not_contains() {
         pass "$msg"
     fi
 }
-
-# ============================================================================
 # stripe_webhook_forward_to tests
-# ============================================================================
-
 test_stripe_webhook_forward_to_defaults_to_local_api() {
     local output
     output="$(bash -c "
@@ -111,10 +97,7 @@ test_stripe_webhook_forward_to_uses_api_port_when_present() {
         "stripe_webhook_forward_to should fall back to API_PORT"
 }
 
-# ============================================================================
 # check_stripe_key_present tests
-# ============================================================================
-
 test_check_stripe_key_present_fails_when_unset() {
     local output exit_code
     output="$(BACKEND_LIVE_GATE=1 bash -c "
@@ -192,6 +175,19 @@ test_check_stripe_key_present_passes_with_valid_key() {
     assert_contains "$output" "OK" "execution should continue after passing check"
 }
 
+test_check_stripe_key_present_passes_with_restricted_test_key() {
+    local output exit_code
+    output="$(BACKEND_LIVE_GATE=1 STRIPE_SECRET_KEY="rk_test_abc123" bash -c "
+        unset STRIPE_TEST_SECRET_KEY
+        source '$REPO_ROOT/scripts/lib/stripe_checks.sh'
+        check_stripe_key_present
+        echo 'OK_RK_TEST'
+    " 2>&1)" || exit_code=$?
+
+    assert_eq "${exit_code:-0}" "0" "check_stripe_key_present should pass with restricted rk_test_ key"
+    assert_contains "$output" "OK_RK_TEST" "execution should continue after rk_test_ passing check"
+}
+
 test_check_stripe_key_present_falls_back_to_alias_when_canonical_missing() {
     local output exit_code
     output="$(BACKEND_LIVE_GATE=1 STRIPE_TEST_SECRET_KEY="sk_test_alias_only" bash -c "
@@ -243,17 +239,25 @@ test_check_stripe_key_present_rejects_live_key_with_canonical_text() {
     assert_contains "$output" "STRIPE_SECRET_KEY" "live-key rejection should point operators to canonical key contract"
 }
 
-# ============================================================================
-# check_stripe_key_live tests
-# ============================================================================
+test_check_stripe_key_present_rejects_restricted_live_key_with_bad_prefix_reason() {
+    local output exit_code
+    output="$(BACKEND_LIVE_GATE=1 STRIPE_SECRET_KEY="rk_live_stage2_red" bash -c "
+        unset STRIPE_TEST_SECRET_KEY
+        source '$REPO_ROOT/scripts/lib/stripe_checks.sh'
+        check_stripe_key_present
+    " 2>&1)" || exit_code=$?
 
+    assert_eq "${exit_code:-0}" "1" "check_stripe_key_present should reject restricted live Stripe keys"
+    assert_contains "$output" "REASON: stripe_key_bad_prefix" "restricted live key rejection should keep stripe_key_bad_prefix semantics"
+    assert_contains "$output" "rk_test_" "restricted live key rejection should mention accepted rk_test_ prefix"
+}
+
+# check_stripe_key_live tests
 test_check_stripe_key_live_fails_on_401() {
-    # Create a mock curl that simulates -w "\n%{http_code}" output
     local mock_dir
     mock_dir="$(mktemp -d)"
     cat > "$mock_dir/curl" <<'MOCK'
 #!/usr/bin/env bash
-# Mock curl: return 401 Unauthorized with -w http_code format
 echo '{"error":{"type":"authentication_error","message":"Invalid API Key provided"}}'
 echo "401"
 exit 0
@@ -298,12 +302,10 @@ MOCK
 }
 
 test_check_stripe_key_live_passes_on_success() {
-    # Create a mock curl that simulates -w "\n%{http_code}" output
     local mock_dir
     mock_dir="$(mktemp -d)"
     cat > "$mock_dir/curl" <<'MOCK'
 #!/usr/bin/env bash
-# Mock curl: return a valid Stripe balance response with 200 status
 echo '{"object":"balance","available":[{"amount":0,"currency":"usd"}]}'
 echo "200"
 exit 0
@@ -324,8 +326,32 @@ MOCK
     assert_contains "$output" "LIVE_OK" "execution should continue after live check passes"
 }
 
+test_check_stripe_key_live_passes_on_restricted_test_key_success() {
+    local mock_dir
+    mock_dir="$(mktemp -d)"
+    cat > "$mock_dir/curl" <<'MOCK'
+#!/usr/bin/env bash
+echo '{"object":"balance","available":[{"amount":0,"currency":"usd"}]}'
+echo "200"
+exit 0
+MOCK
+    chmod +x "$mock_dir/curl"
+
+    local output exit_code
+    output="$(BACKEND_LIVE_GATE=1 STRIPE_SECRET_KEY="rk_test_valid123" PATH="$mock_dir:$PATH" bash -c "
+        unset STRIPE_TEST_SECRET_KEY
+        source '$REPO_ROOT/scripts/lib/stripe_checks.sh'
+        check_stripe_key_live
+        echo 'RK_TEST_LIVE_OK'
+    " 2>&1)" || exit_code=$?
+
+    rm -rf "$mock_dir"
+
+    assert_eq "${exit_code:-0}" "0" "check_stripe_key_live should pass with restricted rk_test_ key"
+    assert_contains "$output" "RK_TEST_LIVE_OK" "execution should continue after rk_test_ live check"
+}
+
 test_check_stripe_key_live_skips_when_gate_off() {
-    # Mock curl that returns auth error — but gate is off so it should skip
     local mock_dir
     mock_dir="$(mktemp -d)"
     cat > "$mock_dir/curl" <<'MOCK'
@@ -456,17 +482,21 @@ test_check_stripe_key_live_prefers_canonical_over_alias() {
     mock_dir="$(mktemp -d)"
     cat > "$mock_dir/curl" <<'MOCK'
 #!/usr/bin/env bash
-expected="sk_test_canonical_live"
-auth=""
+expected='user = "sk_test_canonical_live:"'
+config_path=""
+config_contents=""
 while [ "$#" -gt 0 ]; do
-    if [ "$1" = "-u" ] && [ "$#" -ge 2 ]; then
-        auth="$2"
+    if { [ "$1" = "--config" ] || [ "$1" = "-K" ]; } && [ "$#" -ge 2 ]; then
+        config_path="$2"
         shift 2
         continue
     fi
     shift
 done
-if [ "$auth" != "${expected}:" ]; then
+if [ -n "$config_path" ]; then
+    config_contents="$(cat "$config_path")"
+fi
+if [ "$config_contents" != "$expected" ]; then
     echo '{"error":{"type":"authentication_error","message":"unexpected key"}}'
     echo "401"
     exit 0
@@ -490,10 +520,120 @@ MOCK
     assert_contains "$output" "CANONICAL_LIVE_WINS" "live check should pass when canonical key is used"
 }
 
-# ============================================================================
-# check_stripe_webhook_secret_present tests
-# ============================================================================
+test_check_stripe_key_live_does_not_put_secret_on_curl_argv() {
+    local mock_dir
+    local arg_log
+    mock_dir="$(mktemp -d)"
+    arg_log="$mock_dir/curl_args.log"
+    cat > "$mock_dir/curl" <<'MOCK'
+#!/usr/bin/env bash
+config_path=""
+printf '%s\n' "$*" > "$STRIPE_TEST_ARG_LOG"
+while [ "$#" -gt 0 ]; do
+    if { [ "$1" = "--config" ] || [ "$1" = "-K" ]; } && [ "$#" -ge 2 ]; then
+        config_path="$2"
+        shift 2
+        continue
+    fi
+    shift
+done
+if [ -z "$config_path" ]; then
+    echo '{"error":{"type":"authentication_error","message":"missing config"}}'
+    echo "401"
+    exit 0
+fi
+if [ "$(cat "$config_path")" != 'user = "sk_test_hidden_from_argv:"' ]; then
+    echo '{"error":{"type":"authentication_error","message":"unexpected auth config"}}'
+    echo "401"
+    exit 0
+fi
+echo '{"object":"balance","available":[{"amount":0,"currency":"usd"}]}'
+echo "200"
+exit 0
+MOCK
+    chmod +x "$mock_dir/curl"
 
+    local output exit_code argv_contents
+    output="$(BACKEND_LIVE_GATE=1 STRIPE_SECRET_KEY="sk_test_hidden_from_argv" STRIPE_TEST_ARG_LOG="$arg_log" PATH="$mock_dir:$PATH" bash -c "
+        unset STRIPE_TEST_SECRET_KEY
+        source '$REPO_ROOT/scripts/lib/stripe_checks.sh'
+        check_stripe_key_live
+        echo 'NO_ARGV_LEAK'
+    " 2>&1)" || exit_code=$?
+
+    argv_contents="$(cat "$arg_log")"
+    rm -rf "$mock_dir"
+
+    assert_eq "${exit_code:-0}" "0" "check_stripe_key_live should still succeed when auth comes from curl config"
+    assert_contains "$output" "NO_ARGV_LEAK" "live check should complete when auth is passed off-argv"
+    assert_not_contains "$argv_contents" "sk_test_hidden_from_argv" "curl argv should not contain the Stripe secret key"
+}
+
+test_check_stripe_key_live_rejects_sk_live_before_curl_call() {
+    local mock_dir
+    local call_log
+    mock_dir="$(mktemp -d)"
+    call_log="$mock_dir/curl_calls.log"
+    cat > "$mock_dir/curl" <<'MOCK'
+#!/usr/bin/env bash
+echo "called" >> "$STRIPE_TEST_CALL_LOG"
+echo '{"object":"balance"}'
+echo "200"
+exit 0
+MOCK
+    chmod +x "$mock_dir/curl"
+
+    local output exit_code
+    output="$(BACKEND_LIVE_GATE=1 STRIPE_SECRET_KEY="sk_live_should_reject" STRIPE_TEST_CALL_LOG="$call_log" PATH="$mock_dir:$PATH" bash -c "
+        unset STRIPE_TEST_SECRET_KEY
+        source '$REPO_ROOT/scripts/lib/stripe_checks.sh'
+        check_stripe_key_live
+    " 2>&1)" || exit_code=$?
+
+    assert_eq "${exit_code:-0}" "1" "check_stripe_key_live should reject sk_live_ key before Stripe API call"
+    assert_contains "$output" "REASON: stripe_key_bad_prefix" "sk_live_ rejection should keep stripe_key_bad_prefix semantics"
+    if [ -f "$call_log" ]; then
+        fail "check_stripe_key_live should not call curl when canonical key is sk_live_"
+    else
+        pass "check_stripe_key_live should not call curl when canonical key is sk_live_"
+    fi
+
+    rm -rf "$mock_dir"
+}
+
+test_check_stripe_key_live_rejects_rk_live_before_curl_call() {
+    local mock_dir
+    local call_log
+    mock_dir="$(mktemp -d)"
+    call_log="$mock_dir/curl_calls.log"
+    cat > "$mock_dir/curl" <<'MOCK'
+#!/usr/bin/env bash
+echo "called" >> "$STRIPE_TEST_CALL_LOG"
+echo '{"object":"balance"}'
+echo "200"
+exit 0
+MOCK
+    chmod +x "$mock_dir/curl"
+
+    local output exit_code
+    output="$(BACKEND_LIVE_GATE=1 STRIPE_SECRET_KEY="rk_live_should_reject" STRIPE_TEST_CALL_LOG="$call_log" PATH="$mock_dir:$PATH" bash -c "
+        unset STRIPE_TEST_SECRET_KEY
+        source '$REPO_ROOT/scripts/lib/stripe_checks.sh'
+        check_stripe_key_live
+    " 2>&1)" || exit_code=$?
+
+    assert_eq "${exit_code:-0}" "1" "check_stripe_key_live should reject rk_live_ key before Stripe API call"
+    assert_contains "$output" "REASON: stripe_key_bad_prefix" "rk_live_ rejection should keep stripe_key_bad_prefix semantics"
+    if [ -f "$call_log" ]; then
+        fail "check_stripe_key_live should not call curl when canonical key is rk_live_"
+    else
+        pass "check_stripe_key_live should not call curl when canonical key is rk_live_"
+    fi
+
+    rm -rf "$mock_dir"
+}
+
+# check_stripe_webhook_secret_present tests
 test_check_stripe_webhook_secret_present_fails_when_unset() {
     local output exit_code
     output="$(BACKEND_LIVE_GATE=1 bash -c "
@@ -555,12 +695,8 @@ test_check_stripe_webhook_secret_present_passes_with_valid_secret() {
     assert_contains "$output" "OK" "execution should continue"
 }
 
-# ============================================================================
 # check_stripe_webhook_forwarding tests
-# ============================================================================
-
 test_check_stripe_webhook_forwarding_fails_when_no_process() {
-    # Mock pgrep that finds nothing
     local mock_dir
     mock_dir="$(mktemp -d)"
     cat > "$mock_dir/pgrep" <<'MOCK'
@@ -674,21 +810,27 @@ test_check_stripe_key_present_fails_when_wrong_prefix
 test_check_stripe_key_present_emits_reason_code_wrong_prefix
 test_check_stripe_key_present_skips_when_unset_gate_off
 test_check_stripe_key_present_passes_with_valid_key
+test_check_stripe_key_present_passes_with_restricted_test_key
 test_check_stripe_key_present_falls_back_to_alias_when_canonical_missing
 test_check_stripe_key_present_prefers_canonical_over_alias
 test_check_stripe_key_present_fails_when_canonical_empty_even_with_alias
 test_check_stripe_key_present_rejects_live_key_with_canonical_text
+test_check_stripe_key_present_rejects_restricted_live_key_with_bad_prefix_reason
 echo ""
 echo "--- check_stripe_key_live ---"
 test_check_stripe_key_live_fails_on_401
 test_check_stripe_key_live_emits_reason_code_on_auth_fail
 test_check_stripe_key_live_passes_on_success
+test_check_stripe_key_live_passes_on_restricted_test_key_success
 test_check_stripe_key_live_skips_when_gate_off
 test_check_stripe_key_live_emits_timeout_reason
 test_stripe_api_timeout_produces_specific_reason
 test_stripe_api_connect_timeout_produces_specific_reason
 test_check_stripe_key_live_falls_back_to_alias_when_canonical_missing
 test_check_stripe_key_live_prefers_canonical_over_alias
+test_check_stripe_key_live_does_not_put_secret_on_curl_argv
+test_check_stripe_key_live_rejects_sk_live_before_curl_call
+test_check_stripe_key_live_rejects_rk_live_before_curl_call
 echo ""
 echo "--- check_stripe_webhook_secret_present ---"
 test_check_stripe_webhook_secret_present_fails_when_unset

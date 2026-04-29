@@ -1,0 +1,17 @@
+{
+  "captured_at_utc": "2026-04-28T20:16:01Z",
+  "git_sha": "05807032cee3c9d3c8934a34548a0eb66f3fdb4c",
+  "projects": [
+    "chromium",
+    "chromium:signup"
+  ],
+  "total": 3,
+  "passed": 0,
+  "failed": 2,
+  "skipped": 0,
+  "timed_out": 0,
+  "specs": {
+    "signup_to_paid_invoice": "failed",
+    "billing_portal_cancel": "not_run"
+  }
+}

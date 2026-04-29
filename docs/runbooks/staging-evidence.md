@@ -23,7 +23,7 @@ Note: Actual IDs are in the Terraform state file (`ops/terraform/_shared/terrafo
 | Resource            | Value                                                               |
 | ------------------- | ------------------------------------------------------------------- |
 | AMI ID              | `ami-078228dbe86117d85`                                             |
-| EC2 Instance ID     | `i-0afc7651593f12372`                                               |
+| EC2 Instance ID     | `<redacted-instance-id>`                                            |
 | EC2 Instance State  | running                                                             |
 | Deployed Binary SHA | `c7fa088c` (binary name fix; last deploy via Stage 6)               |
 | RDS Endpoint        | `fjcloud-staging.*.us-east-1.rds.amazonaws.com:5432`                |
@@ -140,8 +140,14 @@ Note: Actual IDs are in the Terraform state file (`ops/terraform/_shared/terrafo
   `flapjack_url=http://vm-shared-f2b9c8a6.flapjack.foo:7700`. Live
   `usage_records` for tenant A populate every 60s, `usage_daily` rolls
   up correctly, and a paid Stripe invoice
-  (`in_1TQLr2KH9mdklKeIlzBNFR4M`) was produced end-to-end. Full
-  evidence: `docs/runbooks/evidence/staging-billing-rehearsal/20260426T060756Z_paid_lifecycle/SUMMARY.md`.
+  (`in_1TQLr2KH9mdklKeIlzBNFR4M`) was produced end-to-end. Canonical
+  paid-lifecycle evidence pointer:
+  `docs/runbooks/evidence/staging-billing-rehearsal/20260428T055058Z_paid_lifecycle_clean/`
+  (`SUMMARY.md`, `cross_check_result.json`, `cross_check_computation.md`).
+  Amount verdict is now `CROSS_CHECK_PASSED`: invoice
+  `e7806ad2-977d-4f4b-9ff9-95c7ddab49e3` matches at zero-cent tolerance
+  (`subtotal_cents=11`, `total_cents=500`, `minimum_applied=true`) with
+  `exact_match` booleans true in `cross_check_result.json`.
   Three additional blockers were discovered + fixed during the same
   pass: 001 migration in-place mutation broke sqlx checksum check
   (`102659b7`), seeder rejected 200 OK from idempotent seed_index
@@ -186,9 +192,13 @@ Note: Actual IDs are in the Terraform state file (`ops/terraform/_shared/terrafo
 
   ```bash
   set -a; source .secret/.env.secret; set +a
-  eval "$(bash scripts/launch/hydrate_seeder_env_from_ssm.sh staging)"
-  bash scripts/launch/capture_stage_d_evidence.sh
+  bash -lc 'source <(bash scripts/launch/hydrate_seeder_env_from_ssm.sh staging); bash scripts/launch/capture_stage_d_evidence.sh'
   ```
+
+  Do not `eval "$(bash scripts/launch/hydrate_seeder_env_from_ssm.sh staging)"`
+  in the operator shell. Keep the staging SSM hydration flow inside the
+  maintained wrapper/helper scripts so unexpected shell metacharacters in helper
+  output cannot execute in the parent shell.
 
   Each step is fail-closed and writes its artifact under
   `docs/runbooks/evidence/staging-billing-rehearsal/<run_ts>_stage_d_capture/`.
@@ -246,7 +256,7 @@ Note: Actual IDs are in the Terraform state file (`ops/terraform/_shared/terrafo
 ### AWS Budget And Spend Alerting
 
 - Budget: `fjcloud-staging-monthly` at $600/month (created 2026-04-23 via
-  `aws budgets create-budget` against account 213880904778, region us-east-1).
+  `aws budgets create-budget` against the redacted staging account in us-east-1).
 - Notifications: ACTUAL at 50% / 80% / 100% and FORECASTED at 100%, all
   delivered by email to `clifford.kriv@gmail.com`.
 - Auto-enforcement (AWS Budgets Actions) is **intentionally disabled** for
@@ -420,11 +430,9 @@ Contract notes:
   and was traced to seeded-deployment admin-key verification in the SSM-backed
   node-secret path (`SSM GetParameter failed: service error`), but the latest
   rerun cleared that route and wrote
-  `/tmp/seed-synthetic-demo-shared-free.json`. The current blocker is the next
-  direct-node step in `scripts/launch/seed_synthetic_traffic.sh`:
-  `GET http://vm-shared-f2b9c8a6.flapjack.foo:7700/internal/storage` returns
-  HTTP 403 `{"message":"Invalid Application-ID or API key","status":403}`,
-  so fresh `usage_records` evidence is still not produced.
+  `/tmp/seed-synthetic-demo-shared-free.json`. That direct-node 403 path was
+  resolved by the 2026-04-26 metering runtime fixes; the remaining gap is a
+  fresh current-main rerun/evidence bundle, not re-debugging that old blocker.
 - Preserved paid-beta RC no-launch reasons map to these owner artifacts and
   rerun commands:
   - `backend_launch_gate` failed (`commerce: check_stripe_key_present, check_stripe_key_live, check_stripe_webhook_secret_present, check_stripe_webhook_forwarding, check_usage_records_populated, check_rollup_current`);
@@ -438,27 +446,14 @@ Contract notes:
     `docs/runbooks/email-production.md`.
   - `staging_billing_rehearsal` failed (`reason=staging_api_url_missing`);
     delegated owner command remains `scripts/staging_billing_rehearsal.sh`.
-  - Browser lane failed in preserved RC (`browser_preflight_failed`,
-    `browser_auth_setup_failed`); delegated owner command remains
-    `scripts/e2e-preflight.sh` with coordinator-owned orchestration. That
-    lane was rerun on 2026-04-25: `bash scripts/tests/e2e_preflight_test.sh`
-    and `cd web && npm run check` passed, and the preflight owner was tightened
-    so `BASE_URL`-unset runs stay aligned with Playwright's generated local
-    admin-key fallback. The same owner rerun still fails in the live local
-    path, though: `bash scripts/e2e-preflight.sh` reports
-    `http://localhost:3001/health` unreachable, `cd web && npx playwright test
-    tests/fixtures/auth.setup.ts tests/fixtures/admin.auth.setup.ts
-    --project=setup:user --project=setup:admin` leaves `setup:user` on
-    `/login` with `Authentication service is unavailable. Please verify
-    API_URL and try again.`, and `setup:admin` hits a server-rendered
-    `/admin/login` 500 (`support_reference=web-1bb22071fcb3`). A read-only
-    public spot check at `2026-04-25T02:01:52Z` (`2026-04-24 22:01 EDT`)
-    still returned HTTP 200 for `https://api.flapjack.foo/health`,
-    `https://cloud.flapjack.foo/login`, and
-    `https://cloud.flapjack.foo/admin/login`, while bogus-credential
-    `POST https://api.flapjack.foo/auth/login` returned the expected HTTP 400
-    `invalid email or password`, so the current blocker is the local browser
-    owner rerun rather than those public surfaces being down.
+  - Browser lane retained current-main evidence on 2026-04-28 at
+    `docs/runbooks/evidence/browser-evidence/20260428T202308Z_current_main`.
+    `SUMMARY.md` records this bundle as failed local-stack evidence
+    (`signup_to_paid_invoice.spec.ts` and `billing_portal_cancel.spec.ts`
+    both failed on missing Stripe starter-plan fixture pricing), so this is
+    preservation of failed evidence rather than green launch proof. The
+    staging-target follow-up remains open and is handed off through
+    `STAGING_GAP_SPEC.md`.
   - Terraform lane failed in preserved RC
     (`terraform_stage7_static_failed`, `staging_runtime_smoke_failed`);
     delegated runtime owner command remains
@@ -490,6 +485,17 @@ Contract notes:
 - Stage 3 first-send companion artifact:
   `docs/runbooks/evidence/ses-deliverability/20260424_boundary_proof/first_send_retrieval_status.md`
   records the latest wrapper run directory, recipient class, and the retrieval-owner blocker path.
+- Stage 3 live inbox roundtrip proof artifact:
+  `docs/runbooks/evidence/ses-deliverability/20260428T194527Z_stage3_live_probe/roundtrip.json`
+  captures the latest credentialed inbound roundtrip result via
+  `scripts/validate_inbound_email_roundtrip.sh` (including `send_probe`,
+  `poll_inbox_s3`, `fetch_rfc822`, and `auth_verdict`).
+- Stage 4 direct canary proof artifacts:
+  `docs/runbooks/evidence/ses-deliverability/20260428T195818Z_deliverability_canary/run_1.json`,
+  `docs/runbooks/evidence/ses-deliverability/20260428T195818Z_deliverability_canary/run_2.json`,
+  and `docs/runbooks/evidence/ses-deliverability/20260428T195818Z_deliverability_canary/gate_summary.json`
+  capture two consecutive delegated canary runs and the programmatic gate requiring
+  `.passed=true` plus `auth_verdict.passed=true` for both runs.
 - Stage 4/5 bounce+complaint companion artifacts:
   `docs/runbooks/evidence/ses-deliverability/20260424_boundary_proof/bounce_blocker.txt` and
   `docs/runbooks/evidence/ses-deliverability/20260424_boundary_proof/complaint_blocker.txt`
@@ -503,3 +509,140 @@ Contract notes:
   this lane is no longer a launch blocker in the preserved Stage 3 verdict.
 - Current authoritative blocker/prioritization context lives in `README.md`,
   `PRIORITIES.md`, and `ROADMAP.md`.
+
+## Stage 2 webhook SSM population run (2026-04-28T20:11:35Z)
+
+- Evidence: `docs/runbooks/evidence/alert-webhook/20260428T201000Z_ssm_populate/`
+- Mode: neither Discord nor Slack populated in this run (canonical secret source lacked both `DISCORD_WEBHOOK_URL` and `SLACK_WEBHOOK_URL` at execution time).
+- Write/readback command set was prepared for the Stage 2 contract but no parameter mutation/readback occurred in this first run because required source values were unavailable.
+- Deploy deferred to Stage 3/4.
+
+## Stage 2 webhook SSM population rerun (2026-04-28T20:32:04Z — superseded)
+
+- Evidence: `docs/runbooks/evidence/alert-webhook/20260428T203204Z_ssm_populate/`
+- Mode: Discord-only via `ssm_existing_value_fallback` (pre-operator secret addition).
+- **Superseded by canonical repopulate below.**
+
+## Stage 2 webhook SSM canonical repopulate (2026-04-28T21:34:12Z)
+
+- Evidence: `docs/runbooks/evidence/alert-webhook/20260428T213412Z_ssm_repopulate/`
+- Mode: Discord-only populated from operator-added canonical secret file (`discord_source_mode=env_secret_canonical`).
+- Active deployed-alert bundle pointer (SSOT): `docs/runbooks/evidence/alert-delivery/.current_bundle`
+  currently resolves to `docs/runbooks/evidence/alert-delivery/20260429T052555Z_deployed_staging`.
+- Stage 2 readiness-gate artifact in that resolved bundle is PASS:
+  `08_stage2_readiness_gate.txt`.
+- Stage 3 in the resolved bundle is intentionally `result=precondition_gap` because
+  no staging invoice matched `status='finalized' AND stripe_invoice_id IS NOT NULL`;
+  this is not a missing-evidence condition.
+- Owner to clear that invoice precondition before any future live replay:
+  `scripts/staging_billing_rehearsal.sh`.
+- Commands executed:
+  - `aws sts get-caller-identity` (identity and account redacted in checked-in evidence)
+  - `aws ssm put-parameter --overwrite --type SecureString --name /fjcloud/staging/discord_webhook_url --value <redacted> --region us-east-1`
+  - `aws ssm get-parameter --name /fjcloud/staging/discord_webhook_url --with-decryption` — readback: SecureString, Version 4, LastModified `2026-04-28T17:34:13.622000-04:00`
+  - `aws ssm get-parameters-by-path --path /fjcloud/staging/ --with-decryption` filtered to `discord_webhook_url|slack_webhook_url` — structural check confirms path matches `generate_ssm_env.sh` `SSM_TO_ENV` suffix contract
+- Slack: `SLACK_WEBHOOK_URL` absent from canonical secret source; not populated in Stage 2.
+- Deploy deferred to Stage 3/4.
+
+## Stage 3 in-AWS canary schedule activation (2026-04-28T22:54:23Z window start)
+
+- Evidence directory: `docs/runbooks/evidence/stage3_canary_activation_20260428T/`
+- Activation window start (UTC): `2026-04-28T22:54:23Z` (see `stage3_activation_window_start_utc.txt`).
+- Owner files reused without parallel resources: `module.monitoring` wiring in
+  `ops/terraform/_shared/main.tf`; `aws_cloudwatch_event_rule.customer_loop_canary` in
+  `ops/terraform/monitoring/main.tf`; `aws_cloudwatch_event_rule.support_email_canary` in
+  `ops/terraform/monitoring/support_email_canary.tf`.
+- Static gates run before deploy: `bash ops/terraform/tests_stage7_static.sh`
+  (`tests_stage7_static.log`) and `bash ops/terraform/tests_support_email_canary_static.sh`
+  (`tests_support_email_canary_static.log`) both passed.
+- Plan/apply inputs avoided the regression captured in
+  `ops/terraform/artifacts/plan_staging_20260428T024056Z.txt`:
+  - Explicit `canary_image.tag` (live value pulled from
+    `aws lambda get-function`, not `pending-publication`).
+  - Explicit `support_email_canary_image_uri` (live URI, not `latest`).
+  - Explicit `canary_schedule={enabled=true,expression="rate(15 minutes)"}` so
+    `is_enabled` cannot silently flip back to `false`.
+  - Cloudflare auth bridged in-sprint by exporting
+    `CLOUDFLARE_API_TOKEN` from
+    `CLOUDFLARE_EDIT_READ_ZONE_DNS_API_TOKEN_FLAPJACK_FOO` after the initial
+    `terraform plan` failed with
+    `Missing X-Auth-Key, X-Auth-Email or Authorization headers`
+    (see `terraform_plan_staging_stage3.txt` →
+    `terraform_plan_staging_stage3_retry1.txt`).
+- Apply transcript: `terraform_apply_stage3_targeted_rules.txt` (root owner via
+  `ops/terraform/_shared`, targeted at canary rule resources to avoid unrelated
+  plan churn).
+- Post-apply outputs (canonical owners, no Stage-3-only outputs added):
+  - `customer_loop_canary_schedule_rule_name = fjcloud-staging-customer-loop-canary`
+    (`terraform_output_customer_loop_schedule_rule_name.log`).
+  - `customer_loop_canary_lambda_function_arn = arn:aws:lambda:us-east-1:<redacted-account-id>:function:fjcloud-staging-customer-loop-canary`
+    (`terraform_output_customer_loop_lambda_arn.log`).
+  - Support-email schedule reuses existing naming contract from
+    `ops/terraform/monitoring/support_email_canary.tf`
+    (`fjcloud-staging-support-email-canary` /
+    `fjcloud-staging-support-email-canary-schedule`).
+- Control-plane readback (`aws_events_describe_rule_customer_loop.log` and
+  `aws_events_describe_rule_support_email.log`):
+  - `fjcloud-staging-customer-loop-canary`: `State=ENABLED`,
+    `ScheduleExpression=rate(15 minutes)`.
+  - `fjcloud-staging-support-email-canary-schedule`: `State=ENABLED`,
+    `ScheduleExpression=rate(6 hours)`.
+- Cadence-shortcut runtime proof (two clean manual invokes per surface, owners
+  reused via direct `aws lambda invoke`; schedule itself remains owned by the
+  CloudWatch event rules above):
+  - Customer loop: `aws_lambda_invoke_customer_1.log` and
+    `aws_lambda_invoke_customer_2.log` — both `StatusCode: 200`, no
+    `FunctionError`. Owner-log readback in `aws_logs_customer_1.log` and
+    `aws_logs_customer_2.log` includes `customer loop canary completed
+    successfully` from `scripts/canary/customer_loop_synthetic.sh`. Window
+    timestamps: `customer_loop_invoke_windows.txt`.
+  - Support email: `aws_lambda_invoke_support_1.log` and
+    `aws_lambda_invoke_support_2.log` — both `StatusCode: 200`, no
+    `FunctionError`. Owner-log readback in `aws_logs_support_1.log` and
+    `aws_logs_support_2.log` shows the delegated roundtrip JSON from
+    `scripts/validate_inbound_email_roundtrip.sh` reporting `"passed":true`
+    with per-step success including inbound nonce readback. Window
+    timestamps: `support_email_invoke_windows.txt`.
+- Alert-delivery closure note: deployed-alert evidence is preserved via
+  `docs/runbooks/evidence/alert-delivery/.current_bundle` (currently
+  `docs/runbooks/evidence/alert-delivery/20260429T052555Z_deployed_staging`),
+  where Stage 2 readiness remains PASS and Stage 3 remains
+  `result=precondition_gap` until a qualifying finalized invoice exists.
+  Authoritative acceptance proof remains `alerts.delivery_status='sent'` from
+  `docs/runbooks/alerting.md`; Discord nonce readback is supplemental
+  destination confirmation.
+
+## Stage 3 outside-AWS canary schedule activation (2026-04-28T22:54:23Z window start)
+
+- Evidence directory: `docs/runbooks/evidence/stage3_canary_activation_20260428T/`
+- Owner boundary reused without parallel runner: workflow wiring in
+  `.github/workflows/outside_aws_health.yml`; URL/curl/exit behavior in
+  `scripts/canary/outside_aws_health_check.sh`.
+- Focused regression gates passed before activation:
+  `bash scripts/tests/outside_aws_health_check_test.sh`
+  (`tests_outside_aws_health_check.log`) and
+  `bash scripts/tests/outside_aws_health_workflow_test.sh`
+  (`tests_outside_aws_health_workflow.log`).
+- Workflow active-state proof (`gh_workflow_state.log`):
+  `gh api repos/gridl-infra-staging/fjcloud/actions/workflows/outside_aws_health.yml`
+  returns `"state":"active"` for workflow id `267433355`. Auth and identity
+  captured in `gh_auth_status.log` and `gh_repo_view.log`.
+- Two clean post-activation runs from the same workflow owner:
+  - Manual dispatch success: `databaseId=25081864316` (`event=workflow_dispatch`,
+    `conclusion=success`, `createdAt=2026-04-28T22:54:36Z`). Triggered via
+    `gh workflow run outside_aws_health.yml --repo gridl-infra-staging/fjcloud`
+    (`gh_workflow_dispatch.log`, `gh_run_watch_dispatch.log`,
+    `gh_run_list_final.log`).
+  - Scheduled success in this activation window: `databaseId=25082425034`
+    (`event=schedule`, `conclusion=success`,
+    `createdAt=2026-04-28T23:11:18Z`). Captured by
+    `gh_run_list_postwindow_schedule_proof_s83.json` (full `gh run list`
+    output) and `gh_run_view_25082425034_schedule_s83.json`
+    (`gh run view` detail with `workflowName=Outside AWS Health`,
+    `headBranch=main`,
+    `url=https://github.com/gridl-infra-staging/fjcloud/actions/runs/25082425034`).
+    Cron continued cleanly after the window with the next scheduled success at
+    `databaseId=25084141457` (`createdAt=2026-04-29T00:06:44Z`). Recheck
+    timestamp captured in `utc_now_s83.txt`.
+- Stage 4 webhook readback conclusions are not folded in here; this entry is
+  scoped to canary schedule activation only.

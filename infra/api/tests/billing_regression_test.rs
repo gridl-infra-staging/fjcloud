@@ -9,26 +9,30 @@
 mod common;
 
 use api::invoicing::{
-    compute_invoice_for_customer, compute_invoice_for_customer_with_shared_inputs, BillingRepos,
-    GeneratedInvoice, ObjectStorageEgressMetadata, SharedBillingData,
+    compute_invoice_for_customer, compute_invoice_for_customer_with_rate_card_id,
+    compute_invoice_for_customer_with_shared_inputs, BillingRepos, GeneratedInvoice,
+    ObjectStorageEgressMetadata, SharedBillingData,
 };
 use api::models::cold_snapshot::ColdSnapshot;
-use api::models::customer::BillingPlan;
+use api::models::customer::{BillingPlan, Customer};
 use api::models::storage::NewStorageBucket;
 use api::models::{CustomerRateOverrideRow, RateCardRow};
 use api::repos::invoice_repo::NewLineItem;
 use api::repos::storage_bucket_repo::StorageBucketRepo;
-use api::repos::RateCardRepo;
+use api::repos::{RateCardRepo, UsageRepo};
 use billing::types::{MonthlyUsageSummary, BYTES_PER_GIB};
-use chrono::{NaiveDate, TimeZone, Utc};
+use chrono::{DateTime, NaiveDate, TimeZone, Utc};
 use common::{
     mock_cold_snapshot_repo, mock_rate_card_repo, mock_storage_bucket_repo, mock_usage_repo,
     MockRateCardRepo, MockUsageRepo,
 };
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
+use serde::Deserialize;
 use serde_json::json;
+use std::collections::{BTreeMap, BTreeSet};
 use std::panic::{catch_unwind, AssertUnwindSafe};
+use std::path::PathBuf;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -40,6 +44,182 @@ fn feb_2026_bounds() -> (NaiveDate, NaiveDate) {
     let start = NaiveDate::from_ymd_opt(2026, 2, 1).expect("valid date");
     let end = NaiveDate::from_ymd_opt(2026, 2, 28).expect("valid date");
     (start, end)
+}
+
+const STAGE2_BUNDLE_DIR: &str =
+    "docs/runbooks/evidence/staging-billing-rehearsal/20260428T055058Z_paid_lifecycle_clean";
+const STAGE2_EXPECTED_INVOICE_ID: &str = "e7806ad2-977d-4f4b-9ff9-95c7ddab49e3";
+const STAGE2_EXPECTED_CUSTOMER_ID: &str = "0a65f0b7-14b3-4e08-acf6-2222a02c7858";
+const STAGE2_EXPECTED_RATE_CARD_ID: &str = "aa60c93f-3ed4-44e8-8fe2-54e364eaad26";
+
+#[derive(Debug, Deserialize)]
+struct Stage2InvoiceDbRow {
+    id: Uuid,
+    customer_id: Uuid,
+    period_start: NaiveDate,
+    period_end: NaiveDate,
+    subtotal_cents: i64,
+    total_cents: i64,
+    minimum_applied: bool,
+    created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Deserialize)]
+struct Stage2InvoiceLineItem {
+    description: String,
+    quantity: Decimal,
+    unit: String,
+    unit_price_cents: Decimal,
+    amount_cents: i64,
+    region: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct Stage2CustomerBillingContext {
+    id: Uuid,
+    billing_plan: String,
+    object_storage_egress_carryforward_cents: Decimal,
+}
+
+#[derive(Debug, Deserialize)]
+struct Stage2RateCardSelection {
+    selection_basis: String,
+    invoice_selection_timestamp: DateTime<Utc>,
+    effective_rate_card: Stage2RateCardFixture,
+    override_exists: bool,
+    active_rate_card_when_different: Option<Stage2RateCardFixture>,
+}
+
+#[derive(Debug, Deserialize)]
+struct Stage2RateCardFixture {
+    id: Uuid,
+    name: String,
+    effective_from: DateTime<Utc>,
+    effective_until: Option<DateTime<Utc>>,
+    storage_rate_per_mb_month: Decimal,
+    region_multipliers: serde_json::Value,
+    minimum_spend_cents: i64,
+    shared_minimum_spend_cents: i64,
+    cold_storage_rate_per_gb_month: Decimal,
+    object_storage_rate_per_gb_month: Decimal,
+    object_storage_egress_rate_per_gb: Decimal,
+    created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Deserialize)]
+struct Stage2UsageDailyReplayRow {
+    customer_id: Uuid,
+    date: NaiveDate,
+    region: String,
+    search_requests: i64,
+    write_operations: i64,
+    storage_bytes_avg: i64,
+    documents_count_avg: i64,
+    aggregated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Deserialize)]
+struct Stage2UsageRecordProvenanceRow {
+    customer_id: Uuid,
+    region: String,
+    recorded_at: DateTime<Utc>,
+}
+
+struct Stage2BundleFixtures {
+    invoice_db_row: Stage2InvoiceDbRow,
+    invoice_line_items: Vec<Stage2InvoiceLineItem>,
+    customer_billing_context: Stage2CustomerBillingContext,
+    rate_card_selection: Stage2RateCardSelection,
+    customer_rate_override: Option<api::models::CustomerRateOverrideRow>,
+    usage_daily_replay_rows: Vec<Stage2UsageDailyReplayRow>,
+    usage_records_provenance: Vec<Stage2UsageRecordProvenanceRow>,
+}
+
+fn stage2_bundle_dir() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../")
+        .join(STAGE2_BUNDLE_DIR)
+}
+
+fn read_stage2_fixture<T: serde::de::DeserializeOwned>(path: &PathBuf, file_name: &str) -> T {
+    let full_path = path.join(file_name);
+    let raw = std::fs::read_to_string(&full_path)
+        .unwrap_or_else(|e| panic!("failed to read {}: {}", full_path.display(), e));
+    serde_json::from_str(&raw)
+        .unwrap_or_else(|e| panic!("failed to parse {}: {}", full_path.display(), e))
+}
+
+fn load_stage2_bundle_fixtures() -> Stage2BundleFixtures {
+    let bundle_dir = stage2_bundle_dir();
+    Stage2BundleFixtures {
+        invoice_db_row: read_stage2_fixture(&bundle_dir, "invoice_db_row.json"),
+        invoice_line_items: read_stage2_fixture(&bundle_dir, "invoice_line_items.json"),
+        customer_billing_context: read_stage2_fixture(&bundle_dir, "customer_billing_context.json"),
+        rate_card_selection: read_stage2_fixture(&bundle_dir, "rate_card_selection.json"),
+        customer_rate_override: read_stage2_fixture(&bundle_dir, "customer_rate_override.json"),
+        usage_daily_replay_rows: read_stage2_fixture(&bundle_dir, "usage_daily_replay_rows.json"),
+        usage_records_provenance: read_stage2_fixture(&bundle_dir, "usage_records_provenance.json"),
+    }
+}
+
+fn stage2_customer_from_context(
+    context: &Stage2CustomerBillingContext,
+    created_at: DateTime<Utc>,
+) -> Customer {
+    Customer {
+        id: context.id,
+        name: "stage2-replay-customer".to_string(),
+        email: "stage2-replay-customer@synthetic.invalid".to_string(),
+        stripe_customer_id: None,
+        status: "active".to_string(),
+        deleted_at: None,
+        billing_plan: context.billing_plan.clone(),
+        quota_warning_sent_at: None,
+        created_at,
+        updated_at: created_at,
+        password_hash: None,
+        email_verified_at: None,
+        email_verify_token: None,
+        email_verify_expires_at: None,
+        password_reset_token: None,
+        password_reset_expires_at: None,
+        last_accessed_at: None,
+        subscription_status: None,
+        overdue_invoice_count: 0,
+        object_storage_egress_carryforward_cents: context.object_storage_egress_carryforward_cents,
+    }
+}
+
+fn stage2_rate_card_row(fixture: &Stage2RateCardFixture) -> RateCardRow {
+    RateCardRow {
+        id: fixture.id,
+        name: fixture.name.clone(),
+        effective_from: fixture.effective_from,
+        effective_until: fixture.effective_until,
+        storage_rate_per_mb_month: fixture.storage_rate_per_mb_month,
+        region_multipliers: fixture.region_multipliers.clone(),
+        minimum_spend_cents: fixture.minimum_spend_cents,
+        shared_minimum_spend_cents: fixture.shared_minimum_spend_cents,
+        cold_storage_rate_per_gb_month: fixture.cold_storage_rate_per_gb_month,
+        object_storage_rate_per_gb_month: fixture.object_storage_rate_per_gb_month,
+        object_storage_egress_rate_per_gb: fixture.object_storage_egress_rate_per_gb,
+        created_at: fixture.created_at,
+    }
+}
+
+fn seed_stage2_usage_rows(mocks: &MockRepos, rows: &[Stage2UsageDailyReplayRow]) {
+    for row in rows {
+        mocks.usage_repo.seed_with_aggregated_at(
+            row.customer_id,
+            row.date,
+            &row.region,
+            row.search_requests,
+            row.write_operations,
+            row.storage_bytes_avg,
+            row.documents_count_avg,
+            row.aggregated_at,
+        );
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -518,6 +698,294 @@ async fn shared_plan_minimum_regression() {
     assert_eq!(invoice.subtotal_cents, 250);
     assert_eq!(invoice.total_cents, 500);
     assert!(invoice.minimum_applied);
+}
+
+#[tokio::test]
+async fn shared_plan_staging_bundle_known_answer_regression() {
+    let fixtures = load_stage2_bundle_fixtures();
+    let expected_customer_id = Uuid::parse_str(STAGE2_EXPECTED_CUSTOMER_ID)
+        .expect("stage2 fixture customer id should parse");
+    let expected_invoice_id = Uuid::parse_str(STAGE2_EXPECTED_INVOICE_ID)
+        .expect("stage2 fixture invoice id should parse");
+    let expected_rate_card_id = Uuid::parse_str(STAGE2_EXPECTED_RATE_CARD_ID)
+        .expect("stage2 fixture rate-card id should parse");
+
+    assert_eq!(fixtures.invoice_db_row.id, expected_invoice_id);
+    assert_eq!(fixtures.invoice_db_row.customer_id, expected_customer_id);
+    assert_eq!(fixtures.customer_billing_context.id, expected_customer_id);
+    assert_eq!(
+        fixtures.customer_billing_context.billing_plan,
+        BillingPlan::Shared.to_string()
+    );
+    assert_eq!(
+        fixtures
+            .customer_billing_context
+            .object_storage_egress_carryforward_cents,
+        Decimal::ZERO
+    );
+    assert!(fixtures.customer_rate_override.is_none());
+    assert_eq!(
+        fixtures.rate_card_selection.selection_basis,
+        "invoice_created_at"
+    );
+    assert_eq!(
+        fixtures.rate_card_selection.invoice_selection_timestamp,
+        fixtures.invoice_db_row.created_at
+    );
+    assert!(fixtures
+        .rate_card_selection
+        .active_rate_card_when_different
+        .is_none());
+    assert!(!fixtures.rate_card_selection.override_exists);
+    assert_eq!(
+        fixtures.rate_card_selection.effective_rate_card.id,
+        expected_rate_card_id
+    );
+
+    let mocks = setup_repos();
+    mocks.rate_card_repo.seed_active_card(stage2_rate_card_row(
+        &fixtures.rate_card_selection.effective_rate_card,
+    ));
+    seed_stage2_usage_rows(&mocks, &fixtures.usage_daily_replay_rows);
+
+    let fixture_customer = stage2_customer_from_context(
+        &fixtures.customer_billing_context,
+        fixtures.invoice_db_row.created_at,
+    );
+    let billing_plan = fixture_customer.billing_plan_enum();
+    let invoice = compute_invoice_for_customer(
+        &mocks.billing_repos(),
+        expected_customer_id,
+        fixtures.invoice_db_row.period_start,
+        fixtures.invoice_db_row.period_end,
+        billing_plan,
+        fixtures
+            .customer_billing_context
+            .object_storage_egress_carryforward_cents,
+    )
+    .await
+    .expect("invoice generation should succeed");
+
+    assert_eq!(fixtures.invoice_db_row.subtotal_cents, 11);
+    assert_eq!(fixtures.invoice_db_row.total_cents, 500);
+    assert!(fixtures.invoice_db_row.minimum_applied);
+    assert_eq!(
+        invoice.subtotal_cents,
+        fixtures.invoice_db_row.subtotal_cents
+    );
+    assert_eq!(invoice.total_cents, fixtures.invoice_db_row.total_cents);
+    assert_eq!(
+        invoice.minimum_applied,
+        fixtures.invoice_db_row.minimum_applied
+    );
+    assert_eq!(
+        fixtures.invoice_line_items.len(),
+        1,
+        "stage2 fixture should pin exactly one line item for invoice replay"
+    );
+    assert_eq!(
+        invoice.line_items.len(),
+        fixtures.invoice_line_items.len(),
+        "generated line-item count should match stage2 fixture count"
+    );
+    let fixture_units: BTreeSet<&str> = fixtures
+        .invoice_line_items
+        .iter()
+        .map(|line_item| line_item.unit.as_str())
+        .collect();
+    let generated_units: BTreeSet<&str> = invoice
+        .line_items
+        .iter()
+        .map(|line_item| line_item.unit.as_str())
+        .collect();
+    assert_eq!(
+        generated_units, fixture_units,
+        "generated line-item units should exactly match fixture units"
+    );
+
+    let hot_storage_fixture = fixtures
+        .invoice_line_items
+        .iter()
+        .find(|line_item| line_item.unit == "mb_months")
+        .expect("fixture hot-storage line item should exist");
+    let hot_storage_generated = assert_single_line_item_by_unit(&invoice, "mb_months");
+    assert_eq!(
+        hot_storage_generated.description,
+        hot_storage_fixture.description
+    );
+    assert_eq!(
+        hot_storage_generated.quantity.round_dp(6),
+        hot_storage_fixture.quantity
+    );
+    assert_eq!(hot_storage_generated.unit, hot_storage_fixture.unit);
+    assert_eq!(
+        hot_storage_generated.unit_price_cents,
+        hot_storage_fixture.unit_price_cents
+    );
+    assert_eq!(
+        hot_storage_generated.amount_cents,
+        hot_storage_fixture.amount_cents
+    );
+    assert_eq!(hot_storage_generated.region, hot_storage_fixture.region);
+    assert_eq!(
+        mocks.rate_card_repo.get_override_call_count(),
+        1,
+        "replay should query override seam for the selected base card even when fixture override is absent"
+    );
+}
+
+#[tokio::test]
+async fn shared_plan_stage2_replay_distinguishes_fixture_card_from_current_active_card() {
+    let fixtures = load_stage2_bundle_fixtures();
+    let expected_customer_id = Uuid::parse_str(STAGE2_EXPECTED_CUSTOMER_ID)
+        .expect("stage2 fixture customer id should parse");
+    let expected_rate_card_id = Uuid::parse_str(STAGE2_EXPECTED_RATE_CARD_ID)
+        .expect("stage2 fixture rate-card id should parse");
+    let fixture_customer = stage2_customer_from_context(
+        &fixtures.customer_billing_context,
+        fixtures.invoice_db_row.created_at,
+    );
+    let billing_plan = fixture_customer.billing_plan_enum();
+
+    let fixture_rate_card = stage2_rate_card_row(&fixtures.rate_card_selection.effective_rate_card);
+    assert_eq!(fixture_rate_card.id, expected_rate_card_id);
+
+    let mut divergent_active_card = fixture_rate_card.clone();
+    divergent_active_card.id = Uuid::new_v4();
+    divergent_active_card.storage_rate_per_mb_month = dec!(0.20);
+    divergent_active_card.minimum_spend_cents = 0;
+    divergent_active_card.shared_minimum_spend_cents = 0;
+
+    let mocks = setup_repos();
+    mocks
+        .rate_card_repo
+        .seed_active_card(divergent_active_card.clone());
+    mocks
+        .rate_card_repo
+        .seed_card_by_id(fixture_rate_card.clone());
+    seed_stage2_usage_rows(&mocks, &fixtures.usage_daily_replay_rows);
+
+    let replay_invoice = compute_invoice_for_customer_with_rate_card_id(
+        &mocks.billing_repos(),
+        expected_customer_id,
+        expected_rate_card_id,
+        fixtures.invoice_db_row.period_start,
+        fixtures.invoice_db_row.period_end,
+        billing_plan,
+        fixtures
+            .customer_billing_context
+            .object_storage_egress_carryforward_cents,
+    )
+    .await
+    .expect("fixture-card replay invoice generation should succeed");
+
+    let active_card_invoice = compute_invoice_for_customer(
+        &mocks.billing_repos(),
+        expected_customer_id,
+        fixtures.invoice_db_row.period_start,
+        fixtures.invoice_db_row.period_end,
+        billing_plan,
+        fixtures
+            .customer_billing_context
+            .object_storage_egress_carryforward_cents,
+    )
+    .await
+    .expect("active-card replay invoice generation should succeed");
+
+    assert_ne!(
+        replay_invoice.subtotal_cents, active_card_invoice.subtotal_cents,
+        "replay seam should detect different invoice results when current-active card diverges"
+    );
+    assert_eq!(
+        mocks.rate_card_repo.get_by_id_call_count(),
+        1,
+        "fixture-card replay should resolve the base card via get_by_id exactly once"
+    );
+    assert!(
+        mocks.rate_card_repo.get_active_call_count() >= 1,
+        "active-card replay should still query get_active via compute_invoice_for_customer"
+    );
+}
+
+#[tokio::test]
+async fn shared_plan_stage2_usage_rows_preserve_fixture_aggregated_at_provenance() {
+    let fixtures = load_stage2_bundle_fixtures();
+    let expected_customer_id = Uuid::parse_str(STAGE2_EXPECTED_CUSTOMER_ID)
+        .expect("stage2 fixture customer id should parse");
+
+    let mocks = setup_repos();
+    seed_stage2_usage_rows(&mocks, &fixtures.usage_daily_replay_rows);
+
+    let replay_rows = mocks
+        .usage_repo
+        .get_daily_usage(
+            expected_customer_id,
+            fixtures.invoice_db_row.period_start,
+            fixtures.invoice_db_row.period_end,
+        )
+        .await
+        .expect("usage replay rows should load from mock repo");
+
+    let expected_rows: BTreeMap<(NaiveDate, String), DateTime<Utc>> = fixtures
+        .usage_daily_replay_rows
+        .iter()
+        .map(|row| ((row.date, row.region.clone()), row.aggregated_at))
+        .collect();
+    let actual_rows: BTreeMap<(NaiveDate, String), DateTime<Utc>> = replay_rows
+        .iter()
+        .map(|row| ((row.date, row.region.clone()), row.aggregated_at))
+        .collect();
+
+    assert_eq!(
+        actual_rows, expected_rows,
+        "stage2 replay must preserve fixture aggregated_at values exactly"
+    );
+    assert!(
+        fixtures
+            .usage_daily_replay_rows
+            .iter()
+            .all(|row| row.aggregated_at <= fixtures.invoice_db_row.created_at),
+        "stage2 usage fixture rows must not include post-invoice aggregates"
+    );
+}
+
+#[tokio::test]
+async fn shared_plan_stage2_usage_record_provenance_stays_within_replay_cutoff() {
+    let fixtures = load_stage2_bundle_fixtures();
+    let expected_customer_id = Uuid::parse_str(STAGE2_EXPECTED_CUSTOMER_ID)
+        .expect("stage2 fixture customer id should parse");
+    let replay_row_cutoffs: BTreeMap<(NaiveDate, String), DateTime<Utc>> = fixtures
+        .usage_daily_replay_rows
+        .iter()
+        .map(|row| ((row.date, row.region.clone()), row.aggregated_at))
+        .collect();
+
+    assert!(
+        !fixtures.usage_records_provenance.is_empty(),
+        "stage2 fixture should preserve raw usage provenance rows"
+    );
+    assert!(
+        fixtures
+            .usage_records_provenance
+            .iter()
+            .all(|row| row.customer_id == expected_customer_id),
+        "raw usage provenance rows must stay pinned to the fixture customer"
+    );
+    assert!(
+        fixtures
+            .usage_records_provenance
+            .iter()
+            .all(|row| row.recorded_at <= fixtures.invoice_db_row.created_at),
+        "raw usage provenance rows must not extend beyond the invoice-created replay cutoff"
+    );
+    assert!(
+        fixtures.usage_records_provenance.iter().all(|row| {
+            replay_row_cutoffs
+                .get(&(row.recorded_at.date_naive(), row.region.clone()))
+                .is_some_and(|cutoff| row.recorded_at <= *cutoff)
+        }),
+        "raw usage provenance rows must stay within the captured replay day/region cutoffs"
+    );
 }
 
 // ---------------------------------------------------------------------------

@@ -1,0 +1,2 @@
+HEAD_SHA=e0b9b45a28c9888e80c697b40c7cf8588174e4bb
+COMMAND: aws s3 ls s3://fjcloud-releases-staging/staging/e0b9b45a28c9888e80c697b40c7cf8588174e4bb/

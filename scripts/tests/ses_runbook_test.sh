@@ -149,6 +149,8 @@ test_runbook_anchors_stage1_boundary_proof_surface() {
         "runbook should reference the Stage 1 checked-in drift_blocker owner path"
     assert_contains "$content" "docs/runbooks/evidence/ses-deliverability/20260424_boundary_proof/first_send_retrieval_status.md" \
         "runbook should reference the Stage 3 first_send_retrieval_status companion artifact path"
+    assert_contains "$content" "docs/runbooks/evidence/ses-deliverability/20260428T194527Z_stage3_live_probe/roundtrip.json" \
+        "runbook should reference the latest Stage 3 live inbox roundtrip.json proof path"
     assert_contains "$content" "/Users/stuart/.matt/projects/fjcloud_dev-cd6902f9/apr23_am_1_ses_deliverability_refined.md-4c6ea1bd/artifacts/stage_04_ses_deliverability/fjcloud_ses_deliverability_evidence_20260423T063739Z_63867" \
         "runbook should reference the canonical Stage 4 wrapper run directory path"
     if [[ "$content" == *"bounce_blocker.txt"* ]] || [[ "$content" == *"bounce_event.json"* ]]; then
@@ -175,6 +177,30 @@ test_runbook_anchors_stage1_boundary_proof_surface() {
         "runbook should not claim proof-captured marker wording while deliverability boundaries remain open"
 }
 
+test_runbook_documents_bounce_complaint_follow_on_owner_contract() {
+    local content
+    content="$(cat "$RUNBOOK_PATH")"
+
+    assert_contains "$content" "Bounce/Complaint Handling Gap (Follow-on Owner Contract)" \
+        "runbook should include a dedicated bounce/complaint follow-on owner-contract subsection"
+    assert_contains "$content" "docs/research/ses_bounce_complaint_gap.md" \
+        "runbook subsection should point to the research note for deep rationale"
+    assert_contains "$content" "infra/api/src/services/email.rs::SesEmailService::send_html_email" \
+        "runbook subsection should name the outbound configuration-set attachment seam owner"
+    assert_contains "$content" "ops/terraform/dns/main.tf" \
+        "runbook subsection should name the DNS Terraform owner for SES wiring changes"
+    assert_contains "$content" "ops/terraform/monitoring/" \
+        "runbook subsection should name the monitoring Terraform owner for SES event-destination wiring"
+    assert_contains "$content" "infra/api/src/routes/webhooks.rs" \
+        "runbook subsection should name the existing API ingress seam candidate for downstream consumption"
+    assert_contains "$content" "configuration set" \
+        "runbook subsection should explicitly require one configuration-set attachment seam"
+    assert_contains "$content" "event destination" \
+        "runbook subsection should explicitly require one SES event-destination seam"
+    assert_contains "$content" "bounce_complaint_handling=unproven" \
+        "runbook subsection should preserve explicit unproven bounce/complaint status language"
+}
+
 echo "=== SES runbook contract tests ==="
 test_runbook_references_readiness_contract_and_identity_source
 test_runbook_cross_references_existing_staging_identity_proof
@@ -185,6 +211,7 @@ test_runbook_preserves_optional_live_send_smoke_context
 test_runbook_documents_blocked_prerequisites_and_preserved_stage3_status
 test_runbook_requires_stage1_truth_values_and_removes_stale_snapshot
 test_runbook_anchors_stage1_boundary_proof_surface
+test_runbook_documents_bounce_complaint_follow_on_owner_contract
 
 echo "=== Results: $PASS_COUNT passed, $FAIL_COUNT failed ==="
 [ "$FAIL_COUNT" -eq 0 ]

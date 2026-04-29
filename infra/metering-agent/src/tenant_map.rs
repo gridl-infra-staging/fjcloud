@@ -439,7 +439,7 @@ mod tests {
             storage_poll_interval: Duration::from_secs(300),
             tenant_map_refresh_interval: Duration::from_secs(300),
             database_url: "postgres://localhost/test".to_string(),
-            customer_id: Uuid::new_v4(),
+            customer_id: Uuid::new_v4().to_string(),
             node_id: "node-a".to_string(),
             region: "us-east-1".to_string(),
             environment: "test".to_string(),

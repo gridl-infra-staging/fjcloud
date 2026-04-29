@@ -128,6 +128,7 @@ BINARIES=(fjcloud-api fjcloud-aggregation-job fj-metering-agent)
 BIN_DIR="/usr/local/bin"
 MIGRATIONS_DIR="/opt/fjcloud/migrations"
 SCRIPTS_DIR="/opt/fjcloud/scripts"
+SYSTEMD_ARTIFACT_DIR="/opt/fjcloud/systemd"
 
 echo "==> [instance] Starting deploy of ${SHA}"
 
@@ -147,6 +148,13 @@ mkdir -p "$SCRIPTS_DIR"
 aws s3 cp "s3://${S3_BUCKET}/${S3_PREFIX}/scripts/migrate.sh" "${SCRIPTS_DIR}/migrate.sh" --region "$REGION"
 aws s3 cp "s3://${S3_BUCKET}/${S3_PREFIX}/scripts/generate_ssm_env.sh" "${SCRIPTS_DIR}/generate_ssm_env.sh" --region "$REGION"
 chmod +x "${SCRIPTS_DIR}/migrate.sh" "${SCRIPTS_DIR}/generate_ssm_env.sh"
+
+# --- Download and install systemd units that must converge with the repo ---
+mkdir -p "$SYSTEMD_ARTIFACT_DIR"
+aws s3 cp "s3://${S3_BUCKET}/${S3_PREFIX}/systemd/fj-metering-agent.service" "${SYSTEMD_ARTIFACT_DIR}/fj-metering-agent.service" --region "$REGION"
+install -m 0644 "${SYSTEMD_ARTIFACT_DIR}/fj-metering-agent.service" /etc/systemd/system/fj-metering-agent.service
+systemctl daemon-reload
+systemctl enable fj-metering-agent
 
 # --- Generate runtime env files from SSM parameters ---
 echo "==> [instance] Generating runtime env files from SSM"

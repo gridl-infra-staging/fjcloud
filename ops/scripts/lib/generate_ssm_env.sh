@@ -83,6 +83,7 @@ declare -A SSM_TO_ENV=(
   # SES email — startup_env.rs
   [ses_from_address]="SES_FROM_ADDRESS"
   [ses_region]="SES_REGION"
+  [ses_configuration_set]="SES_CONFIGURATION_SET"
 
   # Internal auth — config.rs::from_reader
   [internal_auth_token]="INTERNAL_AUTH_TOKEN"

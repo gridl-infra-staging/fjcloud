@@ -219,6 +219,15 @@ test_no_sql_files_returns_nonzero() {
         "run_migrations should explain when the migration directory is empty"
 }
 
+test_email_log_suppressed_status_migration_quotes_delivery_status_literals() {
+    local migration_file="$REPO_ROOT/infra/migrations/044_email_log_suppressed_status.sql"
+    local migration_sql
+    migration_sql="$(cat "$migration_file")"
+
+    assert_contains "$migration_sql" "CHECK (delivery_status IN ('success', 'failed', 'suppressed'));" \
+        "044 migration should quote delivery_status literals to keep the CHECK constraint valid SQL"
+}
+
 # ============================================================================
 # Run all tests
 # ============================================================================
@@ -232,6 +241,7 @@ main() {
     test_passes_db_url_to_psql
     test_run_migrations_with_runner_uses_custom_runner_path
     test_no_sql_files_returns_nonzero
+    test_email_log_suppressed_status_migration_quotes_delivery_status_literals
 
     echo ""
     echo "=== Results: $PASS_COUNT passed, $FAIL_COUNT failed ==="

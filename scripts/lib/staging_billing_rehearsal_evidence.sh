@@ -5,60 +5,6 @@
 # TODO: Document run_bounded_convergence.
 # TODO: Document run_bounded_convergence.
 # TODO: Document run_bounded_convergence.
-# TODO: Document run_bounded_convergence.
-# TODO: Document run_bounded_convergence.
-# TODO: Document run_bounded_convergence.
-# TODO: Document run_bounded_convergence.
-# TODO: Document run_bounded_convergence.
-# TODO: Document run_bounded_convergence.
-# TODO: Document run_bounded_convergence.
-# TODO: Document run_bounded_convergence.
-# TODO: Document run_bounded_convergence.
-# TODO: Document run_bounded_convergence.
-# TODO: Document run_bounded_convergence.
-# TODO: Document run_bounded_convergence.
-# TODO: Document run_bounded_convergence.
-# TODO: Document run_bounded_convergence.
-# TODO: Document run_bounded_convergence.
-# TODO: Document run_bounded_convergence.
-# TODO: Document run_bounded_convergence.
-# TODO: Document run_bounded_convergence.
-# TODO: Document run_bounded_convergence.
-# TODO: Document run_bounded_convergence.
-# TODO: Document run_bounded_convergence.
-# TODO: Document run_bounded_convergence.
-# TODO: Document run_bounded_convergence.
-# TODO: Document run_bounded_convergence.
-# TODO: Document run_bounded_convergence.
-# TODO: Document run_bounded_convergence.
-# TODO: Document run_bounded_convergence.
-# TODO: Document run_bounded_convergence.
-# TODO: Document run_bounded_convergence.
-# TODO: Document run_bounded_convergence.
-# TODO: Document run_bounded_convergence.
-# TODO: Document run_bounded_convergence.
-# TODO: Document run_bounded_convergence.
-# TODO: Document run_bounded_convergence.
-# TODO: Document run_bounded_convergence.
-# TODO: Document run_bounded_convergence.
-# TODO: Document run_bounded_convergence.
-# TODO: Document run_bounded_convergence.
-# TODO: Document run_bounded_convergence.
-# TODO: Document run_bounded_convergence.
-# TODO: Document run_bounded_convergence.
-# TODO: Document run_bounded_convergence.
-# TODO: Document run_bounded_convergence.
-# TODO: Document run_bounded_convergence.
-# TODO: Document run_bounded_convergence.
-# TODO: Document run_bounded_convergence.
-# TODO: Document run_bounded_convergence.
-# TODO: Document run_bounded_convergence.
-# TODO: Document run_bounded_convergence.
-# TODO: Document run_bounded_convergence.
-# TODO: Document run_bounded_convergence.
-# TODO: Document run_bounded_convergence.
-# TODO: Document run_bounded_convergence.
-# TODO: Document run_bounded_convergence.
 run_bounded_convergence() {
     local check_fn="$1"
     local max_attempts="${REHEARSAL_EVIDENCE_MAX_ATTEMPTS:-15}"
@@ -328,6 +274,188 @@ check_webhook_evidence_once() {
     return 1
 }
 
+run_cross_check_query_to_artifact() {
+    local artifact_label="$1"
+    local artifact_path="$2"
+    local sql="$3"
+    local query_status
+
+    if run_rehearsal_db_query "$sql"; then
+        :
+    else
+        query_status=$?
+        set_db_query_failure "$artifact_label" "$artifact_label" "$query_status"
+        return 1
+    fi
+
+    if ! write_json_artifact_file "$artifact_path" "$REHEARSAL_QUERY_OUTPUT"; then
+        EVIDENCE_LAST_CLASSIFICATION="${artifact_label}_invalid_json"
+        EVIDENCE_LAST_DETAIL="${artifact_label} query returned invalid JSON payload."
+        EVIDENCE_TERMINAL_FAILURE=1
+        return 1
+    fi
+    return 0
+}
+build_stage1_invoice_db_row_sql() {
+    local invoice_id="$1"
+    printf "SELECT COALESCE((SELECT row_to_json(invoice_row)::text FROM (SELECT * FROM invoices WHERE id = '%s'::uuid LIMIT 1) invoice_row), 'null') /* stage1_invoice_db_row */" "$invoice_id"
+}
+build_stage1_invoice_line_items_sql() {
+    local invoice_id="$1"
+    printf "SELECT COALESCE((SELECT json_agg(line_row ORDER BY line_row.id)::text FROM (SELECT * FROM invoice_line_items WHERE invoice_id = '%s'::uuid) line_row), '[]') /* stage1_invoice_line_items */" "$invoice_id"
+}
+build_stage1_customer_billing_context_sql() {
+    local invoice_id="$1"
+    printf "SELECT COALESCE((SELECT row_to_json(customer_row)::text FROM (SELECT c.id, c.email, c.billing_plan, c.object_storage_egress_carryforward_cents FROM customers c JOIN invoices i ON i.customer_id = c.id WHERE i.id = '%s'::uuid LIMIT 1) customer_row), 'null') /* stage1_customer_billing_context */" "$invoice_id"
+}
+build_stage1_rate_card_selection_sql() {
+    local invoice_id="$1"
+    printf "WITH invoice_ctx AS (SELECT id, customer_id, period_start, period_end, created_at, paid_at, created_at AS selection_timestamp, row_to_json(i)::jsonb AS invoice_payload FROM invoices i WHERE id = '%s'::uuid LIMIT 1), effective_card AS (SELECT rc.* FROM rate_cards rc JOIN invoice_ctx i ON rc.effective_from <= i.selection_timestamp AND (rc.effective_until IS NULL OR rc.effective_until > i.selection_timestamp) ORDER BY rc.effective_from DESC LIMIT 1), active_card AS (SELECT rc.* FROM rate_cards rc WHERE rc.effective_until IS NULL ORDER BY rc.effective_from DESC LIMIT 1), matching_override AS (SELECT cro.* FROM customer_rate_overrides cro JOIN invoice_ctx i ON i.customer_id = cro.customer_id JOIN effective_card ec ON ec.id = cro.rate_card_id LIMIT 1) SELECT json_build_object('selection_basis','invoice_created_at','captured_at',to_char(NOW() AT TIME ZONE 'utc','YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"'),'invoice_created_at',(SELECT invoice_payload->>'created_at' FROM invoice_ctx),'invoice_paid_at',(SELECT invoice_payload->>'paid_at' FROM invoice_ctx),'invoice_selection_timestamp',(SELECT invoice_payload->>'created_at' FROM invoice_ctx),'invoice_window',(SELECT row_to_json(window_row) FROM (SELECT period_start, period_end FROM invoice_ctx) window_row),'effective_rate_card',(SELECT row_to_json(ec) FROM effective_card ec),'override_exists',EXISTS(SELECT 1 FROM matching_override),'active_rate_card_when_different',(SELECT CASE WHEN active_card.id IS NOT NULL AND effective_card.id IS NOT NULL AND active_card.id <> effective_card.id THEN row_to_json(active_card) ELSE NULL END FROM active_card CROSS JOIN effective_card))::text /* stage1_rate_card_selection */" "$invoice_id"
+}
+build_stage1_customer_rate_override_sql() {
+    printf "SELECT 'null'::text /* stage1_customer_rate_override */"
+}
+build_stage1_replay_usage_daily_cte_sql() {
+    local invoice_id="$1"
+    printf "WITH invoice_ctx AS (SELECT customer_id, period_start, period_end, created_at FROM invoices WHERE id = '%s'::uuid LIMIT 1), replay_usage_daily AS (SELECT ud.* FROM usage_daily ud JOIN invoice_ctx i ON i.customer_id = ud.customer_id WHERE ud.date >= i.period_start AND ud.date <= i.period_end AND ud.aggregated_at <= i.created_at)" "$invoice_id"
+}
+build_stage1_usage_daily_replay_rows_sql() {
+    local invoice_id="$1"
+    printf "%s SELECT COALESCE((SELECT json_agg(usage_row ORDER BY usage_row.date, usage_row.region)::text FROM replay_usage_daily usage_row), '[]') /* stage1_usage_daily_replay_rows */" "$(build_stage1_replay_usage_daily_cte_sql "$invoice_id")"
+}
+build_stage1_usage_records_provenance_sql() {
+    local invoice_id="$1"
+    printf "%s SELECT COALESCE((SELECT json_agg(record_row ORDER BY record_row.recorded_at, record_row.id)::text FROM (SELECT ur.* FROM usage_records ur JOIN replay_usage_daily ud ON ud.customer_id = ur.customer_id AND ud.region = ur.region AND (ur.recorded_at AT TIME ZONE 'utc')::date = ud.date AND ur.recorded_at <= ud.aggregated_at) record_row), '[]') /* stage1_usage_records_provenance */" "$(build_stage1_replay_usage_daily_cte_sql "$invoice_id")"
+}
+is_invoice_row_payload_present() {
+    local json_payload="$1"
+    python3 - "$json_payload" <<'PY' || true
+import json
+import sys
+try:
+    payload = json.loads(sys.argv[1])
+except Exception:
+    print("false")
+    raise SystemExit(0)
+print("true" if isinstance(payload, dict) and payload.get("id") else "false")
+PY
+}
+is_effective_rate_card_present() {
+    local json_payload="$1"
+    python3 - "$json_payload" <<'PY' || true
+import json
+import sys
+try:
+    payload = json.loads(sys.argv[1])
+except Exception:
+    print("false")
+    raise SystemExit(0)
+effective = payload.get("effective_rate_card") if isinstance(payload, dict) else None
+print("true" if isinstance(effective, dict) and effective.get("id") else "false")
+PY
+}
+stage1_override_exists_from_selection_payload() {
+    local json_payload="$1"
+    python3 - "$json_payload" <<'PY' || true
+import json
+import sys
+try:
+    payload = json.loads(sys.argv[1])
+except Exception:
+    print("invalid")
+    raise SystemExit(0)
+if not isinstance(payload, dict):
+    print("false")
+    raise SystemExit(0)
+value = payload.get("override_exists")
+if isinstance(value, bool):
+    print("true" if value else "false")
+else:
+    print("false")
+PY
+}
+capture_billing_cross_check_inputs() {
+    local invoice_id="$1"
+    local bundle_dir="$2"
+    local invoice_db_row_path invoice_line_items_path customer_context_path
+    local rate_card_selection_path customer_rate_override_path
+    local usage_daily_replay_path usage_records_provenance_path
+    invoice_db_row_path="$bundle_dir/invoice_db_row.json"
+    invoice_line_items_path="$bundle_dir/invoice_line_items.json"
+    customer_context_path="$bundle_dir/customer_billing_context.json"
+    rate_card_selection_path="$bundle_dir/rate_card_selection.json"
+    customer_rate_override_path="$bundle_dir/customer_rate_override.json"
+    usage_daily_replay_path="$bundle_dir/usage_daily_replay_rows.json"
+    usage_records_provenance_path="$bundle_dir/usage_records_provenance.json"
+
+    mkdir -p "$bundle_dir"
+    chmod 700 "$bundle_dir"
+
+    run_cross_check_query_to_artifact \
+        "invoice_db_row" \
+        "$invoice_db_row_path" \
+        "$(build_stage1_invoice_db_row_sql "$invoice_id")" || return 1
+    if [ "$(is_invoice_row_payload_present "$(cat "$invoice_db_row_path")")" != "true" ]; then
+        EVIDENCE_LAST_CLASSIFICATION="invoice_db_row_missing"
+        EVIDENCE_LAST_DETAIL="No invoices row exists for invoice_id=${invoice_id}."
+        EVIDENCE_TERMINAL_FAILURE=1
+        return 1
+    fi
+
+    run_cross_check_query_to_artifact \
+        "invoice_line_items" \
+        "$invoice_line_items_path" \
+        "$(build_stage1_invoice_line_items_sql "$invoice_id")" || return 1
+
+    run_cross_check_query_to_artifact \
+        "customer_billing_context" \
+        "$customer_context_path" \
+        "$(build_stage1_customer_billing_context_sql "$invoice_id")" || return 1
+
+    run_cross_check_query_to_artifact \
+        "rate_card_selection" \
+        "$rate_card_selection_path" \
+        "$(build_stage1_rate_card_selection_sql "$invoice_id")" || return 1
+    if [ "$(is_effective_rate_card_present "$(cat "$rate_card_selection_path")")" != "true" ]; then
+        EVIDENCE_LAST_CLASSIFICATION="rate_card_selection_missing_effective"
+        EVIDENCE_LAST_DETAIL="Missing invoice-window effective rate card; refusing fallback to current active pricing."
+        EVIDENCE_TERMINAL_FAILURE=1
+        return 1
+    fi
+
+    run_cross_check_query_to_artifact \
+        "customer_rate_override" \
+        "$customer_rate_override_path" \
+        "$(build_stage1_customer_rate_override_sql "$invoice_id")" || return 1
+    local selection_override_exists
+    selection_override_exists="$(stage1_override_exists_from_selection_payload "$(cat "$rate_card_selection_path")")"
+    if [ "$selection_override_exists" = "invalid" ]; then
+        EVIDENCE_LAST_CLASSIFICATION="rate_card_selection_invalid_json"
+        EVIDENCE_LAST_DETAIL="rate_card_selection artifact is invalid JSON."
+        EVIDENCE_TERMINAL_FAILURE=1
+        return 1
+    fi
+    if [ "$selection_override_exists" = "true" ] && [ "$(cat "$customer_rate_override_path")" = "null" ]; then
+        EVIDENCE_LAST_CLASSIFICATION="customer_rate_override_missing_historical_proof"
+        EVIDENCE_LAST_DETAIL="Cannot prove historical override payload at invoice-created timestamp because customer_rate_overrides is mutable via in-place upsert."
+        EVIDENCE_TERMINAL_FAILURE=1
+        return 1
+    fi
+
+    run_cross_check_query_to_artifact \
+        "usage_daily_replay_rows" \
+        "$usage_daily_replay_path" \
+        "$(build_stage1_usage_daily_replay_rows_sql "$invoice_id")" || return 1
+
+    run_cross_check_query_to_artifact \
+        "usage_records_provenance" \
+        "$usage_records_provenance_path" \
+        "$(build_stage1_usage_records_provenance_sql "$invoice_id")" || return 1
+    EVIDENCE_LAST_CLASSIFICATION="billing_cross_check_bundle_ready"
+    EVIDENCE_LAST_DETAIL="Stage 1 billing cross-check artifacts captured."
+    EVIDENCE_TERMINAL_FAILURE=0
+    return 0
+}
 STAGING_BILLING_REHEARSAL_EVIDENCE_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=staging_billing_rehearsal_email_evidence.sh
 source "$STAGING_BILLING_REHEARSAL_EVIDENCE_LIB_DIR/staging_billing_rehearsal_email_evidence.sh"

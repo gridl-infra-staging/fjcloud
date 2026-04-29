@@ -34,9 +34,10 @@ use super::mocks::{
     mock_index_migration_repo, mock_invoice_repo, mock_node_secret_manager, mock_rate_card_repo,
     mock_repo, mock_storage_bucket_repo, mock_storage_key_repo, mock_stripe_service,
     mock_subscription_repo, mock_tenant_repo, mock_usage_repo, mock_vm_inventory_repo,
-    mock_vm_provisioner, mock_webhook_event_repo, MockApiKeyRepo, MockCustomerRepo,
-    MockDeploymentRepo, MockIndexMigrationRepo, MockInvoiceRepo, MockRateCardRepo,
-    MockStripeService, MockTenantRepo, MockUsageRepo, MockVmInventoryRepo, MockWebhookEventRepo,
+    mock_vm_provisioner, mock_webhook_event_repo, mock_webhook_http_client, MockApiKeyRepo,
+    MockCustomerRepo, MockDeploymentRepo, MockIndexMigrationRepo, MockInvoiceRepo,
+    MockRateCardRepo, MockStripeService, MockTenantRepo, MockUsageRepo, MockVmInventoryRepo,
+    MockWebhookEventRepo, MockWebhookHttpClient,
 };
 
 pub const TEST_JWT_SECRET: &str = "test-jwt-secret-min-32-chars-ok!";
@@ -208,6 +209,7 @@ pub struct TestStateBuilder {
     subscription_repo: Arc<super::mocks::MockSubscriptionRepo>,
     plan_registry: Arc<dyn PlanRegistry>,
     stripe_service: Arc<MockStripeService>,
+    webhook_http_client: Arc<MockWebhookHttpClient>,
     email_service: Arc<dyn EmailService>,
     webhook_event_repo: Arc<MockWebhookEventRepo>,
     object_store: Arc<InMemoryObjectStore>,
@@ -258,6 +260,7 @@ impl TestStateBuilder {
             subscription_repo: mock_subscription_repo(),
             plan_registry: test_plan_registry(),
             stripe_service: mock_stripe_service(),
+            webhook_http_client: mock_webhook_http_client(),
             email_service: mock_email_service() as Arc<dyn EmailService>,
             webhook_event_repo: mock_webhook_event_repo(),
             object_store: Arc::new(InMemoryObjectStore::new()),
@@ -316,6 +319,14 @@ impl TestStateBuilder {
 
     pub fn with_stripe_service(mut self, stripe_service: Arc<MockStripeService>) -> Self {
         self.stripe_service = stripe_service;
+        self
+    }
+
+    pub fn with_webhook_http_client(
+        mut self,
+        webhook_http_client: Arc<MockWebhookHttpClient>,
+    ) -> Self {
+        self.webhook_http_client = webhook_http_client;
         self
     }
 
@@ -479,6 +490,7 @@ impl TestStateBuilder {
             subscription_repo: self.subscription_repo,
             plan_registry: self.plan_registry,
             stripe_service: self.stripe_service,
+            webhook_http_client: self.webhook_http_client,
             email_service: self.email_service,
             webhook_event_repo: self.webhook_event_repo,
             object_store: self.object_store,

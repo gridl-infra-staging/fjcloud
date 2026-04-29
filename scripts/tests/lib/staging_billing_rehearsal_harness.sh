@@ -43,6 +43,7 @@ setup_workspace() {
     TEST_CALL_LOG="$TEST_WORKSPACE/calls.log"
 
     mkdir -p "$TEST_WORKSPACE/scripts/lib" \
+             "$TEST_WORKSPACE/scripts/launch" \
              "$TEST_WORKSPACE/bin" \
              "$TEST_WORKSPACE/tmp" \
              "$TEST_WORKSPACE/inputs"
@@ -58,6 +59,9 @@ setup_workspace() {
     cp "$REPO_ROOT/scripts/lib/live_gate.sh" "$TEST_WORKSPACE/scripts/lib/"
     cp "$REPO_ROOT/scripts/lib/billing_rehearsal_steps.sh" "$TEST_WORKSPACE/scripts/lib/"
     cp "$REPO_ROOT/scripts/lib/staging_billing_rehearsal"*.sh "$TEST_WORKSPACE/scripts/lib/"
+    cp "$REPO_ROOT/scripts/launch/hydrate_seeder_env_from_ssm.sh" "$TEST_WORKSPACE/scripts/launch/"
+    [ -f "$REPO_ROOT/scripts/launch/capture_billing_cross_check_inputs.sh" ] && \
+        cp "$REPO_ROOT/scripts/launch/capture_billing_cross_check_inputs.sh" "$TEST_WORKSPACE/scripts/launch/" || true
 
     # Copy rehearsal runner only if it exists; Stage 1 is expected to be red
     # while this file is missing.
@@ -67,6 +71,7 @@ setup_workspace() {
     write_mock_psql
     write_mock_curl
     write_mock_stripe
+    write_mock_aws
     write_explicit_env_file "$TEST_WORKSPACE/inputs/staging_rehearsal.explicit.env" "$test_tenant_allowlist"
     write_malformed_env_file "$TEST_WORKSPACE/inputs/staging_rehearsal.malformed.env"
 }
@@ -170,6 +175,62 @@ if [[ "\$sql" == *"stage3_webhook_rows"* ]]; then
             printf 'inv_stage3_a|si_stage3_a|\ninv_stage3_b|si_stage3_b|\n'
             ;;
     esac
+    exit 0
+fi
+
+if [[ "\$sql" == *"stage1_invoice_db_row"* ]]; then
+    printf '{"id":"e7806ad2-977d-4f4b-9ff9-95c7ddab49e3","customer_id":"11111111-1111-1111-1111-111111111111","period_start":"2026-04-01","period_end":"2026-05-01","subtotal_cents":250,"total_cents":500,"minimum_applied":true,"stripe_invoice_id":"in_stage1","created_at":"2026-04-28T05:51:06.401081+00:00","paid_at":"2026-04-28T05:51:09.78566+00:00"}\n'
+    exit 0
+fi
+
+if [[ "\$sql" == *"stage1_invoice_line_items"* ]]; then
+    printf '[{"id":"line_1","invoice_id":"e7806ad2-977d-4f4b-9ff9-95c7ddab49e3","description":"Storage usage","quantity":"50.000000","unit":"mb_months","unit_price_cents":"5.0000","amount_cents":250,"region":"us-east-1","metadata":{}}]\n'
+    exit 0
+fi
+
+if [[ "\$sql" == *"stage1_customer_billing_context"* ]]; then
+    printf '{"id":"11111111-1111-1111-1111-111111111111","email":"alpha@example.test","billing_plan":"shared","object_storage_egress_carryforward_cents":"0.0000"}\n'
+    exit 0
+fi
+
+if [[ "\$sql" == *"stage1_rate_card_selection"* ]]; then
+    if [ "\${REHEARSAL_MOCK_STAGE1_RATE_CARD_SELECTION_MODE:-normal}" = "missing_effective" ]; then
+        printf '{"selection_basis":"invoice_created_at","captured_at":"2026-04-29T00:00:00Z","invoice_created_at":"2026-04-28T05:51:06.401081+00:00","invoice_paid_at":"2026-04-28T05:51:09.78566+00:00","invoice_selection_timestamp":"2026-04-28T05:51:06.401081+00:00","effective_rate_card":null,"override_exists":false}\n'
+        exit 0
+    fi
+    if [ "\${REHEARSAL_MOCK_STAGE1_RATE_CARD_SELECTION_MODE:-normal}" = "override_exists_spaced" ]; then
+        printf '{"selection_basis" : "invoice_created_at", "captured_at" : "2026-04-29T00:00:00Z", "invoice_created_at" : "2026-04-28T05:51:06.401081+00:00", "invoice_paid_at" : "2026-04-28T05:51:09.78566+00:00", "invoice_selection_timestamp" : "2026-04-28T05:51:06.401081+00:00", "invoice_window" : {"period_start":"2026-04-01","period_end":"2026-05-01"}, "effective_rate_card" : {"id":"ratecard_hist_1","name":"launch-2026","effective_from":"2026-01-01T00:00:00Z","effective_until":"2026-05-01T00:00:00Z","storage_rate_per_mb_month":"0.050000","minimum_spend_cents":1000,"shared_minimum_spend_cents":500}, "override_exists" : true}\n'
+        exit 0
+    fi
+    if [ "\${REHEARSAL_MOCK_STAGE1_RATE_CARD_SELECTION_MODE:-normal}" = "override_exists" ]; then
+        printf '{"selection_basis":"invoice_created_at","captured_at":"2026-04-29T00:00:00Z","invoice_created_at":"2026-04-28T05:51:06.401081+00:00","invoice_paid_at":"2026-04-28T05:51:09.78566+00:00","invoice_selection_timestamp":"2026-04-28T05:51:06.401081+00:00","invoice_window":{"period_start":"2026-04-01","period_end":"2026-05-01"},"effective_rate_card":{"id":"ratecard_hist_1","name":"launch-2026","effective_from":"2026-01-01T00:00:00Z","effective_until":"2026-05-01T00:00:00Z","storage_rate_per_mb_month":"0.050000","minimum_spend_cents":1000,"shared_minimum_spend_cents":500},"override_exists":true}\n'
+        exit 0
+    fi
+    printf '{"selection_basis":"invoice_created_at","captured_at":"2026-04-29T00:00:00Z","invoice_created_at":"2026-04-28T05:51:06.401081+00:00","invoice_paid_at":"2026-04-28T05:51:09.78566+00:00","invoice_selection_timestamp":"2026-04-28T05:51:06.401081+00:00","invoice_window":{"period_start":"2026-04-01","period_end":"2026-05-01"},"effective_rate_card":{"id":"ratecard_hist_1","name":"launch-2026","effective_from":"2026-01-01T00:00:00Z","effective_until":"2026-05-01T00:00:00Z","storage_rate_per_mb_month":"0.050000","minimum_spend_cents":1000,"shared_minimum_spend_cents":500},"override_exists":false}\n'
+    exit 0
+fi
+
+if [[ "\$sql" == *"stage1_rate_card_active_candidate"* ]]; then
+    printf '{"id":"ratecard_hist_1","name":"launch-2026","effective_from":"2026-01-01T00:00:00Z","effective_until":"2026-05-01T00:00:00Z","storage_rate_per_mb_month":"0.050000","minimum_spend_cents":1000,"shared_minimum_spend_cents":500}\n'
+    exit 0
+fi
+
+if [[ "\$sql" == *"stage1_customer_rate_override"* ]]; then
+    if [ "\${REHEARSAL_MOCK_STAGE1_OVERRIDE_MODE:-none}" = "present" ]; then
+        printf '{"customer_id":"11111111-1111-1111-1111-111111111111","rate_card_id":"ratecard_hist_1","overrides":{"minimum_spend_cents":400},"created_at":"2026-04-01T00:00:00Z"}\n'
+    else
+        printf 'null\n'
+    fi
+    exit 0
+fi
+
+if [[ "\$sql" == *"stage1_usage_daily_replay_rows"* ]]; then
+    printf '[{"customer_id":"11111111-1111-1111-1111-111111111111","date":"2026-04-28","region":"us-east-1","search_requests":0,"write_operations":0,"storage_bytes_avg":52428800,"documents_count_avg":0,"aggregated_at":"2026-04-28T05:45:00Z"}]\n'
+    exit 0
+fi
+
+if [[ "\$sql" == *"stage1_usage_records_provenance"* ]]; then
+    printf '[{"id":1,"customer_id":"11111111-1111-1111-1111-111111111111","tenant_id":"tenant_a","region":"us-east-1","node_id":"node-a","event_type":"storage_bytes","value":52428800,"recorded_at":"2026-04-28T05:44:00Z","flapjack_ts":"2026-04-28T05:44:00Z"}]\n'
     exit 0
 fi
 
@@ -399,6 +460,48 @@ MOCK
     chmod +x "$TEST_WORKSPACE/bin/stripe"
 }
 
+write_mock_aws() {
+    local quoted_log
+    quoted_log="$(shell_quote_for_script "$TEST_CALL_LOG")"
+
+    cat > "$TEST_WORKSPACE/bin/aws" <<MOCK
+#!/usr/bin/env bash
+echo "aws|\$*" >> $quoted_log
+if [ "\$1" = "ssm" ] && [ "\$2" = "get-parameter" ]; then
+    name=""
+    while [ "\$#" -gt 0 ]; do
+        case "\$1" in
+            --name)
+                name="\$2"
+                shift 2
+                ;;
+            *)
+                shift
+                ;;
+        esac
+    done
+    case "\$name" in
+        */admin_key)
+            printf '%s\n' "staging-admin-contract"
+            ;;
+        */database_url)
+            printf '%s\n' "postgres://griddle:griddle_local@127.0.0.1:15432/fjcloud_dev"
+            ;;
+        */dns_domain)
+            printf '%s\n' "staging.example.test"
+            ;;
+        *)
+            printf '%s\n' "None"
+            ;;
+    esac
+    exit 0
+fi
+echo "unsupported aws invocation" >&2
+exit 1
+MOCK
+    chmod +x "$TEST_WORKSPACE/bin/aws"
+}
+
 write_explicit_env_file() {
     local path="$1"
     local test_tenant_allowlist="${2:-}"
@@ -486,6 +589,44 @@ run_rehearsal() {
         RUN_STDOUT="$(env -i "${env_args[@]}" /bin/bash "$rehearsal_script" $cli_args 2>&1)" || RUN_EXIT_CODE=$?
     else
         RUN_STDOUT="$(env -i "${env_args[@]}" /bin/bash "$rehearsal_script" 2>&1)" || RUN_EXIT_CODE=$?
+    fi
+}
+
+run_capture_billing_cross_check_inputs() {
+    local cli_args=""
+    local env_args=()
+
+    while IFS= read -r line; do
+        [ -n "$line" ] && env_args+=("$line")
+    done < <(baseline_rehearsal_env)
+
+    while [ "$#" -gt 0 ]; do
+        case "$1" in
+            --args)
+                cli_args="$2"
+                shift 2
+                ;;
+            *)
+                env_args+=("$1")
+                shift
+                ;;
+        esac
+    done
+
+    env_args+=("AWS_ACCESS_KEY_ID=contract-test-key")
+    env_args+=("AWS_SECRET_ACCESS_KEY=contract-test-secret")
+    env_args+=("AWS_DEFAULT_REGION=us-east-1")
+    env_args+=("PATH=$TEST_WORKSPACE/bin:/usr/bin:/bin:/usr/local/bin")
+    env_args+=("HOME=$TEST_WORKSPACE")
+    env_args+=("TMPDIR=$TEST_WORKSPACE/tmp")
+
+    local capture_script="$TEST_WORKSPACE/scripts/launch/capture_billing_cross_check_inputs.sh"
+    RUN_EXIT_CODE=0
+    if [ -n "$cli_args" ]; then
+        # shellcheck disable=SC2086
+        RUN_STDOUT="$(env -i "${env_args[@]}" /bin/bash "$capture_script" $cli_args 2>&1)" || RUN_EXIT_CODE=$?
+    else
+        RUN_STDOUT="$(env -i "${env_args[@]}" /bin/bash "$capture_script" 2>&1)" || RUN_EXIT_CODE=$?
     fi
 }
 
@@ -782,4 +923,22 @@ assert_stage3_evidence_artifacts_exist() {
     assert_valid_json_file "$artifact_dir/invoice_rows.json" "invoice_rows artifact should be valid JSON"
     assert_valid_json_file "$artifact_dir/webhook.json" "webhook artifact should be valid JSON"
     assert_valid_json_file "$artifact_dir/invoice_email.json" "invoice_email artifact should be valid JSON"
+}
+
+assert_cross_check_input_artifacts_exist() {
+    local artifact_dir="$1"
+    assert_file_exists "$artifact_dir/invoice_db_row.json" "invoice_db_row artifact should exist"
+    assert_file_exists "$artifact_dir/invoice_line_items.json" "invoice_line_items artifact should exist"
+    assert_file_exists "$artifact_dir/customer_billing_context.json" "customer_billing_context artifact should exist"
+    assert_file_exists "$artifact_dir/rate_card_selection.json" "rate_card_selection artifact should exist"
+    assert_file_exists "$artifact_dir/customer_rate_override.json" "customer_rate_override artifact should exist"
+    assert_file_exists "$artifact_dir/usage_daily_replay_rows.json" "usage_daily_replay_rows artifact should exist"
+    assert_file_exists "$artifact_dir/usage_records_provenance.json" "usage_records_provenance artifact should exist"
+    assert_valid_json_file "$artifact_dir/invoice_db_row.json" "invoice_db_row artifact should be valid JSON"
+    assert_valid_json_file "$artifact_dir/invoice_line_items.json" "invoice_line_items artifact should be valid JSON"
+    assert_valid_json_file "$artifact_dir/customer_billing_context.json" "customer_billing_context artifact should be valid JSON"
+    assert_valid_json_file "$artifact_dir/rate_card_selection.json" "rate_card_selection artifact should be valid JSON"
+    assert_valid_json_file "$artifact_dir/customer_rate_override.json" "customer_rate_override artifact should be valid JSON"
+    assert_valid_json_file "$artifact_dir/usage_daily_replay_rows.json" "usage_daily_replay_rows artifact should be valid JSON"
+    assert_valid_json_file "$artifact_dir/usage_records_provenance.json" "usage_records_provenance artifact should be valid JSON"
 }

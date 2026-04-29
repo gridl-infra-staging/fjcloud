@@ -387,6 +387,10 @@ echo "STRIPE_PUBLISHABLE_KEY=${STRIPE_PUBLISHABLE_KEY:-}" >> "'"$cargo_log"'"
 echo "STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET:-}" >> "'"$cargo_log"'"
 exit 0'
     write_mock_lsof_reports_free "$tmp_dir/bin/lsof"
+    write_mock_script "$tmp_dir/bin/curl" '
+printf "%s\n" "{\"object\":\"balance\",\"available\":[]}"
+printf "200\n"
+exit 0'
 
     local output exit_code=0
     output=$(
@@ -435,6 +439,10 @@ echo "STRIPE_PUBLISHABLE_KEY=${STRIPE_PUBLISHABLE_KEY:-}" >> "'"$cargo_log"'"
 echo "STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET:-}" >> "'"$cargo_log"'"
 exit 0'
     write_mock_lsof_reports_free "$tmp_dir/bin/lsof"
+    write_mock_script "$tmp_dir/bin/curl" '
+printf "%s\n" "{\"object\":\"balance\",\"available\":[]}"
+printf "200\n"
+exit 0'
 
     local output exit_code=0
     output=$(
@@ -448,12 +456,201 @@ exit 0'
 
     local cargo_calls
     cargo_calls=$(cat "$cargo_log" 2>/dev/null || true)
+    assert_contains "$cargo_calls" "STRIPE_LOCAL_MODE=" \
+        "api-dev should clear STRIPE_LOCAL_MODE when explicit live-stripe opt-in is set"
+    assert_not_contains "$cargo_calls" "STRIPE_LOCAL_MODE=1" \
+        "api-dev should not leave local-stripe mode enabled when live-stripe opt-in is set"
     assert_contains "$cargo_calls" "STRIPE_SECRET_KEY=sk_test_stage_lane_contract" \
         "api-dev should preserve STRIPE_SECRET_KEY when live-stripe opt-in is set"
     assert_contains "$cargo_calls" "STRIPE_PUBLISHABLE_KEY=pk_test_stage_lane_contract" \
         "api-dev should preserve STRIPE_PUBLISHABLE_KEY when live-stripe opt-in is set"
     assert_contains "$cargo_calls" "STRIPE_WEBHOOK_SECRET=whsec_stage_lane_contract" \
         "api-dev should preserve explicit webhook secret when live-stripe opt-in is set"
+}
+
+test_api_dev_live_stripe_opt_in_prefers_env_local_key_over_inherited_key() {
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    trap 'restore_repo_path "'"$REPO_ROOT/.env.local"'" "${API_DEV_ENV_BACKUP:-}"; rm -rf "'"$tmp_dir"'"' RETURN
+
+    API_DEV_ENV_BACKUP=$(backup_repo_path "$REPO_ROOT/.env.local" "$tmp_dir/.env.local.backup")
+    cat > "$REPO_ROOT/.env.local" <<'EOF'
+DATABASE_URL=postgres://local-test:local-pass@localhost:5432/local_dev_test
+LISTEN_ADDR=127.0.0.1:4318
+STRIPE_SECRET_KEY=sk_test_from_env_local
+STRIPE_PUBLISHABLE_KEY=pk_test_from_env_local
+STRIPE_WEBHOOK_SECRET=whsec_from_env_local
+EOF
+
+    mkdir -p "$tmp_dir/bin"
+    local cargo_log="$tmp_dir/cargo.log"
+    write_mock_script "$tmp_dir/bin/cargo" '
+echo "STRIPE_LOCAL_MODE=${STRIPE_LOCAL_MODE:-}" >> "'"$cargo_log"'"
+echo "STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY:-}" >> "'"$cargo_log"'"
+echo "STRIPE_PUBLISHABLE_KEY=${STRIPE_PUBLISHABLE_KEY:-}" >> "'"$cargo_log"'"
+echo "STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET:-}" >> "'"$cargo_log"'"
+exit 0'
+    write_mock_lsof_reports_free "$tmp_dir/bin/lsof"
+    write_mock_script "$tmp_dir/bin/curl" '
+printf "%s\n" "{\"object\":\"balance\",\"available\":[]}"
+printf "200\n"
+exit 0'
+
+    local output exit_code=0
+    output=$(
+        PATH="$tmp_dir/bin:$PATH" \
+        API_DEV_ALLOW_LIVE_STRIPE=1 \
+        STRIPE_SECRET_KEY=sk_test_inherited_stale_key \
+        STRIPE_PUBLISHABLE_KEY=pk_test_inherited_stale_key \
+        STRIPE_WEBHOOK_SECRET=whsec_inherited_stale_key \
+        bash "$REPO_ROOT/scripts/api-dev.sh" 2>&1
+    ) || exit_code=$?
+
+    assert_eq "$exit_code" "0" \
+        "api-dev should start when live-stripe opt-in is set with inherited Stripe env keys"
+
+    local cargo_calls
+    cargo_calls=$(cat "$cargo_log" 2>/dev/null || true)
+    assert_contains "$cargo_calls" "STRIPE_LOCAL_MODE=" \
+        "api-dev live-stripe opt-in should clear inherited STRIPE_LOCAL_MODE before launching the API"
+    assert_not_contains "$cargo_calls" "STRIPE_LOCAL_MODE=1" \
+        "api-dev live-stripe opt-in should not inherit stale STRIPE_LOCAL_MODE=1 into the API runtime"
+    assert_contains "$cargo_calls" "STRIPE_SECRET_KEY=sk_test_from_env_local" \
+        "api-dev live-stripe opt-in should prefer STRIPE_SECRET_KEY from .env.local over inherited shell exports"
+    assert_contains "$cargo_calls" "STRIPE_PUBLISHABLE_KEY=pk_test_from_env_local" \
+        "api-dev live-stripe opt-in should prefer STRIPE_PUBLISHABLE_KEY from .env.local over inherited shell exports"
+    assert_contains "$cargo_calls" "STRIPE_WEBHOOK_SECRET=whsec_from_env_local" \
+        "api-dev live-stripe opt-in should prefer STRIPE_WEBHOOK_SECRET from .env.local over inherited shell exports"
+    assert_not_contains "$cargo_calls" "STRIPE_SECRET_KEY=sk_test_inherited_stale_key" \
+        "api-dev live-stripe opt-in should not leak inherited stale STRIPE_SECRET_KEY into API runtime"
+}
+
+test_api_dev_live_stripe_opt_in_prefers_env_local_test_key_over_inherited_secret_key() {
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    trap 'restore_repo_path "'"$REPO_ROOT/.env.local"'" "${API_DEV_ENV_BACKUP:-}"; rm -rf "'"$tmp_dir"'"' RETURN
+
+    API_DEV_ENV_BACKUP=$(backup_repo_path "$REPO_ROOT/.env.local" "$tmp_dir/.env.local.backup")
+    cat > "$REPO_ROOT/.env.local" <<'EOF'
+DATABASE_URL=postgres://local-test:local-pass@localhost:5432/local_dev_test
+LISTEN_ADDR=127.0.0.1:43185
+STRIPE_TEST_SECRET_KEY=sk_test_from_env_local_alias
+EOF
+
+    mkdir -p "$tmp_dir/bin"
+    local cargo_log="$tmp_dir/cargo.log"
+    write_mock_script "$tmp_dir/bin/cargo" '
+echo "STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY:-}" >> "'"$cargo_log"'"
+echo "STRIPE_TEST_SECRET_KEY=${STRIPE_TEST_SECRET_KEY:-}" >> "'"$cargo_log"'"
+exit 0'
+    write_mock_lsof_reports_free "$tmp_dir/bin/lsof"
+    write_mock_script "$tmp_dir/bin/curl" '
+printf "%s\n" "{\"object\":\"balance\",\"available\":[]}"
+printf "200\n"
+exit 0'
+
+    local output exit_code=0
+    output=$(
+        PATH="$tmp_dir/bin:$PATH" \
+        API_DEV_ALLOW_LIVE_STRIPE=1 \
+        STRIPE_SECRET_KEY=sk_live_inherited_stale_key \
+        bash "$REPO_ROOT/scripts/api-dev.sh" 2>&1
+    ) || exit_code=$?
+
+    assert_eq "$exit_code" "0" \
+        "api-dev should let .env.local STRIPE_TEST_SECRET_KEY win over inherited STRIPE_SECRET_KEY during live-stripe opt-in"
+
+    local cargo_calls
+    cargo_calls=$(cat "$cargo_log" 2>/dev/null || true)
+    assert_contains "$cargo_calls" "STRIPE_SECRET_KEY=" \
+        "api-dev should clear inherited STRIPE_SECRET_KEY when only STRIPE_TEST_SECRET_KEY is defined in .env.local"
+    assert_not_contains "$cargo_calls" "STRIPE_SECRET_KEY=sk_live_inherited_stale_key" \
+        "api-dev should not leak inherited canonical Stripe secrets when .env.local only defines the alias key"
+    assert_contains "$cargo_calls" "STRIPE_TEST_SECRET_KEY=sk_test_from_env_local_alias" \
+        "api-dev should preserve STRIPE_TEST_SECRET_KEY from .env.local for live-stripe validation"
+}
+
+test_api_dev_live_stripe_opt_in_empty_env_local_secret_clears_inherited_secret() {
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    trap 'restore_repo_path "'"$REPO_ROOT/.env.local"'" "${API_DEV_ENV_BACKUP:-}"; rm -rf "'"$tmp_dir"'"' RETURN
+
+    API_DEV_ENV_BACKUP=$(backup_repo_path "$REPO_ROOT/.env.local" "$tmp_dir/.env.local.backup")
+    cat > "$REPO_ROOT/.env.local" <<'EOF'
+DATABASE_URL=postgres://local-test:local-pass@localhost:5432/local_dev_test
+LISTEN_ADDR=127.0.0.1:43186
+STRIPE_SECRET_KEY=
+EOF
+
+    mkdir -p "$tmp_dir/bin"
+    local cargo_log="$tmp_dir/cargo.log"
+    write_mock_script "$tmp_dir/bin/cargo" '
+echo "cargo should not run when .env.local explicitly clears STRIPE_SECRET_KEY" >> "'"$cargo_log"'"
+exit 0'
+    write_mock_lsof_reports_free "$tmp_dir/bin/lsof"
+    write_mock_script "$tmp_dir/bin/curl" '
+printf "%s\n" "{\"error\":{\"type\":\"authentication_error\",\"message\":\"should not be called\"}}"
+printf "401\n"
+exit 0'
+
+    local output exit_code=0
+    output=$(
+        PATH="$tmp_dir/bin:$PATH" \
+        API_DEV_ALLOW_LIVE_STRIPE=1 \
+        STRIPE_SECRET_KEY=sk_test_inherited_stale_key \
+        bash "$REPO_ROOT/scripts/api-dev.sh" 2>&1
+    ) || exit_code=$?
+
+    assert_eq "$exit_code" "1" \
+        "api-dev should fail closed when .env.local explicitly clears STRIPE_SECRET_KEY during live-stripe opt-in"
+    assert_contains "$output" "REASON: stripe_key_unset" \
+        "api-dev should report the missing runtime Stripe key instead of reusing an inherited secret"
+
+    local cargo_calls
+    cargo_calls=$(cat "$cargo_log" 2>/dev/null || true)
+    assert_eq "$cargo_calls" "" \
+        "api-dev should not invoke cargo after .env.local clears the live-stripe secret"
+}
+
+test_api_dev_live_stripe_opt_in_rejects_invalid_runtime_key_before_launch() {
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    trap 'restore_repo_path "'"$REPO_ROOT/.env.local"'" "${API_DEV_ENV_BACKUP:-}"; rm -rf "'"$tmp_dir"'"' RETURN
+
+    API_DEV_ENV_BACKUP=$(backup_repo_path "$REPO_ROOT/.env.local" "$tmp_dir/.env.local.backup")
+    cat > "$REPO_ROOT/.env.local" <<'EOF'
+DATABASE_URL=postgres://local-test:local-pass@localhost:5432/local_dev_test
+LISTEN_ADDR=127.0.0.1:4319
+STRIPE_SECRET_KEY=sk_test_invalid_runtime_key
+EOF
+
+    mkdir -p "$tmp_dir/bin"
+    local cargo_log="$tmp_dir/cargo.log"
+    write_mock_script "$tmp_dir/bin/cargo" '
+echo "cargo should not run when stripe key authentication fails" >> "'"$cargo_log"'"
+exit 0'
+    write_mock_lsof_reports_free "$tmp_dir/bin/lsof"
+    write_mock_script "$tmp_dir/bin/curl" '
+printf "%s\n" "{\"error\":{\"type\":\"authentication_error\",\"message\":\"Invalid API Key provided\"}}"
+printf "401\n"
+exit 0'
+
+    local output exit_code=0
+    output=$(
+        PATH="$tmp_dir/bin:$PATH" \
+        API_DEV_ALLOW_LIVE_STRIPE=1 \
+        bash "$REPO_ROOT/scripts/api-dev.sh" 2>&1
+    ) || exit_code=$?
+
+    assert_eq "$exit_code" "1" \
+        "api-dev should fail fast when live-stripe opt-in key cannot authenticate with Stripe"
+    assert_contains "$output" "REASON: stripe_auth_failed" \
+        "api-dev should surface Stripe auth failures before launching the API in live-stripe mode"
+
+    local cargo_calls
+    cargo_calls=$(cat "$cargo_log" 2>/dev/null || true)
+    assert_eq "$cargo_calls" "" \
+        "api-dev should not invoke cargo when live-stripe key validation fails"
 }
 
 main() {
@@ -471,6 +668,10 @@ main() {
     test_api_dev_preserves_ses_with_explicit_opt_in
     test_api_dev_defaults_to_local_stripe_mode_even_with_live_keys_present
     test_api_dev_preserves_live_stripe_keys_with_explicit_opt_in
+    test_api_dev_live_stripe_opt_in_prefers_env_local_key_over_inherited_key
+    test_api_dev_live_stripe_opt_in_prefers_env_local_test_key_over_inherited_secret_key
+    test_api_dev_live_stripe_opt_in_empty_env_local_secret_clears_inherited_secret
+    test_api_dev_live_stripe_opt_in_rejects_invalid_runtime_key_before_launch
 
     echo ""
     echo "=== Results: $PASS_COUNT passed, $FAIL_COUNT failed ==="

@@ -6,7 +6,7 @@
 # operator can do:
 #
 #   set -a; source .secret/.env.secret; set +a   # AWS credentials
-#   eval "$(scripts/launch/hydrate_seeder_env_from_ssm.sh staging)"
+#   source <(bash scripts/launch/hydrate_seeder_env_from_ssm.sh staging)
 #   bash scripts/launch/seed_synthetic_traffic.sh \
 #     --tenant A --execute --i-know-this-hits-staging --duration-minutes 60
 #
@@ -50,7 +50,7 @@ API_URL="https://api.${DNS_DOMAIN}"
 # any direct-node call. Use https://api.* so it parses as a valid URL.
 FLAPJACK_URL="${FLAPJACK_URL:-https://api.${DNS_DOMAIN}}"
 
-# Output as eval-able KEY="value" lines. Use printf %q for safe quoting.
+# Output as export KEY="value" lines for source <(...). Use printf %q for safe quoting.
 printf 'export ADMIN_KEY=%q\n' "$ADMIN_KEY"
 printf 'export DATABASE_URL=%q\n' "$DATABASE_URL"
 printf 'export API_URL=%q\n' "$API_URL"

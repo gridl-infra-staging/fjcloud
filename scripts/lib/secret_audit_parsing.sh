@@ -9,6 +9,18 @@
 # TODO: Document is_secret_bearing_name.
 # TODO: Document is_secret_bearing_name.
 # TODO: Document is_secret_bearing_name.
+# TODO: Document is_secret_bearing_name.
+# TODO: Document is_secret_bearing_name.
+# TODO: Document is_secret_bearing_name.
+# TODO: Document is_secret_bearing_name.
+# TODO: Document is_secret_bearing_name.
+# TODO: Document is_secret_bearing_name.
+# TODO: Document is_secret_bearing_name.
+# TODO: Document is_secret_bearing_name.
+# TODO: Document is_secret_bearing_name.
+# TODO: Document is_secret_bearing_name.
+# TODO: Document is_secret_bearing_name.
+# TODO: Document is_secret_bearing_name.
 is_secret_bearing_name() {
   local name="$1"
   local lower

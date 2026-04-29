@@ -87,6 +87,10 @@ locals {
     var.region,
     "dkim.amazonses.com",
   )
+
+  # Keep the configuration-set name deterministic from the existing
+  # environment/domain contract so runtime publication can consume one SSOT.
+  ses_configuration_set_name = "fjcloud-${var.env}-${replace(var.domain, ".", "-")}-feedback"
 }
 
 resource "aws_acm_certificate" "main" {
@@ -138,6 +142,24 @@ resource "aws_sesv2_email_identity" "domain" {
   tags = {
     Name = "fjcloud-${var.env}-ses-domain"
     Env  = var.env
+  }
+}
+
+resource "aws_sesv2_configuration_set" "feedback" {
+  configuration_set_name = local.ses_configuration_set_name
+}
+
+resource "aws_sesv2_configuration_set_event_destination" "feedback_sns" {
+  configuration_set_name = aws_sesv2_configuration_set.feedback.configuration_set_name
+  event_destination_name = "sns-feedback"
+
+  event_destination {
+    enabled              = true
+    matching_event_types = ["BOUNCE", "COMPLAINT"]
+
+    sns_destination {
+      topic_arn = var.ses_feedback_topic_arn
+    }
   }
 }
 

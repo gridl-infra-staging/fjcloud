@@ -6,5 +6,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| fixtures | This fixtures directory contains test setup utilities and helpers for browser tests, including auth setup for different test projects (admin, customer journeys, onboarding) and database/search helper utilities. |
+| fixtures | Test fixtures directory containing authentication setup utilities for different test projects (admin, onboarding, customer journeys) and Playwright helper functions for validating legal pages, search functionality, and other UI components. |
 <!-- [scrai:end] -->

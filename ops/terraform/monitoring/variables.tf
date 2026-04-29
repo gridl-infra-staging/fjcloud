@@ -13,6 +13,11 @@ variable "region" {
   type        = string
 }
 
+variable "domain" {
+  description = "Root domain used to construct API webhook endpoints"
+  type        = string
+}
+
 variable "api_instance_id" {
   description = "API EC2 instance ID"
   type        = string

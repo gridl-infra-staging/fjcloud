@@ -81,6 +81,10 @@ pub const ACTION_STRIPE_SYNC: &str = "stripe_sync";
 pub const ACTION_RATE_CARD_OVERRIDE: &str = "rate_card_override";
 /// Canonical action name for `PUT /admin/tenants/{id}/quotas`.
 pub const ACTION_QUOTAS_UPDATED: &str = "quotas_updated";
+/// Canonical action name for SES permanent-bounce suppression upserts.
+pub const ACTION_SES_PERMANENT_BOUNCE_SUPPRESSED: &str = "ses_permanent_bounce_suppressed";
+/// Canonical action name for SES complaint suppression upserts.
+pub const ACTION_SES_COMPLAINT_SUPPRESSED: &str = "ses_complaint_suppressed";
 const AUDIT_LOG_READ_LIMIT: i64 = 100;
 
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]

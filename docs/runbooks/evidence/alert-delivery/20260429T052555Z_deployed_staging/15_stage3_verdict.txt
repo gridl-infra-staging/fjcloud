@@ -1,0 +1,44 @@
+# Stage 3 verdict
+
+result=failed_persisted_send_proof
+utc_evaluated=2026-04-29T17:09:20Z
+branch_executed=failed_persisted_send_proof
+
+summary:
+- Stage 2 readiness gate remains PASS (`08_stage2_readiness_gate.txt`).
+- Supervisor-authorized prerequisite owner flow was executed (`scripts/staging_billing_rehearsal.sh` via staging host path), then a draft invoice was finalized to create replayable Stripe invoice state.
+- Exactly one signed replay was dispatched through Stage 1 owner and recorded in `12_replay_result.json`.
+- Replay event processed (`event_id=evt_stage3_retry_20260429T170311Z`) but no matching alert row was persisted for the selected invoice; persisted-send proof failed.
+
+replay_context:
+- invoice_id=4266f700-6337-400d-b798-69ef03a43436
+- stripe_invoice_id=in_1TRbUXKH9mdklKeInGaHrbVv
+- replay_event_id=evt_stage3_retry_20260429T170311Z
+- baseline_artifact=11_pre_replay_baseline.txt
+- replay_artifact=12_replay_result.json
+- persisted_row_artifact=13_alert_row.txt
+- supplemental_probe_artifact=14_probe_live.txt
+
+artifacts:
+- 10_invoice_candidate.txt
+- 11_pre_replay_baseline.txt
+- 12_replay_result.json
+- 13_alert_row.txt
+- 14_probe_live.txt
+
+inherited_stage2_artifacts:
+- 03_live_state_stdout.txt
+- 06_startup_mode_retry_stdout.txt
+- 08_stage2_readiness_gate.txt
+
+repro_commands_non_mutating:
+- cat docs/runbooks/evidence/alert-delivery/.current_bundle
+- cat docs/runbooks/evidence/alert-delivery/20260429T052555Z_deployed_staging/10_invoice_candidate.txt
+- printf %s U0VMRUNUIHJvd190b19qc29uKHQpIEZST00gKFNFTEVDVCBpZCwgY3VzdG9tZXJfaWQsIHN0cmlwZV9pbnZvaWNlX2lkLCB0b3RhbF9jZW50cywgZmluYWxpemVkX2F0IEZST00gaW52b2ljZXMgV0hFUkUgc3RhdHVzPSdmaW5hbGl6ZWQnIEFORCBzdHJpcGVfaW52b2ljZV9pZCBJUyBOT1QgTlVMTCBPUkRFUiBCWSBmaW5hbGl6ZWRfYXQgREVTQyBOVUxMUyBMQVNUIExJTUlUIDEpIHQ7 | base64 --decode | env PGCONNECTTIMEOUT=5 psql -tAq "$DATABASE_URL" -c "SET statement_timeout TO 10000" -f -
+- SELECT count(*) FROM alerts WHERE metadata->>'invoice_id'='4266f700-6337-400d-b798-69ef03a43436';
+- SELECT count(*) FROM alerts WHERE metadata->>'invoice_id'='4266f700-6337-400d-b798-69ef03a43436' AND delivery_status='sent';
+- SELECT newest matching rows from alerts with delivery_status/severity/title/message/metadata fields for invoice_id='4266f700-6337-400d-b798-69ef03a43436'.
+- SELECT latest webhook_events rows where event_type='invoice.payment_failed' AND payload->'data'->'object'->>'id'='in_1TRbUXKH9mdklKeInGaHrbVv'.
+
+note:
+- Replay command text is preserved in `12_replay_result.json`; no second live replay POST was executed.

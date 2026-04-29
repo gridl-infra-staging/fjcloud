@@ -1,7 +1,7 @@
 //! Integration tests for Stripe live validation (test mode).
 //!
 //! Two gating levels:
-//!   1. **Stripe API tests** — require `STRIPE_SECRET_KEY` env var (an `sk_test_` key).
+//!   1. **Stripe API tests** — require `STRIPE_SECRET_KEY` env var (an `sk_test_` or `rk_test_` key).
 //!      These call the real Stripe API in test mode to validate customer creation,
 //!      setup intents, payment methods, and invoice finalization.
 //!   2. **Full pipeline tests** — additionally require a live fjcloud API + DB +
@@ -1014,10 +1014,20 @@ mod helper_tests {
     async fn validate_stripe_key_live_err_when_key_bad_prefix() {
         let lock = integration_helpers::test_env_lock();
         let _guard = EnvGuard::new(&["STRIPE_SECRET_KEY"], lock);
+
         std::env::set_var("STRIPE_SECRET_KEY", "sk_live_bad");
-        let result = validate_stripe_key_live().await;
-        assert!(result.is_err());
-        assert!(result.unwrap_err().contains("sk_test_"));
+        let err = validate_stripe_key_live().await.unwrap_err();
+        assert!(
+            err.contains("invalid prefix"),
+            "sk_live_ must be rejected: {err}"
+        );
+
+        std::env::set_var("STRIPE_SECRET_KEY", "rk_live_bad");
+        let err = validate_stripe_key_live().await.unwrap_err();
+        assert!(
+            err.contains("invalid prefix"),
+            "rk_live_ must be rejected: {err}"
+        );
     }
 
     #[test]
@@ -1039,7 +1049,10 @@ mod helper_tests {
         assert!(stripe_test_key().is_none());
 
         std::env::set_var("STRIPE_SECRET_KEY", "rk_test_abc");
-        assert!(stripe_test_key().is_none());
+        assert!(
+            stripe_test_key().is_some(),
+            "restricted test key (rk_test_) must be accepted"
+        );
     }
 
     #[tokio::test]

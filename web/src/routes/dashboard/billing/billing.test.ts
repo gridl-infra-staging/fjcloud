@@ -2,8 +2,10 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/svelte';
 import { layoutTestDefaults } from '../layout-test-context';
 
+const enhanceMock = vi.fn(() => ({ destroy: () => {} }));
+
 vi.mock('$app/forms', () => ({
-	enhance: () => ({ destroy: () => {} })
+	enhance: enhanceMock
 }));
 
 vi.mock('$app/navigation', () => ({
@@ -44,6 +46,20 @@ describe('Billing page', () => {
 		const form = container.querySelector('form[action="?/manageBilling"]');
 		expect(form).not.toBeNull();
 		expect(screen.getByRole('button', { name: 'Manage billing' })).toBeInTheDocument();
+	});
+
+	it('keeps the manage billing form as a native submit boundary for portal redirects', () => {
+		render(BillingPage, {
+			data: {
+				...layoutTestDefaults,
+				user: null,
+				billingUnavailable: false,
+				subscriptionCancelledBannerText: null,
+				subscriptionRecoveryBannerText: null
+			},
+			form: null
+		});
+		expect(enhanceMock).not.toHaveBeenCalled();
 	});
 
 	it('renders the exact cancellation banner copy when cancellation state is present', () => {

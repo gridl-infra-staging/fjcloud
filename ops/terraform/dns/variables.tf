@@ -54,3 +54,8 @@ variable "api_instance_id" {
   description = "EC2 instance ID for the API target"
   type        = string
 }
+
+variable "ses_feedback_topic_arn" {
+  description = "SNS topic ARN used by SES configuration-set event destination"
+  type        = string
+}

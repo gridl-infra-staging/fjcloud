@@ -5,9 +5,12 @@
 use api::services::email::{
     invoice_ready_email_html, password_reset_email_html, password_reset_email_html_with_base_url,
     quota_warning_email_html, verification_email_html, verification_email_html_with_base_url,
-    EmailService, MailpitEmailService, MockEmailService, NoopEmailService, SesConfig,
-    INVOICE_READY_SUBJECT, PASSWORD_RESET_SUBJECT, QUOTA_WARNING_SUBJECT, VERIFICATION_SUBJECT,
+    BroadcastDeliveryStatus, EmailService, MailpitEmailService, MockEmailService, NoopEmailService,
+    SesConfig, SesEmailService, INVOICE_READY_SUBJECT, PASSWORD_RESET_SUBJECT,
+    QUOTA_WARNING_SUBJECT, VERIFICATION_SUBJECT,
 };
+use api::services::email_suppression::InMemoryEmailSuppressionStore;
+use std::sync::Arc;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
@@ -239,6 +242,7 @@ async fn noop_email_rejects_blank_or_whitespace_recipient_with_record_validation
 fn ses_config_from_reader_valid() {
     let config = SesConfig::from_reader(|k| match k {
         "SES_FROM_ADDRESS" => Some("system@flapjack.foo".to_string()),
+        "SES_CONFIGURATION_SET" => Some("ses-feedback".to_string()),
         "SES_REGION" => Some("us-east-1".to_string()),
         _ => None,
     })
@@ -250,6 +254,7 @@ fn ses_config_from_reader_valid() {
 #[test]
 fn ses_config_from_reader_missing_from() {
     let err = SesConfig::from_reader(|k| match k {
+        "SES_CONFIGURATION_SET" => Some("ses-feedback".to_string()),
         "SES_REGION" => Some("us-east-1".to_string()),
         _ => None,
     })
@@ -261,6 +266,7 @@ fn ses_config_from_reader_missing_from() {
 fn ses_config_from_reader_missing_region() {
     let err = SesConfig::from_reader(|k| match k {
         "SES_FROM_ADDRESS" => Some("a@b.com".to_string()),
+        "SES_CONFIGURATION_SET" => Some("ses-feedback".to_string()),
         _ => None,
     })
     .unwrap_err();
@@ -271,23 +277,148 @@ fn ses_config_from_reader_missing_region() {
 fn ses_config_trims_whitespace() {
     let config = SesConfig::from_reader(|k| match k {
         "SES_FROM_ADDRESS" => Some("  a@b.com  ".to_string()),
+        "SES_CONFIGURATION_SET" => Some("  ses-feedback  ".to_string()),
         "SES_REGION" => Some("  eu-west-1  ".to_string()),
         _ => None,
     })
     .unwrap();
     assert_eq!(config.from_address, "a@b.com");
     assert_eq!(config.region, "eu-west-1");
+    assert_eq!(config.configuration_set, "ses-feedback");
 }
 
 #[test]
 fn ses_config_rejects_empty_after_trim() {
     let err = SesConfig::from_reader(|k| match k {
         "SES_FROM_ADDRESS" => Some("   ".to_string()),
+        "SES_CONFIGURATION_SET" => Some("ses-feedback".to_string()),
         "SES_REGION" => Some("us-east-1".to_string()),
         _ => None,
     })
     .unwrap_err();
     assert!(err.contains("SES_FROM_ADDRESS"));
+}
+
+#[test]
+fn ses_config_requires_configuration_set() {
+    let err = SesConfig::from_reader(|k| match k {
+        "SES_FROM_ADDRESS" => Some("system@flapjack.foo".to_string()),
+        "SES_REGION" => Some("us-east-1".to_string()),
+        _ => None,
+    })
+    .expect_err("SES config should fail without SES_CONFIGURATION_SET");
+    assert!(
+        err.contains("SES_CONFIGURATION_SET"),
+        "error should mention SES_CONFIGURATION_SET, got: {err}"
+    );
+}
+
+async fn ses_client_for_mock_server(server: &MockServer) -> aws_sdk_sesv2::Client {
+    let aws_config = aws_config::defaults(aws_config::BehaviorVersion::latest())
+        .region(aws_sdk_sesv2::config::Region::new("us-east-1"))
+        .load()
+        .await;
+    let credentials = aws_sdk_sesv2::config::Credentials::new(
+        "test-access-key",
+        "test-secret-key",
+        None,
+        None,
+        "email-service-test",
+    );
+    let ses_config = aws_sdk_sesv2::config::Builder::from(&aws_config)
+        .endpoint_url(server.uri())
+        .credentials_provider(credentials)
+        .build();
+    aws_sdk_sesv2::Client::from_conf(ses_config)
+}
+
+#[tokio::test]
+async fn ses_send_applies_exactly_one_configuration_set_name() {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "MessageId": "msg-123"
+        })))
+        .mount(&server)
+        .await;
+    let client = ses_client_for_mock_server(&server).await;
+    let suppression = Arc::new(InMemoryEmailSuppressionStore::default());
+    let service = SesEmailService::new(
+        client,
+        "system@flapjack.foo",
+        "stage2-config-set",
+        suppression,
+    );
+
+    let outcome = service
+        .send_broadcast_email(
+            "ops@example.com",
+            "maintenance window",
+            Some("<p>maintenance</p>"),
+            None,
+        )
+        .await
+        .expect("SES request should succeed");
+
+    assert_eq!(outcome, BroadcastDeliveryStatus::Sent);
+    let requests = server
+        .received_requests()
+        .await
+        .expect("wiremock should record requests");
+    assert_eq!(requests.len(), 1, "exactly one SES API request is expected");
+
+    let body = String::from_utf8_lossy(&requests[0].body);
+    assert_eq!(
+        body.matches("\"ConfigurationSetName\"").count(),
+        1,
+        "SES payload should include exactly one ConfigurationSetName field; body={body}"
+    );
+    assert!(
+        body.contains("\"ConfigurationSetName\":\"stage2-config-set\""),
+        "SES payload should include configured ConfigurationSetName value; body={body}"
+    );
+}
+
+#[tokio::test]
+async fn ses_send_short_circuits_when_recipient_is_suppressed() {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "MessageId": "msg-123"
+        })))
+        .mount(&server)
+        .await;
+
+    let client = ses_client_for_mock_server(&server).await;
+    let suppression = Arc::new(InMemoryEmailSuppressionStore::new_with_recipients([
+        "suppressed@example.com",
+    ]));
+    let service = SesEmailService::new(
+        client,
+        "system@flapjack.foo",
+        "stage2-config-set",
+        suppression,
+    );
+
+    let outcome = service
+        .send_broadcast_email(
+            "suppressed@example.com",
+            "maintenance window",
+            Some("<p>maintenance</p>"),
+            None,
+        )
+        .await
+        .expect("suppressed send should return a non-error outcome");
+
+    assert_eq!(outcome, BroadcastDeliveryStatus::Suppressed);
+    let requests = server
+        .received_requests()
+        .await
+        .expect("wiremock should record requests");
+    assert!(
+        requests.is_empty(),
+        "suppressed recipients must short-circuit before outbound SES send"
+    );
 }
 
 // ---------------------------------------------------------------------------

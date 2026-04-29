@@ -71,7 +71,10 @@ fn spec_contains_stage5_schemas() {
         "LineItemResponse",
         "InvoiceDetailResponse",
         "CreateKeyRequest",
-        "InstanceResponse",
+        // "InstanceResponse" removed: AYB / AllYourBase moved to aybcloud_dev
+        // in commit f3dcaddd (Apr 26). The corresponding operations were
+        // removed from spec_contains_stage5_operations in the same commit;
+        // this schema entry was a missed leftover.
     ];
     for schema in stage5_schemas {
         assert!(

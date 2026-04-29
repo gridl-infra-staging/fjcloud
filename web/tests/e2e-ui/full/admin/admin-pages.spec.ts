@@ -323,15 +323,17 @@ test.describe('Admin customer list truthfulness', () => {
 		await expect(sortBillingHealth).toBeVisible();
 		const firstRow = tableBody.getByRole('row').first();
 		await expect(firstRow.getByTestId('index-count')).toHaveText('—');
-		// Use getByText to assert the badge content directly. The badge
-		// element has a per-customer testid suffix (billing-health-badge-{id})
-		// so a stable getByTestId isn't possible without a component change;
-		// asserting by text content is equivalent here because the row scope
-		// from firstRow + the unique label text gives a unique match.
-		await expect(firstRow.getByText(/^(Green|Yellow|Red|Grey)$/)).toBeVisible();
+		// Badge and last-activity cells use per-customer testid suffixes
+		// (billing-health-badge-<id>, last-activity-cell-<id>), so scope by
+		// data-testid prefix within the row to avoid the em-dash collision
+		// between index-count and last-activity (both render '—' for an
+		// unseeded customer).
 		await expect(
-			firstRow.getByText(/^(—|just now|\d+m ago|\d+h ago|\d+ days ago)$/)
-		).toBeVisible();
+			firstRow.locator('[data-testid^="billing-health-badge-"]')
+		).toHaveText(/^(Green|Yellow|Red|Grey)$/);
+		await expect(
+			firstRow.locator('[data-testid^="last-activity-cell-"]')
+		).toHaveText(/^(—|just now|\d+m ago|\d+h ago|\d+ days ago)$/);
 
 		await sortBillingHealth.click();
 		await expect(sortBillingHealth).toContainText('sorted');

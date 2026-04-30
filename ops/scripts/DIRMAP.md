@@ -3,7 +3,6 @@
 
 | File | Summary |
 | --- | --- |
-| cleanup_api_server_metering_ghost.sh | Stub summary for cleanup_api_server_metering_ghost.sh. |
 | deploy.sh | deploy.sh — Zero-downtime deploy via SSM (no SSH keys)
 Called from CI after binaries are uploaded to S3.
 

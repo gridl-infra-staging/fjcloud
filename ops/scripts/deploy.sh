@@ -124,13 +124,11 @@ S3_BUCKET="__S3_BUCKET__"
 S3_PREFIX="__S3_PREFIX__"
 REGION="__REGION__"
 
-# fj-metering-agent intentionally excluded here: customer flapjack VMs own
-# that lifecycle via ops/user-data/bootstrap.sh, while this script targets the
-# control-plane API host only.
-BINARIES=(fjcloud-api fjcloud-aggregation-job)
+BINARIES=(fjcloud-api fjcloud-aggregation-job fj-metering-agent)
 BIN_DIR="/usr/local/bin"
 MIGRATIONS_DIR="/opt/fjcloud/migrations"
 SCRIPTS_DIR="/opt/fjcloud/scripts"
+SYSTEMD_ARTIFACT_DIR="/opt/fjcloud/systemd"
 
 echo "==> [instance] Starting deploy of ${SHA}"
 
@@ -151,9 +149,12 @@ aws s3 cp "s3://${S3_BUCKET}/${S3_PREFIX}/scripts/migrate.sh" "${SCRIPTS_DIR}/mi
 aws s3 cp "s3://${S3_BUCKET}/${S3_PREFIX}/scripts/generate_ssm_env.sh" "${SCRIPTS_DIR}/generate_ssm_env.sh" --region "$REGION"
 chmod +x "${SCRIPTS_DIR}/migrate.sh" "${SCRIPTS_DIR}/generate_ssm_env.sh"
 
-# Metering-agent unit convergence is intentionally not part of the API-server
-# deploy path. Customer flapjack VMs fetch and manage that unit through
-# ops/user-data/bootstrap.sh, which is the canonical owner of its lifecycle.
+# --- Download and install systemd units that must converge with the repo ---
+mkdir -p "$SYSTEMD_ARTIFACT_DIR"
+aws s3 cp "s3://${S3_BUCKET}/${S3_PREFIX}/systemd/fj-metering-agent.service" "${SYSTEMD_ARTIFACT_DIR}/fj-metering-agent.service" --region "$REGION"
+install -m 0644 "${SYSTEMD_ARTIFACT_DIR}/fj-metering-agent.service" /etc/systemd/system/fj-metering-agent.service
+systemctl daemon-reload
+systemctl enable fj-metering-agent
 
 # --- Generate runtime env files from SSM parameters ---
 echo "==> [instance] Generating runtime env files from SSM"
@@ -194,8 +195,9 @@ for bin in "${BINARIES[@]}"; do
 done
 
 # --- Restart services ---
-echo "==> [instance] Restarting fjcloud-api"
+echo "==> [instance] Restarting fjcloud-api and fj-metering-agent"
 systemctl restart fjcloud-api
+systemctl restart fj-metering-agent
 
 # --- Health check loop (max 30s, 1s interval) ---
 echo "==> [instance] Health check"
@@ -226,6 +228,7 @@ for bin in "${BINARIES[@]}"; do
   fi
 done
 systemctl restart fjcloud-api
+systemctl restart fj-metering-agent
 
 echo "==> [instance] Rolled back to previous binaries"
 exit 1

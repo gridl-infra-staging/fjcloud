@@ -2,6 +2,79 @@
 
 Evidence bundle for the fjcloud staging infrastructure deployment (Stages 1-9).
 
+## Reconciliation 2026-04-30
+
+This section is append-only and captures the current-state reconciliation as of
+2026-04-30; it does not erase or rewrite the historical sections below.
+Reconciliation inputs are anchored to Stage 1 forensic ledger rows
+`CLM-003`, `CLM-008`, `CLM-013`, and `CLM-018` in
+`docs/runbooks/evidence/staging-evidence-reconciliation/20260430T040514Z/forensic_inventory.md`.
+
+### API runtime
+
+- Current state: deployed webhook-mode readiness is proven for staging runtime,
+  but persisted-send proof is still failed for the selected replay invoice; the
+  readiness/failure split must remain explicit (CLM-003).
+- Current-state interpretation remains owner-lane bound to
+  `scripts/probe_alert_delivery.sh`, `scripts/staging_billing_rehearsal.sh`, and
+  `scripts/launch/run_full_backend_validation.sh` (no ad-hoc process owner).
+- Evidence:
+  - `docs/runbooks/evidence/alert-delivery/.current_bundle`
+  - `docs/runbooks/evidence/alert-delivery/20260429T052555Z_deployed_staging/08_stage2_readiness_gate.txt`
+  - `docs/runbooks/evidence/alert-delivery/20260429T052555Z_deployed_staging/15_stage3_verdict.txt`
+  - `docs/runbooks/evidence/ses-deliverability/20260429T041440_stage6_deploy_probe/53_runtime_snapshot_recheck.txt`
+
+### Metering-agent runtime
+
+- Current state: metering-linked billing lifecycle evidence is checked in and
+  passes the paid-lifecycle cross-check for tenant A, while fresh current-main
+  replay evidence remains a separate owner rerun task.
+- Historical references that were previously private temp-path only are treated
+  as historical context; canonical current-state evidence must come from
+  checked-in owner bundles (CLM-018).
+- Evidence:
+  - `docs/runbooks/evidence/staging-billing-rehearsal/20260428T055058Z_paid_lifecycle_clean/SUMMARY.md`
+  - `docs/runbooks/evidence/staging-billing-rehearsal/20260428T055058Z_paid_lifecycle_clean/cross_check_result.json`
+  - `docs/runbooks/evidence/staging-billing-rehearsal/20260428T055058Z_paid_lifecycle_clean/usage_records_provenance.json`
+  - `docs/runbooks/evidence/staging-billing-rehearsal/20260426T052358Z_stage_d_capture/01_tenant_map_verify.txt`
+
+### Deploy-pipeline health
+
+- Historical note correction (CLM-013): older interpretation that
+  `f68856f7` was the previous successful deploy is deprecated. The dated
+  correction in the operator evidence lane documents rollback ping-pongs, so
+  deploy-state truth must be timestamp-scoped.
+- Current deploy-state source of truth is the deploy owner seam
+  `ops/scripts/deploy.sh` with SSM readback of `/fjcloud/staging/last_deploy_sha`.
+  The 2026-04-29 readback remains historical context, not an evergreen status.
+- Evidence:
+  - `ops/scripts/deploy.sh`
+  - `docs/runbooks/evidence/ses-deliverability/20260429T041440_stage6_deploy_probe/08_predeploy_last_deploy_sha.txt`
+  - `docs/runbooks/evidence/ses-deliverability/20260429T041440_stage6_deploy_probe/53_runtime_snapshot_recheck.txt`
+  - `docs/runbooks/evidence/secret-rotation/20260429T183138Z_stripe_cutover/OPERATOR_NEXT_STEPS.md`
+  - `pending owner artifact: fresh checked-in deploy readback bundle from current-main rerun`
+
+### Discipline for future reconciliations
+
+- Append-only contract: every new entry uses `## Reconciliation YYYY-MM-DD`
+  and is added as a new dated block; do not rewrite prior dated blocks.
+- Evidence-pointer contract: each current-state claim must point to checked-in
+  artifacts under `docs/runbooks/evidence/`, or must be labeled
+  `pending owner artifact` with the owning lane and missing artifact named;
+  private temp/local paths are not valid current-state evidence.
+- Deploy-state command transcript contract: each dated block must include the
+  verbatim command text and transcript pointers for both readback and history
+  context of `/fjcloud/staging/last_deploy_sha`, including:
+  - `aws ssm get-parameter --name /fjcloud/staging/last_deploy_sha --with-decryption`
+  - `aws ssm get-parameter-history --name /fjcloud/staging/last_deploy_sha --with-decryption`
+- Due-by contract: each dated reconciliation block must include
+  `Due-by: YYYY-MM-DD` set to exactly 30 days after that reconciliation date
+  (example: `## Reconciliation 2026-04-30` => `Due-by: 2026-05-30`).
+- Policy: history-only validator automation is intentionally out of scope
+  because rollback/deploy churn can produce false signals; use human-authored
+  evidence reconciliation in the existing owner seams (`ops/scripts/deploy.sh`
+  and checked-in evidence lanes).
+
 ## Terraform Outputs
 
 Defined in `ops/terraform/_shared/outputs.tf`:
@@ -95,7 +168,8 @@ Note: Actual IDs are in the Terraform state file (`ops/terraform/_shared/terrafo
   `POST /admin/tenants/:id/indexes`: API logs reported
   `failed to verify admin key for seeded deployment: secret store API error: SSM GetParameter failed: service error`.
   A follow-up live rerun on 2026-04-25 then cleared that seed-index blocker:
-  Tenant A provisioning reached `tenant mapping ready at /tmp/seed-synthetic-demo-shared-free.json`
+  Tenant A provisioning reached tenant-mapping-ready state (checked-in owner
+  lane confirmation: `docs/runbooks/evidence/staging-billing-rehearsal/20260426T052358Z_stage_d_capture/01_tenant_map_verify.txt`)
   after `POST /admin/tenants/:id/indexes` succeeded.
   An evening 2026-04-25 rerun resolved the next blocker as well: direct-node
   storage polling against `http://vm-shared-f2b9c8a6.flapjack.foo:7700/internal/storage`
@@ -106,8 +180,9 @@ Note: Actual IDs are in the Terraform state file (`ops/terraform/_shared/terrafo
   `infra/api/src/services/scheduler/mod.rs`. The same evening rerun produced
   `storage floor already satisfied for demo-shared-free: 96.08 MB >= 90.00 MB`
   and `sustained traffic complete for demo-shared-free: writes_sent=10 searches_sent=1`,
-  with the live evidence log preserved at
-  `/tmp/seed_evidence/seed_synthetic_20260425T200706Z.log` and the canonical
+  with the canonical checked-in paid-lifecycle evidence preserved under
+  `docs/runbooks/evidence/staging-billing-rehearsal/20260428T055058Z_paid_lifecycle_clean/`
+  and the canonical
   `flapjack_uid` `0a65f0b714b34e08acf62222a02c7858_demo-shared-free` in the
   mapping artifact (matching the live `{customer_hex}_{name}` engine contract).
   Execute mode remains intentionally truthful: Tenant A only, with B/C/all
@@ -232,19 +307,18 @@ Note: Actual IDs are in the Terraform state file (`ops/terraform/_shared/terrafo
   gated by host tooling absence. `scripts/lib/psql_path.sh` adds the same
   tolerance for Homebrew-libpq-installed operator machines.
 - The preserved Stage 3 paid-beta RC run remains no-launch:
-  `/Users/stuart/.matt/projects/fjcloud_dev-fbeae273/apr23_pm_6_launch_coordination_and_rc_signoff.md-998f7042/artifacts/stage_03_paid_beta_rc/rc_run_20260424T003133Z/coordinator_result.json`
-  records `ready=false` / `verdict=fail`, and includes a delegated billing step
+  `docs/runbooks/evidence/secret-rotation/20260429T183138Z_stripe_cutover/OPERATOR_NEXT_STEPS.md`
+  preserves the historical `ready=false` / `verdict=fail` coordinator result,
+  and includes a delegated billing step
   failure (`reason=staging_api_url_missing`) in that preserved run context.
 - Canonical billing-portal verdict (latest Stage 2-4 evidence as of 2026-04-25):
-  Stage 2 primary summary
-  `/var/folders/5y/d6m1nn955w3cb95hg45ljzvr0000gn/T/fjcloud_stage2_billing_portal_20260425T052647Z_88178/primary_web_proof_summary.json`
-  (`timestamp_utc=2026-04-25T05:27:18.996197+00:00`,
-  `classification=precondition_blocked`) shows deployed `/dashboard/billing`
-  proof is blocked by staging auth/preconditions, Stage 4 never opened, and no
-  checked-in `/billing/portal` defect has been proven. Owner-only raw artifacts
-  remain under
-  `/var/folders/5y/d6m1nn955w3cb95hg45ljzvr0000gn/T/fjcloud_stage2_billing_portal_20260425T052647Z_88178`
-  (including `primary_web_proof_summary.json`).
+  checked-in owner summary
+  `docs/runbooks/evidence/browser-evidence/20260429T170447Z_current_main/SUMMARY.md`
+  records `run_status: 1`, `fail_reason: spec_signup_to_paid_invoice`, and
+  `spec_billing_portal_cancel_exit: 0`, so deployed `/dashboard/billing` proof
+  remains precondition-blocked with no checked-in `/billing/portal` defect yet
+  proven. `pending owner artifact`: a checked-in replacement for the old
+  stage2 local-only `primary_web_proof_summary.json`.
 - Billing rerun ownership stays with `scripts/staging_billing_rehearsal.sh`,
   while cross-lane no-launch/readiness orchestration remains
   `scripts/launch/run_full_backend_validation.sh --paid-beta-rc ...`.
@@ -405,19 +479,18 @@ Contract notes:
 ## Current External Blockers
 
 - Preserved paid-beta RC verdict owner:
-  `/Users/stuart/.matt/projects/fjcloud_dev-fbeae273/apr23_pm_6_launch_coordination_and_rc_signoff.md-998f7042/artifacts/stage_03_paid_beta_rc/rc_run_20260424T003133Z/coordinator_result.json`
-  is authoritative for launch status (`timestamp=2026-04-24T00:38:19Z`,
+  `docs/runbooks/evidence/secret-rotation/20260429T183138Z_stripe_cutover/OPERATOR_NEXT_STEPS.md`
+  is authoritative for the preserved launch status snapshot (`timestamp=2026-04-24T00:38:19Z`,
   `ready=false`, `verdict=fail`).
 - Latest Stage 7 runtime wrapper rerun artifact:
-  `/Users/stuart/.matt/projects/fjcloud_dev-17570fdc/live_e2e_runtime_rerun_artifacts/fjcloud_live_e2e_evidence_20260424T215911Z_59523/summary.json`
-  recorded `overall_verdict=fail` (`checks[0].name=runtime_smoke`,
-  `checks[0].status=fail`, `checks[0].exit_code=27`). Triage owner log:
-  `/Users/stuart/.matt/projects/fjcloud_dev-17570fdc/live_e2e_runtime_rerun_artifacts/fjcloud_live_e2e_evidence_20260424T215911Z_59523/logs/runtime_smoke.log`.
+  `docs/runbooks/evidence/ses-deliverability/20260429T041440_stage6_deploy_probe/`
+  preserves the historical runtime-smoke failure context and follow-up rechecks
+  (`39_runtime_snapshot_retry.txt`, `53_runtime_snapshot_recheck.txt`).
   Delegated owner command remains `ops/terraform/tests_stage7_runtime_smoke.sh`
   via `scripts/launch/live_e2e_evidence.sh`.
 - A fresh direct runtime-owner rerun on 2026-04-25 passed after the checked-in
   DNS contract was reconciled to the live provider truth. Rerun command:
-  `bash ops/terraform/tests_stage7_runtime_smoke.sh --env staging --domain flapjack.foo --ami-id ami-078228dbe86117d85 --env-file /Users/stuart/repos/gridl-infra-dev/fjcloud_dev/.secret/.env.secret`.
+  `bash ops/terraform/tests_stage7_runtime_smoke.sh --env staging --domain flapjack.foo --ami-id ami-078228dbe86117d85 --env-file <repo>/.secret/.env.secret`.
   The canonical contract is now:
   - `flapjack.foo`, `api.flapjack.foo`, and `www.flapjack.foo` are DNS-only
     `CNAME`s to the staging ALB.
@@ -429,15 +502,16 @@ Contract notes:
   creation. The historical `POST /admin/tenants/:id/indexes` failure was real
   and was traced to seeded-deployment admin-key verification in the SSM-backed
   node-secret path (`SSM GetParameter failed: service error`), but the latest
-  rerun cleared that route and wrote
-  `/tmp/seed-synthetic-demo-shared-free.json`. That direct-node 403 path was
+  rerun cleared that route; checked-in owner confirmation is preserved at
+  `docs/runbooks/evidence/staging-billing-rehearsal/20260426T052358Z_stage_d_capture/01_tenant_map_verify.txt`.
+  That direct-node 403 path was
   resolved by the 2026-04-26 metering runtime fixes; the remaining gap is a
   fresh current-main rerun/evidence bundle, not re-debugging that old blocker.
 - Preserved paid-beta RC no-launch reasons map to these owner artifacts and
   rerun commands:
   - `backend_launch_gate` failed (`commerce: check_stripe_key_present, check_stripe_key_live, check_stripe_webhook_secret_present, check_stripe_webhook_forwarding, check_usage_records_populated, check_rollup_current`);
     owner artifact:
-    `/Users/stuart/.matt/projects/fjcloud_dev-fbeae273/apr23_pm_6_launch_coordination_and_rc_signoff.md-998f7042/artifacts/stage_03_paid_beta_rc/rc_run_20260424T003133Z/coordinator_artifacts/backend_gate_2026-04-23_203814.json`.
+    `pending owner artifact` (checked-in coordinator backend-gate JSON not yet present in `docs/runbooks/evidence/launch-rc-runs/`).
   - `local_signoff` failed (`reason=local_signoff_failed`); rerun through
     `scripts/launch/run_full_backend_validation.sh --paid-beta-rc ...`.
   - `ses_readiness` was blocked (`reason=credentialed_ses_identity_missing`);
@@ -469,10 +543,12 @@ Contract notes:
     now passes the ownership contract end-to-end (108/108), including the
     `_shared/main.tf remains wiring-only (no direct aws_* resources)` assertion.
 - SES deliverability evidence status (2026-04-23): canonical Stage 4 wrapper
-  evidence passed at `/Users/stuart/.matt/projects/fjcloud_dev-cd6902f9/apr23_am_1_ses_deliverability_refined.md-4c6ea1bd/artifacts/stage_04_ses_deliverability/fjcloud_ses_deliverability_evidence_20260423T063739Z_63867/summary.json`
-  (`overall_verdict=pass`; readiness/account/identity/recipient/send-attempt
-  gates all `pass`). See `docs/runbooks/email-production.md` for field-level
-  interpretation and historical blocked-path context.
+  evidence is tracked by checked-in reconciliation outputs in
+  `docs/runbooks/evidence/ses-deliverability/20260424_boundary_proof/`
+  (`reconciliation_summary.md`, `first_send_retrieval_status.md`). A checked-in
+  replacement for the original Stage 4 wrapper `summary.json` is a
+  `pending owner artifact`. See `docs/runbooks/email-production.md` for
+  field-level interpretation and historical blocked-path context.
 - SES deliverability current state: the repo-local secret inventory parses
   through `scripts/lib/env.sh` `load_env_file` and now provides canonical
   `SES_FROM_ADDRESS=system@flapjack.foo` / `SES_REGION=us-east-1` inputs for the

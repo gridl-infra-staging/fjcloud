@@ -6,5 +6,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| src | The billing engine module that converts raw metering records into usage summaries, applies rate card pricing for invoice calculation, and defines billing plans and shared data types. |
+| src | This directory contains the billing engine core: it aggregates raw metering records into billing-period summaries, applies rate card pricing rules to calculate invoices, and defines the shared types and pricing configuration used throughout the billing system. |
 <!-- [scrai:end] -->

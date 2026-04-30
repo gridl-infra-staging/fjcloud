@@ -1,2 +1,0 @@
-vcache bash ops/terraform/tests_stage5_static.sh: MISS
-RECORDED

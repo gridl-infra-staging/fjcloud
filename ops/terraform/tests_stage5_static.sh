@@ -69,12 +69,10 @@ check_contains_active   "$DEPLOY" 'describe-instances'                 "deploy.s
 check_contains_active   "$DEPLOY" 'ssm send-command'                   "deploy.sh: uses SSM send-command (no SSH)"
 check_contains_active   "$DEPLOY" 'AWS-RunShellScript'                 "deploy.sh: SSM RunShellScript document"
 check_contains_active   "$DEPLOY" 'migrate\.sh'                        "deploy.sh: calls migrate.sh"
-# Replaces the former three-binary assertion: metering-agent lifecycle now
-# belongs only to customer flapjack VMs via bootstrap.sh.
-check_contains_active   "$DEPLOY" 'BINARIES=\(fjcloud-api fjcloud-aggregation-job\)' \
-  "deploy.sh: target contract expects exactly two API-host binaries"
-check_not_contains_active "$DEPLOY" 'systemctl restart fj-metering-agent' \
-  "deploy.sh: target contract must not restart fj-metering-agent on API host"
+check_contains_active   "$DEPLOY" 'BINARIES=\(fjcloud-api fjcloud-aggregation-job fj-metering-agent\)' \
+  "deploy.sh: deploys all binaries including fj-metering-agent"
+check_contains_active   "$DEPLOY" 'systemctl restart fj-metering-agent' \
+  "deploy.sh: restarts fj-metering-agent"
 check_contains_active   "$DEPLOY" '/health'                            "deploy.sh: health check endpoint"
 check_contains_active   "$DEPLOY" '127\.0\.0\.1:3001'                 "deploy.sh: health check on port 3001"
 check_contains_active   "$DEPLOY" 'last_deploy_sha'                    "deploy.sh: saves previous SHA for rollback"
@@ -123,12 +121,10 @@ check_contains_active   "$ROLLBACK" '\[\[ ! "\$SHA" =~ \^\[0-9a-f\]\{40\}\$ \]\]
 check_contains_active   "$ROLLBACK" 'fjcloud-releases'                 "rollback.sh: S3 releases bucket name"
 check_contains_active   "$ROLLBACK" 'describe-instances'               "rollback.sh: EC2 instance discovery via tags"
 check_contains_active   "$ROLLBACK" 'ssm send-command'                 "rollback.sh: uses SSM send-command"
-# Replaces the former three-binary assertion: metering-agent lifecycle now
-# belongs only to customer flapjack VMs via bootstrap.sh.
-check_contains_active   "$ROLLBACK" 'BINARIES=\(fjcloud-api fjcloud-aggregation-job\)' \
-  "rollback.sh: target contract expects exactly two API-host binaries"
-check_not_contains_active "$ROLLBACK" 'systemctl restart fj-metering-agent' \
-  "rollback.sh: target contract must not restart fj-metering-agent on API host"
+check_contains_active   "$ROLLBACK" 'BINARIES=\(fjcloud-api fjcloud-aggregation-job fj-metering-agent\)' \
+  "rollback.sh: rolls back all binaries including fj-metering-agent"
+check_contains_active   "$ROLLBACK" 'systemctl restart fj-metering-agent' \
+  "rollback.sh: restarts fj-metering-agent"
 check_contains_active   "$ROLLBACK" '/health'                          "rollback.sh: health check endpoint"
 check_not_contains_active "$ROLLBACK" 'migrate\.sh'                    "rollback.sh: does NOT call migrate.sh"
 check_not_contains_active "$ROLLBACK" 'AWS_ACCESS_KEY_ID\s*='          "rollback.sh: no hardcoded AWS credentials"

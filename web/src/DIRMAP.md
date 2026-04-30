@@ -7,7 +7,7 @@
 
 | Directory | Summary |
 | --- | --- |
-| lib | The lib directory contains shared utilities and client-side helpers for the SvelteKit frontend, including API communication clients, JWT authentication, error handling, server-side session management, API instrumentation, and search merchandising utilities. |
-| routes | The routes directory contains the primary SvelteKit HTTP endpoints for fjcloud, including the customer-facing dashboard for managing Flapjack indexes and billing, an admin panel for system operations, API endpoints for search and pricing, and a service status endpoint. |
+| lib | The lib directory is a shared utility library for the SvelteKit frontend, providing foundational modules for API clients, JWT authentication, pricing constants, error handling, server-side session management, and search merchandising rules. |
+| routes | The routes directory contains SvelteKit server endpoints for the fjcloud web application, including an admin dashboard for system management, API endpoints for pricing and search functionality, a customer-facing dashboard for index and billing management, and a service status route. |
 | tests | — |
 <!-- [scrai:end] -->

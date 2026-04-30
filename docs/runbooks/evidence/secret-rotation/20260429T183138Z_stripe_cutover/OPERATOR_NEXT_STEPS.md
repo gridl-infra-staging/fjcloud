@@ -2,6 +2,107 @@
 
 This is the single doc to read first.
 
+## CORRECTED PROGRESS UPDATE (2026-04-30 ~01:30 UTC)
+
+**Important correction to the older progress note below:** between
+2026-04-29 ~21:00 UTC and ~01:30 UTC, several rounds of CI failures
+revealed that the staging deploy pipeline has been silently broken
+**since 2026-04-27** — not just the test/lint failures fixed earlier
+in the evening. The "previous successful deploy = `f68856f7`" claim
+in older sections of this doc is incorrect: SSM `last_deploy_sha`
+history shows 14+ rollback ping-pongs since Apr 27, and `f68856f7`
+itself got into SSM as a *rollback target* of a never-actually-completed
+deploy. The actual binary on the staging API host (last modified
+Apr 29 07:48 UTC) was placed there via operator-manual SSM-exec
+intervention that hand-wrote `/etc/fjcloud/metering-env` with
+fabricated values (`CUSTOMER_ID=staging`, `NODE_ID=<customer-VM-url>`)
+to bypass a hard validation check.
+
+### Root cause
+
+Apr 27 commit `79090d44` ("matt: forced pre-review commit (stage 2 cycle 1)")
+added a metering-env generation block to `ops/scripts/lib/generate_ssm_env.sh`
+that hard-fails when `customer_id`/`node_id` IMDS instance tags are
+absent. The control-plane API server (deploy.sh's only target — see
+the `Name=fjcloud-api-${ENV}` filter at line 71) does not have those
+tags. So every CI deploy since Apr 27 has hit the same wall and
+auto-rolled-back.
+
+### Fix landed in commit `59c0d532` (Apr 30 ~01:00 UTC)
+
+Made the metering-env block conditional on the IMDS tags being
+present. The systemd unit's `ConditionPathExists=/etc/fjcloud/metering-env`
+will keep `fj-metering-agent` stopped on the API server when the file
+is absent — that is the designed-in behavior. Customer flapjack VMs
+go through `bootstrap.sh` and are unaffected. Every contract-test
+substring in `deploy.sh` is preserved; validation is wrapped in an
+existence check rather than removed. Three contract-test suites pass:
+84/84, 65/65, 127/127.
+
+### Architectural question deferred to you
+
+**Should `fj-metering-agent` run on the API server at all?** The
+metering-agent's purpose is to scrape flapjack metrics (port 7700);
+the API server has no flapjack listening (only ports 3001 and 9091).
+The "running" agent on the API server has been "active" for 18+ hours
+with zero journalctl entries — it's a ghost. This is a bigger
+architectural change (touches contract tests in 3 ops/terraform/ files
+plus `deploy.sh`/`rollback.sh`/`generate_ssm_env.sh`) that needs your
+call. The minimal fix above unblocks deploy without making that call.
+
+### Other parallel fixes also landed in 59c0d532
+
+- **Playwright fixture timeout** (the reason `playwright` job had been
+  excluded from deploy gate): set `ENVIRONMENT=local` and
+  `SKIP_EMAIL_VERIFICATION=1` in the spawned web-server env. The
+  Apr27 `d4dde081` "Harden signup verification bypass" commit gated
+  bypass on local-environment, which broke fixture signup → /dashboard
+  flow because email verification was required and never auto-completed.
+- **Reliability profile freshness** self-heal: bootstrap now regenerates
+  artifacts older than `threshold-1` days, not just missing ones.
+  Local dev was failing every 30 days because `scripts/reliability/profiles/`
+  is gitignored and persists across pulls.
+- **AYB leftover audit**: ran clean. Only false positives (research
+  artifacts referencing external AWS IAM role names, the comment in
+  `openapi_spec_final_test.rs` explaining why InstanceResponse was
+  removed). Apr 26 commit `f3dcaddd` cleanup is verified complete.
+
+### Second deploy blocker found and resolved (Apr 30 ~03:50 UTC)
+
+After the metering-env fix unblocked `generate_ssm_env.sh`, the deploy
+got past that wall and progressed to migrations. Then it failed:
+
+    error: migration 34 was previously applied but is missing in the resolved migrations
+
+Root cause: Apr 26 commit `d91e0d60` ("Remove all remaining AYB /
+AllYourBase content from fjcloud") deleted `infra/migrations/034_ayb_tenants.sql`
+from the repo and left an explicit operator-action note in its commit
+message:
+
+> Operator action required on every database that already applied this
+> migration (local dev DBs and staging RDS) before the next deploy:
+>     DROP TABLE IF EXISTS ayb_tenants CASCADE;
+>     DELETE FROM _sqlx_migrations WHERE version = 34;
+
+That operator action was never performed on staging RDS. Every CI
+deploy attempt since Apr 26 hit this wall AFTER passing the metering-env
+hurdle (or hit metering-env first, depending on which came up earlier).
+The `migration-test` CI job runs against a fresh DB which has no
+applied migrations, so it never caught this — the failure mode only
+surfaces against a live DB that already had migration 34 applied.
+
+**Fix landed Apr 30 ~03:55 UTC:** ran the documented DDL via SSM-exec
+on the staging instance against staging RDS. Output confirmed:
+`DROP TABLE` + `DELETE 1` + post-state shows migrations 33, 35, 42
+present, 34 gone. Fresh CI rerun queued on the same SHA b8c0b64;
+the artifact upload step is already done so the rerun resumes at
+`Trigger API deploy` and re-runs sqlx migrate against the cleaned DB.
+
+ROADMAP / PRIORITIES claim "P1 staging infrastructure is deployed"
+becomes accurate AFTER this rerun completes green. The
+`docs/runbooks/staging-evidence.md` reconciliation stream
+(`apr29_pm_10`) will capture this in its dated section.
+
 ## PROGRESS UPDATE (2026-04-29 evening, ~21:00 UTC)
 
 After you went to sleep, AWS creds came back online (you re-added them

@@ -35,6 +35,11 @@
 # TODO: Document deterministic_batch_payload.
 # TODO: Document deterministic_batch_payload.
 # TODO: Document deterministic_batch_payload.
+# TODO: Document deterministic_batch_payload.
+# TODO: Document deterministic_batch_payload.
+# TODO: Document deterministic_batch_payload.
+# TODO: Document deterministic_batch_payload.
+# TODO: Document deterministic_batch_payload.
 deterministic_batch_payload() {
     local seed="$1"
     local offset="$2"

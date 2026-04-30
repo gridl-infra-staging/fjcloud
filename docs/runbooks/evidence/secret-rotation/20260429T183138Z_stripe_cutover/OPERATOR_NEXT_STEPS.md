@@ -67,42 +67,6 @@ call. The minimal fix above unblocks deploy without making that call.
   `openapi_spec_final_test.rs` explaining why InstanceResponse was
   removed). Apr 26 commit `f3dcaddd` cleanup is verified complete.
 
-### Second deploy blocker found and resolved (Apr 30 ~03:50 UTC)
-
-After the metering-env fix unblocked `generate_ssm_env.sh`, the deploy
-got past that wall and progressed to migrations. Then it failed:
-
-    error: migration 34 was previously applied but is missing in the resolved migrations
-
-Root cause: Apr 26 commit `d91e0d60` ("Remove all remaining AYB /
-AllYourBase content from fjcloud") deleted `infra/migrations/034_ayb_tenants.sql`
-from the repo and left an explicit operator-action note in its commit
-message:
-
-> Operator action required on every database that already applied this
-> migration (local dev DBs and staging RDS) before the next deploy:
->     DROP TABLE IF EXISTS ayb_tenants CASCADE;
->     DELETE FROM _sqlx_migrations WHERE version = 34;
-
-That operator action was never performed on staging RDS. Every CI
-deploy attempt since Apr 26 hit this wall AFTER passing the metering-env
-hurdle (or hit metering-env first, depending on which came up earlier).
-The `migration-test` CI job runs against a fresh DB which has no
-applied migrations, so it never caught this — the failure mode only
-surfaces against a live DB that already had migration 34 applied.
-
-**Fix landed Apr 30 ~03:55 UTC:** ran the documented DDL via SSM-exec
-on the staging instance against staging RDS. Output confirmed:
-`DROP TABLE` + `DELETE 1` + post-state shows migrations 33, 35, 42
-present, 34 gone. Fresh CI rerun queued on the same SHA b8c0b64;
-the artifact upload step is already done so the rerun resumes at
-`Trigger API deploy` and re-runs sqlx migrate against the cleaned DB.
-
-ROADMAP / PRIORITIES claim "P1 staging infrastructure is deployed"
-becomes accurate AFTER this rerun completes green. The
-`docs/runbooks/staging-evidence.md` reconciliation stream
-(`apr29_pm_10`) will capture this in its dated section.
-
 ## PROGRESS UPDATE (2026-04-29 evening, ~21:00 UTC)
 
 After you went to sleep, AWS creds came back online (you re-added them

@@ -96,6 +96,7 @@ Does NOT duplicate proof-owner internals — only calls the three scripts
 and interprets exit codes/output. |
 | local_demo.sh | One-command local demo launcher: infra + API + web + seed data + metering. |
 | probe_alert_delivery.sh | Stub summary for probe_alert_delivery.sh. |
+| probe_ses_bounce_complaint_e2e.sh | Stub summary for probe_ses_bounce_complaint_e2e.sh. |
 | probe_ses_simulator_send.sh | Send-only SES mailbox simulator probe for bounce/complaint proof. |
 | run-aggregation-job.sh | run-aggregation-job.sh — Run the aggregation job for a target date.
 
@@ -122,6 +123,7 @@ Usage:
 Must run AFTER seed_local.sh (needs a real customer UUID from the database).
 The metering agent scrapes Flapjack /metrics, computes deltas, and writes
 usage_records to Postgres. |
+| stripe_cutover_prereqs.sh | Stub summary for stripe_cutover_prereqs.sh. |
 | stripe_webhook_replay_fixture.sh | Stub summary for stripe_webhook_replay_fixture.sh. |
 | validate-metering.sh | Validate metering pipeline health against a live database and emit JSON. |
 | validate-stripe.sh | Validate Stripe test-mode billing lifecycle and emit machine-readable JSON. |
@@ -138,5 +140,5 @@ usage_records to Postgres. |
 | load | The load directory contains regression checking utilities for validating load testing performance, including scripts that compare offline and live load harness results to detect performance regressions. |
 | reliability | The reliability directory contains shell scripts for backend capacity profiling, security validation, and reliability gating that generate performance metrics across document tiers. |
 | stripe | The stripe directory contains operational scripts for managing Stripe integration with fjcloud: configuring the Customer Portal and creating the canonical Flapjack product catalog, both supporting multi-account operations. |
-| tests | Contains integration test scripts and shared shell utilities for billing cycle validation, customer broadcasts, and budget guardrails, with mocking frameworks and specialized test harnesses for chaos and end-to-end validation. |
+| tests | Tests directory contains focused smoke tests for production scripts (customer broadcast, SES bounce/complaint handling) and a shared library of shell utilities providing assertion functions, cargo mocking frameworks, and specialized test harnesses for billing rehearsal, budget validation, and chaos scenarios. |
 <!-- [scrai:end] -->

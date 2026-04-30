@@ -160,16 +160,22 @@ systemctl enable fj-metering-agent
 echo "==> [instance] Generating runtime env files from SSM"
 "${SCRIPTS_DIR}/generate_ssm_env.sh" "$ENV"
 METERING_ENV_FILE="/etc/fjcloud/metering-env"
-if [[ ! -s "$METERING_ENV_FILE" ]]; then
-  echo "ERROR: missing metering runtime env contract at $METERING_ENV_FILE"
-  exit 1
+# The control-plane API server (deploy.sh's only target) lacks customer_id /
+# node_id IMDS tags, so generate_ssm_env.sh skips writing /etc/fjcloud/metering-env
+# on this host. When the file is absent, fj-metering-agent stays stopped via
+# its systemd ConditionPathExists. Validate metering-env contents only if the
+# file was actually generated (i.e. on customer flapjack VMs that ever invoke
+# this script — none today, but the validation surface is preserved).
+if [[ -s "$METERING_ENV_FILE" ]]; then
+  for var_name in DATABASE_URL FLAPJACK_URL FLAPJACK_API_KEY INTERNAL_KEY CUSTOMER_ID NODE_ID REGION ENVIRONMENT TENANT_MAP_URL COLD_STORAGE_USAGE_URL SLACK_WEBHOOK_URL DISCORD_WEBHOOK_URL; do
+    if ! grep -q "^${var_name}=" "$METERING_ENV_FILE"; then
+      echo "ERROR: $METERING_ENV_FILE missing ${var_name}"
+      exit 1
+    fi
+  done
+else
+  echo "==> [instance] metering-env not generated on this host (control-plane instance — fj-metering-agent stays stopped via ConditionPathExists)"
 fi
-for var_name in DATABASE_URL FLAPJACK_URL FLAPJACK_API_KEY INTERNAL_KEY CUSTOMER_ID NODE_ID REGION ENVIRONMENT TENANT_MAP_URL COLD_STORAGE_USAGE_URL SLACK_WEBHOOK_URL DISCORD_WEBHOOK_URL; do
-  if ! grep -q "^${var_name}=" "$METERING_ENV_FILE"; then
-    echo "ERROR: $METERING_ENV_FILE missing ${var_name}"
-    exit 1
-  fi
-done
 
 # --- Run migrations (fail fast before binary swap) ---
 echo "==> [instance] Running migrations"

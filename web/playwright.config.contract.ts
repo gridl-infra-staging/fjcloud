@@ -331,7 +331,18 @@ export function resolvePlaywrightRuntime({
 			webEnv.ADMIN_KEY ??
 			repoEnv.ADMIN_KEY ??
 			processEnv.ADMIN_KEY ??
-			DEFAULT_PLAYWRIGHT_ADMIN_KEY
+			DEFAULT_PLAYWRIGHT_ADMIN_KEY,
+		// The Apr27 hardening (commit d4dde081 "Harden signup verification
+		// bypass") gated SKIP_EMAIL_VERIFICATION on ENVIRONMENT ∈
+		// {local,dev,development}. Both must be set together for the spawned
+		// API server to auto-verify signups, otherwise /signup → /dashboard
+		// redirects back to /login because verification is required, breaking
+		// every fixture in tests/fixtures/onboarding-auth-shared.ts and
+		// auth.setup.ts. These ONLY apply to the locally-spawned webServer
+		// (this whole block is skipped when processEnv.BASE_URL is set, e.g.
+		// running playwright against a real remote deploy).
+		ENVIRONMENT: 'local',
+		SKIP_EMAIL_VERIFICATION: '1'
 	});
 
 	return {

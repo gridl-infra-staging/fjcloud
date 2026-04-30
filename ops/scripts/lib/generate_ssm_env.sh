@@ -207,13 +207,28 @@ fi
 CUSTOMER_ID="$(imds_get meta-data/tags/instance/customer_id 2>/dev/null || true)"
 NODE_ID="$(imds_get meta-data/tags/instance/node_id 2>/dev/null || true)"
 
+# IMDS-tag detection. customer_id/node_id are set on customer flapjack VMs by
+# bootstrap.sh / terraform. The control-plane API server (deploy.sh's only
+# target) does NOT have these tags — the metering-agent there has nothing
+# meaningful to scrape (no localhost flapjack on the API server). When the
+# tags are absent we skip metering-env generation entirely; the systemd unit's
+# ConditionPathExists=/etc/fjcloud/metering-env then keeps fj-metering-agent
+# stopped on those instances, which is the designed-in behavior. Customer-VM
+# bootstrap is unaffected.
+HAS_CUSTOMER_TAG=true
 if [[ -z "$CUSTOMER_ID" || "$CUSTOMER_ID" == "None" || "$CUSTOMER_ID" == "404 - Not Found" ]]; then
-  echo "ERROR: missing required IMDS instance tag customer_id"
-  exit 1
+  HAS_CUSTOMER_TAG=false
 fi
 if [[ -z "$NODE_ID" || "$NODE_ID" == "None" || "$NODE_ID" == "404 - Not Found" ]]; then
-  echo "ERROR: missing required IMDS instance tag node_id"
-  exit 1
+  HAS_CUSTOMER_TAG=false
+fi
+
+if [[ "$HAS_CUSTOMER_TAG" != "true" ]]; then
+  echo "==> No customer_id/node_id IMDS tags — skipping metering-env generation (control-plane instance)"
+  # Remove any stale metering-env so fj-metering-agent's ConditionPathExists
+  # honors the actual configuration rather than a previous hand-fabricated file.
+  rm -f "$METERING_ENV_FILE"
+  exit 0
 fi
 
 FLAPJACK_API_KEY=$(aws ssm get-parameter \

@@ -109,11 +109,46 @@ fn profile_artifacts_exist_in(path: &Path) -> bool {
     path.join("summary.json").exists()
 }
 
+/// Returns true if any artifact's timestamp is older than `threshold_days - 1`.
+/// The 1-day buffer keeps local-dev runs from flickering near the threshold.
+/// CI is unaffected — the workflow's seed-step always rewrites timestamps.
+fn profile_artifacts_stale_in(path: &Path, threshold_days: i64) -> bool {
+    let buffer = (threshold_days - 1).max(1);
+    let now = Utc::now();
+    for tier in TIERS {
+        for metric in METRICS {
+            let artifact = path.join(format!("{}_{}.json", tier, metric));
+            let Ok(contents) = std::fs::read_to_string(&artifact) else {
+                return true;
+            };
+            let Ok(json) = serde_json::from_str::<Value>(&contents) else {
+                return true;
+            };
+            let Some(ts_str) = json.get("timestamp").and_then(|v| v.as_str()) else {
+                return true;
+            };
+            let Ok(ts) = ts_str.parse::<DateTime<Utc>>() else {
+                return true;
+            };
+            if now.signed_duration_since(ts).num_days() >= buffer {
+                return true;
+            }
+        }
+    }
+    false
+}
+
 fn ensure_profile_artifacts_with_seed(
     profiles_dir: &Path,
     seed_script: &Path,
 ) -> Result<(), String> {
-    if profile_artifacts_exist_in(profiles_dir) {
+    // Self-heal in two cases: missing artifacts (first run on a fresh tree) OR
+    // stale artifacts (local dev where the gitignored profiles/ directory has
+    // been carrying over for >threshold_days-1 days). CI runs `seed-test-profiles.sh`
+    // before tests so this code path is a no-op there; the regen is purely for
+    // local-dev ergonomics so `cargo test -p api` doesn't fail every 30 days.
+    let stale = profile_artifacts_stale_in(profiles_dir, staleness_threshold_days());
+    if profile_artifacts_exist_in(profiles_dir) && !stale {
         return Ok(());
     }
 

@@ -2,6 +2,89 @@
 
 This is the single doc to read first.
 
+## 🟢 GREEN DEPLOY + POST-DEPLOY EVIDENCE CAPTURED (2026-04-30 ~04:58 UTC)
+
+**Headline:** First green automated staging deploy of the session
+landed on SHA `cac1f3ac2d3ccd38d6fae58b73a889d357d3274a` via CI run
+25146848638. SSM `/fjcloud/staging/last_deploy_sha` advanced and
+stayed (no rollback). Two underlying blockers resolved tonight:
+
+1. **Apr 27 metering-env IMDS hard-fail** — fixed via conditional skip
+   in `generate_ssm_env.sh` + `deploy.sh` when `customer_id`/`node_id`
+   IMDS tags are absent (commit `59c0d532`). The systemd unit's
+   `ConditionPathExists` keeps fj-metering-agent stopped on the API
+   server when the metering-env file is absent — designed-in behavior.
+2. **Apr 26 migration 34 (AYB) deletion without DB cleanup** — fixed
+   by running the documented operator DDL via SSM-exec on staging
+   RDS: `DROP TABLE IF EXISTS ayb_tenants CASCADE; DELETE FROM
+   _sqlx_migrations WHERE version = 34;`. Commit `d91e0d60`'s
+   instruction was never executed against staging DB; doing so now
+   unblocked sqlx migrate.
+
+**Post-deploy evidence captured (commit `521a0c4a`):**
+
+- **Stripe Stage 5 (runtime probe): PASSED.**
+  - `https://api.flapjack.foo/health` → `{"status":"ok"}`.
+  - 10-minute journalctl window: zero `STRIPE_SECRET_KEY not set`
+    warnings (the new restricted key is being read from SSM by the
+    deployed API server with no warnings).
+  - Evidence: [STAGE_5_health_response.txt](STAGE_5_health_response.txt),
+    [STAGE_5_stripe_warning_count.txt](STAGE_5_stripe_warning_count.txt),
+    [STAGE_5_post_deploy_validate_stripe.json](STAGE_5_post_deploy_validate_stripe.json).
+- **Lane 2 alert delivery: PROVEN on green-deployed SHA.**
+  - journalctl line: `"Discord alert webhook configured"` from
+    `api::startup` at `2026-04-30T04:57:33Z`. First time this has
+    been proven on a real CI deploy (not a manual SSM-exec deploy).
+  - Closes the configuration-readback half of the open ROADMAP item.
+    Remaining work for that item: `alerts.delivery_status='sent'`
+    from a real `AlertService` send against a finalized invoice.
+  - Evidence: [docs/runbooks/evidence/alert-delivery/20260430T045836Z_post_deploy_journalctl/](../../alert-delivery/20260430T045836Z_post_deploy_journalctl/).
+- **Paid-beta RC coordinator ran: verdict=fail (8 PASS / 14 fail-or-skip).**
+  Evidence: [docs/runbooks/evidence/launch-rc-runs/20260430T045842Z_paid_beta_rc_post_deploy/](../../launch-rc-runs/20260430T045842Z_paid_beta_rc_post_deploy/).
+  - **8 lanes PASS:** admin_broadcast, billing_health_last_activity,
+    audit_timeline, status_runtime, canary_outside_aws,
+    stripe_webhook_signature_matrix_idempotency, tenant_isolation,
+    signup_abuse.
+  - **Failure breakdown:**
+    1. **Operator-env-not-passed (precondition):** `STRIPE_SECRET_KEY`
+       unset, `INTEGRATION_DB_URL` missing, `stripe listen` not
+       running, browser preflight credentials missing. The coordinator
+       ran from operator laptop without the staging-RC env contract.
+       These are precondition gaps, not staging defects.
+    2. **`cargo_workspace_tests` failure:** locally `cargo test
+       --workspace` passes; in coordinator context it failed. **Open
+       investigation.**
+    3. **`security_secret_scan`:** false positive on `chats/icg/`
+       AI-coding-agent checklist files (Stripe-prefix literals in
+       prose, long filename slugs matching `fj_*{20,}`). Fixed in
+       commit `26673aa9` by adding `chats/` to
+       `SECURITY_EXCLUDED_DIRS` (mirrors existing exclusion of
+       `IMPLEMENTATION_CHECKLIST/`).
+
+## What's left for paid-beta launch readiness
+
+The PRIORITIES.md P1 "Fresh current-main RC rerun and rollout proof"
+gate now has its first green-deployed SHA AND its first post-deploy
+evidence bundle. Remaining work to flip the RC verdict from `fail` to
+`pass`:
+
+1. Re-run paid-beta RC coordinator with the proper credentialed env
+   (operator action — needs `STAGING_API_URL`, `INTEGRATION_DB_URL`,
+   `STRIPE_SECRET_KEY` from staging-RC env file, plus `stripe listen`
+   running).
+2. Investigate `cargo_workspace_tests` coordinator-context failure
+   (possibly a working-directory or env-var issue in the coordinator's
+   invocation).
+3. ✅ Stripe Stage 6 (operator-only dashboard revoke of the old
+   `sk_test_…aTLZ` key) — DONE 2026-04-30T23:24:16Z. Old standard
+   secret key rolled with `Expires in: Now`; post-roll value is
+   `sk_test_…OncY` (unused). Evidence: `STAGE_6_revoke_old_key.md`
+   in this same directory.
+4. Stripe Stage 7 summary commit.
+5. (parallel-stream work) The 3 batman sessions launched tonight from
+   `chats/icg/apr29_pm_8/10/11` are running in worktrees. They will
+   produce their own merge-ready branches.
+
 ## CORRECTED PROGRESS UPDATE (2026-04-30 ~01:30 UTC)
 
 **Important correction to the older progress note below:** between
@@ -66,6 +149,42 @@ call. The minimal fix above unblocks deploy without making that call.
   artifacts referencing external AWS IAM role names, the comment in
   `openapi_spec_final_test.rs` explaining why InstanceResponse was
   removed). Apr 26 commit `f3dcaddd` cleanup is verified complete.
+
+### Second deploy blocker found and resolved (Apr 30 ~03:50 UTC)
+
+After the metering-env fix unblocked `generate_ssm_env.sh`, the deploy
+got past that wall and progressed to migrations. Then it failed:
+
+    error: migration 34 was previously applied but is missing in the resolved migrations
+
+Root cause: Apr 26 commit `d91e0d60` ("Remove all remaining AYB /
+AllYourBase content from fjcloud") deleted `infra/migrations/034_ayb_tenants.sql`
+from the repo and left an explicit operator-action note in its commit
+message:
+
+> Operator action required on every database that already applied this
+> migration (local dev DBs and staging RDS) before the next deploy:
+>     DROP TABLE IF EXISTS ayb_tenants CASCADE;
+>     DELETE FROM _sqlx_migrations WHERE version = 34;
+
+That operator action was never performed on staging RDS. Every CI
+deploy attempt since Apr 26 hit this wall AFTER passing the metering-env
+hurdle (or hit metering-env first, depending on which came up earlier).
+The `migration-test` CI job runs against a fresh DB which has no
+applied migrations, so it never caught this — the failure mode only
+surfaces against a live DB that already had migration 34 applied.
+
+**Fix landed Apr 30 ~03:55 UTC:** ran the documented DDL via SSM-exec
+on the staging instance against staging RDS. Output confirmed:
+`DROP TABLE` + `DELETE 1` + post-state shows migrations 33, 35, 42
+present, 34 gone. Fresh CI rerun queued on the same SHA b8c0b64;
+the artifact upload step is already done so the rerun resumes at
+`Trigger API deploy` and re-runs sqlx migrate against the cleaned DB.
+
+ROADMAP / PRIORITIES claim "P1 staging infrastructure is deployed"
+becomes accurate AFTER this rerun completes green. The
+`docs/runbooks/staging-evidence.md` reconciliation stream
+(`apr29_pm_10`) will capture this in its dated section.
 
 ## PROGRESS UPDATE (2026-04-29 evening, ~21:00 UTC)
 

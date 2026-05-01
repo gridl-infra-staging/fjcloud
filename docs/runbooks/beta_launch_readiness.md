@@ -7,6 +7,12 @@ kept as historical context only.
 Mutable blocker interpretation stays owned by `ROADMAP.md`, `PRIORITIES.md`, and
 `docs/runbooks/staging-evidence.md`. Paid-beta RC readiness semantics and delegated proof
 meaning stay owned by `docs/runbooks/paid_beta_rc_signoff.md`.
+Stage 4 -> Stage 5 post-deploy evidence gating stays owner-driven through
+`scripts/launch/post_deploy_evidence_capture.sh`: use the run-scoped
+`docs/runbooks/evidence/launch_rc_runs/RUN_ID/summary.json` decision artifact
+and keep readiness open unless summary status is `"pass"`; use
+`logs/stdout.log` plus `03_paid_beta_rc/full_backend_validation.log` for
+blocker disposition.
 
 This document is not a second roadmap and must not duplicate wrapper verdict tables.
 It only points to current owners and acceptance contracts.

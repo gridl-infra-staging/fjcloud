@@ -280,6 +280,16 @@ Note: Actual IDs are in the Terraform state file (`ops/terraform/_shared/terrafo
   Do NOT inline the recipe here — extend the script and its
   `scripts/tests/operator_helpers_smoke_test.sh` smoke tests instead.
 
+  Stage 4 -> Stage 5 operator handoff for
+  `scripts/launch/post_deploy_evidence_capture.sh` is gated by the run-level
+  summary at `<artifact_root>/<run_id>/summary.json`. Stage 5 must inspect this
+  file first and only allow readiness-promotion steps when `"status":"pass"`.
+  Required companion artifacts for failure disposition and rerun planning are:
+  - `<artifact_root>/<run_id>/logs/stdout.log`
+  - `<artifact_root>/<run_id>/03_paid_beta_rc/full_backend_validation.log`
+  If summary status is `fail` or missing, keep readiness open and publish
+  blocker context rather than closing launch-readiness items.
+
   Pre-fix observable state captured 2026-04-25 20:35Z (deployed API still
   on prior binary):
   - `/internal/tenant-map` for tenant A returns `flapjack_url: null` ❌

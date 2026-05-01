@@ -41,6 +41,16 @@ SECURITY_EXCLUDED_DIRS=(
     ".git"
     "node_modules"
     ".matt"
+    # chats/ and chatting/ hold AI-coding-agent checklist artifacts and
+    # session-end status notes (markdown). They legitimately quote pattern
+    # strings and filename slugs that match the secret-detection heuristics
+    # (e.g. Stripe key prefixes discussed in prose). These are not leaked
+    # secrets — they document the rejection contract the implementation must
+    # satisfy. Excluding both dirs mirrors the existing IMPLEMENTATION_CHECKLIST/
+    # exclusion. Note: a tighter `\<fj_` word-boundary regex (above) handles
+    # most filename-slug false positives even outside these dirs.
+    "chats"
+    "chatting"
     "data"
     "tests"
     "IMPLEMENTATION_CHECKLIST"
@@ -52,7 +62,13 @@ SECURITY_EXCLUDED_FILES=(
     "*.test.*"
 )
 
-SECURITY_SECRET_PATTERN='AKIA[0-9A-Z]{16}|sk_live_[A-Za-z0-9]{24,}|sk_test_[A-Za-z0-9]{24,}|fj_[A-Za-z0-9_]{20,}'
+# `\<fj_` requires a word-boundary BEFORE the literal `fj_` so the regex does
+# NOT match inside an identifier chain like `apr29_pm_8_fj_metering_agent_…`
+# (filename slugs in checklists/roadmap docs). Real fj-prefixed secrets are
+# whole-token (e.g. `fj_local_dev_admin_key_…`, `fj_<random>`) and start at a
+# word boundary, so this preserves true-positive coverage. Word boundaries are
+# supported by both GNU grep (CI on Ubuntu) and BSD grep (local dev on macOS).
+SECURITY_SECRET_PATTERN='AKIA[0-9A-Z]{16}|sk_live_[A-Za-z0-9]{24,}|sk_test_[A-Za-z0-9]{24,}|\<fj_[A-Za-z0-9_]{20,}'
 
 # _ms_now is provided by live_gate.sh (shared across all gate libs)
 

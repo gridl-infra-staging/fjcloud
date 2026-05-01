@@ -1026,6 +1026,24 @@ async fn verify_sns_signature(
     Ok(())
 }
 
+/// Build the canonical signing string per the AWS SNS HTTP/HTTPS signature
+/// spec, used as input to SHA1/SHA256 signature verification.
+///
+/// Format (load-bearing — must match AWS exactly, off-by-one-byte breaks
+/// every real-world signature):
+///   `<Key1>\n<Value1>\n<Key2>\n<Value2>\n...\n<KeyN>\n<ValueN>\n`
+///
+/// In particular, each key AND each value is followed by `\n`, including
+/// the final value. A previous version of this function used `join("\n")`
+/// which omitted the trailing `\n` on the last value; that produced a
+/// canonical string one byte short of what AWS signed, so every real
+/// SubscriptionConfirmation and Notification was rejected at signature
+/// verification while unit tests still passed (because the unit-test
+/// fixture mirrored the same off-by-one canonicalization). Symptom in
+/// the wild: SNS subscriptions stuck in PendingConfirmation because our
+/// handler returned 400 on AWS's redelivered confirmations.
+///
+/// Reference: https://docs.aws.amazon.com/sns/latest/dg/sns-verify-signature-of-message.html
 fn canonical_sns_string(envelope: &SnsEnvelope, sns_type: SnsType) -> Result<String, ApiError> {
     let mut fields: Vec<(&str, &str)> = Vec::new();
     fields.push(("Message", envelope.message.as_str()));
@@ -1050,11 +1068,17 @@ fn canonical_sns_string(envelope: &SnsEnvelope, sns_type: SnsType) -> Result<Str
     fields.push(("TopicArn", envelope.topic_arn.as_str()));
     fields.push(("Type", envelope.sns_type.as_str()));
 
-    Ok(fields
-        .iter()
-        .map(|(key, value)| format!("{key}\n{value}"))
-        .collect::<Vec<String>>()
-        .join("\n"))
+    // Each (key, value) pair contributes `key\nvalue\n` — the trailing `\n`
+    // on the last value is what AWS's signing process does, so omitting it
+    // would produce a canonical string one byte short of AWS's input.
+    let mut out = String::new();
+    for (key, value) in &fields {
+        out.push_str(key);
+        out.push('\n');
+        out.push_str(value);
+        out.push('\n');
+    }
+    Ok(out)
 }
 
 async fn confirm_subscription(state: &AppState, envelope: &SnsEnvelope) -> Result<(), ApiError> {

@@ -143,7 +143,23 @@ resource "aws_iam_role_policy" "fjcloud_ses_send" {
       Action = ["ses:SendEmail", "ses:SendRawEmail"]
       # why: Sending mail from another account's SES identity is out of scope;
       # bind this permission to the account already pinned by provider.tf.
-      Resource = "arn:aws:ses:us-east-1:${data.aws_caller_identity.current.account_id}:identity/flapjack.foo"
+      #
+      # SES IAM gotcha (load-bearing): when a SendEmail call sets
+      # ConfigurationSetName, SES authorises BOTH the identity ARN and the
+      # configuration-set ARN as separate resources. Granting only the
+      # identity is silently insufficient — the call is rejected with
+      # `AccessDeniedException ... ses:SendEmail on configuration-set/...`.
+      # The application sets the configuration set unconditionally for
+      # bounce/complaint feedback ingest, so the configuration-set ARN must
+      # be granted alongside the identity. The configuration set is created
+      # in ops/terraform/dns/main.tf with the name pattern
+      # `fjcloud-<env>-<domain-with-dashes>-feedback`; the wildcard below
+      # keeps both projects loosely coupled (no remote-state read needed in
+      # ops/iam/) while staying account-scoped.
+      Resource = [
+        "arn:aws:ses:us-east-1:${data.aws_caller_identity.current.account_id}:identity/flapjack.foo",
+        "arn:aws:ses:us-east-1:${data.aws_caller_identity.current.account_id}:configuration-set/fjcloud-*",
+      ]
     }]
   })
 }

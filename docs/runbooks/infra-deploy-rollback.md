@@ -41,8 +41,8 @@ ops/scripts/deploy.sh staging abc123def456789012345678901234567890abcd
    - Runs `migrate.sh <env>` (fail fast before binary swap)
    - Backs up current binaries as `.old`
    - Atomic binary swap via `mv`
-   - Runs `systemctl restart fjcloud-api` and `systemctl restart fj-metering-agent`
-   - Health check: `curl -sf http://127.0.0.1:3000/health`
+   - Runs `systemctl restart fjcloud-api`
+   - Health check: `curl -sf http://127.0.0.1:3001/health`
    - On health check failure: rolls back from `.old` backups
 4. Polls SSM via `get-command-invocation` until success or failure
 5. On success: updates `/fjcloud/<env>/last_deploy_sha` in SSM via `put-parameter`
@@ -114,6 +114,42 @@ ops/scripts/rollback.sh staging <previous-sha>
 ==> Rollback successful! Updating last_deploy_sha...
 ```
 
+## One-Shot API Host Cleanup for Legacy Metering Artifacts
+
+Owner script: `ops/scripts/cleanup_api_server_metering_ghost.sh`
+
+This cleanup is intentionally separate from `deploy.sh` and `rollback.sh`. Run it only after confirming the Stage 3 cleanup deploy SHA is live in `/fjcloud/<env>/last_deploy_sha`.
+
+1. Mandatory first step: dry-run only.
+
+```bash
+bash ops/scripts/cleanup_api_server_metering_ghost.sh --dry-run
+```
+
+2. SSM live invocation (operator-run after dry-run review).
+
+```bash
+aws ssm send-command \
+  --region us-east-1 \
+  --instance-ids <api-instance-id> \
+  --document-name AWS-RunShellScript \
+  --comment "cleanup dormant fj-metering-agent ghost on API server" \
+  --parameters "$(python3 - <<'PY'
+import json
+import pathlib
+script_path = pathlib.Path('ops/scripts/cleanup_api_server_metering_ghost.sh')
+commands = [
+  'export EXPECTED_DEPLOYED_SHA=<verified-stage3-deploy-sha>',
+  *script_path.read_text().splitlines(),
+]
+print(json.dumps({'commands': commands}))
+PY
+)"
+```
+
+3. Required override: set `EXPECTED_DEPLOYED_SHA` to the verified deployed SHA for the cleanup release before any live run.
+4. Scope note: live cleanup execution is out-of-scope for this stage; this stage only defines and validates the operator invocation contract.
+
 ## Verifying Deploy Success
 
 After deploy or rollback:
@@ -151,11 +187,9 @@ aws ssm start-session --target <instance-id>
 
 # Check service status
 systemctl status fjcloud-api
-systemctl status fj-metering-agent
 
 # Check application logs
 journalctl -u fjcloud-api --since "10 minutes ago" --no-pager
-journalctl -u fj-metering-agent --since "10 minutes ago" --no-pager
 
 # Check if binaries exist
 ls -la /usr/local/bin/fjcloud-* /usr/local/bin/fj-*

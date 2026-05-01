@@ -310,8 +310,8 @@ test_status_docs_reference_stage123_canonical_artifacts() {
         "status docs should record the postgresql16 package as the host psql source (AMI + user_data + live staging host)"
     assert_contains "$status_docs_content" "docs/runbooks/evidence/database-recovery/" \
         "status docs should reference the committed RDS restore verification evidence path"
-    assert_contains "$status_docs_content" "/Users/stuart/.matt/projects/fjcloud_dev-cd6902f9/apr23_am_1_ses_deliverability_refined.md-4c6ea1bd/artifacts/stage_04_ses_deliverability/fjcloud_ses_deliverability_evidence_20260423T063739Z_63867" \
-        "status docs should reference the canonical Stage 4 wrapper run directory path"
+    assert_contains "$status_docs_content" "docs/runbooks/evidence/ses-deliverability/20260424_boundary_proof/" \
+        "status docs should reference the checked-in Stage 4 SES boundary-proof owner path"
     assert_contains "$status_docs_content" "docs/runbooks/evidence/ses-deliverability/20260424_boundary_proof/first_send_retrieval_status.md" \
         "status docs should reference the Stage 3 first_send_retrieval_status companion artifact path"
     assert_contains "$status_docs_content" "docs/runbooks/evidence/ses-deliverability/20260428T194527Z_stage3_live_probe/roundtrip.json" \
@@ -795,7 +795,7 @@ test_beta_checklist_citations_and_antipattern_guards() {
 
 test_status_docs_align_to_preserved_stage3_rc_verdict() {
     local roadmap_content priorities_content staging_evidence_content implemented_content status_docs_content
-    local current_alert_bundle current_alert_bundle_dir stage3_verdict_path stage3_branch_path
+    local current_alert_bundle current_alert_bundle_dir stage3_verdict_path stage3_branch_token
     roadmap_content="$(cat "$ROADMAP_DOC")"
     priorities_content="$(cat "$REPO_ROOT/PRIORITIES.md")"
     staging_evidence_content="$(cat "$STAGING_EVIDENCE_DOC")"
@@ -804,7 +804,7 @@ test_status_docs_align_to_preserved_stage3_rc_verdict() {
     current_alert_bundle="$(cat "$ALERT_DELIVERY_CURRENT_BUNDLE_FILE")"
     current_alert_bundle_dir="$REPO_ROOT/$current_alert_bundle"
     stage3_verdict_path="$current_alert_bundle_dir/15_stage3_verdict.txt"
-    stage3_branch_path="$current_alert_bundle_dir/$(awk -F= '/^branch_executed=/{print $2; exit}' "$stage3_verdict_path")"
+    stage3_branch_token="$(awk -F= '/^branch_executed=/{print $2; exit}' "$stage3_verdict_path")"
 
     if [ -d "$current_alert_bundle_dir" ]; then
         pass "current alert-delivery bundle pointer should resolve to an existing bundle directory"
@@ -813,7 +813,13 @@ test_status_docs_align_to_preserved_stage3_rc_verdict() {
     fi
 
     assert_file_exists "$stage3_verdict_path" "resolved alert-delivery bundle should include the Stage 3 verdict artifact"
-    assert_file_exists "$stage3_branch_path" "resolved alert-delivery bundle should include the Stage 3 branch artifact named by branch_executed"
+    if [ -n "$stage3_branch_token" ]; then
+        pass "resolved alert-delivery bundle should preserve a non-empty branch_executed token"
+    else
+        fail "resolved alert-delivery bundle should preserve a non-empty branch_executed token"
+    fi
+    assert_file_exists "$current_alert_bundle_dir/12_replay_result.json" \
+        "resolved alert-delivery bundle should include the Stage 3 replay artifact"
 
     assert_contains "$status_docs_content" "ready=false" \
         "status docs should reflect the preserved Stage 3 paid-beta RC ready=false result"

@@ -151,4 +151,11 @@ If any required proof reports `fail`, `external_secret_missing`, or
 - Live SES delivery and inbox proof remain delegated to `docs/runbooks/email-production.md` plus `scripts/launch/ses_deliverability_evidence.sh`.
 - For dated live DNS/HTTPS/SES status, use `docs/runbooks/staging-evidence.md`
   as the current evidence authority.
+- For Stage 4 post-deploy capture handoff decisions, gate on
+  `<artifact_root>/<run_id>/summary.json` from
+  `scripts/launch/post_deploy_evidence_capture.sh`. Read
+  `<artifact_root>/<run_id>/logs/stdout.log` and
+  `<artifact_root>/<run_id>/03_paid_beta_rc/full_backend_validation.log` for
+  disposition detail, and keep readiness open unless summary status is
+  `"pass"`.
 - For strategic priority and sequencing text, use `ROADMAP.md`.

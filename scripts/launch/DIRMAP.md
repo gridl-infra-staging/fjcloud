@@ -25,6 +25,7 @@ This script ONLY produces the four required variables that come from SSM
 or are derived from SSM-owned values; FLAPJACK_API_KEY is intentionally
 NOT exported, because the seeder now resolves the per-node key per
 flapjack_url at call time (see node_api_key_for_url() in seed_synthetic_traffic.sh). |
+| post_deploy_evidence_capture.sh | Stub summary for post_deploy_evidence_capture.sh. |
 | post_deploy_verify_tenant_map.sh | post_deploy_verify_tenant_map.sh — confirm the deployed staging API
 picks up the tenant-map URL fallback from infra/api/src/routes/internal.rs.
 

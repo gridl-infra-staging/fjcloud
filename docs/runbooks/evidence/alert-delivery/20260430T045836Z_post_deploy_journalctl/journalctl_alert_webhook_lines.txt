@@ -1,0 +1,2 @@
+Apr 30 04:57:33 fjcloud-api-staging fjcloud-api[98441]: {"timestamp":"2026-04-30T04:57:33.296173Z","level":"INFO","fields":{"message":"Discord alert webhook configured"},"target":"api::startup"}
+

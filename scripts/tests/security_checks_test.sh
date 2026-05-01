@@ -190,6 +190,61 @@ test_check_secret_scan_ignores_env_local_example_placeholder() {
     assert_contains "$output" "SECURITY_SECRET_CLEAN" ".env.local.example placeholder should not trigger SECURITY_SECRET_FOUND"
 }
 
+test_check_secret_scan_ignores_fj_inside_identifier_chain() {
+    # Regression guard for the false-positive class where the `fj_` regex
+    # matches inside a longer identifier chain (filename slug or roadmap
+    # reference like `apr29_pm_8_fj_metering_agent_architectural_cleanup`).
+    # The word-boundary anchor on `\<fj_` should prevent these matches while
+    # still catching real fj-prefixed secrets that begin at a word boundary.
+    local tmpdir
+    tmpdir="$(mktemp -d)"
+    # Embed the slug inside prose plus inside a markdown table cell — both
+    # positions previously matched the loose `fj_[A-Za-z0-9_]{20,}` regex.
+    printf 'See chats/icg/apr29_pm_8_fj_metering_agent_architectural_cleanup.md for context.\n' \
+        > "$tmpdir/checklist_reference.md"
+    printf '| `apr29_pm_8_fj_metering_agent_architectural_cleanup` | Removed dormant agent | path |\n' \
+        > "$tmpdir/implemented_table.md"
+
+    local output exit_code
+    output="$(BACKEND_LIVE_GATE=1 bash -c "
+        source '$REPO_ROOT/scripts/reliability/lib/security_checks.sh'
+        check_secret_scan '$tmpdir'
+    " 2>&1)" || exit_code=$?
+
+    rm -rf "$tmpdir"
+
+    assert_eq "${exit_code:-0}" "0" \
+        "check_secret_scan should ignore fj_ inside an identifier chain (filename slug, not a secret)"
+    assert_contains "$output" "SECURITY_SECRET_CLEAN" \
+        "filename-slug references should not trigger SECURITY_SECRET_FOUND"
+}
+
+test_check_secret_scan_still_finds_word_boundary_fj_secret() {
+    # Companion to the identifier-chain guard above: a true-positive `fj_*`
+    # secret that DOES sit at a word boundary must still be detected.
+    # Without this assertion, a future overcorrection could silently disable
+    # the fj_ branch of the secret regex.
+    local tmpdir
+    tmpdir="$(mktemp -d)"
+    # Real-shape secret: starts at line begin (word boundary), 20+ body chars,
+    # contains an underscore so it exercises the underscore-allowed body class.
+    printf 'FLAPJACK_API_KEY=fj_real_production_key_abc123def456\n' \
+        > "$tmpdir/leaked.env"
+
+    local output exit_code
+    output="$(BACKEND_LIVE_GATE=1 bash -c "
+        source '$REPO_ROOT/scripts/reliability/lib/security_checks.sh'
+        check_secret_scan '$tmpdir'
+    " 2>&1)" || exit_code=$?
+
+    rm -rf "$tmpdir"
+
+    assert_eq "${exit_code:-0}" "1" \
+        "check_secret_scan should still detect a real fj_ secret at a word boundary"
+    assert_contains "$output" "SECURITY_SECRET_FOUND" \
+        "word-boundary fj_ secret should trigger SECURITY_SECRET_FOUND"
+}
+
 test_check_secret_scan_does_not_exclude_arbitrary_fixtures_dirs() {
     local tmpdir
     tmpdir="$(mktemp -d)"
@@ -641,6 +696,8 @@ test_check_secret_scan_clean_repo
 test_check_secret_scan_excludes_secret_dir
 test_check_secret_scan_ignores_metrics_local_dev_placeholder
 test_check_secret_scan_ignores_env_local_example_placeholder
+test_check_secret_scan_ignores_fj_inside_identifier_chain
+test_check_secret_scan_still_finds_word_boundary_fj_secret
 test_check_secret_scan_does_not_exclude_arbitrary_fixtures_dirs
 echo ""
 echo "--- check_cmd_injection tests ---"

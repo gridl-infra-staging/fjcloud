@@ -70,9 +70,11 @@ S3_BUCKET="__S3_BUCKET__"
 S3_PREFIX="__S3_PREFIX__"
 REGION="__REGION__"
 
-BINARIES=(fjcloud-api fjcloud-aggregation-job fj-metering-agent)
+# fj-metering-agent intentionally excluded here: customer flapjack VMs own
+# that lifecycle via ops/user-data/bootstrap.sh, while this script targets the
+# control-plane API host only.
+BINARIES=(fjcloud-api fjcloud-aggregation-job)
 BIN_DIR="/usr/local/bin"
-SYSTEMD_ARTIFACT_DIR="/opt/fjcloud/systemd"
 
 echo "==> [instance] Rolling back to ${SHA}"
 
@@ -83,12 +85,9 @@ for bin in "${BINARIES[@]}"; do
   chmod +x "${BIN_DIR}/${bin}.new"
 done
 
-# --- Download and install systemd units that must converge with the repo ---
-mkdir -p "$SYSTEMD_ARTIFACT_DIR"
-aws s3 cp "s3://${S3_BUCKET}/${S3_PREFIX}/systemd/fj-metering-agent.service" "${SYSTEMD_ARTIFACT_DIR}/fj-metering-agent.service" --region "$REGION"
-install -m 0644 "${SYSTEMD_ARTIFACT_DIR}/fj-metering-agent.service" /etc/systemd/system/fj-metering-agent.service
-systemctl daemon-reload
-systemctl enable fj-metering-agent
+# Metering-agent unit convergence is intentionally not part of the API-server
+# rollback path. Customer flapjack VMs fetch and manage that unit through
+# ops/user-data/bootstrap.sh, which is the canonical owner of its lifecycle.
 
 # --- Back up current binaries ---
 for bin in "${BINARIES[@]}"; do
@@ -104,9 +103,8 @@ for bin in "${BINARIES[@]}"; do
 done
 
 # --- Restart services ---
-echo "==> [instance] Restarting fjcloud-api and fj-metering-agent"
+echo "==> [instance] Restarting fjcloud-api"
 systemctl restart fjcloud-api
-systemctl restart fj-metering-agent
 
 # --- Health check loop (max 30s, 1s interval) ---
 echo "==> [instance] Health check"
@@ -136,7 +134,6 @@ for bin in "${BINARIES[@]}"; do
   fi
 done
 systemctl restart fjcloud-api
-systemctl restart fj-metering-agent
 echo "==> [instance] Restored previous binaries"
 exit 1
 EOFSCRIPT

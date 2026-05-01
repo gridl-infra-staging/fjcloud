@@ -180,11 +180,20 @@ fn canonical_sns_string(envelope: &serde_json::Value) -> Result<String, String> 
     ));
     fields.push(("Type", sns_type));
 
-    Ok(fields
-        .iter()
-        .map(|(key, value)| format!("{key}\n{value}"))
-        .collect::<Vec<String>>()
-        .join("\n"))
+    // Mirror production: each (key, value) contributes `key\nvalue\n`,
+    // including the trailing `\n` on the final value, per the AWS SNS
+    // signature spec. See production-side comment in
+    // infra/api/src/routes/webhooks.rs::canonical_sns_string for why the
+    // earlier `join("\n")` form was a real-world bug despite passing this
+    // round-trip unit test.
+    let mut out = String::new();
+    for (key, value) in &fields {
+        out.push_str(key);
+        out.push('\n');
+        out.push_str(value);
+        out.push('\n');
+    }
+    Ok(out)
 }
 
 fn ses_bounce_message(

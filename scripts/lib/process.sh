@@ -97,6 +97,7 @@
 # TODO: Document kill_pid_file.
 # TODO: Document kill_pid_file.
 # TODO: Document kill_pid_file.
+# TODO: Document kill_pid_file.
 kill_pid_file() {
     local pid_file="$1" name="$2" expected_cmd="$3"
     if [ -f "$pid_file" ]; then

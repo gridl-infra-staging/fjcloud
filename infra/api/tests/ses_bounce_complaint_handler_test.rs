@@ -203,7 +203,7 @@ fn ses_bounce_message(
     mail_message_id: &str,
 ) -> serde_json::Value {
     serde_json::json!({
-        "notificationType": notification_type,
+        "eventType": notification_type,
         "mail": {
             "timestamp": Utc::now().to_rfc3339(),
             "source": "sender@example.com",
@@ -222,7 +222,7 @@ fn ses_bounce_message(
 
 fn ses_complaint_message(recipient: &str, mail_message_id: &str) -> serde_json::Value {
     serde_json::json!({
-        "notificationType": "Complaint",
+        "eventType": "Complaint",
         "mail": {
             "timestamp": Utc::now().to_rfc3339(),
             "source": "sender@example.com",
@@ -350,7 +350,7 @@ async fn ses_sns_route_exists_and_rejects_malformed_outer_envelope() {
 #[tokio::test]
 async fn ses_sns_route_rejects_unsupported_sns_type() {
     let fixture = SnsSigningFixture::new();
-    let message = serde_json::json!({ "notificationType": "Bounce" }).to_string();
+    let message = serde_json::json!({ "eventType": "Bounce" }).to_string();
     let payload = signed_sns_envelope(
         &fixture,
         "CustomType",
@@ -645,7 +645,7 @@ async fn transient_bounce_event_is_ignored_without_suppression_or_audit() {
     );
 
     let message = serde_json::json!({
-        "notificationType": "Bounce",
+        "eventType": "Bounce",
         "mail": {
             "timestamp": Utc::now().to_rfc3339(),
             "source": "sender@example.com",

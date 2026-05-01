@@ -864,7 +864,10 @@ struct SnsEnvelope {
 
 #[derive(Debug, Deserialize)]
 struct SesNotification {
-    #[serde(rename = "notificationType")]
+    // AWS SESv2 config-set event destination publishes with `eventType`
+    // (NOT `notificationType` — that's the older SES Email Receiving
+    // format). Pinned by webhooks_ses_event_payload_tests.rs.
+    #[serde(rename = "eventType")]
     notification_type: String,
     mail: SesMail,
     bounce: Option<SesBounce>,
@@ -1273,3 +1276,9 @@ async fn write_ses_suppression_audit(
 #[cfg(test)]
 #[path = "webhooks_canonical_sns_string_tests.rs"]
 mod canonical_sns_string_tests;
+
+// Regression tests for the AWS SESv2 event-destination payload format.
+// Sibling file for the same size-guardrail reason as the SNS tests above.
+#[cfg(test)]
+#[path = "webhooks_ses_event_payload_tests.rs"]
+mod ses_event_payload_tests;

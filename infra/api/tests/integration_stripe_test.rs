@@ -1032,7 +1032,10 @@ mod helper_tests {
             );
         }
         // Drop must restore the original value.
-        assert_eq!(std::env::var(key).ok().as_deref(), Some("leaked_from_parent"));
+        assert_eq!(
+            std::env::var(key).ok().as_deref(),
+            Some("leaked_from_parent")
+        );
         std::env::remove_var(key);
     }
 

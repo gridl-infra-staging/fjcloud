@@ -214,13 +214,19 @@ gate_web_test() {
 gate_rust_lint() {
     # Mirrors rust-lint: ci_workflow_test, support email unit seams,
     # cargo fmt --check, cargo clippy --workspace -- -D warnings.
-    set -e
-    bash "$REPO_ROOT/scripts/tests/ci_workflow_test.sh"
-    bash "$REPO_ROOT/scripts/tests/validate_inbound_email_roundtrip_test.sh"
-    bash "$REPO_ROOT/scripts/tests/support_email_deliverability_test.sh"
-    cd "$REPO_ROOT/infra"
-    cargo fmt --check
-    cargo clippy --workspace -- -D warnings
+    #
+    # Explicit `|| return $?` after every command — same bash 3.2 set -e
+    # pitfall already handled in gate_web_lint/gate_web_test. Without
+    # this, `cargo fmt --check` could print its diff, exit non-zero, and
+    # the gate would still record PASS because run_gate invokes the body
+    # via `"$@" || rc=$?`, which silently disables `set -e` inside the
+    # called function. Pinned by scripts/tests/local_ci_gate_set_e_test.sh.
+    bash "$REPO_ROOT/scripts/tests/ci_workflow_test.sh" || return $?
+    bash "$REPO_ROOT/scripts/tests/validate_inbound_email_roundtrip_test.sh" || return $?
+    bash "$REPO_ROOT/scripts/tests/support_email_deliverability_test.sh" || return $?
+    cd "$REPO_ROOT/infra" || return $?
+    cargo fmt --check || return $?
+    cargo clippy --workspace -- -D warnings || return $?
 }
 
 gate_migration_test() {
@@ -295,11 +301,13 @@ gate_rust_test() {
     # CI-runner RAM tradeoff (single test binary with AWS SDK deps is
     # 500 MB+ with debug info; CI's 7 GB RAM + 8 GB swap can't link
     # multiple in parallel) that doesn't apply on a workstation.
-    set -e
-    bash "$REPO_ROOT/scripts/reliability/seed-test-profiles.sh"
-    cd "$REPO_ROOT/infra"
-    cargo test --workspace
-    cargo test -p api --test tenant_isolation_proptest --features proptest-tests
+    # Explicit `|| return $?` after every command — same bash 3.2 set -e
+    # pitfall already handled in gate_web_lint/gate_web_test. Pinned by
+    # scripts/tests/local_ci_gate_set_e_test.sh.
+    bash "$REPO_ROOT/scripts/reliability/seed-test-profiles.sh" || return $?
+    cd "$REPO_ROOT/infra" || return $?
+    cargo test --workspace || return $?
+    cargo test -p api --test tenant_isolation_proptest --features proptest-tests || return $?
 }
 
 # ---------------------------------------------------------------------------

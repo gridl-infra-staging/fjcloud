@@ -308,6 +308,12 @@ jobs:
     # the deploy gate. It still runs on every CI pass, publishes logs/artifacts,
     # and surfaces failures in annotations without blocking the rest of the
     # staging deploy contract.
+    #
+    # MAINTENANCE: scripts/local-ci.sh mirrors this `needs[]` list so devs can
+    # reproduce the deploy-staging gate locally in ~20s instead of waiting
+    # ~15 min for the staging CI cycle. When you ADD, REMOVE, or CHANGE any
+    # job in this list, also update scripts/local-ci.sh to keep the local
+    # mirror in sync. See docs/runbooks/local-ci.md for the contract.
     needs:
       [
         rust-test,

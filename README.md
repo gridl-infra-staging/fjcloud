@@ -114,9 +114,18 @@ fjcloud_dev/
 | `fjcloud_dev` | This repo — SaaS infra + cloud web portal | Private (dev) |
 | `fjcloud` | Production mirror | Private |
 
+## Pre-push validation
+
+Run `bash scripts/local-ci.sh` before pushing to `main`. It mirrors every
+gate the staging `deploy-staging` job depends on (rust-lint, web-lint,
+web-test, check-sizes, secret-scan, migration-test) in parallel — fast mode
+finishes in ~20 seconds vs. ~15 minutes for staging CI. Use `--full` to
+also run `cargo test --workspace`, `--gate <name>` to run a single gate.
+
 ## Key Files
 
 - `ROADMAP.md` — complete feature inventory with implementation status
+- `scripts/local-ci.sh` — local mirror of the staging deploy-staging gate (run before every push)
 - `docs/LOCAL_QUICKSTART.md` — one-command local demo startup and walkthrough
 - `docs/LOCAL_LAUNCH_READINESS.md` — local-only launch validation scope, pass bars, and evidence expectations
 - `docs/LOCAL_DEV.md` — local stack setup and troubleshooting

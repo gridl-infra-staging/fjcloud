@@ -41,24 +41,29 @@ pub async fn ses_sns_webhook(
     State(state): State<AppState>,
     body: String,
 ) -> Result<StatusCode, ApiError> {
-    let envelope = parse_sns_envelope(&body)?;
+    // Log the underlying ApiError on rejection — the request_logging
+    // middleware only records HTTP status, not the variant message.
+    process_ses_sns_request(&state, &body)
+        .await
+        .inspect_err(|err| {
+            tracing::warn!(target: "api::routes::webhooks::ses_sns",
+            body_len = body.len(), error = ?err, "ses_sns_webhook rejected");
+        })
+}
+
+async fn process_ses_sns_request(state: &AppState, body: &str) -> Result<StatusCode, ApiError> {
+    let envelope = parse_sns_envelope(body)?;
     let sns_type = parse_sns_type(&envelope.sns_type)?;
     validate_sns_url(&envelope.signing_cert_url, "SigningCertURL")?;
     if let Some(subscribe_url) = envelope.subscribe_url.as_deref() {
         validate_sns_url(subscribe_url, "SubscribeURL")?;
     }
-    verify_sns_signature(&state, &envelope, sns_type).await?;
-
+    verify_sns_signature(state, &envelope, sns_type).await?;
     match sns_type {
-        SnsType::SubscriptionConfirmation => {
-            confirm_subscription(&state, &envelope).await?;
-        }
-        SnsType::Notification => {
-            handle_ses_notification(&state, &envelope).await?;
-        }
+        SnsType::SubscriptionConfirmation => confirm_subscription(state, &envelope).await?,
+        SnsType::Notification => handle_ses_notification(state, &envelope).await?,
         SnsType::UnsubscribeConfirmation => {}
     }
-
     Ok(StatusCode::OK)
 }
 

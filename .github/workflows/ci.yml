@@ -163,6 +163,15 @@ jobs:
         run: npm run lint:e2e
       - name: Run screen spec coverage contract
         run: bash scripts/tests/screen_specs_coverage_test.sh
+      - name: Run SES IAM/configset coupling contract
+        # Static cross-file regression guard: if email.rs attaches a SES
+        # configuration_set on SendEmail calls, the instance role's IAM
+        # policy MUST grant ses:SendEmail on the matching configuration-set
+        # ARN. Bug class caught: 2026-04-30 silent denial of all staging
+        # SES sends for ~36 hours after Apr 29 d8c81ce7 added the configset
+        # attach without updating IAM. Failing this step blocks the deploy
+        # gate so the same regression cannot reach production silently.
+        run: bash scripts/tests/ses_iam_configset_coupling_test.sh
 
   playwright:
     runs-on: ubuntu-latest

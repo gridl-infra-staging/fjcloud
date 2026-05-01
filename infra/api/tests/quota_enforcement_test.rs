@@ -2,6 +2,11 @@ mod common;
 
 use std::sync::Arc;
 
+// `with_day` lives on the chrono::Datelike trait; needed below to compute a
+// same-month timestamp without depending on `now - 1 day` (which crosses the
+// month boundary at the start of every month).
+use chrono::Datelike;
+
 use api::models::vm_inventory::NewVmInventory;
 use api::models::Deployment;
 use api::repos::tenant_repo::TenantRepo;
@@ -708,8 +713,22 @@ async fn quota_warning_not_sent_twice_in_same_month() {
     let tenant_repo = common::mock_tenant_repo();
     let usage_repo = common::mock_usage_repo();
     let customer = customer_repo.seed_verified_free_customer("Free", "free@example.com");
+    // Seed `quota_warning_sent_at` to a timestamp guaranteed to be in the SAME
+    // calendar month as `Utc::now()`. Using `now - 1 day` is unsafe across
+    // month boundaries: when CI runs on the first day of a month, "yesterday"
+    // lands in the previous month and the production suppression check
+    // (`sent_at.month() == now.month()` in routes/indexes/search.rs) treats the
+    // seeded warning as belonging to a different month — so a second email
+    // gets dispatched and this test fails. CI run 25195410333 hit exactly
+    // that on 2026-05-01T00:30:56Z. Computing the first-of-month from `now`
+    // is unambiguously "earlier in the same month" regardless of when the
+    // test runs.
+    let now = chrono::Utc::now();
+    let earlier_this_month = now
+        .with_day(1)
+        .expect("day=1 is always valid for any month");
     customer_repo
-        .set_quota_warning_sent_at(customer.id, chrono::Utc::now() - chrono::Duration::days(1))
+        .set_quota_warning_sent_at(customer.id, earlier_this_month)
         .await
         .unwrap();
 

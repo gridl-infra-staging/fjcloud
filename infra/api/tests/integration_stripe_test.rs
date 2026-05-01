@@ -980,10 +980,20 @@ mod helper_tests {
 
     impl EnvGuard {
         fn new(keys: &[&'static str], lock: std::sync::MutexGuard<'static, ()>) -> Self {
-            let vars = keys
+            let vars: Vec<_> = keys
                 .iter()
                 .map(|key| (*key, std::env::var(key).ok()))
                 .collect();
+            // Clear guarded vars on construction so tests start from a clean
+            // slate regardless of what the parent shell exported. Without this,
+            // a developer with STRIPE_WEBHOOK_SECRET in their .env.secret would
+            // see webhook_configuration_requires_secret_and_integration fail
+            // its first `assert!(!stripe_webhook_configured())` because the
+            // webhook secret is already populated. The Drop impl below restores
+            // the original values, so this clear is invisible to the parent.
+            for (key, _) in &vars {
+                std::env::remove_var(key);
+            }
             Self { vars, _lock: lock }
         }
     }
@@ -998,6 +1008,32 @@ mod helper_tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn env_guard_clears_inherited_parent_env_on_construction() {
+        // Regression: prior version of EnvGuard saved+restored env vars but did
+        // not clear them on construction, so a developer with STRIPE_WEBHOOK_SECRET
+        // in their parent shell .env.secret would see this leak into tests
+        // through pre-existing env. The paid-beta RC surfaced this when run with
+        // hydrated creds: webhook_configuration_requires_secret_and_integration
+        // failed at its first `assert!(!stripe_webhook_configured())` because
+        // the secret was already populated from parent env.
+        let lock = integration_helpers::test_env_lock();
+        let key = "ENV_GUARD_PARENT_LEAK_PROBE";
+        std::env::set_var(key, "leaked_from_parent");
+        {
+            let _guard = EnvGuard::new(&[key], lock);
+            // Construction must clear inherited values so tests start clean.
+            assert!(
+                std::env::var(key).is_err(),
+                "EnvGuard::new should clear pre-existing env on construction; got {:?}",
+                std::env::var(key)
+            );
+        }
+        // Drop must restore the original value.
+        assert_eq!(std::env::var(key).ok().as_deref(), Some("leaked_from_parent"));
+        std::env::remove_var(key);
     }
 
     #[tokio::test]

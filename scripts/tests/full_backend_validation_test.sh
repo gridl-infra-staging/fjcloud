@@ -220,6 +220,75 @@ test_orchestrator_fails_on_cargo_test_failure() {
     assert_json_field "$RUN_STDOUT" "verdict" "fail" "verdict should be fail on cargo test failure"
     assert_eq "$(json_step_status "$RUN_STDOUT" "cargo_workspace_tests")" "fail" "cargo step should be marked fail"
 }
+test_paid_beta_rc_writes_step_stderr_to_artifact_dir_on_cargo_failure() {
+    # Regression: prior versions of run_full_backend_validation.sh redirected step
+    # stderr to /dev/null, which made every RC failure diagnostically blind. The
+    # operator could see "cargo_workspace_tests fail" in summary.json but had no
+    # way to recover the actual cargo error without re-running the step manually.
+    # This test pins the contract that step stderr now lands in $ARTIFACT_DIR/<step>.log
+    # whenever an artifact dir is provided (which paid-beta-rc always does).
+    local tmp_dir artifact_dir
+    tmp_dir="$(mktemp -d)"
+    artifact_dir="$tmp_dir/artifacts"
+    # Mock cargo emits a unique sentinel string to stderr so we can assert the log
+    # captured the right stream (not stdout, not silently empty).
+    write_mock_script "$tmp_dir/mock_cargo.sh" 'echo "cargo_diagnostic_sentinel_abc123" >&2; exit 1'
+    write_mock_script "$tmp_dir/mock_backend_gate.sh" 'echo "{\"verdict\":\"pass\"}"; exit 0'
+    run_orchestrator env \
+        FULL_VALIDATION_CARGO_BIN="$tmp_dir/mock_cargo.sh" \
+        FULL_VALIDATION_BACKEND_GATE_SCRIPT="$tmp_dir/mock_backend_gate.sh" \
+        bash "$ORCH_SCRIPT" --paid-beta-rc --sha=aabbccddee00112233445566778899aabbccddee \
+            --artifact-dir="$artifact_dir"
+    local cargo_log_path cargo_log_content cargo_log_existed
+    cargo_log_path="$artifact_dir/cargo_workspace_tests.log"
+    # Capture file state BEFORE rm -rf wipes tmp_dir, otherwise the existence
+    # check would always fail regardless of the script's behavior.
+    if [ -f "$cargo_log_path" ]; then
+        cargo_log_existed="yes"
+    else
+        cargo_log_existed="no"
+    fi
+    cargo_log_content="$(cat "$cargo_log_path" 2>/dev/null || true)"
+    rm -rf "$tmp_dir"
+    assert_eq "$(json_step_status "$RUN_STDOUT" "cargo_workspace_tests")" "fail" "cargo step should fail on RC stderr-capture path"
+    # The load-bearing assertions: the log file exists AND contains the stderr
+    # content. A pass here proves the operator can diagnose the failure from
+    # artifact_dir without re-running anything.
+    assert_eq "$cargo_log_existed" "yes" "cargo_workspace_tests.log should exist in artifact dir after step failure"
+    assert_contains "$cargo_log_content" "cargo_diagnostic_sentinel_abc123" "step log should capture stderr content for diagnosis"
+}
+test_cargo_workspace_step_does_not_inherit_db_url_from_parent_env() {
+    # Regression: cargo test --workspace is intended as a "does the workspace
+    # build and unit-test cleanly" smoke. Tests that need a live DB are opt-in
+    # via paid-beta-rc rust steps (admin_broadcast, billing_health_last_activity,
+    # audit_timeline) which use --ignored and set their own env. When an
+    # operator runs the RC with DATABASE_URL hydrated from SSM (staging host
+    # not reachable from a dev laptop), pg_customer_repo_test panics on DNS
+    # resolve and the workspace step false-fails. Pin the contract: the cargo
+    # step must run in an env where DATABASE_URL/INTEGRATION_DB_URL are unset,
+    # regardless of what the operator exported.
+    local tmp_dir log_path log_content
+    tmp_dir="$(mktemp -d)"
+    # Mock cargo writes a marker line capturing the values of the DB env vars
+    # it sees. We assert these are empty/unset in the captured log.
+    write_mock_script "$tmp_dir/mock_cargo.sh" 'echo "DATABASE_URL_SEEN=[${DATABASE_URL:-<unset>}]"; echo "INTEGRATION_DB_URL_SEEN=[${INTEGRATION_DB_URL:-<unset>}]"; exit 0'
+    write_mock_script "$tmp_dir/mock_backend_gate.sh" 'echo "{\"verdict\":\"pass\"}"; exit 0'
+    run_orchestrator env \
+        DATABASE_URL="postgres://leaked.example.invalid:5432/leaked" \
+        INTEGRATION_DB_URL="postgres://leaked.example.invalid:5432/leaked" \
+        DRY_RUN=1 \
+        FULL_VALIDATION_CARGO_BIN="$tmp_dir/mock_cargo.sh" \
+        FULL_VALIDATION_BACKEND_GATE_SCRIPT="$tmp_dir/mock_backend_gate.sh" \
+        bash "$ORCH_SCRIPT" --paid-beta-rc --sha=aabbccddee00112233445566778899aabbccddee \
+            --artifact-dir="$tmp_dir/artifacts"
+    log_path="$tmp_dir/artifacts/cargo_workspace_tests.log"
+    log_content="$(cat "$log_path" 2>/dev/null || true)"
+    rm -rf "$tmp_dir"
+    # Both vars must show as <unset> in the cargo subshell. If they showed the
+    # leaked values, the cargo step is inheriting parent env (the bug).
+    assert_contains "$log_content" "DATABASE_URL_SEEN=[<unset>]" "cargo step must run with DATABASE_URL unset to avoid pg_customer_repo_test panicking on a host it cannot reach"
+    assert_contains "$log_content" "INTEGRATION_DB_URL_SEEN=[<unset>]" "cargo step must run with INTEGRATION_DB_URL unset for the same reason"
+}
 test_orchestrator_fails_on_backend_gate_failure() {
     local tmp_dir
     tmp_dir="$(mktemp -d)"
@@ -807,6 +876,8 @@ main() {
     test_orchestrator_dry_run_produces_valid_json
     test_orchestrator_dry_run_sha_cli_pass_path
     test_orchestrator_fails_on_cargo_test_failure
+    test_paid_beta_rc_writes_step_stderr_to_artifact_dir_on_cargo_failure
+    test_cargo_workspace_step_does_not_inherit_db_url_from_parent_env
     test_orchestrator_fails_on_backend_gate_failure
     test_orchestrator_fails_on_backend_gate_invalid_json
     test_orchestrator_rejects_invalid_sha_argument

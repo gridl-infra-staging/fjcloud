@@ -125,13 +125,27 @@ run_preflight() {
     return 0
 }
 run_step_cargo_tests() {
-    local start_ms end_ms elapsed status reason
+    local start_ms end_ms elapsed status reason log_path
     start_ms="$(_ms_now)"
     local exit_code=0
+    log_path="$(_step_log_path cargo_workspace_tests)"
+    # cargo test --workspace is the workspace smoke gate — it must NOT inherit
+    # operator-supplied DATABASE_URL / INTEGRATION_DB_URL from the parent shell.
+    # Reason: pg_customer_repo_test (and similar pg-bound tests) skips cleanly
+    # when DATABASE_URL is unset, but panics with "connect to integration test
+    # DB" when it IS set and unreachable. An operator running the RC from a
+    # dev laptop typically hydrates DATABASE_URL=staging-internal-host (so the
+    # backend_launch_gate's DB checks can run), and that staging host is not
+    # reachable from outside the VPC — so pg tests panic on DNS resolve and
+    # the workspace step false-fails. Tests that genuinely need a live DB are
+    # opt-in via the paid-beta-rc rust steps below (admin_broadcast,
+    # billing_health_last_activity, audit_timeline) which set their own env.
+    # See test_cargo_workspace_step_does_not_inherit_db_url_from_parent_env.
     (
         cd "$REPO_ROOT/infra"
+        unset DATABASE_URL INTEGRATION_DB_URL
         "$CARGO_BIN" test --workspace
-    ) >/dev/null 2>&1 || exit_code=$?
+    ) >"$log_path" 2>&1 || exit_code=$?
     end_ms="$(_ms_now)"
     elapsed=$((end_ms - start_ms))
     if [ "$exit_code" -eq 0 ]; then
@@ -150,6 +164,28 @@ ensure_rc_artifact_dir() {
         return 0
     fi
     ARTIFACT_DIR="$(mktemp -d "${TMPDIR:-/tmp}/fjcloud-paid-beta-rc-XXXXXX")"
+}
+# Returns the absolute path to which a step's external command output should be
+# redirected (combined stdout+stderr). When ARTIFACT_DIR is set — paid-beta-rc
+# always sets one — logs land alongside summary.json so operators can diagnose
+# failures without re-running anything. In dry-run / live modes that don't
+# provide an artifact dir, output still goes to /dev/null (preserves prior
+# behavior; those modes were never the diagnostic target).
+#
+# WHY: prior versions used `>/dev/null 2>&1` at every step callsite, which made
+# RC failures diagnostically blind. summary.json could say "fail" but the
+# operator had no way to recover the actual error. See test
+# test_paid_beta_rc_writes_step_stderr_to_artifact_dir_on_cargo_failure.
+_step_log_path() {
+    local step_name="$1"
+    if [ -n "$ARTIFACT_DIR" ]; then
+        # ARTIFACT_DIR is created by ensure_rc_artifact_dir before any step runs;
+        # mkdir -p is defensive in case a caller hasn't gone through that path.
+        mkdir -p "$ARTIFACT_DIR" 2>/dev/null || true
+        printf '%s/%s.log\n' "$ARTIFACT_DIR" "$step_name"
+        return 0
+    fi
+    printf '/dev/null\n'
 }
 read_env_value_from_file() {
     local env_file="$1"
@@ -208,7 +244,9 @@ run_step_local_signoff() {
     local start_ms end_ms elapsed status reason
     start_ms="$(_ms_now)"
     local exit_code=0
-    bash "$LOCAL_SIGNOFF_SCRIPT" >/dev/null 2>&1 || exit_code=$?
+    local log_path
+    log_path="$(_step_log_path local_signoff)"
+    bash "$LOCAL_SIGNOFF_SCRIPT" >"$log_path" 2>&1 || exit_code=$?
     end_ms="$(_ms_now)"
     elapsed=$((end_ms - start_ms))
     if [ "$exit_code" -eq 0 ]; then
@@ -266,11 +304,12 @@ run_step_ses_readiness() {
             return 2
         fi
     fi
-    local exit_code=0
+    local exit_code=0 log_path
+    log_path="$(_step_log_path ses_readiness)"
     if [ "$ses_region_status" -eq 0 ] && [ -n "$ses_region" ]; then
-        bash "$SES_READINESS_SCRIPT" --identity "$ses_identity" --region "$ses_region" >/dev/null 2>&1 || exit_code=$?
+        bash "$SES_READINESS_SCRIPT" --identity "$ses_identity" --region "$ses_region" >"$log_path" 2>&1 || exit_code=$?
     else
-        bash "$SES_READINESS_SCRIPT" --identity "$ses_identity" >/dev/null 2>&1 || exit_code=$?
+        bash "$SES_READINESS_SCRIPT" --identity "$ses_identity" >"$log_path" 2>&1 || exit_code=$?
     fi
     end_ms="$(_ms_now)"
     elapsed=$((end_ms - start_ms))
@@ -299,11 +338,15 @@ run_step_staging_billing_rehearsal() {
         append_step "staging_billing_rehearsal" "live_evidence_gap" "credentialed_billing_month_missing" "$elapsed"
         return 2
     fi
-    local output="" exit_code=0
+    local output="" exit_code=0 log_path
+    # stdout is captured into $output for delegated-summary parsing; stderr is
+    # redirected to the per-step log so operators can diagnose failures from
+    # the artifact dir instead of losing them to /dev/null.
+    log_path="$(_step_log_path staging_billing_rehearsal)"
     output="$(bash "$STAGING_BILLING_REHEARSAL_SCRIPT" \
         --env-file "$CREDENTIAL_ENV_FILE" \
         --month "$BILLING_MONTH" \
-        --confirm-live-mutation 2>/dev/null)" || exit_code=$?
+        --confirm-live-mutation 2>"$log_path")" || exit_code=$?
     end_ms="$(_ms_now)"
     elapsed=$((end_ms - start_ms))
     parse_delegated_billing_summary "$output"
@@ -378,16 +421,17 @@ run_delegated_command_step() {
     local fail_reason="$2"
     local working_dir="$3"
     shift 3
-    local start_ms end_ms elapsed status reason
+    local start_ms end_ms elapsed status reason log_path
     start_ms="$(_ms_now)"
     local exit_code=0
+    log_path="$(_step_log_path "$step_name")"
     if [ -n "$working_dir" ]; then
         (
             cd "$working_dir"
             "$@"
-        ) >/dev/null 2>&1 || exit_code=$?
+        ) >"$log_path" 2>&1 || exit_code=$?
     else
-        "$@" >/dev/null 2>&1 || exit_code=$?
+        "$@" >"$log_path" 2>&1 || exit_code=$?
     fi
     end_ms="$(_ms_now)"
     elapsed=$((end_ms - start_ms))
@@ -418,11 +462,19 @@ run_step_browser_auth_setup() {
 run_step_terraform_static_guardrails() {
     local start_ms end_ms elapsed status reason
     start_ms="$(_ms_now)"
-    local stage7_exit=0 stage8_exit=0
+    local stage7_exit=0 stage8_exit=0 log_path
+    # Single combined log for both stages so the operator sees them in order.
+    log_path="$(_step_log_path terraform_static_guardrails)"
     build_terraform_stage7_static_command
-    "${STEP_COMMAND[@]}" >/dev/null 2>&1 || stage7_exit=$?
+    {
+        echo "=== terraform_stage7_static ==="
+        "${STEP_COMMAND[@]}"
+    } >"$log_path" 2>&1 || stage7_exit=$?
     build_terraform_stage8_static_command
-    "${STEP_COMMAND[@]}" >/dev/null 2>&1 || stage8_exit=$?
+    {
+        echo "=== terraform_stage8_static ==="
+        "${STEP_COMMAND[@]}"
+    } >>"$log_path" 2>&1 || stage8_exit=$?
     end_ms="$(_ms_now)"
     elapsed=$((end_ms - start_ms))
     if [ "$stage7_exit" -eq 0 ] && [ "$stage8_exit" -eq 0 ]; then
@@ -522,11 +574,17 @@ execute_required_step() {
 }
 run_paid_beta_rc_rust_step() {
     local step_name="$1" fail_reason="$2" classify_skip_as_secret_missing="$3" command="$4"
-    local start_ms end_ms elapsed output="" exit_code=0
+    local start_ms end_ms elapsed output="" exit_code=0 log_path
     start_ms="$(_ms_now)"
     output="$(cd "$REPO_ROOT/infra" && bash -lc "$command" 2>&1)" || exit_code=$?
     end_ms="$(_ms_now)"
     elapsed=$((end_ms - start_ms))
+    # Persist captured output to the per-step log so operators can diagnose
+    # failures (and inspect skip markers) without re-running the rust step.
+    # When ARTIFACT_DIR is unset, _step_log_path returns /dev/null and the
+    # write is harmless — no need to guard the printf.
+    log_path="$(_step_log_path "$step_name")"
+    printf '%s' "$output" >"$log_path"
     if [ "$classify_skip_as_secret_missing" = "1" ] && [[ "$output" == *"SKIP:"* ]]; then
         append_step "$step_name" "external_secret_missing" "database_skip_marker" "$elapsed"
         return 2
@@ -560,7 +618,9 @@ run_step_paid_beta_rc_ses_inbound() {
         end_ms="$(_ms_now)"; elapsed=$((end_ms - start_ms))
         append_step "ses_inbound" "external_secret_missing" "credentialed_ses_inbound_inputs_missing" "$elapsed"; return 2
     fi
-    env SES_FROM_ADDRESS="$ses_identity" SES_REGION="$ses_region" bash "$SES_INBOUND_ROUNDTRIP_SCRIPT" >/dev/null 2>&1 || exit_code=$?
+    local log_path
+    log_path="$(_step_log_path ses_inbound)"
+    env SES_FROM_ADDRESS="$ses_identity" SES_REGION="$ses_region" bash "$SES_INBOUND_ROUNDTRIP_SCRIPT" >"$log_path" 2>&1 || exit_code=$?
     end_ms="$(_ms_now)"; elapsed=$((end_ms - start_ms))
     case "$exit_code" in
         0) append_step "ses_inbound" "pass" "" "$elapsed" ;;
@@ -583,7 +643,9 @@ run_step_paid_beta_rc_canary_customer_loop() {
         end_ms="$(_ms_now)"; elapsed=$((end_ms - start_ms))
         append_step "canary_customer_loop" "external_secret_missing" "credentialed_canary_customer_loop_inputs_missing" "$elapsed"; return 2
     fi
-    env ADMIN_KEY="$canary_admin_key" STRIPE_SECRET_KEY="$canary_stripe_key" CANARY_RC_READINESS_MODE=1 bash "$CANARY_CUSTOMER_LOOP_SCRIPT" >/dev/null 2>&1 || exit_code=$?
+    local log_path
+    log_path="$(_step_log_path canary_customer_loop)"
+    env ADMIN_KEY="$canary_admin_key" STRIPE_SECRET_KEY="$canary_stripe_key" CANARY_RC_READINESS_MODE=1 bash "$CANARY_CUSTOMER_LOOP_SCRIPT" >"$log_path" 2>&1 || exit_code=$?
     end_ms="$(_ms_now)"; elapsed=$((end_ms - start_ms))
     if [ "$exit_code" -eq 0 ]; then
         append_step "canary_customer_loop" "pass" "" "$elapsed"; return 0

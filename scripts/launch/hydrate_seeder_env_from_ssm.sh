@@ -28,6 +28,7 @@ ssm_value() {
 ADMIN_KEY="$(ssm_value "/fjcloud/${ENVIRONMENT}/admin_key")"
 DATABASE_URL="$(ssm_value "/fjcloud/${ENVIRONMENT}/database_url")"
 DNS_DOMAIN="$(ssm_value "/fjcloud/${ENVIRONMENT}/dns_domain")"
+STRIPE_SECRET_KEY="$(ssm_value "/fjcloud/${ENVIRONMENT}/stripe_secret_key")"
 
 [ -n "$ADMIN_KEY" ] && [ "$ADMIN_KEY" != "None" ] || {
   echo "ERROR: failed to fetch /fjcloud/${ENVIRONMENT}/admin_key from SSM in ${REGION}" >&2
@@ -41,6 +42,10 @@ DNS_DOMAIN="$(ssm_value "/fjcloud/${ENVIRONMENT}/dns_domain")"
   echo "ERROR: failed to fetch /fjcloud/${ENVIRONMENT}/dns_domain from SSM in ${REGION}" >&2
   exit 1
 }
+[ -n "$STRIPE_SECRET_KEY" ] && [ "$STRIPE_SECRET_KEY" != "None" ] || {
+  echo "ERROR: failed to fetch /fjcloud/${ENVIRONMENT}/stripe_secret_key from SSM in ${REGION}" >&2
+  exit 1
+}
 
 API_URL="https://api.${DNS_DOMAIN}"
 # FLAPJACK_URL is the per-VM endpoint discovered/persisted by ensure_customer_and_tenant,
@@ -51,7 +56,21 @@ API_URL="https://api.${DNS_DOMAIN}"
 FLAPJACK_URL="${FLAPJACK_URL:-https://api.${DNS_DOMAIN}}"
 
 # Output as export KEY="value" lines for source <(...). Use printf %q for safe quoting.
+#
+# WHY STRIPE_SECRET_KEY is hydrated here (not inherited from the operator's
+# .env.secret): each Stripe account has independent test mode. The staging
+# API process reads its STRIPE_SECRET_KEY from this same SSM parameter
+# (via generate_ssm_env.sh -> /etc/fjcloud/env), so any staging-targeted
+# tooling (canary customer loop, paid-beta-rc Stripe steps, billing rehearsal)
+# MUST use the same key to find the customers/payment-methods/invoices the
+# API created. If the operator's .env.secret has a sk_test_ key for a
+# different Stripe account, attaching pm_card_visa to a customer created by
+# the API returns "No such customer: cus_..." with HTTP 400 — the canary
+# stripe_attach failure mode that surfaced 2026-05-01. By exporting
+# STRIPE_SECRET_KEY from staging SSM here, the operator's stale .env.secret
+# value is intentionally overridden in the staging-tooling subshell.
 printf 'export ADMIN_KEY=%q\n' "$ADMIN_KEY"
 printf 'export DATABASE_URL=%q\n' "$DATABASE_URL"
 printf 'export API_URL=%q\n' "$API_URL"
 printf 'export FLAPJACK_URL=%q\n' "$FLAPJACK_URL"
+printf 'export STRIPE_SECRET_KEY=%q\n' "$STRIPE_SECRET_KEY"

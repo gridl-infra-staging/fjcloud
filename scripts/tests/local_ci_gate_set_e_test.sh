@@ -27,6 +27,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 LOCAL_CI="$REPO_ROOT/scripts/local-ci.sh"
 
+# Fixture path is exported so the EXIT trap below can clean it up regardless
+# of which exit path triggers — the in-test cleanup is the primary path, but
+# a defensive trap means a future bash error can't leak a fmt-violating
+# Rust file under infra/api/tests/ that would block unrelated cargo fmt
+# --check runs.
+FIXTURE_PATH="$REPO_ROOT/infra/api/tests/_local_ci_set_e_regression_fixture.rs"
+trap 'rm -f "$FIXTURE_PATH"' EXIT
+
 PASS_COUNT=0
 FAIL_COUNT=0
 
@@ -44,8 +52,7 @@ fail() { echo "FAIL: $*" >&2; FAIL_COUNT=$((FAIL_COUNT+1)); }
 # ---------------------------------------------------------------------------
 
 test_local_ci_rust_lint_fails_on_real_fmt_violation() {
-    local fixture_path
-    fixture_path="$REPO_ROOT/infra/api/tests/_local_ci_set_e_regression_fixture.rs"
+    local fixture_path="$FIXTURE_PATH"
 
     # Write a Rust file with a long line that rustfmt will want to wrap.
     # The fixture name is unique to this test so it won't collide with any

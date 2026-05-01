@@ -112,7 +112,18 @@ assert_contains_active "$monitor_main_file" '/fjcloud/\$\{var\.env\}/canary_quie
 
 echo ""
 echo "--- Monitoring resource count ---"
-assert_resource_count "$monitor_main_file" 24 "monitoring/main.tf has exactly 24 resources (alerts + cloudtrail + budget + alarms + canary ECR/Lambda/EventBridge/IAM)"
+# Resource count breakdown:
+#   2 alerts SNS (topic + email subscription)
+#   3 SES feedback SNS (topic + topic_policy + HTTPS subscription) — added 2026-04-29 in
+#     commits 6ce1329d/b7f79168 alongside the bounce/complaint suppression handler. Test
+#     was previously asserting 24 (pre-feedback) and would silently fail-fast on staging
+#     terraform_stage7_static gate every run; updated to 27 now.
+#   8 customer-loop canary (ECR repo + lifecycle, IAM role+policy, Lambda, EventBridge rule+target, Lambda permission)
+#   4 cloudtrail export (S3 bucket + public-access-block + lifecycle + bucket-policy + cloudtrail itself = 5)
+#   2 budget (budget + budget action)
+#   7 cloudwatch metric alarms
+# Sum: 2 + 3 + 8 + 5 + 2 + 7 = 27.
+assert_resource_count "$monitor_main_file" 27 "monitoring/main.tf has exactly 27 resources (alerts + SES feedback + canary + cloudtrail + budget + alarms)"
 
 echo ""
 echo "--- API CPU alarm ---"

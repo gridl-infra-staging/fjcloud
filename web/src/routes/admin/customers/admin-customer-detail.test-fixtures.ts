@@ -34,7 +34,6 @@ const DETAIL_TENANT_FIXTURE = {
 	status: 'suspended',
 	billing_plan: 'starter',
 	last_accessed_at: '2026-04-18T09:00:00Z',
-	subscription_status: 'past_due',
 	overdue_invoice_count: 1,
 	billing_health: 'yellow',
 	created_at: '2026-02-11T12:00:00Z',

@@ -139,35 +139,19 @@ fn add_usage_and_invoice_routes(router: Router<AppState>) -> Router<AppState> {
         )
 }
 
-/// Registers billing routes: estimate, setup-intent, checkout session,
-/// subscription CRUD, invoice listing, and payment method management.
-#[allow(deprecated)]
+/// Registers billing routes: estimate, setup-intent, portal,
+/// and payment method management.
 fn add_billing_routes(router: Router<AppState>) -> Router<AppState> {
-    // Active billing totals flow through estimate + payment-method/setup-intent routes.
-    // Subscription checkout/subscription lifecycle routes remain for legacy compatibility and quota workflows.
     router
         .route("/billing/estimate", get(billing::get_estimate))
+        .route(
+            "/billing/publishable-key",
+            get(billing::get_publishable_key),
+        )
         .route("/billing/setup-intent", post(billing::create_setup_intent))
         .route(
             "/billing/portal",
             post(billing::create_billing_portal_session),
-        )
-        .route(
-            "/billing/checkout-session",
-            post(billing::create_checkout_session),
-        )
-        .route("/billing/subscription", get(billing::get_subscription))
-        .route(
-            "/billing/subscription/cancel",
-            post(billing::cancel_subscription),
-        )
-        .route(
-            "/billing/subscription/upgrade",
-            post(billing::upgrade_subscription),
-        )
-        .route(
-            "/billing/subscription/downgrade",
-            post(billing::downgrade_subscription),
         )
         .route(
             "/billing/payment-methods",

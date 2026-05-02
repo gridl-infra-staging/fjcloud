@@ -1,0 +1,22 @@
+{
+    "CommandId": "be287382-7e46-4de6-9411-f1a2bb5320e1",
+    "InstanceId": "i-0afc7651593f12372",
+    "Comment": "stage7 ",
+    "DocumentName": "AWS-RunShellScript",
+    "DocumentVersion": "$DEFAULT",
+    "PluginName": "aws:runShellScript",
+    "ResponseCode": 7,
+    "ExecutionStartDateTime": "2026-05-02T04:53:28.557Z",
+    "ExecutionElapsedTime": "PT0.303S",
+    "ExecutionEndDateTime": "2026-05-02T04:53:28.557Z",
+    "Status": "Failed",
+    "StatusDetails": "Failed",
+    "StandardOutputContent": "active\n",
+    "StandardOutputUrl": "",
+    "StandardErrorContent": "curl: (7) Failed to connect to 127.0.0.1 port 3001 after 0 ms: Could not connect to server\nfailed to run commands: exit status 7",
+    "StandardErrorUrl": "",
+    "CloudWatchOutputConfig": {
+        "CloudWatchLogGroupName": "",
+        "CloudWatchOutputEnabled": false
+    }
+}

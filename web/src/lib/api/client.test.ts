@@ -8,7 +8,6 @@ import type {
 	InvoiceListItem,
 	SetupIntentResponse,
 	PaymentMethod,
-	SubscriptionResponse,
 	CreateBillingPortalSessionRequest,
 	CreateBillingPortalSessionResponse,
 	EstimatedBillResponse,
@@ -34,6 +33,11 @@ describe('ApiClient', () => {
 			c.healthCheck();
 			expect(fetch).toHaveBeenCalledWith('http://localhost:3000/health', expect.any(Object));
 		});
+	});
+
+	it('does not expose the legacy getSubscription seam', () => {
+		expect('getSubscription' in client).toBe(false);
+		expect((client as unknown as Record<string, unknown>).getSubscription).toBeUndefined();
 	});
 
 	describe('auth endpoints', () => {
@@ -386,48 +390,6 @@ describe('ApiClient', () => {
 				},
 				body: JSON.stringify(requestBody)
 			});
-			expect(result).toEqual(expected);
-		});
-
-		it('GET /billing/subscription returns the current subscription', async () => {
-			const expected: SubscriptionResponse = {
-				id: 'sub_test_123',
-				plan_tier: 'shared',
-				status: 'active',
-				current_period_end: '2026-05-31',
-				cancel_at_period_end: true
-			};
-			const fetch = mockFetch(200, expected);
-			client.setFetch(fetch);
-
-			const result = await client.getSubscription();
-
-			expect(fetch).toHaveBeenCalledWith(`${BASE_URL}/billing/subscription`, {
-				method: 'GET',
-				headers: {
-					'Content-Type': 'application/json',
-					Authorization: 'Bearer my-jwt-token'
-				}
-			});
-			expect(result).toEqual(expected);
-		});
-
-		it('GET /billing/subscription preserves status, current_period_end, and cancel_at_period_end', async () => {
-			const expected: SubscriptionResponse = {
-				id: 'sub_test_456',
-				plan_tier: 'shared',
-				status: 'canceled',
-				current_period_end: '2026-06-30',
-				cancel_at_period_end: false
-			};
-			const fetch = mockFetch(200, expected);
-			client.setFetch(fetch);
-
-			const result = await client.getSubscription();
-
-			expect(result.status).toBe('canceled');
-			expect(result.current_period_end).toBe('2026-06-30');
-			expect(result.cancel_at_period_end).toBe(false);
 			expect(result).toEqual(expected);
 		});
 

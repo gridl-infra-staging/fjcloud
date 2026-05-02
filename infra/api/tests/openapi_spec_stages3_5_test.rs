@@ -8,19 +8,15 @@ mod common;
 fn spec_contains_billing_operations() {
     let spec = common::openapi_spec_json();
 
-    // All 11 billing paths with correct HTTP methods
+    // Stage 3 preserved billing paths with correct HTTP methods.
     let billing_ops: &[(&str, &str)] = &[
         ("/billing/estimate", "get"),
+        ("/billing/publishable-key", "get"),
         ("/billing/setup-intent", "post"),
         ("/billing/portal", "post"),
-        ("/billing/checkout-session", "post"),
         ("/billing/payment-methods", "get"),
         ("/billing/payment-methods/{pm_id}", "delete"),
         ("/billing/payment-methods/{pm_id}/default", "post"),
-        ("/billing/subscription", "get"),
-        ("/billing/subscription/cancel", "post"),
-        ("/billing/subscription/upgrade", "post"),
-        ("/billing/subscription/downgrade", "post"),
     ];
     for (path, method) in billing_ops {
         let pointer = format!("/paths/{}/{method}", path.replace('/', "~1"));
@@ -31,26 +27,37 @@ fn spec_contains_billing_operations() {
     }
 }
 
+/// Stage 7: `subscription_status` was the last subscription-model leak on
+/// the admin tenant response. The admin surface itself is excluded from the
+/// public OpenAPI spec (asserted by `spec_contains_only_stage_1_through_5_paths`),
+/// so the stronger guarantee is that the field name does not appear anywhere
+/// in the spec text — guards against a future component-schema reintroduction.
 #[test]
-fn spec_billing_deprecated_routes_marked_deprecated() {
+fn spec_does_not_reference_subscription_status_field() {
+    let spec = common::openapi_spec_json();
+    let serialized = serde_json::to_string(&spec).expect("spec serializes");
+    assert!(
+        !serialized.contains("subscription_status"),
+        "OpenAPI spec must not reference the removed `subscription_status` field"
+    );
+}
+
+#[test]
+fn spec_billing_legacy_subscription_routes_are_removed() {
     let spec = common::openapi_spec_json();
 
-    // 5 legacy routes must have deprecated: true on their operation
-    let deprecated_ops = [
+    let removed_ops = [
         "/paths/~1billing~1checkout-session/post",
         "/paths/~1billing~1subscription/get",
         "/paths/~1billing~1subscription~1cancel/post",
         "/paths/~1billing~1subscription~1upgrade/post",
         "/paths/~1billing~1subscription~1downgrade/post",
     ];
-    for op_ptr in deprecated_ops {
-        let deprecated = spec
-            .pointer(&format!("{op_ptr}/deprecated"))
-            .unwrap_or_else(|| panic!("{op_ptr} must have a deprecated field"));
+    for op_ptr in removed_ops {
         assert_eq!(
-            deprecated.as_bool(),
-            Some(true),
-            "{op_ptr} must be marked deprecated"
+            spec.pointer(op_ptr),
+            None,
+            "{op_ptr} must be removed in Stage 3"
         );
     }
 
@@ -80,19 +87,15 @@ fn spec_billing_deprecated_routes_marked_deprecated() {
 fn spec_authenticated_billing_routes_document_401() {
     let spec = common::openapi_spec_json();
 
-    // All 11 billing operations must document 401 with ErrorResponse
+    // All preserved billing operations must document 401 with ErrorResponse.
     let billing_401_refs = [
         "/paths/~1billing~1estimate/get/responses/401/content/application~1json/schema/$ref",
+        "/paths/~1billing~1publishable-key/get/responses/401/content/application~1json/schema/$ref",
         "/paths/~1billing~1setup-intent/post/responses/401/content/application~1json/schema/$ref",
         "/paths/~1billing~1portal/post/responses/401/content/application~1json/schema/$ref",
-        "/paths/~1billing~1checkout-session/post/responses/401/content/application~1json/schema/$ref",
         "/paths/~1billing~1payment-methods/get/responses/401/content/application~1json/schema/$ref",
         "/paths/~1billing~1payment-methods~1{pm_id}/delete/responses/401/content/application~1json/schema/$ref",
         "/paths/~1billing~1payment-methods~1{pm_id}~1default/post/responses/401/content/application~1json/schema/$ref",
-        "/paths/~1billing~1subscription/get/responses/401/content/application~1json/schema/$ref",
-        "/paths/~1billing~1subscription~1cancel/post/responses/401/content/application~1json/schema/$ref",
-        "/paths/~1billing~1subscription~1upgrade/post/responses/401/content/application~1json/schema/$ref",
-        "/paths/~1billing~1subscription~1downgrade/post/responses/401/content/application~1json/schema/$ref",
     ];
     for ref_ptr in billing_401_refs {
         assert_eq!(
@@ -109,16 +112,12 @@ fn spec_contains_billing_schemas() {
 
     let billing_schemas = [
         "SetupIntentResponse",
+        "PublishableKeyResponse",
         "CreateBillingPortalSessionRequest",
         "BillingPortalSessionResponse",
         "PaymentMethodResponse",
         "EstimateLineItem",
         "EstimatedBillResponse",
-        "CreateCheckoutSessionRequest",
-        "CheckoutSessionResponseBody",
-        "CancelSubscriptionRequest",
-        "SubscriptionResponse",
-        "UpdateSubscriptionRequest",
     ];
     for schema in billing_schemas {
         assert!(
@@ -128,10 +127,10 @@ fn spec_contains_billing_schemas() {
         );
     }
 
-    // PlanTier must also be registered (single source of truth from billing crate)
+    let removed_plan_schema = "/components/schemas/PlanTier";
     assert!(
-        spec.pointer("/components/schemas/PlanTier").is_some(),
-        "spec must contain PlanTier schema from billing crate"
+        spec.pointer(removed_plan_schema).is_none(),
+        "spec must not contain the removed plan-tier schema after plan module deletion"
     );
 }
 

@@ -33,3 +33,29 @@ jobs:
           workspaces: infra
       - name: Run stripe test-clock lifecycle lane
         run: cd infra && cargo test -p api --test stripe_test_clock_full_cycle_test
+
+  tenant-isolation-proptest:
+    # Defensive regression check that runs the proptest-driven tenant
+    # isolation suite against the api crate's mock-backed test harness.
+    # Moved out of per-push CI on 2026-05-02 because it costs ~3-5 min per
+    # push and is a defensive regression check (not a gate on functional
+    # correctness). Failure surfaces nightly; workflow_dispatch supports
+    # operator-driven reruns. The test is mock-only and needs no postgres,
+    # stripe, or other services.
+    runs-on: ubuntu-latest
+    env:
+      CARGO_INCREMENTAL: "0"
+      CARGO_PROFILE_TEST_DEBUG: "0"
+      RUSTFLAGS: "-Clink-arg=-fuse-ld=bfd"
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Run nightly workflow contract tests
+        run: bash scripts/tests/nightly_workflow_test.sh
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # stable
+      - name: Set up rust cache
+        uses: Swatinem/rust-cache@ad397744b0d591a723ab90405b7247fac0e6b8db # v2
+        with:
+          workspaces: infra
+      - name: Run tenant isolation proptest
+        run: cd infra && cargo test -p api --test tenant_isolation_proptest --features proptest-tests

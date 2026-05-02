@@ -10,15 +10,16 @@
  */
 
 import { test as base, expect, type Page } from '@playwright/test';
-import { createHmac } from 'node:crypto';
 import { createSeedSearchableIndexFactory, type SeedSearchableIndexFn } from './searchable-index';
+import { findVerificationTokenViaStagingSsm } from './staging_db_lookup';
 import {
+	REMOTE_TARGET_OPT_IN_ENV,
 	requireLoopbackHttpUrl,
 	resolveFixtureEnv,
 	resolveRequiredFixtureUserCredentials
 } from '../../playwright.config.contract';
 import { requireAdminApiKey, requireNonEmptyString } from './contract-guards';
-import type { EstimatedBillResponse, SubscriptionResponse } from '../../src/lib/api/types';
+import type { EstimatedBillResponse } from '../../src/lib/api/types';
 import type { AdminRateCard } from '../../src/lib/admin-client';
 import {
 	pricingContractSnapshotFromAdminRateCard,
@@ -76,18 +77,6 @@ type ArrangePaidInvoiceForFreshSignupResult = {
 	customerId: string;
 	invoiceId: string;
 	billingMonth: string;
-	invoiceEmailDelivered: boolean;
-	invoiceEmailMessageId: string | null;
-};
-
-type ArrangeBillingDunningForFreshSignupResult = {
-	customerId: string;
-	dunningSubscriptionStatus: string;
-};
-
-type ArrangeRefundedInvoiceForFreshSignupResult = {
-	customerId: string;
-	refundedInvoiceId: string;
 };
 
 type TrackCustomerForCleanupFn = (customerId: string) => void;
@@ -108,6 +97,10 @@ type FixtureSetupFailureParams = {
 };
 
 const FRESH_SIGNUP_ARRANGE_SETUP_FAILURE_ALERT_PATTERN = /service is unavailable|verify API_URL/i;
+const VERIFY_EMAIL_TOKEN_PATH_PATTERN = /\/verify-email\/[A-Za-z0-9_-]+/g;
+const SENSITIVE_QUERY_PARAM_PATTERN =
+	/([?&](?:token|verification_token|verificationToken|secret|key|code)=)[^&#\s]*/gi;
+const BEARER_TOKEN_PATTERN = /\bBearer\s+[A-Za-z0-9._~+/=-]+\b/g;
 
 function formatAdminKeyFingerprint(adminKey?: string): string {
 	if (!adminKey?.trim()) {
@@ -118,17 +111,24 @@ function formatAdminKeyFingerprint(adminKey?: string): string {
 	return `(present, len=${normalizedAdminKey.length})`;
 }
 
+function redactSensitiveDiagnostics(value: string): string {
+	return value
+		.replace(VERIFY_EMAIL_TOKEN_PATH_PATTERN, '/verify-email/[REDACTED]')
+		.replace(SENSITIVE_QUERY_PARAM_PATTERN, '$1[REDACTED]')
+		.replace(BEARER_TOKEN_PATTERN, 'Bearer [REDACTED]');
+}
+
 function formatResponseDiagnostic(responseStatus?: number, responseUrl?: string): string {
 	if (responseStatus === undefined && !responseUrl) {
 		return '(none observed)';
 	}
 	if (responseStatus !== undefined && responseUrl) {
-		return `status ${responseStatus} at ${responseUrl}`;
+		return `status ${responseStatus} at ${redactSensitiveDiagnostics(responseUrl)}`;
 	}
 	if (responseStatus !== undefined) {
 		return `status ${responseStatus}`;
 	}
-	return `URL ${responseUrl}`;
+	return `URL ${redactSensitiveDiagnostics(responseUrl)}`;
 }
 
 /** Build a non-secret setup failure message for browser auth fixtures. */
@@ -143,13 +143,13 @@ export function formatFixtureSetupFailure({
 	responseUrl,
 	bootstrapCommand = FIXTURE_BOOTSTRAP_REMEDIATION_COMMAND
 }: FixtureSetupFailureParams): string {
-	const normalizedAlertText = alertText?.trim() || '(none)';
+	const normalizedAlertText = redactSensitiveDiagnostics(alertText?.trim() || '(none)');
 	const remediationMessage =
 		`Run ${bootstrapCommand} to bootstrap .env.local, then start the local stack with scripts/local-dev-up.sh and the Rust API with scripts/api-dev.sh. ` +
 		'If you override BASE_URL, start the web frontend with scripts/web-dev.sh too. See docs/runbooks/local-dev.md for setup instructions.';
 
 	return [
-		`${setupName} failed before reaching ${expectedPath}. Current URL: ${currentPath}`,
+		`${setupName} failed before reaching ${expectedPath}. Current URL: ${redactSensitiveDiagnostics(currentPath)}`,
 		`API URL: ${apiUrl}`,
 		`Admin key fingerprint: ${formatAdminKeyFingerprint(adminKey)}`,
 		`Visible alert text: ${normalizedAlertText}`,
@@ -218,9 +218,9 @@ function throwBillingPortalArrangeFailure({
 
 function setupFailureDetailsFromError(error: unknown): string {
 	if (error instanceof Error && error.message.trim()) {
-		return error.message.trim();
+		return redactSensitiveDiagnostics(error.message.trim());
 	}
-	return String(error);
+	return redactSensitiveDiagnostics(String(error));
 }
 
 function buildJsonRequestInit(method: string, headers: JsonHeaders, body?: unknown): RequestInit {
@@ -798,31 +798,17 @@ async function updateBillingPlan(
 }
 
 type ArrangeBillingPortalCustomerResult = CreatedFixtureUser & {
-	subscription: SubscriptionResponse;
+	stripeCustomerId: string;
+	defaultPaymentMethodId: string;
 };
 
 type ArrangeBillingPortalCustomerParams = {
 	trackCustomerForCleanup: TrackCustomerForCleanupFn;
-	cancelAtPeriodEnd?: boolean;
-};
-
-type EnsureCheckoutSubscriptionParams = {
-	customerId: string;
-	token: string;
-	contextLabel: string;
-	cancelAtPeriodEnd?: boolean;
 };
 
 type ArrangePaidInvoiceForFreshSignupParams = {
 	email: string;
 	password: string;
-	trackCustomerForCleanup: TrackCustomerForCleanupFn;
-};
-
-type ArrangeInvoiceStateForFreshSignupParams = {
-	email: string;
-	password: string;
-	invoiceId: string;
 	trackCustomerForCleanup: TrackCustomerForCleanupFn;
 };
 
@@ -856,8 +842,7 @@ function getMailpitApiUrl(): string {
 				currentPath: '(env:MAILPIT_API_URL)',
 				apiUrl: fixtureEnv.apiUrl,
 				adminKey: fixtureEnv.adminKey,
-				alertText:
-					'MAILPIT_API_URL must be set for fresh-signup verification and invoice email checks'
+				alertText: 'MAILPIT_API_URL must be set for fresh-signup verification checks'
 			})
 		);
 	}
@@ -895,7 +880,9 @@ function extractVerificationTokenFromMailpitPayload(payload: unknown): string | 
 
 async function fetchMailpitMessageIds(query: string): Promise<string[]> {
 	const mailpitApiUrl = getMailpitApiUrl();
-	const searchResponse = await fetch(`${mailpitApiUrl}/api/v1/search?query=${query}`);
+	const searchResponse = await fetch(
+		`${mailpitApiUrl}/api/v1/search?query=${encodeURIComponent(query)}`
+	);
 	if (!searchResponse.ok) {
 		throw new Error(`Mailpit search failed: ${searchResponse.status} ${await searchResponse.text()}`);
 	}
@@ -949,12 +936,33 @@ async function findVerificationTokenViaMailpit(email: string): Promise<string> {
 	);
 }
 
+/**
+ * Look up the verification token for a freshly-signed-up customer.
+ *
+ * Local lane: token is read from Mailpit (the local SMTP catcher).
+ *
+ * LB-2/LB-3 remote lane: when PLAYWRIGHT_TARGET_REMOTE=1, Mailpit doesn't
+ * exist (staging uses real SES). The token is instead read directly from
+ * the staging customers table via SSM-exec'd psql on the EC2 host. See
+ * web/tests/fixtures/staging_db_lookup.ts and LB-2/LB-3 in LAUNCH.md.
+ */
+async function findFreshSignupVerificationToken(email: string): Promise<string> {
+	// Read the opt-in flag through the canonical constant exported by
+	// playwright.config.contract.ts so the env var name has exactly one
+	// definition site (SSoT). The harness, the loopback guard, and this
+	// dispatcher all reference the same source of truth.
+	if (process.env[REMOTE_TARGET_OPT_IN_ENV] === '1') {
+		return findVerificationTokenViaStagingSsm(email);
+	}
+	return findVerificationTokenViaMailpit(email);
+}
+
 async function completeFreshSignupEmailVerificationViaRoute(
 	page: Page,
 	email: string
 ): Promise<{ verificationToken: string }> {
 	try {
-		const verificationToken = await findVerificationTokenViaMailpit(email);
+		const verificationToken = await findFreshSignupVerificationToken(email);
 		// Public auth pages redirect authenticated users to /dashboard, so clear
 		// auth cookies before exercising the verify-email success contract.
 		await page.context().clearCookies();
@@ -996,12 +1004,7 @@ async function getCustomerIdForToken(token: string): Promise<string> {
 	);
 }
 
-async function ensureCheckoutSubscriptionReady({
-	customerId,
-	token,
-	contextLabel,
-	cancelAtPeriodEnd = false
-}: EnsureCheckoutSubscriptionParams): Promise<SubscriptionResponse> {
+async function syncStripeCustomer(customerId: string, contextLabel: string): Promise<string> {
 	const stripeSync = await adminApiCall(
 		'POST',
 		`/admin/customers/${encodeURIComponent(customerId)}/sync-stripe`
@@ -1016,65 +1019,23 @@ async function ensureCheckoutSubscriptionReady({
 	if (!stripeSyncPayload.stripe_customer_id) {
 		throw new Error(`${contextLabel} failed: stripe sync returned no stripe_customer_id`);
 	}
-
-	const checkout = await apiCall(
-		'POST',
-		'/billing/checkout-session',
-		{ plan_tier: 'starter' },
-		token
-	);
-	if (!checkout.ok && checkout.status !== 409) {
-		throw new Error(
-			`${contextLabel} failed to create checkout session: ${checkout.status} ${await checkout.text()}`
-		);
-	}
-
-	let subscription: SubscriptionResponse | null = null;
-	const maxSubscriptionPollAttempts = 8;
-	for (let attempt = 0; attempt < maxSubscriptionPollAttempts; attempt += 1) {
-		const response = await apiCall('GET', '/billing/subscription', undefined, token);
-		if (response.ok) {
-			subscription = (await response.json()) as SubscriptionResponse;
-			break;
-		}
-		if (response.status !== 404 && response.status !== 429) {
-			throw new Error(
-				`${contextLabel} failed to read subscription: ${response.status} ${await response.text()}`
-			);
-		}
-		await sleep(getTransientRetryDelayMs(attempt));
-	}
-
-	if (!subscription) {
-		throw new Error(`${contextLabel} timed out waiting for /billing/subscription after checkout arrangement`);
-	}
-
-	if (cancelAtPeriodEnd && !subscription.cancel_at_period_end) {
-		const cancelResponse = await apiCall(
-			'POST',
-			'/billing/subscription/cancel',
-			{ cancel_at_period_end: true },
-			token
-		);
-		if (!cancelResponse.ok) {
-			throw new Error(
-				`${contextLabel} failed to cancel subscription: ${cancelResponse.status} ${await cancelResponse.text()}`
-			);
-		}
-		subscription = (await cancelResponse.json()) as SubscriptionResponse;
-	}
-
-	return subscription;
+	return stripeSyncPayload.stripe_customer_id;
 }
 
 /**
- * Create a disposable customer fixture that can reach the billing portal and expose current subscription state.
+ * Create a disposable customer fixture that can reach the billing portal.
  */
 async function arrangeBillingPortalCustomer({
-	trackCustomerForCleanup,
-	cancelAtPeriodEnd = false
+	trackCustomerForCleanup
 }: ArrangeBillingPortalCustomerParams): Promise<ArrangeBillingPortalCustomerResult> {
 	try {
+		const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+		if (!stripeSecretKey) {
+			throw new Error(
+				'arrangeBillingPortalCustomer requires STRIPE_SECRET_KEY in env (source .secret/.env.secret before invoking Playwright)'
+			);
+		}
+
 		const seed = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 		const email = `billing-portal-${seed}@e2e.griddle.test`;
 		const password = 'TestPassword123!';
@@ -1097,17 +1058,54 @@ async function arrangeBillingPortalCustomer({
 			await updateBillingPlan('shared', created.customerId);
 		}
 
-		const subscription = await ensureCheckoutSubscriptionReady({
-			customerId: created.customerId,
-			token,
-			contextLabel: 'arrangeBillingPortalCustomer',
-			cancelAtPeriodEnd
-		});
+		const stripeCustomerId = await syncStripeCustomer(
+			created.customerId,
+			'arrangeBillingPortalCustomer'
+		);
+
+		const stripeAuthHeaders = {
+			Authorization: `Bearer ${stripeSecretKey}`,
+			'Content-Type': 'application/x-www-form-urlencoded'
+		};
+
+		const attachResp = await fetch(
+			'https://api.stripe.com/v1/payment_methods/pm_card_visa/attach',
+			{
+				method: 'POST',
+				headers: stripeAuthHeaders,
+				body: `customer=${encodeURIComponent(stripeCustomerId)}`
+			}
+		);
+		if (!attachResp.ok) {
+			throw new Error(
+				`arrangeBillingPortalCustomer Stripe PaymentMethod.attach failed: ${attachResp.status} ${await attachResp.text()}`
+			);
+		}
+		const paymentMethod = (await attachResp.json()) as { id?: string };
+		const defaultPaymentMethodId = requireNonEmptyString(
+			paymentMethod.id ?? '',
+			'arrangeBillingPortalCustomer expected attached PaymentMethod.id from Stripe'
+		);
+
+		const updateResp = await fetch(
+			`https://api.stripe.com/v1/customers/${encodeURIComponent(stripeCustomerId)}`,
+			{
+				method: 'POST',
+				headers: stripeAuthHeaders,
+				body: `invoice_settings[default_payment_method]=${encodeURIComponent(defaultPaymentMethodId)}`
+			}
+		);
+		if (!updateResp.ok) {
+			throw new Error(
+				`arrangeBillingPortalCustomer Stripe customer default-PM update failed: ${updateResp.status} ${await updateResp.text()}`
+			);
+		}
 
 		return {
 			...created,
 			token,
-			subscription
+			stripeCustomerId,
+			defaultPaymentMethodId
 		};
 	} catch (error) {
 		throwBillingPortalArrangeFailure({
@@ -1196,106 +1194,6 @@ async function waitForInvoiceStatus({
 	);
 }
 
-function mailpitPayloadContainsAllFragments(payload: unknown, fragments: string[]): boolean {
-	const payloadText = JSON.stringify(payload ?? {}).toLowerCase();
-	return fragments.every((fragment) => payloadText.includes(fragment.toLowerCase()));
-}
-
-async function waitForInvoiceEmailEvidence(
-	email: string,
-	requiredFragments: string[] = []
-): Promise<{ messageId: string }> {
-	const normalizedEmail = requireNonEmptyString(
-		email,
-		'waitForInvoiceEmailEvidence requires a non-empty email'
-	);
-	const query = `to:${normalizedEmail}+subject:invoice`;
-	const maxAttempts = 20;
-	const normalizedFragments = requiredFragments
-		.map((fragment) => fragment.trim())
-		.filter((fragment) => fragment.length > 0);
-
-	for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-		const messageIds = await fetchMailpitMessageIds(query).catch(() => []);
-		for (const messageId of messageIds) {
-			if (normalizedFragments.length === 0) {
-				return { messageId };
-			}
-
-			const payload = await fetchMailpitMessagePayload(messageId).catch(() => null);
-			if (payload && mailpitPayloadContainsAllFragments(payload, normalizedFragments)) {
-				return { messageId };
-			}
-		}
-
-		await sleep(1000);
-	}
-
-	const fragmentsClause =
-		normalizedFragments.length > 0 ? ` containing fragments ${normalizedFragments.join(', ')}` : '';
-	throw new Error(
-		`No invoice email found in Mailpit for ${normalizedEmail}${fragmentsClause} after ${maxAttempts}s`
-	);
-}
-
-function stripeWebhookSecret(): string {
-	const secret = process.env.STRIPE_WEBHOOK_SECRET?.trim() ?? '';
-	if (!secret) {
-		throw new Error('STRIPE_WEBHOOK_SECRET must be set for fresh-signup billing lifecycle webhook setup');
-	}
-	return secret;
-}
-
-function buildStripeWebhookSignature(payload: string, timestamp: number, secret: string): string {
-	const signedPayload = `${timestamp}.${payload}`;
-	const digest = createHmac('sha256', secret).update(signedPayload).digest('hex');
-	return `t=${timestamp},v1=${digest}`;
-}
-
-async function sendStripeWebhookEvent(eventType: string, objectPayload: Record<string, unknown>): Promise<void> {
-	const payloadObject = {
-		id: `evt_e2e_${eventType.replaceAll('.', '_')}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`,
-		type: eventType,
-		data: {
-			object: objectPayload
-		}
-	};
-	const payload = JSON.stringify(payloadObject);
-	const signature = buildStripeWebhookSignature(payload, Math.floor(Date.now() / 1000), stripeWebhookSecret());
-	const response = await callJsonApi(fetch, fixtureEnv.apiUrl, 'POST', '/webhooks/stripe', {
-		'stripe-signature': signature
-	}, payloadObject);
-	if (!response.ok) {
-		throw new Error(`Stripe webhook ${eventType} failed: ${response.status} ${await response.text()}`);
-	}
-}
-
-async function waitForSubscriptionStatus(
-	token: string,
-	expectedStatus: string,
-	contextLabel: string
-): Promise<void> {
-	const maxAttempts = 30;
-
-	for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-		const response = await apiCall('GET', '/billing/subscription', undefined, token);
-		if (response.ok) {
-			const subscription = (await response.json()) as SubscriptionResponse;
-			if (subscription.status === expectedStatus) {
-				return;
-			}
-		} else if (response.status !== 404 && response.status !== 429) {
-			throw new Error(
-				`${contextLabel} failed to read subscription: ${response.status} ${await response.text()}`
-			);
-		}
-
-		await sleep(1000);
-	}
-
-	throw new Error(`${contextLabel} timed out waiting for subscription status ${expectedStatus}`);
-}
-
 async function arrangePaidInvoiceForFreshSignup({
 	email,
 	password,
@@ -1323,11 +1221,7 @@ async function arrangePaidInvoiceForFreshSignup({
 			await updateBillingPlan('shared', customerId);
 		}
 
-		await ensureCheckoutSubscriptionReady({
-			customerId,
-			token,
-			contextLabel: 'arrangePaidInvoiceForFreshSignup'
-		});
+		await syncStripeCustomer(customerId, 'arrangePaidInvoiceForFreshSignup');
 
 		const billingMonth = currentUtcBillingMonth();
 		const batchBillingResponse = await adminApiCall('POST', '/admin/billing/run', {
@@ -1343,14 +1237,10 @@ async function arrangePaidInvoiceForFreshSignup({
 		const invoiceId = await resolveInvoiceIdFromBatch(batch, customerId, token, billingMonth);
 		await waitForInvoicePaid(invoiceId, token);
 
-		const invoiceEmail = await waitForInvoiceEmailEvidence(normalizedEmail);
-
 		return {
 			customerId,
 			invoiceId,
-			billingMonth,
-			invoiceEmailDelivered: true,
-			invoiceEmailMessageId: invoiceEmail.messageId
+			billingMonth
 		};
 	} catch (error) {
 		throw new Error(
@@ -1366,143 +1256,6 @@ async function arrangePaidInvoiceForFreshSignup({
 	}
 }
 
-type PreparedBillingInvoiceContext = {
-	customerId: string;
-	token: string;
-	normalizedInvoiceId: string;
-	stripeInvoiceId: string;
-};
-
-async function prepareBillingInvoiceContext({
-	email,
-	password,
-	invoiceId,
-	trackCustomerForCleanup,
-	contextLabel
-}: ArrangeInvoiceStateForFreshSignupParams & {
-	contextLabel: string;
-}): Promise<PreparedBillingInvoiceContext> {
-	const normalizedEmail = requireNonEmptyString(
-		email,
-		`${contextLabel} requires non-empty email, password, and invoiceId`
-	);
-	const normalizedInvoiceId = requireNonEmptyString(
-		invoiceId,
-		`${contextLabel} requires non-empty email, password, and invoiceId`
-	);
-	if (!password.trim()) {
-		throw new Error(`${contextLabel} requires non-empty email, password, and invoiceId`);
-	}
-
-	const token = await loginAsUser({
-		apiUrl: fixtureEnv.apiUrl,
-		email: normalizedEmail,
-		password
-	});
-	const customerId = await getCustomerIdForToken(token);
-	trackCustomerForCleanup(customerId);
-
-	const paidInvoice = await waitForInvoiceStatus({
-		invoiceId: normalizedInvoiceId,
-		token,
-		expectedStatus: 'paid',
-		contextLabel
-	});
-	const stripeInvoiceId = requireNonEmptyString(
-		paidInvoice.stripe_invoice_id ?? '',
-		`${contextLabel} expected paid invoice to have stripe_invoice_id`
-	);
-
-	return {
-		customerId,
-		token,
-		normalizedInvoiceId,
-		stripeInvoiceId
-	};
-}
-
-async function arrangeBillingDunningForFreshSignup({
-	email,
-	password,
-	invoiceId,
-	trackCustomerForCleanup
-}: ArrangeInvoiceStateForFreshSignupParams): Promise<ArrangeBillingDunningForFreshSignupResult> {
-	try {
-		const { customerId, token, stripeInvoiceId } = await prepareBillingInvoiceContext({
-			email,
-			password,
-			invoiceId,
-			trackCustomerForCleanup,
-			contextLabel: 'arrangeBillingDunningForFreshSignup'
-		});
-
-		await sendStripeWebhookEvent('invoice.payment_action_required', {
-			id: stripeInvoiceId
-		});
-		await waitForSubscriptionStatus(token, 'past_due', 'arrangeBillingDunningForFreshSignup');
-
-		return {
-			customerId,
-			dunningSubscriptionStatus: 'past_due'
-		};
-	} catch (error) {
-		throw new Error(
-			formatFixtureSetupFailure({
-				setupName: 'arrangeBillingDunningForFreshSignup',
-				expectedPath: '/dashboard/billing',
-				currentPath: '(arrangeBillingDunningForFreshSignup)',
-				apiUrl: fixtureEnv.apiUrl,
-				adminKey: fixtureEnv.adminKey,
-				alertText: setupFailureDetailsFromError(error)
-			})
-		);
-	}
-}
-
-async function arrangeRefundedInvoiceForFreshSignup({
-	email,
-	password,
-	invoiceId,
-	trackCustomerForCleanup
-}: ArrangeInvoiceStateForFreshSignupParams): Promise<ArrangeRefundedInvoiceForFreshSignupResult> {
-	try {
-		const { customerId, token, normalizedInvoiceId, stripeInvoiceId } = await prepareBillingInvoiceContext(
-			{
-				email,
-				password,
-				invoiceId,
-				trackCustomerForCleanup,
-				contextLabel: 'arrangeRefundedInvoiceForFreshSignup'
-			}
-		);
-
-		await sendStripeWebhookEvent('charge.refunded', {
-			invoice: stripeInvoiceId
-		});
-		await waitForInvoiceStatus({
-			invoiceId: normalizedInvoiceId,
-			token,
-			expectedStatus: 'refunded',
-			contextLabel: 'arrangeRefundedInvoiceForFreshSignup'
-		});
-
-		return {
-			customerId,
-			refundedInvoiceId: normalizedInvoiceId
-		};
-	} catch (error) {
-		throw new Error(
-			formatFixtureSetupFailure({
-				setupName: 'arrangeRefundedInvoiceForFreshSignup',
-				expectedPath: '/dashboard/billing/invoices/{id}',
-				currentPath: '(arrangeRefundedInvoiceForFreshSignup)',
-				apiUrl: fixtureEnv.apiUrl,
-				adminKey: fixtureEnv.adminKey,
-				alertText: setupFailureDetailsFromError(error)
-			})
-		);
-	}
-}
 
 type InvoiceListApiItem = {
 	id: string;
@@ -1575,9 +1328,7 @@ type SeedMultiUserScenarioFn = () => Promise<{
 type AdminReactivateCustomerFn = (customerId: string) => Promise<void>;
 type AdminSuspendCustomerFn = (customerId: string) => Promise<void>;
 type GetDisposableTenantRateCardSnapshotFn = () => Promise<MarketingPricingContractSnapshot>;
-type ArrangeBillingPortalCustomerFn = (
-	cancelAtPeriodEnd?: boolean
-) => Promise<ArrangeBillingPortalCustomerResult>;
+type ArrangeBillingPortalCustomerFn = () => Promise<ArrangeBillingPortalCustomerResult>;
 type CreateFreshSignupIdentityFn = () => FreshSignupIdentity;
 type CompleteFreshSignupEmailVerificationFn = (
 	page: Page,
@@ -1587,16 +1338,6 @@ type ArrangePaidInvoiceForFreshSignupFn = (
 	email: string,
 	password: string
 ) => Promise<ArrangePaidInvoiceForFreshSignupResult>;
-type ArrangeBillingDunningForFreshSignupFn = (
-	email: string,
-	password: string,
-	invoiceId: string
-) => Promise<ArrangeBillingDunningForFreshSignupResult>;
-type ArrangeRefundedInvoiceForFreshSignupFn = (
-	email: string,
-	password: string,
-	invoiceId: string
-) => Promise<ArrangeRefundedInvoiceForFreshSignupResult>;
 type IsFreshSignupArrangePrerequisiteFailureFn = (alertText: string) => boolean;
 type ThrowFreshSignupArrangeFailureFn = (input: {
 	currentPath: string;
@@ -1646,10 +1387,6 @@ type E2eFixtures = {
 	completeFreshSignupEmailVerification: CompleteFreshSignupEmailVerificationFn;
 	/** Advance a fresh verified signup through paid billing and invoice-email evidence. */
 	arrangePaidInvoiceForFreshSignup: ArrangePaidInvoiceForFreshSignupFn;
-	/** Advance paid-invoice evidence into delinquent subscription (`past_due`) state. */
-	arrangeBillingDunningForFreshSignup: ArrangeBillingDunningForFreshSignupFn;
-	/** Mark an arranged paid invoice as refunded via Stripe webhook replay. */
-	arrangeRefundedInvoiceForFreshSignup: ArrangeRefundedInvoiceForFreshSignupFn;
 	/** Detects known prerequisite/setup failures surfaced from fresh-signup UI alerts. */
 	isFreshSignupArrangePrerequisiteFailure: IsFreshSignupArrangePrerequisiteFailureFn;
 	/** Throws a fixture-owned fail-closed setup error for fresh-signup prerequisites. */
@@ -1755,10 +1492,9 @@ export const test = base.extend<E2eFixtures & E2eInternalFixtures>({
 	},
 
 	arrangeBillingPortalCustomer: async ({ _trackCustomerForCleanup }, use) => {
-		await use((cancelAtPeriodEnd = false) =>
+		await use(() =>
 			arrangeBillingPortalCustomer({
-				trackCustomerForCleanup: _trackCustomerForCleanup,
-				cancelAtPeriodEnd
+				trackCustomerForCleanup: _trackCustomerForCleanup
 			})
 		);
 	},
@@ -1776,28 +1512,6 @@ export const test = base.extend<E2eFixtures & E2eInternalFixtures>({
 			arrangePaidInvoiceForFreshSignup({
 				email,
 				password,
-				trackCustomerForCleanup: _trackCustomerForCleanup
-			})
-		);
-	},
-
-	arrangeBillingDunningForFreshSignup: async ({ _trackCustomerForCleanup }, use) => {
-		await use((email, password, invoiceId) =>
-			arrangeBillingDunningForFreshSignup({
-				email,
-				password,
-				invoiceId,
-				trackCustomerForCleanup: _trackCustomerForCleanup
-			})
-		);
-	},
-
-	arrangeRefundedInvoiceForFreshSignup: async ({ _trackCustomerForCleanup }, use) => {
-		await use((email, password, invoiceId) =>
-			arrangeRefundedInvoiceForFreshSignup({
-				email,
-				password,
-				invoiceId,
 				trackCustomerForCleanup: _trackCustomerForCleanup
 			})
 		);

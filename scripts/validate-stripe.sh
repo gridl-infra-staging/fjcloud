@@ -12,6 +12,39 @@ json_get_field() { validation_json_get_field "$@"; }
 append_step() { validation_append_step "$@"; }
 emit_result() { validation_emit_result "$@"; }
 
+usage() {
+    cat <<'EOF'
+Usage: scripts/validate-stripe.sh [--live-cutover]
+
+Options:
+  --live-cutover  Enable explicit live Stripe key validation mode.
+                  Requires STRIPE_LIVE_CUTOVER=1.
+EOF
+}
+
+STRIPE_KEY_POLICY_MODE="test_only"
+LIVE_CUTOVER_REQUESTED=0
+parse_args() {
+    while [ "$#" -gt 0 ]; do
+        case "$1" in
+            --live-cutover)
+                STRIPE_KEY_POLICY_MODE="live_cutover"
+                LIVE_CUTOVER_REQUESTED=1
+                ;;
+            -h|--help)
+                usage
+                exit 0
+                ;;
+            *)
+                append_step "parse_args" false "Unknown argument: $1"
+                emit_result false
+                exit 1
+                ;;
+        esac
+        shift
+    done
+}
+
 json_get_path() {
     local json_body="$1"
     local field_path="$2"
@@ -103,6 +136,7 @@ STRIPE_API_BASE="${STRIPE_API_BASE:-https://api.stripe.com}"
 STRIPE_SECRET_KEY_EFFECTIVE=""
 STRIPE_REQUEST_ID=""
 
+parse_args "$@"
 require_stripe_api_base
 
 if ! STRIPE_SECRET_KEY_EFFECTIVE="$(resolve_stripe_secret_key)"; then
@@ -111,8 +145,21 @@ if ! STRIPE_SECRET_KEY_EFFECTIVE="$(resolve_stripe_secret_key)"; then
     exit 1
 fi
 
-if [[ "$STRIPE_SECRET_KEY_EFFECTIVE" != sk_test_* && "$STRIPE_SECRET_KEY_EFFECTIVE" != rk_test_* ]]; then
-    append_step "require_test_mode_stripe_secret_key" false "Resolved STRIPE_SECRET_KEY must start with sk_test_ or rk_test_"
+if [ "$LIVE_CUTOVER_REQUESTED" -eq 1 ]; then
+    if [ "${STRIPE_LIVE_CUTOVER:-0}" != "1" ]; then
+        append_step "require_live_cutover_control" false "Set STRIPE_LIVE_CUTOVER=1 to authorize --live-cutover validation"
+        emit_result false
+        exit 1
+    fi
+    append_step "live_cutover_mode_enabled" true "Explicit live cutover mode enabled for Stripe validation"
+fi
+
+if ! stripe_key_prefix_policy_allows_key "$STRIPE_SECRET_KEY_EFFECTIVE" "$STRIPE_KEY_POLICY_MODE"; then
+    if [ "$STRIPE_KEY_POLICY_MODE" = "live_cutover" ]; then
+        append_step "require_live_cutover_stripe_secret_key" false "$(stripe_key_prefix_policy_requirement_message "$STRIPE_KEY_POLICY_MODE")"
+    else
+        append_step "require_test_mode_stripe_secret_key" false "$(stripe_key_prefix_policy_requirement_message "$STRIPE_KEY_POLICY_MODE")"
+    fi
     emit_result false
     exit 1
 fi

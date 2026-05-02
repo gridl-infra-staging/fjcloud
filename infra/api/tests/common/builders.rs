@@ -24,7 +24,6 @@ use api::services::storage::{GarageAdminClient, StorageService};
 use api::services::tenant_quota::{FreeTierLimits, QuotaDefaults, TenantQuotaService};
 use api::state::AppState;
 use axum::Router;
-use billing::plan::{PlanRegistry, StaticPlanRegistry};
 use sqlx::postgres::PgPoolOptions;
 use std::sync::Arc;
 
@@ -33,11 +32,11 @@ use super::mocks::{
     mock_dns_manager, mock_email_service, mock_flapjack_proxy, mock_garage_admin_client,
     mock_index_migration_repo, mock_invoice_repo, mock_node_secret_manager, mock_rate_card_repo,
     mock_repo, mock_storage_bucket_repo, mock_storage_key_repo, mock_stripe_service,
-    mock_subscription_repo, mock_tenant_repo, mock_usage_repo, mock_vm_inventory_repo,
-    mock_vm_provisioner, mock_webhook_event_repo, mock_webhook_http_client, MockApiKeyRepo,
-    MockCustomerRepo, MockDeploymentRepo, MockIndexMigrationRepo, MockInvoiceRepo,
-    MockRateCardRepo, MockStripeService, MockTenantRepo, MockUsageRepo, MockVmInventoryRepo,
-    MockWebhookEventRepo, MockWebhookHttpClient,
+    mock_tenant_repo, mock_usage_repo, mock_vm_inventory_repo, mock_vm_provisioner,
+    mock_webhook_event_repo, mock_webhook_http_client, MockApiKeyRepo, MockCustomerRepo,
+    MockDeploymentRepo, MockIndexMigrationRepo, MockInvoiceRepo, MockRateCardRepo,
+    MockStripeService, MockTenantRepo, MockUsageRepo, MockVmInventoryRepo, MockWebhookEventRepo,
+    MockWebhookHttpClient,
 };
 
 pub const TEST_JWT_SECRET: &str = "test-jwt-secret-min-32-chars-ok!";
@@ -70,14 +69,6 @@ fn test_tenant_quota_service() -> Arc<TenantQuotaService> {
 
 fn test_metrics_collector() -> Arc<MetricsCollector> {
     Arc::new(MetricsCollector::new())
-}
-
-fn test_plan_registry() -> Arc<dyn PlanRegistry> {
-    Arc::new(StaticPlanRegistry::new(
-        "price_starter_test",
-        "price_pro_test",
-        "price_enterprise_test",
-    ))
 }
 
 fn test_garage_proxy() -> Arc<GarageProxy> {
@@ -197,6 +188,7 @@ pub struct TestStateBuilder {
     admin_key: Arc<str>,
     internal_auth_token: Option<Arc<str>>,
     stripe_webhook_secret: Option<Arc<str>>,
+    stripe_publishable_key: Option<String>,
     stripe_success_url: String,
     stripe_cancel_url: String,
     metrics_collector: Arc<MetricsCollector>,
@@ -206,8 +198,6 @@ pub struct TestStateBuilder {
     usage_repo: Arc<MockUsageRepo>,
     rate_card_repo: Arc<MockRateCardRepo>,
     invoice_repo: Arc<MockInvoiceRepo>,
-    subscription_repo: Arc<super::mocks::MockSubscriptionRepo>,
-    plan_registry: Arc<dyn PlanRegistry>,
     stripe_service: Arc<MockStripeService>,
     webhook_http_client: Arc<MockWebhookHttpClient>,
     email_service: Arc<dyn EmailService>,
@@ -248,6 +238,7 @@ impl TestStateBuilder {
             admin_key: Arc::from(TEST_ADMIN_KEY),
             internal_auth_token: Some(Arc::from(TEST_INTERNAL_AUTH_TOKEN)),
             stripe_webhook_secret: Some(Arc::from(TEST_WEBHOOK_SECRET)),
+            stripe_publishable_key: None,
             stripe_success_url: "http://localhost:5173/dashboard".to_string(),
             stripe_cancel_url: "http://localhost:5173/dashboard".to_string(),
             metrics_collector: test_metrics_collector(),
@@ -257,8 +248,6 @@ impl TestStateBuilder {
             usage_repo: mock_usage_repo(),
             rate_card_repo: mock_rate_card_repo(),
             invoice_repo: mock_invoice_repo(),
-            subscription_repo: mock_subscription_repo(),
-            plan_registry: test_plan_registry(),
             stripe_service: mock_stripe_service(),
             webhook_http_client: mock_webhook_http_client(),
             email_service: mock_email_service() as Arc<dyn EmailService>,
@@ -306,14 +295,6 @@ impl TestStateBuilder {
 
     pub fn with_invoice_repo(mut self, invoice_repo: Arc<MockInvoiceRepo>) -> Self {
         self.invoice_repo = invoice_repo;
-        self
-    }
-
-    pub fn with_subscription_repo(
-        mut self,
-        subscription_repo: Arc<super::mocks::MockSubscriptionRepo>,
-    ) -> Self {
-        self.subscription_repo = subscription_repo;
         self
     }
 
@@ -431,6 +412,11 @@ impl TestStateBuilder {
         self
     }
 
+    pub fn with_stripe_publishable_key(mut self, stripe_publishable_key: Option<String>) -> Self {
+        self.stripe_publishable_key = stripe_publishable_key;
+        self
+    }
+
     /// Consumes the builder and produces a fully-wired [`AppState`].
     ///
     /// Internally calls `build_replica_services` and `build_mock_migration_service`
@@ -478,6 +464,7 @@ impl TestStateBuilder {
             admin_key: self.admin_key,
             internal_auth_token: self.internal_auth_token,
             stripe_webhook_secret: self.stripe_webhook_secret,
+            stripe_publishable_key: self.stripe_publishable_key,
             stripe_success_url: self.stripe_success_url,
             stripe_cancel_url: self.stripe_cancel_url,
             metrics_collector: self.metrics_collector,
@@ -487,8 +474,6 @@ impl TestStateBuilder {
             usage_repo: self.usage_repo,
             rate_card_repo: self.rate_card_repo,
             invoice_repo: self.invoice_repo,
-            subscription_repo: self.subscription_repo,
-            plan_registry: self.plan_registry,
             stripe_service: self.stripe_service,
             webhook_http_client: self.webhook_http_client,
             email_service: self.email_service,

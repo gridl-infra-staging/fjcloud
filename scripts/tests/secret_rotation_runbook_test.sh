@@ -24,11 +24,16 @@ pass() {
     PASS_COUNT=$((PASS_COUNT + 1))
 }
 
-read_file_if_exists() {
+load_required_file() {
     local path="$1"
-    if [ -f "$path" ]; then
-        cat "$path"
+    local description="$2"
+
+    if [[ ! -f "$path" ]]; then
+        fail "$description"
+        return 1
     fi
+
+    cat "$path"
 }
 
 load_iam_evidence_root() {
@@ -76,7 +81,7 @@ test_secret_rotation_runbook_exists() {
 
 test_runbook_references_env_vars_contract() {
     local content
-    content="$(read_file_if_exists "$RUNBOOK_PATH")"
+    content="$(load_required_file "$RUNBOOK_PATH" "secret rotation runbook should exist at docs/runbooks/secret_rotation.md")" || return
 
     assert_contains "$content" "docs/env-vars.md" "runbook should reference docs/env-vars.md as canonical variable contract"
     assert_contains "$content" "STRIPE_SECRET_KEY" "runbook should reference STRIPE_SECRET_KEY"
@@ -88,7 +93,7 @@ test_runbook_references_env_vars_contract() {
 
 test_runbook_covers_required_rotation_sections() {
     local content
-    content="$(read_file_if_exists "$RUNBOOK_PATH")"
+    content="$(load_required_file "$RUNBOOK_PATH" "secret rotation runbook should exist at docs/runbooks/secret_rotation.md")" || return
 
     assert_contains "$content" "## Stripe Rotation" "runbook should include a Stripe rotation section"
     assert_contains "$content" "## SES Rotation" "runbook should include an SES rotation section"
@@ -101,7 +106,9 @@ test_runbook_covers_required_rotation_sections() {
 
 test_runbook_anchors_stripe_contract_to_canonical_checks() {
     local content
-    content="$(read_file_if_exists "$RUNBOOK_PATH")"
+    content="$(load_required_file "$RUNBOOK_PATH" "secret rotation runbook should exist at docs/runbooks/secret_rotation.md")" || return
+    local live_cutover_anchor_count
+    live_cutover_anchor_count="$(grep -c '^### Stripe Live Cutover$' "$RUNBOOK_PATH" || true)"
 
     assert_contains "$content" "scripts/stripe_cutover_prereqs.sh" "runbook should reference Stage 1 Stripe prerequisite gate"
     assert_contains "$content" "STRIPE_SECRET_KEY_RESTRICTED" "runbook should name the restricted key prerequisite"
@@ -113,14 +120,27 @@ test_runbook_anchors_stripe_contract_to_canonical_checks() {
     assert_contains "$content" "check_stripe_key_present" "runbook should reference check_stripe_key_present"
     assert_contains "$content" "check_stripe_key_live" "runbook should reference check_stripe_key_live"
     assert_contains "$content" "check_stripe_webhook_secret_present" "runbook should reference check_stripe_webhook_secret_present"
+    assert_contains "$content" "stripe_key_prefix_policy_allows_key" "runbook should reference the canonical Stripe prefix-policy seam owner"
     assert_contains "$content" "scripts/validate-stripe.sh" "runbook should reference validate-stripe.sh"
+    assert_contains "$content" "bash scripts/validate-stripe.sh --live-cutover" "runbook should document explicit live-cutover invocation command"
+    assert_contains "$content" "STRIPE_LIVE_CUTOVER=1" "runbook should require explicit live-cutover control env var"
+    assert_contains "$content" "require_live_cutover_control" "runbook should document the live-cutover control failure step name"
+    assert_contains "$content" "If rollback restores a live key, rerun explicit live cutover validation:" "runbook should require live-cutover validation command when rollback restores a live key"
+    assert_contains "$content" "If rollback restores a test key, rerun default-deny validation:" "runbook should keep default-deny rollback command for test-key restores"
+    assert_not_contains "$content" "Re-run default-deny validation and expect pass:" "runbook should not prescribe default-deny rollback validation for every rollback"
     assert_contains "$content" "docs/runbooks/launch-backend.md" "runbook should cross-reference launch-backend guidance"
     assert_contains "$content" "STRIPE_TEST_SECRET_KEY" "runbook should document compatibility fallback behavior"
+    assert_eq "$live_cutover_anchor_count" "1" "runbook should define exactly one Stripe Live Cutover subsection"
+    assert_contains "$content" "STRIPE_LIVE_CUTOVER=1" "runbook should require explicit live-cutover gate opt-in"
+    assert_contains "$content" "sk_live_/rk_live_ prefixes are rejected unless STRIPE_LIVE_CUTOVER=1 is set" "runbook should document live-prefix gate behavior"
+    assert_contains "$content" "bash scripts/validate-stripe.sh remains test-mode validation and is not the live-cutover verifier" "runbook should keep validate-stripe as test-mode only"
+    assert_contains "$content" "SSM parameter history rollback (version restore) for runtime Stripe values" "runbook should define rollback via SSM parameter history"
+    assert_contains "$content" "operator comment markers are metadata only and are not runtime config values" "runbook should define marker boundary"
 }
 
 test_runbook_anchors_ses_contract_to_existing_readiness_docs() {
     local content
-    content="$(read_file_if_exists "$RUNBOOK_PATH")"
+    content="$(load_required_file "$RUNBOOK_PATH" "secret rotation runbook should exist at docs/runbooks/secret_rotation.md")" || return
 
     assert_contains "$content" "docs/runbooks/email-production.md" "runbook should cross-reference email-production SES procedure"
     assert_contains "$content" "scripts/validate_ses_readiness.sh" "runbook should reference validate_ses_readiness.sh"
@@ -132,7 +152,7 @@ test_runbook_anchors_ses_contract_to_existing_readiness_docs() {
 
 test_runbook_defers_iam_rotation_details_to_evidence_bundle() {
     local content
-    content="$(read_file_if_exists "$RUNBOOK_PATH")"
+    content="$(load_required_file "$RUNBOOK_PATH" "secret rotation runbook should exist at docs/runbooks/secret_rotation.md")" || return
     load_iam_evidence_root || return
 
     assert_contains "$content" "## IAM Rotation Evidence Pointer" "runbook should include a dedicated IAM rotation pointer section"
@@ -149,7 +169,7 @@ test_runbook_defers_iam_rotation_details_to_evidence_bundle() {
 
 test_runbook_documents_single_key_jwt_cutover_constraints() {
     local content
-    content="$(read_file_if_exists "$RUNBOOK_PATH")"
+    content="$(load_required_file "$RUNBOOK_PATH" "secret rotation runbook should exist at docs/runbooks/secret_rotation.md")" || return
 
     assert_contains "$content" "Config::from_reader" "runbook should reference Config::from_reader"
     assert_contains "$content" "issue_jwt" "runbook should reference issue_jwt"
@@ -162,10 +182,22 @@ test_runbook_documents_single_key_jwt_cutover_constraints() {
     assert_contains "$content" "deploy/restart" "runbook should document deploy/restart requirement for new secret"
 }
 
+test_runbook_avoids_internal_auth_secret_argv_exposure() {
+    local content
+    content="$(load_required_file "$RUNBOOK_PATH" "secret rotation runbook should exist at docs/runbooks/secret_rotation.md")" || return
+
+    assert_contains "$content" "Do not pass the decrypted token" "runbook should warn against argv-based internal auth token handling"
+    assert_contains "$content" '`sed` replacement or `curl -H` argument' "runbook should name the unsafe argv patterns to avoid"
+    assert_contains "$content" 'printf '\''%s'\'' "$NEW_KEY" | sudo python3 -c '\''' "runbook should update metering env from stdin instead of argv"
+    assert_contains "$content" 'curl --silent --show-error --output /dev/null --write-out '\''%{http_code}'\'' --config - <<EOF' "runbook should verify internal auth with curl config from stdin"
+    assert_not_contains "$content" 'sudo sed -i "s|^INTERNAL_KEY=.*|INTERNAL_KEY=$NEW_KEY|"' "runbook should not place INTERNAL_KEY secrets in sed argv"
+    assert_not_contains "$content" 'curl -H "x-internal-key: $INTERNAL_KEY" "$TENANT_MAP_URL"' "runbook should not place internal auth header secrets in curl argv"
+}
+
 test_launch_and_incident_docs_link_secret_rotation_runbook() {
     local launch_content incident_content
-    launch_content="$(cat "$LAUNCH_RUNBOOK_PATH")"
-    incident_content="$(cat "$INCIDENT_RUNBOOK_PATH")"
+    launch_content="$(load_required_file "$LAUNCH_RUNBOOK_PATH" "launch-backend runbook should exist at docs/runbooks/launch-backend.md")" || return
+    incident_content="$(load_required_file "$INCIDENT_RUNBOOK_PATH" "incident-response runbook should exist at docs/runbooks/incident-response.md")" || return
 
     assert_contains "$launch_content" "docs/runbooks/secret_rotation.md" "launch-backend runbook should link to secret rotation runbook"
     assert_contains "$launch_content" "SELECT COUNT(*) FROM usage_records WHERE recorded_at >= NOW() - INTERVAL '1 hour'" "launch-backend runbook should use recorded_at for usage_records recency checks"
@@ -181,6 +213,7 @@ test_runbook_anchors_stripe_contract_to_canonical_checks
 test_runbook_anchors_ses_contract_to_existing_readiness_docs
 test_runbook_defers_iam_rotation_details_to_evidence_bundle
 test_runbook_documents_single_key_jwt_cutover_constraints
+test_runbook_avoids_internal_auth_secret_argv_exposure
 test_launch_and_incident_docs_link_secret_rotation_runbook
 
 echo "=== Results: $PASS_COUNT passed, $FAIL_COUNT failed ==="

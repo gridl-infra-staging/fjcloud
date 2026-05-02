@@ -22,8 +22,8 @@ fi
 ENV="$1"
 REGION="${AWS_DEFAULT_REGION:-us-east-1}"
 SSM_PREFIX="/fjcloud/${ENV}"
-ENV_FILE="/etc/fjcloud/env"
-METERING_ENV_FILE="/etc/fjcloud/metering-env"
+ENV_FILE="${FJCLOUD_ENV_FILE:-/etc/fjcloud/env}"
+METERING_ENV_FILE="${FJCLOUD_METERING_ENV_FILE:-/etc/fjcloud/metering-env}"
 
 if [[ "$ENV" != "staging" && "$ENV" != "prod" ]]; then
   echo "ERROR: env must be 'staging' or 'prod' (got: ${ENV})"
@@ -42,55 +42,50 @@ fi
 
 declare -A SSM_TO_ENV=(
   # Required by config.rs::from_reader
-  [database_url]="DATABASE_URL"
-  [jwt_secret]="JWT_SECRET"
-  [admin_key]="ADMIN_KEY"
+  ["database_url"]="DATABASE_URL"
+  ["jwt_secret"]="JWT_SECRET"
+  ["admin_key"]="ADMIN_KEY"
 
   # Shared-VM provisioning — infra/api/src/provisioner/aws.rs
-  [aws_ami_id]="AWS_AMI_ID"
-  [aws_subnet_id]="AWS_SUBNET_ID"
-  [aws_security_group_ids]="AWS_SECURITY_GROUP_IDS"
-  [aws_key_pair_name]="AWS_KEY_PAIR_NAME"
-  [aws_instance_profile_name]="AWS_INSTANCE_PROFILE_NAME"
+  ["aws_ami_id"]="AWS_AMI_ID"
+  ["aws_subnet_id"]="AWS_SUBNET_ID"
+  ["aws_security_group_ids"]="AWS_SECURITY_GROUP_IDS"
+  ["aws_key_pair_name"]="AWS_KEY_PAIR_NAME"
+  ["aws_instance_profile_name"]="AWS_INSTANCE_PROFILE_NAME"
 
   # Shared-VM DNS routing — infra/api/src/startup.rs::init_dns_manager
-  [cloudflare_api_token]="CLOUDFLARE_API_TOKEN"
-  [cloudflare_zone_id]="CLOUDFLARE_ZONE_ID"
-  [dns_domain]="DNS_DOMAIN"
+  ["cloudflare_api_token"]="CLOUDFLARE_API_TOKEN"
+  ["cloudflare_zone_id"]="CLOUDFLARE_ZONE_ID"
+  ["dns_domain"]="DNS_DOMAIN"
 
   # Stripe — config.rs::from_reader (optional until Stage 7 activates them)
-  [stripe_secret_key]="STRIPE_SECRET_KEY"
-  [stripe_publishable_key]="STRIPE_PUBLISHABLE_KEY"
-  [stripe_webhook_secret]="STRIPE_WEBHOOK_SECRET"
-  [stripe_success_url]="STRIPE_SUCCESS_URL"
-  [stripe_cancel_url]="STRIPE_CANCEL_URL"
-
-  # Stripe plan prices — billing/src/plan.rs::EnvPlanRegistry
-  [stripe_price_starter]="STRIPE_PRICE_STARTER"
-  [stripe_price_pro]="STRIPE_PRICE_PRO"
-  [stripe_price_enterprise]="STRIPE_PRICE_ENTERPRISE"
+  ["stripe_secret_key"]="STRIPE_SECRET_KEY"
+  ["stripe_publishable_key"]="STRIPE_PUBLISHABLE_KEY"
+  ["stripe_webhook_secret"]="STRIPE_WEBHOOK_SECRET"
+  ["stripe_success_url"]="STRIPE_SUCCESS_URL"
+  ["stripe_cancel_url"]="STRIPE_CANCEL_URL"
 
   # Cold storage — startup_env.rs
-  [cold_bucket_name]="COLD_STORAGE_BUCKET"
-  [cold_storage_prefix]="COLD_STORAGE_PREFIX"
-  [cold_storage_region]="COLD_STORAGE_REGION"
-  [cold_storage_endpoint]="COLD_STORAGE_ENDPOINT"
-  [cold_storage_regions]="COLD_STORAGE_REGIONS"
+  ["cold_bucket_name"]="COLD_STORAGE_BUCKET"
+  ["cold_storage_prefix"]="COLD_STORAGE_PREFIX"
+  ["cold_storage_region"]="COLD_STORAGE_REGION"
+  ["cold_storage_endpoint"]="COLD_STORAGE_ENDPOINT"
+  ["cold_storage_regions"]="COLD_STORAGE_REGIONS"
 
   # Storage encryption — startup_env.rs
-  [storage_encryption_key]="STORAGE_ENCRYPTION_KEY"
+  ["storage_encryption_key"]="STORAGE_ENCRYPTION_KEY"
 
   # SES email — startup_env.rs
-  [ses_from_address]="SES_FROM_ADDRESS"
-  [ses_region]="SES_REGION"
-  [ses_configuration_set]="SES_CONFIGURATION_SET"
+  ["ses_from_address"]="SES_FROM_ADDRESS"
+  ["ses_region"]="SES_REGION"
+  ["ses_configuration_set"]="SES_CONFIGURATION_SET"
 
   # Internal auth — config.rs::from_reader
-  [internal_auth_token]="INTERNAL_AUTH_TOKEN"
+  ["internal_auth_token"]="INTERNAL_AUTH_TOKEN"
 
   # Alert webhook URLs — read by infra/api/src/startup.rs::init_alert_service.
-  [slack_webhook_url]="SLACK_WEBHOOK_URL"
-  [discord_webhook_url]="DISCORD_WEBHOOK_URL"
+  ["slack_webhook_url"]="SLACK_WEBHOOK_URL"
+  ["discord_webhook_url"]="DISCORD_WEBHOOK_URL"
 )
 
 # ---------------------------------------------------------------------------
@@ -99,8 +94,8 @@ declare -A SSM_TO_ENV=(
 # ---------------------------------------------------------------------------
 
 declare -A STATIC_VARS=(
-  [ENVIRONMENT]="${ENV}"
-  [NODE_SECRET_BACKEND]="ssm"
+  ["ENVIRONMENT"]="${ENV}"
+  ["NODE_SECRET_BACKEND"]="ssm"
 )
 
 declare -A RESOLVED_VARS=()
@@ -177,6 +172,11 @@ echo "==> Wrote ${ENV_FILE} (${MAPPED_COUNT} SSM params mapped, static vars: ${#
 if [[ ${#SKIPPED_LIST[@]} -gt 0 ]]; then
   echo "    Skipped SSM params (no mapping):"
   printf '  %s\n' "${SKIPPED_LIST[@]}"
+fi
+
+if [[ "${FJCLOUD_SKIP_METERING_ENV_GENERATION:-}" == "1" ]]; then
+  echo "==> Skipping metering-env generation (FJCLOUD_SKIP_METERING_ENV_GENERATION=1)"
+  exit 0
 fi
 
 # ---------------------------------------------------------------------------

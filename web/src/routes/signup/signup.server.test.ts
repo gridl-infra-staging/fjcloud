@@ -46,8 +46,7 @@ describe('Signup server action', () => {
 					errors: {
 						name: 'Name is required',
 						email: 'Email is required',
-						password: 'Password is required',
-						beta_acknowledgement: 'Please acknowledge the public beta terms before signing up.'
+						password: 'Password is required'
 					},
 					name: '',
 					email: ''
@@ -62,8 +61,7 @@ describe('Signup server action', () => {
 				name: 'Alice',
 				email: 'not-an-email',
 				password: 'short',
-				confirm_password: 'different',
-				beta_acknowledged: 'on'
+				confirm_password: 'different'
 			})
 		);
 		expect(result).toEqual(
@@ -93,8 +91,7 @@ describe('Signup server action', () => {
 						name: '  Alice Example  ',
 						email: '  ALICE@Example.COM  ',
 						password: 'password123',
-						confirm_password: 'password123',
-						beta_acknowledged: 'on'
+						confirm_password: 'password123'
 					},
 					setCookie
 				)
@@ -130,8 +127,7 @@ describe('Signup server action', () => {
 						name: 'Alice Example',
 						email: 'alice@example.com',
 						password: 'password123',
-						confirm_password: 'password123',
-						beta_acknowledged: 'on'
+						confirm_password: 'password123'
 					},
 					setCookie,
 					'http://127.0.0.1:5173/signup'
@@ -156,8 +152,7 @@ describe('Signup server action', () => {
 				name: 'Alice',
 				email: 'alice@example.com',
 				password: 'password123',
-				confirm_password: 'password123',
-				beta_acknowledged: 'on'
+				confirm_password: 'password123'
 			})
 		);
 		expect(result).toEqual(
@@ -182,8 +177,7 @@ describe('Signup server action', () => {
 				name: 'Alice',
 				email: 'alice@example.com',
 				password: 'password123',
-				confirm_password: 'password123',
-				beta_acknowledged: 'on'
+				confirm_password: 'password123'
 			})
 		);
 		expect(result).toEqual(
@@ -200,13 +194,34 @@ describe('Signup server action', () => {
 		);
 	});
 
-	it('fails before calling the API when public beta acknowledgement is missing', async () => {
+	it('signs up without requiring beta acknowledgement', async () => {
+		registerMock.mockResolvedValue({ token: 'signup-jwt-token' });
+
+		await expect(
+			actions.default(
+				makeEvent({
+					name: 'Alice',
+					email: 'alice@example.com',
+					password: 'password123',
+					confirm_password: 'password123'
+				})
+			)
+		).rejects.toMatchObject({ status: 303, location: '/dashboard' });
+
+		expect(registerMock).toHaveBeenCalledWith({
+			name: 'Alice',
+			email: 'alice@example.com',
+			password: 'password123'
+		});
+	});
+
+	it('still fails before calling the API when required fields are missing', async () => {
 		const result = await actions.default(
 			makeEvent({
 				name: 'Alice',
 				email: 'alice@example.com',
-				password: 'password123',
-				confirm_password: 'password123'
+				password: '',
+				confirm_password: ''
 			})
 		);
 
@@ -216,7 +231,7 @@ describe('Signup server action', () => {
 				status: 400,
 				data: {
 					errors: {
-						beta_acknowledgement: 'Please acknowledge the public beta terms before signing up.'
+						password: 'Password is required'
 					},
 					name: 'Alice',
 					email: 'alice@example.com'

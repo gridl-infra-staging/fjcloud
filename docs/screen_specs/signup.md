@@ -13,7 +13,7 @@ Create a new customer account with a name, email, password, and confirmation, th
 
 ## Target Behavior
 
-The screen shows `Create your account`, the current free-tier promise, labeled fields for name, email, password, and confirm password, an explicit public-beta acknowledgement with links to `/beta`, `/terms`, and `/privacy`, a `Sign Up` submit button, and a login link for existing users. Successful signup creates the account, sets the auth session, and redirects to `/dashboard` immediately.
+The screen shows `Create your account`, the current free-tier promise, labeled fields for name, email, password, and confirm password, a `Sign Up` submit button, and a login link for existing users. Successful signup creates the account, sets the auth session, and redirects to `/dashboard` immediately.
 
 Backend ownership for post-signup billing setup is explicit: `infra/api/src/routes/auth.rs::register` stores verification state via `setup_email_verification()`, and Stripe/billing side effects are deferred to `run_post_verification_actions()`, which is triggered by `verify_email()` (or the dev-only `SKIP_EMAIL_VERIFICATION` auto-verify path).
 
@@ -21,14 +21,12 @@ Backend ownership for post-signup billing setup is explicit: `infra/api/src/rout
 
 - Loading: form submission should preserve visible field context until navigation or validation feedback appears.
 - Empty: empty required fields show field-specific validation and keep the user on `/signup`.
-- Error: weak passwords, mismatched confirmation, invalid email, missing beta acknowledgement, and duplicate-email/API failures show safe visible feedback without exposing whether an email already exists.
+- Error: weak passwords, mismatched confirmation, invalid email, and duplicate-email/API failures show safe visible feedback without exposing whether an email already exists.
 - Success: valid signup redirects to `/dashboard`; email verification remains the gate that unlocks downstream Stripe/billing setup.
 
 ## Controls And Navigation
 
 - `Name`, `Email`, `Password`, and `Confirm Password` are accessible labeled inputs.
-- Public-beta acknowledgement checkbox confirms beta terms before account creation.
-- Beta acknowledgement links open `/beta`, `/terms`, and `/privacy`.
 - `Sign Up` submits the form.
 - `Log in` navigates to `/login`.
 
@@ -38,7 +36,6 @@ Backend ownership for post-signup billing setup is explicit: `infra/api/src/rout
 - [ ] Passwords shorter than 8 characters show `Password must be at least 8 characters`.
 - [ ] Mismatched passwords show visible validation and remain on `/signup`.
 - [ ] Duplicate email uses generic form failure text and does not reveal the email or existence state.
-- [ ] Signup cannot be completed until the beta acknowledgement is checked.
 - [ ] Successful signup reaches `/dashboard` immediately.
 - [ ] Signup success contract explicitly keeps Stripe/billing setup behind email verification (`/auth/verify-email`) instead of treating redirect as billing-ready.
 

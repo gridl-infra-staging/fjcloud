@@ -74,23 +74,6 @@ async fn create_and_finalize_invoice_returns_local_ids() {
 }
 
 #[tokio::test]
-async fn create_checkout_session_returns_local_ids() {
-    let service = test_service();
-    let session = service
-        .create_checkout_session(
-            "cus_test",
-            "price_123",
-            "http://localhost:5173/success",
-            "http://localhost:5173/cancel",
-            None,
-        )
-        .await
-        .unwrap();
-    assert!(session.id.starts_with("cs_local_"));
-    assert_eq!(session.url, "http://localhost:5173/success");
-}
-
-#[tokio::test]
 async fn construct_webhook_event_verifies_signature() {
     let service = test_service();
     let payload = r#"{"id":"evt_1","type":"invoice.paid","data":{"object":{}}}"#;
@@ -111,13 +94,6 @@ async fn construct_webhook_event_rejects_bad_signature() {
     let bad_sig = format!("t={ts},v1=invalid_hex_garbage");
     let result = service.construct_webhook_event(payload, &bad_sig, "whsec_test");
     assert!(matches!(result, Err(StripeError::WebhookVerification(_))));
-}
-
-#[tokio::test]
-async fn retrieve_nonexistent_subscription_returns_error() {
-    let service = test_service();
-    let result = service.retrieve_subscription("sub_nonexistent").await;
-    assert!(matches!(result, Err(StripeError::Api(_))));
 }
 
 // ---------------------------------------------------------------------------
@@ -255,38 +231,6 @@ async fn dispatcher_sends_correct_invoice_payload() {
     assert_eq!(obj["amount_paid"].as_i64().unwrap(), 2000);
     assert_eq!(obj["status"].as_str().unwrap(), "paid");
     assert!(obj["id"].as_str().unwrap().starts_with("in_local_"));
-}
-
-#[tokio::test]
-async fn dispatcher_sends_correct_checkout_payload() {
-    let mock_server = MockServer::start().await;
-    let webhook_url = format!("{}/webhooks/stripe", mock_server.uri());
-    let received = mount_body_capturing_mock(&mock_server).await;
-    let service = test_service_with_dispatcher("whsec_checkout", &webhook_url);
-    service
-        .create_checkout_session(
-            "cus_checkout_test",
-            "price_pro",
-            "http://localhost:5173/success",
-            "http://localhost:5173/cancel",
-            None,
-        )
-        .await
-        .unwrap();
-    tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-    let bodies = received.lock().unwrap();
-    assert_eq!(bodies.len(), 1, "expected exactly one checkout webhook");
-    let body = &bodies[0];
-    assert_eq!(body["type"].as_str().unwrap(), "checkout.session.completed");
-    let obj = &body["data"]["object"];
-    assert_eq!(obj["customer"].as_str().unwrap(), "cus_checkout_test");
-    assert_eq!(obj["mode"].as_str().unwrap(), "subscription");
-    assert_eq!(obj["payment_status"].as_str().unwrap(), "paid");
-    assert!(obj["id"].as_str().unwrap().starts_with("cs_local_"));
-    assert!(obj["subscription"]
-        .as_str()
-        .unwrap()
-        .starts_with("sub_local_"));
 }
 
 #[tokio::test]

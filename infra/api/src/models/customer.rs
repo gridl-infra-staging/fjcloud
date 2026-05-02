@@ -77,8 +77,6 @@ pub struct Customer {
     pub password_reset_expires_at: Option<DateTime<Utc>>,
     #[sqlx(default)]
     pub last_accessed_at: Option<DateTime<Utc>>,
-    #[sqlx(default)]
-    pub subscription_status: Option<String>,
     #[serde(default)]
     #[sqlx(default)]
     pub overdue_invoice_count: i64,
@@ -118,7 +116,6 @@ mod tests {
             password_reset_token: None,
             password_reset_expires_at: None,
             last_accessed_at: None,
-            subscription_status: None,
             overdue_invoice_count: 0,
             object_storage_egress_carryforward_cents: carryforward,
         }

@@ -57,6 +57,33 @@ resolve_stripe_secret_key() {
 }
 
 # --------------------------------------------------------------------------
+# stripe_live_cutover_enabled
+# Returns success only when STRIPE_LIVE_CUTOVER is explicitly set to literal 1.
+# --------------------------------------------------------------------------
+stripe_live_cutover_enabled() {
+    [ "${STRIPE_LIVE_CUTOVER:-}" = "1" ]
+}
+
+# --------------------------------------------------------------------------
+# stripe_secret_key_has_allowed_prefix
+# Returns success when key has a permitted Stripe secret prefix.
+# Test-mode prefixes are always allowed; live-mode prefixes require explicit
+# STRIPE_LIVE_CUTOVER=1 opt-in.
+# --------------------------------------------------------------------------
+stripe_secret_key_has_allowed_prefix() {
+    local key="$1"
+    if [[ "$key" == sk_test_* || "$key" == rk_test_* ]]; then
+        return 0
+    fi
+
+    if stripe_live_cutover_enabled && [[ "$key" == sk_live_* || "$key" == rk_live_* ]]; then
+        return 0
+    fi
+
+    return 1
+}
+
+# --------------------------------------------------------------------------
 # check_stripe_key_present
 # Validates that the resolved Stripe secret key is set and has sk_test_ or
 # rk_test_ prefix.
@@ -68,7 +95,7 @@ check_stripe_key_present() {
         return 0
     fi
 
-    if [[ "$key" != sk_test_* && "$key" != rk_test_* ]]; then
+    if ! stripe_secret_key_has_allowed_prefix "$key"; then
         live_gate_fail_with_reason "stripe_key_bad_prefix" "STRIPE_SECRET_KEY must start with sk_test_ or rk_test_ (sk_live_ and rk_live_ keys are not allowed)"
         return 0
     fi
@@ -100,7 +127,7 @@ check_stripe_key_live() {
     fi
 
     # Defensive validation for direct invocations that skip check_stripe_key_present.
-    if [[ "$key" != sk_test_* && "$key" != rk_test_* ]]; then
+    if ! stripe_secret_key_has_allowed_prefix "$key"; then
         live_gate_fail_with_reason "stripe_key_bad_prefix" "STRIPE_SECRET_KEY must start with sk_test_ or rk_test_ (sk_live_ and rk_live_ keys are not allowed)"
         return 0
     fi

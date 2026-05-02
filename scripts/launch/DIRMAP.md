@@ -38,6 +38,7 @@ Pre-conditions:
 
 Output: prints the deployed flapjack_url for tenant A and exits 0 if
 non-null, exits 1 otherwise. |
+| run_browser_lane_against_staging.sh | Stub summary for run_browser_lane_against_staging.sh. |
 | run_full_backend_validation.sh | Stub summary for run_full_backend_validation.sh. |
 | seed_synthetic_traffic.sh | Stub summary for seed_synthetic_traffic.sh. |
 | ssm_exec_staging.sh | ssm_exec_staging.sh — synchronously run a shell command on the staging

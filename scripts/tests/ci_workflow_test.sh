@@ -222,11 +222,17 @@ assert_job_contains_regex "rust-test" 'uses:\s+actions/checkout@' "rust-test has
 assert_job_contains_regex "rust-test" 'run:\s+bash scripts/reliability/seed-test-profiles.sh' "rust-test seeds reliability profile artifacts"
 assert_job_contains_regex "rust-test" 'uses:\s+dtolnay/rust-toolchain@' "rust-test has rust toolchain setup"
 assert_job_contains_regex "rust-test" 'run:\s+cargo test --workspace' "rust-test has cargo test command"
-assert_job_contains_regex "rust-test" 'run:\s+cargo test -p api --test tenant_isolation_proptest' "rust-test runs explicit tenant isolation property test"
+# tenant_isolation_proptest moved to nightly.yml on 2026-05-02 — kept out
+# of the per-push deploy gate to shave ~3-5 min off every CI cycle. See
+# nightly_workflow_test.sh for its new contract assertion.
+assert_job_not_contains_regex "rust-test" 'tenant_isolation_proptest' "rust-test does not run tenant isolation proptest (nightly only)"
 
 assert_job_contains_regex "rust-lint" 'uses:\s+actions/checkout@' "rust-lint has checkout step"
+assert_job_contains_regex "rust-lint" 'run:\s+bash scripts/tests/generate_ssm_env_test\.sh' "rust-lint runs generate_ssm_env contract test"
+assert_job_contains_regex "rust-lint" 'run:\s+bash scripts/tests/local_ci_gate_set_e_test\.sh' "rust-lint runs local-ci rust-lint regression test"
 assert_job_contains_regex "rust-lint" 'uses:\s+dtolnay/rust-toolchain@' "rust-lint has rust toolchain setup"
 assert_job_contains_regex "rust-lint" 'run:\s+cargo clippy --workspace -- -D warnings' "rust-lint has cargo clippy command"
+assert_step_order "rust-lint" 'Install Rust' 'Run local-ci rust-lint regression test' "rust-lint installs Rust before the local-ci regression test"
 
 assert_job_contains_regex "migration-test" 'uses:\s+actions/checkout@' "migration-test has checkout step"
 assert_job_contains_regex "migration-test" 'uses:\s+dtolnay/rust-toolchain@' "migration-test has rust toolchain setup"
@@ -276,7 +282,11 @@ assert_job_contains_regex "playwright" 'timeout 120s bash -lc' "playwright readi
 assert_job_contains_regex "playwright" 'http://127\.0\.0\.1:3001/health' "playwright readiness checks API health endpoint"
 assert_job_contains_regex "playwright" 'curl -fsS "\$\{BASE_URL\}/"' "playwright readiness checks web BASE_URL endpoint"
 assert_job_contains_regex "playwright" 'curl -fsS "\$\{MAILPIT_API_URL\}/api/v1/info"' "playwright readiness checks mailpit API endpoint"
-assert_job_contains_regex "playwright" 'playwright install --with-deps chromium firefox webkit' "playwright installs only contract-required browsers"
+assert_job_contains_regex "playwright" 'playwright install --with-deps chromium' "playwright installs only contract-required browsers"
+# Firefox/WebKit dropped 2026-05-02 — Playwright-on-Linux WebKit isn't
+# real Safari (no ITP, no Apple Pay, no Stripe 3DS quirks) and Firefox is
+# ~3-6% of users. Real-Safari smoke is operator-driven on macOS pre-launch.
+assert_job_not_contains_regex "playwright" 'firefox|webkit' "playwright does not install firefox or webkit (chromium-only after 2026-05-02 cutover)"
 assert_job_contains_regex "playwright" 'playwright test' "playwright runs tests"
 assert_job_not_contains_regex "playwright" 'playwright test .*--project' "playwright job does not override project selection from config"
 assert_job_contains_regex "playwright" 'name:\s+Upload Playwright artifacts' "playwright uploads test artifacts"

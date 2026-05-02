@@ -13,6 +13,15 @@
 # Usage:
 #   seed_synthetic_traffic.sh --tenant <A|B|C|all> [--dry-run]
 #   seed_synthetic_traffic.sh --tenant all --execute --i-know-this-hits-staging
+#   seed_synthetic_traffic.sh --tenant B --execute --i-know-this-hits-staging --provision-only
+#
+# Modes:
+#   default execute             — provision + storage-backfill to target_storage_mb + sustained traffic
+#   --duration-minutes 0        — provision + storage-backfill, skip sustained traffic
+#   --provision-only            — provision tenant only (skip storage backfill AND sustained traffic).
+#                                 Use case: capturing usage_records evidence for B/C without
+#                                 multi-GB pumping (LAUNCH.md LB-5). Metering agent writes
+#                                 usage_records as soon as the index exists.
 #
 # Tenant shapes (approved by Stuart 2026-04-24):
 #   A — demo-shared-free       (100 MB, 10 writes/min, 1 search/min)
@@ -61,6 +70,14 @@ DRY_RUN="true"
 EXECUTE_FLAG="false"
 STAGING_ACK="false"
 DURATION_MINUTES=60
+# --provision-only runs ensure_customer_and_tenant only and skips both
+# seed_documents_to_target_size and drive_sustained_writes_and_searches.
+# Use case: capturing usage_records evidence for tenants B/C without
+# pumping multi-GB of storage backfill (LAUNCH.md LB-5). The metering
+# agent on staging Flapjack VMs writes usage_records as soon as a tenant
+# index exists, regardless of size, so provisioning alone is sufficient
+# evidence that the metering chain attributes correctly to each tenant.
+PROVISION_ONLY="false"
 TENANT_A_MAPPING_PATH="/tmp/seed-synthetic-demo-shared-free.json"
 SEED_BATCH_SIZE=100
 SEED_BATCH_SEED=42
@@ -101,6 +118,7 @@ while [ $# -gt 0 ]; do
       DURATION_MINUTES="$2"
       shift 2
       ;;
+    --provision-only) PROVISION_ONLY="true"; shift;;
     -h|--help) print_usage; exit 0;;
     *) die "unknown argument: $1";;
   esac
@@ -126,9 +144,13 @@ if [ "${EXECUTE_FLAG}" = "true" ] && [ "${STAGING_ACK}" != "true" ]; then
   die "--execute requires --i-know-this-hits-staging (this mutates staging state)"
 fi
 
-if [ "${EXECUTE_FLAG}" = "true" ] && [ "${TENANT_SELECTOR}" != "A" ]; then
-  die "execute mode supports only --tenant A in Stage 2; unsupported selector: ${TENANT_SELECTOR}"
-fi
+# Stage-2 gate (rejected --tenant B/C/all in execute mode) was lifted on
+# 2026-05-01 to satisfy LAUNCH.md LB-5. The seeder code path is letter-
+# agnostic: tenant_field, tenant_mapping_path, run_tenant, ensure_customer_and_tenant,
+# seed_documents_to_target_size, and drive_sustained_writes_and_searches all
+# already operated correctly for B and C; the only blockers were the two
+# explicit Stage-2 gates (here and in run_tenant). Removing them unblocks
+# usage_records evidence for the dedicated-plan tenants.
 
 # ---------------------------------------------------------------------------
 # Tenant field lookup — bash 3.2 compatible indirect expansion.
@@ -789,13 +811,23 @@ run_tenant() {
   log "=== Tenant ${letter} ==="
   describe_tenant "${letter}"
   if [ "${DRY_RUN}" = "true" ]; then
-    log "  [dry-run] skipping mutations"
+    if [ "${PROVISION_ONLY}" = "true" ]; then
+      log "  [dry-run, provision-only] would only provision the tenant; skipping storage backfill and sustained traffic"
+    else
+      log "  [dry-run] skipping mutations"
+    fi
     return 0
   fi
-  if [ "${letter}" != "A" ]; then
-    die "execute mode supports only --tenant A in Stage 2; unsupported selector: ${letter}"
-  fi
+  # Stage-2 gate that rejected B/C lifted on 2026-05-01 (LAUNCH.md LB-5).
+  # ensure_customer_and_tenant + seed_documents_to_target_size +
+  # drive_sustained_writes_and_searches are all letter-agnostic via
+  # tenant_field/tenant_mapping_path indirection; B and C provision the
+  # same way A does, just with larger target_storage_mb / write rates.
   ensure_customer_and_tenant "${letter}"
+  if [ "${PROVISION_ONLY}" = "true" ]; then
+    log "  [provision-only] tenant ${letter} provisioned; skipping storage backfill and sustained traffic"
+    return 0
+  fi
   seed_documents_to_target_size "${letter}"
   drive_sustained_writes_and_searches "${letter}"
 }

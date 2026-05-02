@@ -141,14 +141,6 @@ export interface PaymentMethod {
 	is_default: boolean;
 }
 
-export interface SubscriptionResponse {
-	id: string;
-	plan_tier: string;
-	status: string;
-	current_period_end: string;
-	cancel_at_period_end: boolean;
-}
-
 // API Key types
 export interface ApiKeyListItem {
 	id: string;

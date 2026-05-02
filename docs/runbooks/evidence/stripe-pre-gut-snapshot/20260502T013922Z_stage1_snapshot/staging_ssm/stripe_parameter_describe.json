@@ -1,0 +1,74 @@
+{
+    "Parameters": [
+        {
+            "Name": "/fjcloud/staging/stripe_cancel_url",
+            "ARN": "arn:aws:ssm:us-east-1:213880904778:parameter/fjcloud/staging/stripe_cancel_url",
+            "Type": "String",
+            "LastModifiedDate": "2026-04-23T14:57:02.765000-04:00",
+            "LastModifiedUser": "arn:aws:iam::213880904778:user/stuart-cli",
+            "Version": 2,
+            "Tier": "Standard",
+            "Policies": [],
+            "DataType": "text"
+        },
+        {
+            "Name": "/fjcloud/staging/stripe_price_starter",
+            "ARN": "arn:aws:ssm:us-east-1:213880904778:parameter/fjcloud/staging/stripe_price_starter",
+            "Type": "SecureString",
+            "KeyId": "alias/aws/ssm",
+            "LastModifiedDate": "2026-05-01T18:14:30.625000-04:00",
+            "LastModifiedUser": "arn:aws:iam::213880904778:user/stuart-cli",
+            "Description": "LB-2/LB-3 test fixture starter price; created 2026-05-01",
+            "Version": 1,
+            "Tier": "Standard",
+            "Policies": [],
+            "DataType": "text"
+        },
+        {
+            "Name": "/fjcloud/staging/stripe_publishable_key",
+            "ARN": "arn:aws:ssm:us-east-1:213880904778:parameter/fjcloud/staging/stripe_publishable_key",
+            "Type": "String",
+            "LastModifiedDate": "2026-04-23T14:57:01.913000-04:00",
+            "LastModifiedUser": "arn:aws:iam::213880904778:user/stuart-cli",
+            "Version": 1,
+            "Tier": "Standard",
+            "Policies": [],
+            "DataType": "text"
+        },
+        {
+            "Name": "/fjcloud/staging/stripe_secret_key",
+            "ARN": "arn:aws:ssm:us-east-1:213880904778:parameter/fjcloud/staging/stripe_secret_key",
+            "Type": "SecureString",
+            "KeyId": "alias/aws/ssm",
+            "LastModifiedDate": "2026-04-29T15:12:22.214000-04:00",
+            "LastModifiedUser": "arn:aws:iam::213880904778:user/stuart-cli",
+            "Version": 2,
+            "Tier": "Standard",
+            "Policies": [],
+            "DataType": "text"
+        },
+        {
+            "Name": "/fjcloud/staging/stripe_success_url",
+            "ARN": "arn:aws:ssm:us-east-1:213880904778:parameter/fjcloud/staging/stripe_success_url",
+            "Type": "String",
+            "LastModifiedDate": "2026-04-23T14:57:02.358000-04:00",
+            "LastModifiedUser": "arn:aws:iam::213880904778:user/stuart-cli",
+            "Version": 2,
+            "Tier": "Standard",
+            "Policies": [],
+            "DataType": "text"
+        },
+        {
+            "Name": "/fjcloud/staging/stripe_webhook_secret",
+            "ARN": "arn:aws:ssm:us-east-1:213880904778:parameter/fjcloud/staging/stripe_webhook_secret",
+            "Type": "SecureString",
+            "KeyId": "alias/aws/ssm",
+            "LastModifiedDate": "2026-04-23T14:57:01.486000-04:00",
+            "LastModifiedUser": "arn:aws:iam::213880904778:user/stuart-cli",
+            "Version": 1,
+            "Tier": "Standard",
+            "Policies": [],
+            "DataType": "text"
+        }
+    ]
+}

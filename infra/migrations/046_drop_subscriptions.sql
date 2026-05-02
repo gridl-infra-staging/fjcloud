@@ -1,0 +1,11 @@
+-- Stage 2 of the subscription-gutting wave: drop the deprecated
+-- `subscriptions` table. Metered billing now lives on
+-- `customers.billing_plan`; subscription rows are no longer the
+-- source of truth for any active billing path.
+--
+-- CASCADE drops dependent FKs/indexes alongside the table. Runtime
+-- code that still references `subscriptions` is intentionally left
+-- in place at this stage — Stage 2's scope is the schema boundary
+-- only; later stages remove the repo, model, route, and Stripe
+-- surgery in coordinated commits.
+DROP TABLE IF EXISTS subscriptions CASCADE;

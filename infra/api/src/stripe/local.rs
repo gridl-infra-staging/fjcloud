@@ -7,9 +7,8 @@ use std::sync::{Arc, Mutex};
 use uuid::Uuid;
 
 use super::{
-    CheckoutSessionResponse, CreatePortalSessionRequest, FinalizedInvoice, PaymentMethodSummary,
-    PortalSessionResponse, StripeError, StripeEvent, StripeInvoiceLineItem, StripeService,
-    SubscriptionData, SubscriptionItem,
+    CreatePortalSessionRequest, FinalizedInvoice, PaymentMethodSummary, PortalSessionResponse,
+    StripeError, StripeEvent, StripeInvoiceLineItem, StripeService,
 };
 
 type HmacSha256 = Hmac<Sha256>;
@@ -49,23 +48,12 @@ struct LocalInvoice {
     pdf_url: String,
 }
 
-#[allow(dead_code)]
-#[derive(Debug, Clone)]
-struct LocalCheckoutSession {
-    id: String,
-    url: String,
-    customer_id: String,
-    price_id: String,
-}
-
 /// In-memory state for the local Stripe mock.
 #[derive(Debug, Default)]
 struct LocalStripeState {
     customers: Vec<LocalCustomer>,
     payment_methods: Vec<LocalPaymentMethod>,
     invoices: Vec<LocalInvoice>,
-    subscriptions: Vec<SubscriptionData>,
-    checkout_sessions: Vec<LocalCheckoutSession>,
 }
 
 // ---------------------------------------------------------------------------
@@ -403,123 +391,6 @@ impl StripeService for LocalStripeService {
             data: parsed["data"].clone(),
         })
     }
-
-    /// Creates a mock checkout session and queues a "checkout.session.completed"
-    /// webhook event. Also creates a subscription for the customer.
-    async fn create_checkout_session(
-        &self,
-        stripe_customer_id: &str,
-        price_id: &str,
-        success_url: &str,
-        _cancel_url: &str,
-        _metadata: Option<&std::collections::HashMap<String, String>>,
-    ) -> Result<CheckoutSessionResponse, StripeError> {
-        let session_id = format!("cs_local_{}", Uuid::new_v4().simple());
-        // The URL would normally redirect to Stripe checkout. In local dev,
-        // we redirect straight to the success URL to simulate completion.
-        let session_url = success_url.to_string();
-
-        let session = LocalCheckoutSession {
-            id: session_id.clone(),
-            url: session_url.clone(),
-            customer_id: stripe_customer_id.to_string(),
-            price_id: price_id.to_string(),
-        };
-
-        // Create an associated subscription.
-        let sub_id = format!("sub_local_{}", Uuid::new_v4().simple());
-        let now = chrono::Utc::now().timestamp();
-        let period_end = now + 30 * 24 * 3600; // 30 days from now
-
-        let subscription = SubscriptionData {
-            id: sub_id.clone(),
-            status: "active".to_string(),
-            current_period_start: now,
-            current_period_end: period_end,
-            cancel_at_period_end: false,
-            customer: stripe_customer_id.to_string(),
-            items: vec![SubscriptionItem {
-                id: format!("si_local_{}", Uuid::new_v4().simple()),
-                price_id: price_id.to_string(),
-            }],
-        };
-
-        {
-            let mut state = self.state.lock().unwrap();
-            state.checkout_sessions.push(session);
-            state.subscriptions.push(subscription);
-        }
-
-        // Queue webhook: checkout session completed.
-        self.queue_webhook(
-            "checkout.session.completed",
-            serde_json::json!({
-                "id": session_id,
-                "customer": stripe_customer_id,
-                "subscription": sub_id,
-                "mode": "subscription",
-                "payment_status": "paid"
-            }),
-        );
-
-        Ok(CheckoutSessionResponse {
-            id: session_id,
-            url: session_url,
-        })
-    }
-
-    async fn retrieve_subscription(
-        &self,
-        subscription_id: &str,
-    ) -> Result<SubscriptionData, StripeError> {
-        let state = self.state.lock().unwrap();
-        state
-            .subscriptions
-            .iter()
-            .find(|s| s.id == subscription_id)
-            .cloned()
-            .ok_or_else(|| StripeError::Api("subscription not found".into()))
-    }
-
-    async fn cancel_subscription(
-        &self,
-        subscription_id: &str,
-        cancel_at_period_end: bool,
-    ) -> Result<SubscriptionData, StripeError> {
-        let mut state = self.state.lock().unwrap();
-        if let Some(sub) = state
-            .subscriptions
-            .iter_mut()
-            .find(|s| s.id == subscription_id)
-        {
-            sub.cancel_at_period_end = cancel_at_period_end;
-            if !cancel_at_period_end {
-                sub.status = "canceled".to_string();
-            }
-            return Ok(sub.clone());
-        }
-        Err(StripeError::Api("subscription not found".into()))
-    }
-
-    async fn update_subscription_price(
-        &self,
-        subscription_id: &str,
-        new_price_id: &str,
-        _proration_behavior: &str,
-    ) -> Result<SubscriptionData, StripeError> {
-        let mut state = self.state.lock().unwrap();
-        if let Some(sub) = state
-            .subscriptions
-            .iter_mut()
-            .find(|s| s.id == subscription_id)
-        {
-            if let Some(item) = sub.items.first_mut() {
-                item.price_id = new_price_id.to_string();
-            }
-            return Ok(sub.clone());
-        }
-        Err(StripeError::Api("subscription not found".into()))
-    }
 }
 
 // ===========================================================================
@@ -657,101 +528,6 @@ mod tests {
 
         let result = service.construct_webhook_event(payload, &bad_sig, "whsec_test");
         assert!(matches!(result, Err(StripeError::WebhookVerification(_))));
-    }
-
-    #[tokio::test]
-    async fn checkout_session_creates_subscription() {
-        let service = test_service();
-        service
-            .create_checkout_session(
-                "cus_test",
-                "price_123",
-                "http://localhost:5173/success",
-                "http://localhost:5173/cancel",
-                None,
-            )
-            .await
-            .unwrap();
-        let state = service.state.lock().unwrap();
-        assert_eq!(state.subscriptions.len(), 1);
-        assert_eq!(state.subscriptions[0].status, "active");
-        assert_eq!(state.subscriptions[0].items[0].price_id, "price_123");
-    }
-
-    // -----------------------------------------------------------------------
-    // Subscription lifecycle tests
-    // -----------------------------------------------------------------------
-
-    #[tokio::test]
-    async fn retrieve_subscription_returns_stored_data() {
-        let service = test_service();
-        // Create via checkout session.
-        service
-            .create_checkout_session("cus_test", "price_1", "http://ok", "http://cancel", None)
-            .await
-            .unwrap();
-        let sub_id = {
-            let state = service.state.lock().unwrap();
-            state.subscriptions[0].id.clone()
-        };
-        let sub = service.retrieve_subscription(&sub_id).await.unwrap();
-        assert_eq!(sub.status, "active");
-    }
-
-    #[tokio::test]
-    async fn retrieve_nonexistent_subscription_returns_error() {
-        let service = test_service();
-        let result = service.retrieve_subscription("sub_nonexistent").await;
-        assert!(matches!(result, Err(StripeError::Api(_))));
-    }
-
-    #[tokio::test]
-    async fn cancel_subscription_at_period_end() {
-        let service = test_service();
-        service
-            .create_checkout_session("cus_test", "price_1", "http://ok", "http://cancel", None)
-            .await
-            .unwrap();
-        let sub_id = {
-            let state = service.state.lock().unwrap();
-            state.subscriptions[0].id.clone()
-        };
-        let sub = service.cancel_subscription(&sub_id, true).await.unwrap();
-        assert_eq!(sub.status, "active"); // Still active until period end.
-        assert!(sub.cancel_at_period_end);
-    }
-
-    #[tokio::test]
-    async fn cancel_subscription_immediately() {
-        let service = test_service();
-        service
-            .create_checkout_session("cus_test", "price_1", "http://ok", "http://cancel", None)
-            .await
-            .unwrap();
-        let sub_id = {
-            let state = service.state.lock().unwrap();
-            state.subscriptions[0].id.clone()
-        };
-        let sub = service.cancel_subscription(&sub_id, false).await.unwrap();
-        assert_eq!(sub.status, "canceled");
-    }
-
-    #[tokio::test]
-    async fn update_subscription_price_changes_price_id() {
-        let service = test_service();
-        service
-            .create_checkout_session("cus_test", "price_old", "http://ok", "http://cancel", None)
-            .await
-            .unwrap();
-        let sub_id = {
-            let state = service.state.lock().unwrap();
-            state.subscriptions[0].id.clone()
-        };
-        let sub = service
-            .update_subscription_price(&sub_id, "price_new", "create_prorations")
-            .await
-            .unwrap();
-        assert_eq!(sub.items[0].price_id, "price_new");
     }
 
     // Wiremock dispatch tests moved to infra/api/tests/stripe_local_dispatch_test.rs

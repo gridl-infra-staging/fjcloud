@@ -13,7 +13,11 @@ Add a payment method through the Stripe Elements setup flow or understand why pa
 
 ## Target Behavior
 
-The page shows `Add Payment Method`. If billing is unavailable, it shows the canonical billing-unavailable card. If a setup intent client secret exists, it mounts Stripe Payment Element, exposes `Cancel`, and saves the payment method through Stripe confirmation. Successful setup returns to `/dashboard/billing`.
+The `/dashboard/billing/setup` route data contract is owned by `web/src/routes/dashboard/billing/setup/+page.server.ts::load`: it returns `billingUnavailable`, `clientSecret`, and optional `error`.
+
+Runtime Stripe bootstrap is owned by `web/src/lib/stripe.ts::getStripe`, which fetches the publishable key from `web/src/routes/api/stripe/publishable-key/+server.ts::GET` and caches the loaded Stripe instance.
+
+Rendering and setup-confirmation UX are owned by `web/src/routes/dashboard/billing/setup/+page.svelte`: when `billingUnavailable` is true it renders `BillingUnavailableCard`; when `clientSecret` exists it mounts Stripe Payment Element, renders `Cancel`, and submits `Save payment method`. Successful setup returns to `/dashboard/billing`.
 
 ## Required States
 
@@ -33,7 +37,7 @@ The page shows `Add Payment Method`. If billing is unavailable, it shows the can
 - [ ] Setup route renders `Add Payment Method`.
 - [ ] Billing-unavailable environments show deterministic unavailable copy.
 - [ ] Available environments expose a save action and cancel link.
-- [ ] Successful setup returns to the payment-method list.
+- [ ] Successful setup returns to `/dashboard/billing`.
 
 ## Current Implementation Gaps
 
@@ -43,5 +47,6 @@ Browser-unmocked setup navigation is covered only when local Stripe-backed payme
 
 - Browser-unmocked tests: `web/tests/e2e-ui/full/billing.spec.ts`
 - Component tests: `web/src/routes/dashboard/billing/setup/setup.test.ts`; `web/src/routes/dashboard/billing/setup/setup.server.test.ts`
-- Server/contract tests: `web/src/routes/dashboard/billing/setup/setup.server.test.ts`; `cd infra && cargo test -p api --test stripe_billing_test`
+- Stripe runtime tests: `web/src/lib/stripe.test.ts`; `web/src/routes/api/stripe/publishable-key/publishable-key.server.test.ts`
+- Server/contract tests: `web/src/routes/dashboard/billing/setup/setup.server.test.ts`
 - LocalStripe/Mailpit proof: `scripts/local-signoff-commerce.sh`; `docs/design/stage3_local_commerce_proof_contract.md`; `docs/checklists/LOCAL_SIGNOFF_EVIDENCE_TEMPLATE.md`

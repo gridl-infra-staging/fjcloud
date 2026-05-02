@@ -66,9 +66,12 @@ jobs:
       - name: Run rust tests
         working-directory: infra
         run: cargo test --workspace -j 1
-      - name: Run tenant isolation property test
-        working-directory: infra
-        run: cargo test -p api --test tenant_isolation_proptest --features proptest-tests
+      # Tenant isolation proptest runs in nightly.yml's
+      # `tenant-isolation-proptest` job. Moved out of the per-push deploy
+      # gate 2026-05-02 because it is a defensive regression check (not a
+      # gate on functional correctness) and was costing ~3-5 min per push.
+      # Failure surfaces nightly with workflow_dispatch available for
+      # operator-driven reruns.
 
   rust-lint:
     runs-on: ubuntu-latest
@@ -76,6 +79,8 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       - name: Run CI workflow contract tests
         run: bash scripts/tests/ci_workflow_test.sh
+      - name: Run SSM env projection contract test
+        run: bash scripts/tests/generate_ssm_env_test.sh
       - name: Run SES support email unit seams
         run: |
           bash scripts/tests/validate_inbound_email_roundtrip_test.sh
@@ -86,6 +91,11 @@ jobs:
         uses: Swatinem/rust-cache@ad397744b0d591a723ab90405b7247fac0e6b8db # v2
         with:
           workspaces: infra
+      - name: Run local-ci rust-lint regression test
+        # This shells back into scripts/local-ci.sh with an intentional
+        # rustfmt violation to prove the gate returns FAIL on a real error
+        # rather than printing an error and exiting 0 under bash semantics.
+        run: bash scripts/tests/local_ci_gate_set_e_test.sh
       - name: Check formatting
         working-directory: infra
         run: cargo fmt --check
@@ -255,7 +265,12 @@ jobs:
           fi
       - name: Install Playwright browsers
         working-directory: web
-        run: npx playwright install --with-deps chromium firefox webkit
+        # Firefox/WebKit dropped 2026-05-02 to reduce CI cycle time. WebKit
+        # on Linux runners is not real Safari (no ITP, no Apple Pay, no
+        # Stripe 3DS quirks), so its bug-catching value did not justify the
+        # ~5 min install + browser launch cost. Real-Safari smoke is now
+        # operator-driven on macOS pre-launch.
+        run: npx playwright install --with-deps chromium
       - name: Run Playwright tests
         working-directory: web
         run: npx playwright test

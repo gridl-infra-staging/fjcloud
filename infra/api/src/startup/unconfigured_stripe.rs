@@ -55,35 +55,4 @@ impl crate::stripe::StripeService for UnconfiguredStripeService {
     ) -> Result<crate::stripe::StripeEvent, StripeError> {
         Err(StripeError::NotConfigured)
     }
-    async fn create_checkout_session(
-        &self,
-        _: &str,
-        _: &str,
-        _: &str,
-        _: &str,
-        _: Option<&std::collections::HashMap<String, String>>,
-    ) -> Result<crate::stripe::CheckoutSessionResponse, StripeError> {
-        Err(StripeError::NotConfigured)
-    }
-    async fn retrieve_subscription(
-        &self,
-        _: &str,
-    ) -> Result<crate::stripe::SubscriptionData, StripeError> {
-        Err(StripeError::NotConfigured)
-    }
-    async fn cancel_subscription(
-        &self,
-        _: &str,
-        _: bool,
-    ) -> Result<crate::stripe::SubscriptionData, StripeError> {
-        Err(StripeError::NotConfigured)
-    }
-    async fn update_subscription_price(
-        &self,
-        _: &str,
-        _: &str,
-        _: &str,
-    ) -> Result<crate::stripe::SubscriptionData, StripeError> {
-        Err(StripeError::NotConfigured)
-    }
 }

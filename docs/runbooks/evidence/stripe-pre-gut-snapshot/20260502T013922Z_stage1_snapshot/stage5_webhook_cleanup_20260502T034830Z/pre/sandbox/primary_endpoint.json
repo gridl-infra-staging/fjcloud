@@ -1,0 +1,21 @@
+{
+  "id": "we_1TPDB0KH9mdklKeIkGaA4BZ7",
+  "object": "webhook_endpoint",
+  "api_version": "2026-01-28.clover",
+  "application": null,
+  "created": 1776911978,
+  "description": null,
+  "enabled_events": [
+    "invoice.payment_succeeded",
+    "invoice.payment_failed",
+    "invoice.payment_action_required",
+    "customer.subscription.created",
+    "customer.subscription.updated",
+    "customer.subscription.deleted",
+    "checkout.session.completed"
+  ],
+  "livemode": false,
+  "metadata": {},
+  "status": "enabled",
+  "url": "https://api.flapjack.foo/webhooks/stripe"
+}

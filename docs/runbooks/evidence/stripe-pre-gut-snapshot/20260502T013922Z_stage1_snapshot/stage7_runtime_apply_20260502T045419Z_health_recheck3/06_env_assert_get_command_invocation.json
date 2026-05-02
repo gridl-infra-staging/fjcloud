@@ -1,0 +1,22 @@
+{
+    "CommandId": "220e1724-e4c3-40c7-a33a-0046487319eb",
+    "InstanceId": "i-0afc7651593f12372",
+    "Comment": "stage7 post-health env assert",
+    "DocumentName": "AWS-RunShellScript",
+    "DocumentVersion": "$DEFAULT",
+    "PluginName": "aws:runShellScript",
+    "ResponseCode": 0,
+    "ExecutionStartDateTime": "2026-05-02T04:54:46.544Z",
+    "ExecutionElapsedTime": "PT0.009S",
+    "ExecutionEndDateTime": "2026-05-02T04:54:46.544Z",
+    "Status": "Success",
+    "StatusDetails": "Success",
+    "StandardOutputContent": "no_stripe_price_keys\nSTRIPE_SECRET_KEY=<redacted-present>\nSTRIPE_PUBLISHABLE_KEY=<redacted-present>\nSTRIPE_WEBHOOK_SECRET=<redacted-present>\n",
+    "StandardOutputUrl": "",
+    "StandardErrorContent": "",
+    "StandardErrorUrl": "",
+    "CloudWatchOutputConfig": {
+        "CloudWatchLogGroupName": "",
+        "CloudWatchOutputEnabled": false
+    }
+}

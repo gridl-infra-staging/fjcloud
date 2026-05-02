@@ -1,0 +1,53 @@
+{
+  "captured_at_utc": "20260502T013922Z",
+  "parameters": [
+    {
+      "Name": "/fjcloud/staging/stripe_cancel_url",
+      "Type": "String",
+      "Version": 2,
+      "LastModifiedDate": "2026-04-23T14:57:02.765000-04:00",
+      "ARN": "arn:aws:ssm:us-east-1:213880904778:parameter/fjcloud/staging/stripe_cancel_url",
+      "DataType": "text"
+    },
+    {
+      "Name": "/fjcloud/staging/stripe_price_starter",
+      "Type": "SecureString",
+      "Version": 1,
+      "LastModifiedDate": "2026-05-01T18:14:30.625000-04:00",
+      "ARN": "arn:aws:ssm:us-east-1:213880904778:parameter/fjcloud/staging/stripe_price_starter",
+      "DataType": "text"
+    },
+    {
+      "Name": "/fjcloud/staging/stripe_success_url",
+      "Type": "String",
+      "Version": 2,
+      "LastModifiedDate": "2026-04-23T14:57:02.358000-04:00",
+      "ARN": "arn:aws:ssm:us-east-1:213880904778:parameter/fjcloud/staging/stripe_success_url",
+      "DataType": "text"
+    },
+    {
+      "Name": "/fjcloud/staging/stripe_webhook_secret",
+      "Type": "SecureString",
+      "Version": 1,
+      "LastModifiedDate": "2026-04-23T14:57:01.486000-04:00",
+      "ARN": "arn:aws:ssm:us-east-1:213880904778:parameter/fjcloud/staging/stripe_webhook_secret",
+      "DataType": "text"
+    },
+    {
+      "Name": "/fjcloud/staging/stripe_publishable_key",
+      "Type": "String",
+      "Version": 1,
+      "LastModifiedDate": "2026-04-23T14:57:01.913000-04:00",
+      "ARN": "arn:aws:ssm:us-east-1:213880904778:parameter/fjcloud/staging/stripe_publishable_key",
+      "DataType": "text"
+    },
+    {
+      "Name": "/fjcloud/staging/stripe_secret_key",
+      "Type": "SecureString",
+      "Version": 2,
+      "LastModifiedDate": "2026-04-29T15:12:22.214000-04:00",
+      "ARN": "arn:aws:ssm:us-east-1:213880904778:parameter/fjcloud/staging/stripe_secret_key",
+      "DataType": "text"
+    }
+  ]
+}

@@ -9,14 +9,11 @@ use stripe::{
 };
 
 use super::{
-    CheckoutSessionResponse, CreatePortalSessionRequest, FinalizedInvoice, PaymentMethodSummary,
-    PortalSessionResponse, StripeError, StripeEvent, StripeInvoiceLineItem, StripeService,
-    SubscriptionData, SubscriptionItem,
+    CreatePortalSessionRequest, FinalizedInvoice, PaymentMethodSummary, PortalSessionResponse,
+    StripeError, StripeEvent, StripeInvoiceLineItem, StripeService,
 };
 
 type HmacSha256 = Hmac<Sha256>;
-type SubscriptionProrationBehavior =
-    stripe::generated::billing::subscription::SubscriptionProrationBehavior;
 
 const WEBHOOK_TOLERANCE_SECS: i64 = 300; // 5 minutes
 
@@ -97,30 +94,6 @@ fn verify_webhook_signature(
         .map_err(|e| StripeError::WebhookVerification(format!("invalid JSON: {e}")))
 }
 
-fn subscription_status_to_str(status: stripe::SubscriptionStatus) -> &'static str {
-    match status {
-        stripe::SubscriptionStatus::Active => "active",
-        stripe::SubscriptionStatus::PastDue => "past_due",
-        stripe::SubscriptionStatus::Trialing => "trialing",
-        stripe::SubscriptionStatus::Canceled => "canceled",
-        stripe::SubscriptionStatus::Unpaid => "unpaid",
-        stripe::SubscriptionStatus::Incomplete => "incomplete",
-        stripe::SubscriptionStatus::IncompleteExpired => "incomplete_expired",
-        stripe::SubscriptionStatus::Paused => "paused",
-    }
-}
-
-fn proration_behavior_from_str(value: &str) -> Result<SubscriptionProrationBehavior, StripeError> {
-    match value {
-        "always_invoice" => Ok(SubscriptionProrationBehavior::AlwaysInvoice),
-        "create_prorations" => Ok(SubscriptionProrationBehavior::CreateProrations),
-        "none" => Ok(SubscriptionProrationBehavior::None),
-        _ => Err(StripeError::Api(format!(
-            "invalid proration behavior: {value}"
-        ))),
-    }
-}
-
 fn build_invoice_create_params(
     customer_id: stripe::CustomerId,
     metadata: Option<&std::collections::HashMap<String, String>>,
@@ -135,30 +108,6 @@ fn build_invoice_create_params(
         invoice_params.metadata = Some(meta.clone());
     }
     invoice_params
-}
-
-/// Converts a `stripe::Subscription` into [`SubscriptionData`], extracting
-/// each item.s `id` and `price_id`.
-fn subscription_to_data(subscription: stripe::Subscription) -> SubscriptionData {
-    let items: Vec<SubscriptionItem> = subscription
-        .items
-        .data
-        .into_iter()
-        .map(|item| SubscriptionItem {
-            id: item.id.to_string(),
-            price_id: item.price.map(|p| p.id.to_string()).unwrap_or_default(),
-        })
-        .collect();
-
-    SubscriptionData {
-        id: subscription.id.to_string(),
-        status: subscription_status_to_str(subscription.status).to_string(),
-        current_period_start: subscription.current_period_start,
-        current_period_end: subscription.current_period_end,
-        cancel_at_period_end: subscription.cancel_at_period_end,
-        customer: subscription.customer.id().to_string(),
-        items,
-    }
 }
 
 #[async_trait]
@@ -382,137 +331,6 @@ impl StripeService for LiveStripeService {
             data,
         })
     }
-
-    /// Creates a Stripe Checkout Session in Subscription mode with a single
-    /// price line item, success/cancel URLs, and optional metadata.
-    async fn create_checkout_session(
-        &self,
-        stripe_customer_id: &str,
-        price_id: &str,
-        success_url: &str,
-        cancel_url: &str,
-        metadata: Option<&std::collections::HashMap<String, String>>,
-    ) -> Result<CheckoutSessionResponse, StripeError> {
-        use stripe::CheckoutSessionMode;
-        use stripe::CreateCheckoutSession;
-        use stripe::CreateCheckoutSessionLineItems;
-
-        let customer_id: stripe::CustomerId = stripe_customer_id
-            .parse()
-            .map_err(|_| StripeError::Api("invalid customer ID".into()))?;
-
-        let mut params = CreateCheckoutSession::new();
-        params.mode = Some(CheckoutSessionMode::Subscription);
-        params.customer = Some(customer_id);
-        params.success_url = Some(success_url);
-        params.cancel_url = Some(cancel_url);
-        params.line_items = Some(vec![CreateCheckoutSessionLineItems {
-            price: Some(price_id.to_string()),
-            quantity: Some(1),
-            ..Default::default()
-        }]);
-        params.metadata = metadata.cloned();
-
-        let session = stripe::CheckoutSession::create(&self.client, params)
-            .await
-            .map_err(|e| StripeError::Api(e.to_string()))?;
-
-        Ok(CheckoutSessionResponse {
-            id: session.id.to_string(),
-            url: session.url.unwrap_or_default(),
-        })
-    }
-
-    /// Parses the subscription ID, retrieves it from Stripe, and converts
-    /// to [`SubscriptionData`].
-    async fn retrieve_subscription(
-        &self,
-        subscription_id: &str,
-    ) -> Result<SubscriptionData, StripeError> {
-        use stripe::SubscriptionId;
-
-        let sub_id: SubscriptionId = subscription_id
-            .parse()
-            .map_err(|_| StripeError::Api("invalid subscription ID".into()))?;
-
-        let subscription = stripe::Subscription::retrieve(&self.client, &sub_id, &[])
-            .await
-            .map_err(|e| StripeError::Api(e.to_string()))?;
-
-        Ok(subscription_to_data(subscription))
-    }
-
-    /// Cancels a subscription. When `cancel_at_period_end` is true, sets the
-    /// flag for end-of-period cancellation; otherwise cancels immediately.
-    async fn cancel_subscription(
-        &self,
-        subscription_id: &str,
-        cancel_at_period_end: bool,
-    ) -> Result<SubscriptionData, StripeError> {
-        use stripe::SubscriptionId;
-        use stripe::UpdateSubscription;
-
-        let sub_id: SubscriptionId = subscription_id
-            .parse()
-            .map_err(|_| StripeError::Api("invalid subscription ID".into()))?;
-
-        let subscription = if cancel_at_period_end {
-            let mut params = UpdateSubscription::new();
-            params.cancel_at_period_end = Some(true);
-            stripe::Subscription::update(&self.client, &sub_id, params)
-                .await
-                .map_err(|e| StripeError::Api(e.to_string()))?
-        } else {
-            use stripe::CancelSubscription;
-            let params = CancelSubscription::new();
-            stripe::Subscription::cancel(&self.client, &sub_id, params)
-                .await
-                .map_err(|e| StripeError::Api(e.to_string()))?
-        };
-
-        Ok(subscription_to_data(subscription))
-    }
-
-    /// Retrieves the current subscription and replaces the first item.s price
-    /// with `new_price_id`, applying the specified proration behavior.
-    async fn update_subscription_price(
-        &self,
-        subscription_id: &str,
-        new_price_id: &str,
-        proration_behavior: &str,
-    ) -> Result<SubscriptionData, StripeError> {
-        use stripe::SubscriptionId;
-        use stripe::UpdateSubscription;
-        use stripe::UpdateSubscriptionItems;
-
-        let sub_id: SubscriptionId = subscription_id
-            .parse()
-            .map_err(|_| StripeError::Api("invalid subscription ID".into()))?;
-
-        let current_subscription = stripe::Subscription::retrieve(&self.client, &sub_id, &[])
-            .await
-            .map_err(|e| StripeError::Api(e.to_string()))?;
-
-        let current_item = current_subscription
-            .items
-            .data
-            .first()
-            .ok_or_else(|| StripeError::Api("subscription has no items".into()))?;
-
-        let mut params = UpdateSubscription::new();
-        params.items = Some(vec![UpdateSubscriptionItems {
-            id: Some(current_item.id.to_string()),
-            price: Some(new_price_id.to_string()),
-            ..Default::default()
-        }]);
-        params.proration_behavior = Some(proration_behavior_from_str(proration_behavior)?);
-
-        let subscription = stripe::Subscription::update(&self.client, &sub_id, params)
-            .await
-            .map_err(|e| StripeError::Api(e.to_string()))?;
-
-        Ok(subscription_to_data(subscription))
-    }
 }
 
 #[cfg(test)]
@@ -571,28 +389,6 @@ mod tests {
         let ts = chrono::Utc::now().timestamp();
         let result = verify_webhook_signature("{}", &format!("t={ts}"), "secret");
         assert!(matches!(result, Err(StripeError::WebhookVerification(_))));
-    }
-
-    #[test]
-    fn proration_behavior_parser_accepts_supported_values() {
-        assert_eq!(
-            proration_behavior_from_str("always_invoice").unwrap(),
-            SubscriptionProrationBehavior::AlwaysInvoice
-        );
-        assert_eq!(
-            proration_behavior_from_str("create_prorations").unwrap(),
-            SubscriptionProrationBehavior::CreateProrations
-        );
-        assert_eq!(
-            proration_behavior_from_str("none").unwrap(),
-            SubscriptionProrationBehavior::None
-        );
-    }
-
-    #[test]
-    fn proration_behavior_parser_rejects_invalid_values() {
-        let err = proration_behavior_from_str("bad_behavior").unwrap_err();
-        assert!(matches!(err, StripeError::Api(_)));
     }
 
     #[test]

@@ -341,6 +341,101 @@ MOCK
     rm -rf "$mock_dir"
 }
 
+test_validate_stripe_default_mode_keeps_test_mode_step_names() {
+    local output exit_code
+    output="$(STRIPE_SECRET_KEY='sk_live_default_mode_reject' bash "$REPO_ROOT/scripts/validate-stripe.sh" 2>&1)" || exit_code=$?
+
+    assert_eq "${exit_code:-0}" "1" "validate-stripe default mode should still reject sk_live_ keys"
+    assert_valid_json "$output" "validate-stripe default-mode live-key output should be valid JSON"
+    assert_contains "$output" "require_test_mode_stripe_secret_key" "default mode should preserve require_test_mode_stripe_secret_key step naming"
+    assert_not_contains "$output" "live_cutover_mode_enabled" "default mode output should not include live-cutover success evidence step"
+    assert_not_contains "$output" "require_live_cutover_control" "default mode should not require cutover control"
+}
+
+test_validate_stripe_live_cutover_requires_control() {
+    local mock_dir
+    local call_log
+    mock_dir="$(mktemp -d)"
+    call_log="$mock_dir/curl_called.log"
+    cat > "$mock_dir/curl" <<'MOCK'
+#!/usr/bin/env bash
+echo "called" >> "$STRIPE_TEST_CALL_LOG"
+echo '{"id":"cus_mock"}'
+echo "200"
+exit 0
+MOCK
+    chmod +x "$mock_dir/curl"
+
+    local output exit_code
+    output="$(STRIPE_SECRET_KEY='sk_live_cutover_requires_control' STRIPE_TEST_CALL_LOG="$call_log" PATH="$mock_dir:$PATH" bash "$REPO_ROOT/scripts/validate-stripe.sh" --live-cutover 2>&1)" || exit_code=$?
+
+    assert_eq "${exit_code:-0}" "1" "validate-stripe live-cutover invocation should fail without explicit cutover control"
+    assert_valid_json "$output" "validate-stripe missing cutover control output should be valid JSON"
+    assert_contains "$output" "require_live_cutover_control" "live-cutover mode should emit explicit cutover control step on failure"
+    if [ -f "$call_log" ]; then
+        fail "validate-stripe should not call curl when live-cutover control is missing"
+    else
+        pass "validate-stripe should fail before curl when live-cutover control is missing"
+    fi
+
+    rm -rf "$mock_dir"
+}
+
+test_validate_stripe_live_cutover_allows_live_keys_with_control() {
+    local mock_dir response_file output
+    mock_dir="$(mktemp -d)"
+    response_file="$mock_dir/responses.json"
+    cat > "$response_file" <<'JSON'
+{"index":0,"responses":[
+  {"status":200,"body":"{\"id\":\"cus_mock_customer\"}"},
+  {"status":200,"body":"{\"id\":\"pm_attached_customer_card\"}"},
+  {"status":200,"body":"{\"id\":\"cus_mock_customer\"}"},
+  {"status":200,"body":"{\"id\":\"ii_mock_invoice_item\"}"},
+  {"status":200,"body":"{\"id\":\"in_mock_invoice\"}"},
+  {"status":200,"body":"{\"status\":\"paid\"}"}
+]}
+JSON
+    write_mock_curl_with_sequence "$mock_dir/curl"
+
+    output="$(STRIPE_SECRET_KEY='rk_live_cutover_ok' STRIPE_LIVE_CUTOVER=1 STRIPE_TEST_RESPONSE_FILE="$response_file" PATH="$mock_dir:$PATH" bash "$REPO_ROOT/scripts/validate-stripe.sh" --live-cutover)"
+
+    assert_valid_json "$output" "validate-stripe live-cutover success output should be valid JSON"
+    assert_json_bool_field "$output" "passed" "true" "validate-stripe live-cutover flow should report passed=true"
+    assert_contains "$output" "live_cutover_mode_enabled" "validate-stripe live-cutover output should include explicit evidence step"
+    assert_not_contains "$output" "require_test_mode_stripe_secret_key" "live-cutover success should not emit default test-mode failure step"
+
+    rm -rf "$mock_dir"
+}
+
+test_validate_stripe_live_cutover_rejects_test_keys() {
+    local mock_dir
+    local call_log
+    mock_dir="$(mktemp -d)"
+    call_log="$mock_dir/curl_called.log"
+    cat > "$mock_dir/curl" <<'MOCK'
+#!/usr/bin/env bash
+echo "called" >> "$STRIPE_TEST_CALL_LOG"
+echo '{"id":"cus_mock"}'
+echo "200"
+exit 0
+MOCK
+    chmod +x "$mock_dir/curl"
+
+    local output exit_code
+    output="$(STRIPE_SECRET_KEY='sk_test_wrong_for_live_cutover' STRIPE_LIVE_CUTOVER=1 STRIPE_TEST_CALL_LOG="$call_log" PATH="$mock_dir:$PATH" bash "$REPO_ROOT/scripts/validate-stripe.sh" --live-cutover 2>&1)" || exit_code=$?
+
+    assert_eq "${exit_code:-0}" "1" "validate-stripe live-cutover mode should reject sk_test_ keys"
+    assert_valid_json "$output" "validate-stripe live-cutover test-key rejection should be valid JSON"
+    assert_contains "$output" "require_live_cutover_stripe_secret_key" "live-cutover mode should emit a dedicated live-key prefix requirement step"
+    if [ -f "$call_log" ]; then
+        fail "validate-stripe should not call curl when live-cutover mode rejects sk_test_ key"
+    else
+        pass "validate-stripe should reject sk_test_ key before curl in live-cutover mode"
+    fi
+
+    rm -rf "$mock_dir"
+}
+
 test_validate_stripe_uses_attached_payment_method_id_for_default() {
     local mock_dir response_file output
     mock_dir="$(mktemp -d)"
@@ -412,6 +507,10 @@ test_validate_stripe_rejects_live_canonical_key_before_api_calls
 test_validate_stripe_rejects_live_alias_key_before_api_calls
 test_validate_stripe_rejects_restricted_live_canonical_key_before_api_calls
 test_validate_stripe_rejects_restricted_live_alias_key_before_api_calls
+test_validate_stripe_default_mode_keeps_test_mode_step_names
+test_validate_stripe_live_cutover_requires_control
+test_validate_stripe_live_cutover_allows_live_keys_with_control
+test_validate_stripe_live_cutover_rejects_test_keys
 test_validate_stripe_uses_attached_payment_method_id_for_default
 test_validate_stripe_surfaces_stripe_error_context
 test_secret_rotation_runbook_avoids_inline_secret_cli_examples

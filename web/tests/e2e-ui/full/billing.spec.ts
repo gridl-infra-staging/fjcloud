@@ -3,29 +3,13 @@
  *
  * Verifies the complete billing surface:
  *   - Load-and-verify: billing page renders the Billing heading
- *   - Billing page exposes a single Stripe portal handoff path or the unavailable card
+ *   - Billing page exposes a single Stripe portal handoff path or the unavailable card (no cancel affordance)
  *   - Invoices page renders (empty or with rows)
  *   - Invoice detail page renders heading, dates, and line items
  *   - Invoice PDF download link renders when backend provides pdf_url
  */
 
-import type { Page } from '@playwright/test';
 import { test, expect } from '../../fixtures/fixtures';
-import { AUTH_COOKIE } from '../../../src/lib/server/auth-session-contracts';
-
-const BASE_URL = process.env.BASE_URL ?? 'http://localhost:5173';
-
-async function setAuthCookieForToken(page: Page, token: string): Promise<void> {
-	await page.context().addCookies([
-		{
-			name: AUTH_COOKIE,
-			value: token,
-			url: BASE_URL,
-			httpOnly: true,
-			sameSite: 'Lax'
-		}
-	]);
-}
 
 test.describe('Billing page', () => {
 	test('load-and-verify: billing page renders Billing heading', async ({ page }) => {
@@ -42,11 +26,14 @@ test.describe('Billing page', () => {
 		await page.goto('/dashboard/billing');
 
 		const manageBillingButton = page.getByRole('button', { name: 'Manage billing' });
+		await expect(page.getByRole('button', { name: /cancel\s+subscription/i })).toHaveCount(0);
+
 		if ((await manageBillingButton.count()) > 0) {
 			await expect(manageBillingButton).toBeVisible();
 			// eslint-disable-next-line playwright/no-raw-locators -- form lookup by action attr; no role-based or text-based locator equivalent for SvelteKit form actions
 			await expect(page.locator('form[action="?/manageBilling"]')).toBeVisible();
 			await expect(page.getByRole('link', { name: 'Add payment method' })).toHaveCount(0);
+			await expect(page.getByText('Payment method management unavailable')).toHaveCount(0);
 			return;
 		}
 
@@ -57,30 +44,6 @@ test.describe('Billing page', () => {
 			)
 		).toBeVisible();
 		await expect(manageBillingButton).toHaveCount(0);
-	});
-
-	test('billing page shows cancel-at-period-end banner from server-owned subscription state', async ({
-		page,
-		arrangeBillingPortalCustomer
-	}) => {
-		let arrangedCustomer: Awaited<ReturnType<typeof arrangeBillingPortalCustomer>>;
-		try {
-			arrangedCustomer = await arrangeBillingPortalCustomer(true);
-		} catch (error) {
-			if (error instanceof Error) {
-				// eslint-disable-next-line playwright/no-skipped-test -- live Stripe/billing preconditions vary by local environment
-				test.skip(true, `Billing cancellation arrange unavailable: ${error.message}`);
-			}
-			throw error;
-		}
-
-		await setAuthCookieForToken(page, arrangedCustomer.token);
-		await page.goto('/dashboard/billing');
-		await expect(page.getByTestId('subscription-cancelled-banner')).toHaveText(
-			`Subscription cancelled, ends ${arrangedCustomer.subscription.current_period_end}`
-		);
-		await expect(page.getByRole('button', { name: 'Manage billing' })).toBeVisible();
-		await expect(page.getByRole('button', { name: /cancel subscription/i })).toHaveCount(0);
 	});
 });
 

@@ -360,7 +360,15 @@ test_execute_requires_staging_ack_before_preflight_or_mutation_calls() {
         "execute without staging acknowledgement should not write SQL"
 }
 
-test_execute_guard_fails_closed_for_all_selectors_before_mutations() {
+test_execute_accepts_all_three_tenants_post_stage2() {
+    # Stage 2 historically accepted only --tenant A in execute mode. LAUNCH.md
+    # LB-5 requires the seeder to close for tenants A + B + C, so the gate
+    # is lifted and execute mode now progresses past the selector guard for
+    # all four selectors (A, B, C, all). The Stage-2 error string must no
+    # longer appear; instead, runs without the credentialed env file fall
+    # through to the preflight env-validation owner (which fails on missing
+    # required vars in this mock setup), and dry-run "all" continues to
+    # describe all three tenants without mutations.
     local tmp_dir
     tmp_dir=$(mktemp -d)
     trap 'rm -rf "'"$tmp_dir"'"' RETURN
@@ -370,40 +378,116 @@ test_execute_guard_fails_closed_for_all_selectors_before_mutations() {
     local psql_stdin="$tmp_dir/psql.stdin"
     setup_mock_workspace "$tmp_dir" "$curl_log" "$psql_log" "$psql_stdin"
 
-    local selector curl_calls
+    local selector
     for selector in B C all; do
         clear_mock_logs "$curl_log" "$psql_log" "$psql_stdin"
         run_seed_synthetic_execute "$tmp_dir" "$selector"
 
-        assert_eq "$RUN_EXIT_CODE" "1" \
-            "execute selector $selector should fail closed before preflight or staging mutations"
-        assert_contains "$RUN_OUTPUT" "execute mode supports only --tenant A in Stage 2" \
-            "execute selector $selector should be rejected by the Stage 2 unsupported-selector guard"
-        assert_not_contains "$RUN_OUTPUT" "missing required env vars:" \
-            "execute selector $selector should fail before preflight env validation"
+        # The Stage-2 gate must be gone for B/C/all execute selectors.
+        # If the gate string ever reappears, this assertion is the canary.
+        assert_not_contains "$RUN_OUTPUT" "execute mode supports only --tenant A in Stage 2" \
+            "execute selector $selector should not be rejected by the (now-removed) Stage 2 unsupported-selector gate"
 
-        curl_calls="$(read_file_or_empty "$curl_log")"
-        assert_not_contains "$curl_calls" "/admin/tenants" \
-            "execute selector $selector guard should block admin provisioning"
-        assert_not_contains "$curl_calls" "/internal/storage" \
-            "execute selector $selector guard should block storage polling"
-        assert_not_contains "$curl_calls" "/1/indexes/" \
-            "execute selector $selector guard should block direct flapjack traffic"
-
-        assert_eq "$(line_count_or_zero "$curl_log")" "0" \
-            "execute selector $selector guard should produce zero curl calls"
-        assert_eq "$(line_count_or_zero "$psql_log")" "0" \
-            "execute selector $selector guard should produce zero psql calls"
-        assert_eq "$(line_count_or_zero "$psql_stdin")" "0" \
-            "execute selector $selector guard should not write SQL"
+        # The seeder header must appear — proves the script progressed
+        # past argument parsing and beyond where the old Stage-2 gate
+        # used to die. Tighter than just "no gate string": guards against
+        # a regression where parsing dies for a different reason and
+        # the gate string also happens to be absent.
+        assert_contains "$RUN_OUTPUT" "=== synthetic traffic seeder ===" \
+            "execute selector $selector should reach the synthetic-seeder header (proves progression past the Stage-2 gate)"
     done
 
+    # dry-run "all" is unchanged: describes all three tenants without
+    # mutations.
     clear_mock_logs "$curl_log" "$psql_log" "$psql_stdin"
     run_seed_synthetic_dry_run "$tmp_dir" "all"
     assert_eq "$RUN_EXIT_CODE" "0" "dry-run tenant all should remain descriptive"
     assert_tenant_description "$RUN_OUTPUT" "A"
     assert_tenant_description "$RUN_OUTPUT" "B"
     assert_tenant_description "$RUN_OUTPUT" "C"
+}
+
+test_provision_only_skips_storage_backfill_and_sustained_traffic() {
+    # LAUNCH.md LB-5 requires usage_records rows for tenants A + B + C on
+    # current-main. The metering agent on staging Flapjack VMs writes
+    # usage_records as soon as a tenant index exists, regardless of size —
+    # so for B (2 GB) and C (20 GB) targets, the storage-convergence loop
+    # is overkill (and runs into MAX_STAGE3_STORAGE_POLLS=400 well before
+    # converging). --provision-only is a clean opt-in that runs only
+    # ensure_customer_and_tenant for the selected tenant(s) and exits.
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    trap 'rm -rf "'"$tmp_dir"'"' RETURN
+
+    local curl_log="$tmp_dir/curl.log"
+    local psql_log="$tmp_dir/psql.log"
+    local psql_stdin="$tmp_dir/psql.stdin"
+    setup_mock_workspace "$tmp_dir" "$curl_log" "$psql_log" "$psql_stdin"
+
+    clear_mock_logs "$curl_log" "$psql_log" "$psql_stdin"
+
+    # Provisioning-only run for tenant B. The mocks accept create-customer
+    # + create-tenant + index-seed but no /batch backfill calls and no
+    # sustained-write/search loops should ever fire.
+    RUN_EXIT_CODE=0
+    RUN_OUTPUT=$(
+        PATH="$tmp_dir/bin:$PATH" \
+        API_URL="http://synthetic-api.test" \
+        ADMIN_KEY="synthetic-admin-key" \
+        DATABASE_URL="postgres://griddle:griddle_local@127.0.0.1:15432/fjcloud_dev" \
+        FLAPJACK_URL="http://synthetic-flapjack.test" \
+        FLAPJACK_API_KEY="synthetic-flapjack-api-key" \
+        MOCK_SYNTHETIC_STORAGE_MB="${MOCK_SYNTHETIC_STORAGE_MB:-}" \
+        bash "$REPO_ROOT/scripts/launch/seed_synthetic_traffic.sh" \
+            --tenant B \
+            --execute \
+            --i-know-this-hits-staging \
+            --provision-only 2>&1
+    ) || RUN_EXIT_CODE=$?
+
+    assert_eq "$RUN_EXIT_CODE" "0" \
+        "provision-only run for tenant B should exit cleanly without storage convergence"
+
+    # Tenant provisioning + index seeding calls should appear. The seeder
+    # provisioning path calls /admin/tenants (not /admin/customers — the
+    # customer is implicitly created or resolved by /admin/tenants), then
+    # /1/indexes/<uid> for the seed index.
+    local curl_calls
+    curl_calls="$(read_file_or_empty "$curl_log")"
+    assert_contains "$curl_calls" "/admin/tenants" \
+        "provision-only should call admin tenant create/list"
+
+    # The storage-backfill /batch loop and sustained-write loop must NOT
+    # fire. Use the literal /batch suffix; the actual URL is
+    # /1/indexes/<uid>/batch.
+    assert_not_contains "$curl_calls" "/batch" \
+        "provision-only should skip /batch storage-backfill calls"
+}
+
+test_provision_only_compatible_with_all_three_tenants() {
+    # Smoke check: --provision-only --tenant all should describe all three
+    # tenants in dry-run mode and not error in the new flag combination.
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    trap 'rm -rf "'"$tmp_dir"'"' RETURN
+
+    local curl_log="$tmp_dir/curl.log"
+    local psql_log="$tmp_dir/psql.log"
+    local psql_stdin="$tmp_dir/psql.stdin"
+    setup_mock_workspace "$tmp_dir" "$curl_log" "$psql_log" "$psql_stdin"
+
+    RUN_EXIT_CODE=0
+    RUN_OUTPUT=$(
+        PATH="$tmp_dir/bin:$PATH" \
+        bash "$REPO_ROOT/scripts/launch/seed_synthetic_traffic.sh" \
+            --tenant all \
+            --provision-only 2>&1
+    ) || RUN_EXIT_CODE=$?
+
+    assert_eq "$RUN_EXIT_CODE" "0" \
+        "dry-run --provision-only --tenant all should exit cleanly"
+    assert_contains "$RUN_OUTPUT" "provision-only" \
+        "dry-run --provision-only should mention provision-only mode in output"
 }
 
 test_provisioning_contract_first_run_pins_create_update_and_index_fields() {
@@ -1234,7 +1318,9 @@ main() {
         stage2)
             test_dry_run_contracts_cover_A_B_C_and_all_without_mutation_calls
             test_execute_requires_staging_ack_before_preflight_or_mutation_calls
-            test_execute_guard_fails_closed_for_all_selectors_before_mutations
+            test_execute_accepts_all_three_tenants_post_stage2
+            test_provision_only_skips_storage_backfill_and_sustained_traffic
+            test_provision_only_compatible_with_all_three_tenants
             test_provisioning_contract_first_run_pins_create_update_and_index_fields
             test_provisioning_contract_rerun_is_idempotent_without_duplicate_create_calls
             test_seed_index_accepts_200_ok_from_idempotent_rerun_path
@@ -1260,7 +1346,9 @@ main() {
         full)
             test_dry_run_contracts_cover_A_B_C_and_all_without_mutation_calls
             test_execute_requires_staging_ack_before_preflight_or_mutation_calls
-            test_execute_guard_fails_closed_for_all_selectors_before_mutations
+            test_execute_accepts_all_three_tenants_post_stage2
+            test_provision_only_skips_storage_backfill_and_sustained_traffic
+            test_provision_only_compatible_with_all_three_tenants
             test_provisioning_contract_first_run_pins_create_update_and_index_fields
             test_provisioning_contract_rerun_is_idempotent_without_duplicate_create_calls
             test_seed_index_accepts_200_ok_from_idempotent_rerun_path

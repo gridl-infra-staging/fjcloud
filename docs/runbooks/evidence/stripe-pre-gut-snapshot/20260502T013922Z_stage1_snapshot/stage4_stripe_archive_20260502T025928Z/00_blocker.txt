@@ -1,0 +1,4 @@
+missing_required_stripe_keys
+live_key_source=.secret/.env.secret
+live_key_var=STRIPE_SECRET_KEY_flapjack_cloud
+stripe_cli_live_mode_key=not_available

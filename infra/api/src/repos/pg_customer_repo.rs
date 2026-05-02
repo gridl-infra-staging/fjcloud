@@ -44,7 +44,6 @@ impl PgCustomerRepo {
         format!(
             "SELECT {CUSTOMER_COLUMNS}, \
                     tenant_summary.last_accessed_at AS last_accessed_at, \
-                    subscription_summary.status AS subscription_status, \
                     COALESCE(invoice_summary.overdue_invoice_count, 0) AS overdue_invoice_count \
              FROM customers \
              LEFT JOIN ( \
@@ -52,12 +51,6 @@ impl PgCustomerRepo {
                 FROM customer_tenants \
                 GROUP BY customer_id \
              ) AS tenant_summary ON tenant_summary.customer_id = customers.id \
-             LEFT JOIN ( \
-                SELECT DISTINCT ON (customer_id) customer_id, status \
-                FROM subscriptions \
-                WHERE status != 'canceled' \
-                ORDER BY customer_id, created_at DESC \
-             ) AS subscription_summary ON subscription_summary.customer_id = customers.id \
              LEFT JOIN ( \
                 SELECT customer_id, COUNT(*) AS overdue_invoice_count \
                 FROM invoices \
@@ -104,12 +97,8 @@ mod tests {
     fn list_sql_uses_shared_subscription_summary_join() {
         let sql = PgCustomerRepo::list_customers_sql();
         assert!(
-            !sql.contains("LEFT JOIN LATERAL"),
-            "customer list query must avoid a per-customer lateral subscription probe"
-        );
-        assert!(
-            sql.contains("DISTINCT ON (customer_id)"),
-            "customer list query should compute one latest non-canceled subscription row per customer before joining"
+            !sql.contains("subscriptions"),
+            "customer list query must not read subscriptions after subscription seam removal"
         );
     }
 }

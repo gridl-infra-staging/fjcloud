@@ -17,7 +17,6 @@ export const actions = {
 		const email = (data.get('email') as string)?.trim().toLowerCase();
 		const password = data.get('password') as string;
 		const confirmPassword = data.get('confirm_password') as string;
-		const betaAcknowledged = data.get('beta_acknowledged') === 'on';
 
 		const errors: Record<string, string> = {};
 		if (!name) errors.name = 'Name is required';
@@ -26,11 +25,6 @@ export const actions = {
 		const passwordError = validateSignupPassword(password);
 		if (passwordError) errors.password = passwordError;
 		if (password !== confirmPassword) errors.confirm_password = 'Passwords do not match';
-		if (!betaAcknowledged) {
-			// The checkbox is client-required too, but server validation is the
-			// durable contract for non-browser clients and future form changes.
-			errors.beta_acknowledgement = 'Please acknowledge the public beta terms before signing up.';
-		}
 
 		if (Object.keys(errors).length > 0) {
 			return fail(400, { errors, name, email });

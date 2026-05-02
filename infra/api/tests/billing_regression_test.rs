@@ -141,7 +141,10 @@ fn stage2_bundle_dir() -> PathBuf {
         .join(STAGE2_BUNDLE_DIR)
 }
 
-fn read_stage2_fixture<T: serde::de::DeserializeOwned>(path: &PathBuf, file_name: &str) -> T {
+fn read_stage2_fixture<T: serde::de::DeserializeOwned>(
+    path: &std::path::Path,
+    file_name: &str,
+) -> T {
     let full_path = path.join(file_name);
     let raw = std::fs::read_to_string(&full_path)
         .unwrap_or_else(|e| panic!("failed to read {}: {}", full_path.display(), e));
@@ -184,7 +187,6 @@ fn stage2_customer_from_context(
         password_reset_token: None,
         password_reset_expires_at: None,
         last_accessed_at: None,
-        subscription_status: None,
         overdue_invoice_count: 0,
         object_storage_egress_carryforward_cents: context.object_storage_egress_carryforward_cents,
     }

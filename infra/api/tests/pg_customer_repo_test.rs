@@ -552,20 +552,16 @@ async fn list_aggregates_billing_health_inputs_without_duplicate_customer_rows()
 
     let subscription_period_start = chrono::NaiveDate::from_ymd_opt(2026, 1, 1).unwrap();
     let subscription_period_end = chrono::NaiveDate::from_ymd_opt(2026, 1, 31).unwrap();
-    // Migration 029 allows at most one non-canceled subscription per customer.
-    // This fixture therefore proves the list query against the real schema
-    // contract: one non-canceled row plus newer canceled rows that must be
-    // ignored by the subscription summary join.
-    let non_canceled_created_at = chrono::Utc::now() - chrono::Duration::hours(6);
-    let newest_canceled_created_at = chrono::Utc::now() - chrono::Duration::hours(1);
+    // Seed subscription rows to prove the customer list query no longer
+    // depends on subscription data after Stage 5 seam removal.
     sqlx::query(
         "INSERT INTO subscriptions \
             (customer_id, stripe_subscription_id, stripe_price_id, plan_tier, status, \
              current_period_start, current_period_end, cancel_at_period_end, created_at, updated_at) \
          VALUES \
-            ($1, $2, $3, $4, $5, $6, $7, FALSE, $8, $8), \
-            ($9, $10, $11, $12, $13, $14, $15, FALSE, $16, $16), \
-            ($17, $18, $19, $20, $21, $22, $23, FALSE, $24, $24)",
+            ($1, $2, $3, $4, $5, $6, $7, FALSE, NOW(), NOW()), \
+            ($8, $9, $10, $11, $12, $13, $14, FALSE, NOW(), NOW()), \
+            ($15, $16, $17, $18, $19, $20, $21, FALSE, NOW(), NOW())",
     )
     .bind(first.id)
     .bind(format!("sub-list-health-trialing-{first_short}"))
@@ -574,7 +570,6 @@ async fn list_aggregates_billing_health_inputs_without_duplicate_customer_rows()
     .bind("trialing")
     .bind(subscription_period_start)
     .bind(subscription_period_end)
-    .bind(non_canceled_created_at)
     .bind(first.id)
     .bind(format!("sub-list-health-canceled-{first_short}"))
     .bind("price_test_canceled")
@@ -582,7 +577,6 @@ async fn list_aggregates_billing_health_inputs_without_duplicate_customer_rows()
     .bind("canceled")
     .bind(subscription_period_start)
     .bind(subscription_period_end)
-    .bind(newest_canceled_created_at)
     .bind(second.id)
     .bind(format!("sub-list-health-canceled-{second_short}"))
     .bind("price_test_second_canceled")
@@ -590,10 +584,9 @@ async fn list_aggregates_billing_health_inputs_without_duplicate_customer_rows()
     .bind("canceled")
     .bind(subscription_period_start)
     .bind(subscription_period_end)
-    .bind(newest_canceled_created_at)
     .execute(&pool)
     .await
-    .expect("insert subscription rows");
+    .expect("insert subscription rows that list query must ignore");
 
     sqlx::query(
         "INSERT INTO invoices (customer_id, period_start, period_end, subtotal_cents, total_cents, status) \
@@ -632,11 +625,6 @@ async fn list_aggregates_billing_health_inputs_without_duplicate_customer_rows()
         "list should project MAX(customer_tenants.last_accessed_at) per customer"
     );
     assert_eq!(
-        first_row.subscription_status.as_deref(),
-        Some("trialing"),
-        "list should ignore newer canceled subscriptions and project the remaining non-canceled status"
-    );
-    assert_eq!(
         first_row.overdue_invoice_count, 2,
         "list should count only failed invoices for overdue tally"
     );
@@ -648,10 +636,6 @@ async fn list_aggregates_billing_health_inputs_without_duplicate_customer_rows()
     assert!(
         second_row.last_accessed_at.is_some(),
         "customer with one tenant should project that tenant's last_accessed_at"
-    );
-    assert_eq!(
-        second_row.subscription_status, None,
-        "customer with only canceled subscriptions should have null subscription_status"
     );
     assert_eq!(
         second_row.overdue_invoice_count, 0,

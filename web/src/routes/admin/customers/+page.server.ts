@@ -19,7 +19,16 @@ export type AdminCustomersPageData = {
 };
 function toCustomerListItem(tenant: AdminTenant): AdminCustomerListItem {
 	return {
-		...tenant,
+		id: tenant.id,
+		name: tenant.name,
+		email: tenant.email,
+		status: tenant.status,
+		billing_plan: tenant.billing_plan,
+		last_accessed_at: tenant.last_accessed_at,
+		overdue_invoice_count: tenant.overdue_invoice_count,
+		billing_health: tenant.billing_health,
+		created_at: tenant.created_at,
+		updated_at: tenant.updated_at,
 		index_count: null
 	};
 }

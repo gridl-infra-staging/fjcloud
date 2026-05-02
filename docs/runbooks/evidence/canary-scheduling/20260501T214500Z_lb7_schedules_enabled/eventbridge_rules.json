@@ -1,0 +1,20 @@
+{
+    "Rules": [
+        {
+            "Name": "fjcloud-staging-customer-loop-canary",
+            "Arn": "arn:aws:events:us-east-1:213880904778:rule/fjcloud-staging-customer-loop-canary",
+            "State": "ENABLED",
+            "Description": "Scheduled trigger for customer loop synthetic canary",
+            "ScheduleExpression": "rate(15 minutes)",
+            "EventBusName": "default"
+        },
+        {
+            "Name": "fjcloud-staging-support-email-canary-schedule",
+            "Arn": "arn:aws:events:us-east-1:213880904778:rule/fjcloud-staging-support-email-canary-schedule",
+            "State": "ENABLED",
+            "Description": "Runs the support email deliverability canary on a fixed schedule",
+            "ScheduleExpression": "rate(6 hours)",
+            "EventBusName": "default"
+        }
+    ]
+}

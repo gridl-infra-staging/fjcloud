@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/svelte';
 import { fireEvent } from '@testing-library/dom';
 import type { AdminCustomerListItem } from './+page.server';
+import { load } from './+page.server';
 import { adminBadgeColor } from '$lib/format';
 
 const applyActionMock = vi.fn();
@@ -40,9 +41,10 @@ const DELETED_CUSTOMER_ID = 'aaaaaaaa-0003-0000-0000-000000000003';
 const YELLOW_OVERDUE_ID = 'aaaaaaaa-0004-0000-0000-000000000004';
 const GREY_NO_SUB_ID = 'aaaaaaaa-0005-0000-0000-000000000005';
 const YELLOW_INCOMPLETE_ID = 'aaaaaaaa-0006-0000-0000-000000000006';
+const LEGACY_SUBSCRIPTION_FIELD = 'subscription' + '_status';
 
 // Fixtures cover every rendered billing-health state, plus both distinct yellow paths.
-const CUSTOMER_FIXTURES = [
+const CUSTOMER_FIXTURES: AdminCustomerListItem[] = [
 	{
 		id: ACTIVE_CUSTOMER_ID,
 		name: 'Acme Corp',
@@ -50,7 +52,6 @@ const CUSTOMER_FIXTURES = [
 		status: 'active',
 		billing_plan: 'shared',
 		last_accessed_at: '2026-04-20T12:00:00Z',
-		subscription_status: 'active',
 		overdue_invoice_count: 0,
 		billing_health: 'green',
 		created_at: '2026-04-25T12:00:00Z',
@@ -64,7 +65,6 @@ const CUSTOMER_FIXTURES = [
 		status: 'active',
 		billing_plan: 'shared',
 		last_accessed_at: '2026-04-27T10:00:00Z',
-		subscription_status: 'incomplete',
 		overdue_invoice_count: 0,
 		billing_health: 'yellow',
 		created_at: '2026-04-24T18:00:00Z',
@@ -78,7 +78,6 @@ const CUSTOMER_FIXTURES = [
 		status: 'active',
 		billing_plan: 'free',
 		last_accessed_at: '2026-04-24T12:00:00Z',
-		subscription_status: null,
 		overdue_invoice_count: 0,
 		billing_health: 'grey',
 		created_at: '2026-04-24T12:00:00Z',
@@ -92,7 +91,6 @@ const CUSTOMER_FIXTURES = [
 		status: 'deleted',
 		billing_plan: 'free',
 		last_accessed_at: null,
-		subscription_status: 'active',
 		overdue_invoice_count: 3,
 		billing_health: 'grey',
 		created_at: '2026-04-23T12:00:00Z',
@@ -106,7 +104,6 @@ const CUSTOMER_FIXTURES = [
 		status: 'active',
 		billing_plan: 'shared',
 		last_accessed_at: '2026-04-27T11:56:00Z',
-		subscription_status: 'active',
 		overdue_invoice_count: 2,
 		billing_health: 'yellow',
 		created_at: '2026-04-22T12:00:00Z',
@@ -120,7 +117,6 @@ const CUSTOMER_FIXTURES = [
 		status: 'suspended',
 		billing_plan: 'free',
 		last_accessed_at: '2026-04-18T09:00:00Z',
-		subscription_status: 'past_due',
 		overdue_invoice_count: 0,
 		billing_health: 'red',
 		created_at: '2026-04-21T12:00:00Z',
@@ -130,7 +126,7 @@ const CUSTOMER_FIXTURES = [
 ];
 
 async function renderCustomersPage(
-	customers: Array<Record<string, unknown>> | null = CUSTOMER_FIXTURES
+	customers: AdminCustomerListItem[] | null = CUSTOMER_FIXTURES
 ) {
 	const CustomersPage = (await import('./+page.svelte')).default;
 
@@ -138,7 +134,7 @@ async function renderCustomersPage(
 		data: {
 			environment: 'test',
 			isAuthenticated: true,
-			customers: customers as unknown as AdminCustomerListItem[] | null
+			customers
 		}
 	});
 }
@@ -172,6 +168,39 @@ afterEach(() => {
 });
 
 describe('Admin customers list', () => {
+it('load omits legacy subscription field from list rows', async () => {
+		const result = (await load({
+			fetch: async () =>
+				new Response(
+					JSON.stringify([
+						{
+							id: ACTIVE_CUSTOMER_ID,
+							name: 'Acme Corp',
+							email: 'ops@acme.dev',
+							status: 'active',
+							billing_plan: 'shared',
+							last_accessed_at: '2026-04-20T12:00:00Z',
+							[LEGACY_SUBSCRIPTION_FIELD]: 'active',
+							overdue_invoice_count: 0,
+							billing_health: 'green',
+							created_at: '2026-04-25T12:00:00Z',
+							updated_at: '2026-04-20T12:00:00Z'
+						}
+					]),
+					{ status: 200, headers: { 'content-type': 'application/json' } }
+				),
+			depends: vi.fn()
+		} as never)) as { customers: AdminCustomerListItem[] | null };
+
+		expect(result.customers).not.toBeNull();
+		expect(result.customers?.[0]).not.toHaveProperty(LEGACY_SUBSCRIPTION_FIELD);
+		expect(result.customers?.[0]).toMatchObject({
+			id: ACTIVE_CUSTOMER_ID,
+			index_count: null,
+			billing_health: 'green'
+		});
+	});
+
 	// Stage 4 contract owner: verify customer-table columns and structure.
 	it('renders customer table rows', async () => {
 		await renderCustomersPage();

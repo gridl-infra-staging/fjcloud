@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import {
 	adminReactivateCustomerById,
 	createRegisteredUser,
@@ -25,6 +27,15 @@ function makeJsonResponse(status: number, body: MockJsonBody): Response {
 }
 
 describe('e2e fixture user helpers', () => {
+	it('does not expose deprecated subscription-checkout helpers in the fixture contract surface', () => {
+		const fixtureSource = readFileSync(join(process.cwd(), 'tests/fixtures/fixtures.ts'), 'utf8');
+
+		expect(fixtureSource).not.toMatch(/\bensureCheckoutSubscriptionReady\b/);
+		expect(fixtureSource).not.toMatch(/\bwaitForSubscriptionStatus\b/);
+		expect(fixtureSource).not.toMatch(/\barrangeBillingDunningForFreshSignup\b/);
+		expect(fixtureSource).not.toMatch(/\barrangeRefundedInvoiceForFreshSignup\b/);
+	});
+
 	beforeEach(() => {
 		vi.restoreAllMocks();
 	});

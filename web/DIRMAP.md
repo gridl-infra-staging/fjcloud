@@ -9,5 +9,5 @@
 | Directory | Summary |
 | --- | --- |
 | src | The src directory is the SvelteKit frontend for the fjcloud web application, containing shared utility libraries for API clients, authentication, and pricing, plus server-side routes that implement an admin dashboard, customer billing portal, pricing endpoints, and service status monitoring. |
-| tests | The tests directory provides Playwright test fixtures and setup helpers for authentication flows across admin, customer, and onboarding contexts, along with domain-specific utilities for testing legal pages, search functionality, and database operations. |
+| tests | The tests directory contains Playwright browser testing infrastructure and fixtures for end-to-end UI testing, including authentication setup for multiple test projects, database utilities, and page interaction helpers. |
 <!-- [scrai:end] -->

@@ -1,7 +1,3 @@
-//! Test scaffolding for Stripe webhook integration tests: builds an
-//! AppState with mock repos and a LocalStripeService, plus helpers that
-//! synthesize signed webhook request bodies the integration tests POST
-//! against the routed handler.
 
 use std::sync::Arc;
 
@@ -13,8 +9,8 @@ use axum::http::Request;
 
 use super::{
     mock_deployment_repo, mock_rate_card_repo, mock_usage_repo, test_state_all_with_stripe,
-    MockCustomerRepo, MockInvoiceRepo, MockStripeService, MockSubscriptionRepo,
-    MockWebhookEventRepo, TEST_WEBHOOK_SECRET,
+    MockCustomerRepo, MockInvoiceRepo, MockStripeService, MockWebhookEventRepo,
+    TEST_WEBHOOK_SECRET,
 };
 
 pub fn webhook_request(body: &str) -> Request<Body> {
@@ -31,10 +27,8 @@ pub fn webhook_request_with_signature(body: &str, signature: &str) -> Request<Bo
 
 fn build_webhook_test_app(
     mut state: AppState,
-    subscription_repo: Arc<MockSubscriptionRepo>,
     webhook_event_repo: Arc<MockWebhookEventRepo>,
 ) -> axum::Router {
-    state.subscription_repo = subscription_repo;
     state.webhook_event_repo = webhook_event_repo as Arc<dyn WebhookEventRepo + Send + Sync>;
 
     api::router::build_router(state)
@@ -43,7 +37,6 @@ fn build_webhook_test_app(
 pub fn local_stripe_webhook_app(
     customer_repo: Arc<MockCustomerRepo>,
     invoice_repo: Arc<MockInvoiceRepo>,
-    subscription_repo: Arc<MockSubscriptionRepo>,
     webhook_event_repo: Arc<MockWebhookEventRepo>,
 ) -> axum::Router {
     let mut state = test_state_all_with_stripe(
@@ -59,7 +52,7 @@ pub fn local_stripe_webhook_app(
         "http://127.0.0.1:65535/webhooks/stripe".to_string(),
     );
     state.stripe_service = Arc::new(local_stripe_service);
-    build_webhook_test_app(state, subscription_repo, webhook_event_repo)
+    build_webhook_test_app(state, webhook_event_repo)
 }
 
 /// Build a webhook app using the mock Stripe service so tests can seed Stripe
@@ -68,7 +61,6 @@ pub fn local_stripe_webhook_app(
 pub fn mock_stripe_webhook_app(
     customer_repo: Arc<MockCustomerRepo>,
     invoice_repo: Arc<MockInvoiceRepo>,
-    subscription_repo: Arc<MockSubscriptionRepo>,
     webhook_event_repo: Arc<MockWebhookEventRepo>,
     stripe_service: Arc<MockStripeService>,
 ) -> axum::Router {
@@ -80,5 +72,5 @@ pub fn mock_stripe_webhook_app(
         invoice_repo,
         stripe_service,
     );
-    build_webhook_test_app(state, subscription_repo, webhook_event_repo)
+    build_webhook_test_app(state, webhook_event_repo)
 }

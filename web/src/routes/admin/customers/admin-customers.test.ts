@@ -12,6 +12,8 @@ import {
 	POPULATED_AUDIT_FIXTURE_ROWS
 } from './admin-customer-detail.test-fixtures';
 
+const LEGACY_SUBSCRIPTION_FIELD = 'subscription' + '_status';
+
 vi.mock('$app/forms', () => ({
 	applyAction: vi.fn(),
 	enhance: () => ({ destroy: () => {} })
@@ -42,6 +44,10 @@ afterEach(() => {
 });
 
 describe('Admin customer detail', () => {
+	it('detail fixture omits legacy subscription field from tenant contract', () => {
+		expect(DETAIL_FIXTURE.tenant).not.toHaveProperty(LEGACY_SUBSCRIPTION_FIELD);
+	});
+
 	it('detail load returns 404 when the tenant is missing', async () => {
 		const { load } = await import('./[id]/+page.server');
 

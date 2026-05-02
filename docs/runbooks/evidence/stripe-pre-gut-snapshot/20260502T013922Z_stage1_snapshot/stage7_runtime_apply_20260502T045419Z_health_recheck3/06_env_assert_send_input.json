@@ -1,0 +1,12 @@
+{
+  "DocumentName": "AWS-RunShellScript",
+  "InstanceIds": [
+    "i-0afc7651593f12372"
+  ],
+  "Comment": "stage7 post-health env assert",
+  "Parameters": {
+    "commands": [
+      "set -euo pipefail; if grep -E \"^STRIPE_PRICE_\" /etc/fjcloud/env; then echo \"unexpected_stripe_price_keys_present\" >&2; exit 11; else echo \"no_stripe_price_keys\"; fi; grep -qE \"^STRIPE_SECRET_KEY=\" /etc/fjcloud/env; echo \"STRIPE_SECRET_KEY=<redacted-present>\"; grep -qE \"^STRIPE_PUBLISHABLE_KEY=\" /etc/fjcloud/env; echo \"STRIPE_PUBLISHABLE_KEY=<redacted-present>\"; grep -qE \"^STRIPE_WEBHOOK_SECRET=\" /etc/fjcloud/env; echo \"STRIPE_WEBHOOK_SECRET=<redacted-present>\""
+    ]
+  }
+}

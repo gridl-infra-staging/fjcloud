@@ -1,7 +1,3 @@
-//! fjcloud-api binary entry point: loads Config, wires up the AppState
-//! and DI graph (DNS manager, VM provisioner, repo trait objects, alert
-//! service, secret manager, etc.), runs migrations on startup, and
-//! serves the axum router on the configured listen address.
 
 use api::config::Config;
 use api::dns::DnsManager;
@@ -27,7 +23,6 @@ use api::startup_env::StartupEnvSnapshot;
 use api::startup_repos::PgRepos;
 use api::state::AppState;
 use api::stripe::StripeService;
-use billing::plan::PlanRegistry;
 use sqlx::PgPool;
 use std::sync::Arc;
 use std::time::Duration;
@@ -41,7 +36,6 @@ struct WiredServices {
     access_tracker: Arc<AccessTracker>,
     stripe_service: Arc<dyn StripeService>,
     webhook_http_client: Arc<dyn WebhookHttpClient>,
-    plan_registry: Arc<dyn PlanRegistry>,
     email_service: Arc<dyn EmailService>,
     vm_provisioner: Arc<dyn VmProvisioner>,
     region_config: RegionConfig,
@@ -104,7 +98,6 @@ struct RuntimeServices {
     access_tracker: Arc<AccessTracker>,
     stripe_service: Arc<dyn StripeService>,
     webhook_http_client: Arc<dyn WebhookHttpClient>,
-    plan_registry: Arc<dyn PlanRegistry>,
     email_service: Arc<dyn EmailService>,
     vm_provisioner: Arc<dyn VmProvisioner>,
     region_config: RegionConfig,
@@ -182,7 +175,6 @@ async fn wire_app_state_phase(bootstrap: StartupBootstrapPhase) -> anyhow::Resul
         access_tracker,
         stripe_service,
         webhook_http_client,
-        plan_registry,
         email_service,
         vm_provisioner,
         region_config,
@@ -218,7 +210,6 @@ async fn wire_app_state_phase(bootstrap: StartupBootstrapPhase) -> anyhow::Resul
         usage_repo,
         rate_card_repo,
         invoice_repo,
-        subscription_repo,
         tenant_repo,
         webhook_event_repo,
         vm_inventory_repo,
@@ -233,6 +224,7 @@ async fn wire_app_state_phase(bootstrap: StartupBootstrapPhase) -> anyhow::Resul
         admin_key: Arc::from(cfg.admin_key.as_str()),
         internal_auth_token: cfg.internal_auth_token.as_deref().map(Arc::from),
         stripe_webhook_secret: cfg.stripe_webhook_secret.as_deref().map(Arc::from),
+        stripe_publishable_key: cfg.stripe_publishable_key.clone(),
         stripe_success_url: cfg.stripe_success_url.clone(),
         stripe_cancel_url: cfg.stripe_cancel_url.clone(),
         metrics_collector: Arc::new(api::services::metrics::MetricsCollector::new()),
@@ -242,8 +234,6 @@ async fn wire_app_state_phase(bootstrap: StartupBootstrapPhase) -> anyhow::Resul
         usage_repo,
         rate_card_repo,
         invoice_repo,
-        subscription_repo,
-        plan_registry,
         stripe_service,
         webhook_http_client,
         email_service,
@@ -355,7 +345,6 @@ async fn wire_runtime_services(inputs: &ServiceWireInputs<'_>) -> anyhow::Result
             .timeout(Duration::from_secs(10))
             .build()?,
     ));
-    let plan_registry: Arc<dyn PlanRegistry> = Arc::new(billing::plan::EnvPlanRegistry::new());
     let email_service =
         api::startup::init_email_service(inputs.pool, inputs.startup_env, inputs.aws_sdk_config)
             .await?;
@@ -407,7 +396,6 @@ async fn wire_runtime_services(inputs: &ServiceWireInputs<'_>) -> anyhow::Result
         access_tracker,
         stripe_service,
         webhook_http_client,
-        plan_registry,
         email_service,
         vm_provisioner,
         region_config,
@@ -480,7 +468,6 @@ async fn wire_control_plane_services(
         access_tracker: rt.access_tracker,
         stripe_service: rt.stripe_service,
         webhook_http_client: rt.webhook_http_client,
-        plan_registry: rt.plan_registry,
         email_service: rt.email_service,
         vm_provisioner: rt.vm_provisioner,
         region_config: rt.region_config,

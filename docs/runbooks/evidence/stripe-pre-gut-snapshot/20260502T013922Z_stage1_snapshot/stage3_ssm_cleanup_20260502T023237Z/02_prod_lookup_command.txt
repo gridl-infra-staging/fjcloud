@@ -1,0 +1,1 @@
+aws ssm get-parameters-by-path --region us-east-1 --path /fjcloud/prod/ --recursive --query "Parameters[?starts_with(Name, /fjcloud/prod/stripe_price_)].Name" --output text

@@ -1,0 +1,2 @@
+STRIPE_SECRET_KEY_flapjack_cloud_present=false
+STRIPE_SECRET_KEY_present=true

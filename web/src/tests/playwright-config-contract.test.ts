@@ -10,19 +10,22 @@ import {
 	DEFAULT_FLAPJACK_URL,
 	DEFAULT_PLAYWRIGHT_ADMIN_KEY,
 	DEFAULT_PLAYWRIGHT_BASE_URL,
-	PLAYWRIGHT_DESKTOP_DEVICE,
 	DEFAULT_TEST_REGION,
 	PLAYWRIGHT_STORAGE_STATE,
 	PLAYWRIGHT_PROJECT_CONTRACTS,
 	PLAYWRIGHT_WEB_SERVER_COMMAND,
 	parseDotenvFile,
 	parseDotenvValue,
+	REMOTE_TARGET_OPT_IN_ENV,
+	REMOTE_TARGET_HOST_SUFFIX_ALLOWLIST,
+	requireLoopbackHttpUrl,
 	resolveFixtureEnv,
 	resolveRequiredFixtureAdminKey,
 	resolveRequiredFixtureUserCredentials,
 	resolvePlaywrightRuntime,
 	sanitizeWebServerEnv
 } from '../../playwright.config.contract';
+import { formatFixtureSetupFailure } from '../../tests/fixtures/fixtures';
 
 type MutableEnv = Record<string, string | undefined>;
 type LoadedEnv = Record<string, string>;
@@ -346,20 +349,14 @@ describe('playwright config contract', () => {
 			PLAYWRIGHT_STORAGE_STATE.admin
 		);
 
-		expect(PLAYWRIGHT_DESKTOP_DEVICE.firefox).toBe('Desktop Firefox');
-		expect(PLAYWRIGHT_DESKTOP_DEVICE.webkit).toBe('Desktop Safari');
-
-		expect(projectContractsByName['firefox:public']?.use?.desktopBrowser).toBe('firefox');
-		expect(projectContractsByName['firefox:smoke']?.dependencies).toEqual(['setup:user']);
-		expect(projectContractsByName['firefox:smoke']?.use?.storageState).toBe(
-			PLAYWRIGHT_STORAGE_STATE.user
-		);
-
-		expect(projectContractsByName['webkit:public']?.use?.desktopBrowser).toBe('webkit');
-		expect(projectContractsByName['webkit:smoke']?.dependencies).toEqual(['setup:user']);
-		expect(projectContractsByName['webkit:smoke']?.use?.storageState).toBe(
-			PLAYWRIGHT_STORAGE_STATE.user
-		);
+		// Firefox/WebKit projects were dropped 2026-05-02 to cut CI cycle time.
+		// Playwright-on-Linux WebKit isn't real Safari (no ITP, no Apple Pay,
+		// no Stripe 3DS quirks), and Firefox is ~3-6% of users — both costs
+		// outweigh their bug-catching value at paid-beta scale.
+		expect(projectContractsByName['firefox:public']).toBeUndefined();
+		expect(projectContractsByName['firefox:smoke']).toBeUndefined();
+		expect(projectContractsByName['webkit:public']).toBeUndefined();
+		expect(projectContractsByName['webkit:smoke']).toBeUndefined();
 	});
 
 	describe('resolveFixtureEnv', () => {
@@ -725,14 +722,84 @@ describe('playwright config contract', () => {
 		});
 	});
 
-	describe('Stage 6 signup fixture cleanup wiring', () => {
+		describe('Stage 6 signup fixture cleanup wiring', () => {
 		it('arrangePaidInvoiceForFreshSignup fixture threads _trackCustomerForCleanup', () => {
 			const fixtureSource = readFileSync(join(process.cwd(), 'tests/fixtures/fixtures.ts'), 'utf8');
 			expect(fixtureSource).toMatch(
 				/arrangePaidInvoiceForFreshSignup:\s*async\s*\(\{\s*_trackCustomerForCleanup\s*\},\s*use\)\s*=>\s*\{[\s\S]*arrangePaidInvoiceForFreshSignup\(\{\s*email,\s*password,\s*trackCustomerForCleanup:\s*_trackCustomerForCleanup/
 			);
 		});
-	});
+
+		it('arrangePaidInvoiceForFreshSignup contract remains paid-invoice-only', () => {
+			const fixtureSource = readFileSync(join(process.cwd(), 'tests/fixtures/fixtures.ts'), 'utf8');
+			expect(fixtureSource).toMatch(
+				/type\s+ArrangePaidInvoiceForFreshSignupResult\s*=\s*\{[\s\S]*customerId:\s*string;[\s\S]*invoiceId:\s*string;[\s\S]*billingMonth:\s*string;[\s\S]*\}/
+			);
+			expect(fixtureSource).not.toMatch(/\binvoiceEmailDelivered\b/);
+			expect(fixtureSource).not.toMatch(/\binvoiceEmailMessageId\b/);
+			expect(fixtureSource).not.toMatch(/\bdunningSubscriptionStatus\b/);
+			expect(fixtureSource).not.toMatch(/\brefundedInvoiceId\b/);
+		});
+
+		it('does not wire removed subscription-oriented fixtures in test.extend', () => {
+			const fixtureSource = readFileSync(join(process.cwd(), 'tests/fixtures/fixtures.ts'), 'utf8');
+			expect(fixtureSource).not.toMatch(/\barrangeBillingDunningForFreshSignup:\s*async\b/);
+			expect(fixtureSource).not.toMatch(/\barrangeRefundedInvoiceForFreshSignup:\s*async\b/);
+		});
+
+		it('slims arrangeBillingPortalCustomer result contract to required billing-portal data only', () => {
+			const fixtureSource = readFileSync(join(process.cwd(), 'tests/fixtures/fixtures.ts'), 'utf8');
+			const resultContractMatch = fixtureSource.match(
+				/type\s+ArrangeBillingPortalCustomerResult\s*=\s*CreatedFixtureUser\s*&\s*\{[\s\S]*?\n\};/
+			);
+			expect(resultContractMatch).not.toBeNull();
+			const resultContractBlock = resultContractMatch![0];
+			expect(resultContractBlock).not.toMatch(/\bsubscriptionCurrentPeriodEnd\b/);
+			expect(resultContractBlock).not.toMatch(/\bsubscription:\s*SubscriptionResponse\b/);
+			expect(resultContractBlock).not.toMatch(/\bcancelAtPeriodEnd\b/);
+			expect(resultContractBlock).toMatch(/\bstripeCustomerId:\s*string;/);
+			expect(resultContractBlock).toMatch(/\bdefaultPaymentMethodId:\s*string;/);
+		});
+
+			it('routes fallback verification lookup through findVerificationTokenViaStagingSsm only', () => {
+				const fixtureSource = readFileSync(join(process.cwd(), 'tests/fixtures/fixtures.ts'), 'utf8');
+				expect(fixtureSource).toMatch(
+					/import\s*\{\s*findVerificationTokenViaStagingSsm\s*\}\s*from\s*['"]\.\/staging_db_lookup['"]/
+				);
+				expect(fixtureSource).toMatch(/return\s+findVerificationTokenViaStagingSsm\(email\)/);
+				expect(fixtureSource).not.toMatch(/SELECT\s+email_verify_token/i);
+				expect(fixtureSource).not.toMatch(/\bpsql\s*"\$DATABASE_URL"/);
+				expect(fixtureSource).not.toMatch(/\bspawnSync\b/);
+			});
+
+			it('URL-encodes Mailpit search queries before calling the API', () => {
+				const fixtureSource = readFileSync(join(process.cwd(), 'tests/fixtures/fixtures.ts'), 'utf8');
+				expect(fixtureSource).toMatch(
+					/\/api\/v1\/search\?query=\$\{encodeURIComponent\(query\)\}/
+				);
+			});
+
+			it('redacts verification tokens and bearer tokens from setup diagnostics', () => {
+				const failureMessage = formatFixtureSetupFailure({
+					setupName: 'fixture security',
+					expectedPath: '/verify-email/{token}',
+					currentPath: '/verify-email/abc123?token=secret-token',
+					apiUrl: 'http://127.0.0.1:3000',
+					adminKey: 'admin-key',
+					alertText: 'Bearer sensitive.jwt.token /verify-email/def456?code=code-secret',
+					responseUrl: 'http://127.0.0.1:3000/verify-email/ghi789?key=response-secret'
+				});
+				expect(failureMessage).toContain('/verify-email/[REDACTED]');
+				expect(failureMessage).toContain('token=[REDACTED]');
+				expect(failureMessage).toContain('code=[REDACTED]');
+				expect(failureMessage).toContain('key=[REDACTED]');
+				expect(failureMessage).toContain('Bearer [REDACTED]');
+				expect(failureMessage).not.toContain('abc123');
+				expect(failureMessage).not.toContain('def456');
+				expect(failureMessage).not.toContain('ghi789');
+				expect(failureMessage).not.toContain('sensitive.jwt.token');
+			});
+		});
 
 	describe('applyPlaywrightProcessEnvDefaults + resolvePlaywrightRuntime admin key consistency', () => {
 		it('sets E2E_ADMIN_KEY to DEFAULT_PLAYWRIGHT_ADMIN_KEY when all env sources are empty so fixtures match the web server', () => {
@@ -813,6 +880,154 @@ describe('playwright config contract', () => {
 			expect(adminKey).toBe('explicit-admin');
 			expect(userCreds.email).toBe('explicit@test.com');
 			expect(userCreds.password).toBe('explicit-pass');
+		});
+	});
+
+	// LB-2/LB-3 — opt-in remote-target mode for running browser specs against
+	// deployed staging. The loopback guard is the load-bearing safety against
+	// credentialed local fixtures pointing at random hosts; relaxing it requires
+	// BOTH an explicit env opt-in (PLAYWRIGHT_TARGET_REMOTE=1) AND a hostname
+	// match against the staging-only allowlist. If either condition is missing,
+	// the original loopback-only behavior must be preserved exactly.
+		describe('remote-target opt-in (LB-2/LB-3)', () => {
+		it('exports a stable opt-in env var name and a non-empty host suffix allowlist', () => {
+			expect(REMOTE_TARGET_OPT_IN_ENV).toBe('PLAYWRIGHT_TARGET_REMOTE');
+			expect(Array.isArray(REMOTE_TARGET_HOST_SUFFIX_ALLOWLIST)).toBe(true);
+			expect(REMOTE_TARGET_HOST_SUFFIX_ALLOWLIST.length).toBeGreaterThan(0);
+			// flapjack.foo is the canonical staging+prod root; tests must not
+			// silently broaden this without an explicit edit + review.
+			expect(REMOTE_TARGET_HOST_SUFFIX_ALLOWLIST).toContain('.flapjack.foo');
+		});
+
+		describe('requireLoopbackHttpUrl with explicit processEnv arg', () => {
+			it('still rejects non-loopback URLs when opt-in env is unset (default behavior unchanged)', () => {
+				expect(() =>
+					requireLoopbackHttpUrl('API_URL', 'https://api.flapjack.foo', {})
+				).toThrow(/must use a local loopback host/);
+			});
+
+			it('still rejects non-loopback URLs when opt-in env is set but host is NOT on the allowlist', () => {
+				expect(() =>
+					requireLoopbackHttpUrl('API_URL', 'https://api.example.com', {
+						PLAYWRIGHT_TARGET_REMOTE: '1'
+					})
+				).toThrow(/must use a local loopback host/);
+			});
+
+			it('rejects non-loopback URLs when host matches allowlist but opt-in env is missing', () => {
+				expect(() =>
+					requireLoopbackHttpUrl('API_URL', 'https://api.flapjack.foo', {})
+				).toThrow(/must use a local loopback host/);
+			});
+
+			it('rejects opt-in flag values other than the literal "1" to prevent ambiguity', () => {
+				for (const truthyButInvalid of ['true', 'yes', 'on', '0', '', 'false']) {
+					expect(() =>
+						requireLoopbackHttpUrl('API_URL', 'https://api.flapjack.foo', {
+							PLAYWRIGHT_TARGET_REMOTE: truthyButInvalid
+						})
+					).toThrow(/must use a local loopback host/);
+				}
+			});
+
+			it('accepts an https URL on an allowlisted host suffix when opt-in env is set to "1"', () => {
+				expect(
+					requireLoopbackHttpUrl('API_URL', 'https://api.flapjack.foo', {
+						PLAYWRIGHT_TARGET_REMOTE: '1'
+					})
+				).toBe('https://api.flapjack.foo');
+				expect(
+					requireLoopbackHttpUrl('BASE_URL', 'https://cloud.flapjack.foo', {
+						PLAYWRIGHT_TARGET_REMOTE: '1'
+					})
+				).toBe('https://cloud.flapjack.foo');
+			});
+
+			it('rejects http (non-https) URLs on allowlisted hosts even when opt-in env is set', () => {
+				// Remote-target mode is for credentialed real-staging traffic;
+				// unencrypted http to a public host would leak ADMIN_KEY in transit.
+				expect(() =>
+					requireLoopbackHttpUrl('API_URL', 'http://api.flapjack.foo', {
+						PLAYWRIGHT_TARGET_REMOTE: '1'
+					})
+				).toThrow(/https.*loopback host/);
+			});
+
+			it('does not match allowlist suffix as a substring (prevents flapjack.foo.evil.com bypass)', () => {
+				expect(() =>
+					requireLoopbackHttpUrl('API_URL', 'https://api.flapjack.foo.evil.com', {
+						PLAYWRIGHT_TARGET_REMOTE: '1'
+					})
+				).toThrow(/must use a local loopback host/);
+			});
+		});
+
+			describe('resolvePlaywrightRuntime with remote-target opt-in', () => {
+			it('accepts staging BASE_URL + API_BASE_URL when opt-in is set on processEnv', () => {
+				const runtime = resolvePlaywrightRuntime({
+					processEnv: {
+						BASE_URL: 'https://cloud.flapjack.foo',
+						API_BASE_URL: 'https://api.flapjack.foo',
+						PLAYWRIGHT_TARGET_REMOTE: '1'
+					},
+					repoEnv: {},
+					webEnv: {},
+					fallbackJwtSecret: 'fallback-jwt'
+				});
+
+				expect(runtime.baseURL).toBe('https://cloud.flapjack.foo');
+				// When BASE_URL is set we already skip spawning the local web server.
+				expect(runtime.webServer).toBeUndefined();
+			});
+
+			it('marks portal auth cookies Secure when BASE_URL is https', () => {
+				const portalSpecSource = readFileSync(
+					join(process.cwd(), 'tests/e2e-ui/full/billing_portal_payment_method_update.spec.ts'),
+					'utf8'
+				);
+				expect(portalSpecSource).toMatch(/secure:\s*BASE_URL_PROTOCOL\s*===\s*'https:'/);
+			});
+
+			it('staging launcher validates hydrator output instead of eval-ing it directly', () => {
+				const launcherSource = readFileSync(
+					join(process.cwd(), '../scripts/launch/run_browser_lane_against_staging.sh'),
+					'utf8'
+				);
+				expect(launcherSource).toMatch(/validate_hydrated_export_line\(\)/);
+				expect(launcherSource).toMatch(/hydrate_staging_env_from_ssm\(\)/);
+				expect(launcherSource).not.toMatch(
+					/eval\s+"\$\(bash .*hydrate_seeder_env_from_ssm\.sh/
+				);
+			});
+
+			it('still rejects staging BASE_URL when opt-in env is missing (regression guard)', () => {
+				expect(() =>
+					resolvePlaywrightRuntime({
+						processEnv: { BASE_URL: 'https://cloud.flapjack.foo' },
+						repoEnv: {},
+						webEnv: {},
+						fallbackJwtSecret: 'fallback-jwt'
+					})
+				).toThrow(/must use a local loopback host/);
+			});
+		});
+
+		describe('resolveFixtureEnv with remote-target opt-in', () => {
+			it('accepts staging API_URL + FLAPJACK_URL when opt-in is set on processEnv', () => {
+				const env = resolveFixtureEnv({
+					API_URL: 'https://api.flapjack.foo',
+					FLAPJACK_URL: 'https://flapjack.flapjack.foo',
+					PLAYWRIGHT_TARGET_REMOTE: '1'
+				});
+				expect(env.apiUrl).toBe('https://api.flapjack.foo');
+				expect(env.flapjackUrl).toBe('https://flapjack.flapjack.foo');
+			});
+
+			it('still rejects staging API_URL when opt-in env is missing (regression guard)', () => {
+				expect(() =>
+					resolveFixtureEnv({ API_URL: 'https://api.flapjack.foo' })
+				).toThrow(/must use a local loopback host/);
+			});
 		});
 	});
 });

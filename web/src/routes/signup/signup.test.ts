@@ -57,29 +57,11 @@ describe('Signup page', () => {
 		expect(confirmPassword).toHaveAttribute('minlength', '8');
 	});
 
-	it('requires explicit public-beta acknowledgement with exact policy links and checkbox semantics', () => {
+	it('does not render a beta acknowledgement checkbox gate', () => {
 		render(SignupPage);
-
-		const acknowledgement = screen.getByRole('checkbox', {
-			name: /i acknowledge the flapjack cloud public beta terms/i
-		});
-		expect(acknowledgement).toBeRequired();
-		expect(acknowledgement).toHaveAttribute('name', 'beta_acknowledged');
-
-		expect(screen.getByRole('link', { name: 'public beta scope' })).toHaveAttribute(
-			'href',
-			'/beta'
-		);
-		expect(screen.getByRole('link', { name: 'Terms' })).toHaveAttribute('href', '/terms');
-		expect(screen.getByRole('link', { name: 'Privacy Policy' })).toHaveAttribute(
-			'href',
-			'/privacy'
-		);
 		expect(
-			screen.getByText('I acknowledge the Flapjack Cloud public beta terms, including the', {
-				exact: false
-			})
-		).toBeInTheDocument();
+			screen.queryByRole('checkbox', { name: /public beta terms/i })
+		).not.toBeInTheDocument();
 	});
 
 	it('keeps form errors attached to intended controls and confirm-password error as the only alert', () => {
@@ -89,8 +71,7 @@ describe('Signup page', () => {
 					name: 'Name is required',
 					email: 'Invalid email',
 					password: 'Too short',
-					confirm_password: 'Passwords do not match',
-					beta_acknowledgement: 'Public beta acknowledgement is required'
+					confirm_password: 'Passwords do not match'
 				},
 				name: '',
 				email: ''
@@ -101,11 +82,7 @@ describe('Signup page', () => {
 		const emailField = screen.getByLabelText('Email').closest('div');
 		const passwordField = screen.getByLabelText('Password').closest('div');
 		const confirmField = screen.getByLabelText('Confirm Password').closest('div');
-		const betaPanel = screen
-			.getByRole('checkbox', { name: /public beta terms/i })
-			.closest('div')?.parentElement;
-
-		if (!nameField || !emailField || !passwordField || !confirmField || !betaPanel) {
+		if (!nameField || !emailField || !passwordField || !confirmField) {
 			throw new Error('Expected all field containers to exist');
 		}
 
@@ -122,9 +99,6 @@ describe('Signup page', () => {
 		expect(confirmAlert).toHaveTextContent('Passwords do not match');
 		expect(screen.getAllByRole('alert')).toHaveLength(1);
 
-		expect(
-			within(betaPanel).getByText('Public beta acknowledgement is required')
-		).toBeInTheDocument();
 	});
 
 	it('renders form-level signup failures in a single global alert region', () => {

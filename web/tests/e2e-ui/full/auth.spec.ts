@@ -34,7 +34,6 @@ async function submitDuplicateSignupWithRetry(
 		await page.getByLabel('Email').fill(email);
 		await page.getByLabel('Password', { exact: true }).fill(password);
 		await page.getByLabel('Confirm Password').fill(password);
-		await page.getByRole('checkbox', { name: /public beta terms/i }).check();
 		await page.getByRole('button', { name: 'Sign Up' }).click();
 
 		await expect(formAlert).toBeVisible({ timeout: 5_000 });
@@ -271,7 +270,7 @@ test.describe('Signup page', () => {
 		await expect(page.getByLabel('Email')).toBeVisible();
 		await expect(page.getByLabel('Password', { exact: true })).toBeVisible();
 		await expect(page.getByLabel('Confirm Password')).toBeVisible();
-		await expect(page.getByRole('checkbox', { name: /public beta terms/i })).toBeVisible();
+		await expect(page.getByRole('checkbox', { name: /public beta terms/i })).toHaveCount(0);
 		await expect(page.getByRole('button', { name: 'Sign Up' })).toBeVisible();
 	});
 
@@ -282,7 +281,6 @@ test.describe('Signup page', () => {
 		await page.getByLabel('Email').fill(`signup-validation-${Date.now()}@example.com`);
 		await page.getByLabel('Password', { exact: true }).fill('validpassword1');
 		await page.getByLabel('Confirm Password').fill('differentpassword1');
-		await page.getByRole('checkbox', { name: /public beta terms/i }).check();
 		await page.getByRole('button', { name: 'Sign Up' }).click();
 
 		await expect(page.getByRole('alert')).toBeVisible({ timeout: 5_000 });
@@ -296,7 +294,6 @@ test.describe('Signup page', () => {
 		await page.getByLabel('Email').fill(`weak-password-${Date.now()}@e2e.griddle.test`);
 		await page.getByLabel('Password', { exact: true }).fill('short');
 		await page.getByLabel('Confirm Password').fill('short');
-		await page.getByRole('checkbox', { name: /public beta terms/i }).check();
 		await page.getByRole('button', { name: 'Sign Up' }).click();
 
 		await expect(page.getByText('Password must be at least 8 characters')).toBeVisible({

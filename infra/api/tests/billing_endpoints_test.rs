@@ -7,12 +7,10 @@ mod common;
 
 use api::models::cold_snapshot::NewColdSnapshot;
 use api::models::RateCardRow;
-use api::models::SubscriptionRow;
-use api::models::SubscriptionStatus;
 use api::repos::cold_snapshot_repo::ColdSnapshotRepo;
 use api::repos::invoice_repo::{InvoiceRepo, NewLineItem};
 use api::repos::CustomerRepo;
-use api::repos::SubscriptionRepo;
+use api::services::tenant_quota::FreeTierLimits;
 use api::stripe::{invoice_create_idempotency_key, PaymentMethodSummary};
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
@@ -40,44 +38,6 @@ async fn body_json(resp: axum::response::Response) -> serde_json::Value {
     serde_json::from_slice(&bytes).unwrap()
 }
 
-fn ymd_utc_timestamp(year: i32, month: u32, day: u32) -> i64 {
-    chrono::NaiveDate::from_ymd_opt(year, month, day)
-        .expect("valid date")
-        .and_hms_opt(0, 0, 0)
-        .expect("valid midnight")
-        .and_utc()
-        .timestamp()
-}
-
-fn seed_subscription_row(
-    repo: &common::MockSubscriptionRepo,
-    customer_id: Uuid,
-    _stripe_customer_id: &str,
-    stripe_subscription_id: &str,
-    status: SubscriptionStatus,
-    plan_tier: &str,
-    price_id: &str,
-    cancel_at_period_end: bool,
-    period_start: NaiveDate,
-    period_end: NaiveDate,
-) -> SubscriptionRow {
-    let row = SubscriptionRow {
-        id: Uuid::new_v4(),
-        customer_id,
-        stripe_subscription_id: stripe_subscription_id.to_string(),
-        stripe_price_id: price_id.to_string(),
-        plan_tier: plan_tier.to_string(),
-        status: status.as_str().to_string(),
-        current_period_start: period_start,
-        current_period_end: period_end,
-        cancel_at_period_end,
-        created_at: chrono::Utc::now(),
-        updated_at: chrono::Utc::now(),
-    };
-    repo.seed(row.clone());
-    row
-}
-
 /// Build a test app with all repos and a custom stripe service.
 fn test_app_with_stripe(
     customer_repo: std::sync::Arc<common::MockCustomerRepo>,
@@ -89,6 +49,16 @@ fn test_app_with_stripe(
         .with_invoice_repo(invoice_repo)
         .with_stripe_service(stripe_service)
         .build_app()
+}
+
+fn test_app_with_publishable_key(stripe_publishable_key: Option<&str>) -> (axum::Router, Uuid) {
+    let customer_repo = mock_repo();
+    let customer = customer_repo.seed("Acme", "acme@example.com");
+    let app = TestStateBuilder::new()
+        .with_customer_repo(customer_repo)
+        .with_stripe_publishable_key(stripe_publishable_key.map(str::to_string))
+        .build_app();
+    (app, customer.id)
 }
 
 /// Seed a customer with a stripe_customer_id set.
@@ -128,6 +98,48 @@ fn seed_draft_invoice(
             metadata: None,
         }],
     )
+}
+
+#[tokio::test]
+async fn onboarding_status_reports_configured_free_tier_limits_without_signed_fallback() {
+    let customer_repo = mock_repo();
+    let customer = customer_repo.seed("Free Tier", "free-tier@example.com");
+    let app = TestStateBuilder::new()
+        .with_customer_repo(customer_repo)
+        .with_free_tier_limits(FreeTierLimits {
+            max_indexes: u32::MAX,
+            max_searches_per_month: u64::MAX,
+        })
+        .build_app();
+
+    let jwt = create_test_jwt(customer.id);
+    let resp = app
+        .oneshot(
+            Request::get("/onboarding/status")
+                .header("authorization", format!("Bearer {jwt}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = body_json(resp).await;
+    let free_tier_limits = body["free_tier_limits"]
+        .as_object()
+        .expect("free plan onboarding response must include free_tier_limits");
+    assert_eq!(
+        free_tier_limits["max_searches_per_month"].as_u64(),
+        Some(u64::MAX),
+        "response must expose the configured search limit instead of falling back to defaults"
+    );
+    assert_eq!(
+        free_tier_limits["max_indexes"].as_u64(),
+        Some(u64::from(u32::MAX)),
+        "response must expose the configured index limit instead of falling back to defaults"
+    );
+    assert_eq!(free_tier_limits["max_records"].as_u64(), Some(100_000));
+    assert_eq!(free_tier_limits["max_storage_gb"].as_u64(), Some(10));
 }
 
 // ===========================================================================
@@ -204,6 +216,69 @@ async fn setup_intent_400_no_stripe_customer() {
 // POST /billing/portal
 // ===========================================================================
 
+// ===========================================================================
+// GET /billing/publishable-key
+// ===========================================================================
+
+#[tokio::test]
+async fn billing_publishable_key_returns_runtime_key_when_configured() {
+    let (app, customer_id) = test_app_with_publishable_key(Some("pk_test_123"));
+    let jwt = create_test_jwt(customer_id);
+
+    let resp = app
+        .oneshot(
+            Request::get("/billing/publishable-key")
+                .header("authorization", format!("Bearer {jwt}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = body_json(resp).await;
+    assert_eq!(body, json!({ "publishableKey": "pk_test_123" }));
+}
+
+#[tokio::test]
+async fn billing_publishable_key_503_when_unconfigured() {
+    let (app, customer_id) = test_app_with_publishable_key(None);
+    let jwt = create_test_jwt(customer_id);
+
+    let resp = app
+        .oneshot(
+            Request::get("/billing/publishable-key")
+                .header("authorization", format!("Bearer {jwt}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::SERVICE_UNAVAILABLE);
+    let body = body_json(resp).await;
+    assert_eq!(
+        body,
+        json!({ "error": "stripe_publishable_key_unavailable" })
+    );
+}
+
+#[tokio::test]
+async fn billing_publishable_key_401_without_auth() {
+    let (app, _) = test_app_with_publishable_key(Some("pk_test_123"));
+
+    let resp = app
+        .oneshot(
+            Request::get("/billing/publishable-key")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+}
+
 #[tokio::test]
 async fn billing_portal_returns_portal_url_and_forwards_return_url() {
     let customer_repo = mock_repo();
@@ -213,7 +288,7 @@ async fn billing_portal_returns_portal_url_and_forwards_return_url() {
     let app = test_app_with_stripe(customer_repo, mock_invoice_repo(), stripe_svc.clone());
 
     let jwt = create_test_jwt(customer.id);
-    let return_url = "https://app.fjcloud.dev/billing";
+    let return_url = "http://localhost:5173/dashboard";
     let resp = app
         .oneshot(
             Request::post("/billing/portal")
@@ -256,7 +331,7 @@ async fn billing_portal_400_no_stripe_customer() {
                 .header("authorization", format!("Bearer {jwt}"))
                 .header("content-type", "application/json")
                 .body(Body::from(
-                    json!({"return_url":"https://app.fjcloud.dev/billing"}).to_string(),
+                    json!({"return_url":"http://localhost:5173/dashboard"}).to_string(),
                 ))
                 .unwrap(),
         )
@@ -277,7 +352,7 @@ async fn billing_portal_401_without_auth() {
             Request::post("/billing/portal")
                 .header("content-type", "application/json")
                 .body(Body::from(
-                    json!({"return_url":"https://app.fjcloud.dev/billing"}).to_string(),
+                    json!({"return_url":"http://localhost:5173/dashboard"}).to_string(),
                 ))
                 .unwrap(),
         )
@@ -297,7 +372,7 @@ async fn billing_portal_401_invalid_auth_token() {
                 .header("authorization", "Bearer not-a-jwt")
                 .header("content-type", "application/json")
                 .body(Body::from(
-                    json!({"return_url":"https://app.fjcloud.dev/billing"}).to_string(),
+                    json!({"return_url":"http://localhost:5173/dashboard"}).to_string(),
                 ))
                 .unwrap(),
         )
@@ -305,6 +380,32 @@ async fn billing_portal_401_invalid_auth_token() {
         .unwrap();
 
     assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn billing_portal_400_for_disallowed_return_url_origin() {
+    let customer_repo = mock_repo();
+    let customer = seed_stripe_customer(&customer_repo, "Acme", "acme@example.com").await;
+
+    let app = test_app_with_stripe(customer_repo, mock_invoice_repo(), mock_stripe_service());
+
+    let jwt = create_test_jwt(customer.id);
+    let resp = app
+        .oneshot(
+            Request::post("/billing/portal")
+                .header("authorization", format!("Bearer {jwt}"))
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    json!({"return_url":"https://attacker.example/callback"}).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+    let body = body_json(resp).await;
+    assert_eq!(body["error"], "return_url origin is not allowed");
 }
 
 #[tokio::test]
@@ -322,7 +423,7 @@ async fn suspended_customer_gets_403_on_billing_portal() {
                 .header("authorization", format!("Bearer {jwt}"))
                 .header("content-type", "application/json")
                 .body(Body::from(
-                    json!({"return_url":"https://app.fjcloud.dev/billing"}).to_string(),
+                    json!({"return_url":"http://localhost:5173/dashboard"}).to_string(),
                 ))
                 .unwrap(),
         )
@@ -347,7 +448,7 @@ async fn billing_portal_503_when_stripe_unconfigured() {
                 .header("authorization", format!("Bearer {jwt}"))
                 .header("content-type", "application/json")
                 .body(Body::from(
-                    json!({"return_url":"https://app.fjcloud.dev/billing"}).to_string(),
+                    json!({"return_url":"http://localhost:5173/dashboard"}).to_string(),
                 ))
                 .unwrap(),
         )
@@ -714,251 +815,6 @@ async fn set_default_404_not_owned() {
 // ===========================================================================
 // POST /webhooks/stripe
 // ===========================================================================
-
-#[tokio::test]
-async fn webhook_subscription_updated_out_of_order_reconciles_via_stripe_lookup() {
-    let customer_repo = mock_repo();
-    let invoice_repo = mock_invoice_repo();
-    let subscription_repo = common::mock_subscription_repo();
-    let stripe_service = mock_stripe_service();
-    let customer = seed_stripe_customer(&customer_repo, "Acme", "acme@example.com").await;
-
-    let mut state = test_state_all_with_stripe(
-        customer_repo,
-        mock_deployment_repo(),
-        mock_usage_repo(),
-        mock_rate_card_repo(),
-        invoice_repo,
-        stripe_service.clone(),
-    );
-    state.subscription_repo = subscription_repo.clone();
-    let app = api::router::build_router(state);
-
-    stripe_service.seed_subscription(api::stripe::SubscriptionData {
-        id: "sub_out_of_order".to_string(),
-        status: "trialing".to_string(),
-        current_period_start: ymd_utc_timestamp(2026, 2, 1),
-        current_period_end: ymd_utc_timestamp(2026, 2, 28),
-        cancel_at_period_end: true,
-        customer: customer
-            .stripe_customer_id
-            .as_ref()
-            .expect("seeded customer has stripe id")
-            .to_string(),
-        items: vec![api::stripe::SubscriptionItem {
-            id: "si_test_1".to_string(),
-            price_id: "price_pro_test".to_string(),
-        }],
-    });
-
-    // Out-of-order payload that does not include enough fields to parse directly.
-    let payload = format!(
-        r#"{{"id":"evt_sub_update_oo","type":"customer.subscription.updated","data":{{"object":{{"id":"sub_out_of_order","customer":"{}"}}}}}}"#,
-        customer.stripe_customer_id.as_ref().unwrap()
-    );
-
-    let resp = app.oneshot(webhook_request(&payload)).await.unwrap();
-    assert_eq!(resp.status(), StatusCode::OK);
-
-    let recovered = subscription_repo
-        .find_by_stripe_id("sub_out_of_order")
-        .await
-        .unwrap()
-        .expect("subscription should be recovered from stripe");
-    assert_eq!(recovered.status, "trialing");
-    assert_eq!(recovered.plan_tier, "pro");
-    assert!(recovered.cancel_at_period_end);
-}
-
-#[tokio::test]
-async fn subscription_updated_with_unknown_price_id_is_ignored_gracefully() {
-    let customer_repo = mock_repo();
-    let invoice_repo = mock_invoice_repo();
-    let subscription_repo = common::mock_subscription_repo();
-    let stripe_service = mock_stripe_service();
-    let customer = seed_stripe_customer(&customer_repo, "Acme", "acme@example.com").await;
-
-    let mut state = test_state_all_with_stripe(
-        customer_repo,
-        mock_deployment_repo(),
-        mock_usage_repo(),
-        mock_rate_card_repo(),
-        invoice_repo,
-        stripe_service.clone(),
-    );
-    state.subscription_repo = subscription_repo.clone();
-    let app = api::router::build_router(state);
-
-    stripe_service.seed_subscription(api::stripe::SubscriptionData {
-        id: "sub_unknown_price".to_string(),
-        status: "active".to_string(),
-        current_period_start: ymd_utc_timestamp(2026, 2, 1),
-        current_period_end: ymd_utc_timestamp(2026, 2, 28),
-        cancel_at_period_end: false,
-        customer: customer
-            .stripe_customer_id
-            .as_ref()
-            .expect("seeded customer has stripe id")
-            .to_string(),
-        items: vec![api::stripe::SubscriptionItem {
-            id: "si_unknown_price".to_string(),
-            price_id: "price_unknown_tier".to_string(),
-        }],
-    });
-
-    let payload = format!(
-        r#"{{"id":"evt_sub_update_unknown_price","type":"customer.subscription.updated","data":{{"object":{{"id":"sub_unknown_price","customer":"{}"}}}}}}"#,
-        customer.stripe_customer_id.as_ref().unwrap()
-    );
-
-    let resp = app.oneshot(webhook_request(&payload)).await.unwrap();
-    assert_eq!(resp.status(), StatusCode::OK);
-
-    let sub = subscription_repo
-        .find_by_stripe_id("sub_unknown_price")
-        .await
-        .unwrap();
-    assert!(
-        sub.is_none(),
-        "unknown price_id should be ignored without creating local subscription"
-    );
-}
-
-#[tokio::test]
-async fn webhook_payment_succeeded_reactivates_delinquent_subscription() {
-    let customer_repo = mock_repo();
-    let invoice_repo = mock_invoice_repo();
-    let subscription_repo = common::mock_subscription_repo();
-    let stripe_service = mock_stripe_service();
-    let customer = seed_stripe_customer(&customer_repo, "Acme", "acme@example.com").await;
-    customer_repo.suspend(customer.id).await.unwrap();
-
-    let mut state = test_state_all_with_stripe(
-        customer_repo.clone(),
-        mock_deployment_repo(),
-        mock_usage_repo(),
-        mock_rate_card_repo(),
-        invoice_repo.clone(),
-        stripe_service,
-    );
-    state.subscription_repo = subscription_repo.clone();
-    let app = api::router::build_router(state);
-
-    let invoice = seed_draft_invoice(&invoice_repo, customer.id);
-    invoice_repo.finalize(invoice.id).await.unwrap();
-    invoice_repo
-        .set_stripe_fields(invoice.id, "in_recovered", "https://stripe.com/inv", None)
-        .await
-        .unwrap();
-    invoice_repo.mark_failed(invoice.id).await.unwrap();
-
-    seed_subscription_row(
-        &subscription_repo,
-        customer.id,
-        customer.stripe_customer_id.as_ref().unwrap(),
-        "sub_recover",
-        SubscriptionStatus::PastDue,
-        "starter",
-        "price_starter_test",
-        false,
-        NaiveDate::from_ymd_opt(2026, 3, 1).unwrap(),
-        NaiveDate::from_ymd_opt(2026, 3, 31).unwrap(),
-    );
-
-    let payload = r#"{"id":"evt_recover","type":"invoice.payment_succeeded","data":{"object":{"id":"in_recovered"}}}"#;
-    let resp = app.oneshot(webhook_request(payload)).await.unwrap();
-    assert_eq!(resp.status(), StatusCode::OK);
-
-    let updated = invoice_repo.find_by_id(invoice.id).await.unwrap().unwrap();
-    assert_eq!(updated.status, "paid");
-    let updated_sub = subscription_repo
-        .find_by_stripe_id("sub_recover")
-        .await
-        .unwrap()
-        .expect("subscription should exist");
-    assert_eq!(updated_sub.status, "active");
-
-    let updated_customer = customer_repo
-        .find_by_id(customer.id)
-        .await
-        .unwrap()
-        .unwrap();
-    assert_eq!(updated_customer.status, "active");
-}
-
-#[tokio::test]
-async fn webhook_payment_succeeded_after_action_required_reactivates_subscription() {
-    let customer_repo = mock_repo();
-    let invoice_repo = mock_invoice_repo();
-    let subscription_repo = common::mock_subscription_repo();
-    let stripe_service = mock_stripe_service();
-    let customer = seed_stripe_customer(&customer_repo, "Acme", "acme@example.com").await;
-
-    let mut state = test_state_all_with_stripe(
-        customer_repo,
-        mock_deployment_repo(),
-        mock_usage_repo(),
-        mock_rate_card_repo(),
-        invoice_repo.clone(),
-        stripe_service,
-    );
-    state.subscription_repo = subscription_repo.clone();
-    let app = api::router::build_router(state);
-
-    let invoice = seed_draft_invoice(&invoice_repo, customer.id);
-    invoice_repo.finalize(invoice.id).await.unwrap();
-    invoice_repo
-        .set_stripe_fields(
-            invoice.id,
-            "in_recover_from_action",
-            "https://stripe.com/inv",
-            None,
-        )
-        .await
-        .unwrap();
-
-    seed_subscription_row(
-        &subscription_repo,
-        customer.id,
-        customer.stripe_customer_id.as_ref().unwrap(),
-        "sub_action_recover",
-        SubscriptionStatus::Active,
-        "starter",
-        "price_starter_test",
-        false,
-        NaiveDate::from_ymd_opt(2026, 3, 1).unwrap(),
-        NaiveDate::from_ymd_opt(2026, 3, 31).unwrap(),
-    );
-
-    let action_required = format!(
-        r#"{{"id":"evt_action_required_then_success","type":"invoice.payment_action_required","data":{{"object":{{"id":"in_recover_from_action","customer":"{}"}}}}}}"#,
-        customer.stripe_customer_id.as_ref().unwrap()
-    );
-    let action_resp = app
-        .clone()
-        .oneshot(webhook_request(&action_required))
-        .await
-        .unwrap();
-    assert_eq!(action_resp.status(), StatusCode::OK);
-
-    let after_action_required = subscription_repo
-        .find_by_stripe_id("sub_action_recover")
-        .await
-        .unwrap()
-        .expect("subscription should exist");
-    assert_eq!(after_action_required.status, "past_due");
-
-    let success_payload = r#"{"id":"evt_action_required_recovered","type":"invoice.payment_succeeded","data":{"object":{"id":"in_recover_from_action"}}}"#;
-    let success_resp = app.oneshot(webhook_request(success_payload)).await.unwrap();
-    assert_eq!(success_resp.status(), StatusCode::OK);
-
-    let updated_sub = subscription_repo
-        .find_by_stripe_id("sub_action_recover")
-        .await
-        .unwrap()
-        .expect("subscription should exist");
-    assert_eq!(updated_sub.status, "active");
-}
 
 #[tokio::test]
 async fn webhook_retries_same_event_if_first_processing_attempt_fails() {
@@ -3341,347 +3197,158 @@ async fn suspended_customer_gets_403_on_set_default_payment_method() {
 // Stage 5: End-to-End Commerce Pipeline Tests
 // ===========================================================================
 
-/// Test: Complete subscription lifecycle pipeline
-/// checkout session creation → subscription activation webhook → upgrade → downgrade → cancel-at-period-end
-/// Verifies access is retained during current period after cancel-at-period-end
 #[tokio::test]
-async fn commerce_pipeline_checkout_to_cancel_at_period_end() {
-    // -------------------------------------------------------------------------
-    // Setup: Create customer with Stripe ID
-    // -------------------------------------------------------------------------
+async fn legacy_subscription_routes_return_404_and_preserved_billing_routes_remain_reachable() {
     let customer_repo = mock_repo();
-    let subscription_repo = common::mock_subscription_repo();
+    let invoice_repo = mock_invoice_repo();
+    let usage_repo = mock_usage_repo();
+    let rate_card_repo = mock_rate_card_repo();
     let stripe_service = mock_stripe_service();
+
+    rate_card_repo.seed_active_card(test_rate_card());
+
     let customer =
         seed_stripe_customer(&customer_repo, "Pipeline Test", "pipeline@example.com").await;
-    let jwt = create_test_jwt(customer.id);
+    let seeded_invoice = seed_draft_invoice(&invoice_repo, customer.id);
 
-    let mut state = test_state_all_with_stripe(
-        customer_repo.clone(),
+    let state = test_state_all_with_stripe(
+        customer_repo,
         mock_deployment_repo(),
-        mock_usage_repo(),
-        mock_rate_card_repo(),
-        mock_invoice_repo(),
-        stripe_service.clone(),
+        usage_repo,
+        rate_card_repo,
+        invoice_repo,
+        stripe_service,
     );
-    state.subscription_repo = subscription_repo.clone();
     let app = api::router::build_router(state);
 
-    // -------------------------------------------------------------------------
-    // Step 1: Create checkout session (customer initiates subscription)
-    // -------------------------------------------------------------------------
-    let resp = app
+    let jwt = create_test_jwt(customer.id);
+    let auth = format!("Bearer {jwt}");
+
+    let checkout_resp = app
         .clone()
         .oneshot(
             Request::post("/billing/checkout-session")
-                .header("Authorization", format!("Bearer {}", jwt))
+                .header("authorization", auth.as_str())
                 .header("content-type", "application/json")
-                .body(Body::from(json!({"plan_tier": "starter"}).to_string()))
+                .body(Body::from(json!({"plan_tier":"starter"}).to_string()))
                 .unwrap(),
         )
         .await
         .unwrap();
+    assert_eq!(checkout_resp.status(), StatusCode::NOT_FOUND);
 
-    assert_eq!(resp.status(), StatusCode::OK);
-    let body = body_json(resp).await;
-    assert!(
-        body.get("checkout_url").is_some(),
-        "checkout session should return URL"
-    );
-
-    // Verify Stripe checkout was called with correct parameters
-    let checkout_calls = stripe_service.checkout_session_calls.lock().unwrap();
-    assert_eq!(checkout_calls.len(), 1);
-    assert_eq!(
-        checkout_calls[0].1, "price_starter_test",
-        "should use starter price"
-    );
-    drop(checkout_calls);
-
-    // -------------------------------------------------------------------------
-    // Step 2: Simulate Stripe webhook - subscription activated
-    // -------------------------------------------------------------------------
-    let stripe_subscription_id = "sub_pipeline_test_123";
-    let webhook_payload = json!({
-        "id": "evt_pipeline_001",
-        "type": "customer.subscription.created",
-        "data": {
-            "object": {
-                "id": stripe_subscription_id,
-                "customer": format!("cus_test_{}", &customer.id.to_string()[..8]),
-                "status": "active",
-                "current_period_start": ymd_utc_timestamp(2026, 3, 1),
-                "current_period_end": ymd_utc_timestamp(2026, 3, 31),
-                "cancel_at_period_end": false,
-                "items": {
-                    "data": [
-                        {
-                            "id": "si_pipeline_001",
-                            "price": {
-                                "id": "price_starter_test"
-                            }
-                        }
-                    ]
-                }
-            }
-        }
-    })
-    .to_string();
-
-    let resp = app
-        .clone()
-        .oneshot(webhook_request(&webhook_payload))
-        .await
-        .unwrap();
-    assert_eq!(
-        resp.status(),
-        StatusCode::OK,
-        "subscription created webhook should succeed"
-    );
-
-    // Verify subscription was created in local repo
-    let subscription = subscription_repo
-        .find_by_customer(customer.id)
-        .await
-        .expect("find subscription")
-        .expect("subscription should exist");
-    assert_eq!(subscription.status, "active");
-    assert_eq!(subscription.plan_tier, "starter");
-    assert_eq!(subscription.stripe_subscription_id, stripe_subscription_id);
-    assert!(!subscription.cancel_at_period_end);
-
-    // Seed subscription in mock Stripe service for upgrade/downgrade operations
-    stripe_service.seed_subscription(api::stripe::SubscriptionData {
-        id: stripe_subscription_id.to_string(),
-        status: "active".to_string(),
-        current_period_start: ymd_utc_timestamp(2026, 3, 1),
-        current_period_end: ymd_utc_timestamp(2026, 3, 31),
-        cancel_at_period_end: false,
-        customer: customer.stripe_customer_id.as_ref().unwrap().to_string(),
-        items: vec![api::stripe::SubscriptionItem {
-            id: "si_pipeline_001".to_string(),
-            price_id: "price_starter_test".to_string(),
-        }],
-    });
-
-    // -------------------------------------------------------------------------
-    // Step 3: Upgrade subscription (starter → pro)
-    // -------------------------------------------------------------------------
-    let resp = app
+    let subscription_resp = app
         .clone()
         .oneshot(
-            Request::post("/billing/subscription/upgrade")
-                .header("Authorization", format!("Bearer {}", jwt))
-                .header("content-type", "application/json")
-                .body(Body::from(json!({"plan_tier": "pro"}).to_string()))
+            Request::get("/billing/subscription")
+                .header("authorization", auth.as_str())
+                .body(Body::empty())
                 .unwrap(),
         )
         .await
         .unwrap();
+    assert_eq!(subscription_resp.status(), StatusCode::NOT_FOUND);
 
-    assert_eq!(resp.status(), StatusCode::OK);
-    let body = body_json(resp).await;
-    assert_eq!(body["plan_tier"], "pro");
-
-    // Verify Stripe update was called with correct parameters
-    let update_calls = stripe_service.update_subscription_calls.lock().unwrap();
-    assert_eq!(update_calls.len(), 1);
-    assert_eq!(update_calls[0].0, stripe_subscription_id);
-    assert_eq!(update_calls[0].1, "price_pro_test");
-    assert_eq!(
-        update_calls[0].2, "always_invoice",
-        "upgrade should use always_invoice proration"
-    );
-    drop(update_calls);
-
-    // Simulate webhook confirming the upgrade
-    let webhook_payload = json!({
-        "id": "evt_pipeline_002",
-        "type": "customer.subscription.updated",
-        "data": {
-            "object": {
-                "id": stripe_subscription_id,
-                "customer": format!("cus_test_{}", &customer.id.to_string()[..8]),
-                "status": "active",
-                "current_period_start": ymd_utc_timestamp(2026, 3, 1),
-                "current_period_end": ymd_utc_timestamp(2026, 3, 31),
-                "cancel_at_period_end": false,
-                "items": {
-                    "data": [
-                        {
-                            "id": "si_pipeline_001",
-                            "price": {
-                                "id": "price_pro_test"
-                            }
-                        }
-                    ]
-                }
-            }
-        }
-    })
-    .to_string();
-
-    let resp = app
-        .clone()
-        .oneshot(webhook_request(&webhook_payload))
-        .await
-        .unwrap();
-    assert_eq!(resp.status(), StatusCode::OK);
-
-    // Verify local subscription reflects upgrade
-    let subscription = subscription_repo
-        .find_by_customer(customer.id)
-        .await
-        .unwrap()
-        .unwrap();
-    assert_eq!(subscription.plan_tier, "pro");
-    assert_eq!(subscription.stripe_price_id, "price_pro_test");
-
-    // -------------------------------------------------------------------------
-    // Step 4: Downgrade subscription (pro → starter)
-    // -------------------------------------------------------------------------
-    let resp = app
-        .clone()
-        .oneshot(
-            Request::post("/billing/subscription/downgrade")
-                .header("Authorization", format!("Bearer {}", jwt))
-                .header("content-type", "application/json")
-                .body(Body::from(json!({"plan_tier": "starter"}).to_string()))
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-
-    assert_eq!(resp.status(), StatusCode::OK);
-    let body = body_json(resp).await;
-    assert_eq!(body["plan_tier"], "starter");
-
-    // Verify Stripe update was called with correct parameters
-    let update_calls = stripe_service.update_subscription_calls.lock().unwrap();
-    assert_eq!(update_calls.len(), 2);
-    assert_eq!(update_calls[1].0, stripe_subscription_id);
-    assert_eq!(update_calls[1].1, "price_starter_test");
-    assert_eq!(
-        update_calls[1].2, "none",
-        "downgrade should use none proration"
-    );
-    drop(update_calls);
-
-    // -------------------------------------------------------------------------
-    // Step 5: Cancel at period end (retain access until period ends)
-    // -------------------------------------------------------------------------
-    let resp = app
+    let cancel_resp = app
         .clone()
         .oneshot(
             Request::post("/billing/subscription/cancel")
-                .header("Authorization", format!("Bearer {}", jwt))
+                .header("authorization", auth.as_str())
+                .header("content-type", "application/json")
+                .body(Body::from(json!({"cancel_at_period_end":true}).to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(cancel_resp.status(), StatusCode::NOT_FOUND);
+
+    let upgrade_resp = app
+        .clone()
+        .oneshot(
+            Request::post("/billing/subscription/upgrade")
+                .header("authorization", auth.as_str())
+                .header("content-type", "application/json")
+                .body(Body::from(json!({"plan_tier":"pro"}).to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(upgrade_resp.status(), StatusCode::NOT_FOUND);
+
+    let downgrade_resp = app
+        .clone()
+        .oneshot(
+            Request::post("/billing/subscription/downgrade")
+                .header("authorization", auth.as_str())
+                .header("content-type", "application/json")
+                .body(Body::from(json!({"plan_tier":"starter"}).to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(downgrade_resp.status(), StatusCode::NOT_FOUND);
+
+    let setup_intent_resp = app
+        .clone()
+        .oneshot(
+            Request::post("/billing/setup-intent")
+                .header("authorization", auth.as_str())
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(setup_intent_resp.status(), StatusCode::OK);
+
+    let portal_resp = app
+        .clone()
+        .oneshot(
+            Request::post("/billing/portal")
+                .header("authorization", auth.as_str())
                 .header("content-type", "application/json")
                 .body(Body::from(
-                    json!({"cancel_at_period_end": true}).to_string(),
+                    json!({"return_url":"http://localhost:5173/dashboard"}).to_string(),
                 ))
                 .unwrap(),
         )
         .await
         .unwrap();
+    assert_eq!(portal_resp.status(), StatusCode::OK);
 
-    assert_eq!(resp.status(), StatusCode::OK);
-
-    // Verify Stripe cancel was called with cancel_at_period_end=true
-    let cancel_calls = stripe_service.cancel_subscription_calls.lock().unwrap();
-    assert_eq!(cancel_calls.len(), 1);
-    assert_eq!(cancel_calls[0], (stripe_subscription_id.to_string(), true));
-    drop(cancel_calls);
-
-    // Simulate webhook confirming cancel_at_period_end
-    let webhook_payload = json!({
-        "id": "evt_pipeline_003",
-        "type": "customer.subscription.updated",
-        "data": {
-            "object": {
-                "id": stripe_subscription_id,
-                "customer": format!("cus_test_{}", &customer.id.to_string()[..8]),
-                "status": "active",
-                "current_period_start": ymd_utc_timestamp(2026, 3, 1),
-                "current_period_end": ymd_utc_timestamp(2026, 3, 31),
-                "cancel_at_period_end": true,
-                "items": {
-                    "data": [
-                        {
-                            "id": "si_pipeline_001",
-                            "price": {
-                                "id": "price_starter_test"
-                            }
-                        }
-                    ]
-                }
-            }
-        }
-    })
-    .to_string();
-
-    let resp = app
-        .clone()
-        .oneshot(webhook_request(&webhook_payload))
-        .await
-        .unwrap();
-    assert_eq!(resp.status(), StatusCode::OK);
-
-    // Verify subscription still active but marked for cancellation
-    let subscription = subscription_repo
-        .find_by_customer(customer.id)
-        .await
-        .unwrap()
-        .unwrap();
-    assert_eq!(
-        subscription.status, "active",
-        "subscription should remain active during current period"
-    );
-    assert!(
-        subscription.cancel_at_period_end,
-        "subscription should be marked for cancellation"
-    );
-    assert_eq!(subscription.plan_tier, "starter");
-
-    // -------------------------------------------------------------------------
-    // Step 6: Verify access is retained during current period
-    // -------------------------------------------------------------------------
-    // Customer should still be able to call a gated tenant endpoint while current period is active.
-    let usage_resp = app
+    let estimate_resp = app
         .clone()
         .oneshot(
-            Request::get("/usage")
-                .header("Authorization", format!("Bearer {}", jwt))
+            Request::get("/billing/estimate?month=2026-03")
+                .header("authorization", auth.as_str())
                 .body(Body::empty())
                 .unwrap(),
         )
         .await
         .unwrap();
-    assert_eq!(
-        usage_resp.status(),
-        StatusCode::OK,
-        "customer should retain access to usage endpoint"
-    );
+    assert_eq!(estimate_resp.status(), StatusCode::OK);
 
-    // Customer should also still be able to inspect subscription state.
-    let resp = app
+    let invoices_resp = app
+        .clone()
         .oneshot(
-            Request::get("/billing/subscription")
-                .header("Authorization", format!("Bearer {}", jwt))
+            Request::get("/invoices")
+                .header("authorization", auth.as_str())
                 .body(Body::empty())
                 .unwrap(),
         )
         .await
         .unwrap();
+    assert_eq!(invoices_resp.status(), StatusCode::OK);
 
-    assert_eq!(
-        resp.status(),
-        StatusCode::OK,
-        "customer should retain access to subscription endpoint"
-    );
-    let body = body_json(resp).await;
-    assert_eq!(body["status"], "active");
-    assert_eq!(body["plan_tier"], "starter");
-    assert_eq!(body["cancel_at_period_end"], true);
+    let invoice_detail_resp = app
+        .oneshot(
+            Request::get(format!("/invoices/{}", seeded_invoice.id))
+                .header("authorization", auth.as_str())
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(invoice_detail_resp.status(), StatusCode::OK);
 }
 
 /// Test: Complete usage-to-payment pipeline

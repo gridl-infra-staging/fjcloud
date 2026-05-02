@@ -6,14 +6,12 @@ use api::models::index_migration::IndexMigration;
 use api::models::vm_inventory::{NewVmInventory, VmInventory};
 use api::models::{
     Customer, CustomerRateOverrideRow, CustomerTenant, CustomerTenantSummary, Deployment,
-    InvoiceLineItemRow, InvoiceRow, PlanTier, RateCardRow, SubscriptionRow, SubscriptionStatus,
-    UsageDaily,
+    InvoiceLineItemRow, InvoiceRow, RateCardRow, UsageDaily,
 };
 use api::provisioner::mock::MockVmProvisioner;
 use api::repos::api_key_repo::ApiKeyRepo;
 use api::repos::index_migration_repo::IndexMigrationRepo;
 use api::repos::invoice_repo::{InvoiceRepo, NewInvoice, NewLineItem};
-use api::repos::subscription_repo::{NewSubscription, SubscriptionRepo};
 use api::repos::tenant_repo::TenantRepo;
 use api::repos::usage_repo::{rolling_window_for_days, UsageSummary};
 use api::repos::vm_inventory_repo::VmInventoryRepo;
@@ -87,7 +85,6 @@ impl MockCustomerRepo {
             password_reset_token: None,
             password_reset_expires_at: None,
             last_accessed_at: None,
-            subscription_status: None,
             overdue_invoice_count: 0,
             object_storage_egress_carryforward_cents: Decimal::ZERO,
         }
@@ -149,12 +146,17 @@ impl MockCustomerRepo {
         customer
     }
 
-    /// Override Stage 1 billing-health input fields on a stored customer fixture.
+    /// Override customer-row billing-health input fields on a stored fixture.
+    ///
+    /// Only fields that live on the customer row are settable here:
+    /// `last_accessed_at` and `overdue_invoice_count`. The
+    /// `has_ever_been_billed` and `recent_paid_invoice_within_60_days`
+    /// signals are derived from the `InvoiceRepo` — seed paid invoices
+    /// through `MockInvoiceRepo::seed_paid` to express those.
     pub fn seed_billing_health_inputs(
         &self,
         customer_id: Uuid,
         last_accessed_at: Option<DateTime<Utc>>,
-        subscription_status: Option<&str>,
         overdue_invoice_count: i64,
     ) -> Customer {
         let mut customers = self.customers.lock().unwrap();
@@ -163,7 +165,6 @@ impl MockCustomerRepo {
             .find(|c| c.id == customer_id)
             .expect("customer fixture should exist before overriding billing-health inputs");
         customer.last_accessed_at = last_accessed_at;
-        customer.subscription_status = subscription_status.map(str::to_string);
         customer.overdue_invoice_count = overdue_invoice_count;
         customer.clone()
     }
@@ -1152,6 +1153,7 @@ pub struct MockInvoiceRepo {
     line_items: Mutex<Vec<InvoiceLineItemRow>>,
     fail_next_finalize: Mutex<bool>,
     fail_next_mark_paid: Mutex<bool>,
+    fail_list_by_customer: AtomicBool,
 }
 
 impl MockInvoiceRepo {
@@ -1161,6 +1163,7 @@ impl MockInvoiceRepo {
             line_items: Mutex::new(Vec::new()),
             fail_next_finalize: Mutex::new(false),
             fail_next_mark_paid: Mutex::new(false),
+            fail_list_by_customer: AtomicBool::new(false),
         }
     }
 
@@ -1170,6 +1173,46 @@ impl MockInvoiceRepo {
 
     pub fn fail_next_mark_paid(&self) {
         *self.fail_next_mark_paid.lock().unwrap() = true;
+    }
+
+    /// Force every subsequent `list_by_customer` call to error. Used to
+    /// prove admin tenant write paths do not surface invoice-read failures
+    /// after the customer mutation has already committed.
+    pub fn force_list_by_customer_failure(&self) {
+        self.fail_list_by_customer.store(true, Ordering::SeqCst);
+    }
+
+    /// Seed a fully-paid invoice in one shot (for billing-health tests that
+    /// need `has_ever_been_billed` / `recent_paid_invoice_within_60_days`
+    /// signals without going through finalize → mark_paid).
+    pub fn seed_paid(
+        &self,
+        customer_id: Uuid,
+        period_start: NaiveDate,
+        period_end: NaiveDate,
+        paid_at: DateTime<Utc>,
+    ) -> InvoiceRow {
+        let mut invoices = self.invoices.lock().unwrap();
+        let invoice = InvoiceRow {
+            id: Uuid::new_v4(),
+            customer_id,
+            period_start,
+            period_end,
+            subtotal_cents: 0,
+            tax_cents: 0,
+            total_cents: 0,
+            currency: "usd".to_string(),
+            status: "paid".to_string(),
+            minimum_applied: false,
+            stripe_invoice_id: None,
+            hosted_invoice_url: None,
+            pdf_url: None,
+            created_at: paid_at,
+            finalized_at: Some(paid_at),
+            paid_at: Some(paid_at),
+        };
+        invoices.push(invoice.clone());
+        invoice
     }
 
     /// Seed a pre-built invoice with line items for read-only tests.
@@ -1297,6 +1340,9 @@ impl InvoiceRepo for MockInvoiceRepo {
     }
 
     async fn list_by_customer(&self, customer_id: Uuid) -> Result<Vec<InvoiceRow>, RepoError> {
+        if self.fail_list_by_customer.load(Ordering::SeqCst) {
+            return Err(RepoError::Other("injected list_by_customer failure".into()));
+        }
         let invoices = self.invoices.lock().unwrap();
         let mut result: Vec<InvoiceRow> = invoices
             .iter()
@@ -1457,6 +1503,7 @@ pub fn mock_invoice_repo() -> Arc<MockInvoiceRepo> {
 // MockStripeService
 // ---------------------------------------------------------------------------
 
+type BillingPortalSessionCall = (String, String); // (customer_id, return_url)
 type CheckoutSessionCall = (
     String,
     String,
@@ -1464,7 +1511,6 @@ type CheckoutSessionCall = (
     String,
     Option<std::collections::HashMap<String, String>>,
 );
-type BillingPortalSessionCall = (String, String); // (customer_id, return_url)
 
 pub struct MockStripeService {
     pub customers: Mutex<Vec<(String, String, String)>>, // (id, name, email)
@@ -1473,6 +1519,7 @@ pub struct MockStripeService {
     pub invoices_created: Mutex<Vec<FinalizedInvoice>>,
     pub should_fail: Mutex<bool>,
     pub checkout_sessions: Mutex<Vec<CheckoutSessionResponse>>,
+    #[allow(dead_code)]
     pub checkout_session_calls: Mutex<Vec<CheckoutSessionCall>>,
     pub billing_portal_session_calls: Mutex<Vec<BillingPortalSessionCall>>,
     pub billing_portal_url: Mutex<String>,
@@ -1667,111 +1714,6 @@ impl StripeService for MockStripeService {
             event_type: parsed["type"].as_str().unwrap_or("unknown").to_string(),
             data: parsed["data"].clone(),
         })
-    }
-
-    /// Implements `StripeService::create_checkout_session`. Records all call
-    /// arguments in `checkout_session_calls`, then returns a synthetic
-    /// `CheckoutSessionResponse` with a mock session ID and a hardcoded URL.
-    /// Returns `StripeError::Api` if `should_fail` is set.
-    async fn create_checkout_session(
-        &self,
-        stripe_customer_id: &str,
-        price_id: &str,
-        success_url: &str,
-        cancel_url: &str,
-        metadata: Option<&std::collections::HashMap<String, String>>,
-    ) -> Result<CheckoutSessionResponse, StripeError> {
-        if *self.should_fail.lock().unwrap() {
-            return Err(StripeError::Api("mock failure".into()));
-        }
-        self.checkout_session_calls.lock().unwrap().push((
-            stripe_customer_id.to_string(),
-            price_id.to_string(),
-            success_url.to_string(),
-            cancel_url.to_string(),
-            metadata.cloned(),
-        ));
-        let session = CheckoutSessionResponse {
-            id: format!(
-                "cs_mock_{}",
-                Uuid::new_v4().to_string().split('-').next().unwrap()
-            ),
-            url: "https://checkout.stripe.com/mock".to_string(),
-        };
-        self.checkout_sessions.lock().unwrap().push(session.clone());
-        Ok(session)
-    }
-
-    async fn retrieve_subscription(
-        &self,
-        subscription_id: &str,
-    ) -> Result<SubscriptionData, StripeError> {
-        if *self.should_fail.lock().unwrap() {
-            return Err(StripeError::Api("mock failure".into()));
-        }
-        let subscriptions = self.subscriptions.lock().unwrap();
-        subscriptions
-            .iter()
-            .find(|s| s.id == subscription_id)
-            .cloned()
-            .ok_or_else(|| StripeError::Api("subscription not found".into()))
-    }
-
-    /// Implements `StripeService::cancel_subscription`. Records the call in
-    /// `cancel_subscription_calls`, then mutates the matching seeded
-    /// `SubscriptionData`: sets `cancel_at_period_end` and, if immediate
-    /// cancellation is requested, sets status to `"canceled"`. Returns
-    /// `StripeError::Api` if `should_fail` is set or the subscription is not
-    /// found in the seeded list.
-    async fn cancel_subscription(
-        &self,
-        subscription_id: &str,
-        cancel_at_period_end: bool,
-    ) -> Result<SubscriptionData, StripeError> {
-        if *self.should_fail.lock().unwrap() {
-            return Err(StripeError::Api("mock failure".into()));
-        }
-        self.cancel_subscription_calls
-            .lock()
-            .unwrap()
-            .push((subscription_id.to_string(), cancel_at_period_end));
-        let mut subscriptions = self.subscriptions.lock().unwrap();
-        if let Some(sub) = subscriptions.iter_mut().find(|s| s.id == subscription_id) {
-            sub.cancel_at_period_end = cancel_at_period_end;
-            if !cancel_at_period_end {
-                sub.status = "canceled".to_string();
-            }
-            return Ok(sub.clone());
-        }
-        Err(StripeError::Api("subscription not found".into()))
-    }
-
-    /// Implements `StripeService::update_subscription_price`. Records the call
-    /// in `update_subscription_calls`, then updates the `price_id` on the first
-    /// item of the matching seeded `SubscriptionData`. Returns `StripeError::Api`
-    /// if `should_fail` is set or the subscription is not found.
-    async fn update_subscription_price(
-        &self,
-        subscription_id: &str,
-        new_price_id: &str,
-        proration_behavior: &str,
-    ) -> Result<SubscriptionData, StripeError> {
-        if *self.should_fail.lock().unwrap() {
-            return Err(StripeError::Api("mock failure".into()));
-        }
-        self.update_subscription_calls.lock().unwrap().push((
-            subscription_id.to_string(),
-            new_price_id.to_string(),
-            proration_behavior.to_string(),
-        ));
-        let mut subscriptions = self.subscriptions.lock().unwrap();
-        if let Some(sub) = subscriptions.iter_mut().find(|s| s.id == subscription_id) {
-            if let Some(item) = sub.items.first_mut() {
-                item.price_id = new_price_id.to_string();
-            }
-            return Ok(sub.clone());
-        }
-        Err(StripeError::Api("subscription not found".into()))
     }
 }
 
@@ -3200,187 +3142,6 @@ impl FlapjackNodeClient for MockNodeClient {
     ) -> Result<(), ColdTierError> {
         Ok(())
     }
-}
-
-pub struct MockSubscriptionRepo {
-    subscriptions: Mutex<Vec<SubscriptionRow>>,
-}
-
-fn is_current_subscription(row: &SubscriptionRow) -> bool {
-    row.status != SubscriptionStatus::Canceled.as_str()
-}
-
-impl MockSubscriptionRepo {
-    pub fn new() -> Self {
-        Self {
-            subscriptions: Mutex::new(Vec::new()),
-        }
-    }
-
-    /// Seed a subscription directly (for test setup).
-    pub fn seed(&self, subscription: SubscriptionRow) {
-        self.subscriptions.lock().unwrap().push(subscription);
-    }
-
-    pub fn count(&self) -> usize {
-        self.subscriptions.lock().unwrap().len()
-    }
-}
-
-#[async_trait]
-impl SubscriptionRepo for MockSubscriptionRepo {
-    /// Implements `SubscriptionRepo::create`. Inserts a new `SubscriptionRow`
-    /// into the in-memory store. Enforces two uniqueness invariants: at most one
-    /// non-canceled subscription per customer, and uniqueness of
-    /// `stripe_subscription_id`. Returns `RepoError::Conflict` if either is
-    /// violated.
-    async fn create(&self, subscription: NewSubscription) -> Result<SubscriptionRow, RepoError> {
-        let mut subs = self.subscriptions.lock().unwrap();
-
-        // Only one non-canceled subscription per customer.
-        if subs
-            .iter()
-            .any(|s| s.customer_id == subscription.customer_id && is_current_subscription(s))
-        {
-            return Err(RepoError::Conflict(
-                "subscription already exists for this customer".into(),
-            ));
-        }
-
-        // Check for duplicate stripe_subscription_id
-        if subs
-            .iter()
-            .any(|s| s.stripe_subscription_id == subscription.stripe_subscription_id)
-        {
-            return Err(RepoError::Conflict(
-                "stripe subscription id already in use".into(),
-            ));
-        }
-
-        let row = SubscriptionRow {
-            id: Uuid::new_v4(),
-            customer_id: subscription.customer_id,
-            stripe_subscription_id: subscription.stripe_subscription_id,
-            stripe_price_id: subscription.stripe_price_id,
-            plan_tier: subscription.plan_tier.as_str().to_string(),
-            status: subscription.status.as_str().to_string(),
-            current_period_start: subscription.current_period_start,
-            current_period_end: subscription.current_period_end,
-            cancel_at_period_end: subscription.cancel_at_period_end,
-            created_at: Utc::now(),
-            updated_at: Utc::now(),
-        };
-
-        subs.push(row.clone());
-        Ok(row)
-    }
-
-    async fn find_by_id(&self, id: Uuid) -> Result<Option<SubscriptionRow>, RepoError> {
-        let subs = self.subscriptions.lock().unwrap();
-        Ok(subs.iter().find(|s| s.id == id).cloned())
-    }
-
-    async fn find_by_customer(
-        &self,
-        customer_id: Uuid,
-    ) -> Result<Option<SubscriptionRow>, RepoError> {
-        let subs = self.subscriptions.lock().unwrap();
-        Ok(subs
-            .iter()
-            .rev()
-            .find(|s| s.customer_id == customer_id && is_current_subscription(s))
-            .cloned())
-    }
-
-    async fn find_by_stripe_id(
-        &self,
-        stripe_subscription_id: &str,
-    ) -> Result<Option<SubscriptionRow>, RepoError> {
-        let subs = self.subscriptions.lock().unwrap();
-        Ok(subs
-            .iter()
-            .find(|s| s.stripe_subscription_id == stripe_subscription_id)
-            .cloned())
-    }
-
-    async fn update_status(&self, id: Uuid, status: SubscriptionStatus) -> Result<(), RepoError> {
-        let mut subs = self.subscriptions.lock().unwrap();
-        let sub = subs
-            .iter_mut()
-            .find(|s| s.id == id)
-            .ok_or(RepoError::NotFound)?;
-        sub.status = status.as_str().to_string();
-        sub.updated_at = Utc::now();
-        Ok(())
-    }
-
-    /// Implements `SubscriptionRepo::update_plan`. Updates `plan_tier` and
-    /// `stripe_price_id` on the subscription identified by `id`. Returns
-    /// `RepoError::NotFound` if no subscription with that ID exists.
-    async fn update_plan(
-        &self,
-        id: Uuid,
-        plan_tier: PlanTier,
-        stripe_price_id: &str,
-    ) -> Result<(), RepoError> {
-        let mut subs = self.subscriptions.lock().unwrap();
-        let sub = subs
-            .iter_mut()
-            .find(|s| s.id == id)
-            .ok_or(RepoError::NotFound)?;
-        sub.plan_tier = plan_tier.as_str().to_string();
-        sub.stripe_price_id = stripe_price_id.to_string();
-        sub.updated_at = Utc::now();
-        Ok(())
-    }
-
-    /// Implements `SubscriptionRepo::update_period`. Updates
-    /// `current_period_start` and `current_period_end` on the subscription
-    /// identified by `id`. Returns `RepoError::NotFound` if no subscription
-    /// with that ID exists.
-    async fn update_period(
-        &self,
-        id: Uuid,
-        period_start: NaiveDate,
-        period_end: NaiveDate,
-    ) -> Result<(), RepoError> {
-        let mut subs = self.subscriptions.lock().unwrap();
-        let sub = subs
-            .iter_mut()
-            .find(|s| s.id == id)
-            .ok_or(RepoError::NotFound)?;
-        sub.current_period_start = period_start;
-        sub.current_period_end = period_end;
-        sub.updated_at = Utc::now();
-        Ok(())
-    }
-
-    async fn set_cancel_at_period_end(&self, id: Uuid, cancel: bool) -> Result<(), RepoError> {
-        let mut subs = self.subscriptions.lock().unwrap();
-        let sub = subs
-            .iter_mut()
-            .find(|s| s.id == id)
-            .ok_or(RepoError::NotFound)?;
-        sub.cancel_at_period_end = cancel;
-        sub.updated_at = Utc::now();
-        Ok(())
-    }
-
-    async fn mark_canceled(&self, id: Uuid) -> Result<(), RepoError> {
-        let mut subs = self.subscriptions.lock().unwrap();
-        let sub = subs
-            .iter_mut()
-            .find(|s| s.id == id)
-            .ok_or(RepoError::NotFound)?;
-        sub.status = SubscriptionStatus::Canceled.as_str().to_string();
-        sub.cancel_at_period_end = false;
-        sub.updated_at = Utc::now();
-        Ok(())
-    }
-}
-
-pub fn mock_subscription_repo() -> Arc<MockSubscriptionRepo> {
-    Arc::new(MockSubscriptionRepo::new())
 }
 
 // ── Storage mocks ──────────────────────────────────────────────────────

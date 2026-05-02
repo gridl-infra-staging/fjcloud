@@ -11,7 +11,7 @@ before implementation work begins.
 - `infra/pricing-calculator/src/types.rs` — existing shared types
 - `infra/pricing-calculator/src/providers/mod.rs` — Stage 1 seam
 - `infra/billing/src/types.rs` — uses `chrono::NaiveDate` for daily usage
-- `infra/billing/src/plan.rs` — registry pattern: `PlanLimits::for_tier(tier)`
+- `infra/api/src/services/tenant_quota.rs` — current free-tier limits owner after billing plan module removal
 - `stage_01_research_findings.md` — locked conventions
 
 ### Decision: What lives where
@@ -164,8 +164,8 @@ in `mod.rs`.
 - A `&[fn() -> ProviderMetadata]` const array can't be used because
   `all_estimates` has a different signature (`fn(&WorkloadProfile) -> EstimatedCost`).
 - Explicit lists are readable, grep-able, and the regression test catches drift.
-  This matches the billing crate's `PlanLimits::for_tier` pattern of exhaustive
-  match without abstraction.
+  This matches the billing crate's exhaustive tier-to-limits match pattern
+  without abstraction.
 
 ## 5. Verified Pricing Data Per Provider
 

@@ -1,0 +1,46 @@
+{
+    "Command": {
+        "CommandId": "be287382-7e46-4de6-9411-f1a2bb5320e1",
+        "DocumentName": "AWS-RunShellScript",
+        "DocumentVersion": "$DEFAULT",
+        "Comment": "stage7 ",
+        "ExpiresAfter": "2026-05-02T02:53:28.314000-04:00",
+        "Parameters": {
+            "commands": [
+                "set -euo pipefail; sudo systemctl restart fjcloud-api; systemctl is-active fjcloud-api; curl -fsS http://127.0.0.1:3001/health; journalctl -u fjcloud-api --since \"10 minutes ago\" --no-pager"
+            ]
+        },
+        "InstanceIds": [
+            "i-0afc7651593f12372"
+        ],
+        "Targets": [],
+        "RequestedDateTime": "2026-05-02T00:53:28.314000-04:00",
+        "Status": "Pending",
+        "StatusDetails": "Pending",
+        "OutputS3Region": "us-east-1",
+        "OutputS3BucketName": "",
+        "OutputS3KeyPrefix": "",
+        "MaxConcurrency": "50",
+        "MaxErrors": "0",
+        "TargetCount": 1,
+        "CompletedCount": 0,
+        "ErrorCount": 0,
+        "DeliveryTimedOutCount": 0,
+        "ServiceRole": "",
+        "NotificationConfig": {
+            "NotificationArn": "",
+            "NotificationEvents": [],
+            "NotificationType": ""
+        },
+        "CloudWatchOutputConfig": {
+            "CloudWatchLogGroupName": "",
+            "CloudWatchOutputEnabled": false
+        },
+        "TimeoutSeconds": 3600,
+        "AlarmConfiguration": {
+            "IgnorePollAlarmFailure": false,
+            "Alarms": []
+        },
+        "TriggeredAlarms": []
+    }
+}

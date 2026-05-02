@@ -23,9 +23,7 @@ describe('Billing page', () => {
 			data: {
 				...layoutTestDefaults,
 				user: null,
-				billingUnavailable: false,
-				subscriptionCancelledBannerText: null,
-				subscriptionRecoveryBannerText: null
+				billingUnavailable: false
 			},
 			form: null
 		});
@@ -37,9 +35,7 @@ describe('Billing page', () => {
 			data: {
 				...layoutTestDefaults,
 				user: null,
-				billingUnavailable: false,
-				subscriptionCancelledBannerText: null,
-				subscriptionRecoveryBannerText: null
+				billingUnavailable: false
 			},
 			form: null
 		});
@@ -53,46 +49,27 @@ describe('Billing page', () => {
 			data: {
 				...layoutTestDefaults,
 				user: null,
-				billingUnavailable: false,
-				subscriptionCancelledBannerText: null,
-				subscriptionRecoveryBannerText: null
+				billingUnavailable: false
 			},
 			form: null
 		});
 		expect(enhanceMock).not.toHaveBeenCalled();
 	});
 
-	it('renders the exact cancellation banner copy when cancellation state is present', () => {
-		render(BillingPage, {
+	it('omits legacy subscription banners while keeping native manageBilling form wiring', () => {
+		const { container } = render(BillingPage, {
 			data: {
 				...layoutTestDefaults,
 				user: null,
-				billingUnavailable: false,
-				subscriptionCancelledBannerText: 'Subscription cancelled, ends 2026-05-31',
-				subscriptionRecoveryBannerText: null
+				billingUnavailable: false
 			},
 			form: null
 		});
-		expect(screen.getByTestId('subscription-cancelled-banner')).toHaveTextContent(
-			'Subscription cancelled, ends 2026-05-31'
-		);
-	});
-
-	it('renders exactly one cancellation surface and keeps Manage billing as the only action', () => {
-		render(BillingPage, {
-			data: {
-				...layoutTestDefaults,
-				user: null,
-				billingUnavailable: false,
-				subscriptionCancelledBannerText: 'Subscription cancelled, ends 2026-05-31',
-				subscriptionRecoveryBannerText: null
-			},
-			form: null
-		});
-		expect(screen.getAllByTestId('subscription-cancelled-banner')).toHaveLength(1);
-		expect(screen.getByRole('button', { name: 'Manage billing' })).toBeInTheDocument();
-		expect(screen.queryByRole('button', { name: /cancel subscription/i })).not.toBeInTheDocument();
-		expect(screen.queryByText('No payment methods on file.')).not.toBeInTheDocument();
+		expect(screen.queryByTestId('subscription-cancelled-banner')).not.toBeInTheDocument();
+		expect(screen.queryByTestId('subscription-recovery-banner')).not.toBeInTheDocument();
+		const form = container.querySelector('form[action="?/manageBilling"]');
+		expect(form).not.toBeNull();
+		expect(form?.getAttribute('method')).toBe('POST');
 	});
 
 	it('displays action error message when portal handoff fails', () => {
@@ -101,8 +78,6 @@ describe('Billing page', () => {
 				...layoutTestDefaults,
 				user: null,
 				billingUnavailable: false,
-				subscriptionCancelledBannerText: null,
-				subscriptionRecoveryBannerText: null
 			},
 			form: { error: 'Failed to open billing portal' }
 		});
@@ -115,9 +90,7 @@ describe('Billing page', () => {
 			data: {
 				...layoutTestDefaults,
 				user: null,
-				billingUnavailable: false,
-				subscriptionCancelledBannerText: null,
-				subscriptionRecoveryBannerText: null
+				billingUnavailable: false
 			},
 			form: null
 		});
@@ -132,9 +105,7 @@ describe('Billing page', () => {
 			data: {
 				...layoutTestDefaults,
 				user: null,
-				billingUnavailable: true,
-				subscriptionCancelledBannerText: null,
-				subscriptionRecoveryBannerText: null
+				billingUnavailable: true
 			},
 			form: null
 		});
@@ -145,23 +116,5 @@ describe('Billing page', () => {
 			)
 		).toBeInTheDocument();
 		expect(screen.queryByRole('button', { name: 'Manage billing' })).not.toBeInTheDocument();
-	});
-
-	it('renders dunning recovery banner copy with a recovery CTA', () => {
-		render(BillingPage, {
-			data: {
-				...layoutTestDefaults,
-				user: null,
-				billingUnavailable: false,
-				subscriptionCancelledBannerText: null,
-				subscriptionRecoveryBannerText:
-					'Payment failed for your subscription. Update your payment method to recover access.'
-			},
-			form: null
-		});
-		expect(screen.getByTestId('subscription-recovery-banner')).toHaveTextContent(
-			'Payment failed for your subscription. Update your payment method to recover access.'
-		);
-		expect(screen.getByRole('button', { name: 'Recover payment' })).toBeInTheDocument();
 	});
 });

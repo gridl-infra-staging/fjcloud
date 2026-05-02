@@ -12,10 +12,12 @@ export const PLAYWRIGHT_STORAGE_STATE = {
 	customerJourneys: 'tests/fixtures/.auth/customer-journeys.json',
 	admin: 'tests/fixtures/.auth/admin.json'
 } as const;
+// Firefox/WebKit dropped 2026-05-02. Playwright-on-Linux WebKit isn't real
+// Safari (no ITP, no Apple Pay, no Stripe 3DS quirks), and Firefox is
+// ~3-6% of users — neither earns its CI cycle cost at paid-beta scale.
+// Real Safari smoke is operator-driven on macOS pre-launch.
 export const PLAYWRIGHT_DESKTOP_DEVICE = {
-	chromium: 'Desktop Chrome',
-	firefox: 'Desktop Firefox',
-	webkit: 'Desktop Safari'
+	chromium: 'Desktop Chrome'
 } as const;
 export type PlaywrightDesktopBrowser = keyof typeof PLAYWRIGHT_DESKTOP_DEVICE;
 
@@ -131,34 +133,6 @@ export const PLAYWRIGHT_PROJECT_CONTRACTS: PlaywrightProjectContract[] = [
 		use: {
 			desktopBrowser: 'chromium',
 			storageState: PLAYWRIGHT_STORAGE_STATE.admin
-		}
-	},
-	{
-		name: 'firefox:public',
-		testMatch: /e2e-ui\/full\/public-pages\.spec\.ts/,
-		use: { desktopBrowser: 'firefox' }
-	},
-	{
-		name: 'firefox:smoke',
-		testMatch: /e2e-ui\/smoke\/(auth|dashboard|indexes)\.spec\.ts/,
-		dependencies: ['setup:user'],
-		use: {
-			desktopBrowser: 'firefox',
-			storageState: PLAYWRIGHT_STORAGE_STATE.user
-		}
-	},
-	{
-		name: 'webkit:public',
-		testMatch: /e2e-ui\/full\/public-pages\.spec\.ts/,
-		use: { desktopBrowser: 'webkit' }
-	},
-	{
-		name: 'webkit:smoke',
-		testMatch: /e2e-ui\/smoke\/(auth|dashboard|indexes)\.spec\.ts/,
-		dependencies: ['setup:user'],
-		use: {
-			desktopBrowser: 'webkit',
-			storageState: PLAYWRIGHT_STORAGE_STATE.user
 		}
 	}
 ];
@@ -311,13 +285,18 @@ export function resolvePlaywrightRuntime({
 	webEnv,
 	fallbackJwtSecret
 }: ResolvePlaywrightRuntimeParams): PlaywrightRuntimeContract {
+	// Thread processEnv through so the LB-2/LB-3 remote-target opt-in
+	// (PLAYWRIGHT_TARGET_REMOTE=1) is observed deterministically by the
+	// loopback guard during runtime resolution.
 	const baseURL = requireLoopbackHttpUrl(
 		'BASE_URL',
-		processEnv.BASE_URL ?? DEFAULT_PLAYWRIGHT_BASE_URL
+		processEnv.BASE_URL ?? DEFAULT_PLAYWRIGHT_BASE_URL,
+		processEnv
 	);
 	const apiBaseUrl = requireLoopbackHttpUrl(
 		'API_BASE_URL',
-		processEnv.API_BASE_URL ?? repoEnv.API_BASE_URL ?? webEnv.API_BASE_URL ?? DEFAULT_API_URL
+		processEnv.API_BASE_URL ?? repoEnv.API_BASE_URL ?? webEnv.API_BASE_URL ?? DEFAULT_API_URL,
+		processEnv
 	);
 	const webServerEnv = sanitizeWebServerEnv({
 		...processEnv,
@@ -377,8 +356,53 @@ export type FixtureEnv = {
 
 const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
 
-/** Reject any URL that is not http/https on a loopback host to prevent credentialed requests leaking to non-local endpoints. */
-export function requireLoopbackHttpUrl(varName: string, rawUrl: string): string {
+// LB-2/LB-3 — opt-in remote-target mode for running browser specs against
+// deployed staging. Both conditions must be satisfied to bypass the loopback
+// check: (1) processEnv[REMOTE_TARGET_OPT_IN_ENV] === '1' (literal "1" only,
+// not generic truthy values, to keep the carve-out unambiguous and grep-able);
+// (2) URL host ends with one of REMOTE_TARGET_HOST_SUFFIX_ALLOWLIST. The
+// suffix match is anchored on a literal "." prefix to prevent
+// flapjack.foo.evil.com style bypass. Remote-target mode also requires https
+// because the credentialed flow exports ADMIN_KEY/JWT to the wire.
+//
+// SSoT: this is the ONLY place the carve-out is implemented. All non-local
+// fixtures call requireLoopbackHttpUrl() and inherit this behavior.
+export const REMOTE_TARGET_OPT_IN_ENV = 'PLAYWRIGHT_TARGET_REMOTE';
+export const REMOTE_TARGET_HOST_SUFFIX_ALLOWLIST: readonly string[] = [
+	// Canonical staging+prod root for fjcloud (api.flapjack.foo,
+	// cloud.flapjack.foo, flapjack.flapjack.foo). Adding more entries here
+	// MUST be paired with an explicit security review — every entry widens
+	// where credentialed Playwright runs may direct traffic.
+	'.flapjack.foo'
+];
+
+function isAllowlistedRemoteTargetHost(hostname: string): boolean {
+	// Anchored suffix match — only allow when hostname ENDS with an
+	// allowlisted suffix. The leading "." in each allowlist entry prevents
+	// substring-style bypass like "flapjack.foo.evil.com".
+	for (const suffix of REMOTE_TARGET_HOST_SUFFIX_ALLOWLIST) {
+		if (hostname.endsWith(suffix)) {
+			return true;
+		}
+	}
+	return false;
+}
+
+/**
+ * Reject any URL that is not http/https on a loopback host to prevent
+ * credentialed requests leaking to non-local endpoints.
+ *
+ * processEnv defaults to process.env so existing callers need no change. When
+ * processEnv[REMOTE_TARGET_OPT_IN_ENV] === '1' AND the URL host matches the
+ * staging-only allowlist AND the protocol is https, the loopback check is
+ * waived. See REMOTE_TARGET_HOST_SUFFIX_ALLOWLIST and LB-2/LB-3 in
+ * LAUNCH.md for context.
+ */
+export function requireLoopbackHttpUrl(
+	varName: string,
+	rawUrl: string,
+	processEnv: Record<string, string | undefined> = process.env
+): string {
 	let parsed: URL;
 	try {
 		parsed = new URL(rawUrl);
@@ -389,6 +413,28 @@ export function requireLoopbackHttpUrl(varName: string, rawUrl: string): string 
 	}
 
 	if (!['http:', 'https:'].includes(parsed.protocol) || !LOOPBACK_HOSTS.has(parsed.hostname)) {
+		// Default-deny: only the explicit "1" opt-in flag + allowlisted https
+		// host can lift the loopback gate. Any other combination remains
+		// rejected to preserve the original safety posture.
+		const optInActive = processEnv[REMOTE_TARGET_OPT_IN_ENV] === '1';
+		if (
+			optInActive &&
+			parsed.protocol === 'https:' &&
+			isAllowlistedRemoteTargetHost(parsed.hostname)
+		) {
+			return rawUrl;
+		}
+
+		// When opt-in is set but host is not on allowlist (or http instead
+		// of https), surface a more specific error so the operator knows
+		// remote-target mode IS active but their URL was rejected by the
+		// allowlist/protocol rule rather than the original loopback rule.
+		if (optInActive && parsed.protocol !== 'https:') {
+			throw new Error(
+				`${varName} must use https when ${REMOTE_TARGET_OPT_IN_ENV}=1 (refusing to send credentialed requests over an unencrypted channel to a non-loopback host)`
+			);
+		}
+
 		throw new Error(
 			`${varName} must use a local loopback host (localhost, 127.0.0.1, or [::1]) for credentialed local browser runs`
 		);
@@ -398,15 +444,20 @@ export function requireLoopbackHttpUrl(varName: string, rawUrl: string): string 
 }
 
 export function resolveFixtureEnv(processEnv: Record<string, string | undefined>): FixtureEnv {
+	// Thread processEnv into the loopback guard so the LB-2/LB-3
+	// remote-target opt-in (PLAYWRIGHT_TARGET_REMOTE=1) is observed
+	// deterministically during fixture-env resolution rather than racing
+	// against process.env at module load time.
 	return {
-		apiUrl: requireLoopbackHttpUrl('API_URL', processEnv.API_URL ?? DEFAULT_API_URL),
+		apiUrl: requireLoopbackHttpUrl('API_URL', processEnv.API_URL ?? DEFAULT_API_URL, processEnv),
 		adminKey: processEnv.E2E_ADMIN_KEY ?? processEnv.ADMIN_KEY,
 		userEmail: processEnv.E2E_USER_EMAIL,
 		userPassword: processEnv.E2E_USER_PASSWORD,
 		testRegion: processEnv.E2E_TEST_REGION ?? DEFAULT_TEST_REGION,
 		flapjackUrl: requireLoopbackHttpUrl(
 			'FLAPJACK_URL',
-			processEnv.FLAPJACK_URL ?? DEFAULT_FLAPJACK_URL
+			processEnv.FLAPJACK_URL ?? DEFAULT_FLAPJACK_URL,
+			processEnv
 		)
 	};
 }

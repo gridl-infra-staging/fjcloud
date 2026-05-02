@@ -1279,7 +1279,6 @@ async fn customer_serialization_omits_sensitive_fields() {
         password_reset_token: Some("reset-token-456".to_string()),
         password_reset_expires_at: Some(now),
         last_accessed_at: None,
-        subscription_status: None,
         overdue_invoice_count: 0,
         object_storage_egress_carryforward_cents: rust_decimal::Decimal::new(37, 2),
     };

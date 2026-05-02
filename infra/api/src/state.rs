@@ -2,8 +2,6 @@
 use sqlx::postgres::PgPool;
 use std::sync::Arc;
 
-use billing::plan::PlanRegistry;
-
 use crate::dns::DnsManager;
 use crate::provisioner::region_map::RegionConfig;
 use crate::provisioner::VmProvisioner;
@@ -17,7 +15,6 @@ use crate::repos::InvoiceRepo;
 use crate::repos::RateCardRepo;
 use crate::repos::StorageBucketRepo;
 use crate::repos::StorageKeyRepo;
-use crate::repos::SubscriptionRepo;
 use crate::repos::TenantRepo;
 use crate::repos::UsageRepo;
 use crate::repos::VmInventoryRepo;
@@ -51,6 +48,7 @@ pub struct AppState {
     pub admin_key: Arc<str>,
     pub internal_auth_token: Option<Arc<str>>,
     pub stripe_webhook_secret: Option<Arc<str>>,
+    pub stripe_publishable_key: Option<String>,
     pub stripe_success_url: String,
     pub stripe_cancel_url: String,
     pub metrics_collector: Arc<MetricsCollector>,
@@ -60,8 +58,6 @@ pub struct AppState {
     pub usage_repo: Arc<dyn UsageRepo + Send + Sync>,
     pub rate_card_repo: Arc<dyn RateCardRepo + Send + Sync>,
     pub invoice_repo: Arc<dyn InvoiceRepo + Send + Sync>,
-    pub subscription_repo: Arc<dyn SubscriptionRepo + Send + Sync>,
-    pub plan_registry: Arc<dyn PlanRegistry>,
     pub stripe_service: Arc<dyn StripeService>,
     pub webhook_http_client: Arc<dyn WebhookHttpClient>,
     pub email_service: Arc<dyn EmailService>,

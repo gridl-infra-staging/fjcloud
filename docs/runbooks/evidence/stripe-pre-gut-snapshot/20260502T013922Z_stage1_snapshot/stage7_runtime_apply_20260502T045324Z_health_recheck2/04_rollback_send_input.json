@@ -1,0 +1,12 @@
+{
+  "DocumentName": "AWS-RunShellScript",
+  "InstanceIds": [
+    "i-0afc7651593f12372"
+  ],
+  "Comment": "stage7 ",
+  "Parameters": {
+    "commands": [
+      "set -euo pipefail; sudo /opt/fjcloud/scripts/generate_ssm_env.sh staging; sudo systemctl restart fjcloud-api; systemctl is-active fjcloud-api; journalctl -u fjcloud-api --since \"10 minutes ago\" --no-pager || true"
+    ]
+  }
+}

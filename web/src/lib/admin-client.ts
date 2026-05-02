@@ -39,7 +39,6 @@ export interface AdminTenant {
 	status: string;
 	billing_plan: string;
 	last_accessed_at: string | null;
-	subscription_status: string | null;
 	overdue_invoice_count: number;
 	billing_health: BillingHealthStatus;
 	created_at: string;

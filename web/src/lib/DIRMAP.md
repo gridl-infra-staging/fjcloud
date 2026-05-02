@@ -8,6 +8,7 @@
 | landing-pricing.ts | Landing-page pricing helpers. |
 | pricing.ts | Shared marketing pricing constants used by the landing page pricing table. |
 | public_api.ts | Canonical public API origin used by unauthenticated marketing surfaces. |
+| stripe.ts | Stub summary for stripe.ts. |
 
 | Directory | Summary |
 | --- | --- |

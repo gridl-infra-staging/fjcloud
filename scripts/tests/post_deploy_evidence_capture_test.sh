@@ -575,6 +575,31 @@ test_live_mode_zero_warning_counts_do_not_abort() {
     assert_contains "$RUN_STDOUT" "01_stripe_runtime/" "live mode should print stage artifact dir names"
 }
 
+test_live_mode_without_journalctl_still_runs_and_writes_zero_counts() {
+    setup_workspace
+    local args run_dir stripe_count_path alert_count_path call_lines
+    args="$(common_required_args "$TEST_WORKSPACE/artifacts" "$TEST_WORKSPACE/inputs/credentials.env")"
+
+    rm -f "$TEST_WORKSPACE/bin/journalctl"
+
+    _run_post_deploy_capture --args "$args" "MOCK_LAST_DEPLOY_SHA=cccccccccccccccccccccccccccccccccccccccc"
+
+    assert_eq "$RUN_EXIT_CODE" "0" "live mode should not fail when host journalctl is unavailable"
+    assert_contains "$RUN_STDERR" "WARNING: journalctl not found on host; writing fallback zero count for STRIPE_SECRET_KEY" "missing journalctl should emit stripe fallback warning"
+    assert_contains "$RUN_STDERR" "WARNING: journalctl not found on host; writing fallback zero count for alert webhook" "missing journalctl should emit alert fallback warning"
+
+    run_dir="$(first_run_dir_under_root "$TEST_WORKSPACE/artifacts")"
+    stripe_count_path="$run_dir/01_stripe_runtime/stripe_secret_key_warning_count.txt"
+    alert_count_path="$run_dir/02_alert_log/alert_webhook_count.txt"
+    assert_eq "$(cat "$stripe_count_path")" "0" "missing journalctl should force stripe warning count to 0"
+    assert_eq "$(cat "$alert_count_path")" "0" "missing journalctl should force alert webhook count to 0"
+
+    call_lines="$(grep -E '^(journalctl|validate_stripe|run_full_backend_validation)\|' "$TEST_CALL_LOG" || true)"
+    assert_not_contains "$call_lines" "journalctl|" "missing journalctl fallback should not attempt journalctl invocation"
+    assert_contains "$call_lines" "validate_stripe|" "missing journalctl fallback should still run validate-stripe owner"
+    assert_contains "$call_lines" "run_full_backend_validation|--paid-beta-rc" "missing journalctl fallback should still run backend validation owner"
+}
+
 test_live_mode_failure_persists_fail_summary_json() {
     setup_workspace
     local args run_dir summary_json
@@ -624,6 +649,7 @@ run_all_tests() {
     test_restricted_stripe_key_alias_is_exported_to_delegated_owners
     test_run_id_collision_fails_fast_with_exact_message
     test_live_mode_zero_warning_counts_do_not_abort
+    test_live_mode_without_journalctl_still_runs_and_writes_zero_counts
     test_live_mode_failure_persists_fail_summary_json
     run_test_summary
 }

@@ -136,4 +136,17 @@ describe('Billing setup page', () => {
 		});
 		expect(getStripeMock).not.toHaveBeenCalled();
 	});
+
+	it('keeps the setup form visible when Stripe bootstrap returns null', async () => {
+		getStripeMock.mockResolvedValueOnce(null);
+
+		render(SetupPage, {
+			data: { ...layoutTestDefaults, user: null, clientSecret: 'seti_secret_123', error: null }
+		});
+
+		expect(screen.getByTestId('payment-element')).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: 'Save payment method' })).toBeInTheDocument();
+		expect(screen.queryByText('Payment method management unavailable')).not.toBeInTheDocument();
+		expect(getStripeMock).toHaveBeenCalledTimes(1);
+	});
 });

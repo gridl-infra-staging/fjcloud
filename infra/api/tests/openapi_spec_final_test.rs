@@ -101,12 +101,12 @@ fn spec_path_count_guard() {
         .expect("spec must have a paths object");
 
     let count = paths.len();
-    // 71 unique path strings from Stages 1-5; use >= so adding paths never breaks this test.
+    // 66 unique path strings from Stages 1-5; use >= so adding paths never breaks this test.
     // (The checklist estimated 93 but that counted path+method combos; OpenAPI deduplicates
-    // methods under the same path key, yielding 71 unique path entries.)
+    // methods under the same path key, yielding 66 unique path entries.)
     assert!(
-        count >= 71,
-        "spec must contain at least 71 paths (Stages 1-5), found {count}"
+        count >= 66,
+        "spec must contain at least 66 paths (Stages 1-5), found {count}"
     );
 }
 

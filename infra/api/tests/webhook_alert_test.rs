@@ -2,10 +2,8 @@ mod common;
 
 use std::sync::Arc;
 
-use api::models::SubscriptionStatus;
 use api::repos::invoice_repo::{InvoiceRepo, NewLineItem};
 use api::repos::CustomerRepo;
-use api::repos::SubscriptionRepo;
 use api::services::alerting::{
     Alert, AlertError, AlertRecord, AlertService, AlertSeverity, MockAlertService,
 };
@@ -20,7 +18,7 @@ use uuid::Uuid;
 
 use common::{
     mock_deployment_repo, mock_invoice_repo, mock_rate_card_repo, mock_repo, mock_stripe_service,
-    mock_subscription_repo, mock_usage_repo, test_state_all_with_stripe,
+    mock_usage_repo, test_state_all_with_stripe,
 };
 
 fn seed_draft_invoice(
@@ -46,32 +44,6 @@ fn seed_draft_invoice(
     )
 }
 
-#[allow(clippy::too_many_arguments)]
-fn seed_subscription_row(
-    repo: &common::MockSubscriptionRepo,
-    customer_id: Uuid,
-    subscription_id: &str,
-    status: SubscriptionStatus,
-    plan_tier: &str,
-    price_id: &str,
-    period_start: NaiveDate,
-    period_end: NaiveDate,
-) {
-    repo.seed(api::models::SubscriptionRow {
-        id: Uuid::new_v4(),
-        customer_id,
-        stripe_subscription_id: subscription_id.to_string(),
-        stripe_price_id: price_id.to_string(),
-        plan_tier: plan_tier.to_string(),
-        status: status.as_str().to_string(),
-        current_period_start: period_start,
-        current_period_end: period_end,
-        cancel_at_period_end: false,
-        created_at: chrono::Utc::now(),
-        updated_at: chrono::Utc::now(),
-    });
-}
-
 fn webhook_request(body: &str) -> Request<Body> {
     Request::post("/webhooks/stripe")
         .header("content-type", "application/json")
@@ -93,25 +65,6 @@ fn test_app_with_alert_service(
         invoice_repo,
         mock_stripe_service(),
     );
-    state.alert_service = alert_service;
-    api::router::build_router(state)
-}
-
-fn test_app_with_alert_service_and_subscriptions(
-    customer_repo: Arc<common::MockCustomerRepo>,
-    invoice_repo: Arc<common::MockInvoiceRepo>,
-    subscription_repo: Arc<common::MockSubscriptionRepo>,
-    alert_service: Arc<dyn AlertService>,
-) -> axum::Router {
-    let mut state = test_state_all_with_stripe(
-        customer_repo,
-        mock_deployment_repo(),
-        mock_usage_repo(),
-        mock_rate_card_repo(),
-        invoice_repo,
-        mock_stripe_service(),
-    );
-    state.subscription_repo = subscription_repo.clone();
     state.alert_service = alert_service;
     api::router::build_router(state)
 }
@@ -205,10 +158,9 @@ async fn payment_failed_with_retries_sends_warning_alert() {
 }
 
 #[tokio::test]
-async fn payment_failed_with_retries_keeps_subscription_active() {
+async fn payment_failed_with_retries_keeps_invoice_finalized_and_customer_active() {
     let customer_repo = mock_repo();
     let invoice_repo = mock_invoice_repo();
-    let subscription_repo = mock_subscription_repo();
     let alert_service = Arc::new(MockAlertService::new());
     let customer = customer_repo.seed("Acme", "acme@example.com");
 
@@ -224,21 +176,9 @@ async fn payment_failed_with_retries_keeps_subscription_active() {
         .await
         .unwrap();
 
-    seed_subscription_row(
-        &subscription_repo,
-        customer.id,
-        "sub_retry_active",
-        SubscriptionStatus::Active,
-        "starter",
-        "price_starter_test",
-        NaiveDate::from_ymd_opt(2026, 3, 1).unwrap(),
-        NaiveDate::from_ymd_opt(2026, 3, 31).unwrap(),
-    );
-
-    let app = test_app_with_alert_service_and_subscriptions(
-        customer_repo,
+    let app = test_app_with_alert_service(
+        Arc::clone(&customer_repo),
         Arc::clone(&invoice_repo),
-        subscription_repo.clone(),
         Arc::clone(&alert_service) as Arc<dyn AlertService>,
     );
 
@@ -248,20 +188,18 @@ async fn payment_failed_with_retries_keeps_subscription_active() {
 
     let updated_invoice = invoice_repo.find_by_id(invoice.id).await.unwrap().unwrap();
     assert_eq!(updated_invoice.status, "finalized");
-
-    let updated_sub = subscription_repo
-        .find_by_stripe_id("sub_retry_active")
+    let updated_customer = customer_repo
+        .find_by_id(customer.id)
         .await
         .unwrap()
-        .expect("subscription should exist");
-    assert_eq!(updated_sub.status, "active");
+        .unwrap();
+    assert_eq!(updated_customer.status, "active");
 }
 
 #[tokio::test]
-async fn payment_action_required_transitions_subscription_to_past_due_with_warning_alert() {
+async fn payment_action_required_sends_warning_alert_without_suspending_customer() {
     let customer_repo = mock_repo();
     let invoice_repo = mock_invoice_repo();
-    let subscription_repo = mock_subscription_repo();
     let alert_service = Arc::new(MockAlertService::new());
     let customer = customer_repo.seed("Acme", "acme@example.com");
     customer_repo
@@ -281,21 +219,9 @@ async fn payment_action_required_transitions_subscription_to_past_due_with_warni
         .await
         .unwrap();
 
-    seed_subscription_row(
-        &subscription_repo,
-        customer.id,
-        "sub_action_required",
-        SubscriptionStatus::Active,
-        "starter",
-        "price_starter_test",
-        NaiveDate::from_ymd_opt(2026, 3, 1).unwrap(),
-        NaiveDate::from_ymd_opt(2026, 3, 31).unwrap(),
-    );
-
-    let app = test_app_with_alert_service_and_subscriptions(
-        customer_repo,
-        invoice_repo,
-        subscription_repo.clone(),
+    let app = test_app_with_alert_service(
+        Arc::clone(&customer_repo),
+        Arc::clone(&invoice_repo),
         Arc::clone(&alert_service) as Arc<dyn AlertService>,
     );
 
@@ -311,13 +237,14 @@ async fn payment_action_required_transitions_subscription_to_past_due_with_warni
         .title
         .to_lowercase()
         .contains("payment action required"));
-
-    let updated = subscription_repo
-        .find_by_stripe_id("sub_action_required")
+    let updated_invoice = invoice_repo.find_by_id(invoice.id).await.unwrap().unwrap();
+    assert_eq!(updated_invoice.status, "finalized");
+    let updated_customer = customer_repo
+        .find_by_id(customer.id)
         .await
         .unwrap()
-        .expect("subscription should still exist");
-    assert_eq!(updated.status, "past_due");
+        .unwrap();
+    assert_eq!(updated_customer.status, "active");
 }
 
 #[tokio::test]
@@ -757,4 +684,39 @@ async fn payment_failed_for_unknown_invoice_is_ignored() {
         0,
         "unknown invoice payment_failed should be ignored without side effects"
     );
+}
+
+#[tokio::test]
+async fn deprecated_subscription_events_do_not_emit_alerts() {
+    let customer_repo = mock_repo();
+    let invoice_repo = mock_invoice_repo();
+    let alert_service = Arc::new(MockAlertService::new());
+
+    let app = test_app_with_alert_service(
+        customer_repo,
+        invoice_repo,
+        Arc::clone(&alert_service) as Arc<dyn AlertService>,
+    );
+
+    for (event_id, event_type) in [
+        ("evt_no_alert_sub_created", "customer.subscription.created"),
+        ("evt_no_alert_sub_updated", "customer.subscription.updated"),
+        ("evt_no_alert_sub_deleted", "customer.subscription.deleted"),
+        (
+            "evt_no_alert_checkout_completed",
+            "checkout.session.completed",
+        ),
+    ] {
+        let payload = format!(
+            r#"{{"id":"{event_id}","type":"{event_type}","data":{{"object":{{"id":"legacy_noop"}}}}}}"#
+        );
+        let resp = app
+            .clone()
+            .oneshot(webhook_request(&payload))
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    assert_eq!(alert_service.alert_count(), 0);
 }

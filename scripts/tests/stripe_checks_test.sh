@@ -5,6 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 PASS_COUNT=0
 FAIL_COUNT=0
+LIVE_KEY_BAD_PREFIX_MESSAGE="STRIPE_SECRET_KEY must start with sk_test_ or rk_test_ (sk_live_ and rk_live_ keys are not allowed)"
 fail() {
     echo "FAIL: $*" >&2
     FAIL_COUNT=$((FAIL_COUNT + 1))
@@ -235,7 +236,8 @@ test_check_stripe_key_present_rejects_live_key_with_canonical_text() {
     " 2>&1)" || exit_code=$?
 
     assert_eq "${exit_code:-0}" "1" "check_stripe_key_present should reject live Stripe keys"
-    assert_contains "$output" "sk_live_" "live-key rejection should mention live-mode key prefix"
+    assert_contains "$output" "$LIVE_KEY_BAD_PREFIX_MESSAGE" \
+        "live-key rejection should keep exact canonical prefix message when cutover is unset"
     assert_contains "$output" "STRIPE_SECRET_KEY" "live-key rejection should point operators to canonical key contract"
 }
 
@@ -248,8 +250,51 @@ test_check_stripe_key_present_rejects_restricted_live_key_with_bad_prefix_reason
     " 2>&1)" || exit_code=$?
 
     assert_eq "${exit_code:-0}" "1" "check_stripe_key_present should reject restricted live Stripe keys"
+    assert_contains "$output" "$LIVE_KEY_BAD_PREFIX_MESSAGE" \
+        "restricted live key rejection should keep exact canonical prefix message when cutover is unset"
     assert_contains "$output" "REASON: stripe_key_bad_prefix" "restricted live key rejection should keep stripe_key_bad_prefix semantics"
     assert_contains "$output" "rk_test_" "restricted live key rejection should mention accepted rk_test_ prefix"
+}
+
+test_check_stripe_key_present_rejects_live_key_when_cutover_not_literal_one() {
+    local output exit_code
+    output="$(BACKEND_LIVE_GATE=1 STRIPE_LIVE_CUTOVER=true STRIPE_SECRET_KEY="sk_live_stage2_non_literal" bash -c "
+        unset STRIPE_TEST_SECRET_KEY
+        source '$REPO_ROOT/scripts/lib/stripe_checks.sh'
+        check_stripe_key_present
+    " 2>&1)" || exit_code=$?
+
+    assert_eq "${exit_code:-0}" "1" "check_stripe_key_present should reject live key when STRIPE_LIVE_CUTOVER is non-literal value"
+    assert_contains "$output" "$LIVE_KEY_BAD_PREFIX_MESSAGE" \
+        "non-literal cutover value should keep exact canonical bad-prefix message"
+    assert_contains "$output" "REASON: stripe_key_bad_prefix" \
+        "non-literal cutover value should keep stripe_key_bad_prefix semantics"
+}
+
+test_check_stripe_key_present_accepts_live_key_when_cutover_literal_one() {
+    local output exit_code
+    output="$(BACKEND_LIVE_GATE=1 STRIPE_LIVE_CUTOVER=1 STRIPE_SECRET_KEY="sk_live_stage2_allowed" bash -c "
+        unset STRIPE_TEST_SECRET_KEY
+        source '$REPO_ROOT/scripts/lib/stripe_checks.sh'
+        check_stripe_key_present
+        echo 'LIVE_CUTOVER_PRESENT_OK'
+    " 2>&1)" || exit_code=$?
+
+    assert_eq "${exit_code:-0}" "0" "check_stripe_key_present should accept sk_live_ when STRIPE_LIVE_CUTOVER is literal 1"
+    assert_contains "$output" "LIVE_CUTOVER_PRESENT_OK" "execution should continue when live cutover gate is explicitly enabled"
+}
+
+test_check_stripe_key_present_accepts_restricted_live_key_when_cutover_literal_one() {
+    local output exit_code
+    output="$(BACKEND_LIVE_GATE=1 STRIPE_LIVE_CUTOVER=1 STRIPE_SECRET_KEY="rk_live_stage2_allowed" bash -c "
+        unset STRIPE_TEST_SECRET_KEY
+        source '$REPO_ROOT/scripts/lib/stripe_checks.sh'
+        check_stripe_key_present
+        echo 'RK_LIVE_CUTOVER_PRESENT_OK'
+    " 2>&1)" || exit_code=$?
+
+    assert_eq "${exit_code:-0}" "0" "check_stripe_key_present should accept rk_live_ when STRIPE_LIVE_CUTOVER is literal 1"
+    assert_contains "$output" "RK_LIVE_CUTOVER_PRESENT_OK" "execution should continue when restricted live cutover gate is explicitly enabled"
 }
 
 # check_stripe_key_live tests
@@ -591,6 +636,8 @@ MOCK
     " 2>&1)" || exit_code=$?
 
     assert_eq "${exit_code:-0}" "1" "check_stripe_key_live should reject sk_live_ key before Stripe API call"
+    assert_contains "$output" "$LIVE_KEY_BAD_PREFIX_MESSAGE" \
+        "sk_live_ rejection should keep exact canonical prefix message when cutover is unset"
     assert_contains "$output" "REASON: stripe_key_bad_prefix" "sk_live_ rejection should keep stripe_key_bad_prefix semantics"
     if [ -f "$call_log" ]; then
         fail "check_stripe_key_live should not call curl when canonical key is sk_live_"
@@ -623,6 +670,8 @@ MOCK
     " 2>&1)" || exit_code=$?
 
     assert_eq "${exit_code:-0}" "1" "check_stripe_key_live should reject rk_live_ key before Stripe API call"
+    assert_contains "$output" "$LIVE_KEY_BAD_PREFIX_MESSAGE" \
+        "rk_live_ rejection should keep exact canonical prefix message when cutover is unset"
     assert_contains "$output" "REASON: stripe_key_bad_prefix" "rk_live_ rejection should keep stripe_key_bad_prefix semantics"
     if [ -f "$call_log" ]; then
         fail "check_stripe_key_live should not call curl when canonical key is rk_live_"
@@ -631,6 +680,91 @@ MOCK
     fi
 
     rm -rf "$mock_dir"
+}
+
+test_check_stripe_key_live_rejects_live_key_when_cutover_not_literal_one() {
+    local mock_dir
+    local call_log
+    mock_dir="$(mktemp -d)"
+    call_log="$mock_dir/curl_calls.log"
+    cat > "$mock_dir/curl" <<'MOCK'
+#!/usr/bin/env bash
+echo "called" >> "$STRIPE_TEST_CALL_LOG"
+echo '{"object":"balance"}'
+echo "200"
+exit 0
+MOCK
+    chmod +x "$mock_dir/curl"
+
+    local output exit_code
+    output="$(BACKEND_LIVE_GATE=1 STRIPE_LIVE_CUTOVER=true STRIPE_SECRET_KEY="sk_live_non_literal_cutover" STRIPE_TEST_CALL_LOG="$call_log" PATH="$mock_dir:$PATH" bash -c "
+        unset STRIPE_TEST_SECRET_KEY
+        source '$REPO_ROOT/scripts/lib/stripe_checks.sh'
+        check_stripe_key_live
+    " 2>&1)" || exit_code=$?
+
+    assert_eq "${exit_code:-0}" "1" "check_stripe_key_live should reject sk_live_ when STRIPE_LIVE_CUTOVER is non-literal value"
+    assert_contains "$output" "$LIVE_KEY_BAD_PREFIX_MESSAGE" \
+        "non-literal cutover value should keep exact canonical bad-prefix message"
+    assert_contains "$output" "REASON: stripe_key_bad_prefix" \
+        "non-literal cutover value should keep stripe_key_bad_prefix semantics"
+    if [ -f "$call_log" ]; then
+        fail "check_stripe_key_live should not call curl when STRIPE_LIVE_CUTOVER is non-literal value"
+    else
+        pass "check_stripe_key_live should not call curl when STRIPE_LIVE_CUTOVER is non-literal value"
+    fi
+
+    rm -rf "$mock_dir"
+}
+
+test_check_stripe_key_live_accepts_sk_live_when_cutover_literal_one() {
+    local mock_dir
+    mock_dir="$(mktemp -d)"
+    cat > "$mock_dir/curl" <<'MOCK'
+#!/usr/bin/env bash
+echo '{"object":"balance","available":[{"amount":0,"currency":"usd"}]}'
+echo "200"
+exit 0
+MOCK
+    chmod +x "$mock_dir/curl"
+
+    local output exit_code
+    output="$(BACKEND_LIVE_GATE=1 STRIPE_LIVE_CUTOVER=1 STRIPE_SECRET_KEY="sk_live_allowed_cutover" PATH="$mock_dir:$PATH" bash -c "
+        unset STRIPE_TEST_SECRET_KEY
+        source '$REPO_ROOT/scripts/lib/stripe_checks.sh'
+        check_stripe_key_live
+        echo 'LIVE_CUTOVER_SK_LIVE_OK'
+    " 2>&1)" || exit_code=$?
+
+    rm -rf "$mock_dir"
+
+    assert_eq "${exit_code:-0}" "0" "check_stripe_key_live should accept sk_live_ when STRIPE_LIVE_CUTOVER is literal 1"
+    assert_contains "$output" "LIVE_CUTOVER_SK_LIVE_OK" "execution should continue after sk_live_ live check when cutover gate is enabled"
+}
+
+test_check_stripe_key_live_accepts_rk_live_when_cutover_literal_one() {
+    local mock_dir
+    mock_dir="$(mktemp -d)"
+    cat > "$mock_dir/curl" <<'MOCK'
+#!/usr/bin/env bash
+echo '{"object":"balance","available":[{"amount":0,"currency":"usd"}]}'
+echo "200"
+exit 0
+MOCK
+    chmod +x "$mock_dir/curl"
+
+    local output exit_code
+    output="$(BACKEND_LIVE_GATE=1 STRIPE_LIVE_CUTOVER=1 STRIPE_SECRET_KEY="rk_live_allowed_cutover" PATH="$mock_dir:$PATH" bash -c "
+        unset STRIPE_TEST_SECRET_KEY
+        source '$REPO_ROOT/scripts/lib/stripe_checks.sh'
+        check_stripe_key_live
+        echo 'LIVE_CUTOVER_RK_LIVE_OK'
+    " 2>&1)" || exit_code=$?
+
+    rm -rf "$mock_dir"
+
+    assert_eq "${exit_code:-0}" "0" "check_stripe_key_live should accept rk_live_ when STRIPE_LIVE_CUTOVER is literal 1"
+    assert_contains "$output" "LIVE_CUTOVER_RK_LIVE_OK" "execution should continue after rk_live_ live check when cutover gate is enabled"
 }
 
 # check_stripe_webhook_secret_present tests
@@ -816,6 +950,9 @@ test_check_stripe_key_present_prefers_canonical_over_alias
 test_check_stripe_key_present_fails_when_canonical_empty_even_with_alias
 test_check_stripe_key_present_rejects_live_key_with_canonical_text
 test_check_stripe_key_present_rejects_restricted_live_key_with_bad_prefix_reason
+test_check_stripe_key_present_rejects_live_key_when_cutover_not_literal_one
+test_check_stripe_key_present_accepts_live_key_when_cutover_literal_one
+test_check_stripe_key_present_accepts_restricted_live_key_when_cutover_literal_one
 echo ""
 echo "--- check_stripe_key_live ---"
 test_check_stripe_key_live_fails_on_401
@@ -831,6 +968,9 @@ test_check_stripe_key_live_prefers_canonical_over_alias
 test_check_stripe_key_live_does_not_put_secret_on_curl_argv
 test_check_stripe_key_live_rejects_sk_live_before_curl_call
 test_check_stripe_key_live_rejects_rk_live_before_curl_call
+test_check_stripe_key_live_rejects_live_key_when_cutover_not_literal_one
+test_check_stripe_key_live_accepts_sk_live_when_cutover_literal_one
+test_check_stripe_key_live_accepts_rk_live_when_cutover_literal_one
 echo ""
 echo "--- check_stripe_webhook_secret_present ---"
 test_check_stripe_webhook_secret_present_fails_when_unset

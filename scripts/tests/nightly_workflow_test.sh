@@ -151,6 +151,17 @@ assert_job_contains_regex "stripe-test-clock-live" 'STRIPE_WEBHOOK_SECRET:\s+\$\
 assert_job_contains_regex "stripe-test-clock-live" 'INTEGRATION:\s+"1"' "stripe-test-clock-live enables integration gate"
 assert_job_contains_regex "stripe-test-clock-live" 'BACKEND_LIVE_GATE:\s+"1"' "stripe-test-clock-live enables live gate"
 
+# Tenant isolation proptest job — moved from per-push CI on 2026-05-02 to
+# shave ~3-5 min off every CI cycle. The proptest is mock-only (no
+# postgres, no stripe) so the job has no service dependencies.
+assert_contains_regex '^\s{2}tenant-isolation-proptest:\s*$' "tenant-isolation-proptest job exists"
+assert_job_contains_regex "tenant-isolation-proptest" 'uses:\s+actions/checkout@' "tenant-isolation-proptest has checkout step"
+assert_job_contains_regex "tenant-isolation-proptest" 'uses:\s+dtolnay/rust-toolchain@' "tenant-isolation-proptest installs rust toolchain"
+assert_job_contains_regex "tenant-isolation-proptest" 'uses:\s+Swatinem/rust-cache@' "tenant-isolation-proptest uses rust cache"
+assert_job_contains_regex "tenant-isolation-proptest" 'run:\s+bash scripts/tests/nightly_workflow_test.sh' "tenant-isolation-proptest self-checks workflow contract"
+assert_job_contains_regex "tenant-isolation-proptest" 'run:\s+cd infra && cargo test -p api --test tenant_isolation_proptest --features proptest-tests' "tenant-isolation-proptest runs only the proptest binary with proptest-tests feature"
+assert_job_not_contains_regex "tenant-isolation-proptest" 'cargo test --workspace' "tenant-isolation-proptest does not run full workspace test sweep"
+
 assert_all_uses_are_sha_pinned
 
 echo ""

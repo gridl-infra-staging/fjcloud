@@ -11,7 +11,6 @@ pub mod rate_override;
 pub mod resource_vector;
 pub mod restore_job;
 pub mod storage;
-pub mod subscription;
 pub mod tenant;
 pub mod usage_daily;
 pub mod vm_inventory;
@@ -31,7 +30,6 @@ pub use restore_job::{NewRestoreJob, RestoreJob};
 pub use storage::{
     NewStorageAccessKey, NewStorageBucket, StorageAccessKey, StorageAccessKeyRow, StorageBucket,
 };
-pub use subscription::{PlanTier, SubscriptionPlanRow, SubscriptionRow, SubscriptionStatus};
 pub use tenant::{CustomerTenant, CustomerTenantSummary};
 pub use usage_daily::UsageDaily;
 pub use vm_inventory::{NewVmInventory, VmInventory};

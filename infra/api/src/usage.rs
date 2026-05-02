@@ -277,7 +277,7 @@ mod tests {
         let anchor = NaiveDate::from_ymd_opt(2026, 3, 7).unwrap();
         let stale_date = NaiveDate::from_ymd_opt(2026, 2, 28).unwrap();
         let bytes_per_gb = billing::types::BYTES_PER_GIB;
-        let rows = vec![
+        let rows = [
             make_usage(
                 cid,
                 NaiveDate::from_ymd_opt(2026, 3, 1).unwrap(),

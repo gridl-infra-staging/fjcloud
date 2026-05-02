@@ -165,19 +165,16 @@ cd web && npx playwright test \
 cd web && npx playwright test tests/e2e-ui/full/isolation.spec.ts
 ```
 
-- [x] Run targeted Firefox/WebKit public and smoke validation on the same supported runtime:
+- [x] Real-Safari smoke (operator-driven, macOS only):
 
-```bash
-cd web && npx playwright test \
-  tests/e2e-ui/full/public-pages.spec.ts \
-  tests/e2e-ui/smoke/auth.spec.ts \
-  tests/e2e-ui/smoke/dashboard.spec.ts \
-  tests/e2e-ui/smoke/indexes.spec.ts \
-  --project=firefox:public \
-  --project=firefox:smoke \
-  --project=webkit:public \
-  --project=webkit:smoke
-```
+  Open `cloud.flapjack.foo` in Safari and walk: signup → email verify → dashboard
+  → billing portal opens. ~5 minutes. Catches Stripe 3DS / ITP / Apple Pay
+  quirks that Playwright-on-Linux WebKit cannot.
+
+  Firefox/WebKit Playwright projects were dropped 2026-05-02 (see
+  `web/playwright.config.contract.ts` for the SSOT browser list). WebKit-on-Linux
+  isn't real Safari, and Firefox is ~3-6% of users — neither earned its CI cost
+  at paid-beta scale.
 
 Pass bar:
 
@@ -186,7 +183,7 @@ Pass bar:
 - Billing UI renders without requiring real Stripe
 - Dashboard estimated-bill coverage passes, or any skip names a current billing-data blocker
 - Isolation coverage proves no cross-tenant leakage
-- Targeted public and smoke coverage passes in Firefox and WebKit on a supported Node runtime
+- Real Safari signup→dashboard→billing-portal walk completes without error
 
 ## Phase 3: Browser-Unmocked Admin And Support Flows
 

@@ -1,0 +1,20 @@
+stage5_dir=docs/runbooks/evidence/stripe-pre-gut-snapshot/20260502T013922Z_stage1_snapshot/stage5_webhook_cleanup_20260502T034624Z
+command_ledger:
+- stripe whoami (sandbox context)
+- stripe whoami --api-key <live_key> (live context)
+- stripe webhook_endpoints retrieve we_1TPDB0KH9mdklKeIkGaA4BZ7
+- stripe webhook_endpoints retrieve we_1SyNmKKH9mdklKeIucug7tZE
+- stripe webhook_endpoints list --limit 100
+- stripe webhook_endpoints retrieve we_1TPn3kGXI8zVz4UHakNGfb4O --api-key <live_key>
+- stripe webhook_endpoints update we_1TPDB0KH9mdklKeIkGaA4BZ7 --enabled-events invoice.payment_succeeded --enabled-events invoice.payment_failed --enabled-events invoice.payment_action_required
+- stripe webhook_endpoints delete we_1SyNmKKH9mdklKeIucug7tZE
+- stripe webhook_endpoints retrieve we_1SyNmKKH9mdklKeIucug7tZE (expected failure)
+- stripe webhook_endpoints list --limit 100
+live_outcome=external-unreachable
+sandbox_outcome=external-unreachable
+live_before_after_diff_file=docs/runbooks/evidence/stripe-pre-gut-snapshot/20260502T013922Z_stage1_snapshot/stage5_webhook_cleanup_20260502T034624Z/assertions/live_before_after_diff.txt
+sandbox_before_after_diff_file=docs/runbooks/evidence/stripe-pre-gut-snapshot/20260502T013922Z_stage1_snapshot/stage5_webhook_cleanup_20260502T034624Z/assertions/sandbox_before_after_diff.txt
+product_price_changes_made=no
+ssm_parameter_changes_made=no
+generate_ssm_env_changes_made=no
+webhook_handler_code_changes_made=no

@@ -17,7 +17,6 @@ import type {
 	CreateBillingPortalSessionRequest,
 	CreateBillingPortalSessionResponse,
 	PaymentMethod,
-	SubscriptionResponse,
 	ApiKeyListItem,
 	CreateApiKeyRequest,
 	CreateApiKeyResponse,
@@ -239,10 +238,6 @@ export class ApiClient extends BaseClient {
 		req: CreateBillingPortalSessionRequest
 	): Promise<CreateBillingPortalSessionResponse> {
 		return this.api('POST', '/billing/portal', req);
-	}
-
-	getSubscription(): Promise<SubscriptionResponse> {
-		return this.api('GET', '/billing/subscription');
 	}
 
 	// --- API Keys ---

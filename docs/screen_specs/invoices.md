@@ -41,7 +41,7 @@ The invoice list shows `Invoices` and either `No invoices yet` or a table with p
 ## Current Implementation Gaps
 
 Invoice-detail browser coverage may skip when local Stripe linkage is unavailable. Mailpit invoice-ready email evidence is owned by the local commerce proof rather than this browser spec.
-Recovery/dunning copy contract ownership remains in `docs/screen_specs/dashboard_billing.md` to avoid duplicate source-of-truth text in this invoice-focused spec.
+Billing-page availability/portal-action behavior and subscription-status-banner ownership remain in `docs/screen_specs/dashboard_billing.md` to avoid duplicate contracts in this invoice-focused spec.
 
 ## Automated Coverage
 

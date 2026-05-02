@@ -1,7 +1,6 @@
 import type { PageServerLoad, Actions } from './$types';
 import { createApiClient } from '$lib/server/api';
 import { isBillingServiceNotConfiguredError, isBillingCustomerMissingError } from '$lib/billing';
-import { ApiRequestError } from '$lib/api/client';
 import {
 	DASHBOARD_SESSION_EXPIRED_REDIRECT,
 	isDashboardSessionExpiredError,
@@ -12,38 +11,22 @@ import { fail, redirect } from '@sveltejs/kit';
 const BILLING_PAGE_PATH = '/dashboard/billing';
 const BILLING_SETUP_ERROR =
 	'Billing is being set up for your account. Please contact support@flapjack.foo if this persists.';
-const SUBSCRIPTION_RECOVERY_BANNER_TEXT =
-	'Payment failed for your subscription. Update your payment method to recover access.';
-const DELINQUENT_SUBSCRIPTION_STATUSES = new Set(['past_due', 'unpaid', 'incomplete', 'incomplete_expired']);
+const BILLING_PORTAL_ERROR = 'Failed to open billing portal';
+
+function isAllowedStripePortalUrl(value: string): boolean {
+	try {
+		const parsed = new URL(value);
+		return parsed.protocol === 'https:' && parsed.hostname === 'billing.stripe.com';
+	} catch {
+		return false;
+	}
+}
 
 export const prerender = false;
-
-function cancelledSubscriptionBannerText(subscription: {
-	status: string;
-	current_period_end: string;
-	cancel_at_period_end: boolean;
-}): string | null {
-	// The banner is only meaningful once Stripe has recorded a pending or
-	// completed cancellation date for the customer-visible subscription.
-	if (!subscription.current_period_end) {
-		return null;
-	}
-	if (!subscription.cancel_at_period_end && subscription.status !== 'canceled') {
-		return null;
-	}
-	return `Subscription cancelled, ends ${subscription.current_period_end}`;
-}
-
-function recoveryBannerTextForSubscription(subscription: { status: string }): string | null {
-	return DELINQUENT_SUBSCRIPTION_STATUSES.has(subscription.status)
-		? SUBSCRIPTION_RECOVERY_BANNER_TEXT
-		: null;
-}
 
 export const load: PageServerLoad = async ({ locals }) => {
 	const api = createApiClient(locals.user?.token);
 	let billingUnavailable = false;
-	let billingCustomerMissing = false;
 	try {
 		await api.getPaymentMethods();
 	} catch (err) {
@@ -54,41 +37,14 @@ export const load: PageServerLoad = async ({ locals }) => {
 			billingUnavailable = true;
 		}
 		if (isBillingCustomerMissingError(err)) {
-			billingCustomerMissing = true;
+			return { billingUnavailable };
 		}
 		if (!isBillingServiceNotConfiguredError(err) && !isBillingCustomerMissingError(err)) {
 			throw err;
 		}
 	}
 
-	let subscriptionCancelledBannerText: string | null = null;
-	let subscriptionRecoveryBannerText: string | null = null;
-	if (!billingUnavailable && !billingCustomerMissing) {
-		try {
-			const subscription = await api.getSubscription();
-			subscriptionCancelledBannerText = cancelledSubscriptionBannerText(subscription);
-			subscriptionRecoveryBannerText = recoveryBannerTextForSubscription(subscription);
-		} catch (err) {
-			if (isDashboardSessionExpiredError(err)) {
-				redirect(303, DASHBOARD_SESSION_EXPIRED_REDIRECT);
-			}
-			if (isBillingCustomerMissingError(err)) {
-				subscriptionCancelledBannerText = null;
-				subscriptionRecoveryBannerText = null;
-			} else if (
-				err instanceof ApiRequestError &&
-				err.status === 404 &&
-				err.message === 'no subscription found'
-			) {
-				subscriptionCancelledBannerText = null;
-				subscriptionRecoveryBannerText = null;
-			} else {
-				throw err;
-			}
-		}
-	}
-
-	return { billingUnavailable, subscriptionCancelledBannerText, subscriptionRecoveryBannerText };
+	return { billingUnavailable };
 };
 
 export const actions: Actions = {
@@ -108,7 +64,11 @@ export const actions: Actions = {
 			if (isBillingServiceNotConfiguredError(err) || isBillingCustomerMissingError(err)) {
 				return fail(400, { error: BILLING_SETUP_ERROR });
 			}
-			return fail(400, { error: 'Failed to open billing portal' });
+			return fail(400, { error: BILLING_PORTAL_ERROR });
+		}
+
+		if (!isAllowedStripePortalUrl(portalUrl)) {
+			return fail(400, { error: BILLING_PORTAL_ERROR });
 		}
 
 		throw redirect(303, portalUrl);

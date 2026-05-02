@@ -1,0 +1,23 @@
+{
+  "id": "prod_TwGF4YX0N95n5h",
+  "object": "product",
+  "active": true,
+  "attributes": [],
+  "created": 1770517667,
+  "default_price": "price_1SyNiyKH9mdklKeIlaMX7rPg",
+  "description": null,
+  "images": [],
+  "livemode": false,
+  "marketing_features": [],
+  "metadata": {},
+  "name": "Flapjack Large",
+  "package_dimensions": null,
+  "shippable": null,
+  "statement_descriptor": null,
+  "tax_code": null,
+  "tax_details": null,
+  "type": "service",
+  "unit_label": null,
+  "updated": 1770517668,
+  "url": null
+}

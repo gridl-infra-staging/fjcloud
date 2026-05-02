@@ -6,5 +6,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| fixtures | This directory contains Playwright test fixtures and setup helpers for authentication flows (admin, customer, onboarding) and domain-specific utilities for legal pages, search functionality, and database operations. |
+| fixtures | This fixtures directory contains Playwright test infrastructure including authentication setup helpers for multiple test projects (admin, customer journeys, onboarding), database utilities, and page interaction helpers for browser testing. |
 <!-- [scrai:end] -->

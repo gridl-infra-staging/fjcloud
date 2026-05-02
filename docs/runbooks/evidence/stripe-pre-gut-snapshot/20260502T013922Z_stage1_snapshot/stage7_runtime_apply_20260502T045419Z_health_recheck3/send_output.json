@@ -1,0 +1,46 @@
+{
+    "Command": {
+        "CommandId": "6199bf13-da99-4032-9407-500bff237a60",
+        "DocumentName": "AWS-RunShellScript",
+        "DocumentVersion": "$DEFAULT",
+        "Comment": "stage7 health retry verify",
+        "ExpiresAfter": "2026-05-02T02:54:20.789000-04:00",
+        "Parameters": {
+            "commands": [
+                "set -euo pipefail; sudo systemctl restart fjcloud-api; systemctl is-active fjcloud-api; for i in $(seq 1 30); do if curl -fsS http://127.0.0.1:3001/health >/dev/null; then echo \"health_ok_after_seconds=$i\"; break; fi; sleep 1; if [ \"$i\" -eq 30 ]; then echo \"health_timeout\" >&2; exit 7; fi; done; journalctl -u fjcloud-api --since \"10 minutes ago\" --no-pager"
+            ]
+        },
+        "InstanceIds": [
+            "i-0afc7651593f12372"
+        ],
+        "Targets": [],
+        "RequestedDateTime": "2026-05-02T00:54:20.789000-04:00",
+        "Status": "Pending",
+        "StatusDetails": "Pending",
+        "OutputS3Region": "us-east-1",
+        "OutputS3BucketName": "",
+        "OutputS3KeyPrefix": "",
+        "MaxConcurrency": "50",
+        "MaxErrors": "0",
+        "TargetCount": 1,
+        "CompletedCount": 0,
+        "ErrorCount": 0,
+        "DeliveryTimedOutCount": 0,
+        "ServiceRole": "",
+        "NotificationConfig": {
+            "NotificationArn": "",
+            "NotificationEvents": [],
+            "NotificationType": ""
+        },
+        "CloudWatchOutputConfig": {
+            "CloudWatchLogGroupName": "",
+            "CloudWatchOutputEnabled": false
+        },
+        "TimeoutSeconds": 3600,
+        "AlarmConfiguration": {
+            "IgnorePollAlarmFailure": false,
+            "Alarms": []
+        },
+        "TriggeredAlarms": []
+    }
+}

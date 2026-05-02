@@ -1,0 +1,2 @@
+staging_rc=252
+prod_rc=252

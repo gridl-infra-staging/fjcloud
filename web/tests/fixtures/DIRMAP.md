@@ -13,4 +13,5 @@
 | postgres_psql_helper.ts | Stub summary for postgres_psql_helper.ts. |
 | search-preview-helpers.ts | Stub summary for search-preview-helpers.ts. |
 | searchable-index.ts | Stub summary for searchable-index.ts. |
+| staging_db_lookup.ts | Staging DB lookup helper for the LB-2/LB-3 remote-target browser. |
 <!-- [scrai:end] -->

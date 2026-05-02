@@ -1,0 +1,22 @@
+{
+    "CommandId": "792a193f-b648-4126-9338-c6edd2549994",
+    "InstanceId": "i-0afc7651593f12372",
+    "Comment": "stage7 health fix diagnostic and verify",
+    "DocumentName": "AWS-RunShellScript",
+    "DocumentVersion": "$DEFAULT",
+    "PluginName": "aws:runShellScript",
+    "ResponseCode": 127,
+    "ExecutionStartDateTime": "2026-05-02T04:52:22.754Z",
+    "ExecutionElapsedTime": "PT0.011S",
+    "ExecutionEndDateTime": "2026-05-02T04:52:22.754Z",
+    "Status": "Failed",
+    "StatusDetails": "Failed",
+    "StandardOutputContent": "",
+    "StandardOutputUrl": "",
+    "StandardErrorContent": "/var/lib/amazon/ssm/i-0afc7651593f12372/document/orchestration/792a193f-b648-4126-9338-c6edd2549994/awsrunShellScript/0.awsrunShellScript/_script.sh: line 1: set: pipefailnecho: invalid option name\n/var/lib/amazon/ssm/i-0afc7651593f12372/document/orchestration/792a193f-b648-4126-9338-c6edd2549994/awsrunShellScript/0.awsrunShellScript/_script.sh: line 1: truensystemctl: command not found\n/var/lib/amazon/ssm/i-0afc7651593f12372/document/orchestration/792a193f-b648-4126-9338-c6edd2549994/awsrunShellScript/0.awsrunShellScript/_script.sh: line 1: truenjournalctl: command not found\n/var/lib/amazon/ssm/i-0afc7651593f12372/document/orchestration/792a193f-b648-4126-9338-c6edd2549994/awsrunShellScript/0.awsrunShellScript/_script.sh: line 1: truenss: command not found\n/var/lib/amazon/ssm/i-0afc7651593f12372/document/orchestration/792a193f-b648-4126-9338-c6edd2549994/awsrunShellScript/0.awsrunShellScript/_script.sh: line 1: truengrep: command not found\n/var/lib/amazon/ssm/i-0afc7651593f12372/document/orchestration/792a193f-b648-4126-9338-c6edd2549994/awsrunShellScript/0.awsrunShellScript/_script.sh: line 1: truennecho: command not found\nfailed to run commands: exit status 127",
+    "StandardErrorUrl": "",
+    "CloudWatchOutputConfig": {
+        "CloudWatchLogGroupName": "",
+        "CloudWatchOutputEnabled": false
+    }
+}

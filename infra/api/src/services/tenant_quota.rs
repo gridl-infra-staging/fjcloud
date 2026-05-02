@@ -13,6 +13,8 @@ const DEFAULT_MAX_STORAGE_BYTES: u64 = 10_737_418_240; // 10 GB
 const DEFAULT_MAX_INDEXES: u32 = 10;
 const DEFAULT_FREE_TIER_MAX_INDEXES: u32 = 1;
 const DEFAULT_FREE_TIER_MAX_SEARCHES_PER_MONTH: u64 = 50_000;
+const DEFAULT_FREE_TIER_MAX_RECORDS: u64 = 100_000;
+const DEFAULT_FREE_TIER_MAX_STORAGE_GB: u64 = 10;
 const RATE_WINDOW: Duration = Duration::from_secs(1);
 
 /// Resolved quota for a tenant-index pair, merging per-index overrides with global defaults.
@@ -106,6 +108,14 @@ impl Default for FreeTierLimits {
 }
 
 impl FreeTierLimits {
+    pub fn default_max_records() -> u64 {
+        DEFAULT_FREE_TIER_MAX_RECORDS
+    }
+
+    pub fn default_max_storage_gb() -> u64 {
+        DEFAULT_FREE_TIER_MAX_STORAGE_GB
+    }
+
     pub fn from_env() -> Self {
         Self {
             max_indexes: std::env::var("FREE_TIER_MAX_INDEXES")
@@ -215,6 +225,24 @@ impl TenantQuotaService {
         }
     }
 
+    fn quota_cache_key(customer_id: Uuid, index_name: &str) -> String {
+        format!("{customer_id}:{index_name}")
+    }
+
+    fn check_rate_limit(
+        state: &Mutex<SlidingWindowState>,
+        key: &str,
+        limit: u32,
+    ) -> Result<(), QuotaExceeded> {
+        let mut state = state
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        match state.check(key, limit) {
+            None => Ok(()),
+            Some(retry_after) => Err(QuotaExceeded { retry_after }),
+        }
+    }
+
     /// Resolve the effective quota for a tenant-index pair, merging per-index overrides
     /// with global defaults.
     pub fn resolve_quota(&self, resource_quota: &serde_json::Value) -> ResolvedQuota {
@@ -232,14 +260,14 @@ impl TenantQuotaService {
 
     /// Cache a resolved quota for a tenant-index pair.
     pub fn cache_quota(&self, customer_id: Uuid, index_name: &str, quota: ResolvedQuota) {
-        let key = format!("{customer_id}:{index_name}");
+        let key = Self::quota_cache_key(customer_id, index_name);
         let mut cache = self.quota_cache.lock().unwrap();
         cache.insert(key, (quota, Instant::now()));
     }
 
     /// Get cached quota, or None if expired/missing.
     pub fn get_cached_quota(&self, customer_id: Uuid, index_name: &str) -> Option<ResolvedQuota> {
-        let key = format!("{customer_id}:{index_name}");
+        let key = Self::quota_cache_key(customer_id, index_name);
         let cache = self.quota_cache.lock().unwrap();
         cache.get(&key).and_then(|(quota, fetched_at)| {
             if fetched_at.elapsed() < self.cache_ttl {
@@ -252,7 +280,7 @@ impl TenantQuotaService {
 
     /// Invalidate cached quota for a tenant-index pair (e.g., after admin updates).
     pub fn invalidate_quota(&self, customer_id: Uuid, index_name: &str) {
-        let key = format!("{customer_id}:{index_name}");
+        let key = Self::quota_cache_key(customer_id, index_name);
         self.quota_cache.lock().unwrap().remove(&key);
     }
 
@@ -264,12 +292,8 @@ impl TenantQuotaService {
         index_name: &str,
         quota: &ResolvedQuota,
     ) -> Result<(), QuotaExceeded> {
-        let key = format!("{customer_id}:{index_name}");
-        let mut state = self.query_state.lock().unwrap_or_else(|p| p.into_inner());
-        match state.check(&key, quota.max_query_rps) {
-            None => Ok(()),
-            Some(retry_after) => Err(QuotaExceeded { retry_after }),
-        }
+        let key = Self::quota_cache_key(customer_id, index_name);
+        Self::check_rate_limit(&self.query_state, &key, quota.max_query_rps)
     }
 
     /// Check the write rate limit for a tenant-index pair.
@@ -280,12 +304,8 @@ impl TenantQuotaService {
         index_name: &str,
         quota: &ResolvedQuota,
     ) -> Result<(), QuotaExceeded> {
-        let key = format!("{customer_id}:{index_name}");
-        let mut state = self.write_state.lock().unwrap_or_else(|p| p.into_inner());
-        match state.check(&key, quota.max_write_rps) {
-            None => Ok(()),
-            Some(retry_after) => Err(QuotaExceeded { retry_after }),
-        }
+        let key = Self::quota_cache_key(customer_id, index_name);
+        Self::check_rate_limit(&self.write_state, &key, quota.max_write_rps)
     }
 
     /// Get the default quotas (for admin display when no per-index override exists).
@@ -336,6 +356,12 @@ mod tests {
 
         std::env::remove_var("FREE_TIER_MAX_INDEXES");
         std::env::remove_var("FREE_TIER_MAX_SEARCHES_PER_MONTH");
+    }
+
+    #[test]
+    fn free_tier_limits_defaults_cover_records_and_storage() {
+        assert_eq!(FreeTierLimits::default_max_records(), 100_000);
+        assert_eq!(FreeTierLimits::default_max_storage_gb(), 10);
     }
 
     #[test]

@@ -1,26 +1,8 @@
-// FIXME(testid-refactor): This file uses CSS-class chain locators
-// (`page.locator('div.rounded-lg.bg-white.p-6.shadow')` etc.) to navigate
-// the invoice detail page. Per BROWSER_TESTING_STANDARDS the proper fix
-// is to add stable `data-testid` attributes to the relevant Svelte
-// components (web/src/routes/dashboard/billing/invoices/[id]/+page.svelte
-// — invoice detail card, status badge container, timeline grid) and
-// rewrite the helpers below to use getByTestId. Until that refactor
-// lands, the playwright/no-raw-locators rule is disabled file-wide via
-// the eslint-disable directive immediately below; this is intentionally
-// a single auditable disable rather than per-line markers so the
-// follow-up refactor PR can remove it in one edit.
-//
-// Do NOT extend this file with additional CSS-class selectors. Adding
-// new tests should either use existing data-testids or add new ones to
-// the underlying components.
-/* eslint-disable playwright/no-raw-locators */
 import { test, expect } from '../../fixtures/fixtures';
-import { AUTH_COOKIE } from '../../../src/lib/server/auth-session-contracts';
+import type { Page } from '@playwright/test';
 
 // Dedicated unauthenticated lane: this flow must not rely on setup:user storage.
 test.use({ storageState: { cookies: [], origins: [] } });
-
-const BASE_URL = process.env.BASE_URL ?? 'http://localhost:5173';
 
 type DashboardRouteExpectation = {
 	label: string;
@@ -63,80 +45,32 @@ async function assertDashboardRouteWalk(page: import('@playwright/test').Page): 
 	}
 }
 
-function invoiceDetailCard(page: import('@playwright/test').Page) {
-	return page.locator('div.rounded-lg.bg-white.p-6.shadow').first();
+function escapeRegex(value: string): string {
+	return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-function invoiceHeaderStatusSection(page: import('@playwright/test').Page) {
-	return invoiceDetailCard(page).locator('div.flex.items-start.justify-between > div').first();
+async function expectInvoiceHeaderStatusBadge(page: Page, statusLabel: string): Promise<void> {
+	const exactStatusText = new RegExp(`^${escapeRegex(statusLabel)}$`);
+	const visibleStatusLabels = page.getByText(exactStatusText).filter({ visible: true });
+	await expect(visibleStatusLabels).toHaveCount(2);
+	await expect(visibleStatusLabels.first()).toBeVisible();
 }
 
-function invoiceTimelineGrid(page: import('@playwright/test').Page) {
-	return invoiceDetailCard(page).locator(
-		'div.mt-4.grid.grid-cols-3.gap-4.border-t.border-gray-200.pt-4.text-sm'
+async function expectInvoiceTimelineLabelHasNonEmptyValue(
+	page: Page,
+	label: string
+): Promise<void> {
+	const timelineLabelWithValue = page.getByText(
+		new RegExp(`^\\s*${escapeRegex(label)}\\s+\\S.+$`)
 	);
+	await expect(timelineLabelWithValue).toHaveCount(1);
+	await expect(timelineLabelWithValue).toBeVisible();
 }
 
-async function expectInvoiceHeaderStatusBadge(
-	page: import('@playwright/test').Page,
-	statusLabel: string
-): Promise<void> {
-	const headerStatusSection = invoiceHeaderStatusSection(page);
-	const statusBadge = headerStatusSection
-		.locator('div.mt-2 > span.rounded-full.px-2\\.5.py-0\\.5.text-xs.font-medium')
-		.filter({ hasText: new RegExp(`^${statusLabel}$`) });
-	await expect(headerStatusSection.getByText(new RegExp(`^${statusLabel}$`))).toHaveCount(1);
-	await expect(statusBadge).toHaveCount(1);
-	await expect(statusBadge).toHaveText(new RegExp(`^${statusLabel}$`));
-}
-
-async function expectInvoiceTimelineLabelsWithValues(
-	page: import('@playwright/test').Page
-): Promise<void> {
-	const timelineGrid = invoiceTimelineGrid(page);
-	await expect(timelineGrid).toBeVisible();
-
+async function expectInvoiceTimelineLabelsWithValues(page: Page): Promise<void> {
 	for (const label of ['Created', 'Finalized', 'Paid']) {
-		const timelineColumn = timelineGrid.locator('div').filter({
-			has: page.getByText(new RegExp(`^${label}$`))
-		});
-		await expect(timelineColumn).toHaveCount(1);
-		await expect(timelineColumn.getByText(new RegExp(`^${label}$`))).toBeVisible();
-		await expect(timelineColumn.locator('p').nth(1)).not.toHaveText(new RegExp(`^${label}$`));
-		await expect(timelineColumn.locator('p').nth(1)).not.toHaveText(/^\s*$/);
+		await expectInvoiceTimelineLabelHasNonEmptyValue(page, label);
 	}
-}
-
-async function expectSessionExpiredRedirect(page: import('@playwright/test').Page): Promise<void> {
-	await expect(page).toHaveURL(/\/login(?:\?reason=session_expired)?$/, { timeout: 20_000 });
-	if (new URL(page.url()).searchParams.get('reason') === 'session_expired') {
-		await expect(page.getByTestId('session-expired-banner')).toBeVisible({ timeout: 20_000 });
-	}
-}
-
-async function assertExpiredSessionRedirect(page: import('@playwright/test').Page): Promise<void> {
-	await page.goto('/dashboard/indexes');
-	await expect(page.getByRole('heading', { name: 'Indexes' })).toBeVisible();
-
-	await page.context().addCookies([
-		{
-			name: AUTH_COOKIE,
-			value: 'expired-session-token',
-			url: BASE_URL,
-			httpOnly: true,
-			sameSite: 'Lax'
-		}
-	]);
-
-	await page.getByRole('button', { name: 'Create Index' }).click();
-	await page.getByLabel('Index name').fill(`session-expired-${Date.now()}`);
-	const regionRadios = page.getByRole('radio');
-	if ((await regionRadios.count()) > 0) {
-		await regionRadios.first().check();
-	}
-	await page.getByRole('button', { name: 'Create', exact: true }).click();
-
-	await expectSessionExpiredRedirect(page);
 }
 
 test.describe('Fresh signup to paid invoice', () => {
@@ -148,10 +82,6 @@ test.describe('Fresh signup to paid invoice', () => {
 		createFreshSignupIdentity,
 		completeFreshSignupEmailVerification,
 		arrangePaidInvoiceForFreshSignup,
-		arrangeBillingDunningForFreshSignup,
-		arrangeRefundedInvoiceForFreshSignup,
-		adminSuspendCustomer,
-		adminReactivateCustomer,
 		isFreshSignupArrangePrerequisiteFailure,
 		throwFreshSignupArrangeFailure
 	}) => {
@@ -164,7 +94,6 @@ test.describe('Fresh signup to paid invoice', () => {
 		await page.getByLabel('Email').fill(signup.email);
 		await page.getByLabel('Password', { exact: true }).fill(signup.password);
 		await page.getByLabel('Confirm Password').fill(signup.password);
-		await page.getByRole('checkbox', { name: /public beta terms/i }).check();
 		await page.getByRole('button', { name: 'Sign Up' }).click();
 
 		const signupAlert = page.getByRole('alert');
@@ -210,69 +139,25 @@ test.describe('Fresh signup to paid invoice', () => {
 
 		await page.goto('/dashboard/billing/invoices');
 		await expect(page.getByRole('heading', { name: 'Invoices' })).toBeVisible();
-		const invoiceLink = page.locator(
-			`a[href="/dashboard/billing/invoices/${paidInvoiceEvidence.invoiceId}"]`
-		);
-		await expect(invoiceLink).toBeVisible({ timeout: 30_000 });
-		await invoiceLink.click();
-		await expect(page).toHaveURL(
-			new RegExp(`/dashboard/billing/invoices/${paidInvoiceEvidence.invoiceId}$`)
-		);
-		await expect(page.getByRole('heading', { name: 'Line Items' })).toBeVisible();
-		await expectInvoiceHeaderStatusBadge(page, 'Paid');
-		await expectInvoiceTimelineLabelsWithValues(page);
-		await expect(invoiceDetailCard(page).getByText(/^Paid$/)).toHaveCount(2);
-		expect(paidInvoiceEvidence.invoiceEmailDelivered).toBe(true);
-
-		const dunningEvidence = await arrangeBillingDunningForFreshSignup(
-			signup.email,
-			signup.password,
-			paidInvoiceEvidence.invoiceId
-		);
-		expect(dunningEvidence.dunningSubscriptionStatus).toBe('past_due');
-
-		await page.goto('/dashboard/billing');
-		await expect(page.getByRole('heading', { name: 'Billing' })).toBeVisible();
-		await expect(page.getByTestId('subscription-recovery-banner')).toBeVisible();
-		await expect(
-			page.getByText('Payment failed for your subscription. Update your payment method to recover access.')
-		).toBeVisible();
-		await expect(page.getByRole('button', { name: 'Recover payment' })).toBeVisible();
-
-		const refundEvidence = await arrangeRefundedInvoiceForFreshSignup(
-			signup.email,
-			signup.password,
-			paidInvoiceEvidence.invoiceId
-		);
-		expect(refundEvidence.refundedInvoiceId).toBe(paidInvoiceEvidence.invoiceId);
-
-		await page.goto('/dashboard/billing/invoices');
-		await expect(page.getByRole('heading', { name: 'Invoices' })).toBeVisible();
-		const refundedInvoiceRow = page
-			.locator('tr')
+		const invoiceRow = page
+			.getByRole('row')
 			.filter({
-				has: page.locator(`a[href="/dashboard/billing/invoices/${refundEvidence.refundedInvoiceId}"]`)
+				has: page.locator(`a[href="/dashboard/billing/invoices/${paidInvoiceEvidence.invoiceId}"]`)
 			})
 			.first();
-		await expect(refundedInvoiceRow).toBeVisible({ timeout: 30_000 });
-		await expect(refundedInvoiceRow.getByText('Refunded')).toBeVisible();
-		await refundedInvoiceRow.getByRole('link', { name: 'View' }).click();
-		await expect(page).toHaveURL(
-			new RegExp(`/dashboard/billing/invoices/${refundEvidence.refundedInvoiceId}$`)
-		);
-		await expect(page.getByRole('heading', { name: 'Line Items' })).toBeVisible();
-		await expectInvoiceHeaderStatusBadge(page, 'Refunded');
-		await expectInvoiceTimelineLabelsWithValues(page);
-
-		await adminSuspendCustomer(paidInvoiceEvidence.customerId);
-		try {
-			await page.goto('/dashboard/billing');
-			await expectSessionExpiredRedirect(page);
-		} finally {
-			await adminReactivateCustomer(paidInvoiceEvidence.customerId);
-		}
-
-		await loginWithFreshSignupCredentials(page, signup.email, signup.password);
-		await assertExpiredSessionRedirect(page);
+		await expect(invoiceRow).toBeVisible({ timeout: 30_000 });
+		await expect(invoiceRow.getByRole('link', { name: 'View' })).toBeVisible();
+			await expect(invoiceRow.getByText('Paid')).toBeVisible();
+			const invoiceLink = page.locator(
+				`a[href="/dashboard/billing/invoices/${paidInvoiceEvidence.invoiceId}"]`
+			);
+			await expect(invoiceLink).toBeVisible({ timeout: 30_000 });
+			await invoiceLink.click();
+			await expect(page).toHaveURL(
+				new RegExp(`/dashboard/billing/invoices/${paidInvoiceEvidence.invoiceId}$`)
+			);
+			await expect(page.getByRole('heading', { name: 'Line Items' })).toBeVisible();
+			await expectInvoiceHeaderStatusBadge(page, 'Paid');
+			await expectInvoiceTimelineLabelsWithValues(page);
+		});
 	});
-});

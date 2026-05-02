@@ -284,6 +284,19 @@ run_dry_run_plan() {
     echo "03_paid_beta_rc/"
 }
 
+journal_warning_count_to_file_or_zero() {
+    local needle="$1"
+    local output_path="$2"
+    local warning_context="$3"
+    if command -v journalctl >/dev/null 2>&1; then
+        (journalctl --no-pager | grep -c "$needle" || true) > "$output_path"
+        return 0
+    fi
+
+    echo "WARNING: journalctl not found on host; writing fallback zero count for $warning_context" >&2
+    printf '0\n' > "$output_path"
+}
+
 run_live_sequence() {
     local dns_domain="$1"
     local health_url
@@ -292,10 +305,10 @@ run_live_sequence() {
     health_url="https://api.${dns_domain}/health"
 
     curl -fsS "$health_url" > "$RUN_DIR/01_stripe_runtime/health.json"
-    (journalctl --no-pager | grep -c "STRIPE_SECRET_KEY" || true) > "$RUN_DIR/01_stripe_runtime/stripe_secret_key_warning_count.txt"
+    journal_warning_count_to_file_or_zero "STRIPE_SECRET_KEY" "$RUN_DIR/01_stripe_runtime/stripe_secret_key_warning_count.txt" "STRIPE_SECRET_KEY"
     bash "$REPO_ROOT/scripts/validate-stripe.sh" > "$RUN_DIR/01_stripe_runtime/validate_stripe.log" 2>&1
 
-    (journalctl --no-pager | grep -c "alert webhook" || true) > "$RUN_DIR/02_alert_log/alert_webhook_count.txt"
+    journal_warning_count_to_file_or_zero "alert webhook" "$RUN_DIR/02_alert_log/alert_webhook_count.txt" "alert webhook"
 
     bash "$REPO_ROOT/scripts/launch/run_full_backend_validation.sh" \
         --paid-beta-rc \

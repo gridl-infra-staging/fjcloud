@@ -1,37 +1,12 @@
 #!/usr/bin/env bash
 # Regression test for the bash 3.2 `set -e` pitfall in scripts/local-ci.sh
 # gate functions.
-#
-# Why this test exists:
-#   bash 3.2 (macOS default) silently disables `set -e` inside a function
-#   when that function is invoked as part of a `||` expression. local-ci.sh
-#   invokes each gate via `"$@" > "$log" 2>&1 || rc=$?` in run_gate, so a
-#   gate body relying on `set -e` alone will continue past a failing command
-#   and record PASS even when an internal step (e.g. cargo fmt --check)
-#   fails.
-#
-#   The established convention in local-ci.sh — applied in gate_web_lint
-#   and gate_web_test — is explicit `|| return $?` after each command.
-#   That convention was missed in gate_rust_lint and gate_rust_test on
-#   2026-04-30, producing a real false positive when my own fmt-violating
-#   test code passed local-ci but failed staging CI's cargo fmt --check.
-#
-# Contract under test (load-bearing):
-#   When `cargo fmt --check` finds a real violation, `local-ci.sh --gate
-#   rust-lint` MUST report FAIL. End-to-end against the real script — no
-#   mocking — because that's the surface the operator relies on.
 
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 LOCAL_CI="$REPO_ROOT/scripts/local-ci.sh"
-
-# Fixture path is exported so the EXIT trap below can clean it up regardless
-# of which exit path triggers — the in-test cleanup is the primary path, but
-# a defensive trap means a future bash error can't leak a fmt-violating
-# Rust file under infra/api/tests/ that would block unrelated cargo fmt
-# --check runs.
 FIXTURE_PATH="$REPO_ROOT/infra/api/tests/_local_ci_set_e_regression_fixture.rs"
 trap 'rm -f "$FIXTURE_PATH"' EXIT
 
@@ -41,51 +16,82 @@ FAIL_COUNT=0
 pass() { echo "PASS: $1"; PASS_COUNT=$((PASS_COUNT+1)); }
 fail() { echo "FAIL: $*" >&2; FAIL_COUNT=$((FAIL_COUNT+1)); }
 
-# ---------------------------------------------------------------------------
-# End-to-end test against the real local-ci.sh — gate_rust_lint must FAIL
-# when cargo fmt --check finds a violation. This is the load-bearing
-# contract: the user-facing local-ci.sh must catch what CI catches.
-#
-# Strategy: temporarily write a fmt-violating Rust file inside infra/, then
-# invoke `local-ci.sh --gate rust-lint` and assert FAIL in the summary.
-# We restore the file regardless of test outcome (trap on EXIT).
-# ---------------------------------------------------------------------------
+rust_lint_block_has_generate_ssm_hook() {
+    local rust_lint_block="$1"
+    if printf '%s\n' "$rust_lint_block" | grep -Eq '^[[:space:]]*bash[[:space:]]+"\$REPO_ROOT/scripts/tests/generate_ssm_env_test\.sh"([[:space:]]*\|\|.*)?$'; then
+        return 0
+    fi
+    return 1
+}
 
-test_local_ci_rust_lint_fails_on_real_fmt_violation() {
-    local fixture_path="$FIXTURE_PATH"
+rust_lint_block_has_set_e_hook() {
+    local rust_lint_block="$1"
+    if printf '%s\n' "$rust_lint_block" | grep -Eq '^[[:space:]]*bash[[:space:]]+"\$REPO_ROOT/scripts/tests/local_ci_gate_set_e_test\.sh"([[:space:]]*\|\|.*)?$'; then
+        return 0
+    fi
+    return 1
+}
 
-    # Write a Rust file with a long line that rustfmt will want to wrap.
-    # The fixture name is unique to this test so it won't collide with any
-    # real source file. We clean it up unconditionally at every exit point
-    # below — explicit cleanup beats a RETURN trap that would re-fire
-    # against out-of-scope locals under `set -u`.
+write_fmt_violation_fixture() {
+    local fixture_path="$1"
     cat > "$fixture_path" <<'FIXTURE_EOF'
 //! Regression fixture for scripts/tests/local_ci_gate_set_e_test.sh.
-//! This file intentionally violates rustfmt: the assert_eq! line below
-//! exceeds the configured line width. cargo fmt --check should report a
-//! diff and exit non-zero, which local-ci's rust-lint gate must surface
-//! as FAIL. The test removes this file at every exit path.
 #[test]
 fn fixture_intentionally_too_long() {
     assert_eq!(std::env::var("LOCAL_CI_REGRESSION_FIXTURE").ok().as_deref(), Some("intentional_long_line_to_force_a_rustfmt_diff_so_we_test_the_gate_contract"));
 }
 FIXTURE_EOF
+}
 
-    # Pre-check: cargo fmt --check on its own must reject the fixture.
-    # If this fails, the test isn't actually exercising the bug — bail
-    # with cleanup rather than report a misleading pass.
+assert_fixture_trips_fmt_check() {
+    local fixture_path="$1"
     if ( cd "$REPO_ROOT/infra" && cargo fmt -- --check >/dev/null 2>&1 ); then
         rm -f "$fixture_path"
         fail "fmt-violating fixture did not actually trip cargo fmt --check; test is mis-configured"
+        return 1
+    fi
+    return 0
+}
+
+test_local_ci_rust_lint_fails_on_real_fmt_violation() {
+    if (( BASH_VERSINFO[0] < 4 )); then
+        local fixture_path="$FIXTURE_PATH"
+        write_fmt_violation_fixture "$fixture_path"
+        assert_fixture_trips_fmt_check "$fixture_path" || return
+
+        local out_skip
+        local skip_status=0
+        out_skip="$(LOCAL_CI_SKIP_SET_E_REGRESSION_TEST=1 bash "$LOCAL_CI" --gate rust-lint 2>&1)" || skip_status=$?
+        rm -f "$fixture_path"
+        if [[ "$skip_status" -ne 1 ]]; then
+            fail "local-ci.sh --gate rust-lint returned $skip_status on bash<4; expected 1 because cargo fmt violation should still fail the gate. Output tail: $(echo "$out_skip" | tail -20)"
+            return
+        fi
+        if [[ "$out_skip" == *"Result: FAIL"* ]] \
+            && { [[ "$out_skip" == *"rust-lint           FAIL"* ]] || [[ "$out_skip" == *"rust-lint  FAIL"* ]]; } \
+            && [[ "$out_skip" != *"rust-lint           SKIP"* ]] \
+            && [[ "$out_skip" != *"rust-lint  SKIP"* ]]; then
+            pass "local-ci.sh --gate rust-lint treats generate_ssm_env_test.sh as a sub-check skip and still fails on real cargo fmt violations on bash<4"
+        else
+            fail "local-ci.sh --gate rust-lint did not keep running after generate_ssm_env_test.sh bash<4 skip. Output tail: $(echo "$out_skip" | tail -20)"
+        fi
         return
     fi
 
-    # Run local-ci's rust-lint gate. With the bug, this prints PASS.
-    # With the fix, it prints FAIL.
+    local fixture_path="$FIXTURE_PATH"
+    write_fmt_violation_fixture "$fixture_path"
+    assert_fixture_trips_fmt_check "$fixture_path" || return
+
     local out
-    out="$(bash "$LOCAL_CI" --gate rust-lint 2>&1 || true)"
+    local status=0
+    out="$(LOCAL_CI_SKIP_SET_E_REGRESSION_TEST=1 bash "$LOCAL_CI" --gate rust-lint 2>&1)" || status=$?
 
     rm -f "$fixture_path"
+
+    if [[ "$status" -ne 1 ]]; then
+        fail "local-ci.sh --gate rust-lint returned $status on bash>=4; expected 1 because cargo fmt violation should fail the gate. Output tail: $(echo "$out" | tail -20)"
+        return
+    fi
 
     if [[ "$out" == *"rust-lint           FAIL"* ]] || [[ "$out" == *"rust-lint  FAIL"* ]] || [[ "$out" == *"Result: FAIL"* ]]; then
         pass "local-ci.sh --gate rust-lint records FAIL when cargo fmt --check finds a violation"
@@ -94,13 +100,69 @@ FIXTURE_EOF
     fi
 }
 
-# ---------------------------------------------------------------------------
-# Main
-# ---------------------------------------------------------------------------
+test_local_ci_rust_lint_includes_generate_ssm_env_contract() {
+    local rust_lint_block
+    rust_lint_block="$(
+        awk '
+            /^gate_rust_lint\(\) \{/ { in_block=1; print; next }
+            in_block { print }
+            in_block && /^}/ { exit }
+        ' "$LOCAL_CI"
+    )"
+
+    if rust_lint_block_has_generate_ssm_hook "$rust_lint_block"; then
+        pass "gate_rust_lint executes generate_ssm_env_test.sh"
+    else
+        fail "gate_rust_lint is missing generate_ssm_env_test.sh contract hook"
+    fi
+}
+
+test_local_ci_rust_lint_includes_set_e_regression_hook() {
+    local rust_lint_block
+    rust_lint_block="$(
+        awk '
+            /^gate_rust_lint\(\) \{/ { in_block=1; print; next }
+            in_block { print }
+            in_block && /^}/ { exit }
+        ' "$LOCAL_CI"
+    )"
+
+    if rust_lint_block_has_set_e_hook "$rust_lint_block"; then
+        pass "gate_rust_lint executes local_ci_gate_set_e_test.sh"
+    else
+        fail "gate_rust_lint is missing local_ci_gate_set_e_test.sh regression hook"
+    fi
+}
+
+test_hook_detection_rejects_comment_only_mentions() {
+    local comment_only_block
+    comment_only_block=$'gate_rust_lint() {\n    # scripts/tests/generate_ssm_env_test.sh is documented here only\n    bash "$REPO_ROOT/scripts/tests/ci_workflow_test.sh" || return $?\n}'
+
+    if rust_lint_block_has_generate_ssm_hook "$comment_only_block"; then
+        fail "hook detection accepted a comment-only mention; expected executable invocation requirement"
+    else
+        pass "hook detection rejects comment-only mentions of generate_ssm_env_test.sh"
+    fi
+}
+
+test_set_e_hook_detection_rejects_comment_only_mentions() {
+    local comment_only_block
+    comment_only_block=$'gate_rust_lint() {\n    # scripts/tests/local_ci_gate_set_e_test.sh is documented here only\n    bash "$REPO_ROOT/scripts/tests/ci_workflow_test.sh" || return $?\n}'
+
+    if rust_lint_block_has_set_e_hook "$comment_only_block"; then
+        fail "set-e hook detection accepted a comment-only mention; expected executable invocation requirement"
+    else
+        pass "set-e hook detection rejects comment-only mentions of local_ci_gate_set_e_test.sh"
+    fi
+}
 
 main() {
     echo "=== local_ci_gate_set_e_test ==="
     test_local_ci_rust_lint_fails_on_real_fmt_violation
+    test_local_ci_rust_lint_includes_generate_ssm_env_contract
+    test_local_ci_rust_lint_includes_set_e_regression_hook
+    test_hook_detection_rejects_comment_only_mentions
+    test_set_e_hook_detection_rejects_comment_only_mentions
     echo
     echo "=== Results: $PASS_COUNT passed, $FAIL_COUNT failed ==="
     if [[ "$FAIL_COUNT" -ne 0 ]]; then

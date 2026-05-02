@@ -1,0 +1,46 @@
+{
+    "Command": {
+        "CommandId": "b4490b0b-c180-4fc6-abc6-b592fcf36f4a",
+        "DocumentName": "AWS-RunShellScript",
+        "DocumentVersion": "$DEFAULT",
+        "Comment": "stage7 ",
+        "ExpiresAfter": "2026-05-02T02:53:25.148000-04:00",
+        "Parameters": {
+            "commands": [
+                "set -euo pipefail; echo \"=== diag_start ===\"; date -u +%Y-%m-%dT%H:%M:%SZ; systemctl is-active fjcloud-api || true; systemctl status fjcloud-api --no-pager -l || true; journalctl -u fjcloud-api --since \"30 minutes ago\" --no-pager || true; ss -ltnp || true; awk -F= '/^(PORT|HOST|BIND)=/ { print } /^(STRIPE_SECRET_KEY|STRIPE_PUBLISHABLE_KEY|STRIPE_WEBHOOK_SECRET)=/ { print $1 \"=<redacted>\" }' /etc/fjcloud/env || true; echo \"=== diag_end ===\""
+            ]
+        },
+        "InstanceIds": [
+            "i-0afc7651593f12372"
+        ],
+        "Targets": [],
+        "RequestedDateTime": "2026-05-02T00:53:25.148000-04:00",
+        "Status": "Pending",
+        "StatusDetails": "Pending",
+        "OutputS3Region": "us-east-1",
+        "OutputS3BucketName": "",
+        "OutputS3KeyPrefix": "",
+        "MaxConcurrency": "50",
+        "MaxErrors": "0",
+        "TargetCount": 1,
+        "CompletedCount": 0,
+        "ErrorCount": 0,
+        "DeliveryTimedOutCount": 0,
+        "ServiceRole": "",
+        "NotificationConfig": {
+            "NotificationArn": "",
+            "NotificationEvents": [],
+            "NotificationType": ""
+        },
+        "CloudWatchOutputConfig": {
+            "CloudWatchLogGroupName": "",
+            "CloudWatchOutputEnabled": false
+        },
+        "TimeoutSeconds": 3600,
+        "AlarmConfiguration": {
+            "IgnorePollAlarmFailure": false,
+            "Alarms": []
+        },
+        "TriggeredAlarms": []
+    }
+}

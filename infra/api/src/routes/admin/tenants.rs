@@ -20,7 +20,7 @@ use crate::services::audit_log::{
     ACTION_CUSTOMER_SUSPENDED, ACTION_QUOTAS_UPDATED, ACTION_STRIPE_SYNC, ACTION_TENANT_CREATED,
     ACTION_TENANT_DELETED, ACTION_TENANT_UPDATED, ADMIN_SENTINEL_ACTOR_ID,
 };
-use crate::services::billing_health::{self, BillingHealth};
+use crate::services::billing_health::{self, BillingHealth, BillingHealthSignals, InvoiceSignals};
 use crate::state::AppState;
 use crate::validation::{validate_email, validate_length, MAX_NAME_LEN};
 
@@ -49,7 +49,6 @@ pub struct TenantResponse {
     pub status: String,
     pub billing_plan: String,
     pub last_accessed_at: Option<DateTime<Utc>>,
-    pub subscription_status: Option<String>,
     pub overdue_invoice_count: i64,
     pub billing_health: BillingHealth,
     pub created_at: DateTime<Utc>,
@@ -93,28 +92,59 @@ pub struct CustomerSnapshotResponse {
     pub recent_audit: Vec<AuditLogRow>,
 }
 
-impl From<Customer> for TenantResponse {
-    fn from(c: Customer) -> Self {
-        let billing_plan = c.billing_plan_enum().to_string();
-        let billing_health = billing_health::derive(
-            &c.status,
-            c.subscription_status.as_deref(),
-            c.overdue_invoice_count,
-        );
-        Self {
-            id: c.id,
-            name: c.name,
-            email: c.email,
-            status: c.status,
-            billing_plan,
-            last_accessed_at: c.last_accessed_at,
-            subscription_status: c.subscription_status,
-            overdue_invoice_count: c.overdue_invoice_count,
-            billing_health,
-            created_at: c.created_at,
-            updated_at: c.updated_at,
-        }
+/// Pure synchronous builder: combine a `Customer` with already-known invoice
+/// signals into a `TenantResponse`. Cannot fail. SSOT for tenant
+/// serialization across all admin tenant handlers.
+fn tenant_response_from_signals(
+    customer: Customer,
+    invoice_signals: InvoiceSignals,
+) -> TenantResponse {
+    let signals = BillingHealthSignals {
+        overdue_invoice_count: customer.overdue_invoice_count,
+        has_ever_been_billed: invoice_signals.has_ever_been_billed,
+        recent_paid_invoice_within_60_days: invoice_signals.recent_paid_invoice_within_60_days,
+    };
+
+    let billing_plan = customer.billing_plan_enum().to_string();
+    let billing_health = billing_health::derive(&customer.status, &signals);
+
+    TenantResponse {
+        id: customer.id,
+        name: customer.name,
+        email: customer.email,
+        status: customer.status,
+        billing_plan,
+        last_accessed_at: customer.last_accessed_at,
+        overdue_invoice_count: customer.overdue_invoice_count,
+        billing_health,
+        created_at: customer.created_at,
+        updated_at: customer.updated_at,
     }
+}
+
+/// Fetch invoice-derived billing-health signals for a customer.
+///
+/// Deleted customers short-circuit to `InvoiceSignals::default()` because
+/// `derive` always classifies them as `Grey` regardless of invoice state, so
+/// the DB read would be wasted work.
+///
+/// Write handlers must call this BEFORE mutating the customer so a
+/// repo-read failure cannot turn a successful write into an error response.
+async fn fetch_invoice_signals(
+    state: &AppState,
+    customer_id: Uuid,
+    customer_status: &str,
+) -> Result<InvoiceSignals, ApiError> {
+    if customer_status == "deleted" {
+        return Ok(InvoiceSignals::default());
+    }
+    let signals = billing_health::invoice_signals_for_customer(
+        state.invoice_repo.as_ref(),
+        customer_id,
+        Utc::now(),
+    )
+    .await?;
+    Ok(signals)
 }
 
 fn validated_tenant_name(name: &str) -> Result<&str, ApiError> {
@@ -218,7 +248,11 @@ pub async fn create_tenant(
         );
     }
 
-    Ok((StatusCode::CREATED, Json(TenantResponse::from(customer))))
+    // A freshly created customer has no invoices yet, so default signals are
+    // accurate here AND avoid adding a fallible repo read after the
+    // create has already committed.
+    let response = tenant_response_from_signals(customer, InvoiceSignals::default());
+    Ok((StatusCode::CREATED, Json(response)))
 }
 
 pub async fn list_tenants(
@@ -226,7 +260,11 @@ pub async fn list_tenants(
     State(state): State<AppState>,
 ) -> Result<impl IntoResponse, ApiError> {
     let customers = state.customer_repo.list().await?;
-    let tenants: Vec<TenantResponse> = customers.into_iter().map(TenantResponse::from).collect();
+    let mut tenants: Vec<TenantResponse> = Vec::with_capacity(customers.len());
+    for customer in customers {
+        let signals = fetch_invoice_signals(&state, customer.id, &customer.status).await?;
+        tenants.push(tenant_response_from_signals(customer, signals));
+    }
     Ok(Json(tenants))
 }
 
@@ -240,7 +278,8 @@ pub async fn get_tenant(
         .find_by_id(id)
         .await?
         .ok_or_else(|| ApiError::NotFound("tenant not found".into()))?;
-    Ok(Json(TenantResponse::from(customer)))
+    let signals = fetch_invoice_signals(&state, customer.id, &customer.status).await?;
+    Ok(Json(tenant_response_from_signals(customer, signals)))
 }
 
 /// `PUT /admin/tenants/{id}` — partial update of tenant fields.
@@ -286,6 +325,30 @@ pub async fn update_tenant(
         None => None,
     };
 
+    let existing_customer = state
+        .customer_repo
+        .find_by_id(id)
+        .await?
+        .filter(|customer| customer.status != "deleted")
+        .ok_or_else(|| ApiError::NotFound("tenant not found".into()))?;
+
+    if let Some(new_email) = email.as_deref() {
+        let conflicting_customer = state.customer_repo.find_by_email(new_email).await?;
+        if conflicting_customer
+            .as_ref()
+            .is_some_and(|customer| customer.id != existing_customer.id)
+        {
+            return Err(ApiError::Conflict("email already exists".into()));
+        }
+    }
+
+    // Resolve invoice signals only after proving the tenant exists and is
+    // not deleted so update keeps the historical 404 precedence for missing/
+    // deleted tenants. The lookup still runs before mutation to prevent
+    // post-write failures from turning a committed update into an error.
+    let invoice_signals =
+        fetch_invoice_signals(&state, existing_customer.id, &existing_customer.status).await?;
+
     let mut customer = if name.is_some() || email.is_some() {
         state
             .customer_repo
@@ -293,12 +356,7 @@ pub async fn update_tenant(
             .await?
             .ok_or_else(|| ApiError::NotFound("tenant not found".into()))?
     } else {
-        state
-            .customer_repo
-            .find_by_id(id)
-            .await?
-            .filter(|c| c.status != "deleted")
-            .ok_or_else(|| ApiError::NotFound("tenant not found".into()))?
+        existing_customer
     };
 
     if let Some(ref plan_str) = canonical_billing_plan {
@@ -322,7 +380,10 @@ pub async fn update_tenant(
         );
     }
 
-    Ok(Json(TenantResponse::from(customer)))
+    Ok(Json(tenant_response_from_signals(
+        customer,
+        invoice_signals,
+    )))
 }
 
 pub async fn delete_tenant(

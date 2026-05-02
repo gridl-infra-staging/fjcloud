@@ -56,6 +56,9 @@ Exit codes:
 
 Environment:
   GATE_CHECK_TIMEOUT_SEC  Per-check timeout in seconds (default: 30). |
+| local-ci.sh | # HELP-TEXT-BEGIN
+local-ci.sh — Run every gate the staging deploy-staging job depends on,
+locally, in parallel where safe. |
 | local-dev-down.sh | local-dev-down.sh — Tear down local dev services.
 
 Kills flapjack, stops Docker Compose, cleans up PID/log files.
@@ -126,7 +129,7 @@ usage_records to Postgres. |
 | stripe_cutover_prereqs.sh | Stub summary for stripe_cutover_prereqs.sh. |
 | stripe_webhook_replay_fixture.sh | Stub summary for stripe_webhook_replay_fixture.sh. |
 | validate-metering.sh | Validate metering pipeline health against a live database and emit JSON. |
-| validate-stripe.sh | Validate Stripe test-mode billing lifecycle and emit machine-readable JSON. |
+| validate-stripe.sh | Stub summary for validate-stripe.sh. |
 | validate_inbound_email_roundtrip.sh | Validate SES outbound-to-inbound roundtrip for the shared test inbox path. |
 | validate_ses_readiness.sh | Validate SES readiness using read-only API calls and machine-readable output. |
 | web-dev.sh | web-dev.sh — Start the SvelteKit dev server with repo-local auth env loaded. |
@@ -135,7 +138,7 @@ usage_records to Postgres. |
 | --- | --- |
 | canary | The canary directory contains synthetic monitoring scripts for continuous end-to-end validation: customer_loop_synthetic.sh runs the full signup-to-billing flow with deterministic cleanup and alert dispatch, outside_aws_health_check.sh probes external service availability, and support_email_deliverability.sh validates inbound email roundtrips. |
 | chaos | The chaos directory contains failure-injection and HA resilience test scripts that validate the system's ability to detect outages, trigger failover, and recover—including region kill/restart tests, metering service failure detection, and end-to-end failover proofs. |
-| launch | This directory contains shell scripts for deploying and validating the fjcloud billing platform in staging, including environment setup from AWS SSM, tenant configuration verification, synthetic traffic seeding, and remote command execution on EC2 infrastructure. |
+| launch | The launch directory contains shell scripts that orchestrate staging deployment verification and end-to-end testing, including environment hydration from AWS SSM, tenant configuration verification, synthetic traffic generation, and evidence capture for billing and backend validation. |
 | lib | Shared bash utilities providing reusable helpers for infrastructure validation (health checks, metering, Stripe), alert dispatch, environment parsing, billing rehearsal workflows, and deployment operations used across integration tests and shell scripts. |
 | load | The load directory contains regression checking utilities for validating load testing performance, including scripts that compare offline and live load harness results to detect performance regressions. |
 | reliability | The reliability directory contains shell scripts for backend capacity profiling, security validation, and reliability gating that generate performance metrics across document tiers. |

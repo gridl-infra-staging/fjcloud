@@ -2,15 +2,16 @@
 ## HELP-TEXT-BEGIN
 # local-ci.sh — Run every gate the staging deploy-staging job depends on,
 # locally, in parallel where safe. Designed to catch CI failures BEFORE the
-# 15-minute staging CI cycle so dev iteration is fast.
+# staging CI cycle so dev iteration is fast.
 #
 # ---------------------------------------------------------------------------
 # Why this exists
 # ---------------------------------------------------------------------------
-# Staging CI on private→public mirror takes ~15 minutes per cycle. Many
-# failures are catchable in seconds locally (formatter, file sizes, lint,
-# static contract tests, secret scan). Burning a 15-min cycle on a
-# `cargo fmt --check` violation is wasteful and slow.
+# Staging CI on private→public mirror typically runs 30-50 minutes per
+# cycle (rust-test + deploy-staging dominate). Many failures are catchable
+# in seconds locally (formatter, file sizes, lint, static contract tests,
+# secret scan). Burning a 30+ min cycle on a `cargo fmt --check` violation
+# is wasteful and slow.
 #
 # This script mirrors the deploy-staging needs[] list from
 # .github/workflows/ci.yml:
@@ -212,8 +213,9 @@ gate_web_test() {
 }
 
 gate_rust_lint() {
-    # Mirrors rust-lint: ci_workflow_test, support email unit seams,
-    # cargo fmt --check, cargo clippy --workspace -- -D warnings.
+    # Mirrors rust-lint: ci_workflow_test, generate_ssm_env_test,
+    # local_ci_gate_set_e_test, support email unit seams, cargo fmt
+    # --check, cargo clippy --workspace -- -D warnings.
     #
     # Explicit `|| return $?` after every command — same bash 3.2 set -e
     # pitfall already handled in gate_web_lint/gate_web_test. Without
@@ -222,6 +224,22 @@ gate_rust_lint() {
     # via `"$@" || rc=$?`, which silently disables `set -e` inside the
     # called function. Pinned by scripts/tests/local_ci_gate_set_e_test.sh.
     bash "$REPO_ROOT/scripts/tests/ci_workflow_test.sh" || return $?
+    # On macOS bash 3.2, generate_ssm_env_test.sh reports SKIP because
+    # generate_ssm_env.sh requires bash>=4 associative arrays. Treat that
+    # sentinel as a sub-check skip and continue, so rust-lint still runs
+    # fmt/clippy and remains aligned with CI contract coverage.
+    local generate_ssm_env_rc=0
+    bash "$REPO_ROOT/scripts/tests/generate_ssm_env_test.sh" || generate_ssm_env_rc=$?
+    if [ "$generate_ssm_env_rc" -ne 0 ] && [ "$generate_ssm_env_rc" -ne "$SKIP_EXIT_CODE" ]; then
+        return "$generate_ssm_env_rc"
+    fi
+    # local_ci_gate_set_e_test shells back into `scripts/local-ci.sh --gate
+    # rust-lint` with an intentional rustfmt violation. Skip the nested
+    # invocation's copy of this same regression test so the proof runs once
+    # per top-level gate execution instead of recursing forever.
+    if [ "${LOCAL_CI_SKIP_SET_E_REGRESSION_TEST:-0}" != "1" ]; then
+        bash "$REPO_ROOT/scripts/tests/local_ci_gate_set_e_test.sh" || return $?
+    fi
     bash "$REPO_ROOT/scripts/tests/validate_inbound_email_roundtrip_test.sh" || return $?
     bash "$REPO_ROOT/scripts/tests/support_email_deliverability_test.sh" || return $?
     cd "$REPO_ROOT/infra" || return $?
@@ -307,7 +325,11 @@ gate_rust_test() {
     bash "$REPO_ROOT/scripts/reliability/seed-test-profiles.sh" || return $?
     cd "$REPO_ROOT/infra" || return $?
     cargo test --workspace || return $?
-    cargo test -p api --test tenant_isolation_proptest --features proptest-tests || return $?
+    # tenant_isolation_proptest moved out of CI rust-test to nightly.yml on
+    # 2026-05-02 (defensive regression check, not a deploy gate). To keep
+    # local-ci a faithful mirror of CI's deploy-staging needs[], we drop it
+    # here too. Run it ad hoc when working in tenant-isolation surfaces:
+    #   cd infra && cargo test -p api --test tenant_isolation_proptest --features proptest-tests
 }
 
 # ---------------------------------------------------------------------------

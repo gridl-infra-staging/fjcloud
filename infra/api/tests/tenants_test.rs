@@ -1,8 +1,9 @@
 mod common;
 
+use api::repos::CustomerRepo;
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Duration, NaiveDate, Utc};
 use http_body_util::BodyExt;
 use tower::ServiceExt;
 use uuid::Uuid;
@@ -39,9 +40,13 @@ async fn create_tenant_returns_201() {
     assert_eq!(json["email"], "admin@acme.com");
     assert_eq!(json["status"], "active");
     assert!(json["last_accessed_at"].is_null());
-    assert!(json["subscription_status"].is_null());
+    assert!(
+        json.get("subscription_status").is_none(),
+        "subscription_status field must be removed from admin tenant response"
+    );
     assert_eq!(json["overdue_invoice_count"], 0);
-    assert_eq!(json["billing_health"], "grey");
+    // No invoice activity yet → green per the post-subscription contract.
+    assert_eq!(json["billing_health"], "green");
     // id should be a valid UUID
     Uuid::parse_str(json["id"].as_str().unwrap()).expect("id should be a UUID");
     // created_at and updated_at should be present
@@ -49,6 +54,84 @@ async fn create_tenant_returns_201() {
     assert!(json["updated_at"].is_string());
     // stripe_customer_id must not be in the response
     assert!(json.get("stripe_customer_id").is_none());
+}
+
+/// Regression: a freshly created customer has no invoices, and the response
+/// must not perform a fallible invoice-repo read after the create has
+/// committed. Forcing `list_by_customer` to error must NOT cause the create
+/// to fail — the write succeeded and the client must see 201.
+#[tokio::test]
+async fn create_tenant_succeeds_when_invoice_repo_read_fails() {
+    let repo = common::mock_repo();
+    let invoice_repo = common::mock_invoice_repo();
+    invoice_repo.force_list_by_customer_failure();
+    let app = common::TestStateBuilder::new()
+        .with_customer_repo(repo)
+        .with_invoice_repo(invoice_repo)
+        .build_app();
+
+    let req = Request::builder()
+        .method("POST")
+        .uri("/admin/tenants")
+        .header("x-admin-key", common::TEST_ADMIN_KEY)
+        .header("content-type", "application/json")
+        .body(Body::from(
+            serde_json::json!({"name": "Acme", "email": "acme@example.com"}).to_string(),
+        ))
+        .unwrap();
+
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(
+        resp.status(),
+        StatusCode::CREATED,
+        "create must not fail on post-commit invoice-repo read"
+    );
+    let json = body_json(resp).await;
+    // A never-billed customer with no overdue invoices is green.
+    assert_eq!(json["billing_health"], "green");
+}
+
+/// Regression: an update mutation that already committed must not surface
+/// an error response just because the post-mutation invoice-signal lookup
+/// fails. The handler must prefetch signals before mutating so a repo-read
+/// failure short-circuits BEFORE any state change.
+#[tokio::test]
+async fn update_tenant_invoice_repo_failure_short_circuits_before_mutation() {
+    let repo = common::mock_repo();
+    let customer = repo.seed("Pre Mutation", "pre_mutation@example.com");
+    let invoice_repo = common::mock_invoice_repo();
+    invoice_repo.force_list_by_customer_failure();
+    let app = common::TestStateBuilder::new()
+        .with_customer_repo(repo.clone())
+        .with_invoice_repo(invoice_repo)
+        .build_app();
+
+    let req = Request::builder()
+        .method("PUT")
+        .uri(format!("/admin/tenants/{}", customer.id))
+        .header("x-admin-key", common::TEST_ADMIN_KEY)
+        .header("content-type", "application/json")
+        .body(Body::from(
+            serde_json::json!({"name": "Should Not Apply"}).to_string(),
+        ))
+        .unwrap();
+
+    let resp = app.oneshot(req).await.unwrap();
+    // The repo failure surfaces as a 5xx, but critically the customer name
+    // must NOT have been mutated since the prefetch failed before update.
+    assert!(
+        resp.status().is_server_error() || resp.status() == StatusCode::INTERNAL_SERVER_ERROR,
+        "invoice-repo failure during update prefetch must surface as a server error"
+    );
+    let stored = repo
+        .find_by_email("pre_mutation@example.com")
+        .await
+        .unwrap();
+    assert_eq!(
+        stored.expect("customer must remain present").name,
+        "Pre Mutation",
+        "update must not have applied any mutation when prefetch failed"
+    );
 }
 
 #[tokio::test]
@@ -117,27 +200,50 @@ async fn list_tenants_returns_200_with_data() {
     assert_eq!(arr.len(), 2);
 }
 
+/// Stage 7 contract:
+/// - `deleted` → grey (regardless of other signals)
+/// - `overdue_invoice_count > 0` → red
+/// - has_ever_been_billed && !recent_paid_invoice_within_60_days → yellow
+/// - otherwise → green
 #[tokio::test]
-async fn list_tenants_derives_billing_health_for_subscription_combinations() {
+async fn list_tenants_returns_billing_health_from_invoice_signals() {
     let repo = common::mock_repo();
-    let green_active = repo.seed("Green Active", "green_active@example.com");
-    let green_trialing = repo.seed("Green Trialing", "green_trialing@example.com");
-    let yellow_incomplete = repo.seed("Yellow Incomplete", "yellow_incomplete@example.com");
-    let yellow_overdue = repo.seed("Yellow Overdue", "yellow_overdue@example.com");
-    let red_past_due = repo.seed("Red Past Due", "red_past_due@example.com");
-    let red_unpaid = repo.seed("Red Unpaid", "red_unpaid@example.com");
-    let grey_none = repo.seed("Grey None", "grey_none@example.com");
+    let invoice_repo = common::mock_invoice_repo();
 
-    let seeded_at = Utc::now();
-    repo.seed_billing_health_inputs(green_active.id, Some(seeded_at), Some("active"), 0);
-    repo.seed_billing_health_inputs(green_trialing.id, Some(seeded_at), Some("trialing"), 0);
-    repo.seed_billing_health_inputs(yellow_incomplete.id, Some(seeded_at), Some("incomplete"), 0);
-    repo.seed_billing_health_inputs(yellow_overdue.id, Some(seeded_at), Some("active"), 2);
-    repo.seed_billing_health_inputs(red_past_due.id, Some(seeded_at), Some("past_due"), 0);
-    repo.seed_billing_health_inputs(red_unpaid.id, Some(seeded_at), Some("unpaid"), 0);
-    repo.seed_billing_health_inputs(grey_none.id, Some(seeded_at), None, 0);
+    let green_never_billed = repo.seed("Green Never Billed", "green_never@example.com");
+    let green_recent_paid = repo.seed("Green Recent Paid", "green_recent@example.com");
+    let yellow_stale_billing = repo.seed("Yellow Stale", "yellow_stale@example.com");
+    let red_overdue = repo.seed("Red Overdue", "red_overdue@example.com");
+    let grey_deleted = repo.seed_deleted("Grey Deleted", "grey_deleted@example.com");
 
-    let app = common::test_app_with_repo(repo);
+    let now = Utc::now();
+    let seeded_at = now;
+    // Green / never billed: no invoices, no overdue.
+    repo.seed_billing_health_inputs(green_never_billed.id, Some(seeded_at), 0);
+    // Green / recent paid: paid invoice within the 60-day window.
+    repo.seed_billing_health_inputs(green_recent_paid.id, Some(seeded_at), 0);
+    invoice_repo.seed_paid(
+        green_recent_paid.id,
+        NaiveDate::from_ymd_opt(2026, 3, 1).unwrap(),
+        NaiveDate::from_ymd_opt(2026, 3, 31).unwrap(),
+        now - Duration::days(10),
+    );
+    // Yellow / stale billing: paid invoice older than 60 days, no recent paid.
+    repo.seed_billing_health_inputs(yellow_stale_billing.id, Some(seeded_at), 0);
+    invoice_repo.seed_paid(
+        yellow_stale_billing.id,
+        NaiveDate::from_ymd_opt(2025, 12, 1).unwrap(),
+        NaiveDate::from_ymd_opt(2025, 12, 31).unwrap(),
+        now - Duration::days(120),
+    );
+    // Red / overdue: any positive overdue count classifies as red.
+    repo.seed_billing_health_inputs(red_overdue.id, Some(seeded_at), 2);
+
+    let app = common::TestStateBuilder::new()
+        .with_customer_repo(repo)
+        .with_invoice_repo(invoice_repo)
+        .build_app();
+
     let req = Request::builder()
         .uri("/admin/tenants")
         .header("x-admin-key", common::TEST_ADMIN_KEY)
@@ -157,13 +263,13 @@ async fn list_tenants_derives_billing_health_for_subscription_combinations() {
             .unwrap_or_else(|| panic!("tenant '{name}' should be present"))
     };
 
-    assert_eq!(find_tenant("Green Active")["billing_health"], "green");
-    assert_eq!(find_tenant("Green Trialing")["billing_health"], "green");
-    assert_eq!(find_tenant("Yellow Incomplete")["billing_health"], "yellow");
-    assert_eq!(find_tenant("Yellow Overdue")["billing_health"], "yellow");
-    assert_eq!(find_tenant("Red Past Due")["billing_health"], "red");
-    assert_eq!(find_tenant("Red Unpaid")["billing_health"], "red");
-    assert_eq!(find_tenant("Grey None")["billing_health"], "grey");
+    assert_eq!(find_tenant("Green Never Billed")["billing_health"], "green");
+    assert_eq!(find_tenant("Green Recent Paid")["billing_health"], "green");
+    assert_eq!(find_tenant("Yellow Stale")["billing_health"], "yellow");
+    assert_eq!(find_tenant("Red Overdue")["billing_health"], "red");
+    assert_eq!(find_tenant("Grey Deleted")["billing_health"], "grey");
+
+    let _ = grey_deleted;
 }
 
 #[tokio::test]
@@ -194,12 +300,8 @@ async fn get_tenant_returns_200() {
     let repo = common::mock_repo();
     let customer = repo.seed("Acme", "acme@example.com");
     let expected_last_accessed_at = Utc::now();
-    repo.seed_billing_health_inputs(
-        customer.id,
-        Some(expected_last_accessed_at),
-        Some("past_due"),
-        3,
-    );
+    // Customer with overdue invoices → Red per the post-subscription contract.
+    repo.seed_billing_health_inputs(customer.id, Some(expected_last_accessed_at), 3);
     let app = common::test_app_with_repo(repo);
 
     let req = Request::builder()
@@ -221,7 +323,10 @@ async fn get_tenant_returns_200() {
         .parse()
         .expect("last_accessed_at should parse as RFC3339");
     assert_eq!(observed_last_accessed_at, expected_last_accessed_at);
-    assert_eq!(json["subscription_status"], "past_due");
+    assert!(
+        json.get("subscription_status").is_none(),
+        "subscription_status field must be removed from admin tenant response"
+    );
     assert_eq!(json["overdue_invoice_count"], 3);
     assert_eq!(json["billing_health"], "red");
 }
@@ -316,6 +421,39 @@ async fn update_tenant_duplicate_email_returns_409() {
     assert_eq!(resp.status(), StatusCode::CONFLICT);
 }
 
+/// Regression: duplicate-email conflicts must retain 409 precedence even when
+/// invoice signal lookup is unavailable. The invoice-repo read must not mask
+/// the existing customer-repo conflict path with a 5xx.
+#[tokio::test]
+async fn update_tenant_duplicate_email_stays_409_when_invoice_lookup_fails() {
+    let repo = common::mock_repo();
+    let _tenant_a = repo.seed("Tenant A", "a@example.com");
+    let tenant_b = repo.seed("Tenant B", "b@example.com");
+    let invoice_repo = common::mock_invoice_repo();
+    invoice_repo.force_list_by_customer_failure();
+    let app = common::TestStateBuilder::new()
+        .with_customer_repo(repo)
+        .with_invoice_repo(invoice_repo)
+        .build_app();
+
+    let req = Request::builder()
+        .method("PUT")
+        .uri(format!("/admin/tenants/{}", tenant_b.id))
+        .header("x-admin-key", common::TEST_ADMIN_KEY)
+        .header("content-type", "application/json")
+        .body(Body::from(
+            serde_json::json!({"email": "a@example.com"}).to_string(),
+        ))
+        .unwrap();
+
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(
+        resp.status(),
+        StatusCode::CONFLICT,
+        "duplicate-email updates must keep 409 precedence over invoice lookup failures"
+    );
+}
+
 #[tokio::test]
 async fn update_tenant_not_found_returns_404() {
     let repo = common::mock_repo();
@@ -331,6 +469,35 @@ async fn update_tenant_not_found_returns_404() {
 
     let resp = app.oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+
+    let json = body_json(resp).await;
+    assert_eq!(json["error"], "tenant not found");
+}
+
+#[tokio::test]
+async fn update_tenant_not_found_stays_404_when_invoice_lookup_fails() {
+    let repo = common::mock_repo();
+    let invoice_repo = common::mock_invoice_repo();
+    invoice_repo.force_list_by_customer_failure();
+    let app = common::TestStateBuilder::new()
+        .with_customer_repo(repo)
+        .with_invoice_repo(invoice_repo)
+        .build_app();
+
+    let req = Request::builder()
+        .method("PUT")
+        .uri(format!("/admin/tenants/{}", Uuid::new_v4()))
+        .header("x-admin-key", common::TEST_ADMIN_KEY)
+        .header("content-type", "application/json")
+        .body(Body::from(serde_json::json!({"name": "Nope"}).to_string()))
+        .unwrap();
+
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(
+        resp.status(),
+        StatusCode::NOT_FOUND,
+        "missing-tenant update must keep 404 precedence over invoice lookup errors"
+    );
 
     let json = body_json(resp).await;
     assert_eq!(json["error"], "tenant not found");

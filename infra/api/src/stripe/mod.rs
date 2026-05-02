@@ -103,9 +103,8 @@ pub struct SubscriptionItem {
     pub price_id: String,
 }
 
-/// Async trait abstracting all Stripe operations: customer creation, payment
-/// method management, invoice creation/finalization, webhook verification,
-/// checkout sessions, and subscription lifecycle (retrieve, cancel, update).
+/// Async trait abstracting Stripe operations: customer creation, payment
+/// method management, invoice creation/finalization, and webhook verification.
 #[async_trait]
 pub trait StripeService: Send + Sync {
     async fn create_customer(&self, name: &str, email: &str) -> Result<String, StripeError>;
@@ -145,39 +144,4 @@ pub trait StripeService: Send + Sync {
         signature: &str,
         secret: &str,
     ) -> Result<StripeEvent, StripeError>;
-
-    // ---------------------------------------------------------------------------
-    // Subscription and Checkout Session methods
-    // ---------------------------------------------------------------------------
-
-    /// Creates a Stripe Checkout Session for subscription checkout.
-    async fn create_checkout_session(
-        &self,
-        stripe_customer_id: &str,
-        price_id: &str,
-        success_url: &str,
-        cancel_url: &str,
-        metadata: Option<&std::collections::HashMap<String, String>>,
-    ) -> Result<CheckoutSessionResponse, StripeError>;
-
-    /// Retrieves a subscription by its Stripe ID.
-    async fn retrieve_subscription(
-        &self,
-        subscription_id: &str,
-    ) -> Result<SubscriptionData, StripeError>;
-
-    /// Cancels a subscription (optionally at period end).
-    async fn cancel_subscription(
-        &self,
-        subscription_id: &str,
-        cancel_at_period_end: bool,
-    ) -> Result<SubscriptionData, StripeError>;
-
-    /// Updates a subscription's price (for plan changes).
-    async fn update_subscription_price(
-        &self,
-        subscription_id: &str,
-        new_price_id: &str,
-        proration_behavior: &str,
-    ) -> Result<SubscriptionData, StripeError>;
 }

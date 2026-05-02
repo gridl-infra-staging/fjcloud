@@ -139,20 +139,13 @@ test.describe('Fresh signup to paid invoice', () => {
 
 		await page.goto('/dashboard/billing/invoices');
 		await expect(page.getByRole('heading', { name: 'Invoices' })).toBeVisible();
-		const invoiceRow = page
-			.getByRole('row')
-			.filter({
-				has: page.locator(`a[href="/dashboard/billing/invoices/${paidInvoiceEvidence.invoiceId}"]`)
-			})
-			.first();
+		const invoiceRow = page.getByTestId(`invoice-row-${paidInvoiceEvidence.invoiceId}`);
 		await expect(invoiceRow).toBeVisible({ timeout: 30_000 });
 		await expect(invoiceRow.getByRole('link', { name: 'View' })).toBeVisible();
-			await expect(invoiceRow.getByText('Paid')).toBeVisible();
-			const invoiceLink = page.locator(
-				`a[href="/dashboard/billing/invoices/${paidInvoiceEvidence.invoiceId}"]`
-			);
-			await expect(invoiceLink).toBeVisible({ timeout: 30_000 });
-			await invoiceLink.click();
+		await expect(invoiceRow.getByText('Paid')).toBeVisible();
+		const invoiceLink = page.getByTestId(`invoice-row-link-${paidInvoiceEvidence.invoiceId}`);
+		await expect(invoiceLink).toBeVisible({ timeout: 30_000 });
+		await invoiceLink.click();
 			await expect(page).toHaveURL(
 				new RegExp(`/dashboard/billing/invoices/${paidInvoiceEvidence.invoiceId}$`)
 			);

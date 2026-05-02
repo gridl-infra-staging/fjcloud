@@ -34,7 +34,7 @@
 				</thead>
 				<tbody>
 					{#each invoices as invoice (invoice.id)}
-						<tr class="border-b border-gray-100">
+						<tr class="border-b border-gray-100" data-testid="invoice-row-{invoice.id}">
 							<td class="px-6 py-4 text-gray-900">{formatPeriod(invoice.period_start)}</td>
 							<td class="px-6 py-4">
 								<span
@@ -49,6 +49,7 @@
 							<td class="px-6 py-4">
 								<a
 									href={resolve(`/dashboard/billing/invoices/${invoice.id}`)}
+									data-testid="invoice-row-link-{invoice.id}"
 									class="font-medium text-blue-600 hover:text-blue-500"
 								>
 									View

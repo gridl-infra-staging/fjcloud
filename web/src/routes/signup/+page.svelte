@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import { MARKETING_PRICING } from '$lib/pricing';
 	import { SIGNUP_PASSWORD_MIN_LENGTH, clientSignupPasswordLengthError } from './signup-validation';
 
@@ -121,7 +122,7 @@
 
 		<p class="mt-4 text-center text-sm text-gray-600">
 			Already have an account?
-			<a href="/login" class="font-medium text-blue-600 hover:text-blue-500">Log in</a>
+			<a href={resolve('/login')} class="font-medium text-blue-600 hover:text-blue-500">Log in</a>
 		</p>
 	</div>
 </div>

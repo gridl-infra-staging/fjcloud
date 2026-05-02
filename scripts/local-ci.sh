@@ -187,18 +187,26 @@ gate_web_lint() {
     # function. Verified locally — without this, a stale lockfile
     # printed the error and continued instead of aborting the gate.
     node_modules_fresh_or_fail || return $?
-    cd "$REPO_ROOT/web"
+    cd "$REPO_ROOT/web" || return $?
     # `npm ci` is omitted intentionally — local devs already have
     # node_modules from `npm install`. CI does `npm ci` for a clean
     # install; the node_modules_fresh_or_fail check above catches the
     # stale-lockfile divergence that would otherwise pass locally and
     # fail in CI.
-    npm run check
-    npx eslint .
-    npm run lint:e2e
-    cd "$REPO_ROOT"
-    bash "$REPO_ROOT/scripts/tests/screen_specs_coverage_test.sh"
-    bash "$REPO_ROOT/scripts/tests/ses_iam_configset_coupling_test.sh"
+    #
+    # Explicit `|| return $?` after every command — when this gate is
+    # invoked from a `||`-chained dispatcher (e.g. `gate_web_lint || ...`),
+    # bash 3.2 (macOS default) disables `set -e` inside the function, so
+    # bare commands silently swallow non-zero exits. Without these guards,
+    # a real svelte-check / eslint failure would log to the gate file but
+    # report PASS — the failure mode that masked a TS bug + eslint regression
+    # in the LB-9 fixture rewrite for ~24h on 2026-05-02.
+    npm run check || return $?
+    npx eslint . || return $?
+    npm run lint:e2e || return $?
+    cd "$REPO_ROOT" || return $?
+    bash "$REPO_ROOT/scripts/tests/screen_specs_coverage_test.sh" || return $?
+    bash "$REPO_ROOT/scripts/tests/ses_iam_configset_coupling_test.sh" || return $?
 }
 
 gate_web_test() {

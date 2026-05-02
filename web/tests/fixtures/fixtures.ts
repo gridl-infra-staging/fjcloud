@@ -119,16 +119,16 @@ function redactSensitiveDiagnostics(value: string): string {
 }
 
 function formatResponseDiagnostic(responseStatus?: number, responseUrl?: string): string {
-	if (responseStatus === undefined && !responseUrl) {
-		return '(none observed)';
-	}
 	if (responseStatus !== undefined && responseUrl) {
 		return `status ${responseStatus} at ${redactSensitiveDiagnostics(responseUrl)}`;
 	}
 	if (responseStatus !== undefined) {
 		return `status ${responseStatus}`;
 	}
-	return `URL ${redactSensitiveDiagnostics(responseUrl)}`;
+	if (responseUrl) {
+		return `URL ${redactSensitiveDiagnostics(responseUrl)}`;
+	}
+	return '(none observed)';
 }
 
 /** Build a non-secret setup failure message for browser auth fixtures. */

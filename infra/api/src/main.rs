@@ -1,3 +1,7 @@
+//! Binary entrypoint for the fjcloud HTTP API server. Wires Config + DNS +
+//! provisioner + repos + Stripe + email + secret managers into AppState and
+//! starts the axum router on `LISTEN_ADDR`. All app-level wiring lives in the
+//! `api` library crate; this file is the one-shot startup glue.
 
 use api::config::Config;
 use api::dns::DnsManager;

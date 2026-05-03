@@ -48,10 +48,7 @@ async fn find_latest_invoice_id_by_payment_intent_returns_none_when_no_rows() {
 
     // Use a payment_intent id with a uuid suffix so it cannot collide with any
     // real test data — guarantees zero matching rows for the SQL filter.
-    let pi_id = format!(
-        "pi_test_unknown_{}",
-        uuid::Uuid::new_v4().simple()
-    );
+    let pi_id = format!("pi_test_unknown_{}", uuid::Uuid::new_v4().simple());
     let result = repo.find_latest_invoice_id_by_payment_intent(&pi_id).await;
     assert!(
         result.is_ok(),

@@ -39,7 +39,7 @@ paths = [
     '''ops/terraform/tests_.*\.sh$''',
     '''ops/scripts/live_e2e_budget_guardrail_prep\.sh$''',
     '''scripts/tests/.*\.sh$''',
-    '''scripts/stripe/.*\.sh$''',
+    '''scripts/stripe/.*\.(sh|mjs)$''',
     '''scripts/lib/stripe_checks\.sh$''',
     '''scripts/lib/stripe_request\.sh$''',
     '''scripts/validate-stripe\.sh$''',

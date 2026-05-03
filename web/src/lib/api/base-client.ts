@@ -8,7 +8,18 @@
  */
 export abstract class BaseClient {
 	protected readonly baseUrl: string;
-	protected fetchFn: typeof globalThis.fetch = globalThis.fetch;
+	// IMPORTANT: bind `fetch` to `globalThis` here. On Cloudflare Workers,
+	// `globalThis.fetch` is a builtin that requires `this === globalThis` at
+	// call time. If you store the unbound reference and later invoke it as a
+	// method (`this.fetchFn(url, init)`), Workers throws
+	// `TypeError: Illegal invocation: function called with incorrect 'this' reference`.
+	// That TypeError gets mapped by mapAuthLoadFailureMessage → "Authentication
+	// service is unavailable. Please verify API_URL" — a misleading customer
+	// message that previously caused us to chase env-var bugs that didn't exist.
+	// Binding once at construction makes this work everywhere (Node, browser,
+	// Workers) without callers having to remember to pass `event.fetch`.
+	// See https://developers.cloudflare.com/workers/observability/errors/#illegal-invocation-errors
+	protected fetchFn: typeof globalThis.fetch = globalThis.fetch.bind(globalThis);
 
 	constructor(baseUrl: string) {
 		this.baseUrl = baseUrl.replace(/\/+$/, '');

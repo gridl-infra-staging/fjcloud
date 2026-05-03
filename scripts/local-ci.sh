@@ -211,13 +211,16 @@ gate_web_lint() {
 
 gate_web_test() {
     set -e
-    # Explicit `|| return` because bash 3.2 (macOS default) does not
-    # reliably propagate `set -e` from a function called inside another
-    # function. Verified locally — without this, a stale lockfile
-    # printed the error and continued instead of aborting the gate.
+    # Explicit `|| return $?` after every command — same bash 3.2 set -e
+    # pitfall handled in gate_web_lint and gate_rust_lint. Without these
+    # guards, a `cd` failure or non-final command failure would be
+    # silently swallowed and the gate would report the last command's
+    # status instead. Pinned by scripts/tests/local_ci_gate_set_e_test.sh
+    # (currently rust-lint-scoped; extend if more gates need explicit
+    # regression coverage post-launch).
     node_modules_fresh_or_fail || return $?
-    cd "$REPO_ROOT/web"
-    npm test
+    cd "$REPO_ROOT/web" || return $?
+    npm test || return $?
 }
 
 gate_rust_lint() {

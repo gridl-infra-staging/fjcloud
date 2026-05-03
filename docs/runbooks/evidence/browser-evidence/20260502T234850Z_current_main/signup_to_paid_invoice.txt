@@ -1,0 +1,35 @@
+
+Running 1 test using 1 worker
+
+  ✘  1 [chromium:signup] › tests/e2e-ui/full/signup_to_paid_invoice.spec.ts:80:2 › Fresh signup to paid invoice › signs up, verifies email, reaches paid invoice evidence (5.0m)
+
+
+  1) [chromium:signup] › tests/e2e-ui/full/signup_to_paid_invoice.spec.ts:80:2 › Fresh signup to paid invoice › signs up, verifies email, reaches paid invoice evidence 
+
+    [31mTest timeout of 300000ms exceeded.[39m
+
+    Error: locator.fill: Test timeout of 300000ms exceeded.
+    Call log:
+    [2m  - waiting for getByLabel('Name')[22m
+
+
+      91 |
+      92 | 		await page.goto('/signup');
+    > 93 | 		await page.getByLabel('Name').fill(signup.name);
+         | 		                              ^
+      94 | 		await page.getByLabel('Email').fill(signup.email);
+      95 | 		await page.getByLabel('Password', { exact: true }).fill(signup.password);
+      96 | 		await page.getByLabel('Confirm Password').fill(signup.password);
+        at /Users/stuart/repos/gridl-infra-dev/fjcloud_dev/web/tests/e2e-ui/full/signup_to_paid_invoice.spec.ts:93:33
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/e2e-ui-full-signup_to_paid-43e41-aches-paid-invoice-evidence-chromium-signup/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/e2e-ui-full-signup_to_paid-43e41-aches-paid-invoice-evidence-chromium-signup/error-context.md
+
+  Slow test file: [chromium:signup] › tests/e2e-ui/full/signup_to_paid_invoice.spec.ts (5.0m)
+  Consider running tests from slow files in parallel. See: https://playwright.dev/docs/test-parallel
+  1 failed
+    [chromium:signup] › tests/e2e-ui/full/signup_to_paid_invoice.spec.ts:80:2 › Fresh signup to paid invoice › signs up, verifies email, reaches paid invoice evidence 
+exit=1

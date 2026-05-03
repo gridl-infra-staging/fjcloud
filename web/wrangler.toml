@@ -1,0 +1,27 @@
+# Cloudflare Pages configuration for the fjcloud web frontend.
+#
+# Owns:
+#   - `pages_build_output_dir`: where CF Pages should look for the SvelteKit
+#     adapter-cloudflare output (Worker entry + static assets).
+#   - `compatibility_date` / `compatibility_flags`: pin Workers runtime
+#     behavior so a future runtime update can't silently change semantics.
+#
+# Why `nodejs_compat`: two production-path files import from `node:crypto`
+# for security-critical work — `src/lib/auth/jwt.ts` (HMAC + timingSafeEqual
+# for JWT verify) and `src/lib/server/admin-session.ts` (SHA, UUID,
+# timingSafeEqual for admin session ids). The `nodejs_compat` flag is CF's
+# GA Node.js compatibility layer for Workers and is the standard fix for
+# projects that ship with `node:crypto` in the hot path. Rewriting these to
+# Web Crypto would be ~50 lines of changes to security-critical code with no
+# functional benefit — explicitly avoided to keep the launch migration
+# scoped to "configuration swap, not refactor".
+#
+# Why we do NOT define a `[vars]` block here: SvelteKit reads server env
+# vars via `$env/dynamic/private`, which CF Pages populates from the Pages
+# project's environment-variable settings (managed in the CF dashboard or
+# via `wrangler pages secret`). Putting them in wrangler.toml would
+# fragment the source of truth.
+name = "fjcloud-web"
+pages_build_output_dir = ".svelte-kit/cloudflare"
+compatibility_date = "2026-04-01"
+compatibility_flags = ["nodejs_compat"]

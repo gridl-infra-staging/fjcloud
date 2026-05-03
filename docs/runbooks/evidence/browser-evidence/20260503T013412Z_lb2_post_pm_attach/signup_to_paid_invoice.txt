@@ -1,0 +1,36 @@
+
+Running 1 test using 1 worker
+
+  ✘  1 [chromium:signup] › tests/e2e-ui/full/signup_to_paid_invoice.spec.ts:80:2 › Fresh signup to paid invoice › signs up, verifies email, reaches paid invoice evidence (45.2s)
+
+
+  1) [chromium:signup] › tests/e2e-ui/full/signup_to_paid_invoice.spec.ts:80:2 › Fresh signup to paid invoice › signs up, verifies email, reaches paid invoice evidence 
+
+    Error: arrangePaidInvoiceForFreshSignup failed before reaching /dashboard/billing/invoices/{id}. Current URL: (arrangePaidInvoiceForFreshSignup)
+    API URL: https://api.flapjack.foo
+    Admin key fingerprint: (present, len=32)
+    Visible alert text: arrangePaidInvoiceForFreshSignup timed out waiting for invoice a3446378-1dc9-4236-bc82-cb30e9b5f94c to become paid
+    Login response: (none observed)
+    Remediation: Run scripts/bootstrap-env-local.sh to bootstrap .env.local, then start the local stack with scripts/local-dev-up.sh and the Rust API with scripts/api-dev.sh. If you override BASE_URL, start the web frontend with scripts/web-dev.sh too. See docs/runbooks/local-dev.md for setup instructions.
+
+       at fixtures/fixtures.ts:1374
+
+      1372 | 		};
+      1373 | 	} catch (error) {
+    > 1374 | 		throw new Error(
+           | 		      ^
+      1375 | 			formatFixtureSetupFailure({
+      1376 | 				setupName: 'arrangePaidInvoiceForFreshSignup',
+      1377 | 				expectedPath: '/dashboard/billing/invoices/{id}',
+        at arrangePaidInvoiceForFreshSignup (/Users/stuart/repos/gridl-infra-dev/fjcloud_dev/web/tests/fixtures/fixtures.ts:1374:9)
+        at /Users/stuart/repos/gridl-infra-dev/fjcloud_dev/web/tests/e2e-ui/full/signup_to_paid_invoice.spec.ts:138:31
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/e2e-ui-full-signup_to_paid-43e41-aches-paid-invoice-evidence-chromium-signup/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/e2e-ui-full-signup_to_paid-43e41-aches-paid-invoice-evidence-chromium-signup/error-context.md
+
+  1 failed
+    [chromium:signup] › tests/e2e-ui/full/signup_to_paid_invoice.spec.ts:80:2 › Fresh signup to paid invoice › signs up, verifies email, reaches paid invoice evidence 
+exit=1

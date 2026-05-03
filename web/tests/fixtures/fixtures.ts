@@ -1023,6 +1023,69 @@ async function syncStripeCustomer(customerId: string, contextLabel: string): Pro
 }
 
 /**
+ * Attach Stripe's well-known `pm_card_visa` test payment method to the given
+ * Stripe customer and set it as the customer's default `invoice_settings`
+ * payment method. Returns the attached PaymentMethod id.
+ *
+ * Why this exists as a shared helper: both `arrangeBillingPortalCustomer`
+ * (LB-3 lane) and `arrangePaidInvoiceForFreshSignup` (LB-2 lane) need a
+ * disposable test customer with a default PM so Stripe can auto-charge
+ * the invoice in `charge_automatically` mode. Previously only the LB-3
+ * fixture attached a PM; the LB-2 fixture skipped this step and the
+ * resulting invoice sat in `open` state forever, timing out
+ * `waitForInvoicePaid`.
+ *
+ * Requires `STRIPE_SECRET_KEY` in env (the test-mode `rk_test_*` /
+ * `sk_test_*` key matching the staging API). Source
+ * `.secret/.env.secret` before invoking Playwright.
+ */
+async function attachDefaultStripeTestCard(
+	stripeCustomerId: string,
+	stripeSecretKey: string,
+	contextLabel: string
+): Promise<string> {
+	const stripeAuthHeaders = {
+		Authorization: `Bearer ${stripeSecretKey}`,
+		'Content-Type': 'application/x-www-form-urlencoded'
+	};
+
+	const attachResp = await fetch(
+		'https://api.stripe.com/v1/payment_methods/pm_card_visa/attach',
+		{
+			method: 'POST',
+			headers: stripeAuthHeaders,
+			body: `customer=${encodeURIComponent(stripeCustomerId)}`
+		}
+	);
+	if (!attachResp.ok) {
+		throw new Error(
+			`${contextLabel} Stripe PaymentMethod.attach failed: ${attachResp.status} ${await attachResp.text()}`
+		);
+	}
+	const paymentMethod = (await attachResp.json()) as { id?: string };
+	const defaultPaymentMethodId = requireNonEmptyString(
+		paymentMethod.id ?? '',
+		`${contextLabel} expected attached PaymentMethod.id from Stripe`
+	);
+
+	const updateResp = await fetch(
+		`https://api.stripe.com/v1/customers/${encodeURIComponent(stripeCustomerId)}`,
+		{
+			method: 'POST',
+			headers: stripeAuthHeaders,
+			body: `invoice_settings[default_payment_method]=${encodeURIComponent(defaultPaymentMethodId)}`
+		}
+	);
+	if (!updateResp.ok) {
+		throw new Error(
+			`${contextLabel} Stripe customer default-PM update failed: ${updateResp.status} ${await updateResp.text()}`
+		);
+	}
+
+	return defaultPaymentMethodId;
+}
+
+/**
  * Create a disposable customer fixture that can reach the billing portal.
  */
 async function arrangeBillingPortalCustomer({
@@ -1063,43 +1126,11 @@ async function arrangeBillingPortalCustomer({
 			'arrangeBillingPortalCustomer'
 		);
 
-		const stripeAuthHeaders = {
-			Authorization: `Bearer ${stripeSecretKey}`,
-			'Content-Type': 'application/x-www-form-urlencoded'
-		};
-
-		const attachResp = await fetch(
-			'https://api.stripe.com/v1/payment_methods/pm_card_visa/attach',
-			{
-				method: 'POST',
-				headers: stripeAuthHeaders,
-				body: `customer=${encodeURIComponent(stripeCustomerId)}`
-			}
+		const defaultPaymentMethodId = await attachDefaultStripeTestCard(
+			stripeCustomerId,
+			stripeSecretKey,
+			'arrangeBillingPortalCustomer'
 		);
-		if (!attachResp.ok) {
-			throw new Error(
-				`arrangeBillingPortalCustomer Stripe PaymentMethod.attach failed: ${attachResp.status} ${await attachResp.text()}`
-			);
-		}
-		const paymentMethod = (await attachResp.json()) as { id?: string };
-		const defaultPaymentMethodId = requireNonEmptyString(
-			paymentMethod.id ?? '',
-			'arrangeBillingPortalCustomer expected attached PaymentMethod.id from Stripe'
-		);
-
-		const updateResp = await fetch(
-			`https://api.stripe.com/v1/customers/${encodeURIComponent(stripeCustomerId)}`,
-			{
-				method: 'POST',
-				headers: stripeAuthHeaders,
-				body: `invoice_settings[default_payment_method]=${encodeURIComponent(defaultPaymentMethodId)}`
-			}
-		);
-		if (!updateResp.ok) {
-			throw new Error(
-				`arrangeBillingPortalCustomer Stripe customer default-PM update failed: ${updateResp.status} ${await updateResp.text()}`
-			);
-		}
 
 		return {
 			...created,
@@ -1200,6 +1231,18 @@ async function arrangePaidInvoiceForFreshSignup({
 	trackCustomerForCleanup
 }: ArrangePaidInvoiceForFreshSignupParams): Promise<ArrangePaidInvoiceForFreshSignupResult> {
 	try {
+		const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+		if (!stripeSecretKey) {
+			// Mirror arrangeBillingPortalCustomer's contract: the test-mode
+			// Stripe key is what lets us attach pm_card_visa as the default PM
+			// so the batch-billing-created invoice can be auto-charged. Without
+			// it, the invoice sits in `open` state forever and the spec times
+			// out at waitForInvoicePaid.
+			throw new Error(
+				'arrangePaidInvoiceForFreshSignup requires STRIPE_SECRET_KEY in env (source .secret/.env.secret before invoking Playwright)'
+			);
+		}
+
 		const normalizedEmail = requireNonEmptyString(
 			email,
 			'arrangePaidInvoiceForFreshSignup requires a non-empty email and password'
@@ -1221,7 +1264,20 @@ async function arrangePaidInvoiceForFreshSignup({
 			await updateBillingPlan('shared', customerId);
 		}
 
-		await syncStripeCustomer(customerId, 'arrangePaidInvoiceForFreshSignup');
+		const stripeCustomerId = await syncStripeCustomer(
+			customerId,
+			'arrangePaidInvoiceForFreshSignup'
+		);
+
+		// Attach pm_card_visa as the default PM BEFORE batch billing runs,
+		// so the invoice that batch billing creates gets auto-charged
+		// (collection_method=charge_automatically with a default PM = paid in
+		// seconds). Without this step, waitForInvoicePaid below times out.
+		await attachDefaultStripeTestCard(
+			stripeCustomerId,
+			stripeSecretKey,
+			'arrangePaidInvoiceForFreshSignup'
+		);
 
 		const billingMonth = currentUtcBillingMonth();
 		const batchBillingResponse = await adminApiCall('POST', '/admin/billing/run', {

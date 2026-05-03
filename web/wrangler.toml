@@ -16,12 +16,21 @@
 # functional benefit — explicitly avoided to keep the launch migration
 # scoped to "configuration swap, not refactor".
 #
-# Why we do NOT define a `[vars]` block here: SvelteKit reads server env
-# vars via `$env/dynamic/private`, which CF Pages populates from the Pages
-# project's environment-variable settings (managed in the CF dashboard or
-# via `wrangler pages secret`). Putting them in wrangler.toml would
-# fragment the source of truth.
+# Public, non-secret runtime env vars belong in `[vars]` below. Secrets
+# (JWT_SECRET, ADMIN_KEY) MUST be set via CF Pages dashboard env vars
+# with the secret flag, or via `wrangler pages secret put`. Never put a
+# secret in this file — it ships in the public mirror under debbie sync.
 name = "fjcloud-web"
 pages_build_output_dir = ".svelte-kit/cloudflare"
 compatibility_date = "2026-04-01"
 compatibility_flags = ["nodejs_compat"]
+
+# Runtime env vars exposed to the SvelteKit Worker via $env/dynamic/private.
+# These are PUBLIC values — staging API hostname and environment label.
+# Adding these here is what makes /signup form submission succeed: the
+# action calls `api.register(...)` which fetches `${API_BASE_URL}/auth/register`,
+# and without API_BASE_URL the call falls through to the localhost default
+# and fails with a generic "unknown error" mapped from the network error.
+[vars]
+API_BASE_URL = "https://api.flapjack.foo"
+ENVIRONMENT = "staging"

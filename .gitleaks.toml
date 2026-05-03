@@ -53,6 +53,14 @@ paths = [
     # docs/runbooks/evidence/ — a different file in the same dir is
     # still scanned.
     '''docs/runbooks/evidence/.*/stripe_key_fingerprint\.txt$''',
+    # Evidence + handoff *.md files under docs/runbooks/evidence/ frequently
+    # show curl examples like `curl -u "$STRIPE_SECRET_KEY_flapjack_cloud:"`
+    # that gitleaks's `curl-auth-user` rule flags. The `$VAR` is a shell
+    # expansion reference — the literal text contains no secret material.
+    # Scoped to *.md only so any captured stdout/stderr files (.txt, .json,
+    # .log) under the same tree are still scanned.
+    '''docs/runbooks/evidence/.*\.md$''',
+    '''chats/handoffs/.*\.md$''',
 ]
 regexes = [
     '''sk_test_[A-Za-z0-9]{16,}''',

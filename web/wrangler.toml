@@ -20,7 +20,7 @@
 # (JWT_SECRET, ADMIN_KEY) MUST be set via CF Pages dashboard env vars
 # with the secret flag, or via `wrangler pages secret put`. Never put a
 # secret in this file — it ships in the public mirror under debbie sync.
-name = "fjcloud-web"
+name = "flapjack-cloud"
 pages_build_output_dir = ".svelte-kit/cloudflare"
 compatibility_date = "2026-04-01"
 compatibility_flags = ["nodejs_compat"]

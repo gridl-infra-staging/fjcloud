@@ -62,11 +62,30 @@ impl WebhookEventRepo for PgWebhookEventRepo {
         Ok(())
     }
 
+    /// Look up the latest stripe invoice id for a given payment_intent id by
+    /// scanning prior `invoice.payment_succeeded`/`invoice.paid` webhook events.
+    ///
+    /// Returns `Ok(None)` when no matching event has been seen — including the
+    /// production-realistic case where a `charge.refunded` arrives for a charge
+    /// whose payment_intent was never associated with one of our customer
+    /// invoices (synthetic Stripe-side invoices, ad-hoc charges, etc).
+    ///
+    /// Implementation note: must use `fetch_optional` rather than `fetch_one`.
+    /// `fetch_one` errors with `RowNotFound` when the query returns zero rows,
+    /// which would surface as a 500 to Stripe and block webhook acknowledgement.
+    /// This was caught 2026-05-03 by the Phase G live invoice probe — the
+    /// charge.refunded handler called this fn for a payment_intent we'd never
+    /// processed, returning 500 → Stripe stuck in retry. Mock repo returned
+    /// None gracefully so unit tests passed; only the real Postgres path
+    /// surfaced the bug.
     async fn find_latest_invoice_id_by_payment_intent(
         &self,
         payment_intent_id: &str,
     ) -> Result<Option<String>, RepoError> {
-        sqlx::query_scalar::<_, Option<String>>(
+        // The DB column is JSONB extracted to text; the `Option<String>` row type
+        // accommodates a NULL extracted value. `fetch_optional` then wraps the
+        // whole thing in another Option for "zero rows", so we flatten.
+        let row: Option<Option<String>> = sqlx::query_scalar::<_, Option<String>>(
             "SELECT payload->'data'->'object'->>'id' \
              FROM webhook_events \
              WHERE event_type IN ('invoice.payment_succeeded', 'invoice.paid') \
@@ -75,8 +94,9 @@ impl WebhookEventRepo for PgWebhookEventRepo {
              LIMIT 1",
         )
         .bind(payment_intent_id)
-        .fetch_one(&self.pool)
+        .fetch_optional(&self.pool)
         .await
-        .map_err(|e| RepoError::Other(e.to_string()))
+        .map_err(|e| RepoError::Other(e.to_string()))?;
+        Ok(row.flatten())
     }
 }

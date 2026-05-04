@@ -12,6 +12,7 @@ pub mod tenants;
 pub mod tokens;
 pub mod usage;
 pub mod vms;
+pub mod webhook_events;
 
 use axum::routing::{get, post, put};
 use axum::Router;
@@ -89,6 +90,7 @@ pub fn admin_routes() -> Router<AppState> {
         .route("/vms/:id/kill", post(vms::kill_vm))
         .route("/replicas", get(replicas::list_replicas))
         .route("/tenants/:id/indexes", post(indexes::seed_index))
+        .route("/webhook-events", get(webhook_events::get_webhook_event))
 }
 
 pub fn nest_admin_subtree(

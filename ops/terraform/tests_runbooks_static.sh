@@ -9,6 +9,12 @@ set -euo pipefail
 
 source "$(dirname "${BASH_SOURCE[0]}")/test_helpers.sh"
 
+production_command_pins_prod_alert_emails_var() {
+  local command_text="$1"
+  printf '%s\n' "$command_text" | rg -q -- '-var=\"env=prod\"' && \
+    printf '%s\n' "$command_text" | rg -q -- "-var='alert_emails=\\[[^]]+\\]'"
+}
+
 dns_runbook="docs/runbooks/infra-dns-cutover.md"
 deploy_runbook="docs/runbooks/infra-deploy-rollback.md"
 terraform_runbook="docs/runbooks/infra-terraform-apply.md"
@@ -79,6 +85,72 @@ assert_file_contains "$terraform_runbook" 'terraform apply' "terraform: apply co
 assert_file_contains "$terraform_runbook" 'backend-config' "terraform: backend config flags"
 assert_file_contains "$terraform_runbook" 'fjcloud-tfstate' "terraform: S3 state bucket name"
 assert_file_contains "$terraform_runbook" 'fjcloud-tflock' "terraform: DynamoDB lock table"
+production_apply_section=$(awk '
+  /^## Production Apply$/ { in_section = 1; next }
+  /^## / && in_section { exit }
+  in_section { print }
+' "$terraform_runbook")
+if [[ -n "$production_apply_section" ]]; then
+  pass "terraform: production apply section exists"
+else
+  fail "terraform: production apply section exists"
+fi
+
+production_plan_command=$(printf '%s\n' "$production_apply_section" | awk '
+  /^```bash$/ { in_code = 1; next }
+  /^```$/ && in_code { in_code = 0; next }
+  in_code && /^terraform plan([[:space:]]|$)/ { capture = 1 }
+  in_code && capture {
+    if (started && $0 == "") { exit }
+    print
+    started = 1
+  }
+')
+if [[ -n "$production_plan_command" ]]; then
+  pass "terraform: production plan command is present"
+else
+  fail "terraform: production plan command is present"
+fi
+
+if production_command_pins_prod_alert_emails_var "$production_plan_command"; then
+  pass "terraform: production plan command pins env=prod and alert_emails var"
+else
+  fail "terraform: production plan command pins env=prod and alert_emails var"
+fi
+
+synthetic_comment_only_plan_command='terraform plan \
+  -var="env=prod" \
+  -var="ami_id=ami-0123456789abcdef0" \
+  # alert_emails=["ops@flapjack.foo"]'
+if production_command_pins_prod_alert_emails_var "$synthetic_comment_only_plan_command"; then
+  fail "terraform: production plan gate rejects comment-only alert_emails mentions"
+else
+  pass "terraform: production plan gate rejects comment-only alert_emails mentions"
+fi
+
+production_apply_command=$(printf '%s\n' "$production_apply_section" | awk '
+  /^```bash$/ { in_code = 1; next }
+  /^```$/ && in_code { in_code = 0; next }
+  in_code && /^terraform apply([[:space:]]|$)/ { capture = 1 }
+  in_code && capture {
+    if (started && $0 == "") { exit }
+    print
+    started = 1
+  }
+')
+if [[ -n "$production_apply_command" ]]; then
+  pass "terraform: production apply command is present"
+else
+  fail "terraform: production apply command is present"
+fi
+
+if production_command_pins_prod_alert_emails_var "$production_apply_command"; then
+  pass "terraform: production apply command pins env=prod and alert_emails var"
+else
+  fail "terraform: production apply command pins env=prod and alert_emails var"
+fi
+
+assert_file_contains "$terraform_runbook" '[Pp]rod(uction)?.*rejects.*empty.*alert_emails' "terraform: runbook documents prod empty alert_emails rejection"
 assert_file_contains "$terraform_runbook" 'terraform destroy -target|destroy -target' "terraform: targeted destroy for rollback"
 assert_file_contains "$terraform_runbook" 'terraform state' "terraform: state commands for recovery"
 assert_file_contains "$terraform_runbook" 'tests_stage7_runtime_smoke' "terraform: runtime smoke script reference"

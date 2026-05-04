@@ -51,7 +51,8 @@ terraform plan \
   -var="env=staging" \
   -var="ami_id=ami-0123456789abcdef0" \
   -var="domain=flapjack.foo" \
-  -var="cloudflare_zone_id=${CLOUDFLARE_ZONE_ID}"
+  -var="cloudflare_zone_id=${CLOUDFLARE_ZONE_ID}" \
+  -var='alert_emails=["ops@flapjack.foo"]'
 ```
 
 Review the plan output carefully:
@@ -69,6 +70,18 @@ Canary runtime contract notes (post-Stage-5 handoff boundary):
   ```
 - Runtime activation (setting `canary_schedule.enabled=true`) is a separate operator action after image publication and post-apply verification.
 
+Stage 6 rollout caveats (observed during initial heartbeat-alarm landing):
+- AWS Lambda with `package_type = "Image"` validates `image_uri` at create time. When the Lambda resource does not yet exist in state, run a **targeted apply** that includes only the ECR repository, lifecycle policy, and the heartbeat alarm — skip the Lambda — so the apply does not fail on the not-yet-published image:
+  ```bash
+  terraform apply <vars> \
+    -target=module.monitoring.aws_ecr_repository.customer_loop_canary \
+    -target=module.monitoring.aws_ecr_lifecycle_policy.customer_loop_canary \
+    -target=module.monitoring.aws_cloudwatch_metric_alarm.api_heartbeat_missing
+  ```
+  Then publish the image (`ops/terraform/publish_customer_loop_canary_image.sh staging`) and re-run a full `terraform apply` with the published `canary_image.tag`.
+- Lambda only accepts **docker schema-2 manifests**. Modern Docker (BuildKit, ≥25) emits OCI-index manifests by default; loading those into Lambda fails with `InvalidParameterValueException: image manifest, config or layer media type ... is not supported`. The publish helpers (`publish_customer_loop_canary_image.sh`, `publish_support_email_canary_image.sh`) build with `docker buildx --platform linux/arm64 --provenance=false --push` to produce the required manifest format.
+- The first `terraform apply` after `alert_emails` becomes non-empty hits a `for_each = toset(var.alert_emails)` planning error on `aws_sns_topic_subscription.email` because `alert_emails` is forwarded through `terraform_data.prod_alert_emails_guard.output` (unknown until apply). Workaround: `terraform apply -target=terraform_data.prod_alert_emails_guard <vars>` to materialize the value, then run the unrestricted apply. Long-term fix is to forward `var.alert_emails` directly to the monitoring module and move the prod non-empty guard into the variable validation block.
+
 Expected output:
 ```
 Plan: X to add, Y to change, Z to destroy.
@@ -81,7 +94,8 @@ terraform apply \
   -var="env=staging" \
   -var="ami_id=ami-0123456789abcdef0" \
   -var="domain=flapjack.foo" \
-  -var="cloudflare_zone_id=${CLOUDFLARE_ZONE_ID}"
+  -var="cloudflare_zone_id=${CLOUDFLARE_ZONE_ID}" \
+  -var='alert_emails=["ops@flapjack.foo"]'
 ```
 
 Type `yes` when prompted to confirm.
@@ -225,5 +239,22 @@ Production follows the same procedure with these differences:
 
 - Use `fjcloud-tfstate-prod` for backend
 - Use `env=prod` for all `-var` flags
+- Production rejects empty `alert_emails`; pass at least one valid email address
 - **Always** apply to staging first and verify before touching prod
 - Review the plan extra carefully — prod changes are higher risk
+
+```bash
+terraform plan \
+  -var="env=prod" \
+  -var="ami_id=ami-0123456789abcdef0" \
+  -var="domain=flapjack.foo" \
+  -var="cloudflare_zone_id=${CLOUDFLARE_ZONE_ID}" \
+  -var='alert_emails=["ops@flapjack.foo","oncall@flapjack.foo"]'
+
+terraform apply \
+  -var="env=prod" \
+  -var="ami_id=ami-0123456789abcdef0" \
+  -var="domain=flapjack.foo" \
+  -var="cloudflare_zone_id=${CLOUDFLARE_ZONE_ID}" \
+  -var='alert_emails=["ops@flapjack.foo","oncall@flapjack.foo"]'
+```

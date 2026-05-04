@@ -121,9 +121,9 @@ echo "--- Monitoring resource count ---"
 #   8 customer-loop canary (ECR repo + lifecycle, IAM role+policy, Lambda, EventBridge rule+target, Lambda permission)
 #   4 cloudtrail export (S3 bucket + public-access-block + lifecycle + bucket-policy + cloudtrail itself = 5)
 #   2 budget (budget + budget action)
-#   7 cloudwatch metric alarms
-# Sum: 2 + 3 + 8 + 5 + 2 + 7 = 27.
-assert_resource_count "$monitor_main_file" 27 "monitoring/main.tf has exactly 27 resources (alerts + SES feedback + canary + cloudtrail + budget + alarms)"
+#   8 cloudwatch metric alarms (6 infra + 1 heartbeat + 1 billing)
+# Sum: 2 + 3 + 8 + 5 + 2 + 8 = 28.
+assert_resource_count "$monitor_main_file" 28 "monitoring/main.tf has exactly 28 resources (alerts + SES feedback + canary + cloudtrail + budget + alarms)"
 
 echo ""
 echo "--- API CPU alarm ---"
@@ -212,10 +212,15 @@ assert_contains_active "$shared_main_file" 'source[[:space:]]*=[[:space:]]*"../m
 assert_contains_active "$shared_main_file" 'api_instance_id[[:space:]]*=[[:space:]]*module\.compute\.api_instance_id' "monitoring module receives API instance id"
 assert_contains_active "$shared_main_file" 'db_instance_identifier[[:space:]]*=[[:space:]]*module\.data\.db_instance_identifier' "monitoring module receives DB instance identifier"
 assert_contains_active "$shared_main_file" 'alb_arn_suffix[[:space:]]*=[[:space:]]*module\.dns\.alb_arn_suffix' "monitoring module receives ALB arn suffix"
-assert_contains_active "$shared_main_file" 'alert_emails[[:space:]]*=[[:space:]]*var\.alert_emails' "root forwards alert_emails variable to monitoring"
+assert_contains_active "$shared_main_file" 'alert_emails[[:space:]]*=[[:space:]]*terraform_data\.prod_alert_emails_guard\.output' "root forwards guard-normalized alert_emails to monitoring"
 assert_contains_active "$shared_main_file" 'canary_image[[:space:]]*=[[:space:]]*var\.canary_image' "root forwards canonical canary image input to monitoring"
 assert_contains_active "$shared_main_file" 'canary_schedule[[:space:]]*=[[:space:]]*var\.canary_schedule' "root forwards canonical canary schedule input to monitoring"
 assert_file_contains "$shared_vars_file" 'variable "alert_emails"' "shared variables define alert_emails"
+assert_contains_active "$shared_vars_file" 'alltrue\(\[' "shared alert_emails validation enforces each normalized entry"
+assert_contains_active "$shared_vars_file" 'trimspace\(email\)[[:space:]]*!=[[:space:]]*""' "shared alert_emails validation rejects blank values after normalization"
+assert_contains_active "$shared_vars_file" 'can\(regex\(' "shared alert_emails validation enforces email-shaped values"
+assert_contains_active "$shared_main_file" 'resource "terraform_data" "prod_alert_emails_guard"' "root module defines prod alert_emails guard resource"
+assert_contains_active "$shared_main_file" 'condition[[:space:]]*=[[:space:]]*var\.env[[:space:]]*!=[[:space:]]*"prod"[[:space:]]*\|\|[[:space:]]*length\(local\.alert_emails_normalized\)[[:space:]]*>[[:space:]]*0' "prod alert_emails guard rejects empty normalized list in prod"
 assert_file_contains "$shared_vars_file" 'variable "canary_image"' "shared variables define canary_image"
 assert_file_contains "$shared_vars_file" 'variable "canary_schedule"' "shared variables define canary_schedule"
 

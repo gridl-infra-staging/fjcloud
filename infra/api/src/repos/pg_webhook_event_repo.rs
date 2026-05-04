@@ -3,7 +3,7 @@ use chrono::{DateTime, Utc};
 use sqlx::PgPool;
 
 use crate::repos::error::RepoError;
-use crate::repos::webhook_event_repo::WebhookEventRepo;
+use crate::repos::webhook_event_repo::{WebhookEventRepo, WebhookEventRow};
 
 pub struct PgWebhookEventRepo {
     pool: PgPool,
@@ -98,5 +98,20 @@ impl WebhookEventRepo for PgWebhookEventRepo {
         .await
         .map_err(|e| RepoError::Other(e.to_string()))?;
         Ok(row.flatten())
+    }
+
+    async fn find_by_stripe_event_id(
+        &self,
+        stripe_event_id: &str,
+    ) -> Result<Option<WebhookEventRow>, RepoError> {
+        sqlx::query_as::<_, WebhookEventRow>(
+            "SELECT stripe_event_id, event_type, payload, processed_at, created_at \
+             FROM webhook_events \
+             WHERE stripe_event_id = $1",
+        )
+        .bind(stripe_event_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| RepoError::Other(e.to_string()))
     }
 }

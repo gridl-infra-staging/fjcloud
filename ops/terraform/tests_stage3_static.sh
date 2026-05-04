@@ -14,6 +14,7 @@ systemd_api_file="ops/systemd/fjcloud-api.service"
 systemd_agg_file="ops/systemd/fjcloud-aggregation-job.service"
 systemd_timer_file="ops/systemd/fjcloud-aggregation-job.timer"
 systemd_metering_file="ops/systemd/fj-metering-agent.service"
+env_vars_doc_file="docs/env-vars.md"
 
 # ============================================================================
 # 3.1 — Compute module file existence
@@ -131,6 +132,8 @@ assert_file_contains "$systemd_api_file" '^Type=exec' "API service Type=exec"
 assert_file_contains "$systemd_api_file" '^User=fjcloud' "API service User=fjcloud"
 assert_file_contains "$systemd_api_file" 'ExecStart=/usr/local/bin/fjcloud-api' "API service ExecStart correct"
 assert_file_contains "$systemd_api_file" 'EnvironmentFile=-/etc/fjcloud/env' "API service EnvironmentFile with dash prefix"
+assert_file_contains "$systemd_api_file" 'ENVIRONMENT is prod/production' "API service documents prod/production alert-webhook requirement"
+assert_file_contains "$systemd_api_file" 'SLACK_WEBHOOK_URL or DISCORD_WEBHOOK_URL' "API service names accepted production alert webhook variables"
 assert_file_contains "$systemd_api_file" 'Restart=on-failure' "API service Restart=on-failure"
 assert_file_contains "$systemd_api_file" 'RestartSec=5' "API service RestartSec=5"
 assert_file_contains "$systemd_api_file" 'NoNewPrivileges=true' "API service NoNewPrivileges=true"
@@ -160,6 +163,9 @@ assert_file_contains "$systemd_metering_file" 'NoNewPrivileges=true' "Metering a
 assert_file_contains "$systemd_metering_file" 'ProtectSystem=strict' "Metering agent has ProtectSystem=strict"
 assert_file_contains "$systemd_metering_file" 'ProtectHome=true' "Metering agent has ProtectHome=true"
 assert_file_contains "$systemd_metering_file" 'PrivateTmp=true' "Metering agent has PrivateTmp=true"
+assert_file_contains "$env_vars_doc_file" 'When set to `prod` or `production`, startup requires at least one non-blank alert webhook' "ENVIRONMENT docs mention production alert-webhook startup contract"
+assert_file_contains "$env_vars_doc_file" 'startup fails closed unless at least one webhook is non-blank' "Alerting docs mention fail-closed production webhook gate"
+assert_file_contains "$env_vars_doc_file" 'Outside `prod`/`production`, if both webhook variables are absent or blank, alerts fall back to `LogAlertService`' "Alerting docs preserve non-production log fallback contract"
 
 # ============================================================================
 # 3.4 — Module wiring

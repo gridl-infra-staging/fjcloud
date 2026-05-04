@@ -129,6 +129,29 @@ resource "aws_iam_role_policy" "fjcloud_s3_releases_read" {
 }
 
 # --------------------------------------------------------------------------
+# Policy — CloudWatch custom metrics for API heartbeat
+# --------------------------------------------------------------------------
+
+resource "aws_iam_role_policy" "fjcloud_cloudwatch_metrics" {
+  name = "fjcloud-cloudwatch-metrics"
+  role = aws_iam_role.fjcloud_instance.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = ["cloudwatch:PutMetricData"]
+      Resource = "*"
+      Condition = {
+        StringEquals = {
+          "cloudwatch:namespace" = "fjcloud/api"
+        }
+      }
+    }]
+  })
+}
+
+# --------------------------------------------------------------------------
 # Policy — SES send for flapjack.foo domain
 # --------------------------------------------------------------------------
 

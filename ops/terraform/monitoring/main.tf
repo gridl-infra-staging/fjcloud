@@ -172,6 +172,7 @@ resource "aws_lambda_function" "customer_loop_canary" {
     variables = {
       ENVIRONMENT       = var.env
       CANARY_AWS_REGION = var.region
+      CANARY_LIVE_MODE  = var.canary_live_mode ? "1" : "0"
     }
   }
 }
@@ -403,6 +404,28 @@ resource "aws_cloudwatch_metric_alarm" "api_status_check_failed" {
 
   dimensions = {
     InstanceId = var.api_instance_id
+  }
+}
+
+# ---------------------------------------------------------------------------
+# API heartbeat missing (no custom metric for 5 minutes → API not running)
+# ---------------------------------------------------------------------------
+resource "aws_cloudwatch_metric_alarm" "api_heartbeat_missing" {
+  alarm_name          = "fjcloud-${var.env}-api-heartbeat-missing"
+  alarm_description   = "API heartbeat metric missing — process not running, lost CloudWatch egress, or IAM grant rolled back"
+  comparison_operator = "LessThanThreshold"
+  metric_name         = "Heartbeat"
+  namespace           = "fjcloud/api"
+  statistic           = "Sum"
+  period              = 60
+  evaluation_periods  = 5
+  threshold           = 1
+  treat_missing_data  = "breaching"
+  alarm_actions       = [aws_sns_topic.alerts.arn]
+  ok_actions          = [aws_sns_topic.alerts.arn]
+
+  dimensions = {
+    Env = var.env
   }
 }
 

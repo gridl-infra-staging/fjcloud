@@ -6,5 +6,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| src | This module implements the billing engine pipeline: aggregating raw metering records into usage summaries, applying rate card pricing to calculate invoices, and defining the shared types and rate configuration used throughout the process. |
+| src | The billing engine aggregates raw metering records into usage summaries and applies rate-card pricing to calculate invoices, with shared types and pricing configuration for the billing pipeline. |
 <!-- [scrai:end] -->

@@ -156,6 +156,24 @@ test_set_e_hook_detection_rejects_comment_only_mentions() {
     fi
 }
 
+test_local_ci_migration_gate_uses_local_postgres_default_url() {
+    local migration_block
+    migration_block="$(
+        awk '
+            /^gate_migration_test\(\) \{/ { in_block=1; print; next }
+            in_block { print }
+            in_block && /^}/ { exit }
+        ' "$LOCAL_CI"
+    )"
+
+    local expected_default='local db_url="${DATABASE_URL:-postgres://griddle:griddle_local@127.0.0.1:5432/fjcloud_test}"'
+    if [[ "$migration_block" == *"$expected_default"* ]]; then
+        pass "gate_migration_test defaults DATABASE_URL to local docker-compose postgres credentials"
+    else
+        fail "gate_migration_test default DATABASE_URL diverges from local docker-compose postgres credentials"
+    fi
+}
+
 main() {
     echo "=== local_ci_gate_set_e_test ==="
     test_local_ci_rust_lint_fails_on_real_fmt_violation
@@ -163,6 +181,7 @@ main() {
     test_local_ci_rust_lint_includes_set_e_regression_hook
     test_hook_detection_rejects_comment_only_mentions
     test_set_e_hook_detection_rejects_comment_only_mentions
+    test_local_ci_migration_gate_uses_local_postgres_default_url
     echo
     echo "=== Results: $PASS_COUNT passed, $FAIL_COUNT failed ==="
     if [[ "$FAIL_COUNT" -ne 0 ]]; then

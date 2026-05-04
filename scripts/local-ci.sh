@@ -267,7 +267,7 @@ gate_migration_test() {
     # fixes. (Real bug found 2026-04-30 self-review: previous version
     # told users with no `pg_isready` to run docker-compose, even if
     # postgres was already running.)
-    local db_url="${DATABASE_URL:-postgres://fjcloud:password@127.0.0.1:5432/fjcloud_test}"
+    local db_url="${DATABASE_URL:-postgres://griddle:griddle_local@127.0.0.1:5432/fjcloud_test}"
     if ! command -v sqlx >/dev/null 2>&1; then
         echo "SKIPPED: sqlx-cli not installed (run: cargo install sqlx-cli --version 0.8.6 --no-default-features --features postgres)" >&2
         return "$SKIP_EXIT_CODE"
@@ -290,6 +290,9 @@ gate_migration_test() {
         return "$SKIP_EXIT_CODE"
     fi
     exec 3<&- 3>&- 2>/dev/null || true
+    # Ensure the target test database exists before running migrations so a
+    # fresh local stack does not require manual DB bootstrap.
+    sqlx database create --database-url "$db_url" || return $?
     sqlx migrate run --source "$REPO_ROOT/infra/migrations" --database-url "$db_url"
 }
 

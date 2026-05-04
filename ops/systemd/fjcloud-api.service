@@ -2,6 +2,9 @@
 # generate_ssm_env.sh to populate it from SSM parameters under /fjcloud/<env>/*
 # before each service restart. Mapping: ops/scripts/lib/generate_ssm_env.sh.
 # File permissions: 0600 fjcloud:fjcloud.
+# Production startup contract: when ENVIRONMENT is prod/production,
+# /etc/fjcloud/env must include at least one non-blank webhook:
+# SLACK_WEBHOOK_URL or DISCORD_WEBHOOK_URL.
 
 [Unit]
 Description=fjcloud API Server

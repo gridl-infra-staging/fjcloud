@@ -3,13 +3,7 @@
 
 | File | Summary |
 | --- | --- |
-| customer_loop_synthetic.sh | customer_loop_synthetic.sh — staging customer-loop canary owner.
-
-Stage 4 scope in this owner:
-- enforce quiet-window short-circuit before any HTTP work
-- run signup -> verification -> Stripe setup-intent wiring -> index loop
-- enforce deterministic teardown (index, account, admin cleanup)
-- dispatch failures only via send_critical_alert. |
+| customer_loop_synthetic.sh | Stub summary for customer_loop_synthetic.sh. |
 | outside_aws_health_check.sh | outside_aws_health_check.sh — one-shot external health probe owner.
 
 This script is the single owner for:

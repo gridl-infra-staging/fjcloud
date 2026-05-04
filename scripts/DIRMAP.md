@@ -99,6 +99,7 @@ Does NOT duplicate proof-owner internals — only calls the three scripts
 and interprets exit codes/output. |
 | local_demo.sh | One-command local demo launcher: infra + API + web + seed data + metering. |
 | probe_alert_delivery.sh | Stub summary for probe_alert_delivery.sh. |
+| probe_deployed_signup_renders.sh | Stub summary for probe_deployed_signup_renders.sh. |
 | probe_ses_bounce_complaint_e2e.sh | Stub summary for probe_ses_bounce_complaint_e2e.sh. |
 | probe_ses_simulator_send.sh | Send-only SES mailbox simulator probe for bounce/complaint proof. |
 | run-aggregation-job.sh | run-aggregation-job.sh — Run the aggregation job for a target date.
@@ -136,7 +137,7 @@ usage_records to Postgres. |
 
 | Directory | Summary |
 | --- | --- |
-| canary | The canary directory contains synthetic monitoring scripts for continuous end-to-end validation: customer_loop_synthetic.sh runs the full signup-to-billing flow with deterministic cleanup and alert dispatch, outside_aws_health_check.sh probes external service availability, and support_email_deliverability.sh validates inbound email roundtrips. |
+| canary | The canary directory contains synthetic monitoring and health check scripts that validate system availability and external connectivity—including customer loop simulation, AWS-external health probes, and email deliverability verification. |
 | chaos | The chaos directory contains failure-injection and HA resilience test scripts that validate the system's ability to detect outages, trigger failover, and recover—including region kill/restart tests, metering service failure detection, and end-to-end failover proofs. |
 | launch | The launch directory contains shell scripts that orchestrate staging deployment verification and end-to-end testing, including environment hydration from AWS SSM, tenant configuration verification, synthetic traffic generation, and evidence capture for billing and backend validation. |
 | lib | Shared bash utilities providing reusable helpers for infrastructure validation (health checks, metering, Stripe), alert dispatch, environment parsing, billing rehearsal workflows, and deployment operations used across integration tests and shell scripts. |

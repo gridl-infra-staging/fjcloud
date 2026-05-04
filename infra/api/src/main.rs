@@ -1,7 +1,3 @@
-//! Binary entrypoint for the fjcloud HTTP API server. Wires Config + DNS +
-//! provisioner + repos + Stripe + email + secret managers into AppState and
-//! starts the axum router on `LISTEN_ADDR`. All app-level wiring lives in the
-//! `api` library crate; this file is the one-shot startup glue.
 
 use api::config::Config;
 use api::dns::DnsManager;
@@ -274,6 +270,8 @@ async fn wire_app_state_phase(bootstrap: StartupBootstrapPhase) -> anyhow::Resul
         object_store_resolver,
         node_client,
         migration_http_client,
+        aws_sdk_config: aws_sdk_config.clone(),
+        startup_env: startup_env.clone(),
     };
     Ok(AppWiringPhase {
         cfg,
@@ -359,7 +357,7 @@ async fn wire_runtime_services(inputs: &ServiceWireInputs<'_>) -> anyhow::Result
         aws_enabled,
         inputs.aws_sdk_config,
     );
-    let alert_service = api::startup::init_alert_service(inputs.pool)?;
+    let alert_service = api::startup::init_alert_service(inputs.pool, inputs.startup_env)?;
     let storage = api::startup::init_storage_services(inputs.startup_env, inputs.pool)?;
     let region_config =
         api::provisioner::effective_region_config(RegionConfig::from_env(), &vm_providers);

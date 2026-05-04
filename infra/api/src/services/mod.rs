@@ -9,6 +9,7 @@ pub mod email_suppression;
 pub mod flapjack_node;
 pub mod flapjack_proxy;
 pub mod health_monitor;
+pub mod heartbeat;
 pub mod metrics;
 pub mod migration;
 pub mod object_store;

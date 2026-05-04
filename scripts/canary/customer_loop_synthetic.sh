@@ -47,6 +47,12 @@ CANARY_INDEX_CREATED=0
 CANARY_ACCOUNT_DELETED=0
 CANARY_ADMIN_CLEANED=0
 CANARY_STRIPE_CUSTOMER_ID=""
+CANARY_LIVE_INVOICE_ID=""
+CANARY_LIVE_CHARGE_ID=""
+CANARY_LIVE_REFUND_ID=""
+CANARY_LIVE_PAYMENT_EVENT_ID=""
+CANARY_LIVE_MODE_CLI_OVERRIDE=""
+CANARY_SHOW_HELP=0
 
 log() {
     echo "[customer-loop-canary] $*"
@@ -84,11 +90,12 @@ load_canary_env() {
     CANARY_INDEX_REGION="${CANARY_INDEX_REGION:-us-east-1}"
     STRIPE_API_BASE="${STRIPE_API_BASE:-https://api.stripe.com}"
     STRIPE_SECRET_KEY_EFFECTIVE="${STRIPE_SECRET_KEY:-${STRIPE_TEST_SECRET_KEY:-}}"
+    CANARY_LIVE_MODE="${CANARY_LIVE_MODE:-0}"
 
     export ENVIRONMENT API_URL ADMIN_KEY CANARY_ALERT_SOURCE CANARY_ALERT_NONCE
     export CANARY_AWS_REGION CANARY_TEST_INBOX_DOMAIN CANARY_TEST_INBOX_S3_URI
     export CANARY_INBOX_MAX_ATTEMPTS CANARY_INBOX_SLEEP_SECONDS CANARY_INDEX_REGION
-    export STRIPE_API_BASE STRIPE_SECRET_KEY_EFFECTIVE
+    export STRIPE_API_BASE STRIPE_SECRET_KEY_EFFECTIVE CANARY_LIVE_MODE
 }
 
 json_get_field() {
@@ -194,6 +201,44 @@ dispatch_failure_alert() {
             "$CANARY_ALERT_NONCE" \
             "$ENVIRONMENT" || true
     fi
+}
+
+print_usage() {
+    cat <<'USAGE'
+Usage: customer_loop_synthetic.sh [--dry-run|--live] [--help]
+
+Options:
+  --dry-run   Run signup/verify/index flow only and skip all Stripe-mutating steps (default).
+  --live      Enable Stripe-mutating canary flow (sync, attach, invoice, pay, refund, webhook verify).
+  --help      Print this help message.
+USAGE
+}
+
+parse_cli_args() {
+    CANARY_LIVE_MODE_CLI_OVERRIDE=""
+    CANARY_SHOW_HELP=0
+
+    while [ "$#" -gt 0 ]; do
+        case "$1" in
+            --dry-run)
+                CANARY_LIVE_MODE_CLI_OVERRIDE="0"
+                ;;
+            --live)
+                CANARY_LIVE_MODE_CLI_OVERRIDE="1"
+                ;;
+            --help|-h)
+                CANARY_SHOW_HELP=1
+                ;;
+            *)
+                echo "unknown argument: $1" >&2
+                print_usage >&2
+                return 1
+                ;;
+        esac
+        shift
+    done
+
+    return 0
 }
 
 run_signup_step() {
@@ -337,6 +382,218 @@ run_setup_intent_and_stripe_attach_step() {
     log "setup-intent succeeded and payment method attached as default"
 }
 
+run_live_create_invoice_step() {
+    local invoice_id charge_id
+
+    if [ -z "$CANARY_STRIPE_CUSTOMER_ID" ]; then
+        mark_failure "live_create_invoice" "CANARY_STRIPE_CUSTOMER_ID missing before invoice flow"
+        return 1
+    fi
+
+    if ! stripe_request POST "/v1/invoices" \
+        -d "customer=$CANARY_STRIPE_CUSTOMER_ID" \
+        -d "currency=usd"; then
+        mark_failure "live_create_invoice" "curl failure while creating invoice: ${STRIPE_BODY:-unknown}"
+        return 1
+    fi
+    if [ "$STRIPE_HTTP_CODE" != "200" ]; then
+        mark_failure "live_create_invoice" "create invoice failed with HTTP ${STRIPE_HTTP_CODE}"
+        return 1
+    fi
+    invoice_id="$(json_get_field "$STRIPE_BODY" "id")"
+    if [ -z "$invoice_id" ]; then
+        mark_failure "live_create_invoice" "create invoice response missing id"
+        return 1
+    fi
+
+    if ! stripe_request POST "/v1/invoiceitems" \
+        -d "customer=$CANARY_STRIPE_CUSTOMER_ID" \
+        -d "invoice=$invoice_id" \
+        -d "amount=50" \
+        -d "currency=usd" \
+        -d "description=Customer loop live canary charge"; then
+        mark_failure "live_create_invoice" "curl failure while creating invoice item: ${STRIPE_BODY:-unknown}"
+        return 1
+    fi
+    if [ "$STRIPE_HTTP_CODE" != "200" ]; then
+        mark_failure "live_create_invoice" "create invoice item failed with HTTP ${STRIPE_HTTP_CODE}"
+        return 1
+    fi
+
+    if ! stripe_request POST "/v1/invoices/${invoice_id}/finalize"; then
+        mark_failure "live_create_invoice" "curl failure while finalizing invoice: ${STRIPE_BODY:-unknown}"
+        return 1
+    fi
+    if [ "$STRIPE_HTTP_CODE" != "200" ]; then
+        mark_failure "live_create_invoice" "finalize invoice failed with HTTP ${STRIPE_HTTP_CODE}"
+        return 1
+    fi
+
+    if ! stripe_request POST "/v1/invoices/${invoice_id}/pay"; then
+        mark_failure "live_create_invoice" "curl failure while paying invoice: ${STRIPE_BODY:-unknown}"
+        return 1
+    fi
+    if [ "$STRIPE_HTTP_CODE" != "200" ]; then
+        mark_failure "live_create_invoice" "pay invoice failed with HTTP ${STRIPE_HTTP_CODE}"
+        return 1
+    fi
+
+    charge_id="$(json_get_field "$STRIPE_BODY" "charge")"
+    if [ -z "$charge_id" ]; then
+        mark_failure "live_create_invoice" "pay invoice response missing charge id"
+        return 1
+    fi
+
+    CANARY_LIVE_INVOICE_ID="$invoice_id"
+    CANARY_LIVE_CHARGE_ID="$charge_id"
+    log "live invoice paid (invoice=${CANARY_LIVE_INVOICE_ID} charge=${CANARY_LIVE_CHARGE_ID})"
+}
+
+run_live_refund_step() {
+    if [ -z "$CANARY_LIVE_CHARGE_ID" ]; then
+        mark_failure "live_refund" "CANARY_LIVE_CHARGE_ID missing before refund step"
+        return 1
+    fi
+
+    if ! stripe_request POST "/v1/refunds" \
+        -d "charge=$CANARY_LIVE_CHARGE_ID" \
+        -d "reason=requested_by_customer"; then
+        mark_failure "live_refund" "curl failure while refunding charge: ${STRIPE_BODY:-unknown}"
+        return 1
+    fi
+    if [ "$STRIPE_HTTP_CODE" != "200" ]; then
+        mark_failure "live_refund" "refund failed with HTTP ${STRIPE_HTTP_CODE}"
+        return 1
+    fi
+
+    CANARY_LIVE_REFUND_ID="$(json_get_field "$STRIPE_BODY" "id")"
+    if [ -z "$CANARY_LIVE_REFUND_ID" ]; then
+        mark_failure "live_refund" "refund response missing id"
+        return 1
+    fi
+
+    log "live refund succeeded (refund=${CANARY_LIVE_REFUND_ID})"
+}
+
+run_live_find_payment_event_step() {
+    CANARY_LIVE_PAYMENT_EVENT_ID=""
+
+    if [ -z "$CANARY_LIVE_INVOICE_ID" ]; then
+        mark_failure "live_find_payment_event" "CANARY_LIVE_INVOICE_ID missing before event lookup"
+        return 1
+    fi
+
+    if ! stripe_request GET "/v1/events?type=invoice.payment_succeeded&limit=25"; then
+        mark_failure "live_find_payment_event" "curl failure while listing events: ${STRIPE_BODY:-unknown}"
+        return 1
+    fi
+    if [ "$STRIPE_HTTP_CODE" != "200" ]; then
+        mark_failure "live_find_payment_event" "list events failed with HTTP ${STRIPE_HTTP_CODE}"
+        return 1
+    fi
+
+    CANARY_LIVE_PAYMENT_EVENT_ID="$(python3 - "$STRIPE_BODY" "$CANARY_LIVE_INVOICE_ID" <<'PY' || true
+import json
+import sys
+
+payload = json.loads(sys.argv[1])
+invoice_id = sys.argv[2]
+for event in payload.get("data", []):
+    if not isinstance(event, dict):
+        continue
+    if event.get("type") != "invoice.payment_succeeded":
+        continue
+    data = event.get("data")
+    if not isinstance(data, dict):
+        continue
+    obj = data.get("object")
+    if isinstance(obj, dict) and obj.get("id") == invoice_id:
+        event_id = event.get("id")
+        if isinstance(event_id, str) and event_id:
+            print(event_id)
+            raise SystemExit(0)
+raise SystemExit(1)
+PY
+)"
+    if [ -z "$CANARY_LIVE_PAYMENT_EVENT_ID" ]; then
+        mark_failure "live_find_payment_event" "invoice.payment_succeeded event not found for ${CANARY_LIVE_INVOICE_ID}"
+        return 1
+    fi
+
+    log "live payment event located (${CANARY_LIVE_PAYMENT_EVENT_ID})"
+}
+
+run_live_webhook_verify_step() {
+    local max_attempts=15 attempt
+
+    if [ -z "$ADMIN_KEY" ]; then
+        mark_failure "live_webhook_verify" "ADMIN_KEY is required for /admin/webhook-events lookup"
+        return 1
+    fi
+    if [ -z "$CANARY_LIVE_PAYMENT_EVENT_ID" ]; then
+        mark_failure "live_webhook_verify" "CANARY_LIVE_PAYMENT_EVENT_ID missing before webhook verification"
+        return 1
+    fi
+
+    for attempt in $(seq 1 "$max_attempts"); do
+        capture_json_response admin_call GET "/admin/webhook-events?stripe_event_id=${CANARY_LIVE_PAYMENT_EVENT_ID}"
+        if [ "$HTTP_RESPONSE_CODE" = "200" ]; then
+            if python3 - "$HTTP_RESPONSE_BODY" "$CANARY_LIVE_PAYMENT_EVENT_ID" <<'PY'
+import json
+import sys
+
+payload = json.loads(sys.argv[1])
+event_id = sys.argv[2]
+if isinstance(payload, dict) and payload.get("stripe_event_id") == event_id:
+    raise SystemExit(0)
+raise SystemExit(1)
+PY
+            then
+                log "webhook persistence verified (${CANARY_LIVE_PAYMENT_EVENT_ID})"
+                return 0
+            fi
+        elif [ "$HTTP_RESPONSE_CODE" != "404" ]; then
+            mark_failure "live_webhook_verify" "webhook lookup returned HTTP ${HTTP_RESPONSE_CODE:-unknown}"
+            return 1
+        fi
+        sleep 2
+    done
+
+    mark_failure "live_webhook_verify" "webhook event ${CANARY_LIVE_PAYMENT_EVENT_ID} was not persisted within 30 seconds"
+    return 1
+}
+
+run_live_cleanup_step() {
+    if [ -n "$CANARY_LIVE_CHARGE_ID" ] && [ -z "$CANARY_LIVE_REFUND_ID" ]; then
+        if stripe_request POST "/v1/refunds" \
+            -d "charge=$CANARY_LIVE_CHARGE_ID" \
+            -d "reason=requested_by_customer" \
+            && [ "$STRIPE_HTTP_CODE" = "200" ]; then
+            CANARY_LIVE_REFUND_ID="$(json_get_field "$STRIPE_BODY" "id")"
+            log "cleanup refunded live charge (${CANARY_LIVE_CHARGE_ID})"
+        else
+            log "cleanup refund attempt failed for charge ${CANARY_LIVE_CHARGE_ID} (http=${STRIPE_HTTP_CODE:-unknown})"
+        fi
+    fi
+
+    if [ -n "$CANARY_LIVE_INVOICE_ID" ] && [ -z "$CANARY_LIVE_CHARGE_ID" ]; then
+        if stripe_request POST "/v1/invoices/${CANARY_LIVE_INVOICE_ID}/void" && [ "$STRIPE_HTTP_CODE" = "200" ]; then
+            log "cleanup voided unpaid live invoice (${CANARY_LIVE_INVOICE_ID})"
+        else
+            log "cleanup void attempt failed for invoice ${CANARY_LIVE_INVOICE_ID} (http=${STRIPE_HTTP_CODE:-unknown})"
+        fi
+    fi
+}
+
+run_live_stripe_branch() {
+    run_sync_stripe_step || return 1
+    run_setup_intent_and_stripe_attach_step || return 1
+    run_live_create_invoice_step || return 1
+    run_live_find_payment_event_step || return 1
+    run_live_refund_step || return 1
+    run_live_webhook_verify_step || return 1
+}
+
 run_index_create_step() {
     CANARY_INDEX_NAME="canary-${CANARY_NONCE}"
 
@@ -453,8 +710,11 @@ run_admin_cleanup_step() {
 run_customer_loop() {
     run_signup_step || return 1
     run_verify_email_step || return 1
-    run_sync_stripe_step || return 1
-    run_setup_intent_and_stripe_attach_step || return 1
+    if [ "$CANARY_LIVE_MODE" = "1" ]; then
+        run_live_stripe_branch || return 1
+    else
+        log "CANARY_LIVE_MODE=${CANARY_LIVE_MODE}; skipping live Stripe branch"
+    fi
     run_index_create_step || return 1
     run_index_batch_step || return 1
     run_index_search_step || return 1
@@ -464,13 +724,31 @@ run_customer_loop() {
 }
 
 cleanup_after_flow() {
+    run_live_cleanup_step || true
     run_delete_index_step || true
     run_delete_account_step || true
     run_admin_cleanup_step || true
 }
 
 main() {
+    if ! parse_cli_args "$@"; then
+        return 1
+    fi
+    if [ "$CANARY_SHOW_HELP" -eq 1 ]; then
+        print_usage
+        return 0
+    fi
+
     load_canary_env
+    if [ -n "$CANARY_LIVE_MODE_CLI_OVERRIDE" ]; then
+        CANARY_LIVE_MODE="$CANARY_LIVE_MODE_CLI_OVERRIDE"
+        export CANARY_LIVE_MODE
+    fi
+    if [ "$CANARY_LIVE_MODE" != "0" ] && [ "$CANARY_LIVE_MODE" != "1" ]; then
+        echo "CANARY_LIVE_MODE must be 0 or 1 (got '${CANARY_LIVE_MODE}')" >&2
+        return 1
+    fi
+
     local rc_readiness_mode="${CANARY_RC_READINESS_MODE:-0}"
 
     if quiet_window_active; then
@@ -502,4 +780,6 @@ main() {
     return 0
 }
 
-main "$@"
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+    main "$@"
+fi

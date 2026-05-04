@@ -15,7 +15,7 @@ use api::repos::invoice_repo::{InvoiceRepo, NewInvoice, NewLineItem};
 use api::repos::tenant_repo::TenantRepo;
 use api::repos::usage_repo::{rolling_window_for_days, UsageSummary};
 use api::repos::vm_inventory_repo::VmInventoryRepo;
-use api::repos::webhook_event_repo::WebhookEventRepo;
+use api::repos::webhook_event_repo::{WebhookEventRepo, WebhookEventRow};
 use api::repos::{
     CustomerRepo, DeploymentRepo, InMemoryColdSnapshotRepo, InMemoryIndexReplicaRepo, RateCardRepo,
     RepoError, UsageRepo,
@@ -1933,27 +1933,36 @@ impl EmailService for FailableEmailService {
 // ---------------------------------------------------------------------------
 
 pub struct MockWebhookEventRepo {
-    events: Mutex<HashMap<String, bool>>,
-    payloads: Mutex<Vec<(String, serde_json::Value)>>,
+    rows: Mutex<HashMap<String, WebhookEventRow>>,
 }
 
 impl MockWebhookEventRepo {
     pub fn new() -> Self {
         Self {
-            events: Mutex::new(HashMap::new()),
-            payloads: Mutex::new(Vec::new()),
+            rows: Mutex::new(HashMap::new()),
         }
+    }
+
+    pub fn seed_row(&self, row: WebhookEventRow) {
+        self.rows
+            .lock()
+            .unwrap()
+            .insert(row.stripe_event_id.clone(), row);
     }
 
     /// Return the number of unique events stored.
     pub fn event_count(&self) -> usize {
-        self.events.lock().unwrap().len()
+        self.rows.lock().unwrap().len()
     }
 
     /// Return the processed-state for a specific Stripe event ID.
     /// `None` means the event has never been seen.
     pub fn processed_state(&self, stripe_event_id: &str) -> Option<bool> {
-        self.events.lock().unwrap().get(stripe_event_id).copied()
+        self.rows
+            .lock()
+            .unwrap()
+            .get(stripe_event_id)
+            .map(|row| row.processed_at.is_some())
     }
 }
 
@@ -1971,24 +1980,42 @@ impl WebhookEventRepo for MockWebhookEventRepo {
         event_type: &str,
         payload: &serde_json::Value,
     ) -> Result<bool, RepoError> {
-        let mut events = self.events.lock().unwrap();
-        match events.get(stripe_event_id).copied() {
-            Some(true) => Ok(false),
-            Some(false) => Ok(true),
+        let mut rows = self.rows.lock().unwrap();
+        match rows.get(stripe_event_id) {
+            Some(row) if row.processed_at.is_some() => Ok(false),
+            Some(_) => Ok(true),
             None => {
-                events.insert(stripe_event_id.to_string(), false);
-                self.payloads
-                    .lock()
-                    .unwrap()
-                    .push((event_type.to_string(), payload.clone()));
+                rows.insert(
+                    stripe_event_id.to_string(),
+                    WebhookEventRow {
+                        stripe_event_id: stripe_event_id.to_string(),
+                        event_type: event_type.to_string(),
+                        payload: payload.clone(),
+                        processed_at: None,
+                        created_at: Utc::now(),
+                    },
+                );
                 Ok(true)
             }
         }
     }
 
     async fn mark_processed(&self, stripe_event_id: &str) -> Result<(), RepoError> {
-        let mut events = self.events.lock().unwrap();
-        events.insert(stripe_event_id.to_string(), true);
+        let mut rows = self.rows.lock().unwrap();
+        if let Some(row) = rows.get_mut(stripe_event_id) {
+            row.processed_at = Some(Utc::now());
+        } else {
+            rows.insert(
+                stripe_event_id.to_string(),
+                WebhookEventRow {
+                    stripe_event_id: stripe_event_id.to_string(),
+                    event_type: String::new(),
+                    payload: serde_json::json!({}),
+                    processed_at: Some(Utc::now()),
+                    created_at: Utc::now(),
+                },
+            );
+        }
         Ok(())
     }
 
@@ -1996,13 +2023,15 @@ impl WebhookEventRepo for MockWebhookEventRepo {
         &self,
         payment_intent_id: &str,
     ) -> Result<Option<String>, RepoError> {
-        let payloads = self.payloads.lock().unwrap();
-        for (event_type, payload) in payloads.iter().rev() {
-            if event_type != "invoice.payment_succeeded" && event_type != "invoice.paid" {
+        let rows = self.rows.lock().unwrap();
+        let mut matching_rows: Vec<&WebhookEventRow> = rows.values().collect();
+        matching_rows.sort_by_key(|row| row.created_at);
+        for row in matching_rows.into_iter().rev() {
+            if row.event_type != "invoice.payment_succeeded" && row.event_type != "invoice.paid" {
                 continue;
             }
 
-            let object = &payload["data"]["object"];
+            let object = &row.payload["data"]["object"];
             let matches_payment_intent = object
                 .get("payment_intent")
                 .and_then(|value| value.as_str())
@@ -2017,6 +2046,13 @@ impl WebhookEventRepo for MockWebhookEventRepo {
         }
 
         Ok(None)
+    }
+
+    async fn find_by_stripe_event_id(
+        &self,
+        stripe_event_id: &str,
+    ) -> Result<Option<WebhookEventRow>, RepoError> {
+        Ok(self.rows.lock().unwrap().get(stripe_event_id).cloned())
     }
 }
 

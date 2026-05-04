@@ -11,7 +11,7 @@ All environment variables used by the fjcloud API and web portal.
 | `ADMIN_KEY`           | Yes      | —                            | Admin API authentication key (compared via constant-time `subtle` crate)                                                                                                                            |
 | `LISTEN_ADDR`         | No       | `0.0.0.0:3001`               | Address and port the API server binds to                                                                                                                                                            |
 | `RUST_LOG`            | No       | `info,api=debug`             | Log level filter (standard `tracing_subscriber` format)                                                                                                                                             |
-| `ENVIRONMENT`         | No       | `unknown`                    | Environment name included in alert messages (e.g., `staging`, `prod`). Set to `local`, `dev`, or `development` together with `NODE_SECRET_BACKEND=memory` to enable local zero-dependency fallbacks |
+| `ENVIRONMENT`         | No       | `unknown`                    | Environment name included in alert messages (e.g., `staging`, `prod`). Set to `local`, `dev`, or `development` together with `NODE_SECRET_BACKEND=memory` to enable local zero-dependency fallbacks. When set to `prod` or `production`, startup requires at least one non-blank alert webhook (`SLACK_WEBHOOK_URL` or `DISCORD_WEBHOOK_URL`) |
 | `NODE_SECRET_BACKEND` | No       | `auto`                       | Node secret backend: `auto` (SSM when AWS provisioner is configured), `ssm`, `memory` (local dev), or `disabled`                                                                                    |
 | `APP_BASE_URL`        | No       | `https://cloud.flapjack.foo` | Browser application base URL used when rendering transactional auth links. Startup trims a trailing slash so email templates do not emit double slashes                                             |
 
@@ -99,10 +99,12 @@ Compatibility note: `STRIPE_SECRET_KEY` is the canonical operator-facing variabl
 
 | Variable              | Required | Default | Description                                   |
 | --------------------- | -------- | ------- | --------------------------------------------- |
-| `SLACK_WEBHOOK_URL`   | No       | —       | Slack incoming webhook URL for alert delivery |
-| `DISCORD_WEBHOOK_URL` | No       | —       | Discord webhook URL for alert delivery        |
+| `SLACK_WEBHOOK_URL`   | Prod\*   | —       | Slack incoming webhook URL for alert delivery |
+| `DISCORD_WEBHOOK_URL` | Prod\*   | —       | Discord webhook URL for alert delivery        |
 
-If neither is set, alerts fall back to `LogAlertService` (logged via `tracing`, persisted to DB with `delivery_status=logged`).
+\*When `ENVIRONMENT` is `prod` or `production`, startup fails closed unless at least one webhook is non-blank (`SLACK_WEBHOOK_URL` or `DISCORD_WEBHOOK_URL`).
+
+Outside `prod`/`production`, if both webhook variables are absent or blank, alerts fall back to `LogAlertService` (logged via `tracing`, persisted to DB with `delivery_status=logged`).
 
 ## CORS & Rate Limiting
 

@@ -46,6 +46,14 @@ variable "alert_emails" {
   description = "Email addresses to subscribe to operational monitoring alerts"
   type        = list(string)
   default     = []
+
+  validation {
+    condition = alltrue([
+      for email in var.alert_emails :
+      trimspace(email) != "" && can(regex("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$", trimspace(email)))
+    ])
+    error_message = "alert_emails entries must be non-empty email addresses."
+  }
 }
 
 variable "canary_image" {

@@ -105,3 +105,66 @@ async fn find_latest_invoice_id_by_payment_intent_finds_seeded_row() {
         .await
         .ok();
 }
+
+#[tokio::test]
+async fn find_by_stripe_event_id_returns_none_when_no_rows() {
+    let Some(pool) = connect_and_migrate().await else {
+        return;
+    };
+
+    let repo = PgWebhookEventRepo::new(pool);
+    let missing_id = format!("evt_test_missing_{}", uuid::Uuid::new_v4().simple());
+
+    let result = repo.find_by_stripe_event_id(&missing_id).await;
+    assert!(
+        result.is_ok(),
+        "lookup on zero rows must return Ok(None), got: {result:?}"
+    );
+    assert_eq!(result.unwrap(), None);
+}
+
+#[tokio::test]
+async fn find_by_stripe_event_id_returns_seeded_row_shape() {
+    let Some(pool) = connect_and_migrate().await else {
+        return;
+    };
+
+    let repo = PgWebhookEventRepo::new(pool.clone());
+    let event_id = format!("evt_test_lookup_{}", uuid::Uuid::new_v4().simple());
+    let event_type = "invoice.payment_succeeded";
+    let payload = serde_json::json!({
+        "data": {
+            "object": {
+                "id": format!("in_test_{}", uuid::Uuid::new_v4().simple()),
+                "payment_intent": format!("pi_test_{}", uuid::Uuid::new_v4().simple()),
+            }
+        }
+    });
+
+    repo.try_insert(&event_id, event_type, &payload)
+        .await
+        .expect("seed webhook row");
+    repo.mark_processed(&event_id)
+        .await
+        .expect("mark webhook row processed");
+
+    let row = repo
+        .find_by_stripe_event_id(&event_id)
+        .await
+        .expect("lookup seeded webhook row")
+        .expect("seeded row should exist");
+
+    assert_eq!(row.stripe_event_id, event_id);
+    assert_eq!(row.event_type, event_type);
+    assert_eq!(row.payload, payload);
+    assert!(
+        row.processed_at.is_some(),
+        "processed row must have processed_at timestamp"
+    );
+
+    sqlx::query("DELETE FROM webhook_events WHERE stripe_event_id = $1")
+        .bind(&event_id)
+        .execute(&pool)
+        .await
+        .ok();
+}

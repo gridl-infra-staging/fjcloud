@@ -42,6 +42,8 @@ pub enum NodeSecretBackendMode {
 pub struct StartupEnvSnapshot {
     node_secret_backend: Option<String>,
     environment: Option<String>,
+    slack_webhook_url: Option<String>,
+    discord_webhook_url: Option<String>,
     ses_from_address: Option<String>,
     ses_region: Option<String>,
     ses_configuration_set: Option<String>,
@@ -65,6 +67,8 @@ impl StartupEnvSnapshot {
         Self {
             node_secret_backend: read("NODE_SECRET_BACKEND"),
             environment: read("ENVIRONMENT"),
+            slack_webhook_url: read("SLACK_WEBHOOK_URL"),
+            discord_webhook_url: read("DISCORD_WEBHOOK_URL"),
             ses_from_address: read("SES_FROM_ADDRESS"),
             ses_region: read("SES_REGION"),
             ses_configuration_set: read("SES_CONFIGURATION_SET"),
@@ -100,6 +104,20 @@ impl StartupEnvSnapshot {
             .to_ascii_lowercase()
     }
 
+    pub fn is_production_environment(&self) -> bool {
+        matches!(
+            self.normalized_environment().as_str(),
+            "prod" | "production"
+        )
+    }
+
+    pub fn is_staging_or_production(&self) -> bool {
+        matches!(
+            self.normalized_environment().as_str(),
+            "staging" | "prod" | "production"
+        )
+    }
+
     pub fn is_explicit_local_environment(&self) -> bool {
         matches!(
             self.normalized_environment().as_str(),
@@ -130,6 +148,20 @@ impl StartupEnvSnapshot {
             &self.ses_region,
             &self.ses_configuration_set,
         ])
+    }
+
+    pub fn alert_webhook_family_state(&self) -> RawEnvFamilyState {
+        Self::classify_family_state(&[&self.slack_webhook_url, &self.discord_webhook_url])
+    }
+
+    pub fn has_configured_alert_webhook(&self) -> bool {
+        matches!(
+            Self::classify_value_state(self.slack_webhook_url.as_deref()),
+            RawEnvValueState::Present
+        ) || matches!(
+            Self::classify_value_state(self.discord_webhook_url.as_deref()),
+            RawEnvValueState::Present
+        )
     }
 
     pub fn ses_startup_mode(&self) -> SesStartupMode {
@@ -190,6 +222,8 @@ impl StartupEnvSnapshot {
         match key {
             "NODE_SECRET_BACKEND" => self.node_secret_backend.as_deref(),
             "ENVIRONMENT" => self.environment.as_deref(),
+            "SLACK_WEBHOOK_URL" => self.slack_webhook_url.as_deref(),
+            "DISCORD_WEBHOOK_URL" => self.discord_webhook_url.as_deref(),
             "SES_FROM_ADDRESS" => self.ses_from_address.as_deref(),
             "SES_REGION" => self.ses_region.as_deref(),
             "SES_CONFIGURATION_SET" => self.ses_configuration_set.as_deref(),
@@ -338,6 +372,77 @@ mod tests {
         assert!(!prod_memory.is_local_zero_dependency_mode());
     }
 
+    #[test]
+    fn production_environment_detection_normalizes_prod_aliases() {
+        let prod = snapshot_with(&[("ENVIRONMENT", "  PROD  ")]);
+        assert!(prod.is_production_environment());
+
+        let production = snapshot_with(&[("ENVIRONMENT", "  Production ")]);
+        assert!(production.is_production_environment());
+
+        let non_prod = snapshot_with(&[("ENVIRONMENT", "staging")]);
+        assert!(!non_prod.is_production_environment());
+    }
+
+    #[test]
+    fn staging_or_production_detection_normalizes_environment_aliases() {
+        let staging = snapshot_with(&[("ENVIRONMENT", "  staging  ")]);
+        assert!(staging.is_staging_or_production());
+
+        let prod = snapshot_with(&[("ENVIRONMENT", "PROD")]);
+        assert!(prod.is_staging_or_production());
+
+        let production = snapshot_with(&[("ENVIRONMENT", "production")]);
+        assert!(production.is_staging_or_production());
+
+        let local = snapshot_with(&[("ENVIRONMENT", "local")]);
+        assert!(!local.is_staging_or_production());
+    }
+
+    #[test]
+    fn alert_webhook_family_classifies_absent_blank_and_present_values() {
+        let absent = snapshot_with(&[]);
+        assert_eq!(
+            absent.alert_webhook_family_state(),
+            RawEnvFamilyState::AllAbsent
+        );
+        assert!(!absent.has_configured_alert_webhook());
+
+        let blank = snapshot_with(&[("SLACK_WEBHOOK_URL", "   ")]);
+        assert_eq!(
+            blank.alert_webhook_family_state(),
+            RawEnvFamilyState::HasBlankValues
+        );
+        assert!(!blank.has_configured_alert_webhook());
+
+        let single = snapshot_with(&[("DISCORD_WEBHOOK_URL", "https://discord.test/hook")]);
+        assert_eq!(
+            single.alert_webhook_family_state(),
+            RawEnvFamilyState::PartiallyExplicit
+        );
+        assert!(single.has_configured_alert_webhook());
+
+        let mixed = snapshot_with(&[
+            ("SLACK_WEBHOOK_URL", "https://slack.test/hook"),
+            ("DISCORD_WEBHOOK_URL", "   "),
+        ]);
+        assert_eq!(
+            mixed.alert_webhook_family_state(),
+            RawEnvFamilyState::HasBlankValues
+        );
+        assert!(mixed.has_configured_alert_webhook());
+
+        let full = snapshot_with(&[
+            ("SLACK_WEBHOOK_URL", "https://slack.test/hook"),
+            ("DISCORD_WEBHOOK_URL", "https://discord.test/hook"),
+        ]);
+        assert_eq!(
+            full.alert_webhook_family_state(),
+            RawEnvFamilyState::FullyExplicit
+        );
+        assert!(full.has_configured_alert_webhook());
+    }
+
     /// Noop email only activates in local zero-dep mode with all SES vars absent.
     #[test]
     fn ses_startup_mode_only_noops_for_local_mode_with_absent_ses_env() {
@@ -477,6 +582,8 @@ mod tests {
             ("SES_CONFIGURATION_SET", "ses-feedback"),
             ("COLD_STORAGE_BUCKET", "fjcloud-cold"),
             ("COLD_STORAGE_ACCESS_KEY", "access-a"),
+            ("SLACK_WEBHOOK_URL", "https://slack.test/hook"),
+            ("DISCORD_WEBHOOK_URL", "https://discord.test/hook"),
         ]);
 
         assert_eq!(snapshot.env_value("SES_REGION"), Some("us-east-1"));
@@ -491,6 +598,14 @@ mod tests {
         assert_eq!(
             snapshot.env_value("COLD_STORAGE_ACCESS_KEY"),
             Some("access-a")
+        );
+        assert_eq!(
+            snapshot.env_value("SLACK_WEBHOOK_URL"),
+            Some("https://slack.test/hook")
+        );
+        assert_eq!(
+            snapshot.env_value("DISCORD_WEBHOOK_URL"),
+            Some("https://discord.test/hook")
         );
         assert_eq!(snapshot.env_value("MISSING_KEY"), None);
     }

@@ -9,7 +9,7 @@
 | Directory | Summary |
 | --- | --- |
 | admin | The admin directory provides a dashboard for system administration with pages for managing alerts, billing operations, customer accounts, and index migrations. |
-| api | The api directory contains SvelteKit server routes that expose the backend functionality to the frontend, including pricing comparison endpoints, authenticated search requests against Flapjack indexes, and Stripe integration for retrieving publishable keys. |
+| api | The api directory contains SvelteKit server endpoints for three core customer-facing features: pricing comparison, authenticated search execution against Flapjack indexes, and Stripe integration including credential exposure. |
 | dashboard | The dashboard directory is the customer-facing portal for fjcloud, providing interfaces for users to manage their Flapjack search indexes, configure billing and payment methods, complete onboarding flows, and handle account migrations. |
 | forgot-password | — |
 | login | — |

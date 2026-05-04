@@ -41,6 +41,7 @@ aws-sdk-ec2        = { workspace = true }
 aws-sdk-ssm        = { workspace = true }
 aws-sdk-s3         = { workspace = true }
 aws-sdk-sesv2      = { workspace = true }
+aws-sdk-cloudwatch = { workspace = true }
 base64             = "0.22"
 reqwest            = { workspace = true }
 moka               = { version = "0.12", features = ["sync"] }

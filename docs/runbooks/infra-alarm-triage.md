@@ -316,6 +316,71 @@ The subscriber must confirm via the confirmation email.
 
 ---
 
+## Alarm: `fjcloud-${env}-api-heartbeat-missing`
+
+**Threshold**: No `Heartbeat` datapoints (Sum < 1) for 5 consecutive 60-second periods
+**Metric**: `fjcloud/api` namespace, `Heartbeat` metric, dimension `Env=${env}`
+**TreatMissingData**: breaching (alarm fires when no data arrives)
+
+### What it means
+
+The API process is not publishing its periodic heartbeat metric. Possible causes:
+
+- API process crashed or was stopped (`systemctl status fjcloud-api`)
+- CloudWatch egress lost (network / VPC endpoint issue)
+- IAM grant `fjcloud-cloudwatch-metrics` was rolled back or modified
+- AWS SDK credential chain broken on the instance
+
+### Investigation
+
+1. Check if the API process is running:
+
+   ```bash
+   aws ssm start-session --target <instance-id>
+   journalctl -u fjcloud-api --since "10 minutes ago" --no-pager | tail -50
+   systemctl status fjcloud-api
+   ```
+
+2. Check recent heartbeat metric data:
+
+   ```bash
+   aws cloudwatch get-metric-statistics \
+     --namespace fjcloud/api \
+     --metric-name Heartbeat \
+     --dimensions Name=Env,Value=<env> \
+     --start-time $(date -u -v-30M +%Y-%m-%dT%H:%M:%S) \
+     --end-time $(date -u +%Y-%m-%dT%H:%M:%S) \
+     --period 60 --statistics Sum
+   ```
+
+3. Verify the IAM policy is still attached:
+
+   ```bash
+   aws iam get-role-policy \
+     --role-name fjcloud-instance-role \
+     --policy-name fjcloud-cloudwatch-metrics
+   ```
+
+### Resolution
+
+- If the process is down: restart with `systemctl restart fjcloud-api` and investigate the crash in journal logs
+- If IAM policy is missing: re-apply with `cd ops/iam && terraform apply`
+- If network issue: check VPC endpoints and security group egress rules
+
+### Rollout order for heartbeat components
+
+When deploying the heartbeat feature for the first time (or re-applying after teardown), the apply order is critical to avoid false alarm pages:
+
+1. `cd ops/iam && terraform apply` — grants `cloudwatch:PutMetricData` to the instance role
+2. `cd ops/terraform/monitoring && terraform apply` — creates the alarm with `treat_missing_data = "breaching"`
+3. Only THEN deploy the API binary that emits heartbeats
+
+Reverse order causes the alarm to fire during the window between alarm creation and the first heartbeat datapoint, or the publisher to get `AccessDenied` on every tick if the IAM grant is missing.
+
+When the alarm is first created the state is `INSUFFICIENT_DATA`. After the API binary starts emitting, expect ~2 minutes before the first datapoint lands and up to `evaluation_periods × period = 5 minutes` after that for the alarm to settle into `OK`. A new alarm sitting at `INSUFFICIENT_DATA` for more than ~7 minutes after the API binary deploy completes is a real signal — usually a missing IAM grant, a stale binary that lacks the heartbeat publisher, or a process that crashed before the first publish tick.
+
+---
+
 ## Escalation
 
 If an alarm cannot be resolved within 30 minutes:

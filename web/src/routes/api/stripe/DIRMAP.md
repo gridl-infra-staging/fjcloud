@@ -6,5 +6,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| publishable-key | This API endpoint serves the Stripe publishable key to authenticated users by proxying a request to the backend billing service with the user's authorization token. |
+| publishable-key | The publishable-key directory contains a SvelteKit server endpoint that likely exposes a publicly-accessible API key or credential. |
 <!-- [scrai:end] -->

@@ -1,8 +1,5 @@
-//! Startup phase helpers extracted from main().
-//!
-//! Each function owns one logical phase of server bootstrap. main() calls
-//! them in sequence, staying as a short orchestrator. No behavior changes —
-//! this is a pure structural refactor.
+//! Startup phase helpers — each function owns one logical phase of server
+//! bootstrap, called in sequence by main().
 
 mod unconfigured_stripe;
 use unconfigured_stripe::UnconfiguredStripeService;
@@ -15,6 +12,7 @@ use crate::services::access_tracker::AccessTracker;
 use crate::services::alerting::{AlertService, LogAlertService, WebhookAlertService};
 use crate::services::cold_tier::{ColdTierConfig, ColdTierDependencies, ColdTierService};
 use crate::services::health_monitor::HealthMonitor;
+use crate::services::heartbeat::HeartbeatPublisher;
 use crate::services::migration::ReqwestMigrationHttpClient;
 use crate::services::object_store::{
     InMemoryObjectStore, ObjectStore, RegionObjectStoreResolver, S3ObjectStore,
@@ -390,15 +388,35 @@ pub fn init_node_secret_manager(
 
 /// Build the alert service — webhook-backed if Slack/Discord URL is set,
 /// otherwise log-only.
-pub fn init_alert_service(pool: &sqlx::PgPool) -> anyhow::Result<Arc<dyn AlertService>> {
-    let slack_url = std::env::var("SLACK_WEBHOOK_URL").ok();
-    let discord_url = std::env::var("DISCORD_WEBHOOK_URL").ok();
+pub fn init_alert_service(
+    pool: &sqlx::PgPool,
+    startup_env: &StartupEnvSnapshot,
+) -> anyhow::Result<Arc<dyn AlertService>> {
+    let slack_url = startup_env
+        .env_value("SLACK_WEBHOOK_URL")
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string);
+    let discord_url = startup_env
+        .env_value("DISCORD_WEBHOOK_URL")
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string);
+
+    if startup_env.is_production_environment() && !startup_env.has_configured_alert_webhook() {
+        return Err(anyhow::anyhow!(
+            "production requires SLACK_WEBHOOK_URL or DISCORD_WEBHOOK_URL (non-blank)"
+        ));
+    }
 
     if slack_url.is_some() || discord_url.is_some() {
         let http = reqwest::Client::builder()
             .timeout(Duration::from_secs(5))
             .build()?;
-        let environment = std::env::var("ENVIRONMENT").unwrap_or_else(|_| "unknown".to_string());
+        let environment = startup_env
+            .env_value("ENVIRONMENT")
+            .unwrap_or("unknown")
+            .to_string();
         if slack_url.is_some() {
             tracing::info!("Slack alert webhook configured");
         }
@@ -510,6 +528,8 @@ pub struct BackgroundDeps {
     pub object_store_resolver: Arc<RegionObjectStoreResolver>,
     pub node_client: Arc<dyn crate::services::cold_tier::FlapjackNodeClient>,
     pub migration_http_client: reqwest::Client,
+    pub aws_sdk_config: aws_config::SdkConfig,
+    pub startup_env: StartupEnvSnapshot,
 }
 
 /// Spawn all background services (health monitor, scheduler, replication,
@@ -520,6 +540,17 @@ pub fn spawn_background_tasks(
     deps: BackgroundDeps,
     shutdown_rx: tokio::sync::watch::Receiver<bool>,
 ) -> anyhow::Result<BackgroundHandles> {
+    let BackgroundDeps {
+        node_secret_manager,
+        access_tracker,
+        cold_snapshot_repo,
+        object_store_resolver,
+        node_client,
+        migration_http_client,
+        aws_sdk_config,
+        startup_env,
+    } = deps;
+
     // Health monitor
     let health_http = reqwest::Client::builder()
         .timeout(Duration::from_secs(5))
@@ -548,7 +579,7 @@ pub fn spawn_background_tasks(
         state.tenant_repo.clone(),
         state.migration_service.clone(),
         state.alert_service.clone(),
-        Arc::clone(&deps.node_secret_manager),
+        Arc::clone(&node_secret_manager),
         scheduler_http,
     ));
     let scheduler_handle = {
@@ -563,8 +594,8 @@ pub fn spawn_background_tasks(
     let replication_orchestrator = Arc::new(ReplicationOrchestrator::new(
         state.index_replica_repo.clone(),
         state.vm_inventory_repo.clone(),
-        Arc::new(ReqwestMigrationHttpClient::new(deps.migration_http_client)),
-        Arc::clone(&deps.node_secret_manager),
+        Arc::new(ReqwestMigrationHttpClient::new(migration_http_client)),
+        Arc::clone(&node_secret_manager),
         ReplicationConfig::from_env(),
     ));
     let replication_handle = {
@@ -590,7 +621,7 @@ pub fn spawn_background_tasks(
     };
 
     // Access tracker
-    let access_tracker_handle = deps.access_tracker.start(60);
+    let access_tracker_handle = access_tracker.start(60);
 
     // Cold tier manager
     let cold_tier_service = Arc::new(ColdTierService::new(
@@ -598,13 +629,13 @@ pub fn spawn_background_tasks(
         ColdTierDependencies {
             tenant_repo: state.tenant_repo.clone(),
             index_migration_repo: state.index_migration_repo.clone(),
-            cold_snapshot_repo: deps.cold_snapshot_repo,
+            cold_snapshot_repo,
             vm_inventory_repo: state.vm_inventory_repo.clone(),
-            object_store_resolver: deps.object_store_resolver,
+            object_store_resolver,
             alert_service: state.alert_service.clone(),
             discovery_service: state.discovery_service.clone(),
-            node_client: deps.node_client,
-            node_secret_manager: deps.node_secret_manager,
+            node_client,
+            node_secret_manager,
         },
     ));
     let cold_tier_handle = {
@@ -615,14 +646,33 @@ pub fn spawn_background_tasks(
         })
     };
 
+    let mut named_handles = vec![
+        ("health monitor", health_monitor_handle),
+        ("scheduler", scheduler_handle),
+        ("replication", replication_handle),
+        ("region failover", region_failover_handle),
+        ("cold tier", cold_tier_handle),
+    ];
+
+    if startup_env.is_staging_or_production() {
+        let heartbeat_publisher = HeartbeatPublisher::new(
+            aws_sdk_cloudwatch::Client::new(&aws_sdk_config),
+            startup_env
+                .env_value("ENVIRONMENT")
+                .unwrap_or("unknown")
+                .trim()
+                .to_ascii_lowercase(),
+            Duration::from_secs(60),
+        );
+        let rx = shutdown_rx.clone();
+        let heartbeat_handle = tokio::spawn(async move {
+            heartbeat_publisher.run(rx).await;
+        });
+        named_handles.push(("heartbeat", heartbeat_handle));
+    }
+
     Ok(BackgroundHandles {
-        named_handles: vec![
-            ("health monitor", health_monitor_handle),
-            ("scheduler", scheduler_handle),
-            ("replication", replication_handle),
-            ("region failover", region_failover_handle),
-            ("cold tier", cold_tier_handle),
-        ],
+        named_handles,
         access_tracker_handle,
     })
 }
@@ -686,11 +736,28 @@ async fn wait_for_shutdown(mut shutdown_rx: tokio::sync::watch::Receiver<bool>) 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::startup_env::StartupEnvSnapshot;
     use std::sync::{Mutex, OnceLock};
 
     fn env_lock() -> &'static Mutex<()> {
         static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
         LOCK.get_or_init(|| Mutex::new(()))
+    }
+
+    fn snapshot_with(values: &[(&str, &str)]) -> StartupEnvSnapshot {
+        StartupEnvSnapshot::from_reader(|key| {
+            values
+                .iter()
+                .find(|(candidate, _)| *candidate == key)
+                .map(|(_, value)| value.to_string())
+        })
+    }
+
+    fn test_pool() -> sqlx::PgPool {
+        sqlx::postgres::PgPoolOptions::new()
+            .max_connections(1)
+            .connect_lazy("postgres://postgres:postgres@127.0.0.1:5432/fjcloud_test")
+            .expect("lazy postgres pool should construct")
     }
 
     struct EnvVarGuard {
@@ -738,5 +805,46 @@ mod tests {
         let _env = EnvVarGuard::set("EMAIL_FROM_NAME", Some("Custom Sender"));
 
         assert_eq!(mailpit_from_name_from_env(), "Custom Sender");
+    }
+
+    #[tokio::test]
+    async fn init_alert_service_fails_closed_for_production_without_webhooks() {
+        let pool = test_pool();
+        let startup_env = snapshot_with(&[("ENVIRONMENT", "prod")]);
+
+        let error = match init_alert_service(&pool, &startup_env) {
+            Ok(_) => panic!("prod must require a webhook"),
+            Err(error) => error,
+        };
+        assert!(
+            error
+                .to_string()
+                .contains("production requires SLACK_WEBHOOK_URL or DISCORD_WEBHOOK_URL"),
+            "unexpected error message: {error:#}"
+        );
+    }
+
+    #[tokio::test]
+    async fn init_alert_service_uses_log_fallback_outside_production_when_webhooks_absent() {
+        let pool = test_pool();
+        let startup_env = snapshot_with(&[("ENVIRONMENT", "staging")]);
+
+        init_alert_service(&pool, &startup_env)
+            .expect("non-production should allow log-only fallback");
+    }
+
+    #[tokio::test]
+    async fn init_alert_service_allows_production_when_any_webhook_is_configured() {
+        let pool = test_pool();
+        let startup_env = snapshot_with(&[
+            ("ENVIRONMENT", "production"),
+            (
+                "SLACK_WEBHOOK_URL",
+                "https://hooks.slack.com/services/T000/B000/XXX",
+            ),
+        ]);
+
+        init_alert_service(&pool, &startup_env)
+            .expect("production webhook configuration must boot");
     }
 }

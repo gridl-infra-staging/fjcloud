@@ -71,6 +71,12 @@ variable "canary_schedule" {
   }
 }
 
+variable "canary_live_mode" {
+  description = "Enables Stripe-mutating live-money flow in the customer-loop canary runtime."
+  type        = bool
+  default     = false
+}
+
 variable "cloudtrail_name_override" {
   description = "Optional explicit CloudTrail trail name; defaults to fjcloud-<env>-guardrails when empty"
   type        = string

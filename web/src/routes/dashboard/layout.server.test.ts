@@ -37,6 +37,11 @@ const sharedProfile: CustomerProfileResponse = {
 	billing_plan: 'shared'
 };
 
+const unverifiedProfile: CustomerProfileResponse = {
+	...freeProfile,
+	email_verified: false
+};
+
 const freeOnboarding: OnboardingStatus = {
 	has_payment_method: false,
 	has_region: false,
@@ -189,5 +194,23 @@ describe('Dashboard layout server load', () => {
 		const result = (await load(makeEvent('/admin/customers/cust-1')))!;
 
 		expect(result.impersonation).toEqual({ returnPath: '/admin/customers/cust-1' });
+	});
+
+	it('preserves unverified email state from profile as the shell gating source of truth', async () => {
+		getProfileMock.mockResolvedValue(unverifiedProfile);
+		getOnboardingStatusMock.mockResolvedValue(freeOnboarding);
+
+		const result = (await load(makeEvent()))!;
+
+		expect(result.profile.email_verified).toBe(false);
+	});
+
+	it('treats profile verification state as unknown when profile fetch fails', async () => {
+		getProfileMock.mockRejectedValue(new Error('profile unavailable'));
+		getOnboardingStatusMock.mockResolvedValue(freeOnboarding);
+
+		const result = (await load(makeEvent()))!;
+
+		expect(result.profile).toBeNull();
 	});
 });

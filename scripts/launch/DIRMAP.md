@@ -3,6 +3,7 @@
 
 | File | Summary |
 | --- | --- |
+| backend_launch_gate.sh | Stub summary for backend_launch_gate.sh. |
 | capture_billing_cross_check_inputs.sh | Stub summary for capture_billing_cross_check_inputs.sh. |
 | capture_stage_d_evidence.sh | capture_stage_d_evidence.sh — end-to-end Blocker-3 live evidence
 capture, owner-script style.

@@ -1,5 +1,4 @@
 use async_trait::async_trait;
-use chrono::{DateTime, Utc};
 use sqlx::PgPool;
 
 use crate::repos::error::RepoError;
@@ -17,35 +16,31 @@ impl PgWebhookEventRepo {
 
 #[async_trait]
 impl WebhookEventRepo for PgWebhookEventRepo {
-    /// Inserts a webhook event using `ON CONFLICT DO NOTHING` for idempotency.
-    /// Returns `true` if the event has not yet been processed, `false` if already handled.
+    /// Attempts to insert a webhook event once using the unique `stripe_event_id`.
+    /// Returns `true` only for the caller that inserted the row.
     async fn try_insert(
         &self,
         stripe_event_id: &str,
         event_type: &str,
         payload: &serde_json::Value,
     ) -> Result<bool, RepoError> {
-        sqlx::query(
-            "INSERT INTO webhook_events (stripe_event_id, event_type, payload) \
-             VALUES ($1, $2, $3) \
-             ON CONFLICT (stripe_event_id) DO NOTHING",
+        let inserted = sqlx::query_scalar::<_, bool>(
+            "WITH inserted AS ( \
+               INSERT INTO webhook_events (stripe_event_id, event_type, payload) \
+               VALUES ($1, $2, $3) \
+               ON CONFLICT (stripe_event_id) DO NOTHING \
+               RETURNING 1 \
+             ) \
+             SELECT EXISTS(SELECT 1 FROM inserted)",
         )
         .bind(stripe_event_id)
         .bind(event_type)
         .bind(payload)
-        .execute(&self.pool)
-        .await
-        .map_err(|e| RepoError::Other(e.to_string()))?;
-
-        let processed_at = sqlx::query_scalar::<_, Option<DateTime<Utc>>>(
-            "SELECT processed_at FROM webhook_events WHERE stripe_event_id = $1",
-        )
-        .bind(stripe_event_id)
         .fetch_one(&self.pool)
         .await
         .map_err(|e| RepoError::Other(e.to_string()))?;
 
-        Ok(processed_at.is_none())
+        Ok(inserted)
     }
 
     async fn mark_processed(&self, stripe_event_id: &str) -> Result<(), RepoError> {

@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use api::repos::PgCustomerRepo;
-use api::services::email::EmailService;
+use api::services::email::{EmailService, MockEmailService};
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use chrono::{DateTime, TimeZone, Utc};
@@ -127,6 +127,20 @@ async fn response_json(response: axum::response::Response) -> serde_json::Value 
 }
 
 fn build_broadcast_request(subject: &str, dry_run: bool) -> Request<Body> {
+    build_broadcast_request_with_bodies(
+        subject,
+        Some("<p>Stage 3 broadcast contract test</p>"),
+        None,
+        dry_run,
+    )
+}
+
+fn build_broadcast_request_with_bodies(
+    subject: &str,
+    html_body: Option<&str>,
+    text_body: Option<&str>,
+    dry_run: bool,
+) -> Request<Body> {
     Request::builder()
         .method("POST")
         .uri("/admin/broadcast")
@@ -135,7 +149,8 @@ fn build_broadcast_request(subject: &str, dry_run: bool) -> Request<Body> {
         .body(Body::from(
             serde_json::json!({
                 "subject": subject,
-                "html_body": "<p>Stage 3 broadcast contract test</p>",
+                "html_body": html_body,
+                "text_body": text_body,
                 "dry_run": dry_run,
             })
             .to_string(),
@@ -152,6 +167,42 @@ fn build_db_backed_broadcast_app(
     state.customer_repo = Arc::new(PgCustomerRepo::new(pool.clone()));
     state.email_service = email_service;
     api::router::build_router(state)
+}
+
+#[tokio::test]
+async fn live_broadcast_html_only_request_keeps_empty_text_part() {
+    let customer_repo = common::mock_repo();
+    customer_repo.seed("Alice", "alice@example.com");
+    customer_repo.seed("Bob", "bob@example.com");
+
+    let delegate = Arc::new(MockEmailService::new());
+    let failable_email_service = Arc::new(common::FailableEmailService::new(
+        delegate.clone() as Arc<dyn EmailService>
+    ));
+
+    let app = common::TestStateBuilder::new()
+        .with_customer_repo(customer_repo)
+        .with_email_service(failable_email_service as Arc<dyn EmailService>)
+        .build_app();
+
+    let response = app
+        .oneshot(build_broadcast_request_with_bodies(
+            "html-only-contract",
+            Some("<p>HTML only path</p>"),
+            None,
+            false,
+        ))
+        .await
+        .expect("broadcast request should complete");
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let sent_emails = delegate.sent_emails();
+    assert_eq!(sent_emails.len(), 2);
+    for email in sent_emails {
+        assert_eq!(email.subject, "html-only-contract");
+        assert_eq!(email.html_body, "<p>HTML only path</p>");
+        assert_eq!(email.text_body, "");
+    }
 }
 
 #[tokio::test]

@@ -1,36 +1,18 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import {
-		BETA_FEEDBACK_MAILTO,
-		LEGAL_BADGE_LABEL,
-		LEGAL_DRAFT_BANNER_TEXT,
 		LEGAL_EFFECTIVE_DATE_TEXT,
 		LEGAL_ENTITY_NAME,
+		LEGAL_SUPPORT_MAILTO,
 		SUPPORT_EMAIL
 	} from '$lib/format';
 </script>
 
 <svelte:head>
-	<title>Privacy Policy (Draft) — Flapjack Cloud</title>
+	<title>Privacy Policy — Flapjack Cloud</title>
 </svelte:head>
 
 <div class="min-h-screen bg-[#fff8ea] text-[#1f1b18]">
-	<div class="border-b-2 border-[#78b8b2] bg-[#d9f2ef]">
-		<div
-			class="mx-auto flex max-w-4xl flex-col gap-2 px-6 py-3 text-sm text-[#1f1b18] sm:flex-row sm:items-center sm:justify-between"
-		>
-			<p class="flex items-center gap-3">
-				<span
-					class="inline-flex rounded-full bg-[#ffb3c7] px-3 py-1 text-xs font-black uppercase tracking-[0.18em]"
-				>
-					{LEGAL_BADGE_LABEL}
-				</span>
-				<span>{LEGAL_DRAFT_BANNER_TEXT}</span>
-			</p>
-			<p>{LEGAL_EFFECTIVE_DATE_TEXT}</p>
-		</div>
-	</div>
-
 	<main class="mx-auto max-w-4xl px-6 py-12">
 		<a href={resolve('/')} class="text-sm font-medium text-[#b83f5f] hover:text-[#8d2842]">
 			Back to Flapjack Cloud
@@ -41,26 +23,28 @@
 				<p class="text-sm font-black uppercase tracking-[0.18em] text-[#8d2842]">
 					{LEGAL_ENTITY_NAME}
 				</p>
-				<h1 class="text-3xl font-black text-[#1f1b18] sm:text-4xl">Privacy Policy (Draft)</h1>
+				<h1 class="text-3xl font-black text-[#1f1b18] sm:text-4xl">Privacy Policy</h1>
+				<p class="text-sm font-semibold uppercase tracking-[0.12em] text-[#7f4d21]">
+					{LEGAL_EFFECTIVE_DATE_TEXT}
+				</p>
 				<p class="max-w-3xl text-base leading-7 text-[#4b4640]">
-					This draft privacy policy describes how Flapjack Cloud expects to collect and use account,
-					service, and billing information during public beta.
+					This policy describes how Flapjack Cloud collects, uses, and protects customer information
+					when operating the hosted service.
 				</p>
 			</header>
 
 			<section class="space-y-3">
 				<h2 class="text-xl font-bold text-[#1f1b18]">Data We Collect</h2>
 				<p class="leading-7 text-[#4b4640]">
-					The service may collect account contact details, authentication records, index metadata,
-					usage metering records, billing events, and support communications needed to operate the
-					platform.
+					We collect account identifiers, authentication records, index metadata, usage metering
+					records, billing events, and support communications needed to operate the platform.
 				</p>
 			</section>
 
 			<section class="space-y-3">
 				<h2 class="text-xl font-bold text-[#1f1b18]">Purposes</h2>
 				<p class="leading-7 text-[#4b4640]">
-					That information is used to provide the dashboard and API, secure accounts, calculate
+					Information is used to provide the dashboard and API, secure accounts, calculate
 					usage-based charges, investigate incidents, and respond to support requests.
 				</p>
 			</section>
@@ -68,52 +52,57 @@
 			<section class="space-y-3">
 				<h2 class="text-xl font-bold text-[#1f1b18]">Third Parties and Sharing</h2>
 				<p class="leading-7 text-[#4b4640]">
-					Flapjack Cloud expects to rely on infrastructure, billing, and email vendors needed to run
-					the service. [REVIEW: vendor list and disclosure wording]
+					We share data only with service providers that support hosting, billing, and support
+					operations, or when required by law.
 				</p>
 			</section>
 
 			<section class="space-y-3">
 				<h2 class="text-xl font-bold text-[#1f1b18]">Retention</h2>
 				<p class="leading-7 text-[#4b4640]">
-					Operational, billing, and audit records may be retained for security, fraud prevention,
-					and compliance needs even after account closure. [REVIEW: exact retention periods]
+					Operational, billing, and audit records are retained for security, fraud prevention,
+					service reliability, and legal compliance, then deleted or anonymized when no longer
+					needed.
 				</p>
 			</section>
 
 			<section class="space-y-3">
 				<h2 class="text-xl font-bold text-[#1f1b18]">Your Rights</h2>
 				<p class="leading-7 text-[#4b4640]">
-					Customers can request access, export, correction, or deletion review through support, with
-					any product limitations and legal exceptions called out during legal review.
+					Customers may request access, correction, export, or deletion review of account data by
+					contacting support. Requests are handled subject to legal and operational limits.
 				</p>
 			</section>
 
 			<section class="space-y-3">
 				<h2 class="text-xl font-bold text-[#1f1b18]">Children&apos;s Data</h2>
-				<p class="leading-7 text-[#4b4640]">[REVIEW: COPPA applicability]</p>
+				<p class="leading-7 text-[#4b4640]">
+					Flapjack Cloud is not directed to children under 13, and we do not knowingly collect
+					personal information from children under 13.
+				</p>
 			</section>
 
 			<section class="space-y-3">
 				<h2 class="text-xl font-bold text-[#1f1b18]">Contact</h2>
 				<p class="leading-7 text-[#4b4640]">
-					Privacy, export, deletion, and retention questions should be sent to
+					Privacy, export, deletion, and retention questions can be sent to
 					<!-- eslint-disable svelte/no-navigation-without-resolve -- mailto links must stay scheme URLs -->
 					<a
-						href={BETA_FEEDBACK_MAILTO}
+						href={LEGAL_SUPPORT_MAILTO}
 						class="font-semibold text-[#b83f5f] underline hover:text-[#8d2842]"
 					>
 						{SUPPORT_EMAIL}
 					</a>
 					<!-- eslint-enable svelte/no-navigation-without-resolve -->
-					. [REVIEW: mailing address]
+					.
 				</p>
 			</section>
 
 			<section class="space-y-3">
 				<h2 class="text-xl font-bold text-[#1f1b18]">Changes to This Policy</h2>
 				<p class="leading-7 text-[#4b4640]">
-					This draft may change before launch as product behavior and legal review are finalized.
+					We may update this policy as the service evolves. Material changes will be reflected by
+					updating the effective date published on this page.
 				</p>
 			</section>
 		</article>

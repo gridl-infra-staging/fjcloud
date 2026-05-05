@@ -937,7 +937,7 @@ async fn get_admin_customers_id_snapshot_returns_seeded_customer_snapshot() {
         "us-east-1",
         40,
         5,
-        (billing::types::BYTES_PER_GIB * 2) as i64,
+        billing::types::BYTES_PER_GIB * 2,
         900,
     );
     usage_repo.seed(
@@ -946,7 +946,7 @@ async fn get_admin_customers_id_snapshot_returns_seeded_customer_snapshot() {
         "us-west-2",
         60,
         7,
-        billing::types::BYTES_PER_GIB as i64,
+        billing::types::BYTES_PER_GIB,
         1100,
     );
     usage_repo.seed(
@@ -955,7 +955,7 @@ async fn get_admin_customers_id_snapshot_returns_seeded_customer_snapshot() {
         "us-east-1",
         999,
         999,
-        billing::types::BYTES_PER_GIB as i64,
+        billing::types::BYTES_PER_GIB,
         9999,
     );
 

@@ -24,6 +24,8 @@ const SNS_NOTIFICATION: &str = "Notification";
 const SNS_SUBSCRIPTION_CONFIRMATION: &str = "SubscriptionConfirmation";
 const SNS_UNSUBSCRIBE_CONFIRMATION: &str = "UnsubscribeConfirmation";
 const SNS_SUPPRESSION_SOURCE: &str = "ses_sns_webhook";
+const TRUSTED_SNS_ACCOUNT_ID: &str = "213880904778";
+const TRUSTED_SES_FEEDBACK_TOPIC_PREFIX: &str = "fjcloud-ses-feedback-";
 
 /// `POST /webhooks/ses/sns` — receive AWS SNS events carrying SES feedback.
 ///
@@ -51,6 +53,7 @@ pub async fn ses_sns_webhook(
 async fn process_ses_sns_request(state: &AppState, body: &str) -> Result<StatusCode, ApiError> {
     let envelope = parse_sns_envelope(body)?;
     let sns_type = parse_sns_type(&envelope.sns_type)?;
+    validate_sns_topic_arn(&envelope.topic_arn)?;
     validate_sns_url(&envelope.signing_cert_url, "SigningCertURL")?;
     if let Some(subscribe_url) = envelope.subscribe_url.as_deref() {
         validate_sns_url(subscribe_url, "SubscribeURL")?;
@@ -68,9 +71,12 @@ async fn process_ses_sns_request(state: &AppState, body: &str) -> Result<StatusC
 ///
 /// **Auth:** Stripe signature verification (`stripe-signature` header), no JWT.
 /// Verifies the webhook signature against the configured secret, then
-/// deduplicates via `webhook_event_repo.try_insert` (idempotent — replayed
-/// events return 200 without reprocessing). Dispatches to event-specific
-/// handlers based on `event_type`, then marks the event as processed.
+/// deduplicates via `webhook_event_repo.try_insert` (idempotent — exactly one
+/// caller wins first insert for each `stripe_event_id`). Duplicate deliveries
+/// only return `200` once the persisted row is marked processed; unprocessed
+/// duplicates remain non-acknowledged and short-circuit without handler
+/// side effects. Dispatches to event-specific handlers based on
+/// `event_type`, then marks the event as processed.
 pub async fn stripe_webhook(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -91,7 +97,8 @@ pub async fn stripe_webhook(
         .construct_webhook_event(&body, signature, webhook_secret)
         .map_err(|_| ApiError::BadRequest("invalid webhook signature".into()))?;
 
-    // Idempotency: process event only if it is new or previously unprocessed.
+    // Idempotency: process event only for the single caller that inserted
+    // this stripe_event_id row first.
     let payload: serde_json::Value = serde_json::from_str(&body)
         .map_err(|e| ApiError::BadRequest(format!("invalid JSON payload: {e}")))?;
 
@@ -102,7 +109,37 @@ pub async fn stripe_webhook(
         .map_err(|e| ApiError::Internal(e.to_string()))?;
 
     if !should_process {
-        return Ok(StatusCode::OK);
+        let existing = state
+            .webhook_event_repo
+            .find_by_stripe_event_id(&event.id)
+            .await
+            .map_err(|e| ApiError::Internal(e.to_string()))?;
+        match existing {
+            Some(row) if row.processed_at.is_some() => {
+                tracing::info!(
+                    event_id = event.id,
+                    event_type = event.event_type,
+                    "acknowledging duplicate webhook delivery for already processed event"
+                );
+                return Ok(StatusCode::OK);
+            }
+            Some(_) => {
+                tracing::warn!(
+                    event_id = event.id,
+                    event_type = event.event_type,
+                    "rejecting duplicate webhook delivery because event is persisted but still unprocessed"
+                );
+                return Err(ApiError::Internal(
+                    "webhook event already exists but is not marked processed".into(),
+                ));
+            }
+            None => {
+                return Err(ApiError::Internal(format!(
+                    "webhook event {} reported duplicate insert but row not found",
+                    event.id
+                )));
+            }
+        }
     }
 
     match event.event_type.as_str() {
@@ -569,6 +606,41 @@ fn parse_sns_type(value: &str) -> Result<SnsType, ApiError> {
     }
 }
 
+/// Reject cross-account or wrong-topic SNS envelopes before we trust their
+/// signed payload. AWS signatures prove "an AWS SNS topic sent this", not "our
+/// SES feedback topic sent this". Without an ARN allowlist, an attacker can
+/// create their own SNS topic, trick us into auto-confirming it, then publish
+/// signed Notification messages that suppress arbitrary recipients.
+fn validate_sns_topic_arn(topic_arn: &str) -> Result<(), ApiError> {
+    let segments: Vec<&str> = topic_arn.split(':').collect();
+    if segments.len() != 6 {
+        return Err(ApiError::BadRequest(format!(
+            "TopicArn must use AWS ARN format: {topic_arn}"
+        )));
+    }
+    if segments[0] != "arn" || segments[1] != "aws" || segments[2] != "sns" {
+        return Err(ApiError::BadRequest(format!(
+            "TopicArn must be an AWS SNS ARN: {topic_arn}"
+        )));
+    }
+    if segments[3].is_empty() {
+        return Err(ApiError::BadRequest("TopicArn region is empty".to_string()));
+    }
+    if segments[4] != TRUSTED_SNS_ACCOUNT_ID {
+        return Err(ApiError::BadRequest(format!(
+            "TopicArn account is not trusted: {}",
+            segments[4]
+        )));
+    }
+    if !segments[5].starts_with(TRUSTED_SES_FEEDBACK_TOPIC_PREFIX) {
+        return Err(ApiError::BadRequest(format!(
+            "TopicArn topic is not trusted: {}",
+            segments[5]
+        )));
+    }
+    Ok(())
+}
+
 fn validate_sns_url(url_value: &str, field_name: &str) -> Result<(), ApiError> {
     let parsed = reqwest::Url::parse(url_value).map_err(|error| {
         ApiError::BadRequest(format!("{field_name} is not a valid URL: {error}"))
@@ -913,3 +985,37 @@ mod canonical_sns_string_tests;
 #[cfg(test)]
 #[path = "webhooks_ses_event_payload_tests.rs"]
 mod ses_event_payload_tests;
+
+#[cfg(test)]
+mod sns_topic_arn_tests {
+    use super::*;
+
+    #[test]
+    fn accepts_trusted_ses_feedback_topic_arn() {
+        let trusted = "arn:aws:sns:us-east-1:213880904778:fjcloud-ses-feedback-staging";
+        assert!(validate_sns_topic_arn(trusted).is_ok());
+    }
+
+    #[test]
+    fn rejects_untrusted_account_even_when_topic_name_matches() {
+        let err = validate_sns_topic_arn(
+            "arn:aws:sns:us-east-1:999999999999:fjcloud-ses-feedback-staging",
+        )
+        .unwrap_err();
+        assert!(
+            matches!(err, ApiError::BadRequest(ref message) if message.contains("TopicArn account is not trusted")),
+            "unexpected error: {err:?}"
+        );
+    }
+
+    #[test]
+    fn rejects_non_feedback_topic_in_trusted_account() {
+        let err =
+            validate_sns_topic_arn("arn:aws:sns:us-east-1:213880904778:attacker-controlled-topic")
+                .unwrap_err();
+        assert!(
+            matches!(err, ApiError::BadRequest(ref message) if message.contains("TopicArn topic is not trusted")),
+            "unexpected error: {err:?}"
+        );
+    }
+}

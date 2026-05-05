@@ -202,11 +202,7 @@ export const actions = {
 			// Without this, impersonation events look indistinguishable from
 			// routine admin token mints in T1.4's per-customer audit view —
 			// the whole point of the paper trail.
-			const { token } = await client.createToken(
-				params.id,
-				IMPERSONATION_MAX_AGE,
-				'impersonation'
-			);
+			const { token } = await client.createToken(params.id, IMPERSONATION_MAX_AGE, 'impersonation');
 			const cookieOptions = authCookieOptions(url, IMPERSONATION_MAX_AGE, '/');
 			cookies.set(AUTH_COOKIE, token, cookieOptions);
 			cookies.set(IMPERSONATION_COOKIE, `/admin/customers/${params.id}`, cookieOptions);

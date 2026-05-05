@@ -428,4 +428,45 @@ fn spec_authenticated_stage2_routes_document_401_error_response() {
     }
 }
 
+#[test]
+fn spec_resend_verification_documents_stage3_status_matrix() {
+    let spec = common::openapi_spec_json();
+    let op_base = "/paths/~1auth~1resend-verification/post/responses";
+
+    for status in ["200", "400", "401", "403", "429", "503"] {
+        assert!(
+            spec.pointer(&format!("{op_base}/{status}")).is_some(),
+            "/auth/resend-verification must document HTTP {status}"
+        );
+    }
+
+    assert!(
+        spec.pointer(&format!("{op_base}/404")).is_none(),
+        "/auth/resend-verification must not document unreachable 404 under AuthenticatedTenant"
+    );
+
+    assert_eq!(
+        spec.pointer(
+            "/paths/~1auth~1resend-verification/post/responses/429/headers/Retry-After/description"
+        )
+        .and_then(|value| value.as_str()),
+        Some("Seconds remaining before another resend attempt is allowed"),
+        "/auth/resend-verification 429 must document Retry-After header description"
+    );
+    assert_eq!(
+        spec.pointer(
+            "/paths/~1auth~1resend-verification/post/responses/429/headers/Retry-After/schema/type"
+        )
+        .and_then(|value| value.as_str()),
+        Some("integer"),
+        "/auth/resend-verification 429 Retry-After schema must be integer seconds"
+    );
+    assert_eq!(
+        spec.pointer("/paths/~1auth~1resend-verification/post/responses/403/content/application~1json/schema/$ref")
+            .and_then(|value| value.as_str()),
+        Some("#/components/schemas/ErrorResponse"),
+        "/auth/resend-verification 403 must reuse the shared ErrorResponse schema"
+    );
+}
+
 // Stage 3–5 tests are in openapi_spec_stages3_5_test.rs

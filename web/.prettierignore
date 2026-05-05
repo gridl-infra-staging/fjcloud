@@ -7,3 +7,6 @@ bun.lockb
 
 # Miscellaneous
 /static/
+
+# Scrai-generated — do not format
+**/DIRMAP.md

@@ -53,6 +53,22 @@ bash scripts/launch/run_full_backend_validation.sh \
 The RC mode syntax above mirrors the script usage contract in
 `scripts/launch/run_full_backend_validation.sh`.
 
+Staging-only RC command (staging proofs only):
+
+```bash
+bash scripts/launch/run_full_backend_validation.sh \
+  --paid-beta-rc \
+  --staging-only \
+  --sha=<GIT_SHA> \
+  --artifact-dir=<dir> \
+  --credential-env-file=<path> \
+  --billing-month=<YYYY-MM> \
+  --staging-smoke-ami-id=<ami-id>
+```
+
+`--staging-only` is valid only with `--paid-beta-rc`. It is rejected in live
+and dry-run modes.
+
 ## Operator-Facing JSON Interpretation
 
 Interpret the final JSON payload as follows:
@@ -93,6 +109,12 @@ paid-beta RC pass-path assertions), not this runbook. Current names:
 - `browser_auth_setup`
 - `terraform_static_guardrails`
 - `staging_runtime_smoke`
+
+In `--paid-beta-rc --staging-only` mode, the coordinator still executes the
+staging proofs above and records deterministic `skipped` rows (with coordinator
+reason code `staging_only_production_surface`) for production-facing proofs.
+The exact production-facing proof list remains owned by
+`scripts/launch/run_full_backend_validation.sh`.
 
 ## Delegated Proof Owners
 

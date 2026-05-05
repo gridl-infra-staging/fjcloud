@@ -1,8 +1,10 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
-import { render, screen, cleanup } from '@testing-library/svelte';
+import { render, screen, cleanup, fireEvent, waitFor, within } from '@testing-library/svelte';
 import { createRawSnippet } from 'svelte';
 import type { CustomerProfileResponse, OnboardingStatus, FreeTierLimits } from '$lib/api/types';
 import { IMPERSONATION_COOKIE } from '$lib/config';
+import { SUPPORT_EMAIL } from '$lib/format';
+import { CANONICAL_PUBLIC_API_DOCS_URL } from '$lib/public_api';
 
 vi.mock('$env/dynamic/private', () => ({
 	env: new Proxy({}, { get: (_target, prop) => process.env[prop as string] })
@@ -44,6 +46,9 @@ vi.mock('$app/paths', () => ({
 	resolve: (path: string) => path
 }));
 
+const fetchMock = vi.fn();
+vi.stubGlobal('fetch', fetchMock);
+
 import LayoutComponent from './+layout.svelte';
 
 afterEach(() => {
@@ -75,6 +80,11 @@ const sharedProfile: CustomerProfileResponse = {
 	billing_plan: 'shared'
 };
 
+const unverifiedProfile: CustomerProfileResponse = {
+	...freeProfile,
+	email_verified: false
+};
+
 const defaultOnboarding: OnboardingStatus = {
 	has_payment_method: false,
 	has_region: false,
@@ -93,7 +103,7 @@ const childSnippet = createRawSnippet(() => ({
 	setup: () => {}
 }));
 
-function renderLayout(
+function buildLayoutData(
 	overrides: {
 		billing_plan?: 'free' | 'shared';
 		has_payment_method?: boolean;
@@ -105,25 +115,37 @@ function renderLayout(
 	const plan = overrides.billing_plan ?? 'free';
 	const profile = overrides.profile ?? (plan === 'shared' ? sharedProfile : freeProfile);
 
-	render(LayoutComponent, {
-		data: {
-			user: { customerId: 'cust-1' },
-			profile,
-			onboardingStatus: {
-				...defaultOnboarding,
-				has_payment_method: overrides.has_payment_method ?? false,
-				completed: overrides.onboarding_completed ?? false,
-				billing_plan: plan
-			},
-			planContext: {
-				billing_plan: plan,
-				free_tier_limits: freeLimits,
-				has_payment_method: overrides.has_payment_method ?? false,
-				onboarding_completed: overrides.onboarding_completed ?? false,
-				onboarding_status_loaded: true
-			},
-			impersonation: overrides.impersonation ?? null
+	return {
+		user: { customerId: 'cust-1' },
+		profile,
+		onboardingStatus: {
+			...defaultOnboarding,
+			has_payment_method: overrides.has_payment_method ?? false,
+			completed: overrides.onboarding_completed ?? false,
+			billing_plan: plan
 		},
+		planContext: {
+			billing_plan: plan,
+			free_tier_limits: freeLimits,
+			has_payment_method: overrides.has_payment_method ?? false,
+			onboarding_completed: overrides.onboarding_completed ?? false,
+			onboarding_status_loaded: true
+		},
+		impersonation: overrides.impersonation ?? null
+	};
+}
+
+function renderLayout(
+	overrides: {
+		billing_plan?: 'free' | 'shared';
+		has_payment_method?: boolean;
+		onboarding_completed?: boolean;
+		profile?: CustomerProfileResponse;
+		impersonation?: { returnPath: string } | null;
+	} = {}
+) {
+	return render(LayoutComponent, {
+		data: buildLayoutData(overrides),
 		children: childSnippet
 	});
 }
@@ -174,7 +196,146 @@ describe('Dashboard layout billing CTA', () => {
 	});
 });
 
+describe('Dashboard layout verification banner', () => {
+	beforeEach(() => {
+		fetchMock.mockReset();
+	});
+
+	it('hides resend banner for verified profiles', () => {
+		renderLayout({ profile: freeProfile });
+		expect(screen.queryByTestId('verification-banner')).not.toBeInTheDocument();
+	});
+
+	it('shows resend CTA for unverified profiles', () => {
+		renderLayout({ profile: unverifiedProfile });
+
+		expect(screen.getByTestId('verification-banner')).toBeInTheDocument();
+		expect(screen.getByTestId('verification-resend-button')).toBeInTheDocument();
+	});
+
+	it('keeps successful resend confirmation in shell-local state across child-route navigation', async () => {
+		fetchMock.mockResolvedValue(
+			new Response(
+				JSON.stringify({ message: 'Verification email sent', retryAfterSeconds: null }),
+				{
+					status: 200,
+					headers: { 'Content-Type': 'application/json' }
+				}
+			)
+		);
+
+		const view = renderLayout({ profile: unverifiedProfile });
+		await fireEvent.click(screen.getByTestId('verification-resend-button'));
+		await waitFor(() => {
+			expect(screen.getByTestId('verification-resend-message')).toHaveTextContent(
+				'Verification email sent'
+			);
+		});
+
+		pageState.url = new URL('http://localhost/dashboard/settings');
+		await view.rerender({
+			data: buildLayoutData({ profile: unverifiedProfile }),
+			children: childSnippet
+		});
+
+		const successMessage = screen.getByTestId('verification-resend-message');
+		expect(successMessage).toHaveTextContent('Verification email sent');
+		expect(successMessage).toHaveClass('text-[#0f766e]');
+	});
+
+	it('renders deterministic backend 400 resend errors and does not trigger session-expiry redirect', async () => {
+		fetchMock.mockResolvedValue(
+			new Response(JSON.stringify({ error: 'email_already_verified', retryAfterSeconds: null }), {
+				status: 400,
+				headers: { 'Content-Type': 'application/json' }
+			})
+		);
+
+		renderLayout({ profile: unverifiedProfile });
+		await fireEvent.click(screen.getByTestId('verification-resend-button'));
+
+		await waitFor(() => {
+			expect(screen.getByTestId('verification-resend-message')).toHaveTextContent(
+				'email_already_verified'
+			);
+		});
+		expect(screen.getByTestId('verification-resend-message')).toHaveClass('text-[#b83f5f]');
+		expect(gotoMock).not.toHaveBeenCalled();
+	});
+
+	it('renders cooldown copy from backend 429 retry-after response', async () => {
+		fetchMock.mockResolvedValue(
+			new Response(JSON.stringify({ error: 'resend_rate_limited', retryAfterSeconds: 60 }), {
+				status: 429,
+				headers: {
+					'Content-Type': 'application/json',
+					'Retry-After': '60'
+				}
+			})
+		);
+
+		renderLayout({ profile: unverifiedProfile });
+		await fireEvent.click(screen.getByTestId('verification-resend-button'));
+
+		await waitFor(() => {
+			expect(screen.getByTestId('verification-resend-message')).toHaveTextContent(
+				'resend_rate_limited'
+			);
+		});
+		expect(screen.getByTestId('verification-cooldown-copy')).toHaveTextContent('60');
+		expect(gotoMock).not.toHaveBeenCalled();
+	});
+});
+
 describe('Dashboard layout sidebar navigation', () => {
+	it('keeps mobile nav/help links unavailable while the drawer is closed, then renders canonical links after opening', async () => {
+		renderLayout();
+
+		const desktopWrapper = screen.getByTestId('dashboard-nav-desktop');
+		const mobileWrapper = screen.getByTestId('dashboard-nav-mobile-drawer');
+		const mobileTrigger = screen.getByTestId('dashboard-mobile-nav-trigger');
+		expect(mobileTrigger).toBeInTheDocument();
+		expect(mobileWrapper).toHaveAttribute('data-nav-open', 'false');
+		expect(within(mobileWrapper).queryByRole('link', { name: 'Support' })).not.toBeInTheDocument();
+		expect(within(mobileWrapper).queryByRole('link', { name: 'API Docs' })).not.toBeInTheDocument();
+
+		const desktopSupportLink = within(desktopWrapper).getByRole('link', { name: 'Support' });
+		expect(desktopSupportLink).toHaveAttribute('href', `mailto:${SUPPORT_EMAIL}`);
+		expect(within(desktopWrapper).getByRole('link', { name: 'API Docs' })).toHaveAttribute(
+			'href',
+			CANONICAL_PUBLIC_API_DOCS_URL
+		);
+
+		await fireEvent.click(mobileTrigger);
+		expect(mobileWrapper).toHaveAttribute('data-nav-open', 'true');
+
+		const mobileSupportLink = within(mobileWrapper).getByRole('link', { name: 'Support' });
+		expect(mobileSupportLink).toHaveAttribute('href', `mailto:${SUPPORT_EMAIL}`);
+		expect(within(mobileWrapper).getByRole('link', { name: 'API Docs' })).toHaveAttribute(
+			'href',
+			CANONICAL_PUBLIC_API_DOCS_URL
+		);
+	});
+
+	it('opens and closes mobile drawer without hiding beta and verification banners', async () => {
+		renderLayout({ profile: unverifiedProfile });
+
+		expect(screen.getByTestId('dashboard-beta-banner')).toBeInTheDocument();
+		expect(screen.getByTestId('verification-banner')).toBeInTheDocument();
+
+		const mobileDrawer = screen.getByTestId('dashboard-nav-mobile-drawer');
+		expect(mobileDrawer).toHaveAttribute('data-nav-open', 'false');
+
+		await fireEvent.click(screen.getByTestId('dashboard-mobile-nav-trigger'));
+		expect(mobileDrawer).toHaveAttribute('data-nav-open', 'true');
+
+		await fireEvent.click(screen.getByTestId('dashboard-mobile-nav-dismiss'));
+		expect(mobileDrawer).toHaveAttribute('data-nav-open', 'false');
+
+		expect(screen.getByTestId('dashboard-beta-banner')).toBeInTheDocument();
+		expect(screen.getByTestId('verification-banner')).toBeInTheDocument();
+	});
+
 	it('renders beta scope and feedback entry points', () => {
 		renderLayout();
 

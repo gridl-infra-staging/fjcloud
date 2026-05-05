@@ -1,40 +1,22 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Page } from '@playwright/test';
+import {
+	LEGAL_EFFECTIVE_DATE_TEXT,
+	LEGAL_ENTITY_NAME,
+	LEGAL_SUPPORT_MAILTO,
+	SUPPORT_EMAIL
+} from '$lib/format';
+import { SHARED_LEGAL_PAGE_CONTRACT } from '../../tests/fixtures/legal_page_contract';
 
-const {
-	playwrightExpectMock,
-	bannerLabel,
-	companionText,
-	effectiveDateText,
-	entityText,
-	homeLinkName,
-	homeLinkHref,
-	supportLinkName,
-	supportLinkHref
-} = vi.hoisted(() => ({
-	playwrightExpectMock: vi.fn(),
-	bannerLabel: 'Paid Beta',
-	companionText: 'Companion text only',
-	effectiveDateText: 'Effective date: 2026-04-29',
-	entityText: 'THIRD FORK LABS LLC',
-	homeLinkName: 'Back to Flapjack Cloud',
-	homeLinkHref: '/',
-	supportLinkName: 'support@flapjack.foo',
-	supportLinkHref: 'mailto:support@flapjack.foo?subject=Flapjack%20Cloud%20beta%20feedback'
+const { playwrightExpectMock } = vi.hoisted(() => ({
+	playwrightExpectMock: vi.fn()
 }));
+
+const homeLinkName = 'Back to Flapjack Cloud';
+const homeLinkHref = '/';
 
 vi.mock('@playwright/test', () => ({
 	expect: playwrightExpectMock
-}));
-
-vi.mock('../../tests/fixtures/legal_page_contract', () => ({
-	SHARED_LEGAL_PAGE_CONTRACT: [
-		{ kind: 'banner-badge', label: bannerLabel, companionText },
-		{ kind: 'text', text: effectiveDateText },
-		{ kind: 'link', name: homeLinkName, href: homeLinkHref },
-		{ kind: 'link', name: supportLinkName, href: supportLinkHref },
-		{ kind: 'text', text: entityText }
-	] as const
 }));
 
 import { assertSharedLegalPageContract } from '../../tests/fixtures/legal_page_playwright_helpers';
@@ -131,8 +113,8 @@ function createMockPage(html: string): Page {
 
 	const page: Partial<Page> = {
 		locator: (selector: string, options?: LocatorOptions) => {
-			const matches = Array.from(document.querySelectorAll<HTMLElement>(selector)).filter((element) =>
-				textMatches(element.textContent ?? '', options?.hasText)
+			const matches = Array.from(document.querySelectorAll<HTMLElement>(selector)).filter(
+				(element) => textMatches(element.textContent ?? '', options?.hasText)
 			);
 			return new MockLocator(matches) as unknown as ReturnType<Page['locator']>;
 		},
@@ -149,16 +131,18 @@ function createMockPage(html: string): Page {
 				return new MockLocator([]) as unknown as ReturnType<Page['getByRole']>;
 			}
 
-			const matches = Array.from(document.querySelectorAll<HTMLAnchorElement>('a')).filter((link) => {
-				const linkText = normalizeText(link.textContent ?? '');
-				if (options?.name === undefined) {
-					return true;
-				}
+			const matches = Array.from(document.querySelectorAll<HTMLAnchorElement>('a')).filter(
+				(link) => {
+					const linkText = normalizeText(link.textContent ?? '');
+					if (options?.name === undefined) {
+						return true;
+					}
 
-				return options.exact
-					? linkText === normalizeText(options.name)
-					: linkText.toLowerCase().includes(normalizeText(options.name).toLowerCase());
-			});
+					return options.exact
+						? linkText === normalizeText(options.name)
+						: linkText.toLowerCase().includes(normalizeText(options.name).toLowerCase());
+				}
+			);
 			return new MockLocator(matches) as unknown as ReturnType<Page['getByRole']>;
 		}
 	};
@@ -167,30 +151,26 @@ function createMockPage(html: string): Page {
 }
 
 function buildLegalPageHtml(options?: {
-	badge?: string;
-	companion?: string;
 	effectiveDate?: string;
 	entity?: string;
 	homeHref?: string;
 	supportHref?: string;
+	extraText?: string;
 }): string {
 	const {
-		badge = bannerLabel,
-		companion = companionText,
-		effectiveDate = effectiveDateText,
-		entity = entityText,
+		effectiveDate = LEGAL_EFFECTIVE_DATE_TEXT,
+		entity = LEGAL_ENTITY_NAME,
 		homeHref = homeLinkHref,
-		supportHref = supportLinkHref
+		supportHref = LEGAL_SUPPORT_MAILTO,
+		extraText
 	} = options ?? {};
 
 	return `
 		<a href="${homeHref}">${homeLinkName}</a>
-		<p>
-			<span>${badge}</span><span>${companion}</span>
-		</p>
 		<p>${effectiveDate}</p>
-		<a href="${supportHref}">${supportLinkName}</a>
+		<a href="${supportHref}">${SUPPORT_EMAIL}</a>
 		<p>${entity}</p>
+		${extraText ? `<p>${extraText}</p>` : ''}
 	`;
 }
 
@@ -209,36 +189,15 @@ beforeEach(() => {
 	}));
 });
 
-describe('assertSharedLegalPageContract banner badge semantics', () => {
-	it('fails when the banner badge only partially matches LEGAL_BADGE_LABEL', async () => {
-		const page = createMockPage(buildLegalPageHtml({ badge: `${bannerLabel} Preview` }));
+const forbiddenFinalizedCopyMarkers = SHARED_LEGAL_PAGE_CONTRACT.filter(
+	(check): check is { kind: 'absent-text'; text: string } => check.kind === 'absent-text'
+).map((check) => check.text);
 
-		await expect(assertSharedLegalPageContract(page)).rejects.toThrow();
-	});
-
+describe('assertSharedLegalPageContract finalized semantics', () => {
 	it('passes when every shared legal-page contract check matches exactly', async () => {
 		const page = createMockPage(buildLegalPageHtml());
 
 		await expect(assertSharedLegalPageContract(page)).resolves.toBeUndefined();
-	});
-
-	it('fails when companion text only contains the expected banner copy as a substring', async () => {
-		const page = createMockPage(
-			buildLegalPageHtml({ companion: `${companionText} (stale copy)` })
-		);
-
-		await expect(assertSharedLegalPageContract(page)).rejects.toThrow();
-	});
-
-	it('fails when companion text is nested instead of being a direct sibling span', async () => {
-		const page = createMockPage(`
-			<p>
-				<span>${bannerLabel}</span>
-				<strong><span>${companionText}</span></strong>
-			</p>
-		`);
-
-		await expect(assertSharedLegalPageContract(page)).rejects.toThrow();
 	});
 
 	it('fails when a required shared text check is missing', async () => {
@@ -248,8 +207,18 @@ describe('assertSharedLegalPageContract banner badge semantics', () => {
 	});
 
 	it('fails when a required legal support link has the wrong href', async () => {
-		const page = createMockPage(buildLegalPageHtml({ supportHref: 'mailto:support@flapjack.foo' }));
+		const page = createMockPage(
+			buildLegalPageHtml({ supportHref: 'mailto:support@flapjack.foo?subject=beta' })
+		);
 
 		await expect(assertSharedLegalPageContract(page)).rejects.toThrow();
 	});
+
+	it.each(forbiddenFinalizedCopyMarkers)(
+		'fails when prohibited finalized-copy marker "%s" is still present in page content',
+		async (marker) => {
+			const page = createMockPage(buildLegalPageHtml({ extraText: marker }));
+			await expect(assertSharedLegalPageContract(page)).rejects.toThrow();
+		}
+	);
 });

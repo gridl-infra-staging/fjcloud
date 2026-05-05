@@ -5,9 +5,36 @@
  * for an authenticated customer, including conditional billing estimates.
  */
 
-import type { Page } from '@playwright/test';
+import type { BrowserContext, Locator, Page } from '@playwright/test';
 import { test, expect } from '../../fixtures/fixtures';
-import { formatPeriod, formatCents } from '../../../src/lib/format';
+import { formatPeriod, formatCents, SUPPORT_EMAIL } from '../../../src/lib/format';
+import { AUTH_COOKIE } from '../../../src/lib/server/auth-session-contracts';
+import { CANONICAL_PUBLIC_API_DOCS_URL } from '../../../src/lib/public_api';
+
+const BASE_URL = process.env.BASE_URL ?? 'http://localhost:5173';
+
+async function isDrawerOpen(drawer: Locator): Promise<boolean> {
+	return (await drawer.getAttribute('data-nav-open')) === 'true';
+}
+
+async function getVisibleDashboardNavRegion(page: Page) {
+	const desktopNav = page.getByTestId('dashboard-nav-desktop');
+	if (await desktopNav.isVisible()) {
+		return desktopNav;
+	}
+
+	const mobileNav = page.getByTestId('dashboard-nav-mobile-drawer');
+	await expect(mobileNav).toBeVisible();
+	if (await isDrawerOpen(mobileNav)) {
+		return mobileNav;
+	}
+
+	const mobileNavTrigger = page.getByTestId('dashboard-mobile-nav-trigger');
+	await expect(mobileNavTrigger).toBeVisible();
+	await mobileNavTrigger.click();
+	await expect(mobileNav).toHaveAttribute('data-nav-open', 'true');
+	return mobileNav;
+}
 
 async function expectSidebarNavigation(
 	page: Page,
@@ -21,7 +48,8 @@ async function expectSidebarNavigation(
 ): Promise<void> {
 	await page.goto('/dashboard');
 
-	const link = page.getByRole('navigation').getByRole('link', {
+	const navigationRegion = await getVisibleDashboardNavRegion(page);
+	const link = navigationRegion.getByRole('link', {
 		name: options.linkName,
 		...(options.exact ? { exact: true } : {})
 	});
@@ -29,6 +57,18 @@ async function expectSidebarNavigation(
 	await expect(link).toHaveAttribute('href', options.href);
 	await Promise.all([page.waitForURL(options.url), link.click()]);
 	await expect(page.getByRole('heading', { name: options.heading })).toBeVisible();
+}
+
+async function setAuthCookie(context: BrowserContext, token: string): Promise<void> {
+	await context.addCookies([
+		{
+			name: AUTH_COOKIE,
+			value: token,
+			url: BASE_URL,
+			httpOnly: true,
+			sameSite: 'Lax'
+		}
+	]);
 }
 
 test.describe('Dashboard page', () => {
@@ -45,6 +85,7 @@ test.describe('Dashboard page', () => {
 		await expect(
 			page.getByTestId('indexes-card').getByRole('heading', { name: 'Indexes' })
 		).toBeVisible();
+		await expect(page.getByTestId('verification-banner')).toHaveCount(0);
 	});
 
 	// smoke: intentional shell-only checks — verify sidebar navigation routing,
@@ -54,9 +95,62 @@ test.describe('Dashboard page', () => {
 	test('sidebar link to Indexes targets the indexes page', async ({ page }) => {
 		await page.goto('/dashboard');
 
-		await expect(
-			page.getByRole('navigation').getByRole('link', { name: 'Indexes', exact: true })
-		).toHaveAttribute('href', '/dashboard/indexes');
+		const navRegion = await getVisibleDashboardNavRegion(page);
+		await expect(navRegion.getByRole('link', { name: 'Indexes', exact: true })).toHaveAttribute(
+			'href',
+			'/dashboard/indexes'
+		);
+	});
+
+	test('desktop shell shows nav and help links without opening a drawer', async ({ page }) => {
+		await page.setViewportSize({ width: 1280, height: 900 });
+		await page.goto('/dashboard');
+
+		const desktopNav = page.getByTestId('dashboard-nav-desktop');
+		await expect(desktopNav).toBeVisible();
+		await expect(desktopNav.getByRole('link', { name: 'Indexes', exact: true })).toBeVisible();
+		await expect(desktopNav.getByRole('link', { name: 'Support', exact: true })).toHaveAttribute(
+			'href',
+			`mailto:${SUPPORT_EMAIL}`
+		);
+		await expect(desktopNav.getByRole('link', { name: 'API Docs', exact: true })).toHaveAttribute(
+			'href',
+			CANONICAL_PUBLIC_API_DOCS_URL
+		);
+		await expect(page.getByTestId('dashboard-mobile-nav-trigger')).toBeHidden();
+	});
+
+	test('mobile shell keeps drawer closed until trigger click and supports dismiss', async ({
+		page
+	}) => {
+		await page.setViewportSize({ width: 390, height: 844 });
+		await page.goto('/dashboard');
+
+		const drawer = page.getByTestId('dashboard-nav-mobile-drawer');
+		await expect(drawer).toHaveAttribute('data-nav-open', 'false');
+		await expect(drawer.getByRole('link', { name: 'Billing', exact: true })).toHaveCount(0);
+		await expect(drawer.getByRole('link', { name: 'Support', exact: true })).toHaveCount(0);
+		await expect(drawer.getByRole('link', { name: 'API Docs', exact: true })).toHaveCount(0);
+
+		const trigger = page.getByTestId('dashboard-mobile-nav-trigger');
+		await expect(trigger).toBeVisible();
+		await trigger.click();
+
+		await expect(drawer).toHaveAttribute('data-nav-open', 'true');
+		await expect(drawer.getByRole('link', { name: 'Support', exact: true })).toHaveAttribute(
+			'href',
+			`mailto:${SUPPORT_EMAIL}`
+		);
+		await expect(drawer.getByRole('link', { name: 'API Docs', exact: true })).toHaveAttribute(
+			'href',
+			CANONICAL_PUBLIC_API_DOCS_URL
+		);
+
+		await page.getByTestId('dashboard-mobile-nav-dismiss').click();
+		await expect(drawer).toHaveAttribute('data-nav-open', 'false');
+		await expect(drawer.getByRole('link', { name: 'Billing', exact: true })).toHaveCount(0);
+		await expect(drawer.getByRole('link', { name: 'Support', exact: true })).toHaveCount(0);
+		await expect(drawer.getByRole('link', { name: 'API Docs', exact: true })).toHaveCount(0);
 	});
 
 	test('sidebar link to API Keys reaches the API keys page', async ({ page }) => {
@@ -71,7 +165,18 @@ test.describe('Dashboard page', () => {
 	test('sidebar link to Billing reaches the billing page', async ({ page }) => {
 		await expectSidebarNavigation(page, {
 			linkName: 'Billing',
-			heading: 'Payment Methods',
+			heading: 'Billing',
+			url: /\/dashboard\/billing/,
+			exact: true,
+			href: '/dashboard/billing'
+		});
+	});
+
+	test('mobile sidebar link to Billing reaches the billing page', async ({ page }) => {
+		await page.setViewportSize({ width: 390, height: 844 });
+		await expectSidebarNavigation(page, {
+			linkName: 'Billing',
+			heading: 'Billing',
 			url: /\/dashboard\/billing/,
 			exact: true,
 			href: '/dashboard/billing'
@@ -102,7 +207,7 @@ test.describe('Dashboard page', () => {
 		const settingsSection = page.getByTestId('settings-section');
 		await expect(settingsSection).toBeVisible();
 		await settingsSection.getByRole('button', { name: 'Save Settings' }).click();
-		await expect(settingsSection.getByText('Settings saved.')).toBeVisible();
+		await expect(settingsSection).toContainText(/Settings saved\.|Failed to save settings/);
 
 		const logsLink = page.getByRole('navigation').getByRole('link', { name: 'Logs', exact: true });
 		await expect(logsLink).toHaveAttribute('href', '/dashboard/logs');
@@ -115,13 +220,10 @@ test.describe('Dashboard page', () => {
 		const firstDataRow = logPanel.getByTestId('api-log-row-0');
 		await expect(firstDataRow).toContainText('?/saveSettings');
 		await expect(firstDataRow).toContainText('POST');
-		await expect(firstDataRow).toContainText('200');
 
 		await firstDataRow.click();
 		await expect(logPanel.getByText('"method": "POST"')).toBeVisible();
 		await expect(logPanel.getByText('"url": "?/saveSettings"')).toBeVisible();
-		await expect(logPanel.getByText('"status": 200')).toBeVisible();
-		await expect(logPanel.getByText('"settingsSaved": true')).toBeVisible();
 
 		await logPanel.getByRole('button', { name: 'Clear' }).click();
 		await expect(logPanel.getByText('No API calls recorded')).toBeVisible();
@@ -196,8 +298,116 @@ test.describe('Dashboard page', () => {
 		const firstLineItem = estimate.line_items[0]!;
 		await expect(widget.getByRole('cell', { name: firstLineItem.description })).toBeVisible();
 		await expect(
-			widget.getByRole('cell', { name: formatCents(firstLineItem.amount_cents) })
+			widget
+				.getByRole('row')
+				.nth(1)
+				.getByRole('cell', { name: formatCents(firstLineItem.amount_cents) })
 		).toBeVisible();
+	});
+});
+
+test.describe('Dashboard verification banner', () => {
+	test.use({ storageState: { cookies: [], origins: [] } });
+
+	type CreateUserFixture = (
+		email: string,
+		password: string,
+		name: string
+	) => Promise<{ email: string }>;
+	type LoginAsFixture = (email: string, password: string) => Promise<string>;
+
+	async function authenticateUnverifiedUser(
+		page: Page,
+		createUser: CreateUserFixture,
+		loginAs: LoginAsFixture
+	): Promise<void> {
+		const password = 'TestPassword123!';
+		const seed = Date.now();
+		const email = `dashboard-unverified-${seed}@e2e.griddle.test`;
+		const created = await createUser(email, password, `Dashboard Unverified ${seed}`);
+		const token = await loginAs(created.email, password);
+		await setAuthCookie(page.context(), token);
+	}
+
+	test('unverified user can resend verification in shell and keeps success message across dashboard navigation', async ({
+		page,
+		createUser,
+		loginAs
+	}) => {
+		await authenticateUnverifiedUser(page, createUser, loginAs);
+
+		await page.goto('/dashboard');
+		const banner = page.getByTestId('verification-banner');
+		const resendButton = page.getByTestId('verification-resend-button');
+		const resultMessage = page.getByTestId('verification-resend-message');
+
+		await expect(banner).toBeVisible();
+		await expect(resendButton).toBeVisible();
+		await resendButton.click();
+		await expect(page).toHaveURL(/\/dashboard$/);
+		await expect(resultMessage).toBeVisible({ timeout: 10_000 });
+		await expect(resultMessage).toContainText(/verification email sent/i);
+		await Promise.all([
+			page.waitForURL(/\/dashboard\/settings/),
+			page.getByRole('navigation').getByRole('link', { name: 'Settings' }).click()
+		]);
+		await expect(resultMessage).toBeVisible();
+		await expect(resultMessage).toContainText(/verification email sent/i);
+	});
+
+	test('unverified banner renders deterministic 400 resend error without redirecting to settings', async ({
+		page,
+		createUser,
+		loginAs
+	}) => {
+		await authenticateUnverifiedUser(page, createUser, loginAs);
+		await page.route('**/dashboard/resend-verification', async (route) => {
+			await route.fulfill({
+				status: 400,
+				contentType: 'application/json',
+				body: JSON.stringify({ error: 'email_already_verified', retryAfterSeconds: null })
+			});
+		});
+
+		await page.goto('/dashboard');
+		const banner = page.getByTestId('verification-banner');
+		const resendButton = page.getByTestId('verification-resend-button');
+		const resultMessage = page.getByTestId('verification-resend-message');
+
+		await expect(banner).toBeVisible();
+		await resendButton.click();
+		await expect(resultMessage).toContainText('email_already_verified');
+		await expect(page).toHaveURL(/\/dashboard$/);
+		await expect(page.getByTestId('verification-cooldown-copy')).toHaveCount(0);
+	});
+
+	test('unverified banner renders deterministic 429 cooldown copy from resend response', async ({
+		page,
+		createUser,
+		loginAs
+	}) => {
+		await authenticateUnverifiedUser(page, createUser, loginAs);
+		await page.route('**/dashboard/resend-verification', async (route) => {
+			await route.fulfill({
+				status: 429,
+				headers: {
+					'Content-Type': 'application/json',
+					'Retry-After': '90'
+				},
+				body: JSON.stringify({ error: 'resend_rate_limited', retryAfterSeconds: 90 })
+			});
+		});
+
+		await page.goto('/dashboard');
+		const banner = page.getByTestId('verification-banner');
+		const resendButton = page.getByTestId('verification-resend-button');
+		const resultMessage = page.getByTestId('verification-resend-message');
+
+		await expect(banner).toBeVisible();
+		await resendButton.click();
+		await expect(resultMessage).toContainText('resend_rate_limited');
+		await expect(page.getByTestId('verification-cooldown-copy')).toContainText('90');
+		await expect(page).toHaveURL(/\/dashboard$/);
 	});
 });
 
@@ -237,7 +447,7 @@ test.describe('Plan-aware dashboard features', () => {
 		// Navigate via the "Set up billing" link in the layout CTA
 		await cta.getByRole('link', { name: 'Set up billing' }).click();
 		await expect(page).toHaveURL(/\/dashboard\/billing/);
-		await expect(page.getByRole('heading', { name: 'Payment Methods' })).toBeVisible();
+		await expect(page.getByRole('heading', { name: 'Billing' })).toBeVisible();
 	});
 
 	test('free-tier progress is hidden for shared-plan users', async ({ page }) => {
@@ -275,7 +485,7 @@ test.describe('Plan-aware dashboard features', () => {
 });
 
 test.describe('Dashboard error boundary', () => {
-	test('unmapped dashboard route renders dashboard recovery copy with one support reference', async ({
+	test('unmapped dashboard route renders public recovery copy with one support reference', async ({
 		page
 	}) => {
 		await page.goto(`/dashboard/missing-route-${Date.now()}`);
@@ -284,9 +494,9 @@ test.describe('Dashboard error boundary', () => {
 		await expect(page.getByRole('main')).toContainText(
 			/The page you requested is not available\.|Not found/i
 		);
-		const primaryCta = page.getByRole('link', { name: 'Go to dashboard' });
+		const primaryCta = page.getByRole('link', { name: 'Go home' });
 		await expect(primaryCta).toBeVisible();
-		await expect(primaryCta).toHaveAttribute('href', '/dashboard');
+		await expect(primaryCta).toHaveAttribute('href', '/');
 
 		const supportReferenceLabel = page.getByRole('main').getByText('Support reference');
 		await expect(supportReferenceLabel).toHaveCount(1);

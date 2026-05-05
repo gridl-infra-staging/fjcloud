@@ -167,6 +167,7 @@ fn unknown_billing_plan_defaults_to_free_minimum_via_customer_enum() {
         email_verified_at: None,
         email_verify_token: None,
         email_verify_expires_at: None,
+        resend_verification_sent_at: None,
         password_reset_token: None,
         password_reset_expires_at: None,
         last_accessed_at: None,

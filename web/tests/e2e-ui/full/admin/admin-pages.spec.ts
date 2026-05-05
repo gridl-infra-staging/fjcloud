@@ -247,7 +247,11 @@ test.describe('Admin customer list truthfulness', () => {
 		const olderName = `${customerPrefix} Older`;
 		const newerName = `${customerPrefix} Newer`;
 
-		await createUser(`admin-sort-tie-older-${seed}@e2e.griddle.test`, 'TestPassword123!', olderName);
+		await createUser(
+			`admin-sort-tie-older-${seed}@e2e.griddle.test`,
+			'TestPassword123!',
+			olderName
+		);
 		// Ensure distinct created_at values for deterministic createdAtMs tie-break
 		// ordering. The createUser helper hits the API which writes created_at via
 		// PostgreSQL now() with second-resolution truncation in some code paths,
@@ -258,7 +262,11 @@ test.describe('Admin customer list truthfulness', () => {
 		// browser-testing standards' arrange/act distinction.
 		// eslint-disable-next-line playwright/no-wait-for-timeout, no-restricted-syntax -- arrange-phase wait, see comment above
 		await page.waitForTimeout(1_100);
-		await createUser(`admin-sort-tie-newer-${seed}@e2e.griddle.test`, 'TestPassword123!', newerName);
+		await createUser(
+			`admin-sort-tie-newer-${seed}@e2e.griddle.test`,
+			'TestPassword123!',
+			newerName
+		);
 
 		await navigateToAdminPage(page, '/admin/customers', 'Customer Management');
 		await page.getByTestId('customer-search').fill(customerPrefix);
@@ -277,9 +285,8 @@ test.describe('Admin customer list truthfulness', () => {
 		const sortedRows = await tableBody.getByRole('row').evaluateAll((rows) =>
 			rows.map((row) => ({
 				customerName: row.querySelector('a')?.textContent?.trim() ?? '',
-				billingHealth: row
-					.querySelector('[data-testid^="billing-health-badge-"]')
-					?.textContent?.trim() ?? ''
+				billingHealth:
+					row.querySelector('[data-testid^="billing-health-badge-"]')?.textContent?.trim() ?? ''
 			}))
 		);
 
@@ -341,9 +348,8 @@ test.describe('Admin customer list truthfulness', () => {
 		const sortedRows = await tableBody.getByRole('row').evaluateAll((rows) =>
 			rows.map((row) => ({
 				rowTestId: row.getAttribute('data-testid') ?? '',
-				billingHealth: row
-					.querySelector('[data-testid^="billing-health-badge-"]')
-					?.textContent?.trim() ?? ''
+				billingHealth:
+					row.querySelector('[data-testid^="billing-health-badge-"]')?.textContent?.trim() ?? ''
 			}))
 		);
 		expect(sortedRows.length).toBeGreaterThan(1);

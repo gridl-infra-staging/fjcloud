@@ -1,9 +1,8 @@
-import type { Page, Response } from '@playwright/test';
+import type { Page } from '@playwright/test';
 import { test, expect } from '../../fixtures/fixtures';
 import { AUTH_COOKIE } from '../../../src/lib/server/auth-session-contracts';
 
 const BASE_URL = process.env.BASE_URL ?? 'http://localhost:5173';
-const BILLING_PATH_PREFIX = '/dashboard/billing';
 const BASE_URL_PROTOCOL = new URL(BASE_URL).protocol;
 
 async function setAuthCookieForToken(page: Page, token: string): Promise<void> {
@@ -19,23 +18,8 @@ async function setAuthCookieForToken(page: Page, token: string): Promise<void> {
 	]);
 }
 
-function assertBillingReturnPath(urlCandidate: string): void {
-	const resolved = new URL(urlCandidate, BASE_URL);
-	expect(
-		resolved.pathname.startsWith(BILLING_PATH_PREFIX),
-		`Billing portal return path must resolve back to ${BILLING_PATH_PREFIX} (got: ${resolved.toString()})`
-	).toBe(true);
-}
-
-function readManageBillingRedirectLocation(response: Response | null): string | null {
-	if (response === null) {
-		return null;
-	}
-	return response.headers()['location'] ?? null;
-}
-
-test.describe('Billing portal payment-method update handoff', () => {
-	test('manage billing hands off to portal URL and resolves return path to billing', async ({
+test.describe('Billing in-app payment-method updates', () => {
+	test('updates default payment method in-app and keeps billing page stable', async ({
 		page,
 		arrangeBillingPortalCustomer
 	}) => {
@@ -44,104 +28,62 @@ test.describe('Billing portal payment-method update handoff', () => {
 
 		await setAuthCookieForToken(page, arrangedCustomer.token);
 		await page.goto('/dashboard/billing');
-		const manageBillingButton = page.getByRole('button', { name: 'Manage billing' });
-		await expect(manageBillingButton).toBeVisible();
+		await expect(page.getByRole('heading', { name: 'Billing' })).toBeVisible();
+		await expect(page.getByRole('heading', { name: 'Payment methods' })).toBeVisible();
+		await expect(page.getByRole('button', { name: 'Manage billing' })).toHaveCount(0);
 
-		const portalUrlPattern = /billing\.stripe\.com|\/local-billing-portal\//;
-		const manageBillingActionPath = '/dashboard/billing?/manageBilling';
-		const manageBillingActionResponsePromise = page
-			.waitForResponse(
-				(response) =>
-					response.request().method() === 'POST' &&
-					response.url().includes(manageBillingActionPath),
-				{ timeout: 30_000 }
-			)
-			.catch(() => null);
-
-		const [portalTransitionResult, manageBillingActionResponse] = await Promise.all([
-			Promise.race([
-				page
-					.waitForURL(portalUrlPattern, { timeout: 30_000 })
-					.then(() => ({ type: 'url' as const, url: page.url() })),
-				// The waitForEvent promise IS awaited through Promise.race(...) and Promise.all(...).
-				// eslint-disable-next-line playwright/missing-playwright-await -- awaited via outer Promise.race / Promise.all
-				page
-					.waitForEvent('requestfailed', {
-						timeout: 30_000,
-						predicate: (request) => portalUrlPattern.test(request.url())
-					})
-					.then((request) => ({ type: 'requestfailed' as const, url: request.url() }))
-			]).catch(() => null),
-			manageBillingActionResponsePromise,
-			manageBillingButton.click()
-		]);
-
-		const actionLocation = readManageBillingRedirectLocation(manageBillingActionResponse);
-		const portalTransition =
-			portalTransitionResult ??
-			(actionLocation !== null && portalUrlPattern.test(actionLocation)
-				? { type: 'action-response' as const, url: actionLocation }
-				: null);
-
-		expect(
-			portalTransition !== null,
-			`Manage billing did not redirect to a recognized billing portal URL (url=${page.url()})`
-		).toBe(true);
-		expect(portalTransition).not.toBeNull();
-
-		const portalUrl = portalTransition!.url;
-		expect(
-			portalUrlPattern.test(portalUrl),
-			`Portal redirect must match Stripe-hosted or local mock contract (got: ${portalUrl})`
-		).toBe(true);
-
-		if (portalTransition!.type === 'requestfailed') {
-			expect(
-				/\/local-billing-portal\//.test(portalUrl),
-				`Only local Stripe portal redirects may be unreachable in local-dev lanes (got: ${portalUrl})`
-			).toBe(true);
-		}
-
-		if (actionLocation !== null) {
-			const actionLocationUrl = new URL(actionLocation, BASE_URL);
-			const actionReturnUrl = actionLocationUrl.searchParams.get('return_url');
-			if (actionReturnUrl !== null) {
-				assertBillingReturnPath(actionReturnUrl);
-			}
-		}
-
-		if (/\/local-billing-portal\//.test(portalUrl)) {
-			expect(
-				/^http:\/\/localhost:3000\/local-billing-portal\/[^/]+$/.test(portalUrl),
-				`Local Stripe portal redirect did not match expected contract URL shape (got: ${portalUrl})`
-			).toBe(true);
+		if (arrangedCustomer.stripeCustomerId.startsWith('cus_local_')) {
 			test.skip(
 				true,
-				'Local Stripe mode validates portal handoff and return-url contract; hosted portal return navigation is not available in this lane.'
+				'Local Stripe mode does not expose Stripe-hosted payment-method fixtures; in-app default-switch proof requires Stripe test-mode customer state.'
 			);
 		}
 
-		let returnedToBilling = await page
-			.waitForURL(/\/dashboard\/billing/, { timeout: 20_000 })
-			.then(() => true)
-			.catch(() => false);
+		await expect(page.getByTestId('payment-element')).toBeVisible();
+		await expect(page.getByRole('button', { name: 'Save payment method' })).toBeVisible();
 
-		if (!returnedToBilling) {
-			const returnToAppLink = page.getByRole('link', {
-				name: /return|back to|billing|flapjack/i
-			});
-			expect(
-				await returnToAppLink.count(),
-				'Stripe portal did not expose a return-to-billing path'
-			).toBeGreaterThan(0);
-			await Promise.all([
-				page.waitForURL(/\/dashboard\/billing/, { timeout: 30_000 }),
-				returnToAppLink.first().click()
-			]);
-			returnedToBilling = true;
-		}
+		const setDefaultActionRequest = page.waitForRequest(
+			(request) =>
+				request.method() === 'POST' &&
+				request.url().includes('/dashboard/billing?/setDefaultPaymentMethod'),
+			{ timeout: 30_000 }
+		);
+		const setDefaultActionResponse = page.waitForResponse(
+			(response) =>
+				response.request().method() === 'POST' &&
+				response.url().includes('/dashboard/billing?/setDefaultPaymentMethod') &&
+				response.ok(),
+			{ timeout: 30_000 }
+		);
+		const targetDefaultForm = page.getByTestId(
+			`set-default-form-${arrangedCustomer.nonDefaultPaymentMethodId}`
+		);
+		await expect(targetDefaultForm).toHaveCount(1);
 
-		expect(returnedToBilling).toBe(true);
+		await Promise.all([
+			setDefaultActionRequest,
+			setDefaultActionResponse,
+			targetDefaultForm.getByRole('button', { name: 'Set as default' }).click()
+		]);
+
+		// Server-owned backend contract coverage lives in billing.server.test.ts
+		// because `/billing/*` calls are made by `+page.server.ts`, not by the browser.
+
+		const actionRequest = await setDefaultActionRequest;
+		const requestBody = actionRequest.postData() ?? '';
+		expect(requestBody).toContain(
+			`paymentMethodId=${encodeURIComponent(arrangedCustomer.nonDefaultPaymentMethodId)}`
+		);
+
 		await expect(page).toHaveURL(/\/dashboard\/billing/);
+		await expect(page.getByRole('heading', { name: 'Billing' })).toBeVisible();
+		await expect(page.getByRole('heading', { name: 'Payment methods' })).toBeVisible();
+		await expect(page.getByTestId('payment-element')).toBeVisible();
+		await expect(
+			page.getByTestId(
+				`set-default-payment-method-id-${arrangedCustomer.nonDefaultPaymentMethodId}`
+			)
+		).toHaveCount(0);
+		await expect(page.getByText('Default', { exact: true })).toHaveCount(1);
 	});
 });

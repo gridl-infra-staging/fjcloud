@@ -66,10 +66,7 @@ describe('Status contract', () => {
 		[{ status: 'outage' }, 'missing lastUpdated'],
 		[{ status: 'unknown', lastUpdated: '2026-02-21T15:00:00Z' }, 'unknown status'],
 		[{ status: 'outage', lastUpdated: 1700 }, 'non-string lastUpdated'],
-		[
-			{ status: 'outage', lastUpdated: '2026-02-21T15:00:00Z', message: 123 },
-			'non-string message'
-		],
+		[{ status: 'outage', lastUpdated: '2026-02-21T15:00:00Z', message: 123 }, 'non-string message'],
 		['not-an-object', 'non-object payload']
 	] as const)('rejects malformed runtime payloads (%s)', (payload, caseLabel) => {
 		expect(caseLabel.length).toBeGreaterThan(0);
@@ -352,32 +349,35 @@ describe('Status page', () => {
 				} as unknown as Response),
 			'Runtime incident message.'
 		]
-	] as const)('keeps fallback UI when hydration fails due %s', async (_caseLabel, fetchResultFactory, runtimeMessage) => {
-		const fallbackMessage = 'Fallback incident message.';
-		setStatusPageLocation('https://cloud.flapjack.foo/status');
-		const fetchMock = vi.fn(fetchResultFactory);
-		vi.stubGlobal('fetch', fetchMock);
-		const StatusPage = (await import('./+page.svelte')).default;
+	] as const)(
+		'keeps fallback UI when hydration fails due %s',
+		async (_caseLabel, fetchResultFactory, runtimeMessage) => {
+			const fallbackMessage = 'Fallback incident message.';
+			setStatusPageLocation('https://cloud.flapjack.foo/status');
+			const fetchMock = vi.fn(fetchResultFactory);
+			vi.stubGlobal('fetch', fetchMock);
+			const StatusPage = (await import('./+page.svelte')).default;
 
-		render(StatusPage, {
-			data: {
-				status: 'operational',
-				statusLabel: statusLabelForServiceStatus('operational'),
-				lastUpdated: '2025-06-01T12:00:00.000Z',
-				message: fallbackMessage
-			}
-		});
+			render(StatusPage, {
+				data: {
+					status: 'operational',
+					statusLabel: statusLabelForServiceStatus('operational'),
+					lastUpdated: '2025-06-01T12:00:00.000Z',
+					message: fallbackMessage
+				}
+			});
 
-		await waitFor(() => {
-			expect(fetchMock).toHaveBeenCalledTimes(1);
-		});
-		expect(screen.getByText('All Systems Operational')).toBeInTheDocument();
-		expect(screen.queryByText('Major Outage')).not.toBeInTheDocument();
-		expect(screen.queryByText('Degraded Performance')).not.toBeInTheDocument();
-		expect(screen.getByTestId('status-last-updated').textContent).toContain('2025');
-		expect(screen.getByText(fallbackMessage)).toBeInTheDocument();
-		expect(screen.queryByText(runtimeMessage)).not.toBeInTheDocument();
-	});
+			await waitFor(() => {
+				expect(fetchMock).toHaveBeenCalledTimes(1);
+			});
+			expect(screen.getByText('All Systems Operational')).toBeInTheDocument();
+			expect(screen.queryByText('Major Outage')).not.toBeInTheDocument();
+			expect(screen.queryByText('Degraded Performance')).not.toBeInTheDocument();
+			expect(screen.getByTestId('status-last-updated').textContent).toContain('2025');
+			expect(screen.getByText(fallbackMessage)).toBeInTheDocument();
+			expect(screen.queryByText(runtimeMessage)).not.toBeInTheDocument();
+		}
+	);
 });
 
 describe('Status page server load', () => {

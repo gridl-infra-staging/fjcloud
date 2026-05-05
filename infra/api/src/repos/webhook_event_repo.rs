@@ -16,15 +16,15 @@ pub struct WebhookEventRow {
 }
 
 /// Stripe webhook idempotency repository: try-insert records an event and
-/// returns whether it should be processed; mark-processed prevents
-/// redelivery on subsequent webhook retries.
+/// returns whether the current caller won first insert; mark-processed records
+/// successful completion for persisted event state.
 #[async_trait]
 pub trait WebhookEventRepo {
-    /// Record a webhook event if needed and return whether it should be processed.
+    /// Record a webhook event if needed and return whether this caller won insert.
     ///
     /// Returns:
-    /// - `true` for a new event, or an event previously recorded but not marked processed
-    /// - `false` for an event already marked processed
+    /// - `true` when this call inserted a new row for `stripe_event_id`
+    /// - `false` when `stripe_event_id` already existed, including unprocessed rows
     async fn try_insert(
         &self,
         stripe_event_id: &str,

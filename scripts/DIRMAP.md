@@ -98,6 +98,7 @@ cold-storage, and HA proof-owner scripts in strict order.
 Does NOT duplicate proof-owner internals — only calls the three scripts
 and interprets exit codes/output. |
 | local_demo.sh | One-command local demo launcher: infra + API + web + seed data + metering. |
+| playwright_local_stack.sh | playwright_local_stack.sh — Start local API + web for Playwright runs. |
 | probe_alert_delivery.sh | Stub summary for probe_alert_delivery.sh. |
 | probe_deployed_signup_renders.sh | Stub summary for probe_deployed_signup_renders.sh. |
 | probe_ses_bounce_complaint_e2e.sh | Stub summary for probe_ses_bounce_complaint_e2e.sh. |
@@ -139,10 +140,11 @@ usage_records to Postgres. |
 | --- | --- |
 | canary | The canary directory contains synthetic monitoring and health check scripts that validate system availability and external connectivity—including customer loop simulation, AWS-external health probes, and email deliverability verification. |
 | chaos | The chaos directory contains failure-injection and HA resilience test scripts that validate the system's ability to detect outages, trigger failover, and recover—including region kill/restart tests, metering service failure detection, and end-to-end failover proofs. |
-| launch | The launch directory contains shell scripts that orchestrate staging deployment verification and end-to-end testing, including environment hydration from AWS SSM, tenant configuration verification, synthetic traffic generation, and evidence capture for billing and backend validation. |
+| launch | The launch directory contains staging deployment and validation scripts, including tools for synthetic traffic generation, evidence capture, environment hydration from AWS SSM, and remote command execution against the staging API infrastructure. |
 | lib | Shared bash utilities providing reusable helpers for infrastructure validation (health checks, metering, Stripe), alert dispatch, environment parsing, billing rehearsal workflows, and deployment operations used across integration tests and shell scripts. |
 | load | The load directory contains regression checking utilities for validating load testing performance, including scripts that compare offline and live load harness results to detect performance regressions. |
 | reliability | The reliability directory contains shell scripts for backend capacity profiling, security validation, and reliability gating that generate performance metrics across document tiers. |
 | stripe | The stripe directory contains operational scripts for managing Stripe integration with fjcloud: configuring the Customer Portal and creating the canonical Flapjack product catalog, both supporting multi-account operations. |
 | tests | The tests directory contains shell-based integration test suites for ops-layer validation, including smoke tests for customer broadcast functionality and SES bounce/complaint probes, alongside a comprehensive lib/ of shared testing utilities, assertion helpers, and specialized harnesses for billing rehearsal, budget validation, and chaos testing scenarios. |
+| vlm | The vlm directory contains Vision Language Model judge operations, including scripts to run and aggregate verdict bundles and shell utility libraries for environment configuration and prompt generation in the VLM judging system. |
 <!-- [scrai:end] -->

@@ -1,0 +1,9 @@
+{
+  "attempt_timestamp_utc": "20260505T000846Z",
+  "summary_nonce": "probe-20260505T000847Z-12763",
+  "probe_output_committable": "docs/runbooks/operator-readiness/alert_wake_test/20260505T000846Z_probe_output.txt",
+  "ssm_parameter": {
+    "Version": 4,
+    "LastModifiedDate": "2026-04-28T17:34:13.622000-04:00"
+}
+}

@@ -465,6 +465,37 @@ test_fail_fast_flag() {
     assert_eq "$ran_fewer" "yes" "checks_run ($checks_run) should be < 6 (fail-fast stopped early)"
 }
 
+test_staging_only_flag_soft_skips_commerce_checks() {
+    # Staging-only should force BACKEND_LIVE_GATE=0 for commerce checks and
+    # report explicit skip metadata without dry-run wording.
+    local mock_dir
+    mock_dir="$(mktemp -d)"
+    setup_mock_cargo "$mock_dir" pass
+
+    local stdout exit_code
+    stdout="$(PATH="$mock_dir:$PATH" bash -c "
+        export BACKEND_LIVE_GATE=1
+        export __LIVE_BACKEND_GATE_SOURCED=1
+        unset STRIPE_SECRET_KEY STRIPE_TEST_SECRET_KEY STRIPE_WEBHOOK_SECRET DATABASE_URL INTEGRATION_DB_URL
+        source '$GATE_SCRIPT'
+        run_gate --skip-rust-tests --staging-only
+    " 2>/dev/null)" || exit_code=$?
+
+    local checks_skipped stripe_status stripe_reason
+    checks_skipped="$(json_field "$stdout" checks_skipped)"
+    stripe_status="$(check_result_field "$stdout" "check_stripe_key_present" "status")"
+    stripe_reason="$(check_result_field "$stdout" "check_stripe_key_present" "reason")"
+
+    rm -rf "$mock_dir"
+
+    assert_eq "${exit_code:-0}" "0" "staging-only run should pass with soft-skipped commerce preconditions"
+    assert_eq "$(json_field "$stdout" passed)" "true" "staging-only run should report passed=true"
+    assert_eq "$stripe_status" "skipped" "staging-only run should record skipped stripe checks"
+    assert_contains "$stripe_reason" "STRIPE_SECRET_KEY" "staging-only skip reason should preserve helper-owned precondition text"
+    assert_not_contains "$stripe_reason" "dry_run" "staging-only skip metadata should not reuse dry-run wording"
+    assert_eq "$checks_skipped" "7" "staging-only + --skip-rust-tests should skip all seven checks in commerce mode"
+}
+
 # ============================================================================
 # Stage 1: Silent-skip detection in launch mode
 # ============================================================================
@@ -1534,6 +1565,7 @@ echo ""
 echo "--- optional flags ---"
 test_skip_rust_tests_flag
 test_fail_fast_flag
+test_staging_only_flag_soft_skips_commerce_checks
 echo ""
 echo "--- Stage 1: silent-skip detection ---"
 test_skip_rust_tests_surfaces_skip_in_json

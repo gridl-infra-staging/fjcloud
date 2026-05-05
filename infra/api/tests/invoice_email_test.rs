@@ -212,21 +212,28 @@ async fn finalize_invoice_sends_email() {
     assert_eq!(sent_emails.len(), 1);
     assert_eq!(sent_emails[0].to, customer.email);
     assert!(
-        sent_emails[0].body.contains(&invoice.id.to_string()),
+        sent_emails[0].html_body.contains(&invoice.id.to_string()),
         "invoice ID should be present in email body"
     );
     assert!(
         sent_emails[0]
-            .body
+            .html_body
             .contains("https://invoice.stripe.com/mock"),
         "hosted invoice URL should be present in email body"
     );
     assert!(
         sent_emails[0]
-            .body
+            .html_body
             .contains("https://invoice.stripe.com/mock/pdf"),
         "PDF invoice URL should be present in email body"
     );
+    assert!(sent_emails[0].text_body.contains(&invoice.id.to_string()));
+    assert!(sent_emails[0]
+        .text_body
+        .contains("https://invoice.stripe.com/mock"));
+    assert!(sent_emails[0]
+        .text_body
+        .contains("https://invoice.stripe.com/mock/pdf"));
 }
 
 #[tokio::test]
@@ -360,12 +367,20 @@ async fn batch_billing_sends_emails() {
         (email_b, invoice_b.id.to_string()),
     ] {
         assert!(
-            email.body.contains(&invoice_id),
+            email.html_body.contains(&invoice_id),
             "invoice ID should be present in invoice-ready email"
         );
         assert!(
-            email.body.contains("https://invoice.stripe.com/mock"),
+            email.html_body.contains("https://invoice.stripe.com/mock"),
             "hosted invoice URL should be present in invoice-ready email"
+        );
+        assert!(
+            email.text_body.contains(&invoice_id),
+            "invoice ID should be present in invoice-ready text body"
+        );
+        assert!(
+            email.text_body.contains("https://invoice.stripe.com/mock"),
+            "hosted invoice URL should be present in invoice-ready text body"
         );
     }
 }

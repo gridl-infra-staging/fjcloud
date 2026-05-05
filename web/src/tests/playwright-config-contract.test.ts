@@ -268,6 +268,12 @@ describe('playwright config contract', () => {
 		expect(runtime.webServerEnv.JWT_SECRET).toBe('fallback-jwt');
 	});
 
+	it('uses the local stack launcher command so setup:user has API availability without manual startup', () => {
+		expect(PLAYWRIGHT_WEB_SERVER_COMMAND).toBe(
+			'../scripts/playwright_local_stack.sh --host 127.0.0.1 --port 5173 --strictPort'
+		);
+	});
+
 	it('resolvePlaywrightRuntime prefers web ADMIN_KEY then repo then process ADMIN_KEY', () => {
 		const cases = [
 			{
@@ -722,7 +728,7 @@ describe('playwright config contract', () => {
 		});
 	});
 
-		describe('Stage 6 signup fixture cleanup wiring', () => {
+	describe('Stage 6 signup fixture cleanup wiring', () => {
 		it('arrangePaidInvoiceForFreshSignup fixture threads _trackCustomerForCleanup', () => {
 			const fixtureSource = readFileSync(join(process.cwd(), 'tests/fixtures/fixtures.ts'), 'utf8');
 			expect(fixtureSource).toMatch(
@@ -759,47 +765,46 @@ describe('playwright config contract', () => {
 			expect(resultContractBlock).not.toMatch(/\bcancelAtPeriodEnd\b/);
 			expect(resultContractBlock).toMatch(/\bstripeCustomerId:\s*string;/);
 			expect(resultContractBlock).toMatch(/\bdefaultPaymentMethodId:\s*string;/);
+			expect(resultContractBlock).toMatch(/\bnonDefaultPaymentMethodId:\s*string;/);
 		});
 
-			it('routes fallback verification lookup through findVerificationTokenViaStagingSsm only', () => {
-				const fixtureSource = readFileSync(join(process.cwd(), 'tests/fixtures/fixtures.ts'), 'utf8');
-				expect(fixtureSource).toMatch(
-					/import\s*\{\s*findVerificationTokenViaStagingSsm\s*\}\s*from\s*['"]\.\/staging_db_lookup['"]/
-				);
-				expect(fixtureSource).toMatch(/return\s+findVerificationTokenViaStagingSsm\(email\)/);
-				expect(fixtureSource).not.toMatch(/SELECT\s+email_verify_token/i);
-				expect(fixtureSource).not.toMatch(/\bpsql\s*"\$DATABASE_URL"/);
-				expect(fixtureSource).not.toMatch(/\bspawnSync\b/);
-			});
-
-			it('URL-encodes Mailpit search queries before calling the API', () => {
-				const fixtureSource = readFileSync(join(process.cwd(), 'tests/fixtures/fixtures.ts'), 'utf8');
-				expect(fixtureSource).toMatch(
-					/\/api\/v1\/search\?query=\$\{encodeURIComponent\(query\)\}/
-				);
-			});
-
-			it('redacts verification tokens and bearer tokens from setup diagnostics', () => {
-				const failureMessage = formatFixtureSetupFailure({
-					setupName: 'fixture security',
-					expectedPath: '/verify-email/{token}',
-					currentPath: '/verify-email/abc123?token=secret-token',
-					apiUrl: 'http://127.0.0.1:3000',
-					adminKey: 'admin-key',
-					alertText: 'Bearer sensitive.jwt.token /verify-email/def456?code=code-secret',
-					responseUrl: 'http://127.0.0.1:3000/verify-email/ghi789?key=response-secret'
-				});
-				expect(failureMessage).toContain('/verify-email/[REDACTED]');
-				expect(failureMessage).toContain('token=[REDACTED]');
-				expect(failureMessage).toContain('code=[REDACTED]');
-				expect(failureMessage).toContain('key=[REDACTED]');
-				expect(failureMessage).toContain('Bearer [REDACTED]');
-				expect(failureMessage).not.toContain('abc123');
-				expect(failureMessage).not.toContain('def456');
-				expect(failureMessage).not.toContain('ghi789');
-				expect(failureMessage).not.toContain('sensitive.jwt.token');
-			});
+		it('routes fallback verification lookup through findVerificationTokenViaStagingSsm only', () => {
+			const fixtureSource = readFileSync(join(process.cwd(), 'tests/fixtures/fixtures.ts'), 'utf8');
+			expect(fixtureSource).toMatch(
+				/import\s*\{\s*findVerificationTokenViaStagingSsm\s*\}\s*from\s*['"]\.\/staging_db_lookup['"]/
+			);
+			expect(fixtureSource).toMatch(/return\s+findVerificationTokenViaStagingSsm\(email\)/);
+			expect(fixtureSource).not.toMatch(/SELECT\s+email_verify_token/i);
+			expect(fixtureSource).not.toMatch(/\bpsql\s*"\$DATABASE_URL"/);
+			expect(fixtureSource).not.toMatch(/\bspawnSync\b/);
 		});
+
+		it('URL-encodes Mailpit search queries before calling the API', () => {
+			const fixtureSource = readFileSync(join(process.cwd(), 'tests/fixtures/fixtures.ts'), 'utf8');
+			expect(fixtureSource).toMatch(/\/api\/v1\/search\?query=\$\{encodeURIComponent\(query\)\}/);
+		});
+
+		it('redacts verification tokens and bearer tokens from setup diagnostics', () => {
+			const failureMessage = formatFixtureSetupFailure({
+				setupName: 'fixture security',
+				expectedPath: '/verify-email/{token}',
+				currentPath: '/verify-email/abc123?token=secret-token',
+				apiUrl: 'http://127.0.0.1:3000',
+				adminKey: 'admin-key',
+				alertText: 'Bearer sensitive.jwt.token /verify-email/def456?code=code-secret',
+				responseUrl: 'http://127.0.0.1:3000/verify-email/ghi789?key=response-secret'
+			});
+			expect(failureMessage).toContain('/verify-email/[REDACTED]');
+			expect(failureMessage).toContain('token=[REDACTED]');
+			expect(failureMessage).toContain('code=[REDACTED]');
+			expect(failureMessage).toContain('key=[REDACTED]');
+			expect(failureMessage).toContain('Bearer [REDACTED]');
+			expect(failureMessage).not.toContain('abc123');
+			expect(failureMessage).not.toContain('def456');
+			expect(failureMessage).not.toContain('ghi789');
+			expect(failureMessage).not.toContain('sensitive.jwt.token');
+		});
+	});
 
 	describe('applyPlaywrightProcessEnvDefaults + resolvePlaywrightRuntime admin key consistency', () => {
 		it('sets E2E_ADMIN_KEY to DEFAULT_PLAYWRIGHT_ADMIN_KEY when all env sources are empty so fixtures match the web server', () => {
@@ -889,7 +894,7 @@ describe('playwright config contract', () => {
 	// BOTH an explicit env opt-in (PLAYWRIGHT_TARGET_REMOTE=1) AND a hostname
 	// match against the staging-only allowlist. If either condition is missing,
 	// the original loopback-only behavior must be preserved exactly.
-		describe('remote-target opt-in (LB-2/LB-3)', () => {
+	describe('remote-target opt-in (LB-2/LB-3)', () => {
 		it('exports a stable opt-in env var name and a non-empty host suffix allowlist', () => {
 			expect(REMOTE_TARGET_OPT_IN_ENV).toBe('PLAYWRIGHT_TARGET_REMOTE');
 			expect(Array.isArray(REMOTE_TARGET_HOST_SUFFIX_ALLOWLIST)).toBe(true);
@@ -901,9 +906,9 @@ describe('playwright config contract', () => {
 
 		describe('requireLoopbackHttpUrl with explicit processEnv arg', () => {
 			it('still rejects non-loopback URLs when opt-in env is unset (default behavior unchanged)', () => {
-				expect(() =>
-					requireLoopbackHttpUrl('API_URL', 'https://api.flapjack.foo', {})
-				).toThrow(/must use a local loopback host/);
+				expect(() => requireLoopbackHttpUrl('API_URL', 'https://api.flapjack.foo', {})).toThrow(
+					/must use a local loopback host/
+				);
 			});
 
 			it('still rejects non-loopback URLs when opt-in env is set but host is NOT on the allowlist', () => {
@@ -915,9 +920,9 @@ describe('playwright config contract', () => {
 			});
 
 			it('rejects non-loopback URLs when host matches allowlist but opt-in env is missing', () => {
-				expect(() =>
-					requireLoopbackHttpUrl('API_URL', 'https://api.flapjack.foo', {})
-				).toThrow(/must use a local loopback host/);
+				expect(() => requireLoopbackHttpUrl('API_URL', 'https://api.flapjack.foo', {})).toThrow(
+					/must use a local loopback host/
+				);
 			});
 
 			it('rejects opt-in flag values other than the literal "1" to prevent ambiguity', () => {
@@ -962,7 +967,7 @@ describe('playwright config contract', () => {
 			});
 		});
 
-			describe('resolvePlaywrightRuntime with remote-target opt-in', () => {
+		describe('resolvePlaywrightRuntime with remote-target opt-in', () => {
 			it('accepts staging BASE_URL + API_BASE_URL when opt-in is set on processEnv', () => {
 				const runtime = resolvePlaywrightRuntime({
 					processEnv: {
@@ -995,9 +1000,7 @@ describe('playwright config contract', () => {
 				);
 				expect(launcherSource).toMatch(/validate_hydrated_export_line\(\)/);
 				expect(launcherSource).toMatch(/hydrate_staging_env_from_ssm\(\)/);
-				expect(launcherSource).not.toMatch(
-					/eval\s+"\$\(bash .*hydrate_seeder_env_from_ssm\.sh/
-				);
+				expect(launcherSource).not.toMatch(/eval\s+"\$\(bash .*hydrate_seeder_env_from_ssm\.sh/);
 			});
 
 			it('still rejects staging BASE_URL when opt-in env is missing (regression guard)', () => {
@@ -1024,9 +1027,9 @@ describe('playwright config contract', () => {
 			});
 
 			it('still rejects staging API_URL when opt-in env is missing (regression guard)', () => {
-				expect(() =>
-					resolveFixtureEnv({ API_URL: 'https://api.flapjack.foo' })
-				).toThrow(/must use a local loopback host/);
+				expect(() => resolveFixtureEnv({ API_URL: 'https://api.flapjack.foo' })).toThrow(
+					/must use a local loopback host/
+				);
 			});
 		});
 	});

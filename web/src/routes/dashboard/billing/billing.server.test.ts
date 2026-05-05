@@ -2,12 +2,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ApiRequestError } from '$lib/api/client';
 
 const getPaymentMethodsMock = vi.fn();
-const createBillingPortalSessionMock = vi.fn();
+const createSetupIntentMock = vi.fn();
+const setDefaultPaymentMethodMock = vi.fn();
 
 vi.mock('$lib/server/api', () => ({
 	createApiClient: vi.fn(() => ({
 		getPaymentMethods: getPaymentMethodsMock,
-		createBillingPortalSession: createBillingPortalSessionMock
+		createSetupIntent: createSetupIntentMock,
+		setDefaultPaymentMethod: setDefaultPaymentMethodMock
 	}))
 }));
 
@@ -24,19 +26,42 @@ describe('Billing page server load', () => {
 		vi.clearAllMocks();
 	});
 
-	it('returns billingUnavailable false when payment methods API is available', async () => {
-		getPaymentMethodsMock.mockResolvedValue([]);
+	it('returns payment methods and setup intent data when billing APIs are available', async () => {
+		getPaymentMethodsMock.mockResolvedValue([
+			{
+				id: 'pm_default',
+				card_brand: 'visa',
+				last4: '4242',
+				exp_month: 12,
+				exp_year: 2030,
+				is_default: true
+			}
+		]);
+		createSetupIntentMock.mockResolvedValue({ client_secret: 'seti_secret_123' });
 
 		const result = await load({
 			locals: { user: { token: 'jwt-token' } }
 		} as never);
 
 		expect(result).toEqual({
-			billingUnavailable: false
+			billingUnavailable: false,
+			paymentMethods: [
+				{
+					id: 'pm_default',
+					card_brand: 'visa',
+					last4: '4242',
+					exp_month: 12,
+					exp_year: 2030,
+					is_default: true
+				}
+			],
+			setupIntentClientSecret: 'seti_secret_123',
+			setupIntentError: null
 		});
+		expect(createSetupIntentMock).toHaveBeenCalledTimes(1);
 	});
 
-	it('returns billingUnavailable when API responds with service_not_configured', async () => {
+	it('returns billingUnavailable for service_not_configured from payment methods', async () => {
 		getPaymentMethodsMock.mockRejectedValue(new ApiRequestError(503, 'service_not_configured'));
 
 		const result = await load({
@@ -44,11 +69,15 @@ describe('Billing page server load', () => {
 		} as never);
 
 		expect(result).toEqual({
-			billingUnavailable: true
+			billingUnavailable: true,
+			paymentMethods: [],
+			setupIntentClientSecret: null,
+			setupIntentError: null
 		});
+		expect(createSetupIntentMock).not.toHaveBeenCalled();
 	});
 
-	it('keeps billing action available when API responds with no stripe customer linked', async () => {
+	it('keeps billing page available when payment methods returns no stripe customer linked', async () => {
 		getPaymentMethodsMock.mockRejectedValue(new ApiRequestError(400, 'no stripe customer linked'));
 
 		const result = await load({
@@ -56,19 +85,15 @@ describe('Billing page server load', () => {
 		} as never);
 
 		expect(result).toEqual({
-			billingUnavailable: false
+			billingUnavailable: false,
+			paymentMethods: [],
+			setupIntentClientSecret: null,
+			setupIntentError: null
 		});
+		expect(createSetupIntentMock).not.toHaveBeenCalled();
 	});
 
-	it('rethrows no stripe customer linked when status is not 400', async () => {
-		getPaymentMethodsMock.mockRejectedValue(new ApiRequestError(503, 'no stripe customer linked'));
-
-		await expect(load({ locals: { user: { token: 'jwt-token' } } } as never)).rejects.toThrow(
-			'no stripe customer linked'
-		);
-	});
-
-	it('redirects to login when billing availability load hits an expired session', async () => {
+	it('redirects to login when payment methods load hits an expired session', async () => {
 		getPaymentMethodsMock.mockRejectedValue(new ApiRequestError(401, 'Unauthorized'));
 
 		await expect(load({ locals: { user: { token: 'jwt-token' } } } as never)).rejects.toMatchObject(
@@ -79,7 +104,67 @@ describe('Billing page server load', () => {
 		);
 	});
 
-	it('rethrows non-service_not_configured errors', async () => {
+	it('returns billingUnavailable when setup-intent reports service_not_configured', async () => {
+		getPaymentMethodsMock.mockResolvedValue([]);
+		createSetupIntentMock.mockRejectedValue(new ApiRequestError(503, 'service_not_configured'));
+
+		const result = await load({
+			locals: { user: { token: 'jwt-token' } }
+		} as never);
+
+		expect(result).toEqual({
+			billingUnavailable: true,
+			paymentMethods: [],
+			setupIntentClientSecret: null,
+			setupIntentError: null
+		});
+	});
+
+	it('returns billingUnavailable when setup-intent reports no stripe customer linked', async () => {
+		getPaymentMethodsMock.mockResolvedValue([]);
+		createSetupIntentMock.mockRejectedValue(new ApiRequestError(400, 'no stripe customer linked'));
+
+		const result = await load({
+			locals: { user: { token: 'jwt-token' } }
+		} as never);
+
+		expect(result).toEqual({
+			billingUnavailable: true,
+			paymentMethods: [],
+			setupIntentClientSecret: null,
+			setupIntentError: null
+		});
+	});
+
+	it('redirects to login when setup-intent load hits an expired session', async () => {
+		getPaymentMethodsMock.mockResolvedValue([]);
+		createSetupIntentMock.mockRejectedValue(new ApiRequestError(401, 'Unauthorized'));
+
+		await expect(load({ locals: { user: { token: 'jwt-token' } } } as never)).rejects.toMatchObject(
+			{
+				status: 303,
+				location: '/login?reason=session_expired'
+			}
+		);
+	});
+
+	it('returns setup error when setup-intent fails for unrelated reasons', async () => {
+		getPaymentMethodsMock.mockResolvedValue([]);
+		createSetupIntentMock.mockRejectedValue(new ApiRequestError(500, 'internal server error'));
+
+		const result = await load({
+			locals: { user: { token: 'jwt-token' } }
+		} as never);
+
+		expect(result).toEqual({
+			billingUnavailable: false,
+			paymentMethods: [],
+			setupIntentClientSecret: null,
+			setupIntentError: 'Unable to load payment setup. Please try again.'
+		});
+	});
+
+	it('rethrows non-contract payment method failures', async () => {
 		getPaymentMethodsMock.mockRejectedValue(new ApiRequestError(500, 'internal server error'));
 
 		await expect(load({ locals: { user: { token: 'jwt-token' } } } as never)).rejects.toThrow(
@@ -93,154 +178,43 @@ describe('Billing page server actions', () => {
 		vi.clearAllMocks();
 	});
 
-	it('posts server-owned return_url to billing portal endpoint and redirects with 303', async () => {
-		createBillingPortalSessionMock.mockResolvedValue({
-			portal_url: 'https://billing.stripe.com/session/test_123'
-		});
+	it('setDefaultPaymentMethod action calls billing API and returns updated payment method id', async () => {
+		setDefaultPaymentMethodMock.mockResolvedValue(undefined);
+		const formData = new FormData();
+		formData.set('paymentMethodId', 'pm_nondefault_123');
 
-		const actionCall = actions.manageBilling({
+		const result = await actions.setDefaultPaymentMethod({
 			locals: { user: { token: 'jwt-token' } },
-			url: new URL('https://console.example.com/dashboard/billing'),
-			request: new Request('https://console.example.com/dashboard/billing?/manageBilling', {
-				method: 'POST'
+			request: new Request('http://localhost/dashboard/billing?/setDefaultPaymentMethod', {
+				method: 'POST',
+				body: formData
 			})
 		} as never);
 
-		await expect(actionCall).rejects.toMatchObject({
-			status: 303,
-			location: 'https://billing.stripe.com/session/test_123'
-		});
-		expect(createBillingPortalSessionMock).toHaveBeenCalledWith({
-			return_url: 'https://console.example.com/dashboard/billing'
-		});
+		expect(setDefaultPaymentMethodMock).toHaveBeenCalledWith('pm_nondefault_123');
+		expect(result).toEqual({ updatedDefaultPaymentMethodId: 'pm_nondefault_123' });
 	});
 
-	it('rejects non-https portal URL payloads from upstream', async () => {
-		createBillingPortalSessionMock.mockResolvedValue({
-			portal_url: 'http://billing.stripe.com/session/test_123'
-		});
+	it('setDefaultPaymentMethod action rejects missing payment method id', async () => {
+		const formData = new FormData();
+		formData.set('paymentMethodId', '   ');
 
-		const result = await actions.manageBilling({
+		const result = await actions.setDefaultPaymentMethod({
 			locals: { user: { token: 'jwt-token' } },
-			url: new URL('https://console.example.com/dashboard/billing'),
-			request: new Request('https://console.example.com/dashboard/billing?/manageBilling', {
-				method: 'POST'
+			request: new Request('http://localhost/dashboard/billing?/setDefaultPaymentMethod', {
+				method: 'POST',
+				body: formData
 			})
 		} as never);
 
 		expect(result).toEqual(
 			expect.objectContaining({
 				status: 400,
-				data: { error: 'Failed to open billing portal' }
-			})
-		);
-	});
-
-	it('rejects non-Stripe portal host payloads from upstream', async () => {
-		createBillingPortalSessionMock.mockResolvedValue({
-			portal_url: 'https://attacker.example/session/test_123'
-		});
-
-		const result = await actions.manageBilling({
-			locals: { user: { token: 'jwt-token' } },
-			url: new URL('https://console.example.com/dashboard/billing'),
-			request: new Request('https://console.example.com/dashboard/billing?/manageBilling', {
-				method: 'POST'
-			})
-		} as never);
-
-		expect(result).toEqual(
-			expect.objectContaining({
-				status: 400,
-				data: { error: 'Failed to open billing portal' }
-			})
-		);
-	});
-
-	it('returns shared session-expired payload when portal creation hits 401', async () => {
-		createBillingPortalSessionMock.mockRejectedValue(new ApiRequestError(401, 'Unauthorized'));
-
-		const result = await actions.manageBilling({
-			locals: { user: { token: 'jwt-token' } },
-			url: new URL('https://console.example.com/dashboard/billing'),
-			request: new Request('https://console.example.com/dashboard/billing?/manageBilling', {
-				method: 'POST'
-			})
-		} as never);
-
-		expect(result).toEqual(
-			expect.objectContaining({
-				status: 401,
 				data: expect.objectContaining({
-					_authSessionExpired: true,
-					error: 'Unauthorized'
+					error: 'Unable to update default payment method. Please try again.'
 				})
 			})
 		);
-	});
-
-	it('returns shared session-expired payload when portal creation hits 403', async () => {
-		createBillingPortalSessionMock.mockRejectedValue(new ApiRequestError(403, 'Forbidden'));
-
-		const result = await actions.manageBilling({
-			locals: { user: { token: 'jwt-token' } },
-			url: new URL('https://console.example.com/dashboard/billing'),
-			request: new Request('https://console.example.com/dashboard/billing?/manageBilling', {
-				method: 'POST'
-			})
-		} as never);
-
-		expect(result).toEqual(
-			expect.objectContaining({
-				status: 403,
-				data: expect.objectContaining({
-					_authSessionExpired: true,
-					error: 'Forbidden'
-				})
-			})
-		);
-	});
-
-	it('returns failure payload when portal session creation fails', async () => {
-		createBillingPortalSessionMock.mockRejectedValue(new Error('upstream unavailable'));
-
-		const result = await actions.manageBilling({
-			locals: { user: { token: 'jwt-token' } },
-			url: new URL('https://console.example.com/dashboard/billing'),
-			request: new Request('https://console.example.com/dashboard/billing?/manageBilling', {
-				method: 'POST'
-			})
-		} as never);
-
-		expect(result).toEqual(
-			expect.objectContaining({
-				status: 400,
-				data: { error: 'Failed to open billing portal' }
-			})
-		);
-	});
-
-	it('returns setup guidance when billing portal creation reports no stripe customer', async () => {
-		createBillingPortalSessionMock.mockRejectedValue(
-			new ApiRequestError(400, 'no stripe customer linked')
-		);
-
-		const result = await actions.manageBilling({
-			locals: { user: { token: 'jwt-token' } },
-			url: new URL('https://console.example.com/dashboard/billing'),
-			request: new Request('https://console.example.com/dashboard/billing?/manageBilling', {
-				method: 'POST'
-			})
-		} as never);
-
-		expect(result).toEqual(
-			expect.objectContaining({
-				status: 400,
-				data: {
-					error:
-						'Billing is being set up for your account. Please contact support@flapjack.foo if this persists.'
-				}
-			})
-		);
+		expect(setDefaultPaymentMethodMock).not.toHaveBeenCalled();
 	});
 });

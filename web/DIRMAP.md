@@ -8,6 +8,6 @@
 
 | Directory | Summary |
 | --- | --- |
-| src | The web/ src directory implements fjcloud's SvelteKit frontend, with library utilities for JWT authentication, API client communication, billing/pricing helpers, and dashboard instrumentation, plus routes for the customer portal, admin panel, API endpoints, and service status page. |
-| tests | The tests directory contains Playwright browser testing infrastructure and fixtures for end-to-end UI testing, including authentication setup for multiple test projects, database utilities, and page interaction helpers. |
+| src | — |
+| tests | The tests directory contains browser-based end-to-end testing infrastructure for the web frontend, including Playwright fixtures with authentication helpers, database utilities, and page interaction helpers for multiple test projects, plus VLM screenshot capture tooling for visual validation. |
 <!-- [scrai:end] -->

@@ -13,6 +13,7 @@ use async_trait::async_trait;
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use http_body_util::BodyExt;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use tower::ServiceExt;
 
@@ -129,6 +130,70 @@ impl EmailService for AlwaysFailEmailService {
         Err(EmailError::DeliveryFailed(
             "forced test failure".to_string(),
         ))
+    }
+}
+
+#[derive(Default)]
+struct FailSecondVerificationEmailService {
+    verification_attempt_count: AtomicUsize,
+}
+
+#[async_trait]
+impl EmailService for FailSecondVerificationEmailService {
+    async fn send_verification_email(
+        &self,
+        _to: &str,
+        _verify_token: &str,
+    ) -> Result<(), EmailError> {
+        let attempt = self
+            .verification_attempt_count
+            .fetch_add(1, Ordering::SeqCst)
+            + 1;
+        if attempt == 2 {
+            return Err(EmailError::DeliveryFailed(
+                "forced resend delivery failure".to_string(),
+            ));
+        }
+        Ok(())
+    }
+
+    async fn send_password_reset_email(
+        &self,
+        _to: &str,
+        _reset_token: &str,
+    ) -> Result<(), EmailError> {
+        Ok(())
+    }
+
+    async fn send_invoice_ready_email(
+        &self,
+        _to: &str,
+        _invoice_id: &str,
+        _invoice_url: &str,
+        _pdf_url: Option<&str>,
+    ) -> Result<(), EmailError> {
+        Ok(())
+    }
+
+    async fn send_quota_warning_email(
+        &self,
+        _to: &str,
+        _metric: &str,
+        _percent_used: f64,
+        _current_usage: u64,
+        _limit: u64,
+    ) -> Result<(), EmailError> {
+        Ok(())
+    }
+
+    async fn send_broadcast_email(
+        &self,
+        _to: &str,
+        _subject: &str,
+        _html_body: Option<&str>,
+        _text_body: Option<&str>,
+    ) -> Result<BroadcastDeliveryStatus, EmailError> {
+        Ok(BroadcastDeliveryStatus::Sent)
     }
 }
 
@@ -766,14 +831,17 @@ async fn forgot_password_sends_reset_email() {
     assert_eq!(sent_emails[0].subject, "Reset your password");
     assert!(
         sent_emails[0]
-            .body
+            .html_body
             .contains(&format!("reset-password/{reset_token}")),
         "reset email should include the exact reset token in the Svelte route path"
     );
     assert!(
-        !sent_emails[0].body.contains("reset-password?token="),
+        !sent_emails[0].html_body.contains("reset-password?token="),
         "reset email must not use the obsolete query-param route"
     );
+    assert!(sent_emails[0]
+        .text_body
+        .contains(&format!("reset-password/{reset_token}")));
 }
 
 #[tokio::test]
@@ -1276,6 +1344,7 @@ async fn customer_serialization_omits_sensitive_fields() {
         email_verified_at: Some(now),
         email_verify_token: Some("verify-token-123".to_string()),
         email_verify_expires_at: Some(now),
+        resend_verification_sent_at: None,
         password_reset_token: Some("reset-token-456".to_string()),
         password_reset_expires_at: Some(now),
         last_accessed_at: None,
@@ -1623,14 +1692,17 @@ async fn signup_sends_verification_email() {
     assert_eq!(emails[0].subject, "Verify your email");
     assert!(
         emails[0]
-            .body
+            .html_body
             .contains(&format!("verify-email/{verify_token}")),
         "email body should contain the stored verification token in the Svelte route path"
     );
     assert!(
-        !emails[0].body.contains("verify-email?token="),
+        !emails[0].html_body.contains("verify-email?token="),
         "verification email must not use the obsolete query-param route"
     );
+    assert!(emails[0]
+        .text_body
+        .contains(&format!("verify-email/{verify_token}")));
 }
 
 #[tokio::test]
@@ -1695,7 +1767,7 @@ async fn resend_verification_email_for_unverified_customer() {
     let original_token = before.email_verify_token.clone().unwrap();
 
     let resend_req = post_bearer_empty("/auth/resend-verification", &jwt);
-    let resend_resp = app.oneshot(resend_req).await.unwrap();
+    let resend_resp = app.clone().oneshot(resend_req).await.unwrap();
     assert_eq!(resend_resp.status(), StatusCode::OK);
     let resend_json = body_json(resend_resp).await;
     assert_eq!(resend_json["message"], "verification email sent");
@@ -1720,20 +1792,121 @@ async fn resend_verification_email_for_unverified_customer() {
     let new_token = after.email_verify_token.unwrap();
     assert!(
         emails[1]
-            .body
+            .html_body
             .contains(&format!("verify-email/{new_token}")),
         "resend email should include the rotated token in the Svelte route path"
     );
     assert!(
-        !emails[1].body.contains("verify-email?token="),
+        !emails[1].html_body.contains("verify-email?token="),
         "resend email must not use the obsolete query-param route"
     );
     assert!(
         !emails[1]
-            .body
+            .html_body
             .contains(&format!("verify-email/{original_token}")),
         "resend email must not include the old token"
     );
+    assert!(emails[1]
+        .text_body
+        .contains(&format!("verify-email/{new_token}")));
+
+    let second_resend_req = post_bearer_empty("/auth/resend-verification", &jwt);
+    let second_resend_resp = app.oneshot(second_resend_req).await.unwrap();
+    assert_eq!(second_resend_resp.status(), StatusCode::TOO_MANY_REQUESTS);
+    let retry_after_header = second_resend_resp
+        .headers()
+        .get("retry-after")
+        .and_then(|value| value.to_str().ok())
+        .expect("429 response should include Retry-After header")
+        .parse::<u64>()
+        .expect("Retry-After header should be a positive integer");
+    assert!(
+        (1..=60).contains(&retry_after_header),
+        "Retry-After should reflect the remaining cooldown window"
+    );
+    let second_resend_json = body_json(second_resend_resp).await;
+    assert_eq!(
+        second_resend_json["error"],
+        "verification email recently sent; retry later"
+    );
+
+    let after_second_attempt = repo
+        .find_by_email("retry@example.com")
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        after_second_attempt.email_verify_token.as_deref(),
+        Some(new_token.as_str()),
+        "cooldown response must keep the most recently issued token unchanged"
+    );
+
+    let emails = email_svc.sent_emails();
+    assert_eq!(
+        emails.len(),
+        2,
+        "cooldown-blocked resend must not emit another verification email"
+    );
+}
+
+#[tokio::test]
+async fn resend_verification_verified_account_returns_400() {
+    let repo = common::mock_repo();
+    let customer = repo.seed_verified_free_customer("Verified", "verified@example.com");
+    let app = common::test_app_with_repo(repo);
+    let jwt = common::create_test_jwt(customer.id);
+
+    let resend_req = post_bearer_empty("/auth/resend-verification", &jwt);
+    let resend_resp = app.oneshot(resend_req).await.unwrap();
+    assert_eq!(resend_resp.status(), StatusCode::BAD_REQUEST);
+    let resend_json = body_json(resend_resp).await;
+    assert_eq!(resend_json["error"], "email already verified");
+}
+
+#[tokio::test]
+async fn resend_verification_missing_auth_returns_401() {
+    let app = common::test_app();
+    let resend_req = Request::builder()
+        .method("POST")
+        .uri("/auth/resend-verification")
+        .body(Body::empty())
+        .unwrap();
+
+    let resend_resp = app.oneshot(resend_req).await.unwrap();
+    assert_eq!(resend_resp.status(), StatusCode::UNAUTHORIZED);
+    let resend_json = body_json(resend_resp).await;
+    assert_eq!(resend_json["error"], "missing authorization header");
+}
+
+#[tokio::test]
+async fn resend_verification_invalid_auth_returns_401() {
+    let repo = common::mock_repo();
+    let customer = repo.seed("Invalid Auth", "invalidauth@example.com");
+    let app = common::test_app_with_repo(repo);
+    let jwt = common::create_jwt_with_secret(customer.id, "wrong-secret");
+
+    let resend_req = post_bearer_empty("/auth/resend-verification", &jwt);
+    let resend_resp = app.oneshot(resend_req).await.unwrap();
+    assert_eq!(resend_resp.status(), StatusCode::UNAUTHORIZED);
+    let resend_json = body_json(resend_resp).await;
+    assert_eq!(resend_json["error"], "invalid or expired token");
+}
+
+#[tokio::test]
+async fn resend_verification_suspended_account_returns_403() {
+    let repo = common::mock_repo();
+    let customer = repo.seed("Suspended", "suspended@example.com");
+    repo.suspend(customer.id)
+        .await
+        .expect("suspend fixture customer");
+    let app = common::test_app_with_repo(repo);
+    let jwt = common::create_test_jwt(customer.id);
+
+    let resend_req = post_bearer_empty("/auth/resend-verification", &jwt);
+    let resend_resp = app.oneshot(resend_req).await.unwrap();
+    assert_eq!(resend_resp.status(), StatusCode::FORBIDDEN);
+    let resend_json = body_json(resend_resp).await;
+    assert_eq!(resend_json["error"], "forbidden");
 }
 
 #[tokio::test]
@@ -1762,6 +1935,142 @@ async fn resend_verification_returns_503_when_email_delivery_fails() {
         resend_json["error"],
         "verification email temporarily unavailable"
     );
+}
+
+#[tokio::test]
+async fn resend_verification_503_keeps_last_deliverable_token_and_allows_immediate_retry() {
+    let repo = common::mock_repo();
+    let app = common::build_test_app_with_email(
+        repo.clone(),
+        Arc::new(FailSecondVerificationEmailService::default()),
+    );
+
+    let reg_req = json_post(
+        "/auth/register",
+        serde_json::json!({
+            "name": "RetryRecover",
+            "email": "retryrecover@example.com",
+            "password": "strongpassword123"
+        }),
+    );
+    let reg_resp = app.clone().oneshot(reg_req).await.unwrap();
+    assert_eq!(reg_resp.status(), StatusCode::CREATED);
+    let reg_json = body_json(reg_resp).await;
+    let jwt = reg_json["token"].as_str().unwrap().to_string();
+
+    let before_failed_resend = repo
+        .find_by_email("retryrecover@example.com")
+        .await
+        .unwrap()
+        .unwrap();
+    let last_deliverable_token = before_failed_resend
+        .email_verify_token
+        .clone()
+        .expect("signup should set a verification token");
+    assert!(
+        before_failed_resend.resend_verification_sent_at.is_none(),
+        "signup should not pre-fill resend cooldown"
+    );
+
+    let failed_resend_req = post_bearer_empty("/auth/resend-verification", &jwt);
+    let failed_resend_resp = app.clone().oneshot(failed_resend_req).await.unwrap();
+    assert_eq!(failed_resend_resp.status(), StatusCode::SERVICE_UNAVAILABLE);
+
+    let after_failed_resend = repo
+        .find_by_email("retryrecover@example.com")
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        after_failed_resend.email_verify_token.as_deref(),
+        Some(last_deliverable_token.as_str()),
+        "503 resend must preserve the last deliverable token"
+    );
+    assert!(
+        after_failed_resend.resend_verification_sent_at.is_none(),
+        "503 resend must not consume resend cooldown"
+    );
+
+    let recovered_resend_req = post_bearer_empty("/auth/resend-verification", &jwt);
+    let recovered_resend_resp = app.clone().oneshot(recovered_resend_req).await.unwrap();
+    assert_eq!(recovered_resend_resp.status(), StatusCode::OK);
+
+    let after_recovery = repo
+        .find_by_email("retryrecover@example.com")
+        .await
+        .unwrap()
+        .unwrap();
+    assert_ne!(
+        after_recovery.email_verify_token.as_deref(),
+        Some(last_deliverable_token.as_str()),
+        "successful retry should rotate token after delivery recovers"
+    );
+    assert!(
+        after_recovery.resend_verification_sent_at.is_some(),
+        "successful resend should start cooldown"
+    );
+}
+
+#[tokio::test]
+async fn resend_verification_rollback_failure_returns_500_instead_of_retryable_503() {
+    let repo = common::mock_repo();
+    let app = common::build_test_app_with_email(
+        repo.clone(),
+        Arc::new(FailSecondVerificationEmailService::default()),
+    );
+
+    let reg_req = json_post(
+        "/auth/register",
+        serde_json::json!({
+            "name": "RollbackFailure",
+            "email": "rollbackfailure@example.com",
+            "password": "strongpassword123"
+        }),
+    );
+    let reg_resp = app.clone().oneshot(reg_req).await.unwrap();
+    assert_eq!(reg_resp.status(), StatusCode::CREATED);
+    let reg_json = body_json(reg_resp).await;
+    let jwt = reg_json["token"].as_str().unwrap().to_string();
+
+    repo.fail_next_resend_rollback_with_false();
+
+    let resend_req = post_bearer_empty("/auth/resend-verification", &jwt);
+    let resend_resp = app.oneshot(resend_req).await.unwrap();
+    assert_eq!(resend_resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
+
+    let resend_json = body_json(resend_resp).await;
+    assert_eq!(resend_json["error"], "internal server error");
+}
+
+#[tokio::test]
+async fn resend_verification_rollback_error_returns_500_instead_of_retryable_503() {
+    let repo = common::mock_repo();
+    let app = common::build_test_app_with_email(
+        repo.clone(),
+        Arc::new(FailSecondVerificationEmailService::default()),
+    );
+
+    let reg_req = json_post(
+        "/auth/register",
+        serde_json::json!({
+            "name": "RollbackError",
+            "email": "rollbackerror@example.com",
+            "password": "strongpassword123"
+        }),
+    );
+    let reg_resp = app.clone().oneshot(reg_req).await.unwrap();
+    assert_eq!(reg_resp.status(), StatusCode::CREATED);
+    let reg_json = body_json(reg_resp).await;
+    let jwt = reg_json["token"].as_str().unwrap().to_string();
+
+    repo.fail_next_resend_rollback_with_error("injected rollback error");
+
+    let resend_req = post_bearer_empty("/auth/resend-verification", &jwt);
+    let resend_resp = app.oneshot(resend_req).await.unwrap();
+    assert_eq!(resend_resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
+
+    let resend_json = body_json(resend_resp).await;
+    assert_eq!(resend_json["error"], "internal server error");
 }
 
 // ===========================================================================

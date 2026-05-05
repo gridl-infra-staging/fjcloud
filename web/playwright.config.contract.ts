@@ -5,7 +5,7 @@ import { requireNonBlankString, requireNonEmptyString } from './tests/fixtures/c
 export const DEFAULT_PLAYWRIGHT_BASE_URL = 'http://localhost:5173';
 export const DEFAULT_PLAYWRIGHT_ADMIN_KEY = `playwright-local-admin-${randomUUID()}`;
 export const PLAYWRIGHT_WEB_SERVER_COMMAND =
-	'../scripts/web-dev.sh --host 127.0.0.1 --port 5173 --strictPort';
+	'../scripts/playwright_local_stack.sh --host 127.0.0.1 --port 5173 --strictPort';
 export const PLAYWRIGHT_STORAGE_STATE = {
 	user: 'tests/fixtures/.auth/user.json',
 	onboarding: 'tests/fixtures/.auth/onboarding.json',

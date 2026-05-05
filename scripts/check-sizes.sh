@@ -94,6 +94,19 @@ for scan_dir in "${SCAN_DIRS[@]}"; do
     )
 done
 
+# Enforce 30-line cap on docs/NOW.md — the load-bearing forcing function for
+# the "what's next" doc pattern. If you're tempted to raise this, compress
+# NOW.md instead: move stale items to ROADMAP.md or delete them.
+NOW_DOC="$BASE_DIR/docs/NOW.md"
+NOW_DOC_LIMIT=30
+if [[ -f "$NOW_DOC" ]]; then
+    now_lines="$(wc -l < "$NOW_DOC" | tr -d ' ')"
+    if (( now_lines > NOW_DOC_LIMIT )); then
+        echo "FAIL: docs/NOW.md (${now_lines} lines, limit ${NOW_DOC_LIMIT})"
+        violation_count=$((violation_count + 1))
+    fi
+fi
+
 if (( violation_count > 0 )); then
     exit 1
 fi

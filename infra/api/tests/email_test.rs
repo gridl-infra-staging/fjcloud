@@ -20,18 +20,20 @@ async fn mock_email_service_captures_verification_email() {
     assert!(sent[0].subject.contains("Verify your email"));
     assert!(
         sent[0]
-            .body
+            .html_body
             .contains(r#"href="https://cloud.flapjack.foo/verify-email/verify-token-123""#),
         "verification email body should contain full URL, got: {}",
-        sent[0].body
+        sent[0].html_body
     );
-    assert!(!sent[0].body.contains("verify-email?token="));
+    assert!(!sent[0].html_body.contains("verify-email?token="));
     assert!(
-        sent[0].body.contains("Flapjack Cloud"),
+        sent[0].html_body.contains("Flapjack Cloud"),
         "verification email should include Flapjack Cloud branding, got: {}",
-        sent[0].body
+        sent[0].html_body
     );
-    assert!(!sent[0].body.contains("app.griddle.io"));
+    assert!(!sent[0].html_body.contains("app.griddle.io"));
+    assert!(sent[0].text_body.contains("verify-email/verify-token-123"));
+    assert!(!sent[0].text_body.contains("verify-email?token="));
 }
 
 #[tokio::test]
@@ -49,18 +51,20 @@ async fn mock_email_service_captures_password_reset_email() {
     assert!(sent[0].subject.contains("Reset your password"));
     assert!(
         sent[0]
-            .body
+            .html_body
             .contains(r#"href="https://cloud.flapjack.foo/reset-password/reset-token-456""#),
         "password reset email body should contain full URL, got: {}",
-        sent[0].body
+        sent[0].html_body
     );
-    assert!(!sent[0].body.contains("reset-password?token="));
+    assert!(!sent[0].html_body.contains("reset-password?token="));
     assert!(
-        sent[0].body.contains("Flapjack Cloud"),
+        sent[0].html_body.contains("Flapjack Cloud"),
         "password reset email should include Flapjack Cloud branding, got: {}",
-        sent[0].body
+        sent[0].html_body
     );
-    assert!(!sent[0].body.contains("app.griddle.io"));
+    assert!(!sent[0].html_body.contains("app.griddle.io"));
+    assert!(sent[0].text_body.contains("reset-password/reset-token-456"));
+    assert!(!sent[0].text_body.contains("reset-password?token="));
 }
 
 #[tokio::test]
@@ -81,23 +85,30 @@ async fn mock_email_service_captures_invoice_ready_email() {
     assert_eq!(sent.len(), 1);
     assert_eq!(sent[0].to, "alice@example.com");
     assert!(sent[0].subject.contains("Your invoice is ready"));
-    assert!(sent[0].body.contains("inv_123"));
+    assert!(sent[0].html_body.contains("inv_123"));
     assert!(sent[0]
-        .body
+        .html_body
         .contains("https://billing.example.com/invoices/inv_123"));
     assert!(sent[0]
-        .body
+        .html_body
         .contains("https://billing.example.com/invoices/inv_123/pdf"));
     assert!(
-        sent[0].body.contains("Download PDF"),
+        sent[0].html_body.contains("Download PDF"),
         "invoice ready email should include PDF download link text when pdf_url is present, got: {}",
-        sent[0].body
+        sent[0].html_body
     );
     assert!(
-        sent[0].body.contains("Flapjack Cloud"),
+        sent[0].html_body.contains("Flapjack Cloud"),
         "invoice ready email should include Flapjack Cloud branding, got: {}",
-        sent[0].body
+        sent[0].html_body
     );
+    assert!(sent[0].text_body.contains("inv_123"));
+    assert!(sent[0]
+        .text_body
+        .contains("https://billing.example.com/invoices/inv_123"));
+    assert!(sent[0]
+        .text_body
+        .contains("https://billing.example.com/invoices/inv_123/pdf"));
 }
 
 #[tokio::test]
@@ -117,10 +128,12 @@ async fn mock_email_service_omits_pdf_link_when_pdf_url_missing() {
     let sent = service.sent_emails();
     assert_eq!(sent.len(), 1);
     assert!(
-        !sent[0].body.contains("Download PDF"),
+        !sent[0].html_body.contains("Download PDF"),
         "invoice ready email should omit PDF link text when pdf_url is missing, got: {}",
-        sent[0].body
+        sent[0].html_body
     );
+    assert!(!sent[0].text_body.contains("Download PDF"));
+    assert!(!sent[0].text_body.contains("/pdf"));
 }
 
 #[tokio::test]
@@ -136,15 +149,103 @@ async fn mock_email_service_captures_quota_warning_email() {
     assert_eq!(sent.len(), 1);
     assert_eq!(sent[0].to, "alice@example.com");
     assert!(sent[0].subject.contains("Usage warning"));
-    assert!(sent[0].body.contains("monthly_searches"));
-    assert!(sent[0].body.contains("80.0%"));
-    assert!(sent[0].body.contains("800"));
-    assert!(sent[0].body.contains("1000"));
+    assert!(sent[0].html_body.contains("monthly_searches"));
+    assert!(sent[0].html_body.contains("80.0%"));
+    assert!(sent[0].html_body.contains("800"));
+    assert!(sent[0].html_body.contains("1000"));
     assert!(
-        sent[0].body.contains("Flapjack Cloud"),
+        sent[0].html_body.contains("Flapjack Cloud"),
         "quota warning email should include Flapjack Cloud branding, got: {}",
-        sent[0].body
+        sent[0].html_body
     );
+    assert!(sent[0].text_body.contains("monthly_searches"));
+    assert!(sent[0].text_body.contains("80.0%"));
+    assert!(sent[0].text_body.contains("800"));
+    assert!(sent[0].text_body.contains("1000"));
+}
+
+#[tokio::test]
+async fn mock_email_rejects_empty_recipient() {
+    let service = MockEmailService::new();
+    let err = service
+        .send_verification_email("", "tok")
+        .await
+        .expect_err("empty recipient should be rejected");
+    assert!(err.to_string().contains("must not be empty"));
+}
+
+#[tokio::test]
+async fn mock_email_rejects_whitespace_recipient() {
+    let service = MockEmailService::new();
+    let err = service
+        .send_verification_email("  ", "tok")
+        .await
+        .expect_err("whitespace recipient should be rejected");
+    assert!(err.to_string().contains("must not be empty"));
+}
+
+#[tokio::test]
+async fn mock_email_service_records_broadcast_plain_text_as_pre_wrapped_html() {
+    let service = MockEmailService::new();
+    let recipient = "broadcast@test.com";
+    let subject = "Planned maintenance";
+    let text_body = "Maintenance <b>starts</b> & needs \"approval\"";
+
+    service
+        .send_broadcast_email(recipient, subject, Option::<&str>::None, Some(text_body))
+        .await
+        .expect("plain-text broadcast should be captured");
+
+    let sent = service.sent_emails();
+    assert_eq!(sent.len(), 1);
+    assert_eq!(sent[0].to, recipient);
+    assert_eq!(sent[0].subject, subject);
+    assert_eq!(
+        sent[0].html_body,
+        "<pre>Maintenance &lt;b&gt;starts&lt;/b&gt; &amp; needs &quot;approval&quot;</pre>"
+    );
+    assert_eq!(sent[0].text_body, text_body);
+}
+
+#[tokio::test]
+async fn mock_email_service_preserves_html_only_broadcast_as_html_only() {
+    let service = MockEmailService::new();
+    let recipient = "broadcast@test.com";
+    let subject = "Release notice";
+    let html_body = "<p>Release at 02:00 UTC</p>";
+
+    service
+        .send_broadcast_email(recipient, subject, Some(html_body), None)
+        .await
+        .expect("html-only broadcast should be captured");
+
+    let sent = service.sent_emails();
+    assert_eq!(sent.len(), 1);
+    assert_eq!(sent[0].to, recipient);
+    assert_eq!(sent[0].subject, subject);
+    assert_eq!(sent[0].html_body, html_body);
+    assert_eq!(sent[0].text_body, "");
+}
+
+#[tokio::test]
+async fn mock_email_service_preserves_operator_whitespace_in_broadcast_bodies() {
+    let service = MockEmailService::new();
+    let recipient = "broadcast@test.com";
+    let subject = "Whitespace-sensitive notice";
+    let html_body = "  <p>Indented html block</p>\n";
+    let text_body = " \nBroadcast line one\nBroadcast line two\n ";
+
+    service
+        .send_broadcast_email(recipient, subject, Some(html_body), Some(text_body))
+        .await
+        .expect("broadcast with non-empty html/text should be captured");
+
+    let sent = service.sent_emails();
+    assert_eq!(sent.len(), 1);
+    assert_eq!(sent[0].to, recipient);
+    assert_eq!(sent[0].subject, subject);
+    assert_eq!(sent[0].html_body, html_body);
+    assert_eq!(sent[0].text_body, text_body);
 }
 
 fn snapshot_with(values: &[(&str, &str)]) -> StartupEnvSnapshot {
@@ -359,6 +460,8 @@ fn ses_config_parses_valid_config() {
     .expect("should parse valid SES config");
     assert_eq!(config.from_address, "system@flapjack.foo");
     assert_eq!(config.region, "us-east-1");
+    assert_eq!(config.configuration_set, "ses-feedback");
+    assert_eq!(config.from_name, "Flapjack Cloud");
 }
 
 #[test]
@@ -367,12 +470,36 @@ fn ses_config_trims_whitespace() {
         "SES_FROM_ADDRESS" => Some("  system@flapjack.foo  ".to_string()),
         "SES_CONFIGURATION_SET" => Some("  ses-feedback  ".to_string()),
         "SES_REGION" => Some("  us-west-2  ".to_string()),
+        "EMAIL_FROM_NAME" => Some("  Billing Team  ".to_string()),
         _ => None,
     })
     .expect("should parse and trim SES config");
     assert_eq!(config.from_address, "system@flapjack.foo");
     assert_eq!(config.region, "us-west-2");
     assert_eq!(config.configuration_set, "ses-feedback");
+    assert_eq!(config.from_name, "Billing Team");
+}
+
+#[test]
+fn ses_config_defaults_from_name_when_missing_or_blank() {
+    let missing_name = SesConfig::from_reader(|k| match k {
+        "SES_FROM_ADDRESS" => Some("system@flapjack.foo".to_string()),
+        "SES_CONFIGURATION_SET" => Some("ses-feedback".to_string()),
+        "SES_REGION" => Some("us-east-1".to_string()),
+        _ => None,
+    })
+    .expect("missing EMAIL_FROM_NAME should use default");
+    assert_eq!(missing_name.from_name, "Flapjack Cloud");
+
+    let blank_name = SesConfig::from_reader(|k| match k {
+        "SES_FROM_ADDRESS" => Some("system@flapjack.foo".to_string()),
+        "SES_CONFIGURATION_SET" => Some("ses-feedback".to_string()),
+        "SES_REGION" => Some("us-east-1".to_string()),
+        "EMAIL_FROM_NAME" => Some("   ".to_string()),
+        _ => None,
+    })
+    .expect("blank EMAIL_FROM_NAME should use default");
+    assert_eq!(blank_name.from_name, "Flapjack Cloud");
 }
 
 // ---------------------------------------------------------------------------

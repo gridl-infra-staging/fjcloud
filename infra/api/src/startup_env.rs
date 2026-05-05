@@ -45,6 +45,7 @@ pub struct StartupEnvSnapshot {
     slack_webhook_url: Option<String>,
     discord_webhook_url: Option<String>,
     ses_from_address: Option<String>,
+    email_from_name: Option<String>,
     ses_region: Option<String>,
     ses_configuration_set: Option<String>,
     cold_storage_bucket: Option<String>,
@@ -70,6 +71,7 @@ impl StartupEnvSnapshot {
             slack_webhook_url: read("SLACK_WEBHOOK_URL"),
             discord_webhook_url: read("DISCORD_WEBHOOK_URL"),
             ses_from_address: read("SES_FROM_ADDRESS"),
+            email_from_name: read("EMAIL_FROM_NAME"),
             ses_region: read("SES_REGION"),
             ses_configuration_set: read("SES_CONFIGURATION_SET"),
             cold_storage_bucket: read("COLD_STORAGE_BUCKET"),
@@ -225,6 +227,7 @@ impl StartupEnvSnapshot {
             "SLACK_WEBHOOK_URL" => self.slack_webhook_url.as_deref(),
             "DISCORD_WEBHOOK_URL" => self.discord_webhook_url.as_deref(),
             "SES_FROM_ADDRESS" => self.ses_from_address.as_deref(),
+            "EMAIL_FROM_NAME" => self.email_from_name.as_deref(),
             "SES_REGION" => self.ses_region.as_deref(),
             "SES_CONFIGURATION_SET" => self.ses_configuration_set.as_deref(),
             "COLD_STORAGE_BUCKET" => self.cold_storage_bucket.as_deref(),
@@ -580,6 +583,7 @@ mod tests {
         let snapshot = snapshot_with(&[
             ("SES_REGION", "us-east-1"),
             ("SES_CONFIGURATION_SET", "ses-feedback"),
+            ("EMAIL_FROM_NAME", "Billing Team"),
             ("COLD_STORAGE_BUCKET", "fjcloud-cold"),
             ("COLD_STORAGE_ACCESS_KEY", "access-a"),
             ("SLACK_WEBHOOK_URL", "https://slack.test/hook"),
@@ -591,6 +595,7 @@ mod tests {
             snapshot.env_value("SES_CONFIGURATION_SET"),
             Some("ses-feedback")
         );
+        assert_eq!(snapshot.env_value("EMAIL_FROM_NAME"), Some("Billing Team"));
         assert_eq!(
             snapshot.env_value("COLD_STORAGE_BUCKET"),
             Some("fjcloud-cold")

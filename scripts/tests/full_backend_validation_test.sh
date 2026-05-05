@@ -168,6 +168,7 @@ test_orchestrator_help_flag() {
     assert_contains "$RUN_STDOUT$RUN_STDERR" "--credential-env-file=<path>" "help output should include credential env file flag"
     assert_contains "$RUN_STDOUT$RUN_STDERR" "--billing-month=<YYYY-MM>" "help output should include billing month flag"
     assert_contains "$RUN_STDOUT$RUN_STDERR" "--staging-smoke-ami-id=<ami-id>" "help output should include staging smoke AMI flag"
+    assert_contains "$RUN_STDOUT$RUN_STDERR" "--staging-only" "help output should include staging-only flag"
 }
 test_orchestrator_dry_run_produces_valid_json() {
     local tmp_dir
@@ -343,6 +344,16 @@ test_orchestrator_rejects_invalid_staging_smoke_ami_argument() {
     run_orchestrator bash "$ORCH_SCRIPT" --paid-beta-rc --sha=aabbccddee00112233445566778899aabbccddee --staging-smoke-ami-id=invalid-ami
     assert_eq "$RUN_EXIT_CODE" "2" "invalid --staging-smoke-ami-id should fail with usage error"
     assert_contains "$RUN_STDERR" "--staging-smoke-ami-id must use AMI ID format" "invalid --staging-smoke-ami-id should mention strict format"
+}
+test_orchestrator_rejects_staging_only_without_paid_beta_rc() {
+    run_orchestrator bash "$ORCH_SCRIPT" --staging-only --sha=aabbccddee00112233445566778899aabbccddee
+    assert_eq "$RUN_EXIT_CODE" "2" "standalone --staging-only should fail with usage error"
+    assert_contains "$RUN_STDERR" "--staging-only requires --paid-beta-rc" "standalone --staging-only should explain required mode pairing"
+}
+test_orchestrator_rejects_staging_only_with_dry_run() {
+    run_orchestrator bash "$ORCH_SCRIPT" --dry-run --staging-only --sha=aabbccddee00112233445566778899aabbccddee
+    assert_eq "$RUN_EXIT_CODE" "2" "--staging-only with --dry-run should fail with usage error"
+    assert_contains "$RUN_STDERR" "--staging-only requires --paid-beta-rc" "--staging-only with --dry-run should explain incompatible modes"
 }
 test_orchestrator_collects_all_results_even_on_failure() {
     local tmp_dir
@@ -542,9 +553,10 @@ SES_REGION=us-east-1
 FLAPJACK_ADMIN_KEY=file_admin_key
 STRIPE_TEST_SECRET_KEY=sk_test_from_file
 EOF
-    local ses_args_file billing_args_file staging_smoke_ami_id
+    local ses_args_file billing_args_file staging_smoke_ami_id backend_gate_args_file
     ses_args_file="$tmp_dir/ses_args.txt"
     billing_args_file="$tmp_dir/billing_args.txt"
+    backend_gate_args_file="$tmp_dir/backend_gate_args.txt"
     local ses_inbound_probe_file canary_probe_file
     ses_inbound_probe_file="$tmp_dir/ses_inbound_probe.txt"
     canary_probe_file="$tmp_dir/canary_probe.txt"
@@ -560,6 +572,7 @@ if [ "${COLLECT_EVIDENCE_DIR:-}" != "${EXPECTED_ARTIFACT_DIR:-}" ]; then
     echo "unexpected COLLECT_EVIDENCE_DIR=${COLLECT_EVIDENCE_DIR:-}" >&2
     exit 78
 fi
+printf "%s\n" "$*" > "${BACKEND_GATE_ARGS_FILE:?}"
 echo "{\"verdict\":\"pass\"}"
 exit 0'
     write_mock_script "$tmp_dir/mock_local_signoff.sh" 'exit 0'
@@ -610,6 +623,7 @@ exit 0'
         STRIPE_SECRET_KEY="" \
         STRIPE_TEST_SECRET_KEY="" \
         PATH="$tmp_dir/bin:$PATH" \
+        BACKEND_GATE_ARGS_FILE="$backend_gate_args_file" \
         EXPECTED_ARTIFACT_DIR="$artifact_dir" \
         SES_ARGS_FILE="$ses_args_file" \
         BILLING_ARGS_FILE="$billing_args_file" \
@@ -630,13 +644,14 @@ exit 0'
         bash "$ORCH_SCRIPT" --paid-beta-rc --sha=aabbccddee00112233445566778899aabbccddee \
             --credential-env-file="$credential_env_file" --billing-month=2026-03 --artifact-dir="$artifact_dir" \
             --staging-smoke-ami-id="$staging_smoke_ami_id"
-    local ses_args billing_args invocation_log summary_json normalized_stdout normalized_summary
+    local ses_args billing_args invocation_log summary_json normalized_stdout normalized_summary backend_gate_args
     local ses_inbound_probe canary_probe
     ses_args="$(cat "$ses_args_file" 2>/dev/null || true)"
     billing_args="$(cat "$billing_args_file" 2>/dev/null || true)"
     ses_inbound_probe="$(cat "$ses_inbound_probe_file" 2>/dev/null || true)"
     canary_probe="$(cat "$canary_probe_file" 2>/dev/null || true)"
     invocation_log="$(cat "$invocation_log_file" 2>/dev/null || true)"
+    backend_gate_args="$(cat "$backend_gate_args_file" 2>/dev/null || true)"
     summary_json="$(cat "$artifact_dir/summary.json" 2>/dev/null || true)"
     normalized_stdout="$(normalize_json "$RUN_STDOUT")"
     normalized_summary="$(normalize_json "$summary_json")"
@@ -682,6 +697,119 @@ exit 0'
     assert_contains "$invocation_log" "terraform_stage7_static|$PWD|" "terraform stage7 static guardrail should delegate without extra args"
     assert_contains "$invocation_log" "terraform_stage8_static|$PWD|" "terraform stage8 static guardrail should delegate without extra args"
     assert_contains "$invocation_log" "staging_runtime_smoke|$PWD|--env-file $credential_env_file --ami-id $staging_smoke_ami_id --env staging" "staging runtime smoke should delegate exact opt-in command"
+    assert_not_contains "$backend_gate_args" "--staging-only" "plain paid-beta-rc path should not forward staging-only when flag is absent"
+}
+test_paid_beta_rc_staging_only_skips_production_surfaces() {
+    local tmp_dir
+    tmp_dir="$(mktemp -d)"
+    local credential_env_file artifact_dir invocation_log_file backend_gate_args_file
+    credential_env_file="$tmp_dir/credentials.env"
+    artifact_dir="$tmp_dir/artifacts"
+    invocation_log_file="$tmp_dir/invocations.log"
+    backend_gate_args_file="$tmp_dir/backend_gate_args.txt"
+    cat > "$credential_env_file" <<'EOF'
+SES_FROM_ADDRESS=beta@example.com
+SES_REGION=us-east-1
+FLAPJACK_ADMIN_KEY=file_admin_key
+STRIPE_TEST_SECRET_KEY=sk_test_from_file
+EOF
+    local ses_args_file billing_args_file staging_smoke_ami_id
+    ses_args_file="$tmp_dir/ses_args.txt"
+    billing_args_file="$tmp_dir/billing_args.txt"
+    staging_smoke_ami_id="ami-12345678"
+    mkdir -p "$tmp_dir/bin"
+    write_mock_script "$tmp_dir/mock_cargo.sh" 'exit 0'
+    write_mock_script "$tmp_dir/mock_backend_gate.sh" '
+if [ "${LAUNCH_GATE_EVIDENCE_DIR:-}" != "${EXPECTED_ARTIFACT_DIR:-}" ]; then
+    echo "unexpected LAUNCH_GATE_EVIDENCE_DIR=${LAUNCH_GATE_EVIDENCE_DIR:-}" >&2
+    exit 77
+fi
+if [ "${COLLECT_EVIDENCE_DIR:-}" != "${EXPECTED_ARTIFACT_DIR:-}" ]; then
+    echo "unexpected COLLECT_EVIDENCE_DIR=${COLLECT_EVIDENCE_DIR:-}" >&2
+    exit 78
+fi
+printf "%s\n" "$*" > "${BACKEND_GATE_ARGS_FILE:?}"
+echo "{\"verdict\":\"pass\"}"
+exit 0'
+    write_mock_script "$tmp_dir/mock_local_signoff.sh" 'exit 0'
+    write_mock_script "$tmp_dir/mock_ses.sh" '
+printf "%s\n" "$*" > "${SES_ARGS_FILE:?}"
+exit 0'
+    write_mock_script "$tmp_dir/mock_billing.sh" '
+printf "%s\n" "$*" > "${BILLING_ARGS_FILE:?}"
+exit 0'
+    write_mock_script "$tmp_dir/mock_browser_preflight.sh" '
+printf "browser_preflight|%s|%s\n" "$PWD" "$*" >> "${INVOCATION_LOG_FILE:?}"
+exit 0'
+    write_mock_script "$tmp_dir/mock_tf_static_stage7.sh" '
+printf "terraform_stage7_static|%s|%s\n" "$PWD" "$*" >> "${INVOCATION_LOG_FILE:?}"
+exit 0'
+    write_mock_script "$tmp_dir/mock_tf_static_stage8.sh" '
+printf "terraform_stage8_static|%s|%s\n" "$PWD" "$*" >> "${INVOCATION_LOG_FILE:?}"
+exit 0'
+    write_mock_script "$tmp_dir/mock_runtime_smoke.sh" '
+printf "staging_runtime_smoke|%s|%s\n" "$PWD" "$*" >> "${INVOCATION_LOG_FILE:?}"
+exit 0'
+    # These fail hard if called; staging-only mode should skip them instead.
+    write_mock_script "$tmp_dir/mock_ses_inbound_roundtrip.sh" 'exit 99'
+    write_mock_script "$tmp_dir/mock_canary_customer_loop.sh" 'exit 99'
+    write_mock_script "$tmp_dir/mock_outside_aws.sh" 'exit 99'
+    write_mock_script "$tmp_dir/bin/npx" '
+printf "browser_auth_setup|%s|%s\n" "$PWD" "$*" >> "${INVOCATION_LOG_FILE:?}"
+exit 0'
+    run_orchestrator env \
+        SES_FROM_ADDRESS="" \
+        SES_REGION="" \
+        ADMIN_KEY="" \
+        FLAPJACK_ADMIN_KEY="" \
+        STRIPE_SECRET_KEY="" \
+        STRIPE_TEST_SECRET_KEY="" \
+        PATH="$tmp_dir/bin:$PATH" \
+        BACKEND_GATE_ARGS_FILE="$backend_gate_args_file" \
+        EXPECTED_ARTIFACT_DIR="$artifact_dir" \
+        SES_ARGS_FILE="$ses_args_file" \
+        BILLING_ARGS_FILE="$billing_args_file" \
+        INVOCATION_LOG_FILE="$invocation_log_file" \
+        FULL_VALIDATION_CARGO_BIN="$tmp_dir/mock_cargo.sh" \
+        FULL_VALIDATION_BACKEND_GATE_SCRIPT="$tmp_dir/mock_backend_gate.sh" \
+        FULL_VALIDATION_LOCAL_SIGNOFF_SCRIPT="$tmp_dir/mock_local_signoff.sh" \
+        FULL_VALIDATION_SES_READINESS_SCRIPT="$tmp_dir/mock_ses.sh" \
+        FULL_VALIDATION_STAGING_BILLING_REHEARSAL_SCRIPT="$tmp_dir/mock_billing.sh" \
+        FULL_VALIDATION_BROWSER_PREFLIGHT_SCRIPT="$tmp_dir/mock_browser_preflight.sh" \
+        FULL_VALIDATION_TERRAFORM_STAGE7_STATIC_SCRIPT="$tmp_dir/mock_tf_static_stage7.sh" \
+        FULL_VALIDATION_TERRAFORM_STAGE8_STATIC_SCRIPT="$tmp_dir/mock_tf_static_stage8.sh" \
+        FULL_VALIDATION_TERRAFORM_STAGE7_RUNTIME_SMOKE_SCRIPT="$tmp_dir/mock_runtime_smoke.sh" \
+        FULL_VALIDATION_SES_INBOUND_ROUNDTRIP_SCRIPT="$tmp_dir/mock_ses_inbound_roundtrip.sh" \
+        FULL_VALIDATION_CANARY_CUSTOMER_LOOP_SCRIPT="$tmp_dir/mock_canary_customer_loop.sh" \
+        FULL_VALIDATION_OUTSIDE_AWS_HEALTH_SCRIPT="$tmp_dir/mock_outside_aws.sh" \
+        bash "$ORCH_SCRIPT" --paid-beta-rc --staging-only --sha=aabbccddee00112233445566778899aabbccddee \
+            --credential-env-file="$credential_env_file" --billing-month=2026-03 --artifact-dir="$artifact_dir" \
+            --staging-smoke-ami-id="$staging_smoke_ami_id"
+    local backend_gate_args invocation_log
+    backend_gate_args="$(cat "$backend_gate_args_file" 2>/dev/null || true)"
+    invocation_log="$(cat "$invocation_log_file" 2>/dev/null || true)"
+    rm -rf "$tmp_dir"
+    assert_eq "$RUN_EXIT_CODE" "0" "paid-beta-rc staging-only should pass when staging proofs pass and production proofs are skipped"
+    assert_json_bool_field "$RUN_STDOUT" "ready" "true" "paid-beta-rc staging-only should report ready=true when staging proofs pass"
+    assert_json_field "$RUN_STDOUT" "verdict" "pass" "paid-beta-rc staging-only should report pass verdict when only production surfaces are skipped"
+    assert_contains "$backend_gate_args" "--staging-only" "paid-beta-rc staging-only should forward staging-only flag to backend gate"
+    assert_eq "$(json_step_status "$RUN_STDOUT" "staging_billing_rehearsal")" "pass" "staging-only mode should still run staging billing rehearsal"
+    assert_eq "$(json_step_status "$RUN_STDOUT" "browser_preflight")" "pass" "staging-only mode should still run browser preflight"
+    assert_eq "$(json_step_status "$RUN_STDOUT" "browser_auth_setup")" "pass" "staging-only mode should still run browser auth setup"
+    assert_eq "$(json_step_status "$RUN_STDOUT" "terraform_static_guardrails")" "pass" "staging-only mode should still run terraform static guardrails"
+    assert_eq "$(json_step_status "$RUN_STDOUT" "staging_runtime_smoke")" "pass" "staging-only mode should still run staging runtime smoke"
+    assert_eq "$(json_step_status "$RUN_STDOUT" "admin_broadcast")" "skipped" "staging-only mode should skip production admin broadcast proof"
+    assert_eq "$(json_step_status "$RUN_STDOUT" "ses_inbound")" "skipped" "staging-only mode should skip production SES inbound proof"
+    assert_eq "$(json_step_status "$RUN_STDOUT" "canary_customer_loop")" "skipped" "staging-only mode should skip production canary proof"
+    assert_eq "$(json_step_status "$RUN_STDOUT" "canary_outside_aws")" "skipped" "staging-only mode should skip production outside-AWS canary proof"
+    assert_eq "$(json_step_status "$RUN_STDOUT" "stripe_webhook_signature_matrix_idempotency")" "skipped" "staging-only mode should skip production webhook matrix proof"
+    assert_eq "$(json_step_status "$RUN_STDOUT" "test_clock")" "skipped" "staging-only mode should skip production test_clock proof"
+    assert_eq "$(json_step_status "$RUN_STDOUT" "browser_signup_paid")" "skipped" "staging-only mode should keep production signup browser proof skipped"
+    assert_eq "$(json_step_status "$RUN_STDOUT" "browser_portal_cancel")" "skipped" "staging-only mode should keep production portal-cancel browser proof skipped"
+    assert_eq "$(json_step_reason "$RUN_STDOUT" "admin_broadcast")" "staging_only_production_surface" "staging-only skips should use deterministic coordinator reason code"
+    assert_eq "$(json_step_count "$RUN_STDOUT")" "22" "staging-only mode should preserve coordinator step cardinality"
+    assert_contains "$invocation_log" "browser_preflight|$PWD|" "staging-only mode should still execute browser preflight"
+    assert_contains "$invocation_log" "staging_runtime_smoke|$PWD|--env-file $credential_env_file --ami-id $staging_smoke_ami_id --env staging" "staging-only mode should still execute runtime smoke"
 }
 test_paid_beta_rc_keeps_non_critical_skip_as_skipped() {
     local tmp_dir
@@ -883,6 +1011,8 @@ main() {
     test_orchestrator_rejects_invalid_sha_argument
     test_orchestrator_rejects_invalid_billing_month_argument
     test_orchestrator_rejects_invalid_staging_smoke_ami_argument
+    test_orchestrator_rejects_staging_only_without_paid_beta_rc
+    test_orchestrator_rejects_staging_only_with_dry_run
     test_orchestrator_collects_all_results_even_on_failure
     test_paid_beta_rc_replaces_legacy_blocked_emissions
     test_paid_beta_rc_blocks_missing_credentialed_inputs
@@ -891,6 +1021,7 @@ main() {
     test_paid_beta_rc_propagates_delegated_billing_live_evidence_gap
     test_paid_beta_rc_uses_shell_identity_when_credential_file_missing
     test_paid_beta_rc_pass_path_reports_ready_true
+    test_paid_beta_rc_staging_only_skips_production_surfaces
     test_paid_beta_rc_keeps_non_critical_skip_as_skipped
     test_paid_beta_rc_promotes_critical_browser_skip_to_fail
     test_paid_beta_rc_default_artifact_dir_does_not_touch_docs_evidence

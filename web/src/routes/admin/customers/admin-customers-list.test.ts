@@ -125,9 +125,7 @@ const CUSTOMER_FIXTURES: AdminCustomerListItem[] = [
 	}
 ];
 
-async function renderCustomersPage(
-	customers: AdminCustomerListItem[] | null = CUSTOMER_FIXTURES
-) {
+async function renderCustomersPage(customers: AdminCustomerListItem[] | null = CUSTOMER_FIXTURES) {
 	const CustomersPage = (await import('./+page.svelte')).default;
 
 	render(CustomersPage, {
@@ -168,7 +166,7 @@ afterEach(() => {
 });
 
 describe('Admin customers list', () => {
-it('load omits legacy subscription field from list rows', async () => {
+	it('load omits legacy subscription field from list rows', async () => {
 		const result = (await load({
 			fetch: async () =>
 				new Response(
@@ -263,9 +261,7 @@ it('load omits legacy subscription field from list rows', async () => {
 		expect(screen.getByTestId(`last-activity-cell-${YELLOW_OVERDUE_ID}`)).toHaveTextContent(
 			'4m ago'
 		);
-		expect(screen.getByTestId(`last-activity-cell-${DELETED_CUSTOMER_ID}`)).toHaveTextContent(
-			'—'
-		);
+		expect(screen.getByTestId(`last-activity-cell-${DELETED_CUSTOMER_ID}`)).toHaveTextContent('—');
 	});
 
 	// Stage 4 contract owner: verify billing-health badge rendering semantics.

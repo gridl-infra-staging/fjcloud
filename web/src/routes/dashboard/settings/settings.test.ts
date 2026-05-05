@@ -54,6 +54,19 @@ function renderSettings(opts: { profile?: CustomerProfileResponse; form?: Settin
 	});
 }
 
+function renderSettingsWithNullProfile() {
+	return render(SettingsPage, {
+		data: {
+			user: null,
+			...layoutTestDefaults,
+			// Defensive null-profile rendering is intentionally tested even though
+			// the page load contract currently types profile as non-null.
+			profile: null
+		} as unknown as ComponentProps<typeof SettingsPage>['data'],
+		form: null
+	});
+}
+
 describe('Settings page', () => {
 	it('renders profile and password panels with exact headings, labels, actions, and button copy', () => {
 		renderSettings();
@@ -247,6 +260,15 @@ describe('Settings page', () => {
 		}
 		expect(within(emailRow).getByText('Unverified')).toBeInTheDocument();
 		expect(within(emailRow).queryByText('Verified')).not.toBeInTheDocument();
+	});
+
+	it('renders a profile-unavailable fallback instead of crashing when parent layout data has profile: null', () => {
+		renderSettingsWithNullProfile();
+		expect(screen.getByTestId('settings-profile-unavailable')).toHaveTextContent(
+			'Profile details are temporarily unavailable. Please refresh in a moment.'
+		);
+		expect(screen.queryByLabelText('Name')).not.toBeInTheDocument();
+		expect(screen.queryByText('Email')).not.toBeInTheDocument();
 	});
 
 	it('renders shared error payload only in the top-level alert region', () => {

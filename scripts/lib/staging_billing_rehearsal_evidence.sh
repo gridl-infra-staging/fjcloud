@@ -22,6 +22,18 @@
 # TODO: Document run_bounded_convergence.
 # TODO: Document run_bounded_convergence.
 # TODO: Document run_bounded_convergence.
+# TODO: Document run_bounded_convergence.
+# TODO: Document run_bounded_convergence.
+# TODO: Document run_bounded_convergence.
+# TODO: Document run_bounded_convergence.
+# TODO: Document run_bounded_convergence.
+# TODO: Document run_bounded_convergence.
+# TODO: Document run_bounded_convergence.
+# TODO: Document run_bounded_convergence.
+# TODO: Document run_bounded_convergence.
+# TODO: Document run_bounded_convergence.
+# TODO: Document run_bounded_convergence.
+# TODO: Document run_bounded_convergence.
 run_bounded_convergence() {
     local check_fn="$1"
     local max_attempts="${REHEARSAL_EVIDENCE_MAX_ATTEMPTS:-15}"

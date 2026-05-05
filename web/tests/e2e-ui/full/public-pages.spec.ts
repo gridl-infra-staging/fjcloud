@@ -222,11 +222,11 @@ test.describe('Public beta and legal pages', () => {
 		await expect(page.getByRole('link', { name: 'DPA' })).toHaveAttribute('href', '/dpa');
 	});
 
-	test('legal routes expose the shared draft contract for public users', async ({ page }) => {
+	test('legal routes expose the finalized shared contract for public users', async ({ page }) => {
 		const legalPages = [
-			{ path: '/terms', heading: 'Terms of Service (Draft)' },
-			{ path: '/privacy', heading: 'Privacy Policy (Draft)' },
-			{ path: '/dpa', heading: 'Data Processing Addendum (Draft)' }
+			{ path: '/terms', heading: 'Terms of Service' },
+			{ path: '/privacy', heading: 'Privacy Policy' },
+			{ path: '/dpa', heading: 'Data Processing Addendum' }
 		];
 
 		for (const legalPage of legalPages) {
@@ -240,6 +240,9 @@ test.describe('Public beta and legal pages', () => {
 			await expect(pageHeading).toHaveCount(1);
 			await expect(pageHeading).toBeVisible();
 			await assertSharedLegalPageContract(page);
+			await expect(page.getByRole('main')).not.toContainText('(Draft)');
+			await expect(page.getByRole('main')).not.toContainText('[REVIEW:');
+			await expect(page.getByRole('main')).not.toContainText('TBD');
 		}
 	});
 });

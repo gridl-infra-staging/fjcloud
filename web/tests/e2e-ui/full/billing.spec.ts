@@ -3,13 +3,14 @@
  *
  * Verifies the complete billing surface:
  *   - Load-and-verify: billing page renders the Billing heading
- *   - Billing page exposes a single Stripe portal handoff path or the unavailable card (no cancel affordance)
+ *   - Billing page renders in-app payment-method UI or the unavailable card
  *   - Invoices page renders (empty or with rows)
  *   - Invoice detail page renders heading, dates, and line items
  *   - Invoice PDF download link renders when backend provides pdf_url
  */
 
 import { test, expect } from '../../fixtures/fixtures';
+import { SUPPORT_EMAIL } from '../../../src/lib/format';
 
 test.describe('Billing page', () => {
 	test('load-and-verify: billing page renders Billing heading', async ({ page }) => {
@@ -20,30 +21,36 @@ test.describe('Billing page', () => {
 		await expect(page.getByRole('heading', { name: 'Billing' })).toBeVisible();
 	});
 
-	test('billing page exposes manage-billing handoff or deterministic unavailable state', async ({
+	test('billing page renders app-owned payment-method state or deterministic unavailable state', async ({
 		page
 	}) => {
 		await page.goto('/dashboard/billing');
 
-		const manageBillingButton = page.getByRole('button', { name: 'Manage billing' });
-		await expect(page.getByRole('button', { name: /cancel\s+subscription/i })).toHaveCount(0);
-
-		if ((await manageBillingButton.count()) > 0) {
-			await expect(manageBillingButton).toBeVisible();
-			// eslint-disable-next-line playwright/no-raw-locators -- form lookup by action attr; no role-based or text-based locator equivalent for SvelteKit form actions
-			await expect(page.locator('form[action="?/manageBilling"]')).toBeVisible();
-			await expect(page.getByRole('link', { name: 'Add payment method' })).toHaveCount(0);
-			await expect(page.getByText('Payment method management unavailable')).toHaveCount(0);
+		const unavailableHeading = page.getByText('Payment method management unavailable');
+		if ((await unavailableHeading.count()) > 0) {
+			await expect(unavailableHeading).toBeVisible();
+			await expect(
+				page.getByText(
+					'Stripe is not available in this environment. Payment method management is disabled.'
+				)
+			).toBeVisible();
+			await expect(page.getByRole('button', { name: 'Manage billing' })).toHaveCount(0);
 			return;
 		}
 
-		await expect(page.getByText('Payment method management unavailable')).toBeVisible();
+		await expect(page.getByRole('heading', { name: 'Payment methods' })).toBeVisible();
+		await expect(page.getByRole('heading', { name: 'Add or update card' })).toBeVisible();
 		await expect(
-			page.getByText(
-				'Stripe is not available in this environment. Payment method management is disabled.'
-			)
+			page.getByText('No payment methods on file yet.').or(page.getByText(/ending in/i))
 		).toBeVisible();
-		await expect(manageBillingButton).toHaveCount(0);
+		await expect(
+			page.getByRole('link', { name: `Contact ${SUPPORT_EMAIL} to cancel` })
+		).toHaveAttribute('href', `mailto:${SUPPORT_EMAIL}`);
+
+		await expect(page.getByRole('button', { name: 'Manage billing' })).toHaveCount(0);
+		await expect(page.getByText(/Stripe Customer Portal/i)).toHaveCount(0);
+		// eslint-disable-next-line playwright/no-raw-locators -- route action attribute contract assertion
+		await expect(page.locator('form[action="?/manageBilling"]')).toHaveCount(0);
 	});
 });
 

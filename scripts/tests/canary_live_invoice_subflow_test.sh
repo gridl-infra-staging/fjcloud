@@ -53,6 +53,10 @@ test_run_live_create_invoice_step_calls_expected_stripe_sequence() {
         call_index=$((call_index + 1))
         printf '%s|%s|%s\n' "$method" "$path" "$*" >> "$call_log"
 
+        # Stripe API 2026-01-28.clover: invoices with charge_automatically
+        # may auto-pay on finalize, and the Invoice object no longer carries
+        # a `charge` field — the canary fetches the charge via
+        # GET /v1/charges?customer=… instead. Mock that 5-call sequence here.
         case "$call_index" in
             1)
                 STRIPE_HTTP_CODE="200"
@@ -63,12 +67,18 @@ test_run_live_create_invoice_step_calls_expected_stripe_sequence() {
                 STRIPE_BODY='{"id":"ii_live_123"}'
                 ;;
             3)
+                # Finalize response without status="paid" forces the
+                # canary to call /pay explicitly (call #4).
                 STRIPE_HTTP_CODE="200"
-                STRIPE_BODY='{"id":"in_live_123"}'
+                STRIPE_BODY='{"id":"in_live_123","status":"open"}'
                 ;;
             4)
                 STRIPE_HTTP_CODE="200"
-                STRIPE_BODY='{"id":"in_live_123","charge":"ch_live_123"}'
+                STRIPE_BODY='{"id":"in_live_123","status":"paid"}'
+                ;;
+            5)
+                STRIPE_HTTP_CODE="200"
+                STRIPE_BODY='{"data":[{"id":"ch_live_123"}]}'
                 ;;
             *)
                 STRIPE_HTTP_CODE="500"
@@ -87,9 +97,66 @@ test_run_live_create_invoice_step_calls_expected_stripe_sequence() {
     assert_contains "$calls" "POST|/v1/invoiceitems" "invoice step calls POST /v1/invoiceitems"
     assert_contains "$calls" "amount=50" "invoice item amount remains 50 cents"
     assert_contains "$calls" "POST|/v1/invoices/in_live_123/finalize" "invoice step finalizes invoice"
-    assert_contains "$calls" "POST|/v1/invoices/in_live_123/pay" "invoice step pays invoice"
+    assert_contains "$calls" "POST|/v1/invoices/in_live_123/pay" "invoice step pays invoice when finalize did not auto-pay"
+    assert_contains "$calls" "GET|/v1/charges?customer=cus_live_123&limit=1" "invoice step retrieves charge via charges list endpoint"
     assert_eq "$CANARY_LIVE_INVOICE_ID" "in_live_123" "invoice id captured from create/pay sequence"
-    assert_eq "$CANARY_LIVE_CHARGE_ID" "ch_live_123" "charge id captured from pay response"
+    assert_eq "$CANARY_LIVE_CHARGE_ID" "ch_live_123" "charge id captured from charges list response"
+}
+
+test_run_live_create_invoice_step_skips_pay_when_finalize_auto_pays() {
+    reset_failure_state
+    CANARY_STRIPE_CUSTOMER_ID="cus_auto_456"
+    CANARY_LIVE_INVOICE_ID=""
+    CANARY_LIVE_CHARGE_ID=""
+
+    local call_log call_index=0 rc calls
+    call_log="$(mktemp)"
+    trap 'rm -f "'"$call_log"'"; trap - RETURN' RETURN
+
+    stripe_request() {
+        local method="$1" path="$2"
+        shift 2
+        call_index=$((call_index + 1))
+        printf '%s|%s|%s\n' "$method" "$path" "$*" >> "$call_log"
+
+        case "$call_index" in
+            1)
+                STRIPE_HTTP_CODE="200"
+                STRIPE_BODY='{"id":"in_auto_456"}'
+                ;;
+            2)
+                STRIPE_HTTP_CODE="200"
+                STRIPE_BODY='{"id":"ii_auto_456"}'
+                ;;
+            3)
+                # Finalize returns status="paid" — /pay must be skipped.
+                STRIPE_HTTP_CODE="200"
+                STRIPE_BODY='{"id":"in_auto_456","status":"paid"}'
+                ;;
+            4)
+                STRIPE_HTTP_CODE="200"
+                STRIPE_BODY='{"data":[{"id":"ch_auto_456"}]}'
+                ;;
+            *)
+                STRIPE_HTTP_CODE="500"
+                STRIPE_BODY='{"error":"unexpected call"}'
+                ;;
+        esac
+        return 0
+    }
+
+    rc=0
+    run_live_create_invoice_step || rc=$?
+    assert_eq "$rc" "0" "auto-paid finalize path succeeds"
+
+    calls="$(cat "$call_log" 2>/dev/null || true)"
+    assert_contains "$calls" "POST|/v1/invoices/in_auto_456/finalize" "auto-paid path still finalizes"
+    if printf '%s\n' "$calls" | grep -q "POST|/v1/invoices/in_auto_456/pay"; then
+        fail "auto-paid finalize must not call /pay"
+    else
+        pass "auto-paid finalize must not call /pay"
+    fi
+    assert_eq "$CANARY_LIVE_CHARGE_ID" "ch_auto_456" "charge id captured on auto-pay path"
 }
 
 test_run_live_create_invoice_step_marks_failure_on_non_200() {
@@ -271,6 +338,7 @@ main_test() {
     echo ""
 
     test_run_live_create_invoice_step_calls_expected_stripe_sequence
+    test_run_live_create_invoice_step_skips_pay_when_finalize_auto_pays
     test_run_live_create_invoice_step_marks_failure_on_non_200
     test_run_live_refund_step_calls_refunds_with_charge
     test_run_live_find_payment_event_step_discovers_exact_event_id

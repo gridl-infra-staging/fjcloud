@@ -13,28 +13,35 @@ Search and filter customers, inspect truthful list data, and perform quick suspe
 
 ## Target Behavior
 
-The page shows `Customer Management`, customer search, status filter, and either unavailable/empty/filter-empty state or a customer table with name, email, status, created, index count, last invoice, and quick actions.
+The page shows `Customer Management`, search and status-filter controls, and one of four route states: unavailable dataset, dataset empty, filter-empty results, or success table with truthful customer fields and quick actions.
 
 ## Required States
 
-- Loading: route load resolves customer list or unavailable state.
-- Empty: no customers shows `No customers found.`
-- Error: unavailable customer data shows `Customer data unavailable.`
-- Success: seeded customers render exactly once when searched.
+- Loading: route load resolves to either unavailable state or a customer dataset before rendering table-state branch.
+- Empty: dataset-empty state shows `No customers found.` when `customers.length === 0`.
+- Error: unavailable dataset state shows `Customer data unavailable.` when server returns `customers === null`.
+- Success: table renders truthful name/email/status/created/last-activity/index-count/billing-health values, supports search and status filter, supports billing-health sort, and exposes quick actions where applicable.
+- Filter-empty: when dataset exists but search/filter excludes all rows, page shows `No customers match the current filters.`
+
+## Mobile Narrow Contract
+
+Baseline viewport: 390px wide (iPhone 14). The page keeps heading, search input, and status filter visible and usable; the responsive table container remains horizontally scrollable where needed so truthful row data and quick actions (when present) remain reachable without adding new breakpoint behavior.
 
 ## Controls And Navigation
 
 - Search filters by customer name or email.
 - Status filter supports all, active, suspended, and deleted.
-- Customer name links to detail.
+- `Billing health` header toggle switches between default ordering and risk-first health ordering.
+- Customer name links to detail route.
 - Active rows show quick suspend and quick impersonate; deleted rows hide impersonate.
 
 ## Acceptance Criteria
 
-- [ ] Heading and table/empty state render.
-- [ ] Search plus active-status filter narrows to seeded customer.
-- [ ] Active customer rows show quick suspend and quick impersonate.
-- [ ] Unavailable index count renders `—`; zero-invoice sentinel renders `none`.
+- [ ] Heading and correct state branch (unavailable, dataset-empty, filter-empty, or table) render from data.
+- [ ] Search plus status filter narrows rows by truthful route data.
+- [ ] Table rows render last-activity and billing-health semantics from mapped formatter/test owners.
+- [ ] Active customer rows expose quick suspend and quick impersonate actions with detail-route action URLs.
+- [ ] Mobile narrow layout keeps controls and row/actions access usable at 390px.
 
 ## Current Implementation Gaps
 
@@ -43,6 +50,5 @@ Current browser tests cover active-row actions and truthfulness; broader list pa
 ## Automated Coverage
 
 - Browser-unmocked tests: `web/tests/e2e-ui/full/admin/admin-pages.spec.ts`; `web/tests/e2e-ui/full/admin/customer-detail.spec.ts`
-- Component tests: `web/src/routes/admin/customers/admin-customers.test.ts`; `web/src/routes/admin/customers/admin-customers-list.test.ts` <!-- TODO(loader-test): a separate component test for the +page.server.ts loader (admin-customers-loader.test.ts) is planned but not yet written; uncomment from the spec list when the file lands so the screen-specs coverage gate stays accurate. -->
-
+- Component tests: `web/src/routes/admin/customers/admin-customers-list.test.ts`; `web/src/routes/admin/customers/admin-customers.test.ts`
 - Server/contract tests: admin customer route tests.

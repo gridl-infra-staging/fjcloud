@@ -72,6 +72,8 @@ pub struct Customer {
     #[serde(skip_serializing)]
     pub email_verify_expires_at: Option<DateTime<Utc>>,
     #[serde(skip_serializing)]
+    pub resend_verification_sent_at: Option<DateTime<Utc>>,
+    #[serde(skip_serializing)]
     pub password_reset_token: Option<String>,
     #[serde(skip_serializing)]
     pub password_reset_expires_at: Option<DateTime<Utc>>,
@@ -113,6 +115,7 @@ mod tests {
             email_verified_at: None,
             email_verify_token: None,
             email_verify_expires_at: None,
+            resend_verification_sent_at: None,
             password_reset_token: None,
             password_reset_expires_at: None,
             last_accessed_at: None,

@@ -175,6 +175,44 @@ describe('ApiClient', () => {
 			});
 		});
 
+		it('POST /auth/resend-verification sends authenticated request', async () => {
+			const fetch = mockFetch(200, { message: 'Verification email sent' });
+			client.setFetch(fetch);
+
+			const result = await client.resendVerification();
+
+			expect(fetch).toHaveBeenCalledWith(`${BASE_URL}/auth/resend-verification`, {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+					Authorization: 'Bearer my-jwt-token'
+				}
+			});
+			expect(result).toEqual({
+				message: 'Verification email sent',
+				retryAfterSeconds: null
+			});
+		});
+
+		it('POST /auth/resend-verification surfaces Retry-After seconds from backend headers', async () => {
+			const fetch = (async () =>
+				new Response(JSON.stringify({ message: 'Verification email sent' }), {
+					status: 200,
+					headers: {
+						'Content-Type': 'application/json',
+						'Retry-After': '90'
+					}
+				})) as typeof globalThis.fetch;
+			client.setFetch(fetch);
+
+			const result = await client.resendVerification();
+
+			expect(result).toEqual({
+				message: 'Verification email sent',
+				retryAfterSeconds: 90
+			});
+		});
+
 		it('GET /usage/daily returns daily entries', async () => {
 			const expected: DailyUsageEntry[] = [
 				{
@@ -649,6 +687,5 @@ describe('ApiClient', () => {
 			});
 			expect(result).toBeUndefined();
 		});
-
 	});
 });

@@ -327,7 +327,19 @@ test_commerce_gate_calls_live_backend_gate() {
     assert_eq "$RUN_EXIT_CODE" "0" "commerce gate invocation should pass in BACKEND_LIVE_GATE=0 mode"
     assert_eq "$(_json_gate_field "$RUN_STDOUT" commerce status)" '"pass"' "commerce status should be pass"
     assert_not_contains "$(_json_gate_field "$RUN_STDOUT" commerce reason)" 'commerce stub' "commerce reason should no longer be the placeholder stub reason"
+    assert_not_contains "$(_json_gate_field "$RUN_STDOUT" commerce reason)" 'staging_only' "default commerce invocation should not claim staging-only metadata"
     assert_regex "$(_json_gate_field "$RUN_STDOUT" commerce checks_run)" '^[0-9]+$' "commerce gate should expose checks_run metadata from live-backend-gate output"
+}
+
+test_staging_only_commerce_gate_forwards_flag_and_reports_skip_metadata() {
+    OVERRIDE_RELIABILITY=1 OVERRIDE_SECURITY=1 OVERRIDE_LOAD=1 OVERRIDE_CI_CD=1 OVERRIDE_COMMERCE=0 \
+    _run_gate --sha=aabbccddee00112233445566778899aabbccddee --env=staging --staging-only
+
+    assert_eq "$RUN_EXIT_CODE" "0" "staging-only commerce gate invocation should pass with soft-skipped production checks"
+    assert_eq "$(_json_gate_field "$RUN_STDOUT" commerce status)" '"pass"' "staging-only commerce gate status should be pass"
+    assert_contains "$(_json_gate_field "$RUN_STDOUT" commerce reason)" 'staging_only' "staging-only commerce reason should include explicit staging-only metadata"
+    assert_not_contains "$(_json_gate_field "$RUN_STDOUT" commerce reason)" 'dry_run' "staging-only commerce reason should not reuse dry-run wording"
+    assert_regex "$(_json_gate_field "$RUN_STDOUT" commerce checks_run)" '^[0-9]+$' "staging-only commerce gate should still expose checks_run metadata"
 }
 
 test_dry_run_commerce_gate_skips_external_checks() {
@@ -446,6 +458,7 @@ run_all_tests() {
     test_evidence_archival_writes_to_custom_directory
     test_evidence_archival_avoids_overwriting_existing_file
     test_commerce_gate_calls_live_backend_gate
+    test_staging_only_commerce_gate_forwards_flag_and_reports_skip_metadata
     test_dry_run_commerce_gate_skips_external_checks
     test_dry_run_ci_cd_gate_returns_stub
     test_run_sub_gate_rejects_command_injection_in_symbol

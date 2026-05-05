@@ -24,6 +24,10 @@ Describe what the screen should show and allow in its normal successful state. T
 - Error:
 - Success:
 
+## Mobile Narrow Contract
+
+Baseline viewport: 390px wide (iPhone 14). Describe what must remain visible and usable at this width without inventing new runtime behavior.
+
 ## Controls And Navigation
 
 List the visible controls, links, forms, and where each should lead or what feedback it should produce.

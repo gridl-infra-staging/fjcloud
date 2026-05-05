@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/svelte';
 
 import DpaPage from './+page.svelte';
-import { BETA_FEEDBACK_MAILTO, SUPPORT_EMAIL } from '$lib/format';
+import { LEGAL_SUPPORT_MAILTO, SUPPORT_EMAIL } from '$lib/format';
 
 import {
 	assertSharedLegalPageContract,
@@ -13,13 +13,19 @@ import {
 
 afterEach(cleanup);
 
-describe('DPA page legal stub contract', () => {
-	it('pins the draft DPA legal contract for Stage 2 implementation', () => {
+describe('DPA page legal contract', () => {
+	it('renders finalized DPA copy without draft markers and preserves core sections', () => {
 		render(DpaPage);
 
 		assertSharedLegalPageContract();
-		expect(document.title).toBe('Data Processing Addendum (Draft) — Flapjack Cloud');
-		assertUniqueVisibleHeading(1, 'Data Processing Addendum (Draft)');
+		expect(document.title).toBe('Data Processing Addendum — Flapjack Cloud');
+		assertUniqueVisibleHeading(1, 'Data Processing Addendum');
+		assertUniqueVisibleText('Effective date: 2026-05-03');
+		assertUniqueVisibleHeading(2, 'Roles');
+		assertUniqueVisibleHeading(2, 'Sub-processors');
+		assertUniqueVisibleHeading(2, 'Security');
+		assertUniqueVisibleHeading(2, 'Data Subject Requests');
+		assertUniqueVisibleHeading(2, 'Contact');
 
 		const signedDpaRequestParagraphs = screen.getAllByText((_content, element) => {
 			if (!(element instanceof HTMLParagraphElement)) {
@@ -42,7 +48,10 @@ describe('DPA page legal stub contract', () => {
 		expect(signedDpaRequestLinks).toHaveLength(1);
 		const signedDpaRequestLink = signedDpaRequestLinks[0];
 		expect(signedDpaRequestLink).toBeVisible();
-		expect(signedDpaRequestLink).toHaveAttribute('href', BETA_FEEDBACK_MAILTO);
-		assertUniqueVisibleText('[REVIEW: sub-processor list]');
+		expect(signedDpaRequestLink).toHaveAttribute('href', LEGAL_SUPPORT_MAILTO);
+
+		expect(document.body).not.toHaveTextContent('(Draft)');
+		expect(document.body).not.toHaveTextContent('[REVIEW:');
+		expect(document.body).not.toHaveTextContent('TBD');
 	});
 });

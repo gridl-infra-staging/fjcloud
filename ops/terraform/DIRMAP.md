@@ -4,6 +4,7 @@
 | File | Summary |
 | --- | --- |
 | audit_no_secrets.sh | Audit Terraform and GitHub workflow files for secret hygiene. |
+| publish_customer_loop_canary_image.sh | Build + push the customer-loop canary Lambda container image to ECR. |
 | publish_support_email_canary_image.sh | Build + push the support-email canary Lambda container image to ECR. |
 | tests_bootstrap_static.sh | Static contract tests for ops/scripts/validate_bootstrap.sh
 TDD red phase for Task 4 — Production Bootstrap Parity

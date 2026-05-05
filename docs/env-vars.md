@@ -40,9 +40,12 @@ Compatibility note: `STRIPE_SECRET_KEY` is the canonical operator-facing variabl
 
 ## Email (SES)
 
+Transactional emails (verification, password reset, invoice-ready, quota warning) render once into a shared `{ subject, html_body, text_body }` contract before SES, Mailpit, or test mocks deliver them.
+
 | Variable                | Required | Default | Description                                                                                                                                                                                                                                                                                      |
 | ----------------------- | -------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `SES_FROM_ADDRESS`      | Prod     | —       | Sender address for transactional emails (e.g., `system@flapjack.foo`). When `ENVIRONMENT` is `local`/`dev`/`development`, `NODE_SECRET_BACKEND=memory`, and the full SES env family is absent, startup uses `NoopEmailService`                                                               |
+| `EMAIL_FROM_NAME`       | No       | `Flapjack Cloud` | Sender display name for transactional emails. Shared by SES and Mailpit sender identity wiring; blank values fall back to the default                                                                                                                  |
 | `SES_REGION`            | Prod     | —       | AWS region for SES API calls (e.g., `us-east-1`). When `ENVIRONMENT` is `local`/`dev`/`development`, `NODE_SECRET_BACKEND=memory`, and the full SES env family is absent, startup uses `NoopEmailService`                                                                                     |
 | `SES_CONFIGURATION_SET` | Prod     | —       | SES configuration set name applied to outbound SES sends so bounce/complaint events publish through the configured SES event destination. Startup fails fast when SES mode is active and this variable is missing or blank; suppression-aware outbound checks still flow through the same central SES startup path |
 
@@ -63,7 +66,7 @@ Compatibility note: `STRIPE_SECRET_KEY` is the canonical operator-facing variabl
 | -------------------- | -------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `MAILPIT_API_URL`    | No       | —                     | Mailpit HTTP API base URL (e.g., `http://localhost:8025`). When set and SES env is absent, startup uses `MailpitEmailService` instead of `NoopEmailService`. Emails are caught by Mailpit and visible in its web UI |
 | `EMAIL_FROM_ADDRESS` | No       | `system@flapjack.foo` | Sender email address for `MailpitEmailService`                                                                                                                                                                      |
-| `EMAIL_FROM_NAME`    | No       | `Flapjack Cloud`      | Sender display name for `MailpitEmailService`                                                                                                                                                                       |
+| `EMAIL_FROM_NAME`    | No       | `Flapjack Cloud`      | Shared transactional sender display name used by Mailpit and SES; `MailpitEmailService` consumes the same startup/config defaulting path as SES                                                                                                       |
 
 ## AWS (EC2 / Route53 / SSM)
 
@@ -88,6 +91,8 @@ Compatibility note: `STRIPE_SECRET_KEY` is the canonical operator-facing variabl
 | `CLOUDFLARE_ZONE_ID`                                   | Staging/Prod infra | —       | Cloudflare zone ID for the public DNS zone passed to Terraform as `cloudflare_zone_id`                                                                                            |
 | `CLOUDFLARE_EDIT_READ_ZONE_DNS_API_TOKEN_FLAPJACK_FOO` | Staging infra      | —       | Domain-specific alias for the `flapjack.foo` Cloudflare token. The staging smoke harness and bootstrap validator accept this when `CLOUDFLARE_API_TOKEN` is absent                |
 | `CLOUDFLARE_ZONE_ID_FLAPJACK_FOO`                      | Staging infra      | —       | Domain-specific alias for the `flapjack.foo` Cloudflare zone ID. The staging smoke harness and bootstrap validator accept this when `CLOUDFLARE_ZONE_ID` is absent                |
+| `CLOUDFLARE_GLOBAL_API_KEY`                            | Operator-only      | —       | Legacy Cloudflare global API key used by Pages/Wrangler and `ops/runbooks/site_takedown_20260503/restore.sh` because the zone-scoped DNS token is insufficient for those calls   |
+| `CLOUDFLARE_X_Auth_Email`                              | Operator-only      | —       | Email paired with `CLOUDFLARE_GLOBAL_API_KEY` for legacy Cloudflare X-Auth requests in Pages/Wrangler and the site-restore runbook                                             |
 
 ## Live E2E Guardrails
 
@@ -388,3 +393,11 @@ These gates are test-harness controls for the optional staging seam and are sepa
 | `ENVIRONMENT`                   | No       | `development`           | Shown as badge in admin panel header                               |
 | `SERVICE_STATUS`                | No       | `operational`           | Public status page status: `operational`, `degraded`, or `outage`  |
 | `SERVICE_STATUS_UPDATED`        | No       | Current time            | ISO 8601 timestamp of last status update                           |
+
+## VLM Judge (Product-Fit Tooling)
+
+Variables consumed by `scripts/vlm/vlm_judge.sh`. The judge sends screenshots to the Anthropic Messages API for automated UI evaluation.
+
+| Variable            | Required | Default | Description                                                                                                                                                                                                                                                                                   |
+| ------------------- | -------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ANTHROPIC_API_KEY` | Yes      | —       | Anthropic API key for the VLM judge. Resolution order: (1) process environment, (2) `fjcloud/.secret/.env.secret`, (3) primary checkout `.secret/.env.secret` (for worktree invocations). The maintained key currently lives in `uff_dev/.secret/.env.secret` rather than `fjcloud`'s secret file |

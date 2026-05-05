@@ -59,9 +59,7 @@ describe('Signup page', () => {
 
 	it('does not render a beta acknowledgement checkbox gate', () => {
 		render(SignupPage);
-		expect(
-			screen.queryByRole('checkbox', { name: /public beta terms/i })
-		).not.toBeInTheDocument();
+		expect(screen.queryByRole('checkbox', { name: /public beta terms/i })).not.toBeInTheDocument();
 	});
 
 	it('keeps form errors attached to intended controls and confirm-password error as the only alert', () => {
@@ -98,7 +96,6 @@ describe('Signup page', () => {
 		const confirmAlert = within(confirmField).getByRole('alert');
 		expect(confirmAlert).toHaveTextContent('Passwords do not match');
 		expect(screen.getAllByRole('alert')).toHaveLength(1);
-
 	});
 
 	it('renders form-level signup failures in a single global alert region', () => {

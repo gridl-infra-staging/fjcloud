@@ -1,0 +1,3 @@
+[OK]   discord: HTTP 200 (readback nonce confirmed)
+==> probe summary: nonce=probe-20260504T234125Z-25040 slack=skipped discord=ok env=staging
+==> discord delivery proof: automated nonce readback confirmed

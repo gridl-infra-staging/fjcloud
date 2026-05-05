@@ -60,9 +60,7 @@ async function expectInvoiceTimelineLabelHasNonEmptyValue(
 	page: Page,
 	label: string
 ): Promise<void> {
-	const timelineLabelWithValue = page.getByText(
-		new RegExp(`^\\s*${escapeRegex(label)}\\s+\\S.+$`)
-	);
+	const timelineLabelWithValue = page.getByText(new RegExp(`^\\s*${escapeRegex(label)}\\s+\\S.+$`));
 	await expect(timelineLabelWithValue).toHaveCount(1);
 	await expect(timelineLabelWithValue).toBeVisible();
 }
@@ -135,7 +133,10 @@ test.describe('Fresh signup to paid invoice', () => {
 		await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
 		await assertDashboardRouteWalk(page);
 
-		const paidInvoiceEvidence = await arrangePaidInvoiceForFreshSignup(signup.email, signup.password);
+		const paidInvoiceEvidence = await arrangePaidInvoiceForFreshSignup(
+			signup.email,
+			signup.password
+		);
 
 		await page.goto('/dashboard/billing/invoices');
 		await expect(page.getByRole('heading', { name: 'Invoices' })).toBeVisible();
@@ -146,11 +147,11 @@ test.describe('Fresh signup to paid invoice', () => {
 		const invoiceLink = page.getByTestId(`invoice-row-link-${paidInvoiceEvidence.invoiceId}`);
 		await expect(invoiceLink).toBeVisible({ timeout: 30_000 });
 		await invoiceLink.click();
-			await expect(page).toHaveURL(
-				new RegExp(`/dashboard/billing/invoices/${paidInvoiceEvidence.invoiceId}$`)
-			);
-			await expect(page.getByRole('heading', { name: 'Line Items' })).toBeVisible();
-			await expectInvoiceHeaderStatusBadge(page, 'Paid');
-			await expectInvoiceTimelineLabelsWithValues(page);
-		});
+		await expect(page).toHaveURL(
+			new RegExp(`/dashboard/billing/invoices/${paidInvoiceEvidence.invoiceId}$`)
+		);
+		await expect(page.getByRole('heading', { name: 'Line Items' })).toBeVisible();
+		await expectInvoiceHeaderStatusBadge(page, 'Paid');
+		await expectInvoiceTimelineLabelsWithValues(page);
 	});
+});

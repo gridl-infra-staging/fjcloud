@@ -1,47 +1,13 @@
-/// SQL integration tests for PgCustomerRepo — carry-forward plumbing.
-///
-/// These tests run against a real Postgres database to verify:
-///   - Basic CRUD round-trips (create, create_with_password, find_by_id, find_by_email)
-///   - The new `object_storage_egress_carryforward_cents` column defaults to zero
-///   - The dedicated `set_object_storage_egress_carryforward_cents` setter persists
-///     and round-trips a non-zero decimal value
-///
-/// ## Running
-///
-/// Set DATABASE_URL to a Postgres instance with DDL privileges:
-///
-///   DATABASE_URL=postgres://user:pass@localhost/flapjack_test \
-///     cargo test -p api --test pg_customer_repo_test
-///
-/// If DATABASE_URL is not set, all tests are skipped.
-///
-/// ## Isolation
-///
-/// Each test seeds its own data using unique UUIDs and cleans up on success.
-use api::repos::{CustomerRepo, PgCustomerRepo};
+/// SQL integration tests for PgCustomerRepo data contracts.
+use api::repos::{CustomerRepo, PgCustomerRepo, ResendVerificationOutcome};
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 use sqlx::PgPool;
 use uuid::Uuid;
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
+mod support;
 
-async fn connect_and_migrate() -> Option<PgPool> {
-    let Ok(url) = std::env::var("DATABASE_URL") else {
-        println!("SKIP: DATABASE_URL not set — skipping PgCustomerRepo SQL tests");
-        return None;
-    };
-    let pool = PgPool::connect(&url)
-        .await
-        .expect("connect to integration test DB");
-    sqlx::migrate!("../migrations")
-        .run(&pool)
-        .await
-        .expect("run migrations");
-    Some(pool)
-}
+use support::pg_schema_harness;
 
 async fn cleanup_customer(pool: &PgPool, email: &str) {
     sqlx::query("DELETE FROM customers WHERE email = $1")
@@ -118,15 +84,30 @@ async fn force_deleted_at_for_ids(
         .expect("force deleted_at fixture timestamp for deterministic tie-break test");
 }
 
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
+async fn set_resend_verification_sent_at(
+    pool: &PgPool,
+    id: Uuid,
+    resend_verification_sent_at: chrono::DateTime<chrono::Utc>,
+) -> chrono::DateTime<chrono::Utc> {
+    sqlx::query_scalar(
+        "UPDATE customers \
+         SET resend_verification_sent_at = $2, updated_at = NOW() \
+         WHERE id = $1 \
+         RETURNING resend_verification_sent_at",
+    )
+    .bind(id)
+    .bind(resend_verification_sent_at)
+    .fetch_one(pool)
+    .await
+    .expect("seed resend_verification_sent_at fixture timestamp")
+}
 
 #[tokio::test]
 async fn create_customer_has_zero_carryforward() {
-    let Some(pool) = connect_and_migrate().await else {
+    let Some(db) = pg_schema_harness::connect_and_migrate("it_pg_customer_repo").await else {
         return;
     };
+    let pool = db.pool.clone();
     let repo = PgCustomerRepo::new(pool.clone());
     let email = format!(
         "cf-test-{}@integration.test",
@@ -148,9 +129,10 @@ async fn create_customer_has_zero_carryforward() {
 
 #[tokio::test]
 async fn create_with_password_has_zero_carryforward() {
-    let Some(pool) = connect_and_migrate().await else {
+    let Some(db) = pg_schema_harness::connect_and_migrate("it_pg_customer_repo").await else {
         return;
     };
+    let pool = db.pool.clone();
     let repo = PgCustomerRepo::new(pool.clone());
     let email = format!(
         "cfpw-test-{}@integration.test",
@@ -171,9 +153,10 @@ async fn create_with_password_has_zero_carryforward() {
 
 #[tokio::test]
 async fn set_and_read_carryforward_round_trips() {
-    let Some(pool) = connect_and_migrate().await else {
+    let Some(db) = pg_schema_harness::connect_and_migrate("it_pg_customer_repo").await else {
         return;
     };
+    let pool = db.pool.clone();
     let repo = PgCustomerRepo::new(pool.clone());
     let email = format!(
         "cfrt-test-{}@integration.test",
@@ -217,9 +200,10 @@ async fn set_and_read_carryforward_round_trips() {
 
 #[tokio::test]
 async fn set_carryforward_on_deleted_customer_returns_false() {
-    let Some(pool) = connect_and_migrate().await else {
+    let Some(db) = pg_schema_harness::connect_and_migrate("it_pg_customer_repo").await else {
         return;
     };
+    let pool = db.pool.clone();
     let repo = PgCustomerRepo::new(pool.clone());
     let email = format!(
         "cfdel-test-{}@integration.test",
@@ -239,10 +223,197 @@ async fn set_carryforward_on_deleted_customer_returns_false() {
 }
 
 #[tokio::test]
-async fn soft_delete_retains_row_and_is_idempotent() {
-    let Some(pool) = connect_and_migrate().await else {
+async fn resend_verification_cooldown_persists_across_repo_reload() {
+    let Some(db) = pg_schema_harness::connect_and_migrate("it_pg_customer_repo").await else {
         return;
     };
+    let pool = db.pool.clone();
+    let first_repo = PgCustomerRepo::new(pool.clone());
+    let email = format!(
+        "resend-cooldown-{}@integration.test",
+        &Uuid::new_v4().to_string()[..8]
+    );
+
+    let customer = first_repo
+        .create("Resend Cooldown", &email)
+        .await
+        .expect("create customer");
+
+    let first_outcome = first_repo
+        .rotate_email_verification_token_with_resend_cooldown(
+            customer.id,
+            "first-token",
+            chrono::Utc::now() + chrono::Duration::hours(24),
+        )
+        .await
+        .expect("first resend token rotation");
+    assert!(
+        matches!(first_outcome, ResendVerificationOutcome::Allowed { .. }),
+        "first resend should be allowed"
+    );
+
+    let customer_after_first_send = first_repo
+        .find_by_id(customer.id)
+        .await
+        .expect("reload customer after first resend")
+        .expect("customer should exist");
+    assert_eq!(
+        customer_after_first_send.email_verify_token.as_deref(),
+        Some("first-token"),
+        "first resend should persist the token on the customer row"
+    );
+    assert!(
+        customer_after_first_send
+            .resend_verification_sent_at
+            .is_some(),
+        "first resend should stamp cooldown state on the customer row"
+    );
+
+    let reloaded_repo = PgCustomerRepo::new(pool.clone());
+    let second_outcome = reloaded_repo
+        .rotate_email_verification_token_with_resend_cooldown(
+            customer.id,
+            "second-token",
+            chrono::Utc::now() + chrono::Duration::hours(24),
+        )
+        .await
+        .expect("second resend token rotation");
+
+    match second_outcome {
+        ResendVerificationOutcome::CooldownActive {
+            retry_after_seconds,
+        } => {
+            assert!(
+                (1..=60).contains(&retry_after_seconds),
+                "retry_after_seconds should stay within the 60-second cooldown window"
+            );
+        }
+        unexpected => panic!(
+            "immediate second resend after repo reload should be blocked by cooldown, got {unexpected:?}"
+        ),
+    }
+
+    let customer_after_second_attempt = reloaded_repo
+        .find_by_id(customer.id)
+        .await
+        .expect("reload customer after blocked resend")
+        .expect("customer should exist");
+    assert_eq!(
+        customer_after_second_attempt.email_verify_token.as_deref(),
+        Some("first-token"),
+        "blocked resend must not rotate the token again"
+    );
+
+    cleanup_customer(&pool, &email).await;
+}
+
+#[tokio::test]
+async fn rollback_resend_verification_restores_previous_token_and_cooldown_state() {
+    let Some(db) = pg_schema_harness::connect_and_migrate("it_pg_customer_repo").await else {
+        return;
+    };
+    let pool = db.pool.clone();
+    let repo = PgCustomerRepo::new(pool.clone());
+    let email = format!(
+        "resend-rollback-{}@integration.test",
+        &Uuid::new_v4().to_string()[..8]
+    );
+
+    let customer = repo
+        .create("Resend Rollback", &email)
+        .await
+        .expect("create customer");
+    let previous_expiry = chrono::Utc::now() + chrono::Duration::hours(24);
+    let historical_cooldown_timestamp = chrono::Utc::now()
+        - chrono::Duration::seconds(api::repos::RESEND_VERIFICATION_COOLDOWN_SECONDS + 5);
+    let previous_token = "last-deliverable-token";
+    let reserved_token = "reserved-token";
+
+    let seeded = repo
+        .set_email_verify_token(customer.id, previous_token, previous_expiry)
+        .await
+        .expect("seed last deliverable token");
+    assert!(seeded, "fixture seed should update an active customer");
+    let seeded_cooldown_timestamp =
+        set_resend_verification_sent_at(&pool, customer.id, historical_cooldown_timestamp).await;
+
+    let reservation = match repo
+        .rotate_email_verification_token_with_resend_cooldown(
+            customer.id,
+            reserved_token,
+            chrono::Utc::now() + chrono::Duration::hours(24),
+        )
+        .await
+        .expect("reserve resend token")
+    {
+        ResendVerificationOutcome::Allowed { reservation } => reservation,
+        unexpected => panic!("first resend reservation should be allowed, got {unexpected:?}"),
+    };
+    assert_eq!(
+        reservation.previous_resend_verification_sent_at,
+        Some(seeded_cooldown_timestamp),
+        "reservation should carry the prior non-NULL cooldown timestamp for rollback"
+    );
+    assert!(
+        reservation.reserved_resend_verification_sent_at
+            > reservation
+                .previous_resend_verification_sent_at
+                .unwrap_or(chrono::DateTime::<chrono::Utc>::MIN_UTC),
+        "reservation should stamp a fresh resend cooldown timestamp"
+    );
+
+    let rolled_back = repo
+        .rollback_resend_verification_token_rotation(customer.id, reserved_token, &reservation)
+        .await
+        .expect("rollback resend reservation");
+    assert!(
+        rolled_back,
+        "rollback should restore prior values when reservation still matches"
+    );
+
+    let after_rollback = repo
+        .find_by_id(customer.id)
+        .await
+        .expect("load customer after rollback")
+        .expect("customer should exist");
+    assert_eq!(
+        after_rollback.email_verify_token.as_deref(),
+        Some(previous_token),
+        "rollback should restore the last deliverable token"
+    );
+    assert_eq!(
+        after_rollback.email_verify_expires_at,
+        Some(previous_expiry),
+        "rollback should restore the prior token expiry"
+    );
+    assert_eq!(
+        after_rollback.resend_verification_sent_at,
+        reservation.previous_resend_verification_sent_at,
+        "rollback should restore the previous cooldown timestamp"
+    );
+
+    let immediate_retry = repo
+        .rotate_email_verification_token_with_resend_cooldown(
+            customer.id,
+            "retry-token-after-rollback",
+            chrono::Utc::now() + chrono::Duration::hours(24),
+        )
+        .await
+        .expect("retry resend after rollback");
+    assert!(
+        matches!(immediate_retry, ResendVerificationOutcome::Allowed { .. }),
+        "customer should be able to retry immediately after rollback"
+    );
+
+    cleanup_customer(&pool, &email).await;
+}
+
+#[tokio::test]
+async fn soft_delete_retains_row_and_is_idempotent() {
+    let Some(db) = pg_schema_harness::connect_and_migrate("it_pg_customer_repo").await else {
+        return;
+    };
+    let pool = db.pool.clone();
     let repo = PgCustomerRepo::new(pool.clone());
     let email = format!(
         "soft-delete-test-{}@integration.test",
@@ -302,9 +473,10 @@ async fn soft_delete_retains_row_and_is_idempotent() {
 
 #[tokio::test]
 async fn deleted_customer_cutoff_selector_filters_and_orders_by_deleted_at_then_id() {
-    let Some(pool) = connect_and_migrate().await else {
+    let Some(db) = pg_schema_harness::connect_and_migrate("it_pg_customer_repo").await else {
         return;
     };
+    let pool = db.pool.clone();
     let repo = PgCustomerRepo::new(pool.clone());
     let first_deleted_email = format!(
         "soft-delete-cutoff-first-{}@integration.test",
@@ -402,9 +574,10 @@ async fn deleted_customer_cutoff_selector_filters_and_orders_by_deleted_at_then_
 
 #[tokio::test]
 async fn deleted_customer_cutoff_selector_tie_breaks_equal_deleted_at_by_id() {
-    let Some(pool) = connect_and_migrate().await else {
+    let Some(db) = pg_schema_harness::connect_and_migrate("it_pg_customer_repo").await else {
         return;
     };
+    let pool = db.pool.clone();
     let repo = PgCustomerRepo::new(pool.clone());
     let first_deleted_email = format!(
         "soft-delete-cutoff-tie-first-{}@integration.test",
@@ -473,9 +646,10 @@ async fn deleted_customer_cutoff_selector_tie_breaks_equal_deleted_at_by_id() {
 
 #[tokio::test]
 async fn list_aggregates_billing_health_inputs_without_duplicate_customer_rows() {
-    let Some(pool) = connect_and_migrate().await else {
+    let Some(db) = pg_schema_harness::connect_and_migrate("it_pg_customer_repo").await else {
         return;
     };
+    let pool = db.pool.clone();
     let repo = PgCustomerRepo::new(pool.clone());
     let first_email = format!(
         "list-health-first-{}@integration.test",
@@ -549,44 +723,6 @@ async fn list_aggregates_billing_health_inputs_without_duplicate_customer_rows()
     .execute(&pool)
     .await
     .expect("insert tenant rows");
-
-    let subscription_period_start = chrono::NaiveDate::from_ymd_opt(2026, 1, 1).unwrap();
-    let subscription_period_end = chrono::NaiveDate::from_ymd_opt(2026, 1, 31).unwrap();
-    // Seed subscription rows to prove the customer list query no longer
-    // depends on subscription data after Stage 5 seam removal.
-    sqlx::query(
-        "INSERT INTO subscriptions \
-            (customer_id, stripe_subscription_id, stripe_price_id, plan_tier, status, \
-             current_period_start, current_period_end, cancel_at_period_end, created_at, updated_at) \
-         VALUES \
-            ($1, $2, $3, $4, $5, $6, $7, FALSE, NOW(), NOW()), \
-            ($8, $9, $10, $11, $12, $13, $14, FALSE, NOW(), NOW()), \
-            ($15, $16, $17, $18, $19, $20, $21, FALSE, NOW(), NOW())",
-    )
-    .bind(first.id)
-    .bind(format!("sub-list-health-trialing-{first_short}"))
-    .bind("price_test_trialing")
-    .bind("starter")
-    .bind("trialing")
-    .bind(subscription_period_start)
-    .bind(subscription_period_end)
-    .bind(first.id)
-    .bind(format!("sub-list-health-canceled-{first_short}"))
-    .bind("price_test_canceled")
-    .bind("starter")
-    .bind("canceled")
-    .bind(subscription_period_start)
-    .bind(subscription_period_end)
-    .bind(second.id)
-    .bind(format!("sub-list-health-canceled-{second_short}"))
-    .bind("price_test_second_canceled")
-    .bind("starter")
-    .bind("canceled")
-    .bind(subscription_period_start)
-    .bind(subscription_period_end)
-    .execute(&pool)
-    .await
-    .expect("insert subscription rows that list query must ignore");
 
     sqlx::query(
         "INSERT INTO invoices (customer_id, period_start, period_end, subtotal_cents, total_cents, status) \

@@ -42,8 +42,7 @@ describe('BaseClient default fetchFn — Cloudflare Workers bind contract', () =
 		// Access via cast: fetchFn is `protected` so the compiler doesn't
 		// expose it on the instance type. We reach in here intentionally —
 		// this test is asserting an internal contract that callers rely on.
-		const fetchFn = (client as unknown as { fetchFn: typeof globalThis.fetch })
-			.fetchFn;
+		const fetchFn = (client as unknown as { fetchFn: typeof globalThis.fetch }).fetchFn;
 
 		// The bind contract: must NOT be the same reference as globalThis.fetch.
 		// `Function.prototype.bind` always creates a new function.
@@ -61,8 +60,7 @@ describe('BaseClient default fetchFn — Cloudflare Workers bind contract', () =
 		// not throw "Illegal invocation". On Workers, only the bound version
 		// survives this. On Node, both work, but the test still proves the
 		// bound function is callable with our expected method-call shape.
-		const fetchFn = (client as unknown as { fetchFn: typeof globalThis.fetch })
-			.fetchFn;
+		const fetchFn = (client as unknown as { fetchFn: typeof globalThis.fetch }).fetchFn;
 
 		// We expect a network failure (port 1 won't accept connections), NOT a
 		// TypeError. If the bind is missing on Workers, this would surface as

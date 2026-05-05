@@ -800,6 +800,7 @@ async function updateBillingPlan(
 type ArrangeBillingPortalCustomerResult = CreatedFixtureUser & {
 	stripeCustomerId: string;
 	defaultPaymentMethodId: string;
+	nonDefaultPaymentMethodId: string;
 };
 
 type ArrangeBillingPortalCustomerParams = {
@@ -884,7 +885,9 @@ async function fetchMailpitMessageIds(query: string): Promise<string[]> {
 		`${mailpitApiUrl}/api/v1/search?query=${encodeURIComponent(query)}`
 	);
 	if (!searchResponse.ok) {
-		throw new Error(`Mailpit search failed: ${searchResponse.status} ${await searchResponse.text()}`);
+		throw new Error(
+			`Mailpit search failed: ${searchResponse.status} ${await searchResponse.text()}`
+		);
 	}
 
 	const payload = (await searchResponse.json()) as MailpitSearchResponse;
@@ -894,7 +897,9 @@ async function fetchMailpitMessageIds(query: string): Promise<string[]> {
 
 async function fetchMailpitMessagePayload(messageId: string): Promise<unknown> {
 	const mailpitApiUrl = getMailpitApiUrl();
-	const messageResponse = await fetch(`${mailpitApiUrl}/api/v1/message/${encodeURIComponent(messageId)}`);
+	const messageResponse = await fetch(
+		`${mailpitApiUrl}/api/v1/message/${encodeURIComponent(messageId)}`
+	);
 	if (!messageResponse.ok) {
 		throw new Error(
 			`Mailpit message fetch failed for ${messageId}: ${messageResponse.status} ${await messageResponse.text()}`
@@ -986,15 +991,13 @@ async function completeFreshSignupEmailVerificationViaRoute(
 }
 
 async function getCustomerIdForToken(token: string): Promise<string> {
-	const accountResponse = await callJsonApi(
-		fetch,
-		fixtureEnv.apiUrl,
-		'GET',
-		'/account',
-		{ Authorization: `Bearer ${token}` }
-	);
+	const accountResponse = await callJsonApi(fetch, fixtureEnv.apiUrl, 'GET', '/account', {
+		Authorization: `Bearer ${token}`
+	});
 	if (!accountResponse.ok) {
-		throw new Error(`getCustomerIdForToken failed: ${accountResponse.status} ${await accountResponse.text()}`);
+		throw new Error(
+			`getCustomerIdForToken failed: ${accountResponse.status} ${await accountResponse.text()}`
+		);
 	}
 
 	const accountPayload = (await accountResponse.json()) as { id?: string };
@@ -1044,13 +1047,37 @@ async function attachDefaultStripeTestCard(
 	stripeSecretKey: string,
 	contextLabel: string
 ): Promise<string> {
+	return attachStripeTestCard({
+		stripeCustomerId,
+		stripeSecretKey,
+		contextLabel,
+		stripePaymentMethodId: 'pm_card_visa',
+		setAsDefault: true
+	});
+}
+
+type AttachStripeTestCardParams = {
+	stripeCustomerId: string;
+	stripeSecretKey: string;
+	contextLabel: string;
+	stripePaymentMethodId: string;
+	setAsDefault: boolean;
+};
+
+async function attachStripeTestCard({
+	stripeCustomerId,
+	stripeSecretKey,
+	contextLabel,
+	stripePaymentMethodId,
+	setAsDefault
+}: AttachStripeTestCardParams): Promise<string> {
 	const stripeAuthHeaders = {
 		Authorization: `Bearer ${stripeSecretKey}`,
 		'Content-Type': 'application/x-www-form-urlencoded'
 	};
 
 	const attachResp = await fetch(
-		'https://api.stripe.com/v1/payment_methods/pm_card_visa/attach',
+		`https://api.stripe.com/v1/payment_methods/${encodeURIComponent(stripePaymentMethodId)}/attach`,
 		{
 			method: 'POST',
 			headers: stripeAuthHeaders,
@@ -1068,6 +1095,10 @@ async function attachDefaultStripeTestCard(
 		`${contextLabel} expected attached PaymentMethod.id from Stripe`
 	);
 
+	if (!setAsDefault) {
+		return defaultPaymentMethodId;
+	}
+
 	const updateResp = await fetch(
 		`https://api.stripe.com/v1/customers/${encodeURIComponent(stripeCustomerId)}`,
 		{
@@ -1083,6 +1114,20 @@ async function attachDefaultStripeTestCard(
 	}
 
 	return defaultPaymentMethodId;
+}
+
+async function attachNonDefaultStripeTestCard(
+	stripeCustomerId: string,
+	stripeSecretKey: string,
+	contextLabel: string
+): Promise<string> {
+	return attachStripeTestCard({
+		stripeCustomerId,
+		stripeSecretKey,
+		contextLabel,
+		stripePaymentMethodId: 'pm_card_mastercard',
+		setAsDefault: false
+	});
 }
 
 /**
@@ -1126,7 +1171,22 @@ async function arrangeBillingPortalCustomer({
 			'arrangeBillingPortalCustomer'
 		);
 
+		if (stripeCustomerId.startsWith('cus_local_')) {
+			return {
+				...created,
+				token,
+				stripeCustomerId,
+				defaultPaymentMethodId: 'pm_local_default',
+				nonDefaultPaymentMethodId: 'pm_local_secondary'
+			};
+		}
+
 		const defaultPaymentMethodId = await attachDefaultStripeTestCard(
+			stripeCustomerId,
+			stripeSecretKey,
+			'arrangeBillingPortalCustomer'
+		);
+		const nonDefaultPaymentMethodId = await attachNonDefaultStripeTestCard(
 			stripeCustomerId,
 			stripeSecretKey,
 			'arrangeBillingPortalCustomer'
@@ -1136,7 +1196,8 @@ async function arrangeBillingPortalCustomer({
 			...created,
 			token,
 			stripeCustomerId,
-			defaultPaymentMethodId
+			defaultPaymentMethodId,
+			nonDefaultPaymentMethodId
 		};
 	} catch (error) {
 		throwBillingPortalArrangeFailure({
@@ -1154,7 +1215,9 @@ async function resolveInvoiceIdFromBatch(
 ): Promise<string> {
 	const customerResult = batch.results.find((result) => result.customer_id === customerId);
 	if (!customerResult) {
-		throw new Error(`arrangePaidInvoiceForFreshSignup missing batch result for customer ${customerId}`);
+		throw new Error(
+			`arrangePaidInvoiceForFreshSignup missing batch result for customer ${customerId}`
+		);
 	}
 
 	if (customerResult.status === 'created' && customerResult.invoice_id) {
@@ -1178,10 +1241,7 @@ async function resolveInvoiceIdFromBatch(
 	);
 }
 
-async function waitForInvoicePaid(
-	invoiceId: string,
-	token: string
-): Promise<InvoiceDetailApiItem> {
+async function waitForInvoicePaid(invoiceId: string, token: string): Promise<InvoiceDetailApiItem> {
 	return waitForInvoiceStatus({
 		invoiceId,
 		token,
@@ -1205,7 +1265,12 @@ async function waitForInvoiceStatus({
 }: WaitForInvoiceStatusParams): Promise<InvoiceDetailApiItem> {
 	const maxAttempts = 30;
 	for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-		const response = await apiCall('GET', `/invoices/${encodeURIComponent(invoiceId)}`, undefined, token);
+		const response = await apiCall(
+			'GET',
+			`/invoices/${encodeURIComponent(invoiceId)}`,
+			undefined,
+			token
+		);
 		if (response.ok) {
 			const invoice = (await response.json()) as InvoiceDetailApiItem;
 			if (invoice.status === expectedStatus && (expectedStatus !== 'paid' || invoice.paid_at)) {
@@ -1311,7 +1376,6 @@ async function arrangePaidInvoiceForFreshSignup({
 		);
 	}
 }
-
 
 type InvoiceListApiItem = {
 	id: string;

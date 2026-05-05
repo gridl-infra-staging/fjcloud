@@ -349,6 +349,10 @@ run_setup_intent_and_stripe_attach_step() {
         mark_failure "stripe_attach" "STRIPE_SECRET_KEY (or STRIPE_TEST_SECRET_KEY) is required"
         return 1
     fi
+    if [[ "$STRIPE_SECRET_KEY_EFFECTIVE" != sk_test_* && "$STRIPE_SECRET_KEY_EFFECTIVE" != rk_test_* ]]; then
+        mark_failure "stripe_attach" "pm_card_visa requires a test-mode Stripe key (sk_test_*/rk_test_*); current key is livemode — see docs/design/stripe_environments.md"
+        return 1
+    fi
     if [[ "$STRIPE_API_BASE" != "https://api.stripe.com" && "$STRIPE_API_BASE" != "https://api.stripe.com/" ]]; then
         mark_failure "stripe_attach" "STRIPE_API_BASE must remain https://api.stripe.com"
         return 1
@@ -429,18 +433,31 @@ run_live_create_invoice_step() {
         return 1
     fi
 
-    if ! stripe_request POST "/v1/invoices/${invoice_id}/pay"; then
-        mark_failure "live_create_invoice" "curl failure while paying invoice: ${STRIPE_BODY:-unknown}"
-        return 1
-    fi
-    if [ "$STRIPE_HTTP_CODE" != "200" ]; then
-        mark_failure "live_create_invoice" "pay invoice failed with HTTP ${STRIPE_HTTP_CODE}"
-        return 1
+    local finalize_status
+    finalize_status="$(json_get_field "$STRIPE_BODY" "status")"
+
+    # Stripe API 2025+: charge_automatically invoices may auto-pay on
+    # finalize, so only call /pay when the invoice is still open.
+    if [ "$finalize_status" != "paid" ]; then
+        if ! stripe_request POST "/v1/invoices/${invoice_id}/pay"; then
+            mark_failure "live_create_invoice" "curl failure while paying invoice: ${STRIPE_BODY:-unknown}"
+            return 1
+        fi
+        if [ "$STRIPE_HTTP_CODE" != "200" ]; then
+            mark_failure "live_create_invoice" "pay invoice failed with HTTP ${STRIPE_HTTP_CODE}"
+            return 1
+        fi
     fi
 
-    charge_id="$(json_get_field "$STRIPE_BODY" "charge")"
+    # Stripe API 2025+ removed 'charge' from the Invoice object.
+    # Retrieve the charge via the charges list endpoint instead.
+    if ! stripe_request GET "/v1/charges?customer=${CANARY_STRIPE_CUSTOMER_ID}&limit=1"; then
+        mark_failure "live_create_invoice" "curl failure listing charges after pay: ${STRIPE_BODY:-unknown}"
+        return 1
+    fi
+    charge_id="$(python3 -c "import json,sys; d=json.loads(sys.argv[1]).get('data',[]); print(d[0]['id'] if d else '')" "$STRIPE_BODY")"
     if [ -z "$charge_id" ]; then
-        mark_failure "live_create_invoice" "pay invoice response missing charge id"
+        mark_failure "live_create_invoice" "no charge found for customer after paying invoice"
         return 1
     fi
 
@@ -476,6 +493,7 @@ run_live_refund_step() {
 }
 
 run_live_find_payment_event_step() {
+    local max_attempts=10 attempt
     CANARY_LIVE_PAYMENT_EVENT_ID=""
 
     if [ -z "$CANARY_LIVE_INVOICE_ID" ]; then
@@ -483,16 +501,17 @@ run_live_find_payment_event_step() {
         return 1
     fi
 
-    if ! stripe_request GET "/v1/events?type=invoice.payment_succeeded&limit=25"; then
-        mark_failure "live_find_payment_event" "curl failure while listing events: ${STRIPE_BODY:-unknown}"
-        return 1
-    fi
-    if [ "$STRIPE_HTTP_CODE" != "200" ]; then
-        mark_failure "live_find_payment_event" "list events failed with HTTP ${STRIPE_HTTP_CODE}"
-        return 1
-    fi
+    for attempt in $(seq 1 "$max_attempts"); do
+        if ! stripe_request GET "/v1/events?type=invoice.payment_succeeded&limit=25"; then
+            mark_failure "live_find_payment_event" "curl failure while listing events: ${STRIPE_BODY:-unknown}"
+            return 1
+        fi
+        if [ "$STRIPE_HTTP_CODE" != "200" ]; then
+            mark_failure "live_find_payment_event" "list events failed with HTTP ${STRIPE_HTTP_CODE}"
+            return 1
+        fi
 
-    CANARY_LIVE_PAYMENT_EVENT_ID="$(python3 - "$STRIPE_BODY" "$CANARY_LIVE_INVOICE_ID" <<'PY' || true
+        CANARY_LIVE_PAYMENT_EVENT_ID="$(python3 - "$STRIPE_BODY" "$CANARY_LIVE_INVOICE_ID" <<'PY' || true
 import json
 import sys
 
@@ -515,8 +534,14 @@ for event in payload.get("data", []):
 raise SystemExit(1)
 PY
 )"
+        if [ -n "$CANARY_LIVE_PAYMENT_EVENT_ID" ]; then
+            break
+        fi
+        sleep 2
+    done
+
     if [ -z "$CANARY_LIVE_PAYMENT_EVENT_ID" ]; then
-        mark_failure "live_find_payment_event" "invoice.payment_succeeded event not found for ${CANARY_LIVE_INVOICE_ID}"
+        mark_failure "live_find_payment_event" "invoice.payment_succeeded event not found for ${CANARY_LIVE_INVOICE_ID} after ${max_attempts} attempts"
         return 1
     fi
 

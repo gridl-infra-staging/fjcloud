@@ -4,7 +4,7 @@
 
 	let { data, form: formResult } = $props();
 
-	let profile: CustomerProfileResponse = $derived(data.profile);
+	let profile: CustomerProfileResponse | null = $derived(data.profile);
 	let errorMessage = $derived((formResult?.error as string) ?? '');
 	let accountExport = $derived(
 		(formResult?.accountExport as AccountExportResponse | null | undefined) ?? null
@@ -84,40 +84,50 @@
 	<!-- Profile section -->
 	<div class="mb-6 rounded-lg bg-white p-6 shadow">
 		<h2 class="mb-4 text-lg font-semibold text-gray-900">Profile</h2>
-		<form method="POST" action="?/updateProfile" use:enhance>
-			<div class="mb-4">
-				<label for="profile-name" class="mb-1 block text-sm font-medium text-gray-700">Name</label>
-				<input
-					id="profile-name"
-					type="text"
-					name="name"
-					value={profile.name}
-					required
-					class="w-full max-w-md rounded border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
-				/>
-			</div>
-			<div class="mb-4">
-				<span class="mb-1 block text-sm font-medium text-gray-700">Email</span>
-				<div class="flex items-center gap-2">
-					<span class="text-sm text-gray-900">{profile.email}</span>
-					{#if profile.email_verified}
-						<span class="rounded bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700"
-							>Verified</span
-						>
-					{:else}
-						<span class="rounded bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-700"
-							>Unverified</span
-						>
-					{/if}
+		{#if profile}
+			<form method="POST" action="?/updateProfile" use:enhance>
+				<div class="mb-4">
+					<label for="profile-name" class="mb-1 block text-sm font-medium text-gray-700">Name</label
+					>
+					<input
+						id="profile-name"
+						type="text"
+						name="name"
+						value={profile.name}
+						required
+						class="w-full max-w-md rounded border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+					/>
 				</div>
-			</div>
-			<button
-				type="submit"
-				class="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+				<div class="mb-4">
+					<span class="mb-1 block text-sm font-medium text-gray-700">Email</span>
+					<div class="flex items-center gap-2">
+						<span class="text-sm text-gray-900">{profile.email}</span>
+						{#if profile.email_verified}
+							<span class="rounded bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700"
+								>Verified</span
+							>
+						{:else}
+							<span class="rounded bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-700"
+								>Unverified</span
+							>
+						{/if}
+					</div>
+				</div>
+				<button
+					type="submit"
+					class="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+				>
+					Save profile
+				</button>
+			</form>
+		{:else}
+			<p
+				class="rounded border border-gray-200 bg-gray-50 p-3 text-sm text-gray-700"
+				data-testid="settings-profile-unavailable"
 			>
-				Save profile
-			</button>
-		</form>
+				Profile details are temporarily unavailable. Please refresh in a moment.
+			</p>
+		{/if}
 	</div>
 
 	<!-- Password section -->

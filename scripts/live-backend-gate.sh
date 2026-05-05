@@ -3,11 +3,12 @@
 # and produces a machine-readable JSON summary.
 #
 # Usage:
-#   scripts/live-backend-gate.sh [--skip-rust-tests] [--fail-fast]
+#   scripts/live-backend-gate.sh [--skip-rust-tests] [--fail-fast] [--staging-only]
 #
 # Options:
 #   --skip-rust-tests  Skip Rust validation tests (cargo test)
 #   --fail-fast        Stop on first check failure
+#   --staging-only     Force commerce checks into soft-skip mode (BACKEND_LIVE_GATE=0)
 #
 # Output:
 #   stdout: JSON summary with check_results, reason codes, and timing
@@ -475,15 +476,22 @@ _has_gate_failure() {
 run_gate() {
     local skip_rust=false
     local fail_fast=false
+    local staging_only=false
+    local original_backend_live_gate="${BACKEND_LIVE_GATE:-1}"
 
     # Parse flags
     for arg in "$@"; do
         case "$arg" in
             --skip-rust-tests) skip_rust=true ;;
             --fail-fast) fail_fast=true ;;
+            --staging-only) staging_only=true ;;
             *) echo "Unknown flag: $arg" >&2; return 1 ;;
         esac
     done
+
+    if $staging_only; then
+        export BACKEND_LIVE_GATE=0
+    fi
 
     # Reset state
     _CHECK_NAMES=()
@@ -551,6 +559,9 @@ run_gate() {
     echo "$json"
 
     # Determine exit code
+    if $staging_only; then
+        export BACKEND_LIVE_GATE="$original_backend_live_gate"
+    fi
     if [ "$gate_failed" -eq 1 ]; then
         return 1
     fi

@@ -9,6 +9,8 @@ This directory is the canonical home for fjcloud web-console target behavior. Sc
 - Read and update the relevant screen spec before changing presentation code for a covered screen.
 - Keep shipped-vs-target deltas only in the spec's `Current Implementation Gaps` section.
 - Include loading and error states for every non-trivial spec, plus empty and success states where applicable.
+- Add `## Mobile Narrow Contract` to each non-trivial screen spec using a 390px-wide iPhone 14 baseline.
+- `Loading`, `Empty`, and `Error` may be marked `N/A` only for shipped static public documents whose route body is a single article card with shared legal footer/support behavior.
 - Keep browser-test rules in `web/tests/e2e-ui/eslint.config.mjs` and `~/.matt/scrai/globals/standards/browser_testing.md`; do not copy those guides here.
 - Use `coverage.md` as the route/spec/test map. This checklist tracks execution, while individual specs own target UI behavior.
 

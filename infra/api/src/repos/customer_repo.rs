@@ -7,6 +7,28 @@ use uuid::Uuid;
 use crate::models::Customer;
 use crate::repos::error::RepoError;
 
+pub const RESEND_VERIFICATION_COOLDOWN_SECONDS: i64 = 60;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ResendVerificationReservation {
+    pub previous_email_verify_token: Option<String>,
+    pub previous_email_verify_expires_at: Option<DateTime<Utc>>,
+    pub previous_resend_verification_sent_at: Option<DateTime<Utc>>,
+    pub reserved_resend_verification_sent_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ResendVerificationOutcome {
+    Allowed {
+        reservation: ResendVerificationReservation,
+    },
+    CooldownActive {
+        retry_after_seconds: u64,
+    },
+    AlreadyVerified,
+    CustomerNotFound,
+}
+
 /// Customer lifecycle repository: CRUD, authentication (password hashing,
 /// email verification, password reset tokens), Stripe linking, billing-plan
 /// management, suspension, and sub-cent egress carry-forward persistence.
@@ -40,6 +62,18 @@ pub trait CustomerRepo {
         id: Uuid,
         token: &str,
         expires_at: DateTime<Utc>,
+    ) -> Result<bool, RepoError>;
+    async fn rotate_email_verification_token_with_resend_cooldown(
+        &self,
+        id: Uuid,
+        token: &str,
+        expires_at: DateTime<Utc>,
+    ) -> Result<ResendVerificationOutcome, RepoError>;
+    async fn rollback_resend_verification_token_rotation(
+        &self,
+        id: Uuid,
+        reserved_token: &str,
+        reservation: &ResendVerificationReservation,
     ) -> Result<bool, RepoError>;
     async fn verify_email(&self, token: &str) -> Result<Option<Customer>, RepoError>;
 

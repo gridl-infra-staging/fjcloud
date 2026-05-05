@@ -122,12 +122,15 @@ describe('Pricing page', () => {
 		await renderPricingPage(mutatedPricing);
 		const pricingMain = screen.getByTestId('pricing-page-main');
 
-		expect(screen.getByText(new RegExp(`${mutatedPricing.free_tier_mb}\\s+MB`))).toBeInTheDocument();
-		expect(within(pricingMain).getByRole('link', { name: mutatedPricing.cta_label })).toHaveAttribute(
-			'href',
-			'/signup'
-		);
-		expect(within(pricingMain).getByText(formatCents(mutatedPricing.minimum_spend_cents))).toBeInTheDocument();
+		expect(
+			screen.getByText(new RegExp(`${mutatedPricing.free_tier_mb}\\s+MB`))
+		).toBeInTheDocument();
+		expect(
+			within(pricingMain).getByRole('link', { name: mutatedPricing.cta_label })
+		).toHaveAttribute('href', '/signup');
+		expect(
+			within(pricingMain).getByText(formatCents(mutatedPricing.minimum_spend_cents))
+		).toBeInTheDocument();
 
 		const regionTable = within(pricingMain).getByRole('table', { name: 'Region multipliers' });
 		const regionRows = within(regionTable).getAllByRole('row').slice(1);
@@ -136,7 +139,10 @@ describe('Pricing page', () => {
 			const renderedMultiplier = within(row).getByRole('cell').textContent?.trim() ?? '';
 			return [renderedRegion, renderedMultiplier];
 		});
-		const expectedRegionPairs = reversedRegions.map((region) => [region.display_name, region.multiplier]);
+		const expectedRegionPairs = reversedRegions.map((region) => [
+			region.display_name,
+			region.multiplier
+		]);
 		expect(renderedRegionPairs).toEqual(expectedRegionPairs);
 	});
 

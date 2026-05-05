@@ -19,7 +19,8 @@ use crate::state::AppState;
 use super::RateLimiter;
 
 const DEFAULT_CLOUD_CORS_ALLOWED_ORIGIN: &str = "https://cloud.flapjack.foo";
-const ROBOTS_HEADER_VALUE: &str = "noindex, nofollow, noarchive, nosnippet, noimageindex";
+const ROBOTS_HEADER_VALUE: &str =
+    "noindex, nofollow, noarchive, nosnippet, noimageindex, noai, noimageai";
 
 pub(super) const TRUST_PROXY_HEADERS_FOR_RATE_LIMIT_ENV: &str =
     "TRUST_PROXY_HEADERS_FOR_RATE_LIMIT";

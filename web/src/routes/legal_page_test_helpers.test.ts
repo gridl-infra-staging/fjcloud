@@ -1,42 +1,44 @@
-import { afterEach, describe, expect, it } from "vitest";
-import { cleanup } from "@testing-library/svelte";
+import { afterEach, describe, expect, it } from 'vitest';
+import { cleanup } from '@testing-library/svelte';
 
 import {
-	BETA_FEEDBACK_MAILTO,
-	LEGAL_BADGE_LABEL,
-	LEGAL_DRAFT_BANNER_TEXT,
 	LEGAL_EFFECTIVE_DATE_TEXT,
 	LEGAL_ENTITY_NAME,
+	LEGAL_SUPPORT_MAILTO,
 	SUPPORT_EMAIL
-} from "$lib/format";
-import { assertSharedLegalPageContract } from "./legal_page_test_helpers";
+} from '$lib/format';
+import { SHARED_LEGAL_PAGE_CONTRACT } from '../../tests/fixtures/legal_page_contract';
+import { assertSharedLegalPageContract } from './legal_page_test_helpers';
 
 afterEach(cleanup);
 
-function setLegalPageDom(badgeLabel: string, includeUnrelatedPaidBetaText: boolean): void {
+function setLegalPageDom(forbiddenMarker?: string): void {
 	document.body.innerHTML = `
 		<div>
-			<p>
-				<span>${badgeLabel}</span>
-				<span>${LEGAL_DRAFT_BANNER_TEXT}</span>
-			</p>
-			${includeUnrelatedPaidBetaText ? `<p>${LEGAL_BADGE_LABEL}</p>` : ""}
 			<p>${LEGAL_EFFECTIVE_DATE_TEXT}</p>
 			<a href="/">Back to Flapjack Cloud</a>
-			<a href="${BETA_FEEDBACK_MAILTO}">${SUPPORT_EMAIL}</a>
+			<a href="${LEGAL_SUPPORT_MAILTO}">${SUPPORT_EMAIL}</a>
 			<p>${LEGAL_ENTITY_NAME}</p>
+			${forbiddenMarker ? `<p>${forbiddenMarker}</p>` : ''}
 		</div>
 	`;
 }
 
-describe("assertSharedLegalPageContract badge contract", () => {
-	it("fails when only unrelated page text matches Paid Beta but banner pill label is wrong", () => {
-		setLegalPageDom("Draft", true);
-		expect(() => assertSharedLegalPageContract()).toThrow();
-	});
+const forbiddenFinalizedCopyMarkers = SHARED_LEGAL_PAGE_CONTRACT.filter(
+	(check): check is { kind: 'absent-text'; text: string } => check.kind === 'absent-text'
+).map((check) => check.text);
 
-	it("passes when the banner pill itself renders the Paid Beta label", () => {
-		setLegalPageDom(LEGAL_BADGE_LABEL, false);
+describe('assertSharedLegalPageContract finalized contract', () => {
+	it('passes when the finalized shared contract is present', () => {
+		setLegalPageDom();
 		expect(() => assertSharedLegalPageContract()).not.toThrow();
 	});
+
+	it.each(forbiddenFinalizedCopyMarkers)(
+		'fails when prohibited finalized-copy marker "%s" is still present',
+		(marker) => {
+			setLegalPageDom(marker);
+			expect(() => assertSharedLegalPageContract()).toThrow();
+		}
+	);
 });

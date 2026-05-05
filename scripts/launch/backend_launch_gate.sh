@@ -10,6 +10,7 @@ source "$REPO_ROOT/ops/scripts/lib/deploy_validation.sh"
 
 LAUNCH_GATE_SHA=""
 LAUNCH_GATE_ENV="staging"
+LAUNCH_GATE_STAGING_ONLY=0
 
 declare -a _GATE_NAMES=()
 declare -a _GATE_STATUSES=()
@@ -20,7 +21,7 @@ declare -a _GATE_CHECKS_RUN=()
 print_usage() {
     cat <<'USAGE' >&2
 Usage:
-  backend_launch_gate.sh --sha=<GIT_SHA> [--env=<ENV>]
+  backend_launch_gate.sh --sha=<GIT_SHA> [--env=<ENV>] [--staging-only]
   backend_launch_gate.sh --help
 USAGE
 }
@@ -147,6 +148,25 @@ print(json.dumps(data, sort_keys=True))
 ' <<< "$commerce_json"
         return "$commerce_exit"
     fi
+    if [ "${LAUNCH_GATE_STAGING_ONLY:-0}" = "1" ]; then
+        local commerce_json commerce_exit=0
+        commerce_json="$(bash "$REPO_ROOT/scripts/live-backend-gate.sh" --skip-rust-tests --staging-only)" || commerce_exit=$?
+        python3 -c '
+import json, sys
+data = json.loads(sys.stdin.read())
+skip_names = [
+    item.get("name", "")
+    for item in data.get("check_results", [])
+    if item.get("status") == "skipped"
+]
+if skip_names:
+    data["reason"] = "staging_only — skipped_checks: " + ",".join(skip_names)
+else:
+    data["reason"] = "staging_only — no commerce checks skipped"
+print(json.dumps(data, sort_keys=True))
+' <<< "$commerce_json"
+        return "$commerce_exit"
+    fi
     bash "$REPO_ROOT/scripts/live-backend-gate.sh" --skip-rust-tests
 }
 
@@ -262,6 +282,7 @@ _archive_evidence() {
 run_backend_launch_gate() {
     LAUNCH_GATE_SHA=""
     LAUNCH_GATE_ENV="staging"
+    LAUNCH_GATE_STAGING_ONLY=0
 
     local arg
     for arg in "$@"; do
@@ -271,6 +292,9 @@ run_backend_launch_gate() {
                 ;;
             --env=*)
                 LAUNCH_GATE_ENV="${arg#--env=}"
+                ;;
+            --staging-only)
+                LAUNCH_GATE_STAGING_ONLY=1
                 ;;
             --help)
                 print_usage

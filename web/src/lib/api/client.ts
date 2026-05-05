@@ -77,6 +77,7 @@ import type {
 	AlgoliaMigrateResponse
 } from './types';
 import { BaseClient } from './base-client';
+import { retryAfterSecondsFromHeaders } from '$lib/http/retry_after';
 
 export class ApiRequestError extends Error {
 	constructor(
@@ -188,6 +189,26 @@ export class ApiClient extends BaseClient {
 
 	resetPassword(body: ResetPasswordRequest): Promise<MessageResponse> {
 		return this.api('POST', '/auth/reset-password', body);
+	}
+
+	async resendVerification(): Promise<{ message: string; retryAfterSeconds: number | null }> {
+		const response = await this.fetchFn(`${this.baseUrl}/auth/resend-verification`, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				...this.authHeaders()
+			}
+		});
+
+		if (!response.ok) {
+			await this.handleErrorResponse(response);
+		}
+
+		const payload = (await response.json()) as MessageResponse;
+		return {
+			message: payload.message,
+			retryAfterSeconds: retryAfterSecondsFromHeaders(response.headers)
+		};
 	}
 
 	comparePricing(workload: PricingCompareRequest): Promise<PricingCompareResponse> {

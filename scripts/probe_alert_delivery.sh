@@ -18,7 +18,8 @@
 #   journalctl -u fjcloud-api | grep "alert webhook configured"
 # Both "Slack alert webhook configured" and/or "Discord alert webhook configured"
 # log lines should appear (emitted by infra/api/src/startup.rs::init_alert_service
-# at lines 395-400). If they do NOT, the SSM mapping in
+# at lines 424 and 427 respectively; line numbers may drift, but the function
+# name `init_alert_service` is the stable anchor). If they do NOT, the SSM mapping in
 # ops/scripts/lib/generate_ssm_env.sh was not picked up — see
 # docs/runbooks/alerting.md for the cause.
 #

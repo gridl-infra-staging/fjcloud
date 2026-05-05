@@ -1,6 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { RequestEvent, Handle } from '@sveltejs/kit';
 import { ApiRequestError } from '$lib/api/client';
+import { readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const ROBOTS_TAG = 'noindex, nofollow, noarchive, nosnippet, noimageindex, noai, noimageai';
 
 // --- Mocks ---
 
@@ -84,6 +89,17 @@ async function expectRedirect(
 	}
 }
 
+function readCloudflareRobotsHeaderLine(): string {
+	const testDir = dirname(fileURLToPath(import.meta.url));
+	const headersPath = resolve(testDir, '..', '_headers');
+	const firstTwoLines = readFileSync(headersPath, 'utf8').split(/\r?\n/).slice(0, 2);
+	const robotsHeaderLine = firstTwoLines.find((line) => line.includes('X-Robots-Tag:'));
+	if (!robotsHeaderLine) {
+		throw new Error('web/_headers must define X-Robots-Tag on lines 1-2');
+	}
+	return robotsHeaderLine;
+}
+
 // --- Tests ---
 
 describe('hooks.server handle', () => {
@@ -147,9 +163,8 @@ describe('hooks.server handle', () => {
 
 			const { response } = await callHandle('/', undefined);
 
-			expect(response?.headers.get('X-Robots-Tag')).toBe(
-				'noindex, nofollow, noarchive, nosnippet, noimageindex'
-			);
+			expect(response?.headers.get('X-Robots-Tag')).toBe(ROBOTS_TAG);
+			expect(readCloudflareRobotsHeaderLine()).toBe(`  X-Robots-Tag: ${ROBOTS_TAG}`);
 		});
 
 		it('redirects /dashboard to /login when not authenticated', async () => {

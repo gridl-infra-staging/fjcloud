@@ -1,16 +1,15 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { render, screen, cleanup } from '@testing-library/svelte';
+import { render, screen, cleanup, within } from '@testing-library/svelte';
 import { layoutTestDefaults } from '../layout-test-context';
-
-const enhanceMock = vi.fn(() => ({ destroy: () => {} }));
-
-vi.mock('$app/forms', () => ({
-	enhance: enhanceMock
-}));
+import { SUPPORT_EMAIL } from '$lib/format';
 
 vi.mock('$app/navigation', () => ({
 	goto: vi.fn(),
 	invalidateAll: vi.fn()
+}));
+
+vi.mock('$lib/stripe', () => ({
+	getStripe: vi.fn().mockResolvedValue(null)
 }));
 
 import BillingPage from './+page.svelte';
@@ -23,89 +22,145 @@ describe('Billing page', () => {
 			data: {
 				...layoutTestDefaults,
 				user: null,
-				billingUnavailable: false
+				billingUnavailable: false,
+				paymentMethods: [],
+				setupIntentClientSecret: null,
+				setupIntentError: null
 			},
 			form: null
 		});
 		expect(screen.getByRole('heading', { name: 'Billing' })).toBeInTheDocument();
 	});
 
-	it('renders manage billing form wired to the portal action when available', () => {
-		const { container } = render(BillingPage, {
-			data: {
-				...layoutTestDefaults,
-				user: null,
-				billingUnavailable: false
-			},
-			form: null
-		});
-		const form = container.querySelector('form[action="?/manageBilling"]');
-		expect(form).not.toBeNull();
-		expect(screen.getByRole('button', { name: 'Manage billing' })).toBeInTheDocument();
-	});
-
-	it('keeps the manage billing form as a native submit boundary for portal redirects', () => {
-		render(BillingPage, {
-			data: {
-				...layoutTestDefaults,
-				user: null,
-				billingUnavailable: false
-			},
-			form: null
-		});
-		expect(enhanceMock).not.toHaveBeenCalled();
-	});
-
-	it('omits legacy subscription banners while keeping native manageBilling form wiring', () => {
-		const { container } = render(BillingPage, {
-			data: {
-				...layoutTestDefaults,
-				user: null,
-				billingUnavailable: false
-			},
-			form: null
-		});
-		expect(screen.queryByTestId('subscription-cancelled-banner')).not.toBeInTheDocument();
-		expect(screen.queryByTestId('subscription-recovery-banner')).not.toBeInTheDocument();
-		const form = container.querySelector('form[action="?/manageBilling"]');
-		expect(form).not.toBeNull();
-		expect(form?.getAttribute('method')).toBe('POST');
-	});
-
-	it('displays action error message when portal handoff fails', () => {
+	it('renders payment-method rows and default-selection controls', () => {
 		render(BillingPage, {
 			data: {
 				...layoutTestDefaults,
 				user: null,
 				billingUnavailable: false,
-			},
-			form: { error: 'Failed to open billing portal' }
-		});
-		expect(screen.getByRole('alert')).toBeInTheDocument();
-		expect(screen.getByText('Failed to open billing portal')).toBeInTheDocument();
-	});
-
-	it('removes legacy payment-method controls from the billing contract', () => {
-		render(BillingPage, {
-			data: {
-				...layoutTestDefaults,
-				user: null,
-				billingUnavailable: false
+				setupIntentClientSecret: 'seti_secret_123',
+				setupIntentError: null,
+				paymentMethods: [
+					{
+						id: 'pm_default',
+						card_brand: 'visa',
+						last4: '4242',
+						exp_month: 12,
+						exp_year: 2030,
+						is_default: true
+					},
+					{
+						id: 'pm_non_default',
+						card_brand: 'mastercard',
+						last4: '4444',
+						exp_month: 3,
+						exp_year: 2031,
+						is_default: false
+					}
+				]
 			},
 			form: null
 		});
-		expect(screen.queryByRole('link', { name: /add payment method/i })).not.toBeInTheDocument();
-		expect(screen.queryByRole('button', { name: 'Set as default' })).not.toBeInTheDocument();
-		expect(screen.queryByRole('button', { name: 'Remove' })).not.toBeInTheDocument();
-		expect(screen.queryByText('No payment methods on file.')).not.toBeInTheDocument();
+
+		expect(screen.getByText('Visa ending in 4242')).toBeInTheDocument();
+		expect(screen.getByText('Mastercard ending in 4444')).toBeInTheDocument();
+		expect(screen.getByText('Default')).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: 'Set as default' })).toBeInTheDocument();
 	});
 
-	it('shows billing unavailable state and hides the manage button', () => {
+	it('renders in-app add/update-card affordance and billing cancellation support mailto', () => {
 		render(BillingPage, {
 			data: {
 				...layoutTestDefaults,
 				user: null,
-				billingUnavailable: true
+				billingUnavailable: false,
+				paymentMethods: [],
+				setupIntentClientSecret: 'seti_secret_123',
+				setupIntentError: null
+			},
+			form: null
+		});
+
+		expect(screen.getByRole('heading', { name: 'Add or update card' })).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: 'Save payment method' })).toBeInTheDocument();
+		const cancelSubscriptionLink = screen.getByRole('link', {
+			name: `Contact ${SUPPORT_EMAIL} to cancel`
+		});
+		expect(cancelSubscriptionLink).toHaveAttribute('href', `mailto:${SUPPORT_EMAIL}`);
+	});
+
+	it('does not render legacy portal form or copy', () => {
+		const { container } = render(BillingPage, {
+			data: {
+				...layoutTestDefaults,
+				user: null,
+				billingUnavailable: false,
+				paymentMethods: [],
+				setupIntentClientSecret: null,
+				setupIntentError: null
+			},
+			form: null
+		});
+
+		expect(container.querySelector('form[action="?/manageBilling"]')).toBeNull();
+		expect(screen.queryByText(/Stripe Customer Portal/i)).not.toBeInTheDocument();
+	});
+
+	it('renders setup-intent error state', () => {
+		render(BillingPage, {
+			data: {
+				...layoutTestDefaults,
+				user: null,
+				billingUnavailable: false,
+				paymentMethods: [],
+				setupIntentClientSecret: null,
+				setupIntentError: 'Unable to load payment setup. Please try again.'
+			},
+			form: null
+		});
+		expect(screen.getByRole('alert')).toHaveTextContent(
+			'Unable to load payment setup. Please try again.'
+		);
+		expect(screen.queryByRole('button', { name: 'Save payment method' })).not.toBeInTheDocument();
+	});
+
+	it('keeps set-default forms in the app route', () => {
+		const { container } = render(BillingPage, {
+			data: {
+				...layoutTestDefaults,
+				user: null,
+				billingUnavailable: false,
+				setupIntentClientSecret: 'seti_secret_123',
+				setupIntentError: null,
+				paymentMethods: [
+					{
+						id: 'pm_non_default',
+						card_brand: 'mastercard',
+						last4: '4444',
+						exp_month: 3,
+						exp_year: 2031,
+						is_default: false
+					}
+				]
+			},
+			form: null
+		});
+
+		const form = container.querySelector('form[action="?/setDefaultPaymentMethod"]');
+		expect(form).not.toBeNull();
+		const hiddenInput = within(form as HTMLElement).getByDisplayValue('pm_non_default');
+		expect(hiddenInput).toHaveAttribute('name', 'paymentMethodId');
+	});
+
+	it('shows billing unavailable state and hides app-owned payment-method controls', () => {
+		render(BillingPage, {
+			data: {
+				...layoutTestDefaults,
+				user: null,
+				billingUnavailable: true,
+				paymentMethods: [],
+				setupIntentClientSecret: null,
+				setupIntentError: null
 			},
 			form: null
 		});
@@ -115,6 +170,7 @@ describe('Billing page', () => {
 				'Stripe is not available in this environment. Payment method management is disabled.'
 			)
 		).toBeInTheDocument();
-		expect(screen.queryByRole('button', { name: 'Manage billing' })).not.toBeInTheDocument();
+		expect(screen.queryByRole('button', { name: 'Set as default' })).not.toBeInTheDocument();
+		expect(screen.queryByRole('button', { name: 'Save payment method' })).not.toBeInTheDocument();
 	});
 });

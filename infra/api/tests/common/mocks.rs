@@ -18,7 +18,8 @@ use api::repos::vm_inventory_repo::VmInventoryRepo;
 use api::repos::webhook_event_repo::{WebhookEventRepo, WebhookEventRow};
 use api::repos::{
     CustomerRepo, DeploymentRepo, InMemoryColdSnapshotRepo, InMemoryIndexReplicaRepo, RateCardRepo,
-    RepoError, UsageRepo,
+    RepoError, ResendVerificationOutcome, ResendVerificationReservation, UsageRepo,
+    RESEND_VERIFICATION_COOLDOWN_SECONDS,
 };
 use api::secrets::mock::MockNodeSecretManager;
 use api::services::alerting::MockAlertService;
@@ -43,6 +44,7 @@ use rust_decimal::Decimal;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
+use tokio::sync::Notify;
 use uuid::Uuid;
 
 pub struct MockCustomerRepo {
@@ -50,6 +52,12 @@ pub struct MockCustomerRepo {
     pub should_fail_suspend: Mutex<bool>,
     pub should_fail_reactivate: Mutex<bool>,
     fail_next_soft_delete: AtomicBool,
+    fail_next_resend_rollback: Mutex<Option<InjectedResendRollbackFailure>>,
+}
+
+enum InjectedResendRollbackFailure {
+    ReturnFalse,
+    ReturnError(String),
 }
 
 impl MockCustomerRepo {
@@ -82,6 +90,7 @@ impl MockCustomerRepo {
             email_verified_at: None,
             email_verify_token: None,
             email_verify_expires_at: None,
+            resend_verification_sent_at: None,
             password_reset_token: None,
             password_reset_expires_at: None,
             last_accessed_at: None,
@@ -96,12 +105,27 @@ impl MockCustomerRepo {
             should_fail_suspend: Mutex::new(false),
             should_fail_reactivate: Mutex::new(false),
             fail_next_soft_delete: AtomicBool::new(false),
+            fail_next_resend_rollback: Mutex::new(None),
         }
     }
 
     /// Force the next soft-delete call to report "not found" without mutating state.
     pub fn fail_next_soft_delete(&self) {
         self.fail_next_soft_delete.store(true, Ordering::SeqCst);
+    }
+
+    /// Force the next resend rollback call to report a non-restored state.
+    pub fn fail_next_resend_rollback_with_false(&self) {
+        let mut fail_next = self.fail_next_resend_rollback.lock().unwrap();
+        *fail_next = Some(InjectedResendRollbackFailure::ReturnFalse);
+    }
+
+    /// Force the next resend rollback call to return a repo error.
+    pub fn fail_next_resend_rollback_with_error(&self, message: &str) {
+        let mut fail_next = self.fail_next_resend_rollback.lock().unwrap();
+        *fail_next = Some(InjectedResendRollbackFailure::ReturnError(
+            message.to_string(),
+        ));
     }
 
     /// Seed the mock with an already-deleted customer (for 404 tests).
@@ -330,6 +354,91 @@ impl CustomerRepo for MockCustomerRepo {
             }
             None => Ok(false),
         }
+    }
+
+    async fn rotate_email_verification_token_with_resend_cooldown(
+        &self,
+        id: Uuid,
+        token: &str,
+        expires_at: DateTime<Utc>,
+    ) -> Result<ResendVerificationOutcome, RepoError> {
+        let mut customers = self.customers.lock().unwrap();
+        let now = Utc::now();
+        let Some(customer) = customers
+            .iter_mut()
+            .find(|customer| customer.id == id && customer.status != "deleted")
+        else {
+            return Ok(ResendVerificationOutcome::CustomerNotFound);
+        };
+
+        if customer.email_verified_at.is_some() {
+            return Ok(ResendVerificationOutcome::AlreadyVerified);
+        }
+
+        if let Some(sent_at) = customer.resend_verification_sent_at {
+            let cooldown_ends_at =
+                sent_at + chrono::Duration::seconds(RESEND_VERIFICATION_COOLDOWN_SECONDS);
+            if cooldown_ends_at > now {
+                let remaining_seconds = (cooldown_ends_at - now).num_seconds().max(1) as u64;
+                return Ok(ResendVerificationOutcome::CooldownActive {
+                    retry_after_seconds: remaining_seconds,
+                });
+            }
+        }
+
+        let reservation = ResendVerificationReservation {
+            previous_email_verify_token: customer.email_verify_token.clone(),
+            previous_email_verify_expires_at: customer.email_verify_expires_at,
+            previous_resend_verification_sent_at: customer.resend_verification_sent_at,
+            reserved_resend_verification_sent_at: now,
+        };
+        customer.email_verify_token = Some(token.to_string());
+        customer.email_verify_expires_at = Some(expires_at);
+        customer.resend_verification_sent_at = Some(now);
+        customer.updated_at = now;
+        Ok(ResendVerificationOutcome::Allowed { reservation })
+    }
+
+    async fn rollback_resend_verification_token_rotation(
+        &self,
+        id: Uuid,
+        reserved_token: &str,
+        reservation: &ResendVerificationReservation,
+    ) -> Result<bool, RepoError> {
+        if let Some(failure) = self.fail_next_resend_rollback.lock().unwrap().take() {
+            return match failure {
+                InjectedResendRollbackFailure::ReturnFalse => Ok(false),
+                InjectedResendRollbackFailure::ReturnError(message) => {
+                    Err(RepoError::Other(message))
+                }
+            };
+        }
+
+        let mut customers = self.customers.lock().unwrap();
+        let Some(customer) = customers
+            .iter_mut()
+            .find(|customer| customer.id == id && customer.status != "deleted")
+        else {
+            return Ok(false);
+        };
+
+        if customer.email_verified_at.is_some() {
+            return Ok(false);
+        }
+        if customer.email_verify_token.as_deref() != Some(reserved_token) {
+            return Ok(false);
+        }
+        if customer.resend_verification_sent_at
+            != Some(reservation.reserved_resend_verification_sent_at)
+        {
+            return Ok(false);
+        }
+
+        customer.email_verify_token = reservation.previous_email_verify_token.clone();
+        customer.email_verify_expires_at = reservation.previous_email_verify_expires_at;
+        customer.resend_verification_sent_at = reservation.previous_resend_verification_sent_at;
+        customer.updated_at = Utc::now();
+        Ok(true)
     }
 
     /// Implements `CustomerRepo::verify_email`. Looks up the customer by token,
@@ -1154,6 +1263,16 @@ pub struct MockInvoiceRepo {
     fail_next_finalize: Mutex<bool>,
     fail_next_mark_paid: Mutex<bool>,
     fail_list_by_customer: AtomicBool,
+    pause_next_mark_paid: AtomicBool,
+    mark_paid_calls: AtomicUsize,
+    mark_paid_started_notify: Notify,
+    mark_paid_paused: AtomicBool,
+    mark_paid_paused_notify: Notify,
+    mark_paid_release_notify: Notify,
+    block_next_pause_waiter_install: AtomicBool,
+    pause_waiter_install_blocked: AtomicBool,
+    pause_waiter_install_blocked_notify: Notify,
+    pause_waiter_install_release_notify: Notify,
 }
 
 impl MockInvoiceRepo {
@@ -1164,6 +1283,16 @@ impl MockInvoiceRepo {
             fail_next_finalize: Mutex::new(false),
             fail_next_mark_paid: Mutex::new(false),
             fail_list_by_customer: AtomicBool::new(false),
+            pause_next_mark_paid: AtomicBool::new(false),
+            mark_paid_calls: AtomicUsize::new(0),
+            mark_paid_started_notify: Notify::new(),
+            mark_paid_paused: AtomicBool::new(false),
+            mark_paid_paused_notify: Notify::new(),
+            mark_paid_release_notify: Notify::new(),
+            block_next_pause_waiter_install: AtomicBool::new(false),
+            pause_waiter_install_blocked: AtomicBool::new(false),
+            pause_waiter_install_blocked_notify: Notify::new(),
+            pause_waiter_install_release_notify: Notify::new(),
         }
     }
 
@@ -1173,6 +1302,67 @@ impl MockInvoiceRepo {
 
     pub fn fail_next_mark_paid(&self) {
         *self.fail_next_mark_paid.lock().unwrap() = true;
+    }
+
+    /// Pause the next `mark_paid` call until `resume_paused_mark_paid` is called.
+    pub fn pause_next_mark_paid(&self) {
+        self.pause_next_mark_paid.store(true, Ordering::SeqCst);
+    }
+
+    /// Resume a `mark_paid` call paused by `pause_next_mark_paid`.
+    ///
+    /// This helper owns the pause-handshake sequencing: it waits until the
+    /// paused `mark_paid` path has created its waiter before issuing release.
+    pub async fn resume_paused_mark_paid(&self) {
+        self.wait_for_mark_paid_pause().await;
+        self.mark_paid_release_notify.notify_one();
+    }
+
+    /// Wait until `mark_paid` has been entered at least `expected` times.
+    pub async fn wait_for_mark_paid_calls(&self, expected: usize) {
+        while self.mark_paid_calls.load(Ordering::SeqCst) < expected {
+            self.mark_paid_started_notify.notified().await;
+        }
+    }
+
+    /// Wait until a paused `mark_paid` call has created its release waiter.
+    pub async fn wait_for_mark_paid_pause(&self) {
+        loop {
+            let paused_signal = self.mark_paid_paused_notify.notified();
+            if self.mark_paid_paused.load(Ordering::SeqCst) {
+                return;
+            }
+            paused_signal.await;
+        }
+    }
+
+    /// Force the next paused `mark_paid` call to stop before it installs the
+    /// paused waiter, so tests can prove resume sequencing does not release
+    /// only on "mark_paid started".
+    pub fn block_next_pause_waiter_install(&self) {
+        self.block_next_pause_waiter_install
+            .store(true, Ordering::SeqCst);
+    }
+
+    /// Wait until `mark_paid` has reached the pre-pause-waiter block.
+    pub async fn wait_for_pause_waiter_install_block(&self) {
+        loop {
+            let blocked_signal = self.pause_waiter_install_blocked_notify.notified();
+            if self.pause_waiter_install_blocked.load(Ordering::SeqCst) {
+                return;
+            }
+            blocked_signal.await;
+        }
+    }
+
+    /// Release the pre-pause-waiter block set by `block_next_pause_waiter_install`.
+    pub fn release_pause_waiter_install_block(&self) {
+        self.pause_waiter_install_release_notify.notify_one();
+    }
+
+    /// Return how many times `mark_paid` was invoked.
+    pub fn mark_paid_call_count(&self) -> usize {
+        self.mark_paid_calls.load(Ordering::SeqCst)
     }
 
     /// Force every subsequent `list_by_customer` call to error. Used to
@@ -1411,6 +1601,28 @@ impl InvoiceRepo for MockInvoiceRepo {
                 *fail_once = false;
                 return Err(RepoError::Other("injected mark_paid failure".into()));
             }
+        }
+
+        self.mark_paid_calls.fetch_add(1, Ordering::SeqCst);
+        self.mark_paid_started_notify.notify_waiters();
+
+        if self.pause_next_mark_paid.swap(false, Ordering::SeqCst) {
+            if self
+                .block_next_pause_waiter_install
+                .swap(false, Ordering::SeqCst)
+            {
+                let install_release_waiter = self.pause_waiter_install_release_notify.notified();
+                self.pause_waiter_install_blocked.store(true, Ordering::SeqCst);
+                self.pause_waiter_install_blocked_notify.notify_waiters();
+                install_release_waiter.await;
+                self.pause_waiter_install_blocked.store(false, Ordering::SeqCst);
+            }
+
+            let release_waiter = self.mark_paid_release_notify.notified();
+            self.mark_paid_paused.store(true, Ordering::SeqCst);
+            self.mark_paid_paused_notify.notify_waiters();
+            release_waiter.await;
+            self.mark_paid_paused.store(false, Ordering::SeqCst);
         }
 
         let mut invoices = self.invoices.lock().unwrap();
@@ -1969,11 +2181,9 @@ impl MockWebhookEventRepo {
 #[async_trait]
 impl WebhookEventRepo for MockWebhookEventRepo {
     /// Implements `WebhookEventRepo::try_insert`. Provides idempotency for
-    /// incoming Stripe webhook events. The internal map stores each event ID as
-    /// `false` (pending) when first seen, or `true` once marked processed.
-    /// Returns `true` (process it) if the event has never been seen or is still
-    /// pending; returns `false` (already handled) if it has been marked
-    /// processed. `_event_type` and `_payload` are not stored.
+    /// incoming Stripe webhook events. Returns `true` only for the first insert
+    /// for a given Stripe event ID. Any duplicate ID returns `false`, including
+    /// duplicates for rows that are still unprocessed.
     async fn try_insert(
         &self,
         stripe_event_id: &str,
@@ -1981,23 +2191,21 @@ impl WebhookEventRepo for MockWebhookEventRepo {
         payload: &serde_json::Value,
     ) -> Result<bool, RepoError> {
         let mut rows = self.rows.lock().unwrap();
-        match rows.get(stripe_event_id) {
-            Some(row) if row.processed_at.is_some() => Ok(false),
-            Some(_) => Ok(true),
-            None => {
-                rows.insert(
-                    stripe_event_id.to_string(),
-                    WebhookEventRow {
-                        stripe_event_id: stripe_event_id.to_string(),
-                        event_type: event_type.to_string(),
-                        payload: payload.clone(),
-                        processed_at: None,
-                        created_at: Utc::now(),
-                    },
-                );
-                Ok(true)
-            }
+        if rows.contains_key(stripe_event_id) {
+            return Ok(false);
         }
+
+        rows.insert(
+            stripe_event_id.to_string(),
+            WebhookEventRow {
+                stripe_event_id: stripe_event_id.to_string(),
+                event_type: event_type.to_string(),
+                payload: payload.clone(),
+                processed_at: None,
+                created_at: Utc::now(),
+            },
+        );
+        Ok(true)
     }
 
     async fn mark_processed(&self, stripe_event_id: &str) -> Result<(), RepoError> {

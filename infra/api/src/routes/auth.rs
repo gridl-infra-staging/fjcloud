@@ -1,14 +1,17 @@
 use axum::extract::State;
-use axum::http::StatusCode;
+use axum::http::{header, HeaderMap, HeaderValue, StatusCode};
+use axum::response::{IntoResponse, Response};
 use axum::Json;
 use chrono::{Duration, Utc};
 use jsonwebtoken::{EncodingKey, Header};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
+use crate::auth::AuthError;
 use crate::auth::{AuthenticatedTenant, Claims};
 use crate::errors::{ApiError, ErrorResponse};
 use crate::models::Customer;
+use crate::repos::ResendVerificationOutcome;
 use crate::state::AppState;
 use crate::validation::{
     validate_email, validate_length, validate_password, MAX_NAME_LEN, MAX_PASSWORD_LEN,
@@ -366,48 +369,111 @@ pub async fn verify_email(
     responses(
         (status = 200, description = "Verification email sent", body = MessageResponse),
         (status = 401, description = "Authentication required", body = ErrorResponse),
+        (status = 403, description = "Account suspended", body = ErrorResponse),
         (status = 400, description = "Email already verified", body = ErrorResponse),
-        (status = 404, description = "Customer not found", body = ErrorResponse),
+        (
+            status = 429,
+            description = "Resend cooldown active",
+            body = ErrorResponse,
+            headers(
+                ("Retry-After" = i64, description = "Seconds remaining before another resend attempt is allowed")
+            )
+        ),
         (status = 503, description = "Email service unavailable", body = ErrorResponse),
     )
 )]
 /// `POST /auth/resend-verification` — re-send the email verification link.
 ///
 /// **Auth:** JWT (`AuthenticatedTenant`).
-/// Generates a fresh 24-hour verification token (replacing any previous one)
-/// and dispatches it via the email service. Returns 400 if the email is
-/// already verified, 503 if the email service is unreachable.
+/// Reserves a fresh 24-hour verification token and 60-second cooldown through
+/// the repo-owned seam, then dispatches via the email service. If delivery
+/// fails, it restores the previous token/cooldown state so customers can retry
+/// immediately once email delivery recovers.
 pub async fn resend_verification(
     auth: AuthenticatedTenant,
     State(state): State<AppState>,
-) -> Result<Json<MessageResponse>, ApiError> {
+) -> Result<Response, ApiError> {
     let customer = state
         .customer_repo
         .find_by_id(auth.customer_id)
         .await
-        .map_err(ApiError::from)?
-        .ok_or_else(|| ApiError::NotFound("customer not found".into()))?;
-
-    if customer.email_verified_at.is_some() {
-        return Err(ApiError::BadRequest("email already verified".into()));
-    }
+        .map_err(ApiError::from)?;
+    let Some(customer) = customer else {
+        return Ok(AuthError::InvalidToken.into_response());
+    };
 
     let verify_token = generate_token();
     let expires_at = Utc::now() + Duration::hours(24);
-    let updated = state
+    let resend_outcome = state
         .customer_repo
-        .set_email_verify_token(customer.id, &verify_token, expires_at)
+        .rotate_email_verification_token_with_resend_cooldown(
+            customer.id,
+            &verify_token,
+            expires_at,
+        )
         .await
         .map_err(ApiError::from)?;
-    if !updated {
-        return Err(ApiError::NotFound("customer not found".into()));
-    }
+
+    let reservation = match resend_outcome {
+        ResendVerificationOutcome::Allowed { reservation } => reservation,
+        ResendVerificationOutcome::AlreadyVerified => {
+            return Err(ApiError::BadRequest("email already verified".into()));
+        }
+        ResendVerificationOutcome::CustomerNotFound => {
+            return Ok(AuthError::InvalidToken.into_response());
+        }
+        ResendVerificationOutcome::CooldownActive {
+            retry_after_seconds,
+        } => {
+            let mut headers = HeaderMap::new();
+            let retry_after = HeaderValue::from_str(&retry_after_seconds.to_string())
+                .unwrap_or_else(|_| HeaderValue::from_static("1"));
+            headers.insert(header::RETRY_AFTER, retry_after);
+
+            return Ok((
+                StatusCode::TOO_MANY_REQUESTS,
+                headers,
+                Json(ErrorResponse {
+                    error: "verification email recently sent; retry later".to_string(),
+                }),
+            )
+                .into_response());
+        }
+    };
 
     if let Err(e) = state
         .email_service
         .send_verification_email(&customer.email, &verify_token)
         .await
     {
+        let rollback_restored = match state
+            .customer_repo
+            .rollback_resend_verification_token_rotation(customer.id, &verify_token, &reservation)
+            .await
+        {
+            Ok(true) => true,
+            Ok(false) => {
+                tracing::warn!(
+                    "failed to rollback resend verification reservation for {} after delivery failure: state moved",
+                    customer.email
+                );
+                false
+            }
+            Err(rollback_err) => {
+                tracing::warn!(
+                    "failed to rollback resend verification reservation for {} after delivery failure: {rollback_err}",
+                    customer.email
+                );
+                false
+            }
+        };
+
+        if !rollback_restored {
+            return Err(ApiError::Internal(
+                "failed to restore resend verification state after delivery failure".into(),
+            ));
+        }
+
         tracing::warn!(
             "failed to resend verification email to {}: {e}",
             customer.email
@@ -419,7 +485,8 @@ pub async fn resend_verification(
 
     Ok(Json(MessageResponse {
         message: "verification email sent".into(),
-    }))
+    })
+    .into_response())
 }
 
 // ---------------------------------------------------------------------------

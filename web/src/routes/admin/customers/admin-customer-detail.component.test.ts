@@ -9,10 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/svelte';
 import { fireEvent } from '@testing-library/dom';
 import { formatDate } from '$lib/format';
-import {
-	DETAIL_FIXTURE,
-	EMPTY_AUDIT_FIXTURE_ROWS
-} from './admin-customer-detail.test-fixtures';
+import { DETAIL_FIXTURE, EMPTY_AUDIT_FIXTURE_ROWS } from './admin-customer-detail.test-fixtures';
 
 vi.mock('$app/forms', () => ({
 	applyAction: vi.fn(),
@@ -229,105 +226,107 @@ describe('Customer detail tab content', () => {
 		expect(screen.getByText('Deployment terminated')).toBeInTheDocument();
 	});
 
-		it('deployments tab shows error feedback for termination via form.error', async () => {
-			const CustomerDetailPage = (await import('./[id]/+page.svelte')).default;
+	it('deployments tab shows error feedback for termination via form.error', async () => {
+		const CustomerDetailPage = (await import('./[id]/+page.svelte')).default;
 
-			render(CustomerDetailPage, {
-				data: { environment: 'test', isAuthenticated: true, ...DETAIL_FIXTURE },
-				form: { error: 'Deployment ID is required' }
-			});
-
-			expect(screen.getByText('Deployment ID is required')).toBeInTheDocument();
+		render(CustomerDetailPage, {
+			data: { environment: 'test', isAuthenticated: true, ...DETAIL_FIXTURE },
+			form: { error: 'Deployment ID is required' }
 		});
 
-		it('audit tab renders populated timeline labels and relative timestamps', async () => {
-			vi.useFakeTimers();
-			vi.setSystemTime(new Date('2026-04-01T12:00:00Z'));
-			try {
-				await renderCustomerDetailPage();
+		expect(screen.getByText('Deployment ID is required')).toBeInTheDocument();
+	});
 
-				await openTab('Audit');
+	it('audit tab renders populated timeline labels and relative timestamps', async () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(new Date('2026-04-01T12:00:00Z'));
+		try {
+			await renderCustomerDetailPage();
 
-				expect(screen.getByText('Customer suspended')).toBeInTheDocument();
-				expect(screen.getByText('Quotas updated')).toBeInTheDocument();
-				expect(screen.getByText('30m ago')).toBeInTheDocument();
-				expect(screen.getByText('2 days ago')).toBeInTheDocument();
-			} finally {
-				vi.useRealTimers();
-			}
+			await openTab('Audit');
+
+			expect(screen.getByText('Customer suspended')).toBeInTheDocument();
+			expect(screen.getByText('Quotas updated')).toBeInTheDocument();
+			expect(screen.getByText('30m ago')).toBeInTheDocument();
+			expect(screen.getByText('2 days ago')).toBeInTheDocument();
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	// --- Empty / unavailable state tests ---
+
+	describe('empty and unavailable states', () => {
+		it('indexes tab shows unavailable when null', async () => {
+			await renderCustomerDetailPage(EMPTY_DETAIL_FIXTURE);
+
+			await openTab('Indexes');
+			expect(screen.getByText('Index data unavailable.')).toBeInTheDocument();
 		});
 
-		// --- Empty / unavailable state tests ---
+		it('deployments tab shows empty message when array is empty', async () => {
+			await renderCustomerDetailPage(EMPTY_DETAIL_FIXTURE);
 
-		describe('empty and unavailable states', () => {
-			it('indexes tab shows unavailable when null', async () => {
-				await renderCustomerDetailPage(EMPTY_DETAIL_FIXTURE);
+			await openTab('Deployments');
+			expect(screen.getByText('No deployments found for this customer.')).toBeInTheDocument();
+		});
 
-				await openTab('Indexes');
-				expect(screen.getByText('Index data unavailable.')).toBeInTheDocument();
-			});
+		it('deployments tab shows unavailable when deployments is null', async () => {
+			await renderCustomerDetailPage(UNAVAILABLE_DETAIL_FIXTURE);
 
-			it('deployments tab shows empty message when array is empty', async () => {
-				await renderCustomerDetailPage(EMPTY_DETAIL_FIXTURE);
+			await openTab('Deployments');
+			expect(screen.getByText('Deployment data unavailable.')).toBeInTheDocument();
+		});
 
-				await openTab('Deployments');
-				expect(screen.getByText('No deployments found for this customer.')).toBeInTheDocument();
-			});
+		it('usage tab shows unavailable when null', async () => {
+			await renderCustomerDetailPage(EMPTY_DETAIL_FIXTURE);
 
-			it('deployments tab shows unavailable when deployments is null', async () => {
-				await renderCustomerDetailPage(UNAVAILABLE_DETAIL_FIXTURE);
+			await openTab('Usage');
+			expect(screen.getByText('Usage data unavailable.')).toBeInTheDocument();
+		});
 
-				await openTab('Deployments');
-				expect(screen.getByText('Deployment data unavailable.')).toBeInTheDocument();
-			});
+		it('invoices tab shows empty message when array is empty', async () => {
+			await renderCustomerDetailPage(EMPTY_DETAIL_FIXTURE);
 
-			it('usage tab shows unavailable when null', async () => {
-				await renderCustomerDetailPage(EMPTY_DETAIL_FIXTURE);
+			await openTab('Invoices');
+			expect(screen.getByText('No invoices found for this customer.')).toBeInTheDocument();
+		});
 
-				await openTab('Usage');
-				expect(screen.getByText('Usage data unavailable.')).toBeInTheDocument();
-			});
+		it('invoices tab shows unavailable when invoices is null', async () => {
+			await renderCustomerDetailPage(UNAVAILABLE_DETAIL_FIXTURE);
 
-			it('invoices tab shows empty message when array is empty', async () => {
-				await renderCustomerDetailPage(EMPTY_DETAIL_FIXTURE);
+			await openTab('Invoices');
+			expect(screen.getByText('Invoice data unavailable.')).toBeInTheDocument();
+		});
 
-				await openTab('Invoices');
-				expect(screen.getByText('No invoices found for this customer.')).toBeInTheDocument();
-			});
+		it('rate card tab shows unavailable when null', async () => {
+			await renderCustomerDetailPage(EMPTY_DETAIL_FIXTURE);
 
-			it('invoices tab shows unavailable when invoices is null', async () => {
-				await renderCustomerDetailPage(UNAVAILABLE_DETAIL_FIXTURE);
+			await openTab('Rate Card');
+			expect(screen.getByText('Rate card unavailable.')).toBeInTheDocument();
+		});
 
-				await openTab('Invoices');
-				expect(screen.getByText('Invoice data unavailable.')).toBeInTheDocument();
-			});
+		it('quotas tab shows unavailable when null', async () => {
+			await renderCustomerDetailPage(EMPTY_DETAIL_FIXTURE);
 
-			it('rate card tab shows unavailable when null', async () => {
-				await renderCustomerDetailPage(EMPTY_DETAIL_FIXTURE);
+			await openTab('Quotas');
+			expect(screen.getByText('Quota data unavailable.')).toBeInTheDocument();
+		});
 
-				await openTab('Rate Card');
-				expect(screen.getByText('Rate card unavailable.')).toBeInTheDocument();
-			});
+		it('audit tab shows empty message when audit rows are empty', async () => {
+			await renderCustomerDetailPage(EMPTY_DETAIL_FIXTURE);
 
-			it('quotas tab shows unavailable when null', async () => {
-				await renderCustomerDetailPage(EMPTY_DETAIL_FIXTURE);
+			await openTab('Audit');
+			expect(
+				screen.getByText('No audit events recorded for this customer yet.')
+			).toBeInTheDocument();
+		});
 
-				await openTab('Quotas');
-				expect(screen.getByText('Quota data unavailable.')).toBeInTheDocument();
-			});
+		it('audit tab shows unavailable when audit rows are null', async () => {
+			await renderCustomerDetailPage(UNAVAILABLE_DETAIL_FIXTURE);
 
-			it('audit tab shows empty message when audit rows are empty', async () => {
-				await renderCustomerDetailPage(EMPTY_DETAIL_FIXTURE);
-
-				await openTab('Audit');
-				expect(screen.getByText('No audit events recorded for this customer yet.')).toBeInTheDocument();
-			});
-
-			it('audit tab shows unavailable when audit rows are null', async () => {
-				await renderCustomerDetailPage(UNAVAILABLE_DETAIL_FIXTURE);
-
-				await openTab('Audit');
-				expect(screen.getByText('Audit timeline unavailable.')).toBeInTheDocument();
-			});
+			await openTab('Audit');
+			expect(screen.getByText('Audit timeline unavailable.')).toBeInTheDocument();
 		});
 	});
+});

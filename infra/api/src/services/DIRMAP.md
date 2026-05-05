@@ -38,6 +38,7 @@ admin write paths whose abuse would be a customer-trust incident
 | Directory | Summary |
 | --- | --- |
 | cold_tier | The cold_tier service manages archived or infrequently accessed data storage, with a node_client for communicating with cold storage nodes and a pipeline for orchestrating data movement and archival workflows. |
+| email | — |
 | flapjack_proxy | The flapjack_proxy module proxies management operations from the fjcloud API to individual flapjack VMs, handling authentication via admin keys cached from SSM with stale-on-error resilience. |
 | migration | The migration service orchestrates index data movement between VMs, handling replication with near-zero-lag cutover, failure recovery, alerting on success/warnings/failures, and protocol negotiation between source and destination nodes. |
 | provisioning | The provisioning service handles infrastructure resource provisioning, including automatic provisioning logic in auto_provision.rs for deploying and configuring cloud infrastructure components. |

@@ -120,7 +120,7 @@ module "monitoring" {
   api_instance_id                                     = module.compute.api_instance_id
   db_instance_identifier                              = module.data.db_instance_identifier
   alb_arn_suffix                                      = module.dns.alb_arn_suffix
-  alert_emails                                        = terraform_data.prod_alert_emails_guard.output
+  alert_emails                                        = local.alert_emails_normalized
   canary_image                                        = var.canary_image
   canary_schedule                                     = var.canary_schedule
   live_e2e_monthly_spend_limit_usd                    = var.live_e2e_monthly_spend_limit_usd

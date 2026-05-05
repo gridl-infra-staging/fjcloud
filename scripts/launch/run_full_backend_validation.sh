@@ -32,6 +32,7 @@ ARTIFACT_DIR=""
 CREDENTIAL_ENV_FILE=""
 BILLING_MONTH=""
 STAGING_SMOKE_AMI_ID=""
+STAGING_ONLY=0
 EXPLICIT_MODE=""
 RESOLVED_SHA=""
 OVERALL_FAILED=0
@@ -43,16 +44,18 @@ STEP_REASONS=()
 STEP_ELAPSED_MS=()
 STEP_COMMAND=()
 DELEGATED_SKIP_EXIT_CODE=3
+STAGING_ONLY_PRODUCTION_SKIP_REASON="staging_only_production_surface"
 CRITICAL_BROWSER_STEPS=("browser_preflight" "browser_auth_setup" "browser_signup_paid" "browser_portal_cancel")
 print_usage() {
     cat <<'USAGE'
 Usage:
   run_full_backend_validation.sh [--dry-run] [--sha=<GIT_SHA>]
-  run_full_backend_validation.sh --paid-beta-rc [--sha=<GIT_SHA>] [--artifact-dir=<dir>] [--credential-env-file=<path>] [--billing-month=<YYYY-MM>] [--staging-smoke-ami-id=<ami-id>]
+  run_full_backend_validation.sh --paid-beta-rc [--staging-only] [--sha=<GIT_SHA>] [--artifact-dir=<dir>] [--credential-env-file=<path>] [--billing-month=<YYYY-MM>] [--staging-smoke-ami-id=<ami-id>]
   run_full_backend_validation.sh --help
 Options:
   --dry-run                      Run in dry-run mode (stubs external dependency checks via backend gate DRY_RUN=1)
   --paid-beta-rc                 Run paid beta RC readiness mode with required delegated proofs
+  --staging-only                 RC sub-mode: run staging proofs, soft-skip production-facing proofs
   --sha=<40-char-sha>            Commit SHA to validate in backend launch gate
   --artifact-dir=<dir>           Artifact directory used for delegated launch evidence outputs
   --credential-env-file=<path>   Optional credentials env file (KEY=value) for RC delegated proof inputs
@@ -517,7 +520,11 @@ run_step_backend_launch_gate() {
     if [ "$MODE" = "dry_run" ]; then
         output="$(env DRY_RUN=1 bash "$BACKEND_GATE_SCRIPT" --sha="$sha")" || exit_code=$?
     elif [ "$MODE" = "paid_beta_rc" ]; then
-        output="$(env LAUNCH_GATE_EVIDENCE_DIR="$ARTIFACT_DIR" COLLECT_EVIDENCE_DIR="$ARTIFACT_DIR" bash "$BACKEND_GATE_SCRIPT" --sha="$sha")" || exit_code=$?
+        local gate_args=("--sha=$sha")
+        if [ "${STAGING_ONLY:-0}" = "1" ]; then
+            gate_args+=("--staging-only")
+        fi
+        output="$(env LAUNCH_GATE_EVIDENCE_DIR="$ARTIFACT_DIR" COLLECT_EVIDENCE_DIR="$ARTIFACT_DIR" bash "$BACKEND_GATE_SCRIPT" "${gate_args[@]}")" || exit_code=$?
     else
         output="$(bash "$BACKEND_GATE_SCRIPT" --sha="$sha")" || exit_code=$?
     fi
@@ -554,6 +561,7 @@ reset_run_state() {
     CREDENTIAL_ENV_FILE=""
     BILLING_MONTH=""
     STAGING_SMOKE_AMI_ID=""
+    STAGING_ONLY=0
     EXPLICIT_MODE=""
     RESOLVED_SHA=""
     OVERALL_FAILED=0
@@ -608,6 +616,10 @@ append_paid_beta_rc_constant_step() {
     fi
     return 2
 }
+append_staging_only_production_skip_step() {
+    local step_name="$1"
+    append_paid_beta_rc_constant_step "$step_name" "skipped" "$STAGING_ONLY_PRODUCTION_SKIP_REASON"
+}
 run_step_paid_beta_rc_ses_inbound() {
     local start_ms end_ms elapsed exit_code=0 ses_identity="" ses_region=""
     local ses_identity_status=0 ses_region_status=0
@@ -661,6 +673,22 @@ run_required_paid_beta_rc_steps() {
     execute_required_step run_step_browser_auth_setup
     execute_required_step run_step_terraform_static_guardrails
     execute_required_step run_step_staging_runtime_smoke
+    if [ "${STAGING_ONLY:-0}" = "1" ]; then
+        execute_required_step append_staging_only_production_skip_step "admin_broadcast"
+        execute_required_step append_staging_only_production_skip_step "billing_health_last_activity"
+        execute_required_step append_staging_only_production_skip_step "audit_timeline"
+        execute_required_step append_staging_only_production_skip_step "status_runtime"
+        execute_required_step append_staging_only_production_skip_step "ses_inbound"
+        execute_required_step append_staging_only_production_skip_step "canary_customer_loop"
+        execute_required_step append_staging_only_production_skip_step "canary_outside_aws"
+        execute_required_step append_staging_only_production_skip_step "stripe_webhook_signature_matrix_idempotency"
+        execute_required_step append_staging_only_production_skip_step "test_clock"
+        execute_required_step append_staging_only_production_skip_step "tenant_isolation"
+        execute_required_step append_staging_only_production_skip_step "signup_abuse"
+        execute_required_step append_staging_only_production_skip_step "browser_signup_paid"
+        execute_required_step append_staging_only_production_skip_step "browser_portal_cancel"
+        return 0
+    fi
     execute_required_step run_paid_beta_rc_rust_step "admin_broadcast" "admin_broadcast_failed" "1" "\"$CARGO_BIN\" test -p api --test admin_broadcast_test -- --ignored"
     execute_required_step run_paid_beta_rc_rust_step "billing_health_last_activity" "billing_health_last_activity_failed" "1" "\"$CARGO_BIN\" test -p api --test pg_customer_repo_test && \"$CARGO_BIN\" test -p api --test tenants_test"
     execute_required_step run_paid_beta_rc_rust_step "audit_timeline" "audit_timeline_failed" "1" "\"$CARGO_BIN\" test -p api --test admin_audit_view_test -- --ignored && \"$CARGO_BIN\" test -p api --test admin_token_audit_test -- --ignored"
@@ -692,6 +720,9 @@ promote_critical_browser_skip_failures() {
             continue
         fi
         if [ "${STEP_STATUSES[$idx]}" = "skipped" ]; then
+            if [ "${STEP_REASONS[$idx]}" = "$STAGING_ONLY_PRODUCTION_SKIP_REASON" ]; then
+                continue
+            fi
             STEP_STATUSES[$idx]="fail"
             STEP_REASONS[$idx]="critical_surface_skipped"
         fi

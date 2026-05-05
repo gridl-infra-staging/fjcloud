@@ -38,7 +38,10 @@ pub mod webhook_event_repo;
 
 pub use api_key_repo::ApiKeyRepo;
 pub use cold_snapshot_repo::ColdSnapshotRepo;
-pub use customer_repo::CustomerRepo;
+pub use customer_repo::{
+    CustomerRepo, ResendVerificationOutcome, ResendVerificationReservation,
+    RESEND_VERIFICATION_COOLDOWN_SECONDS,
+};
 pub use deployment_repo::DeploymentRepo;
 pub use error::RepoError;
 pub use in_memory_cold_snapshot_repo::InMemoryColdSnapshotRepo;

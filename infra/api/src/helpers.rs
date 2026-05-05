@@ -78,7 +78,9 @@ mod tests {
 
     use crate::errors::ApiError;
     use crate::models::Customer;
-    use crate::repos::{CustomerRepo, RepoError};
+    use crate::repos::{
+        CustomerRepo, RepoError, ResendVerificationOutcome, ResendVerificationReservation,
+    };
     use async_trait::async_trait;
     use chrono::Utc;
     use rust_decimal::Decimal;
@@ -281,6 +283,24 @@ mod tests {
             panic!("not used in this test");
         }
 
+        async fn rotate_email_verification_token_with_resend_cooldown(
+            &self,
+            _id: Uuid,
+            _token: &str,
+            _expires_at: chrono::DateTime<Utc>,
+        ) -> Result<ResendVerificationOutcome, RepoError> {
+            panic!("not used in this test");
+        }
+
+        async fn rollback_resend_verification_token_rotation(
+            &self,
+            _id: Uuid,
+            _reserved_token: &str,
+            _reservation: &ResendVerificationReservation,
+        ) -> Result<bool, RepoError> {
+            panic!("not used in this test");
+        }
+
         async fn verify_email(&self, _token: &str) -> Result<Option<Customer>, RepoError> {
             panic!("not used in this test");
         }
@@ -384,6 +404,7 @@ mod tests {
             email_verified_at: Some(Utc::now()),
             email_verify_token: None,
             email_verify_expires_at: None,
+            resend_verification_sent_at: None,
             password_reset_token: None,
             password_reset_expires_at: None,
             last_accessed_at: None,

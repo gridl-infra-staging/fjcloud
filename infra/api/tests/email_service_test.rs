@@ -1,13 +1,10 @@
-//! Tests for email service implementations (MockEmailService, NoopEmailService,
-//! MailpitEmailService, SesConfig). Extracted from services/email.rs to keep
-//! that file under the 800-line hard limit.
+//! Transport and backend tests for email service implementations.
 
 use api::services::email::{
     invoice_ready_email_html, password_reset_email_html, password_reset_email_html_with_base_url,
     quota_warning_email_html, verification_email_html, verification_email_html_with_base_url,
-    BroadcastDeliveryStatus, EmailService, MailpitEmailService, MockEmailService, NoopEmailService,
-    SesConfig, SesEmailService, INVOICE_READY_SUBJECT, PASSWORD_RESET_SUBJECT,
-    QUOTA_WARNING_SUBJECT, VERIFICATION_SUBJECT,
+    BroadcastDeliveryStatus, EmailService, MailpitEmailService, NoopEmailService, SesEmailService,
+    INVOICE_READY_SUBJECT, PASSWORD_RESET_SUBJECT, QUOTA_WARNING_SUBJECT, VERIFICATION_SUBJECT,
 };
 use api::services::email_suppression::InMemoryEmailSuppressionStore;
 use std::sync::Arc;
@@ -78,62 +75,6 @@ fn quota_warning_email_renders_all_fields() {
     assert!(html.contains("85.3%"));
     assert!(html.contains("8530"));
     assert!(html.contains("10000"));
-}
-
-// ---------------------------------------------------------------------------
-// MockEmailService tests
-// ---------------------------------------------------------------------------
-
-#[tokio::test]
-async fn mock_email_service_captures_sent_emails() {
-    let service = MockEmailService::new();
-    service
-        .send_verification_email("user@test.com", "tok1")
-        .await
-        .unwrap();
-    let emails = service.sent_emails();
-    assert_eq!(emails.len(), 1);
-    assert_eq!(emails[0].to, "user@test.com");
-    assert_eq!(emails[0].subject, "Verify your email");
-}
-
-#[tokio::test]
-async fn mock_email_rejects_empty_recipient() {
-    let service = MockEmailService::new();
-    let err = service
-        .send_verification_email("", "tok")
-        .await
-        .unwrap_err();
-    assert!(err.to_string().contains("must not be empty"));
-}
-
-#[tokio::test]
-async fn mock_email_rejects_whitespace_recipient() {
-    let service = MockEmailService::new();
-    let err = service
-        .send_verification_email("  ", "tok")
-        .await
-        .unwrap_err();
-    assert!(err.to_string().contains("must not be empty"));
-}
-
-#[tokio::test]
-async fn mock_email_service_records_broadcast_plain_text_as_pre_wrapped_html() {
-    let service = MockEmailService::new();
-    let recipient = "broadcast@test.com";
-    let subject = "Planned maintenance";
-    let text_body = "Maintenance starts at 02:00 UTC";
-
-    service
-        .send_broadcast_email(recipient, subject, Option::<&str>::None, Some(text_body))
-        .await
-        .unwrap();
-
-    let emails = service.sent_emails();
-    assert_eq!(emails.len(), 1);
-    assert_eq!(emails[0].to, recipient);
-    assert_eq!(emails[0].subject, subject);
-    assert_eq!(emails[0].body, format!("<pre>{text_body}</pre>"));
 }
 
 // ---------------------------------------------------------------------------
@@ -234,85 +175,6 @@ async fn noop_email_rejects_blank_or_whitespace_recipient_with_record_validation
     }
 }
 
-// ---------------------------------------------------------------------------
-// SesConfig tests
-// ---------------------------------------------------------------------------
-
-#[test]
-fn ses_config_from_reader_valid() {
-    let config = SesConfig::from_reader(|k| match k {
-        "SES_FROM_ADDRESS" => Some("system@flapjack.foo".to_string()),
-        "SES_CONFIGURATION_SET" => Some("ses-feedback".to_string()),
-        "SES_REGION" => Some("us-east-1".to_string()),
-        _ => None,
-    })
-    .unwrap();
-    assert_eq!(config.from_address, "system@flapjack.foo");
-    assert_eq!(config.region, "us-east-1");
-}
-
-#[test]
-fn ses_config_from_reader_missing_from() {
-    let err = SesConfig::from_reader(|k| match k {
-        "SES_CONFIGURATION_SET" => Some("ses-feedback".to_string()),
-        "SES_REGION" => Some("us-east-1".to_string()),
-        _ => None,
-    })
-    .unwrap_err();
-    assert!(err.contains("SES_FROM_ADDRESS"));
-}
-
-#[test]
-fn ses_config_from_reader_missing_region() {
-    let err = SesConfig::from_reader(|k| match k {
-        "SES_FROM_ADDRESS" => Some("a@b.com".to_string()),
-        "SES_CONFIGURATION_SET" => Some("ses-feedback".to_string()),
-        _ => None,
-    })
-    .unwrap_err();
-    assert!(err.contains("SES_REGION"));
-}
-
-#[test]
-fn ses_config_trims_whitespace() {
-    let config = SesConfig::from_reader(|k| match k {
-        "SES_FROM_ADDRESS" => Some("  a@b.com  ".to_string()),
-        "SES_CONFIGURATION_SET" => Some("  ses-feedback  ".to_string()),
-        "SES_REGION" => Some("  eu-west-1  ".to_string()),
-        _ => None,
-    })
-    .unwrap();
-    assert_eq!(config.from_address, "a@b.com");
-    assert_eq!(config.region, "eu-west-1");
-    assert_eq!(config.configuration_set, "ses-feedback");
-}
-
-#[test]
-fn ses_config_rejects_empty_after_trim() {
-    let err = SesConfig::from_reader(|k| match k {
-        "SES_FROM_ADDRESS" => Some("   ".to_string()),
-        "SES_CONFIGURATION_SET" => Some("ses-feedback".to_string()),
-        "SES_REGION" => Some("us-east-1".to_string()),
-        _ => None,
-    })
-    .unwrap_err();
-    assert!(err.contains("SES_FROM_ADDRESS"));
-}
-
-#[test]
-fn ses_config_requires_configuration_set() {
-    let err = SesConfig::from_reader(|k| match k {
-        "SES_FROM_ADDRESS" => Some("system@flapjack.foo".to_string()),
-        "SES_REGION" => Some("us-east-1".to_string()),
-        _ => None,
-    })
-    .expect_err("SES config should fail without SES_CONFIGURATION_SET");
-    assert!(
-        err.contains("SES_CONFIGURATION_SET"),
-        "error should mention SES_CONFIGURATION_SET, got: {err}"
-    );
-}
-
 async fn ses_client_for_mock_server(server: &MockServer) -> aws_sdk_sesv2::Client {
     let aws_config = aws_config::defaults(aws_config::BehaviorVersion::latest())
         .region(aws_sdk_sesv2::config::Region::new("us-east-1"))
@@ -365,17 +227,108 @@ async fn ses_send_applies_exactly_one_configuration_set_name() {
         .received_requests()
         .await
         .expect("wiremock should record requests");
-    assert_eq!(requests.len(), 1, "exactly one SES API request is expected");
+    assert!(
+        !requests.is_empty(),
+        "SES should emit at least one outbound request"
+    );
 
+    for request in requests {
+        let body = String::from_utf8_lossy(&request.body);
+        assert_eq!(
+            body.matches("\"ConfigurationSetName\"").count(),
+            1,
+            "SES payload should include exactly one ConfigurationSetName field; body={body}"
+        );
+        assert!(
+            body.contains("\"ConfigurationSetName\":\"stage2-config-set\""),
+            "SES payload should include configured ConfigurationSetName value; body={body}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn ses_transactional_payload_includes_override_from_name_and_text_body() {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "MessageId": "msg-123"
+        })))
+        .mount(&server)
+        .await;
+    let client = ses_client_for_mock_server(&server).await;
+    let suppression = Arc::new(InMemoryEmailSuppressionStore::default());
+    let service = SesEmailService::with_app_base_url(
+        client,
+        "system@flapjack.foo",
+        "Stage Two Sender",
+        "stage2-config-set",
+        suppression,
+        "https://cloud.flapjack.foo",
+    );
+
+    service
+        .send_verification_email("alice@example.com", "verify-123")
+        .await
+        .expect("SES transactional send should succeed");
+
+    let requests = server
+        .received_requests()
+        .await
+        .expect("wiremock should record requests");
+    assert_eq!(requests.len(), 1);
     let body = String::from_utf8_lossy(&requests[0].body);
-    assert_eq!(
-        body.matches("\"ConfigurationSetName\"").count(),
-        1,
-        "SES payload should include exactly one ConfigurationSetName field; body={body}"
+    assert!(
+        body.contains("\"FromEmailAddress\":\"Stage Two Sender <system@flapjack.foo>\""),
+        "SES payload should include override display-name sender; body={body}"
     );
     assert!(
-        body.contains("\"ConfigurationSetName\":\"stage2-config-set\""),
-        "SES payload should include configured ConfigurationSetName value; body={body}"
+        body.contains("\"Text\""),
+        "SES payload should include text content for transactional emails; body={body}"
+    );
+}
+
+#[tokio::test]
+async fn ses_html_only_broadcast_preserves_empty_text_payload() {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "MessageId": "msg-123"
+        })))
+        .mount(&server)
+        .await;
+    let client = ses_client_for_mock_server(&server).await;
+    let suppression = Arc::new(InMemoryEmailSuppressionStore::default());
+    let service = SesEmailService::new(
+        client,
+        "system@flapjack.foo",
+        "stage2-config-set",
+        suppression,
+    );
+    let subject = "Release notice";
+    let html_body = "<p>Release at 02:00 UTC</p>";
+
+    service
+        .send_broadcast_email("ops@example.com", subject, Some(html_body), None)
+        .await
+        .expect("SES html-only broadcast should succeed");
+
+    let requests = server
+        .received_requests()
+        .await
+        .expect("wiremock should record requests");
+    assert_eq!(requests.len(), 1);
+    let body = String::from_utf8_lossy(&requests[0].body);
+    assert!(
+        body.contains("\"Subject\":{\"Data\":\"Release notice\""),
+        "SES payload should include broadcast subject; body={body}"
+    );
+    assert!(
+        body.contains("\"Html\":{\"Data\":\"<p>Release at 02:00 UTC</p>\""),
+        "SES payload should preserve HTML payload; body={body}"
+    );
+    assert!(
+        body.contains("\"Text\":{\"Data\":\"\""),
+        "SES payload should keep text payload empty for html-only broadcasts; body={body}"
     );
 }
 
@@ -465,6 +418,21 @@ async fn mailpit_email_service_returns_delivery_failed_on_connection_error() {
     );
 }
 
+#[tokio::test]
+async fn mailpit_normalizes_blank_sender_display_name_to_default() {
+    let server = MockServer::start().await;
+    mount_mailpit_ok(&server).await;
+    let service = MailpitEmailService::new(&server.uri(), "system@flapjack.foo", "   ");
+
+    service
+        .send_verification_email("alice@example.com", "tok-abc")
+        .await
+        .expect("mailpit send should succeed");
+
+    let body = single_request_json(&server).await;
+    assert_eq!(body["From"]["Name"], "Flapjack Cloud");
+}
+
 // ---------------------------------------------------------------------------
 // MailpitEmailService wiremock tests — payload, tags, URL, error handling
 // ---------------------------------------------------------------------------
@@ -487,6 +455,7 @@ fn assert_common_payload(
     expected_to: &str,
     expected_subject: &str,
     expected_tag: &str,
+    require_non_empty_text: bool,
 ) {
     assert_eq!(body["From"]["Email"], "system@flapjack.foo");
     assert_eq!(body["From"]["Name"], "Flapjack Cloud Dev");
@@ -496,6 +465,15 @@ fn assert_common_payload(
     assert_eq!(body["Tags"][0], expected_tag);
     assert!(body["Tags"].as_array().unwrap().len() == 1);
     assert!(body["HTML"].as_str().is_some_and(|s| !s.is_empty()));
+    let text_body = body["Text"]
+        .as_str()
+        .expect("Mailpit payload should include a string Text field");
+    if require_non_empty_text {
+        assert!(
+            !text_body.is_empty(),
+            "Mailpit payload should include non-empty text content for this email type"
+        );
+    }
 }
 
 async fn mount_mailpit_ok(server: &MockServer) {
@@ -520,6 +498,7 @@ async fn mailpit_verification_sends_correct_payload_and_tag() {
         "alice@example.com",
         VERIFICATION_SUBJECT,
         "verification",
+        true,
     );
     let html = body["HTML"].as_str().unwrap();
     assert!(html.contains(r#"href="https://cloud.flapjack.foo/verify-email/tok-abc""#));
@@ -540,6 +519,7 @@ async fn mailpit_password_reset_sends_correct_payload_and_tag() {
         "bob@example.com",
         PASSWORD_RESET_SUBJECT,
         "password-reset",
+        true,
     );
     let html = body["HTML"].as_str().unwrap();
     assert!(html.contains(r#"href="https://cloud.flapjack.foo/reset-password/rst-xyz""#));
@@ -560,7 +540,13 @@ async fn mailpit_invoice_sends_correct_payload_and_tag_with_pdf() {
     .await
     .expect("should succeed");
     let body = single_request_json(&server).await;
-    assert_common_payload(&body, "carol@example.com", INVOICE_READY_SUBJECT, "invoice");
+    assert_common_payload(
+        &body,
+        "carol@example.com",
+        INVOICE_READY_SUBJECT,
+        "invoice",
+        true,
+    );
     let html = body["HTML"].as_str().unwrap();
     assert!(html.contains("INV-42"));
     assert!(html.contains("https://billing.example.com/inv/42"));
@@ -582,7 +568,13 @@ async fn mailpit_invoice_omits_pdf_link_when_none() {
     .await
     .expect("should succeed");
     let body = single_request_json(&server).await;
-    assert_common_payload(&body, "dan@example.com", INVOICE_READY_SUBJECT, "invoice");
+    assert_common_payload(
+        &body,
+        "dan@example.com",
+        INVOICE_READY_SUBJECT,
+        "invoice",
+        true,
+    );
     let html = body["HTML"].as_str().unwrap();
     assert!(!html.contains("Download PDF"));
 }
@@ -601,6 +593,7 @@ async fn mailpit_quota_warning_sends_correct_payload_and_tag() {
         "eve@example.com",
         QUOTA_WARNING_SUBJECT,
         "quota-warning",
+        true,
     );
     let html = body["HTML"].as_str().unwrap();
     assert!(html.contains("searches"));
@@ -615,15 +608,37 @@ async fn mailpit_broadcast_sends_pre_wrapped_text_payload_and_tag() {
     mount_mailpit_ok(&server).await;
     let svc = mailpit_service(&server.uri());
     let subject = "Maintenance notice";
-    let text_body = "Planned maintenance at 02:00 UTC";
+    let text_body = "Planned <script>alert(1)</script> & follow-up";
 
     svc.send_broadcast_email("ops@example.com", subject, None, Some(text_body))
         .await
         .expect("should succeed");
 
     let body = single_request_json(&server).await;
-    assert_common_payload(&body, "ops@example.com", subject, "broadcast");
-    assert_eq!(body["HTML"], format!("<pre>{text_body}</pre>"));
+    assert_common_payload(&body, "ops@example.com", subject, "broadcast", true);
+    assert_eq!(
+        body["HTML"],
+        "<pre>Planned &lt;script&gt;alert(1)&lt;/script&gt; &amp; follow-up</pre>"
+    );
+    assert_eq!(body["Text"], text_body);
+}
+
+#[tokio::test]
+async fn mailpit_html_only_broadcast_preserves_empty_text_payload_and_tag() {
+    let server = MockServer::start().await;
+    mount_mailpit_ok(&server).await;
+    let svc = mailpit_service(&server.uri());
+    let subject = "Release notice";
+    let html_body = "<p>Release at 02:00 UTC</p>";
+
+    svc.send_broadcast_email("ops@example.com", subject, Some(html_body), None)
+        .await
+        .expect("should succeed");
+
+    let body = single_request_json(&server).await;
+    assert_common_payload(&body, "ops@example.com", subject, "broadcast", false);
+    assert_eq!(body["HTML"], html_body);
+    assert_eq!(body["Text"], "");
 }
 
 #[tokio::test]

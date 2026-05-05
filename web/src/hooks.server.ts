@@ -12,7 +12,8 @@ import { env } from '$env/dynamic/private';
 
 const PUBLIC_PATHS = ['/login', '/signup', '/verify-email', '/forgot-password', '/reset-password'];
 const SESSION_EXPIRED_REASON = 'session_expired';
-const ROBOTS_HEADER_VALUE = 'noindex, nofollow, noarchive, nosnippet, noimageindex';
+const ROBOTS_HEADER_VALUE =
+	'noindex, nofollow, noarchive, nosnippet, noimageindex, noai, noimageai';
 
 function isPublicPath(pathname: string): boolean {
 	if (pathname === '/') return true;

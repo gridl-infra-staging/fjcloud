@@ -3,7 +3,16 @@ use async_trait::async_trait;
 use aws_sdk_sesv2::types::{Body, Content, Destination, EmailContent, Message};
 use std::sync::{Arc, Mutex};
 
+mod mailpit;
+mod render;
+pub use mailpit::MailpitEmailService;
+use render::{
+    render_invoice_ready_email, render_password_reset_email, render_quota_warning_email,
+    render_verification_email, resolve_broadcast_render, RenderedEmail,
+};
+
 pub const DEFAULT_APP_BASE_URL: &str = "https://cloud.flapjack.foo";
+pub const DEFAULT_EMAIL_FROM_NAME: &str = "Flapjack Cloud";
 
 pub const VERIFICATION_SUBJECT: &str = "Verify your email";
 const VERIFICATION_TEMPLATE_HTML: &str = r#"
@@ -63,7 +72,8 @@ pub enum EmailError {
 pub struct SentEmail {
     pub to: String,
     pub subject: String,
-    pub body: String,
+    pub html_body: String,
+    pub text_body: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -128,31 +138,17 @@ fn normalize_app_base_url(app_base_url: impl Into<String>) -> String {
     app_base_url.into().trim_end_matches('/').to_string()
 }
 
-fn resolve_broadcast_html_body(
-    html_body: Option<&str>,
-    text_body: Option<&str>,
-) -> Result<String, EmailError> {
-    if let Some(html) = html_body {
-        if html.trim().is_empty() {
-            return Err(EmailError::InvalidRequest(
-                "broadcast html body must not be empty".to_string(),
-            ));
-        }
-        return Ok(html.to_string());
+fn normalize_from_name(from_name: impl Into<String>) -> String {
+    let from_name = from_name.into().trim().to_string();
+    if from_name.is_empty() {
+        DEFAULT_EMAIL_FROM_NAME.to_string()
+    } else {
+        from_name
     }
+}
 
-    if let Some(text) = text_body {
-        if text.trim().is_empty() {
-            return Err(EmailError::InvalidRequest(
-                "broadcast text body must not be empty".to_string(),
-            ));
-        }
-        return Ok(format!("<pre>{text}</pre>"));
-    }
-
-    Err(EmailError::InvalidRequest(
-        "broadcast email requires html_body or text_body".to_string(),
-    ))
+fn formatted_sender_identity(from_name: &str, from_address: &str) -> String {
+    format!("{from_name} <{from_address}>")
 }
 
 pub struct MockEmailService {
@@ -176,13 +172,14 @@ impl MockEmailService {
         self.sent_emails.lock().unwrap().clone()
     }
 
-    fn record(&self, to: &str, subject: &str, body: String) -> Result<(), EmailError> {
+    fn record(&self, to: &str, email: RenderedEmail) -> Result<(), EmailError> {
         validate_recipient_email(to)?;
 
         self.sent_emails.lock().unwrap().push(SentEmail {
             to: to.to_string(),
-            subject: subject.to_string(),
-            body,
+            subject: email.subject,
+            html_body: email.html_body,
+            text_body: email.text_body,
         });
         Ok(())
     }
@@ -199,6 +196,7 @@ pub struct NoopEmailService;
 pub struct SesEmailService {
     client: aws_sdk_sesv2::Client,
     from_address: String,
+    from_name: String,
     configuration_set_name: String,
     suppression_store: Arc<dyn EmailSuppressionStore>,
     app_base_url: String,
@@ -214,6 +212,7 @@ impl SesEmailService {
         Self::with_app_base_url(
             client,
             from_address,
+            DEFAULT_EMAIL_FROM_NAME,
             configuration_set_name,
             suppression_store,
             DEFAULT_APP_BASE_URL,
@@ -223,6 +222,7 @@ impl SesEmailService {
     pub fn with_app_base_url(
         client: aws_sdk_sesv2::Client,
         from_address: impl Into<String>,
+        from_name: impl Into<String>,
         configuration_set_name: impl Into<String>,
         suppression_store: Arc<dyn EmailSuppressionStore>,
         app_base_url: impl Into<String>,
@@ -230,6 +230,7 @@ impl SesEmailService {
         Self {
             client,
             from_address: from_address.into(),
+            from_name: normalize_from_name(from_name),
             configuration_set_name: configuration_set_name.into(),
             suppression_store,
             app_base_url: normalize_app_base_url(app_base_url),
@@ -241,11 +242,10 @@ impl SesEmailService {
     /// Constructs a `SendEmailInput` with UTF-8 subject and HTML body, using
     /// the configured sender address. Validates that the recipient is non-empty
     /// before dispatching.
-    async fn send_html_email(
+    async fn send_rendered_email(
         &self,
         to: &str,
-        subject: &str,
-        html_body: &str,
+        rendered_email: &RenderedEmail,
     ) -> Result<BroadcastDeliveryStatus, EmailError> {
         validate_recipient_email(to)?;
 
@@ -259,16 +259,24 @@ impl SesEmailService {
         }
 
         let subject_content = Content::builder()
-            .data(subject)
+            .data(&rendered_email.subject)
             .charset("UTF-8")
             .build()
             .map_err(|e| EmailError::InvalidRequest(format!("invalid email subject: {e}")))?;
-        let body_content = Content::builder()
-            .data(html_body)
+        let html_body_content = Content::builder()
+            .data(&rendered_email.html_body)
             .charset("UTF-8")
             .build()
             .map_err(|e| EmailError::InvalidRequest(format!("invalid email body: {e}")))?;
-        let body = Body::builder().html(body_content).build();
+        let text_body_content = Content::builder()
+            .data(&rendered_email.text_body)
+            .charset("UTF-8")
+            .build()
+            .map_err(|e| EmailError::InvalidRequest(format!("invalid email body: {e}")))?;
+        let body = Body::builder()
+            .html(html_body_content)
+            .text(text_body_content)
+            .build();
         let message = Message::builder()
             .subject(subject_content)
             .body(body)
@@ -278,7 +286,10 @@ impl SesEmailService {
 
         self.client
             .send_email()
-            .from_email_address(&self.from_address)
+            .from_email_address(formatted_sender_identity(
+                &self.from_name,
+                &self.from_address,
+            ))
             .configuration_set_name(&self.configuration_set_name)
             .destination(destination)
             .content(content)
@@ -299,8 +310,7 @@ impl EmailService for MockEmailService {
     ) -> Result<(), EmailError> {
         self.record(
             to,
-            VERIFICATION_SUBJECT,
-            verification_email_html_with_base_url(&self.app_base_url, verify_token),
+            render_verification_email(&self.app_base_url, verify_token)?,
         )
     }
 
@@ -311,8 +321,7 @@ impl EmailService for MockEmailService {
     ) -> Result<(), EmailError> {
         self.record(
             to,
-            PASSWORD_RESET_SUBJECT,
-            password_reset_email_html_with_base_url(&self.app_base_url, reset_token),
+            render_password_reset_email(&self.app_base_url, reset_token)?,
         )
     }
 
@@ -325,8 +334,7 @@ impl EmailService for MockEmailService {
     ) -> Result<(), EmailError> {
         self.record(
             to,
-            INVOICE_READY_SUBJECT,
-            invoice_ready_email_html(invoice_id, invoice_url, pdf_url),
+            render_invoice_ready_email(invoice_id, invoice_url, pdf_url)?,
         )
     }
 
@@ -340,8 +348,7 @@ impl EmailService for MockEmailService {
     ) -> Result<(), EmailError> {
         self.record(
             to,
-            QUOTA_WARNING_SUBJECT,
-            quota_warning_email_html(metric, percent_used, current_usage, limit),
+            render_quota_warning_email(metric, percent_used, current_usage, limit)?,
         )
     }
 
@@ -352,11 +359,7 @@ impl EmailService for MockEmailService {
         html_body: Option<&str>,
         text_body: Option<&str>,
     ) -> Result<BroadcastDeliveryStatus, EmailError> {
-        self.record(
-            to,
-            subject,
-            resolve_broadcast_html_body(html_body, text_body)?,
-        )?;
+        self.record(to, resolve_broadcast_render(subject, html_body, text_body)?)?;
         Ok(BroadcastDeliveryStatus::Sent)
     }
 }
@@ -403,12 +406,12 @@ impl EmailService for NoopEmailService {
     async fn send_broadcast_email(
         &self,
         to: &str,
-        _subject: &str,
+        subject: &str,
         html_body: Option<&str>,
         text_body: Option<&str>,
     ) -> Result<BroadcastDeliveryStatus, EmailError> {
         validate_recipient_email(to)?;
-        resolve_broadcast_html_body(html_body, text_body)?;
+        resolve_broadcast_render(subject, html_body, text_body)?;
         Ok(BroadcastDeliveryStatus::Sent)
     }
 }
@@ -420,10 +423,9 @@ impl EmailService for SesEmailService {
         to: &str,
         verify_token: &str,
     ) -> Result<(), EmailError> {
-        self.send_html_email(
+        self.send_rendered_email(
             to,
-            VERIFICATION_SUBJECT,
-            &verification_email_html_with_base_url(&self.app_base_url, verify_token),
+            &render_verification_email(&self.app_base_url, verify_token)?,
         )
         .await
         .map(|_| ())
@@ -434,10 +436,9 @@ impl EmailService for SesEmailService {
         to: &str,
         reset_token: &str,
     ) -> Result<(), EmailError> {
-        self.send_html_email(
+        self.send_rendered_email(
             to,
-            PASSWORD_RESET_SUBJECT,
-            &password_reset_email_html_with_base_url(&self.app_base_url, reset_token),
+            &render_password_reset_email(&self.app_base_url, reset_token)?,
         )
         .await
         .map(|_| ())
@@ -450,10 +451,9 @@ impl EmailService for SesEmailService {
         invoice_url: &str,
         pdf_url: Option<&str>,
     ) -> Result<(), EmailError> {
-        self.send_html_email(
+        self.send_rendered_email(
             to,
-            INVOICE_READY_SUBJECT,
-            &invoice_ready_email_html(invoice_id, invoice_url, pdf_url),
+            &render_invoice_ready_email(invoice_id, invoice_url, pdf_url)?,
         )
         .await
         .map(|_| ())
@@ -467,10 +467,9 @@ impl EmailService for SesEmailService {
         current_usage: u64,
         limit: u64,
     ) -> Result<(), EmailError> {
-        self.send_html_email(
+        self.send_rendered_email(
             to,
-            QUOTA_WARNING_SUBJECT,
-            &quota_warning_email_html(metric, percent_used, current_usage, limit),
+            &render_quota_warning_email(metric, percent_used, current_usage, limit)?,
         )
         .await
         .map(|_| ())
@@ -483,13 +482,17 @@ impl EmailService for SesEmailService {
         html_body: Option<&str>,
         text_body: Option<&str>,
     ) -> Result<BroadcastDeliveryStatus, EmailError> {
-        let broadcast_html = resolve_broadcast_html_body(html_body, text_body)?;
-        self.send_html_email(to, subject, &broadcast_html).await
+        let rendered = resolve_broadcast_render(subject, html_body, text_body)?;
+        self.send_rendered_email(to, &rendered).await
     }
 }
 
 pub fn verification_email_html(verify_token: &str) -> String {
     verification_email_html_with_base_url(DEFAULT_APP_BASE_URL, verify_token)
+}
+
+pub fn verification_email_text(verify_token: &str) -> String {
+    verification_email_text_with_base_url(DEFAULT_APP_BASE_URL, verify_token)
 }
 
 pub fn verification_email_html_with_base_url(app_base_url: &str, verify_token: &str) -> String {
@@ -502,8 +505,22 @@ pub fn verification_email_html_with_base_url(app_base_url: &str, verify_token: &
     VERIFICATION_TEMPLATE_HTML.replace("{{VERIFY_URL}}", &verify_url)
 }
 
+pub fn verification_email_text_with_base_url(app_base_url: &str, verify_token: &str) -> String {
+    let verify_url = format!(
+        "{}/verify-email/{verify_token}",
+        app_base_url.trim_end_matches('/')
+    );
+    format!(
+        "Verify your Flapjack Cloud account.\n\nThanks for signing up for Flapjack Cloud. Confirm your email:\n{verify_url}"
+    )
+}
+
 pub fn password_reset_email_html(reset_token: &str) -> String {
     password_reset_email_html_with_base_url(DEFAULT_APP_BASE_URL, reset_token)
+}
+
+pub fn password_reset_email_text(reset_token: &str) -> String {
+    password_reset_email_text_with_base_url(DEFAULT_APP_BASE_URL, reset_token)
 }
 
 pub fn password_reset_email_html_with_base_url(app_base_url: &str, reset_token: &str) -> String {
@@ -514,6 +531,16 @@ pub fn password_reset_email_html_with_base_url(app_base_url: &str, reset_token: 
         app_base_url.trim_end_matches('/')
     );
     PASSWORD_RESET_TEMPLATE_HTML.replace("{{RESET_URL}}", &reset_url)
+}
+
+pub fn password_reset_email_text_with_base_url(app_base_url: &str, reset_token: &str) -> String {
+    let reset_url = format!(
+        "{}/reset-password/{reset_token}",
+        app_base_url.trim_end_matches('/')
+    );
+    format!(
+        "Flapjack Cloud password reset.\n\nYou can reset your Flapjack Cloud password here:\n{reset_url}"
+    )
 }
 
 pub fn invoice_ready_email_html(
@@ -531,6 +558,20 @@ pub fn invoice_ready_email_html(
         .replace("{{PDF_LINK}}", &pdf_link)
 }
 
+pub fn invoice_ready_email_text(
+    invoice_id: &str,
+    invoice_url: &str,
+    pdf_url: Option<&str>,
+) -> String {
+    let pdf_line = match pdf_url {
+        Some(url) => format!("\nDownload PDF: {url}"),
+        None => String::new(),
+    };
+    format!(
+        "Your Flapjack Cloud invoice is ready.\n\nInvoice: {invoice_id}\nView invoice: {invoice_url}{pdf_line}"
+    )
+}
+
 pub fn quota_warning_email_html(
     metric: &str,
     percent_used: f64,
@@ -544,176 +585,16 @@ pub fn quota_warning_email_html(
         .replace("{{LIMIT}}", &limit.to_string())
 }
 
-// ---------------------------------------------------------------------------
-// MailpitEmailService — local dev email via Mailpit HTTP JSON API
-// ---------------------------------------------------------------------------
-
-/// Sends real emails to a local Mailpit instance via its HTTP JSON API
-/// (`POST /api/v1/send`). Used in local dev when `MAILPIT_API_URL` is set.
-/// Emails are caught by Mailpit and visible in its web UI at the configured
-/// port (default 8025). No SMTP, no lettre — just reqwest POST with JSON.
-/// Zero new dependencies (reqwest is already in workspace).
-pub struct MailpitEmailService {
-    /// Base URL of the Mailpit HTTP API (e.g., "http://localhost:8025").
-    api_url: String,
-    /// Sender email address (e.g., "system@flapjack.foo").
-    from_email: String,
-    /// Sender display name (e.g., "Flapjack Cloud Local Dev").
-    from_name: String,
-    /// Web console base URL used in auth email links.
-    app_base_url: String,
-    /// HTTP client for sending requests to Mailpit.
-    client: reqwest::Client,
+pub fn quota_warning_email_text(
+    metric: &str,
+    percent_used: f64,
+    current_usage: u64,
+    limit: u64,
+) -> String {
+    format!(
+        "Flapjack Cloud usage warning.\n\nMetric: {metric}\nUsage: {percent_used:.1}%\nCurrent: {current_usage}\nLimit: {limit}"
+    )
 }
-
-impl MailpitEmailService {
-    pub fn new(
-        api_url: impl Into<String>,
-        from_email: impl Into<String>,
-        from_name: impl Into<String>,
-    ) -> Self {
-        Self::with_app_base_url(api_url, from_email, from_name, DEFAULT_APP_BASE_URL)
-    }
-
-    pub fn with_app_base_url(
-        api_url: impl Into<String>,
-        from_email: impl Into<String>,
-        from_name: impl Into<String>,
-        app_base_url: impl Into<String>,
-    ) -> Self {
-        Self {
-            api_url: api_url.into(),
-            from_email: from_email.into(),
-            from_name: from_name.into(),
-            app_base_url: normalize_app_base_url(app_base_url),
-            client: reqwest::Client::new(),
-        }
-    }
-
-    /// Build the Mailpit JSON payload and POST it to /api/v1/send.
-    /// The `tags` field lets you filter by email type in the Mailpit UI.
-    async fn send_mailpit_email(
-        &self,
-        to: &str,
-        subject: &str,
-        html_body: &str,
-        tag: &str,
-    ) -> Result<(), EmailError> {
-        validate_recipient_email(to)?;
-
-        // Mailpit POST /api/v1/send JSON format.
-        // See: https://mailpit.axllent.com/docs/api-v1/view.html#post-/api/v1/send
-        let payload = serde_json::json!({
-            "From": { "Email": self.from_email, "Name": self.from_name },
-            "To": [{ "Email": to }],
-            "Subject": subject,
-            "HTML": html_body,
-            "Tags": [tag]
-        });
-
-        let url = format!("{}/api/v1/send", self.api_url.trim_end_matches('/'));
-        let resp = self
-            .client
-            .post(&url)
-            .header("Content-Type", "application/json")
-            .json(&payload)
-            .send()
-            .await
-            .map_err(|e| EmailError::DeliveryFailed(format!("Mailpit request failed: {e}")))?;
-
-        if !resp.status().is_success() {
-            let status = resp.status();
-            let body = resp.text().await.unwrap_or_default();
-            return Err(EmailError::DeliveryFailed(format!(
-                "Mailpit returned HTTP {status}: {body}"
-            )));
-        }
-
-        tracing::debug!(to, subject, tag, "Email sent via Mailpit");
-        Ok(())
-    }
-}
-
-#[async_trait]
-impl EmailService for MailpitEmailService {
-    async fn send_verification_email(
-        &self,
-        to: &str,
-        verify_token: &str,
-    ) -> Result<(), EmailError> {
-        self.send_mailpit_email(
-            to,
-            VERIFICATION_SUBJECT,
-            &verification_email_html_with_base_url(&self.app_base_url, verify_token),
-            "verification",
-        )
-        .await
-    }
-
-    async fn send_password_reset_email(
-        &self,
-        to: &str,
-        reset_token: &str,
-    ) -> Result<(), EmailError> {
-        self.send_mailpit_email(
-            to,
-            PASSWORD_RESET_SUBJECT,
-            &password_reset_email_html_with_base_url(&self.app_base_url, reset_token),
-            "password-reset",
-        )
-        .await
-    }
-
-    async fn send_invoice_ready_email(
-        &self,
-        to: &str,
-        invoice_id: &str,
-        invoice_url: &str,
-        pdf_url: Option<&str>,
-    ) -> Result<(), EmailError> {
-        self.send_mailpit_email(
-            to,
-            INVOICE_READY_SUBJECT,
-            &invoice_ready_email_html(invoice_id, invoice_url, pdf_url),
-            "invoice",
-        )
-        .await
-    }
-
-    async fn send_quota_warning_email(
-        &self,
-        to: &str,
-        metric: &str,
-        percent_used: f64,
-        current_usage: u64,
-        limit: u64,
-    ) -> Result<(), EmailError> {
-        self.send_mailpit_email(
-            to,
-            QUOTA_WARNING_SUBJECT,
-            &quota_warning_email_html(metric, percent_used, current_usage, limit),
-            "quota-warning",
-        )
-        .await
-    }
-
-    async fn send_broadcast_email(
-        &self,
-        to: &str,
-        subject: &str,
-        html_body: Option<&str>,
-        text_body: Option<&str>,
-    ) -> Result<BroadcastDeliveryStatus, EmailError> {
-        let broadcast_html = resolve_broadcast_html_body(html_body, text_body)?;
-        self.send_mailpit_email(to, subject, &broadcast_html, "broadcast")
-            .await?;
-        Ok(BroadcastDeliveryStatus::Sent)
-    }
-}
-
-// Tests moved to infra/api/tests/email_service_test.rs to keep this file
-// under the 800-line hard limit. Template helpers and subject constants are
-// pub(crate) so external tests can verify rendered HTML.
 
 // ---------------------------------------------------------------------------
 // SES configuration
@@ -724,11 +605,25 @@ impl EmailService for MailpitEmailService {
 #[derive(Debug, Clone)]
 pub struct SesConfig {
     pub from_address: String,
+    pub from_name: String,
     pub region: String,
     pub configuration_set: String,
 }
 
 impl SesConfig {
+    pub fn from_name_from_reader<F>(read: F) -> String
+    where
+        F: Fn(&str) -> Option<String>,
+    {
+        read("EMAIL_FROM_NAME")
+            .map(normalize_from_name)
+            .unwrap_or_else(|| DEFAULT_EMAIL_FROM_NAME.to_string())
+    }
+
+    pub fn from_name_from_env() -> String {
+        Self::from_name_from_reader(|k| std::env::var(k).ok())
+    }
+
     /// Testable constructor that reads values via a closure.
     pub fn from_reader<F>(read: F) -> Result<Self, String>
     where
@@ -738,6 +633,8 @@ impl SesConfig {
             .map(|v| v.trim().to_string())
             .filter(|v| !v.is_empty())
             .ok_or("SES_FROM_ADDRESS is required but missing or empty")?;
+
+        let from_name = Self::from_name_from_reader(&read);
 
         let region = read("SES_REGION")
             .map(|v| v.trim().to_string())
@@ -751,6 +648,7 @@ impl SesConfig {
 
         Ok(Self {
             from_address,
+            from_name,
             region,
             configuration_set,
         })

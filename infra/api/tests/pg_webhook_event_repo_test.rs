@@ -18,21 +18,13 @@
 ///
 /// If DATABASE_URL is not set, all tests are skipped.
 use api::repos::{PgWebhookEventRepo, WebhookEventRepo};
-use sqlx::PgPool;
 
-async fn connect_and_migrate() -> Option<PgPool> {
-    let Ok(url) = std::env::var("DATABASE_URL") else {
-        println!("SKIP: DATABASE_URL not set — skipping PgWebhookEventRepo SQL tests");
-        return None;
-    };
-    let pool = PgPool::connect(&url)
-        .await
-        .expect("connect to integration test DB");
-    sqlx::migrate!("../migrations")
-        .run(&pool)
-        .await
-        .expect("run migrations");
-    Some(pool)
+mod support;
+
+use support::pg_schema_harness::{self, DbHarness};
+
+async fn connect_and_migrate() -> Option<DbHarness> {
+    pg_schema_harness::connect_and_migrate("it_pg_webhook_event_repo").await
 }
 
 #[tokio::test]
@@ -40,9 +32,10 @@ async fn find_latest_invoice_id_by_payment_intent_returns_none_when_no_rows() {
     // Regression: previously used fetch_one which errors with RowNotFound on
     // zero rows. Must return Ok(None) so the caller (charge.refunded handler)
     // can fall through to its next lookup strategy and ack the webhook.
-    let Some(pool) = connect_and_migrate().await else {
+    let Some(db) = connect_and_migrate().await else {
         return;
     };
+    let pool = db.pool.clone();
 
     let repo = PgWebhookEventRepo::new(pool.clone());
 
@@ -62,11 +55,60 @@ async fn find_latest_invoice_id_by_payment_intent_returns_none_when_no_rows() {
 }
 
 #[tokio::test]
-async fn find_latest_invoice_id_by_payment_intent_finds_seeded_row() {
-    // Positive: seed an invoice.payment_succeeded event then look it up.
-    let Some(pool) = connect_and_migrate().await else {
+async fn try_insert_same_event_id_has_single_winner_under_concurrency() {
+    let Some(db) = connect_and_migrate().await else {
         return;
     };
+    let pool = db.pool.clone();
+
+    let repo = PgWebhookEventRepo::new(pool.clone());
+    let event_id = format!("evt_test_dupe_{}", uuid::Uuid::new_v4().simple());
+    let payload = serde_json::json!({
+        "data": {
+            "object": {
+                "id": format!("in_test_dupe_{}", uuid::Uuid::new_v4().simple()),
+            }
+        }
+    });
+
+    let (first, second) = tokio::join!(
+        repo.try_insert(&event_id, "invoice.payment_succeeded", &payload),
+        repo.try_insert(&event_id, "invoice.payment_succeeded", &payload),
+    );
+
+    let first = first.expect("first insert attempt should not error");
+    let second = second.expect("second insert attempt should not error");
+    assert!(
+        (first && !second) || (!first && second),
+        "exactly one concurrent caller must win try_insert; got first={first}, second={second}"
+    );
+
+    let persisted_rows = sqlx::query_scalar::<_, i64>(
+        "SELECT COUNT(*) FROM webhook_events WHERE stripe_event_id = $1",
+    )
+    .bind(&event_id)
+    .fetch_one(&pool)
+    .await
+    .expect("count persisted webhook rows");
+    assert_eq!(
+        persisted_rows, 1,
+        "exactly one webhook_events row must exist for a stripe_event_id"
+    );
+
+    sqlx::query("DELETE FROM webhook_events WHERE stripe_event_id = $1")
+        .bind(&event_id)
+        .execute(&pool)
+        .await
+        .ok();
+}
+
+#[tokio::test]
+async fn find_latest_invoice_id_by_payment_intent_finds_seeded_row() {
+    // Positive: seed an invoice.payment_succeeded event then look it up.
+    let Some(db) = connect_and_migrate().await else {
+        return;
+    };
+    let pool = db.pool.clone();
 
     let repo = PgWebhookEventRepo::new(pool.clone());
 
@@ -108,9 +150,10 @@ async fn find_latest_invoice_id_by_payment_intent_finds_seeded_row() {
 
 #[tokio::test]
 async fn find_by_stripe_event_id_returns_none_when_no_rows() {
-    let Some(pool) = connect_and_migrate().await else {
+    let Some(db) = connect_and_migrate().await else {
         return;
     };
+    let pool = db.pool.clone();
 
     let repo = PgWebhookEventRepo::new(pool);
     let missing_id = format!("evt_test_missing_{}", uuid::Uuid::new_v4().simple());
@@ -125,9 +168,10 @@ async fn find_by_stripe_event_id_returns_none_when_no_rows() {
 
 #[tokio::test]
 async fn find_by_stripe_event_id_returns_seeded_row_shape() {
-    let Some(pool) = connect_and_migrate().await else {
+    let Some(db) = connect_and_migrate().await else {
         return;
     };
+    let pool = db.pool.clone();
 
     let repo = PgWebhookEventRepo::new(pool.clone());
     let event_id = format!("evt_test_lookup_{}", uuid::Uuid::new_v4().simple());

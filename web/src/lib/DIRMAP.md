@@ -17,6 +17,7 @@
 | auth | The auth directory provides JWT token utilities including decoding and HS256 signature verification with timing-safe comparison, plus expiration checking. |
 | components | — |
 | error-boundary | The error-boundary directory provides client-side error handling and recovery mechanisms, with runtime initialization and error recovery logic for graceful fallback behavior during client-side failures. |
+| http | — |
 | server | Server-side utilities for the SvelteKit frontend, providing authentication session management, error classification for auth failures, impersonation helpers for admin workflows, and transient API retry logic. |
 | utils | The utils/merchandising module provides utilities for creating search merchandising rules that control item visibility and ranking for specific search queries. |
 <!-- [scrai:end] -->

@@ -1,6 +1,8 @@
 import type { PageServerLoad, Actions } from './$types';
 import { createApiClient } from '$lib/server/api';
 import { isBillingServiceNotConfiguredError, isBillingCustomerMissingError } from '$lib/billing';
+import type { PaymentMethod } from '$lib/api/types';
+import { SUPPORT_EMAIL } from '$lib/format';
 import {
 	DASHBOARD_SESSION_EXPIRED_REDIRECT,
 	isDashboardSessionExpiredError,
@@ -8,69 +10,95 @@ import {
 } from '$lib/server/auth-action-errors';
 import { fail, redirect } from '@sveltejs/kit';
 
-const BILLING_PAGE_PATH = '/dashboard/billing';
-const BILLING_SETUP_ERROR =
-	'Billing is being set up for your account. Please contact support@flapjack.foo if this persists.';
-const BILLING_PORTAL_ERROR = 'Failed to open billing portal';
+const BILLING_SETUP_ERROR = `Billing is being set up for your account. Please contact ${SUPPORT_EMAIL} if this persists.`;
+const BILLING_SETUP_INTENT_ERROR = 'Unable to load payment setup. Please try again.';
+const BILLING_DEFAULT_PAYMENT_METHOD_ERROR =
+	'Unable to update default payment method. Please try again.';
 
-function isAllowedStripePortalUrl(value: string): boolean {
-	try {
-		const parsed = new URL(value);
-		return parsed.protocol === 'https:' && parsed.hostname === 'billing.stripe.com';
-	} catch {
-		return false;
-	}
+type BillingPageData = {
+	billingUnavailable: boolean;
+	paymentMethods: PaymentMethod[];
+	setupIntentClientSecret: string | null;
+	setupIntentError: string | null;
+};
+
+function unavailableBillingPageData(paymentMethods: PaymentMethod[] = []): BillingPageData {
+	return {
+		billingUnavailable: true,
+		paymentMethods,
+		setupIntentClientSecret: null,
+		setupIntentError: null
+	};
 }
 
 export const prerender = false;
 
 export const load: PageServerLoad = async ({ locals }) => {
 	const api = createApiClient(locals.user?.token);
-	let billingUnavailable = false;
+
+	let paymentMethods: PaymentMethod[] = [];
 	try {
-		await api.getPaymentMethods();
+		paymentMethods = await api.getPaymentMethods();
 	} catch (err) {
 		if (isDashboardSessionExpiredError(err)) {
 			redirect(303, DASHBOARD_SESSION_EXPIRED_REDIRECT);
 		}
 		if (isBillingServiceNotConfiguredError(err)) {
-			billingUnavailable = true;
+			return unavailableBillingPageData();
 		}
 		if (isBillingCustomerMissingError(err)) {
-			return { billingUnavailable };
+			return {
+				billingUnavailable: false,
+				paymentMethods: [],
+				setupIntentClientSecret: null,
+				setupIntentError: null
+			};
 		}
-		if (!isBillingServiceNotConfiguredError(err) && !isBillingCustomerMissingError(err)) {
-			throw err;
-		}
+		throw err;
 	}
 
-	return { billingUnavailable };
+	try {
+		const { client_secret } = await api.createSetupIntent();
+		return {
+			billingUnavailable: false,
+			paymentMethods,
+			setupIntentClientSecret: client_secret as string | null,
+			setupIntentError: null
+		};
+	} catch (err) {
+		if (isDashboardSessionExpiredError(err)) {
+			redirect(303, DASHBOARD_SESSION_EXPIRED_REDIRECT);
+		}
+		if (isBillingServiceNotConfiguredError(err) || isBillingCustomerMissingError(err)) {
+			return unavailableBillingPageData(paymentMethods);
+		}
+		return {
+			billingUnavailable: false,
+			paymentMethods,
+			setupIntentClientSecret: null,
+			setupIntentError: BILLING_SETUP_INTENT_ERROR
+		};
+	}
 };
 
 export const actions: Actions = {
-	manageBilling: async ({ locals, url }) => {
+	setDefaultPaymentMethod: async ({ locals, request }) => {
 		const api = createApiClient(locals.user?.token);
-		const portalSessionRequest = {
-			return_url: `${url.origin}${BILLING_PAGE_PATH}`
-		};
-
-		let portalUrl: string;
+		const formData = await request.formData();
+		const paymentMethodId = String(formData.get('paymentMethodId') ?? '').trim();
+		if (!paymentMethodId) {
+			return fail(400, { error: BILLING_DEFAULT_PAYMENT_METHOD_ERROR });
+		}
 		try {
-			const { portal_url } = await api.createBillingPortalSession(portalSessionRequest);
-			portalUrl = portal_url;
+			await api.setDefaultPaymentMethod(paymentMethodId);
+			return { updatedDefaultPaymentMethodId: paymentMethodId };
 		} catch (err) {
 			const sessionFailure = mapDashboardSessionFailure(err);
 			if (sessionFailure) return sessionFailure;
 			if (isBillingServiceNotConfiguredError(err) || isBillingCustomerMissingError(err)) {
 				return fail(400, { error: BILLING_SETUP_ERROR });
 			}
-			return fail(400, { error: BILLING_PORTAL_ERROR });
+			return fail(400, { error: BILLING_DEFAULT_PAYMENT_METHOD_ERROR });
 		}
-
-		if (!isAllowedStripePortalUrl(portalUrl)) {
-			return fail(400, { error: BILLING_PORTAL_ERROR });
-		}
-
-		throw redirect(303, portalUrl);
 	}
 };

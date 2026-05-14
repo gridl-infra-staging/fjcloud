@@ -36,6 +36,11 @@ export interface ResetPasswordRequest {
 	new_password: string;
 }
 
+export interface OAuthExchangeRequest {
+	code: string;
+	csrf_token: string;
+}
+
 export interface RegionUsageSummary {
 	region: string;
 	search_requests: number;

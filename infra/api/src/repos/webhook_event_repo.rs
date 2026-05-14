@@ -43,6 +43,10 @@ pub trait WebhookEventRepo {
         payment_intent_id: &str,
     ) -> Result<Option<String>, RepoError>;
 
+    /// Remove an unprocessed event row so future retries can re-insert.
+    /// Called after a handler failure to prevent permanent stuck events.
+    async fn delete_unprocessed(&self, stripe_event_id: &str) -> Result<(), RepoError>;
+
     /// Resolve one persisted webhook row by exact Stripe event id.
     async fn find_by_stripe_event_id(
         &self,

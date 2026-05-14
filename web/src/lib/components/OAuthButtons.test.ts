@@ -1,0 +1,23 @@
+import { cleanup, render, screen } from '@testing-library/svelte';
+import { afterEach, describe, expect, it } from 'vitest';
+import OAuthButtons from './OAuthButtons.svelte';
+
+afterEach(() => {
+	cleanup();
+});
+
+describe('OAuthButtons', () => {
+	it('renders Google and GitHub OAuth links with expected hrefs and labels', () => {
+		render(OAuthButtons, {
+			apiBaseUrl: 'http://127.0.0.1:3001'
+		});
+
+		const googleButton = screen.getByTestId('oauth-button-google');
+		expect(googleButton).toHaveAttribute('href', 'http://127.0.0.1:3001/auth/oauth/google/start');
+		expect(googleButton).toHaveTextContent('Continue with Google');
+
+		const githubButton = screen.getByTestId('oauth-button-github');
+		expect(githubButton).toHaveAttribute('href', 'http://127.0.0.1:3001/auth/oauth/github/start');
+		expect(githubButton).toHaveTextContent('Continue with GitHub');
+	});
+});

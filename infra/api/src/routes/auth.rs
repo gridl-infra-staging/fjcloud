@@ -69,7 +69,7 @@ pub struct MessageResponse {
 ///
 /// Uses HS256 with `secret` as the signing key. Returns `ApiError::Internal`
 /// if the system clock is unavailable or encoding fails.
-fn issue_jwt(customer_id: &str, secret: &str) -> Result<String, ApiError> {
+pub(crate) fn issue_jwt(customer_id: &str, secret: &str) -> Result<String, ApiError> {
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_err(|_| ApiError::Internal("system clock error".into()))?

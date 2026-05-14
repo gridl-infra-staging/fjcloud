@@ -1,0 +1,14 @@
+Command: bash scripts/launch/ssm_exec_staging.sh "set -a; source /etc/fjcloud/env; set +a; cd /tmp/stage3_probe_runtime && bash scripts/probe_alert_delivery.sh --readback"
+Executed: 2026-05-05T08:06Z
+
+stdout:
+[OK]   discord: HTTP 200 (readback nonce confirmed)
+==> probe summary: nonce=probe-20260505T080616Z-6508 slack=skipped discord=ok env=staging
+==> discord delivery proof: automated nonce readback confirmed
+
+Exit code: 0
+
+Success contract satisfied:
+- discord=ok: YES
+- "automated nonce readback confirmed": YES
+- slack=skipped: expected (staging has no Slack URL configured)

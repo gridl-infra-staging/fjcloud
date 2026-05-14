@@ -34,3 +34,4 @@ compatibility_flags = ["nodejs_compat"]
 [vars]
 API_BASE_URL = "https://api.flapjack.foo"
 ENVIRONMENT = "staging"
+WEB_DEV_LOG_RAW_ERRORS = "1"

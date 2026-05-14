@@ -1,11 +1,7 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import { BETA_FEEDBACK_MAILTO } from '$lib/format';
-	import { onMount } from 'svelte';
 	import {
-		parseRuntimeStatusPayload,
-		resolveStatusRuntimeEnvironment,
-		statusLabelForServiceStatus,
 		type ServiceStatus,
 		type StatusRouteData
 	} from './status_contract';
@@ -51,34 +47,6 @@
 		statusLabel = data.statusLabel;
 		lastUpdated = data.lastUpdated;
 		message = data.message;
-	});
-
-	onMount(async () => {
-		const runtimeEnvironment = resolveStatusRuntimeEnvironment(window.location.hostname);
-		if (!runtimeEnvironment) {
-			return;
-		}
-
-		try {
-			const response = await fetch(
-				`https://fjcloud-releases-${runtimeEnvironment}.s3.amazonaws.com/service_status.json`
-			);
-			if (!response.ok) {
-				return;
-			}
-
-			const payload = parseRuntimeStatusPayload(await response.json());
-			if (!payload) {
-				return;
-			}
-
-			status = payload.status;
-			statusLabel = statusLabelForServiceStatus(payload.status);
-			lastUpdated = payload.lastUpdated;
-			message = payload.message;
-		} catch {
-			// Keep prerendered fallback when runtime fetch/JSON parsing fails.
-		}
 	});
 </script>
 

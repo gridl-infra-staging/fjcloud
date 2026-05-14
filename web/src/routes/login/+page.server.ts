@@ -1,11 +1,15 @@
-import type { Actions } from './$types';
+import type { Actions, PageServerLoad } from './$types';
 import { fail, redirect } from '@sveltejs/kit';
 import { createApiClient } from '$lib/server/api';
 import { mapAuthActionFailure } from '$lib/server/auth-action-errors';
 import { authCookieOptions } from '$lib/server/auth-cookies';
-import { AUTH_COOKIE, COOKIE_MAX_AGE } from '$lib/config';
+import { AUTH_COOKIE, COOKIE_MAX_AGE, getApiBaseUrl } from '$lib/config';
 
 export const prerender = false;
+
+export const load: PageServerLoad = async () => ({
+	apiBaseUrl: getApiBaseUrl()
+});
 
 export const actions = {
 	default: async ({ request, cookies, url, fetch }) => {

@@ -22,7 +22,7 @@ use uuid::Uuid;
 const TRUSTED_SNS_HOST: &str = "sns.us-east-1.amazonaws.com";
 const TRUSTED_SIGNING_CERT_URL: &str =
     "https://sns.us-east-1.amazonaws.com/SimpleNotificationService-test.pem";
-const TRUSTED_SUBSCRIBE_URL: &str = "https://sns.us-east-1.amazonaws.com/?Action=ConfirmSubscription&TopicArn=arn:aws:sns:us-east-1:111111111111:ses-feedback&Token=token-123";
+const TRUSTED_SUBSCRIBE_URL: &str = "https://sns.us-east-1.amazonaws.com/?Action=ConfirmSubscription&TopicArn=arn:aws:sns:us-east-1:213880904778:fjcloud-ses-feedback-staging&Token=token-123";
 
 #[derive(Clone)]
 struct SnsSigningFixture {
@@ -80,7 +80,7 @@ fn signed_sns_envelope(
 ) -> serde_json::Value {
     let message_id = Uuid::new_v4().to_string();
     let timestamp = Utc::now().to_rfc3339();
-    let topic_arn = "arn:aws:sns:us-east-1:111111111111:ses-feedback";
+    let topic_arn = "arn:aws:sns:us-east-1:213880904778:fjcloud-ses-feedback-staging";
 
     let mut envelope = serde_json::json!({
         "Type": sns_type,

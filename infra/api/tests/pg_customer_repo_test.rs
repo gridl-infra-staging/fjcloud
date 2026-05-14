@@ -780,3 +780,151 @@ async fn list_aggregates_billing_health_inputs_without_duplicate_customer_rows()
 
     cleanup_customer_graph(&pool, &[first.id, second.id]).await;
 }
+
+#[tokio::test]
+async fn oauth_identity_lookup_returns_linked_customer() {
+    let Some(db) = pg_schema_harness::connect_and_migrate("it_pg_customer_repo").await else {
+        return;
+    };
+    let pool = db.pool.clone();
+    let repo = PgCustomerRepo::new(pool.clone());
+    let email = format!(
+        "oauth-lookup-{}@integration.test",
+        &Uuid::new_v4().to_string()[..8]
+    );
+
+    let customer = repo
+        .create_oauth_customer("OAuth Lookup", &email)
+        .await
+        .expect("create oauth customer");
+
+    repo.link_oauth_identity(customer.id, "google", "google-user-lookup")
+        .await
+        .expect("link oauth identity");
+
+    let found = repo
+        .find_oauth_identity("google", "google-user-lookup")
+        .await
+        .expect("lookup oauth identity")
+        .expect("linked identity should resolve to customer");
+    assert_eq!(found.id, customer.id);
+
+    cleanup_customer_graph(&pool, &[customer.id]).await;
+}
+
+#[tokio::test]
+async fn oauth_identity_link_enforces_provider_user_uniqueness() {
+    let Some(db) = pg_schema_harness::connect_and_migrate("it_pg_customer_repo").await else {
+        return;
+    };
+    let pool = db.pool.clone();
+    let repo = PgCustomerRepo::new(pool.clone());
+    let first_email = format!(
+        "oauth-first-{}@integration.test",
+        &Uuid::new_v4().to_string()[..8]
+    );
+    let second_email = format!(
+        "oauth-second-{}@integration.test",
+        &Uuid::new_v4().to_string()[..8]
+    );
+
+    let first = repo
+        .create_oauth_customer("OAuth First", &first_email)
+        .await
+        .expect("create first oauth customer");
+    let second = repo
+        .create_oauth_customer("OAuth Second", &second_email)
+        .await
+        .expect("create second oauth customer");
+
+    repo.link_oauth_identity(first.id, "github", "github-shared-user")
+        .await
+        .expect("link first oauth identity");
+
+    let duplicate_link = repo
+        .link_oauth_identity(second.id, "github", "github-shared-user")
+        .await;
+    assert!(
+        matches!(duplicate_link, Err(api::repos::RepoError::Conflict(_))),
+        "second link for the same provider/user tuple must fail with conflict"
+    );
+
+    cleanup_customer_graph(&pool, &[first.id, second.id]).await;
+}
+
+#[tokio::test]
+async fn create_and_link_oauth_customer_flow_preserves_existing_identity_on_conflict() {
+    let Some(db) = pg_schema_harness::connect_and_migrate("it_pg_customer_repo").await else {
+        return;
+    };
+    let pool = db.pool.clone();
+    let repo = PgCustomerRepo::new(pool.clone());
+    let linked_email = format!(
+        "oauth-linked-{}@integration.test",
+        &Uuid::new_v4().to_string()[..8]
+    );
+    let contender_email = format!(
+        "oauth-contender-{}@integration.test",
+        &Uuid::new_v4().to_string()[..8]
+    );
+
+    let linked = repo
+        .create_oauth_customer("OAuth Linked", &linked_email)
+        .await
+        .expect("create linked customer");
+    repo.link_oauth_identity(linked.id, "google", "google-conflict-user")
+        .await
+        .expect("link canonical identity");
+
+    let contender = repo
+        .create_oauth_customer("OAuth Contender", &contender_email)
+        .await
+        .expect("create contender customer");
+
+    let conflict = repo
+        .link_oauth_identity(contender.id, "google", "google-conflict-user")
+        .await;
+    assert!(
+        matches!(conflict, Err(api::repos::RepoError::Conflict(_))),
+        "linking an already-linked provider identity must return conflict"
+    );
+
+    let owner = repo
+        .find_oauth_identity("google", "google-conflict-user")
+        .await
+        .expect("lookup canonical owner")
+        .expect("conflict tuple should remain linked");
+    assert_eq!(owner.id, linked.id);
+
+    cleanup_customer_graph(&pool, &[linked.id, contender.id]).await;
+}
+
+#[tokio::test]
+async fn oauth_identity_link_rejects_deleted_customer_rows() {
+    let Some(db) = pg_schema_harness::connect_and_migrate("it_pg_customer_repo").await else {
+        return;
+    };
+    let pool = db.pool.clone();
+    let repo = PgCustomerRepo::new(pool.clone());
+    let email = format!(
+        "oauth-deleted-link-{}@integration.test",
+        &Uuid::new_v4().to_string()[..8]
+    );
+    let customer = repo
+        .create_oauth_customer("OAuth Deleted", &email)
+        .await
+        .expect("create oauth customer");
+    repo.soft_delete(customer.id)
+        .await
+        .expect("soft delete oauth customer");
+
+    let result = repo
+        .link_oauth_identity(customer.id, "google", "deleted-user-link")
+        .await;
+    assert!(
+        matches!(result, Err(api::repos::RepoError::NotFound)),
+        "deleted customers must not accept new oauth identity links"
+    );
+
+    cleanup_customer_graph(&pool, &[customer.id]).await;
+}

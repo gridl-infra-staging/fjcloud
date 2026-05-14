@@ -36,7 +36,7 @@ Each local gate is the line-for-line equivalent of its CI counterpart, with docu
 | `migration-test` | `sqlx migrate run` against postgres service container | same `sqlx migrate run` against local postgres | SKIP if no local postgres / sqlx-cli (with remediation hint) |
 | `web-test` | `npm ci && npm test` | `npm test` after a stale-lockfile check | if `web/package-lock.json` is newer than `web/node_modules/.package-lock.json`, FAIL with remediation — closes the false-pass gap where CI's `npm ci` would have caught a stale local install |
 | `web-lint` | `npm run check` + `eslint .` + `lint:e2e` + `screen_specs_coverage_test` + `ses_iam_configset_coupling_test` | identical (with the same stale-lockfile check) | none |
-| `check-sizes` | `bash scripts/check-sizes.sh` | identical | none |
+| `check-sizes` | `bash scripts/check-sizes.sh` | identical | scans `infra/*/src` and `web/src` for `.rs/.ts/.svelte` hard-limit violations |
 | `secret-scan` | `gitleaks detect --redact -v --exit-code=2` | `scripts/reliability/lib/security_checks.sh::check_secret_scan` | uses the repo's reliability secret scan instead of gitleaks; SSOT-aligned with the broader reliability gate |
 
 ## SKIP semantics

@@ -1,0 +1,6 @@
+stage3_bundle_path=docs/runbooks/evidence/staging-deploy/20260505T063307Z_current_main_sync
+deployed_sha=5a57ea6a280a1d63b54957b3732dcf8cc0a08c2e
+head_sha=7a06d3f3b93ed590e1b2bc6d659b141105661967
+canary_mode=--dry-run
+api_url=https://api.flapjack.foo
+timestamp_utc=20260505T083146Z

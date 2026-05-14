@@ -1,5 +1,6 @@
 /**
  */
+import { env } from '$env/dynamic/private';
 import { error, fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { AdminClientError, createAdminClient } from '$lib/admin-client';
@@ -257,7 +258,7 @@ export const _parseOptionalU64 = _parseOptionalU32;
 function requireAdminSession(cookies: AdminCookieReader): void {
 	purgeExpiredAdminSessions();
 
-	if (!getAdminSession(cookies.get(ADMIN_SESSION_COOKIE))) {
+	if (!getAdminSession(cookies.get(ADMIN_SESSION_COOKIE), env.ADMIN_KEY)) {
 		redirect(303, '/admin/login');
 	}
 }

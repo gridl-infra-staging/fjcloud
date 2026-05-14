@@ -125,6 +125,54 @@ assert_resource_count() {
   fi
 }
 
+# Assert locals.public_dns_records.<entry>.content equals expected value.
+assert_public_dns_record_content() {
+  local file="$1"
+  local entry="$2"
+  local expected="$3"
+  local label="$4"
+  local actual
+
+  actual=$(
+    strip_comments "$file" | awk -v target="$entry" '
+      BEGIN { in_records = 0; in_entry = 0; depth = 0 }
+      /public_dns_records[[:space:]]*=[[:space:]]*{/ { in_records = 1; depth = 1; next }
+      {
+        if (!in_records) next
+
+        opens = gsub(/{/, "{", $0)
+        closes = gsub(/}/, "}", $0)
+        depth += opens - closes
+        if (depth <= 0) { in_records = 0; in_entry = 0; next }
+
+        if ($0 ~ "^[[:space:]]*" target "[[:space:]]*=[[:space:]]*{") {
+          in_entry = 1
+          entry_depth = depth
+          next
+        }
+
+        if (in_entry && $0 ~ /^[[:space:]]*content[[:space:]]*=/) {
+          line = $0
+          sub(/^[[:space:]]*content[[:space:]]*=[[:space:]]*/, "", line)
+          gsub(/[[:space:]]+$/, "", line)
+          print line
+          exit
+        }
+
+        if (in_entry && depth < entry_depth) {
+          in_entry = 0
+        }
+      }
+    '
+  )
+
+  if [[ "$actual" == "$expected" ]]; then
+    pass "$label"
+  else
+    fail "$label (expected $expected, found ${actual:-<missing>})"
+  fi
+}
+
 # Print summary and exit with appropriate code.
 # Usage: test_summary "Stage N"
 test_summary() {

@@ -268,12 +268,9 @@ test_evidence_bundle_has_no_secret_like_values() {
 
     docs_to_scan="$(
         cat "$ROADMAP_DOC" "$STAGING_EVIDENCE_DOC" "$IMPLEMENTED_ROADMAP_DOC" \
-            "$current_alert_bundle_dir/01_instance_and_sha.txt" \
-            "$current_alert_bundle_dir/02_live_state_ssm_invocation.json" \
-            "$current_alert_bundle_dir/04_live_state_stderr.txt" \
-            "$current_alert_bundle_dir/05_startup_mode_retry_invocation.json" \
-            "$current_alert_bundle_dir/10_invoice_candidate.txt" \
-            "$current_alert_bundle_dir/15_stage3_verdict.txt"
+            "$current_alert_bundle_dir/SUMMARY.md" \
+            "$current_alert_bundle_dir/probe_stdout.log" \
+            "$current_alert_bundle_dir/probe_stderr.log"
     )"
     if printf '%s' "$docs_to_scan" | grep -Eq '"UserId":[[:space:]]*"AIDA|arn:aws:iam::[0-9]{12}:user/|"Account":[[:space:]]*"[0-9]{12}"|account[[:space:]]+[0-9]{12}|identity:[[:space:]]*`[^`]+`, account[[:space:]]*`[0-9]{12}`|arn:aws:lambda:[^:]+:[0-9]{12}:function:|i-[0-9a-f]{17}|command_id=[0-9a-f-]{36}|ssm_command_id=[0-9a-f-]{36}|"CommandId":[[:space:]]*"[0-9a-f-]{36}"|"InstanceId":[[:space:]]*"i-[0-9a-f]{17}"|--command-id[[:space:]][0-9a-f-]{36}|--instance-ids[[:space:]]i-[0-9a-f]{17}|/var/lib/amazon/ssm/i-[0-9a-f]{17}/'; then
         fail "status docs and current alert bundle should redact operator identity and direct infra identifiers"
@@ -428,14 +425,14 @@ test_status_docs_track_bounce_complaint_follow_on_owner_breadcrumb() {
         "roadmap SES breadcrumb should point operators to the email-production runbook owner"
     assert_contains "$roadmap_content" "docs/research/ses_bounce_complaint_gap.md" \
         "roadmap SES breadcrumb should point operators to the SES bounce/complaint gap rationale owner"
-    assert_contains "$roadmap_content" "infra/api/src/services/email.rs::SesEmailService::send_html_email" \
-        "roadmap SES breadcrumb should track the outbound configuration-set attachment seam owner"
+    assert_contains "$roadmap_content" "scripts/probe_ses_bounce_complaint_e2e.sh" \
+        "roadmap SES breadcrumb should track the bounce/complaint E2E probe owner seam"
     assert_contains "$roadmap_content" "ops/terraform/dns/main.tf" \
         "roadmap SES breadcrumb should track DNS Terraform SES event wiring owner"
     assert_contains "$roadmap_content" "ops/terraform/monitoring/" \
         "roadmap SES breadcrumb should track monitoring Terraform SES event-destination wiring owner"
-    assert_contains "$roadmap_content" "infra/api/src/routes/webhooks.rs" \
-        "roadmap SES breadcrumb should track the existing API ingress seam candidate"
+    assert_contains "$roadmap_content" "docs/runbooks/evidence/ses-deliverability/20260501T193004Z_bounce_e2e_proof_GREEN/SUMMARY.md" \
+        "roadmap SES breadcrumb should track the committed bounce/complaint proof bundle pointer"
     assert_contains "$status_docs_content" "bounce_complaint_handling=unproven" \
         "status docs should continue to preserve explicit bounce/complaint unproven status language"
 }
@@ -793,9 +790,9 @@ test_beta_checklist_citations_and_antipattern_guards() {
         "beta checklist should reject stale synthetic-traffic-only launch-summary wording"
 }
 
-test_status_docs_align_to_preserved_stage3_rc_verdict() {
+test_status_docs_align_to_current_alert_bundle_and_preserved_stage3_rc_verdict() {
     local roadmap_content priorities_content staging_evidence_content implemented_content status_docs_content
-    local current_alert_bundle current_alert_bundle_dir stage3_verdict_path stage3_branch_token
+    local current_alert_bundle current_alert_bundle_dir current_alert_summary current_alert_probe_log
     roadmap_content="$(cat "$ROADMAP_DOC")"
     priorities_content="$(cat "$REPO_ROOT/PRIORITIES.md")"
     staging_evidence_content="$(cat "$STAGING_EVIDENCE_DOC")"
@@ -803,8 +800,8 @@ test_status_docs_align_to_preserved_stage3_rc_verdict() {
     status_docs_content="$(printf '%s\n%s\n%s\n%s\n' "$roadmap_content" "$priorities_content" "$staging_evidence_content" "$implemented_content")"
     current_alert_bundle="$(cat "$ALERT_DELIVERY_CURRENT_BUNDLE_FILE")"
     current_alert_bundle_dir="$REPO_ROOT/$current_alert_bundle"
-    stage3_verdict_path="$current_alert_bundle_dir/15_stage3_verdict.txt"
-    stage3_branch_token="$(awk -F= '/^branch_executed=/{print $2; exit}' "$stage3_verdict_path")"
+    current_alert_summary="$current_alert_bundle_dir/SUMMARY.md"
+    current_alert_probe_log="$current_alert_bundle_dir/probe_stdout.log"
 
     if [ -d "$current_alert_bundle_dir" ]; then
         pass "current alert-delivery bundle pointer should resolve to an existing bundle directory"
@@ -812,21 +809,23 @@ test_status_docs_align_to_preserved_stage3_rc_verdict() {
         fail "current alert-delivery bundle pointer should resolve to an existing bundle directory ($current_alert_bundle_dir)"
     fi
 
-    assert_file_exists "$stage3_verdict_path" "resolved alert-delivery bundle should include the Stage 3 verdict artifact"
-    if [ -n "$stage3_branch_token" ]; then
-        pass "resolved alert-delivery bundle should preserve a non-empty branch_executed token"
-    else
-        fail "resolved alert-delivery bundle should preserve a non-empty branch_executed token"
-    fi
-    assert_file_exists "$current_alert_bundle_dir/12_replay_result.json" \
-        "resolved alert-delivery bundle should include the Stage 3 replay artifact"
+    assert_file_exists "$current_alert_summary" \
+        "resolved alert-delivery bundle should include a summary artifact"
+    assert_file_exists "$current_alert_probe_log" \
+        "resolved alert-delivery bundle should include the probe stdout artifact"
+    assert_contains "$(cat "$current_alert_summary")" "Result: PASS" \
+        "resolved alert-delivery bundle summary should preserve a PASS verdict"
+    assert_contains "$(cat "$current_alert_summary")" "delivery_status='sent'" \
+        "resolved alert-delivery bundle summary should preserve sent delivery proof"
+    assert_contains "$(cat "$current_alert_probe_log")" "\"poll_alert_sent\"" \
+        "resolved alert-delivery bundle stdout should preserve the poll_alert_sent step"
 
     assert_contains "$status_docs_content" "ready=false" \
         "status docs should reflect the preserved Stage 3 paid-beta RC ready=false result"
     assert_contains "$status_docs_content" "verdict=fail" \
         "status docs should reflect the preserved Stage 3 paid-beta RC verdict=fail result"
-    assert_contains "$status_docs_content" "artifacts/stage_03_paid_beta_rc/rc_run_20260424T003133Z/coordinator_result.json" \
-        "status docs should cite the preserved Stage 3 coordinator_result.json path"
+    assert_contains "$status_docs_content" "docs/runbooks/evidence/secret-rotation/20260429T183138Z_stripe_cutover/OPERATOR_NEXT_STEPS.md" \
+        "status docs should cite the preserved Stage 3 paid-beta RC verdict owner path"
     assert_contains "$status_docs_content" "scripts/launch/run_full_backend_validation.sh --paid-beta-rc" \
         "status docs should point to the paid-beta RC rerun owner command"
     assert_contains "$status_docs_content" "scripts/staging_billing_rehearsal.sh" \
@@ -843,12 +842,10 @@ test_status_docs_align_to_preserved_stage3_rc_verdict() {
         "status docs should match the current alert-delivery bundle path resolved by .current_bundle"
     assert_contains "$implemented_content" "docs/runbooks/evidence/alert-delivery/20260429T052555Z_deployed_staging" \
         "implemented roadmap should preserve the resolved historical deployed-alert bundle path"
-    assert_contains "$status_docs_content" "result=precondition_gap" \
-        "status docs should preserve Stage 3 result=precondition_gap as the current deployed-alert outcome"
-    assert_contains "$status_docs_content" "status='finalized' AND stripe_invoice_id IS NOT NULL" \
-        "status docs should preserve the Stage 3 invoice predicate behind result=precondition_gap"
-    assert_contains "$status_docs_content" "08_stage2_readiness_gate.txt" \
-        "status docs should preserve Stage 2 readiness-gate pass evidence in the deployed-alert lane"
+    assert_contains "$status_docs_content" "scripts/probe_organic_alert_dispatch.sh" \
+        "status docs should cite the organic alert-dispatch owner script"
+    assert_contains "$status_docs_content" "20260506T090437Z_organic_dispatch_probe" \
+        "status docs should cite the organic dispatch probe bundle-of-record"
     assert_contains "$status_docs_content" "alerts.delivery_status='sent'" \
         "status docs should preserve the authoritative AlertService acceptance proof contract"
     assert_contains "$status_docs_content" "Discord nonce readback" \
@@ -908,7 +905,7 @@ test_status_docs_track_bounce_complaint_follow_on_owner_breadcrumb
 test_saved_ses_boundary_artifact_requires_real_suppression_snapshot
 test_stage34_deliverability_evidence_artifacts_preserve_documented_contract
 test_status_docs_track_stage1_boundary_proof_drift
-test_status_docs_align_to_preserved_stage3_rc_verdict
+test_status_docs_align_to_current_alert_bundle_and_preserved_stage3_rc_verdict
 test_paid_lifecycle_cross_check_pointers_stay_aligned
 test_beta_checklist_exists_with_repo_safe_filename
 test_beta_checklist_top_of_file_authority_and_deferral_language

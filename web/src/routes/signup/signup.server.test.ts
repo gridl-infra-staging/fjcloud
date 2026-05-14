@@ -4,13 +4,21 @@ import { AUTH_COOKIE, COOKIE_MAX_AGE } from '$lib/config';
 
 const registerMock = vi.fn();
 
+// $env/dynamic/private is provided by @sveltejs/kit's Vite plugin and does NOT
+// read process.env at call time in vitest — mutating process.env after import
+// has no effect on env.API_BASE_URL. Stub it explicitly per the established
+// repo pattern (see web/src/hooks.server.test.ts and the admin/* test files).
+vi.mock('$env/dynamic/private', () => ({
+	env: { API_BASE_URL: 'http://127.0.0.1:3001' }
+}));
+
 vi.mock('$lib/server/api', () => ({
 	createApiClient: vi.fn(() => ({
 		register: registerMock
 	}))
 }));
 
-import { actions } from './+page.server';
+import { actions, load } from './+page.server';
 
 function toFormData(entries: Record<string, string>): FormData {
 	const fd = new FormData();
@@ -29,6 +37,15 @@ function makeEvent(
 		url: new URL(url)
 	} as never;
 }
+
+describe('Signup server load', () => {
+	it('returns apiBaseUrl from getApiBaseUrl()', async () => {
+		// The hoisted vi.mock above stubs $env/dynamic/private with
+		// API_BASE_URL='http://127.0.0.1:3001'; this test verifies load() wires
+		// through to getApiBaseUrl() rather than fabricating a value of its own.
+		await expect(load({} as never)).resolves.toEqual({ apiBaseUrl: 'http://127.0.0.1:3001' });
+	});
+});
 
 describe('Signup server action', () => {
 	beforeEach(() => {

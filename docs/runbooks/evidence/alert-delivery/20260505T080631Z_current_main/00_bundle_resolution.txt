@@ -1,0 +1,21 @@
+Stage 5 alert-delivery evidence bundle
+Bundle timestamp: 20260505T080631Z
+Created by: stream-e-deploy-proof Stage 5 implementation session
+
+Stage 3 deploy bundle: docs/runbooks/evidence/staging-deploy/20260505T063307Z_current_main_sync/
+Stage 4 browser bundle: docs/runbooks/evidence/browser-evidence/20260505T072141Z_current_main/ (RED)
+HEAD SHA: ca9bcb7c67e22c57de00488efe2451be8e8ee5fa
+
+Scope: This lane proves only:
+  1. Deployed-host startup-mode wiring (init_alert_service webhook configuration)
+  2. Direct webhook destination reachability (Discord POST + nonce readback)
+
+Explicitly excludes:
+  - Organic in-process alert dispatch (covered by 20260501T193623Z_current_main_GREEN)
+  - alerts.delivery_status='sent' persistence
+  - Stripe replay integration
+  - Browser/UI verification
+
+Browser gate note: The newest Stage 4 browser evidence is RED (Stripe.js loading
+issue, unrelated to alert infrastructure). The alert webhook system is architecturally
+independent of the browser/frontend layer. Stage 3 deploy SHA agreement is confirmed.

@@ -5,9 +5,6 @@ on:
     branches: [main]
   pull_request:
 
-concurrency:
-  group: deploy-staging-${{ github.ref }}
-  cancel-in-progress: true
 
 jobs:
   rust-test:
@@ -319,13 +316,16 @@ jobs:
         run: gitleaks detect --redact -v --exit-code=2
 
   deploy-staging:
+    concurrency:
+      group: deploy-staging-${{ github.ref }}
+      cancel-in-progress: false
     # The `playwright` job remains advisory and is intentionally omitted from
     # the deploy gate. It still runs on every CI pass, publishes logs/artifacts,
     # and surfaces failures in annotations without blocking the rest of the
     # staging deploy contract.
     #
     # MAINTENANCE: scripts/local-ci.sh mirrors this `needs[]` list so devs can
-    # reproduce the deploy-staging gate locally in ~20s instead of waiting
+    # reproduce the deploy-{staging,prod} gate locally in ~20s instead of waiting
     # ~15 min for the staging CI cycle. When you ADD, REMOVE, or CHANGE any
     # job in this list, also update scripts/local-ci.sh to keep the local
     # mirror in sync. See docs/runbooks/local-ci.md for the contract.
@@ -339,7 +339,7 @@ jobs:
         web-lint,
         secret-scan,
       ]
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: github.repository == 'gridl-infra-staging/fjcloud' && github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-24.04-arm
     permissions:
       id-token: write
@@ -353,6 +353,31 @@ jobs:
         with:
           role-to-assume: ${{ secrets.DEPLOY_IAM_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
+      - name: Inject build-time provenance from debbie sync manifest
+        run: |
+          # `.debbie/sync_manifest.json` is written by `debbie sync` into the
+          # mirror tree (see debbie/src/debbie/sync.py::write_sync_manifest).
+          # It maps mirror_sha -> dev_sha so /version can report what dev-repo
+          # commit produced this binary. If the manifest is absent (first
+          # deploy after this change lands, or any non-synced commit), fall
+          # back to GITHUB_SHA for mirror_sha and "local-dev" for the rest —
+          # the next sync will produce a complete manifest and a real /version.
+          MANIFEST=".debbie/sync_manifest.json"
+          if [[ -f "$MANIFEST" ]]; then
+            DEV_SHA=$(jq -r '.dev_sha' "$MANIFEST")
+            SYNCED_AT=$(jq -r '.synced_at' "$MANIFEST")
+          else
+            DEV_SHA="local-dev"
+            SYNCED_AT="local-dev"
+          fi
+          BUILD_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          # Forward to subsequent steps via GITHUB_ENV (the docker run step
+          # passes these into the build container as -e flags).
+          echo "FJCLOUD_DEV_SHA=${DEV_SHA}" >> "$GITHUB_ENV"
+          echo "FJCLOUD_MIRROR_SHA=${GITHUB_SHA}" >> "$GITHUB_ENV"
+          echo "FJCLOUD_SYNCED_AT=${SYNCED_AT}" >> "$GITHUB_ENV"
+          echo "FJCLOUD_BUILD_TIME=${BUILD_TIME}" >> "$GITHUB_ENV"
+          echo "Build provenance: dev_sha=${DEV_SHA} mirror_sha=${GITHUB_SHA} synced_at=${SYNCED_AT} build_time=${BUILD_TIME}"
       - name: Build release binaries in Amazon Linux 2023
         run: |
           # Staging instances run Amazon Linux 2023 (glibc 2.34). Build in the
@@ -362,6 +387,10 @@ jobs:
             --platform linux/arm64 \
             -v "${GITHUB_WORKSPACE}:/work" \
             -w /work/infra \
+            -e FJCLOUD_DEV_SHA="${FJCLOUD_DEV_SHA}" \
+            -e FJCLOUD_MIRROR_SHA="${FJCLOUD_MIRROR_SHA}" \
+            -e FJCLOUD_SYNCED_AT="${FJCLOUD_SYNCED_AT}" \
+            -e FJCLOUD_BUILD_TIME="${FJCLOUD_BUILD_TIME}" \
             public.ecr.aws/amazonlinux/amazonlinux:2023 \
             bash -lc '
               set -euo pipefail
@@ -391,3 +420,109 @@ jobs:
           aws s3 cp ops/systemd/fj-metering-agent.service s3://fjcloud-releases-staging/staging/${GITHUB_SHA}/systemd/fj-metering-agent.service
       - name: Trigger API deploy
         run: bash ops/scripts/deploy.sh staging "${GITHUB_SHA}"
+
+  deploy-prod:
+    concurrency:
+      group: deploy-prod-${{ github.ref }}
+      cancel-in-progress: false
+    # The `playwright` job remains advisory and is intentionally omitted from
+    # the deploy gate. It still runs on every CI pass, publishes logs/artifacts,
+    # and surfaces failures in annotations without blocking the rest of the
+    # staging deploy contract.
+    #
+    # MAINTENANCE: scripts/local-ci.sh mirrors this `needs[]` list so devs can
+    # reproduce the deploy-{staging,prod} gate locally in ~20s instead of waiting
+    # ~15 min for the staging CI cycle. When you ADD, REMOVE, or CHANGE any
+    # job in this list, also update scripts/local-ci.sh to keep the local
+    # mirror in sync. See docs/runbooks/local-ci.md for the contract.
+    needs:
+      [
+        rust-test,
+        rust-lint,
+        migration-test,
+        web-test,
+        check-sizes,
+        web-lint,
+        secret-scan,
+      ]
+    if: github.repository == 'gridl-infra-prod/fjcloud' && github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      id-token: write
+      contents: read
+    env:
+      AWS_REGION: us-east-1
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@ff717079ee2060e4bcee96c4779b553acc87447c # v4
+        with:
+          role-to-assume: ${{ secrets.DEPLOY_IAM_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Inject build-time provenance from debbie sync manifest
+        run: |
+          # `.debbie/sync_manifest.json` is written by `debbie sync` into the
+          # mirror tree (see debbie/src/debbie/sync.py::write_sync_manifest).
+          # It maps mirror_sha -> dev_sha so /version can report what dev-repo
+          # commit produced this binary. If the manifest is absent (first
+          # deploy after this change lands, or any non-synced commit), fall
+          # back to GITHUB_SHA for mirror_sha and "local-dev" for the rest —
+          # the next sync will produce a complete manifest and a real /version.
+          MANIFEST=".debbie/sync_manifest.json"
+          if [[ -f "$MANIFEST" ]]; then
+            DEV_SHA=$(jq -r '.dev_sha' "$MANIFEST")
+            SYNCED_AT=$(jq -r '.synced_at' "$MANIFEST")
+          else
+            DEV_SHA="local-dev"
+            SYNCED_AT="local-dev"
+          fi
+          BUILD_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          # Forward to subsequent steps via GITHUB_ENV (the docker run step
+          # passes these into the build container as -e flags).
+          echo "FJCLOUD_DEV_SHA=${DEV_SHA}" >> "$GITHUB_ENV"
+          echo "FJCLOUD_MIRROR_SHA=${GITHUB_SHA}" >> "$GITHUB_ENV"
+          echo "FJCLOUD_SYNCED_AT=${SYNCED_AT}" >> "$GITHUB_ENV"
+          echo "FJCLOUD_BUILD_TIME=${BUILD_TIME}" >> "$GITHUB_ENV"
+          echo "Build provenance: dev_sha=${DEV_SHA} mirror_sha=${GITHUB_SHA} synced_at=${SYNCED_AT} build_time=${BUILD_TIME}"
+      - name: Build release binaries in Amazon Linux 2023
+        run: |
+          # Staging instances run Amazon Linux 2023 (glibc 2.34). Build in the
+          # same userland so uploaded ARM binaries do not pick up newer Ubuntu
+          # glibc symbols like GLIBC_2.38 and fail at runtime on the fleet.
+          docker run --rm \
+            --platform linux/arm64 \
+            -v "${GITHUB_WORKSPACE}:/work" \
+            -w /work/infra \
+            -e FJCLOUD_DEV_SHA="${FJCLOUD_DEV_SHA}" \
+            -e FJCLOUD_MIRROR_SHA="${FJCLOUD_MIRROR_SHA}" \
+            -e FJCLOUD_SYNCED_AT="${FJCLOUD_SYNCED_AT}" \
+            -e FJCLOUD_BUILD_TIME="${FJCLOUD_BUILD_TIME}" \
+            public.ecr.aws/amazonlinux/amazonlinux:2023 \
+            bash -lc '
+              set -euo pipefail
+              # Use distro-signed Rust toolchain packages; avoid curl-pipe-shell installers.
+              dnf install -y gcc gcc-c++ git openssl-devel pkgconfig perl-FindBin tar gzip rust cargo
+              cargo build --release -p api -p aggregation-job -p metering-agent
+              mv target/release/fjcloud-api fjcloud-api
+              mv target/release/fj-metering-agent fj-metering-agent
+              mv target/release/fjcloud-aggregation-job fjcloud-aggregation-job
+            '
+      - name: Upload release artifacts
+        run: |
+          ARTIFACT_PREFIX="prod/${GITHUB_SHA}/"
+          # JMESPath: default Contents to [] when the response has no objects.
+          # Without `|| `[]``, length(null) errors and aborts the step under `set -e`.
+          EXISTING_OBJECT_COUNT="$(aws s3api list-objects-v2 --bucket fjcloud-releases-prod --prefix "${ARTIFACT_PREFIX}" --max-items 1 --query 'length(Contents || `[]`)' --output text)"
+          if [[ "$EXISTING_OBJECT_COUNT" != "0" ]]; then
+            echo "ERROR: release artifacts already exist for ${GITHUB_SHA} (${EXISTING_OBJECT_COUNT} objects at ${ARTIFACT_PREFIX})"
+            exit 1
+          fi
+          aws s3 cp infra/fjcloud-api s3://fjcloud-releases-prod/prod/${GITHUB_SHA}/fjcloud-api
+          aws s3 cp infra/fj-metering-agent s3://fjcloud-releases-prod/prod/${GITHUB_SHA}/fj-metering-agent
+          aws s3 cp infra/fjcloud-aggregation-job s3://fjcloud-releases-prod/prod/${GITHUB_SHA}/fjcloud-aggregation-job
+          aws s3 sync infra/migrations s3://fjcloud-releases-prod/prod/${GITHUB_SHA}/migrations
+          aws s3 cp ops/scripts/migrate.sh s3://fjcloud-releases-prod/prod/${GITHUB_SHA}/scripts/migrate.sh
+          aws s3 cp ops/scripts/lib/generate_ssm_env.sh s3://fjcloud-releases-prod/prod/${GITHUB_SHA}/scripts/generate_ssm_env.sh
+          aws s3 cp ops/systemd/fj-metering-agent.service s3://fjcloud-releases-prod/prod/${GITHUB_SHA}/systemd/fj-metering-agent.service
+      - name: Trigger API deploy
+        run: bash ops/scripts/deploy.sh prod "${GITHUB_SHA}"

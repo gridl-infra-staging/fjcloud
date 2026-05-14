@@ -14,6 +14,7 @@
 | forgot-password | — |
 | login | — |
 | logout | — |
+| oauth | This directory implements OAuth provider callbacks through a SvelteKit server route that intercepts authentication responses from external providers and completes the user login flow. |
 | pricing | — |
 | reset-password | — |
 | signup | — |

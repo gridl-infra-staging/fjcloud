@@ -38,6 +38,7 @@ files can keep their imports unchanged. |
 | integration_helpers.rs | Stub summary for /Users/stuart/parallel_development/fjcloud_dev/MAR17_11_2_data_management_features/fjcloud_dev/infra/api/tests/common/integration_helpers.rs. |
 | live_stripe_helpers.rs | Stub summary for live_stripe_helpers.rs. |
 | mocks.rs | Stub summary for mocks.rs. |
+| mod.rs | Stub summary for mod.rs. |
 | poll.rs | Stub summary for poll.rs. |
 | storage_metering_test_support.rs | Stub summary for /Users/stuart/parallel_development/fjcloud_dev/MAR17_11_2_data_management_features/fjcloud_dev/infra/api/tests/common/storage_metering_test_support.rs. |
 | storage_s3_object_route_support.rs | Stub summary for /Users/stuart/parallel_development/fjcloud_dev/MAR17_11_2_data_management_features/fjcloud_dev/infra/api/tests/common/storage_s3_object_route_support.rs. |

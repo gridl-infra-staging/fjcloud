@@ -130,7 +130,8 @@ assert_file_contains "$workflow_file" 'check-sizes,' "deploy-staging waits for c
 assert_file_contains "$workflow_file" 'web-lint,' "deploy-staging waits for web-lint"
 assert_file_contains "$workflow_file" 'secret-scan,' "deploy-staging waits for secret-scan"
 assert_file_not_contains "$workflow_file" 'playwright,' "deploy-staging keeps playwright advisory (not a blocking need)"
-assert_file_contains "$workflow_file" "if: github.ref == 'refs/heads/main' && github.event_name == 'push'" "deploy-staging is restricted to main push events"
+assert_file_contains "$workflow_file" "github.repository == 'gridl-infra-staging/fjcloud' && github.ref == 'refs/heads/main' && github.event_name == 'push'" "deploy-staging is gated to main push on the staging mirror repo"
+assert_file_contains "$workflow_file" "github.repository == 'gridl-infra-prod/fjcloud' && github.ref == 'refs/heads/main' && github.event_name == 'push'" "deploy-prod is gated to main push on the prod mirror repo"
 
 echo ""
 echo "--- Quality gate commands ---"

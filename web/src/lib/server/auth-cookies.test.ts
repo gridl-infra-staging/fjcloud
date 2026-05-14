@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { authCookieOptions } from './auth-cookies';
+import { authCookieOptions, oauthStateCookieOptions } from './auth-cookies';
 
 describe('authCookieOptions', () => {
 	it('marks cookies secure for https requests', () => {
@@ -18,6 +18,32 @@ describe('authCookieOptions', () => {
 		expect(authCookieOptions(new URL('http://127.0.0.1:5173/login'), 3600)).toEqual(
 			expect.objectContaining({
 				secure: false
+			})
+		);
+	});
+});
+
+describe('oauthStateCookieOptions', () => {
+	it('matches oauth_state cookie attributes for flapjack cloud hosts', () => {
+		expect(oauthStateCookieOptions(new URL('https://cloud.flapjack.foo/login'))).toEqual(
+			expect.objectContaining({
+				path: '/',
+				httpOnly: true,
+				secure: true,
+				sameSite: 'none',
+				domain: '.flapjack.foo'
+			})
+		);
+	});
+
+	it('omits domain for localhost development hosts', () => {
+		expect(
+			oauthStateCookieOptions(new URL('http://127.0.0.1:5173/oauth/callback/google'))
+		).toEqual(
+			expect.objectContaining({
+				path: '/',
+				secure: false,
+				sameSite: 'lax'
 			})
 		);
 	});

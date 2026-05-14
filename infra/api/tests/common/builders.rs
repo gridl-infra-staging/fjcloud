@@ -23,6 +23,7 @@ use api::services::storage::s3_proxy::{GarageProxy, GarageProxyConfig};
 use api::services::storage::{GarageAdminClient, StorageService};
 use api::services::tenant_quota::{FreeTierLimits, QuotaDefaults, TenantQuotaService};
 use api::state::AppState;
+use api::state::{OAuthCookieSameSite, OAuthProviderRuntimeConfig, OAuthRuntimeConfig};
 use axum::Router;
 use sqlx::postgres::PgPoolOptions;
 use std::sync::Arc;
@@ -220,6 +221,7 @@ pub struct TestStateBuilder {
     garage_admin_client: Arc<dyn GarageAdminClient>,
     garage_proxy: Arc<GarageProxy>,
     storage_master_key: [u8; 32],
+    oauth: OAuthRuntimeConfig,
 }
 
 impl TestStateBuilder {
@@ -270,6 +272,7 @@ impl TestStateBuilder {
             garage_admin_client: mock_garage_admin_client(),
             garage_proxy: test_garage_proxy(),
             storage_master_key: [0u8; 32],
+            oauth: OAuthRuntimeConfig::default(),
         }
     }
 
@@ -502,6 +505,7 @@ impl TestStateBuilder {
             garage_proxy: self.garage_proxy,
             s3_object_metering,
             storage_master_key: self.storage_master_key,
+            oauth: self.oauth,
         }
     }
 
@@ -527,6 +531,87 @@ impl TestStateBuilder {
 
     pub fn with_garage_proxy(mut self, garage_proxy: Arc<GarageProxy>) -> Self {
         self.garage_proxy = garage_proxy;
+        self
+    }
+
+    pub fn with_oauth_google_provider(
+        self,
+        client_id: &str,
+        client_secret: &str,
+        redirect_uri: &str,
+    ) -> Self {
+        self.with_oauth_google_provider_with_endpoints(
+            client_id,
+            client_secret,
+            redirect_uri,
+            "https://oauth2.googleapis.com/token",
+            "https://openidconnect.googleapis.com/v1/userinfo",
+        )
+    }
+
+    pub fn with_oauth_google_provider_with_endpoints(
+        mut self,
+        client_id: &str,
+        client_secret: &str,
+        redirect_uri: &str,
+        token_endpoint: &str,
+        userinfo_endpoint: &str,
+    ) -> Self {
+        self.oauth.google = Some(OAuthProviderRuntimeConfig {
+            client_id: Arc::from(client_id),
+            client_secret: Arc::from(client_secret),
+            redirect_uri: Arc::from(redirect_uri),
+            token_endpoint: Arc::from(token_endpoint),
+            userinfo_endpoint: Arc::from(userinfo_endpoint),
+        });
+        self
+    }
+
+    pub fn with_oauth_github_provider(
+        self,
+        client_id: &str,
+        client_secret: &str,
+        redirect_uri: &str,
+    ) -> Self {
+        self.with_oauth_github_provider_with_endpoints(
+            client_id,
+            client_secret,
+            redirect_uri,
+            "https://github.com/login/oauth/access_token",
+            "https://api.github.com/user",
+        )
+    }
+
+    pub fn with_oauth_github_provider_with_endpoints(
+        mut self,
+        client_id: &str,
+        client_secret: &str,
+        redirect_uri: &str,
+        token_endpoint: &str,
+        userinfo_endpoint: &str,
+    ) -> Self {
+        self.oauth.github = Some(OAuthProviderRuntimeConfig {
+            client_id: Arc::from(client_id),
+            client_secret: Arc::from(client_secret),
+            redirect_uri: Arc::from(redirect_uri),
+            token_endpoint: Arc::from(token_endpoint),
+            userinfo_endpoint: Arc::from(userinfo_endpoint),
+        });
+        self
+    }
+
+    pub fn with_oauth_cookie_domain(mut self, domain: Option<&str>) -> Self {
+        self.oauth.cookie_domain = domain.map(Arc::from);
+        self
+    }
+
+    pub fn with_oauth_cookie_policy(
+        mut self,
+        secure: bool,
+        same_site: OAuthCookieSameSite,
+    ) -> Self {
+        self.oauth.cookie_secure = secure;
+        self.oauth.cookie_same_site = same_site;
         self
     }
 
@@ -878,4 +963,44 @@ pub fn test_app_with_onboarding(
         stripe_service,
         flapjack_proxy,
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::TestStateBuilder;
+
+    #[tokio::test]
+    async fn builder_threads_oauth_runtime_config_into_app_state() {
+        let state = TestStateBuilder::new()
+            .with_oauth_google_provider(
+                "google-client-id",
+                "google-client-secret",
+                "https://cloud.flapjack.foo/auth/oauth/google/callback",
+            )
+            .with_oauth_github_provider(
+                "github-client-id",
+                "github-client-secret",
+                "https://cloud.flapjack.foo/auth/oauth/github/callback",
+            )
+            .with_oauth_cookie_domain(Some(".flapjack.foo"))
+            .build();
+
+        assert_eq!(
+            state
+                .oauth
+                .google
+                .as_ref()
+                .map(|cfg| cfg.client_id.as_ref()),
+            Some("google-client-id")
+        );
+        assert_eq!(
+            state
+                .oauth
+                .github
+                .as_ref()
+                .map(|cfg| cfg.client_secret.as_ref()),
+            Some("github-client-secret")
+        );
+        assert_eq!(state.oauth.cookie_domain.as_deref(), Some(".flapjack.foo"));
+    }
 }

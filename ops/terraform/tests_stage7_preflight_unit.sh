@@ -32,8 +32,9 @@ ENVEOF
   done
   cat > "${MOCK_DIR}/curl" <<'CURLMOCK'
 #!/bin/bash
-if [[ "$*" == *"api.cloudflare.com/client/v4/zones/cf_zone_foo_test"* ]]; then
-  if [[ "$*" == *"dns_records"* ]]; then
+payload="$(cat)"
+if [[ "$payload" == *'url = "https://api.cloudflare.com/client/v4/zones/cf_zone_foo_test'* ]]; then
+  if [[ "$payload" == *'dns_records'* ]]; then
     printf '{"success":true,"result":[{"name":"flapjack.foo","type":"CNAME","content":"fjcloud-staging-alb-1511805790.us-east-1.elb.amazonaws.com","proxied":false},{"name":"api.flapjack.foo","type":"CNAME","content":"fjcloud-staging-alb-1511805790.us-east-1.elb.amazonaws.com","proxied":false},{"name":"www.flapjack.foo","type":"CNAME","content":"fjcloud-staging-alb-1511805790.us-east-1.elb.amazonaws.com","proxied":false},{"name":"cloud.flapjack.foo","type":"CNAME","content":"flapjack-cloud.pages.dev","proxied":true}]}'
     exit 0
   fi
@@ -222,6 +223,93 @@ else
 fi
 teardown
 
+# ---------- Cloudflare global-key auth fallback ----------
+echo ""
+echo "--- Cloudflare global-key auth fallback works without API token ---"
+
+setup
+sed -i.bak '/^CLOUDFLARE_API_TOKEN=/d; /^CLOUDFLARE_EDIT_READ_ZONE_DNS_API_TOKEN_FLAPJACK_FOO=/d' "$MOCK_ENV_FILE"
+cat >> "$MOCK_ENV_FILE" <<'ENVEOF'
+CLOUDFLARE_GLOBAL_API_KEY=global_key_test_value
+CLOUDFLARE_X_Auth_Email=operator@example.com
+ENVEOF
+write_aws_mock 'if [[ "$1" == "sts" ]]; then
+  echo "123456789012  arn:aws:iam::123456789012:user/test  AIDAEXAMPLE"
+  exit 0
+fi
+if [[ "$1" == "ec2" && "$2" == "describe-images" ]]; then
+  echo "1"
+  exit 0
+fi
+if [[ "$1" == "s3api" ]]; then
+  echo "1"
+  exit 0
+fi
+if [[ "$1" == "acm" && "$2" == "list-certificates" ]]; then
+  echo "arn:aws:acm:us-east-1:123456789012:certificate/test"
+  exit 0
+fi
+if [[ "$1" == "acm" && "$2" == "describe-certificate" ]]; then
+  echo "ISSUED"
+  exit 0
+fi
+if [[ "$1" == "elbv2" && "$2" == "describe-load-balancers" ]]; then
+  echo "arn:aws:elasticloadbalancing:us-east-1:123456789012:loadbalancer/app/test/1234"
+  exit 0
+fi
+if [[ "$1" == "elbv2" && "$2" == "describe-listeners" ]]; then
+  echo "1"
+  exit 0
+fi
+if [[ "$1" == "elbv2" && "$2" == "describe-target-groups" ]]; then
+  echo "arn:aws:elasticloadbalancing:us-east-1:123456789012:targetgroup/test/1234"
+  exit 0
+fi
+if [[ "$1" == "elbv2" && "$2" == "describe-target-health" ]]; then
+  echo "1"
+  exit 0
+fi
+if [[ "$1" == "sesv2" && "$2" == "get-email-identity" ]]; then
+  printf "SUCCESS\tSUCCESS\n"
+  exit 0
+fi
+exit 0'
+
+  cat > "${MOCK_DIR}/curl" <<'CURLMOCK'
+#!/bin/bash
+payload="$(cat)"
+if [[ "$payload" == *'url = "https://api.cloudflare.com/client/v4/zones/cf_zone_foo_test'* ]]; then
+  if [[ "$payload" != *'header = "X-Auth-Key: global_key_test_value"'* ]] || [[ "$payload" != *'header = "X-Auth-Email: operator@example.com"'* ]]; then
+    echo "missing global-key auth headers" >&2
+    exit 22
+  fi
+  if [[ "$payload" == *'dns_records'* ]]; then
+    printf '{"success":true,"result":[{"name":"flapjack.foo","type":"CNAME","content":"fjcloud-staging-alb-1511805790.us-east-1.elb.amazonaws.com","proxied":false},{"name":"api.flapjack.foo","type":"CNAME","content":"fjcloud-staging-alb-1511805790.us-east-1.elb.amazonaws.com","proxied":false},{"name":"www.flapjack.foo","type":"CNAME","content":"fjcloud-staging-alb-1511805790.us-east-1.elb.amazonaws.com","proxied":false},{"name":"cloud.flapjack.foo","type":"CNAME","content":"flapjack-cloud.pages.dev","proxied":true}]}'
+    exit 0
+  fi
+  printf '{"success":true,"result":{"id":"cf_zone_foo_test","name":"flapjack.foo","account":{"id":"acct_123","name":"Example Account"},"plan":{"id":"plan_free","name":"Free Website"}}}'
+  exit 0
+fi
+exit 0
+CURLMOCK
+chmod +x "${MOCK_DIR}/curl"
+
+output=""
+exit_code=0
+output=$(run_script --release-sha "$FAKE_SHA") || exit_code=$?
+
+if [[ "$exit_code" -eq 0 ]]; then
+  pass "Cloudflare global-key fallback path passes preflight/runtime smoke"
+else
+  fail "Cloudflare global-key fallback path passes preflight/runtime smoke (got $exit_code)"
+fi
+if echo "$output" | rg -q 'Cloudflare zone'; then
+  pass "Cloudflare global-key fallback output includes zone verification log"
+else
+  fail "Cloudflare global-key fallback output includes zone verification log"
+fi
+teardown
+
 # ---------- Cloudflare zone/domain mismatch ----------
 echo ""
 echo "--- Cloudflare zone/domain mismatch → exit 11 ---"
@@ -238,9 +326,10 @@ fi
 echo "mock-unhandled: $*" >&2
 exit 1'
 
-cat > "${MOCK_DIR}/curl" <<'CURLMOCK'
+  cat > "${MOCK_DIR}/curl" <<'CURLMOCK'
 #!/bin/bash
-if [[ "$*" == *"api.cloudflare.com/client/v4/zones/cf_zone_foo_test"* ]]; then
+payload="$(cat)"
+if [[ "$payload" == *'url = "https://api.cloudflare.com/client/v4/zones/cf_zone_foo_test'* ]]; then
   printf '{"success":true,"result":{"id":"cf_zone_foo_test","name":"wrong.example"}}'
   exit 0
 fi

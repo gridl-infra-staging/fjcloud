@@ -1,0 +1,28 @@
+Stage 4 Dry-Run Preflight
+=========================
+timestamp_utc=20260505T182803Z
+head_sha=f01f45fa923193535cd4d0b238bf135cf16433d8
+
+Environment (secrets redacted):
+  API_URL=https://api.flapjack.foo
+  CANARY_RC_READINESS_MODE=1
+  ADMIN_KEY=VSkO****
+  AWS_ACCESS_KEY_ID=AKIA****
+  AWS_DEFAULT_REGION=us-east-1
+  AWS_SECRET_ACCESS_KEY=****
+  CANARY_TEST_INBOX_DOMAIN=test.flapjack.foo (owner-defaulted in load_canary_env)
+  CANARY_TEST_INBOX_S3_URI=s3://flapjack-cloud-releases/e2e-emails/ (owner-defaulted in load_canary_env)
+
+Staging hydration source: scripts/launch/hydrate_seeder_env_from_ssm.sh
+  Resolved API_URL=https://api.flapjack.foo from SSM parameter store.
+  AWS caller identity probe: succeeded.
+  CANARY_RC_READINESS_MODE=1 exported to prevent quiet-window short-circuit.
+
+Command:
+  CANARY_RC_READINESS_MODE=1 API_URL=https://api.flapjack.foo bash scripts/canary/customer_loop_synthetic.sh --dry-run
+
+Result: PASS
+  Run completed with terminal line: "customer loop canary completed successfully"
+  Steps completed: signup, verify-email (SSM token lookup), index create/write/search/delete,
+  account delete, admin cleanup.
+  Stripe-mutating branch: skipped (CANARY_LIVE_MODE not set).

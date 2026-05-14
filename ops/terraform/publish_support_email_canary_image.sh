@@ -37,11 +37,18 @@ fi
 
 aws ecr get-login-password --region "$region" | docker login --username AWS --password-stdin "${account_id}.dkr.ecr.${region}.amazonaws.com"
 
-docker build \
+# why: AWS Lambda requires docker schema-2 manifests, but `docker build`
+# (BuildKit, Docker 25+) emits OCI-index manifests by default and Lambda
+# rejects the resulting image with "InvalidParameterValueException: image
+# manifest, config or layer media type ... is not supported". Building
+# with `buildx --provenance=false --push` produces a single-arch docker v2
+# manifest that Lambda accepts. Mirrors the customer-loop publisher.
+docker buildx build \
+  --platform linux/arm64 \
+  --provenance=false \
+  --push \
   -f ops/terraform/support_email_canary/Dockerfile \
   -t "${repository_uri}:${image_tag}" \
   .
-
-docker push "${repository_uri}:${image_tag}"
 
 echo "Published support-email canary image: ${repository_uri}:${image_tag}"

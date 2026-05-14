@@ -22,11 +22,19 @@ use api::startup::StorageComponents;
 use api::startup_env::StartupEnvSnapshot;
 use api::startup_repos::PgRepos;
 use api::state::AppState;
+use api::state::{OAuthCookieSameSite, OAuthProviderRuntimeConfig, OAuthRuntimeConfig};
 use api::stripe::StripeService;
 use sqlx::PgPool;
 use std::sync::Arc;
 use std::time::Duration;
 use tracing_subscriber::EnvFilter;
+
+const OAUTH_CALLBACK_PATH_GOOGLE: &str = "/auth/oauth/google/callback";
+const OAUTH_CALLBACK_PATH_GITHUB: &str = "/auth/oauth/github/callback";
+const GOOGLE_TOKEN_ENDPOINT: &str = "https://oauth2.googleapis.com/token";
+const GOOGLE_USERINFO_ENDPOINT: &str = "https://openidconnect.googleapis.com/v1/userinfo";
+const GITHUB_TOKEN_ENDPOINT: &str = "https://github.com/login/oauth/access_token";
+const GITHUB_USERINFO_ENDPOINT: &str = "https://api.github.com/user";
 
 /// Intermediate bundle from [`wire_services`] carrying all initialized services
 /// and their supporting objects.
@@ -262,6 +270,7 @@ async fn wire_app_state_phase(bootstrap: StartupBootstrapPhase) -> anyhow::Resul
         garage_proxy,
         s3_object_metering,
         storage_master_key,
+        oauth: build_oauth_runtime_config(&cfg, &startup_env),
     };
     let background_deps = api::startup::BackgroundDeps {
         node_secret_manager,
@@ -278,6 +287,76 @@ async fn wire_app_state_phase(bootstrap: StartupBootstrapPhase) -> anyhow::Resul
         state,
         background_deps,
     })
+}
+
+fn build_oauth_runtime_config(
+    cfg: &Config,
+    startup_env: &StartupEnvSnapshot,
+) -> OAuthRuntimeConfig {
+    let base_url = startup_env
+        .env_value("APP_BASE_URL")
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or("https://cloud.flapjack.foo")
+        .trim_end_matches('/');
+    let cookie_domain = oauth_cookie_domain(base_url);
+    let cookie_secure = oauth_cookie_secure(base_url);
+    let cookie_same_site = if cookie_secure {
+        OAuthCookieSameSite::None
+    } else {
+        OAuthCookieSameSite::Lax
+    };
+
+    OAuthRuntimeConfig {
+        google: oauth_provider_runtime_config(
+            cfg.google_oauth_client_id.as_deref(),
+            cfg.google_oauth_client_secret.as_deref(),
+            format!("{base_url}{OAUTH_CALLBACK_PATH_GOOGLE}"),
+            GOOGLE_TOKEN_ENDPOINT,
+            GOOGLE_USERINFO_ENDPOINT,
+        ),
+        github: oauth_provider_runtime_config(
+            cfg.github_oauth_client_id.as_deref(),
+            cfg.github_oauth_client_secret.as_deref(),
+            format!("{base_url}{OAUTH_CALLBACK_PATH_GITHUB}"),
+            GITHUB_TOKEN_ENDPOINT,
+            GITHUB_USERINFO_ENDPOINT,
+        ),
+        cookie_domain,
+        cookie_secure,
+        cookie_same_site,
+    }
+}
+
+fn oauth_provider_runtime_config(
+    client_id: Option<&str>,
+    client_secret: Option<&str>,
+    redirect_uri: String,
+    token_endpoint: &str,
+    userinfo_endpoint: &str,
+) -> Option<OAuthProviderRuntimeConfig> {
+    match (client_id, client_secret) {
+        (Some(id), Some(secret)) => Some(OAuthProviderRuntimeConfig {
+            client_id: Arc::from(id),
+            client_secret: Arc::from(secret),
+            redirect_uri: Arc::from(redirect_uri),
+            token_endpoint: Arc::from(token_endpoint),
+            userinfo_endpoint: Arc::from(userinfo_endpoint),
+        }),
+        _ => None,
+    }
+}
+
+fn oauth_cookie_domain(base_url: &str) -> Option<Arc<str>> {
+    if base_url.contains("localhost") || base_url.contains("127.0.0.1") {
+        None
+    } else {
+        Some(Arc::from(".flapjack.foo"))
+    }
+}
+
+fn oauth_cookie_secure(base_url: &str) -> bool {
+    base_url.starts_with("https://")
 }
 
 fn setup_background_tasks_phase(app_wiring: AppWiringPhase) -> anyhow::Result<ServerLaunchPhase> {

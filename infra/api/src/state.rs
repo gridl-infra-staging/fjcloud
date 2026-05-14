@@ -36,6 +36,54 @@ use crate::services::tenant_quota::{FreeTierLimits, TenantQuotaService};
 use crate::services::webhook_http::WebhookHttpClient;
 use crate::stripe::StripeService;
 
+#[derive(Clone, Debug)]
+pub struct OAuthProviderRuntimeConfig {
+    pub client_id: Arc<str>,
+    pub client_secret: Arc<str>,
+    pub redirect_uri: Arc<str>,
+    pub token_endpoint: Arc<str>,
+    pub userinfo_endpoint: Arc<str>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum OAuthCookieSameSite {
+    Lax,
+    None,
+}
+
+impl OAuthCookieSameSite {
+    pub fn header_value(self) -> &'static str {
+        match self {
+            Self::Lax => "Lax",
+            Self::None => "None",
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct OAuthRuntimeConfig {
+    pub google: Option<OAuthProviderRuntimeConfig>,
+    pub github: Option<OAuthProviderRuntimeConfig>,
+    pub cookie_domain: Option<Arc<str>>,
+    pub cookie_secure: bool,
+    pub cookie_same_site: OAuthCookieSameSite,
+}
+
+impl Default for OAuthRuntimeConfig {
+    fn default() -> Self {
+        Self {
+            google: None,
+            github: None,
+            cookie_domain: None,
+            // OAuth callbacks are cross-site navigations in production, so the
+            // secure SameSite=None policy remains the default outside explicit
+            // local-http overrides.
+            cookie_secure: true,
+            cookie_same_site: OAuthCookieSameSite::None,
+        }
+    }
+}
+
 /// Central shared application state cloned into every request handler.
 /// Holds the database pool, JWT/admin secrets, Stripe config, metrics collector,
 /// all repository trait objects (`Arc<dyn …>`), and service instances for
@@ -86,4 +134,5 @@ pub struct AppState {
     pub garage_proxy: Arc<GarageProxy>,
     pub s3_object_metering: Arc<S3ObjectMeteringService>,
     pub storage_master_key: [u8; 32],
+    pub oauth: OAuthRuntimeConfig,
 }

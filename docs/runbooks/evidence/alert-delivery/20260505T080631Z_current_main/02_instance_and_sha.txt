@@ -1,0 +1,15 @@
+Instance and Deploy Context
+============================
+
+Hostname: fjcloud-api-staging
+Instance tag: fjcloud-api-staging (resolved by ssm_exec_staging.sh)
+Region: us-east-1
+
+Deployed SHA (SSM /fjcloud/staging/last_deploy_sha): 5a57ea6a280a1d63b54957b3732dcf8cc0a08c2e
+Stage 3 recorded SHA: 5a57ea6a280a1d63b54957b3732dcf8cc0a08c2e
+SHA agreement: MATCH
+
+Service start time: Mon 2026-05-04 09:17:44 UTC
+  (from: systemctl show -p ActiveEnterTimestamp fjcloud-api)
+
+Verification method: scripts/launch/ssm_exec_staging.sh

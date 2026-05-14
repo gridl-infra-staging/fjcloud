@@ -22,20 +22,29 @@ afterEach(() => {
 	pageState.url = new URL('http://localhost/login');
 });
 
+const loginPageData = { apiBaseUrl: 'http://127.0.0.1:3001' };
+
+function renderLoginPage(form?: Record<string, unknown>) {
+	return render(LoginPage, {
+		data: loginPageData,
+		...(form ? { form } : {})
+	});
+}
+
 describe('Login page', () => {
 	it('renders email and password fields', () => {
-		render(LoginPage);
+		renderLoginPage();
 		expect(screen.getByLabelText('Email')).toBeInTheDocument();
 		expect(screen.getByLabelText('Password')).toBeInTheDocument();
 	});
 
 	it('renders submit button with correct text', () => {
-		render(LoginPage);
+		renderLoginPage();
 		expect(screen.getByRole('button', { name: 'Log In' })).toBeInTheDocument();
 	});
 
 	it('email input is required and has type email', () => {
-		render(LoginPage);
+		renderLoginPage();
 		const email = screen.getByLabelText('Email');
 		expect(email).toBeRequired();
 		expect(email).toHaveAttribute('type', 'email');
@@ -43,7 +52,7 @@ describe('Login page', () => {
 	});
 
 	it('password input is required and has type password', () => {
-		render(LoginPage);
+		renderLoginPage();
 		const password = screen.getByLabelText('Password');
 		expect(password).toBeRequired();
 		expect(password).toHaveAttribute('type', 'password');
@@ -51,56 +60,57 @@ describe('Login page', () => {
 	});
 
 	it('form uses POST method', () => {
-		render(LoginPage);
+		renderLoginPage();
 		const form = document.querySelector('form');
 		expect(form).toHaveAttribute('method', 'POST');
 	});
 
 	it('has link to signup page', () => {
-		render(LoginPage);
+		renderLoginPage();
 		const link = screen.getByRole('link', { name: 'Sign up' });
 		expect(link).toHaveAttribute('href', '/signup');
 	});
 
 	it('has link to forgot password page', () => {
-		render(LoginPage);
+		renderLoginPage();
 		const link = screen.getByRole('link', { name: 'Forgot your password?' });
 		expect(link).toHaveAttribute('href', '/forgot-password');
 	});
 
 	it('displays form-level error as alert', () => {
-		render(LoginPage, { form: { errors: { form: 'Invalid credentials' }, email: '' } });
+		renderLoginPage({ errors: { form: 'Invalid credentials' }, email: '' });
 		const alert = screen.getByRole('alert');
 		expect(alert).toHaveTextContent('Invalid credentials');
 	});
 
 	it('displays email field error', () => {
-		render(LoginPage, { form: { errors: { email: 'Email is required' }, email: '' } });
+		renderLoginPage({ errors: { email: 'Email is required' }, email: '' });
 		expect(screen.getByText('Email is required')).toBeInTheDocument();
 	});
 
 	it('displays password field error', () => {
-		render(LoginPage, { form: { errors: { password: 'Password is required' }, email: '' } });
+		renderLoginPage({ errors: { password: 'Password is required' }, email: '' });
 		expect(screen.getByText('Password is required')).toBeInTheDocument();
 	});
 
 	it('preserves email value after validation error', () => {
-		const { container } = render(LoginPage, {
-			form: { errors: { password: 'Password is required' }, email: 'alice@example.com' }
+		const { container } = renderLoginPage({
+			errors: { password: 'Password is required' },
+			email: 'alice@example.com'
 		});
 		const emailInput = container.querySelector<HTMLInputElement>('input[name="email"]');
 		expect(emailInput?.value).toBe('alice@example.com');
 	});
 
 	it('does not show error alert when no errors', () => {
-		render(LoginPage);
+		renderLoginPage();
 		expect(screen.queryByRole('alert')).not.toBeInTheDocument();
 	});
 
 	it('shows session-expired banner from login query state', () => {
 		pageState.url = new URL('http://localhost/login?reason=session_expired');
 
-		render(LoginPage);
+		renderLoginPage();
 
 		expect(screen.getByTestId('session-expired-banner')).toHaveTextContent(
 			'Your session expired. Please log in again.'
@@ -110,7 +120,7 @@ describe('Login page', () => {
 	it('does not show session-expired banner when query reason is different', () => {
 		pageState.url = new URL('http://localhost/login?reason=other');
 
-		render(LoginPage);
+		renderLoginPage();
 
 		expect(screen.queryByTestId('session-expired-banner')).not.toBeInTheDocument();
 	});

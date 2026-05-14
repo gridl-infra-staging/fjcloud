@@ -190,7 +190,14 @@ if [[ -n "${CLOUDFLARE_API_TOKEN_EFFECTIVE}" && -n "${CLOUDFLARE_ZONE_ID_EFFECTI
   if ! printf '%s' "${ZONE_RESPONSE}" | rg -q '"success"[[:space:]]*:[[:space:]]*true'; then
     check_fail "Cloudflare zone lookup failed for ${DOMAIN}"
   else
-    ZONE_NAME=$(printf '%s' "${ZONE_RESPONSE}" | sed -nE 's/.*"name"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/p' | head -1)
+    # Extract top-level zone "name" — the JSON response also contains a nested
+    # plan.name, so use jq when available for reliability and fall back to a
+    # non-greedy sed otherwise.
+    if command -v jq >/dev/null 2>&1; then
+      ZONE_NAME=$(printf '%s' "${ZONE_RESPONSE}" | jq -r '.result.name // empty')
+    else
+      ZONE_NAME=$(printf '%s' "${ZONE_RESPONSE}" | sed -nE 's/.*"result"[[:space:]]*:[[:space:]]*\{[^}]*"name"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/p' | head -1)
+    fi
     if [[ "${ZONE_NAME}" == "${DOMAIN}" ]]; then
       check_pass "Cloudflare zone matches ${DOMAIN}"
     else

@@ -8,6 +8,7 @@ import type {
 	VerifyEmailRequest,
 	ForgotPasswordRequest,
 	ResetPasswordRequest,
+	OAuthExchangeRequest,
 	UsageSummaryResponse,
 	DailyUsageEntry,
 	InvoiceListItem,
@@ -189,6 +190,23 @@ export class ApiClient extends BaseClient {
 
 	resetPassword(body: ResetPasswordRequest): Promise<MessageResponse> {
 		return this.api('POST', '/auth/reset-password', body);
+	}
+
+	oauthExchange(
+		provider: string,
+		body: OAuthExchangeRequest,
+		cookieHeader?: string
+	): Promise<AuthResponse> {
+		const headers = cookieHeader ? { Cookie: cookieHeader } : undefined;
+		return this.request<AuthResponse>(
+			`/auth/oauth/${this.pathSegment(provider)}/exchange`,
+			{
+				method: 'POST',
+				body: JSON.stringify(body),
+				headers
+			},
+			{ includeAuth: false }
+		);
 	}
 
 	async resendVerification(): Promise<{ message: string; retryAfterSeconds: number | null }> {

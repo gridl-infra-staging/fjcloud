@@ -732,3 +732,15 @@ Contract notes:
     timestamp captured in `utc_now_s83.txt`.
 - Stage 4 webhook readback conclusions are not folded in here; this entry is
   scoped to canary schedule activation only.
+
+## Stage 2 status publication reconciliation (2026-05-05)
+
+- `/status` publication owner is env vars consumed by
+  `web/src/routes/status/+page.server.ts`:
+  `SERVICE_STATUS` and `SERVICE_STATUS_UPDATED`.
+- Canonical operator procedures are:
+  - `docs/runbooks/incident-response.md`
+  - `docs/checklists/PAID_BETA_LAUNCH_CHECKLIST.md`
+  - `LAUNCH.md`
+- Deprecated S3 lane (`scripts/set_status.sh` and `service_status.json`) was
+  removed; this section is a dated pointer only and is not a second procedure.

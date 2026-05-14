@@ -7,6 +7,6 @@
 
 | Directory | Summary |
 | --- | --- |
-| common | This directory provides test support utilities and fixtures for the API integration test suite, including mock implementations for Flapjack proxy and Stripe webhooks, shared helpers for index and storage routes, and capacity profile definitions for scheduler and placement validation. |
+| common | Common test utilities and fixtures for API integration tests, providing shared builders, mocks, and helpers for Stripe webhooks, Flapjack proxy operations, storage metering, S3 routing, and capacity profile fixtures. |
 | support | — |
 <!-- [scrai:end] -->

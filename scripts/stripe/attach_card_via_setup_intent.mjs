@@ -19,11 +19,17 @@
 //   set -a; source .secret/.env.secret; set +a
 //   PK_LIVE="$STRIPE_PUBLISHABLE_KEY" \
 //   CLIENT_SECRET=seti_...secret_... \
-//   CARD_NUMBER=5439300620174338 \
+//   CARD_NUMBER=5439300693299475 \
 //   CARD_EXP=05/31 \
-//   CARD_CVC=460 \
+//   CARD_CVC=294 \
 //   CARD_ZIP=10001 \
 //   node scripts/stripe/attach_card_via_setup_intent.mjs
+//
+// Current ops test card (Privacy.com virtual, low-limit, safe to commit):
+//   Number: 5439300693299475  Exp: 05/31  CVC: 294
+//   Replaced 5439300620174338 (4338) — that card was consumed/deactivated after
+//   the 2026-05-03 Phase G probe. Updated 2026-05-05.
+//   Previous card 4338: cus_URij8h4pXDprIK was the Phase G customer (now deleted).
 //
 // To create the SetupIntent first:
 //   curl -u "$STRIPE_SECRET_KEY_flapjack_cloud:" \
@@ -69,6 +75,12 @@ await fs.mkdir(SCREENSHOT_DIR, { recursive: true });
 // the CDN, mounts Elements, and confirms the SetupIntent on form submit.
 // All result data is exposed on the parent page via data-testid attributes
 // so the Playwright driver can read them without needing to await navigation.
+//
+// Uses the legacy CardElement (not PaymentElement) deliberately: PaymentElement
+// mounts Stripe Link which triggers an hCaptcha image puzzle on submission in
+// headless environments. CardElement has no Link, no wallet prompts, and no
+// fraud-detection hCaptcha gate. Confirmed broken on 2026-05-05 when Phase G
+// flow (May 3rd) stopped working due to Stripe adding Link hCaptcha.
 const HTML_TEMPLATE = `<!DOCTYPE html>
 <html><head><title>SetupIntent Card Attach</title>
 <script src="https://js.stripe.com/v3/"></script></head>
@@ -82,15 +94,15 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 </form>
 <script>
 const stripe = Stripe(window.PK_LIVE);
-const elements = stripe.elements({ clientSecret: window.CLIENT_SECRET });
-elements.create('payment').mount('#payment-element');
+// CardElement — no clientSecret needed at elements() level; confirmCardSetup takes it directly.
+const elements = stripe.elements();
+const card = elements.create('card');
+card.mount('#payment-element');
 document.getElementById('payment-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   document.getElementById('submit-btn').disabled = true;
-  const result = await stripe.confirmSetup({
-    elements,
-    confirmParams: { return_url: 'http://localhost:${PORT}/done.html' },
-    redirect: 'if_required'
+  const result = await stripe.confirmCardSetup(window.CLIENT_SECRET, {
+    payment_method: { card }
   });
   if (result.error) {
     document.getElementById('error-msg').innerText = result.error.message || JSON.stringify(result.error);
@@ -141,11 +153,11 @@ try {
 		timeout: 15000
 	});
 	const elementsFrame = page.frames().find((f) =>
-		f.url().includes('elements-inner-payment')
+		f.url().includes('elements-inner-card')
 	);
 	if (!elementsFrame) {
 		const urls = page.frames().map((f) => f.url().substring(0, 80));
-		throw new Error(`no elements-inner-payment iframe; frames: ${urls.join(' | ')}`);
+		throw new Error(`no elements-inner-card iframe; frames: ${urls.join(' | ')}`);
 	}
 	await page.waitForTimeout(1500);
 
@@ -177,17 +189,6 @@ try {
 		await zipInput.click();
 		await zipInput.pressSequentially(CARD_ZIP, { delay: 20 });
 		await zipInput.press('Tab');
-	}
-
-	// Disable Stripe Link if its opt-in checkbox appeared (it auto-checks
-	// after card validation; submitting with it checked requires an SMS-deliverable
-	// phone number which we don't have for headless ops use).
-	const linkOptIn = elementsFrame
-		.locator('#payment-linkOptInInput, input[name="linkOptIn"]')
-		.first();
-	if ((await linkOptIn.count()) && (await linkOptIn.isChecked())) {
-		await linkOptIn.uncheck();
-		await page.waitForTimeout(300);
 	}
 
 	await page.waitForTimeout(800);

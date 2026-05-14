@@ -1,0 +1,36 @@
+command: bash scripts/tests/probe_cloudflare_ai_block_test.sh
+head_sha: 444c9cc4b7920beed806ef0b06ac1865e1a77e97
+clean_tree: true
+cache_check: MISS
+=== probe_cloudflare_ai_block.sh tests ===
+PASS: probe script exists
+PASS: probe should reuse shared env loader
+PASS: probe should reuse validation JSON helper
+PASS: missing global key should fail with usage exit code
+PASS: missing global key should still emit JSON
+PASS: missing global key should report passed=false
+PASS: missing global key detail should name required var
+PASS: missing global key should not call curl
+PASS: missing zone should fail with usage exit code
+PASS: missing zone should emit JSON
+PASS: missing zone detail should name zone env
+PASS: missing zone should not call curl
+PASS: non-200 readback should fail with runtime exit code
+PASS: non-200 readback should emit JSON
+PASS: non-200 readback should report passed=false
+PASS: failure detail should include HTTP status
+PASS: raw readback artifact should still be written on failure
+PASS: raw readback artifact should contain HTTP status marker
+PASS: success readback should exit 0
+PASS: success readback should emit JSON
+PASS: success readback should report passed=true
+PASS: success detail should include extracted ai_bots_protection value
+PASS: probe should call bot_management readback endpoint
+PASS: probe should send global key header
+PASS: probe should send auth email header
+PASS: success run should write raw readback artifact
+PASS: raw readback artifact should contain success HTTP status marker
+
+=== Results: 27 passed, 0 failed ===
+RECORDED
+status: pass

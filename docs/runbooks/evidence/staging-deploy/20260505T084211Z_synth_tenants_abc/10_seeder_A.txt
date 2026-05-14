@@ -1,0 +1,19 @@
+[seed-synthetic] === synthetic traffic seeder ===
+[seed-synthetic] mode:     execute
+[seed-synthetic] tenant:   A
+[seed-synthetic] duration: 3 min (if executing)
+[seed-synthetic] 
+[seed-synthetic] === Tenant A ===
+[seed-synthetic]   name:              demo-shared-free
+[seed-synthetic]   plan:              shared
+[seed-synthetic]   target_storage_mb: 100
+[seed-synthetic]   writes_per_minute: 10
+[seed-synthetic]   searches_per_min:  1
+[seed-synthetic]   expected floor:    500 cents/month
+[seed-synthetic]   tenant mapping ready at /tmp/seed-synthetic-demo-shared-free.json
+[seed-synthetic]   adaptive storage backfill starting for demo-shared-free (26.54 MB -> target 100 MB, tolerance 90.00-110.00 MB)
+[seed-synthetic]   storage floor satisfied for demo-shared-free: 91.89 MB (target tolerance 90.00-110.00 MB)
+[seed-synthetic]   sustained traffic starting for demo-shared-free: 30 writes (~6.000000s/tick) and 3 searches (~60.000000s/tick)
+[seed-synthetic]   sustained traffic complete for demo-shared-free: writes_sent=30 searches_sent=3
+[seed-synthetic] 
+[seed-synthetic] === done ===

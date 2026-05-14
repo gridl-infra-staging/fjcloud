@@ -36,7 +36,7 @@ describe('Landing page', () => {
 		render(LandingPage, { data: { pricing: pricingData } });
 
 		const githubLink = screen.getByRole('link', { name: 'GitHub repository' });
-		expect(githubLink).toHaveAttribute('href', 'https://github.com/gridlhq/flapjack');
+		expect(githubLink).toHaveAttribute('href', 'https://github.com/griddlehq/flapjack');
 	});
 
 	it('publishes canonical link preview metadata for the cloud site', () => {

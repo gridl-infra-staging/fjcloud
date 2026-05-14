@@ -1,0 +1,55 @@
+{
+    "Label": "Heartbeat",
+    "Datapoints": [
+        {
+            "Timestamp": "2026-05-05T04:09:00-04:00",
+            "Sum": 1.0,
+            "Unit": "Count"
+        },
+        {
+            "Timestamp": "2026-05-05T04:14:00-04:00",
+            "Sum": 1.0,
+            "Unit": "Count"
+        },
+        {
+            "Timestamp": "2026-05-05T04:12:00-04:00",
+            "Sum": 1.0,
+            "Unit": "Count"
+        },
+        {
+            "Timestamp": "2026-05-05T04:08:00-04:00",
+            "Sum": 1.0,
+            "Unit": "Count"
+        },
+        {
+            "Timestamp": "2026-05-05T04:17:00-04:00",
+            "Sum": 1.0,
+            "Unit": "Count"
+        },
+        {
+            "Timestamp": "2026-05-05T04:13:00-04:00",
+            "Sum": 1.0,
+            "Unit": "Count"
+        },
+        {
+            "Timestamp": "2026-05-05T04:11:00-04:00",
+            "Sum": 1.0,
+            "Unit": "Count"
+        },
+        {
+            "Timestamp": "2026-05-05T04:16:00-04:00",
+            "Sum": 1.0,
+            "Unit": "Count"
+        },
+        {
+            "Timestamp": "2026-05-05T04:10:00-04:00",
+            "Sum": 1.0,
+            "Unit": "Count"
+        },
+        {
+            "Timestamp": "2026-05-05T04:15:00-04:00",
+            "Sum": 1.0,
+            "Unit": "Count"
+        }
+    ]
+}

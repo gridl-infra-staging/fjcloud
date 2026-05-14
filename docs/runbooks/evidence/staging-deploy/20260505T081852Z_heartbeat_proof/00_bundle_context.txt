@@ -1,0 +1,8 @@
+resolved_stage3_bundle_path=docs/runbooks/evidence/staging-deploy/20260505T063307Z_current_main_sync
+deployed_sha_from_stage3=5a57ea6a280a1d63b54957b3732dcf8cc0a08c2e
+stage3_bundle_utc_timestamp=20260505T063307Z
+git_rev_parse_head=e2ba7d9c36b7c0b6e3a2f5c59a0a41ce0baff63e
+alarm_name=fjcloud-staging-api-heartbeat-missing
+namespace=fjcloud/api
+metric=Heartbeat
+dimension=Env=staging

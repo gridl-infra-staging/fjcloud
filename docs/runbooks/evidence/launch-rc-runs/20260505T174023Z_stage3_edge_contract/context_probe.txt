@@ -1,0 +1,15 @@
+timestamp_utc=20260505T174023Z
+head_sha=444c9cc4b7920beed806ef0b06ac1865e1a77e97
+clean_tree=true
+run_dir=docs/runbooks/evidence/launch-rc-runs/20260505T174023Z_stage3_edge_contract
+launch_override_ref=LAUNCH.md:265-320
+orchestration_ref=chats/orchestration/may4_orchestration_fjcloud_dev.md:246-290
+docs_now_gate= Stream E redeploy/proof closed 2026-05-05 at dev SHA `51dc301a`. Evidence index: [LAUNCH.md](../LAUNCH.md) § Stream E. ## Active gate 
+secret_keys_present=
+AWS_ACCESS_KEY_ID
+AWS_DEFAULT_REGION
+AWS_SECRET_ACCESS_KEY
+CLOUDFLARE_GLOBAL_API_KEY
+CLOUDFLARE_X_Auth_Email
+CLOUDFLARE_ZONE_ID_FLAPJACK_FOO
+db_connection_pointer=missing

@@ -39,7 +39,7 @@ test.describe('Landing page', () => {
 		// Nav auth links are visible
 		await expect(page.getByRole('link', { name: 'GitHub repository' })).toHaveAttribute(
 			'href',
-			'https://github.com/gridlhq/flapjack'
+			'https://github.com/griddlehq/flapjack'
 		);
 		await expect(page.getByRole('navigation').getByRole('link', { name: 'Log In' })).toBeVisible();
 		await expect(page.getByRole('navigation').getByRole('link', { name: 'Sign Up' })).toBeVisible();

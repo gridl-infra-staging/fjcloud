@@ -1,0 +1,16 @@
+[seed-synthetic] === synthetic traffic seeder ===
+[seed-synthetic] mode:     execute
+[seed-synthetic] tenant:   B
+[seed-synthetic] duration: 60 min (if executing)
+[seed-synthetic] 
+[seed-synthetic] === Tenant B ===
+[seed-synthetic]   name:              demo-small-dedicated
+[seed-synthetic]   plan:              dedicated
+[seed-synthetic]   target_storage_mb: 2048
+[seed-synthetic]   writes_per_minute: 100
+[seed-synthetic]   searches_per_min:  10
+[seed-synthetic]   expected floor:    1000 cents/month
+[seed-synthetic]   tenant mapping ready at /tmp/seed-synthetic-demo-small-dedicated.json
+[seed-synthetic]   [provision-only] tenant B provisioned; skipping storage backfill and sustained traffic
+[seed-synthetic] 
+[seed-synthetic] === done ===

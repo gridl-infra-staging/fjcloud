@@ -1,0 +1,7 @@
+command: bash scripts/probe_cloudflare_ai_block.sh --run-dir docs/runbooks/evidence/launch-rc-runs/20260505T174023Z_stage3_edge_contract
+head_sha: 444c9cc4b7920beed806ef0b06ac1865e1a77e97
+clean_tree: true
+cache_check: MISS
+{"passed":true,"steps":[{"name":"readback","passed":true,"detail":"Cloudflare bot_management readback succeeded for zone 'fafbf95a076d7e8ee984dbd18a62c933' with ai_bots_protection='disabled'. raw_readback='docs/runbooks/evidence/launch-rc-runs/20260505T174023Z_stage3_edge_contract/cloudflare_ai_block_readback.txt'. HTTP_STATUS:200."}],"elapsed_ms":559}
+RECORDED
+status: pass

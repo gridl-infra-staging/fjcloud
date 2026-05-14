@@ -100,7 +100,9 @@ and interprets exit codes/output. |
 | local_demo.sh | One-command local demo launcher: infra + API + web + seed data + metering. |
 | playwright_local_stack.sh | playwright_local_stack.sh — Start local API + web for Playwright runs. |
 | probe_alert_delivery.sh | Stub summary for probe_alert_delivery.sh. |
+| probe_cloudflare_ai_block.sh | Read-only Cloudflare AI-bot-protection probe. |
 | probe_deployed_signup_renders.sh | Stub summary for probe_deployed_signup_renders.sh. |
+| probe_organic_alert_dispatch.sh | Stub summary for probe_organic_alert_dispatch.sh. |
 | probe_ses_bounce_complaint_e2e.sh | Stub summary for probe_ses_bounce_complaint_e2e.sh. |
 | probe_ses_simulator_send.sh | Send-only SES mailbox simulator probe for bounce/complaint proof. |
 | run-aggregation-job.sh | run-aggregation-job.sh — Run the aggregation job for a target date.
@@ -120,7 +122,8 @@ Safe to run multiple times — skips resources that already exist.
 Usage:
   ./scripts/seed_local.sh              # uses defaults from .env.local
   API_URL=http://localhost:3001 ADMIN_KEY=my-key ./scripts/seed_local.sh. |
-| set_status.sh | set_status.sh — publish runtime service_status.json for /status hydration. |
+| seed_operator_accounts.sh | Stub summary for seed_operator_accounts.sh. |
+| smoke_marketing_site.sh | Marketing site smoke probe for Pages + production domains. |
 | staging_billing_dry_run.sh | Stub summary for staging_billing_dry_run.sh. |
 | staging_billing_rehearsal.sh | staging_billing_rehearsal.sh — guarded staging billing mutation rehearsal. |
 | start-metering.sh | start-metering.sh — Start the metering agent for local dev.
@@ -133,6 +136,7 @@ usage_records to Postgres. |
 | validate-metering.sh | Validate metering pipeline health against a live database and emit JSON. |
 | validate-stripe.sh | Stub summary for validate-stripe.sh. |
 | validate_inbound_email_roundtrip.sh | Validate SES outbound-to-inbound roundtrip for the shared test inbox path. |
+| validate_oauth_routes.sh | Stub summary for validate_oauth_routes.sh. |
 | validate_ses_readiness.sh | Validate SES readiness using read-only API calls and machine-readable output. |
 | web-dev.sh | web-dev.sh — Start the SvelteKit dev server with repo-local auth env loaded. |
 
@@ -140,8 +144,8 @@ usage_records to Postgres. |
 | --- | --- |
 | canary | The canary directory contains synthetic monitoring and health check scripts that validate system availability and external connectivity—including customer loop simulation, AWS-external health probes, and email deliverability verification. |
 | chaos | The chaos directory contains failure-injection and HA resilience test scripts that validate the system's ability to detect outages, trigger failover, and recover—including region kill/restart tests, metering service failure detection, and end-to-end failover proofs. |
-| launch | The launch directory contains staging deployment and validation scripts, including tools for synthetic traffic generation, evidence capture, environment hydration from AWS SSM, and remote command execution against the staging API infrastructure. |
-| lib | Shared bash utilities providing reusable helpers for infrastructure validation (health checks, metering, Stripe), alert dispatch, environment parsing, billing rehearsal workflows, and deployment operations used across integration tests and shell scripts. |
+| launch | The `launch` directory contains operational scripts for validating fjcloud staging deployments and running synthetic verification workloads, including tenant-map fallback verification, billing evidence capture, synthetic traffic generation, and direct EC2 execution via AWS SSM. |
+| lib | The lib directory contains reusable shell utilities supporting the backend infrastructure, including helpers for database migrations, environment configuration, Stripe/billing operations, validation checks, security scans, and live health/gate enforcement. |
 | load | The load directory contains regression checking utilities for validating load testing performance, including scripts that compare offline and live load harness results to detect performance regressions. |
 | reliability | The reliability directory contains shell scripts for backend capacity profiling, security validation, and reliability gating that generate performance metrics across document tiers. |
 | stripe | The stripe directory contains operational scripts for managing Stripe integration with fjcloud: configuring the Customer Portal and creating the canonical Flapjack product catalog, both supporting multi-account operations. |

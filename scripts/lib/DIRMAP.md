@@ -106,6 +106,20 @@ On failure, emits REASON:<code> to stderr for structured reason extraction. |
 | staging_billing_rehearsal_impl.sh | shellcheck source=psql_path.sh. |
 | staging_billing_rehearsal_live_mutation.sh | Live mutation execution helpers for staging billing rehearsal. |
 | staging_billing_rehearsal_reset.sh | Reset-path helpers for staging billing rehearsal. |
+| staging_db.sh | staging_db.sh — Run SQL against staging/prod RDS via AWS SSM RunShellScript.
+
+RDS is VPC-private and unreachable directly from a developer machine.
+This helper discovers the fjcloud-api EC2 instance via Name tag and
+executes psql on it using SSM so SQL can reach the database.
+
+Usage (source this file, then call staging_db_run_sql):
+
+  source scripts/lib/staging_db.sh
+  staging_db_run_sql "$DATABASE_URL" "SELECT COUNT(*) FROM customers"
+
+Environment:
+  DATABASE_URL_SSM_PARAM  — used to auto-detect staging vs prod
+                            (e.g. |
 | stripe_account.sh | Shared explicit-account secret-key resolver for Stripe shell scripts.
 
 Contract:

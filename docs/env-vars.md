@@ -13,7 +13,7 @@ All environment variables used by the fjcloud API and web portal.
 | `RUST_LOG`            | No       | `info,api=debug`             | Log level filter (standard `tracing_subscriber` format)                                                                                                                                             |
 | `ENVIRONMENT`         | No       | `unknown`                    | Environment name included in alert messages (e.g., `staging`, `prod`). Set to `local`, `dev`, or `development` together with `NODE_SECRET_BACKEND=memory` to enable local zero-dependency fallbacks. When set to `prod` or `production`, startup requires at least one non-blank alert webhook (`SLACK_WEBHOOK_URL` or `DISCORD_WEBHOOK_URL`) |
 | `NODE_SECRET_BACKEND` | No       | `auto`                       | Node secret backend: `auto` (SSM when AWS provisioner is configured), `ssm`, `memory` (local dev), or `disabled`                                                                                    |
-| `APP_BASE_URL`        | No       | `https://cloud.flapjack.foo` | Browser application base URL used when rendering transactional auth links. Startup trims a trailing slash so email templates do not emit double slashes                                             |
+| `APP_BASE_URL`        | No       | `https://cloud.flapjack.foo` | Browser application base URL used when rendering transactional auth links. Startup trims a trailing slash so email templates do not emit double slashes, and the OAuth state-cookie policy follows its scheme (`https` => `Secure; SameSite=None`, local `http` => non-`Secure`; `SameSite=Lax`)                                             |
 
 **Cloud API notes:** The `customers` table includes a `service_type` column (default: `flapjack`) added in Stage 1. This column identifies the managed search engine type per tenant and is included in service discovery responses.
 
@@ -37,6 +37,15 @@ Compatibility note: `STRIPE_SECRET_KEY` is the canonical operator-facing variabl
 | Variable              | Required | Default | Description                                                                                                     |
 | --------------------- | -------- | ------- | --------------------------------------------------------------------------------------------------------------- |
 | `INTERNAL_AUTH_TOKEN` | No       | —       | Bearer token for `/internal/*` endpoints (service-to-service auth). If unset, all internal endpoints return 401 |
+
+## OAuth Providers (Backend Start Flow)
+
+| Variable                      | Required | Default | Description |
+| ----------------------------- | -------- | ------- | ----------- |
+| `GOOGLE_OAUTH_CLIENT_ID`      | No       | —       | Google OAuth client ID for `GET /auth/oauth/google/start`. Must be set together with `GOOGLE_OAUTH_CLIENT_SECRET`; if either value is missing or blank, the API rejects startup config parsing. |
+| `GOOGLE_OAUTH_CLIENT_SECRET`  | No       | —       | Google OAuth client secret paired with `GOOGLE_OAUTH_CLIENT_ID` for the backend OAuth start route. |
+| `GITHUB_OAUTH_CLIENT_ID`      | No       | —       | GitHub OAuth client ID for `GET /auth/oauth/github/start`. Must be set together with `GITHUB_OAUTH_CLIENT_SECRET`; if either value is missing or blank, the API rejects startup config parsing. |
+| `GITHUB_OAUTH_CLIENT_SECRET`  | No       | —       | GitHub OAuth client secret paired with `GITHUB_OAUTH_CLIENT_ID` for the backend OAuth start route. |
 
 ## Email (SES)
 

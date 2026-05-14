@@ -105,12 +105,10 @@ export const handleError: HandleServerError = ({ error, event, status, message }
 			backendRequestId: requestId
 		})
 	);
-	// Local dev/diagnostic seam: when WEB_DEV_LOG_RAW_ERRORS=1, print the
-	// thrown error itself so an operator can see SvelteKit/runtime stacks
-	// during local triage. The default sanitized log above stays in place
-	// for staging/prod so customer support_reference/backend_request_id
-	// remain the correlation surface; raw errors stay opt-in.
-	if (process.env.WEB_DEV_LOG_RAW_ERRORS === '1') {
+	// Local dev/diagnostic seam: print raw error for staging diagnosis.
+	// Uses $env/dynamic/private (env) because process.env is not populated
+	// in CF Workers. Safe: raw errors only hit CF Pages logs, not client.
+	if (env.WEB_DEV_LOG_RAW_ERRORS === '1') {
 		console.error('route raw error', error);
 	}
 

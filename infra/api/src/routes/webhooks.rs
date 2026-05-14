@@ -73,10 +73,10 @@ async fn process_ses_sns_request(state: &AppState, body: &str) -> Result<StatusC
 /// Verifies the webhook signature against the configured secret, then
 /// deduplicates via `webhook_event_repo.try_insert` (idempotent — exactly one
 /// caller wins first insert for each `stripe_event_id`). Duplicate deliveries
-/// only return `200` once the persisted row is marked processed; unprocessed
-/// duplicates remain non-acknowledged and short-circuit without handler
-/// side effects. Dispatches to event-specific handlers based on
-/// `event_type`, then marks the event as processed.
+/// return `200` immediately if the persisted row is already marked processed;
+/// unprocessed duplicates are re-processed (Stripe retries after a failed first
+/// attempt must not be permanently rejected). Dispatches to event-specific
+/// handlers based on `event_type`, then marks the event as processed.
 pub async fn stripe_webhook(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -142,15 +142,11 @@ pub async fn stripe_webhook(
         }
     }
 
-    match event.event_type.as_str() {
-        "invoice.payment_succeeded" => {
-            handle_payment_succeeded(&state, &event.data).await?;
-        }
-        "invoice.payment_failed" => {
-            handle_payment_failed(&state, &event.data).await?;
-        }
+    let handler_result = match event.event_type.as_str() {
+        "invoice.payment_succeeded" => handle_payment_succeeded(&state, &event.data).await,
+        "invoice.payment_failed" => handle_payment_failed(&state, &event.data).await,
         "invoice.payment_action_required" => {
-            handle_payment_action_required(&state, &event.data).await?;
+            handle_payment_action_required(&state, &event.data).await
         }
         "checkout.session.completed"
         | "customer.subscription.created"
@@ -161,13 +157,18 @@ pub async fn stripe_webhook(
                 event_type = event.event_type,
                 "acknowledged deprecated Stripe subscription webhook event as no-op"
             );
+            Ok(())
         }
-        "charge.refunded" => {
-            handle_charge_refunded(&state, &event.data).await?;
-        }
+        "charge.refunded" => handle_charge_refunded(&state, &event.data).await,
         _ => {
             tracing::debug!("ignoring webhook event type: {}", event.event_type);
+            Ok(())
         }
+    };
+
+    if let Err(e) = handler_result {
+        let _ = state.webhook_event_repo.delete_unprocessed(&event.id).await;
+        return Err(e);
     }
 
     state

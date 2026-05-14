@@ -1,0 +1,15 @@
+{"command":"preflight:aws_creds","timestamp":"2026-05-05T17:23:19Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"preflight:ami_exists","timestamp":"2026-05-05T17:23:19Z","verdict":"FAIL","output":"AMI 'ami-test1234567890abcdef0' not found or not owned by this account.","artifact_path":""}
+{"command":"preflight:aws_creds","timestamp":"2026-05-05T17:23:19Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"preflight:ami_exists","timestamp":"2026-05-05T17:23:19Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"preflight:release_artifact","timestamp":"2026-05-05T17:23:19Z","verdict":"FAIL","output":"No release artifacts found in s3://fjcloud-releases-staging/a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2/.","artifact_path":""}
+{"command":"preflight:aws_creds","timestamp":"2026-05-05T17:23:19Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"preflight:ami_exists","timestamp":"2026-05-05T17:23:19Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"preflight:cloudflare_dns","timestamp":"2026-05-05T17:23:19Z","verdict":"FAIL","output":"CLOUDFLARE_API_TOKEN or CLOUDFLARE_EDIT_READ_ZONE_DNS_API_TOKEN_FLAPJACK_FOO is missing from /var/folders/5y/d6m1nn955w3cb95hg45ljzvr0000gn/T/tmp.DgkTXLsZWM.","artifact_path":""}
+{"command":"preflight:aws_creds","timestamp":"2026-05-05T17:23:19Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"preflight:ami_exists","timestamp":"2026-05-05T17:23:19Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"preflight:release_artifact","timestamp":"2026-05-05T17:23:19Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"preflight:cloudflare_dns","timestamp":"2026-05-05T17:23:19Z","verdict":"FAIL","output":"CLOUDFLARE_API_TOKEN or CLOUDFLARE_EDIT_READ_ZONE_DNS_API_TOKEN_FLAPJACK_FOO is missing from /var/folders/5y/d6m1nn955w3cb95hg45ljzvr0000gn/T/tmp.VCTx3mjW6o.","artifact_path":""}
+{"command":"preflight:aws_creds","timestamp":"2026-05-05T17:23:19Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"preflight:ami_exists","timestamp":"2026-05-05T17:23:19Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"preflight:cloudflare_dns","timestamp":"2026-05-05T17:23:20Z","verdict":"FAIL","output":"Cloudflare zone 'cf_zone_foo_test' is 'wrong.example', expected 'flapjack.foo'.","artifact_path":""}

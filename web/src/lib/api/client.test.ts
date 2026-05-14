@@ -122,6 +122,45 @@ describe('ApiClient', () => {
 			});
 			expect(result).toEqual(expected);
 		});
+
+		it('POST /auth/oauth/:provider/exchange sends code and csrf_token', async () => {
+			const expected: AuthResponse = { token: 'oauth-token', customer_id: 'oauth-customer-id' };
+			const fetch = mockFetch(200, expected);
+			client.setFetch(fetch);
+
+			const result = await client.oauthExchange('google', {
+				code: 'oauth-code',
+				csrf_token: 'csrf-state'
+			});
+
+			expect(fetch).toHaveBeenCalledWith(`${BASE_URL}/auth/oauth/google/exchange`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ code: 'oauth-code', csrf_token: 'csrf-state' })
+			});
+			expect(result).toEqual(expected);
+		});
+
+		it('POST /auth/oauth/:provider/exchange forwards oauth_state cookie header', async () => {
+			const expected: AuthResponse = { token: 'oauth-token', customer_id: 'oauth-customer-id' };
+			const fetch = mockFetch(200, expected);
+			client.setFetch(fetch);
+
+			await client.oauthExchange(
+				'github',
+				{ code: 'oauth-code', csrf_token: 'csrf-state' },
+				'oauth_state=encrypted-state'
+			);
+
+			expect(fetch).toHaveBeenCalledWith(`${BASE_URL}/auth/oauth/github/exchange`, {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+					Cookie: 'oauth_state=encrypted-state'
+				},
+				body: JSON.stringify({ code: 'oauth-code', csrf_token: 'csrf-state' })
+			});
+		});
 	});
 
 	describe('authenticated endpoints', () => {

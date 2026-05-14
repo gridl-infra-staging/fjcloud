@@ -3,11 +3,11 @@
 
 | File | Summary |
 | --- | --- |
-| config.rs | Stub summary for /Users/stuart/parallel_development/fjcloud_dev/MAR17_11_2_data_management_features/fjcloud_dev/infra/api/src/config.rs. |
+| config.rs | Stub summary for config.rs. |
 | errors.rs | Stub summary for errors.rs. |
 | helpers.rs | Stub summary for helpers.rs. |
 | invoicing.rs | Stub summary for invoicing.rs. |
-| main.rs | Binary entrypoint for the Flapjack Cloud API service. |
+| main.rs | Stub summary for main.rs. |
 | router.rs | Stub summary for router.rs. |
 | scopes.rs | Auth vocabulary for the Flapjack Cloud platform.
 
@@ -37,7 +37,7 @@ Each function owns one logical phase of server bootstrap. |
 | provisioner | The provisioner module orchestrates infrastructure provisioning across multiple cloud providers (AWS, GCP, OCI, Hetzner) with shared environment-variable parsing, region mapping, and provisioning lifecycle management. |
 | repos | This directory contains repository implementations for fjcloud's data access layer, providing traits and PostgreSQL-backed storage for domain entities including customers, tenants, deployments, API keys, storage resources, billing/invoicing, and infrastructure components. |
 | router | The router directory contains route assembly helpers that organize and structure HTTP routes across the public API, dashboard, and internal subtrees. |
-| routes | The routes directory contains HTTP route handlers for the fjcloud API, organized into individual modules for account, authentication, billing, invoicing, webhooks, and other features, plus subdirectories for admin operations, search index management, and S3-compatible storage access. |
+| routes | The routes directory contains HTTP endpoint handlers for the fjcloud API, organized by feature domain including authentication, billing, invoices, storage, and usage tracking, with separate admin and indexes subdirectories providing operational management routes and search index operations respectively. |
 | secrets | The secrets directory provides a modular secrets management abstraction with implementations for AWS Secrets Manager, in-memory storage, and mock testing. |
 | services | — |
 | startup | The startup directory contains a stub Stripe service implementation that allows the API to initialize without Stripe credentials by returning NotConfigured errors for all Stripe operations. |

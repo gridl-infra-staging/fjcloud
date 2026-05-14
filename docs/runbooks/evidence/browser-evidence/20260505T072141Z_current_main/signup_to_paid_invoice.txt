@@ -1,0 +1,39 @@
+
+Running 1 test using 1 worker
+
+  ✘  1 [chromium:signup] › tests/e2e-ui/full/signup_to_paid_invoice.spec.ts:78:2 › Fresh signup to paid invoice › signs up, verifies email, reaches paid invoice evidence (27.3s)
+
+
+  1) [chromium:signup] › tests/e2e-ui/full/signup_to_paid_invoice.spec.ts:78:2 › Fresh signup to paid invoice › signs up, verifies email, reaches paid invoice evidence 
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: getByRole('heading', { name: 'API Logs' })
+    Expected: visible
+    Timeout: 15000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 15000ms[22m
+    [2m  - waiting for getByRole('heading', { name: 'API Logs' })[22m
+
+
+      40 | 				name: route.heading
+      41 | 			})
+    > 42 | 		).toBeVisible({ timeout: 15_000 });
+         | 		  ^
+      43 | 		await expect(page).toHaveURL(new RegExp(`${route.path}(?:$|\\?)`));
+      44 | 		await expect(page.getByTestId('dashboard-beta-banner')).toBeVisible();
+      45 | 	}
+        at assertDashboardRouteWalk (/Users/stuart/parallel_development/fjcloud_dev/may04_pm_5_deploy_proof/fjcloud_dev/web/tests/e2e-ui/full/signup_to_paid_invoice.spec.ts:42:5)
+        at /Users/stuart/parallel_development/fjcloud_dev/may04_pm_5_deploy_proof/fjcloud_dev/web/tests/e2e-ui/full/signup_to_paid_invoice.spec.ts:134:3
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/e2e-ui-full-signup_to_paid-43e41-aches-paid-invoice-evidence-chromium-signup/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/e2e-ui-full-signup_to_paid-43e41-aches-paid-invoice-evidence-chromium-signup/error-context.md
+
+  1 failed
+    [chromium:signup] › tests/e2e-ui/full/signup_to_paid_invoice.spec.ts:78:2 › Fresh signup to paid invoice › signs up, verifies email, reaches paid invoice evidence 
+exit=1

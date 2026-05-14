@@ -1,0 +1,40 @@
+
+Running 1 test using 1 worker
+
+  ✘  1 [chromium] › tests/e2e-ui/full/billing_portal_payment_method_update.spec.ts:22:2 › Billing in-app payment-method updates › updates default payment method in-app and keeps billing page stable (11.9s)
+
+
+  1) [chromium] › tests/e2e-ui/full/billing_portal_payment_method_update.spec.ts:22:2 › Billing in-app payment-method updates › updates default payment method in-app and keeps billing page stable 
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator:  getByTestId('payment-element')
+    Expected: visible
+    Received: hidden
+    Timeout:  5000ms
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 5000ms[22m
+    [2m  - waiting for getByTestId('payment-element')[22m
+    [2m    9 × locator resolved to <div class="mb-6" data-testid="payment-element" id="payment-element-seti-1TTdJ5KH9mdklKeIfaktfaRY-secret-USYP0IcBSQIEViSUG4etYeJci42jUTW"></div>[22m
+    [2m      - unexpected value "hidden"[22m
+
+
+      40 | 		}
+      41 |
+    > 42 | 		await expect(page.getByTestId('payment-element')).toBeVisible();
+         | 		                                                  ^
+      43 | 		await expect(page.getByRole('button', { name: 'Save payment method' })).toBeVisible();
+      44 |
+      45 | 		const setDefaultActionRequest = page.waitForRequest(
+        at /Users/stuart/parallel_development/fjcloud_dev/may04_pm_5_deploy_proof/fjcloud_dev/web/tests/e2e-ui/full/billing_portal_payment_method_update.spec.ts:42:53
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/e2e-ui-full-billing_portal-8de8c-d-keeps-billing-page-stable-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/e2e-ui-full-billing_portal-8de8c-d-keeps-billing-page-stable-chromium/error-context.md
+
+  1 failed
+    [chromium] › tests/e2e-ui/full/billing_portal_payment_method_update.spec.ts:22:2 › Billing in-app payment-method updates › updates default payment method in-app and keeps billing page stable 
+exit=1

@@ -95,6 +95,18 @@ impl WebhookEventRepo for PgWebhookEventRepo {
         Ok(row.flatten())
     }
 
+    async fn delete_unprocessed(&self, stripe_event_id: &str) -> Result<(), RepoError> {
+        sqlx::query(
+            "DELETE FROM webhook_events \
+             WHERE stripe_event_id = $1 AND processed_at IS NULL",
+        )
+        .bind(stripe_event_id)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| RepoError::Other(e.to_string()))?;
+        Ok(())
+    }
+
     async fn find_by_stripe_event_id(
         &self,
         stripe_event_id: &str,

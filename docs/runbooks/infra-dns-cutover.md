@@ -1,5 +1,13 @@
 # DNS Cutover: Cloudflare Public Zone
 
+> **2026-05-06 update:** the marketing-Pages cutover was dropped (see
+> `chatting/may06_handoff_followup_lanes_and_decisions.md`). The api-rendered
+> landing at `infra/api/src/routes/public_site.rs::landing_page_html()` is the
+> SSOT for `https://flapjack.foo/`, and apex/`www` continue to point at the
+> ALB. Section 1 ("Pages Preconditions") is preserved for historical context
+> only — do NOT run those `wrangler pages` checks; the `flapjack-marketing`
+> project does not exist and is not planned.
+
 Procedure for making Cloudflare the public DNS publisher for `flapjack.foo`.
 This unblocks ACM certificate DNS validation, the HTTPS ALB listener, SES domain
 verification, SES DKIM, and public staging health checks.
@@ -29,7 +37,27 @@ curl -fsS \
 
 Expected: `"success":true` and `"name":"flapjack.foo"`.
 
-## 1. Plan Cloudflare DNS Records
+## 1. Verify Pages Preconditions (Required Before Terraform)
+
+Confirm the operator token can manage Pages and confirm the marketing project is
+deployed before DNS mutation:
+
+```bash
+wrangler whoami
+wrangler pages project list
+wrangler pages deployment list --project-name flapjack-marketing
+wrangler pages domain list --project-name flapjack-marketing
+```
+
+Expected:
+
+- `flapjack-marketing` exists.
+- `flapjack-marketing.pages.dev` serves the Stage 1 `marketing/` artifact.
+- Custom domains include both `flapjack.foo` and `www.flapjack.foo`.
+
+Abort immediately if Pages project creation/deploy/domain APIs are unavailable.
+
+## 2. Plan Cloudflare DNS Records
 
 The Terraform `dns` module keeps AWS ownership of ACM, ALB, target groups, and
 listeners. Public DNS records are `cloudflare_dns_record` resources in the same
@@ -58,20 +86,31 @@ records for:
 Do not proceed if the plan proposes unrelated ALB, RDS, EC2, VPC, IAM, or
 monitoring churn.
 
-## 2. Apply DNS-Scope Changes
+Save the plan and review it before apply:
 
 ```bash
-terraform apply \
-  -var="env=staging" \
+terraform plan \
+  -target=module.dns \
+  -var="env=prod" \
   -var="ami_id=ami-0123456789abcdef0" \
   -var="domain=flapjack.foo" \
-  -var="cloudflare_zone_id=${CLOUDFLARE_ZONE_ID}"
+  -var="cloudflare_zone_id=${CLOUDFLARE_ZONE_ID}" \
+  -out="../artifacts/prod-dns-cutover.tfplan"
+```
+
+Abort if plan output changes any non-public resources or mutates public records
+outside `flapjack.foo` and `www.flapjack.foo`.
+
+## 3. Apply DNS-Scope Changes
+
+```bash
+terraform apply "../artifacts/prod-dns-cutover.tfplan"
 ```
 
 Cloudflare flattens the apex CNAME, so `dig` may return A records for
 `flapjack.foo` even though Terraform manages it as a CNAME.
 
-## 3. Validate ACM And Public Routing
+## 4. Validate ACM And Public Routing
 
 Run the automated staging smoke harness:
 
@@ -93,7 +132,7 @@ The harness validates:
 - SES identity and DKIM are verified.
 - `https://api.flapjack.foo/health` returns 200.
 
-## 4. Verify SES Records
+## 5. Verify SES Records
 
 If SES remains blocked, inspect identity state:
 

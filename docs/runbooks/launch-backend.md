@@ -211,7 +211,7 @@ proceed to the next step until verification passes.
 
 ### Step 1: Deploy
 
-Run the deploy script. See [`docs/runbooks/infra-deploy-rollback.md`](infra-deploy-rollback.md)
+Run the deploy script. See [`docs/runbooks/infra-deploy.md`](infra-deploy.md)
 for full deploy lifecycle documentation.
 
 ```bash
@@ -469,7 +469,7 @@ Rollback immediately if any of these occur after deploy:
 > forward-compatible (additive only). If a migration caused the issue, write a new
 > migration to fix it and deploy forward.
 
-See [`docs/runbooks/infra-deploy-rollback.md`](infra-deploy-rollback.md) for full
+See [`docs/runbooks/infra-deploy.md`](infra-deploy.md) for full
 rollback documentation including SSM troubleshooting.
 
 ---

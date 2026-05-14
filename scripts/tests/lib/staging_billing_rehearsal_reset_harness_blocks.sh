@@ -46,6 +46,33 @@
 # TODO: Document mock_psql_reset_script_block.
 # TODO: Document mock_psql_reset_script_block.
 # TODO: Document mock_psql_reset_script_block.
+# TODO: Document mock_psql_reset_script_block.
+# TODO: Document mock_psql_reset_script_block.
+# TODO: Document mock_psql_reset_script_block.
+# TODO: Document mock_psql_reset_script_block.
+# TODO: Document mock_psql_reset_script_block.
+# TODO: Document mock_psql_reset_script_block.
+# TODO: Document mock_psql_reset_script_block.
+# TODO: Document mock_psql_reset_script_block.
+# TODO: Document mock_psql_reset_script_block.
+# TODO: Document mock_psql_reset_script_block.
+# TODO: Document mock_psql_reset_script_block.
+# TODO: Document mock_psql_reset_script_block.
+# TODO: Document mock_psql_reset_script_block.
+# TODO: Document mock_psql_reset_script_block.
+# TODO: Document mock_psql_reset_script_block.
+# TODO: Document mock_psql_reset_script_block.
+# TODO: Document mock_psql_reset_script_block.
+# TODO: Document mock_psql_reset_script_block.
+# TODO: Document mock_psql_reset_script_block.
+# TODO: Document mock_psql_reset_script_block.
+# TODO: Document mock_psql_reset_script_block.
+# TODO: Document mock_psql_reset_script_block.
+# TODO: Document mock_psql_reset_script_block.
+# TODO: Document mock_psql_reset_script_block.
+# TODO: Document mock_psql_reset_script_block.
+# TODO: Document mock_psql_reset_script_block.
+# TODO: Document mock_psql_reset_script_block.
 mock_psql_reset_script_block() {
     cat <<'MOCK'
 if [[ "$sql" == *"stage4_reset_customer_lookup"* ]]; then

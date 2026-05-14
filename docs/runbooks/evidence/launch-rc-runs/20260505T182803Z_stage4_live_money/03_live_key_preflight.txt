@@ -1,0 +1,23 @@
+Stage 4 Live Key Preflight
+==========================
+timestamp_utc=20260505T182803Z
+
+Key verification:
+  STRIPE_SECRET_KEY_flapjack_cloud prefix: sk_live_51Sy**** (PASS — live-mode key)
+  STRIPE_PUBLISHABLE_KEY prefix: not set in .env.secret (loaded from helper contract)
+  AWS caller identity: valid (us-east-1)
+
+Card identity contract (from scripts/stripe/attach_card_via_setup_intent.mjs):
+  Type: Privacy.com Mastercard
+  Last4: 4338
+  Exp: 05/31
+  CVC: 460
+
+Phase G prior art (docs/runbooks/evidence/launch-rc-runs/20260503T054250Z_phase_g_live_probe_GREEN/SUMMARY.md):
+  Account: acct_1SyNWBGXI8zVz4UH
+  Customer: cus_URij8h4pXDprIK
+  PM: pm_1TSsd2GXI8zVz4UHWdVzmR4l (mastercard 4338, verified working on 2026-05-03)
+  Prior charges: ch_3TSse9GXI8zVz4UH1AAaiA2K ($1.00, succeeded), ch_3TStjEGXI8zVz4UH0POf9uQF ($0.50, succeeded)
+
+FINDING: Card identity verified in Stripe PM details (last4=4338, exp=05/2031, brand=mastercard,
+cvc_check=pass). However, the card is now DECLINING (see 04_live_flow.txt for evidence).

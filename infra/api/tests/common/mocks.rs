@@ -49,9 +49,12 @@ use uuid::Uuid;
 
 pub struct MockCustomerRepo {
     customers: Mutex<Vec<Customer>>,
+    oauth_identities: Mutex<HashMap<(String, String), Uuid>>,
     pub should_fail_suspend: Mutex<bool>,
     pub should_fail_reactivate: Mutex<bool>,
     fail_next_soft_delete: AtomicBool,
+    fail_next_oauth_link_not_found: AtomicBool,
+    inject_next_oauth_create_conflict_email: Mutex<Option<String>>,
     fail_next_resend_rollback: Mutex<Option<InjectedResendRollbackFailure>>,
 }
 
@@ -102,9 +105,12 @@ impl MockCustomerRepo {
     pub fn new() -> Self {
         Self {
             customers: Mutex::new(Vec::new()),
+            oauth_identities: Mutex::new(HashMap::new()),
             should_fail_suspend: Mutex::new(false),
             should_fail_reactivate: Mutex::new(false),
             fail_next_soft_delete: AtomicBool::new(false),
+            fail_next_oauth_link_not_found: AtomicBool::new(false),
+            inject_next_oauth_create_conflict_email: Mutex::new(None),
             fail_next_resend_rollback: Mutex::new(None),
         }
     }
@@ -112,6 +118,19 @@ impl MockCustomerRepo {
     /// Force the next soft-delete call to report "not found" without mutating state.
     pub fn fail_next_soft_delete(&self) {
         self.fail_next_soft_delete.store(true, Ordering::SeqCst);
+    }
+
+    /// Force the next oauth-link call to return `NotFound` without mutating state.
+    pub fn fail_next_oauth_link_not_found(&self) {
+        self.fail_next_oauth_link_not_found
+            .store(true, Ordering::SeqCst);
+    }
+
+    /// Force the next oauth-customer create for this email to return conflict
+    /// after inserting an unverified local row, simulating a race with signup.
+    pub fn inject_oauth_create_conflict_with_concurrent_unverified_local(&self, email: &str) {
+        let mut injected_email = self.inject_next_oauth_create_conflict_email.lock().unwrap();
+        *injected_email = Some(email.to_string());
     }
 
     /// Force the next resend rollback call to report a non-restored state.
@@ -244,6 +263,91 @@ impl CustomerRepo for MockCustomerRepo {
         let customer = Self::build_customer(name, email, "active", Some(password_hash));
         customers.push(customer.clone());
         Ok(customer)
+    }
+
+    async fn find_oauth_identity(
+        &self,
+        provider: &str,
+        provider_user_id: &str,
+    ) -> Result<Option<Customer>, RepoError> {
+        let customer_id = {
+            let oauth_identities = self.oauth_identities.lock().unwrap();
+            oauth_identities
+                .get(&(provider.to_string(), provider_user_id.to_string()))
+                .copied()
+        };
+        let Some(customer_id) = customer_id else {
+            return Ok(None);
+        };
+
+        let customers = self.customers.lock().unwrap();
+        Ok(customers
+            .iter()
+            .find(|customer| customer.id == customer_id && customer.status != "deleted")
+            .cloned())
+    }
+
+    async fn create_oauth_customer(&self, name: &str, email: &str) -> Result<Customer, RepoError> {
+        let should_inject_conflict = {
+            let mut injected_email = self.inject_next_oauth_create_conflict_email.lock().unwrap();
+            match injected_email.as_ref() {
+                Some(expected_email) if expected_email == email => {
+                    *injected_email = None;
+                    true
+                }
+                _ => false,
+            }
+        };
+        if should_inject_conflict {
+            let mut customers = self.customers.lock().unwrap();
+            if !customers.iter().any(|customer| customer.email == email) {
+                customers.push(Self::build_customer(
+                    "Concurrent Local Signup",
+                    email,
+                    "active",
+                    Some("password-hash"),
+                ));
+            }
+            return Err(RepoError::Conflict("email already exists".into()));
+        }
+
+        self.create(name, email).await
+    }
+
+    async fn link_oauth_identity(
+        &self,
+        customer_id: Uuid,
+        provider: &str,
+        provider_user_id: &str,
+    ) -> Result<(), RepoError> {
+        if self
+            .fail_next_oauth_link_not_found
+            .swap(false, Ordering::SeqCst)
+        {
+            return Err(RepoError::NotFound);
+        }
+
+        let customer_exists = {
+            let customers = self.customers.lock().unwrap();
+            customers
+                .iter()
+                .any(|customer| customer.id == customer_id && customer.status != "deleted")
+        };
+        if !customer_exists {
+            return Err(RepoError::NotFound);
+        }
+
+        let key = (provider.to_string(), provider_user_id.to_string());
+        let mut oauth_identities = self.oauth_identities.lock().unwrap();
+        if let Some(existing_customer_id) = oauth_identities.get(&key) {
+            if *existing_customer_id != customer_id {
+                return Err(RepoError::Conflict("oauth identity already linked".into()));
+            }
+            return Ok(());
+        }
+
+        oauth_identities.insert(key, customer_id);
+        Ok(())
     }
 
     /// Implements `CustomerRepo::update`. Applies optional name and email patches
@@ -1612,10 +1716,12 @@ impl InvoiceRepo for MockInvoiceRepo {
                 .swap(false, Ordering::SeqCst)
             {
                 let install_release_waiter = self.pause_waiter_install_release_notify.notified();
-                self.pause_waiter_install_blocked.store(true, Ordering::SeqCst);
+                self.pause_waiter_install_blocked
+                    .store(true, Ordering::SeqCst);
                 self.pause_waiter_install_blocked_notify.notify_waiters();
                 install_release_waiter.await;
-                self.pause_waiter_install_blocked.store(false, Ordering::SeqCst);
+                self.pause_waiter_install_blocked
+                    .store(false, Ordering::SeqCst);
             }
 
             let release_waiter = self.mark_paid_release_notify.notified();
@@ -2254,6 +2360,16 @@ impl WebhookEventRepo for MockWebhookEventRepo {
         }
 
         Ok(None)
+    }
+
+    async fn delete_unprocessed(&self, stripe_event_id: &str) -> Result<(), RepoError> {
+        let mut rows = self.rows.lock().unwrap();
+        if let Some(row) = rows.get(stripe_event_id) {
+            if row.processed_at.is_none() {
+                rows.remove(stripe_event_id);
+            }
+        }
+        Ok(())
     }
 
     async fn find_by_stripe_event_id(

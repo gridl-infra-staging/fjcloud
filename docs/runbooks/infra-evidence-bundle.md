@@ -133,13 +133,13 @@ Resources created by `ops/scripts/provision_bootstrap.sh` and validated by `ops/
 | Runbook         | Path                                     | Lines | Purpose                         |
 | --------------- | ---------------------------------------- | ----: | ------------------------------- |
 | DNS Cutover     | `docs/runbooks/infra-dns-cutover.md`     |   153 | Porkbun → Route53 NS delegation |
-| Deploy/Rollback | `docs/runbooks/infra-deploy-rollback.md` |   172 | SSM-based deploy lifecycle      |
+| Deploy/Rollback | `docs/runbooks/infra-deploy.md` |   172 | SSM-based deploy lifecycle      |
 | Terraform Apply | `docs/runbooks/infra-terraform-apply.md` |   178 | Staging/prod Terraform workflow |
 | Alarm Triage    | `docs/runbooks/infra-alarm-triage.md`    |   274 | CloudWatch alarm investigation  |
 
 Related updates:
 
-- `docs/runbooks/api-deployment.md` — DEPRECATED notice added, points to `infra-deploy-rollback.md`
+- `docs/runbooks/api-deployment.md` — DEPRECATED notice added, points to `infra-deploy.md`
 - `ops/BOOTSTRAP.md` — Updated with `provision_bootstrap.sh` / `validate_bootstrap.sh` references
 
 ---

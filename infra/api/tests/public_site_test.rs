@@ -296,7 +296,7 @@ async fn root_serves_public_landing_page_with_review_metadata() {
     let body = response_text(response).await;
     assert!(body.contains("<title>Flapjack Cloud - Managed search hosting</title>"));
     assert!(body.contains("Managed hosting for Flapjack search."));
-    assert!(body.contains("https://github.com/gridlhq/flapjack"));
+    assert!(body.contains("https://github.com/griddlehq/flapjack"));
     assert!(body.contains(r#"property="og:title" content="Flapjack Cloud""#));
     assert!(body.contains("https://cloud.flapjack.foo/flapjack_cloud_preview.png"));
     assert!(body.contains("BETA"));

@@ -1,7 +1,4 @@
-/**
- * @module Stub summary for /Users/stuart/parallel_development/fjcloud_dev/MAR17_11_2_data_management_features/fjcloud_dev/web/src/lib/server/admin-session.ts.
- */
-import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 
 export const ADMIN_SESSION_COOKIE = 'admin_session_id';
 export const DEFAULT_ADMIN_SESSION_MAX_AGE_SECONDS = 60 * 60 * 8;
@@ -11,8 +8,6 @@ export interface AdminSession {
 	createdAt: Date;
 	expiresAt: Date;
 }
-
-const sessions = new Map<string, AdminSession>();
 
 export function resolveAdminSessionMaxAgeSeconds(rawValue: string | undefined): number {
 	if (!rawValue) return DEFAULT_ADMIN_SESSION_MAX_AGE_SECONDS;
@@ -27,21 +22,80 @@ export function resolveAdminSessionMaxAgeSeconds(rawValue: string | undefined): 
 	return parsed;
 }
 
-export function createAdminSession(maxAgeSeconds: number): AdminSession {
-	purgeExpiredAdminSessions();
+// HMAC token format: <expiry_epoch_seconds_hex>.<hmac_hex>
+// Self-validating — no server-side state needed across CF Workers isolates.
+function signToken(expiryEpochSeconds: number, signingKey: string): string {
+	const payload = expiryEpochSeconds.toString(16);
+	const mac = createHmac('sha256', signingKey).update(payload).digest('hex');
+	return `${payload}.${mac}`;
+}
 
+function verifyToken(
+	token: string,
+	signingKey: string
+): { valid: true; expiresAt: Date } | { valid: false } {
+	const dotIndex = token.indexOf('.');
+	if (dotIndex === -1) return { valid: false };
+
+	const payload = token.substring(0, dotIndex);
+	const providedMac = token.substring(dotIndex + 1);
+
+	if (!payload || !providedMac) return { valid: false };
+
+	const expectedMac = createHmac('sha256', signingKey).update(payload).digest('hex');
+
+	if (providedMac.length !== expectedMac.length) return { valid: false };
+
+	const providedBuf = Buffer.from(providedMac, 'hex');
+	const expectedBuf = Buffer.from(expectedMac, 'hex');
+	if (providedBuf.length !== expectedBuf.length) return { valid: false };
+
+	if (!timingSafeEqual(providedBuf, expectedBuf)) return { valid: false };
+
+	const expiryEpoch = parseInt(payload, 16);
+	if (!Number.isFinite(expiryEpoch)) return { valid: false };
+
+	const expiresAt = new Date(expiryEpoch * 1000);
+	if (expiresAt.getTime() <= Date.now()) return { valid: false };
+
+	return { valid: true, expiresAt };
+}
+
+export function createAdminSession(maxAgeSeconds: number, signingKey?: string): AdminSession {
 	const now = new Date();
-	const session: AdminSession = {
-		id: randomUUID(),
-		createdAt: now,
-		expiresAt: new Date(now.getTime() + maxAgeSeconds * 1000)
-	};
+	const expiresAt = new Date(now.getTime() + maxAgeSeconds * 1000);
+	const expiryEpochSeconds = Math.floor(expiresAt.getTime() / 1000);
+
+	let id: string;
+	if (signingKey) {
+		id = signToken(expiryEpochSeconds, signingKey);
+	} else {
+		id = crypto.randomUUID();
+	}
+
+	const session: AdminSession = { id, createdAt: now, expiresAt };
 	sessions.set(session.id, session);
 	return session;
 }
 
-export function getAdminSession(sessionId: string | undefined): AdminSession | null {
+const sessions = new Map<string, AdminSession>();
+
+export function getAdminSession(
+	sessionId: string | undefined,
+	signingKey?: string
+): AdminSession | null {
 	if (!sessionId) return null;
+
+	// Try stateless HMAC verification first (works across CF Workers isolates)
+	if (signingKey && sessionId.includes('.')) {
+		const result = verifyToken(sessionId, signingKey);
+		if (result.valid) {
+			return { id: sessionId, createdAt: new Date(0), expiresAt: result.expiresAt };
+		}
+		return null;
+	}
+
+	// Fallback to in-memory map for local dev with UUID tokens
 	const session = sessions.get(sessionId);
 	if (!session) return null;
 	if (session.expiresAt.getTime() <= Date.now()) {

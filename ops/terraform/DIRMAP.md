@@ -45,10 +45,7 @@ runs before terraform init. |
 | tests_stage7_preflight_unit.sh | Behavioral tests for preflight checks in tests_stage7_runtime_smoke.sh.
 Uses mock AWS/terraform/dig/curl commands to validate exit codes and
 remediation messages without requiring live infrastructure. |
-| tests_stage7_runtime_smoke.sh | Runtime validation harness for Stage 7.6 Definition of Done.
-
-This script intentionally runs only targeted runtime checks and keeps
-destructive operations opt-in. |
+| tests_stage7_runtime_smoke.sh | Stub summary for tests_stage7_runtime_smoke.sh. |
 | tests_stage7_runtime_static.sh | Static contract tests for runtime assertions in tests_stage7_runtime_smoke.sh.
 Ensures runtime_fail(), exit codes, CLI args, and script invocations are wired
 and cannot be silently removed. |

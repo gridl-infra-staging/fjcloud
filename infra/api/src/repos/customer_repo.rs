@@ -44,6 +44,18 @@ pub trait CustomerRepo {
         email: &str,
         password_hash: &str,
     ) -> Result<Customer, RepoError>;
+    async fn find_oauth_identity(
+        &self,
+        provider: &str,
+        provider_user_id: &str,
+    ) -> Result<Option<Customer>, RepoError>;
+    async fn create_oauth_customer(&self, name: &str, email: &str) -> Result<Customer, RepoError>;
+    async fn link_oauth_identity(
+        &self,
+        customer_id: Uuid,
+        provider: &str,
+        provider_user_id: &str,
+    ) -> Result<(), RepoError>;
     async fn update(
         &self,
         id: Uuid,

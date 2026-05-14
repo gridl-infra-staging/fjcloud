@@ -1,0 +1,1 @@
+OK: tenant-map flapjack_url for tenant A is live: http://vm-shared-f2b9c8a6.flapjack.foo:7700

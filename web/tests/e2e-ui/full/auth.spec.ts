@@ -99,6 +99,26 @@ test.describe('Login page', () => {
 		await expect(page.getByRole('link', { name: 'Sign up' })).toBeVisible();
 	});
 
+	test('renders OAuth links with expected hrefs outside the login form', async ({ page }) => {
+		await page.goto('/login');
+
+		const googleOAuthLink = page.getByTestId('oauth-button-google');
+		const githubOAuthLink = page.getByTestId('oauth-button-github');
+
+		await expect(googleOAuthLink).toBeVisible();
+		await expect(googleOAuthLink).toContainText('Continue with Google');
+		await expect(googleOAuthLink).toHaveAttribute('href', /\/auth\/oauth\/google\/start$/);
+		await expect(githubOAuthLink).toBeVisible();
+		await expect(githubOAuthLink).toContainText('Continue with GitHub');
+		await expect(githubOAuthLink).toHaveAttribute('href', /\/auth\/oauth\/github\/start$/);
+
+		await expect(googleOAuthLink.evaluate((element) => element.closest('form'))).resolves.toBeNull();
+		await expect(githubOAuthLink.evaluate((element) => element.closest('form'))).resolves.toBeNull();
+
+		await page.getByRole('button', { name: 'Log In' }).click();
+		await expect(page).toHaveURL(/\/login(?:\?.*)?$/);
+	});
+
 	test('wrong password shows error alert and stays on /login', async ({ page }) => {
 		await page.goto('/login');
 
@@ -272,6 +292,26 @@ test.describe('Signup page', () => {
 		await expect(page.getByLabel('Confirm Password')).toBeVisible();
 		await expect(page.getByRole('checkbox', { name: /public beta terms/i })).toHaveCount(0);
 		await expect(page.getByRole('button', { name: 'Sign Up' })).toBeVisible();
+	});
+
+	test('renders OAuth links with expected hrefs outside the signup form', async ({ page }) => {
+		await page.goto('/signup');
+
+		const googleOAuthLink = page.getByTestId('oauth-button-google');
+		const githubOAuthLink = page.getByTestId('oauth-button-github');
+
+		await expect(googleOAuthLink).toBeVisible();
+		await expect(googleOAuthLink).toContainText('Continue with Google');
+		await expect(googleOAuthLink).toHaveAttribute('href', /\/auth\/oauth\/google\/start$/);
+		await expect(githubOAuthLink).toBeVisible();
+		await expect(githubOAuthLink).toContainText('Continue with GitHub');
+		await expect(githubOAuthLink).toHaveAttribute('href', /\/auth\/oauth\/github\/start$/);
+
+		await expect(googleOAuthLink.evaluate((element) => element.closest('form'))).resolves.toBeNull();
+		await expect(githubOAuthLink.evaluate((element) => element.closest('form'))).resolves.toBeNull();
+
+		await page.getByRole('button', { name: 'Sign Up' }).click();
+		await expect(page).toHaveURL(/\/signup(?:\?.*)?$/);
 	});
 
 	test('password mismatch shows a validation error', async ({ page }) => {

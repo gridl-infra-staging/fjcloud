@@ -1,7 +1,7 @@
 # API Deployment
 
 > **DEPRECATED**: This runbook describes the legacy manual deploy process (cargo build + SSH).
-> The current SSM-based deploy procedure is documented in [`infra-deploy-rollback.md`](infra-deploy-rollback.md).
+> The current SSM-based deploy procedure is documented in [`infra-deploy.md`](infra-deploy.md).
 > Use `ops/scripts/deploy.sh`, `ops/scripts/rollback.sh`, and `ops/scripts/migrate.sh` instead.
 
 ## Pre-deployment checklist

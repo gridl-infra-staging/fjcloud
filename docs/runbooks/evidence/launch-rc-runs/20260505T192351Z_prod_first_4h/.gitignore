@@ -1,0 +1,8 @@
+# Runtime byproducts of the detached monitor.
+# Stage 7 collects these from the same host and may commit them at closeout.
+poll.jsonl
+pages.jsonl
+runner.log
+tick.log
+nohup.out
+monitor.pid

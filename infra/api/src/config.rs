@@ -1,4 +1,3 @@
-//! Stub summary for /Users/stuart/parallel_development/fjcloud_dev/MAR17_11_2_data_management_features/fjcloud_dev/infra/api/src/config.rs.
 use thiserror::Error;
 
 #[derive(Debug, Clone)]
@@ -15,6 +14,10 @@ pub struct Config {
     pub stripe_success_url: String,
     pub stripe_cancel_url: String,
     pub internal_auth_token: Option<String>,
+    pub google_oauth_client_id: Option<String>,
+    pub google_oauth_client_secret: Option<String>,
+    pub github_oauth_client_id: Option<String>,
+    pub github_oauth_client_secret: Option<String>,
 }
 
 #[derive(Debug, Error)]
@@ -75,6 +78,17 @@ impl Config {
             })
             .transpose()?;
 
+        let (google_oauth_client_id, google_oauth_client_secret) = parse_optional_oauth_pair(
+            &read,
+            "GOOGLE_OAUTH_CLIENT_ID",
+            "GOOGLE_OAUTH_CLIENT_SECRET",
+        )?;
+        let (github_oauth_client_id, github_oauth_client_secret) = parse_optional_oauth_pair(
+            &read,
+            "GITHUB_OAUTH_CLIENT_ID",
+            "GITHUB_OAUTH_CLIENT_SECRET",
+        )?;
+
         Ok(Config {
             database_url,
             listen_addr,
@@ -88,7 +102,44 @@ impl Config {
             stripe_success_url,
             stripe_cancel_url,
             internal_auth_token,
+            google_oauth_client_id,
+            google_oauth_client_secret,
+            github_oauth_client_id,
+            github_oauth_client_secret,
         })
+    }
+}
+
+fn parse_optional_oauth_pair<F>(
+    read: &F,
+    id_key: &str,
+    secret_key: &str,
+) -> Result<(Option<String>, Option<String>), ConfigError>
+where
+    F: Fn(&str) -> Option<String>,
+{
+    let id = normalize_optional_env(read(id_key), id_key)?;
+    let secret = normalize_optional_env(read(secret_key), secret_key)?;
+
+    match (id, secret) {
+        (Some(client_id), Some(client_secret)) => Ok((Some(client_id), Some(client_secret))),
+        (None, None) => Ok((None, None)),
+        (Some(_), None) => Err(ConfigError::Invalid(secret_key.to_string())),
+        (None, Some(_)) => Err(ConfigError::Invalid(id_key.to_string())),
+    }
+}
+
+fn normalize_optional_env(value: Option<String>, key: &str) -> Result<Option<String>, ConfigError> {
+    match value {
+        None => Ok(None),
+        Some(raw) => {
+            let trimmed = raw.trim().to_string();
+            if trimmed.is_empty() {
+                Err(ConfigError::Invalid(key.to_string()))
+            } else {
+                Ok(Some(trimmed))
+            }
+        }
     }
 }
 
@@ -134,6 +185,10 @@ mod tests {
         assert!(cfg.stripe_publishable_key.is_none());
         assert!(cfg.stripe_webhook_secret.is_none());
         assert!(cfg.internal_auth_token.is_none());
+        assert!(cfg.google_oauth_client_id.is_none());
+        assert!(cfg.google_oauth_client_secret.is_none());
+        assert!(cfg.github_oauth_client_id.is_none());
+        assert!(cfg.github_oauth_client_secret.is_none());
     }
 
     /// Verifies that Stripe and internal auth keys are optional in config,
@@ -307,5 +362,85 @@ mod tests {
         ])))
         .expect("32-char JWT_SECRET should be accepted");
         assert_eq!(cfg.jwt_secret, secret_32);
+    }
+
+    #[test]
+    fn oauth_pairs_are_optional_and_trimmed_when_present() {
+        let cfg = Config::from_reader(reader(HashMap::from([
+            ("DATABASE_URL", "postgres://localhost/fjcloud"),
+            ("JWT_SECRET", "super-secret-key-for-testing-1234"),
+            ("ADMIN_KEY", "admin-bootstrap-key-for-testing"),
+            ("GOOGLE_OAUTH_CLIENT_ID", "  google-client-id  "),
+            ("GOOGLE_OAUTH_CLIENT_SECRET", "  google-client-secret  "),
+            ("GITHUB_OAUTH_CLIENT_ID", "  github-client-id  "),
+            ("GITHUB_OAUTH_CLIENT_SECRET", "  github-client-secret  "),
+        ])))
+        .expect("oauth env pair should parse");
+
+        assert_eq!(
+            cfg.google_oauth_client_id.as_deref(),
+            Some("google-client-id")
+        );
+        assert_eq!(
+            cfg.google_oauth_client_secret.as_deref(),
+            Some("google-client-secret")
+        );
+        assert_eq!(
+            cfg.github_oauth_client_id.as_deref(),
+            Some("github-client-id")
+        );
+        assert_eq!(
+            cfg.github_oauth_client_secret.as_deref(),
+            Some("github-client-secret")
+        );
+    }
+
+    #[test]
+    fn oauth_id_without_secret_is_rejected() {
+        let err = Config::from_reader(reader(HashMap::from([
+            ("DATABASE_URL", "postgres://localhost/fjcloud"),
+            ("JWT_SECRET", "super-secret-key-for-testing-1234"),
+            ("ADMIN_KEY", "admin-bootstrap-key-for-testing"),
+            ("GOOGLE_OAUTH_CLIENT_ID", "google-client-id"),
+        ])))
+        .unwrap_err();
+
+        assert!(matches!(
+            err,
+            ConfigError::Invalid(ref key) if key == "GOOGLE_OAUTH_CLIENT_SECRET"
+        ));
+    }
+
+    #[test]
+    fn oauth_secret_without_id_is_rejected() {
+        let err = Config::from_reader(reader(HashMap::from([
+            ("DATABASE_URL", "postgres://localhost/fjcloud"),
+            ("JWT_SECRET", "super-secret-key-for-testing-1234"),
+            ("ADMIN_KEY", "admin-bootstrap-key-for-testing"),
+            ("GITHUB_OAUTH_CLIENT_SECRET", "github-client-secret"),
+        ])))
+        .unwrap_err();
+
+        assert!(matches!(
+            err,
+            ConfigError::Invalid(ref key) if key == "GITHUB_OAUTH_CLIENT_ID"
+        ));
+    }
+
+    #[test]
+    fn oauth_blank_values_are_rejected() {
+        let err = Config::from_reader(reader(HashMap::from([
+            ("DATABASE_URL", "postgres://localhost/fjcloud"),
+            ("JWT_SECRET", "super-secret-key-for-testing-1234"),
+            ("ADMIN_KEY", "admin-bootstrap-key-for-testing"),
+            ("GOOGLE_OAUTH_CLIENT_ID", "   "),
+            ("GOOGLE_OAUTH_CLIENT_SECRET", "google-client-secret"),
+        ])))
+        .unwrap_err();
+
+        assert!(matches!(
+            err,
+            ConfigError::Invalid(ref key) if key == "GOOGLE_OAUTH_CLIENT_ID"
+        ));
     }
 }

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
+	import OAuthButtons from '$lib/components/OAuthButtons.svelte';
 	import { MARKETING_PRICING } from '$lib/pricing';
 	import { SIGNUP_PASSWORD_MIN_LENGTH, clientSignupPasswordLengthError } from './signup-validation';
 
@@ -10,7 +11,7 @@
 		email?: string;
 	};
 
-	let { form }: { form?: SignupFormState } = $props();
+	let { form, data }: { form?: SignupFormState; data: { apiBaseUrl: string } } = $props();
 
 	// Local state so Playwright's fill() isn't clobbered by Svelte's controlled-input
 	// reconciliation on blur.  $effect re-syncs if the server action returns a value.
@@ -46,7 +47,7 @@
 			</div>
 		{/if}
 
-		<form method="POST" class="space-y-4">
+			<form method="POST" class="space-y-4">
 			<div>
 				<label for="name" class="mb-1 block text-sm font-medium text-gray-700">Name</label>
 				<input
@@ -118,9 +119,17 @@
 			>
 				Sign Up
 			</button>
-		</form>
+			</form>
 
-		<p class="mt-4 text-center text-sm text-gray-600">
+			<div class="my-6 flex items-center">
+				<div class="h-px flex-1 bg-gray-200"></div>
+				<span class="px-3 text-xs font-medium uppercase tracking-wide text-gray-500">Or</span>
+				<div class="h-px flex-1 bg-gray-200"></div>
+			</div>
+
+			<OAuthButtons apiBaseUrl={data.apiBaseUrl} />
+
+			<p class="mt-4 text-center text-sm text-gray-600">
 			Already have an account?
 			<a href={resolve('/login')} class="font-medium text-blue-600 hover:text-blue-500">Log in</a>
 		</p>

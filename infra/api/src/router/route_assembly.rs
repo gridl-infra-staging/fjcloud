@@ -14,9 +14,11 @@ use crate::routes::browser_error_reporting;
 use crate::routes::health;
 use crate::routes::indexes;
 use crate::routes::migration;
+use crate::routes::oauth;
 use crate::routes::onboarding;
 use crate::routes::pricing;
 use crate::routes::public_site;
+use crate::routes::version;
 use crate::routes::webhooks;
 use crate::state::AppState;
 use utoipa::OpenApi;
@@ -38,6 +40,11 @@ pub(super) fn build_auth_rate_limited_routes(
         .route("/auth/verify-email", post(auth::verify_email))
         .route("/auth/forgot-password", post(auth::forgot_password))
         .route("/auth/resend-verification", post(auth::resend_verification))
+        .route("/auth/oauth/:provider/start", get(oauth::start_oauth))
+        .route(
+            "/auth/oauth/:provider/exchange",
+            post(oauth::exchange_oauth_code),
+        )
         .route("/pricing/compare", post(pricing::compare))
         .route_layer(middleware::from_fn_with_state(
             auth_rate_limiter,
@@ -88,6 +95,10 @@ pub(super) fn build_router_without_layers(
         )
         .merge(auth_rate_limited_routes)
         .route("/health", get(health::health))
+        // /version is the live-system probe for "what code is this?" —
+        // returns build-time-baked dev_sha, mirror_sha, synced_at, build_time.
+        // Sibling to /health: unauthenticated, infra-info, cheap.
+        .route("/version", get(version::version))
         .merge(Scalar::with_url("/docs", ApiDoc::openapi()))
         .merge(tenant_routes)
         .route("/auth/reset-password", post(auth::reset_password))

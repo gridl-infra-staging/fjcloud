@@ -11,9 +11,18 @@ import { MARKETING_PRICING } from '$lib/pricing';
 
 afterEach(cleanup);
 
+const signupPageData = { apiBaseUrl: 'http://127.0.0.1:3001' };
+
+function renderSignupPage(form?: Record<string, unknown>) {
+	return render(SignupPage, {
+		data: signupPageData,
+		...(form ? { form } : {})
+	});
+}
+
 describe('Signup page', () => {
 	it('renders exact customer-visible signup copy and post form contract', () => {
-		render(SignupPage);
+		renderSignupPage();
 
 		expect(
 			screen.getByRole('heading', { level: 1, name: 'Create your account' })
@@ -32,7 +41,7 @@ describe('Signup page', () => {
 	});
 
 	it('renders required signup fields with expected names and constraints', () => {
-		render(SignupPage);
+		renderSignupPage();
 
 		const name = screen.getByLabelText('Name');
 		expect(name).toBeRequired();
@@ -58,22 +67,21 @@ describe('Signup page', () => {
 	});
 
 	it('does not render a beta acknowledgement checkbox gate', () => {
-		render(SignupPage);
+		renderSignupPage();
 		expect(screen.queryByRole('checkbox', { name: /public beta terms/i })).not.toBeInTheDocument();
 	});
 
 	it('keeps form errors attached to intended controls and confirm-password error as the only alert', () => {
-		render(SignupPage, {
-			form: {
-				errors: {
-					name: 'Name is required',
-					email: 'Invalid email',
-					password: 'Too short',
-					confirm_password: 'Passwords do not match'
-				},
-				name: '',
-				email: ''
+		renderSignupPage({
+			errors: {
+				name: 'Name is required',
+				email: 'Invalid email',
+				password: 'Too short',
+				confirm_password: 'Passwords do not match'
 			}
+			,
+			name: '',
+			email: ''
 		});
 
 		const nameField = screen.getByLabelText('Name').closest('div');
@@ -99,14 +107,13 @@ describe('Signup page', () => {
 	});
 
 	it('renders form-level signup failures in a single global alert region', () => {
-		render(SignupPage, {
-			form: {
-				errors: {
-					form: 'Unable to create account. Please check your details and try again.'
-				},
-				name: 'Alice',
-				email: 'alice@example.com'
+		renderSignupPage({
+			errors: {
+				form: 'Unable to create account. Please check your details and try again.'
 			}
+			,
+			name: 'Alice',
+			email: 'alice@example.com'
 		});
 
 		const alert = screen.getByRole('alert');
@@ -122,12 +129,10 @@ describe('Signup page', () => {
 	});
 
 	it('preserves server-returned name and email values after validation errors', () => {
-		render(SignupPage, {
-			form: {
-				errors: { password: 'Password must be at least 8 characters' },
-				name: 'Alice',
-				email: 'alice@example.com'
-			}
+		renderSignupPage({
+			errors: { password: 'Password must be at least 8 characters' },
+			name: 'Alice',
+			email: 'alice@example.com'
 		});
 
 		expect(screen.getByLabelText('Name')).toHaveValue('Alice');
@@ -135,12 +140,10 @@ describe('Signup page', () => {
 	});
 
 	it('shows stale server password error until input starts, then clears only when password reaches valid length', async () => {
-		render(SignupPage, {
-			form: {
-				errors: { password: 'Password is required' },
-				name: 'Alice',
-				email: 'alice@example.com'
-			}
+		renderSignupPage({
+			errors: { password: 'Password is required' },
+			name: 'Alice',
+			email: 'alice@example.com'
 		});
 
 		const password = screen.getByLabelText('Password');
@@ -155,7 +158,7 @@ describe('Signup page', () => {
 	});
 
 	it('does not show any alert region when there is no form-level or confirm-password error', () => {
-		render(SignupPage);
+		renderSignupPage();
 		expect(screen.queryByRole('alert')).not.toBeInTheDocument();
 	});
 });

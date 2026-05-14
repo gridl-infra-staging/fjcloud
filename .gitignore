@@ -112,3 +112,6 @@ sdks/javascript/.yarn/releases/
 
 .hashbrown
 
+
+# Per-lane state files (e.g. prod_env_provision lane writes to .tmp/prod_env_lane/)
+.tmp/

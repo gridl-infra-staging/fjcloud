@@ -334,7 +334,8 @@ for required_gate in rust-test rust-lint migration-test web-test check-sizes web
   assert_job_contains_regex "deploy-staging" "${required_gate},?" "deploy-staging needs ${required_gate}"
 done
 assert_job_not_contains_regex "deploy-staging" '^\s*playwright,\s*$' "deploy-staging keeps playwright advisory (outside needs)"
-assert_job_contains_regex "deploy-staging" "if:\s+github\\.ref == 'refs/heads/main' && github\\.event_name == 'push'" "deploy-staging is gated to main push"
+assert_job_contains_regex "deploy-staging" "if:\s+github\\.repository == 'gridl-infra-staging/fjcloud' && github\\.ref == 'refs/heads/main' && github\\.event_name == 'push'" "deploy-staging is gated to main push on the staging mirror repo"
+assert_job_contains_regex "deploy-prod" "if:\s+github\\.repository == 'gridl-infra-prod/fjcloud' && github\\.ref == 'refs/heads/main' && github\\.event_name == 'push'" "deploy-prod is gated to main push on the prod mirror repo"
 assert_job_contains_regex "deploy-staging" 'ARTIFACT_PREFIX="staging/\$\{GITHUB_SHA\}/"' "deploy-staging scopes artifact prefix to staging SHA path"
 assert_job_contains_regex "deploy-staging" 'aws s3api list-objects-v2 --bucket fjcloud-releases-staging --prefix "\$\{ARTIFACT_PREFIX\}" --max-items 1' "deploy-staging performs pre-write S3 list-objects-v2 overwrite guard for staging bucket"
 assert_job_contains_regex "deploy-staging" 'aws s3 cp infra/fjcloud-api s3://fjcloud-releases-staging/staging/\$\{GITHUB_SHA\}/fjcloud-api' "deploy-staging uploads fjcloud-api to staging SHA path"

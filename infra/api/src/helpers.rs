@@ -254,6 +254,31 @@ mod tests {
             panic!("not used in this test");
         }
 
+        async fn find_oauth_identity(
+            &self,
+            _provider: &str,
+            _provider_user_id: &str,
+        ) -> Result<Option<Customer>, RepoError> {
+            panic!("not used in this test");
+        }
+
+        async fn create_oauth_customer(
+            &self,
+            _name: &str,
+            _email: &str,
+        ) -> Result<Customer, RepoError> {
+            panic!("not used in this test");
+        }
+
+        async fn link_oauth_identity(
+            &self,
+            _customer_id: Uuid,
+            _provider: &str,
+            _provider_user_id: &str,
+        ) -> Result<(), RepoError> {
+            panic!("not used in this test");
+        }
+
         async fn update(
             &self,
             _id: Uuid,

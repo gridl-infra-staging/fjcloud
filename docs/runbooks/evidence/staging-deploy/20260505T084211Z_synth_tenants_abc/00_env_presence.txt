@@ -1,0 +1,16 @@
+# Env Presence Summary — 2026-05-05T08:42:42Z
+
+Source: .secret/.env.secret + hydrate_seeder_env_from_ssm.sh staging
+
+AWS_ACCESS_KEY_ID=present (len=20)
+AWS_SECRET_ACCESS_KEY=present (len=40)
+AWS_DEFAULT_REGION=present (len=9)
+ADMIN_KEY=present (len=32)
+DATABASE_URL=present (len=121)
+API_URL=present (len=24)
+FLAPJACK_URL=present (len=24)
+STRIPE_SECRET_KEY=present (len=107)
+SES_FROM_ADDRESS=present (len=20)
+STRIPE_WEBHOOK_SECRET=present (len=38)
+STAGING_API_URL=present (len=24)
+STAGING_STRIPE_WEBHOOK_URL=present (len=40)

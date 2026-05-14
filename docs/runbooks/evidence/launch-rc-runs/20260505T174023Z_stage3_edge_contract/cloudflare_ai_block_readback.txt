@@ -1,0 +1,17 @@
+{
+  "result": {
+    "enable_js": false,
+    "fight_mode": false,
+    "ai_bots_protection": "disabled",
+    "content_bots_protection": "disabled",
+    "crawler_protection": "disabled",
+    "is_robots_txt_managed": true,
+    "cf_robots_variant": "off",
+    "using_latest_model": true
+  },
+  "success": true,
+  "errors": [],
+  "messages": []
+}
+
+HTTP_STATUS:200

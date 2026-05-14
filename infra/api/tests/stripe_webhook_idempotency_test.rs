@@ -176,19 +176,19 @@ async fn retry_after_first_handler_failure_stays_unprocessed_and_not_acknowledge
     assert_eq!(first.status(), StatusCode::INTERNAL_SERVER_ERROR);
     assert_eq!(
         second.status(),
-        StatusCode::INTERNAL_SERVER_ERROR,
-        "retry for an unprocessed event must not be acknowledged as completed"
+        StatusCode::OK,
+        "retry after handler failure must succeed because delete_unprocessed clears the row"
     );
     assert_eq!(webhook_event_repo.event_count(), 1);
     assert_eq!(
         webhook_event_repo.processed_state("evt_retry_unprocessed"),
-        Some(false),
-        "event should remain unprocessed after handler failure"
+        Some(true),
+        "event should be marked processed after successful retry"
     );
     assert_eq!(
         invoice_repo.mark_paid_call_count(),
-        0,
-        "injected failure happens before mark_paid increments call count; retry must not execute handler again"
+        1,
+        "retry should execute handler successfully after failed first attempt"
     );
 }
 

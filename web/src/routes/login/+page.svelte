@@ -1,8 +1,10 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { resolve } from '$app/paths';
+	import OAuthButtons from '$lib/components/OAuthButtons.svelte';
 
-	let { form } = $props();
+	let { form, data }: { form?: { errors?: Record<string, string>; email?: string }; data: { apiBaseUrl: string } } =
+		$props();
 	const showSessionExpiredBanner = $derived(
 		page.url.searchParams.get('reason') === 'session_expired'
 	);
@@ -38,7 +40,7 @@
 			</div>
 		{/if}
 
-		<form method="POST" class="space-y-4">
+			<form method="POST" class="space-y-4">
 			<div>
 				<label for="email" class="mb-1 block text-sm font-medium text-gray-700">Email</label>
 				<input
@@ -76,9 +78,17 @@
 			>
 				Log In
 			</button>
-		</form>
+			</form>
 
-		<div class="mt-4 space-y-2 text-center text-sm text-gray-600">
+			<div class="my-6 flex items-center">
+				<div class="h-px flex-1 bg-gray-200"></div>
+				<span class="px-3 text-xs font-medium uppercase tracking-wide text-gray-500">Or</span>
+				<div class="h-px flex-1 bg-gray-200"></div>
+			</div>
+
+			<OAuthButtons apiBaseUrl={data.apiBaseUrl} />
+
+			<div class="mt-4 space-y-2 text-center text-sm text-gray-600">
 			<p>
 				<a href={resolve('/forgot-password')} class="font-medium text-blue-600 hover:text-blue-500">
 					Forgot your password?

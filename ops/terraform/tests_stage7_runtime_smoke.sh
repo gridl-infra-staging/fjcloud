@@ -190,6 +190,8 @@ if [[ "$DOMAIN" == "flapjack.foo" ]]; then
 fi
 CLOUDFLARE_API_TOKEN="$(read_env_value CLOUDFLARE_API_TOKEN)"
 CLOUDFLARE_ZONE_ID="$(read_env_value CLOUDFLARE_ZONE_ID)"
+CLOUDFLARE_GLOBAL_API_KEY="$(read_env_value CLOUDFLARE_GLOBAL_API_KEY)"
+CLOUDFLARE_X_AUTH_EMAIL="$(read_env_value CLOUDFLARE_X_Auth_Email)"
 
 if [[ -z "$CLOUDFLARE_API_TOKEN" ]]; then
   CLOUDFLARE_API_TOKEN="$(read_env_value "$DOMAIN_TOKEN_KEY")"
@@ -204,7 +206,13 @@ if [[ -z "$AWS_ACCESS_KEY_ID" || -z "$AWS_SECRET_ACCESS_KEY" || -z "$AWS_DEFAULT
   exit 1
 fi
 
-export AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_DEFAULT_REGION CLOUDFLARE_API_TOKEN
+if [[ -z "$CLOUDFLARE_API_TOKEN" && -n "$CLOUDFLARE_GLOBAL_API_KEY" && -n "$CLOUDFLARE_X_AUTH_EMAIL" ]]; then
+  # Terraform's Cloudflare provider uses CLOUDFLARE_API_KEY+CLOUDFLARE_EMAIL for global-key auth.
+  CLOUDFLARE_API_KEY="$CLOUDFLARE_GLOBAL_API_KEY"
+  CLOUDFLARE_EMAIL="$CLOUDFLARE_X_AUTH_EMAIL"
+fi
+
+export AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_DEFAULT_REGION CLOUDFLARE_API_TOKEN CLOUDFLARE_API_KEY CLOUDFLARE_EMAIL
 
 # --- Evidence bundle ---
 
@@ -321,10 +329,21 @@ fi
 
 cloudflare_api_get() {
   local path="$1"
-  curl -fsS \
-    -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
-    -H "Content-Type: application/json" \
-    "https://api.cloudflare.com/client/v4${path}"
+  if [[ -n "$CLOUDFLARE_API_TOKEN" ]]; then
+    curl -fsS -K - <<EOF
+header = "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}"
+header = "Content-Type: application/json"
+url = "https://api.cloudflare.com/client/v4${path}"
+EOF
+    return
+  fi
+
+  curl -fsS -K - <<EOF
+header = "X-Auth-Key: ${CLOUDFLARE_GLOBAL_API_KEY}"
+header = "X-Auth-Email: ${CLOUDFLARE_X_AUTH_EMAIL}"
+header = "Content-Type: application/json"
+url = "https://api.cloudflare.com/client/v4${path}"
+EOF
 }
 
 json_field_value() {
@@ -339,10 +358,12 @@ json_field_value() {
 assert_cloudflare_zone_accessible() {
   local response zone_name
 
-  if [[ -z "$CLOUDFLARE_API_TOKEN" ]]; then
+  if [[ -z "$CLOUDFLARE_API_TOKEN" && ( -z "$CLOUDFLARE_GLOBAL_API_KEY" || -z "$CLOUDFLARE_X_AUTH_EMAIL" ) ]]; then
     preflight_fail "$EXIT_CLOUDFLARE_DNS" "cloudflare_dns" \
-      "CLOUDFLARE_API_TOKEN or ${DOMAIN_TOKEN_KEY} is missing from ${ENV_FILE}." \
-      "Add a Cloudflare API token with Zone:Read and DNS:Edit for ${DOMAIN}, using CLOUDFLARE_API_TOKEN or ${DOMAIN_TOKEN_KEY}, then rerun."
+      "Cloudflare auth is missing from ${ENV_FILE}." \
+      "Set one auth shape, then rerun:
+- CLOUDFLARE_API_TOKEN or ${DOMAIN_TOKEN_KEY} (Zone:Read + DNS:Edit token), OR
+- CLOUDFLARE_GLOBAL_API_KEY with CLOUDFLARE_X_Auth_Email (global-key X-Auth pair)."
   fi
 
   if [[ -z "$CLOUDFLARE_ZONE_ID" ]]; then

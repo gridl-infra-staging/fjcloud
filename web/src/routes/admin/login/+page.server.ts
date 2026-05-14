@@ -63,7 +63,7 @@ export const actions = {
 		resetAdminLoginAttempts(clientIp);
 
 		const maxAge = resolveAdminSessionMaxAgeSeconds(env.ADMIN_SESSION_MAX_AGE_SECONDS);
-		const session = createAdminSession(maxAge);
+		const session = createAdminSession(maxAge, expectedKey);
 
 		cookies.set(ADMIN_SESSION_COOKIE, session.id, authCookieOptions(url, maxAge, '/admin'));
 

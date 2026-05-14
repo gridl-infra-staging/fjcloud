@@ -1,0 +1,20 @@
+{"command":"preflight:aws_creds","timestamp":"2026-05-05T17:25:28Z","verdict":"FAIL","output":"AWS credentials are missing or invalid.","artifact_path":""}
+{"command":"preflight:aws_creds","timestamp":"2026-05-05T17:25:28Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"preflight:ami_exists","timestamp":"2026-05-05T17:25:28Z","verdict":"FAIL","output":"AMI 'ami-test1234567890abcdef0' not found or not owned by this account.","artifact_path":""}
+{"command":"preflight:aws_creds","timestamp":"2026-05-05T17:25:28Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"preflight:ami_exists","timestamp":"2026-05-05T17:25:28Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"preflight:release_artifact","timestamp":"2026-05-05T17:25:28Z","verdict":"FAIL","output":"No release artifacts found in s3://fjcloud-releases-staging/a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2/.","artifact_path":""}
+{"command":"preflight:aws_creds","timestamp":"2026-05-05T17:25:28Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"preflight:ami_exists","timestamp":"2026-05-05T17:25:28Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"preflight:cloudflare_dns","timestamp":"2026-05-05T17:25:28Z","verdict":"FAIL","output":"Cloudflare auth is missing from /var/folders/5y/d6m1nn955w3cb95hg45ljzvr0000gn/T/tmp.pEviJl9Cva.","artifact_path":""}
+{"command":"preflight:aws_creds","timestamp":"2026-05-05T17:25:29Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"preflight:ami_exists","timestamp":"2026-05-05T17:25:29Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"preflight:release_artifact","timestamp":"2026-05-05T17:25:29Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"preflight:cloudflare_dns","timestamp":"2026-05-05T17:25:29Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"terraform plan","timestamp":"2026-05-05T17:25:29Z","verdict":"PASS","output":"plan captured","artifact_path":"/Users/stuart/parallel_development/fjcloud_dev/may04_pm_6_public_restoration_go_live/fjcloud_dev/ops/terraform/artifacts/plan_staging_20260505T172528Z.txt"}
+{"command":"assert:acm_cert_issued","timestamp":"2026-05-05T17:25:29Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"assert:alb_https_listener","timestamp":"2026-05-05T17:25:29Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"assert:target_group_healthy","timestamp":"2026-05-05T17:25:29Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"assert:cloudflare_public_records","timestamp":"2026-05-05T17:25:29Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"assert:ses_identity_verified","timestamp":"2026-05-05T17:25:29Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"assert:health_fail","timestamp":"2026-05-05T17:25:29Z","verdict":"PASS","output":"","artifact_path":""}

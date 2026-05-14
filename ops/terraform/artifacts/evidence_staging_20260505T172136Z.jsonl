@@ -1,0 +1,3 @@
+{"command":"preflight:aws_creds","timestamp":"2026-05-05T17:21:37Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"preflight:ami_exists","timestamp":"2026-05-05T17:21:37Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"preflight:cloudflare_dns","timestamp":"2026-05-05T17:21:38Z","verdict":"FAIL","output":"Cloudflare zone lookup failed for flapjack.foo.","artifact_path":""}

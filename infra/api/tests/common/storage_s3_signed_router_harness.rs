@@ -54,6 +54,10 @@ pub(crate) fn s3_test_config(rps: u32) -> Config {
         stripe_success_url: "http://localhost".to_string(),
         stripe_cancel_url: "http://localhost".to_string(),
         internal_auth_token: None,
+        google_oauth_client_id: None,
+        google_oauth_client_secret: None,
+        github_oauth_client_id: None,
+        github_oauth_client_secret: None,
     }
 }
 

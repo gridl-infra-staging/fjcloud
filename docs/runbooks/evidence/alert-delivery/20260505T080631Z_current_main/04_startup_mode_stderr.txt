@@ -1,0 +1,2 @@
+Command: (same as 03_startup_mode_stdout.txt)
+stderr: (empty — no errors during journal query)

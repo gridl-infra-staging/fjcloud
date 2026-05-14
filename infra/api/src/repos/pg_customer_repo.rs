@@ -218,6 +218,63 @@ impl CustomerRepo for PgCustomerRepo {
             .ok_or_else(|| RepoError::Other("created customer could not be reloaded".into()))
     }
 
+    async fn find_oauth_identity(
+        &self,
+        provider: &str,
+        provider_user_id: &str,
+    ) -> Result<Option<Customer>, RepoError> {
+        let sql = format!(
+            "SELECT {CUSTOMER_COLUMNS} \
+             FROM oauth_identities \
+             INNER JOIN customers ON customers.id = oauth_identities.customer_id \
+             WHERE oauth_identities.provider = $1 \
+               AND oauth_identities.provider_user_id = $2 \
+               AND customers.status != 'deleted'"
+        );
+        sqlx::query_as::<_, Customer>(&sql)
+            .bind(provider)
+            .bind(provider_user_id)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(|e| RepoError::Other(e.to_string()))
+    }
+
+    async fn create_oauth_customer(&self, name: &str, email: &str) -> Result<Customer, RepoError> {
+        self.create(name, email).await
+    }
+
+    async fn link_oauth_identity(
+        &self,
+        customer_id: Uuid,
+        provider: &str,
+        provider_user_id: &str,
+    ) -> Result<(), RepoError> {
+        let insert_result = sqlx::query(
+            "INSERT INTO oauth_identities (customer_id, provider, provider_user_id) \
+             SELECT id, $2, $3 \
+             FROM customers \
+             WHERE id = $1 AND status != 'deleted'",
+        )
+        .bind(customer_id)
+        .bind(provider)
+        .bind(provider_user_id)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| {
+            if is_unique_violation(&e) {
+                RepoError::Conflict("oauth identity already linked".into())
+            } else {
+                RepoError::Other(e.to_string())
+            }
+        })?;
+
+        if insert_result.rows_affected() == 0 {
+            return Err(RepoError::NotFound);
+        }
+
+        Ok(())
+    }
+
     /// COALESCE-based partial update for name and/or email. Skips soft-deleted
     /// rows. Unique violation on email returns `Conflict`.
     async fn update(

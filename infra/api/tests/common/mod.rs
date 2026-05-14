@@ -28,6 +28,7 @@ use api::services::replication::{ReplicationConfig, ReplicationOrchestrator};
 use async_trait::async_trait;
 use chrono::{Duration, Utc};
 use jsonwebtoken::{EncodingKey, Header};
+use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use utoipa::OpenApi;
@@ -104,6 +105,74 @@ pub async fn start_health_server(status_code: u16) -> String {
     });
 
     format!("http://127.0.0.1:{}", addr.port())
+}
+
+pub struct TestOAuthProvider {
+    pub token_endpoint: String,
+    pub userinfo_endpoint: String,
+}
+
+pub async fn spawn_test_oauth_provider() -> TestOAuthProvider {
+    let app = axum::Router::new()
+        .route(
+            "/oauth/token",
+            axum::routing::post(
+                |axum::Form(params): axum::Form<HashMap<String, String>>| async move {
+                    let code = params.get("code").map(String::as_str).unwrap_or_default();
+                    if code == "provider-error" {
+                        return (
+                            axum::http::StatusCode::BAD_GATEWAY,
+                            axum::Json(serde_json::json!({"error": "simulated_exchange_failure"})),
+                        );
+                    }
+                    (
+                        axum::http::StatusCode::OK,
+                        axum::Json(serde_json::json!({"access_token": format!("token-{code}")})),
+                    )
+                },
+            ),
+        )
+        .route(
+            "/oauth/userinfo",
+            axum::routing::get(|headers: axum::http::HeaderMap| async move {
+                let auth = headers
+                    .get(axum::http::header::AUTHORIZATION)
+                    .and_then(|value| value.to_str().ok())
+                    .unwrap_or_default();
+                if !auth.starts_with("Bearer token-") {
+                    return (
+                        axum::http::StatusCode::UNAUTHORIZED,
+                        axum::Json(serde_json::json!({"error": "missing_or_invalid_token"})),
+                    );
+                }
+                (
+                    axum::http::StatusCode::OK,
+                    axum::Json(serde_json::json!({
+                        "sub": "google-provider-user-1",
+                        "email": "oauth-happy-path@integration.test",
+                        "name": "OAuth Happy Path"
+                    })),
+                )
+            }),
+        );
+
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("bind oauth test provider listener");
+    let addr = listener
+        .local_addr()
+        .expect("resolve oauth test provider listener address");
+    tokio::spawn(async move {
+        axum::serve(listener, app)
+            .await
+            .expect("serve oauth test provider");
+    });
+
+    let base = format!("http://127.0.0.1:{}", addr.port());
+    TestOAuthProvider {
+        token_endpoint: format!("{base}/oauth/token"),
+        userinfo_endpoint: format!("{base}/oauth/userinfo"),
+    }
 }
 
 pub struct ReplicationHarness {

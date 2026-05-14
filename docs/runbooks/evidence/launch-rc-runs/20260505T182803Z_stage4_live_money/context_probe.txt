@@ -1,0 +1,16 @@
+timestamp_utc=20260505T182803Z
+head_sha=f01f45fa923193535cd4d0b238bf135cf16433d8
+clean_tree=true
+run_dir=docs/runbooks/evidence/launch-rc-runs/20260505T182803Z_stage4_live_money
+launch_override_ref=LAUNCH.md:265-320
+orchestration_ref=chats/orchestration/may4_orchestration_fjcloud_dev.md:246-290
+docs_now_gate= Stream E redeploy/proof closed 2026-05-05 at dev SHA 51dc301a. Evidence index: [LAUNCH.md](../LAUNCH.md) § Stream E. ## Active gate
+secret_keys_present=
+AWS_ACCESS_KEY_ID
+AWS_DEFAULT_REGION
+AWS_SECRET_ACCESS_KEY
+STRIPE_SECRET_KEY_flapjack_cloud
+STRIPE_PUBLISHABLE_KEY
+verification_lookup_owner=web/tests/fixtures/staging_db_lookup.ts
+live_attach_owner=scripts/stripe/attach_card_via_setup_intent.mjs
+db_connection_pointer=missing

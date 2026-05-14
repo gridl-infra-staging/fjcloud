@@ -4,6 +4,27 @@ Full SSM-based deploy lifecycle for fjcloud. All remote execution uses AWS Syste
 
 Scripts: `ops/scripts/deploy.sh`, `ops/scripts/migrate.sh`, `ops/scripts/rollback.sh`
 
+## Cross-repo SHA model — read this first
+
+This project uses **debbie** to sync the private dev repo (`gridl-infra-dev/fjcloud_dev`) to public mirror repos (`gridl-infra-staging/fjcloud`, `gridl-infra-prod/fjcloud`). The mirrors omit dev-only files (TODO stubs, evidence notes), so **mirror commit SHAs differ from dev commit SHAs**.
+
+```
+dev repo  --debbie sync-->  staging mirror  --CI--> deploy.sh staging <SHA>  --SSM--> live EC2
+   |                                                                                       ^
+   +------debbie sync-->  prod mirror     --CI--> deploy.sh staging <SHA>  --SSM-----------+
+```
+
+**Topology note (2026-05):** there is currently ONE live environment, reachable at `https://api.flapjack.foo`. Both mirror repos' CI workflows call `deploy.sh staging` — there is no separate prod environment yet. When prod is stood up at a different hostname, the second mirror's CI will switch to `deploy.sh prod` and `scripts/deploy_status.sh` will gain a second env row.
+
+Each deploy stores the *mirror* SHA in `/fjcloud/<env>/last_deploy_sha` (used by `rollback.sh`). The deployed binary ALSO embeds both SHAs at build time and exposes them on `GET /version`:
+
+```
+curl https://api.flapjack.foo/version
+# => {"dev_sha":"...","mirror_sha":"...","synced_at":"...","build_time":"..."}
+```
+
+To answer "is the live env on current main?", use `bash scripts/deploy_status.sh` from the dev repo — it diffs deployed `/version.dev_sha` against `git rev-parse origin/main` in dev and reports the commit gap.
+
 ## Pre-deploy Checklist
 
 Before deploying, verify:
@@ -204,3 +225,12 @@ ls -la /usr/local/bin/fjcloud-* /usr/local/bin/fj-*
 | Health check failed, auto-rolled back | App crash on startup | Check `journalctl -u fjcloud-api`, fix app bug |
 | Migration failed | Bad SQL or DB connectivity | Check DB connectivity, fix migration, re-deploy |
 | "Instance not found" | Wrong env or instance stopped | Verify instance is running with correct Name tag |
+
+## Known pending refactor — VPC CIDR
+
+`networking/main.tf:13` hardcodes `10.0.0.0/16` for every env. Prod and staging
+are separate VPCs in separate tfstate, so they do not conflict today. If
+inter-env VPC peering is ever added, both sides would have overlapping CIDRs
+and peering would refuse to attach. Refactor: parameterize the CIDR per env
+(e.g. `10.0.0.0/16` for staging, `10.1.0.0/16` for prod) before any peering
+work. See `chats/icg/may13_2pm_1_prod_env_provision.md` Stage 2 for context.

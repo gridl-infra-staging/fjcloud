@@ -1,0 +1,11 @@
+Command: bash scripts/launch/ssm_exec_staging.sh "journalctl -u fjcloud-api --since '2026-05-04 09:17:44' --no-pager | grep -E 'Slack alert webhook configured|Discord alert webhook configured|No webhook URLs|alert.service|init_alert'"
+Executed: 2026-05-05T08:06Z
+
+stdout:
+May 04 09:17:44 fjcloud-api-staging fjcloud-api[280070]: {"timestamp":"2026-05-04T09:17:44.603225Z","level":"INFO","fields":{"message":"Discord alert webhook configured"},"target":"api::startup"}
+
+Analysis:
+- "Discord alert webhook configured" present: YES
+- "No webhook URLs — using log-only alert service" present: NO
+- Target module: api::startup (confirms init_alert_service in infra/api/src/startup.rs)
+- Conclusion: Webhook mode is active on deployed staging host

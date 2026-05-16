@@ -1,18 +1,3 @@
-//! `/version` — deploy provenance, baked in at build time.
-//!
-//! Returns the dev-repo SHA, mirror-repo SHA, debbie sync timestamp, and
-//! cargo build timestamp. All four come from build-time env vars injected
-//! by `build.rs`; values default to "local-dev" when unset (i.e. outside CI).
-//!
-//! Designed for `curl /version | jq` and for `scripts/deploy_status.sh` to
-//! diff "what is deployed" against `git rev-parse main` in the dev repo —
-//! the live-system probe that replaces "trust the status doc."
-//!
-//! Public endpoint, no auth. The SHAs are not secrets: mirror SHAs are
-//! already visible in the public mirror repos, and dev SHAs are visible in
-//! the dev repo (private) — but exposing them on a public endpoint reveals
-//! that a mirror commit corresponds to a specific dev commit, which is
-//! intentional and the entire point of this endpoint.
 
 use axum::Json;
 use serde_json::{json, Value};

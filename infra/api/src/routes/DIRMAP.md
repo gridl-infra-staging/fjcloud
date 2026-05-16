@@ -15,6 +15,7 @@
 | onboarding.rs | Stub summary for onboarding.rs. |
 | public_site.rs | Stub summary for public_site.rs. |
 | usage.rs | Stub summary for /Users/stuart/parallel_development/fjcloud_dev/MAR17_11_2_data_management_features/fjcloud_dev/infra/api/src/routes/usage.rs. |
+| version.rs | Stub summary for version.rs. |
 | webhooks.rs | Stub summary for webhooks.rs. |
 | webhooks_canonical_sns_string_tests.rs | Stub summary for webhooks_canonical_sns_string_tests.rs. |
 

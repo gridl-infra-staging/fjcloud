@@ -60,5 +60,6 @@ Prerequisites checked:
 
 | Directory | Summary |
 | --- | --- |
-| lib | Shared utilities for deployment validation, service environment configuration via SSM parameters, and RDS restoration. |
+| lib | This lib directory contains shared deployment and infrastructure utilities including pre-deployment validation, SSM parameter-to-environment-variable mapping for service configuration, Cloudflare zone parsing, and RDS restore selection helpers. |
+| tests | This directory contains a single fixture-capture script that one-shot downloads and caches a Cloudflare zone configuration for use in tests. |
 <!-- [scrai:end] -->

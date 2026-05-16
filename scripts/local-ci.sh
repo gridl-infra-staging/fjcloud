@@ -53,6 +53,7 @@ cd "$REPO_ROOT"
 
 MODE="fast"
 SINGLE_GATE=""
+WITH_CONTRACTS=0   # set by --with-contracts; runs per-lane contract probes that hit live external systems
 
 # Extract the help block bounded by `## HELP-TEXT-BEGIN/END` sentinels in
 # this script's own comments. Using sentinels (rather than line numbers
@@ -72,6 +73,7 @@ while [ $# -gt 0 ]; do
         --fast)  MODE="fast";  shift ;;
         --full)  MODE="full";  shift ;;
         --gate)  SINGLE_GATE="${2:-}"; shift 2 ;;
+        --with-contracts) WITH_CONTRACTS=1; shift ;;
         --help|-h) usage 0 ;;
         *) echo "ERROR: unknown arg: $1" >&2; usage 2 ;;
     esac
@@ -153,6 +155,21 @@ skip_gate() {
 
 gate_check_sizes() {
     bash "$REPO_ROOT/scripts/check-sizes.sh"
+}
+
+gate_validate_bootstrap_parser() {
+    # Regression: extract_zone_name (sourced from ops/scripts/lib/parse_cloudflare_zone.sh)
+    # must extract .result.name, not .result.plan.name. Captured 2026-05-14 in
+    # prod-env-provision lane post-mortem (bug 4).
+    bash "$REPO_ROOT/ops/scripts/tests/validate_bootstrap_zone_parser_test.sh"
+}
+
+gate_publish_scripts_buildx() {
+    # Regression: Lambda canary publish scripts must use docker buildx with
+    # --provenance=false (schema-2 manifest), not plain docker build (OCI
+    # manifest Lambda rejects). Captured 2026-05-14 in prod-env-provision
+    # lane post-mortem (bug 5).
+    bash "$REPO_ROOT/ops/terraform/tests_publish_scripts_buildx_static.sh"
 }
 
 node_modules_fresh_or_fail() {
@@ -377,6 +394,8 @@ schedule web-lint
 schedule web-test
 schedule rust-lint
 schedule migration-test
+schedule validate-bootstrap-parser
+schedule publish-scripts-buildx
 
 # Decide whether rust-test should run, and if so when. It must NOT run
 # in the parallel batch above (CPU contention with web-test). It runs
@@ -392,7 +411,7 @@ fi
 if [ "${#SCHEDULED_GATES[@]}" -eq 0 ] && [ "$RUN_RUST_TEST_SEQUENTIAL" -eq 0 ]; then
     if [ -n "$SINGLE_GATE" ]; then
         echo "ERROR: --gate '$SINGLE_GATE' did not match any known gate" >&2
-        echo "Known gates: rust-test rust-lint migration-test web-test check-sizes web-lint secret-scan" >&2
+        echo "Known gates: rust-test rust-lint migration-test web-test check-sizes web-lint secret-scan validate-bootstrap-parser publish-scripts-buildx" >&2
         exit 2
     fi
     echo "ERROR: no gates scheduled" >&2
@@ -422,6 +441,8 @@ if [ "${#SCHEDULED_GATES[@]}" -gt 0 ]; then
             web-test)        run_gate web-test        gate_web_test ;;
             rust-lint)       run_gate rust-lint       gate_rust_lint ;;
             migration-test)  run_gate migration-test  gate_migration_test ;;
+            validate-bootstrap-parser) run_gate validate-bootstrap-parser gate_validate_bootstrap_parser ;;
+            publish-scripts-buildx) run_gate publish-scripts-buildx gate_publish_scripts_buildx ;;
         esac
     done
     # Wait for all backgrounded fast gates to finish before launching
@@ -488,6 +509,33 @@ if [ "$fail_count" -gt 0 ]; then
             tail -40 "$log"
         fi
     done < <(sort "$RESULTS_FILE")
+fi
+
+# ---------------------------------------------------------------------------
+# --with-contracts: per-lane contract probes against live external systems
+# ---------------------------------------------------------------------------
+# Opt-in because the probes (a) hit live Google/GitHub/AWS/Cloudflare APIs
+# and (b) require .env.secret to be present. CI may run with --with-contracts
+# on a job that has the secrets mounted; dev iteration normally runs without.
+# Default to the absolute path of the primary repo's secret file -- .env.secret
+# is .gitignored, so worktrees do NOT contain a copy; using $REPO_ROOT would
+# resolve to the worktree path and fail to find the file. Operators running
+# from a different primary repo override via FJCLOUD_SECRET_FILE.
+if [ "$WITH_CONTRACTS" -eq 1 ]; then
+    SECRET_FILE="${FJCLOUD_SECRET_FILE:-/Users/stuart/repos/gridl-infra-dev/fjcloud_dev/.secret/.env.secret}"
+    if [ -f "$SECRET_FILE" ]; then
+        # shellcheck disable=SC1090
+        set -a; . "$SECRET_FILE"; set +a
+        printf '\n%b==contracts: oauth_redirect_uri ==%b\n' "$C_BOLD" "$C_RESET"
+        if bash scripts/canary/contracts/oauth_redirect_uri_contract.sh all; then
+            pass_count=$((pass_count + 1))
+        else
+            fail_count=$((fail_count + 1))
+        fi
+    else
+        printf '\nSKIP: --with-contracts requested but %s missing\n' "$SECRET_FILE"
+        skip_count=$((skip_count + 1))
+    fi
 fi
 
 printf '\n%bTotals:%b pass=%d fail=%d skip=%d\n' "$C_BOLD" "$C_RESET" "$pass_count" "$fail_count" "$skip_count"

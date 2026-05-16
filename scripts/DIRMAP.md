@@ -16,6 +16,10 @@ Limits are calibrated to flag genuinely-too-large source files while
 accommodating the line-count overhead that `prettier --write` adds when
 breaking long lines into multi-line form. |
 | customer_broadcast.sh | customer_broadcast.sh — operator wrapper for POST /admin/broadcast. |
+| deploy_status.sh | deploy_status.sh — one-screen answer to "what's deployed?"
+
+Probes /version on the live API, compares dev_sha against `git rev-parse main`
+in the dev repo, and shows the gap. |
 | e2e-preflight.sh | Preflight checks for Stage 6 browser (Playwright) test runs.
 Validates that required environment variables and services are available
 before invoking Playwright, to produce clear errors instead of cryptic failures.
@@ -123,7 +127,6 @@ Usage:
   ./scripts/seed_local.sh              # uses defaults from .env.local
   API_URL=http://localhost:3001 ADMIN_KEY=my-key ./scripts/seed_local.sh. |
 | seed_operator_accounts.sh | Stub summary for seed_operator_accounts.sh. |
-| smoke_marketing_site.sh | Marketing site smoke probe for Pages + production domains. |
 | staging_billing_dry_run.sh | Stub summary for staging_billing_dry_run.sh. |
 | staging_billing_rehearsal.sh | staging_billing_rehearsal.sh — guarded staging billing mutation rehearsal. |
 | start-metering.sh | start-metering.sh — Start the metering agent for local dev.
@@ -142,7 +145,7 @@ usage_records to Postgres. |
 
 | Directory | Summary |
 | --- | --- |
-| canary | The canary directory contains synthetic monitoring and health check scripts that validate system availability and external connectivity—including customer loop simulation, AWS-external health probes, and email deliverability verification. |
+| canary | The canary directory contains synthetic monitoring and health check scripts that validate external system health, email deliverability, and critical infrastructure components like EC2 firewall ports, Lambda invocation, and OAuth endpoints. |
 | chaos | The chaos directory contains failure-injection and HA resilience test scripts that validate the system's ability to detect outages, trigger failover, and recover—including region kill/restart tests, metering service failure detection, and end-to-end failover proofs. |
 | launch | The `launch` directory contains operational scripts for validating fjcloud staging deployments and running synthetic verification workloads, including tenant-map fallback verification, billing evidence capture, synthetic traffic generation, and direct EC2 execution via AWS SSM. |
 | lib | The lib directory contains reusable shell utilities supporting the backend infrastructure, including helpers for database migrations, environment configuration, Stripe/billing operations, validation checks, security scans, and live health/gate enforcement. |

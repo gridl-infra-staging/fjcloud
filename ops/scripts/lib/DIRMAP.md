@@ -14,5 +14,6 @@ Usage: generate_ssm_env.sh <env>
   env: staging | prod
 
 Requires: aws CLI with IAM role that can ssm:GetParametersByPath + kms:Decrypt. |
+| parse_cloudflare_zone.sh | Cloudflare zone-name parser. |
 | rds_restore_selection.py | Stub summary for rds_restore_selection.py. |
 <!-- [scrai:end] -->

@@ -22,6 +22,10 @@ TDD red phase — tests written before the script exists
 
 provision_bootstrap.sh is the counterpart to validate_bootstrap.sh:
 it CREATES the AWS bootstrap resources that validate_bootstrap.sh checks. |
+| tests_publish_scripts_buildx_static.sh | Static test: both Lambda canary publish scripts use buildx with the flags
+required for AWS Lambda compatibility (docker schema-2 manifest).
+
+AWS Lambda rejects OCI manifests. |
 | tests_rds_restore_evidence_static.sh | Static ownership assertions for ops/scripts/rds_restore_evidence.sh. |
 | tests_rds_restore_evidence_unit.sh | Red-phase contract tests for ops/scripts/rds_restore_evidence.sh.
 Stage 1 intentionally locks the behavior contract before wrapper implementation. |

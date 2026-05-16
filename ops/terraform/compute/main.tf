@@ -73,6 +73,16 @@ resource "aws_instance" "api" {
     # Set hostname
     hostnamectl set-hostname "fjcloud-api-${var.env}"
 
+    # Open fjcloud-api ports in firewalld. Without this, fresh EC2 launches
+    # have 3001/3002 blocked by the firewalld default zone (firewalld is
+    # baked into the AMI but its port-list isn't). Customers see 502 from
+    # the ALB until firewalld is reconfigured. Adding here lets every
+    # subsequent AMI bake include the right config. NOTE: per
+    # user_data_replace_on_change=false, editing this does NOT remediate
+    # existing instances — only the next fresh launch picks it up.
+    firewall-cmd --permanent --add-port=3001/tcp --add-port=3002/tcp
+    firewall-cmd --reload
+
     # Signal: user data bootstrap complete
     echo "fjcloud user-data bootstrap complete at $(date -u +%FT%TZ)" >> /var/log/fjcloud/bootstrap.log
   USERDATA

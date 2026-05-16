@@ -190,14 +190,12 @@ if [[ -n "${CLOUDFLARE_API_TOKEN_EFFECTIVE}" && -n "${CLOUDFLARE_ZONE_ID_EFFECTI
   if ! printf '%s' "${ZONE_RESPONSE}" | rg -q '"success"[[:space:]]*:[[:space:]]*true'; then
     check_fail "Cloudflare zone lookup failed for ${DOMAIN}"
   else
-    # Extract top-level zone "name" — the JSON response also contains a nested
-    # plan.name, so use jq when available for reliability and fall back to a
-    # non-greedy sed otherwise.
-    if command -v jq >/dev/null 2>&1; then
-      ZONE_NAME=$(printf '%s' "${ZONE_RESPONSE}" | jq -r '.result.name // empty')
-    else
-      ZONE_NAME=$(printf '%s' "${ZONE_RESPONSE}" | sed -nE 's/.*"result"[[:space:]]*:[[:space:]]*\{[^}]*"name"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/p' | head -1)
-    fi
+    # Extract top-level zone "name". Parser lives in a shared lib so the
+    # regression test (ops/scripts/tests/validate_bootstrap_zone_parser_test.sh)
+    # exercises the SAME code path -- no hand-copy drift possible.
+    # shellcheck disable=SC1091
+    source "$(dirname "$0")/lib/parse_cloudflare_zone.sh"
+    ZONE_NAME=$(extract_zone_name "${ZONE_RESPONSE}")
     if [[ "${ZONE_NAME}" == "${DOMAIN}" ]]; then
       check_pass "Cloudflare zone matches ${DOMAIN}"
     else

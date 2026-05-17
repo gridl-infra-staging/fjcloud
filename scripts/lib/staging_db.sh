@@ -76,44 +76,74 @@ staging_db_run_sql() {
     db_port="$(db_url_port "$database_url" 2>/dev/null || echo "5432")"
     db_name="$(db_url_database "$database_url")"
 
-    # Build the JSON parameters file via Python. This avoids shell-level quoting
-    # issues when constructing the JSON payload, but the f-string itself is not
-    # safe if the password contains ' or the SQL contains ". In practice: RDS
-    # passwords in this project are alphanumeric (no quotes), and the SQL here
-    # only uses email-address literals (no embedded double quotes).
+    # Build the JSON parameters file via Python. Use shell-safe quoting so SQL
+    # and credentials are passed verbatim even when they contain shell metacharacters.
     local tmpjson
     tmpjson="$(mktemp /tmp/ssm_sql_XXXXXX.json)"
-    python3 -c "
-import json, sys
+    if ! python3 -c "
+import json, shlex, sys
 h, port, user, pw, db, sql = sys.argv[1:]
-script = f'''set -e
-export PGPASSWORD='{pw}'
-psql -h {h} -p {port} -U {user} -d {db} -c \"{sql}\"'''
+script = '\n'.join([
+    'set -e',
+    f'export PGPASSWORD={shlex.quote(pw)}',
+    (
+        'psql '
+        f'-h {shlex.quote(h)} '
+        f'-p {shlex.quote(port)} '
+        f'-U {shlex.quote(user)} '
+        f'-d {shlex.quote(db)} '
+        f'-c {shlex.quote(sql)}'
+    ),
+])
 print(json.dumps({'commands': [script]}))
 " "$db_host" "$db_port" "$db_user" "$db_password" "$db_name" "$sql" > "$tmpjson"
+    then
+        rm -f "$tmpjson"
+        return 1
+    fi
 
     local cmd_id
-    cmd_id="$(aws ssm send-command \
+    if ! cmd_id="$(aws ssm send-command \
         --region "$_STAGING_DB_REGION" \
         --instance-ids "$_STAGING_DB_INSTANCE_ID" \
         --document-name "AWS-RunShellScript" \
         --parameters "file://$tmpjson" \
         --query 'Command.CommandId' --output text)"
-    rm -f "$tmpjson"
-
-    # Poll for completion (default 300s window from SSM; sleep 6 covers typical latency).
-    sleep 6
-    local result status stdout
-    result="$(aws ssm get-command-invocation \
-        --command-id "$cmd_id" \
-        --instance-id "$_STAGING_DB_INSTANCE_ID" \
-        --query '[Status,StandardOutputContent,StandardErrorContent]' \
-        --output text)"
-    status="$(printf '%s\n' "$result" | awk 'NR==1')"
-    stdout="$(printf '%s\n' "$result" | tail -n +2)"
-    if [ "$status" != "Success" ]; then
-        echo "[staging_db] ERROR: SSM Run Command failed (status=$status): $stdout" >&2
+    then
+        rm -f "$tmpjson"
         return 1
     fi
-    printf '%s\n' "$stdout"
+    rm -f "$tmpjson"
+
+    local result status stdout stderr
+    local max_attempts=20
+    local attempt
+    for ((attempt = 1; attempt <= max_attempts; attempt++)); do
+        result="$(aws ssm get-command-invocation \
+            --command-id "$cmd_id" \
+            --instance-id "$_STAGING_DB_INSTANCE_ID" \
+            --query '{status:Status,stdout:StandardOutputContent,stderr:StandardErrorContent}' \
+            --output json)"
+
+        status="$(printf '%s' "$result" | python3 -c 'import json, sys; print(json.load(sys.stdin).get("status", ""), end="")')"
+        stdout="$(printf '%s' "$result" | python3 -c 'import json, sys; print(json.load(sys.stdin).get("stdout", ""), end="")')"
+        stderr="$(printf '%s' "$result" | python3 -c 'import json, sys; print(json.load(sys.stdin).get("stderr", ""), end="")')"
+
+        if [ "$status" = "Success" ]; then
+            printf '%s\n' "$stdout"
+            return 0
+        fi
+
+        if [ "$status" != "Pending" ] && [ "$status" != "InProgress" ] && [ "$status" != "Delayed" ]; then
+            echo "[staging_db] ERROR: SSM Run Command failed (status=$status): ${stderr:-$stdout}" >&2
+            return 1
+        fi
+
+        if [ "$attempt" -lt "$max_attempts" ]; then
+            sleep 3
+        fi
+    done
+
+    echo "[staging_db] ERROR: SSM Run Command did not reach Success after ${max_attempts} polls (last_status=${status:-unknown}): ${stderr:-$stdout}" >&2
+    return 1
 }

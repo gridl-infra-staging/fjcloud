@@ -39,7 +39,7 @@ Each function owns one logical phase of server bootstrap. |
 | router | The router directory contains route assembly helpers that organize and structure HTTP routes across the public API, dashboard, and internal subtrees. |
 | routes | The routes directory defines the HTTP endpoints for the fjcloud API server, organized into account management, authentication, billing, invoicing, usage metering, webhooks, and public-facing operations, along with subdirectories for administrative functions, search index management, and S3-compatible storage operations. |
 | secrets | The secrets directory provides a modular secrets management abstraction with implementations for AWS Secrets Manager, in-memory storage, and mock testing. |
-| services | — |
+| services | The services directory contains domain-specific modules that implement core backend functionality for fjcloud's billing and infrastructure platform, including email delivery, infrastructure provisioning, data replication and migration, storage integration with Garage, monitoring and alerting, and cluster scheduling. |
 | startup | The startup directory contains a stub Stripe service implementation that allows the API to initialize without Stripe credentials by returning NotConfigured errors for all Stripe operations. |
 | stripe | The stripe module provides Stripe integration for the billing system, with both live production and local in-memory implementations. |
 <!-- [scrai:end] -->

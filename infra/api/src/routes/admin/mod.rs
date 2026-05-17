@@ -66,6 +66,10 @@ pub fn admin_routes() -> Router<AppState> {
             post(tenants::reactivate_customer),
         )
         .route("/customers/:id/suspend", post(tenants::suspend_customer))
+        .route(
+            "/customers/:id/hard-erase",
+            post(tenants::hard_erase_customer),
+        )
         .route("/customers/:id/audit", get(tenants::get_customer_audit))
         .route(
             "/customers/:id/snapshot",

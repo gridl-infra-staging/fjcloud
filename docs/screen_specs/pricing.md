@@ -9,11 +9,11 @@
 
 ## User Goal
 
-Understand exact Flapjack Cloud public pricing terms (rates, free-tier allowance, minimum spend, free-tier promise, and region multipliers) and continue into signup without reading unrelated landing-only marketing sections.
+Understand current public pricing terms (rates, four-cap free-tier promise, Shared-plan upgrade framing, and region multipliers) and continue into signup without reading unrelated landing-only marketing sections.
 
 ## Target Behavior
 
-The `/pricing` route is a public unauthenticated screen that reuses the existing marketing pricing owner (`MARKETING_PRICING`) for pricing values and vocabulary already established on `/`. The page centers pricing content: free-tier promise, the `250 MB` allowance, hot/cold storage rows, minimum monthly spend, region multipliers, and signup CTA copy sourced from shared pricing data.
+The `/pricing` route is a public unauthenticated screen that reuses the existing marketing pricing owner (`MARKETING_PRICING`) for copy and displayed values already established on `/`. Canonical plan semantics live in `docs/design/pricing_contract.md`; this route spec should reference that owner rather than restating billing-floor rules. The page centers pricing content: free-tier promise, the `250 MB` allowance, hot/cold storage rows, Shared-plan minimum framing, region multipliers, and signup CTA copy sourced from shared pricing data.
 
 Landing-only framing stays on `/` (for example: broader product feature storytelling, quick-facts panel, and full mixed marketing sections). The `/pricing` route should avoid introducing a parallel pricing copy source or alternate pricing constants.
 
@@ -37,8 +37,8 @@ Stage 4 backend-alignment drift detection must extend this same owner: compare `
 
 - [ ] `/pricing` is reachable as a public, unauthenticated route and renders page-specific body content on first paint.
 - [ ] Pricing rows match shared constants: hot storage `$0.05` per MB-month and cold snapshot storage `$0.02` per GB-month.
-- [ ] Minimum paid spend renders from shared cents data (`minimum_spend_cents=1000`) as `$10.00`.
-- [ ] Free-tier promise, `250 MB` allowance, and CTA label are sourced from shared pricing data (`Create your free account. No credit card required.`, `250 MB`, and `Get Started Free`).
+- [ ] Shared-plan minimum framing renders from `shared_minimum_spend_cents` (`500` cents, shown as `$5`) and does not claim a Free-plan billing floor.
+- [ ] Free-tier promise, `250 MB` allowance, and CTA label are sourced from shared pricing data (`Free up to 3 indices, 100,000 records, 250 MB storage, and 50,000 searches/month. No credit card required.`, `250 MB`, and `Get Started Free`).
 - [ ] Region multiplier content preserves current shared ordering and values (`US East (Virginia)`, `EU West (Ireland)`, `EU Central (Germany)`, `EU North (Helsinki)`, `US East (Ashburn)`, `US West (Oregon)` with multipliers `1.00x`, `1.00x`, `0.70x`, `0.75x`, `0.80x`, `0.80x`).
 - [ ] `/pricing` does not introduce landing-only product-framing sections as required content for pricing comprehension.
 - [ ] CTA and public links stay inside the current public-route system and do not introduce new route dependencies.

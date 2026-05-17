@@ -592,6 +592,8 @@ Contract notes:
 - RDS restore verification evidence is captured at
   `docs/runbooks/evidence/database-recovery/20260423T201333Z_staging_restore_verification.txt`
   (schema intact, 39 migrations, zero-count baseline for the empty staging source);
+  wrapper discovery attribution remains `cleanup_lifecycle=manual cleanup required`
+  for restored-instance teardown ownership.
   this lane is no longer a launch blocker in the preserved Stage 3 verdict.
 - Current authoritative blocker/prioritization context lives in `README.md`,
   `PRIORITIES.md`, and `ROADMAP.md`.

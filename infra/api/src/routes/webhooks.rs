@@ -15,6 +15,10 @@ use crate::services::audit_log::{
     write_audit_log, ACTION_SES_COMPLAINT_SUPPRESSED, ACTION_SES_PERMANENT_BOUNCE_SUPPRESSED,
     ADMIN_SENTINEL_ACTOR_ID,
 };
+use crate::services::email::{
+    DunningRecoveredAfterFailureEmailRequest, DunningRetriesExhaustedEmailRequest,
+    DunningRetryScheduledEmailRequest,
+};
 use crate::services::email_suppression::{
     normalize_recipient_email, EmailSuppressionStore, PgEmailSuppressionStore,
 };
@@ -241,11 +245,27 @@ async fn handle_payment_succeeded(
         return Ok(());
     };
 
-    if let Err(e) = state.customer_repo.reactivate(invoice.customer_id).await {
-        tracing::error!(
-            "failed to reactivate customer {} after payment recovery: {e}",
-            invoice.customer_id
-        );
+    match state.customer_repo.reactivate(invoice.customer_id).await {
+        Ok(true) => {
+            send_dunning_recovered_after_failure_email_best_effort(
+                state,
+                &customer.email,
+                &invoice,
+            )
+            .await;
+        }
+        Ok(false) => {
+            tracing::warn!(
+                "customer {} was not suspended during payment recovery; skipping recovery dunning email",
+                invoice.customer_id
+            );
+        }
+        Err(e) => {
+            tracing::error!(
+                "failed to reactivate customer {} after payment recovery: {e}",
+                invoice.customer_id
+            );
+        }
     }
 
     let mut metadata = invoice_alert_metadata(&invoice);
@@ -274,12 +294,10 @@ async fn handle_payment_failed(state: &AppState, data: &serde_json::Value) -> Re
     };
 
     let next_payment_attempt_is_null = data["object"]["next_payment_attempt"].is_null();
-    let next_payment_attempt = data["object"]["next_payment_attempt"]
-        .as_i64()
-        .map(|v| v.to_string());
+    let next_payment_attempt = data["object"]["next_payment_attempt"].as_i64();
     let attempt_count = data["object"]["attempt_count"]
         .as_i64()
-        .map(|v| v.to_string());
+        .and_then(|value| u32::try_from(value).ok());
 
     if let Some(invoice) = state
         .invoice_repo
@@ -295,13 +313,21 @@ async fn handle_payment_failed(state: &AppState, data: &serde_json::Value) -> Re
 
         let mut metadata = invoice_alert_metadata(&invoice);
         if let Some(count) = attempt_count {
-            metadata.insert("attempt_count".to_string(), count);
+            metadata.insert("attempt_count".to_string(), count.to_string());
         }
 
         if next_payment_attempt_is_null {
-            handle_retries_exhausted(state, &invoice, customer, metadata).await?;
+            handle_retries_exhausted(state, &invoice, customer, metadata, attempt_count).await?;
         } else {
-            handle_retry_scheduled(state, &invoice, metadata, next_payment_attempt).await?;
+            handle_retry_scheduled(
+                state,
+                &invoice,
+                customer,
+                metadata,
+                next_payment_attempt,
+                attempt_count,
+            )
+            .await?;
         }
     }
 
@@ -415,6 +441,7 @@ async fn handle_retries_exhausted(
     invoice: &InvoiceRow,
     customer: Option<Customer>,
     mut metadata: HashMap<String, String>,
+    attempt_count: Option<u32>,
 ) -> Result<(), ApiError> {
     match invoice.status.as_str() {
         "finalized" => {
@@ -428,7 +455,14 @@ async fn handle_retries_exhausted(
 
     state.customer_repo.suspend(invoice.customer_id).await?;
     if let Some(customer) = customer {
-        metadata.insert("customer_email".to_string(), customer.email);
+        metadata.insert("customer_email".to_string(), customer.email.clone());
+        send_dunning_retries_exhausted_email_best_effort(
+            state,
+            &customer.email,
+            invoice,
+            attempt_count,
+        )
+        .await;
     }
 
     send_alert_best_effort(
@@ -459,15 +493,27 @@ async fn handle_retries_exhausted(
 async fn handle_retry_scheduled(
     state: &AppState,
     invoice: &InvoiceRow,
+    customer: Option<Customer>,
     mut metadata: HashMap<String, String>,
-    next_payment_attempt: Option<String>,
+    next_payment_attempt: Option<i64>,
+    attempt_count: Option<u32>,
 ) -> Result<(), ApiError> {
     if invoice.status != "finalized" {
         return Ok(());
     }
 
     if let Some(next_attempt) = next_payment_attempt {
-        metadata.insert("next_payment_attempt".to_string(), next_attempt);
+        metadata.insert("next_payment_attempt".to_string(), next_attempt.to_string());
+        if let Some(customer) = customer {
+            send_dunning_retry_scheduled_email_best_effort(
+                state,
+                &customer.email,
+                invoice,
+                next_attempt,
+                attempt_count,
+            )
+            .await;
+        }
     }
 
     send_alert_best_effort(
@@ -495,6 +541,96 @@ async fn handle_retry_scheduled(
 async fn send_alert_best_effort(state: &AppState, alert: Alert) {
     if let Err(err) = state.alert_service.send_alert(alert).await {
         tracing::warn!("failed to send webhook alert: {err}");
+    }
+}
+
+async fn send_dunning_retry_scheduled_email_best_effort(
+    state: &AppState,
+    to: &str,
+    invoice: &InvoiceRow,
+    next_payment_attempt_unix_seconds: i64,
+    attempt_count: Option<u32>,
+) {
+    if state.dunning_emails_disabled {
+        return;
+    }
+
+    let customer_id = invoice.customer_id.to_string();
+    let invoice_id = invoice.id.to_string();
+    let request = DunningRetryScheduledEmailRequest {
+        customer_id: &customer_id,
+        invoice_id: &invoice_id,
+        hosted_invoice_url: invoice.hosted_invoice_url.as_deref(),
+        next_payment_attempt_unix_seconds,
+        attempt_count,
+    };
+    if let Err(err) = state
+        .email_service
+        .send_dunning_retry_scheduled_email(to, &request)
+        .await
+    {
+        tracing::warn!(
+            "failed to send retry-scheduled dunning email for invoice {}: {err}",
+            invoice.id
+        );
+    }
+}
+
+async fn send_dunning_retries_exhausted_email_best_effort(
+    state: &AppState,
+    to: &str,
+    invoice: &InvoiceRow,
+    attempt_count: Option<u32>,
+) {
+    if state.dunning_emails_disabled {
+        return;
+    }
+
+    let customer_id = invoice.customer_id.to_string();
+    let invoice_id = invoice.id.to_string();
+    let request = DunningRetriesExhaustedEmailRequest {
+        customer_id: &customer_id,
+        invoice_id: &invoice_id,
+        hosted_invoice_url: invoice.hosted_invoice_url.as_deref(),
+        attempt_count,
+    };
+    if let Err(err) = state
+        .email_service
+        .send_dunning_retries_exhausted_email(to, &request)
+        .await
+    {
+        tracing::warn!(
+            "failed to send retries-exhausted dunning email for invoice {}: {err}",
+            invoice.id
+        );
+    }
+}
+
+async fn send_dunning_recovered_after_failure_email_best_effort(
+    state: &AppState,
+    to: &str,
+    invoice: &InvoiceRow,
+) {
+    if state.dunning_emails_disabled {
+        return;
+    }
+
+    let customer_id = invoice.customer_id.to_string();
+    let invoice_id = invoice.id.to_string();
+    let request = DunningRecoveredAfterFailureEmailRequest {
+        customer_id: &customer_id,
+        invoice_id: &invoice_id,
+        hosted_invoice_url: invoice.hosted_invoice_url.as_deref(),
+    };
+    if let Err(err) = state
+        .email_service
+        .send_dunning_recovered_after_failure_email(to, &request)
+        .await
+    {
+        tracing::warn!(
+            "failed to send recovered-after-failure dunning email for invoice {}: {err}",
+            invoice.id
+        );
     }
 }
 

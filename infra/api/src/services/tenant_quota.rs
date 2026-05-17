@@ -1,4 +1,3 @@
-//! Stub summary for /Users/stuart/parallel_development/fjcloud_dev/MAR17_11_2_data_management_features/fjcloud_dev/infra/api/src/services/tenant_quota.rs.
 use std::collections::{HashMap, VecDeque};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
@@ -11,10 +10,10 @@ const DEFAULT_MAX_QUERY_RPS: u32 = 10;
 const DEFAULT_MAX_WRITE_RPS: u32 = 10;
 const DEFAULT_MAX_STORAGE_BYTES: u64 = 10_737_418_240; // 10 GB
 const DEFAULT_MAX_INDEXES: u32 = 10;
-const DEFAULT_FREE_TIER_MAX_INDEXES: u32 = 1;
+const DEFAULT_FREE_TIER_MAX_INDEXES: u32 = 3;
 const DEFAULT_FREE_TIER_MAX_SEARCHES_PER_MONTH: u64 = 50_000;
 const DEFAULT_FREE_TIER_MAX_RECORDS: u64 = 100_000;
-const DEFAULT_FREE_TIER_MAX_STORAGE_GB: u64 = 10;
+const DEFAULT_FREE_TIER_MAX_STORAGE_MB: u64 = 250;
 const RATE_WINDOW: Duration = Duration::from_secs(1);
 
 /// Resolved quota for a tenant-index pair, merging per-index overrides with global defaults.
@@ -96,6 +95,8 @@ impl QuotaDefaults {
 pub struct FreeTierLimits {
     pub max_indexes: u32,
     pub max_searches_per_month: u64,
+    pub max_records: u64,
+    pub max_storage_mb: u64,
 }
 
 impl Default for FreeTierLimits {
@@ -103,6 +104,8 @@ impl Default for FreeTierLimits {
         Self {
             max_indexes: DEFAULT_FREE_TIER_MAX_INDEXES,
             max_searches_per_month: DEFAULT_FREE_TIER_MAX_SEARCHES_PER_MONTH,
+            max_records: DEFAULT_FREE_TIER_MAX_RECORDS,
+            max_storage_mb: DEFAULT_FREE_TIER_MAX_STORAGE_MB,
         }
     }
 }
@@ -112,8 +115,8 @@ impl FreeTierLimits {
         DEFAULT_FREE_TIER_MAX_RECORDS
     }
 
-    pub fn default_max_storage_gb() -> u64 {
-        DEFAULT_FREE_TIER_MAX_STORAGE_GB
+    pub fn default_max_storage_mb() -> u64 {
+        DEFAULT_FREE_TIER_MAX_STORAGE_MB
     }
 
     pub fn from_env() -> Self {
@@ -128,6 +131,16 @@ impl FreeTierLimits {
                 .and_then(|v| v.parse::<u64>().ok())
                 .filter(|v| *v > 0)
                 .unwrap_or(DEFAULT_FREE_TIER_MAX_SEARCHES_PER_MONTH),
+            max_records: std::env::var("FREE_TIER_MAX_RECORDS")
+                .ok()
+                .and_then(|v| v.parse::<u64>().ok())
+                .filter(|v| *v > 0)
+                .unwrap_or(DEFAULT_FREE_TIER_MAX_RECORDS),
+            max_storage_mb: std::env::var("FREE_TIER_MAX_STORAGE_MB")
+                .ok()
+                .and_then(|v| v.parse::<u64>().ok())
+                .filter(|v| *v > 0)
+                .unwrap_or(DEFAULT_FREE_TIER_MAX_STORAGE_MB),
         }
     }
 }
@@ -338,10 +351,14 @@ mod tests {
         let _guard = ENV_LOCK.lock().unwrap();
         std::env::remove_var("FREE_TIER_MAX_INDEXES");
         std::env::remove_var("FREE_TIER_MAX_SEARCHES_PER_MONTH");
+        std::env::remove_var("FREE_TIER_MAX_RECORDS");
+        std::env::remove_var("FREE_TIER_MAX_STORAGE_MB");
 
         let limits = FreeTierLimits::from_env();
-        assert_eq!(limits.max_indexes, 1);
+        assert_eq!(limits.max_indexes, 3);
         assert_eq!(limits.max_searches_per_month, 50_000);
+        assert_eq!(limits.max_records, 100_000);
+        assert_eq!(limits.max_storage_mb, 250);
     }
 
     #[test]
@@ -349,19 +366,25 @@ mod tests {
         let _guard = ENV_LOCK.lock().unwrap();
         std::env::set_var("FREE_TIER_MAX_INDEXES", "3");
         std::env::set_var("FREE_TIER_MAX_SEARCHES_PER_MONTH", "75000");
+        std::env::set_var("FREE_TIER_MAX_RECORDS", "125000");
+        std::env::set_var("FREE_TIER_MAX_STORAGE_MB", "300");
 
         let limits = FreeTierLimits::from_env();
         assert_eq!(limits.max_indexes, 3);
         assert_eq!(limits.max_searches_per_month, 75_000);
+        assert_eq!(limits.max_records, 125_000);
+        assert_eq!(limits.max_storage_mb, 300);
 
         std::env::remove_var("FREE_TIER_MAX_INDEXES");
         std::env::remove_var("FREE_TIER_MAX_SEARCHES_PER_MONTH");
+        std::env::remove_var("FREE_TIER_MAX_RECORDS");
+        std::env::remove_var("FREE_TIER_MAX_STORAGE_MB");
     }
 
     #[test]
     fn free_tier_limits_defaults_cover_records_and_storage() {
         assert_eq!(FreeTierLimits::default_max_records(), 100_000);
-        assert_eq!(FreeTierLimits::default_max_storage_gb(), 10);
+        assert_eq!(FreeTierLimits::default_max_storage_mb(), 250);
     }
 
     #[test]

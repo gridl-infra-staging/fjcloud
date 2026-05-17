@@ -134,7 +134,7 @@ pub(super) fn invoice_total_with_minimum(
     rate_card: &billing::rate_card::RateCard,
 ) -> (i64, bool) {
     let minimum_cents = match billing_plan {
-        BillingPlan::Free => rate_card.minimum_spend_cents,
+        BillingPlan::Free => 0,
         BillingPlan::Shared => rate_card.shared_minimum_spend_cents,
     };
     if subtotal_cents < minimum_cents {

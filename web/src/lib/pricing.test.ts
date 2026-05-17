@@ -3,7 +3,8 @@ import type { AdminRateCard } from './admin-client';
 import {
 	MARKETING_PRICING,
 	pricingContractSnapshotFromAdminRateCard,
-	pricingContractSnapshotFromMarketing
+	pricingContractSnapshotFromMarketing,
+	sharedPlanMinimumMonthlyLabel
 } from './pricing';
 import { marketingPricingPageData } from '../routes/marketing_pricing';
 import { load as pricingPageLoad } from '../routes/pricing/+page';
@@ -19,8 +20,9 @@ describe('pricing constants', () => {
 			expect(MARKETING_PRICING).not.toHaveProperty('storage_rate_per_gb_month');
 		});
 
-		it('has $10 minimum spend (1000 cents)', () => {
+		it('keeps dedicated-plan and shared-plan minimums aligned with the backend contract', () => {
 			expect(MARKETING_PRICING.minimum_spend_cents).toBe(1000);
+			expect(MARKETING_PRICING.shared_minimum_spend_cents).toBe(500);
 		});
 
 		it('has 250 MB free tier', () => {
@@ -33,8 +35,17 @@ describe('pricing constants', () => {
 
 		it('has a shared free-tier promise used across public entry routes', () => {
 			expect(MARKETING_PRICING.free_tier_promise).toBe(
-				'Create your free account. No credit card required.'
+				'Free up to 3 indices, 100,000 records, 250 MB storage, and 50,000 searches/month. No credit card required.'
 			);
+		});
+
+		it('includes the four-cap free-tier contract fields used by pricing and dashboard surfaces', () => {
+			expect(MARKETING_PRICING).toMatchObject({
+				free_tier_mb: 250,
+				free_tier_indexes: 3,
+				free_tier_records: 100000,
+				free_tier_searches_per_month: 50000
+			});
 		});
 
 		it('has six regions', () => {
@@ -71,6 +82,20 @@ describe('pricing constants', () => {
 			expect(marketingPageData.pricing).toBe(MARKETING_PRICING);
 			expect(pricingLoadData.pricing).toBe(MARKETING_PRICING);
 			expect(pricingLoadData.pricing).toBe(marketingPageData.pricing);
+		});
+
+		it('formats shared-plan minimum labels with thousands separators for large values', () => {
+			// Integer dollars stay bare (e.g. "$5") to match the marketing copy idiom.
+			expect(sharedPlanMinimumMonthlyLabel(500)).toBe('$5');
+			expect(sharedPlanMinimumMonthlyLabel(50000)).toBe('$500');
+			// Fractional dollars use two decimals.
+			expect(sharedPlanMinimumMonthlyLabel(4321)).toBe('$43.21');
+			expect(sharedPlanMinimumMonthlyLabel(43210)).toBe('$432.10');
+			// Large amounts must preserve canonical thousands grouping (regression).
+			expect(sharedPlanMinimumMonthlyLabel(123456)).toBe('$1,234.56');
+			expect(sharedPlanMinimumMonthlyLabel(100000)).toBe('$1,000');
+			expect(sharedPlanMinimumMonthlyLabel(100000000)).toBe('$1,000,000');
+			expect(sharedPlanMinimumMonthlyLabel(123456789)).toBe('$1,234,567.89');
 		});
 
 		it('normalizes backend admin rate-card JSON into the same pricing contract snapshot', () => {

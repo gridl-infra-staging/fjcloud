@@ -1,8 +1,17 @@
 use super::{
-    invoice_ready_email_html, invoice_ready_email_text, password_reset_email_html_with_base_url,
+    dunning_recovered_after_failure_email_html_with_base_url,
+    dunning_recovered_after_failure_email_text_with_base_url,
+    dunning_retries_exhausted_email_html_with_base_url,
+    dunning_retries_exhausted_email_text_with_base_url,
+    dunning_retry_scheduled_email_html_with_base_url,
+    dunning_retry_scheduled_email_text_with_base_url, invoice_ready_email_html,
+    invoice_ready_email_text, password_reset_email_html_with_base_url,
     password_reset_email_text_with_base_url, quota_warning_email_html, quota_warning_email_text,
-    verification_email_html_with_base_url, verification_email_text_with_base_url, EmailError,
-    INVOICE_READY_SUBJECT, PASSWORD_RESET_SUBJECT, QUOTA_WARNING_SUBJECT, VERIFICATION_SUBJECT,
+    verification_email_html_with_base_url, verification_email_text_with_base_url,
+    DunningRecoveredAfterFailureEmailRequest, DunningRetriesExhaustedEmailRequest,
+    DunningRetryScheduledEmailRequest, EmailError, DUNNING_RECOVERED_AFTER_FAILURE_SUBJECT,
+    DUNNING_RETRIES_EXHAUSTED_SUBJECT, DUNNING_RETRY_SCHEDULED_SUBJECT, INVOICE_READY_SUBJECT,
+    PASSWORD_RESET_SUBJECT, QUOTA_WARNING_SUBJECT, VERIFICATION_SUBJECT,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -111,6 +120,42 @@ pub(super) fn render_quota_warning_email(
         "quota warning email",
         quota_warning_email_html(metric, percent_used, current_usage, limit),
         quota_warning_email_text(metric, percent_used, current_usage, limit),
+    )
+}
+
+pub(super) fn render_dunning_retry_scheduled_email(
+    app_base_url: &str,
+    request: &DunningRetryScheduledEmailRequest<'_>,
+) -> Result<RenderedEmail, EmailError> {
+    render_transactional_email(
+        DUNNING_RETRY_SCHEDULED_SUBJECT,
+        "dunning retry scheduled email",
+        dunning_retry_scheduled_email_html_with_base_url(app_base_url, request)?,
+        dunning_retry_scheduled_email_text_with_base_url(app_base_url, request)?,
+    )
+}
+
+pub(super) fn render_dunning_retries_exhausted_email(
+    app_base_url: &str,
+    request: &DunningRetriesExhaustedEmailRequest<'_>,
+) -> Result<RenderedEmail, EmailError> {
+    render_transactional_email(
+        DUNNING_RETRIES_EXHAUSTED_SUBJECT,
+        "dunning retries exhausted email",
+        dunning_retries_exhausted_email_html_with_base_url(app_base_url, request),
+        dunning_retries_exhausted_email_text_with_base_url(app_base_url, request),
+    )
+}
+
+pub(super) fn render_dunning_recovered_after_failure_email(
+    app_base_url: &str,
+    request: &DunningRecoveredAfterFailureEmailRequest<'_>,
+) -> Result<RenderedEmail, EmailError> {
+    render_transactional_email(
+        DUNNING_RECOVERED_AFTER_FAILURE_SUBJECT,
+        "dunning recovered email",
+        dunning_recovered_after_failure_email_html_with_base_url(app_base_url, request),
+        dunning_recovered_after_failure_email_text_with_base_url(app_base_url, request),
     )
 }
 

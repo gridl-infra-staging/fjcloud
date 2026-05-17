@@ -84,9 +84,15 @@ struct GoogleUserInfoResponse {
 #[derive(Debug, Deserialize)]
 struct GitHubUserInfoResponse {
     id: u64,
-    email: Option<String>,
     name: Option<String>,
     login: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct GitHubEmailEntry {
+    email: String,
+    primary: bool,
+    verified: bool,
 }
 
 pub async fn start_oauth(
@@ -389,18 +395,23 @@ async fn create_or_find_synthetic_oauth_customer(
         .await
     {
         Ok(created) => Ok(created),
-        Err(RepoError::Conflict(_)) => match state
-            .customer_repo
-            .find_oauth_identity(provider, provider_user_id)
-            .await
-        {
-            Ok(Some(existing)) => Ok(existing),
-            Ok(None) => Err((StatusCode::CONFLICT, OAUTH_SYNTHETIC_EMAIL_CONFLICT)),
-            Err(_) => Err((
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "oauth_identity_lookup_failed",
-            )),
-        },
+        Err(RepoError::Conflict(_)) => {
+            // Symmetric guard: both verified-email and synthetic-email paths must
+            // reject soft-deleted customers with 403 oauth_customer_deleted.
+            find_active_customer_by_email(state, synthetic_email).await?;
+            match state
+                .customer_repo
+                .find_oauth_identity(provider, provider_user_id)
+                .await
+            {
+                Ok(Some(existing)) => Ok(existing),
+                Ok(None) => Err((StatusCode::CONFLICT, OAUTH_SYNTHETIC_EMAIL_CONFLICT)),
+                Err(_) => Err((
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "oauth_identity_lookup_failed",
+                )),
+            }
+        }
         Err(_) => Err((
             StatusCode::INTERNAL_SERVER_ERROR,
             "oauth_customer_create_failed",
@@ -491,7 +502,7 @@ async fn fetch_provider_identity(
 
     let userinfo_response = client
         .get(provider_cfg.userinfo_endpoint.as_ref())
-        .bearer_auth(token_payload.access_token)
+        .bearer_auth(&token_payload.access_token)
         .header(header::ACCEPT.as_str(), "application/json")
         .header(header::USER_AGENT.as_str(), "fjcloud-oauth")
         .send()
@@ -520,10 +531,40 @@ async fn fetch_provider_identity(
                 .json::<GitHubUserInfoResponse>()
                 .await
                 .map_err(|_| (StatusCode::BAD_GATEWAY, "oauth_provider_userinfo_failed"))?;
+
+            let user_emails_endpoint = provider_cfg
+                .user_emails_endpoint
+                .as_ref()
+                .ok_or((StatusCode::BAD_GATEWAY, "oauth_provider_userinfo_failed"))?;
+
+            let emails_response = client
+                .get(user_emails_endpoint.as_ref())
+                .bearer_auth(&token_payload.access_token)
+                .header(header::ACCEPT.as_str(), "application/json")
+                .header(header::USER_AGENT.as_str(), "fjcloud-oauth")
+                .send()
+                .await
+                .map_err(|_| (StatusCode::BAD_GATEWAY, "oauth_provider_userinfo_failed"))?;
+
+            if !emails_response.status().is_success() {
+                return Err((StatusCode::BAD_GATEWAY, "oauth_provider_userinfo_failed"));
+            }
+
+            let email_entries = emails_response
+                .json::<Vec<GitHubEmailEntry>>()
+                .await
+                .map_err(|_| (StatusCode::BAD_GATEWAY, "oauth_provider_userinfo_failed"))?;
+
+            let primary_entry = email_entries.iter().find(|e| e.primary);
+            let (email, email_verified) = match primary_entry {
+                Some(entry) => (Some(entry.email.clone()), entry.verified),
+                None => (None, false),
+            };
+
             Ok(OAuthProviderIdentity {
                 provider_user_id: payload.id.to_string(),
-                email: payload.email,
-                email_verified: false,
+                email,
+                email_verified,
                 display_name: payload.name.or(Some(payload.login)),
             })
         }
@@ -732,4 +773,45 @@ fn derive_oauth_state_key(jwt_secret: &str) -> Result<[u8; 32], String> {
     let mut key = [0u8; 32];
     key.copy_from_slice(&okm);
     Ok(key)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::GitHubEmailEntry;
+
+    #[test]
+    fn github_email_entry_deserializes_documented_schema() {
+        let fixture = r#"[
+            {
+                "email": "octocat@github.com",
+                "primary": true,
+                "verified": true,
+                "visibility": "public"
+            },
+            {
+                "email": "backup@example.com",
+                "primary": false,
+                "verified": false,
+                "visibility": null
+            }
+        ]"#;
+
+        let entries: Vec<GitHubEmailEntry> =
+            serde_json::from_str(fixture).expect("fixture must deserialize");
+        assert_eq!(entries.len(), 2);
+
+        let primary = entries
+            .iter()
+            .find(|e| e.primary)
+            .expect("must have primary");
+        assert_eq!(primary.email, "octocat@github.com");
+        assert!(primary.verified);
+
+        let secondary = entries
+            .iter()
+            .find(|e| !e.primary)
+            .expect("must have non-primary");
+        assert_eq!(secondary.email, "backup@example.com");
+        assert!(!secondary.verified);
+    }
 }

@@ -13,6 +13,11 @@ output "alb_arn_suffix" {
   value       = aws_lb.api.arn_suffix
 }
 
+output "api_target_group_arn_suffix" {
+  description = "ARN suffix of the API target group (for CloudWatch target-group metrics)"
+  value       = aws_lb_target_group.api.arn_suffix
+}
+
 output "acm_certificate_arn" {
   description = "ARN of the ACM certificate used by the HTTPS listener"
   value       = aws_acm_certificate.main.arn

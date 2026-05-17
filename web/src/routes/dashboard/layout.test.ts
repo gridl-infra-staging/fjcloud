@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { render, screen, cleanup, fireEvent, waitFor, within } from '@testing-library/svelte';
 import { createRawSnippet } from 'svelte';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import type { CustomerProfileResponse, OnboardingStatus, FreeTierLimits } from '$lib/api/types';
 import { IMPERSONATION_COOKIE } from '$lib/config';
 import { SUPPORT_EMAIL } from '$lib/format';
@@ -51,6 +53,156 @@ vi.stubGlobal('fetch', fetchMock);
 
 import LayoutComponent from './+layout.svelte';
 
+const layoutSource = readFileSync(
+	join(process.cwd(), 'src', 'routes', 'dashboard', '+layout.svelte'),
+	'utf8'
+);
+
+function findIdenticalIsMobileTernaryBranches(source: string): string[] {
+	const duplicateMatches: string[] = [];
+	const isMobilePattern = /\bisMobile\s*\?/g;
+
+	function normalizeBranchExpression(expression: string): string {
+		return expression
+			.replace(/\s+/g, ' ')
+			.replace(/\s*([?:(),{}])\s*/g, '$1')
+			.trim();
+	}
+
+	function parseTernaryBranches(questionMarkIndex: number) {
+		let cursor = questionMarkIndex + 1;
+		let nestedTernaryDepth = 0;
+		let parenthesisDepth = 0;
+		let bracketDepth = 0;
+		let braceDepth = 0;
+		let quoteMode: "'" | '"' | '`' | null = null;
+		let escapeNextCharacter = false;
+		const mobileBranchStart = cursor;
+		let mobileBranchEnd = -1;
+
+		while (cursor < source.length) {
+			const character = source[cursor];
+
+			if (quoteMode !== null) {
+				if (escapeNextCharacter) {
+					escapeNextCharacter = false;
+					cursor += 1;
+					continue;
+				}
+				if (character === '\\') {
+					escapeNextCharacter = true;
+					cursor += 1;
+					continue;
+				}
+				if (character === quoteMode) {
+					quoteMode = null;
+				}
+				cursor += 1;
+				continue;
+			}
+
+			if (character === "'" || character === '"' || character === '`') {
+				quoteMode = character;
+				cursor += 1;
+				continue;
+			}
+
+			if (character === '(') {
+				parenthesisDepth += 1;
+				cursor += 1;
+				continue;
+			}
+			if (character === ')') {
+				parenthesisDepth = Math.max(0, parenthesisDepth - 1);
+				cursor += 1;
+				continue;
+			}
+			if (character === '[') {
+				bracketDepth += 1;
+				cursor += 1;
+				continue;
+			}
+			if (character === ']') {
+				bracketDepth = Math.max(0, bracketDepth - 1);
+				cursor += 1;
+				continue;
+			}
+			if (character === '{') {
+				braceDepth += 1;
+				cursor += 1;
+				continue;
+			}
+			if (character === '}') {
+				if (
+					braceDepth === 0 &&
+					mobileBranchEnd !== -1 &&
+					nestedTernaryDepth === 0 &&
+					parenthesisDepth === 0 &&
+					bracketDepth === 0
+				) {
+					break;
+				}
+				braceDepth = Math.max(0, braceDepth - 1);
+				cursor += 1;
+				continue;
+			}
+
+			if (character === '?') {
+				const previousCharacter = source[cursor - 1] ?? '';
+				const nextCharacter = source[cursor + 1] ?? '';
+				const isOptionalChaining = previousCharacter === '?' || nextCharacter === '.';
+				if (!isOptionalChaining) {
+					nestedTernaryDepth += 1;
+				}
+				cursor += 1;
+				continue;
+			}
+
+			if (character === ':') {
+				if (nestedTernaryDepth === 0 && mobileBranchEnd === -1) {
+					mobileBranchEnd = cursor;
+					cursor += 1;
+					continue;
+				}
+				if (nestedTernaryDepth > 0) {
+					nestedTernaryDepth -= 1;
+				}
+				cursor += 1;
+				continue;
+			}
+
+			cursor += 1;
+		}
+
+		if (mobileBranchEnd === -1) return null;
+
+		const mobileBranch = source.slice(mobileBranchStart, mobileBranchEnd).trim();
+		const desktopBranch = source.slice(mobileBranchEnd + 1, cursor).trim();
+		return {
+			mobileBranch,
+			desktopBranch,
+			fullExpression: source.slice(questionMarkIndex + 1, cursor)
+		};
+	}
+
+	for (const match of source.matchAll(isMobilePattern)) {
+		const matchIndex = match.index;
+		if (matchIndex === undefined) continue;
+		const questionMarkIndex = source.indexOf('?', matchIndex);
+		if (questionMarkIndex === -1) continue;
+		const branches = parseTernaryBranches(questionMarkIndex);
+		if (!branches) continue;
+		if (
+			normalizeBranchExpression(branches.mobileBranch) ===
+			normalizeBranchExpression(branches.desktopBranch)
+		) {
+			duplicateMatches.push(branches.fullExpression);
+		}
+	}
+
+	return duplicateMatches;
+}
+
 afterEach(() => {
 	cleanup();
 	vi.clearAllMocks();
@@ -61,8 +213,8 @@ afterEach(() => {
 const freeLimits: FreeTierLimits = {
 	max_searches_per_month: 50000,
 	max_records: 100000,
-	max_storage_gb: 10,
-	max_indexes: 1
+	max_storage_mb: 250,
+	max_indexes: 3
 };
 
 const freeProfile: CustomerProfileResponse = {
@@ -151,6 +303,27 @@ function renderLayout(
 }
 
 describe('Dashboard layout plan badge', () => {
+	it('detects structurally duplicated isMobile ternary branches independent of exact class literals', () => {
+		const duplicatedLiteralFixture = `
+			class="{isMobile ? 'text-[#222]/70 font-medium' : 'text-[#222]/70 font-medium'}"
+		`;
+		const duplicatedNestedTernaryFixture = `
+			class="{isMobile ? isActive(link.href) ? 'bg-[#9fd8d2]/20 text-[#1f1b18]' : 'text-[#1f1b18] hover:bg-[#9fd8d2]/20'
+				: isActive(link.href) ? 'bg-[#9fd8d2]/20 text-[#1f1b18]' : 'text-[#1f1b18] hover:bg-[#9fd8d2]/20'}"
+		`;
+		const distinctBranchesFixture = `
+			class="{isMobile ? 'text-[#222]/70 font-medium' : 'text-[#1f1b18] font-medium'}"
+		`;
+
+		expect(findIdenticalIsMobileTernaryBranches(duplicatedLiteralFixture)).toHaveLength(1);
+		expect(findIdenticalIsMobileTernaryBranches(duplicatedNestedTernaryFixture)).toHaveLength(1);
+		expect(findIdenticalIsMobileTernaryBranches(distinctBranchesFixture)).toHaveLength(0);
+	});
+
+	it('keeps shell navigation class contracts free of identical mobile/desktop ternary branches', () => {
+		expect(findIdenticalIsMobileTernaryBranches(layoutSource)).toHaveLength(0);
+	});
+
 	it('renders Free plan badge for free billing plan', () => {
 		renderLayout({ billing_plan: 'free' });
 		const badge = screen.getByTestId('plan-badge');
@@ -211,6 +384,14 @@ describe('Dashboard layout verification banner', () => {
 
 		expect(screen.getByTestId('verification-banner')).toBeInTheDocument();
 		expect(screen.getByTestId('verification-resend-button')).toBeInTheDocument();
+	});
+
+	it('auth__dashboard__success__mobile_narrow M.palette.7 gives resend CTA hard-shadow diner button treatment', () => {
+		renderLayout({ profile: unverifiedProfile });
+
+		const resendCta = screen.getByTestId('verification-resend-button');
+		expect(resendCta).toHaveClass('bg-[#ffb3c7]');
+		expect(resendCta).toHaveClass('shadow-[4px_4px_0_0_#1f1b18]');
 	});
 
 	it('keeps successful resend confirmation in shell-local state across child-route navigation', async () => {
@@ -288,6 +469,23 @@ describe('Dashboard layout verification banner', () => {
 });
 
 describe('Dashboard layout sidebar navigation', () => {
+	it('auth__dashboard__empty__desktop P.brand_palette_consistency keeps desktop nav on cream diner chrome', () => {
+		renderLayout();
+
+		const desktopWrapper = screen.getByTestId('dashboard-nav-desktop');
+		expect(desktopWrapper).toHaveClass('bg-[#fff8ea]');
+		expect(desktopWrapper).toHaveClass('text-[#1f1b18]');
+	});
+
+	it('auth__dashboard__success__mobile_narrow P.brand_palette_consistency keeps mobile shell header on cream diner chrome', () => {
+		renderLayout();
+
+		const shellHeader = screen.getByTestId('dashboard-shell-header');
+		expect(shellHeader).toHaveClass('bg-[#fff8ea]');
+		expect(shellHeader).toHaveClass('border-b');
+		expect(shellHeader).toHaveClass('border-[#1f1b18]/15');
+	});
+
 	it('keeps mobile nav/help links unavailable while the drawer is closed, then renders canonical links after opening', async () => {
 		renderLayout();
 

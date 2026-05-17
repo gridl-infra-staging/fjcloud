@@ -2,7 +2,11 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/svelte';
 import type { Component } from 'svelte';
 import { formatCents } from '$lib/format';
-import { MARKETING_PRICING } from '$lib/pricing';
+import { MARKETING_PRICING, sharedPlanMinimumMonthlyLabel } from '$lib/pricing';
+
+function expectedFreeTierUpgradeCopy(sharedMinimumSpendCents: number): string {
+	return `Free for hobby projects and evaluation. Upgrade to a paid plan (${sharedPlanMinimumMonthlyLabel(sharedMinimumSpendCents)}/month minimum) to lift the caps.`;
+}
 
 afterEach(cleanup);
 
@@ -10,6 +14,7 @@ const EXPECTED_REGIONS = MARKETING_PRICING.region_pricing.map((region) => region
 const PRICING_ROUTE_COMPONENT_PATH = './+page.svelte';
 const PRICING_ROUTE_MODULE_IDENTIFIERS = ['./+page.svelte', '/routes/pricing/+page.svelte'];
 type PricingPageProps = { data: { pricing: typeof MARKETING_PRICING } };
+const US_INTEGER_FORMATTER = new Intl.NumberFormat('en-US');
 
 function isPricingRouteModuleIdentifier(value: string): boolean {
 	const normalizedValue = value.toLowerCase();
@@ -99,9 +104,39 @@ describe('Pricing page', () => {
 		await renderPricingPage();
 
 		expect(screen.getByRole('heading', { level: 1, name: /pricing/i })).toBeInTheDocument();
+		expect(
+			screen.getByText(
+				'Use straightforward monthly pricing in USD without managing infrastructure billing logic.'
+			)
+		).toBeInTheDocument();
 		expect(screen.getByText(MARKETING_PRICING.free_tier_promise)).toBeInTheDocument();
 		expect(
-			screen.getByText(new RegExp(`${MARKETING_PRICING.free_tier_mb}\\s+MB`))
+			screen.getByText(
+				`Free up to ${MARKETING_PRICING.free_tier_indexes} indices, ${US_INTEGER_FORMATTER.format(MARKETING_PRICING.free_tier_records)} records, ${MARKETING_PRICING.free_tier_mb} MB storage, and ${US_INTEGER_FORMATTER.format(MARKETING_PRICING.free_tier_searches_per_month)} searches/month. No credit card required.`
+			)
+		).toBeInTheDocument();
+		expect(
+			screen.getByText(
+				`Every account includes ${MARKETING_PRICING.free_tier_mb} MB of hot index storage before paid billing starts.`
+			)
+		).toBeInTheDocument();
+		expect(screen.getByText(MARKETING_PRICING.storage_rate_per_mb_month)).toBeInTheDocument();
+		expect(
+			screen.getByText(MARKETING_PRICING.cold_storage_rate_per_gb_month)
+		).toBeInTheDocument();
+		expect(screen.getByText(formatCents(MARKETING_PRICING.shared_minimum_spend_cents))).toBeInTheDocument();
+		expect(
+			screen.getByText(expectedFreeTierUpgradeCopy(MARKETING_PRICING.shared_minimum_spend_cents))
+		).toBeInTheDocument();
+		expect(screen.getByText(`${MARKETING_PRICING.free_tier_max_indexes} indices`)).toBeInTheDocument();
+		expect(
+			screen.getByText(`${US_INTEGER_FORMATTER.format(MARKETING_PRICING.free_tier_max_records)} records`)
+		).toBeInTheDocument();
+		expect(screen.getByText(`${MARKETING_PRICING.free_tier_mb} MB hot storage`)).toBeInTheDocument();
+		expect(
+			screen.getByText(
+				`${US_INTEGER_FORMATTER.format(MARKETING_PRICING.free_tier_max_searches_per_month)} searches per month`
+			)
 		).toBeInTheDocument();
 
 		const pricingMain = screen.getByTestId('pricing-page-main');
@@ -115,7 +150,11 @@ describe('Pricing page', () => {
 			...MARKETING_PRICING,
 			cta_label: 'Launch Free Workspace',
 			free_tier_mb: 987,
-			minimum_spend_cents: 43210,
+			free_tier_max_indexes: 11,
+			free_tier_max_records: 654_321,
+			free_tier_max_searches_per_month: 76_543,
+			minimum_spend_cents: 0,
+			shared_minimum_spend_cents: 43210,
 			region_pricing: reversedRegions
 		};
 
@@ -123,13 +162,32 @@ describe('Pricing page', () => {
 		const pricingMain = screen.getByTestId('pricing-page-main');
 
 		expect(
-			screen.getByText(new RegExp(`${mutatedPricing.free_tier_mb}\\s+MB`))
+			screen.getByText(
+				`Every account includes ${mutatedPricing.free_tier_mb} MB of hot index storage before paid billing starts.`
+			)
 		).toBeInTheDocument();
 		expect(
 			within(pricingMain).getByRole('link', { name: mutatedPricing.cta_label })
 		).toHaveAttribute('href', '/signup');
 		expect(
-			within(pricingMain).getByText(formatCents(mutatedPricing.minimum_spend_cents))
+			within(pricingMain).getByText(formatCents(mutatedPricing.shared_minimum_spend_cents))
+		).toBeInTheDocument();
+		expect(
+			within(pricingMain).getByText(
+				expectedFreeTierUpgradeCopy(mutatedPricing.shared_minimum_spend_cents)
+			)
+		).toBeInTheDocument();
+		expect(within(pricingMain).getByText(`${mutatedPricing.free_tier_mb} MB hot storage`)).toBeInTheDocument();
+		expect(within(pricingMain).getByText(`${mutatedPricing.free_tier_max_indexes} indices`)).toBeInTheDocument();
+		expect(
+			within(pricingMain).getByText(
+				`${US_INTEGER_FORMATTER.format(mutatedPricing.free_tier_max_records)} records`
+			)
+		).toBeInTheDocument();
+		expect(
+			within(pricingMain).getByText(
+				`${US_INTEGER_FORMATTER.format(mutatedPricing.free_tier_max_searches_per_month)} searches per month`
+			)
 		).toBeInTheDocument();
 
 		const regionTable = within(pricingMain).getByRole('table', { name: 'Region multipliers' });
@@ -149,7 +207,8 @@ describe('Pricing page', () => {
 	it('renders hot/cold storage rows, minimum spend, and ordered region multipliers from MARKETING_PRICING', async () => {
 		const pricingWithLargeMinimumSpend = {
 			...MARKETING_PRICING,
-			minimum_spend_cents: 123456
+			minimum_spend_cents: 0,
+			shared_minimum_spend_cents: 123456
 		};
 		await renderPricingPage(pricingWithLargeMinimumSpend);
 		const pricingMain = screen.getByTestId('pricing-page-main');
@@ -163,8 +222,19 @@ describe('Pricing page', () => {
 			within(pricingMain).getByText(MARKETING_PRICING.cold_storage_rate_per_gb_month)
 		).toBeInTheDocument();
 		expect(
-			within(pricingMain).getByText(formatCents(pricingWithLargeMinimumSpend.minimum_spend_cents))
+			within(pricingMain).getByText(formatCents(pricingWithLargeMinimumSpend.shared_minimum_spend_cents))
 		).toBeInTheDocument();
+		// Regression: upgrade-copy sentence must preserve thousands separators via the shared helper.
+		expect(
+			within(pricingMain).getByText(
+				expectedFreeTierUpgradeCopy(pricingWithLargeMinimumSpend.shared_minimum_spend_cents)
+			)
+		).toBeInTheDocument();
+		expect(
+			within(pricingMain).getByText(
+				expectedFreeTierUpgradeCopy(pricingWithLargeMinimumSpend.shared_minimum_spend_cents)
+			)
+		).toHaveTextContent('$1,234.56');
 
 		const regionTable = within(pricingMain).getByRole('table', { name: 'Region multipliers' });
 		const regionRows = within(regionTable).getAllByRole('row').slice(1);

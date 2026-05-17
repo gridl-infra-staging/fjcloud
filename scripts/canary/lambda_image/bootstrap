@@ -21,6 +21,89 @@ print(json.dumps(sys.argv[1]))
 PY
 }
 
+hydrate_runtime_parameter_env_vars() {
+    local region="${CANARY_AWS_REGION:-${AWS_REGION:-${AWS_DEFAULT_REGION:-us-east-1}}}"
+    local ssm_parameter_env_vars=(
+        "ADMIN_KEY"
+        "STRIPE_SECRET_KEY"
+        "SLACK_WEBHOOK_URL"
+        "DISCORD_WEBHOOK_URL"
+    )
+    local required_parameter_env_vars=(
+        "ADMIN_KEY"
+        "STRIPE_SECRET_KEY"
+    )
+    local env_name raw_value resolved_pairs
+    local -a env_parameter_pairs=()
+    local -a parameter_names=()
+
+    for env_name in "${ssm_parameter_env_vars[@]}"; do
+        raw_value="${!env_name:-}"
+        if [ -z "$raw_value" ]; then
+            continue
+        fi
+        if [[ "$raw_value" != /* ]]; then
+            continue
+        fi
+        env_parameter_pairs+=("${env_name}=${raw_value}")
+        parameter_names+=("${raw_value}")
+    done
+
+    if [ "${#env_parameter_pairs[@]}" -eq 0 ]; then
+        return 0
+    fi
+
+    resolved_pairs="$(
+        aws ssm get-parameters \
+            --with-decryption \
+            --region "$region" \
+            --names "${parameter_names[@]}" \
+            --output json \
+            | python3 - "${env_parameter_pairs[@]}" "${required_parameter_env_vars[@]/#/required:}" <<'PY'
+import json
+import sys
+
+payload = json.load(sys.stdin)
+raw_pairs = [arg for arg in sys.argv[1:] if not arg.startswith("required:")]
+required_env_names = {arg.split(":", 1)[1] for arg in sys.argv[1:] if arg.startswith("required:")}
+
+env_to_param = {}
+for pair in raw_pairs:
+    env_name, parameter_name = pair.split("=", 1)
+    env_to_param[env_name] = parameter_name
+
+resolved = {item["Name"]: str(item["Value"]) for item in payload.get("Parameters", [])}
+invalid = set(payload.get("InvalidParameters", []))
+
+for env_name, parameter_name in env_to_param.items():
+    if parameter_name in resolved:
+        print(f"{env_name}\t{resolved[parameter_name]}")
+        continue
+    if env_name in required_env_names:
+        print(
+            f"missing required SSM parameter for {env_name}: {parameter_name}",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+    if parameter_name in invalid:
+        print(f"{env_name}\t")
+        continue
+    print(
+        f"missing SSM parameter for optional {env_name}: {parameter_name}",
+        file=sys.stderr,
+    )
+    print(f"{env_name}\t")
+PY
+    )"
+
+    while IFS=$'\t' read -r resolved_env_name resolved_value; do
+        if [ -z "${resolved_env_name}" ]; then
+            continue
+        fi
+        export "${resolved_env_name}=${resolved_value}"
+    done <<< "$resolved_pairs"
+}
+
 while true; do
     headers_file="$(mktemp)"
     curl -sS -D "$headers_file" "http://${runtime_api}/2018-06-01/runtime/invocation/next" >/dev/null
@@ -36,15 +119,17 @@ while true; do
         continue
     fi
 
+    hydrate_runtime_parameter_env_vars
+
     if (cd /workspace && bash "$handler_command"); then
         curl -sS \
             -X POST \
             "http://${runtime_api}/2018-06-01/runtime/invocation/${request_id}/response" \
             -d '{"status":"ok"}' >/dev/null
         continue
+    else
+        exit_code=$?
     fi
-
-    exit_code=$?
     error_message="customer loop canary failed with exit code ${exit_code}"
     error_message_json="$(json_string "$error_message")"
     curl -sS \

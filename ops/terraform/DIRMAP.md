@@ -4,6 +4,7 @@
 | File | Summary |
 | --- | --- |
 | audit_no_secrets.sh | Audit Terraform and GitHub workflow files for secret hygiene. |
+| publish_canary_image_shared.sh | Stub summary for publish_canary_image_shared.sh. |
 | publish_customer_loop_canary_image.sh | Build + push the customer-loop canary Lambda container image to ECR. |
 | publish_support_email_canary_image.sh | Build + push the support-email canary Lambda container image to ECR. |
 | tests_bootstrap_static.sh | Static contract tests for ops/scripts/validate_bootstrap.sh
@@ -17,6 +18,7 @@ TDD red phase for Task 3 — Deploy/Migrate/Rollback Runtime Smoke
 
 These tests validate structural correctness of the deploy scripts
 without requiring AWS credentials or live infrastructure. |
+| tests_iac_validation_static.sh | Stub summary for tests_iac_validation_static.sh. |
 | tests_provision_bootstrap_static.sh | Static contract tests for ops/scripts/provision_bootstrap.sh
 TDD red phase — tests written before the script exists
 
@@ -26,6 +28,7 @@ it CREATES the AWS bootstrap resources that validate_bootstrap.sh checks. |
 required for AWS Lambda compatibility (docker schema-2 manifest).
 
 AWS Lambda rejects OCI manifests. |
+| tests_rds_restore_drill_unit.sh | Stub summary for tests_rds_restore_drill_unit.sh. |
 | tests_rds_restore_evidence_static.sh | Static ownership assertions for ops/scripts/rds_restore_evidence.sh. |
 | tests_rds_restore_evidence_unit.sh | Red-phase contract tests for ops/scripts/rds_restore_evidence.sh.
 Stage 1 intentionally locks the behavior contract before wrapper implementation. |
@@ -57,8 +60,7 @@ and cannot be silently removed. |
 Exercises ACM, ALB, target-group, health, deploy, migrate, and rollback paths
 via mock AWS/curl/terraform/bash commands — no live infrastructure required. |
 | tests_stage7_secrets_static.sh | Stub summary for tests_stage7_secrets_static.sh. |
-| tests_stage7_static.sh | Static validation tests for Stage 7: Monitoring & Final Validation
-TDD: these tests define the contract; Terraform code must satisfy them. |
+| tests_stage7_static.sh | Stub summary for tests_stage7_static.sh. |
 | tests_stage8_static.sh | Static validation tests for Stage 8: spend + cleanup guardrail ownership.
 TDD: these tests define the red contract before implementation. |
 | tests_support_email_canary_static.sh | Static validation tests for Stage 5 support-email canary Terraform substrate.

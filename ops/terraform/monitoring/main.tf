@@ -15,6 +15,14 @@ locals {
   customer_loop_canary_schedule_rule_name        = "fjcloud-${var.env}-customer-loop-canary"
   customer_loop_canary_image_uri                 = "${aws_ecr_repository.customer_loop_canary.repository_url}:${var.canary_image.tag}"
   customer_loop_canary_quiet_until_parameter_arn = "arn:${data.aws_partition.current.partition}:ssm:${var.region}:${data.aws_caller_identity.current.account_id}:parameter/fjcloud/${var.env}/canary_quiet_until"
+  customer_loop_canary_admin_key_parameter_name  = "/fjcloud/${var.env}/admin_key"
+  customer_loop_canary_stripe_secret_key_parameter_name = "/fjcloud/${var.env}/stripe_secret_key"
+  customer_loop_canary_slack_webhook_parameter_name = var.support_email_canary_slack_webhook_parameter_name != "" ? var.support_email_canary_slack_webhook_parameter_name : "/fjcloud/${var.env}/slack_webhook_url"
+  customer_loop_canary_discord_webhook_parameter_name = var.support_email_canary_discord_webhook_parameter_name != "" ? var.support_email_canary_discord_webhook_parameter_name : "/fjcloud/${var.env}/discord_webhook_url"
+  customer_loop_canary_admin_key_parameter_arn = "arn:${data.aws_partition.current.partition}:ssm:${var.region}:${data.aws_caller_identity.current.account_id}:parameter/${trimprefix(local.customer_loop_canary_admin_key_parameter_name, "/")}"
+  customer_loop_canary_stripe_secret_key_parameter_arn = "arn:${data.aws_partition.current.partition}:ssm:${var.region}:${data.aws_caller_identity.current.account_id}:parameter/${trimprefix(local.customer_loop_canary_stripe_secret_key_parameter_name, "/")}"
+  customer_loop_canary_slack_webhook_parameter_arn = "arn:${data.aws_partition.current.partition}:ssm:${var.region}:${data.aws_caller_identity.current.account_id}:parameter/${trimprefix(local.customer_loop_canary_slack_webhook_parameter_name, "/")}"
+  customer_loop_canary_discord_webhook_parameter_arn = "arn:${data.aws_partition.current.partition}:ssm:${var.region}:${data.aws_caller_identity.current.account_id}:parameter/${trimprefix(local.customer_loop_canary_discord_webhook_parameter_name, "/")}"
 }
 
 resource "aws_sns_topic" "alerts" {
@@ -147,9 +155,16 @@ resource "aws_iam_role_policy" "customer_loop_canary_lambda" {
       {
         Effect = "Allow"
         Action = [
-          "ssm:GetParameter"
+          "ssm:GetParameter",
+          "ssm:GetParameters"
         ]
-        Resource = local.customer_loop_canary_quiet_until_parameter_arn
+        Resource = [
+          local.customer_loop_canary_quiet_until_parameter_arn,
+          local.customer_loop_canary_admin_key_parameter_arn,
+          local.customer_loop_canary_stripe_secret_key_parameter_arn,
+          local.customer_loop_canary_slack_webhook_parameter_arn,
+          local.customer_loop_canary_discord_webhook_parameter_arn
+        ]
       }
     ]
   })
@@ -170,9 +185,16 @@ resource "aws_lambda_function" "customer_loop_canary" {
 
   environment {
     variables = {
-      ENVIRONMENT       = var.env
-      CANARY_AWS_REGION = var.region
-      CANARY_LIVE_MODE  = var.canary_live_mode ? "1" : "0"
+      ENVIRONMENT             = var.env
+      API_URL                 = "https://api.${var.domain}"
+      CANARY_AWS_REGION       = var.region
+      CANARY_LIVE_MODE        = var.canary_live_mode ? "1" : "0"
+      CANARY_TEST_INBOX_DOMAIN = var.support_email_canary_recipient_domain_default
+      CANARY_TEST_INBOX_S3_URI = var.support_email_canary_inbound_roundtrip_s3_uri
+      ADMIN_KEY               = local.customer_loop_canary_admin_key_parameter_name
+      STRIPE_SECRET_KEY       = local.customer_loop_canary_stripe_secret_key_parameter_name
+      SLACK_WEBHOOK_URL       = local.customer_loop_canary_slack_webhook_parameter_name
+      DISCORD_WEBHOOK_URL     = local.customer_loop_canary_discord_webhook_parameter_name
     }
   }
 }
@@ -408,6 +430,32 @@ resource "aws_cloudwatch_metric_alarm" "api_status_check_failed" {
 }
 
 # ---------------------------------------------------------------------------
+# API root disk usage > 85% (CWAgent metric dimensions must match exactly)
+# ---------------------------------------------------------------------------
+resource "aws_cloudwatch_metric_alarm" "api_root_disk_high" {
+  alarm_name          = "fjcloud-${var.env}-api-root-disk-high"
+  alarm_description   = "API root volume disk usage above 85% for 10 minutes (CWAgent path=/, device=nvme0n1p1, fstype=xfs)"
+  comparison_operator = "GreaterThanThreshold"
+  metric_name         = "disk_used_percent"
+  namespace           = "CWAgent"
+  statistic           = "Average"
+  period              = 300
+  evaluation_periods  = 2
+  threshold           = 85
+  treat_missing_data  = "notBreaching"
+  datapoints_to_alarm = 2
+  alarm_actions       = [aws_sns_topic.alerts.arn]
+  ok_actions          = [aws_sns_topic.alerts.arn]
+
+  dimensions = {
+    InstanceId = var.api_instance_id
+    path       = "/"
+    device     = "nvme0n1p1"
+    fstype     = "xfs"
+  }
+}
+
+# ---------------------------------------------------------------------------
 # API heartbeat missing (no custom metric for 5 minutes → API not running)
 # ---------------------------------------------------------------------------
 resource "aws_cloudwatch_metric_alarm" "api_heartbeat_missing" {
@@ -465,6 +513,29 @@ resource "aws_cloudwatch_metric_alarm" "rds_free_storage_low" {
   period              = 300
   evaluation_periods  = 2
   threshold           = 2147483648 # 2 GiB
+  treat_missing_data  = "notBreaching"
+  datapoints_to_alarm = 2
+  alarm_actions       = [aws_sns_topic.alerts.arn]
+  ok_actions          = [aws_sns_topic.alerts.arn]
+
+  dimensions = {
+    DBInstanceIdentifier = var.db_instance_identifier
+  }
+}
+
+# ---------------------------------------------------------------------------
+# RDS connections > 80% of live max_connections (181 * 0.8 => 145)
+# ---------------------------------------------------------------------------
+resource "aws_cloudwatch_metric_alarm" "rds_connections_high" {
+  alarm_name          = "fjcloud-${var.env}-rds-connections-high"
+  alarm_description   = "RDS active connections above 80% of max_connections=181 (threshold 145) for 10 minutes"
+  comparison_operator = "GreaterThanThreshold"
+  metric_name         = "DatabaseConnections"
+  namespace           = "AWS/RDS"
+  statistic           = "Maximum"
+  period              = 300
+  evaluation_periods  = 2
+  threshold           = 145
   treat_missing_data  = "notBreaching"
   datapoints_to_alarm = 2
   alarm_actions       = [aws_sns_topic.alerts.arn]
@@ -547,6 +618,53 @@ resource "aws_cloudwatch_metric_alarm" "alb_p99_target_response_time" {
 
   dimensions = {
     LoadBalancer = var.alb_arn_suffix
+  }
+}
+
+# ---------------------------------------------------------------------------
+# ALB unhealthy targets > 0 for 3 minutes
+# ---------------------------------------------------------------------------
+resource "aws_cloudwatch_metric_alarm" "alb_unhealthy_hosts" {
+  alarm_name          = "fjcloud-${var.env}-alb-unhealthy-hosts"
+  alarm_description   = "ALB reports one or more unhealthy targets for 3 consecutive minutes"
+  comparison_operator = "GreaterThanThreshold"
+  metric_name         = "UnHealthyHostCount"
+  namespace           = "AWS/ApplicationELB"
+  statistic           = "Maximum"
+  period              = 60
+  evaluation_periods  = 3
+  threshold           = 0
+  treat_missing_data  = "notBreaching"
+  datapoints_to_alarm = 3
+  alarm_actions       = [aws_sns_topic.alerts.arn]
+  ok_actions          = [aws_sns_topic.alerts.arn]
+
+  dimensions = {
+    LoadBalancer = var.alb_arn_suffix
+    TargetGroup  = var.api_target_group_arn_suffix
+  }
+}
+
+# ---------------------------------------------------------------------------
+# Customer-loop canary Lambda runtime errors > 0 per 15 minute window
+# ---------------------------------------------------------------------------
+resource "aws_cloudwatch_metric_alarm" "customer_loop_canary_lambda_errors" {
+  alarm_name          = "fjcloud-${var.env}-customer-loop-canary-lambda-errors"
+  alarm_description   = "Customer-loop canary Lambda reported one or more runtime errors in the last 15 minutes"
+  comparison_operator = "GreaterThanThreshold"
+  metric_name         = "Errors"
+  namespace           = "AWS/Lambda"
+  statistic           = "Sum"
+  period              = 900
+  evaluation_periods  = 1
+  threshold           = 0
+  treat_missing_data  = "notBreaching"
+  datapoints_to_alarm = 1
+  alarm_actions       = [aws_sns_topic.alerts.arn]
+  ok_actions          = [aws_sns_topic.alerts.arn]
+
+  dimensions = {
+    FunctionName = local.customer_loop_canary_function_name
   }
 }
 

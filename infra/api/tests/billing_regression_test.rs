@@ -561,7 +561,7 @@ fn expected_hot_storage_totals(case: &HotStorageCase) -> (i64, i64) {
 
     let pricing_calc = billing::pricing::calculate_invoice(&usage_summary, &billing_rate_card);
     let minimum_cents = match case.billing_plan {
-        BillingPlan::Free => billing_rate_card.minimum_spend_cents,
+        BillingPlan::Free => 0,
         BillingPlan::Shared => billing_rate_card.shared_minimum_spend_cents,
     };
     let total_cents = pricing_calc.subtotal_cents.max(minimum_cents);
@@ -701,6 +701,31 @@ async fn shared_plan_minimum_regression() {
     assert_eq!(invoice.subtotal_cents, 250);
     assert_eq!(invoice.total_cents, 500);
     assert!(invoice.minimum_applied);
+}
+
+#[tokio::test]
+async fn free_plan_zero_minimum_regression() {
+    let mocks = setup_repos();
+    let customer_id = Uuid::new_v4();
+
+    // Keep usage below both current shared/free minimums to pin free-plan behavior.
+    seed_constant_daily_usage(&mocks.usage_repo, customer_id, 50, "us-east-1");
+
+    let invoice = generate_invoice(&mocks, customer_id, BillingPlan::Free).await;
+
+    assert_invoice_invariants(&invoice);
+    assert_single_line_item_by_unit(&invoice, "mb_months");
+
+    // Stage-1 red contract: Free plan should carry no minimum floor.
+    assert_eq!(invoice.subtotal_cents, 250);
+    assert_eq!(
+        invoice.total_cents, 250,
+        "free-plan totals should not clamp to minimum_spend_cents"
+    );
+    assert!(
+        !invoice.minimum_applied,
+        "free-plan invoices should not report minimum_applied"
+    );
 }
 
 #[tokio::test]

@@ -234,6 +234,154 @@ describe('Dashboard indexes card', () => {
 		const link = within(card).getByRole('link', { name: /manage indexes/i });
 		expect(link.getAttribute('href')).toBe('/dashboard/indexes');
 	});
+
+	it('auth__dashboard__success__desktop M.palette.3 keeps success cards on cream diner surfaces', () => {
+		render(DashboardPage, {
+			data: {
+				...layoutTestDefaults,
+				user: null,
+				usage: sampleUsage,
+				dailyUsage: sampleDailyUsage,
+				month: '2026-02',
+				estimate: null,
+				indexes: sampleIndexes,
+				onboardingStatus: completedOnboarding
+			}
+		});
+
+		const indexesCard = screen.getByTestId('indexes-card');
+		expect(indexesCard).toHaveClass('bg-[#fff8ea]');
+
+		const statCards = screen.getByTestId('stat-cards');
+		const firstStatCard = statCards.querySelector('div');
+		expect(firstStatCard).not.toBeNull();
+		expect(firstStatCard).toHaveClass('bg-[#fff8ea]');
+	});
+
+	it('auth__dashboard__empty__mobile_narrow M.universal.1 renders empty-state card with diner border surface', () => {
+		render(DashboardPage, {
+			data: {
+				...layoutTestDefaults,
+				user: null,
+				usage: {
+					month: '2026-02',
+					total_search_requests: 0,
+					total_write_operations: 0,
+					avg_storage_gb: 0,
+					avg_document_count: 0,
+					by_region: []
+				},
+				dailyUsage: [],
+				month: '2026-02',
+				estimate: null,
+				indexes: [],
+				onboardingStatus: completedOnboarding
+			}
+		});
+
+		const emptyCard = screen.getByText('No usage data for this period.').closest('div');
+		expect(emptyCard).not.toBeNull();
+		expect(emptyCard).toHaveClass('bg-[#fff8ea]');
+		expect(emptyCard).toHaveClass('border-2');
+	});
+
+	it('auth__dashboard__loading__desktop P.brand_palette_consistency styles onboarding CTA with diner button treatment', () => {
+		render(DashboardPage, {
+			data: {
+				...layoutTestDefaults,
+				user: null,
+				usage: sampleUsage,
+				dailyUsage: sampleDailyUsage,
+				month: '2026-02',
+				estimate: null,
+				indexes: [],
+				onboardingStatus: freshOnboarding
+			}
+		});
+
+		const onboardingBanner = screen.getByTestId('onboarding-banner');
+		expect(onboardingBanner).toHaveClass('bg-[#fff8ea]');
+		const continueCta = within(onboardingBanner).getByRole('link', { name: /continue setup/i });
+		expect(continueCta).toHaveClass('bg-[#ffb3c7]');
+	});
+
+	it('auth__dashboard__loading__mobile_narrow M.universal.1 keeps dashboard content cards on cream surfaces', () => {
+		render(DashboardPage, {
+			data: {
+				...layoutTestDefaults,
+				user: null,
+				usage: sampleUsage,
+				dailyUsage: sampleDailyUsage,
+				month: '2026-02',
+				estimate: {
+					month: '2026-02',
+					subtotal_cents: 4200,
+					total_cents: 4200,
+					minimum_applied: false,
+					line_items: [
+						{
+							description: 'Search requests',
+							quantity: '4200',
+							unit: 'requests',
+							unit_price_cents: '1',
+							amount_cents: 4200,
+							region: 'us-east-1'
+						}
+					]
+				},
+				indexes: sampleIndexes,
+				onboardingStatus: completedOnboarding,
+				freeTierProgress: {
+					searches: { used: 15000, limit: 50000 },
+					records: { used: 2000, limit: 100000 },
+					storage_gb: { used: 1.2, limit: 10 },
+					indexes: { used: 1, limit: 3 }
+				}
+			}
+		});
+
+		expect(screen.getByTestId('estimated-bill')).toHaveClass('bg-[#fff8ea]');
+		expect(screen.getByTestId('free-tier-progress')).toHaveClass('bg-[#fff8ea]');
+		expect(screen.getByTestId('usage-chart')).toHaveClass('bg-[#fff8ea]');
+		expect(screen.getByTestId('region-breakdown')).toHaveClass('bg-[#fff8ea]');
+	});
+
+	it('keeps dashboard accents on diner ink and rose instead of generic gray and blue defaults', () => {
+		render(DashboardPage, {
+			data: {
+				...layoutTestDefaults,
+				user: null,
+				usage: sampleUsage,
+				dailyUsage: sampleDailyUsage,
+				month: '2026-02',
+				estimate: {
+					month: '2026-02',
+					subtotal_cents: 4200,
+					total_cents: 4200,
+					minimum_applied: false,
+					line_items: [
+						{
+							description: 'Search requests',
+							quantity: '4200',
+							unit: 'requests',
+							unit_price_cents: '1',
+							amount_cents: 4200,
+							region: 'us-east-1'
+						}
+					]
+				},
+				indexes: sampleIndexes,
+				onboardingStatus: completedOnboarding
+			}
+		});
+
+		expect(screen.getByRole('heading', { level: 1, name: 'Dashboard' })).toHaveClass(
+			'text-[#1f1b18]'
+		);
+		expect(screen.getByText('View breakdown')).toHaveClass('text-[#b83f5f]');
+		expect(screen.getByRole('link', { name: /manage indexes/i })).toHaveClass('text-[#b83f5f]');
+		expect(screen.getByText('Month').closest('label')).toHaveClass('text-[#4b4640]');
+	});
 });
 
 const freePlanCtx = {
@@ -241,8 +389,8 @@ const freePlanCtx = {
 	free_tier_limits: {
 		max_searches_per_month: 50000,
 		max_records: 100000,
-		max_storage_gb: 10,
-		max_indexes: 1
+		max_storage_mb: 250,
+		max_indexes: 3
 	},
 	has_payment_method: false,
 	onboarding_completed: false,
@@ -252,8 +400,8 @@ const freePlanCtx = {
 const sampleProgress = {
 	searches: { used: 15234, limit: 50000 },
 	records: { used: 89012, limit: 100000 },
-	storage_gb: { used: 2.5, limit: 10 },
-	indexes: { used: 2, limit: 1 }
+	storage_mb: { used: 2560, limit: 250 },
+	indexes: { used: 2, limit: 3 }
 };
 
 describe('Free-tier progress cards', () => {
@@ -289,8 +437,8 @@ describe('Free-tier progress cards', () => {
 				usage: `${formatNumber(89_012)} / ${formatNumber(100_000)}`,
 				width: '89%'
 			},
-			{ slug: 'storage-gb', label: 'Storage (GB)', usage: '2.50 / 10', width: '25%' },
-			{ slug: 'indexes', label: 'Indexes', usage: '2 / 1', width: '100%' }
+			{ slug: 'storage-mb', label: 'Storage (MB)', usage: '2,560 / 250', width: '100%' },
+			{ slug: 'indexes', label: 'Indexes', usage: '2 / 3', width: '67%' }
 		];
 
 		for (const metric of expectedMetrics) {
@@ -301,6 +449,47 @@ describe('Free-tier progress cards', () => {
 				`width: ${metric.width}`
 			);
 		}
+	});
+
+	it('renders MB-oriented storage progress and 3-index cap messaging for free-tier contract', () => {
+		const mbPlanContext = {
+			...freePlanCtx,
+			free_tier_limits: {
+				max_searches_per_month: 50000,
+				max_records: 100000,
+				max_storage_mb: 250,
+				max_indexes: 3
+			}
+		} as unknown as typeof freePlanCtx;
+		const mbProgress = {
+			searches: { used: 15234, limit: 50000 },
+			records: { used: 89012, limit: 100000 },
+			storage_mb: { used: 2560, limit: 250 },
+			indexes: { used: 2, limit: 3 }
+		};
+
+		render(DashboardPage, {
+			data: {
+				...layoutTestDefaults,
+				planContext: mbPlanContext,
+				user: null,
+				usage: sampleUsage,
+				dailyUsage: sampleDailyUsage,
+				month: '2026-02',
+				estimate: null,
+				indexes: sampleIndexes,
+				onboardingStatus: freshOnboarding,
+				freeTierProgress: mbProgress as never
+			}
+		});
+
+		const section = screen.getByTestId('free-tier-progress');
+		expect(within(section).getByTestId('free-tier-metric-storage-mb')).toBeInTheDocument();
+		expect(within(section).getByText('Storage (MB)')).toBeInTheDocument();
+		expect(within(section).getByText('2,560 / 250')).toBeInTheDocument();
+
+		const card = screen.getByTestId('indexes-card');
+		expect(within(card).getByText(/\/\s*3/)).toBeInTheDocument();
 	});
 
 	it('hides progress cards when freeTierProgress is null', () => {
@@ -339,7 +528,7 @@ describe('Free-tier progress cards', () => {
 		});
 
 		const card = screen.getByTestId('indexes-card');
-		expect(within(card).getByText(/\/\s*1/)).toBeInTheDocument();
+		expect(within(card).getByText(/\/\s*3/)).toBeInTheDocument();
 	});
 });
 
@@ -348,8 +537,8 @@ describe('Free-plan index quota warning', () => {
 		const atCapProgress = {
 			searches: { used: 100, limit: 50000 },
 			records: { used: 50, limit: 100000 },
-			storage_gb: { used: 0.1, limit: 10 },
-			indexes: { used: 1, limit: 1 }
+			storage_mb: { used: 102, limit: 250 },
+			indexes: { used: 3, limit: 3 }
 		};
 
 		render(DashboardPage, {
@@ -379,8 +568,8 @@ describe('Free-plan index quota warning', () => {
 		const belowCapProgress = {
 			searches: { used: 100, limit: 50000 },
 			records: { used: 50, limit: 100000 },
-			storage_gb: { used: 0.1, limit: 10 },
-			indexes: { used: 0, limit: 1 }
+			storage_mb: { used: 102, limit: 250 },
+			indexes: { used: 2, limit: 3 }
 		};
 
 		render(DashboardPage, {
@@ -422,7 +611,7 @@ describe('Free-plan index quota warning', () => {
 });
 
 describe('Plan-aware billing prompts', () => {
-	it('shows billing setup prompt for shared plan without payment method', () => {
+	it('does not duplicate the layout-owned billing setup prompt on the dashboard page', () => {
 		const sharedNoPay = {
 			billing_plan: 'shared' as const,
 			free_tier_limits: null,
@@ -446,18 +635,7 @@ describe('Plan-aware billing prompts', () => {
 			}
 		});
 
-		const prompt = screen.getByTestId('billing-prompt');
-		expect(prompt).toBeInTheDocument();
-		expect(within(prompt).getByText('Add a payment method to continue setup')).toBeInTheDocument();
-		expect(
-			within(prompt).getByText(
-				'Your shared plan requires billing before onboarding can be completed.'
-			)
-		).toBeInTheDocument();
-		expect(within(prompt).getByRole('link', { name: /add payment method/i })).toHaveAttribute(
-			'href',
-			'/dashboard/billing/setup'
-		);
+		expect(screen.queryByTestId('billing-prompt')).not.toBeInTheDocument();
 		expect(screen.queryByTestId('free-tier-progress')).not.toBeInTheDocument();
 	});
 

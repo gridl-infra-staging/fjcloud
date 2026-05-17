@@ -43,6 +43,7 @@ pub struct OAuthProviderRuntimeConfig {
     pub redirect_uri: Arc<str>,
     pub token_endpoint: Arc<str>,
     pub userinfo_endpoint: Arc<str>,
+    pub user_emails_endpoint: Option<Arc<str>>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -109,6 +110,7 @@ pub struct AppState {
     pub stripe_service: Arc<dyn StripeService>,
     pub webhook_http_client: Arc<dyn WebhookHttpClient>,
     pub email_service: Arc<dyn EmailService>,
+    pub dunning_emails_disabled: bool,
     pub webhook_event_repo: Arc<dyn WebhookEventRepo + Send + Sync>,
     pub object_store: Arc<dyn ObjectStore + Send + Sync>,
     pub cold_snapshot_repo: Arc<dyn ColdSnapshotRepo + Send + Sync>,

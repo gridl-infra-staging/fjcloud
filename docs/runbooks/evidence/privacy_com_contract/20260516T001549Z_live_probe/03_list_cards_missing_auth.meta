@@ -1,0 +1,5 @@
+timestamp_utc=2026-05-16T00:15:51Z
+method=GET
+url=https://api.privacy.com/v1/cards?page=1&page_size=2
+auth_mode=none
+status_code=403

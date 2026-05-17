@@ -3,6 +3,7 @@ import { cleanup, render } from '@testing-library/svelte';
 
 import PrivacyPage from './+page.svelte';
 import {
+	assertLegalPagePresentationContract,
 	assertSharedLegalPageContract,
 	assertUniqueVisibleHeading,
 	assertUniqueVisibleText
@@ -35,5 +36,14 @@ describe('Privacy page legal contract', () => {
 		expect(document.body).not.toHaveTextContent('(Draft)');
 		expect(document.body).not.toHaveTextContent('[REVIEW:');
 		expect(document.body).not.toHaveTextContent('TBD');
+	});
+
+	it('public__privacy__success__mobile_narrow M.universal.1 uses teal legal canvas and cream article surface', () => {
+		render(PrivacyPage);
+		const pageShell = document.querySelector('div.min-h-screen');
+		expect(pageShell).not.toBeNull();
+		expect(pageShell).toHaveClass('bg-[#9fd8d2]');
+
+		assertLegalPagePresentationContract('Privacy Policy');
 	});
 });

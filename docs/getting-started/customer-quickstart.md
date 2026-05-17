@@ -2,6 +2,10 @@
 
 This quickstart is the customer-facing source of truth for the first successful search flow.
 
+- API reference: https://api.flapjack.foo/docs
+- Pricing details: [Pricing FAQ](./pricing-faq.md)
+- Error semantics: [Error Reference](./error-reference.md)
+
 > Maintenance note: before changing any route, credential field, header, or payload example in this file, re-verify against the cited source files/tests at the bottom of this document.
 
 ## 1) Control Plane: create and verify your account
@@ -9,7 +13,7 @@ This quickstart is the customer-facing source of truth for the first successful 
 Set your control-plane API base URL:
 
 ```bash
-export API_BASE_URL="https://api.example.com"
+export API_BASE_URL="https://api.flapjack.foo"
 ```
 
 Register:
@@ -20,6 +24,10 @@ curl -X POST "$API_BASE_URL/auth/register" \
   -d '{"name":"Ada Example","email":"ada@example.com","password":"replace-with-strong-password"}'
 ```
 
+- `register` requires non-empty `name`, `email`, and `password`.
+- Successful `register` returns `201` with `token` and `customer_id`.
+- Duplicate emails return `409` with `{"error":"email already registered"}`.
+
 Verify your email (use the token from the verification email):
 
 ```bash
@@ -27,6 +35,17 @@ curl -X POST "$API_BASE_URL/auth/verify-email" \
   -H 'Content-Type: application/json' \
   -d '{"token":"<token-from-email>"}'
 ```
+
+- Invalid or expired tokens return `400` with `{"error":"invalid or expired verification token"}`.
+
+If you need a new verification email after login:
+
+```bash
+curl -X POST "$API_BASE_URL/auth/resend-verification" \
+  -H "Authorization: Bearer $AUTH_TOKEN"
+```
+
+- `resend_verification` may return `429` with `Retry-After` when resend cooldown is active.
 
 Login:
 
@@ -36,17 +55,34 @@ curl -X POST "$API_BASE_URL/auth/login" \
   -d '{"email":"ada@example.com","password":"replace-with-strong-password"}'
 ```
 
-The quickstart intentionally excludes password-reset and resend-verification flows so this section stays focused on reaching the dashboard.
+- Invalid credentials return `400` with `{"error":"invalid email or password"}`.
 
-## 2) Onboarding: create first index and get credentials
+## 2) Onboarding status and credential generation
 
-From the dashboard onboarding wizard:
+Check onboarding status:
 
-1. Choose a region and index name.
-2. Submit the create step (backend route: `POST /indexes`).
-3. Retrieve credentials (backend route: `POST /onboarding/credentials`).
+```bash
+curl -X GET "$API_BASE_URL/onboarding/status" \
+  -H "Authorization: Bearer $AUTH_TOKEN"
+```
 
-Credentials returned by onboarding are:
+The response is field-based and includes:
+
+- `has_region`
+- `region_ready`
+- `has_index`
+- `has_api_key`
+- `completed`
+- `suggested_next_step`
+
+Generate credentials after at least one active endpoint and one customer index exist:
+
+```bash
+curl -X POST "$API_BASE_URL/onboarding/credentials" \
+  -H "Authorization: Bearer $AUTH_TOKEN"
+```
+
+`generate_credentials` returns these fields:
 
 - `endpoint`
 - `api_key`
@@ -98,11 +134,8 @@ A successful response includes fields such as `hits` and `nbHits`.
 
 ## Source Evidence
 
-- Control-plane route usage (`/auth/register`, `/auth/login`, `/auth/verify-email`): `web/src/lib/api/client.ts` lines 162-172.
-- Control-plane payload contracts (`RegisterRequest`, `LoginRequest`, `VerifyEmailRequest`): `web/src/lib/api/types.ts` lines 15-28.
-- Control-plane route registrations: `infra/api/src/router/route_assembly.rs` lines 24-25 and 71-72.
-- Onboarding create index and credential routes: `web/src/lib/api/client.ts` lines 278-280 and 655-656; `infra/api/src/router/route_assembly.rs` lines 181-183 and 371-374.
-- Credential field names (`endpoint`, `api_key`, `application_id`): `web/src/lib/api/types.ts` lines 698-702; `infra/api/tests/onboarding_credentials_test.rs` lines 150-153.
-- Required data-plane headers: `infra/api/src/services/flapjack_proxy/mod.rs` lines 111-114.
-- `/batch` payload contract (`requests[]`) and rejection of legacy `documents[]`: `web/src/routes/dashboard/indexes/[name]/document-management.server.ts` lines 136-152 and 246-248; `infra/api/tests/indexes_test.rs` lines 6908-6913, 6940, and 6948-6971.
-- `/query` engine route shape: `infra/api/tests/indexes_test.rs` line 3794.
+- Canonical public API origin and docs URL: `web/src/lib/public_api.ts` (`CANONICAL_PUBLIC_API_BASE_URL`, `CANONICAL_PUBLIC_API_DOCS_URL`).
+- Auth handlers and error semantics: `infra/api/src/routes/auth.rs` (`register`, `login`, `verify_email`, `resend_verification`).
+- Shared JSON error envelope: `infra/api/src/errors.rs` (`ErrorResponse`, `ApiError::into_response`).
+- Onboarding status and credentials ownership: `infra/api/src/routes/onboarding.rs` (`get_status`, `generate_credentials`).
+- Data-plane headers and index proxy behavior: `infra/api/src/services/flapjack_proxy/mod.rs`, `infra/api/src/routes/indexes/mod.rs`.

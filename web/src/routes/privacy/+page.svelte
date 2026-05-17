@@ -12,13 +12,13 @@
 	<title>Privacy Policy — Flapjack Cloud</title>
 </svelte:head>
 
-<div class="min-h-screen bg-[#fff8ea] text-[#1f1b18]">
+<div class="min-h-screen bg-[#9fd8d2] text-[#1f1b18]">
 	<main class="mx-auto max-w-4xl px-6 py-12">
 		<a href={resolve('/')} class="text-sm font-medium text-[#b83f5f] hover:text-[#8d2842]">
 			Back to Flapjack Cloud
 		</a>
 
-		<article class="mt-6 space-y-8 rounded-3xl border border-[#e3d7bf] bg-white/90 p-8 shadow-sm">
+		<article class="mt-6 space-y-8 rounded-3xl border border-[#e3d7bf] bg-[#fff8ea] p-8 shadow-sm">
 			<header class="space-y-4">
 				<p class="text-sm font-black uppercase tracking-[0.18em] text-[#8d2842]">
 					{LEGAL_ENTITY_NAME}

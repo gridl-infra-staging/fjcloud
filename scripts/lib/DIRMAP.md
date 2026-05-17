@@ -88,6 +88,8 @@ Returns non-zero on failure so callers control their own error handling.
 
 Usage: run_migrations <db_url> <migrations_dir>. |
 | parse_inbound_auth_headers.py | Stub summary for parse_inbound_auth_headers.py. |
+| persist_capture_artifact.py | Normalize capture artifacts into a consistent JSON structure. |
+| privacy_com_client.sh | Stub summary for privacy_com_client.sh. |
 | process.sh | Stub summary for process.sh. |
 | psql_path.sh | Stub summary for psql_path.sh. |
 | secret_audit_parsing.sh | Stub summary for secret_audit_parsing.sh. |

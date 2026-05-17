@@ -13,9 +13,9 @@ Create a new customer account with a name, email, password, and confirmation, th
 
 ## Target Behavior
 
-The screen shows `Create your account`, the current free-tier promise, labeled fields for name, email, password, and confirm password, a `Sign Up` submit button, and a login link for existing users. Successful signup creates the account, sets the auth session, and redirects to `/dashboard` immediately.
+The screen shows `Create your account`, the current four-cap free-tier promise, labeled fields for name, email, password, and confirm password, a `Sign Up` submit button, and a login link for existing users. Successful signup creates the account, sets the auth session, and redirects to `/dashboard` immediately.
 
-Backend ownership for post-signup billing setup is explicit: `infra/api/src/routes/auth.rs::register` stores verification state via `setup_email_verification()`, and Stripe/billing side effects are deferred to `run_post_verification_actions()`, which is triggered by `verify_email()` (or the dev-only `SKIP_EMAIL_VERIFICATION` auto-verify path).
+Backend ownership for post-signup billing setup is explicit: `infra/api/src/routes/auth.rs::register` stores verification state via `setup_email_verification()`, and Stripe/billing side effects are deferred to `run_post_verification_actions()`, which is triggered by `verify_email()` (or the dev-only `SKIP_EMAIL_VERIFICATION` auto-verify path). Plan semantics and minimum rules are canonically owned by `docs/design/pricing_contract.md`.
 
 ## Required States
 

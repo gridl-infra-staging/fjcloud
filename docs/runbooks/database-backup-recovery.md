@@ -100,6 +100,7 @@ Verification requirements:
 - Store command output and notes under `docs/runbooks/evidence/database-recovery/`.
 - Status docs may claim restore proof only when this evidence path contains captured sanity-query output from a real gated execution that reached `available`.
 - The staging run attempted on `2026-04-23` reached `available` after the wrapper's initial poll window; operator verification on the same day captured the canonical evidence file `docs/runbooks/evidence/database-recovery/20260423T201333Z_staging_restore_verification.txt` (schema intact, 39 migrations present, zero-count data expected for the empty staging baseline).
+- The prod run on `2026-05-16` captured a pass bundle at `docs/runbooks/evidence/database-recovery/20260516T025533Z_prod_restore_verification/` (preflight/restore/verify/cleanup artifacts + summary).
 
 ## Cutover boundaries (drill only)
 

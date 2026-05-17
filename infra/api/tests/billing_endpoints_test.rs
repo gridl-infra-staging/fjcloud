@@ -109,6 +109,8 @@ async fn onboarding_status_reports_configured_free_tier_limits_without_signed_fa
         .with_free_tier_limits(FreeTierLimits {
             max_indexes: u32::MAX,
             max_searches_per_month: u64::MAX,
+            max_records: 100_000,
+            max_storage_mb: 250,
         })
         .build_app();
 
@@ -139,7 +141,7 @@ async fn onboarding_status_reports_configured_free_tier_limits_without_signed_fa
         "response must expose the configured index limit instead of falling back to defaults"
     );
     assert_eq!(free_tier_limits["max_records"].as_u64(), Some(100_000));
-    assert_eq!(free_tier_limits["max_storage_gb"].as_u64(), Some(10));
+    assert_eq!(free_tier_limits["max_storage_mb"].as_u64(), Some(250));
 }
 
 // ===========================================================================
@@ -2202,6 +2204,10 @@ async fn batch_billing_run_creates_invoices() {
     rate_card_repo.seed_active_card(test_rate_card());
 
     let customer = seed_stripe_customer(&customer_repo, "Acme", "acme@example.com").await;
+    customer_repo
+        .set_billing_plan(customer.id, "shared")
+        .await
+        .unwrap();
 
     // Seed usage for Jan 2026
     usage_repo.seed(
@@ -2275,6 +2281,10 @@ async fn batch_billing_run_includes_cold_storage_when_no_hot_usage() {
     rate_card_repo.seed_active_card(test_rate_card());
 
     let customer = seed_stripe_customer(&customer_repo, "Acme", "acme@example.com").await;
+    customer_repo
+        .set_billing_plan(customer.id, "shared")
+        .await
+        .unwrap();
 
     // 200 GB cold snapshot should bill at 200 * $0.02 = $4.00 (400 cents).
     let snapshot = cold_snapshot_repo
@@ -2336,9 +2346,9 @@ async fn batch_billing_run_includes_cold_storage_when_no_hot_usage() {
     let invoices = invoice_repo.list_by_customer(customer.id).await.unwrap();
     assert_eq!(invoices.len(), 1);
     assert_eq!(invoices[0].subtotal_cents, 400);
-    // 400 cents cold storage < 500 minimum → minimum applies
-    assert_eq!(invoices[0].total_cents, 500);
-    assert!(invoices[0].minimum_applied);
+    // 400 cents cold storage > 200 shared minimum → no minimum applied
+    assert_eq!(invoices[0].total_cents, 400);
+    assert!(!invoices[0].minimum_applied);
 
     let line_items = invoice_repo.get_line_items(invoices[0].id).await.unwrap();
     let cold = line_items
@@ -2399,7 +2409,7 @@ async fn batch_billing_run_shared_plan_uses_shared_minimum() {
 }
 
 #[tokio::test]
-async fn batch_billing_run_unknown_plan_defaults_to_free_minimum() {
+async fn batch_billing_run_unknown_plan_bills_with_shared_safe_fallback() {
     let customer_repo = mock_repo();
     let invoice_repo = mock_invoice_repo();
     let stripe_svc = mock_stripe_service();
@@ -2441,11 +2451,165 @@ async fn batch_billing_run_unknown_plan_defaults_to_free_minimum() {
     assert_eq!(body["invoices_created"], 1);
     assert_eq!(body["invoices_skipped"], 0);
 
+    let results = body["results"].as_array().unwrap();
+    assert_eq!(results[0]["status"], "created");
+    assert_eq!(results[0]["reason"], serde_json::Value::Null);
+
     let invoices = invoice_repo.list_by_customer(customer.id).await.unwrap();
     assert_eq!(invoices.len(), 1);
-    assert_eq!(invoices[0].subtotal_cents, 0);
-    assert_eq!(invoices[0].total_cents, 500);
-    assert!(invoices[0].minimum_applied);
+    assert_eq!(invoices[0].total_cents, 200);
+    assert!(
+        invoices[0].minimum_applied,
+        "unknown plans must use paid-safe minimum billing semantics"
+    );
+}
+
+#[tokio::test]
+async fn batch_billing_run_free_plan_customer_reported_skipped_with_no_invoice_rows() {
+    let customer_repo = mock_repo();
+    let invoice_repo = mock_invoice_repo();
+    let usage_repo = mock_usage_repo();
+    let rate_card_repo = mock_rate_card_repo();
+
+    rate_card_repo.seed_active_card(test_rate_card());
+
+    let free_customer = customer_repo.seed_verified_free_customer("Free", "free@example.com");
+
+    usage_repo.seed(
+        free_customer.id,
+        NaiveDate::from_ymd_opt(2026, 1, 15).unwrap(),
+        "us-east-1",
+        20000,
+        2000,
+        0,
+        0,
+    );
+
+    let state = test_state_all_with_stripe(
+        customer_repo,
+        mock_deployment_repo(),
+        usage_repo,
+        rate_card_repo,
+        invoice_repo.clone(),
+        mock_stripe_service(),
+    );
+    let app = api::router::build_router(state);
+
+    let resp = app
+        .oneshot(
+            Request::post("/admin/billing/run")
+                .header("x-admin-key", TEST_ADMIN_KEY)
+                .header("content-type", "application/json")
+                .body(Body::from(r#"{"month":"2026-01"}"#))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = body_json(resp).await;
+    assert_eq!(body["invoices_created"], 0);
+    assert_eq!(body["invoices_skipped"], 1);
+    let results = body["results"].as_array().unwrap();
+    assert_eq!(results.len(), 1);
+    assert_eq!(results[0]["status"], "skipped");
+    assert_eq!(results[0]["reason"], "free_plan");
+
+    let invoices = invoice_repo
+        .list_by_customer(free_customer.id)
+        .await
+        .unwrap();
+    assert_eq!(invoices.len(), 0);
+}
+
+#[tokio::test]
+async fn batch_billing_run_mixed_cohort_skips_free_and_creates_shared() {
+    let customer_repo = mock_repo();
+    let invoice_repo = mock_invoice_repo();
+    let stripe_svc = mock_stripe_service();
+    let usage_repo = mock_usage_repo();
+    let rate_card_repo = mock_rate_card_repo();
+
+    rate_card_repo.seed_active_card(test_rate_card());
+
+    let free_customer = customer_repo.seed_verified_free_customer("Free", "free@example.com");
+    let shared_customer =
+        seed_stripe_customer(&customer_repo, "Shared", "shared@example.com").await;
+    customer_repo
+        .set_billing_plan(shared_customer.id, "shared")
+        .await
+        .unwrap();
+
+    usage_repo.seed(
+        free_customer.id,
+        NaiveDate::from_ymd_opt(2026, 1, 15).unwrap(),
+        "us-east-1",
+        20000,
+        2000,
+        0,
+        0,
+    );
+    usage_repo.seed(
+        shared_customer.id,
+        NaiveDate::from_ymd_opt(2026, 1, 15).unwrap(),
+        "us-east-1",
+        10000,
+        1000,
+        0,
+        0,
+    );
+
+    let state = test_state_all_with_stripe(
+        customer_repo,
+        mock_deployment_repo(),
+        usage_repo,
+        rate_card_repo,
+        invoice_repo.clone(),
+        stripe_svc,
+    );
+    let app = api::router::build_router(state);
+
+    let resp = app
+        .oneshot(
+            Request::post("/admin/billing/run")
+                .header("x-admin-key", TEST_ADMIN_KEY)
+                .header("content-type", "application/json")
+                .body(Body::from(r#"{"month":"2026-01"}"#))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = body_json(resp).await;
+    assert_eq!(body["invoices_created"], 1);
+    assert_eq!(body["invoices_skipped"], 1);
+
+    let results = body["results"].as_array().unwrap();
+    let free_result = results
+        .iter()
+        .find(|result| result["customer_id"] == free_customer.id.to_string())
+        .expect("free customer result missing");
+    assert_eq!(free_result["status"], "skipped");
+    assert_eq!(free_result["reason"], "free_plan");
+
+    let shared_result = results
+        .iter()
+        .find(|result| result["customer_id"] == shared_customer.id.to_string())
+        .expect("shared customer result missing");
+    assert_eq!(shared_result["status"], "created");
+
+    let free_invoices = invoice_repo
+        .list_by_customer(free_customer.id)
+        .await
+        .unwrap();
+    assert_eq!(free_invoices.len(), 0);
+
+    let shared_invoices = invoice_repo
+        .list_by_customer(shared_customer.id)
+        .await
+        .unwrap();
+    assert_eq!(shared_invoices.len(), 1);
 }
 
 #[tokio::test]
@@ -2459,6 +2623,10 @@ async fn batch_billing_run_skips_existing_invoices() {
     rate_card_repo.seed_active_card(test_rate_card());
 
     let customer = seed_stripe_customer(&customer_repo, "Acme", "acme@example.com").await;
+    customer_repo
+        .set_billing_plan(customer.id, "shared")
+        .await
+        .unwrap();
 
     // Seed usage
     usage_repo.seed(
@@ -2521,8 +2689,12 @@ async fn batch_billing_run_skips_no_stripe_customer() {
 
     rate_card_repo.seed_active_card(test_rate_card());
 
-    // Customer without stripe_customer_id
+    // Customer without stripe_customer_id (shared plan to pass free-plan check)
     let customer = customer_repo.seed("NoStripe", "nostripe@example.com");
+    customer_repo
+        .set_billing_plan(customer.id, "shared")
+        .await
+        .unwrap();
 
     usage_repo.seed(
         customer.id,
@@ -2666,6 +2838,10 @@ async fn batch_billing_run_continues_on_stripe_failure() {
     stripe_svc.set_should_fail(true);
 
     let customer = seed_stripe_customer(&customer_repo, "Acme", "acme@example.com").await;
+    customer_repo
+        .set_billing_plan(customer.id, "shared")
+        .await
+        .unwrap();
 
     usage_repo.seed(
         customer.id,
@@ -2907,6 +3083,171 @@ async fn webhook_payment_succeeded_on_already_paid_invoice_ignored() {
 }
 
 // ===========================================================================
+// Batch billing — Free-plan skip
+// ===========================================================================
+
+#[tokio::test]
+async fn batch_billing_run_skips_free_plan_customer() {
+    let customer_repo = mock_repo();
+    let invoice_repo = mock_invoice_repo();
+    let usage_repo = mock_usage_repo();
+    let rate_card_repo = mock_rate_card_repo();
+
+    rate_card_repo.seed_active_card(test_rate_card());
+
+    let free_customer = seed_stripe_customer(&customer_repo, "FreeCo", "free@example.com").await;
+
+    usage_repo.seed(
+        free_customer.id,
+        NaiveDate::from_ymd_opt(2026, 1, 15).unwrap(),
+        "us-east-1",
+        1000,
+        100,
+        0,
+        0,
+    );
+
+    let state = test_state_all_with_stripe(
+        customer_repo,
+        mock_deployment_repo(),
+        usage_repo,
+        rate_card_repo,
+        invoice_repo.clone(),
+        mock_stripe_service(),
+    );
+    let app = api::router::build_router(state);
+
+    let resp = app
+        .oneshot(
+            Request::post("/admin/billing/run")
+                .header("x-admin-key", TEST_ADMIN_KEY)
+                .header("content-type", "application/json")
+                .body(Body::from(r#"{"month":"2026-01"}"#))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = body_json(resp).await;
+    assert_eq!(body["invoices_created"], 0);
+    assert_eq!(body["invoices_skipped"], 1);
+
+    let results = body["results"].as_array().unwrap();
+    assert_eq!(results[0]["status"], "skipped");
+    assert_eq!(results[0]["reason"], "free_plan");
+
+    let invoices = invoice_repo
+        .list_by_customer(free_customer.id)
+        .await
+        .unwrap();
+    assert_eq!(
+        invoices.len(),
+        0,
+        "Free customer must have zero persisted invoice rows"
+    );
+}
+
+#[tokio::test]
+async fn batch_billing_run_mixed_cohort_skips_free_invoices_shared() {
+    let customer_repo = mock_repo();
+    let invoice_repo = mock_invoice_repo();
+    let stripe_svc = mock_stripe_service();
+    let usage_repo = mock_usage_repo();
+    let rate_card_repo = mock_rate_card_repo();
+
+    rate_card_repo.seed_active_card(test_rate_card());
+
+    // Shared customer — should be invoiced
+    let shared = seed_stripe_customer(&customer_repo, "SharedCo", "shared@example.com").await;
+    customer_repo
+        .set_billing_plan(shared.id, "shared")
+        .await
+        .unwrap();
+    usage_repo.seed(
+        shared.id,
+        NaiveDate::from_ymd_opt(2026, 1, 15).unwrap(),
+        "us-east-1",
+        10000,
+        1000,
+        0,
+        0,
+    );
+
+    // Free customer — should be skipped
+    let free = seed_stripe_customer(&customer_repo, "FreeCo", "free@example.com").await;
+    usage_repo.seed(
+        free.id,
+        NaiveDate::from_ymd_opt(2026, 1, 15).unwrap(),
+        "us-east-1",
+        5000,
+        500,
+        0,
+        0,
+    );
+
+    let state = test_state_all_with_stripe(
+        customer_repo,
+        mock_deployment_repo(),
+        usage_repo,
+        rate_card_repo,
+        invoice_repo.clone(),
+        stripe_svc.clone(),
+    );
+    let app = api::router::build_router(state);
+
+    let resp = app
+        .oneshot(
+            Request::post("/admin/billing/run")
+                .header("x-admin-key", TEST_ADMIN_KEY)
+                .header("content-type", "application/json")
+                .body(Body::from(r#"{"month":"2026-01"}"#))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = body_json(resp).await;
+    assert_eq!(
+        body["invoices_created"], 1,
+        "only the shared customer should be invoiced"
+    );
+    assert_eq!(
+        body["invoices_skipped"], 1,
+        "free customer should be skipped"
+    );
+
+    let results = body["results"].as_array().unwrap();
+    let free_result = results
+        .iter()
+        .find(|r| r["customer_id"] == free.id.to_string())
+        .expect("free customer must appear in results");
+    assert_eq!(free_result["status"], "skipped");
+    assert_eq!(free_result["reason"], "free_plan");
+
+    let shared_result = results
+        .iter()
+        .find(|r| r["customer_id"] == shared.id.to_string())
+        .expect("shared customer must appear in results");
+    assert_eq!(shared_result["status"], "created");
+
+    let free_invoices = invoice_repo.list_by_customer(free.id).await.unwrap();
+    assert_eq!(
+        free_invoices.len(),
+        0,
+        "Free customer must have zero persisted invoice rows"
+    );
+
+    let shared_invoices = invoice_repo.list_by_customer(shared.id).await.unwrap();
+    assert_eq!(
+        shared_invoices.len(),
+        1,
+        "Shared customer must have one invoice"
+    );
+}
+
+// ===========================================================================
 // Batch billing edge cases
 // ===========================================================================
 
@@ -2939,8 +3280,12 @@ async fn batch_billing_run_multiple_customers_mixed() {
 
     rate_card_repo.seed_active_card(test_rate_card());
 
-    // Customer 1: active + has Stripe + has usage → should get invoiced
+    // Customer 1: active + shared + has Stripe + has usage → should get invoiced
     let c1 = seed_stripe_customer(&customer_repo, "Alpha", "alpha@example.com").await;
+    customer_repo
+        .set_billing_plan(c1.id, "shared")
+        .await
+        .unwrap();
     usage_repo.seed(
         c1.id,
         NaiveDate::from_ymd_opt(2026, 1, 15).unwrap(),
@@ -2951,8 +3296,12 @@ async fn batch_billing_run_multiple_customers_mixed() {
         0,
     );
 
-    // Customer 2: active + has Stripe + has usage → should get invoiced
+    // Customer 2: active + shared + has Stripe + has usage → should get invoiced
     let c2 = seed_stripe_customer(&customer_repo, "Beta", "beta@example.com").await;
+    customer_repo
+        .set_billing_plan(c2.id, "shared")
+        .await
+        .unwrap();
     usage_repo.seed(
         c2.id,
         NaiveDate::from_ymd_opt(2026, 1, 15).unwrap(),
@@ -2963,7 +3312,7 @@ async fn batch_billing_run_multiple_customers_mixed() {
         0,
     );
 
-    // Customer 3: active but no Stripe → skipped
+    // Customer 3: active but free plan → skipped
     let _c3 = customer_repo.seed("Gamma", "gamma@example.com");
 
     let state = test_state_all_with_stripe(
@@ -2995,7 +3344,7 @@ async fn batch_billing_run_multiple_customers_mixed() {
     );
     assert_eq!(
         body["invoices_skipped"], 1,
-        "one customer without Stripe should be skipped"
+        "one free-plan customer should be skipped"
     );
 
     let results = body["results"].as_array().unwrap();
@@ -3368,6 +3717,10 @@ async fn commerce_pipeline_usage_to_payment_confirmation() {
 
     let customer =
         seed_stripe_customer(&customer_repo, "Usage Pipeline", "usage@example.com").await;
+    customer_repo
+        .set_billing_plan(customer.id, "shared")
+        .await
+        .unwrap();
 
     // Seed usage for March 2026 (hot storage drives billable line items).
     usage_repo.seed(

@@ -16,9 +16,10 @@ use crate::models::{BillingPlan, Customer, InvoiceRow};
 use crate::repos::usage_repo::UsageSummary;
 use crate::routes::invoices::InvoiceListItem;
 use crate::services::audit_log::{
-    list_audit_log_for_target_tenant, write_audit_log, AuditLogRow, ACTION_CUSTOMER_REACTIVATED,
-    ACTION_CUSTOMER_SUSPENDED, ACTION_QUOTAS_UPDATED, ACTION_STRIPE_SYNC, ACTION_TENANT_CREATED,
-    ACTION_TENANT_DELETED, ACTION_TENANT_UPDATED, ADMIN_SENTINEL_ACTOR_ID,
+    list_audit_log_for_target_tenant, write_audit_log, AuditLogRow, ACTION_CUSTOMER_HARD_ERASE,
+    ACTION_CUSTOMER_REACTIVATED, ACTION_CUSTOMER_SUSPENDED, ACTION_QUOTAS_UPDATED,
+    ACTION_STRIPE_SYNC, ACTION_TENANT_CREATED, ACTION_TENANT_DELETED, ACTION_TENANT_UPDATED,
+    ADMIN_SENTINEL_ACTOR_ID,
 };
 use crate::services::billing_health::{self, BillingHealth, BillingHealthSignals, InvoiceSignals};
 use crate::state::AppState;
@@ -548,6 +549,72 @@ pub async fn suspend_customer(
     }
 
     Ok(message_response("customer suspended"))
+}
+
+// POST /admin/customers/:id/hard-erase
+/// `POST /admin/customers/{id}/hard-erase` — permanently erase a previously
+/// soft-deleted customer and all dependent rows.
+///
+/// **Auth:** `AdminAuth`.
+///
+/// **Preconditions:** the customer must already be in `deleted` status —
+/// active/suspended customers must be soft-deleted (and any unfinished
+/// billing wound down) before hard-erasure is allowed. The repo seam
+/// additionally rejects with `409 Conflict` if any non-final invoice rows
+/// still reference the customer.
+///
+/// **Responses:**
+/// * `204 No Content` — erasure succeeded; customer row and dependents
+///   removed. Audit row with action `ACTION_CUSTOMER_HARD_ERASE` is
+///   written best-effort (a transient audit-write failure does NOT roll
+///   the erasure back, matching policy on the other admin write paths).
+/// * `404 Not Found` — no `customers` row matched (already erased).
+/// * `400 Bad Request` — customer is not in `deleted` status.
+/// * `409 Conflict` — customer still has open invoices.
+pub async fn hard_erase_customer(
+    _auth: AdminAuth,
+    State(state): State<AppState>,
+    Path(customer_id): Path<Uuid>,
+) -> Result<impl IntoResponse, ApiError> {
+    let customer = state
+        .customer_repo
+        .find_by_id(customer_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("customer not found".into()))?;
+
+    if customer.status != "deleted" {
+        return Err(ApiError::BadRequest(
+            "customer must be soft-deleted before hard-erase".into(),
+        ));
+    }
+
+    let erased = state.customer_repo.hard_delete(customer_id).await?;
+    if !erased {
+        // Race: the row was hard-erased between the find_by_id read and
+        // the hard_delete write. Surface as 404 so the caller's view of
+        // the world (the row is gone) matches the response.
+        return Err(ApiError::NotFound("customer not found".into()));
+    }
+
+    if let Err(err) = write_audit_log(
+        &state.pool,
+        ADMIN_SENTINEL_ACTOR_ID,
+        ACTION_CUSTOMER_HARD_ERASE,
+        Some(customer_id),
+        json!({
+            "email": &customer.email,
+        }),
+    )
+    .await
+    {
+        tracing::error!(
+            error = %err,
+            customer_id = %customer_id,
+            "failed to write customer_hard_erase audit_log row"
+        );
+    }
+
+    Ok(StatusCode::NO_CONTENT)
 }
 
 // GET /admin/customers/:id/audit

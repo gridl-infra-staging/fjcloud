@@ -3,13 +3,26 @@ use async_trait::async_trait;
 use aws_sdk_sesv2::types::{Body, Content, Destination, EmailContent, Message};
 use std::sync::{Arc, Mutex};
 
+mod dunning;
 mod mailpit;
 mod render;
+mod ses_config;
+pub use dunning::{
+    dunning_recovered_after_failure_email_html_with_base_url,
+    dunning_recovered_after_failure_email_text_with_base_url,
+    dunning_retries_exhausted_email_html_with_base_url,
+    dunning_retries_exhausted_email_text_with_base_url,
+    dunning_retry_scheduled_email_html_with_base_url,
+    dunning_retry_scheduled_email_text_with_base_url, DUNNING_RECOVERED_AFTER_FAILURE_SUBJECT,
+    DUNNING_RETRIES_EXHAUSTED_SUBJECT, DUNNING_RETRY_SCHEDULED_SUBJECT,
+};
 pub use mailpit::MailpitEmailService;
 use render::{
-    render_invoice_ready_email, render_password_reset_email, render_quota_warning_email,
-    render_verification_email, resolve_broadcast_render, RenderedEmail,
+    render_dunning_recovered_after_failure_email, render_dunning_retries_exhausted_email,
+    render_dunning_retry_scheduled_email, render_invoice_ready_email, render_password_reset_email,
+    render_quota_warning_email, render_verification_email, resolve_broadcast_render, RenderedEmail,
 };
+pub use ses_config::SesConfig;
 
 pub const DEFAULT_APP_BASE_URL: &str = "https://cloud.flapjack.foo";
 pub const DEFAULT_EMAIL_FROM_NAME: &str = "Flapjack Cloud";
@@ -82,6 +95,30 @@ pub enum BroadcastDeliveryStatus {
     Suppressed,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DunningRetryScheduledEmailRequest<'a> {
+    pub customer_id: &'a str,
+    pub invoice_id: &'a str,
+    pub hosted_invoice_url: Option<&'a str>,
+    pub next_payment_attempt_unix_seconds: i64,
+    pub attempt_count: Option<u32>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DunningRetriesExhaustedEmailRequest<'a> {
+    pub customer_id: &'a str,
+    pub invoice_id: &'a str,
+    pub hosted_invoice_url: Option<&'a str>,
+    pub attempt_count: Option<u32>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DunningRecoveredAfterFailureEmailRequest<'a> {
+    pub customer_id: &'a str,
+    pub invoice_id: &'a str,
+    pub hosted_invoice_url: Option<&'a str>,
+}
+
 /// Async trait defining the email dispatch interface.
 ///
 /// Provides typed methods for each transactional email (verification, password
@@ -114,6 +151,24 @@ pub trait EmailService: Send + Sync {
         percent_used: f64,
         current_usage: u64,
         limit: u64,
+    ) -> Result<(), EmailError>;
+
+    async fn send_dunning_retry_scheduled_email(
+        &self,
+        to: &str,
+        request: &DunningRetryScheduledEmailRequest<'_>,
+    ) -> Result<(), EmailError>;
+
+    async fn send_dunning_retries_exhausted_email(
+        &self,
+        to: &str,
+        request: &DunningRetriesExhaustedEmailRequest<'_>,
+    ) -> Result<(), EmailError>;
+
+    async fn send_dunning_recovered_after_failure_email(
+        &self,
+        to: &str,
+        request: &DunningRecoveredAfterFailureEmailRequest<'_>,
     ) -> Result<(), EmailError>;
 
     async fn send_broadcast_email(
@@ -352,6 +407,39 @@ impl EmailService for MockEmailService {
         )
     }
 
+    async fn send_dunning_retry_scheduled_email(
+        &self,
+        to: &str,
+        request: &DunningRetryScheduledEmailRequest<'_>,
+    ) -> Result<(), EmailError> {
+        self.record(
+            to,
+            render_dunning_retry_scheduled_email(&self.app_base_url, request)?,
+        )
+    }
+
+    async fn send_dunning_retries_exhausted_email(
+        &self,
+        to: &str,
+        request: &DunningRetriesExhaustedEmailRequest<'_>,
+    ) -> Result<(), EmailError> {
+        self.record(
+            to,
+            render_dunning_retries_exhausted_email(&self.app_base_url, request)?,
+        )
+    }
+
+    async fn send_dunning_recovered_after_failure_email(
+        &self,
+        to: &str,
+        request: &DunningRecoveredAfterFailureEmailRequest<'_>,
+    ) -> Result<(), EmailError> {
+        self.record(
+            to,
+            render_dunning_recovered_after_failure_email(&self.app_base_url, request)?,
+        )
+    }
+
     async fn send_broadcast_email(
         &self,
         to: &str,
@@ -399,6 +487,30 @@ impl EmailService for NoopEmailService {
         _percent_used: f64,
         _current_usage: u64,
         _limit: u64,
+    ) -> Result<(), EmailError> {
+        validate_recipient_email(to)
+    }
+
+    async fn send_dunning_retry_scheduled_email(
+        &self,
+        to: &str,
+        _request: &DunningRetryScheduledEmailRequest<'_>,
+    ) -> Result<(), EmailError> {
+        validate_recipient_email(to)
+    }
+
+    async fn send_dunning_retries_exhausted_email(
+        &self,
+        to: &str,
+        _request: &DunningRetriesExhaustedEmailRequest<'_>,
+    ) -> Result<(), EmailError> {
+        validate_recipient_email(to)
+    }
+
+    async fn send_dunning_recovered_after_failure_email(
+        &self,
+        to: &str,
+        _request: &DunningRecoveredAfterFailureEmailRequest<'_>,
     ) -> Result<(), EmailError> {
         validate_recipient_email(to)
     }
@@ -470,6 +582,45 @@ impl EmailService for SesEmailService {
         self.send_rendered_email(
             to,
             &render_quota_warning_email(metric, percent_used, current_usage, limit)?,
+        )
+        .await
+        .map(|_| ())
+    }
+
+    async fn send_dunning_retry_scheduled_email(
+        &self,
+        to: &str,
+        request: &DunningRetryScheduledEmailRequest<'_>,
+    ) -> Result<(), EmailError> {
+        self.send_rendered_email(
+            to,
+            &render_dunning_retry_scheduled_email(&self.app_base_url, request)?,
+        )
+        .await
+        .map(|_| ())
+    }
+
+    async fn send_dunning_retries_exhausted_email(
+        &self,
+        to: &str,
+        request: &DunningRetriesExhaustedEmailRequest<'_>,
+    ) -> Result<(), EmailError> {
+        self.send_rendered_email(
+            to,
+            &render_dunning_retries_exhausted_email(&self.app_base_url, request)?,
+        )
+        .await
+        .map(|_| ())
+    }
+
+    async fn send_dunning_recovered_after_failure_email(
+        &self,
+        to: &str,
+        request: &DunningRecoveredAfterFailureEmailRequest<'_>,
+    ) -> Result<(), EmailError> {
+        self.send_rendered_email(
+            to,
+            &render_dunning_recovered_after_failure_email(&self.app_base_url, request)?,
         )
         .await
         .map(|_| ())
@@ -594,68 +745,4 @@ pub fn quota_warning_email_text(
     format!(
         "Flapjack Cloud usage warning.\n\nMetric: {metric}\nUsage: {percent_used:.1}%\nCurrent: {current_usage}\nLimit: {limit}"
     )
-}
-
-// ---------------------------------------------------------------------------
-// SES configuration
-// ---------------------------------------------------------------------------
-
-/// Configuration required to wire `SesEmailService` in production.
-/// Loaded from environment variables; startup fails fast if missing or invalid.
-#[derive(Debug, Clone)]
-pub struct SesConfig {
-    pub from_address: String,
-    pub from_name: String,
-    pub region: String,
-    pub configuration_set: String,
-}
-
-impl SesConfig {
-    pub fn from_name_from_reader<F>(read: F) -> String
-    where
-        F: Fn(&str) -> Option<String>,
-    {
-        read("EMAIL_FROM_NAME")
-            .map(normalize_from_name)
-            .unwrap_or_else(|| DEFAULT_EMAIL_FROM_NAME.to_string())
-    }
-
-    pub fn from_name_from_env() -> String {
-        Self::from_name_from_reader(|k| std::env::var(k).ok())
-    }
-
-    /// Testable constructor that reads values via a closure.
-    pub fn from_reader<F>(read: F) -> Result<Self, String>
-    where
-        F: Fn(&str) -> Option<String>,
-    {
-        let from_address = read("SES_FROM_ADDRESS")
-            .map(|v| v.trim().to_string())
-            .filter(|v| !v.is_empty())
-            .ok_or("SES_FROM_ADDRESS is required but missing or empty")?;
-
-        let from_name = Self::from_name_from_reader(&read);
-
-        let region = read("SES_REGION")
-            .map(|v| v.trim().to_string())
-            .filter(|v| !v.is_empty())
-            .ok_or("SES_REGION is required but missing or empty")?;
-
-        let configuration_set = read("SES_CONFIGURATION_SET")
-            .map(|v| v.trim().to_string())
-            .filter(|v| !v.is_empty())
-            .ok_or("SES_CONFIGURATION_SET is required but missing or empty")?;
-
-        Ok(Self {
-            from_address,
-            from_name,
-            region,
-            configuration_set,
-        })
-    }
-
-    /// Load from real environment variables.
-    pub fn from_env() -> Result<Self, String> {
-        Self::from_reader(|k| std::env::var(k).ok())
-    }
 }

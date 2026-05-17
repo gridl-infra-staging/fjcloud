@@ -87,13 +87,13 @@
 				data-testid="customer-search"
 				type="search"
 				bind:value={searchQuery}
-				placeholder="Search customers"
-				class="rounded-md border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-violet-400 focus:outline-none"
+				placeholder="Search name or email"
+				class="rounded-md border border-[#f6c15b] bg-[#fff8ea] px-3 py-2 text-sm text-slate-900 placeholder:text-slate-500 focus:border-amber-500 focus:outline-none"
 			/>
 			<select
 				data-testid="status-filter"
 				bind:value={statusFilter}
-				class="rounded-md border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-slate-200 focus:border-violet-400 focus:outline-none"
+				class="rounded-md border border-[#f6c15b] bg-[#fff8ea] px-3 py-2 text-sm text-slate-900 focus:border-amber-500 focus:outline-none"
 			>
 				<option value="all">All statuses</option>
 				<option value="active">Active</option>
@@ -105,7 +105,12 @@
 
 	{#if customersUnavailable}
 		<div class="rounded-lg border border-slate-700 bg-slate-800/40 p-8 text-center">
-			<p class="text-slate-400">Customer data unavailable.</p>
+			<p class="text-slate-200">Loading customers...</p>
+			<p class="mt-2 text-slate-400">Fetching latest customer billing and activity status.</p>
+			<p class="mt-3 text-slate-300">Customer data unavailable.</p>
+			<p class="mt-2 text-slate-400">
+				We could not load customer records. Try refreshing this page.
+			</p>
 		</div>
 	{:else if customers.length === 0}
 		<div class="rounded-lg border border-slate-700 bg-slate-800/40 p-8 text-center">
@@ -114,21 +119,22 @@
 	{:else if filteredCustomers.length === 0}
 		<div class="rounded-lg border border-slate-700 bg-slate-800/40 p-8 text-center">
 			<p class="text-slate-400">No customers match the current filters.</p>
+			<p class="mt-2 text-slate-500">Try broadening your search or status filter.</p>
 		</div>
 	{:else}
 		<div class="overflow-x-auto rounded-lg border border-slate-700">
-			<table class="w-full text-left text-sm">
+			<table data-testid="customers-table" class="w-full text-left text-sm">
 				<thead
 					class="border-b border-slate-700 bg-slate-800/80 text-xs uppercase tracking-wide text-slate-400"
 				>
 					<tr>
-						<th class="px-4 py-3">Name</th>
-						<th class="px-4 py-3">Email</th>
-						<th class="px-4 py-3">Status</th>
-						<th class="px-4 py-3">Created</th>
-						<th class="px-4 py-3">Last activity</th>
-						<th class="px-4 py-3">Indexes</th>
-						<th class="px-4 py-3">
+						<th scope="col" class="px-4 py-3">Name</th>
+						<th scope="col" class="px-4 py-3">Email</th>
+						<th scope="col" class="px-4 py-3">Status</th>
+						<th scope="col" class="px-4 py-3">Created</th>
+						<th scope="col" class="px-4 py-3">Last activity</th>
+						<th scope="col" class="px-4 py-3">Indexes</th>
+						<th scope="col" class="px-4 py-3">
 							<button
 								type="button"
 								data-testid="sort-billing-health"
@@ -141,14 +147,14 @@
 								</span>
 							</button>
 						</th>
-						<th class="px-4 py-3">Actions</th>
+						<th scope="col" class="px-4 py-3">Actions</th>
 					</tr>
 				</thead>
 				<tbody data-testid="customers-table-body" class="divide-y divide-slate-700/50">
 					{#each filteredCustomers as customer (customer.id)}
 						<tr
 							data-testid={`customer-row-${customer.id}`}
-							class="transition hover:bg-slate-800/40"
+							class="h-14 transition hover:bg-slate-800/40"
 						>
 							<td class="px-4 py-3">
 								<a

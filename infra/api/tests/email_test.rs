@@ -1,6 +1,9 @@
 mod common;
 
-use api::services::email::{EmailService, MockEmailService, SesConfig, SesEmailService};
+use api::services::email::{
+    DunningRecoveredAfterFailureEmailRequest, DunningRetriesExhaustedEmailRequest,
+    DunningRetryScheduledEmailRequest, EmailService, MockEmailService, SesConfig, SesEmailService,
+};
 use api::services::email_suppression::InMemoryEmailSuppressionStore;
 use api::startup_env::{RawEnvFamilyState, SesStartupMode, StartupEnvSnapshot};
 use std::sync::Arc;
@@ -162,6 +165,152 @@ async fn mock_email_service_captures_quota_warning_email() {
     assert!(sent[0].text_body.contains("80.0%"));
     assert!(sent[0].text_body.contains("800"));
     assert!(sent[0].text_body.contains("1000"));
+}
+
+#[tokio::test]
+async fn mock_email_service_captures_dunning_retry_scheduled_email() {
+    let service = MockEmailService::new();
+
+    service
+        .send_dunning_retry_scheduled_email(
+            "billing-contact@example.com",
+            &DunningRetryScheduledEmailRequest {
+                customer_id: "cus_stage1_retry",
+                invoice_id: "in_stage1_retry",
+                hosted_invoice_url: Some("https://stripe.com/invoice/stage1-retry"),
+                next_payment_attempt_unix_seconds: 1_708_300_800,
+                attempt_count: Some(2),
+            },
+        )
+        .await
+        .expect("dunning retry-scheduled email should be captured");
+
+    let sent = service.sent_emails();
+    assert_eq!(sent.len(), 1);
+    assert_eq!(sent[0].to, "billing-contact@example.com");
+    assert!(sent[0].subject.to_lowercase().contains("retry"));
+    assert!(sent[0].html_body.contains("couldn't process your payment"));
+    assert!(sent[0]
+        .html_body
+        .contains("automatically retry your payment"));
+    assert!(sent[0].html_body.contains("2024-02-19 00:00:00 UTC"));
+    assert!(sent[0]
+        .html_body
+        .contains("https://stripe.com/invoice/stage1-retry"));
+    assert!(sent[0].text_body.contains("couldn't process your payment"));
+    assert!(sent[0]
+        .text_body
+        .contains("automatically retry your payment"));
+    assert!(sent[0].text_body.contains("attempt 2"));
+    assert!(sent[0].text_body.contains("2024-02-19 00:00:00 UTC"));
+    assert!(!sent[0].html_body.contains("cus_stage1_retry"));
+    assert!(!sent[0].html_body.contains("in_stage1_retry"));
+    assert!(!sent[0].text_body.contains("cus_stage1_retry"));
+    assert!(!sent[0].text_body.contains("in_stage1_retry"));
+}
+
+#[tokio::test]
+async fn mock_email_service_captures_dunning_retries_exhausted_email() {
+    let service = MockEmailService::new();
+
+    service
+        .send_dunning_retries_exhausted_email(
+            "billing-contact@example.com",
+            &DunningRetriesExhaustedEmailRequest {
+                customer_id: "cus_stage1_exhausted",
+                invoice_id: "in_stage1_exhausted",
+                hosted_invoice_url: Some("https://stripe.com/invoice/stage1-exhausted"),
+                attempt_count: Some(4),
+            },
+        )
+        .await
+        .expect("dunning retries-exhausted email should be captured");
+
+    let sent = service.sent_emails();
+    assert_eq!(sent.len(), 1);
+    assert_eq!(sent[0].to, "billing-contact@example.com");
+    assert!(sent[0].subject.to_lowercase().contains("exhausted"));
+    assert!(sent[0]
+        .html_body
+        .contains("still couldn't process your payment"));
+    assert!(sent[0]
+        .html_body
+        .contains("No more automatic retries are scheduled"));
+    assert!(sent[0].html_body.contains("attempt 4"));
+    assert!(sent[0]
+        .html_body
+        .contains("https://stripe.com/invoice/stage1-exhausted"));
+    assert!(sent[0]
+        .text_body
+        .contains("still couldn't process your payment"));
+    assert!(sent[0]
+        .text_body
+        .contains("No more automatic retries are scheduled"));
+    assert!(sent[0].text_body.contains("temporarily limited"));
+    assert!(!sent[0].html_body.contains("cus_stage1_exhausted"));
+    assert!(!sent[0].html_body.contains("in_stage1_exhausted"));
+    assert!(!sent[0].text_body.contains("cus_stage1_exhausted"));
+    assert!(!sent[0].text_body.contains("in_stage1_exhausted"));
+}
+
+#[tokio::test]
+async fn mock_email_service_captures_dunning_recovered_after_failure_email() {
+    let service = MockEmailService::new();
+
+    service
+        .send_dunning_recovered_after_failure_email(
+            "billing-contact@example.com",
+            &DunningRecoveredAfterFailureEmailRequest {
+                customer_id: "cus_stage1_recovered",
+                invoice_id: "in_stage1_recovered",
+                hosted_invoice_url: Some("https://stripe.com/invoice/stage1-recovered"),
+            },
+        )
+        .await
+        .expect("dunning recovery email should be captured");
+
+    let sent = service.sent_emails();
+    assert_eq!(sent.len(), 1);
+    assert_eq!(sent[0].to, "billing-contact@example.com");
+    assert!(sent[0].subject.to_lowercase().contains("recovered"));
+    assert!(sent[0].html_body.contains("payment is now successful"));
+    assert!(sent[0].html_body.contains("account access remains active"));
+    assert!(sent[0]
+        .html_body
+        .contains("https://stripe.com/invoice/stage1-recovered"));
+    assert!(sent[0].text_body.contains("payment is now successful"));
+    assert!(sent[0].text_body.contains("active"));
+    assert!(!sent[0].html_body.contains("cus_stage1_recovered"));
+    assert!(!sent[0].html_body.contains("in_stage1_recovered"));
+    assert!(!sent[0].text_body.contains("cus_stage1_recovered"));
+    assert!(!sent[0].text_body.contains("in_stage1_recovered"));
+}
+
+#[tokio::test]
+async fn mock_email_service_uses_dashboard_fallback_link_when_hosted_invoice_url_missing() {
+    let service = MockEmailService::new();
+
+    service
+        .send_dunning_retries_exhausted_email(
+            "billing-contact@example.com",
+            &DunningRetriesExhaustedEmailRequest {
+                customer_id: "cus_stage1_missing_hosted_url",
+                invoice_id: "in_stage1_missing_hosted_url",
+                hosted_invoice_url: None,
+                attempt_count: Some(3),
+            },
+        )
+        .await
+        .expect("dunning retries-exhausted email should be captured");
+
+    let sent = service.sent_emails();
+    assert_eq!(sent.len(), 1);
+    assert!(sent[0].html_body.contains(
+        "https://cloud.flapjack.foo/dashboard/billing/invoices/in_stage1_missing_hosted_url"
+    ));
+    assert!(sent[0].text_body.contains(
+        "https://cloud.flapjack.foo/dashboard/billing/invoices/in_stage1_missing_hosted_url"
+    ));
 }
 
 #[tokio::test]

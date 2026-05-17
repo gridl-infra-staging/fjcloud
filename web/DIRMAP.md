@@ -8,6 +8,6 @@
 
 | Directory | Summary |
 | --- | --- |
-| src | The src directory is a SvelteKit frontend application containing shared libraries for HTTP clients, JWT authentication, session management, and API instrumentation, along with customer-facing pages and admin dashboards for billing operations, Stripe integration, and OAuth authentication flows. |
+| src | The src directory contains a SvelteKit frontend with client and server-side utilities for API communication, authentication, token management, and Stripe integration. |
 | tests | The tests directory contains browser-based end-to-end testing infrastructure for the web frontend, including Playwright fixtures with authentication helpers, database utilities, and page interaction helpers for multiple test projects, plus VLM screenshot capture tooling for visual validation. |
 <!-- [scrai:end] -->

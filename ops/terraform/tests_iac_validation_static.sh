@@ -12,12 +12,57 @@ publication_script="ops/terraform/publish_support_email_canary_image.sh"
 publication_dockerfile="ops/terraform/support_email_canary/Dockerfile"
 publication_lambda_handler="ops/terraform/support_email_canary/lambda_handler.py"
 
-assert_file_exists "$validate_script" "validate_all.sh exists"
-if [[ -x "$validate_script" ]]; then
-  pass "validate_all.sh is executable"
-else
-  fail "validate_all.sh is executable"
-fi
+assert_file_executable() {
+  local file="$1"
+  local description="$2"
+  assert_file_exists "$file" "${description} exists"
+  if [[ -x "$file" ]]; then
+    pass "${description} is executable"
+  else
+    fail "${description} is executable"
+  fi
+}
+
+assert_validate_script_result() {
+  local description="$1"
+  local expected_success="$2"
+  local audit_dir="${3:-}"
+  local expected_output_pattern="${4:-}"
+  local expected_output_description="${5:-}"
+  local tmp_output
+  local cmd=(bash "$validate_script")
+
+  if [[ -n "$audit_dir" ]]; then
+    cmd+=(--audit-dir "$audit_dir")
+  fi
+
+  tmp_output="$(mktemp)"
+  if PATH="/usr/bin:/bin" "${cmd[@]}" >"$tmp_output" 2>&1; then
+    if [[ "$expected_success" == "1" ]]; then
+      pass "$description"
+    else
+      fail "$description"
+    fi
+  else
+    if [[ "$expected_success" == "1" ]]; then
+      fail "$description"
+    else
+      pass "$description"
+    fi
+  fi
+
+  if [[ -n "$expected_output_pattern" ]]; then
+    if rg -q "$expected_output_pattern" "$tmp_output"; then
+      pass "$expected_output_description"
+    else
+      fail "$expected_output_description"
+    fi
+  fi
+
+  rm -f "$tmp_output"
+}
+
+assert_file_executable "$validate_script" "validate_all.sh"
 assert_file_contains "$validate_script" 'networking' "validate_all.sh references networking module"
 assert_file_contains "$validate_script" 'compute' "validate_all.sh references compute module"
 assert_file_contains "$validate_script" 'data' "validate_all.sh references data module"
@@ -38,12 +83,7 @@ assert_file_contains "$validate_script" 'FJCLOUD_ALLOW_LIVE_E2E_DELETE=1' "valid
 assert_file_contains "$validate_script" '\-\-execute' "validate_all.sh checks janitor execute gate flag"
 assert_file_contains "$validate_script" 'resourcegroupstaggingapi get-resources' "validate_all.sh checks janitor tagging API discovery contract"
 
-assert_file_exists "$janitor_script" "live_e2e_ttl_janitor.sh exists"
-if [[ -x "$janitor_script" ]]; then
-  pass "live_e2e_ttl_janitor.sh is executable"
-else
-  fail "live_e2e_ttl_janitor.sh is executable"
-fi
+assert_file_executable "$janitor_script" "live_e2e_ttl_janitor.sh"
 assert_file_contains "$janitor_script" '\-\-help' "live_e2e_ttl_janitor.sh exposes --help"
 assert_file_contains "$janitor_script" '\-\-execute' "live_e2e_ttl_janitor.sh supports execute mode gate"
 assert_file_contains "$janitor_script" 'FJCLOUD_ALLOW_LIVE_E2E_DELETE=1' "live_e2e_ttl_janitor.sh requires env gate for deletes"
@@ -53,75 +93,23 @@ assert_file_contains "$janitor_script" 'owner' "live_e2e_ttl_janitor.sh requires
 assert_file_contains "$janitor_script" 'ttl_expires_at' "live_e2e_ttl_janitor.sh requires ttl_expires_at tag"
 assert_file_contains "$janitor_script" 'environment' "live_e2e_ttl_janitor.sh requires environment tag"
 
-assert_file_exists "$publication_script" "publish_support_email_canary_image.sh exists"
-if [[ -x "$publication_script" ]]; then
-  pass "publish_support_email_canary_image.sh is executable"
-else
-  fail "publish_support_email_canary_image.sh is executable"
-fi
+assert_file_executable "$publication_script" "publish_support_email_canary_image.sh"
 assert_file_exists "$publication_dockerfile" "support_email_canary Dockerfile exists"
 assert_file_exists "$publication_lambda_handler" "support_email_canary lambda_handler.py exists"
-assert_file_contains "$publication_script" 'docker build' "publish script builds support_email_canary image"
-assert_file_contains "$publication_script" 'docker push' "publish script pushes support_email_canary image"
+assert_file_contains "$publication_script" 'source .*publish_canary_image_shared\.sh' "publish script sources shared canary publish helper"
+assert_file_not_contains "$publication_script" '^[[:space:]]*docker build' "publish script does not own inline docker build body"
+assert_file_not_contains "$publication_script" 'docker push' "publish script does not own inline docker push body"
+assert_file_not_contains "$publication_script" 'aws ecr get-login-password' "publish script does not own inline ECR login flow"
 assert_file_contains "$publication_script" 'support_email_canary/Dockerfile' "publish script uses support_email_canary Dockerfile"
 assert_file_contains "$publication_dockerfile" 'scripts/canary/support_email_deliverability.sh' "support_email_canary Dockerfile delegates to support_email_deliverability.sh"
 assert_file_contains "$publication_dockerfile" 'scripts/validate_inbound_email_roundtrip.sh' "support_email_canary Dockerfile delegates to validate_inbound_email_roundtrip.sh"
 assert_file_contains "$publication_lambda_handler" 'support_email_deliverability.sh' "support_email_canary lambda handler delegates to support_email_deliverability.sh"
 
-tmp_output="$(mktemp)"
-if PATH="/usr/bin:/bin" bash "$validate_script" >"$tmp_output" 2>&1; then
-  pass "validate_all.sh runs audit-only mode when terraform is unavailable"
-else
-  fail "validate_all.sh runs audit-only mode when terraform is unavailable"
-fi
-rm -f "$tmp_output"
-
-tmp_output="$(mktemp)"
-if PATH="/usr/bin:/bin" bash "$validate_script" --audit-dir "ops/terraform/fixtures" >"$tmp_output" 2>&1; then
-  fail "validate_all.sh fails SG audit on violating fixture"
-else
-  pass "validate_all.sh fails SG audit on violating fixture"
-fi
-if rg -q 'insecure public ingress' "$tmp_output"; then
-  pass "validate_all.sh reports insecure ingress details for violating fixture"
-else
-  fail "validate_all.sh reports insecure ingress details for violating fixture"
-fi
-rm -f "$tmp_output"
-
-tmp_output="$(mktemp)"
-if PATH="/usr/bin:/bin" bash "$validate_script" --audit-dir "ops/terraform/fixtures/safe" >"$tmp_output" 2>&1; then
-  pass "validate_all.sh ignores commented public-ingress lines"
-else
-  fail "validate_all.sh ignores commented public-ingress lines"
-fi
-rm -f "$tmp_output"
-
-tmp_output="$(mktemp)"
-if PATH="/usr/bin:/bin" bash "$validate_script" --audit-dir "ops/terraform/fixtures/inline" >"$tmp_output" 2>&1; then
-  fail "validate_all.sh fails SG audit on insecure inline aws_security_group ingress"
-else
-  pass "validate_all.sh fails SG audit on insecure inline aws_security_group ingress"
-fi
-if rg -q 'resource=fixture_inline_sg' "$tmp_output"; then
-  pass "validate_all.sh reports insecure inline aws_security_group resource details"
-else
-  fail "validate_all.sh reports insecure inline aws_security_group resource details"
-fi
-rm -f "$tmp_output"
-
-tmp_output="$(mktemp)"
-if PATH="/usr/bin:/bin" bash "$validate_script" --audit-dir "ops/terraform/fixtures/multiline" >"$tmp_output" 2>&1; then
-  fail "validate_all.sh fails SG audit on insecure multiline cidr_blocks ingress"
-else
-  pass "validate_all.sh fails SG audit on insecure multiline cidr_blocks ingress"
-fi
-if rg -q 'resource=fixture_multiline_public' "$tmp_output"; then
-  pass "validate_all.sh reports insecure multiline cidr_blocks resource details"
-else
-  fail "validate_all.sh reports insecure multiline cidr_blocks resource details"
-fi
-rm -f "$tmp_output"
+assert_validate_script_result "validate_all.sh runs audit-only mode when terraform is unavailable" 1
+assert_validate_script_result "validate_all.sh fails SG audit on violating fixture" 0 "ops/terraform/fixtures" 'insecure public ingress' "validate_all.sh reports insecure ingress details for violating fixture"
+assert_validate_script_result "validate_all.sh ignores commented public-ingress lines" 1 "ops/terraform/fixtures/safe"
+assert_validate_script_result "validate_all.sh fails SG audit on insecure inline aws_security_group ingress" 0 "ops/terraform/fixtures/inline" 'resource=fixture_inline_sg' "validate_all.sh reports insecure inline aws_security_group resource details"
+assert_validate_script_result "validate_all.sh fails SG audit on insecure multiline cidr_blocks ingress" 0 "ops/terraform/fixtures/multiline" 'resource=fixture_multiline_public' "validate_all.sh reports insecure multiline cidr_blocks resource details"
 
 assert_file_exists "$bootstrap_script" "bootstrap.sh exists"
 assert_file_contains "$bootstrap_script" 'X-aws-ec2-metadata-token-ttl-seconds: 21600' "bootstrap.sh uses IMDS token TTL 21600"

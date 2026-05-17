@@ -48,6 +48,40 @@ describe('Admin customer detail', () => {
 		expect(DETAIL_FIXTURE.tenant).not.toHaveProperty(LEGACY_SUBSCRIPTION_FIELD);
 	});
 
+	it('admin customers list route keeps stage-4 list affordance hooks', async () => {
+		const CustomersPage = (await import('./+page.svelte')).default;
+
+		render(CustomersPage, {
+			data: {
+				environment: 'test',
+				isAuthenticated: true,
+				customers: [
+					{
+						id: 'aaaaaaaa-0001-0000-0000-000000000001',
+						name: 'Acme Corp',
+						email: 'ops@acme.dev',
+						status: 'active',
+						billing_plan: 'shared',
+						last_accessed_at: '2026-04-20T12:00:00Z',
+						overdue_invoice_count: 0,
+						billing_health: 'green',
+						created_at: '2026-04-25T12:00:00Z',
+						updated_at: '2026-04-20T12:00:00Z',
+						index_count: null
+					}
+				]
+			}
+		});
+
+		expect(screen.getByTestId('customer-search')).toHaveAttribute(
+			'placeholder',
+			'Search name or email'
+		);
+		expect(screen.getByTestId('status-filter')).toHaveClass('border-[#f6c15b]');
+		expect(screen.getByTestId('customers-table')).toBeInTheDocument();
+		expect(screen.getByRole('columnheader', { name: /name/i })).toHaveAttribute('scope', 'col');
+	});
+
 	it('detail load returns 404 when the tenant is missing', async () => {
 		const { load } = await import('./[id]/+page.server');
 

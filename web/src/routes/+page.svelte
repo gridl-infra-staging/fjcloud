@@ -2,6 +2,7 @@
 	import { resolve } from '$app/paths';
 	import LandingPricingCalculator from '$lib/components/LandingPricingCalculator.svelte';
 	import { BETA_FEEDBACK_MAILTO, SUPPORT_EMAIL } from '$lib/format';
+	import { sharedPlanMinimumMonthlyLabel } from '$lib/pricing';
 
 	let { data } = $props();
 	let pricing = $derived(data.pricing);
@@ -12,8 +13,10 @@
 		'Managed hosting for Flapjack search. Algolia-compatible API, public beta, usage-based pricing in USD.';
 
 	function minimumSpendDisplay(): string {
-		const cents = pricing.minimum_spend_cents ?? 1000;
-		return `$${(cents / 100).toFixed(2)}`;
+		if (typeof pricing.shared_minimum_spend_cents !== 'number') {
+			throw new Error('pricing.shared_minimum_spend_cents is required for landing pricing');
+		}
+		return sharedPlanMinimumMonthlyLabel(pricing.shared_minimum_spend_cents);
 	}
 </script>
 

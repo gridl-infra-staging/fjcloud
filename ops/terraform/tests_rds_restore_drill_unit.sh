@@ -21,6 +21,13 @@ set -euo pipefail
 LOG_FILE="${RDS_RESTORE_TEST_AWS_LOG:?}"
 printf '%s\n' "$*" >> "$LOG_FILE"
 
+if [[ "$1" == "rds" && "$2" == "describe-db-instances" ]]; then
+  cat <<'JSON'
+{"DBInstances":[{"DBInstanceIdentifier":"fjcloud-staging-db","DBSubnetGroup":{"DBSubnetGroupName":"fjcloud-staging"}}]}
+JSON
+  exit 0
+fi
+
 if [[ "$1" == "rds" ]]; then
   exit 0
 fi
@@ -44,8 +51,70 @@ set -euo pipefail
 
 LOG_FILE="${RDS_RESTORE_TEST_AWS_LOG:?}"
 printf '%s\n' "$*" >> "$LOG_FILE"
-echo "simulated restore failure" >&2
-exit 42
+
+if [[ "$1" == "rds" && "$2" == "describe-db-instances" ]]; then
+  cat <<'JSON'
+{"DBInstances":[{"DBInstanceIdentifier":"fjcloud-staging-db","DBSubnetGroup":{"DBSubnetGroupName":"fjcloud-staging"}}]}
+JSON
+  exit 0
+fi
+
+if [[ "$1" == "rds" && ( "$2" == "restore-db-instance-from-db-snapshot" || "$2" == "restore-db-instance-to-point-in-time" ) ]]; then
+  echo "simulated restore failure" >&2
+  exit 42
+fi
+
+exit 0
+AWSMOCK
+  chmod +x "${MOCK_DIR}/aws"
+}
+
+setup_describe_failure_aws() {
+  setup
+
+  cat > "${MOCK_DIR}/aws" <<'AWSMOCK'
+#!/usr/bin/env bash
+set -euo pipefail
+
+LOG_FILE="${RDS_RESTORE_TEST_AWS_LOG:?}"
+printf '%s\n' "$*" >> "$LOG_FILE"
+
+if [[ "$1" == "rds" && "$2" == "describe-db-instances" ]]; then
+  echo "simulated describe failure" >&2
+  exit 43
+fi
+
+if [[ "$1" == "rds" ]]; then
+  exit 0
+fi
+
+exit 0
+AWSMOCK
+  chmod +x "${MOCK_DIR}/aws"
+}
+
+setup_empty_subnet_group_aws() {
+  setup
+
+  cat > "${MOCK_DIR}/aws" <<'AWSMOCK'
+#!/usr/bin/env bash
+set -euo pipefail
+
+LOG_FILE="${RDS_RESTORE_TEST_AWS_LOG:?}"
+printf '%s\n' "$*" >> "$LOG_FILE"
+
+if [[ "$1" == "rds" && "$2" == "describe-db-instances" ]]; then
+  cat <<'JSON'
+{"DBInstances":[{"DBInstanceIdentifier":"fjcloud-staging-db","DBSubnetGroup":{"DBSubnetGroupName":""}}]}
+JSON
+  exit 0
+fi
+
+if [[ "$1" == "rds" ]]; then
+  exit 0
+fi
+
+exit 0
 AWSMOCK
   chmod +x "${MOCK_DIR}/aws"
 }
@@ -110,11 +179,8 @@ if echo "$output" | rg -q 'RDS_RESTORE_DRILL_EXECUTE=1'; then
 else
   fail "dry-run output documents execute gate"
 fi
-if [[ -s "$AWS_LOG" ]]; then
-  fail "dry-run does not invoke aws"
-else
-  pass "dry-run does not invoke aws"
-fi
+assert_aws_log_contains 'rds describe-db-instances --region us-east-1 --db-instance-identifier fjcloud-staging-db' "dry-run resolves source subnet group via describe"
+assert_aws_log_not_contains 'rds restore-db-instance-from-db-snapshot|rds restore-db-instance-to-point-in-time' "dry-run never dispatches restore API"
 teardown
 
 # invalid env
@@ -290,6 +356,7 @@ else
 fi
 assert_aws_log_contains 'rds restore-db-instance-from-db-snapshot' "snapshot mode invokes snapshot restore API"
 assert_aws_log_not_contains 'rds restore-db-instance-to-point-in-time' "snapshot mode does not invoke PITR API"
+assert_aws_log_contains '--db-subnet-group-name fjcloud-staging' "snapshot mode restores into source subnet group"
 teardown
 
 # live PITR mode dispatches only PITR API
@@ -313,6 +380,7 @@ else
 fi
 assert_aws_log_contains 'rds restore-db-instance-to-point-in-time' "PITR mode invokes point-in-time restore API"
 assert_aws_log_not_contains 'rds restore-db-instance-from-db-snapshot' "PITR mode does not invoke snapshot restore API"
+assert_aws_log_contains '--db-subnet-group-name fjcloud-staging' "PITR mode restores into source subnet group"
 teardown
 
 # live restore surfaces contextual failure output
@@ -345,6 +413,60 @@ else
   fail "live restore failure output names target instance"
 fi
 assert_aws_log_contains 'rds restore-db-instance-to-point-in-time' "failing live restore still attempts PITR API"
+teardown
+
+# source subnet-group lookup failure stops restore path
+echo ""
+echo "--- describe-db-instances failure is surfaced ---"
+setup_describe_failure_aws
+output=""
+exit_code=0
+output=$(PATH="${MOCK_DIR}:$PATH" \
+  RDS_RESTORE_TEST_AWS_LOG="$AWS_LOG" \
+  RDS_RESTORE_DRILL_EXECUTE=1 \
+  bash "$RESTORE_SCRIPT" staging \
+  --source-db-instance-id fjcloud-staging-db \
+  --target-db-instance-id fjcloud-staging-restore \
+  --snapshot-id rds:fjcloud-staging-db-2026-04-22 2>&1) || exit_code=$?
+
+if [[ "$exit_code" -ne 0 ]]; then
+  pass "describe failure exits non-zero"
+else
+  fail "describe failure exits non-zero"
+fi
+if echo "$output" | rg -q "unable to describe source DB instance"; then
+  pass "describe failure output is contextualized"
+else
+  fail "describe failure output is contextualized"
+fi
+assert_aws_log_not_contains 'rds restore-db-instance-from-db-snapshot|rds restore-db-instance-to-point-in-time' "describe failure blocks restore API calls"
+teardown
+
+# empty subnet-group lookup payload is rejected
+echo ""
+echo "--- empty subnet-group is rejected ---"
+setup_empty_subnet_group_aws
+output=""
+exit_code=0
+output=$(PATH="${MOCK_DIR}:$PATH" \
+  RDS_RESTORE_TEST_AWS_LOG="$AWS_LOG" \
+  RDS_RESTORE_DRILL_EXECUTE=1 \
+  bash "$RESTORE_SCRIPT" staging \
+  --source-db-instance-id fjcloud-staging-db \
+  --target-db-instance-id fjcloud-staging-restore \
+  --restore-time 2026-04-22T15:30:00Z 2>&1) || exit_code=$?
+
+if [[ "$exit_code" -ne 0 ]]; then
+  pass "empty subnet-group exits non-zero"
+else
+  fail "empty subnet-group exits non-zero"
+fi
+if echo "$output" | rg -q "has no DBSubnetGroupName"; then
+  pass "empty subnet-group output is contextualized"
+else
+  fail "empty subnet-group output is contextualized"
+fi
+assert_aws_log_not_contains 'rds restore-db-instance-from-db-snapshot|rds restore-db-instance-to-point-in-time' "empty subnet-group blocks restore API calls"
 teardown
 
 test_summary "RDS restore drill behavioral checks"

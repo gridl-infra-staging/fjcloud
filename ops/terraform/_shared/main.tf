@@ -120,6 +120,7 @@ module "monitoring" {
   api_instance_id                                     = module.compute.api_instance_id
   db_instance_identifier                              = module.data.db_instance_identifier
   alb_arn_suffix                                      = module.dns.alb_arn_suffix
+  api_target_group_arn_suffix                         = module.dns.api_target_group_arn_suffix
   alert_emails                                        = local.alert_emails_normalized
   canary_image                                        = var.canary_image
   canary_schedule                                     = var.canary_schedule

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/svelte';
+import { cleanup, render, screen, within } from '@testing-library/svelte';
 import { SUPPORT_EMAIL } from '$lib/format';
 import {
 	NORMALIZED_BROWSER_ERROR_FAILURE,
@@ -284,5 +284,49 @@ describe('Dashboard error boundary (+error.svelte)', () => {
 		expect(screen.queryByText(/ECONNREFUSED/)).not.toBeInTheDocument();
 		expect(screen.queryByText(/127\.0\.0\.1/)).not.toBeInTheDocument();
 		expect(screen.queryByText(/5432/)).not.toBeInTheDocument();
+	});
+
+	it('auth__dashboard__error__desktop P.brand_palette_consistency uses diner fallback canvas and CTA styling', async () => {
+		mockPage = {
+			status: 500,
+			error: { message: 'Internal server error' },
+			url: new URL('http://localhost/dashboard/broken')
+		};
+		const ErrorPage = (await import('./+error.svelte')).default;
+		render(ErrorPage);
+
+		const heading = screen.getByRole('heading', { name: /something went wrong/i });
+		const fallbackCanvas = heading.closest('div');
+		expect(fallbackCanvas).not.toBeNull();
+		expect(fallbackCanvas).toHaveClass('bg-[#fff8ea]');
+
+		const primaryCta = screen.getByRole('link', {
+			name: /dashboard|try again|go back|check service status/i
+		});
+		expect(primaryCta).toHaveClass('bg-[#ffb3c7]');
+		expect(primaryCta).toHaveClass('border-2');
+		expect(within(fallbackCanvas as HTMLElement).getByText('500')).toBeInTheDocument();
+	});
+
+	it('keeps recovery copy and secondary status CTA on diner ink and cream accents', async () => {
+		mockPage = {
+			status: 500,
+			error: { message: 'Internal server error' },
+			url: new URL('http://localhost/dashboard/broken')
+		};
+		const ErrorPage = (await import('./+error.svelte')).default;
+		render(ErrorPage);
+
+		expect(screen.getByRole('heading', { name: /something went wrong/i })).toHaveClass(
+			'text-[#1f1b18]'
+		);
+		const description = screen.getByText(
+			"We're experiencing a temporary issue. Please try again shortly or check our status page for updates."
+		);
+		expect(description).toHaveClass('text-[#4b4640]');
+		expect(screen.getByText('500')).toHaveClass('text-[#1f1b18]/25');
+		const primaryCta = screen.getByRole('link', { name: /check service status/i });
+		expect(primaryCta).toHaveClass('text-[#1f1b18]');
+		expect(primaryCta).toHaveClass('border-2');
 	});
 });

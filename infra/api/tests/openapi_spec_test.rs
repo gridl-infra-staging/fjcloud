@@ -331,6 +331,23 @@ fn spec_contains_lifecycle_schemas() {
 }
 
 #[test]
+fn spec_free_tier_limits_schema_uses_mb_storage_key() {
+    let spec = common::openapi_spec_json();
+
+    assert!(
+        spec.pointer("/components/schemas/FreeTierLimitsResponse/properties/max_storage_mb/type")
+            .and_then(|value| value.as_str())
+            .is_some_and(|value| value == "integer"),
+        "FreeTierLimitsResponse must expose max_storage_mb as an integer field"
+    );
+    assert!(
+        spec.pointer("/components/schemas/FreeTierLimitsResponse/properties/max_storage_gb")
+            .is_none(),
+        "FreeTierLimitsResponse must not expose legacy max_storage_gb"
+    );
+}
+
+#[test]
 fn spec_lifecycle_routes_do_not_override_bearer_with_public_security() {
     let spec = common::openapi_spec_json();
 

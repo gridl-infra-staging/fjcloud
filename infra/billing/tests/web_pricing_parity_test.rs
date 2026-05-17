@@ -5,6 +5,7 @@ struct PricingSnapshot {
     storage_rate_per_mb_month: String,
     cold_storage_rate_per_gb_month: String,
     minimum_spend_cents: i64,
+    shared_minimum_spend_cents: i64,
     region_pricing: Vec<RegionPricing>,
 }
 
@@ -22,10 +23,17 @@ fn marketing_pricing_and_migrations_stay_in_parity_for_launch_contract() {
     const MIGRATION_036: &str = include_str!("../../migrations/036_per_mb_pricing.sql");
     const MIGRATION_042: &str =
         include_str!("../../migrations/042_align_launch_rate_card_marketing_contract.sql");
+    const MIGRATION_049: &str =
+        include_str!("../../migrations/049_free_plan_zero_minimum_spend.sql");
 
     let marketing_snapshot = extract_marketing_snapshot(PRICING_TS);
-    let migration_snapshot =
-        extract_migration_snapshot(PRICING_TS, MIGRATION_016, MIGRATION_036, MIGRATION_042);
+    let migration_snapshot = extract_migration_snapshot(
+        PRICING_TS,
+        MIGRATION_016,
+        MIGRATION_036,
+        MIGRATION_042,
+        MIGRATION_049,
+    );
 
     assert_eq!(
         migration_snapshot, marketing_snapshot,
@@ -44,6 +52,10 @@ fn extract_integer_field_requires_exact_field_name_match() {
         extract_integer_field(pricing_object, "minimum_spend_cents"),
         1000
     );
+    assert_eq!(
+        extract_integer_field(pricing_object, "shared_minimum_spend_cents"),
+        500
+    );
 }
 
 #[test]
@@ -58,6 +70,26 @@ fn extract_last_sql_assignment_ignores_shared_minimum_column() {
     assert_eq!(
         extract_last_sql_assignment(sql, "minimum_spend_cents"),
         "1000"
+    );
+    assert_eq!(
+        extract_last_sql_assignment(sql, "shared_minimum_spend_cents"),
+        "500"
+    );
+}
+
+#[test]
+fn migration_049_preserves_shared_minimum_spend_column() {
+    const MIGRATION_049: &str =
+        include_str!("../../migrations/049_free_plan_zero_minimum_spend.sql");
+
+    assert_eq!(
+        extract_last_sql_assignment(MIGRATION_049, "minimum_spend_cents"),
+        "0"
+    );
+    assert_eq!(
+        extract_optional_last_sql_assignment(MIGRATION_049, "shared_minimum_spend_cents"),
+        None,
+        "migration 049 must not overwrite shared_minimum_spend_cents",
     );
 }
 
@@ -76,6 +108,10 @@ fn extract_marketing_snapshot(pricing_ts: &str) -> PricingSnapshot {
             "cold_storage_rate_per_gb_month",
         )),
         minimum_spend_cents: extract_integer_field(&marketing_object, "minimum_spend_cents"),
+        shared_minimum_spend_cents: extract_integer_field(
+            &marketing_object,
+            "shared_minimum_spend_cents",
+        ),
         region_pricing: parse_marketing_regions(&region_array),
     }
 }
@@ -85,6 +121,7 @@ fn extract_migration_snapshot(
     migration_016: &str,
     migration_036: &str,
     migration_042: &str,
+    migration_049: &str,
 ) -> PricingSnapshot {
     let marketing_snapshot = extract_marketing_snapshot(pricing_ts);
     let display_name_by_region_id: HashMap<String, String> = marketing_snapshot
@@ -101,9 +138,14 @@ fn extract_migration_snapshot(
         migration_016,
         "cold_storage_rate_per_gb_month",
     ));
-    let minimum_spend_cents = extract_last_sql_assignment(migration_042, "minimum_spend_cents")
+    let minimum_sql = format!("{migration_042}\n{migration_049}");
+    let minimum_spend_cents = extract_last_sql_assignment(&minimum_sql, "minimum_spend_cents")
         .parse::<i64>()
         .expect("minimum_spend_cents assignment must be an integer");
+    let shared_minimum_spend_cents =
+        extract_last_sql_assignment(&minimum_sql, "shared_minimum_spend_cents")
+            .parse::<i64>()
+            .expect("shared_minimum_spend_cents assignment must be an integer");
 
     let migration_region_order = parse_region_multiplier_json_object(migration_042);
     let region_pricing = migration_region_order
@@ -131,6 +173,7 @@ fn extract_migration_snapshot(
         storage_rate_per_mb_month,
         cold_storage_rate_per_gb_month,
         minimum_spend_cents,
+        shared_minimum_spend_cents,
         region_pricing,
     }
 }
@@ -223,6 +266,11 @@ fn extract_integer_field(input: &str, field_name: &str) -> i64 {
 }
 
 fn extract_last_sql_assignment(sql: &str, column_name: &str) -> String {
+    extract_optional_last_sql_assignment(sql, column_name)
+        .unwrap_or_else(|| panic!("missing assignment for '{}'", column_name))
+}
+
+fn extract_optional_last_sql_assignment(sql: &str, column_name: &str) -> Option<String> {
     let mut last_value: Option<String> = None;
 
     for line in sql.lines() {
@@ -249,7 +297,7 @@ fn extract_last_sql_assignment(sql: &str, column_name: &str) -> String {
         }
     }
 
-    last_value.unwrap_or_else(|| panic!("missing assignment for '{}'", column_name))
+    last_value
 }
 
 fn normalize_currency(raw: &str) -> String {

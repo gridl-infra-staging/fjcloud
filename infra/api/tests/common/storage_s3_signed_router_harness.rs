@@ -58,6 +58,7 @@ pub(crate) fn s3_test_config(rps: u32) -> Config {
         google_oauth_client_secret: None,
         github_oauth_client_id: None,
         github_oauth_client_secret: None,
+        dunning_emails_disabled: false,
     }
 }
 

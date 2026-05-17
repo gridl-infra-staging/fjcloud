@@ -1,4 +1,4 @@
-import { screen } from '@testing-library/svelte';
+import { screen, within } from '@testing-library/svelte';
 import { expect } from 'vitest';
 
 import { exactTextMatcher } from '$lib/exact_text_matcher';
@@ -52,5 +52,32 @@ export function assertSharedLegalPageContract(): void {
 		}
 
 		assertTextAbsent(check.text);
+	}
+}
+
+export function assertLegalPagePresentationContract(primaryHeading: string): void {
+	const article = document.querySelector('article');
+	expect(article).not.toBeNull();
+	expect(article).toHaveClass('border');
+	expect(article).toHaveClass('shadow-sm');
+	expect(article).toHaveClass('bg-[#fff8ea]');
+
+	const heading = assertUniqueVisibleHeading(1, primaryHeading);
+	expect(heading).toHaveClass('font-black');
+
+	const bodyParagraphs = within(article as HTMLElement).getAllByText((_text, node) => {
+		if (!(node instanceof HTMLParagraphElement)) {
+			return false;
+		}
+		return node.className.includes('leading-7');
+	});
+	expect(bodyParagraphs.length).toBeGreaterThan(0);
+	expect(bodyParagraphs.some((paragraph) => paragraph.className.includes('text-[#4b4640]'))).toBe(
+		true
+	);
+
+	const legalLinks = within(article as HTMLElement).getAllByRole('link');
+	for (const link of legalLinks) {
+		expect(link).toHaveClass('text-[#b83f5f]');
 	}
 }

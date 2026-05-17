@@ -127,13 +127,13 @@
 		{#each navItems as item (item.href)}
 			<a
 				href={resolve(item.href)}
-				class="flex items-center rounded-lg px-3 py-2 text-sm font-medium transition-colors {isMobile
-					? isActive(item.href)
+				class="flex items-center rounded-lg px-3 py-2 text-sm font-medium transition-colors {isActive(
+					item.href
+				)
+					? isMobile
 						? 'bg-[#9fd8d2]/20 text-[#1f1b18]'
-						: 'text-[#1f1b18] hover:bg-[#9fd8d2]/20 hover:text-[#1f1b18]'
-					: isActive(item.href)
-						? 'bg-[#9fd8d2] text-[#1f1b18]'
-						: 'text-[#fff8ea]/80 hover:bg-[#9fd8d2]/20 hover:text-[#fff8ea]'}"
+						: 'bg-[#9fd8d2] text-[#1f1b18]'
+					: 'text-[#1f1b18] hover:bg-[#9fd8d2]/20 hover:text-[#1f1b18]'}"
 				onclick={isMobile ? closeMobileNavAfterNavigation : undefined}
 			>
 				{item.label}
@@ -141,14 +141,8 @@
 		{/each}
 	</nav>
 	<!-- P.brand_palette_consistency, M.universal.1: help section border/label/link tones cited by docs/runbooks/evidence/ui-polish/20260505T021650Z_first_run/judgments/auth__dashboard__loading__desktop.json and docs/runbooks/evidence/ui-polish/20260505T021650Z_first_run/judgments/auth__dashboard__success__mobile_narrow.json -->
-	<div class="mt-6 border-t pt-4 {isMobile ? 'border-[#1f1b18]/20' : 'border-[#fff8ea]/20'}">
-		<p
-			class="mb-2 text-xs font-semibold uppercase tracking-wide {isMobile
-				? 'text-[#1f1b18]/60'
-				: 'text-[#fff8ea]/60'}"
-		>
-			Help
-		</p>
+	<div class="mt-6 border-t pt-4 border-[#1f1b18]/20">
+		<p class="mb-2 text-xs font-semibold uppercase tracking-wide text-[#1f1b18]/60">Help</p>
 		<div class="space-y-1">
 			{#each helpItems as item (item.href)}
 				<!-- eslint-disable svelte/no-navigation-without-resolve -- support mailto and canonical docs URL are external destinations -->
@@ -156,9 +150,7 @@
 					href={item.href}
 					target={item.external ? '_blank' : undefined}
 					rel={item.external ? 'noreferrer' : undefined}
-					class="flex items-center rounded-lg px-3 py-2 text-sm font-medium transition-colors {isMobile
-						? 'text-[#1f1b18] hover:bg-[#9fd8d2]/20 hover:text-[#1f1b18]'
-						: 'text-[#fff8ea]/80 hover:bg-[#9fd8d2]/20 hover:text-[#fff8ea]'}"
+					class="flex items-center rounded-lg px-3 py-2 text-sm font-medium text-[#1f1b18] transition-colors hover:bg-[#9fd8d2]/20 hover:text-[#1f1b18]"
 					onclick={isMobile ? closeMobileNavAfterNavigation : undefined}
 				>
 					{item.label}
@@ -172,7 +164,7 @@
 <!-- P.brand_palette_consistency, M.universal.1: diner brand canvas + desktop sidebar cited by docs/runbooks/evidence/ui-polish/20260505T021650Z_first_run/judgments/auth__dashboard__success__desktop.json and docs/runbooks/evidence/ui-polish/20260505T021650Z_first_run/judgments/auth__dashboard__loading__desktop.json -->
 <div class="flex h-screen bg-[#fff8ea]">
 	<aside
-		class="hidden w-64 flex-col bg-[#1f1b18] text-[#fff8ea] md:flex"
+		class="hidden w-64 flex-col border-r border-[#1f1b18]/15 bg-[#fff8ea] text-[#1f1b18] md:flex"
 		data-testid="dashboard-nav-desktop"
 	>
 		<div class="flex h-16 items-center px-6">
@@ -224,6 +216,7 @@
 		<!-- Top bar — P.brand_palette_consistency, M.universal.1: cream bg, ink text, and divider cited by docs/runbooks/evidence/ui-polish/20260505T021650Z_first_run/judgments/auth__dashboard__success__desktop.json and docs/runbooks/evidence/ui-polish/20260505T021650Z_first_run/judgments/auth__dashboard__empty__mobile_narrow.json -->
 		<header
 			class="flex h-16 items-center justify-between border-b border-[#1f1b18]/15 bg-[#fff8ea] px-6"
+			data-testid="dashboard-shell-header"
 		>
 			<div class="flex items-center gap-3">
 				<button
@@ -324,7 +317,7 @@
 					</p>
 					<button
 						type="button"
-						class="rounded-md border-2 border-[#1f1b18] bg-[#ffb3c7] px-3 py-1.5 text-sm font-bold text-[#1f1b18] hover:bg-[#ffc3d2] disabled:cursor-not-allowed disabled:opacity-60"
+						class="rounded-md border-2 border-[#1f1b18] bg-[#ffb3c7] px-3 py-1.5 text-sm font-bold text-[#1f1b18] shadow-[4px_4px_0_0_#1f1b18] hover:bg-[#ffc3d2] disabled:cursor-not-allowed disabled:opacity-60"
 						data-testid="verification-resend-button"
 						disabled={resendInFlight}
 						onclick={resendVerificationFromShell}

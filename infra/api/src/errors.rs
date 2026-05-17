@@ -24,6 +24,7 @@ pub enum ApiError {
     Conflict(String),
     BadRequest(String),
     Forbidden(String),
+    ForbiddenJson(serde_json::Value),
     ServiceUnavailable(String),
     ServiceNotConfigured(String),
     Gone(String),
@@ -44,11 +45,16 @@ impl IntoResponse for ApiError {
     /// `Internal` hides the original message behind a generic "internal server error".
     /// `ServiceNotConfigured` logs a warning before returning 503.
     fn into_response(self) -> Response {
+        if let ApiError::ForbiddenJson(val) = self {
+            return (StatusCode::FORBIDDEN, Json(val)).into_response();
+        }
+
         let (status, message) = match &self {
             ApiError::NotFound(msg) => (StatusCode::NOT_FOUND, msg.as_str()),
             ApiError::Conflict(msg) => (StatusCode::CONFLICT, msg.as_str()),
             ApiError::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg.as_str()),
             ApiError::Forbidden(msg) => (StatusCode::FORBIDDEN, msg.as_str()),
+            ApiError::ForbiddenJson(_) => unreachable!(),
             ApiError::ServiceUnavailable(msg) => (StatusCode::SERVICE_UNAVAILABLE, msg.as_str()),
             ApiError::ServiceNotConfigured(service) => {
                 tracing::warn!("{service} service not configured");

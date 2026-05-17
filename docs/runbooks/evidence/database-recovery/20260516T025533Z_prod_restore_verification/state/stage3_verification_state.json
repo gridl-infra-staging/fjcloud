@@ -1,0 +1,13 @@
+{
+  "source_db_instance_id": "fjcloud-prod",
+  "target_db_instance_id": "fjcloud-prod-restore-20260516025535",
+  "stage3_run_dir_path": "/Users/stuart/.matt/projects/fjcloud_dev-e4fc442e/may15_9pm_2_prod_rds_restore_drill.md-49bb35e9/artifacts/stage3_restore_verify/stage3_restore_verify_prod_20260516T032554Z",
+  "artifacts": {
+    "comparison_summary_json": "/Users/stuart/.matt/projects/fjcloud_dev-e4fc442e/may15_9pm_2_prod_rds_restore_drill.md-49bb35e9/artifacts/stage3_restore_verify/stage3_restore_verify_prod_20260516T032554Z/comparison_summary.json",
+    "target_verification_txt": "/Users/stuart/.matt/projects/fjcloud_dev-e4fc442e/may15_9pm_2_prod_rds_restore_drill.md-49bb35e9/artifacts/stage3_restore_verify/stage3_restore_verify_prod_20260516T032554Z/target_verification.txt",
+    "migration_parity_txt": "/Users/stuart/.matt/projects/fjcloud_dev-e4fc442e/may15_9pm_2_prod_rds_restore_drill.md-49bb35e9/artifacts/stage3_restore_verify/stage3_restore_verify_prod_20260516T032554Z/migration_parity.txt"
+  },
+  "captured_at_utc": "2026-05-16T03:26:10Z",
+  "verdict": "pass",
+  "reason": "target_sanity_queries_succeeded_and_migration_parity_passed"
+}

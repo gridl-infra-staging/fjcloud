@@ -928,3 +928,236 @@ async fn oauth_identity_link_rejects_deleted_customer_rows() {
 
     cleanup_customer_graph(&pool, &[customer.id]).await;
 }
+
+#[tokio::test]
+async fn hard_delete_removes_customer_and_dependents_then_404s_on_repeat() {
+    let Some(db) = pg_schema_harness::connect_and_migrate("it_pg_customer_repo").await else {
+        return;
+    };
+    let pool = db.pool.clone();
+    let repo = PgCustomerRepo::new(pool.clone());
+    let email = format!(
+        "hard-erase-test-{}@integration.test",
+        &Uuid::new_v4().to_string()[..8]
+    );
+
+    // 1. Seed a customer with dependent rows across every table that
+    //    has a non-cascading FK to customers(id), plus oauth_identities
+    //    (which DOES cascade) so we can prove the cascade actually
+    //    fires under hard_delete.
+    let customer = repo
+        .create_with_password("Hard Erase Test", &email, "$argon2id$integration_hash")
+        .await
+        .expect("create customer");
+
+    // customer_deployments has a NOT NULL node_id (UNIQUE) and a CHECK on
+    // vm_provider — schema reality from migrations/002_deployments.sql.
+    let node_id = format!("node-{}", &Uuid::new_v4().to_string()[..8]);
+    let deployment_id: Uuid = sqlx::query_scalar(
+        "INSERT INTO customer_deployments \
+            (customer_id, node_id, region, vm_type, vm_provider, status) \
+         VALUES ($1, $2, 'us-east-1', 't4g.small', 'aws', 'provisioning') \
+         RETURNING id",
+    )
+    .bind(customer.id)
+    .bind(&node_id)
+    .fetch_one(&pool)
+    .await
+    .expect("seed customer_deployments");
+
+    // customer_tenants has a deployment_id FK to customer_deployments(id).
+    sqlx::query(
+        "INSERT INTO customer_tenants (customer_id, tenant_id, deployment_id) \
+         VALUES ($1, $2, $3)",
+    )
+    .bind(customer.id)
+    .bind(format!("tenant-{}", &Uuid::new_v4().to_string()[..6]))
+    .bind(deployment_id)
+    .execute(&pool)
+    .await
+    .expect("seed customer_tenants");
+
+    sqlx::query(
+        "INSERT INTO api_keys (customer_id, name, key_prefix, key_hash) \
+         VALUES ($1, 'test-key', $2, 'hash_value')",
+    )
+    .bind(customer.id)
+    .bind(format!("p_{}", &Uuid::new_v4().to_string()[..6]))
+    .execute(&pool)
+    .await
+    .expect("seed api_keys");
+
+    sqlx::query(
+        "INSERT INTO invoices \
+            (customer_id, period_start, period_end, subtotal_cents, \
+             tax_cents, total_cents, status) \
+         VALUES ($1, '2026-01-01'::DATE, '2026-01-31'::DATE, \
+                 500, 0, 500, 'paid')",
+    )
+    .bind(customer.id)
+    .execute(&pool)
+    .await
+    .expect("seed invoices");
+
+    sqlx::query(
+        "INSERT INTO oauth_identities \
+            (customer_id, provider, provider_user_id) \
+         VALUES ($1, 'github', $2)",
+    )
+    .bind(customer.id)
+    .bind(format!("gh_{}", &Uuid::new_v4().to_string()[..8]))
+    .execute(&pool)
+    .await
+    .expect("seed oauth_identities");
+
+    // usage_records: idempotency_key UNIQUE, tenant_id/node_id/event_type
+    // NOT NULL, event_type CHECKed against an enum-shaped set.
+    sqlx::query(
+        "INSERT INTO usage_records \
+            (idempotency_key, customer_id, tenant_id, region, node_id, \
+             event_type, value, recorded_at, flapjack_ts) \
+         VALUES ($1, $2, $3, 'us-east-1', $4, \
+                 'search_requests', 1, NOW(), NOW())",
+    )
+    .bind(format!("idem-{}", Uuid::new_v4()))
+    .bind(customer.id)
+    .bind(format!("tenant-{}", &Uuid::new_v4().to_string()[..6]))
+    .bind(&node_id)
+    .execute(&pool)
+    .await
+    .expect("seed usage_records");
+
+    // usage_daily: PK is composite (customer_id, date, region).
+    sqlx::query(
+        "INSERT INTO usage_daily \
+            (customer_id, date, region, search_requests) \
+         VALUES ($1, '2026-01-01'::DATE, 'us-east-1', 1)",
+    )
+    .bind(customer.id)
+    .execute(&pool)
+    .await
+    .expect("seed usage_daily");
+
+    repo.soft_delete(customer.id)
+        .await
+        .expect("soft delete customer");
+
+    // 2. Hard-erase. The repo seam must return true and leave NO
+    //    dependents pointing at this customer.
+    let first_erase = repo.hard_delete(customer.id).await.expect("hard_delete");
+    assert!(first_erase, "first hard_delete should return true");
+
+    let remaining_customer = repo
+        .find_by_id(customer.id)
+        .await
+        .expect("find_by_id after hard_delete");
+    assert!(
+        remaining_customer.is_none(),
+        "customer row must be removed by hard_delete"
+    );
+
+    // Real DB row-count checks per dependent table; tightens the contract
+    // so partial-delete regressions cannot pass.
+    for table in [
+        "customer_tenants",
+        "customer_deployments",
+        "api_keys",
+        "invoices",
+        "oauth_identities",
+        "usage_records",
+        "usage_daily",
+    ] {
+        let count: i64 = sqlx::query_scalar(&format!(
+            "SELECT COUNT(*)::BIGINT FROM {table} WHERE customer_id = $1"
+        ))
+        .bind(customer.id)
+        .fetch_one(&pool)
+        .await
+        .expect("count dependent rows");
+        assert_eq!(
+            count, 0,
+            "table {table} still references erased customer {}",
+            customer.id
+        );
+    }
+
+    // 3. Repeat call must return false (already erased).
+    let second_erase = repo
+        .hard_delete(customer.id)
+        .await
+        .expect("second hard_delete");
+    assert!(
+        !second_erase,
+        "second hard_delete must return false for an already-erased customer"
+    );
+}
+
+#[tokio::test]
+async fn hard_delete_rejects_customers_with_open_invoices() {
+    let Some(db) = pg_schema_harness::connect_and_migrate("it_pg_customer_repo").await else {
+        return;
+    };
+    let pool = db.pool.clone();
+    let repo = PgCustomerRepo::new(pool.clone());
+    let email = format!(
+        "hard-erase-open-{}@integration.test",
+        &Uuid::new_v4().to_string()[..8]
+    );
+
+    let customer = repo
+        .create_with_password("Open Invoice", &email, "$argon2id$integration_hash")
+        .await
+        .expect("create customer");
+
+    // Seed a finalized but unpaid invoice — explicitly NOT in the
+    // {paid, refunded} set the seam treats as final.
+    sqlx::query(
+        "INSERT INTO invoices \
+            (customer_id, period_start, period_end, subtotal_cents, \
+             tax_cents, total_cents, status) \
+         VALUES ($1, '2026-02-01'::DATE, '2026-02-28'::DATE, \
+                 500, 0, 500, 'finalized')",
+    )
+    .bind(customer.id)
+    .execute(&pool)
+    .await
+    .expect("seed open invoice");
+
+    repo.soft_delete(customer.id).await.expect("soft delete");
+
+    let err = repo
+        .hard_delete(customer.id)
+        .await
+        .expect_err("hard_delete must refuse customers with open invoices");
+    match err {
+        api::repos::RepoError::Conflict(msg) => {
+            assert!(
+                msg.contains("open invoice"),
+                "open-invoice conflict message must reference open invoices: {msg}"
+            );
+        }
+        other => panic!("expected RepoError::Conflict, got {other:?}"),
+    }
+
+    // Customer + invoice rows must be untouched by the rejected call so
+    // the admin can wind billing down and retry.
+    let still_present = repo
+        .find_by_id(customer.id)
+        .await
+        .expect("find_by_id after rejected hard_delete")
+        .expect("rejected hard_delete must not remove the customer row");
+    assert_eq!(still_present.status, "deleted");
+
+    let invoice_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*)::BIGINT FROM invoices WHERE customer_id = $1")
+            .bind(customer.id)
+            .fetch_one(&pool)
+            .await
+            .expect("count invoices");
+    assert_eq!(
+        invoice_count, 1,
+        "rejected hard_delete must not silently drop invoices"
+    );
+
+    cleanup_customer_graph(&pool, &[customer.id]).await;
+}

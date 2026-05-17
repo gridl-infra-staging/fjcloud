@@ -1,8 +1,9 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { cleanup, render } from '@testing-library/svelte';
+import { cleanup, render, screen } from '@testing-library/svelte';
 
 import TermsPage from './+page.svelte';
 import {
+	assertLegalPagePresentationContract,
 	assertSharedLegalPageContract,
 	assertUniqueVisibleHeading,
 	assertUniqueVisibleText
@@ -37,5 +38,14 @@ describe('Terms page legal contract', () => {
 		expect(document.body).not.toHaveTextContent('(Draft)');
 		expect(document.body).not.toHaveTextContent('[REVIEW:');
 		expect(document.body).not.toHaveTextContent('TBD');
+	});
+
+	it('public__terms__success__desktop M.palette.14 keeps legal typography palette on diner surface', () => {
+		render(TermsPage);
+		assertLegalPagePresentationContract('Terms of Service');
+		const bodyParagraph = screen.getByText(
+			/These terms govern access to the Flapjack Cloud hosted dashboard/i
+		);
+		expect(bodyParagraph).toHaveClass('text-[#1f1b18]');
 	});
 });

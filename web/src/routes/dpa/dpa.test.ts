@@ -5,6 +5,7 @@ import DpaPage from './+page.svelte';
 import { LEGAL_SUPPORT_MAILTO, SUPPORT_EMAIL } from '$lib/format';
 
 import {
+	assertLegalPagePresentationContract,
 	assertSharedLegalPageContract,
 	exactNameMatcher,
 	assertUniqueVisibleHeading,
@@ -53,5 +54,14 @@ describe('DPA page legal contract', () => {
 		expect(document.body).not.toHaveTextContent('(Draft)');
 		expect(document.body).not.toHaveTextContent('[REVIEW:');
 		expect(document.body).not.toHaveTextContent('TBD');
+	});
+
+	it('public__dpa__success__desktop M.palette.1 keeps teal page treatment with cream legal article surface', () => {
+		render(DpaPage);
+		const pageShell = document.querySelector('div.min-h-screen');
+		expect(pageShell).not.toBeNull();
+		expect(pageShell).toHaveClass('bg-[#9fd8d2]');
+
+		assertLegalPagePresentationContract('Data Processing Addendum');
 	});
 });

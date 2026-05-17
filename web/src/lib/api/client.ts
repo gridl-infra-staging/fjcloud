@@ -36,6 +36,7 @@ import type {
 	InternalRegion,
 	IndexReplicaSummary,
 	OnboardingStatus,
+	FreeTierLimits,
 	FlapjackCredentials,
 	FlapjackApiKey,
 	Rule,
@@ -98,6 +99,15 @@ export class ApiRequestError extends Error {
 		return this.metadata.headers;
 	}
 }
+
+type LegacyFreeTierLimits = Omit<FreeTierLimits, 'max_storage_mb'> & {
+	max_storage_mb?: number;
+	max_storage_gb?: number;
+};
+
+type LegacyOnboardingStatus = Omit<OnboardingStatus, 'free_tier_limits'> & {
+	free_tier_limits: LegacyFreeTierLimits | null;
+};
 
 export class ApiClient extends BaseClient {
 	private readonly token?: string;
@@ -164,6 +174,41 @@ export class ApiClient extends BaseClient {
 
 	private dictionaryPath(indexName: string, dictionaryName: string, suffix = ''): string {
 		return this.indexPath(indexName, `/dictionaries/${this.pathSegment(dictionaryName)}${suffix}`);
+	}
+
+	private normalizeStorageLimitMb(freeTierLimits: LegacyFreeTierLimits): number {
+		if (
+			typeof freeTierLimits.max_storage_mb === 'number' &&
+			Number.isFinite(freeTierLimits.max_storage_mb)
+		) {
+			return freeTierLimits.max_storage_mb;
+		}
+		if (
+			typeof freeTierLimits.max_storage_gb === 'number' &&
+			Number.isFinite(freeTierLimits.max_storage_gb)
+		) {
+			return Math.round(freeTierLimits.max_storage_gb * 1024);
+		}
+		throw new Error('Onboarding free-tier limits must include max_storage_mb or max_storage_gb');
+	}
+
+	private normalizeOnboardingStatus(payload: LegacyOnboardingStatus): OnboardingStatus {
+		if (!payload.free_tier_limits) {
+			return {
+				...payload,
+				free_tier_limits: null
+			};
+		}
+
+		return {
+			...payload,
+			free_tier_limits: {
+				max_searches_per_month: payload.free_tier_limits.max_searches_per_month,
+				max_records: payload.free_tier_limits.max_records,
+				max_storage_mb: this.normalizeStorageLimitMb(payload.free_tier_limits),
+				max_indexes: payload.free_tier_limits.max_indexes
+			}
+		};
 	}
 
 	// --- Public (no auth) ---
@@ -692,8 +737,9 @@ export class ApiClient extends BaseClient {
 
 	// --- Onboarding ---
 
-	getOnboardingStatus(): Promise<OnboardingStatus> {
-		return this.api('GET', '/onboarding/status');
+	async getOnboardingStatus(): Promise<OnboardingStatus> {
+		const payload = await this.api<LegacyOnboardingStatus>('GET', '/onboarding/status');
+		return this.normalizeOnboardingStatus(payload);
 	}
 
 	generateCredentials(): Promise<FlapjackCredentials> {

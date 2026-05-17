@@ -1,0 +1,10 @@
+stage3_closeout_note
+baseline_prod_ami=ami-078228dbe86117d85
+stage2_new_ami_id=ami-0df77f1c103ce1be7
+prod_ami_initial=ami-078228dbe86117d85
+prod_ami_closeout=ami-078228dbe86117d85
+probe_closeout_timestamp_utc=2026-05-16T01:14:20Z
+api_health_status=ok
+cloud_body_non_empty=true
+terraform_plan_exit=0
+evidence_path=docs/runbooks/evidence/flapjack-version-deploy/20260516T011241Z_stage3_prod_unchanged

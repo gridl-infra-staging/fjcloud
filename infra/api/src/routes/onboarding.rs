@@ -8,7 +8,6 @@ use uuid::Uuid;
 use crate::auth::AuthenticatedTenant;
 use crate::errors::{ApiError, ErrorResponse};
 use crate::models::{BillingPlan, Deployment};
-use crate::services::tenant_quota::FreeTierLimits;
 use crate::state::AppState;
 
 // ---------------------------------------------------------------------------
@@ -33,7 +32,7 @@ pub struct OnboardingStatusResponse {
 pub struct FreeTierLimitsResponse {
     pub max_searches_per_month: u64,
     pub max_records: u64,
-    pub max_storage_gb: u64,
+    pub max_storage_mb: u64,
     pub max_indexes: u32,
 }
 
@@ -128,8 +127,8 @@ fn find_running_deployment(deployments: &[Deployment]) -> Option<&Deployment> {
 fn free_tier_limits(state: &AppState, billing_plan: BillingPlan) -> Option<FreeTierLimitsResponse> {
     matches!(billing_plan, BillingPlan::Free).then(|| FreeTierLimitsResponse {
         max_searches_per_month: state.free_tier_limits.max_searches_per_month,
-        max_records: FreeTierLimits::default_max_records(),
-        max_storage_gb: FreeTierLimits::default_max_storage_gb(),
+        max_records: state.free_tier_limits.max_records,
+        max_storage_mb: state.free_tier_limits.max_storage_mb,
         max_indexes: state.free_tier_limits.max_indexes,
     })
 }

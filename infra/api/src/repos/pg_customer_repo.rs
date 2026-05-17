@@ -16,7 +16,7 @@ use crate::repos::error::{is_unique_violation, RepoError};
 // are read through to_jsonb(customers)->>... so missing columns resolve to NULL
 // instead of failing query compilation/execution on older local databases.
 const CUSTOMER_COLUMNS: &str = "\
-id, \
+customers.id, \
 name, \
 email, \
 (to_jsonb(customers)->>'stripe_customer_id') AS stripe_customer_id, \
@@ -109,6 +109,14 @@ mod tests {
         assert!(
             CUSTOMER_COLUMNS.contains("customers.status"),
             "customer projection must qualify customers.status so the list join cannot hit ambiguous status resolution"
+        );
+    }
+
+    #[test]
+    fn customer_columns_qualifies_id_for_oauth_identity_join() {
+        assert!(
+            CUSTOMER_COLUMNS.contains("customers.id"),
+            "customer projection must qualify customers.id so the oauth_identities join cannot hit ambiguous id resolution"
         );
     }
 
@@ -319,6 +327,106 @@ impl CustomerRepo for PgCustomerRepo {
         .execute(&self.pool)
         .await
         .map_err(|e| RepoError::Other(e.to_string()))?;
+
+        Ok(result.rows_affected() > 0)
+    }
+
+    async fn hard_delete(&self, id: Uuid) -> Result<bool, RepoError> {
+        // Run the entire cleanup chain in a single transaction so a failure
+        // partway through leaves the customer recoverable, rather than
+        // partially-erased with dangling dependent rows.
+        let mut tx = self
+            .pool
+            .begin()
+            .await
+            .map_err(|e| RepoError::Other(e.to_string()))?;
+
+        // Guard: refuse hard-erase while any non-final invoice still
+        // references this customer. Open billing state must be wound down
+        // before erasure so we don't silently drop money owed or pending
+        // refund obligations.
+        let open_invoice_count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*)::BIGINT FROM invoices \
+             WHERE customer_id = $1 AND status NOT IN ('paid', 'refunded')",
+        )
+        .bind(id)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(|e| RepoError::Other(e.to_string()))?;
+        if open_invoice_count > 0 {
+            return Err(RepoError::Conflict(
+                "customer has open invoices; close or refund before hard-erase".into(),
+            ));
+        }
+
+        // Order matters: cleanup tables that themselves reference other
+        // dependents before cleaning those dependents.
+        //   * `index_replicas` has a composite FK to
+        //     `customer_tenants(customer_id, tenant_id)`, so it must be
+        //     removed BEFORE `customer_tenants`.
+        //   * `customer_tenants.deployment_id` references
+        //     `customer_deployments(id)`, so `customer_tenants` must be
+        //     removed BEFORE `customer_deployments`.
+        //   * `invoice_line_items` cascades from `invoices`, so deleting
+        //     invoices is enough (handled below, last).
+        //   * `oauth_identities` cascades from `customers`, so the final
+        //     customer DELETE handles that.
+        //
+        // Each step is intentionally listed by table so tests can fail on
+        // a missed dependent rather than relying on a generic loop.
+        let cleanup_statements: [&str; 11] = [
+            "DELETE FROM api_keys                  WHERE customer_id = $1",
+            "DELETE FROM index_replicas            WHERE customer_id = $1",
+            "DELETE FROM restore_jobs              WHERE customer_id = $1",
+            "DELETE FROM cold_snapshots            WHERE customer_id = $1",
+            "DELETE FROM storage_access_keys       WHERE customer_id = $1",
+            "DELETE FROM storage_buckets           WHERE customer_id = $1",
+            "DELETE FROM customer_tenants          WHERE customer_id = $1",
+            "DELETE FROM customer_deployments      WHERE customer_id = $1",
+            "DELETE FROM customer_rate_overrides   WHERE customer_id = $1",
+            "DELETE FROM usage_records             WHERE customer_id = $1",
+            "DELETE FROM usage_daily               WHERE customer_id = $1",
+        ];
+        for stmt in cleanup_statements {
+            sqlx::query(stmt)
+                .bind(id)
+                .execute(&mut *tx)
+                .await
+                .map_err(|e| RepoError::Other(e.to_string()))?;
+        }
+
+        // Invoices are deleted last among dependents so any FK error
+        // surfaces on the table that owns the violation rather than on
+        // invoices, which usually has the largest row count.
+        sqlx::query("DELETE FROM invoices WHERE customer_id = $1")
+            .bind(id)
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| RepoError::Other(e.to_string()))?;
+
+        // `audit_log.target_tenant_id` has no FK to customers (see
+        // migrations/041_audit_log.sql — actor/target are intentionally
+        // FK-less so the audit trail survives row deletion). We still
+        // erase past audit rows here because GDPR hard-erasure must
+        // remove all PII references to this customer, including any
+        // metadata embedded in audit JSON. The new hard-erase row is
+        // written by the caller AFTER hard_delete returns, so it is not
+        // affected.
+        sqlx::query("DELETE FROM audit_log WHERE target_tenant_id = $1")
+            .bind(id)
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| RepoError::Other(e.to_string()))?;
+
+        let result = sqlx::query("DELETE FROM customers WHERE id = $1")
+            .bind(id)
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| RepoError::Other(e.to_string()))?;
+
+        tx.commit()
+            .await
+            .map_err(|e| RepoError::Other(e.to_string()))?;
 
         Ok(result.rows_affected() > 0)
     }

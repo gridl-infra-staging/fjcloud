@@ -162,9 +162,46 @@ async fn estimate_zero_when_no_usage() {
 
     assert_eq!(body["month"], "2026-02");
     assert_eq!(body["subtotal_cents"], 0);
-    assert_eq!(body["total_cents"], 500);
-    assert_eq!(body["minimum_applied"], true);
+    assert_eq!(body["total_cents"], 0);
+    assert_eq!(body["minimum_applied"], false);
     assert_eq!(body["line_items"].as_array().unwrap().len(), 0);
+}
+
+#[tokio::test]
+async fn estimate_free_plan_zero_usage_does_not_apply_minimum() {
+    let customer_repo = mock_repo();
+    let customer = customer_repo.seed("Acme", "acme@example.com");
+
+    let usage_repo = mock_usage_repo();
+    let rate_card_repo = mock_rate_card_repo();
+    rate_card_repo.seed_active_card(test_rate_card());
+
+    let app = build_app(customer_repo, usage_repo, rate_card_repo);
+
+    let jwt = create_test_jwt(customer.id);
+    let resp = app
+        .oneshot(
+            Request::get("/billing/estimate?month=2026-02")
+                .header("authorization", format!("Bearer {jwt}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = body_json(resp).await;
+
+    assert_eq!(body["month"], "2026-02");
+    assert_eq!(body["subtotal_cents"], 0);
+    assert_eq!(
+        body["total_cents"], 0,
+        "free-plan estimate total should stay at subtotal when usage is zero"
+    );
+    assert_eq!(
+        body["minimum_applied"], false,
+        "free-plan estimate should not mark minimum_applied"
+    );
 }
 
 #[tokio::test]
@@ -211,8 +248,8 @@ async fn estimate_succeeds_without_stripe_customer_or_payment_methods() {
     let body = body_json(resp).await;
     assert_eq!(body["month"], "2026-02");
     assert_eq!(body["subtotal_cents"], 0);
-    assert_eq!(body["total_cents"], 500);
-    assert_eq!(body["minimum_applied"], true);
+    assert_eq!(body["total_cents"], 0);
+    assert_eq!(body["minimum_applied"], false);
     assert_eq!(body["line_items"].as_array().unwrap().len(), 0);
 }
 
@@ -293,7 +330,7 @@ async fn estimate_shared_plan_uses_shared_minimum() {
 }
 
 #[tokio::test]
-async fn estimate_unknown_plan_defaults_to_free_minimum() {
+async fn estimate_unknown_plan_defaults_to_shared_minimum() {
     let customer_repo = mock_repo();
     let customer = customer_repo.seed("Acme Unknown", "acme-unknown@example.com");
     customer_repo
@@ -321,7 +358,7 @@ async fn estimate_unknown_plan_defaults_to_free_minimum() {
     assert_eq!(resp.status(), StatusCode::OK);
     let body = body_json(resp).await;
     assert_eq!(body["subtotal_cents"], 0);
-    assert_eq!(body["total_cents"], 500);
+    assert_eq!(body["total_cents"], 200);
     assert_eq!(body["minimum_applied"], true);
 }
 
@@ -329,6 +366,10 @@ async fn estimate_unknown_plan_defaults_to_free_minimum() {
 async fn estimate_applies_rate_card_minimums() {
     let customer_repo = mock_repo();
     let customer = customer_repo.seed("Acme", "acme@example.com");
+    customer_repo
+        .set_billing_plan(customer.id, "shared")
+        .await
+        .unwrap();
 
     let usage_repo = mock_usage_repo();
     let rate_card_repo = mock_rate_card_repo();
@@ -366,10 +407,70 @@ async fn estimate_applies_rate_card_minimums() {
         "subtotal should be below minimum"
     );
     assert_eq!(
-        body["total_cents"], 500,
-        "total should be bumped to minimum_spend_cents"
+        body["total_cents"], 200,
+        "shared-plan total should be bumped to shared_minimum_spend_cents"
     );
     assert_eq!(body["minimum_applied"], true);
+}
+
+#[tokio::test]
+async fn estimate_free_plan_below_current_minimum_is_not_clamped() {
+    let customer_repo = mock_repo();
+    let customer = customer_repo.seed("Acme", "acme@example.com");
+
+    let usage_repo = mock_usage_repo();
+    let rate_card_repo = mock_rate_card_repo();
+    rate_card_repo.seed_active_card(test_rate_card()); // minimum_spend_cents = 500
+
+    // Seed tiny billable storage usage — subtotal will be below 500 cents.
+    usage_repo.seed(
+        customer.id,
+        NaiveDate::from_ymd_opt(2026, 2, 1).unwrap(),
+        "us-east-1",
+        0,
+        0,
+        billing::types::BYTES_PER_MB * 50,
+        0,
+    );
+
+    let app = build_app(customer_repo, usage_repo, rate_card_repo);
+
+    let jwt = create_test_jwt(customer.id);
+    let resp = app
+        .oneshot(
+            Request::get("/billing/estimate?month=2026-02")
+                .header("authorization", format!("Bearer {jwt}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = body_json(resp).await;
+    let subtotal = body["subtotal_cents"]
+        .as_i64()
+        .expect("subtotal_cents should be a number");
+
+    assert!(
+        subtotal > 0,
+        "seeded usage should produce a positive subtotal"
+    );
+    assert!(
+        subtotal < 500,
+        "seeded usage should remain below current minimum"
+    );
+    assert_eq!(
+        body["total_cents"]
+            .as_i64()
+            .expect("total_cents should be a number"),
+        subtotal,
+        "free-plan estimate total should remain unchanged below minimum threshold"
+    );
+    assert_eq!(
+        body["minimum_applied"], false,
+        "free-plan estimate should not mark minimum_applied below current minimum"
+    );
 }
 
 #[tokio::test]
@@ -428,6 +529,10 @@ async fn estimate_403_suspended_customer() {
 async fn estimate_with_rate_override_applies_custom_rates() {
     let customer_repo = mock_repo();
     let customer = customer_repo.seed("Acme", "acme@example.com");
+    customer_repo
+        .set_billing_plan(customer.id, "shared")
+        .await
+        .unwrap();
 
     let usage_repo = mock_usage_repo();
     let rate_card_repo = mock_rate_card_repo();
@@ -478,11 +583,11 @@ async fn estimate_with_rate_override_applies_custom_rates() {
     let body = body_json(resp).await;
 
     // 10 MB-month at $0.25/MB = 250 cents (subtotal)
-    // Unified minimum is 500 cents, so total should be bumped.
+    // Shared-plan minimum is 200 cents, so total should not be bumped.
     let subtotal = body["subtotal_cents"].as_i64().unwrap();
     assert_eq!(subtotal, 250, "10 MB-month at $0.25/MB = 250 cents");
-    assert_eq!(body["total_cents"], 500);
-    assert_eq!(body["minimum_applied"], true);
+    assert_eq!(body["total_cents"], 250);
+    assert_eq!(body["minimum_applied"], false);
 
     // Verify line item uses override rate
     let items = body["line_items"].as_array().unwrap();

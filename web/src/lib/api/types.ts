@@ -691,7 +691,7 @@ export interface OnboardingStatus {
 export interface FreeTierLimits {
 	max_searches_per_month: number;
 	max_records: number;
-	max_storage_gb: number;
+	max_storage_mb: number;
 	max_indexes: number;
 }
 

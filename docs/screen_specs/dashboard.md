@@ -13,7 +13,7 @@ Understand account health, usage, billing state, onboarding status, and next act
 
 ## Target Behavior
 
-The dashboard renders account-summary widgets and next-action guidance from server-provided usage, plan, and onboarding context. In success state it can show estimated bill details, free-tier metric cards, index quota warnings, onboarding banner state, index summary, and usage charts/region breakdown when usage data exists.
+The dashboard renders account-summary widgets and next-action guidance from server-provided usage, plan, and onboarding context. In success state it can show estimated bill details, free-tier metric cards (including MB-based storage quota progress), index quota warnings, onboarding banner state, index summary, and usage charts/region breakdown when usage data exists.
 
 ## Required States
 
@@ -40,7 +40,7 @@ Baseline viewport: 390px wide (iPhone 14). Dashboard shell uses the shipped draw
 
 - [ ] Dashboard body renders route-owned content including indexes card and billing/usage sections.
 - [ ] Estimated-bill widget renders backend month/total exactly when estimate exists and hides when estimate is unavailable.
-- [ ] Free-tier progress renders searches/records/storage/indexes values for free-plan users and shared-plan billing prompt is suppressed in that state.
+- [ ] Free-tier progress renders searches/records/storage/indexes values for free-plan users, with storage displayed against MB-based limits (`max_storage_mb` API surface), and shared-plan billing prompt is suppressed in that state.
 - [ ] Shared-plan users without payment method see billing setup prompt and not free-tier metric cards.
 - [ ] Onboarding banner renders with suggested next step for incomplete onboarding and is absent when onboarding is complete.
 - [ ] Usage section renders chart/region breakdown when usage data exists and no-usage fallback text when it does not.

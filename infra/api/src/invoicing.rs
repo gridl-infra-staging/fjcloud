@@ -177,8 +177,8 @@ pub fn generate_invoice(
         next_cycle_egress_carryforward_cents,
     );
 
-    // Apply the correct minimum spend based on billing plan.
-    // Free plans use the standard minimum; Shared plans use the lower shared minimum.
+    // Apply plan-specific minimum behavior.
+    // Free plans are never floor-clamped; Shared plans use shared_minimum_spend_cents.
     let (total_cents, minimum_applied) =
         line_items::invoice_total_with_minimum(subtotal_cents, billing_plan, rate_card);
 

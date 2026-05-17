@@ -1,10 +1,12 @@
 use super::render::{
-    render_invoice_ready_email, render_password_reset_email, render_quota_warning_email,
-    render_verification_email, resolve_broadcast_render, RenderedEmail,
+    render_dunning_recovered_after_failure_email, render_dunning_retries_exhausted_email,
+    render_dunning_retry_scheduled_email, render_invoice_ready_email, render_password_reset_email,
+    render_quota_warning_email, render_verification_email, resolve_broadcast_render, RenderedEmail,
 };
 use super::{
     normalize_app_base_url, normalize_from_name, validate_recipient_email, BroadcastDeliveryStatus,
-    EmailError, EmailService, DEFAULT_APP_BASE_URL,
+    DunningRecoveredAfterFailureEmailRequest, DunningRetriesExhaustedEmailRequest,
+    DunningRetryScheduledEmailRequest, EmailError, EmailService, DEFAULT_APP_BASE_URL,
 };
 use async_trait::async_trait;
 
@@ -144,6 +146,45 @@ impl EmailService for MailpitEmailService {
             to,
             &render_quota_warning_email(metric, percent_used, current_usage, limit)?,
             "quota-warning",
+        )
+        .await
+    }
+
+    async fn send_dunning_retry_scheduled_email(
+        &self,
+        to: &str,
+        request: &DunningRetryScheduledEmailRequest<'_>,
+    ) -> Result<(), EmailError> {
+        self.send_mailpit_email(
+            to,
+            &render_dunning_retry_scheduled_email(&self.app_base_url, request)?,
+            "dunning-retry-scheduled",
+        )
+        .await
+    }
+
+    async fn send_dunning_retries_exhausted_email(
+        &self,
+        to: &str,
+        request: &DunningRetriesExhaustedEmailRequest<'_>,
+    ) -> Result<(), EmailError> {
+        self.send_mailpit_email(
+            to,
+            &render_dunning_retries_exhausted_email(&self.app_base_url, request)?,
+            "dunning-retries-exhausted",
+        )
+        .await
+    }
+
+    async fn send_dunning_recovered_after_failure_email(
+        &self,
+        to: &str,
+        request: &DunningRecoveredAfterFailureEmailRequest<'_>,
+    ) -> Result<(), EmailError> {
+        self.send_mailpit_email(
+            to,
+            &render_dunning_recovered_after_failure_email(&self.app_base_url, request)?,
+            "dunning-recovered-after-failure",
         )
         .await
     }

@@ -1,4 +1,3 @@
-
 fn main() {
     // Helper: forward an env var into the compiled binary, defaulting to
     // "local-dev" when unset. Keeps the pattern uniform across all four.

@@ -85,6 +85,10 @@ assert_contains_active "$compute_main_file" 'iam_instance_profile' "IAM instance
 # ============================================================================
 
 assert_contains_active "$compute_main_file" 'user_data' "User data present on EC2 instance"
+assert_contains_active "$compute_main_file" 'user_data_replace_on_change[[:space:]]*=[[:space:]]*false' "user_data_replace_on_change remains false"
+assert_contains_active "$compute_main_file" 'amazon-cloudwatch-agent' "Compute bootstrap installs CloudWatch agent"
+assert_contains_active "$compute_main_file" 'disk_used_percent' "Compute bootstrap configures disk_used_percent collection"
+assert_contains_active "$compute_main_file" 'amazon-cloudwatch-agent-ctl' "Compute bootstrap starts CloudWatch agent via ctl"
 
 # ============================================================================
 # 3.1 — Tags
@@ -118,6 +122,21 @@ assert_file_contains "$iam_file" 'iam:PassRole' "IAM policy includes iam:PassRol
 assert_file_contains "$iam_file" 's3:GetObject' "IAM policy includes s3:GetObject"
 assert_file_contains "$iam_file" 's3:ListBucket' "IAM policy includes s3:ListBucket"
 assert_file_contains "$iam_file" 'fjcloud-releases' "IAM S3 policy references fjcloud-releases bucket"
+assert_file_contains "$iam_file" 'cloudwatch:PutMetricData' "IAM policy includes cloudwatch:PutMetricData"
+assert_file_contains "$iam_file" 'CWAgent' "IAM policy allows CWAgent namespace metric publish"
+assert_file_contains "$iam_file" 'logs:CreateLogGroup' "IAM policy includes logs:CreateLogGroup"
+assert_file_contains "$iam_file" 'logs:CreateLogStream' "IAM policy includes logs:CreateLogStream"
+assert_file_contains "$iam_file" 'logs:PutLogEvents' "IAM policy includes logs:PutLogEvents"
+assert_file_contains "$iam_file" 'logs:DescribeLogStreams' "IAM policy includes logs:DescribeLogStreams"
+
+# ============================================================================
+# 3.2 — CloudWatch ownership drift guardrails
+# ============================================================================
+
+assert_file_not_contains "$compute_vars_file" 'cloudwatch-agent|cwagent|disk_used_percent' "Compute variables do not introduce CloudWatch agent parallel owner"
+assert_file_not_contains "$compute_outputs_file" 'cloudwatch-agent|cwagent|disk_used_percent' "Compute outputs do not introduce CloudWatch agent parallel owner"
+assert_file_not_contains "$shared_main_file" 'cloudwatch-agent|cwagent|disk_used_percent' "Shared terraform does not introduce CloudWatch agent parallel owner"
+assert_file_not_contains "$shared_outputs_file" 'cloudwatch-agent|cwagent|disk_used_percent' "Shared terraform outputs do not introduce CloudWatch agent parallel owner"
 
 # ============================================================================
 # 3.3 — systemd service files

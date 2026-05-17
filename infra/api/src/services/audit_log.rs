@@ -75,6 +75,14 @@ pub const ACTION_TENANT_DELETED: &str = "tenant_deleted";
 pub const ACTION_CUSTOMER_SUSPENDED: &str = "customer_suspended";
 /// Canonical action name for `POST /admin/customers/{id}/reactivate`.
 pub const ACTION_CUSTOMER_REACTIVATED: &str = "customer_reactivated";
+/// Canonical action name for `POST /admin/customers/{id}/hard-erase`.
+///
+/// The audit row is the only surviving trace once `CustomerRepo::hard_delete`
+/// completes — the customer row, billing artifacts, and earlier audit
+/// history for that customer are all removed. Keep the row attached to
+/// the now-defunct customer id so the GDPR-erasure event is queryable by
+/// `target_tenant_id`.
+pub const ACTION_CUSTOMER_HARD_ERASE: &str = "customer_hard_erase";
 /// Canonical action name for `POST /admin/customers/{id}/sync-stripe`.
 pub const ACTION_STRIPE_SYNC: &str = "stripe_sync";
 /// Canonical action name for `PUT /admin/tenants/{id}/rate-card`.

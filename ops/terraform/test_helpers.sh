@@ -69,7 +69,9 @@ assert_contains_active() {
   local file="$1"
   local pattern="$2"
   local label="$3"
-  if strip_comments "$file" | rg -q "$pattern"; then
+  local stripped
+  stripped="$(strip_comments "$file")"
+  if rg -q "$pattern" <<<"$stripped"; then
     pass "$label"
   else
     fail "$label"
@@ -81,7 +83,9 @@ assert_not_contains_active() {
   local file="$1"
   local pattern="$2"
   local label="$3"
-  if strip_comments "$file" | rg -q "$pattern"; then
+  local stripped
+  stripped="$(strip_comments "$file")"
+  if rg -q "$pattern" <<<"$stripped"; then
     fail "$label"
   else
     pass "$label"

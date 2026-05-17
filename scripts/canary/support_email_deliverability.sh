@@ -77,19 +77,36 @@ discord_url="${DISCORD_WEBHOOK_URL:-}"
 alert_title="[fjcloud canary ${environment}] Support email deliverability failed ${nonce}"
 alert_message="Delegated roundtrip failed (classification=${failure_classification}, exit_code=${roundtrip_exit_code}). detail=${failure_detail}"
 
-dispatch_exit_code=0
-alert_dispatch_send_critical \
-    "$slack_url" \
-    "$discord_url" \
-    "$alert_title" \
-    "$alert_message" \
-    "support_email_deliverability.sh" \
-    "$nonce" \
-    "$environment" || dispatch_exit_code=$?
+dispatch_attempted=0
+dispatch_failed=0
 
-if [[ "$dispatch_exit_code" -eq 1 ]]; then
+if [[ -n "$slack_url" ]]; then
+    dispatch_attempted=1
+    send_critical_alert \
+        "slack" \
+        "$slack_url" \
+        "$alert_title" \
+        "$alert_message" \
+        "support_email_deliverability.sh" \
+        "$nonce" \
+        "$environment" || dispatch_failed=1
+fi
+
+if [[ -n "$discord_url" ]]; then
+    dispatch_attempted=1
+    send_critical_alert \
+        "discord" \
+        "$discord_url" \
+        "$alert_title" \
+        "$alert_message" \
+        "support_email_deliverability.sh" \
+        "$nonce" \
+        "$environment" || dispatch_failed=1
+fi
+
+if [[ "$dispatch_attempted" -eq 0 ]]; then
     echo "WARN: support email deliverability alert not sent because no webhook URL is configured." >&2
-elif [[ "$dispatch_exit_code" -eq 2 ]]; then
+elif [[ "$dispatch_failed" -eq 1 ]]; then
     echo "WARN: support email deliverability alert dispatch failed for one or more channels." >&2
 fi
 

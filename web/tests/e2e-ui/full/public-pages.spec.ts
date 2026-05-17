@@ -13,7 +13,11 @@
 
 import { test, expect } from '../../fixtures/fixtures';
 import { formatCents } from '../../../src/lib/format';
-import { MARKETING_PRICING, pricingContractSnapshotFromMarketing } from '../../../src/lib/pricing';
+import {
+	MARKETING_PRICING,
+	pricingContractSnapshotFromMarketing,
+	sharedPlanMinimumMonthlyLabel
+} from '../../../src/lib/pricing';
 import { assertPricingCalculatorOutcome } from '../../fixtures/public-pages';
 import { assertSharedLegalPageContract } from '../../fixtures/legal_page_playwright_helpers';
 
@@ -103,13 +107,23 @@ test.describe('Landing page', () => {
 	});
 
 	test('interactive pricing calculator returns Flapjack Cloud and competitor rows', async ({
-		page
+		page,
+		getDisposableTenantRateCardSnapshot
 	}) => {
 		await page.goto('/');
+		const backendSnapshot = await getDisposableTenantRateCardSnapshot();
+		const marketingSnapshot = pricingContractSnapshotFromMarketing(MARKETING_PRICING);
 
 		await expect(page.getByRole('heading', { name: 'Simple pricing' })).toBeVisible();
 		await expect(page.getByText(MARKETING_PRICING.free_tier_promise).first()).toBeVisible();
 		await expect(page.getByTestId('landing-pricing-calculator')).toBeVisible();
+		await expect(page.getByRole('main')).toContainText(
+			sharedPlanMinimumMonthlyLabel(backendSnapshot.shared_minimum_spend_cents)
+		);
+		await expect(page.getByTestId('minimum-spend')).toHaveText(
+			sharedPlanMinimumMonthlyLabel(backendSnapshot.shared_minimum_spend_cents)
+		);
+		expect(backendSnapshot).toEqual(marketingSnapshot);
 
 		await page.getByLabel('Document count').fill('120000');
 		await page.getByLabel('Average document size (bytes)').fill('1500');
@@ -139,13 +153,18 @@ test.describe('Pricing page', () => {
 		await expect(page.getByRole('heading', { name: /pricing/i })).toBeVisible();
 		await expect(pricingMain).toContainText(MARKETING_PRICING.free_tier_promise);
 		await expect(pricingMain).toContainText(`${MARKETING_PRICING.free_tier_mb} MB`);
+		await expect(pricingMain).toContainText(
+			`${MARKETING_PRICING.free_tier_searches_per_month.toLocaleString('en-US')} searches/month`
+		);
 		await expect(pricingMain).toContainText('Hot index storage');
 		await expect(pricingMain).toContainText('Cold snapshot storage');
-		await expect(pricingMain).toContainText(formatCents(MARKETING_PRICING.minimum_spend_cents));
+		await expect(pricingMain).toContainText('$5/month minimum');
 		expect(backendSnapshot).toEqual(marketingSnapshot);
 		await expect(pricingMain).toContainText(backendSnapshot.storage_rate_per_mb_month);
 		await expect(pricingMain).toContainText(backendSnapshot.cold_storage_rate_per_gb_month);
-		await expect(pricingMain).toContainText(formatCents(backendSnapshot.minimum_spend_cents));
+		await expect(pricingMain).toContainText(
+			`${sharedPlanMinimumMonthlyLabel(backendSnapshot.shared_minimum_spend_cents)}/month minimum`
+		);
 
 		const primaryCta = pricingMain.getByRole('link', { name: MARKETING_PRICING.cta_label });
 		await expect(primaryCta).toHaveAttribute('href', '/signup');

@@ -15,8 +15,15 @@ use tower::ServiceExt;
 fn assert_free_tier_limits(body: &serde_json::Value) {
     assert_eq!(body["free_tier_limits"]["max_searches_per_month"], 50_000);
     assert_eq!(body["free_tier_limits"]["max_records"], 100_000);
-    assert_eq!(body["free_tier_limits"]["max_storage_gb"], 10);
-    assert_eq!(body["free_tier_limits"]["max_indexes"], 1);
+    assert_eq!(
+        body["free_tier_limits"]["max_storage_mb"],
+        FreeTierLimits::default_max_storage_mb()
+    );
+    assert_eq!(body["free_tier_limits"]["max_indexes"], 3);
+    assert!(
+        body["free_tier_limits"].get("max_storage_gb").is_none(),
+        "legacy max_storage_gb key should be removed from onboarding status payload"
+    );
 }
 
 async fn get_status(app: axum::Router, jwt: &str) -> (StatusCode, serde_json::Value) {
@@ -449,6 +456,8 @@ async fn free_customer_status_uses_configured_free_tier_limits() {
         .with_free_tier_limits(FreeTierLimits {
             max_searches_per_month: 123_456,
             max_indexes: 7,
+            max_records: 100_000,
+            max_storage_mb: 250,
         })
         .build_app();
 
@@ -458,8 +467,15 @@ async fn free_customer_status_uses_configured_free_tier_limits() {
     assert_eq!(body["billing_plan"], "free");
     assert_eq!(body["free_tier_limits"]["max_searches_per_month"], 123_456);
     assert_eq!(body["free_tier_limits"]["max_records"], 100_000);
-    assert_eq!(body["free_tier_limits"]["max_storage_gb"], 10);
+    assert_eq!(
+        body["free_tier_limits"]["max_storage_mb"],
+        FreeTierLimits::default_max_storage_mb()
+    );
     assert_eq!(body["free_tier_limits"]["max_indexes"], 7);
+    assert!(
+        body["free_tier_limits"].get("max_storage_gb").is_none(),
+        "legacy max_storage_gb key should be removed from onboarding status payload"
+    );
 }
 
 #[tokio::test]

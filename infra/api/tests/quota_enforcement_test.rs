@@ -238,6 +238,8 @@ async fn free_tier_customer_blocked_at_index_limit() {
         FreeTierLimits {
             max_indexes: 1,
             max_searches_per_month: 50_000,
+            max_records: 100_000,
+            max_storage_mb: 250,
         },
     )
     .await;
@@ -282,6 +284,8 @@ async fn free_tier_customer_can_create_first_index() {
         FreeTierLimits {
             max_indexes: 1,
             max_searches_per_month: 50_000,
+            max_records: 100_000,
+            max_storage_mb: 250,
         },
     )
     .await;
@@ -329,6 +333,8 @@ async fn shared_plan_customer_not_blocked_at_index_limit() {
         FreeTierLimits {
             max_indexes: 1,
             max_searches_per_month: 50_000,
+            max_records: 100_000,
+            max_storage_mb: 250,
         },
     )
     .await;
@@ -384,6 +390,8 @@ async fn shared_plan_create_index_honors_customer_quota_override_above_default_l
         FreeTierLimits {
             max_indexes: 1,
             max_searches_per_month: 50_000,
+            max_records: 100_000,
+            max_storage_mb: 250,
         },
     )
     .await;
@@ -435,6 +443,8 @@ async fn new_shared_index_inherits_existing_customer_quota_override() {
         FreeTierLimits {
             max_indexes: 1,
             max_searches_per_month: 50_000,
+            max_records: 100_000,
+            max_storage_mb: 250,
         },
     )
     .await;
@@ -477,6 +487,8 @@ async fn free_tier_search_blocked_at_monthly_quota() {
         FreeTierLimits {
             max_indexes: 1,
             max_searches_per_month: 100,
+            max_records: 100_000,
+            max_storage_mb: 250,
         },
     )
     .await;
@@ -532,6 +544,8 @@ async fn shared_plan_search_not_blocked_at_monthly_quota() {
         FreeTierLimits {
             max_indexes: 1,
             max_searches_per_month: 100,
+            max_records: 100_000,
+            max_storage_mb: 250,
         },
     )
     .await;
@@ -578,6 +592,8 @@ async fn free_tier_search_succeeds_under_quota() {
         FreeTierLimits {
             max_indexes: 1,
             max_searches_per_month: 100,
+            max_records: 100_000,
+            max_storage_mb: 250,
         },
     )
     .await;
@@ -624,6 +640,8 @@ async fn quota_warning_email_sent_at_80_percent() {
         FreeTierLimits {
             max_indexes: 1,
             max_searches_per_month: 100,
+            max_records: 100_000,
+            max_storage_mb: 250,
         },
     )
     .await;
@@ -677,6 +695,8 @@ async fn quota_warning_not_sent_below_80_percent() {
         FreeTierLimits {
             max_indexes: 1,
             max_searches_per_month: 100,
+            max_records: 100_000,
+            max_storage_mb: 250,
         },
     )
     .await;
@@ -742,6 +762,8 @@ async fn quota_warning_not_sent_twice_in_same_month() {
         FreeTierLimits {
             max_indexes: 1,
             max_searches_per_month: 100,
+            max_records: 100_000,
+            max_storage_mb: 250,
         },
     )
     .await;
@@ -793,6 +815,8 @@ async fn quota_warning_resets_next_month() {
         FreeTierLimits {
             max_indexes: 1,
             max_searches_per_month: 100,
+            max_records: 100_000,
+            max_storage_mb: 250,
         },
     )
     .await;
@@ -913,6 +937,8 @@ async fn concurrent_index_creation_only_one_succeeds() {
         FreeTierLimits {
             max_indexes: 100,
             max_searches_per_month: 50_000,
+            max_records: 100_000,
+            max_storage_mb: 250,
         },
     )
     .await;
@@ -970,6 +996,8 @@ async fn shared_plan_no_quota_warning() {
         FreeTierLimits {
             max_indexes: 1,
             max_searches_per_month: 100,
+            max_records: 100_000,
+            max_storage_mb: 250,
         },
     )
     .await;

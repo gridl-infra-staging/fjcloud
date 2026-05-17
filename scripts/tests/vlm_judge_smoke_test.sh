@@ -99,4 +99,38 @@ else
     fail "vlm_env_helpers.sh missing at ${VLM_ENV_HELPERS}"
 fi
 
+# --- Sprint 3: Judgment schema enforcement checks ---
+
+if [[ -f "${VLM_PROMPT}" ]]; then
+    response_with_null_rule_id='{"content":[{"type":"text","text":"{\"screen\":\"auth__dashboard__loading__mobile_narrow.png\",\"score\":10,\"verdict\":\"fail\",\"summary\":\"bad\",\"violations\":[{\"rule_id\":null,\"description\":\"missing anchor\"}],\"actions\":[]}"}]}'
+    if (
+        source "${VLM_PROMPT}"
+        extract_vlm_judgment_json "${response_with_null_rule_id}" >/dev/null 2>&1
+    ); then
+        fail "extract_vlm_judgment_json rejects null violations[].rule_id"
+    else
+        pass "extract_vlm_judgment_json rejects null violations[].rule_id"
+    fi
+
+    response_with_empty_description='{"content":[{"type":"text","text":"{\"screen\":\"auth__dashboard__loading__mobile_narrow.png\",\"score\":10,\"verdict\":\"fail\",\"summary\":\"bad\",\"violations\":[{\"rule_id\":\"M.universal.1\",\"description\":\"\"}],\"actions\":[]}"}]}'
+    if (
+        source "${VLM_PROMPT}"
+        extract_vlm_judgment_json "${response_with_empty_description}" >/dev/null 2>&1
+    ); then
+        fail "extract_vlm_judgment_json rejects empty violations[].description"
+    else
+        pass "extract_vlm_judgment_json rejects empty violations[].description"
+    fi
+
+    response_with_valid_violation='{"content":[{"type":"text","text":"{\"screen\":\"auth__dashboard__loading__mobile_narrow.png\",\"score\":10,\"verdict\":\"fail\",\"summary\":\"bad\",\"violations\":[{\"rule_id\":\"M.universal.1\",\"description\":\"Cream surface missing\"}],\"actions\":[]}"}]}'
+    if (
+        source "${VLM_PROMPT}"
+        extract_vlm_judgment_json "${response_with_valid_violation}" >/dev/null 2>&1
+    ); then
+        pass "extract_vlm_judgment_json accepts non-empty violations[].rule_id and description"
+    else
+        fail "extract_vlm_judgment_json should accept non-empty violations[].rule_id and description"
+    fi
+fi
+
 run_test_summary

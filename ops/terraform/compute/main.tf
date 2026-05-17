@@ -68,7 +68,7 @@ resource "aws_instance" "api" {
     # metering rehearsal owner and RDS restore verification path both require
     # when they run from this host. The AMI also bakes postgresql16 so new
     # AMIs do not depend on user_data for this package.
-    dnf install -y aws-cli jq postgresql16
+    dnf install -y aws-cli jq postgresql16 amazon-cloudwatch-agent
 
     # Set hostname
     hostnamectl set-hostname "fjcloud-api-${var.env}"
@@ -82,6 +82,69 @@ resource "aws_instance" "api" {
     # existing instances — only the next fresh launch picks it up.
     firewall-cmd --permanent --add-port=3001/tcp --add-port=3002/tcp
     firewall-cmd --reload
+
+    # Configure CloudWatch Agent so prod/staging API instances publish
+    # disk_used_percent under the standard CWAgent namespace.
+    mkdir -p /opt/aws/amazon-cloudwatch-agent/etc
+    cat > /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json <<'CWAGENTCONF'
+    {
+      "agent": {
+        "metrics_collection_interval": 60,
+        "run_as_user": "root"
+      },
+      "metrics": {
+        "namespace": "CWAgent",
+        "append_dimensions": {
+          "InstanceId": "$${aws:InstanceId}"
+        },
+        "metrics_collected": {
+          "disk": {
+            "measurement": [
+              {
+                "name": "used_percent",
+                "rename": "disk_used_percent",
+                "unit": "Percent"
+              }
+            ],
+            "resources": [
+              "/"
+            ],
+            "ignore_file_system_types": [
+              "sysfs",
+              "devtmpfs",
+              "tmpfs",
+              "overlay",
+              "squashfs"
+            ]
+          }
+        }
+      },
+      "logs": {
+        "logs_collected": {
+          "files": {
+            "collect_list": [
+              {
+                "file_path": "/var/log/messages",
+                "log_group_name": "/fjcloud/${var.env}/api/system",
+                "log_stream_name": "{instance_id}/messages"
+              },
+              {
+                "file_path": "/var/log/fjcloud/bootstrap.log",
+                "log_group_name": "/fjcloud/${var.env}/api/bootstrap",
+                "log_stream_name": "{instance_id}/bootstrap"
+              }
+            ]
+          }
+        }
+      }
+    }
+    CWAGENTCONF
+
+    /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl \
+      -a fetch-config \
+      -m ec2 \
+      -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json \
+      -s
 
     # Signal: user data bootstrap complete
     echo "fjcloud user-data bootstrap complete at $(date -u +%FT%TZ)" >> /var/log/fjcloud/bootstrap.log

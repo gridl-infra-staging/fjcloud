@@ -12,22 +12,24 @@
 	);
 </script>
 
-<div class="flex flex-col items-center justify-center py-20 text-center">
-	<p class="text-6xl font-bold text-gray-300">{status}</p>
-	<h1 class="mt-4 text-2xl font-bold text-gray-900">{boundaryCopy.heading}</h1>
-	<p class="mt-3 max-w-md text-gray-600">{boundaryCopy.description}</p>
+<div
+	class="flex flex-col items-center justify-center border-2 border-[#1f1b18]/15 bg-[#fff8ea] py-20 text-center"
+>
+	<p class="text-6xl font-bold text-[#1f1b18]/25">{status}</p>
+	<h1 class="mt-4 text-2xl font-bold text-[#1f1b18]">{boundaryCopy.heading}</h1>
+	<p class="mt-3 max-w-md text-[#4b4640]">{boundaryCopy.description}</p>
 	<SupportReferenceBlock {boundaryCopy} containerClass="w-full max-w-md" />
 	<div class="mt-8 flex items-center gap-4">
 		<a
 			href={resolve(boundaryCopy.primaryCta.href)}
-			class="rounded-lg bg-blue-600 px-6 py-3 text-sm font-semibold text-white shadow hover:bg-blue-700"
+			class="rounded-lg border-2 border-[#1f1b18] bg-[#ffb3c7] px-6 py-3 text-sm font-semibold text-[#1f1b18] shadow hover:bg-[#ffc3d2]"
 		>
 			{boundaryCopy.primaryCta.label}
 		</a>
 		{#if boundaryCopy.showSecondaryStatusLink}
 			<a
 				href={resolve('/status')}
-				class="rounded-lg border border-gray-300 bg-white px-6 py-3 text-sm font-semibold text-gray-700 shadow hover:bg-gray-50"
+				class="rounded-lg border-2 border-[#1f1b18] bg-[#fff8ea] px-6 py-3 text-sm font-semibold text-[#1f1b18] shadow hover:bg-[#f7efdc]"
 			>
 				Check service status
 			</a>

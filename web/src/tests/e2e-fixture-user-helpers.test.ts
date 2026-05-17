@@ -343,6 +343,7 @@ describe('e2e fixture user helpers', () => {
 			storage_rate_per_mb_month: '$0.05',
 			cold_storage_rate_per_gb_month: '$0.02',
 			minimum_spend_cents: 1000,
+			shared_minimum_spend_cents: 500,
 			region_pricing: [
 				{ id: 'us-east-1', display_name: 'US East (Virginia)', multiplier: '1.00x' },
 				{ id: 'eu-west-1', display_name: 'EU West (Ireland)', multiplier: '1.00x' },

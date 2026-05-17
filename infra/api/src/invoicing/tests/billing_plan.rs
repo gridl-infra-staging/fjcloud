@@ -107,10 +107,9 @@ fn shared_plan_usage_between_minimums_uses_shared() {
     assert_eq!(result.total_cents, 300);
 }
 
-/// Verifies that a Free plan with the same 300¢ usage is clamped up
-/// to the 500¢ free-tier minimum.
+/// Verifies that a Free plan with 300¢ usage is never clamped by a minimum.
 #[test]
-fn free_plan_usage_between_minimums_clamps_to_free() {
+fn free_plan_usage_between_minimums_remains_unclamped() {
     let card = test_rate_card();
     let cid = Uuid::new_v4();
     let start = NaiveDate::from_ymd_opt(2026, 2, 1).unwrap();
@@ -141,13 +140,59 @@ fn free_plan_usage_between_minimums_clamps_to_free() {
     );
 
     assert_eq!(result.subtotal_cents, 300);
-    assert!(result.minimum_applied);
-    assert_eq!(result.total_cents, 500);
+    assert!(!result.minimum_applied);
+    assert_eq!(result.total_cents, 300);
 }
 
-/// Verify that customers with unknown/unsupported billing plan strings default to the free plan's minimum when converted via billing_plan_enum().
+/// Stage-1 red contract: Free plan must not apply a minimum floor.
+/// With 300¢ usage (between current shared/free minimum values), total must
+/// remain equal to subtotal and minimum_applied must stay false.
 #[test]
-fn unknown_billing_plan_defaults_to_free_minimum_via_customer_enum() {
+fn free_plan_usage_between_minimums_does_not_clamp() {
+    let card = test_rate_card();
+    let cid = Uuid::new_v4();
+    let start = NaiveDate::from_ymd_opt(2026, 2, 1).unwrap();
+    let end = NaiveDate::from_ymd_opt(2026, 2, 28).unwrap();
+
+    let hot_storage_bytes_per_day = billing::types::BYTES_PER_MB * 15;
+    let rows: Vec<UsageDaily> = (1..=28)
+        .map(|d| {
+            make_usage(
+                cid,
+                NaiveDate::from_ymd_opt(2026, 2, d).unwrap(),
+                "us-east-1",
+                0,
+                0,
+                hot_storage_bytes_per_day,
+                0,
+            )
+        })
+        .collect();
+    let result = generate_invoice(
+        &rows,
+        &card,
+        cid,
+        start,
+        end,
+        &zero_storage(),
+        BillingPlan::Free,
+    );
+
+    assert_eq!(result.subtotal_cents, 300);
+    assert_eq!(
+        result.total_cents, 300,
+        "free-plan totals should not be clamped by minimum_spend_cents"
+    );
+    assert!(
+        !result.minimum_applied,
+        "free-plan invoice should not mark minimum_applied"
+    );
+}
+
+/// Verify that unknown billing plan strings use paid-safe Shared semantics
+/// in billing seams while preserving non-billing Free defaults elsewhere.
+#[test]
+fn unknown_billing_plan_defaults_to_shared_minimum_via_customer_enum() {
     let card = test_rate_card();
     let cid = Uuid::new_v4();
     let start = NaiveDate::from_ymd_opt(2026, 2, 1).unwrap();
@@ -182,12 +227,12 @@ fn unknown_billing_plan_defaults_to_free_minimum_via_customer_enum() {
         start,
         end,
         &zero_storage(),
-        customer.billing_plan_enum(),
+        customer.billing_plan_for_billing(),
     );
 
     assert_eq!(result.subtotal_cents, 0);
     assert!(result.minimum_applied);
-    assert_eq!(result.total_cents, 500);
+    assert_eq!(result.total_cents, card.shared_minimum_spend_cents);
 }
 
 /// Verify that billing cycles with only carry-forward (no new egress) produce an egress line item with zero amount but metadata containing the retained fractional cents.

@@ -38,6 +38,11 @@ output "api_status_check_failed_alarm_arn" {
   value       = aws_cloudwatch_metric_alarm.api_status_check_failed.arn
 }
 
+output "api_root_disk_high_alarm_arn" {
+  description = "CloudWatch alarm ARN for API root-volume disk usage"
+  value       = aws_cloudwatch_metric_alarm.api_root_disk_high.arn
+}
+
 output "rds_cpu_high_alarm_arn" {
   description = "CloudWatch alarm ARN for RDS CPU over 80%"
   value       = aws_cloudwatch_metric_alarm.rds_cpu_high.arn
@@ -48,6 +53,11 @@ output "rds_free_storage_low_alarm_arn" {
   value       = aws_cloudwatch_metric_alarm.rds_free_storage_low.arn
 }
 
+output "rds_connections_high_alarm_arn" {
+  description = "CloudWatch alarm ARN for RDS connection pressure"
+  value       = aws_cloudwatch_metric_alarm.rds_connections_high.arn
+}
+
 output "alb_5xx_error_rate_alarm_arn" {
   description = "CloudWatch alarm ARN for ALB 5XX error rate"
   value       = aws_cloudwatch_metric_alarm.alb_5xx_error_rate.arn
@@ -56,6 +66,16 @@ output "alb_5xx_error_rate_alarm_arn" {
 output "alb_p99_target_response_time_alarm_arn" {
   description = "CloudWatch alarm ARN for ALB P99 target response time"
   value       = aws_cloudwatch_metric_alarm.alb_p99_target_response_time.arn
+}
+
+output "alb_unhealthy_hosts_alarm_arn" {
+  description = "CloudWatch alarm ARN for ALB unhealthy targets"
+  value       = aws_cloudwatch_metric_alarm.alb_unhealthy_hosts.arn
+}
+
+output "customer_loop_canary_lambda_errors_alarm_arn" {
+  description = "CloudWatch alarm ARN for customer-loop canary Lambda runtime errors"
+  value       = aws_cloudwatch_metric_alarm.customer_loop_canary_lambda_errors.arn
 }
 
 output "cloudtrail_arn" {

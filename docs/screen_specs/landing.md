@@ -13,7 +13,7 @@ Understand what Flapjack Cloud offers, evaluate basic pricing, and start signup 
 
 ## Target Behavior
 
-The page renders the Flapjack Cloud brand, a public header with `Log In` and `Sign Up`, a visible public-beta banner that links to `/beta`, the `Managed search API` hero, value propositions, pricing content, free-tier promise text, minimum monthly spend, region pricing when available, an interactive pricing calculator, and footer links to `/terms`, `/privacy`, and `/dpa`.
+The page renders the Flapjack Cloud brand, a public header with `Log In` and `Sign Up`, a visible public-beta banner that links to `/beta`, the `Managed search API` hero, value propositions, pricing content, the four-cap free-tier promise text, Shared-plan minimum framing, region pricing when available, an interactive pricing calculator, and footer links to `/terms`, `/privacy`, and `/dpa`.
 
 ## Required States
 

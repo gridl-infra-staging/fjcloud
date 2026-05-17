@@ -143,10 +143,36 @@ resource "aws_iam_role_policy" "fjcloud_cloudwatch_metrics" {
       Action = ["cloudwatch:PutMetricData"]
       Resource = "*"
       Condition = {
-        StringEquals = {
-          "cloudwatch:namespace" = "fjcloud/api"
+        "ForAnyValue:StringEquals" = {
+          "cloudwatch:namespace" = ["fjcloud/api", "CWAgent"]
         }
       }
+    }]
+  })
+}
+
+# --------------------------------------------------------------------------
+# Policy — CloudWatch Logs write for CloudWatch Agent log shipping
+# --------------------------------------------------------------------------
+
+resource "aws_iam_role_policy" "fjcloud_cloudwatch_agent_logs" {
+  name = "fjcloud-cloudwatch-agent-logs"
+  role = aws_iam_role.fjcloud_instance.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = [
+        "logs:CreateLogGroup",
+        "logs:CreateLogStream",
+        "logs:DescribeLogStreams",
+        "logs:PutLogEvents",
+      ]
+      Resource = [
+        "arn:aws:logs:*:*:log-group:/fjcloud/*",
+        "arn:aws:logs:*:*:log-group:/fjcloud/*:*",
+      ]
     }]
   })
 }

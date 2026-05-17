@@ -21,6 +21,7 @@ TARGET_DB_INSTANCE_ID=""
 SNAPSHOT_ID=""
 RESTORE_TIME=""
 RESTORE_MODE=""
+SOURCE_DB_SUBNET_GROUP_NAME=""
 RESTORE_COMMAND=()
 
 usage() {
@@ -154,13 +155,70 @@ require_execute_gate() {
   fi
 }
 
+resolve_source_subnet_group() {
+  local describe_payload=""
+  local parse_output=""
+  local describe_exit=0
+  local parse_exit=0
+
+  set +e
+  describe_payload="$(
+    AWS_PAGER="" aws rds describe-db-instances \
+      --region "$REGION" \
+      --db-instance-identifier "$SOURCE_DB_INSTANCE_ID" \
+      --no-cli-pager \
+      --output json
+  )"
+  describe_exit=$?
+  set -e
+
+  if [[ "$describe_exit" -ne 0 ]]; then
+    echo "ERROR: unable to describe source DB instance '$SOURCE_DB_INSTANCE_ID' while resolving subnet group (exit $describe_exit)"
+    exit 1
+  fi
+
+  set +e
+  parse_output="$(
+    python3 - <(printf '%s\n' "$describe_payload") <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], "r", encoding="utf-8") as fh:
+    payload = json.load(fh)
+instances = payload.get("DBInstances", [])
+if not instances:
+    print("")
+    raise SystemExit(0)
+
+subnet_group = (instances[0].get("DBSubnetGroup") or {}).get("DBSubnetGroupName", "")
+print(str(subnet_group))
+PY
+  )"
+  parse_exit=$?
+  set -e
+
+  if [[ "$parse_exit" -ne 0 ]]; then
+    echo "ERROR: failed to parse source DB instance subnet-group payload for '$SOURCE_DB_INSTANCE_ID'"
+    exit 1
+  fi
+
+  if [[ -z "$parse_output" ]]; then
+    echo "ERROR: source DB instance '$SOURCE_DB_INSTANCE_ID' has no DBSubnetGroupName; refusing restore without explicit subnet placement"
+    exit 1
+  fi
+
+  SOURCE_DB_SUBNET_GROUP_NAME="$parse_output"
+}
+
 build_restore_command() {
+  resolve_source_subnet_group
   if [[ "$RESTORE_MODE" == "snapshot" ]]; then
     RESTORE_COMMAND=(
       aws rds restore-db-instance-from-db-snapshot
       --region "$REGION"
       --db-instance-identifier "$TARGET_DB_INSTANCE_ID"
       --db-snapshot-identifier "$SNAPSHOT_ID"
+      --db-subnet-group-name "$SOURCE_DB_SUBNET_GROUP_NAME"
     )
   else
     RESTORE_COMMAND=(
@@ -169,6 +227,7 @@ build_restore_command() {
       --source-db-instance-identifier "$SOURCE_DB_INSTANCE_ID"
       --target-db-instance-identifier "$TARGET_DB_INSTANCE_ID"
       --restore-time "$RESTORE_TIME"
+      --db-subnet-group-name "$SOURCE_DB_SUBNET_GROUP_NAME"
     )
   fi
 

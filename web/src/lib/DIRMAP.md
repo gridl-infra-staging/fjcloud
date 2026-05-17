@@ -6,7 +6,7 @@
 | admin-client.ts | Stub summary for admin-client.ts. |
 | flapjack-search-client.ts | Stub summary for flapjack-search-client.ts. |
 | landing-pricing.ts | Landing-page pricing helpers. |
-| pricing.ts | Shared marketing pricing constants used by the landing page pricing table. |
+| pricing.ts | Stub summary for pricing.ts. |
 | public_api.ts | Canonical public API origin used by unauthenticated marketing surfaces. |
 | stripe.ts | Stub summary for stripe.ts. |
 

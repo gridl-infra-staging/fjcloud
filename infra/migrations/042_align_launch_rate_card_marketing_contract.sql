@@ -2,7 +2,7 @@
 -- This keeps /admin/tenants/{id}/rate-card consistent with MARKETING_PRICING.
 
 UPDATE rate_cards
-SET minimum_spend_cents = 1000,
+SET minimum_spend_cents = 0,
     shared_minimum_spend_cents = 500,
     region_multipliers = '{
         "us-east-1": "1.0",

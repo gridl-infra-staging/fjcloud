@@ -1,0 +1,464 @@
+{
+    "MetricAlarms": [
+        {
+            "AlarmName": "fjcloud-prod-alb-5xx-error-rate",
+            "AlarmArn": "arn:aws:cloudwatch:us-east-1:213880904778:alarm:fjcloud-prod-alb-5xx-error-rate",
+            "AlarmDescription": "ALB 5XX error rate above 1% over 5 minutes",
+            "AlarmConfigurationUpdatedTimestamp": "2026-05-13T22:55:47.933000-04:00",
+            "ActionsEnabled": true,
+            "OKActions": [
+                "arn:aws:sns:us-east-1:213880904778:fjcloud-alerts-prod"
+            ],
+            "AlarmActions": [
+                "arn:aws:sns:us-east-1:213880904778:fjcloud-alerts-prod"
+            ],
+            "InsufficientDataActions": [],
+            "StateValue": "OK",
+            "StateReason": "Threshold Crossed: 1 out of the last 1 datapoints [0.0 (14/05/26 03:50:00)] was not greater than the threshold (1.0) (minimum 1 datapoint for ALARM -> OK transition).",
+            "StateReasonData": "{\"version\":\"1.0\",\"queryDate\":\"2026-05-14T03:57:57.905+0000\",\"startDate\":\"2026-05-14T03:50:00.000+0000\",\"period\":300,\"recentDatapoints\":[0.0],\"threshold\":1.0,\"evaluatedDatapoints\":[{\"timestamp\":\"2026-05-14T03:50:00.000+0000\",\"value\":0.0}]}",
+            "StateUpdatedTimestamp": "2026-05-13T23:57:57.908000-04:00",
+            "Dimensions": [],
+            "EvaluationPeriods": 1,
+            "DatapointsToAlarm": 1,
+            "Threshold": 1.0,
+            "ComparisonOperator": "GreaterThanThreshold",
+            "TreatMissingData": "notBreaching",
+            "Metrics": [
+                {
+                    "Id": "m1",
+                    "MetricStat": {
+                        "Metric": {
+                            "Namespace": "AWS/ApplicationELB",
+                            "MetricName": "RequestCount",
+                            "Dimensions": [
+                                {
+                                    "Name": "LoadBalancer",
+                                    "Value": "app/fjcloud-prod-alb/d9357ed423f11e4a"
+                                }
+                            ]
+                        },
+                        "Period": 300,
+                        "Stat": "Sum",
+                        "Unit": "Count"
+                    },
+                    "ReturnData": false
+                },
+                {
+                    "Id": "m2",
+                    "MetricStat": {
+                        "Metric": {
+                            "Namespace": "AWS/ApplicationELB",
+                            "MetricName": "HTTPCode_ELB_5XX_Count",
+                            "Dimensions": [
+                                {
+                                    "Name": "LoadBalancer",
+                                    "Value": "app/fjcloud-prod-alb/d9357ed423f11e4a"
+                                }
+                            ]
+                        },
+                        "Period": 300,
+                        "Stat": "Sum",
+                        "Unit": "Count"
+                    },
+                    "ReturnData": false
+                },
+                {
+                    "Id": "e1",
+                    "Expression": "IF(m1 > 0, (m2 / m1) * 100, 0)",
+                    "Label": "ALB 5XX Error Rate (%)",
+                    "ReturnData": true
+                }
+            ],
+            "StateTransitionedTimestamp": "2026-05-13T23:57:57.908000-04:00"
+        },
+        {
+            "AlarmName": "fjcloud-prod-alb-p99-target-response-time",
+            "AlarmArn": "arn:aws:cloudwatch:us-east-1:213880904778:alarm:fjcloud-prod-alb-p99-target-response-time",
+            "AlarmDescription": "ALB P99 target response time above 2s over 5 minutes",
+            "AlarmConfigurationUpdatedTimestamp": "2026-05-13T22:55:47.917000-04:00",
+            "ActionsEnabled": true,
+            "OKActions": [
+                "arn:aws:sns:us-east-1:213880904778:fjcloud-alerts-prod"
+            ],
+            "AlarmActions": [
+                "arn:aws:sns:us-east-1:213880904778:fjcloud-alerts-prod"
+            ],
+            "InsufficientDataActions": [],
+            "StateValue": "OK",
+            "StateReason": "Threshold Crossed: no datapoints were received for 1 period and 1 missing datapoint was treated as [NonBreaching].",
+            "StateReasonData": "{\"version\":\"1.0\",\"queryDate\":\"2026-05-14T02:56:26.573+0000\",\"statistic\":\"p99\",\"period\":300,\"recentDatapoints\":[],\"threshold\":2.0,\"evaluatedDatapoints\":[{\"timestamp\":\"2026-05-14T02:49:00.000+0000\"}]}",
+            "StateUpdatedTimestamp": "2026-05-13T22:56:26.575000-04:00",
+            "MetricName": "TargetResponseTime",
+            "Namespace": "AWS/ApplicationELB",
+            "ExtendedStatistic": "p99",
+            "Dimensions": [
+                {
+                    "Name": "LoadBalancer",
+                    "Value": "app/fjcloud-prod-alb/d9357ed423f11e4a"
+                }
+            ],
+            "Period": 300,
+            "EvaluationPeriods": 1,
+            "DatapointsToAlarm": 1,
+            "Threshold": 2.0,
+            "ComparisonOperator": "GreaterThanThreshold",
+            "TreatMissingData": "notBreaching",
+            "StateTransitionedTimestamp": "2026-05-13T22:56:26.575000-04:00"
+        },
+        {
+            "AlarmName": "fjcloud-prod-alb-unhealthy-hosts",
+            "AlarmArn": "arn:aws:cloudwatch:us-east-1:213880904778:alarm:fjcloud-prod-alb-unhealthy-hosts",
+            "AlarmDescription": "ALB reports one or more unhealthy targets for 3 consecutive minutes",
+            "AlarmConfigurationUpdatedTimestamp": "2026-05-15T22:57:21.731000-04:00",
+            "ActionsEnabled": true,
+            "OKActions": [
+                "arn:aws:sns:us-east-1:213880904778:fjcloud-alerts-prod"
+            ],
+            "AlarmActions": [
+                "arn:aws:sns:us-east-1:213880904778:fjcloud-alerts-prod"
+            ],
+            "InsufficientDataActions": [],
+            "StateValue": "OK",
+            "StateReason": "Threshold Crossed: 3 out of the last 3 datapoints [0.0 (16/05/26 02:55:00), 0.0 (16/05/26 02:54:00), 0.0 (16/05/26 02:53:00)] were not greater than the threshold (0.0) (minimum 1 datapoint for ALARM -> OK transition).",
+            "StateReasonData": "{\"version\":\"1.0\",\"queryDate\":\"2026-05-16T02:58:00.748+0000\",\"startDate\":\"2026-05-16T02:53:00.000+0000\",\"statistic\":\"Maximum\",\"period\":60,\"recentDatapoints\":[0.0,0.0,0.0],\"threshold\":0.0,\"evaluatedDatapoints\":[{\"timestamp\":\"2026-05-16T02:55:00.000+0000\",\"sampleCount\":2.0,\"value\":0.0}]}",
+            "StateUpdatedTimestamp": "2026-05-15T22:58:00.751000-04:00",
+            "MetricName": "UnHealthyHostCount",
+            "Namespace": "AWS/ApplicationELB",
+            "Statistic": "Maximum",
+            "Dimensions": [
+                {
+                    "Name": "LoadBalancer",
+                    "Value": "app/fjcloud-prod-alb/d9357ed423f11e4a"
+                },
+                {
+                    "Name": "TargetGroup",
+                    "Value": "targetgroup/fjcloud-prod-api-tg/43196471aa3ac595"
+                }
+            ],
+            "Period": 60,
+            "EvaluationPeriods": 3,
+            "DatapointsToAlarm": 3,
+            "Threshold": 0.0,
+            "ComparisonOperator": "GreaterThanThreshold",
+            "TreatMissingData": "notBreaching",
+            "StateTransitionedTimestamp": "2026-05-15T22:58:00.751000-04:00"
+        },
+        {
+            "AlarmName": "fjcloud-prod-api-cpu-high",
+            "AlarmArn": "arn:aws:cloudwatch:us-east-1:213880904778:alarm:fjcloud-prod-api-cpu-high",
+            "AlarmDescription": "API EC2 CPU utilization above 80% for 10 minutes",
+            "AlarmConfigurationUpdatedTimestamp": "2026-05-13T22:53:20.963000-04:00",
+            "ActionsEnabled": true,
+            "OKActions": [
+                "arn:aws:sns:us-east-1:213880904778:fjcloud-alerts-prod"
+            ],
+            "AlarmActions": [
+                "arn:aws:sns:us-east-1:213880904778:fjcloud-alerts-prod"
+            ],
+            "InsufficientDataActions": [],
+            "StateValue": "OK",
+            "StateReason": "Threshold Crossed: 1 out of the last 2 datapoints [0.0030807943106627 (14/05/26 02:49:00)] was not greater than the threshold (80.0) and 1 missing datapoint was treated as [NonBreaching] (minimum 1 datapoint for ALARM -> OK transition).",
+            "StateReasonData": "{\"version\":\"1.0\",\"queryDate\":\"2026-05-14T02:54:51.633+0000\",\"startDate\":\"2026-05-14T02:49:00.000+0000\",\"statistic\":\"Average\",\"period\":300,\"recentDatapoints\":[0.0030807943106627],\"threshold\":80.0,\"evaluatedDatapoints\":[{\"timestamp\":\"2026-05-14T02:49:00.000+0000\",\"sampleCount\":1.0,\"value\":0.0030807943106627}]}",
+            "StateUpdatedTimestamp": "2026-05-13T22:54:51.634000-04:00",
+            "MetricName": "CPUUtilization",
+            "Namespace": "AWS/EC2",
+            "Statistic": "Average",
+            "Dimensions": [
+                {
+                    "Name": "InstanceId",
+                    "Value": "i-0af0ff2e18725b6ba"
+                }
+            ],
+            "Period": 300,
+            "EvaluationPeriods": 2,
+            "DatapointsToAlarm": 2,
+            "Threshold": 80.0,
+            "ComparisonOperator": "GreaterThanThreshold",
+            "TreatMissingData": "notBreaching",
+            "StateTransitionedTimestamp": "2026-05-13T22:54:51.634000-04:00"
+        },
+        {
+            "AlarmName": "fjcloud-prod-api-heartbeat-missing",
+            "AlarmArn": "arn:aws:cloudwatch:us-east-1:213880904778:alarm:fjcloud-prod-api-heartbeat-missing",
+            "AlarmDescription": "API heartbeat metric missing — process not running, lost CloudWatch egress, or IAM grant rolled back",
+            "AlarmConfigurationUpdatedTimestamp": "2026-05-13T22:52:53.967000-04:00",
+            "ActionsEnabled": true,
+            "OKActions": [
+                "arn:aws:sns:us-east-1:213880904778:fjcloud-alerts-prod"
+            ],
+            "AlarmActions": [
+                "arn:aws:sns:us-east-1:213880904778:fjcloud-alerts-prod"
+            ],
+            "InsufficientDataActions": [],
+            "StateValue": "OK",
+            "StateReason": "Threshold Crossed: 1 datapoint [1.0 (14/05/26 03:43:00)] was not less than the threshold (1.0) and 4 missing datapoints were treated as [Breaching].",
+            "StateReasonData": "{\"version\":\"1.0\",\"queryDate\":\"2026-05-14T03:44:37.706+0000\",\"startDate\":\"2026-05-14T03:43:00.000+0000\",\"statistic\":\"Sum\",\"period\":60,\"recentDatapoints\":[1.0],\"threshold\":1.0,\"evaluatedDatapoints\":[{\"timestamp\":\"2026-05-14T03:43:00.000+0000\",\"sampleCount\":1.0,\"value\":1.0}]}",
+            "StateUpdatedTimestamp": "2026-05-13T23:44:37.707000-04:00",
+            "MetricName": "Heartbeat",
+            "Namespace": "fjcloud/api",
+            "Statistic": "Sum",
+            "Dimensions": [
+                {
+                    "Name": "Env",
+                    "Value": "prod"
+                }
+            ],
+            "Period": 60,
+            "EvaluationPeriods": 5,
+            "Threshold": 1.0,
+            "ComparisonOperator": "LessThanThreshold",
+            "TreatMissingData": "breaching",
+            "StateTransitionedTimestamp": "2026-05-13T23:44:37.707000-04:00"
+        },
+        {
+            "AlarmName": "fjcloud-prod-api-root-disk-high",
+            "AlarmArn": "arn:aws:cloudwatch:us-east-1:213880904778:alarm:fjcloud-prod-api-root-disk-high",
+            "AlarmDescription": "API root volume disk usage above 85% for 10 minutes (CWAgent path=/, device=nvme0n1p1, fstype=xfs)",
+            "AlarmConfigurationUpdatedTimestamp": "2026-05-15T22:57:54.545000-04:00",
+            "ActionsEnabled": true,
+            "OKActions": [
+                "arn:aws:sns:us-east-1:213880904778:fjcloud-alerts-prod"
+            ],
+            "AlarmActions": [
+                "arn:aws:sns:us-east-1:213880904778:fjcloud-alerts-prod"
+            ],
+            "InsufficientDataActions": [],
+            "StateValue": "OK",
+            "StateReason": "Threshold Crossed: 2 out of the last 2 datapoints [7.8336090528354365 (16/05/26 02:54:00), 7.832430059365282 (16/05/26 02:49:00)] were not greater than the threshold (85.0) (minimum 1 datapoint for ALARM -> OK transition).",
+            "StateReasonData": "{\"version\":\"1.0\",\"queryDate\":\"2026-05-16T02:59:01.659+0000\",\"startDate\":\"2026-05-16T02:49:00.000+0000\",\"statistic\":\"Average\",\"period\":300,\"recentDatapoints\":[7.832430059365282,7.8336090528354365],\"threshold\":85.0,\"evaluatedDatapoints\":[{\"timestamp\":\"2026-05-16T02:54:00.000+0000\",\"sampleCount\":2.0,\"value\":7.8336090528354365}]}",
+            "StateUpdatedTimestamp": "2026-05-15T22:59:01.660000-04:00",
+            "MetricName": "disk_used_percent",
+            "Namespace": "CWAgent",
+            "Statistic": "Average",
+            "Dimensions": [
+                {
+                    "Name": "device",
+                    "Value": "nvme0n1p1"
+                },
+                {
+                    "Name": "fstype",
+                    "Value": "xfs"
+                },
+                {
+                    "Name": "InstanceId",
+                    "Value": "i-0af0ff2e18725b6ba"
+                },
+                {
+                    "Name": "path",
+                    "Value": "/"
+                }
+            ],
+            "Period": 300,
+            "EvaluationPeriods": 2,
+            "DatapointsToAlarm": 2,
+            "Threshold": 85.0,
+            "ComparisonOperator": "GreaterThanThreshold",
+            "TreatMissingData": "notBreaching",
+            "StateTransitionedTimestamp": "2026-05-15T22:59:01.660000-04:00"
+        },
+        {
+            "AlarmName": "fjcloud-prod-api-status-check-failed",
+            "AlarmArn": "arn:aws:cloudwatch:us-east-1:213880904778:alarm:fjcloud-prod-api-status-check-failed",
+            "AlarmDescription": "API EC2 status check failed — instance or system impairment",
+            "AlarmConfigurationUpdatedTimestamp": "2026-05-13T22:53:20.952000-04:00",
+            "ActionsEnabled": true,
+            "OKActions": [
+                "arn:aws:sns:us-east-1:213880904778:fjcloud-alerts-prod"
+            ],
+            "AlarmActions": [
+                "arn:aws:sns:us-east-1:213880904778:fjcloud-alerts-prod"
+            ],
+            "InsufficientDataActions": [],
+            "StateValue": "OK",
+            "StateReason": "Threshold Crossed: no datapoints were received for 2 periods and 2 missing datapoints were treated as [NonBreaching].",
+            "StateReasonData": "{\"version\":\"1.0\",\"queryDate\":\"2026-05-14T02:54:27.862+0000\",\"statistic\":\"Maximum\",\"period\":300,\"recentDatapoints\":[],\"threshold\":1.0,\"evaluatedDatapoints\":[{\"timestamp\":\"2026-05-14T02:49:00.000+0000\"}]}",
+            "StateUpdatedTimestamp": "2026-05-13T22:54:27.864000-04:00",
+            "MetricName": "StatusCheckFailed",
+            "Namespace": "AWS/EC2",
+            "Statistic": "Maximum",
+            "Dimensions": [
+                {
+                    "Name": "InstanceId",
+                    "Value": "i-0af0ff2e18725b6ba"
+                }
+            ],
+            "Period": 300,
+            "EvaluationPeriods": 2,
+            "DatapointsToAlarm": 2,
+            "Threshold": 1.0,
+            "ComparisonOperator": "GreaterThanOrEqualToThreshold",
+            "TreatMissingData": "notBreaching",
+            "StateTransitionedTimestamp": "2026-05-13T22:54:27.864000-04:00"
+        },
+        {
+            "AlarmName": "fjcloud-prod-billing-estimated-charges-high",
+            "AlarmArn": "arn:aws:cloudwatch:us-east-1:213880904778:alarm:fjcloud-prod-billing-estimated-charges-high",
+            "AlarmDescription": "AWS cumulative monthly charges crossed the configured threshold",
+            "AlarmConfigurationUpdatedTimestamp": "2026-05-13T22:52:54.004000-04:00",
+            "ActionsEnabled": true,
+            "OKActions": [
+                "arn:aws:sns:us-east-1:213880904778:fjcloud-alerts-prod"
+            ],
+            "AlarmActions": [
+                "arn:aws:sns:us-east-1:213880904778:fjcloud-alerts-prod"
+            ],
+            "InsufficientDataActions": [],
+            "StateValue": "OK",
+            "StateReason": "Threshold Crossed: no datapoints were received for 1 period and 1 missing datapoint was treated as [NonBreaching].",
+            "StateReasonData": "{\"version\":\"1.0\",\"queryDate\":\"2026-05-14T02:53:24.839+0000\",\"statistic\":\"Maximum\",\"period\":21600,\"recentDatapoints\":[],\"threshold\":700.0,\"evaluatedDatapoints\":[{\"timestamp\":\"2026-05-13T20:53:00.000+0000\"}]}",
+            "StateUpdatedTimestamp": "2026-05-13T22:53:24.840000-04:00",
+            "MetricName": "EstimatedCharges",
+            "Namespace": "AWS/Billing",
+            "Statistic": "Maximum",
+            "Dimensions": [
+                {
+                    "Name": "Currency",
+                    "Value": "USD"
+                }
+            ],
+            "Period": 21600,
+            "EvaluationPeriods": 1,
+            "DatapointsToAlarm": 1,
+            "Threshold": 700.0,
+            "ComparisonOperator": "GreaterThanThreshold",
+            "TreatMissingData": "notBreaching",
+            "StateTransitionedTimestamp": "2026-05-13T22:53:24.840000-04:00"
+        },
+        {
+            "AlarmName": "fjcloud-prod-customer-loop-canary-lambda-errors",
+            "AlarmArn": "arn:aws:cloudwatch:us-east-1:213880904778:alarm:fjcloud-prod-customer-loop-canary-lambda-errors",
+            "AlarmDescription": "Customer-loop canary Lambda reported one or more runtime errors in the last 15 minutes",
+            "AlarmConfigurationUpdatedTimestamp": "2026-05-15T22:57:21.734000-04:00",
+            "ActionsEnabled": true,
+            "OKActions": [
+                "arn:aws:sns:us-east-1:213880904778:fjcloud-alerts-prod"
+            ],
+            "AlarmActions": [
+                "arn:aws:sns:us-east-1:213880904778:fjcloud-alerts-prod"
+            ],
+            "InsufficientDataActions": [],
+            "StateValue": "OK",
+            "StateReason": "stage2-clean-review-reset",
+            "StateUpdatedTimestamp": "2026-05-15T23:07:48.068000-04:00",
+            "MetricName": "Errors",
+            "Namespace": "AWS/Lambda",
+            "Statistic": "Sum",
+            "Dimensions": [
+                {
+                    "Name": "FunctionName",
+                    "Value": "fjcloud-prod-customer-loop-canary"
+                }
+            ],
+            "Period": 900,
+            "EvaluationPeriods": 1,
+            "DatapointsToAlarm": 1,
+            "Threshold": 0.0,
+            "ComparisonOperator": "GreaterThanThreshold",
+            "TreatMissingData": "notBreaching",
+            "StateTransitionedTimestamp": "2026-05-15T23:07:48.068000-04:00"
+        },
+        {
+            "AlarmName": "fjcloud-prod-rds-connections-high",
+            "AlarmArn": "arn:aws:cloudwatch:us-east-1:213880904778:alarm:fjcloud-prod-rds-connections-high",
+            "AlarmDescription": "RDS active connections above 80% of max_connections=181 (threshold 145) for 10 minutes",
+            "AlarmConfigurationUpdatedTimestamp": "2026-05-15T22:57:21.717000-04:00",
+            "ActionsEnabled": true,
+            "OKActions": [
+                "arn:aws:sns:us-east-1:213880904778:fjcloud-alerts-prod"
+            ],
+            "AlarmActions": [
+                "arn:aws:sns:us-east-1:213880904778:fjcloud-alerts-prod"
+            ],
+            "InsufficientDataActions": [],
+            "StateValue": "OK",
+            "StateReason": "Threshold Crossed: 2 out of the last 2 datapoints [2.0 (16/05/26 02:53:00), 2.0 (16/05/26 02:48:00)] were not greater than the threshold (145.0) (minimum 1 datapoint for ALARM -> OK transition).",
+            "StateReasonData": "{\"version\":\"1.0\",\"queryDate\":\"2026-05-16T02:58:16.833+0000\",\"startDate\":\"2026-05-16T02:48:00.000+0000\",\"statistic\":\"Maximum\",\"period\":300,\"recentDatapoints\":[2.0,2.0],\"threshold\":145.0,\"evaluatedDatapoints\":[{\"timestamp\":\"2026-05-16T02:53:00.000+0000\",\"sampleCount\":5.0,\"value\":2.0}]}",
+            "StateUpdatedTimestamp": "2026-05-15T22:58:16.836000-04:00",
+            "MetricName": "DatabaseConnections",
+            "Namespace": "AWS/RDS",
+            "Statistic": "Maximum",
+            "Dimensions": [
+                {
+                    "Name": "DBInstanceIdentifier",
+                    "Value": "fjcloud-prod"
+                }
+            ],
+            "Period": 300,
+            "EvaluationPeriods": 2,
+            "DatapointsToAlarm": 2,
+            "Threshold": 145.0,
+            "ComparisonOperator": "GreaterThanThreshold",
+            "TreatMissingData": "notBreaching",
+            "StateTransitionedTimestamp": "2026-05-15T22:58:16.836000-04:00"
+        },
+        {
+            "AlarmName": "fjcloud-prod-rds-cpu-high",
+            "AlarmArn": "arn:aws:cloudwatch:us-east-1:213880904778:alarm:fjcloud-prod-rds-cpu-high",
+            "AlarmDescription": "RDS CPU utilization above 80% for 10 minutes",
+            "AlarmConfigurationUpdatedTimestamp": "2026-05-13T23:08:33.745000-04:00",
+            "ActionsEnabled": true,
+            "OKActions": [
+                "arn:aws:sns:us-east-1:213880904778:fjcloud-alerts-prod"
+            ],
+            "AlarmActions": [
+                "arn:aws:sns:us-east-1:213880904778:fjcloud-alerts-prod"
+            ],
+            "InsufficientDataActions": [],
+            "StateValue": "OK",
+            "StateReason": "Threshold Crossed: 2 out of the last 2 datapoints [5.9253440901590775 (14/05/26 03:03:00), 4.779893246591721 (14/05/26 02:58:00)] were not greater than the threshold (80.0) (minimum 1 datapoint for ALARM -> OK transition).",
+            "StateReasonData": "{\"version\":\"1.0\",\"queryDate\":\"2026-05-14T03:09:23.813+0000\",\"startDate\":\"2026-05-14T02:58:00.000+0000\",\"statistic\":\"Average\",\"period\":300,\"recentDatapoints\":[4.779893246591721,5.9253440901590775],\"threshold\":80.0,\"evaluatedDatapoints\":[{\"timestamp\":\"2026-05-14T03:03:00.000+0000\",\"sampleCount\":5.0,\"value\":5.9253440901590775}]}",
+            "StateUpdatedTimestamp": "2026-05-13T23:09:23.814000-04:00",
+            "MetricName": "CPUUtilization",
+            "Namespace": "AWS/RDS",
+            "Statistic": "Average",
+            "Dimensions": [
+                {
+                    "Name": "DBInstanceIdentifier",
+                    "Value": "fjcloud-prod"
+                }
+            ],
+            "Period": 300,
+            "EvaluationPeriods": 2,
+            "DatapointsToAlarm": 2,
+            "Threshold": 80.0,
+            "ComparisonOperator": "GreaterThanThreshold",
+            "TreatMissingData": "notBreaching",
+            "StateTransitionedTimestamp": "2026-05-13T23:09:23.814000-04:00"
+        },
+        {
+            "AlarmName": "fjcloud-prod-rds-free-storage-low",
+            "AlarmArn": "arn:aws:cloudwatch:us-east-1:213880904778:alarm:fjcloud-prod-rds-free-storage-low",
+            "AlarmDescription": "RDS free storage below 2 GiB",
+            "AlarmConfigurationUpdatedTimestamp": "2026-05-13T23:08:33.732000-04:00",
+            "ActionsEnabled": true,
+            "OKActions": [
+                "arn:aws:sns:us-east-1:213880904778:fjcloud-alerts-prod"
+            ],
+            "AlarmActions": [
+                "arn:aws:sns:us-east-1:213880904778:fjcloud-alerts-prod"
+            ],
+            "InsufficientDataActions": [],
+            "StateValue": "OK",
+            "StateReason": "Threshold Crossed: 2 out of the last 2 datapoints [2.04946423808E10 (14/05/26 03:04:00), 2.05625573376E10 (14/05/26 02:59:00)] were not less than the threshold (2.147483648E9) (minimum 1 datapoint for ALARM -> OK transition).",
+            "StateReasonData": "{\"version\":\"1.0\",\"queryDate\":\"2026-05-14T03:09:22.719+0000\",\"startDate\":\"2026-05-14T02:59:00.000+0000\",\"statistic\":\"Average\",\"period\":300,\"recentDatapoints\":[2.05625573376E10,2.04946423808E10],\"threshold\":2.147483648E9,\"evaluatedDatapoints\":[{\"timestamp\":\"2026-05-14T03:04:00.000+0000\",\"sampleCount\":5.0,\"value\":2.04946423808E10}]}",
+            "StateUpdatedTimestamp": "2026-05-13T23:09:22.720000-04:00",
+            "MetricName": "FreeStorageSpace",
+            "Namespace": "AWS/RDS",
+            "Statistic": "Average",
+            "Dimensions": [
+                {
+                    "Name": "DBInstanceIdentifier",
+                    "Value": "fjcloud-prod"
+                }
+            ],
+            "Period": 300,
+            "EvaluationPeriods": 2,
+            "DatapointsToAlarm": 2,
+            "Threshold": 2147483648.0,
+            "ComparisonOperator": "LessThanThreshold",
+            "TreatMissingData": "notBreaching",
+            "StateTransitionedTimestamp": "2026-05-13T23:09:22.720000-04:00"
+        }
+    ],
+    "CompositeAlarms": []
+}

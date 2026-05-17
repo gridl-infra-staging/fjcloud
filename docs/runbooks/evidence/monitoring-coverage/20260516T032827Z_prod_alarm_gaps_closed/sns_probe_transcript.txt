@@ -1,0 +1,29 @@
+== SNS probe start: 2026-05-16T03:42:18Z ==
+topic_arn=arn:aws:sns:us-east-1:213880904778:fjcloud-alerts-prod
+{
+    "QueueUrl": "https://sqs.us-east-1.amazonaws.com/213880904778/fjcloud-prod-alarm-probe-20260516034218"
+}
+queue_url=https://sqs.us-east-1.amazonaws.com/213880904778/fjcloud-prod-alarm-probe-20260516034218
+queue_arn=arn:aws:sqs:us-east-1:213880904778:fjcloud-prod-alarm-probe-20260516034218
+subscription_arn=arn:aws:sns:us-east-1:213880904778:fjcloud-alerts-prod:66ec4f3f-db08-43ef-9853-6002f8907d7e
+set_alarm_state=ALARM
+receive_attempt=1
+{
+    "Messages": [
+        {
+            "MessageId": "527d7779-1cb7-4008-9e25-555db9000259",
+            "ReceiptHandle": "AQEBP07pc3K+Re89+0GV+z4XyH9YsphqVZCJDBxoM+LHor4oL+nvMtJDawfYkbqqh9Fw3+vrzP22iss/tSTYyttEChdi6z7pNyMigMSGtS2J2973KZbLSVtJNhtvEaQq5I5NWLuEQC1EEZXDaQjXUX7rju0pvMxbnfog6H1pRxxpRw8Byu8taxXxzOQIL1z23JMYSRU1peYKzO5Z3EI33wXb3JV7CEhKsJUgUV57Y10FX4HIjbrg6xn9ODlJwN+j9BhxOE2lwL7wnE7Odb///fbTDaUFwml4tPlpdPACr1fWsWW4IU3AgS8GyomLA4MsOs/5zjtM7N5dAsrtijWkmUjCwmrYEHgNLnWoyoP4GINeoHcjZ8niK8SE5KxbiRv1w7FagLk6hXJPdjW0KIK6bDgeMRl7CZrdVqncQaESWfeI7yI=",
+            "MD5OfBody": "51c9e7fcf7bd76ddc7af1fcba8a0dc0a",
+            "Body": "{\n  \"Type\" : \"Notification\",\n  \"MessageId\" : \"47d312df-fc91-5113-a81c-705e1570c23e\",\n  \"TopicArn\" : \"arn:aws:sns:us-east-1:213880904778:fjcloud-alerts-prod\",\n  \"Subject\" : \"ALARM: \\\"fjcloud-prod-customer-loop-canary-lambda-errors\\\" in US East (N. Virginia)\",\n  \"Message\" : \"{\\\"AlarmName\\\":\\\"fjcloud-prod-customer-loop-canary-lambda-errors\\\",\\\"AlarmDescription\\\":\\\"Customer-loop canary Lambda reported one or more runtime errors in the last 15 minutes\\\",\\\"AWSAccountId\\\":\\\"213880904778\\\",\\\"AlarmConfigurationUpdatedTimestamp\\\":\\\"2026-05-16T02:57:21.734+0000\\\",\\\"NewStateValue\\\":\\\"ALARM\\\",\\\"NewStateReason\\\":\\\"Stage3 evidence ALARM\\\",\\\"StateChangeTime\\\":\\\"2026-05-16T03:42:25.762+0000\\\",\\\"Region\\\":\\\"US East (N. Virginia)\\\",\\\"AlarmArn\\\":\\\"arn:aws:cloudwatch:us-east-1:213880904778:alarm:fjcloud-prod-customer-loop-canary-lambda-errors\\\",\\\"OldStateValue\\\":\\\"OK\\\",\\\"ActionExecutedAfterMuteWindow\\\":false,\\\"OKActions\\\":[\\\"arn:aws:sns:us-east-1:213880904778:fjcloud-alerts-prod\\\"],\\\"AlarmActions\\\":[\\\"arn:aws:sns:us-east-1:213880904778:fjcloud-alerts-prod\\\"],\\\"InsufficientDataActions\\\":[],\\\"Trigger\\\":{\\\"MetricName\\\":\\\"Errors\\\",\\\"Namespace\\\":\\\"AWS/Lambda\\\",\\\"StatisticType\\\":\\\"Statistic\\\",\\\"Statistic\\\":\\\"SUM\\\",\\\"Unit\\\":null,\\\"Dimensions\\\":[{\\\"value\\\":\\\"fjcloud-prod-customer-loop-canary\\\",\\\"name\\\":\\\"FunctionName\\\"}],\\\"Period\\\":900,\\\"EvaluationPeriods\\\":1,\\\"DatapointsToAlarm\\\":1,\\\"ComparisonOperator\\\":\\\"GreaterThanThreshold\\\",\\\"Threshold\\\":0.0,\\\"TreatMissingData\\\":\\\"notBreaching\\\",\\\"EvaluateLowSampleCountPercentile\\\":\\\"\\\"}}\",\n  \"Timestamp\" : \"2026-05-16T03:42:25.806Z\",\n  \"SignatureVersion\" : \"1\",\n  \"Signature\" : \"aYS6UZRXOuRvKntbYZYzAGDP8atJ9PHETcBzh0meBK2x32VpittYjq2KMTUnhvb3bBld7+ZLkNq5ViOfvryLnRDFgXopQJhqviAJWIB4s/WKmbFoTJPwpO8EzEvOyTuLZY7frZaXP6+8Opy1d0rb2xpnZ2vFsZs7eLLZ8mBOPEpff6XAW+U/nMRMsn9uu4rt8sD/28oNgLgpQfH1pwGnPv55JdHA8KqeQRhGI1/80pmIcEVGTWR8OprNgUWkX2212R6jjGHX+x1Vg6ft6ifAnntuyF60lb2IoY9nv3mIczc45zuSSldWhWNBorkLY9fIsDSUcSDEFTaXYzGQ/Y1BDg==\",\n  \"SigningCertURL\" : \"https://sns.us-east-1.amazonaws.com/SimpleNotificationService-7506a1e35b36ef5a444dd1a8e7cc3ed8.pem\",\n  \"UnsubscribeURL\" : \"https://sns.us-east-1.amazonaws.com/?Action=Unsubscribe&SubscriptionArn=arn:aws:sns:us-east-1:213880904778:fjcloud-alerts-prod:66ec4f3f-db08-43ef-9853-6002f8907d7e\"\n}",
+            "Attributes": {
+                "SenderId": "AROA3TYMO3BGGTBI3MZUH:AWS-CLOUDCAST",
+                "ApproximateFirstReceiveTimestamp": "1778902946135",
+                "ApproximateReceiveCount": "1",
+                "SentTimestamp": "1778902945848"
+            }
+        }
+    ]
+}
+delivery_match=1
+set_alarm_state=OK
+== SNS probe complete: 2026-05-16T03:42:26Z ==

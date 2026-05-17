@@ -1,10 +1,20 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import { BETA_FEEDBACK_MAILTO, SUPPORT_EMAIL, formatCents } from '$lib/format';
+	import { sharedPlanMinimumMonthlyLabel } from '$lib/pricing';
 
 	let { data } = $props();
 	let pricing = $derived(data.pricing);
 	let regionPricing = $derived(pricing.region_pricing ?? []);
+	const usIntegerFormatter = new Intl.NumberFormat('en-US');
+
+	function formatCount(value: number): string {
+		return usIntegerFormatter.format(value);
+	}
+
+	function freeTierUpgradeCopy(): string {
+		return `Free for hobby projects and evaluation. Upgrade to a paid plan (${sharedPlanMinimumMonthlyLabel(pricing.shared_minimum_spend_cents)}/month minimum) to lift the caps.`;
+	}
 </script>
 
 <svelte:head>
@@ -53,6 +63,13 @@
 				<p class="mt-3 text-sm leading-6 text-[#3f3a34]">
 					Every account includes {pricing.free_tier_mb} MB of hot index storage before paid billing starts.
 				</p>
+				<p class="mt-3 text-sm leading-6 text-[#3f3a34]">{freeTierUpgradeCopy()}</p>
+				<ul class="mt-2 list-disc space-y-1 pl-6 text-sm leading-6 text-[#3f3a34]">
+					<li>{pricing.free_tier_max_indexes} indices</li>
+					<li>{formatCount(pricing.free_tier_max_records)} records</li>
+					<li>{pricing.free_tier_mb} MB hot storage</li>
+					<li>{formatCount(pricing.free_tier_max_searches_per_month)} searches per month</li>
+				</ul>
 				<a href={resolve('/signup')} class="diner-button mt-8 px-6 py-3 text-sm">
 					{pricing.cta_label}
 				</a>
@@ -84,7 +101,7 @@
 							<p class="font-black">Minimum paid spend</p>
 							<p class="text-[#4b4640]">per month</p>
 						</div>
-						<p class="text-lg font-black">{formatCents(pricing.minimum_spend_cents)}</p>
+						<p class="text-lg font-black">{formatCents(pricing.shared_minimum_spend_cents)}</p>
 					</div>
 				</div>
 			</section>

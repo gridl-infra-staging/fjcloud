@@ -18,6 +18,7 @@ pub struct Config {
     pub google_oauth_client_secret: Option<String>,
     pub github_oauth_client_id: Option<String>,
     pub github_oauth_client_secret: Option<String>,
+    pub dunning_emails_disabled: bool,
 }
 
 #[derive(Debug, Error)]
@@ -88,6 +89,11 @@ impl Config {
             "GITHUB_OAUTH_CLIENT_ID",
             "GITHUB_OAUTH_CLIENT_SECRET",
         )?;
+        let dunning_emails_disabled = parse_bool_with_default(
+            read("DUNNING_EMAILS_DISABLED"),
+            "DUNNING_EMAILS_DISABLED",
+            false,
+        )?;
 
         Ok(Config {
             database_url,
@@ -106,6 +112,7 @@ impl Config {
             google_oauth_client_secret,
             github_oauth_client_id,
             github_oauth_client_secret,
+            dunning_emails_disabled,
         })
     }
 }
@@ -150,6 +157,25 @@ fn parse_u32_with_default(value: Option<String>, default_value: u32) -> Result<u
     }
 }
 
+fn parse_bool_with_default(
+    value: Option<String>,
+    key: &str,
+    default_value: bool,
+) -> Result<bool, ConfigError> {
+    let Some(raw) = value else {
+        return Ok(default_value);
+    };
+    let normalized = raw.trim().to_ascii_lowercase();
+    if normalized.is_empty() {
+        return Err(ConfigError::Invalid(key.to_string()));
+    }
+    match normalized.as_str() {
+        "true" => Ok(true),
+        "false" => Ok(false),
+        _ => Err(ConfigError::Invalid(key.to_string())),
+    }
+}
+
 // ============================================================================
 // Tests
 // ============================================================================
@@ -189,6 +215,7 @@ mod tests {
         assert!(cfg.google_oauth_client_secret.is_none());
         assert!(cfg.github_oauth_client_id.is_none());
         assert!(cfg.github_oauth_client_secret.is_none());
+        assert!(!cfg.dunning_emails_disabled);
     }
 
     /// Verifies that Stripe and internal auth keys are optional in config,
@@ -209,6 +236,7 @@ mod tests {
         assert_eq!(cfg.stripe_publishable_key.as_deref(), Some("pk_test_456"));
         assert_eq!(cfg.stripe_webhook_secret.as_deref(), Some("whsec_789"));
         assert_eq!(cfg.internal_auth_token.as_deref(), Some("internal-key-123"));
+        assert!(!cfg.dunning_emails_disabled);
     }
 
     #[test]
@@ -441,6 +469,65 @@ mod tests {
         assert!(matches!(
             err,
             ConfigError::Invalid(ref key) if key == "GOOGLE_OAUTH_CLIENT_ID"
+        ));
+    }
+
+    #[test]
+    fn dunning_emails_disabled_defaults_to_false() {
+        let cfg = Config::from_reader(valid_env()).expect("should parse valid config");
+        assert!(!cfg.dunning_emails_disabled);
+    }
+
+    #[test]
+    fn dunning_emails_disabled_parses_true_and_false() {
+        let enabled = Config::from_reader(reader(HashMap::from([
+            ("DATABASE_URL", "postgres://localhost/fjcloud"),
+            ("JWT_SECRET", "super-secret-key-for-testing-1234"),
+            ("ADMIN_KEY", "admin-bootstrap-key-for-testing"),
+            ("DUNNING_EMAILS_DISABLED", "  TRUE  "),
+        ])))
+        .expect("dunning disable flag should parse true");
+        assert!(enabled.dunning_emails_disabled);
+
+        let disabled = Config::from_reader(reader(HashMap::from([
+            ("DATABASE_URL", "postgres://localhost/fjcloud"),
+            ("JWT_SECRET", "super-secret-key-for-testing-1234"),
+            ("ADMIN_KEY", "admin-bootstrap-key-for-testing"),
+            ("DUNNING_EMAILS_DISABLED", "false"),
+        ])))
+        .expect("dunning disable flag should parse false");
+        assert!(!disabled.dunning_emails_disabled);
+    }
+
+    #[test]
+    fn dunning_emails_disabled_rejects_blank_value() {
+        let err = Config::from_reader(reader(HashMap::from([
+            ("DATABASE_URL", "postgres://localhost/fjcloud"),
+            ("JWT_SECRET", "super-secret-key-for-testing-1234"),
+            ("ADMIN_KEY", "admin-bootstrap-key-for-testing"),
+            ("DUNNING_EMAILS_DISABLED", "   "),
+        ])))
+        .unwrap_err();
+
+        assert!(matches!(
+            err,
+            ConfigError::Invalid(ref key) if key == "DUNNING_EMAILS_DISABLED"
+        ));
+    }
+
+    #[test]
+    fn dunning_emails_disabled_rejects_invalid_value() {
+        let err = Config::from_reader(reader(HashMap::from([
+            ("DATABASE_URL", "postgres://localhost/fjcloud"),
+            ("JWT_SECRET", "super-secret-key-for-testing-1234"),
+            ("ADMIN_KEY", "admin-bootstrap-key-for-testing"),
+            ("DUNNING_EMAILS_DISABLED", "yes"),
+        ])))
+        .unwrap_err();
+
+        assert!(matches!(
+            err,
+            ConfigError::Invalid(ref key) if key == "DUNNING_EMAILS_DISABLED"
         ));
     }
 }

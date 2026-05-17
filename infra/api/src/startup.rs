@@ -161,6 +161,8 @@ pub async fn init_email_service(
 fn app_base_url_from_snapshot(startup_env: &StartupEnvSnapshot) -> String {
     // Keep transactional links config-driven while preserving a canonical
     // Flapjack Cloud default for environments that have not set APP_BASE_URL.
+    // StartupEnvSnapshot.env_value("APP_BASE_URL") also honors the
+    // APP_PUBLIC_BASE_URL alias so normalization still has a single owner.
     startup_env
         .env_value("APP_BASE_URL")
         .map(str::trim)

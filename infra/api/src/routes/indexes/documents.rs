@@ -1,6 +1,38 @@
-//! Stub summary for /Users/stuart/parallel_development/fjcloud_dev/mar25_am_3_customer_multitenant_multiregion_coverage/fjcloud_dev/infra/api/src/routes/indexes/documents.rs.
 use super::*;
 use std::collections::HashMap;
+
+const BYTES_PER_MIB: u64 = 1024 * 1024;
+
+fn projected_batch_ingest(body: &serde_json::Value) -> (u64, u64) {
+    let mut projected_records = 0_u64;
+    let mut projected_bytes = 0_u64;
+
+    let requests = body
+        .get("requests")
+        .and_then(serde_json::Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+
+    for op in requests {
+        let action = op
+            .get("action")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or_default();
+        if action == "deleteObject" {
+            continue;
+        }
+
+        projected_records = projected_records.saturating_add(1);
+        let body_size = op
+            .get("body")
+            .and_then(|operation_body| serde_json::to_vec(operation_body).ok())
+            .map(|bytes| bytes.len() as u64)
+            .unwrap_or(0);
+        projected_bytes = projected_bytes.saturating_add(body_size);
+    }
+
+    (projected_records, projected_bytes)
+}
 
 #[derive(Debug, Deserialize, Serialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -49,6 +81,49 @@ fn serialize_request_body<T: Serialize>(
     })
 }
 
+async fn check_free_tier_ingest_caps(
+    state: &AppState,
+    customer_id: Uuid,
+    incoming_doc_count: u64,
+    incoming_bytes: u64,
+) -> Result<(), ApiError> {
+    let customer = state
+        .customer_repo
+        .find_by_id(customer_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("customer not found".into()))?;
+
+    if customer.billing_plan_enum() != BillingPlan::Free {
+        return Ok(());
+    }
+
+    let summary = state.usage_repo.summary_for(customer_id, 1).await?;
+
+    let max_records = state.free_tier_limits.max_records;
+    let projected_records = summary.avg_document_count as u64 + incoming_doc_count;
+    if projected_records > max_records {
+        return Err(ApiError::ForbiddenJson(serde_json::json!({
+            "error": "quota_exceeded",
+            "limit": "max_records",
+        })));
+    }
+
+    let max_storage_bytes = state
+        .free_tier_limits
+        .max_storage_mb
+        .saturating_mul(BYTES_PER_MIB);
+    let current_storage_bytes = (summary.avg_storage_gb * 1024.0 * 1024.0 * 1024.0) as u64;
+    let projected_storage_bytes = current_storage_bytes.saturating_add(incoming_bytes);
+    if projected_storage_bytes > max_storage_bytes {
+        return Err(ApiError::ForbiddenJson(serde_json::json!({
+            "error": "quota_exceeded",
+            "limit": "max_storage_mb",
+        })));
+    }
+
+    Ok(())
+}
+
 /// `POST /indexes/{name}/batch` — execute a batch of document operations.
 ///
 /// **Auth:** JWT (`AuthenticatedTenant`).
@@ -66,6 +141,7 @@ fn serialize_request_body<T: Serialize>(
         (status = 200, description = "Batch operation results", body = serde_json::Value),
         (status = 400, description = "Bad request", body = ErrorResponse),
         (status = 401, description = "Authentication required", body = ErrorResponse),
+        (status = 403, description = "Quota exceeded (free tier)", body = serde_json::Value),
         (status = 410, description = "Index is in cold storage", body = ErrorResponse),
         (status = 503, description = "Index is restoring or endpoint not ready", body = ErrorResponse),
         (status = 404, description = "Index not found", body = ErrorResponse),
@@ -86,6 +162,8 @@ pub async fn batch_documents(
     .await?;
 
     let body = serialize_request_body(&body, "batch documents")?;
+    let (add_count, projected_bytes) = projected_batch_ingest(&body);
+    check_free_tier_ingest_caps(&state, auth.customer_id, add_count, projected_bytes).await?;
 
     let result = state
         .flapjack_proxy

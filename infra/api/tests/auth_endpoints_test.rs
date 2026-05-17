@@ -4,7 +4,11 @@ use api::models::vm_inventory::NewVmInventory;
 use api::repos::vm_inventory_repo::VmInventoryRepo;
 use api::repos::CustomerRepo;
 use api::router::build_router;
-use api::services::email::{BroadcastDeliveryStatus, EmailError, EmailService, MockEmailService};
+use api::services::email::{
+    BroadcastDeliveryStatus, DunningRecoveredAfterFailureEmailRequest,
+    DunningRetriesExhaustedEmailRequest, DunningRetryScheduledEmailRequest, EmailError,
+    EmailService, MockEmailService,
+};
 use api::services::flapjack_proxy::{
     FlapjackHttpClient, FlapjackHttpRequest, FlapjackHttpResponse, FlapjackProxy, ProxyError,
 };
@@ -120,6 +124,36 @@ impl EmailService for AlwaysFailEmailService {
         ))
     }
 
+    async fn send_dunning_retry_scheduled_email(
+        &self,
+        _to: &str,
+        _request: &DunningRetryScheduledEmailRequest<'_>,
+    ) -> Result<(), EmailError> {
+        Err(EmailError::DeliveryFailed(
+            "forced test failure".to_string(),
+        ))
+    }
+
+    async fn send_dunning_retries_exhausted_email(
+        &self,
+        _to: &str,
+        _request: &DunningRetriesExhaustedEmailRequest<'_>,
+    ) -> Result<(), EmailError> {
+        Err(EmailError::DeliveryFailed(
+            "forced test failure".to_string(),
+        ))
+    }
+
+    async fn send_dunning_recovered_after_failure_email(
+        &self,
+        _to: &str,
+        _request: &DunningRecoveredAfterFailureEmailRequest<'_>,
+    ) -> Result<(), EmailError> {
+        Err(EmailError::DeliveryFailed(
+            "forced test failure".to_string(),
+        ))
+    }
+
     async fn send_broadcast_email(
         &self,
         _to: &str,
@@ -182,6 +216,30 @@ impl EmailService for FailSecondVerificationEmailService {
         _percent_used: f64,
         _current_usage: u64,
         _limit: u64,
+    ) -> Result<(), EmailError> {
+        Ok(())
+    }
+
+    async fn send_dunning_retry_scheduled_email(
+        &self,
+        _to: &str,
+        _request: &DunningRetryScheduledEmailRequest<'_>,
+    ) -> Result<(), EmailError> {
+        Ok(())
+    }
+
+    async fn send_dunning_retries_exhausted_email(
+        &self,
+        _to: &str,
+        _request: &DunningRetriesExhaustedEmailRequest<'_>,
+    ) -> Result<(), EmailError> {
+        Ok(())
+    }
+
+    async fn send_dunning_recovered_after_failure_email(
+        &self,
+        _to: &str,
+        _request: &DunningRecoveredAfterFailureEmailRequest<'_>,
     ) -> Result<(), EmailError> {
         Ok(())
     }

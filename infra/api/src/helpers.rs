@@ -292,6 +292,10 @@ mod tests {
             panic!("not used in this test");
         }
 
+        async fn hard_delete(&self, _id: Uuid) -> Result<bool, RepoError> {
+            panic!("not used in this test");
+        }
+
         async fn list_deleted_before_cutoff(
             &self,
             _cutoff: chrono::DateTime<Utc>,

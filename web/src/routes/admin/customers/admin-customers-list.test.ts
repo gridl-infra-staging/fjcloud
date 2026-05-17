@@ -216,6 +216,17 @@ describe('Admin customers list', () => {
 		expect(screen.getByText('Beta Labs')).toBeInTheDocument();
 	});
 
+	it('admin__admin_customers__success__desktop filter prominence keeps search/status controls on highlighted operator surfaces', async () => {
+		await renderCustomersPage();
+
+		const searchInput = screen.getByTestId('customer-search');
+		const statusFilter = screen.getByTestId('status-filter');
+		expect(searchInput).toHaveAttribute('placeholder', 'Search name or email');
+		expect(searchInput).toHaveClass('bg-[#fff8ea]');
+		expect(statusFilter).toHaveClass('border-[#f6c15b]');
+		expect(statusFilter).toHaveClass('bg-[#fff8ea]');
+	});
+
 	it('filters customers by search query', async () => {
 		await renderCustomersPage();
 
@@ -228,10 +239,34 @@ describe('Admin customers list', () => {
 		expect(screen.getByText('Beta Labs')).toBeInTheDocument();
 	});
 
+	it('shows deterministic filtered-empty copy when controls narrow the result set to zero rows', async () => {
+		await renderCustomersPage();
+
+		await fireEvent.input(screen.getByTestId('customer-search'), {
+			target: { value: 'no-such-customer' }
+		});
+
+		expect(screen.getByText('No customers match the current filters.')).toBeInTheDocument();
+		expect(screen.getByText('Try broadening your search or status filter.')).toBeInTheDocument();
+		expect(screen.queryByTestId('customers-table-body')).not.toBeInTheDocument();
+	});
+
+	it('admin__admin_customers__loading__desktop keeps contextual loading copy visible while customer rows are pending', async () => {
+		await renderCustomersPage(null);
+
+		expect(screen.getByText('Loading customers...')).toBeInTheDocument();
+		expect(
+			screen.getByText('Fetching latest customer billing and activity status.')
+		).toBeInTheDocument();
+	});
+
 	it('renders an unavailable state when the loader cannot fetch customers', async () => {
 		await renderCustomersPage(null);
 
 		expect(screen.getByText('Customer data unavailable.')).toBeInTheDocument();
+		expect(
+			screen.getByText('We could not load customer records. Try refreshing this page.')
+		).toBeInTheDocument();
 		expect(screen.queryByTestId('customers-table-body')).not.toBeInTheDocument();
 	});
 
@@ -274,6 +309,23 @@ describe('Admin customers list', () => {
 				customer.billing_health.charAt(0).toUpperCase() + customer.billing_health.slice(1)
 			);
 			expect(badge.className).toContain(adminBadgeColor(customer.billing_health));
+		}
+	});
+
+	it('admin__admin_customers__success__mobile_narrow keeps row-density hooks and column semantics for mobile table scans', async () => {
+		await renderCustomersPage();
+
+		const rows = within(screen.getByTestId('customers-table-body')).getAllByRole('row');
+		for (const row of rows) {
+			expect(row.className).toContain('h-14');
+		}
+
+		const table = screen.getByRole('table');
+		expect(table).toHaveAttribute('data-testid', 'customers-table');
+
+		const headers = within(table).getAllByRole('columnheader');
+		for (const header of headers) {
+			expect(header).toHaveAttribute('scope', 'col');
 		}
 	});
 

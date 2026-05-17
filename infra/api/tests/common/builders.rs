@@ -202,6 +202,7 @@ pub struct TestStateBuilder {
     stripe_service: Arc<MockStripeService>,
     webhook_http_client: Arc<MockWebhookHttpClient>,
     email_service: Arc<dyn EmailService>,
+    dunning_emails_disabled: bool,
     webhook_event_repo: Arc<MockWebhookEventRepo>,
     object_store: Arc<InMemoryObjectStore>,
     cold_snapshot_repo: Arc<InMemoryColdSnapshotRepo>,
@@ -253,6 +254,7 @@ impl TestStateBuilder {
             stripe_service: mock_stripe_service(),
             webhook_http_client: mock_webhook_http_client(),
             email_service: mock_email_service() as Arc<dyn EmailService>,
+            dunning_emails_disabled: false,
             webhook_event_repo: mock_webhook_event_repo(),
             object_store: Arc::new(InMemoryObjectStore::new()),
             cold_snapshot_repo: mock_cold_snapshot_repo(),
@@ -326,6 +328,11 @@ impl TestStateBuilder {
 
     pub fn with_email_service(mut self, email_service: Arc<dyn EmailService>) -> Self {
         self.email_service = email_service;
+        self
+    }
+
+    pub fn with_dunning_emails_disabled(mut self, dunning_emails_disabled: bool) -> Self {
+        self.dunning_emails_disabled = dunning_emails_disabled;
         self
     }
 
@@ -480,6 +487,7 @@ impl TestStateBuilder {
             stripe_service: self.stripe_service,
             webhook_http_client: self.webhook_http_client,
             email_service: self.email_service,
+            dunning_emails_disabled: self.dunning_emails_disabled,
             webhook_event_repo: self.webhook_event_repo,
             object_store: self.object_store,
             cold_snapshot_repo: self.cold_snapshot_repo,
@@ -563,6 +571,7 @@ impl TestStateBuilder {
             redirect_uri: Arc::from(redirect_uri),
             token_endpoint: Arc::from(token_endpoint),
             userinfo_endpoint: Arc::from(userinfo_endpoint),
+            user_emails_endpoint: None,
         });
         self
     }
@@ -579,6 +588,7 @@ impl TestStateBuilder {
             redirect_uri,
             "https://github.com/login/oauth/access_token",
             "https://api.github.com/user",
+            "https://api.github.com/user/emails",
         )
     }
 
@@ -589,6 +599,7 @@ impl TestStateBuilder {
         redirect_uri: &str,
         token_endpoint: &str,
         userinfo_endpoint: &str,
+        user_emails_endpoint: &str,
     ) -> Self {
         self.oauth.github = Some(OAuthProviderRuntimeConfig {
             client_id: Arc::from(client_id),
@@ -596,6 +607,7 @@ impl TestStateBuilder {
             redirect_uri: Arc::from(redirect_uri),
             token_endpoint: Arc::from(token_endpoint),
             userinfo_endpoint: Arc::from(userinfo_endpoint),
+            user_emails_endpoint: Some(Arc::from(user_emails_endpoint)),
         });
         self
     }

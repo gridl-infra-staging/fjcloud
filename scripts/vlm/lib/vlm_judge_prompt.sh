@@ -55,11 +55,12 @@ prompt_text = (
     "postmortem rule, or the screen spec's State contract or Visual defaults "
     "audit. "
     "Use \"advisory\" when violations are present but none are blocking — for "
-    "example, low-severity polish notes. "
+    "example, low-severity polish notes. Pure palette or visual-polish drift "
+    "that preserves the screen-state contract should be \"advisory\", not \"fail\". "
     "Each entry in \"violations\" must include \"rule_id\" set to the exact M.* "
-    "or P.* anchor from the provided manifesto/postmortem docs. If no specific "
-    "anchor applies, set \"rule_id\" to null and explain the issue in "
-    "\"description\". Do not invent IDs."
+    "or P.* anchor from the provided manifesto/postmortem docs; rule_id must never be null or empty. "
+    "If multiple anchors apply, choose the closest single anchor and cite only that ID. "
+    "Each violation must include a non-empty \"description\". Do not invent IDs."
 )
 
 payload = {
@@ -123,6 +124,16 @@ extract_vlm_judgment_json() {
     and (.summary | type == "string" and length > 0)
     and has("violations")
     and (.violations | type == "array")
+    and (
+      .violations
+      | all(
+          type == "object"
+          and has("rule_id")
+          and (.rule_id | type == "string" and length > 0)
+          and has("description")
+          and (.description | type == "string" and length > 0)
+        )
+    )
     and has("actions")
     and (.actions | type == "array")
   ' >/dev/null; then

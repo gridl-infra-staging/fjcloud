@@ -26,6 +26,7 @@ before invoking Playwright, to produce clear errors instead of cryptic failures.
 
 Loads .env.local via the shared env parser so that ADMIN_KEY and other
 local-dev values are available without manual exports. |
+| git_push_with_sync.sh | Wrap git push with best-effort mirror sync on main. |
 | integration-down.sh | integration-down.sh — Tear down the integration test stack.
 
 Kills API + flapjack processes, drops test DB, cleans up PID files.
@@ -138,17 +139,19 @@ usage_records to Postgres. |
 | stripe_webhook_replay_fixture.sh | Stub summary for stripe_webhook_replay_fixture.sh. |
 | validate-metering.sh | Validate metering pipeline health against a live database and emit JSON. |
 | validate-stripe.sh | Stub summary for validate-stripe.sh. |
+| validate_customer_quickstart.sh | Stub summary for validate_customer_quickstart.sh. |
 | validate_inbound_email_roundtrip.sh | Validate SES outbound-to-inbound roundtrip for the shared test inbox path. |
 | validate_oauth_routes.sh | Stub summary for validate_oauth_routes.sh. |
 | validate_ses_readiness.sh | Validate SES readiness using read-only API calls and machine-readable output. |
+| validate_staging_dunning_delivery.sh | Validate staging dunning email delivery by reusing rehearsal artifacts and SES inbound S3 evidence. |
 | web-dev.sh | web-dev.sh — Start the SvelteKit dev server with repo-local auth env loaded. |
 
 | Directory | Summary |
 | --- | --- |
 | canary | The canary directory contains synthetic monitoring and health check scripts that validate external system health, email deliverability, and critical infrastructure components like EC2 firewall ports, Lambda invocation, and OAuth endpoints. |
 | chaos | The chaos directory contains failure-injection and HA resilience test scripts that validate the system's ability to detect outages, trigger failover, and recover—including region kill/restart tests, metering service failure detection, and end-to-end failover proofs. |
-| launch | The `launch` directory contains operational scripts for validating fjcloud staging deployments and running synthetic verification workloads, including tenant-map fallback verification, billing evidence capture, synthetic traffic generation, and direct EC2 execution via AWS SSM. |
-| lib | The lib directory contains reusable shell utilities supporting the backend infrastructure, including helpers for database migrations, environment configuration, Stripe/billing operations, validation checks, security scans, and live health/gate enforcement. |
+| launch | The `launch` directory contains orchestration and validation scripts for fjcloud staging deployments, including synthetic traffic generation, tenant-map verification, evidence capture for billing validation, and remote AWS SSM command execution. |
+| lib | This directory contains reusable bash helper libraries for fjcloud operations, providing shared utilities for alert dispatch, billing rehearsal, environment configuration, Flapjack binary discovery, health checks, HTTP requests, metering and Stripe validation, database migrations, staging database access, and deployment checks. |
 | load | The load directory contains regression checking utilities for validating load testing performance, including scripts that compare offline and live load harness results to detect performance regressions. |
 | reliability | The reliability directory contains shell scripts for backend capacity profiling, security validation, and reliability gating that generate performance metrics across document tiers. |
 | stripe | The stripe directory contains operational scripts for managing Stripe integration with fjcloud: configuring the Customer Portal and creating the canonical Flapjack product catalog, both supporting multi-account operations. |

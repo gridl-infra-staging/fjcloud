@@ -33,6 +33,11 @@ variable "alb_arn_suffix" {
   type        = string
 }
 
+variable "api_target_group_arn_suffix" {
+  description = "API target-group arn_suffix for target-group scoped ALB CloudWatch dimensions"
+  type        = string
+}
+
 variable "alert_emails" {
   description = "Email addresses to subscribe to monitoring alerts"
   type        = list(string)

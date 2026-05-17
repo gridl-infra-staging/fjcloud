@@ -11,9 +11,9 @@ use std::sync::Arc;
 use api::models::RateCardRow;
 use api::repos::{CustomerRepo, InvoiceRepo, TenantRepo};
 use api::services::audit_log::{
-    ACTION_CUSTOMER_REACTIVATED, ACTION_CUSTOMER_SUSPENDED, ACTION_IMPERSONATION_TOKEN_CREATED,
-    ACTION_QUOTAS_UPDATED, ACTION_RATE_CARD_OVERRIDE, ACTION_STRIPE_SYNC, ACTION_TENANT_CREATED,
-    ACTION_TENANT_DELETED, ACTION_TENANT_UPDATED,
+    ACTION_CUSTOMER_HARD_ERASE, ACTION_CUSTOMER_REACTIVATED, ACTION_CUSTOMER_SUSPENDED,
+    ACTION_IMPERSONATION_TOKEN_CREATED, ACTION_QUOTAS_UPDATED, ACTION_RATE_CARD_OVERRIDE,
+    ACTION_STRIPE_SYNC, ACTION_TENANT_CREATED, ACTION_TENANT_DELETED, ACTION_TENANT_UPDATED,
 };
 use axum::body::Body;
 use axum::http::{Method, Request, StatusCode};
@@ -1184,6 +1184,56 @@ async fn get_admin_customers_id_snapshot_returns_empty_snapshot_for_customer_wit
     assert_eq!(body["open_invoices"], serde_json::json!([]));
     assert_eq!(body["recent_audit"], serde_json::json!([]));
     assert!(body.get("recent_alerts").is_none());
+
+    cleanup_target(&pool, customer.id).await;
+}
+
+#[tokio::test]
+#[ignore = "requires DATABASE_URL"]
+async fn post_admin_customers_hard_erase_writes_customer_hard_erase_audit_row() {
+    let Some(pool) = connect_and_migrate().await else {
+        return;
+    };
+
+    let customer_repo = common::mock_repo();
+    let customer = customer_repo.seed_deleted("Hard Erase Audit", "hard-erase-audit@example.com");
+
+    let app = app_with_live_audit_pool(
+        pool.clone(),
+        customer_repo,
+        common::mock_tenant_repo(),
+        common::mock_rate_card_repo(),
+        common::mock_stripe_service(),
+        common::mock_usage_repo(),
+        common::mock_invoice_repo(),
+    );
+
+    let resp = app
+        .oneshot(
+            Request::builder()
+                .method(Method::POST)
+                .uri(format!("/admin/customers/{}/hard-erase", customer.id))
+                .header("x-admin-key", common::TEST_ADMIN_KEY)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    // 204 No Content — empty body, so we check status only.
+    assert_eq!(resp.status(), StatusCode::NO_CONTENT);
+
+    assert_eq!(
+        audit_row_count(&pool, ACTION_CUSTOMER_HARD_ERASE, customer.id).await,
+        1,
+        "hard-erase must write exactly one audit row keyed to the erased customer"
+    );
+
+    let metadata = latest_metadata(&pool, ACTION_CUSTOMER_HARD_ERASE, customer.id).await;
+    assert_eq!(
+        metadata["email"], "hard-erase-audit@example.com",
+        "audit row must preserve the erased customer's email for the durable trail"
+    );
 
     cleanup_target(&pool, customer.id).await;
 }

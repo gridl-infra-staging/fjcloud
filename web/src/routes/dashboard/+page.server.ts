@@ -21,7 +21,7 @@ const emptyUsage: UsageSummaryResponse = {
 type FreeTierProgress = {
 	searches: { used: number; limit: number };
 	records: { used: number; limit: number };
-	storage_gb: { used: number; limit: number };
+	storage_mb: { used: number; limit: number };
 	indexes: { used: number; limit: number };
 };
 
@@ -43,9 +43,9 @@ function deriveFreeTierProgress(
 			used: usage.avg_document_count,
 			limit: planContext.free_tier_limits.max_records
 		},
-		storage_gb: {
-			used: usage.avg_storage_gb,
-			limit: planContext.free_tier_limits.max_storage_gb
+		storage_mb: {
+			used: usage.avg_storage_gb * 1024,
+			limit: planContext.free_tier_limits.max_storage_mb
 		},
 		indexes: {
 			used: indexes.length,

@@ -3,8 +3,12 @@
 use api::services::email::{
     invoice_ready_email_html, password_reset_email_html, password_reset_email_html_with_base_url,
     quota_warning_email_html, verification_email_html, verification_email_html_with_base_url,
-    BroadcastDeliveryStatus, EmailService, MailpitEmailService, NoopEmailService, SesEmailService,
-    INVOICE_READY_SUBJECT, PASSWORD_RESET_SUBJECT, QUOTA_WARNING_SUBJECT, VERIFICATION_SUBJECT,
+    BroadcastDeliveryStatus, DunningRecoveredAfterFailureEmailRequest,
+    DunningRetriesExhaustedEmailRequest, DunningRetryScheduledEmailRequest, EmailService,
+    MailpitEmailService, NoopEmailService, SesEmailService,
+    DUNNING_RECOVERED_AFTER_FAILURE_SUBJECT, DUNNING_RETRIES_EXHAUSTED_SUBJECT,
+    DUNNING_RETRY_SCHEDULED_SUBJECT, INVOICE_READY_SUBJECT, PASSWORD_RESET_SUBJECT,
+    QUOTA_WARNING_SUBJECT, VERIFICATION_SUBJECT,
 };
 use api::services::email_suppression::InMemoryEmailSuppressionStore;
 use std::sync::Arc;
@@ -108,6 +112,42 @@ async fn noop_email_accepts_non_empty_recipient_for_all_methods() {
         .await
         .expect("quota warning should be accepted");
     service
+        .send_dunning_retry_scheduled_email(
+            recipient,
+            &DunningRetryScheduledEmailRequest {
+                customer_id: "cus_noop_retry",
+                invoice_id: "in_noop_retry",
+                hosted_invoice_url: Some("https://stripe.com/invoice/noop-retry"),
+                next_payment_attempt_unix_seconds: 1_708_300_800,
+                attempt_count: Some(2),
+            },
+        )
+        .await
+        .expect("dunning retry scheduled should be accepted");
+    service
+        .send_dunning_retries_exhausted_email(
+            recipient,
+            &DunningRetriesExhaustedEmailRequest {
+                customer_id: "cus_noop_exhausted",
+                invoice_id: "in_noop_exhausted",
+                hosted_invoice_url: Some("https://stripe.com/invoice/noop-exhausted"),
+                attempt_count: Some(4),
+            },
+        )
+        .await
+        .expect("dunning retries exhausted should be accepted");
+    service
+        .send_dunning_recovered_after_failure_email(
+            recipient,
+            &DunningRecoveredAfterFailureEmailRequest {
+                customer_id: "cus_noop_recovered",
+                invoice_id: "in_noop_recovered",
+                hosted_invoice_url: Some("https://stripe.com/invoice/noop-recovered"),
+            },
+        )
+        .await
+        .expect("dunning recovered should be accepted");
+    service
         .send_broadcast_email(
             recipient,
             "Maintenance notice",
@@ -156,6 +196,57 @@ async fn noop_email_rejects_blank_or_whitespace_recipient_with_record_validation
             .expect_err("blank/whitespace recipients must fail");
         assert_eq!(
             quota_err.to_string(),
+            "invalid email request: recipient email must not be empty"
+        );
+
+        let retry_scheduled_err = service
+            .send_dunning_retry_scheduled_email(
+                recipient,
+                &DunningRetryScheduledEmailRequest {
+                    customer_id: "cus_noop_retry",
+                    invoice_id: "in_noop_retry",
+                    hosted_invoice_url: Some("https://stripe.com/invoice/noop-retry"),
+                    next_payment_attempt_unix_seconds: 1_708_300_800,
+                    attempt_count: Some(2),
+                },
+            )
+            .await
+            .expect_err("blank/whitespace recipients must fail");
+        assert_eq!(
+            retry_scheduled_err.to_string(),
+            "invalid email request: recipient email must not be empty"
+        );
+
+        let exhausted_err = service
+            .send_dunning_retries_exhausted_email(
+                recipient,
+                &DunningRetriesExhaustedEmailRequest {
+                    customer_id: "cus_noop_exhausted",
+                    invoice_id: "in_noop_exhausted",
+                    hosted_invoice_url: Some("https://stripe.com/invoice/noop-exhausted"),
+                    attempt_count: Some(4),
+                },
+            )
+            .await
+            .expect_err("blank/whitespace recipients must fail");
+        assert_eq!(
+            exhausted_err.to_string(),
+            "invalid email request: recipient email must not be empty"
+        );
+
+        let recovered_err = service
+            .send_dunning_recovered_after_failure_email(
+                recipient,
+                &DunningRecoveredAfterFailureEmailRequest {
+                    customer_id: "cus_noop_recovered",
+                    invoice_id: "in_noop_recovered",
+                    hosted_invoice_url: Some("https://stripe.com/invoice/noop-recovered"),
+                },
+            )
+            .await
+            .expect_err("blank/whitespace recipients must fail");
+        assert_eq!(
+            recovered_err.to_string(),
             "invalid email request: recipient email must not be empty"
         );
 
@@ -422,7 +513,7 @@ async fn mailpit_email_service_returns_delivery_failed_on_connection_error() {
 async fn mailpit_normalizes_blank_sender_display_name_to_default() {
     let server = MockServer::start().await;
     mount_mailpit_ok(&server).await;
-    let service = MailpitEmailService::new(&server.uri(), "system@flapjack.foo", "   ");
+    let service = MailpitEmailService::new(server.uri(), "system@flapjack.foo", "   ");
 
     service
         .send_verification_email("alice@example.com", "tok-abc")
@@ -600,6 +691,115 @@ async fn mailpit_quota_warning_sends_correct_payload_and_tag() {
     assert!(html.contains("92.5%"));
     assert!(html.contains("9250"));
     assert!(html.contains("10000"));
+}
+
+#[tokio::test]
+async fn mailpit_dunning_retry_scheduled_sends_correct_payload_and_tag() {
+    let server = MockServer::start().await;
+    mount_mailpit_ok(&server).await;
+    let svc = mailpit_service(&server.uri());
+    svc.send_dunning_retry_scheduled_email(
+        "retry@example.com",
+        &DunningRetryScheduledEmailRequest {
+            customer_id: "cus_mailpit_retry",
+            invoice_id: "in_mailpit_retry",
+            hosted_invoice_url: Some("https://stripe.com/invoice/mailpit-retry"),
+            next_payment_attempt_unix_seconds: 1_708_300_800,
+            attempt_count: Some(2),
+        },
+    )
+    .await
+    .expect("should succeed");
+    let body = single_request_json(&server).await;
+    assert_common_payload(
+        &body,
+        "retry@example.com",
+        DUNNING_RETRY_SCHEDULED_SUBJECT,
+        "dunning-retry-scheduled",
+        true,
+    );
+    let html = body["HTML"].as_str().unwrap();
+    assert!(html.contains("couldn't process your payment"));
+    assert!(html.contains("automatically retry your payment"));
+    assert!(html.contains("2024-02-19 00:00:00 UTC"));
+    let text = body["Text"].as_str().unwrap();
+    assert!(text.contains("couldn't process your payment"));
+    assert!(text.contains("automatically retry your payment"));
+    assert!(text.contains("2024-02-19 00:00:00 UTC"));
+    assert!(text.contains("attempt 2"));
+    assert!(!text.contains("cus_mailpit_retry"));
+    assert!(!text.contains("in_mailpit_retry"));
+}
+
+#[tokio::test]
+async fn mailpit_dunning_retries_exhausted_sends_correct_payload_and_tag() {
+    let server = MockServer::start().await;
+    mount_mailpit_ok(&server).await;
+    let svc = mailpit_service(&server.uri());
+    svc.send_dunning_retries_exhausted_email(
+        "exhausted@example.com",
+        &DunningRetriesExhaustedEmailRequest {
+            customer_id: "cus_mailpit_exhausted",
+            invoice_id: "in_mailpit_exhausted",
+            hosted_invoice_url: Some("https://stripe.com/invoice/mailpit-exhausted"),
+            attempt_count: Some(4),
+        },
+    )
+    .await
+    .expect("should succeed");
+    let body = single_request_json(&server).await;
+    assert_common_payload(
+        &body,
+        "exhausted@example.com",
+        DUNNING_RETRIES_EXHAUSTED_SUBJECT,
+        "dunning-retries-exhausted",
+        true,
+    );
+    let html = body["HTML"].as_str().unwrap();
+    assert!(html.contains("still couldn't process your payment"));
+    assert!(html.contains("No more automatic retries are scheduled"));
+    assert!(html.contains("attempt 4"));
+    let text = body["Text"].as_str().unwrap();
+    assert!(text.contains("still couldn't process your payment"));
+    assert!(text.contains("No more automatic retries are scheduled"));
+    assert!(text.contains("attempt 4"));
+    assert!(text.contains("temporarily limited"));
+    assert!(!text.contains("cus_mailpit_exhausted"));
+    assert!(!text.contains("in_mailpit_exhausted"));
+}
+
+#[tokio::test]
+async fn mailpit_dunning_recovered_after_failure_sends_correct_payload_and_tag() {
+    let server = MockServer::start().await;
+    mount_mailpit_ok(&server).await;
+    let svc = mailpit_service(&server.uri());
+    svc.send_dunning_recovered_after_failure_email(
+        "recovered@example.com",
+        &DunningRecoveredAfterFailureEmailRequest {
+            customer_id: "cus_mailpit_recovered",
+            invoice_id: "in_mailpit_recovered",
+            hosted_invoice_url: Some("https://stripe.com/invoice/mailpit-recovered"),
+        },
+    )
+    .await
+    .expect("should succeed");
+    let body = single_request_json(&server).await;
+    assert_common_payload(
+        &body,
+        "recovered@example.com",
+        DUNNING_RECOVERED_AFTER_FAILURE_SUBJECT,
+        "dunning-recovered-after-failure",
+        true,
+    );
+    let html = body["HTML"].as_str().unwrap();
+    assert!(html.contains("payment is now successful"));
+    assert!(html.contains("account access remains active"));
+    assert!(html.contains("active"));
+    let text = body["Text"].as_str().unwrap();
+    assert!(text.contains("payment is now successful"));
+    assert!(text.contains("account access remains active"));
+    assert!(!text.contains("cus_mailpit_recovered"));
+    assert!(!text.contains("in_mailpit_recovered"));
 }
 
 #[tokio::test]

@@ -19,18 +19,7 @@ Called by deploy.sh via SSM or manually. |
 
 Idempotent counterpart to validate_bootstrap.sh: creates the resources
 that validate_bootstrap.sh checks. |
-| rds_restore_drill.sh | rds_restore_drill.sh — operator-only restore rehearsal entrypoint
-
-Usage: rds_restore_drill.sh <env> [options]
-  env: staging | prod
-
-Required options:
-  --source-db-instance-id <id>
-  --target-db-instance-id <id>
-
-Exactly one restore mode is required:
-  --snapshot-id <snapshot-id>
-  --restore-time <RFC3339 timestamp>. |
+| rds_restore_drill.sh | Stub summary for rds_restore_drill.sh. |
 | rds_restore_evidence.sh | rds_restore_evidence.sh — wrapper around rds_restore_drill.sh for evidence artifacts.
 
 This script owns:

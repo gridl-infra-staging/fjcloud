@@ -96,7 +96,7 @@ CURL_EOF
     FJCLOUD_ENV_FILE="$out_env" \
     FJCLOUD_METERING_ENV_FILE="$out_metering" \
     FJCLOUD_SKIP_METERING_ENV_GENERATION="1" \
-    bash "$TARGET_SCRIPT" staging 2>&1
+    "${BASH:-bash}" "$TARGET_SCRIPT" staging 2>&1
   )"
 
   if [[ ! -f "$out_env" ]]; then

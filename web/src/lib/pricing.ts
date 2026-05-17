@@ -12,8 +12,15 @@ export interface MarketingPricing {
 	storage_rate_per_mb_month: string;
 	cold_storage_rate_per_gb_month: string;
 	free_tier_mb: number;
+	free_tier_indexes: number;
+	free_tier_records: number;
+	free_tier_searches_per_month: number;
+	free_tier_max_indexes: number;
+	free_tier_max_records: number;
+	free_tier_max_searches_per_month: number;
 	region_pricing: RegionPricing[];
 	minimum_spend_cents: number;
+	shared_minimum_spend_cents: number;
 	cta_label: string;
 	free_tier_promise: string;
 }
@@ -22,6 +29,7 @@ export interface MarketingPricingContractSnapshot {
 	storage_rate_per_mb_month: string;
 	cold_storage_rate_per_gb_month: string;
 	minimum_spend_cents: number;
+	shared_minimum_spend_cents: number;
 	region_pricing: RegionPricing[];
 }
 
@@ -30,16 +38,23 @@ type AdminRateCardComparableFields = Pick<
 	| 'storage_rate_per_mb_month'
 	| 'cold_storage_rate_per_gb_month'
 	| 'minimum_spend_cents'
+	| 'shared_minimum_spend_cents'
 	| 'region_multipliers'
 >;
 
-const NO_CARD_TAGLINE = 'No credit card required';
-const FREE_TIER_PROMISE = `Create your free account. ${NO_CARD_TAGLINE}.`;
+const FREE_TIER_PROMISE =
+	'Free up to 3 indices, 100,000 records, 250 MB storage, and 50,000 searches/month. No credit card required.';
 
 export const MARKETING_PRICING: MarketingPricing = {
 	storage_rate_per_mb_month: '$0.05',
 	cold_storage_rate_per_gb_month: '$0.02',
 	free_tier_mb: 250,
+	free_tier_indexes: 3,
+	free_tier_records: 100_000,
+	free_tier_searches_per_month: 50_000,
+	free_tier_max_indexes: 3,
+	free_tier_max_records: 100_000,
+	free_tier_max_searches_per_month: 50_000,
 	region_pricing: [
 		{ id: 'us-east-1', display_name: 'US East (Virginia)', multiplier: '1.00x' },
 		{ id: 'eu-west-1', display_name: 'EU West (Ireland)', multiplier: '1.00x' },
@@ -49,9 +64,23 @@ export const MARKETING_PRICING: MarketingPricing = {
 		{ id: 'us-west-1', display_name: 'US West (Oregon)', multiplier: '0.80x' }
 	],
 	minimum_spend_cents: 1000,
+	shared_minimum_spend_cents: 500,
 	cta_label: 'Get Started Free',
 	free_tier_promise: FREE_TIER_PROMISE
 };
+
+export function sharedPlanMinimumMonthlyLabel(sharedMinimumSpendCents: number): string {
+	// Use canonical locale-aware grouping so large minimums render as e.g. "$1,234.56".
+	// Marketing copy convention drops the trailing ".00" for whole-dollar values ("$5" not "$5.00").
+	const sign = sharedMinimumSpendCents < 0 ? '-' : '';
+	const absDollars = Math.abs(sharedMinimumSpendCents) / 100;
+	const fractionDigits = Number.isInteger(absDollars) ? 0 : 2;
+	const formatted = absDollars.toLocaleString('en-US', {
+		minimumFractionDigits: fractionDigits,
+		maximumFractionDigits: fractionDigits
+	});
+	return `${sign}$${formatted}`;
+}
 
 function parsePricingDecimal(
 	rawValue: string,
@@ -99,6 +128,7 @@ export function pricingContractSnapshotFromMarketing(
 			'marketing pricing'
 		),
 		minimum_spend_cents: pricing.minimum_spend_cents,
+		shared_minimum_spend_cents: pricing.shared_minimum_spend_cents,
 		region_pricing: pricing.region_pricing.map((region) => ({
 			id: region.id,
 			display_name: region.display_name,
@@ -145,6 +175,7 @@ export function pricingContractSnapshotFromAdminRateCard(
 			'admin rate card'
 		),
 		minimum_spend_cents: rateCard.minimum_spend_cents,
+		shared_minimum_spend_cents: rateCard.shared_minimum_spend_cents,
 		region_pricing: normalizedRegionPricing
 	};
 }

@@ -345,7 +345,7 @@ pub async fn get_estimate(
         tenant.customer_id,
         start_date,
         end_date,
-        customer.billing_plan_enum(),
+        customer.billing_plan_for_billing(),
         customer.object_storage_egress_carryforward_cents,
     )
     .await?;

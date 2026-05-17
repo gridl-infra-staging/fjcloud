@@ -174,6 +174,26 @@ test_local_ci_migration_gate_uses_local_postgres_default_url() {
     fi
 }
 
+test_secret_distinctness_gate_not_wired_by_default() {
+    local out status known_gates_line
+    status=0
+    out="$(bash "$LOCAL_CI" --gate secret-distinctness 2>&1)" || status=$?
+    known_gates_line="$(printf '%s\n' "$out" | grep -E '^Known gates:' || true)"
+
+    if [[ "$status" -ne 2 ]]; then
+        fail "local-ci.sh --gate secret-distinctness returned $status; expected 2 when the gate is intentionally not wired"
+        return
+    fi
+
+    if [[ "$out" == *"did not match any known gate"* ]] \
+        && [[ -n "$known_gates_line" ]] \
+        && [[ "$known_gates_line" != *"secret-distinctness"* ]]; then
+        pass "local-ci RED-path contract keeps secret-distinctness out of known gates"
+    else
+        fail "local-ci RED-path contract drifted; expected unknown-gate response without secret-distinctness in known gates list. Known gates line: $known_gates_line"
+    fi
+}
+
 main() {
     echo "=== local_ci_gate_set_e_test ==="
     test_local_ci_rust_lint_fails_on_real_fmt_violation
@@ -182,6 +202,7 @@ main() {
     test_hook_detection_rejects_comment_only_mentions
     test_set_e_hook_detection_rejects_comment_only_mentions
     test_local_ci_migration_gate_uses_local_postgres_default_url
+    test_secret_distinctness_gate_not_wired_by_default
     echo
     echo "=== Results: $PASS_COUNT passed, $FAIL_COUNT failed ==="
     if [[ "$FAIL_COUNT" -ne 0 ]]; then

@@ -69,6 +69,15 @@ JSON
 {"Contents":[{"Key":"e2e-emails/ses-delivery-object-001"}]}
 JSON
             ;;
+        run_scoped_keys)
+            cat <<'JSON'
+{"Contents":[
+  {"Key":"e2e-emails/run-001/failed.eml","LastModified":"2026-05-16T01:00:00Z"},
+  {"Key":"e2e-emails/run-001/suspended.eml","LastModified":"2026-05-16T01:00:01Z"},
+  {"Key":"e2e-emails/run-001/recovered.eml","LastModified":"2026-05-16T01:00:02Z"}
+]}
+JSON
+            ;;
         never_found)
             cat <<'JSON'
 {"Contents":[]}
@@ -332,6 +341,62 @@ RFC822
     assert_eq "$extracted" "legacy_query_token_456" "extract helper should support legacy query token links"
 }
 
+test_extract_subject_and_body_from_rfc822_payload() {
+    local payload subject body
+    source_helpers
+
+    payload="$(cat <<'RFC822'
+From: sender@example.com
+To: receiver@example.com
+Subject: Payment recovered
+Content-Type: text/plain; charset=utf-8
+
+Invoice reference: inv_recovered_001
+RFC822
+)"
+
+    subject="$(test_inbox_extract_subject_from_rfc822 "$payload")"
+    body="$(test_inbox_extract_body_text_from_rfc822 "$payload")"
+
+    assert_eq "$subject" "Payment recovered" "subject extractor should return RFC822 Subject header"
+    assert_contains "$body" "inv_recovered_001" "body extractor should return invoice-id-bearing body text"
+}
+
+test_list_s3_object_keys_for_run_scope_returns_recent_keys() {
+    local mock_dir call_log count_file fixture_file keys_json
+    source_helpers
+
+    mock_dir="$(new_mock_command_dir "aws" "$(test_inbox_helpers_mock_aws_body)")"
+    call_log="$mock_dir/aws_calls.log"
+    count_file="$mock_dir/list_count.txt"
+    fixture_file="$mock_dir/fixture.eml"
+    : > "$call_log"
+    printf '0\n' > "$count_file"
+    cat > "$fixture_file" <<'RFC822'
+From: sender@example.com
+To: receiver@example.com
+Subject: fixture
+
+fixture body
+RFC822
+
+    keys_json="$(
+        TEST_INBOX_HELPERS_AWS_CALL_LOG="$call_log" \
+        TEST_INBOX_HELPERS_LIST_MODE="run_scoped_keys" \
+        TEST_INBOX_HELPERS_LIST_COUNT_FILE="$count_file" \
+        TEST_INBOX_HELPERS_NONCE="helper-run-scope" \
+        TEST_INBOX_HELPERS_RFC822_FIXTURE="$fixture_file" \
+        PATH="$mock_dir:$PATH" \
+        test_inbox_list_recent_object_keys_json "flapjack-cloud-releases" "e2e-emails/run-001/" "us-east-1" "25"
+    )"
+
+    rm -rf "$mock_dir"
+
+    assert_valid_json "$keys_json" "run-scoped list helper should return JSON array"
+    assert_contains "$keys_json" "e2e-emails/run-001/recovered.eml" "run-scoped list helper should include recovered object key"
+    assert_contains "$keys_json" "e2e-emails/run-001/failed.eml" "run-scoped list helper should include failed object key"
+}
+
 echo "=== test_inbox_helpers.sh tests ==="
 test_nonce_subject_body_contract
 test_poll_finds_matching_s3_object_after_retries
@@ -341,6 +406,8 @@ test_fetch_rfc822_reads_message_content
 test_aws_backed_helpers_validate_required_args
 test_extract_verify_token_reads_path_style_link
 test_extract_verify_token_supports_legacy_query_shape
+test_extract_subject_and_body_from_rfc822_payload
+test_list_s3_object_keys_for_run_scope_returns_recent_keys
 
 echo "=== Results: $PASS_COUNT passed, $FAIL_COUNT failed ==="
 [ "$FAIL_COUNT" -eq 0 ]

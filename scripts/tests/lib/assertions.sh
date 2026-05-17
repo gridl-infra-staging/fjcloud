@@ -14,6 +14,15 @@ assert_eq() {
     fi
 }
 
+assert_ne() {
+    local actual="$1" rejected="$2" msg="$3"
+    if [ "$actual" = "$rejected" ]; then
+        fail "$msg (expected not '$rejected' but got '$actual')"
+    else
+        pass "$msg"
+    fi
+}
+
 assert_contains() {
     local actual="$1" expected_substr="$2" msg="$3"
     if [[ "$actual" != *"$expected_substr"* ]]; then

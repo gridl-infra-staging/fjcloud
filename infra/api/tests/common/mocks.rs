@@ -24,7 +24,11 @@ use api::repos::{
 use api::secrets::mock::MockNodeSecretManager;
 use api::services::alerting::MockAlertService;
 use api::services::cold_tier::{ColdTierError, FlapjackNodeClient};
-use api::services::email::{BroadcastDeliveryStatus, EmailError, EmailService, MockEmailService};
+use api::services::email::{
+    BroadcastDeliveryStatus, DunningRecoveredAfterFailureEmailRequest,
+    DunningRetriesExhaustedEmailRequest, DunningRetryScheduledEmailRequest, EmailError,
+    EmailService, MockEmailService,
+};
 use api::services::email_suppression::normalize_recipient_email;
 use api::services::flapjack_proxy::FlapjackProxy;
 use api::services::migration::{
@@ -53,6 +57,7 @@ pub struct MockCustomerRepo {
     pub should_fail_suspend: Mutex<bool>,
     pub should_fail_reactivate: Mutex<bool>,
     fail_next_soft_delete: AtomicBool,
+    fail_next_hard_delete_open_invoices: AtomicBool,
     fail_next_oauth_link_not_found: AtomicBool,
     inject_next_oauth_create_conflict_email: Mutex<Option<String>>,
     fail_next_resend_rollback: Mutex<Option<InjectedResendRollbackFailure>>,
@@ -109,6 +114,7 @@ impl MockCustomerRepo {
             should_fail_suspend: Mutex::new(false),
             should_fail_reactivate: Mutex::new(false),
             fail_next_soft_delete: AtomicBool::new(false),
+            fail_next_hard_delete_open_invoices: AtomicBool::new(false),
             fail_next_oauth_link_not_found: AtomicBool::new(false),
             inject_next_oauth_create_conflict_email: Mutex::new(None),
             fail_next_resend_rollback: Mutex::new(None),
@@ -118,6 +124,14 @@ impl MockCustomerRepo {
     /// Force the next soft-delete call to report "not found" without mutating state.
     pub fn fail_next_soft_delete(&self) {
         self.fail_next_soft_delete.store(true, Ordering::SeqCst);
+    }
+
+    /// Arm the next `hard_delete` call to return the open-invoices conflict
+    /// (without mutating state), so admin-handler tests can verify the
+    /// 409 path without depending on `MockInvoiceRepo` seeding.
+    pub fn force_next_hard_delete_open_invoices_conflict(&self) {
+        self.fail_next_hard_delete_open_invoices
+            .store(true, Ordering::SeqCst);
     }
 
     /// Force the next oauth-link call to return `NotFound` without mutating state.
@@ -412,6 +426,36 @@ impl CustomerRepo for MockCustomerRepo {
             }
             None => Ok(false),
         }
+    }
+
+    /// Implements `CustomerRepo::hard_delete`. Removes the customer row from
+    /// the in-memory store entirely. Returns `false` if no row matches.
+    /// When `fail_next_hard_delete_open_invoices` is armed, returns the
+    /// canonical `Conflict` so handler-level open-invoice rejection paths
+    /// can be exercised without spinning up a real `MockInvoiceRepo`.
+    async fn hard_delete(&self, id: Uuid) -> Result<bool, RepoError> {
+        if self
+            .fail_next_hard_delete_open_invoices
+            .swap(false, Ordering::SeqCst)
+        {
+            return Err(RepoError::Conflict(
+                "customer has open invoices; close or refund before hard-erase".into(),
+            ));
+        }
+
+        // Cascade in-memory dependent state owned by this mock so tests can
+        // observe the post-erase state. Other mocks (invoices, tenants)
+        // keep their own state; tests that care about cross-mock cleanup
+        // wire those repos explicitly.
+        {
+            let mut links = self.oauth_identities.lock().unwrap();
+            links.retain(|_, customer_id| *customer_id != id);
+        }
+
+        let mut customers = self.customers.lock().unwrap();
+        let initial_len = customers.len();
+        customers.retain(|c| c.id != id);
+        Ok(customers.len() < initial_len)
     }
 
     async fn list_deleted_before_cutoff(
@@ -2213,6 +2257,66 @@ impl EmailService for FailableEmailService {
             .await
     }
 
+    async fn send_dunning_retry_scheduled_email(
+        &self,
+        to: &str,
+        request: &DunningRetryScheduledEmailRequest<'_>,
+    ) -> Result<(), EmailError> {
+        self.broadcast_attempts.fetch_add(1, Ordering::SeqCst);
+        self.attempted_recipients
+            .lock()
+            .unwrap()
+            .push(to.to_string());
+
+        if let Some(reason) = self.broadcast_failures.lock().unwrap().get(to).cloned() {
+            return Err(EmailError::DeliveryFailed(reason));
+        }
+
+        self.delegate
+            .send_dunning_retry_scheduled_email(to, request)
+            .await
+    }
+
+    async fn send_dunning_retries_exhausted_email(
+        &self,
+        to: &str,
+        request: &DunningRetriesExhaustedEmailRequest<'_>,
+    ) -> Result<(), EmailError> {
+        self.broadcast_attempts.fetch_add(1, Ordering::SeqCst);
+        self.attempted_recipients
+            .lock()
+            .unwrap()
+            .push(to.to_string());
+
+        if let Some(reason) = self.broadcast_failures.lock().unwrap().get(to).cloned() {
+            return Err(EmailError::DeliveryFailed(reason));
+        }
+
+        self.delegate
+            .send_dunning_retries_exhausted_email(to, request)
+            .await
+    }
+
+    async fn send_dunning_recovered_after_failure_email(
+        &self,
+        to: &str,
+        request: &DunningRecoveredAfterFailureEmailRequest<'_>,
+    ) -> Result<(), EmailError> {
+        self.broadcast_attempts.fetch_add(1, Ordering::SeqCst);
+        self.attempted_recipients
+            .lock()
+            .unwrap()
+            .push(to.to_string());
+
+        if let Some(reason) = self.broadcast_failures.lock().unwrap().get(to).cloned() {
+            return Err(EmailError::DeliveryFailed(reason));
+        }
+
+        self.delegate
+            .send_dunning_recovered_after_failure_email(to, request)
+            .await
+    }
+
     async fn send_broadcast_email(
         &self,
         to: &str,
@@ -2243,6 +2347,95 @@ impl EmailService for FailableEmailService {
         self.delegate
             .send_broadcast_email(to, subject, html_body, text_body)
             .await
+    }
+}
+
+#[cfg(test)]
+mod failable_email_service_tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn failable_email_service_tracks_retry_scheduled_attempt_and_delegates() {
+        let (service, delegate) = FailableEmailService::with_mock_delegate();
+
+        service
+            .send_dunning_retry_scheduled_email(
+                "dunning-ok@example.com",
+                &DunningRetryScheduledEmailRequest {
+                    customer_id: "cus_dunning_ok",
+                    invoice_id: "in_dunning_ok",
+                    hosted_invoice_url: Some("https://stripe.com/invoice/dunning-ok"),
+                    next_payment_attempt_unix_seconds: 1_708_300_800,
+                    attempt_count: Some(2),
+                },
+            )
+            .await
+            .expect("dunning retry should delegate successfully");
+
+        assert_eq!(service.attempt_count(), 1);
+        assert_eq!(
+            service.attempted_recipients(),
+            vec!["dunning-ok@example.com".to_string()]
+        );
+        let sent = delegate.sent_emails();
+        assert_eq!(sent.len(), 1);
+        assert!(sent[0].subject.to_lowercase().contains("retry"));
+    }
+
+    #[tokio::test]
+    async fn failable_email_service_forces_failure_for_retries_exhausted_and_skips_delegate() {
+        let (service, delegate) = FailableEmailService::with_mock_delegate();
+        service.fail_recipient("dunning-fail@example.com", "forced dunning failure");
+
+        let err = service
+            .send_dunning_retries_exhausted_email(
+                "dunning-fail@example.com",
+                &DunningRetriesExhaustedEmailRequest {
+                    customer_id: "cus_dunning_fail",
+                    invoice_id: "in_dunning_fail",
+                    hosted_invoice_url: Some("https://stripe.com/invoice/dunning-fail"),
+                    attempt_count: Some(4),
+                },
+            )
+            .await
+            .expect_err("forced failure should be returned");
+
+        assert!(err.to_string().contains("forced dunning failure"));
+        assert_eq!(service.attempt_count(), 1);
+        assert_eq!(
+            service.attempted_recipients(),
+            vec!["dunning-fail@example.com".to_string()]
+        );
+        assert!(
+            delegate.sent_emails().is_empty(),
+            "delegate should not send when forced failure is configured"
+        );
+    }
+
+    #[tokio::test]
+    async fn failable_email_service_tracks_recovered_after_failure_attempt_and_delegates() {
+        let (service, delegate) = FailableEmailService::with_mock_delegate();
+
+        service
+            .send_dunning_recovered_after_failure_email(
+                "dunning-recovered@example.com",
+                &DunningRecoveredAfterFailureEmailRequest {
+                    customer_id: "cus_dunning_recovered",
+                    invoice_id: "in_dunning_recovered",
+                    hosted_invoice_url: Some("https://stripe.com/invoice/dunning-recovered"),
+                },
+            )
+            .await
+            .expect("dunning recovery should delegate successfully");
+
+        assert_eq!(service.attempt_count(), 1);
+        assert_eq!(
+            service.attempted_recipients(),
+            vec!["dunning-recovered@example.com".to_string()]
+        );
+        let sent = delegate.sent_emails();
+        assert_eq!(sent.len(), 1);
+        assert!(sent[0].subject.to_lowercase().contains("recovered"));
     }
 }
 

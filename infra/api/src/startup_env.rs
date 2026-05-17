@@ -57,6 +57,7 @@ pub struct StartupEnvSnapshot {
     cold_storage_secret_key: Option<String>,
     storage_encryption_key: Option<String>,
     app_base_url: Option<String>,
+    app_public_base_url: Option<String>,
 }
 
 impl StartupEnvSnapshot {
@@ -83,6 +84,7 @@ impl StartupEnvSnapshot {
             cold_storage_secret_key: read("COLD_STORAGE_SECRET_KEY"),
             storage_encryption_key: read("STORAGE_ENCRYPTION_KEY"),
             app_base_url: read("APP_BASE_URL"),
+            app_public_base_url: read("APP_PUBLIC_BASE_URL"),
         }
     }
 
@@ -238,7 +240,12 @@ impl StartupEnvSnapshot {
             "COLD_STORAGE_ACCESS_KEY" => self.cold_storage_access_key.as_deref(),
             "COLD_STORAGE_SECRET_KEY" => self.cold_storage_secret_key.as_deref(),
             "STORAGE_ENCRYPTION_KEY" => self.storage_encryption_key.as_deref(),
-            "APP_BASE_URL" => self.app_base_url.as_deref(),
+            "APP_BASE_URL" => self
+                .app_base_url
+                .as_deref()
+                .filter(|value| !value.trim().is_empty())
+                .or(self.app_public_base_url.as_deref()),
+            "APP_PUBLIC_BASE_URL" => self.app_public_base_url.as_deref(),
             _ => None,
         }
     }
@@ -307,6 +314,39 @@ mod tests {
         assert_eq!(
             snapshot.env_value("APP_BASE_URL"),
             Some("https://preview.example.test")
+        );
+    }
+
+    #[test]
+    fn app_public_base_url_alias_flows_through_app_base_url_env_lookup() {
+        let snapshot = snapshot_with(&[("APP_PUBLIC_BASE_URL", "https://public.example.test")]);
+        assert_eq!(
+            snapshot.env_value("APP_BASE_URL"),
+            Some("https://public.example.test")
+        );
+    }
+
+    #[test]
+    fn app_base_url_takes_precedence_over_public_alias() {
+        let snapshot = snapshot_with(&[
+            ("APP_BASE_URL", "https://canonical.example.test"),
+            ("APP_PUBLIC_BASE_URL", "https://public.example.test"),
+        ]);
+        assert_eq!(
+            snapshot.env_value("APP_BASE_URL"),
+            Some("https://canonical.example.test")
+        );
+    }
+
+    #[test]
+    fn blank_app_base_url_falls_back_to_public_alias() {
+        let snapshot = snapshot_with(&[
+            ("APP_BASE_URL", "   "),
+            ("APP_PUBLIC_BASE_URL", "https://public.example.test"),
+        ]);
+        assert_eq!(
+            snapshot.env_value("APP_BASE_URL"),
+            Some("https://public.example.test")
         );
     }
 

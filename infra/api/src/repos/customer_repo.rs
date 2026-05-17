@@ -63,6 +63,22 @@ pub trait CustomerRepo {
         email: Option<&str>,
     ) -> Result<Option<Customer>, RepoError>;
     async fn soft_delete(&self, id: Uuid) -> Result<bool, RepoError>;
+    /// Permanently erase a previously soft-deleted customer plus all
+    /// dependent rows that reference `customers(id)`. The customer row is
+    /// removed last.
+    ///
+    /// Contract:
+    /// * Returns `Ok(true)` when the customer existed and was removed.
+    /// * Returns `Ok(false)` when no `customers` row with this id exists
+    ///   (already hard-erased, or never existed).
+    /// * Returns `Err(RepoError::Conflict)` when the customer still has
+    ///   open invoices (non-final billing state). GDPR hard-erasure must
+    ///   not silently drop in-flight billing — callers (admins) must wind
+    ///   those down first.
+    /// * Implementations must rely on the `oauth_identities` FK cascade
+    ///   for that table only; every other dependent table must be cleaned
+    ///   explicitly so partial-delete regressions can be caught by tests.
+    async fn hard_delete(&self, id: Uuid) -> Result<bool, RepoError>;
     async fn list_deleted_before_cutoff(
         &self,
         cutoff: DateTime<Utc>,

@@ -35,19 +35,30 @@ write_mock_alert_dispatch_lib() {
 #!/usr/bin/env bash
 set -euo pipefail
 
-alert_dispatch_send_critical() {
-    local slack_url="$1"
-    local discord_url="$2"
+send_critical_alert() {
+    local channel="$1"
+    local webhook_url="$2"
     local title="$3"
     local message="$4"
     local source="$5"
     local nonce="$6"
     local environment="$7"
 
-    printf 'CALL|slack=%s|discord=%s|title=%s|message=%s|source=%s|nonce=%s|env=%s\n' \
-        "$slack_url" "$discord_url" "$title" "$message" "$source" "$nonce" "$environment" \
+    printf 'CALL|channel=%s|webhook=%s|title=%s|message=%s|source=%s|nonce=%s|env=%s\n' \
+        "$channel" "$webhook_url" "$title" "$message" "$source" "$nonce" "$environment" \
         >> "${SUPPORT_EMAIL_TEST_ALERT_LOG:?missing alert log path}"
-    return "${SUPPORT_EMAIL_TEST_ALERT_EXIT_CODE:-0}"
+
+    case "$channel" in
+        slack)
+            return "${SUPPORT_EMAIL_TEST_ALERT_SLACK_EXIT_CODE:-0}"
+            ;;
+        discord)
+            return "${SUPPORT_EMAIL_TEST_ALERT_DISCORD_EXIT_CODE:-0}"
+            ;;
+        *)
+            return 1
+            ;;
+    esac
 }
 MOCK
 }
@@ -75,19 +86,45 @@ run_support_email_canary() {
         bash "$REPO_ROOT/scripts/canary/support_email_deliverability.sh" 2>&1
 }
 
-assert_single_alert_with_classification() {
+assert_alert_line_metadata() {
+    local alert_line="$1"
+    local expected_channel="$2"
+    local expected_classification="$3"
+    local expected_detail="$4"
+
+    assert_contains "$alert_line" "channel=${expected_channel}" "alert should dispatch through expected channel"
+    assert_contains "$alert_line" "source=support_email_deliverability.sh" "alert payload should preserve support_email_deliverability source name"
+    assert_contains "$alert_line" "classification=${expected_classification}" "alert payload should include delegated failure classification"
+    assert_contains "$alert_line" "$expected_detail" "alert payload should include delegated failure detail"
+}
+
+assert_single_channel_alert_contract() {
     local alert_log="$1"
-    local expected_classification="$2"
-    local expected_detail="$3"
+    local expected_channel="$2"
+    local expected_classification="$3"
+    local expected_detail="$4"
     local alert_count alert_line
 
     alert_count="$(wc -l < "$alert_log" | tr -d '[:space:]')"
     alert_line="$(cat "$alert_log")"
 
-    assert_eq "$alert_count" "1" "failure path should dispatch exactly one critical alert"
-    assert_contains "$alert_line" "source=support_email_deliverability.sh" "alert payload should preserve support_email_deliverability source name"
-    assert_contains "$alert_line" "classification=${expected_classification}" "alert payload should include delegated failure classification"
-    assert_contains "$alert_line" "$expected_detail" "alert payload should include delegated failure detail"
+    assert_eq "$alert_count" "1" "single-channel failure path should dispatch exactly one helper call"
+    assert_alert_line_metadata "$alert_line" "$expected_channel" "$expected_classification" "$expected_detail"
+}
+
+assert_dual_channel_alert_contract() {
+    local alert_log="$1"
+    local expected_classification="$2"
+    local expected_detail="$3"
+    local alert_count slack_line discord_line
+
+    alert_count="$(wc -l < "$alert_log" | tr -d '[:space:]')"
+    slack_line="$(grep 'channel=slack' "$alert_log" || true)"
+    discord_line="$(grep 'channel=discord' "$alert_log" || true)"
+
+    assert_eq "$alert_count" "2" "dual-channel failure path should dispatch one helper call per configured channel"
+    assert_alert_line_metadata "$slack_line" "slack" "$expected_classification" "$expected_detail"
+    assert_alert_line_metadata "$discord_line" "discord" "$expected_classification" "$expected_detail"
 }
 
 test_canary_delegates_to_roundtrip_owner_on_success_without_alert_dispatch() {
@@ -125,7 +162,7 @@ test_canary_dispatches_one_critical_alert_on_timeout_failure() {
 
     assert_eq "${exit_code:-0}" "21" "canary should preserve delegated timeout exit code"
     assert_contains "$output" "\"passed\":false" "timeout path should still emit delegated roundtrip output for diagnostics"
-    assert_single_alert_with_classification "$mock_dir/alert_calls.log" "timeout" "Timed out waiting for nonce stage2-timeout"
+    assert_single_channel_alert_contract "$mock_dir/alert_calls.log" "slack" "timeout" "Timed out waiting for nonce stage2-timeout"
     rm -rf "$mock_dir"
 }
 
@@ -143,11 +180,11 @@ test_canary_dispatches_one_critical_alert_on_auth_failure() {
 
     assert_eq "${exit_code:-0}" "22" "canary should preserve delegated auth-failure exit code"
     assert_contains "$output" "\"passed\":false" "auth-failure path should still emit delegated roundtrip output for diagnostics"
-    assert_single_alert_with_classification "$mock_dir/alert_calls.log" "auth_failure" "failed_components=dkim"
+    assert_single_channel_alert_contract "$mock_dir/alert_calls.log" "discord" "auth_failure" "failed_components=dkim"
     rm -rf "$mock_dir"
 }
 
-test_canary_dispatches_one_critical_alert_on_runtime_failure() {
+test_canary_dispatches_per_channel_critical_alerts_on_runtime_failure() {
     local mock_dir output exit_code
     mock_dir="$(new_support_email_mock_workspace)"
 
@@ -162,7 +199,7 @@ test_canary_dispatches_one_critical_alert_on_runtime_failure() {
 
     assert_eq "${exit_code:-0}" "1" "canary should preserve delegated runtime-failure exit code"
     assert_contains "$output" "\"passed\":false" "runtime-failure path should still emit delegated roundtrip output for diagnostics"
-    assert_single_alert_with_classification "$mock_dir/alert_calls.log" "runtime" "aws sesv2 send-email failed"
+    assert_dual_channel_alert_contract "$mock_dir/alert_calls.log" "runtime" "aws sesv2 send-email failed"
     rm -rf "$mock_dir"
 }
 
@@ -180,7 +217,7 @@ test_canary_falls_back_to_raw_output_when_failure_detail_is_non_json() {
 
     assert_eq "${exit_code:-0}" "7" "canary should preserve delegated non-timeout/non-auth exit code"
     assert_contains "$output" "roundtrip probe crashed before json payload" "runtime fallback path should emit delegated raw output"
-    assert_single_alert_with_classification "$mock_dir/alert_calls.log" "runtime" "roundtrip probe crashed before json payload"
+    assert_single_channel_alert_contract "$mock_dir/alert_calls.log" "slack" "runtime" "roundtrip probe crashed before json payload"
     rm -rf "$mock_dir"
 }
 
@@ -188,7 +225,7 @@ echo "=== support_email_deliverability.sh tests ==="
 test_canary_delegates_to_roundtrip_owner_on_success_without_alert_dispatch
 test_canary_dispatches_one_critical_alert_on_timeout_failure
 test_canary_dispatches_one_critical_alert_on_auth_failure
-test_canary_dispatches_one_critical_alert_on_runtime_failure
+test_canary_dispatches_per_channel_critical_alerts_on_runtime_failure
 test_canary_falls_back_to_raw_output_when_failure_detail_is_non_json
 
 echo "=== Results: $PASS_COUNT passed, $FAIL_COUNT failed ==="

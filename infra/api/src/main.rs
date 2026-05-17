@@ -1,4 +1,3 @@
-
 use api::config::Config;
 use api::dns::DnsManager;
 use api::provisioner::region_map::RegionConfig;
@@ -35,6 +34,7 @@ const GOOGLE_TOKEN_ENDPOINT: &str = "https://oauth2.googleapis.com/token";
 const GOOGLE_USERINFO_ENDPOINT: &str = "https://openidconnect.googleapis.com/v1/userinfo";
 const GITHUB_TOKEN_ENDPOINT: &str = "https://github.com/login/oauth/access_token";
 const GITHUB_USERINFO_ENDPOINT: &str = "https://api.github.com/user";
+const GITHUB_USER_EMAILS_ENDPOINT: &str = "https://api.github.com/user/emails";
 
 /// Intermediate bundle from [`wire_services`] carrying all initialized services
 /// and their supporting objects.
@@ -245,6 +245,7 @@ async fn wire_app_state_phase(bootstrap: StartupBootstrapPhase) -> anyhow::Resul
         stripe_service,
         webhook_http_client,
         email_service,
+        dunning_emails_disabled: cfg.dunning_emails_disabled,
         object_store,
         cold_snapshot_repo: cold_snapshot_repo.clone(),
         tenant_repo,
@@ -314,6 +315,7 @@ fn build_oauth_runtime_config(
             format!("{base_url}{OAUTH_CALLBACK_PATH_GOOGLE}"),
             GOOGLE_TOKEN_ENDPOINT,
             GOOGLE_USERINFO_ENDPOINT,
+            None,
         ),
         github: oauth_provider_runtime_config(
             cfg.github_oauth_client_id.as_deref(),
@@ -321,6 +323,7 @@ fn build_oauth_runtime_config(
             format!("{base_url}{OAUTH_CALLBACK_PATH_GITHUB}"),
             GITHUB_TOKEN_ENDPOINT,
             GITHUB_USERINFO_ENDPOINT,
+            Some(GITHUB_USER_EMAILS_ENDPOINT),
         ),
         cookie_domain,
         cookie_secure,
@@ -334,6 +337,7 @@ fn oauth_provider_runtime_config(
     redirect_uri: String,
     token_endpoint: &str,
     userinfo_endpoint: &str,
+    user_emails_endpoint: Option<&str>,
 ) -> Option<OAuthProviderRuntimeConfig> {
     match (client_id, client_secret) {
         (Some(id), Some(secret)) => Some(OAuthProviderRuntimeConfig {
@@ -342,6 +346,7 @@ fn oauth_provider_runtime_config(
             redirect_uri: Arc::from(redirect_uri),
             token_endpoint: Arc::from(token_endpoint),
             userinfo_endpoint: Arc::from(userinfo_endpoint),
+            user_emails_endpoint: user_emails_endpoint.map(Arc::from),
         }),
         _ => None,
     }
@@ -574,6 +579,22 @@ async fn wire_control_plane_services(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::HashMap;
+
+    fn valid_config_with_google_oauth() -> Config {
+        Config::from_reader(|key| {
+            HashMap::from([
+                ("DATABASE_URL", "postgres://localhost/fjcloud"),
+                ("JWT_SECRET", "super-secret-key-for-testing-1234"),
+                ("ADMIN_KEY", "admin-bootstrap-key-for-testing"),
+                ("GOOGLE_OAUTH_CLIENT_ID", "google-client-id"),
+                ("GOOGLE_OAUTH_CLIENT_SECRET", "google-client-secret"),
+            ])
+            .get(key)
+            .map(|value| value.to_string())
+        })
+        .expect("config should parse for oauth runtime tests")
+    }
 
     #[test]
     fn startup_phase_helpers_are_defined() {
@@ -608,6 +629,25 @@ mod tests {
         assert!(
             *shutdown_rx_clone.borrow(),
             "cloned receiver should observe true shutdown signal"
+        );
+    }
+
+    #[test]
+    fn oauth_runtime_config_uses_public_alias_when_app_base_url_is_blank() {
+        let cfg = valid_config_with_google_oauth();
+        let startup_env = StartupEnvSnapshot::from_reader(|key| match key {
+            "APP_BASE_URL" => Some("   ".to_string()),
+            "APP_PUBLIC_BASE_URL" => Some("https://public.example.test/".to_string()),
+            _ => None,
+        });
+
+        let oauth = build_oauth_runtime_config(&cfg, &startup_env);
+        let google = oauth
+            .google
+            .expect("google oauth provider should be configured");
+        assert_eq!(
+            google.redirect_uri.as_ref(),
+            "https://public.example.test/auth/oauth/google/callback"
         );
     }
 }

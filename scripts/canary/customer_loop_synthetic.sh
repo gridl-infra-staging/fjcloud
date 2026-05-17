@@ -53,6 +53,8 @@ CANARY_LIVE_REFUND_ID=""
 CANARY_LIVE_PAYMENT_EVENT_ID=""
 CANARY_LIVE_MODE_CLI_OVERRIDE=""
 CANARY_SHOW_HELP=0
+CANARY_PROBE_ONLY=0
+CANARY_TEARDOWN_ONLY=0
 
 log() {
     echo "[customer-loop-canary] $*"
@@ -205,11 +207,13 @@ dispatch_failure_alert() {
 
 print_usage() {
     cat <<'USAGE'
-Usage: customer_loop_synthetic.sh [--dry-run|--live] [--help]
+Usage: customer_loop_synthetic.sh [--dry-run|--live] [--probe-only|--teardown-only] [--help]
 
 Options:
   --dry-run   Run signup/verify/index flow only and skip all Stripe-mutating steps (default).
   --live      Enable Stripe-mutating canary flow (sync, attach, invoice, pay, refund, webhook verify).
+  --probe-only   Run customer-loop checks and stop before teardown to preserve artifacts for follow-up probes.
+  --teardown-only Run teardown helpers only (refund/index/account/admin cleanup) using existing env-provided IDs.
   --help      Print this help message.
 USAGE
 }
@@ -217,6 +221,8 @@ USAGE
 parse_cli_args() {
     CANARY_LIVE_MODE_CLI_OVERRIDE=""
     CANARY_SHOW_HELP=0
+    CANARY_PROBE_ONLY=0
+    CANARY_TEARDOWN_ONLY=0
 
     while [ "$#" -gt 0 ]; do
         case "$1" in
@@ -229,6 +235,12 @@ parse_cli_args() {
             --help|-h)
                 CANARY_SHOW_HELP=1
                 ;;
+            --probe-only)
+                CANARY_PROBE_ONLY=1
+                ;;
+            --teardown-only)
+                CANARY_TEARDOWN_ONLY=1
+                ;;
             *)
                 echo "unknown argument: $1" >&2
                 print_usage >&2
@@ -238,13 +250,26 @@ parse_cli_args() {
         shift
     done
 
+    if [ "$CANARY_PROBE_ONLY" -eq 1 ] && [ "$CANARY_TEARDOWN_ONLY" -eq 1 ]; then
+        echo "--probe-only and --teardown-only are mutually exclusive" >&2
+        return 1
+    fi
+
     return 0
+}
+
+generate_canary_signup_password() {
+    python3 - <<'PY'
+import secrets
+
+print(f"Canary-{secrets.token_hex(16)}")
+PY
 }
 
 run_signup_step() {
     CANARY_NONCE="canary$(date -u +%Y%m%d%H%M%S)${RANDOM}"
     CANARY_SIGNUP_EMAIL="canary+${CANARY_NONCE}@${CANARY_TEST_INBOX_DOMAIN}"
-    CANARY_SIGNUP_PASSWORD="customer-loop-pass-1234"
+    CANARY_SIGNUP_PASSWORD="$(generate_canary_signup_password)"
 
     capture_json_response api_json_call POST "/auth/register" \
         -d "{\"name\":\"Staging Customer Canary\",\"email\":\"${CANARY_SIGNUP_EMAIL}\",\"password\":\"${CANARY_SIGNUP_PASSWORD}\"}"
@@ -776,6 +801,23 @@ main() {
 
     local rc_readiness_mode="${CANARY_RC_READINESS_MODE:-0}"
 
+    # Allow external orchestration to pre-seed teardown targets without running probe creation steps.
+    CANARY_CUSTOMER_ID="${CANARY_CUSTOMER_ID:-}"
+    CANARY_TOKEN="${CANARY_TOKEN:-}"
+    CANARY_INDEX_NAME="${CANARY_INDEX_NAME:-}"
+    CANARY_INDEX_CREATED="${CANARY_INDEX_CREATED:-0}"
+    CANARY_ACCOUNT_DELETED="${CANARY_ACCOUNT_DELETED:-0}"
+    CANARY_ADMIN_CLEANED="${CANARY_ADMIN_CLEANED:-0}"
+    CANARY_LIVE_CHARGE_ID="${CANARY_LIVE_CHARGE_ID:-}"
+    CANARY_LIVE_REFUND_ID="${CANARY_LIVE_REFUND_ID:-}"
+    CANARY_LIVE_INVOICE_ID="${CANARY_LIVE_INVOICE_ID:-}"
+
+    if [ "$CANARY_TEARDOWN_ONLY" -eq 1 ]; then
+        log "teardown-only mode enabled; skipping probe flow"
+        cleanup_after_flow
+        return 0
+    fi
+
     if quiet_window_active; then
         if [ "$rc_readiness_mode" = "1" ]; then
             log "quiet window active, but CANARY_RC_READINESS_MODE=1 overrides short-circuit"
@@ -789,7 +831,11 @@ main() {
         log "customer loop failed before completion; entering cleanup"
     fi
 
-    cleanup_after_flow
+    if [ "$CANARY_PROBE_ONLY" -eq 1 ]; then
+        log "probe-only mode enabled; skipping teardown"
+    else
+        cleanup_after_flow
+    fi
 
     if [ "$FLOW_FAILED" -eq 1 ]; then
         log "step '${FLOW_FAILURE_STEP}' failed: ${FLOW_FAILURE_DETAIL}"

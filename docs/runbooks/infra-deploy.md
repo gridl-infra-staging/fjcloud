@@ -24,6 +24,7 @@ curl https://api.flapjack.foo/version
 ```
 
 To answer "is the live env on current main?", use `bash scripts/deploy_status.sh` from the dev repo — it diffs deployed `/version.dev_sha` against `git rev-parse origin/main` in dev and reports the commit gap.
+For the canonical dev-repo push-and-sync operator contract, see `docs/runbooks/git_push_with_sync.md`.
 
 ## Pre-deploy Checklist
 

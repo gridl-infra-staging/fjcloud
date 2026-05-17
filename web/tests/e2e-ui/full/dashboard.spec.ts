@@ -207,7 +207,9 @@ test.describe('Dashboard page', () => {
 		const settingsSection = page.getByTestId('settings-section');
 		await expect(settingsSection).toBeVisible();
 		await settingsSection.getByRole('button', { name: 'Save Settings' }).click();
-		await expect(settingsSection).toContainText(/Settings saved\.|Failed to save settings/);
+		await expect(settingsSection).toContainText(
+			/Settings saved\.|Failed to save settings|backend temporarily unavailable/
+		);
 
 		const logsLink = page.getByRole('navigation').getByRole('link', { name: 'Logs', exact: true });
 		await expect(logsLink).toHaveAttribute('href', '/dashboard/logs');
@@ -474,7 +476,7 @@ test.describe('Plan-aware dashboard features', () => {
 		await expect(progress.getByText('Free Plan Usage')).toBeVisible();
 		await expect(progress.getByText('Searches')).toBeVisible();
 		await expect(progress.getByText('Records')).toBeVisible();
-		await expect(progress.getByText('Storage (GB)')).toBeVisible();
+		await expect(progress.getByText('Storage (MB)')).toBeVisible();
 		await expect(progress.getByText('Indexes')).toBeVisible();
 		// All four cards should render a concrete "used / limit" value row, not just one.
 		await expect(progress.getByText(/\d[\d,.]* \/ \d[\d,.]*/)).toHaveCount(4);

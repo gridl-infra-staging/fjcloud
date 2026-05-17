@@ -34,8 +34,8 @@ const freeOnboarding: OnboardingStatus = {
 	free_tier_limits: {
 		max_searches_per_month: 50000,
 		max_records: 100000,
-		max_storage_gb: 10,
-		max_indexes: 1
+		max_storage_mb: 250,
+		max_indexes: 3
 	},
 	flapjack_url: null,
 	suggested_next_step: 'Create your first index'

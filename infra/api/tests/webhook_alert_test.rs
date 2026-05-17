@@ -2,71 +2,36 @@ mod common;
 
 use std::sync::Arc;
 
-use api::repos::invoice_repo::{InvoiceRepo, NewLineItem};
+use api::repos::invoice_repo::InvoiceRepo;
 use api::repos::CustomerRepo;
 use api::services::alerting::{
     Alert, AlertError, AlertRecord, AlertService, AlertSeverity, MockAlertService,
 };
+use api::services::email::{EmailService, MockEmailService};
 use async_trait::async_trait;
-use axum::body::Body;
-use axum::http::{Request, StatusCode};
-use chrono::NaiveDate;
-use rust_decimal_macros::dec;
+use axum::http::StatusCode;
 use std::sync::Mutex;
 use tower::ServiceExt;
-use uuid::Uuid;
 
 use common::{
-    mock_deployment_repo, mock_invoice_repo, mock_rate_card_repo, mock_repo, mock_stripe_service,
-    mock_usage_repo, test_state_all_with_stripe,
+    mock_invoice_repo, mock_repo,
+    stripe_webhook_test_support::{
+        seed_draft_invoice, test_app_with_alert_and_email_services, webhook_request,
+    },
 };
-
-fn seed_draft_invoice(
-    repo: &common::MockInvoiceRepo,
-    customer_id: Uuid,
-) -> api::models::InvoiceRow {
-    repo.seed(
-        customer_id,
-        NaiveDate::from_ymd_opt(2026, 1, 1).unwrap(),
-        NaiveDate::from_ymd_opt(2026, 1, 31).unwrap(),
-        5000,
-        5000,
-        false,
-        vec![NewLineItem {
-            description: "Search requests".to_string(),
-            quantity: dec!(1000),
-            unit: "requests_1k".to_string(),
-            unit_price_cents: dec!(5),
-            amount_cents: 5000,
-            region: "us-east-1".to_string(),
-            metadata: None,
-        }],
-    )
-}
-
-fn webhook_request(body: &str) -> Request<Body> {
-    Request::post("/webhooks/stripe")
-        .header("content-type", "application/json")
-        .header("stripe-signature", "mock-sig")
-        .body(Body::from(body.to_string()))
-        .unwrap()
-}
 
 fn test_app_with_alert_service(
     customer_repo: Arc<common::MockCustomerRepo>,
     invoice_repo: Arc<common::MockInvoiceRepo>,
     alert_service: Arc<dyn AlertService>,
 ) -> axum::Router {
-    let mut state = test_state_all_with_stripe(
+    test_app_with_alert_and_email_services(
         customer_repo,
-        mock_deployment_repo(),
-        mock_usage_repo(),
-        mock_rate_card_repo(),
         invoice_repo,
-        mock_stripe_service(),
-    );
-    state.alert_service = alert_service;
-    api::router::build_router(state)
+        alert_service,
+        Arc::new(MockEmailService::new()) as Arc<dyn EmailService>,
+        false,
+    )
 }
 
 struct FailingAlertService {

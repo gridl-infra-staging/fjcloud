@@ -124,6 +124,7 @@ struct TestGoogleProvider {
 struct TestGitHubProvider {
     token_endpoint: String,
     userinfo_endpoint: String,
+    user_emails_endpoint: String,
 }
 
 async fn spawn_test_google_provider(email: &str, email_verified: bool) -> TestGoogleProvider {
@@ -178,8 +179,20 @@ async fn spawn_test_google_provider(email: &str, email_verified: bool) -> TestGo
     }
 }
 
-async fn spawn_test_github_provider(email: Option<&str>) -> TestGitHubProvider {
+async fn spawn_test_github_provider(
+    email: Option<&str>,
+    email_verified: bool,
+) -> TestGitHubProvider {
+    spawn_test_github_provider_with_emails_status(email, email_verified, Some(200)).await
+}
+
+async fn spawn_test_github_provider_with_emails_status(
+    email: Option<&str>,
+    email_verified: bool,
+    emails_status: Option<u16>,
+) -> TestGitHubProvider {
     let github_email = email.map(str::to_string);
+    let emails_email = github_email.clone();
     let app = axum::Router::new()
         .route(
             "/oauth/token",
@@ -209,6 +222,35 @@ async fn spawn_test_github_provider(email: Option<&str>) -> TestGitHubProvider {
                     )
                 }
             }),
+        )
+        .route(
+            "/oauth/user_emails",
+            axum::routing::get(move |_headers: axum::http::HeaderMap| {
+                let response_email = emails_email.clone();
+                async move {
+                    let status_code = emails_status.unwrap_or(200);
+                    if status_code != 200 {
+                        return (
+                            axum::http::StatusCode::from_u16(status_code)
+                                .unwrap_or(axum::http::StatusCode::INTERNAL_SERVER_ERROR),
+                            axum::Json(serde_json::json!({"message": "server error"})),
+                        );
+                    }
+                    let emails: Vec<serde_json::Value> = match response_email {
+                        Some(ref e) => vec![serde_json::json!({
+                            "email": e,
+                            "primary": true,
+                            "verified": email_verified,
+                            "visibility": "public"
+                        })],
+                        None => vec![],
+                    };
+                    (
+                        axum::http::StatusCode::OK,
+                        axum::Json(serde_json::json!(emails)),
+                    )
+                }
+            }),
         );
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
@@ -227,6 +269,7 @@ async fn spawn_test_github_provider(email: Option<&str>) -> TestGitHubProvider {
     TestGitHubProvider {
         token_endpoint: format!("{base}/oauth/token"),
         userinfo_endpoint: format!("{base}/oauth/userinfo"),
+        user_emails_endpoint: format!("{base}/oauth/user_emails"),
     }
 }
 
@@ -986,7 +1029,7 @@ async fn oauth_exchange_unverified_google_synthetic_conflict_does_not_auto_link_
 #[tokio::test]
 async fn oauth_exchange_github_synthetic_conflict_does_not_auto_link_local_customer() {
     let provider_server =
-        spawn_test_github_provider(Some("github-visible-email@integration.test")).await;
+        spawn_test_github_provider(Some("github-visible-email@integration.test"), false).await;
     let customer_repo = common::mock_repo();
     customer_repo.inject_oauth_create_conflict_with_concurrent_unverified_local(
         "oauth-github-7001@oauth.flapjack.foo",
@@ -999,6 +1042,7 @@ async fn oauth_exchange_github_synthetic_conflict_does_not_auto_link_local_custo
             "https://cloud.flapjack.foo/auth/oauth/github/callback",
             &provider_server.token_endpoint,
             &provider_server.userinfo_endpoint,
+            &provider_server.user_emails_endpoint,
         )
         .build_app();
 
@@ -1031,5 +1075,263 @@ async fn oauth_exchange_github_synthetic_conflict_does_not_auto_link_local_custo
         body.get("error"),
         Some(&Value::String("oauth_synthetic_email_conflict".into())),
         "GitHub synthetic-email conflict must return a deterministic error"
+    );
+}
+
+#[tokio::test]
+async fn oauth_exchange_rejects_deleted_customer_on_synthetic_email_path() {
+    let synthetic_email = "oauth-google-google-provider-user-1@oauth.flapjack.foo";
+    let provider_server = spawn_test_google_provider("unused@test.com", false).await;
+    let customer_repo = common::mock_repo();
+    customer_repo.seed_deleted("Deleted Synthetic", synthetic_email);
+    let app = common::TestStateBuilder::new()
+        .with_customer_repo(customer_repo)
+        .with_oauth_google_provider_with_endpoints(
+            "google-client-id",
+            "google-client-secret",
+            "https://cloud.flapjack.foo/auth/oauth/google/callback",
+            &provider_server.token_endpoint,
+            &provider_server.userinfo_endpoint,
+        )
+        .build_app();
+
+    let (oauth_state_cookie, binding_cookie, csrf_state) =
+        oauth_start_cookie_and_state(&app, "google").await;
+    let mut request =
+        oauth_exchange_request("google", "provider-code-deleted-synthetic", &csrf_state);
+    request.headers_mut().insert(
+        header::COOKIE,
+        oauth_request_cookie_header(&oauth_state_cookie, &binding_cookie)
+            .parse()
+            .unwrap(),
+    );
+    let response = app.oneshot(request).await.unwrap();
+    // TODO(stage-3): assert hard-deleted also returns 403 once CustomerRepo::hard_delete lands
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+
+    let body: Value = serde_json::from_slice(
+        &response
+            .into_body()
+            .collect()
+            .await
+            .expect("collect body")
+            .to_bytes(),
+    )
+    .expect("parse deleted synthetic customer response body");
+    assert_eq!(
+        body.get("error"),
+        Some(&Value::String("oauth_customer_deleted".into())),
+        "soft-deleted customer on synthetic-email path must return oauth_customer_deleted"
+    );
+}
+
+#[tokio::test]
+async fn oauth_exchange_synthetic_conflict_still_409_for_active_customer() {
+    let provider_server =
+        spawn_test_google_provider("ignored-google@integration.test", false).await;
+    let customer_repo = common::mock_repo();
+    customer_repo.inject_oauth_create_conflict_with_concurrent_unverified_local(
+        "oauth-google-google-provider-user-1@oauth.flapjack.foo",
+    );
+    let app = common::TestStateBuilder::new()
+        .with_customer_repo(customer_repo.clone())
+        .with_oauth_google_provider_with_endpoints(
+            "google-client-id",
+            "google-client-secret",
+            "https://cloud.flapjack.foo/auth/oauth/google/callback",
+            &provider_server.token_endpoint,
+            &provider_server.userinfo_endpoint,
+        )
+        .build_app();
+
+    let (oauth_state_cookie, binding_cookie, csrf_state) =
+        oauth_start_cookie_and_state(&app, "google").await;
+    let mut request = oauth_exchange_request(
+        "google",
+        "provider-code-active-synthetic-conflict",
+        &csrf_state,
+    );
+    request.headers_mut().insert(
+        header::COOKIE,
+        oauth_request_cookie_header(&oauth_state_cookie, &binding_cookie)
+            .parse()
+            .unwrap(),
+    );
+    let response = app.oneshot(request).await.unwrap();
+    assert_eq!(
+        response.status(),
+        StatusCode::CONFLICT,
+        "active customer with no matching oauth identity must still return 409"
+    );
+
+    let body: Value = serde_json::from_slice(
+        &response
+            .into_body()
+            .collect()
+            .await
+            .expect("collect body")
+            .to_bytes(),
+    )
+    .expect("parse active synthetic conflict response body");
+    assert_eq!(
+        body.get("error"),
+        Some(&Value::String("oauth_synthetic_email_conflict".into())),
+        "active-customer synthetic conflict must remain oauth_synthetic_email_conflict"
+    );
+}
+
+#[tokio::test]
+async fn oauth_exchange_github_verified_email_links_existing_customer() {
+    let provider_server = spawn_test_github_provider(Some("ghuser@test.com"), true).await;
+    let customer_repo = common::mock_repo();
+    let seeded = customer_repo.seed_verified_free_customer("Existing GH User", "ghuser@test.com");
+    let app = common::TestStateBuilder::new()
+        .with_customer_repo(customer_repo.clone())
+        .with_oauth_github_provider_with_endpoints(
+            "github-client-id",
+            "github-client-secret",
+            "https://cloud.flapjack.foo/auth/oauth/github/callback",
+            &provider_server.token_endpoint,
+            &provider_server.userinfo_endpoint,
+            &provider_server.user_emails_endpoint,
+        )
+        .build_app();
+
+    let (oauth_state_cookie, binding_cookie, csrf_state) =
+        oauth_start_cookie_and_state(&app, "github").await;
+    let mut request = oauth_exchange_request("github", "provider-code-gh-verified", &csrf_state);
+    request.headers_mut().insert(
+        header::COOKIE,
+        oauth_request_cookie_header(&oauth_state_cookie, &binding_cookie)
+            .parse()
+            .unwrap(),
+    );
+    let response = app.oneshot(request).await.unwrap();
+    assert_eq!(
+        response.status(),
+        StatusCode::OK,
+        "GitHub verified email must link to existing customer"
+    );
+
+    let body: Value = serde_json::from_slice(
+        &response
+            .into_body()
+            .collect()
+            .await
+            .expect("collect body")
+            .to_bytes(),
+    )
+    .expect("parse github verified link response body");
+    assert_eq!(
+        body.get("customer_id"),
+        Some(&Value::String(seeded.id.to_string())),
+        "must return the seeded customer's ID, not create a new one"
+    );
+}
+
+#[tokio::test]
+async fn oauth_exchange_github_unverified_email_uses_synthetic_path() {
+    let provider_server =
+        spawn_test_github_provider(Some("ghuser-unverified@test.com"), false).await;
+    let customer_repo = common::mock_repo();
+    let app = common::TestStateBuilder::new()
+        .with_customer_repo(customer_repo.clone())
+        .with_oauth_github_provider_with_endpoints(
+            "github-client-id",
+            "github-client-secret",
+            "https://cloud.flapjack.foo/auth/oauth/github/callback",
+            &provider_server.token_endpoint,
+            &provider_server.userinfo_endpoint,
+            &provider_server.user_emails_endpoint,
+        )
+        .build_app();
+
+    let (oauth_state_cookie, binding_cookie, csrf_state) =
+        oauth_start_cookie_and_state(&app, "github").await;
+    let mut request = oauth_exchange_request("github", "provider-code-gh-unverified", &csrf_state);
+    request.headers_mut().insert(
+        header::COOKIE,
+        oauth_request_cookie_header(&oauth_state_cookie, &binding_cookie)
+            .parse()
+            .unwrap(),
+    );
+    let response = app.oneshot(request).await.unwrap();
+    assert_eq!(
+        response.status(),
+        StatusCode::OK,
+        "GitHub unverified email must succeed via synthetic path"
+    );
+
+    let body: Value = serde_json::from_slice(
+        &response
+            .into_body()
+            .collect()
+            .await
+            .expect("collect body")
+            .to_bytes(),
+    )
+    .expect("parse github unverified synthetic response body");
+    let customer_id = body
+        .get("customer_id")
+        .and_then(Value::as_str)
+        .expect("response must contain customer_id");
+
+    let created_customers = customer_repo.list().await.expect("list customers");
+    let created = created_customers
+        .iter()
+        .find(|c| c.id.to_string() == customer_id)
+        .expect("created customer must exist in repo");
+    assert!(
+        created.email.starts_with("oauth-github-"),
+        "unverified GitHub email must create synthetic customer, got: {}",
+        created.email
+    );
+}
+
+#[tokio::test]
+async fn oauth_exchange_github_user_emails_failure_returns_bad_gateway() {
+    let provider_server =
+        spawn_test_github_provider_with_emails_status(Some("ghuser@test.com"), true, Some(500))
+            .await;
+    let app = common::TestStateBuilder::new()
+        .with_oauth_github_provider_with_endpoints(
+            "github-client-id",
+            "github-client-secret",
+            "https://cloud.flapjack.foo/auth/oauth/github/callback",
+            &provider_server.token_endpoint,
+            &provider_server.userinfo_endpoint,
+            &provider_server.user_emails_endpoint,
+        )
+        .build_app();
+
+    let (oauth_state_cookie, binding_cookie, csrf_state) =
+        oauth_start_cookie_and_state(&app, "github").await;
+    let mut request = oauth_exchange_request("github", "provider-code-gh-emails-fail", &csrf_state);
+    request.headers_mut().insert(
+        header::COOKIE,
+        oauth_request_cookie_header(&oauth_state_cookie, &binding_cookie)
+            .parse()
+            .unwrap(),
+    );
+    let response = app.oneshot(request).await.unwrap();
+    assert_eq!(
+        response.status(),
+        StatusCode::BAD_GATEWAY,
+        "GitHub /user/emails failure must return 502"
+    );
+
+    let body: Value = serde_json::from_slice(
+        &response
+            .into_body()
+            .collect()
+            .await
+            .expect("collect body")
+            .to_bytes(),
+    )
+    .expect("parse github emails failure response body");
+    assert_eq!(
+        body.get("error"),
+        Some(&Value::String("oauth_provider_userinfo_failed".into())),
+        "GitHub /user/emails failure must return oauth_provider_userinfo_failed error code"
     );
 }

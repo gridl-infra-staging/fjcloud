@@ -13,7 +13,7 @@ Create the first search index, wait through provisioning, receive one-time crede
 
 ## Target Behavior
 
-The screen shows `Get Started` and a step-based wizard. Step 1 chooses region and index name. Step 2 handles region/index preparation with polling, timeout recovery, and support contact. Step 3 exposes endpoint/API key credentials once and provides quickstart code. Completed users are told onboarding is already done.
+The screen shows `Get Started` and a step-based wizard. Step 1 chooses region and index name. Step 2 handles region/index preparation with polling, timeout recovery, and support contact. Step 3 exposes endpoint/API key credentials once and provides quickstart code. Completed users are told onboarding is already done. Free-plan onboarding status includes `free_tier_limits` from the API (`max_searches_per_month`, `max_records`, `max_storage_mb`, `max_indexes`), and Shared-plan onboarding uses payment-method gating when required.
 
 ## Required States
 
@@ -38,7 +38,7 @@ The screen shows `Get Started` and a step-based wizard. Step 1 chooses region an
 - [ ] Step 1 renders region options, default index name, and validation errors.
 - [ ] Invalid/empty index names disable `Continue`.
 - [ ] Valid index creation advances to a credentials step with `Get Credentials`.
-- [ ] Billing-gated shared-plan users see the billing setup gate instead of the wizard.
+- [ ] Billing-gated shared-plan users see the billing setup gate instead of the wizard, while free-plan users receive `free_tier_limits.max_storage_mb`-based quota context.
 
 ## Current Implementation Gaps
 

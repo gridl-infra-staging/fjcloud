@@ -21,9 +21,9 @@ import { load } from './+page.server';
 const freeTierLimits: FreeTierLimits = {
 	max_searches_per_month: 50000,
 	max_records: 100000,
-	max_storage_gb: 10,
-	max_indexes: 1
-};
+	max_storage_mb: 250,
+	max_indexes: 3
+} as unknown as FreeTierLimits;
 
 const sampleUsage: UsageSummaryResponse = {
 	month: '2026-02',
@@ -99,12 +99,47 @@ describe('Dashboard page server load', () => {
 	it('derives freeTierProgress from usage and free_tier_limits', async () => {
 		const result = (await load(event()))!;
 
+	expect(result.freeTierProgress).toEqual({
+		searches: { used: 15234, limit: 50000 },
+		records: { used: 89012, limit: 100000 },
+		storage_mb: { used: 2560, limit: 250 },
+		indexes: { used: 1, limit: 3 }
+	});
+	});
+
+	it('derives storage progress in MB from max_storage_mb free-tier contract key', async () => {
+		const planContextWithMbLimits = {
+			...freePlanContext,
+			free_tier_limits: {
+				max_searches_per_month: 50000,
+				max_records: 100000,
+				max_storage_mb: 250,
+				max_indexes: 3
+			} as unknown as FreeTierLimits
+		};
+
+		const result = (await load(
+			event({
+				planContext: planContextWithMbLimits as unknown as typeof freePlanContext
+			})
+		))!;
+
 		expect(result.freeTierProgress).toEqual({
 			searches: { used: 15234, limit: 50000 },
 			records: { used: 89012, limit: 100000 },
-			storage_gb: { used: 2.5, limit: 10 },
-			indexes: { used: 1, limit: 1 }
+			storage_mb: { used: 2560, limit: 250 },
+			indexes: { used: 1, limit: 3 }
 		});
+		expect(result.freeTierProgress).not.toHaveProperty('storage_gb');
+	});
+
+	it('uses canonical MB free-tier limits from planContext without route-level compatibility logic', async () => {
+		const result = (await load(event()))!;
+		expect(result.freeTierProgress).toEqual(
+			expect.objectContaining({
+				storage_mb: { used: 2560, limit: 250 }
+			})
+		);
 	});
 
 	it('returns freeTierProgress as null for shared plan', async () => {

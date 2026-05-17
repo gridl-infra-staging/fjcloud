@@ -262,3 +262,116 @@ if legacy_match:
     print(legacy_match.group(1))
 PY
 }
+
+# TODO: Document test_inbox_extract_subject_from_rfc822.
+test_inbox_extract_subject_from_rfc822() {
+    local rfc822_payload="$1"
+    test_inbox_require_nonempty "$rfc822_payload" "rfc822_payload" || return $?
+
+    python3 - "$rfc822_payload" <<'PY' || true
+import sys
+from email import policy
+from email.parser import Parser
+
+payload = sys.argv[1]
+try:
+    message = Parser(policy=policy.default).parsestr(payload)
+except Exception:
+    print("")
+    raise SystemExit(0)
+
+subject = message.get("Subject", "")
+print(str(subject).strip())
+PY
+}
+
+# TODO: Document test_inbox_extract_body_text_from_rfc822.
+test_inbox_extract_body_text_from_rfc822() {
+    local rfc822_payload="$1"
+    test_inbox_require_nonempty "$rfc822_payload" "rfc822_payload" || return $?
+
+    python3 - "$rfc822_payload" <<'PY' || true
+import sys
+from email import policy
+from email.parser import Parser
+
+payload = sys.argv[1]
+try:
+    message = Parser(policy=policy.default).parsestr(payload)
+except Exception:
+    print(payload)
+    raise SystemExit(0)
+
+fragments = []
+if message.is_multipart():
+    for part in message.walk():
+        if part.get_content_type() not in ("text/plain", "text/html"):
+            continue
+        try:
+            content = part.get_content()
+        except Exception:
+            continue
+        if isinstance(content, bytes):
+            content = content.decode("utf-8", "ignore")
+        if content:
+            fragments.append(content)
+else:
+    try:
+        content = message.get_content()
+        if isinstance(content, bytes):
+            content = content.decode("utf-8", "ignore")
+        if content:
+            fragments.append(content)
+    except Exception:
+        pass
+
+print("\n".join(fragments) if fragments else payload)
+PY
+}
+
+# TODO: Document test_inbox_list_recent_object_keys_json.
+test_inbox_list_recent_object_keys_json() {
+    local bucket="$1"
+    local prefix="$2"
+    local region="$3"
+    local max_keys="$4"
+    local list_json
+
+    test_inbox_require_nonempty "$bucket" "bucket" || return $?
+    test_inbox_require_nonempty "$region" "region" || return $?
+    test_inbox_require_nonnegative_int "$max_keys" "max_keys" || return $?
+    if [[ "$max_keys" == "0" ]]; then
+        echo "max_keys must be greater than zero" >&2
+        return "$TEST_INBOX_ARG_ERROR_EXIT_CODE"
+    fi
+
+    if ! list_json="$(AWS_PAGER="" aws s3api list-objects-v2 --bucket "$bucket" --prefix "$prefix" --region "$region" --output json --no-cli-pager 2>/dev/null)"; then
+        echo "aws s3api list-objects-v2 failed for s3://$bucket/$prefix" >&2
+        return 1
+    fi
+
+    python3 - "$list_json" "$max_keys" <<'PY' || true
+import json
+import sys
+from datetime import datetime, timezone
+
+payload = json.loads(sys.argv[1])
+max_keys = int(sys.argv[2])
+contents = payload.get("Contents", []) or []
+
+def parse_last_modified(item):
+    raw = item.get("LastModified", "")
+    if not raw:
+        return datetime.min.replace(tzinfo=timezone.utc)
+    try:
+        if raw.endswith("Z"):
+            raw = raw[:-1] + "+00:00"
+        return datetime.fromisoformat(raw)
+    except Exception:
+        return datetime.min.replace(tzinfo=timezone.utc)
+
+ordered = sorted(contents, key=parse_last_modified, reverse=True)
+keys = [item.get("Key", "") for item in ordered if item.get("Key", "")]
+print(json.dumps(keys[:max_keys]))
+PY
+}

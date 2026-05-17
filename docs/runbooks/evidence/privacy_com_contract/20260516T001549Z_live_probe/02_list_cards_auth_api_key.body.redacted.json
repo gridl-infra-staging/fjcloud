@@ -1,0 +1,69 @@
+{
+  "data": [
+    {
+      "account_token": "REDACTED_UUID",
+      "auth_rule_tokens": [],
+      "card_program_token": "REDACTED_UUID",
+      "replacement_for": null,
+      "cardholder_currency": "USD",
+      "created": "2026-05-05T20:15:29Z",
+      "digital_card_art_token": null,
+      "exp_month": "05",
+      "exp_year": "2031",
+      "funding": {
+        "account_name": "REDACTED_ACCOUNT_NAME",
+        "created": "2026-05-03T01:08:45Z",
+        "last_four": "REDACTED_LAST_FOUR",
+        "nickname": "",
+        "state": "ENABLED",
+        "token": "REDACTED_UUID",
+        "type": "DEPOSITORY_CHECKING"
+      },
+      "hostname": "",
+      "last_four": "REDACTED_LAST_FOUR",
+      "memo": "fawefasdf",
+      "pending_commands": [],
+      "pin_status": "NOT_SET",
+      "product_id": null,
+      "spend_limit": 5000,
+      "spend_limit_duration": "FOREVER",
+      "state": "OPEN",
+      "token": "REDACTED_UUID",
+      "type": "MERCHANT_LOCKED"
+    },
+    {
+      "account_token": "REDACTED_UUID",
+      "auth_rule_tokens": [],
+      "card_program_token": "REDACTED_UUID",
+      "replacement_for": null,
+      "cardholder_currency": "USD",
+      "created": "2026-05-03T01:09:40Z",
+      "digital_card_art_token": null,
+      "exp_month": "05",
+      "exp_year": "2031",
+      "funding": {
+        "account_name": "REDACTED_ACCOUNT_NAME",
+        "created": "2026-05-03T01:08:45Z",
+        "last_four": "REDACTED_LAST_FOUR",
+        "nickname": "",
+        "state": "ENABLED",
+        "token": "REDACTED_UUID",
+        "type": "DEPOSITORY_CHECKING"
+      },
+      "hostname": "",
+      "last_four": "REDACTED_LAST_FOUR",
+      "memo": "asdfasdf",
+      "pending_commands": [],
+      "pin_status": "NOT_SET",
+      "product_id": null,
+      "spend_limit": 200,
+      "spend_limit_duration": "FOREVER",
+      "state": "CLOSED",
+      "token": "REDACTED_UUID",
+      "type": "SINGLE_USE"
+    }
+  ],
+  "page": 1,
+  "total_entries": 2,
+  "total_pages": 1
+}

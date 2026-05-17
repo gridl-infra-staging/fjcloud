@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach } from 'vitest';
 import { render, screen, cleanup, within } from '@testing-library/svelte';
 
 import LandingPage from './+page.svelte';
-import { MARKETING_PRICING } from '$lib/pricing';
+import { MARKETING_PRICING, sharedPlanMinimumMonthlyLabel } from '$lib/pricing';
 
 afterEach(cleanup);
 
@@ -95,10 +95,45 @@ describe('Landing page', () => {
 	});
 
 	it('pricing_calculator_shows_single_minimum_spend', () => {
-		render(LandingPage, { data: { pricing: pricingData } });
+		const pricingWithDistinctMinimumColumns = {
+			...pricingData,
+			minimum_spend_cents: 0,
+			shared_minimum_spend_cents: 4321
+		};
+
+		render(LandingPage, { data: { pricing: pricingWithDistinctMinimumColumns } });
 		expect(screen.queryByTestId('pricing-mode-shared')).not.toBeInTheDocument();
 		expect(screen.queryByTestId('pricing-mode-dedicated')).not.toBeInTheDocument();
-		expect(screen.getByTestId('minimum-spend')).toHaveTextContent('$10.00');
+		expect(screen.getByTestId('minimum-spend')).toHaveTextContent(
+			sharedPlanMinimumMonthlyLabel(pricingWithDistinctMinimumColumns.shared_minimum_spend_cents)
+		);
+	});
+
+	it('pricing_calculator_renders_grouped_minimum_for_large_shared_minimums', () => {
+		const pricingWithLargeMinimum = {
+			...pricingData,
+			minimum_spend_cents: 0,
+			shared_minimum_spend_cents: 123456
+		};
+
+		render(LandingPage, { data: { pricing: pricingWithLargeMinimum } });
+		// Regression: helper-driven minimum-spend display must preserve thousands separators.
+		expect(screen.getByTestId('minimum-spend')).toHaveTextContent('$1,234.56');
+		expect(screen.getByTestId('minimum-spend')).toHaveTextContent(
+			sharedPlanMinimumMonthlyLabel(pricingWithLargeMinimum.shared_minimum_spend_cents)
+		);
+	});
+
+	it('fails loudly when shared_minimum_spend_cents is missing from pricing payload', () => {
+		const { shared_minimum_spend_cents: _removedSharedMinimum, ...pricingWithoutSharedMinimum } =
+			pricingData;
+		void _removedSharedMinimum;
+
+		expect(() =>
+			render(LandingPage, {
+				data: { pricing: pricingWithoutSharedMinimum as unknown as typeof pricingData }
+			})
+		).toThrow('pricing.shared_minimum_spend_cents is required for landing pricing');
 	});
 
 	it('pricing_calculator_shows_regions_without_provider_details', () => {

@@ -92,6 +92,12 @@ impl Customer {
     pub fn billing_plan_enum(&self) -> BillingPlan {
         BillingPlan::from_str(&self.billing_plan).unwrap_or(BillingPlan::Free)
     }
+
+    /// Billing-only fallback: malformed persisted plan strings should use
+    /// paid-safe semantics for invoice and estimate minimum selection.
+    pub fn billing_plan_for_billing(&self) -> BillingPlan {
+        BillingPlan::from_str(&self.billing_plan).unwrap_or(BillingPlan::Shared)
+    }
 }
 
 #[cfg(test)]
@@ -201,11 +207,19 @@ mod tests {
     }
 
     /// Verifies that an unrecognized plan string defaults to
-    /// `BillingPlan::Free`.
+    /// `BillingPlan::Free` for non-billing product seams.
     #[test]
     fn billing_plan_enum_method_unknown_defaults_to_free() {
         let customer = build_test_customer("enterprise", Decimal::ZERO);
         assert_eq!(customer.billing_plan_enum(), BillingPlan::Free);
+    }
+
+    /// Verifies that billing-only minimum-selection seams use a paid-safe
+    /// fallback when the stored plan string is malformed.
+    #[test]
+    fn billing_plan_for_billing_unknown_defaults_to_shared() {
+        let customer = build_test_customer("enterprise", Decimal::ZERO);
+        assert_eq!(customer.billing_plan_for_billing(), BillingPlan::Shared);
     }
 
     /// Verify that newly constructed customers initialize `object_storage_egress_carryforward_cents` to zero.

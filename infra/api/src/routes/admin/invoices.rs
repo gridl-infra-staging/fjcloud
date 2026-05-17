@@ -52,7 +52,7 @@ pub async fn generate_invoice(
         customer_id,
         start,
         end,
-        customer.billing_plan_enum(),
+        customer.billing_plan_for_billing(),
         customer.object_storage_egress_carryforward_cents,
     )
     .await?;
@@ -200,7 +200,6 @@ pub async fn run_batch_billing(
     let mut skipped = 0usize;
 
     for customer in customers {
-        // Only bill active customers — skip suspended (payment issues)
         if customer.status != "active" {
             skipped += 1;
             results.push(batch_result(
@@ -208,6 +207,17 @@ pub async fn run_batch_billing(
                 "skipped",
                 None,
                 Some(format!("customer_{}", customer.status)),
+            ));
+            continue;
+        }
+
+        if customer.billing_plan_for_billing() == crate::models::BillingPlan::Free {
+            skipped += 1;
+            results.push(batch_result(
+                customer.id,
+                "skipped",
+                None,
+                Some("free_plan".to_string()),
             ));
             continue;
         }
@@ -232,7 +242,7 @@ pub async fn run_batch_billing(
             customer.id,
             start,
             end,
-            customer.billing_plan_enum(),
+            customer.billing_plan_for_billing(),
             customer.object_storage_egress_carryforward_cents,
         )
         .await?;

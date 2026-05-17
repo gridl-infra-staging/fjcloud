@@ -88,6 +88,39 @@ fn mailpit_from_name_falls_back_when_blank() {
     );
 }
 
+#[test]
+fn app_base_url_from_snapshot_uses_app_public_base_url_alias() {
+    let snapshot = snapshot_with(&[("APP_PUBLIC_BASE_URL", "https://public.example.test/")]);
+    assert_eq!(
+        app_base_url_from_snapshot(&snapshot),
+        "https://public.example.test"
+    );
+}
+
+#[test]
+fn app_base_url_from_snapshot_prefers_app_base_url_over_alias() {
+    let snapshot = snapshot_with(&[
+        ("APP_BASE_URL", "https://canonical.example.test/"),
+        ("APP_PUBLIC_BASE_URL", "https://public.example.test/"),
+    ]);
+    assert_eq!(
+        app_base_url_from_snapshot(&snapshot),
+        "https://canonical.example.test"
+    );
+}
+
+#[test]
+fn app_base_url_from_snapshot_uses_alias_when_app_base_url_is_blank() {
+    let snapshot = snapshot_with(&[
+        ("APP_BASE_URL", "   "),
+        ("APP_PUBLIC_BASE_URL", "https://public.example.test/"),
+    ]);
+    assert_eq!(
+        app_base_url_from_snapshot(&snapshot),
+        "https://public.example.test"
+    );
+}
+
 #[tokio::test]
 async fn init_alert_service_fails_closed_for_production_without_webhooks() {
     let pool = test_pool();

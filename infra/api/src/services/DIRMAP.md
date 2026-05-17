@@ -32,13 +32,13 @@ admin write paths whose abuse would be a customer-trust incident
 | replication.rs | Stub summary for replication.rs. |
 | replication_error.rs | Stub summary for /Users/stuart/parallel_development/fjcloud_dev/MAR17_11_2_data_management_features/fjcloud_dev/infra/api/src/services/replication_error.rs. |
 | restore.rs | Stub summary for /Users/stuart/parallel_development/fjcloud_dev/MAR17_11_2_data_management_features/fjcloud_dev/infra/api/src/services/restore.rs. |
-| tenant_quota.rs | Stub summary for /Users/stuart/parallel_development/fjcloud_dev/MAR17_11_2_data_management_features/fjcloud_dev/infra/api/src/services/tenant_quota.rs. |
+| tenant_quota.rs | Stub summary for tenant_quota.rs. |
 | webhook_http.rs | Stub summary for webhook_http.rs. |
 
 | Directory | Summary |
 | --- | --- |
 | cold_tier | The cold_tier service manages archived or infrequently accessed data storage, with a node_client for communicating with cold storage nodes and a pipeline for orchestrating data movement and archival workflows. |
-| email | — |
+| email | The email directory contains email testing and rendering functionality, with mailpit.rs handling integration with Mailpit for testing email delivery and render.rs managing email template rendering. |
 | flapjack_proxy | The flapjack_proxy module proxies management operations from the fjcloud API to individual flapjack VMs, handling authentication via admin keys cached from SSM with stale-on-error resilience. |
 | migration | The migration service orchestrates index data movement between VMs, handling replication with near-zero-lag cutover, failure recovery, alerting on success/warnings/failures, and protocol negotiation between source and destination nodes. |
 | provisioning | The provisioning service handles infrastructure resource provisioning, including automatic provisioning logic in auto_provision.rs for deploying and configuring cloud infrastructure components. |

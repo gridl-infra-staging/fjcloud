@@ -27,6 +27,14 @@ test_prompt_requires_rule_id_anchor_wording() {
   assert_file_contains "$prompt_path" 'Each entry in \\"violations\\" must include \\"rule_id\\"' "prompt requires per-violation rule_id"
   assert_file_contains "$prompt_path" 'exact M\.\*' "prompt mentions exact M.* anchors"
   assert_file_contains "$prompt_path" 'P\.\* anchor' "prompt mentions exact P.* anchors"
+  assert_file_contains "$prompt_path" 'must never be null or empty' "prompt forbids null or empty violation rule ids"
+  assert_file_contains "$prompt_path" 'must include a non-empty \\"description\\"' "prompt requires non-empty violation descriptions"
+  assert_file_contains "$prompt_path" 'Pure palette or visual-polish drift' "prompt classifies pure palette drift as advisory"
+  if grep -E -n -- 'M.universal.1, M.universal.4, or P.brand_palette_consistency' "$prompt_path" >/dev/null 2>&1; then
+    fail "prompt does not hardcode M.universal.1/M.universal.4/P.brand_palette_consistency advisory downgrade"
+  else
+    pass "prompt does not hardcode M.universal.1/M.universal.4/P.brand_palette_consistency advisory downgrade"
+  fi
 }
 
 test_manifest_export_contract() {

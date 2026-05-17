@@ -8,7 +8,11 @@ use std::sync::{
 use api::models::RateCardRow;
 use api::repos::invoice_repo::NewLineItem;
 use api::repos::{CustomerRepo, InvoiceRepo};
-use api::services::email::{BroadcastDeliveryStatus, EmailError, EmailService, MockEmailService};
+use api::services::email::{
+    BroadcastDeliveryStatus, DunningRecoveredAfterFailureEmailRequest,
+    DunningRetriesExhaustedEmailRequest, DunningRetryScheduledEmailRequest, EmailError,
+    EmailService, MockEmailService,
+};
 use async_trait::async_trait;
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
@@ -162,6 +166,30 @@ impl EmailService for FailingInvoiceEmailService {
         Ok(())
     }
 
+    async fn send_dunning_retry_scheduled_email(
+        &self,
+        _to: &str,
+        _request: &DunningRetryScheduledEmailRequest<'_>,
+    ) -> Result<(), EmailError> {
+        Ok(())
+    }
+
+    async fn send_dunning_retries_exhausted_email(
+        &self,
+        _to: &str,
+        _request: &DunningRetriesExhaustedEmailRequest<'_>,
+    ) -> Result<(), EmailError> {
+        Ok(())
+    }
+
+    async fn send_dunning_recovered_after_failure_email(
+        &self,
+        _to: &str,
+        _request: &DunningRecoveredAfterFailureEmailRequest<'_>,
+    ) -> Result<(), EmailError> {
+        Ok(())
+    }
+
     async fn send_broadcast_email(
         &self,
         _to: &str,
@@ -291,6 +319,14 @@ async fn batch_billing_sends_emails() {
 
     let customer_a = seed_stripe_customer(&customer_repo, "Alpha", "alpha@example.com").await;
     let customer_b = seed_stripe_customer(&customer_repo, "Beta", "beta@example.com").await;
+    customer_repo
+        .set_billing_plan(customer_a.id, "shared")
+        .await
+        .unwrap();
+    customer_repo
+        .set_billing_plan(customer_b.id, "shared")
+        .await
+        .unwrap();
 
     usage_repo.seed(
         customer_a.id,

@@ -262,6 +262,7 @@ assert_job_contains_regex "playwright" 'POSTGRES_PASSWORD:\s+password' "playwrig
 assert_job_contains_regex "playwright" 'DATABASE_URL:\s+postgres://fjcloud:password@127.0.0.1:5432/fjcloud_test' "playwright sets canonical DATABASE_URL"
 assert_job_contains_regex "playwright" 'ENVIRONMENT:\s+local' "playwright sets local environment for zero-dependency API bootstrap"
 assert_job_contains_regex "playwright" 'NODE_SECRET_BACKEND:\s+memory' "playwright enables in-memory node secret backend for zero-dependency API bootstrap"
+assert_job_contains_regex "playwright" 'STRIPE_LOCAL_MODE:\s+"1"' "playwright enforces Stripe local mode when CI has no real Stripe key"
 assert_job_contains_regex "playwright" 'BASE_URL:\s+http://127.0.0.1:5173' "playwright sets BASE_URL for browser tests"
 assert_job_contains_regex "playwright" 'API_URL:\s+http://127.0.0.1:3001' "playwright sets API_URL for browser tests"
 assert_job_contains_regex "playwright" 'MAILPIT_API_URL:\s+http://127.0.0.1:8025' "playwright sets MAILPIT_API_URL for signup email verification fixtures"

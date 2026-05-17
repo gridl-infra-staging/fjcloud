@@ -34,6 +34,88 @@ assert_active_count_at_least() {
   fi
 }
 
+extract_active_resource_block() {
+  local file="$1"
+  local resource_type="$2"
+  local resource_name="$3"
+  strip_comments "$file" | awk -v resource_type="$resource_type" -v resource_name="$resource_name" '
+    BEGIN { in_block = 0; depth = 0 }
+    {
+      line = $0
+      if (!in_block && line ~ "^[[:space:]]*resource[[:space:]]+\"" resource_type "\"[[:space:]]+\"" resource_name "\"[[:space:]]*{") {
+        in_block = 1
+      }
+
+      if (in_block) {
+        print line
+        opens = gsub(/{/, "{", line)
+        closes = gsub(/}/, "}", line)
+        depth += opens - closes
+        if (depth == 0) {
+          exit
+        }
+      }
+    }
+  '
+}
+
+assert_resource_block_contains() {
+  local file="$1"
+  local resource_type="$2"
+  local resource_name="$3"
+  local pattern="$4"
+  local description="$5"
+  local block
+
+  block="$(extract_active_resource_block "$file" "$resource_type" "$resource_name")"
+  if [[ -z "$block" ]]; then
+    fail "$description (resource ${resource_type}.${resource_name} not found)"
+    return
+  fi
+
+  if rg -q "$pattern" <<<"$block"; then
+    pass "$description"
+  else
+    fail "$description"
+  fi
+}
+
+assert_file_contains_multiline_regex() {
+  local file="$1"
+  local pattern="$2"
+  local description="$3"
+  if python3 - "$file" "$pattern" <<'PY'
+import pathlib
+import re
+import sys
+
+text = pathlib.Path(sys.argv[1]).read_text()
+pattern = sys.argv[2]
+raise SystemExit(0 if re.search(pattern, text, re.S) else 1)
+PY
+  then
+    pass "$description"
+  else
+    fail "$description"
+  fi
+}
+
+assert_active_pattern_only_in_files() {
+  local pattern="$1"
+  local description="$2"
+  shift 2
+  local observed expected
+
+  observed="$(rg -l --glob '*.tf' "$pattern" ops/terraform | sort || true)"
+  expected="$(printf '%s\n' "$@" | sort)"
+
+  if [[ "$observed" == "$expected" ]]; then
+    pass "$description"
+  else
+    fail "$description (found in: ${observed:-<none>})"
+  fi
+}
+
 echo ""
 echo "=== Stage 7 Static Tests: Monitoring & Final Validation ==="
 echo ""
@@ -74,6 +156,7 @@ assert_file_contains "$canary_lambda_image_bootstrap" 'bash "\$handler_command"'
 assert_file_contains "$canary_lambda_image_bootstrap" '/2018-06-01/runtime/invocation/next' "Bootstrap polls Lambda Runtime API for invocations"
 assert_file_contains "$canary_lambda_image_bootstrap" '/2018-06-01/runtime/invocation/\$\{request_id\}/response' "Bootstrap posts successful invocation responses to Lambda Runtime API"
 assert_file_contains "$canary_lambda_image_bootstrap" '/2018-06-01/runtime/invocation/\$\{request_id\}/error' "Bootstrap posts invocation failures to Lambda Runtime API error endpoint"
+assert_file_contains_multiline_regex "$canary_lambda_image_bootstrap" 'if \(cd /workspace && bash "\$handler_command"\); then.*?continue.*?else\s+exit_code=\$\?\s+fi' "Bootstrap captures handler exit code inside the failure branch before reporting runtime errors"
 
 echo ""
 echo "--- Stage 7.6 runtime signal checks ---"
@@ -111,6 +194,40 @@ assert_contains_active "$monitor_main_file" 'ssm:GetParameter' "Canary Lambda IA
 assert_contains_active "$monitor_main_file" '/fjcloud/\$\{var\.env\}/canary_quiet_until' "Canary Lambda IAM policy is scoped to canonical quiet-window parameter path"
 
 echo ""
+echo "--- Stage 7 customer-loop runtime hydration contract ---"
+assert_contains_active "$monitor_main_file" 'customer_loop_canary_admin_key_parameter_name[[:space:]]*=[[:space:]]*"/fjcloud/\$\{var\.env\}/admin_key"' "Monitoring locals define customer-loop ADMIN_KEY parameter-name contract"
+assert_contains_active "$monitor_main_file" 'customer_loop_canary_stripe_secret_key_parameter_name[[:space:]]*=[[:space:]]*"/fjcloud/\$\{var\.env\}/stripe_secret_key"' "Monitoring locals define customer-loop STRIPE_SECRET_KEY parameter-name contract"
+assert_contains_active "$monitor_main_file" 'customer_loop_canary_slack_webhook_parameter_name[[:space:]]*=[[:space:]]*var\.support_email_canary_slack_webhook_parameter_name[[:space:]]*!=[[:space:]]*""[[:space:]]*\?[[:space:]]*var\.support_email_canary_slack_webhook_parameter_name[[:space:]]*:[[:space:]]*"/fjcloud/\$\{var\.env\}/slack_webhook_url"' "Monitoring locals define customer-loop Slack webhook parameter-name contract"
+assert_contains_active "$monitor_main_file" 'customer_loop_canary_discord_webhook_parameter_name[[:space:]]*=[[:space:]]*var\.support_email_canary_discord_webhook_parameter_name[[:space:]]*!=[[:space:]]*""[[:space:]]*\?[[:space:]]*var\.support_email_canary_discord_webhook_parameter_name[[:space:]]*:[[:space:]]*"/fjcloud/\$\{var\.env\}/discord_webhook_url"' "Monitoring locals define customer-loop Discord webhook parameter-name contract"
+assert_contains_active "$monitor_main_file" 'customer_loop_canary_admin_key_parameter_arn' "Monitoring locals define customer-loop ADMIN_KEY parameter ARN for IAM scoping"
+assert_contains_active "$monitor_main_file" 'customer_loop_canary_stripe_secret_key_parameter_arn' "Monitoring locals define customer-loop STRIPE secret parameter ARN for IAM scoping"
+assert_contains_active "$monitor_main_file" 'customer_loop_canary_slack_webhook_parameter_arn' "Monitoring locals define customer-loop Slack parameter ARN for IAM scoping"
+assert_contains_active "$monitor_main_file" 'customer_loop_canary_discord_webhook_parameter_arn' "Monitoring locals define customer-loop Discord parameter ARN for IAM scoping"
+assert_contains_active "$monitor_main_file" 'ssm:GetParameters' "Canary Lambda IAM policy grants batched SSM parameter reads for runtime hydration"
+assert_contains_active "$monitor_main_file" 'local\.customer_loop_canary_admin_key_parameter_arn' "Canary Lambda IAM policy scopes ADMIN_KEY read to canonical parameter ARN"
+assert_contains_active "$monitor_main_file" 'local\.customer_loop_canary_stripe_secret_key_parameter_arn' "Canary Lambda IAM policy scopes STRIPE secret read to canonical parameter ARN"
+assert_contains_active "$monitor_main_file" 'local\.customer_loop_canary_slack_webhook_parameter_arn' "Canary Lambda IAM policy scopes Slack webhook read to canonical parameter ARN"
+assert_contains_active "$monitor_main_file" 'local\.customer_loop_canary_discord_webhook_parameter_arn' "Canary Lambda IAM policy scopes Discord webhook read to canonical parameter ARN"
+assert_contains_active "$monitor_main_file" 'API_URL[[:space:]]*=[[:space:]]*"https://api\.\$\{var\.domain\}"' "Customer-loop Lambda env passes canonical API URL directly"
+assert_contains_active "$monitor_main_file" 'CANARY_TEST_INBOX_DOMAIN[[:space:]]*=[[:space:]]*var\.support_email_canary_recipient_domain_default' "Customer-loop Lambda env reuses support-email recipient-domain owner"
+assert_contains_active "$monitor_main_file" 'CANARY_TEST_INBOX_S3_URI[[:space:]]*=[[:space:]]*var\.support_email_canary_inbound_roundtrip_s3_uri' "Customer-loop Lambda env reuses support-email inbound S3 owner"
+assert_contains_active "$monitor_main_file" 'ADMIN_KEY[[:space:]]*=[[:space:]]*local\.customer_loop_canary_admin_key_parameter_name' "Customer-loop Lambda env passes ADMIN_KEY as parameter name for runtime hydration"
+assert_contains_active "$monitor_main_file" 'STRIPE_SECRET_KEY[[:space:]]*=[[:space:]]*local\.customer_loop_canary_stripe_secret_key_parameter_name' "Customer-loop Lambda env passes STRIPE_SECRET_KEY as parameter name for runtime hydration"
+assert_contains_active "$monitor_main_file" 'SLACK_WEBHOOK_URL[[:space:]]*=[[:space:]]*local\.customer_loop_canary_slack_webhook_parameter_name' "Customer-loop Lambda env passes Slack webhook as parameter name for runtime hydration"
+assert_contains_active "$monitor_main_file" 'DISCORD_WEBHOOK_URL[[:space:]]*=[[:space:]]*local\.customer_loop_canary_discord_webhook_parameter_name' "Customer-loop Lambda env passes Discord webhook as parameter name for runtime hydration"
+assert_file_contains "$canary_lambda_image_bootstrap" 'ssm_parameter_env_vars=' "Bootstrap defines explicit runtime-hydration env var allowlist"
+assert_file_contains "$canary_lambda_image_bootstrap" 'ADMIN_KEY' "Bootstrap hydration allowlist includes ADMIN_KEY"
+assert_file_contains "$canary_lambda_image_bootstrap" 'STRIPE_SECRET_KEY' "Bootstrap hydration allowlist includes STRIPE_SECRET_KEY"
+assert_file_contains "$canary_lambda_image_bootstrap" 'SLACK_WEBHOOK_URL' "Bootstrap hydration allowlist includes SLACK_WEBHOOK_URL"
+assert_file_contains "$canary_lambda_image_bootstrap" 'DISCORD_WEBHOOK_URL' "Bootstrap hydration allowlist includes DISCORD_WEBHOOK_URL"
+assert_file_contains "$canary_lambda_image_bootstrap" 'aws ssm get-parameters' "Bootstrap resolves SSM parameter-name env vars via batched get-parameters"
+assert_file_contains "$canary_lambda_image_bootstrap" 'with-decryption' "Bootstrap requests decrypted parameter values at runtime"
+assert_file_not_contains "$canary_owner_script" '/fjcloud/\$\{ENVIRONMENT\}/admin_key' "Customer-loop script does not resolve ADMIN_KEY parameter names directly"
+assert_file_not_contains "$canary_owner_script" '/fjcloud/\$\{ENVIRONMENT\}/stripe_secret_key' "Customer-loop script does not resolve STRIPE secret parameter names directly"
+assert_file_not_contains "$canary_owner_script" '/fjcloud/\$\{ENVIRONMENT\}/slack_webhook_url' "Customer-loop script does not resolve Slack webhook parameter names directly"
+assert_file_not_contains "$canary_owner_script" '/fjcloud/\$\{ENVIRONMENT\}/discord_webhook_url' "Customer-loop script does not resolve Discord webhook parameter names directly"
+
+echo ""
 echo "--- Monitoring resource count ---"
 # Resource count breakdown:
 #   2 alerts SNS (topic + email subscription)
@@ -121,9 +238,9 @@ echo "--- Monitoring resource count ---"
 #   8 customer-loop canary (ECR repo + lifecycle, IAM role+policy, Lambda, EventBridge rule+target, Lambda permission)
 #   4 cloudtrail export (S3 bucket + public-access-block + lifecycle + bucket-policy + cloudtrail itself = 5)
 #   2 budget (budget + budget action)
-#   8 cloudwatch metric alarms (6 infra + 1 heartbeat + 1 billing)
-# Sum: 2 + 3 + 8 + 5 + 2 + 8 = 28.
-assert_resource_count "$monitor_main_file" 28 "monitoring/main.tf has exactly 28 resources (alerts + SES feedback + canary + cloudtrail + budget + alarms)"
+#   12 cloudwatch metric alarms (6 baseline infra + 4 Stage 2 coverage alarms + 1 heartbeat + 1 billing)
+# Sum: 2 + 3 + 8 + 5 + 2 + 12 = 32.
+assert_resource_count "$monitor_main_file" 32 "monitoring/main.tf has exactly 32 resources (alerts + SES feedback + canary + cloudtrail + budget + alarms)"
 
 echo ""
 echo "--- API CPU alarm ---"
@@ -175,13 +292,51 @@ assert_contains_active "$monitor_main_file" 'extended_statistic[[:space:]]*=[[:s
 assert_contains_active "$monitor_main_file" 'namespace[[:space:]]*=[[:space:]]*"AWS/ApplicationELB"' "ALB alarms target AWS/ApplicationELB namespace"
 
 echo ""
+echo "--- Stage 2 alarm coverage additions ---"
+assert_contains_active "$monitor_main_file" 'resource "aws_cloudwatch_metric_alarm" "api_root_disk_high"' "API root disk alarm resource exists"
+assert_contains_active "$monitor_main_file" 'alarm_name[[:space:]]*=[[:space:]]*"fjcloud-\$\{var\.env\}-api-root-disk-high"' "API root disk alarm name follows naming convention"
+assert_contains_active "$monitor_main_file" 'namespace[[:space:]]*=[[:space:]]*"CWAgent"' "API root disk alarm uses CWAgent namespace"
+assert_contains_active "$monitor_main_file" 'metric_name[[:space:]]*=[[:space:]]*"disk_used_percent"' "API root disk alarm targets disk_used_percent metric"
+assert_contains_active "$monitor_main_file" 'threshold[[:space:]]*=[[:space:]]*85' "API root disk alarm threshold is 85%"
+assert_contains_active "$monitor_main_file" 'InstanceId[[:space:]]*=[[:space:]]*var\.api_instance_id' "API root disk alarm dimensions include API instance id"
+assert_contains_active "$monitor_main_file" 'path[[:space:]]*=[[:space:]]*"/"' "API root disk alarm dimensions include root mount path"
+assert_contains_active "$monitor_main_file" 'device[[:space:]]*=[[:space:]]*"nvme0n1p1"' "API root disk alarm dimensions include root block device"
+assert_contains_active "$monitor_main_file" 'fstype[[:space:]]*=[[:space:]]*"xfs"' "API root disk alarm dimensions include root filesystem type"
+
+assert_contains_active "$monitor_main_file" 'resource "aws_cloudwatch_metric_alarm" "rds_connections_high"' "RDS connection pressure alarm resource exists"
+assert_contains_active "$monitor_main_file" 'alarm_name[[:space:]]*=[[:space:]]*"fjcloud-\$\{var\.env\}-rds-connections-high"' "RDS connection pressure alarm name follows naming convention"
+assert_contains_active "$monitor_main_file" 'metric_name[[:space:]]*=[[:space:]]*"DatabaseConnections"' "RDS connection pressure alarm uses DatabaseConnections metric"
+assert_contains_active "$monitor_main_file" 'threshold[[:space:]]*=[[:space:]]*145' "RDS connection pressure alarm threshold is the locked literal value"
+assert_contains_active "$monitor_main_file" 'max_connections=181' "RDS connection pressure alarm description records live max_connections source"
+
+assert_contains_active "$monitor_main_file" 'resource "aws_cloudwatch_metric_alarm" "alb_unhealthy_hosts"' "ALB unhealthy-host alarm resource exists"
+assert_contains_active "$monitor_main_file" 'alarm_name[[:space:]]*=[[:space:]]*"fjcloud-\$\{var\.env\}-alb-unhealthy-hosts"' "ALB unhealthy-host alarm name follows naming convention"
+assert_contains_active "$monitor_main_file" 'metric_name[[:space:]]*=[[:space:]]*"UnHealthyHostCount"' "ALB unhealthy-host alarm uses UnHealthyHostCount metric"
+assert_contains_active "$monitor_main_file" 'LoadBalancer[[:space:]]*=[[:space:]]*var\.alb_arn_suffix' "ALB unhealthy-host alarm dimensions include ALB arn suffix"
+assert_contains_active "$monitor_main_file" 'TargetGroup[[:space:]]*=[[:space:]]*var\.api_target_group_arn_suffix' "ALB unhealthy-host alarm dimensions include target-group arn suffix"
+
+assert_contains_active "$monitor_main_file" 'resource "aws_cloudwatch_metric_alarm" "customer_loop_canary_lambda_errors"' "Customer-loop canary errors alarm resource exists"
+assert_contains_active "$monitor_main_file" 'alarm_name[[:space:]]*=[[:space:]]*"fjcloud-\$\{var\.env\}-customer-loop-canary-lambda-errors"' "Customer-loop canary errors alarm name follows naming convention"
+assert_contains_active "$monitor_main_file" 'namespace[[:space:]]*=[[:space:]]*"AWS/Lambda"' "Customer-loop canary errors alarm uses AWS/Lambda namespace"
+assert_contains_active "$monitor_main_file" 'metric_name[[:space:]]*=[[:space:]]*"Errors"' "Customer-loop canary errors alarm uses Errors metric"
+assert_contains_active "$monitor_main_file" 'FunctionName[[:space:]]*=[[:space:]]*local\.customer_loop_canary_function_name' "Customer-loop canary errors alarm dimensions use canonical local function-name owner"
+
+echo ""
 echo "--- Cross-alarm contract checks ---"
 assert_contains_active "$monitor_main_file" 'comparison_operator[[:space:]]*=[[:space:]]*"GreaterThanThreshold"' "CPU/latency alarms use GreaterThanThreshold operator"
 assert_contains_active "$monitor_main_file" 'period[[:space:]]*=[[:space:]]*300' "Alarms use 5-minute period"
 assert_contains_active "$monitor_main_file" 'evaluation_periods[[:space:]]*=[[:space:]]*2' "EC2/RDS alarms evaluate over 10 minutes (2 periods)"
-assert_active_count_at_least "$monitor_main_file" 'alarm_actions[[:space:]]*=[[:space:]]*\[aws_sns_topic\.alerts\.arn\]' 6 "All 6 alarms wire alarm_actions to SNS topic"
-assert_active_count_at_least "$monitor_main_file" 'ok_actions[[:space:]]*=[[:space:]]*\[aws_sns_topic\.alerts\.arn\]' 6 "All 6 alarms wire ok_actions to SNS topic (recovery notifications)"
-assert_active_count_at_least "$monitor_main_file" 'treat_missing_data[[:space:]]*=[[:space:]]*"notBreaching"' 6 "All 6 alarms treat missing data as not breaching"
+assert_resource_block_contains "$monitor_main_file" "aws_cloudwatch_metric_alarm" "api_root_disk_high" 'alarm_actions[[:space:]]*=[[:space:]]*\[aws_sns_topic\.alerts\.arn\]' "API root disk alarm block wires alarm_actions to SNS topic"
+assert_resource_block_contains "$monitor_main_file" "aws_cloudwatch_metric_alarm" "api_root_disk_high" 'ok_actions[[:space:]]*=[[:space:]]*\[aws_sns_topic\.alerts\.arn\]' "API root disk alarm block wires ok_actions to SNS topic"
+assert_resource_block_contains "$monitor_main_file" "aws_cloudwatch_metric_alarm" "rds_connections_high" 'alarm_actions[[:space:]]*=[[:space:]]*\[aws_sns_topic\.alerts\.arn\]' "RDS connections alarm block wires alarm_actions to SNS topic"
+assert_resource_block_contains "$monitor_main_file" "aws_cloudwatch_metric_alarm" "rds_connections_high" 'ok_actions[[:space:]]*=[[:space:]]*\[aws_sns_topic\.alerts\.arn\]' "RDS connections alarm block wires ok_actions to SNS topic"
+assert_resource_block_contains "$monitor_main_file" "aws_cloudwatch_metric_alarm" "alb_unhealthy_hosts" 'alarm_actions[[:space:]]*=[[:space:]]*\[aws_sns_topic\.alerts\.arn\]' "ALB unhealthy-host alarm block wires alarm_actions to SNS topic"
+assert_resource_block_contains "$monitor_main_file" "aws_cloudwatch_metric_alarm" "alb_unhealthy_hosts" 'ok_actions[[:space:]]*=[[:space:]]*\[aws_sns_topic\.alerts\.arn\]' "ALB unhealthy-host alarm block wires ok_actions to SNS topic"
+assert_resource_block_contains "$monitor_main_file" "aws_cloudwatch_metric_alarm" "customer_loop_canary_lambda_errors" 'alarm_actions[[:space:]]*=[[:space:]]*\[aws_sns_topic\.alerts\.arn\]' "Customer-loop canary errors alarm block wires alarm_actions to SNS topic"
+assert_resource_block_contains "$monitor_main_file" "aws_cloudwatch_metric_alarm" "customer_loop_canary_lambda_errors" 'ok_actions[[:space:]]*=[[:space:]]*\[aws_sns_topic\.alerts\.arn\]' "Customer-loop canary errors alarm block wires ok_actions to SNS topic"
+assert_active_count_at_least "$monitor_main_file" 'alarm_actions[[:space:]]*=[[:space:]]*\[aws_sns_topic\.alerts\.arn\]' 10 "All baseline + Stage 2 alarms wire alarm_actions to SNS topic"
+assert_active_count_at_least "$monitor_main_file" 'ok_actions[[:space:]]*=[[:space:]]*\[aws_sns_topic\.alerts\.arn\]' 10 "All baseline + Stage 2 alarms wire ok_actions to SNS topic (recovery notifications)"
+assert_active_count_at_least "$monitor_main_file" 'treat_missing_data[[:space:]]*=[[:space:]]*"notBreaching"' 10 "All non-heartbeat alarms treat missing data as not breaching"
 
 echo ""
 echo "--- Monitoring module variables ---"
@@ -189,6 +344,7 @@ assert_contains_active "$monitor_vars_file" 'variable "alert_emails"' "Monitorin
 assert_contains_active "$monitor_vars_file" 'variable "api_instance_id"' "Monitoring has api_instance_id variable"
 assert_contains_active "$monitor_vars_file" 'variable "db_instance_identifier"' "Monitoring has db_instance_identifier variable"
 assert_contains_active "$monitor_vars_file" 'variable "alb_arn_suffix"' "Monitoring has alb_arn_suffix variable"
+assert_contains_active "$monitor_vars_file" 'variable "api_target_group_arn_suffix"' "Monitoring has API target-group arn suffix variable"
 assert_contains_active "$monitor_vars_file" 'variable "env"' "Monitoring has env variable"
 assert_contains_active "$monitor_vars_file" 'variable "region"' "Monitoring has region variable"
 assert_contains_active "$monitor_vars_file" 'variable "canary_image"' "Monitoring has canary_image publication input"
@@ -202,16 +358,27 @@ assert_contains_active "$monitor_outputs_file" 'output "customer_loop_canary_ecr
 assert_contains_active "$monitor_outputs_file" 'output "customer_loop_canary_image_uri"' "Monitoring exports canonical canary image URI"
 assert_contains_active "$monitor_outputs_file" 'output "customer_loop_canary_lambda_function_arn"' "Monitoring exports canary Lambda function ARN"
 assert_contains_active "$monitor_outputs_file" 'output "customer_loop_canary_schedule_rule_name"' "Monitoring exports canary schedule rule name"
+assert_contains_active "$monitor_outputs_file" 'output "api_root_disk_high_alarm_arn"' "Monitoring exports API root disk alarm ARN"
+assert_contains_active "$monitor_outputs_file" 'output "rds_connections_high_alarm_arn"' "Monitoring exports RDS connections alarm ARN"
+assert_contains_active "$monitor_outputs_file" 'output "alb_unhealthy_hosts_alarm_arn"' "Monitoring exports ALB unhealthy-host alarm ARN"
+assert_contains_active "$monitor_outputs_file" 'output "customer_loop_canary_lambda_errors_alarm_arn"' "Monitoring exports customer-loop canary errors alarm ARN"
 
 echo "--- Shared module contract updates ---"
 assert_contains_active "$data_outputs_file" 'output "db_instance_identifier"' "Data module exports db_instance_identifier"
 assert_contains_active "$data_outputs_file" 'value[[:space:]]*=[[:space:]]*aws_db_instance\.main\.identifier' "db_instance_identifier output uses aws_db_instance.main.identifier"
 assert_contains_active "$dns_outputs_file" 'output "alb_arn_suffix"' "DNS module exports ALB arn suffix"
+assert_contains_active "$dns_outputs_file" 'output "api_target_group_arn_suffix"' "DNS module exports API target-group arn suffix"
 assert_contains_active "$shared_main_file" 'module "monitoring"' "Root main wires monitoring module"
 assert_contains_active "$shared_main_file" 'source[[:space:]]*=[[:space:]]*"../monitoring"' "monitoring module source is ../monitoring"
 assert_contains_active "$shared_main_file" 'api_instance_id[[:space:]]*=[[:space:]]*module\.compute\.api_instance_id' "monitoring module receives API instance id"
 assert_contains_active "$shared_main_file" 'db_instance_identifier[[:space:]]*=[[:space:]]*module\.data\.db_instance_identifier' "monitoring module receives DB instance identifier"
 assert_contains_active "$shared_main_file" 'alb_arn_suffix[[:space:]]*=[[:space:]]*module\.dns\.alb_arn_suffix' "monitoring module receives ALB arn suffix"
+assert_contains_active "$shared_main_file" 'api_target_group_arn_suffix[[:space:]]*=[[:space:]]*module\.dns\.api_target_group_arn_suffix' "monitoring module receives API target-group arn suffix"
+assert_not_contains_active "$monitor_main_file" 'TargetGroup[[:space:]]*=[[:space:]]*"targetgroup/' "ALB unhealthy-host alarm does not hardcode target-group suffix in monitoring owner"
+assert_not_contains_active "$shared_main_file" 'api_target_group_arn_suffix[[:space:]]*=[[:space:]]*"targetgroup/' "Shared module does not hardcode target-group suffix"
+assert_not_contains_active "$monitor_main_file" 'data[[:space:]]+"aws_lb_target_group"' "Monitoring module does not introduce parallel target-group data discovery"
+assert_not_contains_active "$shared_main_file" 'data[[:space:]]+"aws_lb_target_group"' "Shared module does not introduce parallel target-group data discovery"
+assert_active_pattern_only_in_files 'api_target_group_arn_suffix' "api_target_group_arn_suffix contract is restricted to canonical dns -> shared -> monitoring path" "$dns_outputs_file" "$shared_main_file" "$monitor_vars_file" "$monitor_main_file"
 assert_contains_active "$shared_main_file" 'alert_emails[[:space:]]*=[[:space:]]*local\.alert_emails_normalized' "root forwards normalized alert_emails local to monitoring"
 assert_contains_active "$shared_main_file" 'canary_image[[:space:]]*=[[:space:]]*var\.canary_image' "root forwards canonical canary image input to monitoring"
 assert_contains_active "$shared_main_file" 'canary_schedule[[:space:]]*=[[:space:]]*var\.canary_schedule' "root forwards canonical canary schedule input to monitoring"

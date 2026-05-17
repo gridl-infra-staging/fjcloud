@@ -267,7 +267,7 @@ describe('Dashboard usage page', () => {
 		expect(screen.queryByTestId('estimated-bill')).not.toBeInTheDocument();
 	});
 
-	it('estimated bill shows even with no usage (minimum applied)', () => {
+	it('free-plan estimate with no usage shows $0.00 and no minimum-applied banner', () => {
 		const emptyUsage: UsageSummaryResponse = {
 			month: '2026-02',
 			total_search_requests: 0,
@@ -279,8 +279,8 @@ describe('Dashboard usage page', () => {
 		const estimate: EstimatedBillResponse = {
 			month: '2026-02',
 			subtotal_cents: 0,
-			total_cents: 500,
-			minimum_applied: true,
+			total_cents: 0,
+			minimum_applied: false,
 			line_items: []
 		};
 
@@ -300,8 +300,8 @@ describe('Dashboard usage page', () => {
 		expect(screen.getByText(/no usage data/i)).toBeInTheDocument();
 		const widget = screen.getByTestId('estimated-bill');
 		expect(widget).toBeInTheDocument();
-		expect(within(widget).getByText('$5.00')).toBeInTheDocument();
-		expect(within(widget).getByText(/monthly minimum applied/i)).toBeInTheDocument();
+		expect(within(widget).getByText('$0.00')).toBeInTheDocument();
+		expect(within(widget).queryByText(/minimum applied/i)).not.toBeInTheDocument();
 	});
 
 	it('estimated bill widget renders total and line items', () => {
@@ -393,7 +393,9 @@ describe('Dashboard usage page', () => {
 		expect(within(widget).getByTestId('estimated-bill-total')).toHaveTextContent(
 			formatCents(estimate.total_cents)
 		);
-		expect(within(widget).getByText('Monthly minimum applied')).toBeInTheDocument();
+		expect(
+			within(widget).getByText('Shared plan minimum applied ($5.00 per month)')
+		).toBeInTheDocument();
 		expect(within(widget).queryByText('View breakdown')).not.toBeInTheDocument();
 		expect(
 			within(widget).queryByRole('columnheader', { name: 'Description' })

@@ -204,6 +204,7 @@ jobs:
       DATABASE_URL: postgres://fjcloud:password@127.0.0.1:5432/fjcloud_test
       ENVIRONMENT: local
       NODE_SECRET_BACKEND: memory
+      STRIPE_LOCAL_MODE: "1"
       LISTEN_ADDR: 0.0.0.0:3001
       BASE_URL: http://127.0.0.1:5173
       API_URL: http://127.0.0.1:3001

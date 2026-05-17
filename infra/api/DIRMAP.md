@@ -7,6 +7,6 @@
 
 | Directory | Summary |
 | --- | --- |
-| src | The src directory contains the complete Rust backend for fjcloud's API server, organizing authentication, HTTP routing, billing and invoicing logic, infrastructure provisioning across multiple cloud providers, data access repositories, and domain services into a modular structure. |
+| src | The src directory contains the Axum HTTP API server for fjcloud, a cloud infrastructure and billing platform, organized into core server logic (routing, auth, startup) and domain modules for billing operations, customer management, infrastructure provisioning across multiple cloud providers, and Stripe integration. |
 | tests | This directory contains API integration test utilities and fixtures, including property-based tests for tenant isolation and shared builders, mocks, and helpers for Stripe webhooks, Flapjack proxy operations, storage metering, and S3 routing. |
 <!-- [scrai:end] -->

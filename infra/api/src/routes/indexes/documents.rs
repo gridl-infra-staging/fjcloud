@@ -1,4 +1,5 @@
 use super::*;
+use crate::models::IngestQuotaWarningMetric;
 use std::collections::HashMap;
 
 const BYTES_PER_MIB: u64 = 1024 * 1024;
@@ -119,6 +120,87 @@ async fn check_free_tier_ingest_caps(
             "error": "quota_exceeded",
             "limit": "max_storage_mb",
         })));
+    }
+
+    let now = Utc::now();
+    let records_percent_used = if max_records == 0 {
+        100.0
+    } else {
+        (projected_records as f64 / max_records as f64) * 100.0
+    };
+    if records_percent_used >= 80.0
+        && state
+            .customer_repo
+            .claim_ingest_quota_warning_for_month(
+                customer_id,
+                IngestQuotaWarningMetric::Records,
+                now.year(),
+                now.month(),
+            )
+            .await?
+    {
+        let email_service = state.email_service.clone();
+        let customer_id = customer.id;
+        let customer_email = customer.email.clone();
+        tokio::spawn(async move {
+            if let Err(e) = email_service
+                .send_quota_warning_email(
+                    &customer_email,
+                    "max_records",
+                    records_percent_used,
+                    projected_records,
+                    max_records,
+                )
+                .await
+            {
+                tracing::warn!(
+                    customer_id = %customer_id,
+                    error = %e,
+                    "failed to send ingest records quota warning email"
+                );
+            }
+        });
+    }
+
+    let max_storage_mb = state.free_tier_limits.max_storage_mb;
+    let projected_storage_mb = projected_storage_bytes / BYTES_PER_MIB;
+    let storage_percent_used = if max_storage_bytes == 0 {
+        100.0
+    } else {
+        (projected_storage_bytes as f64 / max_storage_bytes as f64) * 100.0
+    };
+    if storage_percent_used >= 80.0
+        && state
+            .customer_repo
+            .claim_ingest_quota_warning_for_month(
+                customer_id,
+                IngestQuotaWarningMetric::StorageMb,
+                now.year(),
+                now.month(),
+            )
+            .await?
+    {
+        let email_service = state.email_service.clone();
+        let customer_id = customer.id;
+        let customer_email = customer.email.clone();
+        tokio::spawn(async move {
+            if let Err(e) = email_service
+                .send_quota_warning_email(
+                    &customer_email,
+                    "max_storage_mb",
+                    storage_percent_used,
+                    projected_storage_mb,
+                    max_storage_mb,
+                )
+                .await
+            {
+                tracing::warn!(
+                    customer_id = %customer_id,
+                    error = %e,
+                    "failed to send ingest storage quota warning email"
+                );
+            }
+        });
     }
 
     Ok(())

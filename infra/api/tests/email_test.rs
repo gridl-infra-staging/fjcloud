@@ -1,8 +1,9 @@
 mod common;
 
 use api::services::email::{
-    DunningRecoveredAfterFailureEmailRequest, DunningRetriesExhaustedEmailRequest,
-    DunningRetryScheduledEmailRequest, EmailService, MockEmailService, SesConfig, SesEmailService,
+    quota_warning_email_html, quota_warning_email_text, DunningRecoveredAfterFailureEmailRequest,
+    DunningRetriesExhaustedEmailRequest, DunningRetryScheduledEmailRequest, EmailService,
+    MockEmailService, SesConfig, SesEmailService,
 };
 use api::services::email_suppression::InMemoryEmailSuppressionStore;
 use api::startup_env::{RawEnvFamilyState, SesStartupMode, StartupEnvSnapshot};
@@ -152,19 +153,64 @@ async fn mock_email_service_captures_quota_warning_email() {
     assert_eq!(sent.len(), 1);
     assert_eq!(sent[0].to, "alice@example.com");
     assert!(sent[0].subject.contains("Usage warning"));
-    assert!(sent[0].html_body.contains("monthly_searches"));
+    assert!(sent[0].html_body.contains("monthly searches"));
     assert!(sent[0].html_body.contains("80.0%"));
-    assert!(sent[0].html_body.contains("800"));
-    assert!(sent[0].html_body.contains("1000"));
+    assert!(sent[0].html_body.contains("Current: 800 / Limit: 1000"));
     assert!(
         sent[0].html_body.contains("Flapjack Cloud"),
         "quota warning email should include Flapjack Cloud branding, got: {}",
         sent[0].html_body
     );
-    assert!(sent[0].text_body.contains("monthly_searches"));
+    assert!(sent[0].text_body.contains("monthly searches"));
     assert!(sent[0].text_body.contains("80.0%"));
-    assert!(sent[0].text_body.contains("800"));
-    assert!(sent[0].text_body.contains("1000"));
+    assert!(sent[0].text_body.contains("Current: 800"));
+    assert!(sent[0].text_body.contains("Limit: 1000"));
+
+    service
+        .send_quota_warning_email("alice@example.com", "records", 80.0, 80_000, 100_000)
+        .await
+        .expect("records quota warning email should be captured");
+    service
+        .send_quota_warning_email("alice@example.com", "storage_mb", 80.0, 200, 250)
+        .await
+        .expect("storage quota warning email should be captured");
+
+    let sent = service.sent_emails();
+    assert_eq!(sent.len(), 3);
+
+    assert!(sent[1].html_body.contains("records"));
+    assert!(sent[1].html_body.contains("80.0%"));
+    assert!(sent[1].html_body.contains("Current: 80000 / Limit: 100000"));
+    assert!(sent[1].text_body.contains("records"));
+    assert!(sent[1].text_body.contains("Current: 80000"));
+    assert!(sent[1].text_body.contains("Limit: 100000"));
+
+    assert!(sent[2].html_body.contains("storage"));
+    assert!(sent[2].html_body.contains("MiB"));
+    assert!(sent[2]
+        .html_body
+        .contains("Current: 200 MiB / Limit: 250 MiB"));
+    assert!(sent[2].text_body.contains("storage"));
+    assert!(sent[2].text_body.contains("Current: 200 MiB"));
+    assert!(sent[2].text_body.contains("Limit: 250 MiB"));
+}
+
+#[test]
+fn quota_warning_helpers_keep_unknown_metric_fallback_behavior() {
+    let html = quota_warning_email_html("mystery_metric", 80.0, 12, 34);
+    let text = quota_warning_email_text("mystery_metric", 80.0, 12, 34);
+
+    assert!(
+        html.contains("mystery_metric"),
+        "unknown metric should remain visible in html fallback, got: {html}"
+    );
+    assert!(
+        text.contains("mystery_metric"),
+        "unknown metric should remain visible in text fallback, got: {text}"
+    );
+    assert!(html.contains("Current: 12 / Limit: 34"));
+    assert!(text.contains("Current: 12"));
+    assert!(text.contains("Limit: 34"));
 }
 
 #[tokio::test]

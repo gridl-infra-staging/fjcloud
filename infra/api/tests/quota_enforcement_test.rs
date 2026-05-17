@@ -673,9 +673,9 @@ async fn quota_warning_email_sent_at_80_percent() {
     wait_for_email_count(&setup.email_service, 1).await;
     let emails = setup.email_service.sent_emails();
     assert_eq!(emails[0].to, "free@example.com");
-    assert!(emails[0].html_body.contains("monthly_searches"));
+    assert!(emails[0].html_body.contains("monthly searches"));
     assert!(emails[0].html_body.contains("80.0"));
-    assert!(emails[0].text_body.contains("monthly_searches"));
+    assert!(emails[0].text_body.contains("monthly searches"));
     assert!(emails[0].text_body.contains("80.0"));
 }
 

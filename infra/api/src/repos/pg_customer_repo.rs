@@ -4,36 +4,14 @@ use rust_decimal::Decimal;
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::models::Customer;
+use crate::models::{Customer, IngestQuotaWarningMetric};
 use crate::repos::customer_repo::{
     CustomerRepo, ResendVerificationOutcome, ResendVerificationReservation,
     RESEND_VERIFICATION_COOLDOWN_SECONDS,
 };
 use crate::repos::error::{is_unique_violation, RepoError};
-
-// Compatibility projection for mixed local schemas:
-// required identity columns are read directly, while newer optional fields
-// are read through to_jsonb(customers)->>... so missing columns resolve to NULL
-// instead of failing query compilation/execution on older local databases.
-const CUSTOMER_COLUMNS: &str = "\
-customers.id, \
-name, \
-email, \
-(to_jsonb(customers)->>'stripe_customer_id') AS stripe_customer_id, \
-    customers.status, \
-(to_jsonb(customers)->>'deleted_at')::timestamptz AS deleted_at, \
-billing_plan, \
-(to_jsonb(customers)->>'quota_warning_sent_at')::timestamptz AS quota_warning_sent_at, \
-created_at, \
-updated_at, \
-(to_jsonb(customers)->>'password_hash') AS password_hash, \
-(to_jsonb(customers)->>'email_verified_at')::timestamptz AS email_verified_at, \
-(to_jsonb(customers)->>'email_verify_token') AS email_verify_token, \
-(to_jsonb(customers)->>'email_verify_expires_at')::timestamptz AS email_verify_expires_at, \
-(to_jsonb(customers)->>'resend_verification_sent_at')::timestamptz AS resend_verification_sent_at, \
-(to_jsonb(customers)->>'password_reset_token') AS password_reset_token, \
-(to_jsonb(customers)->>'password_reset_expires_at')::timestamptz AS password_reset_expires_at, \
-COALESCE((to_jsonb(customers)->>'object_storage_egress_carryforward_cents')::numeric, 0) AS object_storage_egress_carryforward_cents";
+use crate::repos::pg_customer_repo_columns::{customer_columns, list_customers_sql};
+use crate::repos::pg_customer_repo_quota_warning::claim_ingest_quota_warning_for_month as claim_ingest_quota_warning_for_month_sql;
 
 pub struct PgCustomerRepo {
     pool: PgPool,
@@ -58,82 +36,12 @@ impl PgCustomerRepo {
     pub fn new(pool: PgPool) -> Self {
         Self { pool }
     }
-
-    fn list_customers_sql() -> String {
-        format!(
-            "SELECT {CUSTOMER_COLUMNS}, \
-                    tenant_summary.last_accessed_at AS last_accessed_at, \
-                    COALESCE(invoice_summary.overdue_invoice_count, 0) AS overdue_invoice_count \
-             FROM customers \
-             LEFT JOIN ( \
-                SELECT customer_id, MAX(last_accessed_at) AS last_accessed_at \
-                FROM customer_tenants \
-                GROUP BY customer_id \
-             ) AS tenant_summary ON tenant_summary.customer_id = customers.id \
-             LEFT JOIN ( \
-                SELECT customer_id, COUNT(*) AS overdue_invoice_count \
-                FROM invoices \
-                WHERE status = 'failed' \
-                GROUP BY customer_id \
-             ) AS invoice_summary ON invoice_summary.customer_id = customers.id \
-             ORDER BY customers.created_at DESC"
-        )
-    }
-}
-
-#[cfg(test)]
-#[allow(clippy::items_after_test_module)]
-mod tests {
-    use super::{PgCustomerRepo, CUSTOMER_COLUMNS};
-
-    #[test]
-    fn customer_columns_uses_schema_tolerant_carryforward_projection() {
-        assert!(
-            CUSTOMER_COLUMNS.contains(
-                "to_jsonb(customers)->>'object_storage_egress_carryforward_cents'"
-            ),
-            "customer projection must not require the carryforward column to exist in older local schemas"
-        );
-    }
-
-    #[test]
-    fn customer_columns_uses_schema_tolerant_deleted_at_projection() {
-        assert!(
-            CUSTOMER_COLUMNS.contains("to_jsonb(customers)->>'deleted_at'"),
-            "customer projection must not require deleted_at to exist in older local schemas"
-        );
-    }
-
-    #[test]
-    fn customer_columns_qualifies_status_for_joined_list_query() {
-        assert!(
-            CUSTOMER_COLUMNS.contains("customers.status"),
-            "customer projection must qualify customers.status so the list join cannot hit ambiguous status resolution"
-        );
-    }
-
-    #[test]
-    fn customer_columns_qualifies_id_for_oauth_identity_join() {
-        assert!(
-            CUSTOMER_COLUMNS.contains("customers.id"),
-            "customer projection must qualify customers.id so the oauth_identities join cannot hit ambiguous id resolution"
-        );
-    }
-
-    #[test]
-    fn list_sql_uses_shared_subscription_summary_join() {
-        let sql = PgCustomerRepo::list_customers_sql();
-        assert!(
-            !sql.contains("subscriptions"),
-            "customer list query must not read subscriptions after subscription seam removal"
-        );
-    }
 }
 
 #[async_trait]
 impl CustomerRepo for PgCustomerRepo {
     async fn list(&self) -> Result<Vec<Customer>, RepoError> {
-        let sql = Self::list_customers_sql();
+        let sql = list_customers_sql();
         sqlx::query_as::<_, Customer>(&sql)
             .fetch_all(&self.pool)
             .await
@@ -141,7 +49,8 @@ impl CustomerRepo for PgCustomerRepo {
     }
 
     async fn find_by_id(&self, id: Uuid) -> Result<Option<Customer>, RepoError> {
-        let sql = format!("SELECT {CUSTOMER_COLUMNS} FROM customers WHERE id = $1");
+        let customer_columns = customer_columns();
+        let sql = format!("SELECT {customer_columns} FROM customers WHERE id = $1");
         sqlx::query_as::<_, Customer>(&sql)
             .bind(id)
             .fetch_optional(&self.pool)
@@ -150,7 +59,8 @@ impl CustomerRepo for PgCustomerRepo {
     }
 
     async fn find_by_email(&self, email: &str) -> Result<Option<Customer>, RepoError> {
-        let sql = format!("SELECT {CUSTOMER_COLUMNS} FROM customers WHERE email = $1");
+        let customer_columns = customer_columns();
+        let sql = format!("SELECT {customer_columns} FROM customers WHERE email = $1");
         sqlx::query_as::<_, Customer>(&sql)
             .bind(email)
             .fetch_optional(&self.pool)
@@ -162,9 +72,10 @@ impl CustomerRepo for PgCustomerRepo {
         &self,
         cutoff: DateTime<Utc>,
     ) -> Result<Vec<Customer>, RepoError> {
+        let customer_columns = customer_columns();
         let sql = format!(
             "SELECT * FROM ( \
-                SELECT {CUSTOMER_COLUMNS} FROM customers \
+                SELECT {customer_columns} FROM customers \
              ) AS customer_rows \
              WHERE status = 'deleted' \
                AND deleted_at IS NOT NULL \
@@ -231,8 +142,9 @@ impl CustomerRepo for PgCustomerRepo {
         provider: &str,
         provider_user_id: &str,
     ) -> Result<Option<Customer>, RepoError> {
+        let customer_columns = customer_columns();
         let sql = format!(
-            "SELECT {CUSTOMER_COLUMNS} \
+            "SELECT {customer_columns} \
              FROM oauth_identities \
              INNER JOIN customers ON customers.id = oauth_identities.customer_id \
              WHERE oauth_identities.provider = $1 \
@@ -654,8 +566,9 @@ impl CustomerRepo for PgCustomerRepo {
     }
 
     async fn find_by_reset_token(&self, token: &str) -> Result<Option<Customer>, RepoError> {
+        let customer_columns = customer_columns();
         let sql = format!(
-            "SELECT {CUSTOMER_COLUMNS} FROM customers \
+            "SELECT {customer_columns} FROM customers \
              WHERE password_reset_token = $1 \
                AND password_reset_expires_at > NOW() \
                AND status != 'deleted'"
@@ -717,8 +630,9 @@ impl CustomerRepo for PgCustomerRepo {
         &self,
         stripe_customer_id: &str,
     ) -> Result<Option<Customer>, RepoError> {
+        let customer_columns = customer_columns();
         let sql = format!(
-            "SELECT {CUSTOMER_COLUMNS} FROM customers \
+            "SELECT {customer_columns} FROM customers \
              WHERE stripe_customer_id = $1 AND status != 'deleted'"
         );
         sqlx::query_as::<_, Customer>(&sql)
@@ -746,6 +660,33 @@ impl CustomerRepo for PgCustomerRepo {
         .map_err(|e| RepoError::Other(e.to_string()))?;
 
         Ok(result.rows_affected() > 0)
+    }
+
+    async fn ingest_quota_warning_sent_for_month(
+        &self,
+        id: Uuid,
+        metric: IngestQuotaWarningMetric,
+        year: i32,
+        month: u32,
+    ) -> Result<bool, RepoError> {
+        let customer = self.find_by_id(id).await?;
+        let Some(customer) = customer else {
+            return Ok(false);
+        };
+        if customer.status == "deleted" {
+            return Ok(false);
+        }
+        Ok(customer.ingest_quota_warning_sent_for_month(metric, year, month))
+    }
+
+    async fn claim_ingest_quota_warning_for_month(
+        &self,
+        id: Uuid,
+        metric: IngestQuotaWarningMetric,
+        year: i32,
+        month: u32,
+    ) -> Result<bool, RepoError> {
+        claim_ingest_quota_warning_for_month_sql(&self.pool, id, metric, year, month).await
     }
 
     async fn change_password(&self, id: Uuid, new_password_hash: &str) -> Result<bool, RepoError> {

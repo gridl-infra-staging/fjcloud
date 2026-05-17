@@ -206,6 +206,9 @@ fn unknown_billing_plan_defaults_to_shared_minimum_via_customer_enum() {
         deleted_at: None,
         billing_plan: "enterprise".to_string(),
         quota_warning_sent_at: None,
+        quota_warnings_sent: sqlx::types::Json(
+            crate::models::IngestQuotaWarningsSentState::default(),
+        ),
         created_at: Utc::now(),
         updated_at: Utc::now(),
         password_hash: None,

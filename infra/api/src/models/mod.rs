@@ -17,7 +17,7 @@ pub mod vm_inventory;
 
 pub use api_key::ApiKeyRow;
 pub use cold_snapshot::{ColdSnapshot, NewColdSnapshot};
-pub use customer::{BillingPlan, Customer};
+pub use customer::{BillingPlan, Customer, IngestQuotaWarningMetric, IngestQuotaWarningsSentState};
 pub use deployment::Deployment;
 pub use index_migration::IndexMigration;
 pub use index_replica::{IndexReplica, IndexReplicaSummary};

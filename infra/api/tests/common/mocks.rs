@@ -6,7 +6,8 @@ use api::models::index_migration::IndexMigration;
 use api::models::vm_inventory::{NewVmInventory, VmInventory};
 use api::models::{
     Customer, CustomerRateOverrideRow, CustomerTenant, CustomerTenantSummary, Deployment,
-    InvoiceLineItemRow, InvoiceRow, RateCardRow, UsageDaily,
+    IngestQuotaWarningMetric, IngestQuotaWarningsSentState, InvoiceLineItemRow, InvoiceRow,
+    RateCardRow, UsageDaily,
 };
 use api::provisioner::mock::MockVmProvisioner;
 use api::repos::api_key_repo::ApiKeyRepo;
@@ -45,6 +46,7 @@ use api::usage::summarize_usage_totals;
 use async_trait::async_trait;
 use chrono::{DateTime, NaiveDate, Utc};
 use rust_decimal::Decimal;
+use sqlx::types::Json;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
@@ -92,6 +94,7 @@ impl MockCustomerRepo {
             deleted_at: (status == "deleted").then_some(updated_at),
             billing_plan: "free".to_string(),
             quota_warning_sent_at: None,
+            quota_warnings_sent: Json(IngestQuotaWarningsSentState::default()),
             created_at,
             updated_at,
             password_hash: password_hash.map(str::to_string),
@@ -746,6 +749,65 @@ impl CustomerRepo for MockCustomerRepo {
             }
             None => Ok(false),
         }
+    }
+
+    async fn ingest_quota_warning_sent_for_month(
+        &self,
+        id: Uuid,
+        metric: IngestQuotaWarningMetric,
+        year: i32,
+        month: u32,
+    ) -> Result<bool, RepoError> {
+        let customers = self.customers.lock().unwrap();
+        let Some(customer) = customers
+            .iter()
+            .find(|c| c.id == id && c.status != "deleted")
+        else {
+            return Ok(false);
+        };
+        Ok(customer.ingest_quota_warning_sent_for_month(metric, year, month))
+    }
+
+    async fn claim_ingest_quota_warning_for_month(
+        &self,
+        id: Uuid,
+        metric: IngestQuotaWarningMetric,
+        year: i32,
+        month: u32,
+    ) -> Result<bool, RepoError> {
+        let Some(month_key) = Customer::normalized_ingest_quota_warning_month_key(year, month)
+        else {
+            return Err(RepoError::Other(
+                "invalid ingest quota warning month".to_string(),
+            ));
+        };
+        let mut customers = self.customers.lock().unwrap();
+        let Some(customer) = customers
+            .iter_mut()
+            .find(|c| c.id == id && c.status != "deleted")
+        else {
+            return Ok(false);
+        };
+
+        let should_claim = customer
+            .quota_warnings_sent
+            .0
+            .month_for_metric(metric)
+            .is_none_or(|recorded_month| recorded_month != month_key);
+        if !should_claim {
+            return Ok(false);
+        }
+
+        match metric {
+            IngestQuotaWarningMetric::Records => {
+                customer.quota_warnings_sent.0.records = Some(month_key)
+            }
+            IngestQuotaWarningMetric::StorageMb => {
+                customer.quota_warnings_sent.0.storage_mb = Some(month_key)
+            }
+        }
+        customer.updated_at = Utc::now();
+        Ok(true)
     }
 
     async fn set_billing_plan(&self, id: Uuid, plan: &str) -> Result<bool, RepoError> {

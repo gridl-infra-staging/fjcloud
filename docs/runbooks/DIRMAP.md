@@ -6,5 +6,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| evidence | A production launch monitoring bundle capturing 8 health check cycles (30-minute intervals over 4 hours) executed during the critical 2026-05-05 post-launch window to verify usage_daily rollup freshness and system stability. |
+| evidence | The evidence directory contains a production launch monitoring bundle with 30-minute health checks to verify usage_daily rollup freshness and system stability during critical post-launch windows. |
 <!-- [scrai:end] -->

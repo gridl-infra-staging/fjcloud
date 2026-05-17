@@ -729,11 +729,12 @@ pub fn quota_warning_email_html(
     current_usage: u64,
     limit: u64,
 ) -> String {
+    let display = format_quota_warning_metric(metric, current_usage, limit);
     QUOTA_WARNING_TEMPLATE_HTML
-        .replace("{{METRIC}}", metric)
+        .replace("{{METRIC}}", &display.metric_label)
         .replace("{{PERCENT}}", &format!("{percent_used:.1}"))
-        .replace("{{CURRENT}}", &current_usage.to_string())
-        .replace("{{LIMIT}}", &limit.to_string())
+        .replace("{{CURRENT}}", &display.current_value)
+        .replace("{{LIMIT}}", &display.limit_value)
 }
 
 pub fn quota_warning_email_text(
@@ -742,7 +743,50 @@ pub fn quota_warning_email_text(
     current_usage: u64,
     limit: u64,
 ) -> String {
+    let display = format_quota_warning_metric(metric, current_usage, limit);
     format!(
-        "Flapjack Cloud usage warning.\n\nMetric: {metric}\nUsage: {percent_used:.1}%\nCurrent: {current_usage}\nLimit: {limit}"
+        "Flapjack Cloud usage warning.\n\nMetric: {metric}\nUsage: {percent_used:.1}%\nCurrent: {current}\nLimit: {limit}",
+        metric = display.metric_label,
+        current = display.current_value,
+        limit = display.limit_value,
     )
+}
+
+struct QuotaWarningMetricDisplay {
+    metric_label: String,
+    current_value: String,
+    limit_value: String,
+}
+
+fn format_quota_warning_metric(
+    metric: &str,
+    current_usage: u64,
+    limit: u64,
+) -> QuotaWarningMetricDisplay {
+    match metric {
+        "monthly_searches" => QuotaWarningMetricDisplay {
+            metric_label: "monthly searches".to_string(),
+            current_value: current_usage.to_string(),
+            limit_value: limit.to_string(),
+        },
+        "records" => QuotaWarningMetricDisplay {
+            metric_label: "records".to_string(),
+            current_value: current_usage.to_string(),
+            limit_value: limit.to_string(),
+        },
+        "storage_mb" => QuotaWarningMetricDisplay {
+            metric_label: "storage".to_string(),
+            current_value: format_storage_mib(current_usage),
+            limit_value: format_storage_mib(limit),
+        },
+        _ => QuotaWarningMetricDisplay {
+            metric_label: metric.to_string(),
+            current_value: current_usage.to_string(),
+            limit_value: limit.to_string(),
+        },
+    }
+}
+
+fn format_storage_mib(value: u64) -> String {
+    format!("{value} MiB")
 }

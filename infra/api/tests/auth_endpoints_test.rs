@@ -1396,6 +1396,7 @@ async fn customer_serialization_omits_sensitive_fields() {
         deleted_at: None,
         billing_plan: "free".to_string(),
         quota_warning_sent_at: None,
+        quota_warnings_sent: sqlx::types::Json(api::models::IngestQuotaWarningsSentState::default()),
         created_at: now,
         updated_at: now,
         password_hash: Some("$argon2id$secret_hash".to_string()),

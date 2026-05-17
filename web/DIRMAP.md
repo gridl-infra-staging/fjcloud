@@ -8,6 +8,6 @@
 
 | Directory | Summary |
 | --- | --- |
-| src | The src directory contains a SvelteKit frontend with client and server-side utilities for API communication, authentication, token management, and Stripe integration. |
+| src | The src directory contains the SvelteKit frontend for fjcloud, with pages and server endpoints for customer-facing features including pricing, authentication, Stripe integration, and an admin dashboard, supported by shared utilities for API communication, session management, error handling, and logging. |
 | tests | The tests directory contains browser-based end-to-end testing infrastructure for the web frontend, including Playwright fixtures with authentication helpers, database utilities, and page interaction helpers for multiple test projects, plus VLM screenshot capture tooling for visual validation. |
 <!-- [scrai:end] -->

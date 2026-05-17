@@ -1,9 +1,42 @@
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
+use sqlx::types::Json;
 use std::fmt;
 use std::str::FromStr;
 use uuid::Uuid;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IngestQuotaWarningMetric {
+    Records,
+    StorageMb,
+}
+
+impl IngestQuotaWarningMetric {
+    pub fn as_json_key(self) -> &'static str {
+        match self {
+            Self::Records => "records",
+            Self::StorageMb => "storage_mb",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct IngestQuotaWarningsSentState {
+    #[serde(default)]
+    pub records: Option<String>,
+    #[serde(default)]
+    pub storage_mb: Option<String>,
+}
+
+impl IngestQuotaWarningsSentState {
+    pub fn month_for_metric(&self, metric: IngestQuotaWarningMetric) -> Option<&str> {
+        match metric {
+            IngestQuotaWarningMetric::Records => self.records.as_deref(),
+            IngestQuotaWarningMetric::StorageMb => self.storage_mb.as_deref(),
+        }
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CustomerAuthState {
@@ -62,6 +95,10 @@ pub struct Customer {
     pub deleted_at: Option<DateTime<Utc>>,
     pub billing_plan: String,
     pub quota_warning_sent_at: Option<DateTime<Utc>>,
+    #[serde(skip_serializing)]
+    #[serde(default)]
+    #[sqlx(default)]
+    pub quota_warnings_sent: Json<IngestQuotaWarningsSentState>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     #[serde(skip_serializing)]
@@ -89,6 +126,13 @@ pub struct Customer {
 }
 
 impl Customer {
+    pub fn normalized_ingest_quota_warning_month_key(year: i32, month: u32) -> Option<String> {
+        if !(1..=12).contains(&month) {
+            return None;
+        }
+        Some(format!("{year:04}-{month:02}"))
+    }
+
     pub fn billing_plan_enum(&self) -> BillingPlan {
         BillingPlan::from_str(&self.billing_plan).unwrap_or(BillingPlan::Free)
     }
@@ -97,6 +141,21 @@ impl Customer {
     /// paid-safe semantics for invoice and estimate minimum selection.
     pub fn billing_plan_for_billing(&self) -> BillingPlan {
         BillingPlan::from_str(&self.billing_plan).unwrap_or(BillingPlan::Shared)
+    }
+
+    pub fn ingest_quota_warning_sent_for_month(
+        &self,
+        metric: IngestQuotaWarningMetric,
+        year: i32,
+        month: u32,
+    ) -> bool {
+        let Some(month_key) = Self::normalized_ingest_quota_warning_month_key(year, month) else {
+            return false;
+        };
+        self.quota_warnings_sent
+            .0
+            .month_for_metric(metric)
+            .is_some_and(|recorded_month| recorded_month == month_key)
     }
 }
 
@@ -115,6 +174,7 @@ mod tests {
             deleted_at: None,
             billing_plan: billing_plan.to_string(),
             quota_warning_sent_at: None,
+            quota_warnings_sent: Json(IngestQuotaWarningsSentState::default()),
             created_at: now,
             updated_at: now,
             password_hash: None,
@@ -242,6 +302,43 @@ mod tests {
                 .is_none(),
             "carryforward must not appear in serialized Customer JSON"
         );
+    }
+
+    #[test]
+    fn ingest_quota_warning_month_key_normalizes_year_and_month() {
+        assert_eq!(
+            Customer::normalized_ingest_quota_warning_month_key(2026, 5).as_deref(),
+            Some("2026-05")
+        );
+        assert!(
+            Customer::normalized_ingest_quota_warning_month_key(2026, 13).is_none(),
+            "invalid months must be rejected by the shared normalization path"
+        );
+    }
+
+    #[test]
+    fn ingest_quota_warning_sent_for_month_checks_metric_specific_state() {
+        let mut customer = build_test_customer("free", Decimal::ZERO);
+        customer.quota_warnings_sent = Json(IngestQuotaWarningsSentState {
+            records: Some("2026-05".to_string()),
+            storage_mb: Some("2026-06".to_string()),
+        });
+
+        assert!(customer.ingest_quota_warning_sent_for_month(
+            IngestQuotaWarningMetric::Records,
+            2026,
+            5
+        ));
+        assert!(!customer.ingest_quota_warning_sent_for_month(
+            IngestQuotaWarningMetric::Records,
+            2026,
+            6
+        ));
+        assert!(customer.ingest_quota_warning_sent_for_month(
+            IngestQuotaWarningMetric::StorageMb,
+            2026,
+            6
+        ));
     }
 
     // ---------------------------------------------------------------------

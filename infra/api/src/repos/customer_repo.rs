@@ -4,7 +4,7 @@ use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use uuid::Uuid;
 
-use crate::models::Customer;
+use crate::models::{Customer, IngestQuotaWarningMetric};
 use crate::repos::error::RepoError;
 
 pub const RESEND_VERIFICATION_COOLDOWN_SECONDS: i64 = 60;
@@ -132,6 +132,20 @@ pub trait CustomerRepo {
         &self,
         id: Uuid,
         sent_at: DateTime<Utc>,
+    ) -> Result<bool, RepoError>;
+    async fn ingest_quota_warning_sent_for_month(
+        &self,
+        id: Uuid,
+        metric: IngestQuotaWarningMetric,
+        year: i32,
+        month: u32,
+    ) -> Result<bool, RepoError>;
+    async fn claim_ingest_quota_warning_for_month(
+        &self,
+        id: Uuid,
+        metric: IngestQuotaWarningMetric,
+        year: i32,
+        month: u32,
     ) -> Result<bool, RepoError>;
 
     // Password change (by authenticated user, not via reset token)

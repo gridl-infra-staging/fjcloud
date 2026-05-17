@@ -15,6 +15,8 @@ pub mod invoice_repo;
 pub mod pg_api_key_repo;
 pub mod pg_cold_snapshot_repo;
 pub mod pg_customer_repo;
+mod pg_customer_repo_columns;
+mod pg_customer_repo_quota_warning;
 pub mod pg_deployment_repo;
 pub mod pg_index_migration_repo;
 pub mod pg_index_replica_repo;

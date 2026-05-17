@@ -1,4 +1,5 @@
 /// SQL integration tests for PgCustomerRepo data contracts.
+use api::models::IngestQuotaWarningMetric;
 use api::repos::{CustomerRepo, PgCustomerRepo, ResendVerificationOutcome};
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
@@ -100,6 +101,124 @@ async fn set_resend_verification_sent_at(
     .fetch_one(pool)
     .await
     .expect("seed resend_verification_sent_at fixture timestamp")
+}
+
+#[tokio::test]
+async fn claim_ingest_quota_warning_is_monthly_per_metric_and_atomic() {
+    let Some(db) = pg_schema_harness::connect_and_migrate("it_pg_customer_repo").await else {
+        return;
+    };
+    let pool = db.pool.clone();
+    let repo = PgCustomerRepo::new(pool.clone());
+    let email = format!(
+        "quota-warning-claim-{}@integration.test",
+        &Uuid::new_v4().to_string()[..8]
+    );
+
+    let customer = repo
+        .create("Quota Warning Claim", &email)
+        .await
+        .expect("create customer");
+
+    let first_records_claim = repo
+        .claim_ingest_quota_warning_for_month(
+            customer.id,
+            IngestQuotaWarningMetric::Records,
+            2026,
+            5,
+        )
+        .await
+        .expect("first records warning claim");
+    assert!(
+        first_records_claim,
+        "first claim for metric/month should succeed"
+    );
+
+    let duplicate_records_claim = repo
+        .claim_ingest_quota_warning_for_month(
+            customer.id,
+            IngestQuotaWarningMetric::Records,
+            2026,
+            5,
+        )
+        .await
+        .expect("duplicate records warning claim");
+    assert!(
+        !duplicate_records_claim,
+        "duplicate claim for same metric/month should fail atomically"
+    );
+
+    let storage_claim_same_month = repo
+        .claim_ingest_quota_warning_for_month(
+            customer.id,
+            IngestQuotaWarningMetric::StorageMb,
+            2026,
+            5,
+        )
+        .await
+        .expect("storage warning claim in same month");
+    assert!(
+        storage_claim_same_month,
+        "different metric in same month should claim independently"
+    );
+
+    let next_month_records_claim = repo
+        .claim_ingest_quota_warning_for_month(
+            customer.id,
+            IngestQuotaWarningMetric::Records,
+            2026,
+            6,
+        )
+        .await
+        .expect("records warning claim in next month");
+    assert!(
+        next_month_records_claim,
+        "same metric should claim again next month"
+    );
+
+    let sent_for_may_records = repo
+        .ingest_quota_warning_sent_for_month(
+            customer.id,
+            IngestQuotaWarningMetric::Records,
+            2026,
+            5,
+        )
+        .await
+        .expect("read records warning state for may");
+    assert!(
+        !sent_for_may_records,
+        "recorded month should move forward after next-month claim"
+    );
+
+    let sent_for_june_records = repo
+        .ingest_quota_warning_sent_for_month(
+            customer.id,
+            IngestQuotaWarningMetric::Records,
+            2026,
+            6,
+        )
+        .await
+        .expect("read records warning state for june");
+    assert!(
+        sent_for_june_records,
+        "latest claimed month should be readable for matching metric"
+    );
+
+    let sent_for_may_storage = repo
+        .ingest_quota_warning_sent_for_month(
+            customer.id,
+            IngestQuotaWarningMetric::StorageMb,
+            2026,
+            5,
+        )
+        .await
+        .expect("read storage warning state for may");
+    assert!(
+        sent_for_may_storage,
+        "storage warning state should remain independent from records state"
+    );
+
+    cleanup_customer(&pool, &email).await;
 }
 
 #[tokio::test]

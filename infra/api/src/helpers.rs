@@ -77,13 +77,14 @@ mod tests {
     use std::sync::{Arc, Mutex};
 
     use crate::errors::ApiError;
-    use crate::models::Customer;
+    use crate::models::{Customer, IngestQuotaWarningMetric, IngestQuotaWarningsSentState};
     use crate::repos::{
         CustomerRepo, RepoError, ResendVerificationOutcome, ResendVerificationReservation,
     };
     use async_trait::async_trait;
     use chrono::Utc;
     use rust_decimal::Decimal;
+    use sqlx::types::Json;
     use tracing_subscriber::fmt::MakeWriter;
     use uuid::Uuid;
 
@@ -378,6 +379,26 @@ mod tests {
             panic!("not used in this test");
         }
 
+        async fn ingest_quota_warning_sent_for_month(
+            &self,
+            _id: Uuid,
+            _metric: IngestQuotaWarningMetric,
+            _year: i32,
+            _month: u32,
+        ) -> Result<bool, RepoError> {
+            panic!("not used in this test");
+        }
+
+        async fn claim_ingest_quota_warning_for_month(
+            &self,
+            _id: Uuid,
+            _metric: IngestQuotaWarningMetric,
+            _year: i32,
+            _month: u32,
+        ) -> Result<bool, RepoError> {
+            panic!("not used in this test");
+        }
+
         async fn change_password(
             &self,
             _id: Uuid,
@@ -427,6 +448,7 @@ mod tests {
             deleted_at: (status == "deleted").then_some(updated_at),
             billing_plan: "free".to_string(),
             quota_warning_sent_at: None,
+            quota_warnings_sent: Json(IngestQuotaWarningsSentState::default()),
             created_at,
             updated_at,
             password_hash: None,

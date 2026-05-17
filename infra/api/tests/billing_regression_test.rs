@@ -178,6 +178,7 @@ fn stage2_customer_from_context(
         deleted_at: None,
         billing_plan: context.billing_plan.clone(),
         quota_warning_sent_at: None,
+        quota_warnings_sent: sqlx::types::Json(api::models::IngestQuotaWarningsSentState::default()),
         created_at,
         updated_at: created_at,
         password_hash: None,

@@ -268,6 +268,7 @@ gate_rust_lint() {
     if [ "${LOCAL_CI_SKIP_SET_E_REGRESSION_TEST:-0}" != "1" ]; then
         bash "$REPO_ROOT/scripts/tests/local_ci_gate_set_e_test.sh" || return $?
     fi
+    bash "$REPO_ROOT/scripts/tests/local_ci_migration_isolated_db_test.sh" || return $?
     bash "$REPO_ROOT/scripts/tests/validate_inbound_email_roundtrip_test.sh" || return $?
     bash "$REPO_ROOT/scripts/tests/support_email_deliverability_test.sh" || return $?
     cd "$REPO_ROOT/infra" || return $?
@@ -307,10 +308,30 @@ gate_migration_test() {
         return "$SKIP_EXIT_CODE"
     fi
     exec 3<&- 3>&- 2>/dev/null || true
-    # Ensure the target test database exists before running migrations so a
-    # fresh local stack does not require manual DB bootstrap.
-    sqlx database create --database-url "$db_url" || return $?
-    sqlx migrate run --source "$REPO_ROOT/infra/migrations" --database-url "$db_url"
+    # Run migrations in an isolated throwaway database so local drift in an
+    # existing test DB (for example "migration X was modified") cannot
+    # false-fail this gate. CI always runs against a fresh DB container.
+    local db_url_without_query db_url_query db_url_prefix migration_test_db_name migration_db_url
+    db_url_without_query="${db_url%%\?*}"
+    db_url_query=""
+    if [[ "$db_url" == *\?* ]]; then
+        db_url_query="?${db_url#*\?}"
+    fi
+    db_url_prefix="${db_url_without_query%/*}"
+    if [[ "$db_url_prefix" == "$db_url_without_query" ]]; then
+        echo "ERROR: could not parse database name from DATABASE_URL: $db_url" >&2
+        return 1
+    fi
+    migration_test_db_name="fjcloud_migration_test_${RANDOM}_$$"
+    migration_db_url="${db_url_prefix}/${migration_test_db_name}${db_url_query}"
+
+    sqlx database drop --database-url "$migration_db_url" -y >/dev/null 2>&1 || true
+    sqlx database create --database-url "$migration_db_url" || return $?
+    if ! sqlx migrate run --source "$REPO_ROOT/infra/migrations" --database-url "$migration_db_url"; then
+        sqlx database drop --database-url "$migration_db_url" -y >/dev/null 2>&1 || true
+        return 1
+    fi
+    sqlx database drop --database-url "$migration_db_url" -y
 }
 
 gate_secret_scan() {

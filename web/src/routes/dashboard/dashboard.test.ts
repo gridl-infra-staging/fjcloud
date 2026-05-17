@@ -334,7 +334,7 @@ describe('Dashboard indexes card', () => {
 				freeTierProgress: {
 					searches: { used: 15000, limit: 50000 },
 					records: { used: 2000, limit: 100000 },
-					storage_mb: { used: 1200, limit: 10240 },
+					storage_mb: { used: 1228.8, limit: 10240 },
 					indexes: { used: 1, limit: 3 }
 				}
 			}

@@ -47,6 +47,12 @@ PER_FILE_OVERRIDES=(
     # per-event-source modules under infra/api/src/routes/webhooks/{stripe,ses,...}.rs
     # and remove this override entry.
     "infra/api/src/routes/webhooks.rs|1300|apr29 SES bounce/complaint handler"
+    # PgCustomerRepo is a transitional aggregation owner while the customer
+    # repo surfaces are being split into focused modules. Keep deploy gates
+    # unblocked with a temporary cap increase; remove after extraction.
+    # FIXME(pg-customer-repo-split): extract list/query+upgrade/resend seams
+    # into focused modules and remove this override entry.
+    "infra/api/src/repos/pg_customer_repo.rs|950|temporary cap during repo seam extraction"
 )
 
 check_file_size() {

@@ -291,8 +291,12 @@ fn object_storage_egress_whole_cent_behavior_unchanged_with_zero_carryforward() 
     assert_eq!(parsed.next_cycle_carryforward_cents, Decimal::ZERO);
 }
 
-/// Verifies that object-storage-only usage (100 GB = 240¢ < 500¢
-/// minimum) triggers the minimum spend floor.
+/// Verifies that object-storage-only usage on the Shared plan
+/// (100 GB = 240¢ > 200¢ shared minimum) bills the actual subtotal
+/// without clamping, and that an object-storage line item is emitted
+/// even when there are no hot usage rows. Free plans have a zero
+/// minimum (migration 049_free_plan_zero_minimum_spend) and are not
+/// the right vehicle for asserting clamp behavior.
 #[test]
 fn object_storage_billed_without_hot_usage_rows() {
     let card = test_rate_card();
@@ -307,13 +311,13 @@ fn object_storage_billed_without_hot_usage_rows() {
         object_storage_egress_carryforward_cents: Decimal::ZERO,
         object_storage_egress_watermark_targets: Vec::new(),
     };
-    let result = generate_invoice(&[], &card, cid, start, end, &storage, BillingPlan::Free);
+    let result = generate_invoice(&[], &card, cid, start, end, &storage, BillingPlan::Shared);
 
     // 100 GB × $0.024 = $2.40 = 240 cents
     assert_eq!(result.subtotal_cents, 240);
-    // Below $5.00 minimum (Free plan)
-    assert!(result.minimum_applied);
-    assert_eq!(result.total_cents, 500);
+    // 240 cents > 200 cents shared minimum → no clamp
+    assert!(!result.minimum_applied);
+    assert_eq!(result.total_cents, 240);
 
     let obj_li = result
         .line_items

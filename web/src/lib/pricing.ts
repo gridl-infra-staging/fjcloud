@@ -63,7 +63,11 @@ export const MARKETING_PRICING: MarketingPricing = {
 		{ id: 'us-east-2', display_name: 'US East (Ashburn)', multiplier: '0.80x' },
 		{ id: 'us-west-1', display_name: 'US West (Oregon)', multiplier: '0.80x' }
 	],
-	minimum_spend_cents: 1000,
+	// Free plans no longer apply a minimum-spend floor — migration
+	// 049_free_plan_zero_minimum_spend set this to 0 and the marketing
+	// snapshot must match the migration contract verified by
+	// `billing/tests/web_pricing_parity_test.rs`.
+	minimum_spend_cents: 0,
 	shared_minimum_spend_cents: 500,
 	cta_label: 'Get Started Free',
 	free_tier_promise: FREE_TIER_PROMISE

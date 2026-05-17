@@ -464,11 +464,18 @@ async fn generate_invoice_201_minimum_applied() {
     let rate_card_repo = mock_rate_card_repo();
     let invoice_repo = mock_invoice_repo();
     let customer = customer_repo.seed("Acme", "acme@example.com");
+    // Free plans no longer apply a minimum floor (migration
+    // 049_free_plan_zero_minimum_spend). Use Shared so the
+    // minimum-applied path is exercised.
+    customer_repo
+        .set_billing_plan(customer.id, "shared")
+        .await
+        .unwrap();
 
     let card = sample_rate_card();
     rate_card_repo.seed_active_card(card);
 
-    // No usage seeded — minimum should apply
+    // No usage seeded — shared minimum should apply
 
     let app = test_app_all(
         customer_repo,
@@ -493,7 +500,7 @@ async fn generate_invoice_201_minimum_applied() {
     let body: serde_json::Value =
         serde_json::from_slice(&resp.into_body().collect().await.unwrap().to_bytes()).unwrap();
     assert!(body["minimum_applied"].as_bool().unwrap());
-    assert_eq!(body["total_cents"].as_i64().unwrap(), 500);
+    assert_eq!(body["total_cents"].as_i64().unwrap(), 200);
     assert_eq!(body["subtotal_cents"].as_i64().unwrap(), 0);
 }
 
@@ -538,6 +545,9 @@ async fn generate_invoice_201_shared_plan_uses_shared_minimum() {
     assert_eq!(body["subtotal_cents"].as_i64().unwrap(), 0);
 }
 
+/// Unknown plan strings flow through `billing_plan_for_billing()` which
+/// defaults to `BillingPlan::Shared` so the customer is charged the
+/// shared minimum rather than escaping clamping under Free semantics.
 #[tokio::test]
 async fn generate_invoice_201_unknown_plan_defaults_to_free_minimum() {
     let customer_repo = mock_repo();
@@ -575,7 +585,7 @@ async fn generate_invoice_201_unknown_plan_defaults_to_free_minimum() {
     let body: serde_json::Value =
         serde_json::from_slice(&resp.into_body().collect().await.unwrap().to_bytes()).unwrap();
     assert!(body["minimum_applied"].as_bool().unwrap());
-    assert_eq!(body["total_cents"].as_i64().unwrap(), 500);
+    assert_eq!(body["total_cents"].as_i64().unwrap(), 200);
     assert_eq!(body["subtotal_cents"].as_i64().unwrap(), 0);
 }
 

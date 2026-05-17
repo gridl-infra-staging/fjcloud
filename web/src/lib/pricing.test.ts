@@ -21,7 +21,11 @@ describe('pricing constants', () => {
 		});
 
 		it('keeps dedicated-plan and shared-plan minimums aligned with the backend contract', () => {
-			expect(MARKETING_PRICING.minimum_spend_cents).toBe(1000);
+			// Free plans no longer apply a minimum-spend floor — migration
+			// 049_free_plan_zero_minimum_spend set this to 0 and the
+			// rust contract test `billing/tests/web_pricing_parity_test.rs`
+			// enforces parity between MARKETING_PRICING and the migrations.
+			expect(MARKETING_PRICING.minimum_spend_cents).toBe(0);
 			expect(MARKETING_PRICING.shared_minimum_spend_cents).toBe(500);
 		});
 
@@ -114,7 +118,7 @@ describe('pricing constants', () => {
 					'us-east-2': '0.8',
 					'us-west-1': '0.80'
 				},
-				minimum_spend_cents: 1000,
+				minimum_spend_cents: 0,
 				shared_minimum_spend_cents: 500,
 				has_override: false,
 				override_fields: {}

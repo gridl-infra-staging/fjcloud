@@ -51,7 +51,9 @@ pub(super) fn zero_storage() -> StorageInputs {
     StorageInputs::default()
 }
 
-/// Verify that invoices with zero usage are charged the applicable minimum.
+/// Verify that invoices with zero usage on the Shared plan are charged
+/// the shared-plan minimum (Free plans have a zero minimum per
+/// migration 049_free_plan_zero_minimum_spend and never clamp).
 #[test]
 fn empty_usage_applies_minimum() {
     let card = test_rate_card();
@@ -66,12 +68,12 @@ fn empty_usage_applies_minimum() {
         start,
         end,
         &zero_storage(),
-        BillingPlan::Free,
+        BillingPlan::Shared,
     );
 
     assert_eq!(result.customer_id, cid);
     assert_eq!(result.subtotal_cents, 0);
-    assert_eq!(result.total_cents, 500);
+    assert_eq!(result.total_cents, card.shared_minimum_spend_cents);
     assert!(result.minimum_applied);
     assert!(result.line_items.is_empty());
 }
@@ -165,8 +167,10 @@ fn invoice_with_hot_and_cold_storage() {
     assert_eq!(result.total_cents, result.subtotal_cents);
 }
 
-/// Verifies that cold-only usage (200 GB = 400¢ < 500¢ minimum)
-/// triggers the minimum spend floor.
+/// Verifies that cold-only usage on the Shared plan (200 GB = 400¢ >
+/// 200¢ shared minimum) bills the actual subtotal without clamping,
+/// and that a cold-storage line item is emitted even without any hot
+/// usage rows.
 #[test]
 fn cold_storage_billed_without_hot_usage_rows() {
     let card = test_rate_card();
@@ -175,12 +179,12 @@ fn cold_storage_billed_without_hot_usage_rows() {
     let end = NaiveDate::from_ymd_opt(2026, 1, 31).unwrap();
 
     let storage = StorageInputs::cold_only(Decimal::from(200));
-    let result = generate_invoice(&[], &card, cid, start, end, &storage, BillingPlan::Free);
+    let result = generate_invoice(&[], &card, cid, start, end, &storage, BillingPlan::Shared);
 
     assert_eq!(result.subtotal_cents, 400);
-    // 400 cents cold storage < 500 minimum → minimum applies
-    assert_eq!(result.total_cents, 500);
-    assert!(result.minimum_applied);
+    // 400 cents cold storage > 200 cents shared minimum → no clamp
+    assert_eq!(result.total_cents, 400);
+    assert!(!result.minimum_applied);
 
     let cold = result
         .line_items
@@ -266,15 +270,23 @@ fn compute_cold_storage_gb_months_filters_by_customer() {
     assert_eq!(gb_months, Decimal::from(5));
 }
 
-/// Verifies that when multi-region usage falls below the minimum, a
-/// single minimum is applied across all regions combined.
+/// Verifies that multi-region usage on the Shared plan produces line
+/// items for each region and applies a single shared minimum across
+/// the combined subtotal (not per region). Free plans have a zero
+/// minimum (migration 049_free_plan_zero_minimum_spend) and are not
+/// the right vehicle for asserting clamp behavior.
 #[test]
 fn multi_region_single_minimum() {
     let card = test_rate_card();
     let cid = Uuid::new_v4();
     let start = NaiveDate::from_ymd_opt(2026, 2, 1).unwrap();
     let end = NaiveDate::from_ymd_opt(2026, 2, 28).unwrap();
-    let hot_storage_bytes_per_day = billing::types::BYTES_PER_MB * 5;
+    // Halve the per-region per-day inputs so the combined two-region
+    // subtotal lands strictly below the shared minimum (200¢) and
+    // exercises clamping. The original fixture targeted the legacy
+    // 500¢ free-plan minimum and is too high to clamp under the new
+    // 200¢ shared minimum.
+    let hot_storage_bytes_per_day = billing::types::BYTES_PER_MB * 2;
     let mut rows = Vec::new();
     for day in 1..=28 {
         let date = NaiveDate::from_ymd_opt(2026, 2, day).unwrap();
@@ -282,8 +294,8 @@ fn multi_region_single_minimum() {
             cid,
             date,
             "us-east-1",
-            1000,
-            500,
+            300,
+            150,
             hot_storage_bytes_per_day,
             0,
         ));
@@ -291,8 +303,8 @@ fn multi_region_single_minimum() {
             cid,
             date,
             "eu-west-1",
-            1000,
-            500,
+            300,
+            150,
             hot_storage_bytes_per_day,
             0,
         ));
@@ -305,7 +317,7 @@ fn multi_region_single_minimum() {
         start,
         end,
         &zero_storage(),
-        BillingPlan::Free,
+        BillingPlan::Shared,
     );
 
     assert!(!result.line_items.is_empty());
@@ -324,8 +336,13 @@ fn multi_region_single_minimum() {
     );
 
     assert!(result.subtotal_cents > 0);
-    assert!(result.subtotal_cents < 500);
+    assert!(
+        result.subtotal_cents < card.shared_minimum_spend_cents,
+        "subtotal {} should be below shared minimum {} to exercise clamping",
+        result.subtotal_cents,
+        card.shared_minimum_spend_cents
+    );
 
     assert!(result.minimum_applied);
-    assert_eq!(result.total_cents, 500);
+    assert_eq!(result.total_cents, card.shared_minimum_spend_cents);
 }

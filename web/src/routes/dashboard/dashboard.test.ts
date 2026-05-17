@@ -331,14 +331,14 @@ describe('Dashboard indexes card', () => {
 				},
 				indexes: sampleIndexes,
 				onboardingStatus: completedOnboarding,
-				freeTierProgress: {
-					searches: { used: 15000, limit: 50000 },
-					records: { used: 2000, limit: 100000 },
-					storage_gb: { used: 1.2, limit: 10 },
-					indexes: { used: 1, limit: 3 }
+					freeTierProgress: {
+						searches: { used: 15000, limit: 50000 },
+						records: { used: 2000, limit: 100000 },
+						storage_mb: { used: 1229, limit: 10240 },
+						indexes: { used: 1, limit: 3 }
+					}
 				}
-			}
-		});
+			});
 
 		expect(screen.getByTestId('estimated-bill')).toHaveClass('bg-[#fff8ea]');
 		expect(screen.getByTestId('free-tier-progress')).toHaveClass('bg-[#fff8ea]');

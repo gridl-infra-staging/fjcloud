@@ -17,6 +17,7 @@ bash scripts/git_push_with_sync.sh origin HEAD:main --force-with-lease
 - Mirror sync runs only when the current branch is `main`.
 - On `main`, sync order is fixed: `debbie sync staging` then `debbie sync prod`.
 - Set `SKIP_DEBBIE_SYNC=1` to opt out of mirror sync for a push.
+- Set `DEBBIE_BIN=/abs/path/to/debbie` when `debbie` is not on `PATH`.
 - Mirror sync is best-effort: sync failures emit warnings and do not replace a successful `git push` outcome.
 
 ## Why no client-side post-push hook

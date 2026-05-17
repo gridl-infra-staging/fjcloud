@@ -80,6 +80,7 @@ type ArrangePaidInvoiceForFreshSignupResult = {
 };
 
 type TrackCustomerForCleanupFn = (customerId: string) => void;
+const IGNORE_TRACKED_FIXTURE_CUSTOMER_ID: TrackCustomerForCleanupFn = () => {};
 
 const JSON_CONTENT_TYPE = { 'Content-Type': 'application/json' } as const;
 export const FIXTURE_BOOTSTRAP_REMEDIATION_COMMAND = 'scripts/bootstrap-env-local.sh';
@@ -97,6 +98,7 @@ type FixtureSetupFailureParams = {
 };
 
 const FRESH_SIGNUP_ARRANGE_SETUP_FAILURE_ALERT_PATTERN = /service is unavailable|verify API_URL/i;
+const FIXTURE_CUSTOMER_MISSING_LOGIN_ALERT_PATTERN = /invalid email or password/i;
 const VERIFY_EMAIL_TOKEN_PATH_PATTERN = /\/verify-email\/[A-Za-z0-9_-]+/g;
 const SENSITIVE_QUERY_PARAM_PATTERN =
 	/([?&](?:token|verification_token|verificationToken|secret|key|code)=)[^&#\s]*/gi;
@@ -216,7 +218,8 @@ function throwBillingPortalArrangeFailure({
 	);
 }
 
-function setupFailureDetailsFromError(error: unknown): string {
+/** Extract a privacy-safe setup failure detail string from arbitrary thrown errors. */
+export function setupFailureDetailsFromError(error: unknown): string {
 	if (error instanceof Error && error.message.trim()) {
 		return redactSensitiveDiagnostics(error.message.trim());
 	}
@@ -372,6 +375,23 @@ type LoginAsUserParams = {
 	fetchImpl?: typeof fetch;
 };
 
+type BootstrapFixtureUserForKnownLoginFailureParams = {
+	apiUrl: string;
+	email: string;
+	password: string;
+	currentPath: string;
+	alertText?: string | null;
+	responseStatus?: number;
+	responseUrl?: string;
+	trackCustomerForCleanup?: TrackCustomerForCleanupFn;
+	fetchImpl?: typeof fetch;
+};
+
+type BootstrapFixtureUserForKnownLoginFailureResult = {
+	bootstrapped: boolean;
+	loginToken: string | null;
+};
+
 type FetchEstimatedBillForTokenParams = {
 	apiUrl: string;
 	token: string;
@@ -414,6 +434,77 @@ export async function loginAsUser({
 	}
 
 	throw new Error('loginAs failed: exhausted retries after 429 rate limiting');
+}
+
+function isKnownFixtureCustomerMissingLoginFailure({
+	currentPath,
+	alertText,
+	responseStatus,
+	responseUrl
+}: {
+	currentPath: string;
+	alertText?: string | null;
+	responseStatus?: number;
+	responseUrl?: string;
+}): boolean {
+	const onLoginPage = currentPath.includes('/login');
+	const invalidCredentialsMessage = FIXTURE_CUSTOMER_MISSING_LOGIN_ALERT_PATTERN.test(
+		alertText?.trim() ?? ''
+	);
+	const knownApiFailureSurface = responseStatus === 400 && Boolean(responseUrl?.includes('/auth/login'));
+	const browserOnlyFailureSurface = responseStatus === undefined && responseUrl === undefined;
+	return (
+		onLoginPage &&
+		invalidCredentialsMessage &&
+		(knownApiFailureSurface || browserOnlyFailureSurface)
+	);
+}
+
+/** Bootstrap fixture credentials only when the known missing-user login failure occurs. */
+export async function bootstrapFixtureUserForKnownLoginFailure({
+	apiUrl,
+	email,
+	password,
+	currentPath,
+	alertText,
+	responseStatus,
+	responseUrl,
+	trackCustomerForCleanup = IGNORE_TRACKED_FIXTURE_CUSTOMER_ID,
+	fetchImpl = fetch
+}: BootstrapFixtureUserForKnownLoginFailureParams): Promise<BootstrapFixtureUserForKnownLoginFailureResult> {
+	if (
+		!isKnownFixtureCustomerMissingLoginFailure({
+			currentPath,
+			alertText,
+			responseStatus,
+			responseUrl
+		})
+	) {
+		return {
+			bootstrapped: false,
+			loginToken: null
+		};
+	}
+
+	await createRegisteredUser({
+		apiUrl,
+		email,
+		password,
+		trackCustomerForCleanup,
+		fetchImpl
+	});
+
+	const loginToken = await loginAsUser({
+		apiUrl,
+		email,
+		password,
+		fetchImpl
+	});
+
+	return {
+		bootstrapped: true,
+		loginToken
+	};
 }
 
 /** Fetch the authenticated customer's estimated bill, returning null on 404. */

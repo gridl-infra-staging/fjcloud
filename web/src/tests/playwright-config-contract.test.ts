@@ -804,7 +804,31 @@ describe('playwright config contract', () => {
 			expect(failureMessage).not.toContain('ghi789');
 			expect(failureMessage).not.toContain('sensitive.jwt.token');
 		});
+
+	it('customer auth setup rethrows self-bootstrap failures through fixture-owned diagnostics', () => {
+		const authSetupSource = readFileSync(join(process.cwd(), 'tests/fixtures/auth.setup.ts'), 'utf8');
+
+		expect(authSetupSource).toContain('setupFailureDetailsFromError');
+		expect(authSetupSource).toContain('fixture self-bootstrap failed:');
+		expect(authSetupSource).toMatch(
+			/catch\s*\(error\)\s*\{[\s\S]*formatFixtureSetupFailure\([\s\S]*toBootstrapFailureAlertText\(finalLoginAttempt,\s*error\)/
+		);
 	});
+
+	it('customer auth setup waits for delayed invalid-credentials alerts before classifying login failure', () => {
+		const authSetupSource = readFileSync(join(process.cwd(), 'tests/fixtures/auth.setup.ts'), 'utf8');
+
+		expect(authSetupSource).toContain('const LOGIN_SETTLE_TIMEOUT_MS = 20_000;');
+		expect(authSetupSource).toContain('const DELAYED_ALERT_CAPTURE_TIMEOUT_MS = 5_000;');
+		expect(authSetupSource).toMatch(
+			/await Promise\.race\(\[[\s\S]*page\.waitForURL\(/m
+		);
+		expect(authSetupSource).toContain('if (!reachedDashboard && !alertText?.trim()) {');
+		expect(authSetupSource).toContain(
+			".waitFor({ state: 'visible', timeout: DELAYED_ALERT_CAPTURE_TIMEOUT_MS })"
+		);
+	});
+		});
 
 	describe('applyPlaywrightProcessEnvDefaults + resolvePlaywrightRuntime admin key consistency', () => {
 		it('sets E2E_ADMIN_KEY to DEFAULT_PLAYWRIGHT_ADMIN_KEY when all env sources are empty so fixtures match the web server', () => {

@@ -3,11 +3,13 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
 	adminReactivateCustomerById,
+	bootstrapFixtureUserForKnownLoginFailure,
 	createRegisteredUser,
 	fetchDisposableTenantRateCardSnapshot,
 	fetchEstimatedBillForToken,
 	formatFixtureSetupFailure,
 	loginAsUser,
+	setupFailureDetailsFromError,
 	seedMultiUserScenarioWithCreateUser
 } from '../../tests/fixtures/fixtures';
 import {
@@ -210,6 +212,125 @@ describe('e2e fixture user helpers', () => {
 
 		await expect(promise).resolves.toBe('retry-login-token');
 		expect(fetchMock).toHaveBeenCalledTimes(2);
+	});
+
+	it('bootstrapFixtureUserForKnownLoginFailure registers then retries login only for the known missing-user failure surface', async () => {
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValueOnce(
+				makeJsonResponse(201, {
+					customer_id: 'cust-bootstrap',
+					token: 'register-token'
+				})
+			)
+			.mockResolvedValueOnce(
+				makeJsonResponse(200, {
+					customer_id: 'cust-bootstrap',
+					token: 'login-token'
+				})
+			);
+
+		const bootstrapResult = await bootstrapFixtureUserForKnownLoginFailure({
+			apiUrl: 'http://localhost:3001',
+			email: 'dev@example.com',
+			password: 'localdev-password-1234',
+			currentPath: 'http://127.0.0.1:5173/login',
+			alertText: 'invalid email or password',
+			responseStatus: 400,
+			responseUrl: 'http://127.0.0.1:3001/auth/login',
+			fetchImpl: fetchMock as unknown as typeof fetch
+		});
+
+		expect(bootstrapResult).toEqual({
+			bootstrapped: true,
+			loginToken: 'login-token'
+		});
+		expect(fetchMock).toHaveBeenNthCalledWith(1, 'http://localhost:3001/auth/register', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({
+				name: 'E2E Fixture dev@example.com',
+				email: 'dev@example.com',
+				password: 'localdev-password-1234'
+			})
+		});
+		expect(fetchMock).toHaveBeenNthCalledWith(2, 'http://localhost:3001/auth/login', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({
+				email: 'dev@example.com',
+				password: 'localdev-password-1234'
+			})
+		});
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+	});
+
+	it('bootstrapFixtureUserForKnownLoginFailure does not register outside the known missing-user failure surface', async () => {
+		const fetchMock = vi.fn();
+
+		const bootstrapResult = await bootstrapFixtureUserForKnownLoginFailure({
+			apiUrl: 'http://localhost:3001',
+			email: 'dev@example.com',
+			password: 'localdev-password-1234',
+			currentPath: 'http://127.0.0.1:5173/login',
+			alertText: 'service unavailable',
+			responseStatus: 500,
+			responseUrl: 'http://127.0.0.1:3001/auth/login',
+			fetchImpl: fetchMock as unknown as typeof fetch
+		});
+
+		expect(bootstrapResult).toEqual({
+			bootstrapped: false,
+			loginToken: null
+		});
+		expect(fetchMock).not.toHaveBeenCalled();
+	});
+
+	it('bootstrapFixtureUserForKnownLoginFailure still bootstraps when browser login surfaces invalid credentials without exposing upstream response details', async () => {
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValueOnce(
+				makeJsonResponse(201, {
+					customer_id: 'cust-bootstrap',
+					token: 'register-token'
+				})
+			)
+			.mockResolvedValueOnce(
+				makeJsonResponse(200, {
+					customer_id: 'cust-bootstrap',
+					token: 'login-token'
+				})
+			);
+
+		const bootstrapResult = await bootstrapFixtureUserForKnownLoginFailure({
+			apiUrl: 'http://localhost:3001',
+			email: 'dev@example.com',
+			password: 'localdev-password-1234',
+			currentPath: 'http://127.0.0.1:5173/login',
+			alertText: 'invalid email or password',
+			fetchImpl: fetchMock as unknown as typeof fetch
+		});
+
+		expect(bootstrapResult).toEqual({
+			bootstrapped: true,
+			loginToken: 'login-token'
+		});
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+	});
+
+	it('setupFailureDetailsFromError redacts secret-bearing bootstrap errors before fixture diagnostics surface them', () => {
+		const details = setupFailureDetailsFromError(
+			new Error(
+				'createUser failed: Bearer sensitive.jwt.token at /verify-email/abc123?token=secret-token'
+			)
+		);
+
+		expect(details).toContain('Bearer [REDACTED]');
+		expect(details).toContain('/verify-email/[REDACTED]');
+		expect(details).toContain('token=[REDACTED]');
+		expect(details).not.toContain('sensitive.jwt.token');
+		expect(details).not.toContain('abc123');
+		expect(details).not.toContain('secret-token');
 	});
 
 	it('seedMultiUserScenarioWithCreateUser creates two unique users', async () => {

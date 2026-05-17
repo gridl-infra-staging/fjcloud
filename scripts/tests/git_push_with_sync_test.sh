@@ -78,7 +78,8 @@ run_wrapper_with_mocks() {
     local debbie_fail_prod="$4"
     local skip_sync="$5"
     local call_log="$6"
-    shift 6
+    local debbie_bin_override="$7"
+    shift 7
 
     local mock_dir
     mock_dir="$(new_mock_tools_dir)"
@@ -90,6 +91,7 @@ run_wrapper_with_mocks() {
     MOCK_DEBBIE_FAIL_STAGING="$debbie_fail_staging" \
     MOCK_DEBBIE_FAIL_PROD="$debbie_fail_prod" \
     SKIP_DEBBIE_SYNC="$skip_sync" \
+    DEBBIE_BIN="$debbie_bin_override" \
     PATH="$mock_dir:$PATH" \
     bash "$WRAPPER_SCRIPT" "$@" >/dev/null 2>&1 || exit_code=$?
 
@@ -110,7 +112,7 @@ test_wrapper_forwards_git_push_args_and_skips_sync_off_main() {
     local call_log="$tmp_dir/calls.log"
 
     local exit_code=0
-    run_wrapper_with_mocks "feature/demo" "0" "0" "0" "0" "$call_log" origin HEAD:main --force-with-lease || exit_code=$?
+    run_wrapper_with_mocks "feature/demo" "0" "0" "0" "0" "$call_log" "" origin HEAD:main --force-with-lease || exit_code=$?
 
     local calls
     calls="$(read_calls "$call_log")"
@@ -129,7 +131,7 @@ test_wrapper_runs_staging_then_prod_sync_on_main() {
     local call_log="$tmp_dir/calls.log"
 
     local exit_code=0
-    run_wrapper_with_mocks "main" "0" "0" "0" "0" "$call_log" origin main || exit_code=$?
+    run_wrapper_with_mocks "main" "0" "0" "0" "0" "$call_log" "" origin main || exit_code=$?
 
     local calls
     calls="$(read_calls "$call_log")"
@@ -163,7 +165,7 @@ test_wrapper_supports_skip_debbie_sync_opt_out() {
     local call_log="$tmp_dir/calls.log"
 
     local exit_code=0
-    run_wrapper_with_mocks "main" "0" "0" "0" "1" "$call_log" origin main || exit_code=$?
+    run_wrapper_with_mocks "main" "0" "0" "0" "1" "$call_log" "" origin main || exit_code=$?
 
     local calls
     calls="$(read_calls "$call_log")"
@@ -182,7 +184,7 @@ test_wrapper_keeps_git_push_exit_contract_when_sync_fails_best_effort() {
 
     local push_fail_calls="$tmp_dir/push-fail.log"
     local exit_code=0
-    run_wrapper_with_mocks "main" "17" "0" "0" "0" "$push_fail_calls" origin main || exit_code=$?
+    run_wrapper_with_mocks "main" "17" "0" "0" "0" "$push_fail_calls" "" origin main || exit_code=$?
 
     local calls
     calls="$(read_calls "$push_fail_calls")"
@@ -193,7 +195,7 @@ test_wrapper_keeps_git_push_exit_contract_when_sync_fails_best_effort() {
 
     local sync_fail_calls="$tmp_dir/sync-fail.log"
     exit_code=0
-    run_wrapper_with_mocks "main" "0" "1" "0" "0" "$sync_fail_calls" origin main || exit_code=$?
+    run_wrapper_with_mocks "main" "0" "1" "0" "0" "$sync_fail_calls" "" origin main || exit_code=$?
 
     calls="$(read_calls "$sync_fail_calls")"
 
@@ -211,11 +213,50 @@ test_runbook_documents_wrapper_contract() {
     assert_contains "$content" "scripts/git_push_with_sync.sh" "runbook should name the wrapper script path"
     assert_contains "$content" "git push" "runbook should state git push remains the authoritative action"
     assert_contains "$content" "SKIP_DEBBIE_SYNC=1" "runbook should document sync opt-out env var"
+    assert_contains "$content" "DEBBIE_BIN=" "runbook should document debbie binary override"
     assert_contains "$content" "main" "runbook should describe main-only sync behavior"
     assert_contains "$content" "debbie sync staging" "runbook should document staging sync command"
     assert_contains "$content" "debbie sync prod" "runbook should document prod sync command"
     assert_contains "$content" "best-effort" "runbook should document best-effort sync warnings"
     assert_contains "$content" "does not use a client-side post-push hook" "runbook should document why post-push hooks are not used"
+}
+
+test_wrapper_uses_debbie_bin_override_when_debbie_not_on_path() {
+    local tmp_dir
+    tmp_dir="$(mktemp -d)"
+    local mock_dir
+    mock_dir="$(new_mock_tools_dir)"
+    rm -f "$mock_dir/debbie"
+    local fallback_debbie="$tmp_dir/fallback-debbie"
+    local call_log="$tmp_dir/calls.log"
+
+    cat > "$fallback_debbie" <<'MOCK_DEBBIE_FALLBACK'
+#!/usr/bin/env bash
+set -euo pipefail
+log_path="${GIT_PUSH_WITH_SYNC_CALL_LOG:?}"
+echo "debbie:$*" >> "$log_path"
+exit 0
+MOCK_DEBBIE_FALLBACK
+    chmod +x "$fallback_debbie"
+
+    local exit_code=0
+    GIT_PUSH_WITH_SYNC_CALL_LOG="$call_log" \
+    MOCK_GIT_BRANCH="main" \
+    MOCK_GIT_PUSH_EXIT="0" \
+    SKIP_DEBBIE_SYNC="0" \
+    DEBBIE_BIN="$fallback_debbie" \
+    PATH="$mock_dir:$PATH" \
+    bash "$WRAPPER_SCRIPT" origin main >/dev/null 2>&1 || exit_code=$?
+
+    local calls
+    calls="$(read_calls "$call_log")"
+
+    assert_eq "$exit_code" "0" "wrapper should succeed when using DEBBIE_BIN override"
+    assert_contains "$calls" "git:push origin main" "wrapper should still execute git push"
+    assert_contains "$calls" "debbie:sync staging" "wrapper should run staging sync through DEBBIE_BIN override"
+    assert_contains "$calls" "debbie:sync prod" "wrapper should run prod sync through DEBBIE_BIN override"
+
+    rm -rf "$mock_dir" "$tmp_dir"
 }
 
 test_infra_deploy_runbook_points_to_canonical_wrapper_contract() {
@@ -230,6 +271,7 @@ test_wrapper_forwards_git_push_args_and_skips_sync_off_main
 test_wrapper_runs_staging_then_prod_sync_on_main
 test_wrapper_supports_skip_debbie_sync_opt_out
 test_wrapper_keeps_git_push_exit_contract_when_sync_fails_best_effort
+test_wrapper_uses_debbie_bin_override_when_debbie_not_on_path
 test_runbook_documents_wrapper_contract
 test_infra_deploy_runbook_points_to_canonical_wrapper_contract
 run_test_summary

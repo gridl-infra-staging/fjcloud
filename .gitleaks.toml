@@ -53,7 +53,6 @@ paths = [
     # docs/runbooks/evidence/ — a different file in the same dir is
     # still scanned.
     '''docs/runbooks/evidence/.*/stripe_key_fingerprint\.txt$''',
-<<<<<<< HEAD
     # Evidence + handoff files under docs/runbooks/evidence/ frequently
     # contain curl examples (`curl -u "$STRIPE_SECRET_KEY_flapjack_cloud:"`)
     # that trigger `curl-auth-user`, sentry DSN fragments from captured
@@ -63,21 +62,6 @@ paths = [
     # in the literal text), test-mode identifiers, or one-way hashes.
     # Covers *.md (narrative docs) and *.txt (captured probe output).
     '''docs/runbooks/evidence/.*\.(md|txt)$''',
-=======
-    # Evidence + handoff *.md files under docs/runbooks/evidence/ frequently
-    # show curl examples like `curl -u "$STRIPE_SECRET_KEY_flapjack_cloud:"`
-    # that gitleaks's `curl-auth-user` rule flags. The `$VAR` is a shell
-    # expansion reference — the literal text contains no secret material.
-    # Scoped to *.md only so any captured stdout/stderr files (.txt, .json,
-    # .log) under the same tree are still scanned.
-    '''docs/runbooks/evidence/.*\.md$''',
-    # Known deterministic false positives from archived runbook probe output:
-    # these files contain third-party response metadata, IDs, and shell
-    # examples (not raw credentials). They currently block mirror
-    # full-history scans on staging/prod.
-    '''docs/runbooks/evidence/privacy_com_contract/.*/.*\.headers\.txt$''',
-    '''docs/runbooks/evidence/flapjack-version-deploy/.*/artifact\.txt$''',
-    '''docs/runbooks/evidence/launch-rc-runs/.*/08_card_status_followup_probe\.txt$''',
     # Historical orchestration artifacts included in mirror history; these
     # contain planning prose and IDs that trigger generic high-entropy rules.
     '''\.mike/.*''',
@@ -86,7 +70,6 @@ paths = [
     # in-repo.
     '''infra/api/src/provisioner/oci\.rs$''',
     '''infra/api/src/provisioner/oci/api_client\.rs$''',
->>>>>>> 9d95bd36 (Allowlist deterministic mirror gitleaks false positives)
     '''chats/handoffs/.*\.md$''',
 ]
 regexes = [

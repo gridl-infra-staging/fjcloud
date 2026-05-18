@@ -1,0 +1,6 @@
+START RequestId: c3a16188-ff7b-4ce6-97ed-0aa460a4c1b0 Version: $LATEST
+{"passed":false,"steps":[{"name":"send_probe","passed":false,"detail":"aws sesv2 send-email failed for recipient 'roundtrip-inbound-probe-20260518T033231Z-25913@test.flapjack.foo'."},{"name":"poll_inbox_s3","passed":false,"detail":"Skipped because send_probe failed."},{"name":"fetch_rfc822","passed":false,"detail":"Skipped because send_probe failed."},{"name":"auth_verdict","passed":false,"detail":"Skipped because send_probe failed."}],"elapsed_ms":4261}
+/opt/fjcloud/scripts/canary/support_email_deliverability.sh: line 83: alert_dispatch_send_critical: command not found
+[ERROR] RuntimeError: support email canary failed with exit code 1Traceback (most recent call last):  File "/var/task/lambda_handler.py", line 70, in handler    return _run_canary()  File "/var/task/lambda_handler.py", line 61, in _run_canary    raise RuntimeError(f"support email canary failed with exit code {completed.returncode}")
+END RequestId: c3a16188-ff7b-4ce6-97ed-0aa460a4c1b0
+REPORT RequestId: c3a16188-ff7b-4ce6-97ed-0aa460a4c1b0	Duration: 5400.97 ms	Billed Duration: 5874 ms	Memory Size: 512 MB	Max Memory Used: 139 MB	Init Duration: 472.98 ms	

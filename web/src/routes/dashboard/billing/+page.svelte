@@ -1,13 +1,53 @@
 <script lang="ts">
 	import BillingUnavailableCard from '$lib/BillingUnavailableCard.svelte';
+	import UpgradeButton from './UpgradeButton.svelte';
 	import PaymentMethodSetupForm from './PaymentMethodSetupForm.svelte';
 	import { LEGAL_SUPPORT_MAILTO, SUPPORT_EMAIL } from '$lib/format';
-	import type { PaymentMethod } from '$lib/api/types';
+	import type { CustomerUpgradeStatusResponse, PaymentMethod } from '$lib/api/types';
+
+	type UpgradeOutcome =
+		| {
+				status: 'success';
+				activationAmountCents: number;
+		  }
+		| {
+				status: 'declined';
+				message: string;
+		  }
+		| {
+				status: 'requires_action';
+		  }
+		| {
+				status: 'missing_payment_method';
+		  }
+		| {
+				status: 'already_shared';
+		  }
+		| {
+				status: 'error';
+				message: string;
+		  };
 
 	let { data, form: formResult } = $props();
 
 	let billingUnavailable = $derived(data.billingUnavailable ?? false);
 	let paymentMethods = $derived((data.paymentMethods ?? []) as PaymentMethod[]);
+	let hasDefaultPaymentMethod = $derived(
+		paymentMethods.some((paymentMethod) => paymentMethod.is_default)
+	);
+	let upgradeStatus = $derived(
+		(data.upgradeStatus as CustomerUpgradeStatusResponse | null | undefined) ?? null
+	);
+	let upgradeHasDefaultPaymentMethod = $derived(
+		upgradeStatus?.has_default_payment_method ?? hasDefaultPaymentMethod
+	);
+	let upgradeReady = $derived(
+		upgradeStatus?.upgrade_ready ??
+			((data.planContext?.billing_plan ?? 'free') === 'free' && upgradeHasDefaultPaymentMethod)
+	);
+	let upgradeOutcome = $derived(
+		(formResult?.upgradeOutcome as UpgradeOutcome | undefined) ?? undefined
+	);
 	let setupIntentClientSecret = $derived((data.setupIntentClientSecret as string | null) ?? null);
 	let errorMessage = $derived(
 		(
@@ -55,6 +95,13 @@
 		<BillingUnavailableCard />
 	{:else}
 		<div class="space-y-6">
+			<UpgradeButton
+				billingPlan={data.planContext?.billing_plan ?? 'free'}
+				hasDefaultPaymentMethod={upgradeHasDefaultPaymentMethod}
+				{upgradeReady}
+				{upgradeOutcome}
+			/>
+
 			<div class="rounded-lg bg-white p-6 shadow">
 				<h2 class="mb-4 text-lg font-semibold text-gray-900">Payment methods</h2>
 				{#if paymentMethods.length === 0}

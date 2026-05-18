@@ -1,4 +1,4 @@
-use chrono::NaiveDate;
+use chrono::{DateTime, Datelike, NaiveDate, Utc};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -89,6 +89,60 @@ pub struct GeneratedInvoice {
     pub total_cents: i64,
     pub minimum_applied: bool,
     pub line_items: Vec<NewLineItem>,
+}
+
+/// Compute the canonical monthly billing window for a persisted subscription
+/// cycle anchor.
+///
+/// Invariants:
+/// - `subscription_cycle_anchor_at` is interpreted in UTC only; local timezone
+///   rules never affect the returned window dates.
+/// - The anchor day-of-month is preserved when valid for the target month; if
+///   that day is missing, the boundary clamps to that month's final day.
+/// - The returned window is `[start, end)` where `end` is exclusive.
+pub fn anchored_invoice_window_utc_dates(
+    subscription_cycle_anchor_at: DateTime<Utc>,
+    window_reference_at: DateTime<Utc>,
+) -> (NaiveDate, NaiveDate) {
+    let anchor_day = subscription_cycle_anchor_at.day();
+    let reference_date = window_reference_at.date_naive();
+
+    let this_month_boundary =
+        anchored_month_boundary(reference_date.year(), reference_date.month(), anchor_day);
+    let period_start = if reference_date >= this_month_boundary {
+        this_month_boundary
+    } else {
+        let (previous_year, previous_month) =
+            shift_month(reference_date.year(), reference_date.month(), -1);
+        anchored_month_boundary(previous_year, previous_month, anchor_day)
+    };
+
+    let (next_year, next_month) = shift_month(period_start.year(), period_start.month(), 1);
+    let period_end = anchored_month_boundary(next_year, next_month, anchor_day);
+
+    (period_start, period_end)
+}
+
+fn anchored_month_boundary(year: i32, month: u32, anchor_day: u32) -> NaiveDate {
+    let day = anchor_day.min(last_day_of_month(year, month));
+    NaiveDate::from_ymd_opt(year, month, day).expect("anchored month boundary must be valid")
+}
+
+fn last_day_of_month(year: i32, month: u32) -> u32 {
+    let (next_year, next_month) = shift_month(year, month, 1);
+    let first_day_next_month =
+        NaiveDate::from_ymd_opt(next_year, next_month, 1).expect("next month must be valid");
+    first_day_next_month
+        .pred_opt()
+        .expect("month predecessor day must exist")
+        .day()
+}
+
+fn shift_month(year: i32, month: u32, offset: i32) -> (i32, u32) {
+    let absolute_month_index = year * 12 + month as i32 - 1 + offset;
+    let shifted_year = absolute_month_index.div_euclid(12);
+    let shifted_month = absolute_month_index.rem_euclid(12) + 1;
+    (shifted_year, shifted_month as u32)
 }
 
 /// Bundles the repository dependencies for invoice computation.

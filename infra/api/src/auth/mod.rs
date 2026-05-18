@@ -2,6 +2,7 @@ pub mod admin;
 pub mod api_key;
 pub mod claims;
 pub mod error;
+pub mod lockout;
 pub mod storage;
 pub mod tenant;
 

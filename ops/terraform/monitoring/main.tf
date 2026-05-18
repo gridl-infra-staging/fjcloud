@@ -23,6 +23,13 @@ locals {
   customer_loop_canary_stripe_secret_key_parameter_arn = "arn:${data.aws_partition.current.partition}:ssm:${var.region}:${data.aws_caller_identity.current.account_id}:parameter/${trimprefix(local.customer_loop_canary_stripe_secret_key_parameter_name, "/")}"
   customer_loop_canary_slack_webhook_parameter_arn = "arn:${data.aws_partition.current.partition}:ssm:${var.region}:${data.aws_caller_identity.current.account_id}:parameter/${trimprefix(local.customer_loop_canary_slack_webhook_parameter_name, "/")}"
   customer_loop_canary_discord_webhook_parameter_arn = "arn:${data.aws_partition.current.partition}:ssm:${var.region}:${data.aws_caller_identity.current.account_id}:parameter/${trimprefix(local.customer_loop_canary_discord_webhook_parameter_name, "/")}"
+  customer_loop_canary_inbound_roundtrip_s3_path_segments = split("/", trimprefix(var.support_email_canary_inbound_roundtrip_s3_uri, "s3://"))
+  customer_loop_canary_inbound_roundtrip_s3_bucket        = local.customer_loop_canary_inbound_roundtrip_s3_path_segments[0]
+  customer_loop_canary_inbound_roundtrip_s3_prefix        = join("/", slice(local.customer_loop_canary_inbound_roundtrip_s3_path_segments, 1, length(local.customer_loop_canary_inbound_roundtrip_s3_path_segments)))
+  customer_loop_canary_inbound_roundtrip_s3_prefix_clean  = trim(local.customer_loop_canary_inbound_roundtrip_s3_prefix, "/")
+  customer_loop_canary_inbound_roundtrip_list_prefixes    = local.customer_loop_canary_inbound_roundtrip_s3_prefix_clean == "" ? [""] : [local.customer_loop_canary_inbound_roundtrip_s3_prefix_clean, "${local.customer_loop_canary_inbound_roundtrip_s3_prefix_clean}/*"]
+  customer_loop_canary_inbound_roundtrip_bucket_arn       = "arn:${data.aws_partition.current.partition}:s3:::${local.customer_loop_canary_inbound_roundtrip_s3_bucket}"
+  customer_loop_canary_inbound_roundtrip_object_arn       = local.customer_loop_canary_inbound_roundtrip_s3_prefix_clean == "" ? "${local.customer_loop_canary_inbound_roundtrip_bucket_arn}/*" : "${local.customer_loop_canary_inbound_roundtrip_bucket_arn}/${local.customer_loop_canary_inbound_roundtrip_s3_prefix_clean}/*"
 }
 
 resource "aws_sns_topic" "alerts" {
@@ -165,6 +172,23 @@ resource "aws_iam_role_policy" "customer_loop_canary_lambda" {
           local.customer_loop_canary_slack_webhook_parameter_arn,
           local.customer_loop_canary_discord_webhook_parameter_arn
         ]
+      },
+      {
+        Sid      = "AllowCustomerLoopCanaryListInboundBucket"
+        Effect   = "Allow"
+        Action   = "s3:ListBucket"
+        Resource = local.customer_loop_canary_inbound_roundtrip_bucket_arn
+        Condition = {
+          StringLike = {
+            "s3:prefix" = local.customer_loop_canary_inbound_roundtrip_list_prefixes
+          }
+        }
+      },
+      {
+        Sid      = "AllowCustomerLoopCanaryReadInboundObjects"
+        Effect   = "Allow"
+        Action   = "s3:GetObject"
+        Resource = local.customer_loop_canary_inbound_roundtrip_object_arn
       }
     ]
   })
@@ -177,6 +201,10 @@ resource "aws_lambda_function" "customer_loop_canary" {
   image_uri     = local.customer_loop_canary_image_uri
   timeout       = 900
   memory_size   = 512
+  # Match publish_canary_image_shared.sh::publish_canary_image which builds
+  # --platform linux/arm64. Lambda defaults to x86_64; without this override
+  # the function rejects the published arm64 image at invoke time.
+  architectures = ["arm64"]
 
   image_config {
     # This command intentionally points at the existing canary owner script.
@@ -475,6 +503,67 @@ resource "aws_cloudwatch_metric_alarm" "api_heartbeat_missing" {
   dimensions = {
     Env = var.env
   }
+}
+
+# ---------------------------------------------------------------------------
+# API webhook backlog > 0 for 10m (stale unprocessed webhook events)
+# ---------------------------------------------------------------------------
+resource "aws_cloudwatch_metric_alarm" "api_webhook_backlog_high" {
+  alarm_name          = "fjcloud-${var.env}-api-webhook-backlog-high"
+  alarm_description   = "API webhook backlog has one or more stale unprocessed events for 10 minutes"
+  comparison_operator = "GreaterThanThreshold"
+  metric_name         = "WebhookBacklog"
+  namespace           = "fjcloud/api"
+  statistic           = "Maximum"
+  period              = 300
+  evaluation_periods  = 2
+  threshold           = 0
+  treat_missing_data  = "notBreaching"
+  datapoints_to_alarm = 2
+  alarm_actions       = [aws_sns_topic.alerts.arn]
+  ok_actions          = [aws_sns_topic.alerts.arn]
+
+  dimensions = {
+    Env = var.env
+  }
+}
+
+# ---------------------------------------------------------------------------
+# SES account reputation bounce-rate >= 5% over 15m
+# ---------------------------------------------------------------------------
+resource "aws_cloudwatch_metric_alarm" "ses_reputation_bounce_rate_high" {
+  alarm_name          = "fjcloud-${var.env}-ses-reputation-bounce-rate-high"
+  alarm_description   = "SES account-level bounce-rate reputation metric reached or exceeded 5%"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  metric_name         = "Reputation.BounceRate"
+  namespace           = "AWS/SES"
+  statistic           = "Maximum"
+  period              = 900
+  evaluation_periods  = 1
+  threshold           = 0.05
+  treat_missing_data  = "notBreaching"
+  datapoints_to_alarm = 1
+  alarm_actions       = [aws_sns_topic.alerts.arn]
+  ok_actions          = [aws_sns_topic.alerts.arn]
+}
+
+# ---------------------------------------------------------------------------
+# SES account reputation complaint-rate >= 0.1% over 15m
+# ---------------------------------------------------------------------------
+resource "aws_cloudwatch_metric_alarm" "ses_reputation_complaint_rate_high" {
+  alarm_name          = "fjcloud-${var.env}-ses-reputation-complaint-rate-high"
+  alarm_description   = "SES account-level complaint-rate reputation metric reached or exceeded 0.1%"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  metric_name         = "Reputation.ComplaintRate"
+  namespace           = "AWS/SES"
+  statistic           = "Maximum"
+  period              = 900
+  evaluation_periods  = 1
+  threshold           = 0.001
+  treat_missing_data  = "notBreaching"
+  datapoints_to_alarm = 1
+  alarm_actions       = [aws_sns_topic.alerts.arn]
+  ok_actions          = [aws_sns_topic.alerts.arn]
 }
 
 # ---------------------------------------------------------------------------

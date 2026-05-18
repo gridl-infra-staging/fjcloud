@@ -6,8 +6,8 @@
 #
 # Closes the LB-2 (signup_to_paid_invoice) and LB-3
 # (billing_portal_payment_method_update) launch blockers per LAUNCH.md.
-# The browser navigates the deployed staging UI (cloud.flapjack.foo).
-# Fixtures hit the deployed staging API (api.flapjack.foo) with admin
+# The browser navigates the deployed staging UI (staging.flapjack.foo).
+# Fixtures hit the deployed staging API (api.staging.flapjack.foo) with admin
 # credentials sourced from SSM. Email verification tokens are read
 # directly from the staging customers table via SSM-exec'd psql (Mailpit
 # doesn't exist on staging).
@@ -39,7 +39,7 @@
 #   - AWS credentials with ssm:Get* + ssm:SendCommand permission
 #     (typically: set -a; source .secret/.env.secret; set +a)
 #   - Docker NOT required; node_modules in web/ must be installed
-#   - Network reachability to cloud.flapjack.foo + api.flapjack.foo
+#   - Network reachability to staging.flapjack.foo + api.staging.flapjack.foo
 
 set -euo pipefail
 
@@ -53,7 +53,7 @@ LANE_TIMEOUT_SECONDS="${BROWSER_LANE_TIMEOUT_SECONDS:-1800}"
 
 is_allowed_hydrated_key() {
   case "$1" in
-    ADMIN_KEY|DATABASE_URL|API_URL|FLAPJACK_URL|STRIPE_SECRET_KEY|SES_FROM_ADDRESS|STRIPE_WEBHOOK_SECRET|STAGING_API_URL|STAGING_STRIPE_WEBHOOK_URL)
+    ADMIN_KEY|DATABASE_URL|API_URL|FLAPJACK_URL|STRIPE_SECRET_KEY|SES_FROM_ADDRESS|STRIPE_WEBHOOK_SECRET|STAGING_API_URL|STAGING_STRIPE_WEBHOOK_URL|STAGING_CLOUD_URL)
       return 0
       ;;
     *)
@@ -253,8 +253,15 @@ export E2E_ADMIN_KEY="$ADMIN_KEY"
 # staging API. PLAYWRIGHT_TARGET_REMOTE=1 lifts the loopback guard for
 # the *.flapjack.foo allowlist (see web/playwright.config.contract.ts
 # REMOTE_TARGET_HOST_SUFFIX_ALLOWLIST).
-export BASE_URL="https://cloud.flapjack.foo"
-export API_URL="https://api.flapjack.foo"
+export BASE_URL="${STAGING_CLOUD_URL:-https://staging.flapjack.foo}"
+# Keep API host sourced from the canonical staging hydrator owner.
+# STAGING_API_URL is the explicit contract var for staging-targeted tools;
+# fall back to API_URL for backward compatibility with older hydrator output.
+export API_URL="${STAGING_API_URL:-${API_URL:-}}"
+if [ -z "${API_URL:-}" ]; then
+  echo "ERROR: staging API URL not available after hydration (expected STAGING_API_URL or API_URL)" >&2
+  exit 1
+fi
 export API_BASE_URL="$API_URL"
 export PLAYWRIGHT_TARGET_REMOTE=1
 

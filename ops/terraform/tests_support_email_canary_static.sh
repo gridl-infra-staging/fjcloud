@@ -137,6 +137,7 @@ assert_contains_active "$support_tf_file" 'Resource[[:space:]]*=[[:space:]]*loca
 assert_contains_active "$support_tf_file" '"s3:prefix"[[:space:]]*=[[:space:]]*local\.support_email_canary_inbound_roundtrip_list_prefixes' "ListBucket s3:prefix condition is derived from parsed inbound roundtrip prefix local"
 assert_contains_active "$support_tf_file" 'Sid[[:space:]]*=[[:space:]]*"AllowCanaryReadInboundObjects"' "IAM contract keeps dedicated GetObject statement for inbound roundtrip objects"
 assert_contains_active "$support_tf_file" 'Resource[[:space:]]*=[[:space:]]*local\.support_email_canary_inbound_roundtrip_object_arn' "GetObject scope is derived from parsed inbound roundtrip object ARN local"
+assert_contains_active "$support_tf_file" 'architectures[[:space:]]*=[[:space:]]*\["arm64"\]' "Support-email Lambda architecture matches arm64 publish contract owner"
 
 echo ""
 echo "--- Packaging and delegation seams ---"

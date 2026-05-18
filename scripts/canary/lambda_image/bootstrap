@@ -22,6 +22,15 @@ PY
 }
 
 hydrate_runtime_parameter_env_vars() {
+    # Lambda execution containers persist env vars across warm invocations.
+    # If the previous invocation already resolved SSM-backed env vars to their
+    # secret values (some of which may start with "/"), do not re-run the
+    # resolver — the resolved values would be treated as parameter paths and
+    # IAM would deny them, killing the canary on every warm invoke.
+    if [ "${CANARY_SSM_HYDRATED:-0}" = "1" ]; then
+        return 0
+    fi
+
     local region="${CANARY_AWS_REGION:-${AWS_REGION:-${AWS_DEFAULT_REGION:-us-east-1}}}"
     local ssm_parameter_env_vars=(
         "ADMIN_KEY"
@@ -33,7 +42,7 @@ hydrate_runtime_parameter_env_vars() {
         "ADMIN_KEY"
         "STRIPE_SECRET_KEY"
     )
-    local env_name raw_value resolved_pairs
+    local env_name raw_value resolved_pairs ssm_payload
     local -a env_parameter_pairs=()
     local -a parameter_names=()
 
@@ -53,19 +62,25 @@ hydrate_runtime_parameter_env_vars() {
         return 0
     fi
 
-    resolved_pairs="$(
+    if ! ssm_payload="$(
         aws ssm get-parameters \
             --with-decryption \
             --region "$region" \
             --names "${parameter_names[@]}" \
-            --output json \
-            | python3 - "${env_parameter_pairs[@]}" "${required_parameter_env_vars[@]/#/required:}" <<'PY'
+            --output json
+    )"; then
+        echo "failed to resolve SSM parameters in bootstrap hydration" >&2
+        return 1
+    fi
+
+    if ! resolved_pairs="$(
+        python3 - "$ssm_payload" "${env_parameter_pairs[@]}" "${required_parameter_env_vars[@]/#/required:}" <<'PY'
 import json
 import sys
 
-payload = json.load(sys.stdin)
-raw_pairs = [arg for arg in sys.argv[1:] if not arg.startswith("required:")]
-required_env_names = {arg.split(":", 1)[1] for arg in sys.argv[1:] if arg.startswith("required:")}
+payload = json.loads(sys.argv[1]) if len(sys.argv) > 1 and sys.argv[1] else {}
+raw_pairs = [arg for arg in sys.argv[2:] if not arg.startswith("required:")]
+required_env_names = {arg.split(":", 1)[1] for arg in sys.argv[2:] if arg.startswith("required:")}
 
 env_to_param = {}
 for pair in raw_pairs:
@@ -94,7 +109,9 @@ for env_name, parameter_name in env_to_param.items():
     )
     print(f"{env_name}\t")
 PY
-    )"
+    )"; then
+        return 1
+    fi
 
     while IFS=$'\t' read -r resolved_env_name resolved_value; do
         if [ -z "${resolved_env_name}" ]; then
@@ -102,6 +119,11 @@ PY
         fi
         export "${resolved_env_name}=${resolved_value}"
     done <<< "$resolved_pairs"
+
+    # Sentinel consumed by scripts/canary/customer_loop_synthetic.sh so it does
+    # not re-resolve resolved values whose secret content happens to start
+    # with "/".
+    export CANARY_SSM_HYDRATED=1
 }
 
 while true; do

@@ -33,6 +33,9 @@ ACCOUNT_BASELINE_READY=false
 ACCOUNT_STATUS="blocked"
 ACCOUNT_DETAIL="Account readiness not evaluated."
 ACCOUNT_SANDBOX=false
+ACCOUNT_PRODUCTION_DECISION="unknown"
+REQUEST_SUBMITTED=false
+STS_CAPTURED=false
 IDENTITY_STATUS="blocked"
 IDENTITY_DETAIL="Identity readiness not evaluated."
 
@@ -177,6 +180,7 @@ collect_redaction_values_from_env_file() {
 }
 
 collect_redaction_values_from_env() {
+    add_redaction_value "${AWS_ACCESS_KEY_ID:-}"
     add_redaction_value "${AWS_SECRET_ACCESS_KEY:-}"
     add_redaction_value "${AWS_SESSION_TOKEN:-}"
     add_redaction_value "${SES_FROM_ADDRESS_RESOLVED:-}"
@@ -255,10 +259,64 @@ print("")
 PY
 }
 
+json_top_level_field() {
+    local json_payload="$1"
+    local field_name="$2"
+
+    python3 - "$json_payload" "$field_name" <<'PY' || true
+import json
+import sys
+
+payload = sys.argv[1]
+field_name = sys.argv[2]
+try:
+    body = json.loads(payload)
+except Exception:
+    print("")
+    raise SystemExit(0)
+
+value = body.get(field_name, "")
+if isinstance(value, bool):
+    print("true" if value else "false")
+elif value is None:
+    print("")
+else:
+    print(str(value))
+PY
+}
+
+run_aws_json_to_file() {
+    local output_path="$1"
+    shift
+    if AWS_PAGER="" aws "$@" --output json --no-cli-pager >"$output_path" 2>/dev/null; then
+        redact_file_in_place "$output_path"
+        return 0
+    fi
+    rm -f "$output_path"
+    return 1
+}
+
 resolve_inputs() {
     SES_FROM_ADDRESS_RESOLVED="${SES_FROM_ADDRESS:-}"
     SES_REGION_RESOLVED="${SES_REGION:-}"
     SES_TEST_RECIPIENT_RESOLVED="${SES_TEST_RECIPIENT:-}"
+}
+
+find_sts_preflight_path() {
+    local artifact_root="$1"
+    local candidate=""
+
+    for candidate in \
+        "$artifact_root/sts_caller_identity_preflight_runtime_ses.json" \
+        "$artifact_root/sts_caller_identity_preflight.json"
+    do
+        if [ -f "$candidate" ]; then
+            printf '%s\n' "$candidate"
+            return 0
+        fi
+    done
+
+    printf '\n'
 }
 
 delegate_readiness_check() {
@@ -323,12 +381,22 @@ delegate_readiness_check() {
     if [[ "$production_detail" == *"ProductionAccessEnabled=false"* ]] || [[ "$production_detail" == *"sandbox"* ]]; then
         ACCOUNT_SANDBOX=true
     fi
+    if [[ "$production_detail" == *"sandbox_pending_review"* ]]; then
+        ACCOUNT_PRODUCTION_DECISION="already_pending_review"
+    elif [[ "$production_detail" == *"sandbox_no_review"* ]]; then
+        ACCOUNT_PRODUCTION_DECISION="sandbox_no_review"
+    elif [[ "$production_detail" == *"production_access_enabled"* ]]; then
+        ACCOUNT_PRODUCTION_DECISION="already_production_enabled"
+    fi
 
     if [ "$get_account_pass" = "true" ] && [ "$sending_enabled_pass" = "true" ]; then
         ACCOUNT_BASELINE_READY=true
-        if [ "$ACCOUNT_SANDBOX" = true ]; then
+        if [ "$ACCOUNT_PRODUCTION_DECISION" = "sandbox_no_review" ]; then
             ACCOUNT_STATUS="blocked"
-            ACCOUNT_DETAIL="SES account remains in sandbox (${production_detail:-ProductionAccessEnabled=false}); production deliverability is blocked."
+            ACCOUNT_DETAIL="SES account remains in sandbox without pending review (${production_detail:-ProductionAccessEnabled=false (sandbox_no_review)})."
+        elif [ "$ACCOUNT_PRODUCTION_DECISION" = "already_pending_review" ]; then
+            ACCOUNT_STATUS="pass"
+            ACCOUNT_DETAIL="SES account is in sandbox with a pending production access review (${production_detail:-sandbox_pending_review})."
         else
             ACCOUNT_STATUS="pass"
             ACCOUNT_DETAIL="Readiness owner confirmed account sending readiness (${production_detail:-ProductionAccessEnabled=true})."
@@ -346,6 +414,82 @@ delegate_readiness_check() {
         IDENTITY_STATUS="blocked"
         IDENTITY_DETAIL="Readiness owner did not prove sender identity readiness (${identity_detail}; ${dkim_detail})."
     fi
+}
+
+request_production_access_if_needed() {
+    local pre_account_log="$LOGS_DIR/ses_account_pre.json"
+    local post_account_log="$LOGS_DIR/ses_account_post.json"
+    local sts_log="$LOGS_DIR/sts_caller_identity.json"
+    local put_stdout_log="$LOGS_DIR/put_account_details_stdout.json"
+    local put_stderr_log="$LOGS_DIR/put_account_details_stderr.log"
+    local preflight_sts_path="" expected_account_id="" current_account_id=""
+    local put_cmd=(sesv2 put-account-details --production-access-enabled --mail-type TRANSACTIONAL --website-url https://www.flapjack.dev --use-case-description "FJ Cloud transactional email: account verification, password reset, and billing alerts." --contact-language EN)
+
+    if [ -n "$SES_REGION_RESOLVED" ]; then
+        put_cmd+=("--region=$SES_REGION_RESOLVED")
+    fi
+
+    if ! run_aws_json_to_file "$sts_log" sts get-caller-identity ${SES_REGION_RESOLVED:+--region="$SES_REGION_RESOLVED"}; then
+        ACCOUNT_STATUS="blocked"
+        ACCOUNT_DETAIL="Failed to capture sts caller identity before production access request."
+        return 1
+    fi
+    STS_CAPTURED=true
+
+    if ! run_aws_json_to_file "$pre_account_log" sesv2 get-account ${SES_REGION_RESOLVED:+--region="$SES_REGION_RESOLVED"}; then
+        ACCOUNT_STATUS="blocked"
+        ACCOUNT_DETAIL="Failed to capture SES account pre-request snapshot."
+        return 1
+    fi
+
+    if [ "$ACCOUNT_PRODUCTION_DECISION" = "sandbox_no_review" ]; then
+        preflight_sts_path="$(find_sts_preflight_path "$SES_EVIDENCE_ARTIFACT_ROOT")"
+        if [ -z "$preflight_sts_path" ]; then
+            ACCOUNT_STATUS="blocked"
+            ACCOUNT_DETAIL="Missing STS preflight artifact under '$SES_EVIDENCE_ARTIFACT_ROOT'; refusing production access request without target-account proof."
+            return 1
+        fi
+
+        expected_account_id="$(json_top_level_field "$(cat "$preflight_sts_path" 2>/dev/null || true)" "Account")"
+        current_account_id="$(json_top_level_field "$(cat "$sts_log" 2>/dev/null || true)" "Account")"
+        if [ -z "$expected_account_id" ] || [ -z "$current_account_id" ]; then
+            ACCOUNT_STATUS="blocked"
+            ACCOUNT_DETAIL="Unable to prove the expected or runtime AWS account before production access request."
+            return 1
+        fi
+        if [ "$expected_account_id" != "$current_account_id" ]; then
+            ACCOUNT_STATUS="blocked"
+            ACCOUNT_DETAIL="Runtime AWS account '$current_account_id' does not match preflight account '$expected_account_id'; refusing production access request."
+            return 1
+        fi
+
+        if AWS_PAGER="" aws "${put_cmd[@]}" --output json --no-cli-pager >"$put_stdout_log" 2>"$put_stderr_log"; then
+            REQUEST_SUBMITTED=true
+            ACCOUNT_PRODUCTION_DECISION="request_submitted"
+        else
+            redact_file_in_place "$put_stdout_log"
+            redact_file_in_place "$put_stderr_log"
+            ACCOUNT_STATUS="blocked"
+            ACCOUNT_DETAIL="SES production access request failed from sandbox_no_review state."
+            return 1
+        fi
+        redact_file_in_place "$put_stdout_log"
+        redact_file_in_place "$put_stderr_log"
+    fi
+
+    if ! run_aws_json_to_file "$post_account_log" sesv2 get-account ${SES_REGION_RESOLVED:+--region="$SES_REGION_RESOLVED"}; then
+        ACCOUNT_STATUS="blocked"
+        ACCOUNT_DETAIL="Failed to capture SES account post-request snapshot."
+        return 1
+    fi
+
+    if [ "$ACCOUNT_PRODUCTION_DECISION" = "sandbox_no_review" ] && [ "$REQUEST_SUBMITTED" != true ]; then
+        ACCOUNT_STATUS="blocked"
+        ACCOUNT_DETAIL="Sandbox without pending review did not submit a production access request."
+        return 1
+    fi
+
+    return 0
 }
 
 is_mailbox_simulator_recipient() {
@@ -531,6 +675,10 @@ run_live_send_seam() {
 }
 
 derive_overall_verdict() {
+    if [ "$STS_CAPTURED" != true ]; then
+        printf 'blocked\n'
+        return 0
+    fi
     if [ "$SEND_ATTEMPT_STATUS" = "fail" ]; then
         printf 'fail\n'
         return 0
@@ -565,6 +713,9 @@ assemble_summary_json() {
     SEND_ATTEMPT_DETAIL="$SEND_ATTEMPT_DETAIL" \
     SEND_ATTEMPT_EXIT_CODE="$SEND_ATTEMPT_EXIT_CODE" \
     SEND_ATTEMPT_MARKER_FOUND="$SEND_ATTEMPT_MARKER_FOUND" \
+    ACCOUNT_PRODUCTION_DECISION="$ACCOUNT_PRODUCTION_DECISION" \
+    REQUEST_SUBMITTED="$REQUEST_SUBMITTED" \
+    STS_CAPTURED="$STS_CAPTURED" \
     SUPPRESSION_STATUS="$SUPPRESSION_STATUS" \
     SUPPRESSION_DETAIL="$SUPPRESSION_DETAIL" \
     python3 - <<'PY'
@@ -584,6 +735,9 @@ summary = {
         "status": os.environ["ACCOUNT_STATUS"],
         "detail": os.environ["ACCOUNT_DETAIL"],
         "is_sandbox": os.environ["ACCOUNT_SANDBOX"] == "true",
+        "production_access_decision": os.environ["ACCOUNT_PRODUCTION_DECISION"],
+        "request_submitted": os.environ["REQUEST_SUBMITTED"] == "true",
+        "sts_caller_identity_captured": os.environ["STS_CAPTURED"] == "true",
     },
     "identity_status": {
         "status": os.environ["IDENTITY_STATUS"],
@@ -664,6 +818,7 @@ main() {
     mkdir -p "$LOGS_DIR"
 
     delegate_readiness_check
+    request_production_access_if_needed || true
     run_recipient_preflight
     run_live_send_seam
 

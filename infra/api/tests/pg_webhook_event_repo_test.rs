@@ -18,6 +18,7 @@
 ///
 /// If DATABASE_URL is not set, all tests are skipped.
 use api::repos::{PgWebhookEventRepo, WebhookEventRepo};
+use std::time::Duration;
 
 mod support;
 
@@ -211,4 +212,73 @@ async fn find_by_stripe_event_id_returns_seeded_row_shape() {
         .execute(&pool)
         .await
         .ok();
+}
+
+#[tokio::test]
+async fn count_stale_unprocessed_counts_only_unprocessed_rows_older_than_threshold() {
+    let Some(db) = connect_and_migrate().await else {
+        return;
+    };
+    let pool = db.pool.clone();
+
+    let repo = PgWebhookEventRepo::new(pool.clone());
+    let event_ids = [
+        format!("evt_stale_1_{}", uuid::Uuid::new_v4().simple()),
+        format!("evt_stale_2_{}", uuid::Uuid::new_v4().simple()),
+        format!("evt_stale_3_{}", uuid::Uuid::new_v4().simple()),
+        format!("evt_recent_{}", uuid::Uuid::new_v4().simple()),
+        format!("evt_processed_old_{}", uuid::Uuid::new_v4().simple()),
+    ];
+
+    for stale_id in &event_ids[..3] {
+        sqlx::query(
+            "INSERT INTO webhook_events \
+             (stripe_event_id, event_type, payload, processed_at, created_at) \
+             VALUES ($1, 'charge.dispute.created', '{}'::jsonb, NULL, \
+                     NOW() - (600::bigint * INTERVAL '1 second'))",
+        )
+        .bind(stale_id)
+        .execute(&pool)
+        .await
+        .expect("seed stale unprocessed row");
+    }
+
+    sqlx::query(
+        "INSERT INTO webhook_events \
+         (stripe_event_id, event_type, payload, processed_at, created_at) \
+         VALUES ($1, 'charge.dispute.created', '{}'::jsonb, NULL, \
+                 NOW() - (30::bigint * INTERVAL '1 second'))",
+    )
+    .bind(&event_ids[3])
+    .execute(&pool)
+    .await
+    .expect("seed recent unprocessed row");
+
+    sqlx::query(
+        "INSERT INTO webhook_events \
+         (stripe_event_id, event_type, payload, processed_at, created_at) \
+         VALUES ($1, 'charge.dispute.created', '{}'::jsonb, NOW(), \
+                 NOW() - (700::bigint * INTERVAL '1 second'))",
+    )
+    .bind(&event_ids[4])
+    .execute(&pool)
+    .await
+    .expect("seed processed old row");
+
+    let stale_count = repo
+        .count_stale_unprocessed(Duration::from_secs(300))
+        .await
+        .expect("count stale webhook rows");
+    assert_eq!(
+        stale_count, 3,
+        "must count only unprocessed rows older than threshold"
+    );
+
+    for event_id in &event_ids {
+        sqlx::query("DELETE FROM webhook_events WHERE stripe_event_id = $1")
+            .bind(event_id)
+            .execute(&pool)
+            .await
+            .ok();
+    }
 }

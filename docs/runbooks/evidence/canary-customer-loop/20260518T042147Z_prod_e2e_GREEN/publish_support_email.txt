@@ -1,0 +1,72 @@
+
+WARNING! Your credentials are stored unencrypted in '/Users/stuart/.docker/config.json'.
+Configure a credential helper to remove this warning. See
+https://docs.docker.com/go/credential-store/
+
+Login Succeeded
+#0 building with "colima" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 1.01kB done
+#1 DONE 0.0s
+
+#2 [internal] load metadata for public.ecr.aws/lambda/python:3.12
+#2 DONE 0.2s
+
+#3 [internal] load .dockerignore
+#3 transferring context: 2B done
+#3 DONE 0.0s
+
+#4 [ 1/11] FROM public.ecr.aws/lambda/python:3.12@sha256:5b72e124977f6958a7e07e43ddbd5c593ad2f63e6b954fbd75505d89e2f973f3
+#4 resolve public.ecr.aws/lambda/python:3.12@sha256:5b72e124977f6958a7e07e43ddbd5c593ad2f63e6b954fbd75505d89e2f973f3 done
+#4 DONE 0.0s
+
+#5 [internal] load build context
+#5 transferring context: 3.17kB done
+#5 DONE 0.0s
+
+#6 [ 5/11] COPY scripts/validate_inbound_email_roundtrip.sh /opt/fjcloud/scripts/validate_inbound_email_roundtrip.sh
+#6 CACHED
+
+#7 [ 8/11] COPY scripts/lib/test_inbox_helpers.sh /opt/fjcloud/scripts/lib/test_inbox_helpers.sh
+#7 CACHED
+
+#8 [ 2/11] RUN dnf install -y bash jq     && pip3 install --no-cache-dir awscli     && dnf clean all
+#8 CACHED
+
+#9 [ 3/11] WORKDIR /opt/fjcloud
+#9 CACHED
+
+#10 [ 4/11] COPY scripts/canary/support_email_deliverability.sh /opt/fjcloud/scripts/canary/support_email_deliverability.sh
+#10 CACHED
+
+#11 [10/11] COPY ops/terraform/support_email_canary/lambda_handler.py /var/task/lambda_handler.py
+#11 CACHED
+
+#12 [ 9/11] COPY scripts/lib/parse_inbound_auth_headers.py /opt/fjcloud/scripts/lib/parse_inbound_auth_headers.py
+#12 CACHED
+
+#13 [ 6/11] COPY scripts/lib/alert_dispatch.sh /opt/fjcloud/scripts/lib/alert_dispatch.sh
+#13 CACHED
+
+#14 [ 7/11] COPY scripts/lib/validation_json.sh /opt/fjcloud/scripts/lib/validation_json.sh
+#14 CACHED
+
+#15 [11/11] RUN chmod +x /opt/fjcloud/scripts/canary/support_email_deliverability.sh     /opt/fjcloud/scripts/validate_inbound_email_roundtrip.sh
+#15 CACHED
+
+#16 [auth] sharing credentials for 213880904778.dkr.ecr.us-east-1.amazonaws.com
+#16 DONE 0.0s
+
+#17 exporting to image
+#17 exporting layers done
+#17 exporting manifest sha256:38672b6d4a2b6723d7c4024cb212cac2bcdcdd189da0a5218b0ac75d4543b1f6 done
+#17 exporting config sha256:eac751deb08f39babb9b7913b72a762208d1171f1a8db85da390029d3035037f done
+#17 naming to 213880904778.dkr.ecr.us-east-1.amazonaws.com/fjcloud-prod-support-email-canary:9d9c8ab63e2a done
+#17 pushing layers
+#17 pushing layers 0.3s done
+#17 pushing manifest for 213880904778.dkr.ecr.us-east-1.amazonaws.com/fjcloud-prod-support-email-canary:9d9c8ab63e2a@sha256:38672b6d4a2b6723d7c4024cb212cac2bcdcdd189da0a5218b0ac75d4543b1f6
+#17 pushing manifest for 213880904778.dkr.ecr.us-east-1.amazonaws.com/fjcloud-prod-support-email-canary:9d9c8ab63e2a@sha256:38672b6d4a2b6723d7c4024cb212cac2bcdcdd189da0a5218b0ac75d4543b1f6 0.2s done
+#17 DONE 0.5s
+Published support-email canary image: 213880904778.dkr.ecr.us-east-1.amazonaws.com/fjcloud-prod-support-email-canary:9d9c8ab63e2a
+INFO: skipping post-publish prod invoke because the wrapper did not enable it.

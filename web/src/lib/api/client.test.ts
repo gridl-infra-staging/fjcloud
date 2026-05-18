@@ -13,7 +13,9 @@ import type {
 	EstimatedBillResponse,
 	ApiKeyListItem,
 	CreateApiKeyResponse,
-	CustomerProfileResponse
+	CustomerProfileResponse,
+	BillingUpgradeResponse,
+	CustomerUpgradeStatusResponse
 } from './types';
 import { BASE_URL, mockFetch, createClient, createAuthenticatedClient } from './client.test.shared';
 
@@ -470,6 +472,29 @@ describe('ApiClient', () => {
 			expect(result).toEqual(expected);
 		});
 
+		it('POST /billing/upgrade sends the self-service upgrade request', async () => {
+			const expected: BillingUpgradeResponse = {
+				billing_plan: 'shared',
+				subscription_cycle_anchor_at: '2026-05-17T12:00:00Z',
+				stripe_invoice_id: 'in_test_123',
+				activation_amount_cents: 500
+			};
+			const fetch = mockFetch(200, expected);
+			client.setFetch(fetch);
+
+			const result = await client.upgradeToShared();
+
+			expect(fetch).toHaveBeenCalledWith(`${BASE_URL}/billing/upgrade`, {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+					Authorization: 'Bearer my-jwt-token'
+				},
+				body: JSON.stringify({})
+			});
+			expect(result).toEqual(expected);
+		});
+
 		it('GET /billing/estimate returns estimated bill', async () => {
 			const expected: EstimatedBillResponse = {
 				month: '2026-02',
@@ -631,6 +656,27 @@ describe('ApiClient', () => {
 			const result = await client.getProfile();
 
 			expect(fetch).toHaveBeenCalledWith(`${BASE_URL}/account`, {
+				method: 'GET',
+				headers: {
+					'Content-Type': 'application/json',
+					Authorization: 'Bearer my-jwt-token'
+				}
+			});
+			expect(result).toEqual(expected);
+		});
+
+		it('GET /account/upgrade-status returns upgrade-readiness data', async () => {
+			const expected: CustomerUpgradeStatusResponse = {
+				stripe_customer_id: 'cus_123',
+				has_default_payment_method: true,
+				upgrade_ready: true
+			};
+			const fetch = mockFetch(200, expected);
+			client.setFetch(fetch);
+
+			const result = await client.getUpgradeStatus();
+
+			expect(fetch).toHaveBeenCalledWith(`${BASE_URL}/account/upgrade-status`, {
 				method: 'GET',
 				headers: {
 					'Content-Type': 'application/json',

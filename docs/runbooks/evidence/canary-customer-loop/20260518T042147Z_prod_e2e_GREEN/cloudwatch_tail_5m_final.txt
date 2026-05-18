@@ -1,0 +1,56 @@
+2026-05-18T04:48:36.531000+00:00 2026/05/18/[$LATEST]b3bc6286cf2d461e8016b9c5150e1494 [customer-loop-canary] customer loop failed before completion; entering cleanup
+2026-05-18T04:48:36.873000+00:00 2026/05/18/[$LATEST]b3bc6286cf2d461e8016b9c5150e1494 [customer-loop-canary] account delete attempted for customer 0729a00a-69c2-4e2b-8853-f5d86348a657
+2026-05-18T04:48:36.973000+00:00 2026/05/18/[$LATEST]b3bc6286cf2d461e8016b9c5150e1494 [customer-loop-canary] admin cleanup completed for tenant 0729a00a-69c2-4e2b-8853-f5d86348a657
+2026-05-18T04:48:36.973000+00:00 2026/05/18/[$LATEST]b3bc6286cf2d461e8016b9c5150e1494 [customer-loop-canary] step 'verify_email' failed: verification email not found in inbox within timeout: /workspace/scripts/lib/test_inbox_helpers.sh: line 164: /usr/bin/python3: Argument list too long
+2026-05-18T04:48:36.973000+00:00 2026/05/18/[$LATEST]b3bc6286cf2d461e8016b9c5150e1494 /workspace/scripts/lib/test_inbox_helpers.sh: line 164: /usr/bin/python3: Argument list too long
+2026-05-18T04:48:36.973000+00:00 2026/05/18/[$LATEST]b3bc6286cf2d461e8016b9c5150e1494 /workspace/scripts/lib/test_inbox_helpers.sh: line 164: /usr/bin/python3: Argument list too long
+2026-05-18T04:48:36.973000+00:00 2026/05/18/[$LATEST]b3bc6286cf2d461e8016b9c5150e1494 /workspace/scripts/lib/test_inbox_helpers.sh: line 164: /usr/bin/python3: Argument list too long
+2026-05-18T04:48:36.973000+00:00 2026/05/18/[$LATEST]b3bc6286cf2d461e8016b9c5150e1494 /workspace/scripts/lib/test_inbox_helpers.sh: line 164: /usr/bin/python3: Argument list too long
+2026-05-18T04:48:36.973000+00:00 2026/05/18/[$LATEST]b3bc6286cf2d461e8016b9c5150e1494 /workspace/scripts/lib/test_inbox_helpers.sh: line 164: /usr/bin/python3: Argument list too long
+2026-05-18T04:48:36.973000+00:00 2026/05/18/[$LATEST]b3bc6286cf2d461e8016b9c5150e1494 /workspace/scripts/lib/test_inbox_helpers.sh: line 164: /usr/bin/python3: Argument list too long
+2026-05-18T04:48:36.973000+00:00 2026/05/18/[$LATEST]b3bc6286cf2d461e8016b9c5150e1494 /workspace/scripts/lib/test_inbox_helpers.sh: line 164: /usr/bin/python3: Argument list too long
+2026-05-18T04:48:36.973000+00:00 2026/05/18/[$LATEST]b3bc6286cf2d461e8016b9c5150e1494 /workspace/scripts/lib/test_inbox_helpers.sh: line 164: /usr/bin/python3: Argument list too long
+2026-05-18T04:48:36.973000+00:00 2026/05/18/[$LATEST]b3bc6286cf2d461e8016b9c5150e1494 /workspace/scripts/lib/test_inbox_helpers.sh: line 164: /usr/bin/python3: Argument list too long
+2026-05-18T04:48:36.973000+00:00 2026/05/18/[$LATEST]b3bc6286cf2d461e8016b9c5150e1494 /workspace/scripts/lib/test_inbox_helpers.sh: line 164: /usr/bin/python3: Argument list too long
+2026-05-18T04:48:36.973000+00:00 2026/05/18/[$LATEST]b3bc6286cf2d461e8016b9c5150e1494 /workspace/scripts/lib/test_inbox_helpers.sh: line 164: /usr/bin/python3: Argument list too long
+2026-05-18T04:48:36.973000+00:00 2026/05/18/[$LATEST]b3bc6286cf2d461e8016b9c5150e1494 /workspace/scripts/lib/test_inbox_helpers.sh: line 164: /usr/bin/python3: Argument list too long
+2026-05-18T04:48:36.973000+00:00 2026/05/18/[$LATEST]b3bc6286cf2d461e8016b9c5150e1494 /workspace/scripts/lib/test_inbox_helpers.sh: line 164: /usr/bin/python3: Argument list too long
+2026-05-18T04:48:36.973000+00:00 2026/05/18/[$LATEST]b3bc6286cf2d461e8016b9c5150e1494 /workspace/scripts/lib/test_inbox_helpers.sh: line 164: /usr/bin/python3: Argument list too long
+2026-05-18T04:48:36.973000+00:00 2026/05/18/[$LATEST]b3bc6286cf2d461e8016b9c5150e1494 /workspace/scripts/lib/test_inbox_helpers.sh: line 164: /usr/bin/python3: Argument list too long
+2026-05-18T04:48:36.973000+00:00 2026/05/18/[$LATEST]b3bc6286cf2d461e8016b9c5150e1494 /workspace/scripts/lib/test_inbox_helpers.sh: line 164: /usr/bin/python3: Argument list too long
+2026-05-18T04:48:36.973000+00:00 2026/05/18/[$LATEST]b3bc6286cf2d461e8016b9c5150e1494 /workspace/scripts/lib/test_inbox_helpers.sh: line 164: /usr/bin/python3: Argument list too long
+2026-05-18T04:48:36.973000+00:00 2026/05/18/[$LATEST]b3bc6286cf2d461e8016b9c5150e1494 /workspace/scripts/lib/test_inbox_helpers.sh: line 164: /usr/bin/python3: Argument list too long
+2026-05-18T04:48:36.973000+00:00 2026/05/18/[$LATEST]b3bc6286cf2d461e8016b9c5150e1494 /workspace/scripts/lib/test_inbox_helpers.sh: line 164: /usr/bin/python3: Argument list too long
+2026-05-18T04:48:36.973000+00:00 2026/05/18/[$LATEST]b3bc6286cf2d461e8016b9c5150e1494 /workspace/scripts/lib/test_inbox_helpers.sh: line 164: /usr/bin/python3: Argument list too long
+2026-05-18T04:48:36.973000+00:00 2026/05/18/[$LATEST]b3bc6286cf2d461e8016b9c5150e1494 /workspace/scripts/lib/test_inbox_helpers.sh: line 164: /usr/bin/python3: Argument list too long
+2026-05-18T04:48:36.973000+00:00 2026/05/18/[$LATEST]b3bc6286cf2d461e8016b9c5150e1494 /workspace/scripts/lib/test_inbox_helpers.sh: line 164: /usr/bin/python3: Argument list too long
+2026-05-18T04:48:36.973000+00:00 2026/05/18/[$LATEST]b3bc6286cf2d461e8016b9c5150e1494 /workspace/scripts/lib/test_inbox_helpers.sh: line 164: /usr/bin/python3: Argument list too long
+2026-05-18T04:48:36.973000+00:00 2026/05/18/[$LATEST]b3bc6286cf2d461e8016b9c5150e1494 /workspace/scripts/lib/test_inbox_helpers.sh: line 164: /usr/bin/python3: Argument list too long
+2026-05-18T04:48:36.973000+00:00 2026/05/18/[$LATEST]b3bc6286cf2d461e8016b9c5150e1494 /workspace/scripts/lib/test_inbox_helpers.sh: line 164: /usr/bin/python3: Argument list too long
+2026-05-18T04:48:36.973000+00:00 2026/05/18/[$LATEST]b3bc6286cf2d461e8016b9c5150e1494 /workspace/scripts/lib/test_inbox_helpers.sh: line 164: /usr/bin/python3: Argument list too long
+2026-05-18T04:48:36.973000+00:00 2026/05/18/[$LATEST]b3bc6286cf2d461e8016b9c5150e1494 /workspace/scripts/lib/test_inbox_helpers.sh: line 164: /usr/bin/python3: Argument list too long
+2026-05-18T04:48:36.973000+00:00 2026/05/18/[$LATEST]b3bc6286cf2d461e8016b9c5150e1494 /workspace/scripts/lib/test_inbox_helpers.sh: line 164: /usr/bin/python3: Argument list too long
+2026-05-18T04:48:36.973000+00:00 2026/05/18/[$LATEST]b3bc6286cf2d461e8016b9c5150e1494 /workspace/scripts/lib/test_inbox_helpers.sh: line 164: /usr/bin/python3: Argument list too long
+2026-05-18T04:48:36.973000+00:00 2026/05/18/[$LATEST]b3bc6286cf2d461e8016b9c5150e1494 inbox-poll exhausted: attempts=30 last_list_count=0 candidates_scanned=0 fetch_failures=0 nonce=canary2026051804455528157
+2026-05-18T04:48:37.131000+00:00 2026/05/18/[$LATEST]b3bc6286cf2d461e8016b9c5150e1494 [FAIL] slack: HTTP 400 (expected 2xx)
+2026-05-18T04:48:37.363000+00:00 2026/05/18/[$LATEST]b3bc6286cf2d461e8016b9c5150e1494 [OK]   discord: HTTP 204
+2026-05-18T04:48:37.497000+00:00 2026/05/18/[$LATEST]b3bc6286cf2d461e8016b9c5150e1494 END RequestId: 0452476a-028f-44b2-b847-4f7925eb493a
+2026-05-18T04:48:37.497000+00:00 2026/05/18/[$LATEST]b3bc6286cf2d461e8016b9c5150e1494 REPORT RequestId: 0452476a-028f-44b2-b847-4f7925eb493a	Duration: 169123.30 ms	Billed Duration: 169192 ms	Memory Size: 512 MB	Max Memory Used: 142 MB	Init Duration: 68.09 ms
+2026-05-18T04:51:04.159000+00:00 2026/05/18/[$LATEST]50eb2c4dc4394a789cc21af93a69195b START RequestId: 508df2f0-a158-4662-875e-ec7f657bdfab Version: $LATEST
+2026-05-18T04:51:12.581000+00:00 2026/05/18/[$LATEST]50eb2c4dc4394a789cc21af93a69195b [customer-loop-canary] signup succeeded for canary+canary2026051804511128541@test.flapjack.foo (customer=1c3c5dcd-5e1b-44dc-b5ca-1708e7d62738)
+2026-05-18T04:51:22.841000+00:00 2026/05/18/[$LATEST]50eb2c4dc4394a789cc21af93a69195b [customer-loop-canary] email verification succeeded for canary+canary2026051804511128541@test.flapjack.foo
+2026-05-18T04:51:22.841000+00:00 2026/05/18/[$LATEST]50eb2c4dc4394a789cc21af93a69195b [customer-loop-canary] CANARY_LIVE_MODE=0; skipping live Stripe branch
+2026-05-18T04:51:23.261000+00:00 2026/05/18/[$LATEST]50eb2c4dc4394a789cc21af93a69195b [customer-loop-canary] index created (canary-canary2026051804511128541)
+2026-05-18T04:51:23.481000+00:00 2026/05/18/[$LATEST]50eb2c4dc4394a789cc21af93a69195b [customer-loop-canary] index write succeeded (canary-canary2026051804511128541)
+2026-05-18T04:51:23.861000+00:00 2026/05/18/[$LATEST]50eb2c4dc4394a789cc21af93a69195b [customer-loop-canary] index search succeeded (canary-canary2026051804511128541)
+2026-05-18T04:51:24.001000+00:00 2026/05/18/[$LATEST]50eb2c4dc4394a789cc21af93a69195b [customer-loop-canary] index deleted (canary-canary2026051804511128541)
+2026-05-18T04:51:24.240000+00:00 2026/05/18/[$LATEST]50eb2c4dc4394a789cc21af93a69195b [customer-loop-canary] account delete attempted for customer 1c3c5dcd-5e1b-44dc-b5ca-1708e7d62738
+2026-05-18T04:51:24.341000+00:00 2026/05/18/[$LATEST]50eb2c4dc4394a789cc21af93a69195b [customer-loop-canary] admin cleanup completed for tenant 1c3c5dcd-5e1b-44dc-b5ca-1708e7d62738
+2026-05-18T04:51:24.341000+00:00 2026/05/18/[$LATEST]50eb2c4dc4394a789cc21af93a69195b [customer-loop-canary] customer loop canary completed successfully
+2026-05-18T04:51:24.380000+00:00 2026/05/18/[$LATEST]50eb2c4dc4394a789cc21af93a69195b END RequestId: 508df2f0-a158-4662-875e-ec7f657bdfab
+2026-05-18T04:51:24.380000+00:00 2026/05/18/[$LATEST]50eb2c4dc4394a789cc21af93a69195b REPORT RequestId: 508df2f0-a158-4662-875e-ec7f657bdfab	Duration: 20207.81 ms	Billed Duration: 20402 ms	Memory Size: 512 MB	Max Memory Used: 139 MB	Init Duration: 193.67 ms
+2026-05-18T04:51:38.799000+00:00 2026/05/18/[$LATEST]50eb2c4dc4394a789cc21af93a69195b START RequestId: ae7d6825-fb44-4adc-b53a-ffe1daf34092 Version: $LATEST
+2026-05-18T04:51:41.276000+00:00 2026/05/18/[$LATEST]50eb2c4dc4394a789cc21af93a69195b An error occurred (AccessDeniedException) when calling the GetParameters operation: User: arn:aws:sts::213880904778:assumed-role/fjcloud-prod-customer-loop-canary-lambda/fjcloud-prod-customer-loop-canary is not authorized to perform: ssm:GetParameters on resource: arn:aws:ssm:us-east-1:213880904778:parameter/uiaeMnmRzsOPw0aEglARrv5hW6GX0pi because no identity-based policy allows the ssm:GetParameters action
+2026-05-18T04:51:41.801000+00:00 2026/05/18/[$LATEST]50eb2c4dc4394a789cc21af93a69195b failed to resolve SSM parameters in bootstrap hydration
+2026-05-18T04:51:41.807000+00:00 2026/05/18/[$LATEST]50eb2c4dc4394a789cc21af93a69195b END RequestId: ae7d6825-fb44-4adc-b53a-ffe1daf34092
+2026-05-18T04:51:41.807000+00:00 2026/05/18/[$LATEST]50eb2c4dc4394a789cc21af93a69195b REPORT RequestId: ae7d6825-fb44-4adc-b53a-ffe1daf34092	Duration: 3007.61 ms	Billed Duration: 3008 ms	Memory Size: 512 MB	Max Memory Used: 139 MB	Status: error	Error Type: Runtime.ExitError

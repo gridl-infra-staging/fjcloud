@@ -1,0 +1,12 @@
+FAIL: function fjcloud-prod-customer-loop-canary threw Unhandled
+==response body==
+{"errorType":"CustomerLoopCanaryError","errorMessage":"customer loop canary failed with exit code 0"}==log tail (base64 in invoke response; decode if needed)==
+START RequestId: f7014441-bdb8-4f04-a8e6-a5bd4861168d Version: $LATEST
+[customer-loop-canary] signup succeeded for canary+canary202605170331137756@test.flapjack.foo (customer=207ed34f-4826-4c9d-b869-192e43c161ae)
+[customer-loop-canary] customer loop failed before completion; entering cleanup
+[customer-loop-canary] account delete attempted for customer 207ed34f-4826-4c9d-b869-192e43c161ae
+[customer-loop-canary] step 'verify_email' failed: verification email not found in inbox within timeout
+[FAIL] slack: webhook URL must use https://
+[FAIL] discord: webhook URL must use https://
+END RequestId: f7014441-bdb8-4f04-a8e6-a5bd4861168d
+REPORT RequestId: f7014441-bdb8-4f04-a8e6-a5bd4861168d	Duration: 6380.64 ms	Billed Duration: 6381 ms	Memory Size: 512 MB	Max Memory Used: 139 MB	

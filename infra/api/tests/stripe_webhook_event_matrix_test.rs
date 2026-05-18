@@ -4,15 +4,25 @@ use std::sync::Arc;
 
 use api::models::Customer;
 use api::repos::invoice_repo::{InvoiceRepo, NewLineItem};
+use api::repos::webhook_event_repo::WebhookEventRow;
 use api::repos::CustomerRepo;
+use api::repos::DisputeRepo;
+use api::services::audit_log::ACTION_STRIPE_DISPUTE_UPDATED;
 use axum::http::StatusCode;
-use chrono::NaiveDate;
+use chrono::{NaiveDate, Utc};
 use rust_decimal_macros::dec;
+use sqlx::PgPool;
 use tower::ServiceExt;
 use uuid::Uuid;
 
-use common::stripe_webhook_test_support::{mock_stripe_webhook_app, webhook_request};
-use common::{mock_invoice_repo, mock_repo, mock_stripe_service, mock_webhook_event_repo};
+use common::stripe_webhook_test_support::{
+    dispute_closed_payload, dispute_created_payload, dispute_funds_withdrawn_payload,
+    mock_stripe_webhook_app, webhook_request,
+};
+use common::{
+    mock_dispute_repo, mock_invoice_repo, mock_repo, mock_stripe_service, mock_webhook_event_repo,
+    TestStateBuilder,
+};
 
 fn seed_draft_invoice(
     repo: &common::MockInvoiceRepo,
@@ -220,4 +230,288 @@ async fn charge_refunded_marks_paid_invoice_refunded() {
     assert_eq!(webhook_event_repo.event_count(), 1);
     let updated = invoice_repo.find_by_id(invoice.id).await.unwrap().unwrap();
     assert_eq!(updated.status, "refunded");
+}
+
+#[tokio::test]
+async fn dispute_closed_with_won_status_does_not_refund_paid_invoice() {
+    let customer_repo = mock_repo();
+    let invoice_repo = mock_invoice_repo();
+    let dispute_repo = mock_dispute_repo();
+    let webhook_event_repo = mock_webhook_event_repo();
+    let stripe_service = mock_stripe_service();
+    let customer =
+        seed_customer_with_stripe(&customer_repo, "dispute-closed-won@example.com").await;
+
+    let invoice = seed_draft_invoice(&invoice_repo, customer.id);
+    invoice_repo.finalize(invoice.id).await.unwrap();
+    invoice_repo.mark_paid(invoice.id).await.unwrap();
+    invoice_repo
+        .set_stripe_fields(
+            invoice.id,
+            "in_dispute_closed_won",
+            "https://stripe.com/inv/dispute-closed-won",
+            Some("pi_dispute_closed_won"),
+        )
+        .await
+        .unwrap();
+
+    webhook_event_repo.seed_row(WebhookEventRow {
+        stripe_event_id: "evt_seed_dispute_closed_won_lookup".to_string(),
+        event_type: "invoice.payment_succeeded".to_string(),
+        payload: serde_json::json!({
+            "data": {
+                "object": {
+                    "id": "in_dispute_closed_won",
+                    "payment_intent": "pi_dispute_closed_won"
+                }
+            }
+        }),
+        processed_at: Some(Utc::now()),
+        created_at: Utc::now(),
+    });
+
+    let state = TestStateBuilder::new()
+        .with_customer_repo(customer_repo)
+        .with_invoice_repo(Arc::clone(&invoice_repo))
+        .with_dispute_repo(dispute_repo)
+        .with_webhook_event_repo(webhook_event_repo)
+        .with_stripe_service(stripe_service)
+        .build();
+    let app = api::router::build_router(state);
+
+    let payload = dispute_closed_payload(
+        "evt_dispute_closed_won",
+        "dp_dispute_closed_won",
+        "ch_dispute_closed_won",
+        Some("pi_dispute_closed_won"),
+        customer.stripe_customer_id.as_deref().unwrap(),
+        5000,
+        "won",
+    );
+    let response = app.oneshot(webhook_request(&payload)).await.unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let updated = invoice_repo.find_by_id(invoice.id).await.unwrap().unwrap();
+    assert_eq!(
+        updated.status, "paid",
+        "won disputes must not transition paid invoices to refunded"
+    );
+}
+
+#[tokio::test]
+async fn dispute_created_prefers_webhook_event_invoice_mapping_for_upsert_link() {
+    let customer_repo = mock_repo();
+    let invoice_repo = mock_invoice_repo();
+    let dispute_repo = mock_dispute_repo();
+    let webhook_event_repo = mock_webhook_event_repo();
+    let stripe_service = mock_stripe_service();
+    let customer =
+        seed_customer_with_stripe(&customer_repo, "dispute-prefer-webhook@example.com").await;
+
+    let invoice = seed_draft_invoice(&invoice_repo, customer.id);
+    invoice_repo.finalize(invoice.id).await.unwrap();
+    invoice_repo.mark_paid(invoice.id).await.unwrap();
+    invoice_repo
+        .set_stripe_fields(
+            invoice.id,
+            "in_dispute_preferred_webhook",
+            "https://stripe.com/inv/dispute-preferred",
+            Some("pi_dispute_preferred"),
+        )
+        .await
+        .unwrap();
+
+    webhook_event_repo.seed_row(WebhookEventRow {
+        stripe_event_id: "evt_seed_dispute_lookup".to_string(),
+        event_type: "invoice.payment_succeeded".to_string(),
+        payload: serde_json::json!({
+            "data": {
+                "object": {
+                    "id": "in_dispute_preferred_webhook",
+                    "payment_intent": "pi_dispute_preferred"
+                }
+            }
+        }),
+        processed_at: Some(Utc::now()),
+        created_at: Utc::now(),
+    });
+    stripe_service.seed_charge_lookup(api::stripe::StripeChargeLookup {
+        charge_id: "ch_dispute_preferred".to_string(),
+        invoice_id: Some("in_fallback_should_not_win".to_string()),
+        payment_intent_id: Some("pi_dispute_preferred".to_string()),
+    });
+
+    let state = TestStateBuilder::new()
+        .with_customer_repo(customer_repo)
+        .with_invoice_repo(Arc::clone(&invoice_repo))
+        .with_dispute_repo(Arc::clone(&dispute_repo))
+        .with_webhook_event_repo(Arc::clone(&webhook_event_repo))
+        .with_stripe_service(stripe_service)
+        .build();
+    let app = api::router::build_router(state);
+
+    let payload = dispute_created_payload(
+        "evt_dispute_created_prefer_webhook",
+        "dp_prefer_webhook",
+        "ch_dispute_preferred",
+        Some("pi_dispute_preferred"),
+        customer.stripe_customer_id.as_deref().unwrap(),
+        5000,
+    );
+    let response = app.oneshot(webhook_request(&payload)).await.unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let dispute = dispute_repo
+        .find_by_stripe_dispute_id("dp_prefer_webhook")
+        .await
+        .unwrap()
+        .expect("dispute row should be persisted");
+    assert_eq!(dispute.invoice_id, Some(invoice.id));
+}
+
+#[tokio::test]
+async fn dispute_created_falls_back_to_charge_lookup_when_event_repo_has_no_invoice_mapping() {
+    let customer_repo = mock_repo();
+    let invoice_repo = mock_invoice_repo();
+    let dispute_repo = mock_dispute_repo();
+    let webhook_event_repo = mock_webhook_event_repo();
+    let stripe_service = mock_stripe_service();
+    let customer =
+        seed_customer_with_stripe(&customer_repo, "dispute-fallback-charge@example.com").await;
+
+    let invoice = seed_draft_invoice(&invoice_repo, customer.id);
+    invoice_repo.finalize(invoice.id).await.unwrap();
+    invoice_repo
+        .set_stripe_fields(
+            invoice.id,
+            "in_dispute_fallback_charge",
+            "https://stripe.com/inv/dispute-fallback",
+            Some("pi_dispute_fallback"),
+        )
+        .await
+        .unwrap();
+
+    stripe_service.seed_charge_lookup(api::stripe::StripeChargeLookup {
+        charge_id: "ch_dispute_fallback".to_string(),
+        invoice_id: Some("in_dispute_fallback_charge".to_string()),
+        payment_intent_id: Some("pi_dispute_fallback".to_string()),
+    });
+
+    let state = TestStateBuilder::new()
+        .with_customer_repo(customer_repo)
+        .with_invoice_repo(Arc::clone(&invoice_repo))
+        .with_dispute_repo(Arc::clone(&dispute_repo))
+        .with_webhook_event_repo(Arc::clone(&webhook_event_repo))
+        .with_stripe_service(stripe_service)
+        .build();
+    let app = api::router::build_router(state);
+
+    let payload = dispute_created_payload(
+        "evt_dispute_created_fallback_charge",
+        "dp_fallback_charge",
+        "ch_dispute_fallback",
+        Some("pi_dispute_fallback"),
+        customer.stripe_customer_id.as_deref().unwrap(),
+        5000,
+    );
+    let response = app.oneshot(webhook_request(&payload)).await.unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let dispute = dispute_repo
+        .find_by_stripe_dispute_id("dp_fallback_charge")
+        .await
+        .unwrap()
+        .expect("dispute row should be persisted");
+    assert_eq!(dispute.invoice_id, Some(invoice.id));
+}
+
+async fn connect_and_migrate() -> Option<PgPool> {
+    let Ok(url) = std::env::var("DATABASE_URL") else {
+        println!("SKIP: DATABASE_URL not set — skipping dispute audit integration test");
+        return None;
+    };
+    let pool = PgPool::connect(&url).await.expect("connect integration db");
+    sqlx::migrate!("../migrations")
+        .run(&pool)
+        .await
+        .expect("run migrations");
+    Some(pool)
+}
+
+#[tokio::test]
+#[ignore = "requires DATABASE_URL"]
+async fn dispute_events_append_audit_log_rows_with_real_pool() {
+    let Some(pool) = connect_and_migrate().await else {
+        return;
+    };
+    let customer_repo = mock_repo();
+    let invoice_repo = mock_invoice_repo();
+    let dispute_repo = mock_dispute_repo();
+    let webhook_event_repo = mock_webhook_event_repo();
+    let stripe_service = mock_stripe_service();
+    let customer = seed_customer_with_stripe(&customer_repo, "dispute-audit@example.com").await;
+
+    let invoice = seed_draft_invoice(&invoice_repo, customer.id);
+    invoice_repo.finalize(invoice.id).await.unwrap();
+    invoice_repo.mark_paid(invoice.id).await.unwrap();
+    invoice_repo
+        .set_stripe_fields(
+            invoice.id,
+            "in_dispute_audit",
+            "https://stripe.com/inv/dispute-audit",
+            Some("pi_dispute_audit"),
+        )
+        .await
+        .unwrap();
+    webhook_event_repo.seed_row(WebhookEventRow {
+        stripe_event_id: "evt_seed_dispute_audit_lookup".to_string(),
+        event_type: "invoice.payment_succeeded".to_string(),
+        payload: serde_json::json!({
+            "data": {
+                "object": {
+                    "id": "in_dispute_audit",
+                    "payment_intent": "pi_dispute_audit"
+                }
+            }
+        }),
+        processed_at: Some(Utc::now()),
+        created_at: Utc::now(),
+    });
+
+    let mut state = TestStateBuilder::new()
+        .with_customer_repo(customer_repo)
+        .with_invoice_repo(Arc::clone(&invoice_repo))
+        .with_dispute_repo(dispute_repo)
+        .with_webhook_event_repo(Arc::clone(&webhook_event_repo))
+        .with_stripe_service(stripe_service)
+        .build();
+    state.pool = pool.clone();
+    let app = api::router::build_router(state);
+
+    let payload = dispute_funds_withdrawn_payload(
+        "evt_dispute_funds_withdrawn_audit",
+        "dp_dispute_audit",
+        "ch_dispute_audit",
+        Some("pi_dispute_audit"),
+        customer.stripe_customer_id.as_deref().unwrap(),
+        5000,
+    );
+    let response = app.oneshot(webhook_request(&payload)).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let audit_rows: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*)::BIGINT FROM audit_log WHERE action = $1 AND target_tenant_id = $2",
+    )
+    .bind(ACTION_STRIPE_DISPUTE_UPDATED)
+    .bind(customer.id)
+    .fetch_one(&pool)
+    .await
+    .expect("count audit rows");
+    assert_eq!(audit_rows, 1, "expected one durable dispute audit row");
+
+    let _ = sqlx::query("DELETE FROM audit_log WHERE action = $1 AND target_tenant_id = $2")
+        .bind(ACTION_STRIPE_DISPUTE_UPDATED)
+        .bind(customer.id)
+        .execute(&pool)
+        .await;
 }

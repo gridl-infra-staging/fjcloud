@@ -3,9 +3,9 @@
 // Extracted from main() to keep main.rs under the 800-line limit.
 
 use crate::repos::{
-    PgApiKeyRepo, PgColdSnapshotRepo, PgCustomerRepo, PgDeploymentRepo, PgIndexMigrationRepo,
-    PgInvoiceRepo, PgRateCardRepo, PgRestoreJobRepo, PgTenantRepo, PgUsageRepo, PgVmInventoryRepo,
-    PgWebhookEventRepo,
+    PgApiKeyRepo, PgColdSnapshotRepo, PgCustomerRepo, PgDeploymentRepo, PgDisputeRepo,
+    PgIndexMigrationRepo, PgInvoiceRepo, PgRateCardRepo, PgRestoreJobRepo, PgTenantRepo,
+    PgUsageRepo, PgVmInventoryRepo, PgWebhookEventRepo,
 };
 use sqlx::PgPool;
 use std::sync::Arc;
@@ -18,6 +18,7 @@ pub struct PgRepos {
     pub usage_repo: Arc<PgUsageRepo>,
     pub rate_card_repo: Arc<PgRateCardRepo>,
     pub invoice_repo: Arc<PgInvoiceRepo>,
+    pub dispute_repo: Arc<PgDisputeRepo>,
     pub tenant_repo: Arc<PgTenantRepo>,
     pub webhook_event_repo: Arc<PgWebhookEventRepo>,
     pub vm_inventory_repo: Arc<PgVmInventoryRepo>,
@@ -35,6 +36,7 @@ pub fn init_pg_repos(pool: &PgPool) -> PgRepos {
         usage_repo: Arc::new(PgUsageRepo::new(pool.clone())),
         rate_card_repo: Arc::new(PgRateCardRepo::new(pool.clone())),
         invoice_repo: Arc::new(PgInvoiceRepo::new(pool.clone())),
+        dispute_repo: Arc::new(PgDisputeRepo::new(pool.clone())),
         tenant_repo: Arc::new(PgTenantRepo::new(pool.clone())),
         webhook_event_repo: Arc::new(PgWebhookEventRepo::new(pool.clone())),
         vm_inventory_repo: Arc::new(PgVmInventoryRepo::new(pool.clone())),

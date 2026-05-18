@@ -8,11 +8,13 @@ mod storage_s3_signed_router_harness;
 
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
+use chrono::{Duration, Utc};
 use http_body_util::BodyExt;
 use serde_json::json;
 use std::sync::{Arc, Mutex, OnceLock};
 use tower::ServiceExt;
 
+use api::repos::CustomerRepo;
 use api::router::{
     build_router, build_router_with_auth_rate_config, build_router_with_cors,
     build_router_with_rate_config, RateLimitConfig,
@@ -314,6 +316,52 @@ async fn verify_email_rate_limit_sets_retry_after_header() {
     assert!(
         second.headers().get("retry-after").is_some(),
         "rate-limited verify-email response should include retry-after header"
+    );
+}
+
+/// Test 4c: reset-password should be protected by the auth rate limiter.
+#[tokio::test]
+async fn reset_password_rate_limit_sets_retry_after_header() {
+    let _lock = security_env_lock()
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+
+    let app = build_router_with_auth_rate_config(
+        common::test_state(),
+        1,
+        std::time::Duration::from_secs(60),
+    );
+    let ip = "203.0.113.115";
+
+    let first = app
+        .clone()
+        .oneshot(json_post(
+            "/auth/reset-password",
+            json!({
+                "token": "unknown-token",
+                "new_password": "strongpassword123"
+            }),
+            ip,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(first.status(), StatusCode::BAD_REQUEST);
+
+    let second = app
+        .oneshot(json_post(
+            "/auth/reset-password",
+            json!({
+                "token": "unknown-token",
+                "new_password": "strongpassword123"
+            }),
+            ip,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(second.status(), StatusCode::TOO_MANY_REQUESTS);
+    assert!(
+        second.headers().get("retry-after").is_some(),
+        "rate-limited reset-password response should include retry-after header"
     );
 }
 
@@ -1168,5 +1216,225 @@ async fn pricing_compare_rejects_get_method() {
         resp.status(),
         StatusCode::METHOD_NOT_ALLOWED,
         "GET on /pricing/compare should return 405"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// v1 policy boundary: verify-email and reset-password use IP-based rate
+// limiting only — no per-customer lockout state. These tests pin the beta
+// decision documented in docs/design/auth_hardening.md.
+// ---------------------------------------------------------------------------
+
+/// Test 25: verify-email rate-limiting is per-IP, not per-customer.
+///
+/// Same token/account is targeted from two distinct IPs. IP A exhausts its
+/// bucket; IP B must still be allowed (proving no shared per-customer lockout
+/// path absorbs quota across IPs).
+#[tokio::test]
+async fn verify_email_ip_rate_limit_no_per_customer_lockout() {
+    let _lock = security_env_lock()
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let _trust_proxy = EnvVarGuard::set(TRUST_PROXY_HEADERS_FOR_RATE_LIMIT_ENV, "1");
+
+    let repo = Arc::new(common::MockCustomerRepo::new());
+    let customer = repo.seed("Verify Tenant", "verify-tenant@example.com");
+    let token = "same-verify-token-for-both-ips";
+    repo.set_email_verify_token(customer.id, token, Utc::now() + Duration::hours(1))
+        .await
+        .expect("set verification token for seeded customer");
+    assert!(
+        repo.set_verify_lockout_state_for_test(
+            customer.id,
+            99,
+            Some(Utc::now() - Duration::minutes(1)),
+            Some(Utc::now() + Duration::hours(2)),
+        ),
+        "seeded customer must accept deferred verify lockout state in test setup"
+    );
+
+    let app = build_router_with_auth_rate_config(
+        common::test_state_with_repo(repo.clone()),
+        1,
+        std::time::Duration::from_secs(60),
+    );
+
+    let ip_a = "203.0.113.200";
+    let ip_b = "203.0.113.201";
+
+    // IP A: first request succeeds and consumes the token via the customer-resolved path.
+    let resp_a1 = app
+        .clone()
+        .oneshot(json_post(
+            "/auth/verify-email",
+            json!({ "token": token }),
+            ip_a,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp_a1.status(), StatusCode::OK);
+
+    // IP A: second request hits IP rate limit → 429
+    let resp_a2 = app
+        .clone()
+        .oneshot(json_post(
+            "/auth/verify-email",
+            json!({ "token": token }),
+            ip_a,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(
+        resp_a2.status(),
+        StatusCode::TOO_MANY_REQUESTS,
+        "IP A should be rate-limited after exceeding per-IP threshold"
+    );
+
+    let token_ip_b = "same-customer-verify-token-for-ip-b";
+    repo.set_email_verify_token(customer.id, token_ip_b, Utc::now() + Duration::hours(1))
+        .await
+        .expect("set second verification token for same customer");
+
+    // IP B: independent bucket must still allow a valid token for the same customer.
+    let resp_b1 = app
+        .clone()
+        .oneshot(json_post(
+            "/auth/verify-email",
+            json!({ "token": token_ip_b }),
+            ip_b,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(
+        resp_b1.status(),
+        StatusCode::OK,
+        "IP B should allow a valid same-customer token before hitting its own IP quota"
+    );
+
+    // IP B: second request hits its own IP rate limit → 429
+    let resp_b2 = app
+        .oneshot(json_post(
+            "/auth/verify-email",
+            json!({ "token": token_ip_b }),
+            ip_b,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(
+        resp_b2.status(),
+        StatusCode::TOO_MANY_REQUESTS,
+        "IP B should be independently rate-limited at its own per-IP threshold"
+    );
+}
+
+/// Test 26: reset-password rate-limiting is per-IP, not per-customer.
+///
+/// Same token is used from two distinct IPs. IP A exhausts its bucket; IP B
+/// must still be allowed (proving no shared per-customer lockout path).
+#[tokio::test]
+async fn reset_password_ip_rate_limit_no_per_customer_lockout() {
+    let _lock = security_env_lock()
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let _trust_proxy = EnvVarGuard::set(TRUST_PROXY_HEADERS_FOR_RATE_LIMIT_ENV, "1");
+
+    let repo = Arc::new(common::MockCustomerRepo::new());
+    let customer = repo.seed("Reset Tenant", "reset-tenant@example.com");
+    let token = "same-reset-token-for-both-ips";
+    let token_set = repo
+        .set_password_reset_token(customer.id, token, Utc::now() + Duration::hours(1))
+        .await
+        .expect("set reset token for seeded customer");
+    assert!(
+        token_set,
+        "seeded customer must accept password reset token in test setup"
+    );
+    assert!(
+        repo.set_reset_lockout_state_for_test(
+            customer.id,
+            99,
+            Some(Utc::now() - Duration::minutes(1)),
+            Some(Utc::now() + Duration::hours(2)),
+        ),
+        "seeded customer must accept deferred reset lockout state in test setup"
+    );
+
+    let app = build_router_with_auth_rate_config(
+        common::test_state_with_repo(repo.clone()),
+        1,
+        std::time::Duration::from_secs(60),
+    );
+
+    let new_password = "strongpassword123";
+    let ip_a = "203.0.113.210";
+    let ip_b = "203.0.113.211";
+
+    // IP A: first request succeeds and consumes the token via the customer-resolved path.
+    let resp_a1 = app
+        .clone()
+        .oneshot(json_post(
+            "/auth/reset-password",
+            json!({ "token": token, "new_password": new_password }),
+            ip_a,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp_a1.status(), StatusCode::OK);
+
+    // IP A: second request → 429
+    let resp_a2 = app
+        .clone()
+        .oneshot(json_post(
+            "/auth/reset-password",
+            json!({ "token": token, "new_password": new_password }),
+            ip_a,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(
+        resp_a2.status(),
+        StatusCode::TOO_MANY_REQUESTS,
+        "IP A should be rate-limited after exceeding per-IP threshold"
+    );
+
+    let token_ip_b = "same-customer-reset-token-for-ip-b";
+    let token_ip_b_set = repo
+        .set_password_reset_token(customer.id, token_ip_b, Utc::now() + Duration::hours(1))
+        .await
+        .expect("set second reset token for same customer");
+    assert!(
+        token_ip_b_set,
+        "seeded customer must accept second password reset token in test setup"
+    );
+
+    // IP B: independent bucket must still allow a valid token for the same customer.
+    let resp_b1 = app
+        .clone()
+        .oneshot(json_post(
+            "/auth/reset-password",
+            json!({ "token": token_ip_b, "new_password": new_password }),
+            ip_b,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(
+        resp_b1.status(),
+        StatusCode::OK,
+        "IP B should allow a valid same-customer token before hitting its own IP quota"
+    );
+
+    // IP B: second request → 429
+    let resp_b2 = app
+        .oneshot(json_post(
+            "/auth/reset-password",
+            json!({ "token": token_ip_b, "new_password": new_password }),
+            ip_b,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(
+        resp_b2.status(),
+        StatusCode::TOO_MANY_REQUESTS,
+        "IP B should be independently rate-limited at its own per-IP threshold"
     );
 }

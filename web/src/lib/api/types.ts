@@ -146,6 +146,13 @@ export interface PaymentMethod {
 	is_default: boolean;
 }
 
+export interface BillingUpgradeResponse {
+	billing_plan: 'free' | 'shared';
+	subscription_cycle_anchor_at: string;
+	stripe_invoice_id: string;
+	activation_amount_cents: number;
+}
+
 // API Key types
 export interface ApiKeyListItem {
 	id: string;
@@ -178,6 +185,12 @@ export interface CustomerProfileResponse {
 	email_verified: boolean;
 	billing_plan: 'free' | 'shared';
 	created_at: string;
+}
+
+export interface CustomerUpgradeStatusResponse {
+	stripe_customer_id: string | null;
+	has_default_payment_method: boolean;
+	upgrade_ready: boolean;
 }
 
 export interface AccountExportResponse {

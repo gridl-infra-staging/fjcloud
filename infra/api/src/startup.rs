@@ -1,7 +1,7 @@
 //! Startup phase helpers — each function owns one logical phase of server
 //! bootstrap, called in sequence by main().
 
-mod unconfigured_stripe;
+pub mod unconfigured_stripe;
 use unconfigured_stripe::UnconfiguredStripeService;
 
 use crate::config::Config;
@@ -21,6 +21,7 @@ use crate::services::provisioning::resolve_dns_domain;
 use crate::services::region_failover::{RegionFailoverConfig, RegionFailoverMonitor};
 use crate::services::replication::{ReplicationConfig, ReplicationOrchestrator};
 use crate::services::scheduler::{SchedulerConfig, SchedulerService};
+use crate::services::webhook_lag::WebhookLagPublisher;
 use crate::startup_env::{
     ColdStorageStartupMode, NodeSecretBackendMode, RawEnvValueState, SesStartupMode,
     StartupEnvSnapshot, StorageKeyStartupMode,
@@ -81,7 +82,15 @@ pub fn init_stripe_service(cfg: &Config) -> Arc<dyn crate::stripe::StripeService
                 .is_some()
             {
                 let webhook_secret = std::env::var("STRIPE_WEBHOOK_SECRET")
-                    .unwrap_or_else(|_| "whsec_local_dev_secret".to_string());
+                    .ok()
+                    .map(|value| value.trim().to_string())
+                    .filter(|value| !value.is_empty());
+                let Some(webhook_secret) = webhook_secret else {
+                    tracing::warn!(
+                        "STRIPE_LOCAL_MODE=1 requires STRIPE_WEBHOOK_SECRET; Stripe will remain unconfigured"
+                    );
+                    return Arc::new(UnconfiguredStripeService);
+                };
                 let webhook_url = std::env::var("STRIPE_WEBHOOK_URL")
                     .unwrap_or_else(|_| "http://localhost:3001/webhooks/stripe".to_string());
                 let (service, dispatcher) =
@@ -660,13 +669,15 @@ pub fn spawn_background_tasks(
     ];
 
     if startup_env.is_staging_or_production() {
+        let cloudwatch_client = aws_sdk_cloudwatch::Client::new(&aws_sdk_config);
+        let environment = startup_env
+            .env_value("ENVIRONMENT")
+            .unwrap_or("unknown")
+            .trim()
+            .to_ascii_lowercase();
         let heartbeat_publisher = HeartbeatPublisher::new(
-            aws_sdk_cloudwatch::Client::new(&aws_sdk_config),
-            startup_env
-                .env_value("ENVIRONMENT")
-                .unwrap_or("unknown")
-                .trim()
-                .to_ascii_lowercase(),
+            cloudwatch_client.clone(),
+            environment.clone(),
             Duration::from_secs(60),
         );
         let rx = shutdown_rx.clone();
@@ -674,6 +685,19 @@ pub fn spawn_background_tasks(
             heartbeat_publisher.run(rx).await;
         });
         named_handles.push(("heartbeat", heartbeat_handle));
+
+        let webhook_lag_publisher = WebhookLagPublisher::new(
+            cloudwatch_client,
+            state.webhook_event_repo.clone(),
+            environment,
+            Duration::from_secs(60),
+            Duration::from_secs(300),
+        );
+        let rx = shutdown_rx.clone();
+        let webhook_lag_handle = tokio::spawn(async move {
+            webhook_lag_publisher.run(rx).await;
+        });
+        named_handles.push(("webhook lag", webhook_lag_handle));
     }
 
     Ok(BackgroundHandles {

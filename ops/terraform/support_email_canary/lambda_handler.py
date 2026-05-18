@@ -12,12 +12,32 @@ CANARY_SCRIPT = "/opt/fjcloud/scripts/canary/support_email_deliverability.sh"
 ROUNDTRIP_SCRIPT = "/opt/fjcloud/scripts/validate_inbound_email_roundtrip.sh"
 
 
+def _is_parameter_not_found_error(error: Exception) -> bool:
+    response = getattr(error, "response", None)
+    if not isinstance(response, dict):
+        return False
+    details = response.get("Error")
+    if not isinstance(details, dict):
+        return False
+    return str(details.get("Code", "")) == "ParameterNotFound"
+
+
 def _resolve_webhook_value(raw_value: str, ssm_client) -> str:
     value = raw_value.strip()
     if not value:
         return ""
     if value.startswith("/"):
-        response = ssm_client.get_parameter(Name=value, WithDecryption=True)
+        try:
+            response = ssm_client.get_parameter(Name=value, WithDecryption=True)
+        except Exception as error:
+            if _is_parameter_not_found_error(error):
+                print(f"[WARN] optional webhook parameter {value} is missing; continuing without webhook.")
+            else:
+                print(
+                    f"[WARN] optional webhook parameter {value} could not be resolved; "
+                    f"continuing without webhook: {error}"
+                )
+            return ""
         return str(response["Parameter"]["Value"])
     return value
 

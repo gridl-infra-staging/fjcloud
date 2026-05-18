@@ -1,0 +1,4 @@
+{
+    "stdout": "May 18 04:33:09 fjcloud-api-prod fjcloud-api[42612]: {\"timestamp\":\"2026-05-18T04:33:09.291218Z\",\"level\":\"WARN\",\"fields\":{\"message\":\"request completed\",\"status\":401,\"duration_ms\":0},\"target\":\"api::middleware::request_logging\",\"span\":{\"method\":\"POST\",\"path\":\"/auth/resend-verification\",\"request_id\":\"266af976-57ee-404c-ade4-13362024d9c0\",\"tenant_id\":\"-\",\"name\":\"request\"},\"spans\":[{\"method\":\"POST\",\"path\":\"/auth/resend-verification\",\"request_id\":\"266af976-57ee-404c-ade4-13362024d9c0\",\"tenant_id\":\"-\",\"name\":\"request\"}]}\n",
+    "stderr": ""
+}

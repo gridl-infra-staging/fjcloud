@@ -1,0 +1,551 @@
+[33m╷[0m[0m
+[33m│[0m [0m[1m[33mWarning: [0m[0m[1mDeprecated Parameter[0m
+[33m│[0m [0m
+[33m│[0m [0m[0mThe parameter "dynamodb_table" is deprecated. Use parameter "use_lockfile"
+[33m│[0m [0minstead.
+[33m╵[0m[0m
+[0m[1mterraform_data.prod_alert_emails_guard: Refreshing state... [id=894e3247-dac4-abad-9cc9-e4c73ce39d1a][0m
+[0m[1mmodule.compute.tls_private_key.api_ssh: Refreshing state... [id=5e8a46799de031ae07560ffab3dd8e0aa59d7940][0m
+[0m[1mmodule.data.random_password.internal_auth_token: Refreshing state... [id=none][0m
+[0m[1mmodule.data.random_password.db: Refreshing state... [id=none][0m
+[0m[1mmodule.monitoring.aws_ecr_repository.support_email_canary: Refreshing state... [id=fjcloud-prod-support-email-canary][0m
+[0m[1mmodule.monitoring.aws_sns_topic.alerts: Refreshing state... [id=arn:aws:sns:us-east-1:213880904778:fjcloud-alerts-prod][0m
+[0m[1mmodule.monitoring.aws_cloudwatch_metric_alarm.ses_reputation_complaint_rate_high: Refreshing state... [id=fjcloud-prod-ses-reputation-complaint-rate-high][0m
+[0m[1mmodule.monitoring.aws_cloudwatch_metric_alarm.ses_reputation_bounce_rate_high: Refreshing state... [id=fjcloud-prod-ses-reputation-bounce-rate-high][0m
+[0m[1mmodule.monitoring.data.aws_caller_identity.current: Reading...[0m[0m
+[0m[1mmodule.monitoring.aws_iam_role.support_email_canary: Refreshing state... [id=fjcloud-prod-support-email-canary-lambda-role][0m
+[0m[1mmodule.monitoring.data.aws_caller_identity.current: Read complete after 0s [id=213880904778][0m
+[0m[1mmodule.monitoring.aws_cloudwatch_event_rule.customer_loop_canary: Refreshing state... [id=fjcloud-prod-customer-loop-canary][0m
+[0m[1mmodule.monitoring.aws_cloudwatch_event_rule.support_email_canary: Refreshing state... [id=fjcloud-prod-support-email-canary-schedule][0m
+[0m[1mmodule.monitoring.aws_s3_bucket.cloudtrail_export: Refreshing state... [id=fjcloud-prod-cloudtrail-export][0m
+[0m[1mmodule.monitoring.aws_ecr_repository.customer_loop_canary: Refreshing state... [id=fjcloud-prod-customer-loop-canary][0m
+[0m[1mmodule.monitoring.aws_iam_role.customer_loop_canary_lambda: Refreshing state... [id=fjcloud-prod-customer-loop-canary-lambda][0m
+[0m[1mmodule.monitoring.aws_sns_topic.ses_feedback: Refreshing state... [id=arn:aws:sns:us-east-1:213880904778:fjcloud-ses-feedback-prod][0m
+[0m[1mmodule.monitoring.aws_cloudwatch_log_group.support_email_canary: Refreshing state... [id=/aws/lambda/fjcloud-prod-support-email-canary][0m
+[0m[1mmodule.monitoring.data.aws_partition.current: Reading...[0m[0m
+[0m[1mmodule.monitoring.data.aws_partition.current: Read complete after 0s [id=aws][0m
+[0m[1mmodule.networking.aws_eip.nat: Refreshing state... [id=eipalloc-08e094fcce5236678][0m
+[0m[1mmodule.networking.aws_vpc.main: Refreshing state... [id=vpc-0125cfcf4cc36762c][0m
+[0m[1mmodule.dns.aws_sesv2_email_identity.domain: Refreshing state... [id=flapjack.foo][0m
+[0m[1mmodule.dns.aws_acm_certificate.main: Refreshing state... [id=arn:aws:acm:us-east-1:213880904778:certificate/569915c9-3e7f-454e-b742-d6c6b4a53278][0m
+[0m[1mmodule.dns.aws_sesv2_configuration_set.feedback: Refreshing state... [id=fjcloud-prod-flapjack-foo-feedback][0m
+[0m[1mdata.cloudflare_dns_records.existing_public["api"]: Reading...[0m[0m
+[0m[1mdata.cloudflare_dns_records.existing_public["apex"]: Reading...[0m[0m
+[0m[1mdata.cloudflare_dns_records.existing_public["www"]: Reading...[0m[0m
+[0m[1mdata.cloudflare_dns_records.existing_public["cloud"]: Reading...[0m[0m
+[0m[1mmodule.runtime_params.aws_ssm_parameter.runtime_cloudflare_zone_id: Refreshing state... [id=/fjcloud/prod/cloudflare_zone_id][0m
+[0m[1mmodule.runtime_params.aws_ssm_parameter.runtime_dns_domain: Refreshing state... [id=/fjcloud/prod/dns_domain][0m
+[0m[1mmodule.runtime_params.aws_ssm_parameter.runtime_aws_instance_profile_name: Refreshing state... [id=/fjcloud/prod/aws_instance_profile_name][0m
+[0m[1mmodule.runtime_params.aws_ssm_parameter.runtime_aws_ami_id: Refreshing state... [id=/fjcloud/prod/aws_ami_id][0m
+[0m[1mmodule.compute.aws_key_pair.api_ssh: Refreshing state... [id=fjcloud-api-prod][0m
+[0m[1mmodule.data.aws_s3_bucket.cold: Refreshing state... [id=fjcloud-cold-prod][0m
+[0m[1mmodule.data.aws_ssm_parameter.db_password: Refreshing state... [id=/fjcloud/prod/db_password][0m
+[0m[1mmodule.data.aws_ssm_parameter.internal_auth_token: Refreshing state... [id=/fjcloud/prod/internal_auth_token][0m
+[0m[1mmodule.monitoring.aws_cloudwatch_metric_alarm.billing_estimated_charges_high: Refreshing state... [id=fjcloud-prod-billing-estimated-charges-high][0m
+[0m[1mmodule.monitoring.aws_cloudwatch_metric_alarm.customer_loop_canary_lambda_errors: Refreshing state... [id=fjcloud-prod-customer-loop-canary-lambda-errors][0m
+[0m[1mmodule.monitoring.aws_cloudwatch_metric_alarm.api_heartbeat_missing: Refreshing state... [id=fjcloud-prod-api-heartbeat-missing][0m
+[0m[1mmodule.monitoring.aws_sns_topic_subscription.email["stacy.saunders.2002@gmail.com"]: Refreshing state... [id=arn:aws:sns:us-east-1:213880904778:fjcloud-alerts-prod:9070e2be-371d-4d13-ad53-40ba988101f7][0m
+[0m[1mmodule.monitoring.aws_ecr_lifecycle_policy.customer_loop_canary: Refreshing state... [id=fjcloud-prod-customer-loop-canary][0m
+[0m[1mmodule.monitoring.aws_sns_topic_subscription.ses_feedback_webhook: Refreshing state... [id=arn:aws:sns:us-east-1:213880904778:fjcloud-ses-feedback-prod:b53d9c12-27a3-44a5-bd2c-8dd05bc35a3c][0m
+[0m[1mmodule.dns.cloudflare_dns_record.ses_dkim[1]: Refreshing state... [id=06132617f5d4806b5e07e9838dba2ac4][0m
+[0m[1mmodule.dns.cloudflare_dns_record.ses_dkim[2]: Refreshing state... [id=6ee0f7d596d4e0e4e0b1b31571487622][0m
+[0m[1mmodule.dns.cloudflare_dns_record.ses_dkim[0]: Refreshing state... [id=5ad9fe00a8df389b7f298d45485c8c55][0m
+[0m[1mmodule.monitoring.aws_lambda_function.support_email_canary: Refreshing state... [id=fjcloud-prod-support-email-canary][0m
+[0m[1mmodule.monitoring.aws_sns_topic_policy.ses_feedback_publish: Refreshing state... [id=arn:aws:sns:us-east-1:213880904778:fjcloud-ses-feedback-prod][0m
+[0m[1mmodule.monitoring.aws_lambda_function.customer_loop_canary: Refreshing state... [id=fjcloud-prod-customer-loop-canary][0m
+[0m[1mmodule.monitoring.aws_s3_bucket_policy.cloudtrail_export: Refreshing state... [id=fjcloud-prod-cloudtrail-export][0m
+[0m[1mmodule.monitoring.aws_s3_bucket_public_access_block.cloudtrail_export: Refreshing state... [id=fjcloud-prod-cloudtrail-export][0m
+[0m[1mmodule.monitoring.aws_s3_bucket_lifecycle_configuration.cloudtrail_export_retention: Refreshing state... [id=fjcloud-prod-cloudtrail-export][0m
+[0m[1mmodule.monitoring.aws_iam_role_policy.customer_loop_canary_lambda: Refreshing state... [id=fjcloud-prod-customer-loop-canary-lambda:fjcloud-prod-customer-loop-canary-lambda][0m
+[0m[1mmodule.monitoring.aws_iam_role_policy.support_email_canary: Refreshing state... [id=fjcloud-prod-support-email-canary-lambda-role:fjcloud-prod-support-email-canary-lambda-policy][0m
+[0m[1mmodule.monitoring.aws_cloudtrail.cloudtrail: Refreshing state... [id=arn:aws:cloudtrail:us-east-1:213880904778:trail/fjcloud-prod-guardrails][0m
+[0m[1mmodule.dns.aws_sesv2_configuration_set_event_destination.feedback_sns: Refreshing state... [id=fjcloud-prod-flapjack-foo-feedback|sns-feedback][0m
+[0m[1mmodule.runtime_params.aws_ssm_parameter.runtime_ses_configuration_set: Refreshing state... [id=/fjcloud/prod/ses_configuration_set][0m
+[0m[1mmodule.dns.cloudflare_dns_record.cert_validation["flapjack.foo"]: Refreshing state... [id=1362c84de9d8cc1ae661d9dbb731bc6f][0m
+[0m[1mmodule.runtime_params.aws_ssm_parameter.runtime_aws_key_pair_name: Refreshing state... [id=/fjcloud/prod/aws_key_pair_name][0m
+[0m[1mmodule.monitoring.aws_lambda_permission.support_email_canary_eventbridge: Refreshing state... [id=AllowEventBridgeInvokeSupportEmailCanary][0m
+[0m[1mmodule.monitoring.aws_cloudwatch_event_target.support_email_canary: Refreshing state... [id=fjcloud-prod-support-email-canary-schedule-support-email-canary][0m
+[0m[1mmodule.monitoring.aws_lambda_permission.customer_loop_canary_eventbridge: Refreshing state... [id=AllowExecutionFromEventBridgeSchedule][0m
+[0m[1mmodule.monitoring.aws_cloudwatch_event_target.customer_loop_canary: Refreshing state... [id=fjcloud-prod-customer-loop-canary-customer-loop-canary][0m
+[0m[1mmodule.data.aws_s3_bucket_public_access_block.cold: Refreshing state... [id=fjcloud-cold-prod][0m
+[0m[1mmodule.data.aws_s3_bucket_versioning.cold: Refreshing state... [id=fjcloud-cold-prod][0m
+[0m[1mmodule.data.aws_ssm_parameter.cold_bucket_name: Refreshing state... [id=/fjcloud/prod/cold_bucket_name][0m
+[0m[1mmodule.data.aws_s3_bucket_server_side_encryption_configuration.cold: Refreshing state... [id=fjcloud-cold-prod][0m
+[0m[1mmodule.data.aws_s3_bucket_lifecycle_configuration.cold: Refreshing state... [id=fjcloud-cold-prod][0m
+[0m[1mmodule.networking.aws_internet_gateway.main: Refreshing state... [id=igw-069a08e0c83d53066][0m
+[0m[1mmodule.networking.aws_subnet.private_a: Refreshing state... [id=subnet-0dd734629615035d5][0m
+[0m[1mmodule.networking.aws_subnet.private_b: Refreshing state... [id=subnet-043cead8e64e4a79b][0m
+[0m[1mmodule.networking.aws_subnet.public_a: Refreshing state... [id=subnet-0f20d0fd83a362024][0m
+[0m[1mmodule.networking.aws_subnet.public_b: Refreshing state... [id=subnet-0f3ce1c789e764a13][0m
+[0m[1mmodule.networking.aws_security_group.api: Refreshing state... [id=sg-007c0829f01e4f2fb][0m
+[0m[1mmodule.networking.aws_security_group.flapjack_vm: Refreshing state... [id=sg-0ab78cabd1b997099][0m
+[0m[1mmodule.networking.aws_security_group.alb: Refreshing state... [id=sg-025607ff239e45b4a][0m
+[0m[1mmodule.networking.aws_security_group.rds: Refreshing state... [id=sg-0c6ae08699b5405f0][0m
+[0m[1mmodule.dns.aws_lb_target_group.api: Refreshing state... [id=arn:aws:elasticloadbalancing:us-east-1:213880904778:targetgroup/fjcloud-prod-api-tg/43196471aa3ac595][0m
+[0m[1mmodule.networking.aws_route_table.public: Refreshing state... [id=rtb-058c2ebe9ab346ebf][0m
+[0m[1mmodule.networking.aws_vpc_security_group_egress_rule.flapjack_outbound: Refreshing state... [id=sgr-029a54b16fbc41794][0m
+[0m[1mmodule.networking.aws_vpc_security_group_ingress_rule.api_self: Refreshing state... [id=sgr-0796e003910de3abe][0m
+[0m[1mmodule.networking.aws_vpc_security_group_egress_rule.api_outbound: Refreshing state... [id=sgr-05157e273de5c9112][0m
+[0m[1mmodule.networking.aws_vpc_security_group_ingress_rule.flapjack_from_api: Refreshing state... [id=sgr-0785fbfda2c965fca][0m
+[0m[1mmodule.networking.aws_vpc_security_group_ingress_rule.alb_https: Refreshing state... [id=sgr-0580e90d79ec551f6][0m
+[0m[1mmodule.networking.aws_vpc_security_group_ingress_rule.api_from_alb: Refreshing state... [id=sgr-0d276a8f13847109e][0m
+[0m[1mmodule.networking.aws_vpc_security_group_egress_rule.alb_to_api: Refreshing state... [id=sgr-013ff7a32a2afe997][0m
+[0m[1mmodule.networking.aws_vpc_security_group_ingress_rule.alb_http: Refreshing state... [id=sgr-0cbdceda0aa002cf1][0m
+[0m[1mmodule.networking.aws_nat_gateway.main: Refreshing state... [id=nat-00380e33d683789e9][0m
+[0m[1mmodule.networking.aws_vpc_security_group_ingress_rule.rds_from_api: Refreshing state... [id=sgr-00ff9ae0cfbe46898][0m
+[0m[1mmodule.networking.aws_route_table_association.public_b: Refreshing state... [id=rtbassoc-0f338f3aea6d60be2][0m
+[0m[1mmodule.networking.aws_route_table_association.public_a: Refreshing state... [id=rtbassoc-0833a337f9e4ebfd7][0m
+[0m[1mmodule.runtime_params.aws_ssm_parameter.runtime_aws_security_group_ids: Refreshing state... [id=/fjcloud/prod/aws_security_group_ids][0m
+[0m[1mmodule.networking.aws_route_table.private: Refreshing state... [id=rtb-0969959f093835c21][0m
+[0m[1mmodule.dns.aws_lb.api: Refreshing state... [id=arn:aws:elasticloadbalancing:us-east-1:213880904778:loadbalancer/app/fjcloud-prod-alb/d9357ed423f11e4a][0m
+[0m[1mmodule.runtime_params.aws_ssm_parameter.runtime_aws_subnet_id: Refreshing state... [id=/fjcloud/prod/aws_subnet_id][0m
+[0m[1mmodule.compute.aws_instance.api: Refreshing state... [id=i-0af0ff2e18725b6ba][0m
+[0m[1mmodule.data.aws_db_subnet_group.main: Refreshing state... [id=fjcloud-prod][0m
+[0m[1mmodule.networking.aws_route_table_association.private_a: Refreshing state... [id=rtbassoc-0a28e3ae3f661f2ac][0m
+[0m[1mmodule.networking.aws_route_table_association.private_b: Refreshing state... [id=rtbassoc-05dd412080ac06782][0m
+[0m[1mmodule.dns.aws_lb_listener.http_redirect: Refreshing state... [id=arn:aws:elasticloadbalancing:us-east-1:213880904778:listener/app/fjcloud-prod-alb/d9357ed423f11e4a/213507ab510d5f73][0m
+[0m[1mmodule.monitoring.aws_cloudwatch_metric_alarm.alb_p99_target_response_time: Refreshing state... [id=fjcloud-prod-alb-p99-target-response-time][0m
+[0m[1mmodule.monitoring.aws_cloudwatch_metric_alarm.alb_unhealthy_hosts: Refreshing state... [id=fjcloud-prod-alb-unhealthy-hosts][0m
+[0m[1mmodule.monitoring.aws_cloudwatch_metric_alarm.alb_5xx_error_rate: Refreshing state... [id=fjcloud-prod-alb-5xx-error-rate][0m
+[0m[1mmodule.data.aws_db_instance.main: Refreshing state... [id=db-GPFP7SNG2R4RPCLBCQAUMA7T3E][0m
+[0m[1mmodule.data.aws_ssm_parameter.database_url: Refreshing state... [id=/fjcloud/prod/database_url][0m
+[0m[1mmodule.data.aws_cloudwatch_log_group.rds_postgresql: Refreshing state... [id=/aws/rds/instance/fjcloud-prod/postgresql][0m
+[0m[1mmodule.monitoring.aws_cloudwatch_metric_alarm.rds_free_storage_low: Refreshing state... [id=fjcloud-prod-rds-free-storage-low][0m
+[0m[1mmodule.monitoring.aws_cloudwatch_metric_alarm.rds_connections_high: Refreshing state... [id=fjcloud-prod-rds-connections-high][0m
+[0m[1mmodule.monitoring.aws_cloudwatch_metric_alarm.rds_cpu_high: Refreshing state... [id=fjcloud-prod-rds-cpu-high][0m
+[0m[1mmodule.dns.aws_lb_target_group_attachment.api: Refreshing state... [id=arn:aws:elasticloadbalancing:us-east-1:213880904778:targetgroup/fjcloud-prod-api-tg/43196471aa3ac595-20260514025320873000000001][0m
+[0m[1mmodule.monitoring.aws_cloudwatch_metric_alarm.api_cpu_high: Refreshing state... [id=fjcloud-prod-api-cpu-high][0m
+[0m[1mmodule.monitoring.aws_cloudwatch_metric_alarm.api_root_disk_high: Refreshing state... [id=fjcloud-prod-api-root-disk-high][0m
+[0m[1mmodule.monitoring.aws_cloudwatch_metric_alarm.api_status_check_failed: Refreshing state... [id=fjcloud-prod-api-status-check-failed][0m
+
+Terraform used the selected providers to generate the following execution
+plan. Resource actions are indicated with the following symbols:
+  [33m~[0m update in-place[0m
+  [31m-[0m destroy[0m
+[31m-[0m/[32m+[0m destroy and then create replacement[0m
+
+Terraform planned the following actions, but then encountered a problem:
+
+[1m  # module.compute.aws_instance.api[0m must be [1m[31mreplaced[0m
+[0m[31m-[0m/[32m+[0m[0m resource "aws_instance" "api" {
+      [33m~[0m[0m ami                                  = "ami-078228dbe86117d85" [33m->[0m[0m "ami-0c5a622f7ef86d6fd" [31m# forces replacement[0m[0m
+      [33m~[0m[0m arn                                  = "arn:aws:ec2:us-east-1:213880904778:instance/i-0af0ff2e18725b6ba" -> (known after apply)
+      [33m~[0m[0m availability_zone                    = "us-east-1a" -> (known after apply)
+      [33m~[0m[0m disable_api_stop                     = false -> (known after apply)
+      [33m~[0m[0m disable_api_termination              = false -> (known after apply)
+      [33m~[0m[0m ebs_optimized                        = false -> (known after apply)
+      [32m+[0m[0m enable_primary_ipv6                  = (known after apply)
+      [31m-[0m[0m hibernation                          = false [90m-> null[0m[0m
+      [32m+[0m[0m host_id                              = (known after apply)
+      [32m+[0m[0m host_resource_group_arn              = (known after apply)
+      [33m~[0m[0m id                                   = "i-0af0ff2e18725b6ba" -> (known after apply)
+      [33m~[0m[0m instance_initiated_shutdown_behavior = "stop" -> (known after apply)
+      [32m+[0m[0m instance_lifecycle                   = (known after apply)
+      [33m~[0m[0m instance_state                       = "running" -> (known after apply)
+      [33m~[0m[0m ipv6_address_count                   = 0 -> (known after apply)
+      [33m~[0m[0m ipv6_addresses                       = [] -> (known after apply)
+      [33m~[0m[0m monitoring                           = false -> (known after apply)
+      [32m+[0m[0m outpost_arn                          = (known after apply)
+      [32m+[0m[0m password_data                        = (known after apply)
+      [32m+[0m[0m placement_group                      = (known after apply)
+      [32m+[0m[0m placement_group_id                   = (known after apply)
+      [33m~[0m[0m placement_partition_number           = 0 -> (known after apply)
+      [33m~[0m[0m primary_network_interface_id         = "eni-0a977b1398c91dfb6" -> (known after apply)
+      [33m~[0m[0m private_dns                          = "ip-10-0-10-179.ec2.internal" -> (known after apply)
+      [33m~[0m[0m private_ip                           = "10.0.10.179" -> (known after apply)
+      [32m+[0m[0m public_dns                           = (known after apply)
+      [32m+[0m[0m public_ip                            = (known after apply)
+      [33m~[0m[0m secondary_private_ips                = [] -> (known after apply)
+      [33m~[0m[0m security_groups                      = [] -> (known after apply)
+      [32m+[0m[0m spot_instance_request_id             = (known after apply)
+        tags                                 = {
+            "Env"  = "prod"
+            "Name" = "fjcloud-api-prod"
+        }
+      [33m~[0m[0m tenancy                              = "default" -> (known after apply)
+      [32m+[0m[0m user_data_base64                     = (known after apply)
+        [90m# (13 unchanged attributes hidden)[0m[0m
+
+      [33m~[0m[0m capacity_reservation_specification (known after apply)
+      [31m-[0m[0m capacity_reservation_specification {
+          [31m-[0m[0m capacity_reservation_preference = "open" [90m-> null[0m[0m
+        }
+
+      [33m~[0m[0m cpu_options (known after apply)
+      [31m-[0m[0m cpu_options {
+          [31m-[0m[0m core_count            = 2 [90m-> null[0m[0m
+          [31m-[0m[0m threads_per_core      = 1 [90m-> null[0m[0m
+            [90m# (2 unchanged attributes hidden)[0m[0m
+        }
+
+      [31m-[0m[0m credit_specification {
+          [31m-[0m[0m cpu_credits = "unlimited" [90m-> null[0m[0m
+        }
+
+      [33m~[0m[0m ebs_block_device (known after apply)
+
+      [33m~[0m[0m enclave_options (known after apply)
+      [31m-[0m[0m enclave_options {
+          [31m-[0m[0m enabled = false [90m-> null[0m[0m
+        }
+
+      [33m~[0m[0m ephemeral_block_device (known after apply)
+
+      [33m~[0m[0m instance_market_options (known after apply)
+
+      [33m~[0m[0m maintenance_options (known after apply)
+      [31m-[0m[0m maintenance_options {
+          [31m-[0m[0m auto_recovery = "default" [90m-> null[0m[0m
+        }
+
+      [33m~[0m[0m network_interface (known after apply)
+
+      [33m~[0m[0m primary_network_interface (known after apply)
+      [31m-[0m[0m primary_network_interface {
+          [31m-[0m[0m delete_on_termination = true [90m-> null[0m[0m
+          [31m-[0m[0m network_interface_id  = "eni-0a977b1398c91dfb6" [90m-> null[0m[0m
+        }
+
+      [33m~[0m[0m private_dns_name_options (known after apply)
+      [31m-[0m[0m private_dns_name_options {
+          [31m-[0m[0m enable_resource_name_dns_a_record    = false [90m-> null[0m[0m
+          [31m-[0m[0m enable_resource_name_dns_aaaa_record = false [90m-> null[0m[0m
+          [31m-[0m[0m hostname_type                        = "ip-name" [90m-> null[0m[0m
+        }
+
+      [33m~[0m[0m root_block_device {
+          [33m~[0m[0m device_name           = "/dev/xvda" -> (known after apply)
+          [33m~[0m[0m iops                  = 3000 -> (known after apply)
+          [33m~[0m[0m kms_key_id            = "arn:aws:kms:us-east-1:213880904778:key/0459d4c4-5d02-489c-8f2c-c100431a7cf6" -> (known after apply)
+          [31m-[0m[0m tags                  = {} [90m-> null[0m[0m
+          [33m~[0m[0m tags_all              = {
+              [31m-[0m[0m "env"        = "prod"
+              [31m-[0m[0m "managed-by" = "terraform"
+              [31m-[0m[0m "service"    = "fjcloud"
+            } -> (known after apply)
+          [33m~[0m[0m throughput            = 125 -> (known after apply)
+          [33m~[0m[0m volume_id             = "vol-0da2e9e85a3792743" -> (known after apply)
+            [90m# (4 unchanged attributes hidden)[0m[0m
+        }
+
+      [33m~[0m[0m secondary_network_interface (known after apply)
+
+        [90m# (1 unchanged block hidden)[0m[0m
+    }
+
+[1m  # module.data.aws_s3_bucket_server_side_encryption_configuration.cold[0m will be updated in-place
+[0m  [33m~[0m[0m resource "aws_s3_bucket_server_side_encryption_configuration" "cold" {
+        id                    = "fjcloud-cold-prod"
+        [90m# (3 unchanged attributes hidden)[0m[0m
+
+      [31m-[0m[0m rule {
+          [31m-[0m[0m blocked_encryption_types = [
+              [31m-[0m[0m "SSE-C",
+            ] [90m-> null[0m[0m
+          [31m-[0m[0m bucket_key_enabled       = false [90m-> null[0m[0m
+
+          [31m-[0m[0m apply_server_side_encryption_by_default {
+              [31m-[0m[0m sse_algorithm     = "AES256" [90m-> null[0m[0m
+                [90m# (1 unchanged attribute hidden)[0m[0m
+            }
+        }
+      [32m+[0m[0m rule {
+          [32m+[0m[0m blocked_encryption_types = []
+
+          [32m+[0m[0m apply_server_side_encryption_by_default {
+              [32m+[0m[0m sse_algorithm     = "AES256"
+                [90m# (1 unchanged attribute hidden)[0m[0m
+            }
+        }
+    }
+
+[1m  # module.dns.aws_lb_target_group_attachment.api[0m must be [1m[31mreplaced[0m
+[0m[31m-[0m/[32m+[0m[0m resource "aws_lb_target_group_attachment" "api" {
+      [33m~[0m[0m id               = "arn:aws:elasticloadbalancing:us-east-1:213880904778:targetgroup/fjcloud-prod-api-tg/43196471aa3ac595-20260514025320873000000001" -> (known after apply)
+      [33m~[0m[0m target_id        = "i-0af0ff2e18725b6ba" -> (known after apply) [31m# forces replacement[0m[0m
+        [90m# (3 unchanged attributes hidden)[0m[0m
+    }
+
+[1m  # module.monitoring.aws_cloudwatch_metric_alarm.api_cpu_high[0m will be updated in-place
+[0m  [33m~[0m[0m resource "aws_cloudwatch_metric_alarm" "api_cpu_high" {
+      [33m~[0m[0m dimensions                            = {
+          [31m-[0m[0m "InstanceId" = "i-0af0ff2e18725b6ba"
+        } -> (known after apply)
+        id                                    = "fjcloud-prod-api-cpu-high"
+        tags                                  = {}
+        [90m# (22 unchanged attributes hidden)[0m[0m
+    }
+
+[1m  # module.monitoring.aws_cloudwatch_metric_alarm.api_root_disk_high[0m will be updated in-place
+[0m  [33m~[0m[0m resource "aws_cloudwatch_metric_alarm" "api_root_disk_high" {
+      [33m~[0m[0m dimensions                            = {
+          [31m-[0m[0m "InstanceId" = "i-0af0ff2e18725b6ba"
+          [31m-[0m[0m "device"     = "nvme0n1p1"
+          [31m-[0m[0m "fstype"     = "xfs"
+          [31m-[0m[0m "path"       = "/"
+        } -> (known after apply)
+        id                                    = "fjcloud-prod-api-root-disk-high"
+        tags                                  = {}
+        [90m# (22 unchanged attributes hidden)[0m[0m
+    }
+
+[1m  # module.monitoring.aws_cloudwatch_metric_alarm.api_status_check_failed[0m will be updated in-place
+[0m  [33m~[0m[0m resource "aws_cloudwatch_metric_alarm" "api_status_check_failed" {
+      [33m~[0m[0m dimensions                            = {
+          [31m-[0m[0m "InstanceId" = "i-0af0ff2e18725b6ba"
+        } -> (known after apply)
+        id                                    = "fjcloud-prod-api-status-check-failed"
+        tags                                  = {}
+        [90m# (22 unchanged attributes hidden)[0m[0m
+    }
+
+[1m  # module.monitoring.aws_cloudwatch_metric_alarm.ses_reputation_bounce_rate_high[0m will be [1m[31mdestroyed[0m
+  # (because aws_cloudwatch_metric_alarm.ses_reputation_bounce_rate_high is not in configuration)
+[0m  [31m-[0m[0m resource "aws_cloudwatch_metric_alarm" "ses_reputation_bounce_rate_high" {
+      [31m-[0m[0m actions_enabled                       = true [90m-> null[0m[0m
+      [31m-[0m[0m alarm_actions                         = [
+          [31m-[0m[0m "arn:aws:sns:us-east-1:213880904778:fjcloud-alerts-prod",
+        ] [90m-> null[0m[0m
+      [31m-[0m[0m alarm_description                     = "SES account-level bounce-rate reputation metric reached or exceeded 5%" [90m-> null[0m[0m
+      [31m-[0m[0m alarm_name                            = "fjcloud-prod-ses-reputation-bounce-rate-high" [90m-> null[0m[0m
+      [31m-[0m[0m arn                                   = "arn:aws:cloudwatch:us-east-1:213880904778:alarm:fjcloud-prod-ses-reputation-bounce-rate-high" [90m-> null[0m[0m
+      [31m-[0m[0m comparison_operator                   = "GreaterThanOrEqualToThreshold" [90m-> null[0m[0m
+      [31m-[0m[0m datapoints_to_alarm                   = 1 [90m-> null[0m[0m
+      [31m-[0m[0m dimensions                            = {} [90m-> null[0m[0m
+      [31m-[0m[0m evaluation_periods                    = 1 [90m-> null[0m[0m
+      [31m-[0m[0m id                                    = "fjcloud-prod-ses-reputation-bounce-rate-high" [90m-> null[0m[0m
+      [31m-[0m[0m insufficient_data_actions             = [] [90m-> null[0m[0m
+      [31m-[0m[0m metric_name                           = "Reputation.BounceRate" [90m-> null[0m[0m
+      [31m-[0m[0m namespace                             = "AWS/SES" [90m-> null[0m[0m
+      [31m-[0m[0m ok_actions                            = [
+          [31m-[0m[0m "arn:aws:sns:us-east-1:213880904778:fjcloud-alerts-prod",
+        ] [90m-> null[0m[0m
+      [31m-[0m[0m period                                = 900 [90m-> null[0m[0m
+      [31m-[0m[0m region                                = "us-east-1" [90m-> null[0m[0m
+      [31m-[0m[0m statistic                             = "Maximum" [90m-> null[0m[0m
+      [31m-[0m[0m tags                                  = {} [90m-> null[0m[0m
+      [31m-[0m[0m tags_all                              = {
+          [31m-[0m[0m "env"        = "prod"
+          [31m-[0m[0m "managed-by" = "terraform"
+          [31m-[0m[0m "service"    = "fjcloud"
+        } [90m-> null[0m[0m
+      [31m-[0m[0m threshold                             = 0.05 [90m-> null[0m[0m
+      [31m-[0m[0m treat_missing_data                    = "notBreaching" [90m-> null[0m[0m
+        [90m# (4 unchanged attributes hidden)[0m[0m
+    }
+
+[1m  # module.monitoring.aws_cloudwatch_metric_alarm.ses_reputation_complaint_rate_high[0m will be [1m[31mdestroyed[0m
+  # (because aws_cloudwatch_metric_alarm.ses_reputation_complaint_rate_high is not in configuration)
+[0m  [31m-[0m[0m resource "aws_cloudwatch_metric_alarm" "ses_reputation_complaint_rate_high" {
+      [31m-[0m[0m actions_enabled                       = true [90m-> null[0m[0m
+      [31m-[0m[0m alarm_actions                         = [
+          [31m-[0m[0m "arn:aws:sns:us-east-1:213880904778:fjcloud-alerts-prod",
+        ] [90m-> null[0m[0m
+      [31m-[0m[0m alarm_description                     = "SES account-level complaint-rate reputation metric reached or exceeded 0.1%" [90m-> null[0m[0m
+      [31m-[0m[0m alarm_name                            = "fjcloud-prod-ses-reputation-complaint-rate-high" [90m-> null[0m[0m
+      [31m-[0m[0m arn                                   = "arn:aws:cloudwatch:us-east-1:213880904778:alarm:fjcloud-prod-ses-reputation-complaint-rate-high" [90m-> null[0m[0m
+      [31m-[0m[0m comparison_operator                   = "GreaterThanOrEqualToThreshold" [90m-> null[0m[0m
+      [31m-[0m[0m datapoints_to_alarm                   = 1 [90m-> null[0m[0m
+      [31m-[0m[0m dimensions                            = {} [90m-> null[0m[0m
+      [31m-[0m[0m evaluation_periods                    = 1 [90m-> null[0m[0m
+      [31m-[0m[0m id                                    = "fjcloud-prod-ses-reputation-complaint-rate-high" [90m-> null[0m[0m
+      [31m-[0m[0m insufficient_data_actions             = [] [90m-> null[0m[0m
+      [31m-[0m[0m metric_name                           = "Reputation.ComplaintRate" [90m-> null[0m[0m
+      [31m-[0m[0m namespace                             = "AWS/SES" [90m-> null[0m[0m
+      [31m-[0m[0m ok_actions                            = [
+          [31m-[0m[0m "arn:aws:sns:us-east-1:213880904778:fjcloud-alerts-prod",
+        ] [90m-> null[0m[0m
+      [31m-[0m[0m period                                = 900 [90m-> null[0m[0m
+      [31m-[0m[0m region                                = "us-east-1" [90m-> null[0m[0m
+      [31m-[0m[0m statistic                             = "Maximum" [90m-> null[0m[0m
+      [31m-[0m[0m tags                                  = {} [90m-> null[0m[0m
+      [31m-[0m[0m tags_all                              = {
+          [31m-[0m[0m "env"        = "prod"
+          [31m-[0m[0m "managed-by" = "terraform"
+          [31m-[0m[0m "service"    = "fjcloud"
+        } [90m-> null[0m[0m
+      [31m-[0m[0m threshold                             = 0.001 [90m-> null[0m[0m
+      [31m-[0m[0m treat_missing_data                    = "notBreaching" [90m-> null[0m[0m
+        [90m# (4 unchanged attributes hidden)[0m[0m
+    }
+
+[1m  # module.monitoring.aws_lambda_function.customer_loop_canary[0m will be updated in-place
+[0m  [33m~[0m[0m resource "aws_lambda_function" "customer_loop_canary" {
+        id                             = "fjcloud-prod-customer-loop-canary"
+      [33m~[0m[0m image_uri                      = "213880904778.dkr.ecr.us-east-1.amazonaws.com/fjcloud-prod-customer-loop-canary:d365b0bdc2fe" [33m->[0m[0m "213880904778.dkr.ecr.us-east-1.amazonaws.com/fjcloud-prod-customer-loop-canary:pending-publication"
+      [33m~[0m[0m last_modified                  = "2026-05-18T04:01:15.000+0000" -> (known after apply)
+        tags                           = {}
+        [90m# (29 unchanged attributes hidden)[0m[0m
+
+        [90m# (5 unchanged blocks hidden)[0m[0m
+    }
+
+[1m  # module.monitoring.aws_lambda_function.support_email_canary[0m will be updated in-place
+[0m  [33m~[0m[0m resource "aws_lambda_function" "support_email_canary" {
+        id                             = "fjcloud-prod-support-email-canary"
+      [33m~[0m[0m image_uri                      = "213880904778.dkr.ecr.us-east-1.amazonaws.com/fjcloud-prod-support-email-canary:3ada746fe2f5" [33m->[0m[0m "213880904778.dkr.ecr.us-east-1.amazonaws.com/fjcloud-prod-support-email-canary:latest"
+      [33m~[0m[0m last_modified                  = "2026-05-18T03:58:50.000+0000" -> (known after apply)
+        tags                           = {}
+        [90m# (29 unchanged attributes hidden)[0m[0m
+
+        [90m# (4 unchanged blocks hidden)[0m[0m
+    }
+
+[1m  # module.runtime_params.aws_ssm_parameter.runtime_aws_ami_id[0m will be updated in-place
+[0m  [33m~[0m[0m resource "aws_ssm_parameter" "runtime_aws_ami_id" {
+        id              = "/fjcloud/prod/aws_ami_id"
+        name            = "/fjcloud/prod/aws_ami_id"
+        tags            = {}
+      [33m~[0m[0m value           = (sensitive value)
+      [33m~[0m[0m version         = 1 -> (known after apply)
+        [90m# (11 unchanged attributes hidden)[0m[0m
+    }
+
+[1m  # module.runtime_params.aws_ssm_parameter.runtime_cloudflare_zone_id[0m will be updated in-place
+[0m  [33m~[0m[0m resource "aws_ssm_parameter" "runtime_cloudflare_zone_id" {
+        id              = "/fjcloud/prod/cloudflare_zone_id"
+        name            = "/fjcloud/prod/cloudflare_zone_id"
+        tags            = {}
+      [33m~[0m[0m value           = (sensitive value)
+      [33m~[0m[0m version         = 1 -> (known after apply)
+        [90m# (11 unchanged attributes hidden)[0m[0m
+    }
+
+[1mPlan:[0m [0m2 to add, 8 to change, 4 to destroy.
+
+Changes to Outputs:
+  [33m~[0m[0m api_instance_ip                          = "10.0.10.179" -> (known after apply)
+  [33m~[0m[0m cloudflare_zone_id                       = "fafbf95a076d7e8ee984dbd18a62c933" [33m->[0m[0m "2f8d672f99820ec10eb6d4205f1527cc"
+  [33m~[0m[0m customer_loop_canary_image_uri           = "213880904778.dkr.ecr.us-east-1.amazonaws.com/fjcloud-prod-customer-loop-canary:d365b0bdc2fe" [33m->[0m[0m "213880904778.dkr.ecr.us-east-1.amazonaws.com/fjcloud-prod-customer-loop-canary:pending-publication"
+[33m╷[0m[0m
+[33m│[0m [0m[1m[33mWarning: [0m[0m[1mArgument is deprecated[0m
+[33m│[0m [0m
+[33m│[0m [0m[0m  with module.monitoring.aws_cloudwatch_event_rule.customer_loop_canary,
+[33m│[0m [0m  on ../monitoring/main.tf line 234, in resource "aws_cloudwatch_event_rule" "customer_loop_canary":
+[33m│[0m [0m 234:   is_enabled          = [4mvar.canary_schedule.enabled[0m[0m
+[33m│[0m [0m
+[33m│[0m [0mis_enabled is deprecated. Use state instead.
+[33m╵[0m[0m
+[31m╷[0m[0m
+[31m│[0m [0m[1m[31mError: [0m[0m[1mfailed to make http request[0m
+[31m│[0m [0m
+[31m│[0m [0m[0m  with data.cloudflare_dns_records.existing_public["apex"],
+[31m│[0m [0m  on main.tf line 29, in data "cloudflare_dns_records" "existing_public":
+[31m│[0m [0m  29: data "cloudflare_dns_records" "existing_public" [4m{[0m[0m
+[31m│[0m [0m
+[31m│[0m [0mGET
+[31m│[0m [0m"https://api.cloudflare.com/client/v4/zones/2f8d672f99820ec10eb6d4205f1527cc/dns_records?name.exact=flapjack.foo&type=CNAME":
+[31m│[0m [0m400 Bad Request {"success":false,"errors":[{"code":9106,"message":"Missing
+[31m│[0m [0mX-Auth-Key, X-Auth-Email or Authorization
+[31m│[0m [0mheaders"}],"messages":[],"result":null}
+[31m│[0m [0m
+[31m╵[0m[0m
+[31m╷[0m[0m
+[31m│[0m [0m[1m[31mError: [0m[0m[1mfailed to make http request[0m
+[31m│[0m [0m
+[31m│[0m [0m[0m  with data.cloudflare_dns_records.existing_public["www"],
+[31m│[0m [0m  on main.tf line 29, in data "cloudflare_dns_records" "existing_public":
+[31m│[0m [0m  29: data "cloudflare_dns_records" "existing_public" [4m{[0m[0m
+[31m│[0m [0m
+[31m│[0m [0mGET
+[31m│[0m [0m"https://api.cloudflare.com/client/v4/zones/2f8d672f99820ec10eb6d4205f1527cc/dns_records?name.exact=www.flapjack.foo&type=CNAME":
+[31m│[0m [0m400 Bad Request {"success":false,"errors":[{"code":9106,"message":"Missing
+[31m│[0m [0mX-Auth-Key, X-Auth-Email or Authorization
+[31m│[0m [0mheaders"}],"messages":[],"result":null}
+[31m│[0m [0m
+[31m╵[0m[0m
+[31m╷[0m[0m
+[31m│[0m [0m[1m[31mError: [0m[0m[1mfailed to make http request[0m
+[31m│[0m [0m
+[31m│[0m [0m[0m  with data.cloudflare_dns_records.existing_public["cloud"],
+[31m│[0m [0m  on main.tf line 29, in data "cloudflare_dns_records" "existing_public":
+[31m│[0m [0m  29: data "cloudflare_dns_records" "existing_public" [4m{[0m[0m
+[31m│[0m [0m
+[31m│[0m [0mGET
+[31m│[0m [0m"https://api.cloudflare.com/client/v4/zones/2f8d672f99820ec10eb6d4205f1527cc/dns_records?name.exact=cloud.flapjack.foo&type=CNAME":
+[31m│[0m [0m400 Bad Request {"success":false,"errors":[{"code":9106,"message":"Missing
+[31m│[0m [0mX-Auth-Key, X-Auth-Email or Authorization
+[31m│[0m [0mheaders"}],"messages":[],"result":null}
+[31m│[0m [0m
+[31m╵[0m[0m
+[31m╷[0m[0m
+[31m│[0m [0m[1m[31mError: [0m[0m[1mfailed to make http request[0m
+[31m│[0m [0m
+[31m│[0m [0m[0m  with data.cloudflare_dns_records.existing_public["api"],
+[31m│[0m [0m  on main.tf line 29, in data "cloudflare_dns_records" "existing_public":
+[31m│[0m [0m  29: data "cloudflare_dns_records" "existing_public" [4m{[0m[0m
+[31m│[0m [0m
+[31m│[0m [0mGET
+[31m│[0m [0m"https://api.cloudflare.com/client/v4/zones/2f8d672f99820ec10eb6d4205f1527cc/dns_records?name.exact=api.flapjack.foo&type=CNAME":
+[31m│[0m [0m400 Bad Request {"success":false,"errors":[{"code":9106,"message":"Missing
+[31m│[0m [0mX-Auth-Key, X-Auth-Email or Authorization
+[31m│[0m [0mheaders"}],"messages":[],"result":null}
+[31m│[0m [0m
+[31m╵[0m[0m
+[31m╷[0m[0m
+[31m│[0m [0m[1m[31mError: [0m[0m[1mResource precondition failed[0m
+[31m│[0m [0m
+[31m│[0m [0m[0m  on main.tf line 108, in resource "terraform_data" "prod_alert_emails_guard":
+[31m│[0m [0m 108:       condition     = [4mvar.env != "prod" || length(local.alert_emails_normalized) > 0[0m[0m
+[31m│[0m [0m    [90m├────────────────[0m
+[31m│[0m [0m[0m    [90m│[0m [1mlocal.alert_emails_normalized[0m is empty tuple
+[31m│[0m [0m[0m    [90m│[0m [1mvar.env[0m is "prod"
+[31m│[0m [0m[0m
+[31m│[0m [0menv=prod requires at least one alert_emails entry.
+[31m╵[0m[0m
+[31m╷[0m[0m
+[31m│[0m [0m[1m[31mError: [0m[0m[1mfailed to make http request[0m
+[31m│[0m [0m
+[31m│[0m [0m[0m  with module.dns.cloudflare_dns_record.cert_validation["flapjack.foo"],
+[31m│[0m [0m  on ../dns/main.tf line 119, in resource "cloudflare_dns_record" "cert_validation":
+[31m│[0m [0m 119: resource "cloudflare_dns_record" "cert_validation" [4m{[0m[0m
+[31m│[0m [0m
+[31m│[0m [0mGET
+[31m│[0m [0m"https://api.cloudflare.com/client/v4/zones/fafbf95a076d7e8ee984dbd18a62c933/dns_records/1362c84de9d8cc1ae661d9dbb731bc6f":
+[31m│[0m [0m400 Bad Request {"success":false,"errors":[{"code":9106,"message":"Missing
+[31m│[0m [0mX-Auth-Key, X-Auth-Email or Authorization
+[31m│[0m [0mheaders"}],"messages":[],"result":null}
+[31m│[0m [0m
+[31m╵[0m[0m
+[31m╷[0m[0m
+[31m│[0m [0m[1m[31mError: [0m[0m[1mfailed to make http request[0m
+[31m│[0m [0m
+[31m│[0m [0m[0m  with module.dns.cloudflare_dns_record.ses_dkim[2],
+[31m│[0m [0m  on ../dns/main.tf line 166, in resource "cloudflare_dns_record" "ses_dkim":
+[31m│[0m [0m 166: resource "cloudflare_dns_record" "ses_dkim" [4m{[0m[0m
+[31m│[0m [0m
+[31m│[0m [0mGET
+[31m│[0m [0m"https://api.cloudflare.com/client/v4/zones/fafbf95a076d7e8ee984dbd18a62c933/dns_records/6ee0f7d596d4e0e4e0b1b31571487622":
+[31m│[0m [0m400 Bad Request {"success":false,"errors":[{"code":9106,"message":"Missing
+[31m│[0m [0mX-Auth-Key, X-Auth-Email or Authorization
+[31m│[0m [0mheaders"}],"messages":[],"result":null}
+[31m│[0m [0m
+[31m╵[0m[0m
+[31m╷[0m[0m
+[31m│[0m [0m[1m[31mError: [0m[0m[1mfailed to make http request[0m
+[31m│[0m [0m
+[31m│[0m [0m[0m  with module.dns.cloudflare_dns_record.ses_dkim[1],
+[31m│[0m [0m  on ../dns/main.tf line 166, in resource "cloudflare_dns_record" "ses_dkim":
+[31m│[0m [0m 166: resource "cloudflare_dns_record" "ses_dkim" [4m{[0m[0m
+[31m│[0m [0m
+[31m│[0m [0mGET
+[31m│[0m [0m"https://api.cloudflare.com/client/v4/zones/fafbf95a076d7e8ee984dbd18a62c933/dns_records/06132617f5d4806b5e07e9838dba2ac4":
+[31m│[0m [0m400 Bad Request {"success":false,"errors":[{"code":9106,"message":"Missing
+[31m│[0m [0mX-Auth-Key, X-Auth-Email or Authorization
+[31m│[0m [0mheaders"}],"messages":[],"result":null}
+[31m│[0m [0m
+[31m╵[0m[0m
+[31m╷[0m[0m
+[31m│[0m [0m[1m[31mError: [0m[0m[1mfailed to make http request[0m
+[31m│[0m [0m
+[31m│[0m [0m[0m  with module.dns.cloudflare_dns_record.ses_dkim[0],
+[31m│[0m [0m  on ../dns/main.tf line 166, in resource "cloudflare_dns_record" "ses_dkim":
+[31m│[0m [0m 166: resource "cloudflare_dns_record" "ses_dkim" [4m{[0m[0m
+[31m│[0m [0m
+[31m│[0m [0mGET
+[31m│[0m [0m"https://api.cloudflare.com/client/v4/zones/fafbf95a076d7e8ee984dbd18a62c933/dns_records/5ad9fe00a8df389b7f298d45485c8c55":
+[31m│[0m [0m400 Bad Request {"success":false,"errors":[{"code":9106,"message":"Missing
+[31m│[0m [0mX-Auth-Key, X-Auth-Email or Authorization
+[31m│[0m [0mheaders"}],"messages":[],"result":null}
+[31m│[0m [0m
+[31m╵[0m[0m

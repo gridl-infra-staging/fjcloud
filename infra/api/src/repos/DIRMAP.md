@@ -8,6 +8,7 @@
 | cold_snapshot_repo.rs | Stub summary for /Users/stuart/parallel_development/fjcloud_dev/MAR17_11_2_data_management_features/fjcloud_dev/infra/api/src/repos/cold_snapshot_repo.rs. |
 | customer_repo.rs | Stub summary for /Users/stuart/parallel_development/fjcloud_dev/MAR17_11_2_data_management_features/fjcloud_dev/infra/api/src/repos/customer_repo.rs. |
 | deployment_repo.rs | Stub summary for /Users/stuart/parallel_development/fjcloud_dev/MAR17_11_2_data_management_features/fjcloud_dev/infra/api/src/repos/deployment_repo.rs. |
+| dispute_repo.rs | Stub summary for dispute_repo.rs. |
 | in_memory_cold_snapshot_repo.rs | Stub summary for /Users/stuart/parallel_development/fjcloud_dev/mar19_3_load_testing_chaos/fjcloud_dev/infra/api/src/repos/in_memory_cold_snapshot_repo.rs. |
 | in_memory_index_replica_repo.rs | Stub summary for /Users/stuart/parallel_development/fjcloud_dev/MAR17_11_2_data_management_features/fjcloud_dev/infra/api/src/repos/in_memory_index_replica_repo.rs. |
 | in_memory_restore_job_repo.rs | Stub summary for /Users/stuart/parallel_development/fjcloud_dev/mar19_3_load_testing_chaos/fjcloud_dev/infra/api/src/repos/in_memory_restore_job_repo.rs. |
@@ -19,8 +20,10 @@
 | pg_api_key_repo.rs | Stub summary for /Users/stuart/parallel_development/fjcloud_dev/MAR17_11_2_data_management_features/fjcloud_dev/infra/api/src/repos/pg_api_key_repo.rs. |
 | pg_cold_snapshot_repo.rs | Stub summary for /Users/stuart/parallel_development/fjcloud_dev/MAR17_11_2_data_management_features/fjcloud_dev/infra/api/src/repos/pg_cold_snapshot_repo.rs. |
 | pg_customer_repo.rs | Stub summary for pg_customer_repo.rs. |
+| pg_customer_repo_columns.rs | Stub summary for pg_customer_repo_columns.rs. |
 | pg_customer_repo_quota_warning.rs | Stub summary for pg_customer_repo_quota_warning.rs. |
 | pg_deployment_repo.rs | Stub summary for /Users/stuart/parallel_development/fjcloud_dev/MAR17_11_2_data_management_features/fjcloud_dev/infra/api/src/repos/pg_deployment_repo.rs. |
+| pg_dispute_repo.rs | Stub summary for pg_dispute_repo.rs. |
 | pg_index_migration_repo.rs | Stub summary for /Users/stuart/parallel_development/fjcloud_dev/MAR17_11_2_data_management_features/fjcloud_dev/infra/api/src/repos/pg_index_migration_repo.rs. |
 | pg_index_replica_repo.rs | Stub summary for /Users/stuart/parallel_development/fjcloud_dev/MAR17_11_2_data_management_features/fjcloud_dev/infra/api/src/repos/pg_index_replica_repo.rs. |
 | pg_invoice_repo.rs | Stub summary for /Users/stuart/parallel_development/fjcloud_dev/MAR17_11_2_data_management_features/fjcloud_dev/infra/api/src/repos/pg_invoice_repo.rs. |

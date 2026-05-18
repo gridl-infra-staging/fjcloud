@@ -279,6 +279,14 @@ async fn create_stripe_customer_best_effort(
     responses(
         (status = 200, description = "Login successful", body = AuthResponse),
         (status = 400, description = "Invalid credentials", body = ErrorResponse),
+        (
+            status = 429,
+            description = "Too many failed login attempts",
+            body = ErrorResponse,
+            headers(
+                ("Retry-After" = i64, description = "Seconds remaining before login can be retried")
+            )
+        ),
     )
 )]
 /// `POST /auth/login` — authenticate with email and password (no auth required).
@@ -313,8 +321,43 @@ pub async fn login(
         .as_deref()
         .ok_or_else(|| ApiError::BadRequest("invalid email or password".into()))?;
 
+    if let Some(retry_after_seconds) = state
+        .customer_repo
+        .login_lockout_remaining(customer.id)
+        .await
+        .map_err(ApiError::from)?
+    {
+        return Err(ApiError::TooManyRequests {
+            message: "too many failed login attempts; retry later".into(),
+            retry_after_seconds: to_retry_after_header_seconds(retry_after_seconds),
+        });
+    }
+
     if !verify_password(&req.password, hash) {
+        if let Some(retry_after_seconds) = state
+            .customer_repo
+            .record_failed_login(customer.id)
+            .await
+            .map_err(ApiError::from)?
+        {
+            return Err(ApiError::TooManyRequests {
+                message: "too many failed login attempts; retry later".into(),
+                retry_after_seconds: to_retry_after_header_seconds(retry_after_seconds),
+            });
+        }
+
         return Err(ApiError::BadRequest("invalid email or password".into()));
+    }
+
+    let reset_recorded = state
+        .customer_repo
+        .record_successful_login(customer.id)
+        .await
+        .map_err(ApiError::from)?;
+    if !reset_recorded {
+        return Err(ApiError::Internal(
+            "login succeeded but failed to reset lockout state".into(),
+        ));
     }
 
     let token = issue_jwt(&customer.id.to_string(), &state.jwt_secret)?;
@@ -323,6 +366,13 @@ pub async fn login(
         token,
         customer_id: customer.id.to_string(),
     }))
+}
+
+fn to_retry_after_header_seconds(seconds: i64) -> u64 {
+    u64::try_from(seconds)
+        .ok()
+        .filter(|value| *value > 0)
+        .unwrap_or(1)
 }
 
 // ---------------------------------------------------------------------------
@@ -560,6 +610,14 @@ pub async fn forgot_password(
     responses(
         (status = 200, description = "Password reset successful", body = MessageResponse),
         (status = 400, description = "Invalid or expired token", body = ErrorResponse),
+        (
+            status = 429,
+            description = "Too many password reset attempts from this IP",
+            body = ErrorResponse,
+            headers(
+                ("Retry-After" = i64, description = "Seconds remaining before another reset attempt is allowed")
+            )
+        ),
     )
 )]
 /// `POST /auth/reset-password` — consume a reset token and set a new password

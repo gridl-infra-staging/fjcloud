@@ -94,6 +94,9 @@ pub struct Customer {
     pub status: String,
     pub deleted_at: Option<DateTime<Utc>>,
     pub billing_plan: String,
+    #[serde(default)]
+    #[sqlx(default)]
+    pub subscription_cycle_anchor_at: Option<DateTime<Utc>>,
     pub quota_warning_sent_at: Option<DateTime<Utc>>,
     #[serde(skip_serializing)]
     #[serde(default)]
@@ -123,6 +126,33 @@ pub struct Customer {
     /// Internal-only: not exposed in public JSON serialization.
     #[serde(skip_serializing)]
     pub object_storage_egress_carryforward_cents: Decimal,
+    #[serde(skip_serializing)]
+    #[sqlx(default)]
+    pub failed_login_count: i32,
+    #[serde(skip_serializing)]
+    #[sqlx(default)]
+    pub failed_login_window_start: Option<DateTime<Utc>>,
+    #[serde(skip_serializing)]
+    #[sqlx(default)]
+    pub login_locked_until: Option<DateTime<Utc>>,
+    #[serde(skip_serializing)]
+    #[sqlx(default)]
+    pub failed_verify_count: i32,
+    #[serde(skip_serializing)]
+    #[sqlx(default)]
+    pub failed_verify_window_start: Option<DateTime<Utc>>,
+    #[serde(skip_serializing)]
+    #[sqlx(default)]
+    pub verify_locked_until: Option<DateTime<Utc>>,
+    #[serde(skip_serializing)]
+    #[sqlx(default)]
+    pub failed_reset_count: i32,
+    #[serde(skip_serializing)]
+    #[sqlx(default)]
+    pub failed_reset_window_start: Option<DateTime<Utc>>,
+    #[serde(skip_serializing)]
+    #[sqlx(default)]
+    pub reset_locked_until: Option<DateTime<Utc>>,
 }
 
 impl Customer {
@@ -173,6 +203,7 @@ mod tests {
             status: "active".to_string(),
             deleted_at: None,
             billing_plan: billing_plan.to_string(),
+            subscription_cycle_anchor_at: None,
             quota_warning_sent_at: None,
             quota_warnings_sent: Json(IngestQuotaWarningsSentState::default()),
             created_at: now,
@@ -187,6 +218,15 @@ mod tests {
             last_accessed_at: None,
             overdue_invoice_count: 0,
             object_storage_egress_carryforward_cents: carryforward,
+            failed_login_count: 0,
+            failed_login_window_start: None,
+            login_locked_until: None,
+            failed_verify_count: 0,
+            failed_verify_window_start: None,
+            verify_locked_until: None,
+            failed_reset_count: 0,
+            failed_reset_window_start: None,
+            reset_locked_until: None,
         }
     }
 

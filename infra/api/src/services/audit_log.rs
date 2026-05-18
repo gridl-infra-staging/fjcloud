@@ -93,6 +93,8 @@ pub const ACTION_QUOTAS_UPDATED: &str = "quotas_updated";
 pub const ACTION_SES_PERMANENT_BOUNCE_SUPPRESSED: &str = "ses_permanent_bounce_suppressed";
 /// Canonical action name for SES complaint suppression upserts.
 pub const ACTION_SES_COMPLAINT_SUPPRESSED: &str = "ses_complaint_suppressed";
+/// Canonical action name for Stripe dispute webhook persistence milestones.
+pub const ACTION_STRIPE_DISPUTE_UPDATED: &str = "stripe_dispute_updated";
 const AUDIT_LOG_READ_LIMIT: i64 = 100;
 
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]

@@ -1,0 +1,32 @@
+PASS: ops/terraform/publish_canary_image_shared.sh exists
+PASS: ops/terraform/publish_customer_loop_canary_image.sh sources shared helper
+PASS: ops/terraform/publish_customer_loop_canary_image.sh delegates inline publish logic pattern 'aws ecr describe-repositories'
+PASS: ops/terraform/publish_customer_loop_canary_image.sh delegates inline publish logic pattern 'aws ecr get-login-password'
+PASS: ops/terraform/publish_customer_loop_canary_image.sh delegates inline publish logic pattern 'docker buildx build'
+PASS: ops/terraform/publish_customer_loop_canary_image.sh delegates inline publish logic pattern 'lambda_canary_invoke_contract\.sh'
+PASS: ops/terraform/publish_support_email_canary_image.sh sources shared helper
+PASS: ops/terraform/publish_support_email_canary_image.sh delegates inline publish logic pattern 'aws ecr describe-repositories'
+PASS: ops/terraform/publish_support_email_canary_image.sh delegates inline publish logic pattern 'aws ecr get-login-password'
+PASS: ops/terraform/publish_support_email_canary_image.sh delegates inline publish logic pattern 'docker buildx build'
+PASS: ops/terraform/publish_support_email_canary_image.sh delegates inline publish logic pattern 'lambda_canary_invoke_contract\.sh'
+PASS: customer wrapper keeps repository + Dockerfile ownership
+PASS: support-email wrapper keeps repository + Dockerfile ownership
+PASS: customer wrapper keeps usage text ownership
+PASS: support-email wrapper keeps usage text ownership
+PASS: customer wrapper keeps live-Stripe warning ownership
+PASS: customer wrapper keeps live-Stripe flag ownership
+PASS: shared helper does not own wrapper usage text
+PASS: shared helper does not own customer wrapper usage text
+PASS: shared helper does not own support-email wrapper usage text
+PASS: shared helper does not own customer live-Stripe warning literal
+PASS: shared helper does not own customer live-Stripe flag literal
+PASS: shared helper does not own customer repository literal
+PASS: shared helper does not own customer Dockerfile literal
+PASS: shared helper does not own support-email repository literal
+PASS: shared helper does not own support-email Dockerfile literal
+PASS: shared helper contains 'docker buildx build'
+PASS: shared helper contains '--provenance=false'
+PASS: shared helper contains '--push'
+PASS: shared helper declares --platform linux/arm64
+PASS: shared helper avoids plain 'docker build'
+PASS: customer wrapper forwards live-Stripe gate as explicit helper input

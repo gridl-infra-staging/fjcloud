@@ -1395,6 +1395,7 @@ async fn customer_serialization_omits_sensitive_fields() {
         status: "active".to_string(),
         deleted_at: None,
         billing_plan: "free".to_string(),
+        subscription_cycle_anchor_at: None,
         quota_warning_sent_at: None,
         quota_warnings_sent: sqlx::types::Json(api::models::IngestQuotaWarningsSentState::default()),
         created_at: now,
@@ -1409,6 +1410,15 @@ async fn customer_serialization_omits_sensitive_fields() {
         last_accessed_at: None,
         overdue_invoice_count: 0,
         object_storage_egress_carryforward_cents: rust_decimal::Decimal::new(37, 2),
+        failed_login_count: 0,
+        failed_login_window_start: None,
+        login_locked_until: None,
+        failed_verify_count: 0,
+        failed_verify_window_start: None,
+        verify_locked_until: None,
+        failed_reset_count: 0,
+        failed_reset_window_start: None,
+        reset_locked_until: None,
     };
 
     let json = serde_json::to_value(&customer).unwrap();

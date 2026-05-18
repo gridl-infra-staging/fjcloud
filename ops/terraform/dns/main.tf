@@ -28,8 +28,8 @@ locals {
       proxied = false
     }
     cloud = {
-      name    = local.cloud_domain
-      type    = "CNAME"
+      name = local.cloud_domain
+      type = "CNAME"
       # The canonical cloud hostname still uses the existing Pages-backed web
       # deploy while runtime/API traffic stays on the ALB-backed hosts.
       content = "flapjack-cloud.pages.dev"

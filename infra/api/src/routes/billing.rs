@@ -1,14 +1,18 @@
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
-use axum::response::IntoResponse;
+use axum::response::{IntoResponse, Response};
 use axum::Json;
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 use crate::auth::AuthenticatedTenant;
 use crate::errors::{ApiError, ErrorResponse};
 use crate::invoicing;
+use crate::models::BillingPlan;
 use crate::routes::usage::{default_month, parse_month, UsageQuery};
 use crate::state::AppState;
+use crate::stripe::{activation_upgrade_idempotency_key, PaidInvoice, StripeInvoiceLineItem};
 
 #[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct SetupIntentResponse {
@@ -39,6 +43,22 @@ pub struct PaymentMethodResponse {
     pub exp_month: u32,
     pub exp_year: u32,
     pub is_default: bool,
+}
+
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+pub struct BillingUpgradeResponse {
+    pub billing_plan: BillingPlan,
+    pub subscription_cycle_anchor_at: DateTime<Utc>,
+    pub stripe_invoice_id: String,
+    pub activation_amount_cents: i64,
+}
+
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+pub struct UpgradePaymentRequiredResponse {
+    pub error: &'static str,
+    pub code: String,
+    pub decline_code: Option<String>,
+    pub message: Option<String>,
 }
 
 /// Helper: look up customer and extract stripe_customer_id, returning appropriate errors.
@@ -72,6 +92,81 @@ async fn verify_pm_ownership(
         return Err(ApiError::NotFound("payment method not found".into()));
     }
     Ok(())
+}
+
+fn has_default_payment_method(methods: &[crate::stripe::PaymentMethodSummary]) -> bool {
+    methods
+        .iter()
+        .any(|payment_method| payment_method.is_default)
+}
+
+fn activation_invoice_metadata(
+    customer_id: uuid::Uuid,
+    anchor_at: DateTime<Utc>,
+) -> HashMap<String, String> {
+    HashMap::from([
+        (
+            "purpose".to_string(),
+            "shared_activation_upgrade".to_string(),
+        ),
+        ("customer_id".to_string(), customer_id.to_string()),
+        (
+            "subscription_cycle_anchor_at".to_string(),
+            anchor_at.to_rfc3339(),
+        ),
+    ])
+}
+
+fn payment_required_response(payment: &PaidInvoice) -> Option<UpgradePaymentRequiredResponse> {
+    let last_error = payment.last_payment_error.as_ref()?;
+    let code = last_error.code.as_deref()?;
+    if code != "card_declined" && code != "invoice_payment_intent_requires_action" {
+        return None;
+    }
+
+    Some(UpgradePaymentRequiredResponse {
+        error: "payment_required",
+        code: code.to_string(),
+        decline_code: last_error.decline_code.clone(),
+        message: last_error.message.clone(),
+    })
+}
+
+async fn rollback_upgrade_for_anchor(
+    state: &AppState,
+    customer_id: uuid::Uuid,
+    anchor_at: DateTime<Utc>,
+) -> Result<(), ApiError> {
+    // Atomic rollback keeps plan + anchor persistence as one trusted seam.
+    let rolled_back = state
+        .customer_repo
+        .rollback_upgrade_to_free_atomic(customer_id, anchor_at)
+        .await?;
+    if !rolled_back {
+        return Err(ApiError::Internal(
+            "failed to rollback upgrade state".into(),
+        ));
+    }
+    Ok(())
+}
+
+async fn rollback_upgrade_and_void_invoice(
+    state: &AppState,
+    customer_id: uuid::Uuid,
+    anchor_at: DateTime<Utc>,
+    stripe_invoice_id: &str,
+) -> Result<(), ApiError> {
+    let rollback_result = rollback_upgrade_for_anchor(state, customer_id, anchor_at).await;
+    let void_result = state.stripe_service.void_invoice(stripe_invoice_id).await;
+
+    match (rollback_result, void_result) {
+        (Ok(()), Ok(_)) => Ok(()),
+        (Err(rollback_error), Ok(_)) => Err(rollback_error),
+        (Ok(()), Err(void_error)) => Err(ApiError::from(void_error)),
+        (Err(rollback_error), Err(void_error)) => Err(ApiError::Internal(format!(
+            "failed to rollback upgrade state and void activation invoice: rollback_error={rollback_error:?}; void_error={void_error}"
+        ))),
+    }
 }
 
 fn validated_billing_return_url(state: &AppState, return_url: &str) -> Result<String, ApiError> {
@@ -280,6 +375,209 @@ pub async fn set_default_payment_method(
         .await?;
 
     Ok(StatusCode::NO_CONTENT)
+}
+
+// POST /billing/upgrade
+#[utoipa::path(
+    post,
+    path = "/billing/upgrade",
+    tag = "Billing",
+    responses(
+        (status = 200, description = "Upgrade completed", body = BillingUpgradeResponse),
+        (status = 401, description = "Authentication required", body = ErrorResponse),
+        (status = 400, description = "Stripe customer/default payment method missing", body = ErrorResponse),
+        (status = 402, description = "Card declined or customer action required", body = UpgradePaymentRequiredResponse),
+        (status = 404, description = "Customer not found", body = ErrorResponse),
+        (status = 409, description = "Customer is no longer eligible for free-to-shared upgrade", body = ErrorResponse),
+        (status = 503, description = "Billing service unavailable", body = ErrorResponse),
+    )
+)]
+pub async fn upgrade_to_shared(
+    tenant: AuthenticatedTenant,
+    State(state): State<AppState>,
+) -> Result<Response, ApiError> {
+    let customer = state
+        .customer_repo
+        .find_by_id(tenant.customer_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("customer not found".into()))?;
+
+    let stripe_customer_id = customer
+        .stripe_customer_id
+        .ok_or_else(|| ApiError::BadRequest("no stripe customer linked".into()))?;
+
+    let payment_methods = state
+        .stripe_service
+        .list_payment_methods(&stripe_customer_id)
+        .await?;
+    if !has_default_payment_method(&payment_methods) {
+        return Err(ApiError::BadRequest(
+            "default payment method required".into(),
+        ));
+    }
+
+    let active_rate_card = state
+        .rate_card_repo
+        .get_active()
+        .await?
+        .ok_or_else(|| ApiError::ServiceUnavailable("active rate card unavailable".into()))?;
+    let activation_amount_cents = active_rate_card.shared_minimum_spend_cents;
+
+    let subscription_cycle_anchor_at = Utc::now();
+    let claimed = state
+        .customer_repo
+        .try_upgrade_to_shared_atomic(tenant.customer_id, subscription_cycle_anchor_at)
+        .await?;
+    if !claimed {
+        return Err(ApiError::Conflict(
+            "customer is not eligible for free-to-shared upgrade".into(),
+        ));
+    }
+
+    let metadata = activation_invoice_metadata(tenant.customer_id, subscription_cycle_anchor_at);
+    let idempotency_key =
+        activation_upgrade_idempotency_key(tenant.customer_id, subscription_cycle_anchor_at);
+
+    let finalized_invoice = match state
+        .stripe_service
+        .create_and_finalize_invoice(
+            &stripe_customer_id,
+            &[StripeInvoiceLineItem {
+                description: "Shared plan activation".to_string(),
+                amount_cents: activation_amount_cents,
+            }],
+            Some(&metadata),
+            Some(&idempotency_key),
+        )
+        .await
+    {
+        Ok(invoice) => invoice,
+        Err(err) => {
+            rollback_upgrade_for_anchor(&state, tenant.customer_id, subscription_cycle_anchor_at)
+                .await?;
+            return Err(ApiError::from(err));
+        }
+    };
+
+    let paid_invoice = match state
+        .stripe_service
+        .pay_invoice(&finalized_invoice.stripe_invoice_id)
+        .await
+    {
+        Ok(payment) => payment,
+        Err(err) => {
+            rollback_upgrade_and_void_invoice(
+                &state,
+                tenant.customer_id,
+                subscription_cycle_anchor_at,
+                &finalized_invoice.stripe_invoice_id,
+            )
+            .await?;
+            return Err(ApiError::from(err));
+        }
+    };
+
+    if paid_invoice.status != "paid" {
+        rollback_upgrade_and_void_invoice(
+            &state,
+            tenant.customer_id,
+            subscription_cycle_anchor_at,
+            &finalized_invoice.stripe_invoice_id,
+        )
+        .await?;
+        if let Some(payment_required) = payment_required_response(&paid_invoice) {
+            return Ok((StatusCode::PAYMENT_REQUIRED, Json(payment_required)).into_response());
+        }
+        return Err(ApiError::Internal(
+            "activation invoice payment did not complete".into(),
+        ));
+    }
+
+    if paid_invoice.amount_paid_cents != activation_amount_cents {
+        rollback_upgrade_and_void_invoice(
+            &state,
+            tenant.customer_id,
+            subscription_cycle_anchor_at,
+            &finalized_invoice.stripe_invoice_id,
+        )
+        .await?;
+        return Err(ApiError::Internal(
+            "activation invoice amount mismatch".into(),
+        ));
+    }
+
+    let persisted_customer = match state.customer_repo.find_by_id(tenant.customer_id).await {
+        Ok(Some(customer)) => customer,
+        Ok(None) => {
+            rollback_upgrade_and_void_invoice(
+                &state,
+                tenant.customer_id,
+                subscription_cycle_anchor_at,
+                &finalized_invoice.stripe_invoice_id,
+            )
+            .await?;
+            return Err(ApiError::Internal(
+                "failed to verify persisted upgrade state".into(),
+            ));
+        }
+        Err(repo_error) => {
+            rollback_upgrade_and_void_invoice(
+                &state,
+                tenant.customer_id,
+                subscription_cycle_anchor_at,
+                &finalized_invoice.stripe_invoice_id,
+            )
+            .await?;
+            return Err(ApiError::from(repo_error));
+        }
+    };
+    let Some(persisted_anchor_at) = persisted_customer.subscription_cycle_anchor_at else {
+        rollback_upgrade_and_void_invoice(
+            &state,
+            tenant.customer_id,
+            subscription_cycle_anchor_at,
+            &finalized_invoice.stripe_invoice_id,
+        )
+        .await?;
+        return Err(ApiError::Internal(
+            "failed to verify persisted upgrade state".into(),
+        ));
+    };
+    if persisted_anchor_at != subscription_cycle_anchor_at {
+        rollback_upgrade_and_void_invoice(
+            &state,
+            tenant.customer_id,
+            persisted_anchor_at,
+            &finalized_invoice.stripe_invoice_id,
+        )
+        .await?;
+        return Err(ApiError::Internal(
+            "failed to verify persisted upgrade state".into(),
+        ));
+    }
+    if persisted_customer.billing_plan != "shared" {
+        rollback_upgrade_and_void_invoice(
+            &state,
+            tenant.customer_id,
+            subscription_cycle_anchor_at,
+            &finalized_invoice.stripe_invoice_id,
+        )
+        .await?;
+        return Err(ApiError::Internal(
+            "failed to verify persisted upgrade state".into(),
+        ));
+    }
+
+    Ok((
+        StatusCode::OK,
+        Json(BillingUpgradeResponse {
+            billing_plan: BillingPlan::Shared,
+            subscription_cycle_anchor_at: persisted_anchor_at,
+            stripe_invoice_id: finalized_invoice.stripe_invoice_id,
+            activation_amount_cents,
+        }),
+    )
+        .into_response())
 }
 
 // ---------------------------------------------------------------------------

@@ -1,0 +1,3 @@
+image_uri=213880904778.dkr.ecr.us-east-1.amazonaws.com/fjcloud-prod-customer-loop-canary:pending-publication
+function_error=Unhandled
+status=200

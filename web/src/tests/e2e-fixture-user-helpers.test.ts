@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
+	FIXTURE_AUTH_API_RETRY_BUDGET_MS,
 	adminReactivateCustomerById,
 	bootstrapFixtureUserForKnownLoginFailure,
 	createRegisteredUser,
@@ -318,6 +319,52 @@ describe('e2e fixture user helpers', () => {
 		expect(fetchMock).toHaveBeenCalledTimes(2);
 	});
 
+	it('bootstrapFixtureUserForKnownLoginFailure treats existing-user registration conflicts as idempotent and still retries login', async () => {
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValueOnce(new Response(JSON.stringify({ error: 'email taken' }), { status: 409 }))
+			.mockResolvedValueOnce(
+				makeJsonResponse(200, {
+					customer_id: 'cust-existing',
+					token: 'login-token-after-conflict'
+				})
+			);
+
+		const bootstrapResult = await bootstrapFixtureUserForKnownLoginFailure({
+			apiUrl: 'http://localhost:3001',
+			email: 'dev@example.com',
+			password: 'localdev-password-1234',
+			currentPath: 'http://127.0.0.1:5173/login',
+			alertText: 'invalid email or password',
+			responseStatus: 400,
+			responseUrl: 'http://127.0.0.1:3001/auth/login',
+			fetchImpl: fetchMock as unknown as typeof fetch
+		});
+
+		expect(bootstrapResult).toEqual({
+			bootstrapped: true,
+			loginToken: 'login-token-after-conflict'
+		});
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+		expect(fetchMock).toHaveBeenNthCalledWith(1, 'http://localhost:3001/auth/register', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({
+				name: 'E2E Fixture dev@example.com',
+				email: 'dev@example.com',
+				password: 'localdev-password-1234'
+			})
+		});
+		expect(fetchMock).toHaveBeenNthCalledWith(2, 'http://localhost:3001/auth/login', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({
+				email: 'dev@example.com',
+				password: 'localdev-password-1234'
+			})
+		});
+	});
+
 	it('setupFailureDetailsFromError redacts secret-bearing bootstrap errors before fixture diagnostics surface them', () => {
 		const details = setupFailureDetailsFromError(
 			new Error(
@@ -331,6 +378,59 @@ describe('e2e fixture user helpers', () => {
 		expect(details).not.toContain('sensitive.jwt.token');
 		expect(details).not.toContain('abc123');
 		expect(details).not.toContain('secret-token');
+	});
+
+	it('fixture diagnostics redact URL-embedded credentials before surfacing helper failures', () => {
+		const details = setupFailureDetailsFromError(
+			new Error(
+				'createUser failed at http://fixture-user:fixture-pass@127.0.0.1:3001/verify-email/abc123?token=secret-token'
+			)
+		);
+		const formatted = formatFixtureSetupFailure({
+			setupName: 'Customer login setup',
+			expectedPath: '/dashboard',
+			currentPath: 'http://ui-user:ui-pass@127.0.0.1:5173/login',
+			apiUrl: 'http://api-user:api-pass@127.0.0.1:3001',
+			adminKey: 'admin-key',
+			alertText: 'invalid email or password',
+			responseStatus: 400,
+			responseUrl: 'http://resp-user:resp-pass@127.0.0.1:3001/auth/login?token=secret-token'
+		});
+
+		expect(details).toContain('http://[REDACTED]@127.0.0.1:3001/verify-email/[REDACTED]?token=[REDACTED]');
+		expect(details).not.toContain('fixture-user');
+		expect(details).not.toContain('fixture-pass');
+		expect(formatted).toContain('Current URL: http://[REDACTED]@127.0.0.1:5173/login');
+		expect(formatted).toContain('API URL: http://[REDACTED]@127.0.0.1:3001');
+		expect(formatted).toContain(
+			'Login response: status 400 at http://[REDACTED]@127.0.0.1:3001/auth/login?token=[REDACTED]'
+		);
+		expect(formatted).not.toContain('ui-user');
+		expect(formatted).not.toContain('ui-pass');
+		expect(formatted).not.toContain('api-user');
+		expect(formatted).not.toContain('api-pass');
+		expect(formatted).not.toContain('resp-user');
+		expect(formatted).not.toContain('resp-pass');
+		expect(formatted).not.toContain('secret-token');
+	});
+
+	it('fixture diagnostics redact token-bearing URL fragments, Basic auth, and JSON secret fields', () => {
+		const details = setupFailureDetailsFromError(
+			new Error(
+				'upstream {"access_token":"fragment-token","refresh_token":"refresh-token","password":"super-secret"} Basic dGVzdDpzZWNyZXQ= http://127.0.0.1:3001/callback#access_token=fragment-token&state=opaque-state'
+			)
+		);
+
+		expect(details).toContain('"access_token":"[REDACTED]"');
+		expect(details).toContain('"refresh_token":"[REDACTED]"');
+		expect(details).toContain('"password":"[REDACTED]"');
+		expect(details).toContain('Basic [REDACTED]');
+		expect(details).toContain('#access_token=[REDACTED]&state=[REDACTED]');
+		expect(details).not.toContain('fragment-token');
+		expect(details).not.toContain('refresh-token');
+		expect(details).not.toContain('super-secret');
+		expect(details).not.toContain('dGVzdDpzZWNyZXQ=');
+		expect(details).not.toContain('opaque-state');
 	});
 
 	it('seedMultiUserScenarioWithCreateUser creates two unique users', async () => {
@@ -1045,6 +1145,10 @@ describe('e2e fixture user helpers', () => {
 		await vi.runAllTimersAsync();
 		await rejection;
 		expect(fetchMock).toHaveBeenCalledTimes(10);
+	});
+
+	it('exports the fixture auth retry budget used by setup:user timeout calculations', () => {
+		expect(FIXTURE_AUTH_API_RETRY_BUDGET_MS).toBe(80_000);
 	});
 
 	it('fetchEstimatedBillForToken rejects non-loopback apiUrl', async () => {

@@ -872,6 +872,56 @@ async fn create_auto_provisioned_vm_is_active_and_receives_index_assignment() {
 }
 
 #[tokio::test]
+async fn create_prefers_existing_active_vm_over_auto_provision_for_zero_resource_index() {
+    use api::repos::tenant_repo::TenantRepo;
+
+    let Some(setup) = setup_capacity_exhaustion_auto_provision_test(false).await else {
+        return;
+    };
+    setup.http_client.push_json_response(200, json!({}));
+
+    let resp = setup
+        .app
+        .oneshot(
+            Request::builder()
+                .method(http::Method::POST)
+                .uri("/indexes")
+                .header("content-type", "application/json")
+                .header("authorization", format!("Bearer {}", setup.jwt))
+                .body(Body::from(
+                    json!({"name": "prefer-existing", "region": "us-east-1"}).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    let (status, body) = response_json(resp).await;
+    assert_eq!(status, StatusCode::CREATED, "body={body:?}");
+    assert_eq!(
+        setup.vm_provisioner.vm_count(),
+        0,
+        "zero-resource create should avoid auto-provision when an active VM already exists"
+    );
+
+    let requests = setup.http_client.take_requests();
+    assert_eq!(requests.len(), 1);
+    assert_eq!(requests[0].url, "https://vm-saturated.flapjack.foo/1/indexes");
+
+    let tenant = setup
+        .tenant_repo
+        .find_raw(setup.customer_id, "prefer-existing")
+        .await
+        .unwrap()
+        .expect("tenant should exist after successful create");
+    assert_eq!(
+        tenant.vm_id,
+        Some(setup.saturated_vm_id),
+        "tenant placement should reuse the existing active VM"
+    );
+}
+
+#[tokio::test]
 async fn create_existing_shared_vm_unreachable_returns_503_without_retry() {
     let setup = setup_proxy_test().await;
     setup
@@ -4044,6 +4094,108 @@ async fn create_index_always_uses_shared_placement() {
     assert_eq!(
         deployments[0].vm_type, "shared",
         "deployment vm_type should be 'shared' to indicate lightweight shared deployment"
+    );
+}
+
+#[tokio::test]
+async fn create_index_reuses_existing_shared_vm_when_load_snapshot_is_missing() {
+    use api::models::vm_inventory::NewVmInventory;
+    use api::repos::tenant_repo::TenantRepo;
+    use api::repos::vm_inventory_repo::VmInventoryRepo;
+
+    let customer_repo = mock_repo();
+    let deployment_repo = mock_deployment_repo();
+    let tenant_repo = mock_tenant_repo();
+    let vm_inventory_repo = mock_vm_inventory_repo();
+    let http_client = Arc::new(MockFlapjackHttpClient::default());
+    let node_secret_manager = Arc::new(api::secrets::mock::MockNodeSecretManager::new());
+
+    let customer = customer_repo.seed_verified_shared_customer("SharedCo", "shared@example.com");
+    let jwt = create_test_jwt(customer.id);
+
+    let vm = vm_inventory_repo
+        .create(NewVmInventory {
+            region: "us-east-1".to_string(),
+            provider: "aws".to_string(),
+            hostname: "vm-unscraped.flapjack.foo".to_string(),
+            flapjack_url: "https://shared-unscraped.flapjack.foo".to_string(),
+            capacity: serde_json::json!({
+                "cpu_weight": 4.0,
+                "mem_rss_bytes": 8_589_934_592_u64,
+                "disk_bytes": 107_374_182_400_u64,
+                "query_rps": 500.0,
+                "indexing_rps": 200.0
+            }),
+        })
+        .await
+        .unwrap();
+
+    http_client.push_json_response(200, json!({}));
+
+    let flapjack_proxy = Arc::new(FlapjackProxy::with_http_client(
+        http_client.clone(),
+        node_secret_manager.clone(),
+    ));
+
+    let vm_provisioner = Arc::new(api::provisioner::mock::MockVmProvisioner::new());
+    let dns_manager = Arc::new(api::dns::mock::MockDnsManager::new());
+    let provisioning_service = Arc::new(api::services::provisioning::ProvisioningService::new(
+        vm_provisioner.clone(),
+        dns_manager.clone(),
+        node_secret_manager.clone(),
+        deployment_repo.clone(),
+        customer_repo.clone(),
+        "flapjack.foo".to_string(),
+    ));
+    let mut state = common::test_state_with_indexes_and_vm_inventory(
+        customer_repo.clone(),
+        deployment_repo.clone(),
+        tenant_repo.clone(),
+        flapjack_proxy,
+        vm_inventory_repo.clone(),
+    );
+    state.vm_provisioner = vm_provisioner.clone();
+    state.dns_manager = dns_manager;
+    state.provisioning_service = provisioning_service;
+
+    let app = api::router::build_router(state);
+
+    let resp = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/indexes")
+                .header("authorization", format!("Bearer {jwt}"))
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    json!({"name": "products", "region": "us-east-1"}).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    let (status, body) = response_json(resp).await;
+    assert_eq!(
+        status,
+        StatusCode::CREATED,
+        "create should reuse existing active VM instead of auto-provisioning: {body}"
+    );
+
+    let requests = http_client.take_requests();
+    assert_eq!(requests.len(), 1);
+    assert_eq!(requests[0].url, "https://shared-unscraped.flapjack.foo/1/indexes");
+
+    let tenant = tenant_repo
+        .find_raw(customer.id, "products")
+        .await
+        .unwrap()
+        .expect("tenant should exist");
+    assert_eq!(tenant.vm_id, Some(vm.id));
+    assert_eq!(
+        vm_provisioner.vm_count(),
+        0,
+        "create should not auto-provision when an active shared VM already exists"
     );
 }
 

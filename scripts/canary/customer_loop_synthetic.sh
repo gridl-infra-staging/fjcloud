@@ -71,9 +71,46 @@ mark_failure() {
     fi
 }
 
+# Resolve Lambda-provided SSM parameter names into concrete secret values before
+# the canary crosses admin/Stripe/webhook module boundaries.
+resolve_ssm_parameter_if_configured() {
+    local var_name="$1"
+    local raw_value resolved_value
+
+    # Lambda bootstrap (scripts/canary/lambda_image/bootstrap) already replaces
+    # SSM-backed env vars with their concrete secret values before invoking the
+    # canary. If the secret value happens to start with "/" (a URL-safe random
+    # admin key, for example), it would be misread as a parameter path on this
+    # second pass, so honor the bootstrap sentinel and short-circuit.
+    if [ "${CANARY_SSM_HYDRATED:-0}" = "1" ]; then
+        return 0
+    fi
+
+    raw_value="${!var_name:-}"
+    if [ -z "$raw_value" ] || [[ "$raw_value" != /* ]]; then
+        return 0
+    fi
+
+    if ! resolved_value="$(
+        aws ssm get-parameter \
+            --name "$raw_value" \
+            --with-decryption \
+            --region "$CANARY_AWS_REGION" \
+            --query 'Parameter.Value' \
+            --output text 2>/dev/null
+    )"; then
+        echo "failed to resolve SSM parameter ${raw_value} for ${var_name}" >&2
+        return 1
+    fi
+
+    printf -v "$var_name" '%s' "$resolved_value"
+    export "$var_name"
+}
+
 load_canary_env() {
     local default_secret_file="$REPO_ROOT/.secret/.env.secret"
     local secret_file="${FJCLOUD_SECRET_FILE:-$default_secret_file}"
+    local secret_var_name
 
     load_env_file "$secret_file"
 
@@ -89,15 +126,24 @@ load_canary_env() {
     CANARY_INBOX_MAX_ATTEMPTS="${CANARY_INBOX_MAX_ATTEMPTS:-30}"
     CANARY_INBOX_SLEEP_SECONDS="${CANARY_INBOX_SLEEP_SECONDS:-2}"
 
-    CANARY_INDEX_REGION="${CANARY_INDEX_REGION:-us-east-1}"
+    CANARY_INDEX_REGION="${CANARY_INDEX_REGION:-$CANARY_AWS_REGION}"
     STRIPE_API_BASE="${STRIPE_API_BASE:-https://api.stripe.com}"
     STRIPE_SECRET_KEY_EFFECTIVE="${STRIPE_SECRET_KEY:-${STRIPE_TEST_SECRET_KEY:-}}"
     CANARY_LIVE_MODE="${CANARY_LIVE_MODE:-0}"
+    SLACK_WEBHOOK_URL="${SLACK_WEBHOOK_URL:-}"
+    DISCORD_WEBHOOK_URL="${DISCORD_WEBHOOK_URL:-}"
+
+    for secret_var_name in ADMIN_KEY STRIPE_SECRET_KEY_EFFECTIVE SLACK_WEBHOOK_URL DISCORD_WEBHOOK_URL; do
+        if ! resolve_ssm_parameter_if_configured "$secret_var_name"; then
+            return 1
+        fi
+    done
 
     export ENVIRONMENT API_URL ADMIN_KEY CANARY_ALERT_SOURCE CANARY_ALERT_NONCE
     export CANARY_AWS_REGION CANARY_TEST_INBOX_DOMAIN CANARY_TEST_INBOX_S3_URI
     export CANARY_INBOX_MAX_ATTEMPTS CANARY_INBOX_SLEEP_SECONDS CANARY_INDEX_REGION
     export STRIPE_API_BASE STRIPE_SECRET_KEY_EFFECTIVE CANARY_LIVE_MODE
+    export SLACK_WEBHOOK_URL DISCORD_WEBHOOK_URL
 }
 
 json_get_field() {
@@ -117,6 +163,20 @@ elif isinstance(value, (int, float, bool)):
     print(str(value).lower() if isinstance(value, bool) else str(value))
 else:
     print(str(value))
+PY
+}
+
+# Encode arbitrary text as a JSON string literal before embedding it in request
+# bodies. Several canary inputs come from email/S3/API state and are not safe to
+# interpolate directly into shell-built JSON.
+json_quote() {
+    local raw_value="$1"
+
+    python3 - "$raw_value" <<'PY'
+import json
+import sys
+
+print(json.dumps(sys.argv[1]))
 PY
 }
 
@@ -267,12 +327,17 @@ PY
 }
 
 run_signup_step() {
+    local payload
+
     CANARY_NONCE="canary$(date -u +%Y%m%d%H%M%S)${RANDOM}"
     CANARY_SIGNUP_EMAIL="canary+${CANARY_NONCE}@${CANARY_TEST_INBOX_DOMAIN}"
     CANARY_SIGNUP_PASSWORD="$(generate_canary_signup_password)"
+    payload="$(printf '{"name":"Staging Customer Canary","email":%s,"password":%s}' \
+        "$(json_quote "$CANARY_SIGNUP_EMAIL")" \
+        "$(json_quote "$CANARY_SIGNUP_PASSWORD")")"
 
     capture_json_response api_json_call POST "/auth/register" \
-        -d "{\"name\":\"Staging Customer Canary\",\"email\":\"${CANARY_SIGNUP_EMAIL}\",\"password\":\"${CANARY_SIGNUP_PASSWORD}\"}"
+        -d "$payload"
 
     if [ "$HTTP_RESPONSE_CODE" != "201" ] && [ "$HTTP_RESPONSE_CODE" != "200" ]; then
         mark_failure "signup" "register returned HTTP ${HTTP_RESPONSE_CODE:-unknown}"
@@ -291,6 +356,7 @@ run_signup_step() {
 
 run_verify_email_step() {
     local bucket prefix parsed_s3 message_key rfc822_payload verify_token
+    local inbox_lookup_output inbox_lookup_status payload
 
     parsed_s3="$(test_inbox_parse_s3_uri "$CANARY_TEST_INBOX_S3_URI" 2>/dev/null || true)"
     if [ -z "$parsed_s3" ]; then
@@ -300,13 +366,28 @@ run_verify_email_step() {
     bucket="${parsed_s3%%|*}"
     prefix="${parsed_s3#*|}"
 
-    message_key="$(test_inbox_find_matching_object_key \
+    inbox_lookup_output="$(test_inbox_find_matching_object_key \
         "$bucket" \
         "$prefix" \
         "$CANARY_NONCE" \
         "$CANARY_AWS_REGION" \
         "$CANARY_INBOX_MAX_ATTEMPTS" \
-        "$CANARY_INBOX_SLEEP_SECONDS" 2>/dev/null || true)"
+        "$CANARY_INBOX_SLEEP_SECONDS" 2>&1)" || inbox_lookup_status=$?
+
+    if [ -n "${inbox_lookup_status:-}" ]; then
+        if [ "${inbox_lookup_status}" -eq "${TEST_INBOX_POLL_TIMEOUT_EXIT_CODE}" ]; then
+            # Helper emits an "inbox-poll exhausted: ..." diagnostic on stderr
+            # which is captured into inbox_lookup_output via 2>&1; include it so
+            # the alert/log distinguishes "no candidates" from "fetch failures"
+            # without needing another redeploy.
+            mark_failure "verify_email" "verification email not found in inbox within timeout: ${inbox_lookup_output}"
+        else
+            mark_failure "verify_email" "inbox lookup command failed (exit=${inbox_lookup_status}): ${inbox_lookup_output}"
+        fi
+        return 1
+    fi
+
+    message_key="$inbox_lookup_output"
     if [ -z "$message_key" ]; then
         mark_failure "verify_email" "verification email not found in inbox within timeout"
         return 1
@@ -324,8 +405,9 @@ run_verify_email_step() {
         return 1
     fi
 
+    payload="$(printf '{"token":%s}' "$(json_quote "$verify_token")")"
     capture_json_response api_json_call POST "/auth/verify-email" \
-        -d "{\"token\":\"${verify_token}\"}"
+        -d "$payload"
     if [ "$HTTP_RESPONSE_CODE" != "200" ] && [ "$HTTP_RESPONSE_CODE" != "204" ]; then
         mark_failure "verify_email" "verify-email returned HTTP ${HTTP_RESPONSE_CODE:-unknown}"
         return 1
@@ -645,10 +727,15 @@ run_live_stripe_branch() {
 }
 
 run_index_create_step() {
+    local payload
+
     CANARY_INDEX_NAME="canary-${CANARY_NONCE}"
+    payload="$(printf '{"name":%s,"region":%s}' \
+        "$(json_quote "$CANARY_INDEX_NAME")" \
+        "$(json_quote "$CANARY_INDEX_REGION")")"
 
     capture_json_response tenant_call POST "/indexes" "$CANARY_TOKEN" \
-        -d "{\"name\":\"${CANARY_INDEX_NAME}\",\"region\":\"${CANARY_INDEX_REGION}\"}"
+        -d "$payload"
     if [ "$HTTP_RESPONSE_CODE" != "201" ] && [ "$HTTP_RESPONSE_CODE" != "200" ]; then
         mark_failure "create_index" "create index returned HTTP ${HTTP_RESPONSE_CODE:-unknown}"
         return 1
@@ -659,8 +746,12 @@ run_index_create_step() {
 }
 
 run_index_batch_step() {
+    local payload
+
+    payload="$(printf '{"requests":[{"action":"addObject","body":{"objectID":"canary-doc-1","title":"Customer Loop Canary Document","body":%s}}]}' \
+        "$(json_quote "$CANARY_NONCE")")"
     capture_json_response tenant_call POST "/indexes/${CANARY_INDEX_NAME}/batch" "$CANARY_TOKEN" \
-        -d "{\"requests\":[{\"action\":\"addObject\",\"body\":{\"objectID\":\"canary-doc-1\",\"title\":\"Customer Loop Canary Document\",\"body\":\"${CANARY_NONCE}\"}}]}"
+        -d "$payload"
     if [ "$HTTP_RESPONSE_CODE" != "200" ]; then
         mark_failure "write_document" "batch write returned HTTP ${HTTP_RESPONSE_CODE:-unknown}"
         return 1
@@ -671,10 +762,13 @@ run_index_batch_step() {
 
 run_index_search_step() {
     local search_ok=0 attempt
+    local payload
+
+    payload="$(printf '{"query":%s}' "$(json_quote "$CANARY_NONCE")")"
 
     for attempt in 1 2 3 4 5; do
         capture_json_response tenant_call POST "/indexes/${CANARY_INDEX_NAME}/search" "$CANARY_TOKEN" \
-            -d "{\"query\":\"${CANARY_NONCE}\"}"
+            -d "$payload"
         if [ "$HTTP_RESPONSE_CODE" != "200" ]; then
             sleep 1
             continue
@@ -722,12 +816,15 @@ run_delete_index_step() {
 }
 
 run_delete_account_step() {
+    local payload
+
     if [ "$CANARY_ACCOUNT_DELETED" -eq 1 ] || [ -z "$CANARY_TOKEN" ]; then
         return 0
     fi
+    payload="$(printf '{"password":%s}' "$(json_quote "$CANARY_SIGNUP_PASSWORD")")"
 
     capture_json_response tenant_call DELETE "/account" "$CANARY_TOKEN" \
-        -d "{\"password\":\"${CANARY_SIGNUP_PASSWORD}\"}"
+        -d "$payload"
     if [ "$HTTP_RESPONSE_CODE" != "204" ] && [ "$HTTP_RESPONSE_CODE" != "404" ]; then
         mark_failure "delete_account" "delete account returned HTTP ${HTTP_RESPONSE_CODE:-unknown}"
         return 1
@@ -789,7 +886,9 @@ main() {
         return 0
     fi
 
-    load_canary_env
+    if ! load_canary_env; then
+        return 1
+    fi
     if [ -n "$CANARY_LIVE_MODE_CLI_OVERRIDE" ]; then
         CANARY_LIVE_MODE="$CANARY_LIVE_MODE_CLI_OVERRIDE"
         export CANARY_LIVE_MODE

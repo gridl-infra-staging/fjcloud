@@ -30,6 +30,123 @@ pub fn webhook_request_with_signature(body: &str, signature: &str) -> Request<Bo
         .unwrap()
 }
 
+#[allow(clippy::too_many_arguments)]
+pub fn dispute_event_payload(
+    event_id: &str,
+    event_type: &str,
+    dispute_id: &str,
+    charge_id: &str,
+    payment_intent_id: Option<&str>,
+    customer_id: &str,
+    amount_cents: i64,
+    status: &str,
+) -> String {
+    let payment_intent_json = payment_intent_id
+        .map(|value| format!(r#""{value}""#))
+        .unwrap_or_else(|| "null".to_string());
+    format!(
+        r#"{{
+  "id":"{event_id}",
+  "type":"{event_type}",
+  "data":{{
+    "object":{{
+      "id":"{dispute_id}",
+      "object":"dispute",
+      "charge":"{charge_id}",
+      "payment_intent":{payment_intent_json},
+      "customer":"{customer_id}",
+      "amount":{amount_cents},
+      "currency":"usd",
+      "reason":"fraudulent",
+      "status":"{status}",
+      "evidence_details":{{"due_by":1708300800}}
+    }}
+  }}
+}}"#
+    )
+}
+
+pub fn dispute_created_payload(
+    event_id: &str,
+    dispute_id: &str,
+    charge_id: &str,
+    payment_intent_id: Option<&str>,
+    customer_id: &str,
+    amount_cents: i64,
+) -> String {
+    dispute_event_payload(
+        event_id,
+        "charge.dispute.created",
+        dispute_id,
+        charge_id,
+        payment_intent_id,
+        customer_id,
+        amount_cents,
+        "needs_response",
+    )
+}
+
+pub fn dispute_funds_withdrawn_payload(
+    event_id: &str,
+    dispute_id: &str,
+    charge_id: &str,
+    payment_intent_id: Option<&str>,
+    customer_id: &str,
+    amount_cents: i64,
+) -> String {
+    dispute_event_payload(
+        event_id,
+        "charge.dispute.funds_withdrawn",
+        dispute_id,
+        charge_id,
+        payment_intent_id,
+        customer_id,
+        amount_cents,
+        "warning_needs_response",
+    )
+}
+
+pub fn dispute_funds_reinstated_payload(
+    event_id: &str,
+    dispute_id: &str,
+    charge_id: &str,
+    payment_intent_id: Option<&str>,
+    customer_id: &str,
+    amount_cents: i64,
+) -> String {
+    dispute_event_payload(
+        event_id,
+        "charge.dispute.funds_reinstated",
+        dispute_id,
+        charge_id,
+        payment_intent_id,
+        customer_id,
+        amount_cents,
+        "won",
+    )
+}
+
+pub fn dispute_closed_payload(
+    event_id: &str,
+    dispute_id: &str,
+    charge_id: &str,
+    payment_intent_id: Option<&str>,
+    customer_id: &str,
+    amount_cents: i64,
+    status: &str,
+) -> String {
+    dispute_event_payload(
+        event_id,
+        "charge.dispute.closed",
+        dispute_id,
+        charge_id,
+        payment_intent_id,
+        customer_id,
+        amount_cents,
+        status,
+    )
+}
+
 /// Seed the canonical webhook-invoice fixture shared by dunning and alert tests.
 pub fn seed_draft_invoice(repo: &MockInvoiceRepo, customer_id: Uuid) -> api::models::InvoiceRow {
     repo.seed(

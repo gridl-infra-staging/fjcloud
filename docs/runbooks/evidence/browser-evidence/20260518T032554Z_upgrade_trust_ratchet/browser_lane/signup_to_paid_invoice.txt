@@ -1,0 +1,44 @@
+(node:55233) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+Running 1 test using 1 worker
+
+(node:55239) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:55239) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:55239) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  1 [chromium:signup] › tests/e2e-ui/full/signup_to_paid_invoice.spec.ts:78:2 › Fresh signup to paid invoice › signs up, verifies email, reaches paid invoice evidence (21.5s)
+
+
+  1) [chromium:signup] › tests/e2e-ui/full/signup_to_paid_invoice.spec.ts:78:2 › Fresh signup to paid invoice › signs up, verifies email, reaches paid invoice evidence 
+
+    Error: fresh-signup arrange failed before reaching /dashboard. Current URL: https://cloud.flapjack.foo/login
+    API URL: https://api.staging.flapjack.foo
+    Admin key fingerprint: (present, len=32)
+    Visible alert text: Sign up did not reach /dashboard and no alert was visible within 20 seconds.
+    Login response: (none observed)
+    Remediation: Run scripts/bootstrap-env-local.sh to bootstrap .env.local, then start the local stack with scripts/local-dev-up.sh and the Rust API with scripts/api-dev.sh. If you override BASE_URL, start the web frontend with scripts/web-dev.sh too. See docs/runbooks/local-dev.md for setup instructions.
+
+       at fixtures/fixtures.ts:190
+
+      188 | 	responseUrl
+      189 | }: ThrowFreshSignupArrangeFailureParams): never {
+    > 190 | 	throw new Error(
+          | 	      ^
+      191 | 		formatFixtureSetupFailure({
+      192 | 			setupName: 'fresh-signup arrange',
+      193 | 			expectedPath: '/dashboard',
+        at throwFreshSignupArrangeFailure (/Users/stuart/parallel_development/fjcloud_dev/may16_pm_5_self_service_upgrade_endpoint_and_trust_ratchet/fjcloud_dev/web/tests/fixtures/fixtures.ts:190:8)
+        at throwFreshSignupArrangeFailure (/Users/stuart/parallel_development/fjcloud_dev/may16_pm_5_self_service_upgrade_endpoint_and_trust_ratchet/fjcloud_dev/web/tests/fixtures/fixtures.ts:1723:24)
+        at /Users/stuart/parallel_development/fjcloud_dev/may16_pm_5_self_service_upgrade_endpoint_and_trust_ratchet/fjcloud_dev/web/tests/e2e-ui/full/signup_to_paid_invoice.spec.ts:113:4
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/e2e-ui-full-signup_to_paid-43e41-aches-paid-invoice-evidence-chromium-signup/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/e2e-ui-full-signup_to_paid-43e41-aches-paid-invoice-evidence-chromium-signup/error-context.md
+
+  1 failed
+    [chromium:signup] › tests/e2e-ui/full/signup_to_paid_invoice.spec.ts:78:2 › Fresh signup to paid invoice › signs up, verifies email, reaches paid invoice evidence 
+exit=1

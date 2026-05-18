@@ -11,6 +11,7 @@ use api::models::{
 };
 use api::provisioner::mock::MockVmProvisioner;
 use api::repos::api_key_repo::ApiKeyRepo;
+use api::repos::dispute_repo::{DisputeRepo, DisputeRow, DisputeUpsertInput};
 use api::repos::index_migration_repo::IndexMigrationRepo;
 use api::repos::invoice_repo::{InvoiceRepo, NewInvoice, NewLineItem};
 use api::repos::tenant_repo::TenantRepo;
@@ -38,9 +39,9 @@ use api::services::migration::{
 };
 use api::services::webhook_http::WebhookHttpClient;
 use api::stripe::{
-    CheckoutSessionResponse, CreatePortalSessionRequest, FinalizedInvoice, PaymentMethodSummary,
-    PortalSessionResponse, StripeError, StripeEvent, StripeInvoiceLineItem, StripeService,
-    SubscriptionData,
+    CheckoutSessionResponse, CreatePortalSessionRequest, FinalizedInvoice, PaidInvoice,
+    PaymentMethodSummary, PortalSessionResponse, StripeChargeLookup, StripeError, StripeEvent,
+    StripeInvoiceLineItem, StripeService, SubscriptionData,
 };
 use api::usage::summarize_usage_totals;
 use async_trait::async_trait;
@@ -63,6 +64,10 @@ pub struct MockCustomerRepo {
     fail_next_oauth_link_not_found: AtomicBool,
     inject_next_oauth_create_conflict_email: Mutex<Option<String>>,
     fail_next_resend_rollback: Mutex<Option<InjectedResendRollbackFailure>>,
+    fail_next_set_billing_plan: AtomicBool,
+    fail_next_set_subscription_cycle_anchor: AtomicBool,
+    fail_next_find_by_id: AtomicBool,
+    fail_next_record_successful_login: AtomicBool,
 }
 
 enum InjectedResendRollbackFailure {
@@ -93,6 +98,7 @@ impl MockCustomerRepo {
             status: status.to_string(),
             deleted_at: (status == "deleted").then_some(updated_at),
             billing_plan: "free".to_string(),
+            subscription_cycle_anchor_at: None,
             quota_warning_sent_at: None,
             quota_warnings_sent: Json(IngestQuotaWarningsSentState::default()),
             created_at,
@@ -107,6 +113,15 @@ impl MockCustomerRepo {
             last_accessed_at: None,
             overdue_invoice_count: 0,
             object_storage_egress_carryforward_cents: Decimal::ZERO,
+            failed_login_count: 0,
+            failed_login_window_start: None,
+            login_locked_until: None,
+            failed_verify_count: 0,
+            failed_verify_window_start: None,
+            verify_locked_until: None,
+            failed_reset_count: 0,
+            failed_reset_window_start: None,
+            reset_locked_until: None,
         }
     }
 
@@ -121,7 +136,26 @@ impl MockCustomerRepo {
             fail_next_oauth_link_not_found: AtomicBool::new(false),
             inject_next_oauth_create_conflict_email: Mutex::new(None),
             fail_next_resend_rollback: Mutex::new(None),
+            fail_next_set_billing_plan: AtomicBool::new(false),
+            fail_next_set_subscription_cycle_anchor: AtomicBool::new(false),
+            fail_next_find_by_id: AtomicBool::new(false),
+            fail_next_record_successful_login: AtomicBool::new(false),
         }
+    }
+
+    /// Force the next billing-plan update to report "not found" without mutating state.
+    pub fn fail_next_set_billing_plan(&self) {
+        self.fail_next_set_billing_plan
+            .store(true, Ordering::SeqCst);
+    }
+
+    pub fn fail_next_set_subscription_cycle_anchor(&self) {
+        self.fail_next_set_subscription_cycle_anchor
+            .store(true, Ordering::SeqCst);
+    }
+
+    pub fn fail_next_find_by_id(&self) {
+        self.fail_next_find_by_id.store(true, Ordering::SeqCst);
     }
 
     /// Force the next soft-delete call to report "not found" without mutating state.
@@ -162,6 +196,13 @@ impl MockCustomerRepo {
         *fail_next = Some(InjectedResendRollbackFailure::ReturnError(
             message.to_string(),
         ));
+    }
+
+    /// Force the next successful-login lockout reset to report `false` without
+    /// mutating state so auth-route tests can verify that login fails closed.
+    pub fn fail_next_record_successful_login(&self) {
+        self.fail_next_record_successful_login
+            .store(true, Ordering::SeqCst);
     }
 
     /// Seed the mock with an already-deleted customer (for 404 tests).
@@ -206,6 +247,30 @@ impl MockCustomerRepo {
         customer
     }
 
+    /// Test-only helper: clear the persisted cycle anchor without requiring
+    /// async trait calls. Useful for injecting post-upgrade mutation races.
+    pub fn clear_subscription_cycle_anchor_for_test(&self, id: Uuid) {
+        let mut customers = self.customers.lock().unwrap();
+        if let Some(customer) = customers.iter_mut().find(|customer| customer.id == id) {
+            customer.subscription_cycle_anchor_at = None;
+            customer.updated_at = Utc::now();
+        }
+    }
+
+    /// Test-only helper: force a persisted cycle anchor to a specific value.
+    pub fn set_subscription_cycle_anchor_for_test(&self, id: Uuid, anchor_at: DateTime<Utc>) {
+        let mut customers = self.customers.lock().unwrap();
+        if let Some(customer) = customers.iter_mut().find(|customer| customer.id == id) {
+            customer.subscription_cycle_anchor_at = Some(anchor_at);
+            customer.updated_at = Utc::now();
+        }
+    }
+
+    pub fn delete_customer_for_test(&self, id: Uuid) {
+        let mut customers = self.customers.lock().unwrap();
+        customers.retain(|customer| customer.id != id);
+    }
+
     /// Override customer-row billing-health input fields on a stored fixture.
     ///
     /// Only fields that live on the customer row are settable here:
@@ -228,6 +293,73 @@ impl MockCustomerRepo {
         customer.overdue_invoice_count = overdue_invoice_count;
         customer.clone()
     }
+
+    /// Set the login lockout timestamp for an existing non-deleted customer.
+    /// Intended for auth lockout tests that need deterministic expiry behavior.
+    pub fn set_login_locked_until_for_test(
+        &self,
+        customer_id: Uuid,
+        login_locked_until: Option<DateTime<Utc>>,
+    ) -> bool {
+        let mut customers = self.customers.lock().unwrap();
+        let Some(customer) = customers
+            .iter_mut()
+            .find(|customer| customer.id == customer_id && customer.status != "deleted")
+        else {
+            return false;
+        };
+        customer.login_locked_until = login_locked_until;
+        customer.updated_at = Utc::now();
+        true
+    }
+
+    /// Set verify-email lockout state fields directly for regression tests that
+    /// need to prove route behavior is independent from deferred customer-level
+    /// verify lockout columns.
+    pub fn set_verify_lockout_state_for_test(
+        &self,
+        customer_id: Uuid,
+        failed_verify_count: i32,
+        failed_verify_window_start: Option<DateTime<Utc>>,
+        verify_locked_until: Option<DateTime<Utc>>,
+    ) -> bool {
+        let mut customers = self.customers.lock().unwrap();
+        let Some(customer) = customers
+            .iter_mut()
+            .find(|customer| customer.id == customer_id && customer.status != "deleted")
+        else {
+            return false;
+        };
+        customer.failed_verify_count = failed_verify_count;
+        customer.failed_verify_window_start = failed_verify_window_start;
+        customer.verify_locked_until = verify_locked_until;
+        customer.updated_at = Utc::now();
+        true
+    }
+
+    /// Set reset-password lockout state fields directly for regression tests
+    /// that need to prove route behavior is independent from deferred
+    /// customer-level reset lockout columns.
+    pub fn set_reset_lockout_state_for_test(
+        &self,
+        customer_id: Uuid,
+        failed_reset_count: i32,
+        failed_reset_window_start: Option<DateTime<Utc>>,
+        reset_locked_until: Option<DateTime<Utc>>,
+    ) -> bool {
+        let mut customers = self.customers.lock().unwrap();
+        let Some(customer) = customers
+            .iter_mut()
+            .find(|customer| customer.id == customer_id && customer.status != "deleted")
+        else {
+            return false;
+        };
+        customer.failed_reset_count = failed_reset_count;
+        customer.failed_reset_window_start = failed_reset_window_start;
+        customer.reset_locked_until = reset_locked_until;
+        customer.updated_at = Utc::now();
+        true
+    }
 }
 
 #[async_trait]
@@ -238,6 +370,10 @@ impl CustomerRepo for MockCustomerRepo {
     }
 
     async fn find_by_id(&self, id: Uuid) -> Result<Option<Customer>, RepoError> {
+        if self.fail_next_find_by_id.swap(false, Ordering::SeqCst) {
+            return Err(RepoError::Other("injected find_by_id failure".into()));
+        }
+
         let customers = self.customers.lock().unwrap();
         Ok(customers.iter().find(|c| c.id == id).cloned())
     }
@@ -810,7 +946,48 @@ impl CustomerRepo for MockCustomerRepo {
         Ok(true)
     }
 
+    async fn rollback_ingest_quota_warning_for_month(
+        &self,
+        id: Uuid,
+        metric: IngestQuotaWarningMetric,
+        year: i32,
+        month: u32,
+    ) -> Result<bool, RepoError> {
+        let Some(month_key) = Customer::normalized_ingest_quota_warning_month_key(year, month)
+        else {
+            return Err(RepoError::Other(
+                "invalid ingest quota warning month".to_string(),
+            ));
+        };
+        let mut customers = self.customers.lock().unwrap();
+        let Some(customer) = customers
+            .iter_mut()
+            .find(|c| c.id == id && c.status != "deleted")
+        else {
+            return Ok(false);
+        };
+
+        let recorded_month = customer.quota_warnings_sent.0.month_for_metric(metric);
+        if recorded_month != Some(month_key.as_str()) {
+            return Ok(false);
+        }
+
+        match metric {
+            IngestQuotaWarningMetric::Records => customer.quota_warnings_sent.0.records = None,
+            IngestQuotaWarningMetric::StorageMb => customer.quota_warnings_sent.0.storage_mb = None,
+        }
+        customer.updated_at = Utc::now();
+        Ok(true)
+    }
+
     async fn set_billing_plan(&self, id: Uuid, plan: &str) -> Result<bool, RepoError> {
+        if self
+            .fail_next_set_billing_plan
+            .swap(false, Ordering::SeqCst)
+        {
+            return Ok(false);
+        }
+
         let mut customers = self.customers.lock().unwrap();
         match customers
             .iter_mut()
@@ -819,6 +996,87 @@ impl CustomerRepo for MockCustomerRepo {
             Some(c) => {
                 c.billing_plan = plan.to_string();
                 c.updated_at = Utc::now();
+                Ok(true)
+            }
+            None => Ok(false),
+        }
+    }
+
+    async fn set_subscription_cycle_anchor(
+        &self,
+        id: Uuid,
+        anchor_at: Option<DateTime<Utc>>,
+    ) -> Result<bool, RepoError> {
+        if self
+            .fail_next_set_subscription_cycle_anchor
+            .swap(false, Ordering::SeqCst)
+        {
+            return Ok(false);
+        }
+
+        let mut customers = self.customers.lock().unwrap();
+        match customers
+            .iter_mut()
+            .find(|customer| customer.id == id && customer.status != "deleted")
+        {
+            Some(customer) => {
+                customer.subscription_cycle_anchor_at = anchor_at;
+                customer.updated_at = Utc::now();
+                Ok(true)
+            }
+            None => Ok(false),
+        }
+    }
+
+    async fn try_upgrade_to_shared_atomic(
+        &self,
+        id: Uuid,
+        subscription_cycle_anchor_at: DateTime<Utc>,
+    ) -> Result<bool, RepoError> {
+        let mut customers = self.customers.lock().unwrap();
+        match customers.iter_mut().find(|customer| {
+            customer.id == id && customer.billing_plan == "free" && customer.status != "deleted"
+        }) {
+            Some(customer) => {
+                customer.billing_plan = "shared".to_string();
+                customer.subscription_cycle_anchor_at = Some(subscription_cycle_anchor_at);
+                customer.updated_at = Utc::now();
+                Ok(true)
+            }
+            None => Ok(false),
+        }
+    }
+
+    async fn rollback_upgrade_to_free_atomic(
+        &self,
+        id: Uuid,
+        expected_subscription_cycle_anchor_at: DateTime<Utc>,
+    ) -> Result<bool, RepoError> {
+        if self
+            .fail_next_set_billing_plan
+            .swap(false, Ordering::SeqCst)
+            || self
+                .fail_next_set_subscription_cycle_anchor
+                .swap(false, Ordering::SeqCst)
+        {
+            return Err(RepoError::Other(
+                "injected rollback upgrade persistence failure".into(),
+            ));
+        }
+
+        let mut customers = self.customers.lock().unwrap();
+        match customers.iter_mut().find(|customer| {
+            customer.id == id
+                && customer.status != "deleted"
+                && customer.billing_plan == "shared"
+                && (customer.subscription_cycle_anchor_at
+                    == Some(expected_subscription_cycle_anchor_at)
+                    || customer.subscription_cycle_anchor_at.is_none())
+        }) {
+            Some(customer) => {
+                customer.billing_plan = "free".to_string();
+                customer.subscription_cycle_anchor_at = None;
+                customer.updated_at = Utc::now();
                 Ok(true)
             }
             None => Ok(false),
@@ -888,6 +1146,88 @@ impl CustomerRepo for MockCustomerRepo {
                 Ok(true)
             }
             None => Ok(false),
+        }
+    }
+
+    async fn record_failed_login(&self, id: Uuid) -> Result<Option<i64>, RepoError> {
+        use api::auth::lockout::{LOGIN_LOCK_DURATION, LOGIN_THRESHOLD, LOGIN_WINDOW};
+
+        let mut customers = self.customers.lock().unwrap();
+        let now = Utc::now();
+        let Some(c) = customers
+            .iter_mut()
+            .find(|c| c.id == id && c.status != "deleted")
+        else {
+            return Ok(None);
+        };
+
+        if c.login_locked_until.is_some_and(|lu| lu > now) {
+            let remaining = (c.login_locked_until.unwrap() - now).num_seconds().max(1);
+            return Ok(Some(remaining));
+        }
+
+        let window_expired = c
+            .failed_login_window_start
+            .is_none_or(|ws| ws + LOGIN_WINDOW < now);
+
+        if window_expired {
+            c.failed_login_count = 1;
+            c.failed_login_window_start = Some(now);
+        } else {
+            c.failed_login_count += 1;
+        }
+
+        if c.failed_login_count >= LOGIN_THRESHOLD as i32 {
+            c.login_locked_until = Some(now + LOGIN_LOCK_DURATION);
+            let remaining = LOGIN_LOCK_DURATION.num_seconds();
+            c.updated_at = now;
+            return Ok(Some(remaining));
+        }
+
+        c.updated_at = now;
+        Ok(None)
+    }
+
+    async fn record_successful_login(&self, id: Uuid) -> Result<bool, RepoError> {
+        if self
+            .fail_next_record_successful_login
+            .swap(false, Ordering::SeqCst)
+        {
+            return Ok(false);
+        }
+
+        let mut customers = self.customers.lock().unwrap();
+        match customers
+            .iter_mut()
+            .find(|c| c.id == id && c.status != "deleted")
+        {
+            Some(c) => {
+                c.failed_login_count = 0;
+                c.failed_login_window_start = None;
+                c.login_locked_until = None;
+                c.updated_at = Utc::now();
+                Ok(true)
+            }
+            None => Ok(false),
+        }
+    }
+
+    async fn login_lockout_remaining(&self, id: Uuid) -> Result<Option<i64>, RepoError> {
+        let customers = self.customers.lock().unwrap();
+        let now = Utc::now();
+        let Some(c) = customers
+            .iter()
+            .find(|c| c.id == id && c.status != "deleted")
+        else {
+            return Ok(None);
+        };
+
+        match c.login_locked_until {
+            Some(lu) if lu > now => {
+                let remaining = (lu - now).num_seconds().max(1);
+                Ok(Some(remaining))
+            }
+            _ => Ok(None),
         }
     }
 }
@@ -1026,7 +1366,7 @@ impl DeploymentRepo for MockDeploymentRepo {
             })
             .cloned()
             .collect();
-        result.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+        result.sort_by_key(|row| std::cmp::Reverse(row.created_at));
         Ok(result)
     }
 
@@ -1749,7 +2089,7 @@ impl InvoiceRepo for MockInvoiceRepo {
             .filter(|i| i.customer_id == customer_id)
             .cloned()
             .collect();
-        result.sort_by(|a, b| b.period_start.cmp(&a.period_start));
+        result.sort_by_key(|row| std::cmp::Reverse(row.period_start));
         Ok(result)
     }
 
@@ -1952,7 +2292,13 @@ pub struct MockStripeService {
     pub cancel_subscription_calls: Mutex<Vec<(String, bool)>>, // (subscription_id, cancel_at_period_end)
     pub update_subscription_calls: Mutex<Vec<(String, String, String)>>, // (subscription_id, new_price_id, proration_behavior)
     pub create_and_finalize_calls: Mutex<Vec<(String, Option<String>)>>, // (customer_id, idempotency_key)
+    pub pay_invoice_calls: Mutex<Vec<String>>,
+    pub void_invoice_calls: Mutex<Vec<String>>,
+    pub pay_invoice_result_default: Mutex<PaidInvoice>,
     pub subscriptions: Mutex<Vec<SubscriptionData>>,
+    on_pay_invoice: Mutex<Option<Arc<dyn Fn() + Send + Sync>>>,
+    pub charge_lookup_by_charge_id: Mutex<HashMap<String, StripeChargeLookup>>,
+    pub charge_lookup_error: Mutex<Option<String>>,
 }
 
 impl MockStripeService {
@@ -1973,7 +2319,18 @@ impl MockStripeService {
             cancel_subscription_calls: Mutex::new(Vec::new()),
             update_subscription_calls: Mutex::new(Vec::new()),
             create_and_finalize_calls: Mutex::new(Vec::new()),
+            pay_invoice_calls: Mutex::new(Vec::new()),
+            void_invoice_calls: Mutex::new(Vec::new()),
+            pay_invoice_result_default: Mutex::new(PaidInvoice {
+                id: "in_mock_default".to_string(),
+                status: "paid".to_string(),
+                amount_paid_cents: 5000,
+                last_payment_error: None,
+            }),
             subscriptions: Mutex::new(Vec::new()),
+            on_pay_invoice: Mutex::new(None),
+            charge_lookup_by_charge_id: Mutex::new(HashMap::new()),
+            charge_lookup_error: Mutex::new(None),
         }
     }
 
@@ -1995,6 +2352,25 @@ impl MockStripeService {
 
     pub fn seed_subscription(&self, subscription: SubscriptionData) {
         self.subscriptions.lock().unwrap().push(subscription);
+    }
+
+    pub fn set_pay_invoice_result_default(&self, paid_invoice: PaidInvoice) {
+        *self.pay_invoice_result_default.lock().unwrap() = paid_invoice;
+    }
+
+    pub fn set_on_pay_invoice(&self, callback: Arc<dyn Fn() + Send + Sync>) {
+        *self.on_pay_invoice.lock().unwrap() = Some(callback);
+    }
+
+    pub fn seed_charge_lookup(&self, lookup: StripeChargeLookup) {
+        self.charge_lookup_by_charge_id
+            .lock()
+            .unwrap()
+            .insert(lookup.charge_id.clone(), lookup);
+    }
+
+    pub fn set_charge_lookup_error(&self, message: &str) {
+        *self.charge_lookup_error.lock().unwrap() = Some(message.to_string());
     }
 }
 
@@ -2115,6 +2491,65 @@ impl StripeService for MockStripeService {
         };
         self.invoices_created.lock().unwrap().push(inv.clone());
         Ok(inv)
+    }
+
+    async fn pay_invoice(&self, stripe_invoice_id: &str) -> Result<PaidInvoice, StripeError> {
+        if *self.should_be_unconfigured.lock().unwrap() {
+            return Err(StripeError::NotConfigured);
+        }
+        if *self.should_fail.lock().unwrap() {
+            return Err(StripeError::Api("mock failure".into()));
+        }
+        self.pay_invoice_calls
+            .lock()
+            .unwrap()
+            .push(stripe_invoice_id.to_string());
+        if let Some(callback) = self.on_pay_invoice.lock().unwrap().clone() {
+            callback();
+        }
+        let mut result = self.pay_invoice_result_default.lock().unwrap().clone();
+        result.id = stripe_invoice_id.to_string();
+        Ok(result)
+    }
+
+    async fn void_invoice(&self, stripe_invoice_id: &str) -> Result<PaidInvoice, StripeError> {
+        if *self.should_be_unconfigured.lock().unwrap() {
+            return Err(StripeError::NotConfigured);
+        }
+        if *self.should_fail.lock().unwrap() {
+            return Err(StripeError::Api("mock failure".into()));
+        }
+        self.void_invoice_calls
+            .lock()
+            .unwrap()
+            .push(stripe_invoice_id.to_string());
+        Ok(PaidInvoice {
+            id: stripe_invoice_id.to_string(),
+            status: "void".to_string(),
+            amount_paid_cents: 0,
+            last_payment_error: None,
+        })
+    }
+
+    async fn lookup_charge_fallback_fields(
+        &self,
+        charge_id: &str,
+    ) -> Result<StripeChargeLookup, StripeError> {
+        if *self.should_be_unconfigured.lock().unwrap() {
+            return Err(StripeError::NotConfigured);
+        }
+        if *self.should_fail.lock().unwrap() {
+            return Err(StripeError::Api("mock failure".into()));
+        }
+        if let Some(message) = self.charge_lookup_error.lock().unwrap().clone() {
+            return Err(StripeError::Api(message));
+        }
+        self.charge_lookup_by_charge_id
+            .lock()
+            .unwrap()
+            .get(charge_id)
+            .cloned()
+            .ok_or_else(|| StripeError::Api(format!("mock charge lookup not seeded: {charge_id}")))
     }
 
     /// Implements `StripeService::construct_webhook_event`. Skips real HMAC
@@ -2617,6 +3052,20 @@ impl WebhookEventRepo for MockWebhookEventRepo {
         Ok(None)
     }
 
+    async fn count_stale_unprocessed(
+        &self,
+        older_than: std::time::Duration,
+    ) -> Result<i64, RepoError> {
+        let rows = self.rows.lock().unwrap();
+        let older_than_seconds = older_than.as_secs().min(i64::MAX as u64) as i64;
+        let threshold = Utc::now() - chrono::Duration::seconds(older_than_seconds);
+        let stale_count = rows
+            .values()
+            .filter(|row| row.processed_at.is_none() && row.created_at < threshold)
+            .count() as i64;
+        Ok(stale_count)
+    }
+
     async fn delete_unprocessed(&self, stripe_event_id: &str) -> Result<(), RepoError> {
         let mut rows = self.rows.lock().unwrap();
         if let Some(row) = rows.get(stripe_event_id) {
@@ -2637,6 +3086,61 @@ impl WebhookEventRepo for MockWebhookEventRepo {
 
 pub fn mock_webhook_event_repo() -> Arc<MockWebhookEventRepo> {
     Arc::new(MockWebhookEventRepo::new())
+}
+
+pub struct MockDisputeRepo {
+    rows: Mutex<HashMap<String, DisputeRow>>,
+}
+
+impl MockDisputeRepo {
+    pub fn new() -> Self {
+        Self {
+            rows: Mutex::new(HashMap::new()),
+        }
+    }
+}
+
+#[async_trait]
+impl DisputeRepo for MockDisputeRepo {
+    async fn upsert(&self, input: &DisputeUpsertInput) -> Result<DisputeRow, RepoError> {
+        let mut rows = self.rows.lock().unwrap();
+        let existing = rows.get(&input.stripe_dispute_id).cloned();
+        let created_at = existing
+            .as_ref()
+            .map(|row| row.created_at)
+            .unwrap_or_else(Utc::now);
+        let row = DisputeRow {
+            id: existing
+                .map(|existing_row| existing_row.id)
+                .unwrap_or_else(Uuid::new_v4),
+            stripe_dispute_id: input.stripe_dispute_id.clone(),
+            stripe_charge_id: input.stripe_charge_id.clone(),
+            stripe_payment_intent_id: input.stripe_payment_intent_id.clone(),
+            invoice_id: input.invoice_id,
+            amount_cents: input.amount_cents,
+            currency: input.currency.clone(),
+            reason: input.reason.clone(),
+            status: input.status.clone(),
+            evidence_due_by: input.evidence_due_by,
+            disputed_at: input.disputed_at,
+            resolved_at: input.resolved_at,
+            created_at,
+            updated_at: Utc::now(),
+        };
+        rows.insert(input.stripe_dispute_id.clone(), row.clone());
+        Ok(row)
+    }
+
+    async fn find_by_stripe_dispute_id(
+        &self,
+        stripe_dispute_id: &str,
+    ) -> Result<Option<DisputeRow>, RepoError> {
+        Ok(self.rows.lock().unwrap().get(stripe_dispute_id).cloned())
+    }
+}
+
+pub fn mock_dispute_repo() -> Arc<MockDisputeRepo> {
+    Arc::new(MockDisputeRepo::new())
 }
 
 pub fn mock_vm_provisioner() -> Arc<MockVmProvisioner> {
@@ -3068,7 +3572,7 @@ impl IndexMigrationRepo for MockIndexMigrationRepo {
             return Ok(Vec::new());
         }
         let mut rows = self.rows.lock().unwrap().clone();
-        rows.sort_by(|a, b| b.started_at.cmp(&a.started_at));
+        rows.sort_by_key(|row| std::cmp::Reverse(row.started_at));
         rows.truncate(limit as usize);
         Ok(rows)
     }
@@ -3250,7 +3754,7 @@ impl TenantRepo for MockTenantRepo {
                 })
             })
             .collect();
-        results.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+        results.sort_by_key(|row| std::cmp::Reverse(row.created_at));
         Ok(results)
     }
 
@@ -3325,7 +3829,7 @@ impl TenantRepo for MockTenantRepo {
             .filter(|t| t.deployment_id == deployment_id)
             .cloned()
             .collect();
-        results.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+        results.sort_by_key(|row| std::cmp::Reverse(row.created_at));
         Ok(results)
     }
 
@@ -3379,7 +3883,7 @@ impl TenantRepo for MockTenantRepo {
             .filter(|t| t.vm_id == Some(vm_id))
             .cloned()
             .collect();
-        results.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+        results.sort_by_key(|row| std::cmp::Reverse(row.created_at));
         Ok(results)
     }
 
@@ -3390,7 +3894,7 @@ impl TenantRepo for MockTenantRepo {
             .filter(|t| t.tier == "migrating")
             .cloned()
             .collect();
-        results.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+        results.sort_by_key(|row| std::cmp::Reverse(row.created_at));
         Ok(results)
     }
 
@@ -3401,7 +3905,7 @@ impl TenantRepo for MockTenantRepo {
             .filter(|t| t.vm_id.is_none())
             .cloned()
             .collect();
-        results.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+        results.sort_by_key(|row| std::cmp::Reverse(row.created_at));
         Ok(results)
     }
 
@@ -3422,7 +3926,7 @@ impl TenantRepo for MockTenantRepo {
             })
             .cloned()
             .collect();
-        results.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+        results.sort_by_key(|row| std::cmp::Reverse(row.created_at));
         Ok(results)
     }
 
@@ -3507,7 +4011,7 @@ impl TenantRepo for MockTenantRepo {
             .filter(|t| t.customer_id == customer_id)
             .cloned()
             .collect();
-        results.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+        results.sort_by_key(|row| std::cmp::Reverse(row.created_at));
         Ok(results)
     }
 

@@ -76,3 +76,16 @@ regexes = [
     '''sk_test_[A-Za-z0-9]{16,}''',
     '''rk_test_[A-Za-z0-9]{16,}''',
 ]
+
+[[rules]]
+id = "curl-auth-user"
+
+[[rules.allowlists]]
+description = "Allow shell-variable curl auth-user placeholders only"
+regexTarget = "match"
+regexes = [
+    # Allow only shell-variable auth user forms like:
+    #   -u "$VAR:"
+    #   -u "${VAR}:"
+    '''-u\s+["']?\$\{?[A-Za-z_][A-Za-z0-9_]*\}?:''',
+]

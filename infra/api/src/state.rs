@@ -9,6 +9,7 @@ use crate::repos::ApiKeyRepo;
 use crate::repos::ColdSnapshotRepo;
 use crate::repos::CustomerRepo;
 use crate::repos::DeploymentRepo;
+use crate::repos::DisputeRepo;
 use crate::repos::IndexMigrationRepo;
 use crate::repos::IndexReplicaRepo;
 use crate::repos::InvoiceRepo;
@@ -107,6 +108,7 @@ pub struct AppState {
     pub usage_repo: Arc<dyn UsageRepo + Send + Sync>,
     pub rate_card_repo: Arc<dyn RateCardRepo + Send + Sync>,
     pub invoice_repo: Arc<dyn InvoiceRepo + Send + Sync>,
+    pub dispute_repo: Arc<dyn DisputeRepo + Send + Sync>,
     pub stripe_service: Arc<dyn StripeService>,
     pub webhook_http_client: Arc<dyn WebhookHttpClient>,
     pub email_service: Arc<dyn EmailService>,

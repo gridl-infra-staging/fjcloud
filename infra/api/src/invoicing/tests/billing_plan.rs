@@ -205,6 +205,7 @@ fn unknown_billing_plan_defaults_to_shared_minimum_via_customer_enum() {
         status: "active".to_string(),
         deleted_at: None,
         billing_plan: "enterprise".to_string(),
+        subscription_cycle_anchor_at: None,
         quota_warning_sent_at: None,
         quota_warnings_sent: sqlx::types::Json(
             crate::models::IngestQuotaWarningsSentState::default(),
@@ -221,6 +222,15 @@ fn unknown_billing_plan_defaults_to_shared_minimum_via_customer_enum() {
         last_accessed_at: None,
         overdue_invoice_count: 0,
         object_storage_egress_carryforward_cents: Decimal::ZERO,
+        failed_login_count: 0,
+        failed_login_window_start: None,
+        login_locked_until: None,
+        failed_verify_count: 0,
+        failed_verify_window_start: None,
+        verify_locked_until: None,
+        failed_reset_count: 0,
+        failed_reset_window_start: None,
+        reset_locked_until: None,
     };
 
     let result = generate_invoice(

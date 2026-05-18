@@ -1,0 +1,12 @@
+$ aws ssm get-parameter --name /fjcloud/prod/canary_quiet_until --region us-east-1
+{
+    "Parameter": {
+        "Name": "/fjcloud/prod/canary_quiet_until",
+        "Type": "String",
+        "Value": "2026-05-14T04:13:11Z",
+        "Version": 1,
+        "LastModifiedDate": "2026-05-13T23:43:11.349000-04:00",
+        "ARN": "arn:aws:ssm:us-east-1:213880904778:parameter/fjcloud/prod/canary_quiet_until",
+        "DataType": "text"
+    }
+}

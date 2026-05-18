@@ -17,11 +17,13 @@ import type {
 	SetupIntentResponse,
 	CreateBillingPortalSessionRequest,
 	CreateBillingPortalSessionResponse,
+	BillingUpgradeResponse,
 	PaymentMethod,
 	ApiKeyListItem,
 	CreateApiKeyRequest,
 	CreateApiKeyResponse,
 	CustomerProfileResponse,
+	CustomerUpgradeStatusResponse,
 	AccountExportResponse,
 	UpdateProfileRequest,
 	ChangePasswordRequest,
@@ -85,7 +87,7 @@ export class ApiRequestError extends Error {
 	constructor(
 		public readonly status: number,
 		message: string,
-		public readonly metadata: { requestId?: string; headers?: Headers } = {}
+		public readonly metadata: { requestId?: string; headers?: Headers; body?: unknown } = {}
 	) {
 		super(message);
 		this.name = 'ApiRequestError';
@@ -97,6 +99,10 @@ export class ApiRequestError extends Error {
 
 	get headers(): Headers | undefined {
 		return this.metadata.headers;
+	}
+
+	get body(): unknown {
+		return this.metadata.body;
 	}
 }
 
@@ -132,7 +138,8 @@ export class ApiClient extends BaseClient {
 			// Backend x-request-id is operator-facing correlation metadata. It is
 			// stored for logs/reporting, not rendered directly to customers.
 			requestId,
-			headers
+			headers,
+			body: data
 		});
 	}
 
@@ -324,6 +331,10 @@ export class ApiClient extends BaseClient {
 		return this.api('POST', '/billing/portal', req);
 	}
 
+	upgradeToShared(): Promise<BillingUpgradeResponse> {
+		return this.api('POST', '/billing/upgrade', {});
+	}
+
 	// --- API Keys ---
 
 	createApiKey(req: CreateApiKeyRequest): Promise<CreateApiKeyResponse> {
@@ -342,6 +353,10 @@ export class ApiClient extends BaseClient {
 
 	getProfile(): Promise<CustomerProfileResponse> {
 		return this.api('GET', '/account');
+	}
+
+	getUpgradeStatus(): Promise<CustomerUpgradeStatusResponse> {
+		return this.api('GET', '/account/upgrade-status');
 	}
 
 	exportAccount(): Promise<AccountExportResponse> {

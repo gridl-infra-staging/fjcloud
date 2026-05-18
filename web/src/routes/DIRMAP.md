@@ -10,6 +10,7 @@
 | --- | --- |
 | admin | The admin directory provides a dashboard for system administration with pages for managing alerts, billing operations, customer accounts, and index migrations. |
 | api | The api directory contains SvelteKit server endpoints for three core customer-facing features: pricing comparison, authenticated search execution against Flapjack indexes, and Stripe integration including credential exposure. |
+| billing | The billing directory contains SvelteKit server endpoints for customer billing operations, including an upgrade endpoint that proxies authenticated POST requests to the backend's billing API while gracefully handling service unavailability. |
 | dashboard | — |
 | forgot-password | — |
 | login | — |

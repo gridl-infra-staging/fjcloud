@@ -108,7 +108,7 @@ impl IndexMigrationRepo for MockIndexMigrationRepo {
 
     async fn list_recent(&self, limit: i64) -> Result<Vec<IndexMigration>, RepoError> {
         let mut rows = self.rows.lock().unwrap().clone();
-        rows.sort_by(|a, b| b.started_at.cmp(&a.started_at));
+        rows.sort_by_key(|row| std::cmp::Reverse(row.started_at));
         if limit <= 0 {
             return Ok(Vec::new());
         }

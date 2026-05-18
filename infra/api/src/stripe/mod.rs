@@ -3,7 +3,7 @@ pub mod live;
 pub mod local;
 
 use async_trait::async_trait;
-use chrono::NaiveDate;
+use chrono::{DateTime, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
@@ -41,6 +41,30 @@ pub struct FinalizedInvoice {
     pub stripe_invoice_id: String,
     pub hosted_invoice_url: String,
     pub pdf_url: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct StripeLastPaymentError {
+    pub code: Option<String>,
+    pub decline_code: Option<String>,
+    pub message: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PaidInvoice {
+    pub id: String,
+    pub status: String,
+    pub amount_paid_cents: i64,
+    pub last_payment_error: Option<StripeLastPaymentError>,
+}
+
+/// Normalized charge lookup response consumed by webhook routes so they can
+/// avoid direct dependencies on Stripe SDK response object shapes.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StripeChargeLookup {
+    pub charge_id: String,
+    pub invoice_id: Option<String>,
+    pub payment_intent_id: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -82,6 +106,21 @@ pub fn invoice_create_idempotency_key(
     // Bounded length to keep the Stripe header safely small while staying
     // deterministic and collision-resistant for our usage.
     format!("fjcloud-invoice-{}", &hash[..32])
+}
+
+/// Build a deterministic idempotency key for shared-plan activation invoice
+/// create+finalize requests.
+pub fn activation_upgrade_idempotency_key(
+    customer_id: Uuid,
+    subscription_cycle_anchor_at: DateTime<Utc>,
+) -> String {
+    let payload = format!(
+        "upgrade:{customer_id}:{}",
+        subscription_cycle_anchor_at.to_rfc3339()
+    );
+    let digest = Sha256::digest(payload.as_bytes());
+    let hash = hex::encode(digest);
+    format!("fjcloud-upgrade-{}", &hash[..32])
 }
 
 /// Parsed subscription data from Stripe API.
@@ -137,6 +176,17 @@ pub trait StripeService: Send + Sync {
         metadata: Option<&std::collections::HashMap<String, String>>,
         idempotency_key: Option<&str>,
     ) -> Result<FinalizedInvoice, StripeError>;
+
+    async fn pay_invoice(&self, stripe_invoice_id: &str) -> Result<PaidInvoice, StripeError>;
+
+    async fn void_invoice(&self, stripe_invoice_id: &str) -> Result<PaidInvoice, StripeError>;
+
+    /// Resolve fallback linkage fields from a charge ID using a normalized
+    /// model that isolates webhook routes from Stripe SDK object shapes.
+    async fn lookup_charge_fallback_fields(
+        &self,
+        charge_id: &str,
+    ) -> Result<StripeChargeLookup, StripeError>;
 
     fn construct_webhook_event(
         &self,

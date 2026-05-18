@@ -1,0 +1,51 @@
+Return-Path: <0100019e3958e1e6-d0dac284-3ba1-4bb2-b90f-9a750d8234b2-000000@mail.flapjack.foo>
+Received: from a48-107.smtp-out.amazonses.com (a48-107.smtp-out.amazonses.com [54.240.48.107])
+ by inbound-smtp.us-east-1.amazonaws.com with SMTP id shptd12pm7r2goote4uucf2r6f971hilkpsunl81
+ for canary+canary2026051804294611523@test.flapjack.foo;
+ Mon, 18 May 2026 04:29:47 +0000 (UTC)
+X-SES-Spam-Verdict: PASS
+X-SES-Virus-Verdict: PASS
+Received-SPF: pass (spfCheck: domain of mail.flapjack.foo designates 54.240.48.107 as permitted sender) client-ip=54.240.48.107; envelope-from=0100019e3958e1e6-d0dac284-3ba1-4bb2-b90f-9a750d8234b2-000000@mail.flapjack.foo; helo=a48-107.smtp-out.amazonses.com;
+Authentication-Results: amazonses.com;
+ spf=pass (spfCheck: domain of mail.flapjack.foo designates 54.240.48.107 as permitted sender) client-ip=54.240.48.107; envelope-from=0100019e3958e1e6-d0dac284-3ba1-4bb2-b90f-9a750d8234b2-000000@mail.flapjack.foo; helo=a48-107.smtp-out.amazonses.com;
+ dkim=pass header.i=@amazonses.com;
+ dkim=pass header.i=@flapjack.foo;
+ dmarc=pass header.from=flapjack.foo;
+X-SES-RECEIPT: AEFBQUFBQUFBQUFHZlo2bU14cko2RzI5c3VEQ0svbUZLaG1DYzNRTVVuT1pPSEVLd3EyZ0JSd0pNUWJsNVFTSmZKUTl1MFl5M0QxY1BvMTFLVzBMZGN2eWtIM2J2bVhaWnQ3WVdBSzlrdkxxM2hYTDRScERjbUtsUUY5cG1wUjJnYUx2ZkZoUUNvVWpENDk2Y3BZb01Ib2htbGRrZmJuN2NENHp1cjJ6UVdyVEJnQkZOMmZtR0l5U29QOUo0NUhPaXBTeFA0WnczN3RPTXdHQmdpcTNYQXUvR3hmMGRoNFA2MHlGZ254ZlU1MVR3RVRNbWJxKzlCWkloOFJLbWtxWkIrbWQrc2VPdThIQjYvQTJCS1MvS2tPbExKQ0cxeTk4N2djWThNN3dsc3phK29wdHA0SjJQeXpkQmFxZWZkc1ZBeUY1VWNGU1diTUZ3QzNmcDBCaDZHT1ZDOHlVWVRtWUUrUnhlMGxZbFJmaVp2TUxaZm90SldvMFBzTGNHMUVkZUVqSHl3VWN5QmwwPQ==
+X-SES-DKIM-SIGNATURE: a=rsa-sha256; q=dns/txt; b=ZgGXH9STOq3oA817VcWfj61RV4jJSeGZJrPwX1bRvi2GrcDBzqXtF39/gkm7JydzotTi0+33FJnaqgup6bPlVTVTsG955Xfa3yMZQ/bGlXZSTBPwF6127GUPUgtBLxiFzmpdaMZqGR/aS7c9nq6tj3rnffbTo+U3fPhUl+/3Fh4=; c=relaxed/simple; s=224i4yxa5dv7c2xz3womw6peuasteono; d=amazonses.com; t=1779078587; v=1; bh=TH4otdEC6je6fh5ZiyvRLL9thyw4UMUNI+65gWez9fc=; h=From:To:Cc:Bcc:Subject:Date:Message-ID:MIME-Version:Content-Type:X-SES-RECEIPT;
+DKIM-Signature: v=1; a=rsa-sha256; q=dns/txt; c=relaxed/simple;
+	s=52evdzqlkiebbauhe6az2v5towsz2dk4; d=flapjack.foo; t=1779078587;
+	h=From:To:Subject:MIME-Version:Content-Type:Content-Transfer-Encoding:Message-ID:Date;
+	bh=TH4otdEC6je6fh5ZiyvRLL9thyw4UMUNI+65gWez9fc=;
+	b=4X6fuU+2ZKtsM4g88tZKkMP0/zUS3aSjuZO/j71dh3K4Ft4zcVpaDriwIgkd8FrV
+	+gtUQSYZkWZRwq+Z2vCmDn2VdrlfFgQYDYTjX/v69QEEpE/S3u5s42PcbQih/yk9gfF
+	uN3dh7yt3N3Hk9IWtapgj8tPenAZvq0EsLDye1H00vIXgwrEzUtY8pZo+JK+LCmVxHg
+	Ic90w4SlCIhjmAEd0muNBaGqmoDfSNjpr1QvOjRhAXlJBaUwoYJrea4mSV5kEEa4Mlh
+	M2prdJ2awtEF07HnpAEUgkqZbpBFfJHYvg95l++wa0Yh9oUwypAexsiuVcnHWha4h3v
+	FWXYvIEHAg==
+DKIM-Signature: v=1; a=rsa-sha256; q=dns/txt; c=relaxed/simple;
+	s=224i4yxa5dv7c2xz3womw6peuasteono; d=amazonses.com; t=1779078587;
+	h=From:To:Subject:MIME-Version:Content-Type:Content-Transfer-Encoding:Message-ID:Date:Feedback-ID;
+	bh=TH4otdEC6je6fh5ZiyvRLL9thyw4UMUNI+65gWez9fc=;
+	b=CkHiK6cFN2PVEICpwTmJ4gPPKkJmmwEQT3DVeOw65Ksgp18r+Q5U06azeedCMBZv
+	NjKI+tvpPcdGac2K9snPH+EQFG/DQ4kybec2az/IPfZkkdsu6CvIcwwDkhm7hEVVSlV
+	2i7yeHEWaTrldQzLKNfOlr7Nvh9b6vAP1fFRr9/Q=
+From: noreply@flapjack.foo
+To: canary+canary2026051804294611523@test.flapjack.foo
+Subject: Verify your email
+MIME-Version: 1.0
+Content-Type: text/html; charset=UTF-8
+Content-Transfer-Encoding: 7bit
+Message-ID: <0100019e3958e1e6-d0dac284-3ba1-4bb2-b90f-9a750d8234b2-000000@email.amazonses.com>
+Date: Mon, 18 May 2026 04:29:46 +0000
+Feedback-ID: ::1.us-east-1.BPF9Me4osiN3bz1VVgZoGhTHknCF21Z5ojuuit3v2WI=:AmazonSES
+X-SES-Outgoing: 2026.05.18-54.240.48.107
+
+
+<html>
+  <body>
+    <h2>Verify your Flapjack Cloud account</h2>
+    <p>Thanks for signing up for Flapjack Cloud. Confirm your email by clicking the link below.</p>
+    <p><a href="https://cloud.flapjack.foo/verify-email/2526dccf51a0c68174b3db0d84369b5a33592051dcc0a57be68bfecf8273f85a">Verify email</a></p>
+  </body>
+</html>

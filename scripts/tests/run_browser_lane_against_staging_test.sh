@@ -59,7 +59,9 @@ write_mock_hydrator_with_stripe() {
 set -euo pipefail
 printf '%s\n' \
   "export ADMIN_KEY=mock-admin-key" \
-  "export API_URL=https://api.flapjack.foo" \
+  "export API_URL=https://api.staging.flapjack.foo" \
+  "export STAGING_API_URL=https://api.staging.flapjack.foo" \
+  "export STAGING_CLOUD_URL=https://staging.flapjack.foo" \
   "export STRIPE_SECRET_KEY=sk_test_staging_browser_contract" \
   "export STRIPE_WEBHOOK_SECRET=whsec_staging_browser_contract"
 EOF
@@ -74,7 +76,8 @@ write_mock_hydrator_without_stripe() {
 set -euo pipefail
 printf '%s\n' \
   "export ADMIN_KEY=mock-admin-key" \
-  "export API_URL=https://api.flapjack.foo"
+  "export API_URL=https://api.staging.flapjack.foo" \
+  "export STAGING_API_URL=https://api.staging.flapjack.foo"
 EOF
     chmod +x "$root/scripts/launch/hydrate_seeder_env_from_ssm.sh"
 }
@@ -152,9 +155,10 @@ test_both_lane_timeout_still_emits_both_lane_logs() {
     local first_lane_log second_lane_log
     first_lane_log="$workspace/evidence/signup_to_paid_invoice.txt"
     second_lane_log="$workspace/evidence/billing_portal_payment_method_update.txt"
-    local first_lane_content second_lane_content
+    local first_lane_content second_lane_content summary_content
     first_lane_content="$(cat "$first_lane_log" 2>/dev/null || true)"
     second_lane_content="$(cat "$second_lane_log" 2>/dev/null || true)"
+    summary_content="$(cat "$workspace/evidence/SUMMARY.md" 2>/dev/null || true)"
 
     assert_eq "$RUN_EXIT_CODE" "124" "both-lane run should exit 124 when a lane times out"
     assert_file_exists "$first_lane_log" "signup lane log should be created even on timeout"
@@ -163,6 +167,8 @@ test_both_lane_timeout_still_emits_both_lane_logs() {
     assert_contains "$first_lane_content" "exit=124" "signup lane log should persist timeout exit code"
     assert_contains "$second_lane_content" "mock second lane executed" "second lane should execute after first-lane timeout"
     assert_contains "$second_lane_content" "exit=0" "second lane log should include its exit code"
+    assert_contains "$summary_content" "- **API_URL:** https://api.staging.flapjack.foo" "summary should reflect hydrated staging API_URL without prod-host override"
+    assert_contains "$summary_content" "- **BASE_URL:** https://staging.flapjack.foo" "summary should reflect hydrated STAGING_CLOUD_URL instead of prod cloud host"
 
     rm -rf "$workspace"
 }

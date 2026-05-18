@@ -16,7 +16,9 @@ use tower::ServiceExt;
 use common::{
     mock_invoice_repo, mock_repo,
     stripe_webhook_test_support::{
-        seed_draft_invoice, test_app_with_alert_and_email_services, webhook_request,
+        dispute_closed_payload, dispute_created_payload, dispute_funds_reinstated_payload,
+        dispute_funds_withdrawn_payload, seed_draft_invoice,
+        test_app_with_alert_and_email_services, webhook_request,
     },
 };
 
@@ -683,5 +685,160 @@ async fn deprecated_subscription_events_do_not_emit_alerts() {
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
+    assert_eq!(alert_service.alert_count(), 0);
+}
+
+#[tokio::test]
+async fn dispute_created_emits_single_alert_with_invoice_metadata_when_resolved() {
+    let customer_repo = mock_repo();
+    let invoice_repo = mock_invoice_repo();
+    let alert_service = Arc::new(MockAlertService::new());
+    let webhook_event_repo = common::mock_webhook_event_repo();
+    let stripe_service = common::mock_stripe_service();
+    let customer = customer_repo.seed("Acme", "dispute-created-alert@example.com");
+    customer_repo
+        .set_stripe_customer_id(customer.id, "cus_dispute_created_alert")
+        .await
+        .unwrap();
+
+    let invoice = seed_draft_invoice(&invoice_repo, customer.id);
+    invoice_repo.finalize(invoice.id).await.unwrap();
+    invoice_repo.mark_paid(invoice.id).await.unwrap();
+    invoice_repo
+        .set_stripe_fields(
+            invoice.id,
+            "in_dispute_created_alert",
+            "https://stripe.com/inv/dispute-created",
+            Some("pi_dispute_created_alert"),
+        )
+        .await
+        .unwrap();
+
+    webhook_event_repo.seed_row(api::repos::webhook_event_repo::WebhookEventRow {
+        stripe_event_id: "evt_seed_dispute_created_alert_lookup".to_string(),
+        event_type: "invoice.payment_succeeded".to_string(),
+        payload: serde_json::json!({
+            "data": {"object": {"id": "in_dispute_created_alert", "payment_intent": "pi_dispute_created_alert"}}
+        }),
+        processed_at: Some(chrono::Utc::now()),
+        created_at: chrono::Utc::now(),
+    });
+
+    let state = common::TestStateBuilder::new()
+        .with_customer_repo(customer_repo)
+        .with_invoice_repo(Arc::clone(&invoice_repo))
+        .with_webhook_event_repo(webhook_event_repo)
+        .with_stripe_service(stripe_service)
+        .with_alert_service(Arc::clone(&alert_service))
+        .build();
+    let app = api::router::build_router(state);
+
+    let payload = dispute_created_payload(
+        "evt_dispute_created_alert",
+        "dp_dispute_created_alert",
+        "ch_dispute_created_alert",
+        Some("pi_dispute_created_alert"),
+        "cus_dispute_created_alert",
+        5000,
+    );
+    let resp = app.oneshot(webhook_request(&payload)).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let alerts = alert_service.recorded_alerts();
+    assert_eq!(alerts.len(), 1);
+    let metadata = alerts[0].metadata.as_object().unwrap();
+    assert_eq!(
+        metadata["stripe_dispute_id"].as_str(),
+        Some("dp_dispute_created_alert")
+    );
+    assert_eq!(
+        metadata["customer_id"].as_str(),
+        Some(customer.id.to_string().as_str())
+    );
+    assert_eq!(
+        metadata["invoice_id"].as_str(),
+        Some(invoice.id.to_string().as_str())
+    );
+}
+
+#[tokio::test]
+async fn dispute_funds_withdrawn_unresolved_mapping_emits_single_alert_with_lookup_metadata() {
+    let customer_repo = mock_repo();
+    let invoice_repo = mock_invoice_repo();
+    let alert_service = Arc::new(MockAlertService::new());
+    let app = test_app_with_alert_service(
+        Arc::clone(&customer_repo),
+        Arc::clone(&invoice_repo),
+        Arc::clone(&alert_service) as Arc<dyn AlertService>,
+    );
+    let customer = customer_repo.seed("Acme", "dispute-unresolved-alert@example.com");
+    customer_repo
+        .set_stripe_customer_id(customer.id, "cus_dispute_unresolved")
+        .await
+        .unwrap();
+
+    let payload = dispute_funds_withdrawn_payload(
+        "evt_dispute_unresolved_alert",
+        "dp_dispute_unresolved_alert",
+        "ch_dispute_unresolved_alert",
+        Some("pi_dispute_unresolved"),
+        "cus_dispute_unresolved",
+        5000,
+    );
+    let resp = app.oneshot(webhook_request(&payload)).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let alerts = alert_service.recorded_alerts();
+    assert_eq!(alerts.len(), 1);
+    let metadata = alerts[0].metadata.as_object().unwrap();
+    assert_eq!(
+        metadata["invoice_resolution_source"].as_str(),
+        Some("unresolved")
+    );
+    assert!(metadata.get("invoice_id").is_none());
+}
+
+#[tokio::test]
+async fn dispute_funds_reinstated_and_closed_do_not_emit_alerts() {
+    let customer_repo = mock_repo();
+    let invoice_repo = mock_invoice_repo();
+    let alert_service = Arc::new(MockAlertService::new());
+    let app = test_app_with_alert_service(
+        Arc::clone(&customer_repo),
+        Arc::clone(&invoice_repo),
+        Arc::clone(&alert_service) as Arc<dyn AlertService>,
+    );
+    let customer = customer_repo.seed("Acme", "dispute-quiet-alert@example.com");
+    customer_repo
+        .set_stripe_customer_id(customer.id, "cus_dispute_quiet")
+        .await
+        .unwrap();
+
+    let reinstated = dispute_funds_reinstated_payload(
+        "evt_dispute_reinstated_quiet",
+        "dp_dispute_quiet",
+        "ch_dispute_quiet",
+        Some("pi_dispute_quiet"),
+        "cus_dispute_quiet",
+        5000,
+    );
+    let closed = dispute_closed_payload(
+        "evt_dispute_closed_quiet",
+        "dp_dispute_quiet",
+        "ch_dispute_quiet",
+        Some("pi_dispute_quiet"),
+        "cus_dispute_quiet",
+        5000,
+        "won",
+    );
+
+    let first = app
+        .clone()
+        .oneshot(webhook_request(&reinstated))
+        .await
+        .unwrap();
+    let second = app.clone().oneshot(webhook_request(&closed)).await.unwrap();
+    assert_eq!(first.status(), StatusCode::OK);
+    assert_eq!(second.status(), StatusCode::OK);
     assert_eq!(alert_service.alert_count(), 0);
 }

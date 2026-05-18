@@ -102,6 +102,12 @@ test_inbox_find_matching_object_key() {
     local max_attempts="$5"
     local sleep_seconds="$6"
     local attempt=1
+    # Diagnostic counters surfaced on timeout so future callers can distinguish
+    # "list returned no candidates" from "candidates were fetched but body never
+    # matched the nonce" without needing to redeploy debug code.
+    local total_candidates=0
+    local total_fetch_failures=0
+    local last_list_count=0
 
     test_inbox_require_nonempty "$bucket" "bucket" || return $?
     test_inbox_require_nonempty "$nonce" "nonce" || return $?
@@ -119,13 +125,28 @@ test_inbox_find_matching_object_key() {
             echo "aws s3api list-objects-v2 failed for s3://$bucket/$prefix" >&2
             return 1
         fi
+        # IMPORTANT: pass the list payload via stdin, not argv. With an active
+        # SES inbound bucket the list JSON can easily exceed 100 KB, which
+        # crosses the Lambda runtime ARG_MAX ceiling and produces
+        # "Argument list too long" errors that silently degrade to zero
+        # candidates being scanned.
+        local list_json_file
+        list_json_file="$(mktemp)"
+        printf '%s' "$list_json" > "$list_json_file"
 
-        match_candidates="$(python3 - "$list_json" "$nonce" <<'PY' || true
+        last_list_count="$(python3 -c "
+import json, sys
+with open(sys.argv[1], 'r', encoding='utf-8') as fh:
+    print(len(json.load(fh).get('Contents', []) or []))
+" "$list_json_file" 2>/dev/null || echo 0)"
+
+        match_candidates="$(python3 - "$list_json_file" "$nonce" <<'PY' || true
 import json
 import sys
 from datetime import datetime, timezone
 
-payload = json.loads(sys.argv[1])
+with open(sys.argv[1], 'r', encoding='utf-8') as fh:
+    payload = json.load(fh)
 nonce = sys.argv[2]
 
 contents = payload.get("Contents", []) or []
@@ -152,6 +173,7 @@ for item in sorted(contents, key=parse_last_modified, reverse=True)[:25]:
         print(f"CAND:{key}")
 PY
 )"
+        rm -f "$list_json_file"
 
         matched_key="$(printf '%s\n' "$match_candidates" | awk -F'KEY:' 'NR==1 && /^KEY:/{print $2}')"
         if [[ -n "$matched_key" ]]; then
@@ -170,9 +192,14 @@ PY
             if [[ -z "$candidate_key" ]]; then
                 continue
             fi
+            total_candidates=$((total_candidates + 1))
 
             candidate_rfc822="$(test_inbox_fetch_rfc822 "$bucket" "$candidate_key" "$region" 2>/dev/null || true)"
-            if [[ -n "$candidate_rfc822" && "$candidate_rfc822" == *"$nonce"* ]]; then
+            if [[ -z "$candidate_rfc822" ]]; then
+                total_fetch_failures=$((total_fetch_failures + 1))
+                continue
+            fi
+            if [[ "$candidate_rfc822" == *"$nonce"* ]]; then
                 printf '%s\n' "$candidate_key"
                 return 0
             fi
@@ -184,6 +211,7 @@ PY
         attempt=$((attempt + 1))
     done
 
+    echo "inbox-poll exhausted: attempts=${max_attempts} last_list_count=${last_list_count} candidates_scanned=${total_candidates} fetch_failures=${total_fetch_failures} nonce=${nonce}" >&2
     return "$TEST_INBOX_POLL_TIMEOUT_EXIT_CODE"
 }
 

@@ -3,7 +3,7 @@ locals {
   support_email_canary_ecr_repository_name = "fjcloud-${var.env}-support-email-canary"
   support_email_canary_log_group_name      = "/aws/lambda/${local.support_email_canary_name}"
 
-  support_email_canary_slack_webhook_parameter_name = var.support_email_canary_slack_webhook_parameter_name != "" ? var.support_email_canary_slack_webhook_parameter_name : "/fjcloud/${var.env}/slack_webhook_url"
+  support_email_canary_slack_webhook_parameter_name   = var.support_email_canary_slack_webhook_parameter_name != "" ? var.support_email_canary_slack_webhook_parameter_name : "/fjcloud/${var.env}/slack_webhook_url"
   support_email_canary_discord_webhook_parameter_name = var.support_email_canary_discord_webhook_parameter_name != "" ? var.support_email_canary_discord_webhook_parameter_name : "/fjcloud/${var.env}/discord_webhook_url"
 
   support_email_canary_inbound_roundtrip_s3_path_segments = split("/", trimprefix(var.support_email_canary_inbound_roundtrip_s3_uri, "s3://"))
@@ -15,23 +15,23 @@ locals {
   support_email_canary_inbound_roundtrip_bucket_arn = "arn:${data.aws_partition.current.partition}:s3:::${local.support_email_canary_inbound_roundtrip_s3_bucket}"
   support_email_canary_inbound_roundtrip_object_arn = local.support_email_canary_inbound_roundtrip_s3_prefix_clean == "" ? "${local.support_email_canary_inbound_roundtrip_bucket_arn}/*" : "${local.support_email_canary_inbound_roundtrip_bucket_arn}/${local.support_email_canary_inbound_roundtrip_s3_prefix_clean}/*"
 
-  support_email_canary_slack_webhook_parameter_arn = "arn:${data.aws_partition.current.partition}:ssm:${var.region}:${data.aws_caller_identity.current.account_id}:parameter/${trimprefix(local.support_email_canary_slack_webhook_parameter_name, "/")}"
+  support_email_canary_slack_webhook_parameter_arn   = "arn:${data.aws_partition.current.partition}:ssm:${var.region}:${data.aws_caller_identity.current.account_id}:parameter/${trimprefix(local.support_email_canary_slack_webhook_parameter_name, "/")}"
   support_email_canary_discord_webhook_parameter_arn = "arn:${data.aws_partition.current.partition}:ssm:${var.region}:${data.aws_caller_identity.current.account_id}:parameter/${trimprefix(local.support_email_canary_discord_webhook_parameter_name, "/")}"
 
-  support_email_canary_ses_identity_domain = length(split("@", var.support_email_canary_ses_from_address)) > 1 ? split("@", var.support_email_canary_ses_from_address)[1] : var.support_email_canary_ses_from_address
-  support_email_canary_ses_email_identity_arn = "arn:${data.aws_partition.current.partition}:ses:${var.region}:${data.aws_caller_identity.current.account_id}:identity/${var.support_email_canary_ses_from_address}"
+  support_email_canary_ses_identity_domain     = length(split("@", var.support_email_canary_ses_from_address)) > 1 ? split("@", var.support_email_canary_ses_from_address)[1] : var.support_email_canary_ses_from_address
+  support_email_canary_ses_email_identity_arn  = "arn:${data.aws_partition.current.partition}:ses:${var.region}:${data.aws_caller_identity.current.account_id}:identity/${var.support_email_canary_ses_from_address}"
   support_email_canary_ses_domain_identity_arn = "arn:${data.aws_partition.current.partition}:ses:${var.region}:${data.aws_caller_identity.current.account_id}:identity/${local.support_email_canary_ses_identity_domain}"
 
   support_email_canary_image_uri = var.support_email_canary_image_uri != "" ? var.support_email_canary_image_uri : "${aws_ecr_repository.support_email_canary.repository_url}:${var.support_email_canary_image_tag}"
 
   support_email_canary_environment_base = {
-    ENVIRONMENT                       = var.env
-    SES_FROM_ADDRESS                  = var.support_email_canary_ses_from_address
-    SES_REGION                        = var.region
-    INBOUND_ROUNDTRIP_S3_URI          = var.support_email_canary_inbound_roundtrip_s3_uri
+    ENVIRONMENT                        = var.env
+    SES_FROM_ADDRESS                   = var.support_email_canary_ses_from_address
+    SES_REGION                         = var.region
+    INBOUND_ROUNDTRIP_S3_URI           = var.support_email_canary_inbound_roundtrip_s3_uri
     INBOUND_ROUNDTRIP_RECIPIENT_DOMAIN = var.support_email_canary_recipient_domain_default
-    SLACK_WEBHOOK_URL                 = local.support_email_canary_slack_webhook_parameter_name
-    DISCORD_WEBHOOK_URL               = local.support_email_canary_discord_webhook_parameter_name
+    SLACK_WEBHOOK_URL                  = local.support_email_canary_slack_webhook_parameter_name
+    DISCORD_WEBHOOK_URL                = local.support_email_canary_discord_webhook_parameter_name
   }
 
   support_email_canary_environment = var.support_email_canary_recipient_local_part_default == "" ? local.support_email_canary_environment_base : merge(
@@ -150,6 +150,7 @@ resource "aws_lambda_function" "support_email_canary" {
   role          = aws_iam_role.support_email_canary.arn
   timeout       = 300
   memory_size   = 512
+  architectures = ["arm64"]
 
   environment {
     variables = local.support_email_canary_environment

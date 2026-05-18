@@ -68,7 +68,18 @@ require_value "stripe_secret_key" "$STRIPE_SECRET_KEY"
 require_value "ses_from_address" "$SES_FROM_ADDRESS"
 require_value "stripe_webhook_secret" "$STRIPE_WEBHOOK_SECRET"
 
-API_URL="https://api.${DNS_DOMAIN}"
+# Derive the public API host for the target environment.
+# staging runs on the `api.staging.<domain>` host while non-staging envs
+# use `api.<domain>`.
+if [ "$ENVIRONMENT" = "staging" ]; then
+  if [[ "$DNS_DOMAIN" = staging.* ]]; then
+    API_URL="https://api.${DNS_DOMAIN}"
+  else
+    API_URL="https://api.staging.${DNS_DOMAIN}"
+  fi
+else
+  API_URL="https://api.${DNS_DOMAIN}"
+fi
 
 # FLAPJACK_URL is the per-VM endpoint discovered/persisted by ensure_customer_and_tenant,
 # but preflight_env still requires SOME value as a non-empty fallback before the mapping
@@ -85,6 +96,15 @@ FLAPJACK_URL="${FLAPJACK_URL:-https://api.${DNS_DOMAIN}}"
 # the contract correct without making the operator remember a separate URL.
 STAGING_API_URL="${API_URL}"
 STAGING_STRIPE_WEBHOOK_URL="${API_URL}/webhooks/stripe"
+if [ "$ENVIRONMENT" = "staging" ]; then
+  if [[ "$DNS_DOMAIN" = staging.* ]]; then
+    STAGING_CLOUD_URL="https://${DNS_DOMAIN}"
+  else
+    STAGING_CLOUD_URL="https://staging.${DNS_DOMAIN}"
+  fi
+else
+  STAGING_CLOUD_URL="https://cloud.${DNS_DOMAIN}"
+fi
 
 # Output as `export KEY=value` lines for `source <(...)`. Use printf %q for
 # safe quoting (handles whitespace/special chars in any value).
@@ -126,3 +146,4 @@ printf 'export SES_FROM_ADDRESS=%q\n' "$SES_FROM_ADDRESS"
 printf 'export STRIPE_WEBHOOK_SECRET=%q\n' "$STRIPE_WEBHOOK_SECRET"
 printf 'export STAGING_API_URL=%q\n' "$STAGING_API_URL"
 printf 'export STAGING_STRIPE_WEBHOOK_URL=%q\n' "$STAGING_STRIPE_WEBHOOK_URL"
+printf 'export STAGING_CLOUD_URL=%q\n' "$STAGING_CLOUD_URL"

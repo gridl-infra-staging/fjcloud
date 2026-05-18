@@ -139,8 +139,8 @@ resource "aws_iam_role_policy" "fjcloud_cloudwatch_metrics" {
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
-      Effect = "Allow"
-      Action = ["cloudwatch:PutMetricData"]
+      Effect   = "Allow"
+      Action   = ["cloudwatch:PutMetricData"]
       Resource = "*"
       Condition = {
         "ForAnyValue:StringEquals" = {

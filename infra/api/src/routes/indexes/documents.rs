@@ -101,7 +101,8 @@ async fn check_free_tier_ingest_caps(
     let summary = state.usage_repo.summary_for(customer_id, 1).await?;
 
     let max_records = state.free_tier_limits.max_records;
-    let projected_records = summary.avg_document_count as u64 + incoming_doc_count;
+    let current_records = summary.avg_document_count.max(0) as u64;
+    let projected_records = current_records.saturating_add(incoming_doc_count);
     if projected_records > max_records {
         return Err(ApiError::ForbiddenJson(serde_json::json!({
             "error": "quota_exceeded",
@@ -113,7 +114,7 @@ async fn check_free_tier_ingest_caps(
         .free_tier_limits
         .max_storage_mb
         .saturating_mul(BYTES_PER_MIB);
-    let current_storage_bytes = (summary.avg_storage_gb * 1024.0 * 1024.0 * 1024.0) as u64;
+    let current_storage_bytes = (summary.avg_storage_gb.max(0.0) * 1024.0 * 1024.0 * 1024.0) as u64;
     let projected_storage_bytes = current_storage_bytes.saturating_add(incoming_bytes);
     if projected_storage_bytes > max_storage_bytes {
         return Err(ApiError::ForbiddenJson(serde_json::json!({
@@ -123,6 +124,8 @@ async fn check_free_tier_ingest_caps(
     }
 
     let now = Utc::now();
+    let warning_year = now.year();
+    let warning_month = now.month();
     let records_percent_used = if max_records == 0 {
         100.0
     } else {
@@ -134,25 +137,41 @@ async fn check_free_tier_ingest_caps(
             .claim_ingest_quota_warning_for_month(
                 customer_id,
                 IngestQuotaWarningMetric::Records,
-                now.year(),
-                now.month(),
+                warning_year,
+                warning_month,
             )
             .await?
     {
         let email_service = state.email_service.clone();
+        let customer_repo = state.customer_repo.clone();
         let customer_id = customer.id;
         let customer_email = customer.email.clone();
         tokio::spawn(async move {
             if let Err(e) = email_service
                 .send_quota_warning_email(
                     &customer_email,
-                    "max_records",
+                    "records",
                     records_percent_used,
                     projected_records,
                     max_records,
                 )
                 .await
             {
+                if let Err(rollback_error) = customer_repo
+                    .rollback_ingest_quota_warning_for_month(
+                        customer_id,
+                        IngestQuotaWarningMetric::Records,
+                        warning_year,
+                        warning_month,
+                    )
+                    .await
+                {
+                    tracing::warn!(
+                        customer_id = %customer_id,
+                        error = %rollback_error,
+                        "failed to roll back ingest records quota warning claim after email failure"
+                    );
+                }
                 tracing::warn!(
                     customer_id = %customer_id,
                     error = %e,
@@ -175,25 +194,41 @@ async fn check_free_tier_ingest_caps(
             .claim_ingest_quota_warning_for_month(
                 customer_id,
                 IngestQuotaWarningMetric::StorageMb,
-                now.year(),
-                now.month(),
+                warning_year,
+                warning_month,
             )
             .await?
     {
         let email_service = state.email_service.clone();
+        let customer_repo = state.customer_repo.clone();
         let customer_id = customer.id;
         let customer_email = customer.email.clone();
         tokio::spawn(async move {
             if let Err(e) = email_service
                 .send_quota_warning_email(
                     &customer_email,
-                    "max_storage_mb",
+                    "storage_mb",
                     storage_percent_used,
                     projected_storage_mb,
                     max_storage_mb,
                 )
                 .await
             {
+                if let Err(rollback_error) = customer_repo
+                    .rollback_ingest_quota_warning_for_month(
+                        customer_id,
+                        IngestQuotaWarningMetric::StorageMb,
+                        warning_year,
+                        warning_month,
+                    )
+                    .await
+                {
+                    tracing::warn!(
+                        customer_id = %customer_id,
+                        error = %rollback_error,
+                        "failed to roll back ingest storage quota warning claim after email failure"
+                    );
+                }
                 tracing::warn!(
                     customer_id = %customer_id,
                     error = %e,

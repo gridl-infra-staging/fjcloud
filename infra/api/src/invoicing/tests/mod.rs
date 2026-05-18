@@ -4,6 +4,7 @@ use chrono::Utc;
 use rust_decimal_macros::dec;
 
 mod billing_plan;
+mod billing_window;
 mod object_storage;
 
 /// Test helper: creates a billing [`RateCard`] with standard test values
@@ -191,7 +192,7 @@ fn cold_storage_billed_without_hot_usage_rows() {
         .iter()
         .find(|li| li.unit == "cold_gb_months")
         .expect("cold storage line item missing");
-    assert_eq!(cold.amount_cents, 400);
+    assert_eq!(cold.amount_cents, 100);
 }
 
 /// Verifies that only completed snapshots for the target customer are

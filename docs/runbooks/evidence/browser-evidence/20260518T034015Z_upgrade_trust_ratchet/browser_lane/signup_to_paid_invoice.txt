@@ -1,0 +1,46 @@
+(node:60883) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+Running 1 test using 1 worker
+
+(node:60889) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:60889) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:60889) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  1 [chromium:signup] › tests/e2e-ui/full/signup_to_paid_invoice.spec.ts:127:2 › Fresh signup to paid invoice › signs up, verifies email, reaches paid invoice evidence (54.9s)
+
+
+  1) [chromium:signup] › tests/e2e-ui/full/signup_to_paid_invoice.spec.ts:127:2 › Fresh signup to paid invoice › signs up, verifies email, reaches paid invoice evidence 
+
+    Error: [2mexpect([22m[31mpage[39m[2m).[22mtoHaveURL[2m([22m[32mexpected[39m[2m)[22m failed
+
+    Expected pattern: [32m/\/dashboard\/indexes(?:$|\?)/[39m
+    Received string:  [31m"https://cloud.flapjack.foo/login?reason=session_expired"[39m
+    Timeout: 5000ms
+
+    Call log:
+    [2m  - Expect "toHaveURL" with timeout 5000ms[22m
+    [2m    2 × unexpected value "https://cloud.flapjack.foo/dashboard"[22m
+    [2m    12 × unexpected value "https://cloud.flapjack.foo/login?reason=session_expired"[22m
+
+
+      90 | 			})
+      91 | 		).toBeVisible({ timeout: 15_000 });
+    > 92 | 		await expect(page).toHaveURL(new RegExp(`${route.path}(?:$|\\?)`));
+         | 		                   ^
+      93 | 		await expect(page.getByTestId('dashboard-beta-banner')).toBeVisible();
+      94 | 	}
+      95 | }
+        at assertDashboardRouteWalk (/Users/stuart/parallel_development/fjcloud_dev/may16_pm_5_self_service_upgrade_endpoint_and_trust_ratchet/fjcloud_dev/web/tests/e2e-ui/full/signup_to_paid_invoice.spec.ts:92:22)
+        at /Users/stuart/parallel_development/fjcloud_dev/may16_pm_5_self_service_upgrade_endpoint_and_trust_ratchet/fjcloud_dev/web/tests/e2e-ui/full/signup_to_paid_invoice.spec.ts:210:3
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/e2e-ui-full-signup_to_paid-43e41-aches-paid-invoice-evidence-chromium-signup/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/e2e-ui-full-signup_to_paid-43e41-aches-paid-invoice-evidence-chromium-signup/error-context.md
+
+  1 failed
+    [chromium:signup] › tests/e2e-ui/full/signup_to_paid_invoice.spec.ts:127:2 › Fresh signup to paid invoice › signs up, verifies email, reaches paid invoice evidence 
+exit=1

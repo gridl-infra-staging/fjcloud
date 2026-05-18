@@ -143,6 +143,17 @@ SES_TEST_RECIPIENT=deliverability-recipient@flapjack.foo
 ENVFILE
 }
 
+write_preflight_sts_fixture() {
+    local path="$1"
+    cat > "$path" <<'JSON'
+{
+  "Account": "123456789012",
+  "Arn": "arn:aws:iam::123456789012:user/test",
+  "UserId": "AIDATEST"
+}
+JSON
+}
+
 write_mock_aws() {
     cat > "$TEST_WORKSPACE/bin/aws" <<'MOCK'
 #!/usr/bin/env bash
@@ -163,12 +174,20 @@ if [ "${SES_DELIV_AWS_FORCE_CREDENTIAL_ERROR:-0}" = "1" ]; then
     exit 254
 fi
 
-if [ "${1:-}" != "sesv2" ]; then
+service="${1:-}"
+command="${2:-}"
+if [ "$service" = "sts" ] && [ "$command" = "get-caller-identity" ]; then
+    cat <<'JSON'
+{"Account":"123456789012","Arn":"arn:aws:iam::123456789012:user/test","UserId":"AIDATEST"}
+JSON
+    exit 0
+fi
+
+if [ "$service" != "sesv2" ]; then
     echo "unexpected aws service: $*" >&2
     exit 91
 fi
 
-command="${2:-}"
 case "$command" in
     get-account)
         case "${SES_DELIV_AWS_ACCOUNT_MODE:-production}" in
@@ -180,6 +199,11 @@ JSON
             sandbox)
                 cat <<'JSON'
 {"SendingEnabled":true,"ProductionAccessEnabled":false,"AccountId":"123456789012"}
+JSON
+                ;;
+            sandbox_pending_review)
+                cat <<'JSON'
+{"SendingEnabled":true,"ProductionAccessEnabled":false,"ReviewDetails":{"Status":"PENDING","CaseId":"abc123"}}
 JSON
                 ;;
             sending_disabled)
@@ -196,6 +220,11 @@ JSON
                 exit 92
                 ;;
         esac
+        ;;
+    put-account-details)
+        cat <<'JSON'
+{"Message":"request accepted"}
+JSON
         ;;
     get-email-identity)
         identity=""
@@ -356,6 +385,7 @@ setup_workspace() {
     write_mock_aws
     write_mock_cargo
     write_secret_fixture_env_file "$TEST_WORKSPACE/fixtures/ses_contract.env"
+    write_preflight_sts_fixture "$TEST_WORKSPACE/artifacts/sts_caller_identity_preflight_runtime_ses.json"
     cp "$REPO_ROOT/infra/api/tests/email_test.rs" "$TEST_WORKSPACE/infra/api/tests/email_test.rs"
 
     if [ -f "$SES_WRAPPER_SCRIPT" ]; then
@@ -464,7 +494,7 @@ test_readiness_delegation_runs_before_live_send_and_preserves_artifact() {
     else
         fail "wrapper should invoke readiness before cargo live-send seam"
     fi
-    assert_not_contains "$calls" "aws|CALLER=wrapper|AWS_PAGER=<empty>|sesv2 get-account" "wrapper must not duplicate account readiness outside readiness owner"
+    assert_contains "$calls" "aws|CALLER=wrapper|AWS_PAGER=<empty>|sesv2 get-account" "wrapper should capture wrapper-owned pre/post account snapshots"
     assert_no_wrapper_sender_readiness_call "$calls" "system@flapjack.foo" "wrapper must not duplicate sender readiness outside readiness owner"
 
     run_dir="$(find_single_run_dir "$TEST_WORKSPACE/artifacts")"
@@ -533,6 +563,89 @@ test_sandbox_readiness_reports_blocked_without_live_send() {
     assert_contains "$RUN_STDOUT" "ProductionAccessEnabled=false" "sandbox readiness should include remediation detail"
     assert_not_contains "$RUN_STDOUT" "ProductionAccessEnabled=true" "sandbox readiness output should not include production-access enabled detail"
     assert_not_contains "$calls" "cargo|" "sandbox without recipient preflight should not run cargo live-send seam"
+}
+
+test_stage1_production_access_request_flow_contract() {
+    local calls sts_line put_line run_dir
+
+    setup_workspace
+    require_wrapper_for_contract "stage1 request flow sandbox_no_review" || return 0
+    _run_ses_deliverability \
+        --args "--artifact-dir $TEST_WORKSPACE/artifacts --env-file $TEST_WORKSPACE/fixtures/ses_contract.env" \
+        "SES_TEST_RECIPIENT=success@simulator.amazonses.com" \
+        "SES_DELIV_AWS_ACCOUNT_MODE=sandbox" \
+        "SES_DELIV_CARGO_STDOUT=test ses_live_smoke_sends_verification_email ... ok"
+
+    calls="$(read_file_or_empty "$TEST_CALL_LOG")"
+    sts_line="$(grep -n 'aws|CALLER=wrapper|.*|sts get-caller-identity' "$TEST_CALL_LOG" | head -1 | cut -d: -f1 || true)"
+    put_line="$(grep -n 'aws|CALLER=wrapper|.*|sesv2 put-account-details' "$TEST_CALL_LOG" | head -1 | cut -d: -f1 || true)"
+    assert_contains "$calls" "sts get-caller-identity" "wrapper should capture caller identity before request flow"
+    assert_contains "$calls" "sesv2 put-account-details" "sandbox_no_review should submit one production-access request"
+    if [ -n "$sts_line" ] && [ -n "$put_line" ] && [ "$sts_line" -lt "$put_line" ]; then
+        pass "STS capture should happen before put-account-details"
+    else
+        fail "STS capture should happen before put-account-details"
+    fi
+    assert_eq "$(json_field "$RUN_STDOUT" "account_status.production_access_decision")" "request_submitted" \
+        "sandbox_no_review should report request_submitted decision"
+    assert_eq "$(json_field "$RUN_STDOUT" "account_status.request_submitted")" "true" \
+        "sandbox_no_review should report request_submitted=true"
+    assert_eq "$(json_field "$RUN_STDOUT" "account_status.sts_caller_identity_captured")" "true" \
+        "request flow should require sts caller identity capture"
+    run_dir="$(find_single_run_dir "$TEST_WORKSPACE/artifacts")"
+    assert_contains "$(read_file_or_empty "$run_dir/logs/sts_caller_identity.json")" "Account" "request flow should persist STS artifact"
+    assert_contains "$(read_file_or_empty "$run_dir/logs/ses_account_pre.json")" "ProductionAccessEnabled" "request flow should persist pre snapshot"
+    assert_contains "$(read_file_or_empty "$run_dir/logs/ses_account_post.json")" "ProductionAccessEnabled" "request flow should persist post snapshot"
+
+    setup_workspace
+    require_wrapper_for_contract "stage1 request flow sandbox_pending_review" || return 0
+    _run_ses_deliverability \
+        --args "--artifact-dir $TEST_WORKSPACE/artifacts --env-file $TEST_WORKSPACE/fixtures/ses_contract.env" \
+        "SES_TEST_RECIPIENT=success@simulator.amazonses.com" \
+        "SES_DELIV_AWS_ACCOUNT_MODE=sandbox_pending_review" \
+        "SES_DELIV_CARGO_STDOUT=test ses_live_smoke_sends_verification_email ... ok"
+    calls="$(read_file_or_empty "$TEST_CALL_LOG")"
+    assert_not_contains "$calls" "sesv2 put-account-details" "sandbox_pending_review should not submit duplicate production-access request"
+    assert_eq "$(json_field "$RUN_STDOUT" "account_status.production_access_decision")" "already_pending_review" \
+        "sandbox_pending_review should report already_pending_review decision"
+    assert_eq "$(json_field "$RUN_STDOUT" "account_status.request_submitted")" "false" \
+        "sandbox_pending_review should keep request_submitted=false"
+
+    setup_workspace
+    require_wrapper_for_contract "stage1 request flow production_access_enabled" || return 0
+    _run_ses_deliverability \
+        --args "--artifact-dir $TEST_WORKSPACE/artifacts --env-file $TEST_WORKSPACE/fixtures/ses_contract.env" \
+        "SES_TEST_RECIPIENT=success@simulator.amazonses.com" \
+        "SES_DELIV_AWS_ACCOUNT_MODE=production" \
+        "SES_DELIV_CARGO_STDOUT=test ses_live_smoke_sends_verification_email ... ok"
+    calls="$(read_file_or_empty "$TEST_CALL_LOG")"
+    assert_not_contains "$calls" "sesv2 put-account-details" "production access enabled should not submit duplicate production-access request"
+    assert_eq "$(json_field "$RUN_STDOUT" "account_status.production_access_decision")" "already_production_enabled" \
+        "production access enabled should report already_production_enabled decision"
+
+    setup_workspace
+    require_wrapper_for_contract "stage1 request flow account mismatch block" || return 0
+    write_preflight_sts_fixture "$TEST_WORKSPACE/artifacts/sts_caller_identity_preflight_runtime_ses.json"
+    python3 - <<'PY' > "$TEST_WORKSPACE/artifacts/sts_caller_identity_preflight_runtime_ses.json"
+import json
+
+print(json.dumps({
+    "Account": "999999999999",
+    "Arn": "arn:aws:iam::999999999999:user/mismatch",
+    "UserId": "AIDAMISMATCH",
+}))
+PY
+    _run_ses_deliverability \
+        --args "--artifact-dir $TEST_WORKSPACE/artifacts --env-file $TEST_WORKSPACE/fixtures/ses_contract.env" \
+        "SES_TEST_RECIPIENT=success@simulator.amazonses.com" \
+        "SES_DELIV_AWS_ACCOUNT_MODE=sandbox"
+    calls="$(read_file_or_empty "$TEST_CALL_LOG")"
+    assert_not_contains "$calls" "sesv2 put-account-details" \
+        "sandbox_no_review must not submit production-access request when runtime account mismatches preflight"
+    assert_eq "$(json_field "$RUN_STDOUT" "account_status.request_submitted")" "false" \
+        "account mismatch should keep request_submitted=false"
+    assert_contains "$(json_field "$RUN_STDOUT" "account_status.detail")" "does not match preflight account" \
+        "account mismatch should surface the target-account proof blocker"
 }
 
 test_blocked_input_states_contract() {
@@ -844,8 +957,9 @@ test_redaction_contract_for_stdout_summary_and_logs() {
 
     _run_ses_deliverability \
         --args "--artifact-dir $TEST_WORKSPACE/artifacts --env-file $TEST_WORKSPACE/fixtures/ses_contract.env" \
+        "AWS_ACCESS_KEY_ID=AKIAAMBIENTONLY" \
         "SES_DELIV_AWS_ACCOUNT_MODE=production" \
-        "SES_DELIV_CARGO_STDOUT=test ses_live_smoke_sends_verification_email ... ok\nraw-body=This is the full email body payload\nfake-ses-secret-value"
+        "SES_DELIV_CARGO_STDOUT=test ses_live_smoke_sends_verification_email ... ok\nraw-body=This is the full email body payload\nfake-ses-secret-value\nAKIAAMBIENTONLY"
 
     local run_dir summary_payload logs_payload
     run_dir="$(find_single_run_dir "$TEST_WORKSPACE/artifacts")"
@@ -856,9 +970,12 @@ test_redaction_contract_for_stdout_summary_and_logs() {
     assert_valid_json "$summary_payload" "redaction contract should emit valid summary.json"
     assert_not_contains "$RUN_STDOUT" "fake-ses-secret-value" "stdout JSON should redact AWS secret value"
     assert_not_contains "$RUN_STDOUT" "fake-ses-session-token" "stdout JSON should redact AWS session token"
+    assert_not_contains "$RUN_STDOUT" "AKIAAMBIENTONLY" "stdout JSON should redact ambient AWS access key ids"
     assert_not_contains "$summary_payload" "fake-ses-secret-value" "summary.json should redact AWS secret value"
     assert_not_contains "$summary_payload" "fake-ses-session-token" "summary.json should redact AWS session token"
+    assert_not_contains "$summary_payload" "AKIAAMBIENTONLY" "summary.json should redact ambient AWS access key ids"
     assert_not_contains "$logs_payload" "fake-ses-secret-value" "delegated logs should redact AWS secret value"
+    assert_not_contains "$logs_payload" "AKIAAMBIENTONLY" "delegated logs should redact ambient AWS access key ids"
     assert_not_contains "$logs_payload" "This is the full email body payload" "delegated logs should not include full email bodies"
     assert_contains "$RUN_STDOUT" "REDACTED" "stdout JSON should use stable redaction marker"
     assert_contains "$summary_payload" "REDACTED" "summary.json should use stable redaction marker"
@@ -893,6 +1010,7 @@ test_readiness_delegation_runs_before_live_send_and_preserves_artifact
 test_explicit_self_recipient_does_not_duplicate_sender_readiness
 test_recipient_preflight_contract_states
 test_sandbox_readiness_reports_blocked_without_live_send
+test_stage1_production_access_request_flow_contract
 test_blocked_input_states_contract
 test_live_send_delegation_to_canonical_ignored_test
 test_live_send_false_positive_contract

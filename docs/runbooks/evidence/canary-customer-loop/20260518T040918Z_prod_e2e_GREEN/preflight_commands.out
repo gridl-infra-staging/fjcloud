@@ -1,0 +1,10 @@
+== preflight staging ci ==
+[{"conclusion":"","createdAt":"2026-05-18T03:23:27Z","displayTitle":"Sync Playwright fixture timeout and Stripe env","headSha":"fa64aba192866d5aa72e6409b3ec04fe6375ea16","url":"https://github.com/gridl-infra-staging/fjcloud/actions/runs/26011767092"}]
+== preflight prod ci ==
+[{"conclusion":"","createdAt":"2026-05-18T03:23:28Z","displayTitle":"Sync Playwright fixture timeout and Stripe env","headSha":"5f65bdcaf05ffa8c18d398307c2a49ef532771f0","url":"https://github.com/gridl-infra-prod/fjcloud/actions/runs/26011767713"}]
+== aws sts ==
+{
+    "UserId": "AIDATDTCLTRFKVSWMJCGQ",
+    "Account": "213880904778",
+    "Arn": "arn:aws:iam::213880904778:user/stuart-cli"
+}

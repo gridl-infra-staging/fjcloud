@@ -25,6 +25,10 @@ pub enum ApiError {
     BadRequest(String),
     Forbidden(String),
     ForbiddenJson(serde_json::Value),
+    TooManyRequests {
+        message: String,
+        retry_after_seconds: u64,
+    },
     ServiceUnavailable(String),
     ServiceNotConfigured(String),
     Gone(String),
@@ -49,12 +53,26 @@ impl IntoResponse for ApiError {
             return (StatusCode::FORBIDDEN, Json(val)).into_response();
         }
 
+        if let ApiError::TooManyRequests {
+            ref message,
+            retry_after_seconds,
+        } = self
+        {
+            return (
+                StatusCode::TOO_MANY_REQUESTS,
+                [("Retry-After", retry_after_seconds.to_string())],
+                Json(json!({"error": message})),
+            )
+                .into_response();
+        }
+
         let (status, message) = match &self {
             ApiError::NotFound(msg) => (StatusCode::NOT_FOUND, msg.as_str()),
             ApiError::Conflict(msg) => (StatusCode::CONFLICT, msg.as_str()),
             ApiError::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg.as_str()),
             ApiError::Forbidden(msg) => (StatusCode::FORBIDDEN, msg.as_str()),
             ApiError::ForbiddenJson(_) => unreachable!(),
+            ApiError::TooManyRequests { .. } => unreachable!(),
             ApiError::ServiceUnavailable(msg) => (StatusCode::SERVICE_UNAVAILABLE, msg.as_str()),
             ApiError::ServiceNotConfigured(service) => {
                 tracing::warn!("{service} service not configured");
@@ -295,5 +313,51 @@ mod tests {
             error_status_and_body(ApiError::ServiceNotConfigured("billing".into())).await;
         assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
         assert_eq!(body, json!({"error": "service_not_configured"}));
+    }
+
+    // ─── TooManyRequests tests ───────────────────────────────────────────
+
+    #[tokio::test]
+    async fn too_many_requests_returns_429_with_retry_after_header() {
+        let err = ApiError::TooManyRequests {
+            message: "account locked".into(),
+            retry_after_seconds: 1800,
+        };
+        let resp = err.into_response();
+        assert_eq!(resp.status(), StatusCode::TOO_MANY_REQUESTS);
+
+        let retry_after = resp
+            .headers()
+            .get("Retry-After")
+            .expect("Retry-After header must be present")
+            .to_str()
+            .unwrap();
+        assert_eq!(retry_after, "1800");
+
+        let body = Body::new(resp.into_body())
+            .collect()
+            .await
+            .unwrap()
+            .to_bytes();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json, json!({"error": "account locked"}));
+    }
+
+    #[tokio::test]
+    async fn too_many_requests_with_zero_retry_after() {
+        let err = ApiError::TooManyRequests {
+            message: "rate limited".into(),
+            retry_after_seconds: 0,
+        };
+        let resp = err.into_response();
+        assert_eq!(resp.status(), StatusCode::TOO_MANY_REQUESTS);
+
+        let retry_after = resp
+            .headers()
+            .get("Retry-After")
+            .expect("Retry-After header must be present")
+            .to_str()
+            .unwrap();
+        assert_eq!(retry_after, "0");
     }
 }

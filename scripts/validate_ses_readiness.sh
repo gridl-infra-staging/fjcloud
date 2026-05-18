@@ -41,6 +41,38 @@ else:
 PY
 }
 
+json_any_value_contains_ci() {
+    local json_body="$1"
+    local needle="$2"
+    python3 - "$json_body" "$needle" <<'PY' || true
+import json
+import sys
+
+body = sys.argv[1]
+needle = sys.argv[2].lower()
+try:
+    data = json.loads(body)
+except Exception:
+    print("false")
+    raise SystemExit(0)
+
+def walk(value):
+    if isinstance(value, dict):
+        for sub in value.values():
+            if walk(sub):
+                return True
+        return False
+    if isinstance(value, list):
+        for sub in value:
+            if walk(sub):
+                return True
+        return False
+    return needle in str(value).lower()
+
+print("true" if walk(data) else "false")
+PY
+}
+
 identity_kind_from_value() {
     local identity="$1"
     if [[ "$identity" == *"@"* ]]; then
@@ -203,6 +235,7 @@ validation_append_step "get_account" true "Fetched SES account status for region
 
 sending_enabled="$(json_get_field "$account_json" "SendingEnabled")"
 production_access_enabled="$(json_get_field "$account_json" "ProductionAccessEnabled")"
+production_review_pending="$(json_any_value_contains_ci "$account_json" "pending")"
 
 sending_enabled_ok=false
 if [[ "$sending_enabled" == "true" ]]; then
@@ -212,12 +245,17 @@ else
     validation_append_step "sending_enabled" false "SendingEnabled=${sending_enabled:-unknown}; must be true."
 fi
 
+production_access_ok=false
 if [[ "$production_access_enabled" == "true" ]]; then
-    validation_append_step "production_access" true "ProductionAccessEnabled=true (production access enabled)."
+    production_access_ok=true
+    validation_append_step "production_access" true "ProductionAccessEnabled=true (production_access_enabled)."
+elif [[ "$production_access_enabled" == "false" && "$production_review_pending" == "true" ]]; then
+    production_access_ok=true
+    validation_append_step "production_access" true "ProductionAccessEnabled=false (sandbox_pending_review)."
 elif [[ "$production_access_enabled" == "false" ]]; then
-    validation_append_step "production_access" true "ProductionAccessEnabled=false (sandbox)."
+    validation_append_step "production_access" false "ProductionAccessEnabled=false (sandbox_no_review)."
 else
-    validation_append_step "production_access" true "ProductionAccessEnabled unavailable in response."
+    validation_append_step "production_access" false "ProductionAccessEnabled unavailable in response."
 fi
 
 queried_identity="$identity"
@@ -288,7 +326,7 @@ fi
 
 append_unproven_deliverability_step
 
-if [[ "$sending_enabled_ok" == true && "$identity_verified_ok" == true && "$dkim_verified_ok" == true ]]; then
+if [[ "$sending_enabled_ok" == true && "$production_access_ok" == true && "$identity_verified_ok" == true && "$dkim_verified_ok" == true ]]; then
     validation_emit_result true
     exit 0
 fi

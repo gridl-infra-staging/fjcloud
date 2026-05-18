@@ -1,0 +1,2 @@
+{"error":"missing authorization header"}
+HTTP=401

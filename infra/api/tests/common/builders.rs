@@ -30,14 +30,14 @@ use std::sync::Arc;
 
 use super::mocks::{
     mock_alert_service, mock_api_key_repo, mock_cold_snapshot_repo, mock_deployment_repo,
-    mock_dns_manager, mock_email_service, mock_flapjack_proxy, mock_garage_admin_client,
-    mock_index_migration_repo, mock_invoice_repo, mock_node_secret_manager, mock_rate_card_repo,
-    mock_repo, mock_storage_bucket_repo, mock_storage_key_repo, mock_stripe_service,
-    mock_tenant_repo, mock_usage_repo, mock_vm_inventory_repo, mock_vm_provisioner,
-    mock_webhook_event_repo, mock_webhook_http_client, MockApiKeyRepo, MockCustomerRepo,
-    MockDeploymentRepo, MockIndexMigrationRepo, MockInvoiceRepo, MockRateCardRepo,
-    MockStripeService, MockTenantRepo, MockUsageRepo, MockVmInventoryRepo, MockWebhookEventRepo,
-    MockWebhookHttpClient,
+    mock_dispute_repo, mock_dns_manager, mock_email_service, mock_flapjack_proxy,
+    mock_garage_admin_client, mock_index_migration_repo, mock_invoice_repo,
+    mock_node_secret_manager, mock_rate_card_repo, mock_repo, mock_storage_bucket_repo,
+    mock_storage_key_repo, mock_stripe_service, mock_tenant_repo, mock_usage_repo,
+    mock_vm_inventory_repo, mock_vm_provisioner, mock_webhook_event_repo, mock_webhook_http_client,
+    MockApiKeyRepo, MockCustomerRepo, MockDeploymentRepo, MockDisputeRepo, MockIndexMigrationRepo,
+    MockInvoiceRepo, MockRateCardRepo, MockStripeService, MockTenantRepo, MockUsageRepo,
+    MockVmInventoryRepo, MockWebhookEventRepo, MockWebhookHttpClient,
 };
 
 pub const TEST_JWT_SECRET: &str = "test-jwt-secret-min-32-chars-ok!";
@@ -199,6 +199,7 @@ pub struct TestStateBuilder {
     usage_repo: Arc<MockUsageRepo>,
     rate_card_repo: Arc<MockRateCardRepo>,
     invoice_repo: Arc<MockInvoiceRepo>,
+    dispute_repo: Arc<MockDisputeRepo>,
     stripe_service: Arc<MockStripeService>,
     webhook_http_client: Arc<MockWebhookHttpClient>,
     email_service: Arc<dyn EmailService>,
@@ -251,6 +252,7 @@ impl TestStateBuilder {
             usage_repo: mock_usage_repo(),
             rate_card_repo: mock_rate_card_repo(),
             invoice_repo: mock_invoice_repo(),
+            dispute_repo: mock_dispute_repo(),
             stripe_service: mock_stripe_service(),
             webhook_http_client: mock_webhook_http_client(),
             email_service: mock_email_service() as Arc<dyn EmailService>,
@@ -300,6 +302,11 @@ impl TestStateBuilder {
 
     pub fn with_invoice_repo(mut self, invoice_repo: Arc<MockInvoiceRepo>) -> Self {
         self.invoice_repo = invoice_repo;
+        self
+    }
+
+    pub fn with_dispute_repo(mut self, dispute_repo: Arc<MockDisputeRepo>) -> Self {
+        self.dispute_repo = dispute_repo;
         self
     }
 
@@ -484,6 +491,7 @@ impl TestStateBuilder {
             usage_repo: self.usage_repo,
             rate_card_repo: self.rate_card_repo,
             invoice_repo: self.invoice_repo,
+            dispute_repo: self.dispute_repo,
             stripe_service: self.stripe_service,
             webhook_http_client: self.webhook_http_client,
             email_service: self.email_service,

@@ -25,3 +25,4 @@ pub mod scheduler;
 pub mod storage;
 pub mod tenant_quota;
 pub mod webhook_http;
+pub mod webhook_lag;

@@ -95,6 +95,15 @@ export const PLAYWRIGHT_PROJECT_CONTRACTS: PlaywrightProjectContract[] = [
 		use: { desktopBrowser: 'chromium' }
 	},
 	{
+		name: 'chromium:mocked',
+		testMatch: /e2e-ui\/mocked\/.+\.spec\.ts/,
+		dependencies: ['setup:user'],
+		use: {
+			desktopBrowser: 'chromium',
+			storageState: PLAYWRIGHT_STORAGE_STATE.user
+		}
+	},
+	{
 		name: 'chromium',
 		testMatch:
 			/e2e-ui\/(smoke|full)\/(?!admin|public-|onboarding\.|customer-journeys\.|signup_to_paid_invoice\.).+\.spec\.ts/,

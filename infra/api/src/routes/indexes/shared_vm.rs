@@ -129,6 +129,31 @@ fn select_placed_vm(
     )
 }
 
+/// For zero-resource index creation requests, placement does not need fresh
+/// load telemetry or capacity headroom because creating an empty index does
+/// not add measurable runtime load.
+///
+/// This avoids unnecessary cold auto-provisioning when existing shared VMs are
+/// active but temporarily missing/stale `load_scraped_at`.
+fn select_zero_resource_fallback_vm(
+    new_index_resources: &ResourceVector,
+    candidate_vms: &[crate::models::vm_inventory::VmInventory],
+) -> Option<SelectedSharedVm> {
+    if *new_index_resources != ResourceVector::zero() {
+        return None;
+    }
+
+    candidate_vms
+        .iter()
+        .filter(|vm| vm.status == "active")
+        .max_by_key(|vm| vm.created_at)
+        .cloned()
+        .map(|vm| SelectedSharedVm {
+            vm,
+            just_provisioned: false,
+        })
+}
+
 /// Select the best shared VM in a region for placing a new index, auto-provisioning
 /// a new VM if no existing VM has capacity.
 async fn select_shared_vm_for_new_index(
@@ -178,6 +203,14 @@ async fn select_shared_vm_for_new_index(
             vm,
             just_provisioned: true,
         });
+    }
+
+    if let Some(vm) = select_zero_resource_fallback_vm(new_index_resources, &locked_vms) {
+        tracing::warn!(
+            region,
+            "shared VM placement missing fresh load telemetry; reusing active VM for zero-resource create"
+        );
+        return Ok(vm);
     }
 
     let provider = state

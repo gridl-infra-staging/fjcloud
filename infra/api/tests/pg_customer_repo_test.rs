@@ -4,6 +4,7 @@ use api::repos::{CustomerRepo, PgCustomerRepo, ResendVerificationOutcome};
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 use sqlx::PgPool;
+use std::sync::Arc;
 use uuid::Uuid;
 
 mod support;
@@ -101,6 +102,217 @@ async fn set_resend_verification_sent_at(
     .fetch_one(pool)
     .await
     .expect("seed resend_verification_sent_at fixture timestamp")
+}
+
+#[tokio::test]
+async fn subscription_cycle_anchor_round_trip_and_clear_with_none() {
+    let Some(db) = pg_schema_harness::connect_and_migrate("it_pg_customer_repo").await else {
+        return;
+    };
+    let pool = db.pool.clone();
+    let repo = PgCustomerRepo::new(pool.clone());
+    let email = format!(
+        "anchor-roundtrip-{}@integration.test",
+        &Uuid::new_v4().to_string()[..8]
+    );
+
+    let customer = repo
+        .create("Anchor Roundtrip", &email)
+        .await
+        .expect("create customer");
+    let first_anchor = chrono::Utc::now();
+
+    let set_result = repo
+        .set_subscription_cycle_anchor(customer.id, Some(first_anchor))
+        .await
+        .expect("set initial subscription anchor");
+    assert!(
+        set_result,
+        "setting anchor should update active customer rows"
+    );
+
+    let after_set = repo
+        .find_by_id(customer.id)
+        .await
+        .expect("find customer after anchor set")
+        .expect("customer should exist after anchor set");
+    assert_eq!(
+        after_set.subscription_cycle_anchor_at,
+        Some(first_anchor),
+        "anchor setter must persist the exact timestamp"
+    );
+
+    let clear_result = repo
+        .set_subscription_cycle_anchor(customer.id, None)
+        .await
+        .expect("clear subscription anchor");
+    assert!(
+        clear_result,
+        "clearing anchor should update active customer rows"
+    );
+
+    let after_clear = repo
+        .find_by_id(customer.id)
+        .await
+        .expect("find customer after anchor clear")
+        .expect("customer should exist after anchor clear");
+    assert_eq!(
+        after_clear.subscription_cycle_anchor_at, None,
+        "anchor setter must clear the persisted value when None is provided"
+    );
+
+    cleanup_customer(&pool, &email).await;
+}
+
+#[tokio::test]
+async fn try_upgrade_to_shared_atomic_allows_exactly_one_concurrent_winner() {
+    let Some(db) = pg_schema_harness::connect_and_migrate("it_pg_customer_repo").await else {
+        return;
+    };
+    let pool = db.pool.clone();
+    let repo = PgCustomerRepo::new(pool.clone());
+    let email = format!(
+        "atomic-upgrade-race-{}@integration.test",
+        &Uuid::new_v4().to_string()[..8]
+    );
+
+    let customer = repo
+        .create("Atomic Upgrade Race", &email)
+        .await
+        .expect("create customer");
+    let base_anchor = chrono::Utc::now();
+    let mut join_handles = Vec::new();
+    for offset_ms in 0_i64..8_i64 {
+        let pooled_repo = PgCustomerRepo::new(pool.clone());
+        let candidate_anchor = base_anchor + chrono::Duration::milliseconds(offset_ms);
+        join_handles.push(tokio::spawn(async move {
+            let won = pooled_repo
+                .try_upgrade_to_shared_atomic(customer.id, candidate_anchor)
+                .await
+                .expect("attempt atomic free-to-shared upgrade");
+            (candidate_anchor, won)
+        }));
+    }
+
+    let mut winning_anchor: Option<chrono::DateTime<chrono::Utc>> = None;
+    let mut winner_count = 0_usize;
+    for handle in join_handles {
+        let (candidate_anchor, won) = handle
+            .await
+            .expect("join concurrent atomic-upgrade attempt");
+        if won {
+            winner_count += 1;
+            winning_anchor = Some(candidate_anchor);
+        }
+    }
+
+    assert_eq!(
+        winner_count, 1,
+        "compare-and-set upgrade seam must allow exactly one winner under concurrency"
+    );
+
+    let upgraded_customer = repo
+        .find_by_id(customer.id)
+        .await
+        .expect("find customer after concurrent upgrade race")
+        .expect("customer should still exist after concurrent upgrade race");
+    assert_eq!(
+        upgraded_customer.billing_plan, "shared",
+        "winning atomic update must persist shared plan"
+    );
+    assert_eq!(
+        upgraded_customer.subscription_cycle_anchor_at, winning_anchor,
+        "winning atomic update must persist the winner's anchor timestamp"
+    );
+
+    cleanup_customer(&pool, &email).await;
+}
+
+#[tokio::test]
+async fn try_upgrade_to_shared_atomic_returns_false_without_mutation_for_shared_or_deleted_rows() {
+    let Some(db) = pg_schema_harness::connect_and_migrate("it_pg_customer_repo").await else {
+        return;
+    };
+    let pool = db.pool.clone();
+    let repo = PgCustomerRepo::new(pool.clone());
+
+    let already_shared_email = format!(
+        "atomic-upgrade-shared-{}@integration.test",
+        &Uuid::new_v4().to_string()[..8]
+    );
+    let deleted_email = format!(
+        "atomic-upgrade-deleted-{}@integration.test",
+        &Uuid::new_v4().to_string()[..8]
+    );
+    let already_shared = repo
+        .create("Already Shared", &already_shared_email)
+        .await
+        .expect("create already-shared fixture");
+    let deleted = repo
+        .create("Deleted Fixture", &deleted_email)
+        .await
+        .expect("create deleted fixture");
+
+    let preexisting_anchor = chrono::Utc::now() - chrono::Duration::hours(6);
+    repo.set_billing_plan(already_shared.id, "shared")
+        .await
+        .expect("set already-shared plan fixture");
+    repo.set_subscription_cycle_anchor(already_shared.id, Some(preexisting_anchor))
+        .await
+        .expect("seed already-shared anchor fixture");
+    repo.soft_delete(deleted.id)
+        .await
+        .expect("soft-delete deleted fixture");
+
+    let shared_attempt_anchor = chrono::Utc::now();
+    let shared_attempt = repo
+        .try_upgrade_to_shared_atomic(already_shared.id, shared_attempt_anchor)
+        .await
+        .expect("attempt atomic upgrade on already-shared row");
+    assert!(
+        !shared_attempt,
+        "atomic upgrade should return false when row is already shared"
+    );
+    let already_shared_after = repo
+        .find_by_id(already_shared.id)
+        .await
+        .expect("reload already-shared row")
+        .expect("already-shared row should still exist");
+    assert_eq!(
+        already_shared_after.billing_plan, "shared",
+        "failed upgrade attempt must not change already-shared billing plan"
+    );
+    assert_eq!(
+        already_shared_after.subscription_cycle_anchor_at,
+        Some(preexisting_anchor),
+        "failed upgrade attempt must preserve existing anchor on already-shared row"
+    );
+
+    let deleted_attempt = repo
+        .try_upgrade_to_shared_atomic(deleted.id, chrono::Utc::now())
+        .await
+        .expect("attempt atomic upgrade on deleted row");
+    assert!(
+        !deleted_attempt,
+        "atomic upgrade should return false when row is soft-deleted"
+    );
+    let deleted_after = repo
+        .find_by_id(deleted.id)
+        .await
+        .expect("reload deleted row")
+        .expect("deleted row should still exist as retained row");
+    assert_eq!(deleted_after.status, "deleted");
+    assert_eq!(
+        deleted_after.billing_plan, "free",
+        "failed upgrade on deleted row must not mutate billing plan"
+    );
+    assert_eq!(
+        deleted_after.subscription_cycle_anchor_at, None,
+        "failed upgrade on deleted row must not set anchor"
+    );
+
+    cleanup_customer(&pool, &already_shared_email).await;
+    cleanup_customer(&pool, &deleted_email).await;
 }
 
 #[tokio::test]
@@ -216,6 +428,75 @@ async fn claim_ingest_quota_warning_is_monthly_per_metric_and_atomic() {
     assert!(
         sent_for_may_storage,
         "storage warning state should remain independent from records state"
+    );
+
+    cleanup_customer(&pool, &email).await;
+}
+
+#[tokio::test]
+async fn rollback_ingest_quota_warning_reopens_same_month_claim() {
+    let Some(db) = pg_schema_harness::connect_and_migrate("it_pg_customer_repo").await else {
+        return;
+    };
+    let pool = db.pool.clone();
+    let repo = PgCustomerRepo::new(pool.clone());
+    let email = format!(
+        "quota-warning-rollback-{}@integration.test",
+        &Uuid::new_v4().to_string()[..8]
+    );
+
+    let customer = repo
+        .create("Quota Warning Rollback", &email)
+        .await
+        .expect("create customer");
+
+    assert!(
+        repo.claim_ingest_quota_warning_for_month(
+            customer.id,
+            IngestQuotaWarningMetric::Records,
+            2026,
+            5,
+        )
+        .await
+        .expect("initial claim"),
+        "initial claim should reserve the records warning slot"
+    );
+
+    assert!(
+        repo.rollback_ingest_quota_warning_for_month(
+            customer.id,
+            IngestQuotaWarningMetric::Records,
+            2026,
+            5,
+        )
+        .await
+        .expect("rollback claim"),
+        "rollback should clear the current month reservation"
+    );
+
+    assert!(
+        !repo
+            .ingest_quota_warning_sent_for_month(
+                customer.id,
+                IngestQuotaWarningMetric::Records,
+                2026,
+                5,
+            )
+            .await
+            .expect("read rolled back month state"),
+        "rolled back month should no longer appear claimed"
+    );
+
+    assert!(
+        repo.claim_ingest_quota_warning_for_month(
+            customer.id,
+            IngestQuotaWarningMetric::Records,
+            2026,
+            5,
+        )
+        .await
+        .expect("reclaim same month"),
+        "same month should become claimable again after rollback"
     );
 
     cleanup_customer(&pool, &email).await;
@@ -1279,4 +1560,250 @@ async fn hard_delete_rejects_customers_with_open_invoices() {
     );
 
     cleanup_customer_graph(&pool, &[customer.id]).await;
+}
+
+// ─── Login lockout tests ─────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn lockout_record_failed_login_increments_and_eventually_locks() {
+    let Some(harness) = pg_schema_harness::connect_and_migrate("lockout_basic").await else {
+        return;
+    };
+    let pool = harness.pool.clone();
+    let repo = PgCustomerRepo::new(pool.clone());
+
+    let customer = repo
+        .create_with_password("lockout-user", "lockout@test.dev", "$argon2id$hash")
+        .await
+        .expect("create test customer");
+
+    // First 4 failures should not lock (threshold is 5)
+    for i in 1..=4 {
+        let result = repo
+            .record_failed_login(customer.id)
+            .await
+            .expect("record_failed_login");
+        assert_eq!(
+            result, None,
+            "attempt {i}: should not be locked before threshold"
+        );
+    }
+
+    // 5th failure should trigger lockout
+    let result = repo
+        .record_failed_login(customer.id)
+        .await
+        .expect("record_failed_login at threshold");
+    assert!(
+        result.is_some(),
+        "5th failure must trigger lockout — expected Some(seconds_remaining)"
+    );
+    let seconds = result.unwrap();
+    assert!(
+        seconds > 0 && seconds <= 1800,
+        "lockout duration must be between 1 and 1800 seconds, got {seconds}"
+    );
+
+    // Verify lockout_remaining reports the same
+    let remaining = repo
+        .login_lockout_remaining(customer.id)
+        .await
+        .expect("login_lockout_remaining");
+    assert!(
+        remaining.is_some(),
+        "lockout_remaining must report locked state"
+    );
+
+    cleanup_customer(&pool, "lockout@test.dev").await;
+}
+
+#[tokio::test]
+async fn lockout_successful_login_resets_counters() {
+    let Some(harness) = pg_schema_harness::connect_and_migrate("lockout_reset").await else {
+        return;
+    };
+    let pool = harness.pool.clone();
+    let repo = PgCustomerRepo::new(pool.clone());
+
+    let customer = repo
+        .create_with_password("reset-user", "reset-lockout@test.dev", "$argon2id$hash")
+        .await
+        .expect("create test customer");
+
+    // Accumulate some failures
+    for _ in 0..3 {
+        repo.record_failed_login(customer.id)
+            .await
+            .expect("record_failed_login");
+    }
+
+    // Successful login resets everything
+    let reset = repo
+        .record_successful_login(customer.id)
+        .await
+        .expect("record_successful_login");
+    assert!(reset, "record_successful_login should return true");
+
+    // Next failure should start from count 1 (no lock)
+    let result = repo
+        .record_failed_login(customer.id)
+        .await
+        .expect("record_failed_login after reset");
+    assert_eq!(
+        result, None,
+        "after successful login, counter resets — first failure should not lock"
+    );
+
+    cleanup_customer(&pool, "reset-lockout@test.dev").await;
+}
+
+#[tokio::test]
+async fn lockout_concurrent_failures_reach_exact_count() {
+    let Some(harness) = pg_schema_harness::connect_and_migrate("lockout_concurrent").await else {
+        return;
+    };
+    let pool = harness.pool.clone();
+    let repo = Arc::new(PgCustomerRepo::new(pool.clone()));
+
+    let customer = repo
+        .create_with_password("concurrent-user", "concurrent-lockout@test.dev", "$argon2id$hash")
+        .await
+        .expect("create test customer");
+
+    let mut set = tokio::task::JoinSet::new();
+    for _ in 0..10 {
+        let repo_clone = Arc::clone(&repo);
+        let cid = customer.id;
+        set.spawn(async move { repo_clone.record_failed_login(cid).await });
+    }
+
+    let mut results = Vec::new();
+    while let Some(res) = set.join_next().await {
+        results.push(res.expect("task join").expect("record_failed_login"));
+    }
+
+    // All 10 must have completed — verify the final count in DB
+    let count: i32 = sqlx::query_scalar(
+        "SELECT failed_login_count FROM customers WHERE id = $1",
+    )
+    .bind(customer.id)
+    .fetch_one(&pool)
+    .await
+    .expect("query failed_login_count");
+
+    assert_eq!(
+        count, 10,
+        "10 concurrent record_failed_login calls must result in count=10 (atomic increment)"
+    );
+
+    // At least some results should have reported lockout (threshold is 5)
+    let locked_count = results.iter().filter(|r| r.is_some()).count();
+    assert!(
+        locked_count >= 6,
+        "at least 6 of 10 concurrent calls should report locked (calls 5-10), got {locked_count}"
+    );
+
+    cleanup_customer(&pool, "concurrent-lockout@test.dev").await;
+}
+
+#[tokio::test]
+async fn verify_email_succeeds_even_when_deferred_verify_lockout_columns_are_active() {
+    let Some(harness) = pg_schema_harness::connect_and_migrate("verify_lockout_deferred").await else {
+        return;
+    };
+    let pool = harness.pool.clone();
+    let repo = PgCustomerRepo::new(pool.clone());
+
+    let email = format!(
+        "verify-lockout-{}@integration.test",
+        &Uuid::new_v4().to_string()[..8]
+    );
+    let customer = repo
+        .create("Verify Lockout Deferred", &email)
+        .await
+        .expect("create customer for verify lockout defer regression");
+
+    let token = "verify-token-deferred-lockout";
+    repo.set_email_verify_token(
+        customer.id,
+        token,
+        chrono::Utc::now() + chrono::Duration::hours(1),
+    )
+    .await
+    .expect("set verification token");
+
+    sqlx::query(
+        "UPDATE customers SET \
+            failed_verify_count = 99, \
+            failed_verify_window_start = NOW() - INTERVAL '5 minutes', \
+            verify_locked_until = NOW() + INTERVAL '2 hours' \
+         WHERE id = $1",
+    )
+    .bind(customer.id)
+    .execute(&pool)
+    .await
+    .expect("seed active deferred verify lockout columns");
+
+    let verified = repo
+        .verify_email(token)
+        .await
+        .expect("verify_email query should succeed");
+    assert!(
+        verified.is_some(),
+        "valid verify token must still succeed while deferred verify lockout columns are active"
+    );
+
+    cleanup_customer(&pool, &email).await;
+}
+
+#[tokio::test]
+async fn reset_password_succeeds_even_when_deferred_reset_lockout_columns_are_active() {
+    let Some(harness) = pg_schema_harness::connect_and_migrate("reset_lockout_deferred").await else {
+        return;
+    };
+    let pool = harness.pool.clone();
+    let repo = PgCustomerRepo::new(pool.clone());
+
+    let email = format!(
+        "reset-lockout-{}@integration.test",
+        &Uuid::new_v4().to_string()[..8]
+    );
+    let customer = repo
+        .create_with_password("Reset Lockout Deferred", &email, "$argon2id$hash")
+        .await
+        .expect("create customer for reset lockout defer regression");
+
+    let token = "reset-token-deferred-lockout";
+    let token_set = repo
+        .set_password_reset_token(
+            customer.id,
+            token,
+            chrono::Utc::now() + chrono::Duration::hours(1),
+        )
+        .await
+        .expect("set reset token");
+    assert!(token_set, "password reset token setup should succeed");
+
+    sqlx::query(
+        "UPDATE customers SET \
+            failed_reset_count = 99, \
+            failed_reset_window_start = NOW() - INTERVAL '5 minutes', \
+            reset_locked_until = NOW() + INTERVAL '2 hours' \
+         WHERE id = $1",
+    )
+    .bind(customer.id)
+    .execute(&pool)
+    .await
+    .expect("seed active deferred reset lockout columns");
+
+    let reset = repo
+        .reset_password(token, "$argon2id$newhash")
+        .await
+        .expect("reset_password query should succeed");
+    assert!(
+        reset,
+        "valid reset token must still succeed while deferred reset lockout columns are active"
+    );
+
+    cleanup_customer(&pool, &email).await;
 }

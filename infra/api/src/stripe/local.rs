@@ -1,5 +1,3 @@
-//! Local in-memory Stripe implementation used by development and tests.
-
 use async_trait::async_trait;
 use hmac::{Hmac, Mac};
 use sha2::Sha256;
@@ -7,8 +5,9 @@ use std::sync::{Arc, Mutex};
 use uuid::Uuid;
 
 use super::{
-    CreatePortalSessionRequest, FinalizedInvoice, PaymentMethodSummary, PortalSessionResponse,
-    StripeError, StripeEvent, StripeInvoiceLineItem, StripeService,
+    CreatePortalSessionRequest, FinalizedInvoice, PaidInvoice, PaymentMethodSummary,
+    PortalSessionResponse, StripeChargeLookup, StripeError, StripeEvent, StripeInvoiceLineItem,
+    StripeLastPaymentError, StripeService,
 };
 
 type HmacSha256 = Hmac<Sha256>;
@@ -46,6 +45,9 @@ struct LocalInvoice {
     line_items: Vec<StripeInvoiceLineItem>,
     hosted_url: String,
     pdf_url: String,
+    status: String,
+    amount_paid_cents: i64,
+    last_payment_error: Option<StripeLastPaymentError>,
 }
 
 /// In-memory state for the local Stripe mock.
@@ -206,6 +208,84 @@ impl LocalStripeService {
             data,
         });
     }
+
+    /// Test-only setup helper: seed a synthetic payment method and mark it as
+    /// default for the given customer so pay-path tests can drive deterministic
+    /// outcomes without adding trait-only test seams.
+    pub fn seed_default_payment_method(&self, stripe_customer_id: &str, pm_id: &str) {
+        let mut state = self.state.lock().unwrap();
+        if let Some(customer) = state
+            .customers
+            .iter_mut()
+            .find(|candidate| candidate.id == stripe_customer_id)
+        {
+            customer.default_payment_method = Some(pm_id.to_string());
+        }
+
+        if !state
+            .payment_methods
+            .iter()
+            .any(|payment_method| payment_method.id == pm_id)
+        {
+            state.payment_methods.push(LocalPaymentMethod {
+                id: pm_id.to_string(),
+                customer_id: stripe_customer_id.to_string(),
+                card_brand: "visa".to_string(),
+                last4: "4242".to_string(),
+                exp_month: 12,
+                exp_year: 2030,
+            });
+        }
+    }
+
+    fn payment_outcome_for_payment_method(
+        default_payment_method: Option<&str>,
+    ) -> (String, i64, Option<StripeLastPaymentError>, &'static str) {
+        let Some(pm_id) = default_payment_method else {
+            return (
+                "open".to_string(),
+                0,
+                Some(StripeLastPaymentError {
+                    code: Some("invoice_no_payment_method_types".to_string()),
+                    decline_code: None,
+                    message: Some("No default payment method is set.".to_string()),
+                }),
+                "invoice.payment_failed",
+            );
+        };
+
+        // Canonical local-payment convention for tests:
+        // - pm_test_decline_* => declined
+        // - pm_test_3ds_* => requires_action
+        // - everything else => paid
+        if pm_id.starts_with("pm_test_decline_") {
+            return (
+                "open".to_string(),
+                0,
+                Some(StripeLastPaymentError {
+                    code: Some("card_declined".to_string()),
+                    decline_code: Some("insufficient_funds".to_string()),
+                    message: Some("Your card has insufficient funds.".to_string()),
+                }),
+                "invoice.payment_failed",
+            );
+        }
+
+        if pm_id.starts_with("pm_test_3ds_") {
+            return (
+                "open".to_string(),
+                0,
+                Some(StripeLastPaymentError {
+                    code: Some("invoice_payment_intent_requires_action".to_string()),
+                    decline_code: None,
+                    message: Some("Payment requires customer action.".to_string()),
+                }),
+                "invoice.payment_failed",
+            );
+        }
+
+        ("paid".to_string(), -1, None, "invoice.payment_succeeded")
+    }
 }
 
 #[async_trait]
@@ -283,8 +363,7 @@ impl StripeService for LocalStripeService {
         Ok(())
     }
 
-    /// Creates a mock invoice, stores it in memory, and queues an
-    /// "invoice.payment_succeeded" webhook event (simulating instant payment).
+    /// Creates a mock invoice in `open` state and queues `invoice.finalized`.
     async fn create_and_finalize_invoice(
         &self,
         stripe_customer_id: &str,
@@ -302,6 +381,9 @@ impl StripeService for LocalStripeService {
             line_items: line_items.to_vec(),
             hosted_url: hosted_url.clone(),
             pdf_url: pdf_url.clone(),
+            status: "open".to_string(),
+            amount_paid_cents: 0,
+            last_payment_error: None,
         };
 
         {
@@ -309,17 +391,16 @@ impl StripeService for LocalStripeService {
             state.invoices.push(invoice);
         }
 
-        // Queue webhook: simulate instant payment success.
-        let total_cents: i64 = line_items.iter().map(|li| li.amount_cents).sum();
+        // Queue webhook: invoice finalized and ready for explicit pay/void.
         self.queue_webhook(
-            "invoice.payment_succeeded",
+            "invoice.finalized",
             serde_json::json!({
                 "id": invoice_id,
                 "customer": stripe_customer_id,
-                "amount_paid": total_cents,
+                "amount_paid": 0,
                 "hosted_invoice_url": hosted_url,
                 "invoice_pdf": pdf_url,
-                "status": "paid"
+                "status": "open"
             }),
         );
 
@@ -327,6 +408,120 @@ impl StripeService for LocalStripeService {
             stripe_invoice_id: invoice_id,
             hosted_invoice_url: hosted_url,
             pdf_url: Some(pdf_url),
+        })
+    }
+
+    async fn pay_invoice(&self, stripe_invoice_id: &str) -> Result<PaidInvoice, StripeError> {
+        let mut state = self.state.lock().unwrap();
+        let invoice_index = state
+            .invoices
+            .iter()
+            .position(|candidate| candidate.id == stripe_invoice_id)
+            .ok_or_else(|| StripeError::Api("invoice not found".to_string()))?;
+        let customer_id = state.invoices[invoice_index].customer_id.clone();
+
+        let default_payment_method = state
+            .customers
+            .iter()
+            .find(|customer| customer.id == customer_id)
+            .and_then(|customer| customer.default_payment_method.as_deref());
+
+        let (status, amount_paid_cents, last_payment_error, webhook_event_type) =
+            Self::payment_outcome_for_payment_method(default_payment_method);
+
+        let invoice = &mut state.invoices[invoice_index];
+        let total_cents: i64 = invoice
+            .line_items
+            .iter()
+            .map(|item| item.amount_cents)
+            .sum();
+        invoice.status = status.clone();
+        invoice.amount_paid_cents = if amount_paid_cents < 0 {
+            total_cents
+        } else {
+            amount_paid_cents
+        };
+        invoice.last_payment_error = last_payment_error.clone();
+
+        self.queue_webhook(
+            webhook_event_type,
+            serde_json::json!({
+                "id": invoice.id,
+                "customer": invoice.customer_id,
+                "amount_paid": invoice.amount_paid_cents,
+                "hosted_invoice_url": invoice.hosted_url,
+                "invoice_pdf": invoice.pdf_url,
+                "status": invoice.status,
+                "last_payment_error": invoice.last_payment_error,
+            }),
+        );
+
+        Ok(PaidInvoice {
+            id: invoice.id.clone(),
+            status,
+            amount_paid_cents: invoice.amount_paid_cents,
+            last_payment_error,
+        })
+    }
+
+    async fn void_invoice(&self, stripe_invoice_id: &str) -> Result<PaidInvoice, StripeError> {
+        let mut state = self.state.lock().unwrap();
+        let invoice = state
+            .invoices
+            .iter_mut()
+            .find(|candidate| candidate.id == stripe_invoice_id)
+            .ok_or_else(|| StripeError::Api("invoice not found".to_string()))?;
+
+        invoice.status = "void".to_string();
+        invoice.amount_paid_cents = 0;
+        invoice.last_payment_error = None;
+
+        self.queue_webhook(
+            "invoice.voided",
+            serde_json::json!({
+                "id": invoice.id,
+                "customer": invoice.customer_id,
+                "amount_paid": invoice.amount_paid_cents,
+                "hosted_invoice_url": invoice.hosted_url,
+                "invoice_pdf": invoice.pdf_url,
+                "status": invoice.status,
+            }),
+        );
+
+        Ok(PaidInvoice {
+            id: invoice.id.clone(),
+            status: invoice.status.clone(),
+            amount_paid_cents: 0,
+            last_payment_error: None,
+        })
+    }
+
+    async fn lookup_charge_fallback_fields(
+        &self,
+        charge_id: &str,
+    ) -> Result<StripeChargeLookup, StripeError> {
+        if !charge_id.starts_with("ch_") {
+            return Err(StripeError::Api(
+                "invalid charge id for local Stripe".into(),
+            ));
+        }
+
+        let suffix = charge_id.trim_start_matches("ch_");
+        let invoice_id = if suffix.contains("missing_invoice") {
+            None
+        } else {
+            Some(format!("in_{suffix}"))
+        };
+        let payment_intent_id = if suffix.contains("missing_payment_intent") {
+            None
+        } else {
+            Some(format!("pi_{suffix}"))
+        };
+
+        Ok(StripeChargeLookup {
+            charge_id: charge_id.to_string(),
+            invoice_id,
+            payment_intent_id,
         })
     }
 

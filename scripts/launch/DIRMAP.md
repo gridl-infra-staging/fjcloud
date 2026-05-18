@@ -11,6 +11,7 @@ capture, owner-script style.
 Sequencing (each step gates the next):
   1) Verify the deployed staging API picks up the tenant-map URL
      fallback (i.e. |
+| capture_upgrade_trust_ratchet_evidence.sh | Stub summary for capture_upgrade_trust_ratchet_evidence.sh. |
 | hydrate_seeder_env_from_ssm.sh | hydrate_seeder_env_from_ssm.sh — print KEY=VALUE lines that satisfy the
 execute-contract env vars consumed by scripts/launch/seed_synthetic_traffic.sh.
 
@@ -43,6 +44,7 @@ non-null, exits 1 otherwise. |
 | run_browser_lane_against_staging.sh | Stub summary for run_browser_lane_against_staging.sh. |
 | run_full_backend_validation.sh | Stub summary for run_full_backend_validation.sh. |
 | seed_synthetic_traffic.sh | Stub summary for seed_synthetic_traffic.sh. |
+| ses_deliverability_evidence.sh | Stub summary for ses_deliverability_evidence.sh. |
 | ssm_exec_staging.sh | ssm_exec_staging.sh — synchronously run a shell command on the staging
 fjcloud API EC2 instance via AWS SSM RunShellScript.
 

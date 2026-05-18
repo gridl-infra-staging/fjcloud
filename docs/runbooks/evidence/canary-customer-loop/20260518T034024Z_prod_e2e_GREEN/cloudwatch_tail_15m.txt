@@ -1,0 +1,72 @@
+2026-05-18T03:32:40.607000+00:00 2026/05/18/[$LATEST]0acbe69569cc46b18043de641696e512 Exception ignored in: <_io.TextIOWrapper name='<stdout>' mode='w' encoding='utf-8'>
+2026-05-18T03:32:40.607000+00:00 2026/05/18/[$LATEST]0acbe69569cc46b18043de641696e512 BrokenPipeError: [Errno 32] Broken pipe
+2026-05-18T03:32:41.167000+00:00 2026/05/18/[$LATEST]0acbe69569cc46b18043de641696e512 END RequestId: 9ff7a504-7fbe-4f71-be7d-8d081b244c38
+2026-05-18T03:32:41.167000+00:00 2026/05/18/[$LATEST]0acbe69569cc46b18043de641696e512 REPORT RequestId: 9ff7a504-7fbe-4f71-be7d-8d081b244c38	Duration: 4172.43 ms	Billed Duration: 4355 ms	Memory Size: 512 MB	Max Memory Used: 134 MB	Init Duration: 182.37 ms	Status: error	Error Type: Runtime.ExitError
+2026-05-18T03:32:41.529000+00:00 2026/05/18/[$LATEST]0acbe69569cc46b18043de641696e512 START RequestId: af3e3e27-7e53-43de-8e17-686392591949 Version: $LATEST
+2026-05-18T03:32:41.670000+00:00 2026/05/18/[$LATEST]0acbe69569cc46b18043de641696e512 Traceback (most recent call last):
+2026-05-18T03:32:41.670000+00:00 2026/05/18/[$LATEST]0acbe69569cc46b18043de641696e512 File "<stdin>", line 4, in <module>
+2026-05-18T03:32:41.670000+00:00 2026/05/18/[$LATEST]0acbe69569cc46b18043de641696e512 File "/usr/lib64/python3.9/json/__init__.py", line 293, in load
+2026-05-18T03:32:41.670000+00:00 2026/05/18/[$LATEST]0acbe69569cc46b18043de641696e512 return loads(fp.read(),
+2026-05-18T03:32:41.670000+00:00 2026/05/18/[$LATEST]0acbe69569cc46b18043de641696e512 File "/usr/lib64/python3.9/json/__init__.py", line 346, in loads
+2026-05-18T03:32:41.670000+00:00 2026/05/18/[$LATEST]0acbe69569cc46b18043de641696e512 return _default_decoder.decode(s)
+2026-05-18T03:32:41.670000+00:00 2026/05/18/[$LATEST]0acbe69569cc46b18043de641696e512 File "/usr/lib64/python3.9/json/decoder.py", line 337, in decode
+2026-05-18T03:32:41.670000+00:00 2026/05/18/[$LATEST]0acbe69569cc46b18043de641696e512 obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+2026-05-18T03:32:41.670000+00:00 2026/05/18/[$LATEST]0acbe69569cc46b18043de641696e512 File "/usr/lib64/python3.9/json/decoder.py", line 355, in raw_decode
+2026-05-18T03:32:41.670000+00:00 2026/05/18/[$LATEST]0acbe69569cc46b18043de641696e512 raise JSONDecodeError("Expecting value", s, err.value) from None
+2026-05-18T03:32:41.670000+00:00 2026/05/18/[$LATEST]0acbe69569cc46b18043de641696e512 json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+2026-05-18T03:32:44.097000+00:00 2026/05/18/[$LATEST]0acbe69569cc46b18043de641696e512 Exception ignored in: <_io.TextIOWrapper name='<stdout>' mode='w' encoding='utf-8'>
+2026-05-18T03:32:44.097000+00:00 2026/05/18/[$LATEST]0acbe69569cc46b18043de641696e512 BrokenPipeError: [Errno 32] Broken pipe
+2026-05-18T03:32:44.667000+00:00 2026/05/18/[$LATEST]0acbe69569cc46b18043de641696e512 END RequestId: af3e3e27-7e53-43de-8e17-686392591949
+2026-05-18T03:32:44.667000+00:00 2026/05/18/[$LATEST]0acbe69569cc46b18043de641696e512 REPORT RequestId: af3e3e27-7e53-43de-8e17-686392591949	Duration: 3160.14 ms	Billed Duration: 3161 ms	Memory Size: 512 MB	Max Memory Used: 134 MB	Status: error	Error Type: Runtime.ExitError
+2026-05-18T03:33:31.867000+00:00 2026/05/18/[$LATEST]5406093cc97648e589c5c3d4845f264e START RequestId: 0524578a-208a-4a45-9857-fe2f4b44aa7f Version: $LATEST
+2026-05-18T03:33:35.987000+00:00 2026/05/18/[$LATEST]5406093cc97648e589c5c3d4845f264e [customer-loop-canary] signup succeeded for canary+canary2026051803333529769@test.flapjack.foo (customer=b833657f-50c1-4452-a394-cf4dceea6506)
+2026-05-18T03:36:01.330000+00:00 2026/05/18/[$LATEST]5406093cc97648e589c5c3d4845f264e [customer-loop-canary] customer loop failed before completion; entering cleanup
+2026-05-18T03:36:01.468000+00:00 2026/05/18/[$LATEST]5406093cc97648e589c5c3d4845f264e [customer-loop-canary] account delete attempted for customer b833657f-50c1-4452-a394-cf4dceea6506
+2026-05-18T03:36:01.568000+00:00 2026/05/18/[$LATEST]5406093cc97648e589c5c3d4845f264e [customer-loop-canary] step 'verify_email' failed: verification email not found in inbox within timeout
+2026-05-18T03:36:01.589000+00:00 2026/05/18/[$LATEST]5406093cc97648e589c5c3d4845f264e [FAIL] slack: webhook URL must use https://
+2026-05-18T03:36:01.627000+00:00 2026/05/18/[$LATEST]5406093cc97648e589c5c3d4845f264e [FAIL] discord: webhook URL must use https://
+2026-05-18T03:36:01.768000+00:00 2026/05/18/[$LATEST]5406093cc97648e589c5c3d4845f264e END RequestId: 0524578a-208a-4a45-9857-fe2f4b44aa7f
+2026-05-18T03:36:01.768000+00:00 2026/05/18/[$LATEST]5406093cc97648e589c5c3d4845f264e REPORT RequestId: 0524578a-208a-4a45-9857-fe2f4b44aa7f	Duration: 149900.21 ms	Billed Duration: 149980 ms	Memory Size: 512 MB	Max Memory Used: 143 MB	Init Duration: 79.25 ms
+2026-05-18T03:40:32.633000+00:00 2026/05/18/[$LATEST]5406093cc97648e589c5c3d4845f264e START RequestId: 9ea3d0f5-d836-4047-aa37-d5f4d4b1d8f8 Version: $LATEST
+2026-05-18T03:40:35.882000+00:00 2026/05/18/[$LATEST]5406093cc97648e589c5c3d4845f264e [customer-loop-canary] signup succeeded for canary+canary202605180340358886@test.flapjack.foo (customer=a5f402f3-247a-4d7a-bd90-5819c2e1be34)
+2026-05-18T03:42:06.266000+00:00 2026/05/18/[$LATEST]b3ac60e2cea84e65a2d8e29b268d33fe START RequestId: ed883429-bc68-4bcd-b3b8-ef6a160d52b9 Version: $LATEST
+2026-05-18T03:42:10.982000+00:00 2026/05/18/[$LATEST]b3ac60e2cea84e65a2d8e29b268d33fe [customer-loop-canary] signup succeeded for canary+canary202605180342101683@test.flapjack.foo (customer=be62b68b-1fef-4a14-92b6-1c7077c85444)
+2026-05-18T03:42:58.923000+00:00 2026/05/18/[$LATEST]5406093cc97648e589c5c3d4845f264e [customer-loop-canary] customer loop failed before completion; entering cleanup
+2026-05-18T03:42:59.085000+00:00 2026/05/18/[$LATEST]5406093cc97648e589c5c3d4845f264e [customer-loop-canary] account delete attempted for customer a5f402f3-247a-4d7a-bd90-5819c2e1be34
+2026-05-18T03:42:59.182000+00:00 2026/05/18/[$LATEST]5406093cc97648e589c5c3d4845f264e [customer-loop-canary] step 'verify_email' failed: verification email not found in inbox within timeout
+2026-05-18T03:42:59.202000+00:00 2026/05/18/[$LATEST]5406093cc97648e589c5c3d4845f264e [FAIL] slack: webhook URL must use https://
+2026-05-18T03:42:59.226000+00:00 2026/05/18/[$LATEST]5406093cc97648e589c5c3d4845f264e [FAIL] discord: webhook URL must use https://
+2026-05-18T03:42:59.368000+00:00 2026/05/18/[$LATEST]5406093cc97648e589c5c3d4845f264e END RequestId: 9ea3d0f5-d836-4047-aa37-d5f4d4b1d8f8
+2026-05-18T03:42:59.368000+00:00 2026/05/18/[$LATEST]5406093cc97648e589c5c3d4845f264e REPORT RequestId: 9ea3d0f5-d836-4047-aa37-d5f4d4b1d8f8	Duration: 146733.11 ms	Billed Duration: 146734 ms	Memory Size: 512 MB	Max Memory Used: 144 MB
+2026-05-18T03:44:05.905000+00:00 2026/05/18/[$LATEST]5406093cc97648e589c5c3d4845f264e START RequestId: 9d65db6d-3a9e-42ac-81a3-0bd986e58ccb Version: $LATEST
+2026-05-18T03:44:09.200000+00:00 2026/05/18/[$LATEST]5406093cc97648e589c5c3d4845f264e [customer-loop-canary] signup succeeded for canary+canary202605180344088739@test.flapjack.foo (customer=fd0b717f-1e6e-41dc-94a0-b0986f1041fa)
+2026-05-18T03:44:49.265000+00:00 2026/05/18/[$LATEST]b3ac60e2cea84e65a2d8e29b268d33fe [customer-loop-canary] customer loop failed before completion; entering cleanup
+2026-05-18T03:44:49.403000+00:00 2026/05/18/[$LATEST]b3ac60e2cea84e65a2d8e29b268d33fe [customer-loop-canary] account delete attempted for customer be62b68b-1fef-4a14-92b6-1c7077c85444
+2026-05-18T03:44:49.503000+00:00 2026/05/18/[$LATEST]b3ac60e2cea84e65a2d8e29b268d33fe [customer-loop-canary] step 'verify_email' failed: verification email not found in inbox within timeout
+2026-05-18T03:44:49.526000+00:00 2026/05/18/[$LATEST]b3ac60e2cea84e65a2d8e29b268d33fe [FAIL] slack: webhook URL must use https://
+2026-05-18T03:44:49.561000+00:00 2026/05/18/[$LATEST]b3ac60e2cea84e65a2d8e29b268d33fe [FAIL] discord: webhook URL must use https://
+2026-05-18T03:44:49.723000+00:00 2026/05/18/[$LATEST]b3ac60e2cea84e65a2d8e29b268d33fe END RequestId: ed883429-bc68-4bcd-b3b8-ef6a160d52b9
+2026-05-18T03:44:49.723000+00:00 2026/05/18/[$LATEST]b3ac60e2cea84e65a2d8e29b268d33fe REPORT RequestId: ed883429-bc68-4bcd-b3b8-ef6a160d52b9	Duration: 163454.40 ms	Billed Duration: 163557 ms	Memory Size: 512 MB	Max Memory Used: 143 MB	Init Duration: 102.57 ms
+2026-05-18T03:44:54.902000+00:00 2026/05/18/[$LATEST]b3ac60e2cea84e65a2d8e29b268d33fe START RequestId: 87feaceb-dbc2-4862-8357-01c5c3c75e03 Version: $LATEST
+2026-05-18T03:44:58.541000+00:00 2026/05/18/[$LATEST]b3ac60e2cea84e65a2d8e29b268d33fe [customer-loop-canary] signup succeeded for canary+canary2026051803445822872@test.flapjack.foo (customer=e5648eef-43a2-4c2d-8bed-55ba63461544)
+2026-05-18T03:45:55.889000+00:00 2026/05/18/[$LATEST]ab0dff3ac1574e05b725c1bae33dd10f START RequestId: 0f607b8f-84ae-41ef-86db-53ce326769e4 Version: $LATEST
+2026-05-18T03:46:00.639000+00:00 2026/05/18/[$LATEST]ab0dff3ac1574e05b725c1bae33dd10f [customer-loop-canary] signup succeeded for canary+canary2026051803455912749@test.flapjack.foo (customer=04e28761-c1d5-4410-bcef-9ba6122abbb2)
+2026-05-18T03:46:10.396000+00:00 2026/05/18/[$LATEST]1a1b399f6bcb4a7cb57fa11a97cd37cf START RequestId: ad736380-4336-42ab-8347-e3a69fe8ac7a Version: $LATEST
+2026-05-18T03:46:14.954000+00:00 2026/05/18/[$LATEST]1a1b399f6bcb4a7cb57fa11a97cd37cf [customer-loop-canary] signup succeeded for canary+canary2026051803461417661@test.flapjack.foo (customer=3723ff23-8bda-40b4-bf89-277fe0b788f9)
+2026-05-18T03:46:20.860000+00:00 2026/05/18/[$LATEST]f65fc28fe1914a1a81d586c03cd4cfbb START RequestId: d1e5fa2d-255e-4be7-9bda-fc1c1bf37849 Version: $LATEST
+2026-05-18T03:46:25.291000+00:00 2026/05/18/[$LATEST]f65fc28fe1914a1a81d586c03cd4cfbb [customer-loop-canary] signup succeeded for canary+canary2026051803462425998@test.flapjack.foo (customer=8d4a2854-c354-4d7b-bb13-89e503ff967e)
+2026-05-18T03:46:32.396000+00:00 2026/05/18/[$LATEST]6a6238aea2df419cb057520c16786e16 START RequestId: b8f27e08-f0d6-4dcb-bd8b-9fb52fe6f47a Version: $LATEST
+2026-05-18T03:46:33.861000+00:00 2026/05/18/[$LATEST]5406093cc97648e589c5c3d4845f264e [customer-loop-canary] customer loop failed before completion; entering cleanup
+2026-05-18T03:46:33.982000+00:00 2026/05/18/[$LATEST]5406093cc97648e589c5c3d4845f264e [customer-loop-canary] account delete attempted for customer fd0b717f-1e6e-41dc-94a0-b0986f1041fa
+2026-05-18T03:46:34.082000+00:00 2026/05/18/[$LATEST]5406093cc97648e589c5c3d4845f264e [customer-loop-canary] step 'verify_email' failed: verification email not found in inbox within timeout
+2026-05-18T03:46:34.103000+00:00 2026/05/18/[$LATEST]5406093cc97648e589c5c3d4845f264e [FAIL] slack: webhook URL must use https://
+2026-05-18T03:46:34.140000+00:00 2026/05/18/[$LATEST]5406093cc97648e589c5c3d4845f264e [FAIL] discord: webhook URL must use https://
+2026-05-18T03:46:34.281000+00:00 2026/05/18/[$LATEST]5406093cc97648e589c5c3d4845f264e END RequestId: 9d65db6d-3a9e-42ac-81a3-0bd986e58ccb
+2026-05-18T03:46:34.281000+00:00 2026/05/18/[$LATEST]5406093cc97648e589c5c3d4845f264e REPORT RequestId: 9d65db6d-3a9e-42ac-81a3-0bd986e58ccb	Duration: 148361.34 ms	Billed Duration: 148362 ms	Memory Size: 512 MB	Max Memory Used: 145 MB
+2026-05-18T03:46:36.769000+00:00 2026/05/18/[$LATEST]6a6238aea2df419cb057520c16786e16 [customer-loop-canary] signup succeeded for canary+canary2026051803463619718@test.flapjack.foo (customer=2d7aefa8-8796-49b4-986c-08261a2eb083)
+2026-05-18T03:47:08.592000+00:00 2026/05/18/[$LATEST]5406093cc97648e589c5c3d4845f264e START RequestId: b070abdd-8ece-4f44-898a-67cbcf493880 Version: $LATEST
+2026-05-18T03:47:11.878000+00:00 2026/05/18/[$LATEST]5406093cc97648e589c5c3d4845f264e [customer-loop-canary] signup succeeded for canary+canary2026051803471114706@test.flapjack.foo (customer=531379a8-85ce-4646-80cb-3761700ad275)
+2026-05-18T03:47:19.364000+00:00 2026/05/18/[$LATEST]abd8cf4a603a4e5c87d34c133e487a8c START RequestId: ba0bcbd6-6465-4143-8a8d-dba2716cf010 Version: $LATEST
+2026-05-18T03:47:23.562000+00:00 2026/05/18/[$LATEST]abd8cf4a603a4e5c87d34c133e487a8c [customer-loop-canary] signup succeeded for canary+canary2026051803472329476@test.flapjack.foo (customer=9b8395b5-da59-4fa8-b98f-da329c388da1)
+2026-05-18T03:47:30.089000+00:00 2026/05/18/[$LATEST]4ad8ed1d759c42f9a2a3ea50bc65dd0e START RequestId: 08f293d8-7ee1-4cbe-9ccd-44d31df2c3f6 Version: $LATEST
+2026-05-18T03:47:34.387000+00:00 2026/05/18/[$LATEST]4ad8ed1d759c42f9a2a3ea50bc65dd0e [customer-loop-canary] signup succeeded for canary+canary2026051803473332113@test.flapjack.foo (customer=cff72097-08ea-4f44-a675-62ed3b838be9)

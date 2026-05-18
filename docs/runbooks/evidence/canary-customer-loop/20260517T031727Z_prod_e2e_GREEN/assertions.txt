@@ -1,0 +1,13 @@
+status_code=200
+function_error=Unhandled
+success_markers=absent
+failure_markers=present
+--success_hits--
+
+--failure_hits--
+docs/runbooks/evidence/canary-customer-loop/20260517T031727Z_prod_e2e_GREEN/invoke_log_tail.txt:5:[customer-loop-canary] step 'verify_email' failed: verification email not found in inbox within timeout
+docs/runbooks/evidence/canary-customer-loop/20260517T031727Z_prod_e2e_GREEN/cloudwatch_tail_15m.txt:6:2026-05-17T03:04:21.479000+00:00 2026/05/17/[$LATEST]ce8e15177e8f4895849d681c0d1b0fd2 [customer-loop-canary] step 'verify_email' failed: verification email not found in inbox within timeout
+docs/runbooks/evidence/canary-customer-loop/20260517T031727Z_prod_e2e_GREEN/cloudwatch_tail_15m.txt:15:2026-05-17T03:16:23.214000+00:00 2026/05/17/[$LATEST]d47fc9390b424939bda8d71095438310 [customer-loop-canary] step 'verify_email' failed: verification email not found in inbox within timeout
+docs/runbooks/evidence/canary-customer-loop/20260517T031727Z_prod_e2e_GREEN/cloudwatch_tail_15m.txt:24:2026-05-17T03:17:35.674000+00:00 2026/05/17/[$LATEST]d47fc9390b424939bda8d71095438310 [customer-loop-canary] step 'verify_email' failed: verification email not found in inbox within timeout
+docs/runbooks/evidence/canary-customer-loop/20260517T031727Z_prod_e2e_GREEN/cloudwatch_tail_15m.txt:33:2026-05-17T03:17:53.672000+00:00 2026/05/17/[$LATEST]d47fc9390b424939bda8d71095438310 [customer-loop-canary] step 'verify_email' failed: verification email not found in inbox within timeout
+docs/runbooks/evidence/canary-customer-loop/20260517T031727Z_prod_e2e_GREEN/cloudwatch_tail_15m.txt:42:2026-05-17T03:18:01.332000+00:00 2026/05/17/[$LATEST]d47fc9390b424939bda8d71095438310 [customer-loop-canary] step 'verify_email' failed: verification email not found in inbox within timeout

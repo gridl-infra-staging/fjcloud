@@ -11,6 +11,7 @@ Ownership boundary:
 - Callers own alert-specific metadata values (title/message/source/nonce/env).
 TODO: Document build_slack_critical_payload. |
 | billing_rehearsal_steps.sh | Shared planned-step list for staging billing preflight/rehearsal JSON output. |
+| customer_lifecycle_steps.sh | Stub summary for customer_lifecycle_steps.sh. |
 | deterministic_batch_payload.sh | Stub summary for deterministic_batch_payload.sh. |
 | env.sh | Shared environment file loading — single source of truth for local env parsing.
 
@@ -151,6 +152,7 @@ REASON: codes:
   stripe_webhook_secret_unset     STRIPE_WEBHOOK_SECRET missing
   stripe_webhook_secret_bad_prefix STRIPE_WEBHOOK_SECRET does not start with whsec_
   stripe_listen_not_running       No running "stripe listen" process. |
+| stripe_payment_methods.sh | Stub summary for stripe_payment_methods.sh. |
 | stripe_request.sh | Stub summary for stripe_request.sh. |
 | validation_json.sh | Shared JSON/timing helpers for validation scripts.
 Sourced by validate-stripe.sh, local-signoff-commerce.sh, and others. |

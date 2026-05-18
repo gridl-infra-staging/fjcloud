@@ -16,6 +16,7 @@ import {
 	resolveRequiredFixtureUserCredentials
 } from '../../playwright.config.contract';
 import {
+	FIXTURE_AUTH_API_RETRY_BUDGET_MS,
 	bootstrapFixtureUserForKnownLoginFailure,
 	formatFixtureSetupFailure,
 	setupFailureDetailsFromError
@@ -31,7 +32,11 @@ type CustomerLoginAttemptResult = {
 
 const LOGIN_SETTLE_TIMEOUT_MS = 20_000;
 const DELAYED_ALERT_CAPTURE_TIMEOUT_MS = 5_000;
-const AUTH_SETUP_TIMEOUT_MS = 60_000;
+const AUTH_SETUP_TIMEOUT_MS =
+	LOGIN_SETTLE_TIMEOUT_MS * 2 +
+	FIXTURE_AUTH_API_RETRY_BUDGET_MS * 2 +
+	DELAYED_ALERT_CAPTURE_TIMEOUT_MS +
+	15_000;
 
 setup.setTimeout(AUTH_SETUP_TIMEOUT_MS);
 

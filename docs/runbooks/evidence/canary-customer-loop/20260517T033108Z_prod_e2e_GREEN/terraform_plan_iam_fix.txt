@@ -1,0 +1,95 @@
+[33m╷[0m[0m
+[33m│[0m [0m[1m[33mWarning: [0m[0m[1mDeprecated Parameter[0m
+[33m│[0m [0m
+[33m│[0m [0m[0mThe parameter "dynamodb_table" is deprecated. Use parameter "use_lockfile"
+[33m│[0m [0minstead.
+[33m╵[0m[0m
+[0m[1mmodule.monitoring.data.aws_caller_identity.current: Reading...[0m[0m
+[0m[1mmodule.monitoring.data.aws_partition.current: Reading...[0m[0m
+[0m[1mmodule.monitoring.aws_ecr_repository.customer_loop_canary: Refreshing state... [id=fjcloud-prod-customer-loop-canary][0m
+[0m[1mmodule.monitoring.aws_iam_role.customer_loop_canary_lambda: Refreshing state... [id=fjcloud-prod-customer-loop-canary-lambda][0m
+[0m[1mmodule.monitoring.data.aws_partition.current: Read complete after 0s [id=aws][0m
+[0m[1mmodule.monitoring.data.aws_caller_identity.current: Read complete after 0s [id=213880904778][0m
+[0m[1mmodule.monitoring.aws_iam_role_policy.customer_loop_canary_lambda: Refreshing state... [id=fjcloud-prod-customer-loop-canary-lambda:fjcloud-prod-customer-loop-canary-lambda][0m
+[0m[1mmodule.monitoring.aws_lambda_function.customer_loop_canary: Refreshing state... [id=fjcloud-prod-customer-loop-canary][0m
+
+Terraform used the selected providers to generate the following execution
+plan. Resource actions are indicated with the following symbols:
+  [33m~[0m update in-place[0m
+
+Terraform will perform the following actions:
+
+[1m  # module.monitoring.aws_iam_role_policy.customer_loop_canary_lambda[0m will be updated in-place
+[0m  [33m~[0m[0m resource "aws_iam_role_policy" "customer_loop_canary_lambda" {
+        id          = "fjcloud-prod-customer-loop-canary-lambda:fjcloud-prod-customer-loop-canary-lambda"
+        name        = "fjcloud-prod-customer-loop-canary-lambda"
+      [33m~[0m[0m policy      = jsonencode(
+          [33m~[0m[0m {
+              [33m~[0m[0m Statement = [
+                    [90m# (1 unchanged element hidden)[0m[0m
+                    {
+                        Action   = [
+                            "logs:CreateLogStream",
+                            "logs:PutLogEvents",
+                        ]
+                        Effect   = "Allow"
+                        Resource = "arn:aws:logs:us-east-1:213880904778:log-group:/aws/lambda/fjcloud-prod-customer-loop-canary:*"
+                    },
+                  [33m~[0m[0m {
+                      [33m~[0m[0m Action   = [
+                            "ssm:GetParameter",
+                          [32m+[0m[0m "ssm:GetParameters",
+                        ]
+                      [33m~[0m[0m Resource = "arn:aws:ssm:us-east-1:213880904778:parameter/fjcloud/prod/canary_quiet_until" [33m->[0m[0m [
+                          [32m+[0m[0m "arn:aws:ssm:us-east-1:213880904778:parameter/fjcloud/prod/canary_quiet_until",
+                          [32m+[0m[0m "arn:aws:ssm:us-east-1:213880904778:parameter/fjcloud/prod/admin_key",
+                          [32m+[0m[0m "arn:aws:ssm:us-east-1:213880904778:parameter/fjcloud/prod/stripe_secret_key",
+                          [32m+[0m[0m "arn:aws:ssm:us-east-1:213880904778:parameter/fjcloud/prod/slack_webhook_url",
+                          [32m+[0m[0m "arn:aws:ssm:us-east-1:213880904778:parameter/fjcloud/prod/discord_webhook_url",
+                        ]
+                        [90m# (1 unchanged attribute hidden)[0m[0m
+                    },
+                  [32m+[0m[0m {
+                      [32m+[0m[0m Action    = "s3:ListBucket"
+                      [32m+[0m[0m Condition = {
+                          [32m+[0m[0m StringLike = {
+                              [32m+[0m[0m "s3:prefix" = [
+                                  [32m+[0m[0m "e2e-emails",
+                                  [32m+[0m[0m "e2e-emails/*",
+                                ]
+                            }
+                        }
+                      [32m+[0m[0m Effect    = "Allow"
+                      [32m+[0m[0m Resource  = "arn:aws:s3:::flapjack-cloud-releases"
+                      [32m+[0m[0m Sid       = "AllowCustomerLoopCanaryListInboundBucket"
+                    },
+                  [32m+[0m[0m {
+                      [32m+[0m[0m Action   = "s3:GetObject"
+                      [32m+[0m[0m Effect   = "Allow"
+                      [32m+[0m[0m Resource = "arn:aws:s3:::flapjack-cloud-releases/e2e-emails/*"
+                      [32m+[0m[0m Sid      = "AllowCustomerLoopCanaryReadInboundObjects"
+                    },
+                ]
+                [90m# (1 unchanged attribute hidden)[0m[0m
+            }
+        )
+        [90m# (2 unchanged attributes hidden)[0m[0m
+    }
+
+[1mPlan:[0m [0m0 to add, 1 to change, 0 to destroy.
+[33m╷[0m[0m
+[33m│[0m [0m[1m[33mWarning: [0m[0m[1mResource targeting is in effect[0m
+[33m│[0m [0m
+[33m│[0m [0m[0mYou are creating a plan with the -target option, which means that the
+[33m│[0m [0mresult of this plan may not represent all of the changes requested by the
+[33m│[0m [0mcurrent configuration.
+[33m│[0m [0m
+[33m│[0m [0mThe -target option is not for routine use, and is provided only for
+[33m│[0m [0mexceptional situations such as recovering from errors or mistakes, or when
+[33m│[0m [0mTerraform specifically suggests to use it as part of an error message.
+[33m╵[0m[0m
+[90m
+─────────────────────────────────────────────────────────────────────────────[0m
+
+Note: You didn't use the -out option to save this plan, so Terraform can't
+guarantee to take exactly these actions if you run "terraform apply" now.

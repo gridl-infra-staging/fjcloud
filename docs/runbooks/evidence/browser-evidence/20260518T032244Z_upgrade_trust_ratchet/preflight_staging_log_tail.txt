@@ -1,0 +1,60 @@
+playwright	Run Playwright tests	      150 |
+playwright	Run Playwright tests	      151 | 	await page.context().storageState({ path: PLAYWRIGHT_STORAGE_STATE.user });
+playwright	Run Playwright tests	      152 | });
+playwright	Run Playwright tests	        at /home/runner/work/fjcloud/fjcloud/web/tests/fixtures/auth.setup.ts:149:65
+playwright	Run Playwright tests	2026-05-17T09:33:29.4733200Z ##[error]  26) [chromium] › tests/e2e-ui/full/vlm_screenshot_capture.spec.ts:76:2 › auth capture: dashboard empty @ desktop 
+playwright	Run Playwright tests	    Test timeout of 30000ms exceeded.
+playwright	Run Playwright tests	2026-05-17T09:33:29.4735061Z ##[error]  27) [chromium] › tests/e2e-ui/full/vlm_screenshot_capture.spec.ts:76:2 › auth capture: dashboard success @ mobile_narrow 
+playwright	Run Playwright tests	    Test timeout of 30000ms exceeded.
+playwright	Run Playwright tests	2026-05-17T09:33:29.4742275Z ##[error]  28) [chromium:admin] › tests/e2e-ui/full/admin/customer-detail.spec.ts:236:2 › Admin customer detail workflows › quota update form submits and shows success feedback 
+playwright	Run Playwright tests	    Error: expect(locator).toBeVisible() failed
+playwright	Run Playwright tests	
+playwright	Run Playwright tests	    Locator: getByTestId('update-quotas-form')
+playwright	Run Playwright tests	    Expected: visible
+playwright	Run Playwright tests	    Timeout: 5000ms
+playwright	Run Playwright tests	    Error: element(s) not found
+playwright	Run Playwright tests	
+playwright	Run Playwright tests	    Call log:
+playwright	Run Playwright tests	      - Expect "toBeVisible" with timeout 5000ms
+playwright	Run Playwright tests	      - waiting for getByTestId('update-quotas-form')
+playwright	Run Playwright tests	
+playwright	Run Playwright tests	
+playwright	Run Playwright tests	      251 |
+playwright	Run Playwright tests	      252 | 		await page.getByRole('button', { name: 'Quotas' }).click();
+playwright	Run Playwright tests	    > 253 | 		await expect(page.getByTestId('update-quotas-form')).toBeVisible();
+playwright	Run Playwright tests	          | 		                                                     ^
+playwright	Run Playwright tests	      254 | 		await expect(page.getByTestId('update-quotas-button')).toBeVisible();
+playwright	Run Playwright tests	      255 | 		await expect(page.getByRole('row').filter({ hasText: indexName })).toHaveCount(1);
+playwright	Run Playwright tests	      256 |
+playwright	Run Playwright tests	        at /home/runner/work/fjcloud/fjcloud/web/tests/e2e-ui/full/admin/customer-detail.spec.ts:253:56
+playwright	Run Playwright tests	2026-05-17T09:33:29.4771800Z ##[notice]  24 failed
+playwright	Run Playwright tests	    [chromium:signup] › tests/e2e-ui/full/signup_to_paid_invoice.spec.ts:78:2 › Fresh signup to paid invoice › signs up, verifies email, reaches paid invoice evidence 
+playwright	Run Playwright tests	    [chromium] › tests/e2e-ui/full/billing_portal_payment_method_update.spec.ts:22:2 › Billing in-app payment-method updates › updates default payment method in-app and keeps billing page stable 
+playwright	Run Playwright tests	    [chromium] › tests/e2e-ui/full/dashboard.spec.ts:75:2 › Dashboard page › load-and-verify: renders core sections with correct headings 
+playwright	Run Playwright tests	    [chromium] › tests/e2e-ui/full/dashboard.spec.ts:195:2 › Dashboard page › logs route shows save-settings entry from shared dashboard log path 
+playwright	Run Playwright tests	    [chromium] › tests/e2e-ui/full/dashboard.spec.ts:244:2 › Dashboard page › estimated bill widget renders exact backend month and total 
+playwright	Run Playwright tests	    [chromium] › tests/e2e-ui/full/dashboard.spec.ts:269:2 › Dashboard page › estimated bill widget expands breakdown when backend returns line items 
+playwright	Run Playwright tests	    [chromium] › tests/e2e-ui/full/dashboard.spec.ts:417:2 › Plan-aware dashboard features › plan badge displays the user plan type 
+playwright	Run Playwright tests	    [chromium] › tests/e2e-ui/full/dashboard.spec.ts:426:2 › Plan-aware dashboard features › shared-plan billing prompt navigates to billing setup 
+playwright	Run Playwright tests	    [chromium] › tests/e2e-ui/full/dashboard.spec.ts:440:2 › Plan-aware dashboard features › layout billing CTA navigates to billing page 
+playwright	Run Playwright tests	    [chromium] › tests/e2e-ui/full/dashboard.spec.ts:455:2 › Plan-aware dashboard features › free-tier progress is hidden for shared-plan users 
+playwright	Run Playwright tests	    [chromium] › tests/e2e-ui/full/index-detail.spec.ts:103:2 › Index detail tabs › Rules tab lazy-mounts and shows empty state 
+playwright	Run Playwright tests	    [chromium] › tests/e2e-ui/full/index-detail.spec.ts:111:2 › Index detail tabs › Synonyms tab lazy-mounts and shows empty state 
+playwright	Run Playwright tests	    [chromium] › tests/e2e-ui/full/indexes.spec.ts:217:2 › Indexes list page › create index through the UI adds it to the table 
+playwright	Run Playwright tests	    [chromium] › tests/e2e-ui/full/indexes.spec.ts:234:2 › Indexes list page › create/list/detail journey reuses one captured runtime second region 
+playwright	Run Playwright tests	    [chromium] › tests/e2e-ui/full/indexes.spec.ts:271:2 › Indexes list page › duplicate index name shows a safe failure instead of succeeding 
+playwright	Run Playwright tests	    [chromium] › tests/e2e-ui/full/indexes.spec.ts:323:2 › Index detail page › Search Preview tab shows real search results from Flapjack 
+playwright	Run Playwright tests	    [chromium] › tests/e2e-ui/full/isolation.spec.ts:55:2 › Cross-tenant index isolation › users with identically named indexes only see their own index metadata 
+playwright	Run Playwright tests	    [chromium] › tests/e2e-ui/full/isolation.spec.ts:141:2 › Cross-tenant index isolation › search preview stays tenant-scoped for identically named indexes 
+playwright	Run Playwright tests	    [chromium] › tests/e2e-ui/full/search-preview.spec.ts:52:2 › Search Preview tab › clicking Generate Preview Key mounts InstantSearch search box 
+playwright	Run Playwright tests	    [chromium] › tests/e2e-ui/full/settings.spec.ts:16:2 › Settings page › load-and-verify: renders profile section with email 
+playwright	Run Playwright tests	    [chromium:onboarding] › tests/e2e-ui/full/onboarding.spec.ts:124:2 › Fresh-user onboarding flow › valid index creation advances to step 3 credentials UI 
+playwright	Run Playwright tests	    [chromium:customer-journeys] › tests/e2e-ui/full/customer-journeys.spec.ts:73:2 › Fresh-user customer journey — onboard to first search hit › onboard, add document, search, cleanup 
+playwright	Run Playwright tests	    [chromium:admin] › tests/e2e-ui/full/admin/admin-pages.spec.ts:128:2 › Admin page shells — remaining › Billing Run Billing flow renders visible confirmation text 
+playwright	Run Playwright tests	    [chromium:admin] › tests/e2e-ui/full/admin/fleet.spec.ts:83:2 › Admin fleet overview › seeded fleet rows render and filter controls narrow that same visible row set 
+playwright	Run Playwright tests	  4 flaky
+playwright	Run Playwright tests	    [setup:user] › tests/fixtures/auth.setup.ts:96:1 › authenticate as customer ────────────────────
+playwright	Run Playwright tests	    [chromium] › tests/e2e-ui/full/vlm_screenshot_capture.spec.ts:76:2 › auth capture: dashboard empty @ desktop 
+playwright	Run Playwright tests	    [chromium] › tests/e2e-ui/full/vlm_screenshot_capture.spec.ts:76:2 › auth capture: dashboard success @ mobile_narrow 
+playwright	Run Playwright tests	    [chromium:admin] › tests/e2e-ui/full/admin/customer-detail.spec.ts:236:2 › Admin customer detail workflows › quota update form 
+playwright	Run Playwright tests	2026-05-17T09:33:29.4774307Z ##[error]Process completed with exit code 1.

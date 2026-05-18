@@ -1,0 +1,54 @@
+
+WARNING! Your credentials are stored unencrypted in '/Users/stuart/.docker/config.json'.
+Configure a credential helper to remove this warning. See
+https://docs.docker.com/go/credential-store/
+
+#0 building with "colima" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 816B done
+#1 DONE 0.0s
+
+#2 [internal] load metadata for public.ecr.aws/lambda/provided:al2023
+#2 DONE 0.3s
+
+#3 [internal] load .dockerignore
+#3 transferring context: 2B done
+#3 DONE 0.0s
+
+#4 [1/6] FROM public.ecr.aws/lambda/provided:al2023@sha256:dc21c6617f0754c22dd9508243cecfdc9b90b8885b3ce2a8b9c815f2314e0da3
+#4 resolve public.ecr.aws/lambda/provided:al2023@sha256:dc21c6617f0754c22dd9508243cecfdc9b90b8885b3ce2a8b9c815f2314e0da3 done
+#4 DONE 0.0s
+
+#5 [internal] load build context
+#5 transferring context: 176.25kB done
+#5 DONE 0.0s
+
+#6 [2/6] RUN dnf install -y awscli bash python3     && dnf clean all     && rm -rf /var/cache/dnf
+#6 CACHED
+
+#7 [3/6] WORKDIR /workspace
+#7 CACHED
+
+#8 [4/6] COPY scripts/ ./scripts/
+#8 DONE 0.0s
+
+#9 [5/6] COPY scripts/canary/lambda_image/bootstrap /var/runtime/bootstrap
+#9 DONE 0.0s
+
+#10 [6/6] RUN chmod 0755 /var/runtime/bootstrap ./scripts/canary/customer_loop_synthetic.sh
+#10 DONE 0.1s
+
+#11 [auth] sharing credentials for 213880904778.dkr.ecr.us-east-1.amazonaws.com
+#11 DONE 0.0s
+
+#12 exporting to image
+#12 exporting layers 0.1s done
+#12 exporting manifest sha256:b9ea583f0afa20998779bfefe96d60528b45954dabc8c0b9781273d1222cf100 done
+#12 exporting config sha256:59d17c8ec8a79fd7b089f96cd1afae3743278ec461c1fceb17813d234c770547 done
+#12 naming to 213880904778.dkr.ecr.us-east-1.amazonaws.com/fjcloud-prod-customer-loop-canary:9e9714cf7137 done
+#12 pushing layers
+#12 pushing layers 0.8s done
+#12 pushing manifest for 213880904778.dkr.ecr.us-east-1.amazonaws.com/fjcloud-prod-customer-loop-canary:9e9714cf7137@sha256:b9ea583f0afa20998779bfefe96d60528b45954dabc8c0b9781273d1222cf100
+#12 pushing manifest for 213880904778.dkr.ecr.us-east-1.amazonaws.com/fjcloud-prod-customer-loop-canary:9e9714cf7137@sha256:b9ea583f0afa20998779bfefe96d60528b45954dabc8c0b9781273d1222cf100 0.4s done
+#12 DONE 1.2s

@@ -17,4 +17,5 @@ WORKDIR /workspace
 COPY scripts/ ./scripts/
 COPY scripts/canary/lambda_image/bootstrap /var/runtime/bootstrap
 
-RUN chmod 0755 /var/runtime/bootstrap ./scripts/canary/customer_loop_synthetic.sh
+RUN chmod 0755 /var/runtime/bootstrap ./scripts/canary/customer_loop_synthetic.sh \
+    && chmod 0644 ./scripts/lib/*.sh

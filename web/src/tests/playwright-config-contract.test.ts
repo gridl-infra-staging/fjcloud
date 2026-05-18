@@ -348,6 +348,11 @@ describe('playwright config contract', () => {
 		expect(projectContractsByName['chromium:signup']?.dependencies).toBeUndefined();
 		expect(projectContractsByName['chromium:signup']?.use?.desktopBrowser).toBe('chromium');
 		expect(projectContractsByName['chromium:signup']?.use?.storageState).toBeUndefined();
+		expect(projectContractsByName['chromium:mocked']?.dependencies).toEqual(['setup:user']);
+		expect(projectContractsByName['chromium:mocked']?.use?.desktopBrowser).toBe('chromium');
+		expect(projectContractsByName['chromium:mocked']?.use?.storageState).toBe(
+			PLAYWRIGHT_STORAGE_STATE.user
+		);
 
 		expect(projectContractsByName['chromium:admin']?.dependencies).toEqual(['setup:admin']);
 		expect(projectContractsByName['chromium:admin']?.use?.desktopBrowser).toBe('chromium');
@@ -715,6 +720,18 @@ describe('playwright config contract', () => {
 			);
 			expect(projectContractsByName['chromium:signup']?.dependencies).toBeUndefined();
 			expect(projectContractsByName['chromium:signup']?.use?.storageState).toBeUndefined();
+		});
+
+		it('dashboard_upgrade_to_shared.spec.ts matches chromium:mocked only', () => {
+			const specPath = 'tests/e2e-ui/mocked/dashboard_upgrade_to_shared.spec.ts';
+			expect(projectContractsByName['chromium:mocked']?.testMatch.test(specPath)).toBe(true);
+			expect(projectContractsByName.chromium?.testMatch.test(specPath)).toBe(false);
+			expect(projectContractsByName['chromium:public']?.testMatch.test(specPath)).toBe(false);
+			expect(projectContractsByName['chromium:admin']?.testMatch.test(specPath)).toBe(false);
+			expect(projectContractsByName['chromium:mocked']?.dependencies).toEqual(['setup:user']);
+			expect(projectContractsByName['chromium:mocked']?.use?.storageState).toBe(
+				PLAYWRIGHT_STORAGE_STATE.user
+			);
 		});
 
 		it('signup_to_paid_invoice.spec.ts does not mask billing/verification failures as skips', () => {

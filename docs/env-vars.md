@@ -111,6 +111,15 @@ Transactional emails (verification, password reset, invoice-ready, quota warning
 | ------------------------------- | -------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `FJCLOUD_ALLOW_LIVE_E2E_DELETE` | No       | unset   | Required only for destructive TTL janitor runs. `ops/scripts/live_e2e_ttl_janitor.sh` remains dry-run unless this is exactly `1` and `--execute` is set. |
 
+## Full VM Lifecycle Probe
+
+| Variable | Required | Default | Description |
+| --- | --- | --- | --- |
+| `FJCLOUD_SECRET_FILE` | No | `.secret/.env.secret` | Secret-file override used by shell orchestration scripts that load repo-local operator env, including `scripts/validate_full_vm_lifecycle_prod.sh` |
+| `LIFECYCLE_PROBE_PM_ID` | Run B | unset | Detached reusable Stripe PaymentMethod id that `scripts/validate_full_vm_lifecycle_prod.sh run-b` attaches to the freshly created Stripe customer before invoice finalization |
+| `LIFECYCLE_ENABLE_PRIVACY_CARD` | No | `0` | Optional gate for the lifecycle probe's Privacy.com card create/cleanup branch during `run-b`; leave unset to skip the Privacy branch entirely |
+| `STRIPE_PAY_OUT_OF_BAND` | No | `0` | When `1`, `scripts/validate_full_vm_lifecycle_prod.sh run-b` skips reusable-PM attach and instead marks the finalized Stripe invoice paid via `POST /v1/invoices/:id/pay?paid_out_of_band=true` using `STRIPE_SECRET_KEY_flapjack_cloud`; used when a live-mode PaymentMethod is not available in the probe environment |
+
 ## Alerting
 
 | Variable              | Required | Default | Description                                   |

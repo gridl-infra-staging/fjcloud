@@ -69,6 +69,46 @@ curl -X POST https://api.flapjack.foo/admin/billing/run \
    - `expired_card`: Customer needs to update their payment method
    - `authentication_required`: 3D Secure required. Customer needs to complete authentication
 
+## Webhook backlog / dispute triage
+
+### Alarm meaning
+- Alarm: `fjcloud-<env>-api-webhook-backlog-high`
+- Trigger condition: CloudWatch metric `fjcloud/api` `WebhookBacklog` (dimension `Env=<env>`) is above `0` for 10 minutes.
+- Operational interpretation: Stripe webhooks are being ingested but stale unprocessed events are accumulating, so dispute lifecycle updates may be delayed.
+
+### First diagnostics
+1. Check alarm timeline and current datapoints:
+```bash
+aws cloudwatch describe-alarms \
+  --alarm-names "fjcloud-<env>-api-webhook-backlog-high" \
+  --query 'MetricAlarms[0].{State:StateValue,Reason:StateReason,Updated:StateUpdatedTimestamp}'
+```
+2. Check recent webhook backlog metric values:
+```bash
+aws cloudwatch get-metric-statistics \
+  --namespace fjcloud/api \
+  --metric-name WebhookBacklog \
+  --dimensions Name=Env,Value=<env> \
+  --start-time "$(date -u -v-30M +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -d '30 minutes ago' +%Y-%m-%dT%H:%M:%SZ)" \
+  --end-time "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+  --period 300 \
+  --statistics Maximum
+```
+3. Check API logs for webhook processing failures/timeouts around the same window:
+```bash
+aws logs tail "/fjcloud/<env>/api" --since 30m | rg -n "webhook|stripe|dispute|error|timeout"
+```
+
+### Dispute-state interpretation
+- Backlog > 0 means unprocessed webhook events older than the stale threshold are queued.
+- If dispute records stay at initial states (for example still `warning_needs_response` after Stripe events should have advanced state), treat as processing lag, not immediate data corruption.
+- Verify the oldest unprocessed dispute webhook events first; prioritize `charge.dispute.*` events tied to open response deadlines.
+
+### Escalation conditions
+- Escalate immediately if backlog remains above zero for more than 30 minutes after API recovery actions.
+- Escalate immediately if backlog is increasing across two or more consecutive 5-minute datapoints.
+- Escalate to billing/on-call if dispute state transitions are not advancing for active disputes with near-term Stripe evidence deadlines.
+
 ## Bulk finalization
 
 Use `/admin/billing` → "Bulk Finalize" button to finalize all draft invoices at once. This is typically done after reviewing the batch billing run output.

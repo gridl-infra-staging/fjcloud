@@ -67,6 +67,11 @@ JSON
 {"SendingEnabled":true,"ProductionAccessEnabled":false,"AccountId":"123456789012"}
 JSON
             ;;
+        sandbox_pending_review)
+            cat <<'JSON'
+{"SendingEnabled":true,"ProductionAccessEnabled":false,"ReviewDetails":{"Status":"PENDING","CaseId":"abc123"}}
+JSON
+            ;;
         disabled_sending)
             cat <<'JSON'
 {"SendingEnabled":false,"ProductionAccessEnabled":true,"AccountId":"123456789012"}
@@ -91,7 +96,7 @@ fi
 
 if [[ "$command" == "get-email-identity" ]]; then
     case "$mode" in
-        ready|default_region|sandbox|disabled_sending)
+        ready|default_region|sandbox|sandbox_pending_review|disabled_sending)
             cat <<'JSON'
 {"IdentityType":"DOMAIN","VerificationStatus":"SUCCESS","DkimAttributes":{"Status":"SUCCESS"}}
 JSON
@@ -206,11 +211,29 @@ test_validate_ses_readiness_reports_sandbox_state() {
 
     rm -rf "$mock_dir"
 
-    assert_eq "${exit_code:-0}" "0" "validate-ses-readiness should report sandbox mode without failing readiness"
+    assert_eq "${exit_code:-0}" "1" "validate-ses-readiness should fail for sandbox mode without a pending review"
     assert_valid_json "$output" "validate-ses-readiness sandbox output should be valid JSON"
-    assert_json_bool_field "$output" "passed" "true" "sandbox output should still pass when other checks succeed"
+    assert_json_bool_field "$output" "passed" "false" "sandbox output should fail when account is sandboxed with no pending review"
+    assert_eq "$(json_step_field "$output" "production_access" "passed")" "false" "production_access step should fail for sandbox_no_review"
     assert_contains "$(json_step_field "$output" "production_access" "detail")" "ProductionAccessEnabled=false" "sandbox output should report ProductionAccessEnabled=false"
-    assert_contains "$(json_step_field "$output" "production_access" "detail")" "sandbox" "sandbox output should label sandbox state"
+    assert_contains "$(json_step_field "$output" "production_access" "detail")" "sandbox_no_review" "sandbox output should label sandbox_no_review state"
+}
+
+test_validate_ses_readiness_passes_sandbox_pending_review_state() {
+    local mock_dir call_log output exit_code
+    mock_dir="$(new_mock_aws_dir)"
+    call_log="$mock_dir/aws_calls.log"
+    init_call_log "$call_log"
+
+    output="$(SES_READINESS_MOCK_MODE=sandbox_pending_review SES_READINESS_AWS_CALL_LOG="$call_log" PATH="$mock_dir:$PATH" bash "$REPO_ROOT/scripts/validate_ses_readiness.sh" --identity flapjack.foo --region us-east-1 2>&1)" || exit_code=$?
+
+    rm -rf "$mock_dir"
+
+    assert_eq "${exit_code:-0}" "0" "validate-ses-readiness should pass when sandbox status has a pending review"
+    assert_valid_json "$output" "validate-ses-readiness sandbox-pending output should be valid JSON"
+    assert_json_bool_field "$output" "passed" "true" "sandbox pending review output should report passed=true"
+    assert_eq "$(json_step_field "$output" "production_access" "passed")" "true" "production_access step should pass for sandbox_pending_review"
+    assert_contains "$(json_step_field "$output" "production_access" "detail")" "sandbox_pending_review" "sandbox pending output should label sandbox_pending_review state"
 }
 
 test_validate_ses_readiness_passes_verified_email_identity_without_dkim() {
@@ -249,7 +272,7 @@ test_validate_ses_readiness_passes_email_identity_inherited_from_verified_domain
     assert_eq "$(json_step_field "$output" "production_access" "passed")" "true" \
         "inherited-domain output should keep production_access step passed=true"
     production_access_detail="$(json_step_field "$output" "production_access" "detail")"
-    assert_contains "$production_access_detail" "ProductionAccessEnabled=true (production access enabled)" "inherited-domain output should report production access enabled"
+    assert_contains "$production_access_detail" "ProductionAccessEnabled=true (production_access_enabled)" "inherited-domain output should report production access enabled"
     assert_not_contains "$production_access_detail" "sandbox" "inherited-domain output should not label ProductionAccessEnabled=true as sandboxed"
     assert_not_contains "$output" "ProductionAccessEnabled=false" "inherited-domain output should not include a sandbox blocker state"
     assert_not_contains "$output" "current-state sandbox" "inherited-domain output should not regress to stale current-state sandbox wording"
@@ -449,6 +472,7 @@ echo "=== validate-ses-readiness.sh tests ==="
 test_validate_ses_readiness_ready_fixture
 test_validate_ses_readiness_uses_ses_region_default
 test_validate_ses_readiness_reports_sandbox_state
+test_validate_ses_readiness_passes_sandbox_pending_review_state
 test_validate_ses_readiness_passes_verified_email_identity_without_dkim
 test_validate_ses_readiness_passes_email_identity_inherited_from_verified_domain
 test_validate_ses_readiness_fails_when_sending_disabled

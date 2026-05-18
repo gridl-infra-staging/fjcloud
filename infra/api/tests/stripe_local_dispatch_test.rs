@@ -74,6 +74,32 @@ async fn create_and_finalize_invoice_returns_local_ids() {
 }
 
 #[tokio::test]
+async fn void_invoice_returns_void_status_for_finalized_invoice() {
+    let service = test_service();
+    let invoice = service
+        .create_and_finalize_invoice(
+            "cus_void_test",
+            &[StripeInvoiceLineItem {
+                description: "Void contract".to_string(),
+                amount_cents: 300,
+            }],
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+
+    let voided = service
+        .void_invoice(&invoice.stripe_invoice_id)
+        .await
+        .unwrap();
+    assert_eq!(voided.id, invoice.stripe_invoice_id);
+    assert_eq!(voided.status, "void");
+    assert_eq!(voided.amount_paid_cents, 0);
+    assert!(voided.last_payment_error.is_none());
+}
+
+#[tokio::test]
 async fn construct_webhook_event_verifies_signature() {
     let service = test_service();
     let payload = r#"{"id":"evt_1","type":"invoice.paid","data":{"object":{}}}"#;
@@ -94,6 +120,56 @@ async fn construct_webhook_event_rejects_bad_signature() {
     let bad_sig = format!("t={ts},v1=invalid_hex_garbage");
     let result = service.construct_webhook_event(payload, &bad_sig, "whsec_test");
     assert!(matches!(result, Err(StripeError::WebhookVerification(_))));
+}
+
+#[tokio::test]
+async fn lookup_charge_fallback_returns_deterministic_fields() {
+    let service = test_service();
+    let lookup = service
+        .lookup_charge_fallback_fields("ch_local_abc")
+        .await
+        .unwrap();
+    assert_eq!(lookup.charge_id, "ch_local_abc");
+    assert_eq!(lookup.invoice_id.as_deref(), Some("in_local_abc"));
+    assert_eq!(lookup.payment_intent_id.as_deref(), Some("pi_local_abc"));
+}
+
+#[tokio::test]
+async fn lookup_charge_fallback_rejects_invalid_charge_id_shape() {
+    let service = test_service();
+    let result = service.lookup_charge_fallback_fields("bad_charge_id").await;
+    assert!(matches!(
+        result,
+        Err(StripeError::Api(message)) if message.contains("invalid charge id")
+    ));
+}
+
+#[tokio::test]
+async fn lookup_charge_fallback_supports_missing_invoice_field() {
+    let service = test_service();
+    let lookup = service
+        .lookup_charge_fallback_fields("ch_local_missing_invoice_abc")
+        .await
+        .unwrap();
+    assert_eq!(lookup.invoice_id, None);
+    assert_eq!(
+        lookup.payment_intent_id.as_deref(),
+        Some("pi_local_missing_invoice_abc")
+    );
+}
+
+#[tokio::test]
+async fn lookup_charge_fallback_supports_missing_payment_intent_field() {
+    let service = test_service();
+    let lookup = service
+        .lookup_charge_fallback_fields("ch_local_missing_payment_intent_abc")
+        .await
+        .unwrap();
+    assert_eq!(
+        lookup.invoice_id.as_deref(),
+        Some("in_local_missing_payment_intent_abc")
+    );
+    assert_eq!(lookup.payment_intent_id, None);
 }
 
 // ---------------------------------------------------------------------------
@@ -225,11 +301,11 @@ async fn dispatcher_sends_correct_invoice_payload() {
     let body = &bodies[0];
     let event_id = body["id"].as_str().unwrap();
     assert!(event_id.starts_with("evt_local_"), "got: {event_id}");
-    assert_eq!(body["type"].as_str().unwrap(), "invoice.payment_succeeded");
+    assert_eq!(body["type"].as_str().unwrap(), "invoice.finalized");
     let obj = &body["data"]["object"];
     assert_eq!(obj["customer"].as_str().unwrap(), "cus_payload_test");
-    assert_eq!(obj["amount_paid"].as_i64().unwrap(), 2000);
-    assert_eq!(obj["status"].as_str().unwrap(), "paid");
+    assert_eq!(obj["amount_paid"].as_i64().unwrap(), 0);
+    assert_eq!(obj["status"].as_str().unwrap(), "open");
     assert!(obj["id"].as_str().unwrap().starts_with("in_local_"));
 }
 
@@ -257,7 +333,7 @@ async fn dispatcher_signature_is_verifiable() {
     let event = service
         .construct_webhook_event(body_str, sig_header, secret)
         .unwrap();
-    assert_eq!(event.event_type, "invoice.payment_succeeded");
+    assert_eq!(event.event_type, "invoice.finalized");
     assert!(event.id.starts_with("evt_local_"));
 }
 
@@ -319,5 +395,5 @@ async fn dispatcher_signature_wrong_secret_fails_verification() {
     let event = service
         .construct_webhook_event(body_str, sig_header, dispatch_secret)
         .unwrap();
-    assert_eq!(event.event_type, "invoice.payment_succeeded");
+    assert_eq!(event.event_type, "invoice.finalized");
 }

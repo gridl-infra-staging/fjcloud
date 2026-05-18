@@ -43,6 +43,19 @@ pub trait WebhookEventRepo {
         payment_intent_id: &str,
     ) -> Result<Option<String>, RepoError>;
 
+    /// Count stale, unprocessed webhook events older than `older_than`.
+    ///
+    /// SQL contract:
+    /// - include only rows with `processed_at IS NULL`
+    /// - include only rows where `created_at < NOW() - older_than`
+    /// - return a single aggregate count row (`0` when none match)
+    ///
+    /// Used by `WebhookLagPublisher` to emit the CloudWatch webhook backlog metric.
+    async fn count_stale_unprocessed(
+        &self,
+        older_than: std::time::Duration,
+    ) -> Result<i64, RepoError>;
+
     /// Remove an unprocessed event row so future retries can re-insert.
     /// Called after a handler failure to prevent permanent stuck events.
     async fn delete_unprocessed(&self, stripe_event_id: &str) -> Result<(), RepoError>;

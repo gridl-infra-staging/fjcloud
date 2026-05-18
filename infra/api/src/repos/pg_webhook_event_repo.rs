@@ -95,6 +95,23 @@ impl WebhookEventRepo for PgWebhookEventRepo {
         Ok(row.flatten())
     }
 
+    async fn count_stale_unprocessed(
+        &self,
+        older_than: std::time::Duration,
+    ) -> Result<i64, RepoError> {
+        let older_than_seconds = older_than.as_secs().min(i64::MAX as u64) as i64;
+        sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) \
+             FROM webhook_events \
+             WHERE processed_at IS NULL \
+               AND created_at < NOW() - ($1::bigint * INTERVAL '1 second')",
+        )
+        .bind(older_than_seconds)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(|e| RepoError::Other(e.to_string()))
+    }
+
     async fn delete_unprocessed(&self, stripe_event_id: &str) -> Result<(), RepoError> {
         sqlx::query(
             "DELETE FROM webhook_events \

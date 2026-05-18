@@ -1,0 +1,5 @@
+{
+    "PolicyNames": [
+        "fjcloud-prod-customer-loop-canary-lambda"
+    ]
+}

@@ -11,7 +11,9 @@ use api::repos::cold_snapshot_repo::ColdSnapshotRepo;
 use api::repos::invoice_repo::{InvoiceRepo, NewLineItem};
 use api::repos::CustomerRepo;
 use api::services::tenant_quota::FreeTierLimits;
-use api::stripe::{invoice_create_idempotency_key, PaymentMethodSummary};
+use api::stripe::{
+    invoice_create_idempotency_key, PaidInvoice, PaymentMethodSummary, StripeLastPaymentError,
+};
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use chrono::NaiveDate;
@@ -47,6 +49,20 @@ fn test_app_with_stripe(
     TestStateBuilder::new()
         .with_customer_repo(customer_repo)
         .with_invoice_repo(invoice_repo)
+        .with_stripe_service(stripe_service)
+        .build_app()
+}
+
+fn test_app_with_upgrade_dependencies(
+    customer_repo: std::sync::Arc<common::MockCustomerRepo>,
+    invoice_repo: std::sync::Arc<common::MockInvoiceRepo>,
+    rate_card_repo: std::sync::Arc<common::MockRateCardRepo>,
+    stripe_service: std::sync::Arc<common::MockStripeService>,
+) -> axum::Router {
+    TestStateBuilder::new()
+        .with_customer_repo(customer_repo)
+        .with_invoice_repo(invoice_repo)
+        .with_rate_card_repo(rate_card_repo)
         .with_stripe_service(stripe_service)
         .build_app()
 }
@@ -3540,6 +3556,1015 @@ async fn suspended_customer_gets_403_on_set_default_payment_method() {
         .unwrap();
 
     assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+}
+
+// ===========================================================================
+// POST /billing/upgrade
+// ===========================================================================
+
+#[tokio::test]
+async fn billing_upgrade_200_promotes_free_to_shared_after_successful_charge() {
+    let customer_repo = mock_repo();
+    let invoice_repo = mock_invoice_repo();
+    let rate_card_repo = mock_rate_card_repo();
+    let stripe_svc = mock_stripe_service();
+    let mut card = test_rate_card();
+    card.shared_minimum_spend_cents = 1234;
+    rate_card_repo.seed_active_card(card);
+
+    let customer = seed_stripe_customer(&customer_repo, "Upgrade", "upgrade@example.com").await;
+    stripe_svc.seed_payment_method(PaymentMethodSummary {
+        id: "pm_upgrade_default".to_string(),
+        card_brand: "visa".to_string(),
+        last4: "4242".to_string(),
+        exp_month: 12,
+        exp_year: 2030,
+        is_default: false,
+    });
+    *stripe_svc.default_pm.lock().unwrap() = Some("pm_upgrade_default".to_string());
+    stripe_svc.set_pay_invoice_result_default(PaidInvoice {
+        id: "in_mock_default".to_string(),
+        status: "paid".to_string(),
+        amount_paid_cents: 1234,
+        last_payment_error: None,
+    });
+
+    let app = test_app_with_upgrade_dependencies(
+        customer_repo.clone(),
+        invoice_repo,
+        rate_card_repo.clone(),
+        stripe_svc.clone(),
+    );
+    let jwt = create_test_jwt(customer.id);
+
+    let resp = app
+        .oneshot(
+            Request::post("/billing/upgrade")
+                .header("authorization", format!("Bearer {jwt}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = body_json(resp).await;
+    assert_eq!(body["billing_plan"], "shared");
+    assert_eq!(body["activation_amount_cents"], 1234);
+    assert!(body["subscription_cycle_anchor_at"].is_string());
+    assert!(body["stripe_invoice_id"].is_string());
+
+    let upgraded = customer_repo
+        .find_by_id(customer.id)
+        .await
+        .unwrap()
+        .expect("customer should still exist after upgrade");
+    assert_eq!(upgraded.billing_plan, "shared");
+    assert!(
+        upgraded.subscription_cycle_anchor_at.is_some(),
+        "successful upgrade must persist cycle anchor"
+    );
+
+    assert_eq!(rate_card_repo.get_active_call_count(), 1);
+    assert_eq!(
+        stripe_svc.create_and_finalize_calls.lock().unwrap().len(),
+        1
+    );
+    assert_eq!(stripe_svc.pay_invoice_calls.lock().unwrap().len(), 1);
+}
+
+#[tokio::test]
+async fn billing_upgrade_400_without_stripe_customer_id() {
+    let customer_repo = mock_repo();
+    let invoice_repo = mock_invoice_repo();
+    let rate_card_repo = mock_rate_card_repo();
+    let stripe_svc = mock_stripe_service();
+    rate_card_repo.seed_active_card(test_rate_card());
+
+    let customer = customer_repo.seed("No Stripe", "nostripe@example.com");
+    let app = test_app_with_upgrade_dependencies(
+        customer_repo.clone(),
+        invoice_repo,
+        rate_card_repo,
+        stripe_svc.clone(),
+    );
+    let jwt = create_test_jwt(customer.id);
+
+    let resp = app
+        .oneshot(
+            Request::post("/billing/upgrade")
+                .header("authorization", format!("Bearer {jwt}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+    let body = body_json(resp).await;
+    assert_eq!(body["error"], "no stripe customer linked");
+    assert_eq!(
+        stripe_svc.create_and_finalize_calls.lock().unwrap().len(),
+        0
+    );
+}
+
+#[tokio::test]
+async fn billing_upgrade_400_without_default_payment_method() {
+    let customer_repo = mock_repo();
+    let invoice_repo = mock_invoice_repo();
+    let rate_card_repo = mock_rate_card_repo();
+    let stripe_svc = mock_stripe_service();
+    rate_card_repo.seed_active_card(test_rate_card());
+
+    let customer =
+        seed_stripe_customer(&customer_repo, "No Default PM", "no-default-pm@example.com").await;
+    stripe_svc.seed_payment_method(PaymentMethodSummary {
+        id: "pm_non_default".to_string(),
+        card_brand: "visa".to_string(),
+        last4: "0005".to_string(),
+        exp_month: 8,
+        exp_year: 2029,
+        is_default: false,
+    });
+    let app = test_app_with_upgrade_dependencies(
+        customer_repo.clone(),
+        invoice_repo,
+        rate_card_repo,
+        stripe_svc.clone(),
+    );
+    let jwt = create_test_jwt(customer.id);
+
+    let resp = app
+        .oneshot(
+            Request::post("/billing/upgrade")
+                .header("authorization", format!("Bearer {jwt}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+    let body = body_json(resp).await;
+    assert_eq!(body["error"], "default payment method required");
+    assert_eq!(
+        stripe_svc.create_and_finalize_calls.lock().unwrap().len(),
+        0
+    );
+}
+
+#[tokio::test]
+async fn billing_upgrade_402_on_declined_payment_and_rolls_back_free_plan() {
+    let customer_repo = mock_repo();
+    let invoice_repo = mock_invoice_repo();
+    let rate_card_repo = mock_rate_card_repo();
+    let stripe_svc = mock_stripe_service();
+    rate_card_repo.seed_active_card(test_rate_card());
+
+    let customer = seed_stripe_customer(&customer_repo, "Decline", "decline@example.com").await;
+    stripe_svc.seed_payment_method(PaymentMethodSummary {
+        id: "pm_decline_default".to_string(),
+        card_brand: "visa".to_string(),
+        last4: "0341".to_string(),
+        exp_month: 9,
+        exp_year: 2028,
+        is_default: false,
+    });
+    *stripe_svc.default_pm.lock().unwrap() = Some("pm_decline_default".to_string());
+    stripe_svc.set_pay_invoice_result_default(PaidInvoice {
+        id: "in_mock_default".to_string(),
+        status: "open".to_string(),
+        amount_paid_cents: 0,
+        last_payment_error: Some(StripeLastPaymentError {
+            code: Some("card_declined".to_string()),
+            decline_code: Some("insufficient_funds".to_string()),
+            message: Some("declined".to_string()),
+        }),
+    });
+
+    let app = test_app_with_upgrade_dependencies(
+        customer_repo.clone(),
+        invoice_repo,
+        rate_card_repo,
+        stripe_svc.clone(),
+    );
+    let jwt = create_test_jwt(customer.id);
+    let resp = app
+        .oneshot(
+            Request::post("/billing/upgrade")
+                .header("authorization", format!("Bearer {jwt}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::PAYMENT_REQUIRED);
+    let body = body_json(resp).await;
+    assert_eq!(body["error"], "payment_required");
+    assert_eq!(body["code"], "card_declined");
+
+    let reverted = customer_repo
+        .find_by_id(customer.id)
+        .await
+        .unwrap()
+        .expect("customer should still exist after rollback");
+    assert_eq!(reverted.billing_plan, "free");
+    assert_eq!(reverted.subscription_cycle_anchor_at, None);
+    let created_invoice_id = stripe_svc.invoices_created.lock().unwrap()[0]
+        .stripe_invoice_id
+        .clone();
+    let void_calls = stripe_svc.void_invoice_calls.lock().unwrap();
+    assert_eq!(void_calls.len(), 1);
+    assert_eq!(void_calls[0], created_invoice_id);
+}
+
+#[tokio::test]
+async fn billing_upgrade_402_on_requires_action_and_rolls_back_free_plan() {
+    let customer_repo = mock_repo();
+    let invoice_repo = mock_invoice_repo();
+    let rate_card_repo = mock_rate_card_repo();
+    let stripe_svc = mock_stripe_service();
+    rate_card_repo.seed_active_card(test_rate_card());
+
+    let customer = seed_stripe_customer(
+        &customer_repo,
+        "Action Required",
+        "action-required@example.com",
+    )
+    .await;
+    stripe_svc.seed_payment_method(PaymentMethodSummary {
+        id: "pm_action_default".to_string(),
+        card_brand: "visa".to_string(),
+        last4: "3184".to_string(),
+        exp_month: 10,
+        exp_year: 2029,
+        is_default: false,
+    });
+    *stripe_svc.default_pm.lock().unwrap() = Some("pm_action_default".to_string());
+    stripe_svc.set_pay_invoice_result_default(PaidInvoice {
+        id: "in_mock_default".to_string(),
+        status: "open".to_string(),
+        amount_paid_cents: 0,
+        last_payment_error: Some(StripeLastPaymentError {
+            code: Some("invoice_payment_intent_requires_action".to_string()),
+            decline_code: None,
+            message: Some("action required".to_string()),
+        }),
+    });
+
+    let app = test_app_with_upgrade_dependencies(
+        customer_repo.clone(),
+        invoice_repo,
+        rate_card_repo,
+        stripe_svc.clone(),
+    );
+    let jwt = create_test_jwt(customer.id);
+    let resp = app
+        .oneshot(
+            Request::post("/billing/upgrade")
+                .header("authorization", format!("Bearer {jwt}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::PAYMENT_REQUIRED);
+    let body = body_json(resp).await;
+    assert_eq!(body["error"], "payment_required");
+    assert_eq!(body["code"], "invoice_payment_intent_requires_action");
+
+    let reverted = customer_repo
+        .find_by_id(customer.id)
+        .await
+        .unwrap()
+        .expect("customer should still exist after rollback");
+    assert_eq!(reverted.billing_plan, "free");
+    assert_eq!(reverted.subscription_cycle_anchor_at, None);
+    let created_invoice_id = stripe_svc.invoices_created.lock().unwrap()[0]
+        .stripe_invoice_id
+        .clone();
+    let void_calls = stripe_svc.void_invoice_calls.lock().unwrap();
+    assert_eq!(void_calls.len(), 1);
+    assert_eq!(void_calls[0], created_invoice_id);
+}
+
+#[tokio::test]
+async fn billing_upgrade_409_when_atomic_upgrade_claim_is_lost_without_duplicate_invoice_creation()
+{
+    let customer_repo = mock_repo();
+    let invoice_repo = mock_invoice_repo();
+    let rate_card_repo = mock_rate_card_repo();
+    let stripe_svc = mock_stripe_service();
+    rate_card_repo.seed_active_card(test_rate_card());
+
+    let customer = seed_stripe_customer(
+        &customer_repo,
+        "Already Shared",
+        "already-shared@example.com",
+    )
+    .await;
+    customer_repo
+        .set_billing_plan(customer.id, "shared")
+        .await
+        .unwrap();
+    stripe_svc.seed_payment_method(PaymentMethodSummary {
+        id: "pm_existing_default".to_string(),
+        card_brand: "visa".to_string(),
+        last4: "1111".to_string(),
+        exp_month: 1,
+        exp_year: 2030,
+        is_default: false,
+    });
+    *stripe_svc.default_pm.lock().unwrap() = Some("pm_existing_default".to_string());
+
+    let app = test_app_with_upgrade_dependencies(
+        customer_repo.clone(),
+        invoice_repo,
+        rate_card_repo,
+        stripe_svc.clone(),
+    );
+    let jwt = create_test_jwt(customer.id);
+    let resp = app
+        .oneshot(
+            Request::post("/billing/upgrade")
+                .header("authorization", format!("Bearer {jwt}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::CONFLICT);
+    assert_eq!(
+        stripe_svc.create_and_finalize_calls.lock().unwrap().len(),
+        0
+    );
+    assert_eq!(stripe_svc.invoices_created.lock().unwrap().len(), 0);
+}
+
+#[tokio::test]
+async fn billing_upgrade_rolls_back_and_voids_invoice_when_post_charge_validation_fails() {
+    let customer_repo = mock_repo();
+    let invoice_repo = mock_invoice_repo();
+    let rate_card_repo = mock_rate_card_repo();
+    let stripe_svc = mock_stripe_service();
+    let mut card = test_rate_card();
+    card.shared_minimum_spend_cents = 1200;
+    rate_card_repo.seed_active_card(card);
+
+    let customer =
+        seed_stripe_customer(&customer_repo, "Void Rollback", "void-rollback@example.com").await;
+    stripe_svc.seed_payment_method(PaymentMethodSummary {
+        id: "pm_void_default".to_string(),
+        card_brand: "visa".to_string(),
+        last4: "2222".to_string(),
+        exp_month: 2,
+        exp_year: 2031,
+        is_default: false,
+    });
+    *stripe_svc.default_pm.lock().unwrap() = Some("pm_void_default".to_string());
+    stripe_svc.set_pay_invoice_result_default(PaidInvoice {
+        id: "in_mock_default".to_string(),
+        status: "paid".to_string(),
+        amount_paid_cents: 100,
+        last_payment_error: None,
+    });
+
+    let app = test_app_with_upgrade_dependencies(
+        customer_repo.clone(),
+        invoice_repo,
+        rate_card_repo,
+        stripe_svc.clone(),
+    );
+    let jwt = create_test_jwt(customer.id);
+    let resp = app
+        .oneshot(
+            Request::post("/billing/upgrade")
+                .header("authorization", format!("Bearer {jwt}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    let reverted = customer_repo
+        .find_by_id(customer.id)
+        .await
+        .unwrap()
+        .expect("customer should still exist after rollback");
+    assert_eq!(reverted.billing_plan, "free");
+    assert_eq!(reverted.subscription_cycle_anchor_at, None);
+    assert_eq!(stripe_svc.void_invoice_calls.lock().unwrap().len(), 1);
+}
+
+#[tokio::test]
+async fn billing_upgrade_attempts_invoice_void_when_rollback_plan_reset_fails() {
+    let customer_repo = mock_repo();
+    let invoice_repo = mock_invoice_repo();
+    let rate_card_repo = mock_rate_card_repo();
+    let stripe_svc = mock_stripe_service();
+    let mut card = test_rate_card();
+    card.shared_minimum_spend_cents = 1200;
+    rate_card_repo.seed_active_card(card);
+
+    let customer = seed_stripe_customer(
+        &customer_repo,
+        "Rollback Fails",
+        "rollback-fails@example.com",
+    )
+    .await;
+    stripe_svc.seed_payment_method(PaymentMethodSummary {
+        id: "pm_rollback_fails".to_string(),
+        card_brand: "visa".to_string(),
+        last4: "1881".to_string(),
+        exp_month: 8,
+        exp_year: 2033,
+        is_default: false,
+    });
+    *stripe_svc.default_pm.lock().unwrap() = Some("pm_rollback_fails".to_string());
+    stripe_svc.set_pay_invoice_result_default(PaidInvoice {
+        id: "in_mock_default".to_string(),
+        status: "paid".to_string(),
+        amount_paid_cents: 100,
+        last_payment_error: None,
+    });
+
+    customer_repo.fail_next_set_billing_plan();
+
+    let app = test_app_with_upgrade_dependencies(
+        customer_repo.clone(),
+        invoice_repo,
+        rate_card_repo,
+        stripe_svc.clone(),
+    );
+    let jwt = create_test_jwt(customer.id);
+    let resp = app
+        .oneshot(
+            Request::post("/billing/upgrade")
+                .header("authorization", format!("Bearer {jwt}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    assert_eq!(
+        stripe_svc.void_invoice_calls.lock().unwrap().len(),
+        1,
+        "invoice void should still be attempted even when rollback reset fails"
+    );
+    let persisted = customer_repo
+        .find_by_id(customer.id)
+        .await
+        .unwrap()
+        .expect("customer should still exist");
+    assert_eq!(
+        persisted.billing_plan, "shared",
+        "rollback persistence failure should leave prior shared state untouched"
+    );
+    assert!(
+        persisted.subscription_cycle_anchor_at.is_some(),
+        "rollback persistence failure should preserve the claimed shared anchor"
+    );
+}
+
+#[tokio::test]
+async fn billing_upgrade_rollback_does_not_partially_reset_plan_when_anchor_reset_fails() {
+    let customer_repo = mock_repo();
+    let invoice_repo = mock_invoice_repo();
+    let rate_card_repo = mock_rate_card_repo();
+    let stripe_svc = mock_stripe_service();
+    let mut card = test_rate_card();
+    card.shared_minimum_spend_cents = 1200;
+    rate_card_repo.seed_active_card(card);
+
+    let customer = seed_stripe_customer(
+        &customer_repo,
+        "Anchor Reset Fails",
+        "anchor-reset-fails@example.com",
+    )
+    .await;
+    stripe_svc.seed_payment_method(PaymentMethodSummary {
+        id: "pm_anchor_reset_fails".to_string(),
+        card_brand: "visa".to_string(),
+        last4: "6781".to_string(),
+        exp_month: 8,
+        exp_year: 2035,
+        is_default: false,
+    });
+    *stripe_svc.default_pm.lock().unwrap() = Some("pm_anchor_reset_fails".to_string());
+    stripe_svc.set_pay_invoice_result_default(PaidInvoice {
+        id: "in_mock_default".to_string(),
+        status: "paid".to_string(),
+        amount_paid_cents: 100,
+        last_payment_error: None,
+    });
+    customer_repo.fail_next_set_subscription_cycle_anchor();
+
+    let app = test_app_with_upgrade_dependencies(
+        customer_repo.clone(),
+        invoice_repo,
+        rate_card_repo,
+        stripe_svc.clone(),
+    );
+    let jwt = create_test_jwt(customer.id);
+    let resp = app
+        .oneshot(
+            Request::post("/billing/upgrade")
+                .header("authorization", format!("Bearer {jwt}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    assert_eq!(
+        stripe_svc.void_invoice_calls.lock().unwrap().len(),
+        1,
+        "invoice void should still be attempted when rollback persistence fails"
+    );
+    let persisted = customer_repo
+        .find_by_id(customer.id)
+        .await
+        .unwrap()
+        .expect("customer should still exist");
+    assert_eq!(
+        persisted.billing_plan, "shared",
+        "failed rollback persistence must not leave a partial free-plan write"
+    );
+    assert!(
+        persisted.subscription_cycle_anchor_at.is_some(),
+        "failed rollback persistence must preserve original upgrade anchor"
+    );
+}
+
+#[tokio::test]
+async fn billing_upgrade_same_day_retry_uses_distinct_activation_idempotency_keys() {
+    let customer_repo = mock_repo();
+    let invoice_repo = mock_invoice_repo();
+    let rate_card_repo = mock_rate_card_repo();
+    let stripe_svc = mock_stripe_service();
+    rate_card_repo.seed_active_card(test_rate_card());
+
+    let customer = seed_stripe_customer(&customer_repo, "Retry Key", "retry-key@example.com").await;
+    stripe_svc.seed_payment_method(PaymentMethodSummary {
+        id: "pm_retry_default".to_string(),
+        card_brand: "visa".to_string(),
+        last4: "1881".to_string(),
+        exp_month: 3,
+        exp_year: 2032,
+        is_default: false,
+    });
+    *stripe_svc.default_pm.lock().unwrap() = Some("pm_retry_default".to_string());
+    stripe_svc.set_pay_invoice_result_default(PaidInvoice {
+        id: "in_mock_default".to_string(),
+        status: "open".to_string(),
+        amount_paid_cents: 0,
+        last_payment_error: Some(StripeLastPaymentError {
+            code: Some("card_declined".to_string()),
+            decline_code: Some("insufficient_funds".to_string()),
+            message: Some("declined".to_string()),
+        }),
+    });
+
+    let app = test_app_with_upgrade_dependencies(
+        customer_repo.clone(),
+        invoice_repo,
+        rate_card_repo,
+        stripe_svc.clone(),
+    );
+    let jwt = create_test_jwt(customer.id);
+
+    let first = app
+        .clone()
+        .oneshot(
+            Request::post("/billing/upgrade")
+                .header("authorization", format!("Bearer {jwt}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(first.status(), StatusCode::PAYMENT_REQUIRED);
+
+    let second = app
+        .oneshot(
+            Request::post("/billing/upgrade")
+                .header("authorization", format!("Bearer {jwt}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(second.status(), StatusCode::PAYMENT_REQUIRED);
+
+    let calls = stripe_svc.create_and_finalize_calls.lock().unwrap();
+    assert_eq!(calls.len(), 2);
+    let first_key = calls[0].1.clone().expect("first upgrade should set key");
+    let second_key = calls[1].1.clone().expect("second upgrade should set key");
+    assert_ne!(
+        first_key, second_key,
+        "same-day retries must not reuse activation invoice idempotency keys"
+    );
+}
+
+#[tokio::test]
+async fn billing_upgrade_rolls_back_and_voids_invoice_when_persisted_state_is_missing_after_charge()
+{
+    let customer_repo = mock_repo();
+    let invoice_repo = mock_invoice_repo();
+    let rate_card_repo = mock_rate_card_repo();
+    let stripe_svc = mock_stripe_service();
+    let mut card = test_rate_card();
+    card.shared_minimum_spend_cents = 1300;
+    rate_card_repo.seed_active_card(card);
+
+    let customer = seed_stripe_customer(&customer_repo, "No Reload", "no-reload@example.com").await;
+    stripe_svc.seed_payment_method(PaymentMethodSummary {
+        id: "pm_no_reload_default".to_string(),
+        card_brand: "visa".to_string(),
+        last4: "7711".to_string(),
+        exp_month: 7,
+        exp_year: 2032,
+        is_default: false,
+    });
+    *stripe_svc.default_pm.lock().unwrap() = Some("pm_no_reload_default".to_string());
+    stripe_svc.set_pay_invoice_result_default(PaidInvoice {
+        id: "in_mock_default".to_string(),
+        status: "paid".to_string(),
+        amount_paid_cents: 1300,
+        last_payment_error: None,
+    });
+
+    let customer_repo_for_callback = customer_repo.clone();
+    stripe_svc.set_on_pay_invoice(Arc::new(move || {
+        customer_repo_for_callback.clear_subscription_cycle_anchor_for_test(customer.id);
+    }));
+
+    let app = test_app_with_upgrade_dependencies(
+        customer_repo.clone(),
+        invoice_repo,
+        rate_card_repo,
+        stripe_svc.clone(),
+    );
+    let jwt = create_test_jwt(customer.id);
+    let resp = app
+        .oneshot(
+            Request::post("/billing/upgrade")
+                .header("authorization", format!("Bearer {jwt}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    let reverted = customer_repo
+        .find_by_id(customer.id)
+        .await
+        .unwrap()
+        .expect("customer should still exist after rollback");
+    assert_eq!(reverted.billing_plan, "free");
+    assert_eq!(reverted.subscription_cycle_anchor_at, None);
+    assert_eq!(stripe_svc.void_invoice_calls.lock().unwrap().len(), 1);
+}
+
+#[tokio::test]
+async fn billing_upgrade_voids_invoice_when_persisted_anchor_mismatches_claimed_anchor() {
+    let customer_repo = mock_repo();
+    let invoice_repo = mock_invoice_repo();
+    let rate_card_repo = mock_rate_card_repo();
+    let stripe_svc = mock_stripe_service();
+    let mut card = test_rate_card();
+    card.shared_minimum_spend_cents = 1300;
+    rate_card_repo.seed_active_card(card);
+
+    let customer = seed_stripe_customer(
+        &customer_repo,
+        "Mismatched Anchor",
+        "mismatched-anchor@example.com",
+    )
+    .await;
+    stripe_svc.seed_payment_method(PaymentMethodSummary {
+        id: "pm_mismatched_anchor_default".to_string(),
+        card_brand: "visa".to_string(),
+        last4: "6321".to_string(),
+        exp_month: 9,
+        exp_year: 2033,
+        is_default: false,
+    });
+    *stripe_svc.default_pm.lock().unwrap() = Some("pm_mismatched_anchor_default".to_string());
+    stripe_svc.set_pay_invoice_result_default(PaidInvoice {
+        id: "in_mock_default".to_string(),
+        status: "paid".to_string(),
+        amount_paid_cents: 1300,
+        last_payment_error: None,
+    });
+
+    let customer_repo_for_callback = customer_repo.clone();
+    stripe_svc.set_on_pay_invoice(Arc::new(move || {
+        customer_repo_for_callback.set_subscription_cycle_anchor_for_test(
+            customer.id,
+            chrono::Utc::now() + chrono::Duration::minutes(5),
+        );
+    }));
+
+    let app = test_app_with_upgrade_dependencies(
+        customer_repo.clone(),
+        invoice_repo,
+        rate_card_repo,
+        stripe_svc.clone(),
+    );
+    let jwt = create_test_jwt(customer.id);
+    let resp = app
+        .oneshot(
+            Request::post("/billing/upgrade")
+                .header("authorization", format!("Bearer {jwt}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    let reverted = customer_repo
+        .find_by_id(customer.id)
+        .await
+        .unwrap()
+        .expect("customer should still exist after rollback");
+    assert_eq!(
+        reverted.billing_plan, "free",
+        "mismatched persisted anchor must still restore customer plan to free"
+    );
+    assert_eq!(
+        reverted.subscription_cycle_anchor_at, None,
+        "mismatched persisted anchor must clear subscription anchor on rollback"
+    );
+    assert_eq!(
+        stripe_svc.void_invoice_calls.lock().unwrap().len(),
+        1,
+        "paid activation invoice must be voided when persisted anchor mismatches claimed anchor"
+    );
+}
+
+#[tokio::test]
+async fn billing_upgrade_voids_invoice_when_post_charge_customer_reload_is_missing() {
+    let customer_repo = mock_repo();
+    let invoice_repo = mock_invoice_repo();
+    let rate_card_repo = mock_rate_card_repo();
+    let stripe_svc = mock_stripe_service();
+    let mut card = test_rate_card();
+    card.shared_minimum_spend_cents = 1300;
+    rate_card_repo.seed_active_card(card);
+
+    let customer = seed_stripe_customer(
+        &customer_repo,
+        "Deleted Reload",
+        "deleted-reload@example.com",
+    )
+    .await;
+    stripe_svc.seed_payment_method(PaymentMethodSummary {
+        id: "pm_deleted_reload_default".to_string(),
+        card_brand: "visa".to_string(),
+        last4: "7631".to_string(),
+        exp_month: 1,
+        exp_year: 2034,
+        is_default: false,
+    });
+    *stripe_svc.default_pm.lock().unwrap() = Some("pm_deleted_reload_default".to_string());
+    stripe_svc.set_pay_invoice_result_default(PaidInvoice {
+        id: "in_mock_default".to_string(),
+        status: "paid".to_string(),
+        amount_paid_cents: 1300,
+        last_payment_error: None,
+    });
+    let customer_repo_for_callback = customer_repo.clone();
+    stripe_svc.set_on_pay_invoice(Arc::new(move || {
+        customer_repo_for_callback.delete_customer_for_test(customer.id);
+    }));
+
+    let app = test_app_with_upgrade_dependencies(
+        customer_repo,
+        invoice_repo,
+        rate_card_repo,
+        stripe_svc.clone(),
+    );
+    let jwt = create_test_jwt(customer.id);
+    let resp = app
+        .oneshot(
+            Request::post("/billing/upgrade")
+                .header("authorization", format!("Bearer {jwt}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    assert_eq!(
+        stripe_svc.void_invoice_calls.lock().unwrap().len(),
+        1,
+        "paid activation invoice must be voided even when persisted reload returns no customer"
+    );
+}
+
+#[tokio::test]
+async fn billing_upgrade_voids_invoice_when_post_charge_customer_reload_errors() {
+    let customer_repo = mock_repo();
+    let invoice_repo = mock_invoice_repo();
+    let rate_card_repo = mock_rate_card_repo();
+    let stripe_svc = mock_stripe_service();
+    let mut card = test_rate_card();
+    card.shared_minimum_spend_cents = 1300;
+    rate_card_repo.seed_active_card(card);
+
+    let customer = seed_stripe_customer(
+        &customer_repo,
+        "Errored Reload",
+        "errored-reload@example.com",
+    )
+    .await;
+    stripe_svc.seed_payment_method(PaymentMethodSummary {
+        id: "pm_errored_reload_default".to_string(),
+        card_brand: "visa".to_string(),
+        last4: "6471".to_string(),
+        exp_month: 6,
+        exp_year: 2034,
+        is_default: false,
+    });
+    *stripe_svc.default_pm.lock().unwrap() = Some("pm_errored_reload_default".to_string());
+    stripe_svc.set_pay_invoice_result_default(PaidInvoice {
+        id: "in_mock_default".to_string(),
+        status: "paid".to_string(),
+        amount_paid_cents: 1300,
+        last_payment_error: None,
+    });
+    let customer_repo_for_callback = customer_repo.clone();
+    stripe_svc.set_on_pay_invoice(Arc::new(move || {
+        customer_repo_for_callback.fail_next_find_by_id();
+    }));
+
+    let app = test_app_with_upgrade_dependencies(
+        customer_repo,
+        invoice_repo,
+        rate_card_repo,
+        stripe_svc.clone(),
+    );
+    let jwt = create_test_jwt(customer.id);
+    let resp = app
+        .oneshot(
+            Request::post("/billing/upgrade")
+                .header("authorization", format!("Bearer {jwt}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    assert_eq!(
+        stripe_svc.void_invoice_calls.lock().unwrap().len(),
+        1,
+        "paid activation invoice must be voided even when persisted reload errors"
+    );
+}
+
+// ===========================================================================
+// GET /account/upgrade-status
+// ===========================================================================
+
+#[tokio::test]
+async fn account_upgrade_status_reports_upgrade_ready_when_default_payment_method_exists() {
+    let customer_repo = mock_repo();
+    let customer =
+        seed_stripe_customer(&customer_repo, "Upgrade Ready", "upgrade-ready@example.com").await;
+    let stripe_svc = mock_stripe_service();
+    stripe_svc.seed_payment_method(PaymentMethodSummary {
+        id: "pm_ready_default".to_string(),
+        card_brand: "visa".to_string(),
+        last4: "9999".to_string(),
+        exp_month: 11,
+        exp_year: 2032,
+        is_default: false,
+    });
+    *stripe_svc.default_pm.lock().unwrap() = Some("pm_ready_default".to_string());
+    let app = test_app_with_stripe(customer_repo, mock_invoice_repo(), stripe_svc);
+
+    let jwt = create_test_jwt(customer.id);
+    let resp = app
+        .oneshot(
+            Request::get("/account/upgrade-status")
+                .header("authorization", format!("Bearer {jwt}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = body_json(resp).await;
+    assert_eq!(
+        body["stripe_customer_id"],
+        customer.stripe_customer_id.unwrap()
+    );
+    assert_eq!(body["has_default_payment_method"], true);
+    assert_eq!(body["upgrade_ready"], true);
+}
+
+#[tokio::test]
+async fn account_upgrade_status_reports_not_ready_without_stripe_customer_and_profile_shape_is_unchanged(
+) {
+    let customer_repo = mock_repo();
+    let customer = customer_repo.seed("No Stripe", "account-status@example.com");
+    let app = test_app_with_stripe(customer_repo, mock_invoice_repo(), mock_stripe_service());
+
+    let jwt = create_test_jwt(customer.id);
+    let status_resp = app
+        .clone()
+        .oneshot(
+            Request::get("/account/upgrade-status")
+                .header("authorization", format!("Bearer {jwt}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(status_resp.status(), StatusCode::OK);
+    let status_body = body_json(status_resp).await;
+    assert_eq!(status_body["stripe_customer_id"], serde_json::Value::Null);
+    assert_eq!(status_body["has_default_payment_method"], false);
+    assert_eq!(status_body["upgrade_ready"], false);
+
+    let profile_resp = app
+        .oneshot(
+            Request::get("/account")
+                .header("authorization", format!("Bearer {jwt}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(profile_resp.status(), StatusCode::OK);
+    let profile_body = body_json(profile_resp).await;
+    assert!(
+        profile_body.get("upgrade_ready").is_none(),
+        "CustomerProfileResponse must remain unchanged for /account"
+    );
+    assert!(
+        profile_body.get("has_default_payment_method").is_none(),
+        "CustomerProfileResponse must remain unchanged for /account"
+    );
+}
+
+#[tokio::test]
+async fn account_upgrade_status_reports_not_ready_for_existing_shared_customer() {
+    let customer_repo = mock_repo();
+    let customer = seed_stripe_customer(
+        &customer_repo,
+        "Already Shared Status",
+        "already-shared-status@example.com",
+    )
+    .await;
+    customer_repo
+        .set_billing_plan(customer.id, "shared")
+        .await
+        .unwrap();
+    let stripe_svc = mock_stripe_service();
+    stripe_svc.seed_payment_method(PaymentMethodSummary {
+        id: "pm_shared_status_default".to_string(),
+        card_brand: "visa".to_string(),
+        last4: "9087".to_string(),
+        exp_month: 12,
+        exp_year: 2034,
+        is_default: false,
+    });
+    *stripe_svc.default_pm.lock().unwrap() = Some("pm_shared_status_default".to_string());
+
+    let app = test_app_with_stripe(customer_repo, mock_invoice_repo(), stripe_svc);
+    let jwt = create_test_jwt(customer.id);
+    let resp = app
+        .oneshot(
+            Request::get("/account/upgrade-status")
+                .header("authorization", format!("Bearer {jwt}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = body_json(resp).await;
+    assert_eq!(body["has_default_payment_method"], true);
+    assert_eq!(
+        body["upgrade_ready"], false,
+        "shared customers are ineligible for free-to-shared upgrade and must not be marked ready"
+    );
 }
 
 // ===========================================================================

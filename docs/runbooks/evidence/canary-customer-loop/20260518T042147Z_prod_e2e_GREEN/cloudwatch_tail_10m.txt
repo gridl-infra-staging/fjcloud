@@ -1,0 +1,18 @@
+2026-05-18T04:32:26.404000+00:00 2026/05/18/[$LATEST]2b43db11b2c54620b9fb849134af959d [customer-loop-canary] customer loop failed before completion; entering cleanup
+2026-05-18T04:32:26.682000+00:00 2026/05/18/[$LATEST]2b43db11b2c54620b9fb849134af959d [customer-loop-canary] account delete attempted for customer 5d034f16-b419-4558-9dac-d0ff79b41e6a
+2026-05-18T04:32:26.783000+00:00 2026/05/18/[$LATEST]2b43db11b2c54620b9fb849134af959d [customer-loop-canary] admin cleanup completed for tenant 5d034f16-b419-4558-9dac-d0ff79b41e6a
+2026-05-18T04:32:26.783000+00:00 2026/05/18/[$LATEST]2b43db11b2c54620b9fb849134af959d [customer-loop-canary] step 'verify_email' failed: verification email not found in inbox within timeout
+2026-05-18T04:32:26.947000+00:00 2026/05/18/[$LATEST]2b43db11b2c54620b9fb849134af959d [FAIL] slack: HTTP 400 (expected 2xx)
+2026-05-18T04:32:27.393000+00:00 2026/05/18/[$LATEST]2b43db11b2c54620b9fb849134af959d [OK]   discord: HTTP 204
+2026-05-18T04:32:27.548000+00:00 2026/05/18/[$LATEST]2b43db11b2c54620b9fb849134af959d END RequestId: 477100d0-f390-454f-9975-67fcca1241e9
+2026-05-18T04:32:27.548000+00:00 2026/05/18/[$LATEST]2b43db11b2c54620b9fb849134af959d REPORT RequestId: 477100d0-f390-454f-9975-67fcca1241e9	Duration: 168736.60 ms	Billed Duration: 168870 ms	Memory Size: 512 MB	Max Memory Used: 142 MB	Init Duration: 133.14 ms
+2026-05-18T04:38:13.128000+00:00 2026/05/18/[$LATEST]a3464fa8514f47a499108cefd1fb1372 START RequestId: 1cb16a2e-55c3-4d18-a0d6-9ea14d512282 Version: $LATEST
+2026-05-18T04:38:20.744000+00:00 2026/05/18/[$LATEST]a3464fa8514f47a499108cefd1fb1372 [customer-loop-canary] signup succeeded for canary+canary2026051804381911323@test.flapjack.foo (customer=56c6f12d-4c95-4030-931d-affac3e40238)
+2026-05-18T04:40:46.948000+00:00 2026/05/18/[$LATEST]a3464fa8514f47a499108cefd1fb1372 [customer-loop-canary] customer loop failed before completion; entering cleanup
+2026-05-18T04:40:47.186000+00:00 2026/05/18/[$LATEST]a3464fa8514f47a499108cefd1fb1372 [customer-loop-canary] account delete attempted for customer 56c6f12d-4c95-4030-931d-affac3e40238
+2026-05-18T04:40:47.284000+00:00 2026/05/18/[$LATEST]a3464fa8514f47a499108cefd1fb1372 [customer-loop-canary] admin cleanup completed for tenant 56c6f12d-4c95-4030-931d-affac3e40238
+2026-05-18T04:40:47.284000+00:00 2026/05/18/[$LATEST]a3464fa8514f47a499108cefd1fb1372 [customer-loop-canary] step 'verify_email' failed: verification email not found in inbox within timeout
+2026-05-18T04:40:47.408000+00:00 2026/05/18/[$LATEST]a3464fa8514f47a499108cefd1fb1372 [FAIL] slack: HTTP 400 (expected 2xx)
+2026-05-18T04:40:47.655000+00:00 2026/05/18/[$LATEST]a3464fa8514f47a499108cefd1fb1372 [OK]   discord: HTTP 204
+2026-05-18T04:40:47.790000+00:00 2026/05/18/[$LATEST]a3464fa8514f47a499108cefd1fb1372 END RequestId: 1cb16a2e-55c3-4d18-a0d6-9ea14d512282
+2026-05-18T04:40:47.790000+00:00 2026/05/18/[$LATEST]a3464fa8514f47a499108cefd1fb1372 REPORT RequestId: 1cb16a2e-55c3-4d18-a0d6-9ea14d512282	Duration: 154660.06 ms	Billed Duration: 154748 ms	Memory Size: 512 MB	Max Memory Used: 142 MB	Init Duration: 87.03 ms

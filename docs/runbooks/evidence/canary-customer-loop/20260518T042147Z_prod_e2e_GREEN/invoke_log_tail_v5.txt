@@ -1,0 +1,14 @@
+START RequestId: 508df2f0-a158-4662-875e-ec7f657bdfab Version: $LATEST
+[customer-loop-canary] signup succeeded for canary+canary2026051804511128541@test.flapjack.foo (customer=1c3c5dcd-5e1b-44dc-b5ca-1708e7d62738)
+[customer-loop-canary] email verification succeeded for canary+canary2026051804511128541@test.flapjack.foo
+[customer-loop-canary] CANARY_LIVE_MODE=0; skipping live Stripe branch
+[customer-loop-canary] index created (canary-canary2026051804511128541)
+[customer-loop-canary] index write succeeded (canary-canary2026051804511128541)
+[customer-loop-canary] index search succeeded (canary-canary2026051804511128541)
+[customer-loop-canary] index deleted (canary-canary2026051804511128541)
+[customer-loop-canary] account delete attempted for customer 1c3c5dcd-5e1b-44dc-b5ca-1708e7d62738
+[customer-loop-canary] admin cleanup completed for tenant 1c3c5dcd-5e1b-44dc-b5ca-1708e7d62738
+[customer-loop-canary] customer loop canary completed successfully
+END RequestId: 508df2f0-a158-4662-875e-ec7f657bdfab
+REPORT RequestId: 508df2f0-a158-4662-875e-ec7f657bdfab	Duration: 20207.81 ms	Billed Duration: 20402 ms	Memory Size: 512 MB	Max Memory Used: 139 MB	Init Duration: 193.67 ms	
+

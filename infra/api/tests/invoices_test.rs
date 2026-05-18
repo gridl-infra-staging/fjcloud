@@ -475,7 +475,7 @@ async fn generate_invoice_201_minimum_applied() {
     let card = sample_rate_card();
     rate_card_repo.seed_active_card(card);
 
-    // No usage seeded — shared minimum should apply
+    // No usage seeded — shared-plan minimum (200¢) should apply
 
     let app = test_app_all(
         customer_repo,
@@ -549,7 +549,7 @@ async fn generate_invoice_201_shared_plan_uses_shared_minimum() {
 /// defaults to `BillingPlan::Shared` so the customer is charged the
 /// shared minimum rather than escaping clamping under Free semantics.
 #[tokio::test]
-async fn generate_invoice_201_unknown_plan_defaults_to_free_minimum() {
+async fn generate_invoice_201_unknown_plan_defaults_to_shared_minimum() {
     let customer_repo = mock_repo();
     let rate_card_repo = mock_rate_card_repo();
     let invoice_repo = mock_invoice_repo();

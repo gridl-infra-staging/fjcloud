@@ -35,6 +35,13 @@ pub struct AccountExportResponse {
     pub profile: CustomerProfileResponse,
 }
 
+#[derive(Debug, Serialize, ToSchema)]
+pub struct UpgradeStatusResponse {
+    pub stripe_customer_id: Option<String>,
+    pub has_default_payment_method: bool,
+    pub upgrade_ready: bool,
+}
+
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct UpdateProfileRequest {
     pub name: String,
@@ -98,6 +105,45 @@ pub async fn get_profile(
 ) -> Result<impl IntoResponse, ApiError> {
     let customer = find_customer(&state, tenant.customer_id).await?;
     Ok(Json(CustomerProfileResponse::from(customer)))
+}
+
+// GET /account/upgrade-status
+#[utoipa::path(
+    get,
+    path = "/account/upgrade-status",
+    tag = "Account",
+    responses(
+        (status = 200, description = "Upgrade readiness status", body = UpgradeStatusResponse),
+        (status = 401, description = "Authentication required", body = ErrorResponse),
+        (status = 404, description = "Customer not found", body = ErrorResponse),
+        (status = 503, description = "Billing service unavailable", body = ErrorResponse),
+    )
+)]
+pub async fn get_upgrade_status(
+    tenant: AuthenticatedTenant,
+    State(state): State<AppState>,
+) -> Result<impl IntoResponse, ApiError> {
+    let customer = find_customer(&state, tenant.customer_id).await?;
+    let stripe_customer_id = customer.stripe_customer_id.clone();
+
+    let has_default_payment_method = if let Some(ref stripe_customer_id) = stripe_customer_id {
+        state
+            .stripe_service
+            .list_payment_methods(stripe_customer_id)
+            .await?
+            .iter()
+            .any(|payment_method| payment_method.is_default)
+    } else {
+        false
+    };
+
+    Ok(Json(UpgradeStatusResponse {
+        stripe_customer_id: customer.stripe_customer_id,
+        has_default_payment_method,
+        upgrade_ready: customer.billing_plan == "free"
+            && stripe_customer_id.is_some()
+            && has_default_payment_method,
+    }))
 }
 
 // GET /account/export

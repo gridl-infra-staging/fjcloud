@@ -1,0 +1,41 @@
+START RequestId: 0452476a-028f-44b2-b847-4f7925eb493a Version: $LATEST
+[customer-loop-canary] signup succeeded for canary+canary2026051804455528157@test.flapjack.foo (customer=0729a00a-69c2-4e2b-8853-f5d86348a657)
+[customer-loop-canary] customer loop failed before completion; entering cleanup
+[customer-loop-canary] account delete attempted for customer 0729a00a-69c2-4e2b-8853-f5d86348a657
+[customer-loop-canary] admin cleanup completed for tenant 0729a00a-69c2-4e2b-8853-f5d86348a657
+[customer-loop-canary] step 'verify_email' failed: verification email not found in inbox within timeout: /workspace/scripts/lib/test_inbox_helpers.sh: line 164: /usr/bin/python3: Argument list too long
+/workspace/scripts/lib/test_inbox_helpers.sh: line 164: /usr/bin/python3: Argument list too long
+/workspace/scripts/lib/test_inbox_helpers.sh: line 164: /usr/bin/python3: Argument list too long
+/workspace/scripts/lib/test_inbox_helpers.sh: line 164: /usr/bin/python3: Argument list too long
+/workspace/scripts/lib/test_inbox_helpers.sh: line 164: /usr/bin/python3: Argument list too long
+/workspace/scripts/lib/test_inbox_helpers.sh: line 164: /usr/bin/python3: Argument list too long
+/workspace/scripts/lib/test_inbox_helpers.sh: line 164: /usr/bin/python3: Argument list too long
+/workspace/scripts/lib/test_inbox_helpers.sh: line 164: /usr/bin/python3: Argument list too long
+/workspace/scripts/lib/test_inbox_helpers.sh: line 164: /usr/bin/python3: Argument list too long
+/workspace/scripts/lib/test_inbox_helpers.sh: line 164: /usr/bin/python3: Argument list too long
+/workspace/scripts/lib/test_inbox_helpers.sh: line 164: /usr/bin/python3: Argument list too long
+/workspace/scripts/lib/test_inbox_helpers.sh: line 164: /usr/bin/python3: Argument list too long
+/workspace/scripts/lib/test_inbox_helpers.sh: line 164: /usr/bin/python3: Argument list too long
+/workspace/scripts/lib/test_inbox_helpers.sh: line 164: /usr/bin/python3: Argument list too long
+/workspace/scripts/lib/test_inbox_helpers.sh: line 164: /usr/bin/python3: Argument list too long
+/workspace/scripts/lib/test_inbox_helpers.sh: line 164: /usr/bin/python3: Argument list too long
+/workspace/scripts/lib/test_inbox_helpers.sh: line 164: /usr/bin/python3: Argument list too long
+/workspace/scripts/lib/test_inbox_helpers.sh: line 164: /usr/bin/python3: Argument list too long
+/workspace/scripts/lib/test_inbox_helpers.sh: line 164: /usr/bin/python3: Argument list too long
+/workspace/scripts/lib/test_inbox_helpers.sh: line 164: /usr/bin/python3: Argument list too long
+/workspace/scripts/lib/test_inbox_helpers.sh: line 164: /usr/bin/python3: Argument list too long
+/workspace/scripts/lib/test_inbox_helpers.sh: line 164: /usr/bin/python3: Argument list too long
+/workspace/scripts/lib/test_inbox_helpers.sh: line 164: /usr/bin/python3: Argument list too long
+/workspace/scripts/lib/test_inbox_helpers.sh: line 164: /usr/bin/python3: Argument list too long
+/workspace/scripts/lib/test_inbox_helpers.sh: line 164: /usr/bin/python3: Argument list too long
+/workspace/scripts/lib/test_inbox_helpers.sh: line 164: /usr/bin/python3: Argument list too long
+/workspace/scripts/lib/test_inbox_helpers.sh: line 164: /usr/bin/python3: Argument list too long
+/workspace/scripts/lib/test_inbox_helpers.sh: line 164: /usr/bin/python3: Argument list too long
+/workspace/scripts/lib/test_inbox_helpers.sh: line 164: /usr/bin/python3: Argument list too long
+/workspace/scripts/lib/test_inbox_helpers.sh: line 164: /usr/bin/python3: Argument list too long
+inbox-poll exhausted: attempts=30 last_list_count=0 candidates_scanned=0 fetch_failures=0 nonce=canary2026051804455528157
+[FAIL] slack: HTTP 400 (expected 2xx)
+[OK]   discord: HTTP 204
+END RequestId: 0452476a-028f-44b2-b847-4f7925eb493a
+REPORT RequestId: 0452476a-028f-44b2-b847-4f7925eb493a	Duration: 169123.30 ms	Billed Duration: 169192 ms	Memory Size: 512 MB	Max Memory Used: 142 MB	Init Duration: 68.09 ms	
+

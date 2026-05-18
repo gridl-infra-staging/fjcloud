@@ -1,0 +1,1 @@
+aws cloudwatch describe-alarms --region us-east-1 --alarm-name-prefix fjcloud-prod- --query "length(MetricAlarms[?contains(join('', AlarmActions), 'fjcloud-alerts-prod')])" --output text

@@ -47,6 +47,18 @@ impl crate::stripe::StripeService for UnconfiguredStripeService {
     ) -> Result<crate::stripe::FinalizedInvoice, StripeError> {
         Err(StripeError::NotConfigured)
     }
+    async fn pay_invoice(&self, _: &str) -> Result<crate::stripe::PaidInvoice, StripeError> {
+        Err(StripeError::NotConfigured)
+    }
+    async fn void_invoice(&self, _: &str) -> Result<crate::stripe::PaidInvoice, StripeError> {
+        Err(StripeError::NotConfigured)
+    }
+    async fn lookup_charge_fallback_fields(
+        &self,
+        _: &str,
+    ) -> Result<crate::stripe::StripeChargeLookup, StripeError> {
+        Err(StripeError::NotConfigured)
+    }
     fn construct_webhook_event(
         &self,
         _: &str,

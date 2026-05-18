@@ -1,0 +1,5 @@
+{
+    "stdout": "SES_CONFIGURATION_SET=fjcloud-prod-flapjack-foo-feedback\n---\nactive\n",
+    "stderr": "",
+    "status": "Success"
+}

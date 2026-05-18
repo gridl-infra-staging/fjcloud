@@ -3,9 +3,14 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/lib/validation_json.sh
 source "$SCRIPT_DIR/lib/validation_json.sh"
+# shellcheck source=scripts/lib/stripe_checks.sh
 source "$SCRIPT_DIR/lib/stripe_checks.sh"
+# shellcheck source=scripts/lib/stripe_request.sh
 source "$SCRIPT_DIR/lib/stripe_request.sh"
+# shellcheck source=scripts/lib/stripe_payment_methods.sh
+source "$SCRIPT_DIR/lib/stripe_payment_methods.sh"
 
 # Local aliases for shared validation helpers (short names used throughout).
 json_get_field() { validation_json_get_field "$@"; }
@@ -24,6 +29,40 @@ EOF
 
 STRIPE_KEY_POLICY_MODE="test_only"
 LIVE_CUTOVER_REQUESTED=0
+
+stripe_key_prefix_policy_allows_key() {
+    local key="$1"
+    local policy_mode="$2"
+
+    case "$policy_mode" in
+        test_only)
+            [[ "$key" == sk_test_* || "$key" == rk_test_* ]]
+            ;;
+        live_cutover)
+            [[ "$key" == sk_live_* || "$key" == rk_live_* ]]
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+stripe_key_prefix_policy_requirement_message() {
+    local policy_mode="$1"
+
+    case "$policy_mode" in
+        test_only)
+            printf 'STRIPE_SECRET_KEY must start with sk_test_ or rk_test_'
+            ;;
+        live_cutover)
+            printf 'STRIPE_SECRET_KEY must start with sk_live_ or rk_live_ when --live-cutover is requested'
+            ;;
+        *)
+            printf 'STRIPE_SECRET_KEY has an unsupported prefix policy'
+            ;;
+    esac
+}
+
 parse_args() {
     while [ "$#" -gt 0 ]; do
         case "$1" in
@@ -182,30 +221,15 @@ if [ -z "$CUSTOMER_ID" ]; then
 fi
 append_step "create_customer" true "Created customer $CUSTOMER_ID"
 
-if ! stripe_request POST "/v1/payment_methods/pm_card_visa/attach" -d "customer=$CUSTOMER_ID"; then
-    append_step "attach_payment_method" false "curl failure while attaching payment method: ${STRIPE_BODY:-unknown error}"
+if ! stripe_attach_payment_method_to_customer "pm_card_visa" "$CUSTOMER_ID"; then
+    append_step "attach_payment_method" false "${STRIPE_PAYMENT_METHOD_ERROR_MESSAGE:-attach payment method failed}"
     emit_result false
     exit 1
 fi
-if [ "$STRIPE_HTTP_CODE" != "200" ]; then
-    append_step "attach_payment_method" false "Attach payment method failed with HTTP $STRIPE_HTTP_CODE$(stripe_error_context)"
-    emit_result false
-    exit 1
-fi
-ATTACHED_PAYMENT_METHOD_ID="$(json_get_field "$STRIPE_BODY" "id")"
-if [ -z "$ATTACHED_PAYMENT_METHOD_ID" ]; then
-    append_step "attach_payment_method" false "Stripe attach response did not include payment method id"
-    emit_result false
-    exit 1
-fi
+ATTACHED_PAYMENT_METHOD_ID="$STRIPE_ATTACHED_PAYMENT_METHOD_ID"
 
-if ! stripe_request POST "/v1/customers/$CUSTOMER_ID" -d "invoice_settings[default_payment_method]=$ATTACHED_PAYMENT_METHOD_ID"; then
-    append_step "attach_payment_method" false "curl failure while setting default payment method: ${STRIPE_BODY:-unknown error}"
-    emit_result false
-    exit 1
-fi
-if [ "$STRIPE_HTTP_CODE" != "200" ]; then
-    append_step "attach_payment_method" false "Set default payment method failed with HTTP $STRIPE_HTTP_CODE$(stripe_error_context)"
+if ! stripe_set_default_payment_method_for_customer "$CUSTOMER_ID" "$ATTACHED_PAYMENT_METHOD_ID"; then
+    append_step "attach_payment_method" false "${STRIPE_PAYMENT_METHOD_ERROR_MESSAGE:-set default payment method failed}$(stripe_error_context)"
     emit_result false
     exit 1
 fi

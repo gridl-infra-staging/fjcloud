@@ -27,7 +27,6 @@ where
         Some(value) => value.trim().parse::<T>().unwrap_or_else(|_| {
             warn!(
                 env_key = %key,
-                value = %value,
                 fallback = %default,
                 "invalid env var; using default"
             );
@@ -176,8 +175,12 @@ mod tests {
     }
 
     #[test]
-    fn parse_with_default_invalid_value_falls_back_and_logs_warning() {
-        let values = HashMap::from([("FOO".to_string(), "abc".to_string())]);
+    fn parse_with_default_invalid_value_falls_back_without_logging_secret_value() {
+        let secret_like_value = "sk_test_secret_value";
+        let values = HashMap::from([(
+            "STRIPE_SECRET_KEY".to_string(),
+            secret_like_value.to_string(),
+        )]);
         let logs = TestLogSink::default();
         let subscriber = tracing_subscriber::fmt()
             .with_ansi(false)
@@ -186,10 +189,16 @@ mod tests {
             .finish();
 
         let parsed = tracing::subscriber::with_default(subscriber, || {
-            parse_with_default(&|key| values.get(key).cloned(), "FOO", 15_u64)
+            parse_with_default(&|key| values.get(key).cloned(), "STRIPE_SECRET_KEY", 15_u64)
         });
         assert_eq!(parsed, 15_u64);
-        assert!(logs.as_string().contains("invalid env var; using default"));
+        let rendered_logs = logs.as_string();
+        assert!(rendered_logs.contains("invalid env var; using default"));
+        assert!(rendered_logs.contains("STRIPE_SECRET_KEY"));
+        assert!(
+            !rendered_logs.contains(secret_like_value),
+            "invalid env var logging must not leak the raw value"
+        );
     }
 
     #[test]
@@ -399,6 +408,16 @@ mod tests {
             panic!("not used in this test");
         }
 
+        async fn rollback_ingest_quota_warning_for_month(
+            &self,
+            _id: Uuid,
+            _metric: IngestQuotaWarningMetric,
+            _year: i32,
+            _month: u32,
+        ) -> Result<bool, RepoError> {
+            panic!("not used in this test");
+        }
+
         async fn change_password(
             &self,
             _id: Uuid,
@@ -408,6 +427,30 @@ mod tests {
         }
 
         async fn set_billing_plan(&self, _id: Uuid, _plan: &str) -> Result<bool, RepoError> {
+            panic!("not used in this test");
+        }
+
+        async fn set_subscription_cycle_anchor(
+            &self,
+            _id: Uuid,
+            _anchor_at: Option<chrono::DateTime<Utc>>,
+        ) -> Result<bool, RepoError> {
+            panic!("not used in this test");
+        }
+
+        async fn try_upgrade_to_shared_atomic(
+            &self,
+            _id: Uuid,
+            _subscription_cycle_anchor_at: chrono::DateTime<Utc>,
+        ) -> Result<bool, RepoError> {
+            panic!("not used in this test");
+        }
+
+        async fn rollback_upgrade_to_free_atomic(
+            &self,
+            _id: Uuid,
+            _expected_subscription_cycle_anchor_at: chrono::DateTime<Utc>,
+        ) -> Result<bool, RepoError> {
             panic!("not used in this test");
         }
 
@@ -424,6 +467,18 @@ mod tests {
             _id: Uuid,
             _cents: Decimal,
         ) -> Result<bool, RepoError> {
+            panic!("not used in this test");
+        }
+
+        async fn record_failed_login(&self, _id: Uuid) -> Result<Option<i64>, RepoError> {
+            panic!("not used in this test");
+        }
+
+        async fn record_successful_login(&self, _id: Uuid) -> Result<bool, RepoError> {
+            panic!("not used in this test");
+        }
+
+        async fn login_lockout_remaining(&self, _id: Uuid) -> Result<Option<i64>, RepoError> {
             panic!("not used in this test");
         }
     }
@@ -447,6 +502,7 @@ mod tests {
             status: status.to_string(),
             deleted_at: (status == "deleted").then_some(updated_at),
             billing_plan: "free".to_string(),
+            subscription_cycle_anchor_at: None,
             quota_warning_sent_at: None,
             quota_warnings_sent: Json(IngestQuotaWarningsSentState::default()),
             created_at,
@@ -461,6 +517,15 @@ mod tests {
             last_accessed_at: None,
             overdue_invoice_count: 0,
             object_storage_egress_carryforward_cents: Decimal::ZERO,
+            failed_login_count: 0,
+            failed_login_window_start: None,
+            login_locked_until: None,
+            failed_verify_count: 0,
+            failed_verify_window_start: None,
+            verify_locked_until: None,
+            failed_reset_count: 0,
+            failed_reset_window_start: None,
+            reset_locked_until: None,
         }
     }
 

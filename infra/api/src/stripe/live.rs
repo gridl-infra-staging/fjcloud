@@ -2,15 +2,17 @@ use async_trait::async_trait;
 use hmac::{Hmac, Mac};
 use sha2::Sha256;
 use stripe::{
-    BillingPortalSession, Client, CollectionMethod, CreateBillingPortalSession, CreateCustomer,
-    CreateInvoice, CreateInvoiceItem, CreateSetupIntent, Customer, CustomerInvoiceSettings,
-    FinalizeInvoiceParams, Invoice, InvoicePendingInvoiceItemsBehavior, ListPaymentMethods,
-    PaymentMethod, PaymentMethodTypeFilter, RequestStrategy, SetupIntent, UpdateCustomer,
+    BillingPortalSession, Charge, Client, CollectionMethod, CreateBillingPortalSession,
+    CreateCustomer, CreateInvoice, CreateInvoiceItem, CreateSetupIntent, Customer,
+    CustomerInvoiceSettings, FinalizeInvoiceParams, Invoice, InvoicePendingInvoiceItemsBehavior,
+    ListPaymentMethods, PaymentMethod, PaymentMethodTypeFilter, RequestStrategy, SetupIntent,
+    UpdateCustomer,
 };
 
 use super::{
-    CreatePortalSessionRequest, FinalizedInvoice, PaymentMethodSummary, PortalSessionResponse,
-    StripeError, StripeEvent, StripeInvoiceLineItem, StripeService,
+    CreatePortalSessionRequest, FinalizedInvoice, PaidInvoice, PaymentMethodSummary,
+    PortalSessionResponse, StripeChargeLookup, StripeError, StripeEvent, StripeInvoiceLineItem,
+    StripeLastPaymentError, StripeService,
 };
 
 type HmacSha256 = Hmac<Sha256>;
@@ -108,6 +110,64 @@ fn build_invoice_create_params(
         invoice_params.metadata = Some(meta.clone());
     }
     invoice_params
+}
+
+fn invoice_item_idempotency_key(base_key: Option<&str>, item_index: usize) -> Option<String> {
+    base_key.map(|key| format!("{key}:item:{item_index}"))
+}
+
+fn map_last_payment_error(invoice: &Invoice) -> Option<StripeLastPaymentError> {
+    let payment_intent = invoice.payment_intent.as_ref()?;
+    let payment_intent = payment_intent.as_object()?;
+    let error = payment_intent.last_payment_error.as_deref()?;
+
+    Some(StripeLastPaymentError {
+        code: error.code.map(|code| code.as_str().to_string()),
+        decline_code: error.decline_code.clone(),
+        message: error.message.clone(),
+    })
+}
+
+fn build_paid_invoice(invoice: &Invoice) -> PaidInvoice {
+    PaidInvoice {
+        id: invoice.id.to_string(),
+        status: invoice
+            .status
+            .map(|status| status.as_str().to_string())
+            .unwrap_or_else(|| "unknown".to_string()),
+        amount_paid_cents: invoice.amount_paid.unwrap_or(0),
+        last_payment_error: map_last_payment_error(invoice),
+    }
+}
+
+fn build_failed_paid_invoice(
+    invoice_id: &stripe::InvoiceId,
+    request_error: &stripe::RequestError,
+) -> PaidInvoice {
+    PaidInvoice {
+        id: invoice_id.to_string(),
+        status: "open".to_string(),
+        amount_paid_cents: 0,
+        last_payment_error: Some(StripeLastPaymentError {
+            code: request_error.code.map(|code| code.to_string()),
+            decline_code: request_error.decline_code.clone(),
+            message: request_error.message.clone(),
+        }),
+    }
+}
+
+async fn recover_card_payment_failure(
+    client: &Client,
+    invoice_id: &stripe::InvoiceId,
+    request_error: &stripe::RequestError,
+) -> Result<PaidInvoice, StripeError> {
+    // Stripe returns `card_error` for declined / auth-required invoice pay
+    // attempts. Re-read the invoice with `payment_intent` expanded so the
+    // route layer can preserve the same `PaidInvoice` contract as local/mock.
+    match Invoice::retrieve(client, invoice_id, &["payment_intent"]).await {
+        Ok(invoice) => Ok(build_paid_invoice(&invoice)),
+        Err(_) => Ok(build_failed_paid_invoice(invoice_id, request_error)),
+    }
 }
 
 #[async_trait]
@@ -258,13 +318,21 @@ impl StripeService for LiveStripeService {
             .map_err(|_| StripeError::Api("invalid customer ID".into()))?;
 
         // Create InvoiceItems for each line item
-        for item in line_items {
+        for (item_index, item) in line_items.iter().enumerate() {
             let mut params = CreateInvoiceItem::new(customer_id.clone());
             params.amount = Some(item.amount_cents);
             params.currency = Some(stripe::Currency::USD);
             params.description = Some(&item.description);
 
-            stripe::InvoiceItem::create(&self.client, params)
+            let item_client = invoice_item_idempotency_key(idempotency_key, item_index)
+                .map(|key| {
+                    self.client
+                        .clone()
+                        .with_strategy(RequestStrategy::Idempotent(key))
+                })
+                .unwrap_or_else(|| self.client.clone());
+
+            stripe::InvoiceItem::create(&item_client, params)
                 .await
                 .map_err(|e| StripeError::Api(e.to_string()))?;
         }
@@ -302,6 +370,59 @@ impl StripeService for LiveStripeService {
             stripe_invoice_id,
             hosted_invoice_url,
             pdf_url,
+        })
+    }
+
+    async fn pay_invoice(&self, stripe_invoice_id: &str) -> Result<PaidInvoice, StripeError> {
+        let invoice_id: stripe::InvoiceId = stripe_invoice_id
+            .parse()
+            .map_err(|_| StripeError::Api("invalid invoice ID".into()))?;
+
+        match Invoice::pay(&self.client, &invoice_id).await {
+            Ok(_) => {}
+            Err(stripe::StripeError::Stripe(request_error))
+                if request_error.error_type == stripe::ErrorType::Card =>
+            {
+                return recover_card_payment_failure(&self.client, &invoice_id, &request_error)
+                    .await;
+            }
+            Err(e) => return Err(StripeError::Api(e.to_string())),
+        }
+
+        let paid_invoice = Invoice::retrieve(&self.client, &invoice_id, &["payment_intent"])
+            .await
+            .map_err(|e| StripeError::Api(e.to_string()))?;
+        Ok(build_paid_invoice(&paid_invoice))
+    }
+
+    async fn void_invoice(&self, stripe_invoice_id: &str) -> Result<PaidInvoice, StripeError> {
+        let invoice_id: stripe::InvoiceId = stripe_invoice_id
+            .parse()
+            .map_err(|_| StripeError::Api("invalid invoice ID".into()))?;
+
+        let voided = Invoice::void(&self.client, &invoice_id)
+            .await
+            .map_err(|e| StripeError::Api(e.to_string()))?;
+        Ok(build_paid_invoice(&voided))
+    }
+
+    async fn lookup_charge_fallback_fields(
+        &self,
+        charge_id: &str,
+    ) -> Result<StripeChargeLookup, StripeError> {
+        let stripe_charge_id = charge_id
+            .parse()
+            .map_err(|_| StripeError::Api("invalid charge ID".into()))?;
+        let charge = Charge::retrieve(&self.client, &stripe_charge_id, &[])
+            .await
+            .map_err(|e| StripeError::Api(e.to_string()))?;
+
+        Ok(StripeChargeLookup {
+            charge_id: charge.id.to_string(),
+            invoice_id: charge.invoice.map(|invoice| invoice.id().to_string()),
+            payment_intent_id: charge
+                .payment_intent
+                .map(|payment_intent| payment_intent.id().to_string()),
         })
     }
 
@@ -399,6 +520,59 @@ mod tests {
             params.pending_invoice_items_behavior,
             Some(InvoicePendingInvoiceItemsBehavior::Include),
             "invoice creation must include pending invoice items so billed line items are charged"
+        );
+    }
+
+    #[test]
+    fn invoice_item_idempotency_key_derives_distinct_retry_safe_keys() {
+        let first = invoice_item_idempotency_key(Some("fjcloud-upgrade-abc123"), 0);
+        let second = invoice_item_idempotency_key(Some("fjcloud-upgrade-abc123"), 1);
+
+        assert_eq!(
+            first.as_deref(),
+            Some("fjcloud-upgrade-abc123:item:0"),
+            "first item must derive a deterministic child key"
+        );
+        assert_eq!(
+            second.as_deref(),
+            Some("fjcloud-upgrade-abc123:item:1"),
+            "later items must derive a distinct child key"
+        );
+        assert_ne!(
+            first, second,
+            "each invoice item must get a unique idempotency key so retries cannot duplicate pending invoice items"
+        );
+        assert_eq!(
+            invoice_item_idempotency_key(None, 0),
+            None,
+            "non-idempotent callers should preserve prior behavior"
+        );
+    }
+
+    #[test]
+    fn failed_paid_invoice_preserves_card_decline_details() {
+        let invoice_id: stripe::InvoiceId = "in_test_decline".parse().unwrap();
+        let request_error = stripe::RequestError {
+            http_status: 402,
+            error_type: stripe::ErrorType::Card,
+            message: Some("Your card has insufficient funds.".to_string()),
+            code: Some(stripe::ErrorCode::CardDeclined),
+            decline_code: Some("insufficient_funds".to_string()),
+            charge: Some("ch_test".to_string()),
+        };
+
+        assert_eq!(
+            build_failed_paid_invoice(&invoice_id, &request_error),
+            PaidInvoice {
+                id: "in_test_decline".to_string(),
+                status: "open".to_string(),
+                amount_paid_cents: 0,
+                last_payment_error: Some(StripeLastPaymentError {
+                    code: Some("card_declined".to_string()),
+                    decline_code: Some("insufficient_funds".to_string()),
+                    message: Some("Your card has insufficient funds.".to_string()),
+                }),
+            }
         );
     }
 }

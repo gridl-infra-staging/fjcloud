@@ -80,7 +80,6 @@ type ArrangePaidInvoiceForFreshSignupResult = {
 };
 
 type TrackCustomerForCleanupFn = (customerId: string) => void;
-const IGNORE_TRACKED_FIXTURE_CUSTOMER_ID: TrackCustomerForCleanupFn = () => {};
 
 const JSON_CONTENT_TYPE = { 'Content-Type': 'application/json' } as const;
 export const FIXTURE_BOOTSTRAP_REMEDIATION_COMMAND = 'scripts/bootstrap-env-local.sh';
@@ -100,9 +99,15 @@ type FixtureSetupFailureParams = {
 const FRESH_SIGNUP_ARRANGE_SETUP_FAILURE_ALERT_PATTERN = /service is unavailable|verify API_URL/i;
 const FIXTURE_CUSTOMER_MISSING_LOGIN_ALERT_PATTERN = /invalid email or password/i;
 const VERIFY_EMAIL_TOKEN_PATH_PATTERN = /\/verify-email\/[A-Za-z0-9_-]+/g;
-const SENSITIVE_QUERY_PARAM_PATTERN =
-	/([?&](?:token|verification_token|verificationToken|secret|key|code)=)[^&#\s]*/gi;
+const URL_USERINFO_PATTERN = /\b([A-Za-z][A-Za-z0-9+.-]*:\/\/)([^/\s@]+)@/g;
+const SENSITIVE_URL_PARAM_PATTERN =
+	/([?#&](?:access_token|refresh_token|id_token|session(?:_token)?|token|verification_token|verificationToken|secret|key|code|state)=)[^&#\s]*/gi;
 const BEARER_TOKEN_PATTERN = /\bBearer\s+[A-Za-z0-9._~+/=-]+\b/g;
+const BASIC_AUTH_PATTERN = /\bBasic\s+[A-Za-z0-9._~+/=-]+\b/g;
+const JSON_SECRET_FIELD_PATTERN =
+	/((?:"(?:access_token|refresh_token|id_token|session_token|token|verification_token|verificationToken|secret|api_key|admin_key|jwt_secret|password)"\s*:\s*"))([^"]+)(")/gi;
+const TRANSIENT_API_MAX_RETRIES = 10;
+const IGNORE_TRACKED_FIXTURE_CUSTOMER_ID: TrackCustomerForCleanupFn = () => {};
 
 function formatAdminKeyFingerprint(adminKey?: string): string {
 	if (!adminKey?.trim()) {
@@ -115,9 +120,12 @@ function formatAdminKeyFingerprint(adminKey?: string): string {
 
 function redactSensitiveDiagnostics(value: string): string {
 	return value
+		.replace(URL_USERINFO_PATTERN, '$1[REDACTED]@')
 		.replace(VERIFY_EMAIL_TOKEN_PATH_PATTERN, '/verify-email/[REDACTED]')
-		.replace(SENSITIVE_QUERY_PARAM_PATTERN, '$1[REDACTED]')
-		.replace(BEARER_TOKEN_PATTERN, 'Bearer [REDACTED]');
+		.replace(SENSITIVE_URL_PARAM_PATTERN, '$1[REDACTED]')
+		.replace(BEARER_TOKEN_PATTERN, 'Bearer [REDACTED]')
+		.replace(BASIC_AUTH_PATTERN, 'Basic [REDACTED]')
+		.replace(JSON_SECRET_FIELD_PATTERN, '$1[REDACTED]$3');
 }
 
 function formatResponseDiagnostic(responseStatus?: number, responseUrl?: string): string {
@@ -152,7 +160,7 @@ export function formatFixtureSetupFailure({
 
 	return [
 		`${setupName} failed before reaching ${expectedPath}. Current URL: ${redactSensitiveDiagnostics(currentPath)}`,
-		`API URL: ${apiUrl}`,
+		`API URL: ${redactSensitiveDiagnostics(apiUrl)}`,
 		`Admin key fingerprint: ${formatAdminKeyFingerprint(adminKey)}`,
 		`Visible alert text: ${normalizedAlertText}`,
 		`Login response: ${formatResponseDiagnostic(responseStatus, responseUrl)}`,
@@ -263,6 +271,13 @@ function getRetryDelayMs(attempt: number, retryAfterHeader: string | null): numb
 	return Math.max(retryAfterMs, getTransientRetryDelayMs(attempt));
 }
 
+// Keep the setup:user timeout aligned with the helper retry contract so
+// Playwright does not abort before fixture bootstrap finishes its own retries.
+export const FIXTURE_AUTH_API_RETRY_BUDGET_MS = Array.from(
+	{ length: TRANSIENT_API_MAX_RETRIES },
+	(_, attempt) => getTransientRetryDelayMs(attempt)
+).reduce((total, delayMs) => total + delayMs, 0);
+
 type CreateRegisteredUserParams = {
 	apiUrl: string;
 	email: string;
@@ -298,7 +313,7 @@ export async function createRegisteredUser({
 	}
 	const customerName = name?.trim() || `E2E Fixture ${normalizedEmail}`;
 
-	const maxRetries = 10;
+	const maxRetries = TRANSIENT_API_MAX_RETRIES;
 	for (let attempt = 0; attempt < maxRetries; attempt++) {
 		const res = await callJsonApi(
 			fetchImpl,
@@ -313,10 +328,7 @@ export async function createRegisteredUser({
 			}
 		);
 		if (res.status === 429) {
-			const retryAfterSeconds = Number(res.headers.get('retry-after') ?? '');
-			const retryAfterMs =
-				Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0 ? retryAfterSeconds * 1000 : 0;
-			await sleep(Math.max(retryAfterMs, getTransientRetryDelayMs(attempt)));
+			await sleep(getRetryDelayMs(attempt, res.headers.get('retry-after')));
 			continue;
 		}
 		if (!res.ok) {
@@ -406,7 +418,7 @@ export async function loginAsUser({
 	fetchImpl = fetch
 }: LoginAsUserParams): Promise<string> {
 	const localApiUrl = requireLoopbackHttpUrl('API_URL', apiUrl);
-	const maxRetries = 10;
+	const maxRetries = TRANSIENT_API_MAX_RETRIES;
 	for (let attempt = 0; attempt < maxRetries; attempt++) {
 		const res = await callJsonApi(
 			fetchImpl,
@@ -420,10 +432,7 @@ export async function loginAsUser({
 			}
 		);
 		if (res.status === 429) {
-			const retryAfterSeconds = Number(res.headers.get('retry-after') ?? '');
-			const retryAfterMs =
-				Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0 ? retryAfterSeconds * 1000 : 0;
-			await sleep(Math.max(retryAfterMs, getTransientRetryDelayMs(attempt)));
+			await sleep(getRetryDelayMs(attempt, res.headers.get('retry-after')));
 			continue;
 		}
 		if (!res.ok) {
@@ -486,13 +495,22 @@ export async function bootstrapFixtureUserForKnownLoginFailure({
 		};
 	}
 
-	await createRegisteredUser({
-		apiUrl,
-		email,
-		password,
-		trackCustomerForCleanup,
-		fetchImpl
-	});
+	try {
+		await createRegisteredUser({
+			apiUrl,
+			email,
+			password,
+			trackCustomerForCleanup,
+			fetchImpl
+		});
+	} catch (error) {
+		const details = setupFailureDetailsFromError(error);
+		// Idempotency boundary: if another process already created this fixture
+		// account, proceed to login instead of failing setup on 409.
+		if (!details.includes('createUser failed: 409')) {
+			throw error;
+		}
+	}
 
 	const loginToken = await loginAsUser({
 		apiUrl,
@@ -1059,6 +1077,29 @@ async function completeFreshSignupEmailVerificationViaRoute(
 ): Promise<{ verificationToken: string }> {
 	try {
 		const verificationToken = await findFreshSignupVerificationToken(email);
+		// Remote browser lanes can target a deployed frontend host whose
+		// verify-email route is not guaranteed to consume staging tokens via the
+		// same API origin as fixtureEnv.apiUrl. In remote mode, consume the
+		// token through the staging API seam first, then let specs assert browser
+		// replay behavior on /verify-email/{token}.
+		if (process.env[REMOTE_TARGET_OPT_IN_ENV] === '1') {
+			const verifyResponse = await callJsonApi(
+				fetch,
+				fixtureEnv.apiUrl,
+				'POST',
+				'/auth/verify-email',
+				{},
+				{ token: verificationToken }
+			);
+			if (!verifyResponse.ok) {
+				throw new Error(
+					`staging API verify-email failed: ${verifyResponse.status} ${await verifyResponse.text()}`
+				);
+			}
+			await page.context().clearCookies();
+			return { verificationToken };
+		}
+
 		// Public auth pages redirect authenticated users to /dashboard, so clear
 		// auth cookies before exercising the verify-email success contract.
 		await page.context().clearCookies();

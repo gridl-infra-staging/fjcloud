@@ -43,6 +43,11 @@ output "api_root_disk_high_alarm_arn" {
   value       = aws_cloudwatch_metric_alarm.api_root_disk_high.arn
 }
 
+output "api_webhook_backlog_high_alarm_arn" {
+  description = "CloudWatch alarm ARN for sustained API webhook backlog"
+  value       = aws_cloudwatch_metric_alarm.api_webhook_backlog_high.arn
+}
+
 output "rds_cpu_high_alarm_arn" {
   description = "CloudWatch alarm ARN for RDS CPU over 80%"
   value       = aws_cloudwatch_metric_alarm.rds_cpu_high.arn

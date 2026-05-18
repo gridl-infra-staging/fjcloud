@@ -1,6 +1,3 @@
-//! Customer SELECT projection helpers extracted from `pg_customer_repo.rs`
-//! so the oversized repo file stays under the check-sizes limit.
-
 use crate::repos::pg_customer_repo_quota_warning::QUOTA_WARNINGS_SENT_PROJECTION;
 
 // Compatibility projection for mixed local schemas:
@@ -17,6 +14,7 @@ email, \
     customers.status, \
 (to_jsonb(customers)->>'deleted_at')::timestamptz AS deleted_at, \
 billing_plan, \
+(to_jsonb(customers)->>'subscription_cycle_anchor_at')::timestamptz AS subscription_cycle_anchor_at, \
 (to_jsonb(customers)->>'quota_warning_sent_at')::timestamptz AS quota_warning_sent_at, \
 {QUOTA_WARNINGS_SENT_PROJECTION}, \
 created_at, \
@@ -28,7 +26,16 @@ updated_at, \
 (to_jsonb(customers)->>'resend_verification_sent_at')::timestamptz AS resend_verification_sent_at, \
 (to_jsonb(customers)->>'password_reset_token') AS password_reset_token, \
 (to_jsonb(customers)->>'password_reset_expires_at')::timestamptz AS password_reset_expires_at, \
-COALESCE((to_jsonb(customers)->>'object_storage_egress_carryforward_cents')::numeric, 0) AS object_storage_egress_carryforward_cents"
+COALESCE((to_jsonb(customers)->>'object_storage_egress_carryforward_cents')::numeric, 0) AS object_storage_egress_carryforward_cents, \
+COALESCE((to_jsonb(customers)->>'failed_login_count')::int, 0) AS failed_login_count, \
+(to_jsonb(customers)->>'failed_login_window_start')::timestamptz AS failed_login_window_start, \
+(to_jsonb(customers)->>'login_locked_until')::timestamptz AS login_locked_until, \
+COALESCE((to_jsonb(customers)->>'failed_verify_count')::int, 0) AS failed_verify_count, \
+(to_jsonb(customers)->>'failed_verify_window_start')::timestamptz AS failed_verify_window_start, \
+(to_jsonb(customers)->>'verify_locked_until')::timestamptz AS verify_locked_until, \
+COALESCE((to_jsonb(customers)->>'failed_reset_count')::int, 0) AS failed_reset_count, \
+(to_jsonb(customers)->>'failed_reset_window_start')::timestamptz AS failed_reset_window_start, \
+(to_jsonb(customers)->>'reset_locked_until')::timestamptz AS reset_locked_until"
     )
 }
 
@@ -80,6 +87,14 @@ mod tests {
         assert!(
             customer_columns().contains("to_jsonb(customers)->>'quota_warnings_sent'"),
             "customer projection must not require quota_warnings_sent to exist in older local schemas"
+        );
+    }
+
+    #[test]
+    fn customer_columns_uses_schema_tolerant_subscription_cycle_anchor_projection() {
+        assert!(
+            customer_columns().contains("to_jsonb(customers)->>'subscription_cycle_anchor_at'"),
+            "customer projection must not require subscription_cycle_anchor_at to exist in older local schemas"
         );
     }
 

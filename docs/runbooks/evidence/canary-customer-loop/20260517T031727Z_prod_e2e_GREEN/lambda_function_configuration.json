@@ -1,0 +1,56 @@
+$ aws lambda get-function-configuration --function-name fjcloud-prod-customer-loop-canary --region us-east-1
+{
+    "FunctionName": "fjcloud-prod-customer-loop-canary",
+    "FunctionArn": "arn:aws:lambda:us-east-1:213880904778:function:fjcloud-prod-customer-loop-canary",
+    "Role": "arn:aws:iam::213880904778:role/fjcloud-prod-customer-loop-canary-lambda",
+    "CodeSize": 0,
+    "Description": "",
+    "Timeout": 900,
+    "MemorySize": 512,
+    "LastModified": "2026-05-17T02:46:16.000+0000",
+    "CodeSha256": "4ea714a45fcc188a45db22fc21ebdb059bbb6192c3ceefc71cfa45405545eb5f",
+    "Version": "$LATEST",
+    "Environment": {
+        "Variables": {
+            "CANARY_TEST_INBOX_DOMAIN": "test.flapjack.foo",
+            "API_URL": "https://api.flapjack.foo",
+            "STRIPE_SECRET_KEY": "/fjcloud/prod/stripe_secret_key",
+            "ADMIN_KEY": "/fjcloud/prod/admin_key",
+            "CANARY_TEST_INBOX_S3_URI": "s3://flapjack-cloud-releases/e2e-emails/",
+            "ENVIRONMENT": "prod",
+            "CANARY_AWS_REGION": "us-east-1",
+            "CANARY_LIVE_MODE": "0",
+            "DISCORD_WEBHOOK_URL": "/fjcloud/prod/discord_webhook_url",
+            "SLACK_WEBHOOK_URL": "/fjcloud/prod/slack_webhook_url"
+        }
+    },
+    "TracingConfig": {
+        "Mode": "PassThrough"
+    },
+    "RevisionId": "ec833595-f1b0-49a7-9f9f-23cd5f6a60b4",
+    "State": "Active",
+    "LastUpdateStatus": "Successful",
+    "PackageType": "Image",
+    "ImageConfigResponse": {
+        "ImageConfig": {
+            "Command": [
+                "scripts/canary/customer_loop_synthetic.sh"
+            ],
+            "WorkingDirectory": ""
+        }
+    },
+    "Architectures": [
+        "arm64"
+    ],
+    "EphemeralStorage": {
+        "Size": 512
+    },
+    "SnapStart": {
+        "ApplyOn": "None",
+        "OptimizationStatus": "Off"
+    },
+    "LoggingConfig": {
+        "LogFormat": "Text",
+        "LogGroup": "/aws/lambda/fjcloud-prod-customer-loop-canary"
+    }
+}

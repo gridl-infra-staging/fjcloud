@@ -1,13 +1,74 @@
 mod common;
 
+use api::config::Config;
 use api::repos::invoice_repo::InvoiceRepo;
 use api::repos::CustomerRepo;
+use api::startup::init_stripe_service;
 use api::stripe::invoice_create_idempotency_key;
 use chrono::NaiveDate;
 use rust_decimal_macros::dec;
+use std::sync::{Mutex, OnceLock};
 use uuid::Uuid;
 
 use common::{mock_invoice_repo, mock_repo};
+
+fn env_lock() -> &'static Mutex<()> {
+    static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+    LOCK.get_or_init(|| Mutex::new(()))
+}
+
+struct EnvVarGuard {
+    key: &'static str,
+    previous: Option<String>,
+}
+
+impl EnvVarGuard {
+    fn set(key: &'static str, value: Option<&str>) -> Self {
+        let previous = std::env::var(key).ok();
+        // SAFETY: The env lock serializes these process-env mutations.
+        unsafe {
+            match value {
+                Some(value) => std::env::set_var(key, value),
+                None => std::env::remove_var(key),
+            }
+        }
+        Self { key, previous }
+    }
+}
+
+impl Drop for EnvVarGuard {
+    fn drop(&mut self) {
+        // SAFETY: The env lock serializes these process-env mutations.
+        unsafe {
+            match &self.previous {
+                Some(value) => std::env::set_var(self.key, value),
+                None => std::env::remove_var(self.key),
+            }
+        }
+    }
+}
+
+fn config_without_live_stripe() -> Config {
+    Config {
+        database_url: "postgres://localhost/fjcloud".to_string(),
+        listen_addr: "0.0.0.0:3001".to_string(),
+        s3_listen_addr: "0.0.0.0:3002".to_string(),
+        s3_rate_limit_rps: 100,
+        jwt_secret: "super-secret-key-for-testing-1234".to_string(),
+        admin_key: "admin-bootstrap-key-for-testing".to_string(),
+        stripe_secret_key: None,
+        stripe_publishable_key: None,
+        stripe_webhook_secret: None,
+        stripe_success_url: "http://localhost:5173/dashboard".to_string(),
+        stripe_cancel_url: "http://localhost:5173/dashboard".to_string(),
+        internal_auth_token: None,
+        google_oauth_client_id: None,
+        google_oauth_client_secret: None,
+        github_oauth_client_id: None,
+        github_oauth_client_secret: None,
+        dunning_emails_disabled: false,
+    }
+}
 
 // ============================================================================
 // CustomerRepo extensions: set_stripe_customer_id
@@ -449,6 +510,9 @@ async fn full_lifecycle_paid_refunded() {
 // MockStripeService behavior tests
 // ============================================================================
 
+use api::startup::unconfigured_stripe::UnconfiguredStripeService;
+use api::stripe::StripeChargeLookup;
+use api::stripe::StripeError;
 use api::stripe::StripeService;
 
 #[tokio::test]
@@ -561,6 +625,51 @@ async fn mock_stripe_create_and_finalize_invoice_records_idempotency_key() {
 }
 
 #[tokio::test]
+async fn mock_stripe_pay_invoice_uses_default_result_and_records_call() {
+    let svc = common::mock_stripe_service();
+    svc.set_pay_invoice_result_default(api::stripe::PaidInvoice {
+        id: "ignored_by_setter".to_string(),
+        status: "open".to_string(),
+        amount_paid_cents: 0,
+        last_payment_error: Some(api::stripe::StripeLastPaymentError {
+            code: Some("card_declined".to_string()),
+            decline_code: Some("insufficient_funds".to_string()),
+            message: Some("Declined".to_string()),
+        }),
+    });
+
+    let result = svc.pay_invoice("in_mock_target").await.unwrap();
+    assert_eq!(result.id, "in_mock_target");
+    assert_eq!(result.status, "open");
+    assert_eq!(result.amount_paid_cents, 0);
+    assert_eq!(
+        result.last_payment_error,
+        Some(api::stripe::StripeLastPaymentError {
+            code: Some("card_declined".to_string()),
+            decline_code: Some("insufficient_funds".to_string()),
+            message: Some("Declined".to_string()),
+        })
+    );
+
+    let calls = svc.pay_invoice_calls.lock().unwrap();
+    assert_eq!(calls.as_slice(), ["in_mock_target"]);
+}
+
+#[tokio::test]
+async fn mock_stripe_void_invoice_records_call() {
+    let svc = common::mock_stripe_service();
+
+    let result = svc.void_invoice("in_mock_void").await.unwrap();
+    assert_eq!(result.id, "in_mock_void");
+    assert_eq!(result.status, "void");
+    assert_eq!(result.amount_paid_cents, 0);
+    assert!(result.last_payment_error.is_none());
+
+    let calls = svc.void_invoice_calls.lock().unwrap();
+    assert_eq!(calls.as_slice(), ["in_mock_void"]);
+}
+
+#[tokio::test]
 async fn mock_stripe_construct_webhook_event_parses_payload() {
     let svc = common::mock_stripe_service();
     let payload = r#"{"id":"evt_123","type":"invoice.payment_succeeded","data":{"object":{}}}"#;
@@ -588,5 +697,84 @@ async fn mock_stripe_fails_when_should_fail_set() {
         .create_and_finalize_invoice("cus_123", &[], None, None)
         .await
         .is_err());
+    assert!(svc.pay_invoice("in_123").await.is_err());
+    assert!(svc.void_invoice("in_123").await.is_err());
     assert!(svc.construct_webhook_event("{}", "sig", "secret").is_err());
+}
+
+#[tokio::test]
+async fn mock_stripe_lookup_charge_fallback_returns_seeded_fields() {
+    let svc = common::mock_stripe_service();
+    svc.seed_charge_lookup(StripeChargeLookup {
+        charge_id: "ch_test_123".to_string(),
+        invoice_id: Some("in_test_123".to_string()),
+        payment_intent_id: Some("pi_test_123".to_string()),
+    });
+
+    let lookup = svc
+        .lookup_charge_fallback_fields("ch_test_123")
+        .await
+        .unwrap();
+    assert_eq!(lookup.charge_id, "ch_test_123");
+    assert_eq!(lookup.invoice_id.as_deref(), Some("in_test_123"));
+    assert_eq!(lookup.payment_intent_id.as_deref(), Some("pi_test_123"));
+}
+
+#[tokio::test]
+async fn mock_stripe_lookup_charge_fallback_propagates_api_error() {
+    let svc = common::mock_stripe_service();
+    svc.set_charge_lookup_error("charge lookup failed");
+
+    let result = svc.lookup_charge_fallback_fields("ch_test_missing").await;
+    assert!(matches!(
+        result,
+        Err(StripeError::Api(message)) if message == "charge lookup failed"
+    ));
+}
+
+#[tokio::test]
+async fn unconfigured_stripe_lookup_charge_fallback_returns_not_configured() {
+    let svc = UnconfiguredStripeService;
+    let result = svc.lookup_charge_fallback_fields("ch_test").await;
+    assert!(matches!(result, Err(StripeError::NotConfigured)));
+}
+
+#[tokio::test]
+async fn init_stripe_service_local_mode_requires_explicit_webhook_secret() {
+    let _guard = env_lock().lock().expect("env lock poisoned");
+    let _local_mode = EnvVarGuard::set("STRIPE_LOCAL_MODE", Some("1"));
+    let _webhook_secret = EnvVarGuard::set("STRIPE_WEBHOOK_SECRET", None);
+    let _webhook_url = EnvVarGuard::set("STRIPE_WEBHOOK_URL", None);
+
+    let svc = init_stripe_service(&config_without_live_stripe());
+    let result = svc.create_customer("Test Co", "test@example.com").await;
+    assert!(matches!(result, Err(StripeError::NotConfigured)));
+}
+
+#[tokio::test]
+async fn init_stripe_service_local_mode_uses_local_mock_when_webhook_secret_is_present() {
+    let _guard = env_lock().lock().expect("env lock poisoned");
+    let _local_mode = EnvVarGuard::set("STRIPE_LOCAL_MODE", Some("1"));
+    let _webhook_secret = EnvVarGuard::set("STRIPE_WEBHOOK_SECRET", Some("whsec_test_local_mode"));
+    let _webhook_url = EnvVarGuard::set("STRIPE_WEBHOOK_URL", None);
+
+    let svc = init_stripe_service(&config_without_live_stripe());
+    let result = svc.create_customer("Test Co", "test@example.com").await;
+    assert!(matches!(result, Ok(customer_id) if customer_id.starts_with("cus_local_")));
+}
+
+#[tokio::test]
+async fn mock_stripe_lookup_charge_fallback_honors_not_configured_seam() {
+    let svc = common::mock_stripe_service();
+    svc.set_not_configured(true);
+    svc.seed_charge_lookup(StripeChargeLookup {
+        charge_id: "ch_test_unconfigured".to_string(),
+        invoice_id: Some("in_test".to_string()),
+        payment_intent_id: Some("pi_test".to_string()),
+    });
+
+    let result = svc
+        .lookup_charge_fallback_fields("ch_test_unconfigured")
+        .await;
+    assert!(matches!(result, Err(StripeError::NotConfigured)));
 }

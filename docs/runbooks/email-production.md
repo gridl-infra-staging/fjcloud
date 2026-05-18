@@ -120,19 +120,21 @@ Interpret `summary.json` fields as follows:
 - `deliverability_boundaries`: explicit unproven boundaries that remain open (SPF, MAIL FROM, bounce/complaint handling, first-send evidence, inbox-receipt proof).
 - `redaction`: confirms sensitive values and full email bodies are redacted in wrapper artifacts.
 
-Current verified Stage 1 truth snapshot as of 2026-04-23:
+Current verified Stage 1 truth snapshot as of 2026-05-17:
 
-- Canonical SES env source path for current operator runs:
-  `.secret/.env.secret` from repo root (or explicit `--env-file` override for alternate checkouts).
-- Historical Stage 1 env source snapshot:
-  `/Users/stuart/repos/gridl-infra-dev/fjcloud_dev/.secret/.env.secret`.
-- Canonical sender identity: `system@flapjack.foo`, using inherited `flapjack.foo` domain identity/DKIM readiness.
-- Account readiness snapshot: `SendingEnabled=true` and `ProductionAccessEnabled=true (production access enabled)`.
-- Checked-in Stage 1 boundary-proof owners: `docs/runbooks/evidence/ses-deliverability/20260424_boundary_proof/reconciliation_summary.md` and `docs/runbooks/evidence/ses-deliverability/20260424_boundary_proof/drift_blocker.md`; treat `docs/runbooks/evidence/ses-deliverability/20260423T202158Z_ses_boundary_proof_full.txt` as historical context only.
-- Stage 3 first-send companion owner: `docs/runbooks/evidence/ses-deliverability/20260424_boundary_proof/first_send_retrieval_status.md` records the wrapper run path and retrieval-owner status without closing first-send/inbox boundaries.
-- Stage 4/5 bounce+complaint companion owners: `docs/runbooks/evidence/ses-deliverability/20260424_boundary_proof/bounce_blocker.txt` and `docs/runbooks/evidence/ses-deliverability/20260424_boundary_proof/complaint_blocker.txt` (or `bounce_event.json` / `complaint_event.json` if checked-in retrieval proof exists).
-- Latest Stage 4 wrapper artifact (current source of truth): `/Users/stuart/.matt/projects/fjcloud_dev-cd6902f9/apr23_am_1_ses_deliverability_refined.md-4c6ea1bd/artifacts/stage_04_ses_deliverability/fjcloud_ses_deliverability_evidence_20260423T063739Z_63867/summary.json` reports `overall_verdict=pass` with `account_status.status=pass`, `identity_status.status=pass`, `recipient_preflight.status=pass`, and `send_attempt.status=pass`; `sender.from_address` / `sender.region` are intentionally redacted as `REDACTED` in the artifact.
-- The preserved Stage 3 artifact is a blocked-path evidence run rather than a passing live-send proof: `/tmp/fjcloud_ses_stage3_F4LfPY/artifacts/fjcloud_ses_deliverability_evidence_20260423T010330Z_76079/summary.json` records `overall_verdict=blocked` with empty `sender` inputs and blocked prerequisite states.
+- Canonical Stage 1 live evidence bundle: `deliverables/ses_stage1_live/fjcloud_ses_deliverability_evidence_20260517T024115Z_48381/summary.json`.
+- The same bundle's account snapshots (`logs/ses_account_pre.json` and `logs/ses_account_post.json`) both report `SendingEnabled=true`, `ProductionAccessEnabled=true`, and `EnforcementStatus=HEALTHY`.
+- `summary.json` reports `account_status.production_access_decision=already_production_enabled` and `account_status.request_submitted=false`, so this run is not a failed production-access request.
+- `summary.json` is `overall_verdict=blocked` because `recipient_preflight.status=blocked` for `deliverability-self-check@flapjack.foo`; that blocked recipient-preflight nuance is independent of production-access readiness.
+- Runtime identity proof for this evidence run is captured in `deliverables/ses_stage1_live/sts_caller_identity_preflight_runtime_ses.json`, with account `213880904778`.
+
+### Stage 2 SES Reputation Alarm Coverage (2026-05-17)
+
+- Stage 2 evidence owner `docs/runbooks/evidence/monitoring-coverage/20260517T030144Z_prod_ses_reputation_alarms/ses_reputation_alarms_describe.json` confirms:
+  - `fjcloud-prod-ses-reputation-bounce-rate-high` (`Threshold: 0.05`, `Period: 900`)
+  - `fjcloud-prod-ses-reputation-complaint-rate-high` (`Threshold: 0.001`, `Period: 900`)
+- Both alarms route `AlarmActions` and `OKActions` to `fjcloud-alerts-prod`, as captured in the same Stage 2 describe artifact and in a fresh re-check via `aws cloudwatch describe-alarms --region us-east-1 --alarm-names ...` on 2026-05-16.
+- Stage 2 live contract owners `live_contract_validation.json` and `live_count_output.txt` show that `14` prod alarms currently wire to the same `fjcloud-alerts-prod` SNS topic (`14 prod alarms`).
 
 ### Check Current Account Status Directly
 
@@ -140,10 +142,13 @@ Current verified Stage 1 truth snapshot as of 2026-04-23:
 aws sesv2 get-account --region us-east-1
 ```
 
-Key fields in the response:
+Key fields and current expected values:
 
 - `SendingEnabled: true` — sending is active
 - `ProductionAccessEnabled: true` — in **production mode**
+- `EnforcementStatus: HEALTHY` — no current enforcement hold
+
+Stage 3 live re-check: `/tmp/stage3_ses_account_live.json` was captured from `aws sesv2 get-account --region us-east-1` and matches the expected account status for account `213880904778` from the Stage 1 STS identity proof.
 
 ### Sandbox Limitations
 

@@ -39,6 +39,7 @@ pub(super) fn build_auth_rate_limited_routes(
         .route("/auth/login", post(auth::login))
         .route("/auth/verify-email", post(auth::verify_email))
         .route("/auth/forgot-password", post(auth::forgot_password))
+        .route("/auth/reset-password", post(auth::reset_password))
         .route("/auth/resend-verification", post(auth::resend_verification))
         .route("/auth/oauth/:provider/start", get(oauth::start_oauth))
         .route(
@@ -101,7 +102,6 @@ pub(super) fn build_router_without_layers(
         .route("/version", get(version::version))
         .merge(Scalar::with_url("/docs", ApiDoc::openapi()))
         .merge(tenant_routes)
-        .route("/auth/reset-password", post(auth::reset_password))
         .route("/webhooks/stripe", post(webhooks::stripe_webhook))
         .route("/webhooks/ses/sns", post(webhooks::ses_sns_webhook))
         .nest("/internal", internal)
@@ -155,6 +155,7 @@ fn add_usage_and_invoice_routes(router: Router<AppState>) -> Router<AppState> {
 fn add_billing_routes(router: Router<AppState>) -> Router<AppState> {
     router
         .route("/billing/estimate", get(billing::get_estimate))
+        .route("/billing/upgrade", post(billing::upgrade_to_shared))
         .route(
             "/billing/publishable-key",
             get(billing::get_publishable_key),
@@ -188,6 +189,7 @@ fn add_account_and_api_key_routes(router: Router<AppState>) -> Router<AppState> 
                 .patch(account::update_profile)
                 .delete(account::delete_account),
         )
+        .route("/account/upgrade-status", get(account::get_upgrade_status))
         .route("/account/export", get(account::export_account))
         .route("/account/change-password", post(account::change_password))
         .route(

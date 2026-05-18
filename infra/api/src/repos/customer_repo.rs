@@ -147,11 +147,33 @@ pub trait CustomerRepo {
         year: i32,
         month: u32,
     ) -> Result<bool, RepoError>;
+    async fn rollback_ingest_quota_warning_for_month(
+        &self,
+        id: Uuid,
+        metric: IngestQuotaWarningMetric,
+        year: i32,
+        month: u32,
+    ) -> Result<bool, RepoError>;
 
     // Password change (by authenticated user, not via reset token)
     async fn change_password(&self, id: Uuid, new_password_hash: &str) -> Result<bool, RepoError>;
 
     // Billing plan
+    async fn set_subscription_cycle_anchor(
+        &self,
+        id: Uuid,
+        anchor_at: Option<DateTime<Utc>>,
+    ) -> Result<bool, RepoError>;
+    async fn try_upgrade_to_shared_atomic(
+        &self,
+        id: Uuid,
+        subscription_cycle_anchor_at: DateTime<Utc>,
+    ) -> Result<bool, RepoError>;
+    async fn rollback_upgrade_to_free_atomic(
+        &self,
+        id: Uuid,
+        expected_subscription_cycle_anchor_at: DateTime<Utc>,
+    ) -> Result<bool, RepoError>;
     async fn set_billing_plan(&self, id: Uuid, plan: &str) -> Result<bool, RepoError>;
 
     // Suspension
@@ -164,4 +186,9 @@ pub trait CustomerRepo {
         id: Uuid,
         cents: Decimal,
     ) -> Result<bool, RepoError>;
+
+    // Login lockout
+    async fn record_failed_login(&self, id: Uuid) -> Result<Option<i64>, RepoError>;
+    async fn record_successful_login(&self, id: Uuid) -> Result<bool, RepoError>;
+    async fn login_lockout_remaining(&self, id: Uuid) -> Result<Option<i64>, RepoError>;
 }

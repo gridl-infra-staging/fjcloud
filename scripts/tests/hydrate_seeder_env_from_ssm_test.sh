@@ -80,15 +80,16 @@ test_exports_full_staging_set() {
     assert_contains "$out" "export ADMIN_KEY=stub-admin-key" "ADMIN_KEY export missing"
     # printf %q quotes special chars; postgres URL has none so it appears as-is.
     assert_contains "$out" "export DATABASE_URL=postgres://stub@stub-db/stub" "DATABASE_URL export missing"
-    assert_contains "$out" "export API_URL=https://api.flapjack.foo" "API_URL derivation missing"
+    assert_contains "$out" "export API_URL=https://api.staging.flapjack.foo" "API_URL derivation missing"
     assert_contains "$out" "export FLAPJACK_URL=" "FLAPJACK_URL fallback missing"
     assert_contains "$out" "export STRIPE_SECRET_KEY=rk_test_stub" "STRIPE_SECRET_KEY export missing"
 
     # New exports added in this change. These are the red-then-green deltas.
     assert_contains "$out" "export SES_FROM_ADDRESS=system@flapjack.foo" "SES_FROM_ADDRESS export missing — required to fix RC ses_inbound DMARC fail"
     assert_contains "$out" "export STRIPE_WEBHOOK_SECRET=whsec_stub" "STRIPE_WEBHOOK_SECRET export missing — required by staging billing rehearsal"
-    assert_contains "$out" "export STAGING_API_URL=https://api.flapjack.foo" "STAGING_API_URL derivation missing — required by staging billing rehearsal"
-    assert_contains "$out" "export STAGING_STRIPE_WEBHOOK_URL=https://api.flapjack.foo/webhooks/stripe" "STAGING_STRIPE_WEBHOOK_URL derivation missing — RC misclassifies as dns_or_cloudflare_blocked when unset"
+    assert_contains "$out" "export STAGING_API_URL=https://api.staging.flapjack.foo" "STAGING_API_URL derivation missing — required by staging billing rehearsal"
+    assert_contains "$out" "export STAGING_STRIPE_WEBHOOK_URL=https://api.staging.flapjack.foo/webhooks/stripe" "STAGING_STRIPE_WEBHOOK_URL derivation missing — RC misclassifies as dns_or_cloudflare_blocked when unset"
+    assert_contains "$out" "export STAGING_CLOUD_URL=https://staging.flapjack.foo" "STAGING_CLOUD_URL derivation missing — staging browser lane must not target prod cloud host"
 
     echo "  PASS test_exports_full_staging_set"
 }

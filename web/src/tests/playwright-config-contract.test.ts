@@ -828,7 +828,20 @@ describe('playwright config contract', () => {
 			".waitFor({ state: 'visible', timeout: DELAYED_ALERT_CAPTURE_TIMEOUT_MS })"
 		);
 	});
-		});
+
+	it('customer auth setup declares an explicit CI-safe setup timeout budget', () => {
+		const authSetupSource = readFileSync(join(process.cwd(), 'tests/fixtures/auth.setup.ts'), 'utf8');
+		expect(authSetupSource).toContain('const AUTH_SETUP_TIMEOUT_MS = 60_000;');
+		expect(authSetupSource).toContain('setup.setTimeout(AUTH_SETUP_TIMEOUT_MS);');
+	});
+
+	it('playwright CI job provides STRIPE_SECRET_KEY for billing-portal fixture arrange paths', () => {
+		const ciWorkflowSource = readFileSync(join(process.cwd(), '../.github/workflows/ci.yml'), 'utf8');
+		expect(ciWorkflowSource).toMatch(
+			/playwright:[\s\S]*env:[\s\S]*STRIPE_SECRET_KEY:\s*\$\{\{\s*secrets\.STRIPE_SECRET_KEY\s*\|\|\s*'sk_test_ci_placeholder'\s*\}\}/m
+		);
+	});
+			});
 
 	describe('applyPlaywrightProcessEnvDefaults + resolvePlaywrightRuntime admin key consistency', () => {
 		it('sets E2E_ADMIN_KEY to DEFAULT_PLAYWRIGHT_ADMIN_KEY when all env sources are empty so fixtures match the web server', () => {

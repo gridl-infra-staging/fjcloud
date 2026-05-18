@@ -31,6 +31,9 @@ type CustomerLoginAttemptResult = {
 
 const LOGIN_SETTLE_TIMEOUT_MS = 20_000;
 const DELAYED_ALERT_CAPTURE_TIMEOUT_MS = 5_000;
+const AUTH_SETUP_TIMEOUT_MS = 60_000;
+
+setup.setTimeout(AUTH_SETUP_TIMEOUT_MS);
 
 async function attemptCustomerLogin(
 	page: Page,

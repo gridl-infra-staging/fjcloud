@@ -212,6 +212,10 @@ jobs:
       JWT_SECRET: playwright-ci-jwt-secret-abcdefghijklmnopqrstuvwxyz
       ADMIN_KEY: playwright-ci-admin-key
       E2E_ADMIN_KEY: playwright-ci-admin-key
+      # Billing portal fixture lanes require a non-empty STRIPE_SECRET_KEY.
+      # Use repo/organization secret when present; otherwise keep a deterministic
+      # non-empty placeholder for STRIPE_LOCAL_MODE flows that never hit Stripe.
+      STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY || 'sk_test_ci_placeholder' }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       - name: Set up Node.js

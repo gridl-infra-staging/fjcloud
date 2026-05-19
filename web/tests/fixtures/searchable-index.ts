@@ -340,7 +340,7 @@ async function createIndexKeyWithRetries(
 	// Newly created tenant-index routes can stay in a transient unavailable
 	// state longer than index creation/readiness checks, so key creation needs a
 	// slightly wider retry budget than the other fixture steps.
-	const maxRetries = 10;
+	const maxRetries = 20;
 	let lastFailure = 'none';
 
 	for (let attempt = 0; attempt < maxRetries; attempt++) {

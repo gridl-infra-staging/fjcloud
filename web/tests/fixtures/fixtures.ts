@@ -1568,37 +1568,74 @@ type WaitForInvoiceStatusParams = {
 	contextLabel: string;
 };
 
-async function waitForInvoiceStatus({
-	invoiceId,
+type WaitForInvoiceStatusForTokenParams = {
+	apiUrl: string;
+	token: string;
+	invoiceId: string;
+	expectedStatus: 'paid' | 'refunded';
+	contextLabel: string;
+	fetchImpl?: typeof fetch;
+	maxAttempts?: number;
+};
+
+const INVOICE_STATUS_WAIT_MAX_ATTEMPTS = 90;
+
+export async function waitForInvoiceStatusForToken({
+	apiUrl,
 	token,
+	invoiceId,
 	expectedStatus,
-	contextLabel
-}: WaitForInvoiceStatusParams): Promise<InvoiceDetailApiItem> {
-	const maxAttempts = 30;
+	contextLabel,
+	fetchImpl = fetch,
+	maxAttempts = INVOICE_STATUS_WAIT_MAX_ATTEMPTS
+}: WaitForInvoiceStatusForTokenParams): Promise<InvoiceDetailApiItem> {
 	for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-		const response = await apiCall(
+		const response = await callJsonApi(
+			fetchImpl,
+			apiUrl,
 			'GET',
 			`/invoices/${encodeURIComponent(invoiceId)}`,
-			undefined,
-			token
+			{
+				Authorization: `Bearer ${token}`
+			}
 		);
 		if (response.ok) {
 			const invoice = (await response.json()) as InvoiceDetailApiItem;
 			if (invoice.status === expectedStatus && (expectedStatus !== 'paid' || invoice.paid_at)) {
 				return invoice;
 			}
-		} else if (response.status !== 404 && response.status !== 429) {
+		} else if (
+			response.status !== 404 &&
+			response.status !== 429 &&
+			response.status !== 503 &&
+			response.status < 500
+		) {
 			throw new Error(
 				`${contextLabel} failed to read invoice ${invoiceId}: ${response.status} ${await response.text()}`
 			);
 		}
 
-		await sleep(1000);
+		await sleep(getRetryDelayMs(attempt, response.headers.get('retry-after')));
 	}
 
 	throw new Error(
 		`${contextLabel} timed out waiting for invoice ${invoiceId} to become ${expectedStatus}`
 	);
+}
+
+async function waitForInvoiceStatus({
+	invoiceId,
+	token,
+	expectedStatus,
+	contextLabel
+}: WaitForInvoiceStatusParams): Promise<InvoiceDetailApiItem> {
+	return waitForInvoiceStatusForToken({
+		apiUrl: fixtureEnv.apiUrl,
+		token,
+		invoiceId,
+		expectedStatus,
+		contextLabel
+	});
 }
 
 async function arrangePaidInvoiceForFreshSignup({

@@ -12,6 +12,7 @@ import {
 	formatFixtureSetupFailure,
 	isFreshSignupArrangePrerequisiteFailure,
 	resolveFreshSignupCleanupCustomerId,
+	waitForInvoiceStatusForToken,
 	loginAsUser,
 	setupFailureDetailsFromError,
 	seedMultiUserScenarioWithCreateUser
@@ -928,6 +929,41 @@ describe('e2e fixture user helpers', () => {
 				fetchImpl: fetchMock as unknown as typeof fetch
 			})
 		).rejects.toThrow('/billing/estimate failed: 500');
+	});
+
+	it('waitForInvoiceStatusForToken survives prolonged invoice settlement windows', async () => {
+		vi.useFakeTimers();
+		let attempts = 0;
+		const fetchMock = vi.fn(async () => {
+			attempts += 1;
+			if (attempts <= 45) {
+				return makeJsonResponse(200, {
+					id: 'inv-long-warmup',
+					status: 'open',
+					paid_at: null
+				});
+			}
+			return makeJsonResponse(200, {
+				id: 'inv-long-warmup',
+				status: 'paid',
+				paid_at: '2026-05-19T00:00:00Z'
+			});
+		});
+
+		const waitPromise = waitForInvoiceStatusForToken({
+			apiUrl: 'http://localhost:3001',
+			token: 'tok-abc',
+			invoiceId: 'inv-long-warmup',
+			expectedStatus: 'paid',
+			contextLabel: 'test-long-warmup',
+			fetchImpl: fetchMock as unknown as typeof fetch
+		});
+		await vi.runAllTimersAsync();
+		await expect(waitPromise).resolves.toMatchObject({
+			id: 'inv-long-warmup',
+			status: 'paid'
+		});
+		expect(attempts).toBe(46);
 	});
 
 	it('seedIndexForCustomerViaAdmin retries transient create failures before polling readiness', async () => {

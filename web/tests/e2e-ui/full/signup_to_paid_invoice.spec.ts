@@ -23,6 +23,7 @@ const DASHBOARD_ROUTE_EXPECTATIONS: DashboardRouteExpectation[] = [
 	{ label: 'Migrate', path: '/dashboard/migrate', heading: 'Migrate from Algolia' },
 	{ label: 'Account', path: '/dashboard/account', heading: 'Account' }
 ];
+const TRANSIENT_RATE_LIMIT_PATTERN = /too many requests/i;
 
 async function loginWithFreshSignupCredentials(
 	page: import('@playwright/test').Page,
@@ -30,23 +31,34 @@ async function loginWithFreshSignupCredentials(
 	password: string,
 	loginAs?: (email: string, password: string) => Promise<string>
 ): Promise<void> {
-	await page.goto('/login');
-	await page.getByLabel('Email').fill(email);
-	await page.getByLabel('Password').fill(password);
-	await page.getByRole('button', { name: 'Log In' }).click();
-	try {
-		await expect(page).toHaveURL(/\/dashboard/, { timeout: 20_000 });
-		return;
-	} catch (error) {
-		if (!isRemoteTargetMode() || !loginAs) {
-			throw error;
-		}
+	await expect(async () => {
+		await page.goto('/login');
+		await page.getByLabel('Email').fill(email);
+		await page.getByLabel('Password').fill(password);
+		await page.getByRole('button', { name: 'Log In' }).click();
 
-		const token = await loginAs(email, password);
-		await setAuthCookieForToken(page, token);
-		await page.goto('/dashboard');
-		await expect(page).toHaveURL(/\/dashboard/, { timeout: 20_000 });
-	}
+		try {
+			await expect(page).toHaveURL(/\/dashboard/, { timeout: 20_000 });
+			return;
+		} catch (error) {
+			const loginAlert = page.getByRole('alert');
+			const alertText = (await loginAlert.textContent().catch(() => null))?.trim() ?? '';
+			if (TRANSIENT_RATE_LIMIT_PATTERN.test(alertText)) {
+				throw new Error('Fresh-signup login was transiently rate-limited; retrying');
+			}
+			if (!isRemoteTargetMode() || !loginAs) {
+				throw error;
+			}
+
+			const token = await loginAs(email, password);
+			await setAuthCookieForToken(page, token);
+			await page.goto('/dashboard');
+			await expect(page).toHaveURL(/\/dashboard/, { timeout: 20_000 });
+		}
+	}).toPass({
+		intervals: [1_000, 2_000, 3_000, 4_000, 5_000],
+		timeout: 60_000
+	});
 }
 
 async function assertDashboardRouteWalk(page: import('@playwright/test').Page): Promise<void> {

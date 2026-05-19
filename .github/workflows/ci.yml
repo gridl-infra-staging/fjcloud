@@ -205,6 +205,12 @@ jobs:
       ENVIRONMENT: local
       NODE_SECRET_BACKEND: memory
       STRIPE_LOCAL_MODE: "1"
+      # The full Playwright suite performs setup/auth/onboarding/admin flows in
+      # one long run. Keep CI auth and tenant throttles high enough to prevent
+      # transient 429s from dominating unrelated UI assertions.
+      AUTH_RATE_LIMIT_RPM: "300"
+      TENANT_RATE_LIMIT_RPM: "3000"
+      ADMIN_RATE_LIMIT_RPM: "600"
       LISTEN_ADDR: 0.0.0.0:3001
       BASE_URL: http://127.0.0.1:5173
       API_URL: http://127.0.0.1:3001

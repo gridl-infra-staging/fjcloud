@@ -135,15 +135,26 @@ test.describe('Login page', () => {
 		page
 	}) => {
 		const missingEmail = `missing-${Date.now()}@e2e.griddle.test`;
-		await page.goto('/login');
-		await page.getByLabel('Email').fill(missingEmail);
-		await page.getByLabel('Password').fill('definitely-wrong-password-xyz987');
-		await page.getByRole('button', { name: 'Log In' }).click();
+		await expect(async () => {
+			await page.goto('/login');
+			await page.getByLabel('Email').fill(missingEmail);
+			await page.getByLabel('Password').fill('definitely-wrong-password-xyz987');
+			await page.getByRole('button', { name: 'Log In' }).click();
 
-		await expect(page.getByRole('alert')).toBeVisible({ timeout: 5_000 });
-		await expect(page.getByRole('alert')).toContainText(GENERIC_LOGIN_FAILURE_PATTERN);
-		await expect(page.getByRole('alert')).not.toContainText(missingEmail);
-		await expect(page).toHaveURL(/\/login/);
+			const loginAlert = page.getByRole('alert');
+			await expect(loginAlert).toBeVisible({ timeout: 5_000 });
+			const alertText = (await loginAlert.textContent())?.trim() ?? '';
+			if (TRANSIENT_RATE_LIMIT_PATTERN.test(alertText)) {
+				throw new Error('Login was transiently rate-limited; retrying generic-failure assertion');
+			}
+
+			await expect(loginAlert).toContainText(GENERIC_LOGIN_FAILURE_PATTERN);
+			await expect(loginAlert).not.toContainText(missingEmail);
+			await expect(page).toHaveURL(/\/login/);
+		}).toPass({
+			intervals: [1_000, 2_000, 3_000, 4_000, 5_000],
+			timeout: 45_000
+		});
 	});
 
 	test('successful login redirects to the dashboard', async ({ page }) => {

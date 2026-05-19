@@ -590,21 +590,30 @@ export async function fetchEstimatedBillForToken({
 }: FetchEstimatedBillForTokenParams): Promise<EstimatedBillResponse | null> {
 	const localApiUrl = requireLoopbackHttpUrl('API_URL', apiUrl);
 	const query = month ? `?month=${encodeURIComponent(month)}` : '';
-	const res = await fetchImpl(`${localApiUrl}/billing/estimate${query}`, {
-		method: 'GET',
-		headers: {
-			Authorization: `Bearer ${token}`
+	const maxRetries = TRANSIENT_API_MAX_RETRIES;
+	for (let attempt = 0; attempt < maxRetries; attempt += 1) {
+		const res = await fetchImpl(`${localApiUrl}/billing/estimate${query}`, {
+			method: 'GET',
+			headers: {
+				Authorization: `Bearer ${token}`
+			}
+		});
+		if (res.ok) {
+			return (await res.json()) as EstimatedBillResponse;
 		}
-	});
-	if (!res.ok) {
 		// 404 means no estimate data exists yet — genuine absence
 		if (res.status === 404) {
 			return null;
 		}
-		// Auth failures (401/403) and server errors (5xx) must surface immediately
+		if (res.status === 429) {
+			await sleep(getRetryDelayMs(attempt, res.headers.get('retry-after')));
+			continue;
+		}
+		// Auth failures (401/403) and server errors (5xx) must surface immediately.
 		throw new Error(`/billing/estimate failed: ${res.status} ${await res.text()}`);
 	}
-	return (await res.json()) as EstimatedBillResponse;
+
+	throw new Error('/billing/estimate failed: exhausted retries after 429 rate limiting');
 }
 
 type CreateUserFactory = (

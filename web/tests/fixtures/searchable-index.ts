@@ -266,7 +266,7 @@ async function waitForSeededIndexByToken(
 		if (res.ok) {
 			return;
 		}
-		if (res.status !== 404 && res.status !== 429 && res.status !== 500) {
+		if (res.status !== 404 && res.status !== 429 && res.status !== 500 && res.status !== 503) {
 			throw new Error(
 				`seedIndexForCustomer readiness check failed: ${res.status} ${await res.text()}`
 			);
@@ -296,7 +296,9 @@ async function createIndexForCustomerWithRetries({
 		createBody.flapjack_url = flapjackUrl;
 	}
 
-	const maxRetries = 6;
+	// Local Playwright CI can report transient backend-unavailable while the
+	// tenant/index route is warming; align this retry budget with key creation.
+	const maxRetries = 20;
 	let lastFailure = 'none';
 
 	for (let attempt = 0; attempt < maxRetries; attempt++) {
@@ -321,11 +323,15 @@ async function createIndexForCustomerWithRetries({
 			return;
 		}
 
-		if (indexRes.status !== 429 && indexRes.status !== 500) {
+		if (indexRes.status !== 429 && indexRes.status !== 500 && indexRes.status !== 503) {
 			throw new Error(`seedIndexForCustomer failed: ${lastFailure}`);
 		}
 
-		await sleep(getTransientRetryDelayMs(attempt));
+		const retryAfterSeconds = Number(indexRes.headers.get('retry-after') ?? '');
+		const retryAfterMs =
+			Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0 ? retryAfterSeconds * 1000 : 0;
+		const backoffMs = getTransientRetryDelayMs(attempt);
+		await sleep(Math.max(retryAfterMs, backoffMs));
 	}
 
 	throw new Error(`seedIndexForCustomer failed after transient create retries: ${lastFailure}`);

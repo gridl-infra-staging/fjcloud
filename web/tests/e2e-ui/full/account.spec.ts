@@ -28,7 +28,7 @@ test.describe('Account page', () => {
 		await expect(page.getByLabel('Name')).toBeVisible();
 
 		// Email is displayed as read-only text (not an input)
-		await expect(page.getByText(sharedFixtureUser.email)).toBeVisible();
+		await expect(page.getByText(sharedFixtureUser.email, { exact: true })).toBeVisible();
 	});
 
 	test('update profile name shows success message', async ({ page }) => {

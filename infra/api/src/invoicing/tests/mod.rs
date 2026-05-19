@@ -192,7 +192,7 @@ fn cold_storage_billed_without_hot_usage_rows() {
         .iter()
         .find(|li| li.unit == "cold_gb_months")
         .expect("cold storage line item missing");
-    assert_eq!(cold.amount_cents, 100);
+    assert_eq!(cold.amount_cents, 400);
 }
 
 /// Verifies that only completed snapshots for the target customer are

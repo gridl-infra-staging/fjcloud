@@ -53,6 +53,7 @@ paths = [
     # docs/runbooks/evidence/ — a different file in the same dir is
     # still scanned.
     '''docs/runbooks/evidence/.*/stripe_key_fingerprint\.txt$''',
+    '''docs/runbooks/evidence/browser-evidence/.*/setup\.json$''',
     # Evidence + handoff files under docs/runbooks/evidence/ frequently
     # contain curl examples (`curl -u "$STRIPE_SECRET_KEY_flapjack_cloud:"`)
     # that trigger `curl-auth-user`, sentry DSN fragments from captured

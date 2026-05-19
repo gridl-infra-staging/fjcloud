@@ -54,7 +54,8 @@ async function assertDashboardRouteWalk(page: import('@playwright/test').Page): 
 		await page.getByRole('link', { name: route.label }).click();
 		await expect(
 			page.getByRole('heading', {
-				name: route.heading
+				name: route.heading,
+				exact: true
 			})
 		).toBeVisible({ timeout: 15_000 });
 		await expect(page).toHaveURL(new RegExp(`${route.path}(?:$|\\?)`));

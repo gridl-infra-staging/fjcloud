@@ -906,7 +906,10 @@ async fn create_prefers_existing_active_vm_over_auto_provision_for_zero_resource
 
     let requests = setup.http_client.take_requests();
     assert_eq!(requests.len(), 1);
-    assert_eq!(requests[0].url, "https://vm-saturated.flapjack.foo/1/indexes");
+    assert_eq!(
+        requests[0].url,
+        "https://vm-saturated.flapjack.foo/1/indexes"
+    );
 
     let tenant = setup
         .tenant_repo
@@ -4184,7 +4187,10 @@ async fn create_index_reuses_existing_shared_vm_when_load_snapshot_is_missing() 
 
     let requests = http_client.take_requests();
     assert_eq!(requests.len(), 1);
-    assert_eq!(requests[0].url, "https://shared-unscraped.flapjack.foo/1/indexes");
+    assert_eq!(
+        requests[0].url,
+        "https://shared-unscraped.flapjack.foo/1/indexes"
+    );
 
     let tenant = tenant_repo
         .find_raw(customer.id, "products")

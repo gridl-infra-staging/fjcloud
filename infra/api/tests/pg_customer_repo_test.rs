@@ -1666,7 +1666,11 @@ async fn lockout_concurrent_failures_reach_exact_count() {
     let repo = Arc::new(PgCustomerRepo::new(pool.clone()));
 
     let customer = repo
-        .create_with_password("concurrent-user", "concurrent-lockout@test.dev", "$argon2id$hash")
+        .create_with_password(
+            "concurrent-user",
+            "concurrent-lockout@test.dev",
+            "$argon2id$hash",
+        )
         .await
         .expect("create test customer");
 
@@ -1683,13 +1687,11 @@ async fn lockout_concurrent_failures_reach_exact_count() {
     }
 
     // All 10 must have completed — verify the final count in DB
-    let count: i32 = sqlx::query_scalar(
-        "SELECT failed_login_count FROM customers WHERE id = $1",
-    )
-    .bind(customer.id)
-    .fetch_one(&pool)
-    .await
-    .expect("query failed_login_count");
+    let count: i32 = sqlx::query_scalar("SELECT failed_login_count FROM customers WHERE id = $1")
+        .bind(customer.id)
+        .fetch_one(&pool)
+        .await
+        .expect("query failed_login_count");
 
     assert_eq!(
         count, 10,
@@ -1708,7 +1710,8 @@ async fn lockout_concurrent_failures_reach_exact_count() {
 
 #[tokio::test]
 async fn verify_email_succeeds_even_when_deferred_verify_lockout_columns_are_active() {
-    let Some(harness) = pg_schema_harness::connect_and_migrate("verify_lockout_deferred").await else {
+    let Some(harness) = pg_schema_harness::connect_and_migrate("verify_lockout_deferred").await
+    else {
         return;
     };
     let pool = harness.pool.clone();
@@ -1758,7 +1761,8 @@ async fn verify_email_succeeds_even_when_deferred_verify_lockout_columns_are_act
 
 #[tokio::test]
 async fn reset_password_succeeds_even_when_deferred_reset_lockout_columns_are_active() {
-    let Some(harness) = pg_schema_harness::connect_and_migrate("reset_lockout_deferred").await else {
+    let Some(harness) = pg_schema_harness::connect_and_migrate("reset_lockout_deferred").await
+    else {
         return;
     };
     let pool = harness.pool.clone();

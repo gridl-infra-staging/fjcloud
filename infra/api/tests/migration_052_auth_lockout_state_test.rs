@@ -61,7 +61,11 @@ async fn auth_lockout_columns_schema_contract() {
         "failed_login_count must be NOT NULL integer"
     );
     assert!(
-        has_column("failed_login_window_start", "YES", "timestamp with time zone"),
+        has_column(
+            "failed_login_window_start",
+            "YES",
+            "timestamp with time zone"
+        ),
         "failed_login_window_start must be nullable timestamptz"
     );
     assert!(
@@ -75,7 +79,11 @@ async fn auth_lockout_columns_schema_contract() {
         "failed_verify_count must be NOT NULL integer"
     );
     assert!(
-        has_column("failed_verify_window_start", "YES", "timestamp with time zone"),
+        has_column(
+            "failed_verify_window_start",
+            "YES",
+            "timestamp with time zone"
+        ),
         "failed_verify_window_start must be nullable timestamptz"
     );
     assert!(
@@ -89,7 +97,11 @@ async fn auth_lockout_columns_schema_contract() {
         "failed_reset_count must be NOT NULL integer"
     );
     assert!(
-        has_column("failed_reset_window_start", "YES", "timestamp with time zone"),
+        has_column(
+            "failed_reset_window_start",
+            "YES",
+            "timestamp with time zone"
+        ),
         "failed_reset_window_start must be nullable timestamptz"
     );
     assert!(

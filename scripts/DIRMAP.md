@@ -140,9 +140,10 @@ usage_records to Postgres. |
 | validate-metering.sh | Validate metering pipeline health against a live database and emit JSON. |
 | validate-stripe.sh | Stub summary for validate-stripe.sh. |
 | validate_customer_quickstart.sh | Stub summary for validate_customer_quickstart.sh. |
+| validate_full_vm_lifecycle_prod.sh | Stub summary for validate_full_vm_lifecycle_prod.sh. |
 | validate_inbound_email_roundtrip.sh | Validate SES outbound-to-inbound roundtrip for the shared test inbox path. |
 | validate_oauth_routes.sh | Stub summary for validate_oauth_routes.sh. |
-| validate_ses_readiness.sh | Validate SES readiness using read-only API calls and machine-readable output. |
+| validate_ses_readiness.sh | Stub summary for validate_ses_readiness.sh. |
 | validate_staging_dunning_delivery.sh | Validate staging dunning email delivery by reusing rehearsal artifacts and SES inbound S3 evidence. |
 | web-dev.sh | web-dev.sh — Start the SvelteKit dev server with repo-local auth env loaded. |
 
@@ -150,8 +151,8 @@ usage_records to Postgres. |
 | --- | --- |
 | canary | The canary directory contains synthetic monitoring and health check scripts that validate external system health, email deliverability, and critical infrastructure components like EC2 firewall ports, Lambda invocation, and OAuth endpoints. |
 | chaos | The chaos directory contains failure-injection and HA resilience test scripts that validate the system's ability to detect outages, trigger failover, and recover—including region kill/restart tests, metering service failure detection, and end-to-end failover proofs. |
-| launch | The `launch` directory contains post-deployment validation and verification scripts for the fjcloud staging environment, including tenant-map verification, evidence capture, synthetic traffic generation, and remote command execution on the staging API instance via AWS SSM. |
-| lib | This `lib/` directory contains reusable bash helper scripts and utilities for fjcloud's shell-based tooling, including shared functions for environment loading, database operations, health checks, alert dispatch, Stripe and metering validation, and billing rehearsal orchestration. |
+| launch | The launch directory contains shell scripts for orchestrating and validating a staged deployment pipeline, with scripts for pre/post-deployment verification, evidence capture, environment configuration hydration, and synthetic traffic generation. |
+| lib | The lib directory contains reusable shell script helpers for critical infrastructure tasks: environment loading, alert dispatch, database migrations, Flapjack binary discovery, health checks, validation gates for metering/Stripe/security, and staging billing workflows. |
 | load | The load directory contains regression checking utilities for validating load testing performance, including scripts that compare offline and live load harness results to detect performance regressions. |
 | reliability | The reliability directory contains shell scripts for backend capacity profiling, security validation, and reliability gating that generate performance metrics across document tiers. |
 | stripe | The stripe directory contains operational scripts for managing Stripe integration with fjcloud: configuring the Customer Portal and creating the canonical Flapjack product catalog, both supporting multi-account operations. |

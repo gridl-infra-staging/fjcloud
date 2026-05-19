@@ -6,5 +6,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| upgrade | SvelteKit server endpoint that proxies POST requests to the backend's `/billing/upgrade` API, enforcing user authentication and forwarding upstream responses while handling service unavailability gracefully. |
+| upgrade | The upgrade directory contains a SvelteKit server endpoint (+server.ts) that handles upgrade-related backend logic, though its specific functionality is currently undocumented. |
 <!-- [scrai:end] -->

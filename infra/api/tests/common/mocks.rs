@@ -20,7 +20,8 @@ use api::repos::vm_inventory_repo::VmInventoryRepo;
 use api::repos::webhook_event_repo::{WebhookEventRepo, WebhookEventRow};
 use api::repos::{
     CustomerRepo, DeploymentRepo, InMemoryColdSnapshotRepo, InMemoryIndexReplicaRepo, RateCardRepo,
-    RepoError, ResendVerificationOutcome, ResendVerificationReservation, UsageRepo,
+    RepoError, ResendPasswordResetOutcome, ResendPasswordResetReservation,
+    ResendVerificationOutcome, ResendVerificationReservation, UsageRepo,
     RESEND_VERIFICATION_COOLDOWN_SECONDS,
 };
 use api::secrets::mock::MockNodeSecretManager;
@@ -110,6 +111,7 @@ impl MockCustomerRepo {
             resend_verification_sent_at: None,
             password_reset_token: None,
             password_reset_expires_at: None,
+            resend_password_reset_sent_at: None,
             last_accessed_at: None,
             overdue_invoice_count: 0,
             object_storage_egress_carryforward_cents: Decimal::ZERO,
@@ -773,6 +775,105 @@ impl CustomerRepo for MockCustomerRepo {
             }
             None => Ok(false),
         }
+    }
+
+    async fn restore_password_reset_state(
+        &self,
+        id: Uuid,
+        token: Option<&str>,
+        expires_at: Option<DateTime<Utc>>,
+    ) -> Result<bool, RepoError> {
+        let mut customers = self.customers.lock().unwrap();
+        match customers
+            .iter_mut()
+            .find(|customer| customer.id == id && customer.status != "deleted")
+        {
+            Some(customer) => {
+                customer.password_reset_token = token.map(str::to_string);
+                customer.password_reset_expires_at = expires_at;
+                customer.updated_at = Utc::now();
+                Ok(true)
+            }
+            None => Ok(false),
+        }
+    }
+
+    async fn rotate_password_reset_token_with_resend_cooldown(
+        &self,
+        id: Uuid,
+        token: &str,
+        expires_at: DateTime<Utc>,
+    ) -> Result<ResendPasswordResetOutcome, RepoError> {
+        let mut customers = self.customers.lock().unwrap();
+        let now = Utc::now();
+        let Some(customer) = customers
+            .iter_mut()
+            .find(|customer| customer.id == id && customer.status != "deleted")
+        else {
+            return Ok(ResendPasswordResetOutcome::CustomerNotFound);
+        };
+
+        if let Some(sent_at) = customer.resend_password_reset_sent_at {
+            let cooldown_ends_at =
+                sent_at + chrono::Duration::seconds(RESEND_VERIFICATION_COOLDOWN_SECONDS);
+            if cooldown_ends_at > now {
+                let remaining_seconds = (cooldown_ends_at - now).num_seconds().max(1) as u64;
+                return Ok(ResendPasswordResetOutcome::CooldownActive {
+                    retry_after_seconds: remaining_seconds,
+                });
+            }
+        }
+
+        let reservation = ResendPasswordResetReservation {
+            previous_password_reset_token: customer.password_reset_token.clone(),
+            previous_password_reset_expires_at: customer.password_reset_expires_at,
+            previous_password_reset_sent_at: customer.resend_password_reset_sent_at,
+            reserved_password_reset_sent_at: now,
+        };
+        customer.password_reset_token = Some(token.to_string());
+        customer.password_reset_expires_at = Some(expires_at);
+        customer.resend_password_reset_sent_at = Some(now);
+        customer.updated_at = now;
+        Ok(ResendPasswordResetOutcome::Allowed { reservation })
+    }
+
+    async fn rollback_password_reset_token_rotation(
+        &self,
+        id: Uuid,
+        reserved_token: &str,
+        reservation: &ResendPasswordResetReservation,
+    ) -> Result<bool, RepoError> {
+        if let Some(failure) = self.fail_next_resend_rollback.lock().unwrap().take() {
+            return match failure {
+                InjectedResendRollbackFailure::ReturnFalse => Ok(false),
+                InjectedResendRollbackFailure::ReturnError(message) => {
+                    Err(RepoError::Other(message))
+                }
+            };
+        }
+
+        let mut customers = self.customers.lock().unwrap();
+        let Some(customer) = customers
+            .iter_mut()
+            .find(|customer| customer.id == id && customer.status != "deleted")
+        else {
+            return Ok(false);
+        };
+
+        if customer.password_reset_token.as_deref() != Some(reserved_token) {
+            return Ok(false);
+        }
+        if customer.resend_password_reset_sent_at
+            != Some(reservation.reserved_password_reset_sent_at)
+        {
+            return Ok(false);
+        }
+
+        customer.password_reset_token = reservation.previous_password_reset_token.clone();
+        customer.password_reset_expires_at = reservation.previous_password_reset_expires_at;
+        customer.resend_password_reset_sent_at = reservation.previous_password_reset_sent_at;
+        customer.updated_at = Utc::now();
+        Ok(true)
     }
 
     async fn find_by_reset_token(&self, token: &str) -> Result<Option<Customer>, RepoError> {

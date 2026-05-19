@@ -4,7 +4,8 @@
 	import { page } from '$app/state';
 	import { DASHBOARD_SESSION_EXPIRED_REDIRECT } from '$lib/auth-session-contracts';
 	import { resolve } from '$app/paths';
-	import { BETA_FEEDBACK_MAILTO, SUPPORT_EMAIL } from '$lib/format';
+	import { SUPPORT_EMAIL } from '$lib/format';
+	import BetaSupportBadge from '$lib/components/BetaSupportBadge.svelte';
 	import { CANONICAL_PUBLIC_API_DOCS_URL } from '$lib/public_api';
 	import { parseRetryAfterSeconds, retryAfterSecondsFromHeaders } from '$lib/http/retry_after';
 
@@ -21,7 +22,7 @@
 		{ href: '/dashboard/api-keys' as const, label: 'API Keys', icon: 'key' },
 		{ href: '/dashboard/logs' as const, label: 'Logs', icon: 'list' },
 		{ href: '/dashboard/migrate' as const, label: 'Migrate', icon: 'upload' },
-		{ href: '/dashboard/settings' as const, label: 'Settings', icon: 'settings' }
+		{ href: '/dashboard/account' as const, label: 'Account', icon: 'settings' }
 	];
 	const supportMailtoHref = `mailto:${SUPPORT_EMAIL}`;
 	const helpItems = [
@@ -30,6 +31,12 @@
 	];
 
 	function isActive(href: string): boolean {
+		if (href === '/dashboard/account') {
+			return (
+				page.url.pathname.startsWith('/dashboard/account') ||
+				page.url.pathname.startsWith('/dashboard/settings')
+			);
+		}
 		if (href === '/dashboard') return page.url.pathname === '/dashboard';
 		return page.url.pathname.startsWith(href);
 	}
@@ -242,14 +249,6 @@
 				{/if}
 			</div>
 			<div class="flex items-center gap-4">
-				<!-- eslint-disable svelte/no-navigation-without-resolve -- mailto: scheme, not an internal path -->
-				<a
-					href={BETA_FEEDBACK_MAILTO}
-					class="text-sm font-medium text-[#1f1b18] underline decoration-[#9fd8d2] hover:decoration-[#1f1b18]"
-				>
-					Send feedback
-				</a>
-				<!-- eslint-enable svelte/no-navigation-without-resolve -->
 				<span class="text-sm text-[#1f1b18]">{displayName}</span>
 				<form method="POST" action="/logout" use:enhance>
 					<button
@@ -284,22 +283,11 @@
 			</div>
 		{/if}
 
-		<!-- P.brand_palette_consistency, M.palette.12: beta banner uses diner teal #d9f2ef + rose link tones to share the brand palette with public surfaces — judgment docs/runbooks/evidence/ui-polish/20260505T021650Z_first_run/judgments/auth__dashboard__loading__desktop.json -->
-		<div
-			class="border-b border-[#9fd8d2] bg-[#d9f2ef] px-6 py-3"
-			data-testid="dashboard-beta-banner"
-		>
-			<div
-				class="flex flex-col gap-2 text-sm text-[#1f1b18] sm:flex-row sm:items-center sm:justify-between"
-			>
-				<p>
-					Flapjack Cloud is in public beta. Features and limits may change before general
-					availability.
-				</p>
-				<a href={resolve('/beta')} class="font-medium text-[#b83f5f] hover:text-[#8d2842]">
-					View beta scope
-				</a>
-			</div>
+		<div class="border-b border-[#1f1b18]/15 bg-[#fff8ea] px-6 py-2">
+			<BetaSupportBadge
+				dataTestid="dashboard-beta-support-badge"
+				betaLinkLabel="View beta scope"
+			/>
 		</div>
 
 		{#if showVerificationBanner}

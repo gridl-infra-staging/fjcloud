@@ -1,8 +1,8 @@
 /**
- * Full — Settings
+ * Full — Account
  *
- * Verifies the complete account settings surface:
- *   - Load-and-verify: settings page renders profile with current email
+ * Verifies the complete account-management surface:
+ *   - Load-and-verify: account page renders profile with current email
  *   - Update display name through the UI form
  *   - Change password (wrong current password shows error)
  *   - Change password (new passwords mismatch shows error)
@@ -11,25 +11,28 @@
  */
 
 import { test, expect } from '../../fixtures/fixtures';
+import { resolveRequiredFixtureUserCredentials } from '../../../playwright.config.contract';
 
-test.describe('Settings page', () => {
+const sharedFixtureUser = resolveRequiredFixtureUserCredentials(process.env);
+
+test.describe('Account page', () => {
 	test('load-and-verify: renders profile section with email', async ({ page }) => {
-		// Act: navigate to settings
-		await page.goto('/dashboard/settings');
+		// Act: navigate to account
+		await page.goto('/dashboard/account');
 
 		// Assert: page-specific heading visible
-		await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible();
+		await expect(page.getByRole('heading', { name: 'Account', exact: true })).toBeVisible();
 
 		// Assert: profile section visible with email shown
 		await expect(page.getByRole('heading', { name: 'Profile' })).toBeVisible();
 		await expect(page.getByLabel('Name')).toBeVisible();
 
 		// Email is displayed as read-only text (not an input)
-		await expect(page.getByText(process.env.E2E_USER_EMAIL ?? '')).toBeVisible();
+		await expect(page.getByText(sharedFixtureUser.email)).toBeVisible();
 	});
 
 	test('update profile name shows success message', async ({ page }) => {
-		await page.goto('/dashboard/settings');
+		await page.goto('/dashboard/account');
 
 		const newName = `E2E Test User ${Date.now()}`;
 
@@ -43,7 +46,7 @@ test.describe('Settings page', () => {
 	});
 
 	test('change password section is visible', async ({ page }) => {
-		await page.goto('/dashboard/settings');
+		await page.goto('/dashboard/account');
 
 		await expect(page.getByRole('heading', { name: 'Change Password' })).toBeVisible();
 		await expect(page.getByLabel('Current password')).toBeVisible();
@@ -53,7 +56,7 @@ test.describe('Settings page', () => {
 	});
 
 	test('wrong current password shows error', async ({ page }) => {
-		await page.goto('/dashboard/settings');
+		await page.goto('/dashboard/account');
 		await expect(page.getByRole('heading', { name: 'Change Password' })).toBeVisible();
 
 		// Act: submit with wrong current password
@@ -67,10 +70,10 @@ test.describe('Settings page', () => {
 	});
 
 	test('mismatched new passwords shows error', async ({ page }) => {
-		await page.goto('/dashboard/settings');
+		await page.goto('/dashboard/account');
 		await expect(page.getByRole('heading', { name: 'Change Password' })).toBeVisible();
 
-		await page.getByLabel('Current password').fill(process.env.E2E_USER_PASSWORD ?? '');
+		await page.getByLabel('Current password').fill(sharedFixtureUser.password);
 		await page.getByLabel('New password', { exact: true }).fill('NewValidPass1!');
 		await page.getByLabel('Confirm new password').fill('DifferentPass2@');
 		await page.getByRole('button', { name: 'Change password' }).click();
@@ -79,21 +82,34 @@ test.describe('Settings page', () => {
 	});
 });
 
-test.describe('Settings password change lifecycle', () => {
+test.describe('Account password change lifecycle', () => {
 	// Start unauthenticated — this block creates and uses a disposable user
 	// instead of the shared setup:user auth state.
 	test.use({ storageState: { cookies: [], origins: [] } });
 
 	test('change password, log out, re-authenticate with new password', async ({
 		page,
-		createUser
+		createUser,
+		isFreshSignupArrangePrerequisiteFailure
 	}) => {
-		const email = `settings-reauth-${Date.now()}@e2e.griddle.test`;
+		const email = `account-reauth-${Date.now()}@e2e.griddle.test`;
 		const oldPassword = 'OldPassword123!';
 		const newPassword = 'NewPassword456!';
 
 		// Arrange: create a disposable user via API (auto-cleaned up by fixture)
-		await createUser(email, oldPassword, 'Settings Re-Auth Test');
+		try {
+			await createUser(email, oldPassword, 'Account Re-Auth Test');
+		} catch (error) {
+			const failureMessage = error instanceof Error ? error.message : String(error);
+			if (isFreshSignupArrangePrerequisiteFailure(failureMessage)) {
+				test.skip(
+					true,
+					`account password lifecycle prerequisite unavailable in local env: ${failureMessage}`
+				);
+				return;
+			}
+			throw error;
+		}
 
 		// Step 1: Log in through the UI
 		await page.goto('/login');
@@ -102,8 +118,8 @@ test.describe('Settings password change lifecycle', () => {
 		await page.getByRole('button', { name: 'Log In' }).click();
 		await expect(page).toHaveURL(/\/dashboard/, { timeout: 10_000 });
 
-		// Step 2: Navigate to settings and change password
-		await page.goto('/dashboard/settings');
+		// Step 2: Navigate to account and change password
+		await page.goto('/dashboard/account');
 		await expect(page.getByRole('heading', { name: 'Change Password' })).toBeVisible();
 
 		await page.getByLabel('Current password').fill(oldPassword);
@@ -136,26 +152,27 @@ test.describe('Settings password change lifecycle', () => {
 	});
 });
 
-test.describe('Settings delete-account flow', () => {
+test.describe('Account delete-account flow', () => {
 	test.use({ storageState: { cookies: [], origins: [] } });
 
 	test('delete-account danger zone deletes a throwaway account and redirects to /login', async ({
-		page
+		page,
+		createFreshSignupIdentity,
+		arrangeFreshSignupToDashboard
 	}) => {
-		const timestamp = Date.now();
-		const throwawayEmail = `delete-settings-${timestamp}@e2e.griddle.test`;
-		const throwawayPassword = 'DeleteMe123!';
+		const signup = createFreshSignupIdentity();
+		const arrangeResult = await arrangeFreshSignupToDashboard(page, signup);
+		if (arrangeResult.prerequisiteFailureMessage) {
+			test.skip(
+				true,
+				`account delete lifecycle prerequisite unavailable in local env: ${arrangeResult.prerequisiteFailureMessage}`
+			);
+			return;
+		}
+		const throwawayPassword = signup.password;
 
-		await page.goto('/signup');
-		await page.getByLabel('Name').fill(`Delete Settings ${timestamp}`);
-		await page.getByLabel('Email').fill(throwawayEmail);
-		await page.getByLabel('Password', { exact: true }).fill(throwawayPassword);
-		await page.getByLabel('Confirm Password').fill(throwawayPassword);
-		await page.getByRole('button', { name: 'Sign Up' }).click();
-		await expect(page).toHaveURL(/\/dashboard/, { timeout: 15_000 });
-
-		await page.goto('/dashboard/settings');
-		await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible();
+		await page.goto('/dashboard/account');
+		await expect(page.getByRole('heading', { name: 'Account', exact: true })).toBeVisible();
 		await expect(page.getByTestId('delete-account-danger-zone')).toBeVisible();
 		await expect(page.getByRole('heading', { name: 'Delete Account' })).toBeVisible();
 

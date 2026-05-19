@@ -86,9 +86,10 @@ describe('Reset password server action', () => {
 		expect(result).toEqual(
 			expect.objectContaining({
 				status: 400,
-				data: {
-					errors: { form: 'token expired' }
-				}
+				data: expect.objectContaining({
+					errors: { form: 'token expired' },
+					recoveryAction: 'invalid_or_expired_token'
+				})
 			})
 		);
 	});
@@ -102,11 +103,38 @@ describe('Reset password server action', () => {
 		expect(result).toEqual(
 			expect.objectContaining({
 				status: 503,
-				data: {
+				data: expect.objectContaining({
 					errors: {
 						form: 'Authentication service is unavailable. Please verify API_URL and try again.'
 					}
+				})
+			})
+		);
+	});
+
+	it('does not attach a resend-email recovery action to generic reset-submit failures', async () => {
+		resetPasswordMock.mockRejectedValue(
+			new ApiRequestError(503, 'password reset email temporarily unavailable')
+		);
+
+		const result = await actions.default(
+			makeEvent({ password: 'newpassword123', confirm_password: 'newpassword123' })
+		);
+		expect(result).toEqual(
+			expect.objectContaining({
+				status: 503,
+				data: {
+					errors: {
+						form: 'password reset email temporarily unavailable'
+					}
 				}
+			})
+		);
+		expect(result).not.toEqual(
+			expect.objectContaining({
+				data: expect.objectContaining({
+					recoveryAction: 'request_new_email'
+				})
 			})
 		);
 	});

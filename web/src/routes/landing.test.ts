@@ -1,8 +1,17 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import { render, screen, cleanup, within } from '@testing-library/svelte';
 
 import LandingPage from './+page.svelte';
+import LandingLayoutTestWrapper from './landing_layout_test_wrapper.svelte';
 import { MARKETING_PRICING, sharedPlanMinimumMonthlyLabel } from '$lib/pricing';
+
+const { pageState } = vi.hoisted(() => ({
+	pageState: { url: new URL('http://localhost/') }
+}));
+
+vi.mock('$app/state', () => ({
+	page: pageState
+}));
 
 afterEach(cleanup);
 
@@ -19,8 +28,9 @@ describe('Landing page', () => {
 		expect(ctaLinks[0]).toHaveAttribute('href', '/signup');
 	});
 
-	it('renders public beta framing and policy links before signup', () => {
-		render(LandingPage, { data: { pricing: pricingData } });
+	it('renders shared public beta framing and policy links before signup', () => {
+		pageState.url = new URL('http://localhost/');
+		render(LandingLayoutTestWrapper);
 
 		expect(screen.getAllByText(/public beta/i).length).toBeGreaterThanOrEqual(1);
 		expect(screen.getByRole('link', { name: /learn about the beta/i })).toHaveAttribute(
@@ -33,7 +43,8 @@ describe('Landing page', () => {
 	});
 
 	it('links to the open-source Flapjack repository from the header', () => {
-		render(LandingPage, { data: { pricing: pricingData } });
+		pageState.url = new URL('http://localhost/');
+		render(LandingLayoutTestWrapper);
 
 		const githubLink = screen.getByRole('link', { name: 'GitHub repository' });
 		expect(githubLink).toHaveAttribute('href', 'https://github.com/griddlehq/flapjack');

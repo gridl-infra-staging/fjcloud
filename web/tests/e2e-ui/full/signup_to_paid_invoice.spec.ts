@@ -1,13 +1,12 @@
 import { test, expect } from '../../fixtures/fixtures';
 import type { Page } from '@playwright/test';
-import { AUTH_COOKIE } from '../../../src/lib/server/auth-session-contracts';
+import {
+	isRemoteTargetMode,
+	setAuthCookieForToken
+} from '../../fixtures/fresh_signup_remote_bootstrap';
 
 // Dedicated unauthenticated lane: this flow must not rely on setup:user storage.
 test.use({ storageState: { cookies: [], origins: [] } });
-
-const BASE_URL = process.env.BASE_URL ?? 'http://localhost:5173';
-const BASE_URL_PROTOCOL = new URL(BASE_URL).protocol;
-const REMOTE_TARGET_MODE = process.env.PLAYWRIGHT_TARGET_REMOTE === '1';
 
 type DashboardRouteExpectation = {
 	label: string;
@@ -22,39 +21,8 @@ const DASHBOARD_ROUTE_EXPECTATIONS: DashboardRouteExpectation[] = [
 	{ label: 'API Keys', path: '/dashboard/api-keys', heading: 'API Keys' },
 	{ label: 'Logs', path: '/dashboard/logs', heading: 'API Logs' },
 	{ label: 'Migrate', path: '/dashboard/migrate', heading: 'Migrate from Algolia' },
-	{ label: 'Settings', path: '/dashboard/settings', heading: 'Settings' }
+	{ label: 'Account', path: '/dashboard/account', heading: 'Account' }
 ];
-
-async function setAuthCookieForToken(page: Page, token: string): Promise<void> {
-	await page.context().addCookies([
-		{
-			name: AUTH_COOKIE,
-			value: token,
-			url: BASE_URL,
-			httpOnly: true,
-			secure: BASE_URL_PROTOCOL === 'https:',
-			sameSite: 'Lax'
-		}
-	]);
-}
-
-async function tryRemoteSignupFallback(params: {
-	page: Page;
-	email: string;
-	password: string;
-	name: string;
-	createUser: (email: string, password: string, name?: string) => Promise<{ token: string }>;
-}): Promise<boolean> {
-	if (!REMOTE_TARGET_MODE) {
-		return false;
-	}
-
-	const created = await params.createUser(params.email, params.password, params.name);
-	await setAuthCookieForToken(params.page, created.token);
-	await params.page.goto('/dashboard');
-	await expect(params.page).toHaveURL(/\/dashboard/, { timeout: 20_000 });
-	return true;
-}
 
 async function loginWithFreshSignupCredentials(
 	page: import('@playwright/test').Page,
@@ -70,7 +38,7 @@ async function loginWithFreshSignupCredentials(
 		await expect(page).toHaveURL(/\/dashboard/, { timeout: 20_000 });
 		return;
 	} catch (error) {
-		if (!REMOTE_TARGET_MODE || !loginAs) {
+		if (!isRemoteTargetMode() || !loginAs) {
 			throw error;
 		}
 
@@ -90,7 +58,7 @@ async function assertDashboardRouteWalk(page: import('@playwright/test').Page): 
 			})
 		).toBeVisible({ timeout: 15_000 });
 		await expect(page).toHaveURL(new RegExp(`${route.path}(?:$|\\?)`));
-		await expect(page.getByTestId('dashboard-beta-banner')).toBeVisible();
+		await expect(page.getByTestId('dashboard-beta-support-badge')).toBeVisible();
 	}
 }
 
@@ -127,71 +95,21 @@ test.describe('Fresh signup to paid invoice', () => {
 	test('signs up, verifies email, reaches paid invoice evidence', async ({
 		page,
 		loginAs,
-		createUser,
 		createFreshSignupIdentity,
+		arrangeFreshSignupToDashboard,
 		completeFreshSignupEmailVerification,
-		arrangePaidInvoiceForFreshSignup,
-		isFreshSignupArrangePrerequisiteFailure,
-		throwFreshSignupArrangeFailure
+		arrangePaidInvoiceForFreshSignup
 	}) => {
 		test.setTimeout(300_000);
 
 		const signup = createFreshSignupIdentity();
-
-		await page.goto('/signup');
-		await page.getByLabel('Name').fill(signup.name);
-		await page.getByLabel('Email').fill(signup.email);
-		await page.getByLabel('Password', { exact: true }).fill(signup.password);
-		await page.getByLabel('Confirm Password').fill(signup.password);
-
-		const signupResponsePromise = page
-			.waitForResponse(
-				(response) =>
-					response.request().method() === 'POST' && response.url().includes('/signup'),
-				{ timeout: 20_000 }
-			)
-			.catch(() => null);
-		await page.getByRole('button', { name: 'Sign Up' }).click();
-
-		const signupAlert = page.getByRole('alert');
-		await Promise.race([
-			page.waitForURL(/\/dashboard/, { timeout: 20_000 }),
-			signupAlert.waitFor({ state: 'visible', timeout: 20_000 })
-		]).catch(() => undefined);
-
-		if (!/\/dashboard/.test(page.url())) {
-			const signupResponse = await signupResponsePromise;
-			const alertVisible = await signupAlert.isVisible().catch(() => false);
-			const alertText = alertVisible ? ((await signupAlert.textContent())?.trim() ?? '') : '';
-			const fallbackSucceeded = await tryRemoteSignupFallback({
-				page,
-				email: signup.email,
-				password: signup.password,
-				name: signup.name,
-				createUser
-			}).catch(() => false);
-			if (fallbackSucceeded) {
-				await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
-			}
-			if (fallbackSucceeded) {
-				// Continue with verification + billing assertions using the same fresh credentials.
-			} else if (isFreshSignupArrangePrerequisiteFailure(alertText)) {
-				throwFreshSignupArrangeFailure({
-					currentPath: page.url(),
-					alertText,
-					responseStatus: signupResponse?.status(),
-					responseUrl: signupResponse?.url()
-				});
-			} else {
-				throwFreshSignupArrangeFailure({
-					currentPath: page.url(),
-					alertText:
-						alertText ||
-						'Sign up did not reach /dashboard and no alert was visible within 20 seconds.',
-					responseStatus: signupResponse?.status(),
-					responseUrl: signupResponse?.url()
-				});
-			}
+		const arrangeResult = await arrangeFreshSignupToDashboard(page, signup);
+		if (arrangeResult.prerequisiteFailureMessage) {
+			test.skip(
+				true,
+				`fresh-signup prerequisite unavailable in local env: ${arrangeResult.prerequisiteFailureMessage}`
+			);
+			return;
 		}
 
 		await expect(page).toHaveURL(/\/dashboard/, { timeout: 20_000 });

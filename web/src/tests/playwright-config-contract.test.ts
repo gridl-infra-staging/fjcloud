@@ -687,8 +687,8 @@ describe('playwright config contract', () => {
 			expect(projectContractsByName.chromium?.dependencies).toEqual(['setup:user']);
 		});
 
-		it('settings.spec.ts matches the chromium project (setup:user dependency)', () => {
-			const specPath = 'tests/e2e-ui/full/settings.spec.ts';
+		it('account.spec.ts matches the chromium project (setup:user dependency)', () => {
+			const specPath = 'tests/e2e-ui/full/account.spec.ts';
 			expect(projectContractsByName.chromium?.testMatch.test(specPath)).toBe(true);
 			expect(projectContractsByName['chromium:admin']?.testMatch.test(specPath)).toBe(false);
 			expect(projectContractsByName.chromium?.dependencies).toEqual(['setup:user']);
@@ -743,6 +743,85 @@ describe('playwright config contract', () => {
 				/catch\s*\(\s*error\s*\)\s*\{[\s\S]*test\.skip\(true,\s*`Signup paid-invoice preconditions unavailable:/
 			);
 		});
+
+		it('account.spec.ts reuses fixture-owned fresh-signup prerequisite seam', () => {
+			const accountSpecSource = readFileSync(
+				join(process.cwd(), 'tests/e2e-ui/full/account.spec.ts'),
+				'utf8'
+			);
+			expect(accountSpecSource).toMatch(/\barrangeFreshSignupToDashboard\b/);
+			expect(accountSpecSource).not.toMatch(/\bVERIFICATION_EMAIL_UNAVAILABLE_PATTERN\b/);
+			expect(accountSpecSource).not.toMatch(/\bfunction\s+isFreshSignupPrerequisiteFailure\b/);
+			expect(accountSpecSource).not.toMatch(/\bEMAIL_DELIVERY_UNAVAILABLE_PATTERN\b/);
+			expect(accountSpecSource).not.toMatch(/\bisEmailDeliveryPrerequisiteError\b/);
+		});
+
+		it('account.spec.ts reuses fixture-owned fresh-signup bootstrap helper for delete-account setup', () => {
+			const accountSpecSource = readFileSync(
+				join(process.cwd(), 'tests/e2e-ui/full/account.spec.ts'),
+				'utf8'
+			);
+			expect(accountSpecSource).toMatch(/\barrangeFreshSignupToDashboard\b/);
+			expect(accountSpecSource).not.toMatch(/page\.goto\(\s*['"]\/signup['"]\s*\)/);
+		});
+
+		it('account.spec.ts resolves shared credentials through the canonical required-credentials seam', () => {
+			const accountSpecSource = readFileSync(
+				join(process.cwd(), 'tests/e2e-ui/full/account.spec.ts'),
+				'utf8'
+			);
+			expect(accountSpecSource).toMatch(/\bresolveRequiredFixtureUserCredentials\b/);
+			expect(accountSpecSource).not.toMatch(/process\.env\.E2E_USER_EMAIL\s*\?\?\s*['"]{2}/);
+			expect(accountSpecSource).not.toMatch(/process\.env\.E2E_USER_PASSWORD\s*\?\?\s*['"]{2}/);
+		});
+
+		it('signup paid-invoice flow uses shared remote-target auth-cookie helpers without owning fallback bootstrap', () => {
+			const signupSpecSource = readFileSync(
+				join(process.cwd(), 'tests/e2e-ui/full/signup_to_paid_invoice.spec.ts'),
+				'utf8'
+			);
+			expect(signupSpecSource).toMatch(
+				/from\s+['"]\.\.\/\.\.\/fixtures\/fresh_signup_remote_bootstrap['"]/
+			);
+			expect(signupSpecSource).toMatch(/\bisRemoteTargetMode\b/);
+			expect(signupSpecSource).toMatch(/\bsetAuthCookieForToken\b/);
+			expect(signupSpecSource).not.toMatch(/\battemptRemoteSignupFallback\b/);
+			expect(signupSpecSource).not.toMatch(/\basync function setAuthCookieForToken\b/);
+			expect(signupSpecSource).not.toMatch(/\basync function tryRemoteSignupFallback\b/);
+		});
+
+		it('fixtures own shared remote-target signup fallback helper', () => {
+			const fixtureSource = readFileSync(join(process.cwd(), 'tests/fixtures/fixtures.ts'), 'utf8');
+			expect(fixtureSource).toMatch(
+				/from\s+['"]\.\/fresh_signup_remote_bootstrap['"]/
+			);
+			expect(fixtureSource).toMatch(/\battemptRemoteSignupFallback\b/);
+			expect(fixtureSource).not.toMatch(/\basync function setAuthCookieForToken\b/);
+			expect(fixtureSource).not.toMatch(/\basync function tryRemoteSignupFallback\b/);
+		});
+
+		it('signup paid-invoice flow reuses fixture-owned fresh-signup arrange seam', () => {
+			const signupSpecSource = readFileSync(
+				join(process.cwd(), 'tests/e2e-ui/full/signup_to_paid_invoice.spec.ts'),
+				'utf8'
+			);
+			expect(signupSpecSource).toMatch(/\barrangeFreshSignupToDashboard\b/);
+			expect(signupSpecSource).not.toMatch(/page\.goto\(\s*['"]\/signup['"]\s*\)/);
+			expect(signupSpecSource).not.toMatch(/\bthrowFreshSignupArrangeFailure\b/);
+			expect(signupSpecSource).not.toMatch(/\bisFreshSignupArrangePrerequisiteFailure\b/);
+		});
+
+		it('fresh-signup remote bootstrap helper imports canonical runtime constants', () => {
+			const remoteBootstrapSource = readFileSync(
+				join(process.cwd(), 'tests/fixtures/fresh_signup_remote_bootstrap.ts'),
+				'utf8'
+			);
+			expect(remoteBootstrapSource).toMatch(
+				/import\s*\{\s*DEFAULT_PLAYWRIGHT_BASE_URL,\s*REMOTE_TARGET_OPT_IN_ENV\s*\}\s*from\s*['"]\.\.\/\.\.\/playwright\.config\.contract['"]/
+			);
+			expect(remoteBootstrapSource).not.toContain("'PLAYWRIGHT_TARGET_REMOTE'");
+			expect(remoteBootstrapSource).not.toContain("'http://localhost:5173'");
+		});
 	});
 
 	describe('Stage 6 signup fixture cleanup wiring', () => {
@@ -750,6 +829,13 @@ describe('playwright config contract', () => {
 			const fixtureSource = readFileSync(join(process.cwd(), 'tests/fixtures/fixtures.ts'), 'utf8');
 			expect(fixtureSource).toMatch(
 				/arrangePaidInvoiceForFreshSignup:\s*async\s*\(\{\s*_trackCustomerForCleanup\s*\},\s*use\)\s*=>\s*\{[\s\S]*arrangePaidInvoiceForFreshSignup\(\{\s*email,\s*password,\s*trackCustomerForCleanup:\s*_trackCustomerForCleanup/
+			);
+		});
+
+		it('arrangeFreshSignupToDashboard fixture threads _trackCustomerForCleanup', () => {
+			const fixtureSource = readFileSync(join(process.cwd(), 'tests/fixtures/fixtures.ts'), 'utf8');
+			expect(fixtureSource).toMatch(
+				/arrangeFreshSignupToDashboard:\s*async\s*\(\{\s*createUser,\s*_trackCustomerForCleanup\s*\},\s*use\)\s*=>\s*\{[\s\S]*arrangeFreshSignupToDashboardWithFixtureFallback\(\{\s*page,\s*signup,\s*createUser,\s*trackCustomerForCleanup:\s*_trackCustomerForCleanup/
 			);
 		});
 
@@ -837,6 +923,8 @@ describe('playwright config contract', () => {
 
 		expect(authSetupSource).toContain('const LOGIN_SETTLE_TIMEOUT_MS = 20_000;');
 		expect(authSetupSource).toContain('const DELAYED_ALERT_CAPTURE_TIMEOUT_MS = 5_000;');
+		expect(authSetupSource).toContain("response.url().includes('/login')");
+		expect(authSetupSource).not.toContain("response.url().includes('/auth/login')");
 		expect(authSetupSource).toMatch(
 			/await Promise\.race\(\[[\s\S]*page\.waitForURL\(/m
 		);

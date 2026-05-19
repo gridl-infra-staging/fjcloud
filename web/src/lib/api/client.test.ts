@@ -107,6 +107,47 @@ describe('ApiClient', () => {
 			expect(result).toEqual(expected);
 		});
 
+		it('POST /auth/resend-password-reset sends email and returns retry-after payload', async () => {
+			const fetch = (async () =>
+				new Response(
+					JSON.stringify({
+						message: 'if an account exists with that email, a password reset link has been sent'
+					}),
+					{
+						status: 200,
+						headers: {
+							'Content-Type': 'application/json',
+							'Retry-After': '75'
+						}
+					}
+				)) as typeof globalThis.fetch;
+			client.setFetch(fetch);
+
+			const result = await client.resendPasswordReset({ email: 'carol@example.com' });
+
+			expect(result).toEqual({
+				message: 'if an account exists with that email, a password reset link has been sent',
+				retryAfterSeconds: 75
+			});
+		});
+
+		it('POST /auth/resend-password-reset preserves Retry-After seconds on ApiRequestError metadata', async () => {
+			const fetch = (async () =>
+				new Response(JSON.stringify({ error: 'resend_rate_limited' }), {
+					status: 429,
+					headers: {
+						'Content-Type': 'application/json',
+						'Retry-After': '90'
+					}
+				})) as typeof globalThis.fetch;
+			client.setFetch(fetch);
+
+			await expect(client.resendPasswordReset({ email: 'carol@example.com' })).rejects.toMatchObject({
+				status: 429,
+				body: { error: 'resend_rate_limited', retryAfterSeconds: 90 }
+			});
+		});
+
 		it('POST /auth/reset-password sends token and new password', async () => {
 			const expected: MessageResponse = { message: 'password has been reset' };
 			const fetch = mockFetch(200, expected);

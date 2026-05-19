@@ -1,103 +1,31 @@
+mod contracts;
+
 use axum::extract::State;
 use axum::http::{header, HeaderMap, HeaderValue, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::Json;
 use chrono::{Duration, Utc};
-use jsonwebtoken::{EncodingKey, Header};
-use serde::{Deserialize, Serialize};
-use utoipa::ToSchema;
 
 use crate::auth::AuthError;
-use crate::auth::{AuthenticatedTenant, Claims};
+use crate::auth::AuthenticatedTenant;
 use crate::errors::{ApiError, ErrorResponse};
 use crate::models::Customer;
-use crate::repos::ResendVerificationOutcome;
+use crate::repos::{ResendPasswordResetOutcome, ResendVerificationOutcome};
+use crate::routes::auth::contracts::{
+    email_domain, generate_token, password_reset_sent_response, send_auth_email_with_retry,
+    to_retry_after_header_seconds,
+};
 use crate::state::AppState;
 use crate::validation::{
     validate_email, validate_length, validate_password, MAX_NAME_LEN, MAX_PASSWORD_LEN,
 };
+pub use contracts::{
+    AuthResponse, ForgotPasswordRequest, LoginRequest, MessageResponse, RegisterRequest,
+    ResendPasswordResetRequest, ResetPasswordRequest, VerifyEmailRequest,
+};
 
-// ---------------------------------------------------------------------------
-// Request / response types
-// ---------------------------------------------------------------------------
-
-#[derive(Debug, Deserialize, ToSchema)]
-pub struct RegisterRequest {
-    pub name: String,
-    pub email: String,
-    pub password: String,
-}
-
-#[derive(Debug, Serialize, ToSchema)]
-pub struct AuthResponse {
-    pub token: String,
-    pub customer_id: String,
-}
-
-#[derive(Debug, Deserialize, ToSchema)]
-pub struct LoginRequest {
-    pub email: String,
-    pub password: String,
-}
-
-#[derive(Debug, Deserialize, ToSchema)]
-pub struct VerifyEmailRequest {
-    pub token: String,
-}
-
-#[derive(Debug, Deserialize, ToSchema)]
-pub struct ForgotPasswordRequest {
-    pub email: String,
-}
-
-#[derive(Debug, Deserialize, ToSchema)]
-pub struct ResetPasswordRequest {
-    pub token: String,
-    pub new_password: String,
-}
-
-#[derive(Debug, Serialize, ToSchema)]
-pub struct MessageResponse {
-    pub message: String,
-}
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-/// Encode a JWT with a 24-hour expiry for the given `customer_id`.
-///
-/// Uses HS256 with `secret` as the signing key. Returns `ApiError::Internal`
-/// if the system clock is unavailable or encoding fails.
 pub(crate) fn issue_jwt(customer_id: &str, secret: &str) -> Result<String, ApiError> {
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_err(|_| ApiError::Internal("system clock error".into()))?
-        .as_secs() as usize;
-
-    let claims = Claims {
-        sub: customer_id.to_string(),
-        exp: now + 86400, // 24 hours
-        iat: now,
-    };
-
-    jsonwebtoken::encode(
-        &Header::default(),
-        &claims,
-        &EncodingKey::from_secret(secret.as_bytes()),
-    )
-    .map_err(|e| ApiError::Internal(format!("JWT encoding failed: {e}")))
-}
-
-fn generate_token() -> String {
-    use rand::rngs::OsRng;
-    use rand::Rng;
-    let bytes: [u8; 32] = OsRng.gen();
-    hex::encode(bytes)
-}
-
-fn email_domain(email: &str) -> Option<&str> {
-    email.rsplit_once('@').map(|(_, domain)| domain)
+    contracts::issue_jwt(customer_id, secret)
 }
 
 use crate::password::{hash_password, verify_password};
@@ -116,10 +44,12 @@ use crate::password::{hash_password, verify_password};
         (status = 201, description = "Account created", body = AuthResponse),
         (status = 400, description = "Validation error", body = ErrorResponse),
         (status = 409, description = "Email already registered", body = ErrorResponse),
+        (status = 503, description = "Email service unavailable", body = ErrorResponse),
     )
 )]
 pub async fn register(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(req): Json<RegisterRequest>,
 ) -> Result<(StatusCode, Json<AuthResponse>), ApiError> {
     if req.name.trim().is_empty() || req.email.trim().is_empty() || req.password.is_empty() {
@@ -153,7 +83,13 @@ pub async fn register(
             other => ApiError::from(other),
         })?;
 
-    setup_email_verification(&state, customer.id, &email).await?;
+    if let Err(setup_error) = setup_email_verification(&state, customer.id, &email, &headers).await
+    {
+        if matches!(setup_error, ApiError::ServiceUnavailable(_)) {
+            rollback_failed_registration(&state, customer.id, &email).await?;
+        }
+        return Err(setup_error);
+    }
 
     let token = issue_jwt(&customer.id.to_string(), &state.jwt_secret)?;
 
@@ -166,12 +102,45 @@ pub async fn register(
     ))
 }
 
-/// Best-effort email verification setup: generates a verification token,
-/// stores it, and either auto-verifies (dev mode) or sends the verification email.
+async fn rollback_failed_registration(
+    state: &AppState,
+    customer_id: uuid::Uuid,
+    email: &str,
+) -> Result<(), ApiError> {
+    match state.customer_repo.hard_delete(customer_id).await {
+        Ok(true) => Ok(()),
+        Ok(false) => {
+            tracing::error!(
+                "failed to rollback registration for {}: created customer {} not found",
+                email,
+                customer_id
+            );
+            Err(ApiError::Internal(
+                "failed to rollback registration after verification delivery failure".into(),
+            ))
+        }
+        Err(err) => {
+            tracing::error!(
+                "failed to rollback registration for {} (customer {}): {}",
+                email,
+                customer_id,
+                err
+            );
+            Err(ApiError::Internal(
+                "failed to rollback registration after verification delivery failure".into(),
+            ))
+        }
+    }
+}
+
+/// Email verification setup: generates a verification token, stores it, and
+/// either auto-verifies (dev mode) or delivers the verification email with
+/// route-layer retry and fail-closed behavior.
 async fn setup_email_verification(
     state: &AppState,
     customer_id: uuid::Uuid,
     email: &str,
+    headers: &HeaderMap,
 ) -> Result<(), ApiError> {
     let verify_token = generate_token();
     let expires_at = Utc::now() + Duration::hours(24);
@@ -214,16 +183,17 @@ async fn setup_email_verification(
             );
         }
 
-        if let Err(e) = state
-            .email_service
-            .send_verification_email(email, &verify_token)
-            .await
-        {
-            tracing::warn!(
-                "failed to send verification email to {}: {e} — customer can re-request later",
-                email
-            );
-        }
+        send_auth_email_with_retry(
+            headers,
+            "verification email temporarily unavailable",
+            || async {
+                state
+                    .email_service
+                    .send_verification_email(email, &verify_token)
+                    .await
+            },
+        )
+        .await?;
     }
 
     Ok(())
@@ -368,13 +338,6 @@ pub async fn login(
     }))
 }
 
-fn to_retry_after_header_seconds(seconds: i64) -> u64 {
-    u64::try_from(seconds)
-        .ok()
-        .filter(|value| *value > 0)
-        .unwrap_or(1)
-}
-
 // ---------------------------------------------------------------------------
 // POST /auth/verify-email
 // ---------------------------------------------------------------------------
@@ -442,6 +405,7 @@ pub async fn verify_email(
 pub async fn resend_verification(
     auth: AuthenticatedTenant,
     State(state): State<AppState>,
+    headers: HeaderMap,
 ) -> Result<Response, ApiError> {
     let customer = state
         .customer_repo
@@ -491,10 +455,17 @@ pub async fn resend_verification(
         }
     };
 
-    if let Err(e) = state
-        .email_service
-        .send_verification_email(&customer.email, &verify_token)
-        .await
+    if let Err(email_delivery_error) = send_auth_email_with_retry(
+        &headers,
+        "verification email temporarily unavailable",
+        || async {
+            state
+                .email_service
+                .send_verification_email(&customer.email, &verify_token)
+                .await
+        },
+    )
+    .await
     {
         let rollback_restored = match state
             .customer_repo
@@ -524,13 +495,7 @@ pub async fn resend_verification(
             ));
         }
 
-        tracing::warn!(
-            "failed to resend verification email to {}: {e}",
-            customer.email
-        );
-        return Err(ApiError::ServiceUnavailable(
-            "verification email temporarily unavailable".into(),
-        ));
+        return Err(email_delivery_error);
     }
 
     Ok(Json(MessageResponse {
@@ -555,11 +520,12 @@ pub async fn resend_verification(
 )]
 /// `POST /auth/forgot-password` — request a password-reset email (no auth required).
 ///
-/// Always returns 200 regardless of whether the email exists, preventing
-/// email enumeration. If the account exists and is not deleted, stores a
-/// 1-hour reset token and dispatches the reset email (best-effort).
+/// Returns 200 for unknown/deleted accounts and for delivery failures to avoid
+/// leaking account existence. For active accounts, stores a 1-hour reset token
+/// and attempts email delivery with route-layer retry.
 pub async fn forgot_password(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(req): Json<ForgotPasswordRequest>,
 ) -> Result<Json<MessageResponse>, ApiError> {
     // Always return 200 to avoid email enumeration
@@ -571,6 +537,8 @@ pub async fn forgot_password(
 
     if let Some(customer) = customer {
         if customer.status != "deleted" {
+            let previous_password_reset_token = customer.password_reset_token.clone();
+            let previous_password_reset_expires_at = customer.password_reset_expires_at;
             let reset_token = generate_token();
             let expires_at = Utc::now() + Duration::hours(1);
             state
@@ -579,22 +547,144 @@ pub async fn forgot_password(
                 .await
                 .map_err(ApiError::from)?;
 
-            if let Err(e) = state
-                .email_service
-                .send_password_reset_email(&customer.email, &reset_token)
-                .await
+            if let Err(delivery_error) = send_auth_email_with_retry(
+                &headers,
+                "password reset email temporarily unavailable",
+                || async {
+                    state
+                        .email_service
+                        .send_password_reset_email(&customer.email, &reset_token)
+                        .await
+                },
+            )
+            .await
             {
                 tracing::warn!(
-                    "failed to send password reset email to {}: {e}",
-                    customer.email
+                    "forgot-password email delivery unavailable for {}: {:?}",
+                    customer.email,
+                    delivery_error
                 );
+
+                let restored = state
+                    .customer_repo
+                    .restore_password_reset_state(
+                        customer.id,
+                        previous_password_reset_token.as_deref(),
+                        previous_password_reset_expires_at,
+                    )
+                    .await
+                    .map_err(ApiError::from)?;
+                if !restored {
+                    return Err(ApiError::Internal(
+                        "failed to restore forgot-password reset state after delivery failure"
+                            .into(),
+                    ));
+                }
             }
         }
     }
 
-    Ok(Json(MessageResponse {
-        message: "if an account exists with that email, a password reset link has been sent".into(),
-    }))
+    Ok(password_reset_sent_response())
+}
+
+// ---------------------------------------------------------------------------
+// POST /auth/resend-password-reset
+// ---------------------------------------------------------------------------
+
+#[utoipa::path(
+    post,
+    path = "/auth/resend-password-reset",
+    tag = "Auth",
+    security(()),
+    request_body = ResendPasswordResetRequest,
+    responses(
+        (status = 200, description = "Reset email sent if account exists", body = MessageResponse),
+    )
+)]
+pub async fn resend_password_reset(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(req): Json<ResendPasswordResetRequest>,
+) -> Result<Response, ApiError> {
+    let customer = state
+        .customer_repo
+        .find_by_email(&req.email.trim().to_lowercase())
+        .await
+        .map_err(ApiError::from)?;
+    let Some(customer) = customer else {
+        return Ok(password_reset_sent_response().into_response());
+    };
+    if customer.status == "deleted" {
+        return Ok(password_reset_sent_response().into_response());
+    }
+
+    let reset_token = generate_token();
+    let expires_at = Utc::now() + Duration::hours(1);
+    let resend_outcome = state
+        .customer_repo
+        .rotate_password_reset_token_with_resend_cooldown(customer.id, &reset_token, expires_at)
+        .await
+        .map_err(ApiError::from)?;
+
+    let reservation = match resend_outcome {
+        ResendPasswordResetOutcome::Allowed { reservation } => reservation,
+        ResendPasswordResetOutcome::CustomerNotFound => {
+            return Ok(password_reset_sent_response().into_response());
+        }
+        ResendPasswordResetOutcome::CooldownActive { .. } => {
+            return Ok(password_reset_sent_response().into_response());
+        }
+    };
+
+    if let Err(email_delivery_error) = send_auth_email_with_retry(
+        &headers,
+        "password reset email temporarily unavailable",
+        || async {
+            state
+                .email_service
+                .send_password_reset_email(&customer.email, &reset_token)
+                .await
+        },
+    )
+    .await
+    {
+        let rollback_restored = match state
+            .customer_repo
+            .rollback_password_reset_token_rotation(customer.id, &reset_token, &reservation)
+            .await
+        {
+            Ok(true) => true,
+            Ok(false) => {
+                tracing::warn!(
+                    "failed to rollback resend password-reset reservation for {} after delivery failure: state moved",
+                    customer.email
+                );
+                false
+            }
+            Err(rollback_err) => {
+                tracing::warn!(
+                    "failed to rollback resend password-reset reservation for {} after delivery failure: {rollback_err}",
+                    customer.email
+                );
+                false
+            }
+        };
+
+        if !rollback_restored {
+            return Err(ApiError::Internal(
+                "failed to restore resend password-reset state after delivery failure".into(),
+            ));
+        }
+
+        tracing::warn!(
+            "resend-password-reset email delivery unavailable for {}: {:?}",
+            customer.email,
+            email_delivery_error
+        );
+        return Ok(password_reset_sent_response().into_response());
+    }
+
+    Ok(password_reset_sent_response().into_response())
 }
 
 // ---------------------------------------------------------------------------

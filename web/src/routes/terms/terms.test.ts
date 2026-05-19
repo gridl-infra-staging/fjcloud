@@ -1,13 +1,21 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/svelte';
 
-import TermsPage from './+page.svelte';
+import TermsLayoutTestWrapper from './terms_layout_test_wrapper.svelte';
 import {
 	assertLegalPagePresentationContract,
 	assertSharedLegalPageContract,
 	assertUniqueVisibleHeading,
 	assertUniqueVisibleText
 } from '../legal_page_test_helpers';
+
+const { pageState } = vi.hoisted(() => ({
+	pageState: { url: new URL('http://localhost/terms') }
+}));
+
+vi.mock('$app/state', () => ({
+	page: pageState
+}));
 
 afterEach(cleanup);
 
@@ -26,7 +34,8 @@ const termsSectionHeadings = [
 
 describe('Terms page legal contract', () => {
 	it('renders finalized terms copy without draft markers and preserves core sections', () => {
-		render(TermsPage);
+		pageState.url = new URL('http://localhost/terms');
+		render(TermsLayoutTestWrapper);
 
 		assertSharedLegalPageContract();
 		expect(document.title).toBe('Terms of Service — Flapjack Cloud');
@@ -41,7 +50,11 @@ describe('Terms page legal contract', () => {
 	});
 
 	it('public__terms__success__desktop M.palette.14 keeps legal typography palette on diner surface', () => {
-		render(TermsPage);
+		pageState.url = new URL('http://localhost/terms');
+		render(TermsLayoutTestWrapper);
+
+		expect(screen.getByTestId('public-beta-banner')).toBeInTheDocument();
+		expect(screen.getByRole('contentinfo')).toBeInTheDocument();
 		assertLegalPagePresentationContract('Terms of Service');
 		const bodyParagraph = screen.getByText(
 			/These terms govern access to the Flapjack Cloud hosted dashboard/i

@@ -3,6 +3,7 @@
 import type {
 	AuthResponse,
 	MessageResponse,
+	MessageWithRetryAfterResponse,
 	RegisterRequest,
 	LoginRequest,
 	VerifyEmailRequest,
@@ -240,6 +241,48 @@ export class ApiClient extends BaseClient {
 		return this.api('POST', '/auth/forgot-password', body);
 	}
 
+	async resendPasswordReset(
+		body: ForgotPasswordRequest
+	): Promise<MessageWithRetryAfterResponse> {
+		const response = await this.fetchFn(`${this.baseUrl}/auth/resend-password-reset`, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json'
+			},
+			body: JSON.stringify(body)
+		});
+
+		if (!response.ok) {
+			const errorPayload = await response.json().catch(() => ({ error: 'unknown error' }));
+			const headers = response.headers ? new Headers(response.headers) : undefined;
+			const requestId = headers?.get('x-request-id') ?? undefined;
+			const retryAfterSeconds = retryAfterSecondsFromHeaders(headers);
+			const metadataBody =
+				errorPayload && typeof errorPayload === 'object'
+					? { ...errorPayload, retryAfterSeconds }
+					: { error: 'unknown error', retryAfterSeconds };
+			const errorMessage =
+				errorPayload &&
+				typeof errorPayload === 'object' &&
+				'error' in errorPayload &&
+				typeof errorPayload.error === 'string'
+					? errorPayload.error
+					: 'unknown error';
+
+			throw new ApiRequestError(response.status, errorMessage, {
+				requestId,
+				headers,
+				body: metadataBody
+			});
+		}
+
+		const payload = (await response.json()) as MessageResponse;
+		return {
+			message: payload.message,
+			retryAfterSeconds: retryAfterSecondsFromHeaders(response.headers)
+		};
+	}
+
 	resetPassword(body: ResetPasswordRequest): Promise<MessageResponse> {
 		return this.api('POST', '/auth/reset-password', body);
 	}
@@ -261,7 +304,7 @@ export class ApiClient extends BaseClient {
 		);
 	}
 
-	async resendVerification(): Promise<{ message: string; retryAfterSeconds: number | null }> {
+	async resendVerification(): Promise<MessageWithRetryAfterResponse> {
 		const response = await this.fetchFn(`${this.baseUrl}/auth/resend-verification`, {
 			method: 'POST',
 			headers: {

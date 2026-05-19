@@ -22,7 +22,7 @@ test('sidebar navigation links are present', async ({ page }) => {
 	await expect(page.getByRole('link', { name: 'Indexes', exact: true })).toBeVisible();
 	await expect(page.getByRole('link', { name: 'Billing', exact: true })).toBeVisible();
 	await expect(page.getByRole('link', { name: 'API Keys' })).toBeVisible();
-	await expect(page.getByRole('link', { name: 'Settings' })).toBeVisible();
+	await expect(page.getByRole('link', { name: 'Account' })).toBeVisible();
 });
 
 test('plan badge is visible in the header', async ({ page }) => {

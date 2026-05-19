@@ -29,17 +29,17 @@ Each function owns one logical phase of server bootstrap. |
 
 | Directory | Summary |
 | --- | --- |
-| auth | The auth module handles multiple authentication mechanisms including admin access, API key validation, and tenant-based isolation, with supporting error types and storage persistence for authentication data. |
+| auth | The auth module provides authentication and authorization for the API server, handling multiple auth schemes including admin authentication, API key validation, and tenant-based access control. |
 | dns | The dns directory provides DNS provider integrations for the fjcloud API, with implementations for Cloudflare and AWS Route53. |
-| invoicing | The invoicing directory contains business logic for generating and managing invoice line items within the billing system. |
+| invoicing | The invoicing directory contains line_items.rs, which handles the representation and management of individual line items within invoices. |
 | middleware | The middleware directory contains HTTP request handling utilities for the Axum API server, including metrics collection and request logging middleware to instrument and observe API traffic. |
 | models | The models directory contains core domain models for the fjcloud billing and infrastructure platform, including customer accounts, deployments, invoices, and rate cards with their corresponding database and API conversion layers. |
 | provisioner | The provisioner module orchestrates infrastructure provisioning across multiple cloud providers (AWS, GCP, OCI, Hetzner) with shared environment-variable parsing, region mapping, and provisioning lifecycle management. |
-| repos | This directory contains the data access layer (repository pattern) for fjcloud's billing platform, with trait definitions and PostgreSQL/in-memory implementations for domain entities including customers, invoices, API keys, deployments, storage resources, and billing-related data. |
+| repos | This directory contains the data access layer for fjcloud's API, implementing the repository pattern across multiple domain entities like customers, invoices, deployments, storage, and usage tracking. |
 | router | The router directory contains route assembly helpers that organize and structure HTTP routes across the public API, dashboard, and internal subtrees. |
-| routes | The routes directory contains HTTP API endpoint handlers for the fjcloud platform, organized by feature area including authentication, billing, invoices, webhooks, storage/S3 operations, and index management. |
+| routes | The routes directory contains HTTP endpoint handlers for the fjcloud API server, organized by functional area including authentication, billing, invoicing, usage tracking, and API key management, with additional subdirectories for administrative operations, index management, and S3-compatible object storage endpoints. |
 | secrets | The secrets directory provides a modular secrets management abstraction with implementations for AWS Secrets Manager, in-memory storage, and mock testing. |
-| services | The services directory provides the core business logic and infrastructure integration layer for the API, including email delivery, audit logging, provisioning, replication, storage management, and scheduler components for resource allocation across the fjcloud platform. |
+| services | The services module contains the core business logic and infrastructure operations for the fjcloud API, including resource provisioning and scheduling, data migration and replication, email delivery and suppression, storage management, monitoring and alerting, and administrative audit logging. |
 | startup | The startup directory contains a stub Stripe service implementation that allows the API to initialize without Stripe credentials by returning NotConfigured errors for all Stripe operations. |
-| stripe | The stripe module provides Stripe integration for the billing system, with both live production and local in-memory implementations. |
+| stripe | The stripe module provides environment-specific Stripe integration for the billing system, with separate implementations for live production and local test/sandbox environments. |
 <!-- [scrai:end] -->

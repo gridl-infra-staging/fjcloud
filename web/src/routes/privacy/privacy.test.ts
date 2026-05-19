@@ -1,13 +1,21 @@
-import { afterEach, describe, expect, it } from 'vitest';
-import { cleanup, render } from '@testing-library/svelte';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, render, screen } from '@testing-library/svelte';
 
-import PrivacyPage from './+page.svelte';
+import PrivacyLayoutTestWrapper from './privacy_layout_test_wrapper.svelte';
 import {
 	assertLegalPagePresentationContract,
 	assertSharedLegalPageContract,
 	assertUniqueVisibleHeading,
 	assertUniqueVisibleText
 } from '../legal_page_test_helpers';
+
+const { pageState } = vi.hoisted(() => ({
+	pageState: { url: new URL('http://localhost/privacy') }
+}));
+
+vi.mock('$app/state', () => ({
+	page: pageState
+}));
 
 afterEach(cleanup);
 
@@ -24,7 +32,8 @@ const privacySectionHeadings = [
 
 describe('Privacy page legal contract', () => {
 	it('renders finalized privacy copy without draft markers and preserves core sections', () => {
-		render(PrivacyPage);
+		pageState.url = new URL('http://localhost/privacy');
+		render(PrivacyLayoutTestWrapper);
 
 		assertSharedLegalPageContract();
 		expect(document.title).toBe('Privacy Policy — Flapjack Cloud');
@@ -39,11 +48,11 @@ describe('Privacy page legal contract', () => {
 	});
 
 	it('public__privacy__success__mobile_narrow M.universal.1 uses teal legal canvas and cream article surface', () => {
-		render(PrivacyPage);
-		const pageShell = document.querySelector('div.min-h-screen');
-		expect(pageShell).not.toBeNull();
-		expect(pageShell).toHaveClass('bg-[#9fd8d2]');
+		pageState.url = new URL('http://localhost/privacy');
+		render(PrivacyLayoutTestWrapper);
 
+		expect(screen.getByTestId('public-beta-banner')).toBeInTheDocument();
+		expect(screen.getByRole('contentinfo')).toBeInTheDocument();
 		assertLegalPagePresentationContract('Privacy Policy');
 	});
 });

@@ -18,6 +18,14 @@ pub struct ResendVerificationReservation {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ResendPasswordResetReservation {
+    pub previous_password_reset_token: Option<String>,
+    pub previous_password_reset_expires_at: Option<DateTime<Utc>>,
+    pub previous_password_reset_sent_at: Option<DateTime<Utc>>,
+    pub reserved_password_reset_sent_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ResendVerificationOutcome {
     Allowed {
         reservation: ResendVerificationReservation,
@@ -26,6 +34,17 @@ pub enum ResendVerificationOutcome {
         retry_after_seconds: u64,
     },
     AlreadyVerified,
+    CustomerNotFound,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ResendPasswordResetOutcome {
+    Allowed {
+        reservation: ResendPasswordResetReservation,
+    },
+    CooldownActive {
+        retry_after_seconds: u64,
+    },
     CustomerNotFound,
 }
 
@@ -111,6 +130,24 @@ pub trait CustomerRepo {
         id: Uuid,
         token: &str,
         expires_at: DateTime<Utc>,
+    ) -> Result<bool, RepoError>;
+    async fn restore_password_reset_state(
+        &self,
+        id: Uuid,
+        token: Option<&str>,
+        expires_at: Option<DateTime<Utc>>,
+    ) -> Result<bool, RepoError>;
+    async fn rotate_password_reset_token_with_resend_cooldown(
+        &self,
+        id: Uuid,
+        token: &str,
+        expires_at: DateTime<Utc>,
+    ) -> Result<ResendPasswordResetOutcome, RepoError>;
+    async fn rollback_password_reset_token_rotation(
+        &self,
+        id: Uuid,
+        reserved_token: &str,
+        reservation: &ResendPasswordResetReservation,
     ) -> Result<bool, RepoError>;
     async fn find_by_reset_token(&self, token: &str) -> Result<Option<Customer>, RepoError>;
     async fn reset_password(&self, token: &str, new_password_hash: &str)

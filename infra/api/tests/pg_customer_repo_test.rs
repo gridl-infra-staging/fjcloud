@@ -104,6 +104,24 @@ async fn set_resend_verification_sent_at(
     .expect("seed resend_verification_sent_at fixture timestamp")
 }
 
+async fn set_resend_password_reset_sent_at(
+    pool: &PgPool,
+    id: Uuid,
+    resend_password_reset_sent_at: chrono::DateTime<chrono::Utc>,
+) -> chrono::DateTime<chrono::Utc> {
+    sqlx::query_scalar(
+        "UPDATE customers \
+         SET resend_password_reset_sent_at = $2, updated_at = NOW() \
+         WHERE id = $1 \
+         RETURNING resend_password_reset_sent_at",
+    )
+    .bind(id)
+    .bind(resend_password_reset_sent_at)
+    .fetch_one(pool)
+    .await
+    .expect("seed resend_password_reset_sent_at fixture timestamp")
+}
+
 #[tokio::test]
 async fn subscription_cycle_anchor_round_trip_and_clear_with_none() {
     let Some(db) = pg_schema_harness::connect_and_migrate("it_pg_customer_repo").await else {
@@ -803,6 +821,201 @@ async fn rollback_resend_verification_restores_previous_token_and_cooldown_state
     assert!(
         matches!(immediate_retry, ResendVerificationOutcome::Allowed { .. }),
         "customer should be able to retry immediately after rollback"
+    );
+
+    cleanup_customer(&pool, &email).await;
+}
+
+#[tokio::test]
+async fn resend_password_reset_cooldown_persists_across_repo_reload() {
+    let Some(db) = pg_schema_harness::connect_and_migrate("it_pg_customer_repo").await else {
+        return;
+    };
+    let pool = db.pool.clone();
+    let first_repo = PgCustomerRepo::new(pool.clone());
+    let email = format!(
+        "resend-password-reset-cooldown-{}@integration.test",
+        &Uuid::new_v4().to_string()[..8]
+    );
+
+    let customer = first_repo
+        .create("Resend Password Reset Cooldown", &email)
+        .await
+        .expect("create customer");
+
+    let first_outcome = first_repo
+        .rotate_password_reset_token_with_resend_cooldown(
+            customer.id,
+            "first-reset-token",
+            chrono::Utc::now() + chrono::Duration::hours(1),
+        )
+        .await
+        .expect("first password reset resend token rotation");
+    assert!(
+        matches!(
+            first_outcome,
+            api::repos::ResendPasswordResetOutcome::Allowed { .. }
+        ),
+        "first reset resend should be allowed"
+    );
+
+    let customer_after_first_send = first_repo
+        .find_by_id(customer.id)
+        .await
+        .expect("reload customer after first reset resend")
+        .expect("customer should exist");
+    assert_eq!(
+        customer_after_first_send.password_reset_token.as_deref(),
+        Some("first-reset-token"),
+        "first reset resend should persist the token on the customer row"
+    );
+    assert!(
+        customer_after_first_send
+            .resend_password_reset_sent_at
+            .is_some(),
+        "first reset resend should stamp cooldown state on the customer row"
+    );
+
+    let reloaded_repo = PgCustomerRepo::new(pool.clone());
+    let second_outcome = reloaded_repo
+        .rotate_password_reset_token_with_resend_cooldown(
+            customer.id,
+            "second-reset-token",
+            chrono::Utc::now() + chrono::Duration::hours(1),
+        )
+        .await
+        .expect("second password reset resend token rotation");
+
+    match second_outcome {
+        api::repos::ResendPasswordResetOutcome::CooldownActive {
+            retry_after_seconds,
+        } => {
+            assert!(
+                (1..=60).contains(&retry_after_seconds),
+                "retry_after_seconds should stay within the 60-second cooldown window"
+            );
+        }
+        unexpected => panic!(
+            "immediate second reset resend after repo reload should be blocked by cooldown, got {unexpected:?}"
+        ),
+    }
+
+    let customer_after_second_attempt = reloaded_repo
+        .find_by_id(customer.id)
+        .await
+        .expect("reload customer after blocked reset resend")
+        .expect("customer should exist");
+    assert_eq!(
+        customer_after_second_attempt
+            .password_reset_token
+            .as_deref(),
+        Some("first-reset-token"),
+        "blocked reset resend must not rotate the token again"
+    );
+
+    cleanup_customer(&pool, &email).await;
+}
+
+#[tokio::test]
+async fn rollback_password_reset_resend_restores_previous_token_and_cooldown_state() {
+    let Some(db) = pg_schema_harness::connect_and_migrate("it_pg_customer_repo").await else {
+        return;
+    };
+    let pool = db.pool.clone();
+    let repo = PgCustomerRepo::new(pool.clone());
+    let email = format!(
+        "resend-password-reset-rollback-{}@integration.test",
+        &Uuid::new_v4().to_string()[..8]
+    );
+
+    let customer = repo
+        .create_with_password("Resend Reset Rollback", &email, "$argon2id$seed")
+        .await
+        .expect("create customer");
+    let previous_expiry = chrono::Utc::now() + chrono::Duration::hours(1);
+    let historical_cooldown_timestamp = chrono::Utc::now()
+        - chrono::Duration::seconds(api::repos::RESEND_VERIFICATION_COOLDOWN_SECONDS + 5);
+    let previous_token = "deliverable-reset-token";
+    let reserved_token = "reserved-reset-token";
+
+    let seeded = repo
+        .set_password_reset_token(customer.id, previous_token, previous_expiry)
+        .await
+        .expect("seed last deliverable reset token");
+    assert!(seeded, "fixture seed should update an active customer");
+    let seeded_cooldown_timestamp =
+        set_resend_password_reset_sent_at(&pool, customer.id, historical_cooldown_timestamp).await;
+
+    let reservation = match repo
+        .rotate_password_reset_token_with_resend_cooldown(
+            customer.id,
+            reserved_token,
+            chrono::Utc::now() + chrono::Duration::hours(1),
+        )
+        .await
+        .expect("reserve password reset resend token")
+    {
+        api::repos::ResendPasswordResetOutcome::Allowed { reservation } => reservation,
+        unexpected => {
+            panic!("first password reset reservation should be allowed, got {unexpected:?}")
+        }
+    };
+    assert_eq!(
+        reservation.previous_password_reset_sent_at,
+        Some(seeded_cooldown_timestamp),
+        "reservation should carry the prior non-NULL password-reset cooldown timestamp for rollback"
+    );
+    assert!(
+        reservation.reserved_password_reset_sent_at
+            > reservation
+                .previous_password_reset_sent_at
+                .unwrap_or(chrono::DateTime::<chrono::Utc>::MIN_UTC),
+        "reservation should stamp a fresh password-reset resend cooldown timestamp"
+    );
+
+    let rolled_back = repo
+        .rollback_password_reset_token_rotation(customer.id, reserved_token, &reservation)
+        .await
+        .expect("rollback password reset resend reservation");
+    assert!(
+        rolled_back,
+        "rollback should restore prior values when password-reset reservation still matches"
+    );
+
+    let after_rollback = repo
+        .find_by_id(customer.id)
+        .await
+        .expect("load customer after rollback")
+        .expect("customer should exist");
+    assert_eq!(
+        after_rollback.password_reset_token.as_deref(),
+        Some(previous_token),
+        "rollback should restore the last deliverable reset token"
+    );
+    assert_eq!(
+        after_rollback.password_reset_expires_at,
+        Some(previous_expiry),
+        "rollback should restore the prior reset token expiry"
+    );
+    assert_eq!(
+        after_rollback.resend_password_reset_sent_at, reservation.previous_password_reset_sent_at,
+        "rollback should restore the previous password-reset cooldown timestamp"
+    );
+
+    let immediate_retry = repo
+        .rotate_password_reset_token_with_resend_cooldown(
+            customer.id,
+            "retry-reset-token-after-rollback",
+            chrono::Utc::now() + chrono::Duration::hours(1),
+        )
+        .await
+        .expect("retry password reset resend after rollback");
+    assert!(
+        matches!(
+            immediate_retry,
+            api::repos::ResendPasswordResetOutcome::Allowed { .. }
+        ),
+        "customer should be able to retry password-reset resend immediately after rollback"
     );
 
     cleanup_customer(&pool, &email).await;

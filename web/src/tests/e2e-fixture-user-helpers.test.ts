@@ -4,11 +4,14 @@ import { join } from 'node:path';
 import {
 	FIXTURE_AUTH_API_RETRY_BUDGET_MS,
 	adminReactivateCustomerById,
+	arrangeFreshSignupToDashboardWithFixtureFallback,
 	bootstrapFixtureUserForKnownLoginFailure,
 	createRegisteredUser,
 	fetchDisposableTenantRateCardSnapshot,
 	fetchEstimatedBillForToken,
 	formatFixtureSetupFailure,
+	isFreshSignupArrangePrerequisiteFailure,
+	resolveFreshSignupCleanupCustomerId,
 	loginAsUser,
 	setupFailureDetailsFromError,
 	seedMultiUserScenarioWithCreateUser
@@ -37,6 +40,218 @@ describe('e2e fixture user helpers', () => {
 		expect(fixtureSource).not.toMatch(/\bwaitForSubscriptionStatus\b/);
 		expect(fixtureSource).not.toMatch(/\barrangeBillingDunningForFreshSignup\b/);
 		expect(fixtureSource).not.toMatch(/\barrangeRefundedInvoiceForFreshSignup\b/);
+	});
+
+	it('classifies verification-email delivery outages as fresh-signup prerequisites', () => {
+		expect(
+			isFreshSignupArrangePrerequisiteFailure('verification email temporarily unavailable')
+		).toBe(true);
+		expect(
+			isFreshSignupArrangePrerequisiteFailure(
+				'createUser failed: 503 {"error":"verification email temporarily unavailable"}'
+			)
+		).toBe(true);
+	});
+
+	it('fails closed when remote fallback setup throws during fresh-signup arrange', () => {
+		const fixtureSource = readFileSync(join(process.cwd(), 'tests/fixtures/fixtures.ts'), 'utf8');
+
+		expect(fixtureSource).not.toMatch(
+			/fallbackSucceeded\s*=\s*await\s+attemptRemoteSignupFallback\([^)]*\)\.catch\(\(\)\s*=>\s*false\)/
+		);
+	});
+
+	it('resolves cleanup ownership from authenticated session token after successful browser signup', async () => {
+		const resolveCustomerIdByToken = vi.fn().mockResolvedValue('cust-owned-by-session');
+
+		await expect(
+			resolveFreshSignupCleanupCustomerId({
+				sessionToken: 'session-token-123',
+				currentPath: 'http://127.0.0.1:5173/dashboard',
+				responseStatus: 303,
+				responseUrl: 'http://127.0.0.1:5173/signup',
+				resolveCustomerIdByToken
+			})
+		).resolves.toBe('cust-owned-by-session');
+		expect(resolveCustomerIdByToken).toHaveBeenCalledWith('session-token-123');
+	});
+
+	it('fails closed when successful browser signup has no auth cookie token', async () => {
+		await expect(
+			resolveFreshSignupCleanupCustomerId({
+				sessionToken: null,
+				currentPath: 'http://127.0.0.1:5173/dashboard',
+				responseStatus: 303,
+				responseUrl: 'http://127.0.0.1:5173/signup'
+			})
+		).rejects.toThrow('auth cookie token was missing');
+	});
+
+	it('fails closed when customer ownership lookup from session token fails', async () => {
+		await expect(
+			resolveFreshSignupCleanupCustomerId({
+				sessionToken: 'session-token-123',
+				currentPath: 'http://127.0.0.1:5173/dashboard',
+				resolveCustomerIdByToken: async () => {
+					throw new Error('503 upstream');
+				}
+			})
+		).rejects.toThrow('could not resolve customer id from auth cookie token');
+	});
+
+	it('retries transient /account failures before resolving cleanup ownership from session token', async () => {
+		vi.useFakeTimers();
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValueOnce(
+				new Response(JSON.stringify({ error: 'temporary upstream failure' }), { status: 503 })
+			)
+			.mockResolvedValueOnce(
+				new Response(JSON.stringify({ error: 'rate limited' }), {
+					status: 429,
+					headers: { 'retry-after': '0' }
+				})
+			)
+			.mockResolvedValueOnce(
+				makeJsonResponse(200, {
+					id: 'cust-retry-cleanup'
+				})
+			);
+		vi.stubGlobal('fetch', fetchMock as unknown as typeof fetch);
+
+		const promise = resolveFreshSignupCleanupCustomerId({
+			sessionToken: 'session-token-123',
+			currentPath: 'http://127.0.0.1:5173/dashboard'
+		});
+
+		await vi.runAllTimersAsync();
+		await expect(promise).resolves.toBe('cust-retry-cleanup');
+		expect(fetchMock).toHaveBeenCalledTimes(3);
+	});
+
+	it('registers cleanup ownership on successful arrangeFreshSignupToDashboard fallback flow', async () => {
+		const fill = vi.fn().mockResolvedValue(undefined);
+		const click = vi.fn().mockResolvedValue(undefined);
+		const waitForAlert = vi.fn().mockRejectedValue(new Error('alert not shown'));
+		const pageUrl = 'http://127.0.0.1:5173/dashboard';
+		const mockPage = {
+			goto: vi.fn().mockResolvedValue(undefined),
+			waitForURL: vi.fn().mockResolvedValue(undefined),
+			waitForResponse: vi.fn().mockResolvedValue({
+				status: () => 303,
+				url: () => 'http://127.0.0.1:5173/signup'
+			}),
+			url: vi.fn().mockReturnValue(pageUrl),
+			getByLabel: vi.fn().mockReturnValue({ fill }),
+			getByRole: vi.fn((role: string) => {
+				if (role === 'button') {
+					return { click };
+				}
+				if (role === 'alert') {
+					return {
+						waitFor: waitForAlert,
+						isVisible: vi.fn().mockResolvedValue(false),
+						textContent: vi.fn().mockResolvedValue('')
+					};
+				}
+				return {};
+			})
+		};
+		const trackedCustomerIds: string[] = [];
+		const resolveCleanupCustomerId = vi.fn().mockResolvedValue('cust-cleanup-123');
+		const getSessionTokenFromPage = vi.fn().mockResolvedValue('session-token-123');
+
+		const result = await arrangeFreshSignupToDashboardWithFixtureFallback(
+			{
+				page: mockPage as never,
+				signup: {
+					name: 'Signup Lane Fixed Seed',
+					email: 'signup-fixed-seed@e2e.griddle.test',
+					password: 'TestPassword123!'
+				},
+				createUser: vi.fn() as never,
+				trackCustomerForCleanup: (customerId) => trackedCustomerIds.push(customerId)
+			},
+			{
+				resolveCleanupCustomerId,
+				getSessionTokenFromPage
+			}
+		);
+
+		expect(result).toEqual({ prerequisiteFailureMessage: null });
+		expect(resolveCleanupCustomerId).toHaveBeenCalledWith({
+			sessionToken: 'session-token-123',
+			currentPath: pageUrl,
+			responseStatus: 303,
+			responseUrl: 'http://127.0.0.1:5173/signup'
+		});
+		expect(trackedCustomerIds).toEqual(['cust-cleanup-123']);
+	});
+
+	it('registers cleanup ownership after transient /account failures in successful arrange flow', async () => {
+		vi.useFakeTimers();
+		const fill = vi.fn().mockResolvedValue(undefined);
+		const click = vi.fn().mockResolvedValue(undefined);
+		const waitForAlert = vi.fn().mockRejectedValue(new Error('alert not shown'));
+		const pageUrl = 'http://127.0.0.1:5173/dashboard';
+		const mockPage = {
+			goto: vi.fn().mockResolvedValue(undefined),
+			waitForURL: vi.fn().mockResolvedValue(undefined),
+			waitForResponse: vi.fn().mockResolvedValue({
+				status: () => 303,
+				url: () => 'http://127.0.0.1:5173/signup',
+				request: () => ({ method: () => 'POST' })
+			}),
+			url: vi.fn().mockReturnValue(pageUrl),
+			getByLabel: vi.fn().mockReturnValue({ fill }),
+			getByRole: vi.fn((role: string) => {
+				if (role === 'button') {
+					return { click };
+				}
+				if (role === 'alert') {
+					return {
+						waitFor: waitForAlert,
+						isVisible: vi.fn().mockResolvedValue(false),
+						textContent: vi.fn().mockResolvedValue('')
+					};
+				}
+				return {};
+			})
+		};
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValueOnce(
+				new Response(JSON.stringify({ error: 'temporary upstream failure' }), { status: 500 })
+			)
+			.mockResolvedValueOnce(
+				makeJsonResponse(200, {
+					id: 'cust-cleanup-from-default-owner'
+				})
+			);
+		vi.stubGlobal('fetch', fetchMock as unknown as typeof fetch);
+		const trackedCustomerIds: string[] = [];
+		const getSessionTokenFromPage = vi.fn().mockResolvedValue('session-token-123');
+
+		const promise = arrangeFreshSignupToDashboardWithFixtureFallback(
+			{
+				page: mockPage as never,
+				signup: {
+					name: 'Signup Lane Retry Seed',
+					email: 'signup-retry-seed@e2e.griddle.test',
+					password: 'TestPassword123!'
+				},
+				createUser: vi.fn() as never,
+				trackCustomerForCleanup: (customerId) => trackedCustomerIds.push(customerId)
+			},
+			{
+				getSessionTokenFromPage
+			}
+		);
+
+		await vi.runAllTimersAsync();
+		await expect(promise).resolves.toEqual({ prerequisiteFailureMessage: null });
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+		expect(trackedCustomerIds).toEqual(['cust-cleanup-from-default-owner']);
 	});
 
 	beforeEach(() => {

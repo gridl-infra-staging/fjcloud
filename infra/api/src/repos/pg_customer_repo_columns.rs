@@ -26,6 +26,7 @@ updated_at, \
 (to_jsonb(customers)->>'resend_verification_sent_at')::timestamptz AS resend_verification_sent_at, \
 (to_jsonb(customers)->>'password_reset_token') AS password_reset_token, \
 (to_jsonb(customers)->>'password_reset_expires_at')::timestamptz AS password_reset_expires_at, \
+(to_jsonb(customers)->>'resend_password_reset_sent_at')::timestamptz AS resend_password_reset_sent_at, \
 COALESCE((to_jsonb(customers)->>'object_storage_egress_carryforward_cents')::numeric, 0) AS object_storage_egress_carryforward_cents, \
 COALESCE((to_jsonb(customers)->>'failed_login_count')::int, 0) AS failed_login_count, \
 (to_jsonb(customers)->>'failed_login_window_start')::timestamptz AS failed_login_window_start, \

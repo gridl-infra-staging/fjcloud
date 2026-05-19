@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Page } from '@playwright/test';
 import {
+	BETA_FEEDBACK_MAILTO,
 	LEGAL_EFFECTIVE_DATE_TEXT,
 	LEGAL_ENTITY_NAME,
 	LEGAL_SUPPORT_MAILTO,
@@ -166,7 +167,15 @@ function buildLegalPageHtml(options?: {
 	} = options ?? {};
 
 	return `
+		<p>Public beta.</p>
+		<a href="/beta">Learn about the beta</a>
+		<a href="${BETA_FEEDBACK_MAILTO}">Send feedback</a>
+		<a href="${LEGAL_SUPPORT_MAILTO}">Support</a>
 		<a href="${homeHref}">${homeLinkName}</a>
+		<a href="/terms">Terms</a>
+		<a href="/privacy">Privacy</a>
+		<a href="/dpa">DPA</a>
+		<a href="/status">Status</a>
 		<p>${effectiveDate}</p>
 		<a href="${supportHref}">${SUPPORT_EMAIL}</a>
 		<p>${entity}</p>

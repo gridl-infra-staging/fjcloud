@@ -52,7 +52,7 @@ async function attemptCustomerLogin(
 	const loginResponsePromise = page
 		.waitForResponse(
 			(response) =>
-				response.request().method() === 'POST' && response.url().includes('/auth/login'),
+				response.request().method() === 'POST' && response.url().includes('/login'),
 			{ timeout: LOGIN_SETTLE_TIMEOUT_MS }
 		)
 		.catch(() => null);

@@ -12,6 +12,11 @@ export interface MessageResponse {
 	message: string;
 }
 
+export interface MessageWithRetryAfterResponse {
+	message: string;
+	retryAfterSeconds: number | null;
+}
+
 export interface RegisterRequest {
 	name: string;
 	email: string;

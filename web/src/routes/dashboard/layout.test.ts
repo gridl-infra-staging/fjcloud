@@ -413,7 +413,7 @@ describe('Dashboard layout verification banner', () => {
 			);
 		});
 
-		pageState.url = new URL('http://localhost/dashboard/settings');
+		pageState.url = new URL('http://localhost/dashboard/account');
 		await view.rerender({
 			data: buildLayoutData({ profile: unverifiedProfile }),
 			children: childSnippet
@@ -515,10 +515,10 @@ describe('Dashboard layout sidebar navigation', () => {
 		);
 	});
 
-	it('opens and closes mobile drawer without hiding beta and verification banners', async () => {
+	it('opens and closes mobile drawer without hiding compact beta support and verification banners', async () => {
 		renderLayout({ profile: unverifiedProfile });
 
-		expect(screen.getByTestId('dashboard-beta-banner')).toBeInTheDocument();
+		expect(screen.getByTestId('dashboard-beta-support-badge')).toBeInTheDocument();
 		expect(screen.getByTestId('verification-banner')).toBeInTheDocument();
 
 		const mobileDrawer = screen.getByTestId('dashboard-nav-mobile-drawer');
@@ -530,14 +530,14 @@ describe('Dashboard layout sidebar navigation', () => {
 		await fireEvent.click(screen.getByTestId('dashboard-mobile-nav-dismiss'));
 		expect(mobileDrawer).toHaveAttribute('data-nav-open', 'false');
 
-		expect(screen.getByTestId('dashboard-beta-banner')).toBeInTheDocument();
+		expect(screen.getByTestId('dashboard-beta-support-badge')).toBeInTheDocument();
 		expect(screen.getByTestId('verification-banner')).toBeInTheDocument();
 	});
 
 	it('renders beta scope and feedback entry points', () => {
 		renderLayout();
 
-		expect(screen.getByTestId('dashboard-beta-banner')).toHaveTextContent(/public beta/i);
+		expect(screen.getByTestId('dashboard-beta-support-badge')).toHaveTextContent(/public beta/i);
 		expect(screen.getByRole('link', { name: /beta scope/i })).toHaveAttribute('href', '/beta');
 		const feedbackLink = screen.getByRole('link', { name: /send feedback/i });
 		expect(feedbackLink).toHaveAttribute(
@@ -557,7 +557,7 @@ describe('Dashboard layout sidebar navigation', () => {
 		expect(logsLink).toHaveAttribute('href', '/dashboard/logs');
 	});
 
-	it('renders Logs link between API Keys and Settings in nav order', () => {
+	it('renders Logs link between API Keys and Account in nav order', () => {
 		renderLayout();
 		const links = screen.getAllByRole('link').filter((el) => el.closest('nav'));
 		const labels = links.map((el) => el.textContent?.trim());
@@ -574,14 +574,28 @@ describe('Dashboard layout sidebar navigation', () => {
 		expect(migrateLink).toHaveAttribute('href', '/dashboard/migrate');
 	});
 
-	it('renders Migrate link between Logs and Settings in nav order', () => {
+	it('renders Migrate link between Logs and Account in nav order', () => {
 		renderLayout();
 		const links = screen.getAllByRole('link').filter((el) => el.closest('nav'));
 		const labels = links.map((el) => el.textContent?.trim());
 		const migrateIndex = labels.indexOf('Migrate');
 		expect(migrateIndex).toBeGreaterThan(-1);
 		expect(labels.indexOf('Logs')).toBeLessThan(migrateIndex);
-		expect(migrateIndex).toBeLessThan(labels.indexOf('Settings')!);
+		expect(migrateIndex).toBeLessThan(labels.indexOf('Account')!);
+	});
+
+	it('treats /dashboard/settings as an alias of /dashboard/account for active nav styling', async () => {
+		pageState.url = new URL('http://localhost/dashboard/settings');
+		renderLayout();
+
+		const desktopNav = screen.getByTestId('dashboard-nav-desktop');
+		const desktopAccountLink = within(desktopNav).getByRole('link', { name: 'Account' });
+		expect(desktopAccountLink).toHaveClass('bg-[#9fd8d2]');
+
+		await fireEvent.click(screen.getByTestId('dashboard-mobile-nav-trigger'));
+		const mobileNav = screen.getByTestId('dashboard-nav-mobile-drawer');
+		const mobileAccountLink = within(mobileNav).getByRole('link', { name: 'Account' });
+		expect(mobileAccountLink).toHaveClass('bg-[#9fd8d2]/20');
 	});
 });
 

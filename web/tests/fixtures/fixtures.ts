@@ -18,7 +18,9 @@ import {
 	resolveFixtureEnv,
 	resolveRequiredFixtureUserCredentials
 } from '../../playwright.config.contract';
+import { AUTH_COOKIE } from '../../src/lib/server/auth-session-contracts';
 import { requireAdminApiKey, requireNonEmptyString } from './contract-guards';
+import { attemptRemoteSignupFallback } from './fresh_signup_remote_bootstrap';
 import type { EstimatedBillResponse } from '../../src/lib/api/types';
 import type { AdminRateCard } from '../../src/lib/admin-client';
 import {
@@ -79,7 +81,16 @@ type ArrangePaidInvoiceForFreshSignupResult = {
 	billingMonth: string;
 };
 
+type ArrangeFreshSignupToDashboardResult = {
+	prerequisiteFailureMessage: string | null;
+};
+
 type TrackCustomerForCleanupFn = (customerId: string) => void;
+type ArrangeFreshSignupToDashboardDeps = {
+	resolveCleanupCustomerId?: typeof resolveFreshSignupCleanupCustomerId;
+	getSessionTokenFromPage?: (page: Page) => Promise<string | null>;
+	attemptRemoteFallback?: typeof attemptRemoteSignupFallback;
+};
 
 const JSON_CONTENT_TYPE = { 'Content-Type': 'application/json' } as const;
 export const FIXTURE_BOOTSTRAP_REMEDIATION_COMMAND = 'scripts/bootstrap-env-local.sh';
@@ -96,7 +107,8 @@ type FixtureSetupFailureParams = {
 	bootstrapCommand?: string;
 };
 
-const FRESH_SIGNUP_ARRANGE_SETUP_FAILURE_ALERT_PATTERN = /service is unavailable|verify API_URL/i;
+const FRESH_SIGNUP_ARRANGE_SETUP_FAILURE_ALERT_PATTERN =
+	/service is unavailable|verify API_URL|verification email temporarily unavailable/i;
 const FIXTURE_CUSTOMER_MISSING_LOGIN_ALERT_PATTERN = /invalid email or password/i;
 const VERIFY_EMAIL_TOKEN_PATH_PATTERN = /\/verify-email\/[A-Za-z0-9_-]+/g;
 const URL_USERINFO_PATTERN = /\b([A-Za-z][A-Za-z0-9+.-]*:\/\/)([^/\s@]+)@/g;
@@ -174,6 +186,13 @@ type ThrowFreshSignupArrangeFailureParams = {
 	responseStatus?: number;
 	responseUrl?: string;
 };
+type ResolveFreshSignupCleanupCustomerIdParams = {
+	sessionToken: string | null;
+	currentPath: string;
+	responseStatus?: number;
+	responseUrl?: string;
+	resolveCustomerIdByToken?: (token: string) => Promise<string>;
+};
 type ThrowBillingPortalArrangeFailureParams = {
 	currentPath: string;
 	error: unknown;
@@ -203,6 +222,35 @@ export function throwFreshSignupArrangeFailure({
 			responseUrl
 		})
 	);
+}
+
+/** Resolve cleanup ownership from an authenticated signup session or throw fixture-owned setup errors. */
+export async function resolveFreshSignupCleanupCustomerId({
+	sessionToken,
+	currentPath,
+	responseStatus,
+	responseUrl,
+	resolveCustomerIdByToken = getCustomerIdForToken
+}: ResolveFreshSignupCleanupCustomerIdParams): Promise<string> {
+	if (!sessionToken) {
+		throwFreshSignupArrangeFailure({
+			currentPath,
+			alertText: 'Sign up reached /dashboard but auth cookie token was missing.',
+			responseStatus,
+			responseUrl
+		});
+	}
+
+	try {
+		return await resolveCustomerIdByToken(sessionToken);
+	} catch (error) {
+		throwFreshSignupArrangeFailure({
+			currentPath,
+			alertText: `Sign up reached /dashboard but fixture could not resolve customer id from auth cookie token: ${setupFailureDetailsFromError(error)}`,
+			responseStatus,
+			responseUrl
+		});
+	}
 }
 
 /** Throws a fixture-owned fail-closed setup error for billing-portal prerequisites. */
@@ -269,6 +317,10 @@ function getRetryDelayMs(attempt: number, retryAfterHeader: string | null): numb
 	const retryAfterMs =
 		Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0 ? retryAfterSeconds * 1000 : 0;
 	return Math.max(retryAfterMs, getTransientRetryDelayMs(attempt));
+}
+
+function isTransientAccountLookupFailure(status: number): boolean {
+	return status === 429 || status >= 500;
 }
 
 // Keep the setup:user timeout aligned with the helper retry contract so
@@ -678,26 +730,44 @@ async function getAuthToken(): Promise<string> {
 	throw new Error('Auth login failed: exhausted retries after 429 rate limiting');
 }
 
+async function getAccountPayloadForTokenWithRetries(
+	token: string,
+	contextLabel: string
+): Promise<{ id?: string; billing_plan?: 'free' | 'shared' }> {
+	const maxRetries = TRANSIENT_API_MAX_RETRIES;
+	let lastTransientFailure = 'none';
+
+	for (let attempt = 0; attempt < maxRetries; attempt++) {
+		const accountResponse = await callJsonApi(fetch, fixtureEnv.apiUrl, 'GET', '/account', {
+			Authorization: `Bearer ${token}`
+		});
+		if (accountResponse.ok) {
+			return (await accountResponse.json()) as { id?: string; billing_plan?: 'free' | 'shared' };
+		}
+
+		const failureDetails = `${accountResponse.status} ${await accountResponse.text()}`;
+		if (!isTransientAccountLookupFailure(accountResponse.status)) {
+			throw new Error(`${contextLabel} failed: ${failureDetails}`);
+		}
+
+		lastTransientFailure = failureDetails;
+		if (attempt < maxRetries - 1) {
+			await sleep(getRetryDelayMs(attempt, accountResponse.headers.get('retry-after')));
+		}
+	}
+
+	throw new Error(`${contextLabel} failed after transient retries: ${lastTransientFailure}`);
+}
+
 async function getCustomerId(): Promise<string> {
 	if (_customerId) return _customerId;
 	const token = await getAuthToken();
-	const maxRetries = 6;
-	for (let attempt = 0; attempt < maxRetries; attempt++) {
-		const res = await fetch(`${fixtureEnv.apiUrl}/account`, {
-			headers: { Authorization: `Bearer ${token}` }
-		});
-		if (res.status === 429) {
-			await sleep(getTransientRetryDelayMs(attempt));
-			continue;
-		}
-		if (!res.ok) {
-			throw new Error(`GET /account failed: ${res.status} ${await res.text()}`);
-		}
-		const data = (await res.json()) as { id: string };
-		_customerId = data.id;
-		return _customerId;
-	}
-	throw new Error('GET /account failed: exhausted retries after 429 rate limiting');
+	const accountPayload = await getAccountPayloadForTokenWithRetries(token, 'GET /account');
+	_customerId = requireNonEmptyString(
+		accountPayload.id ?? '',
+		'GET /account returned an empty customer id'
+	);
+	return _customerId;
 }
 
 async function apiCall(
@@ -937,6 +1007,112 @@ function buildFreshSignupIdentity(seed?: string): FreshSignupIdentity {
 	};
 }
 
+export async function arrangeFreshSignupToDashboardWithFixtureFallback(
+	{
+		page,
+		signup,
+		createUser,
+		trackCustomerForCleanup
+	}: {
+		page: Page;
+		signup: FreshSignupIdentity;
+		createUser: CreateUserFn;
+		trackCustomerForCleanup: TrackCustomerForCleanupFn;
+	},
+	{
+		resolveCleanupCustomerId = resolveFreshSignupCleanupCustomerId,
+		getSessionTokenFromPage = getAuthCookieTokenFromPage,
+		attemptRemoteFallback = attemptRemoteSignupFallback
+	}: ArrangeFreshSignupToDashboardDeps = {}
+): Promise<ArrangeFreshSignupToDashboardResult> {
+	await page.goto('/signup');
+	await page.getByLabel('Name').fill(signup.name);
+	await page.getByLabel('Email').fill(signup.email);
+	await page.getByLabel('Password', { exact: true }).fill(signup.password);
+	await page.getByLabel('Confirm Password').fill(signup.password);
+
+	const signupResponsePromise = page
+		.waitForResponse(
+			(response) =>
+				response.request().method() === 'POST' && response.url().includes('/signup'),
+			{ timeout: 20_000 }
+		)
+		.catch(() => null);
+	await page.getByRole('button', { name: 'Sign Up' }).click();
+
+	const signupAlert = page.getByRole('alert');
+	await Promise.race([
+		page.waitForURL(/\/dashboard/, { timeout: 20_000 }),
+		signupAlert.waitFor({ state: 'visible', timeout: 20_000 })
+	]).catch(() => undefined);
+
+	if (/\/dashboard/.test(page.url())) {
+		const signupResponse = await signupResponsePromise;
+		const customerId = await resolveCleanupCustomerId({
+			sessionToken: await getSessionTokenFromPage(page),
+			currentPath: page.url(),
+			responseStatus: signupResponse?.status(),
+			responseUrl: signupResponse?.url()
+		});
+		trackCustomerForCleanup(customerId);
+		return { prerequisiteFailureMessage: null };
+	}
+
+	const signupResponse = await signupResponsePromise;
+	const alertVisible = await signupAlert.isVisible().catch(() => false);
+	const alertText = alertVisible ? ((await signupAlert.textContent())?.trim() ?? '') : '';
+	let fallbackSucceeded = false;
+	let fallbackErrorDetail: string | null = null;
+	try {
+		fallbackSucceeded = await attemptRemoteFallback({
+			page,
+			email: signup.email,
+			password: signup.password,
+			name: signup.name,
+			createUser,
+			remoteTargetOptInEnv: REMOTE_TARGET_OPT_IN_ENV
+		});
+	} catch (error) {
+		fallbackErrorDetail = setupFailureDetailsFromError(error);
+	}
+
+	if (fallbackSucceeded) {
+		return { prerequisiteFailureMessage: null };
+	}
+	if (fallbackErrorDetail) {
+		throwFreshSignupArrangeFailure({
+			currentPath: page.url(),
+			alertText: [
+				alertText || 'Sign up did not reach /dashboard and no alert was visible within 20 seconds.',
+				`Remote signup fallback failed: ${fallbackErrorDetail}`
+			].join(' | '),
+			responseStatus: signupResponse?.status(),
+			responseUrl: signupResponse?.url()
+		});
+	}
+
+	if (isFreshSignupArrangePrerequisiteFailure(alertText)) {
+		return {
+			prerequisiteFailureMessage: alertText || 'unknown alert'
+		};
+	}
+
+	throwFreshSignupArrangeFailure({
+		currentPath: page.url(),
+		alertText:
+			alertText || 'Sign up did not reach /dashboard and no alert was visible within 20 seconds.',
+		responseStatus: signupResponse?.status(),
+		responseUrl: signupResponse?.url()
+	});
+}
+
+async function getAuthCookieTokenFromPage(page: Page): Promise<string | null> {
+	const sessionCookie = (await page.context().cookies()).find(
+		(cookie) => cookie.name === AUTH_COOKIE && cookie.value.trim().length > 0
+	);
+	return sessionCookie?.value.trim() || null;
+}
+
 function currentUtcBillingMonth(now = new Date()): string {
 	const month = String(now.getUTCMonth() + 1).padStart(2, '0');
 	return `${now.getUTCFullYear()}-${month}`;
@@ -1123,16 +1299,7 @@ async function completeFreshSignupEmailVerificationViaRoute(
 }
 
 async function getCustomerIdForToken(token: string): Promise<string> {
-	const accountResponse = await callJsonApi(fetch, fixtureEnv.apiUrl, 'GET', '/account', {
-		Authorization: `Bearer ${token}`
-	});
-	if (!accountResponse.ok) {
-		throw new Error(
-			`getCustomerIdForToken failed: ${accountResponse.status} ${await accountResponse.text()}`
-		);
-	}
-
-	const accountPayload = (await accountResponse.json()) as { id?: string };
+	const accountPayload = await getAccountPayloadForTokenWithRetries(token, 'getCustomerIdForToken');
 	return requireNonEmptyString(
 		accountPayload.id ?? '',
 		'getCustomerIdForToken received an empty customer id'
@@ -1590,6 +1757,10 @@ type ArrangePaidInvoiceForFreshSignupFn = (
 	email: string,
 	password: string
 ) => Promise<ArrangePaidInvoiceForFreshSignupResult>;
+type ArrangeFreshSignupToDashboardFn = (
+	page: Page,
+	signup: FreshSignupIdentity
+) => Promise<ArrangeFreshSignupToDashboardResult>;
 type IsFreshSignupArrangePrerequisiteFailureFn = (alertText: string) => boolean;
 type ThrowFreshSignupArrangeFailureFn = (input: {
 	currentPath: string;
@@ -1639,6 +1810,8 @@ type E2eFixtures = {
 	completeFreshSignupEmailVerification: CompleteFreshSignupEmailVerificationFn;
 	/** Advance a fresh verified signup through paid billing and invoice-email evidence. */
 	arrangePaidInvoiceForFreshSignup: ArrangePaidInvoiceForFreshSignupFn;
+	/** Create a fresh signup through UI and land on /dashboard with remote-target fallback. */
+	arrangeFreshSignupToDashboard: ArrangeFreshSignupToDashboardFn;
 	/** Detects known prerequisite/setup failures surfaced from fresh-signup UI alerts. */
 	isFreshSignupArrangePrerequisiteFailure: IsFreshSignupArrangePrerequisiteFailureFn;
 	/** Throws a fixture-owned fail-closed setup error for fresh-signup prerequisites. */
@@ -1764,6 +1937,17 @@ export const test = base.extend<E2eFixtures & E2eInternalFixtures>({
 			arrangePaidInvoiceForFreshSignup({
 				email,
 				password,
+				trackCustomerForCleanup: _trackCustomerForCleanup
+			})
+		);
+	},
+
+	arrangeFreshSignupToDashboard: async ({ createUser, _trackCustomerForCleanup }, use) => {
+		await use((page, signup) =>
+			arrangeFreshSignupToDashboardWithFixtureFallback({
+				page,
+				signup,
+				createUser,
 				trackCustomerForCleanup: _trackCustomerForCleanup
 			})
 		);

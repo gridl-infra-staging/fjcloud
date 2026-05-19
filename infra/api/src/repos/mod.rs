@@ -17,6 +17,7 @@ pub mod pg_api_key_repo;
 pub mod pg_cold_snapshot_repo;
 pub mod pg_customer_repo;
 mod pg_customer_repo_columns;
+mod pg_customer_repo_password_reset_resend;
 mod pg_customer_repo_quota_warning;
 pub mod pg_deployment_repo;
 pub mod pg_dispute_repo;
@@ -43,8 +44,8 @@ pub mod webhook_event_repo;
 pub use api_key_repo::ApiKeyRepo;
 pub use cold_snapshot_repo::ColdSnapshotRepo;
 pub use customer_repo::{
-    CustomerRepo, ResendVerificationOutcome, ResendVerificationReservation,
-    RESEND_VERIFICATION_COOLDOWN_SECONDS,
+    CustomerRepo, ResendPasswordResetOutcome, ResendPasswordResetReservation,
+    ResendVerificationOutcome, ResendVerificationReservation, RESEND_VERIFICATION_COOLDOWN_SECONDS,
 };
 pub use deployment_repo::DeploymentRepo;
 pub use dispute_repo::{DisputeRepo, DisputeRow, DisputeUpsertInput};

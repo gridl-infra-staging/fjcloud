@@ -39,6 +39,10 @@ pub(super) fn build_auth_rate_limited_routes(
         .route("/auth/login", post(auth::login))
         .route("/auth/verify-email", post(auth::verify_email))
         .route("/auth/forgot-password", post(auth::forgot_password))
+        .route(
+            "/auth/resend-password-reset",
+            post(auth::resend_password_reset),
+        )
         .route("/auth/reset-password", post(auth::reset_password))
         .route("/auth/resend-verification", post(auth::resend_verification))
         .route("/auth/oauth/:provider/start", get(oauth::start_oauth))

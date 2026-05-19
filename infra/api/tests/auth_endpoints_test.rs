@@ -18,7 +18,7 @@ use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use http_body_util::BodyExt;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, OnceLock};
 use tower::ServiceExt;
 
 // ---------------------------------------------------------------------------
@@ -56,6 +56,42 @@ fn post_bearer_empty(uri: &str, bearer: &str) -> Request<Body> {
         .header("authorization", format!("Bearer {bearer}"))
         .body(Body::empty())
         .unwrap()
+}
+
+fn auth_test_env_lock() -> &'static Mutex<()> {
+    static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+    LOCK.get_or_init(|| Mutex::new(()))
+}
+
+struct EnvVarGuard {
+    key: &'static str,
+    previous: Option<String>,
+}
+
+impl EnvVarGuard {
+    fn set(key: &'static str, value: Option<&str>) -> Self {
+        let previous = std::env::var(key).ok();
+        // SAFETY: auth_test_env_lock serializes process-env mutations in this test binary.
+        unsafe {
+            match value {
+                Some(v) => std::env::set_var(key, v),
+                None => std::env::remove_var(key),
+            }
+        }
+        Self { key, previous }
+    }
+}
+
+impl Drop for EnvVarGuard {
+    fn drop(&mut self) {
+        // SAFETY: auth_test_env_lock serializes process-env mutations in this test binary.
+        unsafe {
+            match &self.previous {
+                Some(value) => std::env::set_var(self.key, value),
+                None => std::env::remove_var(self.key),
+            }
+        }
+    }
 }
 
 #[derive(Default)]
@@ -183,7 +219,7 @@ impl EmailService for FailSecondVerificationEmailService {
             .verification_attempt_count
             .fetch_add(1, Ordering::SeqCst)
             + 1;
-        if attempt == 2 {
+        if (2..=3).contains(&attempt) {
             return Err(EmailError::DeliveryFailed(
                 "forced resend delivery failure".to_string(),
             ));
@@ -197,6 +233,189 @@ impl EmailService for FailSecondVerificationEmailService {
         _reset_token: &str,
     ) -> Result<(), EmailError> {
         Ok(())
+    }
+
+    async fn send_invoice_ready_email(
+        &self,
+        _to: &str,
+        _invoice_id: &str,
+        _invoice_url: &str,
+        _pdf_url: Option<&str>,
+    ) -> Result<(), EmailError> {
+        Ok(())
+    }
+
+    async fn send_quota_warning_email(
+        &self,
+        _to: &str,
+        _metric: &str,
+        _percent_used: f64,
+        _current_usage: u64,
+        _limit: u64,
+    ) -> Result<(), EmailError> {
+        Ok(())
+    }
+
+    async fn send_dunning_retry_scheduled_email(
+        &self,
+        _to: &str,
+        _request: &DunningRetryScheduledEmailRequest<'_>,
+    ) -> Result<(), EmailError> {
+        Ok(())
+    }
+
+    async fn send_dunning_retries_exhausted_email(
+        &self,
+        _to: &str,
+        _request: &DunningRetriesExhaustedEmailRequest<'_>,
+    ) -> Result<(), EmailError> {
+        Ok(())
+    }
+
+    async fn send_dunning_recovered_after_failure_email(
+        &self,
+        _to: &str,
+        _request: &DunningRecoveredAfterFailureEmailRequest<'_>,
+    ) -> Result<(), EmailError> {
+        Ok(())
+    }
+
+    async fn send_broadcast_email(
+        &self,
+        _to: &str,
+        _subject: &str,
+        _html_body: Option<&str>,
+        _text_body: Option<&str>,
+    ) -> Result<BroadcastDeliveryStatus, EmailError> {
+        Ok(BroadcastDeliveryStatus::Sent)
+    }
+}
+
+#[derive(Default)]
+struct FailFirstVerificationEmailService {
+    verification_attempt_count: AtomicUsize,
+}
+
+impl FailFirstVerificationEmailService {
+    fn verification_attempts(&self) -> usize {
+        self.verification_attempt_count.load(Ordering::SeqCst)
+    }
+}
+
+#[async_trait]
+impl EmailService for FailFirstVerificationEmailService {
+    async fn send_verification_email(
+        &self,
+        _to: &str,
+        _verify_token: &str,
+    ) -> Result<(), EmailError> {
+        let attempt = self
+            .verification_attempt_count
+            .fetch_add(1, Ordering::SeqCst)
+            + 1;
+        if attempt == 1 {
+            return Err(EmailError::DeliveryFailed(
+                "forced first-attempt failure".to_string(),
+            ));
+        }
+        Ok(())
+    }
+
+    async fn send_password_reset_email(
+        &self,
+        _to: &str,
+        _reset_token: &str,
+    ) -> Result<(), EmailError> {
+        Ok(())
+    }
+
+    async fn send_invoice_ready_email(
+        &self,
+        _to: &str,
+        _invoice_id: &str,
+        _invoice_url: &str,
+        _pdf_url: Option<&str>,
+    ) -> Result<(), EmailError> {
+        Ok(())
+    }
+
+    async fn send_quota_warning_email(
+        &self,
+        _to: &str,
+        _metric: &str,
+        _percent_used: f64,
+        _current_usage: u64,
+        _limit: u64,
+    ) -> Result<(), EmailError> {
+        Ok(())
+    }
+
+    async fn send_dunning_retry_scheduled_email(
+        &self,
+        _to: &str,
+        _request: &DunningRetryScheduledEmailRequest<'_>,
+    ) -> Result<(), EmailError> {
+        Ok(())
+    }
+
+    async fn send_dunning_retries_exhausted_email(
+        &self,
+        _to: &str,
+        _request: &DunningRetriesExhaustedEmailRequest<'_>,
+    ) -> Result<(), EmailError> {
+        Ok(())
+    }
+
+    async fn send_dunning_recovered_after_failure_email(
+        &self,
+        _to: &str,
+        _request: &DunningRecoveredAfterFailureEmailRequest<'_>,
+    ) -> Result<(), EmailError> {
+        Ok(())
+    }
+
+    async fn send_broadcast_email(
+        &self,
+        _to: &str,
+        _subject: &str,
+        _html_body: Option<&str>,
+        _text_body: Option<&str>,
+    ) -> Result<BroadcastDeliveryStatus, EmailError> {
+        Ok(BroadcastDeliveryStatus::Sent)
+    }
+}
+
+#[derive(Default)]
+struct AlwaysFailPasswordResetEmailService {
+    password_reset_attempt_count: AtomicUsize,
+}
+
+impl AlwaysFailPasswordResetEmailService {
+    fn password_reset_attempts(&self) -> usize {
+        self.password_reset_attempt_count.load(Ordering::SeqCst)
+    }
+}
+
+#[async_trait]
+impl EmailService for AlwaysFailPasswordResetEmailService {
+    async fn send_verification_email(
+        &self,
+        _to: &str,
+        _verify_token: &str,
+    ) -> Result<(), EmailError> {
+        Ok(())
+    }
+
+    async fn send_password_reset_email(
+        &self,
+        _to: &str,
+        _reset_token: &str,
+    ) -> Result<(), EmailError> {
+        self.password_reset_attempt_count
+            .fetch_add(1, Ordering::SeqCst);
+        Err(EmailError::DeliveryFailed(
+            "forced password-reset failure".to_string(),
+        ))
     }
 
     async fn send_invoice_ready_email(
@@ -903,6 +1122,29 @@ async fn forgot_password_sends_reset_email() {
 }
 
 #[tokio::test]
+async fn register_retries_verification_email_before_succeeding() {
+    let repo = common::mock_repo();
+    let email_svc = Arc::new(FailFirstVerificationEmailService::default());
+    let app = common::build_test_app_with_email(repo, email_svc.clone());
+
+    let req = json_post(
+        "/auth/register",
+        serde_json::json!({
+            "name": "RetrySignup",
+            "email": "retry-signup@example.com",
+            "password": "strongpassword123"
+        }),
+    );
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::CREATED);
+    assert_eq!(
+        email_svc.verification_attempts(),
+        2,
+        "register should retry verification email delivery once before succeeding"
+    );
+}
+
+#[tokio::test]
 async fn forgot_password_for_unknown_email_returns_200() {
     // Must not reveal whether email exists
     let repo = common::mock_repo();
@@ -1407,6 +1649,7 @@ async fn customer_serialization_omits_sensitive_fields() {
         resend_verification_sent_at: None,
         password_reset_token: Some("reset-token-456".to_string()),
         password_reset_expires_at: Some(now),
+        resend_password_reset_sent_at: None,
         last_accessed_at: None,
         overdue_invoice_count: 0,
         object_storage_egress_carryforward_cents: rust_decimal::Decimal::new(37, 2),
@@ -1981,7 +2224,8 @@ async fn resend_verification_suspended_account_returns_403() {
 #[tokio::test]
 async fn resend_verification_returns_503_when_email_delivery_fails() {
     let repo = common::mock_repo();
-    let app = common::build_test_app_with_email(repo, Arc::new(AlwaysFailEmailService));
+    let registration_app = common::test_app_with_repo(repo.clone());
+    let resend_app = common::build_test_app_with_email(repo, Arc::new(AlwaysFailEmailService));
 
     let reg_req = json_post(
         "/auth/register",
@@ -1991,13 +2235,13 @@ async fn resend_verification_returns_503_when_email_delivery_fails() {
             "password": "strongpassword123"
         }),
     );
-    let reg_resp = app.clone().oneshot(reg_req).await.unwrap();
+    let reg_resp = registration_app.oneshot(reg_req).await.unwrap();
     assert_eq!(reg_resp.status(), StatusCode::CREATED);
     let reg_json = body_json(reg_resp).await;
     let jwt = reg_json["token"].as_str().unwrap().to_string();
 
     let resend_req = post_bearer_empty("/auth/resend-verification", &jwt);
-    let resend_resp = app.oneshot(resend_req).await.unwrap();
+    let resend_resp = resend_app.oneshot(resend_req).await.unwrap();
     assert_eq!(resend_resp.status(), StatusCode::SERVICE_UNAVAILABLE);
     let resend_json = body_json(resend_resp).await;
     assert_eq!(
@@ -2143,11 +2387,294 @@ async fn resend_verification_rollback_error_returns_500_instead_of_retryable_503
 }
 
 // ===========================================================================
+// POST /auth/resend-password-reset
+// ===========================================================================
+
+#[tokio::test]
+async fn resend_password_reset_rotates_token_and_suppresses_cooldown_enumeration_signal() {
+    let repo = common::mock_repo();
+    let email_svc = Arc::new(MockEmailService::new());
+    let app = common::build_test_app_with_email(repo.clone(), email_svc.clone());
+
+    let reg_req = json_post(
+        "/auth/register",
+        serde_json::json!({
+            "name": "ResetResend",
+            "email": "reset-resend@example.com",
+            "password": "strongpassword123"
+        }),
+    );
+    let reg_resp = app.clone().oneshot(reg_req).await.unwrap();
+    assert_eq!(reg_resp.status(), StatusCode::CREATED);
+
+    let forgot_req = json_post(
+        "/auth/forgot-password",
+        serde_json::json!({ "email": "reset-resend@example.com" }),
+    );
+    let forgot_resp = app.clone().oneshot(forgot_req).await.unwrap();
+    assert_eq!(forgot_resp.status(), StatusCode::OK);
+
+    let baseline = repo
+        .find_by_email("reset-resend@example.com")
+        .await
+        .unwrap()
+        .unwrap();
+    let baseline_token = baseline
+        .password_reset_token
+        .clone()
+        .expect("forgot-password should set baseline token");
+    assert!(
+        baseline.resend_password_reset_sent_at.is_none(),
+        "forgot-password should not start resend cooldown"
+    );
+
+    let resend_req = json_post(
+        "/auth/resend-password-reset",
+        serde_json::json!({ "email": "reset-resend@example.com" }),
+    );
+    let resend_resp = app.clone().oneshot(resend_req).await.unwrap();
+    assert_eq!(resend_resp.status(), StatusCode::OK);
+    let resend_json = body_json(resend_resp).await;
+    assert_eq!(
+        resend_json["message"],
+        "if an account exists with that email, a password reset link has been sent"
+    );
+
+    let after = repo
+        .find_by_email("reset-resend@example.com")
+        .await
+        .unwrap()
+        .unwrap();
+    let rotated_token = after
+        .password_reset_token
+        .clone()
+        .expect("resend-password-reset should keep a reset token");
+    assert_ne!(
+        rotated_token, baseline_token,
+        "resend-password-reset should rotate to a new token"
+    );
+    assert!(
+        after.resend_password_reset_sent_at.is_some(),
+        "resend-password-reset should start cooldown timestamp"
+    );
+
+    let second_resend_req = json_post(
+        "/auth/resend-password-reset",
+        serde_json::json!({ "email": "reset-resend@example.com" }),
+    );
+    let second_resend_resp = app.oneshot(second_resend_req).await.unwrap();
+    assert_eq!(second_resend_resp.status(), StatusCode::OK);
+    assert!(
+        second_resend_resp.headers().get("retry-after").is_none(),
+        "public resend-password-reset responses must not reveal cooldown via Retry-After"
+    );
+    let second_resend_json = body_json(second_resend_resp).await;
+    assert_eq!(
+        second_resend_json["message"],
+        "if an account exists with that email, a password reset link has been sent"
+    );
+
+    let after_second = repo
+        .find_by_email("reset-resend@example.com")
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        after_second.password_reset_token.as_deref(),
+        Some(rotated_token.as_str()),
+        "cooldown response must keep rotated token unchanged"
+    );
+
+    let emails = email_svc.sent_emails();
+    assert_eq!(
+        emails.len(),
+        3,
+        "signup + forgot + resend should send 3 emails"
+    );
+    assert_eq!(emails[2].to, "reset-resend@example.com");
+    assert_eq!(emails[2].subject, "Reset your password");
+    assert!(
+        emails[2]
+            .html_body
+            .contains(&format!("reset-password/{rotated_token}")),
+        "resend-password-reset email should include rotated token path"
+    );
+}
+
+#[tokio::test]
+async fn resend_password_reset_unknown_email_returns_200_without_email_delivery() {
+    let repo = common::mock_repo();
+    let email_svc = Arc::new(MockEmailService::new());
+    let app = common::build_test_app_with_email(repo, email_svc.clone());
+
+    let req = json_post(
+        "/auth/resend-password-reset",
+        serde_json::json!({ "email": "does-not-exist@example.com" }),
+    );
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let json = body_json(resp).await;
+    assert_eq!(
+        json["message"],
+        "if an account exists with that email, a password reset link has been sent"
+    );
+    assert!(
+        email_svc.sent_emails().is_empty(),
+        "unknown email must not send any password-reset email"
+    );
+}
+
+#[tokio::test]
+async fn resend_password_reset_delivery_failure_restores_state_and_returns_200() {
+    let repo = common::mock_repo();
+
+    let reg_app = common::test_app_with_repo(repo.clone());
+    let reg_req = json_post(
+        "/auth/register",
+        serde_json::json!({
+            "name": "ResetResendFail",
+            "email": "reset-resend-fail@example.com",
+            "password": "strongpassword123"
+        }),
+    );
+    let reg_resp = reg_app.clone().oneshot(reg_req).await.unwrap();
+    assert_eq!(reg_resp.status(), StatusCode::CREATED);
+
+    let forgot_req = json_post(
+        "/auth/forgot-password",
+        serde_json::json!({ "email": "reset-resend-fail@example.com" }),
+    );
+    let forgot_resp = reg_app.oneshot(forgot_req).await.unwrap();
+    assert_eq!(forgot_resp.status(), StatusCode::OK);
+
+    let before_failed_resend = repo
+        .find_by_email("reset-resend-fail@example.com")
+        .await
+        .unwrap()
+        .unwrap();
+    let last_deliverable_token = before_failed_resend
+        .password_reset_token
+        .clone()
+        .expect("forgot-password should set reset token");
+    assert!(
+        before_failed_resend.resend_password_reset_sent_at.is_none(),
+        "forgot-password should not consume resend cooldown"
+    );
+
+    let failing_app = common::build_test_app_with_email(
+        repo.clone(),
+        Arc::new(AlwaysFailPasswordResetEmailService::default()),
+    );
+    let failing_resend_req = json_post(
+        "/auth/resend-password-reset",
+        serde_json::json!({ "email": "reset-resend-fail@example.com" }),
+    );
+    let failing_resend_resp = failing_app.oneshot(failing_resend_req).await.unwrap();
+    assert_eq!(failing_resend_resp.status(), StatusCode::OK);
+    let failing_resend_json = body_json(failing_resend_resp).await;
+    assert_eq!(
+        failing_resend_json["message"],
+        "if an account exists with that email, a password reset link has been sent"
+    );
+
+    let after_failed_resend = repo
+        .find_by_email("reset-resend-fail@example.com")
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        after_failed_resend.password_reset_token.as_deref(),
+        Some(last_deliverable_token.as_str()),
+        "503 resend-password-reset must restore last deliverable token"
+    );
+    assert!(
+        after_failed_resend.resend_password_reset_sent_at.is_none(),
+        "503 resend-password-reset must restore cooldown state"
+    );
+}
+
+#[tokio::test]
+async fn resend_password_reset_rollback_failure_returns_500() {
+    let repo = common::mock_repo();
+    let setup_app = common::test_app_with_repo(repo.clone());
+
+    let reg_req = json_post(
+        "/auth/register",
+        serde_json::json!({
+            "name": "ResetRollbackFailure",
+            "email": "reset-rollback-failure@example.com",
+            "password": "strongpassword123"
+        }),
+    );
+    let reg_resp = setup_app.clone().oneshot(reg_req).await.unwrap();
+    assert_eq!(reg_resp.status(), StatusCode::CREATED);
+
+    let forgot_req = json_post(
+        "/auth/forgot-password",
+        serde_json::json!({ "email": "reset-rollback-failure@example.com" }),
+    );
+    let forgot_resp = setup_app.oneshot(forgot_req).await.unwrap();
+    assert_eq!(forgot_resp.status(), StatusCode::OK);
+
+    repo.fail_next_resend_rollback_with_false();
+    let failing_app = common::build_test_app_with_email(
+        repo,
+        Arc::new(AlwaysFailPasswordResetEmailService::default()),
+    );
+    let resend_req = json_post(
+        "/auth/resend-password-reset",
+        serde_json::json!({ "email": "reset-rollback-failure@example.com" }),
+    );
+    let resend_resp = failing_app.oneshot(resend_req).await.unwrap();
+    assert_eq!(resend_resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    let resend_json = body_json(resend_resp).await;
+    assert_eq!(resend_json["error"], "internal server error");
+}
+
+#[tokio::test]
+async fn resend_password_reset_rollback_error_returns_500() {
+    let repo = common::mock_repo();
+    let setup_app = common::test_app_with_repo(repo.clone());
+
+    let reg_req = json_post(
+        "/auth/register",
+        serde_json::json!({
+            "name": "ResetRollbackError",
+            "email": "reset-rollback-error@example.com",
+            "password": "strongpassword123"
+        }),
+    );
+    let reg_resp = setup_app.clone().oneshot(reg_req).await.unwrap();
+    assert_eq!(reg_resp.status(), StatusCode::CREATED);
+
+    let forgot_req = json_post(
+        "/auth/forgot-password",
+        serde_json::json!({ "email": "reset-rollback-error@example.com" }),
+    );
+    let forgot_resp = setup_app.oneshot(forgot_req).await.unwrap();
+    assert_eq!(forgot_resp.status(), StatusCode::OK);
+
+    repo.fail_next_resend_rollback_with_error("injected reset rollback error");
+    let failing_app = common::build_test_app_with_email(
+        repo,
+        Arc::new(AlwaysFailPasswordResetEmailService::default()),
+    );
+    let resend_req = json_post(
+        "/auth/resend-password-reset",
+        serde_json::json!({ "email": "reset-rollback-error@example.com" }),
+    );
+    let resend_resp = failing_app.oneshot(resend_req).await.unwrap();
+    assert_eq!(resend_resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    let resend_json = body_json(resend_resp).await;
+    assert_eq!(resend_json["error"], "internal server error");
+}
+
+// ===========================================================================
 // Email delivery failure — best-effort tests
 // ===========================================================================
 
 #[tokio::test]
-async fn register_returns_201_when_email_delivery_fails() {
+async fn register_returns_503_and_rolls_back_customer_when_email_delivery_fails() {
     let repo = common::mock_repo();
     let app = common::build_test_app_with_email(repo.clone(), Arc::new(AlwaysFailEmailService));
 
@@ -2163,30 +2690,43 @@ async fn register_returns_201_when_email_delivery_fails() {
     let resp = app.oneshot(req).await.unwrap();
     assert_eq!(
         resp.status(),
-        StatusCode::CREATED,
-        "registration must succeed even when verification email delivery fails"
+        StatusCode::SERVICE_UNAVAILABLE,
+        "registration should fail closed when verification email delivery fails"
     );
 
     let json = body_json(resp).await;
-    assert!(
-        json["customer_id"].as_str().is_some(),
-        "response should contain customer_id"
+    assert_eq!(
+        json["error"], "verification email temporarily unavailable",
+        "register should return a retryable verification-email delivery error"
     );
 
-    let customer = repo
-        .find_by_email("emailfail@example.com")
-        .await
-        .unwrap()
-        .expect("customer should exist despite email failure");
+    let customer_after_failure = repo.find_by_email("emailfail@example.com").await.unwrap();
     assert!(
-        customer.email_verify_token.is_some(),
-        "verify token should be set even if email delivery failed"
+        customer_after_failure.is_none(),
+        "register 503 must not persist a customer row because callers will retry"
+    );
+
+    let recovered_app = common::test_app_with_repo(repo);
+    let retry_req = json_post(
+        "/auth/register",
+        serde_json::json!({
+            "name": "EmailFail",
+            "email": "emailfail@example.com",
+            "password": "strongpassword123"
+        }),
+    );
+    let retry_resp = recovered_app.oneshot(retry_req).await.unwrap();
+    assert_eq!(
+        retry_resp.status(),
+        StatusCode::CREATED,
+        "retrying register after transient email failure should succeed"
     );
 }
 
 #[tokio::test]
-async fn forgot_password_returns_200_when_email_delivery_fails() {
+async fn forgot_password_retries_and_returns_200_when_email_delivery_fails() {
     let repo = common::mock_repo();
+    let email_svc = Arc::new(AlwaysFailPasswordResetEmailService::default());
 
     // First register a customer (with working email service)
     let reg_app = common::test_app_with_repo(repo.clone());
@@ -2198,26 +2738,46 @@ async fn forgot_password_returns_200_when_email_delivery_fails() {
             "password": "strongpassword123"
         }),
     );
-    reg_app.oneshot(reg_req).await.unwrap();
+    reg_app.clone().oneshot(reg_req).await.unwrap();
 
-    // Now try forgot-password with failing email service
-    let app = common::build_test_app_with_email(repo.clone(), Arc::new(AlwaysFailEmailService));
+    let baseline_forgot_req = json_post(
+        "/auth/forgot-password",
+        serde_json::json!({ "email": "resetfail@example.com" }),
+    );
+    let baseline_forgot_resp = reg_app.clone().oneshot(baseline_forgot_req).await.unwrap();
+    assert_eq!(baseline_forgot_resp.status(), StatusCode::OK);
+    let baseline_customer = repo
+        .find_by_email("resetfail@example.com")
+        .await
+        .unwrap()
+        .unwrap();
+    let baseline_token = baseline_customer
+        .password_reset_token
+        .clone()
+        .expect("baseline forgot-password should set a token");
+    let baseline_expiry = baseline_customer
+        .password_reset_expires_at
+        .expect("baseline forgot-password should set an expiry");
+
+    // Now try forgot-password with failing password-reset email service
+    let app = common::build_test_app_with_email(repo.clone(), email_svc.clone());
     let req = json_post(
         "/auth/forgot-password",
         serde_json::json!({ "email": "resetfail@example.com" }),
     );
 
     let resp = app.oneshot(req).await.unwrap();
-    assert_eq!(
-        resp.status(),
-        StatusCode::OK,
-        "forgot-password must return 200 even when email delivery fails"
-    );
+    assert_eq!(resp.status(), StatusCode::OK);
 
     let json = body_json(resp).await;
     assert_eq!(
         json["message"],
         "if an account exists with that email, a password reset link has been sent"
+    );
+    assert_eq!(
+        email_svc.password_reset_attempts(),
+        2,
+        "forgot-password should retry password-reset email delivery once before returning 503"
     );
 
     let customer = repo
@@ -2225,8 +2785,118 @@ async fn forgot_password_returns_200_when_email_delivery_fails() {
         .await
         .unwrap()
         .unwrap();
+    assert_eq!(
+        customer.password_reset_token.as_deref(),
+        Some(baseline_token.as_str()),
+        "forgot-password delivery failure must preserve the last deliverable token"
+    );
+    assert_eq!(
+        customer.password_reset_expires_at,
+        Some(baseline_expiry),
+        "forgot-password delivery failure must preserve the last deliverable token expiry"
+    );
+}
+
+#[tokio::test]
+async fn forgot_password_first_delivery_failure_restores_empty_reset_state() {
+    let repo = common::mock_repo();
+    let email_svc = Arc::new(AlwaysFailPasswordResetEmailService::default());
+
+    let registration_app = common::test_app_with_repo(repo.clone());
+    let register_request = json_post(
+        "/auth/register",
+        serde_json::json!({
+            "name": "ResetFirstFail",
+            "email": "reset-first-fail@example.com",
+            "password": "strongpassword123"
+        }),
+    );
+    let register_response = registration_app.oneshot(register_request).await.unwrap();
+    assert_eq!(register_response.status(), StatusCode::CREATED);
+
+    let customer_before_failed_forgot = repo
+        .find_by_email("reset-first-fail@example.com")
+        .await
+        .unwrap()
+        .unwrap();
     assert!(
-        customer.password_reset_token.is_some(),
-        "reset token should be set even if email delivery failed"
+        customer_before_failed_forgot.password_reset_token.is_none(),
+        "newly registered customer should not have a reset token before forgot-password"
+    );
+    assert!(
+        customer_before_failed_forgot
+            .password_reset_expires_at
+            .is_none(),
+        "newly registered customer should not have reset-token expiry before forgot-password"
+    );
+
+    let failing_app = common::build_test_app_with_email(repo.clone(), email_svc.clone());
+    let forgot_request = json_post(
+        "/auth/forgot-password",
+        serde_json::json!({ "email": "reset-first-fail@example.com" }),
+    );
+    let forgot_response = failing_app.oneshot(forgot_request).await.unwrap();
+    assert_eq!(forgot_response.status(), StatusCode::OK);
+    let forgot_json = body_json(forgot_response).await;
+    assert_eq!(
+        forgot_json["message"],
+        "if an account exists with that email, a password reset link has been sent"
+    );
+    assert_eq!(
+        email_svc.password_reset_attempts(),
+        2,
+        "forgot-password should retry one time before giving up on email delivery"
+    );
+
+    let customer_after_failed_forgot = repo
+        .find_by_email("reset-first-fail@example.com")
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(
+        customer_after_failed_forgot.password_reset_token.is_none(),
+        "delivery failure must restore pre-request empty reset-token state"
+    );
+    assert!(
+        customer_after_failed_forgot
+            .password_reset_expires_at
+            .is_none(),
+        "delivery failure must restore pre-request empty reset-token expiry state"
+    );
+}
+
+#[tokio::test]
+async fn register_force_email_failure_header_returns_503_in_local_zero_dependency_mode() {
+    let _lock = auth_test_env_lock()
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let _environment = EnvVarGuard::set("ENVIRONMENT", Some("local"));
+    let _node_secret_backend = EnvVarGuard::set("NODE_SECRET_BACKEND", Some("memory"));
+
+    let repo = common::mock_repo();
+    let email_svc = Arc::new(MockEmailService::new());
+    let app = common::build_test_app_with_email(repo, email_svc.clone());
+
+    let req = Request::builder()
+        .method("POST")
+        .uri("/auth/register")
+        .header("content-type", "application/json")
+        .header("x-test-force-email-failure", "1")
+        .body(Body::from(
+            serde_json::json!({
+                "name": "ForcedFailure",
+                "email": "forced-failure@example.com",
+                "password": "strongpassword123"
+            })
+            .to_string(),
+        ))
+        .unwrap();
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::SERVICE_UNAVAILABLE);
+    let json = body_json(resp).await;
+    assert_eq!(json["error"], "verification email temporarily unavailable");
+    assert!(
+        email_svc.sent_emails().is_empty(),
+        "forced failure header should bypass successful email delivery in local test mode"
     );
 }

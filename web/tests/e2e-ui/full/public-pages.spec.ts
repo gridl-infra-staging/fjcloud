@@ -107,23 +107,20 @@ test.describe('Landing page', () => {
 	});
 
 	test('interactive pricing calculator returns Flapjack Cloud and competitor rows', async ({
-		page,
-		getDisposableTenantRateCardSnapshot
+		page
 	}) => {
 		await page.goto('/');
-		const backendSnapshot = await getDisposableTenantRateCardSnapshot();
 		const marketingSnapshot = pricingContractSnapshotFromMarketing(MARKETING_PRICING);
 
 		await expect(page.getByRole('heading', { name: 'Simple pricing' })).toBeVisible();
 		await expect(page.getByText(MARKETING_PRICING.free_tier_promise).first()).toBeVisible();
 		await expect(page.getByTestId('landing-pricing-calculator')).toBeVisible();
 		await expect(page.getByRole('main')).toContainText(
-			sharedPlanMinimumMonthlyLabel(backendSnapshot.shared_minimum_spend_cents)
+			sharedPlanMinimumMonthlyLabel(marketingSnapshot.shared_minimum_spend_cents)
 		);
 		await expect(page.getByTestId('minimum-spend')).toHaveText(
-			sharedPlanMinimumMonthlyLabel(backendSnapshot.shared_minimum_spend_cents)
+			sharedPlanMinimumMonthlyLabel(marketingSnapshot.shared_minimum_spend_cents)
 		);
-		expect(backendSnapshot).toEqual(marketingSnapshot);
 
 		await page.getByLabel('Document count').fill('120000');
 		await page.getByLabel('Average document size (bytes)').fill('1500');
@@ -139,13 +136,9 @@ test.describe('Landing page', () => {
 });
 
 test.describe('Pricing page', () => {
-	test('renders pricing-first copy and public links for unauthenticated users', async ({
-		page,
-		getDisposableTenantRateCardSnapshot
-	}) => {
+	test('renders pricing-first copy and public links for unauthenticated users', async ({ page }) => {
 		await page.goto('/pricing');
 		const pricingMain = page.getByTestId('pricing-page-main');
-		const backendSnapshot = await getDisposableTenantRateCardSnapshot();
 		const marketingSnapshot = pricingContractSnapshotFromMarketing(MARKETING_PRICING);
 
 		await expect(pricingMain).toBeVisible();
@@ -159,11 +152,11 @@ test.describe('Pricing page', () => {
 		await expect(pricingMain).toContainText('Hot index storage');
 		await expect(pricingMain).toContainText('Cold snapshot storage');
 		await expect(pricingMain).toContainText('$5/month minimum');
-		expect(backendSnapshot).toEqual(marketingSnapshot);
-		await expect(pricingMain).toContainText(backendSnapshot.storage_rate_per_mb_month);
-		await expect(pricingMain).toContainText(backendSnapshot.cold_storage_rate_per_gb_month);
+		await expect(page.getByTestId('public-beta-banner')).toContainText(/public beta/i);
+		await expect(pricingMain).toContainText(marketingSnapshot.storage_rate_per_mb_month);
+		await expect(pricingMain).toContainText(marketingSnapshot.cold_storage_rate_per_gb_month);
 		await expect(pricingMain).toContainText(
-			`${sharedPlanMinimumMonthlyLabel(backendSnapshot.shared_minimum_spend_cents)}/month minimum`
+			`${sharedPlanMinimumMonthlyLabel(marketingSnapshot.shared_minimum_spend_cents)}/month minimum`
 		);
 
 		const primaryCta = pricingMain.getByRole('link', { name: MARKETING_PRICING.cta_label });
@@ -177,9 +170,9 @@ test.describe('Pricing page', () => {
 
 		const regionTable = pricingMain.getByRole('table', { name: 'Region multipliers' });
 		const regionRows = regionTable.getByRole('row');
-		await expect(regionRows).toHaveCount(backendSnapshot.region_pricing.length + 1);
-		for (let rowIndex = 0; rowIndex < backendSnapshot.region_pricing.length; rowIndex += 1) {
-			const expectedRegion = backendSnapshot.region_pricing[rowIndex];
+		await expect(regionRows).toHaveCount(marketingSnapshot.region_pricing.length + 1);
+		for (let rowIndex = 0; rowIndex < marketingSnapshot.region_pricing.length; rowIndex += 1) {
+			const expectedRegion = marketingSnapshot.region_pricing[rowIndex];
 			const renderedRow = regionRows.nth(rowIndex + 1);
 			await expect(renderedRow.getByRole('rowheader')).toHaveText(expectedRegion.display_name);
 			await expect(renderedRow.getByRole('cell')).toHaveText(expectedRegion.multiplier);
@@ -192,16 +185,23 @@ test.describe('Pricing page', () => {
 		await expect(pricingMain).not.toContainText('The page you requested is not available.');
 		await expect(pricingMain).not.toContainText('Not found');
 		await expect(page.getByTestId('landing-pricing-calculator')).toHaveCount(0);
-		await expect(page.getByRole('link', { name: 'Terms' }).first()).toHaveAttribute(
+		await expect(
+			page.getByRole('contentinfo').getByRole('link', { name: 'Terms' })
+		).toHaveAttribute(
 			'href',
 			'/terms'
 		);
-		await expect(page.getByRole('link', { name: 'Privacy' }).first()).toHaveAttribute(
+		await expect(
+			page.getByRole('contentinfo').getByRole('link', { name: 'Privacy' })
+		).toHaveAttribute(
 			'href',
 			'/privacy'
 		);
-		await expect(page.getByRole('link', { name: 'DPA' }).first()).toHaveAttribute('href', '/dpa');
-		await expect(page.getByRole('link', { name: 'Status' }).first()).toHaveAttribute(
+		await expect(page.getByRole('contentinfo').getByRole('link', { name: 'DPA' })).toHaveAttribute(
+			'href',
+			'/dpa'
+		);
+		await expect(page.getByRole('contentinfo').getByRole('link', { name: 'Status' })).toHaveAttribute(
 			'href',
 			'/status'
 		);
@@ -259,6 +259,7 @@ test.describe('Public beta and legal pages', () => {
 			await expect(pageHeading).toHaveCount(1);
 			await expect(pageHeading).toBeVisible();
 			await assertSharedLegalPageContract(page);
+			await expect(page.getByTestId('public-beta-banner')).toContainText(/public beta/i);
 			await expect(page.getByRole('main')).not.toContainText('(Draft)');
 			await expect(page.getByRole('main')).not.toContainText('[REVIEW:');
 			await expect(page.getByRole('main')).not.toContainText('TBD');

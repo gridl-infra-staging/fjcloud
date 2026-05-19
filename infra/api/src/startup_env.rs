@@ -146,6 +146,10 @@ impl StartupEnvSnapshot {
             )
     }
 
+    pub fn allow_test_force_email_failure_header(&self) -> bool {
+        self.is_local_zero_dependency_mode()
+    }
+
     pub fn ses_family_state(&self) -> RawEnvFamilyState {
         Self::classify_family_state(&[
             &self.ses_from_address,
@@ -413,6 +417,22 @@ mod tests {
         ]);
         assert!(!prod_memory.is_explicit_local_environment());
         assert!(!prod_memory.is_local_zero_dependency_mode());
+    }
+
+    #[test]
+    fn test_force_email_failure_header_allowed_in_local_zero_dependency_mode() {
+        let snapshot =
+            snapshot_with(&[("ENVIRONMENT", "local"), ("NODE_SECRET_BACKEND", "memory")]);
+        assert!(snapshot.allow_test_force_email_failure_header());
+    }
+
+    #[test]
+    fn test_force_email_failure_header_blocked_outside_local_zero_dependency_mode() {
+        let non_local = snapshot_with(&[("ENVIRONMENT", "production")]);
+        assert!(!non_local.allow_test_force_email_failure_header());
+
+        let local_without_memory = snapshot_with(&[("ENVIRONMENT", "local")]);
+        assert!(!local_without_memory.allow_test_force_email_failure_header());
     }
 
     #[test]

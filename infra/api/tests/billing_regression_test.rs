@@ -189,6 +189,7 @@ fn stage2_customer_from_context(
         resend_verification_sent_at: None,
         password_reset_token: None,
         password_reset_expires_at: None,
+        resend_password_reset_sent_at: None,
         last_accessed_at: None,
         overdue_invoice_count: 0,
         object_storage_egress_carryforward_cents: context.object_storage_egress_carryforward_cents,

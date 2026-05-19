@@ -2,6 +2,22 @@ import type { Actions } from './$types';
 import { fail } from '@sveltejs/kit';
 import { createApiClient } from '$lib/server/api';
 import { mapAuthActionFailure } from '$lib/server/auth-action-errors';
+import { ApiRequestError } from '$lib/api/client';
+
+const INVALID_TOKEN_RECOVERY_ACTION = 'invalid_or_expired_token';
+
+function isInvalidOrExpiredResetTokenError(error: unknown): error is ApiRequestError {
+	if (!(error instanceof ApiRequestError) || error.status !== 400) {
+		return false;
+	}
+
+	const normalizedMessage = error.message.trim().toLowerCase();
+	if (!normalizedMessage.includes('token')) {
+		return false;
+	}
+
+	return normalizedMessage.includes('invalid') || normalizedMessage.includes('expired');
+}
 
 export const actions = {
 	default: async ({ request, params, fetch }) => {
@@ -23,6 +39,14 @@ export const actions = {
 			await api.resetPassword({ token: params.token, new_password: password });
 			return { success: true };
 		} catch (e) {
+			if (isInvalidOrExpiredResetTokenError(e)) {
+				const { status, errors } = mapAuthActionFailure(e);
+				return fail(status, {
+					errors,
+					recoveryAction: INVALID_TOKEN_RECOVERY_ACTION
+				});
+			}
+
 			const { status, errors } = mapAuthActionFailure(e);
 			return fail(status, { errors });
 		}

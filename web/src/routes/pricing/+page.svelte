@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
-	import { BETA_FEEDBACK_MAILTO, SUPPORT_EMAIL, formatCents } from '$lib/format';
+	import { formatCents } from '$lib/format';
 	import { sharedPlanMinimumMonthlyLabel } from '$lib/pricing';
 
 	let { data } = $props();
@@ -25,33 +25,7 @@
 	/>
 </svelte:head>
 
-<div class="min-h-screen bg-[#9fd8d2] text-[#1f1b18]">
-	<header class="border-b-4 border-[#f6c15b] bg-[#fff8ea]">
-		<div
-			class="mx-auto flex max-w-6xl flex-col gap-3 px-6 py-3 sm:h-16 sm:flex-row sm:items-center sm:justify-between sm:gap-6 sm:py-0"
-		>
-			<div class="flex items-center justify-between gap-3">
-				<a
-					href={resolve('/')}
-					class="wordmark text-xl font-black tracking-wide text-[#1f1b18] sm:text-2xl"
-				>
-					Flapjack Cloud
-				</a>
-				<span class="beta-badge bg-[#f6c15b]">BETA</span>
-			</div>
-			<nav class="flex items-center gap-3">
-				<a
-					href={resolve('/login')}
-					class="inline-flex h-9 items-center justify-center whitespace-nowrap text-sm font-semibold text-[#4b4640] hover:text-[#1f1b18]"
-				>
-					Log In
-				</a>
-				<a href={resolve('/signup')} class="diner-button h-9 px-4 text-sm">Sign Up</a>
-			</nav>
-		</div>
-	</header>
-
-	<main class="px-6 py-16 sm:py-20" data-testid="pricing-page-main">
+<main class="bg-[#9fd8d2] px-6 py-16 text-[#1f1b18] sm:py-20" data-testid="pricing-page-main">
 		<section class="mx-auto max-w-5xl">
 			<div class="max-w-3xl">
 				<p class="text-sm font-black uppercase tracking-[0.18em] text-[#8d2842]">Pricing</p>
@@ -131,50 +105,10 @@
 				</section>
 			{/if}
 
-			<section class="mt-10 flex flex-wrap gap-4 text-sm font-black">
-				<a href={resolve('/terms')} class="text-[#b83f5f] hover:text-[#8d2842]">Terms</a>
-				<a href={resolve('/privacy')} class="text-[#b83f5f] hover:text-[#8d2842]">Privacy</a>
-				<a href={resolve('/dpa')} class="text-[#b83f5f] hover:text-[#8d2842]">DPA</a>
-				<a href={resolve('/status')} class="text-[#b83f5f] hover:text-[#8d2842]">Status</a>
-				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- mailto links must stay scheme URLs -->
-				<a href={BETA_FEEDBACK_MAILTO} class="text-[#b83f5f] hover:text-[#8d2842]">Contact</a>
-			</section>
 		</section>
 	</main>
 
-	<footer class="border-t-4 border-[#f6c15b] bg-[#fff8ea] py-8">
-		<div
-			class="mx-auto flex max-w-6xl flex-col justify-between gap-4 px-6 text-sm text-[#4b4640] sm:flex-row"
-		>
-			<p>&copy; {new Date().getFullYear()} Flapjack Cloud. Contact: {SUPPORT_EMAIL}</p>
-			<nav class="flex flex-wrap gap-4 font-black" aria-label="Legal">
-				<a href={resolve('/terms')} class="hover:text-[#1f1b18]">Terms</a>
-				<a href={resolve('/privacy')} class="hover:text-[#1f1b18]">Privacy</a>
-				<a href={resolve('/dpa')} class="hover:text-[#1f1b18]">DPA</a>
-				<a href={resolve('/status')} class="hover:text-[#1f1b18]">Status</a>
-			</nav>
-		</div>
-	</footer>
-</div>
-
 <style>
-	.wordmark {
-		font-family: 'Iowan Old Style', 'Palatino Linotype', Georgia, serif;
-		font-style: normal;
-		font-variant-caps: small-caps;
-		letter-spacing: 0.04em;
-	}
-
-	.beta-badge {
-		display: inline-flex;
-		align-items: center;
-		border: 2px solid #1f1b18;
-		color: #1f1b18;
-		font-weight: 900;
-		letter-spacing: 0.16em;
-		padding: 0.25rem 0.75rem;
-	}
-
 	.raised {
 		box-shadow: 6px 6px 0 var(--raised-shadow, #78b8b2);
 	}

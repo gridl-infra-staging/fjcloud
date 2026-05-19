@@ -78,7 +78,8 @@ mod tests {
     use crate::errors::ApiError;
     use crate::models::{Customer, IngestQuotaWarningMetric, IngestQuotaWarningsSentState};
     use crate::repos::{
-        CustomerRepo, RepoError, ResendVerificationOutcome, ResendVerificationReservation,
+        CustomerRepo, RepoError, ResendPasswordResetOutcome, ResendPasswordResetReservation,
+        ResendVerificationOutcome, ResendVerificationReservation,
     };
     use async_trait::async_trait;
     use chrono::Utc;
@@ -353,6 +354,33 @@ mod tests {
             panic!("not used in this test");
         }
 
+        async fn restore_password_reset_state(
+            &self,
+            _id: Uuid,
+            _token: Option<&str>,
+            _expires_at: Option<chrono::DateTime<Utc>>,
+        ) -> Result<bool, RepoError> {
+            panic!("not used in this test");
+        }
+
+        async fn rotate_password_reset_token_with_resend_cooldown(
+            &self,
+            _id: Uuid,
+            _token: &str,
+            _expires_at: chrono::DateTime<Utc>,
+        ) -> Result<ResendPasswordResetOutcome, RepoError> {
+            panic!("not used in this test");
+        }
+
+        async fn rollback_password_reset_token_rotation(
+            &self,
+            _id: Uuid,
+            _reserved_token: &str,
+            _reservation: &ResendPasswordResetReservation,
+        ) -> Result<bool, RepoError> {
+            panic!("not used in this test");
+        }
+
         async fn find_by_reset_token(&self, _token: &str) -> Result<Option<Customer>, RepoError> {
             panic!("not used in this test");
         }
@@ -514,6 +542,7 @@ mod tests {
             resend_verification_sent_at: None,
             password_reset_token: None,
             password_reset_expires_at: None,
+            resend_password_reset_sent_at: None,
             last_accessed_at: None,
             overdue_invoice_count: 0,
             object_storage_egress_carryforward_cents: Decimal::ZERO,

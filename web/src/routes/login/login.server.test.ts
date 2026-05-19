@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiRequestError } from '$lib/api/client';
 import { AUTH_COOKIE, COOKIE_MAX_AGE } from '$lib/config';
+import { createHmac } from 'node:crypto';
 
 const loginMock = vi.fn();
 
@@ -9,7 +10,10 @@ const loginMock = vi.fn();
 // has no effect on env.API_BASE_URL. Stub it explicitly per the established
 // repo pattern (see web/src/hooks.server.test.ts and the admin/* test files).
 vi.mock('$env/dynamic/private', () => ({
-	env: { API_BASE_URL: 'http://127.0.0.1:3001' }
+	env: {
+		API_BASE_URL: 'http://127.0.0.1:3001',
+		JWT_SECRET: 'jwt-secret-for-tests-1234567890'
+	}
 }));
 
 vi.mock('$lib/server/api', () => ({
@@ -19,6 +23,28 @@ vi.mock('$lib/server/api', () => ({
 }));
 
 import { actions, load, prerender as loginPrerender } from './+page.server';
+
+const TEST_JWT_SECRET = 'jwt-secret-for-tests-1234567890';
+
+function b64UrlEncodeJson(value: Record<string, unknown>): string {
+	return Buffer.from(JSON.stringify(value))
+		.toString('base64')
+		.replace(/\+/g, '-')
+		.replace(/\//g, '_')
+		.replace(/=+$/, '');
+}
+
+function makeJwt(payload: Record<string, unknown>, secret = TEST_JWT_SECRET): string {
+	const header = b64UrlEncodeJson({ alg: 'HS256', typ: 'JWT' });
+	const body = b64UrlEncodeJson(payload);
+	const signature = createHmac('sha256', secret)
+		.update(`${header}.${body}`)
+		.digest('base64')
+		.replace(/\+/g, '-')
+		.replace(/\//g, '_')
+		.replace(/=+$/, '');
+	return `${header}.${body}.${signature}`;
+}
 
 function toFormData(entries: Record<string, string>): FormData {
 	const fd = new FormData();
@@ -76,7 +102,8 @@ describe('Login server action', () => {
 
 	it('normalizes email, sets auth cookie, and redirects on successful login', async () => {
 		const setCookie = vi.fn();
-		loginMock.mockResolvedValue({ token: 'jwt-token' });
+		const validToken = makeJwt({ sub: 'customer-123', exp: 9999999999, iat: 1000 });
+		loginMock.mockResolvedValue({ token: validToken });
 
 		await expect(
 			actions.default(
@@ -90,7 +117,7 @@ describe('Login server action', () => {
 		});
 		expect(setCookie).toHaveBeenCalledWith(
 			AUTH_COOKIE,
-			'jwt-token',
+			validToken,
 			expect.objectContaining({
 				path: '/',
 				httpOnly: true,
@@ -103,7 +130,8 @@ describe('Login server action', () => {
 
 	it('uses a non-secure auth cookie for local http login flows', async () => {
 		const setCookie = vi.fn();
-		loginMock.mockResolvedValue({ token: 'jwt-token' });
+		const validToken = makeJwt({ sub: 'customer-123', exp: 9999999999, iat: 1000 });
+		loginMock.mockResolvedValue({ token: validToken });
 
 		await expect(
 			actions.default(
@@ -117,7 +145,7 @@ describe('Login server action', () => {
 
 		expect(setCookie).toHaveBeenCalledWith(
 			AUTH_COOKIE,
-			'jwt-token',
+			validToken,
 			expect.objectContaining({
 				secure: false
 			})
@@ -158,5 +186,27 @@ describe('Login server action', () => {
 				}
 			})
 		);
+	});
+
+	it('fails closed when the returned auth token cannot establish a dashboard session', async () => {
+		const setCookie = vi.fn();
+		loginMock.mockResolvedValue({ token: 'not-a-jwt' });
+
+		const result = await actions.default(
+			makeEvent({ email: 'User@Example.COM', password: 'password123' }, setCookie)
+		);
+
+		expect(result).toEqual(
+			expect.objectContaining({
+				status: 503,
+				data: {
+					errors: {
+						form: 'Authentication session could not be established. Please verify JWT_SECRET and try again.'
+					},
+					email: 'user@example.com'
+				}
+			})
+		);
+		expect(setCookie).not.toHaveBeenCalled();
 	});
 });

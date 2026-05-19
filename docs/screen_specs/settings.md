@@ -2,8 +2,8 @@
 
 ## Scope
 
-- Primary route: `/dashboard/settings`
-- Related routes: `/login`, `/signup`
+- Primary route: `/dashboard/account`
+- Related routes: `/dashboard/settings` (alias), `/login`, `/signup`
 - Audience: authenticated customers managing account identity and credentials
 - Priority: P0
 
@@ -44,6 +44,6 @@ None known for the mapped launch-critical behavior.
 
 ## Automated Coverage
 
-- Browser-unmocked tests: `web/tests/e2e-ui/full/settings.spec.ts`
+- Browser-unmocked tests: `web/tests/e2e-ui/full/account.spec.ts`
 - Component tests: `web/src/routes/dashboard/settings/settings.test.ts`; `web/src/routes/dashboard/settings/settings.server.test.ts`
 - Server/contract tests: `web/src/routes/dashboard/settings/settings.server.test.ts`

@@ -86,6 +86,7 @@ fn spec_contains_auth_operations() {
         "/auth/verify-email",
         "/auth/forgot-password",
         "/auth/reset-password",
+        "/auth/resend-password-reset",
         "/auth/resend-verification",
     ];
     for path in auth_paths {
@@ -109,6 +110,7 @@ fn spec_contains_auth_schemas() {
         "LoginRequest",
         "VerifyEmailRequest",
         "ForgotPasswordRequest",
+        "ResendPasswordResetRequest",
         "ResetPasswordRequest",
         "MessageResponse",
         "ErrorResponse",
@@ -132,6 +134,7 @@ fn spec_public_routes_override_bearer_security() {
         "/auth/login",
         "/auth/verify-email",
         "/auth/forgot-password",
+        "/auth/resend-password-reset",
         "/auth/reset-password",
         "/pricing/compare",
     ];
@@ -483,6 +486,25 @@ fn spec_resend_verification_documents_stage3_status_matrix() {
             .and_then(|value| value.as_str()),
         Some("#/components/schemas/ErrorResponse"),
         "/auth/resend-verification 403 must reuse the shared ErrorResponse schema"
+    );
+}
+
+#[test]
+fn spec_resend_password_reset_documents_stage1_status_matrix() {
+    let spec = common::openapi_spec_json();
+    let op_base = "/paths/~1auth~1resend-password-reset/post/responses";
+
+    assert!(
+        spec.pointer(&format!("{op_base}/200")).is_some(),
+        "/auth/resend-password-reset must document HTTP 200"
+    );
+    assert!(
+        spec.pointer(&format!("{op_base}/429")).is_none(),
+        "/auth/resend-password-reset must not document account-level cooldown 429"
+    );
+    assert!(
+        spec.pointer(&format!("{op_base}/503")).is_none(),
+        "/auth/resend-password-reset must not document account-level email-delivery 503"
     );
 }
 

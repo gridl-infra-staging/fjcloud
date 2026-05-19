@@ -21,6 +21,7 @@
 | pg_cold_snapshot_repo.rs | Stub summary for /Users/stuart/parallel_development/fjcloud_dev/MAR17_11_2_data_management_features/fjcloud_dev/infra/api/src/repos/pg_cold_snapshot_repo.rs. |
 | pg_customer_repo.rs | Stub summary for pg_customer_repo.rs. |
 | pg_customer_repo_columns.rs | Stub summary for pg_customer_repo_columns.rs. |
+| pg_customer_repo_password_reset_resend.rs | Stub summary for pg_customer_repo_password_reset_resend.rs. |
 | pg_customer_repo_quota_warning.rs | Stub summary for pg_customer_repo_quota_warning.rs. |
 | pg_deployment_repo.rs | Stub summary for /Users/stuart/parallel_development/fjcloud_dev/MAR17_11_2_data_management_features/fjcloud_dev/infra/api/src/repos/pg_deployment_repo.rs. |
 | pg_dispute_repo.rs | Stub summary for pg_dispute_repo.rs. |

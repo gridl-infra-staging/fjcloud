@@ -1,7 +1,7 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/svelte';
 
-import DpaPage from './+page.svelte';
+import DpaLayoutTestWrapper from './dpa_layout_test_wrapper.svelte';
 import { LEGAL_SUPPORT_MAILTO, SUPPORT_EMAIL } from '$lib/format';
 
 import {
@@ -12,11 +12,20 @@ import {
 	assertUniqueVisibleText
 } from '../legal_page_test_helpers';
 
+const { pageState } = vi.hoisted(() => ({
+	pageState: { url: new URL('http://localhost/dpa') }
+}));
+
+vi.mock('$app/state', () => ({
+	page: pageState
+}));
+
 afterEach(cleanup);
 
 describe('DPA page legal contract', () => {
 	it('renders finalized DPA copy without draft markers and preserves core sections', () => {
-		render(DpaPage);
+		pageState.url = new URL('http://localhost/dpa');
+		render(DpaLayoutTestWrapper);
 
 		assertSharedLegalPageContract();
 		expect(document.title).toBe('Data Processing Addendum — Flapjack Cloud');
@@ -57,11 +66,11 @@ describe('DPA page legal contract', () => {
 	});
 
 	it('public__dpa__success__desktop M.palette.1 keeps teal page treatment with cream legal article surface', () => {
-		render(DpaPage);
-		const pageShell = document.querySelector('div.min-h-screen');
-		expect(pageShell).not.toBeNull();
-		expect(pageShell).toHaveClass('bg-[#9fd8d2]');
+		pageState.url = new URL('http://localhost/dpa');
+		render(DpaLayoutTestWrapper);
 
+		expect(screen.getByTestId('public-beta-banner')).toBeInTheDocument();
+		expect(screen.getByRole('contentinfo')).toBeInTheDocument();
 		assertLegalPagePresentationContract('Data Processing Addendum');
 	});
 });

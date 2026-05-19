@@ -7,6 +7,7 @@
 | auth.setup.ts | Stub summary for auth.setup.ts. |
 | customer-journeys.auth.setup.ts | Customer journeys auth setup — runs once before the chromium:customer-journeys project. |
 | fixtures.ts | Stub summary for fixtures.ts. |
+| fresh_signup_remote_bootstrap.ts | Stub summary for fresh_signup_remote_bootstrap.ts. |
 | legal_page_playwright_helpers.ts | Stub summary for legal_page_playwright_helpers.ts. |
 | onboarding-auth-shared.ts | Stub summary for onboarding-auth-shared.ts. |
 | onboarding.auth.setup.ts | Onboarding auth setup — runs once before the chromium:onboarding project. |

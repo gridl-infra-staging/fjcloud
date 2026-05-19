@@ -117,6 +117,10 @@ pub struct Customer {
     pub password_reset_token: Option<String>,
     #[serde(skip_serializing)]
     pub password_reset_expires_at: Option<DateTime<Utc>>,
+    #[serde(skip_serializing)]
+    #[serde(default)]
+    #[sqlx(default)]
+    pub resend_password_reset_sent_at: Option<DateTime<Utc>>,
     #[sqlx(default)]
     pub last_accessed_at: Option<DateTime<Utc>>,
     #[serde(default)]
@@ -215,6 +219,7 @@ mod tests {
             resend_verification_sent_at: None,
             password_reset_token: None,
             password_reset_expires_at: None,
+            resend_password_reset_sent_at: None,
             last_accessed_at: None,
             overdue_invoice_count: 0,
             object_storage_egress_carryforward_cents: carryforward,

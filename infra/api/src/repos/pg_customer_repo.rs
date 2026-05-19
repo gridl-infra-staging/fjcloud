@@ -6,16 +6,19 @@ use uuid::Uuid;
 
 use crate::models::{Customer, IngestQuotaWarningMetric};
 use crate::repos::customer_repo::{
-    CustomerRepo, ResendVerificationOutcome, ResendVerificationReservation,
-    RESEND_VERIFICATION_COOLDOWN_SECONDS,
+    CustomerRepo, ResendPasswordResetOutcome, ResendPasswordResetReservation,
+    ResendVerificationOutcome, ResendVerificationReservation, RESEND_VERIFICATION_COOLDOWN_SECONDS,
 };
 use crate::repos::error::{is_unique_violation, RepoError};
 use crate::repos::pg_customer_repo_columns::{customer_columns, list_customers_sql};
+use crate::repos::pg_customer_repo_password_reset_resend::{
+    rollback_password_reset_token_rotation as rollback_password_reset_token_rotation_sql,
+    rotate_password_reset_token_with_resend_cooldown as rotate_password_reset_token_with_resend_cooldown_sql,
+};
 use crate::repos::pg_customer_repo_quota_warning::{
     claim_ingest_quota_warning_for_month as claim_ingest_quota_warning_for_month_sql,
     rollback_ingest_quota_warning_for_month as rollback_ingest_quota_warning_for_month_sql,
 };
-
 pub struct PgCustomerRepo {
     pool: PgPool,
 }
@@ -566,6 +569,49 @@ impl CustomerRepo for PgCustomerRepo {
         .map_err(|e| RepoError::Other(e.to_string()))?;
 
         Ok(result.rows_affected() > 0)
+    }
+
+    async fn restore_password_reset_state(
+        &self,
+        id: Uuid,
+        token: Option<&str>,
+        expires_at: Option<DateTime<Utc>>,
+    ) -> Result<bool, RepoError> {
+        let result = sqlx::query(
+            "UPDATE customers SET \
+                password_reset_token = $2, \
+                password_reset_expires_at = $3, \
+                updated_at = NOW() \
+             WHERE id = $1 AND status != 'deleted'",
+        )
+        .bind(id)
+        .bind(token)
+        .bind(expires_at)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| RepoError::Other(e.to_string()))?;
+
+        Ok(result.rows_affected() > 0)
+    }
+
+    async fn rotate_password_reset_token_with_resend_cooldown(
+        &self,
+        id: Uuid,
+        token: &str,
+        expires_at: DateTime<Utc>,
+    ) -> Result<ResendPasswordResetOutcome, RepoError> {
+        rotate_password_reset_token_with_resend_cooldown_sql(&self.pool, id, token, expires_at)
+            .await
+    }
+
+    async fn rollback_password_reset_token_rotation(
+        &self,
+        id: Uuid,
+        reserved_token: &str,
+        reservation: &ResendPasswordResetReservation,
+    ) -> Result<bool, RepoError> {
+        rollback_password_reset_token_rotation_sql(&self.pool, id, reserved_token, reservation)
+            .await
     }
 
     async fn find_by_reset_token(&self, token: &str) -> Result<Option<Customer>, RepoError> {

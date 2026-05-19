@@ -1,8 +1,17 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/svelte';
 import type { Component } from 'svelte';
 import { formatCents } from '$lib/format';
 import { MARKETING_PRICING, sharedPlanMinimumMonthlyLabel } from '$lib/pricing';
+import PricingLayoutTestWrapper from './pricing_layout_test_wrapper.svelte';
+
+const { pageState } = vi.hoisted(() => ({
+	pageState: { url: new URL('http://localhost/pricing') }
+}));
+
+vi.mock('$app/state', () => ({
+	page: pageState
+}));
 
 function expectedFreeTierUpgradeCopy(sharedMinimumSpendCents: number): string {
 	return `Free for hobby projects and evaluation. Upgrade to a paid plan (${sharedPlanMinimumMonthlyLabel(sharedMinimumSpendCents)}/month minimum) to lift the caps.`;
@@ -98,6 +107,20 @@ describe('Pricing page', () => {
 		expect(isMissingPricingRouteModule(dependencyMissingFromRouteError)).toBe(false);
 		expect(isMissingPricingRouteModule(dependencyMissingViteUrlError)).toBe(false);
 		expect(isMissingPricingRouteModule(runtimeImportError)).toBe(false);
+	});
+
+	it('renders through the shared layout trust owner while preserving pricing-specific route content', () => {
+		pageState.url = new URL('http://localhost/pricing');
+		render(PricingLayoutTestWrapper);
+
+		expect(screen.getByTestId('public-beta-banner')).toBeInTheDocument();
+		expect(screen.getByRole('link', { name: /learn about the beta/i })).toHaveAttribute(
+			'href',
+			'/beta'
+		);
+		expect(screen.getByRole('heading', { level: 1, name: /pricing/i })).toBeInTheDocument();
+		expect(screen.getByTestId('pricing-page-main')).toBeInTheDocument();
+		expect(screen.getByRole('contentinfo')).toBeInTheDocument();
 	});
 
 	it('renders pricing-specific heading/body copy, free-tier allowance, and signup CTA sourced from shared pricing data', async () => {

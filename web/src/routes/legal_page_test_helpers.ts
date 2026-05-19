@@ -5,6 +5,8 @@ import { exactTextMatcher } from '$lib/exact_text_matcher';
 import { SHARED_LEGAL_PAGE_CONTRACT } from '../../tests/fixtures/legal_page_contract';
 
 type HeadingLevel = 1 | 2 | 3 | 4 | 5 | 6;
+const LEGAL_CANVAS_BACKGROUND_CLASS = 'bg-[#9fd8d2]';
+const LEGAL_CANVAS_TEXT_CLASS = 'text-[#1f1b18]';
 
 export function exactNameMatcher(value: string): RegExp {
 	return exactTextMatcher(value);
@@ -56,6 +58,12 @@ export function assertSharedLegalPageContract(): void {
 }
 
 export function assertLegalPagePresentationContract(primaryHeading: string): void {
+	const legalShell = screen.getByTestId('public-legal-shell');
+	const legalCanvas = legalShell.closest('div.min-h-screen');
+	expect(legalCanvas).not.toBeNull();
+	expect(legalCanvas).toHaveClass(LEGAL_CANVAS_BACKGROUND_CLASS);
+	expect(legalCanvas).toHaveClass(LEGAL_CANVAS_TEXT_CLASS);
+
 	const article = document.querySelector('article');
 	expect(article).not.toBeNull();
 	expect(article).toHaveClass('border');

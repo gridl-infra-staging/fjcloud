@@ -1,11 +1,15 @@
 import type { Actions, PageServerLoad } from './$types';
 import { fail, redirect } from '@sveltejs/kit';
+import { env } from '$env/dynamic/private';
 import { createApiClient } from '$lib/server/api';
 import { mapAuthActionFailure } from '$lib/server/auth-action-errors';
 import { authCookieOptions } from '$lib/server/auth-cookies';
+import { resolveAuth } from '$lib/auth/guard';
 import { AUTH_COOKIE, COOKIE_MAX_AGE, getApiBaseUrl } from '$lib/config';
 
 export const prerender = false;
+const AUTH_SESSION_UNAVAILABLE_MESSAGE =
+	'Authentication session could not be established. Please verify JWT_SECRET and try again.';
 
 export const load: PageServerLoad = async () => ({
 	apiBaseUrl: getApiBaseUrl()
@@ -33,6 +37,15 @@ export const actions = {
 		} catch (e) {
 			const { status, errors } = mapAuthActionFailure(e);
 			return fail(status, { errors, email });
+		}
+
+		// Fail closed: only redirect into /dashboard when the returned JWT is
+		// verifiable by this web runtime's JWT_SECRET.
+		if (!resolveAuth(token, env.JWT_SECRET)) {
+			return fail(503, {
+				errors: { form: AUTH_SESSION_UNAVAILABLE_MESSAGE },
+				email
+			});
 		}
 
 		cookies.set(AUTH_COOKIE, token, authCookieOptions(url, COOKIE_MAX_AGE));

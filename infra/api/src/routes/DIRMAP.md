@@ -3,7 +3,7 @@
 
 | File | Summary |
 | --- | --- |
-| account.rs | Stub summary for infra/api/src/routes/account.rs. |
+| account.rs | Stub summary for account.rs. |
 | api_keys.rs | Stub summary for /Users/stuart/parallel_development/fjcloud_dev/mar22_pm_2_utoipa_openapi_docs/fjcloud_dev/infra/api/src/routes/api_keys.rs. |
 | auth.rs | Stub summary for auth.rs. |
 | billing.rs | Stub summary for billing.rs. |
@@ -22,6 +22,7 @@
 | Directory | Summary |
 | --- | --- |
 | admin | The admin directory contains operational and management routes for the fjcloud platform, including JWT token minting with audit logging for impersonation, rate card and customer override management, VM inventory endpoints, and administrative surfaces for deployments, migrations, alerts, usage tracking, and other infrastructure management. |
+| auth | — |
 | indexes | This directory contains route handlers for index management features in the API, including endpoints for search, settings, suggestions, documents, lifecycle, and various other index-related operations like analytics, rules, and synonyms. |
 | storage | The storage directory implements S3-compatible API route handlers for bucket and object operations (create, list, get, delete, head) using path-style URLs, with inline metering integrated into object-level operations. |
 <!-- [scrai:end] -->

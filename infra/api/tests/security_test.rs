@@ -404,6 +404,50 @@ async fn pricing_compare_rate_limit_returns_429_after_threshold() {
     );
 }
 
+/// Test 5b: resend-password-reset should be protected by auth rate limiting.
+#[tokio::test]
+async fn resend_password_reset_rate_limit_sets_retry_after_header() {
+    let _lock = security_env_lock()
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+
+    let app = build_router_with_auth_rate_config(
+        common::test_state(),
+        1,
+        std::time::Duration::from_secs(60),
+    );
+    let ip = "203.0.113.116";
+
+    let first = app
+        .clone()
+        .oneshot(json_post(
+            "/auth/resend-password-reset",
+            json!({
+                "email": "nobody@example.com"
+            }),
+            ip,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(first.status(), StatusCode::OK);
+
+    let second = app
+        .oneshot(json_post(
+            "/auth/resend-password-reset",
+            json!({
+                "email": "nobody@example.com"
+            }),
+            ip,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(second.status(), StatusCode::TOO_MANY_REQUESTS);
+    assert!(
+        second.headers().get("retry-after").is_some(),
+        "rate-limited resend-password-reset response should include retry-after header"
+    );
+}
+
 /// Test 6: Rate limit should reset after the window expires — requests are allowed again.
 #[tokio::test]
 async fn auth_rate_limit_resets_after_window() {

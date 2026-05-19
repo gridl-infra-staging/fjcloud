@@ -512,7 +512,11 @@ function isKnownFixtureCustomerMissingLoginFailure({
 	const invalidCredentialsMessage = FIXTURE_CUSTOMER_MISSING_LOGIN_ALERT_PATTERN.test(
 		alertText?.trim() ?? ''
 	);
-	const knownApiFailureSurface = responseStatus === 400 && Boolean(responseUrl?.includes('/auth/login'));
+	// Browser form posts surface `/login` while direct API fixtures surface
+	// `/auth/login`; both represent the same invalid-credentials path.
+	const knownApiFailureSurface =
+		responseStatus === 400 &&
+		Boolean(responseUrl?.includes('/auth/login') || responseUrl?.includes('/login'));
 	const browserOnlyFailureSurface = responseStatus === undefined && responseUrl === undefined;
 	return (
 		onLoginPage &&
@@ -1033,8 +1037,7 @@ export async function arrangeFreshSignupToDashboardWithFixtureFallback(
 
 	const signupResponsePromise = page
 		.waitForResponse(
-			(response) =>
-				response.request().method() === 'POST' && response.url().includes('/signup'),
+			(response) => response.request().method() === 'POST' && response.url().includes('/signup'),
 			{ timeout: 20_000 }
 		)
 		.catch(() => null);

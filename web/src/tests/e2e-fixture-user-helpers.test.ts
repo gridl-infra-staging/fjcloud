@@ -481,6 +481,40 @@ describe('e2e fixture user helpers', () => {
 		expect(fetchMock).toHaveBeenCalledTimes(2);
 	});
 
+	it('bootstrapFixtureUserForKnownLoginFailure treats SvelteKit /login 400 responses as the same bootstrapable missing-user surface', async () => {
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValueOnce(
+				makeJsonResponse(201, {
+					customer_id: 'cust-bootstrap',
+					token: 'register-token'
+				})
+			)
+			.mockResolvedValueOnce(
+				makeJsonResponse(200, {
+					customer_id: 'cust-bootstrap',
+					token: 'login-token'
+				})
+			);
+
+		const bootstrapResult = await bootstrapFixtureUserForKnownLoginFailure({
+			apiUrl: 'http://localhost:3001',
+			email: 'dev@example.com',
+			password: 'localdev-password-1234',
+			currentPath: 'http://127.0.0.1:5173/login',
+			alertText: 'invalid email or password',
+			responseStatus: 400,
+			responseUrl: 'http://127.0.0.1:5173/login',
+			fetchImpl: fetchMock as unknown as typeof fetch
+		});
+
+		expect(bootstrapResult).toEqual({
+			bootstrapped: true,
+			loginToken: 'login-token'
+		});
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+	});
+
 	it('bootstrapFixtureUserForKnownLoginFailure does not register outside the known missing-user failure surface', async () => {
 		const fetchMock = vi.fn();
 
@@ -537,7 +571,9 @@ describe('e2e fixture user helpers', () => {
 	it('bootstrapFixtureUserForKnownLoginFailure treats existing-user registration conflicts as idempotent and still retries login', async () => {
 		const fetchMock = vi
 			.fn()
-			.mockResolvedValueOnce(new Response(JSON.stringify({ error: 'email taken' }), { status: 409 }))
+			.mockResolvedValueOnce(
+				new Response(JSON.stringify({ error: 'email taken' }), { status: 409 })
+			)
 			.mockResolvedValueOnce(
 				makeJsonResponse(200, {
 					customer_id: 'cust-existing',
@@ -612,7 +648,9 @@ describe('e2e fixture user helpers', () => {
 			responseUrl: 'http://resp-user:resp-pass@127.0.0.1:3001/auth/login?token=secret-token'
 		});
 
-		expect(details).toContain('http://[REDACTED]@127.0.0.1:3001/verify-email/[REDACTED]?token=[REDACTED]');
+		expect(details).toContain(
+			'http://[REDACTED]@127.0.0.1:3001/verify-email/[REDACTED]?token=[REDACTED]'
+		);
 		expect(details).not.toContain('fixture-user');
 		expect(details).not.toContain('fixture-pass');
 		expect(formatted).toContain('Current URL: http://[REDACTED]@127.0.0.1:5173/login');

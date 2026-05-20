@@ -1,0 +1,221 @@
+# Stage 2 Git Baseline
+captured_at_utc: 2026-05-20T21:25:04Z
+
+## dev
+path: /Users/stuart/parallel_development/fjcloud_dev/may20_3pm_2_pipeline_propagation/fjcloud_dev
+head_sha: 326238b98c67aa8f7ecc90c010cdb930087e50ec
+status_short_branch:
+## batman/may20_3pm_2_pipeline_propagation
+ M docs/runbooks/evidence/pipeline-propagation/.current_bundle
+?? docs/runbooks/evidence/pipeline-propagation/20260520T212504Z_326238b98c67_pipeline_propagation/
+
+## staging
+path: /Users/stuart/repos/gridl-infra-staging/fjcloud
+head_sha: 6e5baf5f44d6b7b83351ad5626922ffdd3d406c2
+status_short_branch:
+## main...origin/main
+ M .debbie/sync_manifest.json
+ M docs/runbooks/DIRMAP.md
+ M docs/runbooks/evidence/DIRMAP.md
+ M docs/screen_specs/coverage.md
+ M docs/screen_specs/settings.md
+ M infra/api/src/routes/billing.rs
+ M infra/api/src/stripe/live.rs
+ M infra/api/tests/billing_endpoints_test.rs
+ M infra/api/tests/common/mocks.rs
+ M ops/terraform/tests_rds_restore_evidence_unit_execute_and_poll_contract.sh
+ M scripts/launch/capture_upgrade_trust_ratchet_evidence.sh
+ M scripts/lib/customer_lifecycle_steps.sh
+ M scripts/lib/deterministic_batch_payload.sh
+ M scripts/lib/full_backend_validation_cli.sh
+ M scripts/lib/full_backend_validation_json.sh
+ M scripts/lib/process.sh
+ M scripts/lib/psql_path.sh
+ M scripts/lib/secret_audit_parsing.sh
+ M scripts/lib/staging_billing_rehearsal_email_evidence.sh
+ M scripts/lib/staging_billing_rehearsal_evidence.sh
+ M scripts/lib/stripe_payment_methods.sh
+ M scripts/lib/stripe_request.sh
+ M scripts/tests/capture_upgrade_trust_ratchet_evidence_test.sh
+ M scripts/tests/lib/local_dev_test_state.sh
+ M scripts/tests/lib/seed_local_mocks.sh
+ M scripts/tests/lib/staging_billing_rehearsal_reset_harness_blocks.sh
+ M scripts/tests/probe_full_vm_lifecycle_script_test.sh
+ M scripts/validate_full_vm_lifecycle_prod.sh
+ M web/src/routes/dashboard/account/+page.server.ts
+ M web/src/routes/dashboard/account/account.server.test.ts
+?? docs/runbooks/evidence/browser-evidence/20260519T001313Z_upgrade_trust_ratchet/
+?? docs/runbooks/evidence/browser-evidence/20260519T001538Z_upgrade_trust_ratchet/
+?? docs/runbooks/evidence/browser-evidence/20260519T002024Z_upgrade_trust_ratchet/
+?? docs/runbooks/evidence/browser-evidence/20260519T002353Z_upgrade_trust_ratchet/
+?? docs/runbooks/evidence/browser-evidence/20260519T002457Z_upgrade_trust_ratchet/
+?? docs/runbooks/evidence/browser-evidence/20260519T002518Z_upgrade_trust_ratchet/
+?? docs/runbooks/evidence/browser-evidence/20260519T002902Z_upgrade_trust_ratchet/
+?? docs/runbooks/evidence/browser-evidence/20260519T003404Z_upgrade_trust_ratchet/
+?? docs/runbooks/evidence/browser-evidence/20260519T005216Z_upgrade_trust_ratchet/
+?? docs/runbooks/evidence/browser-evidence/20260519T012702Z_upgrade_trust_ratchet/
+?? docs/runbooks/evidence/browser-evidence/20260519T012825Z_upgrade_trust_ratchet/
+?? docs/runbooks/evidence/browser-evidence/20260519T014531Z_upgrade_trust_ratchet/
+?? docs/runbooks/evidence/browser-evidence/20260519T015340Z_upgrade_trust_ratchet/
+?? docs/runbooks/evidence/browser-evidence/20260519T015821Z_upgrade_trust_ratchet/
+?? docs/runbooks/evidence/browser-evidence/20260519T020401Z_upgrade_trust_ratchet/
+?? docs/runbooks/evidence/browser-evidence/20260519T020552Z_upgrade_trust_ratchet/
+?? docs/runbooks/evidence/may16_wave_deploy_verify/
+?? infra/fj-metering-agent
+?? infra/fjcloud-aggregation-job
+?? infra/fjcloud-api
+?? scripts/tests/stage5_auth_lockout_proof_hygiene_test.sh
+
+## prod
+path: /Users/stuart/repos/gridl-infra-prod/fjcloud
+head_sha: 4446067a7c2e7b0f595a3891400e5267caf26435
+status_short_branch:
+## main...origin/main
+ M .debbie/sync_manifest.json
+ M .github/workflows/ci.yml
+ M docs/runbooks/DIRMAP.md
+ M docs/runbooks/evidence/DIRMAP.md
+ M docs/runbooks/evidence/browser-evidence/20260518T032311Z_upgrade_trust_ratchet/success_paid/setup.json
+ M docs/runbooks/evidence/browser-evidence/20260518T032420Z_upgrade_trust_ratchet/success_paid/setup.json
+ M docs/runbooks/evidence/browser-evidence/20260518T032619Z_upgrade_trust_ratchet/success_paid/setup.json
+ M docs/screen_specs/coverage.md
+ M docs/screen_specs/settings.md
+ M infra/DIRMAP.md
+ M infra/api/DIRMAP.md
+ M infra/api/src/DIRMAP.md
+ M infra/api/src/helpers.rs
+ M infra/api/src/invoicing/tests/billing_plan.rs
+ M infra/api/src/invoicing/tests/mod.rs
+ M infra/api/src/models/customer.rs
+ M infra/api/src/openapi.rs
+ M infra/api/src/repos/DIRMAP.md
+ M infra/api/src/repos/customer_repo.rs
+ M infra/api/src/repos/mod.rs
+ M infra/api/src/repos/pg_customer_repo.rs
+ M infra/api/src/repos/pg_customer_repo_columns.rs
+ M infra/api/src/router/route_assembly.rs
+ M infra/api/src/routes/DIRMAP.md
+ M infra/api/src/routes/auth.rs
+ M infra/api/src/routes/billing.rs
+ M infra/api/src/services/DIRMAP.md
+ M infra/api/src/startup_env.rs
+ M infra/api/src/stripe/live.rs
+ M infra/api/tests/auth_endpoints_test.rs
+ M infra/api/tests/billing_endpoints_test.rs
+ M infra/api/tests/billing_regression_test.rs
+ M infra/api/tests/common/mocks.rs
+ M infra/api/tests/indexes_test.rs
+ M infra/api/tests/migration_052_auth_lockout_state_test.rs
+ M infra/api/tests/openapi_spec_test.rs
+ M infra/api/tests/pg_customer_repo_test.rs
+ M infra/api/tests/security_test.rs
+ M ops/terraform/tests_rds_restore_evidence_unit_execute_and_poll_contract.sh
+ M scripts/DIRMAP.md
+ M scripts/launch/capture_upgrade_trust_ratchet_evidence.sh
+ M scripts/lib/customer_lifecycle_steps.sh
+ M scripts/lib/deterministic_batch_payload.sh
+ M scripts/lib/full_backend_validation_cli.sh
+ M scripts/lib/full_backend_validation_json.sh
+ M scripts/lib/process.sh
+ M scripts/lib/psql_path.sh
+ M scripts/lib/secret_audit_parsing.sh
+ M scripts/lib/staging_billing_rehearsal_email_evidence.sh
+ M scripts/lib/staging_billing_rehearsal_evidence.sh
+ M scripts/lib/stripe_payment_methods.sh
+ M scripts/lib/stripe_request.sh
+ M scripts/tests/capture_upgrade_trust_ratchet_evidence_test.sh
+ M scripts/tests/lib/local_dev_test_state.sh
+ M scripts/tests/lib/seed_local_mocks.sh
+ M scripts/tests/lib/staging_billing_rehearsal_reset_harness_blocks.sh
+ M scripts/tests/probe_full_vm_lifecycle_script_test.sh
+ M scripts/validate_full_vm_lifecycle_prod.sh
+ M web/DIRMAP.md
+ M web/src/DIRMAP.md
+ M web/src/lib/api/client.test.ts
+ M web/src/lib/api/client.ts
+ M web/src/lib/api/types.ts
+ M web/src/routes/+layout.svelte
+ M web/src/routes/+page.svelte
+ M web/src/routes/DIRMAP.md
+ M web/src/routes/billing/DIRMAP.md
+ M web/src/routes/dashboard/+layout.svelte
+ M web/src/routes/dashboard/DIRMAP.md
+ M web/src/routes/dashboard/layout.test.ts
+ M web/src/routes/dashboard/settings/+page.server.ts
+ M web/src/routes/dashboard/settings/+page.svelte
+ M web/src/routes/dashboard/settings/settings.server.test.ts
+ M web/src/routes/dashboard/settings/settings.test.ts
+ M web/src/routes/dpa/+page.svelte
+ M web/src/routes/dpa/dpa.test.ts
+ M web/src/routes/forgot-password/+page.server.ts
+ M web/src/routes/forgot-password/+page.svelte
+ M web/src/routes/forgot-password/forgot-password.server.test.ts
+ M web/src/routes/landing.test.ts
+ M web/src/routes/layout.test.ts
+ M web/src/routes/legal_page_test_helpers.test.ts
+ M web/src/routes/legal_page_test_helpers.ts
+ M web/src/routes/login/+page.server.ts
+ M web/src/routes/login/login.server.test.ts
+ M web/src/routes/pricing/+page.svelte
+ M web/src/routes/pricing/pricing.test.ts
+ M web/src/routes/privacy/+page.svelte
+ M web/src/routes/privacy/privacy.test.ts
+ M web/src/routes/reset-password/[token]/+page.server.ts
+ M web/src/routes/reset-password/[token]/+page.svelte
+ M web/src/routes/reset-password/[token]/reset-password.server.test.ts
+ M web/src/routes/terms/+page.svelte
+ M web/src/routes/terms/terms.test.ts
+ M web/src/tests/e2e-fixture-user-helpers.test.ts
+ M web/src/tests/legal_page_playwright_helpers.test.ts
+ M web/src/tests/playwright-config-contract.test.ts
+ M web/src/tests/searchable-index-fixture.test.ts
+ M web/tests/DIRMAP.md
+ M web/tests/e2e-ui/full/auth.spec.ts
+ M web/tests/e2e-ui/full/dashboard.spec.ts
+ M web/tests/e2e-ui/full/public-pages.spec.ts
+ D web/tests/e2e-ui/full/settings.spec.ts
+ M web/tests/e2e-ui/full/signup_to_paid_invoice.spec.ts
+ M web/tests/e2e-ui/smoke/dashboard.spec.ts
+ M web/tests/fixtures/DIRMAP.md
+ M web/tests/fixtures/auth.setup.ts
+ M web/tests/fixtures/fixtures.ts
+ M web/tests/fixtures/legal_page_contract.ts
+ M web/tests/fixtures/searchable-index.ts
+?? docs/runbooks/evidence/browser-evidence/20260519T001313Z_upgrade_trust_ratchet/
+?? docs/runbooks/evidence/browser-evidence/20260519T001538Z_upgrade_trust_ratchet/
+?? docs/runbooks/evidence/browser-evidence/20260519T002024Z_upgrade_trust_ratchet/
+?? docs/runbooks/evidence/browser-evidence/20260519T002353Z_upgrade_trust_ratchet/
+?? docs/runbooks/evidence/browser-evidence/20260519T002457Z_upgrade_trust_ratchet/
+?? docs/runbooks/evidence/browser-evidence/20260519T002518Z_upgrade_trust_ratchet/
+?? docs/runbooks/evidence/browser-evidence/20260519T002902Z_upgrade_trust_ratchet/
+?? docs/runbooks/evidence/browser-evidence/20260519T003404Z_upgrade_trust_ratchet/
+?? docs/runbooks/evidence/browser-evidence/20260519T005216Z_upgrade_trust_ratchet/
+?? docs/runbooks/evidence/browser-evidence/20260519T012702Z_upgrade_trust_ratchet/
+?? docs/runbooks/evidence/browser-evidence/20260519T012825Z_upgrade_trust_ratchet/
+?? docs/runbooks/evidence/browser-evidence/20260519T014531Z_upgrade_trust_ratchet/
+?? docs/runbooks/evidence/browser-evidence/20260519T015340Z_upgrade_trust_ratchet/
+?? docs/runbooks/evidence/browser-evidence/20260519T015821Z_upgrade_trust_ratchet/
+?? docs/runbooks/evidence/browser-evidence/20260519T020401Z_upgrade_trust_ratchet/
+?? docs/runbooks/evidence/browser-evidence/20260519T020552Z_upgrade_trust_ratchet/
+?? docs/runbooks/evidence/may16_wave_deploy_verify/
+?? infra/api/src/repos/pg_customer_repo_password_reset_resend.rs
+?? infra/api/src/routes/auth/
+?? infra/api/tests/migration_054_password_reset_resend_cooldown_test.rs
+?? infra/fj-metering-agent
+?? infra/fjcloud-aggregation-job
+?? infra/fjcloud-api
+?? infra/migrations/054_password_reset_resend_cooldown.sql
+?? scripts/tests/stage5_auth_lockout_proof_hygiene_test.sh
+?? web/src/lib/components/BetaSupportBadge.svelte
+?? web/src/routes/dashboard/account/
+?? web/src/routes/dpa/dpa_layout_test_wrapper.svelte
+?? web/src/routes/forgot-password/forgot-password.test.ts
+?? web/src/routes/landing_layout_test_wrapper.svelte
+?? web/src/routes/pricing/pricing_layout_test_wrapper.svelte
+?? web/src/routes/privacy/privacy_layout_test_wrapper.svelte
+?? web/src/routes/reset-password/[token]/reset-password.test.ts
+?? web/src/routes/terms/terms_layout_test_wrapper.svelte
+?? web/src/tests/fixtures_estimated_bill_retry.test.ts
+?? web/tests/e2e-ui/full/account.spec.ts
+?? web/tests/e2e-ui/mocked/auth_trust_states.spec.ts
+?? web/tests/fixtures/fresh_signup_remote_bootstrap.ts

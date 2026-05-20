@@ -1,0 +1,7 @@
+{
+    "label": "declined_402",
+    "expected_http": 402,
+    "actual_http": 402,
+    "customer_id": "0efbac45-1acb-46ab-992f-4b7edd9596c8",
+    "stripe_customer_id": "cus_UXiTN5ZVOYSg1S"
+}

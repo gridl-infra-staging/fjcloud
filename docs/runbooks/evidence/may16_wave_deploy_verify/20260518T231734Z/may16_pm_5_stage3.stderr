@@ -1,0 +1,41 @@
+[02:05:52] Evidence capture starting. Bundle: docs/runbooks/evidence/browser-evidence/20260519T020552Z_upgrade_trust_ratchet
+[02:05:52] API_URL=https://api.staging.flapjack.foo
+[02:05:52] Verifying API health
+[02:05:52] Verifying API version
+[02:05:52] === Contract: success_paid (expect HTTP 200) ===
+[02:05:52] Creating tenant: Trust Ratchet success_paid
+[02:05:52] Syncing Stripe for customer f31b7c03-b34c-4d08-ac6b-72bcc867f06e
+[02:05:53] Attaching payment method pm_card_visa to cus_UXiTNnT0csubs9
+[02:05:53] Setting default payment method pm_1TYd2bKH9mdklKeIw5spQE6F
+[02:05:54] Minting JWT for customer f31b7c03-b34c-4d08-ac6b-72bcc867f06e
+[02:05:54] Checking pre-upgrade status
+[02:05:54] Calling POST /billing/upgrade
+[02:06:00] Upgrade response: HTTP 200
+[02:06:00] Checking post-upgrade status
+[02:06:01] PASS: success_paid contract verified
+[02:06:01] Fetching Stripe invoice in_1TYd2dKH9mdklKeIEU0RECGp
+[02:06:01] === Contract: declined_402 (expect HTTP 402) ===
+[02:06:01] Creating tenant: Trust Ratchet declined_402
+[02:06:01] Syncing Stripe for customer 0efbac45-1acb-46ab-992f-4b7edd9596c8
+[02:06:02] Attaching payment method pm_card_chargeCustomerFail to cus_UXiTN5ZVOYSg1S
+[02:06:02] Setting default payment method pm_1TYd2kKH9mdklKeIzAIS0UvF
+[02:06:03] Minting JWT for customer 0efbac45-1acb-46ab-992f-4b7edd9596c8
+[02:06:03] Checking pre-upgrade status
+[02:06:04] Calling POST /billing/upgrade
+[02:06:15] Upgrade response: HTTP 402
+[02:06:15] Checking post-upgrade status
+[02:06:15] PASS: declined_402 contract verified
+[02:06:15] === Contract: requires_action_402 (expect HTTP 402) ===
+[02:06:15] Creating tenant: Trust Ratchet requires_action_402
+[02:06:15] Syncing Stripe for customer a62c0eec-2181-404a-ab06-7f2a4598dd62
+[02:06:16] Attaching payment method pm_card_authenticationRequired to cus_UXiTCMCsjgoWpD
+[02:06:17] Setting default payment method pm_1TYd2yKH9mdklKeIkcxcZa4J
+[02:06:17] Minting JWT for customer a62c0eec-2181-404a-ab06-7f2a4598dd62
+[02:06:17] Checking pre-upgrade status
+[02:06:18] Calling POST /billing/upgrade
+[02:06:25] Upgrade response: HTTP 402
+[02:06:25] Checking post-upgrade status
+[02:06:25] PASS: requires_action_402 contract verified
+[02:06:25] Writing SUMMARY.md
+[02:06:25] Evidence bundle complete: docs/runbooks/evidence/browser-evidence/20260519T020552Z_upgrade_trust_ratchet
+[02:06:25] Artifacts:

@@ -1,0 +1,11 @@
+[full-vm-lifecycle] mode=run-b
+[full-vm-lifecycle] signup succeeded for canary+canary2026051904422015367@test.flapjack.foo (customer=a1bf9d0d-48ea-45db-b056-274355ba70b8)
+[full-vm-lifecycle] email verification succeeded for canary+canary2026051904422015367@test.flapjack.foo
+[full-vm-lifecycle] index created (lifecycle-canary2026051904422015367)
+[full-vm-lifecycle] index write succeeded (lifecycle-canary2026051904422015367)
+[full-vm-lifecycle] index search succeeded (lifecycle-canary2026051904422015367)
+[full-vm-lifecycle] step 'probe_payment_method' failed: attach payment method failed with HTTP 404 (no-request-id; invalid_request_error/?: You cannot use the test ID 'pm_card_visa' in livemode. If you are testing your integration, please use your testmode API keys instead.)
+[full-vm-lifecycle] index deleted (lifecycle-canary2026051904422015367)
+[full-vm-lifecycle] account delete attempted for customer a1bf9d0d-48ea-45db-b056-274355ba70b8
+[full-vm-lifecycle] admin cleanup completed for tenant a1bf9d0d-48ea-45db-b056-274355ba70b8
+[full-vm-lifecycle] evidence: post-cleanup artifacts written to docs/runbooks/evidence/may16_wave_deploy_verify/20260518T231734Z/stage6_full_vm_lifecycle_proof/run_b

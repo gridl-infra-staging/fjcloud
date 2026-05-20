@@ -5,6 +5,7 @@ import PrivacyLayoutTestWrapper from './privacy_layout_test_wrapper.svelte';
 import {
 	assertLegalPagePresentationContract,
 	assertSharedLegalPageContract,
+	assertTextAbsent,
 	assertUniqueVisibleHeading,
 	assertUniqueVisibleText
 } from '../legal_page_test_helpers';
@@ -38,13 +39,40 @@ describe('Privacy page legal contract', () => {
 		assertSharedLegalPageContract();
 		expect(document.title).toBe('Privacy Policy — Flapjack Cloud');
 		assertUniqueVisibleHeading(1, 'Privacy Policy');
-		assertUniqueVisibleText('Effective date: 2026-05-03');
+		assertUniqueVisibleText('Effective date: 2026-05-19');
 		for (const heading of privacySectionHeadings) {
 			assertUniqueVisibleHeading(2, heading);
 		}
+
 		expect(document.body).not.toHaveTextContent('(Draft)');
 		expect(document.body).not.toHaveTextContent('[REVIEW:');
 		expect(document.body).not.toHaveTextContent('TBD');
+	});
+
+	it('captures red baseline for vendor naming and Slack/Discord sharing scope', () => {
+		pageState.url = new URL('http://localhost/privacy');
+		render(PrivacyLayoutTestWrapper);
+
+		assertUniqueVisibleHeading(2, 'Third Parties and Sharing');
+		assertUniqueVisibleText('Amazon Web Services, Inc.');
+		assertUniqueVisibleText('Stripe, Inc.');
+		assertUniqueVisibleText('Cloudflare, Inc.');
+		assertUniqueVisibleText('Slack Technologies, LLC');
+		assertUniqueVisibleText('Discord, Inc.');
+		assertTextAbsent('Privacy.com, Inc.');
+
+		const socialIdentityScopeParagraphs = screen.getAllByText((_content, element) => {
+			if (!(element instanceof HTMLParagraphElement)) {
+				return false;
+			}
+
+			const normalizedText = element.textContent?.replace(/\s+/g, ' ').trim();
+			return (
+				normalizedText ===
+				'Slack Technologies, LLC and Discord, Inc. process only support and social identity interactions and are excluded from payment-processing flows.'
+			);
+		});
+		expect(socialIdentityScopeParagraphs).toHaveLength(1);
 	});
 
 	it('public__privacy__success__mobile_narrow M.universal.1 uses teal legal canvas and cream article surface', () => {

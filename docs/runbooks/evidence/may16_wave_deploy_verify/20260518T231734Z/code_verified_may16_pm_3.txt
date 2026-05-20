@@ -1,0 +1,27 @@
+# Command outputs proving mocked-only Playwright project contract
+$ rg -n "dashboard_upgrade_to_shared\.spec\.ts|chromium:mocked|chromium:public|chromium:admin|dependencies" web/src/tests/playwright-config-contract.test.ts
+328:		expect(projectContractsByName.chromium?.dependencies).toEqual(['setup:user']);
+332:		expect(projectContractsByName['chromium:onboarding']?.dependencies).toEqual([
+339:		expect(projectContractsByName['chromium:customer-journeys']?.dependencies).toEqual([
+348:		expect(projectContractsByName['chromium:signup']?.dependencies).toBeUndefined();
+351:		expect(projectContractsByName['chromium:mocked']?.dependencies).toEqual(['setup:user']);
+352:		expect(projectContractsByName['chromium:mocked']?.use?.desktopBrowser).toBe('chromium');
+353:		expect(projectContractsByName['chromium:mocked']?.use?.storageState).toBe(
+357:		expect(projectContractsByName['chromium:admin']?.dependencies).toEqual(['setup:admin']);
+358:		expect(projectContractsByName['chromium:admin']?.use?.desktopBrowser).toBe('chromium');
+359:		expect(projectContractsByName['chromium:admin']?.use?.storageState).toBe(
+686:			expect(projectContractsByName['chromium:admin']?.testMatch.test(specPath)).toBe(false);
+687:			expect(projectContractsByName.chromium?.dependencies).toEqual(['setup:user']);
+693:			expect(projectContractsByName['chromium:admin']?.testMatch.test(specPath)).toBe(false);
+694:			expect(projectContractsByName.chromium?.dependencies).toEqual(['setup:user']);
+697:		it('admin/customer-detail.spec.ts matches chromium:admin (setup:admin dependency)', () => {
+699:			expect(projectContractsByName['chromium:admin']?.testMatch.test(specPath)).toBe(true);
+701:			expect(projectContractsByName['chromium:admin']?.dependencies).toEqual(['setup:admin']);
+721:			expect(projectContractsByName['chromium:signup']?.dependencies).toBeUndefined();
+725:		it('dashboard_upgrade_to_shared.spec.ts matches chromium:mocked only', () => {
+726:			const specPath = 'tests/e2e-ui/mocked/dashboard_upgrade_to_shared.spec.ts';
+727:			expect(projectContractsByName['chromium:mocked']?.testMatch.test(specPath)).toBe(true);
+729:			expect(projectContractsByName['chromium:public']?.testMatch.test(specPath)).toBe(false);
+730:			expect(projectContractsByName['chromium:admin']?.testMatch.test(specPath)).toBe(false);
+731:			expect(projectContractsByName['chromium:mocked']?.dependencies).toEqual(['setup:user']);
+732:			expect(projectContractsByName['chromium:mocked']?.use?.storageState).toBe(

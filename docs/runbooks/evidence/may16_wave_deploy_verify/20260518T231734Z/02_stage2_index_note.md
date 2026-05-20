@@ -1,0 +1,15 @@
+# Stage 2 Index Note
+- UTC bundle: 20260518T231734Z
+- Canonical sweep SHAs source: chats/icg/may18_pm_1_may16_wave_deploy_verify_sweep.md
+- staging canonical mirror SHA: 3d179dd0ea6d0f9bb4879bf4dcb7c24166346d9e
+- prod canonical mirror SHA: 687be7359ae01523e5c5bb500dea77db85fccb4f
+- /version URLs source: scripts/deploy_status.sh lines 22-25
+- prod /version URL: https://api.flapjack.foo/version
+- staging /version URL: https://api.staging.flapjack.foo/version
+- Commands captured in this run:
+  - bash scripts/deploy_status.sh --json
+  - curl -fsS --max-time 10 <url>/version (fallback only)
+  - git merge-base --is-ancestor <wave_sha> <live_sha>
+  - gh run list -R <repo> --workflow=CI --limit 20 --json ...
+  - gh run view -R <repo> <run_id> --json jobs,headSha,conclusion,createdAt,url
+  - gh run view -R <repo> <run_id> --log-failed

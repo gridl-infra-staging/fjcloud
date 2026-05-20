@@ -1,0 +1,20 @@
+==> Deploying 207007c71352a08468ff56808318c70141d3feb1 to staging
+==> Pre-deploy validation: mode=mock, sha=207007c71352a08468ff56808318c70141d3feb1
+==> Pre-deploy validation passed for SHA 207007c71352a08468ff56808318c70141d3feb1
+==> Looking up instance fjcloud-api-staging
+    Instance: i-0afc7651593f12372
+==> Previous deploy SHA: bf8ab0b3ec75ffb79a9b537fb555c820309ea96b
+{
+    "Version": 77,
+    "Tier": "Standard"
+}
+==> Saved current SHA to /fjcloud/staging/last_deploy_sha
+{
+    "Version": 39,
+    "Tier": "Standard"
+}
+==> Set canary quiet window until 2026-05-19T02:27:59Z
+==> Sending SSM command to i-0afc7651593f12372
+    Command ID: 884d50da-8ce3-4655-a502-1af095b3fc3a
+==> Polling command status
+==> Deploy complete: 207007c71352a08468ff56808318c70141d3feb1 → staging

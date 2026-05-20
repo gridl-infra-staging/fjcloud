@@ -1,0 +1,11 @@
+# Stage 4 quota-warning live proof closeout
+
+- Route request artifact: docs/runbooks/evidence/may16_wave_deploy_verify/20260518T231734Z/stage4_quota_warning_proof/05_batch_request.json
+- Route response artifact: docs/runbooks/evidence/may16_wave_deploy_verify/20260518T231734Z/stage4_quota_warning_proof/06_batch_response.json
+- Inbox object key artifact: docs/runbooks/evidence/may16_wave_deploy_verify/20260518T231734Z/stage4_quota_warning_proof/07_matched_inbox_object_key.txt
+- Raw RFC822 artifact: docs/runbooks/evidence/may16_wave_deploy_verify/20260518T231734Z/stage4_quota_warning_proof/08_warning_email_raw.rfc822
+- Subject artifact: docs/runbooks/evidence/may16_wave_deploy_verify/20260518T231734Z/stage4_quota_warning_proof/08b_warning_email_subject.txt
+- Body artifact: docs/runbooks/evidence/may16_wave_deploy_verify/20260518T231734Z/stage4_quota_warning_proof/08c_warning_email_body.txt
+- Post-delivery quota_warnings_sent proof: docs/runbooks/evidence/may16_wave_deploy_verify/20260518T231734Z/stage4_quota_warning_proof/10_quota_warning_readback_after_inbox.txt
+- Seed SQL + readback: docs/runbooks/evidence/may16_wave_deploy_verify/20260518T231734Z/stage4_quota_warning_proof/03_usage_daily_seed.sql and docs/runbooks/evidence/may16_wave_deploy_verify/20260518T231734Z/stage4_quota_warning_proof/04c_usage_daily_seed_readback.txt
+- Cleanup SQL + verification: docs/runbooks/evidence/may16_wave_deploy_verify/20260518T231734Z/stage4_quota_warning_proof/11_usage_daily_cleanup.sql and docs/runbooks/evidence/may16_wave_deploy_verify/20260518T231734Z/stage4_quota_warning_proof/12c_usage_daily_cleanup_verify.txt

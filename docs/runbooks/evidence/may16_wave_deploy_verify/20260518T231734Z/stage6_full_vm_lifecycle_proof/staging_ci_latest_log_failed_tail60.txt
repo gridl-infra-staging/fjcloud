@@ -1,0 +1,60 @@
+secret-scan	UNKNOWN STEP	2026-05-18T21:36:48.4917157Z 
+secret-scan	UNKNOWN STEP	2026-05-18T21:36:48.6589173Z Finding:     "pm_token": "^[[1;3;mREDACTED^[[0m"
+secret-scan	UNKNOWN STEP	2026-05-18T21:36:48.6613289Z Secret:      ^[[1;3;mREDACTED^[[0m
+secret-scan	UNKNOWN STEP	2026-05-18T21:36:48.6643109Z RuleID:      generic-api-key
+secret-scan	UNKNOWN STEP	2026-05-18T21:36:48.6651805Z Entropy:     4.384517
+secret-scan	UNKNOWN STEP	2026-05-18T21:36:48.6656888Z File:        docs/runbooks/evidence/browser-evidence/20260518T032619Z_upgrade_trust_ratchet/success_paid/setup.json
+secret-scan	UNKNOWN STEP	2026-05-18T21:36:48.6657879Z Line:        4
+secret-scan	UNKNOWN STEP	2026-05-18T21:36:48.6738611Z Commit:      3d179dd0ea6d0f9bb4879bf4dcb7c24166346d9e
+secret-scan	UNKNOWN STEP	2026-05-18T21:36:48.6740064Z Author:      stuart
+secret-scan	UNKNOWN STEP	2026-05-18T21:36:48.6740460Z Email:       stacy.saunders.2002@gmail.com
+secret-scan	UNKNOWN STEP	2026-05-18T21:36:48.6740880Z Date:        2026-05-18T21:36:36Z
+secret-scan	UNKNOWN STEP	2026-05-18T21:36:48.6742095Z Fingerprint: 3d179dd0ea6d0f9bb4879bf4dcb7c24166346d9e:docs/runbooks/evidence/browser-evidence/20260518T032619Z_upgrade_trust_ratchet/success_paid/setup.json:generic-api-key:4
+secret-scan	UNKNOWN STEP	2026-05-18T21:36:48.6744691Z Link:        https://github.com/gridl-infra-staging/fjcloud/blob/3d179dd0ea6d0f9bb4879bf4dcb7c24166346d9e/docs/runbooks/evidence/browser-evidence/20260518T032619Z_upgrade_trust_ratchet/success_paid/setup.json#L4
+secret-scan	UNKNOWN STEP	2026-05-18T21:36:48.6746015Z 
+secret-scan	UNKNOWN STEP	2026-05-18T21:36:50.0669075Z ^[[90m9:36PM^[[0m ^[[32mINF^[[0m ^[[1m86 commits scanned.^[[0m
+secret-scan	UNKNOWN STEP	2026-05-18T21:36:50.0669725Z Finding:     "pm_token": "^[[1;3;mREDACTED^[[0m"
+secret-scan	UNKNOWN STEP	2026-05-18T21:36:50.0670182Z Secret:      ^[[1;3;mREDACTED^[[0m
+secret-scan	UNKNOWN STEP	2026-05-18T21:36:50.0670524Z RuleID:      generic-api-key
+secret-scan	UNKNOWN STEP	2026-05-18T21:36:50.0670899Z Entropy:     4.384517
+secret-scan	UNKNOWN STEP	2026-05-18T21:36:50.0671708Z File:        docs/runbooks/evidence/browser-evidence/20260518T032420Z_upgrade_trust_ratchet/success_paid/setup.json
+secret-scan	UNKNOWN STEP	2026-05-18T21:36:50.0672711Z Line:        4
+secret-scan	UNKNOWN STEP	2026-05-18T21:36:50.0673076Z Commit:      3d179dd0ea6d0f9bb4879bf4dcb7c24166346d9e
+secret-scan	UNKNOWN STEP	2026-05-18T21:36:50.0673482Z Author:      stuart
+secret-scan	UNKNOWN STEP	2026-05-18T21:36:50.0673809Z Email:       stacy.saunders.2002@gmail.com
+secret-scan	UNKNOWN STEP	2026-05-18T21:36:50.0674198Z Date:        2026-05-18T21:36:36Z
+secret-scan	UNKNOWN STEP	2026-05-18T21:36:50.0675291Z Fingerprint: 3d179dd0ea6d0f9bb4879bf4dcb7c24166346d9e:docs/runbooks/evidence/browser-evidence/20260518T032420Z_upgrade_trust_ratchet/success_paid/setup.json:generic-api-key:4
+secret-scan	UNKNOWN STEP	2026-05-18T21:36:50.0677404Z Link:        https://github.com/gridl-infra-staging/fjcloud/blob/3d179dd0ea6d0f9bb4879bf4dcb7c24166346d9e/docs/runbooks/evidence/browser-evidence/20260518T032420Z_upgrade_trust_ratchet/success_paid/setup.json#L4
+secret-scan	UNKNOWN STEP	2026-05-18T21:36:50.0678556Z 
+secret-scan	UNKNOWN STEP	2026-05-18T21:36:50.0678838Z Finding:     "pm_token": "^[[1;3;mREDACTED^[[0m"
+secret-scan	UNKNOWN STEP	2026-05-18T21:36:50.0679298Z Secret:      ^[[1;3;mREDACTED^[[0m
+secret-scan	UNKNOWN STEP	2026-05-18T21:36:50.0679636Z RuleID:      generic-api-key
+secret-scan	UNKNOWN STEP	2026-05-18T21:36:50.0680005Z Entropy:     4.384517
+secret-scan	UNKNOWN STEP	2026-05-18T21:36:50.0680618Z File:        docs/runbooks/evidence/browser-evidence/20260518T032311Z_upgrade_trust_ratchet/success_paid/setup.json
+secret-scan	UNKNOWN STEP	2026-05-18T21:36:50.0681333Z Line:        4
+secret-scan	UNKNOWN STEP	2026-05-18T21:36:50.0681677Z Commit:      3d179dd0ea6d0f9bb4879bf4dcb7c24166346d9e
+secret-scan	UNKNOWN STEP	2026-05-18T21:36:50.0682158Z Author:      stuart
+secret-scan	UNKNOWN STEP	2026-05-18T21:36:50.0682689Z Email:       stacy.saunders.2002@gmail.com
+secret-scan	UNKNOWN STEP	2026-05-18T21:36:50.0683088Z Date:        2026-05-18T21:36:36Z
+secret-scan	UNKNOWN STEP	2026-05-18T21:36:50.0684229Z Fingerprint: 3d179dd0ea6d0f9bb4879bf4dcb7c24166346d9e:docs/runbooks/evidence/browser-evidence/20260518T032311Z_upgrade_trust_ratchet/success_paid/setup.json:generic-api-key:4
+secret-scan	UNKNOWN STEP	2026-05-18T21:36:50.0687308Z Link:        https://github.com/gridl-infra-staging/fjcloud/blob/3d179dd0ea6d0f9bb4879bf4dcb7c24166346d9e/docs/runbooks/evidence/browser-evidence/20260518T032311Z_upgrade_trust_ratchet/success_paid/setup.json#L4
+secret-scan	UNKNOWN STEP	2026-05-18T21:36:50.0688614Z 
+secret-scan	UNKNOWN STEP	2026-05-18T21:36:50.0689231Z ^[[90m9:36PM^[[0m ^[[32mINF^[[0m ^[[1mscanned ~22681411 bytes (22.68 MB) in 1.58s^[[0m
+secret-scan	UNKNOWN STEP	2026-05-18T21:36:50.0689906Z ^[[90m9:36PM^[[0m ^[[33mWRN^[[0m ^[[1mleaks found: 3^[[0m
+secret-scan	UNKNOWN STEP	2026-05-18T21:36:50.0717856Z ##[error]Process completed with exit code 2.
+secret-scan	UNKNOWN STEP	2026-05-18T21:36:50.0826972Z Post job cleanup.
+secret-scan	UNKNOWN STEP	2026-05-18T21:36:50.1850487Z [command]/usr/bin/git version
+secret-scan	UNKNOWN STEP	2026-05-18T21:36:50.1891855Z git version 2.54.0
+secret-scan	UNKNOWN STEP	2026-05-18T21:36:50.1936063Z Temporarily overriding HOME='/home/runner/work/_temp/5374acd7-e57c-42a1-8599-6a8eadd4e024' before making global git config changes
+secret-scan	UNKNOWN STEP	2026-05-18T21:36:50.1937631Z Adding repository directory to the temporary git global config as a safe directory
+secret-scan	UNKNOWN STEP	2026-05-18T21:36:50.1950539Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/fjcloud/fjcloud
+secret-scan	UNKNOWN STEP	2026-05-18T21:36:50.1991573Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+secret-scan	UNKNOWN STEP	2026-05-18T21:36:50.2029595Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+secret-scan	UNKNOWN STEP	2026-05-18T21:36:50.2289127Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+secret-scan	UNKNOWN STEP	2026-05-18T21:36:50.2317515Z http.https://github.com/.extraheader
+secret-scan	UNKNOWN STEP	2026-05-18T21:36:50.2331723Z [command]/usr/bin/git config --local --unset-all http.https://github.com/.extraheader
+secret-scan	UNKNOWN STEP	2026-05-18T21:36:50.2367485Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+secret-scan	UNKNOWN STEP	2026-05-18T21:36:50.2620138Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+secret-scan	UNKNOWN STEP	2026-05-18T21:36:50.2655638Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+secret-scan	UNKNOWN STEP	2026-05-18T21:36:50.3061879Z Cleaning up orphan processes
+secret-scan	UNKNOWN STEP	2026-05-18T21:36:50.3337907Z ##[warning]Node.js 20 actions are deprecated. The following actions are running on Node.js 20 and may not work as expected: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5. Actions will be forced to run with Node.js 24 by default starting June 2nd, 2026. Node.js 20 will be removed from the runner on September 16th, 2026. Please check if updated versions of these actions are available that support Node.js 24. To opt into Node.js 24 now, set the FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true environment variable on the runner or in your workflow file. Once Node.js 24 becomes the default, you can temporarily opt out by setting ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION=true. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/

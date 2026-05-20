@@ -34,51 +34,10 @@ assert_active_count_at_least() {
   fi
 }
 
-extract_active_resource_block() {
-  local file="$1"
-  local resource_type="$2"
-  local resource_name="$3"
-  strip_comments "$file" | awk -v resource_type="$resource_type" -v resource_name="$resource_name" '
-    BEGIN { in_block = 0; depth = 0 }
-    {
-      line = $0
-      if (!in_block && line ~ "^[[:space:]]*resource[[:space:]]+\"" resource_type "\"[[:space:]]+\"" resource_name "\"[[:space:]]*{") {
-        in_block = 1
-      }
-
-      if (in_block) {
-        print line
-        opens = gsub(/{/, "{", line)
-        closes = gsub(/}/, "}", line)
-        depth += opens - closes
-        if (depth == 0) {
-          exit
-        }
-      }
-    }
-  '
-}
-
-assert_resource_block_contains() {
-  local file="$1"
-  local resource_type="$2"
-  local resource_name="$3"
-  local pattern="$4"
-  local description="$5"
-  local block
-
-  block="$(extract_active_resource_block "$file" "$resource_type" "$resource_name")"
-  if [[ -z "$block" ]]; then
-    fail "$description (resource ${resource_type}.${resource_name} not found)"
-    return
-  fi
-
-  if rg -q "$pattern" <<<"$block"; then
-    pass "$description"
-  else
-    fail "$description"
-  fi
-}
+# extract_active_resource_block and assert_resource_block_contains moved to
+# test_helpers.sh (2026-05-20) so terraform tests other than this one can scope
+# an assertion to a single resource block. They are still available here via
+# the `source test_helpers.sh` above.
 
 assert_file_contains_multiline_regex() {
   local file="$1"
@@ -229,18 +188,16 @@ assert_file_not_contains "$canary_owner_script" '/fjcloud/\$\{ENVIRONMENT\}/disc
 
 echo ""
 echo "--- Monitoring resource count ---"
-# Resource count breakdown:
-#   2 alerts SNS (topic + email subscription)
-#   3 SES feedback SNS (topic + topic_policy + HTTPS subscription) — added 2026-04-29 in
-#     commits 6ce1329d/b7f79168 alongside the bounce/complaint suppression handler. Test
-#     was previously asserting 24 (pre-feedback) and would silently fail-fast on staging
-#     terraform_stage7_static gate every run; updated to 27 now.
-#   8 customer-loop canary (ECR repo + lifecycle, IAM role+policy, Lambda, EventBridge rule+target, Lambda permission)
-#   4 cloudtrail export (S3 bucket + public-access-block + lifecycle + bucket-policy + cloudtrail itself = 5)
-#   2 budget (budget + budget action)
-#   12 cloudwatch metric alarms (6 baseline infra + 4 Stage 2 coverage alarms + 1 heartbeat + 1 billing)
-# Sum: 2 + 3 + 8 + 5 + 2 + 12 = 32.
-assert_resource_count "$monitor_main_file" 32 "monitoring/main.tf has exactly 32 resources (alerts + SES feedback + canary + cloudtrail + budget + alarms)"
+# Resource count breakdown (verified 2026-05-20):
+#   2  alerts SNS (topic + email subscription)
+#   3  SES feedback SNS (topic + topic_policy + HTTPS subscription)
+#   8  customer-loop canary (ECR repo + lifecycle, IAM role+policy, Lambda, EventBridge rule+target, Lambda permission)
+#   5  cloudtrail export (S3 bucket + public-access-block + lifecycle + bucket-policy + cloudtrail trail)
+#   2  budget (budget + budget action)
+#   16 cloudwatch metric alarms (incl. customer_loop_canary_not_running liveness alarm added 2026-05-20)
+# Sum: 2 + 3 + 8 + 5 + 2 + 16 = 36. Update this number and the assertion together
+# whenever a resource is added to or removed from monitoring/main.tf.
+assert_resource_count "$monitor_main_file" 36 "monitoring/main.tf has exactly 36 resources (alerts + SES feedback + canary + cloudtrail + budget + alarms)"
 
 echo ""
 echo "--- API CPU alarm ---"
@@ -322,6 +279,26 @@ assert_contains_active "$monitor_main_file" 'metric_name[[:space:]]*=[[:space:]]
 assert_contains_active "$monitor_main_file" 'FunctionName[[:space:]]*=[[:space:]]*local\.customer_loop_canary_function_name' "Customer-loop canary errors alarm dimensions use canonical local function-name owner"
 
 echo ""
+echo "--- Customer-loop canary liveness alarm (regression guard) ---"
+# The 2026-05-20 launch-readiness audit found the customer-loop canary EventBridge
+# rule had been disabled since 2026-05-17 and the prod shared-VM fleet rotted
+# unobserved. The pre-existing customer_loop_canary_lambda_errors alarm watches
+# AWS/Lambda Errors with treat_missing_data=notBreaching, which is structurally
+# blind to "canary not running" — a canary that never runs emits no Errors
+# datapoints, so missing data is (correctly, for that alarm) treated as healthy.
+# This separate liveness alarm watches Invocations with treat_missing_data=breaching
+# so a stopped/disabled canary pages instead of failing silent.
+assert_contains_active "$monitor_main_file" 'resource "aws_cloudwatch_metric_alarm" "customer_loop_canary_not_running"' "Customer-loop canary liveness alarm resource exists"
+assert_contains_active "$monitor_main_file" 'alarm_name[[:space:]]*=[[:space:]]*"fjcloud-\$\{var\.env\}-customer-loop-canary-not-running"' "Customer-loop canary liveness alarm name follows naming convention"
+assert_resource_block_contains "$monitor_main_file" "aws_cloudwatch_metric_alarm" "customer_loop_canary_not_running" 'metric_name[[:space:]]*=[[:space:]]*"Invocations"' "Customer-loop liveness alarm watches the Invocations metric"
+assert_resource_block_contains "$monitor_main_file" "aws_cloudwatch_metric_alarm" "customer_loop_canary_not_running" 'namespace[[:space:]]*=[[:space:]]*"AWS/Lambda"' "Customer-loop liveness alarm uses AWS/Lambda namespace"
+assert_resource_block_contains "$monitor_main_file" "aws_cloudwatch_metric_alarm" "customer_loop_canary_not_running" 'comparison_operator[[:space:]]*=[[:space:]]*"LessThanThreshold"' "Customer-loop liveness alarm fires when invocations fall below threshold"
+assert_resource_block_contains "$monitor_main_file" "aws_cloudwatch_metric_alarm" "customer_loop_canary_not_running" 'treat_missing_data[[:space:]]*=[[:space:]]*"breaching"' "Customer-loop liveness alarm treats missing data as breaching so a disabled rule pages"
+assert_resource_block_contains "$monitor_main_file" "aws_cloudwatch_metric_alarm" "customer_loop_canary_not_running" 'FunctionName[[:space:]]*=[[:space:]]*local\.customer_loop_canary_function_name' "Customer-loop liveness alarm dimensions use canonical local function-name owner"
+assert_resource_block_contains "$monitor_main_file" "aws_cloudwatch_metric_alarm" "customer_loop_canary_not_running" 'alarm_actions[[:space:]]*=[[:space:]]*\[aws_sns_topic\.alerts\.arn\]' "Customer-loop liveness alarm wires alarm_actions to SNS topic"
+assert_resource_block_contains "$monitor_main_file" "aws_cloudwatch_metric_alarm" "customer_loop_canary_not_running" 'ok_actions[[:space:]]*=[[:space:]]*\[aws_sns_topic\.alerts\.arn\]' "Customer-loop liveness alarm wires ok_actions to SNS topic"
+
+echo ""
 echo "--- Cross-alarm contract checks ---"
 assert_contains_active "$monitor_main_file" 'comparison_operator[[:space:]]*=[[:space:]]*"GreaterThanThreshold"' "CPU/latency alarms use GreaterThanThreshold operator"
 assert_contains_active "$monitor_main_file" 'period[[:space:]]*=[[:space:]]*300' "Alarms use 5-minute period"
@@ -352,6 +329,15 @@ assert_contains_active "$monitor_vars_file" 'tag[[:space:]]*=[[:space:]]*string'
 assert_contains_active "$monitor_vars_file" 'variable "canary_schedule"' "Monitoring has canary_schedule input"
 assert_contains_active "$monitor_vars_file" 'expression[[:space:]]*=[[:space:]]*string' "canary_schedule variable includes schedule expression field"
 assert_contains_active "$monitor_vars_file" 'enabled[[:space:]]*=[[:space:]]*bool' "canary_schedule variable includes operator enable flag"
+# Regression guard for the 2026-05-20 silent-rot incident: the canary_schedule
+# default MUST enable the canary. An enabled=false default means every
+# terraform apply silently disables the canary (operator console toggles drift
+# away on the next apply). Temporary suppression is the canary_quiet_until SSM
+# parameter's job, not a disabled EventBridge rule.
+assert_contains_active "$monitor_vars_file" 'enabled[[:space:]]*=[[:space:]]*true' "canary_schedule default enables the canary (off-by-default caused the 2026-05-20 silent-rot incident)"
+assert_not_contains_active "$monitor_vars_file" 'enabled[[:space:]]*=[[:space:]]*false' "canary_schedule default is not disabled"
+assert_contains_active "$shared_vars_file" 'enabled[[:space:]]*=[[:space:]]*true' "_shared canary_schedule passthrough default enables the canary"
+assert_not_contains_active "$shared_vars_file" 'enabled[[:space:]]*=[[:space:]]*false' "_shared canary_schedule passthrough default is not disabled"
 
 echo "--- Monitoring module canary outputs ---"
 assert_contains_active "$monitor_outputs_file" 'output "customer_loop_canary_ecr_repository_url"' "Monitoring exports canary ECR repository URL"
@@ -362,6 +348,7 @@ assert_contains_active "$monitor_outputs_file" 'output "api_root_disk_high_alarm
 assert_contains_active "$monitor_outputs_file" 'output "rds_connections_high_alarm_arn"' "Monitoring exports RDS connections alarm ARN"
 assert_contains_active "$monitor_outputs_file" 'output "alb_unhealthy_hosts_alarm_arn"' "Monitoring exports ALB unhealthy-host alarm ARN"
 assert_contains_active "$monitor_outputs_file" 'output "customer_loop_canary_lambda_errors_alarm_arn"' "Monitoring exports customer-loop canary errors alarm ARN"
+assert_contains_active "$monitor_outputs_file" 'output "customer_loop_canary_not_running_alarm_arn"' "Monitoring exports customer-loop canary liveness alarm ARN"
 
 echo "--- Shared module contract updates ---"
 assert_contains_active "$data_outputs_file" 'output "db_instance_identifier"' "Data module exports db_instance_identifier"

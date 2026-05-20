@@ -1,0 +1,1 @@
+SELECT id::text AS customer_id, COALESCE(quota_warnings_sent->>'records','') AS records_month, quota_warnings_sent::text AS quota_warnings_sent_json FROM customers WHERE id='67ea7137-ecda-4ccc-a86e-46b0a814cb52'::uuid;

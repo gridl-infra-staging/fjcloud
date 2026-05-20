@@ -1,0 +1,6 @@
+- live route request: docs/runbooks/evidence/may16_wave_deploy_verify/20260518T231734Z/stage4_quota_warning_proof/05_batch_request.json
+- live route response: docs/runbooks/evidence/may16_wave_deploy_verify/20260518T231734Z/stage4_quota_warning_proof/06_batch_response.json
+- quota_warnings_sent SQL proof: docs/runbooks/evidence/may16_wave_deploy_verify/20260518T231734Z/stage4_quota_warning_proof/10_quota_warning_readback_after_inbox.txt
+- matched S3 object key: docs/runbooks/evidence/may16_wave_deploy_verify/20260518T231734Z/stage4_quota_warning_proof/07_matched_inbox_object_key.txt
+- raw RFC822 payload: docs/runbooks/evidence/may16_wave_deploy_verify/20260518T231734Z/stage4_quota_warning_proof/08_warning_email_raw.rfc822
+- closeout note: docs/runbooks/evidence/may16_wave_deploy_verify/20260518T231734Z/stage4_quota_warning_proof/99_stage4_closeout.md

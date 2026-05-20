@@ -100,6 +100,18 @@ fn has_default_payment_method(methods: &[crate::stripe::PaymentMethodSummary]) -
         .any(|payment_method| payment_method.is_default)
 }
 
+fn normalize_anchor_to_storage_precision(anchor_at: DateTime<Utc>) -> DateTime<Utc> {
+    DateTime::<Utc>::from_timestamp_micros(anchor_at.timestamp_micros()).unwrap_or(anchor_at)
+}
+
+fn anchors_match_at_storage_precision(
+    left_anchor_at: DateTime<Utc>,
+    right_anchor_at: DateTime<Utc>,
+) -> bool {
+    normalize_anchor_to_storage_precision(left_anchor_at)
+        == normalize_anchor_to_storage_precision(right_anchor_at)
+}
+
 fn activation_invoice_metadata(
     customer_id: uuid::Uuid,
     anchor_at: DateTime<Utc>,
@@ -423,7 +435,7 @@ pub async fn upgrade_to_shared(
         .ok_or_else(|| ApiError::ServiceUnavailable("active rate card unavailable".into()))?;
     let activation_amount_cents = active_rate_card.shared_minimum_spend_cents;
 
-    let subscription_cycle_anchor_at = Utc::now();
+    let subscription_cycle_anchor_at = normalize_anchor_to_storage_precision(Utc::now());
     let claimed = state
         .customer_repo
         .try_upgrade_to_shared_atomic(tenant.customer_id, subscription_cycle_anchor_at)
@@ -543,7 +555,7 @@ pub async fn upgrade_to_shared(
             "failed to verify persisted upgrade state".into(),
         ));
     };
-    if persisted_anchor_at != subscription_cycle_anchor_at {
+    if !anchors_match_at_storage_precision(persisted_anchor_at, subscription_cycle_anchor_at) {
         rollback_upgrade_and_void_invoice(
             &state,
             tenant.customer_id,

@@ -1,0 +1,31 @@
+<!-- [matt:progress] -->
+## Matt Build Progress
+
+### Stage 1: Mirror CI Pre-flight [maintenance]
+Capture the current staging and prod mirror CI state with the exact `gh run list --workflow=CI` probes before touching shared strip tooling. Record the failing baseline and current `headSha` values so later `rust-lint` results can be attributed to the sync commits created by this lane instead of pre-existing red runs.
+- @work:maintenance Capture mirror CI pre-flight attribution baseline
+- 1/1 checklist items completed
+
+### Stage 2: Confirm Strip Ownership And Reproduce The Blank-Line Bug [research]
+Re-verify that fjcloud’s `.debbie/post-sync.sh` resolves to `python3 -m matt scrai strip` and that the live fix surface is `_collect_module_stub_summary_range` in `matt_root/matt/scrai/strip.py`. Reproduce the leading-blank-line failure on a temp tree and re-count the Rust stub variants in `infra/` so the regression tests cover both the 15-file blank-line minority and the 173-file no-blank-line majority.
+- @work:research Confirm the shared strip owner and the current regression gap
+- @work:research Reproduce the blank-line defect and classify the real Rust variants
+- @work:research Stage 2 evidence appendix (blank-introduced bucket full list)
+- @work:research Stage 2 evidence appendix (no-blank bucket full list, part 1)
+- @work:research Stage 2 evidence appendix (no-blank bucket full list, part 2)
+- @work:research Stage 2 no-op completion reconfirmed (s22)
+- @work:research Stage 2 closeout verification pass (s17)
+- 7/7 checklist items completed
+
+### Stage 3: Collapse Trailing Blank Lines In Shared Scrai Strip Logic [build]
+Add a failing regression test in `matt_root/tests/test_scrai_strip.py`, then update `matt_root/matt/scrai/strip.py` so only module-summary stub removal consumes immediately trailing blank lines. Validate the change with the targeted red-to-green test, the full strip test file, and an end-to-end temp-tree strip plus `rustfmt --check` probe against a real fjcloud Rust file that currently exhibits the bug.
+- @work:build Add failing regression coverage for trailing-blank-line consumption boundaries
+- @work:build Implement the shared strip fix in the existing owner seam and validate end-to-end
+- 2/2 checklist items completed
+
+### Stage 4: Verify Real Mirror Sync And CI Recovery [deploy]
+Commit and push the `matt` repo fix on its default branch, run real `debbie sync` flows into the staging and prod mirror checkouts, and push the resulting sync commits so GitHub CI runs against the updated post-sync behavior. Confirm via GitHub content readback that the mirrored Rust sample no longer starts with a blank line, then assert the `rust-lint` job is `success` for the specific staging and prod runs triggered by those pushes even if sibling lanes still leave other jobs red.
+- 0/1 checklist items completed
+
+**Run finished** — 4/4 stages · $27.32 · 2h 24m 41s
+<!-- [matt:progress:end] -->

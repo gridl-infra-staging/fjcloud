@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC1091
+# shellcheck disable=SC1091,SC2329
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -232,15 +232,284 @@ ENV
     fi
     unset FJCLOUD_SECRET_FILE
 
+    run_unit_create_card_memo_contract_checks
+    run_unit_identifier_validation_checks
+    run_unit_pause_unpause_contract_checks
     run_unit_cleanup_restore_failure_path_checks
     run_unit_card_limit_recovery_checks
     run_unit_card_limit_recovery_no_reclaimable_checks
+    run_unit_expected_failure_paths_are_quiet_checks
     if ! with_cleanup_state_restored run_unit_cleanup_registration_checks; then
         return 1
     fi
 
     assert_equals "$cleanup_token" "$cleanup_token_before" "cleanup_token_restored_after_unit_checks"
     assert_equals "$cleanup_open" "$cleanup_open_before" "cleanup_open_restored_after_unit_checks"
+}
+
+run_unit_create_card_memo_contract_checks() {
+    local captured_method=""
+    local captured_path=""
+    local captured_auth_mode=""
+    local captured_body=""
+
+    privacy_com_request() {
+        captured_method="$1"
+        captured_path="$2"
+        captured_auth_mode="$3"
+        captured_body="${4:-}"
+        PRIVACY_CLIENT_EXIT_CLASS="ok"
+        PRIVACY_CLIENT_HTTP_CODE="200"
+        PRIVACY_CLIENT_BODY='{"token":"tok_create","state":"OPEN","type":"MERCHANT_LOCKED","spend_limit":1000,"spend_limit_duration":"FOREVER","created":"2026-01-01T00:00:00Z","funding":{"token":"funding-token","state":"ENABLED","type":"DEPOSITORY_CHECKING","created":"2026-01-01T00:00:00Z"},"exp_month":"01","exp_year":"2030"}'
+        return 0
+    }
+
+    privacy_com_validate_schema() {
+        return 0
+    }
+
+    if ! privacy_com_create_card; then
+        echo "FAIL: expected privacy_com_create_card default memo call to succeed" >&2
+        return 1
+    fi
+    assert_equals "$captured_method" "POST" "create_card_default_method" || return 1
+    assert_equals "$captured_path" "/v1/cards" "create_card_default_path" || return 1
+    assert_equals "$captured_auth_mode" "raw" "create_card_default_auth_mode" || return 1
+    assert_equals "$captured_body" '{"type":"MERCHANT_LOCKED","memo":"fjcloud stage2 contract probe","spend_limit":1000,"spend_limit_duration":"TRANSACTION","state":"OPEN"}' "create_card_default_body" || return 1
+
+    if ! privacy_com_create_card "fjcloud reusable lifecycle card"; then
+        echo "FAIL: expected privacy_com_create_card custom memo call to succeed" >&2
+        return 1
+    fi
+    assert_equals "$captured_body" '{"type":"MERCHANT_LOCKED","memo":"fjcloud reusable lifecycle card","spend_limit":1000,"spend_limit_duration":"TRANSACTION","state":"OPEN"}' "create_card_custom_body" || return 1
+
+    privacy_com_request() {
+        echo "FAIL: forbidden memo should not invoke privacy_com_request" >&2
+        return 1
+    }
+
+    local rc=0
+    if privacy_com_create_card 'memo " quote'; then
+        echo "FAIL: expected privacy_com_create_card to reject quote characters in memo" >&2
+        return 1
+    else
+        rc=$?
+    fi
+    assert_equals "$rc" "$PRIVACY_CLIENT_EXIT_SCHEMA_MISMATCH" "create_card_quote_rejection_exit_code" || return 1
+    assert_equals "$PRIVACY_CLIENT_EXIT_CLASS" "schema_mismatch" "create_card_quote_rejection_class" || return 1
+    assert_equals "$PRIVACY_CLIENT_ERROR_MESSAGE" "memo contains forbidden chars" "create_card_quote_rejection_message" || return 1
+
+    if privacy_com_create_card 'memo \ slash'; then
+        echo "FAIL: expected privacy_com_create_card to reject backslash characters in memo" >&2
+        return 1
+    else
+        rc=$?
+    fi
+    assert_equals "$rc" "$PRIVACY_CLIENT_EXIT_SCHEMA_MISMATCH" "create_card_backslash_rejection_exit_code" || return 1
+    assert_equals "$PRIVACY_CLIENT_EXIT_CLASS" "schema_mismatch" "create_card_backslash_rejection_class" || return 1
+    assert_equals "$PRIVACY_CLIENT_ERROR_MESSAGE" "memo contains forbidden chars" "create_card_backslash_rejection_message" || return 1
+
+    if privacy_com_create_card $'memo\nnewline'; then
+        echo "FAIL: expected privacy_com_create_card to reject newline characters in memo" >&2
+        return 1
+    else
+        rc=$?
+    fi
+    assert_equals "$rc" "$PRIVACY_CLIENT_EXIT_SCHEMA_MISMATCH" "create_card_newline_rejection_exit_code" || return 1
+    assert_equals "$PRIVACY_CLIENT_EXIT_CLASS" "schema_mismatch" "create_card_newline_rejection_class" || return 1
+    assert_equals "$PRIVACY_CLIENT_ERROR_MESSAGE" "memo contains forbidden chars" "create_card_newline_rejection_message" || return 1
+
+    if privacy_com_create_card $'memo\ttab'; then
+        echo "FAIL: expected privacy_com_create_card to reject tab characters in memo" >&2
+        return 1
+    else
+        rc=$?
+    fi
+    assert_equals "$rc" "$PRIVACY_CLIENT_EXIT_SCHEMA_MISMATCH" "create_card_tab_rejection_exit_code" || return 1
+    assert_equals "$PRIVACY_CLIENT_EXIT_CLASS" "schema_mismatch" "create_card_tab_rejection_class" || return 1
+    assert_equals "$PRIVACY_CLIENT_ERROR_MESSAGE" "memo contains forbidden chars" "create_card_tab_rejection_message" || return 1
+}
+
+run_unit_identifier_validation_checks() {
+    local request_calls=0
+    local captured_method=""
+    local captured_path=""
+    local captured_auth_mode=""
+    local captured_body=""
+
+    privacy_com_request() {
+        request_calls=$((request_calls + 1))
+        captured_method="$1"
+        captured_path="$2"
+        captured_auth_mode="$3"
+        captured_body="${4:-}"
+        PRIVACY_CLIENT_EXIT_CLASS="ok"
+        PRIVACY_CLIENT_HTTP_CODE="200"
+        PRIVACY_CLIENT_BODY='{"token":"tok_abc","state":"OPEN","type":"MERCHANT_LOCKED","spend_limit":1000,"spend_limit_duration":"FOREVER","created":"2026-01-01T00:00:00Z","funding":{"token":"funding-token","state":"ENABLED","type":"DEPOSITORY_CHECKING","created":"2026-01-01T00:00:00Z"},"exp_month":"01","exp_year":"2030"}'
+        return 0
+    }
+
+    privacy_com_validate_schema() {
+        return 0
+    }
+
+    if ! privacy_com_get_card "tok_abc"; then
+        echo "FAIL: expected privacy_com_get_card request construction call to succeed" >&2
+        return 1
+    fi
+    assert_equals "$captured_method" "GET" "get_card_request_method" || return 1
+    assert_equals "$captured_path" "/v1/cards/tok_abc" "get_card_request_path" || return 1
+    assert_equals "$captured_auth_mode" "raw" "get_card_request_auth_mode" || return 1
+
+    if ! privacy_com_close_card "tok_abc"; then
+        echo "FAIL: expected privacy_com_close_card request construction call to succeed" >&2
+        return 1
+    fi
+    assert_equals "$captured_method" "PATCH" "close_card_request_method" || return 1
+    assert_equals "$captured_path" "/v1/cards/tok_abc" "close_card_request_path" || return 1
+    assert_equals "$captured_auth_mode" "raw" "close_card_request_auth_mode" || return 1
+    assert_equals "$captured_body" '{"state":"CLOSED"}' "close_card_request_body" || return 1
+
+    local calls_before="$request_calls"
+    local rc=0
+    if privacy_com_get_card 'tok_bad/../cards'; then
+        echo "FAIL: expected privacy_com_get_card to reject unsafe token chars" >&2
+        return 1
+    else
+        rc=$?
+    fi
+    assert_equals "$rc" "$PRIVACY_CLIENT_EXIT_SCHEMA_MISMATCH" "get_card_unsafe_token_exit_code" || return 1
+    assert_equals "$PRIVACY_CLIENT_EXIT_CLASS" "schema_mismatch" "get_card_unsafe_token_class" || return 1
+    assert_equals "$PRIVACY_CLIENT_ERROR_MESSAGE" "card token contains unsafe chars" "get_card_unsafe_token_message" || return 1
+    assert_equals "$request_calls" "$calls_before" "get_card_unsafe_token_no_request" || return 1
+
+    if privacy_com_close_card $'tok_bad\nnewline'; then
+        echo "FAIL: expected privacy_com_close_card to reject control chars in token" >&2
+        return 1
+    else
+        rc=$?
+    fi
+    assert_equals "$rc" "$PRIVACY_CLIENT_EXIT_SCHEMA_MISMATCH" "close_card_unsafe_token_exit_code" || return 1
+    assert_equals "$PRIVACY_CLIENT_EXIT_CLASS" "schema_mismatch" "close_card_unsafe_token_class" || return 1
+    assert_equals "$PRIVACY_CLIENT_ERROR_MESSAGE" "card token contains unsafe chars" "close_card_unsafe_token_message" || return 1
+    assert_equals "$request_calls" "$calls_before" "close_card_unsafe_token_no_request" || return 1
+
+    if privacy_com_list_cards_raw_auth '1&admin=true' 2; then
+        echo "FAIL: expected privacy_com_list_cards_raw_auth to reject unsafe page values" >&2
+        return 1
+    else
+        rc=$?
+    fi
+    assert_equals "$rc" "$PRIVACY_CLIENT_EXIT_SCHEMA_MISMATCH" "list_cards_unsafe_page_exit_code" || return 1
+    assert_equals "$PRIVACY_CLIENT_EXIT_CLASS" "schema_mismatch" "list_cards_unsafe_page_class" || return 1
+    assert_equals "$PRIVACY_CLIENT_ERROR_MESSAGE" "page must be a positive integer" "list_cards_unsafe_page_message" || return 1
+    assert_equals "$request_calls" "$calls_before" "list_cards_unsafe_page_no_request" || return 1
+
+    if privacy_com_list_cards_prefixed_auth 1 0; then
+        echo "FAIL: expected privacy_com_list_cards_prefixed_auth to reject non-positive page_size" >&2
+        return 1
+    else
+        rc=$?
+    fi
+    assert_equals "$rc" "$PRIVACY_CLIENT_EXIT_SCHEMA_MISMATCH" "list_cards_bad_page_size_exit_code" || return 1
+    assert_equals "$PRIVACY_CLIENT_EXIT_CLASS" "schema_mismatch" "list_cards_bad_page_size_class" || return 1
+    assert_equals "$PRIVACY_CLIENT_ERROR_MESSAGE" "page_size must be a positive integer" "list_cards_bad_page_size_message" || return 1
+    assert_equals "$request_calls" "$calls_before" "list_cards_bad_page_size_no_request" || return 1
+}
+
+run_unit_pause_unpause_contract_checks() {
+    local captured_method=""
+    local captured_path=""
+    local captured_auth_mode=""
+    local captured_body=""
+
+    privacy_com_request() {
+        captured_method="$1"
+        captured_path="$2"
+        captured_auth_mode="$3"
+        captured_body="${4:-}"
+        PRIVACY_CLIENT_EXIT_CLASS="ok"
+        PRIVACY_CLIENT_HTTP_CODE="200"
+        PRIVACY_CLIENT_BODY='{"token":"tok_abc","state":"PAUSED","type":"MERCHANT_LOCKED","spend_limit":1000,"spend_limit_duration":"FOREVER","created":"2026-01-01T00:00:00Z","funding":{"token":"funding-token","state":"ENABLED","type":"DEPOSITORY_CHECKING","created":"2026-01-01T00:00:00Z"},"exp_month":"01","exp_year":"2030"}'
+        return 0
+    }
+
+    privacy_com_validate_schema() {
+        return 0
+    }
+
+    if ! privacy_com_pause_card "tok_abc"; then
+        echo "FAIL: expected privacy_com_pause_card request construction call to succeed" >&2
+        return 1
+    fi
+    assert_equals "$captured_method" "PATCH" "pause_card_request_method" || return 1
+    assert_equals "$captured_path" "/v1/cards/tok_abc" "pause_card_request_path" || return 1
+    assert_equals "$captured_auth_mode" "raw" "pause_card_request_auth_mode" || return 1
+    assert_equals "$captured_body" '{"state":"PAUSED"}' "pause_card_request_body" || return 1
+
+    if ! privacy_com_unpause_card "tok_abc"; then
+        echo "FAIL: expected privacy_com_unpause_card request construction call to succeed" >&2
+        return 1
+    fi
+    assert_equals "$captured_method" "PATCH" "unpause_card_request_method" || return 1
+    assert_equals "$captured_path" "/v1/cards/tok_abc" "unpause_card_request_path" || return 1
+    assert_equals "$captured_auth_mode" "raw" "unpause_card_request_auth_mode" || return 1
+    assert_equals "$captured_body" '{"state":"OPEN"}' "unpause_card_request_body" || return 1
+
+    privacy_com_request() {
+        echo "FAIL: empty token path should not invoke privacy_com_request" >&2
+        return 1
+    }
+
+    local rc=0
+    if privacy_com_pause_card ""; then
+        echo "FAIL: expected privacy_com_pause_card to reject empty token" >&2
+        return 1
+    else
+        rc=$?
+    fi
+    assert_equals "$rc" "$PRIVACY_CLIENT_EXIT_SCHEMA_MISMATCH" "pause_card_empty_token_exit_code" || return 1
+    assert_equals "$PRIVACY_CLIENT_EXIT_CLASS" "schema_mismatch" "pause_card_empty_token_class" || return 1
+    assert_equals "$PRIVACY_CLIENT_ERROR_MESSAGE" "card token is required" "pause_card_empty_token_message" || return 1
+
+    if privacy_com_unpause_card ""; then
+        echo "FAIL: expected privacy_com_unpause_card to reject empty token" >&2
+        return 1
+    else
+        rc=$?
+    fi
+    assert_equals "$rc" "$PRIVACY_CLIENT_EXIT_SCHEMA_MISMATCH" "unpause_card_empty_token_exit_code" || return 1
+    assert_equals "$PRIVACY_CLIENT_EXIT_CLASS" "schema_mismatch" "unpause_card_empty_token_class" || return 1
+    assert_equals "$PRIVACY_CLIENT_ERROR_MESSAGE" "card token is required" "unpause_card_empty_token_message" || return 1
+
+    privacy_com_request() {
+        PRIVACY_CLIENT_EXIT_CLASS="ok"
+        PRIVACY_CLIENT_HTTP_CODE="200"
+        PRIVACY_CLIENT_BODY='{"not":"a-card"}'
+        return 0
+    }
+
+    privacy_com_validate_schema() {
+        return 1
+    }
+
+    if privacy_com_pause_card "tok_abc"; then
+        echo "FAIL: expected privacy_com_pause_card malformed response to fail schema validation" >&2
+        return 1
+    else
+        rc=$?
+    fi
+    assert_equals "$rc" "$PRIVACY_CLIENT_EXIT_SCHEMA_MISMATCH" "pause_card_malformed_response_exit_code" || return 1
+    assert_equals "$PRIVACY_CLIENT_EXIT_CLASS" "schema_mismatch" "pause_card_malformed_response_class" || return 1
+
+    if privacy_com_unpause_card "tok_abc"; then
+        echo "FAIL: expected privacy_com_unpause_card malformed response to fail schema validation" >&2
+        return 1
+    else
+        rc=$?
+    fi
+    assert_equals "$rc" "$PRIVACY_CLIENT_EXIT_SCHEMA_MISMATCH" "unpause_card_malformed_response_exit_code" || return 1
+    assert_equals "$PRIVACY_CLIENT_EXIT_CLASS" "schema_mismatch" "unpause_card_malformed_response_class" || return 1
 }
 
 run_unit_card_limit_recovery_checks() {
@@ -316,7 +585,7 @@ run_unit_card_limit_recovery_no_reclaimable_checks() {
         return 0
     }
 
-    if create_card_with_capacity_recovery; then
+    if create_card_with_capacity_recovery 2>/dev/null; then
         echo "FAIL: expected create_card_with_capacity_recovery to fail without reclaimable OPEN cards" >&2
         return 1
     fi
@@ -366,7 +635,7 @@ run_unit_cleanup_restore_failure_path_checks() {
     local original_force_failure="${PRIVACY_TEST_FORCE_ASSERT_FAILURE:-0}"
 
     PRIVACY_TEST_FORCE_ASSERT_FAILURE="1"
-    if with_cleanup_state_restored run_unit_cleanup_registration_checks; then
+    if with_cleanup_state_restored run_unit_cleanup_registration_checks 2>/dev/null; then
         echo "FAIL: expected forced cleanup assertion failure path to fail" >&2
         PRIVACY_TEST_FORCE_ASSERT_FAILURE="$original_force_failure"
         return 1
@@ -375,6 +644,36 @@ run_unit_cleanup_restore_failure_path_checks() {
 
     assert_equals "$cleanup_token" "$cleanup_token_before" "cleanup_token_restored_after_forced_failure"
     assert_equals "$cleanup_open" "$cleanup_open_before" "cleanup_open_restored_after_forced_failure"
+}
+
+run_unit_expected_failure_paths_are_quiet_checks() {
+    local stderr_capture=""
+    stderr_capture="$(mktemp)"
+
+    if ! run_unit_card_limit_recovery_no_reclaimable_checks 2>"$stderr_capture"; then
+        rm -f "$stderr_capture"
+        echo "FAIL: expected no-reclaimable recovery path check to pass its assertions" >&2
+        return 1
+    fi
+    if rg -q '^FAIL:' "$stderr_capture"; then
+        rm -f "$stderr_capture"
+        echo "FAIL: no-reclaimable recovery path leaked FAIL output on expected failure branch" >&2
+        return 1
+    fi
+
+    : > "$stderr_capture"
+    if ! run_unit_cleanup_restore_failure_path_checks 2>"$stderr_capture"; then
+        rm -f "$stderr_capture"
+        echo "FAIL: expected cleanup restore failure-path check to pass its assertions" >&2
+        return 1
+    fi
+    if rg -q '^FAIL:' "$stderr_capture"; then
+        rm -f "$stderr_capture"
+        echo "FAIL: cleanup restore failure-path check leaked FAIL output on expected failure branch" >&2
+        return 1
+    fi
+
+    rm -f "$stderr_capture"
 }
 
 register_cleanup_from_card_body() {

@@ -1,0 +1,7 @@
+{
+  "error": {
+    "message": "This PaymentMethod was previously used without being attached to a Customer or was detached from a Customer, and may not be used again.",
+    "request_log_url": "https://dashboard.stripe.com/acct_1SyNWVKH9mdklKeI/test/workbench/logs?object=req_0eLfWYF7vFsqO2",
+    "type": "invalid_request_error"
+  }
+}

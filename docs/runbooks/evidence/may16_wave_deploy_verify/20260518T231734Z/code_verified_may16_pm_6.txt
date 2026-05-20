@@ -1,0 +1,9 @@
+# Command outputs proving quota_warnings_sent owner seams
+$ rg -n "quota_warnings_sent" infra/migrations/050_quota_warnings_sent_jsonb.sql infra/api/src/repos/pg_customer_repo_quota_warning.rs
+infra/migrations/050_quota_warnings_sent_jsonb.sql:2:ADD COLUMN quota_warnings_sent JSONB NOT NULL DEFAULT '{}'::jsonb;
+infra/api/src/repos/pg_customer_repo_quota_warning.rs:9:    "COALESCE((to_jsonb(customers)->>'quota_warnings_sent')::jsonb, '{}'::jsonb) AS quota_warnings_sent";
+infra/api/src/repos/pg_customer_repo_quota_warning.rs:12:    quota_warnings_sent = jsonb_set( \
+infra/api/src/repos/pg_customer_repo_quota_warning.rs:13:        COALESCE(quota_warnings_sent, '{}'::jsonb), \
+infra/api/src/repos/pg_customer_repo_quota_warning.rs:21:   AND COALESCE(quota_warnings_sent->>$2, '') <> $3";
+infra/api/src/repos/pg_customer_repo_quota_warning.rs:24:    quota_warnings_sent = COALESCE(quota_warnings_sent, '{}'::jsonb) - $2::text, \
+infra/api/src/repos/pg_customer_repo_quota_warning.rs:28:   AND COALESCE(quota_warnings_sent->>$2, '') = $3";

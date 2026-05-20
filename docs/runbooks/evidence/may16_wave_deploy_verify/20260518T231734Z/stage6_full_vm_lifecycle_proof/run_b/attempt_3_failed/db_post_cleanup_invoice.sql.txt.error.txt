@@ -1,0 +1,6 @@
+[staging_db] detecting fjcloud-api-prod instance for SSM DB access...
+[staging_db] using instance: i-0af0ff2e18725b6ba
+[staging_db] ERROR: SSM Run Command failed (status=Failed): ERROR:  invalid input syntax for type uuid: ""
+LINE 1: ... COUNT(*) AS invoice_rows FROM invoices WHERE id = ''::uuid;
+                                                              ^
+failed to run commands: exit status 1

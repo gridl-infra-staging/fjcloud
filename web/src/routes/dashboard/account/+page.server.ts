@@ -11,6 +11,7 @@ import {
 
 const DELETE_ACCOUNT_FAILED_MESSAGE =
 	'Unable to delete account. Please check your password and try again.';
+const CHANGE_PASSWORD_FAILED_MESSAGE = 'Failed to change password';
 const EXPORT_ACCOUNT_FAILED_MESSAGE = 'Failed to export account data';
 const EXPORT_ACCOUNT_SUCCESS_MESSAGE = 'Account export ready';
 const MIN_PASSWORD_LENGTH = 8;
@@ -32,6 +33,13 @@ function deleteAccountError(deleteAccountError: string) {
 	return fail(400, { deleteAccountError });
 }
 
+function customerFacingApiErrorMessage(error: unknown, fallback: string): string {
+	if (!(error instanceof ApiRequestError)) {
+		return fallback;
+	}
+	return customerFacingErrorMessage(error, fallback);
+}
+
 export const load: PageServerLoad = async ({ locals }) => {
 	const api = apiForLocals(locals);
 	const profile = await api.getProfile();
@@ -48,8 +56,10 @@ export const actions: Actions = {
 		try {
 			await api.updateProfile({ name });
 			return { success: 'Profile updated successfully' };
-		} catch {
-			return actionError('Failed to update profile');
+		} catch (error) {
+			const sessionFailure = mapDashboardSessionFailure(error);
+			if (sessionFailure) return sessionFailure;
+			return actionError(customerFacingApiErrorMessage(error, 'Failed to update profile'));
 		}
 	},
 	changePassword: async ({ request, locals }) => {
@@ -77,8 +87,13 @@ export const actions: Actions = {
 				new_password: newPassword
 			});
 			return { success: 'Password changed successfully' };
-		} catch {
-			return actionError('Current password is incorrect');
+		} catch (error) {
+			const sessionFailure = mapDashboardSessionFailure(error);
+			if (sessionFailure) return sessionFailure;
+			if (error instanceof ApiRequestError && error.status === 400) {
+				return actionError(customerFacingApiErrorMessage(error, 'Current password is incorrect'));
+			}
+			return actionError(customerFacingApiErrorMessage(error, CHANGE_PASSWORD_FAILED_MESSAGE));
 		}
 	},
 	deleteAccount: async ({ request, locals, cookies }) => {

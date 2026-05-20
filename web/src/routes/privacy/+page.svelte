@@ -45,8 +45,20 @@
 			<section class="space-y-3">
 				<h2 class="text-xl font-bold text-[#1f1b18]">Third Parties and Sharing</h2>
 				<p class="leading-7 text-[#4b4640]">
-					We share data only with service providers that support hosting, billing, and support
-					operations, or when required by law.
+					We share data with the following service providers that support hosting, billing, and support operations:
+				</p>
+				<ul class="list-disc pl-6 leading-7 text-[#4b4640]">
+					<li>Amazon Web Services, Inc.</li>
+					<li>Stripe, Inc.</li>
+					<li>Cloudflare, Inc.</li>
+					<li>Slack Technologies, LLC</li>
+					<li>Discord, Inc.</li>
+				</ul>
+				<p class="leading-7 text-[#4b4640]">
+					Slack Technologies, LLC and Discord, Inc. process only support and social identity interactions and are excluded from payment-processing flows.
+				</p>
+				<p class="leading-7 text-[#4b4640]">
+					We may also share information when required by law.
 				</p>
 			</section>
 

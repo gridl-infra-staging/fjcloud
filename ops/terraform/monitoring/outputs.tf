@@ -83,6 +83,11 @@ output "customer_loop_canary_lambda_errors_alarm_arn" {
   value       = aws_cloudwatch_metric_alarm.customer_loop_canary_lambda_errors.arn
 }
 
+output "customer_loop_canary_not_running_alarm_arn" {
+  description = "CloudWatch alarm ARN for customer-loop canary liveness (pages when the canary stops running)"
+  value       = aws_cloudwatch_metric_alarm.customer_loop_canary_not_running.arn
+}
+
 output "cloudtrail_arn" {
   description = "CloudTrail ARN for audit-evidence ownership in monitoring"
   value       = aws_cloudtrail.cloudtrail.arn
@@ -146,4 +151,9 @@ output "support_email_canary_schedule_arn" {
 output "support_email_canary_log_group_name" {
   description = "CloudWatch log group name for support-email canary Lambda"
   value       = aws_cloudwatch_log_group.support_email_canary.name
+}
+
+output "support_email_canary_not_running_alarm_arn" {
+  description = "CloudWatch alarm ARN for support-email canary liveness (pages when the canary stops running)"
+  value       = aws_cloudwatch_metric_alarm.support_email_canary_not_running.arn
 }

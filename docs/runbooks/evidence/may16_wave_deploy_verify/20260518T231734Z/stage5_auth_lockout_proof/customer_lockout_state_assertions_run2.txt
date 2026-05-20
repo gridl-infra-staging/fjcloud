@@ -1,0 +1,4 @@
+ failed_count_ge_5 | has_window_start | lockout_in_future 
+-------------------+------------------+-------------------
+ t                 | t                | t
+(1 row)

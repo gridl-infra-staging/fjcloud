@@ -9,7 +9,10 @@ use chrono::NaiveDate;
 use rust_decimal_macros::dec;
 use tower::ServiceExt;
 
-use common::stripe_webhook_test_support::{mock_stripe_webhook_app, webhook_request};
+use common::stripe_webhook_test_support::{
+    local_stripe_webhook_app, mock_stripe_webhook_app, webhook_request,
+    webhook_request_with_signature,
+};
 use common::{mock_invoice_repo, mock_repo, mock_stripe_service, mock_webhook_event_repo};
 
 fn seed_draft_invoice(
@@ -74,6 +77,30 @@ async fn mock_stripe_service_accepts_any_signature_value() {
 
     let resp = app.oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
+}
+
+#[tokio::test]
+async fn local_stripe_service_rejects_invalid_signature_with_bad_request() {
+    let app = local_stripe_webhook_app(mock_repo(), mock_invoice_repo(), mock_webhook_event_repo());
+
+    let payload = r#"{"id":"evt_invalid_real_sig","type":"invoice.payment_succeeded","data":{"object":{"id":"in_invalid_real_sig"}}}"#;
+    let resp = app
+        .oneshot(webhook_request_with_signature(
+            payload,
+            "t=1234,v1=invalid_hex",
+        ))
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+    let body = axum::body::to_bytes(resp.into_body(), 1_000_000)
+        .await
+        .expect("body bytes");
+    let body_text = String::from_utf8(body.to_vec()).expect("utf8 response body");
+    assert!(
+        body_text.contains("invalid webhook signature"),
+        "expected signature validation rejection body, got: {body_text}"
+    );
 }
 
 #[tokio::test]

@@ -7,8 +7,8 @@ Establish the single staging DNS contract for follow-on infrastructure stages. T
 Decision status: finalized.
 
 - Canonical root domain: `flapjack.foo`.
-- Canonical web console hostname: `cloud.flapjack.foo`.
-- Required public hostnames: `flapjack.foo`, `api.flapjack.foo`, `www.flapjack.foo`, `cloud.flapjack.foo`.
+- Canonical web console hostname: `cloud.staging.flapjack.foo`.
+- Required public hostnames: `flapjack.foo`, `api.flapjack.foo`, `www.flapjack.foo`, `cloud.staging.flapjack.foo`.
 - DNS authority: Cloudflare zone for `flapjack.foo`.
 - Historical `flapjack.cloud` evidence is non-authoritative for new work because the operator does not own that domain.
 

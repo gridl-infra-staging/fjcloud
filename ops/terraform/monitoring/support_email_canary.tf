@@ -178,3 +178,37 @@ resource "aws_lambda_permission" "support_email_canary_eventbridge" {
   principal     = "events.amazonaws.com"
   source_arn    = aws_cloudwatch_event_rule.support_email_canary.arn
 }
+
+# ---------------------------------------------------------------------------
+# Support-email canary liveness — pages when the canary STOPS RUNNING.
+#
+# The 2026-05-20 launch-readiness audit found scheduled canaries had no alarm
+# on their own liveness; the support-email canary had zero CloudWatch alarms of
+# any kind, so a stopped or disabled canary would page nobody. This mirrors the
+# customer_loop_canary_not_running alarm in main.tf: it watches the Lambda's
+# Invocations metric with treat_missing_data="breaching" so an absent canary
+# (disabled EventBridge rule, broken target wiring, unavailable Lambda) emits no
+# datapoints, missing data is treated as breaching, and the alarm pages.
+#
+# The schedule is rate(6 hours); period=43200s (12h) with threshold=1 means
+# "fewer than one run in the last 12 hours" (~2 expected) — detects a dead
+# canary within roughly one schedule interval without flapping on a single miss.
+resource "aws_cloudwatch_metric_alarm" "support_email_canary_not_running" {
+  alarm_name          = "fjcloud-${var.env}-support-email-canary-not-running"
+  alarm_description   = "Support-email canary Lambda was not invoked in the last 12 hours — EventBridge schedule disabled, target wiring broken, or Lambda unavailable. The support-email deliverability probe is dark."
+  comparison_operator = "LessThanThreshold"
+  metric_name         = "Invocations"
+  namespace           = "AWS/Lambda"
+  statistic           = "Sum"
+  period              = 43200
+  evaluation_periods  = 1
+  threshold           = 1
+  treat_missing_data  = "breaching"
+  datapoints_to_alarm = 1
+  alarm_actions       = [aws_sns_topic.alerts.arn]
+  ok_actions          = [aws_sns_topic.alerts.arn]
+
+  dimensions = {
+    FunctionName = local.support_email_canary_name
+  }
+}

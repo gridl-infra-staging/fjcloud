@@ -61,7 +61,7 @@ printf '%s\n' \
   "export ADMIN_KEY=mock-admin-key" \
   "export API_URL=https://api.staging.flapjack.foo" \
   "export STAGING_API_URL=https://api.staging.flapjack.foo" \
-  "export STAGING_CLOUD_URL=https://staging.flapjack.foo" \
+  "export STAGING_CLOUD_URL=https://cloud.staging.flapjack.foo" \
   "export STRIPE_SECRET_KEY=sk_test_staging_browser_contract" \
   "export STRIPE_WEBHOOK_SECRET=whsec_staging_browser_contract"
 EOF
@@ -168,7 +168,7 @@ test_both_lane_timeout_still_emits_both_lane_logs() {
     assert_contains "$second_lane_content" "mock second lane executed" "second lane should execute after first-lane timeout"
     assert_contains "$second_lane_content" "exit=0" "second lane log should include its exit code"
     assert_contains "$summary_content" "- **API_URL:** https://api.staging.flapjack.foo" "summary should reflect hydrated staging API_URL without prod-host override"
-    assert_contains "$summary_content" "- **BASE_URL:** https://staging.flapjack.foo" "summary should reflect hydrated STAGING_CLOUD_URL instead of prod cloud host"
+    assert_contains "$summary_content" "- **BASE_URL:** https://cloud.staging.flapjack.foo" "summary should reflect hydrated STAGING_CLOUD_URL instead of prod cloud host"
 
     rm -rf "$workspace"
 }

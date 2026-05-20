@@ -1,0 +1,26 @@
+<!-- [matt:progress] -->
+## Matt Build Progress
+
+### Stage 1: Verify Pipeline Baseline And Claim Migration Slot [infra]
+Run the mirror-CI preflight against `gridl-infra-staging/fjcloud` and `gridl-infra-prod/fjcloud` to confirm the deploy pipeline is green before landing auth hardening work, then record any blocker explicitly if either pipeline is red. Claim the next migration prefix from `infra/migrations` (per the lane's Migration number reservation rule) so lockout schema work has a deterministic slot and avoids cross-lane collisions.
+- @work:infra Verify live deploy-pipeline health and claim the auth-lockout migration prefix
+- 1/1 checklist items completed
+
+### Stage 2: Implement Lockout Schema, Model, Repo, And Error Plumbing [build]
+Add migration `NNN_auth_lockout_state.sql` with 9 columns (3 login + 6 reserved-for-v2 verify/reset). Extend `Customer` struct, `CUSTOMER_COLUMNS`, `CustomerRepo` trait (add `login_lockout_remaining`, `record_failed_login`, `record_successful_login`), `PgCustomerRepo` (atomic `UPDATE ... RETURNING` SQL), and both mock impls (`tests/common/mocks.rs`, `src/helpers.rs`). Add `ApiError::TooManyRequests` variant with `Retry-After` header in `errors.rs`. Add migration schema contract test (patterned after `migration_048_oauth_identities_test.rs`) and PgCustomerRepo concurrency regression test (`tokio::task::JoinSet` with 10 concurrent `record_failed_login` calls asserting count==10). Run `cargo check -p api` and the migration test as per-stage validation.
+- @work:build Add lockout schema and repo plumbing on the existing customer seam
+- 1/1 checklist items completed
+
+### Stage 3: Enforce Lockout In Login Handler And Close Reset-Password Route Gap [build]
+Wire the lockout into `infra/api/src/routes/auth.rs::login`: pre-check `login_lockout_remaining` before password verification, call `record_failed_login` on mismatch (returning 429 on threshold), call `record_successful_login` on success, and skip lockout counters for OAuth-only accounts (`password_hash IS NULL`). Move `POST /auth/reset-password` from `build_router_without_layers` (route_assembly.rs:107) into `build_auth_rate_limited_routes` to close the IP-rate-limit gap (§8(b) prerequisite). Add lockout integration tests in `infra/api/tests/auth_lockout_test.rs` (5-failures-lock, success-resets, expiry-via-mock-state, OAuth-only-no-increment) and reset-password rate-limit regression test in `security_test.rs`. Run `cargo test -p api` as validation gate.
+- @work:build Enforce login lockout and rate-limit reset-password through existing auth seams
+- 1/1 checklist items completed
+
+### Stage 4: Document Decisions, Update Status, And Validate Full Suite [build]
+Create `docs/design/auth_hardening.md` documenting the §8(b) threat-model decision (token entropy + IP rate limit for verify/reset; per-customer lockout deferred to v2). Add regression tests pinning §8(b) policy (verify-email and reset-password do NOT per-customer rate-limit in beta). Update `docs/NOW.md` if it references the auth-hardening gap. Run `bash scripts/local-ci.sh` as the final local gate. After merge reaches staging via mirror CI, execute staging probes: confirm 9 lockout columns exist in RDS, confirm 5-failures produce 429+Retry-After, confirm reset-password hits IP rate limit.
+- @work:build Document boundary and pin beta policy regressions
+- @work:build Clear final local gate before stage complete
+- 2/3 checklist items completed
+
+**Run finished** — 4/4 stages · $69.54 · 2h 58m 45s
+<!-- [matt:progress:end] -->

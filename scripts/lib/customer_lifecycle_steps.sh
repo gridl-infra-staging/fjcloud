@@ -97,6 +97,8 @@ run_verify_email_step() {
         mark_failure "verify_email" "verification email not found in inbox within timeout"
         return 1
     fi
+    CANARY_VERIFY_EMAIL_BUCKET="$bucket"
+    CANARY_VERIFY_EMAIL_MESSAGE_KEY="$message_key"
 
     rfc822_payload="$(test_inbox_fetch_rfc822 "$bucket" "$message_key" "$CANARY_AWS_REGION" 2>/dev/null || true)"
     if [ -z "$rfc822_payload" ]; then

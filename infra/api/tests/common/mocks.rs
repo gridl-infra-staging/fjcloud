@@ -268,6 +268,25 @@ impl MockCustomerRepo {
         }
     }
 
+    /// Test-only helper: inject a sub-microsecond anchor drift without crossing
+    /// a microsecond boundary. This mirrors DB precision truncation differences
+    /// while preserving the same stored microsecond timestamp.
+    pub fn nudge_subscription_cycle_anchor_submicro_for_test(&self, id: Uuid) {
+        let mut customers = self.customers.lock().unwrap();
+        if let Some(customer) = customers.iter_mut().find(|customer| customer.id == id) {
+            if let Some(anchor) = customer.subscription_cycle_anchor_at {
+                let nanos_remainder = anchor.timestamp_subsec_nanos() % 1000;
+                let nudged_anchor = if nanos_remainder == 999 {
+                    anchor - chrono::Duration::nanoseconds(1)
+                } else {
+                    anchor + chrono::Duration::nanoseconds(1)
+                };
+                customer.subscription_cycle_anchor_at = Some(nudged_anchor);
+                customer.updated_at = Utc::now();
+            }
+        }
+    }
+
     pub fn delete_customer_for_test(&self, id: Uuid) {
         let mut customers = self.customers.lock().unwrap();
         customers.retain(|customer| customer.id != id);

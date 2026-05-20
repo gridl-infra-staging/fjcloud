@@ -20,6 +20,8 @@ source "$REPO_ROOT/scripts/lib/stripe_payment_methods.sh"
 source "$REPO_ROOT/scripts/lib/privacy_com_client.sh"
 # shellcheck source=scripts/lib/test_inbox_helpers.sh
 source "$REPO_ROOT/scripts/lib/test_inbox_helpers.sh"
+# shellcheck source=scripts/lib/staging_db.sh
+source "$REPO_ROOT/scripts/lib/staging_db.sh"
 # Reuse extracted signup/verify owner seam to avoid canary-only side effects.
 # shellcheck source=scripts/lib/customer_lifecycle_steps.sh
 source "$REPO_ROOT/scripts/lib/customer_lifecycle_steps.sh"
@@ -41,6 +43,8 @@ CANARY_INDEX_NAME=""
 CANARY_INDEX_CREATED=0
 CANARY_ACCOUNT_DELETED=0
 CANARY_ADMIN_CLEANED=0
+CANARY_VERIFY_EMAIL_BUCKET=""
+CANARY_VERIFY_EMAIL_MESSAGE_KEY=""
 
 LIFECYCLE_INVOICE_ID=""
 LIFECYCLE_STRIPE_INVOICE_ID=""
@@ -51,6 +55,8 @@ LIFECYCLE_INVOICE_MONTH="${LIFECYCLE_INVOICE_MONTH:-$(date -u +%Y-%m)}"
 LIFECYCLE_ENABLE_PRIVACY_CARD="${LIFECYCLE_ENABLE_PRIVACY_CARD:-0}"
 STRIPE_PAY_OUT_OF_BAND="${STRIPE_PAY_OUT_OF_BAND:-0}"
 LIFECYCLE_SECRET_FILE="${FJCLOUD_SECRET_FILE:-$REPO_ROOT/.secret/.env.secret}"
+STAGE5_DATABASE_URL_CACHE=""
+PRIVACY_REUSABLE_MEMO="fjcloud reusable lifecycle card"
 
 log() {
     echo "[full-vm-lifecycle] $*"
@@ -127,9 +133,15 @@ load_run_b_stripe_transport() {
     STRIPE_API_BASE="${STRIPE_API_BASE:-https://api.stripe.com}"
     export STRIPE_API_BASE
 
-    if ! STRIPE_SECRET_KEY_EFFECTIVE="$(resolve_stripe_secret_key)"; then
-        mark_failure "stripe_env" "run-b requires STRIPE_SECRET_KEY"
-        return 1
+    # PM attach/default must target the same Stripe account used by prod customer
+    # sync. Prefer the cloud alias key when present so customer ids resolve.
+    if [ -n "${STRIPE_SECRET_KEY_flapjack_cloud:-}" ]; then
+        STRIPE_SECRET_KEY_EFFECTIVE="${STRIPE_SECRET_KEY_flapjack_cloud}"
+    else
+        if ! STRIPE_SECRET_KEY_EFFECTIVE="$(resolve_stripe_secret_key)"; then
+            mark_failure "stripe_env" "run-b requires STRIPE_SECRET_KEY"
+            return 1
+        fi
     fi
     if ! stripe_secret_key_has_allowed_prefix "$STRIPE_SECRET_KEY_EFFECTIVE"; then
         mark_failure "stripe_env" "run-b requires an allowed Stripe key prefix; set STRIPE_LIVE_CUTOVER=1 for live keys"
@@ -140,17 +152,32 @@ load_run_b_stripe_transport() {
 }
 
 run_index_create_step() {
+    local attempt response_code
     CANARY_INDEX_NAME="lifecycle-${CANARY_NONCE}"
 
-    capture_json_response tenant_call POST "/indexes" "$CANARY_TOKEN" \
-        -d "{\"name\":\"${CANARY_INDEX_NAME}\",\"region\":\"${CANARY_INDEX_REGION}\"}"
-    if [ "$HTTP_RESPONSE_CODE" != "201" ] && [ "$HTTP_RESPONSE_CODE" != "200" ]; then
-        mark_failure "create_index" "create index returned HTTP ${HTTP_RESPONSE_CODE:-unknown}"
+    for attempt in 1 2 3; do
+        capture_json_response tenant_call POST "/indexes" "$CANARY_TOKEN" \
+            -d "{\"name\":\"${CANARY_INDEX_NAME}\",\"region\":\"${CANARY_INDEX_REGION}\"}"
+        response_code="${HTTP_RESPONSE_CODE:-unknown}"
+        if [ "$response_code" = "201" ] || [ "$response_code" = "200" ]; then
+            CANARY_INDEX_CREATED=1
+            log "index created (${CANARY_INDEX_NAME})"
+            return 0
+        fi
+        if [ "$response_code" = "502" ] || [ "$response_code" = "503" ] || [ "$response_code" = "504" ]; then
+            if [ "$attempt" -lt 3 ]; then
+                log "index create transient HTTP ${response_code}; retrying (${attempt}/3)"
+                sleep 2
+                continue
+            fi
+            break
+        fi
+        mark_failure "create_index" "create index returned HTTP ${response_code}"
         return 1
-    fi
+    done
 
-    CANARY_INDEX_CREATED=1
-    log "index created (${CANARY_INDEX_NAME})"
+    mark_failure "create_index" "create index returned HTTP ${response_code:-unknown} after 3 attempts"
+    return 1
 }
 
 run_index_batch_step() {
@@ -271,7 +298,7 @@ run_prepare_run_b_payment_step() {
         mark_failure "probe_payment_method" "run-b requires LIFECYCLE_PROBE_PM_ID so finalize can auto-collect"
         return 1
     fi
-    if ! require_safe_identifier "payment_method_id" "$LIFECYCLE_PROBE_PM_ID" '^pm_[A-Za-z0-9]+$'; then
+    if ! require_safe_identifier "payment_method_id" "$LIFECYCLE_PROBE_PM_ID" '^pm_[A-Za-z0-9_]+$'; then
         return 1
     fi
     if [ -z "$CANARY_STRIPE_CUSTOMER_ID" ]; then
@@ -308,7 +335,7 @@ run_invoice_generation_step() {
         mark_failure "generate_invoice" "invoice generation response missing id"
         return 1
     fi
-    require_safe_identifier "invoice_id" "$LIFECYCLE_INVOICE_ID" '^[0-9]+$'
+    require_safe_identifier "invoice_id" "$LIFECYCLE_INVOICE_ID" '^([0-9]+|[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$'
 }
 
 run_invoice_finalize_step() {
@@ -457,8 +484,44 @@ run_tenant_invoice_read_step() {
     fi
 }
 
+read_reusable_privacy_card_token() {
+    local ssm_param="$1"
+    local stderr_file=""
+    local output=""
+    local rc=0
+    local error_output=""
+
+    stderr_file="$(mktemp)"
+    if output="$(aws ssm get-parameter \
+        --name "$ssm_param" \
+        --with-decryption \
+        --query 'Parameter.Value' \
+        --output text 2>"$stderr_file")"
+    then
+        rm -f "$stderr_file"
+        if [ "$output" = "None" ]; then
+            return 2
+        fi
+        printf '%s\n' "$output"
+        return 0
+    fi
+    rc=$?
+    error_output="$(cat "$stderr_file")"
+    rm -f "$stderr_file"
+
+    if [[ "$error_output" == *"ParameterNotFound"* ]]; then
+        return 2
+    fi
+
+    log "WARN: aws ssm get-parameter failed for ${ssm_param} (exit=${rc}): ${error_output:-no stderr}"
+    return 1
+}
+
+# Reusable Privacy.com card pattern — create once per environment, then pause
+# and reuse it instead of burning monthly card-create quota on every run.
 run_optional_privacy_card_step() {
     local privacy_body=""
+    local created_token=""
 
     if [ "$LIFECYCLE_ENABLE_PRIVACY_CARD" != "1" ]; then
         log "LIFECYCLE_ENABLE_PRIVACY_CARD=${LIFECYCLE_ENABLE_PRIVACY_CARD}; skipping privacy card branch"
@@ -470,7 +533,61 @@ run_optional_privacy_card_step() {
         return 1
     fi
 
-    if ! privacy_com_create_card; then
+    local env_label="${LIFECYCLE_ENV:-prod}"
+    local ssm_param="/fjcloud/${env_label}/privacy_card_reusable_token"
+    local stashed_token=""
+    local current_state=""
+    local ssm_read_status=0
+    # Reset token state at step entry so failure paths never leak stale success
+    # values into later lifecycle cleanup logic.
+    LIFECYCLE_PRIVACY_CARD_TOKEN=""
+
+    if stashed_token="$(read_reusable_privacy_card_token "$ssm_param")"; then
+        :
+    else
+        ssm_read_status=$?
+        if [ "$ssm_read_status" -eq 1 ]; then
+            mark_failure "privacy_ssm_read" "aws ssm get-parameter failed for ${ssm_param}"
+            return 1
+        fi
+        stashed_token=""
+    fi
+
+    if [ -n "$stashed_token" ] && [ "$stashed_token" != "None" ]; then
+        if ! privacy_com_validate_card_token "$stashed_token"; then
+            mark_failure "privacy_ssm_token" "stashed reusable token at ${ssm_param} is invalid: ${PRIVACY_CLIENT_ERROR_MESSAGE:-invalid token}"
+            return 1
+        fi
+        if privacy_com_get_card "$stashed_token" && [ "${PRIVACY_CLIENT_EXIT_CLASS:-}" = "ok" ]; then
+            privacy_body="${PRIVACY_CLIENT_BODY:-}"
+            if [ -z "$privacy_body" ]; then
+                privacy_body='{}'
+            fi
+            current_state="$(json_get_field "$privacy_body" "state")"
+            case "$current_state" in
+                OPEN)
+                    LIFECYCLE_PRIVACY_CARD_TOKEN="$stashed_token"
+                    log "reusing OPEN privacy card ${stashed_token}"
+                    return 0
+                    ;;
+                PAUSED)
+                    if privacy_com_unpause_card "$stashed_token" && [ "${PRIVACY_CLIENT_EXIT_CLASS:-}" = "ok" ]; then
+                        LIFECYCLE_PRIVACY_CARD_TOKEN="$stashed_token"
+                        log "unpaused privacy card ${stashed_token} for reuse"
+                        return 0
+                    fi
+                    log "unpause failed for stashed privacy card ${stashed_token}; falling through to create"
+                    ;;
+                *)
+                    log "stashed privacy card ${stashed_token} is state=${current_state}; falling through to create"
+                    ;;
+            esac
+        else
+            log "stashed privacy card ${stashed_token} not retrievable (class=${PRIVACY_CLIENT_EXIT_CLASS:-unknown} code=${PRIVACY_CLIENT_HTTP_CODE:-unknown}); falling through to create"
+        fi
+    fi
+
+    if ! privacy_com_create_card "$PRIVACY_REUSABLE_MEMO"; then
         mark_failure "privacy_create_card" "${PRIVACY_CLIENT_ERROR_MESSAGE:-privacy_com_create_card failed}"
         return 1
     fi
@@ -483,13 +600,29 @@ run_optional_privacy_card_step() {
     if [ -z "$privacy_body" ]; then
         privacy_body='{}'
     fi
-    LIFECYCLE_PRIVACY_CARD_TOKEN="$(json_get_field "$privacy_body" "token")"
-    if [ -z "$LIFECYCLE_PRIVACY_CARD_TOKEN" ]; then
+    created_token="$(json_get_field "$privacy_body" "token")"
+    if [ -z "$created_token" ]; then
         mark_failure "privacy_create_card" "privacy card response missing token"
         return 1
     fi
+    if ! privacy_com_validate_card_token "$created_token"; then
+        mark_failure "privacy_create_card" "privacy card response token is invalid: ${PRIVACY_CLIENT_ERROR_MESSAGE:-invalid token}"
+        return 1
+    fi
 
-    log "privacy card created for run-b"
+    if ! aws ssm put-parameter \
+        --name "$ssm_param" \
+        --value "$created_token" \
+        --type SecureString \
+        --overwrite >/dev/null
+    then
+        log "WARN: created privacy card ${created_token} but could not stash it at ${ssm_param}"
+        mark_failure "privacy_ssm_stash" "aws ssm put-parameter failed for ${ssm_param}"
+        return 1
+    fi
+
+    LIFECYCLE_PRIVACY_CARD_TOKEN="$created_token"
+    log "created and stashed reusable privacy card ${LIFECYCLE_PRIVACY_CARD_TOKEN} at ${ssm_param}"
 }
 
 run_detach_probe_payment_method_step() {
@@ -518,18 +651,134 @@ run_detach_probe_payment_method_step() {
     return 1
 }
 
-run_close_privacy_card_step() {
+run_pause_privacy_card_step() {
     if [ -z "$LIFECYCLE_PRIVACY_CARD_TOKEN" ]; then
         return 0
     fi
 
-    if privacy_com_close_card "$LIFECYCLE_PRIVACY_CARD_TOKEN" >/dev/null 2>&1 && [ "${PRIVACY_CLIENT_EXIT_CLASS:-}" = "ok" ]; then
-        log "privacy card closed"
+    if ! privacy_com_validate_card_token "$LIFECYCLE_PRIVACY_CARD_TOKEN"; then
+        log "cleanup warning: privacy card token is invalid (${PRIVACY_CLIENT_ERROR_MESSAGE:-invalid token})"
+        return 1
+    fi
+
+    if privacy_com_pause_card "$LIFECYCLE_PRIVACY_CARD_TOKEN" >/dev/null 2>&1 && [ "${PRIVACY_CLIENT_EXIT_CLASS:-}" = "ok" ]; then
+        log "privacy card paused (reusable token retained in SSM)"
         LIFECYCLE_PRIVACY_CARD_TOKEN=""
         return 0
     fi
 
-    log "cleanup warning: privacy card close failed"
+    log "cleanup warning: privacy card pause failed (token retained for next run)"
+    return 1
+}
+
+sql_escape_literal() {
+    local raw="${1:-}"
+    printf '%s' "$raw" | sed "s/'/''/g"
+}
+
+# Redact Stripe-hosted invoice access links before persisting evidence.
+redact_stripe_invoice_urls() {
+    python3 -c 'import json,sys
+REDACT_KEYS={"hosted_invoice_url","invoice_pdf"}
+def scrub(node):
+    if isinstance(node, dict):
+        return {key: ("[REDACTED]" if key in REDACT_KEYS and value not in (None, "") else scrub(value)) for key, value in node.items()}
+    if isinstance(node, list):
+        return [scrub(item) for item in node]
+    return node
+json.dump(scrub(json.load(sys.stdin)), sys.stdout)
+sys.stdout.write("\n")'
+}
+
+capture_stage5_db_sql_file() {
+    local dir="$1"
+    local artifact_file="$2"
+    local sql="$3"
+    local database_url output
+
+    resolve_stage5_database_url || {
+        log "evidence: DATABASE_URL unavailable; skipping ${artifact_file}"
+        return 1
+    }
+    database_url="$STAGE5_DATABASE_URL_CACHE"
+
+    if output="$(staging_db_run_sql "$database_url" "$sql" 2>&1)"; then
+        printf '%s\n' "$output" > "$dir/$artifact_file"
+        return 0
+    fi
+
+    # Compatibility seam: preserve successful remote SQL output when the helper
+    # returns non-zero due to known status parsing drift.
+    if [[ "$output" == *"status=Success"* ]]; then
+        printf '%s\n' "$output" | sed -E '1s/^.*\):[[:space:]]*//' > "$dir/$artifact_file"
+        return 0
+    fi
+
+    printf '%s\n' "$output" > "$dir/${artifact_file}.error.txt"
+    log "evidence: failed to capture ${artifact_file}; see ${dir}/${artifact_file}.error.txt"
+    return 1
+}
+
+resolve_stage5_database_url() {
+    local ssm_param region hydrated
+
+    ssm_param="${DATABASE_URL_SSM_PARAM:-/fjcloud/prod/database_url}"
+
+    if [ -n "$STAGE5_DATABASE_URL_CACHE" ]; then
+        return 0
+    fi
+
+    if [ -n "${DATABASE_URL:-}" ]; then
+        DATABASE_URL_SSM_PARAM="$ssm_param"
+        export DATABASE_URL_SSM_PARAM
+        STAGE5_DATABASE_URL_CACHE="$DATABASE_URL"
+        return 0
+    fi
+
+    region="${AWS_DEFAULT_REGION:-us-east-1}"
+    if hydrated="$(aws ssm get-parameter \
+        --name "$ssm_param" \
+        --with-decryption \
+        --query 'Parameter.Value' \
+        --output text \
+        --region "$region" 2>/dev/null)" \
+        && [ -n "$hydrated" ] \
+        && [ "$hydrated" != "None" ]
+    then
+        STAGE5_DATABASE_URL_CACHE="$hydrated"
+        DATABASE_URL="$hydrated"
+        DATABASE_URL_SSM_PARAM="$ssm_param"
+        export DATABASE_URL DATABASE_URL_SSM_PARAM
+        return 0
+    fi
+
+    return 1
+}
+
+capture_stage5_verify_email_aws_evidence() {
+    local dir="$1"
+    local region="${CANARY_AWS_REGION:-us-east-1}"
+
+    if [ -z "$CANARY_VERIFY_EMAIL_BUCKET" ] || [ -z "$CANARY_VERIFY_EMAIL_MESSAGE_KEY" ]; then
+        log "evidence: verify-email AWS identifiers unavailable; skipping raw AWS artifact capture"
+        return 1
+    fi
+
+    printf '%s\n' "$CANARY_VERIFY_EMAIL_MESSAGE_KEY" > "$dir/aws_verify_email_message_key.txt"
+    printf 's3://%s/%s\n' "$CANARY_VERIFY_EMAIL_BUCKET" "$CANARY_VERIFY_EMAIL_MESSAGE_KEY" \
+        > "$dir/aws_verify_email_message_s3_uri.txt"
+
+    if AWS_PAGER="" aws s3api head-object \
+        --bucket "$CANARY_VERIFY_EMAIL_BUCKET" \
+        --key "$CANARY_VERIFY_EMAIL_MESSAGE_KEY" \
+        --region "$region" \
+        --output json \
+        --no-cli-pager > "$dir/aws_verify_email_head_object.json" 2> "$dir/aws_verify_email_head_object.stderr"
+    then
+        return 0
+    fi
+
+    log "evidence: aws s3api head-object failed for verify-email object; see aws_verify_email_head_object.stderr"
     return 1
 }
 
@@ -538,6 +787,7 @@ run_close_privacy_card_step() {
 # are still present in fjcloud. Best-effort: failures here do not fail the run.
 capture_stage5_pre_cleanup_evidence() {
     local dir="${STAGE5_EVIDENCE_DIR:-}"
+    local escaped_customer_id escaped_tenant_id
     if [ -z "$dir" ]; then
         return 0
     fi
@@ -581,11 +831,10 @@ PY
             STRIPE_SECRET_KEY_EFFECTIVE="$live_key"
             stripe_request GET "/v1/invoices/${LIFECYCLE_STRIPE_INVOICE_ID}"
             STRIPE_SECRET_KEY_EFFECTIVE="$saved_key"
-            {
-                printf '{"http_code": %s, "body": %s}\n' \
-                    "${STRIPE_HTTP_CODE:-0}" \
-                    "${STRIPE_BODY:-null}"
-            } > "$dir/stripe_paid_state.json"
+            printf '%s' "${STRIPE_BODY:-null}" \
+                | redact_stripe_invoice_urls \
+                | python3 -c 'import json,sys; print(json.dumps({"http_code": int(sys.argv[1]), "body": json.load(sys.stdin)}, indent=2))' \
+                    "${STRIPE_HTTP_CODE:-0}" > "$dir/stripe_paid_state.json"
         fi
     fi
 
@@ -597,12 +846,37 @@ PY
             "${HTTP_RESPONSE_BODY:-null}"
     } > "$dir/tenant_active_pre_cleanup.json"
 
+    capture_stage5_verify_email_aws_evidence "$dir" || true
+
+    escaped_customer_id="$(sql_escape_literal "$CANARY_CUSTOMER_ID")"
+    escaped_tenant_id="$(sql_escape_literal "$CANARY_INDEX_NAME")"
+
+    capture_stage5_db_sql_file \
+        "$dir" \
+        "db_pre_cleanup_customer.sql.txt" \
+        "SELECT id::text, status FROM customers WHERE id = '${escaped_customer_id}'::uuid;" || true
+    if [ -n "$LIFECYCLE_INVOICE_ID" ]; then
+        local escaped_invoice_id
+        escaped_invoice_id="$(sql_escape_literal "$LIFECYCLE_INVOICE_ID")"
+        capture_stage5_db_sql_file \
+            "$dir" \
+            "db_pre_cleanup_invoice.sql.txt" \
+            "SELECT id::text, customer_id::text, status, paid_at FROM invoices WHERE id = '${escaped_invoice_id}'::uuid;" || true
+    else
+        rm -f "$dir/db_pre_cleanup_invoice.sql.txt" "$dir/db_pre_cleanup_invoice.sql.txt.error.txt"
+    fi
+    capture_stage5_db_sql_file \
+        "$dir" \
+        "db_pre_cleanup_tenant.sql.txt" \
+        "SELECT customer_id::text, tenant_id, tier FROM customer_tenants WHERE customer_id = '${escaped_customer_id}'::uuid AND tenant_id = '${escaped_tenant_id}';" || true
+
     log "evidence: pre-cleanup artifacts written to ${dir}"
 }
 
 # Post-cleanup evidence: capture proof that tenant + index are gone after teardown.
 capture_stage5_post_cleanup_evidence() {
     local dir="${STAGE5_EVIDENCE_DIR:-}"
+    local escaped_customer_id escaped_tenant_id
     if [ -z "$dir" ] || [ ! -d "$dir" ]; then
         return 0
     fi
@@ -614,6 +888,28 @@ capture_stage5_post_cleanup_evidence() {
             "$tenant_http" \
             "$tenant_body"
     } > "$dir/post_cleanup_state.json"
+
+    escaped_customer_id="$(sql_escape_literal "$CANARY_CUSTOMER_ID")"
+    escaped_tenant_id="$(sql_escape_literal "$CANARY_INDEX_NAME")"
+    capture_stage5_db_sql_file \
+        "$dir" \
+        "db_post_cleanup_customer.sql.txt" \
+        "SELECT COUNT(*) AS customer_rows FROM customers WHERE id = '${escaped_customer_id}'::uuid;" || true
+    if [ -n "$LIFECYCLE_INVOICE_ID" ]; then
+        local escaped_invoice_id
+        escaped_invoice_id="$(sql_escape_literal "$LIFECYCLE_INVOICE_ID")"
+        capture_stage5_db_sql_file \
+            "$dir" \
+            "db_post_cleanup_invoice.sql.txt" \
+            "SELECT COUNT(*) AS invoice_rows FROM invoices WHERE id = '${escaped_invoice_id}'::uuid;" || true
+    else
+        rm -f "$dir/db_post_cleanup_invoice.sql.txt" "$dir/db_post_cleanup_invoice.sql.txt.error.txt"
+    fi
+    capture_stage5_db_sql_file \
+        "$dir" \
+        "db_post_cleanup_tenant.sql.txt" \
+        "SELECT COUNT(*) AS tenant_rows FROM customer_tenants WHERE customer_id = '${escaped_customer_id}'::uuid AND tenant_id = '${escaped_tenant_id}';" || true
+
     log "evidence: post-cleanup artifacts written to ${dir}"
 }
 
@@ -648,7 +944,7 @@ cleanup() {
     trap - EXIT
 
     run_detach_probe_payment_method_step || true
-    run_close_privacy_card_step || true
+    run_pause_privacy_card_step || true
     run_delete_index_step || true
     run_delete_account_step || true
     run_admin_cleanup_step || true

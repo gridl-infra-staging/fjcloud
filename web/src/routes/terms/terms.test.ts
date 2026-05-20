@@ -40,7 +40,7 @@ describe('Terms page legal contract', () => {
 		assertSharedLegalPageContract();
 		expect(document.title).toBe('Terms of Service — Flapjack Cloud');
 		assertUniqueVisibleHeading(1, 'Terms of Service');
-		assertUniqueVisibleText('Effective date: 2026-05-03');
+		assertUniqueVisibleText('Effective date: 2026-05-19');
 		for (const heading of termsSectionHeadings) {
 			assertUniqueVisibleHeading(2, heading);
 		}

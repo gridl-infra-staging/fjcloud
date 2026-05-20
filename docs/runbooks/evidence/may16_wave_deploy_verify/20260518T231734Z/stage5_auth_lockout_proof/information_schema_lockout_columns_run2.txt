@@ -1,0 +1,6 @@
+        column_name        |        data_type         | is_nullable 
+---------------------------+--------------------------+-------------
+ failed_login_count        | integer                  | NO
+ failed_login_window_start | timestamp with time zone | YES
+ login_locked_until        | timestamp with time zone | YES
+(3 rows)

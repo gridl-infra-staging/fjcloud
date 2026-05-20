@@ -283,3 +283,41 @@
 | 239 | stripe-access-token | `chats/icg/may16_pm_1_gitleaks_evidence_dir_allowlist.md:372` (`406aa027a7678af509db03bc945d711938d51bb3`) | working-tree (HEAD) | (4) real historical in working tree | working-tree token-rule hit; unsilenced Stage 3 input | yes |
 | 240 | stripe-access-token | `docs/runbooks/evidence/browser-evidence/20260428T200929Z_current_main/report.json:444` (`ba37986d3d58c733c94af05714661c8bfa15b889`) | history-only | (3) real historical in history | historical token-rule hit in evidence commit; unsilenced Stage 3 input | yes |
 | 241 | stripe-access-token | `docs/runbooks/evidence/browser-evidence/20260428T202308Z_current_main/report.json:445` (`b575ee04ac7589152532d520365b277ddd1a6963`) | history-only | (3) real historical in history | historical token-rule hit in evidence commit; unsilenced Stage 3 input | yes |
+
+## 2026-05-19 Live Mirror Classification
+
+- Evidence source of truth confirmed at `.github/workflows/ci.yml:305-326` and `scripts/tests/ci_workflow_test.sh:310-319`; `scripts/local-ci.sh:338-355` is intentionally divergent and cannot decide Stage 1.
+- Latest CI heads from live mirrors:
+  - staging `26109614080` at `60dae21faf8624fa61fc012c1e8ddeeed0d6a511` (failed)
+  - prod `26061910339` at `687be7359ae01523e5c5bb500dea77db85fccb4f` (failed)
+- Most recent prod run where `secret-scan` itself failed: `26061910339` (`secret-scan` job `76623915116`).
+
+| mirror repo | run id | head SHA | RuleID | file path | matched or missed `.gitleaks.toml` rule | classification | downstream constraint |
+|---|---:|---|---|---|---|---|---|
+| `gridl-infra-prod/fjcloud` | 26061910339 | `687be7359ae01523e5c5bb500dea77db85fccb4f` | `generic-api-key` | `docs/runbooks/evidence/browser-evidence/20260518T032619Z_upgrade_trust_ratchet/success_paid/setup.json` | missed in mirror head (no `docs/runbooks/evidence/browser-evidence/.*/setup\.json$` allowlist); rule exists in dev `.gitleaks.toml:56` | `stale-mirror-config` | Stage 2 `.gitleaks.toml` edits are no-op for this finding; Stage 3 must mirror-sync commit containing `.gitleaks.toml:56` |
+| `gridl-infra-prod/fjcloud` | 26061910339 | `687be7359ae01523e5c5bb500dea77db85fccb4f` | `generic-api-key` | `docs/runbooks/evidence/browser-evidence/20260518T032311Z_upgrade_trust_ratchet/success_paid/setup.json` | missed in mirror head (no `docs/runbooks/evidence/browser-evidence/.*/setup\.json$` allowlist); rule exists in dev `.gitleaks.toml:56` | `stale-mirror-config` | Stage 2 `.gitleaks.toml` edits are no-op for this finding; Stage 3 must mirror-sync commit containing `.gitleaks.toml:56` |
+| `gridl-infra-prod/fjcloud` | 26061910339 | `687be7359ae01523e5c5bb500dea77db85fccb4f` | `generic-api-key` | `docs/runbooks/evidence/browser-evidence/20260518T032420Z_upgrade_trust_ratchet/success_paid/setup.json` | missed in mirror head (no `docs/runbooks/evidence/browser-evidence/.*/setup\.json$` allowlist); rule exists in dev `.gitleaks.toml:56` | `stale-mirror-config` | Stage 2 `.gitleaks.toml` edits are no-op for this finding; Stage 3 must mirror-sync commit containing `.gitleaks.toml:56` |
+| `gridl-infra-staging/fjcloud` | 26109614080 | `60dae21faf8624fa61fc012c1e8ddeeed0d6a511` | `generic-api-key` | `docs/runbooks/evidence/browser-evidence/20260518T032311Z_upgrade_trust_ratchet/success_paid/setup.json` | missed in mirror head (no `docs/runbooks/evidence/browser-evidence/.*/setup\.json$` allowlist); rule exists in dev `.gitleaks.toml:56` | `stale-mirror-config` | Stage 2 `.gitleaks.toml` edits are no-op for this finding; Stage 3 must mirror-sync commit containing `.gitleaks.toml:56` |
+| `gridl-infra-staging/fjcloud` | 26109614080 | `60dae21faf8624fa61fc012c1e8ddeeed0d6a511` | `generic-api-key` | `docs/runbooks/evidence/browser-evidence/20260518T032420Z_upgrade_trust_ratchet/success_paid/setup.json` | missed in mirror head (no `docs/runbooks/evidence/browser-evidence/.*/setup\.json$` allowlist); rule exists in dev `.gitleaks.toml:56` | `stale-mirror-config` | Stage 2 `.gitleaks.toml` edits are no-op for this finding; Stage 3 must mirror-sync commit containing `.gitleaks.toml:56` |
+| `gridl-infra-staging/fjcloud` | 26109614080 | `60dae21faf8624fa61fc012c1e8ddeeed0d6a511` | `generic-api-key` | `docs/runbooks/evidence/browser-evidence/20260518T032619Z_upgrade_trust_ratchet/success_paid/setup.json` | missed in mirror head (no `docs/runbooks/evidence/browser-evidence/.*/setup\.json$` allowlist); rule exists in dev `.gitleaks.toml:56` | `stale-mirror-config` | Stage 2 `.gitleaks.toml` edits are no-op for this finding; Stage 3 must mirror-sync commit containing `.gitleaks.toml:56` |
+
+- Commit-aware note: `git blame -L 56,56 .gitleaks.toml` shows the setup-path allowlist was introduced in commit `888972a4` on 2026-05-19. Both failing mirror heads still contain the pre-`888972a4` `.gitleaks.toml` variant (verified via `gh api .../contents/.gitleaks.toml?ref=<headSha>`), so failures are stale mirror config rather than new allowlist gaps.
+
+## 2026-05-19 Live Mirror Classification (Refresh 2026-05-19T21:21Z, settled 2026-05-19T21:45Z)
+
+- Refresh reason: prior 2026-05-19 section captured older failing heads; live mirror heads moved while Stage 1 was under review.
+- Latest CI heads from live mirrors at refresh time:
+  - staging `26125642605` at `6e5baf5f44d6b7b83351ad5626922ffdd3d406c2`
+  - prod `26125642927` at `4446067a7c2e7b0f595a3891400e5267caf26435`
+- `secret-scan` job status at latest heads:
+  - staging run `26125642605` job `76838506303`: `success`
+  - prod run `26125642927` job `76838507285`: `success`
+- Settled-run note: by 2026-05-19T21:45Z the prod workflow itself was still red, but for unrelated jobs only: `rust-lint` failed in job `76838507350`, and `rust-test` failed in job `76838507312`. `secret-scan` stayed green throughout, which is the load-bearing verdict for this lane.
+- Rule presence at latest heads: both mirror `.gitleaks.toml` files include `docs/runbooks/evidence/browser-evidence/.*/setup\.json$` at line 56 (`gh api .../contents/.gitleaks.toml?ref=<headSha>`).
+- Most recent prod run where `secret-scan` itself failed remains `26061910339` (head `687be7359ae01523e5c5bb500dea77db85fccb4f`, job `76623915116`), and that failure predates the mirrored allowlist rule.
+- Local-vs-CI note: a raw `gitleaks detect --redact -v --exit-code=2` run inside the operator's long-lived local clone of `/Users/stuart/repos/gridl-infra-prod/fjcloud` still reports older findings from commits like `db7e480dcc`, `7df4a2233c`, and `90eac05474`. Those commits are **not reachable from current `main`** (`git merge-base --is-ancestor <sha> HEAD` returns non-zero), so they are broader local-ref noise rather than contradictions of the GitHub Actions main-branch verdict. The Actions run on GitHub's checked-out `main` history remains the SSOT for this lane.
+
+| mirror repo | run id | head SHA | RuleID | file path | matched or missed `.gitleaks.toml` rule | classification | downstream constraint |
+|---|---:|---|---|---|---|---|---|
+| `gridl-infra-prod/fjcloud` | 26125642927 | `4446067a7c2e7b0f595a3891400e5267caf26435` | n/a | n/a | matched (`.gitleaks.toml:56` present; `secret-scan` passed) | `stale-mirror-config` (historical-only, no live finding at latest head) | Stage 2 allowlist edits are no-op for this rule path; Stage 3 should verify future mirror SHAs stay at-or-after this allowlist-bearing head, not perform additional rule changes. |
+| `gridl-infra-staging/fjcloud` | 26125642605 | `6e5baf5f44d6b7b83351ad5626922ffdd3d406c2` | n/a | n/a | matched (`.gitleaks.toml:56` present; `secret-scan` passed) | `stale-mirror-config` (historical-only, no live finding at latest head) | Stage 2 allowlist edits are no-op for this rule path; Stage 3 should verify future mirror SHAs stay at-or-after this allowlist-bearing head, not perform additional rule changes. |

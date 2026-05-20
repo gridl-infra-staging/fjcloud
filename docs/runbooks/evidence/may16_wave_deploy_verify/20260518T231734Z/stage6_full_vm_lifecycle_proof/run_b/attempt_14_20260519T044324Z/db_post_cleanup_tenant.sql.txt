@@ -1,0 +1,6 @@
+[staging_db] detecting fjcloud-api-prod instance for SSM DB access...
+[staging_db] using instance: i-0af0ff2e18725b6ba
+ tenant_rows 
+-------------
+           0
+(1 row)

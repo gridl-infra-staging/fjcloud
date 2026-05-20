@@ -89,7 +89,7 @@ test_exports_full_staging_set() {
     assert_contains "$out" "export STRIPE_WEBHOOK_SECRET=whsec_stub" "STRIPE_WEBHOOK_SECRET export missing — required by staging billing rehearsal"
     assert_contains "$out" "export STAGING_API_URL=https://api.staging.flapjack.foo" "STAGING_API_URL derivation missing — required by staging billing rehearsal"
     assert_contains "$out" "export STAGING_STRIPE_WEBHOOK_URL=https://api.staging.flapjack.foo/webhooks/stripe" "STAGING_STRIPE_WEBHOOK_URL derivation missing — RC misclassifies as dns_or_cloudflare_blocked when unset"
-    assert_contains "$out" "export STAGING_CLOUD_URL=https://staging.flapjack.foo" "STAGING_CLOUD_URL derivation missing — staging browser lane must not target prod cloud host"
+    assert_contains "$out" "export STAGING_CLOUD_URL=https://cloud.staging.flapjack.foo" "STAGING_CLOUD_URL derivation missing — staging browser lane must target cloud.staging.flapjack.foo"
 
     echo "  PASS test_exports_full_staging_set"
 }

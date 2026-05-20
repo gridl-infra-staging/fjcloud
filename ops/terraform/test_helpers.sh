@@ -129,6 +129,65 @@ assert_resource_count() {
   fi
 }
 
+# Print the active (comment-stripped) lines of a single resource block,
+# `resource "<resource_type>" "<resource_name>" { ... }`. Brace depth is
+# tracked so output stops at the block's matching close brace. Prints nothing
+# if the resource is not found.
+#
+# Lives here (shared) rather than in a single test file so any terraform test
+# can scope an assertion to one resource block — see assert_resource_block_contains.
+extract_active_resource_block() {
+  local file="$1"
+  local resource_type="$2"
+  local resource_name="$3"
+  strip_comments "$file" | awk -v resource_type="$resource_type" -v resource_name="$resource_name" '
+    BEGIN { in_block = 0; depth = 0 }
+    {
+      line = $0
+      if (!in_block && line ~ "^[[:space:]]*resource[[:space:]]+\"" resource_type "\"[[:space:]]+\"" resource_name "\"[[:space:]]*{") {
+        in_block = 1
+      }
+
+      if (in_block) {
+        print line
+        opens = gsub(/{/, "{", line)
+        closes = gsub(/}/, "}", line)
+        depth += opens - closes
+        if (depth == 0) {
+          exit
+        }
+      }
+    }
+  '
+}
+
+# Assert that `pattern` (an rg regex) appears INSIDE a specific resource block,
+# not merely somewhere in the file. Prefer this over assert_contains_active for
+# attributes that recur across many resources (treat_missing_data, namespace,
+# metric_name, ...): a file-scoped grep would let a regression in one block be
+# masked by a correct sibling block — a false positive. Block scoping makes the
+# assertion fail iff THIS resource is wrong.
+assert_resource_block_contains() {
+  local file="$1"
+  local resource_type="$2"
+  local resource_name="$3"
+  local pattern="$4"
+  local description="$5"
+  local block
+
+  block="$(extract_active_resource_block "$file" "$resource_type" "$resource_name")"
+  if [[ -z "$block" ]]; then
+    fail "$description (resource ${resource_type}.${resource_name} not found)"
+    return
+  fi
+
+  if rg -q "$pattern" <<<"$block"; then
+    pass "$description"
+  else
+    fail "$description"
+  fi
+}
+
 # Assert locals.public_dns_records.<entry>.content equals expected value.
 assert_public_dns_record_content() {
   local file="$1"

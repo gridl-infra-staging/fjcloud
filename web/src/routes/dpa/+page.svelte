@@ -37,9 +37,23 @@
 			<section class="space-y-3">
 				<h2 class="text-xl font-bold text-[#1f1b18]">Sub-processors</h2>
 				<p class="leading-7 text-[#4b4640]">
-					Flapjack Cloud may engage hosting, billing, and support vendors as sub-processors when
-					required to deliver the service, and remains responsible for their processing under this
-					addendum.
+					Flapjack Cloud engages the following sub-processors to deliver the service:
+				</p>
+				<ul class="list-disc pl-6 leading-7 text-[#4b4640]">
+					<li>Amazon Web Services, Inc.</li>
+					<li>Stripe, Inc.</li>
+					<li>Cloudflare, Inc.</li>
+					<li>Slack Technologies, LLC</li>
+					<li>Discord, Inc.</li>
+				</ul>
+				<p class="leading-7 text-[#4b4640]">
+					Flapjack Cloud maintains written sub-processor agreements, including Standard Contractual Clauses where required by applicable law.
+				</p>
+				<p class="leading-7 text-[#4b4640]">
+					Flapjack Cloud commits to maintaining and periodically reviewing this sub-processor disclosure to reflect current vendor processing roles.
+				</p>
+				<p class="leading-7 text-[#4b4640]">
+					Slack Technologies, LLC and Discord, Inc. are limited to social identity and support communications and are not used for payment processing.
 				</p>
 			</section>
 

@@ -1,0 +1,6 @@
+[staging_db] detecting fjcloud-api-prod instance for SSM DB access...
+[staging_db] using instance: i-0af0ff2e18725b6ba
+                  id                  | status 
+--------------------------------------+--------
+ ed7aaeb6-4fd0-4d42-bf3c-75cd3607a141 | active
+(1 row)

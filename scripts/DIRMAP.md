@@ -145,6 +145,7 @@ usage_records to Postgres. |
 | validate_oauth_routes.sh | Stub summary for validate_oauth_routes.sh. |
 | validate_ses_readiness.sh | Stub summary for validate_ses_readiness.sh. |
 | validate_staging_dunning_delivery.sh | Validate staging dunning email delivery by reusing rehearsal artifacts and SES inbound S3 evidence. |
+| validate_subprocessor_disclosure.sh | Stub summary for validate_subprocessor_disclosure.sh. |
 | web-dev.sh | web-dev.sh — Start the SvelteKit dev server with repo-local auth env loaded. |
 
 | Directory | Summary |

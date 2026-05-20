@@ -98,9 +98,9 @@ STAGING_API_URL="${API_URL}"
 STAGING_STRIPE_WEBHOOK_URL="${API_URL}/webhooks/stripe"
 if [ "$ENVIRONMENT" = "staging" ]; then
   if [[ "$DNS_DOMAIN" = staging.* ]]; then
-    STAGING_CLOUD_URL="https://${DNS_DOMAIN}"
+    STAGING_CLOUD_URL="https://cloud.${DNS_DOMAIN}"
   else
-    STAGING_CLOUD_URL="https://staging.${DNS_DOMAIN}"
+    STAGING_CLOUD_URL="https://cloud.staging.${DNS_DOMAIN}"
   fi
 else
   STAGING_CLOUD_URL="https://cloud.${DNS_DOMAIN}"

@@ -16,6 +16,30 @@ stripe_payment_method_set_error() {
     STRIPE_PAYMENT_METHOD_ERROR_MESSAGE="$1"
 }
 
+# Parse Stripe error payloads into concise diagnostics for lifecycle logs.
+stripe_payment_method_error_detail() {
+    local raw_body="$1"
+
+    python3 - "$raw_body" <<'PY' || true
+import json
+import sys
+
+raw = sys.argv[1]
+try:
+    payload = json.loads(raw or "{}")
+except Exception:
+    trimmed = (raw or "").strip().replace("\n", " ")
+    print(f"unparseable stripe body: {trimmed[:160]}")
+    raise SystemExit(0)
+
+err = payload.get("error") or {}
+etype = str(err.get("type") or "?")
+ecode = str(err.get("code") or "?")
+msg = str(err.get("message") or "?")
+print(f"{etype}/{ecode}: {msg}")
+PY
+}
+
 stripe_payment_method_extract_field() {
     local json_body="$1"
     local field_name="$2"
@@ -54,7 +78,7 @@ stripe_attach_payment_method_to_customer() {
         return 1
     fi
     if [ "${STRIPE_HTTP_CODE:-}" != "200" ]; then
-        stripe_payment_method_set_error "attach payment method failed with HTTP ${STRIPE_HTTP_CODE:-unknown}"
+        stripe_payment_method_set_error "attach payment method failed with HTTP ${STRIPE_HTTP_CODE:-unknown} (${STRIPE_REQUEST_ID:-no-request-id}; $(stripe_payment_method_error_detail "${STRIPE_BODY:-}"))"
         return 1
     fi
 
@@ -86,7 +110,7 @@ stripe_set_default_payment_method_for_customer() {
         return 1
     fi
     if [ "${STRIPE_HTTP_CODE:-}" != "200" ]; then
-        stripe_payment_method_set_error "set default payment method failed with HTTP ${STRIPE_HTTP_CODE:-unknown}"
+        stripe_payment_method_set_error "set default payment method failed with HTTP ${STRIPE_HTTP_CODE:-unknown} (${STRIPE_REQUEST_ID:-no-request-id}; $(stripe_payment_method_error_detail "${STRIPE_BODY:-}"))"
         return 1
     fi
 }
@@ -106,7 +130,7 @@ stripe_detach_payment_method() {
         return 1
     fi
     if [ "${STRIPE_HTTP_CODE:-}" != "200" ]; then
-        stripe_payment_method_set_error "detach payment method failed with HTTP ${STRIPE_HTTP_CODE:-unknown}"
+        stripe_payment_method_set_error "detach payment method failed with HTTP ${STRIPE_HTTP_CODE:-unknown} (${STRIPE_REQUEST_ID:-no-request-id}; $(stripe_payment_method_error_detail "${STRIPE_BODY:-}"))"
         return 1
     fi
 }

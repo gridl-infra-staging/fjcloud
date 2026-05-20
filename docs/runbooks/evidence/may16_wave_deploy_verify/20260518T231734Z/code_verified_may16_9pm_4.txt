@@ -1,0 +1,21 @@
+# Command outputs proving run-a/run-b ownership and evidence-capture seams
+$ rg -n "run-a|run-b|STAGE5_EVIDENCE_DIR|capture_pre_cleanup_state|capture_post_cleanup_state" scripts/validate_full_vm_lifecycle_prod.sh
+61:Usage: validate_full_vm_lifecycle_prod.sh <dry-run|run-a|run-b>
+65:  run-a    Execute signup/verify + shared-index + admin invoice flow.
+66:  run-b    Execute run-a plus reusable Stripe payment-method attach and paid-invoice convergence.
+78:        dry-run|run-a|run-b)
+133:        mark_failure "stripe_env" "run-b requires STRIPE_SECRET_KEY"
+137:        mark_failure "stripe_env" "run-b requires an allowed Stripe key prefix; set STRIPE_LIVE_CUTOVER=1 for live keys"
+271:        log "run-b out-of-band mode: skipping payment method attachment"
+275:        mark_failure "probe_payment_method" "run-b requires LIFECYCLE_PROBE_PM_ID so finalize can auto-collect"
+282:        mark_failure "probe_payment_method" "stripe customer id missing before run-b payment setup"
+299:    log "run-b payment method attached and set as default"
+500:    log "privacy card created for run-b"
+521:        log "run-b payment method detached"
+545:# Persist evidence artifacts to STAGE5_EVIDENCE_DIR when set. Called after a
+549:    local dir="${STAGE5_EVIDENCE_DIR:-}"
+554:        log "evidence: STAGE5_EVIDENCE_DIR=$dir does not exist; skipping pre-cleanup evidence capture"
+614:    local dir="${STAGE5_EVIDENCE_DIR:-}"
+637:    if [ "$LIFECYCLE_MODE" = "run-b" ]; then
+643:    if [ "$LIFECYCLE_MODE" = "run-b" ]; then
+648:    if [ "$LIFECYCLE_MODE" = "run-b" ]; then

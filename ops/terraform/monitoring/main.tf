@@ -4,25 +4,25 @@ data "aws_caller_identity" "current" {}
 data "aws_partition" "current" {}
 
 locals {
-  cloudtrail_name                                = var.cloudtrail_name_override != "" ? var.cloudtrail_name_override : "fjcloud-${var.env}-guardrails"
-  cloudtrail_export_bucket_name                  = var.cloudtrail_export_bucket_name != "" ? var.cloudtrail_export_bucket_name : "fjcloud-${var.env}-cloudtrail-export"
-  cloudtrail_source_arn                          = "arn:${data.aws_partition.current.partition}:cloudtrail:${var.region}:${data.aws_caller_identity.current.account_id}:trail/${local.cloudtrail_name}"
-  ses_configuration_set_source_arn_pattern       = "arn:${data.aws_partition.current.partition}:ses:${var.region}:${data.aws_caller_identity.current.account_id}:configuration-set/*"
-  live_e2e_budget_name                           = "fjcloud-${var.env}-live-e2e-spend"
-  live_e2e_budget_configured                     = var.live_e2e_monthly_spend_limit_usd != null
-  customer_loop_canary_ecr_repository_name       = "fjcloud-${var.env}-customer-loop-canary"
-  customer_loop_canary_function_name             = "fjcloud-${var.env}-customer-loop-canary"
-  customer_loop_canary_schedule_rule_name        = "fjcloud-${var.env}-customer-loop-canary"
-  customer_loop_canary_image_uri                 = "${aws_ecr_repository.customer_loop_canary.repository_url}:${var.canary_image.tag}"
-  customer_loop_canary_quiet_until_parameter_arn = "arn:${data.aws_partition.current.partition}:ssm:${var.region}:${data.aws_caller_identity.current.account_id}:parameter/fjcloud/${var.env}/canary_quiet_until"
-  customer_loop_canary_admin_key_parameter_name  = "/fjcloud/${var.env}/admin_key"
-  customer_loop_canary_stripe_secret_key_parameter_name = "/fjcloud/${var.env}/stripe_secret_key"
-  customer_loop_canary_slack_webhook_parameter_name = var.support_email_canary_slack_webhook_parameter_name != "" ? var.support_email_canary_slack_webhook_parameter_name : "/fjcloud/${var.env}/slack_webhook_url"
-  customer_loop_canary_discord_webhook_parameter_name = var.support_email_canary_discord_webhook_parameter_name != "" ? var.support_email_canary_discord_webhook_parameter_name : "/fjcloud/${var.env}/discord_webhook_url"
-  customer_loop_canary_admin_key_parameter_arn = "arn:${data.aws_partition.current.partition}:ssm:${var.region}:${data.aws_caller_identity.current.account_id}:parameter/${trimprefix(local.customer_loop_canary_admin_key_parameter_name, "/")}"
-  customer_loop_canary_stripe_secret_key_parameter_arn = "arn:${data.aws_partition.current.partition}:ssm:${var.region}:${data.aws_caller_identity.current.account_id}:parameter/${trimprefix(local.customer_loop_canary_stripe_secret_key_parameter_name, "/")}"
-  customer_loop_canary_slack_webhook_parameter_arn = "arn:${data.aws_partition.current.partition}:ssm:${var.region}:${data.aws_caller_identity.current.account_id}:parameter/${trimprefix(local.customer_loop_canary_slack_webhook_parameter_name, "/")}"
-  customer_loop_canary_discord_webhook_parameter_arn = "arn:${data.aws_partition.current.partition}:ssm:${var.region}:${data.aws_caller_identity.current.account_id}:parameter/${trimprefix(local.customer_loop_canary_discord_webhook_parameter_name, "/")}"
+  cloudtrail_name                                         = var.cloudtrail_name_override != "" ? var.cloudtrail_name_override : "fjcloud-${var.env}-guardrails"
+  cloudtrail_export_bucket_name                           = var.cloudtrail_export_bucket_name != "" ? var.cloudtrail_export_bucket_name : "fjcloud-${var.env}-cloudtrail-export"
+  cloudtrail_source_arn                                   = "arn:${data.aws_partition.current.partition}:cloudtrail:${var.region}:${data.aws_caller_identity.current.account_id}:trail/${local.cloudtrail_name}"
+  ses_configuration_set_source_arn_pattern                = "arn:${data.aws_partition.current.partition}:ses:${var.region}:${data.aws_caller_identity.current.account_id}:configuration-set/*"
+  live_e2e_budget_name                                    = "fjcloud-${var.env}-live-e2e-spend"
+  live_e2e_budget_configured                              = var.live_e2e_monthly_spend_limit_usd != null
+  customer_loop_canary_ecr_repository_name                = "fjcloud-${var.env}-customer-loop-canary"
+  customer_loop_canary_function_name                      = "fjcloud-${var.env}-customer-loop-canary"
+  customer_loop_canary_schedule_rule_name                 = "fjcloud-${var.env}-customer-loop-canary"
+  customer_loop_canary_image_uri                          = "${aws_ecr_repository.customer_loop_canary.repository_url}:${var.canary_image.tag}"
+  customer_loop_canary_quiet_until_parameter_arn          = "arn:${data.aws_partition.current.partition}:ssm:${var.region}:${data.aws_caller_identity.current.account_id}:parameter/fjcloud/${var.env}/canary_quiet_until"
+  customer_loop_canary_admin_key_parameter_name           = "/fjcloud/${var.env}/admin_key"
+  customer_loop_canary_stripe_secret_key_parameter_name   = "/fjcloud/${var.env}/stripe_secret_key"
+  customer_loop_canary_slack_webhook_parameter_name       = var.support_email_canary_slack_webhook_parameter_name != "" ? var.support_email_canary_slack_webhook_parameter_name : "/fjcloud/${var.env}/slack_webhook_url"
+  customer_loop_canary_discord_webhook_parameter_name     = var.support_email_canary_discord_webhook_parameter_name != "" ? var.support_email_canary_discord_webhook_parameter_name : "/fjcloud/${var.env}/discord_webhook_url"
+  customer_loop_canary_admin_key_parameter_arn            = "arn:${data.aws_partition.current.partition}:ssm:${var.region}:${data.aws_caller_identity.current.account_id}:parameter/${trimprefix(local.customer_loop_canary_admin_key_parameter_name, "/")}"
+  customer_loop_canary_stripe_secret_key_parameter_arn    = "arn:${data.aws_partition.current.partition}:ssm:${var.region}:${data.aws_caller_identity.current.account_id}:parameter/${trimprefix(local.customer_loop_canary_stripe_secret_key_parameter_name, "/")}"
+  customer_loop_canary_slack_webhook_parameter_arn        = "arn:${data.aws_partition.current.partition}:ssm:${var.region}:${data.aws_caller_identity.current.account_id}:parameter/${trimprefix(local.customer_loop_canary_slack_webhook_parameter_name, "/")}"
+  customer_loop_canary_discord_webhook_parameter_arn      = "arn:${data.aws_partition.current.partition}:ssm:${var.region}:${data.aws_caller_identity.current.account_id}:parameter/${trimprefix(local.customer_loop_canary_discord_webhook_parameter_name, "/")}"
   customer_loop_canary_inbound_roundtrip_s3_path_segments = split("/", trimprefix(var.support_email_canary_inbound_roundtrip_s3_uri, "s3://"))
   customer_loop_canary_inbound_roundtrip_s3_bucket        = local.customer_loop_canary_inbound_roundtrip_s3_path_segments[0]
   customer_loop_canary_inbound_roundtrip_s3_prefix        = join("/", slice(local.customer_loop_canary_inbound_roundtrip_s3_path_segments, 1, length(local.customer_loop_canary_inbound_roundtrip_s3_path_segments)))
@@ -213,16 +213,16 @@ resource "aws_lambda_function" "customer_loop_canary" {
 
   environment {
     variables = {
-      ENVIRONMENT             = var.env
-      API_URL                 = "https://api.${var.domain}"
-      CANARY_AWS_REGION       = var.region
-      CANARY_LIVE_MODE        = var.canary_live_mode ? "1" : "0"
+      ENVIRONMENT              = var.env
+      API_URL                  = "https://api.${var.domain}"
+      CANARY_AWS_REGION        = var.region
+      CANARY_LIVE_MODE         = var.canary_live_mode ? "1" : "0"
       CANARY_TEST_INBOX_DOMAIN = var.support_email_canary_recipient_domain_default
       CANARY_TEST_INBOX_S3_URI = var.support_email_canary_inbound_roundtrip_s3_uri
-      ADMIN_KEY               = local.customer_loop_canary_admin_key_parameter_name
-      STRIPE_SECRET_KEY       = local.customer_loop_canary_stripe_secret_key_parameter_name
-      SLACK_WEBHOOK_URL       = local.customer_loop_canary_slack_webhook_parameter_name
-      DISCORD_WEBHOOK_URL     = local.customer_loop_canary_discord_webhook_parameter_name
+      ADMIN_KEY                = local.customer_loop_canary_admin_key_parameter_name
+      STRIPE_SECRET_KEY        = local.customer_loop_canary_stripe_secret_key_parameter_name
+      SLACK_WEBHOOK_URL        = local.customer_loop_canary_slack_webhook_parameter_name
+      DISCORD_WEBHOOK_URL      = local.customer_loop_canary_discord_webhook_parameter_name
     }
   }
 }
@@ -748,6 +748,46 @@ resource "aws_cloudwatch_metric_alarm" "customer_loop_canary_lambda_errors" {
   evaluation_periods  = 1
   threshold           = 0
   treat_missing_data  = "notBreaching"
+  datapoints_to_alarm = 1
+  alarm_actions       = [aws_sns_topic.alerts.arn]
+  ok_actions          = [aws_sns_topic.alerts.arn]
+
+  dimensions = {
+    FunctionName = local.customer_loop_canary_function_name
+  }
+}
+
+# ---------------------------------------------------------------------------
+# Customer-loop canary liveness — pages when the canary STOPS RUNNING.
+#
+# Why this exists separately from customer_loop_canary_lambda_errors above:
+# that alarm watches AWS/Lambda Errors, and a Lambda that is never invoked
+# emits no Errors datapoints. With treat_missing_data="notBreaching" (correct
+# for an errors alarm — "no runs, no errors" must not page on its own), the
+# errors alarm is structurally blind to "the canary is not running at all".
+#
+# The 2026-05-20 launch-readiness audit found exactly this gap: the
+# customer-loop canary EventBridge rule had been disabled since 2026-05-17
+# (canary_schedule.enabled defaulted to false; an operator console toggle had
+# drifted away on a later terraform apply), and the prod shared-VM fleet rotted
+# unobserved for three days because no alarm watched the canary's own pulse.
+#
+# This alarm watches the Invocations metric with treat_missing_data="breaching":
+# a disabled EventBridge rule produces zero Invocations datapoints, missing data
+# is treated as breaching, and the alarm pages. period=3600s/threshold=1 means
+# "fewer than one canary run in the last hour" — robust for the rate(15 minutes)
+# schedule (~4 expected/hr) without flapping on a single transient miss.
+resource "aws_cloudwatch_metric_alarm" "customer_loop_canary_not_running" {
+  alarm_name          = "fjcloud-${var.env}-customer-loop-canary-not-running"
+  alarm_description   = "Customer-loop canary Lambda was not invoked in the last hour — EventBridge schedule disabled, IAM/target wiring broken, or Lambda unavailable. The synthetic customer-journey probe is dark."
+  comparison_operator = "LessThanThreshold"
+  metric_name         = "Invocations"
+  namespace           = "AWS/Lambda"
+  statistic           = "Sum"
+  period              = 3600
+  evaluation_periods  = 1
+  threshold           = 1
+  treat_missing_data  = "breaching"
   datapoints_to_alarm = 1
   alarm_actions       = [aws_sns_topic.alerts.arn]
   ok_actions          = [aws_sns_topic.alerts.arn]

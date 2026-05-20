@@ -104,6 +104,21 @@ describe('Account page server', () => {
 				expect.objectContaining({ status: 400, data: { error: 'Failed to update profile' } })
 			);
 		});
+
+		it('returns shared session-expired payload when profile update loses auth', async () => {
+			updateProfileMock.mockRejectedValue(new ApiRequestError(401, 'Unauthorized'));
+
+			const result = await actions.updateProfile(makeRequest({ name: 'Valid Name' }));
+			expect(result).toEqual(
+				expect.objectContaining({
+					status: 401,
+					data: expect.objectContaining({
+						_authSessionExpired: true,
+						error: 'Unauthorized'
+					})
+				})
+			);
+		});
 	});
 
 	describe('actions.changePassword', () => {
@@ -187,8 +202,10 @@ describe('Account page server', () => {
 			});
 		});
 
-		it('returns error when API rejects the change', async () => {
-			changePasswordMock.mockRejectedValue(new Error('invalid credentials'));
+		it('returns safe backend validation message when API rejects the current password', async () => {
+			changePasswordMock.mockRejectedValue(
+				new ApiRequestError(400, 'Current password is incorrect')
+			);
 			const result = await actions.changePassword(
 				makeRequest({
 					current_password: 'wrong',
@@ -200,6 +217,45 @@ describe('Account page server', () => {
 				expect.objectContaining({
 					status: 400,
 					data: { error: 'Current password is incorrect' }
+				})
+			);
+		});
+
+		it('returns shared session-expired payload when password change loses auth', async () => {
+			changePasswordMock.mockRejectedValue(new ApiRequestError(401, 'Unauthorized'));
+
+			const result = await actions.changePassword(
+				makeRequest({
+					current_password: 'oldpass123',
+					new_password: 'newpass123',
+					confirm_password: 'newpass123'
+				})
+			);
+			expect(result).toEqual(
+				expect.objectContaining({
+					status: 401,
+					data: expect.objectContaining({
+						_authSessionExpired: true,
+						error: 'Unauthorized'
+					})
+				})
+			);
+		});
+
+		it('does not misclassify transport failures as incorrect current password', async () => {
+			changePasswordMock.mockRejectedValue(new TypeError('fetch failed'));
+
+			const result = await actions.changePassword(
+				makeRequest({
+					current_password: 'oldpass123',
+					new_password: 'newpass123',
+					confirm_password: 'newpass123'
+				})
+			);
+			expect(result).toEqual(
+				expect.objectContaining({
+					status: 400,
+					data: { error: 'Failed to change password' }
 				})
 			);
 		});

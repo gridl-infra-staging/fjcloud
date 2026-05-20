@@ -1,0 +1,38 @@
+<!-- [matt:progress] -->
+## Matt Build Progress
+
+### Stage 1: Lock Script Contract and Regression Probes [build]
+Define the executable contract for the new lifecycle orchestrator by adding `scripts/tests/probe_full_vm_lifecycle_script_test.sh` first, mirroring existing script-test style in `scripts/tests/` and reusing shared transport/env seams from `scripts/lib/http_json.sh` and `scripts/lib/env.sh`. This stage should prove two invariants up front: `dry-run` must not require secrets and cleanup trap behavior must remain deterministic under failure paths. The goal is to make regressions visible before flow logic is implemented.
+- @work:build Add regression probes for full VM lifecycle script contract
+- 1/1 checklist items completed
+
+### Stage 2: Implement Shared-Owner Lifecycle Orchestrator [build]
+Implement `scripts/validate_full_vm_lifecycle_prod.sh` as a thin orchestration layer over existing owners: signup/verify + tenant token pattern from `scripts/canary/customer_loop_synthetic.sh`, shared-VM index creation already served by `/indexes` (`infra/api/src/routes/indexes/shared_vm.rs`), and billing endpoints in `infra/api/src/routes/admin/invoices.rs` and `infra/api/src/routes/admin/tenants.rs`. Keep sequence and cleanup deterministic (`trap cleanup EXIT` with re-entry protection), support `run-a` and `run-b`, and avoid duplicating business logic handled by admin routes/libs. Any Privacy.com behavior must only call into `scripts/lib/privacy_com_client.sh` and remain optional-gated.
+- @work:build Lock Stage 2 behavior with red-first script contracts
+- @work:build Implement shared-owner lifecycle orchestration in `scripts/validate_full_vm_lifecycle_prod.sh`
+- @work:build Validate Stage 2 implementation and fix findings in-stage
+- 3/3 checklist items completed
+
+### Stage 3: Local Gate Validation and Safety Checks [maintenance]
+Run the local validation gate for the new lane (`bash scripts/tests/probe_full_vm_lifecycle_script_test.sh`, `bash scripts/validate_full_vm_lifecycle_prod.sh dry-run`, `shellcheck scripts/validate_full_vm_lifecycle_prod.sh`) and fix failures until all commands are green. This stage closes implementation correctness for argument parsing, failure messaging, and trap-safe cleanup before any production mutation. Deliverable is a reproducible local pass record suitable for later live runs.
+- @work:maintenance Green the local lifecycle gate without widening ownership
+- 1/1 checklist items completed
+
+### Stage 4: Execute Run A in Prod and Capture Teardown Evidence [deploy]
+Run `gh run list -R gridl-infra-staging/fjcloud --workflow=CI --limit 1 --json conclusion,headSha,createdAt` and `gh run list -R gridl-infra-prod/fjcloud --workflow=CI --limit 1 --json conclusion,headSha,createdAt` first; proceed only when both latest CI runs report `"conclusion":"success"`. Then run `bash scripts/validate_full_vm_lifecycle_prod.sh run-a` and capture evidence under `docs/runbooks/evidence/full-vm-lifecycle-prod/<timestamp>_run-a/`. The evidence must terminate at live systems, including post-cleanup DB output proving no probe customer rows remain. This stage validates lifecycle orchestration plus deterministic teardown without requiring payment finalization.
+- @work:deploy Execute Run A and capture live-system evidence
+- 1/3 checklist items completed
+
+### Stage 5: Execute Run B Billing Path and Capture Paid Terminus [deploy]
+After Stage 4 succeeds, run `bash scripts/validate_full_vm_lifecycle_prod.sh run-b` when `LIFECYCLE_PROBE_PM_ID` is present and collect evidence under `docs/runbooks/evidence/full-vm-lifecycle-prod/<timestamp>_run-b/`. Evidence must include Stripe paid-state API output and DB status output showing the probe customer `active` before final cleanup, proving the required Mode B billing path through existing invoice owners. Optional Mode A (Privacy card creation) remains explicitly opt-in and non-blocking if external limits occur.
+- @work:deploy Gate Run B execution and launch orchestrator paid path
+- @work:deploy Capture paid terminus, pre-cleanup active state, and teardown proof
+- 2/2 checklist items completed
+
+### Stage 6: Close Status Pointers for This Gap Only [maintenance]
+Update only the narrow status surfaces for this lane by appending one `LAUNCH.md` entry with exact Run A/Run B evidence paths and removing the corresponding completed item from `docs/NOW.md`. Keep scope tight: no broad roadmap/priorities edits and no restatement of evidence not backed by captured DB/Stripe termini. This stage finalizes operator-facing closure for the validated shared-VM customer lifecycle gap.
+- @work:maintenance Close status pointers for the validated shared-VM customer lifecycle gap
+- 1/1 checklist items completed
+
+**Run finished_with_deferrals** — 6/6 stages · $11.30 · 18m 15s
+<!-- [matt:progress:end] -->

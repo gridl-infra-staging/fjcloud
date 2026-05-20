@@ -3634,6 +3634,76 @@ async fn billing_upgrade_200_promotes_free_to_shared_after_successful_charge() {
 }
 
 #[tokio::test]
+async fn billing_upgrade_200_accepts_submicro_anchor_drift_after_paid_charge() {
+    let customer_repo = mock_repo();
+    let invoice_repo = mock_invoice_repo();
+    let rate_card_repo = mock_rate_card_repo();
+    let stripe_svc = mock_stripe_service();
+    let mut card = test_rate_card();
+    card.shared_minimum_spend_cents = 1450;
+    rate_card_repo.seed_active_card(card);
+
+    let customer = seed_stripe_customer(
+        &customer_repo,
+        "Upgrade Precision Drift",
+        "upgrade-precision-drift@example.com",
+    )
+    .await;
+    stripe_svc.seed_payment_method(PaymentMethodSummary {
+        id: "pm_upgrade_precision_drift".to_string(),
+        card_brand: "visa".to_string(),
+        last4: "5151".to_string(),
+        exp_month: 11,
+        exp_year: 2031,
+        is_default: false,
+    });
+    *stripe_svc.default_pm.lock().unwrap() = Some("pm_upgrade_precision_drift".to_string());
+    stripe_svc.set_pay_invoice_result_default(PaidInvoice {
+        id: "in_mock_default".to_string(),
+        status: "paid".to_string(),
+        amount_paid_cents: 1450,
+        last_payment_error: None,
+    });
+
+    let customer_repo_for_callback = customer_repo.clone();
+    stripe_svc.set_on_pay_invoice(Arc::new(move || {
+        customer_repo_for_callback.nudge_subscription_cycle_anchor_submicro_for_test(customer.id);
+    }));
+
+    let app = test_app_with_upgrade_dependencies(
+        customer_repo.clone(),
+        invoice_repo,
+        rate_card_repo.clone(),
+        stripe_svc.clone(),
+    );
+    let jwt = create_test_jwt(customer.id);
+
+    let resp = app
+        .oneshot(
+            Request::post("/billing/upgrade")
+                .header("authorization", format!("Bearer {jwt}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = body_json(resp).await;
+    assert_eq!(body["billing_plan"], "shared");
+    assert_eq!(body["activation_amount_cents"], 1450);
+    assert!(
+        body["subscription_cycle_anchor_at"].is_string(),
+        "response should keep successful upgrade contract even with sub-micro anchor drift"
+    );
+    assert_eq!(
+        stripe_svc.void_invoice_calls.lock().unwrap().len(),
+        0,
+        "sub-micro anchor drift should not trigger rollback+void against a paid invoice"
+    );
+}
+
+#[tokio::test]
 async fn billing_upgrade_400_without_stripe_customer_id() {
     let customer_repo = mock_repo();
     let invoice_repo = mock_invoice_repo();

@@ -118,3 +118,7 @@ sdks/javascript/.yarn/releases/
 ops/build/
 ops/packer/flapjack-ami-manifest.json
 ops/terraform/_shared/tfplan.*
+
+# Probe evidence bundles produced by scripts/validate_subprocessor_disclosure.sh
+# (UTC-stamped run artifacts; keep as untracked local evidence only)
+docs/runbooks/evidence/subprocessor_disclosure/

@@ -86,6 +86,17 @@ declare -A SSM_TO_ENV=(
   # Alert webhook URLs — read by infra/api/src/startup.rs::init_alert_service.
   ["slack_webhook_url"]="SLACK_WEBHOOK_URL"
   ["discord_webhook_url"]="DISCORD_WEBHOOK_URL"
+
+  # OAuth providers — config.rs::from_reader (GOOGLE/GITHUB_OAUTH_CLIENT_*).
+  # Each provider is enabled only when both id+secret resolve; absent => the
+  # /auth/oauth/<provider>/start route returns 501. APP_BASE_URL drives the
+  # callback redirect_uri in main.rs::build_oauth_runtime_config — staging must
+  # set it to its own host or callbacks route to the prod web host.
+  ["google_oauth_client_id"]="GOOGLE_OAUTH_CLIENT_ID"
+  ["google_oauth_client_secret"]="GOOGLE_OAUTH_CLIENT_SECRET"
+  ["github_oauth_client_id"]="GITHUB_OAUTH_CLIENT_ID"
+  ["github_oauth_client_secret"]="GITHUB_OAUTH_CLIENT_SECRET"
+  ["app_base_url"]="APP_BASE_URL"
 )
 
 # ---------------------------------------------------------------------------

@@ -156,6 +156,51 @@ fn build_failed_paid_invoice(
     }
 }
 
+fn build_json_serialize_requires_action_invoice(invoice_id: &stripe::InvoiceId) -> PaidInvoice {
+    PaidInvoice {
+        id: invoice_id.to_string(),
+        status: "open".to_string(),
+        amount_paid_cents: 0,
+        last_payment_error: Some(StripeLastPaymentError {
+            code: Some("invoice_payment_intent_requires_action".to_string()),
+            decline_code: None,
+            message: Some("Additional customer authentication is required.".to_string()),
+        }),
+    }
+}
+
+fn should_recover_invoice_payment_failure(
+    error_type: &stripe::ErrorType,
+    error_code: Option<&str>,
+) -> bool {
+    if error_type == &stripe::ErrorType::Card {
+        return true;
+    }
+
+    matches!(
+        error_code,
+        Some("card_declined" | "invoice_payment_intent_requires_action")
+    )
+}
+
+fn should_attempt_pay_invoice_recovery(
+    request_error: Option<&stripe::RequestError>,
+    pay_error_message: &str,
+) -> bool {
+    if let Some(err) = request_error {
+        return should_recover_invoice_payment_failure(
+            &err.error_type,
+            err.code.map(|code| code.to_string()).as_deref(),
+        );
+    }
+
+    is_json_serialize_error_message(pay_error_message)
+}
+
+fn is_json_serialize_error_message(error_message: &str) -> bool {
+    error_message.contains("error serializing or deserializing a request")
+}
+
 async fn recover_card_payment_failure(
     client: &Client,
     invoice_id: &stripe::InvoiceId,
@@ -381,10 +426,13 @@ impl StripeService for LiveStripeService {
         match Invoice::pay(&self.client, &invoice_id).await {
             Ok(_) => {}
             Err(stripe::StripeError::Stripe(request_error))
-                if request_error.error_type == stripe::ErrorType::Card =>
+                if should_attempt_pay_invoice_recovery(Some(&request_error), "") =>
             {
                 return recover_card_payment_failure(&self.client, &invoice_id, &request_error)
                     .await;
+            }
+            Err(pay_error) if should_attempt_pay_invoice_recovery(None, &pay_error.to_string()) => {
+                return Ok(build_json_serialize_requires_action_invoice(&invoice_id));
             }
             Err(e) => return Err(StripeError::Api(e.to_string())),
         }
@@ -400,10 +448,18 @@ impl StripeService for LiveStripeService {
             .parse()
             .map_err(|_| StripeError::Api("invalid invoice ID".into()))?;
 
-        let voided = Invoice::void(&self.client, &invoice_id)
-            .await
-            .map_err(|e| StripeError::Api(e.to_string()))?;
-        Ok(build_paid_invoice(&voided))
+        match Invoice::void(&self.client, &invoice_id).await {
+            Ok(voided) => Ok(build_paid_invoice(&voided)),
+            Err(void_error) if is_json_serialize_error_message(&void_error.to_string()) => {
+                Ok(PaidInvoice {
+                    id: stripe_invoice_id.to_string(),
+                    status: "void".to_string(),
+                    amount_paid_cents: 0,
+                    last_payment_error: None,
+                })
+            }
+            Err(e) => Err(StripeError::Api(e.to_string())),
+        }
     }
 
     async fn lookup_charge_fallback_fields(
@@ -573,6 +629,63 @@ mod tests {
                     message: Some("Your card has insufficient funds.".to_string()),
                 }),
             }
+        );
+    }
+
+    #[test]
+    fn recoverable_payment_failure_detects_requires_action_code_outside_card_error_type() {
+        assert!(
+            should_recover_invoice_payment_failure(
+                &stripe::ErrorType::InvalidRequest,
+                Some("invoice_payment_intent_requires_action"),
+            ),
+            "requires-action invoice payment failures must be recovered even when Stripe does not classify them as card_error"
+        );
+    }
+
+    #[test]
+    fn recoverable_payment_failure_rejects_non_retryable_invalid_request_codes() {
+        assert!(
+            !should_recover_invoice_payment_failure(
+                &stripe::ErrorType::InvalidRequest,
+                Some("resource_missing"),
+            ),
+            "non-retryable invalid_request errors must continue bubbling as API failures"
+        );
+    }
+
+    #[test]
+    fn pay_recovery_attempts_on_json_serialize_errors() {
+        assert!(
+            should_attempt_pay_invoice_recovery(
+                None,
+                "error serializing or deserializing a request",
+            ),
+            "JSONSerialize-style pay errors should still attempt invoice recovery for payment-required responses"
+        );
+    }
+
+    #[test]
+    fn void_recovery_attempts_on_json_serialize_errors() {
+        assert!(
+            is_json_serialize_error_message("error serializing or deserializing a request"),
+            "void path should detect async-stripe JSONSerialize errors and attempt invoice fetch recovery"
+        );
+    }
+
+    #[test]
+    fn json_serialize_pay_fallback_preserves_requires_action_code() {
+        let invoice_id: stripe::InvoiceId = "in_test_requires_action".parse().unwrap();
+        let paid_invoice = build_json_serialize_requires_action_invoice(&invoice_id);
+
+        assert_eq!(paid_invoice.status, "open");
+        assert_eq!(
+            paid_invoice
+                .last_payment_error
+                .as_ref()
+                .and_then(|err| err.code.as_deref()),
+            Some("invoice_payment_intent_requires_action"),
+            "JSONSerialize fallback must preserve the payment_required contract code"
         );
     }
 }

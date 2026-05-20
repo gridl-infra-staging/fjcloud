@@ -33,6 +33,30 @@ privacy_com_set_result() {
     PRIVACY_CLIENT_ERROR_MESSAGE="$4"
 }
 
+privacy_com_validate_card_token() {
+    local card_token="${1:-}"
+    if [ -z "$card_token" ]; then
+        privacy_com_set_result "schema_mismatch" "" "" "card token is required"
+        return "$PRIVACY_CLIENT_EXIT_SCHEMA_MISMATCH"
+    fi
+
+    # Card tokens are interpolated into a URL path segment, so reject any
+    # character that could change the requested endpoint or smuggle controls.
+    if [[ ! "$card_token" =~ ^[A-Za-z0-9_-]+$ ]]; then
+        privacy_com_set_result "schema_mismatch" "" "" "card token contains unsafe chars"
+        return "$PRIVACY_CLIENT_EXIT_SCHEMA_MISMATCH"
+    fi
+}
+
+privacy_com_validate_positive_int_arg() {
+    local arg_name="$1"
+    local arg_value="${2:-}"
+    if [[ ! "$arg_value" =~ ^[1-9][0-9]*$ ]]; then
+        privacy_com_set_result "schema_mismatch" "" "" "${arg_name} must be a positive integer"
+        return "$PRIVACY_CLIENT_EXIT_SCHEMA_MISMATCH"
+    fi
+}
+
 privacy_com_require_env() {
     local default_secret_file=".secret/.env.secret"
     local secret_file="${FJCLOUD_SECRET_FILE:-$default_secret_file}"
@@ -158,6 +182,8 @@ privacy_com_request() {
 privacy_com_list_cards_raw_auth() {
     local page="${1:-1}"
     local page_size="${2:-2}"
+    privacy_com_validate_positive_int_arg "page" "$page" || return $?
+    privacy_com_validate_positive_int_arg "page_size" "$page_size" || return $?
     privacy_com_request "GET" "/v1/cards?page=${page}&page_size=${page_size}" "raw"
     local rc=$?
     [ "$rc" -eq 0 ] || return "$rc"
@@ -171,6 +197,8 @@ privacy_com_list_cards_raw_auth() {
 privacy_com_list_cards_prefixed_auth() {
     local page="${1:-1}"
     local page_size="${2:-2}"
+    privacy_com_validate_positive_int_arg "page" "$page" || return $?
+    privacy_com_validate_positive_int_arg "page_size" "$page_size" || return $?
     privacy_com_request "GET" "/v1/cards?page=${page}&page_size=${page_size}" "prefixed"
     local rc=$?
     [ "$rc" -eq 0 ] || return "$rc"
@@ -184,6 +212,8 @@ privacy_com_list_cards_prefixed_auth() {
 privacy_com_list_cards_missing_auth() {
     local page="${1:-1}"
     local page_size="${2:-2}"
+    privacy_com_validate_positive_int_arg "page" "$page" || return $?
+    privacy_com_validate_positive_int_arg "page_size" "$page_size" || return $?
     privacy_com_request "GET" "/v1/cards?page=${page}&page_size=${page_size}" "missing"
 }
 
@@ -206,9 +236,18 @@ PY
 }
 
 privacy_com_create_card() {
+    local memo="${1:-fjcloud stage2 contract probe}"
+    # Memo is interpolated into JSON below, so reject characters that would
+    # change the payload shape (quotes, backslashes, ASCII control chars)
+    # instead of trying to escape them ad hoc here.
+    if [[ "$memo" == *\"* || "$memo" == *\\* || "$memo" =~ [[:cntrl:]] ]]; then
+        privacy_com_set_result "schema_mismatch" "" "" "memo contains forbidden chars"
+        return "$PRIVACY_CLIENT_EXIT_SCHEMA_MISMATCH"
+    fi
+
     local request_body
     request_body="$(cat <<JSON
-{"type":"MERCHANT_LOCKED","memo":"fjcloud stage2 contract probe","spend_limit":1000,"spend_limit_duration":"TRANSACTION","state":"OPEN"}
+{"type":"MERCHANT_LOCKED","memo":"${memo}","spend_limit":1000,"spend_limit_duration":"TRANSACTION","state":"OPEN"}
 JSON
 )"
     privacy_com_request "POST" "/v1/cards" "raw" "$request_body"
@@ -223,10 +262,7 @@ JSON
 
 privacy_com_get_card() {
     local card_token="$1"
-    if [ -z "$card_token" ]; then
-        privacy_com_set_result "schema_mismatch" "" "" "card token is required"
-        return "$PRIVACY_CLIENT_EXIT_SCHEMA_MISMATCH"
-    fi
+    privacy_com_validate_card_token "$card_token" || return $?
 
     privacy_com_request "GET" "/v1/cards/${card_token}" "raw"
     local rc=$?
@@ -240,10 +276,7 @@ privacy_com_get_card() {
 
 privacy_com_close_card() {
     local card_token="$1"
-    if [ -z "$card_token" ]; then
-        privacy_com_set_result "schema_mismatch" "" "" "card token is required"
-        return "$PRIVACY_CLIENT_EXIT_SCHEMA_MISMATCH"
-    fi
+    privacy_com_validate_card_token "$card_token" || return $?
 
     privacy_com_request "PATCH" "/v1/cards/${card_token}" "raw" '{"state":"CLOSED"}'
     local rc=$?
@@ -251,6 +284,34 @@ privacy_com_close_card() {
 
     if ! privacy_com_validate_schema "$PRIVACY_CLIENT_BODY" "card" >/dev/null 2>&1; then
         privacy_com_set_result "schema_mismatch" "$PRIVACY_CLIENT_HTTP_CODE" "$PRIVACY_CLIENT_BODY" "close response schema mismatch"
+        return "$PRIVACY_CLIENT_EXIT_SCHEMA_MISMATCH"
+    fi
+}
+
+privacy_com_pause_card() {
+    local card_token="$1"
+    privacy_com_validate_card_token "$card_token" || return $?
+
+    privacy_com_request "PATCH" "/v1/cards/${card_token}" "raw" '{"state":"PAUSED"}'
+    local rc=$?
+    [ "$rc" -eq 0 ] || return "$rc"
+
+    if ! privacy_com_validate_schema "$PRIVACY_CLIENT_BODY" "card" >/dev/null 2>&1; then
+        privacy_com_set_result "schema_mismatch" "$PRIVACY_CLIENT_HTTP_CODE" "$PRIVACY_CLIENT_BODY" "pause response schema mismatch"
+        return "$PRIVACY_CLIENT_EXIT_SCHEMA_MISMATCH"
+    fi
+}
+
+privacy_com_unpause_card() {
+    local card_token="$1"
+    privacy_com_validate_card_token "$card_token" || return $?
+
+    privacy_com_request "PATCH" "/v1/cards/${card_token}" "raw" '{"state":"OPEN"}'
+    local rc=$?
+    [ "$rc" -eq 0 ] || return "$rc"
+
+    if ! privacy_com_validate_schema "$PRIVACY_CLIENT_BODY" "card" >/dev/null 2>&1; then
+        privacy_com_set_result "schema_mismatch" "$PRIVACY_CLIENT_HTTP_CODE" "$PRIVACY_CLIENT_BODY" "unpause response schema mismatch"
         return "$PRIVACY_CLIENT_EXIT_SCHEMA_MISMATCH"
     fi
 }

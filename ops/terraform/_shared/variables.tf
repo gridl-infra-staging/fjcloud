@@ -72,14 +72,21 @@ variable "canary_image" {
 }
 
 variable "canary_schedule" {
-  description = "Canonical canary schedule input forwarded to the monitoring module"
+  # enabled defaults to true: the synthetic customer-loop canary is a launch
+  # requirement (it is how the platform proves it stays alive without an
+  # operator watching). A disabled-by-default schedule caused the 2026-05-20
+  # silent-rot incident — every terraform apply re-disabled the canary, so an
+  # operator console toggle never stuck. Temporary suppression during known-bad
+  # windows is the job of the canary_quiet_until SSM parameter, not a disabled
+  # EventBridge rule.
+  description = "Canonical canary schedule input forwarded to the monitoring module. Enabled by default; suppress temporarily via the canary_quiet_until SSM parameter."
   type = object({
     expression = string
     enabled    = bool
   })
   default = {
     expression = "rate(15 minutes)"
-    enabled    = false
+    enabled    = true
   }
 
   validation {

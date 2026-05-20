@@ -8,6 +8,7 @@ import {
 	assertLegalPagePresentationContract,
 	assertSharedLegalPageContract,
 	exactNameMatcher,
+	assertTextAbsent,
 	assertUniqueVisibleHeading,
 	assertUniqueVisibleText
 } from '../legal_page_test_helpers';
@@ -30,7 +31,7 @@ describe('DPA page legal contract', () => {
 		assertSharedLegalPageContract();
 		expect(document.title).toBe('Data Processing Addendum — Flapjack Cloud');
 		assertUniqueVisibleHeading(1, 'Data Processing Addendum');
-		assertUniqueVisibleText('Effective date: 2026-05-03');
+		assertUniqueVisibleText('Effective date: 2026-05-19');
 		assertUniqueVisibleHeading(2, 'Roles');
 		assertUniqueVisibleHeading(2, 'Sub-processors');
 		assertUniqueVisibleHeading(2, 'Security');
@@ -63,6 +64,58 @@ describe('DPA page legal contract', () => {
 		expect(document.body).not.toHaveTextContent('(Draft)');
 		expect(document.body).not.toHaveTextContent('[REVIEW:');
 		expect(document.body).not.toHaveTextContent('TBD');
+	});
+
+	it('captures red baseline for sub-processor vendor and commitment disclosures', () => {
+		pageState.url = new URL('http://localhost/dpa');
+		render(DpaLayoutTestWrapper);
+
+		assertUniqueVisibleHeading(2, 'Sub-processors');
+		assertUniqueVisibleText('Amazon Web Services, Inc.');
+		assertUniqueVisibleText('Stripe, Inc.');
+		assertUniqueVisibleText('Cloudflare, Inc.');
+		assertUniqueVisibleText('Slack Technologies, LLC');
+		assertUniqueVisibleText('Discord, Inc.');
+		assertTextAbsent('Privacy.com, Inc.');
+
+		const sccCommitmentParagraphs = screen.getAllByText((_content, element) => {
+			if (!(element instanceof HTMLParagraphElement)) {
+				return false;
+			}
+
+			const normalizedText = element.textContent?.replace(/\s+/g, ' ').trim();
+			return (
+				normalizedText ===
+				'Flapjack Cloud maintains written sub-processor agreements, including Standard Contractual Clauses where required by applicable law.'
+			);
+		});
+		expect(sccCommitmentParagraphs).toHaveLength(1);
+
+		const maintenanceCommitmentParagraphs = screen.getAllByText((_content, element) => {
+			if (!(element instanceof HTMLParagraphElement)) {
+				return false;
+			}
+
+			const normalizedText = element.textContent?.replace(/\s+/g, ' ').trim();
+			return (
+				normalizedText ===
+				'Flapjack Cloud commits to maintaining and periodically reviewing this sub-processor disclosure to reflect current vendor processing roles.'
+			);
+		});
+		expect(maintenanceCommitmentParagraphs).toHaveLength(1);
+
+		const socialIdentityCarveOutParagraphs = screen.getAllByText((_content, element) => {
+			if (!(element instanceof HTMLParagraphElement)) {
+				return false;
+			}
+
+			const normalizedText = element.textContent?.replace(/\s+/g, ' ').trim();
+			return (
+				normalizedText ===
+				'Slack Technologies, LLC and Discord, Inc. are limited to social identity and support communications and are not used for payment processing.'
+			);
+		});
+		expect(socialIdentityCarveOutParagraphs).toHaveLength(1);
 	});
 
 	it('public__dpa__success__desktop M.palette.1 keeps teal page treatment with cream legal article surface', () => {

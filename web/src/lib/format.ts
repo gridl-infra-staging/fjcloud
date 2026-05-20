@@ -181,7 +181,7 @@ export const LEGAL_SUPPORT_MAILTO = `mailto:${SUPPORT_EMAIL}`;
 /** Shared beta-feedback mailto so policy pages and in-app links stay aligned. */
 export const BETA_FEEDBACK_MAILTO = `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent('Flapjack Cloud beta feedback')}`;
 /** Canonical legal contract date in ISO format. */
-export const LEGAL_EFFECTIVE_DATE = '2026-05-03';
+export const LEGAL_EFFECTIVE_DATE = '2026-05-19';
 /** Canonical legal effective-date display text shared by legal routes and tests. */
 export const LEGAL_EFFECTIVE_DATE_TEXT = `Effective date: ${LEGAL_EFFECTIVE_DATE}`;
 /** Repo-owned legal entity name used in public legal boilerplate. */

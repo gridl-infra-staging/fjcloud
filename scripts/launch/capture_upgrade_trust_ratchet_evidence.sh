@@ -26,14 +26,20 @@ elif [[ "$STRIPE_SECRET_KEY" == sk_live_* || "$STRIPE_SECRET_KEY" == rk_live_* ]
     STRIPE_KEY_MODE="live"
 fi
 
-UPGRADE_PM_SUCCESS="${UPGRADE_PM_SUCCESS:-${LIFECYCLE_PROBE_PM_ID:-}}"
-UPGRADE_PM_DECLINED="${UPGRADE_PM_DECLINED:-${LIFECYCLE_PROBE_PM_DECLINED_ID:-}}"
-UPGRADE_PM_REQUIRES_ACTION="${UPGRADE_PM_REQUIRES_ACTION:-${LIFECYCLE_PROBE_PM_REQUIRES_ACTION_ID:-}}"
+UPGRADE_PM_SUCCESS="${UPGRADE_PM_SUCCESS:-}"
+UPGRADE_PM_DECLINED="${UPGRADE_PM_DECLINED:-}"
+UPGRADE_PM_REQUIRES_ACTION="${UPGRADE_PM_REQUIRES_ACTION:-}"
 
 if [ "$STRIPE_KEY_MODE" = "test" ]; then
+    # Test-mode upgrades should use Stripe test fixtures unless explicitly
+    # overridden via UPGRADE_PM_* for a targeted probe run.
     UPGRADE_PM_SUCCESS="${UPGRADE_PM_SUCCESS:-pm_card_visa}"
-    UPGRADE_PM_DECLINED="${UPGRADE_PM_DECLINED:-pm_card_chargeDeclined}"
+    UPGRADE_PM_DECLINED="${UPGRADE_PM_DECLINED:-pm_card_chargeCustomerFail}"
     UPGRADE_PM_REQUIRES_ACTION="${UPGRADE_PM_REQUIRES_ACTION:-pm_card_authenticationRequired}"
+else
+    UPGRADE_PM_SUCCESS="${UPGRADE_PM_SUCCESS:-${LIFECYCLE_PROBE_PM_ID:-}}"
+    UPGRADE_PM_DECLINED="${UPGRADE_PM_DECLINED:-${LIFECYCLE_PROBE_PM_DECLINED_ID:-}}"
+    UPGRADE_PM_REQUIRES_ACTION="${UPGRADE_PM_REQUIRES_ACTION:-${LIFECYCLE_PROBE_PM_REQUIRES_ACTION_ID:-}}"
 fi
 
 if [ -z "$UPGRADE_PM_SUCCESS" ] || [ -z "$UPGRADE_PM_DECLINED" ] || [ -z "$UPGRADE_PM_REQUIRES_ACTION" ]; then
@@ -84,6 +90,14 @@ EOF
 tenant_get() {
     local token="$1" path="$2"; shift 2
     curl -sf --config - -X GET "${API_URL}${path}" \
+        "$@" <<EOF
+header = "Authorization: Bearer ${token}"
+EOF
+}
+
+tenant_get_with_status() {
+    local token="$1" path="$2"; shift 2
+    curl -s --config - -w "\n%{http_code}" -X GET "${API_URL}${path}" \
         "$@" <<EOF
 header = "Authorization: Bearer ${token}"
 EOF
@@ -140,6 +154,73 @@ contract_json_field() {
     local json_payload="$1" python_expr="$2"
     python3 -c "import json,sys; data=json.loads(sys.argv[1]); print(${python_expr})" \
         "$json_payload"
+}
+
+# Redact Stripe-hosted invoice access links before persisting evidence.
+redact_stripe_invoice_urls() {
+    python3 -c 'import json,sys
+REDACT_KEYS={"hosted_invoice_url","invoice_pdf"}
+def scrub(node):
+    if isinstance(node, dict):
+        return {key: ("[REDACTED]" if key in REDACT_KEYS and value not in (None, "") else scrub(value)) for key, value in node.items()}
+    if isinstance(node, list):
+        return [scrub(item) for item in node]
+    return node
+json.dump(scrub(json.load(sys.stdin)), sys.stdout)
+sys.stdout.write("\n")'
+}
+
+fetch_upgrade_status_json_with_fallback() {
+    local token="$1" stripe_customer_id="$2" phase="$3"
+    local status_raw status_http status_body
+    status_raw="$(tenant_get_with_status "$token" "/account/upgrade-status")"
+    status_http="$(echo "$status_raw" | tail -1)"
+    status_body="$(echo "$status_raw" | sed '$d')"
+
+    if [ "$status_http" = "200" ]; then
+        echo "$status_body"
+        return 0
+    fi
+
+    if [ "$status_http" != "404" ]; then
+        echo "ERROR: ${phase}: GET /account/upgrade-status returned HTTP ${status_http}" >&2
+        return 56
+    fi
+
+    log "NOTE: /account/upgrade-status returned 404; falling back to /account + /billing/payment-methods contract for ${phase}"
+
+    local account_raw account_http account_body
+    account_raw="$(tenant_get_with_status "$token" "/account")"
+    account_http="$(echo "$account_raw" | tail -1)"
+    account_body="$(echo "$account_raw" | sed '$d')"
+    if [ "$account_http" != "200" ]; then
+        echo "ERROR: ${phase}: fallback GET /account returned HTTP ${account_http}" >&2
+        return 56
+    fi
+
+    local payment_methods_raw payment_methods_http payment_methods_body
+    payment_methods_raw="$(tenant_get_with_status "$token" "/billing/payment-methods")"
+    payment_methods_http="$(echo "$payment_methods_raw" | tail -1)"
+    payment_methods_body="$(echo "$payment_methods_raw" | sed '$d')"
+    if [ "$payment_methods_http" != "200" ]; then
+        echo "ERROR: ${phase}: fallback GET /billing/payment-methods returned HTTP ${payment_methods_http}" >&2
+        return 56
+    fi
+
+    local billing_plan has_default_payment_method
+    billing_plan="$(
+        python3 -c "import json,sys; data=json.loads(sys.argv[1]); print((data.get('billing_plan') or ''))" \
+            "$account_body"
+    )"
+    has_default_payment_method="$(
+        python3 -c "import json,sys; methods=json.loads(sys.argv[1]); print('true' if any((pm or {}).get('is_default') is True for pm in (methods if isinstance(methods, list) else [])) else 'false')" \
+            "$payment_methods_body"
+    )"
+
+    python3 -c "import json,sys; stripe_id=sys.argv[1]; billing_plan=sys.argv[2]; has_default=(sys.argv[3]=='true'); payload={'stripe_customer_id': stripe_id if stripe_id else None, 'has_default_payment_method': has_default, 'upgrade_ready': billing_plan=='free' and bool(stripe_id) and has_default}; print(json.dumps(payload))" \
+        "$stripe_customer_id" \
+        "$billing_plan" \
+        "$has_default_payment_method"
 }
 
 verify_contract_expectations() {
@@ -263,12 +344,12 @@ exercise_contract() {
     stripe_customer_id=$(echo "$setup_result" | cut -d'|' -f2)
     jwt=$(echo "$setup_result" | cut -d'|' -f3)
 
-    echo "{\"customer_id\": \"${customer_id}\", \"stripe_customer_id\": \"${stripe_customer_id}\", \"pm_token\": \"${pm_token}\"}" \
+    echo "{\"customer_id\": \"${customer_id}\", \"stripe_customer_id\": \"${stripe_customer_id}\"}" \
         | python3 -m json.tool > "$contract_dir/setup.json"
 
     log "Checking pre-upgrade status"
     local pre_status
-    pre_status=$(tenant_get "$jwt" "/account/upgrade-status")
+    pre_status=$(fetch_upgrade_status_json_with_fallback "$jwt" "$stripe_customer_id" "pre-upgrade")
     echo "$pre_status" | python3 -m json.tool > "$contract_dir/pre_upgrade_status.json"
 
     log "Calling POST /billing/upgrade"
@@ -285,7 +366,7 @@ exercise_contract() {
 
     log "Checking post-upgrade status"
     local post_status
-    post_status=$(tenant_get "$jwt" "/account/upgrade-status")
+    post_status=$(fetch_upgrade_status_json_with_fallback "$jwt" "$stripe_customer_id" "post-upgrade")
     echo "$post_status" | python3 -m json.tool > "$contract_dir/post_upgrade_status.json"
 
     verify_contract_expectations "$label" "$expected_http" "$http_code" "$response_body" "$post_status"
@@ -297,6 +378,7 @@ exercise_contract() {
         if [ -n "$invoice_id" ]; then
             log "Fetching Stripe invoice ${invoice_id}"
             stripe_api "https://api.stripe.com/v1/invoices/${invoice_id}" \
+                | redact_stripe_invoice_urls \
                 | python3 -m json.tool > "$contract_dir/stripe_invoice.json"
         fi
     fi
@@ -319,7 +401,7 @@ exercise_contract "declined_402" "$UPGRADE_PM_DECLINED" "402"
 exercise_contract "requires_action_402" "$UPGRADE_PM_REQUIRES_ACTION" "402"
 
 log "Writing SUMMARY.md"
-cat > "${EVIDENCE_DIR}/SUMMARY.md" <<SUMMARYEOF
+cat > "${EVIDENCE_DIR}/SUMMARY.md" <<'SUMMARYEOF'
 # Upgrade Trust-Ratchet Evidence
 
 Evidence bundle for the self-service `POST /billing/upgrade` trust-ratchet contracts.
@@ -335,7 +417,7 @@ Evidence bundle for the self-service `POST /billing/upgrade` trust-ratchet contr
 ## Per-Contract Artifacts
 
 Each subdirectory contains:
-- `setup.json` — customer_id, stripe_customer_id, payment method used
+- `setup.json` — customer_id and stripe_customer_id audit identifiers
 - `pre_upgrade_status.json` — `GET /account/upgrade-status` before upgrade attempt
 - `upgrade_response.json` — raw response body from `POST /billing/upgrade`
 - `upgrade_http_code.txt` — HTTP status code

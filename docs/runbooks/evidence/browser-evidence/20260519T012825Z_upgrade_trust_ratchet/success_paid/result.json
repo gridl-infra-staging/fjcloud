@@ -1,0 +1,7 @@
+{
+    "label": "success_paid",
+    "expected_http": 200,
+    "actual_http": 200,
+    "customer_id": "5bf7966b-bbbc-4993-aace-346268f3f29a",
+    "stripe_customer_id": "cus_UXhsyPEbGisivJ"
+}

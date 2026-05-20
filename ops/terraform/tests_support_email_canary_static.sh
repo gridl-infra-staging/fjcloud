@@ -183,4 +183,28 @@ assert_contains_active "$support_tf_file" 'Condition[[:space:]]*=' "ListBucket s
 assert_contains_active "$support_tf_file" 's3:prefix' "ListBucket statement scopes allowed prefixes via s3:prefix"
 assert_file_not_contains "$publish_script_file" 'aws[[:space:]]+ecr[[:space:]]+create-repository' "publish script does not create Terraform-owned ECR repositories"
 
+echo ""
+echo "--- Canary liveness alarm (regression guard) ---"
+# The 2026-05-20 launch-readiness audit found scheduled canaries had no alarm on
+# their own liveness — a canary that stops running pages nobody. The support-email
+# canary had zero CloudWatch alarms of any kind. This liveness alarm watches the
+# Lambda's Invocations metric with treat_missing_data=breaching so a stopped or
+# disabled support-email canary pages instead of failing silent.
+assert_resource_ownership "aws_cloudwatch_metric_alarm" "$support_tf_file" "Support-email canary alarm owner is monitoring/support_email_canary.tf"
+assert_contains_active "$support_tf_file" 'resource "aws_cloudwatch_metric_alarm" "support_email_canary_not_running"' "Support-email canary liveness alarm resource exists"
+# Block-scoped assertions (assert_resource_block_contains, shared from
+# test_helpers.sh): each pattern is checked INSIDE the support_email_canary_not_running
+# block only. A file-scoped grep would let a future second alarm in this file mask
+# a regression in this one — e.g. treat_missing_data on a sibling alarm satisfying a
+# whole-file match. Block scoping keeps each assertion able to fail for a real defect.
+support_liveness_alarm="support_email_canary_not_running"
+assert_resource_block_contains "$support_tf_file" "aws_cloudwatch_metric_alarm" "$support_liveness_alarm" 'alarm_name[[:space:]]*=[[:space:]]*"fjcloud-\$\{var\.env\}-support-email-canary-not-running"' "Support-email canary liveness alarm name follows naming convention"
+assert_resource_block_contains "$support_tf_file" "aws_cloudwatch_metric_alarm" "$support_liveness_alarm" 'metric_name[[:space:]]*=[[:space:]]*"Invocations"' "Support-email liveness alarm watches the Invocations metric"
+assert_resource_block_contains "$support_tf_file" "aws_cloudwatch_metric_alarm" "$support_liveness_alarm" 'namespace[[:space:]]*=[[:space:]]*"AWS/Lambda"' "Support-email liveness alarm uses AWS/Lambda namespace"
+assert_resource_block_contains "$support_tf_file" "aws_cloudwatch_metric_alarm" "$support_liveness_alarm" 'comparison_operator[[:space:]]*=[[:space:]]*"LessThanThreshold"' "Support-email liveness alarm fires when invocations fall below threshold"
+assert_resource_block_contains "$support_tf_file" "aws_cloudwatch_metric_alarm" "$support_liveness_alarm" 'treat_missing_data[[:space:]]*=[[:space:]]*"breaching"' "Support-email liveness alarm treats missing data as breaching so a stopped canary pages"
+assert_resource_block_contains "$support_tf_file" "aws_cloudwatch_metric_alarm" "$support_liveness_alarm" 'FunctionName[[:space:]]*=[[:space:]]*local\.support_email_canary_name' "Support-email liveness alarm dimensions use canonical local function-name owner"
+assert_resource_block_contains "$support_tf_file" "aws_cloudwatch_metric_alarm" "$support_liveness_alarm" 'alarm_actions[[:space:]]*=[[:space:]]*\[aws_sns_topic\.alerts\.arn\]' "Support-email liveness alarm wires alarm_actions to SNS topic"
+assert_resource_block_contains "$support_tf_file" "aws_cloudwatch_metric_alarm" "$support_liveness_alarm" 'ok_actions[[:space:]]*=[[:space:]]*\[aws_sns_topic\.alerts\.arn\]' "Support-email liveness alarm wires ok_actions to SNS topic"
+
 test_summary "Support email canary static checks"

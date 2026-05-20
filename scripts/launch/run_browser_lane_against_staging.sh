@@ -6,7 +6,7 @@
 #
 # Closes the LB-2 (signup_to_paid_invoice) and LB-3
 # (billing_portal_payment_method_update) launch blockers per LAUNCH.md.
-# The browser navigates the deployed staging UI (staging.flapjack.foo).
+# The browser navigates the deployed staging UI (cloud.staging.flapjack.foo).
 # Fixtures hit the deployed staging API (api.staging.flapjack.foo) with admin
 # credentials sourced from SSM. Email verification tokens are read
 # directly from the staging customers table via SSM-exec'd psql (Mailpit
@@ -39,7 +39,7 @@
 #   - AWS credentials with ssm:Get* + ssm:SendCommand permission
 #     (typically: set -a; source .secret/.env.secret; set +a)
 #   - Docker NOT required; node_modules in web/ must be installed
-#   - Network reachability to staging.flapjack.foo + api.staging.flapjack.foo
+#   - Network reachability to cloud.staging.flapjack.foo + api.staging.flapjack.foo
 
 set -euo pipefail
 
@@ -253,7 +253,7 @@ export E2E_ADMIN_KEY="$ADMIN_KEY"
 # staging API. PLAYWRIGHT_TARGET_REMOTE=1 lifts the loopback guard for
 # the *.flapjack.foo allowlist (see web/playwright.config.contract.ts
 # REMOTE_TARGET_HOST_SUFFIX_ALLOWLIST).
-export BASE_URL="${STAGING_CLOUD_URL:-https://staging.flapjack.foo}"
+export BASE_URL="${STAGING_CLOUD_URL:-https://cloud.staging.flapjack.foo}"
 # Keep API host sourced from the canonical staging hydrator owner.
 # STAGING_API_URL is the explicit contract var for staging-targeted tools;
 # fall back to API_URL for backward compatibility with older hydrator output.

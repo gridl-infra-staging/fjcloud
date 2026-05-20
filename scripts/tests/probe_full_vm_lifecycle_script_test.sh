@@ -300,6 +300,122 @@ EOF
     )" || RUN_EXIT_CODE=$?
 }
 
+run_index_create_retry_probe() {
+    local probe_runner
+    probe_runner="$TEST_TMP_DIR/index_create_retry_probe.sh"
+    cat > "$probe_runner" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+target_script="$1"
+
+source "$target_script"
+
+INDEX_CREATE_CALLS=0
+
+capture_json_response() {
+    INDEX_CREATE_CALLS=$((INDEX_CREATE_CALLS + 1))
+    if [ "$INDEX_CREATE_CALLS" -eq 1 ]; then
+        HTTP_RESPONSE_CODE="504"
+        HTTP_RESPONSE_BODY='{"error":"timeout"}'
+        return 0
+    fi
+    HTTP_RESPONSE_CODE="201"
+    HTTP_RESPONSE_BODY='{"id":"idx_probe"}'
+    return 0
+}
+
+mark_failure() {
+    FLOW_FAILED=1
+    FLOW_FAILURE_STEP="$1"
+    FLOW_FAILURE_DETAIL="$2"
+    return 0
+}
+
+log() { :; }
+
+CANARY_NONCE="probe-nonce"
+CANARY_TOKEN="probe-token"
+CANARY_INDEX_REGION="us-east-1"
+CANARY_INDEX_CREATED=0
+FLOW_FAILED=0
+FLOW_FAILURE_STEP=""
+FLOW_FAILURE_DETAIL=""
+
+if run_index_create_step; then
+    echo "rc=0"
+else
+    rc=$?
+    echo "rc=$rc"
+fi
+echo "calls=$INDEX_CREATE_CALLS"
+echo "created=$CANARY_INDEX_CREATED"
+echo "flow_failed=$FLOW_FAILED"
+echo "flow_step=$FLOW_FAILURE_STEP"
+EOF
+    chmod +x "$probe_runner"
+    RUN_EXIT_CODE=0
+    RUN_STDOUT="$(
+        env -i \
+            PATH="/usr/bin:/bin:/usr/local/bin" \
+            HOME="$TEST_TMP_DIR" \
+            TMPDIR="$TEST_TMP_DIR" \
+            ORCHESTRATOR_SOURCE_FOR_TEST="1" \
+            bash "$probe_runner" "$TARGET_SCRIPT" 2>&1
+    )" || RUN_EXIT_CODE=$?
+}
+
+run_run_b_stripe_key_selection_probe() {
+    local probe_runner
+    probe_runner="$TEST_TMP_DIR/run_b_stripe_key_probe.sh"
+    cat > "$probe_runner" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+target_script="$1"
+
+source "$target_script"
+
+mark_failure() {
+    FLOW_FAILED=1
+    FLOW_FAILURE_STEP="$1"
+    FLOW_FAILURE_DETAIL="$2"
+    return 0
+}
+
+resolve_stripe_secret_key() {
+    printf 'sk_test_generic_key\n'
+}
+
+stripe_secret_key_has_allowed_prefix() {
+    return 0
+}
+
+STRIPE_SECRET_KEY_flapjack_cloud="sk_test_cloud_key"
+FLOW_FAILED=0
+FLOW_FAILURE_STEP=""
+FLOW_FAILURE_DETAIL=""
+
+if load_run_b_stripe_transport; then
+    echo "rc=0"
+else
+    rc=$?
+    echo "rc=$rc"
+fi
+echo "effective=$STRIPE_SECRET_KEY_EFFECTIVE"
+echo "flow_failed=$FLOW_FAILED"
+echo "flow_step=$FLOW_FAILURE_STEP"
+EOF
+    chmod +x "$probe_runner"
+    RUN_EXIT_CODE=0
+    RUN_STDOUT="$(
+        env -i \
+            PATH="/usr/bin:/bin:/usr/local/bin" \
+            HOME="$TEST_TMP_DIR" \
+            TMPDIR="$TEST_TMP_DIR" \
+            ORCHESTRATOR_SOURCE_FOR_TEST="1" \
+            bash "$probe_runner" "$TARGET_SCRIPT" 2>&1
+    )" || RUN_EXIT_CODE=$?
+}
+
 trace_shows_sourced_top_level_function_dispatch() {
     local trace_output="$1"
     local sourced_script_path="$2"
@@ -556,6 +672,18 @@ test_script_sources_privacy_client_seam() {
     fi
 }
 
+test_script_sources_staging_db_seam() {
+    if [ ! -f "$TARGET_SCRIPT" ]; then
+        fail "CONTRACT[seam-staging-db]: script must source scripts/lib/staging_db.sh for raw DB lifecycle evidence — script missing"
+        return
+    fi
+    if file_sources_repo_owned_seam "$TARGET_SCRIPT" "staging_db.sh"; then
+        pass "CONTRACT[seam-staging-db]: script sources scripts/lib/staging_db.sh"
+    else
+        fail "CONTRACT[seam-staging-db]: script must source scripts/lib/staging_db.sh for raw DB lifecycle evidence"
+    fi
+}
+
 test_run_b_sequences_paid_invoice_steps() {
     make_test_tmp_dir
     if [ ! -f "$TARGET_SCRIPT" ]; then
@@ -610,6 +738,42 @@ test_run_a_skips_run_b_only_paid_steps() {
         "CONTRACT[run-a-no-payment-attach]: run-a must not execute run-b payment attach/default logic"
     assert_not_contains "$RUN_STDOUT" "wait_for_paid_invoice" \
         "CONTRACT[run-a-no-paid-wait]: run-a must not wait for paid invoice convergence"
+}
+
+test_index_create_retries_transient_504() {
+    make_test_tmp_dir
+    if [ ! -f "$TARGET_SCRIPT" ]; then
+        fail "CONTRACT[index-create-retry-504]: index create must retry transient 504 before failing — script missing"
+        return
+    fi
+    run_index_create_retry_probe
+    assert_eq "$RUN_EXIT_CODE" "0" \
+        "CONTRACT[index-create-retry-504]: retry probe harness must execute successfully"
+    assert_contains "$RUN_STDOUT" "rc=0" \
+        "CONTRACT[index-create-retry-504]: run_index_create_step must recover when first attempt is HTTP 504 and second succeeds"
+    assert_contains "$RUN_STDOUT" "calls=2" \
+        "CONTRACT[index-create-retry-504]: run_index_create_step must retry at least once after transient HTTP 504"
+    assert_contains "$RUN_STDOUT" "created=1" \
+        "CONTRACT[index-create-retry-504]: successful retry must mark CANARY_INDEX_CREATED=1"
+    assert_contains "$RUN_STDOUT" "flow_failed=0" \
+        "CONTRACT[index-create-retry-504]: transient 504 recovery must not leave FLOW_FAILED set"
+}
+
+test_run_b_prefers_flapjack_cloud_stripe_key() {
+    make_test_tmp_dir
+    if [ ! -f "$TARGET_SCRIPT" ]; then
+        fail "CONTRACT[run-b-stripe-key-precedence]: run-b Stripe transport must prefer flapjack cloud key when present — script missing"
+        return
+    fi
+    run_run_b_stripe_key_selection_probe
+    assert_eq "$RUN_EXIT_CODE" "0" \
+        "CONTRACT[run-b-stripe-key-precedence]: stripe key probe harness must execute successfully"
+    assert_contains "$RUN_STDOUT" "rc=0" \
+        "CONTRACT[run-b-stripe-key-precedence]: load_run_b_stripe_transport must succeed when flapjack cloud key is available"
+    assert_contains "$RUN_STDOUT" "effective=sk_test_cloud_key" \
+        "CONTRACT[run-b-stripe-key-precedence]: run-b must use STRIPE_SECRET_KEY_flapjack_cloud before generic STRIPE_SECRET_KEY"
+    assert_contains "$RUN_STDOUT" "flow_failed=0" \
+        "CONTRACT[run-b-stripe-key-precedence]: selecting flapjack cloud key must not mark transport failure"
 }
 
 test_cleanup_probe_accepts_function_keyword_form() {
@@ -846,6 +1010,114 @@ test_script_does_not_redeclare_privacy_client_functions() {
     fi
 }
 
+test_invoice_id_validation_is_not_numeric_only() {
+    if [ ! -f "$TARGET_SCRIPT" ]; then
+        fail "CONTRACT[invoice-id-uuid]: invoice id validation must allow UUID identifiers — script missing"
+        return
+    fi
+    local invoice_validation_line
+    invoice_validation_line="$(grep -E 'require_safe_identifier[[:space:]]+"invoice_id"' "$TARGET_SCRIPT" || true)"
+    if [[ "$invoice_validation_line" == *"'^[0-9]+$'"* ]]; then
+        fail "CONTRACT[invoice-id-uuid]: invoice id validation must not be numeric-only because prod invoices are UUIDs"
+    else
+        pass "CONTRACT[invoice-id-uuid]: invoice id validation is not numeric-only"
+    fi
+}
+
+test_payment_method_id_validation_allows_underscore() {
+    if [ ! -f "$TARGET_SCRIPT" ]; then
+        fail "CONTRACT[payment-method-id-underscore]: payment method validation must allow Stripe fixture IDs — script missing"
+        return
+    fi
+    local payment_method_validation_line
+    payment_method_validation_line="$(grep -E 'require_safe_identifier[[:space:]]+"payment_method_id"' "$TARGET_SCRIPT" || true)"
+    if [[ "$payment_method_validation_line" == *"'^pm_[A-Za-z0-9]+$'"* ]]; then
+        fail "CONTRACT[payment-method-id-underscore]: payment method validation must allow underscores for IDs like pm_card_visa"
+    else
+        pass "CONTRACT[payment-method-id-underscore]: payment method validation allows underscore-bearing Stripe IDs"
+    fi
+}
+
+test_post_cleanup_invoice_query_is_guarded_for_empty_invoice_id() {
+    if [ ! -f "$TARGET_SCRIPT" ]; then
+        fail "CONTRACT[post-cleanup-invoice-guard]: post-cleanup invoice SQL must be conditional on captured invoice id — script missing"
+        return
+    fi
+    if awk '
+        /^capture_stage5_post_cleanup_evidence\(\)[[:space:]]*\{/ { in_fn = 1; next }
+        in_fn && /^[A-Za-z_][A-Za-z0-9_]*\(\)[[:space:]]*\{/ { in_fn = 0 }
+        in_fn && /db_post_cleanup_invoice\.sql\.txt/ { saw_invoice_query = 1 }
+        in_fn && /if \[ -n "\$LIFECYCLE_INVOICE_ID" \]; then/ { saw_invoice_guard = 1 }
+        END {
+            if (saw_invoice_query == 1 && saw_invoice_guard == 1) {
+                exit 0
+            }
+            exit 1
+        }
+    ' "$TARGET_SCRIPT"; then
+        pass "CONTRACT[post-cleanup-invoice-guard]: post-cleanup invoice SQL is guarded by non-empty invoice id"
+    else
+        fail "CONTRACT[post-cleanup-invoice-guard]: post-cleanup invoice SQL must be skipped when LIFECYCLE_INVOICE_ID is empty"
+    fi
+}
+
+test_pre_cleanup_invoice_query_is_guarded_for_empty_invoice_id() {
+    if [ ! -f "$TARGET_SCRIPT" ]; then
+        fail "CONTRACT[pre-cleanup-invoice-guard]: pre-cleanup invoice SQL must be conditional on captured invoice id — script missing"
+        return
+    fi
+    if awk '
+        /^capture_stage5_pre_cleanup_evidence\(\)[[:space:]]*\{/ { in_fn = 1; next }
+        in_fn && /^[A-Za-z_][A-Za-z0-9_]*\(\)[[:space:]]*\{/ { in_fn = 0 }
+        in_fn && /db_pre_cleanup_invoice\.sql\.txt/ { saw_invoice_query = 1 }
+        in_fn && /if \[ -n "\$LIFECYCLE_INVOICE_ID" \]; then/ { saw_invoice_guard = 1 }
+        END {
+            if (saw_invoice_query == 1 && saw_invoice_guard == 1) {
+                exit 0
+            }
+            exit 1
+        }
+    ' "$TARGET_SCRIPT"; then
+        pass "CONTRACT[pre-cleanup-invoice-guard]: pre-cleanup invoice SQL is guarded by non-empty invoice id"
+    else
+        fail "CONTRACT[pre-cleanup-invoice-guard]: pre-cleanup invoice SQL must be skipped when LIFECYCLE_INVOICE_ID is empty"
+    fi
+}
+
+test_script_emits_stage6_raw_evidence_filenames() {
+    if [ ! -f "$TARGET_SCRIPT" ]; then
+        fail "CONTRACT[stage6-evidence-filenames]: script must emit raw AWS/DB lifecycle artifacts — script missing"
+        return
+    fi
+    if grep -Fq "aws_verify_email_head_object.json" "$TARGET_SCRIPT"; then
+        pass "CONTRACT[stage6-aws-evidence-file]: script references raw AWS head-object evidence filename"
+    else
+        fail "CONTRACT[stage6-aws-evidence-file]: script must emit aws_verify_email_head_object.json"
+    fi
+    if grep -Fq "db_post_cleanup_tenant.sql.txt" "$TARGET_SCRIPT"; then
+        pass "CONTRACT[stage6-db-post-cleanup-file]: script references raw post-cleanup DB tenant evidence filename"
+    else
+        fail "CONTRACT[stage6-db-post-cleanup-file]: script must emit db_post_cleanup_tenant.sql.txt"
+    fi
+    if grep -Fq "db_pre_cleanup_invoice.sql.txt" "$TARGET_SCRIPT"; then
+        pass "CONTRACT[stage6-db-pre-cleanup-file]: script references raw pre-cleanup DB invoice evidence filename"
+    else
+        fail "CONTRACT[stage6-db-pre-cleanup-file]: script must emit db_pre_cleanup_invoice.sql.txt"
+    fi
+}
+
+test_script_uses_staging_db_run_sql_for_stage6_db_evidence() {
+    if [ ! -f "$TARGET_SCRIPT" ]; then
+        fail "CONTRACT[stage6-db-evidence-owner]: script must use staging_db_run_sql for raw DB lifecycle evidence — script missing"
+        return
+    fi
+    if grep -Fq "staging_db_run_sql" "$TARGET_SCRIPT"; then
+        pass "CONTRACT[stage6-db-evidence-owner]: script uses staging_db_run_sql owner seam"
+    else
+        fail "CONTRACT[stage6-db-evidence-owner]: script must use staging_db_run_sql owner seam for raw DB lifecycle evidence"
+    fi
+}
+
 main() {
     echo "=== probe_full_vm_lifecycle_script_test.sh ==="
     echo "Target: $TARGET_SCRIPT"
@@ -870,8 +1142,17 @@ main() {
     test_script_sources_http_json_seam
     test_script_sources_env_seam
     test_script_sources_privacy_client_seam
+    test_script_sources_staging_db_seam
     test_run_b_sequences_paid_invoice_steps
     test_run_a_skips_run_b_only_paid_steps
+    test_index_create_retries_transient_504
+    test_run_b_prefers_flapjack_cloud_stripe_key
+    test_invoice_id_validation_is_not_numeric_only
+    test_payment_method_id_validation_allows_underscore
+    test_post_cleanup_invoice_query_is_guarded_for_empty_invoice_id
+    test_pre_cleanup_invoice_query_is_guarded_for_empty_invoice_id
+    test_script_emits_stage6_raw_evidence_filenames
+    test_script_uses_staging_db_run_sql_for_stage6_db_evidence
     test_seam_probe_rejects_commented_out_and_non_repo_sources
     test_script_does_not_inline_curl_post
     test_script_does_not_inline_curl_delete

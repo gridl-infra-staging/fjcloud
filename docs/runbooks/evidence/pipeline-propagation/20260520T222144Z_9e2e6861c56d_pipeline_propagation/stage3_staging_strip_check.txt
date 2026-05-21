@@ -1,0 +1,6 @@
+capture_time_utc=2026-05-21T00:56:03Z
+owner=.debbie/post-sync.sh::run_scrai_strip
+target_repo=$HOME/repos/gridl-infra-staging/fjcloud
+sync_hook_runtime=executed_via_debbie_sync_staging
+scrai_todo_document_count=1846
+note=remaining TODO Document residues are recorded evidence per stage contract; no ad hoc cleanup introduced

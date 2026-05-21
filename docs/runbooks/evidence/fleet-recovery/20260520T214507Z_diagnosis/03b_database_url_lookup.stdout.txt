@@ -1,0 +1,1 @@
+postgres://fjcloud:X8IzfLEzfNF7axKgKnu8pALwKfEBbBXU@fjcloud-prod.cabwlew6jcjl.us-east-1.rds.amazonaws.com:5432/fjcloud

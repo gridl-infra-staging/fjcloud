@@ -16,6 +16,33 @@ Captures CPU, memory, disk, and query-latency envelopes for 1K, 10K, and 100K do
 RELIABILITY=1 scripts/reliability/capture-all.sh
 ```
 
+### Reconcile VM inventory vs managed EC2
+
+```bash
+bash scripts/reliability/validate_vm_inventory_ec2_consistency.sh \
+  --evidence-dir docs/runbooks/evidence/fleet-recovery/$(date -u +%Y%m%dT%H%M%SZ)_inventory_probe
+```
+
+The probe emits a JSON summary to stdout and writes raw capture files when
+`--evidence-dir` is provided:
+
+- `inventory_rows.json` (active AWS `vm_inventory` rows)
+- `deployment_rows.json` (`status='provisioning'` rows limited to AWS or `provisioning-lock:*`, plus non-provisioning AWS provider-qualified `customer_deployments` linkage rows)
+- `ec2_instances.json` (non-terminated `managed-by=fjcloud` EC2 rows; the shared-fleet drift bucket only evaluates `vm-shared-*` hosts)
+
+Summary buckets:
+
+- `inventory_rows_without_nonterminated_ec2_match`
+- `managed_instances_without_inventory_match` (shared `vm-shared-*` managed EC2 only)
+- `deployment_linkage_mismatches`
+- `stuck_shared_provisioning_rows`
+
+Exit codes:
+
+- `0`: all buckets are zero
+- `1`: one or more reconciliation buckets are nonzero
+- `2`: usage/system error
+
 ### Run a single tier
 
 ```bash

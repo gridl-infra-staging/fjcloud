@@ -1,0 +1,1 @@
+{"source": "stage5_unhealthy_ranked", "hostname": "vm-shared-c7f8cda3.flapjack.foo", "instance_id": "i-02c0367ffe4f6d507", "probe_url": "http://vm-shared-c7f8cda3.flapjack.foo:7700/health"}

@@ -18,15 +18,15 @@ freeze_rule_status: head_unchanged
 === local-ci summary (wall 299s) ===
 GATE                STATUS   SECS  LOG
 ----                ------   ----  ---
-check-sizes         PASS        2  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/check-sizes.log
-migration-test      PASS        1  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/migration-test.log
-publish-scripts-buildx  PASS        0  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/publish-scripts-buildx.log
-rust-lint           PASS       69  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/rust-lint.log
-rust-test           PASS      230  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/rust-test.log
-secret-scan         PASS        1  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/secret-scan.log
-validate-bootstrap-parser  PASS        0  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/validate-bootstrap-parser.log
-web-lint            FAIL        0  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/web-lint.log
-web-test            FAIL        0  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/web-test.log
+check-sizes         PASS        2  $TMPDIR/redacted-path
+migration-test      PASS        1  $TMPDIR/redacted-path
+publish-scripts-buildx  PASS        0  $TMPDIR/redacted-path
+rust-lint           PASS       69  $TMPDIR/redacted-path
+rust-test           PASS      230  $TMPDIR/redacted-path
+secret-scan         PASS        1  $TMPDIR/redacted-path
+validate-bootstrap-parser  PASS        0  $TMPDIR/redacted-path
+web-lint            FAIL        0  $TMPDIR/redacted-path
+web-test            FAIL        0  $TMPDIR/redacted-path
 
 === FAIL tails ===
 

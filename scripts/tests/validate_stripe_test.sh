@@ -40,6 +40,11 @@ write_mock_curl_with_sequence() {
 #!/usr/bin/env bash
 set -euo pipefail
 
+if [ -n "${STRIPE_TEST_CALL_LOG:-}" ]; then
+    printf '%s\n' "$@" >> "$STRIPE_TEST_CALL_LOG"
+    printf '\n' >> "$STRIPE_TEST_CALL_LOG"
+fi
+
 header_file=""
 body_file=""
 write_format=""
@@ -382,27 +387,31 @@ MOCK
 }
 
 test_validate_stripe_live_cutover_allows_live_keys_with_control() {
-    local mock_dir response_file output
+    local mock_dir response_file call_log output
     mock_dir="$(mktemp -d)"
     response_file="$mock_dir/responses.json"
+    call_log="$mock_dir/curl_args.log"
     cat > "$response_file" <<'JSON'
 {"index":0,"responses":[
-  {"status":200,"body":"{\"id\":\"cus_mock_customer\"}"},
-  {"status":200,"body":"{\"id\":\"pm_attached_customer_card\"}"},
-  {"status":200,"body":"{\"id\":\"cus_mock_customer\"}"},
-  {"status":200,"body":"{\"id\":\"ii_mock_invoice_item\"}"},
-  {"status":200,"body":"{\"id\":\"in_mock_invoice\"}"},
-  {"status":200,"body":"{\"status\":\"paid\"}"}
+  {"status":200,"body":"{\"available\":[]}","headers":{"Request-Id":"req_live_cutover_balance"}}
 ]}
 JSON
     write_mock_curl_with_sequence "$mock_dir/curl"
 
-    output="$(STRIPE_SECRET_KEY='rk_live_cutover_ok' STRIPE_LIVE_CUTOVER=1 STRIPE_TEST_RESPONSE_FILE="$response_file" PATH="$mock_dir:$PATH" bash "$REPO_ROOT/scripts/validate-stripe.sh" --live-cutover)"
+    output="$(STRIPE_SECRET_KEY='rk_live_cutover_ok' STRIPE_LIVE_CUTOVER=1 STRIPE_TEST_RESPONSE_FILE="$response_file" STRIPE_TEST_CALL_LOG="$call_log" PATH="$mock_dir:$PATH" bash "$REPO_ROOT/scripts/validate-stripe.sh" --live-cutover)"
 
     assert_valid_json "$output" "validate-stripe live-cutover success output should be valid JSON"
     assert_json_bool_field "$output" "passed" "true" "validate-stripe live-cutover flow should report passed=true"
     assert_contains "$output" "live_cutover_mode_enabled" "validate-stripe live-cutover output should include explicit evidence step"
     assert_not_contains "$output" "require_test_mode_stripe_secret_key" "live-cutover success should not emit default test-mode failure step"
+    assert_contains "$(cat "$call_log")" "https://api.stripe.com/v1/balance" \
+        "validate-stripe live-cutover success should probe Stripe auth via /v1/balance"
+    assert_not_contains "$(cat "$call_log")" "/v1/customers" \
+        "validate-stripe live-cutover success should stay non-mutating"
+    assert_not_contains "$(cat "$call_log")" "/v1/invoices" \
+        "validate-stripe live-cutover success should not create invoice resources"
+    assert_not_contains "$(cat "$call_log")" "pm_card_visa" \
+        "validate-stripe live-cutover success should never touch test payment method fixtures"
 
     rm -rf "$mock_dir"
 }
@@ -432,6 +441,72 @@ MOCK
     else
         pass "validate-stripe should reject sk_test_ key before curl in live-cutover mode"
     fi
+
+    rm -rf "$mock_dir"
+}
+
+test_validate_stripe_live_cutover_avoids_test_payment_method_token() {
+    local mock_dir
+    local call_log
+    mock_dir="$(mktemp -d)"
+    call_log="$mock_dir/curl_args.log"
+    cat > "$mock_dir/curl" <<'MOCK'
+#!/usr/bin/env bash
+set -euo pipefail
+
+printf '%s\n' "$@" >> "$STRIPE_TEST_CALL_LOG"
+
+for arg in "$@"; do
+    if [ "$arg" = "https://api.stripe.com/v1/payment_methods/pm_card_visa/attach" ]; then
+        echo "unexpected test-mode payment method attach endpoint in live-cutover mode" >&2
+        exit 99
+    fi
+done
+
+header_file=""
+body_file=""
+write_format=""
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        -D)
+            header_file="$2"
+            shift 2
+            ;;
+        -o)
+            body_file="$2"
+            shift 2
+            ;;
+        -w)
+            write_format="$2"
+            shift 2
+            ;;
+        *)
+            shift
+            ;;
+    esac
+done
+
+if [ -n "$header_file" ]; then
+    printf 'Request-Id: req_live_cutover\n' > "$header_file"
+fi
+if [ -n "$body_file" ]; then
+    printf '{"available":[]}' > "$body_file"
+fi
+if [ "$write_format" = "%{http_code}" ]; then
+    printf '200'
+fi
+MOCK
+    chmod +x "$mock_dir/curl"
+
+    local output exit_code
+    output="$(STRIPE_SECRET_KEY='rk_live_cutover_probe' STRIPE_LIVE_CUTOVER=1 STRIPE_TEST_CALL_LOG="$call_log" PATH="$mock_dir:$PATH" bash "$REPO_ROOT/scripts/validate-stripe.sh" --live-cutover 2>&1)" || exit_code=$?
+
+    assert_eq "${exit_code:-0}" "0" "validate-stripe live-cutover mode should pass without touching test-mode payment method endpoints"
+    assert_valid_json "$output" "validate-stripe live-cutover no-test-token output should be valid JSON"
+    assert_json_bool_field "$output" "passed" "true" "validate-stripe live-cutover no-test-token flow should report passed=true"
+    assert_contains "$output" "live_cutover_mode_enabled" "live-cutover output should include explicit cutover evidence step"
+    assert_contains "$(cat "$call_log")" "https://api.stripe.com/v1/balance" "live-cutover mode should perform a non-mutating Stripe balance auth check"
+    assert_not_contains "$(cat "$call_log")" "pm_card_visa" "live-cutover mode should never call pm_card_visa endpoints"
 
     rm -rf "$mock_dir"
 }
@@ -511,6 +586,7 @@ test_validate_stripe_default_mode_keeps_test_mode_step_names
 test_validate_stripe_live_cutover_requires_control
 test_validate_stripe_live_cutover_allows_live_keys_with_control
 test_validate_stripe_live_cutover_rejects_test_keys
+test_validate_stripe_live_cutover_avoids_test_payment_method_token
 test_validate_stripe_uses_attached_payment_method_id_for_default
 test_validate_stripe_surfaces_stripe_error_context
 test_secret_rotation_runbook_avoids_inline_secret_cli_examples

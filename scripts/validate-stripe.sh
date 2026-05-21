@@ -63,6 +63,22 @@ stripe_key_prefix_policy_requirement_message() {
     esac
 }
 
+# Live-cutover verification is auth-only; it must not depend on test-mode
+# fixtures like pm_card_visa or create/purchase flows.
+validate_live_cutover_key_auth() {
+    if ! stripe_request GET "/v1/balance"; then
+        append_step "verify_live_key_auth" false "curl failure while validating live key auth: ${STRIPE_BODY:-unknown error}"
+        return 1
+    fi
+    if [ "$STRIPE_HTTP_CODE" != "200" ]; then
+        append_step "verify_live_key_auth" false "Stripe live key auth check failed with HTTP $STRIPE_HTTP_CODE$(stripe_error_context)"
+        return 1
+    fi
+
+    append_step "verify_live_key_auth" true "Validated live key auth with Stripe GET /v1/balance"
+    return 0
+}
+
 parse_args() {
     while [ "$#" -gt 0 ]; do
         case "$1" in
@@ -201,6 +217,15 @@ if ! stripe_key_prefix_policy_allows_key "$STRIPE_SECRET_KEY_EFFECTIVE" "$STRIPE
     fi
     emit_result false
     exit 1
+fi
+
+if [ "$STRIPE_KEY_POLICY_MODE" = "live_cutover" ]; then
+    if ! validate_live_cutover_key_auth; then
+        emit_result false
+        exit 1
+    fi
+    emit_result true
+    exit 0
 fi
 
 if ! stripe_request POST "/v1/customers" -d "description=fjcloud-stage5-validation"; then

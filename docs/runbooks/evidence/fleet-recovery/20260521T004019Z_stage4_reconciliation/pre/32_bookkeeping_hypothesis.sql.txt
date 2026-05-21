@@ -1,0 +1,4 @@
+ provisioning_total | provider_vm_id_matches_vm_inventory_id | provider_vm_id_aws_style 
+--------------------+----------------------------------------+--------------------------
+                 41 |                                     41 |                        0
+(1 row)

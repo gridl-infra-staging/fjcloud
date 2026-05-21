@@ -1,0 +1,16 @@
+WARN: fjcloud-prod-customer-loop-canary canary detected a service issue (image/runtime is healthy)
+  errorType=CustomerLoopCanaryError
+  errorMessage=customer loop canary failed with exit code 1
+==log tail==
+START RequestId: f13328ad-78ef-4f9c-a4bd-583c7aff04f7 Version: $LATEST
+[customer-loop-canary] signup succeeded for canary+canary2026052105042829403@test.flapjack.foo (customer=0a109ca4-a1a0-4ae6-8930-d786782b5fe8)
+[customer-loop-canary] email verification succeeded for canary+canary2026052105042829403@test.flapjack.foo
+[customer-loop-canary] CANARY_LIVE_MODE=0; skipping live Stripe branch
+[customer-loop-canary] customer loop failed before completion; entering cleanup
+[customer-loop-canary] account delete attempted for customer 0a109ca4-a1a0-4ae6-8930-d786782b5fe8
+[customer-loop-canary] admin cleanup completed for tenant 0a109ca4-a1a0-4ae6-8930-d786782b5fe8
+[customer-loop-canary] step 'create_index' failed: create index returned HTTP 503
+[FAIL] slack: HTTP 400 (expected 2xx)
+[OK]   discord: HTTP 204
+END RequestId: f13328ad-78ef-4f9c-a4bd-583c7aff04f7
+REPORT RequestId: f13328ad-78ef-4f9c-a4bd-583c7aff04f7	Duration: 16761.14 ms	Billed Duration: 16762 ms	Memory Size: 512 MB	Max Memory Used: 140 MB	

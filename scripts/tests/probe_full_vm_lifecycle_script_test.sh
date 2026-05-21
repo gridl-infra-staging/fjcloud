@@ -684,6 +684,18 @@ test_script_sources_staging_db_seam() {
     fi
 }
 
+test_load_orchestration_env_clears_ambient_aws_exports() {
+    if [ ! -f "$TARGET_SCRIPT" ]; then
+        fail "CONTRACT[load-env-clears-ambient-aws]: load_orchestration_env must unset ambient AWS exports before loading secret files — script missing"
+        return
+    fi
+    if grep -Eq 'unset[[:space:]]+AWS_ACCESS_KEY_ID[[:space:]]+AWS_SECRET_ACCESS_KEY[[:space:]]+AWS_SESSION_TOKEN[[:space:]]+AWS_PROFILE[[:space:]]+AWS_DEFAULT_REGION[[:space:]]+AWS_REGION' "$TARGET_SCRIPT"; then
+        pass "CONTRACT[load-env-clears-ambient-aws]: load_orchestration_env clears ambient AWS exports before loading layered env files"
+    else
+        fail "CONTRACT[load-env-clears-ambient-aws]: load_orchestration_env must unset AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY/AWS_SESSION_TOKEN/AWS_PROFILE/AWS_DEFAULT_REGION/AWS_REGION before load_layered_env_files"
+    fi
+}
+
 test_run_b_sequences_paid_invoice_steps() {
     make_test_tmp_dir
     if [ ! -f "$TARGET_SCRIPT" ]; then
@@ -1143,6 +1155,7 @@ main() {
     test_script_sources_env_seam
     test_script_sources_privacy_client_seam
     test_script_sources_staging_db_seam
+    test_load_orchestration_env_clears_ambient_aws_exports
     test_run_b_sequences_paid_invoice_steps
     test_run_a_skips_run_b_only_paid_steps
     test_index_create_retries_transient_504

@@ -1,0 +1,11 @@
+{
+    "Subscriptions": [
+        {
+            "SubscriptionArn": "PendingConfirmation",
+            "Owner": "213880904778",
+            "Protocol": "email",
+            "Endpoint": "stacy.saunders.2002@gmail.com",
+            "TopicArn": "arn:aws:sns:us-east-1:213880904778:fjcloud-alerts-prod"
+        }
+    ]
+}

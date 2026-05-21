@@ -1,0 +1,5 @@
+    status    | count 
+--------------+-------
+ provisioning |    38
+ running      |    33
+(2 rows)

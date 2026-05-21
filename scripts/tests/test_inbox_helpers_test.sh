@@ -40,6 +40,13 @@ JSON
 fi
 
 if [[ "${1:-}" == "s3api" && "${2:-}" == "list-objects-v2" ]]; then
+    has_continuation_token=0
+    for arg in "$@"; do
+        if [[ "$arg" == "--continuation-token" ]]; then
+            has_continuation_token=1
+            break
+        fi
+    done
     if [[ -z "$count_file" || ! -f "$count_file" ]]; then
         echo "missing count file for list-objects mock" >&2
         exit 97
@@ -68,6 +75,17 @@ JSON
             cat <<'JSON'
 {"Contents":[{"Key":"e2e-emails/ses-delivery-object-001"}]}
 JSON
+            ;;
+        paginated_two_pages)
+            if [[ "$has_continuation_token" -eq 0 ]]; then
+                cat <<'JSON'
+{"Contents":[{"Key":"e2e-emails/nonmatching-first-page-object"}],"NextContinuationToken":"page-2-token"}
+JSON
+            else
+                cat <<JSON
+{"Contents":[{"Key":"e2e-emails/${nonce}.eml"}]}
+JSON
+            fi
             ;;
         run_scoped_keys)
             cat <<'JSON'
@@ -189,6 +207,41 @@ RFC822
 
     assert_eq "$found_key" "e2e-emails/ses-delivery-object-001" "poll helper should match object when nonce is only in RFC822 payload"
     assert_eq "$get_object_count" "1" "poll helper should fetch candidate RFC822 payload when nonce is absent from key names"
+}
+
+test_poll_scans_paginated_s3_listings() {
+    local mock_dir call_log count_file fixture_file found_key list_call_count
+    source_helpers
+
+    mock_dir="$(new_mock_command_dir "aws" "$(test_inbox_helpers_mock_aws_body)")"
+    call_log="$mock_dir/aws_calls.log"
+    count_file="$mock_dir/list_count.txt"
+    fixture_file="$mock_dir/fixture.eml"
+    : > "$call_log"
+    printf '0\n' > "$count_file"
+    cat > "$fixture_file" <<'RFC822'
+From: sender@example.com
+To: receiver@example.com
+Subject: fixture
+
+fixture body
+RFC822
+
+    found_key="$(
+        TEST_INBOX_HELPERS_AWS_CALL_LOG="$call_log" \
+        TEST_INBOX_HELPERS_LIST_MODE="paginated_two_pages" \
+        TEST_INBOX_HELPERS_LIST_COUNT_FILE="$count_file" \
+        TEST_INBOX_HELPERS_NONCE="helper-paginated-nonce" \
+        TEST_INBOX_HELPERS_RFC822_FIXTURE="$fixture_file" \
+        PATH="$mock_dir:$PATH" \
+        test_inbox_find_matching_object_key "flapjack-cloud-releases" "e2e-emails/" "helper-paginated-nonce" "us-east-1" "1" "0"
+    )"
+
+    list_call_count="$(grep -c '^s3api list-objects-v2 ' "$call_log" || true)"
+    rm -rf "$mock_dir"
+
+    assert_eq "$found_key" "e2e-emails/helper-paginated-nonce.eml" "poll helper should find a nonce match from a continuation page"
+    assert_eq "$list_call_count" "2" "poll helper should request the next page when NextContinuationToken is present"
 }
 
 test_poll_times_out_with_timeout_exit_code() {
@@ -401,6 +454,7 @@ echo "=== test_inbox_helpers.sh tests ==="
 test_nonce_subject_body_contract
 test_poll_finds_matching_s3_object_after_retries
 test_poll_finds_object_when_nonce_exists_only_in_rfc822_payload
+test_poll_scans_paginated_s3_listings
 test_poll_times_out_with_timeout_exit_code
 test_fetch_rfc822_reads_message_content
 test_aws_backed_helpers_validate_required_args

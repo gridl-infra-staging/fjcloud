@@ -110,6 +110,10 @@ require_safe_identifier() {
 }
 
 load_orchestration_env() {
+    # Preserve repo-approved secret-file values by clearing ambient AWS exports
+    # that can shadow this script's credential loading contract.
+    unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AWS_PROFILE AWS_DEFAULT_REGION AWS_REGION
+
     load_layered_env_files "$LIFECYCLE_SECRET_FILE"
 
     API_URL="${API_URL:-}"

@@ -66,14 +66,22 @@ IFS='|' read -r s3_bucket s3_prefix <<< "$parsed_s3"
 subject="$(test_inbox_build_probe_subject "$nonce")"
 body="$(test_inbox_build_probe_body "$nonce")"
 
-if ! send_json="$(test_inbox_send_probe_email "$from_address" "$recipient_address" "$region" "$subject" "$body" 2>/dev/null)"; then
-    append_step "send_probe" false "aws sesv2 send-email failed for recipient '$recipient_address'."
+send_stderr_file="$(mktemp)"
+if ! send_json="$(test_inbox_send_probe_email "$from_address" "$recipient_address" "$region" "$subject" "$body" 2>"$send_stderr_file")"; then
+    # Surface AWS CLI stderr so a failed SES send (auth, identity, throttling,
+    # network) is diagnosable from the canary's structured output instead of
+    # being swallowed silently. Collapse to a single line so it stays inside
+    # the JSON detail string.
+    send_stderr_payload="$(tr '\n' ' ' <"$send_stderr_file" | sed 's/[[:space:]]\+$//')"
+    rm -f "$send_stderr_file"
+    append_step "send_probe" false "aws sesv2 send-email failed for recipient '$recipient_address'. stderr: ${send_stderr_payload:-<empty>}"
     append_step "poll_inbox_s3" false "Skipped because send_probe failed."
     append_step "fetch_rfc822" false "Skipped because send_probe failed."
     append_step "auth_verdict" false "Skipped because send_probe failed."
     emit_result false
     exit "$EXIT_RUNTIME"
 fi
+rm -f "$send_stderr_file"
 
 message_id="$(json_get_field "$send_json" "MessageId")"
 append_step "send_probe" true "Sent probe from '$from_address' to '$recipient_address' (message_id='${message_id:-unknown}')."

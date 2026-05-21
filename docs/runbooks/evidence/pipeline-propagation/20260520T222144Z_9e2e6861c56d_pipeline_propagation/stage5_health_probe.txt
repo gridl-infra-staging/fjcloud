@@ -1,0 +1,18 @@
+# Stage 5 prod /health probe
+# Captured: 2026-05-21T04:15:52Z
+# Command: curl -sS -i https://api.flapjack.foo/health
+---
+HTTP/2 200 
+date: Thu, 21 May 2026 04:15:52 GMT
+content-type: application/json
+content-length: 15
+strict-transport-security: max-age=63072000; includeSubDomains
+x-content-type-options: nosniff
+x-frame-options: DENY
+x-xss-protection: 1; mode=block
+x-robots-tag: noindex, nofollow, noarchive, nosnippet, noimageindex, noai, noimageai
+vary: origin, access-control-request-method, access-control-request-headers
+access-control-allow-credentials: true
+x-request-id: 26d0b905-e4f1-4fcf-9cee-ae2f5102e707
+
+{"status":"ok"}

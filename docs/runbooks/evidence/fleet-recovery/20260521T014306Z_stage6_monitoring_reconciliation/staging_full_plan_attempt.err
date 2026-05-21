@@ -1,0 +1,20 @@
+[31m╷[0m[0m
+[31m│[0m [0m[1m[31mError: [0m[0m[1mInvalid for_each argument[0m
+[31m│[0m [0m
+[31m│[0m [0m[0m  on ../dns/main.tf line 120, in resource "cloudflare_dns_record" "cert_validation":
+[31m│[0m [0m 120:   for_each = [4mlocal.acm_validation_records[0m[0m
+[31m│[0m [0m    [90m├────────────────[0m
+[31m│[0m [0m[0m    [90m│[0m [1mlocal.acm_validation_records[0m will be known only after apply
+[31m│[0m [0m[0m
+[31m│[0m [0mThe "for_each" map includes keys derived from resource attributes that
+[31m│[0m [0mcannot be determined until apply, and so Terraform cannot determine the
+[31m│[0m [0mfull set of keys that will identify the instances of this resource.
+[31m│[0m [0m
+[31m│[0m [0mWhen working with unknown values in for_each, it's better to define the map
+[31m│[0m [0mkeys statically in your configuration and place apply-time results only in
+[31m│[0m [0mthe map values.
+[31m│[0m [0m
+[31m│[0m [0mAlternatively, you could use the -target planning option to first apply
+[31m│[0m [0monly the resources that the for_each value depends on, and then apply a
+[31m│[0m [0msecond time to fully converge.
+[31m╵[0m[0m

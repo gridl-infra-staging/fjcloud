@@ -1,1 +1,1 @@
-web-test|FAIL|0|/var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T/tmp.HCWvlbrKpc/web-test.log
+web-test|FAIL|0|$TMPDIR/redacted-path

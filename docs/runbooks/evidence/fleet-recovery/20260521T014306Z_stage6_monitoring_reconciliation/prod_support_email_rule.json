@@ -1,0 +1,9 @@
+{
+    "Name": "fjcloud-prod-support-email-canary-schedule",
+    "Arn": "arn:aws:events:us-east-1:213880904778:rule/fjcloud-prod-support-email-canary-schedule",
+    "ScheduleExpression": "rate(6 hours)",
+    "State": "ENABLED",
+    "Description": "Runs the support email deliverability canary on a fixed schedule",
+    "EventBusName": "default",
+    "CreatedBy": "213880904778"
+}

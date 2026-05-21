@@ -6,6 +6,7 @@
 
 | Directory | Summary |
 | --- | --- |
+| fleet-recovery | This directory contains timestamped evidence artifacts from a multi-stage fleet recovery operation executed on 2026-05-20 and 2026-05-21, progressing through diagnosis, reconciliation, capacity restoration, monitoring validation, and final closeout with production verification tests. |
 | launch-rc-runs | This directory contains a 4-hour production launch monitoring bundle that executes 30-minute health checks (8 total ticks) to verify usage_daily rollup freshness and system stability during the critical post-launch window on 2026-05-05. |
 | may16_wave_deploy_verify | Evidence artifacts and stub scripts from a multi-stage validation workflow that captures authentication lockout behavior for stage 5 of a testing or deployment procedure, timestamped 2026-05-18. |
 | monitoring-coverage | — |

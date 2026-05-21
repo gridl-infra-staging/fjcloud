@@ -24,7 +24,7 @@ MODE="check"
 TARGET_URL_OVERRIDE=""
 TARGET_URL=""
 ALLOW_STAGING_TARGET="0"
-SANCTIONED_STAGING_WEBHOOK_URL="https://api.flapjack.foo/webhooks/stripe"
+SANCTIONED_STAGING_WEBHOOK_URL="https://api.staging.flapjack.foo/webhooks/stripe"
 TIMESTAMP_OVERRIDE=""
 TIMESTAMP_VALUE=""
 EVENT_ID_OVERRIDE=""
@@ -96,7 +96,7 @@ load_explicit_env_file() {
 
     if [ ! -f "$ENV_FILE" ]; then
         append_step "load_env_file" false "explicit env file is missing"
-        set_outcome "blocked" "explicit_env_file_missing" "explicit --env-file path does not exist" 0
+        set_outcome "failed" "explicit_env_file_missing" "explicit --env-file path does not exist" 1
         return 1
     fi
 
@@ -517,6 +517,7 @@ post_webhook_once() {
 emit_summary_json() {
     local elapsed_ms
     local result_json classification_json target_json secret_json event_id_json timestamp_json payload_json signature_json detail_json
+    local emitted_payload emitted_signature
 
     elapsed_ms=$(( $(validation_ms_now) - VALIDATION_START_MS ))
     result_json="$(json_escape "$RESULT")"
@@ -525,8 +526,17 @@ emit_summary_json() {
     secret_json="$(json_escape "$(redacted_secret_field)")"
     event_id_json="$(json_escape "$EVENT_ID_VALUE")"
     timestamp_json="$(json_escape "$TIMESTAMP_VALUE")"
-    payload_json="$(json_escape "$PAYLOAD")"
-    signature_json="$(json_escape "$SIGNATURE_HEADER")"
+    # Run mode may post to the sanctioned staging target, so do not emit
+    # reusable replay material after the request has already been sent.
+    if [ "$MODE" = "check" ]; then
+        emitted_payload="$PAYLOAD"
+        emitted_signature="$SIGNATURE_HEADER"
+    else
+        emitted_payload="<omitted in run mode>"
+        emitted_signature="<omitted in run mode>"
+    fi
+    payload_json="$(json_escape "$emitted_payload")"
+    signature_json="$(json_escape "$emitted_signature")"
     detail_json="$(json_escape "$(redact_text "$SUMMARY_DETAIL")")"
 
     printf '{"result":%s,"classification":%s,"mode":"%s","target_url":%s,"stripe_webhook_secret":%s,"event_id":%s,"timestamp":%s,"payload":%s,"stripe_signature":%s,"detail":%s,"steps":[%s],"elapsed_ms":%s}\n' \

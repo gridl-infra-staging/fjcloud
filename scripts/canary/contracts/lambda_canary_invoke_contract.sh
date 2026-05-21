@@ -23,9 +23,15 @@ func="fjcloud-${env}-${canary}-canary"
 out=$(mktemp)
 log_file=$(mktemp)
 
-# RequestResponse synchronous invoke. Lambda must be cold-startable from the
-# image (timeout 30s should be plenty for a smoke-style probe).
+# RequestResponse synchronous invoke. The customer-loop canary runs a full
+# signup→index→search→teardown flow inside the Lambda (Lambda timeout=900s),
+# so the default AWS CLI 60s read timeout would always fire even on a healthy
+# invoke. Set --cli-read-timeout to 0 (no timeout) and bump the connect
+# timeout slightly above the default to ride out cold-start network blips;
+# the Lambda's own timeout still bounds the invoke wall-clock.
 aws lambda invoke \
+  --cli-read-timeout 0 \
+  --cli-connect-timeout 30 \
   --function-name "$func" \
   --invocation-type RequestResponse \
   --log-type Tail \
@@ -43,8 +49,31 @@ api_status=$(jq -r '.StatusCode' "$log_file")
 [[ "$api_status" == "200" ]] || { echo "FAIL: invoke API returned StatusCode=$api_status"; cat "$log_file"; exit 1; }
 
 # FunctionError signals the function ran but threw. Empty means clean exit.
+# When FunctionError is present, distinguish between:
+#   (a) Lambda wiring failures (bad image, missing handler, OCI manifest) — FAIL
+#   (b) Canary-detected service failures (API down, HTTP 503) — WARN, exit 0
+# The contract's scope is image/runtime validation (a), not service health (b).
 func_error=$(jq -r '.FunctionError // empty' "$log_file")
 if [[ -n "$func_error" ]]; then
+  error_type=$(jq -r '.errorType // empty' "$out" 2>/dev/null)
+  error_msg=$(jq -r '.errorMessage // empty' "$out" 2>/dev/null)
+
+  is_canary_app_error=0
+  if [[ "$error_type" == "CustomerLoopCanaryError" ]]; then
+    is_canary_app_error=1
+  elif [[ "$error_msg" == *"canary failed with exit code"* ]]; then
+    is_canary_app_error=1
+  fi
+
+  if [[ "$is_canary_app_error" -eq 1 ]]; then
+    echo "WARN: $func canary detected a service issue (image/runtime is healthy)"
+    echo "  errorType=$error_type"
+    echo "  errorMessage=$error_msg"
+    echo "==log tail=="
+    jq -r '.LogResult' "$log_file" | base64 -d 2>/dev/null | tail -20
+    exit 0
+  fi
+
   echo "FAIL: function $func threw $func_error"
   echo "==response body=="
   cat "$out"

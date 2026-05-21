@@ -120,27 +120,47 @@ test_inbox_find_matching_object_key() {
     fi
 
     while [[ "$attempt" -le "$max_attempts" ]]; do
-        local list_json match_candidates matched_key
-        if ! list_json="$(AWS_PAGER="" aws s3api list-objects-v2 --bucket "$bucket" --prefix "$prefix" --region "$region" --output json --no-cli-pager 2>/dev/null)"; then
-            echo "aws s3api list-objects-v2 failed for s3://$bucket/$prefix" >&2
-            return 1
-        fi
-        # IMPORTANT: pass the list payload via stdin, not argv. With an active
-        # SES inbound bucket the list JSON can easily exceed 100 KB, which
-        # crosses the Lambda runtime ARG_MAX ceiling and produces
-        # "Argument list too long" errors that silently degrade to zero
-        # candidates being scanned.
-        local list_json_file
-        list_json_file="$(mktemp)"
-        printf '%s' "$list_json" > "$list_json_file"
+        local continuation_token=""
+        while :; do
+            local list_json match_candidates matched_key next_continuation
+            if [[ -n "$continuation_token" ]]; then
+                if ! list_json="$(AWS_PAGER="" aws s3api list-objects-v2 --bucket "$bucket" --prefix "$prefix" --continuation-token "$continuation_token" --region "$region" --output json --no-cli-pager 2>/dev/null)"; then
+                    echo "aws s3api list-objects-v2 failed for s3://$bucket/$prefix" >&2
+                    return 1
+                fi
+            else
+                if ! list_json="$(AWS_PAGER="" aws s3api list-objects-v2 --bucket "$bucket" --prefix "$prefix" --region "$region" --output json --no-cli-pager 2>/dev/null)"; then
+                    echo "aws s3api list-objects-v2 failed for s3://$bucket/$prefix" >&2
+                    return 1
+                fi
+            fi
+            # IMPORTANT: pass the list payload via stdin, not argv. With an active
+            # SES inbound bucket the list JSON can easily exceed 100 KB, which
+            # crosses the Lambda runtime ARG_MAX ceiling and produces
+            # "Argument list too long" errors that silently degrade to zero
+            # candidates being scanned.
+            local list_json_file
+            list_json_file="$(mktemp)"
+            printf '%s' "$list_json" > "$list_json_file"
 
-        last_list_count="$(python3 -c "
+            last_list_count="$(python3 -c "
 import json, sys
 with open(sys.argv[1], 'r', encoding='utf-8') as fh:
     print(len(json.load(fh).get('Contents', []) or []))
 " "$list_json_file" 2>/dev/null || echo 0)"
+            next_continuation="$(python3 - "$list_json_file" <<'PY' || true
+import json
+import sys
 
-        match_candidates="$(python3 - "$list_json_file" "$nonce" <<'PY' || true
+with open(sys.argv[1], 'r', encoding='utf-8') as fh:
+    payload = json.load(fh)
+
+token = payload.get("NextContinuationToken") or ""
+print(token)
+PY
+)"
+
+            match_candidates="$(python3 - "$list_json_file" "$nonce" <<'PY' || true
 import json
 import sys
 from datetime import datetime, timezone
@@ -173,37 +193,43 @@ for item in sorted(contents, key=parse_last_modified, reverse=True)[:25]:
         print(f"CAND:{key}")
 PY
 )"
-        rm -f "$list_json_file"
+            rm -f "$list_json_file"
 
-        matched_key="$(printf '%s\n' "$match_candidates" | awk -F'KEY:' 'NR==1 && /^KEY:/{print $2}')"
-        if [[ -n "$matched_key" ]]; then
-            printf '%s\n' "$matched_key"
-            return 0
-        fi
-
-        # SES inbound keys are not required to contain the probe nonce, so fall back
-        # to scanning recent message payloads for the nonce token when key-match fails.
-        while IFS= read -r candidate_line; do
-            local candidate_key candidate_rfc822
-            if [[ "$candidate_line" != CAND:* ]]; then
-                continue
-            fi
-            candidate_key="${candidate_line#CAND:}"
-            if [[ -z "$candidate_key" ]]; then
-                continue
-            fi
-            total_candidates=$((total_candidates + 1))
-
-            candidate_rfc822="$(test_inbox_fetch_rfc822 "$bucket" "$candidate_key" "$region" 2>/dev/null || true)"
-            if [[ -z "$candidate_rfc822" ]]; then
-                total_fetch_failures=$((total_fetch_failures + 1))
-                continue
-            fi
-            if [[ "$candidate_rfc822" == *"$nonce"* ]]; then
-                printf '%s\n' "$candidate_key"
+            matched_key="$(printf '%s\n' "$match_candidates" | awk -F'KEY:' 'NR==1 && /^KEY:/{print $2}')"
+            if [[ -n "$matched_key" ]]; then
+                printf '%s\n' "$matched_key"
                 return 0
             fi
-        done <<< "$match_candidates"
+
+            # SES inbound keys are not required to contain the probe nonce, so fall back
+            # to scanning recent message payloads for the nonce token when key-match fails.
+            while IFS= read -r candidate_line; do
+                local candidate_key candidate_rfc822
+                if [[ "$candidate_line" != CAND:* ]]; then
+                    continue
+                fi
+                candidate_key="${candidate_line#CAND:}"
+                if [[ -z "$candidate_key" ]]; then
+                    continue
+                fi
+                total_candidates=$((total_candidates + 1))
+
+                candidate_rfc822="$(test_inbox_fetch_rfc822 "$bucket" "$candidate_key" "$region" 2>/dev/null || true)"
+                if [[ -z "$candidate_rfc822" ]]; then
+                    total_fetch_failures=$((total_fetch_failures + 1))
+                    continue
+                fi
+                if [[ "$candidate_rfc822" == *"$nonce"* ]]; then
+                    printf '%s\n' "$candidate_key"
+                    return 0
+                fi
+            done <<< "$match_candidates"
+
+            if [[ -z "$next_continuation" ]]; then
+                break
+            fi
+            continuation_token="$next_continuation"
+        done
 
         if [[ "$attempt" -lt "$max_attempts" && "$sleep_seconds" -gt 0 ]]; then
             sleep "$sleep_seconds"

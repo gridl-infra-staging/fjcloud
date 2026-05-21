@@ -57,6 +57,7 @@ For real profiling data, run:
 
 Usage:
   scripts/reliability/seed-test-profiles.sh. |
+| validate_vm_inventory_ec2_consistency.sh | Stub summary for validate_vm_inventory_ec2_consistency.sh. |
 
 | Directory | Summary |
 | --- | --- |

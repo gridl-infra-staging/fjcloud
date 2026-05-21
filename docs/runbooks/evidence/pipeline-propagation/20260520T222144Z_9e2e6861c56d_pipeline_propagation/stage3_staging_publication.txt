@@ -1,0 +1,121 @@
+capture_time_utc=2026-05-21T00:56:03Z
+staging_repo=$HOME/repos/gridl-infra-staging/fjcloud
+frozen_candidate_dev_sha=9e2e6861c56d4598587538099953086d2604ea93
+active_bundle_rel=docs/runbooks/evidence/pipeline-propagation/20260520T222144Z_9e2e6861c56d_pipeline_propagation
+
+[pre_and_post_reset_capture]
+capture_time_utc=2026-05-21T00:12:08Z
+staging_repo=$HOME/repos/gridl-infra-staging/fjcloud
+pre_reset_head=c71407e6f5d212e78de8632a274e8ba367a5fe7d
+pre_reset_status_begin
+## main...origin/main
+[redacted: no local dirty worktree entries recorded]
+pre_reset_status_end
+post_reset_head=c71407e6f5d212e78de8632a274e8ba367a5fe7d
+post_reset_status_begin
+## main...origin/main
+[redacted: clean worktree confirmed; file list omitted]
+post_reset_status_end
+post_sync_bundle_pointer=docs/runbooks/evidence/pipeline-propagation/20260520T222144Z_9e2e6861c56d_pipeline_propagation
+post_sync_manifest_dev_sha=
+strip_todo_count=
+post_sync_bundle_pointer=docs/runbooks/evidence/pipeline-propagation/20260520T222144Z_9e2e6861c56d_pipeline_propagation
+post_sync_manifest_dev_sha=9e2e6861c56d4598587538099953086d2604ea93
+strip_todo_count=1846
+post_sync_head=c71407e6f5d212e78de8632a274e8ba367a5fe7d
+post_sync_status_begin
+## main...origin/main
+[redacted: local post-sync worktree entries omitted from publishable evidence]
+
+post_sync_status_end
+
+[staging_post_sync_verification]
+staging_bundle_pointer=docs/runbooks/evidence/pipeline-propagation/20260520T222144Z_9e2e6861c56d_pipeline_propagation
+staging_manifest_dev_sha=9e2e6861c56d4598587538099953086d2604ea93
+
+[staging_commit]
+pushed_staging_mirror_sha=f689fb069c8625259e8c212a4d0aadb29d805cf7
+commit_subject=stage3: publish active bundle pointer and freeze bundle
+
+git_show_stat_summary_begin
+commit f689fb069c8625259e8c212a4d0aadb29d805cf7
+Author: [redacted]
+Date:   Wed May 20 20:12:39 2026 -0400
+
+    stage3: publish active bundle pointer and freeze bundle
+
+ .debbie/sync_manifest.json                         |   2 +-
+ .../evidence/pipeline-propagation/.current_bundle  |   2 +-
+ .../stage2_closeout_diff.txt                       |   9 +
+ .../stage2_freeze.txt                              |   4 +
+ .../stage2_git_baseline.txt                        | 219 +++++++++++++++++++++
+ .../stage2_mirror_ci_baseline.json                 |  34 ++++
+ .../stage2_preflight_summary.md                    |  37 ++++
+ 7 files changed, 305 insertions(+), 2 deletions(-)
+ create mode 100644 docs/runbooks/evidence/pipeline-propagation/20260520T222144Z_9e2e6861c56d_pipeline_propagation/stage2_closeout_diff.txt
+ create mode 100644 docs/runbooks/evidence/pipeline-propagation/20260520T222144Z_9e2e6861c56d_pipeline_propagation/stage2_freeze.txt
+ create mode 100644 docs/runbooks/evidence/pipeline-propagation/20260520T222144Z_9e2e6861c56d_pipeline_propagation/stage2_git_baseline.txt
+ create mode 100644 docs/runbooks/evidence/pipeline-propagation/20260520T222144Z_9e2e6861c56d_pipeline_propagation/stage2_mirror_ci_baseline.json
+ create mode 100644 docs/runbooks/evidence/pipeline-propagation/20260520T222144Z_9e2e6861c56d_pipeline_propagation/stage2_preflight_summary.md
+git_show_stat_summary_end
+
+[original_stage2_dirty_baseline_capture]
+source_file=docs/runbooks/evidence/pipeline-propagation/20260520T222144Z_9e2e6861c56d_pipeline_propagation/stage2_git_baseline.txt
+source_section=## staging
+## staging
+path: $HOME/repos/gridl-infra-staging/fjcloud
+head_sha: 6e5baf5f44d6b7b83351ad5626922ffdd3d406c2
+status_short_branch:
+## main...origin/main
+ M .debbie/sync_manifest.json
+ M docs/runbooks/DIRMAP.md
+ M docs/runbooks/evidence/DIRMAP.md
+ M docs/screen_specs/coverage.md
+ M docs/screen_specs/settings.md
+ M infra/api/src/routes/billing.rs
+ M infra/api/src/stripe/live.rs
+ M infra/api/tests/billing_endpoints_test.rs
+ M infra/api/tests/common/mocks.rs
+ M ops/terraform/tests_rds_restore_evidence_unit_execute_and_poll_contract.sh
+ M scripts/launch/capture_upgrade_trust_ratchet_evidence.sh
+ M scripts/lib/customer_lifecycle_steps.sh
+ M scripts/lib/deterministic_batch_payload.sh
+ M scripts/lib/full_backend_validation_cli.sh
+ M scripts/lib/full_backend_validation_json.sh
+ M scripts/lib/process.sh
+ M scripts/lib/psql_path.sh
+ M scripts/lib/secret_audit_parsing.sh
+ M scripts/lib/staging_billing_rehearsal_email_evidence.sh
+ M scripts/lib/staging_billing_rehearsal_evidence.sh
+ M scripts/lib/stripe_payment_methods.sh
+ M scripts/lib/stripe_request.sh
+ M scripts/tests/capture_upgrade_trust_ratchet_evidence_test.sh
+ M scripts/tests/lib/local_dev_test_state.sh
+ M scripts/tests/lib/seed_local_mocks.sh
+ M scripts/tests/lib/staging_billing_rehearsal_reset_harness_blocks.sh
+ M scripts/tests/probe_full_vm_lifecycle_script_test.sh
+ M scripts/validate_full_vm_lifecycle_prod.sh
+ M web/src/routes/dashboard/account/+page.server.ts
+ M web/src/routes/dashboard/account/account.server.test.ts
+?? docs/runbooks/evidence/browser-evidence/20260519T001313Z_upgrade_trust_ratchet/
+?? docs/runbooks/evidence/browser-evidence/20260519T001538Z_upgrade_trust_ratchet/
+?? docs/runbooks/evidence/browser-evidence/20260519T002024Z_upgrade_trust_ratchet/
+?? docs/runbooks/evidence/browser-evidence/20260519T002353Z_upgrade_trust_ratchet/
+?? docs/runbooks/evidence/browser-evidence/20260519T002457Z_upgrade_trust_ratchet/
+?? docs/runbooks/evidence/browser-evidence/20260519T002518Z_upgrade_trust_ratchet/
+?? docs/runbooks/evidence/browser-evidence/20260519T002902Z_upgrade_trust_ratchet/
+?? docs/runbooks/evidence/browser-evidence/20260519T003404Z_upgrade_trust_ratchet/
+?? docs/runbooks/evidence/browser-evidence/20260519T005216Z_upgrade_trust_ratchet/
+?? docs/runbooks/evidence/browser-evidence/20260519T012702Z_upgrade_trust_ratchet/
+?? docs/runbooks/evidence/browser-evidence/20260519T012825Z_upgrade_trust_ratchet/
+?? docs/runbooks/evidence/browser-evidence/20260519T014531Z_upgrade_trust_ratchet/
+?? docs/runbooks/evidence/browser-evidence/20260519T015340Z_upgrade_trust_ratchet/
+?? docs/runbooks/evidence/browser-evidence/20260519T015821Z_upgrade_trust_ratchet/
+?? docs/runbooks/evidence/browser-evidence/20260519T020401Z_upgrade_trust_ratchet/
+?? docs/runbooks/evidence/browser-evidence/20260519T020552Z_upgrade_trust_ratchet/
+?? docs/runbooks/evidence/may16_wave_deploy_verify/
+?? infra/fj-metering-agent
+?? infra/fjcloud-aggregation-job
+?? infra/fjcloud-api
+?? scripts/tests/stage5_auth_lockout_proof_hygiene_test.sh
+

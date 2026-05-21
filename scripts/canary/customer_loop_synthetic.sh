@@ -18,7 +18,37 @@ source "$REPO_ROOT/scripts/lib/env.sh"
 # shellcheck source=scripts/lib/http_json.sh
 source "$REPO_ROOT/scripts/lib/http_json.sh"
 
-ALERT_DISPATCH_IMPL="${ALERT_DISPATCH_HELPER:-$REPO_ROOT/scripts/lib/alert_dispatch.sh}"
+DEFAULT_ALERT_DISPATCH_IMPL="$REPO_ROOT/scripts/lib/alert_dispatch.sh"
+ALERT_DISPATCH_IMPL="${ALERT_DISPATCH_HELPER:-$DEFAULT_ALERT_DISPATCH_IMPL}"
+
+validate_alert_dispatch_helper() {
+    local helper_path="$1"
+    local allowed_dir="$REPO_ROOT/scripts/lib"
+    local allowed_dir_resolved helper_dir_resolved helper_file_resolved
+
+    allowed_dir_resolved="$(cd "$allowed_dir" && pwd -P)"
+
+    if [ ! -f "$helper_path" ]; then
+        echo "ALERT_DISPATCH_HELPER not found: $helper_path" >&2
+        return 1
+    fi
+
+    helper_dir_resolved="$(cd "$(dirname "$helper_path")" && pwd -P)"
+    helper_file_resolved="$helper_dir_resolved/$(basename "$helper_path")"
+
+    case "$helper_file_resolved" in
+        "$allowed_dir_resolved"/*)
+            ;;
+        *)
+            echo "ALERT_DISPATCH_HELPER must stay within $allowed_dir_resolved" >&2
+            return 1
+            ;;
+    esac
+}
+
+if ! validate_alert_dispatch_helper "$ALERT_DISPATCH_IMPL"; then
+    exit 1
+fi
 # shellcheck source=scripts/lib/alert_dispatch.sh
 source "$ALERT_DISPATCH_IMPL"
 
@@ -737,7 +767,10 @@ run_index_create_step() {
     capture_json_response tenant_call POST "/indexes" "$CANARY_TOKEN" \
         -d "$payload"
     if [ "$HTTP_RESPONSE_CODE" != "201" ] && [ "$HTTP_RESPONSE_CODE" != "200" ]; then
-        mark_failure "create_index" "create index returned HTTP ${HTTP_RESPONSE_CODE:-unknown}"
+        # Include the response body so 503-class failures (e.g. shared-VM
+        # auto-provision exhaustion, flapjack node warmup retries) are
+        # diagnosable from the canary log without a redeploy.
+        mark_failure "create_index" "create index returned HTTP ${HTTP_RESPONSE_CODE:-unknown} body=${HTTP_RESPONSE_BODY:-<empty>}"
         return 1
     fi
 

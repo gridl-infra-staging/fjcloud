@@ -1,0 +1,131 @@
+[33m╷[0m[0m
+[33m│[0m [0m[1m[33mWarning: [0m[0m[1mDeprecated Parameter[0m
+[33m│[0m [0m
+[33m│[0m [0m[0mThe parameter "dynamodb_table" is deprecated. Use parameter "use_lockfile"
+[33m│[0m [0minstead.
+[33m╵[0m[0m
+[0m[1mterraform_data.prod_alert_emails_guard: Refreshing state... [id=55687434-26eb-a140-c943-2d2812aa1ef2][0m
+[0m[1mmodule.data.random_password.db: Refreshing state... [id=none][0m
+[0m[1mmodule.compute.tls_private_key.api_ssh: Refreshing state... [id=7189dad3108c339a68bb2ea48397b74b31e92442][0m
+[0m[1mmodule.monitoring.aws_ecr_repository.support_email_canary: Refreshing state... [id=fjcloud-staging-support-email-canary][0m
+[0m[1mmodule.monitoring.aws_sns_topic.ses_feedback: Refreshing state... [id=arn:aws:sns:us-east-1:213880904778:fjcloud-ses-feedback-staging][0m
+[0m[1mmodule.monitoring.aws_cloudwatch_event_rule.customer_loop_canary: Refreshing state... [id=fjcloud-staging-customer-loop-canary][0m
+[0m[1mmodule.monitoring.aws_cloudwatch_log_group.support_email_canary: Refreshing state... [id=/aws/lambda/fjcloud-staging-support-email-canary][0m
+[0m[1mmodule.monitoring.aws_cloudwatch_event_rule.support_email_canary: Refreshing state... [id=fjcloud-staging-support-email-canary-schedule][0m
+[0m[1mmodule.monitoring.aws_ecr_repository.customer_loop_canary: Refreshing state... [id=fjcloud-staging-customer-loop-canary][0m
+[0m[1mmodule.monitoring.aws_sns_topic.alerts: Refreshing state... [id=arn:aws:sns:us-east-1:213880904778:fjcloud-alerts-staging][0m
+[0m[1mmodule.monitoring.aws_iam_role.customer_loop_canary_lambda: Refreshing state... [id=fjcloud-staging-customer-loop-canary-lambda][0m
+[0m[1mmodule.monitoring.aws_iam_role.support_email_canary: Refreshing state... [id=fjcloud-staging-support-email-canary-lambda-role][0m
+[0m[1mmodule.monitoring.aws_s3_bucket.cloudtrail_export: Refreshing state... [id=fjcloud-staging-cloudtrail-export][0m
+[0m[1mmodule.monitoring.data.aws_partition.current: Reading...[0m[0m
+[0m[1mmodule.monitoring.data.aws_partition.current: Read complete after 0s [id=aws][0m
+[0m[1mmodule.monitoring.data.aws_caller_identity.current: Reading...[0m[0m
+[0m[1mmodule.networking.aws_vpc.main: Refreshing state... [id=vpc-0748bcfc19bd0e1ab][0m
+[0m[1mmodule.monitoring.aws_sns_topic_subscription.ses_feedback_webhook: Refreshing state... [id=arn:aws:sns:us-east-1:213880904778:fjcloud-ses-feedback-staging:054d2071-73c0-44e0-813a-ff6fc0a8cbb0][0m
+[0m[1mmodule.compute.aws_key_pair.api_ssh: Refreshing state... [id=fjcloud-api-staging][0m
+[0m[1mmodule.monitoring.data.aws_caller_identity.current: Read complete after 0s [id=213880904778][0m
+[0m[1mmodule.monitoring.aws_cloudwatch_metric_alarm.customer_loop_canary_lambda_errors: Refreshing state... [id=fjcloud-staging-customer-loop-canary-lambda-errors][0m
+[0m[1mmodule.monitoring.aws_cloudwatch_metric_alarm.billing_estimated_charges_high: Refreshing state... [id=fjcloud-staging-billing-estimated-charges-high][0m
+[0m[1mmodule.monitoring.aws_cloudwatch_metric_alarm.ses_reputation_bounce_rate_high: Refreshing state... [id=fjcloud-staging-ses-reputation-bounce-rate-high][0m
+[0m[1mmodule.monitoring.aws_cloudwatch_metric_alarm.ses_reputation_complaint_rate_high: Refreshing state... [id=fjcloud-staging-ses-reputation-complaint-rate-high][0m
+[0m[1mmodule.monitoring.aws_cloudwatch_metric_alarm.api_heartbeat_missing: Refreshing state... [id=fjcloud-staging-api-heartbeat-missing][0m
+[0m[1mmodule.monitoring.aws_cloudwatch_metric_alarm.customer_loop_canary_not_running: Refreshing state... [id=fjcloud-staging-customer-loop-canary-not-running][0m
+[0m[1mmodule.monitoring.aws_cloudwatch_metric_alarm.api_webhook_backlog_high: Refreshing state... [id=fjcloud-staging-api-webhook-backlog-high][0m
+[0m[1mmodule.monitoring.aws_cloudwatch_metric_alarm.support_email_canary_not_running: Refreshing state... [id=fjcloud-staging-support-email-canary-not-running][0m
+[0m[1mmodule.monitoring.aws_ecr_lifecycle_policy.customer_loop_canary: Refreshing state... [id=fjcloud-staging-customer-loop-canary][0m
+[0m[1mmodule.monitoring.aws_sns_topic_policy.ses_feedback_publish: Refreshing state... [id=arn:aws:sns:us-east-1:213880904778:fjcloud-ses-feedback-staging][0m
+[0m[1mmodule.monitoring.aws_iam_role_policy.support_email_canary: Refreshing state... [id=fjcloud-staging-support-email-canary-lambda-role:fjcloud-staging-support-email-canary-lambda-policy][0m
+[0m[1mmodule.monitoring.aws_iam_role_policy.customer_loop_canary_lambda: Refreshing state... [id=fjcloud-staging-customer-loop-canary-lambda:fjcloud-staging-customer-loop-canary-lambda][0m
+[0m[1mmodule.monitoring.aws_lambda_function.support_email_canary: Refreshing state... [id=fjcloud-staging-support-email-canary][0m
+[0m[1mmodule.monitoring.aws_lambda_function.customer_loop_canary: Refreshing state... [id=fjcloud-staging-customer-loop-canary][0m
+[0m[1mmodule.monitoring.aws_lambda_permission.support_email_canary_eventbridge: Refreshing state... [id=AllowEventBridgeInvokeSupportEmailCanary][0m
+[0m[1mmodule.monitoring.aws_cloudwatch_event_target.support_email_canary: Refreshing state... [id=fjcloud-staging-support-email-canary-schedule-support-email-canary][0m
+[0m[1mmodule.monitoring.aws_lambda_permission.customer_loop_canary_eventbridge: Refreshing state... [id=AllowExecutionFromEventBridgeSchedule][0m
+[0m[1mmodule.monitoring.aws_cloudwatch_event_target.customer_loop_canary: Refreshing state... [id=fjcloud-staging-customer-loop-canary-customer-loop-canary][0m
+[0m[1mmodule.monitoring.aws_s3_bucket_public_access_block.cloudtrail_export: Refreshing state... [id=fjcloud-staging-cloudtrail-export][0m
+[0m[1mmodule.monitoring.aws_s3_bucket_policy.cloudtrail_export: Refreshing state... [id=fjcloud-staging-cloudtrail-export][0m
+[0m[1mmodule.monitoring.aws_s3_bucket_lifecycle_configuration.cloudtrail_export_retention: Refreshing state... [id=fjcloud-staging-cloudtrail-export][0m
+[0m[1mmodule.monitoring.aws_cloudtrail.cloudtrail: Refreshing state... [id=arn:aws:cloudtrail:us-east-1:213880904778:trail/fjcloud-staging-guardrails][0m
+[0m[1mmodule.networking.aws_security_group.api: Refreshing state... [id=sg-0e8fd81b9247b53a5][0m
+[0m[1mmodule.networking.aws_subnet.private_b: Refreshing state... [id=subnet-0fed650d25324fd88][0m
+[0m[1mmodule.networking.aws_subnet.private_a: Refreshing state... [id=subnet-094032cc47eb9f444][0m
+[0m[1mmodule.networking.aws_subnet.public_b: Refreshing state... [id=subnet-01bde00484c8a6245][0m
+[0m[1mmodule.networking.aws_security_group.rds: Refreshing state... [id=sg-0e60946fafe060833][0m
+[0m[1mmodule.networking.aws_security_group.alb: Refreshing state... [id=sg-0c92ea806133e676d][0m
+[0m[1mmodule.networking.aws_subnet.public_a: Refreshing state... [id=subnet-03e3357684f12dcc8][0m
+[0m[1mmodule.dns.aws_lb_target_group.api: Refreshing state... [id=arn:aws:elasticloadbalancing:us-east-1:213880904778:targetgroup/fjcloud-staging-api-tg/a806a5dbe49fac17][0m
+[0m[1mmodule.dns.aws_lb.api: Refreshing state... [id=arn:aws:elasticloadbalancing:us-east-1:213880904778:loadbalancer/app/fjcloud-staging-alb/4c07fd1f59dff0a7][0m
+[0m[1mmodule.compute.aws_instance.api: Refreshing state... [id=i-0fbc6d6bbbc8bdc6d][0m
+[0m[1mmodule.data.aws_db_subnet_group.main: Refreshing state... [id=fjcloud-staging][0m
+[0m[1mmodule.monitoring.aws_cloudwatch_metric_alarm.alb_unhealthy_hosts: Refreshing state... [id=fjcloud-staging-alb-unhealthy-hosts][0m
+[0m[1mmodule.monitoring.aws_cloudwatch_metric_alarm.alb_p99_target_response_time: Refreshing state... [id=fjcloud-staging-alb-p99-target-response-time][0m
+[0m[1mmodule.monitoring.aws_cloudwatch_metric_alarm.alb_5xx_error_rate: Refreshing state... [id=fjcloud-staging-alb-5xx-error-rate][0m
+[0m[1mmodule.data.aws_db_instance.main: Refreshing state... [id=db-JL5EMSOPHV2GZAMY6E3SAH4JQI][0m
+[0m[1mmodule.monitoring.aws_cloudwatch_metric_alarm.rds_connections_high: Refreshing state... [id=fjcloud-staging-rds-connections-high][0m
+[0m[1mmodule.monitoring.aws_cloudwatch_metric_alarm.rds_cpu_high: Refreshing state... [id=fjcloud-staging-rds-cpu-high][0m
+[0m[1mmodule.monitoring.aws_cloudwatch_metric_alarm.rds_free_storage_low: Refreshing state... [id=fjcloud-staging-rds-free-storage-low][0m
+[0m[1mmodule.monitoring.aws_cloudwatch_metric_alarm.api_cpu_high: Refreshing state... [id=fjcloud-staging-api-cpu-high][0m
+[0m[1mmodule.monitoring.aws_cloudwatch_metric_alarm.api_root_disk_high: Refreshing state... [id=fjcloud-staging-api-root-disk-high][0m
+[0m[1mmodule.monitoring.aws_cloudwatch_metric_alarm.api_status_check_failed: Refreshing state... [id=fjcloud-staging-api-status-check-failed][0m
+
+[0m[1m[32mNo changes.[0m[1m Your infrastructure matches the configuration.[0m
+
+[0mTerraform has compared your real infrastructure against your configuration
+and found no differences, so no changes are needed.
+[33m╷[0m[0m
+[33m│[0m [0m[1m[33mWarning: [0m[0m[1mResource targeting is in effect[0m
+[33m│[0m [0m
+[33m│[0m [0m[0mYou are creating a plan with the -target option, which means that the
+[33m│[0m [0mresult of this plan may not represent all of the changes requested by the
+[33m│[0m [0mcurrent configuration.
+[33m│[0m [0m
+[33m│[0m [0mThe -target option is not for routine use, and is provided only for
+[33m│[0m [0mexceptional situations such as recovering from errors or mistakes, or when
+[33m│[0m [0mTerraform specifically suggests to use it as part of an error message.
+[33m╵[0m[0m
+[33m╷[0m[0m
+[33m│[0m [0m[1m[33mWarning: [0m[0m[1mApplied changes may be incomplete[0m
+[33m│[0m [0m
+[33m│[0m [0m[0mThe plan was created with the -target option in effect, so some changes
+[33m│[0m [0mrequested in the configuration may have been ignored and the output values
+[33m│[0m [0mmay not be fully updated. Run the following command to verify that no other
+[33m│[0m [0mchanges are pending:
+[33m│[0m [0m    terraform plan
+[33m│[0m [0m
+[33m│[0m [0mNote that the -target option is not suitable for routine use, and is
+[33m│[0m [0mprovided only for exceptional situations such as recovering from errors or
+[33m│[0m [0mmistakes, or when Terraform specifically suggests to use it as part of an
+[33m│[0m [0merror message.
+[33m╵[0m[0m
+[33m╷[0m[0m
+[33m│[0m [0m[1m[33mWarning: [0m[0m[1mArgument is deprecated[0m
+[33m│[0m [0m
+[33m│[0m [0m[0m  with module.monitoring.aws_cloudwatch_event_rule.customer_loop_canary,
+[33m│[0m [0m  on ../monitoring/main.tf line 234, in resource "aws_cloudwatch_event_rule" "customer_loop_canary":
+[33m│[0m [0m 234:   is_enabled          = [4mvar.canary_schedule.enabled[0m[0m
+[33m│[0m [0m
+[33m│[0m [0mis_enabled is deprecated. Use state instead.
+[33m╵[0m[0m
+[0m[1m[32m
+Apply complete! Resources: 0 added, 0 changed, 0 destroyed.[0m
+[0m[1m[32m
+Outputs:
+
+[0macm_certificate_arn = "arn:aws:acm:us-east-1:213880904778:certificate/40d3abdc-bd28-47a8-9ad8-ce7321b41465"
+alb_dns_name = "fjcloud-staging-alb-1511805790.us-east-1.elb.amazonaws.com"
+api_instance_ip = "10.0.10.178"
+cloudflare_zone_id = "fafbf95a076d7e8ee984dbd18a62c933"
+customer_loop_canary_ecr_repository_url = "213880904778.dkr.ecr.us-east-1.amazonaws.com/fjcloud-staging-customer-loop-canary"
+customer_loop_canary_image_uri = "213880904778.dkr.ecr.us-east-1.amazonaws.com/fjcloud-staging-customer-loop-canary:pending-publication"
+customer_loop_canary_lambda_function_arn = "arn:aws:lambda:us-east-1:213880904778:function:fjcloud-staging-customer-loop-canary"
+customer_loop_canary_schedule_rule_name = "fjcloud-staging-customer-loop-canary"
+db_endpoint = "fjcloud-staging.cabwlew6jcjl.us-east-1.rds.amazonaws.com:5432"
+private_subnet_ids = [
+  "subnet-094032cc47eb9f444",
+  "subnet-0fed650d25324fd88",
+]
+public_subnet_ids = [
+  "subnet-03e3357684f12dcc8",
+  "subnet-01bde00484c8a6245",
+]
+vpc_id = "vpc-0748bcfc19bd0e1ab"

@@ -1,0 +1,15 @@
+# Staging domain fix apply (s72 unstuck session)
+# Applied 2026-05-21T04:30Z via targeted monitoring plan
+
+Inputs: staging_inputs.json (with domain=staging.flapjack.foo added)
+Target scope: -target=module.monitoring -target=terraform_data.prod_alert_emails_guard
+Backend: fjcloud-tfstate-staging / terraform.tfstate
+
+Result: Apply complete! Resources: 1 added, 1 changed, 1 destroyed.
+- Changed: aws_lambda_function.customer_loop_canary (API_URL: api.flapjack.foo -> api.staging.flapjack.foo)
+- Replaced: aws_sns_topic_subscription.ses_feedback_webhook (endpoint URL updated to staging)
+- No image_uri regressions (canary_image.tag and support_email_canary_image_tag preserved in tfvars)
+
+Post-apply verification:
+  aws lambda get-function-configuration --function-name fjcloud-staging-customer-loop-canary --query 'Environment.Variables.API_URL' --output text
+  -> https://api.staging.flapjack.foo

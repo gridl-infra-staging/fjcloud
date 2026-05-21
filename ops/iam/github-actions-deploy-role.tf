@@ -1,6 +1,6 @@
 # GitHub Actions OIDC provider and least-privilege deploy role for
-# staging CI/CD. The deploy role is assumed by the deploy-staging
-# workflow in gridl-infra-staging/fjcloud via OIDC federation.
+# staging + prod CI/CD. The shared deploy role is assumed by the
+# deploy workflows in gridl-infra-{staging,prod}/fjcloud via OIDC.
 
 # --------------------------------------------------------------------------
 # OIDC Provider — GitHub Actions token issuer
@@ -33,8 +33,13 @@ resource "aws_iam_role" "fjcloud_deploy" {
         Federated = aws_iam_openid_connect_provider.github_actions.arn
       }
       Condition = {
+        StringLike = {
+          "token.actions.githubusercontent.com:sub" = [
+            "repo:gridl-infra-staging/fjcloud:ref:refs/heads/main",
+            "repo:gridl-infra-prod/fjcloud:ref:refs/heads/main",
+          ]
+        }
         StringEquals = {
-          "token.actions.githubusercontent.com:sub" = "repo:gridl-infra-staging/fjcloud:ref:refs/heads/main"
           "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
         }
       }
@@ -48,7 +53,7 @@ resource "aws_iam_role" "fjcloud_deploy" {
 }
 
 # --------------------------------------------------------------------------
-# Policy — S3 artifact upload/list on staging release bucket
+# Policy — S3 artifact upload/list on staging + prod release buckets
 # --------------------------------------------------------------------------
 
 resource "aws_iam_role_policy" "fjcloud_deploy_s3" {
@@ -67,6 +72,8 @@ resource "aws_iam_role_policy" "fjcloud_deploy_s3" {
       Resource = [
         "arn:aws:s3:::fjcloud-releases-staging",
         "arn:aws:s3:::fjcloud-releases-staging/*",
+        "arn:aws:s3:::fjcloud-releases-prod",
+        "arn:aws:s3:::fjcloud-releases-prod/*",
       ]
     }]
   })

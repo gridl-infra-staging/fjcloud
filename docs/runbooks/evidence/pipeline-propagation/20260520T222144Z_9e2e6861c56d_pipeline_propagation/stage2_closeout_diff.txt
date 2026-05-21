@@ -1,0 +1,9 @@
+# Stage 2 Closeout Diff
+captured_at_utc: 2026-05-20T22:22:48Z
+bundle_key_sha: 9e2e6861c56d4598587538099953086d2604ea93
+head_at_closeout: 9e2e6861c56d4598587538099953086d2604ea93
+
+## git diff --name-only 9e2e6861c56d4598587538099953086d2604ea93..HEAD
+(no changed paths)
+
+verdict: PASS (no drift)

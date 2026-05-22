@@ -7,6 +7,6 @@
 
 | Directory | Summary |
 | --- | --- |
-| common | This directory contains shared test fixtures and helper utilities for the API's integration test suite, including capacity profile constants, mock implementations, and reusable setup code for testing flapjack proxy, index routes, Stripe webhooks, and storage metering features. |
-| support | The support directory contains test utilities for the api crate, including a PostgreSQL schema harness (`pg_schema_harness.rs`) that creates isolated test schemas with automatic cleanup and an OCI module (`oci.rs`) for supporting infrastructure testing. |
+| common | Common test utilities and fixtures for API integration tests, providing shared builders, mocks, and helpers for Stripe webhooks, Flapjack proxy operations, storage metering, S3 routing, and capacity profile fixtures. |
+| support | — |
 <!-- [scrai:end] -->

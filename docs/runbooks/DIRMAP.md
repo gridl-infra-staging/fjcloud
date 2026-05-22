@@ -6,5 +6,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| evidence | The evidence directory contains timestamped operational artifacts and validation scripts from production workflows, including fleet recovery procedures, launch monitoring bundles, deployment verification stages, and third-party integration contract tests. |
+| evidence | The evidence directory contains timestamped operational artifacts from production incidents and procedures in May 2026, including fleet recovery workflows, launch monitoring bundles, deployment validation procedures, and database cleanup operations. |
 <!-- [scrai:end] -->

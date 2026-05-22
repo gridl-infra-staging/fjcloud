@@ -6,5 +6,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| src | The metering-agent module collects and manages resource usage data for billing, with components for scraping metrics, storing records, mapping tenants, health monitoring, and circuit-breaker fault tolerance. |
+| src | Metering-agent is a Rust daemon that collects and reports resource consumption metrics, with components for configuration management, health monitoring, circuit breaking, metric counters, data storage, scraping, and tenant mapping. |
 <!-- [scrai:end] -->

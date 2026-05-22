@@ -10,10 +10,10 @@
 | --- | --- |
 | account | — |
 | api-keys | — |
-| billing | The billing directory handles the billing setup flow for the web frontend, managing Stripe payment method configuration through setup intents. |
-| indexes | This directory implements a SvelteKit dashboard interface for managing user indexes, with server-side data loading that fetches user indexes and available regions while handling session management, and nested routes for individual index configuration including dictionary, document, and security settings. |
-| migrate | This directory contains a SvelteKit page route for migration functionality, with server-side logic defined in +page.server.ts. |
-| onboarding | The onboarding directory contains a SvelteKit server page component that handles onboarding flows. |
-| resend-verification | This endpoint handles POST requests to resend verification emails to the logged-in user, calling the backend API and returning the response with appropriate retry-after headers for rate-limited responses. |
+| billing | The billing directory contains the customer-facing billing portal routes, including a main dashboard page and a setup subpage for configuring Stripe payment methods via setup intents. |
+| indexes | The indexes directory is the SvelteKit dashboard interface for managing Flapjack search indexes, providing a list view that fetches user indexes and regions, and per-index pages with features for document handling, security configuration, and integration code snippets. |
+| migrate | The migrate directory contains a SvelteKit server-side page handler for the dashboard migration feature, currently with stub documentation that needs to be expanded. |
+| onboarding | The onboarding directory contains a SvelteKit server-side route that handles the initial user onboarding flow for the fjcloud platform. |
+| resend-verification | — |
 | settings | — |
 <!-- [scrai:end] -->

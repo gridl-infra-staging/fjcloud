@@ -8,5 +8,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| lib | This lib directory contains shell script utilities for VLM (Vision Language Model) operations, providing environment configuration helpers and prompt evaluation/judgment functionality. |
+| lib | This lib directory contains shell helper utilities for VLM (Vision Language Model) judge operations, including environment configuration helpers and prompt generation for the VLM judging system. |
 <!-- [scrai:end] -->

@@ -29,17 +29,17 @@ Each function owns one logical phase of server bootstrap. |
 
 | Directory | Summary |
 | --- | --- |
-| auth | The auth module provides authentication and authorization mechanisms for the API, supporting multiple schemes including admin authentication, API key validation, and tenant-based access control, with dedicated error handling and storage layers. |
-| dns | This dns module provides DNS provider integrations for managing DNS records across Cloudflare and AWS Route53, supporting multi-provider DNS operations for the infrastructure. |
-| invoicing | The invoicing directory contains line_items.rs, which handles line item functionality for invoice generation and billing operations. |
-| middleware | The middleware directory contains HTTP middleware components for the API server, including request logging and metrics collection functionality for monitoring and observability. |
-| models | The models directory contains database model definitions and API conversion layers for the core fjcloud entities: customer, deployment, invoice, and rate card. |
-| provisioner | The provisioner module is a multi-cloud infrastructure provisioning abstraction layer that supports OCI, GCP, Hetzner, AWS, and mock providers, with centralized environment-variable configuration parsing to ensure consistent typed value handling across all provisioner implementations. |
-| repos | This directory contains the data access layer for the fjcloud API, implementing the repository pattern with abstract trait definitions and concrete implementations for PostgreSQL and in-memory backends across various domain entities like customers, invoices, storage buckets, API keys, and billing-related data. |
-| router | The router directory contains route assembly utilities for organizing HTTP endpoints across the application's three main API subtrees: the public API, customer dashboard, and internal services. |
-| routes | The routes module contains HTTP endpoint handlers for the fjcloud billing platform's API server, covering authentication, billing operations, invoices, webhooks, and administrative tasks alongside index operations and S3-compatible storage integration. |
-| secrets | The secrets directory provides abstractions for credential management with multiple backend implementations: AWS Secrets Manager integration, in-memory storage, and mock implementations for testing. |
-| services | The services module provides core business logic and infrastructure functionality for the fjcloud API, including email delivery, audit logging, webhooks, metrics, provisioning across cloud providers, S3-compatible storage proxying, and various operational services like health monitoring and replication management. |
-| startup | The startup directory contains a stub Stripe service implementation that gracefully handles cases where Stripe is not configured, allowing the API to bootstrap and serve non-Stripe operations while returning a clean NotConfigured error for Stripe-dependent features. |
-| stripe | The stripe module provides an abstraction for Stripe payment operations through a StripeService trait, defining core types and errors for invoice management, payment methods, subscriptions, and webhook handling. |
+| auth | The auth module provides authentication and authorization for the API server, handling multiple auth schemes including admin authentication, API key validation, and tenant-based access control. |
+| dns | The dns directory provides DNS provider integrations for the fjcloud API, with implementations for Cloudflare and AWS Route53. |
+| invoicing | The invoicing directory contains line_items.rs, which handles the representation and management of individual line items within invoices. |
+| middleware | The middleware directory contains HTTP request handling utilities for the Axum API server, including metrics collection and request logging middleware to instrument and observe API traffic. |
+| models | The models directory contains core domain models for the fjcloud billing and infrastructure platform, including customer accounts, deployments, invoices, and rate cards with their corresponding database and API conversion layers. |
+| provisioner | The provisioner module orchestrates infrastructure provisioning across multiple cloud providers (AWS, GCP, OCI, Hetzner) with shared environment-variable parsing, region mapping, and provisioning lifecycle management. |
+| repos | This directory contains the data access layer for fjcloud's API, implementing the repository pattern across multiple domain entities like customers, invoices, deployments, storage, and usage tracking. |
+| router | The router directory contains route assembly helpers that organize and structure HTTP routes across the public API, dashboard, and internal subtrees. |
+| routes | The routes directory contains HTTP endpoint handlers for the fjcloud API server, organized by functional area including authentication, billing, invoicing, usage tracking, and API key management, with additional subdirectories for administrative operations, index management, and S3-compatible object storage endpoints. |
+| secrets | The secrets directory provides a modular secrets management abstraction with implementations for AWS Secrets Manager, in-memory storage, and mock testing. |
+| services | The services module contains the core business logic and infrastructure operations for the fjcloud API, including resource provisioning and scheduling, data migration and replication, email delivery and suppression, storage management, monitoring and alerting, and administrative audit logging. |
+| startup | The startup directory contains a stub Stripe service implementation that allows the API to initialize without Stripe credentials by returning NotConfigured errors for all Stripe operations. |
+| stripe | The stripe module provides environment-specific Stripe integration for the billing system, with separate implementations for live production and local test/sandbox environments. |
 <!-- [scrai:end] -->

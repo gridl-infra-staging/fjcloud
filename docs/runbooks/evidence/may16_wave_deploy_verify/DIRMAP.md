@@ -6,5 +6,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| 20260518T231734Z | The directory 20260518T231734Z is an evidence collection point (timestamped 2026-05-18T23:17:34Z) that appears to be part of a wave deploy verification runbook. |
+| 20260518T231734Z | This directory contains evidence artifacts and stub scripts from a multi-stage validation workflow, specifically capturing authentication lockout behavior for stage 5 of a testing or deployment procedure. |
 <!-- [scrai:end] -->

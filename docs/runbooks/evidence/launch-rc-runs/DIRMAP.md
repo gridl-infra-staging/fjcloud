@@ -6,5 +6,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| 20260505T192351Z_prod_first_4h | This directory contains monitoring scripts for a 4-hour launch window that tracks metering data freshness and rollup status via a probe that mirrors existing metering checks, with a wrapper script that runs 30-minute monitoring ticks on an 8-iteration cycle. |
+| 20260505T192351Z_prod_first_4h | A 4-hour production launch monitoring bundle that runs 30-minute monitoring ticks (8 total) to check usage_daily rollup freshness and system health during the critical first hours after go-live. |
 <!-- [scrai:end] -->

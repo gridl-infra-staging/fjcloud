@@ -6,9 +6,9 @@
 
 | Directory | Summary |
 | --- | --- |
-| aggregation-job | The aggregation-job crate is a periodic job that aggregates metering data collected by the metering-agent into billable usage summaries for billing cycles. |
-| api | The api crate is the HTTP server backend for fjcloud, providing REST endpoints for customer-facing operations, multi-cloud provisioning, billing management, and third-party integrations including Stripe webhooks, DNS management, and email delivery. |
-| billing | The billing directory contains the billing engine that aggregates raw metering records into usage summaries and applies rate card pricing to generate invoices. |
-| metering-agent | The metering-agent is a daemon that collects and manages resource usage metrics for billing purposes, with components for metric scraping, data storage, tenant mapping, and health monitoring. |
-| pricing-calculator | The pricing-calculator is a library that computes usage-based and resource-based pricing for fjcloud across multiple search and storage providers including Algolia, AWS OpenSearch, Griddle, and Meilisearch. |
+| aggregation-job | The aggregation-job is a daily rollup daemon that aggregates metering data into billing periods by executing parameterized SQL queries against PostgreSQL, with configuration loaded from environment variables and structured logging throughout. |
+| api | The api directory is the HTTP API server for fjcloud, implementing route handlers, business logic, and data access layers for authentication, invoicing, resource provisioning, and payment processing across multiple cloud providers. |
+| billing | The billing crate implements the core billing engine that aggregates metering records into usage summaries and applies rate-card pricing to generate invoices. |
+| metering-agent | Metering-agent is a Rust daemon that collects and reports resource consumption metrics for billing purposes, with integrated components for configuration, health monitoring, circuit breaking, and tenant mapping. |
+| pricing-calculator | The pricing-calculator crate estimates search infrastructure costs across multiple providers (Algolia, AWS OpenSearch, Griddle, Meilisearch) using a provider registry, shared type definitions, presets, and RAM-based heuristics. |
 <!-- [scrai:end] -->

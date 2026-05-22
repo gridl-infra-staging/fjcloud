@@ -6,5 +6,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| stage5_auth_lockout_proof | The directory 'stage5_auth_lockout_proof' with a file 'stage5_probe_capture_only.sh' does not exist in this repository. |
+| stage5_auth_lockout_proof | This directory contains a stub script for capturing evidence of authentication lockout behavior as part of a multi-stage validation workflow. |
 <!-- [scrai:end] -->

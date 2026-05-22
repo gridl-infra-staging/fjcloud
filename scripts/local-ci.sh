@@ -606,6 +606,17 @@ if [ "$WITH_CONTRACTS" -eq 1 ]; then
     else
         fail_count=$((fail_count + 1))
     fi
+    # Server-load contract: HTML-only API-URL probe above does not catch
+    # createApiClient() routing bugs — those only manifest from server-side
+    # load functions. This probe mints a throwaway staging customer and
+    # asserts /dashboard/billing's load reaches the correct API instead of
+    # bouncing to session_expired.
+    printf '\n%b==contracts: web_server_load_api_url ==%b\n' "$C_BOLD" "$C_RESET"
+    if bash scripts/canary/contracts/web_server_load_api_url_contract.sh staging; then
+        pass_count=$((pass_count + 1))
+    else
+        fail_count=$((fail_count + 1))
+    fi
 fi
 
 printf '\n%bTotals:%b pass=%d fail=%d skip=%d\n' "$C_BOLD" "$C_RESET" "$pass_count" "$fail_count" "$skip_count"

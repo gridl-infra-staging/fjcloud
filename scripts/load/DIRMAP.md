@@ -6,5 +6,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| lib | This lib directory contains load_checks.sh, a shell script that performs regression validation for load testing by comparing results between offline and live load harness environments. |
+| lib | This lib directory contains load regression checking utilities, specifically a script for comparing offline and live load harness results to validate performance consistency. |
 <!-- [scrai:end] -->

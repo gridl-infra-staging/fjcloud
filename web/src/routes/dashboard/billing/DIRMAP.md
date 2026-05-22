@@ -8,5 +8,5 @@
 | Directory | Summary |
 | --- | --- |
 | invoices | — |
-| setup | This page server load handles the billing setup flow by creating a Stripe setup intent for users to configure payment methods, returning either a client secret for the Stripe element or error states if billing is unavailable or setup fails. |
+| setup | The setup directory contains a billing payment setup page that loads a Stripe setup intent's client secret for customers to configure their payment method. |
 <!-- [scrai:end] -->

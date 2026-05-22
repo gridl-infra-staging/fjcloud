@@ -63,5 +63,5 @@ Usage:
 | Directory | Summary |
 | --- | --- |
 | fixtures | — |
-| lib | This lib directory provides shared utilities for reliability profiling and security validation, including metric capture functions, capacity profile parsing, and a modular security checks suite for backend validation. |
+| lib | This library directory contains utilities for backend reliability profiling and validation, including shared metric capture functions, capacity profile parsing, and security checks for the reliability gate. |
 <!-- [scrai:end] -->

@@ -1,0 +1,9 @@
+{
+  "environment": "staging",
+  "customer_id": "8c86dc74-3d94-424e-bf3f-08724dec571c",
+  "request": {
+    "method": "DELETE",
+    "url": "https://api.staging.flapjack.foo/admin/tenants/8c86dc74-3d94-424e-bf3f-08724dec571c"
+  },
+  "delete_http_code": "404"
+}

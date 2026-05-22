@@ -73,6 +73,33 @@ secret_lookup() {
     printf '%s' "${match#*=}"
 }
 
+# Keys that name an environment TARGET or IDENTITY rather than a secret value.
+# These must NEVER be sourced from .secret/.env.secret into a local dev .env.local
+# — if they leak in, local tooling silently writes to whatever environment the
+# operator's secret file was last pointed at (typically prod). This is what
+# caused bugs/2026_05_22_local_demo_seeds_to_production.md: API_URL and ADMIN_KEY
+# leaked from .secret/.env.secret into .env.local, so seed_local.sh hit
+# https://api.flapjack.foo with prod admin creds and created live Stripe customers.
+# The deny-list applies to BOTH the "override template value" path and the
+# "append secret-only keys" path below.
+LOCAL_ENV_DENY_LIST=(
+    API_URL                     # who do I call? (must default to localhost)
+    ADMIN_KEY                   # admin auth for the API I call (must be local-random)
+    DATABASE_URL                # which DB do I write to? (must default to local docker pg)
+    DATABASE_URL_SSM_PARAM      # where do I look up a remote DB URL? (must not be set locally)
+)
+
+is_denied_for_local_env() {
+    local key="$1"
+    local denied
+    for denied in "${LOCAL_ENV_DENY_LIST[@]}"; do
+        if [ "$key" = "$denied" ]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
 # Pre-generate random fallbacks for placeholder fields
 random_jwt_secret="$(openssl rand -hex 32)"
 random_admin_key="$(openssl rand -hex 16)"
@@ -99,9 +126,12 @@ while IFS= read -r line || [ -n "$line" ]; do
         tpl_key="${BASH_REMATCH[1]}"
         echo "$tpl_key" >> "$TEMPLATE_KEYS"
 
-        # Priority 1: secret source has this key
+        # Priority 1: secret source has this key.
+        # Exception: keys on the local-env deny-list (targets/identity, not secrets)
+        # must NOT be overridden by the secret source — they must keep the
+        # template's local default. See LOCAL_ENV_DENY_LIST comment above.
         local_secret_val=""
-        if local_secret_val=$(secret_lookup "$tpl_key"); then
+        if ! is_denied_for_local_env "$tpl_key" && local_secret_val=$(secret_lookup "$tpl_key"); then
             printf '%s\n' "$tpl_key=$local_secret_val"
             continue
         fi
@@ -122,10 +152,16 @@ while IFS= read -r line || [ -n "$line" ]; do
 done < "$ENV_EXAMPLE" > "$ENV_LOCAL"
 
 # --- Append secret-source keys not present in the template ---
+# Skip any key on the local-env deny-list: those are targets/identity, not secrets,
+# and silently appending a prod target into a "local" env is how the seed script
+# wrote to prod in bugs/2026_05_22_local_demo_seeds_to_production.md.
 if [ -n "$SECRETS_PARSED" ]; then
     appended=0
     while IFS= read -r secret_line || [ -n "$secret_line" ]; do
         skey="${secret_line%%=*}"
+        if is_denied_for_local_env "$skey"; then
+            continue
+        fi
         if ! grep -qx "$skey" "$TEMPLATE_KEYS"; then
             if [ "$appended" -eq 0 ]; then
                 printf '\n# --- Injected from external secret source ---\n' >> "$ENV_LOCAL"

@@ -1,22 +1,22 @@
 import type { Actions, PageServerLoad } from './$types';
 import { fail, redirect } from '@sveltejs/kit';
 import { env } from '$env/dynamic/private';
-import { createApiClient } from '$lib/server/api';
+import { createApiClientForBaseUrl } from '$lib/server/api';
 import { mapAuthActionFailure } from '$lib/server/auth-action-errors';
 import { authCookieOptions } from '$lib/server/auth-cookies';
 import { resolveAuth } from '$lib/auth/guard';
-import { AUTH_COOKIE, COOKIE_MAX_AGE, getApiBaseUrl } from '$lib/config';
+import { AUTH_COOKIE, COOKIE_MAX_AGE } from '$lib/config';
 
 export const prerender = false;
 const AUTH_SESSION_UNAVAILABLE_MESSAGE =
 	'Authentication session could not be established. Please verify JWT_SECRET and try again.';
 
-export const load: PageServerLoad = async () => ({
-	apiBaseUrl: getApiBaseUrl()
+export const load: PageServerLoad = async ({ locals }) => ({
+	apiBaseUrl: locals.apiBaseUrl
 });
 
 export const actions = {
-	default: async ({ request, cookies, url, fetch }) => {
+	default: async ({ request, cookies, url, fetch, locals }) => {
 		const data = await request.formData();
 		const email = (data.get('email') as string)?.trim().toLowerCase();
 		const password = data.get('password') as string;
@@ -31,7 +31,7 @@ export const actions = {
 
 		let token: string;
 		try {
-			const api = createApiClient(undefined, fetch);
+			const api = createApiClientForBaseUrl(locals.apiBaseUrl, undefined, fetch);
 			const result = await api.login({ email, password });
 			token = result.token;
 		} catch (e) {

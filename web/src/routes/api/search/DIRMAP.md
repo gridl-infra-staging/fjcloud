@@ -6,5 +6,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| [name] | This SvelteKit server route handles POST requests to execute searches against Flapjack indexes, validating authentication and parsing batched search requests before delegating to the executeIndexSearch service. |
+| [name] | This SvelteKit API route handler processes batch instant search requests by validating the payload, extracting search parameters, and delegating execution to `executeIndexSearch` with proper authentication and error handling. |
 <!-- [scrai:end] -->

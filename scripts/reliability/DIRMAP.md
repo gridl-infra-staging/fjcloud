@@ -7,6 +7,7 @@
 Usage: RELIABILITY=1 ./capture-all.sh
 
 Prerequisites: integration stack running (scripts/integration-up.sh). |
+| cleanup_vm_inventory_proposal.sh | Stub summary for cleanup_vm_inventory_proposal.sh. |
 | run-profile.sh | run-profile.sh — Run a capacity profiling session for a single document tier.
 Usage: run-profile.sh <tier>
   tier: 1k | 10k | 100k
@@ -62,5 +63,5 @@ Usage:
 | Directory | Summary |
 | --- | --- |
 | fixtures | — |
-| lib | This library directory contains utilities for backend reliability profiling and validation, including shared metric capture functions, capacity profile parsing, and security checks for the reliability gate. |
+| lib | This lib directory provides shared utilities for reliability profiling and security validation, including metric capture functions, capacity profile parsing, and a modular security checks suite for backend validation. |
 <!-- [scrai:end] -->

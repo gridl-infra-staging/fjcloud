@@ -1,0 +1,5 @@
+module.data.aws_s3_bucket_server_side_encryption_configuration.cold
+module.dns.aws_lb_target_group_attachment.api
+module.dns.cloudflare_dns_record.public["cloud"]
+module.monitoring.aws_sns_topic_subscription.email["stuart.clifford@gmail.com"]
+terraform_data.prod_alert_emails_guard

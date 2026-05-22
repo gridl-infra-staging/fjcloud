@@ -12,12 +12,12 @@
 
 | Directory | Summary |
 | --- | --- |
-| api | The api directory provides client-side HTTP communication utilities for the SvelteKit frontend, with a shared base class for API clients and TypeScript type definitions. |
-| api-logs | The api-logs directory provides client-side instrumentation for the dashboard, capturing and sanitizing API requests and form submissions into structured log entries with a browser-based store layer. |
-| auth | The auth directory provides JWT token utilities including decoding and HS256 signature verification with timing-safe comparison, plus expiration checking. |
+| api | This directory contains a TypeScript API client library with a shared base class for common API client functionality, a client implementation, and type definitions for API interactions. |
+| api-logs | The api-logs directory provides browser-side instrumentation for tracking SvelteKit API requests and form submissions, with a sanitization layer to remove sensitive data before storing logs in a dedicated store for dashboard visibility. |
+| auth | The auth directory contains JWT token handling utilities for the frontend, specifically managing JSON Web Token operations for authentication and session management in the SvelteKit web application. |
 | components | — |
-| error-boundary | The error-boundary directory provides client-side error handling and recovery mechanisms, with runtime initialization and error recovery logic for graceful fallback behavior during client-side failures. |
-| http | — |
-| server | Server-side utilities for authentication, session management, and error handling, including impersonation validation and transient API retry logic. |
-| utils | The utils/merchandising module provides utilities for creating search merchandising rules that control item visibility and ranking for specific search queries. |
+| error-boundary | The error-boundary directory provides client-side error handling and recovery mechanisms, with client-runtime.ts managing error capture and recovery-copy.ts handling fallback content or recovery messaging. |
+| http | The http directory contains utilities for HTTP protocol handling, specifically retry-after functionality for managing and parsing HTTP retry-after headers in responses. |
+| server | This directory contains authentication and session utilities for the server, including error classification for login failures, shared impersonation validation helpers, and related support modules. |
+| utils | The merchandising utility module provides functions and types for creating search merchandising rules that pin and hide specific products. |
 <!-- [scrai:end] -->

@@ -1,0 +1,3 @@
+# signup_oauth_hrefs
+href="https://api.flapjack.foo/auth/oauth/google/start"
+href="https://api.flapjack.foo/auth/oauth/github/start"

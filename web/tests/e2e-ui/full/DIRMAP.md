@@ -6,5 +6,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| vlm_capture | The vlm_capture directory contains VLM screenshot capture infrastructure, with tuples.ts defining the canonical capture specifications, redirect_guard.ts handling capture-time redirect logic, and manifest.ts providing manifest scaffolding. |
+| vlm_capture | The vlm_capture directory manages visual language model screenshot capture infrastructure, including manifest definitions, redirect guards to prevent navigation during capture, and the canonical tuple definitions for which screenshots to capture. |
 <!-- [scrai:end] -->

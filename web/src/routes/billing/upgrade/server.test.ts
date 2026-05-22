@@ -1,5 +1,12 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { POST } from './+server';
+
+// $env/dynamic/private is hoisted by SvelteKit's Vite plugin in vitest, so
+// this route test must stub API_BASE_URL explicitly for deterministic proxy
+// URL assertions.
+vi.mock('$env/dynamic/private', () => ({
+	env: { API_BASE_URL: 'http://127.0.0.1:3001' }
+}));
 
 describe('billing upgrade proxy route', () => {
 	it('returns 401 when the dashboard session is missing', async () => {
@@ -33,7 +40,7 @@ describe('billing upgrade proxy route', () => {
 		};
 
 		const response = await POST({
-			locals: { user: { token: 'jwt-token' } },
+			locals: { user: { token: 'jwt-token' }, apiBaseUrl: 'http://127.0.0.1:3001' },
 			fetch: fetchMock
 		} as never);
 

@@ -1,0 +1,4 @@
+[validate_subprocessor_disclosure] evidence bundle: /Users/stuart/parallel_development/fjcloud_dev/may20_3pm_4_launch_verification/fjcloud_dev/docs/runbooks/evidence/subprocessor_disclosure/20260521T112726Z
+[validate_subprocessor_disclosure] summary file: /Users/stuart/parallel_development/fjcloud_dev/may20_3pm_4_launch_verification/fjcloud_dev/docs/runbooks/evidence/subprocessor_disclosure/20260521T112726Z/summary_status.txt
+[validate_subprocessor_disclosure] status json: /Users/stuart/parallel_development/fjcloud_dev/may20_3pm_4_launch_verification/fjcloud_dev/docs/runbooks/evidence/subprocessor_disclosure/20260521T112726Z/summary_status.json
+[validate_subprocessor_disclosure] result: PASSED

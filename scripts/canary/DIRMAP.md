@@ -19,5 +19,5 @@ unavailable so staging gets a clear outside-AWS outage signal. |
 
 | Directory | Summary |
 | --- | --- |
-| contracts | This directory contains infrastructure validation contracts that test critical system components: EC2 firewall port coverage, Lambda canary invocation functionality, and OAuth redirect URI handling. |
+| contracts | Contracts directory contains validation scripts that verify system-level configurations and integrations: EC2 firewall rules, Lambda invocation behavior, OAuth redirect URIs, and API base URL settings. |
 <!-- [scrai:end] -->

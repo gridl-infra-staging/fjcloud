@@ -26,12 +26,9 @@ compatibility_date = "2026-04-01"
 compatibility_flags = ["nodejs_compat"]
 
 # Runtime env vars exposed to the SvelteKit Worker via $env/dynamic/private.
-# These are PUBLIC values — staging API hostname and environment label.
-# Adding these here is what makes /signup form submission succeed: the
-# action calls `api.register(...)` which fetches `${API_BASE_URL}/auth/register`,
-# and without API_BASE_URL the call falls through to the localhost default
-# and fails with a generic "unknown error" mapped from the network error.
+# API_BASE_URL is the stable public API origin checked into the repo.
+# ENVIRONMENT="staging" is only the checked-in fallback label; Cloudflare Pages
+# production deployment config remains the runtime owner of ENVIRONMENT=production.
 [vars]
 API_BASE_URL = "https://api.flapjack.foo"
 ENVIRONMENT = "staging"
-WEB_DEV_LOG_RAW_ERRORS = "1"

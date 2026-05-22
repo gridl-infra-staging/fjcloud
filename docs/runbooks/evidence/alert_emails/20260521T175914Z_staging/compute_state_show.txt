@@ -1,0 +1,211 @@
+# module.compute.aws_instance.api:
+resource "aws_instance" "api" {
+    ami                                  = "ami-0df77f1c103ce1be7"
+    arn                                  = "arn:aws:ec2:us-east-1:213880904778:instance/i-0fbc6d6bbbc8bdc6d"
+    associate_public_ip_address          = false
+    availability_zone                    = "us-east-1a"
+    disable_api_stop                     = false
+    disable_api_termination              = false
+    ebs_optimized                        = false
+    force_destroy                        = false
+    get_password_data                    = false
+    hibernation                          = false
+    host_id                              = [90mnull[0m[0m
+    iam_instance_profile                 = "fjcloud-instance-profile"
+    id                                   = "i-0fbc6d6bbbc8bdc6d"
+    instance_initiated_shutdown_behavior = "stop"
+    instance_lifecycle                   = [90mnull[0m[0m
+    instance_state                       = "running"
+    instance_type                        = "t4g.small"
+    ipv6_address_count                   = 0
+    ipv6_addresses                       = []
+    key_name                             = "fjcloud-api-staging"
+    monitoring                           = false
+    outpost_arn                          = [90mnull[0m[0m
+    password_data                        = [90mnull[0m[0m
+    placement_group                      = [90mnull[0m[0m
+    placement_group_id                   = [90mnull[0m[0m
+    placement_partition_number           = 0
+    primary_network_interface_id         = "eni-0006e1638e8f4e3cb"
+    private_dns                          = "ip-10-0-10-178.ec2.internal"
+    private_ip                           = "10.0.10.178"
+    public_dns                           = [90mnull[0m[0m
+    public_ip                            = [90mnull[0m[0m
+    region                               = "us-east-1"
+    secondary_private_ips                = []
+    security_groups                      = []
+    source_dest_check                    = true
+    spot_instance_request_id             = [90mnull[0m[0m
+    subnet_id                            = "subnet-094032cc47eb9f444"
+    tags                                 = {
+        "Env"  = "staging"
+        "Name" = "fjcloud-api-staging"
+    }
+    tags_all                             = {
+        "Env"        = "staging"
+        "Name"       = "fjcloud-api-staging"
+        "env"        = "staging"
+        "managed-by" = "terraform"
+        "service"    = "fjcloud"
+    }
+    tenancy                              = "default"
+    user_data                            = <<-EOT
+        #!/bin/bash
+        set -euo pipefail
+        
+        # Create fjcloud system user and directories
+        useradd --system --shell /sbin/nologin --create-home --home-dir /var/lib/fjcloud fjcloud || true
+        mkdir -p /etc/fjcloud /var/log/fjcloud
+        chown fjcloud:fjcloud /etc/fjcloud /var/log/fjcloud
+        chmod 0750 /etc/fjcloud
+        
+        # Install dependencies. postgresql16 provides `psql`, which the staging
+        # metering rehearsal owner and RDS restore verification path both require
+        # when they run from this host. The AMI also bakes postgresql16 so new
+        # AMIs do not depend on user_data for this package.
+        dnf install -y aws-cli jq postgresql16 amazon-cloudwatch-agent
+        
+        # Set hostname
+        hostnamectl set-hostname "fjcloud-api-staging"
+        
+        # Open fjcloud-api ports in firewalld. Without this, fresh EC2 launches
+        # have 3001/3002 blocked by the firewalld default zone (firewalld is
+        # baked into the AMI but its port-list isn't). Customers see 502 from
+        # the ALB until firewalld is reconfigured. Adding here lets every
+        # subsequent AMI bake include the right config. NOTE: per
+        # user_data_replace_on_change=false, editing this does NOT remediate
+        # existing instances — only the next fresh launch picks it up.
+        firewall-cmd --permanent --add-port=3001/tcp --add-port=3002/tcp
+        firewall-cmd --reload
+        
+        # Configure CloudWatch Agent so prod/staging API instances publish
+        # disk_used_percent under the standard CWAgent namespace.
+        mkdir -p /opt/aws/amazon-cloudwatch-agent/etc
+        cat > /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json <<'CWAGENTCONF'
+        {
+          "agent": {
+            "metrics_collection_interval": 60,
+            "run_as_user": "root"
+          },
+          "metrics": {
+            "namespace": "CWAgent",
+            "append_dimensions": {
+              "InstanceId": "${aws:InstanceId}"
+            },
+            "metrics_collected": {
+              "disk": {
+                "measurement": [
+                  {
+                    "name": "used_percent",
+                    "rename": "disk_used_percent",
+                    "unit": "Percent"
+                  }
+                ],
+                "resources": [
+                  "/"
+                ],
+                "ignore_file_system_types": [
+                  "sysfs",
+                  "devtmpfs",
+                  "tmpfs",
+                  "overlay",
+                  "squashfs"
+                ]
+              }
+            }
+          },
+          "logs": {
+            "logs_collected": {
+              "files": {
+                "collect_list": [
+                  {
+                    "file_path": "/var/log/messages",
+                    "log_group_name": "/fjcloud/staging/api/system",
+                    "log_stream_name": "{instance_id}/messages"
+                  },
+                  {
+                    "file_path": "/var/log/fjcloud/bootstrap.log",
+                    "log_group_name": "/fjcloud/staging/api/bootstrap",
+                    "log_stream_name": "{instance_id}/bootstrap"
+                  }
+                ]
+              }
+            }
+          }
+        }
+        CWAGENTCONF
+        
+        /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl \
+          -a fetch-config \
+          -m ec2 \
+          -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json \
+          -s
+        
+        # Signal: user data bootstrap complete
+        echo "fjcloud user-data bootstrap complete at $(date -u +%FT%TZ)" >> /var/log/fjcloud/bootstrap.log
+    EOT
+    user_data_replace_on_change          = false
+    vpc_security_group_ids               = [
+        "sg-0e8fd81b9247b53a5",
+    ]
+
+    capacity_reservation_specification {
+        capacity_reservation_preference = "open"
+    }
+
+    cpu_options {
+        amd_sev_snp           = [90mnull[0m[0m
+        core_count            = 2
+        nested_virtualization = [90mnull[0m[0m
+        threads_per_core      = 1
+    }
+
+    credit_specification {
+        cpu_credits = "unlimited"
+    }
+
+    enclave_options {
+        enabled = false
+    }
+
+    maintenance_options {
+        auto_recovery = "default"
+    }
+
+    metadata_options {
+        http_endpoint               = "enabled"
+        http_protocol_ipv6          = "disabled"
+        http_put_response_hop_limit = 1
+        http_tokens                 = "required"
+        instance_metadata_tags      = "enabled"
+    }
+
+    primary_network_interface {
+        delete_on_termination = true
+        network_interface_id  = "eni-0006e1638e8f4e3cb"
+    }
+
+    private_dns_name_options {
+        enable_resource_name_dns_a_record    = false
+        enable_resource_name_dns_aaaa_record = false
+        hostname_type                        = "ip-name"
+    }
+
+    root_block_device {
+        delete_on_termination = true
+        device_name           = "/dev/xvda"
+        encrypted             = true
+        iops                  = 3000
+        kms_key_id            = "arn:aws:kms:us-east-1:213880904778:key/0459d4c4-5d02-489c-8f2c-c100431a7cf6"
+        tags                  = {}
+        tags_all              = {
+            "env"        = "staging"
+            "managed-by" = "terraform"
+            "service"    = "fjcloud"
+        }
+        throughput            = 125
+        volume_id             = "vol-0924b0192d31b1986"
+        volume_size           = 40
+        volume_type           = "gp3"
+    }
+}

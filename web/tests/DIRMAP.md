@@ -6,6 +6,6 @@
 
 | Directory | Summary |
 | --- | --- |
-| e2e-ui | The e2e-ui directory houses browser-based end-to-end tests for the web frontend, with the full/ subdirectory providing VLM screenshot capture infrastructure for visual validation and manifest management during capture operations. |
-| fixtures | Playwright test fixtures and setup helpers for the web e2e test suite, including authentication bootstraps for different test projects (admin, customer journeys, onboarding), database helpers, and utility functions for testing specific features like search, legal pages, and upgrades. |
+| e2e-ui | The e2e-ui/full directory contains infrastructure for capturing and managing screenshots used by visual language models in end-to-end browser testing, with mechanisms to control which screenshots are captured through canonical definitions and prevent unwanted navigation during the capture process. |
+| fixtures | Playwright test fixtures directory containing authentication setup configs for different test projects (admin, onboarding, customer-journeys) and helper utilities for database access, remote bootstrap, legal pages, search functionality, and test data preparation. |
 <!-- [scrai:end] -->

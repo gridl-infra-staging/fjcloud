@@ -6,5 +6,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| publishable-key | The publishable-key directory contains a SvelteKit server endpoint that likely exposes a publicly-accessible API key or credential. |
+| publishable-key | The publishable-key directory contains a SvelteKit server route that likely handles publishable key operations, possibly for payment or API integration purposes. |
 <!-- [scrai:end] -->

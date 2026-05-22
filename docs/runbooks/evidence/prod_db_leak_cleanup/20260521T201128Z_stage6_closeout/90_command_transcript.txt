@@ -1,0 +1,28 @@
+# Refreshed transcript after stage6-suspicious-rows-deduped fix
+# Build: 60_build_stage6_summary.sh now uses (customer_id, tenant_id, deployment_id) composite key
+# and asserts row-completeness against Stage 1 suspicious inventories.
+## bash docs/runbooks/evidence/prod_db_leak_cleanup/20260521T201128Z_stage6_closeout/10_stage6_closeout_contract_test.sh
+stage6_closeout_contract=PASS
+## bash scripts/tests/staging_db_test.sh
+PASS: staging_db_run_sql should return stdout when SSM status is Success
+PASS: staging_db_run_sql should continue polling while SSM status is nonterminal
+PASS: staging_db_run_sql should still return stdout with quoted credentials and SQL
+PASS: SSM payload safely shell-quotes password containing shell metacharacters
+PASS: SSM payload safely shell-quotes SQL argument as one psql -c token
+[staging_db] detecting fjcloud-api-prod instance for SSM DB access...
+[staging_db] using instance: i-prod-123
+[staging_db] detecting fjcloud-api-staging instance for SSM DB access...
+[staging_db] using instance: i-staging-456
+PASS: prod run resolves prod API instance
+PASS: staging run resolves staging API instance
+PASS: send-command targets prod then staging instances in order
+
+=== Results: 8 passed, 0 failed ===
+## bash docs/runbooks/evidence/prod_db_leak_cleanup/20260521T201128Z_stage6_closeout/00_commands.sh primary
+stage6_run=primary prod_active_exact_cleanup_customers=0 staging_active_exact_cleanup_customers=0
+## bash docs/runbooks/evidence/prod_db_leak_cleanup/20260521T201128Z_stage6_closeout/00_commands.sh rerun
+stage6_run=rerun prod_active_exact_cleanup_customers=0 staging_active_exact_cleanup_customers=0
+## bash docs/runbooks/evidence/prod_db_leak_cleanup/20260521T201128Z_stage6_closeout/50_reproducibility_check.sh
+reproducibility_check=PASS
+## bash docs/runbooks/evidence/prod_db_leak_cleanup/20260521T201128Z_stage6_closeout/60_build_stage6_summary.sh
+Stage 6 summary written: /Users/stuart/parallel_development/fjcloud_dev/may21_12pm_2_prod_db_leak_cleanup/fjcloud_dev/docs/runbooks/evidence/prod_db_leak_cleanup/20260521T201128Z_stage6_closeout/40_stage6_summary.json

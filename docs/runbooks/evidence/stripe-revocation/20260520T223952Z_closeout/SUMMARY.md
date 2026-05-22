@@ -1,8 +1,10 @@
 # Stripe Revocation Stage 4 Closeout Summary
 
+> **SUPERSEDED 2026-05-22:** the BLOCKED verdict below was written 2026-05-20 when the operator dashboard revocations were still pending. The operator subsequently completed all three revocations and confirmed on 2026-05-22. Treat this file as historical. The authoritative status is in `chats/icg/may21_12pm_9_stripe_dashboard_revocations.md` (header: DONE). Do not re-surface as an outstanding operator action.
+
 - closeout_bundle: docs/runbooks/evidence/stripe-revocation/20260520T223952Z_closeout/
 - baseline_bundle: docs/runbooks/evidence/stripe-revocation/20260520T205457Z_baseline/
-- overall_verdict: BLOCKED
+- overall_verdict: BLOCKED (HISTORICAL — superseded by operator confirmation 2026-05-22; see header note above)
 
 ## Artifact Index
 

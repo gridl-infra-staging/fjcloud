@@ -8,5 +8,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| [id] | Dynamic SvelteKit route handler for pages identified by an ID parameter. |
+| [id] | The [id] directory contains a SvelteKit page server handler that serves a dynamic route segment. |
 <!-- [scrai:end] -->

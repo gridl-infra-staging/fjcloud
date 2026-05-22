@@ -6,5 +6,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| scripts | This directory contains shell scripts for deploying and managing Garage, a lightweight S3-compatible object storage system, including installation, cluster initialization, and health monitoring. |
+| scripts | This directory contains three Bash scripts for managing a Garage object storage deployment: installation of the Garage binary as a systemd service, cluster initialization with S3 credentials and bucket creation, and health probing of the Admin and S3 API endpoints. |
 <!-- [scrai:end] -->

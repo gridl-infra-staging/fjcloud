@@ -1,0 +1,5 @@
+cached_hit=false
+command=cat "docs/runbooks/evidence/staging-isolation/20260521T192648Z_stage5_closeout/direct_signup_html.stdout.txt" | grep -oE 'href="[^"]*/auth/oauth/(google|github)/start"'
+head_sha=35aeb127bf452aaf2d0078377de42f06b02d6ef6
+clean_tree=false
+exit_code=0

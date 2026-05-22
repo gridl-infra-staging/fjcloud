@@ -6,5 +6,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| site_takedown_20260503 | This directory contains scripts for restoring the customer-facing site following a planned May 3rd, 2026 takedown conducted after the v1.0.0 launch review. |
+| site_takedown_20260503 | This directory contains a restore script to reverse a site takedown that occurred on 2026-05-03 following the v1.0.0 launch review. |
 <!-- [scrai:end] -->

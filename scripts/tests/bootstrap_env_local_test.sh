@@ -287,8 +287,11 @@ test_default_secret_path_uses_repo_root() {
     fi
 
     mkdir -p "$repo_secret_dir"
+    # FLAPJACK_ADMIN_KEY is a legitimate secret key (not a deny-listed target) — use
+    # it to assert "default repo-root secret path is consulted." For the deny-list
+    # behavior on ADMIN_KEY itself, see test_denylist_admin_key_not_overridden below.
     cat > "$repo_secret_file" <<'EOF'
-ADMIN_KEY=admin_from_repo_root_default_secret
+FLAPJACK_ADMIN_KEY=fj_admin_from_repo_root_default_secret
 EOF
 
     local output exit_code=0
@@ -298,10 +301,10 @@ EOF
     assert_contains "$output" "BOOTSTRAP_OK" \
         "should emit BOOTSTRAP_OK when using default repo-root secret file"
 
-    local admin_key
-    admin_key=$(grep '^ADMIN_KEY=' "$REPO_ROOT/.env.local" | head -1 | cut -d= -f2-)
-    assert_eq "$admin_key" "admin_from_repo_root_default_secret" \
-        "ADMIN_KEY should come from default repo-root secret file when override is unset"
+    local fj_key
+    fj_key=$(grep '^FLAPJACK_ADMIN_KEY=' "$REPO_ROOT/.env.local" | head -1 | cut -d= -f2-)
+    assert_eq "$fj_key" "fj_admin_from_repo_root_default_secret" \
+        "FLAPJACK_ADMIN_KEY should come from default repo-root secret file when override is unset"
 }
 
 # ---------------------------------------------------------------------------
@@ -316,8 +319,11 @@ test_secret_file_env_override() {
     rm -f "$REPO_ROOT/.env.local"
 
     local mock_secret="$tmp_dir/custom.env.secret"
+    # Use a legitimate (non-deny-listed) secret to assert the FJCLOUD_SECRET_FILE
+    # override is honored. ADMIN_KEY is on the deny-list — see
+    # test_denylist_admin_key_not_overridden for its specific contract.
     cat > "$mock_secret" <<'EOF'
-ADMIN_KEY=admin_from_custom_secret_path
+FLAPJACK_ADMIN_KEY=fj_admin_from_custom_secret_path
 EOF
 
     local output exit_code=0
@@ -325,10 +331,105 @@ EOF
 
     assert_eq "$exit_code" "0" "bootstrap should succeed with custom secret file"
 
+    local fj_key
+    fj_key=$(grep '^FLAPJACK_ADMIN_KEY=' "$REPO_ROOT/.env.local" | head -1 | cut -d= -f2-)
+    assert_eq "$fj_key" "fj_admin_from_custom_secret_path" \
+        "FLAPJACK_ADMIN_KEY should come from FJCLOUD_SECRET_FILE override"
+}
+
+# ---------------------------------------------------------------------------
+# Regression: deny-list of environment-targeting keys must NOT flow from
+# .secret/.env.secret into the local .env.local. This is the contract that
+# closes the 2026-05-22 local_demo-seeds-prod incident — see
+# docs/decisions/2026_05_22_bootstrap_local_env_deny_list.md.
+# ---------------------------------------------------------------------------
+test_denylist_API_URL_not_appended_from_secrets() {
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    trap 'restore_repo_env_file "'"$tmp_dir"'/.env.local.backup"; rm -rf "'"$tmp_dir"'"' RETURN
+
+    backup_repo_env_file "$tmp_dir/.env.local.backup" || true
+    rm -f "$REPO_ROOT/.env.local"
+
+    # Simulate the historical leak: API_URL pointing at prod present in the
+    # secret source. The template does NOT declare API_URL, so without the
+    # deny-list it would be silently appended verbatim into .env.local.
+    local mock_secret="$tmp_dir/leaky.env.secret"
+    cat > "$mock_secret" <<'EOF'
+API_URL=https://api.flapjack.foo
+STRIPE_SECRET_KEY=sk_test_a_legitimate_secret
+EOF
+
+    FJCLOUD_SECRET_FILE="$mock_secret" bash "$BOOTSTRAP_SCRIPT" >/dev/null 2>&1
+
+    # The deny-listed key must NOT appear at all.
+    local api_url_lines
+    api_url_lines=$(grep -c '^API_URL=' "$REPO_ROOT/.env.local" || true)
+    assert_eq "$api_url_lines" "0" \
+        "API_URL from secret source must NOT be appended to .env.local (deny-list)"
+
+    # The legitimate secret must still flow through, confirming the deny-list
+    # didn't break non-denied secret injection.
+    local stripe_key
+    stripe_key=$(grep '^STRIPE_SECRET_KEY=' "$REPO_ROOT/.env.local" | head -1 | cut -d= -f2-)
+    assert_eq "$stripe_key" "sk_test_a_legitimate_secret" \
+        "non-denied STRIPE_SECRET_KEY should still flow from secret source"
+}
+
+test_denylist_admin_key_not_overridden() {
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    trap 'restore_repo_env_file "'"$tmp_dir"'/.env.local.backup"; rm -rf "'"$tmp_dir"'"' RETURN
+
+    backup_repo_env_file "$tmp_dir/.env.local.backup" || true
+    rm -f "$REPO_ROOT/.env.local"
+
+    # The template DOES declare ADMIN_KEY (with a placeholder) — without the
+    # deny-list, the secret source would win on Priority 1 and overwrite the
+    # template's random-generated value with the leaked prod admin key.
+    local mock_secret="$tmp_dir/leaky.env.secret"
+    cat > "$mock_secret" <<'EOF'
+ADMIN_KEY=this_value_must_not_win
+EOF
+
+    FJCLOUD_SECRET_FILE="$mock_secret" bash "$BOOTSTRAP_SCRIPT" >/dev/null 2>&1
+
     local admin_key
     admin_key=$(grep '^ADMIN_KEY=' "$REPO_ROOT/.env.local" | head -1 | cut -d= -f2-)
-    assert_eq "$admin_key" "admin_from_custom_secret_path" \
-        "ADMIN_KEY should come from FJCLOUD_SECRET_FILE override"
+
+    # The denied secret-source value must NOT win.
+    assert_ne "$admin_key" "this_value_must_not_win" \
+        "ADMIN_KEY from secret source must NOT override the template default (deny-list)"
+
+    # Confirm it fell back to the template's random-hex generation (32 hex chars).
+    if [[ "$admin_key" =~ ^[0-9a-f]{32}$ ]]; then
+        pass "ADMIN_KEY should fall back to random-hex generation when secret source is denied"
+    else
+        fail "ADMIN_KEY should fall back to random-hex generation when secret source is denied (got: '$admin_key')"
+    fi
+}
+
+test_denylist_database_url_not_overridden() {
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    trap 'restore_repo_env_file "'"$tmp_dir"'/.env.local.backup"; rm -rf "'"$tmp_dir"'"' RETURN
+
+    backup_repo_env_file "$tmp_dir/.env.local.backup" || true
+    rm -f "$REPO_ROOT/.env.local"
+
+    local mock_secret="$tmp_dir/leaky.env.secret"
+    cat > "$mock_secret" <<'EOF'
+DATABASE_URL=postgres://fake:fake@prod.rds.example/prod_db
+EOF
+
+    FJCLOUD_SECRET_FILE="$mock_secret" bash "$BOOTSTRAP_SCRIPT" >/dev/null 2>&1
+
+    local db_url
+    db_url=$(grep '^DATABASE_URL=' "$REPO_ROOT/.env.local" | head -1 | cut -d= -f2-)
+
+    # Denied secret value must NOT win — template's localhost default must remain.
+    assert_eq "$db_url" "postgres://griddle:griddle_local@localhost:5432/fjcloud_dev" \
+        "DATABASE_URL must keep the template localhost default even when secret source has a value (deny-list)"
 }
 
 # ---------------------------------------------------------------------------
@@ -402,6 +503,9 @@ test_preserves_non_placeholder_values
 test_secret_source_overrides_template
 test_default_secret_path_uses_repo_root
 test_secret_file_env_override
+test_denylist_API_URL_not_appended_from_secrets
+test_denylist_admin_key_not_overridden
+test_denylist_database_url_not_overridden
 test_fallback_without_secret_source
 test_secret_source_preserves_non_overlapping_values
 

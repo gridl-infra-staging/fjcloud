@@ -9,6 +9,7 @@ declare global {
 		}
 		interface Locals {
 			user: AuthUser | null;
+			apiBaseUrl: string;
 		}
 		// interface PageData {}
 		// interface PageState {}

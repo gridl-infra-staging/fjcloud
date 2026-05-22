@@ -1,0 +1,3 @@
+strict_no_pending_command:
+jq -e -n --slurpfile expected docs/runbooks/evidence/alert_emails/20260521T175914Z_staging/prod_inputs.json --slurpfile live docs/runbooks/evidence/alert_emails/20260521T185702Z_prod/prod_subscriptions_poll_1.json '([$live[0].Subscriptions[]? | select((.Protocol=="email" or .Protocol=="email-json") and (.Endpoint as $e | ($expected[0] | index($e)) != null)) | select(.SubscriptionArn=="PendingConfirmation")] | length) == 0'
+pending_assertion_rc=0

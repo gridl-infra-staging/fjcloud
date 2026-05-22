@@ -1,0 +1,201 @@
+{
+  "result": {
+    "id": "e386f98d-a372-4fdc-8de1-87f943207af8",
+    "short_id": "e386f98d",
+    "project_id": "1b05abf3-10ac-42c9-b9b1-88e711ffc919",
+    "project_name": "flapjack-cloud",
+    "environment": "preview",
+    "url": "https://e386f98d.flapjack-cloud.pages.dev",
+    "created_on": "2026-05-21T11:25:49.137016Z",
+    "modified_on": "2026-05-21T11:25:52.546283Z",
+    "latest_stage": {
+      "name": "deploy",
+      "started_on": null,
+      "ended_on": "2026-05-21T11:25:52.546283Z",
+      "status": "success"
+    },
+    "deployment_trigger": {
+      "type": "ad_hoc",
+      "metadata": {
+        "branch": "staging",
+        "commit_hash": "b61a75a72e664828271b43fca5fb15fe48f93c90",
+        "commit_message": "stage4-resync: bring prod to current dev main (043cdb89) — supervisor coordination after Lane 1 merged\r\n\r\nCloses the Wave 2 cross-lane coupling: Lane 1's merge added 86 commits\r\nto dev main that needed propagation via Lane 2's pipeline. Re-syncing\r\nprod with the post-Lane-1 main HEAD so Lane 4 (VERIFY) can run against\r\ncurrent code.",
+        "commit_dirty": false
+      }
+    },
+    "stages": [
+      {
+        "name": "queued",
+        "started_on": "2026-05-21T11:25:49.137016Z",
+        "ended_on": null,
+        "status": "active"
+      },
+      {
+        "name": "initialize",
+        "started_on": null,
+        "ended_on": null,
+        "status": "idle"
+      },
+      {
+        "name": "clone_repo",
+        "started_on": null,
+        "ended_on": null,
+        "status": "idle"
+      },
+      {
+        "name": "build",
+        "started_on": null,
+        "ended_on": null,
+        "status": "idle"
+      },
+      {
+        "name": "deploy",
+        "started_on": null,
+        "ended_on": "2026-05-21T11:25:52.546283Z",
+        "status": "success"
+      }
+    ],
+    "build_config": {
+      "build_command": null,
+      "destination_dir": ".svelte-kit/cloudflare",
+      "build_caching": null,
+      "root_dir": null,
+      "web_analytics_tag": null,
+      "web_analytics_token": null
+    },
+    "env_vars": {
+      "ADMIN_KEY": {
+        "type": "secret_text",
+        "value": ""
+      },
+      "API_BASE_URL": {
+        "type": "plain_text",
+        "value": "https://api.flapjack.foo"
+      },
+      "ENVIRONMENT": {
+        "type": "plain_text",
+        "value": "staging"
+      },
+      "JWT_SECRET": {
+        "type": "secret_text",
+        "value": ""
+      },
+      "WEB_DEV_LOG_RAW_ERRORS": {
+        "type": "plain_text",
+        "value": "1"
+      }
+    },
+    "compatibility_date": "2026-04-01",
+    "compatibility_flags": [
+      "nodejs_compat"
+    ],
+    "build_image_major_version": 3,
+    "usage_model": "bundled",
+    "aliases": [
+      "https://staging.flapjack-cloud.pages.dev"
+    ],
+    "is_skipped": false,
+    "production_branch": "main",
+    "files": {
+      "/404.html": "b82d6d45dafd1abaf9997e0bc788843b",
+      "/__data.json": "9f5aeb2e662a204ac9ef120861838fbf",
+      "/_app/immutable/assets/0.BAAjA-M7.css": "77be511c6f7595420e53c318c7c2d7bb",
+      "/_app/immutable/assets/27.cL0JHoeF.css": "b12ad6df43b8d6de1b3cae26e28e81da",
+      "/_app/immutable/assets/36.Ddxp3iSz.css": "1484795ca5da52be38c65490a17f6413",
+      "/_app/immutable/assets/favicon.a0_SR-9W.ico": "dd3fa35e049ad10503f4a6ff8315154e",
+      "/_app/immutable/assets/ticks.D4tssnxQ.css": "28049fb2f90729190945614649fa41d9",
+      "/_app/immutable/chunks/B1HuiCFQ.js": "995940615873727305ad0bf208bd4361",
+      "/_app/immutable/chunks/B6KbeLVU.js": "c90ebc04f1d46bfc445a6656a60c935c",
+      "/_app/immutable/chunks/B9GFZHqD.js": "133ad4a2545ff8f23d6f7b2e05db4d0c",
+      "/_app/immutable/chunks/BBHmR_LB.js": "81378c401e48742e4f590b0a19985406",
+      "/_app/immutable/chunks/BFHCvwvB.js": "edb20b9c88b020053ebba26d83b20e28",
+      "/_app/immutable/chunks/BUFUuIsN.js": "1c9085104ace783db17effd7ef4fc4e1",
+      "/_app/immutable/chunks/BcuY99HZ.js": "b03dc944a47665afe7b59931983d3f9a",
+      "/_app/immutable/chunks/Bd1fThQP.js": "bd3513862fc8ede1960be6bc67a424fb",
+      "/_app/immutable/chunks/BeLnUbRP.js": "749a4c8fcc61cb9c2fabd4bd5f56cc50",
+      "/_app/immutable/chunks/BxI8_WEL.js": "a45bc07970a32a39dbe76613be23b1f1",
+      "/_app/immutable/chunks/BzFAMBdT.js": "61948597e75e64f12e0f35321c0e5f81",
+      "/_app/immutable/chunks/C4AsN4g5.js": "865a9c016fc9e4991814adc66b6f9a97",
+      "/_app/immutable/chunks/CJN8FpTI.js": "68777c0d42a474782dd832b2f0f6ab0f",
+      "/_app/immutable/chunks/CQfzwuzc.js": "d15a48001e230be8d7a13e464c6af04e",
+      "/_app/immutable/chunks/CRu6H3qU.js": "2d1b4ae29a7910777406ab653c249785",
+      "/_app/immutable/chunks/CerTe1nY.js": "cd1e8fbc1ebd56334ef680c31b09b96a",
+      "/_app/immutable/chunks/DAD7pzsw.js": "c9c5f3b3ec0db807bbb9a738d61d157a",
+      "/_app/immutable/chunks/DAsCR3gk.js": "0476e2677e30c7b459f84fee4df898be",
+      "/_app/immutable/chunks/DF7ql2Rr.js": "9c53e78405da217c722a339ba8df14e5",
+      "/_app/immutable/chunks/DFVDTQMH.js": "95c7e6a12d9493ce1e78cf0a9aa37ad7",
+      "/_app/immutable/chunks/DIsqXldb.js": "ff65910c722ca5d9e5716fc04292d0de",
+      "/_app/immutable/chunks/DIxzf59u.js": "1def854ea2b4826df998e4f19605a664",
+      "/_app/immutable/chunks/DW0xXBQ6.js": "e09ccdb1a748bc350d079e57cc75a015",
+      "/_app/immutable/chunks/Dq6nVqNx.js": "7bb81fdbf1e8149dc80b0a12a9fb7e75",
+      "/_app/immutable/chunks/DsnmJJEf.js": "b47d884261d045c90001f3858234bbe0",
+      "/_app/immutable/chunks/HxXvPuuI.js": "4e534635244d9380b0ea3964f63380ea",
+      "/_app/immutable/chunks/RWIOqL9G.js": "454cebee0c109572efc692fcef01d82d",
+      "/_app/immutable/chunks/dpioiAbL.js": "fe4c76e5e3d477cddd1e216837bed322",
+      "/_app/immutable/chunks/feO4GPD3.js": "285b1b1a31a17ca1b164a3f03647d6fe",
+      "/_app/immutable/chunks/unMoZsdO.js": "b2b770c21d41fdcbcfd8e8f3b31b3cb9",
+      "/_app/immutable/chunks/zAv51nGm.js": "258a95de7ac4f957b3a0a1fa5cb62d22",
+      "/_app/immutable/entry/app.B_TCFhnS.js": "5e97fde8e0bd8906c0173bac82927575",
+      "/_app/immutable/entry/start.CUX9GaFs.js": "392a102c50dd9bd3d2931832706fbd58",
+      "/_app/immutable/nodes/0.DIT5kTcE.js": "273c172a581c5f48e88b37898fd991d4",
+      "/_app/immutable/nodes/1.B-5edtM4.js": "0a51110c01ac6cfa31c523a907ba05bd",
+      "/_app/immutable/nodes/10.CK2O1l7N.js": "992b29cda9d3be3250ad8c316d58c9b1",
+      "/_app/immutable/nodes/11.DFoYxw4n.js": "b3348b21c7d807b6bc678990130fef54",
+      "/_app/immutable/nodes/12.BCVHBT5j.js": "5d97a2a4e2248147b80b3192e161dc1d",
+      "/_app/immutable/nodes/13.CSpguwTF.js": "fa341fac85725f4192ebb693d4414582",
+      "/_app/immutable/nodes/14.Wk6JA3Aa.js": "8d83c1038e2b6073236adae9f6354f0b",
+      "/_app/immutable/nodes/15.VZ0vMsQa.js": "a1d7370613fbbf37fdfc62a60a9268e7",
+      "/_app/immutable/nodes/16.CQQuZEEg.js": "afcb64e3707aa546ea3eac293eb057cb",
+      "/_app/immutable/nodes/17.CxYiBMvO.js": "61ced0ca6eea50a985ecd1f82694fb7f",
+      "/_app/immutable/nodes/18.DccoCRE7.js": "5d1642c1a906bb6e6d9cf2291efc679e",
+      "/_app/immutable/nodes/19.bb8ozO35.js": "5daf909869c30e8efd5ef3603966f974",
+      "/_app/immutable/nodes/2.DeHQzNTe.js": "f81fb8f6d04f668bb37ff8abdee24001",
+      "/_app/immutable/nodes/20.BdnaHPjw.js": "22638ea182f5596b16a7142fd01db2cb",
+      "/_app/immutable/nodes/21.CRkKQDov.js": "ffa6a7c33ce64f38ebcd1408c8285e64",
+      "/_app/immutable/nodes/22.DSUIjg9y.js": "2721749b8e21987af060eabe58e2c364",
+      "/_app/immutable/nodes/23.evxitNig.js": "84335facc6c02ee15ce772bcb58aa900",
+      "/_app/immutable/nodes/24.CK9OYrc2.js": "bf303c01160df7005da7394625081422",
+      "/_app/immutable/nodes/25.CH8KcnS3.js": "2f57d88044aab2a1c54280adcedeae1e",
+      "/_app/immutable/nodes/26.B0Ad_IEX.js": "ce3b1af6b245381fe974fe4f0242dbe3",
+      "/_app/immutable/nodes/27.pN4atdWc.js": "c3e5d08ee0dead0ad4ec6b7c41595bdd",
+      "/_app/immutable/nodes/28.CrdWDMe8.js": "eb132b0242c76a18bc0a199bcb579975",
+      "/_app/immutable/nodes/29.DRfBUgt3.js": "f00492aa7b9c50cfa21d5d610c7a1620",
+      "/_app/immutable/nodes/3.CGqVBs1R.js": "38e37bfa8e04cf8663ea08a3aa849df6",
+      "/_app/immutable/nodes/30.BomoRK8-.js": "95a41bf96ea2c724978f4f9a131ab5fa",
+      "/_app/immutable/nodes/31.WQQ4_oMW.js": "3d9d7107f2b4304ed67633bd96973b63",
+      "/_app/immutable/nodes/32.Cj2RhO2s.js": "d75326d3c26edf49f05b63c1fa5ca383",
+      "/_app/immutable/nodes/33.u_6klJDV.js": "591822d8f61b6355e769035c697cf8c6",
+      "/_app/immutable/nodes/34.GIezIZkV.js": "8d8b52cdbe47c4ea46d7584ee6267fc2",
+      "/_app/immutable/nodes/35.Bm0xxThf.js": "33405d3cb0422da0734263cdac4eae4b",
+      "/_app/immutable/nodes/36.BpKubAqb.js": "ba8dc831e2f5d3e14b00f4d16afe632e",
+      "/_app/immutable/nodes/37.IcbBWcx4.js": "873b0f1ffd231cf7de181d524a6b0fd9",
+      "/_app/immutable/nodes/38.BuKBXmL1.js": "054efee1d2f03b01cada589fcc86b100",
+      "/_app/immutable/nodes/39.CP0b7Fru.js": "f351b49412f573f8aad81abe21478e9e",
+      "/_app/immutable/nodes/4.VaXG88gP.js": "81bcbfc04304047465c3c4d8ab78bf1c",
+      "/_app/immutable/nodes/40.4uoFMX2J.js": "e1d9653935386af6a27d8a9ae4a1b777",
+      "/_app/immutable/nodes/41.BskcHlyp.js": "656a22ee9b035f95654d6d68b900735c",
+      "/_app/immutable/nodes/42.B9gaEEqR.js": "5b474061618a97233453f7710834162b",
+      "/_app/immutable/nodes/5.Bl4EYcvx.js": "ad5eb4cecc161d91a264077fc38df94a",
+      "/_app/immutable/nodes/6.BNG9Ybi4.js": "8cb881d382fb25b7be5abf819b48b13d",
+      "/_app/immutable/nodes/7.A7MX2UzN.js": "1ed016f2713aed273d1c1a1d0b472188",
+      "/_app/immutable/nodes/8.D5nzHus3.js": "91b92cf76c408c0f126615ea5d6fd8f2",
+      "/_app/immutable/nodes/9.mveaa2zr.js": "389a8a98c5849d2ad18ef2cd62a46191",
+      "/_app/version.json": "e6d1ec1196e03d96c3cd0260ed6d7571",
+      "/beta.html": "6743eea585300d4fb7570382181e4343",
+      "/dpa.html": "3cdee20cf4031a607d2d494e22098b96",
+      "/favicon.ico": "dd3fa35e049ad10503f4a6ff8315154e",
+      "/flapjack_cloud_preview.png": "0beae9fbbf2daf4e1abbf82f2d880ed4",
+      "/index.html": "cc9d4985948228984e0171502a3a8fad",
+      "/pricing.html": "9f361a6de7ec7fa201e64441c23094e2",
+      "/privacy.html": "dff3b64aec55553acab09d894ce10b79",
+      "/robots.txt": "abdd9cda196489d40de7b639b101a1e4",
+      "/status.html": "d6caa59ceb5a119dfe486563409555f3",
+      "/status/__data.json": "66238455f75222c45a92568788914be8",
+      "/terms.html": "46e1982177ba6227f843d66dde57b739"
+    },
+    "uses_functions": true
+  },
+  "success": true,
+  "errors": [],
+  "messages": []
+}

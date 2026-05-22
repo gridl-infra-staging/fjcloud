@@ -1,0 +1,6 @@
+cache_check=MISS
+decision=retire
+gate_blocked=false
+retire_assertions=pass
+docs/runbooks/evidence/app_domain_retirement/20260521T171119Z_app_domain_retirement/cloudflare_pages_domains_post_stage2.json:6:      "name": "cloud.flapjack.foo",
+docs/runbooks/evidence/app_domain_retirement/20260521T171119Z_app_domain_retirement/cloudflare_pages_domains_post_stage2.json:22:      "name": "cloud.staging.flapjack.foo",

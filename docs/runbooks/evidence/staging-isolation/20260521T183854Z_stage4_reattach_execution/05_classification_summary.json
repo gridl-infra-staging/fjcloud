@@ -1,0 +1,20 @@
+{
+  "generated_at_utc": "2026-05-21T18:38:56.322505+00:00",
+  "evidence_dir": "docs/runbooks/evidence/staging-isolation/20260521T183854Z_stage4_reattach_execution",
+  "domain_id": "60a6b46b-4fed-448e-8dbb-a17b713e11ba",
+  "prod_canonical_has_cloud_staging": true,
+  "latest_staging_preview_id": "239b093c-acf2-43fa-8eca-6b45961d2a84",
+  "latest_staging_preview_aliases": [
+    "https://staging.flapjack-cloud.pages.dev"
+  ],
+  "latest_staging_preview_has_cloud_staging": false,
+  "dns_record": {
+    "id": "91d16b0e9f3f755a80ce5bc8fb7b4316",
+    "name": "cloud.staging.flapjack.foo",
+    "type": "CNAME",
+    "content": "staging.flapjack-cloud.pages.dev",
+    "proxied": true
+  },
+  "needs_domain_mutation": true,
+  "needs_dns_patch": false
+}

@@ -1,15 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { fetchMock, getApiBaseUrlMock } = vi.hoisted(() => ({
-	fetchMock: vi.fn(),
-	getApiBaseUrlMock: vi.fn(() => 'https://api.example.com')
-}));
+const fetchMock = vi.hoisted(() => vi.fn());
 
 vi.stubGlobal('fetch', fetchMock);
-
-vi.mock('$lib/config', () => ({
-	getApiBaseUrl: getApiBaseUrlMock
-}));
 
 import { GET } from './+server';
 
@@ -19,7 +12,7 @@ function makeRequestEvent(options: { user?: { token: string } | null } = {}): un
 		request: new Request('http://localhost/api/stripe/publishable-key', {
 			method: 'GET'
 		}),
-		locals: { user },
+		locals: { user, apiBaseUrl: 'https://api.example.com' },
 		params: {}
 	} as never;
 }
@@ -27,7 +20,6 @@ function makeRequestEvent(options: { user?: { token: string } | null } = {}): un
 describe('GET /api/stripe/publishable-key', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
-		getApiBaseUrlMock.mockReturnValue('https://api.example.com');
 	});
 
 	it('returns 401 unauthorized when request is unauthenticated', async () => {

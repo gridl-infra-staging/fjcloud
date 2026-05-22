@@ -6,5 +6,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| src | The pricing-calculator crate estimates costs for multiple search providers (Algolia, AWS OpenSearch, Griddle, Meilisearch) using a provider registry, shared types, presets, and RAM heuristics. |
+| src | A pricing calculator library for fjcloud that computes usage-based and resource-based pricing across multiple search and storage providers (Algolia, AWS OpenSearch, Griddle, Meilisearch), with modular provider implementations and supporting types and heuristics. |
 <!-- [scrai:end] -->

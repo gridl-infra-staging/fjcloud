@@ -1,0 +1,10 @@
+reproducibility_check=PASS
+prod_csv_customer_count=43
+staging_csv_customer_count=19
+primary_prod_no_deployments=43
+primary_staging_no_deployments=6
+primary_staging_list_failed_rows=13
+primary_prod_deployments_terminated=0
+primary_staging_deployments_terminated=0
+rerun_prod_deployments_terminated=0
+rerun_staging_deployments_terminated=0

@@ -1,0 +1,49 @@
+Stage 3 — Full VM Lifecycle Run B (Mode B paid terminus) — PASS
+
+Mode: run-b with STRIPE_PAY_OUT_OF_BAND=1
+Orchestrator: scripts/validate_full_vm_lifecycle_prod.sh
+Run completed at (UTC): 2026-05-21T10:24:20.380292Z
+Exit code: 0 (see run_b_exit_code.txt, run_b_output.log)
+
+Identifiers (see metadata.json):
+  fjcloud_customer_id  : faebc870-8908-4824-b78a-2d2a55c292c7
+  stripe_customer_id   : cus_UYawWjX2LdRn5p
+  fjcloud_invoice_id   : 22974f41-0a5b-4e28-90fe-6c9d6cb5f8ec
+  stripe_invoice_id    : in_1TZTl2GXI8zVz4UH0CoGLtrP
+  index_name           : lifecycle-canary2026052110230126399
+
+Evidence terminations (live systems):
+
+  1. Stripe paid-state (authoritative)        -> stripe_paid_state.json
+     - GET /v1/invoices/<stripe_invoice_id>: http 200, status="paid"
+     - livemode=true, amount_due=0, paid_at=1779358996
+
+  2. Tenant active pre-cleanup (fjcloud admin) -> tenant_active_pre_cleanup.json
+     - GET /admin/tenants/<id>: http 200, status="active" (pre-cleanup)
+
+  3. Post-cleanup teardown proof              -> post_cleanup_state.json
+     - GET /admin/tenants/<id>: http 200, status="deleted"
+     - Index deleted (run_b_output.log line "index deleted (...)")
+     - Account deleted (run_b_output.log line "account delete attempted ...")
+     - Admin tenant cleanup completed
+
+Run B flow markers (run_b_output.log):
+  - signup succeeded
+  - email verification succeeded
+  - index created / write / search succeeded
+  - run-b out-of-band mode: skipping payment method attachment (STRIPE_PAY_OUT_OF_BAND=1)
+  - stripe invoice already paid on finalize (auto-pay on $0 invoice)
+  - wait-for-paid: fjcloud DB did not converge in 60s; Stripe-side authoritative
+    status=paid accepted as terminus. Webhook delivery lag is an operational
+    follow-up.
+
+Bug fixed during this stage:
+  scripts/validate_full_vm_lifecycle_prod.sh:469 — load_run_b_stripe_transport
+  in run_wait_for_paid_invoice_step's OOB fallback path poisoned FLOW_FAILED
+  via mark_failure even though the fallback succeeded. Removed the unnecessary
+  call (the fallback sets STRIPE_SECRET_KEY_EFFECTIVE directly).
+  Regression test: scripts/lib/lifecycle_wait_paid_test.sh
+
+Pass/fail statement:
+  PASS — Run B reached Stripe paid terminus, captured fjcloud customer active
+  state before teardown, and produced deterministic post-cleanup proof.

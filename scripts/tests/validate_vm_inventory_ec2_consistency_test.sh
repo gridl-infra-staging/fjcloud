@@ -172,8 +172,17 @@ test_missing_fixture_input_is_system_error() {
     assert_eq "${#output}" "0" "system-input failures should not emit summary JSON"
 }
 
+test_live_capture_uses_paginated_db_owner_seam() {
+    local script_content
+    script_content="$(cat "$TARGET_SCRIPT")"
+
+    assert_contains "$script_content" "staging_db_run_sql_json_array_paginated" \
+        "live capture path should page JSON capture through staging_db.sh owner seam"
+}
+
 test_fixture_contract_behavior
 test_help_contract
 test_deployment_scope_behavior_contract
 test_missing_fixture_input_is_system_error
+test_live_capture_uses_paginated_db_owner_seam
 run_test_summary

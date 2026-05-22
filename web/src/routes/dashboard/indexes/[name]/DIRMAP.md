@@ -11,5 +11,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| tabs | The tabs directory contains UI components for the dashboard index view, including functionality for displaying code snippets to connect external applications and parsing uploaded document files. |
+| tabs | This directory contains tab components for the index dashboard, including a snippet generator for app integration and a document parser for file handling. |
 <!-- [scrai:end] -->

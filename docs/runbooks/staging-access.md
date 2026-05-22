@@ -7,17 +7,15 @@ Operational reference for working against the fjcloud staging environment from o
 
 ## AWS Credentials
 
-Credentials live at `.secret/stuart-cli_accessKeys.csv`. Load them before any `aws` CLI call:
+Canonical creds live in `.secret/.env.secret` (`AWS_ACCESS_KEY_ID` + `AWS_SECRET_ACCESS_KEY` + `AWS_DEFAULT_REGION`). They are kept in sync there as part of the secret-rotation hygiene loop. Load them before any `aws` CLI call:
 
 ```bash
-eval "$(awk -F',' 'NR==2 {
-    print "export AWS_ACCESS_KEY_ID=" $1
-    print "export AWS_SECRET_ACCESS_KEY=" $2
-}' .secret/stuart-cli_accessKeys.csv)"
-export AWS_DEFAULT_REGION=us-east-1
+set -a; source .secret/.env.secret; set +a
 ```
 
-Verify: `aws sts get-caller-identity`
+Verify: `aws sts get-caller-identity` → expect `user/stuart-cli`.
+
+> The legacy `.secret/stuart-cli_accessKeys.csv` is the original onboarding artifact (March 2026) and is no longer kept current. After the 2026-05-21 rotation it holds a revoked key; **do not source AWS creds from the CSV**. See [docs/decisions/2026_05_22_bootstrap_local_env_deny_list.md](../decisions/2026_05_22_bootstrap_local_env_deny_list.md) for the incident that flagged this.
 
 ---
 
@@ -27,13 +25,17 @@ Verify: `aws sts get-caller-identity`
 
 | Service | URL / location | Notes |
 |---|---|---|
-| Staging API | `https://api.flapjack.foo` | Health: `GET /health` → 200 |
-| Staging frontend | `https://cloud.flapjack.foo` | CF Pages; may be dark |
-| Prod stack | not yet deployed | verify: `curl -s https://api.flapjack.foo/health` (prod URL TBD) |
+| Staging API | `https://api.staging.flapjack.foo` | Health: `GET /health` → 200 |
+| Staging frontend | `https://cloud.staging.flapjack.foo` | CF Pages |
+| Prod API | `https://api.flapjack.foo` | Health: `GET /health` → 200 |
+| Prod frontend | `https://cloud.flapjack.foo` | CF Pages |
 | EC2 (staging API host) | tag `Name=fjcloud-api-staging` | `us-east-1`; RDS is VPC-private |
+| EC2 (prod API host) | tag `Name=fjcloud-api-prod` | `us-east-1`; separate VPC + RDS from staging |
 | RDS | VPC-private | not reachable from developer machine; use SSM (see below) |
 
-Live EC2 check:
+Canonical staging-host decision: [docs/research/staging_host_routing_decision.md](../research/staging_host_routing_decision.md). Prod stack was provisioned on 2026-05-13/14 by `chats/icg/may13_2pm_1_prod_env_provision.md`.
+
+Live EC2 check (staging):
 ```bash
 aws ec2 describe-instances \
   --filters "Name=tag:Name,Values=fjcloud-api-staging" \
@@ -42,23 +44,26 @@ aws ec2 describe-instances \
   --output table
 ```
 
-Deployed binary version:
+Deployed binary version (staging vs prod):
 ```bash
-curl -s https://api.flapjack.foo/health | python3 -m json.tool
+curl -s https://api.staging.flapjack.foo/version | python3 -m json.tool
+curl -s https://api.flapjack.foo/version         | python3 -m json.tool
 ```
 
 ---
 
 ## API Access
 
-Base URL: `https://api.flapjack.foo`
+Base URLs:
+- Staging: `https://api.staging.flapjack.foo`
+- Prod:    `https://api.flapjack.foo`
 
 ```bash
-# Health check
-curl -s https://api.flapjack.foo/health
+# Health check (substitute the right base URL)
+curl -s https://api.staging.flapjack.foo/health
 
 # Authenticated request (requires a valid token)
-curl -s -H "Authorization: Bearer $TOKEN" https://api.flapjack.foo/account
+curl -s -H "Authorization: Bearer $TOKEN" https://api.staging.flapjack.foo/account
 ```
 
 ---

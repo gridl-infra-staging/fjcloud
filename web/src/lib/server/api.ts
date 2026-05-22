@@ -1,3 +1,4 @@
+import { getRequestEvent } from '$app/server';
 import { ApiClient } from '$lib/api/client';
 import { getApiBaseUrl } from '$lib/config';
 import { CANONICAL_PUBLIC_API_BASE_URL } from '$lib/public_api';
@@ -15,7 +16,7 @@ export function createApiClientForBaseUrl(
 }
 
 export function createApiClient(token?: string, fetchFn?: typeof globalThis.fetch): ApiClient {
-	return createApiClientForBaseUrl(getApiBaseUrl(), token, fetchFn);
+	return createApiClientForBaseUrl((() => { try { return getRequestEvent().locals.apiBaseUrl; } catch { return getApiBaseUrl(); } })(), token, fetchFn);
 }
 
 export function createCanonicalPublicApiClient(fetchFn?: typeof globalThis.fetch): ApiClient {

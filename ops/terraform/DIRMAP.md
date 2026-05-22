@@ -68,5 +68,5 @@ TDD: this test locks ownership, delegation, and secret-boundary contracts. |
 
 | Directory | Summary |
 | --- | --- |
-| support_email_canary | AWS Lambda handler that executes email deliverability canary tests by running shell scripts and resolving webhook credentials from SSM Parameter Store. |
+| support_email_canary | AWS Lambda handler that executes a support email deliverability canary script and resolves optional webhook URLs (Slack/Discord) from SSM Parameter Store for alert notifications. |
 <!-- [scrai:end] -->

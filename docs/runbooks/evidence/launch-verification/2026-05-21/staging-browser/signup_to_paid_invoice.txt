@@ -1,0 +1,46 @@
+(node:74467) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+Running 1 test using 1 worker
+
+(node:74468) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:74468) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:74468) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  1 [chromium:signup] › tests/e2e-ui/full/signup_to_paid_invoice.spec.ts:108:2 › Fresh signup to paid invoice › signs up, verifies email, reaches paid invoice evidence (55.7s)
+
+
+  1) [chromium:signup] › tests/e2e-ui/full/signup_to_paid_invoice.spec.ts:108:2 › Fresh signup to paid invoice › signs up, verifies email, reaches paid invoice evidence 
+
+    Error: [2mexpect([22m[31mpage[39m[2m).[22mtoHaveURL[2m([22m[32mexpected[39m[2m)[22m failed
+
+    Expected pattern: [32m/\/dashboard\/indexes(?:$|\?)/[39m
+    Received string:  [31m"https://cloud.staging.flapjack.foo/login?reason=session_expired"[39m
+    Timeout: 5000ms
+
+    Call log:
+    [2m  - Expect "toHaveURL" with timeout 5000ms[22m
+    [2m    2 × unexpected value "https://cloud.staging.flapjack.foo/dashboard"[22m
+    [2m    7 × unexpected value "https://cloud.staging.flapjack.foo/login?reason=session_expired"[22m
+
+
+      71 | 			})
+      72 | 		).toBeVisible({ timeout: 15_000 });
+    > 73 | 		await expect(page).toHaveURL(new RegExp(`${route.path}(?:$|\\?)`));
+         | 		                   ^
+      74 | 		await expect(page.getByTestId('dashboard-beta-support-badge')).toBeVisible();
+      75 | 	}
+      76 | }
+        at assertDashboardRouteWalk (web/tests/e2e-ui/full/signup_to_paid_invoice.spec.ts:73:22)
+        at web/tests/e2e-ui/full/signup_to_paid_invoice.spec.ts:141:3
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/e2e-ui-full-signup_to_paid-43e41-aches-paid-invoice-evidence-chromium-signup/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/e2e-ui-full-signup_to_paid-43e41-aches-paid-invoice-evidence-chromium-signup/error-context.md
+
+  1 failed
+    [chromium:signup] › tests/e2e-ui/full/signup_to_paid_invoice.spec.ts:108:2 › Fresh signup to paid invoice › signs up, verifies email, reaches paid invoice evidence 
+exit=1

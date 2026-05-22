@@ -1,0 +1,11 @@
+{
+  "result": null,
+  "success": false,
+  "errors": [
+    {
+      "code": 8000006,
+      "message": "Request body is incorrect. The request body may have an invalid JSON type or missing required keys. Refer to https://developers.cloudflare.com/api."
+    }
+  ],
+  "messages": []
+}

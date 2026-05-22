@@ -1,0 +1,27 @@
+SES Deliverability Roundtrip Proof — Launch Verification 2026-05-21
+===================================================================
+
+Run timestamp:  2026-05-21T11:09:37Z
+SES_FROM_ADDRESS: system@flapjack.foo
+SES_REGION: us-east-1
+Recipient domain: test.flapjack.foo
+Recipient address: roundtrip-inbound-probe-20260521T110937Z-4841@test.flapjack.foo
+
+Exit code: 0
+
+Steps:
+  1. send_probe:     PASS — Sent probe from 'system@flapjack.foo' to 'roundtrip-inbound-probe-20260521T110937Z-4841@test.flapjack.foo' (message_id='0100019e4a3a07b1-1ff96c53-1b9b-4be2-87a2-5de2a5159245-000000')
+  2. poll_inbox_s3:  PASS — Found nonce 'inbound-probe-20260521T110937Z-4841' at s3://flapjack-cloud-releases/e2e-emails/udnrueicmtn4cn0hodkk6s6nrsv9omd8m5ects01
+  3. fetch_rfc822:   PASS — Fetched RFC822 payload for s3://flapjack-cloud-releases/e2e-emails/udnrueicmtn4cn0hodkk6s6nrsv9omd8m5ects01
+  4. auth_verdict:   PASS — Authentication-Results has dkim=pass, spf=pass, dmarc=pass
+
+Auth verdict extracted values:
+  dkim=pass
+  spf=pass
+  dmarc=pass
+
+Elapsed: 13578 ms
+
+Scope note: This proves the shared test.flapjack.foo inbound path (SES receipt rule mailpail-to-s3 -> S3 sink) and Authentication-Results header correctness (dkim=pass, spf=pass, dmarc=pass). It does NOT prove automated placement in the real support@flapjack.foo Google Workspace inbox -- that seam does not exist in the repo-owned automation today and must not be overclaimed.
+
+RESULT: PASS

@@ -67,6 +67,41 @@ describe('Account page server', () => {
 			const result = await load({ locals: { user: { token: 'jwt-token' } } } as never);
 			expect(result).toEqual({ profile });
 		});
+
+		// Regression: bugs/2026_05_22_account_page_500_on_unauthorized.md — when the
+		// API rejects our token (401/403, e.g. JWT_SECRET mismatch between web and API),
+		// the load function must redirect to the session-expired login URL instead of
+		// letting the error bubble into an unhandled 500 page.
+		it('redirects to session-expired login when API returns 401', async () => {
+			getProfileMock.mockRejectedValue(new ApiRequestError(401, 'Unauthorized'));
+
+			await expect(
+				load({ locals: { user: { token: 'jwt-token' } } } as never)
+			).rejects.toMatchObject({
+				status: 303,
+				location: '/login?reason=session_expired'
+			});
+		});
+
+		it('redirects to session-expired login when API returns 403', async () => {
+			getProfileMock.mockRejectedValue(new ApiRequestError(403, 'Forbidden'));
+
+			await expect(
+				load({ locals: { user: { token: 'jwt-token' } } } as never)
+			).rejects.toMatchObject({
+				status: 303,
+				location: '/login?reason=session_expired'
+			});
+		});
+
+		it('lets non-auth errors bubble (e.g. 500) so the global error boundary renders', async () => {
+			const apiError = new ApiRequestError(500, 'Internal Server Error');
+			getProfileMock.mockRejectedValue(apiError);
+
+			await expect(
+				load({ locals: { user: { token: 'jwt-token' } } } as never)
+			).rejects.toBe(apiError);
+		});
 	});
 
 	describe('actions.updateProfile', () => {

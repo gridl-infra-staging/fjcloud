@@ -1,0 +1,13 @@
+primary_run_label=primary
+rerun_run_label=rerun
+primary_exact_customer_count=43
+rerun_exact_customer_count=43
+primary_refund_eligible_charge_count=0
+rerun_refund_eligible_charge_count=0
+primary_refund_total_cents=0
+rerun_refund_total_cents=0
+customer_coverage_match=true
+proposed_charge_ids_by_customer_match=true
+primary_charge_ids_by_customer={}
+rerun_charge_ids_by_customer={}
+reproducibility=PASS

@@ -514,10 +514,10 @@ export class AdminClient extends BaseClient {
 	}
 }
 
-export function createAdminClient(): AdminClient {
+export function createAdminClient(apiBaseUrl?: string): AdminClient {
 	const adminKey = env.ADMIN_KEY;
 	if (!adminKey) {
 		throw new Error('ADMIN_KEY is required for admin client requests');
 	}
-	return new AdminClient(getApiBaseUrl(), adminKey);
+	return new AdminClient(apiBaseUrl ?? getApiBaseUrl(), adminKey);
 }

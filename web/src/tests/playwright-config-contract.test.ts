@@ -25,7 +25,7 @@ import {
 	resolvePlaywrightRuntime,
 	sanitizeWebServerEnv
 } from '../../playwright.config.contract';
-import { formatFixtureSetupFailure } from '../../tests/fixtures/fixtures';
+import { formatFixtureSetupFailure } from '../../tests/fixtures/setup_failure_message';
 
 type MutableEnv = Record<string, string | undefined>;
 type LoadedEnv = Record<string, string>;

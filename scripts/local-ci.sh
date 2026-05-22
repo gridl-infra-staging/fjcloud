@@ -106,6 +106,29 @@ record_result() {
     printf '%s|%s|%s|%s\n' "$name" "$status" "$seconds" "$log" >> "$RESULTS_FILE"
 }
 
+load_contract_secret_env() {
+    local secret_file="$1"
+    local line key value
+    while IFS= read -r line || [ -n "$line" ]; do
+        case "$line" in
+            '#'*|'') continue ;;
+        esac
+        if [[ "$line" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]]; then
+            key="${line%%=*}"
+            value="${line#*=}"
+            if [[ "$value" == *$'\n'* || "$value" == *$'\r'* ]]; then
+                echo "ERROR: ${key} in ${secret_file} contains newline bytes" >&2
+                return 1
+            fi
+            case "$value" in
+                \"*\") value="${value#\"}"; value="${value%\"}" ;;
+                \'*\') value="${value#\'}"; value="${value%\'}" ;;
+            esac
+            export "$key=$value"
+        fi
+    done < "$secret_file"
+}
+
 # now_seconds — coarse-grained start/stop timer in plain seconds. We don't
 # need subsecond accuracy because the slowest gate is ~5 min and the
 # fastest is 1s — integer seconds is plenty of resolution and keeps the
@@ -162,6 +185,16 @@ gate_validate_bootstrap_parser() {
     # must extract .result.name, not .result.plan.name. Captured 2026-05-14 in
     # prod-env-provision lane post-mortem (bug 4).
     bash "$REPO_ROOT/ops/scripts/tests/validate_bootstrap_zone_parser_test.sh"
+}
+
+gate_validate_bootstrap_env_local() {
+    # Regression coverage for scripts/bootstrap-env-local.sh — including the
+    # LOCAL_ENV_DENY_LIST that prevents environment-targeting keys (API_URL,
+    # ADMIN_KEY, DATABASE_URL) from leaking from .secret/.env.secret into a
+    # local .env.local. The pre-deny-list behavior caused local_demo.sh to
+    # silently seed prod + live Stripe (2026-05-22 incident). Decision +
+    # damage record: docs/decisions/2026_05_22_bootstrap_local_env_deny_list.md.
+    bash "$REPO_ROOT/scripts/tests/bootstrap_env_local_test.sh"
 }
 
 gate_publish_scripts_buildx() {
@@ -252,10 +285,10 @@ gate_rust_lint() {
     # via `"$@" || rc=$?`, which silently disables `set -e` inside the
     # called function. Pinned by scripts/tests/local_ci_gate_set_e_test.sh.
     bash "$REPO_ROOT/scripts/tests/ci_workflow_test.sh" || return $?
-    # On macOS bash 3.2, generate_ssm_env_test.sh reports SKIP because
-    # generate_ssm_env.sh requires bash>=4 associative arrays. Treat that
-    # sentinel as a sub-check skip and continue, so rust-lint still runs
-    # fmt/clippy and remains aligned with CI contract coverage.
+    # generate_ssm_env_test.sh is treated as a sub-check: non-zero exits fail
+    # rust-lint except the shared SKIP sentinel code. Keeping this branch lets
+    # the gate continue through fmt/clippy when the test explicitly reports a
+    # prereq skip on a given host.
     local generate_ssm_env_rc=0
     bash "$REPO_ROOT/scripts/tests/generate_ssm_env_test.sh" || generate_ssm_env_rc=$?
     if [ "$generate_ssm_env_rc" -ne 0 ] && [ "$generate_ssm_env_rc" -ne "$SKIP_EXIT_CODE" ]; then
@@ -416,6 +449,7 @@ schedule web-test
 schedule rust-lint
 schedule migration-test
 schedule validate-bootstrap-parser
+schedule validate-bootstrap-env-local
 schedule publish-scripts-buildx
 
 # Decide whether rust-test should run, and if so when. It must NOT run
@@ -432,7 +466,7 @@ fi
 if [ "${#SCHEDULED_GATES[@]}" -eq 0 ] && [ "$RUN_RUST_TEST_SEQUENTIAL" -eq 0 ]; then
     if [ -n "$SINGLE_GATE" ]; then
         echo "ERROR: --gate '$SINGLE_GATE' did not match any known gate" >&2
-        echo "Known gates: rust-test rust-lint migration-test web-test check-sizes web-lint secret-scan validate-bootstrap-parser publish-scripts-buildx" >&2
+        echo "Known gates: rust-test rust-lint migration-test web-test check-sizes web-lint secret-scan validate-bootstrap-parser validate-bootstrap-env-local publish-scripts-buildx" >&2
         exit 2
     fi
     echo "ERROR: no gates scheduled" >&2
@@ -463,6 +497,7 @@ if [ "${#SCHEDULED_GATES[@]}" -gt 0 ]; then
             rust-lint)       run_gate rust-lint       gate_rust_lint ;;
             migration-test)  run_gate migration-test  gate_migration_test ;;
             validate-bootstrap-parser) run_gate validate-bootstrap-parser gate_validate_bootstrap_parser ;;
+            validate-bootstrap-env-local) run_gate validate-bootstrap-env-local gate_validate_bootstrap_env_local ;;
             publish-scripts-buildx) run_gate publish-scripts-buildx gate_publish_scripts_buildx ;;
         esac
     done
@@ -545,17 +580,31 @@ fi
 if [ "$WITH_CONTRACTS" -eq 1 ]; then
     SECRET_FILE="${FJCLOUD_SECRET_FILE:-/Users/stuart/repos/gridl-infra-dev/fjcloud_dev/.secret/.env.secret}"
     if [ -f "$SECRET_FILE" ]; then
-        # shellcheck disable=SC1090
-        set -a; . "$SECRET_FILE"; set +a
-        printf '\n%b==contracts: oauth_redirect_uri ==%b\n' "$C_BOLD" "$C_RESET"
-        if bash scripts/canary/contracts/oauth_redirect_uri_contract.sh all; then
-            pass_count=$((pass_count + 1))
+        if load_contract_secret_env "$SECRET_FILE"; then
+            printf '\n%b==contracts: oauth_redirect_uri ==%b\n' "$C_BOLD" "$C_RESET"
+            if bash scripts/canary/contracts/oauth_redirect_uri_contract.sh all; then
+                pass_count=$((pass_count + 1))
+            else
+                fail_count=$((fail_count + 1))
+            fi
         else
+            printf '\n%b==contracts: oauth_redirect_uri ==%b\n' "$C_BOLD" "$C_RESET"
+            echo "ERROR: refused to execute malformed secret file $SECRET_FILE" >&2
             fail_count=$((fail_count + 1))
         fi
     else
         printf '\nSKIP: --with-contracts requested but %s missing\n' "$SECRET_FILE"
         skip_count=$((skip_count + 1))
+    fi
+    # web_api_base_url_contract.sh needs no secrets -- runs outside the
+    # SECRET_FILE conditional so it executes even when .env.secret is absent
+    # (e.g. on a worktree). Detects Cloudflare Pages API_BASE_URL drift
+    # between staging and prod Functions env.
+    printf '\n%b==contracts: web_api_base_url ==%b\n' "$C_BOLD" "$C_RESET"
+    if bash scripts/canary/contracts/web_api_base_url_contract.sh all; then
+        pass_count=$((pass_count + 1))
+    else
+        fail_count=$((fail_count + 1))
     fi
 fi
 

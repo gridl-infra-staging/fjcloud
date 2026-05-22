@@ -1,0 +1,10 @@
+{
+  "generated_at_utc": "2026-05-21T18:24:51Z",
+  "approved": true,
+  "approval_scope": "prod_db_leak_cleanup_stage3_exact_cohort",
+  "derived_from_stage2_operator_approval_input": "/Users/stuart/parallel_development/fjcloud_dev/may21_12pm_2_prod_db_leak_cleanup/fjcloud_dev/docs/runbooks/evidence/prod_db_leak_cleanup/20260521T180304Z_stage2_refund_proposal/41_operator_approval_input.json",
+  "refund_eligible_charge_count": 0,
+  "refund_total_cents": 0,
+  "refund_eligible_charge_ids_by_customer": {},
+  "zero_refund_explanation": "All exact prod cohort rows have null stripe_customer_id in Stage 1 exact CSV; Stage 2 correctly emits no_stripe_account dispositions and proposes zero refunds."
+}

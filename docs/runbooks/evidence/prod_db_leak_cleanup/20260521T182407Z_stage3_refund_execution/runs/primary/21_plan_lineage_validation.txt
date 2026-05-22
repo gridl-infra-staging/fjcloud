@@ -1,0 +1,5 @@
+plan_lineage_validation=PASS
+stage2_customer_count=43
+planned_customer_count=43
+approved_refund_charge_count=0
+planned_refund_charge_count=0

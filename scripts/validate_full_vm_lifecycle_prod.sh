@@ -457,7 +457,6 @@ PY
     # and proceed if confirmed. Mode B with reusable-PM attach still requires
     # fjcloud DB convergence and will fail below if not converged.
     if [ "$STRIPE_PAY_OUT_OF_BAND" = "1" ] && [ -n "$LIFECYCLE_STRIPE_INVOICE_ID" ]; then
-        load_run_b_stripe_transport >/dev/null 2>&1 || true
         local live_key="${STRIPE_SECRET_KEY_flapjack_cloud:-}"
         if [ -n "$live_key" ]; then
             local saved_key="${STRIPE_SECRET_KEY_EFFECTIVE:-}"

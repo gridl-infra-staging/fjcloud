@@ -7,6 +7,6 @@
 
 | Directory | Summary |
 | --- | --- |
-| src | This is the HTTP API server implementation for fjcloud's cloud infrastructure and billing platform, containing route handlers, business logic, data access layers, and integrations for authentication, invoicing, resource provisioning, and payment processing across multiple cloud providers. |
-| tests | This directory contains API integration test utilities and fixtures, including property-based tests for tenant isolation and shared builders, mocks, and helpers for Stripe webhooks, Flapjack proxy operations, storage metering, and S3 routing. |
+| src | The infra/api/src directory is the Rust backend for fjcloud's cloud infrastructure and billing platform, containing HTTP endpoint handlers, authentication and authorization systems, multi-cloud provisioning support, billing operations, and integrations with Stripe, DNS providers, email delivery, and webhooks. |
+| tests | The tests directory provides integration test infrastructure for the API crate, including shared fixtures and mock utilities for testing core features like billing webhooks, index routes, and metering. |
 <!-- [scrai:end] -->

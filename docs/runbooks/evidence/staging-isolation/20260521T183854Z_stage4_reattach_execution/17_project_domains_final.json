@@ -1,0 +1,30 @@
+{
+  "result": [
+    {
+      "id": "20546d6a-b50a-4a37-b71b-d91f4725a1a9",
+      "domain_id": "20546d6a-b50a-4a37-b71b-d91f4725a1a9",
+      "name": "cloud.flapjack.foo",
+      "status": "active",
+      "verification_data": {
+        "status": "active"
+      },
+      "validation_data": {
+        "status": "active",
+        "method": "http"
+      },
+      "certificate_authority": "google",
+      "zone_tag": "fafbf95a076d7e8ee984dbd18a62c933",
+      "created_on": "2026-05-04T04:53:21.504155Z"
+    }
+  ],
+  "success": true,
+  "errors": [],
+  "messages": [],
+  "result_info": {
+    "page": 1,
+    "per_page": 20,
+    "count": 1,
+    "total_count": 1,
+    "total_pages": 1
+  }
+}

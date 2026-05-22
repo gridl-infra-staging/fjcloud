@@ -1,7 +1,5 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { getApiBaseUrl } from '$lib/config';
-
 const UPGRADE_PROXY_UNAVAILABLE = 'billing_upgrade_unavailable';
 
 export const POST: RequestHandler = async ({ locals, fetch }) => {
@@ -11,7 +9,7 @@ export const POST: RequestHandler = async ({ locals, fetch }) => {
 
 	let upstreamResponse: Response;
 	try {
-		upstreamResponse = await fetch(`${getApiBaseUrl()}/billing/upgrade`, {
+		upstreamResponse = await fetch(`${locals.apiBaseUrl}/billing/upgrade`, {
 			method: 'POST',
 			headers: {
 				Authorization: `Bearer ${locals.user.token}`,

@@ -2,6 +2,8 @@ locals {
   api_domain   = "api.${var.domain}"
   www_domain   = "www.${var.domain}"
   cloud_domain = "cloud.${var.domain}"
+  # Staging keeps a distinct Pages hostname; prod uses the canonical host.
+  cloud_pages_hostname = var.env == "staging" ? "staging.flapjack-cloud.pages.dev" : "flapjack-cloud.pages.dev"
 
   # Cloudflare does CNAME flattening at the zone apex, which is the closest
   # equivalent to the prior Route53 ALIAS record for the public ALB.
@@ -32,7 +34,7 @@ locals {
       type = "CNAME"
       # The canonical cloud hostname still uses the existing Pages-backed web
       # deploy while runtime/API traffic stays on the ALB-backed hosts.
-      content = "flapjack-cloud.pages.dev"
+      content = local.cloud_pages_hostname
       ttl     = 1
       proxied = true
     }
@@ -210,9 +212,20 @@ resource "aws_lb_target_group" "api" {
 }
 
 resource "aws_lb_target_group_attachment" "api" {
+  # Staging target attachment drifts are reconciled by the runtime deploy path;
+  # keep Terraform ownership focused on prod where drift must be declarative.
+  for_each = var.env == "prod" ? toset(["prod"]) : toset([])
+
   target_group_arn = aws_lb_target_group.api.arn
   target_id        = var.api_instance_id
   port             = 3001
+}
+
+# Preserve state continuity after moving the prod-only attachment from a
+# singleton address to a keyed for_each address.
+moved {
+  from = aws_lb_target_group_attachment.api
+  to   = aws_lb_target_group_attachment.api["prod"]
 }
 
 resource "aws_lb_listener" "https" {

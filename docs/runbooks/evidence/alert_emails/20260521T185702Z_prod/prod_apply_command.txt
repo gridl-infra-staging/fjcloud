@@ -1,0 +1,2 @@
+terraform apply -input=false "docs/runbooks/evidence/alert_emails/20260521T185702Z_prod/prod_plan.tfplan"
+terraform -chdir=ops/terraform/_shared apply -input=false "/Users/stuart/parallel_development/fjcloud_dev/may21_12pm_8_alert_emails/fjcloud_dev/docs/runbooks/evidence/alert_emails/20260521T185702Z_prod/prod_plan.tfplan"

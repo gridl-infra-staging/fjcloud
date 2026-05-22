@@ -1,0 +1,3 @@
+REDACTED: Terraform saved plans embed sensitive values such as generated private
+keys and database credentials. Regenerate this plan locally from the saved plan
+command if a binary replay artifact is required.

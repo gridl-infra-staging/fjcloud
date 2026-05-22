@@ -1,0 +1,17 @@
+docs/NOW.md:15:**P0 — Lane 4 LB-2 / LB-3 RED on staging.** Two root causes: (a) the Cloudflare Pages project `flapjack-cloud` carries `cloud.staging.flapjack.foo` as a custom domain on the **production** deployment, alongside `cloud.flapjack.foo` and `app.flapjack.foo`; both `production.env_vars.API_BASE_URL` and `preview.env_vars.API_BASE_URL` are set to `https://api.flapjack.foo`. Fix is not a 1-line PATCH — it requires re-attaching `cloud.staging.flapjack.foo` to the staging-branch preview deployments AND populating preview env_vars with staging values (or refactoring `getApiBaseUrl()` to derive from request Host). Recommendation A in `chatting/may21_post_wave1_lane4_partial_handoff.md`. (b) ✅ signup did not verify the returned JWT before setting the cookie — fixed this session in `web/src/routes/signup/+page.server.ts` (commit `43dcbdb6`) with regression test. Probe `scripts/canary/contracts/web_api_base_url_contract.sh staging` re-verifies after the Cloudflare fix.
+docs/NOW.md:21:| P0 | Fix staging Cloudflare `API_BASE_URL` env var to `https://api.staging.flapjack.foo` | `scripts/canary/contracts/web_api_base_url_contract.sh` | 2026-05-21 |
+ops/terraform/dns/main.tf:35:      content = "flapjack-cloud.pages.dev"
+ops/runbooks/site_takedown_20260503/restore.sh:7:#   2. Removes cloud.flapjack.foo and app.flapjack.foo as Pages custom domains
+ops/runbooks/site_takedown_20260503/restore.sh:16:: "${CLOUDFLARE_GLOBAL_API_KEY:?need CF global key from .env.secret}"
+ops/runbooks/site_takedown_20260503/restore.sh:21:auth() { curl -s -H "X-Auth-Key: ${CLOUDFLARE_GLOBAL_API_KEY}" -H "X-Auth-Email: ${CLOUDFLARE_X_Auth_Email}" -H "Content-Type: application/json" "$@"; }
+ops/runbooks/site_takedown_20260503/restore.sh:24:echo "[1/5] Recreate cloud.flapjack.foo CNAME → flapjack-cloud.pages.dev (proxied)"
+ops/runbooks/site_takedown_20260503/restore.sh:25:auth -X POST --data '{"type":"CNAME","name":"cloud.flapjack.foo","content":"flapjack-cloud.pages.dev","ttl":1,"proxied":true}' "https://api.cloudflare.com/client/v4/zones/${ZONE}/dns_records" | ok
+ops/runbooks/site_takedown_20260503/restore.sh:27:echo "[2/5] Recreate app.flapjack.foo CNAME → flapjack-cloud.pages.dev (proxied)"
+ops/runbooks/site_takedown_20260503/restore.sh:28:auth -X POST --data '{"type":"CNAME","name":"app.flapjack.foo","content":"flapjack-cloud.pages.dev","ttl":1,"proxied":true}' "https://api.cloudflare.com/client/v4/zones/${ZONE}/dns_records" | ok
+ops/runbooks/site_takedown_20260503/restore.sh:37:auth -X POST --data '{"name":"cloud.flapjack.foo"}' "https://api.cloudflare.com/client/v4/accounts/${ACCOUNT}/pages/projects/flapjack-cloud/domains" | ok
+ops/runbooks/site_takedown_20260503/restore.sh:38:auth -X POST --data '{"name":"app.flapjack.foo"}' "https://api.cloudflare.com/client/v4/accounts/${ACCOUNT}/pages/projects/flapjack-cloud/domains" | ok
+ops/runbooks/site_takedown_20260503/restore.sh:42:echo "  dig +short @bailey.ns.cloudflare.com cloud.flapjack.foo  # expect flapjack-cloud.pages.dev."
+web/wrangler.toml:23:name = "flapjack-cloud"
+web/wrangler.toml:31:# action calls `api.register(...)` which fetches `${API_BASE_URL}/auth/register`,
+web/wrangler.toml:32:# and without API_BASE_URL the call falls through to the localhost default
+web/wrangler.toml:35:API_BASE_URL = "https://api.flapjack.foo"

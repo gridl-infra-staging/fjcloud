@@ -1,0 +1,2 @@
+sts_exit=254
+generate_ssm_env_exit=254

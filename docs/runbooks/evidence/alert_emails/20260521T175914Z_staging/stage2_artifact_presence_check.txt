@@ -1,0 +1,5 @@
+timestamp: 20260521T182249Z
+stage_dir: /Users/stuart/parallel_development/fjcloud_dev/may21_12pm_8_alert_emails/fjcloud_dev/docs/runbooks/evidence/alert_emails/20260521T175914Z_staging
+present: staging_plan.tfplan
+present: staging_inputs.json
+present: staging_scope_check.txt

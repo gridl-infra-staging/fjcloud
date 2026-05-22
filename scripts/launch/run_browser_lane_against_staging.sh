@@ -45,6 +45,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+# shellcheck source=../lib/web_runtime.sh
+source "$SCRIPT_DIR/../lib/web_runtime.sh"
 
 LANE_ARG=""
 EVIDENCE_DIR_ARG=""
@@ -265,6 +267,16 @@ fi
 export API_BASE_URL="$API_URL"
 export PLAYWRIGHT_TARGET_REMOTE=1
 
+# Fail closed when local Playwright runtime dependencies are absent.
+# Running `npx playwright` without local web/node_modules can pull a transient
+# global package that cannot import repo-local @playwright/test from
+# web/playwright.config.ts, producing non-deterministic module resolution
+# errors instead of a deterministic owner-path remediation hint.
+if ! has_web_playwright_test_runtime "$REPO_ROOT"; then
+  echo "ERROR: $(web_playwright_test_runtime_missing_message) — owner: scripts/launch/run_browser_lane_against_staging.sh" >&2
+  exit 1
+fi
+
 # Provide a placeholder MAILPIT_API_URL — the SSM verification path takes
 # over when PLAYWRIGHT_TARGET_REMOTE=1, but the loopback guard in
 # getMailpitApiUrl() still validates it on construction. Pointing at a
@@ -383,7 +395,9 @@ run_playwright_with_timeout() {
 
   local exit_code=0
   wait "$cmd_pid" || exit_code=$?
-  kill "$watchdog_pid" 2>/dev/null || true
+  # Kill the watchdog process tree so its child sleep does not outlive the
+  # parent subshell and keep upstream stdout pipes open.
+  terminate_pid_tree TERM "$watchdog_pid"
   wait "$watchdog_pid" 2>/dev/null || true
 
   if [ -s "$timeout_flag" ]; then

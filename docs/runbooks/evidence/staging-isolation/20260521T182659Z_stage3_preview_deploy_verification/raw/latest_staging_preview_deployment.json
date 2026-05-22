@@ -1,0 +1,99 @@
+{
+  "id": "239b093c-acf2-43fa-8eca-6b45961d2a84",
+  "short_id": "239b093c",
+  "project_id": "1b05abf3-10ac-42c9-b9b1-88e711ffc919",
+  "project_name": "flapjack-cloud",
+  "environment": "preview",
+  "url": "https://239b093c.flapjack-cloud.pages.dev",
+  "created_on": "2026-05-21T18:17:42.065086Z",
+  "modified_on": "2026-05-21T18:17:46.266735Z",
+  "latest_stage": {
+    "name": "deploy",
+    "started_on": null,
+    "ended_on": "2026-05-21T18:17:46.266735Z",
+    "status": "success"
+  },
+  "deployment_trigger": {
+    "type": "ad_hoc",
+    "metadata": {
+      "branch": "staging",
+      "commit_hash": "08f303223991ee93202c5e21e6d0c3f8410a4c8e",
+      "commit_message": "scrai: 14 files documented, 12 artifacts generated, 2 guidance files assembled, 3 state files tracked",
+      "commit_dirty": true
+    }
+  },
+  "stages": [
+    {
+      "name": "queued",
+      "started_on": "2026-05-21T18:17:42.065086Z",
+      "ended_on": null,
+      "status": "active"
+    },
+    {
+      "name": "initialize",
+      "started_on": null,
+      "ended_on": null,
+      "status": "idle"
+    },
+    {
+      "name": "clone_repo",
+      "started_on": null,
+      "ended_on": null,
+      "status": "idle"
+    },
+    {
+      "name": "build",
+      "started_on": null,
+      "ended_on": null,
+      "status": "idle"
+    },
+    {
+      "name": "deploy",
+      "started_on": null,
+      "ended_on": "2026-05-21T18:17:46.266735Z",
+      "status": "success"
+    }
+  ],
+  "build_config": {
+    "build_command": null,
+    "destination_dir": ".svelte-kit/cloudflare",
+    "build_caching": null,
+    "root_dir": null,
+    "web_analytics_tag": null,
+    "web_analytics_token": null
+  },
+  "env_vars": {
+    "ADMIN_KEY": {
+      "type": "secret_text",
+      "value": ""
+    },
+    "API_BASE_URL": {
+      "type": "plain_text",
+      "value": "https://api.staging.flapjack.foo"
+    },
+    "ENVIRONMENT": {
+      "type": "plain_text",
+      "value": "staging"
+    },
+    "JWT_SECRET": {
+      "type": "secret_text",
+      "value": ""
+    },
+    "WEB_DEV_LOG_RAW_ERRORS": {
+      "type": "plain_text",
+      "value": "1"
+    }
+  },
+  "compatibility_date": "2026-04-01",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "build_image_major_version": 3,
+  "usage_model": "bundled",
+  "aliases": [
+    "https://staging.flapjack-cloud.pages.dev"
+  ],
+  "is_skipped": false,
+  "production_branch": "main",
+  "uses_functions": true
+}

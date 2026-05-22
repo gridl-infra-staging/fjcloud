@@ -1,0 +1,2 @@
+href="https://api.staging.flapjack.foo/auth/oauth/google/start"
+href="https://api.staging.flapjack.foo/auth/oauth/github/start"

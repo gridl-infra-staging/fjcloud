@@ -1,0 +1,9 @@
+cached_hit=false
+command=curl -sS -L --max-redirs 5 -H 'Cookie: auth_token=${TOKEN}' -w '
+status=%{http_code}
+final_url=%{url_effective}
+redirects=%{num_redirects}
+' https://cloud.staging.flapjack.foo/dashboard
+head_sha=3cb1000bd4dabbde269ce2cfa37fad69414a1f09
+clean_tree=false
+exit_code=0

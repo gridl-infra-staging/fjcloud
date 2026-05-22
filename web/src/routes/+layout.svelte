@@ -15,6 +15,11 @@
 
 	const PUBLIC_TRUST_PATHS = new Set(['/', '/pricing', '/terms', '/privacy', '/dpa']);
 	const LEGAL_PAGE_PATHS = new Set(['/terms', '/privacy', '/dpa']);
+	// Pages that should render with the colorful diner-style teal/cream palette
+	// instead of the plain white default. Legal pages and the landing page itself
+	// share the palette so the logged-out marketing surface stays brand-consistent.
+	// See bugs/2026_05_22_landing_page_color_scheme_regression.md.
+	const COLORFUL_SHELL_PATHS = new Set(['/', '/terms', '/privacy', '/dpa']);
 
 	function normalizedPathname(pathname: string): string {
 		if (pathname === '/') {
@@ -26,8 +31,9 @@
 	const pathname = $derived(normalizedPathname(page.url.pathname));
 	const showPublicTrustChrome = $derived(PUBLIC_TRUST_PATHS.has(pathname));
 	const showLegalPageWrapper = $derived(LEGAL_PAGE_PATHS.has(pathname));
+	const useColorfulShell = $derived(COLORFUL_SHELL_PATHS.has(pathname));
 	const publicTrustShellClass = $derived(
-		showLegalPageWrapper
+		useColorfulShell
 			? 'min-h-screen bg-[#9fd8d2] text-[#1f1b18]'
 			: 'min-h-screen bg-white text-gray-900'
 	);

@@ -6,5 +6,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| evidence | The evidence directory contains timestamped operational artifacts from multiple production procedures: a multi-stage fleet recovery operation (May 20-21), launch monitoring health checks (May 5), deployment validation workflows (May 16-18), and Privacy.com contract integration probes. |
+| evidence | The evidence directory contains timestamped operational artifacts and validation scripts from production workflows, including fleet recovery procedures, launch monitoring bundles, deployment verification stages, and third-party integration contract tests. |
 <!-- [scrai:end] -->

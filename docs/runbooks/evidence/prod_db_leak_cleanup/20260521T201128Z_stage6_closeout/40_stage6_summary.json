@@ -1,0 +1,40 @@
+{
+  "stage": "stage6_closeout",
+  "active_exact_cleanup_customers": {
+    "prod": 0,
+    "staging": 0
+  },
+  "suspicious_inventory": {
+    "prod_count": 40,
+    "staging_count": 47,
+    "dispositions_json": "/Users/stuart/parallel_development/fjcloud_dev/may21_12pm_2_prod_db_leak_cleanup/fjcloud_dev/docs/runbooks/evidence/prod_db_leak_cleanup/20260521T201128Z_stage6_closeout/30_suspicious_inventory_dispositions.json"
+  },
+  "refund_lineage": {
+    "stage2_approved_refund_eligible_charge_count": 0,
+    "stage2_approved_refund_total_cents": 0,
+    "stage3_executed_refund_count": 0,
+    "stage3_refund_post_count": 0,
+    "stage3_executed_refunded_total_cents": 0
+  },
+  "lineage_pointers": {
+    "stage1_summary": "/Users/stuart/parallel_development/fjcloud_dev/may21_12pm_2_prod_db_leak_cleanup/fjcloud_dev/docs/runbooks/evidence/prod_db_leak_cleanup/20260521T201128Z_stage6_closeout/../20260521T172106Z_stage1_inventory/40_stage1_summary.json",
+    "stage2_summary": "/Users/stuart/parallel_development/fjcloud_dev/may21_12pm_2_prod_db_leak_cleanup/fjcloud_dev/docs/runbooks/evidence/prod_db_leak_cleanup/20260521T201128Z_stage6_closeout/../20260521T180304Z_stage2_refund_proposal/40_refund_proposal_summary.json",
+    "stage2_operator_approval": "/Users/stuart/parallel_development/fjcloud_dev/may21_12pm_2_prod_db_leak_cleanup/fjcloud_dev/docs/runbooks/evidence/prod_db_leak_cleanup/20260521T201128Z_stage6_closeout/../20260521T180304Z_stage2_refund_proposal/41_operator_approval_input.json",
+    "stage3_summary": "/Users/stuart/parallel_development/fjcloud_dev/may21_12pm_2_prod_db_leak_cleanup/fjcloud_dev/docs/runbooks/evidence/prod_db_leak_cleanup/20260521T201128Z_stage6_closeout/../20260521T182407Z_stage3_refund_execution/40_refund_execution_summary.json",
+    "stage4_summary": "/Users/stuart/parallel_development/fjcloud_dev/may21_12pm_2_prod_db_leak_cleanup/fjcloud_dev/docs/runbooks/evidence/prod_db_leak_cleanup/20260521T201128Z_stage6_closeout/../20260521T191408Z_stage4_deployment_termination/40_stage4_summary.json",
+    "stage5_summary": "/Users/stuart/parallel_development/fjcloud_dev/may21_12pm_2_prod_db_leak_cleanup/fjcloud_dev/docs/runbooks/evidence/prod_db_leak_cleanup/20260521T201128Z_stage6_closeout/../20260521T193529Z_stage5_tenant_soft_delete/40_stage5_summary.json"
+  },
+  "stage4_evidence": {
+    "primary_pre_delete_deployments_dir": "/Users/stuart/parallel_development/fjcloud_dev/may21_12pm_2_prod_db_leak_cleanup/fjcloud_dev/docs/runbooks/evidence/prod_db_leak_cleanup/20260521T201128Z_stage6_closeout/../20260521T191408Z_stage4_deployment_termination/runs/primary/20_pre_delete_deployments",
+    "primary_termination_dispositions_json": "/Users/stuart/parallel_development/fjcloud_dev/may21_12pm_2_prod_db_leak_cleanup/fjcloud_dev/docs/runbooks/evidence/prod_db_leak_cleanup/20260521T201128Z_stage6_closeout/../20260521T191408Z_stage4_deployment_termination/runs/primary/30_termination_dispositions.json",
+    "stage4_rerun_no_mutation": true
+  },
+  "stage5_evidence": {
+    "disposition_table_json": "/Users/stuart/parallel_development/fjcloud_dev/may21_12pm_2_prod_db_leak_cleanup/fjcloud_dev/docs/runbooks/evidence/prod_db_leak_cleanup/20260521T193529Z_stage5_tenant_soft_delete/runs/primary/30_stage5_soft_delete_dispositions.json",
+    "disposition_table_csv": "/Users/stuart/parallel_development/fjcloud_dev/may21_12pm_2_prod_db_leak_cleanup/fjcloud_dev/docs/runbooks/evidence/prod_db_leak_cleanup/20260521T193529Z_stage5_tenant_soft_delete/runs/primary/31_stage5_soft_delete_dispositions.csv"
+  },
+  "stage6_rerun_reproducibility": {
+    "primary_summary": "/Users/stuart/parallel_development/fjcloud_dev/may21_12pm_2_prod_db_leak_cleanup/fjcloud_dev/docs/runbooks/evidence/prod_db_leak_cleanup/20260521T201128Z_stage6_closeout/runs/primary/40_run_summary.json",
+    "rerun_summary": "/Users/stuart/parallel_development/fjcloud_dev/may21_12pm_2_prod_db_leak_cleanup/fjcloud_dev/docs/runbooks/evidence/prod_db_leak_cleanup/20260521T201128Z_stage6_closeout/runs/rerun/40_run_summary.json"
+  }
+}

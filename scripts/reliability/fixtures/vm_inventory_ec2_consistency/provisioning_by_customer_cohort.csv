@@ -1,0 +1,4 @@
+customer_cohort,provisioning_count,customer_count
+created_8d_to_30d,0,0
+created_gt_30d,1,1
+created_last_7d,1,1

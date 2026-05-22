@@ -1,0 +1,15 @@
+{
+  "generated_at_utc": "2026-05-21T18:03:36Z",
+  "derived_from_summary": "/Users/stuart/parallel_development/fjcloud_dev/may21_12pm_2_prod_db_leak_cleanup/fjcloud_dev/docs/runbooks/evidence/prod_db_leak_cleanup/20260521T180304Z_stage2_refund_proposal/runs/rerun/40_refund_proposal_summary.json",
+  "evidence_files": {
+    "canonical_dispositions_json": "/Users/stuart/parallel_development/fjcloud_dev/may21_12pm_2_prod_db_leak_cleanup/fjcloud_dev/docs/runbooks/evidence/prod_db_leak_cleanup/20260521T180304Z_stage2_refund_proposal/runs/rerun/31_refund_dispositions.json",
+    "canonical_dispositions_csv": "/Users/stuart/parallel_development/fjcloud_dev/may21_12pm_2_prod_db_leak_cleanup/fjcloud_dev/docs/runbooks/evidence/prod_db_leak_cleanup/20260521T180304Z_stage2_refund_proposal/runs/rerun/30_refund_dispositions.csv",
+    "validation_coverage": "/Users/stuart/parallel_development/fjcloud_dev/may21_12pm_2_prod_db_leak_cleanup/fjcloud_dev/docs/runbooks/evidence/prod_db_leak_cleanup/20260521T180304Z_stage2_refund_proposal/runs/rerun/42_validation_coverage.txt",
+    "validation_summary_totals": "/Users/stuart/parallel_development/fjcloud_dev/may21_12pm_2_prod_db_leak_cleanup/fjcloud_dev/docs/runbooks/evidence/prod_db_leak_cleanup/20260521T180304Z_stage2_refund_proposal/runs/rerun/43_validation_summary_totals.txt"
+  },
+  "exact_customer_count": 43,
+  "refund_eligible_charge_count": 0,
+  "refund_total_cents": 0,
+  "refund_eligible_charge_ids_by_customer": {},
+  "zero_refund_explanation": "All exact prod cohort rows have null stripe_customer_id in Stage 1 exact CSV; Stage 2 correctly emits no_stripe_account dispositions and proposes zero refunds."
+}

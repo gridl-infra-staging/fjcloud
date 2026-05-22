@@ -1,0 +1,4 @@
+PASS: staging preview /signup oauth href origins are staging-only
+HREF: href="https://api.staging.flapjack.foo/auth/oauth/google/start"
+HREF: href="https://api.staging.flapjack.foo/auth/oauth/github/start"
+ORIGIN: https://api.staging.flapjack.foo

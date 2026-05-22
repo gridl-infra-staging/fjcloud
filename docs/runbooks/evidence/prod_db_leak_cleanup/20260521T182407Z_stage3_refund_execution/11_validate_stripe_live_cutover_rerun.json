@@ -1,0 +1,1 @@
+{"passed":true,"steps":[{"name":"live_cutover_mode_enabled","passed":true,"detail":"Explicit live cutover mode enabled for Stripe validation"},{"name":"verify_live_key_auth","passed":true,"detail":"Validated live key auth with Stripe GET /v1/balance"}],"elapsed_ms":295}

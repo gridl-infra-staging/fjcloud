@@ -1,0 +1,9 @@
+{
+  "environment": "prod",
+  "customer_id": "adce70ce-de4f-490f-a5f2-5002f946351d",
+  "request": {
+    "method": "DELETE",
+    "url": "https://api.flapjack.foo/admin/tenants/adce70ce-de4f-490f-a5f2-5002f946351d"
+  },
+  "delete_http_code": "404"
+}

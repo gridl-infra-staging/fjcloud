@@ -1,0 +1,9 @@
+{
+  "query": "query AliasTraffic($zoneTag: String!, $start: Time!, $end: Time!, $host: String!) { viewer { zones(filter: { zoneTag: $zoneTag }) { httpRequests1dGroups(limit: 30, filter: { datetime_geq: $start, datetime_leq: $end, clientRequestHTTPHost: $host }) { dimensions { date } sum { requests bytes cachedBytes cachedRequests } } } } }",
+  "variables": {
+    "zoneTag": "fafbf95a076d7e8ee984dbd18a62c933",
+    "start": "2026-04-21T17:15:06Z",
+    "end": "2026-05-21T17:15:05Z",
+    "host": "app.flapjack.foo"
+  }
+}

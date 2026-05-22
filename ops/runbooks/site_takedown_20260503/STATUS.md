@@ -1,16 +1,16 @@
 ---
 created: 2026-05-03
-updated: 2026-05-03
+updated: 2026-05-21
 ---
 
 # Site takedown — 2026-05-03 post v1.0.0 launch review
 
-## What is down
+## What is down (historical snapshot from 2026-05-03)
 
 Customer-facing web surfaces — all return NXDOMAIN authoritatively (public resolvers within a few minutes):
 
 - `https://cloud.flapjack.foo/`  (was Cloudflare Pages: marketing + dashboard + signup)
-- `https://app.flapjack.foo/`    (was Pages alias)
+- `https://app.flapjack.foo/`    (was Pages alias at takedown time; alias retired on 2026-05-21)
 - `https://flapjack.foo/`        (was prerendered marketing on the API ALB)
 - `https://www.flapjack.foo/`    (alias of apex)
 
@@ -37,10 +37,15 @@ Critical adversarial review surfaced BLOCKERs that should be fixed before exposi
 
 Full audit: see end-of-prior-turn report in chat history.
 
+## Current restore owner contract (updated 2026-05-21)
+
+- `restore.sh` restores `cloud.flapjack.foo` as the canonical customer-app alias.
+- `restore.sh` does **not** restore `app.flapjack.foo`; the alias-retirement lane marked it unsupported.
+
 ## Files in this directory
 
 - `dns_records_full_backup.json` — complete pre-takedown snapshot of all 40 zone records (used for record IDs, restore reference)
-- `restore.sh` — one-command revert of all 5 changes (4 DNS records + 2 Pages custom domains)
+- `restore.sh` — one-command revert of active restore targets (3 DNS records + 1 Pages custom domain)
 - `STATUS.md` — this file
 
 ## Restore

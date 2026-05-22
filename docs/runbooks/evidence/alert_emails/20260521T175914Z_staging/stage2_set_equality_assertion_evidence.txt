@@ -1,0 +1,9 @@
+expected_input=/Users/stuart/parallel_development/fjcloud_dev/may21_12pm_8_alert_emails/fjcloud_dev/docs/runbooks/evidence/alert_emails/20260521T175914Z_staging/staging_inputs.json
+live_input=/Users/stuart/parallel_development/fjcloud_dev/may21_12pm_8_alert_emails/fjcloud_dev/docs/runbooks/evidence/alert_emails/20260521T175914Z_staging/stage2_subscriptions_poll_1.json
+strict_set_equality_command:
+jq -e -n \
+  --slurpfile expected docs/runbooks/evidence/alert_emails/20260521T175914Z_staging/staging_inputs.json \
+  --slurpfile live docs/runbooks/evidence/alert_emails/20260521T175914Z_staging/stage2_subscriptions_poll_1.json \
+  '($expected[0] | sort | unique) == ([$live[0].Subscriptions[]? | select(.Protocol=="email" or .Protocol=="email-json") | .Endpoint] | sort | unique)'
+set_equality_pass_rc=0
+set_equality_mismatch_rc=1

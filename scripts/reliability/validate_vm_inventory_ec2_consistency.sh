@@ -160,60 +160,54 @@ else
     fi
     export DATABASE_URL
 
-    read -r -d '' INVENTORY_SQL <<'SQL' || true
-COPY (
-  SELECT COALESCE(json_agg(row_to_json(t)), '[]'::json)
-  FROM (
-    SELECT
-      id::text AS id,
-      provider,
-      status,
-      region,
-      hostname,
-      flapjack_url,
-      updated_at
-    FROM vm_inventory
-    WHERE status = 'active'
-      AND provider = 'aws'
-    ORDER BY updated_at DESC
-  ) t
-) TO STDOUT;
+    read -r -d '' INVENTORY_BASE_SQL <<'SQL' || true
+SELECT
+  id::text AS id,
+  provider,
+  status,
+  region,
+  hostname,
+  flapjack_url,
+  updated_at
+FROM vm_inventory
+WHERE status = 'active'
+  AND provider = 'aws'
+ORDER BY updated_at DESC
 SQL
 
-    read -r -d '' DEPLOYMENT_SQL <<'SQL' || true
-COPY (
-  SELECT COALESCE(json_agg(row_to_json(t)), '[]'::json)
-  FROM (
-    SELECT
-      id::text AS id,
-      customer_id::text AS customer_id,
-      status,
-      vm_provider,
-      provider_vm_id,
-      hostname,
-      flapjack_url,
-      created_at
-    FROM customer_deployments
-    WHERE (
-            status = 'provisioning'
-            AND (
-                 vm_provider = 'aws'
-                 OR provider_vm_id LIKE 'provisioning-lock:%'
-            )
-       )
-       OR (
-            status != 'terminated'
-            AND flapjack_url IS NOT NULL
-            AND vm_provider = 'aws'
-            AND provider_vm_id LIKE '%:%'
-       )
-    ORDER BY created_at DESC
-  ) t
-) TO STDOUT;
+    read -r -d '' DEPLOYMENT_BASE_SQL <<'SQL' || true
+SELECT
+  id::text AS id,
+  customer_id::text AS customer_id,
+  status,
+  vm_provider,
+  provider_vm_id,
+  hostname,
+  flapjack_url,
+  created_at
+FROM customer_deployments
+WHERE (
+        status = 'provisioning'
+        AND (
+             vm_provider = 'aws'
+             OR provider_vm_id LIKE 'provisioning-lock:%'
+        )
+   )
+   OR (
+        status != 'terminated'
+        AND flapjack_url IS NOT NULL
+        AND vm_provider = 'aws'
+        AND provider_vm_id LIKE '%:%'
+   )
+ORDER BY created_at DESC
 SQL
 
-    staging_db_run_sql "$DATABASE_URL" "$INVENTORY_SQL" > "$INVENTORY_JSON" || system_error "failed to capture vm_inventory rows"
-    staging_db_run_sql "$DATABASE_URL" "$DEPLOYMENT_SQL" > "$DEPLOYMENT_JSON" || system_error "failed to capture deployment rows"
+    # Use paginated owner-seam reads so large JSON payloads do not trip
+    # SSM StandardOutputContent truncation limits.
+    staging_db_run_sql_json_array_paginated "$DATABASE_URL" "$INVENTORY_BASE_SQL" > "$INVENTORY_JSON" \
+        || system_error "failed to capture vm_inventory rows"
+    staging_db_run_sql_json_array_paginated "$DATABASE_URL" "$DEPLOYMENT_BASE_SQL" > "$DEPLOYMENT_JSON" \
+        || system_error "failed to capture deployment rows"
 
     aws ec2 describe-instances \
         --filters \

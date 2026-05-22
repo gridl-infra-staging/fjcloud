@@ -1,0 +1,61 @@
+{
+  "inventory_rows_without_nonterminated_ec2_match": 1,
+  "managed_instances_without_inventory_match": 1,
+  "deployment_linkage_mismatches": 1,
+  "stuck_shared_provisioning_rows": 1,
+  "retry_window_seconds": 60,
+  "raw_records": {
+    "inventory_rows_without_nonterminated_ec2_match": [
+      {
+        "vm_inventory_id": "22222222-2222-2222-2222-222222222222",
+        "provider": "aws",
+        "status": "active",
+        "hostname": "vm-missing-ec2.flapjack.foo",
+        "flapjack_url": "http://vm-missing-ec2.flapjack.foo:7700",
+        "updated_at": "2026-05-20T00:01:00Z"
+      }
+    ],
+    "managed_instances_without_inventory_match": [
+      {
+        "instance_id": "i-untracked-managed",
+        "hostname": "vm-shared-untracked.flapjack.foo",
+        "state": "running",
+        "launch_time": "2026-05-19T00:00:00Z"
+      }
+    ],
+    "deployment_linkage_mismatches": [
+      {
+        "deployment_id": "dep-aged-lock",
+        "status": "provisioning",
+        "provider_vm_id": "provisioning-lock:dep-aged-lock",
+        "hostname": "vm-aged-lock.flapjack.foo",
+        "created_at": "2026-05-20T00:55:00Z",
+        "age_seconds": 300,
+        "reason": "aged_provisioning_lock"
+      }
+    ],
+    "stuck_shared_provisioning_rows": [
+      {
+        "deployment_id": "dep-aged-lock",
+        "provider_vm_id": "provisioning-lock:dep-aged-lock",
+        "hostname": "vm-aged-lock.flapjack.foo",
+        "created_at": "2026-05-20T00:55:00Z",
+        "age_seconds": 300
+      }
+    ]
+  },
+  "deployment_evaluations": {
+    "dep-aged-lock": {
+      "deployment_id": "dep-aged-lock",
+      "status": "provisioning",
+      "vm_provider": "aws",
+      "provider_vm_id_raw": "provisioning-lock:dep-aged-lock",
+      "provider_vm_id_normalized": "provisioning-lock:dep-aged-lock",
+      "hostname": "vm-aged-lock.flapjack.foo",
+      "created_at": "2026-05-20T00:55:00Z",
+      "age_seconds": 300,
+      "match_source": "none",
+      "classification": "aged_provisioning_lock"
+    }
+  }
+}

@@ -1,0 +1,1811 @@
+{
+  "captured_at_utc": "2026-05-21T07:09:29.366130+00:00",
+  "repos": {
+    "staging": {
+      "run_list_command": "gh run list -R gridl-infra-staging/fjcloud --workflow=CI --limit 1 --json databaseId,conclusion,headSha,createdAt",
+      "run_list_rc": 0,
+      "run_list_stderr": "",
+      "run_list": [
+        {
+          "conclusion": "failure",
+          "createdAt": "2026-05-21T00:12:42Z",
+          "databaseId": 26197488802,
+          "headSha": "f689fb069c8625259e8c212a4d0aadb29d805cf7"
+        }
+      ],
+      "gate_run_conclusion": "failure",
+      "selected_databaseId": 26197488802,
+      "run_view_command": "gh run view -R gridl-infra-staging/fjcloud 26197488802 --json jobs",
+      "run_view_rc": 0,
+      "run_view_stderr": "",
+      "jobs": [
+        {
+          "completedAt": "2026-05-21T00:12:51Z",
+          "conclusion": "success",
+          "databaseId": 77079966714,
+          "name": "check-sizes",
+          "startedAt": "2026-05-21T00:12:45Z",
+          "status": "completed",
+          "steps": [
+            {
+              "completedAt": "2026-05-21T00:12:46Z",
+              "conclusion": "success",
+              "name": "Set up job",
+              "number": 1,
+              "startedAt": "2026-05-21T00:12:46Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T00:12:49Z",
+              "conclusion": "success",
+              "name": "Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
+              "number": 2,
+              "startedAt": "2026-05-21T00:12:46Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T00:12:50Z",
+              "conclusion": "success",
+              "name": "Check source file size limits",
+              "number": 3,
+              "startedAt": "2026-05-21T00:12:49Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T00:12:50Z",
+              "conclusion": "success",
+              "name": "Post Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
+              "number": 6,
+              "startedAt": "2026-05-21T00:12:50Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T00:12:50Z",
+              "conclusion": "success",
+              "name": "Complete job",
+              "number": 7,
+              "startedAt": "2026-05-21T00:12:50Z",
+              "status": "completed"
+            }
+          ],
+          "url": "https://github.com/gridl-infra-staging/fjcloud/actions/runs/26197488802/job/77079966714"
+        },
+        {
+          "completedAt": "2026-05-21T00:13:47Z",
+          "conclusion": "success",
+          "databaseId": 77079966728,
+          "name": "web-lint",
+          "startedAt": "2026-05-21T00:12:45Z",
+          "status": "completed",
+          "steps": [
+            {
+              "completedAt": "2026-05-21T00:12:46Z",
+              "conclusion": "success",
+              "name": "Set up job",
+              "number": 1,
+              "startedAt": "2026-05-21T00:12:45Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T00:12:49Z",
+              "conclusion": "success",
+              "name": "Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
+              "number": 2,
+              "startedAt": "2026-05-21T00:12:46Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T00:12:52Z",
+              "conclusion": "success",
+              "name": "Set up Node.js",
+              "number": 3,
+              "startedAt": "2026-05-21T00:12:49Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T00:13:10Z",
+              "conclusion": "success",
+              "name": "Install dependencies",
+              "number": 4,
+              "startedAt": "2026-05-21T00:12:52Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T00:13:25Z",
+              "conclusion": "success",
+              "name": "Run svelte-check",
+              "number": 5,
+              "startedAt": "2026-05-21T00:13:10Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T00:13:41Z",
+              "conclusion": "success",
+              "name": "Run eslint",
+              "number": 6,
+              "startedAt": "2026-05-21T00:13:25Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T00:13:43Z",
+              "conclusion": "success",
+              "name": "Run browser-unmocked lint",
+              "number": 7,
+              "startedAt": "2026-05-21T00:13:41Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T00:13:44Z",
+              "conclusion": "success",
+              "name": "Run screen spec coverage contract",
+              "number": 8,
+              "startedAt": "2026-05-21T00:13:43Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T00:13:44Z",
+              "conclusion": "success",
+              "name": "Run SES IAM/configset coupling contract",
+              "number": 9,
+              "startedAt": "2026-05-21T00:13:44Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T00:13:44Z",
+              "conclusion": "success",
+              "name": "Post Set up Node.js",
+              "number": 17,
+              "startedAt": "2026-05-21T00:13:44Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T00:13:45Z",
+              "conclusion": "success",
+              "name": "Post Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
+              "number": 18,
+              "startedAt": "2026-05-21T00:13:44Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T00:13:45Z",
+              "conclusion": "success",
+              "name": "Complete job",
+              "number": 19,
+              "startedAt": "2026-05-21T00:13:45Z",
+              "status": "completed"
+            }
+          ],
+          "url": "https://github.com/gridl-infra-staging/fjcloud/actions/runs/26197488802/job/77079966728"
+        },
+        {
+          "completedAt": "2026-05-21T00:14:40Z",
+          "conclusion": "success",
+          "databaseId": 77079966729,
+          "name": "web-test",
+          "startedAt": "2026-05-21T00:12:45Z",
+          "status": "completed",
+          "steps": [
+            {
+              "completedAt": "2026-05-21T00:12:46Z",
+              "conclusion": "success",
+              "name": "Set up job",
+              "number": 1,
+              "startedAt": "2026-05-21T00:12:46Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T00:12:49Z",
+              "conclusion": "success",
+              "name": "Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
+              "number": 2,
+              "startedAt": "2026-05-21T00:12:46Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T00:12:52Z",
+              "conclusion": "success",
+              "name": "Set up Node.js",
+              "number": 3,
+              "startedAt": "2026-05-21T00:12:49Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T00:14:38Z",
+              "conclusion": "success",
+              "name": "Run web tests",
+              "number": 4,
+              "startedAt": "2026-05-21T00:12:52Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T00:14:39Z",
+              "conclusion": "success",
+              "name": "Post Set up Node.js",
+              "number": 7,
+              "startedAt": "2026-05-21T00:14:38Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T00:14:39Z",
+              "conclusion": "success",
+              "name": "Post Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
+              "number": 8,
+              "startedAt": "2026-05-21T00:14:39Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T00:14:39Z",
+              "conclusion": "success",
+              "name": "Complete job",
+              "number": 9,
+              "startedAt": "2026-05-21T00:14:39Z",
+              "status": "completed"
+            }
+          ],
+          "url": "https://github.com/gridl-infra-staging/fjcloud/actions/runs/26197488802/job/77079966729"
+        },
+        {
+          "completedAt": "2026-05-21T00:12:53Z",
+          "conclusion": "success",
+          "databaseId": 77079966734,
+          "name": "secret-scan",
+          "startedAt": "2026-05-21T00:12:45Z",
+          "status": "completed",
+          "steps": [
+            {
+              "completedAt": "2026-05-21T00:12:46Z",
+              "conclusion": "success",
+              "name": "Set up job",
+              "number": 1,
+              "startedAt": "2026-05-21T00:12:46Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T00:12:49Z",
+              "conclusion": "success",
+              "name": "Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
+              "number": 2,
+              "startedAt": "2026-05-21T00:12:46Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T00:12:49Z",
+              "conclusion": "skipped",
+              "name": "Run gitleaks (PR diff)",
+              "number": 3,
+              "startedAt": "2026-05-21T00:12:49Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T00:12:49Z",
+              "conclusion": "success",
+              "name": "Install gitleaks CLI (main full history)",
+              "number": 4,
+              "startedAt": "2026-05-21T00:12:49Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T00:12:51Z",
+              "conclusion": "success",
+              "name": "Run gitleaks (main full history)",
+              "number": 5,
+              "startedAt": "2026-05-21T00:12:49Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T00:12:52Z",
+              "conclusion": "success",
+              "name": "Post Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
+              "number": 10,
+              "startedAt": "2026-05-21T00:12:51Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T00:12:52Z",
+              "conclusion": "success",
+              "name": "Complete job",
+              "number": 11,
+              "startedAt": "2026-05-21T00:12:52Z",
+              "status": "completed"
+            }
+          ],
+          "url": "https://github.com/gridl-infra-staging/fjcloud/actions/runs/26197488802/job/77079966734"
+        },
+        {
+          "completedAt": "2026-05-21T00:46:12Z",
+          "conclusion": "success",
+          "databaseId": 77079966738,
+          "name": "rust-test",
+          "startedAt": "2026-05-21T00:12:45Z",
+          "status": "completed",
+          "steps": [
+            {
+              "completedAt": "2026-05-21T00:12:47Z",
+              "conclusion": "success",
+              "name": "Set up job",
+              "number": 1,
+              "startedAt": "2026-05-21T00:12:46Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T00:13:07Z",
+              "conclusion": "success",
+              "name": "Initialize containers",
+              "number": 2,
+              "startedAt": "2026-05-21T00:12:47Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T00:14:08Z",
+              "conclusion": "success",
+              "name": "Free disk space",
+              "number": 3,
+              "startedAt": "2026-05-21T00:13:07Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T00:14:12Z",
+              "conclusion": "success",
+              "name": "Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
+              "number": 4,
+              "startedAt": "2026-05-21T00:14:08Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T00:14:12Z",
+              "conclusion": "success",
+              "name": "Seed reliability profile artifacts",
+              "number": 5,
+              "startedAt": "2026-05-21T00:14:12Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T00:14:12Z",
+              "conclusion": "success",
+              "name": "Install Rust",
+              "number": 6,
+              "startedAt": "2026-05-21T00:14:12Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T00:14:22Z",
+              "conclusion": "success",
+              "name": "Set up rust cache",
+              "number": 7,
+              "startedAt": "2026-05-21T00:14:12Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T00:14:24Z",
+              "conclusion": "success",
+              "name": "Set up swap space",
+              "number": 8,
+              "startedAt": "2026-05-21T00:14:22Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T00:46:09Z",
+              "conclusion": "success",
+              "name": "Run rust tests",
+              "number": 9,
+              "startedAt": "2026-05-21T00:14:24Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T00:46:10Z",
+              "conclusion": "success",
+              "name": "Post Set up rust cache",
+              "number": 16,
+              "startedAt": "2026-05-21T00:46:09Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T00:46:10Z",
+              "conclusion": "success",
+              "name": "Post Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
+              "number": 17,
+              "startedAt": "2026-05-21T00:46:10Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T00:46:10Z",
+              "conclusion": "success",
+              "name": "Stop containers",
+              "number": 18,
+              "startedAt": "2026-05-21T00:46:10Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T00:46:10Z",
+              "conclusion": "success",
+              "name": "Complete job",
+              "number": 19,
+              "startedAt": "2026-05-21T00:46:10Z",
+              "status": "completed"
+            }
+          ],
+          "url": "https://github.com/gridl-infra-staging/fjcloud/actions/runs/26197488802/job/77079966738"
+        },
+        {
+          "completedAt": "2026-05-21T00:52:32Z",
+          "conclusion": "failure",
+          "databaseId": 77079966739,
+          "name": "playwright",
+          "startedAt": "2026-05-21T00:12:45Z",
+          "status": "completed",
+          "steps": [
+            {
+              "completedAt": "2026-05-21T00:12:47Z",
+              "conclusion": "success",
+              "name": "Set up job",
+              "number": 1,
+              "startedAt": "2026-05-21T00:12:46Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T00:13:09Z",
+              "conclusion": "success",
+              "name": "Initialize containers",
+              "number": 2,
+              "startedAt": "2026-05-21T00:12:47Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T00:13:12Z",
+              "conclusion": "success",
+              "name": "Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
+              "number": 3,
+              "startedAt": "2026-05-21T00:13:09Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T00:13:12Z",
+              "conclusion": "success",
+              "name": "Set up Node.js",
+              "number": 4,
+              "startedAt": "2026-05-21T00:13:12Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T00:13:28Z",
+              "conclusion": "success",
+              "name": "Install dependencies",
+              "number": 5,
+              "startedAt": "2026-05-21T00:13:12Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T00:13:29Z",
+              "conclusion": "success",
+              "name": "Install Rust",
+              "number": 6,
+              "startedAt": "2026-05-21T00:13:28Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T00:14:28Z",
+              "conclusion": "success",
+              "name": "Install sqlx-cli",
+              "number": 7,
+              "startedAt": "2026-05-21T00:13:29Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T00:14:28Z",
+              "conclusion": "success",
+              "name": "Run migrations",
+              "number": 8,
+              "startedAt": "2026-05-21T00:14:28Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T00:19:29Z",
+              "conclusion": "success",
+              "name": "Build API binary",
+              "number": 9,
+              "startedAt": "2026-05-21T00:14:28Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T00:19:29Z",
+              "conclusion": "success",
+              "name": "Start API server",
+              "number": 10,
+              "startedAt": "2026-05-21T00:19:29Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T00:19:29Z",
+              "conclusion": "success",
+              "name": "Start web server",
+              "number": 11,
+              "startedAt": "2026-05-21T00:19:29Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T00:19:35Z",
+              "conclusion": "success",
+              "name": "Wait for API and web readiness",
+              "number": 12,
+              "startedAt": "2026-05-21T00:19:29Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T00:19:55Z",
+              "conclusion": "success",
+              "name": "Install Playwright browsers",
+              "number": 13,
+              "startedAt": "2026-05-21T00:19:35Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T00:52:28Z",
+              "conclusion": "failure",
+              "name": "Run Playwright tests",
+              "number": 14,
+              "startedAt": "2026-05-21T00:19:55Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T00:52:29Z",
+              "conclusion": "success",
+              "name": "Upload Playwright artifacts",
+              "number": 15,
+              "startedAt": "2026-05-21T00:52:28Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T00:52:29Z",
+              "conclusion": "success",
+              "name": "Stop API and web servers",
+              "number": 16,
+              "startedAt": "2026-05-21T00:52:29Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T00:52:29Z",
+              "conclusion": "skipped",
+              "name": "Post Set up Node.js",
+              "number": 30,
+              "startedAt": "2026-05-21T00:52:29Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T00:52:30Z",
+              "conclusion": "success",
+              "name": "Post Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
+              "number": 31,
+              "startedAt": "2026-05-21T00:52:29Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T00:52:30Z",
+              "conclusion": "success",
+              "name": "Stop containers",
+              "number": 32,
+              "startedAt": "2026-05-21T00:52:30Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T00:52:30Z",
+              "conclusion": "success",
+              "name": "Complete job",
+              "number": 33,
+              "startedAt": "2026-05-21T00:52:30Z",
+              "status": "completed"
+            }
+          ],
+          "url": "https://github.com/gridl-infra-staging/fjcloud/actions/runs/26197488802/job/77079966739"
+        },
+        {
+          "completedAt": "2026-05-21T00:14:08Z",
+          "conclusion": "success",
+          "databaseId": 77079966759,
+          "name": "migration-test",
+          "startedAt": "2026-05-21T00:12:45Z",
+          "status": "completed",
+          "steps": [
+            {
+              "completedAt": "2026-05-21T00:12:46Z",
+              "conclusion": "success",
+              "name": "Set up job",
+              "number": 1,
+              "startedAt": "2026-05-21T00:12:46Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T00:13:08Z",
+              "conclusion": "success",
+              "name": "Initialize containers",
+              "number": 2,
+              "startedAt": "2026-05-21T00:12:46Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T00:13:10Z",
+              "conclusion": "success",
+              "name": "Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
+              "number": 3,
+              "startedAt": "2026-05-21T00:13:08Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T00:13:12Z",
+              "conclusion": "success",
+              "name": "Install Rust",
+              "number": 4,
+              "startedAt": "2026-05-21T00:13:10Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T00:14:06Z",
+              "conclusion": "success",
+              "name": "Install sqlx-cli",
+              "number": 5,
+              "startedAt": "2026-05-21T00:13:12Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T00:14:06Z",
+              "conclusion": "success",
+              "name": "Run migration test",
+              "number": 6,
+              "startedAt": "2026-05-21T00:14:06Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T00:14:07Z",
+              "conclusion": "success",
+              "name": "Post Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
+              "number": 11,
+              "startedAt": "2026-05-21T00:14:06Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T00:14:07Z",
+              "conclusion": "success",
+              "name": "Stop containers",
+              "number": 12,
+              "startedAt": "2026-05-21T00:14:07Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T00:14:07Z",
+              "conclusion": "success",
+              "name": "Complete job",
+              "number": 13,
+              "startedAt": "2026-05-21T00:14:07Z",
+              "status": "completed"
+            }
+          ],
+          "url": "https://github.com/gridl-infra-staging/fjcloud/actions/runs/26197488802/job/77079966759"
+        },
+        {
+          "completedAt": "2026-05-21T00:13:57Z",
+          "conclusion": "success",
+          "databaseId": 77079966762,
+          "name": "rust-lint",
+          "startedAt": "2026-05-21T00:12:45Z",
+          "status": "completed",
+          "steps": [
+            {
+              "completedAt": "2026-05-21T00:12:47Z",
+              "conclusion": "success",
+              "name": "Set up job",
+              "number": 1,
+              "startedAt": "2026-05-21T00:12:46Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T00:12:50Z",
+              "conclusion": "success",
+              "name": "Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
+              "number": 2,
+              "startedAt": "2026-05-21T00:12:47Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T00:12:51Z",
+              "conclusion": "success",
+              "name": "Run CI workflow contract tests",
+              "number": 3,
+              "startedAt": "2026-05-21T00:12:50Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T00:12:51Z",
+              "conclusion": "success",
+              "name": "Run SSM env projection contract test",
+              "number": 4,
+              "startedAt": "2026-05-21T00:12:51Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T00:12:52Z",
+              "conclusion": "success",
+              "name": "Run SES support email unit seams",
+              "number": 5,
+              "startedAt": "2026-05-21T00:12:51Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T00:12:53Z",
+              "conclusion": "success",
+              "name": "Install Rust",
+              "number": 6,
+              "startedAt": "2026-05-21T00:12:52Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T00:12:59Z",
+              "conclusion": "success",
+              "name": "Set up rust cache",
+              "number": 7,
+              "startedAt": "2026-05-21T00:12:53Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T00:13:20Z",
+              "conclusion": "success",
+              "name": "Run local-ci rust-lint regression test",
+              "number": 8,
+              "startedAt": "2026-05-21T00:12:59Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T00:13:27Z",
+              "conclusion": "success",
+              "name": "Check formatting",
+              "number": 9,
+              "startedAt": "2026-05-21T00:13:20Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T00:13:55Z",
+              "conclusion": "success",
+              "name": "Run clippy",
+              "number": 10,
+              "startedAt": "2026-05-21T00:13:27Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T00:13:55Z",
+              "conclusion": "success",
+              "name": "Post Set up rust cache",
+              "number": 19,
+              "startedAt": "2026-05-21T00:13:55Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T00:13:56Z",
+              "conclusion": "success",
+              "name": "Post Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
+              "number": 20,
+              "startedAt": "2026-05-21T00:13:55Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T00:13:56Z",
+              "conclusion": "success",
+              "name": "Complete job",
+              "number": 21,
+              "startedAt": "2026-05-21T00:13:56Z",
+              "status": "completed"
+            }
+          ],
+          "url": "https://github.com/gridl-infra-staging/fjcloud/actions/runs/26197488802/job/77079966762"
+        },
+        {
+          "completedAt": "2026-05-21T01:03:01Z",
+          "conclusion": "success",
+          "databaseId": 77083402990,
+          "name": "deploy-staging",
+          "startedAt": "2026-05-21T00:46:16Z",
+          "status": "completed",
+          "steps": [
+            {
+              "completedAt": "2026-05-21T00:46:19Z",
+              "conclusion": "success",
+              "name": "Set up job",
+              "number": 1,
+              "startedAt": "2026-05-21T00:46:17Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T00:46:23Z",
+              "conclusion": "success",
+              "name": "Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
+              "number": 2,
+              "startedAt": "2026-05-21T00:46:19Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T00:46:24Z",
+              "conclusion": "success",
+              "name": "Configure AWS credentials",
+              "number": 3,
+              "startedAt": "2026-05-21T00:46:23Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T00:46:24Z",
+              "conclusion": "success",
+              "name": "Inject build-time provenance from debbie sync manifest",
+              "number": 4,
+              "startedAt": "2026-05-21T00:46:24Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T01:02:25Z",
+              "conclusion": "success",
+              "name": "Build release binaries in Amazon Linux 2023",
+              "number": 5,
+              "startedAt": "2026-05-21T00:46:24Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T01:02:39Z",
+              "conclusion": "success",
+              "name": "Upload release artifacts",
+              "number": 6,
+              "startedAt": "2026-05-21T01:02:25Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T01:02:58Z",
+              "conclusion": "success",
+              "name": "Trigger API deploy",
+              "number": 7,
+              "startedAt": "2026-05-21T01:02:39Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T01:02:58Z",
+              "conclusion": "success",
+              "name": "Post Configure AWS credentials",
+              "number": 13,
+              "startedAt": "2026-05-21T01:02:58Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T01:02:58Z",
+              "conclusion": "success",
+              "name": "Post Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
+              "number": 14,
+              "startedAt": "2026-05-21T01:02:58Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T01:02:58Z",
+              "conclusion": "success",
+              "name": "Complete job",
+              "number": 15,
+              "startedAt": "2026-05-21T01:02:58Z",
+              "status": "completed"
+            }
+          ],
+          "url": "https://github.com/gridl-infra-staging/fjcloud/actions/runs/26197488802/job/77083402990"
+        },
+        {
+          "completedAt": "2026-05-21T00:46:12Z",
+          "conclusion": "skipped",
+          "databaseId": 77083403238,
+          "name": "deploy-prod",
+          "startedAt": "2026-05-21T00:46:12Z",
+          "status": "completed",
+          "steps": [],
+          "url": "https://github.com/gridl-infra-staging/fjcloud/actions/runs/26197488802/job/77083403238"
+        }
+      ],
+      "deploy_job_name": "deploy-staging",
+      "deploy_job_conclusion": "success",
+      "failed_log_command": "gh run view -R gridl-infra-staging/fjcloud 26197488802 --log-failed",
+      "failed_log_rc": 0,
+      "failed_log_stderr_tail": "",
+      "failed_log_tail": "redacted in committed evidence; use failed_log_command to inspect the live failed CI log in an access-controlled context"
+    },
+    "prod": {
+      "run_list_command": "gh run list -R gridl-infra-prod/fjcloud --workflow=CI --limit 1 --json databaseId,conclusion,headSha,createdAt",
+      "run_list_rc": 0,
+      "run_list_stderr": "",
+      "run_list": [
+        {
+          "conclusion": "failure",
+          "createdAt": "2026-05-21T02:27:13Z",
+          "databaseId": 26201800954,
+          "headSha": "3f4370ff52acf7a96e989a949eeb9dbc64169569"
+        }
+      ],
+      "gate_run_conclusion": "failure",
+      "selected_databaseId": 26201800954,
+      "run_view_command": "gh run view -R gridl-infra-prod/fjcloud 26201800954 --json jobs",
+      "run_view_rc": 0,
+      "run_view_stderr": "",
+      "jobs": [
+        {
+          "completedAt": "2026-05-21T04:14:04Z",
+          "conclusion": "failure",
+          "databaseId": 77099337651,
+          "name": "playwright",
+          "startedAt": "2026-05-21T03:33:49Z",
+          "status": "completed",
+          "steps": [
+            {
+              "completedAt": "2026-05-21T03:33:51Z",
+              "conclusion": "success",
+              "name": "Set up job",
+              "number": 1,
+              "startedAt": "2026-05-21T03:33:50Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T03:34:14Z",
+              "conclusion": "success",
+              "name": "Initialize containers",
+              "number": 2,
+              "startedAt": "2026-05-21T03:33:51Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T03:34:17Z",
+              "conclusion": "success",
+              "name": "Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
+              "number": 3,
+              "startedAt": "2026-05-21T03:34:14Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T03:34:18Z",
+              "conclusion": "success",
+              "name": "Set up Node.js",
+              "number": 4,
+              "startedAt": "2026-05-21T03:34:17Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T03:34:34Z",
+              "conclusion": "success",
+              "name": "Install dependencies",
+              "number": 5,
+              "startedAt": "2026-05-21T03:34:18Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T03:34:35Z",
+              "conclusion": "success",
+              "name": "Install Rust",
+              "number": 6,
+              "startedAt": "2026-05-21T03:34:34Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T03:35:33Z",
+              "conclusion": "success",
+              "name": "Install sqlx-cli",
+              "number": 7,
+              "startedAt": "2026-05-21T03:34:35Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T03:35:33Z",
+              "conclusion": "success",
+              "name": "Run migrations",
+              "number": 8,
+              "startedAt": "2026-05-21T03:35:33Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T03:41:06Z",
+              "conclusion": "success",
+              "name": "Build API binary",
+              "number": 9,
+              "startedAt": "2026-05-21T03:35:33Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T03:41:06Z",
+              "conclusion": "success",
+              "name": "Start API server",
+              "number": 10,
+              "startedAt": "2026-05-21T03:41:06Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T03:41:06Z",
+              "conclusion": "success",
+              "name": "Start web server",
+              "number": 11,
+              "startedAt": "2026-05-21T03:41:06Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T03:41:12Z",
+              "conclusion": "success",
+              "name": "Wait for API and web readiness",
+              "number": 12,
+              "startedAt": "2026-05-21T03:41:06Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T03:41:33Z",
+              "conclusion": "success",
+              "name": "Install Playwright browsers",
+              "number": 13,
+              "startedAt": "2026-05-21T03:41:12Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T04:13:59Z",
+              "conclusion": "failure",
+              "name": "Run Playwright tests",
+              "number": 14,
+              "startedAt": "2026-05-21T03:41:33Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T04:14:01Z",
+              "conclusion": "success",
+              "name": "Upload Playwright artifacts",
+              "number": 15,
+              "startedAt": "2026-05-21T04:13:59Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T04:14:01Z",
+              "conclusion": "success",
+              "name": "Stop API and web servers",
+              "number": 16,
+              "startedAt": "2026-05-21T04:14:01Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T04:14:01Z",
+              "conclusion": "skipped",
+              "name": "Post Set up Node.js",
+              "number": 30,
+              "startedAt": "2026-05-21T04:14:01Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T04:14:01Z",
+              "conclusion": "success",
+              "name": "Post Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
+              "number": 31,
+              "startedAt": "2026-05-21T04:14:01Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T04:14:02Z",
+              "conclusion": "success",
+              "name": "Stop containers",
+              "number": 32,
+              "startedAt": "2026-05-21T04:14:01Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T04:14:02Z",
+              "conclusion": "success",
+              "name": "Complete job",
+              "number": 33,
+              "startedAt": "2026-05-21T04:14:02Z",
+              "status": "completed"
+            }
+          ],
+          "url": "https://github.com/gridl-infra-prod/fjcloud/actions/runs/26201800954/job/77099337651"
+        },
+        {
+          "completedAt": "2026-05-21T03:03:13Z",
+          "conclusion": "success",
+          "databaseId": 77099337758,
+          "name": "rust-test",
+          "startedAt": "2026-05-21T02:27:15Z",
+          "status": "completed",
+          "steps": [
+            {
+              "completedAt": "2026-05-21T02:27:16Z",
+              "conclusion": "success",
+              "name": "Set up job",
+              "number": 1,
+              "startedAt": "2026-05-21T02:27:15Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T02:27:36Z",
+              "conclusion": "success",
+              "name": "Initialize containers",
+              "number": 2,
+              "startedAt": "2026-05-21T02:27:16Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T02:28:19Z",
+              "conclusion": "success",
+              "name": "Free disk space",
+              "number": 3,
+              "startedAt": "2026-05-21T02:27:36Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T02:28:22Z",
+              "conclusion": "success",
+              "name": "Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
+              "number": 4,
+              "startedAt": "2026-05-21T02:28:19Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T02:28:22Z",
+              "conclusion": "success",
+              "name": "Seed reliability profile artifacts",
+              "number": 5,
+              "startedAt": "2026-05-21T02:28:22Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T02:28:23Z",
+              "conclusion": "success",
+              "name": "Install Rust",
+              "number": 6,
+              "startedAt": "2026-05-21T02:28:22Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T02:28:33Z",
+              "conclusion": "success",
+              "name": "Set up rust cache",
+              "number": 7,
+              "startedAt": "2026-05-21T02:28:23Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T02:28:33Z",
+              "conclusion": "success",
+              "name": "Set up swap space",
+              "number": 8,
+              "startedAt": "2026-05-21T02:28:33Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T03:03:11Z",
+              "conclusion": "success",
+              "name": "Run rust tests",
+              "number": 9,
+              "startedAt": "2026-05-21T02:28:33Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T03:03:12Z",
+              "conclusion": "success",
+              "name": "Post Set up rust cache",
+              "number": 16,
+              "startedAt": "2026-05-21T03:03:11Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T03:03:12Z",
+              "conclusion": "success",
+              "name": "Post Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
+              "number": 17,
+              "startedAt": "2026-05-21T03:03:12Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T03:03:12Z",
+              "conclusion": "success",
+              "name": "Stop containers",
+              "number": 18,
+              "startedAt": "2026-05-21T03:03:12Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T03:03:12Z",
+              "conclusion": "success",
+              "name": "Complete job",
+              "number": 19,
+              "startedAt": "2026-05-21T03:03:12Z",
+              "status": "completed"
+            }
+          ],
+          "url": "https://github.com/gridl-infra-prod/fjcloud/actions/runs/26201800954/job/77099337758"
+        },
+        {
+          "completedAt": "2026-05-21T02:29:02Z",
+          "conclusion": "success",
+          "databaseId": 77099337876,
+          "name": "web-test",
+          "startedAt": "2026-05-21T02:27:15Z",
+          "status": "completed",
+          "steps": [
+            {
+              "completedAt": "2026-05-21T02:27:16Z",
+              "conclusion": "success",
+              "name": "Set up job",
+              "number": 1,
+              "startedAt": "2026-05-21T02:27:15Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T02:27:19Z",
+              "conclusion": "success",
+              "name": "Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
+              "number": 2,
+              "startedAt": "2026-05-21T02:27:16Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T02:27:19Z",
+              "conclusion": "success",
+              "name": "Set up Node.js",
+              "number": 3,
+              "startedAt": "2026-05-21T02:27:19Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T02:29:00Z",
+              "conclusion": "success",
+              "name": "Run web tests",
+              "number": 4,
+              "startedAt": "2026-05-21T02:27:19Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T02:29:00Z",
+              "conclusion": "success",
+              "name": "Post Set up Node.js",
+              "number": 7,
+              "startedAt": "2026-05-21T02:29:00Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T02:29:01Z",
+              "conclusion": "success",
+              "name": "Post Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
+              "number": 8,
+              "startedAt": "2026-05-21T02:29:00Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T02:29:01Z",
+              "conclusion": "success",
+              "name": "Complete job",
+              "number": 9,
+              "startedAt": "2026-05-21T02:29:01Z",
+              "status": "completed"
+            }
+          ],
+          "url": "https://github.com/gridl-infra-prod/fjcloud/actions/runs/26201800954/job/77099337876"
+        },
+        {
+          "completedAt": "2026-05-21T03:49:59Z",
+          "conclusion": "success",
+          "databaseId": 77099337963,
+          "name": "deploy-prod",
+          "startedAt": "2026-05-21T03:33:49Z",
+          "status": "completed",
+          "steps": [
+            {
+              "completedAt": "2026-05-21T03:33:51Z",
+              "conclusion": "success",
+              "name": "Set up job",
+              "number": 1,
+              "startedAt": "2026-05-21T03:33:50Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T03:33:54Z",
+              "conclusion": "success",
+              "name": "Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
+              "number": 2,
+              "startedAt": "2026-05-21T03:33:51Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T03:33:55Z",
+              "conclusion": "success",
+              "name": "Configure AWS credentials",
+              "number": 3,
+              "startedAt": "2026-05-21T03:33:54Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T03:33:55Z",
+              "conclusion": "success",
+              "name": "Inject build-time provenance from debbie sync manifest",
+              "number": 4,
+              "startedAt": "2026-05-21T03:33:55Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T03:49:22Z",
+              "conclusion": "success",
+              "name": "Build release binaries in Amazon Linux 2023",
+              "number": 5,
+              "startedAt": "2026-05-21T03:33:55Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T03:49:37Z",
+              "conclusion": "success",
+              "name": "Upload release artifacts",
+              "number": 6,
+              "startedAt": "2026-05-21T03:49:22Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T03:49:56Z",
+              "conclusion": "success",
+              "name": "Trigger API deploy",
+              "number": 7,
+              "startedAt": "2026-05-21T03:49:37Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T03:49:56Z",
+              "conclusion": "success",
+              "name": "Post Configure AWS credentials",
+              "number": 13,
+              "startedAt": "2026-05-21T03:49:56Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T03:49:56Z",
+              "conclusion": "success",
+              "name": "Post Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
+              "number": 14,
+              "startedAt": "2026-05-21T03:49:56Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T03:49:56Z",
+              "conclusion": "success",
+              "name": "Complete job",
+              "number": 15,
+              "startedAt": "2026-05-21T03:49:56Z",
+              "status": "completed"
+            }
+          ],
+          "url": "https://github.com/gridl-infra-prod/fjcloud/actions/runs/26201800954/job/77099337963"
+        },
+        {
+          "completedAt": "2026-05-21T03:03:13Z",
+          "conclusion": "skipped",
+          "databaseId": 77099338008,
+          "name": "deploy-staging",
+          "startedAt": "2026-05-21T03:33:47Z",
+          "status": "completed",
+          "steps": [],
+          "url": "https://github.com/gridl-infra-prod/fjcloud/actions/runs/26201800954/job/77099338008"
+        },
+        {
+          "completedAt": "2026-05-21T02:28:12Z",
+          "conclusion": "success",
+          "databaseId": 77099345006,
+          "name": "web-lint",
+          "startedAt": "2026-05-21T02:27:15Z",
+          "status": "completed",
+          "steps": [
+            {
+              "completedAt": "2026-05-21T02:27:16Z",
+              "conclusion": "success",
+              "name": "Set up job",
+              "number": 1,
+              "startedAt": "2026-05-21T02:27:15Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T02:27:19Z",
+              "conclusion": "success",
+              "name": "Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
+              "number": 2,
+              "startedAt": "2026-05-21T02:27:16Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T02:27:22Z",
+              "conclusion": "success",
+              "name": "Set up Node.js",
+              "number": 3,
+              "startedAt": "2026-05-21T02:27:19Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T02:27:38Z",
+              "conclusion": "success",
+              "name": "Install dependencies",
+              "number": 4,
+              "startedAt": "2026-05-21T02:27:22Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T02:27:51Z",
+              "conclusion": "success",
+              "name": "Run svelte-check",
+              "number": 5,
+              "startedAt": "2026-05-21T02:27:38Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T02:28:08Z",
+              "conclusion": "success",
+              "name": "Run eslint",
+              "number": 6,
+              "startedAt": "2026-05-21T02:27:51Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T02:28:09Z",
+              "conclusion": "success",
+              "name": "Run browser-unmocked lint",
+              "number": 7,
+              "startedAt": "2026-05-21T02:28:08Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T02:28:10Z",
+              "conclusion": "success",
+              "name": "Run screen spec coverage contract",
+              "number": 8,
+              "startedAt": "2026-05-21T02:28:09Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T02:28:10Z",
+              "conclusion": "success",
+              "name": "Run SES IAM/configset coupling contract",
+              "number": 9,
+              "startedAt": "2026-05-21T02:28:10Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T02:28:11Z",
+              "conclusion": "success",
+              "name": "Post Set up Node.js",
+              "number": 17,
+              "startedAt": "2026-05-21T02:28:10Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T02:28:11Z",
+              "conclusion": "success",
+              "name": "Post Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
+              "number": 18,
+              "startedAt": "2026-05-21T02:28:11Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T02:28:11Z",
+              "conclusion": "success",
+              "name": "Complete job",
+              "number": 19,
+              "startedAt": "2026-05-21T02:28:11Z",
+              "status": "completed"
+            }
+          ],
+          "url": "https://github.com/gridl-infra-prod/fjcloud/actions/runs/26201800954/job/77099345006"
+        },
+        {
+          "completedAt": "2026-05-21T02:27:22Z",
+          "conclusion": "success",
+          "databaseId": 77099346293,
+          "name": "check-sizes",
+          "startedAt": "2026-05-21T02:27:15Z",
+          "status": "completed",
+          "steps": [
+            {
+              "completedAt": "2026-05-21T02:27:16Z",
+              "conclusion": "success",
+              "name": "Set up job",
+              "number": 1,
+              "startedAt": "2026-05-21T02:27:16Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T02:27:19Z",
+              "conclusion": "success",
+              "name": "Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
+              "number": 2,
+              "startedAt": "2026-05-21T02:27:16Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T02:27:20Z",
+              "conclusion": "success",
+              "name": "Check source file size limits",
+              "number": 3,
+              "startedAt": "2026-05-21T02:27:19Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T02:27:20Z",
+              "conclusion": "success",
+              "name": "Post Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
+              "number": 6,
+              "startedAt": "2026-05-21T02:27:20Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T02:27:20Z",
+              "conclusion": "success",
+              "name": "Complete job",
+              "number": 7,
+              "startedAt": "2026-05-21T02:27:20Z",
+              "status": "completed"
+            }
+          ],
+          "url": "https://github.com/gridl-infra-prod/fjcloud/actions/runs/26201800954/job/77099346293"
+        },
+        {
+          "completedAt": "2026-05-21T02:27:44Z",
+          "conclusion": "success",
+          "databaseId": 77099346896,
+          "name": "secret-scan",
+          "startedAt": "2026-05-21T02:27:15Z",
+          "status": "completed",
+          "steps": [
+            {
+              "completedAt": "2026-05-21T02:27:17Z",
+              "conclusion": "success",
+              "name": "Set up job",
+              "number": 1,
+              "startedAt": "2026-05-21T02:27:16Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T02:27:21Z",
+              "conclusion": "success",
+              "name": "Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
+              "number": 2,
+              "startedAt": "2026-05-21T02:27:17Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T02:27:21Z",
+              "conclusion": "skipped",
+              "name": "Run gitleaks (PR diff)",
+              "number": 3,
+              "startedAt": "2026-05-21T02:27:21Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T02:27:21Z",
+              "conclusion": "success",
+              "name": "Install gitleaks CLI (main full history)",
+              "number": 4,
+              "startedAt": "2026-05-21T02:27:21Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T02:27:42Z",
+              "conclusion": "success",
+              "name": "Run gitleaks (main full history)",
+              "number": 5,
+              "startedAt": "2026-05-21T02:27:21Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T02:27:42Z",
+              "conclusion": "success",
+              "name": "Post Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
+              "number": 10,
+              "startedAt": "2026-05-21T02:27:42Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T02:27:42Z",
+              "conclusion": "success",
+              "name": "Complete job",
+              "number": 11,
+              "startedAt": "2026-05-21T02:27:42Z",
+              "status": "completed"
+            }
+          ],
+          "url": "https://github.com/gridl-infra-prod/fjcloud/actions/runs/26201800954/job/77099346896"
+        },
+        {
+          "completedAt": "2026-05-21T02:28:26Z",
+          "conclusion": "success",
+          "databaseId": 77099347182,
+          "name": "rust-lint",
+          "startedAt": "2026-05-21T02:27:15Z",
+          "status": "completed",
+          "steps": [
+            {
+              "completedAt": "2026-05-21T02:27:18Z",
+              "conclusion": "success",
+              "name": "Set up job",
+              "number": 1,
+              "startedAt": "2026-05-21T02:27:16Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T02:27:21Z",
+              "conclusion": "success",
+              "name": "Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
+              "number": 2,
+              "startedAt": "2026-05-21T02:27:18Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T02:27:22Z",
+              "conclusion": "success",
+              "name": "Run CI workflow contract tests",
+              "number": 3,
+              "startedAt": "2026-05-21T02:27:21Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T02:27:22Z",
+              "conclusion": "success",
+              "name": "Run SSM env projection contract test",
+              "number": 4,
+              "startedAt": "2026-05-21T02:27:22Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T02:27:23Z",
+              "conclusion": "success",
+              "name": "Run SES support email unit seams",
+              "number": 5,
+              "startedAt": "2026-05-21T02:27:22Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T02:27:24Z",
+              "conclusion": "success",
+              "name": "Install Rust",
+              "number": 6,
+              "startedAt": "2026-05-21T02:27:23Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T02:27:33Z",
+              "conclusion": "success",
+              "name": "Set up rust cache",
+              "number": 7,
+              "startedAt": "2026-05-21T02:27:24Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T02:27:52Z",
+              "conclusion": "success",
+              "name": "Run local-ci rust-lint regression test",
+              "number": 8,
+              "startedAt": "2026-05-21T02:27:33Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T02:27:59Z",
+              "conclusion": "success",
+              "name": "Check formatting",
+              "number": 9,
+              "startedAt": "2026-05-21T02:27:52Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T02:28:23Z",
+              "conclusion": "success",
+              "name": "Run clippy",
+              "number": 10,
+              "startedAt": "2026-05-21T02:27:59Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T02:28:23Z",
+              "conclusion": "success",
+              "name": "Post Set up rust cache",
+              "number": 19,
+              "startedAt": "2026-05-21T02:28:23Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T02:28:23Z",
+              "conclusion": "success",
+              "name": "Post Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
+              "number": 20,
+              "startedAt": "2026-05-21T02:28:23Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T02:28:23Z",
+              "conclusion": "success",
+              "name": "Complete job",
+              "number": 21,
+              "startedAt": "2026-05-21T02:28:23Z",
+              "status": "completed"
+            }
+          ],
+          "url": "https://github.com/gridl-infra-prod/fjcloud/actions/runs/26201800954/job/77099347182"
+        },
+        {
+          "completedAt": "2026-05-21T02:28:34Z",
+          "conclusion": "success",
+          "databaseId": 77099351362,
+          "name": "migration-test",
+          "startedAt": "2026-05-21T02:27:15Z",
+          "status": "completed",
+          "steps": [
+            {
+              "completedAt": "2026-05-21T02:27:16Z",
+              "conclusion": "success",
+              "name": "Set up job",
+              "number": 1,
+              "startedAt": "2026-05-21T02:27:15Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T02:27:38Z",
+              "conclusion": "success",
+              "name": "Initialize containers",
+              "number": 2,
+              "startedAt": "2026-05-21T02:27:16Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T02:27:41Z",
+              "conclusion": "success",
+              "name": "Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
+              "number": 3,
+              "startedAt": "2026-05-21T02:27:38Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T02:27:41Z",
+              "conclusion": "success",
+              "name": "Install Rust",
+              "number": 4,
+              "startedAt": "2026-05-21T02:27:41Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T02:28:32Z",
+              "conclusion": "success",
+              "name": "Install sqlx-cli",
+              "number": 5,
+              "startedAt": "2026-05-21T02:27:41Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T02:28:32Z",
+              "conclusion": "success",
+              "name": "Run migration test",
+              "number": 6,
+              "startedAt": "2026-05-21T02:28:32Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T02:28:33Z",
+              "conclusion": "success",
+              "name": "Post Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
+              "number": 11,
+              "startedAt": "2026-05-21T02:28:32Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T02:28:33Z",
+              "conclusion": "success",
+              "name": "Stop containers",
+              "number": 12,
+              "startedAt": "2026-05-21T02:28:33Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-05-21T02:28:33Z",
+              "conclusion": "success",
+              "name": "Complete job",
+              "number": 13,
+              "startedAt": "2026-05-21T02:28:33Z",
+              "status": "completed"
+            }
+          ],
+          "url": "https://github.com/gridl-infra-prod/fjcloud/actions/runs/26201800954/job/77099351362"
+        }
+      ],
+      "deploy_job_name": "deploy-prod",
+      "deploy_job_conclusion": "success",
+      "failed_log_command": "gh run view -R gridl-infra-prod/fjcloud 26201800954 --log-failed",
+      "failed_log_rc": 0,
+      "failed_log_stderr_tail": "",
+      "failed_log_tail": "redacted in committed evidence; use failed_log_command to inspect the live failed CI log in an access-controlled context"
+    }
+  }
+}

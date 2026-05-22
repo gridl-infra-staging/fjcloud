@@ -1,0 +1,6 @@
+# public_dns_resolution
+104.21.7.70
+172.67.187.141
+# pages_dev_target_resolution
+172.66.47.44
+172.66.44.212

@@ -6,5 +6,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| full | The vlm_capture directory provides infrastructure for VLM screenshot capture, defining canonical capture specifications, managing redirect logic during capture operations, and scaffolding manifests for captured outputs. |
+| full | The vlm_capture directory provides infrastructure for capturing screenshots used by visual language models, managing which screenshots to capture through canonical tuple definitions, and preventing unwanted navigation during the capture process via redirect guards. |
 <!-- [scrai:end] -->

@@ -33,83 +33,108 @@ fi
 # ---------------------------------------------------------------------------
 # SSM param name -> env var name mapping
 #
+# Bash 3.2 compatibility note: keep this as a case statement (not
+# associative arrays) so macOS default bash can execute this script.
 # Keys are the SSM parameter suffix (after /fjcloud/<env>/).
 # Values are the env var names that infra/api/src/config.rs::from_reader and
 # infra/api/src/startup_env.rs::StartupEnvSnapshot expect.
-#
 # Parameters NOT in this map are skipped (e.g., last_deploy_sha, db_password).
 # ---------------------------------------------------------------------------
 
-declare -A SSM_TO_ENV=(
-  # Required by config.rs::from_reader
-  ["database_url"]="DATABASE_URL"
-  ["jwt_secret"]="JWT_SECRET"
-  ["admin_key"]="ADMIN_KEY"
+map_ssm_suffix_to_env_var() {
+  local suffix="$1"
+  case "$suffix" in
+    # Required by config.rs::from_reader
+    database_url) echo "DATABASE_URL" ;;
+    jwt_secret) echo "JWT_SECRET" ;;
+    admin_key) echo "ADMIN_KEY" ;;
 
-  # Shared-VM provisioning — infra/api/src/provisioner/aws.rs
-  ["aws_ami_id"]="AWS_AMI_ID"
-  ["aws_subnet_id"]="AWS_SUBNET_ID"
-  ["aws_security_group_ids"]="AWS_SECURITY_GROUP_IDS"
-  ["aws_key_pair_name"]="AWS_KEY_PAIR_NAME"
-  ["aws_instance_profile_name"]="AWS_INSTANCE_PROFILE_NAME"
+    # Shared-VM provisioning — infra/api/src/provisioner/aws.rs
+    aws_ami_id) echo "AWS_AMI_ID" ;;
+    aws_subnet_id) echo "AWS_SUBNET_ID" ;;
+    aws_security_group_ids) echo "AWS_SECURITY_GROUP_IDS" ;;
+    aws_key_pair_name) echo "AWS_KEY_PAIR_NAME" ;;
+    aws_instance_profile_name) echo "AWS_INSTANCE_PROFILE_NAME" ;;
 
-  # Shared-VM DNS routing — infra/api/src/startup.rs::init_dns_manager
-  ["cloudflare_api_token"]="CLOUDFLARE_API_TOKEN"
-  ["cloudflare_zone_id"]="CLOUDFLARE_ZONE_ID"
-  ["dns_domain"]="DNS_DOMAIN"
+    # Shared-VM DNS routing — infra/api/src/startup.rs::init_dns_manager
+    cloudflare_api_token) echo "CLOUDFLARE_API_TOKEN" ;;
+    cloudflare_zone_id) echo "CLOUDFLARE_ZONE_ID" ;;
+    dns_domain) echo "DNS_DOMAIN" ;;
 
-  # Stripe — config.rs::from_reader (optional until Stage 7 activates them)
-  ["stripe_secret_key"]="STRIPE_SECRET_KEY"
-  ["stripe_publishable_key"]="STRIPE_PUBLISHABLE_KEY"
-  ["stripe_webhook_secret"]="STRIPE_WEBHOOK_SECRET"
-  ["stripe_success_url"]="STRIPE_SUCCESS_URL"
-  ["stripe_cancel_url"]="STRIPE_CANCEL_URL"
+    # Stripe — config.rs::from_reader (optional until Stage 7 activates them)
+    stripe_secret_key) echo "STRIPE_SECRET_KEY" ;;
+    stripe_publishable_key) echo "STRIPE_PUBLISHABLE_KEY" ;;
+    stripe_webhook_secret) echo "STRIPE_WEBHOOK_SECRET" ;;
+    stripe_success_url) echo "STRIPE_SUCCESS_URL" ;;
+    stripe_cancel_url) echo "STRIPE_CANCEL_URL" ;;
 
-  # Cold storage — startup_env.rs
-  ["cold_bucket_name"]="COLD_STORAGE_BUCKET"
-  ["cold_storage_prefix"]="COLD_STORAGE_PREFIX"
-  ["cold_storage_region"]="COLD_STORAGE_REGION"
-  ["cold_storage_endpoint"]="COLD_STORAGE_ENDPOINT"
-  ["cold_storage_regions"]="COLD_STORAGE_REGIONS"
+    # Cold storage — startup_env.rs
+    cold_bucket_name) echo "COLD_STORAGE_BUCKET" ;;
+    cold_storage_prefix) echo "COLD_STORAGE_PREFIX" ;;
+    cold_storage_region) echo "COLD_STORAGE_REGION" ;;
+    cold_storage_endpoint) echo "COLD_STORAGE_ENDPOINT" ;;
+    cold_storage_regions) echo "COLD_STORAGE_REGIONS" ;;
 
-  # Storage encryption — startup_env.rs
-  ["storage_encryption_key"]="STORAGE_ENCRYPTION_KEY"
+    # Storage encryption — startup_env.rs
+    storage_encryption_key) echo "STORAGE_ENCRYPTION_KEY" ;;
 
-  # SES email — startup_env.rs
-  ["ses_from_address"]="SES_FROM_ADDRESS"
-  ["ses_region"]="SES_REGION"
-  ["ses_configuration_set"]="SES_CONFIGURATION_SET"
+    # SES email — startup_env.rs
+    ses_from_address) echo "SES_FROM_ADDRESS" ;;
+    ses_region) echo "SES_REGION" ;;
+    ses_configuration_set) echo "SES_CONFIGURATION_SET" ;;
 
-  # Internal auth — config.rs::from_reader
-  ["internal_auth_token"]="INTERNAL_AUTH_TOKEN"
+    # Internal auth — config.rs::from_reader
+    internal_auth_token) echo "INTERNAL_AUTH_TOKEN" ;;
 
-  # Alert webhook URLs — read by infra/api/src/startup.rs::init_alert_service.
-  ["slack_webhook_url"]="SLACK_WEBHOOK_URL"
-  ["discord_webhook_url"]="DISCORD_WEBHOOK_URL"
+    # Alert webhook URLs — read by infra/api/src/startup.rs::init_alert_service.
+    slack_webhook_url) echo "SLACK_WEBHOOK_URL" ;;
+    discord_webhook_url) echo "DISCORD_WEBHOOK_URL" ;;
 
-  # OAuth providers — config.rs::from_reader (GOOGLE/GITHUB_OAUTH_CLIENT_*).
-  # Each provider is enabled only when both id+secret resolve; absent => the
-  # /auth/oauth/<provider>/start route returns 501. APP_BASE_URL drives the
-  # callback redirect_uri in main.rs::build_oauth_runtime_config — staging must
-  # set it to its own host or callbacks route to the prod web host.
-  ["google_oauth_client_id"]="GOOGLE_OAUTH_CLIENT_ID"
-  ["google_oauth_client_secret"]="GOOGLE_OAUTH_CLIENT_SECRET"
-  ["github_oauth_client_id"]="GITHUB_OAUTH_CLIENT_ID"
-  ["github_oauth_client_secret"]="GITHUB_OAUTH_CLIENT_SECRET"
-  ["app_base_url"]="APP_BASE_URL"
-)
+    # OAuth providers — config.rs::from_reader (GOOGLE/GITHUB_OAUTH_CLIENT_*).
+    # Each provider is enabled only when both id+secret resolve; absent => the
+    # /auth/oauth/<provider>/start route returns 501. APP_BASE_URL drives the
+    # callback redirect_uri in main.rs::build_oauth_runtime_config — staging must
+    # set it to its own host or callbacks route to the prod web host.
+    google_oauth_client_id) echo "GOOGLE_OAUTH_CLIENT_ID" ;;
+    google_oauth_client_secret) echo "GOOGLE_OAUTH_CLIENT_SECRET" ;;
+    github_oauth_client_id) echo "GITHUB_OAUTH_CLIENT_ID" ;;
+    github_oauth_client_secret) echo "GITHUB_OAUTH_CLIENT_SECRET" ;;
+    app_base_url) echo "APP_BASE_URL" ;;
+    *) return 1 ;;
+  esac
+}
 
-# ---------------------------------------------------------------------------
-# Static env vars (not from SSM — hardcoded per environment)
-# These control startup_env.rs::is_local_zero_dependency_mode().
-# ---------------------------------------------------------------------------
+set_resolved_value() {
+  local key="$1"
+  local value="$2"
+  local slot="RESOLVED_${key}"
+  printf -v "$slot" '%s' "$value"
+}
 
-declare -A STATIC_VARS=(
-  ["ENVIRONMENT"]="${ENV}"
-  ["NODE_SECRET_BACKEND"]="ssm"
-)
+get_resolved_value() {
+  local key="$1"
+  local slot="RESOLVED_${key}"
+  eval "printf '%s' \"\${${slot}:-}\""
+}
 
-declare -A RESOLVED_VARS=()
+assert_envfile_safe_value() {
+  local key="$1"
+  local value="$2"
+  if [[ "$value" == *$'\n'* || "$value" == *$'\r'* ]]; then
+    echo "ERROR: ${key} contains newline bytes and cannot be written safely to an EnvironmentFile" >&2
+    exit 1
+  fi
+}
+
+append_envfile_line() {
+  local file="$1"
+  local key="$2"
+  local value="$3"
+  assert_envfile_safe_value "$key" "$value"
+  printf '%s\n' "${key}=${value}" >> "$file"
+}
+
+STATIC_VAR_COUNT=2
 
 # ---------------------------------------------------------------------------
 # Fetch SSM parameters
@@ -143,27 +168,23 @@ TMPFILE=$(mktemp "${ENV_FILE}.XXXXXX")
   echo ""
 
   # Static vars first
-  for var_name in "${!STATIC_VARS[@]}"; do
-    RESOLVED_VARS["$var_name"]="${STATIC_VARS[$var_name]}"
-    printf '%s\n' "${var_name}=${STATIC_VARS[$var_name]}"
-  done
+  set_resolved_value "ENVIRONMENT" "$ENV"
+  set_resolved_value "NODE_SECRET_BACKEND" "ssm"
+  append_envfile_line "$TMPFILE" "ENVIRONMENT" "$ENV"
+  append_envfile_line "$TMPFILE" "NODE_SECRET_BACKEND" "ssm"
 } > "$TMPFILE"
 
 # SSM-sourced vars
 MAPPED_COUNT=0
 SKIPPED_LIST=()
 
-while IFS= read -r line; do
-  param_name=$(echo "$line" | cut -d'|' -f1)
-  param_value=$(echo "$line" | cut -d'|' -f2-)
-
+while IFS= read -r -d '' param_name && IFS= read -r -d '' param_value; do
   # Extract suffix after /fjcloud/<env>/
   suffix="${param_name#${SSM_PREFIX}/}"
 
-  if [[ -n "${SSM_TO_ENV[$suffix]+_}" ]]; then
-    env_var="${SSM_TO_ENV[$suffix]}"
-    RESOLVED_VARS["$env_var"]="$param_value"
-    printf '%s\n' "${env_var}=${param_value}" >> "$TMPFILE"
+  if env_var="$(map_ssm_suffix_to_env_var "$suffix")"; then
+    set_resolved_value "$env_var" "$param_value"
+    append_envfile_line "$TMPFILE" "$env_var" "$param_value"
     MAPPED_COUNT=$((MAPPED_COUNT + 1))
   else
     SKIPPED_LIST+=("${suffix}")
@@ -172,14 +193,17 @@ done < <(echo "$SSM_OUTPUT" | python3 -c "
 import json, sys
 data = json.load(sys.stdin)
 for p in data.get('Parameters', []):
-    print(f\"{p['Name']}|{p['Value']}\")
+    sys.stdout.write(p['Name'])
+    sys.stdout.write('\\0')
+    sys.stdout.write(p['Value'])
+    sys.stdout.write('\\0')
 ")
 
 chmod 0600 "$TMPFILE"
 chown fjcloud:fjcloud "$TMPFILE" 2>/dev/null || true
 mv "$TMPFILE" "$ENV_FILE"
 
-echo "==> Wrote ${ENV_FILE} (${MAPPED_COUNT} SSM params mapped, static vars: ${#STATIC_VARS[@]})"
+echo "==> Wrote ${ENV_FILE} (${MAPPED_COUNT} SSM params mapped, static vars: ${STATIC_VAR_COUNT})"
 if [[ ${#SKIPPED_LIST[@]} -gt 0 ]]; then
   echo "    Skipped SSM params (no mapping):"
   printf '  %s\n' "${SKIPPED_LIST[@]}"
@@ -249,12 +273,20 @@ FLAPJACK_API_KEY=$(aws ssm get-parameter \
   --output text \
   --region "$REGION")
 
-DATABASE_URL="${RESOLVED_VARS[DATABASE_URL]:-}"
-DNS_DOMAIN="${RESOLVED_VARS[DNS_DOMAIN]:-}"
-INTERNAL_KEY="${RESOLVED_VARS[INTERNAL_AUTH_TOKEN]:-${FLAPJACK_API_KEY}}"
-ENVIRONMENT_VALUE="${RESOLVED_VARS[ENVIRONMENT]:-${ENV}}"
-SLACK_WEBHOOK_URL="${RESOLVED_VARS[SLACK_WEBHOOK_URL]:-}"
-DISCORD_WEBHOOK_URL="${RESOLVED_VARS[DISCORD_WEBHOOK_URL]:-}"
+DATABASE_URL="$(get_resolved_value "DATABASE_URL")"
+DNS_DOMAIN="$(get_resolved_value "DNS_DOMAIN")"
+INTERNAL_AUTH_TOKEN_VALUE="$(get_resolved_value "INTERNAL_AUTH_TOKEN")"
+ENVIRONMENT_VALUE="$(get_resolved_value "ENVIRONMENT")"
+SLACK_WEBHOOK_URL="$(get_resolved_value "SLACK_WEBHOOK_URL")"
+DISCORD_WEBHOOK_URL="$(get_resolved_value "DISCORD_WEBHOOK_URL")"
+if [[ -n "$INTERNAL_AUTH_TOKEN_VALUE" ]]; then
+  INTERNAL_KEY="$INTERNAL_AUTH_TOKEN_VALUE"
+else
+  INTERNAL_KEY="$FLAPJACK_API_KEY"
+fi
+if [[ -z "$ENVIRONMENT_VALUE" ]]; then
+  ENVIRONMENT_VALUE="$ENV"
+fi
 
 if [[ -z "$DATABASE_URL" ]]; then
   echo "ERROR: DATABASE_URL missing from ${ENV_FILE} mapping"
@@ -272,18 +304,18 @@ METERING_TMPFILE=$(mktemp "${METERING_ENV_FILE}.XXXXXX")
   printf '%s\n' "# Environment: ${ENVIRONMENT_VALUE}"
   printf '%s\n' "# Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
   echo ""
-  printf '%s\n' "DATABASE_URL=${DATABASE_URL}"
-  printf '%s\n' "FLAPJACK_URL=http://${NODE_ID}:7700"
-  printf '%s\n' "FLAPJACK_API_KEY=${FLAPJACK_API_KEY}"
-  printf '%s\n' "INTERNAL_KEY=${INTERNAL_KEY}"
-  printf '%s\n' "CUSTOMER_ID=${CUSTOMER_ID}"
-  printf '%s\n' "NODE_ID=${NODE_ID}"
-  printf '%s\n' "REGION=${REGION}"
-  printf '%s\n' "ENVIRONMENT=${ENVIRONMENT_VALUE}"
-  printf '%s\n' "TENANT_MAP_URL=https://api.${DNS_DOMAIN}/internal/tenant-map"
-  printf '%s\n' "COLD_STORAGE_USAGE_URL=https://api.${DNS_DOMAIN}/internal/cold-storage-usage"
-  printf '%s\n' "SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL}"
-  printf '%s\n' "DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL}"
+  append_envfile_line "$METERING_TMPFILE" "DATABASE_URL" "$DATABASE_URL"
+  append_envfile_line "$METERING_TMPFILE" "FLAPJACK_URL" "http://${NODE_ID}:7700"
+  append_envfile_line "$METERING_TMPFILE" "FLAPJACK_API_KEY" "$FLAPJACK_API_KEY"
+  append_envfile_line "$METERING_TMPFILE" "INTERNAL_KEY" "$INTERNAL_KEY"
+  append_envfile_line "$METERING_TMPFILE" "CUSTOMER_ID" "$CUSTOMER_ID"
+  append_envfile_line "$METERING_TMPFILE" "NODE_ID" "$NODE_ID"
+  append_envfile_line "$METERING_TMPFILE" "REGION" "$REGION"
+  append_envfile_line "$METERING_TMPFILE" "ENVIRONMENT" "$ENVIRONMENT_VALUE"
+  append_envfile_line "$METERING_TMPFILE" "TENANT_MAP_URL" "https://api.${DNS_DOMAIN}/internal/tenant-map"
+  append_envfile_line "$METERING_TMPFILE" "COLD_STORAGE_USAGE_URL" "https://api.${DNS_DOMAIN}/internal/cold-storage-usage"
+  append_envfile_line "$METERING_TMPFILE" "SLACK_WEBHOOK_URL" "$SLACK_WEBHOOK_URL"
+  append_envfile_line "$METERING_TMPFILE" "DISCORD_WEBHOOK_URL" "$DISCORD_WEBHOOK_URL"
 } > "$METERING_TMPFILE"
 
 chmod 0600 "$METERING_TMPFILE"

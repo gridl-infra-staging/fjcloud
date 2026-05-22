@@ -4,6 +4,7 @@ import type { AuthUser } from '$lib/auth/guard';
 import { createApiClient } from '$lib/server/api';
 import { fail, redirect } from '@sveltejs/kit';
 import { AUTH_COOKIE } from '$lib/config';
+import { DASHBOARD_SESSION_EXPIRED_REDIRECT } from '$lib/auth-session-contracts';
 import {
 	customerFacingErrorMessage,
 	mapDashboardSessionFailure
@@ -42,8 +43,21 @@ function customerFacingApiErrorMessage(error: unknown, fallback: string): string
 
 export const load: PageServerLoad = async ({ locals }) => {
 	const api = apiForLocals(locals);
-	const profile = await api.getProfile();
-	return { profile };
+	// Defensive: if the API rejects our token (401/403) — e.g. JWT_SECRET drift between
+	// the web Pages env and the API's SSM-loaded secret, a revoked session, or a token
+	// expired between hooks-time and load-time — convert that into the same session-expired
+	// redirect that actions use, instead of letting the error bubble into an unhandled 500.
+	// See bugs/2026_05_22_account_page_500_on_unauthorized.md. Other dashboard load
+	// functions that call privileged APIs should follow this same pattern.
+	try {
+		const profile = await api.getProfile();
+		return { profile };
+	} catch (error) {
+		if (error instanceof ApiRequestError && (error.status === 401 || error.status === 403)) {
+			throw redirect(303, DASHBOARD_SESSION_EXPIRED_REDIRECT);
+		}
+		throw error;
+	}
 };
 
 export const actions: Actions = {

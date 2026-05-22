@@ -17,7 +17,7 @@ vi.mock('$env/dynamic/private', () => ({
 }));
 
 vi.mock('$lib/server/api', () => ({
-	createApiClient: vi.fn(() => ({
+	createApiClientForBaseUrl: vi.fn(() => ({
 		login: loginMock
 	}))
 }));
@@ -60,7 +60,8 @@ function makeEvent(
 	return {
 		request: { formData: async () => toFormData(data) },
 		cookies: { set: setCookie },
-		url: new URL(url)
+		url: new URL(url),
+		locals: { apiBaseUrl: 'http://127.0.0.1:3001' }
 	} as never;
 }
 
@@ -71,11 +72,9 @@ describe('login route prerender contract', () => {
 });
 
 describe('Login server load', () => {
-	it('returns apiBaseUrl from getApiBaseUrl()', async () => {
-		// The hoisted vi.mock above stubs $env/dynamic/private with
-		// API_BASE_URL='http://127.0.0.1:3001'; this test verifies load() wires
-		// through to getApiBaseUrl() rather than fabricating a value of its own.
-		await expect(load({} as never)).resolves.toEqual({ apiBaseUrl: 'http://127.0.0.1:3001' });
+	it('returns apiBaseUrl from locals', async () => {
+		const event = { locals: { apiBaseUrl: 'http://127.0.0.1:3001' } };
+		await expect(load(event as never)).resolves.toEqual({ apiBaseUrl: 'http://127.0.0.1:3001' });
 	});
 });
 

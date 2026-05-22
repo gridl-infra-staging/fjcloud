@@ -1,0 +1,13 @@
+stage=1
+evdir=_GREEN/staging-browser/stage1_preflight_20260521T222302Z
+branch=batman/may21_12pm_4_browser_lane_rerun
+head_sha=eabe2b62198a164458040212e37fa31d8c71a5e9
+main_sha=72b5dfbbb358ed173fad672bdbb270bc9c98e0bc
+merge_base_sha=72b5dfbbb358ed173fad672bdbb270bc9c98e0bc
+contract_exit=0
+stage0_ts=2026-05-21T22:23:24Z
+prod_baseline_e2e_customer_count=51
+ci_deploy_gate=advisory_only (per SUPERVISOR-UNDEFER 2026-05-21T18:00Z)
+ci_deploy_state_staging_latest_CI_run=26213041991 conclusion=failure
+ci_deploy_state_prod_latest_CI_run=26215763786 conclusion=failure
+verdict=PASS

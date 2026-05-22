@@ -1,0 +1,40 @@
+# Resolved prod non-alert Terraform variables
+# Each value verified against its live owner source on 2026-05-21
+# Variables that match the root default in ops/terraform/_shared/variables.tf
+# are marked [default-match]; they are included explicitly to prevent drift.
+
+env=prod
+
+# Source: aws ssm get-parameter --name /fjcloud/prod/aws_ami_id
+ami_id=ami-078228dbe86117d85
+
+# Source: aws ssm get-parameter --name /fjcloud/prod/dns_domain
+# Also matches variables.tf default "flapjack.foo" [default-match]
+domain=flapjack.foo
+
+# Source: aws ssm get-parameter --name /fjcloud/prod/cloudflare_zone_id
+cloudflare_zone_id=fafbf95a076d7e8ee984dbd18a62c933
+
+# Source: aws rds describe-db-instances --db-instance-identifier fjcloud-prod
+# Matches variables.tf default "db.t4g.small" [default-match]
+db_instance_class=db.t4g.small
+
+# Source: aws ec2 describe-instances --filters Name=tag:Name,Values=fjcloud-api-prod
+# Matches variables.tf default "t4g.small" [default-match]
+api_instance_type=t4g.small
+
+# Source: aws ecr describe-images --repository-name fjcloud-prod-customer-loop-canary (latest tag)
+# Confirmed via: aws lambda get-function --function-name fjcloud-prod-customer-loop-canary
+canary_image.tag=stage6fix-20260521T035230Z
+
+# Source: aws ecr describe-images --repository-name fjcloud-prod-support-email-canary (latest tag)
+# Confirmed via: aws lambda get-function --function-name fjcloud-prod-support-email-canary
+# Variable: support_email_canary_image_tag (not image_uri — prod Lambda uses tag-based ECR URI)
+support_email_canary_image_tag=stage6fix-20260521T033250Z
+
+# Canary schedule: {expression="rate(15 minutes)", enabled=true} [default-match]
+# Confirmed via: aws events describe-rule --name fjcloud-prod-customer-loop-canary
+# Not passed explicitly since it matches the default.
+
+# live_e2e budget: not configured in prod (aws budgets returned [])
+# Default null for live_e2e_monthly_spend_limit_usd is correct.

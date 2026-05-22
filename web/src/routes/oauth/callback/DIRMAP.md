@@ -6,5 +6,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| [provider] | This SvelteKit server route handles OAuth provider callbacks, processing authentication responses from external providers and completing the user login flow. |
+| [provider] | The [provider] directory contains a SvelteKit server endpoint file (+server.ts) that likely handles server-side logic for a provider-related feature. |
 <!-- [scrai:end] -->

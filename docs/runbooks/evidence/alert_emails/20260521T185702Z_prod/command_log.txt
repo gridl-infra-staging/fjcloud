@@ -1,0 +1,22 @@
+# Stage 3 prod evidence command log
+# Created: 2026-05-21T18:57:02Z (session s39)
+
+[2026-05-21T18:57:02Z] mkdir -p docs/runbooks/evidence/alert_emails/20260521T185702Z_prod/
+[2026-05-21T18:57:02Z] aws ssm get-parameters-by-path --path "/fjcloud/prod" --recursive (non-secret params only)
+  → ami_id=ami-078228dbe86117d85, domain=flapjack.foo, cloudflare_zone_id=fafbf95a076d7e8ee984dbd18a62c933
+[2026-05-21T18:57:02Z] aws ec2 describe-instances --filters Name=tag:Name,Values=fjcloud-api-prod → t4g.small
+[2026-05-21T18:57:02Z] aws rds describe-db-instances --db-instance-identifier fjcloud-prod → db.t4g.small
+[2026-05-21T18:57:02Z] aws ecr describe-images --repository-name fjcloud-prod-customer-loop-canary → stage6fix-20260521T035230Z
+[2026-05-21T18:57:02Z] aws ecr describe-images --repository-name fjcloud-prod-support-email-canary → stage6fix-20260521T033250Z
+[2026-05-21T18:57:02Z] aws lambda get-function --function-name fjcloud-prod-customer-loop-canary → tag-based URI confirmed
+[2026-05-21T18:57:02Z] aws lambda get-function --function-name fjcloud-prod-support-email-canary → tag-based URI confirmed
+[2026-05-21T18:57:02Z] aws events describe-rule --name fjcloud-prod-customer-loop-canary → ENABLED, rate(15 minutes)
+[2026-05-21T18:57:02Z] aws events describe-rule --name fjcloud-prod-support-email-canary-schedule → ENABLED
+[2026-05-21T18:57:02Z] aws budgets describe-budgets → no live-e2e budget in prod
+[2026-05-21T18:57:02Z] Wrote prod_non_alert_vars.txt
+[2026-05-21] Stage3 refresh run:
+- refreshed Stage2 evidence polls and reran stage2_verification_commands.sh (status now verification_passed)
+- terraform init -reconfigure -input=false with explicit prod backend-config values
+- terraform plan -input=false -out=.../prod_plan.tfplan with env=prod + canonical alert_emails + resolved non-alert vars
+- terraform show -no-color and -json from saved plan
+- scope audit from prod_plan.json non-no-op resource_changes -> changed_count=5 offending_count=2 scope_gate_result=FAIL

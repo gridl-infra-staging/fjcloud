@@ -110,7 +110,7 @@ main() {
     local bundle_dir="$REPO_ROOT/docs/runbooks/evidence/subprocessor_disclosure/$run_utc"
     mkdir -p "$bundle_dir"
 
-    local -a hosts=("https://staging.flapjack.foo" "https://flapjack.foo")
+    local -a hosts=("https://cloud.staging.flapjack.foo" "https://cloud.flapjack.foo")
     local -a paths=("/dpa" "/privacy")
     local -a vendors=(
         "Amazon Web Services, Inc."

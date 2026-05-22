@@ -1,0 +1,4 @@
+self-test PASS: google probe correctly rejected https://NEVER-REGISTERED-WITH-PROVIDER.example.invalid/oauth-probe-self-test
+self-test PASS: github probe correctly rejected https://NEVER-REGISTERED-WITH-PROVIDER.example.invalid/oauth-probe-self-test
+PASS: Google OAuth env=prod accepted https://cloud.flapjack.foo/auth/oauth/google/callback (token endpoint error=invalid_grant -- expected for bogus code)
+PASS: GitHub OAuth env=prod accepted https://cloud.flapjack.foo/auth/oauth/github/callback (token endpoint error=bad_verification_code -- expected for bogus code)

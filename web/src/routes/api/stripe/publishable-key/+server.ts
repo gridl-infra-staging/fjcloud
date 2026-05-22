@@ -1,7 +1,5 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { getApiBaseUrl } from '$lib/config';
-
 export const GET: RequestHandler = async ({ locals }) => {
 	if (!locals.user) {
 		return json({ error: 'unauthorized' }, { status: 401 });
@@ -9,7 +7,7 @@ export const GET: RequestHandler = async ({ locals }) => {
 
 	let upstreamResponse: Response;
 	try {
-		upstreamResponse = await globalThis.fetch(`${getApiBaseUrl()}/billing/publishable-key`, {
+		upstreamResponse = await globalThis.fetch(`${locals.apiBaseUrl}/billing/publishable-key`, {
 			method: 'GET',
 			headers: {
 				Authorization: `Bearer ${locals.user.token}`

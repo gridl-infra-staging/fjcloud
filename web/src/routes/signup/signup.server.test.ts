@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiRequestError } from '$lib/api/client';
 import { AUTH_COOKIE, COOKIE_MAX_AGE } from '$lib/config';
+import { createHmac } from 'node:crypto';
 
 const registerMock = vi.fn();
 
@@ -9,16 +10,41 @@ const registerMock = vi.fn();
 // has no effect on env.API_BASE_URL. Stub it explicitly per the established
 // repo pattern (see web/src/hooks.server.test.ts and the admin/* test files).
 vi.mock('$env/dynamic/private', () => ({
-	env: { API_BASE_URL: 'http://127.0.0.1:3001' }
+	env: {
+		API_BASE_URL: 'http://127.0.0.1:3001',
+		JWT_SECRET: 'jwt-secret-for-tests-1234567890'
+	}
 }));
 
 vi.mock('$lib/server/api', () => ({
-	createApiClient: vi.fn(() => ({
+	createApiClientForBaseUrl: vi.fn(() => ({
 		register: registerMock
 	}))
 }));
 
 import { actions, load } from './+page.server';
+
+const TEST_JWT_SECRET = 'jwt-secret-for-tests-1234567890';
+
+function b64UrlEncodeJson(value: Record<string, unknown>): string {
+	return Buffer.from(JSON.stringify(value))
+		.toString('base64')
+		.replace(/\+/g, '-')
+		.replace(/\//g, '_')
+		.replace(/=+$/, '');
+}
+
+function makeJwt(payload: Record<string, unknown>, secret = TEST_JWT_SECRET): string {
+	const header = b64UrlEncodeJson({ alg: 'HS256', typ: 'JWT' });
+	const body = b64UrlEncodeJson(payload);
+	const signature = createHmac('sha256', secret)
+		.update(`${header}.${body}`)
+		.digest('base64')
+		.replace(/\+/g, '-')
+		.replace(/\//g, '_')
+		.replace(/=+$/, '');
+	return `${header}.${body}.${signature}`;
+}
 
 function toFormData(entries: Record<string, string>): FormData {
 	const fd = new FormData();
@@ -34,16 +60,15 @@ function makeEvent(
 	return {
 		request: { formData: async () => toFormData(data) },
 		cookies: { set: setCookie },
-		url: new URL(url)
+		url: new URL(url),
+		locals: { apiBaseUrl: 'http://127.0.0.1:3001' }
 	} as never;
 }
 
 describe('Signup server load', () => {
-	it('returns apiBaseUrl from getApiBaseUrl()', async () => {
-		// The hoisted vi.mock above stubs $env/dynamic/private with
-		// API_BASE_URL='http://127.0.0.1:3001'; this test verifies load() wires
-		// through to getApiBaseUrl() rather than fabricating a value of its own.
-		await expect(load({} as never)).resolves.toEqual({ apiBaseUrl: 'http://127.0.0.1:3001' });
+	it('returns apiBaseUrl from locals', async () => {
+		const event = { locals: { apiBaseUrl: 'http://127.0.0.1:3001' } };
+		await expect(load(event as never)).resolves.toEqual({ apiBaseUrl: 'http://127.0.0.1:3001' });
 	});
 });
 
@@ -99,7 +124,8 @@ describe('Signup server action', () => {
 
 	it('normalizes inputs, sets auth cookie, and redirects on successful signup', async () => {
 		const setCookie = vi.fn();
-		registerMock.mockResolvedValue({ token: 'signup-jwt-token' });
+		const validToken = makeJwt({ sub: 'customer-123', exp: 9999999999, iat: 1000 });
+		registerMock.mockResolvedValue({ token: validToken });
 
 		await expect(
 			actions.default(
@@ -122,7 +148,7 @@ describe('Signup server action', () => {
 		});
 		expect(setCookie).toHaveBeenCalledWith(
 			AUTH_COOKIE,
-			'signup-jwt-token',
+			validToken,
 			expect.objectContaining({
 				path: '/',
 				httpOnly: true,
@@ -135,7 +161,8 @@ describe('Signup server action', () => {
 
 	it('uses a non-secure auth cookie for local http signup flows', async () => {
 		const setCookie = vi.fn();
-		registerMock.mockResolvedValue({ token: 'signup-jwt-token' });
+		const validToken = makeJwt({ sub: 'customer-123', exp: 9999999999, iat: 1000 });
+		registerMock.mockResolvedValue({ token: validToken });
 
 		await expect(
 			actions.default(
@@ -154,7 +181,7 @@ describe('Signup server action', () => {
 
 		expect(setCookie).toHaveBeenCalledWith(
 			AUTH_COOKIE,
-			'signup-jwt-token',
+			validToken,
 			expect.objectContaining({
 				secure: false
 			})
@@ -212,7 +239,8 @@ describe('Signup server action', () => {
 	});
 
 	it('signs up without requiring beta acknowledgement', async () => {
-		registerMock.mockResolvedValue({ token: 'signup-jwt-token' });
+		const validToken = makeJwt({ sub: 'customer-123', exp: 9999999999, iat: 1000 });
+		registerMock.mockResolvedValue({ token: validToken });
 
 		await expect(
 			actions.default(
@@ -230,6 +258,45 @@ describe('Signup server action', () => {
 			email: 'alice@example.com',
 			password: 'password123'
 		});
+	});
+
+	// Regression test for the JWT-verify asymmetry the Lane 4 launch-verification
+	// run surfaced on 2026-05-21: signup was setting the auth cookie and
+	// redirecting to /dashboard without verifying the returned token against
+	// this runtime's JWT_SECRET, so a cross-env API_BASE_URL (or any JWT_SECRET
+	// drift) silently set a dead cookie. Login already had this gate; signup
+	// must match. See web/src/routes/login/+page.server.ts and the symmetric
+	// "fails closed when the returned auth token cannot establish a dashboard
+	// session" test in login.server.test.ts.
+	it('fails closed when the returned auth token cannot establish a dashboard session', async () => {
+		const setCookie = vi.fn();
+		registerMock.mockResolvedValue({ token: 'not-a-jwt' });
+
+		const result = await actions.default(
+			makeEvent(
+				{
+					name: 'Alice',
+					email: 'User@Example.COM',
+					password: 'password123',
+					confirm_password: 'password123'
+				},
+				setCookie
+			)
+		);
+
+		expect(result).toEqual(
+			expect.objectContaining({
+				status: 503,
+				data: {
+					errors: {
+						form: 'Authentication session could not be established. Please verify JWT_SECRET and try again.'
+					},
+					name: 'Alice',
+					email: 'user@example.com'
+				}
+			})
+		);
+		expect(setCookie).not.toHaveBeenCalled();
 	});
 
 	it('still fails before calling the API when required fields are missing', async () => {

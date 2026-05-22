@@ -49,6 +49,6 @@ Prerequisites checked:
 
 | Directory | Summary |
 | --- | --- |
-| lib | This lib directory contains shared deployment and infrastructure utilities including pre-deployment validation, SSM parameter-to-environment-variable mapping for service configuration, Cloudflare zone parsing, and RDS restore selection helpers. |
-| tests | This directory contains a single fixture-capture script that one-shot downloads and caches a Cloudflare zone configuration for use in tests. |
+| lib | This is an ops-layer script library containing deployment validation and infrastructure utilities, including pre-deployment gate checks, SSM parameter generation for environment configuration, Cloudflare DNS zone parsing, and RDS restore helpers. |
+| tests | This tests directory contains a shell script that performs a one-time capture of Cloudflare zone configuration to create a test fixture for use in validation or testing scenarios. |
 <!-- [scrai:end] -->

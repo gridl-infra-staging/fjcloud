@@ -3,8 +3,8 @@
 # (post v1.0.0 launch review — see chats/handoffs/may3_*).
 #
 # Reverses these changes:
-#   1. Deletes DNS records for cloud, app, flapjack.foo apex, www
-#   2. Removes cloud.flapjack.foo and app.flapjack.foo as Pages custom domains
+#   1. Deletes DNS records for cloud, flapjack.foo apex, www
+#   2. Removes cloud.flapjack.foo as a Pages custom domain
 #
 # MX (Google Workspace email) was untouched — no restore needed for email.
 # api.flapjack.foo was untouched — Stripe webhooks kept flowing throughout.
@@ -21,21 +21,17 @@ ALB="fjcloud-staging-alb-1511805790.us-east-1.elb.amazonaws.com"
 auth() { curl -s -H "X-Auth-Key: ${CLOUDFLARE_GLOBAL_API_KEY}" -H "X-Auth-Email: ${CLOUDFLARE_X_Auth_Email}" -H "Content-Type: application/json" "$@"; }
 ok() { python3 -c "import sys,json;d=json.load(sys.stdin);print('  success:',d.get('success'),d.get('errors') or '')"; }
 
-echo "[1/5] Recreate cloud.flapjack.foo CNAME → flapjack-cloud.pages.dev (proxied)"
+echo "[1/4] Recreate cloud.flapjack.foo CNAME → flapjack-cloud.pages.dev (proxied)"
 auth -X POST --data '{"type":"CNAME","name":"cloud.flapjack.foo","content":"flapjack-cloud.pages.dev","ttl":1,"proxied":true}' "https://api.cloudflare.com/client/v4/zones/${ZONE}/dns_records" | ok
 
-echo "[2/5] Recreate app.flapjack.foo CNAME → flapjack-cloud.pages.dev (proxied)"
-auth -X POST --data '{"type":"CNAME","name":"app.flapjack.foo","content":"flapjack-cloud.pages.dev","ttl":1,"proxied":true}' "https://api.cloudflare.com/client/v4/zones/${ZONE}/dns_records" | ok
-
-echo "[3/5] Recreate flapjack.foo apex CNAME → ${ALB} (DNS-only)"
+echo "[2/4] Recreate flapjack.foo apex CNAME → ${ALB} (DNS-only)"
 auth -X POST --data "{\"type\":\"CNAME\",\"name\":\"flapjack.foo\",\"content\":\"${ALB}\",\"ttl\":1,\"proxied\":false}" "https://api.cloudflare.com/client/v4/zones/${ZONE}/dns_records" | ok
 
-echo "[4/5] Recreate www.flapjack.foo CNAME → ${ALB} (DNS-only)"
+echo "[3/4] Recreate www.flapjack.foo CNAME → ${ALB} (DNS-only)"
 auth -X POST --data "{\"type\":\"CNAME\",\"name\":\"www.flapjack.foo\",\"content\":\"${ALB}\",\"ttl\":1,\"proxied\":false}" "https://api.cloudflare.com/client/v4/zones/${ZONE}/dns_records" | ok
 
-echo "[5/5] Re-add cloud + app as Pages custom domains"
+echo "[4/4] Re-add cloud as a Pages custom domain"
 auth -X POST --data '{"name":"cloud.flapjack.foo"}' "https://api.cloudflare.com/client/v4/accounts/${ACCOUNT}/pages/projects/flapjack-cloud/domains" | ok
-auth -X POST --data '{"name":"app.flapjack.foo"}' "https://api.cloudflare.com/client/v4/accounts/${ACCOUNT}/pages/projects/flapjack-cloud/domains" | ok
 
 echo
 echo "Done. Verify:"

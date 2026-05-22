@@ -3,6 +3,7 @@ import { redirect } from '@sveltejs/kit';
 import { ApiRequestError } from '$lib/api/client';
 import { resolveAuth } from '$lib/auth/guard';
 import { AUTH_COOKIE } from '$lib/auth-session-contracts';
+import { deriveApiBaseUrl } from '$lib/config';
 import {
 	buildBoundaryCopy,
 	resolveBoundaryScope,
@@ -53,6 +54,8 @@ function routeErrorReport(input: {
 }
 
 export const handle: Handle = async ({ event, resolve }) => {
+	event.locals.apiBaseUrl = deriveApiBaseUrl(event.url.hostname);
+
 	const token = event.cookies.get(AUTH_COOKIE);
 	event.locals.user = resolveAuth(token, env.JWT_SECRET);
 

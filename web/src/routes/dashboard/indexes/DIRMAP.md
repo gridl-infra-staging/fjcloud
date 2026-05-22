@@ -7,5 +7,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| [name] | This directory contains the server-side logic and UI components for managing a Flapjack index in the dashboard, including dictionary management, document handling, security configuration, and tabbed UI for displaying integration code snippets and parsing uploaded files. |
+| [name] | This directory contains server-side handlers and UI components for a dashboard index management interface, providing functionality for dictionary management, document handling, and security configuration. |
 <!-- [scrai:end] -->

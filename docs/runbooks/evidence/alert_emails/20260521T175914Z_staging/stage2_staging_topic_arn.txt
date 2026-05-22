@@ -1,0 +1,1 @@
+arn:aws:sns:us-east-1:213880904778:fjcloud-alerts-staging

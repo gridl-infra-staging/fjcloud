@@ -38,11 +38,11 @@ admin write paths whose abuse would be a customer-trust incident
 
 | Directory | Summary |
 | --- | --- |
-| cold_tier | The cold_tier service manages archived or infrequently accessed data storage, with a node_client for communicating with cold storage nodes and a pipeline for orchestrating data movement and archival workflows. |
-| email | The email directory contains email testing and rendering functionality, with mailpit.rs providing local email inbox integration and render.rs handling email template rendering. |
-| flapjack_proxy | The flapjack_proxy module proxies management operations from the fjcloud API to individual flapjack VMs, handling authentication via admin keys cached from SSM with stale-on-error resilience. |
-| migration | The migration service orchestrates index data movement between VMs, handling replication with near-zero-lag cutover, failure recovery, alerting on success/warnings/failures, and protocol negotiation between source and destination nodes. |
-| provisioning | The provisioning service handles infrastructure resource provisioning, including automatic provisioning logic in auto_provision.rs for deploying and configuring cloud infrastructure components. |
-| scheduler | The scheduler service manages cluster node state and resource allocation, handling initial workload placement, noisy neighbor detection (resource contention), and overload/underload conditions across execution cycles. |
-| storage | The storage service provides S3-compatible API integration with Garage (a lightweight S3 backend), handling authentication, request proxying, XML response formatting, usage metering, and admin operations. |
+| cold_tier | The cold_tier service module manages access to cold storage or less frequently accessed data, with a node_client for interfacing with external nodes and a pipeline for processing cold-tier data operations. |
+| email | The email directory handles email rendering and integration with Mailpit for testing email delivery. |
+| flapjack_proxy | The flapjack_proxy service proxies authenticated HTTP requests from the fjcloud API to individual flapjack search/analytics VMs, managing admin key caching from SSM and delegating operations like analytics, documents, search, settings, and suggestions across multiple submodules. |
+| migration | The migration service provides data replication, validation, recovery, and alerting capabilities for managing database or infrastructure migrations within the fjcloud platform. |
+| provisioning | Implements automatic provisioning of shared VMs across cloud providers (AWS, GCP, Hetzner, OCI) with failover cleanup logic and support for local development bypasses via environment configuration. |
+| scheduler | This is a scheduler service module in the Rust API crate that manages workload placement and load balancing, with components for initial placement, cycle execution, and handling overload/underload conditions along with noisy neighbor detection. |
+| storage | The storage directory implements S3-compatible object storage services for the fjcloud API, including S3 proxy functionality, authentication, metering, error handling, and XML response formatting. |
 <!-- [scrai:end] -->

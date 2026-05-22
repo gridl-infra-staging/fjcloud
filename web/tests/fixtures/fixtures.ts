@@ -13,6 +13,7 @@ import { test as base, expect, type Page } from '@playwright/test';
 import { createSeedSearchableIndexFactory, type SeedSearchableIndexFn } from './searchable-index';
 import { findVerificationTokenViaStagingSsm } from './staging_db_lookup';
 import {
+	DEFAULT_API_URL,
 	REMOTE_TARGET_OPT_IN_ENV,
 	requireLoopbackHttpUrl,
 	resolveFixtureEnv,
@@ -27,14 +28,59 @@ import {
 	pricingContractSnapshotFromAdminRateCard,
 	type MarketingPricingContractSnapshot
 } from '../../src/lib/pricing';
+import {
+	formatFixtureSetupFailure,
+	redactSensitiveDiagnostics
+} from './setup_failure_message';
+export { formatFixtureSetupFailure } from './setup_failure_message';
 
 // ---------------------------------------------------------------------------
 // Internal HTTP helpers — never imported by spec files
 // ---------------------------------------------------------------------------
 
-// Single env resolution — all fixture consumers read from this instead of
-// independently resolving process.env with their own defaults.
-const fixtureEnv = resolveFixtureEnv(process.env);
+type ResolvedFixtureEnv = ReturnType<typeof resolveFixtureEnv>;
+
+function currentFixtureEnv(): ResolvedFixtureEnv {
+	return resolveFixtureEnv(process.env);
+}
+
+function fixtureEnvForFailureDiagnostics(): { apiUrl: string; adminKey: string | undefined } {
+	try {
+		const resolved = currentFixtureEnv();
+		return {
+			apiUrl: resolved.apiUrl,
+			adminKey: resolved.adminKey
+		};
+	} catch {
+		return {
+			apiUrl: process.env.API_URL?.trim() || process.env.API_BASE_URL?.trim() || DEFAULT_API_URL,
+			adminKey: process.env.E2E_ADMIN_KEY ?? process.env.ADMIN_KEY
+		};
+	}
+}
+
+// Resolve fixture env lazily so unit tests can import this module without
+// immediately enforcing loopback constraints on the ambient shell env.
+const fixtureEnv = {
+	get apiUrl() {
+		return currentFixtureEnv().apiUrl;
+	},
+	get adminKey() {
+		return currentFixtureEnv().adminKey;
+	},
+	get userEmail() {
+		return currentFixtureEnv().userEmail;
+	},
+	get userPassword() {
+		return currentFixtureEnv().userPassword;
+	},
+	get testRegion() {
+		return currentFixtureEnv().testRegion;
+	},
+	get flapjackUrl() {
+		return currentFixtureEnv().flapjackUrl;
+	}
+} as ResolvedFixtureEnv;
 
 let _token: string | null = null;
 let _customerId: string | null = null;
@@ -93,92 +139,12 @@ type ArrangeFreshSignupToDashboardDeps = {
 };
 
 const JSON_CONTENT_TYPE = { 'Content-Type': 'application/json' } as const;
-export const FIXTURE_BOOTSTRAP_REMEDIATION_COMMAND = 'scripts/bootstrap-env-local.sh';
-
-type FixtureSetupFailureParams = {
-	setupName: string;
-	expectedPath: string;
-	currentPath: string;
-	apiUrl: string;
-	adminKey?: string;
-	alertText?: string | null;
-	responseStatus?: number;
-	responseUrl?: string;
-	bootstrapCommand?: string;
-};
 
 const FRESH_SIGNUP_ARRANGE_SETUP_FAILURE_ALERT_PATTERN =
 	/service is unavailable|verify API_URL|verification email temporarily unavailable/i;
 const FIXTURE_CUSTOMER_MISSING_LOGIN_ALERT_PATTERN = /invalid email or password/i;
-const VERIFY_EMAIL_TOKEN_PATH_PATTERN = /\/verify-email\/[A-Za-z0-9_-]+/g;
-const URL_USERINFO_PATTERN = /\b([A-Za-z][A-Za-z0-9+.-]*:\/\/)([^/\s@]+)@/g;
-const SENSITIVE_URL_PARAM_PATTERN =
-	/([?#&](?:access_token|refresh_token|id_token|session(?:_token)?|token|verification_token|verificationToken|secret|key|code|state)=)[^&#\s]*/gi;
-const BEARER_TOKEN_PATTERN = /\bBearer\s+[A-Za-z0-9._~+/=-]+\b/g;
-const BASIC_AUTH_PATTERN = /\bBasic\s+[A-Za-z0-9._~+/=-]+\b/g;
-const JSON_SECRET_FIELD_PATTERN =
-	/((?:"(?:access_token|refresh_token|id_token|session_token|token|verification_token|verificationToken|secret|api_key|admin_key|jwt_secret|password)"\s*:\s*"))([^"]+)(")/gi;
 const TRANSIENT_API_MAX_RETRIES = 10;
 const IGNORE_TRACKED_FIXTURE_CUSTOMER_ID: TrackCustomerForCleanupFn = () => {};
-
-function formatAdminKeyFingerprint(adminKey?: string): string {
-	if (!adminKey?.trim()) {
-		return '(missing)';
-	}
-
-	const normalizedAdminKey = adminKey.trim();
-	return `(present, len=${normalizedAdminKey.length})`;
-}
-
-function redactSensitiveDiagnostics(value: string): string {
-	return value
-		.replace(URL_USERINFO_PATTERN, '$1[REDACTED]@')
-		.replace(VERIFY_EMAIL_TOKEN_PATH_PATTERN, '/verify-email/[REDACTED]')
-		.replace(SENSITIVE_URL_PARAM_PATTERN, '$1[REDACTED]')
-		.replace(BEARER_TOKEN_PATTERN, 'Bearer [REDACTED]')
-		.replace(BASIC_AUTH_PATTERN, 'Basic [REDACTED]')
-		.replace(JSON_SECRET_FIELD_PATTERN, '$1[REDACTED]$3');
-}
-
-function formatResponseDiagnostic(responseStatus?: number, responseUrl?: string): string {
-	if (responseStatus !== undefined && responseUrl) {
-		return `status ${responseStatus} at ${redactSensitiveDiagnostics(responseUrl)}`;
-	}
-	if (responseStatus !== undefined) {
-		return `status ${responseStatus}`;
-	}
-	if (responseUrl) {
-		return `URL ${redactSensitiveDiagnostics(responseUrl)}`;
-	}
-	return '(none observed)';
-}
-
-/** Build a non-secret setup failure message for browser auth fixtures. */
-export function formatFixtureSetupFailure({
-	setupName,
-	expectedPath,
-	currentPath,
-	apiUrl,
-	adminKey,
-	alertText,
-	responseStatus,
-	responseUrl,
-	bootstrapCommand = FIXTURE_BOOTSTRAP_REMEDIATION_COMMAND
-}: FixtureSetupFailureParams): string {
-	const normalizedAlertText = redactSensitiveDiagnostics(alertText?.trim() || '(none)');
-	const remediationMessage =
-		`Run ${bootstrapCommand} to bootstrap .env.local, then start the local stack with scripts/local-dev-up.sh and the Rust API with scripts/api-dev.sh. ` +
-		'If you override BASE_URL, start the web frontend with scripts/web-dev.sh too. See docs/runbooks/local-dev.md for setup instructions.';
-
-	return [
-		`${setupName} failed before reaching ${expectedPath}. Current URL: ${redactSensitiveDiagnostics(currentPath)}`,
-		`API URL: ${redactSensitiveDiagnostics(apiUrl)}`,
-		`Admin key fingerprint: ${formatAdminKeyFingerprint(adminKey)}`,
-		`Visible alert text: ${normalizedAlertText}`,
-		`Login response: ${formatResponseDiagnostic(responseStatus, responseUrl)}`,
-		`Remediation: ${remediationMessage}`
-	].join('\n');
-}
 
 type ThrowFreshSignupArrangeFailureParams = {
 	currentPath: string;
@@ -210,13 +176,14 @@ export function throwFreshSignupArrangeFailure({
 	responseStatus,
 	responseUrl
 }: ThrowFreshSignupArrangeFailureParams): never {
+	const diagnosticEnv = fixtureEnvForFailureDiagnostics();
 	throw new Error(
 		formatFixtureSetupFailure({
 			setupName: 'fresh-signup arrange',
 			expectedPath: '/dashboard',
 			currentPath,
-			apiUrl: fixtureEnv.apiUrl,
-			adminKey: fixtureEnv.adminKey,
+			apiUrl: diagnosticEnv.apiUrl,
+			adminKey: diagnosticEnv.adminKey,
 			alertText,
 			responseStatus,
 			responseUrl
@@ -260,13 +227,14 @@ function throwBillingPortalArrangeFailure({
 	responseStatus,
 	responseUrl
 }: ThrowBillingPortalArrangeFailureParams): never {
+	const diagnosticEnv = fixtureEnvForFailureDiagnostics();
 	throw new Error(
 		formatFixtureSetupFailure({
 			setupName: 'billing-portal arrange',
 			expectedPath: '/dashboard/billing',
 			currentPath,
-			apiUrl: fixtureEnv.apiUrl,
-			adminKey: fixtureEnv.adminKey,
+			apiUrl: diagnosticEnv.apiUrl,
+			adminKey: diagnosticEnv.adminKey,
 			alertText: setupFailureDetailsFromError(error),
 			responseStatus,
 			responseUrl
@@ -1133,13 +1101,14 @@ function currentUtcBillingMonth(now = new Date()): string {
 function getMailpitApiUrl(): string {
 	const configuredMailpitApiUrl = process.env.MAILPIT_API_URL?.trim();
 	if (!configuredMailpitApiUrl) {
+		const diagnosticEnv = fixtureEnvForFailureDiagnostics();
 		throw new Error(
 			formatFixtureSetupFailure({
 				setupName: 'fresh-signup mailpit setup',
 				expectedPath: 'MAILPIT_API_URL',
 				currentPath: '(env:MAILPIT_API_URL)',
-				apiUrl: fixtureEnv.apiUrl,
-				adminKey: fixtureEnv.adminKey,
+				apiUrl: diagnosticEnv.apiUrl,
+				adminKey: diagnosticEnv.adminKey,
 				alertText: 'MAILPIT_API_URL must be set for fresh-signup verification checks'
 			})
 		);
@@ -1226,13 +1195,14 @@ async function findVerificationTokenViaMailpit(email: string): Promise<string> {
 		await sleep(1000);
 	}
 
+	const diagnosticEnv = fixtureEnvForFailureDiagnostics();
 	throw new Error(
 		formatFixtureSetupFailure({
 			setupName: 'fresh-signup email verification token lookup',
 			expectedPath: '/verify-email/{token}',
 			currentPath: '(mailpit search)',
-			apiUrl: fixtureEnv.apiUrl,
-			adminKey: fixtureEnv.adminKey,
+			apiUrl: diagnosticEnv.apiUrl,
+			adminKey: diagnosticEnv.adminKey,
 			alertText: `No verification token found in Mailpit for ${normalizedEmail} after ${maxAttempts}s`
 		})
 	);
@@ -1297,13 +1267,14 @@ async function completeFreshSignupEmailVerificationViaRoute(
 		});
 		return { verificationToken };
 	} catch (error) {
+		const diagnosticEnv = fixtureEnvForFailureDiagnostics();
 		throw new Error(
 			formatFixtureSetupFailure({
 				setupName: 'fresh-signup email verification replay setup',
 				expectedPath: '/verify-email/{token}',
 				currentPath: page.url() || '(no browser url)',
-				apiUrl: fixtureEnv.apiUrl,
-				adminKey: fixtureEnv.adminKey,
+				apiUrl: diagnosticEnv.apiUrl,
+				adminKey: diagnosticEnv.adminKey,
 				alertText: setupFailureDetailsFromError(error)
 			})
 		);
@@ -1711,19 +1682,20 @@ async function arrangePaidInvoiceForFreshSignup({
 			invoiceId,
 			billingMonth
 		};
-	} catch (error) {
-		throw new Error(
-			formatFixtureSetupFailure({
-				setupName: 'arrangePaidInvoiceForFreshSignup',
-				expectedPath: '/dashboard/billing/invoices/{id}',
-				currentPath: '(arrangePaidInvoiceForFreshSignup)',
-				apiUrl: fixtureEnv.apiUrl,
-				adminKey: fixtureEnv.adminKey,
-				alertText: setupFailureDetailsFromError(error)
-			})
-		);
+		} catch (error) {
+			const diagnosticEnv = fixtureEnvForFailureDiagnostics();
+			throw new Error(
+				formatFixtureSetupFailure({
+					setupName: 'arrangePaidInvoiceForFreshSignup',
+					expectedPath: '/dashboard/billing/invoices/{id}',
+					currentPath: '(arrangePaidInvoiceForFreshSignup)',
+					apiUrl: diagnosticEnv.apiUrl,
+					adminKey: diagnosticEnv.adminKey,
+					alertText: setupFailureDetailsFromError(error)
+				})
+			);
+		}
 	}
-}
 
 type InvoiceListApiItem = {
 	id: string;

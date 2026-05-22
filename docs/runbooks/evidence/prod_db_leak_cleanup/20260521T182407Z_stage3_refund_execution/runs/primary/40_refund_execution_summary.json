@@ -1,0 +1,10 @@
+{
+  "approved_refund_eligible_charge_count": 0,
+  "approved_refund_total_cents": 0,
+  "refund_post_count": 0,
+  "created_refund_count": 0,
+  "no_op_count": 43,
+  "post_refetch_refunded_total_cents": 0,
+  "zero_refund_explanation": "All exact prod cohort rows have null stripe_customer_id in Stage 1 exact CSV; Stage 2 correctly emits no_stripe_account dispositions and proposes zero refunds.",
+  "run_dir": "/Users/stuart/parallel_development/fjcloud_dev/may21_12pm_2_prod_db_leak_cleanup/fjcloud_dev/docs/runbooks/evidence/prod_db_leak_cleanup/20260521T182407Z_stage3_refund_execution/runs/primary"
+}

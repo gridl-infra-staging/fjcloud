@@ -67,6 +67,7 @@ class MockCookies {
 
 beforeEach(() => {
 	process.env.ADMIN_KEY = 'top-secret-admin-key';
+	delete process.env.ENVIRONMENT;
 	clearAdminSessionsForTest();
 	clearAdminLoginAttemptsForTest();
 });
@@ -76,6 +77,7 @@ afterEach(() => {
 	clearAdminSessionsForTest();
 	clearAdminLoginAttemptsForTest();
 	delete process.env.ADMIN_KEY;
+	delete process.env.ENVIRONMENT;
 });
 
 describe('Admin layout and auth', () => {
@@ -165,6 +167,7 @@ describe('Admin layout and auth', () => {
 	});
 
 	it('layout server returns isAuthenticated without leaking session id', async () => {
+		process.env.ENVIRONMENT = 'staging';
 		const session = createAdminSession(3600);
 		const cookies = new MockCookies({ [ADMIN_SESSION_COOKIE]: session.id });
 
@@ -174,6 +177,7 @@ describe('Admin layout and auth', () => {
 		} as never);
 
 		expect(result!.isAuthenticated).toBe(true);
+		expect(result!.environment).toBe('staging');
 		// Session ID must NOT be in the returned data (httpOnly cookie only)
 		expect(result).not.toHaveProperty('adminSession');
 		expect(JSON.stringify(result)).not.toContain(session.id);

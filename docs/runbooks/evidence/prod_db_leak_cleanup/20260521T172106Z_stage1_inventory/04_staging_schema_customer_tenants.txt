@@ -1,0 +1,28 @@
+                            Table "public.customer_tenants"
+      Column      |           Type           | Collation | Nullable |     Default      
+------------------+--------------------------+-----------+----------+------------------
+ customer_id      | uuid                     |           | not null | 
+ tenant_id        | text                     |           | not null | 
+ deployment_id    | uuid                     |           | not null | 
+ created_at       | timestamp with time zone |           | not null | now()
+ vm_id            | uuid                     |           |          | 
+ tier             | text                     |           | not null | 'active'::text
+ resource_quota   | jsonb                    |           | not null | '{}'::jsonb
+ last_accessed_at | timestamp with time zone |           |          | 
+ cold_snapshot_id | uuid                     |           |          | 
+ service_type     | text                     |           | not null | 'flapjack'::text
+Indexes:
+    "customer_tenants_pkey" PRIMARY KEY, btree (customer_id, tenant_id)
+    "idx_customer_tenants_vm_id" btree (vm_id)
+    "idx_tenants_deployment" btree (deployment_id)
+    "idx_tenants_service_type" btree (service_type)
+    "idx_tenants_tenant_id" btree (tenant_id)
+Check constraints:
+    "customer_tenants_tier_check" CHECK (tier = ANY (ARRAY['active'::text, 'migrating'::text, 'pinned'::text, 'cold'::text, 'restoring'::text]))
+Foreign-key constraints:
+    "customer_tenants_cold_snapshot_id_fkey" FOREIGN KEY (cold_snapshot_id) REFERENCES cold_snapshots(id)
+    "customer_tenants_customer_id_fkey" FOREIGN KEY (customer_id) REFERENCES customers(id)
+    "customer_tenants_deployment_id_fkey" FOREIGN KEY (deployment_id) REFERENCES customer_deployments(id)
+    "customer_tenants_vm_id_fkey" FOREIGN KEY (vm_id) REFERENCES vm_inventory(id)
+Referenced by:
+    TABLE "index_replicas" CONSTRAINT "index_replicas_customer_id_tenant_id_fkey" FOREIGN KEY (customer_id, tenant_id) REFERENCES customer_tenants(customer_id, tenant_id)

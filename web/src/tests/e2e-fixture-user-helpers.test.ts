@@ -25,6 +25,17 @@ import {
 import { DEFAULT_FLAPJACK_URL } from '../../playwright.config.contract';
 
 type MockJsonBody = Record<string, unknown>;
+const ORIGINAL_API_URL = process.env.API_URL;
+const ORIGINAL_API_BASE_URL = process.env.API_BASE_URL;
+const ORIGINAL_PLAYWRIGHT_TARGET_REMOTE = process.env.PLAYWRIGHT_TARGET_REMOTE;
+
+function restoreEnvVar(name: string, value: string | undefined): void {
+	if (value === undefined) {
+		delete process.env[name];
+		return;
+	}
+	process.env[name] = value;
+}
 
 function makeJsonResponse(status: number, body: MockJsonBody): Response {
 	return new Response(JSON.stringify(body), {
@@ -257,11 +268,17 @@ describe('e2e fixture user helpers', () => {
 
 	beforeEach(() => {
 		vi.restoreAllMocks();
+		process.env.API_URL = 'http://127.0.0.1:3001';
+		process.env.API_BASE_URL = 'http://127.0.0.1:3001';
+		delete process.env.PLAYWRIGHT_TARGET_REMOTE;
 	});
 
 	afterEach(() => {
 		vi.useRealTimers();
 		vi.unstubAllGlobals();
+		restoreEnvVar('API_URL', ORIGINAL_API_URL);
+		restoreEnvVar('API_BASE_URL', ORIGINAL_API_BASE_URL);
+		restoreEnvVar('PLAYWRIGHT_TARGET_REMOTE', ORIGINAL_PLAYWRIGHT_TARGET_REMOTE);
 	});
 
 	it('createRegisteredUser posts to /auth/register and tracks cleanup', async () => {

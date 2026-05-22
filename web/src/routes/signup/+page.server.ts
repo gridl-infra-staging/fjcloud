@@ -1,21 +1,25 @@
 import type { Actions, PageServerLoad } from './$types';
 import { fail, redirect } from '@sveltejs/kit';
+import { env } from '$env/dynamic/private';
 import { ApiRequestError } from '$lib/api/client';
-import { createApiClient } from '$lib/server/api';
+import { createApiClientForBaseUrl } from '$lib/server/api';
 import { mapAuthActionFailure } from '$lib/server/auth-action-errors';
 import { authCookieOptions } from '$lib/server/auth-cookies';
-import { AUTH_COOKIE, COOKIE_MAX_AGE, getApiBaseUrl } from '$lib/config';
+import { resolveAuth } from '$lib/auth/guard';
+import { AUTH_COOKIE, COOKIE_MAX_AGE } from '$lib/config';
 import { validateSignupPassword } from './signup-validation';
 
 const SIGNUP_FAILURE_MESSAGE =
 	'We could not create your account. Please check your details and try again.';
+const AUTH_SESSION_UNAVAILABLE_MESSAGE =
+	'Authentication session could not be established. Please verify JWT_SECRET and try again.';
 
-export const load: PageServerLoad = async () => ({
-	apiBaseUrl: getApiBaseUrl()
+export const load: PageServerLoad = async ({ locals }) => ({
+	apiBaseUrl: locals.apiBaseUrl
 });
 
 export const actions = {
-	default: async ({ request, cookies, url, fetch }) => {
+	default: async ({ request, cookies, url, fetch, locals }) => {
 		const data = await request.formData();
 		const name = (data.get('name') as string)?.trim();
 		const email = (data.get('email') as string)?.trim().toLowerCase();
@@ -36,7 +40,7 @@ export const actions = {
 
 		let token: string;
 		try {
-			const api = createApiClient(undefined, fetch);
+			const api = createApiClientForBaseUrl(locals.apiBaseUrl, undefined, fetch);
 			const result = await api.register({ name, email, password });
 			token = result.token;
 		} catch (e) {
@@ -51,6 +55,20 @@ export const actions = {
 			}
 			const { status, errors } = mapAuthActionFailure(e);
 			return fail(status, { errors, name, email });
+		}
+
+		// Fail closed: only redirect into /dashboard when the returned JWT is
+		// verifiable by this web runtime's JWT_SECRET. Symmetric with login —
+		// without this, a signup against an API whose JWT_SECRET differs from
+		// this runtime's (e.g. wrong PUBLIC_API_BASE pointing cross-env) sets a
+		// dead cookie and the very next /dashboard request bounces to
+		// /login?reason=session_expired with no clue what went wrong.
+		if (!resolveAuth(token, env.JWT_SECRET)) {
+			return fail(503, {
+				errors: { form: AUTH_SESSION_UNAVAILABLE_MESSAGE },
+				name,
+				email
+			});
 		}
 
 		cookies.set(AUTH_COOKIE, token, authCookieOptions(url, COOKIE_MAX_AGE));

@@ -1,0 +1,37 @@
+{
+  "run_label": "rerun",
+  "lineage": {
+    "stage1_prod_exact_cleanup_csv": "/Users/stuart/parallel_development/fjcloud_dev/may21_12pm_2_prod_db_leak_cleanup/fjcloud_dev/docs/runbooks/evidence/prod_db_leak_cleanup/20260521T172106Z_stage1_inventory/10_prod_exact_cleanup.csv",
+    "stage1_staging_exact_cleanup_csv": "/Users/stuart/parallel_development/fjcloud_dev/may21_12pm_2_prod_db_leak_cleanup/fjcloud_dev/docs/runbooks/evidence/prod_db_leak_cleanup/20260521T172106Z_stage1_inventory/11_staging_exact_cleanup.csv"
+  },
+  "active_exact_cleanup_customers": {
+    "source": "Stage 1 exact CSVs",
+    "prod": 43,
+    "staging": 19,
+    "total": 62
+  },
+  "bucket_counts": {
+    "soft_deleted_via_admin_route": 0,
+    "already_deleted_confirmed": 62,
+    "delete_failed": 0
+  },
+  "per_environment": {
+    "prod": {
+      "csv_customer_count": 43,
+      "soft_deleted_via_admin_route": 0,
+      "already_deleted_confirmed": 43,
+      "delete_failed": 0
+    },
+    "staging": {
+      "csv_customer_count": 19,
+      "soft_deleted_via_admin_route": 0,
+      "already_deleted_confirmed": 19,
+      "delete_failed": 0
+    }
+  },
+  "post_delete_status_evidence_pointers": {
+    "disposition_table_json": "/Users/stuart/parallel_development/fjcloud_dev/may21_12pm_2_prod_db_leak_cleanup/fjcloud_dev/docs/runbooks/evidence/prod_db_leak_cleanup/20260521T193529Z_stage5_tenant_soft_delete/runs/rerun/30_stage5_soft_delete_dispositions.json",
+    "disposition_table_csv": "/Users/stuart/parallel_development/fjcloud_dev/may21_12pm_2_prod_db_leak_cleanup/fjcloud_dev/docs/runbooks/evidence/prod_db_leak_cleanup/20260521T193529Z_stage5_tenant_soft_delete/runs/rerun/31_stage5_soft_delete_dispositions.csv"
+  },
+  "violations": []
+}

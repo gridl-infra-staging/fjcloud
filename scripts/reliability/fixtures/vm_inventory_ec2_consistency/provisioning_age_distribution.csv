@@ -1,0 +1,6 @@
+age_bucket,count
+lt_15m,0
+15m_to_1h,1
+1h_to_6h,2
+6h_to_24h,0
+gte_24h,1

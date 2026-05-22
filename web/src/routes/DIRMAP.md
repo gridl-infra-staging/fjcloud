@@ -8,17 +8,17 @@
 
 | Directory | Summary |
 | --- | --- |
-| admin | The admin directory provides a dashboard for system administration with pages for managing alerts, billing operations, customer accounts, and index migrations. |
-| api | The api directory contains SvelteKit server endpoints for three core customer-facing features: pricing comparison, authenticated search execution against Flapjack indexes, and Stripe integration including credential exposure. |
-| billing | The upgrade directory contains a SvelteKit server endpoint that handles upgrade-related backend logic for customers. |
-| dashboard | The dashboard directory contains the main customer-facing portal for fjcloud, with routing and server-side handlers for user onboarding, billing and payment management, Flapjack search index administration, and data migration capabilities. |
+| admin | The admin directory contains server-side handlers for an administrative dashboard that manages alerts, billing operations across all tenants, customer records, and database migrations. |
+| api | The api directory contains SvelteKit server route handlers for customer-facing operations including pricing comparisons, batch search requests with authentication, and Stripe payment integration. |
+| billing | The billing directory contains server-side route handlers for billing-related functionality, including an upgrade endpoint that manages upgrade operations. |
+| dashboard | The dashboard directory is a SvelteKit route that serves as the customer-facing hub for managing indexes (the platform's core data product), handling billing setup through Stripe, processing onboarding flows, and managing email verification. |
 | forgot-password | — |
 | login | — |
 | logout | — |
-| oauth | This directory implements OAuth provider callbacks through a SvelteKit server route that intercepts authentication responses from external providers and completes the user login flow. |
+| oauth | The oauth directory contains SvelteKit endpoints for OAuth authentication, with a callback handler that processes authorization responses from third-party identity providers like Google and GitHub. |
 | pricing | — |
 | reset-password | — |
 | signup | — |
-| status | The `/status` route displays the fjcloud service operational status (operational, degraded, or outage) sourced from environment variables, with type-safe contracts for status definitions and runtime payload validation. |
+| status | The status directory contains a contract test file that validates status-related behavior or endpoints, likely for verifying correct status responses in the fjcloud system. |
 | verify-email | — |
 <!-- [scrai:end] -->

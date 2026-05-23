@@ -800,6 +800,14 @@ describe('playwright config contract', () => {
 			expect(fixtureSource).not.toMatch(/\basync function tryRemoteSignupFallback\b/);
 		});
 
+		it('page.goto fixture wrapper skips networkidle waits in remote-target mode', () => {
+			const fixtureSource = readFileSync(join(process.cwd(), 'tests/fixtures/fixtures.ts'), 'utf8');
+			expect(fixtureSource).toMatch(/\bisRemoteTargetMode\b/);
+			expect(fixtureSource).toMatch(
+				/if\s*\(\s*isRemoteTargetMode\(\)\s*\)\s*\{\s*return response;\s*\}\s*await page\.waitForLoadState\('networkidle'\);/m
+			);
+		});
+
 		it('signup paid-invoice flow reuses fixture-owned fresh-signup arrange seam', () => {
 			const signupSpecSource = readFileSync(
 				join(process.cwd(), 'tests/e2e-ui/full/signup_to_paid_invoice.spec.ts'),
@@ -850,6 +858,37 @@ describe('playwright config contract', () => {
 			expect(fixtureSource).not.toMatch(/\brefundedInvoiceId\b/);
 		});
 
+		it('arrangePaidInvoiceForFreshSignup waits for Stripe default payment method before batch billing', () => {
+			const fixtureSource = readFileSync(join(process.cwd(), 'tests/fixtures/fixtures.ts'), 'utf8');
+			const attachIndex = fixtureSource.indexOf(
+				'const defaultPaymentMethodId = await attachDefaultStripeTestCard('
+			);
+			const waitIndex = fixtureSource.indexOf(
+				'await waitForStripeDefaultPaymentMethod({'
+			);
+			const batchRunIndex = fixtureSource.indexOf(
+				"const batchBillingResponse = await adminApiCall('POST', '/admin/billing/run'"
+			);
+			expect(attachIndex).toBeGreaterThanOrEqual(0);
+			expect(waitIndex).toBeGreaterThanOrEqual(0);
+			expect(batchRunIndex).toBeGreaterThanOrEqual(0);
+			expect(waitIndex).toBeGreaterThan(attachIndex);
+			expect(batchRunIndex).toBeGreaterThan(waitIndex);
+			expect(fixtureSource).toContain("contextLabel: 'arrangePaidInvoiceForFreshSignup'");
+		});
+
+		it('signup paid-invoice spec reuses the fixture-owned timeout budget instead of a hard-coded value', () => {
+			const signupSpecSource = readFileSync(
+				join(process.cwd(), 'tests/e2e-ui/full/signup_to_paid_invoice.spec.ts'),
+				'utf8'
+			);
+			expect(signupSpecSource).toMatch(
+				/import\s*\{\s*test,\s*expect,\s*PAID_INVOICE_PROOF_TIMEOUT_MS\s*\}\s*from\s*['"]\.\.\/\.\.\/fixtures\/fixtures['"]/
+			);
+			expect(signupSpecSource).toContain('test.setTimeout(PAID_INVOICE_PROOF_TIMEOUT_MS);');
+			expect(signupSpecSource).not.toContain('test.setTimeout(300_000);');
+		});
+
 		it('does not wire removed subscription-oriented fixtures in test.extend', () => {
 			const fixtureSource = readFileSync(join(process.cwd(), 'tests/fixtures/fixtures.ts'), 'utf8');
 			expect(fixtureSource).not.toMatch(/\barrangeBillingDunningForFreshSignup:\s*async\b/);
@@ -869,17 +908,54 @@ describe('playwright config contract', () => {
 			expect(resultContractBlock).toMatch(/\bstripeCustomerId:\s*string;/);
 			expect(resultContractBlock).toMatch(/\bdefaultPaymentMethodId:\s*string;/);
 			expect(resultContractBlock).toMatch(/\bnonDefaultPaymentMethodId:\s*string;/);
+			expect(resultContractBlock).toMatch(/\bexpectedDefaultPaymentMethodId:\s*string;/);
 		});
 
 		it('routes fallback verification lookup through findVerificationTokenViaStagingSsm only', () => {
 			const fixtureSource = readFileSync(join(process.cwd(), 'tests/fixtures/fixtures.ts'), 'utf8');
-			expect(fixtureSource).toMatch(
-				/import\s*\{\s*findVerificationTokenViaStagingSsm\s*\}\s*from\s*['"]\.\/staging_db_lookup['"]/
-			);
+			expect(fixtureSource).toMatch(/from\s*['"]\.\/staging_db_lookup['"]/);
+			expect(fixtureSource).toMatch(/\bfindVerificationTokenViaStagingSsm\b/);
 			expect(fixtureSource).toMatch(/return\s+findVerificationTokenViaStagingSsm\(email\)/);
 			expect(fixtureSource).not.toMatch(/SELECT\s+email_verify_token/i);
 			expect(fixtureSource).not.toMatch(/\bpsql\s*"\$DATABASE_URL"/);
 			expect(fixtureSource).not.toMatch(/\bspawnSync\b/);
+		});
+
+		it('routes staging Stripe default-payment-method reads through staging_stripe_lookup owner only', () => {
+			const fixtureSource = readFileSync(join(process.cwd(), 'tests/fixtures/fixtures.ts'), 'utf8');
+			const billingPortalSpecSource = readFileSync(
+				join(process.cwd(), 'tests/e2e-ui/full/billing_portal_payment_method_update.spec.ts'),
+				'utf8'
+			);
+
+			expect(fixtureSource).toMatch(
+				/import\s*\{\s*readStripeDefaultPaymentMethod\s*\}\s*from\s*['"]\.\/staging_stripe_lookup['"]/
+			);
+			expect(fixtureSource).toMatch(/\breadStripeDefaultPaymentMethod\(\{/);
+			expect(billingPortalSpecSource).not.toMatch(/https:\/\/api\.stripe\.com/i);
+			expect(billingPortalSpecSource).not.toMatch(/\bfetch\s*\(\s*['"]https:\/\/api\.stripe\.com/i);
+		});
+
+		it('LB-2/LB-3 specs assert fixture-supplied staging and Stripe evidence', () => {
+			const signupSpecSource = readFileSync(
+				join(process.cwd(), 'tests/e2e-ui/full/signup_to_paid_invoice.spec.ts'),
+				'utf8'
+			);
+			const billingPortalSpecSource = readFileSync(
+				join(process.cwd(), 'tests/e2e-ui/full/billing_portal_payment_method_update.spec.ts'),
+				'utf8'
+			);
+
+			expect(signupSpecSource).toMatch(/\bpaidInvoiceEvidence\.stagingCustomerId\b/);
+			expect(signupSpecSource).toMatch(/\bpaidInvoiceEvidence\.stagingInvoiceId\b/);
+			expect(signupSpecSource).not.toMatch(/\bspawnSync\b/);
+			expect(signupSpecSource).not.toMatch(/\bSELECT\s+/i);
+
+			expect(billingPortalSpecSource).toMatch(
+				/\barrangedCustomer\.expectedDefaultPaymentMethodId\b/
+			);
+			expect(billingPortalSpecSource).toMatch(/\bwaitForStripeDefaultPaymentMethod\b/);
+			expect(billingPortalSpecSource).not.toMatch(/https:\/\/api\.stripe\.com/i);
 		});
 
 		it('URL-encodes Mailpit search queries before calling the API', () => {
@@ -1136,7 +1212,49 @@ describe('playwright config contract', () => {
 					join(process.cwd(), 'tests/e2e-ui/full/billing_portal_payment_method_update.spec.ts'),
 					'utf8'
 				);
-				expect(portalSpecSource).toMatch(/secure:\s*BASE_URL_PROTOCOL\s*===\s*'https:'/);
+				const remoteBootstrapSource = readFileSync(
+					join(process.cwd(), 'tests/fixtures/fresh_signup_remote_bootstrap.ts'),
+					'utf8'
+				);
+				expect(portalSpecSource).toMatch(
+					/from\s+['"]\.\.\/\.\.\/fixtures\/fresh_signup_remote_bootstrap['"]/
+				);
+				expect(portalSpecSource).toMatch(/\bsetAuthCookieForToken\b/);
+				expect(remoteBootstrapSource).toMatch(/secure:\s*baseUrlProtocol\s*===\s*'https:'/);
+			});
+
+			it('requires billing-portal spec to recover from session-expired redirects on protected-route navigation', () => {
+				const portalSpecSource = readFileSync(
+					join(process.cwd(), 'tests/e2e-ui/full/billing_portal_payment_method_update.spec.ts'),
+					'utf8'
+				);
+				expect(portalSpecSource).toMatch(/isSessionExpiredUrl/);
+				expect(portalSpecSource).toMatch(/searchParams\.get\('reason'\)\s*===\s*SESSION_EXPIRED_REASON/);
+				expect(portalSpecSource).toMatch(/await gotoBillingPageWithSessionRecovery\(/);
+				expect(portalSpecSource).toMatch(
+					/if\s*\(!isRemoteTargetMode\(\)\)\s*\{\s*throw sessionRecoveryFailure\(/m
+				);
+				expect(portalSpecSource).toMatch(
+					/await page\.goto\('\/dashboard\/billing'\);\s*if\s*\(isSessionExpiredUrl\(page\.url\(\)\)\)\s*\{\s*throw sessionRecoveryFailure\(/m
+				);
+			});
+
+			it('requires signup-to-paid-invoice spec to recover from session-expired redirects before billing invoices assertions', () => {
+				const signupSpecSource = readFileSync(
+					join(process.cwd(), 'tests/e2e-ui/full/signup_to_paid_invoice.spec.ts'),
+					'utf8'
+				);
+				expect(signupSpecSource).toMatch(/await gotoWithSessionRecovery\(/);
+				expect(signupSpecSource).toMatch(
+					/await gotoWithSessionRecovery\(\s*page,\s*'\/dashboard\/billing\/invoices',\s*signup\.email,\s*signup\.password,\s*loginAs\s*\)/
+				);
+				expect(signupSpecSource).toMatch(/if\s*\(!isSessionExpiredUrl\(currentUrl\)\)\s*\{\s*throw error;/m);
+				expect(signupSpecSource).toMatch(
+					/if\s*\(!isRemoteTargetMode\(\)\s*\|\|\s*!loginAs\)\s*\{\s*throw sessionRecoveryFailure\(/m
+				);
+				expect(signupSpecSource).toMatch(
+					/await page\.goto\(path\);\s*if\s*\(isSessionExpiredUrl\(page\.url\(\)\)\)\s*\{\s*throw sessionRecoveryFailure\(/m
+				);
 			});
 
 			it('staging launcher validates hydrator output instead of eval-ing it directly', () => {

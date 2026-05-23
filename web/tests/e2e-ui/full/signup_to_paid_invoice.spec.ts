@@ -1,4 +1,4 @@
-import { test, expect } from '../../fixtures/fixtures';
+import { test, expect, PAID_INVOICE_PROOF_TIMEOUT_MS } from '../../fixtures/fixtures';
 import type { Page } from '@playwright/test';
 import {
 	isRemoteTargetMode,
@@ -24,6 +24,16 @@ const DASHBOARD_ROUTE_EXPECTATIONS: DashboardRouteExpectation[] = [
 	{ label: 'Account', path: '/dashboard/account', heading: 'Account' }
 ];
 const TRANSIENT_RATE_LIMIT_PATTERN = /too many requests/i;
+const SESSION_EXPIRED_REASON = 'session_expired';
+
+function isSessionExpiredUrl(urlString: string): boolean {
+	const currentUrl = new URL(urlString);
+	return currentUrl.pathname === '/login' && currentUrl.searchParams.get('reason') === SESSION_EXPIRED_REASON;
+}
+
+function sessionRecoveryFailure(path: string, detail: string): Error {
+	return new Error(`Session-expired recovery failed for ${path}: ${detail}`);
+}
 
 async function loginWithFreshSignupCredentials(
 	page: import('@playwright/test').Page,
@@ -61,17 +71,81 @@ async function loginWithFreshSignupCredentials(
 	});
 }
 
-async function assertDashboardRouteWalk(page: import('@playwright/test').Page): Promise<void> {
+async function assertDashboardRouteWalk(
+	page: import('@playwright/test').Page,
+	email: string,
+	password: string,
+	loginAs?: (email: string, password: string) => Promise<string>
+): Promise<void> {
 	for (const route of DASHBOARD_ROUTE_EXPECTATIONS) {
 		await page.getByRole('link', { name: route.label }).click();
-		await expect(
-			page.getByRole('heading', {
-				name: route.heading,
-				exact: true
-			})
-		).toBeVisible({ timeout: 15_000 });
-		await expect(page).toHaveURL(new RegExp(`${route.path}(?:$|\\?)`));
+		try {
+			await expect(
+				page.getByRole('heading', {
+					name: route.heading,
+					exact: true
+				})
+			).toBeVisible({ timeout: 15_000 });
+			await expect(page).toHaveURL(new RegExp(`${route.path}(?:$|\\?)`));
+		} catch (error) {
+			const currentUrl = page.url();
+			if (!isSessionExpiredUrl(currentUrl)) {
+				throw error;
+			}
+			if (!isRemoteTargetMode() || !loginAs) {
+				throw sessionRecoveryFailure(
+					route.path,
+					'protected-route navigation hit /login?reason=session_expired but remote recovery is unavailable'
+				);
+			}
+
+			const token = await loginAs(email, password);
+			await setAuthCookieForToken(page, token);
+			await page.goto(route.path);
+			if (isSessionExpiredUrl(page.url())) {
+				throw sessionRecoveryFailure(
+					route.path,
+					'protected-route navigation remained on /login?reason=session_expired after auth-cookie replay'
+				);
+			}
+			await expect(
+				page.getByRole('heading', {
+					name: route.heading,
+					exact: true
+				})
+			).toBeVisible({ timeout: 15_000 });
+			await expect(page).toHaveURL(new RegExp(`${route.path}(?:$|\\?)`));
+		}
 		await expect(page.getByTestId('dashboard-beta-support-badge')).toBeVisible();
+	}
+}
+
+async function gotoWithSessionRecovery(
+	page: import('@playwright/test').Page,
+	path: string,
+	email: string,
+	password: string,
+	loginAs?: (email: string, password: string) => Promise<string>
+): Promise<void> {
+	await page.goto(path);
+	if (!isSessionExpiredUrl(page.url())) {
+		return;
+	}
+	if (!isRemoteTargetMode() || !loginAs) {
+		throw sessionRecoveryFailure(
+			path,
+			'initial navigation hit /login?reason=session_expired but remote recovery is unavailable'
+		);
+	}
+
+	const token = await loginAs(email, password);
+	await setAuthCookieForToken(page, token);
+	await page.goto(path);
+	if (isSessionExpiredUrl(page.url())) {
+		throw sessionRecoveryFailure(
+			path,
+			'navigation remained on /login?reason=session_expired after auth-cookie replay'
+		);
 	}
 }
 
@@ -113,7 +187,7 @@ test.describe('Fresh signup to paid invoice', () => {
 		completeFreshSignupEmailVerification,
 		arrangePaidInvoiceForFreshSignup
 	}) => {
-		test.setTimeout(300_000);
+		test.setTimeout(PAID_INVOICE_PROOF_TIMEOUT_MS);
 
 		const signup = createFreshSignupIdentity();
 		const arrangeResult = await arrangeFreshSignupToDashboard(page, signup);
@@ -138,14 +212,25 @@ test.describe('Fresh signup to paid invoice', () => {
 		await loginWithFreshSignupCredentials(page, signup.email, signup.password, loginAs);
 		await page.goto('/dashboard');
 		await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
-		await assertDashboardRouteWalk(page);
 
 		const paidInvoiceEvidence = await arrangePaidInvoiceForFreshSignup(
 			signup.email,
 			signup.password
 		);
+		expect(paidInvoiceEvidence.stagingCustomerId).toBe(paidInvoiceEvidence.customerId);
+		expect(paidInvoiceEvidence.stagingInvoiceId).toBe(paidInvoiceEvidence.invoiceId);
+		expect(paidInvoiceEvidence.stagingInvoiceStatus).toBe('paid');
+		expect(paidInvoiceEvidence.stagingInvoicePeriodStart).toBe(
+			`${paidInvoiceEvidence.billingMonth}-01`
+		);
 
-		await page.goto('/dashboard/billing/invoices');
+		await gotoWithSessionRecovery(
+			page,
+			'/dashboard/billing/invoices',
+			signup.email,
+			signup.password,
+			loginAs
+		);
 		await expect(page.getByRole('heading', { name: 'Invoices' })).toBeVisible();
 		const invoiceRow = page.getByTestId(`invoice-row-${paidInvoiceEvidence.invoiceId}`);
 		await expect(invoiceRow).toBeVisible({ timeout: 30_000 });

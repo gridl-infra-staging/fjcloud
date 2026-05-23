@@ -191,4 +191,27 @@ describe('Dashboard page server load', () => {
 		const result = (await load(event()))!;
 		expect(result.freeTierProgress).toBeNull();
 	});
+
+	it('preserves dashboard fallback behavior when usage fetch fails for non-auth errors', async () => {
+		getUsageMock.mockRejectedValue(new ApiRequestError(500, 'internal server error'));
+
+		const result = (await load(event({ month: '2026-05' })))!;
+
+		expect(result.usage).toEqual(
+			expect.objectContaining({
+				month: '2026-05',
+				total_search_requests: 0
+			})
+		);
+		expect(result.freeTierProgress).toBeNull();
+	});
+
+	it('redirects to login when dashboard usage load hits an expired session', async () => {
+		getUsageMock.mockRejectedValue(new ApiRequestError(401, 'Unauthorized'));
+
+		await expect(load(event({ month: '2026-05' }))).rejects.toMatchObject({
+			status: 303,
+			location: '/login?reason=session_expired'
+		});
+	});
 });

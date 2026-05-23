@@ -305,11 +305,18 @@ test_missing_playwright_runtime_fails_closed_before_npx() {
     rm -rf "$workspace"
 }
 
+test_default_lane_timeout_fails_closed_contract() {
+    local launcher_source
+    launcher_source="$(cat "$TARGET_SCRIPT")"
+    assert_contains "$launcher_source" "BROWSER_LANE_TIMEOUT_SECONDS:-480" "default lane timeout should fail closed at 480 seconds for deterministic non-terminal stall handling"
+}
+
 echo "=== run_browser_lane_against_staging contract tests ==="
 test_both_lane_timeout_still_emits_both_lane_logs
 test_missing_stripe_contract_fails_closed_before_playwright
 test_watchdog_does_not_delay_piped_execution_after_fast_failure
 test_missing_playwright_runtime_fails_closed_before_npx
+test_default_lane_timeout_fails_closed_contract
 echo "Summary: ${PASS_COUNT} passed, ${FAIL_COUNT} failed"
 if [ "$FAIL_COUNT" -ne 0 ]; then
     exit 1

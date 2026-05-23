@@ -8,7 +8,7 @@
 
 | Directory | Summary |
 | --- | --- |
-| account | — |
+| account | The account settings page loads the user's profile and provides server-side actions for updating profile information, changing password with validation, permanently deleting the account with password confirmation, and exporting account data. |
 | api-keys | — |
 | billing | The billing directory contains the customer-facing billing portal routes, including a main dashboard page and a setup subpage for configuring Stripe payment methods via setup intents. |
 | indexes | The indexes directory is the SvelteKit dashboard interface for managing Flapjack search indexes, providing a list view that fetches user indexes and regions, and per-index pages with features for document handling, security configuration, and integration code snippets. |

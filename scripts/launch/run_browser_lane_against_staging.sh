@@ -51,7 +51,7 @@ source "$SCRIPT_DIR/../lib/web_runtime.sh"
 LANE_ARG=""
 EVIDENCE_DIR_ARG=""
 SHOW_HELP=0
-LANE_TIMEOUT_SECONDS="${BROWSER_LANE_TIMEOUT_SECONDS:-1800}"
+LANE_TIMEOUT_SECONDS="${BROWSER_LANE_TIMEOUT_SECONDS:-480}"
 
 is_allowed_hydrated_key() {
   case "$1" in

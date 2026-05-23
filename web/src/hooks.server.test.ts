@@ -42,12 +42,14 @@ import { handle, handleError } from './hooks.server';
 function makeEvent(pathname: string, token?: string): RequestEvent {
 	const locals: Record<string, unknown> = {};
 	const deleteCookie = vi.fn();
+	const url = new URL(`http://localhost${pathname}`);
 	return {
 		cookies: {
 			get: vi.fn((name: string) => (name === 'auth_token' ? token : undefined)),
 			delete: deleteCookie
 		},
-		url: new URL(`http://localhost${pathname}`),
+		request: new Request(url.toString(), { headers: new Headers() }),
+		url,
 		locals
 	} as unknown as RequestEvent;
 }
@@ -219,8 +221,9 @@ describe('hooks.server handle', () => {
 
 		it('allows /dashboard when authenticated', async () => {
 			resolveAuthMock.mockReturnValue({ customerId: 'c1', token: 't' });
-			const { resolved } = await callHandle('/dashboard', 'jwt');
+			const { resolved, event } = await callHandle('/dashboard', 'jwt');
 			expect(resolved).toBe(true);
+			expect(event.cookies.delete).not.toHaveBeenCalled();
 		});
 
 		it('allows /dashboard/settings when authenticated', async () => {
@@ -260,6 +263,21 @@ describe('hooks.server handle', () => {
 			resolveAuthMock.mockReturnValue(null);
 			const { event } = await callHandle('/', undefined);
 			expect(event.locals.user).toBeNull();
+		});
+
+		it('derives api base URL from x-forwarded-host when custom domain hostname is not on event.url', async () => {
+			resolveAuthMock.mockReturnValue(null);
+			const event = makeEvent('/', undefined);
+			const forwardedHeaders = new Headers({ 'x-forwarded-host': 'cloud.staging.flapjack.foo' });
+			(event as unknown as { request: Request }).request = new Request(
+				'https://flapjack-cloud.pages.dev/',
+				{ headers: forwardedHeaders }
+			);
+			const resolve = vi.fn(async () => new Response('ok'));
+
+			await (handle as Handle)({ event, resolve } as never);
+
+			expect(event.locals.apiBaseUrl).toBe('https://api.staging.flapjack.foo');
 		});
 	});
 });

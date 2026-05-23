@@ -22,14 +22,38 @@ describe('staging DB lookup helper (LB-2/LB-3)', () => {
 			join(process.cwd(), 'tests/fixtures/staging_db_lookup.ts'),
 			'utf8'
 		);
+		const signupSpecSource = readFileSync(
+			join(process.cwd(), 'tests/e2e-ui/full/signup_to_paid_invoice.spec.ts'),
+			'utf8'
+		);
 		const fixtureSource = readFileSync(join(process.cwd(), 'tests/fixtures/fixtures.ts'), 'utf8');
 
 		expect(stagingLookupSource).toMatch(/\bbuildVerificationTokenLookupSql\b/);
 		expect(stagingLookupSource).toMatch(/\bbuildSsmStagingPsqlCommand\b/);
 		expect(stagingLookupSource).toMatch(/\bexecSsmStagingShell\b/);
+		expect(stagingLookupSource).toMatch(/\bfindPaidInvoiceEvidenceViaStagingSsm\b/);
+		expect(stagingLookupSource).toMatch(/\bJOIN\s+invoices\b/i);
 		expect(fixtureSource).not.toMatch(/\bbuildVerificationTokenLookupSql\b/);
 		expect(fixtureSource).not.toMatch(/\bbuildSsmStagingPsqlCommand\b/);
 		expect(fixtureSource).not.toMatch(/\bexecSsmStagingShell\b/);
+		expect(fixtureSource).not.toMatch(/\bspawnSync\b/);
+		expect(fixtureSource).not.toMatch(/\bFROM\s+invoices\b/i);
+		expect(signupSpecSource).not.toMatch(/\bspawnSync\b/);
+		expect(signupSpecSource).not.toMatch(/\bFROM\s+invoices\b/i);
+	});
+
+	it('bounds staging SSM lookup timeout below lane watchdog budget', () => {
+		const stagingLookupSource = readFileSync(
+			join(process.cwd(), 'tests/fixtures/staging_db_lookup.ts'),
+			'utf8'
+		);
+
+		expect(stagingLookupSource).toMatch(/const\s+SSM_STAGING_LOOKUP_TIMEOUT_SECONDS\s*=\s*90/);
+		expect(stagingLookupSource).toMatch(/const\s+SSM_STAGING_LOOKUP_SPAWN_TIMEOUT_MS\s*=\s*120\s*\*\s*1000/);
+		expect(stagingLookupSource).toMatch(
+			/SSM_EXEC_TIMEOUT_SECONDS:\s*String\(\s*SSM_STAGING_LOOKUP_TIMEOUT_SECONDS\s*\)/
+		);
+		expect(stagingLookupSource).toMatch(/timeout:\s*SSM_STAGING_LOOKUP_SPAWN_TIMEOUT_MS/);
 	});
 
 	describe('buildVerificationTokenLookupSql', () => {

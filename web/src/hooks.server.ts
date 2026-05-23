@@ -25,6 +25,18 @@ function isForcedReauthRequest(url: URL): boolean {
 	return url.pathname === '/login' && url.searchParams.get('reason') === SESSION_EXPIRED_REASON;
 }
 
+function resolveRequestHostname(event: Parameters<Handle>[0]['event']): string {
+	const forwardedHost = event.request.headers.get('x-forwarded-host')?.trim();
+	if (forwardedHost) {
+		return forwardedHost.split(',')[0].trim();
+	}
+	const host = event.request.headers.get('host')?.trim();
+	if (host) {
+		return host;
+	}
+	return event.url.hostname;
+}
+
 function backendRequestId(error: unknown): string | undefined {
 	if (error instanceof ApiRequestError) {
 		return error.requestId;
@@ -54,7 +66,7 @@ function routeErrorReport(input: {
 }
 
 export const handle: Handle = async ({ event, resolve }) => {
-	event.locals.apiBaseUrl = deriveApiBaseUrl(event.url.hostname);
+	event.locals.apiBaseUrl = deriveApiBaseUrl(resolveRequestHostname(event));
 
 	const token = event.cookies.get(AUTH_COOKIE);
 	event.locals.user = resolveAuth(token, env.JWT_SECRET);

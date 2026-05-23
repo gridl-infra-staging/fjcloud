@@ -1,18 +1,3 @@
-/**
- * @module Staging DB lookup helper for the LB-2/LB-3 remote-target browser
- * lane.
- *
- * Mailpit doesn't exist on staging, and staging RDS is only reachable from
- * inside the staging VPC (the EC2 API host). This helper bridges that gap
- * by shelling out to scripts/launch/ssm_exec_staging.sh, which uses AWS
- * SSM RunShellScript to execute psql on the EC2 host where DATABASE_URL
- * is reachable.
- *
- * Used by web/tests/fixtures/fixtures.ts when
- * process.env.PLAYWRIGHT_TARGET_REMOTE === '1' to fetch fresh-signup
- * verification tokens directly from the customers table — equivalent to
- * what findVerificationTokenViaMailpit() does for the local lane.
- */
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -20,6 +5,8 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, '..', '..', '..');
 const SSM_EXEC_SCRIPT = path.join(REPO_ROOT, 'scripts', 'launch', 'ssm_exec_staging.sh');
+const SSM_STAGING_LOOKUP_TIMEOUT_SECONDS = 90;
+const SSM_STAGING_LOOKUP_SPAWN_TIMEOUT_MS = 120 * 1000;
 
 // Allow only characters that legitimately appear in test-generated emails:
 // alphanumerics, dot, dash, plus, underscore, and the @ separator. Anything
@@ -27,6 +14,14 @@ const SSM_EXEC_SCRIPT = path.join(REPO_ROOT, 'scripts', 'launch', 'ssm_exec_stag
 // E2E identities are constructed by createFreshSignupIdentity() with seeds
 // from Date.now() + Math.random() — strictly within this allowlist.
 const SAFE_EMAIL_CHARS = /^[A-Za-z0-9._+\-@]+$/;
+const SAFE_IDENTIFIER_CHARS = /^[A-Za-z0-9_-]+$/;
+
+export type StagingPaidInvoiceEvidence = {
+	stagingCustomerId: string;
+	stagingInvoiceId: string;
+	stagingInvoiceStatus: string;
+	stagingInvoicePeriodStart: string;
+};
 
 /**
  * Build the SQL query that reads a customer's verification token from the
@@ -92,6 +87,32 @@ export function parseSingleColumnSingleRowOutput(rawOutput: string): string {
 	return value;
 }
 
+function parseSingleRowPipeSeparatedOutput(
+	rawOutput: string,
+	expectedColumns: number
+): string[] | null {
+	const lines = rawOutput.split('\n').filter((line) => line.length > 0);
+	if (lines.length === 0) {
+		return null;
+	}
+	if (lines.length > 1) {
+		throw new Error(
+			`expected single-row psql -tA output but got ${lines.length} non-empty lines: ${JSON.stringify(lines)}`
+		);
+	}
+
+	const columns = lines[0].split('|');
+	if (columns.length !== expectedColumns) {
+		throw new Error(
+			`expected ${expectedColumns} psql columns but got ${columns.length}: ${JSON.stringify(columns)}`
+		);
+	}
+	if (columns.some((value) => value === '\\N')) {
+		throw new Error(`psql output contained NULL markers: ${JSON.stringify(columns)}`);
+	}
+	return columns;
+}
+
 /**
  * Execute the given shell command on the staging EC2 host via SSM and
  * return stdout. Surfaces stderr in the thrown error so failures
@@ -101,9 +122,13 @@ export function parseSingleColumnSingleRowOutput(rawOutput: string): string {
 export function execSsmStagingShell(command: string): string {
 	const result = spawnSync('bash', [SSM_EXEC_SCRIPT, command], {
 		encoding: 'utf8',
-		// 5 minutes covers SSM send-command + poll + psql round-trip even
-		// on a slow staging host. The SSM wrapper itself has a 300s default.
-		timeout: 5 * 60 * 1000,
+		// Keep DB evidence probes well below the lane watchdog so hangs surface
+		// as explicit staging_db_lookup errors rather than generic spec timeouts.
+		timeout: SSM_STAGING_LOOKUP_SPAWN_TIMEOUT_MS,
+		env: {
+			...process.env,
+			SSM_EXEC_TIMEOUT_SECONDS: String(SSM_STAGING_LOOKUP_TIMEOUT_SECONDS)
+		},
 		// Run from the repo root so the wrapper's relative paths resolve.
 		cwd: REPO_ROOT
 	});
@@ -135,4 +160,52 @@ export async function findVerificationTokenViaStagingSsm(email: string): Promise
 		);
 	}
 	return token;
+}
+
+function buildPaidInvoiceEvidenceLookupSql(email: string, invoiceId: string): string {
+	if (!email || !SAFE_EMAIL_CHARS.test(email)) {
+		throw new Error(
+			`refusing to embed unsafe email into SQL literal: ${JSON.stringify(email)} ` +
+				`(only [A-Za-z0-9._+-@] allowed)`
+		);
+	}
+	if (!invoiceId || !SAFE_IDENTIFIER_CHARS.test(invoiceId)) {
+		throw new Error(
+			`refusing to embed unsafe invoice id into SQL literal: ${JSON.stringify(invoiceId)} ` +
+				`(only [A-Za-z0-9_-] allowed)`
+		);
+	}
+
+	return [
+		'SELECT c.id::text, i.id::text, i.status::text, i.period_start::text',
+		'FROM customers c',
+		'JOIN invoices i ON i.customer_id = c.id',
+		`WHERE c.email = '${email}'`,
+		`AND i.id::text = '${invoiceId}'`
+	].join(' ');
+}
+
+export async function findPaidInvoiceEvidenceViaStagingSsm(
+	email: string,
+	invoiceId: string
+): Promise<StagingPaidInvoiceEvidence> {
+	const sql = buildPaidInvoiceEvidenceLookupSql(email, invoiceId);
+	const command = buildSsmStagingPsqlCommand(sql);
+	const stdout = execSsmStagingShell(command);
+	const columns = parseSingleRowPipeSeparatedOutput(stdout, 4);
+	if (!columns) {
+		throw new Error(
+			`no staging paid-invoice row for email=${email} invoice_id=${invoiceId}; ` +
+				`either billing did not write the expected invoice or the row is not visible yet`
+		);
+	}
+
+	const [stagingCustomerId, stagingInvoiceId, stagingInvoiceStatus, stagingInvoicePeriodStart] =
+		columns;
+	return {
+		stagingCustomerId,
+		stagingInvoiceId,
+		stagingInvoiceStatus,
+		stagingInvoicePeriodStart
+	};
 }

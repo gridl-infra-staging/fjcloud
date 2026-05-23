@@ -11,7 +11,11 @@
 
 import { test as base, expect, type Page } from '@playwright/test';
 import { createSeedSearchableIndexFactory, type SeedSearchableIndexFn } from './searchable-index';
-import { findVerificationTokenViaStagingSsm } from './staging_db_lookup';
+import {
+	findPaidInvoiceEvidenceViaStagingSsm,
+	findVerificationTokenViaStagingSsm
+} from './staging_db_lookup';
+import { readStripeDefaultPaymentMethod } from './staging_stripe_lookup';
 import {
 	DEFAULT_API_URL,
 	REMOTE_TARGET_OPT_IN_ENV,
@@ -21,7 +25,7 @@ import {
 } from '../../playwright.config.contract';
 import { AUTH_COOKIE } from '../../src/lib/server/auth-session-contracts';
 import { requireAdminApiKey, requireNonEmptyString } from './contract-guards';
-import { attemptRemoteSignupFallback } from './fresh_signup_remote_bootstrap';
+import { attemptRemoteSignupFallback, isRemoteTargetMode } from './fresh_signup_remote_bootstrap';
 import type { EstimatedBillResponse } from '../../src/lib/api/types';
 import type { AdminRateCard } from '../../src/lib/admin-client';
 import {
@@ -125,6 +129,10 @@ type ArrangePaidInvoiceForFreshSignupResult = {
 	customerId: string;
 	invoiceId: string;
 	billingMonth: string;
+	stagingCustomerId: string;
+	stagingInvoiceId: string;
+	stagingInvoiceStatus: string;
+	stagingInvoicePeriodStart: string;
 };
 
 type ArrangeFreshSignupToDashboardResult = {
@@ -142,7 +150,7 @@ const JSON_CONTENT_TYPE = { 'Content-Type': 'application/json' } as const;
 
 const FRESH_SIGNUP_ARRANGE_SETUP_FAILURE_ALERT_PATTERN =
 	/service is unavailable|verify API_URL|verification email temporarily unavailable/i;
-const FIXTURE_CUSTOMER_MISSING_LOGIN_ALERT_PATTERN = /invalid email or password/i;
+const FIXTURE_CUSTOMER_MISSING_LOGIN_ALERT_PATTERN = /invalid (email or password|credentials)/i;
 const TRANSIENT_API_MAX_RETRIES = 10;
 const IGNORE_TRACKED_FIXTURE_CUSTOMER_ID: TrackCustomerForCleanupFn = () => {};
 
@@ -280,6 +288,13 @@ function getTransientRetryDelayMs(attempt: number): number {
 	return Math.min(2000 * (attempt + 1), 10_000);
 }
 
+function cappedTransientRetryBudgetMs(maxAttempts: number): number {
+	return Array.from({ length: maxAttempts }, (_, attempt) => getTransientRetryDelayMs(attempt)).reduce(
+		(total, delayMs) => total + delayMs,
+		0
+	);
+}
+
 function getRetryDelayMs(attempt: number, retryAfterHeader: string | null): number {
 	const retryAfterSeconds = Number(retryAfterHeader ?? '');
 	const retryAfterMs =
@@ -293,10 +308,29 @@ function isTransientAccountLookupFailure(status: number): boolean {
 
 // Keep the setup:user timeout aligned with the helper retry contract so
 // Playwright does not abort before fixture bootstrap finishes its own retries.
-export const FIXTURE_AUTH_API_RETRY_BUDGET_MS = Array.from(
-	{ length: TRANSIENT_API_MAX_RETRIES },
-	(_, attempt) => getTransientRetryDelayMs(attempt)
-).reduce((total, delayMs) => total + delayMs, 0);
+export const FIXTURE_AUTH_API_RETRY_BUDGET_MS = cappedTransientRetryBudgetMs(
+	TRANSIENT_API_MAX_RETRIES
+);
+
+const STRIPE_DEFAULT_PAYMENT_METHOD_WAIT_MAX_ATTEMPTS = 20;
+const INVOICE_STATUS_WAIT_MAX_ATTEMPTS = 90;
+const INVOICE_OPEN_WITHOUT_STRIPE_ID_MAX_ATTEMPTS = 12;
+const INVOICE_OPEN_WITH_STRIPE_ID_MAX_ATTEMPTS = 46;
+const PAID_INVOICE_PROOF_TIMEOUT_BUFFER_MS = 60_000;
+const STAGING_LANE_WATCHDOG_TIMEOUT_MS = 480_000;
+const PAID_INVOICE_PROOF_WATCHDOG_SAFETY_MARGIN_MS = 30_000;
+
+// Keep the signup-to-paid-invoice spec timeout aligned with its fixture-owned
+// Stripe + invoice polling budgets so remote staging failures surface the
+// underlying fixture error instead of a generic Playwright timeout.
+export const PAID_INVOICE_PROOF_TIMEOUT_MS =
+	Math.min(
+		FIXTURE_AUTH_API_RETRY_BUDGET_MS +
+			cappedTransientRetryBudgetMs(STRIPE_DEFAULT_PAYMENT_METHOD_WAIT_MAX_ATTEMPTS) +
+			cappedTransientRetryBudgetMs(INVOICE_STATUS_WAIT_MAX_ATTEMPTS) +
+			PAID_INVOICE_PROOF_TIMEOUT_BUFFER_MS,
+		STAGING_LANE_WATCHDOG_TIMEOUT_MS - PAID_INVOICE_PROOF_WATCHDOG_SAFETY_MARGIN_MS
+	);
 
 type CreateRegisteredUserParams = {
 	apiUrl: string;
@@ -407,6 +441,19 @@ type LoginAsUserParams = {
 	fetchImpl?: typeof fetch;
 };
 
+type LoginAsUserWithKnownMissingUserBootstrapParams = {
+	apiUrl: string;
+	email: string;
+	password: string;
+	trackCustomerForCleanup: TrackCustomerForCleanupFn;
+	contextLabel: string;
+	fetchImpl?: typeof fetch;
+	loginAsUserFn?: (params: LoginAsUserParams) => Promise<string>;
+	bootstrapFn?: (
+		params: BootstrapFixtureUserForKnownLoginFailureParams
+	) => Promise<BootstrapFixtureUserForKnownLoginFailureResult>;
+};
+
 type BootstrapFixtureUserForKnownLoginFailureParams = {
 	apiUrl: string;
 	email: string;
@@ -465,6 +512,54 @@ export async function loginAsUser({
 	throw new Error('loginAs failed: exhausted retries after 429 rate limiting');
 }
 
+/**
+ * Login for fixture flows and recover only the known missing-user seam by
+ * bootstrapping the account through the existing helper contract.
+ */
+export async function loginAsUserWithKnownMissingUserBootstrap({
+	apiUrl,
+	email,
+	password,
+	trackCustomerForCleanup,
+	contextLabel,
+	fetchImpl = fetch,
+	loginAsUserFn = loginAsUser,
+	bootstrapFn = bootstrapFixtureUserForKnownLoginFailure
+}: LoginAsUserWithKnownMissingUserBootstrapParams): Promise<string> {
+	try {
+		return await loginAsUserFn({ apiUrl, email, password, fetchImpl });
+	} catch (error) {
+		const loginFailureDetails = setupFailureDetailsFromError(error);
+		const loginStatusMatch = loginFailureDetails.match(/\bloginAs failed:\s*(\d{3})\b/i);
+		const loginStatus = loginStatusMatch ? Number(loginStatusMatch[1]) : 0;
+		if (
+			(loginStatus !== 400 && loginStatus !== 401) ||
+			!FIXTURE_CUSTOMER_MISSING_LOGIN_ALERT_PATTERN.test(loginFailureDetails)
+		) {
+			throw error;
+		}
+
+		const bootstrap = await bootstrapFn({
+			apiUrl,
+			email,
+			password,
+			currentPath: 'http://127.0.0.1:5173/login',
+			alertText: 'invalid email or password',
+			responseStatus: loginStatus,
+			responseUrl: `${apiUrl}/auth/login`,
+			trackCustomerForCleanup,
+			fetchImpl
+		});
+		if (bootstrap.loginToken) {
+			return bootstrap.loginToken;
+		}
+
+		throw new Error(
+			`${contextLabel} failed to re-authenticate after known missing-user bootstrap`
+		);
+	}
+}
+
 function isKnownFixtureCustomerMissingLoginFailure({
 	currentPath,
 	alertText,
@@ -483,7 +578,7 @@ function isKnownFixtureCustomerMissingLoginFailure({
 	// Browser form posts surface `/login` while direct API fixtures surface
 	// `/auth/login`; both represent the same invalid-credentials path.
 	const knownApiFailureSurface =
-		responseStatus === 400 &&
+		(responseStatus === 400 || responseStatus === 401) &&
 		Boolean(responseUrl?.includes('/auth/login') || responseUrl?.includes('/login'));
 	const browserOnlyFailureSurface = responseStatus === undefined && responseUrl === undefined;
 	return (
@@ -796,22 +891,12 @@ async function adminApiCall(method: string, path: string, body?: unknown): Promi
 	return lastResponse ?? new Response('adminApiCall exhausted without a response', { status: 500 });
 }
 
-async function bestEffortAdminApiCall(
-	method: string,
-	path: string,
-	body?: unknown
-): Promise<Response | null> {
-	try {
-		return await callJsonApi(
-			fetch,
-			fixtureEnv.apiUrl,
-			method,
-			path,
-			{ 'x-admin-key': requireAdminApiKey(fixtureEnv.adminKey) },
-			body
+async function deleteTrackedCustomerForCleanup(customerId: string): Promise<void> {
+	const response = await adminApiCall('DELETE', `/admin/tenants/${encodeURIComponent(customerId)}`);
+	if (!response.ok) {
+		throw new Error(
+			`tracked fixture customer cleanup failed for ${customerId}: ${response.status} ${await response.text()}`
 		);
-	} catch {
-		return null;
 	}
 }
 
@@ -961,6 +1046,7 @@ type ArrangeBillingPortalCustomerResult = CreatedFixtureUser & {
 	stripeCustomerId: string;
 	defaultPaymentMethodId: string;
 	nonDefaultPaymentMethodId: string;
+	expectedDefaultPaymentMethodId: string;
 };
 
 type ArrangeBillingPortalCustomerParams = {
@@ -1412,6 +1498,39 @@ async function attachNonDefaultStripeTestCard(
 	});
 }
 
+type WaitForStripeDefaultPaymentMethodParams = {
+	stripeCustomerId: string;
+	stripeSecretKey: string;
+	expectedPaymentMethodId: string;
+	contextLabel: string;
+	maxAttempts?: number;
+};
+
+async function waitForStripeDefaultPaymentMethod({
+	stripeCustomerId,
+	stripeSecretKey,
+	expectedPaymentMethodId,
+	contextLabel,
+	maxAttempts = STRIPE_DEFAULT_PAYMENT_METHOD_WAIT_MAX_ATTEMPTS
+}: WaitForStripeDefaultPaymentMethodParams): Promise<string> {
+	for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+		const currentDefaultPaymentMethod = await readStripeDefaultPaymentMethod({
+			stripeCustomerId,
+			stripeSecretKey,
+			contextLabel
+		});
+		if (currentDefaultPaymentMethod === expectedPaymentMethodId) {
+			return currentDefaultPaymentMethod;
+		}
+		await sleep(getTransientRetryDelayMs(attempt));
+	}
+
+	throw new Error(
+		`${contextLabel} timed out waiting for Stripe default payment method ` +
+			`${expectedPaymentMethodId} on customer ${stripeCustomerId}`
+	);
+}
+
 /**
  * Create a disposable customer fixture that can reach the billing portal.
  */
@@ -1437,6 +1556,20 @@ async function arrangeBillingPortalCustomer({
 			name: `Billing Portal ${seed}`,
 			trackCustomerForCleanup
 		});
+		const verificationToken = await findFreshSignupVerificationToken(email);
+		const verifyResponse = await callJsonApi(
+			fetch,
+			fixtureEnv.apiUrl,
+			'POST',
+			'/auth/verify-email',
+			{},
+			{ token: verificationToken }
+		);
+		if (!verifyResponse.ok) {
+			throw new Error(
+				`arrangeBillingPortalCustomer verify-email failed: ${verifyResponse.status} ${await verifyResponse.text()}`
+			);
+		}
 		const token = await loginAsUser({
 			apiUrl: fixtureEnv.apiUrl,
 			email,
@@ -1459,7 +1592,8 @@ async function arrangeBillingPortalCustomer({
 				token,
 				stripeCustomerId,
 				defaultPaymentMethodId: 'pm_local_default',
-				nonDefaultPaymentMethodId: 'pm_local_secondary'
+				nonDefaultPaymentMethodId: 'pm_local_secondary',
+				expectedDefaultPaymentMethodId: 'pm_local_secondary'
 			};
 		}
 
@@ -1473,13 +1607,20 @@ async function arrangeBillingPortalCustomer({
 			stripeSecretKey,
 			'arrangeBillingPortalCustomer'
 		);
+		await waitForStripeDefaultPaymentMethod({
+			stripeCustomerId,
+			stripeSecretKey,
+			expectedPaymentMethodId: defaultPaymentMethodId,
+			contextLabel: 'arrangeBillingPortalCustomer'
+		});
 
 		return {
 			...created,
 			token,
 			stripeCustomerId,
 			defaultPaymentMethodId,
-			nonDefaultPaymentMethodId
+			nonDefaultPaymentMethodId,
+			expectedDefaultPaymentMethodId: nonDefaultPaymentMethodId
 		};
 	} catch (error) {
 		throwBillingPortalArrangeFailure({
@@ -1493,7 +1634,8 @@ async function resolveInvoiceIdFromBatch(
 	batch: BatchBillingResponse,
 	customerId: string,
 	token: string,
-	billingMonth: string
+	billingMonth: string,
+	stripeSecretKey: string
 ): Promise<string> {
 	const customerResult = batch.results.find((result) => result.customer_id === customerId);
 	if (!customerResult) {
@@ -1507,20 +1649,150 @@ async function resolveInvoiceIdFromBatch(
 	}
 
 	if (customerResult.status === 'skipped' && customerResult.reason === 'already_invoiced') {
-		const monthStart = `${billingMonth}-01`;
-		const invoices = await listInvoicesBestEffort(token);
-		const existing = invoices.find((invoice) => invoice.period_start === monthStart);
-		if (existing) {
-			return existing.id;
-		}
-		throw new Error(
-			`arrangePaidInvoiceForFreshSignup reported already_invoiced for ${billingMonth} but no matching invoice was visible`
-		);
+		return recoverAlreadyInvoicedInvoiceForMonth({
+			billingMonth,
+			contextLabel: 'arrangePaidInvoiceForFreshSignup',
+			listInvoices: () => listInvoicesBestEffort(token),
+			getInvoiceDetail: (invoiceId: string) => getInvoiceDetailForToken(invoiceId, token),
+			finalizeDraftInvoice: finalizeExistingInvoiceForFreshSignup,
+			payStripeInvoice: (stripeInvoiceId: string) =>
+				payStripeInvoiceWithTestKey(
+					stripeInvoiceId,
+					stripeSecretKey,
+					'arrangePaidInvoiceForFreshSignup'
+				)
+		});
 	}
 
 	throw new Error(
 		`arrangePaidInvoiceForFreshSignup unexpected batch status for customer ${customerId}: ${customerResult.status} (${customerResult.reason ?? 'no reason'})`
 	);
+}
+
+type RecoverAlreadyInvoicedInvoiceForMonthParams = {
+	billingMonth: string;
+	contextLabel: string;
+	listInvoices: () => Promise<InvoiceListApiItem[]>;
+	getInvoiceDetail: (invoiceId: string) => Promise<InvoiceDetailApiItem | null>;
+	finalizeDraftInvoice: (invoiceId: string) => Promise<void>;
+	payStripeInvoice: (stripeInvoiceId: string) => Promise<void>;
+};
+
+type EnsureInvoicePaymentAttemptForBillingProofParams = {
+	invoiceId: string;
+	contextLabel: string;
+	getInvoiceDetail: (invoiceId: string) => Promise<InvoiceDetailApiItem | null>;
+	payStripeInvoice: (stripeInvoiceId: string) => Promise<void>;
+};
+
+/**
+ * Recover an existing monthly invoice when batch billing reports already_invoiced.
+ */
+export async function recoverAlreadyInvoicedInvoiceForMonth({
+	billingMonth,
+	contextLabel,
+	listInvoices,
+	getInvoiceDetail,
+	finalizeDraftInvoice,
+	payStripeInvoice
+}: RecoverAlreadyInvoicedInvoiceForMonthParams): Promise<string> {
+	const monthStart = `${billingMonth}-01`;
+	const invoices = await listInvoices();
+	const existing = invoices.find((invoice) => invoice.period_start === monthStart);
+	if (!existing) {
+		throw new Error(
+			`${contextLabel} reported already_invoiced for ${billingMonth} but no matching invoice was visible`
+		);
+	}
+
+	const detail = await getInvoiceDetail(existing.id);
+	if (!detail) {
+		throw new Error(
+			`${contextLabel} could not read existing already_invoiced invoice detail for ${existing.id}`
+		);
+	}
+
+	if (detail.status === 'draft') {
+		await finalizeDraftInvoice(detail.id);
+		return detail.id;
+	}
+
+	if (
+		(detail.status === 'finalized' || detail.status === 'failed') &&
+		detail.stripe_invoice_id?.trim()
+	) {
+		await payStripeInvoice(detail.stripe_invoice_id);
+		return detail.id;
+	}
+
+	return detail.id;
+}
+
+/**
+ * Ensure finalized/failed Stripe-backed invoices get an explicit pay attempt
+ * before waiting for paid status convergence in remote staging proofs.
+ */
+export async function ensureInvoicePaymentAttemptForBillingProof({
+	invoiceId,
+	contextLabel,
+	getInvoiceDetail,
+	payStripeInvoice
+}: EnsureInvoicePaymentAttemptForBillingProofParams): Promise<void> {
+	const detail = await getInvoiceDetail(invoiceId);
+	if (!detail) {
+		throw new Error(`${contextLabel} could not read invoice detail for ${invoiceId}`);
+	}
+
+	if (
+		(detail.status === 'open' || detail.status === 'finalized' || detail.status === 'failed') &&
+		detail.stripe_invoice_id?.trim()
+	) {
+		await payStripeInvoice(detail.stripe_invoice_id);
+	}
+}
+
+async function finalizeExistingInvoiceForFreshSignup(invoiceId: string): Promise<void> {
+	const finalizeResponse = await adminApiCall(
+		'POST',
+		`/admin/invoices/${encodeURIComponent(invoiceId)}/finalize`
+	);
+	if (!finalizeResponse.ok) {
+		throw new Error(
+			`arrangePaidInvoiceForFreshSignup failed to finalize existing invoice ${invoiceId}: ${finalizeResponse.status} ${await finalizeResponse.text()}`
+		);
+	}
+}
+
+async function payStripeInvoiceWithTestKey(
+	stripeInvoiceId: string,
+	stripeSecretKey: string,
+	contextLabel: string
+): Promise<void> {
+	const paymentResponse = await fetch(
+		`https://api.stripe.com/v1/invoices/${encodeURIComponent(stripeInvoiceId)}/pay`,
+		{
+			method: 'POST',
+			headers: {
+				Authorization: `Bearer ${stripeSecretKey}`,
+				'Content-Type': 'application/x-www-form-urlencoded'
+			}
+		}
+	);
+	if (!paymentResponse.ok) {
+		const responseBody = await paymentResponse.text();
+		if (
+			paymentResponse.status === 400 &&
+			responseBody.toLowerCase().includes('invoice is already paid')
+		) {
+			// Stripe can return a 400 when an automatic payment has already
+			// settled the invoice between our polling intervals. Treat that
+			// idempotent state as converged success for the staging proof.
+			return;
+		}
+		throw new Error(
+			`${contextLabel} Stripe invoice pay failed for ${stripeInvoiceId}: ${paymentResponse.status} ${responseBody}`
+		);
+	}
 }
 
 async function waitForInvoicePaid(invoiceId: string, token: string): Promise<InvoiceDetailApiItem> {
@@ -1549,8 +1821,6 @@ type WaitForInvoiceStatusForTokenParams = {
 	maxAttempts?: number;
 };
 
-const INVOICE_STATUS_WAIT_MAX_ATTEMPTS = 90;
-
 export async function waitForInvoiceStatusForToken({
 	apiUrl,
 	token,
@@ -1560,6 +1830,8 @@ export async function waitForInvoiceStatusForToken({
 	fetchImpl = fetch,
 	maxAttempts = INVOICE_STATUS_WAIT_MAX_ATTEMPTS
 }: WaitForInvoiceStatusForTokenParams): Promise<InvoiceDetailApiItem> {
+	let openWithoutStripeInvoiceIdAttempts = 0;
+	let openWithStripeInvoiceIdAttempts = 0;
 	for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
 		const response = await callJsonApi(
 			fetchImpl,
@@ -1574,6 +1846,31 @@ export async function waitForInvoiceStatusForToken({
 			const invoice = (await response.json()) as InvoiceDetailApiItem;
 			if (invoice.status === expectedStatus && (expectedStatus !== 'paid' || invoice.paid_at)) {
 				return invoice;
+			}
+			if (expectedStatus === 'paid') {
+				const stripeInvoiceId = invoice.stripe_invoice_id?.trim() ?? '';
+				if (invoice.status === 'open') {
+					if (!stripeInvoiceId) {
+						openWithoutStripeInvoiceIdAttempts += 1;
+						openWithStripeInvoiceIdAttempts = 0;
+						if (openWithoutStripeInvoiceIdAttempts >= INVOICE_OPEN_WITHOUT_STRIPE_ID_MAX_ATTEMPTS) {
+							throw new Error(
+								`${contextLabel} invoice ${invoiceId} remained open without stripe_invoice_id`
+							);
+						}
+					} else {
+						openWithStripeInvoiceIdAttempts += 1;
+						openWithoutStripeInvoiceIdAttempts = 0;
+						if (openWithStripeInvoiceIdAttempts >= INVOICE_OPEN_WITH_STRIPE_ID_MAX_ATTEMPTS) {
+							throw new Error(
+								`${contextLabel} invoice ${invoiceId} remained open with stripe_invoice_id present`
+							);
+						}
+					}
+				} else {
+					openWithoutStripeInvoiceIdAttempts = 0;
+					openWithStripeInvoiceIdAttempts = 0;
+				}
 			}
 		} else if (
 			response.status !== 404 &&
@@ -1635,11 +1932,13 @@ async function arrangePaidInvoiceForFreshSignup({
 			throw new Error('arrangePaidInvoiceForFreshSignup requires a non-empty email and password');
 		}
 
-		const token = await loginAsUser({
-			apiUrl: fixtureEnv.apiUrl,
-			email: normalizedEmail,
-			password
-		});
+			const token = await loginAsUserWithKnownMissingUserBootstrap({
+				apiUrl: fixtureEnv.apiUrl,
+				email: normalizedEmail,
+				password,
+				trackCustomerForCleanup,
+				contextLabel: 'arrangePaidInvoiceForFreshSignup'
+			});
 		const customerId = await getCustomerIdForToken(token);
 		trackCustomerForCleanup(customerId);
 
@@ -1653,17 +1952,25 @@ async function arrangePaidInvoiceForFreshSignup({
 			'arrangePaidInvoiceForFreshSignup'
 		);
 
-		// Attach pm_card_visa as the default PM BEFORE batch billing runs,
-		// so the invoice that batch billing creates gets auto-charged
-		// (collection_method=charge_automatically with a default PM = paid in
-		// seconds). Without this step, waitForInvoicePaid below times out.
-		await attachDefaultStripeTestCard(
-			stripeCustomerId,
-			stripeSecretKey,
-			'arrangePaidInvoiceForFreshSignup'
-		);
+			// Attach pm_card_visa as the default PM BEFORE batch billing runs,
+			// so the invoice that batch billing creates gets auto-charged
+			// (collection_method=charge_automatically with a default PM = paid in
+			// seconds). Without this step, waitForInvoicePaid below times out.
+			const defaultPaymentMethodId = await attachDefaultStripeTestCard(
+				stripeCustomerId,
+				stripeSecretKey,
+				'arrangePaidInvoiceForFreshSignup'
+			);
+			// Stripe can acknowledge attachment before `invoice_settings.default_payment_method`
+			// is query-consistent. Wait for that read seam to converge before batch billing.
+			await waitForStripeDefaultPaymentMethod({
+				stripeCustomerId,
+				stripeSecretKey,
+				expectedPaymentMethodId: defaultPaymentMethodId,
+				contextLabel: 'arrangePaidInvoiceForFreshSignup'
+			});
 
-		const billingMonth = currentUtcBillingMonth();
+			const billingMonth = currentUtcBillingMonth();
 		const batchBillingResponse = await adminApiCall('POST', '/admin/billing/run', {
 			month: billingMonth
 		});
@@ -1673,14 +1980,44 @@ async function arrangePaidInvoiceForFreshSignup({
 			);
 		}
 
-		const batch = (await batchBillingResponse.json()) as BatchBillingResponse;
-		const invoiceId = await resolveInvoiceIdFromBatch(batch, customerId, token, billingMonth);
-		await waitForInvoicePaid(invoiceId, token);
+			const batch = (await batchBillingResponse.json()) as BatchBillingResponse;
+			const invoiceId = await resolveInvoiceIdFromBatch(
+				batch,
+				customerId,
+				token,
+				billingMonth,
+				stripeSecretKey
+			);
+				await ensureInvoicePaymentAttemptForBillingProof({
+					invoiceId,
+					contextLabel: 'arrangePaidInvoiceForFreshSignup',
+					getInvoiceDetail: (id) => getInvoiceDetailForToken(id, token),
+					payStripeInvoice: (stripeInvoiceId) =>
+						payStripeInvoiceWithTestKey(
+							stripeInvoiceId,
+						stripeSecretKey,
+						'arrangePaidInvoiceForFreshSignup'
+					)
+			});
+			await waitForInvoicePaid(invoiceId, token);
+			const paidInvoiceEvidence =
+			process.env[REMOTE_TARGET_OPT_IN_ENV] === '1'
+				? await findPaidInvoiceEvidenceViaStagingSsm(normalizedEmail, invoiceId)
+				: {
+						stagingCustomerId: customerId,
+						stagingInvoiceId: invoiceId,
+						stagingInvoiceStatus: 'paid',
+						stagingInvoicePeriodStart: `${billingMonth}-01`
+					};
 
 		return {
 			customerId,
 			invoiceId,
-			billingMonth
+			billingMonth,
+			stagingCustomerId: paidInvoiceEvidence.stagingCustomerId,
+			stagingInvoiceId: paidInvoiceEvidence.stagingInvoiceId,
+			stagingInvoiceStatus: paidInvoiceEvidence.stagingInvoiceStatus,
+			stagingInvoicePeriodStart: paidInvoiceEvidence.stagingInvoicePeriodStart
 		};
 		} catch (error) {
 			const diagnosticEnv = fixtureEnvForFailureDiagnostics();
@@ -1742,6 +2079,23 @@ async function getInvoiceDetailForFixture(invoiceId: string): Promise<InvoiceDet
 	return (await res.json()) as InvoiceDetailApiItem;
 }
 
+async function getInvoiceDetailForToken(
+	invoiceId: string,
+	token: string
+): Promise<InvoiceDetailApiItem | null> {
+	const res = await callJsonApi(
+		fetch,
+		fixtureEnv.apiUrl,
+		'GET',
+		`/invoices/${encodeURIComponent(invoiceId)}`,
+		{ Authorization: `Bearer ${token}` }
+	);
+	if (!res.ok) {
+		return null;
+	}
+	return (await res.json()) as InvoiceDetailApiItem;
+}
+
 // ---------------------------------------------------------------------------
 // Custom fixture types
 // ---------------------------------------------------------------------------
@@ -1760,6 +2114,10 @@ type SeedInvoiceFn = () => Promise<{ id: string }>;
 type SeedInvoiceWithPdfUrlFn = () => Promise<{ id: string }>;
 type CreateUserFn = (email: string, password: string, name?: string) => Promise<CreatedFixtureUser>;
 type LoginAsFn = (email: string, password: string) => Promise<string>;
+type WaitForStripeDefaultPaymentMethodFn = (
+	stripeCustomerId: string,
+	expectedPaymentMethodId: string
+) => Promise<string>;
 type GetEstimatedBillFn = (month?: string) => Promise<EstimatedBillResponse | null>;
 type SeedMultiUserScenarioFn = () => Promise<{
 	primaryUser: CreatedFixtureUser;
@@ -1813,6 +2171,8 @@ type E2eFixtures = {
 	createUser: CreateUserFn;
 	/** Login as an explicit user and return a fresh token. */
 	loginAs: LoginAsFn;
+	/** Poll Stripe customer state until the expected default payment method is active. */
+	waitForStripeDefaultPaymentMethod: WaitForStripeDefaultPaymentMethodFn;
 	/** Fetch the authenticated customer's current estimated bill. */
 	getEstimatedBill: GetEstimatedBillFn;
 	/** Seed two unique users for multi-user workflows. */
@@ -1868,6 +2228,11 @@ export const test = base.extend<E2eFixtures & E2eInternalFixtures>({
 			...args: Parameters<typeof originalGoto>
 		): ReturnType<typeof originalGoto> => {
 			const response = await originalGoto(...args);
+			// Remote staging pages can keep long-lived requests open, so waiting
+			// for networkidle can deadlock navigation in LB-2/LB-3 proofs.
+			if (isRemoteTargetMode()) {
+				return response;
+			}
 			await page.waitForLoadState('networkidle');
 			return response;
 		};
@@ -1911,7 +2276,7 @@ export const test = base.extend<E2eFixtures & E2eInternalFixtures>({
 		});
 
 		for (const customerId of created) {
-			await bestEffortAdminApiCall('DELETE', `/admin/tenants/${encodeURIComponent(customerId)}`);
+			await deleteTrackedCustomerForCleanup(customerId);
 		}
 	},
 
@@ -1990,6 +2355,24 @@ export const test = base.extend<E2eFixtures & E2eInternalFixtures>({
 				password
 			})
 		);
+	},
+
+	waitForStripeDefaultPaymentMethod: async ({}, use) => {
+		await use(async (stripeCustomerId, expectedPaymentMethodId) => {
+			const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+			if (!stripeSecretKey) {
+				throw new Error(
+					'waitForStripeDefaultPaymentMethod requires STRIPE_SECRET_KEY in env (source .secret/.env.secret before invoking Playwright)'
+				);
+			}
+
+			return waitForStripeDefaultPaymentMethod({
+				stripeCustomerId,
+				stripeSecretKey,
+				expectedPaymentMethodId,
+				contextLabel: 'waitForStripeDefaultPaymentMethod'
+			});
+		});
 	},
 
 	getEstimatedBill: async ({}, use) => {

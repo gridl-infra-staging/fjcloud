@@ -107,7 +107,9 @@ and interprets exit codes/output. |
 | probe_alert_delivery.sh | Stub summary for probe_alert_delivery.sh. |
 | probe_cloudflare_ai_block.sh | Read-only Cloudflare AI-bot-protection probe. |
 | probe_deployed_signup_renders.sh | Stub summary for probe_deployed_signup_renders.sh. |
-| probe_live_state.sh | Stub summary for probe_live_state.sh. |
+| probe_live_state.sh | scripts/probe_live_state.sh — fjcloud realization of Live State Discipline.
+
+Per-project read-only inventory probe. |
 | probe_organic_alert_dispatch.sh | Stub summary for probe_organic_alert_dispatch.sh. |
 | probe_ses_bounce_complaint_e2e.sh | Stub summary for probe_ses_bounce_complaint_e2e.sh. |
 | probe_ses_simulator_send.sh | Send-only SES mailbox simulator probe for bounce/complaint proof. |
@@ -156,7 +158,7 @@ usage_records to Postgres. |
 | launch | The launch directory contains shell scripts for orchestrating and validating a staged deployment pipeline, with scripts for pre/post-deployment verification, evidence capture, environment configuration hydration, and synthetic traffic generation. |
 | lib | The lib directory contains reusable shell script helpers for critical infrastructure tasks: environment loading, alert dispatch, database migrations, Flapjack binary discovery, health checks, validation gates for metering/Stripe/security, and staging billing workflows. |
 | load | The load directory contains regression checking utilities for validating load testing performance, including scripts that compare offline and live load harness results to detect performance regressions. |
-| reliability | This directory contains bash scripts for capacity profiling, security validation, and reliability testing of the fjcloud backend, including profiling sessions across document tiers, security gate orchestration (cargo audit, secret scanning, unsafe code detection), and test data seeding that produces machine-readable JSON summaries for CI/CD validation. |
+| reliability | This directory provides backend reliability profiling scripts, security validation gates (cargo audit, secret scanning, unsafe code detection), and test data seeding utilities that measure API capacity across three document-scale tiers and produce machine-readable JSON summaries. |
 | stripe | The stripe directory contains operational scripts for managing Stripe integration with fjcloud: configuring the Customer Portal and creating the canonical Flapjack product catalog, both supporting multi-account operations. |
 | tests | The tests directory contains shell-based integration test suites for ops-layer validation, including smoke tests for customer broadcast functionality and SES bounce/complaint probes, alongside a comprehensive lib/ of shared testing utilities, assertion helpers, and specialized harnesses for billing rehearsal, budget validation, and chaos testing scenarios. |
 | vlm | The vlm directory contains Vision Language Model judge operations, including scripts to run and aggregate verdict bundles and shell utility libraries for environment configuration and prompt generation in the VLM judging system. |

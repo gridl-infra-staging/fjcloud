@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
 	FIXTURE_AUTH_API_RETRY_BUDGET_MS,
+	PAID_INVOICE_PROOF_TIMEOUT_MS,
 	adminReactivateCustomerById,
 	arrangeFreshSignupToDashboardWithFixtureFallback,
 	bootstrapFixtureUserForKnownLoginFailure,
@@ -11,6 +12,9 @@ import {
 	fetchEstimatedBillForToken,
 	formatFixtureSetupFailure,
 	isFreshSignupArrangePrerequisiteFailure,
+	ensureInvoicePaymentAttemptForBillingProof,
+	loginAsUserWithKnownMissingUserBootstrap,
+	recoverAlreadyInvoicedInvoiceForMonth,
 	resolveFreshSignupCleanupCustomerId,
 	waitForInvoiceStatusForToken,
 	loginAsUser,
@@ -71,6 +75,29 @@ describe('e2e fixture user helpers', () => {
 		expect(fixtureSource).not.toMatch(
 			/fallbackSucceeded\s*=\s*await\s+attemptRemoteSignupFallback\([^)]*\)\.catch\(\(\)\s*=>\s*false\)/
 		);
+	});
+
+	it('fails closed when tracked-customer teardown cannot delete tenants', () => {
+		const fixtureSource = readFileSync(join(process.cwd(), 'tests/fixtures/fixtures.ts'), 'utf8');
+
+		expect(fixtureSource).toMatch(
+			/_trackCustomerForCleanup:\s*async\s*\(\{\},\s*use\)\s*=>\s*\{[\s\S]*deleteTrackedCustomerForCleanup\(/m
+		);
+		expect(fixtureSource).not.toMatch(
+			/_trackCustomerForCleanup:\s*async\s*\(\{\},\s*use\)\s*=>\s*\{[\s\S]*bestEffortAdminApiCall\(/m
+		);
+	});
+
+	it('arrangePaidInvoiceForFreshSignup reads invoice detail through the fresh-signup auth token', () => {
+		const fixtureSource = readFileSync(join(process.cwd(), 'tests/fixtures/fixtures.ts'), 'utf8');
+
+		expect(fixtureSource).toContain('getInvoiceDetailForToken(invoiceId, token)');
+	});
+
+	it('arrangePaidInvoiceForFreshSignup treats Stripe already-paid pay responses as converged success', () => {
+		const fixtureSource = readFileSync(join(process.cwd(), 'tests/fixtures/fixtures.ts'), 'utf8');
+
+		expect(fixtureSource.toLowerCase()).toContain('invoice is already paid');
 	});
 
 	it('resolves cleanup ownership from authenticated session token after successful browser signup', async () => {
@@ -634,6 +661,52 @@ describe('e2e fixture user helpers', () => {
 		});
 	});
 
+	it('loginAsUserWithKnownMissingUserBootstrap retries through bootstrap on known invalid-credentials seams', async () => {
+		const loginAsUserFn = vi
+			.fn()
+			.mockRejectedValueOnce(new Error('loginAs failed: 400 {"error":"invalid email or password"}'));
+		const bootstrapFn = vi.fn().mockResolvedValue({
+			bootstrapped: true,
+			loginToken: 'tok-after-bootstrap'
+		});
+
+		await expect(
+			loginAsUserWithKnownMissingUserBootstrap({
+				apiUrl: 'http://localhost:3001',
+				email: 'fresh-signup@example.com',
+				password: 'TestPassword123!',
+				trackCustomerForCleanup: () => {},
+				loginAsUserFn,
+				bootstrapFn,
+				contextLabel: 'arrangePaidInvoiceForFreshSignup'
+			})
+		).resolves.toBe('tok-after-bootstrap');
+		expect(bootstrapFn).toHaveBeenCalledOnce();
+	});
+
+	it('loginAsUserWithKnownMissingUserBootstrap retries through bootstrap when login returns 401 invalid credentials', async () => {
+		const loginAsUserFn = vi
+			.fn()
+			.mockRejectedValueOnce(new Error('loginAs failed: 401 {"error":"invalid credentials"}'));
+		const bootstrapFn = vi.fn().mockResolvedValue({
+			bootstrapped: true,
+			loginToken: 'tok-after-401-bootstrap'
+		});
+
+		await expect(
+			loginAsUserWithKnownMissingUserBootstrap({
+				apiUrl: 'http://localhost:3001',
+				email: 'fresh-signup@example.com',
+				password: 'TestPassword123!',
+				trackCustomerForCleanup: () => {},
+				loginAsUserFn,
+				bootstrapFn,
+				contextLabel: 'arrangePaidInvoiceForFreshSignup'
+			})
+		).resolves.toBe('tok-after-401-bootstrap');
+		expect(bootstrapFn).toHaveBeenCalledOnce();
+	});
+
 	it('setupFailureDetailsFromError redacts secret-bearing bootstrap errors before fixture diagnostics surface them', () => {
 		const details = setupFailureDetailsFromError(
 			new Error(
@@ -957,13 +1030,15 @@ describe('e2e fixture user helpers', () => {
 				return makeJsonResponse(200, {
 					id: 'inv-long-warmup',
 					status: 'open',
-					paid_at: null
+					paid_at: null,
+					stripe_invoice_id: 'in_long_warmup'
 				});
 			}
 			return makeJsonResponse(200, {
 				id: 'inv-long-warmup',
 				status: 'paid',
-				paid_at: '2026-05-19T00:00:00Z'
+				paid_at: '2026-05-19T00:00:00Z',
+				stripe_invoice_id: 'in_long_warmup'
 			});
 		});
 
@@ -981,6 +1056,160 @@ describe('e2e fixture user helpers', () => {
 			status: 'paid'
 		});
 		expect(attempts).toBe(46);
+	});
+
+	it('waitForInvoiceStatusForToken fails closed when invoice remains open without stripe linkage', async () => {
+		vi.useFakeTimers();
+		const fetchMock = vi.fn().mockImplementation(async () =>
+			makeJsonResponse(200, {
+				id: 'inv-open-no-stripe',
+				status: 'open',
+				paid_at: null,
+				stripe_invoice_id: null
+			})
+		);
+
+		const waitPromise = waitForInvoiceStatusForToken({
+			apiUrl: 'http://localhost:3001',
+			token: 'tok-abc',
+			invoiceId: 'inv-open-no-stripe',
+			expectedStatus: 'paid',
+			contextLabel: 'test-open-without-stripe',
+			fetchImpl: fetchMock as unknown as typeof fetch,
+			maxAttempts: 90
+		});
+		const rejection = expect(waitPromise).rejects.toThrow(
+			'test-open-without-stripe invoice inv-open-no-stripe remained open without stripe_invoice_id'
+		);
+		await vi.runAllTimersAsync();
+		await rejection;
+		expect(fetchMock).toHaveBeenCalledTimes(12);
+	});
+
+	it('waitForInvoiceStatusForToken fails closed when invoice remains open with stripe linkage', async () => {
+		vi.useFakeTimers();
+		const fetchMock = vi.fn().mockImplementation(async () =>
+			makeJsonResponse(200, {
+				id: 'inv-open-with-stripe',
+				status: 'open',
+				paid_at: null,
+				stripe_invoice_id: 'in_open_stalled_123'
+			})
+		);
+
+		const waitPromise = waitForInvoiceStatusForToken({
+			apiUrl: 'http://localhost:3001',
+			token: 'tok-abc',
+			invoiceId: 'inv-open-with-stripe',
+			expectedStatus: 'paid',
+			contextLabel: 'test-open-with-stripe',
+			fetchImpl: fetchMock as unknown as typeof fetch,
+			maxAttempts: 90
+		});
+		const rejection = expect(waitPromise).rejects.toThrow(
+			'test-open-with-stripe invoice inv-open-with-stripe remained open with stripe_invoice_id present'
+		);
+		await vi.runAllTimersAsync();
+		await rejection;
+		expect(fetchMock).toHaveBeenCalledTimes(46);
+	});
+
+	it('recoverAlreadyInvoicedInvoiceForMonth finalizes draft invoices before waiting for paid status', async () => {
+		const listInvoices = vi.fn().mockResolvedValue([
+			{ id: 'inv-draft', status: 'draft', period_start: '2026-05-01' }
+		]);
+		const getInvoiceDetail = vi.fn().mockResolvedValue({
+			id: 'inv-draft',
+			status: 'draft',
+			paid_at: null,
+			pdf_url: null,
+			stripe_invoice_id: null
+		});
+		const finalizeDraftInvoice = vi.fn().mockResolvedValue(undefined);
+		const payStripeInvoice = vi.fn().mockResolvedValue(undefined);
+
+		await expect(
+			recoverAlreadyInvoicedInvoiceForMonth({
+				billingMonth: '2026-05',
+				contextLabel: 'arrangePaidInvoiceForFreshSignup',
+				listInvoices,
+				getInvoiceDetail,
+				finalizeDraftInvoice,
+				payStripeInvoice
+			})
+		).resolves.toBe('inv-draft');
+		expect(finalizeDraftInvoice).toHaveBeenCalledWith('inv-draft');
+		expect(payStripeInvoice).not.toHaveBeenCalled();
+	});
+
+	it('recoverAlreadyInvoicedInvoiceForMonth retries payment for finalized invoices with Stripe ids', async () => {
+		const listInvoices = vi.fn().mockResolvedValue([
+			{ id: 'inv-finalized', status: 'finalized', period_start: '2026-05-01' }
+		]);
+		const getInvoiceDetail = vi.fn().mockResolvedValue({
+			id: 'inv-finalized',
+			status: 'finalized',
+			paid_at: null,
+			pdf_url: 'https://stripe.test/invoice.pdf',
+			stripe_invoice_id: 'in_test_123'
+		});
+		const finalizeDraftInvoice = vi.fn().mockResolvedValue(undefined);
+		const payStripeInvoice = vi.fn().mockResolvedValue(undefined);
+
+		await expect(
+			recoverAlreadyInvoicedInvoiceForMonth({
+				billingMonth: '2026-05',
+				contextLabel: 'arrangePaidInvoiceForFreshSignup',
+				listInvoices,
+				getInvoiceDetail,
+				finalizeDraftInvoice,
+				payStripeInvoice
+			})
+		).resolves.toBe('inv-finalized');
+		expect(finalizeDraftInvoice).not.toHaveBeenCalled();
+		expect(payStripeInvoice).toHaveBeenCalledWith('in_test_123');
+	});
+
+	it('ensureInvoicePaymentAttemptForBillingProof retries payment for finalized invoices returned from created path', async () => {
+		const getInvoiceDetail = vi.fn().mockResolvedValue({
+			id: 'inv-created-finalized',
+			status: 'finalized',
+			paid_at: null,
+			pdf_url: 'https://stripe.test/invoice.pdf',
+			stripe_invoice_id: 'in_created_123'
+		});
+		const payStripeInvoice = vi.fn().mockResolvedValue(undefined);
+
+		await expect(
+			ensureInvoicePaymentAttemptForBillingProof({
+				invoiceId: 'inv-created-finalized',
+				contextLabel: 'arrangePaidInvoiceForFreshSignup',
+				getInvoiceDetail,
+				payStripeInvoice
+			})
+		).resolves.toBeUndefined();
+		expect(payStripeInvoice).toHaveBeenCalledWith('in_created_123');
+	});
+
+	it('ensureInvoicePaymentAttemptForBillingProof retries payment for open invoices with Stripe ids', async () => {
+		const getInvoiceDetail = vi.fn().mockResolvedValue({
+			id: 'inv-created-open',
+			status: 'open',
+			paid_at: null,
+			pdf_url: null,
+			stripe_invoice_id: 'in_created_open_123'
+		});
+		const payStripeInvoice = vi.fn().mockResolvedValue(undefined);
+
+		await expect(
+			ensureInvoicePaymentAttemptForBillingProof({
+				invoiceId: 'inv-created-open',
+				contextLabel: 'arrangePaidInvoiceForFreshSignup',
+				getInvoiceDetail,
+				payStripeInvoice
+			})
+		).resolves.toBeUndefined();
+		expect(payStripeInvoice).toHaveBeenCalledWith('in_created_open_123');
 	});
 
 	it('seedIndexForCustomerViaAdmin retries transient create failures before polling readiness', async () => {
@@ -1455,6 +1684,14 @@ describe('e2e fixture user helpers', () => {
 
 	it('exports the fixture auth retry budget used by setup:user timeout calculations', () => {
 		expect(FIXTURE_AUTH_API_RETRY_BUDGET_MS).toBe(80_000);
+	});
+
+	it('exports the paid-invoice proof timeout aligned to fixture-owned Stripe and invoice polling budgets', () => {
+		expect(PAID_INVOICE_PROOF_TIMEOUT_MS).toBe(450_000);
+	});
+
+	it('caps paid-invoice proof timeout below the staging lane watchdog budget', () => {
+		expect(PAID_INVOICE_PROOF_TIMEOUT_MS).toBeLessThan(480_000);
 	});
 
 	it('fetchEstimatedBillForToken rejects non-loopback apiUrl', async () => {

@@ -6,8 +6,13 @@ import type {
 	Index
 } from '$lib/api/types';
 import { createApiClient } from '$lib/server/api';
+import {
+	DASHBOARD_SESSION_EXPIRED_REDIRECT,
+	isDashboardSessionExpiredError
+} from '$lib/server/auth-action-errors';
 import { fallbackDashboardPlanContext, type DashboardPlanContext } from './plan-context';
 import { retryTransientDashboardApiRequest } from '$lib/server/transient-api-retry';
+import { redirect } from '@sveltejs/kit';
 
 const emptyUsage: UsageSummaryResponse = {
 	month: '',
@@ -83,7 +88,10 @@ export const load: PageServerLoad = async ({ locals, url, parent }) => {
 			indexes,
 			freeTierProgress: deriveFreeTierProgress(planContext, usage, indexes)
 		};
-	} catch {
+	} catch (error) {
+		if (isDashboardSessionExpiredError(error)) {
+			redirect(303, DASHBOARD_SESSION_EXPIRED_REDIRECT);
+		}
 		const fallbackMonth = month ?? new Date().toISOString().slice(0, 7);
 		return {
 			usage: { ...emptyUsage, month: fallbackMonth },

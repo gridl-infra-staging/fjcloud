@@ -49,6 +49,6 @@ Prerequisites checked:
 
 | Directory | Summary |
 | --- | --- |
-| lib | This lib directory contains shared helper scripts for infrastructure operations and deployment, including pre-deployment validation, AWS SSM environment configuration generation, Cloudflare DNS zone parsing, and RDS restore tooling. |
+| lib | Shared utility library containing shell and Python scripts for deployment validation, AWS SSM environment configuration, Cloudflare DNS operations, and RDS restoration workflows. |
 | tests | This directory contains a single fixture-capture script that one-shot downloads and caches a Cloudflare zone configuration for use in tests. |
 <!-- [scrai:end] -->

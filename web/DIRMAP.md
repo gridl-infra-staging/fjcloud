@@ -8,6 +8,6 @@
 
 | Directory | Summary |
 | --- | --- |
-| src | The src directory contains the SvelteKit frontend application's routing, server hooks, and shared utilities that implement customer-facing portals for billing and account management, plus backend API endpoints for authentication, pricing, and Stripe integration. |
-| tests | The tests directory contains browser-based end-to-end testing infrastructure for the web frontend, including Playwright test fixtures with authentication setups and page interaction helpers, plus VLM screenshot capture utilities for visual validation. |
+| src | The web frontend source code includes a lib directory with shared utilities for API communication, authentication, error handling, and server-side helpers, along with routes that implement customer-facing dashboard pages, billing and index management, external APIs for pricing and search, Stripe webhook integration, OAuth provider callbacks, and an admin dashboard. |
+| tests | The tests directory contains browser-based end-to-end tests for the web frontend with VLM screenshot capture infrastructure for visual validation, along with Playwright fixtures that handle authentication setup, database/Stripe lookups for staging, and common testing helpers. |
 <!-- [scrai:end] -->

@@ -1,13 +1,22 @@
 import type { PageServerLoad, Actions } from './$types';
 import { createApiClient } from '$lib/server/api';
+import {
+	DASHBOARD_SESSION_EXPIRED_REDIRECT,
+	isDashboardSessionExpiredError,
+	mapDashboardSessionFailure
+} from '$lib/server/auth-action-errors';
 import { fail } from '@sveltejs/kit';
+import { redirect } from '@sveltejs/kit';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	const api = createApiClient(locals.user?.token);
 	try {
 		const apiKeys = await api.getApiKeys();
 		return { apiKeys };
-	} catch {
+	} catch (error) {
+		if (isDashboardSessionExpiredError(error)) {
+			redirect(303, DASHBOARD_SESSION_EXPIRED_REDIRECT);
+		}
 		return { apiKeys: [] };
 	}
 };
@@ -26,7 +35,9 @@ export const actions: Actions = {
 		try {
 			const result = await api.createApiKey({ name, scopes });
 			return { createdKey: result.key };
-		} catch {
+		} catch (error) {
+			const sessionFailure = mapDashboardSessionFailure(error);
+			if (sessionFailure) return sessionFailure;
 			return fail(400, { error: 'Failed to create API key' });
 		}
 	},
@@ -39,7 +50,9 @@ export const actions: Actions = {
 		try {
 			await api.deleteApiKey(keyId);
 			return { success: true };
-		} catch {
+		} catch (error) {
+			const sessionFailure = mapDashboardSessionFailure(error);
+			if (sessionFailure) return sessionFailure;
 			return fail(400, { error: 'Failed to revoke API key' });
 		}
 	}

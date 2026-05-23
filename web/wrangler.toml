@@ -27,8 +27,28 @@ compatibility_flags = ["nodejs_compat"]
 
 # Runtime env vars exposed to the SvelteKit Worker via $env/dynamic/private.
 # API_BASE_URL is the stable public API origin checked into the repo.
-# ENVIRONMENT="staging" is only the checked-in fallback label; Cloudflare Pages
-# production deployment config remains the runtime owner of ENVIRONMENT=production.
+#
+# Per-environment overrides: `wrangler pages deploy` overwrites the CF Pages
+# dashboard `env_vars` from this file's `[vars]` table on every deploy
+# (https://developers.cloudflare.com/pages/functions/wrangler-configuration/).
+# Since `vars` is a non-inheritable key, the per-env tables must specify ALL
+# vars (no merge with top-level). Top-level `[vars]` is retained as the
+# wrangler default for local dev / one-off invocations.
 [vars]
+API_BASE_URL = "https://api.flapjack.foo"
+ENVIRONMENT = "staging"
+
+# Production env (deploys via `--branch=main`). Owns ENVIRONMENT=production so
+# the admin-layout label stays correct after deploy. Secrets (JWT_SECRET,
+# ADMIN_KEY) are NOT in this file — they live in CF Pages dashboard secrets
+# and persist across deploys; manage via `wrangler pages secret put`.
+[env.production.vars]
+API_BASE_URL = "https://api.flapjack.foo"
+ENVIRONMENT = "production"
+
+# Preview env (deploys via any non-production branch, e.g. `--branch=staging`).
+# Mirrors top-level [vars] explicitly so preview deploys don't accidentally
+# pick up future top-level changes intended only for local dev.
+[env.preview.vars]
 API_BASE_URL = "https://api.flapjack.foo"
 ENVIRONMENT = "staging"

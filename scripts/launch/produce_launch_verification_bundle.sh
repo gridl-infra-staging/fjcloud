@@ -77,7 +77,13 @@ main() {
 
   local bundle_dir="$OUTPUT_ROOT/${utc_stamp}_GREEN"
   local launch_tmp
-  launch_tmp="$(mktemp -d)"
+  # The launcher (run_browser_lane_against_staging.sh) requires --evidence-dir
+  # to live inside REPO_ROOT (see commit 0d5222721 fix(security): bound
+  # evidence dir writes). mktemp -d without a template defaults to /tmp,
+  # which is outside the repo and trips the check, so anchor the template
+  # under OUTPUT_ROOT (already repo-rooted).
+  mkdir -p "$OUTPUT_ROOT"
+  launch_tmp="$(mktemp -d "$OUTPUT_ROOT/.tmp_launch_XXXXXX")"
   local launch_evidence_dir="$launch_tmp/staging-launcher"
   trap "rm -rf '$launch_tmp'" EXIT
 

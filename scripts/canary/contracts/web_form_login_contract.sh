@@ -40,7 +40,7 @@ assert_redirect_json_shape() {
   t="$(json_field "$body" type)"
   location="$(json_field "$body" location)"
   status="$(json_field "$body" status)"
-  [[ "$t" == "redirect" && "$location" == "/dashboard" && "$status" == "303" ]]
+  [[ "$t" == "redirect" && "$location" == "/console" && "$status" == "303" ]]
 }
 
 assert_auth_unavailable_json_shape() {
@@ -55,7 +55,7 @@ assert_auth_unavailable_json_shape() {
 run_self_test() {
   local good bad_jwt empty malformed
   local usage_output
-  good="{\"type\":\"redirect\",\"status\":303,\"location\":\"/dashboard\"}"
+  good="{\"type\":\"redirect\",\"status\":303,\"location\":\"/console\"}"
   bad_jwt="{\"type\":\"failure\",\"status\":503,\"data\":{\"errors\":{\"form\":\"Authentication session could not be established. Please verify JWT_SECRET and try again.\"},\"email\":\"probe@e2e.griddle.test\"}}"
   empty=""
   malformed="{\"type\":\"redirect\""
@@ -203,7 +203,7 @@ probe_env() {
   rm -f "$cleanup_tmp"
 
   if assert_redirect_json_shape "$login_body"; then
-    echo "PASS: env=$env web form login redirected to /dashboard"
+    echo "PASS: env=$env web form login redirected to /console"
     return 0
   fi
   if assert_auth_unavailable_json_shape "$login_body"; then

@@ -35,8 +35,8 @@ AUTH_SPEC_PATH="${MOCKED_SPEC_CONTRACT_AUTH_SPEC_PATH:-$REPO_ROOT/web/tests/e2e-
 FORGOT_ROUTE_PATH="${MOCKED_SPEC_CONTRACT_FORGOT_ROUTE_PATH:-$REPO_ROOT/web/src/routes/forgot-password/+page.server.ts}"
 RESET_ROUTE_PATH="${MOCKED_SPEC_CONTRACT_RESET_ROUTE_PATH:-$REPO_ROOT/web/src/routes/reset-password/[token]/+page.server.ts}"
 UPGRADE_FIXTURE_PATH="${MOCKED_SPEC_CONTRACT_UPGRADE_FIXTURE_PATH:-$REPO_ROOT/web/tests/fixtures/upgrade_fixture.ts}"
-UPGRADE_BUTTON_PATH="${MOCKED_SPEC_CONTRACT_UPGRADE_BUTTON_PATH:-$REPO_ROOT/web/src/routes/dashboard/billing/UpgradeButton.svelte}"
-BILLING_LOAD_PATH="${MOCKED_SPEC_CONTRACT_BILLING_LOAD_PATH:-$REPO_ROOT/web/src/routes/dashboard/billing/+page.server.ts}"
+UPGRADE_BUTTON_PATH="${MOCKED_SPEC_CONTRACT_UPGRADE_BUTTON_PATH:-$REPO_ROOT/web/src/routes/console/billing/UpgradeButton.svelte}"
+BILLING_LOAD_PATH="${MOCKED_SPEC_CONTRACT_BILLING_LOAD_PATH:-$REPO_ROOT/web/src/routes/console/billing/+page.server.ts}"
 
 FORGOT_RESPONSE_FILE="${MOCKED_SPEC_CONTRACT_FORGOT_RESEND_RESPONSE_FILE:-}"
 RESET_RESPONSE_FILE="${MOCKED_SPEC_CONTRACT_RESET_INVALID_RESPONSE_FILE:-}"
@@ -135,7 +135,7 @@ read_or_fetch_billing_load() {
     return
   fi
 
-  curl -sS --max-time 30 -b "auth_token=${token}" "${web_origin}/dashboard/billing/__data.json" || true
+  curl -sS --max-time 30 -b "auth_token=${token}" "${web_origin}/console/billing/__data.json" || true
 }
 
 write_temp_json() {

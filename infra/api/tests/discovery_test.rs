@@ -51,20 +51,31 @@ async fn create_test_vm_in(
         .unwrap()
 }
 
-const TEST_API_KEY: &str = "fj_live_0123456789abcdef0123456789abcdef";
-const TEST_API_KEY_PREFIX: &str = "fj_live_01234567";
+const TEST_API_KEY: &str = "fjc_live_0123456789abcdef0123456789abcdef";
+const TEST_API_KEY_PREFIX: &str = "fjc_live_0123456";
+const LEGACY_TEST_API_KEY: &str = "fj_live_0123456789abcdef0123456789abcdef";
+const LEGACY_TEST_API_KEY_PREFIX: &str = "fj_live_01234567";
 
 fn seed_api_key(customer_id: Uuid) -> Arc<common::MockApiKeyRepo> {
     seed_api_key_with_scopes(customer_id, vec!["read".to_string(), "search".to_string()])
 }
 
 fn seed_api_key_with_scopes(customer_id: Uuid, scopes: Vec<String>) -> Arc<common::MockApiKeyRepo> {
+    seed_api_key_value_with_scopes(customer_id, TEST_API_KEY, TEST_API_KEY_PREFIX, scopes)
+}
+
+fn seed_api_key_value_with_scopes(
+    customer_id: Uuid,
+    key: &str,
+    key_prefix: &str,
+    scopes: Vec<String>,
+) -> Arc<common::MockApiKeyRepo> {
     let api_key_repo = mock_api_key_repo();
     api_key_repo.seed(
         customer_id,
         "discovery-key",
-        &hash_key(TEST_API_KEY),
-        TEST_API_KEY_PREFIX,
+        &hash_key(key),
+        key_prefix,
         scopes,
     );
     api_key_repo
@@ -1094,5 +1105,71 @@ async fn discover_endpoint_401_without_auth() {
         response.status(),
         StatusCode::UNAUTHORIZED,
         "discovery endpoint must reject unauthenticated requests"
+    );
+}
+
+#[tokio::test]
+async fn discover_endpoint_401_with_legacy_fj_live_key_after_hard_cut() {
+    let customer_repo = mock_repo();
+    let deployment_repo = mock_deployment_repo();
+    let tenant_repo = Arc::new(MockTenantRepo::new());
+    let vm_repo = Arc::new(MockVmInventoryRepo::new());
+    let customer = customer_repo.seed("Acme", "acme@example.com");
+    let api_key_repo = seed_api_key_value_with_scopes(
+        customer.id,
+        LEGACY_TEST_API_KEY,
+        LEGACY_TEST_API_KEY_PREFIX,
+        vec!["read".to_string(), "search".to_string()],
+    );
+
+    let deployment = deployment_repo.seed_provisioned(
+        customer.id,
+        "node-1",
+        "us-east-1",
+        "t4g.small",
+        "aws",
+        "running",
+        Some("https://legacy.flapjack.foo"),
+    );
+    tenant_repo.seed_deployment(
+        deployment.id,
+        "us-east-1",
+        Some("https://legacy.flapjack.foo"),
+        "healthy",
+        "running",
+    );
+    let vm = create_test_vm(&vm_repo, "vm-legacy-auth.flapjack.foo").await;
+    tenant_repo
+        .create(customer.id, "products", deployment.id)
+        .await
+        .unwrap();
+    tenant_repo
+        .set_vm_id(customer.id, "products", vm.id)
+        .await
+        .unwrap();
+
+    let app = setup_discovery_app(
+        customer_repo,
+        deployment_repo,
+        tenant_repo,
+        vm_repo,
+        api_key_repo,
+    );
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri("/v1/discover?index=products")
+                .header("authorization", format!("Bearer {LEGACY_TEST_API_KEY}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        response.status(),
+        StatusCode::UNAUTHORIZED,
+        "discovery endpoint must reject legacy fj_live_ keys after HARD_CUT"
     );
 }

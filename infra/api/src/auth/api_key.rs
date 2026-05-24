@@ -11,7 +11,7 @@ use crate::errors::ApiError;
 use crate::models::customer::{customer_auth_state, CustomerAuthState};
 use crate::state::AppState;
 
-const STAGE1_API_KEY_COMPAT_DECISION_TOKEN: &str = "HARD_CUT_OK";
+const STAGE1_API_KEY_COMPAT_DECISION_TOKEN: &str = "HARD_CUT";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Stage1ApiKeyCompatDecision {
@@ -22,12 +22,13 @@ pub enum Stage1ApiKeyCompatDecision {
 impl Stage1ApiKeyCompatDecision {
     pub fn from_token(token: &str) -> Self {
         match token {
+            "HARD_CUT" | "HARD_CUT_OK" => Self::HardCutOk,
             "KEEP_LEGACY_ACCEPT" => Self::KeepLegacyAccept,
             _ => Self::HardCutOk,
         }
     }
 
-    pub fn accepts_legacy_gridl_live_keys(self) -> bool {
+    pub fn accepts_legacy_fj_live_keys(self) -> bool {
         matches!(self, Self::KeepLegacyAccept)
     }
 }
@@ -45,15 +46,19 @@ impl ApiKeyAuth {
     }
 
     fn accepts_management_prefix(key: &str, stage1_decision: Stage1ApiKeyCompatDecision) -> bool {
+        // Cloud-management routes always accept fjc_live_*. The legacy fj_live_*
+        // branch is only enabled under KEEP_LEGACY_ACCEPT, which is derived from
+        // the Stage 1 live-usage decision artifact:
+        // docs/research/20260524T174343Z_fj_live_prod_usage.md
         key.starts_with("fjc_live_")
-            || key.starts_with("fj_live_")
-            || (stage1_decision.accepts_legacy_gridl_live_keys() && key.starts_with("gridl_live_"))
+            || (stage1_decision.accepts_legacy_fj_live_keys() && key.starts_with("fj_live_"))
     }
 
     /// Shared extractor implementation used by `FromRequestParts` and tests.
     /// Runtime code should call `from_request_parts` (which injects the active
     /// Stage 1 compatibility decision); tests can pass an explicit decision to
-    /// exercise both compatibility outcomes through the same extractor logic.
+    /// exercise both outcomes: `fjc_live_*` only (`HARD_CUT`) or dual-accept
+    /// (`fjc_live_*` plus legacy `fj_live_*`) when `KEEP_LEGACY_ACCEPT` is active.
     pub async fn from_request_parts_with_stage1_decision(
         parts: &mut Parts,
         state: &AppState,
@@ -129,9 +134,10 @@ impl ApiKeyAuth {
 impl FromRequestParts<AppState> for ApiKeyAuth {
     type Rejection = AuthError;
 
-    /// Authenticates via `Authorization: Bearer <key>`. Accepts `fjc_live_` and
-    /// `fj_live_` keys, plus `gridl_live_` only when Stage 1 compatibility keeps
-    /// legacy acceptance enabled. Performs a prefix-based DB lookup (first 16 chars),
+    /// Authenticates via `Authorization: Bearer <key>`. Accepts `fjc_live_*`
+    /// keys always, and accepts legacy `fj_live_*` keys only when the Stage 1
+    /// compatibility decision is `KEEP_LEGACY_ACCEPT`. Performs a prefix-based
+    /// DB lookup (first 16 chars),
     /// then SHA-256 hash comparison using constant-time equality. Checks customer
     /// status (Suspended → 403, missing → 401) and fires a non-blocking `last_used`
     /// timestamp update via `tokio::spawn`.

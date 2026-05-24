@@ -48,8 +48,8 @@ copy_source_fixtures() {
   cp "$REPO_ROOT/web/src/routes/forgot-password/+page.server.ts" "$dir/forgot_page.server.ts"
   cp "$REPO_ROOT/web/src/routes/reset-password/[token]/+page.server.ts" "$dir/reset_page.server.ts"
   cp "$REPO_ROOT/web/tests/fixtures/upgrade_fixture.ts" "$dir/upgrade_fixture.ts"
-  cp "$REPO_ROOT/web/src/routes/dashboard/billing/UpgradeButton.svelte" "$dir/UpgradeButton.svelte"
-  cp "$REPO_ROOT/web/src/routes/dashboard/billing/+page.server.ts" "$dir/billing_page.server.ts"
+  cp "$REPO_ROOT/web/src/routes/console/billing/UpgradeButton.svelte" "$dir/UpgradeButton.svelte"
+  cp "$REPO_ROOT/web/src/routes/console/billing/+page.server.ts" "$dir/billing_page.server.ts"
 }
 
 run_contract_with_fixtures() {

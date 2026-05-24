@@ -13,10 +13,10 @@ use api::auth::api_key::ApiKeyAuth;
 use api::auth::api_key::Stage1ApiKeyCompatDecision;
 use api::errors::ApiError;
 
-const TEST_KEY: &str = "fj_live_0123456789abcdef0123456789abcdef";
-const TEST_KEY_PREFIX: &str = "fj_live_01234567";
-const FJC_KEY: &str = "fjc_live_0123456789abcdef0123456789abcdef";
-const FJC_KEY_PREFIX: &str = "fjc_live_0123456";
+const TEST_KEY: &str = "fjc_live_0123456789abcdef0123456789abcdef";
+const TEST_KEY_PREFIX: &str = "fjc_live_0123456";
+const LEGACY_FJ_LIVE_KEY: &str = "fj_live_0123456789abcdef0123456789abcdef";
+const LEGACY_FJ_LIVE_KEY_PREFIX: &str = "fj_live_01234567";
 
 fn hash_key(key: &str) -> String {
     let mut hasher = Sha256::new();
@@ -377,12 +377,12 @@ async fn fjc_live_key_authenticates() {
     let api_key_repo = common::mock_api_key_repo();
 
     let customer = customer_repo.seed("Flapjack Cloud Corp", "customer@example.com");
-    let key_hash = hash_key(FJC_KEY);
+    let key_hash = hash_key(TEST_KEY);
     let seeded = api_key_repo.seed(
         customer.id,
         "fjc-key",
         &key_hash,
-        FJC_KEY_PREFIX,
+        TEST_KEY_PREFIX,
         vec!["read".into(), "search".into()],
     );
 
@@ -391,7 +391,7 @@ async fn fjc_live_key_authenticates() {
     let resp = app
         .oneshot(
             Request::get("/test")
-                .header("authorization", format!("Bearer {FJC_KEY}"))
+                .header("authorization", format!("Bearer {TEST_KEY}"))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -408,6 +408,8 @@ async fn fjc_live_key_authenticates() {
 
 const GRIDL_KEY: &str = "gridl_live_0123456789abcdef0123456789abcdef";
 const GRIDL_KEY_PREFIX: &str = "gridl_live_01234";
+// Stage 1 decision artifact (`docs/research/20260524T174343Z_fj_live_prod_usage.md`)
+// resolved to HARD_CUT, so Stage 2 locks the audited branch to HardCutOk.
 const AUDITED_STAGE1_DECISION: Stage1ApiKeyCompatDecision = Stage1ApiKeyCompatDecision::HardCutOk;
 
 async fn send_gridl_test_request(app: Router) -> axum::response::Response {
@@ -421,23 +423,25 @@ async fn send_gridl_test_request(app: Router) -> axum::response::Response {
 
 async fn extract_gridl_auth_with_decision(
     decision: Stage1ApiKeyCompatDecision,
+    key: &str,
+    key_prefix: &str,
 ) -> Result<ApiKeyAuth, api::auth::error::AuthError> {
     let customer_repo = common::mock_repo();
     let api_key_repo = common::mock_api_key_repo();
 
     let customer = customer_repo.seed("Flapjack Cloud Corp", "customer@example.com");
-    let key_hash = hash_key(GRIDL_KEY);
+    let key_hash = hash_key(key);
     let _seeded = api_key_repo.seed(
         customer.id,
         "gridl-key",
         &key_hash,
-        GRIDL_KEY_PREFIX,
+        key_prefix,
         vec!["read".into(), "search".into()],
     );
 
     let state = common::test_state_with_api_key_repo(customer_repo, api_key_repo);
     let request = Request::get("/test")
-        .header("authorization", format!("Bearer {GRIDL_KEY}"))
+        .header("authorization", format!("Bearer {key}"))
         .body(Body::empty())
         .unwrap();
     let (mut parts, _) = request.into_parts();
@@ -512,35 +516,68 @@ fn active_stage1_decision_matches_audited_verdict() {
     );
 }
 
+#[test]
+fn stage1_token_parser_accepts_hard_cut_literals() {
+    assert_eq!(
+        Stage1ApiKeyCompatDecision::from_token("HARD_CUT"),
+        Stage1ApiKeyCompatDecision::HardCutOk
+    );
+    assert_eq!(
+        Stage1ApiKeyCompatDecision::from_token("HARD_CUT_OK"),
+        Stage1ApiKeyCompatDecision::HardCutOk
+    );
+}
+
 #[tokio::test]
-async fn gridl_live_extractor_accepts_when_decision_is_keep_legacy_accept() {
-    let auth = extract_gridl_auth_with_decision(Stage1ApiKeyCompatDecision::KeepLegacyAccept)
-        .await
-        .expect("gridl_live_ key should authenticate when KEEP_LEGACY_ACCEPT is active");
+async fn api_key_fj_live_extractor_accepts_when_decision_is_keep_legacy_accept() {
+    let auth = extract_gridl_auth_with_decision(
+        Stage1ApiKeyCompatDecision::KeepLegacyAccept,
+        LEGACY_FJ_LIVE_KEY,
+        LEGACY_FJ_LIVE_KEY_PREFIX,
+    )
+    .await
+    .expect("fj_live_ key should authenticate when KEEP_LEGACY_ACCEPT is active");
     assert!(!auth.scopes.is_empty());
 }
 
 #[tokio::test]
 async fn gridl_live_extractor_rejects_when_decision_is_hard_cut_ok() {
-    let err = extract_gridl_auth_with_decision(Stage1ApiKeyCompatDecision::HardCutOk)
-        .await
-        .expect_err("gridl_live_ key should be rejected when HARD_CUT_OK is active");
+    let err = extract_gridl_auth_with_decision(
+        Stage1ApiKeyCompatDecision::HardCutOk,
+        GRIDL_KEY,
+        GRIDL_KEY_PREFIX,
+    )
+    .await
+    .expect_err("gridl_live_ key should be rejected when HARD_CUT is active");
     assert!(matches!(err, api::auth::error::AuthError::InvalidToken));
 }
 
 #[tokio::test]
-async fn legacy_fj_live_key_still_authenticates() {
-    // Existing fj_live_ keys must continue to work during transition
+async fn api_key_fj_live_extractor_rejects_when_decision_is_hard_cut_ok() {
+    // If Stage 1 had resolved DUAL_ACCEPT, this assertion would invert to expect success.
+    let err = extract_gridl_auth_with_decision(
+        Stage1ApiKeyCompatDecision::HardCutOk,
+        LEGACY_FJ_LIVE_KEY,
+        LEGACY_FJ_LIVE_KEY_PREFIX,
+    )
+    .await
+    .expect_err("fj_live_ key should be rejected when HARD_CUT is active");
+    assert!(matches!(err, api::auth::error::AuthError::InvalidToken));
+}
+
+#[tokio::test]
+async fn api_key_legacy_fj_live_key_rejected_under_hard_cut() {
+    // HARD_CUT contract: legacy fj_live_ keys must now be rejected.
     let customer_repo = common::mock_repo();
     let api_key_repo = common::mock_api_key_repo();
 
     let customer = customer_repo.seed("Legacy Corp", "legacy@example.com");
-    let key_hash = hash_key(TEST_KEY);
+    let key_hash = hash_key(LEGACY_FJ_LIVE_KEY);
     api_key_repo.seed(
         customer.id,
         "legacy-key",
         &key_hash,
-        TEST_KEY_PREFIX,
+        LEGACY_FJ_LIVE_KEY_PREFIX,
         vec!["read".into()],
     );
 
@@ -549,14 +586,16 @@ async fn legacy_fj_live_key_still_authenticates() {
     let resp = app
         .oneshot(
             Request::get("/test")
-                .header("authorization", format!("Bearer {TEST_KEY}"))
+                .header("authorization", format!("Bearer {LEGACY_FJ_LIVE_KEY}"))
                 .body(Body::empty())
                 .unwrap(),
         )
         .await
         .unwrap();
 
-    assert_eq!(resp.status(), StatusCode::OK);
+    assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+    let body = body_json(resp).await;
+    assert_eq!(body["error"], "invalid or expired token");
 }
 
 #[tokio::test]

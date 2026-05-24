@@ -162,4 +162,5 @@ usage_records to Postgres. |
 | stripe | The stripe directory contains operational scripts for managing Stripe integration with fjcloud: configuring the Customer Portal and creating the canonical Flapjack product catalog, both supporting multi-account operations. |
 | tests | The tests directory contains shell-based integration test suites for ops-layer validation, including smoke tests for customer broadcast functionality and SES bounce/complaint probes, alongside a comprehensive lib/ of shared testing utilities, assertion helpers, and specialized harnesses for billing rehearsal, budget validation, and chaos testing scenarios. |
 | vlm | The vlm directory contains Vision Language Model judge operations, including scripts to run and aggregate verdict bundles and shell utility libraries for environment configuration and prompt generation in the VLM judging system. |
+| w3_triage | The w3_triage directory implements a multi-stage triage pipeline that bootstraps from live state probes, parses audit recommendations, applies rules, and emits dispatch manifests to orchestrate downstream lane execution. |
 <!-- [scrai:end] -->

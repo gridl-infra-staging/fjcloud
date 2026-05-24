@@ -13,9 +13,9 @@ CRITICAL_PATH_ROUTES = {
     "/pricing",
     "/signup",
     "/login",
-    "/dashboard",
-    "/dashboard/billing",
-    "/dashboard/billing/setup",
+    "/console",
+    "/console/billing",
+    "/console/billing/setup",
 }
 NULL_RULE_ID_WARNING_THRESHOLD = 0.30
 

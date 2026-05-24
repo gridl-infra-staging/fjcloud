@@ -2,8 +2,8 @@
 
 ## Scope
 
-- Primary route: `/dashboard/indexes/[name]` documents tab
-- Related route: `/dashboard/indexes/[name]`
+- Primary route: `/console/indexes/[name]` documents tab
+- Related route: `/console/indexes/[name]`
 - Audience: authenticated customers managing index records
 - Priority: P0
 
@@ -44,5 +44,5 @@ Browser-unmocked coverage currently verifies tab presence and controls; full upl
 ## Automated Coverage
 
 - Browser-unmocked tests: `web/tests/e2e-ui/full/index-detail.spec.ts`; `web/tests/e2e-ui/full/customer-journeys.spec.ts`
-- Component tests: `web/src/routes/dashboard/indexes/[name]/tabs/DocumentsTab.test.ts`
-- Server/contract tests: `web/src/routes/dashboard/indexes/[name]/detail.server.actions.test.ts`
+- Component tests: `web/src/routes/console/indexes/[name]/tabs/DocumentsTab.test.ts`
+- Server/contract tests: `web/src/routes/console/indexes/[name]/detail.server.actions.test.ts`

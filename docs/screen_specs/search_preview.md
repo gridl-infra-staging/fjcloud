@@ -2,8 +2,8 @@
 
 ## Scope
 
-- Primary route: `/dashboard/indexes/[name]` search preview tab
-- Related route: `/dashboard/indexes/[name]`
+- Primary route: `/console/indexes/[name]` search preview tab
+- Related route: `/console/indexes/[name]`
 - Audience: authenticated customers testing live search behavior
 - Priority: P0
 
@@ -42,5 +42,5 @@ Hard-to-reproduce unavailable states may eventually need browser-mocked coverage
 ## Automated Coverage
 
 - Browser-unmocked tests: `web/tests/e2e-ui/full/search-preview.spec.ts`; `web/tests/e2e-ui/full/indexes.spec.ts`; `web/tests/e2e-ui/full/isolation.spec.ts`
-- Component tests: `web/src/routes/dashboard/indexes/[name]/tabs/SearchPreviewTab.test.ts`; `web/src/routes/dashboard/indexes/[name]/detail-search-preview.test.ts`
-- Server/contract tests: `web/src/routes/dashboard/indexes/[name]/detail.server.actions.test.ts`; `web/src/tests/search-preview-helpers.test.ts`
+- Component tests: `web/src/routes/console/indexes/[name]/tabs/SearchPreviewTab.test.ts`; `web/src/routes/console/indexes/[name]/detail-search-preview.test.ts`
+- Server/contract tests: `web/src/routes/console/indexes/[name]/detail.server.actions.test.ts`; `web/src/tests/search-preview-helpers.test.ts`

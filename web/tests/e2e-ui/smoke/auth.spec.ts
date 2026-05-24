@@ -25,8 +25,8 @@ test('login with valid credentials reaches the dashboard', async ({ page }) => {
 	await page.getByLabel('Password').fill(password);
 	await page.getByRole('button', { name: 'Log in' }).click();
 
-	await expect(page).toHaveURL(/\/dashboard/, { timeout: 10_000 });
-	await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
+	await expect(page).toHaveURL(/\/console/, { timeout: 10_000 });
+	await expect(page.getByRole('heading', { name: 'Console' })).toBeVisible();
 });
 
 test.describe('OAuth route shape', () => {

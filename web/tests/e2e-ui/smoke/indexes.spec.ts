@@ -14,7 +14,7 @@ test('seeded index appears in the indexes table', async ({ page, seedIndex }) =>
 	await seedIndex(name);
 
 	// Act: navigate to indexes page
-	await page.goto('/dashboard/indexes');
+	await page.goto('/console/indexes');
 
 	// Assert: page-specific heading visible (not nav text)
 	await expect(page.getByRole('heading', { name: 'Indexes' })).toBeVisible();

@@ -42,7 +42,7 @@ async function openSeededIndexDetailPage(
 ) {
 	const indexName = `${namePrefix}-${Date.now()}`;
 	await seedIndex(indexName, testRegion);
-	await page.goto(`/dashboard/indexes/${encodeURIComponent(indexName)}`);
+	await page.goto(`/console/indexes/${encodeURIComponent(indexName)}`);
 	await expect(page.getByRole('heading', { name: indexName })).toBeVisible({ timeout: 10_000 });
 	return indexName;
 }

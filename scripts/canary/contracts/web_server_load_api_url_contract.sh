@@ -2,7 +2,7 @@
 # Web frontend SERVER-LOAD API URL contract probe. Verifies that
 # server-side load functions on the deployed SvelteKit frontend hit the
 # correct API origin for the env, by checking that a known-good staging
-# JWT cookie sent to /dashboard/api-keys returns load data instead of
+# JWT cookie sent to /console/api-keys returns load data instead of
 # bouncing to /login?reason=session_expired.
 #
 # Why this exists separately from web_api_base_url_contract.sh:
@@ -28,7 +28,7 @@
 # Technique:
 #   1. Register a throwaway customer via direct staging API call.
 #   2. POST the auth cookie back as auth_token to the WEB origin.
-#   3. GET /dashboard/api-keys/__data.json (load function path that uses
+#   3. GET /console/api-keys/__data.json (load function path that uses
 #      createApiClient). Assert response is NOT a session_expired
 #      redirect.
 #
@@ -94,12 +94,12 @@ if [[ "$sanity_status" != "200" ]]; then
 fi
 
 # The actual contract: send the cookie to the web origin and see if the
-# load function bounces. Use /dashboard/billing because its load function
+# load function bounces. Use /console/billing because its load function
 # EXPLICITLY redirects on 401/403 (via isDashboardSessionExpiredError),
 # which makes the failure mode unambiguous. Routes that .catch() errors
-# silently (like /dashboard/api-keys) cannot tell us whether the load
+# silently (like /console/api-keys) cannot tell us whether the load
 # succeeded or silently failed - both return the same empty-fixture shape.
-probe_url="${web_origin}/dashboard/billing/__data.json"
+probe_url="${web_origin}/console/billing/__data.json"
 probe_body="$(curl -sS --max-time 30 \
   -b "auth_token=${token}" \
   "${probe_url}" || true)"

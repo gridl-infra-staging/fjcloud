@@ -61,12 +61,12 @@ async function attemptCustomerLogin(
 
 	const loginAlert = page.getByRole('alert');
 	await Promise.race([
-		page.waitForURL(/\/dashboard/, { timeout: LOGIN_SETTLE_TIMEOUT_MS }),
+		page.waitForURL(/\/console/, { timeout: LOGIN_SETTLE_TIMEOUT_MS }),
 		loginAlert.waitFor({ state: 'visible', timeout: LOGIN_SETTLE_TIMEOUT_MS })
 	]).catch(() => undefined);
 
 	const loginResponse = await loginResponsePromise;
-	const reachedDashboard = /\/dashboard/.test(page.url());
+	const reachedDashboard = /\/console/.test(page.url());
 	let alertText = reachedDashboard ? null : await loginAlert.textContent().catch(() => null);
 	if (!reachedDashboard && !alertText?.trim()) {
 		await loginAlert
@@ -127,7 +127,7 @@ setup('authenticate as customer', async ({ page }) => {
 			throw new Error(
 				formatFixtureSetupFailure({
 					setupName: 'Customer login setup',
-					expectedPath: '/dashboard',
+					expectedPath: '/console',
 					currentPath: finalLoginAttempt.currentPath,
 					apiUrl: fixtureEnv.apiUrl,
 					adminKey: fixtureEnv.adminKey,
@@ -143,7 +143,7 @@ setup('authenticate as customer', async ({ page }) => {
 		throw new Error(
 			formatFixtureSetupFailure({
 				setupName: 'Customer login setup',
-				expectedPath: '/dashboard',
+				expectedPath: '/console',
 				currentPath: finalLoginAttempt.currentPath,
 				apiUrl: fixtureEnv.apiUrl,
 				adminKey: fixtureEnv.adminKey,
@@ -154,7 +154,7 @@ setup('authenticate as customer', async ({ page }) => {
 		);
 	}
 
-	await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
+	await expect(page.getByRole('heading', { name: 'Console' })).toBeVisible();
 
 	await page.context().storageState({ path: PLAYWRIGHT_STORAGE_STATE.user });
 });

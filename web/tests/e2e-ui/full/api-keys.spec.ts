@@ -17,7 +17,7 @@ test.describe('API Keys page', () => {
 		await seedApiKey(name, ['search']);
 
 		// Act: navigate to API keys page
-		await page.goto('/dashboard/api-keys');
+		await page.goto('/console/api-keys');
 
 		// Assert: page-specific heading visible
 		await expect(page.getByRole('heading', { name: 'API Keys' })).toBeVisible();
@@ -27,7 +27,7 @@ test.describe('API Keys page', () => {
 	});
 
 	test('create key form is visible on the page', async ({ page }) => {
-		await page.goto('/dashboard/api-keys');
+		await page.goto('/console/api-keys');
 
 		// The create form is always visible (not toggled)
 		await expect(page.getByRole('heading', { name: 'Create API Key' })).toBeVisible();
@@ -38,7 +38,7 @@ test.describe('API Keys page', () => {
 	test('create key through UI reveals the key value once', async ({ page }) => {
 		const name = `e2e-ui-key-${Date.now()}`;
 
-		await page.goto('/dashboard/api-keys');
+		await page.goto('/console/api-keys');
 
 		// Act: fill name, check Search scope, submit
 		await page.getByLabel('Name').fill(name);
@@ -60,7 +60,7 @@ test.describe('API Keys page', () => {
 		// Arrange: seed a key via API
 		await seedApiKey(name, ['search']);
 
-		await page.goto('/dashboard/api-keys');
+		await page.goto('/console/api-keys');
 		await expect(page.getByText(name)).toBeVisible({ timeout: 10_000 });
 
 		// Act: find the row for this key and click Revoke

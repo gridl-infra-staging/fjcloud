@@ -609,7 +609,7 @@ if [ "$WITH_CONTRACTS" -eq 1 ]; then
     # Server-load contract: HTML-only API-URL probe above does not catch
     # createApiClient() routing bugs — those only manifest from server-side
     # load functions. This probe mints a throwaway staging customer and
-    # asserts /dashboard/billing's load reaches the correct API instead of
+    # asserts /console/billing's load reaches the correct API instead of
     # bouncing to session_expired.
     printf '\n%b==contracts: web_server_load_api_url ==%b\n' "$C_BOLD" "$C_RESET"
     if bash scripts/canary/contracts/web_server_load_api_url_contract.sh staging; then

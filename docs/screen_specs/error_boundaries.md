@@ -2,8 +2,8 @@
 
 ## Scope
 
-- Primary route: shared route-error surfaces for public `web/src/routes/+error.svelte` and dashboard `web/src/routes/dashboard/+error.svelte`
-- Related routes: all public and dashboard routes that can route-fail into these boundaries
+- Primary route: shared route-error surfaces for public `web/src/routes/+error.svelte` and console `web/src/routes/console/+error.svelte`
+- Related routes: all public and console routes that can route-fail into these boundaries
 - Audience: unauthenticated visitors and authenticated customers encountering route errors
 - Priority: P0
 
@@ -30,13 +30,13 @@ Both error boundaries render shared recovery copy from `buildBoundaryCopy()` and
 
 ## Controls And Navigation
 
-- Primary CTA is driven by `buildBoundaryCopy()` (`/` for public 4xx/404, `/dashboard` for dashboard 4xx/404, `/status` for 5xx).
+- Primary CTA is driven by `buildBoundaryCopy()` (`/` for public 4xx/404, `/console` for console 4xx/404, `/status` for 5xx).
 - Secondary status link follows current boundary behavior and must remain unchanged by support-reference work.
 - Support contact uses the shared `SUPPORT_EMAIL` source; no second hard-coded mailbox is introduced.
 
 ## Acceptance Criteria
 
-- [x] Public and dashboard boundaries each render exactly one `Support reference` label.
+- [x] Public and console boundaries each render exactly one `Support reference` label.
 - [x] Each boundary renders one customer-visible support reference matching `web-[a-f0-9]{12}`.
 - [x] Existing privacy guardrails remain intact: unsafe infrastructure details stay hidden and raw 5xx internals stay suppressed.
 - [x] Support-contact copy for both boundaries is sourced from `SUPPORT_EMAIL`.
@@ -49,6 +49,6 @@ No known gap remains in the repo-owned browser-runtime reporting seam. Customer-
 
 ## Automated Coverage
 
-- Browser-unmocked tests: `web/tests/e2e-ui/full/public-pages.spec.ts`; `web/tests/e2e-ui/full/dashboard.spec.ts`
-- Component tests: `web/src/lib/error-boundary/recovery-copy.test.ts`; `web/src/lib/error-boundary/SupportReferenceBlock.test.ts`; `web/src/lib/error-boundary/client-runtime.test.ts`; `web/src/routes/layout.test.ts`; `web/src/routes/error.test.ts`; `web/src/routes/dashboard/error.test.ts`
+- Browser-unmocked tests: `web/tests/e2e-ui/full/public-pages.spec.ts`; `web/tests/e2e-ui/full/console.spec.ts`
+- Component tests: `web/src/lib/error-boundary/recovery-copy.test.ts`; `web/src/lib/error-boundary/SupportReferenceBlock.test.ts`; `web/src/lib/error-boundary/client-runtime.test.ts`; `web/src/routes/layout.test.ts`; `web/src/routes/error.test.ts`; `web/src/routes/console/error.test.ts`
 - Server/contract tests: `web/src/lib/api/client.test.ts`; `web/src/hooks.server.test.ts`

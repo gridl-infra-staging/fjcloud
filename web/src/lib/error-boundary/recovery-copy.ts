@@ -1,7 +1,14 @@
 import { SUPPORT_EMAIL } from '$lib/format';
 
+// BoundaryScope is an internal-taxonomy literal for error-boundary copy
+// selection, NOT a URL segment. The 'dashboard' value is intentionally kept
+// after the /dashboard -> /console route-owner move because it labels the
+// authenticated console surface for SupportReference hashing and copy
+// selection. URL/copy sweeps that rename customer-facing /dashboard strings
+// must NOT rename this literal — doing so would change every persisted
+// support reference and break boundary-copy regression fixtures.
 export type BoundaryScope = 'public' | 'dashboard';
-type BoundaryCtaHref = '/' | '/dashboard' | '/status';
+type BoundaryCtaHref = '/' | '/console' | '/status';
 
 export interface BoundaryCta {
 	href: BoundaryCtaHref;
@@ -71,7 +78,12 @@ export function createSupportReference(): string {
 }
 
 export function resolveBoundaryScope(pathname: string): BoundaryScope {
-	return pathname === '/dashboard' || pathname.startsWith('/dashboard/') ? 'dashboard' : 'public';
+	return pathname === '/dashboard' ||
+		pathname.startsWith('/dashboard/') ||
+		pathname === '/console' ||
+		pathname.startsWith('/console/')
+		? 'dashboard'
+		: 'public';
 }
 
 function hashSupportReferenceInput(input: string): string {
@@ -119,7 +131,7 @@ function resolvePrimaryCta(scope: BoundaryScope, status: number): BoundaryCta {
 	}
 
 	if (scope === 'dashboard') {
-		return { href: '/dashboard', label: 'Go to dashboard' };
+		return { href: '/console', label: 'Go to console' };
 	}
 
 	return { href: '/', label: 'Go home' };

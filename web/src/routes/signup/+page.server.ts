@@ -57,11 +57,11 @@ export const actions = {
 			return fail(status, { errors, name, email });
 		}
 
-		// Fail closed: only redirect into /dashboard when the returned JWT is
+		// Fail closed: only redirect into /console when the returned JWT is
 		// verifiable by this web runtime's JWT_SECRET. Symmetric with login —
 		// without this, a signup against an API whose JWT_SECRET differs from
 		// this runtime's (e.g. wrong PUBLIC_API_BASE pointing cross-env) sets a
-		// dead cookie and the very next /dashboard request bounces to
+		// dead cookie and the very next /console request bounces to
 		// /login?reason=session_expired with no clue what went wrong.
 		if (!resolveAuth(token, env.JWT_SECRET)) {
 			return fail(503, {
@@ -72,6 +72,6 @@ export const actions = {
 		}
 
 		cookies.set(AUTH_COOKIE, token, authCookieOptions(url, COOKIE_MAX_AGE));
-		redirect(303, '/dashboard');
+		redirect(303, '/console');
 	}
 } satisfies Actions;

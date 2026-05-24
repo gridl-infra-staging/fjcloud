@@ -48,7 +48,7 @@ fn resolve_dunning_invoice_url(
     hosted_invoice_url.map_or_else(
         || {
             format!(
-                "{}/dashboard/billing/invoices/{invoice_id}",
+                "{}/console/billing/invoices/{invoice_id}",
                 app_base_url.trim_end_matches('/')
             )
         },

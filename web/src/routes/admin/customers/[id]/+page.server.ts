@@ -211,7 +211,7 @@ export const actions = {
 			return actionError(err, 'Failed to create impersonation token');
 		}
 
-		redirect(303, '/dashboard');
+		redirect(303, '/console');
 	},
 
 	terminateDeployment: async ({ request, fetch, cookies }) => {

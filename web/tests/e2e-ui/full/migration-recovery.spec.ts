@@ -7,7 +7,7 @@
  *   - Env-gated real credentials can list indexes and start migration through existing form actions.
  *
  * Boundary:
- *   - Uses only the /dashboard/migrate UI and existing ?/listIndexes + ?/migrate actions.
+ *   - Uses only the /console/migrate UI and existing ?/listIndexes + ?/migrate actions.
  *   - Does not add a second auth path, new seeding helpers, or alternate migration API routes.
  *
  * Prerequisites:
@@ -24,7 +24,7 @@ const REAL_ALGOLIA_APP_ID = process.env.E2E_ALGOLIA_APP_ID ?? '';
 const REAL_ALGOLIA_API_KEY = process.env.E2E_ALGOLIA_API_KEY ?? '';
 
 async function openMigrationPage(page: Page): Promise<void> {
-	await page.goto('/dashboard/migrate');
+	await page.goto('/console/migrate');
 	await expect(page.getByRole('heading', { name: 'Migrate from Algolia' })).toBeVisible();
 	await expect(page.getByTestId('credentials-form')).toBeVisible();
 }

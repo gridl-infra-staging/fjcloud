@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Attach a card to a Stripe customer via a SetupIntent + Stripe.js Elements
-// driven through Playwright. This is the same flow our /dashboard/billing/setup
+// driven through Playwright. This is the same flow our /console/billing/setup
 // page uses for real customers, run against a local HTML page so we don't
 // depend on having an authenticated fjcloud session.
 //

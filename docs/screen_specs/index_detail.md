@@ -2,7 +2,7 @@
 
 ## Scope
 
-- Primary route: `/dashboard/indexes/[name]`
+- Primary route: `/console/indexes/[name]`
 - Related specs: `documents.md`, `search_preview.md`
 - Audience: authenticated customers managing one search index
 - Priority: P0
@@ -25,7 +25,7 @@ The detail page shows the index name as heading, index status metadata, delete a
 ## Controls And Navigation
 
 - Tab buttons expose Overview, Settings, Documents, Dictionaries, Rules, Synonyms, Personalization, Recommendations, Chat, Suggestions, Analytics, Merchandising, Experiments, Events, Security Sources, and Search Preview.
-- Delete action asks for browser confirmation and redirects to `/dashboard/indexes` after successful deletion.
+- Delete action asks for browser confirmation and redirects to `/console/indexes` after successful deletion.
 - API log panel can be toggled without hiding the active tab context.
 
 ## Acceptance Criteria
@@ -43,5 +43,5 @@ This spec summarizes the shared detail shell; deeper tab behavior belongs in ded
 ## Automated Coverage
 
 - Browser-unmocked tests: `web/tests/e2e-ui/full/indexes.spec.ts`; `web/tests/e2e-ui/full/index-detail.spec.ts`; `web/tests/e2e-ui/full/isolation.spec.ts`
-- Component tests: `web/src/routes/dashboard/indexes/[name]/detail.test.ts`; `web/src/routes/dashboard/indexes/[name]/detail.server.load.test.ts`
-- Server/contract tests: `web/src/routes/dashboard/indexes/[name]/detail.server.load.test.ts`; `web/src/routes/dashboard/indexes/[name]/detail.server.actions.test.ts`
+- Component tests: `web/src/routes/console/indexes/[name]/detail.test.ts`; `web/src/routes/console/indexes/[name]/detail.server.load.test.ts`
+- Server/contract tests: `web/src/routes/console/indexes/[name]/detail.server.load.test.ts`; `web/src/routes/console/indexes/[name]/detail.server.actions.test.ts`

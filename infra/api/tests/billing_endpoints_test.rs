@@ -306,7 +306,7 @@ async fn billing_portal_returns_portal_url_and_forwards_return_url() {
     let app = test_app_with_stripe(customer_repo, mock_invoice_repo(), stripe_svc.clone());
 
     let jwt = create_test_jwt(customer.id);
-    let return_url = "http://localhost:5173/dashboard";
+    let return_url = "http://localhost:5173/console";
     let resp = app
         .oneshot(
             Request::post("/billing/portal")
@@ -349,7 +349,7 @@ async fn billing_portal_400_no_stripe_customer() {
                 .header("authorization", format!("Bearer {jwt}"))
                 .header("content-type", "application/json")
                 .body(Body::from(
-                    json!({"return_url":"http://localhost:5173/dashboard"}).to_string(),
+                    json!({"return_url":"http://localhost:5173/console"}).to_string(),
                 ))
                 .unwrap(),
         )
@@ -370,7 +370,7 @@ async fn billing_portal_401_without_auth() {
             Request::post("/billing/portal")
                 .header("content-type", "application/json")
                 .body(Body::from(
-                    json!({"return_url":"http://localhost:5173/dashboard"}).to_string(),
+                    json!({"return_url":"http://localhost:5173/console"}).to_string(),
                 ))
                 .unwrap(),
         )
@@ -390,7 +390,7 @@ async fn billing_portal_401_invalid_auth_token() {
                 .header("authorization", "Bearer not-a-jwt")
                 .header("content-type", "application/json")
                 .body(Body::from(
-                    json!({"return_url":"http://localhost:5173/dashboard"}).to_string(),
+                    json!({"return_url":"http://localhost:5173/console"}).to_string(),
                 ))
                 .unwrap(),
         )
@@ -441,7 +441,7 @@ async fn suspended_customer_gets_403_on_billing_portal() {
                 .header("authorization", format!("Bearer {jwt}"))
                 .header("content-type", "application/json")
                 .body(Body::from(
-                    json!({"return_url":"http://localhost:5173/dashboard"}).to_string(),
+                    json!({"return_url":"http://localhost:5173/console"}).to_string(),
                 ))
                 .unwrap(),
         )
@@ -466,7 +466,7 @@ async fn billing_portal_503_when_stripe_unconfigured() {
                 .header("authorization", format!("Bearer {jwt}"))
                 .header("content-type", "application/json")
                 .body(Body::from(
-                    json!({"return_url":"http://localhost:5173/dashboard"}).to_string(),
+                    json!({"return_url":"http://localhost:5173/console"}).to_string(),
                 ))
                 .unwrap(),
         )
@@ -4751,7 +4751,7 @@ async fn legacy_subscription_routes_return_404_and_preserved_billing_routes_rema
                 .header("authorization", auth.as_str())
                 .header("content-type", "application/json")
                 .body(Body::from(
-                    json!({"return_url":"http://localhost:5173/dashboard"}).to_string(),
+                    json!({"return_url":"http://localhost:5173/console"}).to_string(),
                 ))
                 .unwrap(),
         )

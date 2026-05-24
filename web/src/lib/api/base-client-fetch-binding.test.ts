@@ -4,7 +4,7 @@ import { ApiClient } from './client';
 // Regression test for the Cloudflare Workers fetch-binding contract that
 // commit bd33540b put in place on `BaseClient.fetchFn`. If this test fails,
 // somebody removed the `.bind(globalThis)` and is about to break the live
-// auth flow (signup, /verify-email, /forgot-password, /dashboard/*) in any
+// auth flow (signup, /verify-email, /forgot-password, /console/*) in any
 // environment where `globalThis.fetch` requires `this === globalThis` at
 // call time — which is what Cloudflare Workers does.
 //

@@ -33,7 +33,7 @@ It only points to current owners and acceptance contracts.
       Supplementary dispatch prerequisite: dispatches that source only `/Users/stuart/repos/gridl-infra-dev/fjcloud_dev/.secret/.env.secret` still miss `DATABASE_URL`, `API_URL`, `ADMIN_KEY`, and `FLAPJACK_URL`; use the canonical hydration owner in `docs/launch/synthetic_traffic_seeder_plan.md` instead of treating that env gap as the current billing blocker.
 
 - [ ] Keep `/billing/portal` ownership anchored to the landed backend/frontend seams.
-      Owner: `chats/icg/apr24_1pm_t2_3_stripe_customer_portal.md`, `infra/api/src/router/route_assembly.rs`, `docs/screen_specs/dashboard_billing.md`, `web/tests/e2e-ui/full/billing.spec.ts`, `web/tests/e2e-ui/full/dashboard.spec.ts`
+      Owner: `chats/icg/apr24_1pm_t2_3_stripe_customer_portal.md`, `infra/api/src/router/route_assembly.rs`, `docs/screen_specs/console_billing.md`, `web/tests/e2e-ui/full/billing.spec.ts`, `web/tests/e2e-ui/full/dashboard.spec.ts`
       Acceptance: Readiness notes point at the landed route owner, billing-page action, and tests without overstating live credentialed proof beyond what the checked-in evidence supports.
       Status: `POST /billing/portal` and `/dashboard/billing` ownership remain landed in the listed backend/frontend seams. As of 2026-04-25, billing-portal proof remains blocked by staging auth/preconditions (`classification=precondition_blocked`), Stage 4 never opened, and no checked-in `/billing/portal` defect is proven; see `docs/runbooks/staging-evidence.md` for the canonical artifact pointers and detailed verdict.
 
@@ -62,6 +62,21 @@ It only points to current owners and acceptance contracts.
       Owner: `chats/icg/apr24_1pm_t1_3_pricing_page_route.md`, `web/src/lib/pricing.ts`, `docs/screen_specs/landing.md`, `web/src/routes/pricing/+page.svelte`, `docs/screen_specs/pricing.md`
       Acceptance: Readiness notes point at the landed route, its screen spec, and its component/browser coverage without duplicating pricing constants outside the existing pricing owner.
       Status: `/pricing` is now implemented in-repo as a public route backed by `MARKETING_PRICING`, with `docs/screen_specs/pricing.md`, route-level tests, and public-pages browser coverage preserving the current contract.
+
+- [ ] Keep refund/cancellation policy anchored to the landing-page Policies section.
+      Owner: `web/src/routes/+page.svelte` (Policies section: Cancellation + Refunds), `docs/decisions/2026_05_23_refund_policy.md`, `web/tests/e2e-ui/full/public-pages.spec.ts`
+      Acceptance: Operator-discretion wording remains visible on the landing page with a stated 30-day request window; decision doc captures the rationale and revisit triggers; Playwright regression locks the text. No standalone `/refunds` route.
+      Status: Live as of 2026-05-23.
+
+- [ ] Keep invite-only beta gate anchored to the URL-obscurity deletion sites.
+      Owner: `web/src/routes/+layout.svelte`, `web/src/routes/+page.svelte`, `web/src/routes/pricing/+page.svelte`, `web/src/routes/beta/+page.svelte`, `docs/decisions/2026_05_23_beta_signup_gate.md`, `web/tests/e2e-ui/full/public-pages.spec.ts`
+      Acceptance: Every public Sign Up / signup CTA is deleted with an inline pointer to the decision doc; `/signup` route remains reachable via direct URL; Playwright regression asserts both the absent CTAs and the still-reachable signup form. Reverting the decision = reverting the gate commit.
+      Status: Live as of 2026-05-23.
+
+- [ ] Keep Stripe Dashboard configuration anchored to the operator checklist + live-state probe.
+      Owner: `docs/runbooks/paid_beta_rc_signoff.md` (Stripe Dashboard Prerequisites), `scripts/probe_live_state.sh` (`stripe_account_config` row), `docs/runbooks/email-production.md` (Template Ownership matrix — Customer Emails toggles)
+      Acceptance: Statement descriptor + business_profile (name/URL/support email) operator-set per environment, probe asserts API-readable subset on every run, Customer Emails toggles operator-verified so app-side does not duplicate Stripe-hosted billing emails.
+      Status: Probe extended 2026-05-23; operator runs `scripts/probe_live_state.sh` per environment and acts on any `stripe_account_config` row that reports `ACTION_REQUIRED`.
 
 ## External And Operator Obligations
 

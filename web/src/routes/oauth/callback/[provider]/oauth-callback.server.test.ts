@@ -67,7 +67,7 @@ describe('oauth callback route', () => {
 			deleteCookie
 		});
 
-		await expect(GET(event)).rejects.toMatchObject({ status: 303, location: '/dashboard' });
+		await expect(GET(event)).rejects.toMatchObject({ status: 303, location: '/console' });
 
 		// API receives both cookies joined with '; '. The order matters only for
 		// readability; cookie parsers are commutative.

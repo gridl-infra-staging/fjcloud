@@ -14,11 +14,8 @@
 			<a href={resolve('/status')} class="text-sm font-medium text-gray-600 hover:text-gray-900"
 				>Service status</a
 			>
-			<a
-				href={resolve('/signup')}
-				class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-				>Start beta signup</a
-			>
+			<!-- "Start beta signup" CTA removed during invite-only beta. See docs/decisions/2026_05_23_beta_signup_gate.md -->
+
 		</nav>
 	</div>
 </header>
@@ -78,7 +75,8 @@
 			<a href={resolve('/privacy')} class="text-blue-700 hover:text-blue-900">Privacy</a>
 			<a href={resolve('/dpa')} class="text-blue-700 hover:text-blue-900">DPA</a>
 			<a href={resolve('/status')} class="text-blue-700 hover:text-blue-900">Service status</a>
-			<a href={resolve('/signup')} class="text-blue-700 hover:text-blue-900">Start beta signup</a>
+			<!-- "Start beta signup" link removed during invite-only beta. See docs/decisions/2026_05_23_beta_signup_gate.md -->
+
 		</div>
 	</section>
 </main>

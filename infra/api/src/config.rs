@@ -65,9 +65,9 @@ impl Config {
         let stripe_publishable_key = read("STRIPE_PUBLISHABLE_KEY");
         let stripe_webhook_secret = read("STRIPE_WEBHOOK_SECRET");
         let stripe_success_url = read("STRIPE_SUCCESS_URL")
-            .unwrap_or_else(|| "http://localhost:5173/dashboard".to_string());
+            .unwrap_or_else(|| "http://localhost:5173/console".to_string());
         let stripe_cancel_url = read("STRIPE_CANCEL_URL")
-            .unwrap_or_else(|| "http://localhost:5173/dashboard".to_string());
+            .unwrap_or_else(|| "http://localhost:5173/console".to_string());
         let internal_auth_token = read("INTERNAL_AUTH_TOKEN")
             .map(|token| token.trim().to_string())
             .map(|token| {

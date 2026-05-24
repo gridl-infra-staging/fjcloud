@@ -2,8 +2,8 @@
 
 ## Scope
 
-- Primary route: `/dashboard/api-keys`
-- Related route: `/dashboard`
+- Primary route: `/console/api-keys`
+- Related route: `/console`
 - Audience: authenticated customers managing management/search API keys
 - Priority: P0
 
@@ -44,5 +44,5 @@ Browser coverage does not assert every scope combination; component/server tests
 ## Automated Coverage
 
 - Browser-unmocked tests: `web/tests/e2e-ui/full/api-keys.spec.ts`
-- Component tests: `web/src/routes/dashboard/api-keys/api-keys.test.ts`; `web/src/routes/dashboard/api-keys/api-keys.server.test.ts`
-- Server/contract tests: `web/src/routes/dashboard/api-keys/api-keys.server.test.ts`
+- Component tests: `web/src/routes/console/api-keys/api-keys.test.ts`; `web/src/routes/console/api-keys/api-keys.server.test.ts`
+- Server/contract tests: `web/src/routes/console/api-keys/api-keys.server.test.ts`

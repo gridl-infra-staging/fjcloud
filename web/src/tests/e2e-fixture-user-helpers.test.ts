@@ -106,7 +106,7 @@ describe('e2e fixture user helpers', () => {
 		await expect(
 			resolveFreshSignupCleanupCustomerId({
 				sessionToken: 'session-token-123',
-				currentPath: 'http://127.0.0.1:5173/dashboard',
+				currentPath: 'http://127.0.0.1:5173/console',
 				responseStatus: 303,
 				responseUrl: 'http://127.0.0.1:5173/signup',
 				resolveCustomerIdByToken
@@ -119,7 +119,7 @@ describe('e2e fixture user helpers', () => {
 		await expect(
 			resolveFreshSignupCleanupCustomerId({
 				sessionToken: null,
-				currentPath: 'http://127.0.0.1:5173/dashboard',
+				currentPath: 'http://127.0.0.1:5173/console',
 				responseStatus: 303,
 				responseUrl: 'http://127.0.0.1:5173/signup'
 			})
@@ -130,7 +130,7 @@ describe('e2e fixture user helpers', () => {
 		await expect(
 			resolveFreshSignupCleanupCustomerId({
 				sessionToken: 'session-token-123',
-				currentPath: 'http://127.0.0.1:5173/dashboard',
+				currentPath: 'http://127.0.0.1:5173/console',
 				resolveCustomerIdByToken: async () => {
 					throw new Error('503 upstream');
 				}
@@ -160,7 +160,7 @@ describe('e2e fixture user helpers', () => {
 
 		const promise = resolveFreshSignupCleanupCustomerId({
 			sessionToken: 'session-token-123',
-			currentPath: 'http://127.0.0.1:5173/dashboard'
+			currentPath: 'http://127.0.0.1:5173/console'
 		});
 
 		await vi.runAllTimersAsync();
@@ -172,7 +172,7 @@ describe('e2e fixture user helpers', () => {
 		const fill = vi.fn().mockResolvedValue(undefined);
 		const click = vi.fn().mockResolvedValue(undefined);
 		const waitForAlert = vi.fn().mockRejectedValue(new Error('alert not shown'));
-		const pageUrl = 'http://127.0.0.1:5173/dashboard';
+		const pageUrl = 'http://127.0.0.1:5173/console';
 		const mockPage = {
 			goto: vi.fn().mockResolvedValue(undefined),
 			waitForURL: vi.fn().mockResolvedValue(undefined),
@@ -232,7 +232,7 @@ describe('e2e fixture user helpers', () => {
 		const fill = vi.fn().mockResolvedValue(undefined);
 		const click = vi.fn().mockResolvedValue(undefined);
 		const waitForAlert = vi.fn().mockRejectedValue(new Error('alert not shown'));
-		const pageUrl = 'http://127.0.0.1:5173/dashboard';
+		const pageUrl = 'http://127.0.0.1:5173/console';
 		const mockPage = {
 			goto: vi.fn().mockResolvedValue(undefined),
 			waitForURL: vi.fn().mockResolvedValue(undefined),
@@ -730,7 +730,7 @@ describe('e2e fixture user helpers', () => {
 		);
 		const formatted = formatFixtureSetupFailure({
 			setupName: 'Customer login setup',
-			expectedPath: '/dashboard',
+			expectedPath: '/console',
 			currentPath: 'http://ui-user:ui-pass@127.0.0.1:5173/login',
 			apiUrl: 'http://api-user:api-pass@127.0.0.1:3001',
 			adminKey: 'admin-key',
@@ -1790,7 +1790,7 @@ describe('e2e fixture user helpers', () => {
 		const fullAdminKey = 'abcd-secret-super-long-key';
 		const failureMessage = formatFixtureSetupFailure({
 			setupName: 'customer auth setup',
-			expectedPath: '/dashboard',
+			expectedPath: '/console',
 			currentPath: '/login',
 			apiUrl: 'http://localhost:3001',
 			adminKey: fullAdminKey,

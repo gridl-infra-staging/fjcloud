@@ -188,7 +188,7 @@ export function throwFreshSignupArrangeFailure({
 	throw new Error(
 		formatFixtureSetupFailure({
 			setupName: 'fresh-signup arrange',
-			expectedPath: '/dashboard',
+			expectedPath: '/console',
 			currentPath,
 			apiUrl: diagnosticEnv.apiUrl,
 			adminKey: diagnosticEnv.adminKey,
@@ -210,7 +210,7 @@ export async function resolveFreshSignupCleanupCustomerId({
 	if (!sessionToken) {
 		throwFreshSignupArrangeFailure({
 			currentPath,
-			alertText: 'Sign up reached /dashboard but auth cookie token was missing.',
+			alertText: 'Sign up reached /console but auth cookie token was missing.',
 			responseStatus,
 			responseUrl
 		});
@@ -221,7 +221,7 @@ export async function resolveFreshSignupCleanupCustomerId({
 	} catch (error) {
 		throwFreshSignupArrangeFailure({
 			currentPath,
-			alertText: `Sign up reached /dashboard but fixture could not resolve customer id from auth cookie token: ${setupFailureDetailsFromError(error)}`,
+			alertText: `Sign up reached /console but fixture could not resolve customer id from auth cookie token: ${setupFailureDetailsFromError(error)}`,
 			responseStatus,
 			responseUrl
 		});
@@ -239,7 +239,7 @@ function throwBillingPortalArrangeFailure({
 	throw new Error(
 		formatFixtureSetupFailure({
 			setupName: 'billing-portal arrange',
-			expectedPath: '/dashboard/billing',
+			expectedPath: '/console/billing',
 			currentPath,
 			apiUrl: diagnosticEnv.apiUrl,
 			adminKey: diagnosticEnv.adminKey,
@@ -1108,11 +1108,11 @@ export async function arrangeFreshSignupToDashboardWithFixtureFallback(
 
 	const signupAlert = page.getByRole('alert');
 	await Promise.race([
-		page.waitForURL(/\/dashboard/, { timeout: 20_000 }),
+		page.waitForURL(/\/console/, { timeout: 20_000 }),
 		signupAlert.waitFor({ state: 'visible', timeout: 20_000 })
 	]).catch(() => undefined);
 
-	if (/\/dashboard/.test(page.url())) {
+	if (/\/console/.test(page.url())) {
 		const signupResponse = await signupResponsePromise;
 		const customerId = await resolveCleanupCustomerId({
 			sessionToken: await getSessionTokenFromPage(page),
@@ -1149,7 +1149,7 @@ export async function arrangeFreshSignupToDashboardWithFixtureFallback(
 		throwFreshSignupArrangeFailure({
 			currentPath: page.url(),
 			alertText: [
-				alertText || 'Sign up did not reach /dashboard and no alert was visible within 20 seconds.',
+				alertText || 'Sign up did not reach /console and no alert was visible within 20 seconds.',
 				`Remote signup fallback failed: ${fallbackErrorDetail}`
 			].join(' | '),
 			responseStatus: signupResponse?.status(),
@@ -1166,7 +1166,7 @@ export async function arrangeFreshSignupToDashboardWithFixtureFallback(
 	throwFreshSignupArrangeFailure({
 		currentPath: page.url(),
 		alertText:
-			alertText || 'Sign up did not reach /dashboard and no alert was visible within 20 seconds.',
+			alertText || 'Sign up did not reach /console and no alert was visible within 20 seconds.',
 		responseStatus: signupResponse?.status(),
 		responseUrl: signupResponse?.url()
 	});
@@ -1344,7 +1344,7 @@ async function completeFreshSignupEmailVerificationViaRoute(
 			return { verificationToken };
 		}
 
-		// Public auth pages redirect authenticated users to /dashboard, so clear
+		// Public auth pages redirect authenticated users to /console, so clear
 		// auth cookies before exercising the verify-email success contract.
 		await page.context().clearCookies();
 		await page.goto(`/verify-email/${verificationToken}`);
@@ -2024,7 +2024,7 @@ async function arrangePaidInvoiceForFreshSignup({
 			throw new Error(
 				formatFixtureSetupFailure({
 					setupName: 'arrangePaidInvoiceForFreshSignup',
-					expectedPath: '/dashboard/billing/invoices/{id}',
+					expectedPath: '/console/billing/invoices/{id}',
 					currentPath: '(arrangePaidInvoiceForFreshSignup)',
 					apiUrl: diagnosticEnv.apiUrl,
 					adminKey: diagnosticEnv.adminKey,
@@ -2191,7 +2191,7 @@ type E2eFixtures = {
 	completeFreshSignupEmailVerification: CompleteFreshSignupEmailVerificationFn;
 	/** Advance a fresh verified signup through paid billing and invoice-email evidence. */
 	arrangePaidInvoiceForFreshSignup: ArrangePaidInvoiceForFreshSignupFn;
-	/** Create a fresh signup through UI and land on /dashboard with remote-target fallback. */
+	/** Create a fresh signup through UI and land on /console with remote-target fallback. */
 	arrangeFreshSignupToDashboard: ArrangeFreshSignupToDashboardFn;
 	/** Detects known prerequisite/setup failures surfaced from fresh-signup UI alerts. */
 	isFreshSignupArrangePrerequisiteFailure: IsFreshSignupArrangePrerequisiteFailureFn;

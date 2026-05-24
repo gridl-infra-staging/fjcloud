@@ -1,5 +1,30 @@
 # Email Production (SES)
 
+## Template Ownership: Stripe-Hosted vs App-Side
+
+Check this matrix before adding a new customer-facing email. Stripe Billing
+sends most billing-related emails for free when the Customer Emails toggles
+are enabled in the Stripe Dashboard; the app should not duplicate them.
+
+| Email | Owner | Source |
+| --- | --- | --- |
+| Invoice receipt (paid) | Stripe Billing | Stripe Dashboard → Settings → Customer emails |
+| Failed payment / dunning | Stripe Billing (Smart Retries) | Stripe Dashboard → Settings → Customer emails |
+| Expiring card notification | Stripe Billing | Stripe Dashboard → Settings → Customer emails |
+| Refund confirmation | Stripe Billing | Automatic on Dashboard/API refund |
+| Subscription cancellation | Stripe Billing | Automatic on cancellation |
+| Welcome / first signup | App (`SesEmailService`) | `infra/api/src/services/` — grep `send_` |
+| Email verification (token) | App (`SesEmailService`) | same |
+| Password reset | App (`SesEmailService`) | same |
+| Quota warnings | App (`SesEmailService`) | same |
+
+Rule: if Stripe sends the email, the app must not also send it. Operator
+verifies the Customer Emails toggles per the Stripe Dashboard Prerequisites
+section of [`paid_beta_rc_signoff.md`](paid_beta_rc_signoff.md); those toggles
+are not API-readable, so the live-state probe cannot verify them.
+
+Source: [Stripe — Automate customer emails](https://docs.stripe.com/billing/revenue-recovery/customer-emails).
+
 ## SES Setup
 
 ### Required Environment Variables

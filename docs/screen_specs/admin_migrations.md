@@ -3,7 +3,7 @@
 ## Scope
 
 - Primary route: `/admin/migrations`
-- Related route: `/dashboard/migrate`
+- Related route: `/console/migrate`
 - Audience: operators moving indexes between VMs
 - Priority: P1
 
@@ -42,5 +42,5 @@ Browser-unmocked admin page coverage verifies sections; data-dependent migration
 ## Automated Coverage
 
 - Browser-unmocked tests: `web/tests/e2e-ui/full/admin/admin-pages.spec.ts`; `web/tests/e2e-ui/full/migration-recovery.spec.ts`
-- Component tests: `web/src/routes/admin/migrations/admin-migrations.test.ts`; `web/src/routes/dashboard/migrate/migrate.test.ts`
+- Component tests: `web/src/routes/admin/migrations/admin-migrations.test.ts`; `web/src/routes/console/migrate/migrate.test.ts`
 - Server/contract tests: migration route/component tests.

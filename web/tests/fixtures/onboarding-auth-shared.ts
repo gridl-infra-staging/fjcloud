@@ -67,19 +67,19 @@ export function registerFreshOnboardingAccount(setupName: string, storageStatePa
 
 		const signupAlert = page.getByRole('alert');
 		await Promise.race([
-			page.waitForURL(/\/dashboard/, { timeout: 15_000 }),
+			page.waitForURL(/\/console/, { timeout: 15_000 }),
 			signupAlert.waitFor({ state: 'visible', timeout: 15_000 })
 		]);
 
-		if (!/\/dashboard/.test(page.url())) {
+		if (!/\/console/.test(page.url())) {
 			const alertText = await signupAlert.textContent();
 			throw new Error(
-				`Signup setup failed before reaching /dashboard. Alert: "${alertText?.trim() ?? '(none)'}". ` +
+				`Signup setup failed before reaching /console. Alert: "${alertText?.trim() ?? '(none)'}". ` +
 					'Check API_URL, JWT_SECRET, and that the registration endpoint is accepting new users.'
 			);
 		}
 
-		await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
+		await expect(page.getByRole('heading', { name: 'Console' })).toBeVisible();
 		await expect(page.getByTestId('onboarding-banner')).toBeVisible({ timeout: 5_000 });
 
 		verifyFreshSignupEmail(email);

@@ -18,14 +18,14 @@ afterEach(cleanup);
 describe('Landing page', () => {
 	const pricingData = MARKETING_PRICING;
 
-	it('renders direct hero copy and CTA', () => {
+	// URL-obscurity beta gate: public CTAs removed.
+	// See docs/decisions/2026_05_23_beta_signup_gate.md.
+	it('renders direct hero copy; signup CTAs absent during invite-only beta', () => {
 		render(LandingPage, { data: { pricing: pricingData } });
 		expect(screen.getByRole('heading', { level: 1, name: 'Flapjack Cloud' })).toBeInTheDocument();
 		expect(screen.getByText('Managed hosting for Flapjack search.')).toBeInTheDocument();
 		expect(screen.getByText(/Use an Algolia-compatible API/)).toBeInTheDocument();
-		const ctaLinks = screen.getAllByRole('link', { name: MARKETING_PRICING.cta_label });
-		expect(ctaLinks.length).toBeGreaterThanOrEqual(1);
-		expect(ctaLinks[0]).toHaveAttribute('href', '/signup');
+		expect(screen.queryAllByRole('link', { name: MARKETING_PRICING.cta_label })).toHaveLength(0);
 	});
 
 	it('renders shared public beta framing and policy links before signup', () => {
@@ -81,14 +81,6 @@ describe('Landing page', () => {
 		expect(screen.queryByText('Write Operations')).not.toBeInTheDocument();
 		expect(screen.queryByText(/compute/i)).not.toBeInTheDocument();
 		expect(screen.queryByText(/vm-hour/i)).not.toBeInTheDocument();
-	});
-
-	it('CTA links to signup', () => {
-		render(LandingPage, { data: { pricing: pricingData } });
-		const ctaLinks = screen.getAllByRole('link', { name: MARKETING_PRICING.cta_label });
-		ctaLinks.forEach((link) => {
-			expect(link).toHaveAttribute('href', '/signup');
-		});
 	});
 
 	it('page loads without auth — no login form or dashboard elements', () => {
@@ -193,7 +185,9 @@ describe('Landing page', () => {
 		).toBeInTheDocument();
 		expect(screen.queryByRole('heading', { level: 3, name: 'Support' })).not.toBeInTheDocument();
 	});
-	it('renders shared free-tier promise in hero, pricing, and CTA sections', () => {
+	// URL-obscurity beta gate: bottom "Start with a free beta account" CTA section
+	// deleted. See docs/decisions/2026_05_23_beta_signup_gate.md.
+	it('renders shared free-tier promise in hero and pricing sections', () => {
 		render(LandingPage, { data: { pricing: pricingData } });
 
 		const heroSection = screen
@@ -202,19 +196,17 @@ describe('Landing page', () => {
 		const pricingSection = screen
 			.getByRole('heading', { level: 2, name: 'Simple pricing' })
 			.closest('section');
-		const ctaSection = screen
-			.getByRole('heading', { level: 2, name: 'Start with a free beta account' })
-			.closest('section');
 
 		expect(heroSection).not.toBeNull();
 		expect(pricingSection).not.toBeNull();
-		expect(ctaSection).not.toBeNull();
 
 		expect(within(heroSection!).getByText(MARKETING_PRICING.free_tier_promise)).toBeInTheDocument();
 		expect(
 			within(pricingSection!).getByText(MARKETING_PRICING.free_tier_promise)
 		).toBeInTheDocument();
-		expect(within(ctaSection!).getByText(MARKETING_PRICING.free_tier_promise)).toBeInTheDocument();
+		expect(
+			screen.queryByRole('heading', { level: 2, name: 'Start with a free beta account' })
+		).not.toBeInTheDocument();
 	});
 	it('how it works does not mention adding a payment method', () => {
 		render(LandingPage, { data: { pricing: pricingData } });
@@ -250,7 +242,9 @@ describe('Landing page', () => {
 		expect(screen.getByRole('button', { name: 'Compare monthly cost' })).toBeInTheDocument();
 	});
 
-	it('keeps CTA, pricing rates, free-tier promise, and region copy sourced from data.pricing', () => {
+	// URL-obscurity beta gate: cta_label no longer rendered as link; data-driven
+	// pricing/region copy still asserts. See docs/decisions/2026_05_23_beta_signup_gate.md.
+	it('keeps pricing rates, free-tier promise, and region copy sourced from data.pricing', () => {
 		const customPricing = {
 			...MARKETING_PRICING,
 			storage_rate_per_mb_month: '$7.77',
@@ -266,8 +260,7 @@ describe('Landing page', () => {
 		expect(screen.getByText(customPricing.cold_storage_rate_per_gb_month)).toBeInTheDocument();
 		expect(screen.getAllByText(customPricing.free_tier_promise).length).toBeGreaterThanOrEqual(1);
 
-		const ctaLinks = screen.getAllByRole('link', { name: customPricing.cta_label });
-		expect(ctaLinks.length).toBeGreaterThanOrEqual(1);
+		expect(screen.queryAllByRole('link', { name: customPricing.cta_label })).toHaveLength(0);
 
 		expect(screen.getByText('Moon Test Region')).toBeInTheDocument();
 		expect(screen.getByText('1.23x')).toBeInTheDocument();

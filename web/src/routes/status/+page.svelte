@@ -61,12 +61,7 @@
 			<a href={resolve('/login')} class="text-sm font-medium text-gray-600 hover:text-gray-900"
 				>Log In</a
 			>
-			<a
-				href={resolve('/signup')}
-				class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-			>
-				Sign Up
-			</a>
+			<!-- Public Sign Up CTA removed during invite-only beta. See docs/decisions/2026_05_23_beta_signup_gate.md -->
 		</nav>
 	</div>
 </header>

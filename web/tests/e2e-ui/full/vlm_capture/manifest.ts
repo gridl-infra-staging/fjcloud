@@ -27,7 +27,7 @@ export type CaptureManifest = {
 };
 
 const SCREEN_SPEC_BY_ROUTE_SLUG: Record<string, string> = {
-	dashboard: 'docs/screen_specs/dashboard.md',
+	dashboard: 'docs/screen_specs/console.md',
 	admin_customers: 'docs/screen_specs/admin_customers.md',
 	terms: 'docs/screen_specs/terms.md',
 	privacy: 'docs/screen_specs/privacy.md',

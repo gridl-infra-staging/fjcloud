@@ -1,7 +1,7 @@
 /**
  * VLM capture — authenticated regular-user lane (dashboard).
  *
- * Mirrors the `setAuthCookie` flow from `dashboard.spec.ts:62-71`: the
+ * Mirrors the `setAuthCookie` flow from `console.spec.ts:62-71`: the
  * default `setup:user` storage state is cleared so we deterministically
  * mint a fresh user via `createUser` + `loginAs`, then set
  * `AUTH_COOKIE` on the test browser context before navigating. This is
@@ -44,7 +44,7 @@ const BASE_URL = process.env.BASE_URL ?? 'http://localhost:5173';
 
 // Clear the setup:user storage state so the createUser+loginAs flow is
 // the sole source of identity for this spec — same pattern as the
-// verification-banner suite in dashboard.spec.ts.
+// verification-banner suite in console.spec.ts.
 test.use({ storageState: { cookies: [], origins: [] } });
 
 test.beforeAll(() => {

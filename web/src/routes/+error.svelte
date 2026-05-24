@@ -23,12 +23,7 @@
 			<a href={resolve('/login')} class="text-sm font-medium text-gray-600 hover:text-gray-900"
 				>Log In</a
 			>
-			<a
-				href={resolve('/signup')}
-				class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-			>
-				Sign Up
-			</a>
+			<!-- Public Sign Up CTA removed during invite-only beta. See docs/decisions/2026_05_23_beta_signup_gate.md -->
 		</nav>
 	</div>
 </header>
@@ -40,7 +35,7 @@
 	<SupportReferenceBlock {boundaryCopy} />
 	<div class="mt-8 flex items-center justify-center gap-4">
 		<a
-			href={resolve(boundaryCopy.primaryCta.href)}
+			href={resolve(boundaryCopy.primaryCta.href as '/' | '/console' | '/status')}
 			class="rounded-lg bg-blue-600 px-6 py-3 text-sm font-semibold text-white shadow hover:bg-blue-700"
 		>
 			{boundaryCopy.primaryCta.label}

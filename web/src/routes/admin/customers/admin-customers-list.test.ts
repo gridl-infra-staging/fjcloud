@@ -416,7 +416,7 @@ describe('Admin customers list quick actions', () => {
 		await renderCustomersPage();
 		const handleResult = await getEnhanceResultHandler('impersonate');
 
-		const redirectResult = { type: 'redirect', status: 303, location: '/dashboard' };
+		const redirectResult = { type: 'redirect', status: 303, location: '/console' };
 		await handleResult({
 			result: redirectResult
 		});

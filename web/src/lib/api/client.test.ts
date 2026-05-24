@@ -492,7 +492,7 @@ describe('ApiClient', () => {
 
 		it('POST /billing/portal sends server-owned return_url and returns portal_url', async () => {
 			const requestBody: CreateBillingPortalSessionRequest = {
-				return_url: 'https://app.example.com/dashboard/billing'
+				return_url: 'https://app.example.com/console/billing'
 			};
 			const expected: CreateBillingPortalSessionResponse = {
 				portal_url: 'https://billing.stripe.com/session/test_123'

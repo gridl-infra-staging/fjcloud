@@ -139,25 +139,25 @@ write_manifest_fixture() {
   "entries": [
     {
       "lane": "auth",
-      "path": "/dashboard",
+      "path": "/console",
       "state": "success",
       "viewport": "desktop",
       "setup": "auth_fresh_user_with_index",
       "is_producible": true,
       "artifact_filename": "auth__dashboard__success__desktop.png",
       "artifact_relpath": "web/tmp/screens/auth__dashboard__success__desktop.png",
-      "screen_spec_path": "docs/screen_specs/dashboard.md"
+      "screen_spec_path": "docs/screen_specs/console.md"
     },
     {
       "lane": "auth",
-      "path": "/dashboard",
+      "path": "/console",
       "state": "success",
       "viewport": "mobile_narrow",
       "setup": "auth_fresh_user_with_index",
       "is_producible": true,
       "artifact_filename": "auth__dashboard__success__mobile_narrow.png",
       "artifact_relpath": "web/tmp/screens/auth__dashboard__success__mobile_narrow.png",
-      "screen_spec_path": "docs/screen_specs/dashboard.md"
+      "screen_spec_path": "docs/screen_specs/console.md"
     },
     {
       "lane": "admin",
@@ -194,25 +194,25 @@ JSON
     },
     {
       "lane": "auth",
-      "path": "/dashboard",
+      "path": "/console",
       "state": "success",
       "viewport": "desktop",
       "setup": "auth_fresh_user_with_index",
       "is_producible": true,
       "artifact_filename": "auth__dashboard__success__desktop.png",
       "artifact_relpath": "web/tmp/screens/auth__dashboard__success__desktop.png",
-      "screen_spec_path": "docs/screen_specs/dashboard.md"
+      "screen_spec_path": "docs/screen_specs/console.md"
     },
     {
       "lane": "auth",
-      "path": "/dashboard",
+      "path": "/console",
       "state": "empty",
       "viewport": "mobile_narrow",
       "setup": "auth_fresh_user",
       "is_producible": true,
       "artifact_filename": "auth__dashboard__empty__mobile_narrow.png",
       "artifact_relpath": "web/tmp/screens/auth__dashboard__empty__mobile_narrow.png",
-      "screen_spec_path": "docs/screen_specs/dashboard.md"
+      "screen_spec_path": "docs/screen_specs/console.md"
     },
     {
       "lane": "admin",
@@ -474,7 +474,7 @@ test_aggregator_rule_mapping_contract() {
   "producible_capture_count": 5,
   "entries": [
     {"path":"/pricing","state":"success","viewport":"desktop","artifact_filename":"public__pricing__success__desktop.png","is_producible":true,"screen_spec_path":"docs/screen_specs/terms.md"},
-    {"path":"/dashboard","state":"success","viewport":"desktop","artifact_filename":"auth__dashboard__success__desktop.png","is_producible":true,"screen_spec_path":"docs/screen_specs/dashboard.md"},
+    {"path":"/console","state":"success","viewport":"desktop","artifact_filename":"auth__dashboard__success__desktop.png","is_producible":true,"screen_spec_path":"docs/screen_specs/console.md"},
     {"path":"/terms","state":"success","viewport":"desktop","artifact_filename":"public__terms__success__desktop.png","is_producible":true,"screen_spec_path":"docs/screen_specs/terms.md"},
     {"path":"/privacy","state":"success","viewport":"mobile_narrow","artifact_filename":"public__privacy__success__mobile_narrow.png","is_producible":true,"screen_spec_path":"docs/screen_specs/privacy.md"},
     {"path":"/admin/customers","state":"error","viewport":"desktop","artifact_filename":"admin__admin_customers__error__desktop.png","is_producible":true,"screen_spec_path":"docs/screen_specs/admin_customers.md"}

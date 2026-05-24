@@ -568,7 +568,7 @@ describe('Admin customer detail', () => {
 		} catch (e: unknown) {
 			const err = e as { status: number; location: string };
 			expect(err.status).toBe(303);
-			expect(err.location).toBe('/dashboard');
+			expect(err.location).toBe('/console');
 		}
 
 		// Verify createToken was called with correct params

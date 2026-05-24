@@ -61,7 +61,7 @@
 						BETA
 					</span>
 				</div>
-				<nav class="grid grid-cols-[2.25rem_1fr_1fr] items-center gap-3 sm:flex sm:w-auto">
+				<nav class="grid grid-cols-[2.25rem_1fr] items-center gap-3 sm:flex sm:w-auto">
 					<a
 						href="https://github.com/griddlehq/flapjack"
 						class="inline-flex h-9 w-9 items-center justify-center border border-gray-300 hover:bg-gray-50"
@@ -81,12 +81,7 @@
 					>
 						Log In
 					</a>
-					<a
-						href={resolve('/signup')}
-						class="inline-flex h-9 items-center justify-center border border-gray-900 px-4 text-sm font-semibold text-gray-900 hover:bg-gray-100"
-					>
-						Sign Up
-					</a>
+					<!-- Public Sign Up CTA removed during invite-only beta. See docs/decisions/2026_05_23_beta_signup_gate.md -->
 				</nav>
 			</div>
 		</header>

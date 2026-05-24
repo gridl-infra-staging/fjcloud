@@ -56,10 +56,16 @@ function makeEvent(pathname: string, token?: string): RequestEvent {
 
 async function callHandle(
 	pathname: string,
-	token?: string
-): Promise<{ resolved: boolean; event: RequestEvent; response?: Response }> {
+	token?: string,
+	resolveImpl?: (event: RequestEvent) => Promise<Response>
+): Promise<{
+	resolved: boolean;
+	event: RequestEvent;
+	response?: Response;
+	resolveSpy: ReturnType<typeof vi.fn>;
+}> {
 	const event = makeEvent(pathname, token);
-	const resolve = vi.fn(async () => new Response('ok'));
+	const resolve = vi.fn(resolveImpl ?? (async () => new Response('ok')));
 	let resolved = false;
 	let response: Response | undefined;
 	try {
@@ -67,28 +73,51 @@ async function callHandle(
 		resolved = true;
 	} catch (e) {
 		if (e instanceof MockRedirect) {
-			return { resolved: false, event };
+			return { resolved: false, event, resolveSpy: resolve };
 		}
 		throw e;
 	}
-	return { resolved, event, response };
+	return { resolved, event, response, resolveSpy: resolve };
+}
+
+type RedirectCapture = {
+	status: number;
+	location: string;
+	source: 'handle' | 'resolve';
+};
+
+async function captureRedirect(
+	pathname: string,
+	token: string | undefined,
+	resolveImpl?: (event: RequestEvent) => Promise<Response>
+): Promise<RedirectCapture> {
+	const event = makeEvent(pathname, token);
+	const resolve = vi.fn(resolveImpl ?? (async () => new Response('ok')));
+	let caughtRedirect: unknown;
+	try {
+		await (handle as Handle)({ event, resolve } as never);
+	} catch (e) {
+		caughtRedirect = e;
+	}
+	expect(caughtRedirect, `Expected redirect for ${pathname}, but resolve() was called`).toBeDefined();
+	expect(caughtRedirect).toBeInstanceOf(MockRedirect);
+	return {
+		status: (caughtRedirect as MockRedirect).status,
+		location: (caughtRedirect as MockRedirect).location,
+		source: resolve.mock.calls.length > 0 ? 'resolve' : 'handle'
+	};
 }
 
 async function expectRedirect(
 	pathname: string,
 	token: string | undefined,
-	expectedLocation: string
+	expectedStatus: number,
+	expectedLocation: string,
+	resolveImpl?: (event: RequestEvent) => Promise<Response>
 ): Promise<void> {
-	const event = makeEvent(pathname, token);
-	const resolve = vi.fn(async () => new Response('ok'));
-	try {
-		await (handle as Handle)({ event, resolve } as never);
-		expect.fail(`Expected redirect to ${expectedLocation}, but resolve() was called`);
-	} catch (e) {
-		expect(e).toBeInstanceOf(MockRedirect);
-		expect((e as MockRedirect).status).toBe(303);
-		expect((e as MockRedirect).location).toBe(expectedLocation);
-	}
+	const redirectResult = await captureRedirect(pathname, token, resolveImpl);
+	expect(redirectResult.status).toBe(expectedStatus);
+	expect(redirectResult.location).toBe(expectedLocation);
 }
 
 function readCloudflareRobotsHeaderLine(): string {
@@ -112,37 +141,37 @@ describe('hooks.server handle', () => {
 	describe('isPublicPath logic', () => {
 		it('treats / as public', async () => {
 			resolveAuthMock.mockReturnValue({ customerId: 'c1', token: 't' });
-			await expectRedirect('/', 'valid-jwt', '/dashboard');
+			await expectRedirect('/', 'valid-jwt', 303, '/console');
 		});
 
 		it('treats /login as public', async () => {
 			resolveAuthMock.mockReturnValue({ customerId: 'c1', token: 't' });
-			await expectRedirect('/login', 'valid-jwt', '/dashboard');
+			await expectRedirect('/login', 'valid-jwt', 303, '/console');
 		});
 
 		it('treats /signup as public', async () => {
 			resolveAuthMock.mockReturnValue({ customerId: 'c1', token: 't' });
-			await expectRedirect('/signup', 'valid-jwt', '/dashboard');
+			await expectRedirect('/signup', 'valid-jwt', 303, '/console');
 		});
 
 		it('treats /verify-email/some-token as public', async () => {
 			resolveAuthMock.mockReturnValue({ customerId: 'c1', token: 't' });
-			await expectRedirect('/verify-email/abc123', 'valid-jwt', '/dashboard');
+			await expectRedirect('/verify-email/abc123', 'valid-jwt', 303, '/console');
 		});
 
 		it('treats /forgot-password as public', async () => {
 			resolveAuthMock.mockReturnValue({ customerId: 'c1', token: 't' });
-			await expectRedirect('/forgot-password', 'valid-jwt', '/dashboard');
+			await expectRedirect('/forgot-password', 'valid-jwt', 303, '/console');
 		});
 
 		it('treats /reset-password/tok as public', async () => {
 			resolveAuthMock.mockReturnValue({ customerId: 'c1', token: 't' });
-			await expectRedirect('/reset-password/tok', 'valid-jwt', '/dashboard');
+			await expectRedirect('/reset-password/tok', 'valid-jwt', 303, '/console');
 		});
 
-		it('does NOT treat /dashboard as public', async () => {
+		it('does NOT treat /console as public', async () => {
 			resolveAuthMock.mockReturnValue({ customerId: 'c1', token: 't' });
-			const { resolved } = await callHandle('/dashboard', 'valid-jwt');
+			const { resolved } = await callHandle('/console', 'valid-jwt');
 			expect(resolved).toBe(true);
 		});
 
@@ -169,14 +198,14 @@ describe('hooks.server handle', () => {
 			expect(readCloudflareRobotsHeaderLine()).toBe(`  X-Robots-Tag: ${ROBOTS_TAG}`);
 		});
 
-		it('redirects /dashboard to /login when not authenticated', async () => {
+		it('redirects /console to /login when not authenticated', async () => {
 			resolveAuthMock.mockReturnValue(null);
-			await expectRedirect('/dashboard', undefined, '/login');
+			await expectRedirect('/console', undefined, 303, '/login');
 		});
 
-		it('redirects /dashboard/indexes to /login when not authenticated', async () => {
+		it('redirects /console/indexes to /login when not authenticated', async () => {
 			resolveAuthMock.mockReturnValue(null);
-			await expectRedirect('/dashboard/indexes', undefined, '/login');
+			await expectRedirect('/console/indexes', undefined, 303, '/login');
 		});
 
 		it('allows /login when not authenticated', async () => {
@@ -193,7 +222,7 @@ describe('hooks.server handle', () => {
 
 		it('clears a stale auth cookie before redirecting dashboard traffic to /login', async () => {
 			resolveAuthMock.mockReturnValue(null);
-			const event = makeEvent('/dashboard', 'stale-jwt');
+			const event = makeEvent('/console', 'stale-jwt');
 			const resolve = vi.fn(async () => new Response('ok'));
 
 			try {
@@ -209,26 +238,26 @@ describe('hooks.server handle', () => {
 	});
 
 	describe('authenticated access', () => {
-		it('redirects / to /dashboard when authenticated', async () => {
+		it('redirects / to /console when authenticated', async () => {
 			resolveAuthMock.mockReturnValue({ customerId: 'c1', token: 't' });
-			await expectRedirect('/', 'jwt', '/dashboard');
+			await expectRedirect('/', 'jwt', 303, '/console');
 		});
 
-		it('redirects /login to /dashboard when authenticated', async () => {
+		it('redirects /login to /console when authenticated', async () => {
 			resolveAuthMock.mockReturnValue({ customerId: 'c1', token: 't' });
-			await expectRedirect('/login', 'jwt', '/dashboard');
+			await expectRedirect('/login', 'jwt', 303, '/console');
 		});
 
-		it('allows /dashboard when authenticated', async () => {
+		it('allows /console when authenticated', async () => {
 			resolveAuthMock.mockReturnValue({ customerId: 'c1', token: 't' });
-			const { resolved, event } = await callHandle('/dashboard', 'jwt');
+			const { resolved, event } = await callHandle('/console', 'jwt');
 			expect(resolved).toBe(true);
 			expect(event.cookies.delete).not.toHaveBeenCalled();
 		});
 
-		it('allows /dashboard/settings when authenticated', async () => {
+		it('allows /console/settings when authenticated', async () => {
 			resolveAuthMock.mockReturnValue({ customerId: 'c1', token: 't' });
-			const { resolved } = await callHandle('/dashboard/settings', 'jwt');
+			const { resolved } = await callHandle('/console/settings', 'jwt');
 			expect(resolved).toBe(true);
 		});
 
@@ -255,7 +284,7 @@ describe('hooks.server handle', () => {
 		it('sets locals.user from resolveAuth result', async () => {
 			const user = { customerId: 'cust-42', token: 'jwt-tok' };
 			resolveAuthMock.mockReturnValue(user);
-			const { event } = await callHandle('/dashboard', 'jwt-tok');
+			const { event } = await callHandle('/console', 'jwt-tok');
 			expect(event.locals.user).toEqual(user);
 		});
 
@@ -289,7 +318,7 @@ describe('hooks.server handleError', () => {
 
 	it('logs the customer support reference with the backend request id without raw internals', async () => {
 		const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-		const event = makeEvent('/dashboard/indexes');
+		const event = makeEvent('/console/indexes');
 		const error = new ApiRequestError(
 			500,
 			'PG::ConnectionBad: could not connect to 10.0.0.12:5432',
@@ -314,7 +343,7 @@ describe('hooks.server handleError', () => {
 		const [eventName, report] = consoleError.mock.calls[0] as [string, Record<string, unknown>];
 		expect(eventName).toBe('route error reported');
 		expect(report).toEqual({
-			path: '/dashboard/indexes',
+			path: '/console/indexes',
 			status: 500,
 			scope: 'dashboard',
 			support_reference: result.supportReference,

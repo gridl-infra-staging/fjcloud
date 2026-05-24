@@ -13,9 +13,9 @@ import type { Page } from '@playwright/test';
 import { test, expect } from '../../fixtures/fixtures';
 
 async function openOnboardingStepOne(page: Page): Promise<void> {
-	await page.goto('/dashboard');
+	await page.goto('/console');
 	await page.getByTestId('onboarding-banner').getByRole('link', { name: 'Continue setup' }).click();
-	await expect(page).toHaveURL(/\/dashboard\/onboarding/);
+	await expect(page).toHaveURL(/\/console\/onboarding/);
 	await expect(page.getByTestId('onboarding-step-1')).toBeVisible();
 }
 
@@ -30,7 +30,7 @@ async function restoreFreshOnboardingBanner(
 
 	// Delete the UI-created index so other fresh-user specs can still
 	// assert the shared onboarding banner regardless of file order.
-	await page.goto('/dashboard/indexes');
+	await page.goto('/console/indexes');
 
 	const createdRow = page.getByRole('row').filter({
 		has: page.getByRole('link', { name: indexName })
@@ -42,7 +42,7 @@ async function restoreFreshOnboardingBanner(
 	await deleteButton.click();
 	await expect(page.getByRole('cell', { name: indexName })).toHaveCount(0, { timeout: 30_000 });
 
-	await page.goto('/dashboard');
+	await page.goto('/console');
 	await expect(page.getByTestId('onboarding-banner')).toBeVisible({ timeout: 30_000 });
 }
 
@@ -54,9 +54,9 @@ test.describe('Fresh-user onboarding flow', () => {
 	test.describe.configure({ retries: 0 });
 
 	test('load-and-verify: dashboard shows onboarding banner for fresh user', async ({ page }) => {
-		await page.goto('/dashboard');
+		await page.goto('/console');
 
-		await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
+		await expect(page.getByRole('heading', { name: 'Console' })).toBeVisible();
 		await expect(page.getByTestId('onboarding-banner')).toBeVisible();
 		await expect(
 			page.getByTestId('onboarding-banner').getByText('Complete your setup')

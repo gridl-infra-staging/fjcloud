@@ -2,8 +2,8 @@
 
 ## Scope
 
-- Primary routes: `/dashboard/billing/invoices`, `/dashboard/billing/invoices/[id]`
-- Related routes: `/dashboard/billing`, admin batch billing
+- Primary routes: `/console/billing/invoices`, `/console/billing/invoices/[id]`
+- Related routes: `/console/billing`, admin batch billing
 - Audience: authenticated customers reviewing invoices
 - Priority: P1
 
@@ -25,7 +25,7 @@ The invoice list shows `Invoices` and either `No invoices yet` or a table with p
 
 ## Controls And Navigation
 
-- List `View` links open `/dashboard/billing/invoices/[id]`.
+- List `View` links open `/console/billing/invoices/[id]`.
 - Detail `Back to invoices` returns to the list.
 - `Pay on Stripe` opens only safe HTTPS hosted invoice URLs for finalized invoices.
 - `Download PDF` opens only safe HTTPS PDF URLs, plus loopback `http://localhost`/`127.0.0.1` URLs produced by LocalStripe in local signoff.
@@ -41,12 +41,12 @@ The invoice list shows `Invoices` and either `No invoices yet` or a table with p
 ## Current Implementation Gaps
 
 Invoice-detail browser coverage may skip when local Stripe linkage is unavailable. Mailpit invoice-ready email evidence is owned by the local commerce proof rather than this browser spec.
-Billing-page availability/portal-action behavior and subscription-status-banner ownership remain in `docs/screen_specs/dashboard_billing.md` to avoid duplicate contracts in this invoice-focused spec.
+Billing-page availability/portal-action behavior and subscription-status-banner ownership remain in `docs/screen_specs/console_billing.md` to avoid duplicate contracts in this invoice-focused spec.
 
 ## Automated Coverage
 
 - Browser-unmocked tests: `web/tests/e2e-ui/full/billing.spec.ts`
 - Browser-unmocked fresh-signup lifecycle lane: `web/tests/e2e-ui/full/signup_to_paid_invoice.spec.ts`
-- Component tests: `web/src/routes/dashboard/billing/invoices/invoices.test.ts`
+- Component tests: `web/src/routes/console/billing/invoices/invoices.test.ts`
 - Server/contract tests: `cd infra && cargo test -p api --test billing_endpoints_test`; `cd infra && cargo test -p api --test stripe_billing_test`
 - LocalStripe/Mailpit proof: `scripts/local-signoff-commerce.sh`; `docs/design/stage3_local_commerce_proof_contract.md`; `docs/checklists/LOCAL_SIGNOFF_EVIDENCE_TEMPLATE.md`

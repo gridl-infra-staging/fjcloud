@@ -4,8 +4,8 @@
  * Covers the complete authentication surface:
  *   - Login form renders correctly
  *   - Wrong password shows error alert, stays on /login
- *   - Successful login redirects to /dashboard
- *   - Unauthenticated visit to /dashboard redirects to /login
+ *   - Successful login redirects to /console
+ *   - Unauthenticated visit to /console redirects to /login
  *   - Logout ends the session
  *   - Forgot-password form accepts submission
  *   - Signup form validates password confirmation
@@ -59,14 +59,14 @@ async function loginThroughUiWithRetry(
 
 		const loginAlert = page.getByRole('alert');
 		const dashboardNavigation = page
-			.waitForURL(/\/dashboard/, { timeout: 10_000 })
+			.waitForURL(/\/console/, { timeout: 10_000 })
 			.catch(() => undefined);
 		const alertVisible = loginAlert
 			.waitFor({ state: 'visible', timeout: 10_000 })
 			.catch(() => undefined);
 		await Promise.race([dashboardNavigation, alertVisible]);
 
-		if (/\/dashboard/.test(page.url())) {
+		if (/\/console/.test(page.url())) {
 			return;
 		}
 
@@ -75,7 +75,7 @@ async function loginThroughUiWithRetry(
 			throw new Error('Login was transiently rate-limited; retrying through visible UI');
 		}
 
-		await expect(page).toHaveURL(/\/dashboard/, { timeout: 10_000 });
+		await expect(page).toHaveURL(/\/console/, { timeout: 10_000 });
 	}).toPass({
 		intervals: [1_000, 2_000, 3_000, 4_000, 5_000],
 		timeout: 45_000
@@ -163,11 +163,11 @@ test.describe('Login page', () => {
 			process.env.E2E_USER_EMAIL ?? '',
 			process.env.E2E_USER_PASSWORD ?? ''
 		);
-		await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
+		await expect(page.getByRole('heading', { name: 'Console' })).toBeVisible();
 	});
 
-	test('unauthenticated visit to /dashboard redirects to /login', async ({ page }) => {
-		await page.goto('/dashboard');
+	test('unauthenticated visit to /console redirects to /login', async ({ page }) => {
+		await page.goto('/console');
 
 		await expect(page).toHaveURL(/\/login/);
 	});
@@ -185,7 +185,7 @@ test.describe('Login page', () => {
 
 		await loginThroughUiWithRetry(page, loginEmail, loginPassword);
 
-		await page.goto('/dashboard/indexes');
+		await page.goto('/console/indexes');
 		await expect(page.getByRole('heading', { name: 'Indexes' })).toBeVisible();
 
 		await page.context().addCookies([
@@ -228,9 +228,9 @@ test.describe('Logout', () => {
 		// Act: click Logout in the header
 		await page.getByRole('button', { name: 'Logout' }).click();
 
-		// Assert: redirected to login; subsequent visit to /dashboard also redirects
+		// Assert: redirected to login; subsequent visit to /console also redirects
 		await expect(page).toHaveURL(/\/login/, { timeout: 10_000 });
-		await page.goto('/dashboard');
+		await page.goto('/console');
 		await expect(page).toHaveURL(/\/login/);
 	});
 });

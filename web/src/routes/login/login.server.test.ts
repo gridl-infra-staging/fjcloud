@@ -108,7 +108,7 @@ describe('Login server action', () => {
 			actions.default(
 				makeEvent({ email: '  USER@Example.COM  ', password: 'password123' }, setCookie)
 			)
-		).rejects.toMatchObject({ status: 303, location: '/dashboard' });
+		).rejects.toMatchObject({ status: 303, location: '/console' });
 
 		expect(loginMock).toHaveBeenCalledWith({
 			email: 'user@example.com',
@@ -140,7 +140,7 @@ describe('Login server action', () => {
 					'http://127.0.0.1:5173/login'
 				)
 			)
-		).rejects.toMatchObject({ status: 303, location: '/dashboard' });
+		).rejects.toMatchObject({ status: 303, location: '/console' });
 
 		expect(setCookie).toHaveBeenCalledWith(
 			AUTH_COOKIE,

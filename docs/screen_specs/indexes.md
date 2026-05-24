@@ -2,8 +2,8 @@
 
 ## Scope
 
-- Primary route: `/dashboard/indexes`
-- Related routes: `/dashboard/indexes/[name]`, `/dashboard/billing`
+- Primary route: `/console/indexes`
+- Related routes: `/console/indexes/[name]`, `/console/billing`
 - Audience: authenticated customers managing search indexes
 - Priority: P0
 
@@ -27,7 +27,7 @@ The screen shows `Indexes`, a `Create Index` button, a hidden-by-default creatio
 - `Create Index` toggles the form.
 - `Index name` and region picker submit through `Create`.
 - `Cancel` hides the form.
-- Index name links navigate to `/dashboard/indexes/[name]`.
+- Index name links navigate to `/console/indexes/[name]`.
 - `Delete` asks for browser confirmation before deletion.
 
 ## Acceptance Criteria
@@ -35,7 +35,7 @@ The screen shows `Indexes`, a `Create Index` button, a hidden-by-default creatio
 - [ ] Seeded index appears in the table with exact name.
 - [ ] Create form toggles open/closed and exposes accessible controls.
 - [ ] Creating through UI adds a visible table row or setup feedback.
-- [ ] Duplicate index name fails safely and remains on `/dashboard/indexes`.
+- [ ] Duplicate index name fails safely and remains on `/console/indexes`.
 - [ ] Clicking an index name opens the detail page.
 
 ## Current Implementation Gaps
@@ -45,5 +45,5 @@ Delete confirmation relies on native `confirm`; browser coverage validates butto
 ## Automated Coverage
 
 - Browser-unmocked tests: `web/tests/e2e-ui/full/indexes.spec.ts`; `web/tests/e2e-ui/smoke/indexes.spec.ts`
-- Component tests: `web/src/routes/dashboard/indexes/indexes.test.ts`; `web/src/routes/dashboard/indexes/indexes.server.test.ts`
-- Server/contract tests: `web/src/routes/dashboard/indexes/indexes.server.test.ts`
+- Component tests: `web/src/routes/console/indexes/indexes.test.ts`; `web/src/routes/console/indexes/indexes.server.test.ts`
+- Server/contract tests: `web/src/routes/console/indexes/indexes.server.test.ts`

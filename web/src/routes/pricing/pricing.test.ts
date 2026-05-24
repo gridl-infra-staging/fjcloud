@@ -162,9 +162,12 @@ describe('Pricing page', () => {
 			)
 		).toBeInTheDocument();
 
+		// URL-obscurity beta gate: pricing CTA removed.
+		// See docs/decisions/2026_05_23_beta_signup_gate.md.
 		const pricingMain = screen.getByTestId('pricing-page-main');
-		const cta = within(pricingMain).getByRole('link', { name: MARKETING_PRICING.cta_label });
-		expect(cta).toHaveAttribute('href', '/signup');
+		expect(
+			within(pricingMain).queryByRole('link', { name: MARKETING_PRICING.cta_label })
+		).not.toBeInTheDocument();
 	});
 
 	it('renders mutated CTA, free-tier MB, minimum spend, and region ordering from route payload data', async () => {
@@ -189,9 +192,11 @@ describe('Pricing page', () => {
 				`Every account includes ${mutatedPricing.free_tier_mb} MB of hot index storage before paid billing starts.`
 			)
 		).toBeInTheDocument();
+		// URL-obscurity beta gate: pricing CTA removed.
+		// See docs/decisions/2026_05_23_beta_signup_gate.md.
 		expect(
-			within(pricingMain).getByRole('link', { name: mutatedPricing.cta_label })
-		).toHaveAttribute('href', '/signup');
+			within(pricingMain).queryByRole('link', { name: mutatedPricing.cta_label })
+		).not.toBeInTheDocument();
 		expect(
 			within(pricingMain).getByText(formatCents(mutatedPricing.shared_minimum_spend_cents))
 		).toBeInTheDocument();

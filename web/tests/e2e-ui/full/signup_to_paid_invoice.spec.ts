@@ -15,13 +15,13 @@ type DashboardRouteExpectation = {
 };
 
 const DASHBOARD_ROUTE_EXPECTATIONS: DashboardRouteExpectation[] = [
-	{ label: 'Dashboard', path: '/dashboard', heading: 'Dashboard' },
-	{ label: 'Indexes', path: '/dashboard/indexes', heading: 'Indexes' },
-	{ label: 'Billing', path: '/dashboard/billing', heading: 'Billing' },
-	{ label: 'API Keys', path: '/dashboard/api-keys', heading: 'API Keys' },
-	{ label: 'Logs', path: '/dashboard/logs', heading: 'API Logs' },
-	{ label: 'Migrate', path: '/dashboard/migrate', heading: 'Migrate from Algolia' },
-	{ label: 'Account', path: '/dashboard/account', heading: 'Account' }
+	{ label: 'Console', path: '/console', heading: 'Console' },
+	{ label: 'Indexes', path: '/console/indexes', heading: 'Indexes' },
+	{ label: 'Billing', path: '/console/billing', heading: 'Billing' },
+	{ label: 'API Keys', path: '/console/api-keys', heading: 'API Keys' },
+	{ label: 'Logs', path: '/console/logs', heading: 'API Logs' },
+	{ label: 'Migrate', path: '/console/migrate', heading: 'Migrate from Algolia' },
+	{ label: 'Account', path: '/console/account', heading: 'Account' }
 ];
 const TRANSIENT_RATE_LIMIT_PATTERN = /too many requests/i;
 const SESSION_EXPIRED_REASON = 'session_expired';
@@ -48,7 +48,7 @@ async function loginWithFreshSignupCredentials(
 		await page.getByRole('button', { name: 'Log In' }).click();
 
 		try {
-			await expect(page).toHaveURL(/\/dashboard/, { timeout: 20_000 });
+			await expect(page).toHaveURL(/\/console/, { timeout: 20_000 });
 			return;
 		} catch (error) {
 			const loginAlert = page.getByRole('alert');
@@ -62,8 +62,8 @@ async function loginWithFreshSignupCredentials(
 
 			const token = await loginAs(email, password);
 			await setAuthCookieForToken(page, token);
-			await page.goto('/dashboard');
-			await expect(page).toHaveURL(/\/dashboard/, { timeout: 20_000 });
+			await page.goto('/console');
+			await expect(page).toHaveURL(/\/console/, { timeout: 20_000 });
 		}
 	}).toPass({
 		intervals: [1_000, 2_000, 3_000, 4_000, 5_000],
@@ -199,8 +199,8 @@ test.describe('Fresh signup to paid invoice', () => {
 			return;
 		}
 
-		await expect(page).toHaveURL(/\/dashboard/, { timeout: 20_000 });
-		await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
+		await expect(page).toHaveURL(/\/console/, { timeout: 20_000 });
+		await expect(page.getByRole('heading', { name: 'Console' })).toBeVisible();
 
 		const { verificationToken } = await completeFreshSignupEmailVerification(page, signup.email);
 		await page.goto(`/verify-email/${verificationToken}`);
@@ -210,8 +210,8 @@ test.describe('Fresh signup to paid invoice', () => {
 		await expect(page.getByText(/invalid or expired verification token/i)).toBeVisible();
 
 		await loginWithFreshSignupCredentials(page, signup.email, signup.password, loginAs);
-		await page.goto('/dashboard');
-		await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
+		await page.goto('/console');
+		await expect(page.getByRole('heading', { name: 'Console' })).toBeVisible();
 
 		const paidInvoiceEvidence = await arrangePaidInvoiceForFreshSignup(
 			signup.email,
@@ -226,7 +226,7 @@ test.describe('Fresh signup to paid invoice', () => {
 
 		await gotoWithSessionRecovery(
 			page,
-			'/dashboard/billing/invoices',
+			'/console/billing/invoices',
 			signup.email,
 			signup.password,
 			loginAs
@@ -240,7 +240,7 @@ test.describe('Fresh signup to paid invoice', () => {
 		await expect(invoiceLink).toBeVisible({ timeout: 30_000 });
 		await invoiceLink.click();
 		await expect(page).toHaveURL(
-			new RegExp(`/dashboard/billing/invoices/${paidInvoiceEvidence.invoiceId}$`)
+			new RegExp(`/console/billing/invoices/${paidInvoiceEvidence.invoiceId}$`)
 		);
 		await expect(page.getByRole('heading', { name: 'Line Items' })).toBeVisible();
 		await expectInvoiceHeaderStatusBadge(page, 'Paid');

@@ -139,7 +139,7 @@ describe('Signup server action', () => {
 					setCookie
 				)
 			)
-		).rejects.toMatchObject({ status: 303, location: '/dashboard' });
+		).rejects.toMatchObject({ status: 303, location: '/console' });
 
 		expect(registerMock).toHaveBeenCalledWith({
 			name: 'Alice Example',
@@ -177,7 +177,7 @@ describe('Signup server action', () => {
 					'http://127.0.0.1:5173/signup'
 				)
 			)
-		).rejects.toMatchObject({ status: 303, location: '/dashboard' });
+		).rejects.toMatchObject({ status: 303, location: '/console' });
 
 		expect(setCookie).toHaveBeenCalledWith(
 			AUTH_COOKIE,
@@ -251,7 +251,7 @@ describe('Signup server action', () => {
 					confirm_password: 'password123'
 				})
 			)
-		).rejects.toMatchObject({ status: 303, location: '/dashboard' });
+		).rejects.toMatchObject({ status: 303, location: '/console' });
 
 		expect(registerMock).toHaveBeenCalledWith({
 			name: 'Alice',
@@ -262,7 +262,7 @@ describe('Signup server action', () => {
 
 	// Regression test for the JWT-verify asymmetry the Lane 4 launch-verification
 	// run surfaced on 2026-05-21: signup was setting the auth cookie and
-	// redirecting to /dashboard without verifying the returned token against
+	// redirecting to /console without verifying the returned token against
 	// this runtime's JWT_SECRET, so a cross-env API_BASE_URL (or any JWT_SECRET
 	// drift) silently set a dead cookie. Login already had this gate; signup
 	// must match. See web/src/routes/login/+page.server.ts and the symmetric

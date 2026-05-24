@@ -80,7 +80,7 @@ export const handle: Handle = async ({ event, resolve }) => {
 		event.locals.user = null;
 	}
 
-	if (!event.locals.user && event.url.pathname.startsWith('/dashboard')) {
+	if (!event.locals.user && event.url.pathname.startsWith('/console')) {
 		if (token) {
 			event.cookies.delete(AUTH_COOKIE, { path: '/' });
 		}
@@ -88,7 +88,7 @@ export const handle: Handle = async ({ event, resolve }) => {
 	}
 
 	if (event.locals.user && isPublicPath(event.url.pathname)) {
-		redirect(303, '/dashboard');
+		redirect(303, '/console');
 	}
 
 	const response = await resolve(event);

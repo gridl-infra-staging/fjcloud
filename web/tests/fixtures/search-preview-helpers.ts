@@ -83,7 +83,7 @@ export async function waitForSearchPreviewReady(page: Page): Promise<void> {
 }
 
 export async function gotoIndexDetailWithRetry(page: Page, indexName: string): Promise<void> {
-	const path = `/dashboard/indexes/${encodeURIComponent(indexName)}`;
+	const path = `/console/indexes/${encodeURIComponent(indexName)}`;
 
 	for (let attempt = 0; attempt < 5; attempt += 1) {
 		await page.goto(path);

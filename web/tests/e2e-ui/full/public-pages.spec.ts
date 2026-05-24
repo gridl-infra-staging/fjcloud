@@ -46,7 +46,9 @@ test.describe('Landing page', () => {
 			'https://github.com/griddlehq/flapjack'
 		);
 		await expect(page.getByRole('navigation').getByRole('link', { name: 'Log In' })).toBeVisible();
-		await expect(page.getByRole('navigation').getByRole('link', { name: 'Sign Up' })).toBeVisible();
+		// URL-obscurity beta gate: public Sign Up CTA removed.
+		// See docs/decisions/2026_05_23_beta_signup_gate.md.
+		await expect(page.getByRole('navigation').getByRole('link', { name: 'Sign Up' })).toHaveCount(0);
 		await expect(page.getByRole('link', { name: 'View API Docs' })).toHaveAttribute(
 			'href',
 			'https://api.flapjack.foo/docs'
@@ -79,31 +81,38 @@ test.describe('Landing page', () => {
 		await expect(page.getByRole('heading', { name: 'Log in to Flapjack Cloud' })).toBeVisible();
 	});
 
-	test('Sign Up link reaches the signup page', async ({ page }) => {
-		await page.goto('/');
-
-		await page.getByRole('navigation').getByRole('link', { name: 'Sign Up' }).click();
-
+	// URL-obscurity beta gate: public Sign Up CTAs removed, but /signup itself
+	// stays reachable so invited users can register via the direct URL.
+	// See docs/decisions/2026_05_23_beta_signup_gate.md.
+	test('direct navigation to /signup still renders the signup form', async ({ page }) => {
+		await page.goto('/signup');
 		await expect(page).toHaveURL(/\/signup/);
 		await expect(page.getByRole('heading', { name: 'Create your account' })).toBeVisible();
 	});
 
-	test('landing body shows free-tier promise and body CTA drives signup flow', async ({ page }) => {
+	test('landing body shows free-tier promise; signup CTAs absent during beta', async ({ page }) => {
 		await page.goto('/');
 
 		const freeTierPromiseMatches = page.getByText(MARKETING_PRICING.free_tier_promise);
-		expect(await freeTierPromiseMatches.count()).toBeGreaterThanOrEqual(3);
+		expect(await freeTierPromiseMatches.count()).toBeGreaterThanOrEqual(2);
 
-		const bodyCta = page
+		const bodyCtas = page
 			.getByRole('main')
-			.getByRole('link', { name: MARKETING_PRICING.cta_label })
-			.first();
-		await expect(bodyCta).toBeVisible();
-		await bodyCta.click();
+			.getByRole('link', { name: MARKETING_PRICING.cta_label });
+		await expect(bodyCtas).toHaveCount(0);
+	});
 
-		await expect(page).toHaveURL(/\/signup/);
-		await expect(page.getByRole('heading', { name: 'Create your account' })).toBeVisible();
-		await expect(page.getByText(MARKETING_PRICING.free_tier_promise)).toBeVisible();
+	test('Policies section publishes refund and cancellation terms', async ({ page }) => {
+		await page.goto('/');
+		const main = page.getByRole('main');
+		await expect(main.getByRole('heading', { name: 'Policies', level: 2 })).toBeVisible();
+		await expect(main.getByRole('heading', { name: 'Cancellation', level: 3 })).toBeVisible();
+		await expect(main.getByRole('heading', { name: 'Refunds', level: 3 })).toBeVisible();
+		await expect(main).toContainText(
+			/duplicate charges, billing errors, or service\s+unavailability/
+		);
+		await expect(main).toContainText(/within 30 days of the charge/);
+		await expect(main).toContainText(/support@flapjack\.foo/);
 	});
 
 	test('interactive pricing calculator returns Flapjack Cloud and competitor rows', async ({
@@ -159,14 +168,17 @@ test.describe('Pricing page', () => {
 			`${sharedPlanMinimumMonthlyLabel(marketingSnapshot.shared_minimum_spend_cents)}/month minimum`
 		);
 
-		const primaryCta = pricingMain.getByRole('link', { name: MARKETING_PRICING.cta_label });
-		await expect(primaryCta).toHaveAttribute('href', '/signup');
+		// URL-obscurity beta gate: pricing CTA + nav Sign Up removed.
+		// See docs/decisions/2026_05_23_beta_signup_gate.md.
+		await expect(pricingMain.getByRole('link', { name: MARKETING_PRICING.cta_label })).toHaveCount(
+			0
+		);
 		await expect(
 			page.getByRole('navigation').getByRole('link', { name: 'Log In' })
 		).toHaveAttribute('href', '/login');
-		await expect(
-			page.getByRole('navigation').getByRole('link', { name: 'Sign Up' })
-		).toHaveAttribute('href', '/signup');
+		await expect(page.getByRole('navigation').getByRole('link', { name: 'Sign Up' })).toHaveCount(
+			0
+		);
 
 		const regionTable = pricingMain.getByRole('table', { name: 'Region multipliers' });
 		const regionRows = regionTable.getByRole('row');
@@ -233,9 +245,11 @@ test.describe('Public beta and legal pages', () => {
 			'href',
 			/mailto:support@flapjack\.foo/
 		);
+		// URL-obscurity beta gate: "Start beta signup" CTAs removed from /beta.
+		// See docs/decisions/2026_05_23_beta_signup_gate.md.
 		await expect(
 			page.getByRole('main').getByRole('link', { name: 'Start beta signup' })
-		).toHaveAttribute('href', /\/signup$/);
+		).toHaveCount(0);
 		await expect(page.getByRole('link', { name: 'Terms' })).toHaveAttribute('href', '/terms');
 		await expect(page.getByRole('link', { name: 'Privacy' })).toHaveAttribute('href', '/privacy');
 		await expect(page.getByRole('link', { name: 'DPA' })).toHaveAttribute('href', '/dpa');

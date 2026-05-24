@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { resolve } from '$app/paths';
+	// `resolve` import removed alongside signup CTA deletion (URL-obscurity beta gate).
+	// See docs/decisions/2026_05_23_beta_signup_gate.md. Restore on gate revert.
 	import { formatCents } from '$lib/format';
 	import { sharedPlanMinimumMonthlyLabel } from '$lib/pricing';
 
@@ -44,9 +45,8 @@
 					<li>{pricing.free_tier_mb} MB hot storage</li>
 					<li>{formatCount(pricing.free_tier_max_searches_per_month)} searches per month</li>
 				</ul>
-				<a href={resolve('/signup')} class="diner-button mt-8 px-6 py-3 text-sm">
-					{pricing.cta_label}
-				</a>
+				<!-- Signup CTA removed during invite-only beta. See docs/decisions/2026_05_23_beta_signup_gate.md -->
+
 			</div>
 
 			<section class="raised shadow-on-teal mt-10 border-4 border-[#1f1b18] bg-[#fff8ea] p-6">

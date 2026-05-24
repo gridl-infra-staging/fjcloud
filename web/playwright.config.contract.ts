@@ -323,7 +323,7 @@ export function resolvePlaywrightRuntime({
 		// The Apr27 hardening (commit d4dde081 "Harden signup verification
 		// bypass") gated SKIP_EMAIL_VERIFICATION on ENVIRONMENT ∈
 		// {local,dev,development}. Both must be set together for the spawned
-		// API server to auto-verify signups, otherwise /signup → /dashboard
+		// API server to auto-verify signups, otherwise /signup → /console
 		// redirects back to /login because verification is required, breaking
 		// every fixture in tests/fixtures/onboarding-auth-shared.ts and
 		// auth.setup.ts. These ONLY apply to the locally-spawned webServer

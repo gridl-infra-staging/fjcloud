@@ -18,7 +18,7 @@ const sharedFixtureUser = resolveRequiredFixtureUserCredentials(process.env);
 test.describe('Account page', () => {
 	test('load-and-verify: renders profile section with email', async ({ page }) => {
 		// Act: navigate to account
-		await page.goto('/dashboard/account');
+		await page.goto('/console/account');
 
 		// Assert: page-specific heading visible
 		await expect(page.getByRole('heading', { name: 'Account', exact: true })).toBeVisible();
@@ -32,7 +32,7 @@ test.describe('Account page', () => {
 	});
 
 	test('update profile name shows success message', async ({ page }) => {
-		await page.goto('/dashboard/account');
+		await page.goto('/console/account');
 
 		const newName = `E2E Test User ${Date.now()}`;
 
@@ -46,7 +46,7 @@ test.describe('Account page', () => {
 	});
 
 	test('change password section is visible', async ({ page }) => {
-		await page.goto('/dashboard/account');
+		await page.goto('/console/account');
 
 		await expect(page.getByRole('heading', { name: 'Change Password' })).toBeVisible();
 		await expect(page.getByLabel('Current password')).toBeVisible();
@@ -56,7 +56,7 @@ test.describe('Account page', () => {
 	});
 
 	test('wrong current password shows error', async ({ page }) => {
-		await page.goto('/dashboard/account');
+		await page.goto('/console/account');
 		await expect(page.getByRole('heading', { name: 'Change Password' })).toBeVisible();
 
 		// Act: submit with wrong current password
@@ -70,7 +70,7 @@ test.describe('Account page', () => {
 	});
 
 	test('mismatched new passwords shows error', async ({ page }) => {
-		await page.goto('/dashboard/account');
+		await page.goto('/console/account');
 		await expect(page.getByRole('heading', { name: 'Change Password' })).toBeVisible();
 
 		await page.getByLabel('Current password').fill(sharedFixtureUser.password);
@@ -116,10 +116,10 @@ test.describe('Account password change lifecycle', () => {
 		await page.getByLabel('Email').fill(email);
 		await page.getByLabel('Password').fill(oldPassword);
 		await page.getByRole('button', { name: 'Log In' }).click();
-		await expect(page).toHaveURL(/\/dashboard/, { timeout: 10_000 });
+		await expect(page).toHaveURL(/\/console/, { timeout: 10_000 });
 
 		// Step 2: Navigate to account and change password
-		await page.goto('/dashboard/account');
+		await page.goto('/console/account');
 		await expect(page.getByRole('heading', { name: 'Change Password' })).toBeVisible();
 
 		await page.getByLabel('Current password').fill(oldPassword);
@@ -148,7 +148,7 @@ test.describe('Account password change lifecycle', () => {
 		await page.getByLabel('Email').fill(email);
 		await page.getByLabel('Password').fill(newPassword);
 		await page.getByRole('button', { name: 'Log In' }).click();
-		await expect(page).toHaveURL(/\/dashboard/, { timeout: 10_000 });
+		await expect(page).toHaveURL(/\/console/, { timeout: 10_000 });
 	});
 });
 
@@ -171,7 +171,7 @@ test.describe('Account delete-account flow', () => {
 		}
 		const throwawayPassword = signup.password;
 
-		await page.goto('/dashboard/account');
+		await page.goto('/console/account');
 		await expect(page.getByRole('heading', { name: 'Account', exact: true })).toBeVisible();
 		await expect(page.getByTestId('delete-account-danger-zone')).toBeVisible();
 		await expect(page.getByRole('heading', { name: 'Delete Account' })).toBeVisible();

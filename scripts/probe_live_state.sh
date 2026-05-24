@@ -244,6 +244,55 @@ else
   add_row "stripe_restricted_live_presence" "STALE" "false" "STRIPE_SECRET_KEY_RESTRICTED_LIVE absent — may be intentional" "stripe_restricted_live_presence.txt"
 fi
 
+# Stripe account configuration — statement descriptor + business profile.
+# Operator sets these in the Stripe Dashboard; this probe verifies the
+# API-readable subset via GET /v1/account. Customer-Emails toggles
+# (invoice receipts, dunning, expiring-card) are NOT exposed by this endpoint
+# and must be operator-verified per docs/runbooks/paid_beta_rc_signoff.md
+# "Stripe Dashboard Prerequisites".
+raw_file="$OUT/stripe_account_config.txt"
+register_raw "stripe_account_config.txt"
+if [ -n "${STRIPE_SECRET_KEY:-}" ]; then
+  http_status="$(curl -s -o "$OUT/stripe_account_config.body.json" -w '%{http_code}' \
+    --max-time 10 \
+    -u "${STRIPE_SECRET_KEY}:" \
+    "https://api.stripe.com/v1/account" 2>/dev/null || echo "000")"
+  register_raw "stripe_account_config.body.json"
+  {
+    echo "http_status=$http_status"
+    if [ "$http_status" = "200" ] && command -v python3 >/dev/null; then
+      python3 -c '
+import json
+d = json.load(open("'"$OUT/stripe_account_config.body.json"'"))
+sd = d.get("settings", {}).get("payments", {}).get("statement_descriptor", "")
+bp = d.get("business_profile") or {}
+support = bp.get("support_email", "")
+url = bp.get("url", "")
+name = bp.get("name", "")
+print("statement_descriptor:", sd or "(unset)")
+print("business_profile.support_email:", support or "(unset)")
+print("business_profile.url:", url or "(unset)")
+print("business_profile.name:", name or "(unset)")
+missing = [k for k, v in [("statement_descriptor", sd), ("support_email", support), ("business_url", url), ("business_name", name)] if not v]
+print("missing:", ",".join(missing) if missing else "(none)")
+'
+    fi
+  } > "$raw_file"
+  if [ "$http_status" = "200" ]; then
+    missing_line="$(grep '^missing:' "$raw_file" | sed 's/^missing: //')"
+    if [ "$missing_line" = "(none)" ]; then
+      add_row "stripe_account_config" "OK" "false" "statement descriptor + business profile complete" "stripe_account_config.txt"
+    else
+      add_row "stripe_account_config" "ACTION_REQUIRED" "false" "Stripe Dashboard missing: $missing_line (operator action — see docs/runbooks/paid_beta_rc_signoff.md Stripe Dashboard Prerequisites)" "stripe_account_config.txt"
+    fi
+  else
+    add_row "stripe_account_config" "PROBE_ERROR" "false" "Stripe /v1/account returned HTTP $http_status" "stripe_account_config.txt"
+  fi
+else
+  echo "STRIPE_SECRET_KEY unset" > "$raw_file"
+  add_row "stripe_account_config" "SKIP_NO_CREDS" "false" "STRIPE_SECRET_KEY unset" "stripe_account_config.txt"
+fi
+
 # ---------------------------------------------------------------------------
 # 3. AWS SNS — fjcloud-alerts subscriptions per environment
 # ---------------------------------------------------------------------------

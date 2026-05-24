@@ -1,5 +1,5 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { extname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { describe, expect, it } from 'vitest';
 import {
@@ -722,8 +722,8 @@ describe('playwright config contract', () => {
 			expect(projectContractsByName['chromium:signup']?.use?.storageState).toBeUndefined();
 		});
 
-		it('dashboard_upgrade_to_shared.spec.ts matches chromium:mocked only', () => {
-			const specPath = 'tests/e2e-ui/mocked/dashboard_upgrade_to_shared.spec.ts';
+		it('console_upgrade_to_shared.spec.ts matches chromium:mocked only', () => {
+			const specPath = 'tests/e2e-ui/mocked/console_upgrade_to_shared.spec.ts';
 			expect(projectContractsByName['chromium:mocked']?.testMatch.test(specPath)).toBe(true);
 			expect(projectContractsByName.chromium?.testMatch.test(specPath)).toBe(false);
 			expect(projectContractsByName['chromium:public']?.testMatch.test(specPath)).toBe(false);
@@ -731,6 +731,32 @@ describe('playwright config contract', () => {
 			expect(projectContractsByName['chromium:mocked']?.dependencies).toEqual(['setup:user']);
 			expect(projectContractsByName['chromium:mocked']?.use?.storageState).toBe(
 				PLAYWRIGHT_STORAGE_STATE.user
+			);
+		});
+
+		it('console-named e2e spec assets exist after the route-owner rename', () => {
+			expect(existsSync(join(process.cwd(), 'tests/e2e-ui/full/console.spec.ts'))).toBe(true);
+			expect(existsSync(join(process.cwd(), 'tests/e2e-ui/smoke/console.spec.ts'))).toBe(true);
+			expect(
+				existsSync(join(process.cwd(), 'tests/e2e-ui/mocked/console_upgrade_to_shared.spec.ts'))
+			).toBe(true);
+		});
+
+		it('smoke/console.spec.ts asserts legacy /dashboard entries land on /console', () => {
+			// Stage 3 contract: the smoke spec must include deterministic URL
+			// assertions verifying that legacy /dashboard entries redirect to
+			// the matching /console URL. These probes underwrite the Stage 6
+			// deployment verification — losing them silently would let a
+			// regression where the 308 handler stops firing ship undetected.
+			const smokeSpecSource = readFileSync(
+				join(process.cwd(), 'tests/e2e-ui/smoke/console.spec.ts'),
+				'utf8'
+			);
+			expect(smokeSpecSource).toMatch(
+				/page\.goto\('\/dashboard'\)[\s\S]*toHaveURL\(\/\\\/console\(\?:\\\?\.\*\)\?\$\//
+			);
+			expect(smokeSpecSource).toMatch(
+				/page\.goto\('\/dashboard\/billing'\)[\s\S]*toHaveURL\(\/\\\/console\\\/billing\(\?:\\\?\.\*\)\?\$\//
 			);
 		});
 
@@ -1235,7 +1261,7 @@ describe('playwright config contract', () => {
 					/if\s*\(!isRemoteTargetMode\(\)\)\s*\{\s*throw sessionRecoveryFailure\(/m
 				);
 				expect(portalSpecSource).toMatch(
-					/await page\.goto\('\/dashboard\/billing'\);\s*if\s*\(isSessionExpiredUrl\(page\.url\(\)\)\)\s*\{\s*throw sessionRecoveryFailure\(/m
+					/await page\.goto\('\/console\/billing'\);\s*if\s*\(isSessionExpiredUrl\(page\.url\(\)\)\)\s*\{\s*throw sessionRecoveryFailure\(/m
 				);
 			});
 
@@ -1246,7 +1272,7 @@ describe('playwright config contract', () => {
 				);
 				expect(signupSpecSource).toMatch(/await gotoWithSessionRecovery\(/);
 				expect(signupSpecSource).toMatch(
-					/await gotoWithSessionRecovery\(\s*page,\s*'\/dashboard\/billing\/invoices',\s*signup\.email,\s*signup\.password,\s*loginAs\s*\)/
+					/await gotoWithSessionRecovery\(\s*page,\s*'\/console\/billing\/invoices',\s*signup\.email,\s*signup\.password,\s*loginAs\s*\)/
 				);
 				expect(signupSpecSource).toMatch(/if\s*\(!isSessionExpiredUrl\(currentUrl\)\)\s*\{\s*throw error;/m);
 				expect(signupSpecSource).toMatch(
@@ -1296,5 +1322,170 @@ describe('playwright config contract', () => {
 				);
 			});
 		});
+	});
+});
+
+
+describe('dashboard literal inventory contract (Stage 4)', () => {
+	const DASHBOARD_ROUTE_LITERAL = /\/dashboard(?=$|[/?'"`])/;
+	const WEB_ROOT = join(process.cwd(), '.');
+	const STAGE5_EXCLUDED_OWNER_PATH_PREFIXES = ['src/routes/console/'];
+	const ALLOWED_DASHBOARD_LITERAL_FILES = new Set([
+		'src/routes/dashboard/+page.server.ts',
+		'src/routes/dashboard/[...path]/+page.server.ts',
+		'src/routes/dashboard/dashboard_redirect.server.test.ts',
+		'tests/e2e-ui/smoke/console.spec.ts',
+		'src/lib/error-boundary/recovery-copy.ts',
+		'src/lib/error-boundary/client-runtime.test.ts',
+		'src/lib/error-boundary/client_runtime_test_fixtures.ts',
+		'src/routes/admin/end-impersonation/end-impersonation.test.ts',
+		'src/tests/playwright-config-contract.test.ts'
+	]);
+	const TEXT_EXTENSIONS = new Set([
+		'.ts',
+		'.js',
+		'.mjs',
+		'.cjs',
+		'.mts',
+		'.cts',
+		'.svelte',
+		'.json',
+		'.sh',
+		'.yml',
+		'.yaml',
+		'.toml',
+		'.txt'
+	]);
+
+	function collectFilesRecursively(root: string): string[] {
+		const files: string[] = [];
+		for (const entry of readdirSync(root, { withFileTypes: true })) {
+			const absolutePath = join(root, entry.name);
+			if (entry.isDirectory()) {
+				if (entry.name === 'node_modules' || entry.name === 'tmp' || entry.name === '.svelte-kit') {
+					continue;
+				}
+				files.push(...collectFilesRecursively(absolutePath));
+				continue;
+			}
+			if (!entry.isFile()) {
+				continue;
+			}
+			if (!TEXT_EXTENSIONS.has(extname(entry.name))) {
+				continue;
+			}
+			if (statSync(absolutePath).size > 1_000_000) {
+				continue;
+			}
+			const relativePath = absolutePath.replace(`${WEB_ROOT}/`, '');
+			if (
+				STAGE5_EXCLUDED_OWNER_PATH_PREFIXES.some((excludedPrefix) =>
+					relativePath.startsWith(excludedPrefix)
+				)
+			) {
+				continue;
+			}
+			files.push(absolutePath);
+		}
+		return files;
+	}
+
+	it('scans Stage 4 owner extensions and excludes only Stage 5 console route surfaces by path', () => {
+		expect(TEXT_EXTENSIONS.has('.svelte')).toBe(true);
+		expect(TEXT_EXTENSIONS.has('.md')).toBe(false);
+		expect(TEXT_EXTENSIONS.has('.ts')).toBe(true);
+		expect(TEXT_EXTENSIONS.has('.js')).toBe(true);
+		expect(TEXT_EXTENSIONS.has('.sh')).toBe(true);
+
+		const allFiles = collectFilesRecursively(WEB_ROOT).map((absolutePath) =>
+			absolutePath.replace(`${WEB_ROOT}/`, '')
+		);
+		expect(allFiles).toContain('src/routes/+error.svelte');
+		expect(allFiles).not.toContain('src/routes/console/+page.svelte');
+	});
+
+	it('contains /dashboard literals only in the explicit Stage 4 allowlist', () => {
+		const allFiles = collectFilesRecursively(WEB_ROOT);
+		const offenders: string[] = [];
+
+		for (const absolutePath of allFiles) {
+			const relativePath = absolutePath.replace(`${WEB_ROOT}/`, '');
+			const source = readFileSync(absolutePath, 'utf8');
+			if (!DASHBOARD_ROUTE_LITERAL.test(source)) {
+				continue;
+			}
+			if (!ALLOWED_DASHBOARD_LITERAL_FILES.has(relativePath)) {
+				offenders.push(relativePath);
+			}
+		}
+
+		expect(offenders).toEqual([]);
+	});
+
+	it('documents signup landing as /signup -> /console for local playwright webServer mode', () => {
+		const contractSource = readFileSync(join(process.cwd(), 'playwright.config.contract.ts'), 'utf8');
+		expect(contractSource).toContain('/signup → /console');
+		expect(contractSource).not.toContain('/signup → /dashboard');
+	});
+});
+
+describe('rendered Dashboard copy gate (Stage 5)', () => {
+	const CONSOLE_ROOT = join(process.cwd(), 'src', 'routes', 'console');
+
+	const DASHBOARD_WORD = /\bDashboard\b/g;
+
+	const ALLOWED_DASHBOARD_PATTERNS = [
+		/DashboardPage/,
+		/DashboardPlanContext/,
+		/DashboardFreeTierLimits/,
+		/DashboardSession/,
+		/buildDashboard/,
+		/fallbackDashboard/,
+		/mapDashboard/,
+		/isDashboard/,
+		/retryTransientDashboard/,
+		/failForDashboardAction/,
+		/describe\(\s*['"]Dashboard\b/,
+		/it\(\s*['"].*Dashboard\b/,
+		/BoundaryScope.*=.*['"]dashboard['"]/,
+	];
+
+	function collectSvelteFiles(dir: string): string[] {
+		const files: string[] = [];
+		for (const entry of readdirSync(dir, { withFileTypes: true })) {
+			const fullPath = join(dir, entry.name);
+			if (entry.isDirectory()) {
+				if (entry.name === 'node_modules' || entry.name === '.svelte-kit') continue;
+				files.push(...collectSvelteFiles(fullPath));
+			} else if (entry.isFile() && entry.name.endsWith('.svelte')) {
+				files.push(fullPath);
+			}
+		}
+		return files;
+	}
+
+	function isAllowed(line: string): boolean {
+		return ALLOWED_DASHBOARD_PATTERNS.some((pattern) => pattern.test(line));
+	}
+
+	it('no customer-visible "Dashboard" in console .svelte files outside the allowlist', () => {
+		const svelteFiles = collectSvelteFiles(CONSOLE_ROOT);
+		expect(svelteFiles.length).toBeGreaterThan(0);
+
+		const violations: string[] = [];
+		for (const filePath of svelteFiles) {
+			const relativePath = filePath.replace(`${join(process.cwd())}/`, '');
+			const lines = readFileSync(filePath, 'utf8').split('\n');
+			for (let i = 0; i < lines.length; i++) {
+				const line = lines[i];
+				if (!DASHBOARD_WORD.test(line)) continue;
+				DASHBOARD_WORD.lastIndex = 0;
+				if (isAllowed(line)) continue;
+				if (line.trimStart().startsWith('//') || line.trimStart().startsWith('<!--')) continue;
+				violations.push(`${relativePath}:${i + 1}: ${line.trim()}`);
+			}
+		}
+
+		expect(violations).toEqual([]);
 	});
 });

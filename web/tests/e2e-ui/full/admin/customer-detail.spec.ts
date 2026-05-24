@@ -380,7 +380,7 @@ test.describe('Admin customer detail workflows', () => {
 
 		await page.getByTestId('impersonate-button').click();
 
-		await expect(page).toHaveURL(/\/dashboard/, { timeout: 10_000 });
+		await expect(page).toHaveURL(/\/console/, { timeout: 10_000 });
 		await expect(page.getByTestId('impersonation-banner')).toBeVisible();
 		await expect(page.getByText('You are impersonating this customer.')).toBeVisible();
 

@@ -15,7 +15,7 @@ import { SUPPORT_EMAIL } from '../../../src/lib/format';
 test.describe('Billing page', () => {
 	test('load-and-verify: billing page renders Billing heading', async ({ page }) => {
 		// Act: navigate to billing
-		await page.goto('/dashboard/billing');
+		await page.goto('/console/billing');
 
 		// Assert: page-specific heading (not sidebar "Billing" nav link)
 		await expect(page.getByRole('heading', { name: 'Billing' })).toBeVisible();
@@ -24,7 +24,7 @@ test.describe('Billing page', () => {
 	test('billing page renders app-owned payment-method state or deterministic unavailable state', async ({
 		page
 	}) => {
-		await page.goto('/dashboard/billing');
+		await page.goto('/console/billing');
 
 		const unavailableHeading = page.getByText('Payment method management unavailable');
 		if ((await unavailableHeading.count()) > 0) {
@@ -57,7 +57,7 @@ test.describe('Billing page', () => {
 test.describe('Invoices page', () => {
 	test('load-and-verify: invoices page renders correctly', async ({ page }) => {
 		// Act: navigate to invoices
-		await page.goto('/dashboard/billing/invoices');
+		await page.goto('/console/billing/invoices');
 
 		// Assert: page-specific heading visible
 		await expect(page.getByRole('heading', { name: 'Invoices' })).toBeVisible();
@@ -94,7 +94,7 @@ test.describe('Invoice detail page', () => {
 		}
 
 		// Act: navigate to invoice detail
-		await page.goto(`/dashboard/billing/invoices/${id}`);
+		await page.goto(`/console/billing/invoices/${id}`);
 
 		// Assert: back navigation link
 		await expect(page.getByRole('link', { name: /back to invoices/i })).toBeVisible();

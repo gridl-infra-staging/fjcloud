@@ -2,8 +2,8 @@
 
 ## Scope
 
-- Primary route: `/dashboard/logs`
-- Related route: `/dashboard`
+- Primary route: `/console/logs`
+- Related route: `/console`
 - Audience: authenticated customers inspecting client-captured API request history
 - Priority: P0
 
@@ -41,6 +41,6 @@ No route-level gaps are currently known. Browser-unmocked coverage exercises the
 
 ## Automated Coverage
 
-- Browser-unmocked tests: `web/tests/e2e-ui/full/dashboard.spec.ts`
-- Component tests: `web/src/routes/dashboard/logs/logs.test.ts`
+- Browser-unmocked tests: `web/tests/e2e-ui/full/console.spec.ts`
+- Component tests: `web/src/routes/console/logs/logs.test.ts`
 - Server/contract tests: none (route behavior is client store/UI only).

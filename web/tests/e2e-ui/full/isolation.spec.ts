@@ -111,7 +111,7 @@ test.describe('Cross-tenant index isolation', () => {
 		const userAToken = await loginAs(userA.email, password);
 		await setAuthCookie(page.context(), userAToken);
 
-		await page.goto(`${BASE_URL}/dashboard/indexes/${encodeURIComponent(sharedIndexName)}`);
+		await page.goto(`${BASE_URL}/console/indexes/${encodeURIComponent(sharedIndexName)}`);
 		await expect(page.getByRole('heading', { name: sharedIndexName })).toBeVisible();
 
 		const statsSection = page.getByTestId('stats-section');
@@ -125,7 +125,7 @@ test.describe('Cross-tenant index isolation', () => {
 			const userBToken = await loginAs(userB.email, password);
 			await setAuthCookie(userBContext, userBToken);
 
-			await userBPage.goto(`${BASE_URL}/dashboard/indexes/${encodeURIComponent(sharedIndexName)}`);
+			await userBPage.goto(`${BASE_URL}/console/indexes/${encodeURIComponent(sharedIndexName)}`);
 			await expect(userBPage.getByRole('heading', { name: sharedIndexName })).toBeVisible();
 
 			const userBStatsSection = userBPage.getByTestId('stats-section');
@@ -189,7 +189,7 @@ test.describe('Cross-tenant index isolation', () => {
 		const userAToken = await loginAs(userA.email, password);
 		await setAuthCookie(page.context(), userAToken);
 
-		await page.goto(`/dashboard/indexes/${encodeURIComponent(sharedIndexName)}`);
+		await page.goto(`/console/indexes/${encodeURIComponent(sharedIndexName)}`);
 		await expect(page.getByRole('heading', { name: sharedIndexName })).toBeVisible();
 		await waitForSearchPreviewReady(page);
 		await generatePreviewKeyAndWaitForWidget(page);
@@ -208,7 +208,7 @@ test.describe('Cross-tenant index isolation', () => {
 			const userBToken = await loginAs(userB.email, password);
 			await setAuthCookie(userBContext, userBToken);
 
-			await userBPage.goto(`${BASE_URL}/dashboard/indexes/${encodeURIComponent(sharedIndexName)}`);
+			await userBPage.goto(`${BASE_URL}/console/indexes/${encodeURIComponent(sharedIndexName)}`);
 			await expect(userBPage.getByRole('heading', { name: sharedIndexName })).toBeVisible();
 			await waitForSearchPreviewReady(userBPage);
 			await generatePreviewKeyAndWaitForWidget(userBPage);
@@ -258,7 +258,7 @@ test.describe('Cross-tenant index isolation', () => {
 		const userAToken = await loginAs(userA.email, password);
 		await setAuthCookie(page.context(), userAToken);
 
-		await page.goto(`/dashboard/indexes/${encodeURIComponent(userBOnlyIndex)}`);
+		await page.goto(`/console/indexes/${encodeURIComponent(userBOnlyIndex)}`);
 		await expect(page.getByText('404')).toBeVisible();
 		await expect(page.getByRole('heading', { name: /not found/i })).toBeVisible();
 		await expect(page.getByText(userBOnlyIndex)).toHaveCount(0);

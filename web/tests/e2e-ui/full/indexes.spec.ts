@@ -30,7 +30,7 @@ type CapturedRuntimeRegions = {
 };
 
 async function openCreateIndexForm(page: Page): Promise<void> {
-	await page.goto('/dashboard/indexes');
+	await page.goto('/console/indexes');
 	await expect(page.getByRole('heading', { name: 'Indexes' })).toBeVisible();
 	await page.getByRole('button', { name: 'Create Index' }).click();
 }
@@ -181,7 +181,7 @@ test.describe('Indexes list page', () => {
 		await seedIndex(name);
 
 		// Act: navigate to indexes
-		await page.goto('/dashboard/indexes');
+		await page.goto('/console/indexes');
 
 		// Assert: page-specific heading visible (not sidebar nav)
 		await expect(page.getByRole('heading', { name: 'Indexes' })).toBeVisible();
@@ -191,7 +191,7 @@ test.describe('Indexes list page', () => {
 	});
 
 	test('Create Index button toggles the creation form', async ({ page }) => {
-		await page.goto('/dashboard/indexes');
+		await page.goto('/console/indexes');
 		await expect(page.getByRole('heading', { name: 'Indexes' })).toBeVisible();
 
 		// Form is hidden initially
@@ -254,13 +254,13 @@ test.describe('Indexes list page', () => {
 
 		registerIndexForCleanup(secondRegionIndexName);
 
-		await page.goto('/dashboard/indexes');
+		await page.goto('/console/indexes');
 		await expectIndexRegionRow(page, defaultRegionIndexName, runtimeRegions.defaultRegionId);
 		await expectIndexRegionRow(page, secondRegionIndexName, runtimeRegions.secondRegionId);
 
 		await page.getByRole('link', { name: secondRegionIndexName, exact: true }).click();
 		await expect(page).toHaveURL(
-			new RegExp(`/dashboard/indexes/${encodeURIComponent(secondRegionIndexName)}`)
+			new RegExp(`/console/indexes/${encodeURIComponent(secondRegionIndexName)}`)
 		);
 		await expect(page.getByRole('heading', { name: secondRegionIndexName })).toBeVisible({
 			timeout: 10_000
@@ -284,7 +284,7 @@ test.describe('Indexes list page', () => {
 		const formAlert = page.getByRole('alert');
 		await expect(formAlert).toBeVisible({ timeout: 15_000 });
 		await expect(formAlert).toContainText(/already exists|duplicate/i);
-		await expect(page).toHaveURL(/\/dashboard\/indexes/);
+		await expect(page).toHaveURL(/\/console\/indexes/);
 		await expect(page.getByText('Index created successfully')).toHaveCount(0);
 	});
 
@@ -292,14 +292,14 @@ test.describe('Indexes list page', () => {
 		const name = `e2e-detail-nav-${Date.now()}`;
 		await seedIndex(name);
 
-		await page.goto('/dashboard/indexes');
+		await page.goto('/console/indexes');
 		await expect(page.getByRole('cell', { name })).toBeVisible({ timeout: 10_000 });
 
 		// Act: click the index name link
 		await page.getByRole('link', { name }).click();
 
 		// Assert: detail page shows the index name as heading
-		await expect(page).toHaveURL(new RegExp(`/dashboard/indexes/${encodeURIComponent(name)}`));
+		await expect(page).toHaveURL(new RegExp(`/console/indexes/${encodeURIComponent(name)}`));
 		await expect(page.getByRole('heading', { name })).toBeVisible();
 	});
 });

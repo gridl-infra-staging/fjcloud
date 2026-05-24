@@ -102,7 +102,7 @@ const TUPLE_BASES: readonly CaptureTupleBase[] = [
 	{ lane: 'public', routeSlug: 'dpa', path: '/dpa', state: 'success', setup: 'public_unauth' },
 
 	// ---- Dashboard ---------------------------------------------------------
-	// docs/screen_specs/dashboard.md lists Loading, Empty, Error, Success.
+	// docs/screen_specs/console.md lists Loading, Empty, Error, Success.
 	// A fresh user produces Empty (indexes.length === 0), Error (no rate card
 	// → estimate widget absent), and Loading (renders body without a
 	// client-only spinner) simultaneously — each tuple documents a distinct
@@ -112,28 +112,28 @@ const TUPLE_BASES: readonly CaptureTupleBase[] = [
 	{
 		lane: 'auth',
 		routeSlug: 'dashboard',
-		path: '/dashboard',
+		path: '/console',
 		state: 'loading',
 		setup: 'auth_fresh_user'
 	},
 	{
 		lane: 'auth',
 		routeSlug: 'dashboard',
-		path: '/dashboard',
+		path: '/console',
 		state: 'empty',
 		setup: 'auth_fresh_user'
 	},
 	{
 		lane: 'auth',
 		routeSlug: 'dashboard',
-		path: '/dashboard',
+		path: '/console',
 		state: 'error',
 		setup: 'auth_fresh_user'
 	},
 	{
 		lane: 'auth',
 		routeSlug: 'dashboard',
-		path: '/dashboard',
+		path: '/console',
 		state: 'success',
 		setup: 'auth_fresh_user_with_index'
 	},

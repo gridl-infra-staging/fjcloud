@@ -3,7 +3,7 @@
 ## Scope
 
 - Primary route: `/login`
-- Related routes: `/forgot-password`, `/signup`, `/dashboard`
+- Related routes: `/forgot-password`, `/signup`, `/console`
 - Audience: returning customers
 - Priority: P0
 
@@ -13,14 +13,14 @@ Authenticate with email and password, recover gracefully from failures, and retu
 
 ## Target Behavior
 
-The screen shows `Log in to Flapjack Cloud`, labeled email and password fields, a `Log In` button, a forgot-password link, and a signup link. A successful login sets the auth session and redirects to `/dashboard`. Failed login attempts show generic error treatment that does not reveal whether the email exists.
+The screen shows `Log in to Flapjack Cloud`, labeled email and password fields, a `Log In` button, a forgot-password link, and a signup link. A successful login sets the auth session and redirects to `/console`. Failed login attempts show generic error treatment that does not reveal whether the email exists.
 
 ## Required States
 
 - Loading: form submission should keep the user on the login context until redirect or feedback.
 - Empty: missing email/password shows field-specific validation.
 - Error: wrong password and unknown email show the same generic credential failure and remain on `/login`.
-- Success: valid credentials redirect to `/dashboard`.
+- Success: valid credentials redirect to `/console`.
 
 ## Controls And Navigation
 
@@ -34,7 +34,7 @@ The screen shows `Log in to Flapjack Cloud`, labeled email and password fields, 
 
 - [ ] Default render includes heading, both fields, submit, forgot-password link, and signup link.
 - [ ] Wrong-password and unknown-email failures are generic and do not echo the attempted email.
-- [ ] Valid credentials reach `/dashboard` and show the dashboard heading.
+- [ ] Valid credentials reach `/console` and show the dashboard heading.
 - [ ] Unauthenticated dashboard access redirects to `/login`.
 - [ ] Expired sessions redirect to login and show the session-expired banner when the reason parameter is present.
 

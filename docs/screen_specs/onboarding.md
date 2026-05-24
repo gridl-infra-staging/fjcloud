@@ -2,8 +2,8 @@
 
 ## Scope
 
-- Primary route: `/dashboard/onboarding`
-- Related routes: `/dashboard`, `/dashboard/indexes`, `/dashboard/billing/setup`
+- Primary route: `/console/onboarding`
+- Related routes: `/console`, `/console/indexes`, `/console/billing/setup`
 - Audience: authenticated customers setting up their first index
 - Priority: P0
 
@@ -28,9 +28,9 @@ The screen shows `Get Started` and a step-based wizard. Step 1 chooses region an
 - `Index name` validates required, length, edge characters, allowed characters, and reserved names.
 - `Continue` starts index creation.
 - `Keep waiting` resumes timed-out polling.
-- `Set up billing` links to `/dashboard/billing/setup` for shared-plan users without payment method.
+- `Set up billing` links to `/console/billing/setup` for shared-plan users without payment method.
 - Credential copy buttons copy endpoint/API key when browser clipboard is available.
-- `Go to Dashboard` returns to `/dashboard`.
+- `Go to Console` returns to `/console`.
 
 ## Acceptance Criteria
 
@@ -47,5 +47,5 @@ Browser-unmocked coverage proves step 1 and creation-to-credentials readiness; c
 ## Automated Coverage
 
 - Browser-unmocked tests: `web/tests/e2e-ui/full/onboarding.spec.ts`; `web/tests/e2e-ui/full/customer-journeys.spec.ts`
-- Component tests: `web/src/routes/dashboard/onboarding/onboarding.test.ts`; `web/src/routes/dashboard/onboarding/onboarding.server.test.ts`
-- Server/contract tests: `web/src/routes/dashboard/onboarding/onboarding.server.test.ts`
+- Component tests: `web/src/routes/console/onboarding/onboarding.test.ts`; `web/src/routes/console/onboarding/onboarding.server.test.ts`
+- Server/contract tests: `web/src/routes/console/onboarding/onboarding.server.test.ts`

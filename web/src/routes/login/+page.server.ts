@@ -39,7 +39,7 @@ export const actions = {
 			return fail(status, { errors, email });
 		}
 
-		// Fail closed: only redirect into /dashboard when the returned JWT is
+		// Fail closed: only redirect into /console when the returned JWT is
 		// verifiable by this web runtime's JWT_SECRET.
 		if (!resolveAuth(token, env.JWT_SECRET)) {
 			return fail(503, {
@@ -49,6 +49,6 @@ export const actions = {
 		}
 
 		cookies.set(AUTH_COOKIE, token, authCookieOptions(url, COOKIE_MAX_AGE));
-		redirect(303, '/dashboard');
+		redirect(303, '/console');
 	}
 } satisfies Actions;

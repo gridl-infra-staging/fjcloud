@@ -352,10 +352,10 @@ async fn mock_email_service_uses_dashboard_fallback_link_when_hosted_invoice_url
     let sent = service.sent_emails();
     assert_eq!(sent.len(), 1);
     assert!(sent[0].html_body.contains(
-        "https://cloud.flapjack.foo/dashboard/billing/invoices/in_stage1_missing_hosted_url"
+        "https://cloud.flapjack.foo/console/billing/invoices/in_stage1_missing_hosted_url"
     ));
     assert!(sent[0].text_body.contains(
-        "https://cloud.flapjack.foo/dashboard/billing/invoices/in_stage1_missing_hosted_url"
+        "https://cloud.flapjack.foo/console/billing/invoices/in_stage1_missing_hosted_url"
     ));
 }
 

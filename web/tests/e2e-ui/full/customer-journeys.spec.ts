@@ -44,7 +44,7 @@ async function cleanupOnboardingIndex(
 		return;
 	}
 
-	await page.goto('/dashboard/indexes');
+	await page.goto('/console/indexes');
 
 	const createdRow = page.getByRole('row').filter({
 		has: page.getByRole('link', { name: indexName })
@@ -58,7 +58,7 @@ async function cleanupOnboardingIndex(
 	await expect(page.getByRole('cell', { name: indexName })).toHaveCount(0, { timeout: 30_000 });
 
 	// Verify the onboarding banner is restored for sibling specs
-	await page.goto('/dashboard');
+	await page.goto('/console');
 	await expect(page.getByTestId('onboarding-banner')).toBeVisible({ timeout: 30_000 });
 }
 
@@ -82,7 +82,7 @@ test.describe('Fresh-user customer journey — onboard to first search hit', () 
 			// ---------------------------------------------------------------
 			// Step 1: Dashboard — assert onboarding banner and navigate
 			// ---------------------------------------------------------------
-			await page.goto('/dashboard');
+			await page.goto('/console');
 			await expect(page.getByTestId('onboarding-banner')).toBeVisible({ timeout: 10_000 });
 			await expect(
 				page.getByTestId('onboarding-banner').getByText('Complete your setup')
@@ -97,7 +97,7 @@ test.describe('Fresh-user customer journey — onboard to first search hit', () 
 			// ---------------------------------------------------------------
 			// Step 2: Onboarding step 1 — fill index name and submit
 			// ---------------------------------------------------------------
-			await expect(page).toHaveURL(/\/dashboard\/onboarding/);
+			await expect(page).toHaveURL(/\/console\/onboarding/);
 			await expect(page.getByTestId('onboarding-step-1')).toBeVisible();
 
 			const nameInput = page.getByLabel('Index name');

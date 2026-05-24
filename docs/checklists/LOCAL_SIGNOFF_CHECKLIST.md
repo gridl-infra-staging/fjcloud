@@ -181,7 +181,7 @@ Pass bar:
 - Signup/login reaches dashboard locally
 - Settings flows work, including password change and account deletion for throwaway users
 - Billing UI renders without requiring real Stripe
-- Dashboard estimated-bill coverage passes, or any skip names a current billing-data blocker
+- Console estimated-bill coverage passes, or any skip names a current billing-data blocker
 - Isolation coverage proves no cross-tenant leakage
 - Real Safari signup→dashboard→billing-portal walk completes without error
 

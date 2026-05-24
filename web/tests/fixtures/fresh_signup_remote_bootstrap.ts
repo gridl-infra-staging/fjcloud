@@ -57,7 +57,7 @@ export async function attemptRemoteSignupFallback({
 
 	const created = await createUser(email, password, name);
 	await setAuthCookieForToken(page, created.token);
-	await page.goto('/dashboard');
-	await expect(page).toHaveURL(/\/dashboard/, { timeout: 20_000 });
+	await page.goto('/console');
+	await expect(page).toHaveURL(/\/console/, { timeout: 20_000 });
 	return true;
 }

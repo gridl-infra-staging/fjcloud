@@ -48,5 +48,5 @@ export const GET: RequestHandler = async ({ params, url, cookies, fetch }) => {
 
 	cookies.set(AUTH_COOKIE, auth.token, authCookieOptions(url, COOKIE_MAX_AGE));
 	clearOAuthCookies();
-	redirect(303, '/dashboard');
+	redirect(303, '/console');
 };

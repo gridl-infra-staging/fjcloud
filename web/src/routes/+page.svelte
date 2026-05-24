@@ -72,9 +72,7 @@
 						{pricing.free_tier_promise}
 					</p>
 					<div class="mt-8 flex flex-col gap-3 sm:flex-row">
-						<a href={resolve('/signup')} class="diner-button px-6 py-3 text-sm">
-							{pricing.cta_label}
-						</a>
+						<!-- Hero signup CTA removed during invite-only beta. See docs/decisions/2026_05_23_beta_signup_gate.md -->
 						<a
 							href="https://api.flapjack.foo/docs"
 							class="raised shadow-on-teal inline-flex items-center justify-center border-2 border-[#1f1b18] bg-[#fff8ea] px-6 py-3 text-sm font-black text-[#1f1b18] hover:bg-white"
@@ -252,7 +250,7 @@
 						<h3 class="font-black">Refunds</h3>
 						<p class="mt-2 text-sm leading-6 text-[#4b4640]">
 							Refund requests are reviewed for duplicate charges, billing errors, or service
-							unavailability.
+							unavailability. Email {SUPPORT_EMAIL} within 30 days of the charge.
 						</p>
 					</section>
 					<section class="raised shadow-on-cream border-2 border-[#1f1b18] bg-white p-5">
@@ -274,17 +272,7 @@
 			</div>
 		</section>
 
-		<section class="px-6 py-16">
-			<div class="mx-auto max-w-4xl text-center">
-				<h2 class="text-3xl font-black">Start with a free beta account</h2>
-				<p class="mx-auto mt-4 max-w-2xl text-base leading-7 text-[#3f3a34]">
-					{pricing.free_tier_promise}
-				</p>
-				<a href={resolve('/signup')} class="diner-button mt-8 px-8 py-3 text-sm">
-					{pricing.cta_label}
-				</a>
-			</div>
-		</section>
+		<!-- "Start with a free beta account" bottom CTA section removed during invite-only beta. See docs/decisions/2026_05_23_beta_signup_gate.md -->
 	</main>
 
 	<footer class="border-t-4 border-[#f6c15b] bg-[#fff8ea] py-8">

@@ -117,9 +117,9 @@ describe('root layout public trust chrome ownership', () => {
 		'/verify-email/token-123',
 		'/beta',
 		'/status',
-		'/dashboard',
-		'/dashboard/account',
-		'/dashboard/settings',
+		'/console',
+		'/console/account',
+		'/console/settings',
 		'/admin',
 		'/admin/fleet'
 	])('keeps shared trust chrome absent on %s', (pathname) => {

@@ -222,8 +222,8 @@ test_configure_billing_portal_resolves_suffixed_account_key() {
     cat > "$response_file" <<'JSON'
 {"index":0,"responses":[
   {"status":200,"body":"{\"id\":\"acct_live_mock\"}"},
-  {"status":200,"body":"{\"data\":[{\"id\":\"bpc_existing\",\"is_default\":true,\"features\":{\"customer_update\":{\"enabled\":true},\"invoice_history\":{\"enabled\":false},\"payment_method_update\":{\"enabled\":true}},\"login_page\":{\"enabled\":true,\"url\":\"https://billing.flapjack.foo/login\"},\"default_return_url\":\"https://cloud.flapjack.foo/dashboard/billing\"}]}"},
-  {"status":200,"body":"{\"id\":\"bpc_existing\",\"is_default\":true,\"features\":{\"customer_update\":{\"enabled\":true},\"invoice_history\":{\"enabled\":true},\"payment_method_update\":{\"enabled\":true}},\"login_page\":{\"enabled\":true,\"url\":\"https://billing.flapjack.foo/login\"},\"default_return_url\":\"https://cloud.flapjack.foo/dashboard/billing\"}"}
+  {"status":200,"body":"{\"data\":[{\"id\":\"bpc_existing\",\"is_default\":true,\"features\":{\"customer_update\":{\"enabled\":true},\"invoice_history\":{\"enabled\":false},\"payment_method_update\":{\"enabled\":true}},\"login_page\":{\"enabled\":true,\"url\":\"https://billing.flapjack.foo/login\"},\"default_return_url\":\"https://cloud.flapjack.foo/console/billing\"}]}"},
+  {"status":200,"body":"{\"id\":\"bpc_existing\",\"is_default\":true,\"features\":{\"customer_update\":{\"enabled\":true},\"invoice_history\":{\"enabled\":true},\"payment_method_update\":{\"enabled\":true}},\"login_page\":{\"enabled\":true,\"url\":\"https://billing.flapjack.foo/login\"},\"default_return_url\":\"https://cloud.flapjack.foo/console/billing\"}"}
 ]}
 JSON
     write_mock_curl_with_sequence "$mock_dir/curl"
@@ -234,7 +234,7 @@ JSON
     assert_contains "$output" '"target_account":"flapjack_cloud"' "configure_billing_portal should report the target account name"
     assert_contains "$output" '"account_id":"acct_live_mock"' "configure_billing_portal should include the Stripe account id"
     assert_contains "$output" '"configuration_id":"bpc_existing"' "configure_billing_portal should include the configuration id"
-    assert_contains "$output" '"default_return_url":"https://cloud.flapjack.foo/dashboard/billing"' "configure_billing_portal should surface cloud.flapjack.foo as the active hosted-portal default return path"
+    assert_contains "$output" '"default_return_url":"https://cloud.flapjack.foo/console/billing"' "configure_billing_portal should surface cloud.flapjack.foo as the active hosted-portal default return path"
 
     local calls
     calls="$(cat "$call_log")"

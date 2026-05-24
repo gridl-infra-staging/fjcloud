@@ -13,7 +13,7 @@ function isSessionExpiredUrl(urlString: string): boolean {
 }
 
 function sessionRecoveryFailure(detail: string): Error {
-	return new Error(`Session-expired recovery failed for /dashboard/billing: ${detail}`);
+	return new Error(`Session-expired recovery failed for /console/billing: ${detail}`);
 }
 
 async function loginWithFixtureCredentials(
@@ -29,7 +29,7 @@ async function loginWithFixtureCredentials(
 		await page.getByRole('button', { name: 'Log In' }).click();
 
 		try {
-			await expect(page).toHaveURL(/\/dashboard/, { timeout: 20_000 });
+			await expect(page).toHaveURL(/\/console/, { timeout: 20_000 });
 			return;
 		} catch (error) {
 			const loginAlert = page.getByRole('alert');
@@ -43,8 +43,8 @@ async function loginWithFixtureCredentials(
 
 			const token = await loginAs(email, password);
 			await setAuthCookieForToken(page, token);
-			await page.goto('/dashboard');
-			await expect(page).toHaveURL(/\/dashboard/, { timeout: 20_000 });
+			await page.goto('/console');
+			await expect(page).toHaveURL(/\/console/, { timeout: 20_000 });
 		}
 	}).toPass({
 		intervals: [1_000, 2_000, 3_000, 4_000, 5_000],
@@ -58,7 +58,7 @@ async function gotoBillingPageWithSessionRecovery(
 	password: string,
 	loginAs: (email: string, password: string) => Promise<string>
 ): Promise<void> {
-	await page.goto('/dashboard/billing');
+	await page.goto('/console/billing');
 	if (!isSessionExpiredUrl(page.url())) {
 		return;
 	}
@@ -70,7 +70,7 @@ async function gotoBillingPageWithSessionRecovery(
 
 	const token = await loginAs(email, password);
 	await setAuthCookieForToken(page, token);
-	await page.goto('/dashboard/billing');
+	await page.goto('/console/billing');
 	if (isSessionExpiredUrl(page.url())) {
 		throw sessionRecoveryFailure(
 			'navigation remained on /login?reason=session_expired after auth-cookie replay'
@@ -117,13 +117,13 @@ test.describe('Billing in-app payment-method updates', () => {
 		const setDefaultActionRequest = page.waitForRequest(
 			(request) =>
 				request.method() === 'POST' &&
-				request.url().includes('/dashboard/billing?/setDefaultPaymentMethod'),
+				request.url().includes('/console/billing?/setDefaultPaymentMethod'),
 			{ timeout: 30_000 }
 		);
 		const setDefaultActionResponse = page.waitForResponse(
 			(response) =>
 				response.request().method() === 'POST' &&
-				response.url().includes('/dashboard/billing?/setDefaultPaymentMethod') &&
+				response.url().includes('/console/billing?/setDefaultPaymentMethod') &&
 				response.ok(),
 			{ timeout: 30_000 }
 		);
@@ -147,7 +147,7 @@ test.describe('Billing in-app payment-method updates', () => {
 			`paymentMethodId=${encodeURIComponent(arrangedCustomer.nonDefaultPaymentMethodId)}`
 		);
 
-		await expect(page).toHaveURL(/\/dashboard\/billing/);
+		await expect(page).toHaveURL(/\/console\/billing/);
 		await expect(page.getByRole('heading', { name: 'Billing' })).toBeVisible();
 		await expect(page.getByRole('heading', { name: 'Payment methods' })).toBeVisible();
 		await expect(page.getByTestId('payment-element')).toBeVisible();

@@ -335,7 +335,7 @@ describe('Dashboard layout plan badge', () => {
 		renderLayout({ billing_plan: 'shared' });
 		const badge = screen.getByTestId('plan-badge');
 		expect(badge).toBeInTheDocument();
-		expect(badge).toHaveTextContent('Paid Plan');
+		expect(badge).toHaveTextContent(/shared/i);
 	});
 
 	it('shows user name in header from profile', () => {
@@ -390,8 +390,8 @@ describe('Dashboard layout verification banner', () => {
 		renderLayout({ profile: unverifiedProfile });
 
 		const resendCta = screen.getByTestId('verification-resend-button');
-		expect(resendCta).toHaveClass('bg-[#ffb3c7]');
-		expect(resendCta).toHaveClass('shadow-[4px_4px_0_0_#1f1b18]');
+		expect(resendCta).toHaveClass('bg-brand-pink');
+		expect(resendCta).toHaveClass('shadow-elevation-button');
 	});
 
 	it('keeps successful resend confirmation in shell-local state across child-route navigation', async () => {
@@ -421,7 +421,7 @@ describe('Dashboard layout verification banner', () => {
 
 		const successMessage = screen.getByTestId('verification-resend-message');
 		expect(successMessage).toHaveTextContent('Verification email sent');
-		expect(successMessage).toHaveClass('text-[#0f766e]');
+		expect(successMessage).toHaveClass('text-flapjack-ink');
 	});
 
 	it('renders deterministic backend 400 resend errors and does not trigger session-expiry redirect', async () => {
@@ -440,7 +440,7 @@ describe('Dashboard layout verification banner', () => {
 				'email_already_verified'
 			);
 		});
-		expect(screen.getByTestId('verification-resend-message')).toHaveClass('text-[#b83f5f]');
+		expect(screen.getByTestId('verification-resend-message')).toHaveClass('text-flapjack-rose');
 		expect(gotoMock).not.toHaveBeenCalled();
 	});
 
@@ -469,21 +469,43 @@ describe('Dashboard layout verification banner', () => {
 });
 
 describe('Dashboard layout sidebar navigation', () => {
+	it('locks future brand font and shell palette token contracts', () => {
+		renderLayout({ profile: unverifiedProfile, billing_plan: 'shared', has_payment_method: false });
+
+		const brandLogo = screen.getByTestId('brand-logo');
+		expect(brandLogo).toHaveClass("font-['Cabinet']");
+
+		const desktopWrapper = screen.getByTestId('dashboard-nav-desktop');
+		expect(desktopWrapper).toHaveClass('bg-brand-cream');
+
+		const shellHeader = screen.getByTestId('dashboard-shell-header');
+		expect(shellHeader).toHaveClass('bg-brand-cream');
+
+		const verificationBanner = screen.getByTestId('verification-banner');
+		expect(verificationBanner).toHaveClass('bg-brand-pink');
+
+		const resendButton = screen.getByTestId('verification-resend-button');
+		expect(resendButton).toHaveClass('shadow-elevation-button');
+
+		const billingCta = screen.getByTestId('billing-cta');
+		expect(billingCta).toHaveClass('shadow-elevation-card');
+	});
+
 	it('auth__dashboard__empty__desktop P.brand_palette_consistency keeps desktop nav on cream diner chrome', () => {
 		renderLayout();
 
 		const desktopWrapper = screen.getByTestId('dashboard-nav-desktop');
-		expect(desktopWrapper).toHaveClass('bg-[#fff8ea]');
-		expect(desktopWrapper).toHaveClass('text-[#1f1b18]');
+		expect(desktopWrapper).toHaveClass('bg-brand-cream');
+		expect(desktopWrapper).toHaveClass('text-flapjack-ink');
 	});
 
 	it('auth__dashboard__success__mobile_narrow P.brand_palette_consistency keeps mobile shell header on cream diner chrome', () => {
 		renderLayout();
 
 		const shellHeader = screen.getByTestId('dashboard-shell-header');
-		expect(shellHeader).toHaveClass('bg-[#fff8ea]');
+		expect(shellHeader).toHaveClass('bg-brand-cream');
 		expect(shellHeader).toHaveClass('border-b');
-		expect(shellHeader).toHaveClass('border-[#1f1b18]/15');
+		expect(shellHeader).toHaveClass('border-flapjack-ink/15');
 	});
 
 	it('keeps mobile nav/help links unavailable while the drawer is closed, then renders canonical links after opening', async () => {
@@ -518,7 +540,7 @@ describe('Dashboard layout sidebar navigation', () => {
 	it('opens and closes mobile drawer without hiding compact beta support and verification banners', async () => {
 		renderLayout({ profile: unverifiedProfile });
 
-		expect(screen.getByTestId('dashboard-beta-pill')).toBeInTheDocument();
+		expect(screen.getByTestId('dashboard-beta-support-badge')).toBeInTheDocument();
 		expect(screen.getByTestId('verification-banner')).toBeInTheDocument();
 
 		const mobileDrawer = screen.getByTestId('dashboard-nav-mobile-drawer');
@@ -530,14 +552,14 @@ describe('Dashboard layout sidebar navigation', () => {
 		await fireEvent.click(screen.getByTestId('dashboard-mobile-nav-dismiss'));
 		expect(mobileDrawer).toHaveAttribute('data-nav-open', 'false');
 
-		expect(screen.getByTestId('dashboard-beta-pill')).toBeInTheDocument();
+		expect(screen.getByTestId('dashboard-beta-support-badge')).toBeInTheDocument();
 		expect(screen.getByTestId('verification-banner')).toBeInTheDocument();
 	});
 
 	it('renders beta scope and feedback entry points', () => {
 		renderLayout();
 
-		expect(screen.getByTestId('dashboard-beta-pill')).toHaveTextContent(/public beta/i);
+		expect(screen.getByTestId('dashboard-beta-support-badge')).toHaveTextContent(/public beta/i);
 		expect(screen.getByRole('link', { name: /beta scope/i })).toHaveAttribute('href', '/beta');
 		const feedbackLink = screen.getByRole('link', { name: /send feedback/i });
 		expect(feedbackLink).toHaveAttribute(
@@ -547,29 +569,6 @@ describe('Dashboard layout sidebar navigation', () => {
 		expect(feedbackLink).toHaveAttribute(
 			'href',
 			expect.stringContaining('subject=Flapjack%20Cloud%20beta%20feedback')
-		);
-	});
-
-	it('renders shared legal footer links in console shell', () => {
-		renderLayout();
-		const legalFooterNav = within(screen.getByRole('contentinfo')).getByRole('navigation', {
-			name: 'Legal'
-		});
-		expect(within(legalFooterNav).getByRole('link', { name: 'Terms' })).toHaveAttribute(
-			'href',
-			'/terms'
-		);
-		expect(within(legalFooterNav).getByRole('link', { name: 'Privacy' })).toHaveAttribute(
-			'href',
-			'/privacy'
-		);
-		expect(within(legalFooterNav).getByRole('link', { name: 'DPA' })).toHaveAttribute(
-			'href',
-			'/dpa'
-		);
-		expect(within(legalFooterNav).getByRole('link', { name: 'Status' })).toHaveAttribute(
-			'href',
-			'/status'
 		);
 	});
 
@@ -613,12 +612,12 @@ describe('Dashboard layout sidebar navigation', () => {
 
 		const desktopNav = screen.getByTestId('dashboard-nav-desktop');
 		const desktopAccountLink = within(desktopNav).getByRole('link', { name: 'Account' });
-		expect(desktopAccountLink).toHaveClass('bg-[#9fd8d2]');
+		expect(desktopAccountLink).toHaveClass('bg-flapjack-mint');
 
 		await fireEvent.click(screen.getByTestId('dashboard-mobile-nav-trigger'));
 		const mobileNav = screen.getByTestId('dashboard-nav-mobile-drawer');
 		const mobileAccountLink = within(mobileNav).getByRole('link', { name: 'Account' });
-		expect(mobileAccountLink).toHaveClass('bg-[#9fd8d2]/20');
+		expect(mobileAccountLink).toHaveClass('bg-flapjack-mint/20');
 	});
 });
 

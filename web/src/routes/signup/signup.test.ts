@@ -24,16 +24,20 @@ describe('Signup page', () => {
 	it('renders exact customer-visible signup copy and post form contract', () => {
 		renderSignupPage();
 
-		expect(
-			screen.getByRole('heading', { level: 1, name: 'Create your account' })
-		).toBeInTheDocument();
+		const heading = screen.getByRole('heading', { level: 1, name: 'Create your account' });
+		expect(heading).toBeInTheDocument();
+		expect(heading).toHaveClass('text-flapjack-ink');
 		expect(screen.getByText(MARKETING_PRICING.free_tier_promise)).toBeInTheDocument();
-		expect(screen.getByRole('button', { name: 'Sign Up' })).toBeInTheDocument();
+		const signUpButton = screen.getByRole('button', { name: 'Sign Up' });
+		expect(signUpButton).toBeInTheDocument();
+		expect(signUpButton).toHaveClass('bg-flapjack-rose');
+		expect(signUpButton).toHaveClass('hover:bg-flapjack-plum');
 
 		const loginLink = screen.getByRole('link', { name: 'Log in' });
 		expect(loginLink).toHaveAttribute('href', '/login');
+		expect(loginLink).toHaveClass('text-flapjack-rose');
 
-		const form = screen.getByRole('button', { name: 'Sign Up' }).closest('form');
+		const form = signUpButton.closest('form');
 		if (!(form instanceof HTMLFormElement)) {
 			throw new Error('Expected Sign Up button to be inside a form');
 		}
@@ -78,8 +82,7 @@ describe('Signup page', () => {
 				email: 'Invalid email',
 				password: 'Too short',
 				confirm_password: 'Passwords do not match'
-			}
-			,
+			},
 			name: '',
 			email: ''
 		});
@@ -110,8 +113,7 @@ describe('Signup page', () => {
 		renderSignupPage({
 			errors: {
 				form: 'Unable to create account. Please check your details and try again.'
-			}
-			,
+			},
 			name: 'Alice',
 			email: 'alice@example.com'
 		});

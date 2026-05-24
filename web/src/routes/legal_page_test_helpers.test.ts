@@ -57,17 +57,17 @@ describe('assertSharedLegalPageContract finalized contract', () => {
 	);
 });
 
-function setLegalPresentationDom(canvasClassName = 'bg-[#9fd8d2]'): void {
+function setLegalPresentationDom(canvasClassName = 'bg-flapjack-mint'): void {
 	document.body.innerHTML = `
-		<div class="min-h-screen ${canvasClassName} text-[#1f1b18]">
+		<div class="min-h-screen ${canvasClassName} text-flapjack-ink">
 			<main data-testid="public-legal-shell" class="mx-auto max-w-4xl px-6 py-12">
-				<article class="mt-6 space-y-8 rounded-3xl border border-[#e3d7bf] bg-[#fff8ea] p-8 shadow-sm">
+				<article class="mt-6 space-y-8 rounded-3xl border border-[#e3d7bf] bg-flapjack-cream p-8 shadow-sm">
 					<header class="space-y-4">
-						<h1 class="text-3xl font-black text-[#1f1b18] sm:text-4xl">Terms of Service</h1>
+						<h1 class="text-3xl font-black text-flapjack-ink sm:text-4xl">Terms of Service</h1>
 					</header>
 					<section class="space-y-3">
-						<p class="leading-7 text-[#4b4640]">Body copy</p>
-						<a class="font-semibold text-[#b83f5f] underline hover:text-[#8d2842]" href="/terms">
+						<p class="leading-7 text-flapjack-ink/80">Body copy</p>
+						<a class="font-semibold text-flapjack-rose underline hover:text-flapjack-plum" href="/terms">
 							Terms
 						</a>
 					</section>

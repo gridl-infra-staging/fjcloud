@@ -144,18 +144,24 @@ describe('Pricing page', () => {
 			)
 		).toBeInTheDocument();
 		expect(screen.getByText(MARKETING_PRICING.storage_rate_per_mb_month)).toBeInTheDocument();
+		expect(screen.getByText(MARKETING_PRICING.cold_storage_rate_per_gb_month)).toBeInTheDocument();
 		expect(
-			screen.getByText(MARKETING_PRICING.cold_storage_rate_per_gb_month)
+			screen.getByText(formatCents(MARKETING_PRICING.shared_minimum_spend_cents))
 		).toBeInTheDocument();
-		expect(screen.getByText(formatCents(MARKETING_PRICING.shared_minimum_spend_cents))).toBeInTheDocument();
 		expect(
 			screen.getByText(expectedFreeTierUpgradeCopy(MARKETING_PRICING.shared_minimum_spend_cents))
 		).toBeInTheDocument();
-		expect(screen.getByText(`${MARKETING_PRICING.free_tier_max_indexes} indices`)).toBeInTheDocument();
 		expect(
-			screen.getByText(`${US_INTEGER_FORMATTER.format(MARKETING_PRICING.free_tier_max_records)} records`)
+			screen.getByText(`${MARKETING_PRICING.free_tier_max_indexes} indices`)
 		).toBeInTheDocument();
-		expect(screen.getByText(`${MARKETING_PRICING.free_tier_mb} MB hot storage`)).toBeInTheDocument();
+		expect(
+			screen.getByText(
+				`${US_INTEGER_FORMATTER.format(MARKETING_PRICING.free_tier_max_records)} records`
+			)
+		).toBeInTheDocument();
+		expect(
+			screen.getByText(`${MARKETING_PRICING.free_tier_mb} MB hot storage`)
+		).toBeInTheDocument();
 		expect(
 			screen.getByText(
 				`${US_INTEGER_FORMATTER.format(MARKETING_PRICING.free_tier_max_searches_per_month)} searches per month`
@@ -205,8 +211,12 @@ describe('Pricing page', () => {
 				expectedFreeTierUpgradeCopy(mutatedPricing.shared_minimum_spend_cents)
 			)
 		).toBeInTheDocument();
-		expect(within(pricingMain).getByText(`${mutatedPricing.free_tier_mb} MB hot storage`)).toBeInTheDocument();
-		expect(within(pricingMain).getByText(`${mutatedPricing.free_tier_max_indexes} indices`)).toBeInTheDocument();
+		expect(
+			within(pricingMain).getByText(`${mutatedPricing.free_tier_mb} MB hot storage`)
+		).toBeInTheDocument();
+		expect(
+			within(pricingMain).getByText(`${mutatedPricing.free_tier_max_indexes} indices`)
+		).toBeInTheDocument();
 		expect(
 			within(pricingMain).getByText(
 				`${US_INTEGER_FORMATTER.format(mutatedPricing.free_tier_max_records)} records`
@@ -250,7 +260,9 @@ describe('Pricing page', () => {
 			within(pricingMain).getByText(MARKETING_PRICING.cold_storage_rate_per_gb_month)
 		).toBeInTheDocument();
 		expect(
-			within(pricingMain).getByText(formatCents(pricingWithLargeMinimumSpend.shared_minimum_spend_cents))
+			within(pricingMain).getByText(
+				formatCents(pricingWithLargeMinimumSpend.shared_minimum_spend_cents)
+			)
 		).toBeInTheDocument();
 		// Regression: upgrade-copy sentence must preserve thousands separators via the shared helper.
 		expect(

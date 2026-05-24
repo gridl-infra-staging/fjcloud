@@ -15,12 +15,12 @@
 </svelte:head>
 
 <div class="mx-auto max-w-lg">
-	<h1 class="mb-6 text-2xl font-bold text-gray-900">Add Payment Method</h1>
+	<h1 class="mb-6 text-2xl font-bold text-flapjack-ink">Add Payment Method</h1>
 
 	{#if showUnavailableCard}
 		<BillingUnavailableCard />
 	{:else if displayError}
-		<div class="mb-4 rounded bg-red-50 p-3 text-sm text-red-700" role="alert">
+		<div class="mb-4 rounded bg-flapjack-rose/10 p-3 text-sm text-flapjack-plum" role="alert">
 			{displayError}
 		</div>
 	{/if}

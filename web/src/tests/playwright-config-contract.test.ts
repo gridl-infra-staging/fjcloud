@@ -1,4 +1,12 @@
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import {
+	existsSync,
+	mkdtempSync,
+	readFileSync,
+	readdirSync,
+	rmSync,
+	statSync,
+	writeFileSync
+} from 'node:fs';
 import { extname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { describe, expect, it } from 'vitest';
@@ -14,6 +22,7 @@ import {
 	PLAYWRIGHT_STORAGE_STATE,
 	PLAYWRIGHT_PROJECT_CONTRACTS,
 	PLAYWRIGHT_WEB_SERVER_COMMAND,
+	PLAYWRIGHT_WEB_SERVER_TIMEOUT_MS,
 	parseDotenvFile,
 	parseDotenvValue,
 	REMOTE_TARGET_OPT_IN_ENV,
@@ -261,7 +270,7 @@ describe('playwright config contract', () => {
 			env: runtime.webServerEnv,
 			url: DEFAULT_PLAYWRIGHT_BASE_URL,
 			reuseExistingServer: false,
-			timeout: 30_000
+			timeout: PLAYWRIGHT_WEB_SERVER_TIMEOUT_MS
 		});
 		expect(runtime.webServerEnv.ADMIN_KEY).toBe(DEFAULT_PLAYWRIGHT_ADMIN_KEY);
 		expect(runtime.webServerEnv.API_BASE_URL).toBe(DEFAULT_API_URL);
@@ -270,7 +279,7 @@ describe('playwright config contract', () => {
 
 	it('uses the local stack launcher command so setup:user has API availability without manual startup', () => {
 		expect(PLAYWRIGHT_WEB_SERVER_COMMAND).toBe(
-			'../scripts/playwright_local_stack.sh --host 127.0.0.1 --port 5173 --strictPort'
+			'../scripts/playwright_local_stack.sh --force-api-restart --host 127.0.0.1 --port 5173 --strictPort'
 		);
 	});
 
@@ -818,9 +827,7 @@ describe('playwright config contract', () => {
 
 		it('fixtures own shared remote-target signup fallback helper', () => {
 			const fixtureSource = readFileSync(join(process.cwd(), 'tests/fixtures/fixtures.ts'), 'utf8');
-			expect(fixtureSource).toMatch(
-				/from\s+['"]\.\/fresh_signup_remote_bootstrap['"]/
-			);
+			expect(fixtureSource).toMatch(/from\s+['"]\.\/fresh_signup_remote_bootstrap['"]/);
 			expect(fixtureSource).toMatch(/\battemptRemoteSignupFallback\b/);
 			expect(fixtureSource).not.toMatch(/\basync function setAuthCookieForToken\b/);
 			expect(fixtureSource).not.toMatch(/\basync function tryRemoteSignupFallback\b/);
@@ -889,9 +896,7 @@ describe('playwright config contract', () => {
 			const attachIndex = fixtureSource.indexOf(
 				'const defaultPaymentMethodId = await attachDefaultStripeTestCard('
 			);
-			const waitIndex = fixtureSource.indexOf(
-				'await waitForStripeDefaultPaymentMethod({'
-			);
+			const waitIndex = fixtureSource.indexOf('await waitForStripeDefaultPaymentMethod({');
 			const batchRunIndex = fixtureSource.indexOf(
 				"const batchBillingResponse = await adminApiCall('POST', '/admin/billing/run'"
 			);
@@ -1010,49 +1015,59 @@ describe('playwright config contract', () => {
 			expect(failureMessage).not.toContain('sensitive.jwt.token');
 		});
 
-	it('customer auth setup rethrows self-bootstrap failures through fixture-owned diagnostics', () => {
-		const authSetupSource = readFileSync(join(process.cwd(), 'tests/fixtures/auth.setup.ts'), 'utf8');
+		it('customer auth setup rethrows self-bootstrap failures through fixture-owned diagnostics', () => {
+			const authSetupSource = readFileSync(
+				join(process.cwd(), 'tests/fixtures/auth.setup.ts'),
+				'utf8'
+			);
 
-		expect(authSetupSource).toContain('setupFailureDetailsFromError');
-		expect(authSetupSource).toContain('fixture self-bootstrap failed:');
-		expect(authSetupSource).toMatch(
-			/catch\s*\(error\)\s*\{[\s\S]*formatFixtureSetupFailure\([\s\S]*toBootstrapFailureAlertText\(finalLoginAttempt,\s*error\)/
-		);
-	});
+			expect(authSetupSource).toContain('setupFailureDetailsFromError');
+			expect(authSetupSource).toContain('fixture self-bootstrap failed:');
+			expect(authSetupSource).toMatch(
+				/catch\s*\(error\)\s*\{[\s\S]*formatFixtureSetupFailure\([\s\S]*toBootstrapFailureAlertText\(finalLoginAttempt,\s*error\)/
+			);
+		});
 
-	it('customer auth setup waits for delayed invalid-credentials alerts before classifying login failure', () => {
-		const authSetupSource = readFileSync(join(process.cwd(), 'tests/fixtures/auth.setup.ts'), 'utf8');
+		it('customer auth setup waits for delayed invalid-credentials alerts before classifying login failure', () => {
+			const authSetupSource = readFileSync(
+				join(process.cwd(), 'tests/fixtures/auth.setup.ts'),
+				'utf8'
+			);
 
-		expect(authSetupSource).toContain('const LOGIN_SETTLE_TIMEOUT_MS = 20_000;');
-		expect(authSetupSource).toContain('const DELAYED_ALERT_CAPTURE_TIMEOUT_MS = 5_000;');
-		expect(authSetupSource).toContain("response.url().includes('/login')");
-		expect(authSetupSource).not.toContain("response.url().includes('/auth/login')");
-		expect(authSetupSource).toMatch(
-			/await Promise\.race\(\[[\s\S]*page\.waitForURL\(/m
-		);
-		expect(authSetupSource).toContain('if (!reachedDashboard && !alertText?.trim()) {');
-		expect(authSetupSource).toContain(
-			".waitFor({ state: 'visible', timeout: DELAYED_ALERT_CAPTURE_TIMEOUT_MS })"
-		);
-	});
+			expect(authSetupSource).toContain('const LOGIN_SETTLE_TIMEOUT_MS = 20_000;');
+			expect(authSetupSource).toContain('const DELAYED_ALERT_CAPTURE_TIMEOUT_MS = 5_000;');
+			expect(authSetupSource).toContain("response.url().includes('/login')");
+			expect(authSetupSource).not.toContain("response.url().includes('/auth/login')");
+			expect(authSetupSource).toMatch(/await Promise\.race\(\[[\s\S]*page\.waitForURL\(/m);
+			expect(authSetupSource).toContain('if (!reachedDashboard && !alertText?.trim()) {');
+			expect(authSetupSource).toContain(
+				".waitFor({ state: 'visible', timeout: DELAYED_ALERT_CAPTURE_TIMEOUT_MS })"
+			);
+		});
 
-	it('customer auth setup declares an explicit CI-safe setup timeout budget', () => {
-		const authSetupSource = readFileSync(join(process.cwd(), 'tests/fixtures/auth.setup.ts'), 'utf8');
-		expect(authSetupSource).toContain('const AUTH_SETUP_TIMEOUT_MS =');
-		expect(authSetupSource).toContain('LOGIN_SETTLE_TIMEOUT_MS * 2');
-		expect(authSetupSource).toContain('FIXTURE_AUTH_API_RETRY_BUDGET_MS * 2');
-		expect(authSetupSource).toContain('DELAYED_ALERT_CAPTURE_TIMEOUT_MS');
-		expect(authSetupSource).toContain('setup.setTimeout(AUTH_SETUP_TIMEOUT_MS);');
-	});
+		it('customer auth setup declares an explicit CI-safe setup timeout budget', () => {
+			const authSetupSource = readFileSync(
+				join(process.cwd(), 'tests/fixtures/auth.setup.ts'),
+				'utf8'
+			);
+			expect(authSetupSource).toContain('const AUTH_SETUP_TIMEOUT_MS =');
+			expect(authSetupSource).toContain('LOGIN_SETTLE_TIMEOUT_MS * 2');
+			expect(authSetupSource).toContain('FIXTURE_AUTH_API_RETRY_BUDGET_MS * 2');
+			expect(authSetupSource).toContain('DELAYED_ALERT_CAPTURE_TIMEOUT_MS');
+			expect(authSetupSource).toContain('setup.setTimeout(AUTH_SETUP_TIMEOUT_MS);');
+		});
 
 		it('playwright CI job relies on launch wrapper owner and avoids placeholder Stripe secrets', () => {
-			const ciWorkflowSource = readFileSync(join(process.cwd(), '../.github/workflows/ci.yml'), 'utf8');
+			const ciWorkflowSource = readFileSync(
+				join(process.cwd(), '../.github/workflows/ci.yml'),
+				'utf8'
+			);
 			expect(ciWorkflowSource).toMatch(
 				/e2e-deployed:[\s\S]*Run deployed staging browser lane wrapper[\s\S]*bash scripts\/launch\/produce_launch_verification_bundle\.sh/m
 			);
 			expect(ciWorkflowSource).not.toContain('sk_test_ci_placeholder');
 		});
-			});
+	});
 
 	describe('applyPlaywrightProcessEnvDefaults + resolvePlaywrightRuntime admin key consistency', () => {
 		it('sets E2E_ADMIN_KEY to DEFAULT_PLAYWRIGHT_ADMIN_KEY when all env sources are empty so fixtures match the web server', () => {
@@ -1255,7 +1270,9 @@ describe('playwright config contract', () => {
 					'utf8'
 				);
 				expect(portalSpecSource).toMatch(/isSessionExpiredUrl/);
-				expect(portalSpecSource).toMatch(/searchParams\.get\('reason'\)\s*===\s*SESSION_EXPIRED_REASON/);
+				expect(portalSpecSource).toMatch(
+					/searchParams\.get\('reason'\)\s*===\s*SESSION_EXPIRED_REASON/
+				);
 				expect(portalSpecSource).toMatch(/await gotoBillingPageWithSessionRecovery\(/);
 				expect(portalSpecSource).toMatch(
 					/if\s*\(!isRemoteTargetMode\(\)\)\s*\{\s*throw sessionRecoveryFailure\(/m
@@ -1274,7 +1291,9 @@ describe('playwright config contract', () => {
 				expect(signupSpecSource).toMatch(
 					/await gotoWithSessionRecovery\(\s*page,\s*'\/console\/billing\/invoices',\s*signup\.email,\s*signup\.password,\s*loginAs\s*\)/
 				);
-				expect(signupSpecSource).toMatch(/if\s*\(!isSessionExpiredUrl\(currentUrl\)\)\s*\{\s*throw error;/m);
+				expect(signupSpecSource).toMatch(
+					/if\s*\(!isSessionExpiredUrl\(currentUrl\)\)\s*\{\s*throw error;/m
+				);
 				expect(signupSpecSource).toMatch(
 					/if\s*\(!isRemoteTargetMode\(\)\s*\|\|\s*!loginAs\)\s*\{\s*throw sessionRecoveryFailure\(/m
 				);
@@ -1325,7 +1344,6 @@ describe('playwright config contract', () => {
 	});
 });
 
-
 describe('dashboard literal inventory contract (Stage 4)', () => {
 	const DASHBOARD_ROUTE_LITERAL = /\/dashboard(?=$|[/?'"`])/;
 	const WEB_ROOT = join(process.cwd(), '.');
@@ -1339,10 +1357,10 @@ describe('dashboard literal inventory contract (Stage 4)', () => {
 		'src/lib/error-boundary/client-runtime.test.ts',
 		'src/lib/error-boundary/client_runtime_test_fixtures.ts',
 		'src/routes/admin/end-impersonation/end-impersonation.test.ts',
-		'src/tests/playwright-config-contract.test.ts',
-		'tests/fixtures/billing_session_recovery.ts',
+		'tests/e2e-ui/full/isolation.spec.ts',
 		'tests/e2e-ui/smoke/indexes.spec.ts',
-		'tests/e2e-ui/full/isolation.spec.ts'
+		'tests/fixtures/billing_session_recovery.ts',
+		'src/tests/playwright-config-contract.test.ts'
 	]);
 	const TEXT_EXTENSIONS = new Set([
 		'.ts',
@@ -1426,7 +1444,10 @@ describe('dashboard literal inventory contract (Stage 4)', () => {
 	});
 
 	it('documents signup landing as /signup -> /console for local playwright webServer mode', () => {
-		const contractSource = readFileSync(join(process.cwd(), 'playwright.config.contract.ts'), 'utf8');
+		const contractSource = readFileSync(
+			join(process.cwd(), 'playwright.config.contract.ts'),
+			'utf8'
+		);
 		expect(contractSource).toContain('/signup → /console');
 		expect(contractSource).not.toContain('/signup → /dashboard');
 	});
@@ -1450,7 +1471,7 @@ describe('rendered Dashboard copy gate (Stage 5)', () => {
 		/failForDashboardAction/,
 		/describe\(\s*['"]Dashboard\b/,
 		/it\(\s*['"].*Dashboard\b/,
-		/BoundaryScope.*=.*['"]dashboard['"]/,
+		/BoundaryScope.*=.*['"]dashboard['"]/
 	];
 
 	function collectSvelteFiles(dir: string): string[] {

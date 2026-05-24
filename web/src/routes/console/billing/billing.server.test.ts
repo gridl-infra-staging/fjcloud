@@ -127,10 +127,12 @@ describe('Billing page server load', () => {
 	it('does not redirect to login for quota_exceeded 403 errors from payment-methods load', async () => {
 		getPaymentMethodsMock.mockRejectedValue(new ApiRequestError(403, 'quota_exceeded'));
 
-		await expect(load({ locals: { user: { token: 'jwt-token' } } } as never)).rejects.toMatchObject({
-			status: 403,
-			message: 'quota_exceeded'
-		});
+		await expect(load({ locals: { user: { token: 'jwt-token' } } } as never)).rejects.toMatchObject(
+			{
+				status: 403,
+				message: 'quota_exceeded'
+			}
+		);
 	});
 
 	it('returns billingUnavailable when setup-intent reports service_not_configured', async () => {

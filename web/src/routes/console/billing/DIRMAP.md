@@ -8,5 +8,5 @@
 | Directory | Summary |
 | --- | --- |
 | invoices | — |
-| setup | The setup directory contains a SvelteKit page server that loads a Stripe setup intent for users to configure their payment method, handling errors when billing is unavailable or the customer is missing. |
+| setup | The billing setup page server load function creates a Stripe setup intent for payment method configuration and returns the client secret needed for Stripe Elements initialization, with error handling for missing billing configuration or customers. |
 <!-- [scrai:end] -->

@@ -36,50 +36,50 @@
 	<title>Sign Up — Flapjack Cloud</title>
 </svelte:head>
 
-<div class="flex min-h-screen items-center justify-center bg-gray-50">
+<div class="flex min-h-screen items-center justify-center bg-flapjack-cream/80">
 	<div class="w-full max-w-md rounded-lg bg-white p-8 shadow">
-		<h1 class="mb-6 text-2xl font-bold text-gray-900">Create your account</h1>
-		<p class="mb-6 text-sm text-gray-600">{MARKETING_PRICING.free_tier_promise}</p>
+		<h1 class="mb-6 text-2xl font-bold text-flapjack-ink">Create your account</h1>
+		<p class="mb-6 text-sm text-flapjack-ink/70">{MARKETING_PRICING.free_tier_promise}</p>
 
 		{#if form?.errors?.form}
-			<div class="mb-4 rounded bg-red-50 p-3 text-sm text-red-700" role="alert">
+			<div class="mb-4 rounded bg-flapjack-rose/10 p-3 text-sm text-flapjack-plum" role="alert">
 				{form.errors.form}
 			</div>
 		{/if}
 
-			<form method="POST" class="space-y-4">
+		<form method="POST" class="space-y-4">
 			<div>
-				<label for="name" class="mb-1 block text-sm font-medium text-gray-700">Name</label>
+				<label for="name" class="mb-1 block text-sm font-medium text-flapjack-ink/80">Name</label>
 				<input
 					id="name"
 					name="name"
 					type="text"
 					bind:value={name}
 					required
-					class="w-full rounded border border-gray-300 px-3 py-2 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+					class="w-full rounded border border-flapjack-ink/30 px-3 py-2 focus:border-flapjack-rose focus:ring-1 focus:ring-flapjack-rose"
 				/>
 				{#if form?.errors?.name}
-					<p class="mt-1 text-sm text-red-600">{form.errors.name}</p>
+					<p class="mt-1 text-sm text-flapjack-plum">{form.errors.name}</p>
 				{/if}
 			</div>
 
 			<div>
-				<label for="email" class="mb-1 block text-sm font-medium text-gray-700">Email</label>
+				<label for="email" class="mb-1 block text-sm font-medium text-flapjack-ink/80">Email</label>
 				<input
 					id="email"
 					name="email"
 					type="email"
 					bind:value={email}
 					required
-					class="w-full rounded border border-gray-300 px-3 py-2 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+					class="w-full rounded border border-flapjack-ink/30 px-3 py-2 focus:border-flapjack-rose focus:ring-1 focus:ring-flapjack-rose"
 				/>
 				{#if form?.errors?.email}
-					<p class="mt-1 text-sm text-red-600">{form.errors.email}</p>
+					<p class="mt-1 text-sm text-flapjack-plum">{form.errors.email}</p>
 				{/if}
 			</div>
 
 			<div>
-				<label for="password" class="mb-1 block text-sm font-medium text-gray-700">
+				<label for="password" class="mb-1 block text-sm font-medium text-flapjack-ink/80">
 					Password
 				</label>
 				<input
@@ -89,15 +89,15 @@
 					bind:value={password}
 					required
 					minlength={SIGNUP_PASSWORD_MIN_LENGTH}
-					class="w-full rounded border border-gray-300 px-3 py-2 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+					class="w-full rounded border border-flapjack-ink/30 px-3 py-2 focus:border-flapjack-rose focus:ring-1 focus:ring-flapjack-rose"
 				/>
 				{#if passwordErrorMessage}
-					<p class="mt-1 text-sm text-red-600">{passwordErrorMessage}</p>
+					<p class="mt-1 text-sm text-flapjack-plum">{passwordErrorMessage}</p>
 				{/if}
 			</div>
 
 			<div>
-				<label for="confirm_password" class="mb-1 block text-sm font-medium text-gray-700">
+				<label for="confirm_password" class="mb-1 block text-sm font-medium text-flapjack-ink/80">
 					Confirm Password
 				</label>
 				<input
@@ -106,32 +106,34 @@
 					type="password"
 					required
 					minlength={SIGNUP_PASSWORD_MIN_LENGTH}
-					class="w-full rounded border border-gray-300 px-3 py-2 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+					class="w-full rounded border border-flapjack-ink/30 px-3 py-2 focus:border-flapjack-rose focus:ring-1 focus:ring-flapjack-rose"
 				/>
 				{#if form?.errors?.confirm_password}
-					<p class="mt-1 text-sm text-red-600" role="alert">{form.errors.confirm_password}</p>
+					<p class="mt-1 text-sm text-flapjack-plum" role="alert">{form.errors.confirm_password}</p>
 				{/if}
 			</div>
 
 			<button
 				type="submit"
-				class="w-full rounded bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+				class="w-full rounded bg-flapjack-rose px-4 py-2 font-medium text-white hover:bg-flapjack-plum focus:ring-2 focus:ring-flapjack-rose focus:ring-offset-flapjack-cream"
 			>
 				Sign Up
 			</button>
-			</form>
+		</form>
 
-			<div class="my-6 flex items-center">
-				<div class="h-px flex-1 bg-gray-200"></div>
-				<span class="px-3 text-xs font-medium uppercase tracking-wide text-gray-500">Or</span>
-				<div class="h-px flex-1 bg-gray-200"></div>
-			</div>
+		<div class="my-6 flex items-center">
+			<div class="h-px flex-1 bg-flapjack-cream/60"></div>
+			<span class="px-3 text-xs font-medium uppercase tracking-wide text-flapjack-ink/60">Or</span>
+			<div class="h-px flex-1 bg-flapjack-cream/60"></div>
+		</div>
 
-			<OAuthButtons apiBaseUrl={data.apiBaseUrl} />
+		<OAuthButtons apiBaseUrl={data.apiBaseUrl} />
 
-			<p class="mt-4 text-center text-sm text-gray-600">
+		<p class="mt-4 text-center text-sm text-flapjack-ink/70">
 			Already have an account?
-			<a href={resolve('/login')} class="font-medium text-blue-600 hover:text-blue-500">Log in</a>
+			<a href={resolve('/login')} class="font-medium text-flapjack-rose hover:text-flapjack-plum"
+				>Log in</a
+			>
 		</p>
 	</div>
 </div>

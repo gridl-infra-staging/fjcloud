@@ -45,13 +45,13 @@
 
 <div>
 	<div class="mb-6 flex items-center justify-between">
-		<h1 class="text-2xl font-bold text-gray-900">Indexes</h1>
+		<h1 class="text-2xl font-bold text-flapjack-ink">Indexes</h1>
 		<button
 			type="button"
 			onclick={() => {
 				showCreateForm = !showCreateForm;
 			}}
-			class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+			class="rounded-md bg-flapjack-rose px-4 py-2 text-sm font-medium text-white hover:bg-flapjack-plum"
 		>
 			Create Index
 		</button>
@@ -60,14 +60,15 @@
 	{#if formResult?.error === 'quota_exceeded'}
 		<div
 			data-testid="quota-exceeded-callout"
-			class="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800"
+			class="mb-4 rounded-lg border border-flapjack-yellow/50 bg-flapjack-yellow/20 p-4 text-sm text-flapjack-ink/80"
 		>
 			<p class="font-medium">You've reached your free plan index limit.</p>
 			<p class="mt-1">
 				Delete an existing index or
 				<a
 					href={resolve('/console/billing')}
-					class="font-medium text-amber-900 underline hover:text-amber-700">upgrade your plan</a
+					class="font-medium text-flapjack-ink/90 underline hover:text-flapjack-plum"
+					>upgrade your plan</a
 				>
 				to create more.
 			</p>
@@ -75,24 +76,26 @@
 	{:else if formResult?.error}
 		<div
 			role="alert"
-			class="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700"
+			class="mb-4 rounded-lg border border-flapjack-rose/35 bg-flapjack-rose/10 p-4 text-sm text-flapjack-plum"
 		>
 			<p>{formResult.error}</p>
 		</div>
 	{/if}
 
 	{#if formResult?.created}
-		<div class="mb-4 rounded-lg border border-green-200 bg-green-50 p-4 text-sm text-green-700">
+		<div
+			class="mb-4 rounded-lg border border-flapjack-mint/60 bg-flapjack-mint/25 p-4 text-sm text-flapjack-ink/80"
+		>
 			<p>Index created successfully.</p>
 		</div>
 	{/if}
 
 	{#if showCreateForm}
 		<div class="mb-6 rounded-lg bg-white p-6 shadow" data-testid="create-index-form">
-			<h2 class="mb-4 text-lg font-medium text-gray-900">Create a new index</h2>
+			<h2 class="mb-4 text-lg font-medium text-flapjack-ink">Create a new index</h2>
 			<form method="POST" action="?/create" use:enhance={refreshIndexesAfterAction}>
 				<div class="mb-4">
-					<label for="index-name" class="mb-1 block text-sm font-medium text-gray-700"
+					<label for="index-name" class="mb-1 block text-sm font-medium text-flapjack-ink/80"
 						>Index name</label
 					>
 					<input
@@ -103,19 +106,19 @@
 						placeholder="my-index"
 						maxlength={64}
 						required
-						class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+						class="w-full rounded-md border border-flapjack-ink/30 px-3 py-2 text-sm focus:border-flapjack-rose focus:ring-1 focus:ring-flapjack-rose"
 					/>
 				</div>
 
 				<fieldset class="mb-4">
-					<legend class="mb-2 text-sm font-medium text-gray-700">Region</legend>
+					<legend class="mb-2 text-sm font-medium text-flapjack-ink/80">Region</legend>
 					<div class="grid grid-cols-2 gap-3">
 						{#each regions as region (region.id)}
 							<label
 								class="cursor-pointer rounded-lg border-2 p-3 transition-colors {selectedRegion ===
 								region.id
-									? 'border-blue-500 bg-blue-50'
-									: 'border-gray-200 hover:border-gray-300'}"
+									? 'border-flapjack-rose bg-flapjack-rose/10'
+									: 'border-flapjack-ink/20 hover:border-flapjack-ink/30'}"
 							>
 								<input
 									type="radio"
@@ -125,9 +128,11 @@
 									class="sr-only"
 								/>
 								<div class="flex items-center justify-between gap-2">
-									<span class="block text-sm font-medium text-gray-900">{region.display_name}</span>
+									<span class="block text-sm font-medium text-flapjack-ink"
+										>{region.display_name}</span
+									>
 								</div>
-								<span class="mt-0.5 block text-xs text-gray-500">{region.id}</span>
+								<span class="mt-0.5 block text-xs text-flapjack-ink/60">{region.id}</span>
 							</label>
 						{/each}
 					</div>
@@ -137,7 +142,7 @@
 					<button
 						type="submit"
 						disabled={regions.length === 0}
-						class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+						class="rounded-md bg-flapjack-rose px-4 py-2 text-sm font-medium text-white hover:bg-flapjack-plum"
 					>
 						Create
 					</button>
@@ -146,7 +151,7 @@
 						onclick={() => {
 							showCreateForm = false;
 						}}
-						class="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+						class="rounded-md border border-flapjack-ink/30 px-4 py-2 text-sm font-medium text-flapjack-ink/80 hover:bg-flapjack-cream/80"
 					>
 						Cancel
 					</button>
@@ -157,12 +162,14 @@
 
 	{#if indexes.length === 0}
 		<div class="rounded-lg bg-white p-12 text-center shadow">
-			<p class="text-gray-500">No indexes yet — create your first one.</p>
+			<p class="text-flapjack-ink/60">No indexes yet — create your first one.</p>
 		</div>
 	{:else}
 		<div class="overflow-hidden rounded-lg bg-white shadow">
 			<table class="w-full text-left text-sm">
-				<thead class="border-b bg-gray-50 text-xs font-medium uppercase text-gray-500">
+				<thead
+					class="border-b bg-flapjack-cream/80 text-xs font-medium uppercase text-flapjack-ink/60"
+				>
 					<tr>
 						<th class="px-4 py-3">Name</th>
 						<th class="px-4 py-3">Region</th>
@@ -176,15 +183,15 @@
 				<tbody class="divide-y">
 					{#each indexes as idx (idx.name)}
 						<tr>
-							<td class="px-4 py-3 font-medium text-gray-900">
+							<td class="px-4 py-3 font-medium text-flapjack-ink">
 								<a
 									href={resolve(`/console/indexes/${idx.name}`)}
-									class="text-blue-600 hover:text-blue-500 hover:underline"
+									class="text-flapjack-rose hover:text-flapjack-plum hover:underline"
 								>
 									{idx.name}
 								</a>
 							</td>
-							<td class="px-4 py-3 text-gray-600">{idx.region}</td>
+							<td class="px-4 py-3 text-flapjack-ink/70">{idx.region}</td>
 							<td class="px-4 py-3">
 								<span
 									class="inline-flex rounded-full px-2 py-0.5 text-xs font-medium {indexStatusBadgeColor(
@@ -194,15 +201,15 @@
 									{statusLabel(idx.status)}
 								</span>
 							</td>
-							<td class="px-4 py-3 text-gray-900">{formatNumber(idx.entries)}</td>
-							<td class="px-4 py-3 text-gray-600">{formatBytes(idx.data_size_bytes)}</td>
-							<td class="px-4 py-3 text-gray-600">{formatDate(idx.created_at)}</td>
+							<td class="px-4 py-3 text-flapjack-ink">{formatNumber(idx.entries)}</td>
+							<td class="px-4 py-3 text-flapjack-ink/70">{formatBytes(idx.data_size_bytes)}</td>
+							<td class="px-4 py-3 text-flapjack-ink/70">{formatDate(idx.created_at)}</td>
 							<td class="px-4 py-3 text-right">
 								<form method="POST" action="?/delete" use:enhance={refreshIndexesAfterAction}>
 									<input type="hidden" name="name" value={idx.name} />
 									<button
 										type="submit"
-										class="rounded border border-red-300 px-3 py-1 text-sm text-red-700 hover:bg-red-50"
+										class="rounded border border-flapjack-rose/45 px-3 py-1 text-sm text-flapjack-plum hover:bg-flapjack-rose/10"
 										onclick={(e) => {
 											if (!confirm(`Are you sure you want to delete the index "${idx.name}"?`)) {
 												e.preventDefault();

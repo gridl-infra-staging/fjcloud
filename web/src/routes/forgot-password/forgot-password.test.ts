@@ -30,7 +30,9 @@ describe('Forgot password page', () => {
 		});
 
 		expect(
-			screen.getByText("If an account exists with that email, you'll receive a password reset link shortly.")
+			screen.getByText(
+				"If an account exists with that email, you'll receive a password reset link shortly."
+			)
 		).toBeInTheDocument();
 		expect(screen.getByRole('button', { name: 'Resend Reset Link' })).toBeInTheDocument();
 		expect(screen.getByRole('link', { name: 'Back to login' })).toHaveAttribute('href', '/login');
@@ -78,7 +80,9 @@ describe('Forgot password page', () => {
 			resendStatus: 'cooldown'
 		});
 
-		expect(screen.getByText('Please wait before requesting another reset link.')).toBeInTheDocument();
+		expect(
+			screen.getByText('Please wait before requesting another reset link.')
+		).toBeInTheDocument();
 	});
 
 	it('renders explicit delivery-failure guidance for resend failures', () => {

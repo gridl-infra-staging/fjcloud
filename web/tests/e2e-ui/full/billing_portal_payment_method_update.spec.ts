@@ -9,7 +9,10 @@ const SESSION_EXPIRED_REASON = 'session_expired';
 
 function isSessionExpiredUrl(urlString: string): boolean {
 	const currentUrl = new URL(urlString);
-	return currentUrl.pathname === '/login' && currentUrl.searchParams.get('reason') === SESSION_EXPIRED_REASON;
+	return (
+		currentUrl.pathname === '/login' &&
+		currentUrl.searchParams.get('reason') === SESSION_EXPIRED_REASON
+	);
 }
 
 function sessionRecoveryFailure(detail: string): Error {

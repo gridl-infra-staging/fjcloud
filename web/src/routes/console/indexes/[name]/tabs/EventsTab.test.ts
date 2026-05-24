@@ -44,7 +44,7 @@ describe('EventsTab', () => {
 			const { container } = render(EventsTab, { props: defaultProps() });
 
 			// sampleDebugEvents has count: 2 — badge is the inline-flex span in the header
-			const badge = container.querySelector('.bg-gray-100.text-xs');
+			const badge = container.querySelector('[class*="bg-flapjack-cream/70"][class*="text-xs"]');
 			expect(badge).not.toBeNull();
 			expect(badge!.textContent?.trim()).toBe('2');
 		});
@@ -53,7 +53,7 @@ describe('EventsTab', () => {
 			const { container } = render(EventsTab, { props: defaultProps({ debugEvents: null }) });
 
 			// Count badge is the inline-flex span in the header, next to the heading
-			const badge = container.querySelector('.bg-gray-100.text-xs');
+			const badge = container.querySelector('[class*="bg-flapjack-cream/70"][class*="text-xs"]');
 			expect(badge).not.toBeNull();
 			expect(badge!.textContent?.trim()).toBe('0');
 		});
@@ -131,10 +131,14 @@ describe('EventsTab', () => {
 
 			expect(screen.getByText('Total events')).toBeInTheDocument();
 			// "OK" appears both as counter label and as row badge — scope to counter section
-			const greenCounter = container.querySelector('.bg-green-50 .text-xs');
+			const greenCounter = container.querySelector(
+				'[class*="bg-flapjack-mint/25"] [class*="text-xs"]'
+			);
 			expect(greenCounter).not.toBeNull();
 			expect(greenCounter!.textContent).toContain('OK');
-			const redCounter = container.querySelector('.bg-red-50 .text-xs');
+			const redCounter = container.querySelector(
+				'[class*="bg-flapjack-rose/10"] [class*="text-xs"]'
+			);
 			expect(redCounter).not.toBeNull();
 		});
 

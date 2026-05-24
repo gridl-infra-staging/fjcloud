@@ -136,4 +136,116 @@ test.describe('Index detail tabs', () => {
 		await expect(section.getByText('Conversation History JSON')).toBeVisible();
 		await expect(section.getByText('No chat response yet.')).toBeVisible();
 	});
+
+	test('tab strip uses desktop overflow, mobile stacking, and keyboard tab order guard', async ({
+		page,
+		seedIndex,
+		testRegion
+	}) => {
+		await page.setViewportSize({ width: 1024, height: 900 });
+		await openSeededIndexDetailPage(page, seedIndex, testRegion, 'e2e-detail-tab-overflow');
+
+		const tabsStrip = page.getByTestId('index-tabs-strip');
+		await expect(tabsStrip).toBeVisible();
+		await expect
+			.poll(async () => tabsStrip.evaluate((node) => getComputedStyle(node).overflowX))
+			.toBe('auto');
+		await expect
+			.poll(async () => tabsStrip.evaluate((node) => getComputedStyle(node).scrollSnapType))
+			.toBe('x mandatory');
+
+		const desktopSize = await tabsStrip.evaluate((node) => ({
+			scrollWidth: node.scrollWidth,
+			clientWidth: node.clientWidth
+		}));
+		expect(desktopSize.scrollWidth).toBeGreaterThan(desktopSize.clientWidth);
+		for (const tabTestId of ['tab-overview', 'tab-settings', 'tab-documents']) {
+			await expect
+				.poll(async () =>
+					page.getByTestId(tabTestId).evaluate((node) => getComputedStyle(node).scrollSnapAlign)
+				)
+				.toBe('start');
+		}
+
+		const leftFade = page.getByTestId('index-tabs-fade-left');
+		const rightFade = page.getByTestId('index-tabs-fade-right');
+		await expect(leftFade).toBeVisible();
+		await expect(rightFade).toBeVisible();
+		await expect
+			.poll(async () => leftFade.evaluate((node) => getComputedStyle(node).pointerEvents))
+			.toBe('none');
+		await expect
+			.poll(async () => rightFade.evaluate((node) => getComputedStyle(node).pointerEvents))
+			.toBe('none');
+
+		const desktopInteraction = await tabsStrip.evaluate((node) => ({
+			scrollWidth: node.scrollWidth,
+			clientWidth: node.clientWidth
+		}));
+		expect(desktopInteraction.scrollWidth).toBeGreaterThan(desktopInteraction.clientWidth);
+
+		const leftBoundaryTabVisibleBeyondFade = await page.evaluate(() => {
+			const strip = document.querySelector('[data-testid="index-tabs-strip"]');
+			const leftFade = document.querySelector('[data-testid="index-tabs-fade-left"]');
+			const leftTab = document.querySelector('[data-testid="tab-overview"]');
+			if (
+				!(strip instanceof HTMLElement) ||
+				!(leftFade instanceof HTMLElement) ||
+				!(leftTab instanceof HTMLElement)
+			) {
+				return false;
+			}
+
+			leftTab.scrollIntoView({ inline: 'start', block: 'nearest' });
+			const stripRect = strip.getBoundingClientRect();
+			const fadeRect = leftFade.getBoundingClientRect();
+			const tabRect = leftTab.getBoundingClientRect();
+			const visibleWithinStrip =
+				tabRect.left >= stripRect.left - 1 && tabRect.right <= stripRect.right + 1;
+			const clearOfLeftFade = tabRect.left >= Math.max(stripRect.left, fadeRect.right) - 1;
+			return visibleWithinStrip && clearOfLeftFade;
+		});
+		expect(leftBoundaryTabVisibleBeyondFade).toBe(true);
+
+		const rightmostTabVisibleBeyondFade = await page.evaluate(() => {
+			const strip = document.querySelector('[data-testid="index-tabs-strip"]');
+			const rightFade = document.querySelector('[data-testid="index-tabs-fade-right"]');
+			const rightTab = document.querySelector('[data-testid="tab-search-preview"]');
+			if (
+				!(strip instanceof HTMLElement) ||
+				!(rightFade instanceof HTMLElement) ||
+				!(rightTab instanceof HTMLElement)
+			) {
+				return false;
+			}
+
+			rightTab.scrollIntoView({ inline: 'end', block: 'nearest' });
+			strip.scrollLeft = strip.scrollWidth;
+			const stripRect = strip.getBoundingClientRect();
+			const fadeRect = rightFade.getBoundingClientRect();
+			const tabRect = rightTab.getBoundingClientRect();
+			const visibleWithinStrip =
+				tabRect.left >= stripRect.left - 1 && tabRect.right <= stripRect.right + 1;
+			const clearOfRightFade = tabRect.right <= Math.min(stripRect.right, fadeRect.left) + 1;
+			return visibleWithinStrip && clearOfRightFade;
+		});
+		expect(rightmostTabVisibleBeyondFade).toBe(true);
+
+		await page.setViewportSize({ width: 480, height: 900 });
+		await expect
+			.poll(async () => tabsStrip.evaluate((node) => getComputedStyle(node).flexDirection))
+			.toBe('column');
+		const mobileSize = await tabsStrip.evaluate((node) => ({
+			scrollWidth: node.scrollWidth,
+			clientWidth: node.clientWidth
+		}));
+		expect(mobileSize.scrollWidth).toBeLessThanOrEqual(mobileSize.clientWidth);
+
+		const expectedFocusOrder = ['tab-overview', 'tab-settings', 'tab-documents'];
+		await page.getByTestId('tab-overview').focus();
+		for (const tabTestId of expectedFocusOrder) {
+			await expect(page.getByTestId(tabTestId)).toBeFocused();
+			await page.keyboard.press('Tab');
+		}
+	});
 });

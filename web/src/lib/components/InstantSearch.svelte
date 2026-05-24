@@ -120,7 +120,7 @@
 		</form>
 	</div>
 
-	<div class="text-sm text-gray-500">
+	<div class="text-sm text-flapjack-ink/60">
 		{#if loading}
 			Searching...
 		{:else if searchError}
@@ -132,17 +132,17 @@
 
 	<div data-testid="instantsearch-hits">
 		{#if loading}
-			<p class="text-gray-500">Searching...</p>
+			<p class="text-flapjack-ink/60">Searching...</p>
 		{:else if searchError}
-			<p class="text-red-600">{searchError}</p>
+			<p class="text-flapjack-plum">{searchError}</p>
 		{:else if searchSubmitted && hits.length === 0}
-			<p class="text-gray-500">No results found.</p>
+			<p class="text-flapjack-ink/60">No results found.</p>
 		{:else}
 			{#each hits as hit, idx (hit.objectID ?? `hit-${idx}`)}
 				<article class="hit-item">
 					<strong>{hit.title ?? hit.objectID ?? 'Untitled result'}</strong>
 					{#if hit.body}
-						<p class="mt-2 text-sm text-gray-600">{hit.body}</p>
+						<p class="mt-2 text-sm text-flapjack-ink/70">{hit.body}</p>
 					{/if}
 					{#if formatHitDetails(hit)}
 						<pre>{formatHitDetails(hit)}</pre>
@@ -162,18 +162,24 @@
 	:global(.ais-SearchBox-input) {
 		flex: 1;
 		padding: 0.5rem 0.75rem;
-		border: 1px solid #d1d5db;
+		border: 1px solid color-mix(in srgb, var(--color-flapjack-ink) 18%, white);
 		border-radius: 0.375rem;
 		font-size: 0.875rem;
+		color: var(--color-flapjack-ink);
+		background-color: white;
 	}
 
 	:global(.ais-SearchBox-submit) {
 		padding: 0.5rem 1rem;
-		background-color: #2563eb;
+		background-color: var(--color-flapjack-rose);
 		color: white;
 		border: none;
 		border-radius: 0.375rem;
 		cursor: pointer;
+	}
+
+	:global(.ais-SearchBox-submit:hover) {
+		background-color: var(--color-flapjack-plum);
 	}
 
 	:global(.ais-SearchBox-reset) {
@@ -182,14 +188,15 @@
 
 	:global(.hit-item) {
 		padding: 0.75rem;
-		border: 1px solid #e5e7eb;
+		border: 1px solid color-mix(in srgb, var(--color-flapjack-ink) 14%, white);
 		border-radius: 0.375rem;
 		margin-bottom: 0.5rem;
+		background: color-mix(in srgb, var(--color-flapjack-cream) 55%, white);
 	}
 
 	:global(.hit-item pre) {
 		font-size: 0.75rem;
-		color: #6b7280;
+		color: color-mix(in srgb, var(--color-flapjack-ink) 70%, white);
 		white-space: pre-wrap;
 		word-break: break-all;
 		margin-top: 0.25rem;

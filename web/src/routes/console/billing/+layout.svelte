@@ -18,13 +18,13 @@
 </script>
 
 <div>
-	<nav class="mb-6 flex gap-4 border-b border-gray-200" aria-label="Billing navigation">
+	<nav class="mb-6 flex gap-4 border-b border-flapjack-ink/20" aria-label="Billing navigation">
 		{#each tabs as tab (tab.href)}
 			<a
 				href={resolve(tab.href)}
 				class="border-b-2 px-1 pb-3 text-sm font-medium transition-colors {isActive(tab.href)
-					? 'border-blue-500 text-blue-600'
-					: 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}"
+					? 'border-flapjack-rose text-flapjack-rose'
+					: 'border-transparent text-flapjack-ink/60 hover:border-flapjack-ink/30 hover:text-flapjack-ink/80'}"
 			>
 				{tab.label}
 			</a>

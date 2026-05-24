@@ -240,42 +240,48 @@
 </script>
 
 <div class="mb-6 rounded-lg bg-white p-6 shadow" data-testid="settings-section">
-	<h2 class="mb-4 text-lg font-medium text-gray-900">Settings</h2>
-	<p class="mb-4 text-sm text-gray-600">
+	<h2 class="mb-4 text-lg font-medium text-flapjack-ink">Settings</h2>
+	<p class="mb-4 text-sm text-flapjack-ink/70">
 		Update index settings as JSON. Changes are forwarded directly to the index API.
 	</p>
 
 	{#if settingsSaved}
-		<div class="mb-4 rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-700">
+		<div
+			class="mb-4 rounded-md border border-flapjack-mint/60 bg-flapjack-mint/25 p-3 text-sm text-flapjack-ink/80"
+		>
 			Settings saved.
 		</div>
 	{/if}
 
 	{#if settingsError}
-		<div class="mb-4 rounded-md bg-red-50 p-3 text-sm text-red-700">{settingsError}</div>
+		<div class="mb-4 rounded-md bg-flapjack-rose/10 p-3 text-sm text-flapjack-plum">
+			{settingsError}
+		</div>
 	{/if}
 
 	<form method="POST" action="?/saveSettings" use:enhance>
-		<div class="mb-6 rounded-md border border-gray-200 p-4">
-			<h3 class="mb-3 text-sm font-semibold text-gray-900">Vector, Hybrid, and Re-ranking</h3>
-			<p class="mb-4 text-sm text-gray-600">
+		<div class="mb-6 rounded-md border border-flapjack-ink/20 p-4">
+			<h3 class="mb-3 text-sm font-semibold text-flapjack-ink">Vector, Hybrid, and Re-ranking</h3>
+			<p class="mb-4 text-sm text-flapjack-ink/70">
 				These controls update the same Settings JSON draft below before save.
 			</p>
 
 			{#if settingsControlError}
-				<div class="mb-4 rounded-md bg-red-50 p-3 text-sm text-red-700">{settingsControlError}</div>
+				<div class="mb-4 rounded-md bg-flapjack-rose/10 p-3 text-sm text-flapjack-plum">
+					{settingsControlError}
+				</div>
 			{/if}
 
 			<div class="grid grid-cols-1 gap-4 md:grid-cols-2">
 				<div>
-					<label for="settings-mode" class="mb-1 block text-sm font-medium text-gray-700"
+					<label for="settings-mode" class="mb-1 block text-sm font-medium text-flapjack-ink/80"
 						>Mode</label
 					>
 					<select
 						id="settings-mode"
 						value={modeValue}
 						onchange={handleModeChange}
-						class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+						class="w-full rounded-md border border-flapjack-ink/30 px-3 py-2 text-sm focus:border-flapjack-rose focus:ring-1 focus:ring-flapjack-rose"
 					>
 						<option value="standard">standard</option>
 						<option value="neuralSearch">neuralSearch</option>
@@ -283,12 +289,12 @@
 				</div>
 
 				<div class="flex flex-col gap-3">
-					<label class="inline-flex items-center gap-2 text-sm text-gray-700">
+					<label class="inline-flex items-center gap-2 text-sm text-flapjack-ink/80">
 						<input type="checkbox" checked={embeddersEnabled} onchange={handleEmbeddersToggle} />
 						<span>Enable Embedders</span>
 					</label>
 
-					<label class="inline-flex items-center gap-2 text-sm text-gray-700">
+					<label class="inline-flex items-center gap-2 text-sm text-flapjack-ink/80">
 						<input type="checkbox" checked={hybridEnabled} onchange={handleHybridToggle} />
 						<span>Enable Hybrid Search</span>
 					</label>
@@ -296,7 +302,7 @@
 					{#if hybridEnabled}
 						<div class="ml-6 flex flex-col gap-3">
 							<div>
-								<label for="settings-semantic-ratio" class="mb-1 block text-sm text-gray-700"
+								<label for="settings-semantic-ratio" class="mb-1 block text-sm text-flapjack-ink/80"
 									>Semantic Ratio</label
 								>
 								<input
@@ -310,18 +316,19 @@
 										setHybridSemanticRatio((event.currentTarget as HTMLInputElement).value)}
 									class="w-full"
 								/>
-								<span class="text-xs text-gray-500">{semanticRatioValue}</span>
+								<span class="text-xs text-flapjack-ink/60">{semanticRatioValue}</span>
 							</div>
 							<div>
-								<label for="settings-hybrid-embedder" class="mb-1 block text-sm text-gray-700"
-									>Hybrid Embedder</label
+								<label
+									for="settings-hybrid-embedder"
+									class="mb-1 block text-sm text-flapjack-ink/80">Hybrid Embedder</label
 								>
 								<select
 									id="settings-hybrid-embedder"
 									value={hybridEmbedderValue}
 									onchange={(event) =>
 										setHybridEmbedder((event.currentTarget as HTMLSelectElement).value)}
-									class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+									class="w-full rounded-md border border-flapjack-ink/30 px-3 py-2 text-sm"
 								>
 									{#each hybridEmbedderOptions as name (name)}
 										<option value={name}>{name}</option>
@@ -331,13 +338,13 @@
 						</div>
 					{/if}
 
-					<label class="inline-flex items-center gap-2 text-sm text-gray-700">
+					<label class="inline-flex items-center gap-2 text-sm text-flapjack-ink/80">
 						<input type="checkbox" checked={reRankingEnabled} onchange={handleReRankingToggle} />
 						<span>Enable Re-ranking</span>
 					</label>
 
 					<div>
-						<label for="settings-reranking-filter" class="mb-1 block text-sm text-gray-700">
+						<label for="settings-reranking-filter" class="mb-1 block text-sm text-flapjack-ink/80">
 							Re-ranking Apply Filter
 						</label>
 						<input
@@ -346,7 +353,7 @@
 							value={reRankingApplyFilterValue}
 							oninput={handleReRankingApplyFilterInput}
 							placeholder="brand:Nike"
-							class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+							class="w-full rounded-md border border-flapjack-ink/30 px-3 py-2 text-sm focus:border-flapjack-rose focus:ring-1 focus:ring-flapjack-rose"
 						/>
 					</div>
 				</div>
@@ -354,14 +361,14 @@
 		</div>
 
 		{#if embeddersEnabled && embedderEntries.length > 0}
-			<div class="mb-6 rounded-md border border-gray-200 p-4">
-				<h3 class="mb-3 text-sm font-semibold text-gray-900">Embedder Configuration</h3>
+			<div class="mb-6 rounded-md border border-flapjack-ink/20 p-4">
+				<h3 class="mb-3 text-sm font-semibold text-flapjack-ink">Embedder Configuration</h3>
 				{#each embedderEntries as [name, config] (name)}
-					<div class="mb-3 rounded-md border border-gray-100 p-3">
-						<span class="mb-2 block text-sm font-medium text-gray-800">{name}</span>
+					<div class="mb-3 rounded-md border border-flapjack-ink/10 p-3">
+						<span class="mb-2 block text-sm font-medium text-flapjack-ink">{name}</span>
 						<div class="grid grid-cols-1 gap-3 md:grid-cols-2">
 							<div>
-								<label for="embedder-{name}-source" class="mb-1 block text-sm text-gray-700"
+								<label for="embedder-{name}-source" class="mb-1 block text-sm text-flapjack-ink/80"
 									>{name} source</label
 								>
 								<select
@@ -369,7 +376,7 @@
 									value={typeof config.source === 'string' ? config.source : ''}
 									onchange={(event) =>
 										setEmbedderSource(name, (event.currentTarget as HTMLSelectElement).value)}
-									class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+									class="w-full rounded-md border border-flapjack-ink/30 px-3 py-2 text-sm"
 								>
 									<option value="userProvided">userProvided</option>
 									<option value="openAi">openAi</option>
@@ -379,8 +386,9 @@
 								</select>
 							</div>
 							<div>
-								<label for="embedder-{name}-dimensions" class="mb-1 block text-sm text-gray-700"
-									>{name} dimensions</label
+								<label
+									for="embedder-{name}-dimensions"
+									class="mb-1 block text-sm text-flapjack-ink/80">{name} dimensions</label
 								>
 								<input
 									id="embedder-{name}-dimensions"
@@ -388,7 +396,7 @@
 									value={typeof config.dimensions === 'number' ? config.dimensions : ''}
 									oninput={(event) =>
 										setEmbedderDimensions(name, (event.currentTarget as HTMLInputElement).value)}
-									class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+									class="w-full rounded-md border border-flapjack-ink/30 px-3 py-2 text-sm"
 								/>
 							</div>
 						</div>
@@ -397,7 +405,7 @@
 			</div>
 		{/if}
 
-		<label for="settings-json" class="mb-2 block text-sm font-medium text-gray-700"
+		<label for="settings-json" class="mb-2 block text-sm font-medium text-flapjack-ink/80"
 			>Settings JSON</label
 		>
 		<textarea
@@ -406,11 +414,11 @@
 			aria-label="Settings JSON"
 			bind:value={settingsText}
 			rows="16"
-			class="mb-4 w-full rounded-md border border-gray-300 p-3 font-mono text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+			class="mb-4 w-full rounded-md border border-flapjack-ink/30 p-3 font-mono text-sm focus:border-flapjack-rose focus:ring-1 focus:ring-flapjack-rose"
 		></textarea>
 		<button
 			type="submit"
-			class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+			class="rounded-md bg-flapjack-rose px-4 py-2 text-sm font-medium text-white hover:bg-flapjack-plum"
 		>
 			Save Settings
 		</button>

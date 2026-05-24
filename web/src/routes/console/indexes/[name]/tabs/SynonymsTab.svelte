@@ -90,35 +90,43 @@
 	data-testid="synonyms-section"
 	data-index={index.name}
 >
-	<h2 class="mb-4 text-lg font-medium text-gray-900">Synonyms</h2>
-	<p class="mb-4 text-sm text-gray-600">Create and manage synonym sets for this index.</p>
+	<h2 class="mb-4 text-lg font-medium text-flapjack-ink">Synonyms</h2>
+	<p class="mb-4 text-sm text-flapjack-ink/70">Create and manage synonym sets for this index.</p>
 
 	{#if synonymSaved}
-		<div class="mb-4 rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-700">
+		<div
+			class="mb-4 rounded-md border border-flapjack-mint/60 bg-flapjack-mint/25 p-3 text-sm text-flapjack-ink/80"
+		>
 			Synonym saved.
 		</div>
 	{/if}
 
 	{#if synonymDeleted}
-		<div class="mb-4 rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-700">
+		<div
+			class="mb-4 rounded-md border border-flapjack-mint/60 bg-flapjack-mint/25 p-3 text-sm text-flapjack-ink/80"
+		>
 			Synonym deleted.
 		</div>
 	{/if}
 
 	{#if synonymError}
-		<div class="mb-4 rounded-md bg-red-50 p-3 text-sm text-red-700">{synonymError}</div>
+		<div class="mb-4 rounded-md bg-flapjack-rose/10 p-3 text-sm text-flapjack-plum">
+			{synonymError}
+		</div>
 	{/if}
 
 	{#if synonyms === null}
-		<p class="mb-6 text-sm text-amber-700">
+		<p class="mb-6 text-sm text-flapjack-plum">
 			Synonyms could not be loaded. Try refreshing the page.
 		</p>
 	{:else if synonyms.hits.length === 0}
-		<p class="mb-6 text-sm text-gray-500">No synonyms</p>
+		<p class="mb-6 text-sm text-flapjack-ink/60">No synonyms</p>
 	{:else}
 		<div class="mb-6 overflow-hidden rounded-lg border">
 			<table class="w-full text-left text-sm">
-				<thead class="border-b bg-gray-50 text-xs font-medium uppercase text-gray-500">
+				<thead
+					class="border-b bg-flapjack-cream/80 text-xs font-medium uppercase text-flapjack-ink/60"
+				>
 					<tr>
 						<th class="px-4 py-2">objectID</th>
 						<th class="px-4 py-2">Type</th>
@@ -129,21 +137,21 @@
 				<tbody class="divide-y">
 					{#each synonyms.hits as synonym (synonym.objectID)}
 						<tr>
-							<td class="px-4 py-2 font-mono text-gray-900">{synonym.objectID}</td>
+							<td class="px-4 py-2 font-mono text-flapjack-ink">{synonym.objectID}</td>
 							<td class="px-4 py-2">
 								<span
-									class="inline-flex rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800"
+									class="inline-flex rounded-full bg-flapjack-rose/10 px-2 py-0.5 text-xs font-medium text-flapjack-plum"
 									>{synonym.type}</span
 								>
 							</td>
-							<td class="px-4 py-2 text-gray-700">{synonymSummary(synonym)}</td>
+							<td class="px-4 py-2 text-flapjack-ink/80">{synonymSummary(synonym)}</td>
 							<td class="px-4 py-2 text-right">
 								<form method="POST" action="?/deleteSynonym" use:enhance>
 									<input type="hidden" name="objectID" value={synonym.objectID} />
 									<button
 										type="submit"
 										aria-label={`Delete synonym ${synonym.objectID}`}
-										class="rounded border border-red-300 px-3 py-1 text-xs text-red-700 hover:bg-red-50"
+										class="rounded border border-flapjack-rose/45 px-3 py-1 text-xs text-flapjack-plum hover:bg-flapjack-rose/10"
 									>
 										Delete
 									</button>
@@ -156,10 +164,10 @@
 		</div>
 	{/if}
 
-	<div class="rounded-md border border-gray-200 p-4">
-		<h3 class="mb-3 text-sm font-semibold text-gray-900">Add or Update Synonym</h3>
+	<div class="rounded-md border border-flapjack-ink/20 p-4">
+		<h3 class="mb-3 text-sm font-semibold text-flapjack-ink">Add or Update Synonym</h3>
 		<form method="POST" action="?/saveSynonym" use:enhance>
-			<label for="synonym-object-id" class="mb-2 block text-sm font-medium text-gray-700"
+			<label for="synonym-object-id" class="mb-2 block text-sm font-medium text-flapjack-ink/80"
 				>Object ID</label
 			>
 			<input
@@ -169,15 +177,17 @@
 				bind:value={newSynonymObjectID}
 				oninput={refreshSynonymTemplate}
 				placeholder="e.g. laptop-syn"
-				class="mb-4 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+				class="mb-4 w-full rounded-md border border-flapjack-ink/30 px-3 py-2 text-sm focus:border-flapjack-rose focus:ring-1 focus:ring-flapjack-rose"
 			/>
 
-			<label for="synonym-type" class="mb-2 block text-sm font-medium text-gray-700">Type</label>
+			<label for="synonym-type" class="mb-2 block text-sm font-medium text-flapjack-ink/80"
+				>Type</label
+			>
 			<select
 				id="synonym-type"
 				bind:value={newSynonymType}
 				onchange={refreshSynonymTemplate}
-				class="mb-4 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+				class="mb-4 w-full rounded-md border border-flapjack-ink/30 px-3 py-2 text-sm focus:border-flapjack-rose focus:ring-1 focus:ring-flapjack-rose"
 			>
 				<option value="synonym">synonym</option>
 				<option value="onewaysynonym">onewaysynonym</option>
@@ -186,7 +196,7 @@
 				<option value="placeholder">placeholder</option>
 			</select>
 
-			<label for="synonym-json" class="mb-2 block text-sm font-medium text-gray-700"
+			<label for="synonym-json" class="mb-2 block text-sm font-medium text-flapjack-ink/80"
 				>Synonym JSON</label
 			>
 			<textarea
@@ -194,12 +204,12 @@
 				name="synonym"
 				bind:value={newSynonymJson}
 				rows="12"
-				class="mb-4 w-full rounded-md border border-gray-300 p-3 font-mono text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+				class="mb-4 w-full rounded-md border border-flapjack-ink/30 p-3 font-mono text-sm focus:border-flapjack-rose focus:ring-1 focus:ring-flapjack-rose"
 			></textarea>
 
 			<button
 				type="submit"
-				class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+				class="rounded-md bg-flapjack-rose px-4 py-2 text-sm font-medium text-white hover:bg-flapjack-plum"
 			>
 				Save Synonym
 			</button>

@@ -113,7 +113,7 @@
 	data-testid="merchandising-section"
 	data-index={index.name}
 >
-	<h2 class="mb-4 text-lg font-medium text-gray-900">Merchandising</h2>
+	<h2 class="mb-4 text-lg font-medium text-flapjack-ink">Merchandising</h2>
 
 	<form
 		method="POST"
@@ -127,28 +127,28 @@
 			name="query"
 			bind:value={merchandisingQuery}
 			placeholder="Enter a search query"
-			class="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+			class="flex-1 rounded-md border border-flapjack-ink/30 px-3 py-2 text-sm focus:border-flapjack-rose focus:ring-1 focus:ring-flapjack-rose"
 		/>
 		<button
 			type="submit"
 			aria-label="Search Merchandising Results"
-			class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+			class="rounded-md bg-flapjack-rose px-4 py-2 text-sm font-medium text-white hover:bg-flapjack-plum"
 		>
 			Search
 		</button>
 	</form>
 
 	{#if merchandisingSubmittedQuery.length === 0}
-		<div class="rounded-md border border-gray-200 bg-gray-50 p-4">
-			<p class="font-medium text-gray-900">Enter a search query</p>
-			<p class="mt-1 text-sm text-gray-600">
+		<div class="rounded-md border border-flapjack-ink/20 bg-flapjack-cream/80 p-4">
+			<p class="font-medium text-flapjack-ink">Enter a search query</p>
+			<p class="mt-1 text-sm text-flapjack-ink/70">
 				Search and then pin or hide results to create a merchandising rule.
 			</p>
 		</div>
 	{:else}
 		{#if merchandisingPins.length > 0 || merchandisingHides.length > 0}
-			<div class="mb-4 rounded-md border border-blue-200 bg-blue-50 p-4">
-				<p class="text-sm text-blue-900">
+			<div class="mb-4 rounded-md border border-flapjack-rose/30 bg-flapjack-rose/10 p-4">
+				<p class="text-sm text-flapjack-ink/90">
 					{merchandisingPins.length} pinned, {merchandisingHides.length} hidden
 				</p>
 				<div class="mt-3 flex flex-wrap items-center gap-3">
@@ -156,20 +156,20 @@
 						type="text"
 						bind:value={merchandisingRuleDescription}
 						placeholder={`Merchandising: "${merchandisingSubmittedQuery}"`}
-						class="w-full max-w-md rounded-md border border-gray-300 px-3 py-2 text-sm"
+						class="w-full max-w-md rounded-md border border-flapjack-ink/30 px-3 py-2 text-sm"
 					/>
 					<button
 						type="button"
 						aria-label="Reset Merchandising"
 						onclick={resetMerchandising}
-						class="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100"
+						class="rounded-md border border-flapjack-ink/30 px-3 py-1.5 text-sm text-flapjack-ink/80 hover:bg-flapjack-cream/70"
 					>
 						Reset
 					</button>
 					<button
 						type="button"
 						onclick={buildMerchandisingRule}
-						class="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
+						class="rounded-md bg-flapjack-rose px-3 py-1.5 text-sm font-medium text-white hover:bg-flapjack-plum"
 					>
 						Save as Rule
 					</button>
@@ -178,20 +178,22 @@
 		{/if}
 
 		{#if merchandisingPreviewResults().length === 0}
-			<p class="text-sm text-gray-500">No results</p>
+			<p class="text-sm text-flapjack-ink/60">No results</p>
 		{:else}
 			<div class="space-y-3">
 				{#each merchandisingPreviewResults() as hit, idx (`${String(hit.objectID ?? '')}-${idx}`)}
-					<div class="rounded-md border border-gray-200 p-3">
+					<div class="rounded-md border border-flapjack-ink/20 p-3">
 						<div class="flex items-start justify-between gap-4">
 							<div>
-								<p class="font-medium text-gray-900">{String(hit.name ?? hit.objectID ?? '')}</p>
-								<p class="text-xs text-gray-500">{String(hit.objectID ?? '')}</p>
+								<p class="font-medium text-flapjack-ink">
+									{String(hit.name ?? hit.objectID ?? '')}
+								</p>
+								<p class="text-xs text-flapjack-ink/60">{String(hit.objectID ?? '')}</p>
 							</div>
 							<div class="flex items-center gap-2">
 								{#if isPinned(String(hit.objectID ?? ''))}
 									<span
-										class="inline-flex rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800"
+										class="inline-flex rounded-full bg-flapjack-rose/10 px-2 py-0.5 text-xs font-medium text-flapjack-plum"
 										>#{idx + 1}</span
 									>
 								{/if}
@@ -199,7 +201,7 @@
 									type="button"
 									aria-label={`Pin ${String(hit.objectID ?? '')}`}
 									onclick={() => togglePin(String(hit.objectID ?? ''), idx)}
-									class="rounded border border-blue-300 px-2 py-1 text-xs text-blue-700 hover:bg-blue-50"
+									class="rounded border border-flapjack-rose/40 px-2 py-1 text-xs text-flapjack-plum hover:bg-flapjack-rose/10"
 								>
 									Pin
 								</button>
@@ -207,7 +209,7 @@
 									type="button"
 									aria-label={`Hide ${String(hit.objectID ?? '')}`}
 									onclick={() => toggleHide(String(hit.objectID ?? ''))}
-									class="rounded border border-red-300 px-2 py-1 text-xs text-red-700 hover:bg-red-50"
+									class="rounded border border-flapjack-rose/45 px-2 py-1 text-xs text-flapjack-plum hover:bg-flapjack-rose/10"
 								>
 									Hide
 								</button>
@@ -219,9 +221,9 @@
 		{/if}
 
 		{#if merchandisingHides.length > 0}
-			<div class="mt-6 rounded-md border border-gray-200 p-4">
-				<h3 class="mb-2 text-sm font-semibold text-gray-900">Hidden results</h3>
-				<div class="space-y-2 text-sm text-gray-700">
+			<div class="mt-6 rounded-md border border-flapjack-ink/20 p-4">
+				<h3 class="mb-2 text-sm font-semibold text-flapjack-ink">Hidden results</h3>
+				<div class="space-y-2 text-sm text-flapjack-ink/80">
 					{#each merchandisingHides as hidden (hidden.objectID)}
 						{@const hiddenHit = merchandisingSourceHits().find(
 							(hit) => String(hit.objectID ?? '') === hidden.objectID
@@ -237,13 +239,13 @@
 				method="POST"
 				action="?/saveRule"
 				use:enhance
-				class="mt-4 rounded-md border border-gray-200 p-4"
+				class="mt-4 rounded-md border border-flapjack-ink/20 p-4"
 			>
 				<input type="hidden" name="objectID" value={merchandisingRule.objectID} />
 				<input type="hidden" name="rule" value={JSON.stringify(merchandisingRule)} />
 				<button
 					type="submit"
-					class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+					class="rounded-md bg-flapjack-rose px-4 py-2 text-sm font-medium text-white hover:bg-flapjack-plum"
 				>
 					Confirm Save Rule
 				</button>

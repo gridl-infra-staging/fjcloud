@@ -84,14 +84,14 @@
 	function experimentStatusBadgeClass(status: string): string {
 		switch (status) {
 			case 'running':
-				return 'bg-green-100 text-green-800';
+				return 'bg-flapjack-mint/35 text-flapjack-ink';
 			case 'concluded':
-				return 'bg-blue-100 text-blue-800';
+				return 'bg-flapjack-rose/10 text-flapjack-plum';
 			case 'stopped':
-				return 'bg-gray-100 text-gray-800';
+				return 'bg-flapjack-cream/70 text-flapjack-ink';
 			case 'created':
 			default:
-				return 'bg-amber-100 text-amber-800';
+				return 'bg-flapjack-yellow/30 text-flapjack-ink/80';
 		}
 	}
 
@@ -128,9 +128,9 @@
 	}
 
 	function confidenceBarClass(confidence: number): string {
-		if (confidence >= 95) return 'bg-green-500';
-		if (confidence >= 90) return 'bg-amber-500';
-		return 'bg-red-500';
+		if (confidence >= 95) return 'bg-flapjack-mint';
+		if (confidence >= 90) return 'bg-flapjack-yellow';
+		return 'bg-flapjack-rose';
 	}
 
 	function openConcludeDialog() {
@@ -195,32 +195,36 @@
 
 <div class="mb-6 rounded-lg bg-white p-6 shadow" data-testid="experiments-section">
 	<div class="mb-4 flex items-center justify-between">
-		<h2 class="text-lg font-medium text-gray-900">Experiments</h2>
+		<h2 class="text-lg font-medium text-flapjack-ink">Experiments</h2>
 		<button
 			type="button"
 			onclick={() => (showCreateExperiment = true)}
-			class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+			class="rounded-md bg-flapjack-rose px-4 py-2 text-sm font-medium text-white hover:bg-flapjack-plum"
 		>
 			Create Experiment
 		</button>
 	</div>
 
 	{#if experimentError}
-		<div class="mb-4 rounded-md bg-red-50 p-3 text-sm text-red-700">{experimentError}</div>
+		<div class="mb-4 rounded-md bg-flapjack-rose/10 p-3 text-sm text-flapjack-plum">
+			{experimentError}
+		</div>
 	{/if}
 
 	{#if selectedExperimentId === null}
 		{#if experiments.abtests.length === 0}
-			<div class="rounded-md border border-gray-200 bg-gray-50 p-6 text-center">
-				<p class="text-lg font-medium text-gray-900">No experiments yet</p>
-				<p class="mt-1 text-sm text-gray-600">
+			<div class="rounded-md border border-flapjack-ink/20 bg-flapjack-cream/80 p-6 text-center">
+				<p class="text-lg font-medium text-flapjack-ink">No experiments yet</p>
+				<p class="mt-1 text-sm text-flapjack-ink/70">
 					Create an experiment to compare ranking strategies.
 				</p>
 			</div>
 		{:else}
 			<div class="overflow-hidden rounded-lg border">
 				<table class="w-full text-left text-sm">
-					<thead class="border-b bg-gray-50 text-xs font-medium uppercase text-gray-500">
+					<thead
+						class="border-b bg-flapjack-cream/80 text-xs font-medium uppercase text-flapjack-ink/60"
+					>
 						<tr>
 							<th class="px-4 py-2">Name</th>
 							<th class="px-4 py-2">Status</th>
@@ -237,7 +241,7 @@
 									<button
 										type="button"
 										onclick={() => openExperiment(experiment.abTestID)}
-										class="text-left font-medium text-blue-700 hover:underline"
+										class="text-left font-medium text-flapjack-plum hover:underline"
 									>
 										{experiment.name}
 									</button>
@@ -263,7 +267,7 @@
 											<button
 												type="submit"
 												aria-label={`Stop experiment ${experiment.abTestID}`}
-												class="rounded border border-gray-300 px-3 py-1 text-xs text-gray-700 hover:bg-gray-50"
+												class="rounded border border-flapjack-ink/30 px-3 py-1 text-xs text-flapjack-ink/80 hover:bg-flapjack-cream/80"
 											>
 												Stop
 											</button>
@@ -274,7 +278,7 @@
 											<button
 												type="submit"
 												aria-label={`Delete experiment ${experiment.abTestID}`}
-												class="rounded border border-red-300 px-3 py-1 text-xs text-red-700 hover:bg-red-50"
+												class="rounded border border-flapjack-rose/45 px-3 py-1 text-xs text-flapjack-plum hover:bg-flapjack-rose/10"
 											>
 												Delete
 											</button>
@@ -290,17 +294,17 @@
 	{:else}
 		{@const experiment = selectedExperiment()}
 		{@const results = selectedExperimentResults()}
-		<div class="rounded-md border border-gray-200 p-4">
+		<div class="rounded-md border border-flapjack-ink/20 p-4">
 			<button
 				type="button"
 				onclick={closeExperimentDetail}
-				class="mb-4 text-sm text-blue-700 hover:underline"
+				class="mb-4 text-sm text-flapjack-plum hover:underline"
 			>
 				Back to experiments
 			</button>
 
 			{#if experiment}
-				<h3 class="text-xl font-semibold text-gray-900">{experiment.name}</h3>
+				<h3 class="text-xl font-semibold text-flapjack-ink">{experiment.name}</h3>
 			{/if}
 			<div class="mt-2 flex flex-wrap items-center gap-2 text-sm">
 				{#if experiment}
@@ -311,7 +315,7 @@
 					</span>
 				{/if}
 				<span
-					class="inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700"
+					class="inline-flex rounded-full bg-flapjack-cream/70 px-2 py-0.5 text-xs font-medium text-flapjack-ink/80"
 				>
 					Primary Metric: {results?.primaryMetric ?? 'ctr'}
 				</span>
@@ -319,60 +323,70 @@
 
 			{#if results}
 				<div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
-					<div class="rounded-md border border-gray-200 p-4">
-						<p class="text-sm font-semibold text-gray-900">Control arm</p>
-						<p class="mt-2 text-sm text-gray-600">
+					<div class="rounded-md border border-flapjack-ink/20 p-4">
+						<p class="text-sm font-semibold text-flapjack-ink">Control arm</p>
+						<p class="mt-2 text-sm text-flapjack-ink/70">
 							Searches: {formatNumber(results.control.searches)}
 						</p>
-						<p class="text-sm text-gray-600">Users: {formatNumber(results.control.users)}</p>
-						<p class="text-sm text-gray-600">Clicks: {formatNumber(results.control.clicks)}</p>
-						<p class="text-sm text-gray-600">CTR: {formatRatePercent(results.control.ctr)}</p>
-						<p class="text-sm text-gray-600">
+						<p class="text-sm text-flapjack-ink/70">Users: {formatNumber(results.control.users)}</p>
+						<p class="text-sm text-flapjack-ink/70">
+							Clicks: {formatNumber(results.control.clicks)}
+						</p>
+						<p class="text-sm text-flapjack-ink/70">
+							CTR: {formatRatePercent(results.control.ctr)}
+						</p>
+						<p class="text-sm text-flapjack-ink/70">
 							Conversion: {formatRatePercent(results.control.conversionRate)}
 						</p>
-						<p class="text-sm text-gray-600">
+						<p class="text-sm text-flapjack-ink/70">
 							Zero results: {formatRatePercent(results.control.zeroResultRate)}
 						</p>
-						<p class="text-sm text-gray-600">
+						<p class="text-sm text-flapjack-ink/70">
 							Abandonment: {formatRatePercent(results.control.abandonmentRate)}
 						</p>
 					</div>
-					<div class="rounded-md border border-gray-200 p-4">
-						<p class="text-sm font-semibold text-gray-900">Variant arm</p>
-						<p class="mt-2 text-sm text-gray-600">
+					<div class="rounded-md border border-flapjack-ink/20 p-4">
+						<p class="text-sm font-semibold text-flapjack-ink">Variant arm</p>
+						<p class="mt-2 text-sm text-flapjack-ink/70">
 							Searches: {formatNumber(results.variant.searches)}
 						</p>
-						<p class="text-sm text-gray-600">Users: {formatNumber(results.variant.users)}</p>
-						<p class="text-sm text-gray-600">Clicks: {formatNumber(results.variant.clicks)}</p>
-						<p class="text-sm text-gray-600">CTR: {formatRatePercent(results.variant.ctr)}</p>
-						<p class="text-sm text-gray-600">
+						<p class="text-sm text-flapjack-ink/70">Users: {formatNumber(results.variant.users)}</p>
+						<p class="text-sm text-flapjack-ink/70">
+							Clicks: {formatNumber(results.variant.clicks)}
+						</p>
+						<p class="text-sm text-flapjack-ink/70">
+							CTR: {formatRatePercent(results.variant.ctr)}
+						</p>
+						<p class="text-sm text-flapjack-ink/70">
 							Conversion: {formatRatePercent(results.variant.conversionRate)}
 						</p>
-						<p class="text-sm text-gray-600">
+						<p class="text-sm text-flapjack-ink/70">
 							Zero results: {formatRatePercent(results.variant.zeroResultRate)}
 						</p>
-						<p class="text-sm text-gray-600">
+						<p class="text-sm text-flapjack-ink/70">
 							Abandonment: {formatRatePercent(results.variant.abandonmentRate)}
 						</p>
 					</div>
 				</div>
 
 				{#if !results.gate.readyToRead}
-					<div class="mt-4 rounded-md border border-gray-200 bg-gray-50 p-3 text-sm text-gray-700">
+					<div
+						class="mt-4 rounded-md border border-flapjack-ink/20 bg-flapjack-cream/80 p-3 text-sm text-flapjack-ink/80"
+					>
 						<div class="mb-2 flex items-center justify-between">
-							<span class="font-medium text-gray-900">Progress</span>
+							<span class="font-medium text-flapjack-ink">Progress</span>
 							<span
 								>{results.gate.currentSearchesPerArm} / {results.gate.requiredSearchesPerArm}</span
 							>
 						</div>
-						<div class="h-2 w-full rounded-full bg-gray-200">
+						<div class="h-2 w-full rounded-full bg-flapjack-cream/60">
 							<div
 								role="progressbar"
 								aria-label="Experiment progress"
 								aria-valuemin="0"
 								aria-valuemax="100"
 								aria-valuenow={Math.round(results.gate.progressPct)}
-								class="h-2 rounded-full bg-blue-600"
+								class="h-2 rounded-full bg-flapjack-rose"
 								style={`width: ${Math.max(0, Math.min(100, results.gate.progressPct))}%`}
 							></div>
 						</div>
@@ -389,16 +403,18 @@
 					<button
 						type="button"
 						onclick={openConcludeDialog}
-						class="mt-4 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+						class="mt-4 rounded-md bg-flapjack-rose px-4 py-2 text-sm font-medium text-white hover:bg-flapjack-plum"
 					>
 						Declare Winner
 					</button>
 				{/if}
 
 				{#if results.significance}
-					<div class="mt-4 rounded-md border border-gray-200 p-3 text-sm text-gray-700">
+					<div
+						class="mt-4 rounded-md border border-flapjack-ink/20 p-3 text-sm text-flapjack-ink/80"
+					>
 						<p class="font-medium">{confidencePercent(results).toFixed(1)}% confidence</p>
-						<div class="mt-2 h-2 w-full rounded-full bg-gray-200">
+						<div class="mt-2 h-2 w-full rounded-full bg-flapjack-cream/60">
 							<div
 								class={`h-2 rounded-full ${confidenceBarClass(confidencePercent(results))}`}
 								style={`width: ${confidencePercent(results)}%`}
@@ -414,14 +430,16 @@
 				{/if}
 
 				{#if results.bayesian}
-					<div class="mt-3 rounded-md border border-gray-200 bg-gray-50 p-3 text-sm text-gray-700">
+					<div
+						class="mt-3 rounded-md border border-flapjack-ink/20 bg-flapjack-cream/80 p-3 text-sm text-flapjack-ink/80"
+					>
 						{(results.bayesian.probVariantBetter * 100).toFixed(1)}% probability variant wins
 					</div>
 				{/if}
 
 				{#if results.sampleRatioMismatch}
 					<div
-						class="mt-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800"
+						class="mt-4 rounded-md border border-flapjack-yellow/50 bg-flapjack-yellow/20 p-3 text-sm text-flapjack-ink/80"
 					>
 						Traffic split mismatch detected.
 					</div>
@@ -429,7 +447,7 @@
 
 				{#if results.guardRailAlerts.length > 0}
 					<div
-						class="mt-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800"
+						class="mt-4 rounded-md border border-flapjack-yellow/50 bg-flapjack-yellow/20 p-3 text-sm text-flapjack-ink/80"
 					>
 						<p class="font-medium">Guard rail alerts</p>
 						{#each results.guardRailAlerts as alert (`${alert.metricName}-${alert.dropPct}`)}
@@ -443,12 +461,12 @@
 						method="POST"
 						action="?/concludeExperiment"
 						use:enhance
-						class="mt-4 rounded-md border border-gray-200 bg-gray-50 p-4"
+						class="mt-4 rounded-md border border-flapjack-ink/20 bg-flapjack-cream/80 p-4"
 					>
 						<input type="hidden" name="experimentID" value={experiment.abTestID} />
 						<input type="hidden" name="conclusion" value={concludePayload()} />
-						<p class="mb-3 text-sm font-medium text-gray-900">Declare Winner</p>
-						<div class="space-y-2 text-sm text-gray-700">
+						<p class="mb-3 text-sm font-medium text-flapjack-ink">Declare Winner</p>
+						<div class="space-y-2 text-sm text-flapjack-ink/80">
 							<label class="flex items-center gap-2">
 								<input type="radio" bind:group={concludeWinner} value="control" />
 								Control
@@ -462,30 +480,30 @@
 								No Winner
 							</label>
 						</div>
-						<label for="conclude-reason" class="mt-3 block text-sm font-medium text-gray-700"
+						<label for="conclude-reason" class="mt-3 block text-sm font-medium text-flapjack-ink/80"
 							>Reason</label
 						>
 						<textarea
 							id="conclude-reason"
 							bind:value={concludeReason}
 							rows="3"
-							class="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+							class="mt-1 w-full rounded-md border border-flapjack-ink/30 px-3 py-2 text-sm"
 						></textarea>
-						<label class="mt-3 flex items-center gap-2 text-sm text-gray-700">
+						<label class="mt-3 flex items-center gap-2 text-sm text-flapjack-ink/80">
 							<input type="checkbox" bind:checked={concludePromoted} />
 							Promote winning settings
 						</label>
 						<div class="mt-3 flex items-center gap-3">
 							<button
 								type="submit"
-								class="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
+								class="rounded-md bg-flapjack-rose px-3 py-1.5 text-sm font-medium text-white hover:bg-flapjack-plum"
 							>
 								Confirm
 							</button>
 							<button
 								type="button"
 								onclick={closeConcludeDialog}
-								class="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100"
+								class="rounded-md border border-flapjack-ink/30 px-3 py-1.5 text-sm text-flapjack-ink/80 hover:bg-flapjack-cream/70"
 							>
 								Cancel
 							</button>
@@ -494,7 +512,9 @@
 				{/if}
 
 				{#if experiment?.status === 'concluded'}
-					<div class="mt-4 rounded-md border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
+					<div
+						class="mt-4 rounded-md border border-flapjack-rose/30 bg-flapjack-rose/10 p-4 text-sm text-flapjack-ink/90"
+					>
 						<p class="font-medium">Conclusion</p>
 						<p class="mt-1">Winner: {results.significance?.winner ?? 'none'}</p>
 						<p class="mt-1">
@@ -521,29 +541,29 @@
 			method="POST"
 			action="?/createExperiment"
 			use:enhance
-			class="mt-6 rounded-md border border-gray-200 p-4"
+			class="mt-6 rounded-md border border-flapjack-ink/20 p-4"
 		>
 			<div class="space-y-4">
 				<div>
-					<label for="exp-name" class="mb-1 block text-sm font-medium text-gray-700"
+					<label for="exp-name" class="mb-1 block text-sm font-medium text-flapjack-ink/80"
 						>Experiment name</label
 					>
 					<input
 						id="exp-name"
 						type="text"
 						bind:value={createExperimentName}
-						class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+						class="w-full rounded-md border border-flapjack-ink/30 px-3 py-2 text-sm"
 					/>
 				</div>
 
 				<div>
-					<label for="exp-metric" class="mb-1 block text-sm font-medium text-gray-700"
+					<label for="exp-metric" class="mb-1 block text-sm font-medium text-flapjack-ink/80"
 						>Primary metric</label
 					>
 					<select
 						id="exp-metric"
 						bind:value={createExperimentMetric}
-						class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+						class="w-full rounded-md border border-flapjack-ink/30 px-3 py-2 text-sm"
 					>
 						<option value="ctr">CTR</option>
 						<option value="conversionRate">Conversion</option>
@@ -554,13 +574,13 @@
 				</div>
 
 				<div>
-					<label for="exp-variant-mode" class="mb-1 block text-sm font-medium text-gray-700"
+					<label for="exp-variant-mode" class="mb-1 block text-sm font-medium text-flapjack-ink/80"
 						>Variant mode</label
 					>
 					<select
 						id="exp-variant-mode"
 						bind:value={createExperimentVariantMode}
-						class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+						class="w-full rounded-md border border-flapjack-ink/30 px-3 py-2 text-sm"
 					>
 						<option value="modeA">Mode A (query overrides)</option>
 						<option value="modeB">Mode B (variant index)</option>
@@ -569,18 +589,19 @@
 
 				{#if createExperimentVariantMode === 'modeB'}
 					<div>
-						<label for="exp-variant-index" class="mb-1 block text-sm font-medium text-gray-700"
-							>Variant index</label
+						<label
+							for="exp-variant-index"
+							class="mb-1 block text-sm font-medium text-flapjack-ink/80">Variant index</label
 						>
 						<input
 							id="exp-variant-index"
 							type="text"
 							bind:value={createExperimentVariantIndex}
-							class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+							class="w-full rounded-md border border-flapjack-ink/30 px-3 py-2 text-sm"
 						/>
 					</div>
 				{:else}
-					<div class="space-y-2 text-sm text-gray-700">
+					<div class="space-y-2 text-sm text-flapjack-ink/80">
 						<label class="flex items-center gap-2">
 							<input type="checkbox" bind:checked={createExperimentEnableSynonyms} />
 							Enable synonyms
@@ -593,13 +614,13 @@
 							type="text"
 							bind:value={createExperimentFilters}
 							placeholder="filters"
-							class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+							class="w-full rounded-md border border-flapjack-ink/30 px-3 py-2 text-sm"
 						/>
 					</div>
 				{/if}
 
 				<div>
-					<label for="exp-traffic" class="mb-1 block text-sm font-medium text-gray-700"
+					<label for="exp-traffic" class="mb-1 block text-sm font-medium text-flapjack-ink/80"
 						>Traffic split %</label
 					>
 					<input
@@ -608,12 +629,12 @@
 						min="1"
 						max="99"
 						bind:value={createExperimentTrafficSplit}
-						class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+						class="w-full rounded-md border border-flapjack-ink/30 px-3 py-2 text-sm"
 					/>
 				</div>
 
 				<div>
-					<label for="exp-min-runtime" class="mb-1 block text-sm font-medium text-gray-700"
+					<label for="exp-min-runtime" class="mb-1 block text-sm font-medium text-flapjack-ink/80"
 						>Minimum runtime days</label
 					>
 					<input
@@ -622,12 +643,14 @@
 						min="1"
 						max="90"
 						bind:value={createExperimentMinimumRuntimeDays}
-						class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+						class="w-full rounded-md border border-flapjack-ink/30 px-3 py-2 text-sm"
 					/>
 				</div>
 
-				<div class="rounded-md border border-gray-200 bg-gray-50 p-3 text-sm text-gray-700">
-					<p class="font-medium text-gray-900">Review</p>
+				<div
+					class="rounded-md border border-flapjack-ink/20 bg-flapjack-cream/80 p-3 text-sm text-flapjack-ink/80"
+				>
+					<p class="font-medium text-flapjack-ink">Review</p>
 					<p class="mt-1">Metric: {experimentMetricLabel(createExperimentMetric)}</p>
 					<p>
 						Traffic split: {createExperimentTrafficSplit}% / {100 - createExperimentTrafficSplit}%
@@ -644,14 +667,14 @@
 				<div class="flex items-center gap-3">
 					<button
 						type="submit"
-						class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+						class="rounded-md bg-flapjack-rose px-4 py-2 text-sm font-medium text-white hover:bg-flapjack-plum"
 					>
 						Launch Experiment
 					</button>
 					<button
 						type="button"
 						onclick={() => (showCreateExperiment = false)}
-						class="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+						class="rounded-md border border-flapjack-ink/30 px-4 py-2 text-sm font-medium text-flapjack-ink/80 hover:bg-flapjack-cream/80"
 					>
 						Cancel
 					</button>

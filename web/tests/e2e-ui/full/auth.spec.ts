@@ -112,8 +112,12 @@ test.describe('Login page', () => {
 		await expect(githubOAuthLink).toContainText('Continue with GitHub');
 		await expect(githubOAuthLink).toHaveAttribute('href', /\/auth\/oauth\/github\/start$/);
 
-		await expect(googleOAuthLink.evaluate((element) => element.closest('form'))).resolves.toBeNull();
-		await expect(githubOAuthLink.evaluate((element) => element.closest('form'))).resolves.toBeNull();
+		await expect(
+			googleOAuthLink.evaluate((element) => element.closest('form'))
+		).resolves.toBeNull();
+		await expect(
+			githubOAuthLink.evaluate((element) => element.closest('form'))
+		).resolves.toBeNull();
 
 		await page.getByRole('button', { name: 'Log In' }).click();
 		await expect(page).toHaveURL(/\/login(?:\?.*)?$/);
@@ -318,8 +322,12 @@ test.describe('Signup page', () => {
 		await expect(githubOAuthLink).toContainText('Continue with GitHub');
 		await expect(githubOAuthLink).toHaveAttribute('href', /\/auth\/oauth\/github\/start$/);
 
-		await expect(googleOAuthLink.evaluate((element) => element.closest('form'))).resolves.toBeNull();
-		await expect(githubOAuthLink.evaluate((element) => element.closest('form'))).resolves.toBeNull();
+		await expect(
+			googleOAuthLink.evaluate((element) => element.closest('form'))
+		).resolves.toBeNull();
+		await expect(
+			githubOAuthLink.evaluate((element) => element.closest('form'))
+		).resolves.toBeNull();
 
 		await page.getByRole('button', { name: 'Sign Up' }).click();
 		await expect(page).toHaveURL(/\/signup(?:\?.*)?$/);

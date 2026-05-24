@@ -13,7 +13,8 @@ vi.mock('$lib/server/api', () => ({
 	}))
 }));
 
-import { _EMPTY_SCOPE_REQUIRED_ERROR, actions, load } from './+page.server';
+import { EMPTY_SCOPE_REQUIRED_ERROR } from './api_keys_constants';
+import { actions, load } from './+page.server';
 
 describe('API keys page server actions', () => {
 	beforeEach(() => {
@@ -113,7 +114,7 @@ describe('API keys page server actions', () => {
 
 		expect(result).toEqual({
 			status: 400,
-			data: { error: _EMPTY_SCOPE_REQUIRED_ERROR }
+			data: { error: EMPTY_SCOPE_REQUIRED_ERROR }
 		});
 		expect(createApiKeyMock).not.toHaveBeenCalled();
 	});
@@ -145,7 +146,7 @@ describe('API keys page server actions', () => {
 		});
 		expect(result).not.toEqual({
 			status: 400,
-			data: { error: _EMPTY_SCOPE_REQUIRED_ERROR }
+			data: { error: EMPTY_SCOPE_REQUIRED_ERROR }
 		});
 	});
 

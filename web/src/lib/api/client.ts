@@ -241,9 +241,7 @@ export class ApiClient extends BaseClient {
 		return this.api('POST', '/auth/forgot-password', body);
 	}
 
-	async resendPasswordReset(
-		body: ForgotPasswordRequest
-	): Promise<MessageWithRetryAfterResponse> {
+	async resendPasswordReset(body: ForgotPasswordRequest): Promise<MessageWithRetryAfterResponse> {
 		const response = await this.fetchFn(`${this.baseUrl}/auth/resend-password-reset`, {
 			method: 'POST',
 			headers: {

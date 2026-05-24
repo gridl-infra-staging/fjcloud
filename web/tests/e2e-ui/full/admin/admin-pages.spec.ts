@@ -147,7 +147,9 @@ test.describe('Admin page shells — remaining', () => {
 				.getByTestId('billing-feedback-message')
 				.or(page.getByTestId('billing-feedback-error'));
 			await expect(feedbackBanner).toBeVisible();
-			await expect(feedbackBanner).toContainText(/Bulk finalize (complete|partially failed|failed)/);
+			await expect(feedbackBanner).toContainText(
+				/Bulk finalize (complete|partially failed|failed)/
+			);
 		} else {
 			await expect(page.getByTestId('bulk-finalize-button')).toHaveCount(0);
 			await expect(draftEmptyState).toBeVisible();

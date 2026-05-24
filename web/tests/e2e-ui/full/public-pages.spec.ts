@@ -48,7 +48,9 @@ test.describe('Landing page', () => {
 		await expect(page.getByRole('navigation').getByRole('link', { name: 'Log In' })).toBeVisible();
 		// URL-obscurity beta gate: public Sign Up CTA removed.
 		// See docs/decisions/2026_05_23_beta_signup_gate.md.
-		await expect(page.getByRole('navigation').getByRole('link', { name: 'Sign Up' })).toHaveCount(0);
+		await expect(page.getByRole('navigation').getByRole('link', { name: 'Sign Up' })).toHaveCount(
+			0
+		);
 		await expect(page.getByRole('link', { name: 'View API Docs' })).toHaveAttribute(
 			'href',
 			'https://api.flapjack.foo/docs'
@@ -67,6 +69,31 @@ test.describe('Landing page', () => {
 		await expect(
 			page.getByRole('contentinfo').getByRole('link', { name: 'DPA' }).first()
 		).toHaveAttribute('href', /\/dpa$/);
+
+		const publicHeaderBrand = page.getByRole('link', { name: 'Flapjack Cloud' }).first();
+		await expect(publicHeaderBrand).toBeVisible();
+		await expect
+			.poll(async () => publicHeaderBrand.evaluate((node) => getComputedStyle(node).fontFamily))
+			.toContain('Cabinet');
+
+		const betaBanner = page.getByTestId('public-beta-banner');
+		await expect
+			.poll(async () => betaBanner.evaluate((node) => getComputedStyle(node).backgroundColor))
+			.toBe('rgb(255, 248, 234)');
+
+		const legalBackLink = page.getByRole('link', { name: 'Back to Flapjack Cloud' });
+		await expect(legalBackLink).toHaveCount(0);
+		await page.goto('/terms');
+		const legalBackLinkOnTerms = page.getByRole('link', { name: 'Back to Flapjack Cloud' });
+		await expect
+			.poll(async () => legalBackLinkOnTerms.evaluate((node) => getComputedStyle(node).color))
+			.toBe('rgb(184, 63, 95)');
+
+		await page.goto('/');
+		const apiDocsCta = page.getByRole('link', { name: 'View API Docs' });
+		await expect
+			.poll(async () => apiDocsCta.evaluate((node) => getComputedStyle(node).boxShadow))
+			.toContain('rgb(31, 27, 24)');
 	});
 
 	test('Log In link reaches the login page', async ({ page }) => {
@@ -144,7 +171,9 @@ test.describe('Landing page', () => {
 });
 
 test.describe('Pricing page', () => {
-	test('renders pricing-first copy and public links for unauthenticated users', async ({ page }) => {
+	test('renders pricing-first copy and public links for unauthenticated users', async ({
+		page
+	}) => {
 		await page.goto('/pricing');
 		const pricingMain = page.getByTestId('pricing-page-main');
 		const marketingSnapshot = pricingContractSnapshotFromMarketing(MARKETING_PRICING);
@@ -198,24 +227,17 @@ test.describe('Pricing page', () => {
 		await expect(page.getByTestId('landing-pricing-calculator')).toHaveCount(0);
 		await expect(
 			page.getByRole('contentinfo').getByRole('link', { name: 'Terms' })
-		).toHaveAttribute(
-			'href',
-			'/terms'
-		);
+		).toHaveAttribute('href', '/terms');
 		await expect(
 			page.getByRole('contentinfo').getByRole('link', { name: 'Privacy' })
-		).toHaveAttribute(
-			'href',
-			'/privacy'
-		);
+		).toHaveAttribute('href', '/privacy');
 		await expect(page.getByRole('contentinfo').getByRole('link', { name: 'DPA' })).toHaveAttribute(
 			'href',
 			'/dpa'
 		);
-		await expect(page.getByRole('contentinfo').getByRole('link', { name: 'Status' })).toHaveAttribute(
-			'href',
-			'/status'
-		);
+		await expect(
+			page.getByRole('contentinfo').getByRole('link', { name: 'Status' })
+		).toHaveAttribute('href', '/status');
 	});
 
 	test('pricing header Log In link navigates to /login', async ({ page }) => {

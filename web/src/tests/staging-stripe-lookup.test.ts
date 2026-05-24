@@ -41,7 +41,9 @@ describe('staging Stripe lookup helper (LB-3)', () => {
 	it('fails closed when Stripe customer has no default payment method', async () => {
 		const fetchMock = vi
 			.fn()
-			.mockResolvedValue(makeJsonResponse(200, { invoice_settings: { default_payment_method: null } }));
+			.mockResolvedValue(
+				makeJsonResponse(200, { invoice_settings: { default_payment_method: null } })
+			);
 
 		await expect(
 			readStripeDefaultPaymentMethod({

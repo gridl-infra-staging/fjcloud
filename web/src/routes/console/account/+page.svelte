@@ -60,13 +60,13 @@
 
 <div>
 	<div class="mb-6">
-		<h1 class="text-2xl font-bold text-gray-900">Account</h1>
+		<h1 class="text-2xl font-bold text-flapjack-ink">Account</h1>
 	</div>
 
 	{#if errorMessage}
 		<div
 			role="alert"
-			class="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700"
+			class="mb-4 rounded-lg border border-flapjack-rose/35 bg-flapjack-rose/10 p-4 text-sm text-flapjack-plum"
 		>
 			<p>{errorMessage}</p>
 		</div>
@@ -75,7 +75,7 @@
 	{#if sharedSuccessMessage}
 		<div
 			role="status"
-			class="mb-4 rounded-lg border border-green-200 bg-green-50 p-4 text-sm text-green-700"
+			class="mb-4 rounded-lg border border-flapjack-mint/60 bg-flapjack-mint/25 p-4 text-sm text-flapjack-ink/80"
 		>
 			<p>{sharedSuccessMessage}</p>
 		</div>
@@ -83,11 +83,12 @@
 
 	<!-- Profile section -->
 	<div class="mb-6 rounded-lg bg-white p-6 shadow">
-		<h2 class="mb-4 text-lg font-semibold text-gray-900">Profile</h2>
+		<h2 class="mb-4 text-lg font-semibold text-flapjack-ink">Profile</h2>
 		{#if profile}
 			<form method="POST" action="?/updateProfile" use:enhance>
 				<div class="mb-4">
-					<label for="profile-name" class="mb-1 block text-sm font-medium text-gray-700">Name</label
+					<label for="profile-name" class="mb-1 block text-sm font-medium text-flapjack-ink/80"
+						>Name</label
 					>
 					<input
 						id="profile-name"
@@ -95,19 +96,21 @@
 						name="name"
 						value={profile.name}
 						required
-						class="w-full max-w-md rounded border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+						class="w-full max-w-md rounded border border-flapjack-ink/30 px-3 py-2 text-sm focus:border-flapjack-rose focus:outline-none"
 					/>
 				</div>
 				<div class="mb-4">
-					<span class="mb-1 block text-sm font-medium text-gray-700">Email</span>
+					<span class="mb-1 block text-sm font-medium text-flapjack-ink/80">Email</span>
 					<div class="flex items-center gap-2">
-						<span class="text-sm text-gray-900">{profile.email}</span>
+						<span class="text-sm text-flapjack-ink">{profile.email}</span>
 						{#if profile.email_verified}
-							<span class="rounded bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700"
+							<span
+								class="rounded bg-flapjack-mint/35 px-2 py-0.5 text-xs font-medium text-flapjack-ink/80"
 								>Verified</span
 							>
 						{:else}
-							<span class="rounded bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-700"
+							<span
+								class="rounded bg-flapjack-yellow/30 px-2 py-0.5 text-xs font-medium text-flapjack-ink/80"
 								>Unverified</span
 							>
 						{/if}
@@ -115,14 +118,14 @@
 				</div>
 				<button
 					type="submit"
-					class="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+					class="rounded bg-flapjack-rose px-4 py-2 text-sm font-medium text-white hover:bg-flapjack-plum"
 				>
 					Save profile
 				</button>
 			</form>
 		{:else}
 			<p
-				class="rounded border border-gray-200 bg-gray-50 p-3 text-sm text-gray-700"
+				class="rounded border border-flapjack-ink/20 bg-flapjack-cream/80 p-3 text-sm text-flapjack-ink/80"
 				data-testid="account-profile-unavailable"
 			>
 				Profile details are temporarily unavailable. Please refresh in a moment.
@@ -132,10 +135,10 @@
 
 	<!-- Password section -->
 	<div class="rounded-lg bg-white p-6 shadow">
-		<h2 class="mb-4 text-lg font-semibold text-gray-900">Change Password</h2>
+		<h2 class="mb-4 text-lg font-semibold text-flapjack-ink">Change Password</h2>
 		<form method="POST" action="?/changePassword" use:enhance>
 			<div class="mb-4">
-				<label for="current-password" class="mb-1 block text-sm font-medium text-gray-700"
+				<label for="current-password" class="mb-1 block text-sm font-medium text-flapjack-ink/80"
 					>Current password</label
 				>
 				<input
@@ -143,11 +146,11 @@
 					type="password"
 					name="current_password"
 					required
-					class="w-full max-w-md rounded border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+					class="w-full max-w-md rounded border border-flapjack-ink/30 px-3 py-2 text-sm focus:border-flapjack-rose focus:outline-none"
 				/>
 			</div>
 			<div class="mb-4">
-				<label for="new-password" class="mb-1 block text-sm font-medium text-gray-700"
+				<label for="new-password" class="mb-1 block text-sm font-medium text-flapjack-ink/80"
 					>New password</label
 				>
 				<input
@@ -156,11 +159,11 @@
 					name="new_password"
 					required
 					minlength="8"
-					class="w-full max-w-md rounded border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+					class="w-full max-w-md rounded border border-flapjack-ink/30 px-3 py-2 text-sm focus:border-flapjack-rose focus:outline-none"
 				/>
 			</div>
 			<div class="mb-4">
-				<label for="confirm-password" class="mb-1 block text-sm font-medium text-gray-700"
+				<label for="confirm-password" class="mb-1 block text-sm font-medium text-flapjack-ink/80"
 					>Confirm new password</label
 				>
 				<input
@@ -169,12 +172,12 @@
 					name="confirm_password"
 					required
 					minlength="8"
-					class="w-full max-w-md rounded border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+					class="w-full max-w-md rounded border border-flapjack-ink/30 px-3 py-2 text-sm focus:border-flapjack-rose focus:outline-none"
 				/>
 			</div>
 			<button
 				type="submit"
-				class="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+				class="rounded bg-flapjack-rose px-4 py-2 text-sm font-medium text-white hover:bg-flapjack-plum"
 			>
 				Change password
 			</button>
@@ -182,14 +185,14 @@
 	</div>
 
 	<div class="mt-6 rounded-lg bg-white p-6 shadow">
-		<h2 class="mb-2 text-lg font-semibold text-gray-900">Account Data Export</h2>
-		<p class="mb-4 text-sm text-gray-700">
+		<h2 class="mb-2 text-lg font-semibold text-flapjack-ink">Account Data Export</h2>
+		<p class="mb-4 text-sm text-flapjack-ink/80">
 			Generate a downloadable JSON export containing your customer-safe account profile data.
 		</p>
 		<form method="POST" action="?/exportAccount" use:enhance>
 			<button
 				type="submit"
-				class="rounded border border-blue-600 bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+				class="rounded border border-flapjack-rose bg-flapjack-rose px-4 py-2 text-sm font-medium text-white hover:bg-flapjack-plum"
 			>
 				Export account data
 			</button>
@@ -197,7 +200,7 @@
 
 		{#if accountExport}
 			<div
-				class="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800"
+				class="mt-4 rounded-lg border border-flapjack-rose/30 bg-flapjack-rose/10 p-4 text-sm text-flapjack-plum"
 				role="status"
 				data-testid="account-export-status"
 			>
@@ -205,7 +208,7 @@
 				<p class="mt-1">Your export is ready to download.</p>
 				<button
 					type="button"
-					class="mt-3 rounded border border-blue-700 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100"
+					class="mt-3 rounded border border-flapjack-plum px-3 py-2 text-sm font-medium text-flapjack-plum hover:bg-flapjack-rose/10"
 					onclick={() => downloadAccountExport(accountExport)}
 				>
 					Download account export
@@ -215,11 +218,11 @@
 	</div>
 
 	<div
-		class="mt-6 rounded-lg border border-red-200 bg-white p-6 shadow"
+		class="mt-6 rounded-lg border border-flapjack-rose/35 bg-white p-6 shadow"
 		data-testid="delete-account-danger-zone"
 	>
-		<h2 class="mb-2 text-lg font-semibold text-red-700">Delete Account</h2>
-		<p class="mb-4 text-sm text-gray-700">
+		<h2 class="mb-2 text-lg font-semibold text-flapjack-plum">Delete Account</h2>
+		<p class="mb-4 text-sm text-flapjack-ink/80">
 			This deactivates your account and signs you out. Retained audit records may remain. This
 			action cannot be undone.
 		</p>
@@ -229,14 +232,17 @@
 				{#if deleteAccountError}
 					<div
 						data-testid="delete-account-error"
-						class="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700"
+						class="mb-4 rounded-lg border border-flapjack-rose/35 bg-flapjack-rose/10 p-3 text-sm text-flapjack-plum"
 					>
 						{deleteAccountError}
 					</div>
 				{/if}
 
 				<div class="mb-4">
-					<label for="delete-account-password" class="mb-1 block text-sm font-medium text-gray-700">
+					<label
+						for="delete-account-password"
+						class="mb-1 block text-sm font-medium text-flapjack-ink/80"
+					>
 						Current password
 					</label>
 					<input
@@ -247,18 +253,18 @@
 						required
 						bind:value={deleteAccountPassword}
 						data-testid="delete-account-password"
-						class="w-full max-w-md rounded border border-gray-300 px-3 py-2 text-sm focus:border-red-500 focus:outline-none"
+						class="w-full max-w-md rounded border border-flapjack-ink/30 px-3 py-2 text-sm focus:border-flapjack-plum focus:outline-none"
 					/>
 				</div>
 
-				<label class="mb-4 flex items-start gap-2 text-sm text-gray-700">
+				<label class="mb-4 flex items-start gap-2 text-sm text-flapjack-ink/80">
 					<input
 						type="checkbox"
 						name="confirm_delete"
 						required
 						bind:checked={deleteAccountConfirmed}
 						data-testid="delete-account-confirm"
-						class="mt-0.5 rounded border-gray-300 text-red-600 focus:ring-red-500"
+						class="mt-0.5 rounded border-flapjack-ink/30 text-flapjack-plum focus:ring-flapjack-plum"
 					/>
 					<span>I understand this action is permanent and cannot be undone.</span>
 				</label>
@@ -268,7 +274,7 @@
 						type="submit"
 						disabled={!canSubmitDeleteAccount}
 						data-testid="delete-account-submit"
-						class="rounded border border-red-600 bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+						class="rounded border border-flapjack-plum bg-flapjack-plum px-4 py-2 text-sm font-medium text-white hover:bg-flapjack-plum/90 disabled:cursor-not-allowed disabled:opacity-60"
 					>
 						Confirm account deletion
 					</button>
@@ -280,7 +286,7 @@
 							deleteAccountPassword = '';
 							deleteAccountConfirmed = false;
 						}}
-						class="rounded border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+						class="rounded border border-flapjack-ink/30 px-4 py-2 text-sm font-medium text-flapjack-ink/80 hover:bg-flapjack-cream/80"
 					>
 						Cancel
 					</button>
@@ -293,7 +299,7 @@
 				onclick={() => {
 					showDeleteAccountConfirm = true;
 				}}
-				class="rounded border border-red-300 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50"
+				class="rounded border border-flapjack-rose/45 px-4 py-2 text-sm font-medium text-flapjack-plum hover:bg-flapjack-rose/10"
 			>
 				Delete account
 			</button>

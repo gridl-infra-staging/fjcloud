@@ -61,6 +61,7 @@ describe('LandingPricingCalculator', () => {
 	it('renders default form values from landing-pricing defaults', () => {
 		render(LandingPricingCalculator);
 
+		expect(screen.getByText('Interactive pricing calculator')).toHaveClass('text-flapjack-ink');
 		expect(screen.getByLabelText('Document count')).toHaveValue(100_000);
 		expect(screen.getByLabelText('Average document size (bytes)')).toHaveValue(2048);
 		expect(screen.getByLabelText('Search requests per month')).toHaveValue(1_000_000);
@@ -137,6 +138,7 @@ describe('LandingPricingCalculator', () => {
 
 		const alert = await screen.findByRole('alert');
 		expect(alert).toHaveTextContent('document_count must be positive');
+		expect(alert).toHaveClass('bg-flapjack-rose/10');
 	});
 
 	it('falls back to a stable error message when a 200 payload is malformed', async () => {
@@ -157,6 +159,33 @@ describe('LandingPricingCalculator', () => {
 		const alert = await screen.findByRole('alert');
 		expect(alert).toHaveTextContent('Unable to compare pricing right now');
 		expect(alert).not.toHaveTextContent('Cannot read properties');
+	});
+
+	it('rejects malformed estimate rows from an otherwise 200 pricing response', async () => {
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(
+				async () =>
+					new Response(
+						JSON.stringify({
+							workload: sampleResponse.workload,
+							estimates: [{ provider: 'Flapjack Cloud', monthly_total_cents: '1000' }],
+							generated_at: sampleResponse.generated_at
+						}),
+						{
+							status: 200,
+							headers: { 'Content-Type': 'application/json' }
+						}
+					)
+			)
+		);
+
+		render(LandingPricingCalculator);
+		await fireEvent.click(screen.getByRole('button', { name: 'Compare monthly cost' }));
+
+		const alert = await screen.findByRole('alert');
+		expect(alert).toHaveTextContent('Unable to compare pricing right now');
+		expect(screen.queryByTestId('landing-pricing-results')).not.toBeInTheDocument();
 	});
 
 	it('displays the Flapjack Cloud provider while preserving upstream estimate order', async () => {

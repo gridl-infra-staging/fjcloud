@@ -61,7 +61,9 @@ test.describe('Search Preview tab', () => {
 		await expect(generateButton).toBeVisible();
 		await generatePreviewKeyAndWaitForWidget(page);
 		await submitSearchPreviewQuery(page, seeded.query);
-		await expect(page.getByTestId('instantsearch-hits').getByText(seeded.expectedHitText)).toBeVisible({
+		await expect(
+			page.getByTestId('instantsearch-hits').getByText(seeded.expectedHitText)
+		).toBeVisible({
 			timeout: 60_000
 		});
 	});
@@ -99,7 +101,9 @@ test.describe('Search Preview tab', () => {
 		// Assert: search box is present inside the mounted InstantSearch widget
 		await expect(page.getByTestId('instantsearch-searchbox')).toBeVisible();
 		await submitSearchPreviewQuery(page, seeded.query);
-		await expect(page.getByTestId('instantsearch-hits').getByText(seeded.expectedHitText)).toBeVisible({
+		await expect(
+			page.getByTestId('instantsearch-hits').getByText(seeded.expectedHitText)
+		).toBeVisible({
 			timeout: 60_000
 		});
 	});

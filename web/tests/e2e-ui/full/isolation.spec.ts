@@ -71,7 +71,10 @@ test.describe('Cross-tenant index isolation', () => {
 			Promise.race([
 				p,
 				new Promise<never>((_, reject) =>
-					setTimeout(() => reject(new Error(`${label} timed out after ${SETUP_TIMEOUT_MS}ms`)), SETUP_TIMEOUT_MS)
+					setTimeout(
+						() => reject(new Error(`${label} timed out after ${SETUP_TIMEOUT_MS}ms`)),
+						SETUP_TIMEOUT_MS
+					)
 				)
 			]);
 
@@ -103,7 +106,11 @@ test.describe('Cross-tenant index isolation', () => {
 					query: userAHit,
 					expectedHitText: userAHit,
 					documents: [
-						{ objectID: `iso-list-a-doc-1-${seed}`, title: userAHit, body: 'user-a-only-content-1' },
+						{
+							objectID: `iso-list-a-doc-1-${seed}`,
+							title: userAHit,
+							body: 'user-a-only-content-1'
+						},
 						{
 							objectID: `iso-list-a-doc-2-${seed}`,
 							title: `${userAHit} Two`,
@@ -138,7 +145,9 @@ test.describe('Cross-tenant index isolation', () => {
 		await setAuthCookie(page.context(), userAToken);
 		await page.goto('/dashboard/indexes');
 		await expect(
-			page.getByRole('row').filter({ has: page.getByRole('link', { name: sharedIndexName, exact: true }) })
+			page
+				.getByRole('row')
+				.filter({ has: page.getByRole('link', { name: sharedIndexName, exact: true }) })
 		).toHaveCount(1);
 
 		await page.goto(`${BASE_URL}/console/indexes/${encodeURIComponent(sharedIndexName)}`);
@@ -193,7 +202,10 @@ test.describe('Cross-tenant index isolation', () => {
 			Promise.race([
 				p,
 				new Promise<never>((_, reject) =>
-					setTimeout(() => reject(new Error(`${label} timed out after ${SETUP_TIMEOUT_MS}ms`)), SETUP_TIMEOUT_MS)
+					setTimeout(
+						() => reject(new Error(`${label} timed out after ${SETUP_TIMEOUT_MS}ms`)),
+						SETUP_TIMEOUT_MS
+					)
 				)
 			]);
 
@@ -224,7 +236,9 @@ test.describe('Cross-tenant index isolation', () => {
 					region: testRegion,
 					query: 'Isolation',
 					expectedHitText: userAHit,
-					documents: [{ objectID: `iso-a-doc-${seed}`, title: userAHit, body: 'user-a-only-content' }]
+					documents: [
+						{ objectID: `iso-a-doc-${seed}`, title: userAHit, body: 'user-a-only-content' }
+					]
 				}),
 				'seedSearchableIndexForCustomer(userA)'
 			);
@@ -238,7 +252,9 @@ test.describe('Cross-tenant index isolation', () => {
 					region: testRegion,
 					query: 'Isolation',
 					expectedHitText: userBHit,
-					documents: [{ objectID: `iso-b-doc-${seed}`, title: userBHit, body: 'user-b-only-content' }]
+					documents: [
+						{ objectID: `iso-b-doc-${seed}`, title: userBHit, body: 'user-b-only-content' }
+					]
 				}),
 				'seedSearchableIndexForCustomer(userB)'
 			);
@@ -301,7 +317,10 @@ test.describe('Cross-tenant index isolation', () => {
 			Promise.race([
 				p,
 				new Promise<never>((_, reject) =>
-					setTimeout(() => reject(new Error(`${label} timed out after ${SETUP_TIMEOUT_MS}ms`)), SETUP_TIMEOUT_MS)
+					setTimeout(
+						() => reject(new Error(`${label} timed out after ${SETUP_TIMEOUT_MS}ms`)),
+						SETUP_TIMEOUT_MS
+					)
 				)
 			]);
 

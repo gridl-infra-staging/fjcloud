@@ -7,6 +7,6 @@
 </svelte:head>
 
 <div>
-	<h1 class="mb-6 text-2xl font-bold text-gray-900">API Logs</h1>
+	<h1 class="mb-6 text-2xl font-bold text-flapjack-ink">API Logs</h1>
 	<ApiLogViewer />
 </div>

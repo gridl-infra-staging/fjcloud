@@ -8,6 +8,6 @@
 
 | Directory | Summary |
 | --- | --- |
-| src | This is the SvelteKit frontend codebase for fjcloud, providing customer-facing account and billing management interfaces, shared utilities for API communication and authentication, and admin dashboards. |
-| tests | The tests directory contains browser-based end-to-end tests for the SvelteKit frontend using Playwright, including VLM screenshot infrastructure for visual validation, along with shared test fixtures that provide authentication setup, database helpers, and utilities for common flows like billing and Stripe operations. |
+| src | The src directory contains the SvelteKit web frontend for fjcloud, providing shared utilities in lib/ for API communication, authentication, and logging, along with server routes that implement customer-facing features like pricing comparison, search, billing operations, and OAuth authentication. |
+| tests | The tests directory contains browser-based end-to-end tests for the web frontend (e2e-ui/) with visual validation and screenshot capture infrastructure, along with Playwright fixtures and setup helpers (fixtures/) for authentication contexts and domain-specific workflows like billing and Stripe integration. |
 <!-- [scrai:end] -->

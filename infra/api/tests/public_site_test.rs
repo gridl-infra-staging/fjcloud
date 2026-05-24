@@ -296,12 +296,74 @@ async fn root_serves_public_landing_page_with_review_metadata() {
     let body = response_text(response).await;
     assert!(body.contains("<title>Flapjack Cloud - Managed search hosting</title>"));
     assert!(body.contains("Managed hosting for Flapjack search."));
+    assert!(
+        body.contains("Create indexes, import documents, and query from your app."),
+        "landing narrative should render the shared owner copy for the hero body text"
+    );
     assert!(body.contains("https://github.com/griddlehq/flapjack"));
     assert!(body.contains(r#"property="og:title" content="Flapjack Cloud""#));
     assert!(body.contains("https://cloud.flapjack.foo/flapjack_cloud_preview.png"));
+    assert!(
+        body.contains(r#"href="https://cloud.flapjack.foo/login""#) && body.contains(">Log in</a>"),
+        "public root HTML should expose the APP_BASE_URL login target for unauthenticated users"
+    );
+    assert!(
+        !body.contains("Sign Up"),
+        "invite-only beta gate should keep signup CTA copy off the public root HTML"
+    );
+    assert!(
+        !body.contains("Request Beta Access"),
+        "beta access CTA copy should stay absent from public landing during invite-only gate"
+    );
+    assert!(
+        !body.contains("subject=Flapjack%20Cloud%20beta%20access"),
+        "public root HTML should not expose beta-access mailto CTAs"
+    );
     assert!(body.contains("BETA"));
     assert!(body.contains("Privacy Policy"));
     assert!(body.contains("Terms of Service"));
+    assert!(body.contains(r#"data-testid="brand-logo""#));
+
+    for mirrored_brand_declaration in [
+        r#"--font-brand: "Cabinet", "Inter", system-ui, sans-serif;"#,
+        "--color-flapjack-ink: #1f1b18;",
+        "--color-flapjack-cream: #fff8ea;",
+        "--color-flapjack-rose: #b83f5f;",
+        "--color-flapjack-plum: #8d2842;",
+        "--color-flapjack-yellow: #f6c15b;",
+        "--color-flapjack-mint: #9fd8d2;",
+    ] {
+        assert!(
+            body.contains(mirrored_brand_declaration),
+            "landing page must mirror web brand declaration `{mirrored_brand_declaration}`"
+        );
+    }
+
+    // Prove the brand selectors actually consume `--font-brand`, not just that
+    // the token is defined somewhere in the document. Otherwise a regression
+    // that restored a hard-coded serif stack on `.brand` or `h1` would pass.
+    let brand_rule = css_rule_body(&body, ".brand");
+    assert!(
+        brand_rule.contains("font-family: var(--font-brand)"),
+        ".brand must consume var(--font-brand); rule body was: {brand_rule}"
+    );
+    let h1_rule = css_rule_body(&body, "h1");
+    assert!(
+        h1_rule.contains("font-family: var(--font-brand)"),
+        "h1 must consume var(--font-brand); rule body was: {h1_rule}"
+    );
+}
+
+fn css_rule_body<'a>(css: &'a str, selector: &str) -> &'a str {
+    let needle = format!("{selector} {{");
+    let start = css
+        .find(&needle)
+        .unwrap_or_else(|| panic!("CSS selector `{selector}` not found in landing page"));
+    let body_start = start + needle.len();
+    let end_offset = css[body_start..]
+        .find('}')
+        .unwrap_or_else(|| panic!("CSS selector `{selector}` has no closing brace"));
+    &css[body_start..body_start + end_offset]
 }
 
 #[tokio::test]

@@ -3,11 +3,13 @@
 	import { enhance } from '$app/forms';
 
 	let { form } = $props();
-	const errors = $derived((form?.errors ?? {}) as {
-		form?: string;
-		password?: string;
-		confirm_password?: string;
-	});
+	const errors = $derived(
+		(form?.errors ?? {}) as {
+			form?: string;
+			password?: string;
+			confirm_password?: string;
+		}
+	);
 
 	function recoveryAction(formData: unknown): string | null {
 		if (!formData || typeof formData !== 'object') {

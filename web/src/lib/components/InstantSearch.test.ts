@@ -1,11 +1,18 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/svelte';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 vi.mock('$app/environment', () => ({
 	browser: true
 }));
 
 import InstantSearch from './InstantSearch.svelte';
+
+const instantSearchSource = readFileSync(
+	join(process.cwd(), 'src', 'lib', 'components', 'InstantSearch.svelte'),
+	'utf8'
+);
 
 afterEach(() => {
 	cleanup();
@@ -83,5 +90,13 @@ describe('InstantSearch', () => {
 		await fireEvent.click(screen.getByRole('button', { name: 'Submit the search query' }));
 
 		expect(await screen.findByText('No results found.')).toBeInTheDocument();
+		expect(screen.getByText('No results found.')).toHaveClass('text-flapjack-ink/60');
+	});
+
+	it('keeps instantsearch css sourced from flapjack theme tokens', () => {
+		expect(instantSearchSource).toContain('var(--color-flapjack-ink)');
+		expect(instantSearchSource).toContain('var(--color-flapjack-rose)');
+		expect(instantSearchSource).toContain('var(--color-flapjack-plum)');
+		expect(instantSearchSource).not.toMatch(/#d1d5db|#2563eb|#e5e7eb|#6b7280/i);
 	});
 });

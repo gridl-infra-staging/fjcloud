@@ -111,7 +111,7 @@
 </script>
 
 {#if error}
-	<div class="mb-4 rounded bg-red-50 p-3 text-sm text-red-700" role="alert">
+	<div class="mb-4 rounded bg-flapjack-rose/10 p-3 text-sm text-flapjack-plum" role="alert">
 		{error}
 	</div>
 {/if}
@@ -121,7 +121,10 @@
 
 	<div class="flex items-center justify-between">
 		{#if cancelPath}
-			<a href={resolve(cancelPath)} class="text-sm font-medium text-gray-600 hover:text-gray-900">
+			<a
+				href={resolve(cancelPath)}
+				class="text-sm font-medium text-flapjack-ink/70 hover:text-flapjack-ink"
+			>
 				{cancelLabel}
 			</a>
 		{:else}
@@ -130,7 +133,7 @@
 		<button
 			type="submit"
 			disabled={submitting}
-			class="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+			class="rounded bg-flapjack-rose px-4 py-2 text-sm font-medium text-white hover:bg-flapjack-plum disabled:opacity-50"
 		>
 			{submitting ? 'Saving...' : submitLabel}
 		</button>

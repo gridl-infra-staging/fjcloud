@@ -8,12 +8,12 @@
 
 | Directory | Summary |
 | --- | --- |
-| account | The account directory contains server-side logic for the user account management page, likely handling account settings, profile information, and related operations. |
+| account | Provides server-side logic for the account settings page, loading the user profile and handling actions for updating profile, changing password, deleting account, and exporting account data with appropriate error handling and session validation. |
 | api-keys | — |
-| billing | The billing directory contains SvelteKit server page logic for managing payment configuration, including a setup page that loads Stripe setup intents to allow users to configure their payment methods with error handling for unavailable billing or missing customer state. |
-| indexes | The indexes directory implements fjcloud's dashboard console for managing customer indexes, with a main page that fetches user indexes and available regions, and detail routes that handle dictionary operations, document management, and security configuration. |
-| migrate | The migrate directory contains a SvelteKit page server file that appears to be a stub implementation, likely for a migration-related page in the web application. |
-| onboarding | This is a SvelteKit onboarding route directory containing a server-side page component. |
-| resend-verification | A POST endpoint that resends a verification email to the authenticated user, returning the API response with retry-after headers or appropriate error responses with retry-after information when the request fails. |
+| billing | The billing directory provides a Svelte setup page for payment method configuration, with a server load function that creates Stripe setup intents and manages client secrets for payment initialization. |
+| indexes | This directory provides the backend server logic for the dashboard's indexes feature, including a page handler that fetches user indexes and available regions with session management, plus subdirectories containing server-side handlers for managing individual indexes (dictionaries, documents, security configuration, and web frontend integration). |
+| migrate | Server-side page handler for migrating search indexes from Algolia, with actions to list available indexes and initiate migrations while validating credentials and handling API errors. |
+| onboarding | The onboarding directory contains a SvelteKit server page module that handles server-side logic for the onboarding flow, likely managing user initialization, form submissions, and session setup. |
+| resend-verification | The resend-verification directory contains a SvelteKit server route handler for resending email verification messages to users. |
 | settings | — |
 <!-- [scrai:end] -->

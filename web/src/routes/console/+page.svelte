@@ -135,17 +135,17 @@
 	<title>Console — Flapjack Cloud</title>
 </svelte:head>
 
-	<div>
-		<div class="mb-6 flex items-center justify-between">
-			<h1 class="text-2xl font-bold text-[#1f1b18]">Console</h1>
+<div>
+	<div class="mb-6 flex items-center justify-between">
+		<h1 class="text-2xl font-bold text-flapjack-ink">Console</h1>
 
-			<label class="flex items-center gap-2 text-sm text-[#4b4640]">
-				<span>Month</span>
-				<select
-					class="rounded border border-[#1f1b18]/20 bg-[#fff8ea] px-3 py-1.5 text-sm text-[#1f1b18] focus:border-[#b83f5f] focus:ring-1 focus:ring-[#b83f5f]"
-					value={currentMonth}
-					onchange={handleMonthChange}
-				>
+		<label class="flex items-center gap-2 text-sm text-flapjack-ink/80">
+			<span>Month</span>
+			<select
+				class="rounded border border-flapjack-ink/20 bg-flapjack-cream px-3 py-1.5 text-sm text-flapjack-ink focus:border-flapjack-rose focus:ring-1 focus:ring-flapjack-rose"
+				value={currentMonth}
+				onchange={handleMonthChange}
+			>
 				{#each monthOptions as opt (opt.value)}
 					<option value={opt.value}>{opt.label}</option>
 				{/each}
@@ -156,37 +156,39 @@
 	<!-- Estimated bill — shown regardless of usage (minimum may apply) -->
 	{#if estimate}
 		<div
-			class="mb-6 rounded-lg border-2 border-[#1f1b18]/15 bg-[#fff8ea] p-6 shadow"
+			class="mb-6 rounded-lg border-2 border-flapjack-ink/15 bg-flapjack-cream p-6 shadow"
 			data-testid="estimated-bill"
 		>
 			<div class="flex items-center justify-between">
-				<h2 class="text-lg font-medium text-[#1f1b18]">
+				<h2 class="text-lg font-medium text-flapjack-ink">
 					Estimated Bill for {formatPeriod(estimate.month + '-01')}
 				</h2>
-				<p class="text-2xl font-bold text-[#1f1b18]" data-testid="estimated-bill-total">
+				<p class="text-2xl font-bold text-flapjack-ink" data-testid="estimated-bill-total">
 					{formatCents(estimate.total_cents)}
 				</p>
 			</div>
 			{#if estimate.minimum_applied}
-				<p class="mt-1 text-sm text-[#4b4640]">Shared plan minimum applied ($5.00 per month)</p>
+				<p class="mt-1 text-sm text-flapjack-ink/80">
+					Shared plan minimum applied ($5.00 per month)
+				</p>
 			{/if}
 			{#if estimate.line_items.length > 0}
 				<details class="mt-3">
-					<summary class="cursor-pointer text-sm text-[#b83f5f] hover:text-[#8d2842]">
+					<summary class="cursor-pointer text-sm text-flapjack-rose hover:text-flapjack-plum">
 						View breakdown
 					</summary>
 					<table class="mt-2 w-full text-sm">
 						<thead>
-							<tr class="border-b border-[#1f1b18]/15 text-left text-[#4b4640]">
+							<tr class="border-b border-flapjack-ink/15 text-left text-flapjack-ink/80">
 								<th class="pb-2 font-medium">Description</th>
 								<th class="pb-2 font-medium">Amount</th>
 							</tr>
 						</thead>
 						<tbody>
 							{#each estimate.line_items as item (item.description)}
-								<tr class="border-b border-[#1f1b18]/10">
-									<td class="py-2 text-[#4b4640]">{item.description}</td>
-									<td class="py-2 text-[#1f1b18]">{formatCents(item.amount_cents)}</td>
+								<tr class="border-b border-flapjack-ink/10">
+									<td class="py-2 text-flapjack-ink/80">{item.description}</td>
+									<td class="py-2 text-flapjack-ink">{formatCents(item.amount_cents)}</td>
 								</tr>
 							{/each}
 						</tbody>
@@ -198,26 +200,26 @@
 
 	{#if freeTierProgress}
 		<section
-			class="mb-6 rounded-lg border-2 border-[#1f1b18]/15 bg-[#fff8ea] p-6 shadow"
+			class="mb-6 rounded-lg border-2 border-flapjack-ink/15 bg-flapjack-cream p-6 shadow"
 			data-testid="free-tier-progress"
 		>
-			<h2 class="text-lg font-medium text-[#1f1b18]">Free Plan Usage</h2>
-			<p class="mt-1 text-sm text-[#4b4640]">
+			<h2 class="text-lg font-medium text-flapjack-ink">Free Plan Usage</h2>
+			<p class="mt-1 text-sm text-flapjack-ink/80">
 				Track your usage against the included monthly limits.
 			</p>
 			<div class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
 				{#each freeTierMetrics as metric (metric.label)}
 					<div
-						class="rounded border border-[#1f1b18]/15 bg-[#fffdf6] p-3"
+						class="rounded border border-flapjack-ink/15 bg-flapjack-cream/70 p-3"
 						data-testid={`free-tier-metric-${metric.slug}`}
 					>
-						<p class="text-sm font-medium text-[#1f1b18]">{metric.label}</p>
-						<p class="mt-1 text-sm text-[#4b4640]">
+						<p class="text-sm font-medium text-flapjack-ink">{metric.label}</p>
+						<p class="mt-1 text-sm text-flapjack-ink/80">
 							{formatProgressValue(metric.usage.used)} / {formatProgressValue(metric.usage.limit)}
 						</p>
-						<div class="mt-2 h-2 rounded bg-[#1f1b18]/10">
+						<div class="mt-2 h-2 rounded bg-flapjack-ink/10">
 							<div
-								class="h-2 rounded bg-[#b83f5f]"
+								class="h-2 rounded bg-flapjack-rose"
 								data-testid={`free-tier-metric-bar-${metric.slug}`}
 								style={`width:${formatProgressPercent(metric.usage.used, metric.usage.limit)}`}
 							></div>
@@ -231,7 +233,7 @@
 	{#if freeTierProgress && freeTierProgress.indexes.used >= freeTierProgress.indexes.limit}
 		<div
 			data-testid="index-quota-warning"
-			class="mb-6 rounded-lg border-2 border-[#1f1b18]/15 bg-[#fff8ea] p-4 text-sm text-[#1f1b18]"
+			class="mb-6 rounded-lg border-2 border-flapjack-ink/15 bg-flapjack-cream p-4 text-sm text-flapjack-ink"
 		>
 			<p class="font-medium">
 				You've reached your free plan index limit ({freeTierProgress.indexes.used} / {freeTierProgress
@@ -241,7 +243,8 @@
 				Delete an existing index or
 				<a
 					href={resolve('/console/billing')}
-					class="font-medium text-[#b83f5f] underline hover:text-[#8d2842]">upgrade your plan</a
+					class="font-medium text-flapjack-rose underline hover:text-flapjack-plum"
+					>upgrade your plan</a
 				>
 				to create more.
 			</p>
@@ -249,30 +252,30 @@
 	{/if}
 
 	<div
-		class="mb-6 rounded-lg border-2 border-[#1f1b18]/15 bg-[#fff8ea] p-6 shadow"
+		class="mb-6 rounded-lg border-2 border-flapjack-ink/15 bg-flapjack-cream p-6 shadow"
 		data-testid="indexes-card"
 	>
 		<div class="flex items-center justify-between">
-			<h2 class="text-lg font-medium text-[#1f1b18]">Indexes</h2>
+			<h2 class="text-lg font-medium text-flapjack-ink">Indexes</h2>
 			{#if indexes.length > 0}
 				<a
 					href={resolve('/console/indexes')}
-					class="text-sm font-medium text-[#b83f5f] hover:text-[#8d2842]">Manage indexes</a
+					class="text-sm font-medium text-flapjack-rose hover:text-flapjack-plum">Manage indexes</a
 				>
 			{/if}
 		</div>
 		{#if indexes.length === 0}
-			<p class="mt-2 text-sm text-[#4b4640]">No indexes yet</p>
+			<p class="mt-2 text-sm text-flapjack-ink/80">No indexes yet</p>
 			<a
 				href={resolve('/console/onboarding')}
-				class="mt-3 inline-block text-sm font-medium text-[#b83f5f] hover:text-[#8d2842]"
+				class="mt-3 inline-block text-sm font-medium text-flapjack-rose hover:text-flapjack-plum"
 				>Create your first index</a
 			>
 		{:else}
-			<p class="mt-1 text-3xl font-bold text-[#1f1b18]">
+			<p class="mt-1 text-3xl font-bold text-flapjack-ink">
 				{indexes.length}
 				{#if freeTierProgress}
-					<span class="ml-2 text-lg font-medium text-[#4b4640]"
+					<span class="ml-2 text-lg font-medium text-flapjack-ink/80"
 						>/ {freeTierProgress.indexes.limit}</span
 					>
 				{/if}
@@ -294,20 +297,22 @@
 
 	{#if onboardingStatus && !onboardingCompleted}
 		<div
-			class="mb-6 rounded-lg border-2 border-[#1f1b18]/15 bg-[#fff8ea] p-4"
+			class="mb-6 rounded-lg border-2 border-flapjack-ink/15 bg-flapjack-cream p-4"
 			data-testid="onboarding-banner"
 		>
 			<div class="flex items-center justify-between">
 				<div>
-					<p class="font-medium text-[#1f1b18]">Complete your setup</p>
-					<p class="mt-1 text-sm text-[#4b4640]">{onboardingStatus.suggested_next_step}</p>
+					<p class="font-medium text-flapjack-ink">Complete your setup</p>
+					<p class="mt-1 text-sm text-flapjack-ink/80">{onboardingStatus.suggested_next_step}</p>
 					{#if planContext?.billing_plan === 'free'}
-						<p class="mt-1 text-sm text-[#4b4640]">No credit card required on the Free plan.</p>
+						<p class="mt-1 text-sm text-flapjack-ink/80">
+							No credit card required on the Free plan.
+						</p>
 					{/if}
 				</div>
 				<a
 					href={resolve('/console/onboarding')}
-					class="rounded-md border-2 border-[#1f1b18] bg-[#ffb3c7] px-4 py-2 text-sm font-medium text-[#1f1b18] hover:bg-[#ffc3d2]"
+					class="rounded-md border-2 border-flapjack-ink bg-brand-pink px-4 py-2 text-sm font-medium text-flapjack-ink hover:bg-flapjack-plum/80"
 					>Continue setup</a
 				>
 			</div>
@@ -317,25 +322,27 @@
 	{#if hasUsage}
 		<!-- Stat cards -->
 		<div class="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4" data-testid="stat-cards">
-			<div class="rounded-lg border-2 border-[#1f1b18]/15 bg-[#fff8ea] p-6 shadow">
-				<p class="text-sm font-medium text-[#4b4640]">Search Requests</p>
-				<p class="mt-1 text-2xl font-semibold text-[#1f1b18]">
+			<div class="rounded-lg border-2 border-flapjack-ink/15 bg-flapjack-cream p-6 shadow">
+				<p class="text-sm font-medium text-flapjack-ink/80">Search Requests</p>
+				<p class="mt-1 text-2xl font-semibold text-flapjack-ink">
 					{formatNumber(usage.total_search_requests)}
 				</p>
 			</div>
-			<div class="rounded-lg border-2 border-[#1f1b18]/15 bg-[#fff8ea] p-6 shadow">
-				<p class="text-sm font-medium text-[#4b4640]">Write Operations</p>
-				<p class="mt-1 text-2xl font-semibold text-[#1f1b18]">
+			<div class="rounded-lg border-2 border-flapjack-ink/15 bg-flapjack-cream p-6 shadow">
+				<p class="text-sm font-medium text-flapjack-ink/80">Write Operations</p>
+				<p class="mt-1 text-2xl font-semibold text-flapjack-ink">
 					{formatNumber(usage.total_write_operations)}
 				</p>
 			</div>
-			<div class="rounded-lg border-2 border-[#1f1b18]/15 bg-[#fff8ea] p-6 shadow">
-				<p class="text-sm font-medium text-[#4b4640]">Storage (GB)</p>
-				<p class="mt-1 text-2xl font-semibold text-[#1f1b18]">{formatGb(usage.avg_storage_gb)}</p>
+			<div class="rounded-lg border-2 border-flapjack-ink/15 bg-flapjack-cream p-6 shadow">
+				<p class="text-sm font-medium text-flapjack-ink/80">Storage (GB)</p>
+				<p class="mt-1 text-2xl font-semibold text-flapjack-ink">
+					{formatGb(usage.avg_storage_gb)}
+				</p>
 			</div>
-			<div class="rounded-lg border-2 border-[#1f1b18]/15 bg-[#fff8ea] p-6 shadow">
-				<p class="text-sm font-medium text-[#4b4640]">Documents</p>
-				<p class="mt-1 text-2xl font-semibold text-[#1f1b18]">
+			<div class="rounded-lg border-2 border-flapjack-ink/15 bg-flapjack-cream p-6 shadow">
+				<p class="text-sm font-medium text-flapjack-ink/80">Documents</p>
+				<p class="mt-1 text-2xl font-semibold text-flapjack-ink">
 					{formatNumber(usage.avg_document_count)}
 				</p>
 			</div>
@@ -344,10 +351,10 @@
 		<!-- Daily usage chart -->
 		{#if dailyTotals.length > 0}
 			<div
-				class="mb-6 rounded-lg border-2 border-[#1f1b18]/15 bg-[#fff8ea] p-6 shadow"
+				class="mb-6 rounded-lg border-2 border-flapjack-ink/15 bg-flapjack-cream p-6 shadow"
 				data-testid="usage-chart"
 			>
-				<h2 class="mb-4 text-lg font-medium text-[#1f1b18]">Daily Usage</h2>
+				<h2 class="mb-4 text-lg font-medium text-flapjack-ink">Daily Usage</h2>
 				{#if browser}
 					<div class="h-64">
 						<BarChart
@@ -355,11 +362,15 @@
 							x="date"
 							xScale={scaleBand().padding(0.25)}
 							series={[
-								{ key: 'search_requests', label: 'Search Requests', color: '#b83f5f' },
+								{
+									key: 'search_requests',
+									label: 'Search Requests',
+									color: 'var(--color-flapjack-rose)'
+								},
 								{
 									key: 'write_operations',
 									label: 'Write Operations',
-									color: '#7f4d21'
+									color: 'var(--color-flapjack-plum)'
 								}
 							]}
 							seriesLayout="group"
@@ -370,7 +381,7 @@
 					<div class="overflow-x-auto">
 						<table class="w-full text-sm">
 							<thead>
-								<tr class="border-b border-[#1f1b18]/15 text-left text-[#4b4640]">
+								<tr class="border-b border-flapjack-ink/15 text-left text-flapjack-ink/80">
 									<th class="pb-2 font-medium">Date</th>
 									<th class="pb-2 font-medium">Search Requests</th>
 									<th class="pb-2 font-medium">Write Operations</th>
@@ -378,10 +389,10 @@
 							</thead>
 							<tbody>
 								{#each dailyTotals as day (day.date)}
-									<tr class="border-b border-[#1f1b18]/10">
-										<td class="py-2 text-[#4b4640]">{day.date}</td>
-										<td class="py-2 text-[#1f1b18]">{formatNumber(day.search_requests)}</td>
-										<td class="py-2 text-[#1f1b18]">{formatNumber(day.write_operations)}</td>
+									<tr class="border-b border-flapjack-ink/10">
+										<td class="py-2 text-flapjack-ink/80">{day.date}</td>
+										<td class="py-2 text-flapjack-ink">{formatNumber(day.search_requests)}</td>
+										<td class="py-2 text-flapjack-ink">{formatNumber(day.write_operations)}</td>
 									</tr>
 								{/each}
 							</tbody>
@@ -393,13 +404,13 @@
 
 		<!-- Region breakdown table -->
 		<div
-			class="rounded-lg border-2 border-[#1f1b18]/15 bg-[#fff8ea] p-6 shadow"
+			class="rounded-lg border-2 border-flapjack-ink/15 bg-flapjack-cream p-6 shadow"
 			data-testid="region-breakdown"
 		>
-			<h2 class="mb-4 text-lg font-medium text-[#1f1b18]">Region Breakdown</h2>
+			<h2 class="mb-4 text-lg font-medium text-flapjack-ink">Region Breakdown</h2>
 			<table class="w-full text-sm">
 				<thead>
-					<tr class="border-b border-[#1f1b18]/15 text-left text-[#4b4640]">
+					<tr class="border-b border-flapjack-ink/15 text-left text-flapjack-ink/80">
 						<th class="pb-2 font-medium">Region</th>
 						<th class="pb-2 font-medium">Search Requests</th>
 						<th class="pb-2 font-medium">Write Operations</th>
@@ -409,20 +420,22 @@
 				</thead>
 				<tbody>
 					{#each regionData as region (region.region)}
-						<tr class="border-b border-[#1f1b18]/10">
-							<td class="py-2 font-medium text-[#4b4640]">{region.region}</td>
-							<td class="py-2 text-[#1f1b18]">{formatNumber(region.search_requests)}</td>
-							<td class="py-2 text-[#1f1b18]">{formatNumber(region.write_operations)}</td>
-							<td class="py-2 text-[#1f1b18]">{formatGb(region.avg_storage_gb)}</td>
-							<td class="py-2 text-[#1f1b18]">{formatNumber(region.avg_document_count)}</td>
+						<tr class="border-b border-flapjack-ink/10">
+							<td class="py-2 font-medium text-flapjack-ink/80">{region.region}</td>
+							<td class="py-2 text-flapjack-ink">{formatNumber(region.search_requests)}</td>
+							<td class="py-2 text-flapjack-ink">{formatNumber(region.write_operations)}</td>
+							<td class="py-2 text-flapjack-ink">{formatGb(region.avg_storage_gb)}</td>
+							<td class="py-2 text-flapjack-ink">{formatNumber(region.avg_document_count)}</td>
 						</tr>
 					{/each}
 				</tbody>
 			</table>
 		</div>
 	{:else}
-		<div class="rounded-lg border-2 border-[#1f1b18]/15 bg-[#fff8ea] p-12 text-center shadow">
-			<p class="text-[#4b4640]">No usage data for this period.</p>
+		<div
+			class="rounded-lg border-2 border-flapjack-ink/15 bg-flapjack-cream p-12 text-center shadow"
+		>
+			<p class="text-flapjack-ink/80">No usage data for this period.</p>
 		</div>
 	{/if}
 </div>

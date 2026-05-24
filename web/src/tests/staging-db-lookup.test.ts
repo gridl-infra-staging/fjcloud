@@ -51,7 +51,9 @@ describe('staging DB lookup helper (LB-2/LB-3)', () => {
 		);
 
 		expect(stagingLookupSource).toMatch(/const\s+SSM_STAGING_LOOKUP_TIMEOUT_SECONDS\s*=\s*90/);
-		expect(stagingLookupSource).toMatch(/const\s+SSM_STAGING_LOOKUP_SPAWN_TIMEOUT_MS\s*=\s*120\s*\*\s*1000/);
+		expect(stagingLookupSource).toMatch(
+			/const\s+SSM_STAGING_LOOKUP_SPAWN_TIMEOUT_MS\s*=\s*120\s*\*\s*1000/
+		);
 		expect(stagingLookupSource).toMatch(
 			/SSM_EXEC_TIMEOUT_SECONDS:\s*String\(\s*SSM_STAGING_LOOKUP_TIMEOUT_SECONDS\s*\)/
 		);
@@ -153,11 +155,7 @@ describe('staging DB lookup helper (LB-2/LB-3)', () => {
 				'00000000-0000-0000-0000-000000000001|active|cus_stripe_123\n',
 				3
 			);
-			expect(columns).toEqual([
-				'00000000-0000-0000-0000-000000000001',
-				'active',
-				'cus_stripe_123'
-			]);
+			expect(columns).toEqual(['00000000-0000-0000-0000-000000000001', 'active', 'cus_stripe_123']);
 		});
 
 		it('returns null when zero rows matched (so callers can distinguish no-row from malformed)', () => {
@@ -166,21 +164,19 @@ describe('staging DB lookup helper (LB-2/LB-3)', () => {
 		});
 
 		it('throws when the column count disagrees with the contract', () => {
-			expect(() =>
-				parseSingleRowPipeSeparatedOutput('a|b\n', 3)
-			).toThrow(/expected 3 psql columns but got 2/);
+			expect(() => parseSingleRowPipeSeparatedOutput('a|b\n', 3)).toThrow(
+				/expected 3 psql columns but got 2/
+			);
 		});
 
 		it('throws when output contains more than one non-empty row', () => {
-			expect(() =>
-				parseSingleRowPipeSeparatedOutput('a|b|c\nd|e|f\n', 3)
-			).toThrow(/expected single-row.*got 2/i);
+			expect(() => parseSingleRowPipeSeparatedOutput('a|b|c\nd|e|f\n', 3)).toThrow(
+				/expected single-row.*got 2/i
+			);
 		});
 
 		it('throws when any column is a NULL marker — fail loud rather than mis-interpret', () => {
-			expect(() =>
-				parseSingleRowPipeSeparatedOutput('a|\\N|c\n', 3)
-			).toThrow(/null markers/i);
+			expect(() => parseSingleRowPipeSeparatedOutput('a|\\N|c\n', 3)).toThrow(/null markers/i);
 		});
 
 		it('preserves empty-string columns that are NOT NULL markers (Stage 2: presence-flag bool columns)', () => {
@@ -192,13 +188,7 @@ describe('staging DB lookup helper (LB-2/LB-3)', () => {
 				'00000000-0000-0000-0000-000000000001|active||f|t\n',
 				5
 			);
-			expect(columns).toEqual([
-				'00000000-0000-0000-0000-000000000001',
-				'active',
-				'',
-				'f',
-				't'
-			]);
+			expect(columns).toEqual(['00000000-0000-0000-0000-000000000001', 'active', '', 'f', 't']);
 		});
 	});
 
@@ -219,21 +209,17 @@ describe('staging DB lookup helper (LB-2/LB-3)', () => {
 			expect(sql).toContain('email_verified_at IS NULL');
 			expect(sql).toContain('email_verify_token IS NULL');
 			expect(sql).toContain('FROM customers');
-			expect(sql).toContain(
-				"WHERE email = 'e2e-fresh-signup-1234@e2e.griddle.test'"
-			);
+			expect(sql).toContain("WHERE email = 'e2e-fresh-signup-1234@e2e.griddle.test'");
 		});
 
 		it('rejects emails containing single quotes (SQL injection guard)', () => {
-			expect(() =>
-				buildCustomerStatusLookupSql("evil'; DROP TABLE customers;--")
-			).toThrow(/refusing to embed unsafe email/i);
+			expect(() => buildCustomerStatusLookupSql("evil'; DROP TABLE customers;--")).toThrow(
+				/refusing to embed unsafe email/i
+			);
 		});
 
 		it('rejects empty email', () => {
-			expect(() => buildCustomerStatusLookupSql('')).toThrow(
-				/refusing to embed unsafe email/i
-			);
+			expect(() => buildCustomerStatusLookupSql('')).toThrow(/refusing to embed unsafe email/i);
 		});
 
 		it('rejects emails containing whitespace (which would smuggle SQL via line breaks)', () => {
@@ -253,10 +239,7 @@ describe('staging DB lookup helper (LB-2/LB-3)', () => {
 				join(process.cwd(), 'tests/fixtures/staging_db_lookup.ts'),
 				'utf8'
 			);
-			const fixtureSource = readFileSync(
-				join(process.cwd(), 'tests/fixtures/fixtures.ts'),
-				'utf8'
-			);
+			const fixtureSource = readFileSync(join(process.cwd(), 'tests/fixtures/fixtures.ts'), 'utf8');
 			expect(stagingLookupSource).toMatch(/\bbuildCustomerStatusLookupSql\b/);
 			expect(stagingLookupSource).toMatch(/\bparseSingleRowPipeSeparatedOutput\b/);
 			expect(fixtureSource).not.toMatch(/\bbuildCustomerStatusLookupSql\b/);
@@ -267,10 +250,7 @@ describe('staging DB lookup helper (LB-2/LB-3)', () => {
 		});
 
 		it('exposes the customer-status seam through the shared fixture type surface', () => {
-			const fixtureSource = readFileSync(
-				join(process.cwd(), 'tests/fixtures/fixtures.ts'),
-				'utf8'
-			);
+			const fixtureSource = readFileSync(join(process.cwd(), 'tests/fixtures/fixtures.ts'), 'utf8');
 			expect(fixtureSource).toMatch(/\bfindCustomerStatusViaStagingSsm\b/);
 			expect(fixtureSource).toMatch(
 				/type\s+FindCustomerStatusViaStagingSsmFn\s*=\s*\(email:\s*string\)\s*=>\s*Promise<StagingCustomerStatusEvidence>;/
@@ -281,10 +261,7 @@ describe('staging DB lookup helper (LB-2/LB-3)', () => {
 		});
 
 		it('wires the customer-status seam in base.extend so callers can use the fixture directly', () => {
-			const fixtureSource = readFileSync(
-				join(process.cwd(), 'tests/fixtures/fixtures.ts'),
-				'utf8'
-			);
+			const fixtureSource = readFileSync(join(process.cwd(), 'tests/fixtures/fixtures.ts'), 'utf8');
 			expect(fixtureSource).toMatch(
 				/findCustomerStatusViaStagingSsm:\s*async\s*\(\{\},\s*use\)\s*=>\s*\{[\s\S]*await use\(\(email\)\s*=>\s*findCustomerStatusViaStagingSsm\(email\)\);[\s\S]*\}/
 			);

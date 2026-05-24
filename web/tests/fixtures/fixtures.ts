@@ -35,10 +35,7 @@ import {
 	pricingContractSnapshotFromAdminRateCard,
 	type MarketingPricingContractSnapshot
 } from '../../src/lib/pricing';
-import {
-	formatFixtureSetupFailure,
-	redactSensitiveDiagnostics
-} from './setup_failure_message';
+import { formatFixtureSetupFailure, redactSensitiveDiagnostics } from './setup_failure_message';
 export { formatFixtureSetupFailure } from './setup_failure_message';
 
 // ---------------------------------------------------------------------------
@@ -292,10 +289,9 @@ function getTransientRetryDelayMs(attempt: number): number {
 }
 
 function cappedTransientRetryBudgetMs(maxAttempts: number): number {
-	return Array.from({ length: maxAttempts }, (_, attempt) => getTransientRetryDelayMs(attempt)).reduce(
-		(total, delayMs) => total + delayMs,
-		0
-	);
+	return Array.from({ length: maxAttempts }, (_, attempt) =>
+		getTransientRetryDelayMs(attempt)
+	).reduce((total, delayMs) => total + delayMs, 0);
 }
 
 function getRetryDelayMs(attempt: number, retryAfterHeader: string | null): number {
@@ -311,9 +307,8 @@ function isTransientAccountLookupFailure(status: number): boolean {
 
 // Keep the setup:user timeout aligned with the helper retry contract so
 // Playwright does not abort before fixture bootstrap finishes its own retries.
-export const FIXTURE_AUTH_API_RETRY_BUDGET_MS = cappedTransientRetryBudgetMs(
-	TRANSIENT_API_MAX_RETRIES
-);
+export const FIXTURE_AUTH_API_RETRY_BUDGET_MS =
+	cappedTransientRetryBudgetMs(TRANSIENT_API_MAX_RETRIES);
 
 const STRIPE_DEFAULT_PAYMENT_METHOD_WAIT_MAX_ATTEMPTS = 20;
 const INVOICE_STATUS_WAIT_MAX_ATTEMPTS = 90;
@@ -326,14 +321,13 @@ const PAID_INVOICE_PROOF_WATCHDOG_SAFETY_MARGIN_MS = 30_000;
 // Keep the signup-to-paid-invoice spec timeout aligned with its fixture-owned
 // Stripe + invoice polling budgets so remote staging failures surface the
 // underlying fixture error instead of a generic Playwright timeout.
-export const PAID_INVOICE_PROOF_TIMEOUT_MS =
-	Math.min(
-		FIXTURE_AUTH_API_RETRY_BUDGET_MS +
-			cappedTransientRetryBudgetMs(STRIPE_DEFAULT_PAYMENT_METHOD_WAIT_MAX_ATTEMPTS) +
-			cappedTransientRetryBudgetMs(INVOICE_STATUS_WAIT_MAX_ATTEMPTS) +
-			PAID_INVOICE_PROOF_TIMEOUT_BUFFER_MS,
-		STAGING_LANE_WATCHDOG_TIMEOUT_MS - PAID_INVOICE_PROOF_WATCHDOG_SAFETY_MARGIN_MS
-	);
+export const PAID_INVOICE_PROOF_TIMEOUT_MS = Math.min(
+	FIXTURE_AUTH_API_RETRY_BUDGET_MS +
+		cappedTransientRetryBudgetMs(STRIPE_DEFAULT_PAYMENT_METHOD_WAIT_MAX_ATTEMPTS) +
+		cappedTransientRetryBudgetMs(INVOICE_STATUS_WAIT_MAX_ATTEMPTS) +
+		PAID_INVOICE_PROOF_TIMEOUT_BUFFER_MS,
+	STAGING_LANE_WATCHDOG_TIMEOUT_MS - PAID_INVOICE_PROOF_WATCHDOG_SAFETY_MARGIN_MS
+);
 
 type CreateRegisteredUserParams = {
 	apiUrl: string;
@@ -557,9 +551,7 @@ export async function loginAsUserWithKnownMissingUserBootstrap({
 			return bootstrap.loginToken;
 		}
 
-		throw new Error(
-			`${contextLabel} failed to re-authenticate after known missing-user bootstrap`
-		);
+		throw new Error(`${contextLabel} failed to re-authenticate after known missing-user bootstrap`);
 	}
 }
 
@@ -1344,36 +1336,36 @@ async function completeFreshSignupEmailVerificationViaRoute(
 		// Remote browser lanes can target a deployed frontend host whose
 		// verify-email route is not guaranteed to consume staging tokens via the
 		// same API origin as fixtureEnv.apiUrl. In remote mode, consume the
-			// token through the staging API seam first, then let specs assert browser
-			// replay behavior on /verify-email/{token}.
-			if (process.env[REMOTE_TARGET_OPT_IN_ENV] === '1') {
-				for (let attempt = 0; attempt < TRANSIENT_API_MAX_RETRIES; attempt += 1) {
-					const verifyResponse = await callJsonApi(
-						fetch,
-						fixtureEnv.apiUrl,
-						'POST',
-						'/auth/verify-email',
-						{},
-						{ token: verificationToken }
-					);
-					if (verifyResponse.status === 429) {
-						await sleep(getRetryDelayMs(attempt, verifyResponse.headers.get('retry-after')));
-						continue;
-					}
-					if (!verifyResponse.ok) {
-						throw new Error(
-							`staging API verify-email failed: ${verifyResponse.status} ${await verifyResponse.text()}`
-						);
-					}
-					await page.context().clearCookies();
-					// Cooldown before the spec navigates to /verify-email/{token} in the
-					// browser — the SvelteKit server makes a second API call and upstream
-					// rate limiters (Cloudflare) can reject it if it arrives too soon.
-					await sleep(3000);
-					return { verificationToken };
+		// token through the staging API seam first, then let specs assert browser
+		// replay behavior on /verify-email/{token}.
+		if (process.env[REMOTE_TARGET_OPT_IN_ENV] === '1') {
+			for (let attempt = 0; attempt < TRANSIENT_API_MAX_RETRIES; attempt += 1) {
+				const verifyResponse = await callJsonApi(
+					fetch,
+					fixtureEnv.apiUrl,
+					'POST',
+					'/auth/verify-email',
+					{},
+					{ token: verificationToken }
+				);
+				if (verifyResponse.status === 429) {
+					await sleep(getRetryDelayMs(attempt, verifyResponse.headers.get('retry-after')));
+					continue;
 				}
-				throw new Error('staging API verify-email failed: exhausted retries after 429 rate limiting');
+				if (!verifyResponse.ok) {
+					throw new Error(
+						`staging API verify-email failed: ${verifyResponse.status} ${await verifyResponse.text()}`
+					);
+				}
+				await page.context().clearCookies();
+				// Cooldown before the spec navigates to /verify-email/{token} in the
+				// browser — the SvelteKit server makes a second API call and upstream
+				// rate limiters (Cloudflare) can reject it if it arrives too soon.
+				await sleep(3000);
+				return { verificationToken };
 			}
+			throw new Error('staging API verify-email failed: exhausted retries after 429 rate limiting');
+		}
 
 		// Public auth pages redirect authenticated users to /console, so clear
 		// auth cookies before exercising the verify-email success contract.
@@ -1970,13 +1962,13 @@ async function arrangePaidInvoiceForFreshSignup({
 			throw new Error('arrangePaidInvoiceForFreshSignup requires a non-empty email and password');
 		}
 
-			const token = await loginAsUserWithKnownMissingUserBootstrap({
-				apiUrl: fixtureEnv.apiUrl,
-				email: normalizedEmail,
-				password,
-				trackCustomerForCleanup,
-				contextLabel: 'arrangePaidInvoiceForFreshSignup'
-			});
+		const token = await loginAsUserWithKnownMissingUserBootstrap({
+			apiUrl: fixtureEnv.apiUrl,
+			email: normalizedEmail,
+			password,
+			trackCustomerForCleanup,
+			contextLabel: 'arrangePaidInvoiceForFreshSignup'
+		});
 		const customerId = await getCustomerIdForToken(token);
 		trackCustomerForCleanup(customerId);
 
@@ -1990,25 +1982,25 @@ async function arrangePaidInvoiceForFreshSignup({
 			'arrangePaidInvoiceForFreshSignup'
 		);
 
-			// Attach pm_card_visa as the default PM BEFORE batch billing runs,
-			// so the invoice that batch billing creates gets auto-charged
-			// (collection_method=charge_automatically with a default PM = paid in
-			// seconds). Without this step, waitForInvoicePaid below times out.
-			const defaultPaymentMethodId = await attachDefaultStripeTestCard(
-				stripeCustomerId,
-				stripeSecretKey,
-				'arrangePaidInvoiceForFreshSignup'
-			);
-			// Stripe can acknowledge attachment before `invoice_settings.default_payment_method`
-			// is query-consistent. Wait for that read seam to converge before batch billing.
-			await waitForStripeDefaultPaymentMethod({
-				stripeCustomerId,
-				stripeSecretKey,
-				expectedPaymentMethodId: defaultPaymentMethodId,
-				contextLabel: 'arrangePaidInvoiceForFreshSignup'
-			});
+		// Attach pm_card_visa as the default PM BEFORE batch billing runs,
+		// so the invoice that batch billing creates gets auto-charged
+		// (collection_method=charge_automatically with a default PM = paid in
+		// seconds). Without this step, waitForInvoicePaid below times out.
+		const defaultPaymentMethodId = await attachDefaultStripeTestCard(
+			stripeCustomerId,
+			stripeSecretKey,
+			'arrangePaidInvoiceForFreshSignup'
+		);
+		// Stripe can acknowledge attachment before `invoice_settings.default_payment_method`
+		// is query-consistent. Wait for that read seam to converge before batch billing.
+		await waitForStripeDefaultPaymentMethod({
+			stripeCustomerId,
+			stripeSecretKey,
+			expectedPaymentMethodId: defaultPaymentMethodId,
+			contextLabel: 'arrangePaidInvoiceForFreshSignup'
+		});
 
-			const billingMonth = currentUtcBillingMonth();
+		const billingMonth = currentUtcBillingMonth();
 		const batchBillingResponse = await adminApiCall('POST', '/admin/billing/run', {
 			month: billingMonth
 		});
@@ -2018,27 +2010,27 @@ async function arrangePaidInvoiceForFreshSignup({
 			);
 		}
 
-			const batch = (await batchBillingResponse.json()) as BatchBillingResponse;
-			const invoiceId = await resolveInvoiceIdFromBatch(
-				batch,
-				customerId,
-				token,
-				billingMonth,
-				stripeSecretKey
-			);
-				await ensureInvoicePaymentAttemptForBillingProof({
-					invoiceId,
-					contextLabel: 'arrangePaidInvoiceForFreshSignup',
-					getInvoiceDetail: (id) => getInvoiceDetailForToken(id, token),
-					payStripeInvoice: (stripeInvoiceId) =>
-						payStripeInvoiceWithTestKey(
-							stripeInvoiceId,
-						stripeSecretKey,
-						'arrangePaidInvoiceForFreshSignup'
-					)
-			});
-			await waitForInvoicePaid(invoiceId, token);
-			const paidInvoiceEvidence =
+		const batch = (await batchBillingResponse.json()) as BatchBillingResponse;
+		const invoiceId = await resolveInvoiceIdFromBatch(
+			batch,
+			customerId,
+			token,
+			billingMonth,
+			stripeSecretKey
+		);
+		await ensureInvoicePaymentAttemptForBillingProof({
+			invoiceId,
+			contextLabel: 'arrangePaidInvoiceForFreshSignup',
+			getInvoiceDetail: (id) => getInvoiceDetailForToken(id, token),
+			payStripeInvoice: (stripeInvoiceId) =>
+				payStripeInvoiceWithTestKey(
+					stripeInvoiceId,
+					stripeSecretKey,
+					'arrangePaidInvoiceForFreshSignup'
+				)
+		});
+		await waitForInvoicePaid(invoiceId, token);
+		const paidInvoiceEvidence =
 			process.env[REMOTE_TARGET_OPT_IN_ENV] === '1'
 				? await findPaidInvoiceEvidenceViaStagingSsm(normalizedEmail, invoiceId)
 				: {
@@ -2057,20 +2049,20 @@ async function arrangePaidInvoiceForFreshSignup({
 			stagingInvoiceStatus: paidInvoiceEvidence.stagingInvoiceStatus,
 			stagingInvoicePeriodStart: paidInvoiceEvidence.stagingInvoicePeriodStart
 		};
-		} catch (error) {
-			const diagnosticEnv = fixtureEnvForFailureDiagnostics();
-			throw new Error(
-				formatFixtureSetupFailure({
-					setupName: 'arrangePaidInvoiceForFreshSignup',
-					expectedPath: '/console/billing/invoices/{id}',
-					currentPath: '(arrangePaidInvoiceForFreshSignup)',
-					apiUrl: diagnosticEnv.apiUrl,
-					adminKey: diagnosticEnv.adminKey,
-					alertText: setupFailureDetailsFromError(error)
-				})
-			);
-		}
+	} catch (error) {
+		const diagnosticEnv = fixtureEnvForFailureDiagnostics();
+		throw new Error(
+			formatFixtureSetupFailure({
+				setupName: 'arrangePaidInvoiceForFreshSignup',
+				expectedPath: '/console/billing/invoices/{id}',
+				currentPath: '(arrangePaidInvoiceForFreshSignup)',
+				apiUrl: diagnosticEnv.apiUrl,
+				adminKey: diagnosticEnv.adminKey,
+				alertText: setupFailureDetailsFromError(error)
+			})
+		);
 	}
+}
 
 type InvoiceListApiItem = {
 	id: string;
@@ -2148,6 +2140,15 @@ type RegisterIndexForCleanupFn = (name: string) => void;
 type CleanupFixtureIndexesFn = () => Promise<void>;
 type SeedApiKeyFn = (name: string, scopes?: string[]) => Promise<{ id: string }>;
 type ListApiKeysFn = () => Promise<ApiKeyListItem[]>;
+type DiscoverWithApiKeyFn = (indexName: string, apiKey: string) => Promise<{
+	status: number;
+	body: {
+		vm?: string;
+		flapjack_url?: string;
+		ttl?: number;
+		service_type?: string;
+	} | null;
+}>;
 type SetBillingPlanFn = (plan: 'free' | 'shared') => Promise<void>;
 type SetBillingPlanForCustomerFn = (customerId: string, plan: 'free' | 'shared') => Promise<void>;
 type GetAccountPayloadForTokenFn = (
@@ -2210,6 +2211,8 @@ type E2eFixtures = {
 	seedApiKey: SeedApiKeyFn;
 	/** Read API-key rows for the authenticated customer through fixture-owned API access. */
 	listApiKeys: ListApiKeysFn;
+	/** Call /discover with a bearer API key through fixture-owned API access. */
+	discoverWithApiKey: DiscoverWithApiKeyFn;
 	/** Temporarily switch the authenticated customer between free and shared plans. */
 	setBillingPlan: SetBillingPlanFn;
 	/** Set a specific customer's plan through fixture-owned admin mutation flow. */
@@ -2576,6 +2579,41 @@ export const test = base.extend<E2eFixtures & E2eInternalFixtures>({
 				throw new Error('listApiKeys failed: expected array response from /api-keys');
 			}
 			return data as ApiKeyListItem[];
+		});
+	},
+
+	discoverWithApiKey: async ({}, use) => {
+		await use(async (indexName: string, apiKey: string) => {
+			const response = await fetch(
+				`${fixtureEnv.apiUrl}/discover?index=${encodeURIComponent(indexName)}`,
+				{
+					headers: {
+						Authorization: `Bearer ${apiKey}`
+					}
+				}
+			);
+
+			let body: {
+				vm?: string;
+				flapjack_url?: string;
+				ttl?: number;
+				service_type?: string;
+			} | null = null;
+			try {
+				body = (await response.json()) as {
+					vm?: string;
+					flapjack_url?: string;
+					ttl?: number;
+					service_type?: string;
+				};
+			} catch {
+				body = null;
+			}
+
+			return {
+				status: response.status,
+				body
+			};
 		});
 	},
 

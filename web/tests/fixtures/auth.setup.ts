@@ -51,8 +51,7 @@ async function attemptCustomerLogin(
 
 	const loginResponsePromise = page
 		.waitForResponse(
-			(response) =>
-				response.request().method() === 'POST' && response.url().includes('/login'),
+			(response) => response.request().method() === 'POST' && response.url().includes('/login'),
 			{ timeout: LOGIN_SETTLE_TIMEOUT_MS }
 		)
 		.catch(() => null);
@@ -84,7 +83,10 @@ async function attemptCustomerLogin(
 	};
 }
 
-function toFailureAlertText(attempt: CustomerLoginAttemptResult, bootstrapAttempted: boolean): string | null {
+function toFailureAlertText(
+	attempt: CustomerLoginAttemptResult,
+	bootstrapAttempted: boolean
+): string | null {
 	if (!bootstrapAttempted) {
 		return attempt.alertText;
 	}
@@ -93,10 +95,7 @@ function toFailureAlertText(attempt: CustomerLoginAttemptResult, bootstrapAttemp
 	return `${normalizedAlertText} (after fixture self-bootstrap retry)`;
 }
 
-function toBootstrapFailureAlertText(
-	attempt: CustomerLoginAttemptResult,
-	error: unknown
-): string {
+function toBootstrapFailureAlertText(attempt: CustomerLoginAttemptResult, error: unknown): string {
 	const normalizedAlertText = attempt.alertText?.trim() || '(none)';
 	return `${normalizedAlertText} (fixture self-bootstrap failed: ${setupFailureDetailsFromError(error)})`;
 }

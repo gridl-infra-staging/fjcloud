@@ -98,9 +98,9 @@ describe('Account page server', () => {
 			const apiError = new ApiRequestError(500, 'Internal Server Error');
 			getProfileMock.mockRejectedValue(apiError);
 
-			await expect(
-				load({ locals: { user: { token: 'jwt-token' } } } as never)
-			).rejects.toBe(apiError);
+			await expect(load({ locals: { user: { token: 'jwt-token' } } } as never)).rejects.toBe(
+				apiError
+			);
 		});
 	});
 

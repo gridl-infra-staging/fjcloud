@@ -5,8 +5,8 @@ import { exactTextMatcher } from '$lib/exact_text_matcher';
 import { SHARED_LEGAL_PAGE_CONTRACT } from '../../tests/fixtures/legal_page_contract';
 
 type HeadingLevel = 1 | 2 | 3 | 4 | 5 | 6;
-const LEGAL_CANVAS_BACKGROUND_CLASS = 'bg-[#9fd8d2]';
-const LEGAL_CANVAS_TEXT_CLASS = 'text-[#1f1b18]';
+const LEGAL_CANVAS_BACKGROUND_CLASS = 'bg-flapjack-mint';
+const LEGAL_CANVAS_TEXT_CLASS = 'text-flapjack-ink';
 
 export function exactNameMatcher(value: string): RegExp {
 	return exactTextMatcher(value);
@@ -68,7 +68,7 @@ export function assertLegalPagePresentationContract(primaryHeading: string): voi
 	expect(article).not.toBeNull();
 	expect(article).toHaveClass('border');
 	expect(article).toHaveClass('shadow-sm');
-	expect(article).toHaveClass('bg-[#fff8ea]');
+	expect(article).toHaveClass('bg-flapjack-cream');
 
 	const heading = assertUniqueVisibleHeading(1, primaryHeading);
 	expect(heading).toHaveClass('font-black');
@@ -80,12 +80,12 @@ export function assertLegalPagePresentationContract(primaryHeading: string): voi
 		return node.className.includes('leading-7');
 	});
 	expect(bodyParagraphs.length).toBeGreaterThan(0);
-	expect(bodyParagraphs.some((paragraph) => paragraph.className.includes('text-[#4b4640]'))).toBe(
-		true
-	);
+	expect(
+		bodyParagraphs.some((paragraph) => paragraph.className.includes('text-flapjack-ink/80'))
+	).toBe(true);
 
 	const legalLinks = within(article as HTMLElement).getAllByRole('link');
 	for (const link of legalLinks) {
-		expect(link).toHaveClass('text-[#b83f5f]');
+		expect(link).toHaveClass('text-flapjack-rose');
 	}
 }

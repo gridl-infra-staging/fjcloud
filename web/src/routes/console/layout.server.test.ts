@@ -98,19 +98,19 @@ describe('Dashboard layout server load', () => {
 			user: { customerId: 'cust-1' },
 			profile: freeProfile,
 			onboardingStatus: freeOnboarding,
-				planContext: {
-					billing_plan: 'free',
-					free_tier_limits: expect.objectContaining({
-						max_searches_per_month: 50000,
-						max_records: 100000,
-						max_storage_mb: 250,
-						max_indexes: 3
-					}),
-					has_payment_method: false,
-					onboarding_completed: false
-				}
-			});
+			planContext: {
+				billing_plan: 'free',
+				free_tier_limits: expect.objectContaining({
+					max_searches_per_month: 50000,
+					max_records: 100000,
+					max_storage_mb: 250,
+					max_indexes: 3
+				}),
+				has_payment_method: false,
+				onboarding_completed: false
+			}
 		});
+	});
 
 	it('uses max_storage_mb as the canonical onboarding storage-limit key in planContext', async () => {
 		getProfileMock.mockResolvedValue(freeProfile);
@@ -136,19 +136,19 @@ describe('Dashboard layout server load', () => {
 		expect(result.planContext.free_tier_limits).not.toHaveProperty('max_storage_gb');
 	});
 
-		it('uses canonical max_storage_mb from onboarding status in planContext', async () => {
-			getProfileMock.mockResolvedValue(freeProfile);
-			getOnboardingStatusMock.mockResolvedValue(freeOnboarding);
+	it('uses canonical max_storage_mb from onboarding status in planContext', async () => {
+		getProfileMock.mockResolvedValue(freeProfile);
+		getOnboardingStatusMock.mockResolvedValue(freeOnboarding);
 
 		const result = (await load(makeEvent()))!;
 
-			expect(result.planContext.free_tier_limits).toEqual(
-				expect.objectContaining({
-					max_storage_mb: 250
-				})
-			);
-			expect(result.planContext.free_tier_limits).not.toHaveProperty('max_storage_gb');
-		});
+		expect(result.planContext.free_tier_limits).toEqual(
+			expect.objectContaining({
+				max_storage_mb: 250
+			})
+		);
+		expect(result.planContext.free_tier_limits).not.toHaveProperty('max_storage_gb');
+	});
 
 	it('derives planContext from shared profile and completed onboarding', async () => {
 		getProfileMock.mockResolvedValue(sharedProfile);
@@ -227,13 +227,13 @@ describe('Dashboard layout server load', () => {
 		const result = (await load(makeEvent()))!;
 
 		expect(result.planContext.billing_plan).toBe('shared');
-			expect(result.planContext.free_tier_limits).toEqual({
-				max_searches_per_month: 50000,
-				max_records: 100000,
-				max_storage_mb: 250,
-				max_indexes: 3
-			});
+		expect(result.planContext.free_tier_limits).toEqual({
+			max_searches_per_month: 50000,
+			max_records: 100000,
+			max_storage_mb: 250,
+			max_indexes: 3
 		});
+	});
 
 	it('returns sanitized impersonation state when the cookie is present', async () => {
 		getProfileMock.mockResolvedValue(freeProfile);

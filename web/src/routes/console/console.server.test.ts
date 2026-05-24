@@ -99,12 +99,12 @@ describe('Dashboard page server load', () => {
 	it('derives freeTierProgress from usage and free_tier_limits', async () => {
 		const result = (await load(event()))!;
 
-	expect(result.freeTierProgress).toEqual({
-		searches: { used: 15234, limit: 50000 },
-		records: { used: 89012, limit: 100000 },
-		storage_mb: { used: 2560, limit: 250 },
-		indexes: { used: 1, limit: 3 }
-	});
+		expect(result.freeTierProgress).toEqual({
+			searches: { used: 15234, limit: 50000 },
+			records: { used: 89012, limit: 100000 },
+			storage_mb: { used: 2560, limit: 250 },
+			indexes: { used: 1, limit: 3 }
+		});
 	});
 
 	it('derives storage progress in MB from max_storage_mb free-tier contract key', async () => {

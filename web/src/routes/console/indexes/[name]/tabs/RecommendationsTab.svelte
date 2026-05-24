@@ -55,28 +55,31 @@
 	data-testid="recommendations-section"
 	data-index={index.name}
 >
-	<h2 class="mb-4 text-lg font-medium text-gray-900">Recommendations</h2>
-	<p class="mb-4 text-sm text-gray-600">Request batched recommendations for this index.</p>
+	<h2 class="mb-4 text-lg font-medium text-flapjack-ink">Recommendations</h2>
+	<p class="mb-4 text-sm text-flapjack-ink/70">Request batched recommendations for this index.</p>
 
 	{#if recommendationsError}
-		<div class="mb-4 rounded-md bg-red-50 p-3 text-sm text-red-700">{recommendationsError}</div>
+		<div class="mb-4 rounded-md bg-flapjack-rose/10 p-3 text-sm text-flapjack-plum">
+			{recommendationsError}
+		</div>
 	{/if}
 
-	<div class="mb-6 rounded-md border border-gray-200 p-4">
+	<div class="mb-6 rounded-md border border-flapjack-ink/20 p-4">
 		<form method="POST" action="?/recommend" use:enhance>
-			<label for="recommendations-request-json" class="mb-2 block text-sm font-medium text-gray-700"
-				>Recommendations JSON</label
+			<label
+				for="recommendations-request-json"
+				class="mb-2 block text-sm font-medium text-flapjack-ink/80">Recommendations JSON</label
 			>
 			<textarea
 				id="recommendations-request-json"
 				name="request"
 				bind:value={requestText}
 				rows="14"
-				class="mb-4 w-full rounded-md border border-gray-300 p-3 font-mono text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+				class="mb-4 w-full rounded-md border border-flapjack-ink/30 p-3 font-mono text-sm focus:border-flapjack-rose focus:ring-1 focus:ring-flapjack-rose"
 			></textarea>
 			<button
 				type="submit"
-				class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+				class="rounded-md bg-flapjack-rose px-4 py-2 text-sm font-medium text-white hover:bg-flapjack-plum"
 			>
 				Get Recommendations
 			</button>
@@ -86,14 +89,14 @@
 	{#if recommendationsResponse?.results?.length}
 		<div class="space-y-4">
 			{#each recommendationsResponse.results as result, resultIndex (resultIndex)}
-				<div class="rounded-md border border-gray-200 bg-gray-50 p-4">
-					<p class="mb-2 text-sm font-medium text-gray-900">
+				<div class="rounded-md border border-flapjack-ink/20 bg-flapjack-cream/80 p-4">
+					<p class="mb-2 text-sm font-medium text-flapjack-ink">
 						Request #{resultIndex + 1} · {result.processingTimeMS} ms
 					</p>
 					{#if result.hits.length === 0}
-						<p class="text-sm text-gray-500">No hits returned.</p>
+						<p class="text-sm text-flapjack-ink/60">No hits returned.</p>
 					{:else}
-						<ul class="list-inside list-disc space-y-1 text-sm text-gray-700">
+						<ul class="list-inside list-disc space-y-1 text-sm text-flapjack-ink/80">
 							{#each result.hits as hit, hitIndex (hitIndex)}
 								<li>{hitLabel(hit)}</li>
 							{/each}
@@ -103,6 +106,6 @@
 			{/each}
 		</div>
 	{:else}
-		<p class="text-sm text-gray-500">No recommendations requested yet.</p>
+		<p class="text-sm text-flapjack-ink/60">No recommendations requested yet.</p>
 	{/if}
 </div>

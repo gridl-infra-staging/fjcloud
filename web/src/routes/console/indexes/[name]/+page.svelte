@@ -272,23 +272,23 @@
 </svelte:head>
 
 <div onsubmit={trackSubmittedPostAction}>
-	<nav class="mb-4 text-sm text-gray-500">
-		<a href={resolve('/console')} class="hover:text-gray-700">Console</a>
+	<nav class="mb-4 text-sm text-flapjack-ink/60">
+		<a href={resolve('/console')} class="hover:text-flapjack-ink/80">Console</a>
 		<span class="mx-1">/</span>
-		<a href={resolve('/console/indexes')} class="hover:text-gray-700">Indexes</a>
+		<a href={resolve('/console/indexes')} class="hover:text-flapjack-ink/80">Indexes</a>
 		<span class="mx-1">/</span>
-		<span class="text-gray-900">{index.name}</span>
+		<span class="text-flapjack-ink">{index.name}</span>
 	</nav>
 
 	<div class="mb-6 flex items-center justify-between">
-		<h1 class="text-2xl font-bold text-gray-900">{index.name}</h1>
+		<h1 class="text-2xl font-bold text-flapjack-ink">{index.name}</h1>
 		<div class="flex items-center gap-2">
 			<button
 				type="button"
 				onclick={() => {
 					showSearchLog = !showSearchLog;
 				}}
-				class="rounded-md border border-gray-300 px-3 py-1 text-sm font-medium text-gray-700 hover:bg-gray-100"
+				class="rounded-md border border-flapjack-ink/30 px-3 py-1 text-sm font-medium text-flapjack-ink/80 hover:bg-flapjack-cream/70"
 			>
 				Search Log
 			</button>
@@ -302,25 +302,39 @@
 		</div>
 	</div>
 
-	<div
-		role="tablist"
-		aria-label="Index detail sections"
-		class="mb-6 inline-flex rounded-lg border border-gray-200 bg-white p-1"
-	>
-		{#each TAB_DEFINITIONS as tab (tab.id)}
-			<button
-				type="button"
-				role="tab"
-				aria-selected={activeTab === tab.id}
-				data-testid={`tab-${tab.id}`}
-				onclick={() => activateTab(tab.id)}
-				class="rounded-md px-4 py-2 text-sm font-medium {activeTab === tab.id
-					? 'bg-blue-600 text-white'
-					: 'text-gray-700 hover:bg-gray-100'}"
-			>
-				{tab.label}
-			</button>
-		{/each}
+	<div class="relative mb-6">
+		<div
+			role="tablist"
+			aria-label="Index detail sections"
+			data-testid="index-tabs-strip"
+			class="flex w-full flex-col gap-1 overflow-x-hidden rounded-lg border border-flapjack-ink/20 bg-white p-1 min-[600px]:flex-row min-[600px]:flex-nowrap min-[600px]:gap-0 min-[600px]:overflow-x-auto min-[600px]:overflow-y-hidden min-[600px]:snap-x min-[600px]:snap-mandatory min-[600px]:px-[2.75rem] min-[600px]:[scroll-padding-inline:2.75rem]"
+		>
+			{#each TAB_DEFINITIONS as tab (tab.id)}
+				<button
+					type="button"
+					role="tab"
+					aria-selected={activeTab === tab.id}
+					data-testid={`tab-${tab.id}`}
+					onclick={() => activateTab(tab.id)}
+					class="w-full shrink-0 snap-start rounded-md px-4 py-2 text-left text-sm font-medium min-[600px]:w-auto min-[600px]:text-center {activeTab ===
+					tab.id
+						? 'bg-flapjack-rose text-white'
+						: 'text-flapjack-ink/80 hover:bg-flapjack-cream/70'}"
+				>
+					{tab.label}
+				</button>
+			{/each}
+		</div>
+		<div
+			aria-hidden="true"
+			data-testid="index-tabs-fade-left"
+			class="pointer-events-none absolute inset-y-1 left-1 hidden w-10 rounded-l-md bg-gradient-to-r from-flapjack-cream to-transparent min-[600px]:block"
+		></div>
+		<div
+			aria-hidden="true"
+			data-testid="index-tabs-fade-right"
+			class="pointer-events-none absolute inset-y-1 right-1 hidden w-10 rounded-r-md bg-gradient-to-l from-flapjack-cream to-transparent min-[600px]:block"
+		></div>
 	</div>
 
 	{#if visitedTabs.overview}

@@ -66,28 +66,30 @@ fn landing_page_html() -> String {
   <style>
     :root {{
       color-scheme: light;
-      --ink: #1f1b18;
+      --font-brand: "Cabinet", "Inter", system-ui, sans-serif;
+      --color-flapjack-ink: #1f1b18;
+      --color-flapjack-mint: #9fd8d2;
+      --color-flapjack-cream: #fff8ea;
+      --color-flapjack-yellow: #f6c15b;
+      --color-flapjack-rose: #b83f5f;
+      --color-flapjack-plum: #8d2842;
       --muted: #4b4640;
-      --teal: #9fd8d2;
       --teal-shadow: #78b8b2;
-      --cream: #fff8ea;
       --cream-shadow: #e2d5b8;
-      --gold: #f6c15b;
       --pink: #ffb3c7;
       --pink-shadow: #e889a7;
-      --red: #b83f5f;
     }}
     * {{ box-sizing: border-box; }}
     body {{
       margin: 0;
-      background: var(--teal);
-      color: var(--ink);
+      background: var(--color-flapjack-mint);
+      color: var(--color-flapjack-ink);
       font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       line-height: 1.5;
     }}
     a {{ color: inherit; }}
     .wrap {{ width: min(1120px, calc(100% - 32px)); margin: 0 auto; }}
-    .topbar {{ background: var(--cream); border-bottom: 4px solid var(--gold); }}
+    .topbar {{ background: var(--color-flapjack-cream); border-bottom: 4px solid var(--color-flapjack-yellow); }}
     .topbar-inner {{
       display: flex;
       align-items: center;
@@ -99,7 +101,7 @@ fn landing_page_html() -> String {
       display: flex;
       align-items: center;
       gap: 12px;
-      font-family: "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+      font-family: var(--font-brand);
       font-variant-caps: small-caps;
       font-size: clamp(28px, 5vw, 46px);
       font-weight: 900;
@@ -109,9 +111,9 @@ fn landing_page_html() -> String {
     .badge {{
       display: inline-flex;
       align-items: center;
-      border: 2px solid var(--ink);
-      background: var(--gold);
-      color: var(--ink);
+      border: 2px solid var(--color-flapjack-ink);
+      background: var(--color-flapjack-yellow);
+      color: var(--color-flapjack-ink);
       font-size: 12px;
       font-weight: 900;
       letter-spacing: 0.14em;
@@ -120,7 +122,7 @@ fn landing_page_html() -> String {
     }}
     .nav {{ display: flex; align-items: center; gap: 12px; }}
     .icon-link, .button, .card, .price-list, .notice {{
-      border: 2px solid var(--ink);
+      border: 2px solid var(--color-flapjack-ink);
       box-shadow: 6px 6px 0 var(--shadow);
     }}
     .icon-link {{
@@ -130,7 +132,7 @@ fn landing_page_html() -> String {
       justify-content: center;
       width: 40px;
       height: 40px;
-      background: var(--cream);
+      background: var(--color-flapjack-cream);
     }}
     .icon-link svg {{ width: 18px; height: 18px; fill: currentColor; }}
     .button {{
@@ -140,7 +142,7 @@ fn landing_page_html() -> String {
       justify-content: center;
       min-height: 44px;
       background: var(--pink);
-      color: var(--ink);
+      color: var(--color-flapjack-ink);
       font-weight: 900;
       padding: 10px 18px;
       text-decoration: none;
@@ -153,7 +155,7 @@ fn landing_page_html() -> String {
       align-items: center;
     }}
     .eyebrow {{
-      color: #8d2842;
+      color: var(--color-flapjack-plum);
       font-size: 13px;
       font-weight: 900;
       letter-spacing: 0.18em;
@@ -162,7 +164,7 @@ fn landing_page_html() -> String {
     }}
     h1, h2, h3, p {{ margin-top: 0; }}
     h1 {{
-      font-family: "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+      font-family: var(--font-brand);
       font-variant-caps: small-caps;
       font-size: clamp(54px, 10vw, 96px);
       font-weight: 900;
@@ -177,23 +179,23 @@ fn landing_page_html() -> String {
     .actions {{ display: flex; flex-wrap: wrap; gap: 14px; margin-top: 28px; }}
     .outline {{
       --shadow: var(--teal-shadow);
-      background: var(--cream);
-      border: 2px solid var(--ink);
+      background: var(--color-flapjack-cream);
+      border: 2px solid var(--color-flapjack-ink);
       box-shadow: 6px 6px 0 var(--shadow);
-      color: var(--ink);
+      color: var(--color-flapjack-ink);
       display: inline-flex;
       font-weight: 900;
       min-height: 44px;
       padding: 10px 18px;
       text-decoration: none;
     }}
-    .card {{ --shadow: var(--teal-shadow); background: var(--cream); padding: 24px; }}
+    .card {{ --shadow: var(--teal-shadow); background: var(--color-flapjack-cream); padding: 24px; }}
     .facts {{ margin: 0; }}
     .facts div {{ padding: 14px 0; border-top: 1px solid #d7d0c2; }}
     .facts div:first-child {{ border-top: 0; padding-top: 0; }}
     dt {{ font-weight: 900; }}
     dd {{ margin: 4px 0 0; color: var(--muted); }}
-    .band {{ background: var(--cream); padding: 56px 0; }}
+    .band {{ background: var(--color-flapjack-cream); padding: 56px 0; }}
     .plain {{ padding: 56px 0; }}
     .grid {{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }}
     .feature {{ --shadow: var(--cream-shadow); background: white; padding: 20px; }}
@@ -210,9 +212,9 @@ fn landing_page_html() -> String {
     .price-unit {{ color: var(--muted); font-size: 14px; }}
     .price-value {{ align-self: center; font-size: 18px; font-weight: 900; }}
     .policy-links {{ display: flex; flex-wrap: wrap; gap: 16px; margin-top: 22px; font-weight: 900; }}
-    .policy-links a {{ color: var(--red); }}
-    .notice {{ --shadow: var(--teal-shadow); background: var(--cream); padding: 22px; }}
-    footer {{ background: var(--cream); border-top: 4px solid var(--gold); padding: 24px 0; color: var(--muted); }}
+    .policy-links a {{ color: var(--color-flapjack-rose); }}
+    .notice {{ --shadow: var(--teal-shadow); background: var(--color-flapjack-cream); padding: 22px; }}
+    footer {{ background: var(--color-flapjack-cream); border-top: 4px solid var(--color-flapjack-yellow); padding: 24px 0; color: var(--muted); }}
     .footer-inner {{ display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }}
     @media (max-width: 760px) {{
       .topbar-inner, .hero-grid {{ align-items: flex-start; flex-direction: column; grid-template-columns: 1fr; }}
@@ -225,7 +227,7 @@ fn landing_page_html() -> String {
 <body>
   <header class="topbar">
     <div class="wrap topbar-inner">
-      <a class="brand" href="{CANONICAL_URL}">Flapjack Cloud <span class="badge">BETA</span></a>
+      <a class="brand" data-testid="brand-logo" href="{CANONICAL_URL}">Flapjack Cloud <span class="badge">BETA</span></a>
       <nav class="nav" aria-label="Primary">
         <a class="icon-link" href="https://github.com/griddlehq/flapjack" aria-label="GitHub repository" rel="noreferrer">
           <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 0C3.58 0 0 3.67 0 8.19c0 3.62 2.29 6.69 5.47 7.78.4.08.55-.18.55-.4v-1.52c-2.23.5-2.69-.97-2.69-.97-.36-.95-.89-1.2-.89-1.2-.73-.51.05-.5.05-.5.81.06 1.24.85 1.24.85.71 1.26 1.87.9 2.33.69.07-.53.28-.9.51-1.1-1.78-.21-3.64-.91-3.64-4.03 0-.89.31-1.62.82-2.19-.08-.21-.36-1.04.08-2.16 0 0 .68-.22 2.2.84A7.45 7.45 0 0 1 8 4c.68 0 1.36.09 1.99.28 1.53-1.06 2.2-.84 2.2-.84.44 1.12.16 1.95.08 2.16.51.57.82 1.3.82 2.19 0 3.13-1.87 3.82-3.65 4.02.29.26.55.76.55 1.54v2.22c0 .22.15.48.55.4A8.14 8.14 0 0 0 16 8.19C16 3.67 12.42 0 8 0Z"></path></svg>

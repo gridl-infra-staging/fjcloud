@@ -142,7 +142,9 @@ describe('ApiClient', () => {
 				})) as typeof globalThis.fetch;
 			client.setFetch(fetch);
 
-			await expect(client.resendPasswordReset({ email: 'carol@example.com' })).rejects.toMatchObject({
+			await expect(
+				client.resendPasswordReset({ email: 'carol@example.com' })
+			).rejects.toMatchObject({
 				status: 429,
 				body: { error: 'resend_rate_limited', retryAfterSeconds: 90 }
 			});

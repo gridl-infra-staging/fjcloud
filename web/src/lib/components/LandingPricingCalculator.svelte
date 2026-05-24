@@ -54,6 +54,24 @@
 		return 'Unable to compare pricing right now';
 	}
 
+	function isStringArray(value: unknown): value is string[] {
+		return Array.isArray(value) && value.every((entry) => typeof entry === 'string');
+	}
+
+	function isPricingEstimate(payload: unknown): payload is PricingEstimate {
+		if (typeof payload !== 'object' || payload === null) {
+			return false;
+		}
+
+		const estimate = payload as Partial<PricingEstimate>;
+		return (
+			typeof estimate.provider === 'string' &&
+			typeof estimate.monthly_total_cents === 'number' &&
+			(estimate.plan_name === null || typeof estimate.plan_name === 'string') &&
+			isStringArray(estimate.assumptions)
+		);
+	}
+
 	function isPricingCompareResponse(payload: unknown): payload is PricingCompareResponse {
 		if (typeof payload !== 'object' || payload === null) {
 			return false;
@@ -74,6 +92,7 @@
 			typeof workload.num_indexes === 'number' &&
 			typeof workload.high_availability === 'boolean' &&
 			Array.isArray(response.estimates) &&
+			response.estimates.every((estimate) => isPricingEstimate(estimate)) &&
 			typeof response.generated_at === 'string'
 		);
 	}
@@ -116,71 +135,71 @@
 </script>
 
 <section
-	class="mt-10 rounded-xl border border-gray-200 bg-gray-50 p-6"
+	class="mt-10 rounded-xl border border-flapjack-ink/20 bg-flapjack-cream/80 p-6"
 	data-testid="landing-pricing-calculator"
 >
-	<h3 class="text-xl font-semibold text-gray-900">Interactive pricing calculator</h3>
-	<p class="mt-2 text-sm text-gray-600">
+	<h3 class="text-xl font-semibold text-flapjack-ink">Interactive pricing calculator</h3>
+	<p class="mt-2 text-sm text-flapjack-ink/70">
 		Estimate your monthly cost and compare Flapjack Cloud with other hosted search options.
 	</p>
 
 	<form class="mt-6 space-y-4" onsubmit={handleSubmit}>
 		<div class="grid gap-4 md:grid-cols-2">
-			<label class="flex flex-col text-sm font-medium text-gray-700">
+			<label class="flex flex-col text-sm font-medium text-flapjack-ink/80">
 				Document count
 				<input
-					class="mt-1 rounded-md border border-gray-300 px-3 py-2 text-sm"
+					class="mt-1 rounded-md border border-flapjack-ink/30 px-3 py-2 text-sm"
 					type="number"
 					min="1"
 					bind:value={inputs.document_count}
 				/>
 			</label>
-			<label class="flex flex-col text-sm font-medium text-gray-700">
+			<label class="flex flex-col text-sm font-medium text-flapjack-ink/80">
 				Average document size (bytes)
 				<input
-					class="mt-1 rounded-md border border-gray-300 px-3 py-2 text-sm"
+					class="mt-1 rounded-md border border-flapjack-ink/30 px-3 py-2 text-sm"
 					type="number"
 					min="1"
 					bind:value={inputs.avg_document_size_bytes}
 				/>
 			</label>
-			<label class="flex flex-col text-sm font-medium text-gray-700">
+			<label class="flex flex-col text-sm font-medium text-flapjack-ink/80">
 				Search requests per month
 				<input
-					class="mt-1 rounded-md border border-gray-300 px-3 py-2 text-sm"
+					class="mt-1 rounded-md border border-flapjack-ink/30 px-3 py-2 text-sm"
 					type="number"
 					min="0"
 					bind:value={inputs.search_requests_per_month}
 				/>
 			</label>
-			<label class="flex flex-col text-sm font-medium text-gray-700">
+			<label class="flex flex-col text-sm font-medium text-flapjack-ink/80">
 				Write operations per month
 				<input
-					class="mt-1 rounded-md border border-gray-300 px-3 py-2 text-sm"
+					class="mt-1 rounded-md border border-flapjack-ink/30 px-3 py-2 text-sm"
 					type="number"
 					min="0"
 					bind:value={inputs.write_operations_per_month}
 				/>
 			</label>
-			<label class="flex flex-col text-sm font-medium text-gray-700">
+			<label class="flex flex-col text-sm font-medium text-flapjack-ink/80">
 				Sort directions
 				<input
-					class="mt-1 rounded-md border border-gray-300 px-3 py-2 text-sm"
+					class="mt-1 rounded-md border border-flapjack-ink/30 px-3 py-2 text-sm"
 					type="number"
 					min="1"
 					bind:value={inputs.sort_directions}
 				/>
 			</label>
-			<label class="flex flex-col text-sm font-medium text-gray-700">
+			<label class="flex flex-col text-sm font-medium text-flapjack-ink/80">
 				Index count
 				<input
-					class="mt-1 rounded-md border border-gray-300 px-3 py-2 text-sm"
+					class="mt-1 rounded-md border border-flapjack-ink/30 px-3 py-2 text-sm"
 					type="number"
 					min="1"
 					bind:value={inputs.num_indexes}
 				/>
 			</label>
-			<label class="flex items-center gap-2 pt-7 text-sm font-medium text-gray-700">
+			<label class="flex items-center gap-2 pt-7 text-sm font-medium text-flapjack-ink/80">
 				<input type="checkbox" bind:checked={inputs.high_availability} />
 				High availability
 			</label>
@@ -188,7 +207,7 @@
 
 		<button
 			type="submit"
-			class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-400"
+			class="rounded-lg bg-flapjack-rose px-4 py-2 text-sm font-semibold text-white hover:bg-flapjack-plum disabled:cursor-not-allowed disabled:bg-flapjack-rose/60"
 			disabled={isSubmitting}
 			data-testid="pricing-compare-submit"
 		>
@@ -198,7 +217,7 @@
 
 	{#if errorMessage}
 		<p
-			class="mt-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
+			class="mt-4 rounded-md border border-flapjack-rose/35 bg-flapjack-rose/10 px-3 py-2 text-sm text-flapjack-plum"
 			role="alert"
 		>
 			{errorMessage}
@@ -207,15 +226,15 @@
 
 	{#if resultRows.length > 0}
 		<div
-			class="mt-6 overflow-hidden rounded-lg border border-gray-200 bg-white"
+			class="mt-6 overflow-hidden rounded-lg border border-flapjack-ink/20 bg-white"
 			data-testid="landing-pricing-results"
 		>
 			<table class="w-full">
-				<thead class="bg-gray-50">
-					<tr class="border-b border-gray-200">
-						<th class="px-4 py-3 text-left text-sm font-semibold text-gray-900">Provider</th>
-						<th class="px-4 py-3 text-left text-sm font-semibold text-gray-900">Plan</th>
-						<th class="px-4 py-3 text-right text-sm font-semibold text-gray-900"
+				<thead class="bg-flapjack-cream/80">
+					<tr class="border-b border-flapjack-ink/20">
+						<th class="px-4 py-3 text-left text-sm font-semibold text-flapjack-ink">Provider</th>
+						<th class="px-4 py-3 text-left text-sm font-semibold text-flapjack-ink">Plan</th>
+						<th class="px-4 py-3 text-right text-sm font-semibold text-flapjack-ink"
 							>Monthly estimate</th
 						>
 					</tr>
@@ -223,12 +242,12 @@
 				<tbody>
 					{#each resultRows as row (row.provider + row.planName + row.monthlyTotalLabel)}
 						<tr
-							class="border-b border-gray-100 last:border-b-0"
+							class="border-b border-flapjack-ink/10 last:border-b-0"
 							data-testid={row.isGriddle ? 'pricing-row-griddle' : 'pricing-row-competitor'}
 						>
-							<td class="px-4 py-3 text-sm font-medium text-gray-900">{row.provider}</td>
-							<td class="px-4 py-3 text-sm text-gray-600">{row.planName}</td>
-							<td class="px-4 py-3 text-right text-sm font-semibold text-gray-900"
+							<td class="px-4 py-3 text-sm font-medium text-flapjack-ink">{row.provider}</td>
+							<td class="px-4 py-3 text-sm text-flapjack-ink/70">{row.planName}</td>
+							<td class="px-4 py-3 text-right text-sm font-semibold text-flapjack-ink"
 								>{row.monthlyTotalLabel}</td
 							>
 						</tr>
@@ -236,7 +255,7 @@
 				</tbody>
 			</table>
 			{#if generatedAt}
-				<p class="border-t border-gray-100 px-4 py-2 text-xs text-gray-500">
+				<p class="border-t border-flapjack-ink/10 px-4 py-2 text-xs text-flapjack-ink/60">
 					Generated at: {generatedAt}
 				</p>
 			{/if}

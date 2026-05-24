@@ -72,9 +72,9 @@
 >
 	<div class="mb-4 flex items-center justify-between">
 		<div class="flex items-center gap-3">
-			<h2 class="text-lg font-medium text-gray-900">Event Debugger</h2>
+			<h2 class="text-lg font-medium text-flapjack-ink">Event Debugger</h2>
 			<span
-				class="inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700"
+				class="inline-flex rounded-full bg-flapjack-cream/70 px-2 py-0.5 text-xs font-medium text-flapjack-ink/80"
 			>
 				{debugEvents?.count ?? 0}
 			</span>
@@ -95,7 +95,7 @@
 			<input type="hidden" name="until" value={eventWindowValues.until} />
 			<button
 				type="submit"
-				class="rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-100"
+				class="rounded-md border border-flapjack-ink/30 px-3 py-1.5 text-sm font-medium text-flapjack-ink/80 hover:bg-flapjack-cream/70"
 			>
 				Refresh
 			</button>
@@ -103,20 +103,22 @@
 	</div>
 
 	{#if eventsError}
-		<div class="mb-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+		<div
+			class="mb-4 rounded-md border border-flapjack-rose/35 bg-flapjack-rose/10 p-3 text-sm text-flapjack-plum"
+		>
 			{eventsError}
 		</div>
 	{/if}
 
 	<div class="mb-4 grid grid-cols-1 gap-3 md:grid-cols-3">
 		<div>
-			<label for="event-status-filter" class="mb-1 block text-sm font-medium text-gray-700"
+			<label for="event-status-filter" class="mb-1 block text-sm font-medium text-flapjack-ink/80"
 				>Status</label
 			>
 			<select
 				id="event-status-filter"
 				bind:value={eventsStatusFilter}
-				class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+				class="w-full rounded-md border border-flapjack-ink/30 px-3 py-2 text-sm"
 			>
 				<option value="all">All</option>
 				<option value="ok">OK</option>
@@ -124,13 +126,13 @@
 			</select>
 		</div>
 		<div>
-			<label for="event-type-filter" class="mb-1 block text-sm font-medium text-gray-700"
+			<label for="event-type-filter" class="mb-1 block text-sm font-medium text-flapjack-ink/80"
 				>Event Type</label
 			>
 			<select
 				id="event-type-filter"
 				bind:value={eventsTypeFilter}
-				class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+				class="w-full rounded-md border border-flapjack-ink/30 px-3 py-2 text-sm"
 			>
 				<option value="all">All</option>
 				<option value="click">click</option>
@@ -139,13 +141,13 @@
 			</select>
 		</div>
 		<div>
-			<label for="event-range-filter" class="mb-1 block text-sm font-medium text-gray-700"
+			<label for="event-range-filter" class="mb-1 block text-sm font-medium text-flapjack-ink/80"
 				>Time Range</label
 			>
 			<select
 				id="event-range-filter"
 				bind:value={eventsTimeRange}
-				class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+				class="w-full rounded-md border border-flapjack-ink/30 px-3 py-2 text-sm"
 			>
 				<option value="15m">15m</option>
 				<option value="1h">1h</option>
@@ -156,31 +158,35 @@
 	</div>
 
 	<div class="mb-4 grid grid-cols-1 gap-3 md:grid-cols-3">
-		<div class="rounded-md border border-gray-200 p-3">
-			<p class="text-xs font-medium uppercase text-gray-500">Total events</p>
-			<p class="mt-1 text-2xl font-semibold text-gray-900">{eventCounts.total}</p>
+		<div class="rounded-md border border-flapjack-ink/20 p-3">
+			<p class="text-xs font-medium uppercase text-flapjack-ink/60">Total events</p>
+			<p class="mt-1 text-2xl font-semibold text-flapjack-ink">{eventCounts.total}</p>
 		</div>
-		<div class="rounded-md border border-green-200 bg-green-50 p-3">
-			<p class="text-xs font-medium uppercase text-green-700">OK</p>
-			<p class="mt-1 text-2xl font-semibold text-green-800">{eventCounts.ok}</p>
+		<div class="rounded-md border border-flapjack-mint/60 bg-flapjack-mint/25 p-3">
+			<p class="text-xs font-medium uppercase text-flapjack-ink/80">OK</p>
+			<p class="mt-1 text-2xl font-semibold text-flapjack-ink">{eventCounts.ok}</p>
 		</div>
-		<div class="rounded-md border border-red-200 bg-red-50 p-3">
-			<p class="text-xs font-medium uppercase text-red-700">Error</p>
-			<p class="mt-1 text-2xl font-semibold text-red-800">{eventCounts.error}</p>
+		<div class="rounded-md border border-flapjack-rose/35 bg-flapjack-rose/10 p-3">
+			<p class="text-xs font-medium uppercase text-flapjack-plum">Error</p>
+			<p class="mt-1 text-2xl font-semibold text-flapjack-plum">{eventCounts.error}</p>
 		</div>
 	</div>
 
 	{#if filteredDebugEvents().length === 0}
-		<div class="rounded-md border border-gray-200 bg-gray-50 p-6 text-sm text-gray-600">
+		<div
+			class="rounded-md border border-flapjack-ink/20 bg-flapjack-cream/80 p-6 text-sm text-flapjack-ink/70"
+		>
 			<p>No events received yet</p>
 			<p class="mt-1">
 				Events appear here when your application sends analytics events to the Insights API.
 			</p>
 		</div>
 	{:else}
-		<div class="overflow-hidden rounded-md border border-gray-200">
+		<div class="overflow-hidden rounded-md border border-flapjack-ink/20">
 			<table class="w-full text-left text-sm" data-testid="events-table">
-				<thead class="border-b bg-gray-50 text-xs font-medium uppercase text-gray-500">
+				<thead
+					class="border-b bg-flapjack-cream/80 text-xs font-medium uppercase text-flapjack-ink/60"
+				>
 					<tr>
 						<th class="px-3 py-2">Time</th>
 						<th class="px-3 py-2">Type</th>
@@ -196,28 +202,28 @@
 							onclick={() => {
 								selectedDebugEvent = event;
 							}}
-							class="cursor-pointer hover:bg-gray-50"
+							class="cursor-pointer hover:bg-flapjack-cream/80"
 						>
-							<td class="px-3 py-2 text-xs text-gray-600"
+							<td class="px-3 py-2 text-xs text-flapjack-ink/70"
 								>{formatEventTimestamp(event.timestampMs)}</td
 							>
-							<td class="px-3 py-2 text-gray-900">{event.eventType}</td>
-							<td class="px-3 py-2 text-gray-900">{event.eventName}</td>
-							<td class="px-3 py-2 font-mono text-xs text-gray-700">{event.userToken}</td>
+							<td class="px-3 py-2 text-flapjack-ink">{event.eventType}</td>
+							<td class="px-3 py-2 text-flapjack-ink">{event.eventName}</td>
+							<td class="px-3 py-2 font-mono text-xs text-flapjack-ink/80">{event.userToken}</td>
 							<td class="px-3 py-2">
 								{#if event.httpCode === 200}
 									<span
-										class="inline-flex rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800"
+										class="inline-flex rounded-full bg-flapjack-mint/35 px-2 py-0.5 text-xs font-medium text-flapjack-ink"
 										>OK</span
 									>
 								{:else}
 									<span
-										class="inline-flex rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800"
+										class="inline-flex rounded-full bg-flapjack-rose/15 px-2 py-0.5 text-xs font-medium text-flapjack-plum"
 										>Error</span
 									>
 								{/if}
 							</td>
-							<td class="px-3 py-2 text-gray-700">{event.objectIds.length}</td>
+							<td class="px-3 py-2 text-flapjack-ink/80">{event.objectIds.length}</td>
 						</tr>
 					{/each}
 				</tbody>
@@ -225,27 +231,28 @@
 		</div>
 
 		{#if selectedDebugEvent}
-			<div class="mt-4 rounded-md border border-gray-200 p-4">
+			<div class="mt-4 rounded-md border border-flapjack-ink/20 p-4">
 				<div class="mb-3 flex items-center justify-between">
-					<h3 class="text-sm font-semibold text-gray-900">Event Detail</h3>
+					<h3 class="text-sm font-semibold text-flapjack-ink">Event Detail</h3>
 					<button
 						type="button"
 						onclick={() => {
 							selectedDebugEvent = null;
 						}}
-						class="rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 hover:bg-gray-100"
+						class="rounded border border-flapjack-ink/30 px-2 py-1 text-xs text-flapjack-ink/80 hover:bg-flapjack-cream/70"
 					>
 						Close
 					</button>
 				</div>
 				<div class="mb-3">
-					<p class="mb-1 text-xs font-medium uppercase text-gray-500">Object IDs</p>
+					<p class="mb-1 text-xs font-medium uppercase text-flapjack-ink/60">Object IDs</p>
 					{#if selectedDebugEvent.objectIds.length === 0}
-						<p class="text-sm text-gray-500">None</p>
+						<p class="text-sm text-flapjack-ink/60">None</p>
 					{:else}
 						<div class="flex flex-wrap gap-2">
 							{#each selectedDebugEvent.objectIds as objectId (objectId)}
-								<span class="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-mono text-gray-700"
+								<span
+									class="rounded-full bg-flapjack-cream/70 px-2 py-0.5 text-xs font-mono text-flapjack-ink/80"
 									>{objectId}</span
 								>
 							{/each}
@@ -253,11 +260,11 @@
 					{/if}
 				</div>
 				<div class="mb-3">
-					<p class="mb-1 text-xs font-medium uppercase text-gray-500">Validation Errors</p>
+					<p class="mb-1 text-xs font-medium uppercase text-flapjack-ink/60">Validation Errors</p>
 					{#if selectedDebugEvent.validationErrors.length === 0}
-						<p class="text-sm text-gray-500">None</p>
+						<p class="text-sm text-flapjack-ink/60">None</p>
 					{:else}
-						<ul class="list-disc space-y-1 pl-5 text-sm text-red-700">
+						<ul class="list-disc space-y-1 pl-5 text-sm text-flapjack-plum">
 							{#each selectedDebugEvent.validationErrors as validationError (validationError)}
 								<li>{validationError}</li>
 							{/each}
@@ -265,9 +272,9 @@
 					{/if}
 				</div>
 				<div>
-					<p class="mb-1 text-xs font-medium uppercase text-gray-500">Raw JSON</p>
+					<p class="mb-1 text-xs font-medium uppercase text-flapjack-ink/60">Raw JSON</p>
 					<pre
-						class="overflow-x-auto rounded-md bg-gray-50 p-3 text-xs text-gray-700">{JSON.stringify(
+						class="overflow-x-auto rounded-md bg-flapjack-cream/80 p-3 text-xs text-flapjack-ink/80">{JSON.stringify(
 							selectedDebugEvent,
 							null,
 							2

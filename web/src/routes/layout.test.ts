@@ -68,8 +68,11 @@ describe('root layout public trust chrome ownership', () => {
 		(pathname) => {
 			renderAtPath(pathname);
 
-			expect(screen.getByRole('link', { name: 'Flapjack Cloud' })).toHaveAttribute('href', '/');
+			const publicBrandLink = screen.getByRole('link', { name: 'Flapjack Cloud' });
+			expect(publicBrandLink).toHaveAttribute('href', '/');
+			expect(publicBrandLink).toHaveClass("font-['Cabinet']");
 			expect(screen.getByTestId('public-beta-banner')).toBeInTheDocument();
+			expect(screen.getByTestId('public-beta-banner')).toHaveClass('bg-flapjack-cream');
 			expect(screen.getByRole('link', { name: /learn about the beta/i })).toHaveAttribute(
 				'href',
 				'/beta'
@@ -81,6 +84,9 @@ describe('root layout public trust chrome ownership', () => {
 			expect(within(legalFooterNav).getByRole('link', { name: 'Terms' })).toHaveAttribute(
 				'href',
 				'/terms'
+			);
+			expect(within(legalFooterNav).getByRole('link', { name: 'Terms' })).toHaveClass(
+				'text-flapjack-rose'
 			);
 			expect(within(legalFooterNav).getByRole('link', { name: 'Privacy' })).toHaveAttribute(
 				'href',

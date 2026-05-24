@@ -79,13 +79,13 @@
 
 <div>
 	<div class="mb-6">
-		<h1 class="text-2xl font-bold text-gray-900">Billing</h1>
+		<h1 class="text-2xl font-bold text-flapjack-ink">Billing</h1>
 	</div>
 
 	{#if errorMessage}
 		<div
 			role="alert"
-			class="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700"
+			class="mb-4 rounded-lg border border-flapjack-rose/35 bg-flapjack-rose/10 p-4 text-sm text-flapjack-plum"
 		>
 			<p>{errorMessage}</p>
 		</div>
@@ -103,23 +103,23 @@
 			/>
 
 			<div class="rounded-lg bg-white p-6 shadow">
-				<h2 class="mb-4 text-lg font-semibold text-gray-900">Payment methods</h2>
+				<h2 class="mb-4 text-lg font-semibold text-flapjack-ink">Payment methods</h2>
 				{#if paymentMethods.length === 0}
-					<p class="text-sm text-gray-600">No payment methods on file yet.</p>
+					<p class="text-sm text-flapjack-ink/70">No payment methods on file yet.</p>
 				{:else}
 					<ul class="space-y-3">
 						{#each paymentMethods as paymentMethod (paymentMethod.id)}
-							<li class="rounded-md border border-gray-200 p-4">
+							<li class="rounded-md border border-flapjack-ink/20 p-4">
 								<div class="flex flex-wrap items-center justify-between gap-3">
 									<div>
-										<p class="font-medium text-gray-900">
+										<p class="font-medium text-flapjack-ink">
 											{formatPaymentMethodLabel(paymentMethod)}
 										</p>
-										<p class="text-sm text-gray-500">{formatExpiry(paymentMethod)}</p>
+										<p class="text-sm text-flapjack-ink/60">{formatExpiry(paymentMethod)}</p>
 									</div>
 									{#if paymentMethod.is_default}
 										<span
-											class="rounded-full bg-green-100 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-green-800"
+											class="rounded-full bg-flapjack-mint/35 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-flapjack-ink"
 										>
 											Default
 										</span>
@@ -137,7 +137,7 @@
 											/>
 											<button
 												type="submit"
-												class="rounded border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+												class="rounded border border-flapjack-ink/30 px-3 py-2 text-sm font-medium text-flapjack-ink/80 hover:bg-flapjack-cream/80"
 											>
 												Set as default
 											</button>
@@ -151,28 +151,34 @@
 			</div>
 
 			<div class="rounded-lg bg-white p-6 shadow">
-				<h2 class="mb-4 text-lg font-semibold text-gray-900">Add or update card</h2>
+				<h2 class="mb-4 text-lg font-semibold text-flapjack-ink">Add or update card</h2>
 				{#if setupIntentClientSecret}
 					<PaymentMethodSetupForm clientSecret={setupIntentClientSecret as string} />
 				{:else}
-					<p class="text-sm text-gray-600">Payment setup is currently unavailable.</p>
+					<p class="text-sm text-flapjack-ink/70">Payment setup is currently unavailable.</p>
 				{/if}
 			</div>
 
 			<div class="rounded-lg bg-white p-6 shadow">
-				<h2 class="mb-2 text-lg font-semibold text-gray-900">Need to cancel?</h2>
-				<p class="text-sm text-gray-600">
+				<h2 class="mb-2 text-lg font-semibold text-flapjack-ink">Need to cancel?</h2>
+				<p class="text-sm text-flapjack-ink/70">
 					Contact
 					<!-- eslint-disable svelte/no-navigation-without-resolve -- mailto links must stay scheme URLs -->
-					<a class="font-medium text-blue-700 hover:text-blue-900" href={LEGAL_SUPPORT_MAILTO}>
+					<a
+						class="font-medium text-flapjack-plum hover:text-flapjack-plum"
+						href={LEGAL_SUPPORT_MAILTO}
+					>
 						{SUPPORT_EMAIL}
 					</a>
 					<!-- eslint-enable svelte/no-navigation-without-resolve -->
 					to cancel your subscription.
 				</p>
-				<p class="mt-2 text-sm text-gray-600">
+				<p class="mt-2 text-sm text-flapjack-ink/70">
 					<!-- eslint-disable svelte/no-navigation-without-resolve -- mailto links must stay scheme URLs -->
-					<a class="font-medium text-blue-700 hover:text-blue-900" href={LEGAL_SUPPORT_MAILTO}>
+					<a
+						class="font-medium text-flapjack-plum hover:text-flapjack-plum"
+						href={LEGAL_SUPPORT_MAILTO}
+					>
 						Contact {SUPPORT_EMAIL} to cancel
 					</a>
 					<!-- eslint-enable svelte/no-navigation-without-resolve -->

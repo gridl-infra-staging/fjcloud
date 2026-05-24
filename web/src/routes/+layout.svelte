@@ -3,8 +3,8 @@
 	import { page } from '$app/state';
 	import { resolve } from '$app/paths';
 	import favicon from '$lib/assets/favicon.ico';
+	import { SUPPORT_EMAIL } from '$lib/format';
 	import BetaSupportBadge from '$lib/components/BetaSupportBadge.svelte';
-	import SiteFooter from '$lib/components/SiteFooter.svelte';
 	import { onMount } from 'svelte';
 	import {
 		installBrowserRuntimeFailureListeners,
@@ -34,8 +34,8 @@
 	const useColorfulShell = $derived(COLORFUL_SHELL_PATHS.has(pathname));
 	const publicTrustShellClass = $derived(
 		useColorfulShell
-			? 'min-h-screen bg-[#9fd8d2] text-[#1f1b18]'
-			: 'min-h-screen bg-white text-gray-900'
+			? 'min-h-screen bg-flapjack-mint text-flapjack-ink'
+			: 'min-h-screen bg-white text-flapjack-ink'
 	);
 
 	onMount(() => installBrowserRuntimeFailureListeners(reportBrowserRuntimeFailure));
@@ -47,16 +47,19 @@
 
 {#if showPublicTrustChrome}
 	<div class={publicTrustShellClass}>
-		<header class="border-b border-gray-200">
+		<header class="border-b border-flapjack-ink/20">
 			<div
 				class="mx-auto flex max-w-6xl flex-col gap-3 px-6 py-3 sm:h-16 sm:flex-row sm:items-center sm:justify-between sm:gap-6 sm:py-0"
 			>
 				<div class="flex items-center justify-between gap-3">
-					<a href={resolve('/')} class="text-xl font-bold text-gray-900 sm:text-2xl">
+					<a
+						href={resolve('/')}
+						class="text-xl font-bold font-['Cabinet'] text-flapjack-ink sm:text-2xl"
+					>
 						Flapjack Cloud
 					</a>
 					<span
-						class="rounded border border-gray-400 px-2 py-0.5 text-xs font-bold tracking-widest text-gray-600"
+						class="rounded border border-flapjack-ink/40 px-2 py-0.5 text-xs font-bold tracking-widest text-flapjack-ink/70"
 					>
 						BETA
 					</span>
@@ -64,7 +67,7 @@
 				<nav class="grid grid-cols-[2.25rem_1fr] items-center gap-3 sm:flex sm:w-auto">
 					<a
 						href="https://github.com/griddlehq/flapjack"
-						class="inline-flex h-9 w-9 items-center justify-center border border-gray-300 hover:bg-gray-50"
+						class="inline-flex h-9 w-9 items-center justify-center border border-flapjack-ink/30 hover:bg-flapjack-cream/80"
 						aria-label="GitHub repository"
 						target="_blank"
 						rel="noreferrer"
@@ -82,7 +85,7 @@
 					</a>
 					<a
 						href={resolve('/login')}
-						class="inline-flex h-9 items-center justify-center whitespace-nowrap text-sm font-medium text-gray-600 hover:text-gray-900"
+						class="inline-flex h-9 items-center justify-center whitespace-nowrap text-sm font-medium text-flapjack-ink/70 hover:text-flapjack-ink"
 					>
 						Log In
 					</a>
@@ -91,9 +94,9 @@
 			</div>
 		</header>
 
-		<div class="border-b border-gray-200 bg-gray-50" data-testid="public-beta-banner">
+		<div class="border-b border-flapjack-ink/20 bg-flapjack-cream" data-testid="public-beta-banner">
 			<div
-				class="mx-auto flex max-w-6xl flex-col gap-2 px-6 py-3 text-sm text-gray-700 sm:flex-row sm:items-center sm:justify-between"
+				class="mx-auto flex max-w-6xl flex-col gap-2 px-6 py-3 text-sm text-flapjack-ink/80 sm:flex-row sm:items-center sm:justify-between"
 			>
 				<BetaSupportBadge betaLinkLabel="Learn about the beta" compact={false} />
 			</div>
@@ -101,7 +104,10 @@
 
 		{#if showLegalPageWrapper}
 			<main class="mx-auto max-w-4xl px-6 py-12" data-testid="public-legal-shell">
-				<a href={resolve('/')} class="text-sm font-medium text-[#b83f5f] hover:text-[#8d2842]">
+				<a
+					href={resolve('/')}
+					class="text-sm font-medium text-flapjack-rose hover:text-flapjack-plum"
+				>
 					Back to Flapjack Cloud
 				</a>
 				{@render children()}
@@ -110,7 +116,22 @@
 			{@render children()}
 		{/if}
 
-		<SiteFooter />
+		<footer class="border-t border-flapjack-ink/20 py-8">
+			<div
+				class="mx-auto flex max-w-6xl flex-col justify-between gap-4 px-6 text-sm text-flapjack-ink/60 sm:flex-row"
+			>
+				<p>&copy; {new Date().getFullYear()} Flapjack Cloud. Contact: {SUPPORT_EMAIL}</p>
+				<nav class="flex flex-wrap gap-4" aria-label="Legal">
+					<a href={resolve('/terms')} class="text-flapjack-rose hover:text-flapjack-plum">Terms</a>
+					<a href={resolve('/privacy')} class="text-flapjack-rose hover:text-flapjack-plum"
+						>Privacy</a
+					>
+					<a href={resolve('/dpa')} class="text-flapjack-rose hover:text-flapjack-plum">DPA</a>
+					<a href={resolve('/status')} class="text-flapjack-rose hover:text-flapjack-plum">Status</a
+					>
+				</nav>
+			</div>
+		</footer>
 	</div>
 {:else}
 	{@render children()}

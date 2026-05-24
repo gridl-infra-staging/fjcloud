@@ -99,7 +99,10 @@ async function captureRedirect(
 	} catch (e) {
 		caughtRedirect = e;
 	}
-	expect(caughtRedirect, `Expected redirect for ${pathname}, but resolve() was called`).toBeDefined();
+	expect(
+		caughtRedirect,
+		`Expected redirect for ${pathname}, but resolve() was called`
+	).toBeDefined();
 	expect(caughtRedirect).toBeInstanceOf(MockRedirect);
 	return {
 		status: (caughtRedirect as MockRedirect).status,

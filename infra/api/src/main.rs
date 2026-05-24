@@ -296,14 +296,10 @@ fn build_oauth_runtime_config(
     cfg: &Config,
     startup_env: &StartupEnvSnapshot,
 ) -> OAuthRuntimeConfig {
-    let base_url = startup_env
-        .env_value("APP_BASE_URL")
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .unwrap_or("https://cloud.flapjack.foo")
-        .trim_end_matches('/');
-    let cookie_domain = oauth_cookie_domain(base_url);
-    let cookie_secure = oauth_cookie_secure(base_url);
+    let base_url =
+        startup_env.normalized_app_base_url_or(api::services::email::DEFAULT_APP_BASE_URL);
+    let cookie_domain = oauth_cookie_domain(&base_url);
+    let cookie_secure = oauth_cookie_secure(&base_url);
     let cookie_same_site = if cookie_secure {
         OAuthCookieSameSite::None
     } else {
@@ -355,10 +351,17 @@ fn oauth_provider_runtime_config(
 }
 
 fn oauth_cookie_domain(base_url: &str) -> Option<Arc<str>> {
-    if base_url.contains("localhost") || base_url.contains("127.0.0.1") {
+    let Ok(parsed_base_url) = reqwest::Url::parse(base_url) else {
+        tracing::warn!(
+            "APP_BASE_URL must be an absolute URL for OAuth cookie domain derivation; using host-only cookies"
+        );
+        return None;
+    };
+    let host = parsed_base_url.domain()?;
+    if host.eq_ignore_ascii_case("localhost") {
         None
     } else {
-        Some(Arc::from(".flapjack.foo"))
+        Some(Arc::from(host))
     }
 }
 
@@ -651,5 +654,20 @@ mod tests {
             google.redirect_uri.as_ref(),
             "https://public.example.test/auth/oauth/google/callback"
         );
+        assert_eq!(oauth.cookie_domain.as_deref(), Some("public.example.test"));
+    }
+
+    #[test]
+    fn oauth_runtime_config_keeps_localhost_cookies_host_only() {
+        let cfg = valid_config_with_google_oauth();
+        let startup_env = StartupEnvSnapshot::from_reader(|key| match key {
+            "APP_BASE_URL" => Some("http://localhost:4173/".to_string()),
+            _ => None,
+        });
+
+        let oauth = build_oauth_runtime_config(&cfg, &startup_env);
+        assert_eq!(oauth.cookie_domain.as_deref(), None);
+        assert!(!oauth.cookie_secure);
+        assert_eq!(oauth.cookie_same_site, OAuthCookieSameSite::Lax);
     }
 }

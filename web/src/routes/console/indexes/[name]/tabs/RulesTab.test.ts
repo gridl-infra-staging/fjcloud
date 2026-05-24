@@ -86,7 +86,7 @@ describe('RulesTab', () => {
 			const { container } = render(RulesTab, { props: defaultProps() });
 
 			// The header also says "Enabled", so scope to the badge span
-			const badge = container.querySelector('.bg-green-100');
+			const badge = container.querySelector('[class*="bg-flapjack-mint/35"]');
 			expect(badge).not.toBeNull();
 			expect(badge!.textContent).toBe('Enabled');
 		});

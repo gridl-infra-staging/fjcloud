@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, cleanup, within } from '@testing-library/svelte';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import type { Index, OnboardingStatus } from '$lib/api/types';
 import { formatNumber, statusLabel } from '$lib/format';
 import { layoutTestDefaults } from './layout-test-context';
@@ -41,6 +43,11 @@ vi.mock('d3-scale', () => ({
 }));
 
 import DashboardPage from './+page.svelte';
+
+const dashboardSource = readFileSync(
+	join(process.cwd(), 'src', 'routes', 'console', '+page.svelte'),
+	'utf8'
+);
 
 afterEach(() => {
 	cleanup();
@@ -250,12 +257,12 @@ describe('Dashboard indexes card', () => {
 		});
 
 		const indexesCard = screen.getByTestId('indexes-card');
-		expect(indexesCard).toHaveClass('bg-[#fff8ea]');
+		expect(indexesCard).toHaveClass('bg-flapjack-cream');
 
 		const statCards = screen.getByTestId('stat-cards');
 		const firstStatCard = statCards.querySelector('div');
 		expect(firstStatCard).not.toBeNull();
-		expect(firstStatCard).toHaveClass('bg-[#fff8ea]');
+		expect(firstStatCard).toHaveClass('bg-flapjack-cream');
 	});
 
 	it('auth__dashboard__empty__mobile_narrow M.universal.1 renders empty-state card with diner border surface', () => {
@@ -281,7 +288,7 @@ describe('Dashboard indexes card', () => {
 
 		const emptyCard = screen.getByText('No usage data for this period.').closest('div');
 		expect(emptyCard).not.toBeNull();
-		expect(emptyCard).toHaveClass('bg-[#fff8ea]');
+		expect(emptyCard).toHaveClass('bg-flapjack-cream');
 		expect(emptyCard).toHaveClass('border-2');
 	});
 
@@ -300,9 +307,9 @@ describe('Dashboard indexes card', () => {
 		});
 
 		const onboardingBanner = screen.getByTestId('onboarding-banner');
-		expect(onboardingBanner).toHaveClass('bg-[#fff8ea]');
+		expect(onboardingBanner).toHaveClass('bg-flapjack-cream');
 		const continueCta = within(onboardingBanner).getByRole('link', { name: /continue setup/i });
-		expect(continueCta).toHaveClass('bg-[#ffb3c7]');
+		expect(continueCta).toHaveClass('bg-brand-pink');
 	});
 
 	it('auth__dashboard__loading__mobile_narrow M.universal.1 keeps dashboard content cards on cream surfaces', () => {
@@ -340,10 +347,10 @@ describe('Dashboard indexes card', () => {
 			}
 		});
 
-		expect(screen.getByTestId('estimated-bill')).toHaveClass('bg-[#fff8ea]');
-		expect(screen.getByTestId('free-tier-progress')).toHaveClass('bg-[#fff8ea]');
-		expect(screen.getByTestId('usage-chart')).toHaveClass('bg-[#fff8ea]');
-		expect(screen.getByTestId('region-breakdown')).toHaveClass('bg-[#fff8ea]');
+		expect(screen.getByTestId('estimated-bill')).toHaveClass('bg-flapjack-cream');
+		expect(screen.getByTestId('free-tier-progress')).toHaveClass('bg-flapjack-cream');
+		expect(screen.getByTestId('usage-chart')).toHaveClass('bg-flapjack-cream');
+		expect(screen.getByTestId('region-breakdown')).toHaveClass('bg-flapjack-cream');
 	});
 
 	it('keeps dashboard accents on diner ink and rose instead of generic gray and blue defaults', () => {
@@ -376,11 +383,18 @@ describe('Dashboard indexes card', () => {
 		});
 
 		expect(screen.getByRole('heading', { level: 1, name: 'Console' })).toHaveClass(
-			'text-[#1f1b18]'
+			'text-flapjack-ink'
 		);
-		expect(screen.getByText('View breakdown')).toHaveClass('text-[#b83f5f]');
-		expect(screen.getByRole('link', { name: /manage indexes/i })).toHaveClass('text-[#b83f5f]');
-		expect(screen.getByText('Month').closest('label')).toHaveClass('text-[#4b4640]');
+		expect(screen.getByText('View breakdown')).toHaveClass('text-flapjack-rose');
+		expect(screen.getByRole('link', { name: /manage indexes/i })).toHaveClass('text-flapjack-rose');
+		expect(screen.getByText('Month').closest('label')).toHaveClass('text-flapjack-ink/80');
+	});
+
+	it('keeps usage chart series palette sourced from flapjack tokens', () => {
+		expect(dashboardSource).toContain("color: 'var(--color-flapjack-rose)'");
+		expect(dashboardSource).toContain("color: 'var(--color-flapjack-plum)'");
+		expect(dashboardSource).not.toContain("color: '#b83f5f'");
+		expect(dashboardSource).not.toContain("color: '#7f4d21'");
 	});
 });
 

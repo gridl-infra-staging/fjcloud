@@ -61,7 +61,9 @@ describe('Reset password page', () => {
 			}
 		});
 
-		expect(screen.getByRole('alert')).toHaveTextContent('password reset email temporarily unavailable');
+		expect(screen.getByRole('alert')).toHaveTextContent(
+			'password reset email temporarily unavailable'
+		);
 		expect(screen.queryByTestId('reset-password-request-new-email')).not.toBeInTheDocument();
 	});
 });

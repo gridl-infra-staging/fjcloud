@@ -59,6 +59,6 @@ describe('Terms page legal contract', () => {
 		const bodyParagraph = screen.getByText(
 			/These terms govern access to the Flapjack Cloud hosted dashboard/i
 		);
-		expect(bodyParagraph).toHaveClass('text-[#1f1b18]');
+		expect(bodyParagraph).toHaveClass('text-flapjack-ink');
 	});
 });

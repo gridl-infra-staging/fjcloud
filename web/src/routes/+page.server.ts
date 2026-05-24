@@ -1,9 +1,12 @@
-/**
- * @module Stub summary for /Users/stuart/parallel_development/fjcloud_dev/MAR17_11_2_data_management_features/fjcloud_dev/web/src/routes/+page.server.ts.
- */
 import type { PageServerLoad } from './$types';
-import { marketingPricingPageData } from './marketing_pricing';
+import { redirect } from '@sveltejs/kit';
+
+// Authenticated-public-path redirect to /console is owned by hooks.server.ts::handle().
+// This function only handles the unauthenticated root case.
+// Force dynamic SSR ownership for `/`: with root-layout prerender enabled and
+// crawl disabled, omitting this lets SvelteKit drop `/` from the server manifest.
+export const prerender = false;
 
 export const load: PageServerLoad = async () => {
-	return marketingPricingPageData();
+	redirect(303, '/login');
 };

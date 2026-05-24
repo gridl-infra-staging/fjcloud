@@ -71,7 +71,9 @@ describe('Forgot password server action', () => {
 			retryAfterSeconds: 120
 		});
 
-		const result = await actions.default(makeEvent({ email: 'user@example.com', intent: 'resend' }));
+		const result = await actions.default(
+			makeEvent({ email: 'user@example.com', intent: 'resend' })
+		);
 		expect(result).toEqual({
 			sent: true,
 			email: 'user@example.com',
@@ -82,7 +84,9 @@ describe('Forgot password server action', () => {
 	it('resend action returns explicit delivery-failure form data on resend transport failure', async () => {
 		resendPasswordResetMock.mockRejectedValue(new TypeError('fetch failed'));
 
-		const result = await actions.default(makeEvent({ email: 'user@example.com', intent: 'resend' }));
+		const result = await actions.default(
+			makeEvent({ email: 'user@example.com', intent: 'resend' })
+		);
 		expect(result).toEqual(
 			expect.objectContaining({
 				status: 503,
@@ -98,7 +102,9 @@ describe('Forgot password server action', () => {
 	it('resend action returns explicit delivery-failure form data on resend 503 response', async () => {
 		resendPasswordResetMock.mockRejectedValue(new ApiRequestError(503, 'auth unavailable'));
 
-		const result = await actions.default(makeEvent({ email: 'user@example.com', intent: 'resend' }));
+		const result = await actions.default(
+			makeEvent({ email: 'user@example.com', intent: 'resend' })
+		);
 		expect(result).toEqual(
 			expect.objectContaining({
 				status: 503,
@@ -118,7 +124,9 @@ describe('Forgot password server action', () => {
 			})
 		);
 
-		const result = await actions.default(makeEvent({ email: 'user@example.com', intent: 'resend' }));
+		const result = await actions.default(
+			makeEvent({ email: 'user@example.com', intent: 'resend' })
+		);
 		expect(result).toEqual(
 			expect.objectContaining({
 				status: 429,
@@ -135,7 +143,9 @@ describe('Forgot password server action', () => {
 	it('resend action returns explicit delivery-failure form data on resend non-503 ApiRequestError responses', async () => {
 		resendPasswordResetMock.mockRejectedValue(new ApiRequestError(500, 'internal server error'));
 
-		const result = await actions.default(makeEvent({ email: 'user@example.com', intent: 'resend' }));
+		const result = await actions.default(
+			makeEvent({ email: 'user@example.com', intent: 'resend' })
+		);
 		expect(result).toEqual(
 			expect.objectContaining({
 				status: 503,

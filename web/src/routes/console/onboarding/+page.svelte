@@ -184,8 +184,10 @@
 </svelte:head>
 
 <div class="mx-auto max-w-2xl">
-	<h1 class="mb-2 text-2xl font-bold text-gray-900">Get Started</h1>
-	<p class="mb-8 text-sm text-gray-500">Set up your first search index in a few simple steps.</p>
+	<h1 class="mb-2 text-2xl font-bold text-flapjack-ink">Get Started</h1>
+	<p class="mb-8 text-sm text-flapjack-ink/60">
+		Set up your first search index in a few simple steps.
+	</p>
 
 	<!-- Step indicators -->
 	{#if wizardStep !== 'completed' && wizardStep !== 'billing'}
@@ -200,15 +202,15 @@
 					(stepNum === 2 && (wizardStep === 'generating' || wizardStep === 'credentials'))}
 				<div
 					class="flex h-8 w-8 items-center justify-center rounded-full text-sm font-medium {active
-						? 'bg-blue-600 text-white'
+						? 'bg-flapjack-rose text-white'
 						: done
-							? 'bg-green-500 text-white'
-							: 'bg-gray-200 text-gray-500'}"
+							? 'bg-flapjack-mint text-white'
+							: 'bg-flapjack-cream/60 text-flapjack-ink/60'}"
 				>
 					{stepNum}
 				</div>
 				{#if stepNum < 3}
-					<div class="h-0.5 w-12 {done ? 'bg-green-500' : 'bg-gray-200'}"></div>
+					<div class="h-0.5 w-12 {done ? 'bg-flapjack-mint' : 'bg-flapjack-cream/60'}"></div>
 				{/if}
 			{/each}
 		</div>
@@ -216,31 +218,31 @@
 
 	{#if wizardStep === 'billing'}
 		<div
-			class="rounded-lg border border-amber-200 bg-amber-50 p-6 shadow-sm"
+			class="rounded-lg border border-flapjack-yellow/50 bg-flapjack-yellow/20 p-6 shadow-sm"
 			data-testid="billing-setup-gate"
 		>
-			<h2 class="text-lg font-medium text-amber-900">Billing setup required</h2>
-			<p class="mt-2 text-sm text-amber-800">
+			<h2 class="text-lg font-medium text-flapjack-ink/90">Billing setup required</h2>
+			<p class="mt-2 text-sm text-flapjack-ink/80">
 				Your shared plan needs a payment method before onboarding can continue.
 			</p>
 			<a
 				href={resolve('/console/billing/setup')}
-				class="mt-4 inline-block rounded-md bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700"
+				class="mt-4 inline-block rounded-md bg-flapjack-yellow px-4 py-2 text-sm font-medium text-white hover:bg-flapjack-yellow/80"
 				>Set up billing</a
 			>
 		</div>
 	{:else if wizardStep === 'unavailable'}
 		<div
-			class="rounded-lg border border-gray-200 bg-white p-6 shadow-sm"
+			class="rounded-lg border border-flapjack-ink/20 bg-white p-6 shadow-sm"
 			data-testid="onboarding-status-unavailable"
 		>
-			<h2 class="text-lg font-medium text-gray-900">Unable to load setup status</h2>
-			<p class="mt-2 text-sm text-gray-600">
+			<h2 class="text-lg font-medium text-flapjack-ink">Unable to load setup status</h2>
+			<p class="mt-2 text-sm text-flapjack-ink/70">
 				Refresh this page to retry loading your onboarding progress.
 			</p>
 			<a
 				href={resolve('/console')}
-				class="mt-4 inline-block rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800"
+				class="mt-4 inline-block rounded-md bg-flapjack-ink px-4 py-2 text-sm font-medium text-white hover:bg-flapjack-ink/85"
 				>Back to dashboard</a
 			>
 		</div>
@@ -248,9 +250,11 @@
 	{:else if wizardStep === 'choose'}
 		<div data-testid="onboarding-step-1">
 			<div class="rounded-lg bg-white p-6 shadow">
-				<h2 class="mb-4 text-lg font-medium text-gray-900">Choose a region & name your index</h2>
+				<h2 class="mb-4 text-lg font-medium text-flapjack-ink">
+					Choose a region & name your index
+				</h2>
 				{#if planContext?.billing_plan === 'free'}
-					<p class="mb-4 text-sm text-blue-700">
+					<p class="mb-4 text-sm text-flapjack-plum">
 						No credit card required while you are on the Free plan.
 					</p>
 				{/if}
@@ -258,14 +262,14 @@
 				<form method="POST" action="?/createIndex" use:enhance={preserveWizardStepOnSuccess}>
 					<!-- Region picker -->
 					<fieldset class="mb-6">
-						<legend class="mb-3 text-sm font-medium text-gray-700">Region</legend>
+						<legend class="mb-3 text-sm font-medium text-flapjack-ink/80">Region</legend>
 						<div class="grid grid-cols-2 gap-3">
 							{#each REGIONS as region (region.id)}
 								<label
 									class="cursor-pointer rounded-lg border-2 p-4 transition-colors {selectedRegion ===
 									region.id
-										? 'border-blue-500 bg-blue-50'
-										: 'border-gray-200 hover:border-gray-300'}"
+										? 'border-flapjack-rose bg-flapjack-rose/10'
+										: 'border-flapjack-ink/20 hover:border-flapjack-ink/30'}"
 								>
 									<input
 										type="radio"
@@ -274,8 +278,8 @@
 										bind:group={selectedRegion}
 										class="sr-only"
 									/>
-									<span class="block text-sm font-medium text-gray-900">{region.name}</span>
-									<span class="mt-1 block text-xs text-gray-500">{region.id}</span>
+									<span class="block text-sm font-medium text-flapjack-ink">{region.name}</span>
+									<span class="mt-1 block text-xs text-flapjack-ink/60">{region.id}</span>
 								</label>
 							{/each}
 						</div>
@@ -283,7 +287,7 @@
 
 					<!-- Index name input -->
 					<div class="mb-6">
-						<label for="index-name" class="mb-1 block text-sm font-medium text-gray-700"
+						<label for="index-name" class="mb-1 block text-sm font-medium text-flapjack-ink/80"
 							>Index name</label
 						>
 						<input
@@ -291,21 +295,21 @@
 							type="text"
 							name="name"
 							bind:value={indexName}
-							class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 {hasValidationError
-								? 'border-red-300'
+							class="w-full rounded-md border border-flapjack-ink/30 px-3 py-2 text-sm focus:border-flapjack-rose focus:ring-1 focus:ring-flapjack-rose {hasValidationError
+								? 'border-flapjack-rose/45'
 								: ''}"
 							placeholder="my-first-index"
 							maxlength={64}
 						/>
 						{#if hasValidationError && validationError}
-							<p class="mt-1 text-sm text-red-600" data-testid="index-name-error">
+							<p class="mt-1 text-sm text-flapjack-plum" data-testid="index-name-error">
 								{validationError}
 							</p>
 						{/if}
 					</div>
 
 					{#if formResult?.error}
-						<div class="mb-4 rounded-md bg-red-50 p-3 text-sm text-red-700">
+						<div class="mb-4 rounded-md bg-flapjack-rose/10 p-3 text-sm text-flapjack-plum">
 							{formResult.error}
 						</div>
 					{/if}
@@ -313,7 +317,7 @@
 					<button
 						type="submit"
 						disabled={validationError !== null}
-						class="w-full rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+						class="w-full rounded-md bg-flapjack-rose px-4 py-2 text-sm font-medium text-white hover:bg-flapjack-plum disabled:cursor-not-allowed disabled:opacity-50"
 					>
 						Continue
 					</button>
@@ -329,10 +333,10 @@
 					<!-- Index ready, create now -->
 					<div class="text-center">
 						<div
-							class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-green-100"
+							class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-flapjack-mint/35"
 						>
 							<svg
-								class="h-6 w-6 text-green-600"
+								class="h-6 w-6 text-flapjack-ink/80"
 								fill="none"
 								stroke="currentColor"
 								viewBox="0 0 24 24"
@@ -345,15 +349,15 @@
 								/>
 							</svg>
 						</div>
-						<h2 class="mb-2 text-lg font-medium text-gray-900">Your index is ready!</h2>
-						<p class="mb-6 text-sm text-gray-500">Creating your index now...</p>
+						<h2 class="mb-2 text-lg font-medium text-flapjack-ink">Your index is ready!</h2>
+						<p class="mb-6 text-sm text-flapjack-ink/60">Creating your index now...</p>
 
 						<form method="POST" action="?/retryIndex" use:enhance={preserveWizardStepOnSuccess}>
 							<input type="hidden" name="name" value={savedIndexName} />
 							<input type="hidden" name="region" value={savedRegion} />
 							<button
 								type="submit"
-								class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+								class="rounded-md bg-flapjack-rose px-4 py-2 text-sm font-medium text-white hover:bg-flapjack-plum"
 							>
 								Create Index
 							</button>
@@ -363,10 +367,10 @@
 					<!-- Polling timed out — offer to keep waiting or contact support -->
 					<div class="text-center" data-testid="preparing-timeout">
 						<div
-							class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-amber-100"
+							class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-flapjack-yellow/30"
 						>
 							<svg
-								class="h-6 w-6 text-amber-600"
+								class="h-6 w-6 text-flapjack-yellow"
 								fill="none"
 								stroke="currentColor"
 								viewBox="0 0 24 24"
@@ -379,19 +383,22 @@
 								/>
 							</svg>
 						</div>
-						<h2 class="mb-2 text-lg font-medium text-gray-900">Taking longer than expected</h2>
-						<p class="text-sm text-gray-500">
+						<h2 class="mb-2 text-lg font-medium text-flapjack-ink">Taking longer than expected</h2>
+						<p class="text-sm text-flapjack-ink/60">
 							Your index is still being prepared. This can occasionally take longer than usual.
 						</p>
 						<div class="mt-6 flex flex-col items-center gap-3">
 							<button
 								type="button"
 								onclick={resumePolling}
-								class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+								class="rounded-md bg-flapjack-rose px-4 py-2 text-sm font-medium text-white hover:bg-flapjack-plum"
 							>
 								Keep waiting
 							</button>
-							<a href="mailto:{SUPPORT_EMAIL}" class="text-sm text-gray-500 hover:text-gray-700">
+							<a
+								href="mailto:{SUPPORT_EMAIL}"
+								class="text-sm text-flapjack-ink/60 hover:text-flapjack-ink/80"
+							>
 								Contact support
 							</a>
 						</div>
@@ -403,7 +410,7 @@
 							class="mx-auto mb-4 flex h-12 w-12 items-center justify-center"
 							data-testid="preparing-spinner"
 						>
-							<svg class="h-8 w-8 animate-spin text-blue-600" fill="none" viewBox="0 0 24 24">
+							<svg class="h-8 w-8 animate-spin text-flapjack-rose" fill="none" viewBox="0 0 24 24">
 								<circle
 									class="opacity-25"
 									cx="12"
@@ -419,9 +426,9 @@
 								/>
 							</svg>
 						</div>
-						<h2 class="mb-2 text-lg font-medium text-gray-900">Preparing index</h2>
-						<p class="text-sm text-gray-500">{preparingMessage}</p>
-						<p class="mt-4 text-xs text-gray-400">This usually takes a minute or two.</p>
+						<h2 class="mb-2 text-lg font-medium text-flapjack-ink">Preparing index</h2>
+						<p class="text-sm text-flapjack-ink/60">{preparingMessage}</p>
+						<p class="mt-4 text-xs text-flapjack-ink/50">This usually takes a minute or two.</p>
 					</div>
 				{/if}
 
@@ -446,10 +453,10 @@
 			<div class="rounded-lg bg-white p-6 shadow">
 				<div class="mb-4 text-center">
 					<div
-						class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-green-100"
+						class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-flapjack-mint/35"
 					>
 						<svg
-							class="h-6 w-6 text-green-600"
+							class="h-6 w-6 text-flapjack-ink/80"
 							fill="none"
 							stroke="currentColor"
 							viewBox="0 0 24 24"
@@ -462,31 +469,31 @@
 							/>
 						</svg>
 					</div>
-					<h2 class="text-lg font-medium text-gray-900">You're all set!</h2>
-					<p class="mt-1 text-sm text-gray-500">
+					<h2 class="text-lg font-medium text-flapjack-ink">You're all set!</h2>
+					<p class="mt-1 text-sm text-flapjack-ink/60">
 						Here are your credentials. Save them somewhere safe.
 					</p>
 				</div>
 
 				<div
-					class="mb-4 rounded-md border border-yellow-200 bg-yellow-50 p-3 text-sm text-yellow-800"
+					class="mb-4 rounded-md border border-flapjack-yellow/50 bg-flapjack-yellow/20 p-3 text-sm text-flapjack-ink/80"
 				>
 					You won't see this key again. Save it now.
 				</div>
 
 				<!-- Endpoint -->
 				<div class="mb-4">
-					<span class="mb-1 block text-sm font-medium text-gray-700">Endpoint</span>
+					<span class="mb-1 block text-sm font-medium text-flapjack-ink/80">Endpoint</span>
 					<div class="flex items-center gap-2">
 						<code
-							class="flex-1 rounded-md bg-gray-100 px-3 py-2 text-sm text-gray-900"
+							class="flex-1 rounded-md bg-flapjack-cream/70 px-3 py-2 text-sm text-flapjack-ink"
 							data-testid="credential-endpoint">{credentials.endpoint}</code
 						>
 						<button
 							id="copy-endpoint"
 							type="button"
 							onclick={() => copyToClipboard(credentials.endpoint, 'copy-endpoint')}
-							class="rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+							class="rounded-md border border-flapjack-ink/30 px-3 py-2 text-sm text-flapjack-ink/80 hover:bg-flapjack-cream/80"
 						>
 							Copy
 						</button>
@@ -495,17 +502,17 @@
 
 				<!-- API Key -->
 				<div class="mb-4">
-					<span class="mb-1 block text-sm font-medium text-gray-700">API Key</span>
+					<span class="mb-1 block text-sm font-medium text-flapjack-ink/80">API Key</span>
 					<div class="flex items-center gap-2">
 						<code
-							class="flex-1 rounded-md bg-gray-100 px-3 py-2 text-sm text-gray-900"
+							class="flex-1 rounded-md bg-flapjack-cream/70 px-3 py-2 text-sm text-flapjack-ink"
 							data-testid="credential-api-key">{credentials.api_key}</code
 						>
 						<button
 							id="copy-api-key"
 							type="button"
 							onclick={() => copyToClipboard(credentials.api_key, 'copy-api-key')}
-							class="rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+							class="rounded-md border border-flapjack-ink/30 px-3 py-2 text-sm text-flapjack-ink/80 hover:bg-flapjack-cream/80"
 						>
 							Copy
 						</button>
@@ -514,11 +521,12 @@
 
 				<!-- Quickstart snippet -->
 				<details class="mb-6">
-					<summary class="cursor-pointer text-sm font-medium text-blue-600 hover:text-blue-500"
+					<summary
+						class="cursor-pointer text-sm font-medium text-flapjack-rose hover:text-flapjack-plum"
 						>Quickstart code</summary
 					>
-					<div class="mt-3 rounded-md bg-gray-900 p-4">
-						<pre class="overflow-x-auto text-xs text-gray-100"><code
+					<div class="mt-3 rounded-md bg-flapjack-ink p-4">
+						<pre class="overflow-x-auto text-xs text-flapjack-cream"><code
 								>{`# Search your index
 curl -X POST '${credentials.endpoint}/1/indexes/${savedIndexName}/query' \\
   -H 'X-Algolia-API-Key: ${credentials.api_key}' \\
@@ -538,7 +546,7 @@ curl -X POST '${credentials.endpoint}/1/indexes/${savedIndexName}/batch' \\
 
 				<a
 					href={resolve('/console')}
-					class="block w-full rounded-md bg-blue-600 px-4 py-2 text-center text-sm font-medium text-white hover:bg-blue-700"
+					class="block w-full rounded-md bg-flapjack-rose px-4 py-2 text-center text-sm font-medium text-white hover:bg-flapjack-plum"
 				>
 					Go to Console
 				</a>
@@ -548,10 +556,10 @@ curl -X POST '${credentials.endpoint}/1/indexes/${savedIndexName}/batch' \\
 		<!-- Completed: already onboarded -->
 	{:else if wizardStep === 'completed'}
 		<div class="rounded-lg bg-white p-6 text-center shadow">
-			<p class="text-gray-500">You've already completed onboarding.</p>
+			<p class="text-flapjack-ink/60">You've already completed onboarding.</p>
 			<a
 				href={resolve('/console')}
-				class="mt-4 inline-block text-sm font-medium text-blue-600 hover:text-blue-500"
+				class="mt-4 inline-block text-sm font-medium text-flapjack-rose hover:text-flapjack-plum"
 			>
 				Go to Console
 			</a>
@@ -565,7 +573,7 @@ curl -X POST '${credentials.endpoint}/1/indexes/${savedIndexName}/batch' \\
 					class="mx-auto mb-4 flex h-12 w-12 items-center justify-center"
 					data-testid="credentials-spinner"
 				>
-					<svg class="h-8 w-8 animate-spin text-blue-600" fill="none" viewBox="0 0 24 24">
+					<svg class="h-8 w-8 animate-spin text-flapjack-rose" fill="none" viewBox="0 0 24 24">
 						<circle
 							class="opacity-25"
 							cx="12"
@@ -581,10 +589,10 @@ curl -X POST '${credentials.endpoint}/1/indexes/${savedIndexName}/batch' \\
 						/>
 					</svg>
 				</div>
-				<h2 class="mb-2 text-lg font-medium text-gray-900">Generating your credentials...</h2>
+				<h2 class="mb-2 text-lg font-medium text-flapjack-ink">Generating your credentials...</h2>
 				{#if formResult?.error}
 					<div
-						class="mb-4 rounded-md bg-red-50 p-3 text-left text-sm text-red-700"
+						class="mb-4 rounded-md bg-flapjack-rose/10 p-3 text-left text-sm text-flapjack-plum"
 						data-testid="onboarding-step-3-error"
 						role="alert"
 					>
@@ -594,7 +602,7 @@ curl -X POST '${credentials.endpoint}/1/indexes/${savedIndexName}/batch' \\
 				<form method="POST" action="?/getCredentials" use:enhance={preserveWizardStepAlways}>
 					<button
 						type="submit"
-						class="mt-4 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+						class="mt-4 rounded-md bg-flapjack-rose px-4 py-2 text-sm font-medium text-white hover:bg-flapjack-plum"
 					>
 						Get Credentials
 					</button>

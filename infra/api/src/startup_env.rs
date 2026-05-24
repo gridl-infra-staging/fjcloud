@@ -254,6 +254,17 @@ impl StartupEnvSnapshot {
         }
     }
 
+    /// Resolve APP_BASE_URL using the APP_PUBLIC_BASE_URL alias and strip a
+    /// trailing slash so callers can safely append route paths.
+    pub fn normalized_app_base_url_or(&self, fallback_base_url: &str) -> String {
+        self.env_value("APP_BASE_URL")
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .unwrap_or(fallback_base_url)
+            .trim_end_matches('/')
+            .to_string()
+    }
+
     /// Classify a group of related env vars as all-absent, has-blank, partially-explicit, or fully-explicit.
     fn classify_family_state(values: &[&Option<String>]) -> RawEnvFamilyState {
         let (mut has_present, mut has_absent, mut has_blank) = (false, false, false);
@@ -351,6 +362,24 @@ mod tests {
         assert_eq!(
             snapshot.env_value("APP_BASE_URL"),
             Some("https://public.example.test")
+        );
+    }
+
+    #[test]
+    fn normalized_app_base_url_or_uses_alias_and_trims_trailing_slash() {
+        let snapshot = snapshot_with(&[("APP_PUBLIC_BASE_URL", "https://public.example.test/")]);
+        assert_eq!(
+            snapshot.normalized_app_base_url_or("https://fallback.example.test/"),
+            "https://public.example.test"
+        );
+    }
+
+    #[test]
+    fn normalized_app_base_url_or_falls_back_to_default_when_missing() {
+        let snapshot = snapshot_with(&[]);
+        assert_eq!(
+            snapshot.normalized_app_base_url_or("https://fallback.example.test/"),
+            "https://fallback.example.test"
         );
     }
 

@@ -104,6 +104,20 @@ test.describe('Dashboard page', () => {
 			CANONICAL_PUBLIC_API_DOCS_URL
 		);
 		await expect(page.getByTestId('dashboard-mobile-nav-trigger')).toBeHidden();
+
+		const brandLogo = page.getByTestId('brand-logo');
+		await expect(brandLogo).toBeVisible();
+		await expect
+			.poll(async () => brandLogo.evaluate((node) => getComputedStyle(node).fontFamily))
+			.toContain('Cabinet');
+		await expect
+			.poll(async () => desktopNav.evaluate((node) => getComputedStyle(node).backgroundColor))
+			.toBe('rgb(255, 248, 234)');
+		await expect
+			.poll(async () =>
+				page.getByTestId('dashboard-shell-header').evaluate((node) => getComputedStyle(node).color)
+			)
+			.toBe('rgb(31, 27, 24)');
 	});
 
 	test('mobile shell keeps drawer closed until trigger click and supports dismiss', async ({
@@ -389,7 +403,10 @@ test.describe('Plan-aware dashboard features', () => {
 		await expect(badge).toHaveText(/(?:Free|Paid) Plan/);
 	});
 
-	test('shared-plan billing prompt navigates to billing setup', async ({ page, setBillingPlan }) => {
+	test('shared-plan billing prompt navigates to billing setup', async ({
+		page,
+		setBillingPlan
+	}) => {
 		await setBillingPlan('shared');
 		await page.goto('/console');
 

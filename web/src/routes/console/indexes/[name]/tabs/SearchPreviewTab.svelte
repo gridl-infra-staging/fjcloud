@@ -19,33 +19,33 @@
 </script>
 
 <section data-testid="search-preview-section">
-	<h2 class="mb-4 text-lg font-semibold text-gray-900">Search Preview</h2>
+	<h2 class="mb-4 text-lg font-semibold text-flapjack-ink">Search Preview</h2>
 
 	{#if unavailable}
-		<div class="rounded-lg border border-yellow-200 bg-yellow-50 p-6 text-center">
-			<p class="text-sm text-yellow-800">
+		<div class="rounded-lg border border-flapjack-yellow/50 bg-flapjack-yellow/20 p-6 text-center">
+			<p class="text-sm text-flapjack-ink/80">
 				Search preview is not available while the index is <strong>{index.tier}</strong>. Please
 				wait for the index to become active.
 			</p>
 		</div>
 	{:else if !index.endpoint}
-		<div class="rounded-lg border border-gray-200 bg-gray-50 p-6 text-center">
-			<p class="text-sm text-gray-600">
+		<div class="rounded-lg border border-flapjack-ink/20 bg-flapjack-cream/80 p-6 text-center">
+			<p class="text-sm text-flapjack-ink/70">
 				Endpoint not available yet. The index is still being provisioned.
 			</p>
 		</div>
 	{:else if !previewKey}
-		<div class="rounded-lg border border-gray-200 bg-white p-6">
-			<p class="mb-4 text-sm text-gray-600">
+		<div class="rounded-lg border border-flapjack-ink/20 bg-white p-6">
+			<p class="mb-4 text-sm text-flapjack-ink/70">
 				Generate a temporary search key to preview live search results from this index.
 			</p>
 			{#if previewKeyError}
-				<p class="mb-4 text-sm text-red-600">{previewKeyError}</p>
+				<p class="mb-4 text-sm text-flapjack-plum">{previewKeyError}</p>
 			{/if}
 			<form method="POST" action="?/createPreviewKey" use:enhance>
 				<button
 					type="submit"
-					class="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+					class="rounded-md bg-flapjack-rose px-4 py-2 text-sm font-medium text-white hover:bg-flapjack-plum"
 				>
 					Generate Preview Key
 				</button>

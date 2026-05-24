@@ -40,7 +40,19 @@ describe('Login page', () => {
 
 	it('renders submit button with correct text', () => {
 		renderLoginPage();
-		expect(screen.getByRole('button', { name: 'Log In' })).toBeInTheDocument();
+		const submitButton = screen.getByRole('button', { name: 'Log In' });
+		expect(submitButton).toBeInTheDocument();
+		expect(submitButton).toHaveClass('bg-flapjack-rose');
+		expect(submitButton).toHaveClass('hover:bg-flapjack-plum');
+	});
+
+	it('uses Flapjack token classes for the login shell and alternate links', () => {
+		renderLoginPage();
+		expect(screen.getByText('Log in to Flapjack Cloud')).toHaveClass('text-flapjack-ink');
+		expect(screen.getByRole('link', { name: 'Sign up' })).toHaveClass('text-flapjack-rose');
+		expect(screen.getByRole('link', { name: 'Forgot your password?' })).toHaveClass(
+			'text-flapjack-rose'
+		);
 	});
 
 	it('email input is required and has type email', () => {

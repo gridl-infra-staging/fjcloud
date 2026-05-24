@@ -59,6 +59,7 @@ describe('Status page', () => {
 
 		expect(screen.getByRole('heading', { name: /service status/i })).toBeInTheDocument();
 		expect(screen.getByText('All Systems Operational')).toBeInTheDocument();
+		expect(screen.getByRole('link', { name: 'Flapjack Cloud' })).toHaveClass('text-flapjack-ink');
 	});
 
 	it('shows last updated timestamp', async () => {
@@ -122,6 +123,7 @@ describe('Status page', () => {
 		expect(screen.queryByRole('link', { name: /incident history/i })).not.toBeInTheDocument();
 		const betaScopeLink = screen.getByRole('link', { name: /beta scope/i });
 		expect(betaScopeLink).toHaveAttribute('href', '/beta');
+		expect(betaScopeLink).toHaveClass('text-flapjack-rose');
 	});
 
 	it('states incident communications ownership and support response target', async () => {

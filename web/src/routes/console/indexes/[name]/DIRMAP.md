@@ -11,5 +11,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| tabs | This directory contains tab components for the index console, including utilities for displaying code snippets for app integration and parsing uploaded document files. |
+| tabs | This tabs directory contains utilities for the index console view: one module provides code snippets for connecting applications to indexes, and another handles parsing of document files for data management. |
 <!-- [scrai:end] -->

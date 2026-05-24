@@ -3,7 +3,9 @@ import { expect, test } from '../../fixtures/fixtures';
 test.use({ storageState: { cookies: [], origins: [] } });
 
 test.describe('Auth trust states', () => {
-	test('Forgot password page keeps generic resend success without cooldown guidance', async ({ page }) => {
+	test('Forgot password page keeps generic resend success without cooldown guidance', async ({
+		page
+	}) => {
 		let resendIntentRequests = 0;
 
 		await page.route('**/forgot-password', async (route, request) => {

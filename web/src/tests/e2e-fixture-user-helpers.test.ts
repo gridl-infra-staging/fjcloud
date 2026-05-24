@@ -672,7 +672,9 @@ describe('e2e fixture user helpers', () => {
 	it('loginAsUserWithKnownMissingUserBootstrap retries through bootstrap on known invalid-credentials seams', async () => {
 		const loginAsUserFn = vi
 			.fn()
-			.mockRejectedValueOnce(new Error('loginAs failed: 400 {"error":"invalid email or password"}'));
+			.mockRejectedValueOnce(
+				new Error('loginAs failed: 400 {"error":"invalid email or password"}')
+			);
 		const bootstrapFn = vi.fn().mockResolvedValue({
 			bootstrapped: true,
 			loginToken: 'tok-after-bootstrap'
@@ -1123,9 +1125,9 @@ describe('e2e fixture user helpers', () => {
 	});
 
 	it('recoverAlreadyInvoicedInvoiceForMonth finalizes draft invoices before waiting for paid status', async () => {
-		const listInvoices = vi.fn().mockResolvedValue([
-			{ id: 'inv-draft', status: 'draft', period_start: '2026-05-01' }
-		]);
+		const listInvoices = vi
+			.fn()
+			.mockResolvedValue([{ id: 'inv-draft', status: 'draft', period_start: '2026-05-01' }]);
 		const getInvoiceDetail = vi.fn().mockResolvedValue({
 			id: 'inv-draft',
 			status: 'draft',
@@ -1151,9 +1153,11 @@ describe('e2e fixture user helpers', () => {
 	});
 
 	it('recoverAlreadyInvoicedInvoiceForMonth retries payment for finalized invoices with Stripe ids', async () => {
-		const listInvoices = vi.fn().mockResolvedValue([
-			{ id: 'inv-finalized', status: 'finalized', period_start: '2026-05-01' }
-		]);
+		const listInvoices = vi
+			.fn()
+			.mockResolvedValue([
+				{ id: 'inv-finalized', status: 'finalized', period_start: '2026-05-01' }
+			]);
 		const getInvoiceDetail = vi.fn().mockResolvedValue({
 			id: 'inv-finalized',
 			status: 'finalized',

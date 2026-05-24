@@ -11,9 +11,11 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
+	buildCustomerStatusLookupSql,
 	buildSsmStagingPsqlCommand,
 	buildVerificationTokenLookupSql,
-	parseSingleColumnSingleRowOutput
+	parseSingleColumnSingleRowOutput,
+	parseSingleRowPipeSeparatedOutput
 } from '../../tests/fixtures/staging_db_lookup';
 
 describe('staging DB lookup helper (LB-2/LB-3)', () => {
@@ -135,6 +137,157 @@ describe('staging DB lookup helper (LB-2/LB-3)', () => {
 			// changes \pset null, NULLs could surface as a literal "\N" or
 			// configured marker. We'd rather fail loud than misinterpret.
 			expect(() => parseSingleColumnSingleRowOutput('\\N')).toThrow(/null marker/i);
+		});
+	});
+
+	// Stage 2 Seam Gaps (see web/tests/e2e-ui/full/system_proof_gaps.md →
+	// "## Stage 2 Seam Gaps"): account/auth/onboarding/admin/customer-detail
+	// specs need a customer-row readback by email. The parser shape already
+	// exists internally; Stage 2 promotes it to a shared seam and adds the
+	// customer-status SQL builder so future callers do not inline psql or
+	// add a parallel lookup module.
+
+	describe('parseSingleRowPipeSeparatedOutput (Stage 2 shared seam)', () => {
+		it('splits a single pipe-separated -tA row into the expected column count', () => {
+			const columns = parseSingleRowPipeSeparatedOutput(
+				'00000000-0000-0000-0000-000000000001|active|cus_stripe_123\n',
+				3
+			);
+			expect(columns).toEqual([
+				'00000000-0000-0000-0000-000000000001',
+				'active',
+				'cus_stripe_123'
+			]);
+		});
+
+		it('returns null when zero rows matched (so callers can distinguish no-row from malformed)', () => {
+			expect(parseSingleRowPipeSeparatedOutput('', 3)).toBeNull();
+			expect(parseSingleRowPipeSeparatedOutput('\n', 3)).toBeNull();
+		});
+
+		it('throws when the column count disagrees with the contract', () => {
+			expect(() =>
+				parseSingleRowPipeSeparatedOutput('a|b\n', 3)
+			).toThrow(/expected 3 psql columns but got 2/);
+		});
+
+		it('throws when output contains more than one non-empty row', () => {
+			expect(() =>
+				parseSingleRowPipeSeparatedOutput('a|b|c\nd|e|f\n', 3)
+			).toThrow(/expected single-row.*got 2/i);
+		});
+
+		it('throws when any column is a NULL marker — fail loud rather than mis-interpret', () => {
+			expect(() =>
+				parseSingleRowPipeSeparatedOutput('a|\\N|c\n', 3)
+			).toThrow(/null markers/i);
+		});
+
+		it('preserves empty-string columns that are NOT NULL markers (Stage 2: presence-flag bool columns)', () => {
+			// `email_verified_at IS NULL` renders as 't' or 'f' under psql -tA;
+			// but for variable-width payloads (e.g. stripe_customer_id can be
+			// NULL → empty string when paired with COALESCE), the parser must
+			// not confuse an empty column with a NULL marker.
+			const columns = parseSingleRowPipeSeparatedOutput(
+				'00000000-0000-0000-0000-000000000001|active||f|t\n',
+				5
+			);
+			expect(columns).toEqual([
+				'00000000-0000-0000-0000-000000000001',
+				'active',
+				'',
+				'f',
+				't'
+			]);
+		});
+	});
+
+	describe('buildCustomerStatusLookupSql (Stage 2 shared seam)', () => {
+		it('selects id, status, coalesced stripe_customer_id, and verified-state booleans by email', () => {
+			const sql = buildCustomerStatusLookupSql('e2e-fresh-signup-1234@e2e.griddle.test');
+			// Schema (infra/migrations/001_customers.sql, 006_auth.sql):
+			//   customers(id UUID, status TEXT, stripe_customer_id TEXT NULL,
+			//             email_verified_at TIMESTAMPTZ NULL, email_verify_token TEXT NULL).
+			// The readback must surface (a) id for ownership chains,
+			// (b) status for account-delete / admin-suspend proofs,
+			// (c) stripe_customer_id for billing cross-checks (NULL → empty),
+			// (d) email_verified_at IS NULL flag for verify-email proofs, and
+			// (e) email_verify_token IS NULL flag for consumed-token proofs.
+			expect(sql).toContain('id::text');
+			expect(sql).toContain('status::text');
+			expect(sql).toMatch(/COALESCE\(stripe_customer_id,\s*''\)/i);
+			expect(sql).toContain('email_verified_at IS NULL');
+			expect(sql).toContain('email_verify_token IS NULL');
+			expect(sql).toContain('FROM customers');
+			expect(sql).toContain(
+				"WHERE email = 'e2e-fresh-signup-1234@e2e.griddle.test'"
+			);
+		});
+
+		it('rejects emails containing single quotes (SQL injection guard)', () => {
+			expect(() =>
+				buildCustomerStatusLookupSql("evil'; DROP TABLE customers;--")
+			).toThrow(/refusing to embed unsafe email/i);
+		});
+
+		it('rejects empty email', () => {
+			expect(() => buildCustomerStatusLookupSql('')).toThrow(
+				/refusing to embed unsafe email/i
+			);
+		});
+
+		it('rejects emails containing whitespace (which would smuggle SQL via line breaks)', () => {
+			expect(() => buildCustomerStatusLookupSql('a@b.com\nDROP')).toThrow(
+				/refusing to embed unsafe email/i
+			);
+		});
+
+		it('rejects emails containing backslashes (escape-injection guard)', () => {
+			expect(() => buildCustomerStatusLookupSql('back\\slash@b.com')).toThrow(
+				/refusing to embed unsafe email/i
+			);
+		});
+
+		it('keeps the customer-status lookup ownership in staging_db_lookup.ts only', () => {
+			const stagingLookupSource = readFileSync(
+				join(process.cwd(), 'tests/fixtures/staging_db_lookup.ts'),
+				'utf8'
+			);
+			const fixtureSource = readFileSync(
+				join(process.cwd(), 'tests/fixtures/fixtures.ts'),
+				'utf8'
+			);
+			expect(stagingLookupSource).toMatch(/\bbuildCustomerStatusLookupSql\b/);
+			expect(stagingLookupSource).toMatch(/\bparseSingleRowPipeSeparatedOutput\b/);
+			expect(fixtureSource).not.toMatch(/\bbuildCustomerStatusLookupSql\b/);
+			// Per Stage 2 SSOT, no spec/fixture file should inline COALESCE+IS NULL
+			// against the customers table — the seam owns the SQL.
+			expect(fixtureSource).not.toMatch(/email_verified_at IS NULL/);
+			expect(fixtureSource).not.toMatch(/email_verify_token IS NULL/);
+		});
+
+		it('exposes the customer-status seam through the shared fixture type surface', () => {
+			const fixtureSource = readFileSync(
+				join(process.cwd(), 'tests/fixtures/fixtures.ts'),
+				'utf8'
+			);
+			expect(fixtureSource).toMatch(/\bfindCustomerStatusViaStagingSsm\b/);
+			expect(fixtureSource).toMatch(
+				/type\s+FindCustomerStatusViaStagingSsmFn\s*=\s*\(email:\s*string\)\s*=>\s*Promise<StagingCustomerStatusEvidence>;/
+			);
+			expect(fixtureSource).toMatch(
+				/findCustomerStatusViaStagingSsm:\s*FindCustomerStatusViaStagingSsmFn;/
+			);
+		});
+
+		it('wires the customer-status seam in base.extend so callers can use the fixture directly', () => {
+			const fixtureSource = readFileSync(
+				join(process.cwd(), 'tests/fixtures/fixtures.ts'),
+				'utf8'
+			);
+			expect(fixtureSource).toMatch(
+				/findCustomerStatusViaStagingSsm:\s*async\s*\(\{\},\s*use\)\s*=>\s*\{[\s\S]*await use\(\(email\)\s*=>\s*findCustomerStatusViaStagingSsm\(email\)\);[\s\S]*\}/
+			);
 		});
 	});
 });

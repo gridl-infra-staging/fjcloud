@@ -50,6 +50,7 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$REPO_ROOT"
+source "$REPO_ROOT/scripts/lib/contract_secret_env.sh"
 
 MODE="fast"
 SINGLE_GATE=""
@@ -104,29 +105,6 @@ RESULTS_FILE="$LOG_DIR/results.txt"
 record_result() {
     local name="$1" status="$2" seconds="$3" log="$4"
     printf '%s|%s|%s|%s\n' "$name" "$status" "$seconds" "$log" >> "$RESULTS_FILE"
-}
-
-load_contract_secret_env() {
-    local secret_file="$1"
-    local line key value
-    while IFS= read -r line || [ -n "$line" ]; do
-        case "$line" in
-            '#'*|'') continue ;;
-        esac
-        if [[ "$line" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]]; then
-            key="${line%%=*}"
-            value="${line#*=}"
-            if [[ "$value" == *$'\n'* || "$value" == *$'\r'* ]]; then
-                echo "ERROR: ${key} in ${secret_file} contains newline bytes" >&2
-                return 1
-            fi
-            case "$value" in
-                \"*\") value="${value#\"}"; value="${value%\"}" ;;
-                \'*\') value="${value#\'}"; value="${value%\'}" ;;
-            esac
-            export "$key=$value"
-        fi
-    done < "$secret_file"
 }
 
 # now_seconds — coarse-grained start/stop timer in plain seconds. We don't
@@ -579,8 +557,10 @@ fi
 # from a different primary repo override via FJCLOUD_SECRET_FILE.
 if [ "$WITH_CONTRACTS" -eq 1 ]; then
     SECRET_FILE="${FJCLOUD_SECRET_FILE:-/Users/stuart/repos/gridl-infra-dev/fjcloud_dev/.secret/.env.secret}"
+    CONTRACT_SECRET_ENV_READY=0
     if [ -f "$SECRET_FILE" ]; then
         if load_contract_secret_env "$SECRET_FILE"; then
+            CONTRACT_SECRET_ENV_READY=1
             printf '\n%b==contracts: oauth_redirect_uri ==%b\n' "$C_BOLD" "$C_RESET"
             if bash scripts/canary/contracts/oauth_redirect_uri_contract.sh all; then
                 pass_count=$((pass_count + 1))
@@ -613,6 +593,26 @@ if [ "$WITH_CONTRACTS" -eq 1 ]; then
     # bouncing to session_expired.
     printf '\n%b==contracts: web_server_load_api_url ==%b\n' "$C_BOLD" "$C_RESET"
     if bash scripts/canary/contracts/web_server_load_api_url_contract.sh staging; then
+        pass_count=$((pass_count + 1))
+    else
+        fail_count=$((fail_count + 1))
+    fi
+    if [ "$CONTRACT_SECRET_ENV_READY" -eq 1 ]; then
+        printf '\n%b==contracts: web_form_login ==%b\n' "$C_BOLD" "$C_RESET"
+        if bash scripts/canary/contracts/web_form_login_contract.sh all; then
+            pass_count=$((pass_count + 1))
+        else
+            fail_count=$((fail_count + 1))
+        fi
+    else
+        printf '\nSKIP: contracts secret env unavailable; skipping web_form_login\n'
+        skip_count=$((skip_count + 1))
+    fi
+    # Mocked-spec drift contract: keep chromium:mocked route.fulfill payload
+    # shape keys and the upgrade fixture seam aligned with live staging
+    # action/page-load payloads and source-owned fail(...) field names.
+    printf '\n%b==contracts: mocked_spec ==%b\n' "$C_BOLD" "$C_RESET"
+    if bash scripts/canary/contracts/mocked_spec_contract.sh staging; then
         pass_count=$((pass_count + 1))
     else
         fail_count=$((fail_count + 1))

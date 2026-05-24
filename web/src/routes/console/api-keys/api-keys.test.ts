@@ -2,7 +2,12 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/svelte';
 import { fireEvent, within } from '@testing-library/dom';
 import type { ApiKeyListItem } from '$lib/api/types';
-import { formatDate, scopeLabel } from '$lib/format';
+import {
+	formatDate,
+	scopeLabel,
+	DEFAULT_MANAGEMENT_SCOPE,
+	SAFE_READ_MANAGEMENT_SCOPE
+} from '$lib/format';
 import { layoutTestDefaults } from '../layout-test-context';
 
 vi.mock('$app/forms', () => ({
@@ -25,7 +30,7 @@ const sampleKeys: ApiKeyListItem[] = [
 	{
 		id: 'key-1',
 		name: 'Production Key',
-		key_prefix: 'gridl_live_abc12',
+		key_prefix: 'fjc_live_abc1234',
 		scopes: ['indexes:read', 'indexes:write'],
 		last_used_at: '2026-02-20T10:00:00Z',
 		created_at: '2026-01-15T08:00:00Z'
@@ -59,7 +64,7 @@ describe('API Keys page', () => {
 		expect(screen.getByRole('columnheader', { name: 'Created' })).toBeInTheDocument();
 
 		const productionRow = getRowForKeyName('Production Key');
-		expect(within(productionRow).getByText('gridl_live_abc12...')).toBeInTheDocument();
+		expect(within(productionRow).getByText('fjc_live_abc1234...')).toBeInTheDocument();
 		expect(within(productionRow).getByText(scopeLabel('indexes:read'))).toBeInTheDocument();
 		expect(within(productionRow).getByText(scopeLabel('indexes:write'))).toBeInTheDocument();
 		expect(
@@ -110,6 +115,23 @@ describe('API Keys page', () => {
 		expect(screen.queryByRole('table')).not.toBeInTheDocument();
 	});
 
+	it('shows the load error banner without claiming the account has no keys', () => {
+		render(ApiKeysPage, {
+			data: {
+				...layoutTestDefaults,
+				user: null,
+				apiKeys: [],
+				loadError: 'Backend temporarily unavailable'
+			},
+			form: null
+		});
+
+		const alert = screen.getByRole('alert');
+		expect(alert).toHaveTextContent('Backend temporarily unavailable');
+		expect(screen.queryByText(/no api keys/i)).not.toBeInTheDocument();
+		expect(screen.queryByRole('table')).not.toBeInTheDocument();
+	});
+
 	it('has create key form with name input and all management scope checkboxes', () => {
 		render(ApiKeysPage, {
 			data: { ...layoutTestDefaults, user: null, apiKeys: [] },
@@ -132,6 +154,39 @@ describe('API Keys page', () => {
 			'billing:read',
 			'search'
 		]);
+	});
+
+	it('defaults canonical management scope and disables submit when no scopes are selected', async () => {
+		render(ApiKeysPage, {
+			data: { ...layoutTestDefaults, user: null, apiKeys: [] },
+			form: null
+		});
+
+		expect(SAFE_READ_MANAGEMENT_SCOPE).toBe('indexes:read');
+		expect(DEFAULT_MANAGEMENT_SCOPE).toBe(SAFE_READ_MANAGEMENT_SCOPE);
+		const defaultScope = screen.getByLabelText(
+			scopeLabel(DEFAULT_MANAGEMENT_SCOPE)
+		) as HTMLInputElement;
+		const createButton = screen.getByRole('button', { name: /create key/i }) as HTMLButtonElement;
+		expect(defaultScope.checked).toBe(true);
+		expect(createButton.disabled).toBe(false);
+
+		const scopeCheckboxes = [
+			screen.getByLabelText('Indexes: Read'),
+			screen.getByLabelText('Indexes: Write'),
+			screen.getByLabelText('Keys: Manage'),
+			screen.getByLabelText('Billing: Read'),
+			screen.getByLabelText('Search')
+		] as HTMLInputElement[];
+
+		for (const checkbox of scopeCheckboxes) {
+			if (checkbox.checked) {
+				await fireEvent.click(checkbox);
+			}
+		}
+
+		expect(scopeCheckboxes.every((checkbox) => checkbox.checked === false)).toBe(true);
+		expect(createButton.disabled).toBe(true);
 	});
 
 	it('revoke form posts to correct action with key ID', () => {
@@ -157,7 +212,7 @@ describe('API Keys page', () => {
 	});
 
 	it('shows full key-reveal success state with one-time warning and revealed value', () => {
-		const createdKey = 'gridl_live_abc123def456abc123def456ab';
+		const createdKey = 'fjc_live_abc123def456abc123def456ab';
 		render(ApiKeysPage, {
 			data: { ...layoutTestDefaults, user: null, apiKeys: sampleKeys },
 			form: { createdKey }

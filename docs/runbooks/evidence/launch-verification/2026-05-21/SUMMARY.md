@@ -4,6 +4,7 @@ Date: 2026-05-21
 Scope: rerun of the launch-verification proof set after the 2026-05-20 prod fleet outage and recovery. Indexes every evidence subdirectory produced by Stages 1–6 of `may20_3pm_4_launch_verification` and records each stage's honest verdict. Does NOT itself re-run any probes — verdicts below are read directly from each stage's canonical source file.
 
 Overall: **PARTIAL** — 4 PASS (Stages 3–6), 1 FAIL (Stage 1 preflight), 1 DEFERRED (Stage 2 staging browser, upstream staging API 503).
+> **Superseded by:** [`.github/workflows/ci.yml`](../../../../../.github/workflows/ci.yml) and [`scripts/launch/produce_launch_verification_bundle.sh`](../../../../../scripts/launch/produce_launch_verification_bundle.sh) now own staging launch-verification gating and bundle production.
 
 ## Per-stage index
 

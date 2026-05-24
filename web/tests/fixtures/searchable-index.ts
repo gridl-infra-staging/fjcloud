@@ -279,6 +279,46 @@ async function waitForSeededIndexByToken(
 	throw new Error(`seedIndexForCustomer readiness check timed out for "${name}"`);
 }
 
+async function createIndexWithTransientRetries(params: {
+	createOnce: () => Promise<Response>;
+	errorPrefix: string;
+}): Promise<void> {
+	const { createOnce, errorPrefix } = params;
+
+	// Local Playwright CI can report transient backend-unavailable while the
+	// tenant/index route is warming; align this retry budget with key creation.
+	const maxRetries = 20;
+	let lastFailure = 'none';
+
+	for (let attempt = 0; attempt < maxRetries; attempt++) {
+		const indexRes = await createOnce();
+		if (indexRes.ok) {
+			return;
+		}
+
+		const body = await indexRes.text();
+		lastFailure = `${indexRes.status} ${body}`;
+
+		// A retry can race with a previous successful create, which then surfaces
+		// as a duplicate name on the next attempt even though the index exists.
+		if (indexRes.status === 409 && attempt > 0) {
+			return;
+		}
+
+		if (indexRes.status !== 429 && indexRes.status !== 500 && indexRes.status !== 503) {
+			throw new Error(`${errorPrefix}: ${lastFailure}`);
+		}
+
+		const retryAfterSeconds = Number(indexRes.headers.get('retry-after') ?? '');
+		const retryAfterMs =
+			Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0 ? retryAfterSeconds * 1000 : 0;
+		const backoffMs = getTransientRetryDelayMs(attempt);
+		await sleep(Math.max(retryAfterMs, backoffMs));
+	}
+
+	throw new Error(`${errorPrefix} after transient create retries: ${lastFailure}`);
+}
+
 async function createIndexForCustomerWithRetries({
 	apiUrl,
 	adminKey,
@@ -296,45 +336,18 @@ async function createIndexForCustomerWithRetries({
 		createBody.flapjack_url = flapjackUrl;
 	}
 
-	// Local Playwright CI can report transient backend-unavailable while the
-	// tenant/index route is warming; align this retry budget with key creation.
-	const maxRetries = 20;
-	let lastFailure = 'none';
-
-	for (let attempt = 0; attempt < maxRetries; attempt++) {
-		const indexRes = await adminApiCallForTenant(
-			apiUrl,
-			adminKey,
-			'POST',
-			`/admin/tenants/${encodeURIComponent(customerId)}/indexes`,
-			createBody,
-			fetchImpl
-		);
-		if (indexRes.ok) {
-			return;
-		}
-
-		const body = await indexRes.text();
-		lastFailure = `${indexRes.status} ${body}`;
-
-		// A retry can race with a previous successful create, which then surfaces
-		// as a duplicate name on the next attempt even though the index exists.
-		if (indexRes.status === 409 && attempt > 0) {
-			return;
-		}
-
-		if (indexRes.status !== 429 && indexRes.status !== 500 && indexRes.status !== 503) {
-			throw new Error(`seedIndexForCustomer failed: ${lastFailure}`);
-		}
-
-		const retryAfterSeconds = Number(indexRes.headers.get('retry-after') ?? '');
-		const retryAfterMs =
-			Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0 ? retryAfterSeconds * 1000 : 0;
-		const backoffMs = getTransientRetryDelayMs(attempt);
-		await sleep(Math.max(retryAfterMs, backoffMs));
-	}
-
-	throw new Error(`seedIndexForCustomer failed after transient create retries: ${lastFailure}`);
+	await createIndexWithTransientRetries({
+		createOnce: () =>
+			adminApiCallForTenant(
+				apiUrl,
+				adminKey,
+				'POST',
+				`/admin/tenants/${encodeURIComponent(customerId)}/indexes`,
+				createBody,
+				fetchImpl
+			),
+		errorPrefix: 'seedIndexForCustomer failed'
+	});
 }
 
 async function createIndexKeyWithRetries(
@@ -503,19 +516,19 @@ export function createSeedSearchableIndexFactory({
 		);
 		const customerId = await getCustomerId();
 		const flapjackIndexUid = buildTenantScopedIndexUid(customerId, name);
+		const createBody = { name, region: testRegion, flapjack_url: flapjackUrl };
 
 		// Seed the customer index against a real Flapjack endpoint so the browser
 		// spec can exercise live preview behavior without creating the index via UI.
-		const indexRes = await adminApiCall(
-			'POST',
-			`/admin/tenants/${encodeURIComponent(customerId)}/indexes`,
-			{ name, region: testRegion, flapjack_url: flapjackUrl }
-		);
-		if (!indexRes.ok) {
-			throw new Error(
-				`seedSearchableIndex: index creation failed: ${indexRes.status} ${await indexRes.text()}`
-			);
-		}
+		await createIndexWithTransientRetries({
+			createOnce: () =>
+				adminApiCall(
+					'POST',
+					`/admin/tenants/${encodeURIComponent(customerId)}/indexes`,
+					createBody
+				),
+			errorPrefix: 'seedSearchableIndex: index creation failed'
+		});
 
 		// The admin seed returns before the customer routes always see the index.
 		// Poll the same read path the detail page and key creation depend on.

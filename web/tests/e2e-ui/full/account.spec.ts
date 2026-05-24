@@ -14,6 +14,15 @@ import { test, expect } from '../../fixtures/fixtures';
 import { resolveRequiredFixtureUserCredentials } from '../../../playwright.config.contract';
 
 const sharedFixtureUser = resolveRequiredFixtureUserCredentials(process.env);
+const STAGING_CUSTOMER_LOOKUP_UNAVAILABLE_PATTERN =
+	/ssm_exec_staging\.sh (failed to spawn|exited \d+)/i;
+
+function isStagingCustomerLookupUnavailable(error: unknown): boolean {
+	if (!(error instanceof Error)) {
+		return false;
+	}
+	return STAGING_CUSTOMER_LOOKUP_UNAVAILABLE_PATTERN.test(error.message);
+}
 
 test.describe('Account page', () => {
 	test('load-and-verify: renders profile section with email', async ({ page }) => {
@@ -158,7 +167,8 @@ test.describe('Account delete-account flow', () => {
 	test('delete-account danger zone deletes a throwaway account and redirects to /login', async ({
 		page,
 		createFreshSignupIdentity,
-		arrangeFreshSignupToDashboard
+		arrangeFreshSignupToDashboard,
+		findCustomerStatusViaStagingSsm
 	}) => {
 		const signup = createFreshSignupIdentity();
 		const arrangeResult = await arrangeFreshSignupToDashboard(page, signup);
@@ -183,5 +193,22 @@ test.describe('Account delete-account flow', () => {
 
 		await expect(page).toHaveURL(/\/login/, { timeout: 10_000 });
 		await expect(page.getByRole('heading', { name: 'Log in to Flapjack Cloud' })).toBeVisible();
+
+		let customerStatus: Awaited<ReturnType<typeof findCustomerStatusViaStagingSsm>>;
+		try {
+			customerStatus = await findCustomerStatusViaStagingSsm(signup.email);
+		} catch (error) {
+			if (isStagingCustomerLookupUnavailable(error)) {
+				const reason = error instanceof Error ? error.message : String(error);
+				test.skip(
+					true,
+					`account delete lifecycle staging proof unavailable in local env: ${reason}`
+				);
+				return;
+			}
+			throw error;
+		}
+		expect(customerStatus.stagingStatus).toBe('deleted');
+		expect(customerStatus.stagingCustomerId).toMatch(/\S+/);
 	});
 });

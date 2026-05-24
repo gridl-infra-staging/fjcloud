@@ -19,6 +19,15 @@ type SeedCustomerIndexFn = (
 ) => Promise<void>;
 
 const TEST_PASSWORD = 'TestPassword123!';
+const STAGING_CUSTOMER_LOOKUP_UNAVAILABLE_PATTERN =
+	/ssm_exec_staging\.sh (failed to spawn|exited \d+)/i;
+
+function isStagingCustomerLookupUnavailable(error: unknown): boolean {
+	if (!(error instanceof Error)) {
+		return false;
+	}
+	return STAGING_CUSTOMER_LOOKUP_UNAVAILABLE_PATTERN.test(error.message);
+}
 
 async function gotoCustomerDetail(
 	page: Page,
@@ -308,7 +317,8 @@ test.describe('Admin customer detail workflows', () => {
 
 	test('customer detail soft delete redirects to the list and excludes the customer from active rows', async ({
 		page,
-		createUser
+		createUser,
+		findCustomerStatusViaStagingSsm
 	}) => {
 		const { customer, customerName } = await createAdminCustomer(
 			createUser,
@@ -336,11 +346,30 @@ test.describe('Admin customer detail workflows', () => {
 		await page.getByTestId('status-filter').selectOption('active');
 		await expect(filteredRows).toHaveCount(0);
 		await expect(page.getByText('No customers match the current filters.')).toBeVisible();
+
+		let deletedStatus: Awaited<ReturnType<typeof findCustomerStatusViaStagingSsm>>;
+		try {
+			deletedStatus = await findCustomerStatusViaStagingSsm(customer.email);
+		} catch (error) {
+			if (isStagingCustomerLookupUnavailable(error)) {
+				const reason = error instanceof Error ? error.message : String(error);
+				// eslint-disable-next-line playwright/no-skipped-test -- staging SSM lookup is intentionally optional in local envs
+				test.skip(
+					true,
+					`admin customer soft-delete staging proof unavailable in local env: ${reason}`
+				);
+				return;
+			}
+			throw error;
+		}
+		expect(deletedStatus.stagingStatus).toBe('deleted');
+		expect(deletedStatus.stagingCustomerId).toBe(customer.customerId);
 	});
 
 	test('admin suspend to reactivate lifecycle updates status-gated controls', async ({
 		page,
-		createUser
+		createUser,
+		findCustomerStatusViaStagingSsm
 	}) => {
 		const { customer, customerName } = await createAdminCustomer(
 			createUser,
@@ -351,7 +380,24 @@ test.describe('Admin customer detail workflows', () => {
 		await gotoCustomerDetail(page, customer.customerId, customerName);
 
 		const statusBadge = page.getByTestId('customer-status');
+		let preSuspendStatus: Awaited<ReturnType<typeof findCustomerStatusViaStagingSsm>>;
+		try {
+			preSuspendStatus = await findCustomerStatusViaStagingSsm(customer.email);
+		} catch (error) {
+			if (isStagingCustomerLookupUnavailable(error)) {
+				const reason = error instanceof Error ? error.message : String(error);
+				// eslint-disable-next-line playwright/no-skipped-test -- staging SSM lookup is intentionally optional in local envs
+				test.skip(
+					true,
+					`admin customer suspend/reactivate staging proof unavailable in local env: ${reason}`
+				);
+				return;
+			}
+			throw error;
+		}
 		await expect(statusBadge).toHaveText(/active/i);
+		expect(preSuspendStatus.stagingStatus).toBe('active');
+		expect(preSuspendStatus.stagingCustomerId).toBe(customer.customerId);
 		await expect(page.getByTestId('suspend-button')).toBeVisible();
 		await expect(page.getByTestId('reactivate-button')).toHaveCount(0);
 
@@ -359,11 +405,17 @@ test.describe('Admin customer detail workflows', () => {
 		await expect(statusBadge).toHaveText(/suspended/i, { timeout: 10_000 });
 		await expect(page.getByTestId('reactivate-button')).toBeVisible();
 		await expect(page.getByTestId('suspend-button')).toHaveCount(0);
+		const suspendedStatus = await findCustomerStatusViaStagingSsm(customer.email);
+		expect(suspendedStatus.stagingStatus).toBe('suspended');
+		expect(suspendedStatus.stagingCustomerId).toBe(customer.customerId);
 
 		await page.getByTestId('reactivate-button').click();
 		await expect(statusBadge).toHaveText(/active/i, { timeout: 10_000 });
 		await expect(page.getByTestId('suspend-button')).toBeVisible();
 		await expect(page.getByTestId('reactivate-button')).toHaveCount(0);
+		const reactivatedStatus = await findCustomerStatusViaStagingSsm(customer.email);
+		expect(reactivatedStatus.stagingStatus).toBe('active');
+		expect(reactivatedStatus.stagingCustomerId).toBe(customer.customerId);
 	});
 
 	test('admin customer impersonation flow returns to the same detail page', async ({

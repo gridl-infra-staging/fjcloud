@@ -13,7 +13,7 @@ vi.mock('$lib/server/api', () => ({
 	}))
 }));
 
-import { actions, load } from './+page.server';
+import { EMPTY_SCOPE_REQUIRED_ERROR, actions, load } from './+page.server';
 
 describe('API keys page server actions', () => {
 	beforeEach(() => {
@@ -24,8 +24,8 @@ describe('API keys page server actions', () => {
 		createApiKeyMock.mockResolvedValue({
 			id: 'key-1',
 			name: 'Billing Key',
-			key: 'gridl_live_abc123def456abc123def456ab',
-			key_prefix: 'gridl_live_abc12',
+			key: 'fjc_live_abc123def456abc123def456ab',
+			key_prefix: 'fjc_live_abc1234',
 			scopes: ['indexes:read', 'billing:read'],
 			created_at: '2026-03-14T12:00:00Z'
 		});
@@ -49,15 +49,28 @@ describe('API keys page server actions', () => {
 			name: 'Billing Key',
 			scopes: ['indexes:read', 'billing:read']
 		});
-		expect(result).toEqual({ createdKey: 'gridl_live_abc123def456abc123def456ab' });
+		expect(result).toEqual({ createdKey: 'fjc_live_abc123def456abc123def456ab' });
 	});
 
 	it('load redirects to login when api key fetch hits an expired session', async () => {
 		getApiKeysMock.mockRejectedValue(new ApiRequestError(401, 'Unauthorized'));
 
-		await expect(load({ locals: { user: { token: 'jwt-token' } } } as never)).rejects.toMatchObject({
-			status: 303,
-			location: '/login?reason=session_expired'
+		await expect(load({ locals: { user: { token: 'jwt-token' } } } as never)).rejects.toMatchObject(
+			{
+				status: 303,
+				location: '/login?reason=session_expired'
+			}
+		);
+	});
+
+	it('load returns a customer-facing error instead of a false empty-state success', async () => {
+		getApiKeysMock.mockRejectedValue(new ApiRequestError(503, 'Backend temporarily unavailable'));
+
+		const result = await load({ locals: { user: { token: 'jwt-token' } } } as never);
+
+		expect(result).toEqual({
+			apiKeys: [],
+			loadError: 'Backend temporarily unavailable'
 		});
 	});
 
@@ -66,6 +79,8 @@ describe('API keys page server actions', () => {
 
 		const form = new FormData();
 		form.set('name', 'Billing Key');
+		const request = new Request('http://localhost/console/api-keys?/create', {
+		form.append('scope', 'indexes:read');
 		const request = new Request('http://localhost/console/api-keys?/create', {
 			method: 'POST',
 			body: form
@@ -81,6 +96,57 @@ describe('API keys page server actions', () => {
 			data: {
 				_authSessionExpired: true
 			}
+		});
+	});
+
+	it('create rejects before API call when no scopes are selected', async () => {
+		const form = new FormData();
+		form.set('name', 'Billing Key');
+		const request = new Request('http://localhost/console/api-keys?/create', {
+			method: 'POST',
+			body: form
+		});
+
+		const result = await actions.create({
+			request,
+			locals: { user: { token: 'jwt-token' } }
+		} as never);
+
+		expect(result).toEqual({
+			status: 400,
+			data: { error: EMPTY_SCOPE_REQUIRED_ERROR }
+		});
+		expect(createApiKeyMock).not.toHaveBeenCalled();
+	});
+
+	it('create preserves backend validation message for empty scope responses', async () => {
+		const backendValidationMessage = 'choose at least one scope for this key';
+		createApiKeyMock.mockRejectedValue(
+			new ApiRequestError(400, backendValidationMessage, {
+				body: { error: backendValidationMessage }
+			})
+		);
+
+		const form = new FormData();
+		form.set('name', 'Billing Key');
+		form.append('scope', 'indexes:read');
+		const request = new Request('http://localhost/console/api-keys?/create', {
+			method: 'POST',
+			body: form
+		});
+
+		const result = await actions.create({
+			request,
+			locals: { user: { token: 'jwt-token' } }
+		} as never);
+
+		expect(result).toEqual({
+			status: 400,
+			data: { error: backendValidationMessage }
+		});
+		expect(result).not.toEqual({
+			status: 400,
+			data: { error: EMPTY_SCOPE_REQUIRED_ERROR }
 		});
 	});
 

@@ -144,6 +144,38 @@ EOF
     chmod +x "$root/bin/npx"
 }
 
+write_mock_npx_with_trace_artifacts() {
+    local root="$1"
+    mkdir -p "$root/bin"
+    cat > "$root/bin/npx" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+printf '%s\n' "$*" >> "${TEST_NPX_ARGS_FILE:?}"
+
+output_dir=""
+previous=""
+for arg in "$@"; do
+    if [ "$previous" = "--output" ]; then
+        output_dir="$arg"
+        break
+    fi
+    previous="$arg"
+done
+
+if [ -z "$output_dir" ]; then
+    output_dir="$PWD/test-results/default"
+fi
+
+mkdir -p "$output_dir"
+printf 'trace artifact for %s\n' "$*" > "$output_dir/trace.zip"
+printf 'screenshot artifact for %s\n' "$*" > "$output_dir/test-failed-1.png"
+echo "mock trace artifacts created at $output_dir"
+exit 0
+EOF
+    chmod +x "$root/bin/npx"
+}
+
 init_test_repo() {
     local root="$1"
     git -C "$root" init >/dev/null 2>&1
@@ -164,6 +196,7 @@ setup_workspace_runner() {
 
 run_browser_lane_script() {
     local workspace="$1"
+    local lane="${2:-both}"
     local stdout_file="$workspace/stdout.txt"
     local stderr_file="$workspace/stderr.txt"
     local exit_code=0
@@ -173,9 +206,10 @@ run_browser_lane_script() {
             HOME="$workspace" \
             PATH="$workspace/bin:/usr/bin:/bin:/usr/local/bin" \
             TEST_NPX_COUNTER_FILE="$workspace/npx_counter.txt" \
+            TEST_NPX_ARGS_FILE="$workspace/npx_args.txt" \
             BROWSER_LANE_TIMEOUT_SECONDS=1 \
             bash "$workspace/scripts/launch/run_browser_lane_against_staging.sh" \
-                --lane both \
+                --lane "$lane" \
                 --evidence-dir "$workspace/evidence"
     ) >"$stdout_file" 2>"$stderr_file" || exit_code=$?
     RUN_EXIT_CODE="$exit_code"
@@ -243,6 +277,85 @@ test_both_lane_timeout_still_emits_both_lane_logs() {
     rm -rf "$workspace"
 }
 
+test_launcher_copies_trace_artifacts_into_evidence_bundle() {
+    local workspace
+    workspace="$(mktemp -d)"
+    mkdir -p "$workspace/web/tests/fixtures/.auth"
+    setup_workspace_runner "$workspace"
+    install_mock_playwright_test_runtime "$workspace"
+    write_mock_hydrator_with_stripe "$workspace"
+    write_mock_npx_with_trace_artifacts "$workspace"
+    init_test_repo "$workspace"
+
+    run_browser_lane_script "$workspace"
+
+    local sentinel_path trace_root sentinel_content
+    sentinel_path="$workspace/evidence/trace_copy_summary.json"
+    trace_root="$workspace/evidence/playwright-traces"
+    sentinel_content="$(cat "$sentinel_path" 2>/dev/null || true)"
+
+    assert_eq "$RUN_EXIT_CODE" "0" "trace artifact fixture run should exit 0"
+    assert_file_exists "$sentinel_path" "launcher should emit machine-readable trace copy sentinel"
+    assert_file_exists "$trace_root/signup_to_paid_invoice/trace.zip" "signup lane trace should be copied into evidence bundle"
+    assert_file_exists "$trace_root/billing_portal_payment_method_update/trace.zip" "billing lane trace should be copied into evidence bundle"
+    assert_contains "$sentinel_content" "\"trace_files_copied\": 4" "sentinel should report number of copied trace artifacts"
+    assert_contains "$sentinel_content" "\"source_directories\": [" "sentinel should record inspected source directories"
+
+    rm -rf "$workspace"
+}
+
+test_launcher_requests_deterministic_trace_and_lane_output() {
+    local workspace
+    workspace="$(mktemp -d)"
+    mkdir -p "$workspace/web/tests/fixtures/.auth"
+    setup_workspace_runner "$workspace"
+    install_mock_playwright_test_runtime "$workspace"
+    write_mock_hydrator_with_stripe "$workspace"
+    write_mock_npx_with_trace_artifacts "$workspace"
+    init_test_repo "$workspace"
+
+    run_browser_lane_script "$workspace"
+
+    local npx_args
+    npx_args="$(cat "$workspace/npx_args.txt" 2>/dev/null || true)"
+    assert_contains "$npx_args" "--trace on" "launcher should request deterministic trace capture in run_one_lane"
+    assert_contains "$npx_args" "--output test-results/signup_to_paid_invoice" "signup lane should use deterministic lane-scoped output directory"
+    assert_contains "$npx_args" "--output test-results/billing_portal_payment_method_update" "billing lane should use deterministic lane-scoped output directory"
+
+    rm -rf "$workspace"
+}
+
+test_single_lane_run_excludes_stale_opposite_lane_trace_artifacts() {
+    local workspace
+    workspace="$(mktemp -d)"
+    mkdir -p "$workspace/web/tests/fixtures/.auth"
+    setup_workspace_runner "$workspace"
+    install_mock_playwright_test_runtime "$workspace"
+    write_mock_hydrator_with_stripe "$workspace"
+    write_mock_npx_with_trace_artifacts "$workspace"
+    init_test_repo "$workspace"
+
+    mkdir -p "$workspace/web/test-results/billing_portal_payment_method_update/stale"
+    printf 'stale billing lane artifact\n' > "$workspace/web/test-results/billing_portal_payment_method_update/stale/trace.zip"
+
+    run_browser_lane_script "$workspace" "signup_to_paid_invoice"
+
+    local sentinel_path sentinel_content
+    sentinel_path="$workspace/evidence/trace_copy_summary.json"
+    sentinel_content="$(cat "$sentinel_path" 2>/dev/null || true)"
+
+    assert_eq "$RUN_EXIT_CODE" "0" "single-lane trace fixture run should exit 0"
+    assert_file_exists "$workspace/evidence/playwright-traces/signup_to_paid_invoice/trace.zip" "single-lane run should still copy active lane traces"
+    if [ -e "$workspace/evidence/playwright-traces/billing_portal_payment_method_update/stale/trace.zip" ]; then
+        fail "single-lane run must not copy stale opposite-lane traces from previous runs"
+    else
+        pass "single-lane run excludes stale opposite-lane traces"
+    fi
+    assert_contains "$sentinel_content" "\"trace_files_copied\": 2" "single-lane sentinel should only count copied files from the requested lane"
+
+    rm -rf "$workspace"
+}
+
 test_missing_stripe_contract_fails_closed_before_playwright() {
     local workspace
     workspace="$(mktemp -d)"
@@ -263,6 +376,43 @@ test_missing_stripe_contract_fails_closed_before_playwright() {
     assert_eq "$npx_counter" "" "playwright should not run when Stripe contract hydration fails"
 
     rm -rf "$workspace"
+}
+
+test_evidence_dir_outside_repo_is_rejected() {
+    local workspace outside_dir
+    workspace="$(mktemp -d)"
+    outside_dir="$(mktemp -d)"
+    mkdir -p "$workspace/web/tests/fixtures/.auth"
+    setup_workspace_runner "$workspace"
+    install_mock_playwright_test_runtime "$workspace"
+    write_mock_hydrator_with_stripe "$workspace"
+    write_mock_npx_with_trace_artifacts "$workspace"
+    init_test_repo "$workspace"
+
+    local stdout_file="$workspace/outside_stdout.txt"
+    local stderr_file="$workspace/outside_stderr.txt"
+    local exit_code=0
+    (
+        cd "$workspace"
+        env -i \
+            HOME="$workspace" \
+            PATH="$workspace/bin:/usr/bin:/bin:/usr/local/bin" \
+            TEST_NPX_COUNTER_FILE="$workspace/npx_counter.txt" \
+            TEST_NPX_ARGS_FILE="$workspace/npx_args.txt" \
+            BROWSER_LANE_TIMEOUT_SECONDS=1 \
+            bash "$workspace/scripts/launch/run_browser_lane_against_staging.sh" \
+                --lane signup_to_paid_invoice \
+                --evidence-dir "$outside_dir/outside-evidence"
+    ) >"$stdout_file" 2>"$stderr_file" || exit_code=$?
+
+    RUN_EXIT_CODE="$exit_code"
+    RUN_STDOUT="$(cat "$stdout_file" 2>/dev/null || true)"
+    RUN_STDERR="$(cat "$stderr_file" 2>/dev/null || true)"
+
+    assert_eq "$RUN_EXIT_CODE" "1" "launcher rejects evidence dirs outside repo root"
+    assert_contains "$RUN_STDERR" "evidence dir must stay within repo root" "launcher explains repo-owned evidence-dir requirement"
+
+    rm -rf "$workspace" "$outside_dir"
 }
 
 test_watchdog_does_not_delay_piped_execution_after_fast_failure() {
@@ -313,7 +463,11 @@ test_default_lane_timeout_fails_closed_contract() {
 
 echo "=== run_browser_lane_against_staging contract tests ==="
 test_both_lane_timeout_still_emits_both_lane_logs
+test_launcher_copies_trace_artifacts_into_evidence_bundle
+test_launcher_requests_deterministic_trace_and_lane_output
+test_single_lane_run_excludes_stale_opposite_lane_trace_artifacts
 test_missing_stripe_contract_fails_closed_before_playwright
+test_evidence_dir_outside_repo_is_rejected
 test_watchdog_does_not_delay_piped_execution_after_fast_failure
 test_missing_playwright_runtime_fails_closed_before_npx
 test_default_lane_timeout_fails_closed_contract

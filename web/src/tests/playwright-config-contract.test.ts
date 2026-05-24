@@ -1045,13 +1045,13 @@ describe('playwright config contract', () => {
 		expect(authSetupSource).toContain('setup.setTimeout(AUTH_SETUP_TIMEOUT_MS);');
 	});
 
-	it('playwright CI job sources STRIPE_SECRET_KEY strictly from secrets without placeholder fallback', () => {
-		const ciWorkflowSource = readFileSync(join(process.cwd(), '../.github/workflows/ci.yml'), 'utf8');
-		expect(ciWorkflowSource).toMatch(
-			/playwright:[\s\S]*env:[\s\S]*STRIPE_SECRET_KEY:\s*\$\{\{\s*secrets\.STRIPE_SECRET_KEY\s*\}\}/m
-		);
-		expect(ciWorkflowSource).not.toContain('sk_test_ci_placeholder');
-	});
+		it('playwright CI job relies on launch wrapper owner and avoids placeholder Stripe secrets', () => {
+			const ciWorkflowSource = readFileSync(join(process.cwd(), '../.github/workflows/ci.yml'), 'utf8');
+			expect(ciWorkflowSource).toMatch(
+				/e2e-deployed:[\s\S]*Run deployed staging browser lane wrapper[\s\S]*bash scripts\/launch\/produce_launch_verification_bundle\.sh/m
+			);
+			expect(ciWorkflowSource).not.toContain('sk_test_ci_placeholder');
+		});
 			});
 
 	describe('applyPlaywrightProcessEnvDefaults + resolvePlaywrightRuntime admin key consistency', () => {

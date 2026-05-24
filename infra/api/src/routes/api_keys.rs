@@ -45,7 +45,7 @@ fn generate_api_key() -> String {
     use rand::rngs::OsRng;
     use rand::Rng;
     let random_bytes: [u8; 16] = OsRng.gen();
-    format!("gridl_live_{}", hex::encode(random_bytes))
+    format!("fjc_live_{}", hex::encode(random_bytes))
 }
 
 fn hash_key(key: &str) -> String {
@@ -69,7 +69,7 @@ fn hash_key(key: &str) -> String {
 /// `POST /api-keys` — generate a new API key for the authenticated customer.
 ///
 /// **Auth:** JWT (`AuthenticatedTenant`).
-/// Validates the name and scopes, generates a `gridl_live_`-prefixed random
+/// Validates the name and scopes, generates a `fjc_live_`-prefixed random
 /// key, stores its SHA-256 hash (never the plaintext), and returns the full
 /// key **exactly once** in `CreateApiKeyResponse.key`. Subsequent listings
 /// only expose the 16-character prefix.

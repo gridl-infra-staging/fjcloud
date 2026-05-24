@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { seedSearchableIndexForCustomer } from '../../tests/fixtures/searchable-index';
+import {
+	createSeedSearchableIndexFactory,
+	seedSearchableIndexForCustomer
+} from '../../tests/fixtures/searchable-index';
 
 function jsonResponse(body: unknown, status = 200): Response {
 	return new Response(JSON.stringify(body), {
@@ -237,5 +240,76 @@ describe('seedSearchableIndexForCustomer', () => {
 		});
 
 		expect(adminCreateAttempts).toBe(9);
+	});
+});
+
+describe('createSeedSearchableIndexFactory', () => {
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
+	it('retries transient admin index creation failures before seeding documents', async () => {
+		vi.spyOn(globalThis, 'setTimeout').mockImplementation(((
+			handler: TimerHandler
+		): ReturnType<typeof setTimeout> => {
+			if (typeof handler === 'function') {
+				handler();
+			}
+			return 0 as unknown as ReturnType<typeof setTimeout>;
+		}) as unknown as typeof setTimeout);
+
+		const indexName = 'factory-admin-retry-index';
+		let adminCreateAttempts = 0;
+		const waitForSeededIndex = vi.fn(async () => undefined);
+		const getCustomerId = vi.fn(async () => 'customer-1');
+		const adminApiCall = vi.fn(async () => {
+			adminCreateAttempts += 1;
+			if (adminCreateAttempts <= 3) {
+				return new Response('{"error":"backend temporarily unavailable"}', {
+					status: 503,
+					headers: { 'retry-after': '1' }
+				});
+			}
+			return textResponse('', 200);
+		});
+		const apiCall = vi.fn(async (method: string, path: string) => {
+			if (method === 'POST' && path === `/indexes/${encodeURIComponent(indexName)}/keys`) {
+				return jsonResponse({ key: 'test-key' }, 200);
+			}
+
+			if (method === 'POST' && path === `/indexes/${encodeURIComponent(indexName)}/search`) {
+				return jsonResponse({ hits: [{ title: 'Rust Programming Language' }] }, 200);
+			}
+
+			throw new Error(`Unexpected request: ${method} ${path}`);
+		});
+		vi.spyOn(globalThis, 'fetch').mockImplementation(async (input: RequestInfo | URL) => {
+			const requestUrl =
+				typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+			const { pathname } = new URL(requestUrl);
+			if (pathname === `/1/indexes/customer1_${encodeURIComponent(indexName)}/batch`) {
+				return textResponse('', 200);
+			}
+
+			throw new Error(`Unexpected fetch request: ${pathname}`);
+		});
+
+		const seedSearchableIndex = createSeedSearchableIndexFactory({
+			testRegion: 'us-east-1',
+			apiCall,
+			adminApiCall,
+			getCustomerId,
+			waitForSeededIndex,
+			flapjackUrl: 'http://127.0.0.1:7700'
+		});
+
+		await expect(seedSearchableIndex(indexName)).resolves.toEqual({
+			name: indexName,
+			query: 'Rust',
+			expectedHitText: 'Rust Programming Language'
+		});
+
+		expect(adminCreateAttempts).toBe(4);
+		expect(waitForSeededIndex).toHaveBeenCalledWith(indexName);
 	});
 });

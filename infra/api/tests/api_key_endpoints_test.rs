@@ -57,22 +57,25 @@ async fn create_returns_key_only_once() {
 
     let json = body_json(resp.into_body()).await;
     assert_eq!(json["name"], "Production Key");
-    assert!(json["key"].as_str().unwrap().starts_with("gridl_live_"));
-    assert!(json["key_prefix"].is_string());
+    let key_str = json["key"].as_str().unwrap();
+    assert!(key_str.starts_with("fjc_live_"));
+    assert_eq!(key_str.len(), 41); // fjc_live_ (9) + 32 hex chars
+    let issued_prefix = &key_str[..16];
+    let key_prefix = json["key_prefix"].as_str().unwrap();
+    assert_eq!(key_prefix.len(), 16);
+    assert!(key_prefix.starts_with("fjc_live_"));
+    assert_eq!(key_prefix, issued_prefix);
     assert!(json["id"].is_string());
     assert_eq!(
         json["scopes"],
         serde_json::json!(["indexes:read", "indexes:write"])
     );
 
-    // key field is returned on creation
-    let key_str = json["key"].as_str().unwrap();
-    assert_eq!(key_str.len(), 43); // gridl_live_ (11) + 32 hex chars
-
     // Listing does NOT return the full key
     let customer_id = customer.id;
     let keys = api_key_repo.list_by_customer(customer_id).await.unwrap();
     assert_eq!(keys.len(), 1);
+    assert_eq!(keys[0].key_prefix, issued_prefix);
     // key_hash is present but serialization skips it
     let serialized = serde_json::to_value(&keys[0]).unwrap();
     assert!(serialized.get("key_hash").is_none()); // #[serde(skip_serializing)]
@@ -254,7 +257,7 @@ async fn scopes_stored_correctly() {
 }
 
 #[tokio::test]
-async fn create_issues_gridl_live_prefix() {
+async fn create_issues_fjc_live_prefix() {
     let customer_repo = mock_repo();
     let customer = customer_repo.seed("Test User", "test@example.com");
     let api_key_repo = mock_api_key_repo();
@@ -285,14 +288,21 @@ async fn create_issues_gridl_live_prefix() {
     let json = body_json(resp.into_body()).await;
     let key = json["key"].as_str().unwrap();
     assert!(
-        key.starts_with("gridl_live_"),
-        "new keys must use gridl_live_ prefix, got: {key}"
+        key.starts_with("fjc_live_"),
+        "new keys must use fjc_live_ prefix, got: {key}"
     );
-    assert_eq!(key.len(), 43); // gridl_live_ (11) + 32 hex chars
+    assert_eq!(key.len(), 41); // fjc_live_ (9) + 32 hex chars
 
     let prefix = json["key_prefix"].as_str().unwrap();
     assert_eq!(prefix.len(), 16);
-    assert!(prefix.starts_with("gridl_live_"));
+    assert!(prefix.starts_with("fjc_live_"));
+    assert_eq!(prefix, &key[..16]);
+
+    let keys = api_key_repo.list_by_customer(customer.id).await.unwrap();
+    assert_eq!(keys.len(), 1);
+    assert_eq!(keys[0].key_prefix.len(), 16);
+    assert!(keys[0].key_prefix.starts_with("fjc_live_"));
+    assert_eq!(keys[0].key_prefix, &key[..16]);
 }
 
 /// API key names exceeding 128 chars should be rejected.

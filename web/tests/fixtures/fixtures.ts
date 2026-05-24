@@ -12,8 +12,11 @@
 import { test as base, expect, type Page } from '@playwright/test';
 import { createSeedSearchableIndexFactory, type SeedSearchableIndexFn } from './searchable-index';
 import {
+	findCustomerStatusViaStagingSsm,
 	findPaidInvoiceEvidenceViaStagingSsm,
-	findVerificationTokenViaStagingSsm
+	findVerificationTokenViaStagingSsm,
+	type StagingCustomerStatusEvidence,
+	type StagingPaidInvoiceEvidence
 } from './staging_db_lookup';
 import { readStripeDefaultPaymentMethod } from './staging_stripe_lookup';
 import {
@@ -26,7 +29,7 @@ import {
 import { AUTH_COOKIE } from '../../src/lib/server/auth-session-contracts';
 import { requireAdminApiKey, requireNonEmptyString } from './contract-guards';
 import { attemptRemoteSignupFallback, isRemoteTargetMode } from './fresh_signup_remote_bootstrap';
-import type { EstimatedBillResponse } from '../../src/lib/api/types';
+import type { ApiKeyListItem, EstimatedBillResponse } from '../../src/lib/api/types';
 import type { AdminRateCard } from '../../src/lib/admin-client';
 import {
 	pricingContractSnapshotFromAdminRateCard,
@@ -280,7 +283,7 @@ async function callJsonApi(
 	return fetchImpl(`${apiUrl}${path}`, buildJsonRequestInit(method, headers, body));
 }
 
-function sleep(ms: number): Promise<void> {
+export function sleep(ms: number): Promise<void> {
 	return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
@@ -893,6 +896,9 @@ async function adminApiCall(method: string, path: string, body?: unknown): Promi
 
 async function deleteTrackedCustomerForCleanup(customerId: string): Promise<void> {
 	const response = await adminApiCall('DELETE', `/admin/tenants/${encodeURIComponent(customerId)}`);
+	if (response.status === 404) {
+		return;
+	}
 	if (!response.ok) {
 		throw new Error(
 			`tracked fixture customer cleanup failed for ${customerId}: ${response.status} ${await response.text()}`
@@ -1021,12 +1027,20 @@ async function createSeededIndex(
 }
 
 async function getCurrentBillingPlan(tokenOverride?: string): Promise<'free' | 'shared'> {
-	const res = await apiCall('GET', '/account', undefined, tokenOverride);
-	if (!res.ok) {
-		throw new Error(`GET /account failed: ${res.status} ${await res.text()}`);
+	for (let attempt = 0; attempt < TRANSIENT_API_MAX_RETRIES; attempt += 1) {
+		const res = await apiCall('GET', '/account', undefined, tokenOverride);
+		if (res.status === 429) {
+			await sleep(getRetryDelayMs(attempt, res.headers.get('retry-after')));
+			continue;
+		}
+		if (!res.ok) {
+			throw new Error(`GET /account failed: ${res.status} ${await res.text()}`);
+		}
+		const data = (await res.json()) as { billing_plan: 'free' | 'shared' };
+		return data.billing_plan;
 	}
-	const data = (await res.json()) as { billing_plan: 'free' | 'shared' };
-	return data.billing_plan;
+
+	throw new Error('GET /account failed: exhausted retries after 429 rate limiting');
 }
 
 async function updateBillingPlan(
@@ -1324,25 +1338,36 @@ async function completeFreshSignupEmailVerificationViaRoute(
 		// Remote browser lanes can target a deployed frontend host whose
 		// verify-email route is not guaranteed to consume staging tokens via the
 		// same API origin as fixtureEnv.apiUrl. In remote mode, consume the
-		// token through the staging API seam first, then let specs assert browser
-		// replay behavior on /verify-email/{token}.
-		if (process.env[REMOTE_TARGET_OPT_IN_ENV] === '1') {
-			const verifyResponse = await callJsonApi(
-				fetch,
-				fixtureEnv.apiUrl,
-				'POST',
-				'/auth/verify-email',
-				{},
-				{ token: verificationToken }
-			);
-			if (!verifyResponse.ok) {
-				throw new Error(
-					`staging API verify-email failed: ${verifyResponse.status} ${await verifyResponse.text()}`
-				);
+			// token through the staging API seam first, then let specs assert browser
+			// replay behavior on /verify-email/{token}.
+			if (process.env[REMOTE_TARGET_OPT_IN_ENV] === '1') {
+				for (let attempt = 0; attempt < TRANSIENT_API_MAX_RETRIES; attempt += 1) {
+					const verifyResponse = await callJsonApi(
+						fetch,
+						fixtureEnv.apiUrl,
+						'POST',
+						'/auth/verify-email',
+						{},
+						{ token: verificationToken }
+					);
+					if (verifyResponse.status === 429) {
+						await sleep(getRetryDelayMs(attempt, verifyResponse.headers.get('retry-after')));
+						continue;
+					}
+					if (!verifyResponse.ok) {
+						throw new Error(
+							`staging API verify-email failed: ${verifyResponse.status} ${await verifyResponse.text()}`
+						);
+					}
+					await page.context().clearCookies();
+					// Cooldown before the spec navigates to /verify-email/{token} in the
+					// browser — the SvelteKit server makes a second API call and upstream
+					// rate limiters (Cloudflare) can reject it if it arrives too soon.
+					await sleep(3000);
+					return { verificationToken };
+				}
+				throw new Error('staging API verify-email failed: exhausted retries after 429 rate limiting');
 			}
-			await page.context().clearCookies();
-			return { verificationToken };
-		}
 
 		// Public auth pages redirect authenticated users to /console, so clear
 		// auth cookies before exercising the verify-email success contract.
@@ -1557,18 +1582,25 @@ async function arrangeBillingPortalCustomer({
 			trackCustomerForCleanup
 		});
 		const verificationToken = await findFreshSignupVerificationToken(email);
-		const verifyResponse = await callJsonApi(
-			fetch,
-			fixtureEnv.apiUrl,
-			'POST',
-			'/auth/verify-email',
-			{},
-			{ token: verificationToken }
-		);
-		if (!verifyResponse.ok) {
-			throw new Error(
-				`arrangeBillingPortalCustomer verify-email failed: ${verifyResponse.status} ${await verifyResponse.text()}`
+		for (let attempt = 0; attempt < TRANSIENT_API_MAX_RETRIES; attempt += 1) {
+			const verifyResponse = await callJsonApi(
+				fetch,
+				fixtureEnv.apiUrl,
+				'POST',
+				'/auth/verify-email',
+				{},
+				{ token: verificationToken }
 			);
+			if (verifyResponse.status === 429) {
+				await sleep(getRetryDelayMs(attempt, verifyResponse.headers.get('retry-after')));
+				continue;
+			}
+			if (!verifyResponse.ok) {
+				throw new Error(
+					`arrangeBillingPortalCustomer verify-email failed: ${verifyResponse.status} ${await verifyResponse.text()}`
+				);
+			}
+			break;
 		}
 		const token = await loginAsUser({
 			apiUrl: fixtureEnv.apiUrl,
@@ -2109,11 +2141,12 @@ type SeedCustomerIndexFn = (
 type RegisterIndexForCleanupFn = (name: string) => void;
 type CleanupFixtureIndexesFn = () => Promise<void>;
 type SeedApiKeyFn = (name: string, scopes?: string[]) => Promise<{ id: string }>;
+type ListApiKeysFn = () => Promise<ApiKeyListItem[]>;
 type SetBillingPlanFn = (plan: 'free' | 'shared') => Promise<void>;
 type SeedInvoiceFn = () => Promise<{ id: string }>;
 type SeedInvoiceWithPdfUrlFn = () => Promise<{ id: string }>;
 type CreateUserFn = (email: string, password: string, name?: string) => Promise<CreatedFixtureUser>;
-type LoginAsFn = (email: string, password: string) => Promise<string>;
+export type LoginAsFn = (email: string, password: string) => Promise<string>;
 type WaitForStripeDefaultPaymentMethodFn = (
 	stripeCustomerId: string,
 	expectedPaymentMethodId: string
@@ -2128,6 +2161,10 @@ type AdminSuspendCustomerFn = (customerId: string) => Promise<void>;
 type GetDisposableTenantRateCardSnapshotFn = () => Promise<MarketingPricingContractSnapshot>;
 type ArrangeBillingPortalCustomerFn = () => Promise<ArrangeBillingPortalCustomerResult>;
 type CreateFreshSignupIdentityFn = () => FreshSignupIdentity;
+type FindCustomerStatusViaStagingSsmFn = (email: string) => Promise<StagingCustomerStatusEvidence>;
+type FindPaidInvoiceEvidenceViaStagingSsmFn = (
+	invoiceId: string
+) => Promise<StagingPaidInvoiceEvidence>;
 type CompleteFreshSignupEmailVerificationFn = (
 	page: Page,
 	email: string
@@ -2149,6 +2186,8 @@ type ThrowFreshSignupArrangeFailureFn = (input: {
 }) => never;
 
 type E2eFixtures = {
+	/** Resolved API origin from resolveFixtureEnv (single env-contract owner). */
+	apiUrl: string;
 	/** Seed an index via the admin API and auto-delete after the test. */
 	seedIndex: SeedIndexFn;
 	/** Seed an index for a newly-created customer fixture without switching browser auth state. */
@@ -2159,6 +2198,8 @@ type E2eFixtures = {
 	cleanupFixtureIndexes: CleanupFixtureIndexesFn;
 	/** Seed an API key and auto-revoke after the test. */
 	seedApiKey: SeedApiKeyFn;
+	/** Read API-key rows for the authenticated customer through fixture-owned API access. */
+	listApiKeys: ListApiKeysFn;
 	/** Temporarily switch the authenticated customer between free and shared plans. */
 	setBillingPlan: SetBillingPlanFn;
 	/** Seed an index backed by Flapjack with searchable documents. */
@@ -2187,6 +2228,10 @@ type E2eFixtures = {
 	arrangeBillingPortalCustomer: ArrangeBillingPortalCustomerFn;
 	/** Create unique, deterministic signup credentials for fresh-user browser flows. */
 	createFreshSignupIdentity: CreateFreshSignupIdentityFn;
+	/** Read customer status evidence from staging DB through the shared lookup seam. */
+	findCustomerStatusViaStagingSsm: FindCustomerStatusViaStagingSsmFn;
+	/** Read paid-invoice evidence for the fixture user from staging DB through the shared lookup seam. */
+	findPaidInvoiceEvidenceViaStagingSsm: FindPaidInvoiceEvidenceViaStagingSsmFn;
 	/** Resolve a real Mailpit token and complete /verify-email/{token} in the browser. */
 	completeFreshSignupEmailVerification: CompleteFreshSignupEmailVerificationFn;
 	/** Advance a fresh verified signup through paid billing and invoice-email evidence. */
@@ -2248,6 +2293,10 @@ export const test = base.extend<E2eFixtures & E2eInternalFixtures>({
 
 	testRegion: async ({}, use) => {
 		await use(fixtureEnv.testRegion);
+	},
+
+	apiUrl: async ({}, use) => {
+		await use(fixtureEnv.apiUrl);
 	},
 
 	_trackIndexForCleanup: async ({}, use) => {
@@ -2312,6 +2361,22 @@ export const test = base.extend<E2eFixtures & E2eInternalFixtures>({
 
 	createFreshSignupIdentity: async ({}, use) => {
 		await use(() => buildFreshSignupIdentity());
+	},
+
+	findCustomerStatusViaStagingSsm: async ({}, use) => {
+		await use((email) => findCustomerStatusViaStagingSsm(email));
+	},
+
+	findPaidInvoiceEvidenceViaStagingSsm: async ({}, use) => {
+		await use((invoiceId: string) =>
+			findPaidInvoiceEvidenceViaStagingSsm(
+				requireNonEmptyString(
+					fixtureEnv.userEmail ?? '',
+					'findPaidInvoiceEvidenceViaStagingSsm requires fixture user email'
+				),
+				invoiceId
+			)
+		);
 	},
 
 	completeFreshSignupEmailVerification: async ({}, use) => {
@@ -2484,6 +2549,20 @@ export const test = base.extend<E2eFixtures & E2eInternalFixtures>({
 				/* ignore — may already be gone */
 			});
 		}
+	},
+
+	listApiKeys: async ({}, use) => {
+		await use(async () => {
+			const res = await apiCall('GET', '/api-keys');
+			if (!res.ok) {
+				throw new Error(`listApiKeys failed: ${res.status} ${await res.text()}`);
+			}
+			const data = (await res.json()) as unknown;
+			if (!Array.isArray(data)) {
+				throw new Error('listApiKeys failed: expected array response from /api-keys');
+			}
+			return data as ApiKeyListItem[];
+		});
 	},
 
 	setBillingPlan: async ({}, use) => {

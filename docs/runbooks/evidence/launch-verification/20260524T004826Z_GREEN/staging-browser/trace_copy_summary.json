@@ -1,0 +1,6 @@
+{
+  "copy_ran": true,
+  "trace_bundle_subdir": "playwright-traces",
+  "trace_files_copied": 4,
+  "source_directories": ["/Users/stuart/parallel_development/fjcloud_dev/may23_pm_1_ci_layer_split/fjcloud_dev/web/test-results/signup_to_paid_invoice", "/Users/stuart/parallel_development/fjcloud_dev/may23_pm_1_ci_layer_split/fjcloud_dev/web/test-results/billing_portal_payment_method_update"]
+}

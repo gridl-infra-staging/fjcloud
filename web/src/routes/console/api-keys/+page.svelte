@@ -1,13 +1,18 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import { formatDate, scopeLabel, MANAGEMENT_SCOPES } from '$lib/format';
+	import { DEFAULT_MANAGEMENT_SCOPE, formatDate, scopeLabel, MANAGEMENT_SCOPES } from '$lib/format';
 	import type { ApiKeyListItem } from '$lib/api/types';
 
 	let { data, form: formResult } = $props();
 
 	let apiKeys: ApiKeyListItem[] = $derived(data.apiKeys ?? []);
-	let errorMessage = $derived((formResult?.error as string) ?? '');
+	let formErrorMessage = $derived((formResult?.error as string) ?? '');
+	let loadErrorMessage = $derived((data.loadError as string) ?? '');
+	let errorMessage = $derived(formErrorMessage || loadErrorMessage);
 	let createdKey = $derived((formResult?.createdKey as string) ?? '');
+	let selectedScopes = $state<string[]>(
+		DEFAULT_MANAGEMENT_SCOPE === '' ? [] : [DEFAULT_MANAGEMENT_SCOPE]
+	);
 </script>
 
 <svelte:head>
@@ -58,7 +63,20 @@
 				<div class="flex flex-wrap gap-4">
 					{#each MANAGEMENT_SCOPES as scope (scope.value)}
 						<label class="flex items-center gap-1.5 text-sm text-gray-700">
-							<input type="checkbox" name="scope" value={scope.value} />
+							<input
+								type="checkbox"
+								name="scope"
+								value={scope.value}
+								checked={selectedScopes.includes(scope.value)}
+								onchange={(event) => {
+									const input = event.currentTarget as HTMLInputElement;
+									if (input.checked) {
+										selectedScopes = [...selectedScopes, scope.value];
+										return;
+									}
+									selectedScopes = selectedScopes.filter((value) => value !== scope.value);
+								}}
+							/>
 							{scope.label}
 						</label>
 					{/each}
@@ -66,6 +84,7 @@
 			</div>
 			<button
 				type="submit"
+				disabled={selectedScopes.length === 0}
 				class="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
 			>
 				Create key
@@ -74,9 +93,11 @@
 	</div>
 
 	{#if apiKeys.length === 0}
-		<div class="rounded-lg bg-white p-6 text-center shadow">
-			<p class="text-gray-600">No API keys. Create one to get started.</p>
-		</div>
+		{#if !loadErrorMessage}
+			<div class="rounded-lg bg-white p-6 text-center shadow">
+				<p class="text-gray-600">No API keys. Create one to get started.</p>
+			</div>
+		{/if}
 	{:else}
 		<div class="overflow-hidden rounded-lg bg-white shadow">
 			<table class="w-full text-left text-sm">

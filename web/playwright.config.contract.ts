@@ -5,13 +5,14 @@ import { requireNonBlankString, requireNonEmptyString } from './tests/fixtures/c
 export const DEFAULT_PLAYWRIGHT_BASE_URL = 'http://localhost:5173';
 export const DEFAULT_PLAYWRIGHT_ADMIN_KEY = `playwright-local-admin-${randomUUID()}`;
 export const PLAYWRIGHT_WEB_SERVER_COMMAND =
-	'../scripts/playwright_local_stack.sh --host 127.0.0.1 --port 5173 --strictPort';
+	'../scripts/playwright_local_stack.sh --force-api-restart --host 127.0.0.1 --port 5173 --strictPort';
 export const PLAYWRIGHT_STORAGE_STATE = {
 	user: 'tests/fixtures/.auth/user.json',
 	onboarding: 'tests/fixtures/.auth/onboarding.json',
 	customerJourneys: 'tests/fixtures/.auth/customer-journeys.json',
 	admin: 'tests/fixtures/.auth/admin.json'
 } as const;
+export const PLAYWRIGHT_WEB_SERVER_TIMEOUT_MS = 180_000;
 // Firefox/WebKit dropped 2026-05-02. Playwright-on-Linux WebKit isn't real
 // Safari (no ITP, no Apple Pay, no Stripe 3DS quirks), and Firefox is
 // ~3-6% of users — neither earns its CI cycle cost at paid-beta scale.
@@ -313,7 +314,7 @@ export function resolvePlaywrightRuntime({
 		...webEnv,
 		API_BASE_URL: apiBaseUrl,
 		JWT_SECRET:
-			webEnv.JWT_SECRET ?? repoEnv.JWT_SECRET ?? processEnv.JWT_SECRET ?? fallbackJwtSecret,
+			processEnv.JWT_SECRET ?? webEnv.JWT_SECRET ?? repoEnv.JWT_SECRET ?? fallbackJwtSecret,
 		ADMIN_KEY:
 			processEnv.E2E_ADMIN_KEY ??
 			webEnv.ADMIN_KEY ??
@@ -343,7 +344,7 @@ export function resolvePlaywrightRuntime({
 					env: webServerEnv,
 					url: DEFAULT_PLAYWRIGHT_BASE_URL,
 					reuseExistingServer: false,
-					timeout: 30_000
+					timeout: PLAYWRIGHT_WEB_SERVER_TIMEOUT_MS
 				}
 	};
 }

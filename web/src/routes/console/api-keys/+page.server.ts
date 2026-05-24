@@ -2,11 +2,14 @@ import type { PageServerLoad, Actions } from './$types';
 import { createApiClient } from '$lib/server/api';
 import {
 	DASHBOARD_SESSION_EXPIRED_REDIRECT,
+	customerFacingErrorMessage,
 	isDashboardSessionExpiredError,
 	mapDashboardSessionFailure
 } from '$lib/server/auth-action-errors';
 import { fail } from '@sveltejs/kit';
 import { redirect } from '@sveltejs/kit';
+
+export const EMPTY_SCOPE_REQUIRED_ERROR = 'at least one scope is required';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	const api = createApiClient(locals.user?.token);
@@ -17,7 +20,10 @@ export const load: PageServerLoad = async ({ locals }) => {
 		if (isDashboardSessionExpiredError(error)) {
 			redirect(303, DASHBOARD_SESSION_EXPIRED_REDIRECT);
 		}
-		return { apiKeys: [] };
+		return {
+			apiKeys: [],
+			loadError: customerFacingErrorMessage(error, 'Failed to load API keys')
+		};
 	}
 };
 
@@ -30,6 +36,7 @@ export const actions: Actions = {
 		const scopes = data
 			.getAll('scope')
 			.filter((value): value is string => typeof value === 'string');
+		if (scopes.length === 0) return fail(400, { error: EMPTY_SCOPE_REQUIRED_ERROR });
 
 		const api = createApiClient(locals.user?.token);
 		try {
@@ -38,7 +45,7 @@ export const actions: Actions = {
 		} catch (error) {
 			const sessionFailure = mapDashboardSessionFailure(error);
 			if (sessionFailure) return sessionFailure;
-			return fail(400, { error: 'Failed to create API key' });
+			return fail(400, { error: customerFacingErrorMessage(error, 'Failed to create API key') });
 		}
 	},
 	revoke: async ({ request, locals }) => {

@@ -88,6 +88,14 @@ describe('e2e fixture user helpers', () => {
 		);
 	});
 
+	it('treats already-deleted fixture tenants as converged cleanup success', () => {
+		const fixtureSource = readFileSync(join(process.cwd(), 'tests/fixtures/fixtures.ts'), 'utf8');
+
+		expect(fixtureSource).toMatch(/deleteTrackedCustomerForCleanup/);
+		expect(fixtureSource).toMatch(/response\.status\s*===\s*404/);
+		expect(fixtureSource).toMatch(/if\s*\(\s*!response\.ok\s*\)\s*\{/);
+	});
+
 	it('arrangePaidInvoiceForFreshSignup reads invoice detail through the fresh-signup auth token', () => {
 		const fixtureSource = readFileSync(join(process.cwd(), 'tests/fixtures/fixtures.ts'), 'utf8');
 

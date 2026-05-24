@@ -153,7 +153,7 @@ usage_records to Postgres. |
 
 | Directory | Summary |
 | --- | --- |
-| canary | The canary directory contains synthetic monitoring scripts and infrastructure contracts that continuously validate the health and correctness of customer-facing flows, external dependencies, and API integrations through automated bash-based probes. |
+| canary | The canary directory contains synthetic health monitoring scripts that continuously probe the system's external dependencies and customer-facing functionality, including AWS service availability, email deliverability, and infrastructure contract verification. |
 | chaos | The chaos directory contains failure-injection and HA resilience test scripts that validate the system's ability to detect outages, trigger failover, and recover—including region kill/restart tests, metering service failure detection, and end-to-end failover proofs. |
 | launch | The launch directory contains shell scripts for orchestrating and validating a staged deployment pipeline, with scripts for pre/post-deployment verification, evidence capture, environment configuration hydration, and synthetic traffic generation. |
 | lib | The lib directory contains reusable shell script helpers for critical infrastructure tasks: environment loading, alert dispatch, database migrations, Flapjack binary discovery, health checks, validation gates for metering/Stripe/security, and staging billing workflows. |

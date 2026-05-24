@@ -10,10 +10,13 @@ use std::sync::Arc;
 use tower::ServiceExt;
 
 use api::auth::api_key::ApiKeyAuth;
+use api::auth::api_key::Stage1ApiKeyCompatDecision;
 use api::errors::ApiError;
 
 const TEST_KEY: &str = "fj_live_0123456789abcdef0123456789abcdef";
 const TEST_KEY_PREFIX: &str = "fj_live_01234567";
+const FJC_KEY: &str = "fjc_live_0123456789abcdef0123456789abcdef";
+const FJC_KEY_PREFIX: &str = "fjc_live_0123456";
 
 fn hash_key(key: &str) -> String {
     let mut hasher = Sha256::new();
@@ -368,23 +371,18 @@ async fn non_fj_live_prefix_returns_401() {
     assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
 }
 
-// --- gridl_live_ dual-accept tests ---
-
-const GRIDL_KEY: &str = "gridl_live_0123456789abcdef0123456789abcdef";
-const GRIDL_KEY_PREFIX: &str = "gridl_live_01234";
-
 #[tokio::test]
-async fn gridl_live_key_authenticates() {
+async fn fjc_live_key_authenticates() {
     let customer_repo = common::mock_repo();
     let api_key_repo = common::mock_api_key_repo();
 
     let customer = customer_repo.seed("Flapjack Cloud Corp", "customer@example.com");
-    let key_hash = hash_key(GRIDL_KEY);
+    let key_hash = hash_key(FJC_KEY);
     let seeded = api_key_repo.seed(
         customer.id,
-        "gridl-key",
+        "fjc-key",
         &key_hash,
-        GRIDL_KEY_PREFIX,
+        FJC_KEY_PREFIX,
         vec!["read".into(), "search".into()],
     );
 
@@ -393,7 +391,7 @@ async fn gridl_live_key_authenticates() {
     let resp = app
         .oneshot(
             Request::get("/test")
-                .header("authorization", format!("Bearer {GRIDL_KEY}"))
+                .header("authorization", format!("Bearer {FJC_KEY}"))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -404,6 +402,126 @@ async fn gridl_live_key_authenticates() {
     let body = body_json(resp).await;
     assert_eq!(body["customer_id"], customer.id.to_string());
     assert_eq!(body["key_id"], seeded.id.to_string());
+}
+
+// --- Stage 1 compatibility-token tests ---
+
+const GRIDL_KEY: &str = "gridl_live_0123456789abcdef0123456789abcdef";
+const GRIDL_KEY_PREFIX: &str = "gridl_live_01234";
+const AUDITED_STAGE1_DECISION: Stage1ApiKeyCompatDecision = Stage1ApiKeyCompatDecision::HardCutOk;
+
+async fn send_gridl_test_request(
+    app: Router,
+) -> axum::response::Response {
+    let request = Request::get("/test")
+        .header("authorization", format!("Bearer {GRIDL_KEY}"))
+        .body(Body::empty())
+        .unwrap();
+
+    app.oneshot(request).await.unwrap()
+}
+
+async fn extract_gridl_auth_with_decision(
+    decision: Stage1ApiKeyCompatDecision,
+) -> Result<ApiKeyAuth, api::auth::error::AuthError> {
+    let customer_repo = common::mock_repo();
+    let api_key_repo = common::mock_api_key_repo();
+
+    let customer = customer_repo.seed("Flapjack Cloud Corp", "customer@example.com");
+    let key_hash = hash_key(GRIDL_KEY);
+    let _seeded = api_key_repo.seed(
+        customer.id,
+        "gridl-key",
+        &key_hash,
+        GRIDL_KEY_PREFIX,
+        vec!["read".into(), "search".into()],
+    );
+
+    let state = common::test_state_with_api_key_repo(customer_repo, api_key_repo);
+    let request = Request::get("/test")
+        .header("authorization", format!("Bearer {GRIDL_KEY}"))
+        .body(Body::empty())
+        .unwrap();
+    let (mut parts, _) = request.into_parts();
+
+    ApiKeyAuth::from_request_parts_with_stage1_decision(&mut parts, &state, decision).await
+}
+
+#[tokio::test]
+async fn gridl_live_behavior_matches_stage1_decision_token() {
+    let customer_repo = common::mock_repo();
+    let api_key_repo = common::mock_api_key_repo();
+
+    let customer = customer_repo.seed("Flapjack Cloud Corp", "customer@example.com");
+    let key_hash = hash_key(GRIDL_KEY);
+    let _seeded = api_key_repo.seed(
+        customer.id,
+        "gridl-key",
+        &key_hash,
+        GRIDL_KEY_PREFIX,
+        vec!["read".into(), "search".into()],
+    );
+
+    let app = build_test_app(customer_repo, api_key_repo);
+
+    let resp = send_gridl_test_request(app).await;
+
+    assert_eq!(AUDITED_STAGE1_DECISION, Stage1ApiKeyCompatDecision::HardCutOk);
+    assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn gridl_live_ignores_request_extension_override() {
+    let customer_repo = common::mock_repo();
+    let api_key_repo = common::mock_api_key_repo();
+
+    let customer = customer_repo.seed("Flapjack Cloud Corp", "customer@example.com");
+    let key_hash = hash_key(GRIDL_KEY);
+    let _seeded = api_key_repo.seed(
+        customer.id,
+        "gridl-key",
+        &key_hash,
+        GRIDL_KEY_PREFIX,
+        vec!["read".into(), "search".into()],
+    );
+
+    let app = build_test_app(customer_repo, api_key_repo);
+    let mut request = Request::get("/test")
+        .header("authorization", format!("Bearer {GRIDL_KEY}"))
+        .body(Body::empty())
+        .unwrap();
+    request
+        .extensions_mut()
+        .insert(Stage1ApiKeyCompatDecision::HardCutOk);
+
+    let resp = app.oneshot(request).await.unwrap();
+
+    assert_eq!(AUDITED_STAGE1_DECISION, Stage1ApiKeyCompatDecision::HardCutOk);
+    assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[test]
+fn active_stage1_decision_matches_audited_verdict() {
+    assert_eq!(
+        ApiKeyAuth::active_stage1_compat_decision(),
+        AUDITED_STAGE1_DECISION
+    );
+}
+
+#[tokio::test]
+async fn gridl_live_extractor_accepts_when_decision_is_keep_legacy_accept() {
+    let auth = extract_gridl_auth_with_decision(Stage1ApiKeyCompatDecision::KeepLegacyAccept)
+        .await
+        .expect("gridl_live_ key should authenticate when KEEP_LEGACY_ACCEPT is active");
+    assert!(!auth.scopes.is_empty());
+}
+
+#[tokio::test]
+async fn gridl_live_extractor_rejects_when_decision_is_hard_cut_ok() {
+    let err = extract_gridl_auth_with_decision(Stage1ApiKeyCompatDecision::HardCutOk)
+        .await
+        .expect_err("gridl_live_ key should be rejected when HARD_CUT_OK is active");
+    assert!(matches!(err, api::auth::error::AuthError::InvalidToken));
 }
 
 #[tokio::test]

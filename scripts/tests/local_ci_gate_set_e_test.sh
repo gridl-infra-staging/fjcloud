@@ -32,6 +32,14 @@ rust_lint_block_has_set_e_hook() {
     return 1
 }
 
+with_contracts_block_has_mocked_spec_hook() {
+    local with_contracts_block="$1"
+    if printf '%s\n' "$with_contracts_block" | grep -Eq '^[[:space:]]*if[[:space:]]+bash[[:space:]]+scripts/canary/contracts/mocked_spec_contract\.sh[[:space:]]+staging;[[:space:]]*then$'; then
+        return 0
+    fi
+    return 1
+}
+
 write_fmt_violation_fixture() {
     local fixture_path="$1"
     cat > "$fixture_path" <<'FIXTURE_EOF'
@@ -194,6 +202,34 @@ test_secret_distinctness_gate_not_wired_by_default() {
     fi
 }
 
+test_with_contracts_block_includes_mocked_spec_contract_hook() {
+    local with_contracts_block
+    with_contracts_block="$(
+        awk '
+            /^if \[ "\$WITH_CONTRACTS" -eq 1 \]; then$/ { in_block=1; print; next }
+            in_block { print }
+            in_block && /^fi$/ { exit }
+        ' "$LOCAL_CI"
+    )"
+
+    if with_contracts_block_has_mocked_spec_hook "$with_contracts_block"; then
+        pass "--with-contracts block executes mocked_spec_contract.sh"
+    else
+        fail "--with-contracts block is missing mocked_spec_contract.sh contract hook"
+    fi
+}
+
+test_with_contracts_hook_detection_rejects_comment_only_mentions() {
+    local comment_only_block
+    comment_only_block=$'if [ "$WITH_CONTRACTS" -eq 1 ]; then\n    # mocked_spec_contract.sh staging\n    if bash scripts/canary/contracts/web_server_load_api_url_contract.sh staging; then\n      :\n    fi\nfi'
+
+    if with_contracts_block_has_mocked_spec_hook "$comment_only_block"; then
+        fail "with-contract hook detection accepted comment-only mention; expected executable invocation requirement"
+    else
+        pass "with-contract hook detection rejects comment-only mentions of mocked_spec_contract.sh"
+    fi
+}
+
 main() {
     echo "=== local_ci_gate_set_e_test ==="
     test_local_ci_rust_lint_fails_on_real_fmt_violation
@@ -203,6 +239,8 @@ main() {
     test_set_e_hook_detection_rejects_comment_only_mentions
     test_local_ci_migration_gate_uses_local_postgres_default_url
     test_secret_distinctness_gate_not_wired_by_default
+    test_with_contracts_block_includes_mocked_spec_contract_hook
+    test_with_contracts_hook_detection_rejects_comment_only_mentions
     echo
     echo "=== Results: $PASS_COUNT passed, $FAIL_COUNT failed ==="
     if [[ "$FAIL_COUNT" -ne 0 ]]; then

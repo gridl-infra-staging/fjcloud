@@ -199,6 +199,18 @@ export const MANAGEMENT_SCOPES: { value: string; label: string }[] = [
 	{ value: 'search', label: 'Search' }
 ];
 
+/**
+ * Canonical default scope for first-touch API key creation.
+ * Explicitly pinned to the safe read scope so UI display order cannot
+ * silently change granted permissions.
+ */
+export const SAFE_READ_MANAGEMENT_SCOPE = 'indexes:read';
+export const DEFAULT_MANAGEMENT_SCOPE = MANAGEMENT_SCOPES.some(
+	(scope) => scope.value === SAFE_READ_MANAGEMENT_SCOPE
+)
+	? SAFE_READ_MANAGEMENT_SCOPE
+	: '';
+
 const scopeLabelMap = new Map(MANAGEMENT_SCOPES.map((s) => [s.value, s.label]));
 
 /**

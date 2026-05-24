@@ -1,5 +1,7 @@
 import { test as setup, expect } from '@playwright/test';
+import { REMOTE_TARGET_OPT_IN_ENV, resolveFixtureEnv } from '../../playwright.config.contract';
 import { quoteSqlLiteral, runSqlWithPsqlFallback } from './postgres_psql_helper';
+import { findVerificationTokenViaStagingSsm } from './staging_db_lookup';
 
 /** Verify the SQL output confirms exactly one customer row was email-verified. */
 export function assertSingleVerifiedCustomer(
@@ -19,8 +21,31 @@ export function assertSingleVerifiedCustomer(
 	);
 }
 
-/** Mark the freshly signed-up local account as verified so onboarding can create an index. */
-export function verifyFreshSignupEmail(email: string): void {
+function buildSafeVerifyEmailFailureMessage(response: Response): string {
+	const requestId =
+		response.headers.get('x-request-id') ?? response.headers.get('x-amzn-requestid') ?? '';
+	return (
+		'Fresh signup email verification failed before onboarding setup could proceed. ' +
+		`status=${response.status}${requestId ? ` request_id=${requestId}` : ''}`
+	);
+}
+
+/** Mark the freshly signed-up account as verified so onboarding can create an index. */
+export async function verifyFreshSignupEmail(email: string): Promise<void> {
+	if (process.env[REMOTE_TARGET_OPT_IN_ENV] === '1') {
+		const fixtureEnv = resolveFixtureEnv(process.env);
+		const verificationToken = await findVerificationTokenViaStagingSsm(email);
+		const response = await fetch(`${fixtureEnv.apiUrl}/auth/verify-email`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ token: verificationToken })
+		});
+		if (!response.ok) {
+			throw new Error(buildSafeVerifyEmailFailureMessage(response));
+		}
+		return;
+	}
+
 	const databaseUrl = process.env.DATABASE_URL;
 	if (!databaseUrl) {
 		throw new Error(
@@ -28,18 +53,21 @@ export function verifyFreshSignupEmail(email: string): void {
 		);
 	}
 
+	const quotedEmail = quoteSqlLiteral(email);
 	const sql = [
-		'UPDATE customers',
-		'SET email_verified_at = COALESCE(email_verified_at, NOW()),',
-		'    email_verify_token = NULL,',
-		'    email_verify_expires_at = NULL,',
-		'    updated_at = NOW()',
-		`WHERE email = ${quoteSqlLiteral(email)}`,
-		"  AND status != 'deleted';",
-		'SELECT COUNT(*) FROM customers',
-		`WHERE email = ${quoteSqlLiteral(email)}`,
-		'  AND email_verified_at IS NOT NULL',
-		"  AND status != 'deleted';"
+		'WITH updated AS (',
+		'  UPDATE customers',
+		'  SET email_verified_at = NOW(),',
+		'      email_verify_token = NULL,',
+		'      email_verify_expires_at = NULL,',
+		'      updated_at = NOW()',
+		`  WHERE email = ${quotedEmail}`,
+		"    AND status != 'deleted'",
+		'    AND email_verified_at IS NULL',
+		'    AND email_verify_token IS NOT NULL',
+		'  RETURNING 1',
+		')',
+		'SELECT COUNT(*) FROM updated;'
 	].join('\n');
 
 	const output = runSqlWithPsqlFallback(
@@ -82,7 +110,7 @@ export function registerFreshOnboardingAccount(setupName: string, storageStatePa
 		await expect(page.getByRole('heading', { name: 'Console' })).toBeVisible();
 		await expect(page.getByTestId('onboarding-banner')).toBeVisible({ timeout: 5_000 });
 
-		verifyFreshSignupEmail(email);
+		await verifyFreshSignupEmail(email);
 
 		await page.context().storageState({ path: storageStatePath });
 	});

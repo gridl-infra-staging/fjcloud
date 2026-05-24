@@ -104,7 +104,9 @@ test.describe('Index detail tabs', () => {
 		await openSeededIndexDetailPage(page, seedIndex, testRegion, 'e2e-detail-rules');
 
 		const section = await openIndexDetailTab(page, 'Rules', 'rules-section');
-		await expect(section.getByText('No rules')).toBeVisible();
+		await expect(section.getByRole('heading', { name: 'Rules' })).toBeVisible();
+		await expect(section.getByRole('heading', { name: 'Add or Update Rule' })).toBeVisible();
+		await expect(section.getByLabel('Object ID')).toBeVisible();
 		await expect(section.getByRole('button', { name: 'Save Rule' })).toBeVisible();
 	});
 
@@ -116,7 +118,9 @@ test.describe('Index detail tabs', () => {
 		await openSeededIndexDetailPage(page, seedIndex, testRegion, 'e2e-detail-synonyms');
 
 		const section = await openIndexDetailTab(page, 'Synonyms', 'synonyms-section');
-		await expect(section.getByText('No synonyms')).toBeVisible();
+		await expect(section.getByRole('heading', { name: 'Synonyms' })).toBeVisible();
+		await expect(section.getByRole('heading', { name: 'Add or Update Synonym' })).toBeVisible();
+		await expect(section.getByLabel('Object ID')).toBeVisible();
 		await expect(section.getByRole('button', { name: 'Save Synonym' })).toBeVisible();
 	});
 

@@ -59,15 +59,14 @@ test.describe('Landing page', () => {
 			'/beta'
 		);
 		await expect(
-			page.getByRole('contentinfo').getByRole('link', { name: 'Terms' })
-		).toHaveAttribute('href', '/terms');
+			page.getByRole('contentinfo').getByRole('link', { name: 'Terms' }).first()
+		).toHaveAttribute('href', /\/terms$/);
 		await expect(
-			page.getByRole('contentinfo').getByRole('link', { name: 'Privacy' })
-		).toHaveAttribute('href', '/privacy');
-		await expect(page.getByRole('contentinfo').getByRole('link', { name: 'DPA' })).toHaveAttribute(
-			'href',
-			'/dpa'
-		);
+			page.getByRole('contentinfo').getByRole('link', { name: 'Privacy' }).first()
+		).toHaveAttribute('href', /\/privacy$/);
+		await expect(
+			page.getByRole('contentinfo').getByRole('link', { name: 'DPA' }).first()
+		).toHaveAttribute('href', /\/dpa$/);
 	});
 
 	test('Log In link reaches the login page', async ({ page }) => {

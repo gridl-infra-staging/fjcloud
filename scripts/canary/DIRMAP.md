@@ -19,5 +19,5 @@ unavailable so staging gets a clear outside-AWS outage signal. |
 
 | Directory | Summary |
 | --- | --- |
-| contracts | This directory contains shell script contracts that validate infrastructure and API integrations, including EC2 firewall configuration, Lambda canary invocation, OAuth redirect URIs, and API URL configuration for the web frontend. |
+| contracts | This directory contains bash scripts that verify infrastructure and deployment contracts across EC2 firewall rules, Lambda canaries, OAuth configuration, and API connectivity. |
 <!-- [scrai:end] -->

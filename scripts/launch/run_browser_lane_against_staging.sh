@@ -48,10 +48,38 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 # shellcheck source=../lib/web_runtime.sh
 source "$SCRIPT_DIR/../lib/web_runtime.sh"
 
+canonicalize_path() {
+  python3 - "$1" <<'PY'
+import os
+import sys
+
+print(os.path.realpath(sys.argv[1]))
+PY
+}
+
+validate_repo_owned_output_dir() {
+  local candidate="$1"
+  local repo_root_real candidate_real
+
+  repo_root_real="$(canonicalize_path "$REPO_ROOT")"
+  candidate_real="$(canonicalize_path "$candidate")"
+
+  case "$candidate_real" in
+    "$repo_root_real" | "$repo_root_real"/*)
+      return 0
+      ;;
+    *)
+      echo "ERROR: evidence dir must stay within repo root: $REPO_ROOT" >&2
+      return 1
+      ;;
+  esac
+}
+
 LANE_ARG=""
 EVIDENCE_DIR_ARG=""
 SHOW_HELP=0
 LANE_TIMEOUT_SECONDS="${BROWSER_LANE_TIMEOUT_SECONDS:-480}"
+RAN_LANE_OUTPUT_DIRS=()
 
 is_allowed_hydrated_key() {
   case "$1" in
@@ -323,6 +351,7 @@ done
 if [ -z "$EVIDENCE_DIR_ARG" ]; then
   EVIDENCE_DIR_ARG="$REPO_ROOT/docs/runbooks/evidence/browser-evidence/${TS_SEED}_current_main"
 fi
+validate_repo_owned_output_dir "$EVIDENCE_DIR_ARG"
 mkdir -p "$EVIDENCE_DIR_ARG"
 
 GIT_SHA="$(cd "$REPO_ROOT" && git rev-parse HEAD)"
@@ -341,10 +370,10 @@ cat > "$EVIDENCE_DIR_ARG/SUMMARY.md" <<EOF
 Run by \`scripts/launch/run_browser_lane_against_staging.sh\`. See
 \`signup_to_paid_invoice.txt\` and/or
 \`billing_portal_payment_method_update.txt\` for per-spec stdout.
-Playwright artifacts under
-\`web/test-results/\` and \`web/playwright-report/\` are NOT copied here
-by default — the operator should run \`cp -r web/test-results <bundle>\`
-after the run if needed for failure diagnosis.
+Launcher-owned trace artifacts are copied to
+\`playwright-traces/\` in this bundle. See
+\`trace_copy_summary.json\` for machine-readable copy status,
+source directories inspected, and copied file count.
 EOF
 
 # ---------------------------------------------------------------------------
@@ -428,6 +457,8 @@ run_one_lane() {
 
   echo "=== Running $lane (spec: $spec_file) against $BASE_URL ==="
   local stdout_path="$EVIDENCE_DIR_ARG/${lane}.txt"
+  local lane_output_dir="test-results/${lane}"
+  RAN_LANE_OUTPUT_DIRS+=("$REPO_ROOT/web/$lane_output_dir")
   local exit_code=0
   # --no-deps skips the auth.setup project. The setup project tries to log
   # in as a pre-existing E2E_USER_EMAIL — that user only exists on local
@@ -436,10 +467,50 @@ run_one_lane() {
   # spec overrides the cookie via setAuthCookieForToken, so neither
   # actually needs the setup-project user when running against staging.
   run_playwright_with_timeout "$LANE_TIMEOUT_SECONDS" "$stdout_path" "$REPO_ROOT/web" \
-    npx playwright test "$spec_file" --reporter=list --no-deps || exit_code=$?
+    npx playwright test "$spec_file" --reporter=list --trace on --output "$lane_output_dir" --no-deps || exit_code=$?
   cat "$stdout_path"
   echo "exit=$exit_code" >> "$stdout_path"
   return "$exit_code"
+}
+
+copy_trace_artifacts_into_bundle() {
+  local trace_bundle_subdir="playwright-traces"
+  local trace_bundle_dir="$EVIDENCE_DIR_ARG/$trace_bundle_subdir"
+  local trace_copy_sentinel="$EVIDENCE_DIR_ARG/trace_copy_summary.json"
+  local source_dirs=("${RAN_LANE_OUTPUT_DIRS[@]}")
+
+  mkdir -p "$trace_bundle_dir"
+
+  local trace_files_copied=0
+  local source_dir_json=""
+  local json_separator=""
+  local source_dir source_dir_name destination_dir trace_file relative_path copied_path
+
+  for source_dir in "${source_dirs[@]}"; do
+    source_dir_json="${source_dir_json}${json_separator}\"${source_dir}\""
+    json_separator=", "
+    if [ ! -d "$source_dir" ]; then
+      continue
+    fi
+    source_dir_name="$(basename "$source_dir")"
+    destination_dir="$trace_bundle_dir/$source_dir_name"
+    while IFS= read -r trace_file; do
+      relative_path="${trace_file#$source_dir/}"
+      copied_path="$destination_dir/$relative_path"
+      mkdir -p "$(dirname "$copied_path")"
+      cp "$trace_file" "$copied_path"
+      trace_files_copied=$((trace_files_copied + 1))
+    done < <(find "$source_dir" -type f | sort)
+  done
+
+  cat > "$trace_copy_sentinel" <<EOF
+{
+  "copy_ran": true,
+  "trace_bundle_subdir": "$trace_bundle_subdir",
+  "trace_files_copied": $trace_files_copied,
+  "source_directories": [$source_dir_json]
+}
+EOF
 }
 
 OVERALL_EXIT=0
@@ -457,6 +528,8 @@ case "$LANE_ARG" in
     run_one_lane billing_portal_payment_method_update || OVERALL_EXIT=$?
     ;;
 esac
+
+copy_trace_artifacts_into_bundle
 
 echo ""
 echo "Evidence bundle: $EVIDENCE_DIR_ARG"

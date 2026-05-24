@@ -81,15 +81,21 @@ describe('onboarding auth setup helpers', () => {
 	// verifyFreshSignupEmail
 	// -----------------------------------------------------------------------
 	describe('verifyFreshSignupEmail', () => {
-		it('throws when DATABASE_URL is not set', () => {
+		// verifyFreshSignupEmail is async: it must be awaited via
+		// `await expect(...).rejects.toThrow(...)` / `.resolves.toBeUndefined()`.
+		// Synchronous `expect(() => fn()).toThrow(...)` matchers do not work on
+		// async functions — they produce an unhandled rejection per case and
+		// the matcher silently passes.
+
+		it('throws when DATABASE_URL is not set', async () => {
 			delete process.env.DATABASE_URL;
 
-			expect(() => verifyFreshSignupEmail('user@test.com')).toThrow(
+			await expect(verifyFreshSignupEmail('user@test.com')).rejects.toThrow(
 				'DATABASE_URL must be set for onboarding auth setup'
 			);
 		});
 
-		it('succeeds via host psql when spawnSync returns status 0 with count 1', () => {
+		it('succeeds via host psql when spawnSync returns status 0 with count 1', async () => {
 			process.env.DATABASE_URL = 'postgres://user:pass@localhost:5432/fjcloud';
 
 			mockSpawnSync.mockReturnValue({
@@ -102,7 +108,7 @@ describe('onboarding auth setup helpers', () => {
 				error: undefined
 			} as unknown as SpawnSyncReturns<string>);
 
-			expect(() => verifyFreshSignupEmail('user@test.com')).not.toThrow();
+			await expect(verifyFreshSignupEmail('user@test.com')).resolves.toBeUndefined();
 
 			// Verify spawnSync was called with psql and the database URL
 			expect(mockSpawnSync).toHaveBeenCalledOnce();
@@ -116,7 +122,7 @@ describe('onboarding auth setup helpers', () => {
 			expect(options?.env?.PGPASSWORD).toBe('pass');
 		});
 
-		it('throws when host psql succeeds but updates zero rows', () => {
+		it('throws when host psql succeeds but updates zero rows', async () => {
 			process.env.DATABASE_URL = 'postgres://user:pass@localhost:5432/fjcloud';
 
 			mockSpawnSync.mockReturnValue({
@@ -129,12 +135,12 @@ describe('onboarding auth setup helpers', () => {
 				error: undefined
 			} as unknown as SpawnSyncReturns<string>);
 
-			expect(() => verifyFreshSignupEmail('user@test.com')).toThrow(
+			await expect(verifyFreshSignupEmail('user@test.com')).rejects.toThrow(
 				/did not update exactly one row/
 			);
 		});
 
-		it('falls back to docker compose psql when host psql is ENOENT', () => {
+		it('falls back to docker compose psql when host psql is ENOENT', async () => {
 			process.env.DATABASE_URL = 'postgres://testuser:testpass@localhost:5432/fjcloud_test';
 
 			// Host psql not found — ENOENT
@@ -152,7 +158,7 @@ describe('onboarding auth setup helpers', () => {
 			// Docker compose fallback succeeds
 			mockExecFileSync.mockReturnValue('UPDATE 1\n1\n');
 
-			expect(() => verifyFreshSignupEmail('user@test.com')).not.toThrow();
+			await expect(verifyFreshSignupEmail('user@test.com')).resolves.toBeUndefined();
 
 			// Verify docker compose was called with correct DB credentials parsed from URL
 			expect(mockExecFileSync).toHaveBeenCalledOnce();
@@ -182,7 +188,7 @@ describe('onboarding auth setup helpers', () => {
 			expect(dockerOptions?.env?.PGPASSWORD).toBe('testpass');
 		});
 
-		it('throws clear message when psql ENOENT and docker fallback also fails', () => {
+		it('throws clear message when psql ENOENT and docker fallback also fails', async () => {
 			process.env.DATABASE_URL = 'postgres://user:pass@localhost:5432/fjcloud';
 
 			// Host psql not found
@@ -202,15 +208,15 @@ describe('onboarding auth setup helpers', () => {
 				throw new Error('docker compose exec failed: container not running');
 			});
 
-			expect(() => verifyFreshSignupEmail('user@test.com')).toThrow(
+			await expect(verifyFreshSignupEmail('user@test.com')).rejects.toThrow(
 				/psql is not installed and docker compose fallback also failed/
 			);
-			expect(() => verifyFreshSignupEmail('user@test.com')).toThrow(
+			await expect(verifyFreshSignupEmail('user@test.com')).rejects.toThrow(
 				/install psql.*or.*docker compose exec postgres psql/
 			);
 		});
 
-		it('throws stderr when host psql fails with non-ENOENT error', () => {
+		it('throws stderr when host psql fails with non-ENOENT error', async () => {
 			process.env.DATABASE_URL = 'postgres://user:pass@localhost:5432/fjcloud';
 
 			// psql found but connection refused
@@ -224,7 +230,7 @@ describe('onboarding auth setup helpers', () => {
 				error: undefined
 			} as unknown as SpawnSyncReturns<string>);
 
-			expect(() => verifyFreshSignupEmail('user@test.com')).toThrow(
+			await expect(verifyFreshSignupEmail('user@test.com')).rejects.toThrow(
 				/psql: error: connection to server failed/
 			);
 
@@ -232,7 +238,7 @@ describe('onboarding auth setup helpers', () => {
 			expect(mockExecFileSync).not.toHaveBeenCalled();
 		});
 
-		it('re-throws non-Error exceptions from host psql directly', () => {
+		it('re-throws non-Error exceptions from host psql directly', async () => {
 			process.env.DATABASE_URL = 'postgres://user:pass@localhost:5432/fjcloud';
 
 			// Unusual error type (e.g. SystemError)
@@ -247,8 +253,8 @@ describe('onboarding auth setup helpers', () => {
 				error: weirdError
 			} as unknown as SpawnSyncReturns<string>);
 
-			expect(() => verifyFreshSignupEmail('user@test.com')).toThrow(TypeError);
-			expect(() => verifyFreshSignupEmail('user@test.com')).toThrow(
+			await expect(verifyFreshSignupEmail('user@test.com')).rejects.toThrow(TypeError);
+			await expect(verifyFreshSignupEmail('user@test.com')).rejects.toThrow(
 				'unexpected type error in spawn'
 			);
 		});

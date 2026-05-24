@@ -23,6 +23,24 @@ export type StagingPaidInvoiceEvidence = {
 	stagingInvoicePeriodStart: string;
 };
 
+export type StagingCustomerStatusEvidence = {
+	stagingCustomerId: string;
+	stagingStatus: string;
+	stagingStripeCustomerId: string;
+	stagingEmailVerifiedAtIsNull: boolean;
+	stagingEmailVerifyTokenIsNull: boolean;
+};
+
+function assertSafeEmailSqlLiteral(email: string): string {
+	if (!email || !SAFE_EMAIL_CHARS.test(email)) {
+		throw new Error(
+			`refusing to embed unsafe email into SQL literal: ${JSON.stringify(email)} ` +
+				`(only [A-Za-z0-9._+-@] allowed)`
+		);
+	}
+	return email;
+}
+
 /**
  * Build the SQL query that reads a customer's verification token from the
  * staging DB. The email is embedded as a single-quoted literal after a
@@ -32,13 +50,7 @@ export type StagingPaidInvoiceEvidence = {
  * benefit when the input space is fully under our control.
  */
 export function buildVerificationTokenLookupSql(email: string): string {
-	if (!email || !SAFE_EMAIL_CHARS.test(email)) {
-		throw new Error(
-			`refusing to embed unsafe email into SQL literal: ${JSON.stringify(email)} ` +
-				`(only [A-Za-z0-9._+-@] allowed)`
-		);
-	}
-	return `SELECT email_verify_token FROM customers WHERE email = '${email}'`;
+	return `SELECT email_verify_token FROM customers WHERE email = '${assertSafeEmailSqlLiteral(email)}'`;
 }
 
 /**
@@ -87,7 +99,16 @@ export function parseSingleColumnSingleRowOutput(rawOutput: string): string {
 	return value;
 }
 
-function parseSingleRowPipeSeparatedOutput(
+/**
+ * Parse a single pipe-separated row of psql -tA output into its column
+ * values. Returns `null` when zero rows matched (the caller decides whether
+ * that is an error or an expected "row not present yet" state), throws
+ * when the output is malformed (>1 row, wrong column count, embedded NULL
+ * marker). Stage 2 promoted this from file-private to a shared seam so
+ * additional multi-column DB readbacks (customer-status, api-key revoke,
+ * etc.) can reuse it instead of re-implementing the parser per call site.
+ */
+export function parseSingleRowPipeSeparatedOutput(
 	rawOutput: string,
 	expectedColumns: number
 ): string[] | null {
@@ -162,13 +183,93 @@ export async function findVerificationTokenViaStagingSsm(email: string): Promise
 	return token;
 }
 
-function buildPaidInvoiceEvidenceLookupSql(email: string, invoiceId: string): string {
-	if (!email || !SAFE_EMAIL_CHARS.test(email)) {
+/**
+ * Build the SQL that reads a customer's persistence-state row by email
+ * (Stage 2 shared seam — see web/tests/e2e-ui/full/system_proof_gaps.md
+ * → "## Stage 2 Seam Gaps"). The selected columns cover the union of
+ * proof targets requested by the Stage 1 retained-spec table for
+ * account.spec, auth.spec (full + smoke), onboarding.spec, and
+ * admin/customer-detail.spec:
+ *
+ *   - id::text                    → ownership chain for index/api-key proofs
+ *   - status::text                → 'active'|'suspended'|'deleted' assertions
+ *   - COALESCE(stripe_customer_id, '')
+ *                                → billing cross-checks; NULL surfaces as ''
+ *                                  rather than the psql NULL marker (\N).
+ *   - (email_verified_at IS NULL) → verify-email completion flag ('t'|'f')
+ *   - (email_verify_token IS NULL)
+ *                                → consumed-token flag ('t'|'f')
+ *
+ * Email is embedded as a quoted SQL literal after the same strict
+ * allowlist used by buildVerificationTokenLookupSql — Stage 2 reuses the
+ * SAFE_EMAIL_CHARS guard rather than duplicating it.
+ */
+export function buildCustomerStatusLookupSql(email: string): string {
+	const safeEmail = assertSafeEmailSqlLiteral(email);
+	return [
+		'SELECT id::text, status::text,',
+		"COALESCE(stripe_customer_id, '') AS stripe_customer_id,",
+		'(email_verified_at IS NULL) AS email_verified_at_is_null,',
+		'(email_verify_token IS NULL) AS email_verify_token_is_null',
+		'FROM customers',
+		`WHERE email = '${safeEmail}'`
+	].join(' ');
+}
+
+/**
+ * Look up a customer's persistence-state row in the staging DB via the
+ * SSM-exec psql transport. Returns parsed evidence for the customer row
+ * or throws if the row is missing. Stage 2 shared seam composed from
+ * buildCustomerStatusLookupSql + parseSingleRowPipeSeparatedOutput; no
+ * spec or fixture should re-implement this query path.
+ */
+export async function findCustomerStatusViaStagingSsm(
+	email: string
+): Promise<StagingCustomerStatusEvidence> {
+	const sql = buildCustomerStatusLookupSql(email);
+	const command = buildSsmStagingPsqlCommand(sql);
+	const stdout = execSsmStagingShell(command);
+	const columns = parseSingleRowPipeSeparatedOutput(stdout, 5);
+	if (!columns) {
 		throw new Error(
-			`refusing to embed unsafe email into SQL literal: ${JSON.stringify(email)} ` +
-				`(only [A-Za-z0-9._+-@] allowed)`
+			`no staging customer row for email=${email}; ` +
+				`either signup did not reach the API or the row was already removed`
 		);
 	}
+	const [
+		stagingCustomerId,
+		stagingStatus,
+		stagingStripeCustomerId,
+		stagingEmailVerifiedAtIsNullRaw,
+		stagingEmailVerifyTokenIsNullRaw
+	] = columns;
+	return {
+		stagingCustomerId,
+		stagingStatus,
+		stagingStripeCustomerId,
+		stagingEmailVerifiedAtIsNull: parsePsqlBoolean(
+			stagingEmailVerifiedAtIsNullRaw,
+			'email_verified_at_is_null'
+		),
+		stagingEmailVerifyTokenIsNull: parsePsqlBoolean(
+			stagingEmailVerifyTokenIsNullRaw,
+			'email_verify_token_is_null'
+		)
+	};
+}
+
+function parsePsqlBoolean(raw: string, columnLabel: string): boolean {
+	// psql -tA renders booleans as 't' or 'f'. Anything else is a contract
+	// breach — fail loud rather than silently coerce.
+	if (raw === 't') return true;
+	if (raw === 'f') return false;
+	throw new Error(
+		`expected psql boolean ('t' or 'f') for ${columnLabel} but got ${JSON.stringify(raw)}`
+	);
+}
+
+function buildPaidInvoiceEvidenceLookupSql(email: string, invoiceId: string): string {
+	const safeEmail = assertSafeEmailSqlLiteral(email);
 	if (!invoiceId || !SAFE_IDENTIFIER_CHARS.test(invoiceId)) {
 		throw new Error(
 			`refusing to embed unsafe invoice id into SQL literal: ${JSON.stringify(invoiceId)} ` +
@@ -180,7 +281,7 @@ function buildPaidInvoiceEvidenceLookupSql(email: string, invoiceId: string): st
 		'SELECT c.id::text, i.id::text, i.status::text, i.period_start::text',
 		'FROM customers c',
 		'JOIN invoices i ON i.customer_id = c.id',
-		`WHERE c.email = '${email}'`,
+		`WHERE c.email = '${safeEmail}'`,
 		`AND i.id::text = '${invoiceId}'`
 	].join(' ');
 }

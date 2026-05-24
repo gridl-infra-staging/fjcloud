@@ -11,6 +11,7 @@ Ownership boundary:
 - Callers own alert-specific metadata values (title/message/source/nonce/env).
 TODO: Document build_slack_critical_payload. |
 | billing_rehearsal_steps.sh | Shared planned-step list for staging billing preflight/rehearsal JSON output. |
+| contract_secret_env.sh | Stub summary for contract_secret_env.sh. |
 | customer_lifecycle_steps.sh | Stub summary for customer_lifecycle_steps.sh. |
 | deterministic_batch_payload.sh | Stub summary for deterministic_batch_payload.sh. |
 | env.sh | Shared environment file loading — single source of truth for local env parsing.
@@ -88,6 +89,7 @@ Requires the caller to define: log()
 Returns non-zero on failure so callers control their own error handling.
 
 Usage: run_migrations <db_url> <migrations_dir>. |
+| mocked_spec_contract_parser.py | Stub summary for mocked_spec_contract_parser.py. |
 | parse_inbound_auth_headers.py | Stub summary for parse_inbound_auth_headers.py. |
 | persist_capture_artifact.py | Normalize capture artifacts into a consistent JSON structure. |
 | privacy_com_client.sh | Stub summary for privacy_com_client.sh. |

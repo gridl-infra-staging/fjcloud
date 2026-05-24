@@ -21,6 +21,10 @@ test('seeded index appears in the indexes table', async ({ page, seedIndex }) =>
 
 	// Assert: seeded index name appears in the table body
 	await expect(page.getByRole('cell', { name })).toBeVisible({ timeout: 10_000 });
+	await expect(page.getByRole('link', { name, exact: true })).toBeVisible({ timeout: 10_000 });
+	await page.getByRole('link', { name, exact: true }).click();
+	await expect(page).toHaveURL(new RegExp(`/dashboard/indexes/${encodeURIComponent(name)}`));
+	await expect(page.getByRole('heading', { name, exact: true })).toBeVisible({ timeout: 10_000 });
 
 	// seedIndex fixture auto-deletes in teardown
 });

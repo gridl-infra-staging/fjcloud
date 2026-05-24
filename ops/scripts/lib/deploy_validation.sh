@@ -63,6 +63,41 @@ ci_status_is_passing() {
   return 1
 }
 
+github_file_content_base64() {
+  local repo="$1"
+  local path="$2"
+  gh api "repos/${repo}/contents/${path}" --jq '.content'
+}
+
+github_file_content_decoded() {
+  local repo="$1"
+  local path="$2"
+  github_file_content_base64 "$repo" "$path" | base64 -d
+}
+
+github_branch_head_sha() {
+  local repo="$1"
+  local branch="${2:-main}"
+  gh api "repos/${repo}/commits/${branch}" --jq '.sha'
+}
+
+github_latest_ci_run_for_sha() {
+  local repo="$1"
+  local sha="$2"
+  gh run list \
+    -R "$repo" \
+    --workflow=CI \
+    --commit "$sha" \
+    --limit 1 \
+    --json databaseId,conclusion,headSha,createdAt,url
+}
+
+github_ci_run_jobs_json() {
+  local repo="$1"
+  local run_id="$2"
+  gh run view "$run_id" -R "$repo" --json jobs
+}
+
 artifact_exists_for_sha() {
   local env="$1"
   local sha="$2"

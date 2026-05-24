@@ -11,6 +11,27 @@ use crate::errors::ApiError;
 use crate::models::customer::{customer_auth_state, CustomerAuthState};
 use crate::state::AppState;
 
+const STAGE1_API_KEY_COMPAT_DECISION_TOKEN: &str = "HARD_CUT_OK";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Stage1ApiKeyCompatDecision {
+    HardCutOk,
+    KeepLegacyAccept,
+}
+
+impl Stage1ApiKeyCompatDecision {
+    pub fn from_token(token: &str) -> Self {
+        match token {
+            "KEEP_LEGACY_ACCEPT" => Self::KeepLegacyAccept,
+            _ => Self::HardCutOk,
+        }
+    }
+
+    pub fn accepts_legacy_gridl_live_keys(self) -> bool {
+        matches!(self, Self::KeepLegacyAccept)
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct ApiKeyAuth {
     pub customer_id: Uuid,
@@ -19,27 +40,26 @@ pub struct ApiKeyAuth {
 }
 
 impl ApiKeyAuth {
-    pub fn require_scope(&self, scope: &str) -> Result<(), ApiError> {
-        if self.scopes.iter().any(|s| s == scope) {
-            Ok(())
-        } else {
-            Err(ApiError::Forbidden("insufficient scope".into()))
-        }
+    pub fn active_stage1_compat_decision() -> Stage1ApiKeyCompatDecision {
+        Stage1ApiKeyCompatDecision::from_token(STAGE1_API_KEY_COMPAT_DECISION_TOKEN)
     }
-}
 
-#[async_trait]
-impl FromRequestParts<AppState> for ApiKeyAuth {
-    type Rejection = AuthError;
+    fn accepts_management_prefix(key: &str, stage1_decision: Stage1ApiKeyCompatDecision) -> bool {
+        key.starts_with("fjc_live_")
+            || key.starts_with("fj_live_")
+            || (stage1_decision.accepts_legacy_gridl_live_keys()
+                && key.starts_with("gridl_live_"))
+    }
 
-    /// Authenticates via `Authorization: Bearer <key>`. Performs a prefix-based
-    /// DB lookup (first 16 chars), then SHA-256 hash comparison using constant-time
-    /// equality. Checks customer status (Suspended → 403, missing → 401) and
-    /// fires a non-blocking `last_used` timestamp update via `tokio::spawn`.
-    async fn from_request_parts(
+    /// Shared extractor implementation used by `FromRequestParts` and tests.
+    /// Runtime code should call `from_request_parts` (which injects the active
+    /// Stage 1 compatibility decision); tests can pass an explicit decision to
+    /// exercise both compatibility outcomes through the same extractor logic.
+    pub async fn from_request_parts_with_stage1_decision(
         parts: &mut Parts,
         state: &AppState,
-    ) -> Result<Self, Self::Rejection> {
+        stage1_decision: Stage1ApiKeyCompatDecision,
+    ) -> Result<Self, AuthError> {
         let auth_header = parts
             .headers
             .get("authorization")
@@ -50,8 +70,7 @@ impl FromRequestParts<AppState> for ApiKeyAuth {
             .strip_prefix("Bearer ")
             .ok_or(AuthError::MissingToken)?;
 
-        let is_management_key = key.starts_with("gridl_live_") || key.starts_with("fj_live_");
-        if !is_management_key || key.len() < 16 {
+        if !Self::accepts_management_prefix(key, stage1_decision) || key.len() < 16 {
             return Err(AuthError::InvalidToken);
         }
 
@@ -96,5 +115,36 @@ impl FromRequestParts<AppState> for ApiKeyAuth {
             key_id: key_row.id,
             scopes: key_row.scopes,
         })
+    }
+
+    pub fn require_scope(&self, scope: &str) -> Result<(), ApiError> {
+        if self.scopes.iter().any(|s| s == scope) {
+            Ok(())
+        } else {
+            Err(ApiError::Forbidden("insufficient scope".into()))
+        }
+    }
+}
+
+#[async_trait]
+impl FromRequestParts<AppState> for ApiKeyAuth {
+    type Rejection = AuthError;
+
+    /// Authenticates via `Authorization: Bearer <key>`. Accepts `fjc_live_` and
+    /// `fj_live_` keys, plus `gridl_live_` only when Stage 1 compatibility keeps
+    /// legacy acceptance enabled. Performs a prefix-based DB lookup (first 16 chars),
+    /// then SHA-256 hash comparison using constant-time equality. Checks customer
+    /// status (Suspended → 403, missing → 401) and fires a non-blocking `last_used`
+    /// timestamp update via `tokio::spawn`.
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &AppState,
+    ) -> Result<Self, Self::Rejection> {
+        Self::from_request_parts_with_stage1_decision(
+            parts,
+            state,
+            Self::active_stage1_compat_decision(),
+        )
+        .await
     }
 }

@@ -1,5 +1,8 @@
+use crate::startup_env::StartupEnvSnapshot;
 use axum::http::{header, HeaderMap, HeaderValue};
 use axum::response::{Html, IntoResponse};
+use serde::Deserialize;
+use std::sync::LazyLock;
 
 const SUPPORT_EMAIL: &str = "support@flapjack.foo";
 const CANONICAL_URL: &str = "https://cloud.flapjack.foo/";
@@ -7,6 +10,123 @@ const PREVIEW_IMAGE_URL: &str = "https://cloud.flapjack.foo/flapjack_cloud_previ
 const ROBOTS_TXT: &str = include_str!("../../../../web/static/robots.txt");
 const FAVICON_ICO: &[u8] = include_bytes!("../../../../web/src/lib/assets/favicon.ico");
 const PREVIEW_IMAGE: &[u8] = include_bytes!("../../../../web/static/flapjack_cloud_preview.png");
+const LANDING_JSON: &str = include_str!("../../../../web/src/lib/landing.json");
+
+static LANDING_NARRATIVE: LazyLock<LandingNarrative> = LazyLock::new(|| {
+    serde_json::from_str(LANDING_JSON).expect("web/src/lib/landing.json should remain valid")
+});
+
+#[derive(Deserialize)]
+struct LandingNarrative {
+    meta: LandingMeta,
+    brand: LandingBrand,
+    nav: LandingNav,
+    hero: LandingHero,
+    quick_facts: LandingQuickFacts,
+    product: LandingProduct,
+    pricing: LandingPricingNarrative,
+    policies: LandingPolicies,
+    terms: LandingNotice,
+    privacy: LandingNotice,
+    contact: LandingContact,
+    footer: LandingFooter,
+}
+
+#[derive(Deserialize)]
+struct LandingMeta {
+    title: String,
+    description: String,
+}
+
+#[derive(Deserialize)]
+struct LandingBrand {
+    name: String,
+    badge: String,
+}
+
+#[derive(Deserialize)]
+struct LandingNav {
+    github_aria_label: String,
+    login_label: String,
+    api_docs_label: String,
+}
+
+#[derive(Deserialize)]
+struct LandingHero {
+    eyebrow: String,
+    headline: String,
+    lede: String,
+    body: String,
+    beta_note: String,
+}
+
+#[derive(Deserialize)]
+struct LandingQuickFacts {
+    eyebrow: String,
+    items: Vec<LandingFact>,
+}
+
+#[derive(Deserialize)]
+struct LandingFact {
+    term: String,
+    detail: String,
+}
+
+#[derive(Deserialize)]
+struct LandingProduct {
+    eyebrow: String,
+    title: String,
+    body: String,
+    features: Vec<LandingFeature>,
+}
+
+#[derive(Deserialize)]
+struct LandingFeature {
+    title: String,
+    description: String,
+}
+
+#[derive(Deserialize)]
+struct LandingPricingNarrative {
+    eyebrow: String,
+    title: String,
+    body: String,
+    quota_note: String,
+}
+
+#[derive(Deserialize)]
+struct LandingPolicies {
+    eyebrow: String,
+    title: String,
+    items: Vec<LandingFeature>,
+    links: LandingPolicyLinks,
+}
+
+#[derive(Deserialize)]
+struct LandingPolicyLinks {
+    terms: String,
+    privacy: String,
+    contact: String,
+}
+
+#[derive(Deserialize)]
+struct LandingNotice {
+    eyebrow: String,
+    body: String,
+}
+
+#[derive(Deserialize)]
+struct LandingContact {
+    title: String,
+    body: String,
+}
+
+#[derive(Deserialize)]
+struct LandingFooter {
+    terms: String,
+    privacy: String,
+    github: String,
+}
 
 /// Serves the temporary public beta landing page used for Stripe review.
 pub async fn landing_page() -> Html<String> {
@@ -39,29 +159,76 @@ where
     (headers, body)
 }
 
+fn render_support_template(value: &str) -> String {
+    value.replace("{support_email}", SUPPORT_EMAIL)
+}
+
+fn render_fact_rows(items: &[LandingFact]) -> String {
+    items
+        .iter()
+        .map(|item| {
+            format!(
+                "<div><dt>{}</dt><dd>{}</dd></div>",
+                item.term,
+                render_support_template(&item.detail)
+            )
+        })
+        .collect::<Vec<String>>()
+        .join("")
+}
+
+fn render_feature_cards(items: &[LandingFeature]) -> String {
+    items
+        .iter()
+        .map(|item| {
+            format!(
+                "<section class=\"card feature\"><h3>{}</h3><p>{}</p></section>",
+                item.title, item.description
+            )
+        })
+        .collect::<Vec<String>>()
+        .join("")
+}
+
+fn landing_login_url() -> String {
+    let startup_env = StartupEnvSnapshot::from_env();
+    let base_url =
+        startup_env.normalized_app_base_url_or(crate::services::email::DEFAULT_APP_BASE_URL);
+    format!("{base_url}/login")
+}
+
 fn landing_page_html() -> String {
+    let narrative = &*LANDING_NARRATIVE;
+    let login_url = landing_login_url();
+    let quick_facts_rows = render_fact_rows(&narrative.quick_facts.items);
+    let product_feature_cards = render_feature_cards(&narrative.product.features);
+    let policy_cards = render_feature_cards(&narrative.policies.items);
+    let terms_body = render_support_template(&narrative.terms.body);
+    let privacy_body = render_support_template(&narrative.privacy.body);
+    let contact_body = render_support_template(&narrative.contact.body);
+
     format!(
         r##"<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Flapjack Cloud - Managed search hosting</title>
-  <meta name="description" content="Managed hosting for Flapjack search. Algolia-compatible API, public beta, usage-based pricing in USD.">
+  <title>{title}</title>
+  <meta name="description" content="{description}">
   <link rel="canonical" href="{CANONICAL_URL}">
   <link rel="icon" href="/favicon.ico">
   <meta property="og:type" content="website">
-  <meta property="og:site_name" content="Flapjack Cloud">
-  <meta property="og:title" content="Flapjack Cloud">
-  <meta property="og:description" content="Managed hosting for Flapjack search. Algolia-compatible API, public beta, usage-based pricing in USD.">
+  <meta property="og:site_name" content="{brand_name}">
+  <meta property="og:title" content="{brand_name}">
+  <meta property="og:description" content="{description}">
   <meta property="og:url" content="{CANONICAL_URL}">
   <meta property="og:image" content="{PREVIEW_IMAGE_URL}">
   <meta property="og:image:width" content="1280">
   <meta property="og:image:height" content="720">
   <meta property="og:image:alt" content="Flapjack Cloud dashboard overview">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="Flapjack Cloud">
-  <meta name="twitter:description" content="Managed hosting for Flapjack search. Algolia-compatible API, public beta, usage-based pricing in USD.">
+  <meta name="twitter:title" content="{brand_name}">
+  <meta name="twitter:description" content="{description}">
   <meta name="twitter:image" content="{PREVIEW_IMAGE_URL}">
   <style>
     :root {{
@@ -225,12 +392,12 @@ fn landing_page_html() -> String {
 <body>
   <header class="topbar">
     <div class="wrap topbar-inner">
-      <a class="brand" href="{CANONICAL_URL}">Flapjack Cloud <span class="badge">BETA</span></a>
+      <a class="brand" href="{CANONICAL_URL}">{brand_name} <span class="badge">{brand_badge}</span></a>
       <nav class="nav" aria-label="Primary">
-        <a class="icon-link" href="https://github.com/griddlehq/flapjack" aria-label="GitHub repository" rel="noreferrer">
+        <a class="icon-link" href="https://github.com/griddlehq/flapjack" aria-label="{github_aria_label}" rel="noreferrer">
           <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 0C3.58 0 0 3.67 0 8.19c0 3.62 2.29 6.69 5.47 7.78.4.08.55-.18.55-.4v-1.52c-2.23.5-2.69-.97-2.69-.97-.36-.95-.89-1.2-.89-1.2-.73-.51.05-.5.05-.5.81.06 1.24.85 1.24.85.71 1.26 1.87.9 2.33.69.07-.53.28-.9.51-1.1-1.78-.21-3.64-.91-3.64-4.03 0-.89.31-1.62.82-2.19-.08-.21-.36-1.04.08-2.16 0 0 .68-.22 2.2.84A7.45 7.45 0 0 1 8 4c.68 0 1.36.09 1.99.28 1.53-1.06 2.2-.84 2.2-.84.44 1.12.16 1.95.08 2.16.51.57.82 1.3.82 2.19 0 3.13-1.87 3.82-3.65 4.02.29.26.55.76.55 1.54v2.22c0 .22.15.48.55.4A8.14 8.14 0 0 0 16 8.19C16 3.67 12.42 0 8 0Z"></path></svg>
         </a>
-        <a class="button" href="mailto:{SUPPORT_EMAIL}?subject=Flapjack%20Cloud%20beta%20access">Request Beta Access</a>
+        <a class="button" href="{login_url}">{login_label}</a>
       </nav>
     </div>
   </header>
@@ -239,22 +406,19 @@ fn landing_page_html() -> String {
     <section class="hero">
       <div class="wrap hero-grid">
         <div>
-          <p class="eyebrow">Managed search hosting</p>
-          <h1>Flapjack Cloud</h1>
-          <p class="lede">Managed hosting for Flapjack search.</p>
-          <p class="copy">Use an Algolia-compatible API without running your own search servers. Create indexes, upload documents, and query from your app.</p>
-          <p class="copy"><strong>Public beta.</strong> Contact by email. Pricing and limits may change before general availability.</p>
+          <p class="eyebrow">{hero_eyebrow}</p>
+          <h1>{hero_headline}</h1>
+          <p class="lede">{hero_lede}</p>
+          <p class="copy">{hero_body}</p>
+          <p class="copy"><strong>{hero_beta_note}</strong></p>
           <div class="actions">
-            <a class="button" href="mailto:{SUPPORT_EMAIL}?subject=Flapjack%20Cloud%20beta%20access">Request Beta Access</a>
-            <a class="outline" href="https://api.flapjack.foo/docs">View API Docs</a>
+            <a class="outline" href="https://api.flapjack.foo/docs">{api_docs_label}</a>
           </div>
         </div>
         <section class="card" aria-label="Quick facts">
-          <p class="eyebrow">Quick facts</p>
+          <p class="eyebrow">{quick_facts_eyebrow}</p>
           <dl class="facts">
-            <div><dt>What it is</dt><dd>Hosted Flapjack indexes with an Algolia-compatible API.</dd></div>
-            <div><dt>What you manage</dt><dd>Indexes, API keys, regions, usage, billing, and account settings.</dd></div>
-            <div><dt>Beta status</dt><dd>Public beta. Contact email: {SUPPORT_EMAIL}</dd></div>
+            {quick_facts_rows}
           </dl>
         </section>
       </div>
@@ -262,46 +426,40 @@ fn landing_page_html() -> String {
 
     <section class="band" id="product">
       <div class="wrap">
-        <p class="eyebrow">Product</p>
-        <h2>What you get</h2>
-        <p class="copy">Flapjack Cloud runs Flapjack search for you. The public beta focuses on hosted search, Algolia migration, and a cloud dashboard for your indexes.</p>
+        <p class="eyebrow">{product_eyebrow}</p>
+        <h2>{product_title}</h2>
+        <p class="copy">{product_body}</p>
         <div class="grid">
-          <section class="card feature"><h3>Algolia-compatible API</h3><p>Use the `/1/` API shape your existing Algolia client code already expects.</p></section>
-          <section class="card feature"><h3>InstantSearch works</h3><p>React, Vue, and plain JavaScript InstantSearch widgets can point at Flapjack.</p></section>
-          <section class="card feature"><h3>Search features</h3><p>Typo tolerance, filters, faceting, geo search, synonyms, query rules, and custom ranking.</p></section>
-          <section class="card feature"><h3>Algolia migration</h3><p>List Algolia indexes, choose what to move, and start migration from the dashboard.</p></section>
+          {product_feature_cards}
         </div>
       </div>
     </section>
 
     <section class="plain" id="pricing">
       <div class="wrap">
-        <p class="eyebrow">Pricing</p>
-        <h2>Simple pricing</h2>
-        <p class="copy">Prices are in USD. Paid billing starts only after billing is enabled for the account.</p>
+        <p class="eyebrow">{pricing_eyebrow}</p>
+        <h2>{pricing_title}</h2>
+        <p class="copy">{pricing_body}</p>
         <div class="price-list" aria-label="Pricing">
           <div class="price-row"><div><div class="price-name">Hot index storage</div><div class="price-unit">per MB-month</div></div><div class="price-value">$0.05</div></div>
           <div class="price-row"><div><div class="price-name">Cold snapshot storage</div><div class="price-unit">per GB-month</div></div><div class="price-value">$0.02</div></div>
           <div class="price-row"><div><div class="price-name">Minimum paid spend</div><div class="price-unit">per month</div></div><div class="price-value">$10.00</div></div>
         </div>
-        <p class="copy" style="margin-top: 18px;">Search and write requests are quota-limited, not billed per request.</p>
+        <p class="copy" style="margin-top: 18px;">{pricing_quota_note}</p>
       </div>
     </section>
 
     <section class="band" id="policies">
       <div class="wrap">
-        <p class="eyebrow">Customer information</p>
-        <h2>Policies</h2>
+        <p class="eyebrow">{policies_eyebrow}</p>
+        <h2>{policies_title}</h2>
         <div class="grid">
-          <section class="card feature"><h3>Delivery</h3><p>Flapjack Cloud is a digital service. Nothing is shipped. Account access is provided through the web dashboard and API.</p></section>
-          <section class="card feature"><h3>Cancellation</h3><p>You can cancel by closing your account or contacting support. Usage already incurred may still be billed.</p></section>
-          <section class="card feature"><h3>Refunds</h3><p>Refund requests are reviewed for duplicate charges, billing errors, or service unavailability.</p></section>
-          <section class="card feature"><h3>Payment security</h3><p>Payment details are handled by Stripe over HTTPS. Flapjack Cloud does not store card numbers.</p></section>
+          {policy_cards}
         </div>
         <div class="policy-links">
-          <a href="#terms">Terms of Service</a>
-          <a href="#privacy">Privacy Policy</a>
-          <a href="#contact">Contact</a>
+          <a href="#terms">{policies_terms_label}</a>
+          <a href="#privacy">{policies_privacy_label}</a>
+          <a href="#contact">{policies_contact_label}</a>
         </div>
       </div>
     </section>
@@ -309,8 +467,8 @@ fn landing_page_html() -> String {
     <section class="plain" id="terms">
       <div class="wrap">
         <div class="notice">
-          <p class="eyebrow">Terms of Service</p>
-          <p>Flapjack Cloud is provided as a public beta digital service. Do not use it for unlawful content, abusive traffic, credential theft, or systems that require uninterrupted availability. We may suspend accounts that harm the service or violate these terms.</p>
+          <p class="eyebrow">{terms_eyebrow}</p>
+          <p>{terms_body}</p>
         </div>
       </div>
     </section>
@@ -318,27 +476,65 @@ fn landing_page_html() -> String {
     <section class="plain" id="privacy">
       <div class="wrap">
         <div class="notice">
-          <p class="eyebrow">Privacy Policy</p>
-          <p>We collect account contact information, service usage, billing metadata, and operational logs needed to run Flapjack Cloud. Payment details are processed by Stripe. Contact {SUPPORT_EMAIL} for privacy or account deletion requests.</p>
+          <p class="eyebrow">{privacy_eyebrow}</p>
+          <p>{privacy_body}</p>
         </div>
       </div>
     </section>
 
     <section class="band" id="contact">
       <div class="wrap">
-        <h2>Contact</h2>
-        <p class="copy">Email <a href="mailto:{SUPPORT_EMAIL}">{SUPPORT_EMAIL}</a> for beta access, account help, cancellation, refunds, privacy requests, or security reports.</p>
+        <h2>{contact_title}</h2>
+        <p class="copy">{contact_body}</p>
       </div>
     </section>
   </main>
 
   <footer>
     <div class="wrap footer-inner">
-      <span>&copy; 2026 Flapjack Cloud. Contact: {SUPPORT_EMAIL}</span>
-      <span><a href="#terms">Terms</a> · <a href="#privacy">Privacy</a> · <a href="https://github.com/griddlehq/flapjack">GitHub</a></span>
+      <span>&copy; 2026 {brand_name}. Contact: {SUPPORT_EMAIL}</span>
+      <span><a href="#terms">{footer_terms_label}</a> · <a href="#privacy">{footer_privacy_label}</a> · <a href="https://github.com/griddlehq/flapjack">{footer_github_label}</a></span>
     </div>
   </footer>
 </body>
-</html>"##
+</html>"##,
+        title = narrative.meta.title,
+        description = narrative.meta.description,
+        brand_name = narrative.brand.name,
+        brand_badge = narrative.brand.badge,
+        github_aria_label = narrative.nav.github_aria_label,
+        login_label = narrative.nav.login_label,
+        login_url = login_url,
+        api_docs_label = narrative.nav.api_docs_label,
+        hero_eyebrow = narrative.hero.eyebrow,
+        hero_headline = narrative.hero.headline,
+        hero_lede = narrative.hero.lede,
+        hero_body = narrative.hero.body,
+        hero_beta_note = narrative.hero.beta_note,
+        quick_facts_eyebrow = narrative.quick_facts.eyebrow,
+        quick_facts_rows = quick_facts_rows,
+        product_eyebrow = narrative.product.eyebrow,
+        product_title = narrative.product.title,
+        product_body = narrative.product.body,
+        product_feature_cards = product_feature_cards,
+        pricing_eyebrow = narrative.pricing.eyebrow,
+        pricing_title = narrative.pricing.title,
+        pricing_body = narrative.pricing.body,
+        pricing_quota_note = narrative.pricing.quota_note,
+        policies_eyebrow = narrative.policies.eyebrow,
+        policies_title = narrative.policies.title,
+        policy_cards = policy_cards,
+        policies_terms_label = narrative.policies.links.terms,
+        policies_privacy_label = narrative.policies.links.privacy,
+        policies_contact_label = narrative.policies.links.contact,
+        terms_eyebrow = narrative.terms.eyebrow,
+        terms_body = terms_body,
+        privacy_eyebrow = narrative.privacy.eyebrow,
+        privacy_body = privacy_body,
+        contact_title = narrative.contact.title,
+        contact_body = contact_body,
+        footer_terms_label = narrative.footer.terms,
+        footer_privacy_label = narrative.footer.privacy,
+        footer_github_label = narrative.footer.github,
     )
 }

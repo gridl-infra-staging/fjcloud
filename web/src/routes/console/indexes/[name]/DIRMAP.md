@@ -11,5 +11,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| tabs | The tabs directory contains components for an index detail page in the console, including a code snippet generator for connecting apps and a document file parser for uploading and processing files. |
+| tabs | This directory contains tab-related utilities for the index management console, including a code-snippet generator for connecting applications and a document file parser for handling user-uploaded files. |
 <!-- [scrai:end] -->

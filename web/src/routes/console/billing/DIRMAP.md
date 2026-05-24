@@ -8,5 +8,5 @@
 | Directory | Summary |
 | --- | --- |
 | invoices | — |
-| setup | Handles the server-side logic for the billing setup page, creating a Stripe setup intent and returning a client secret or error to the frontend. |
+| setup | This server component handles the billing setup page load by creating a Stripe setup intent via the API and returning the client secret for frontend payment configuration. |
 <!-- [scrai:end] -->

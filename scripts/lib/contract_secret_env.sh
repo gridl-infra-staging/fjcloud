@@ -9,6 +9,10 @@
 # TODO: Document load_contract_secret_env.
 # TODO: Document load_contract_secret_env.
 # TODO: Document load_contract_secret_env.
+# TODO: Document load_contract_secret_env.
+# TODO: Document load_contract_secret_env.
+# TODO: Document load_contract_secret_env.
+# TODO: Document load_contract_secret_env.
 load_contract_secret_env() {
     local secret_file="$1"
     local line_number=0 line parse_status

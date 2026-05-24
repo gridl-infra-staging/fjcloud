@@ -296,14 +296,10 @@ fn build_oauth_runtime_config(
     cfg: &Config,
     startup_env: &StartupEnvSnapshot,
 ) -> OAuthRuntimeConfig {
-    let base_url = startup_env
-        .env_value("APP_BASE_URL")
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .unwrap_or("https://cloud.flapjack.foo")
-        .trim_end_matches('/');
-    let cookie_domain = oauth_cookie_domain(base_url);
-    let cookie_secure = oauth_cookie_secure(base_url);
+    let base_url =
+        startup_env.normalized_app_base_url_or(api::services::email::DEFAULT_APP_BASE_URL);
+    let cookie_domain = oauth_cookie_domain(&base_url);
+    let cookie_secure = oauth_cookie_secure(&base_url);
     let cookie_same_site = if cookie_secure {
         OAuthCookieSameSite::None
     } else {

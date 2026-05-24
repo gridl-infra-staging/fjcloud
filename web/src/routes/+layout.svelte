@@ -79,7 +79,7 @@
 						href={resolve('/login')}
 						class="inline-flex h-9 items-center justify-center whitespace-nowrap text-sm font-medium text-gray-600 hover:text-gray-900"
 					>
-						Log In
+						Log in
 					</a>
 					<!-- Public Sign Up CTA removed during invite-only beta. See docs/decisions/2026_05_23_beta_signup_gate.md -->
 				</nav>

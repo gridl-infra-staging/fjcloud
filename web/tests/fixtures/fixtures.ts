@@ -2142,6 +2142,15 @@ type RegisterIndexForCleanupFn = (name: string) => void;
 type CleanupFixtureIndexesFn = () => Promise<void>;
 type SeedApiKeyFn = (name: string, scopes?: string[]) => Promise<{ id: string }>;
 type ListApiKeysFn = () => Promise<ApiKeyListItem[]>;
+type DiscoverWithApiKeyFn = (indexName: string, apiKey: string) => Promise<{
+	status: number;
+	body: {
+		vm?: string;
+		flapjack_url?: string;
+		ttl?: number;
+		service_type?: string;
+	} | null;
+}>;
 type SetBillingPlanFn = (plan: 'free' | 'shared') => Promise<void>;
 type SeedInvoiceFn = () => Promise<{ id: string }>;
 type SeedInvoiceWithPdfUrlFn = () => Promise<{ id: string }>;
@@ -2200,6 +2209,8 @@ type E2eFixtures = {
 	seedApiKey: SeedApiKeyFn;
 	/** Read API-key rows for the authenticated customer through fixture-owned API access. */
 	listApiKeys: ListApiKeysFn;
+	/** Call /discover with a bearer API key through fixture-owned API access. */
+	discoverWithApiKey: DiscoverWithApiKeyFn;
 	/** Temporarily switch the authenticated customer between free and shared plans. */
 	setBillingPlan: SetBillingPlanFn;
 	/** Seed an index backed by Flapjack with searchable documents. */
@@ -2562,6 +2573,41 @@ export const test = base.extend<E2eFixtures & E2eInternalFixtures>({
 				throw new Error('listApiKeys failed: expected array response from /api-keys');
 			}
 			return data as ApiKeyListItem[];
+		});
+	},
+
+	discoverWithApiKey: async ({}, use) => {
+		await use(async (indexName: string, apiKey: string) => {
+			const response = await fetch(
+				`${fixtureEnv.apiUrl}/discover?index=${encodeURIComponent(indexName)}`,
+				{
+					headers: {
+						Authorization: `Bearer ${apiKey}`
+					}
+				}
+			);
+
+			let body: {
+				vm?: string;
+				flapjack_url?: string;
+				ttl?: number;
+				service_type?: string;
+			} | null = null;
+			try {
+				body = (await response.json()) as {
+					vm?: string;
+					flapjack_url?: string;
+					ttl?: number;
+					service_type?: string;
+				};
+			} catch {
+				body = null;
+			}
+
+			return {
+				status: response.status,
+				body
+			};
 		});
 	},
 

@@ -296,9 +296,29 @@ async fn root_serves_public_landing_page_with_review_metadata() {
     let body = response_text(response).await;
     assert!(body.contains("<title>Flapjack Cloud - Managed search hosting</title>"));
     assert!(body.contains("Managed hosting for Flapjack search."));
+    assert!(
+        body.contains("Create indexes, import documents, and query from your app."),
+        "landing narrative should render the shared owner copy for the hero body text"
+    );
     assert!(body.contains("https://github.com/griddlehq/flapjack"));
     assert!(body.contains(r#"property="og:title" content="Flapjack Cloud""#));
     assert!(body.contains("https://cloud.flapjack.foo/flapjack_cloud_preview.png"));
+    assert!(
+        body.contains(r#"href="https://cloud.flapjack.foo/login""#) && body.contains(">Log in</a>"),
+        "public root HTML should expose the APP_BASE_URL login target for unauthenticated users"
+    );
+    assert!(
+        !body.contains("Sign Up"),
+        "invite-only beta gate should keep signup CTA copy off the public root HTML"
+    );
+    assert!(
+        !body.contains("Request Beta Access"),
+        "beta access CTA copy should stay absent from public landing during invite-only gate"
+    );
+    assert!(
+        !body.contains("subject=Flapjack%20Cloud%20beta%20access"),
+        "public root HTML should not expose beta-access mailto CTAs"
+    );
     assert!(body.contains("BETA"));
     assert!(body.contains("Privacy Policy"));
     assert!(body.contains("Terms of Service"));

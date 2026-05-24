@@ -79,7 +79,6 @@ describe('API keys page server actions', () => {
 
 		const form = new FormData();
 		form.set('name', 'Billing Key');
-		const request = new Request('http://localhost/console/api-keys?/create', {
 		form.append('scope', 'indexes:read');
 		const request = new Request('http://localhost/console/api-keys?/create', {
 			method: 'POST',

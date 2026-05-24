@@ -4,8 +4,9 @@
 	import { page } from '$app/state';
 	import { DASHBOARD_SESSION_EXPIRED_REDIRECT } from '$lib/auth-session-contracts';
 	import { resolve } from '$app/paths';
-	import { SUPPORT_EMAIL } from '$lib/format';
-	import BetaSupportBadge from '$lib/components/BetaSupportBadge.svelte';
+	import { planLabel, SUPPORT_EMAIL } from '$lib/format';
+	import BetaPill from '$lib/components/BetaPill.svelte';
+	import SiteFooter from '$lib/components/SiteFooter.svelte';
 	import { CANONICAL_PUBLIC_API_DOCS_URL } from '$lib/public_api';
 	import { parseRetryAfterSeconds, retryAfterSecondsFromHeaders } from '$lib/http/retry_after';
 
@@ -244,7 +245,7 @@
 							: 'bg-[#9fd8d2]/30 text-[#1f1b18]'}"
 						data-testid="plan-badge"
 					>
-						{planContext.billing_plan === 'free' ? 'Free' : 'Shared'} Plan
+						{planLabel(planContext.billing_plan)} Plan
 					</span>
 				{/if}
 			</div>
@@ -284,10 +285,7 @@
 		{/if}
 
 		<div class="border-b border-[#1f1b18]/15 bg-[#fff8ea] px-6 py-2">
-			<BetaSupportBadge
-				dataTestid="dashboard-beta-support-badge"
-				betaLinkLabel="View beta scope"
-			/>
+			<BetaPill dataTestid="dashboard-beta-pill" />
 		</div>
 
 		{#if showVerificationBanner}
@@ -353,5 +351,6 @@
 		<main class="flex-1 overflow-y-auto p-6">
 			{@render children()}
 		</main>
+		<SiteFooter />
 	</div>
 </div>

@@ -97,6 +97,17 @@ export function formatNumber(n: number): string {
 }
 
 /**
+ * Display label for billing plans in console surfaces.
+ * Temporary seam: backend still uses `shared` while product copy is `Paid`.
+ */
+export function planLabel(value: string): string {
+	const normalized = value.trim().toLowerCase();
+	if (normalized === 'free') return 'Free';
+	if (normalized === 'shared') return 'Paid';
+	return value;
+}
+
+/**
  * Return Tailwind CSS classes for an index/deployment status badge.
  */
 export function indexStatusBadgeColor(status: string): string {

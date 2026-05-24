@@ -43,7 +43,9 @@ export function buildDashboardPlanContext(
 	onboardingStatus: OnboardingStatus | null
 ): DashboardPlanContext {
 	return {
-		billing_plan: onboardingStatus?.billing_plan ?? profile?.billing_plan ?? 'free',
+		// Profile reflects canonical account billing state; onboarding can lag immediately
+		// after admin mutations during staging E2E setup.
+		billing_plan: profile?.billing_plan ?? onboardingStatus?.billing_plan ?? 'free',
 		free_tier_limits: normalizeFreeTierLimits(onboardingStatus?.free_tier_limits ?? null),
 		has_payment_method: onboardingStatus?.has_payment_method ?? null,
 		onboarding_completed: onboardingStatus?.completed ?? null,

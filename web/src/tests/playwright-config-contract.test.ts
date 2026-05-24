@@ -11,7 +11,6 @@ import {
 	DEFAULT_PLAYWRIGHT_ADMIN_KEY,
 	DEFAULT_PLAYWRIGHT_BASE_URL,
 	DEFAULT_TEST_REGION,
-	PLAYWRIGHT_WEB_SERVER_TIMEOUT_MS,
 	PLAYWRIGHT_STORAGE_STATE,
 	PLAYWRIGHT_PROJECT_CONTRACTS,
 	PLAYWRIGHT_WEB_SERVER_COMMAND,
@@ -262,7 +261,7 @@ describe('playwright config contract', () => {
 			env: runtime.webServerEnv,
 			url: DEFAULT_PLAYWRIGHT_BASE_URL,
 			reuseExistingServer: false,
-			timeout: PLAYWRIGHT_WEB_SERVER_TIMEOUT_MS
+			timeout: 30_000
 		});
 		expect(runtime.webServerEnv.ADMIN_KEY).toBe(DEFAULT_PLAYWRIGHT_ADMIN_KEY);
 		expect(runtime.webServerEnv.API_BASE_URL).toBe(DEFAULT_API_URL);
@@ -271,7 +270,7 @@ describe('playwright config contract', () => {
 
 	it('uses the local stack launcher command so setup:user has API availability without manual startup', () => {
 		expect(PLAYWRIGHT_WEB_SERVER_COMMAND).toBe(
-			'../scripts/playwright_local_stack.sh --force-api-restart --host 127.0.0.1 --port 5173 --strictPort'
+			'../scripts/playwright_local_stack.sh --host 127.0.0.1 --port 5173 --strictPort'
 		);
 	});
 
@@ -1341,9 +1340,9 @@ describe('dashboard literal inventory contract (Stage 4)', () => {
 		'src/lib/error-boundary/client_runtime_test_fixtures.ts',
 		'src/routes/admin/end-impersonation/end-impersonation.test.ts',
 		'src/tests/playwright-config-contract.test.ts',
-		'tests/e2e-ui/full/isolation.spec.ts',
+		'tests/fixtures/billing_session_recovery.ts',
 		'tests/e2e-ui/smoke/indexes.spec.ts',
-		'tests/fixtures/billing_session_recovery.ts'
+		'tests/e2e-ui/full/isolation.spec.ts'
 	]);
 	const TEXT_EXTENSIONS = new Set([
 		'.ts',

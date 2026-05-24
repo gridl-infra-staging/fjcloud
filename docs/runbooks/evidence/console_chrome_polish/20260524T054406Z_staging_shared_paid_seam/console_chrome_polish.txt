@@ -1,0 +1,40 @@
+PRECREATED web/tests/fixtures/.auth/{user,admin,onboarding,customer-journeys}.json
+BASE_URL=https://cloud.staging.flapjack.foo API_URL=https://api.staging.flapjack.foo API_BASE_URL=https://api.staging.flapjack.foo PLAYWRIGHT_TARGET_REMOTE=1
+COMMAND=cd web && npx playwright test tests/e2e-ui/full/console_chrome_polish.spec.ts --project=chromium --reporter=list --no-deps
+
+(node:35387) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+Running 1 test using 1 worker
+
+(node:35394) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:35394) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:35394) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  1 [chromium] › tests/e2e-ui/full/console_chrome_polish.spec.ts:52:2 › Console chrome polish shared-to-paid seam › staging seam shows shared API plan with paid console chrome and migrated shell elements (124ms)
+
+
+  1) [chromium] › tests/e2e-ui/full/console_chrome_polish.spec.ts:52:2 › Console chrome polish shared-to-paid seam › staging seam shows shared API plan with paid console chrome and migrated shell elements 
+
+    Error: loginAs failed: 422 Failed to deserialize the JSON body into the target type: missing field `email` at line 1 column 2
+
+       at fixtures/fixtures.ts:524
+
+      522 | 		}
+      523 | 		if (!res.ok) {
+    > 524 | 			throw new Error(`loginAs failed: ${res.status} ${await res.text()}`);
+          | 			      ^
+      525 | 		}
+      526 | 		const data = (await res.json()) as AuthApiResponse;
+      527 | 		return data.token;
+        at loginAsUser (/Users/stuart/parallel_development/fjcloud_dev/may23_9pm_3_shared_layout_polish/fjcloud_dev/web/tests/fixtures/fixtures.ts:524:10)
+        at /Users/stuart/parallel_development/fjcloud_dev/may23_9pm_3_shared_layout_polish/fjcloud_dev/web/tests/e2e-ui/full/console_chrome_polish.spec.ts:60:24
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/e2e-ui-full-console_chrome-d13c2-and-migrated-shell-elements-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [chromium] › tests/e2e-ui/full/console_chrome_polish.spec.ts:52:2 › Console chrome polish shared-to-paid seam › staging seam shows shared API plan with paid console chrome and migrated shell elements 
+EXIT=1

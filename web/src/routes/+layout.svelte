@@ -3,8 +3,8 @@
 	import { page } from '$app/state';
 	import { resolve } from '$app/paths';
 	import favicon from '$lib/assets/favicon.ico';
-	import { SUPPORT_EMAIL } from '$lib/format';
 	import BetaSupportBadge from '$lib/components/BetaSupportBadge.svelte';
+	import SiteFooter from '$lib/components/SiteFooter.svelte';
 	import { onMount } from 'svelte';
 	import {
 		installBrowserRuntimeFailureListeners,
@@ -69,7 +69,12 @@
 						target="_blank"
 						rel="noreferrer"
 					>
-						<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false" class="h-4 w-4 fill-current">
+						<svg
+							viewBox="0 0 16 16"
+							aria-hidden="true"
+							focusable="false"
+							class="h-4 w-4 fill-current"
+						>
 							<path
 								d="M8 0C3.58 0 0 3.67 0 8.19c0 3.62 2.29 6.69 5.47 7.78.4.08.55-.18.55-.4v-1.52c-2.23.5-2.69-.97-2.69-.97-.36-.95-.89-1.2-.89-1.2-.73-.51.05-.5.05-.5.81.06 1.24.85 1.24.85.71 1.26 1.87.9 2.33.69.07-.53.28-.9.51-1.1-1.78-.21-3.64-.91-3.64-4.03 0-.89.31-1.62.82-2.19-.08-.21-.36-1.04.08-2.16 0 0 .68-.22 2.2.84A7.45 7.45 0 0 1 8 4c.68 0 1.36.09 1.99.28 1.53-1.06 2.2-.84 2.2-.84.44 1.12.16 1.95.08 2.16.51.57.82 1.3.82 2.19 0 3.13-1.87 3.82-3.65 4.02.29.26.55.76.55 1.54v2.22c0 .22.15.48.55.4A8.14 8.14 0 0 0 16 8.19C16 3.67 12.42 0 8 0Z"
 							/>
@@ -79,7 +84,7 @@
 						href={resolve('/login')}
 						class="inline-flex h-9 items-center justify-center whitespace-nowrap text-sm font-medium text-gray-600 hover:text-gray-900"
 					>
-						Log in
+						Log In
 					</a>
 					<!-- Public Sign Up CTA removed during invite-only beta. See docs/decisions/2026_05_23_beta_signup_gate.md -->
 				</nav>
@@ -105,19 +110,7 @@
 			{@render children()}
 		{/if}
 
-		<footer class="border-t border-gray-200 py-8">
-			<div
-				class="mx-auto flex max-w-6xl flex-col justify-between gap-4 px-6 text-sm text-gray-500 sm:flex-row"
-			>
-				<p>&copy; {new Date().getFullYear()} Flapjack Cloud. Contact: {SUPPORT_EMAIL}</p>
-				<nav class="flex flex-wrap gap-4" aria-label="Legal">
-					<a href={resolve('/terms')} class="hover:text-gray-900">Terms</a>
-					<a href={resolve('/privacy')} class="hover:text-gray-900">Privacy</a>
-					<a href={resolve('/dpa')} class="hover:text-gray-900">DPA</a>
-					<a href={resolve('/status')} class="hover:text-gray-900">Status</a>
-				</nav>
-			</div>
-		</footer>
+		<SiteFooter />
 	</div>
 {:else}
 	{@render children()}

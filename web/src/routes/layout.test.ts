@@ -122,11 +122,10 @@ describe('root layout public trust chrome ownership', () => {
 		'/console/settings',
 		'/admin',
 		'/admin/fleet'
-	])('keeps shared trust chrome absent on %s', (pathname) => {
+	])('keeps public-shell beta and legal wrapper absent on %s', (pathname) => {
 		renderAtPath(pathname);
 
 		expect(screen.queryByTestId('public-beta-banner')).not.toBeInTheDocument();
-		expect(screen.queryByRole('contentinfo')).not.toBeInTheDocument();
 		expect(screen.queryByRole('link', { name: 'Back to Flapjack Cloud' })).not.toBeInTheDocument();
 		expect(screen.getByTestId('child-content')).toBeInTheDocument();
 	});

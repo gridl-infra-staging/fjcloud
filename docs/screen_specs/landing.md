@@ -46,5 +46,5 @@ None known for the mapped launch-critical behavior.
 ## Automated Coverage
 
 - Browser-unmocked tests: `web/tests/e2e-ui/full/public-pages.spec.ts`
-- Component tests: `web/src/routes/layout.test.ts`; `web/src/lib/components/LandingPricingCalculator.test.ts`
+- Component tests: `web/src/routes/landing.test.ts`; `web/src/lib/components/LandingPricingCalculator.test.ts`
 - Server/contract tests: pricing data is covered through route/component tests.

@@ -8,12 +8,12 @@
 
 | Directory | Summary |
 | --- | --- |
-| account | The account directory contains server-side page handler logic for account-related routes in the SvelteKit application. |
+| account | The account directory contains server-side logic for the user account management page, likely handling account settings, profile information, and related operations. |
 | api-keys | — |
-| billing | The billing directory contains a SvelteKit billing setup page that creates and manages Stripe setup intents for payment configuration. |
-| indexes | The indexes directory contains server-side route handlers and utilities for the fjcloud web frontend's index management console, providing dashboard loading for user indexes and regions along with document and security management functionality. |
-| migrate | Server-side handler for the Algolia index migration page that provides two actions: listing available Algolia indexes given credentials, and starting a migration task from Algolia to fjcloud's index system. |
-| onboarding | The onboarding directory contains a SvelteKit server-side page component stub for handling onboarding flows. |
-| resend-verification | The resend-verification directory handles the server-side logic for resending verification emails or codes, likely as a SvelteKit API route endpoint in the +server.ts file. |
+| billing | The billing directory contains SvelteKit server page logic for managing payment configuration, including a setup page that loads Stripe setup intents to allow users to configure their payment methods with error handling for unavailable billing or missing customer state. |
+| indexes | The indexes directory implements fjcloud's dashboard console for managing customer indexes, with a main page that fetches user indexes and available regions, and detail routes that handle dictionary operations, document management, and security configuration. |
+| migrate | The migrate directory contains a SvelteKit page server file that appears to be a stub implementation, likely for a migration-related page in the web application. |
+| onboarding | This is a SvelteKit onboarding route directory containing a server-side page component. |
+| resend-verification | A POST endpoint that resends a verification email to the authenticated user, returning the API response with retry-after headers or appropriate error responses with retry-after information when the request fails. |
 | settings | — |
 <!-- [scrai:end] -->

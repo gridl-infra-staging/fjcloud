@@ -8,16 +8,6 @@
  */
 
 import { test, expect } from '../../fixtures/fixtures';
-import type { Page } from '@playwright/test';
-
-async function readCreatedApiKeyFromReveal(page: Page): Promise<string> {
-	const reveal = page.getByTestId('key-reveal');
-	await expect(reveal).toBeVisible({ timeout: 10_000 });
-	const revealText = (await reveal.textContent()) ?? '';
-	const keyMatch = revealText.match(/fjc_live_[0-9a-f]{32}/);
-	expect(keyMatch).not.toBeNull();
-	return keyMatch ? keyMatch[0] : '';
-}
 
 test.describe('API Keys page', () => {
 	test('load-and-verify: seeded key appears in the keys table', async ({ page, seedApiKey }) => {
@@ -70,7 +60,7 @@ test.describe('API Keys page', () => {
 	test('create form defaults to indexes:read on first render', async ({ page }) => {
 		await page.goto('/console/api-keys');
 
-		const defaultScopeCheckbox = page.getByRole('checkbox', { name: 'Search' });
+		const defaultScopeCheckbox = page.locator('input[name="scope"][value="indexes:read"]');
 		await expect(defaultScopeCheckbox).toBeChecked();
 	});
 
@@ -83,13 +73,16 @@ test.describe('API Keys page', () => {
 		await page.getByLabel('Name').fill(name);
 
 		// Force the empty-scope path through form submission while all checkboxes are unselected.
-		const scopeCheckboxes = page.getByRole('checkbox');
-		const checkboxCount = await scopeCheckboxes.count();
-		expect(checkboxCount).toBeGreaterThan(0);
-		for (let i = 0; i < checkboxCount; i += 1) {
-			await scopeCheckboxes.nth(i).uncheck();
-		}
-		await page.getByRole('button', { name: 'Create key' }).click();
+		await page
+			.locator('input[name="scope"]')
+			.evaluateAll((checkboxes) =>
+				checkboxes.forEach((checkbox) => {
+					(checkbox as HTMLInputElement).checked = false;
+				})
+			);
+		await page
+			.locator('form[action="?/create"]')
+			.evaluate((form) => (form as HTMLFormElement).requestSubmit());
 
 		await expect(page.getByRole('alert')).toContainText('at least one scope is required');
 	});
@@ -102,7 +95,8 @@ test.describe('API Keys page', () => {
 		await page.getByLabel('Search').check();
 		await page.getByRole('button', { name: 'Create key' }).click();
 
-		const createdKey = await readCreatedApiKeyFromReveal(page);
+		await expect(page.getByTestId('key-reveal')).toBeVisible({ timeout: 10_000 });
+		const createdKey = (await page.getByTestId('key-reveal').locator('code').innerText()).trim();
 
 		// Contract from infra/api/src/routes/api_keys.rs::generate_api_key:
 		// prefix "fjc_live_" + 32 hex chars from 16 random bytes.
@@ -115,7 +109,8 @@ test.describe('API Keys page', () => {
 
 	test('create key through UI authenticates discover for seeded index', async ({
 		page,
-		discoverWithApiKey,
+		request,
+		apiUrl,
 		seedSearchableIndex
 	}) => {
 		test.setTimeout(300_000);
@@ -129,22 +124,37 @@ test.describe('API Keys page', () => {
 		await page.getByLabel('Search').check();
 		await page.getByRole('button', { name: 'Create key' }).click();
 
-		const createdKey = await readCreatedApiKeyFromReveal(page);
+		await expect(page.getByTestId('key-reveal')).toBeVisible({ timeout: 10_000 });
+		const createdKey = (await page.getByTestId('key-reveal').locator('code').innerText()).trim();
 
-		const discover = await discoverWithApiKey(seededIndex.name, createdKey);
-		expect(discover.status).toBe(200);
-		const discoverData = discover.body;
-		expect(discoverData).not.toBeNull();
-		console.log(`discover_status=${discover.status} discover_body=${JSON.stringify(discoverData)}`);
-		expect(discoverData?.vm).toBeTruthy();
-		expect(discoverData?.flapjack_url).toBeTruthy();
-		expect(discoverData?.ttl ?? 0).toBeGreaterThan(0);
-		expect(discoverData?.service_type).toBeTruthy();
+		const discoverResponse = await request.get(
+			`${apiUrl}/discover?index=${encodeURIComponent(seededIndex.name)}`,
+			{
+				headers: { Authorization: `Bearer ${createdKey}` }
+			}
+		);
+		expect(discoverResponse.status()).toBe(200);
+		const discoverData = (await discoverResponse.json()) as {
+			vm?: string;
+			flapjack_url?: string;
+			ttl?: number;
+			service_type?: string;
+		};
+		console.log(`discover_status=${discoverResponse.status()} discover_body=${JSON.stringify(discoverData)}`);
+		expect(discoverData.vm).toBeTruthy();
+		expect(discoverData.flapjack_url).toBeTruthy();
+		expect(discoverData.ttl).toBeGreaterThan(0);
+		expect(discoverData.service_type).toBeTruthy();
 
 		// Assert this key discovers the seeded index identity, not just "not 401":
 		// the seeded index must resolve (200) while a random sibling name does not.
-		const missingIndex = await discoverWithApiKey(`${seededIndex.name}-missing`, createdKey);
-		expect(missingIndex.status).toBe(404);
+		const missingIndexResponse = await request.get(
+			`${apiUrl}/discover?index=${encodeURIComponent(`${seededIndex.name}-missing`)}`,
+			{
+				headers: { Authorization: `Bearer ${createdKey}` }
+			}
+		);
+		expect(missingIndexResponse.status()).toBe(404);
 	});
 
 	test('revoke key removes it from the table', async ({ page, seedApiKey, listApiKeys }) => {

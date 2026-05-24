@@ -1,8 +1,9 @@
+/**
+ * @module Stub summary for /Users/stuart/parallel_development/fjcloud_dev/MAR17_11_2_data_management_features/fjcloud_dev/web/src/routes/+page.server.ts.
+ */
 import type { PageServerLoad } from './$types';
-import { redirect } from '@sveltejs/kit';
+import { marketingPricingPageData } from './marketing_pricing';
 
-// Authenticated-public-path redirect to /console is owned by hooks.server.ts::handle().
-// This function only handles the unauthenticated root case.
 export const load: PageServerLoad = async () => {
-	redirect(303, '/login');
+	return marketingPricingPageData();
 };

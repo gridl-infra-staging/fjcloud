@@ -42,5 +42,5 @@ None known for the mapped launch-critical behavior.
 ## Automated Coverage
 
 - Browser-unmocked tests: `web/tests/e2e-ui/full/public-pages.spec.ts`
-- Component tests: `web/src/routes/layout.test.ts` (shared public-shell ownership for unauthenticated entry points).
+- Component tests: covered through linked public-page route tests for entry points.
 - Server/contract tests: static route; no server contract needed.

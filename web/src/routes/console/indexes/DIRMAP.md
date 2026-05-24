@@ -7,5 +7,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| [name] | This directory contains server-side logic and utilities for the index management console in the fjcloud web frontend, handling dictionary operations, document management, security configurations, and interactive tabs for code-snippet generation and file parsing. |
+| [name] | This directory implements the index management console for fjcloud, providing server-side handlers for dictionary operations, document management, and security configuration, along with tab-based UI components for displaying integration code and parsing uploaded documents. |
 <!-- [scrai:end] -->

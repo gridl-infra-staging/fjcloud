@@ -899,6 +899,12 @@ async function deleteTrackedCustomerForCleanup(customerId: string): Promise<void
 	if (response.status === 404) {
 		return;
 	}
+	if (response.status === 401) {
+		// Remote staging runs can intentionally omit admin credentials for browser-only
+		// seam proofs. Preserve test signal from the assertions and skip tenant teardown
+		// instead of failing after spec execution on an admin-only prerequisite.
+		return;
+	}
 	if (!response.ok) {
 		throw new Error(
 			`tracked fixture customer cleanup failed for ${customerId}: ${response.status} ${await response.text()}`
@@ -2142,16 +2148,11 @@ type RegisterIndexForCleanupFn = (name: string) => void;
 type CleanupFixtureIndexesFn = () => Promise<void>;
 type SeedApiKeyFn = (name: string, scopes?: string[]) => Promise<{ id: string }>;
 type ListApiKeysFn = () => Promise<ApiKeyListItem[]>;
-type DiscoverWithApiKeyFn = (indexName: string, apiKey: string) => Promise<{
-	status: number;
-	body: {
-		vm?: string;
-		flapjack_url?: string;
-		ttl?: number;
-		service_type?: string;
-	} | null;
-}>;
 type SetBillingPlanFn = (plan: 'free' | 'shared') => Promise<void>;
+type SetBillingPlanForCustomerFn = (customerId: string, plan: 'free' | 'shared') => Promise<void>;
+type GetAccountPayloadForTokenFn = (
+	token: string
+) => Promise<{ id?: string; billing_plan?: 'free' | 'shared' }>;
 type SeedInvoiceFn = () => Promise<{ id: string }>;
 type SeedInvoiceWithPdfUrlFn = () => Promise<{ id: string }>;
 type CreateUserFn = (email: string, password: string, name?: string) => Promise<CreatedFixtureUser>;
@@ -2209,10 +2210,12 @@ type E2eFixtures = {
 	seedApiKey: SeedApiKeyFn;
 	/** Read API-key rows for the authenticated customer through fixture-owned API access. */
 	listApiKeys: ListApiKeysFn;
-	/** Call /discover with a bearer API key through fixture-owned API access. */
-	discoverWithApiKey: DiscoverWithApiKeyFn;
 	/** Temporarily switch the authenticated customer between free and shared plans. */
 	setBillingPlan: SetBillingPlanFn;
+	/** Set a specific customer's plan through fixture-owned admin mutation flow. */
+	setBillingPlanForCustomer: SetBillingPlanForCustomerFn;
+	/** Read /account payload for a specific auth token through fixture-owned retry semantics. */
+	getAccountPayloadForToken: GetAccountPayloadForTokenFn;
 	/** Seed an index backed by Flapjack with searchable documents. */
 	seedSearchableIndex: SeedSearchableIndexFn;
 	/** Ensure an invoice exists for the test user and return its ID. */
@@ -2576,41 +2579,6 @@ export const test = base.extend<E2eFixtures & E2eInternalFixtures>({
 		});
 	},
 
-	discoverWithApiKey: async ({}, use) => {
-		await use(async (indexName: string, apiKey: string) => {
-			const response = await fetch(
-				`${fixtureEnv.apiUrl}/discover?index=${encodeURIComponent(indexName)}`,
-				{
-					headers: {
-						Authorization: `Bearer ${apiKey}`
-					}
-				}
-			);
-
-			let body: {
-				vm?: string;
-				flapjack_url?: string;
-				ttl?: number;
-				service_type?: string;
-			} | null = null;
-			try {
-				body = (await response.json()) as {
-					vm?: string;
-					flapjack_url?: string;
-					ttl?: number;
-					service_type?: string;
-				};
-			} catch {
-				body = null;
-			}
-
-			return {
-				status: response.status,
-				body
-			};
-		});
-	},
-
 	setBillingPlan: async ({}, use) => {
 		let originalPlan: 'free' | 'shared' | null = null;
 
@@ -2631,6 +2599,18 @@ export const test = base.extend<E2eFixtures & E2eInternalFixtures>({
 				/* ignore teardown failures */
 			});
 		}
+	},
+
+	setBillingPlanForCustomer: async ({}, use) => {
+		await use(async (customerId, plan) => {
+			await updateBillingPlan(plan, customerId);
+		});
+	},
+
+	getAccountPayloadForToken: async ({}, use) => {
+		await use(async (token) => {
+			return getAccountPayloadForTokenWithRetries(token, 'GET /account');
+		});
 	},
 
 	seedSearchableIndex: async ({ testRegion }, use) => {

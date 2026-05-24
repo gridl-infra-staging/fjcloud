@@ -11,7 +11,7 @@
 | admin | The admin directory provides a dashboard for system administration with pages for managing alerts, billing operations, customer accounts, and index migrations. |
 | api | The api directory contains SvelteKit server endpoints for three core customer-facing features: pricing comparison, authenticated search execution against Flapjack indexes, and Stripe integration including credential exposure. |
 | billing | The upgrade directory contains a SvelteKit server endpoint that handles upgrade-related backend logic for customers. |
-| console | The console directory is the main SvelteKit customer-facing dashboard providing server-side route handlers for account management, billing setup, index operations, Algolia migrations, onboarding, and email verification. |
+| console | The console directory is the main SvelteKit routes structure for fjcloud's customer-facing dashboard, containing pages for account management, billing setup, index management, onboarding, and email verification. |
 | dashboard | — |
 | forgot-password | — |
 | login | — |

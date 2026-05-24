@@ -172,7 +172,13 @@ fn app_base_url_from_snapshot(startup_env: &StartupEnvSnapshot) -> String {
     // Flapjack Cloud default for environments that have not set APP_BASE_URL.
     // StartupEnvSnapshot.env_value("APP_BASE_URL") also honors the
     // APP_PUBLIC_BASE_URL alias so normalization still has a single owner.
-    startup_env.normalized_app_base_url_or(crate::services::email::DEFAULT_APP_BASE_URL)
+    startup_env
+        .env_value("APP_BASE_URL")
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or(crate::services::email::DEFAULT_APP_BASE_URL)
+        .trim_end_matches('/')
+        .to_string()
 }
 
 fn mailpit_from_name_from_env(startup_env: &StartupEnvSnapshot) -> String {

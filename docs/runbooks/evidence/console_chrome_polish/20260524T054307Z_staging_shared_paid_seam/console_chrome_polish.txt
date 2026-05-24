@@ -1,0 +1,56 @@
+PRECREATED web/tests/fixtures/.auth/{user,admin,onboarding,customer-journeys}.json
+BASE_URL=https://cloud.staging.flapjack.foo API_URL=https://api.staging.flapjack.foo API_BASE_URL=https://api.staging.flapjack.foo PLAYWRIGHT_TARGET_REMOTE=1
+COMMAND=cd web && npx playwright test tests/e2e-ui/full/console_chrome_polish.spec.ts --project=chromium --reporter=list --no-deps
+
+(node:34272) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+Running 1 test using 1 worker
+
+(node:34273) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:34273) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:34273) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  1 [chromium] › tests/e2e-ui/full/console_chrome_polish.spec.ts:51:2 › Console chrome polish shared-to-paid seam › staging seam shows shared API plan with paid console chrome and migrated shell elements (395ms)
+
+
+  1) [chromium] › tests/e2e-ui/full/console_chrome_polish.spec.ts:51:2 › Console chrome polish shared-to-paid seam › staging seam shows shared API plan with paid console chrome and migrated shell elements 
+
+    Error: setBillingPlan failed: 401 {"error":"invalid admin key"}
+
+       at fixtures/fixtures.ts:1106
+
+      1104 | 	});
+      1105 | 	if (!res.ok) {
+    > 1106 | 		throw new Error(`setBillingPlan failed: ${res.status} ${await res.text()}`);
+           | 		      ^
+      1107 | 	}
+      1108 | }
+      1109 |
+        at updateBillingPlan (/Users/stuart/parallel_development/fjcloud_dev/may23_9pm_3_shared_layout_polish/fjcloud_dev/web/tests/fixtures/fixtures.ts:1106:9)
+        at /Users/stuart/parallel_development/fjcloud_dev/may23_9pm_3_shared_layout_polish/fjcloud_dev/web/tests/fixtures/fixtures.ts:2699:4
+        at /Users/stuart/parallel_development/fjcloud_dev/may23_9pm_3_shared_layout_polish/fjcloud_dev/web/tests/e2e-ui/full/console_chrome_polish.spec.ts:63:3
+
+    Error: tracked fixture customer cleanup failed for 09afc7b9-13bc-426f-8646-c48b5f304234: 401 {"error":"invalid admin key"}
+
+       at fixtures/fixtures.ts:942
+
+      940 | 	}
+      941 | 	if (!response.ok) {
+    > 942 | 		throw new Error(
+          | 		      ^
+      943 | 			`tracked fixture customer cleanup failed for ${customerId}: ${response.status} ${await response.text()}`
+      944 | 		);
+      945 | 	}
+        at deleteTrackedCustomerForCleanup (/Users/stuart/parallel_development/fjcloud_dev/may23_9pm_3_shared_layout_polish/fjcloud_dev/web/tests/fixtures/fixtures.ts:942:9)
+        at Object._trackCustomerForCleanup (/Users/stuart/parallel_development/fjcloud_dev/may23_9pm_3_shared_layout_polish/fjcloud_dev/web/tests/fixtures/fixtures.ts:2435:4)
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/e2e-ui-full-console_chrome-d13c2-and-migrated-shell-elements-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [chromium] › tests/e2e-ui/full/console_chrome_polish.spec.ts:51:2 › Console chrome polish shared-to-paid seam › staging seam shows shared API plan with paid console chrome and migrated shell elements 
+
+EXIT=1

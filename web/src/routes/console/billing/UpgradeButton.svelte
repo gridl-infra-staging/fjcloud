@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
-	import { formatCents } from '$lib/format';
+	import { formatCents, planLabel } from '$lib/format';
 
 	type UpgradeFixtureState = {
 		billing_plan: 'free' | 'shared';
@@ -112,7 +112,7 @@
 			class="inline-flex items-center rounded-full bg-[#1f1b18]/8 px-3 py-1 text-sm font-medium text-[#1f1b18]"
 			data-testid="current-plan-label"
 		>
-			Current plan: {effectivePlan === 'free' ? 'Free' : 'Shared'}
+			Current plan: {planLabel(effectivePlan)}
 		</p>
 	</div>
 

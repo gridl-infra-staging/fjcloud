@@ -386,7 +386,7 @@ test.describe('Plan-aware dashboard features', () => {
 
 		const badge = page.getByTestId('plan-badge');
 		await expect(badge).toBeVisible();
-		await expect(badge).toHaveText(/(?:Free|Shared) Plan/);
+		await expect(badge).toHaveText(/(?:Free|Paid) Plan/);
 	});
 
 	test('shared-plan billing prompt navigates to billing setup', async ({ page, setBillingPlan }) => {
@@ -430,7 +430,7 @@ test.describe('Plan-aware dashboard features', () => {
 		await setBillingPlan('shared');
 		await page.goto('/console');
 
-		await expect(page.getByTestId('plan-badge')).toHaveText('Shared Plan');
+		await expect(page.getByTestId('plan-badge')).toHaveText('Paid Plan');
 		// Free-tier progress section must not appear for shared-plan users
 		await expect(page.getByTestId('free-tier-progress')).toBeHidden();
 	});

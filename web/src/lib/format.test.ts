@@ -10,6 +10,7 @@ import {
 	formatUnitPrice,
 	indexStatusBadgeColor,
 	scopeLabel,
+	planLabel,
 	statusColor,
 	statusLabel
 } from './format';
@@ -154,6 +155,15 @@ describe('statusLabel', () => {
 		expect(statusLabel('failed')).toBe('Failed');
 		expect(statusLabel('refunded')).toBe('Refunded');
 		expect(statusLabel('provisioning')).toBe('Preparing');
+	});
+});
+
+describe('planLabel', () => {
+	it('maps canonical plan labels and passes unknown values through', () => {
+		expect(planLabel('free')).toBe('Free');
+		expect(planLabel('shared')).toBe('Paid');
+		expect(planLabel('Shared')).toBe('Paid');
+		expect(planLabel('enterprise')).toBe('enterprise');
 	});
 });
 

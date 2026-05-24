@@ -159,8 +159,6 @@
 # TODO: Document stripe_request.
 # TODO: Document stripe_request.
 # TODO: Document stripe_request.
-# TODO: Document stripe_request.
-# TODO: Document stripe_request.
 stripe_request() {
     local method="$1"
     local path="$2"

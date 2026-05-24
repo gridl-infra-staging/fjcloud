@@ -220,13 +220,13 @@ describe('Dashboard layout server load', () => {
 		expect(result.onboardingStatus).toBeNull();
 	});
 
-	it('uses onboarding status as the authoritative source for planContext', async () => {
+	it('uses profile billing plan when onboarding status billing plan is stale', async () => {
 		getProfileMock.mockResolvedValue(sharedProfile);
 		getOnboardingStatusMock.mockResolvedValue(freeOnboarding);
 
 		const result = (await load(makeEvent()))!;
 
-		expect(result.planContext.billing_plan).toBe('free');
+		expect(result.planContext.billing_plan).toBe('shared');
 			expect(result.planContext.free_tier_limits).toEqual({
 				max_searches_per_month: 50000,
 				max_records: 100000,

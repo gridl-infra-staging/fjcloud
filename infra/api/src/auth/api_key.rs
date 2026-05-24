@@ -47,7 +47,8 @@ impl ApiKeyAuth {
     fn accepts_management_prefix(key: &str, stage1_decision: Stage1ApiKeyCompatDecision) -> bool {
         key.starts_with("fjc_live_")
             || key.starts_with("fj_live_")
-            || (stage1_decision.accepts_legacy_gridl_live_keys() && key.starts_with("gridl_live_"))
+            || (stage1_decision.accepts_legacy_gridl_live_keys()
+                && key.starts_with("gridl_live_"))
     }
 
     /// Shared extractor implementation used by `FromRequestParts` and tests.

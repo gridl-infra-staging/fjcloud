@@ -335,7 +335,7 @@ describe('Dashboard layout plan badge', () => {
 		renderLayout({ billing_plan: 'shared' });
 		const badge = screen.getByTestId('plan-badge');
 		expect(badge).toBeInTheDocument();
-		expect(badge).toHaveTextContent(/shared/i);
+		expect(badge).toHaveTextContent('Paid Plan');
 	});
 
 	it('shows user name in header from profile', () => {
@@ -518,7 +518,7 @@ describe('Dashboard layout sidebar navigation', () => {
 	it('opens and closes mobile drawer without hiding compact beta support and verification banners', async () => {
 		renderLayout({ profile: unverifiedProfile });
 
-		expect(screen.getByTestId('dashboard-beta-support-badge')).toBeInTheDocument();
+		expect(screen.getByTestId('dashboard-beta-pill')).toBeInTheDocument();
 		expect(screen.getByTestId('verification-banner')).toBeInTheDocument();
 
 		const mobileDrawer = screen.getByTestId('dashboard-nav-mobile-drawer');
@@ -530,14 +530,14 @@ describe('Dashboard layout sidebar navigation', () => {
 		await fireEvent.click(screen.getByTestId('dashboard-mobile-nav-dismiss'));
 		expect(mobileDrawer).toHaveAttribute('data-nav-open', 'false');
 
-		expect(screen.getByTestId('dashboard-beta-support-badge')).toBeInTheDocument();
+		expect(screen.getByTestId('dashboard-beta-pill')).toBeInTheDocument();
 		expect(screen.getByTestId('verification-banner')).toBeInTheDocument();
 	});
 
 	it('renders beta scope and feedback entry points', () => {
 		renderLayout();
 
-		expect(screen.getByTestId('dashboard-beta-support-badge')).toHaveTextContent(/public beta/i);
+		expect(screen.getByTestId('dashboard-beta-pill')).toHaveTextContent(/public beta/i);
 		expect(screen.getByRole('link', { name: /beta scope/i })).toHaveAttribute('href', '/beta');
 		const feedbackLink = screen.getByRole('link', { name: /send feedback/i });
 		expect(feedbackLink).toHaveAttribute(
@@ -547,6 +547,29 @@ describe('Dashboard layout sidebar navigation', () => {
 		expect(feedbackLink).toHaveAttribute(
 			'href',
 			expect.stringContaining('subject=Flapjack%20Cloud%20beta%20feedback')
+		);
+	});
+
+	it('renders shared legal footer links in console shell', () => {
+		renderLayout();
+		const legalFooterNav = within(screen.getByRole('contentinfo')).getByRole('navigation', {
+			name: 'Legal'
+		});
+		expect(within(legalFooterNav).getByRole('link', { name: 'Terms' })).toHaveAttribute(
+			'href',
+			'/terms'
+		);
+		expect(within(legalFooterNav).getByRole('link', { name: 'Privacy' })).toHaveAttribute(
+			'href',
+			'/privacy'
+		);
+		expect(within(legalFooterNav).getByRole('link', { name: 'DPA' })).toHaveAttribute(
+			'href',
+			'/dpa'
+		);
+		expect(within(legalFooterNav).getByRole('link', { name: 'Status' })).toHaveAttribute(
+			'href',
+			'/status'
 		);
 	});
 

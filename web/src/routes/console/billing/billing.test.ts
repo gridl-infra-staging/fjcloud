@@ -290,6 +290,32 @@ describe('Billing page', () => {
 		expect(screen.getByTestId('current-plan-label')).toHaveTextContent('Current plan: Free');
 	});
 
+	it('renders paid plan label for shared-plan state', () => {
+		render(BillingPage, {
+			data: {
+				...layoutTestDefaults,
+				planContext: {
+					...layoutTestDefaults.planContext,
+					billing_plan: 'shared' as const
+				},
+				user: null,
+				billingUnavailable: false,
+				setupIntentClientSecret: 'seti_secret_123',
+				setupIntentError: null,
+				upgradeStatus: {
+					stripe_customer_id: 'cus_123',
+					has_default_payment_method: true,
+					upgrade_ready: false
+				},
+				paymentMethods: []
+			},
+			form: null
+		});
+
+		expect(screen.getByTestId('current-plan-label')).toHaveTextContent('Current plan: Paid');
+		expect(screen.queryByTestId('upgrade-to-shared-button')).not.toBeInTheDocument();
+	});
+
 	it('renders requires-action banner from upgrade action outcome in form data', () => {
 		render(BillingPage, {
 			data: {

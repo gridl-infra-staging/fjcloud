@@ -410,7 +410,9 @@ const GRIDL_KEY: &str = "gridl_live_0123456789abcdef0123456789abcdef";
 const GRIDL_KEY_PREFIX: &str = "gridl_live_01234";
 const AUDITED_STAGE1_DECISION: Stage1ApiKeyCompatDecision = Stage1ApiKeyCompatDecision::HardCutOk;
 
-async fn send_gridl_test_request(app: Router) -> axum::response::Response {
+async fn send_gridl_test_request(
+    app: Router,
+) -> axum::response::Response {
     let request = Request::get("/test")
         .header("authorization", format!("Bearer {GRIDL_KEY}"))
         .body(Body::empty())
@@ -464,10 +466,7 @@ async fn gridl_live_behavior_matches_stage1_decision_token() {
 
     let resp = send_gridl_test_request(app).await;
 
-    assert_eq!(
-        AUDITED_STAGE1_DECISION,
-        Stage1ApiKeyCompatDecision::HardCutOk
-    );
+    assert_eq!(AUDITED_STAGE1_DECISION, Stage1ApiKeyCompatDecision::HardCutOk);
     assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
 }
 
@@ -497,10 +496,7 @@ async fn gridl_live_ignores_request_extension_override() {
 
     let resp = app.oneshot(request).await.unwrap();
 
-    assert_eq!(
-        AUDITED_STAGE1_DECISION,
-        Stage1ApiKeyCompatDecision::HardCutOk
-    );
+    assert_eq!(AUDITED_STAGE1_DECISION, Stage1ApiKeyCompatDecision::HardCutOk);
     assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
 }
 

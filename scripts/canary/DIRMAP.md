@@ -19,5 +19,5 @@ unavailable so staging gets a clear outside-AWS outage signal. |
 
 | Directory | Summary |
 | --- | --- |
-| contracts | This directory contains integration validation contracts that verify behavioral consistency across infrastructure (EC2 firewall, Lambda), browser-based UI tests (Playwright mocked specs with auth and billing flows), and API integration points (OAuth redirects, API base URLs, form login). |
+| contracts | The contracts directory contains bash-based validation scripts that verify consistency between test fixtures and production source code across infrastructure, APIs, and authentication flows. |
 <!-- [scrai:end] -->

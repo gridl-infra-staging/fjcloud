@@ -153,10 +153,10 @@ usage_records to Postgres. |
 
 | Directory | Summary |
 | --- | --- |
-| canary | The canary directory contains synthetic health probes and validation contracts that continuously monitor fjcloud's external infrastructure availability, email deliverability, and API/UI integration points. |
+| canary | The canary directory contains synthetic health probes and validation scripts that continuously monitor external dependencies (AWS availability, email deliverability) and test end-to-end customer flows, with bash-based contracts that verify consistency between test fixtures and production source code. |
 | chaos | The chaos directory contains failure-injection and HA resilience test scripts that validate the system's ability to detect outages, trigger failover, and recover—including region kill/restart tests, metering service failure detection, and end-to-end failover proofs. |
 | launch | The launch directory contains deployment verification and evidence-capture scripts for the fjcloud staging environment, including tenant-map validation, synthetic traffic seeding, post-deploy verification gates, SSM environment hydration, and E2E test orchestration. |
-| lib | This directory contains shared bash and Python helper libraries used across fjcloud's integration and validation scripts, covering alert dispatch, environment loading, HTTP requests, Stripe operations, database validation, health checks, and billing rehearsal flows. |
+| lib | The `lib/` directory contains shared shell and Python helper modules for the fjcloud project's scripts, including utilities for alert dispatch, environment loading, health checks, HTTP requests, database operations, Stripe and Privacy.com integrations, validation gates, and billing workflow orchestration. |
 | load | The load directory contains regression checking utilities for validating load testing performance, including scripts that compare offline and live load harness results to detect performance regressions. |
 | reliability | This directory provides backend reliability profiling scripts, security validation gates (cargo audit, secret scanning, unsafe code detection), and test data seeding utilities that measure API capacity across three document-scale tiers and produce machine-readable JSON summaries. |
 | stripe | The stripe directory contains operational scripts for managing Stripe integration with fjcloud: configuring the Customer Portal and creating the canonical Flapjack product catalog, both supporting multi-account operations. |

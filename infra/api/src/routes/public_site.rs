@@ -244,7 +244,7 @@ fn landing_page_html() -> String {
           <p class="eyebrow">Managed search hosting</p>
           <h1>Flapjack Cloud</h1>
           <p class="lede">Managed hosting for Flapjack search.</p>
-          <p class="copy">Use an Algolia-compatible API without running your own search servers. Create indexes, upload documents, and query from your app.</p>
+          <p class="copy">Use an Algolia-compatible API without running your own search servers. Create indexes, import documents, and query from your app.</p>
           <p class="copy"><strong>Public beta.</strong> Contact by email. Pricing and limits may change before general availability.</p>
           <div class="actions">
             <a class="button" href="mailto:{SUPPORT_EMAIL}?subject=Flapjack%20Cloud%20beta%20access">Request Beta Access</a>

@@ -1,0 +1,16 @@
++ curl -sI https://api.flapjack.foo/auth/oauth/google/start
+HTTP/2 302 
+date: Sun, 24 May 2026 02:29:36 GMT
+content-length: 0
+location: https://accounts.google.com/o/oauth2/v2/auth?client_id=890576478022-svbrc494affipr3lubjinu699it19e06.apps.googleusercontent.com&redirect_uri=https%3A%2F%2Fcloud.flapjack.foo%2Fauth%2Foauth%2Fgoogle%2Fcallback&state=5viwnXt7Y0KbKKx0PBSqg7t8g3kVvYsN&response_type=code&scope=openid%20email%20profile&code_challenge=f83TolEK1rlnuG-BO0H86Gz2jPJjm8TS7eID0gfvtLo&code_challenge_method=S256
+set-cookie: oauth_state=HvvVZvRxrcbILrq9.FSySQZKo_0ujOpRZhQADyqq3kCH0mk869RqJRrybE81g2AsZ4EFxAnGWUADb8543WddlvP5hqn3daCKo_FzKrKAXJMN4mA8yjR2A_7rxEdlkjQm6J5oxcakrDy8FmAITXvXpGJ1coVtl-vI7AJAO_yQtQZQeaGdk0nWuXDg37FPzmTJXvB_zKXeBwb0c1rLxSlYk6iDflgswZfCBMuq_m_DXhWvXjs3-6LqX83EvapJNmP7lL2-GyUsvjbHMA5uPjSJcIhkfiWImQTUOfXYFe0SYPRCKyUZD98UOWZL0; Path=/; HttpOnly; SameSite=None; Max-Age=600; Secure; Domain=.flapjack.foo
+set-cookie: oauth_state_binding=jJAjspTl1D1YJFz7qDSqNewmAs76Iu0q; Path=/; HttpOnly; SameSite=None; Max-Age=600; Secure; Domain=.flapjack.foo
+strict-transport-security: max-age=63072000; includeSubDomains
+x-content-type-options: nosniff
+x-frame-options: DENY
+x-xss-protection: 1; mode=block
+x-robots-tag: noindex, nofollow, noarchive, nosnippet, noimageindex, noai, noimageai
+vary: origin, access-control-request-method, access-control-request-headers
+access-control-allow-credentials: true
+x-request-id: 023d6577-f6cd-4661-ad50-41b9d49aeb75
+

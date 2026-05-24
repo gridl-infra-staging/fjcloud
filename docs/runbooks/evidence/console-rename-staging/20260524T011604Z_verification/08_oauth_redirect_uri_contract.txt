@@ -1,0 +1,11 @@
+$ APP_BASE_URL_STAGING=https://cloud.staging.flapjack.foo bash scripts/canary/contracts/oauth_redirect_uri_contract.sh staging
+
+SKIP: GOOGLE_CLIENT_ID/SECRET not set, staging Google probe skipped
+SKIP: GITHUB_OAUTH_CLIENT_ID_STAGING/SECRET not set, staging GitHub probe skipped
+
+NOTE: OAuth client credentials are stored in SSM only (not in local .env.secret).
+The contract verifies redirect URI consistency between provider and SSM config;
+it does not validate the dashboard→console rename. The OAuth redirect URIs point
+to /oauth/callback/[provider], not to /dashboard or /console paths.
+
+VERDICT: SKIP — not a gate for the console rename, requires operator credentials

@@ -17,13 +17,13 @@ vi.mock('@sveltejs/kit', async () => {
 	};
 });
 
-import { load as loadRoot } from './+page.server';
-import { load as loadCatchAll } from './[...path]/+page.server';
+import { GET as getRoot } from './+server';
+import { GET as getCatchAll } from './[...path]/+server';
 
-type LoadRootEvent = Parameters<typeof loadRoot>[0];
-type LoadCatchAllEvent = Parameters<typeof loadCatchAll>[0];
+type GetRootEvent = Parameters<typeof getRoot>[0];
+type GetCatchAllEvent = Parameters<typeof getCatchAll>[0];
 
-function makeLoadEvent<E>(href: string): E {
+function makeRequestEvent<E>(href: string): E {
 	const url = new URL(href);
 	return { url } as unknown as E;
 }
@@ -43,7 +43,7 @@ function captureRedirect(fn: () => unknown): MockRedirect {
 describe('legacy /dashboard redirect contract', () => {
 	it('redirects /dashboard root to /console with 308 permanent', () => {
 		const redirect = captureRedirect(() =>
-			loadRoot(makeLoadEvent<LoadRootEvent>('http://localhost/dashboard'))
+			getRoot(makeRequestEvent<GetRootEvent>('http://localhost/dashboard'))
 		);
 		expect(redirect.status).toBe(308);
 		expect(redirect.location).toBe('/console');
@@ -51,7 +51,7 @@ describe('legacy /dashboard redirect contract', () => {
 
 	it('redirects /dashboard/indexes/products to /console/indexes/products with 308', () => {
 		const redirect = captureRedirect(() =>
-			loadCatchAll(makeLoadEvent<LoadCatchAllEvent>('http://localhost/dashboard/indexes/products'))
+			getCatchAll(makeRequestEvent<GetCatchAllEvent>('http://localhost/dashboard/indexes/products'))
 		);
 		expect(redirect.status).toBe(308);
 		expect(redirect.location).toBe('/console/indexes/products');
@@ -59,8 +59,8 @@ describe('legacy /dashboard redirect contract', () => {
 
 	it('preserves multi-param query string when redirecting deep /dashboard paths to /console', () => {
 		const redirect = captureRedirect(() =>
-			loadCatchAll(
-				makeLoadEvent<LoadCatchAllEvent>(
+			getCatchAll(
+				makeRequestEvent<GetCatchAllEvent>(
 					'http://localhost/dashboard/billing/invoices/inv_123?from=email&view=history'
 				)
 			)

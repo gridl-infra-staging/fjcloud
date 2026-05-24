@@ -1,0 +1,15 @@
++ curl -sI https://cloud.flapjack.foo/dashboard
+HTTP/2 103 
+link: <./_app/immutable/assets/0.BAAjA-M7.css>; as=style; nopush; rel=preload
+
+HTTP/2 308 
+date: Sun, 24 May 2026 02:29:35 GMT
+location: /console
+x-robots-tag: noindex, nofollow, noarchive, nosnippet, noimageindex, noai, noimageai
+report-to: {"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4?s=tAc2MU5%2FyOTlc%2BAFFOolhU50Hg%2FnGNsvdQ21AwTqXrixqfwP569%2Bfkt6tEtGOjSH3e%2BIXzSUftPGTIzLC%2Fm1%2BWGA%2BANzwczVRQnl6zbfIMjvPwgzFbZres3wrfpJembtrcwPA%2FsGfsbkVyG2hT6i%2FaQ%3D"}]}
+nel: {"report_to":"cf-nel","success_fraction":0.0,"max_age":604800}
+server: cloudflare
+cf-cache-status: DYNAMIC
+cf-ray: a008dfa26fb8690e-IAD
+alt-svc: h3=":443"; ma=86400
+

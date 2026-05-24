@@ -1,0 +1,5 @@
+$ bash scripts/canary/contracts/web_api_base_url_contract.sh staging
+
+PASS: env=staging https://cloud.staging.flapjack.foo OAuth-start -> https://api.staging.flapjack.foo
+
+VERDICT: PASS — staging frontend OAuth hrefs point at api.staging.flapjack.foo, not prod

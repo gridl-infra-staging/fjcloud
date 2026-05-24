@@ -1,0 +1,21 @@
+$ source .secret/.env.secret && stripe billing_portal configurations list --api-key "$STRIPE_SECRET_KEY" --limit 5
+
+Key prefix: sk_test_...
+Configuration ID: bpc_1TSp4AGXI8zVz4UHZTvxEpMB
+default_return_url: null
+is_default: true
+livemode: false
+
+NOTE: default_return_url is null because this project passes the return URL
+per-session from the SvelteKit frontend (PaymentMethodSetupForm.svelte).
+The frontend code at web/src/routes/console/billing/PaymentMethodSetupForm.svelte
+uses returnPath='/console/billing' as the default.
+
+Code verification:
+- PaymentMethodSetupForm.svelte: `returnPath = '/console/billing'` (default prop)
+- PaymentMethodSetupForm.svelte: `returnPath?: '/console/billing'` (type constraint)
+- PaymentMethodSetupForm.svelte: `cancelPath?: '/console/billing' | null` (type constraint)
+- No occurrences of '/dashboard/billing' in PaymentMethodSetupForm.svelte
+
+VERDICT: PASS — per-session return URL uses /console/billing; no /dashboard/billing references remain
+Zero configurations contain '/dashboard/billing'.

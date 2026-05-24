@@ -1331,8 +1331,8 @@ describe('dashboard literal inventory contract (Stage 4)', () => {
 	const WEB_ROOT = join(process.cwd(), '.');
 	const STAGE5_EXCLUDED_OWNER_PATH_PREFIXES = ['src/routes/console/'];
 	const ALLOWED_DASHBOARD_LITERAL_FILES = new Set([
-		'src/routes/dashboard/+page.server.ts',
-		'src/routes/dashboard/[...path]/+page.server.ts',
+		'src/routes/dashboard/+server.ts',
+		'src/routes/dashboard/[...path]/+server.ts',
 		'src/routes/dashboard/dashboard_redirect.server.test.ts',
 		'tests/e2e-ui/smoke/console.spec.ts',
 		'src/lib/error-boundary/recovery-copy.ts',

@@ -1,0 +1,8 @@
+probe: GET https://cloud.staging.flapjack.foo/signup — count "dashboard" occurrences
+timestamp: 2026-05-24T02:02:53Z
+expected: 0 occurrences of "dashboard" in signup page HTML
+result: PASS
+
+dashboard occurrences: 0
+
+Signup page contains no references to "dashboard". Console branding is clean.

@@ -1,0 +1,10 @@
+probe: GET https://cloud.staging.flapjack.foo/dashboard
+timestamp: 2026-05-24T02:02:53Z
+expected: 308 permanent redirect to /console
+result: PASS
+
+HTTP/2 308
+location: /console
+x-robots-tag: noindex, nofollow, noarchive, nosnippet, noimageindex, noai, noimageai
+
+Legacy /dashboard root correctly redirects to /console with 308 permanent.

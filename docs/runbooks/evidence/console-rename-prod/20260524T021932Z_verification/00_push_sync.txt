@@ -1,0 +1,54 @@
++ bash scripts/git_push_with_sync.sh origin main
+Everything up-to-date
+=== retry merge+sync at 2026-05-24T02:24:02Z ===
+source_branch=batman/may23_9pm_2_routes_dashboard_to_console
+=== alternate push+sync path (main checked out in another worktree) 2026-05-24T02:24:19Z ===
+=== integrate origin/main into feature before main push 2026-05-24T02:24:25Z ===
+Auto-merging .scrai/dir_summaries.json
+CONFLICT (content): Merge conflict in .scrai/dir_summaries.json
+Auto-merging DIRMAP.md
+CONFLICT (content): Merge conflict in DIRMAP.md
+Auto-merging web/DIRMAP.md
+CONFLICT (content): Merge conflict in web/DIRMAP.md
+Auto-merging web/src/tests/playwright-config-contract.test.ts
+Automatic merge failed; fix conflicts and then commit the result.
+=== merge aborted in feature workspace 2026-05-24T02:24:40Z ===
+## batman/may23_9pm_2_routes_dashboard_to_console...origin/batman/may23_9pm_2_routes_dashboard_to_console
+?? docs/live-state/20260524T022050Z/
+?? docs/runbooks/evidence/console-rename-prod/
+
+origin/main contains rename commit?
+  origin/batman/may23_9pm_2_routes_dashboard_to_console
+
+top of origin/main
+a9cc5ddd3 batman merge_worktree: merge batman/may22_1pm_2_e2e_ui_bulletproof_sweep into main
+2744dd903 wip: pre-queue auto-commit [batman queue]
+0a3400179 batman merge_worktree: merge batman/may23_pm_1_ci_layer_split into main
+973353c5b wip: pre-queue auto-commit [batman queue]
+e2db2f4e8 scrai: 16 files documented, 2 guidance files assembled, 3 state files tracked
+6d36dd425 matt: review bugs all stages
+0d5222721 fix(security): bound evidence dir writes
+311511724 fix: update screen_specs_coverage_test dashboard→console assertions
+=== push/sync from main worktree 2026-05-24T02:25:16Z ===
+## main...origin/main [ahead 1]
+
+debbie sync -> staging
+  project: fjcloud
+  config:  /Users/stuart/repos/gridl-infra-dev/fjcloud_dev/.debbie.toml
+
+scrai strip: files_discovered=691 files_modified=267 candidates_removed=1138
+ok Synced 9 dirs, 13 files
+   hook: executed
+
+ok fjcloud -> staging complete
+
+debbie sync -> prod
+  project: fjcloud
+  config:  /Users/stuart/repos/gridl-infra-dev/fjcloud_dev/.debbie.toml
+
+scrai strip: files_discovered=723 files_modified=267 candidates_removed=1138
+ok Synced 9 dirs, 13 files
+   hook: executed
+
+ok fjcloud -> prod complete
+origin/main now: 46d4624afbfcef7871e4eebf52aa141b70a098a6

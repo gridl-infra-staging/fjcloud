@@ -1,0 +1,10 @@
+probe: GET https://cloud.staging.flapjack.foo/dashboard/billing?tab=invoices&page=2
+timestamp: 2026-05-24T02:02:53Z
+expected: 308 permanent redirect to /console/billing?tab=invoices&page=2
+result: PASS
+
+HTTP/2 308
+location: /console/billing?tab=invoices&page=2
+x-robots-tag: noindex, nofollow, noarchive, nosnippet, noimageindex, noai, noimageai
+
+Query string parameters preserved across redirect: tab=invoices&page=2.

@@ -9,7 +9,7 @@ import {
 import { fail } from '@sveltejs/kit';
 import { redirect } from '@sveltejs/kit';
 
-export const EMPTY_SCOPE_REQUIRED_ERROR = 'at least one scope is required';
+export const _EMPTY_SCOPE_REQUIRED_ERROR = 'at least one scope is required';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	const api = createApiClient(locals.user?.token);
@@ -36,7 +36,7 @@ export const actions: Actions = {
 		const scopes = data
 			.getAll('scope')
 			.filter((value): value is string => typeof value === 'string');
-		if (scopes.length === 0) return fail(400, { error: EMPTY_SCOPE_REQUIRED_ERROR });
+		if (scopes.length === 0) return fail(400, { error: _EMPTY_SCOPE_REQUIRED_ERROR });
 
 		const api = createApiClient(locals.user?.token);
 		try {

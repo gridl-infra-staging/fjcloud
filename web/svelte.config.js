@@ -33,7 +33,7 @@ const config = {
 			// build time. Everything else (signup, login, dashboard, api/*) is
 			// dynamic and must be served by the Pages Function (Worker).
 			crawl: false,
-			entries: ['/', '/pricing', '/beta', '/terms', '/privacy', '/dpa', '/status'],
+			entries: ['/pricing', '/beta', '/terms', '/privacy', '/dpa', '/status'],
 			handleUnseenRoutes: 'ignore'
 		}
 	}

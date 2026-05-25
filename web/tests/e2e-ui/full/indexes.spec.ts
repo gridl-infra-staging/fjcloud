@@ -59,6 +59,7 @@ async function waitForCreateIndexSuccess(
 async function submitCreateIndexForm(page: Page, name: string, regionId?: string): Promise<void> {
 	await page.getByLabel('Index name').fill(name);
 	const form = page.getByTestId('create-index-form');
+	// eslint-disable-next-line playwright/no-raw-locators -- evaluateAll needs raw DOM access to read .value/.disabled
 	const regionRadios = form.locator('input[name="region"]');
 
 	if (regionId) {
@@ -182,11 +183,12 @@ async function submitCreateIndexFormWithTransientRetry(
 			);
 		}
 
-		await page.waitForTimeout(250 * (attempt + 1));
+		await expect(alert).toBeHidden({ timeout: 5_000 }).catch(() => {});
 	}
 }
 
 async function captureDefaultRuntimeRegionFromCreateForm(page: Page): Promise<string> {
+	// eslint-disable-next-line playwright/no-raw-locators -- evaluateAll needs raw DOM access to read .value/.disabled/.checked
 	const regionRadios = page.getByTestId('create-index-form').locator('input[name="region"]');
 	const regionOptions: RuntimeRegionOption[] = await regionRadios.evaluateAll((inputs) =>
 		inputs.map((input) => {
@@ -244,6 +246,7 @@ async function expectOverviewRegionStat(page: Page, regionId: string): Promise<v
 
 async function expectTemplateDefaults(page: Page): Promise<void> {
 	const form = page.getByTestId('create-index-form');
+	// eslint-disable-next-line playwright/no-raw-locators -- need name="template" to distinguish from region radios
 	await expect(form.locator('input[name="template"]')).toHaveCount(3);
 	await expect(form.getByRole('radio', { name: 'Empty index' })).toBeChecked();
 	await expect(form.getByRole('radio', { name: 'Movies' })).not.toBeChecked();

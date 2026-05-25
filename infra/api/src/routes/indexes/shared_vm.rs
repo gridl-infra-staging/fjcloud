@@ -8,12 +8,10 @@ const NEW_SHARED_VM_CREATE_RETRY_INTERVAL: Duration = Duration::from_secs(3);
 
 // An existing active shared VM is already booted, so a transient proxy
 // unreachable/timeout is a brief blip (proxy GC pause, momentary network fault)
-// rather than a cold-boot warmup window. Give it a small fast-retry budget so a
-// single transient failure does not surface to the customer as a premature 503.
-// Regression: the prod customer-loop canary hit exactly this on 2026-05-25
-// (create_index 503 on an existing shared VM) and entered ALARM. The shorter
-// interval reflects that a warm VM recovers far faster than one still booting.
-const EXISTING_SHARED_VM_CREATE_RETRY_ATTEMPTS: usize = 3;
+// rather than a cold-boot warmup window. Still, post-deploy prod canaries on
+// 2026-05-25 showed the blip can outlast the original 3x500ms budget, so keep a
+// fast interval but extend the attempt window to avoid premature 503s.
+const EXISTING_SHARED_VM_CREATE_RETRY_ATTEMPTS: usize = 10;
 const EXISTING_SHARED_VM_CREATE_RETRY_INTERVAL: Duration = Duration::from_millis(500);
 
 struct SelectedSharedVm {

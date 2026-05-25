@@ -7896,3 +7896,153 @@ async fn dictionary_routes_reject_invalid_dictionary_names_before_proxying() {
         .contains("invalid dictionary name"));
     assert_eq!(http_client.take_requests().len(), 0);
 }
+
+// ---------------------------------------------------------------------------
+// Regression: zero-resource fallback prefers VMs with load telemetry history
+// over more recently created VMs without it. Catches the 2026-05-25 prod
+// incident where the fallback picked a dead VM (newest created_at but never
+// scraped) over a confirmed-alive one.
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn create_index_zero_resource_fallback_prefers_vm_with_load_telemetry() {
+    use api::models::vm_inventory::NewVmInventory;
+    use api::repos::tenant_repo::TenantRepo;
+    use api::repos::vm_inventory_repo::VmInventoryRepo;
+    use chrono::{Duration as ChronoDuration, Utc};
+
+    let customer_repo = mock_repo();
+    let deployment_repo = mock_deployment_repo();
+    let tenant_repo = mock_tenant_repo();
+    let vm_inventory_repo = mock_vm_inventory_repo();
+    let http_client = Arc::new(MockFlapjackHttpClient::default());
+    let node_secret_manager = Arc::new(api::secrets::mock::MockNodeSecretManager::new());
+
+    let customer =
+        customer_repo.seed_verified_shared_customer("TelemetryCo", "telemetry@example.com");
+    let jwt = create_test_jwt(customer.id);
+
+    // VM-A: older, but has load telemetry history (stale — won't pass place_index
+    // freshness check, but proves the VM was alive at some point).
+    let vm_a = vm_inventory_repo
+        .create(NewVmInventory {
+            region: "us-east-1".to_string(),
+            provider: "aws".to_string(),
+            hostname: "vm-alive.flapjack.foo".to_string(),
+            flapjack_url: "https://vm-alive.flapjack.foo".to_string(),
+            capacity: serde_json::json!({
+                "cpu_weight": 4.0,
+                "mem_rss_bytes": 8_589_934_592_u64,
+                "disk_bytes": 107_374_182_400_u64,
+                "query_rps": 500.0,
+                "indexing_rps": 200.0
+            }),
+        })
+        .await
+        .unwrap();
+
+    // Set stale load_scraped_at (10 minutes ago — beyond the 300s freshness threshold,
+    // so place_index will skip it, but the fallback should still prefer it).
+    let stale_ts = Utc::now() - ChronoDuration::seconds(600);
+    vm_inventory_repo.set_load_scraped_at(vm_a.id, Some(stale_ts));
+
+    // Small sleep to guarantee VM-B gets a strictly later created_at.
+    tokio::time::sleep(std::time::Duration::from_millis(2)).await;
+
+    // VM-B: newer created_at, but has NEVER been scraped (dead/unresponsive).
+    let _vm_b = vm_inventory_repo
+        .create(NewVmInventory {
+            region: "us-east-1".to_string(),
+            provider: "aws".to_string(),
+            hostname: "vm-dead.flapjack.foo".to_string(),
+            flapjack_url: "https://vm-dead.flapjack.foo".to_string(),
+            capacity: serde_json::json!({
+                "cpu_weight": 4.0,
+                "mem_rss_bytes": 8_589_934_592_u64,
+                "disk_bytes": 107_374_182_400_u64,
+                "query_rps": 500.0,
+                "indexing_rps": 200.0
+            }),
+        })
+        .await
+        .unwrap();
+
+    // Mock flapjack response for successful index creation on VM-A.
+    http_client.push_json_response(200, json!({}));
+
+    let flapjack_proxy = Arc::new(FlapjackProxy::with_http_client(
+        http_client.clone(),
+        node_secret_manager.clone(),
+    ));
+
+    let vm_provisioner = Arc::new(api::provisioner::mock::MockVmProvisioner::new());
+    let dns_manager = Arc::new(api::dns::mock::MockDnsManager::new());
+    let provisioning_service = Arc::new(api::services::provisioning::ProvisioningService::new(
+        vm_provisioner.clone(),
+        dns_manager.clone(),
+        node_secret_manager.clone(),
+        deployment_repo.clone(),
+        customer_repo.clone(),
+        "flapjack.foo".to_string(),
+    ));
+    let mut state = common::test_state_with_indexes_and_vm_inventory(
+        customer_repo.clone(),
+        deployment_repo.clone(),
+        tenant_repo.clone(),
+        flapjack_proxy,
+        vm_inventory_repo.clone(),
+    );
+    state.vm_provisioner = vm_provisioner.clone();
+    state.dns_manager = dns_manager;
+    state.provisioning_service = provisioning_service;
+
+    let app = api::router::build_router(state);
+
+    let resp = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/indexes")
+                .header("authorization", format!("Bearer {jwt}"))
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    json!({"name": "telemetry-test", "region": "us-east-1"}).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    let (status, body) = response_json(resp).await;
+    assert_eq!(
+        status,
+        StatusCode::CREATED,
+        "zero-resource create should succeed via fallback: {body}"
+    );
+
+    // The critical assertion: the request went to VM-A (has telemetry), NOT VM-B.
+    let requests = http_client.take_requests();
+    assert_eq!(requests.len(), 1);
+    assert_eq!(
+        requests[0].url, "https://vm-alive.flapjack.foo/1/indexes",
+        "fallback must prefer the VM with load telemetry history over the newer dead VM"
+    );
+
+    // Verify tenant is associated with VM-A.
+    let tenant = tenant_repo
+        .find_raw(customer.id, "telemetry-test")
+        .await
+        .unwrap()
+        .expect("tenant should exist");
+    assert_eq!(
+        tenant.vm_id,
+        Some(vm_a.id),
+        "tenant vm_id must point to the VM with telemetry history"
+    );
+
+    assert_eq!(
+        vm_provisioner.vm_count(),
+        0,
+        "should not auto-provision when active VMs exist"
+    );
+}

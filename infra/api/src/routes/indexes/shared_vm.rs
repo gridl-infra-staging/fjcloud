@@ -143,6 +143,10 @@ fn select_placed_vm(
 ///
 /// This avoids unnecessary cold auto-provisioning when existing shared VMs are
 /// active but temporarily missing/stale `load_scraped_at`.
+///
+/// Prefers VMs with load telemetry history (confirmed alive by the scraper at
+/// some point) over VMs that have never been scraped. Among each group, picks
+/// the most recently scraped/created.
 fn select_zero_resource_fallback_vm(
     new_index_resources: &ResourceVector,
     candidate_vms: &[crate::models::vm_inventory::VmInventory],
@@ -154,7 +158,12 @@ fn select_zero_resource_fallback_vm(
     candidate_vms
         .iter()
         .filter(|vm| vm.status == "active")
-        .max_by_key(|vm| vm.created_at)
+        .max_by_key(|vm| {
+            (
+                vm.load_scraped_at.is_some(),
+                vm.load_scraped_at.unwrap_or(vm.created_at),
+            )
+        })
         .cloned()
         .map(|vm| SelectedSharedVm {
             vm,

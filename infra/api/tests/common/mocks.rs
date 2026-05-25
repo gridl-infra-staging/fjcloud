@@ -3456,6 +3456,13 @@ impl MockVmInventoryRepo {
         }
     }
 
+    pub fn set_load_scraped_at(&self, id: Uuid, ts: Option<chrono::DateTime<chrono::Utc>>) {
+        let mut vms = self.vms.lock().unwrap();
+        if let Some(vm) = vms.iter_mut().find(|v| v.id == id) {
+            vm.load_scraped_at = ts;
+        }
+    }
+
     /// Seed a shared VM for testing. Returns the VmInventory entry.
     pub fn seed(&self, region: &str, flapjack_url: &str) -> VmInventory {
         let mut vms = self.vms.lock().unwrap();

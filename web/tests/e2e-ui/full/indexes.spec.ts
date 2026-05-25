@@ -127,7 +127,7 @@ async function submitCreateIndexFormWithTransientRetry(
 		await createActionResponsePromise;
 
 		let settledAlertText = '';
-		let settledOutcome: 'pending' | 'success' | 'retryable' | 'failed' = 'pending';
+		let settledOutcome = 'pending' as 'pending' | 'success' | 'retryable' | 'failed';
 		await expect
 			.poll(
 				async () => {
@@ -144,7 +144,7 @@ async function submitCreateIndexFormWithTransientRetry(
 						return settledOutcome;
 					}
 
-					settledAlertText = (await alert.textContent().catch(() => '')).trim();
+					settledAlertText = ((await alert.textContent().catch(() => '')) ?? '').trim();
 					if (!settledAlertText) {
 						return 'pending';
 					}

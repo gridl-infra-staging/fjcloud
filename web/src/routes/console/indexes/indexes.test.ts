@@ -5,9 +5,20 @@ import type { Index } from '$lib/api/types';
 import type { InternalRegion } from '$lib/api/types';
 import { layoutTestDefaults } from '../layout-test-context';
 
+let latestEnhanceResultHandler:
+	| ((args: { result: { type: string } & Record<string, unknown> }) => Promise<void>)
+	| null = null;
+
 vi.mock('$app/forms', () => ({
 	applyAction: vi.fn(),
-	enhance: () => ({ destroy: () => {} })
+	enhance: (
+		_: HTMLFormElement,
+		submitHandler: () => void | ((args: { result: unknown }) => Promise<void>)
+	) => {
+		const resultHandler = submitHandler();
+		latestEnhanceResultHandler = typeof resultHandler === 'function' ? resultHandler : null;
+		return { destroy: () => {} };
+	}
 }));
 
 const gotoMock = vi.fn();
@@ -29,6 +40,7 @@ import IndexesPage from './+page.svelte';
 afterEach(() => {
 	cleanup();
 	vi.clearAllMocks();
+	latestEnhanceResultHandler = null;
 });
 
 const sampleIndexes: Index[] = [
@@ -107,6 +119,17 @@ describe('Index list page', () => {
 		return radio as HTMLInputElement;
 	}
 
+	function getTemplateOption(
+		formQueries: ReturnType<typeof within>,
+		label: string
+	): HTMLInputElement {
+		const templateCard = formQueries.getByText(label).closest('label');
+		expect(templateCard).not.toBeNull();
+		const radio = templateCard?.querySelector('input[name="template"]');
+		expect(radio).not.toBeNull();
+		return radio as HTMLInputElement;
+	}
+
 	it('renders index table with name, region, status, entries, and data size', () => {
 		render(IndexesPage, {
 			data: { ...layoutTestDefaults, user: null, indexes: sampleIndexes, regions: sampleRegions },
@@ -164,6 +187,89 @@ describe('Index list page', () => {
 		expect(formQueries.getByRole('button', { name: /^create$/i })).toBeInTheDocument();
 		await fireEvent.click(formQueries.getByRole('button', { name: /^cancel$/i }));
 		expect(screen.queryByTestId('create-index-form')).not.toBeInTheDocument();
+	});
+
+	it('template selection defaults and writes expected index names', async () => {
+		render(IndexesPage, {
+			data: { ...layoutTestDefaults, user: null, indexes: sampleIndexes, regions: sampleRegions },
+			form: null
+		});
+
+		await fireEvent.click(screen.getByRole('button', { name: /create index/i }));
+		const createForm = screen.getByTestId('create-index-form');
+		const formQueries = within(createForm);
+		const nameInput = formQueries.getByLabelText(/index name/i) as HTMLInputElement;
+
+		const emptyTemplate = getTemplateOption(formQueries, 'Empty index');
+		const moviesTemplate = getTemplateOption(formQueries, 'Movies');
+		const productsTemplate = getTemplateOption(formQueries, 'Products');
+
+		expect(emptyTemplate.checked).toBe(true);
+		expect(moviesTemplate.checked).toBe(false);
+		expect(productsTemplate.checked).toBe(false);
+		expect(nameInput.value).toBe('');
+
+		await fireEvent.click(formQueries.getByText('Movies'));
+		expect(nameInput.value).toBe('movies');
+		expect(moviesTemplate.checked).toBe(true);
+
+		await fireEvent.click(formQueries.getByText('Products'));
+		expect(nameInput.value).toBe('products');
+		expect(productsTemplate.checked).toBe(true);
+
+		await fireEvent.click(formQueries.getByText('Empty index'));
+		expect(nameInput.value).toBe('');
+		expect(emptyTemplate.checked).toBe(true);
+	});
+
+	it('canceling or successful submit resets template and name input state', async () => {
+		render(IndexesPage, {
+			data: { ...layoutTestDefaults, user: null, indexes: sampleIndexes, regions: sampleRegions },
+			form: null
+		});
+
+		await fireEvent.click(screen.getByRole('button', { name: /create index/i }));
+		let createForm = screen.getByTestId('create-index-form');
+		let formQueries = within(createForm);
+		const nameInput = formQueries.getByLabelText(/index name/i) as HTMLInputElement;
+
+		await fireEvent.click(formQueries.getByText('Movies'));
+		expect(nameInput.value).toBe('movies');
+
+		await fireEvent.click(formQueries.getByRole('button', { name: /^cancel$/i }));
+		expect(screen.queryByTestId('create-index-form')).not.toBeInTheDocument();
+
+		await fireEvent.click(screen.getByRole('button', { name: /create index/i }));
+		createForm = screen.getByTestId('create-index-form');
+		formQueries = within(createForm);
+
+		const reopenedInput = formQueries.getByLabelText(/index name/i) as HTMLInputElement;
+		expect(reopenedInput.value).toBe('');
+		expect(getTemplateOption(formQueries, 'Empty index').checked).toBe(true);
+		expect(getTemplateOption(formQueries, 'Movies').checked).toBe(false);
+		expect(getTemplateOption(formQueries, 'Products').checked).toBe(false);
+
+		await fireEvent.click(formQueries.getByText('Products'));
+		expect(reopenedInput.value).toBe('products');
+		expect(latestEnhanceResultHandler).not.toBeNull();
+		await latestEnhanceResultHandler?.({
+			result: {
+				type: 'success',
+				status: 200
+			}
+		});
+
+		expect(screen.queryByTestId('create-index-form')).not.toBeInTheDocument();
+
+		await fireEvent.click(screen.getByRole('button', { name: /create index/i }));
+		createForm = screen.getByTestId('create-index-form');
+		formQueries = within(createForm);
+
+		const reopenedAfterSuccessInput = formQueries.getByLabelText(/index name/i) as HTMLInputElement;
+		expect(reopenedAfterSuccessInput.value).toBe('');
+		expect(getTemplateOption(formQueries, 'Empty index').checked).toBe(true);
+		expect(getTemplateOption(formQueries, 'Movies').checked).toBe(false);
+		expect(getTemplateOption(formQueries, 'Products').checked).toBe(false);
 	});
 
 	it('index_creation_shows_all_available_regions', async () => {

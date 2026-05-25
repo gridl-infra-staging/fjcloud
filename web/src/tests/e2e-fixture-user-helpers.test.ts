@@ -96,6 +96,62 @@ describe('e2e fixture user helpers', () => {
 		expect(fixtureSource).toMatch(/if\s*\(\s*!response\.ok\s*\)\s*\{/);
 	});
 
+	it('does not cache stale-index cleanup as complete when list calls never succeed', () => {
+		const fixtureSource = readFileSync(join(process.cwd(), 'tests/fixtures/fixtures.ts'), 'utf8');
+
+		const failedListBranch = fixtureSource.match(
+			/if\s*\(\s*!res\?\.ok\s*\)\s*\{([\s\S]*?)\n\t\}/m
+		);
+		expect(failedListBranch).not.toBeNull();
+		expect(failedListBranch?.[1]).toContain('return;');
+		expect(failedListBranch?.[1]).not.toContain('_staleFixtureIndexesCleaned = true');
+	});
+
+	it('does not cache stale-index cleanup as complete when stale deletes do not converge', () => {
+		const fixtureSource = readFileSync(join(process.cwd(), 'tests/fixtures/fixtures.ts'), 'utf8');
+
+		expect(fixtureSource).toContain('const cleanupDeadline = Date.now() + 8_000;');
+		expect(fixtureSource).toMatch(/if\s*\(\s*Date\.now\(\)\s*>\s*cleanupDeadline\s*\)\s*\{/m);
+		expect(fixtureSource).toContain('const unresolvedStaleDeletes: string[] = [];');
+		expect(fixtureSource).toContain('if (!deleted) {');
+		expect(fixtureSource).toContain('unresolvedStaleDeletes.push(name);');
+		expect(fixtureSource).toMatch(/if\s*\(\s*unresolvedStaleDeletes\.length\s*>\s*0\s*\)\s*\{\s*return;\s*\}/m);
+	});
+
+	it('does not rely on admin quota uplift during stale-index cleanup', () => {
+		const fixtureSource = readFileSync(join(process.cwd(), 'tests/fixtures/fixtures.ts'), 'utf8');
+
+		expect(fixtureSource).not.toContain('/admin/tenants/${encodeURIComponent(customerId)}/quotas');
+		expect(fixtureSource).not.toContain('desiredMaxIndexes');
+		expect(fixtureSource).not.toContain('max_indexes: desiredMaxIndexes');
+	});
+
+	it('indexes create/list/detail journey does not assume two-index free-plan capacity', () => {
+		const indexesSpecSource = readFileSync(join(process.cwd(), 'tests/e2e-ui/full/indexes.spec.ts'), 'utf8');
+		const journeyTestBlock = indexesSpecSource.match(
+			/test\('create\/list\/detail journey[\s\S]*?async \(\{[\s\S]*?\}\) => \{([\s\S]*?)\n\t\}\);/m
+		);
+
+		expect(journeyTestBlock).not.toBeNull();
+		expect(journeyTestBlock?.[1]).not.toContain('defaultRegionIndexName');
+		expect(journeyTestBlock?.[1]).not.toContain('seedIndex(');
+		expect(journeyTestBlock?.[1]).toContain('submitCreateIndexForm');
+	});
+
+	it('indexes create retry helper waits for attempt outcome, retries generic create failures, and fails closed on exhaustion', () => {
+		const indexesSpecSource = readFileSync(join(process.cwd(), 'tests/e2e-ui/full/indexes.spec.ts'), 'utf8');
+		const retryHelperBlock = indexesSpecSource.match(
+			/async function submitCreateIndexFormWithTransientRetry\([\s\S]*?\)\s*:\s*Promise<void>\s*\{([\s\S]*?)\n\}/m
+		);
+
+		expect(retryHelperBlock).not.toBeNull();
+		expect(retryHelperBlock?.[1]).toMatch(/expect\s*\.\s*poll/);
+		expect(retryHelperBlock?.[1]).toContain('Failed to create index');
+		expect(retryHelperBlock?.[1]).toContain('retryableCreateFailurePattern');
+		expect(retryHelperBlock?.[1]).toContain('create index form kept failing after retries');
+		expect(retryHelperBlock?.[1]).toContain('create index form returned failure');
+	});
+
 	it('arrangePaidInvoiceForFreshSignup reads invoice detail through the fresh-signup auth token', () => {
 		const fixtureSource = readFileSync(join(process.cwd(), 'tests/fixtures/fixtures.ts'), 'utf8');
 

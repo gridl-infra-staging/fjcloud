@@ -1,0 +1,6 @@
+[customer-loop-canary] signup succeeded for canary+canary202605250259152064@test.flapjack.foo (customer=b44aa3f1-b58c-48da-b839-a1f395ccb028)
+[customer-loop-canary] email verification succeeded for canary+canary202605250259152064@test.flapjack.foo
+[customer-loop-canary] CANARY_LIVE_MODE=0; skipping live Stripe branch
+[customer-loop-canary] customer loop failed before completion; entering cleanup
+[customer-loop-canary] account delete attempted for customer b44aa3f1-b58c-48da-b839-a1f395ccb028
+[customer-loop-canary] step 'create_index' failed: create index returned HTTP 503 body={"error":"backend temporarily unavailable"}

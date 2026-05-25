@@ -20,6 +20,6 @@
 | pricing | — |
 | reset-password | — |
 | signup | — |
-| status | The `/status` route displays the fjcloud service operational status (operational, degraded, or outage) sourced from environment variables, with type-safe contracts for status definitions and runtime payload validation. |
+| status | This module defines types and utilities for the `/status` route, including the ServiceStatus enum (operational, degraded, outage) and functions to parse status values and map them to human-readable labels. |
 | verify-email | — |
 <!-- [scrai:end] -->

@@ -1,0 +1,1 @@
+[probe-signup] OK url=https://cloud.flapjack.foo/signup status=200 markers=all-present

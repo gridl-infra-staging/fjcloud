@@ -924,12 +924,20 @@ async fn create_prefers_existing_active_vm_over_auto_provision_for_zero_resource
     );
 }
 
+/// A genuinely unavailable existing shared VM (transient-retry budget
+/// exhausted) must still surface a 503 to the customer. The budget matches
+/// `EXISTING_SHARED_VM_CREATE_RETRY_ATTEMPTS` in `routes/indexes/shared_vm.rs`
+/// (3 attempts); only after every attempt fails is the outage treated as real.
 #[tokio::test]
-async fn create_existing_shared_vm_unreachable_returns_503_without_retry() {
+async fn create_existing_shared_vm_persistent_unreachable_returns_503_after_retries() {
     let setup = setup_proxy_test().await;
-    setup
-        .http_client
-        .push_error(ProxyError::Unreachable("connection refused".into()));
+    // Exhaust the existing-VM transient-retry budget so the failure is treated
+    // as a real outage, not a recoverable blip.
+    for _ in 0..3 {
+        setup
+            .http_client
+            .push_error(ProxyError::Unreachable("connection refused".into()));
+    }
 
     let resp = setup
         .app
@@ -952,7 +960,53 @@ async fn create_existing_shared_vm_unreachable_returns_503_without_retry() {
     assert_eq!(body["error"], "backend temporarily unavailable");
 
     let requests = setup.http_client.take_requests();
-    assert_eq!(requests.len(), 1, "existing shared VM should fail fast");
+    assert_eq!(
+        requests.len(),
+        3,
+        "existing shared VM should exhaust the transient-retry budget before 503"
+    );
+}
+
+/// Regression (prod customer-loop canary, 2026-05-25): an existing active
+/// shared VM can emit a single transient `Unreachable` (proxy GC pause /
+/// momentary network blip). That must be retried rather than surfaced to the
+/// customer as a premature 503 — the canary's `create_index` step hit exactly
+/// this and the canary went into ALARM. After the retry the create must
+/// succeed (201).
+#[tokio::test]
+async fn create_existing_shared_vm_retries_transient_unreachable_then_succeeds() {
+    let setup = setup_proxy_test().await;
+    setup
+        .http_client
+        .push_error(ProxyError::Unreachable("connection refused".into()));
+    setup.http_client.push_json_response(200, json!({}));
+
+    let resp = setup
+        .app
+        .oneshot(
+            Request::builder()
+                .method(http::Method::POST)
+                .uri("/indexes")
+                .header("content-type", "application/json")
+                .header("authorization", format!("Bearer {}", setup.jwt))
+                .body(Body::from(
+                    json!({"name": "existing-transient", "region": "us-east-1"}).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    let (status, body) = response_json(resp).await;
+    assert_eq!(status, StatusCode::CREATED, "body={body:?}");
+
+    let requests = setup.http_client.take_requests();
+    assert_eq!(
+        requests.len(),
+        2,
+        "existing shared VM should retry a transient unreachable once before succeeding"
+    );
+    assert_eq!(requests[0].url, requests[1].url);
 }
 
 #[tokio::test]

@@ -6,6 +6,16 @@ use tokio::time::sleep;
 const NEW_SHARED_VM_CREATE_RETRY_ATTEMPTS: usize = 20;
 const NEW_SHARED_VM_CREATE_RETRY_INTERVAL: Duration = Duration::from_secs(3);
 
+// An existing active shared VM is already booted, so a transient proxy
+// unreachable/timeout is a brief blip (proxy GC pause, momentary network fault)
+// rather than a cold-boot warmup window. Give it a small fast-retry budget so a
+// single transient failure does not surface to the customer as a premature 503.
+// Regression: the prod customer-loop canary hit exactly this on 2026-05-25
+// (create_index 503 on an existing shared VM) and entered ALARM. The shorter
+// interval reflects that a warm VM recovers far faster than one still booting.
+const EXISTING_SHARED_VM_CREATE_RETRY_ATTEMPTS: usize = 3;
+const EXISTING_SHARED_VM_CREATE_RETRY_INTERVAL: Duration = Duration::from_millis(500);
+
 struct SelectedSharedVm {
     vm: crate::models::vm_inventory::VmInventory,
     just_provisioned: bool,
@@ -238,10 +248,19 @@ async fn create_shared_vm_index_with_warmup_retry(
     target: &ResolvedFlapjackTarget,
     just_provisioned: bool,
 ) -> Result<(), ApiError> {
-    let attempts = if just_provisioned {
-        NEW_SHARED_VM_CREATE_RETRY_ATTEMPTS
+    // Fresh provisions need a long cold-boot warmup window; existing active VMs
+    // only need a short fast-retry budget to ride out a transient blip. Both
+    // paths retry the same transient proxy errors — only the budget differs.
+    let (attempts, retry_interval) = if just_provisioned {
+        (
+            NEW_SHARED_VM_CREATE_RETRY_ATTEMPTS,
+            NEW_SHARED_VM_CREATE_RETRY_INTERVAL,
+        )
     } else {
-        1
+        (
+            EXISTING_SHARED_VM_CREATE_RETRY_ATTEMPTS,
+            EXISTING_SHARED_VM_CREATE_RETRY_INTERVAL,
+        )
     };
 
     for attempt in 0..attempts {
@@ -256,26 +275,28 @@ async fn create_shared_vm_index_with_warmup_retry(
             .await
         {
             Ok(()) => return Ok(()),
-            Err(ProxyError::Unreachable(message)) if just_provisioned && attempt + 1 < attempts => {
+            Err(ProxyError::Unreachable(message)) if attempt + 1 < attempts => {
                 tracing::warn!(
                     flapjack_url = %target.flapjack_url,
                     node_id = %target.node_id,
                     attempt = attempt + 1,
                     attempts,
+                    just_provisioned,
                     error = %message,
-                    "fresh shared VM not reachable yet; retrying index create"
+                    "shared VM unreachable during index create; retrying"
                 );
-                sleep(NEW_SHARED_VM_CREATE_RETRY_INTERVAL).await;
+                sleep(retry_interval).await;
             }
-            Err(ProxyError::Timeout) if just_provisioned && attempt + 1 < attempts => {
+            Err(ProxyError::Timeout) if attempt + 1 < attempts => {
                 tracing::warn!(
                     flapjack_url = %target.flapjack_url,
                     node_id = %target.node_id,
                     attempt = attempt + 1,
                     attempts,
-                    "fresh shared VM timed out during index create; retrying"
+                    just_provisioned,
+                    "shared VM timed out during index create; retrying"
                 );
-                sleep(NEW_SHARED_VM_CREATE_RETRY_INTERVAL).await;
+                sleep(retry_interval).await;
             }
             Err(error) => return Err(error.into()),
         }

@@ -204,6 +204,11 @@ describe('Status page', () => {
 });
 
 describe('Status page server load', () => {
+	it('disables prerender for the status route to keep env-backed runtime values dynamic', async () => {
+		const module = await import('./+page');
+		expect(module.prerender).toBe(false);
+	});
+
 	const savedEnv: Record<string, string | undefined> = {};
 
 	beforeEach(() => {

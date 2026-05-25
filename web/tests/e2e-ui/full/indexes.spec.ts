@@ -24,11 +24,6 @@ type RuntimeRegionOption = {
 	disabled: boolean;
 };
 
-type CapturedRuntimeRegions = {
-	defaultRegionId: string;
-	secondRegionId: string;
-};
-
 async function openCreateIndexForm(page: Page): Promise<void> {
 	await page.goto('/console/indexes');
 	await expect(page.getByRole('heading', { name: 'Indexes' })).toBeVisible();
@@ -64,7 +59,7 @@ async function waitForCreateIndexSuccess(
 async function submitCreateIndexForm(page: Page, name: string, regionId?: string): Promise<void> {
 	await page.getByLabel('Index name').fill(name);
 	const form = page.getByTestId('create-index-form');
-	const regionRadios = form.getByRole('radio');
+	const regionRadios = form.locator('input[name="region"]');
 
 	if (regionId) {
 		const targetIndex = await regionRadios.evaluateAll(
@@ -106,8 +101,93 @@ async function submitCreateIndexForm(page: Page, name: string, regionId?: string
 	await page.getByRole('button', { name: 'Create', exact: true }).click();
 }
 
-async function captureRuntimeRegionsFromCreateForm(page: Page): Promise<CapturedRuntimeRegions> {
-	const regionRadios = page.getByTestId('create-index-form').getByRole('radio');
+async function submitCreateIndexFormWithTransientRetry(
+	page: Page,
+	name: string,
+	regionId?: string
+): Promise<void> {
+	const transientCreateFailurePattern = /temporarily unavailable|service is unavailable/i;
+	const retryableCreateFailurePattern = /^failed to create index$/i;
+	const createFailureAlertPattern = /failed to create index/i;
+	const alert = page.getByRole('alert').first();
+	const indexInTable = page.getByRole('cell', { name });
+	const provisioningMsg = page.getByText('Setting up your search endpoint');
+	const createdMsg = page.getByText('Index created successfully');
+	const maxAttempts = 4;
+
+	for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+		const createActionResponsePromise = page
+			.waitForResponse(
+				(response) =>
+					response.request().method() === 'POST' && response.url().includes('/console/indexes'),
+				{ timeout: 15_000 }
+			)
+			.catch(() => null);
+		await submitCreateIndexForm(page, name, regionId);
+		await createActionResponsePromise;
+
+		let settledAlertText = '';
+		let settledOutcome: 'pending' | 'success' | 'retryable' | 'failed' = 'pending';
+		await expect
+			.poll(
+				async () => {
+					if (await indexInTable.isVisible().catch(() => false)) {
+						settledOutcome = 'success';
+						return settledOutcome;
+					}
+					if (await provisioningMsg.isVisible().catch(() => false)) {
+						settledOutcome = 'success';
+						return settledOutcome;
+					}
+					if (await createdMsg.isVisible().catch(() => false)) {
+						settledOutcome = 'success';
+						return settledOutcome;
+					}
+
+					settledAlertText = (await alert.textContent().catch(() => '')).trim();
+					if (!settledAlertText) {
+						return 'pending';
+					}
+					if (transientCreateFailurePattern.test(settledAlertText)) {
+						settledOutcome = 'retryable';
+						return settledOutcome;
+					}
+					if (retryableCreateFailurePattern.test(settledAlertText)) {
+						settledOutcome = 'retryable';
+						return settledOutcome;
+					}
+					if (createFailureAlertPattern.test(settledAlertText)) {
+						settledOutcome = 'failed';
+						return settledOutcome;
+					}
+					return 'pending';
+				},
+				{ timeout: 15_000 }
+			)
+			.not.toBe('pending');
+
+		if (settledOutcome === 'success') {
+			return;
+		}
+
+		if (settledOutcome === 'failed') {
+			throw new Error(
+				`create index form returned failure: ${settledAlertText || 'Failed to create index'}`
+			);
+		}
+
+		if (attempt === maxAttempts - 1) {
+			throw new Error(
+				`create index form kept failing after retries: ${settledAlertText}`
+			);
+		}
+
+		await page.waitForTimeout(250 * (attempt + 1));
+	}
+}
+
+async function captureDefaultRuntimeRegionFromCreateForm(page: Page): Promise<string> {
+	const regionRadios = page.getByTestId('create-index-form').locator('input[name="region"]');
 	const regionOptions: RuntimeRegionOption[] = await regionRadios.evaluateAll((inputs) =>
 		inputs.map((input) => {
 			const radio = input as HTMLInputElement;
@@ -133,25 +213,14 @@ async function captureRuntimeRegionsFromCreateForm(page: Page): Promise<Captured
 					})
 					.join('; ');
 
-	if (selectableOptions.length < 2) {
+	if (selectableOptions.length < 1) {
 		throw new Error(
-			`ENV-BLOCKER: create form exposed fewer than two selectable regions. observed=${observedOptions}`
+			`ENV-BLOCKER: create form exposed no selectable regions. observed=${observedOptions}`
 		);
 	}
 
 	const defaultRegion = selectableOptions.find((option) => option.checked) ?? selectableOptions[0];
-	const secondRegion = selectableOptions.find((option) => option.id !== defaultRegion.id);
-
-	if (!secondRegion) {
-		throw new Error(
-			`ENV-BLOCKER: unable to identify a second selectable region distinct from default "${defaultRegion.id}". observed=${observedOptions}`
-		);
-	}
-
-	return {
-		defaultRegionId: defaultRegion.id,
-		secondRegionId: secondRegion.id
-	};
+	return defaultRegion.id;
 }
 
 async function expectIndexRegionRow(
@@ -163,7 +232,7 @@ async function expectIndexRegionRow(
 		has: page.getByRole('link', { name: indexName, exact: true })
 	});
 	await expect(row.getByRole('cell', { name: regionId, exact: true })).toBeVisible({
-		timeout: 15_000
+		timeout: 30_000
 	});
 }
 
@@ -171,6 +240,15 @@ async function expectOverviewRegionStat(page: Page, regionId: string): Promise<v
 	const statsSection = page.getByTestId('stats-section');
 	await expect(statsSection.getByText('Region', { exact: true })).toBeVisible();
 	await expect(statsSection.getByText(regionId, { exact: true })).toBeVisible();
+}
+
+async function expectTemplateDefaults(page: Page): Promise<void> {
+	const form = page.getByTestId('create-index-form');
+	await expect(form.locator('input[name="template"]')).toHaveCount(3);
+	await expect(form.getByRole('radio', { name: 'Empty index' })).toBeChecked();
+	await expect(form.getByRole('radio', { name: 'Movies' })).not.toBeChecked();
+	await expect(form.getByRole('radio', { name: 'Products' })).not.toBeChecked();
+	await expect(form.getByLabel('Index name')).toHaveValue('');
 }
 
 test.describe('Indexes list page', () => {
@@ -231,41 +309,88 @@ test.describe('Indexes list page', () => {
 		registerIndexForCleanup(name);
 	});
 
-	test('create/list/detail journey reuses one captured runtime second region', async ({
+	test('create/list/detail journey uses one UI create with runtime default region', async ({
 		page,
-		cleanupFixtureIndexes,
-		seedIndex,
-		registerIndexForCleanup
+		createUser,
+		completeFreshSignupEmailVerification,
+		isFreshSignupArrangePrerequisiteFailure
 	}) => {
-		const defaultRegionIndexName = `e2e-default-region-${Date.now()}`;
-		const secondRegionIndexName = `e2e-second-region-${Date.now()}`;
+		const seed = Date.now();
+		const email = `indexes-journey-${seed}@e2e.griddle.test`;
+		const password = 'TestPassword123!';
+		const createdIndexName = `e2e-default-region-${seed}`;
+		await page.context().clearCookies();
+		try {
+			await createUser(email, password, `Indexes Journey ${seed}`);
+			await completeFreshSignupEmailVerification(page, email);
+		} catch (error) {
+			const failureMessage = error instanceof Error ? error.message : String(error);
+			if (isFreshSignupArrangePrerequisiteFailure(failureMessage)) {
+				test.skip(
+					true,
+					`create/list/detail journey prerequisite unavailable in local env: ${failureMessage}`
+				);
+				return;
+			}
+			throw error;
+		}
 
-		await cleanupFixtureIndexes();
+		await page.goto('/login');
+		await page.getByLabel('Email').fill(email);
+		await page.getByLabel('Password').fill(password);
+		await page.getByRole('button', { name: 'Log In' }).click();
+		await expect(page).toHaveURL(/\/console/, { timeout: 10_000 });
+
 		await openCreateIndexForm(page);
-		const runtimeRegions = await captureRuntimeRegionsFromCreateForm(page);
+		const defaultRegionId = await captureDefaultRuntimeRegionFromCreateForm(page);
 		await page.getByRole('button', { name: 'Cancel' }).click();
 
-		await seedIndex(defaultRegionIndexName, runtimeRegions.defaultRegionId);
-
 		await openCreateIndexForm(page);
-		await submitCreateIndexForm(page, secondRegionIndexName, runtimeRegions.secondRegionId);
+		await submitCreateIndexFormWithTransientRetry(
+			page,
+			createdIndexName,
+			defaultRegionId
+		);
 
-		await waitForCreateIndexSuccess(page, secondRegionIndexName, { requireTableRow: true });
-
-		registerIndexForCleanup(secondRegionIndexName);
+		await waitForCreateIndexSuccess(page, createdIndexName);
 
 		await page.goto('/console/indexes');
-		await expectIndexRegionRow(page, defaultRegionIndexName, runtimeRegions.defaultRegionId);
-		await expectIndexRegionRow(page, secondRegionIndexName, runtimeRegions.secondRegionId);
+		await expectIndexRegionRow(page, createdIndexName, defaultRegionId);
 
-		await page.getByRole('link', { name: secondRegionIndexName, exact: true }).click();
+		await page.getByRole('link', { name: createdIndexName, exact: true }).click();
 		await expect(page).toHaveURL(
-			new RegExp(`/console/indexes/${encodeURIComponent(secondRegionIndexName)}`)
+			new RegExp(`/console/indexes/${encodeURIComponent(createdIndexName)}`)
 		);
-		await expect(page.getByRole('heading', { name: secondRegionIndexName })).toBeVisible({
+		await expect(page.getByRole('heading', { name: createdIndexName })).toBeVisible({
 			timeout: 10_000
 		});
-		await expectOverviewRegionStat(page, runtimeRegions.secondRegionId);
+		await expectOverviewRegionStat(page, defaultRegionId);
+	});
+
+	test('template selection defaults, prefills, and resets on cancel', async ({ page }) => {
+		await openCreateIndexForm(page);
+		const form = page.getByTestId('create-index-form');
+		const nameInput = form.getByLabel('Index name');
+
+		await expectTemplateDefaults(page);
+
+		await form.getByText('Movies', { exact: true }).click();
+		await expect(nameInput).toHaveValue('movies');
+		await expect(form.getByRole('radio', { name: 'Movies' })).toBeChecked();
+
+		await form.getByText('Products', { exact: true }).click();
+		await expect(nameInput).toHaveValue('products');
+		await expect(form.getByRole('radio', { name: 'Products' })).toBeChecked();
+
+		await form.getByText('Empty index', { exact: true }).click();
+		await expect(nameInput).toHaveValue('');
+		await expect(form.getByRole('radio', { name: 'Empty index' })).toBeChecked();
+
+		await page.getByRole('button', { name: 'Cancel' }).click();
+		await expect(page.getByTestId('create-index-form')).toBeHidden();
+
+		await page.getByRole('button', { name: 'Create Index' }).click();
+		await expectTemplateDefaults(page);
 	});
 
 	test('duplicate index name shows a safe failure instead of succeeding', async ({

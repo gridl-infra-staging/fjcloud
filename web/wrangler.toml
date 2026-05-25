@@ -37,6 +37,8 @@ compatibility_flags = ["nodejs_compat"]
 [vars]
 API_BASE_URL = "https://api.flapjack.foo"
 ENVIRONMENT = "staging"
+SERVICE_STATUS = "operational"
+SERVICE_STATUS_UPDATED = "2026-05-25T01:31:58Z"
 
 # Production env (deploys via `--branch=main`). Owns ENVIRONMENT=production so
 # the admin-layout label stays correct after deploy. Secrets (JWT_SECRET,
@@ -45,6 +47,8 @@ ENVIRONMENT = "staging"
 [env.production.vars]
 API_BASE_URL = "https://api.flapjack.foo"
 ENVIRONMENT = "production"
+SERVICE_STATUS = "operational"
+SERVICE_STATUS_UPDATED = "2026-05-25T01:31:58Z"
 
 # Preview env (deploys via any non-production branch, e.g. `--branch=staging`).
 # Mirrors top-level [vars] explicitly so preview deploys don't accidentally
@@ -52,3 +56,5 @@ ENVIRONMENT = "production"
 [env.preview.vars]
 API_BASE_URL = "https://api.flapjack.foo"
 ENVIRONMENT = "staging"
+SERVICE_STATUS = "operational"
+SERVICE_STATUS_UPDATED = "2026-05-25T01:31:58Z"

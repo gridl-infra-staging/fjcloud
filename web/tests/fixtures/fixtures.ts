@@ -930,7 +930,9 @@ async function cleanupStaleFixtureIndexesOnce(): Promise<void> {
 		// This cleanup only removes stale local fixtures. If the shared test user is
 		// currently throttled, failing the spec here is noisier than tolerating a
 		// best-effort miss and letting the real test assertions speak for themselves.
-		_staleFixtureIndexesCleaned = true;
+		//
+		// Do not mark cleanup as complete when list reads never succeeded: a later
+		// fixture call in this worker should retry once throttling clears.
 		return;
 	}
 
@@ -939,19 +941,47 @@ async function cleanupStaleFixtureIndexesOnce(): Promise<void> {
 		.map((index) => index.name.trim())
 		.filter((name) => name && isStaleFixtureIndexName(name));
 
-	for (const name of staleNames) {
-		await apiCall('DELETE', `/indexes/${encodeURIComponent(name)}`, { confirm: true }).catch(() => {
-			/* ignore teardown races */
-		});
+	const cleanupDeadline = Date.now() + 8_000;
+	const unresolvedStaleDeletes: string[] = [];
+	for (let staleNameIndex = 0; staleNameIndex < staleNames.length; staleNameIndex += 1) {
+		const name = staleNames[staleNameIndex];
+		if (Date.now() > cleanupDeadline) {
+			unresolvedStaleDeletes.push(...staleNames.slice(staleNameIndex));
+			break;
+		}
+		let deleted = false;
+		for (let attempt = 0; attempt < 10; attempt += 1) {
+			if (Date.now() > cleanupDeadline) {
+				break;
+			}
+			const deleteRes = await apiCall('DELETE', `/indexes/${encodeURIComponent(name)}`, {
+				confirm: true
+			}).catch(() => null);
+			if (!deleteRes) {
+				await sleep(getTransientRetryDelayMs(attempt));
+				continue;
+			}
+			if (deleteRes.ok || deleteRes.status === 404) {
+				deleted = true;
+				break;
+			}
+			if (
+				deleteRes.status !== 429 &&
+				deleteRes.status !== 500 &&
+				deleteRes.status !== 503
+			) {
+				break;
+			}
+			await sleep(getRetryDelayMs(attempt, deleteRes.headers.get('retry-after')));
+		}
+		if (!deleted) {
+			unresolvedStaleDeletes.push(name);
+		}
 	}
 
-	if (staleNames.length > 0 && fixtureEnv.adminKey) {
-		const customerId = await getCustomerId();
-		await adminApiCall('PUT', `/admin/tenants/${encodeURIComponent(customerId)}/quotas`, {
-			max_indexes: 100
-		}).catch(() => {
-			/* ignore quota uplift failures; cleanup already made a best effort */
-		});
+	// Cleanup stays retryable across fixture calls until stale rows converge.
+	if (unresolvedStaleDeletes.length > 0) {
+		return;
 	}
 
 	_staleFixtureIndexesCleaned = true;

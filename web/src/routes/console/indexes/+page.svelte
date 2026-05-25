@@ -19,10 +19,65 @@
 	let showCreateForm = $state(false);
 	let indexName = $state('');
 	let selectedRegion = $state('');
+	let selectedTemplate = $state('empty');
+
+	type IndexTemplate = {
+		id: string;
+		label: string;
+		description: string;
+		defaultName: string;
+	};
+
+	const indexTemplates: IndexTemplate[] = [
+		{
+			id: 'empty',
+			label: 'Empty index',
+			description: 'Start from scratch with no prefilled default name.',
+			defaultName: ''
+		},
+		{
+			id: 'movies',
+			label: 'Movies',
+			description: 'Use a movie-focused starter for sample search data.',
+			defaultName: 'movies'
+		},
+		{
+			id: 'products',
+			label: 'Products',
+			description: 'Use an ecommerce-style starter for product catalogs.',
+			defaultName: 'products'
+		}
+	];
+
+	function defaultRegionId(): string {
+		return regions.length > 0 ? regions[0].id : '';
+	}
+
+	function resetCreateFormState({ open }: { open: boolean }): void {
+		showCreateForm = open;
+		indexName = '';
+		selectedTemplate = 'empty';
+		selectedRegion = defaultRegionId();
+	}
+
+	function openCreateForm(): void {
+		resetCreateFormState({ open: true });
+	}
+
+	function cancelCreateForm(): void {
+		resetCreateFormState({ open: false });
+	}
+
+	function applyTemplateSelection(templateId: string): void {
+		selectedTemplate = templateId;
+		const selected = indexTemplates.find((template) => template.id === templateId);
+		indexName = selected?.defaultName ?? '';
+	}
 
 	$effect(() => {
-		if (!selectedRegion && regions.length > 0) {
-			selectedRegion = regions[0].id;
+		const hasSelectedRegion = regions.some((region) => region.id === selectedRegion);
+		if (!hasSelectedRegion) {
+			selectedRegion = defaultRegionId();
 		}
 	});
 
@@ -31,8 +86,7 @@
 			await applyAction(result);
 
 			if (result.type === 'success') {
-				showCreateForm = false;
-				indexName = '';
+				resetCreateFormState({ open: false });
 				await invalidateAll();
 			}
 		};
@@ -48,9 +102,7 @@
 		<h1 class="text-2xl font-bold text-flapjack-ink">Indexes</h1>
 		<button
 			type="button"
-			onclick={() => {
-				showCreateForm = !showCreateForm;
-			}}
+			onclick={openCreateForm}
 			class="rounded-md bg-flapjack-rose px-4 py-2 text-sm font-medium text-white hover:bg-flapjack-plum"
 		>
 			Create Index
@@ -94,6 +146,31 @@
 		<div class="mb-6 rounded-lg bg-white p-6 shadow" data-testid="create-index-form">
 			<h2 class="mb-4 text-lg font-medium text-flapjack-ink">Create a new index</h2>
 			<form method="POST" action="?/create" use:enhance={refreshIndexesAfterAction}>
+				<fieldset class="mb-4">
+					<legend class="mb-2 text-sm font-medium text-flapjack-ink/80">Template</legend>
+					<div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+						{#each indexTemplates as template (template.id)}
+							<label
+								class="cursor-pointer rounded-lg border-2 p-3 transition-colors {selectedTemplate ===
+								template.id
+									? 'border-flapjack-rose bg-flapjack-rose/10'
+									: 'border-flapjack-ink/20 hover:border-flapjack-ink/30'}"
+							>
+								<input
+									type="radio"
+									name="template"
+									value={template.id}
+									checked={selectedTemplate === template.id}
+									onchange={() => applyTemplateSelection(template.id)}
+									class="sr-only"
+								/>
+								<span class="block text-sm font-medium text-flapjack-ink">{template.label}</span>
+								<span class="mt-1 block text-xs text-flapjack-ink/60">{template.description}</span>
+							</label>
+						{/each}
+					</div>
+				</fieldset>
+
 				<div class="mb-4">
 					<label for="index-name" class="mb-1 block text-sm font-medium text-flapjack-ink/80"
 						>Index name</label
@@ -148,9 +225,7 @@
 					</button>
 					<button
 						type="button"
-						onclick={() => {
-							showCreateForm = false;
-						}}
+						onclick={cancelCreateForm}
 						class="rounded-md border border-flapjack-ink/30 px-4 py-2 text-sm font-medium text-flapjack-ink/80 hover:bg-flapjack-cream/80"
 					>
 						Cancel

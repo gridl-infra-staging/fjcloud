@@ -966,6 +966,16 @@ async fn admin_rate_limit_returns_429_after_threshold() {
 /// Test 16: admin 429 responses should include retry-after header.
 #[tokio::test]
 async fn admin_rate_limit_sets_retry_after_header() {
+    // Hold the shared env lock like the sibling rate-limit tests: this test
+    // keys on the x-forwarded-for IP, which is only trusted when
+    // TRUST_PROXY_HEADERS_FOR_RATE_LIMIT is set. Concurrent tests mutate that
+    // process-global env via EnvVarGuard; without the lock the trust setting
+    // can flip between the two requests below, scattering them into different
+    // rate-limit buckets so the second request never crosses the limit (the
+    // intermittent 200-instead-of-429 CI flake).
+    let _lock = security_env_lock()
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
     let app = admin_rate_limited_app(1);
     let ip = "10.0.0.2";
 

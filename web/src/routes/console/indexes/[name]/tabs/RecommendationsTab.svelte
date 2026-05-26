@@ -48,17 +48,13 @@
 		}
 
 		const facetName =
-			(typeof hit.facet_name === 'string' && hit.facet_name.length > 0
-				? hit.facet_name
-				: null) ??
+			(typeof hit.facet_name === 'string' && hit.facet_name.length > 0 ? hit.facet_name : null) ??
 			(typeof hit.facetName === 'string' && hit.facetName.length > 0 ? hit.facetName : null);
 		const facetValue =
 			(typeof hit.facet_value === 'string' && hit.facet_value.length > 0
 				? hit.facet_value
 				: null) ??
-			(typeof hit.facetValue === 'string' && hit.facetValue.length > 0
-				? hit.facetValue
-				: null);
+			(typeof hit.facetValue === 'string' && hit.facetValue.length > 0 ? hit.facetValue : null);
 		if (facetName && facetValue) {
 			return `${facetName}: ${facetValue}`;
 		}

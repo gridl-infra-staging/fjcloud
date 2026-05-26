@@ -1,0 +1,15 @@
+{
+	"cookies": [
+		{
+			"name": "auth_token",
+			"value": "REDACTED_TEST_FIXTURE_TOKEN",
+			"domain": "localhost",
+			"path": "/",
+			"expires": 1779854214.346209,
+			"httpOnly": true,
+			"secure": false,
+			"sameSite": "Lax"
+		}
+	],
+	"origins": []
+}

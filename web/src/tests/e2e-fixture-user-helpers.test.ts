@@ -99,9 +99,7 @@ describe('e2e fixture user helpers', () => {
 	it('does not cache stale-index cleanup as complete when list calls never succeed', () => {
 		const fixtureSource = readFileSync(join(process.cwd(), 'tests/fixtures/fixtures.ts'), 'utf8');
 
-		const failedListBranch = fixtureSource.match(
-			/if\s*\(\s*!res\?\.ok\s*\)\s*\{([\s\S]*?)\n\t\}/m
-		);
+		const failedListBranch = fixtureSource.match(/if\s*\(\s*!res\?\.ok\s*\)\s*\{([\s\S]*?)\n\t\}/m);
 		expect(failedListBranch).not.toBeNull();
 		expect(failedListBranch?.[1]).toContain('return;');
 		expect(failedListBranch?.[1]).not.toContain('_staleFixtureIndexesCleaned = true');
@@ -115,7 +113,18 @@ describe('e2e fixture user helpers', () => {
 		expect(fixtureSource).toContain('const unresolvedStaleDeletes: string[] = [];');
 		expect(fixtureSource).toContain('if (!deleted) {');
 		expect(fixtureSource).toContain('unresolvedStaleDeletes.push(name);');
-		expect(fixtureSource).toMatch(/if\s*\(\s*unresolvedStaleDeletes\.length\s*>\s*0\s*\)\s*\{\s*return;\s*\}/m);
+		expect(fixtureSource).toMatch(
+			/if\s*\(\s*unresolvedStaleDeletes\.length\s*>\s*0\s*\)\s*\{\s*return;\s*\}/m
+		);
+	});
+
+	it('invalidates cached fixture token and retries /account bootstrap once on unauthorized token', () => {
+		const fixtureSource = readFileSync(join(process.cwd(), 'tests/fixtures/fixtures.ts'), 'utf8');
+
+		expect(fixtureSource).toContain('isUnauthorizedExpiredTokenAccountFailure');
+		expect(fixtureSource).toMatch(
+			/if\s*\(\s*attempt\s*===\s*0\s*&&\s*isUnauthorizedExpiredTokenAccountFailure\(401,\s*details\)\s*\)\s*\{\s*_token\s*=\s*null;\s*continue;\s*\}/m
+		);
 	});
 
 	it('does not rely on admin quota uplift during stale-index cleanup', () => {
@@ -126,8 +135,45 @@ describe('e2e fixture user helpers', () => {
 		expect(fixtureSource).not.toContain('max_indexes: desiredMaxIndexes');
 	});
 
+	it('seedIndex prefers admin seeding and only falls back to customer auth on invalid admin-key responses', () => {
+		const fixtureSource = readFileSync(join(process.cwd(), 'tests/fixtures/fixtures.ts'), 'utf8');
+
+		expect(fixtureSource).toContain("seedIndex: async ({ _trackIndexForCleanup }, use) => {");
+		expect(fixtureSource).toContain('await createSeededIndex(customerId, name, r, fixtureEnv.flapjackUrl);');
+		expect(fixtureSource).toContain('await createSeededIndexForCurrentCustomer(name, r);');
+		expect(fixtureSource).toContain('invalid admin key');
+	});
+
+	it('seedIndex retries by refreshing fixture auth token when customer create returns expired-token 401', () => {
+		const fixtureSource = readFileSync(join(process.cwd(), 'tests/fixtures/fixtures.ts'), 'utf8');
+
+		expect(fixtureSource).toContain('createSeededIndexForCurrentCustomer');
+		expect(fixtureSource).toContain('isUnauthorizedExpiredTokenAccountFailure(res.status, lastFailure)');
+		expect(fixtureSource).toMatch(
+			/if\s*\(\s*isUnauthorizedExpiredTokenAccountFailure\(res\.status,\s*lastFailure\)\s*\)\s*\{\s*_token\s*=\s*null;\s*continue;\s*\}/m
+		);
+	});
+
+	it('seedIndex path does not expand stale-index cleanup prefixes for logs-route names', () => {
+		const fixtureSource = readFileSync(join(process.cwd(), 'tests/fixtures/fixtures.ts'), 'utf8');
+
+		expect(fixtureSource).toContain("const STALE_FIXTURE_INDEX_PREFIXES = ['e2e-', 'manual-iso-', 'test-index'] as const;");
+	});
+
+	it('seedIndex retries transient transport failures instead of failing on single fetch disconnect', () => {
+		const fixtureSource = readFileSync(join(process.cwd(), 'tests/fixtures/fixtures.ts'), 'utf8');
+
+		expect(fixtureSource).toContain('function isTransientSeedIndexTransportFailure');
+		expect(fixtureSource).toMatch(
+			/seedIndex:\s*async\s*\(\{\s*_trackIndexForCleanup\s*\},\s*use\)\s*=>\s*\{[\s\S]*for\s*\(let\s+attempt\s*=\s*0;\s*attempt\s*<\s*3;\s*attempt\+\+\)[\s\S]*catch\s*\(error\)[\s\S]*isTransientSeedIndexTransportFailure\(error\)/m
+		);
+	});
+
 	it('indexes create/list/detail journey does not assume two-index free-plan capacity', () => {
-		const indexesSpecSource = readFileSync(join(process.cwd(), 'tests/e2e-ui/full/indexes.spec.ts'), 'utf8');
+		const indexesSpecSource = readFileSync(
+			join(process.cwd(), 'tests/e2e-ui/full/indexes.spec.ts'),
+			'utf8'
+		);
 		const journeyTestBlock = indexesSpecSource.match(
 			/test\('create\/list\/detail journey[\s\S]*?async \(\{[\s\S]*?\}\) => \{([\s\S]*?)\n\t\}\);/m
 		);
@@ -139,7 +185,10 @@ describe('e2e fixture user helpers', () => {
 	});
 
 	it('indexes create retry helper waits for attempt outcome, retries generic create failures, and fails closed on exhaustion', () => {
-		const indexesSpecSource = readFileSync(join(process.cwd(), 'tests/e2e-ui/full/indexes.spec.ts'), 'utf8');
+		const indexesSpecSource = readFileSync(
+			join(process.cwd(), 'tests/e2e-ui/full/indexes.spec.ts'),
+			'utf8'
+		);
 		const retryHelperBlock = indexesSpecSource.match(
 			/async function submitCreateIndexFormWithTransientRetry\([\s\S]*?\)\s*:\s*Promise<void>\s*\{([\s\S]*?)\n\}/m
 		);
@@ -150,6 +199,18 @@ describe('e2e fixture user helpers', () => {
 		expect(retryHelperBlock?.[1]).toContain('retryableCreateFailurePattern');
 		expect(retryHelperBlock?.[1]).toContain('create index form kept failing after retries');
 		expect(retryHelperBlock?.[1]).toContain('create index form returned failure');
+	});
+
+	it('search-preview live owner fails required seed failures instead of skipping', () => {
+		const searchPreviewSpecSource = readFileSync(
+			join(process.cwd(), 'tests/e2e-ui/full/search-preview.spec.ts'),
+			'utf8'
+		);
+
+		expect(searchPreviewSpecSource).not.toMatch(
+			/test\.skip\(true,\s*`seedSearchableIndex failed for this environment:/m
+		);
+		expect(searchPreviewSpecSource).toContain('failRequiredE2eGate(');
 	});
 
 	it('arrangePaidInvoiceForFreshSignup reads invoice detail through the fresh-signup auth token', () => {

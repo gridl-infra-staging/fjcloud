@@ -4,6 +4,7 @@ import {
 	FLAPJACK_SEARCH_APP_ID,
 	buildFlapjackSearchClientOptions,
 	buildFlapjackSearchHost,
+	buildSearchPreviewParams,
 	createFlapjackInstantSearchClient,
 	parseFlapjackSearchEndpoint
 } from './flapjack-search-client';
@@ -63,6 +64,22 @@ describe('flapjack-search-client', () => {
 		});
 	});
 
+	it('builds canonical preview params for richer search requests', () => {
+		expect(
+			buildSearchPreviewParams({
+				query: 'Rust',
+				facets: ['brand', 'category'],
+				facetFilters: [['brand:Acme'], ['category:Books']],
+				filters: 'published = true',
+				page: 2,
+				hitsPerPage: 20,
+				attributesToHighlight: ['title', 'body']
+			})
+		).toBe(
+			'query=Rust&facets=%5B%22brand%22%2C%22category%22%5D&facetFilters=%5B%5B%22brand%3AAcme%22%5D%2C%5B%22category%3ABooks%22%5D%5D&filters=published+%3D+true&page=2&hitsPerPage=20&attributesToHighlight=%5B%22title%22%2C%22body%22%5D'
+		);
+	});
+
 	it('creates a custom InstantSearch client that posts batch queries to Flapjack', async () => {
 		const fetchMock = vi.fn().mockResolvedValue({
 			ok: true,
@@ -87,6 +104,35 @@ describe('flapjack-search-client', () => {
 		});
 		expect(result).toEqual({
 			results: [{ hits: [{ title: 'Rust Programming Language' }] }]
+		});
+	});
+
+	it('passes built params through unchanged as request.params', async () => {
+		const fetchMock = vi.fn().mockResolvedValue({
+			ok: true,
+			json: async () => ({ results: [{ hits: [] }] })
+		});
+		vi.stubGlobal('fetch', fetchMock);
+
+		const params = buildSearchPreviewParams({
+			query: 'svelte',
+			page: 1,
+			hitsPerPage: 10
+		});
+		const client = createFlapjackInstantSearchClient('http://127.0.0.1:7700', 'fj_search_123');
+		await client.search([{ indexName: 'cust_products', params }]);
+
+		expect(fetchMock).toHaveBeenCalledWith('http://127.0.0.1:7700/1/indexes/*/queries', {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				'X-Algolia-API-Key': 'fj_search_123',
+				'X-Algolia-Application-Id': 'griddle',
+				Authorization: 'Bearer fj_search_123'
+			},
+			body: JSON.stringify({
+				requests: [{ indexName: 'cust_products', params }]
+			})
 		});
 	});
 

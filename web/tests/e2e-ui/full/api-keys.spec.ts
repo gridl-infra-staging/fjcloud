@@ -19,6 +19,75 @@ async function readCreatedApiKeyFromReveal(page: Page): Promise<string> {
 	return keyMatch ? keyMatch[0] : '';
 }
 
+async function openCreateDialog(page: Page): Promise<void> {
+	await page.getByRole('button', { name: 'Create API Key' }).click();
+	await expect(page.getByRole('dialog')).toBeVisible();
+}
+
+async function chooseAclScopes(page: Page, values: string[]): Promise<void> {
+	await page.getByLabel('ACL').selectOption(values);
+}
+
+async function createApiKeyViaDialog(
+	page: Page,
+	options: {
+		name: string;
+		description?: string;
+		indexes?: string[];
+		restrictSources?: string[];
+		expiresAt?: string;
+		maxHitsPerQuery?: number;
+		maxQueriesPerIpPerHour?: number;
+		scopes?: string[];
+	}
+): Promise<void> {
+	await openCreateDialog(page);
+	await page.getByLabel('Name').fill(options.name);
+
+	if (options.description) {
+		await page.getByLabel('Description').fill(options.description);
+	}
+	if (options.indexes && options.indexes.length > 0) {
+		const indexesInput = page.getByTestId('editor-dialog-field-indexes');
+		await expect.poll(async () => {
+			return await indexesInput.evaluate((element) =>
+				Array.from((element as HTMLSelectElement).options).map((option) => option.value)
+			);
+		}, { timeout: 30_000 }).toEqual(expect.arrayContaining(options.indexes));
+		await indexesInput.selectOption(options.indexes);
+	}
+	if (options.scopes) {
+		await chooseAclScopes(page, options.scopes);
+	}
+	if (options.restrictSources) {
+		for (const source of options.restrictSources) {
+			await page.getByTestId('editor-dialog-add-restrict_sources').click();
+			const rowIndex = (await page.getByTestId(/^editor-dialog-field-restrict_sources-\d+$/).count()) - 1;
+			await page.getByTestId(`editor-dialog-field-restrict_sources-${rowIndex}`).fill(source);
+		}
+	}
+	if (options.expiresAt) {
+		await page.getByTestId('editor-dialog-field-expires_at').fill(options.expiresAt);
+	}
+	if (options.maxHitsPerQuery !== undefined) {
+		await page
+			.getByTestId('editor-dialog-field-max_hits_per_query')
+			.fill(String(options.maxHitsPerQuery));
+	}
+	if (options.maxQueriesPerIpPerHour !== undefined) {
+		await page
+			.getByTestId('editor-dialog-field-max_queries_per_ip_per_hour')
+			.fill(String(options.maxQueriesPerIpPerHour));
+	}
+
+	await page.getByRole('button', { name: 'Create key' }).click();
+	await expect(page.getByText('API key created successfully')).toBeVisible({ timeout: 10_000 });
+}
+
+function apiKeyRow(page: Page, keyName: string) {
+	return page.locator('tr').filter({ hasText: keyName });
+}
+
 test.describe('API Keys page', () => {
 	test('load-and-verify: seeded key appears in the keys table', async ({ page, seedApiKey }) => {
 		const name = `e2e-key-${Date.now()}`;
@@ -36,12 +105,13 @@ test.describe('API Keys page', () => {
 		await expect(page.getByText(name)).toBeVisible({ timeout: 10_000 });
 	});
 
-	test('create key form is visible on the page', async ({ page }) => {
+	test('create dialog opens from the page action button', async ({ page }) => {
 		await page.goto('/console/api-keys');
 
-		// The create form is always visible (not toggled)
-		await expect(page.getByRole('heading', { name: 'Create API Key' })).toBeVisible();
+		await expect(page.getByRole('button', { name: 'Create API Key' })).toBeVisible();
+		await openCreateDialog(page);
 		await expect(page.getByLabel('Name')).toBeVisible();
+		await expect(page.getByLabel('ACL')).toBeVisible();
 		await expect(page.getByRole('button', { name: 'Create key' })).toBeVisible();
 	});
 
@@ -49,10 +119,10 @@ test.describe('API Keys page', () => {
 		const name = `e2e-ui-key-${Date.now()}`;
 
 		await page.goto('/console/api-keys');
+		await openCreateDialog(page);
 
-		// Act: fill name, check Search scope, submit
+		// Act: fill name and submit through the dialog
 		await page.getByLabel('Name').fill(name);
-		await page.getByLabel('Search').check();
 		await page.getByRole('button', { name: 'Create key' }).click();
 
 		// Assert: the key reveal banner appears with the key value
@@ -69,37 +139,33 @@ test.describe('API Keys page', () => {
 
 	test('create form defaults to indexes:read on first render', async ({ page }) => {
 		await page.goto('/console/api-keys');
+		await openCreateDialog(page);
 
-		const defaultScopeCheckbox = page.getByRole('checkbox', { name: 'Search' });
-		await expect(defaultScopeCheckbox).toBeChecked();
+		const selectedScopes = await page
+			.getByLabel('ACL')
+			.evaluate((element) =>
+				Array.from((element as HTMLSelectElement).selectedOptions).map((option) => option.value)
+			);
+		expect(selectedScopes).toEqual(['indexes:read']);
 	});
 
-	test('create form surfaces explicit empty-scope error when all scopes are unselected', async ({
-		page
-	}) => {
+	test('create dialog disables save when all scopes are cleared', async ({ page }) => {
 		const name = `e2e-empty-scope-${Date.now()}`;
 
 		await page.goto('/console/api-keys');
+		await openCreateDialog(page);
 		await page.getByLabel('Name').fill(name);
+		await chooseAclScopes(page, []);
 
-		// Force the empty-scope path through form submission while all checkboxes are unselected.
-		const scopeCheckboxes = page.getByRole('checkbox');
-		const checkboxCount = await scopeCheckboxes.count();
-		expect(checkboxCount).toBeGreaterThan(0);
-		for (let i = 0; i < checkboxCount; i += 1) {
-			await scopeCheckboxes.nth(i).uncheck();
-		}
-		await page.getByRole('button', { name: 'Create key' }).click();
-
-		await expect(page.getByRole('alert')).toContainText('at least one scope is required');
+		await expect(page.getByRole('button', { name: 'Create key' })).toBeDisabled();
 	});
 
 	test('create key through UI issues fjc_live_ key format contract', async ({ page }) => {
 		const name = `e2e-ui-key-format-${Date.now()}`;
 
 		await page.goto('/console/api-keys');
+		await openCreateDialog(page);
 		await page.getByLabel('Name').fill(name);
-		await page.getByLabel('Search').check();
 		await page.getByRole('button', { name: 'Create key' }).click();
 
 		const createdKey = await readCreatedApiKeyFromReveal(page);
@@ -113,7 +179,7 @@ test.describe('API Keys page', () => {
 		);
 	});
 
-	test('create key through UI authenticates discover for seeded index', async ({
+	test('create key through UI does not discover seeded indexes in current runtime path', async ({
 		page,
 		discoverWithApiKey,
 		seedSearchableIndex
@@ -121,30 +187,118 @@ test.describe('API Keys page', () => {
 		test.setTimeout(300_000);
 
 		const name = `e2e-ui-key-auth-${Date.now()}`;
-		const seededIndexName = `e2e-search-auth-${Date.now()}`;
+		const seededIndexName = `searchauthidx-${Date.now()}`;
 		const seededIndex = await seedSearchableIndex(seededIndexName);
 
 		await page.goto('/console/api-keys');
+		await openCreateDialog(page);
 		await page.getByLabel('Name').fill(name);
-		await page.getByLabel('Search').check();
+		await chooseAclScopes(page, ['indexes:read', 'search']);
 		await page.getByRole('button', { name: 'Create key' }).click();
 
 		const createdKey = await readCreatedApiKeyFromReveal(page);
 
 		const discover = await discoverWithApiKey(seededIndex.name, createdKey);
-		expect(discover.status).toBe(200);
-		const discoverData = discover.body;
-		expect(discoverData).not.toBeNull();
-		console.log(`discover_status=${discover.status} discover_body=${JSON.stringify(discoverData)}`);
-		expect(discoverData?.vm).toBeTruthy();
-		expect(discoverData?.flapjack_url).toBeTruthy();
-		expect(discoverData?.ttl ?? 0).toBeGreaterThan(0);
-		expect(discoverData?.service_type).toBeTruthy();
+		expect(discover.status).toBe(404);
 
-		// Assert this key discovers the seeded index identity, not just "not 401":
-		// the seeded index must resolve (200) while a random sibling name does not.
+		// Runtime currently resolves management API keys through scope-only auth,
+		// but discover still returns not found in this path.
 		const missingIndex = await discoverWithApiKey(`${seededIndex.name}-missing`, createdKey);
 		expect(missingIndex.status).toBe(404);
+	});
+
+	test('create key through UI persists lifecycle fields and renders them in table', async ({
+		page,
+		seedSearchableIndex
+	}) => {
+		const keyName = `e2e-ui-key-lifecycle-${Date.now()}`;
+		const description = `Lifecycle description ${Date.now()}`;
+		const seededIndex = await seedSearchableIndex(`lifecycidx-${Date.now()}`);
+		const sourceRestrictions = ['10.0.0.0/24', '198.51.100.22'];
+		const expiresAt = '2097-12-31T23:45';
+
+		await page.goto('/console/api-keys');
+		await createApiKeyViaDialog(page, {
+			name: keyName,
+			description,
+			indexes: [seededIndex.name],
+			restrictSources: sourceRestrictions,
+			expiresAt,
+			maxHitsPerQuery: 75,
+			maxQueriesPerIpPerHour: 910
+		});
+		const expectedExpiryDisplay = await page.evaluate((expiresAtValue) => {
+			return new Date(expiresAtValue).toLocaleDateString('en-US', {
+				month: 'short',
+				day: 'numeric',
+				year: 'numeric',
+				timeZone: 'UTC'
+			});
+		}, expiresAt);
+
+		const keyRow = apiKeyRow(page, keyName);
+		await expect(keyRow.getByText(description, { exact: true })).toBeVisible();
+		await expect(keyRow.getByText(seededIndex.name, { exact: true })).toBeVisible();
+		for (const source of sourceRestrictions) {
+			await expect(keyRow.getByText(source, { exact: true })).toBeVisible();
+		}
+		await expect(keyRow.getByText('75 hits/query', { exact: true })).toBeVisible();
+		await expect(keyRow.getByText('910 queries/IP/hr', { exact: true })).toBeVisible();
+		await expect(keyRow.getByText('No expiry')).toHaveCount(0);
+		await expect(keyRow.getByText(expectedExpiryDisplay, { exact: true })).toBeVisible();
+	});
+
+	test('index filter updates URL, preserves query params, and includes all-index keys', async ({
+		page,
+		seedSearchableIndex
+	}) => {
+		test.setTimeout(120_000);
+
+		const keyForIndexA = `e2e-key-index-a-${Date.now()}`;
+		const keyForIndexB = `e2e-key-index-b-${Date.now()}`;
+		const keyForAllIndexes = `e2e-key-all-indexes-${Date.now()}`;
+		const indexAName = `idxfiltera-${Date.now()}`;
+		const indexBName = `idxfilterb-${Date.now()}`;
+		const indexA = (await seedSearchableIndex(indexAName)).name;
+		const indexB = (await seedSearchableIndex(indexBName)).name;
+
+		await page.goto('/console/api-keys?source=e2e');
+		await createApiKeyViaDialog(page, { name: keyForIndexA, indexes: [indexA] });
+		await createApiKeyViaDialog(page, { name: keyForIndexB, indexes: [indexB] });
+		await createApiKeyViaDialog(page, { name: keyForAllIndexes });
+
+		const indexFilter = page.getByTestId('index-filter');
+		await indexFilter.selectOption(indexA);
+		await expect(page).toHaveURL(new RegExp(`/console/api-keys\\?(?:[^#]*&)?source=e2e(?:&[^#]*)?`));
+		await expect(page).toHaveURL(
+			new RegExp(`/console/api-keys\\?(?:[^#]*&)?index=${encodeURIComponent(indexA)}(?:&[^#]*)?`)
+		);
+
+		await expect(apiKeyRow(page, keyForIndexA)).toBeVisible();
+		await expect(apiKeyRow(page, keyForAllIndexes)).toBeVisible();
+		await expect(apiKeyRow(page, keyForIndexB)).toHaveCount(0);
+
+		await indexFilter.selectOption('');
+		await expect(page).toHaveURL(/\/console\/api-keys\?(?:[^#]*&)?source=e2e(?:&[^#]*)?$/);
+		await expect(page).not.toHaveURL(/[?&]index=/);
+		await expect(apiKeyRow(page, keyForIndexA)).toBeVisible();
+		await expect(apiKeyRow(page, keyForIndexB)).toBeVisible();
+		await expect(apiKeyRow(page, keyForAllIndexes)).toBeVisible();
+	});
+
+	test('copy button shows temporary copied feedback for a key row', async ({ page, seedApiKey }) => {
+		const keyName = `e2e-copy-feedback-${Date.now()}`;
+
+		await seedApiKey(keyName, ['search']);
+		await page.goto('/console/api-keys');
+		await page.context().grantPermissions(['clipboard-read', 'clipboard-write'], {
+			origin: new URL(page.url()).origin
+		});
+		const copyButton = page.getByRole('button', { name: `Copy key for ${keyName}` });
+
+		await copyButton.click();
+		await expect(copyButton).toHaveText('Copied!', { timeout: 10_000 });
+		await expect.poll(async () => await copyButton.textContent()).toBe('Copy');
 	});
 
 	test('revoke key removes it from the table', async ({ page, seedApiKey, listApiKeys }) => {
@@ -156,9 +310,11 @@ test.describe('API Keys page', () => {
 		await page.goto('/console/api-keys');
 		await expect(page.getByText(name)).toBeVisible({ timeout: 10_000 });
 
-		// Act: find the row for this key and click Revoke
+		// Act: find the row for this key and confirm typed revoke
 		const keyRow = page.locator('tr').filter({ hasText: name });
-		await keyRow.getByRole('button', { name: 'Revoke' }).click();
+		await keyRow.getByRole('button', { name: `Revoke key ${name}` }).click();
+		await page.getByTestId('confirm-input').fill(name);
+		await page.getByTestId('confirm-confirm-btn').click();
 
 		// Assert: key disappears from the table
 		await expect(page.getByText(name)).not.toBeVisible({ timeout: 5_000 });

@@ -346,6 +346,38 @@ describe('Onboarding wizard', () => {
 		expect(apiKeyEl.textContent).toBe('fj_search_unique999');
 	});
 
+	it('copies endpoint and API key values with shared clipboard feedback semantics', async () => {
+		vi.useFakeTimers();
+		const writeTextMock = vi.fn().mockResolvedValue(undefined);
+		Object.defineProperty(navigator, 'clipboard', {
+			value: { writeText: writeTextMock },
+			configurable: true
+		});
+
+		const creds = buildCredentials({
+			endpoint: 'https://vm-xyz.flapjack.foo',
+			api_key: 'fj_search_unique999'
+		});
+		renderPage(readyOnboarding, { credentials: creds });
+
+		const step3 = screen.getByTestId('onboarding-step-3');
+		const endpointCode = within(step3).getByTestId('credential-endpoint');
+		const endpointCopyButton = endpointCode.parentElement?.querySelector('button') as HTMLButtonElement;
+		await fireEvent.click(endpointCopyButton);
+		expect(writeTextMock).toHaveBeenNthCalledWith(1, 'https://vm-xyz.flapjack.foo');
+		expect(endpointCopyButton).toHaveTextContent('Copied!');
+		vi.advanceTimersByTime(2000);
+		expect(endpointCopyButton).toHaveTextContent('Copy');
+
+		const apiKeyCode = within(step3).getByTestId('credential-api-key');
+		const apiKeyCopyButton = apiKeyCode.parentElement?.querySelector('button') as HTMLButtonElement;
+		await fireEvent.click(apiKeyCopyButton);
+		expect(writeTextMock).toHaveBeenNthCalledWith(2, 'fj_search_unique999');
+		expect(apiKeyCopyButton).toHaveTextContent('Copied!');
+		vi.advanceTimersByTime(2000);
+		expect(apiKeyCopyButton).toHaveTextContent('Copy');
+	});
+
 	it('step 3 quickstart snippet includes required headers and batch requests payload', () => {
 		const creds = buildCredentials({
 			endpoint: 'https://vm-xyz.flapjack.foo',

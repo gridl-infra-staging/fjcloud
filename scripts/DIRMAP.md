@@ -103,7 +103,7 @@ cold-storage, and HA proof-owner scripts in strict order.
 Does NOT duplicate proof-owner internals — only calls the three scripts
 and interprets exit codes/output. |
 | local_demo.sh | One-command local demo launcher: infra + API + web + seed data + metering. |
-| playwright_local_stack.sh | playwright_local_stack.sh — Start local API + web for Playwright runs. |
+| playwright_local_stack.sh | Stub summary for playwright_local_stack.sh. |
 | probe_alert_delivery.sh | Stub summary for probe_alert_delivery.sh. |
 | probe_cloudflare_ai_block.sh | Read-only Cloudflare AI-bot-protection probe. |
 | probe_deployed_signup_renders.sh | Stub summary for probe_deployed_signup_renders.sh. |
@@ -153,7 +153,7 @@ usage_records to Postgres. |
 
 | Directory | Summary |
 | --- | --- |
-| canary | The canary directory contains synthetic health probes and contract tests that validate end-to-end system functionality, including a customer-loop canary, external AWS health checks, email deliverability verification, and infrastructure-wide contract tests for security boundaries and wire-protocol correctness. |
+| canary | The canary directory contains synthetic health probes and continuous monitoring scripts for validating end-to-end customer flows, external infrastructure availability, and email deliverability, along with contract tests that enforce deterministic fail-closed behaviors for webhooks, OAuth, and infrastructure configuration. |
 | chaos | The chaos directory contains failure-injection and HA resilience test scripts that validate the system's ability to detect outages, trigger failover, and recover—including region kill/restart tests, metering service failure detection, and end-to-end failover proofs. |
 | launch | The launch directory contains deployment verification and evidence-capture scripts for the fjcloud staging environment, including tenant-map validation, synthetic traffic seeding, post-deploy verification gates, SSM environment hydration, and E2E test orchestration. |
 | lib | This is a collection of reusable bash script libraries providing shared contracts for alerting, database operations, validation gates, Stripe/SES integration, environment configuration, and infrastructure health checks across the fjcloud project. |

@@ -1,8 +1,9 @@
 <script lang="ts">
-	import { browser } from '$app/environment';
 	import { enhance } from '$app/forms';
 	import { resolve } from '$app/paths';
+	import { copyToClipboard } from '$lib/clipboard';
 	import { formatBytes, formatNumber, statusLabel } from '$lib/format';
+	import { writeTextToClipboard } from '$lib/clipboard';
 	import type { Index, IndexReplicaSummary, InternalRegion, SearchResult } from '$lib/api/types';
 	import {
 		buildSnippetContext,
@@ -48,23 +49,6 @@
 	);
 	const frameworkSnippets = $derived(snippetContext ? buildFrameworkSnippets(snippetContext) : []);
 	const activeSnippet = $derived(frameworkSnippets.find((s) => s.id === activeSnippetTab) ?? null);
-
-	async function copyToClipboard(text: string, buttonId: string) {
-		if (!browser) return;
-		try {
-			await navigator.clipboard.writeText(text);
-			const buttonElement = document.getElementById(buttonId);
-			if (buttonElement) {
-				const originalText = buttonElement.textContent;
-				buttonElement.textContent = 'Copied!';
-				setTimeout(() => {
-					buttonElement.textContent = originalText;
-				}, 2000);
-			}
-		} catch {
-			// Clipboard API not available.
-		}
-	}
 </script>
 
 <div
@@ -96,9 +80,9 @@
 			<div class="mt-1 flex items-center gap-2">
 				<code class="truncate text-sm text-flapjack-ink">{index.endpoint}</code>
 				<button
-					id="copy-endpoint"
 					type="button"
-					onclick={() => copyToClipboard(index.endpoint ?? '', 'copy-endpoint')}
+					onclick={(event) =>
+						void copyToClipboard(index.endpoint ?? '', event.currentTarget as HTMLButtonElement)}
 					class="shrink-0 rounded border border-flapjack-ink/30 px-2 py-0.5 text-xs text-flapjack-ink/70 hover:bg-flapjack-cream/80"
 				>
 					Copy

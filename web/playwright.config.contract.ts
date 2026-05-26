@@ -4,9 +4,11 @@ import { requireNonBlankString, requireNonEmptyString } from './tests/fixtures/c
 
 export const DEFAULT_PLAYWRIGHT_BASE_URL = 'http://localhost:5173';
 export const DEFAULT_PLAYWRIGHT_ADMIN_KEY = `playwright-local-admin-${randomUUID()}`;
-export const PLAYWRIGHT_WEB_SERVER_COMMAND = '../scripts/playwright_local_stack.sh --force-api-restart';
+export const PLAYWRIGHT_WEB_SERVER_COMMAND =
+	'../scripts/playwright_local_stack.sh --force-api-restart';
 export const PLAYWRIGHT_WEB_ONLY_SERVER_COMMAND = '../scripts/web-dev.sh';
 export const PLAYWRIGHT_WEB_PORT_ENV = 'PLAYWRIGHT_WEB_PORT';
+export const PLAYWRIGHT_API_PORT_ENV = 'PLAYWRIGHT_API_PORT';
 export const PLAYWRIGHT_STORAGE_STATE = {
 	user: 'tests/fixtures/.auth/user.json',
 	onboarding: 'tests/fixtures/.auth/onboarding.json',
@@ -98,6 +100,8 @@ function isPublicOnlyPlaywrightSelection(argv: string[]): boolean {
 
 const PLAYWRIGHT_DEFAULT_PORT_HASH_MIN = 5600;
 const PLAYWRIGHT_DEFAULT_PORT_HASH_SPAN = 2000;
+const PLAYWRIGHT_DEFAULT_API_PORT_OFFSET = 20_000;
+const PLAYWRIGHT_DEFAULT_S3_PORT_OFFSET = 30_000;
 const LOOPBACK_HTTP_HOST = '127.0.0.1';
 const FNV1A_32_OFFSET_BASIS = 0x811c9dc5;
 const FNV1A_32_PRIME = 0x01000193;
@@ -126,6 +130,21 @@ function parsePlaywrightWebPort(rawPort: string): number {
 	return parsedPort;
 }
 
+function parsePlaywrightApiPort(rawPort: string): number {
+	if (!/^\d+$/.test(rawPort)) {
+		throw new Error(
+			`${PLAYWRIGHT_API_PORT_ENV} must be an integer TCP port when set (received "${rawPort}")`
+		);
+	}
+	const parsedPort = Number(rawPort);
+	if (!Number.isInteger(parsedPort) || parsedPort < 1024 || parsedPort > 65535) {
+		throw new Error(
+			`${PLAYWRIGHT_API_PORT_ENV} must be between 1024 and 65535 when set (received "${rawPort}")`
+		);
+	}
+	return parsedPort;
+}
+
 export function resolveDefaultPlaywrightWebPort(workspacePath: string = process.cwd()): number {
 	const normalizedWorkspacePath = workspacePath.trim();
 	if (normalizedWorkspacePath.length === 0) {
@@ -144,6 +163,21 @@ function resolvePlaywrightWebPort(
 		return parsePlaywrightWebPort(configuredPort);
 	}
 	return resolveDefaultPlaywrightWebPort(workspacePath);
+}
+
+export function resolveDefaultPlaywrightApiPort(workspacePath: string = process.cwd()): number {
+	return resolveDefaultPlaywrightWebPort(workspacePath) + PLAYWRIGHT_DEFAULT_API_PORT_OFFSET;
+}
+
+function resolvePlaywrightApiPort(
+	processEnv: Record<string, string | undefined>,
+	workspacePath: string
+): number {
+	const configuredPort = processEnv[PLAYWRIGHT_API_PORT_ENV]?.trim();
+	if (configuredPort && configuredPort.length > 0) {
+		return parsePlaywrightApiPort(configuredPort);
+	}
+	return resolveDefaultPlaywrightApiPort(workspacePath);
 }
 
 function buildPlaywrightLoopbackUrl(port: number): string {
@@ -387,8 +421,16 @@ export function resolvePlaywrightRuntime({
 	workspacePath = process.cwd()
 }: ResolvePlaywrightRuntimeParams): PlaywrightRuntimeContract {
 	const webPort = resolvePlaywrightWebPort(processEnv, workspacePath);
+	const apiPort = resolvePlaywrightApiPort(processEnv, workspacePath);
 	const defaultBaseUrl = buildPlaywrightLoopbackUrl(webPort);
+	const defaultApiBaseUrl = buildPlaywrightLoopbackUrl(apiPort);
 	const hasExplicitBaseUrl = Boolean(processEnv.BASE_URL && processEnv.BASE_URL.trim().length > 0);
+	const hasExplicitApiTarget = Boolean(
+		(processEnv.API_BASE_URL && processEnv.API_BASE_URL.trim().length > 0) ||
+			(processEnv[PLAYWRIGHT_API_PORT_ENV] &&
+				processEnv[PLAYWRIGHT_API_PORT_ENV]?.trim().length &&
+				processEnv[PLAYWRIGHT_API_PORT_ENV]?.trim().length > 0)
+	);
 	// Thread processEnv through so the LB-2/LB-3 remote-target opt-in
 	// (PLAYWRIGHT_TARGET_REMOTE=1) is observed deterministically by the
 	// loopback guard during runtime resolution.
@@ -402,14 +444,28 @@ export function resolvePlaywrightRuntime({
 	}
 	const apiBaseUrl = requireLoopbackHttpUrl(
 		'API_BASE_URL',
-		processEnv.API_BASE_URL ?? repoEnv.API_BASE_URL ?? webEnv.API_BASE_URL ?? DEFAULT_API_URL,
+		hasExplicitBaseUrl || hasExplicitApiTarget
+			? processEnv.API_BASE_URL ??
+				processEnv.API_URL ??
+				repoEnv.API_BASE_URL ??
+				webEnv.API_BASE_URL ??
+				repoEnv.API_URL ??
+				webEnv.API_URL ??
+				defaultApiBaseUrl
+			: defaultApiBaseUrl,
 		processEnv
 	);
+	processEnv.API_BASE_URL = apiBaseUrl;
+	processEnv.API_URL = apiBaseUrl;
+	const s3ListenPort = apiPort + PLAYWRIGHT_DEFAULT_S3_PORT_OFFSET;
 	const webServerEnv = sanitizeWebServerEnv({
 		...processEnv,
 		...repoEnv,
 		...webEnv,
+		API_URL: apiBaseUrl,
 		API_BASE_URL: apiBaseUrl,
+		LISTEN_ADDR: processEnv.LISTEN_ADDR ?? `0.0.0.0:${apiPort}`,
+		S3_LISTEN_ADDR: processEnv.S3_LISTEN_ADDR ?? `0.0.0.0:${s3ListenPort}`,
 		JWT_SECRET:
 			processEnv.JWT_SECRET ?? webEnv.JWT_SECRET ?? repoEnv.JWT_SECRET ?? fallbackJwtSecret,
 		ADMIN_KEY:
@@ -436,18 +492,18 @@ export function resolvePlaywrightRuntime({
 		webServerEnv,
 		webServer: hasExplicitBaseUrl
 			? undefined
-				: {
-						command: `${
-							isPublicOnlyPlaywrightSelection(argv)
-								? PLAYWRIGHT_WEB_ONLY_SERVER_COMMAND
-								: PLAYWRIGHT_WEB_SERVER_COMMAND
-						} --host ${LOOPBACK_HTTP_HOST} --port ${webPort} --strictPort`,
-						env: webServerEnv,
-						url: baseURL,
-						reuseExistingServer: false,
-						timeout: PLAYWRIGHT_WEB_SERVER_TIMEOUT_MS
-					}
-		};
+			: {
+					command: `${
+						isPublicOnlyPlaywrightSelection(argv)
+							? PLAYWRIGHT_WEB_ONLY_SERVER_COMMAND
+							: PLAYWRIGHT_WEB_SERVER_COMMAND
+					} --host ${LOOPBACK_HTTP_HOST} --port ${webPort} --strictPort`,
+					env: webServerEnv,
+					url: baseURL,
+					reuseExistingServer: false,
+					timeout: PLAYWRIGHT_WEB_SERVER_TIMEOUT_MS
+				}
+	};
 }
 
 // ---------------------------------------------------------------------------

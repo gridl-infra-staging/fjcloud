@@ -109,7 +109,6 @@ Browse, search, create, edit, and delete the synonym groups that influence relev
 
 ## Automated Coverage
 
-- Browser-unmocked tests: `web/tests/e2e-ui/full/synonyms.spec.ts` (new) — count badge, server-side search query-param flow, add/edit per-type dialogs, row delete confirm, and typed `Clear All`.
-- Browser-mocked tests: `web/tests/e2e-ui/mocked/synonyms_error_states.spec.ts` (new) — load-error vs empty distinction and create-time `objectID` collision handling.
-- Component tests: extend `web/src/routes/console/indexes/[name]/tabs/SynonymsTab.test.ts` for type-label mapping, summary rendering, per-type form validation, and min-items remove-guard behavior.
-- Server/contract tests: extend `web/src/routes/console/indexes/[name]/detail.server.actions.test.ts` or synonym action tests for `q=` passthrough, `clearSynonyms`, and structured create/edit parsing.
+- Browser-unmocked tests: `web/tests/e2e-ui/full/index-detail.spec.ts`; `web/tests/e2e-ui/full/indexes.spec.ts`
+- Component tests: `web/src/routes/console/indexes/[name]/tabs/SynonymsTab.test.ts`
+- Server/contract tests: `web/src/routes/console/indexes/[name]/detail.server.actions.test.ts`

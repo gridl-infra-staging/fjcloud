@@ -1,112 +1,112 @@
 {
-  "meta": {
-    "title": "Flapjack Cloud - Managed search hosting",
-    "description": "Managed hosting for Flapjack search. Algolia-compatible API, public beta, usage-based pricing in USD."
-  },
-  "brand": {
-    "name": "Flapjack Cloud",
-    "badge": "BETA"
-  },
-  "nav": {
-    "github_aria_label": "GitHub repository",
-    "login_label": "Log in",
-    "api_docs_label": "View API Docs"
-  },
-  "hero": {
-    "eyebrow": "Managed search hosting",
-    "headline": "Flapjack Cloud",
-    "lede": "Managed hosting for Flapjack search.",
-    "body": "Use an Algolia-compatible API without running your own search servers. Create indexes, import documents, and query from your app.",
-    "beta_note": "Public beta. Contact by email. Pricing and limits may change before general availability."
-  },
-  "quick_facts": {
-    "eyebrow": "Quick facts",
-    "items": [
-      {
-        "term": "What it is",
-        "detail": "Hosted Flapjack indexes with an Algolia-compatible API."
-      },
-      {
-        "term": "What you manage",
-        "detail": "Indexes, API keys, regions, usage, billing, and account settings."
-      },
-      {
-        "term": "Beta status",
-        "detail": "Public beta. Contact email: {support_email}"
-      }
-    ]
-  },
-  "product": {
-    "eyebrow": "Product",
-    "title": "What you get",
-    "body": "Flapjack Cloud runs Flapjack search for you. The public beta focuses on hosted search, Algolia migration, and a cloud dashboard for your indexes.",
-    "features": [
-      {
-        "title": "Algolia-compatible API",
-        "description": "Use the `/1/` API shape your existing Algolia client code already expects."
-      },
-      {
-        "title": "InstantSearch works",
-        "description": "React, Vue, and plain JavaScript InstantSearch widgets can point at Flapjack."
-      },
-      {
-        "title": "Search features",
-        "description": "Typo tolerance, filters, faceting, geo search, synonyms, query rules, and custom ranking."
-      },
-      {
-        "title": "Algolia migration",
-        "description": "List Algolia indexes, choose what to move, and start migration from the dashboard."
-      }
-    ]
-  },
-  "pricing": {
-    "eyebrow": "Pricing",
-    "title": "Simple pricing",
-    "body": "Prices are in USD. Paid billing starts only after billing is enabled for the account.",
-    "quota_note": "Search and write requests are quota-limited, not billed per request."
-  },
-  "policies": {
-    "eyebrow": "Customer information",
-    "title": "Policies",
-    "items": [
-      {
-        "title": "Delivery",
-        "description": "Flapjack Cloud is a digital service. Nothing is shipped. Account access is provided through the web dashboard and API."
-      },
-      {
-        "title": "Cancellation",
-        "description": "You can cancel by closing your account or contacting support. Usage already incurred may still be billed."
-      },
-      {
-        "title": "Refunds",
-        "description": "Refund requests are reviewed for duplicate charges, billing errors, or service unavailability."
-      },
-      {
-        "title": "Payment security",
-        "description": "Payment details are handled by Stripe over HTTPS. Flapjack Cloud does not store card numbers."
-      }
-    ],
-    "links": {
-      "terms": "Terms of Service",
-      "privacy": "Privacy Policy",
-      "contact": "Contact"
-    }
-  },
-  "terms": {
-    "eyebrow": "Terms of Service",
-    "body": "Flapjack Cloud is provided as a public beta digital service. Do not use it for unlawful content, abusive traffic, credential theft, or systems that require uninterrupted availability. We may suspend accounts that harm the service or violate these terms."
-  },
-  "privacy": {
-    "eyebrow": "Privacy Policy",
-    "body": "We collect account contact information, service usage, billing metadata, and operational logs needed to run Flapjack Cloud. Payment details are processed by Stripe. Contact {support_email} for privacy or account deletion requests."
-  },
-  "contact": {
-    "title": "Contact",
-    "body": "Email {support_email} for account help, cancellation, refunds, privacy requests, or security reports."
-  },
-  "footer": {
-    "terms": "Terms",
-    "privacy": "Privacy",
-    "github": "GitHub"
-  }
+	"meta": {
+		"title": "Flapjack Cloud - Managed search hosting",
+		"description": "Managed hosting for Flapjack search. Algolia-compatible API, public beta, usage-based pricing in USD."
+	},
+	"brand": {
+		"name": "Flapjack Cloud",
+		"badge": "BETA"
+	},
+	"nav": {
+		"github_aria_label": "GitHub repository",
+		"login_label": "Log in",
+		"api_docs_label": "View API Docs"
+	},
+	"hero": {
+		"eyebrow": "Managed search hosting",
+		"headline": "Flapjack Cloud",
+		"lede": "Managed hosting for Flapjack search.",
+		"body": "Use an Algolia-compatible API without running your own search servers. Create indexes, import documents, and query from your app.",
+		"beta_note": "Public beta. Contact by email. Pricing and limits may change before general availability."
+	},
+	"quick_facts": {
+		"eyebrow": "Quick facts",
+		"items": [
+			{
+				"term": "What it is",
+				"detail": "Hosted Flapjack indexes with an Algolia-compatible API."
+			},
+			{
+				"term": "What you manage",
+				"detail": "Indexes, API keys, regions, usage, billing, and account settings."
+			},
+			{
+				"term": "Beta status",
+				"detail": "Public beta. Contact email: {support_email}"
+			}
+		]
+	},
+	"product": {
+		"eyebrow": "Product",
+		"title": "What you get",
+		"body": "Flapjack Cloud runs Flapjack search for you. The public beta focuses on hosted search, Algolia migration, and a cloud dashboard for your indexes.",
+		"features": [
+			{
+				"title": "Algolia-compatible API",
+				"description": "Use the `/1/` API shape your existing Algolia client code already expects."
+			},
+			{
+				"title": "InstantSearch works",
+				"description": "React, Vue, and plain JavaScript InstantSearch widgets can point at Flapjack."
+			},
+			{
+				"title": "Search features",
+				"description": "Typo tolerance, filters, faceting, geo search, synonyms, query rules, and custom ranking."
+			},
+			{
+				"title": "Algolia migration",
+				"description": "List Algolia indexes, choose what to move, and start migration from the dashboard."
+			}
+		]
+	},
+	"pricing": {
+		"eyebrow": "Pricing",
+		"title": "Simple pricing",
+		"body": "Prices are in USD. Paid billing starts only after billing is enabled for the account.",
+		"quota_note": "Search and write requests are quota-limited, not billed per request."
+	},
+	"policies": {
+		"eyebrow": "Customer information",
+		"title": "Policies",
+		"items": [
+			{
+				"title": "Delivery",
+				"description": "Flapjack Cloud is a digital service. Nothing is shipped. Account access is provided through the web dashboard and API."
+			},
+			{
+				"title": "Cancellation",
+				"description": "You can cancel by closing your account or contacting support. Usage already incurred may still be billed."
+			},
+			{
+				"title": "Refunds",
+				"description": "Refund requests are reviewed for duplicate charges, billing errors, or service unavailability."
+			},
+			{
+				"title": "Payment security",
+				"description": "Payment details are handled by Stripe over HTTPS. Flapjack Cloud does not store card numbers."
+			}
+		],
+		"links": {
+			"terms": "Terms of Service",
+			"privacy": "Privacy Policy",
+			"contact": "Contact"
+		}
+	},
+	"terms": {
+		"eyebrow": "Terms of Service",
+		"body": "Flapjack Cloud is provided as a public beta digital service. Do not use it for unlawful content, abusive traffic, credential theft, or systems that require uninterrupted availability. We may suspend accounts that harm the service or violate these terms."
+	},
+	"privacy": {
+		"eyebrow": "Privacy Policy",
+		"body": "We collect account contact information, service usage, billing metadata, and operational logs needed to run Flapjack Cloud. Payment details are processed by Stripe. Contact {support_email} for privacy or account deletion requests."
+	},
+	"contact": {
+		"title": "Contact",
+		"body": "Email {support_email} for account help, cancellation, refunds, privacy requests, or security reports."
+	},
+	"footer": {
+		"terms": "Terms",
+		"privacy": "Privacy",
+		"github": "GitHub"
+	}
 }

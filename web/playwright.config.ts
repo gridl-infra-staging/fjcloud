@@ -1,11 +1,13 @@
 import { randomBytes } from 'node:crypto';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { defineConfig, devices, type PlaywrightTestProject } from '@playwright/test';
 import {
 	applyPlaywrightProcessEnvDefaults,
 	PLAYWRIGHT_DESKTOP_DEVICE,
 	PLAYWRIGHT_PROJECT_CONTRACTS,
 	parseDotenvFile,
+	resolveDefaultPlaywrightWebPort,
 	resolvePlaywrightRuntime,
 	type PlaywrightProjectContract
 } from './playwright.config.contract';
@@ -28,8 +30,35 @@ import {
  *   E2E_TEST_REGION  — region with a running VM for index creation tests
  *                      (default: us-east-1)
  */
-const repoEnv = parseDotenvFile(resolve(process.cwd(), '..', '.env.local'));
-const webEnv = parseDotenvFile(resolve(process.cwd(), '.env.local'));
+const configDir = dirname(fileURLToPath(import.meta.url));
+const repoEnv = parseDotenvFile(resolve(configDir, '..', '.env.local'));
+const webEnv = parseDotenvFile(resolve(configDir, '.env.local'));
+
+function applyWorkspaceScopedApiDefaults(processEnv: Record<string, string | undefined>): void {
+	const hasApiBaseUrl = Boolean(processEnv.API_BASE_URL?.trim());
+	const hasApiUrl = Boolean(processEnv.API_URL?.trim());
+	const hasListenAddr = Boolean(processEnv.LISTEN_ADDR?.trim());
+	const hasS3ListenAddr = Boolean(processEnv.S3_LISTEN_ADDR?.trim());
+	if (hasApiBaseUrl && hasApiUrl && hasListenAddr && hasS3ListenAddr) {
+		return;
+	}
+
+	const workspaceWebPort = resolveDefaultPlaywrightWebPort(process.cwd());
+	const workspaceApiPort = workspaceWebPort + 1000;
+	const workspaceApiBaseUrl = `http://127.0.0.1:${workspaceApiPort}`;
+	if (!hasApiBaseUrl) {
+		processEnv.API_BASE_URL = workspaceApiBaseUrl;
+	}
+	if (!hasApiUrl) {
+		processEnv.API_URL = workspaceApiBaseUrl;
+	}
+	if (!hasListenAddr) {
+		processEnv.LISTEN_ADDR = `127.0.0.1:${workspaceApiPort}`;
+	}
+	if (!hasS3ListenAddr) {
+		processEnv.S3_LISTEN_ADDR = `127.0.0.1:${workspaceApiPort + 1}`;
+	}
+}
 // Worker fixtures and auth setup files read process.env directly, so the
 // runner must materialize the full fallback chain here before Playwright forks:
 // process.env.E2E_ADMIN_KEY ?? webEnv.E2E_ADMIN_KEY ?? repoEnv.E2E_ADMIN_KEY ??
@@ -45,6 +74,7 @@ applyPlaywrightProcessEnvDefaults({
 	repoEnv,
 	webEnv
 });
+applyWorkspaceScopedApiDefaults(process.env);
 const fallbackJwtSecret = randomBytes(32).toString('hex');
 const runtimeContract = resolvePlaywrightRuntime({
 	processEnv: process.env,

@@ -17,7 +17,6 @@ import {
 	DEFAULT_E2E_USER_PASSWORD,
 	DEFAULT_FLAPJACK_URL,
 	DEFAULT_PLAYWRIGHT_ADMIN_KEY,
-	DEFAULT_PLAYWRIGHT_BASE_URL,
 	DEFAULT_TEST_REGION,
 	PLAYWRIGHT_STORAGE_STATE,
 	PLAYWRIGHT_PROJECT_CONTRACTS,
@@ -1113,6 +1112,17 @@ describe('playwright config contract', () => {
 			expect(authSetupSource).toContain('setup.setTimeout(AUTH_SETUP_TIMEOUT_MS);');
 		});
 
+		it('playwright config applies workspace-scoped API/listener defaults so local stacks avoid shared :3001 collisions', () => {
+			const playwrightConfigSource = readFileSync(join(process.cwd(), 'playwright.config.ts'), 'utf8');
+
+			expect(playwrightConfigSource).toContain('applyWorkspaceScopedApiDefaults');
+			expect(playwrightConfigSource).toContain('resolveDefaultPlaywrightWebPort');
+			expect(playwrightConfigSource).toContain('processEnv.API_BASE_URL');
+			expect(playwrightConfigSource).toContain('processEnv.API_URL');
+			expect(playwrightConfigSource).toContain('processEnv.LISTEN_ADDR');
+			expect(playwrightConfigSource).toContain('processEnv.S3_LISTEN_ADDR');
+		});
+
 		it('playwright CI job relies on launch wrapper owner and avoids placeholder Stripe secrets', () => {
 			const ciWorkflowSource = readFileSync(
 				join(process.cwd(), '../.github/workflows/ci.yml'),
@@ -1567,5 +1577,66 @@ describe('rendered Dashboard copy gate (Stage 5)', () => {
 		}
 
 		expect(violations).toEqual([]);
+	});
+});
+
+describe('cwd-local playwright config owner contract', () => {
+	it('does not clear inherited webServer in tests/e2e-ui config', () => {
+		const localConfigSource = readFileSync(
+			join(process.cwd(), 'tests/e2e-ui/playwright.config.ts'),
+			'utf8'
+		);
+		expect(localConfigSource).not.toMatch(/webServer:\s*undefined/);
+	});
+
+	it('rebases local webServer launcher path for tests/e2e-ui cwd', () => {
+		const localConfigSource = readFileSync(
+			join(process.cwd(), 'tests/e2e-ui/playwright.config.ts'),
+			'utf8'
+		);
+		expect(localConfigSource).toContain("replace('../scripts/', '../../../scripts/')");
+	});
+
+	it('does not force reuseExistingServer in cwd-local e2e-ui config', () => {
+		const localConfigSource = readFileSync(
+			join(process.cwd(), 'tests/e2e-ui/playwright.config.ts'),
+			'utf8'
+		);
+		expect(localConfigSource).not.toMatch(/reuseExistingServer\s*:\s*true/);
+	});
+
+	it('keeps cwd-local config aligned with root runtime contract', () => {
+		const localConfigSource = readFileSync(
+			join(process.cwd(), 'tests/e2e-ui/playwright.config.ts'),
+			'utf8'
+		);
+		expect(localConfigSource).toContain("replace('../scripts/', '../../../scripts/')");
+		expect(localConfigSource).toContain('PLAYWRIGHT_CWD_LOCAL_WEB_PORT');
+		expect(localConfigSource).toContain('CWD_LOCAL_BASE_URL');
+		expect(localConfigSource).toMatch(/baseURL:\s*CWD_LOCAL_BASE_URL/);
+		expect(localConfigSource).not.toMatch(/LISTEN_ADDR:\s*`127\.0\.0\.1:\$\{resolvedApiPort\}`/);
+	});
+
+	it('uses a dedicated cwd-local web port to avoid shared-host 5173 collisions', () => {
+		const localConfigSource = readFileSync(
+			join(process.cwd(), 'tests/e2e-ui/playwright.config.ts'),
+			'utf8'
+		);
+		expect(localConfigSource).toContain('const PLAYWRIGHT_CWD_LOCAL_WEB_PORT');
+		expect(localConfigSource).toContain('const CWD_LOCAL_BASE_URL');
+		expect(localConfigSource).toContain(
+			".replace('--port 5173', `--port ${PLAYWRIGHT_CWD_LOCAL_WEB_PORT}`)"
+		);
+		expect(localConfigSource).toContain('url: CWD_LOCAL_BASE_URL');
+		expect(localConfigSource).toMatch(/baseURL:\s*CWD_LOCAL_BASE_URL/);
+	});
+
+	it('sets BASE_URL for specs that read process.env directly in cwd-local runs', () => {
+		const localConfigSource = readFileSync(
+			join(process.cwd(), 'tests/e2e-ui/playwright.config.ts'),
+			'utf8'
+		);
+		expect(localConfigSource).toMatch(/process\.env\.BASE_URL\s*=\s*CWD_LOCAL_BASE_URL/);
+		expect(localConfigSource).not.toMatch(/if\s*\(!process\.env\.BASE_URL\)/);
 	});
 });

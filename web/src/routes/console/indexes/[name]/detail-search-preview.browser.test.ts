@@ -3,17 +3,24 @@ import { cleanup, render, screen } from '@testing-library/svelte';
 import { fireEvent } from '@testing-library/dom';
 import type { ComponentProps } from 'svelte';
 
+const { gotoMock, pageState } = vi.hoisted(() => ({
+	gotoMock: vi.fn((target: string) => {
+		pageState.url = new URL(target, 'http://localhost');
+	}),
+	pageState: { url: new URL('http://localhost/console/indexes/products') }
+}));
+
 vi.mock('$app/forms', () => ({
 	enhance: () => ({ destroy: () => {} })
 }));
 
 vi.mock('$app/navigation', () => ({
-	goto: vi.fn(),
+	goto: gotoMock,
 	invalidateAll: vi.fn()
 }));
 
 vi.mock('$app/state', () => ({
-	page: { url: new URL('http://localhost/console/indexes/products') }
+	page: pageState
 }));
 
 vi.mock('$app/environment', () => ({
@@ -40,7 +47,12 @@ afterEach(() => {
 	vi.clearAllMocks();
 });
 
-function renderPage(overrides: DetailPageOverrides = {}, form: DetailPageForm = null) {
+function renderPage(
+	overrides: DetailPageOverrides = {},
+	form: DetailPageForm = null,
+	url = 'http://localhost/console/indexes/products'
+) {
+	pageState.url = new URL(url);
 	return render(IndexDetailPage, {
 		data: createMockPageData(overrides),
 		form
@@ -48,11 +60,37 @@ function renderPage(overrides: DetailPageOverrides = {}, form: DetailPageForm = 
 }
 
 async function openTab(name: string): Promise<void> {
+	pageState.url.searchParams.set('tab', 'search-preview');
 	await fireEvent.click(screen.getByRole('tab', { name }));
 }
 
 describe('Index detail page — Search Preview browser behavior', () => {
+	it('consumes welcome=1 via banner CTA, opens Search Preview, and preserves unrelated query params', async () => {
+		renderPage(
+			{},
+			null,
+			'http://localhost/console/indexes/products?welcome=1&source=create-flow&debug=1'
+		);
+
+		expect(screen.getByText('Index ready — try the search preview')).toBeInTheDocument();
+		expect(screen.getByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true');
+
+		await fireEvent.click(screen.getByRole('button', { name: 'Open Search Preview' }));
+
+		expect(screen.queryByText('Index ready — try the search preview')).not.toBeInTheDocument();
+		expect(screen.getByRole('tab', { name: 'Search Preview' })).toBeInTheDocument();
+		expect(gotoMock).toHaveBeenCalledTimes(2);
+		const [navigationTarget] = gotoMock.mock.calls.at(-1) as [string];
+		const nextUrl = new URL(navigationTarget, 'http://localhost');
+		expect(nextUrl.pathname).toBe('/console/indexes/products');
+		expect(nextUrl.searchParams.get('welcome')).toBe('0');
+		expect(nextUrl.searchParams.get('tab')).toBe('search-preview');
+		expect(nextUrl.searchParams.get('source')).toBe('create-flow');
+		expect(nextUrl.searchParams.get('debug')).toBe('1');
+	});
+
 	it('shows the generate key form on Search Preview tab in browser mode', async () => {
+		pageState.url = new URL('http://localhost/console/indexes/products');
 		renderPage();
 		await openTab('Search Preview');
 
@@ -61,6 +99,7 @@ describe('Index detail page — Search Preview browser behavior', () => {
 	});
 
 	it('shows preview key error when form returns an error', async () => {
+		pageState.url = new URL('http://localhost/console/indexes/products');
 		renderPage({}, { previewKeyError: 'Key generation failed' } as DetailPageForm);
 		await openTab('Search Preview');
 
@@ -68,6 +107,7 @@ describe('Index detail page — Search Preview browser behavior', () => {
 	});
 
 	it('shows unavailable state for cold tier index', async () => {
+		pageState.url = new URL('http://localhost/console/indexes/products');
 		renderPage({
 			index: {
 				name: 'products',

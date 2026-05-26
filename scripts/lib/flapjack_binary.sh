@@ -20,7 +20,11 @@ default_flapjack_dev_dir_candidates() {
         "$REPO_ROOT/../flapjack_dev" \
         "$REPO_ROOT/../flapjack_dev/engine" \
         "$REPO_ROOT/../../gridl-dev/flapjack_dev/engine" \
-        "$REPO_ROOT/../../gridl-dev/flapjack_dev"
+        "$REPO_ROOT/../../gridl-dev/flapjack_dev" \
+        "${HOME:-}/repos/gridl-dev/flapjack_dev/engine" \
+        "${HOME:-}/repos/gridl-dev/flapjack_dev" \
+        "${HOME:-}/repos/flapjack_dev/engine" \
+        "${HOME:-}/repos/flapjack_dev"
 }
 
 configured_flapjack_dev_dir_candidates() {

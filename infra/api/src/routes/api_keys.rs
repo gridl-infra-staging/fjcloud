@@ -11,6 +11,7 @@ use uuid::Uuid;
 
 use crate::auth::AuthenticatedTenant;
 use crate::errors::{ApiError, ErrorResponse};
+use crate::repos::api_key_repo::ApiKeyManagedKeyParams;
 use crate::scopes::validate_scopes;
 use crate::state::AppState;
 use crate::validation::{validate_length, MAX_API_KEY_NAME_LEN, MAX_SCOPE_ENTRIES};
@@ -19,15 +20,27 @@ use crate::validation::{validate_length, MAX_API_KEY_NAME_LEN, MAX_SCOPE_ENTRIES
 pub struct CreateApiKeyRequest {
     pub name: String,
     pub scopes: Vec<String>,
+    pub description: Option<String>,
+    pub indexes: Option<Vec<String>>,
+    pub restrict_sources: Option<Vec<String>>,
+    pub expires_at: Option<DateTime<Utc>>,
+    pub max_hits_per_query: Option<i32>,
+    pub max_queries_per_ip_per_hour: Option<i32>,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
 pub struct CreateApiKeyResponse {
     pub id: Uuid,
     pub name: String,
+    pub description: Option<String>,
     pub key: String,
     pub key_prefix: String,
     pub scopes: Vec<String>,
+    pub indexes: Vec<String>,
+    pub restrict_sources: Vec<String>,
+    pub expires_at: Option<DateTime<Utc>>,
+    pub max_hits_per_query: Option<i32>,
+    pub max_queries_per_ip_per_hour: Option<i32>,
     pub created_at: DateTime<Utc>,
 }
 
@@ -35,8 +48,14 @@ pub struct CreateApiKeyResponse {
 pub struct ApiKeyListItem {
     pub id: Uuid,
     pub name: String,
+    pub description: Option<String>,
     pub key_prefix: String,
     pub scopes: Vec<String>,
+    pub indexes: Vec<String>,
+    pub restrict_sources: Vec<String>,
+    pub expires_at: Option<DateTime<Utc>>,
+    pub max_hits_per_query: Option<i32>,
+    pub max_queries_per_ip_per_hour: Option<i32>,
     pub last_used_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
 }
@@ -52,6 +71,17 @@ fn hash_key(key: &str) -> String {
     let mut hasher = Sha256::new();
     hasher.update(key.as_bytes());
     hex::encode(hasher.finalize())
+}
+
+fn validate_positive_limit(field: &str, value: Option<i32>) -> Result<(), ApiError> {
+    if let Some(limit) = value {
+        if limit < 1 {
+            return Err(ApiError::BadRequest(format!(
+                "{field} must be at least 1"
+            )));
+        }
+    }
+    Ok(())
 }
 
 // POST /api-keys
@@ -93,6 +123,11 @@ pub async fn create_api_key(
         )));
     }
     validate_scopes(&req.scopes)?;
+    validate_positive_limit("max_hits_per_query", req.max_hits_per_query)?;
+    validate_positive_limit(
+        "max_queries_per_ip_per_hour",
+        req.max_queries_per_ip_per_hour,
+    )?;
 
     let key = generate_api_key();
     let key_hash = hash_key(&key);
@@ -100,7 +135,21 @@ pub async fn create_api_key(
 
     let row = state
         .api_key_repo
-        .create(tenant.customer_id, name, &key_hash, key_prefix, &req.scopes)
+        .create(
+            tenant.customer_id,
+            name,
+            &key_hash,
+            key_prefix,
+            &req.scopes,
+            ApiKeyManagedKeyParams {
+                description: req.description.clone(),
+                indexes: req.indexes.clone().unwrap_or_default(),
+                restrict_sources: req.restrict_sources.clone().unwrap_or_default(),
+                expires_at: req.expires_at,
+                max_hits_per_query: req.max_hits_per_query,
+                max_queries_per_ip_per_hour: req.max_queries_per_ip_per_hour,
+            },
+        )
         .await?;
 
     Ok((
@@ -108,9 +157,15 @@ pub async fn create_api_key(
         Json(CreateApiKeyResponse {
             id: row.id,
             name: row.name,
+            description: row.description,
             key,
             key_prefix: row.key_prefix,
             scopes: row.scopes,
+            indexes: row.indexes,
+            restrict_sources: row.restrict_sources,
+            expires_at: row.expires_at,
+            max_hits_per_query: row.max_hits_per_query,
+            max_queries_per_ip_per_hour: row.max_queries_per_ip_per_hour,
             created_at: row.created_at,
         }),
     ))
@@ -145,8 +200,14 @@ pub async fn list_api_keys(
         .map(|k| ApiKeyListItem {
             id: k.id,
             name: k.name,
+            description: k.description,
             key_prefix: k.key_prefix,
             scopes: k.scopes,
+            indexes: k.indexes,
+            restrict_sources: k.restrict_sources,
+            expires_at: k.expires_at,
+            max_hits_per_query: k.max_hits_per_query,
+            max_queries_per_ip_per_hour: k.max_queries_per_ip_per_hour,
             last_used_at: k.last_used_at,
             created_at: k.created_at,
         })

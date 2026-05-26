@@ -96,7 +96,5 @@ Manage the CIDR/IP allowlist that gates secured API-key requests for one index.
 
 ## Automated Coverage
 
-- Browser-unmocked tests: `web/tests/e2e-ui/full/security-sources.spec.ts` (new) — load-error vs empty distinction, Retry recovery, add-dialog validation/success, and delete confirm with badge decrement.
-- Browser-mocked tests: `web/tests/e2e-ui/mocked/security-sources_errors.spec.ts` (new) — duplicate-source append rejection and concurrent delete failure banner.
-- Component tests: extend `web/src/routes/console/indexes/[name]/tabs/SecuritySourcesTab.test.ts` for state-branch rendering, entry-count badge behavior, and modal open/close flows.
-- Server/contract tests: extend `web/src/routes/console/indexes/[name]/detail.server.actions.test.ts` or `security-sources.server` tests for discriminated load-error shaping plus append/delete action error propagation.
+- Browser-unmocked tests: `web/tests/e2e-ui/full/index-detail.spec.ts`; `web/tests/e2e-ui/full/indexes.spec.ts`
+- Server/contract tests: `web/src/routes/console/indexes/[name]/detail.server.actions.test.ts`

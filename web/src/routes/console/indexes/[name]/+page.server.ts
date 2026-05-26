@@ -23,6 +23,7 @@ import {
 	emptySecuritySourcesPayload,
 	loadSecuritySourcesPayload
 } from './security-sources.server';
+import { runChatAction } from './chat-management.server';
 import {
 	addDocumentAction,
 	browseDocumentsAction,
@@ -43,8 +44,6 @@ import type {
 	PersonalizationProfile,
 	RecommendationsBatchRequest,
 	RecommendationsBatchResponse,
-	IndexChatRequest,
-	IndexChatResponse,
 	QsConfig,
 	AnalyticsDateRangeParams,
 	ConcludeExperimentRequest,
@@ -64,6 +63,13 @@ function failForDashboardAction<T extends Record<string, unknown>>(error: unknow
 	const sessionFailure = mapDashboardSessionFailure(error);
 	if (sessionFailure) return sessionFailure;
 	return fail(400, payload);
+}
+
+function normalizeTransientBackendFailure(message: string): string {
+	if (/fetch failed/i.test(message)) {
+		return 'backend temporarily unavailable';
+	}
+	return message;
 }
 
 function toIsoDateUtc(date: Date): string {
@@ -315,8 +321,9 @@ export const actions: Actions = {
 			await api.updateIndexSettings(params.name, settings);
 			return { settingsSaved: true };
 		} catch (e) {
+			const message = normalizeTransientBackendFailure(errorMessage(e, 'Failed to save settings'));
 			return failForDashboardAction(e, {
-				settingsError: errorMessage(e, 'Failed to save settings')
+				settingsError: message
 			});
 		}
 	},
@@ -540,58 +547,11 @@ export const actions: Actions = {
 		}
 	},
 	chat: async ({ request, locals, params }) => {
-		const data = await request.formData();
-		const query = (data.get('query') as string)?.trim() ?? '';
-		if (!query) return fail(400, { chatError: 'Query is required' });
-		const conversationId = (data.get('conversationId') as string | null)?.trim() ?? '';
-
-		const rawConversationHistory = (data.get('conversationHistory') as string | null)?.trim() ?? '';
-		let conversationHistory: Record<string, unknown>[] = [];
-
-		if (rawConversationHistory) {
-			let parsedConversationHistory: unknown;
-			try {
-				parsedConversationHistory = JSON.parse(rawConversationHistory);
-			} catch {
-				return fail(400, {
-					chatError: 'conversationHistory must be valid JSON',
-					chatQuery: query
-				});
-			}
-
-			if (
-				!Array.isArray(parsedConversationHistory) ||
-				parsedConversationHistory.some(
-					(entry) => typeof entry !== 'object' || entry === null || Array.isArray(entry)
-				)
-			) {
-				return fail(400, {
-					chatError: 'conversationHistory must be a JSON array',
-					chatQuery: query
-				});
-			}
-
-			conversationHistory = parsedConversationHistory as Record<string, unknown>[];
-		}
-
-		const requestBody: IndexChatRequest = {
-			query,
-			conversationHistory
-		};
-		if (conversationId) {
-			requestBody.conversationId = conversationId;
-		}
-
-		const api = createApiClient(locals.user?.token);
-		try {
-			const chatResponse: IndexChatResponse = await api.chat(params.name, requestBody);
-			return { chatResponse, chatQuery: query };
-		} catch (e) {
-			return failForDashboardAction(e, {
-				chatError: errorMessage(e, 'Failed to get chat response'),
-				chatQuery: query
-			});
-		}
+		return runChatAction({
+			request,
+			indexName: params.name,
+			token: locals.user?.token
+		});
 	},
 	saveQsConfig: async ({ request, locals, params }) => {
 		const data = await request.formData();
@@ -644,9 +604,7 @@ export const actions: Actions = {
 
 		const api = createApiClient(locals.user?.token);
 		try {
-			await retryTransientDashboardApiRequest(() =>
-				api.createExperiment(params.name, experiment)
-			);
+			await retryTransientDashboardApiRequest(() => api.createExperiment(params.name, experiment));
 			return { experimentCreated: true };
 		} catch (e) {
 			return failForDashboardAction(e, {

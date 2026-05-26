@@ -7,18 +7,44 @@
 		index,
 		previewKey,
 		previewKeyError,
-		previewIndexName
+		previewIndexName,
+		onRequestDocumentsTab
 	}: {
 		index: Index;
 		previewKey: string;
 		previewKeyError: string;
 		previewIndexName: string;
+		onRequestDocumentsTab?: () => void;
 	} = $props();
 
 	const unavailable = $derived(index.tier === 'cold' || index.tier === 'restoring');
+	let previewKeyExpired = $state(false);
+
+	function handlePreviewKeyExpired(): void {
+		previewKeyExpired = true;
+	}
+
+	$effect(() => {
+		if (previewKey) {
+			previewKeyExpired = false;
+		}
+	});
+
+	const previewKeyUnavailableMessage = $derived.by(() => {
+		if (previewKeyError) {
+			return previewKeyError;
+		}
+		if (previewKeyExpired) {
+			return 'Preview key expired. Generate a new key to continue searching.';
+		}
+		return '';
+	});
 </script>
 
-<section data-testid="search-preview-section">
+<section
+	data-testid="search-preview-section"
+	data-documents-callback={onRequestDocumentsTab ? 'provided' : 'missing'}
+>
 	<h2 class="mb-4 text-lg font-semibold text-flapjack-ink">Search Preview</h2>
 
 	{#if unavailable}
@@ -34,13 +60,13 @@
 				Endpoint not available yet. The index is still being provisioned.
 			</p>
 		</div>
-	{:else if !previewKey}
+	{:else if !previewKey || previewKeyExpired}
 		<div class="rounded-lg border border-flapjack-ink/20 bg-white p-6">
 			<p class="mb-4 text-sm text-flapjack-ink/70">
 				Generate a temporary search key to preview live search results from this index.
 			</p>
-			{#if previewKeyError}
-				<p class="mb-4 text-sm text-flapjack-plum">{previewKeyError}</p>
+			{#if previewKeyUnavailableMessage}
+				<p class="mb-4 text-sm text-flapjack-plum">{previewKeyUnavailableMessage}</p>
 			{/if}
 			<form method="POST" action="?/createPreviewKey" use:enhance>
 				<button
@@ -52,6 +78,12 @@
 			</form>
 		</div>
 	{:else}
-		<InstantSearch endpoint={index.endpoint} apiKey={previewKey} indexName={previewIndexName} />
+		<InstantSearch
+			endpoint={index.endpoint}
+			apiKey={previewKey}
+			indexName={previewIndexName}
+			{onRequestDocumentsTab}
+			onPreviewKeyExpired={handlePreviewKeyExpired}
+		/>
 	{/if}
 </section>

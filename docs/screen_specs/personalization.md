@@ -111,7 +111,5 @@ These deltas are documented per the 2026-05-25 parity audit ([tab_personalizatio
 
 ## Automated Coverage
 
-- Browser-unmocked tests: `web/tests/e2e-ui/full/personalization.spec.ts` (new) — setup-state CTA, structured strategy editor, gated profile lookup, structured profile results, and `Delete Profile` confirm flow.
-- Browser-mocked tests: `web/tests/e2e-ui/mocked/personalization_lookup_states.spec.ts` (new) — pre-lookup vs null-profile distinction and lookup/save failure alerts.
-- Component tests: extend `web/src/routes/console/indexes/[name]/tabs/PersonalizationTab.test.ts` for setup-vs-persisted branching, strategy row editors, and structured profile rendering.
-- Server/contract tests: extend `web/src/routes/console/indexes/[name]/detail.server.actions.test.ts` for structured strategy payload parsing, profile lookup response shaping, and delete-profile action handling.
+- Browser-unmocked tests: `web/tests/e2e-ui/full/index-detail.spec.ts`; `web/tests/e2e-ui/full/indexes.spec.ts`
+- Server/contract tests: `web/src/routes/console/indexes/[name]/detail.server.actions.test.ts`

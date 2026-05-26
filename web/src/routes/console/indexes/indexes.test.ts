@@ -119,17 +119,6 @@ describe('Index list page', () => {
 		return radio as HTMLInputElement;
 	}
 
-	function getTemplateOption(
-		formQueries: ReturnType<typeof within>,
-		label: string
-	): HTMLInputElement {
-		const templateCard = formQueries.getByText(label).closest('label');
-		expect(templateCard).not.toBeNull();
-		const radio = templateCard?.querySelector('input[name="template"]');
-		expect(radio).not.toBeNull();
-		return radio as HTMLInputElement;
-	}
-
 	it('renders index table with name, region, status, entries, and data size', () => {
 		render(IndexesPage, {
 			data: { ...layoutTestDefaults, user: null, indexes: sampleIndexes, regions: sampleRegions },
@@ -180,6 +169,8 @@ describe('Index list page', () => {
 		const formQueries = within(createForm);
 		expect(formQueries.getByRole('heading', { name: 'Create a new index' })).toBeInTheDocument();
 		expect(formQueries.getByLabelText(/index name/i)).toBeInTheDocument();
+		expect(createForm.querySelector('input[name="template_id"]')).toBeInTheDocument();
+		expect(createForm.querySelector('input[name="template"]')).not.toBeInTheDocument();
 		const defaultRegionOption = getRegionOption(formQueries, 'US East (Virginia)');
 		expect(defaultRegionOption.value).toBe('us-east-1');
 		expect(defaultRegionOption.checked).toBe(true);
@@ -189,40 +180,7 @@ describe('Index list page', () => {
 		expect(screen.queryByTestId('create-index-form')).not.toBeInTheDocument();
 	});
 
-	it('template selection defaults and writes expected index names', async () => {
-		render(IndexesPage, {
-			data: { ...layoutTestDefaults, user: null, indexes: sampleIndexes, regions: sampleRegions },
-			form: null
-		});
-
-		await fireEvent.click(screen.getByRole('button', { name: /create index/i }));
-		const createForm = screen.getByTestId('create-index-form');
-		const formQueries = within(createForm);
-		const nameInput = formQueries.getByLabelText(/index name/i) as HTMLInputElement;
-
-		const emptyTemplate = getTemplateOption(formQueries, 'Empty index');
-		const moviesTemplate = getTemplateOption(formQueries, 'Movies');
-		const productsTemplate = getTemplateOption(formQueries, 'Products');
-
-		expect(emptyTemplate.checked).toBe(true);
-		expect(moviesTemplate.checked).toBe(false);
-		expect(productsTemplate.checked).toBe(false);
-		expect(nameInput.value).toBe('');
-
-		await fireEvent.click(formQueries.getByText('Movies'));
-		expect(nameInput.value).toBe('movies');
-		expect(moviesTemplate.checked).toBe(true);
-
-		await fireEvent.click(formQueries.getByText('Products'));
-		expect(nameInput.value).toBe('products');
-		expect(productsTemplate.checked).toBe(true);
-
-		await fireEvent.click(formQueries.getByText('Empty index'));
-		expect(nameInput.value).toBe('');
-		expect(emptyTemplate.checked).toBe(true);
-	});
-
-	it('canceling or successful submit resets template and name input state', async () => {
+	it('canceling or successful submit resets route-owned region and dialog visibility state', async () => {
 		render(IndexesPage, {
 			data: { ...layoutTestDefaults, user: null, indexes: sampleIndexes, regions: sampleRegions },
 			form: null
@@ -231,10 +189,8 @@ describe('Index list page', () => {
 		await fireEvent.click(screen.getByRole('button', { name: /create index/i }));
 		let createForm = screen.getByTestId('create-index-form');
 		let formQueries = within(createForm);
-		const nameInput = formQueries.getByLabelText(/index name/i) as HTMLInputElement;
-
-		await fireEvent.click(formQueries.getByText('Movies'));
-		expect(nameInput.value).toBe('movies');
+		await fireEvent.click(getRegionOption(formQueries, 'EU West (Ireland)'));
+		expect(getRegionOption(formQueries, 'EU West (Ireland)').checked).toBe(true);
 
 		await fireEvent.click(formQueries.getByRole('button', { name: /^cancel$/i }));
 		expect(screen.queryByTestId('create-index-form')).not.toBeInTheDocument();
@@ -242,15 +198,7 @@ describe('Index list page', () => {
 		await fireEvent.click(screen.getByRole('button', { name: /create index/i }));
 		createForm = screen.getByTestId('create-index-form');
 		formQueries = within(createForm);
-
-		const reopenedInput = formQueries.getByLabelText(/index name/i) as HTMLInputElement;
-		expect(reopenedInput.value).toBe('');
-		expect(getTemplateOption(formQueries, 'Empty index').checked).toBe(true);
-		expect(getTemplateOption(formQueries, 'Movies').checked).toBe(false);
-		expect(getTemplateOption(formQueries, 'Products').checked).toBe(false);
-
-		await fireEvent.click(formQueries.getByText('Products'));
-		expect(reopenedInput.value).toBe('products');
+		expect(getRegionOption(formQueries, 'US East (Virginia)').checked).toBe(true);
 		expect(latestEnhanceResultHandler).not.toBeNull();
 		await latestEnhanceResultHandler?.({
 			result: {
@@ -264,12 +212,7 @@ describe('Index list page', () => {
 		await fireEvent.click(screen.getByRole('button', { name: /create index/i }));
 		createForm = screen.getByTestId('create-index-form');
 		formQueries = within(createForm);
-
-		const reopenedAfterSuccessInput = formQueries.getByLabelText(/index name/i) as HTMLInputElement;
-		expect(reopenedAfterSuccessInput.value).toBe('');
-		expect(getTemplateOption(formQueries, 'Empty index').checked).toBe(true);
-		expect(getTemplateOption(formQueries, 'Movies').checked).toBe(false);
-		expect(getTemplateOption(formQueries, 'Products').checked).toBe(false);
+		expect(getRegionOption(formQueries, 'US East (Virginia)').checked).toBe(true);
 	});
 
 	it('index_creation_shows_all_available_regions', async () => {
@@ -388,6 +331,77 @@ describe('Index list page', () => {
 
 		expect(screen.queryByTestId('quota-exceeded-callout')).not.toBeInTheDocument();
 		expect(screen.getByRole('alert')).toBeInTheDocument();
+	});
+
+	it('renders create failure in one place when dialog is open', async () => {
+		render(IndexesPage, {
+			data: { ...layoutTestDefaults, user: null, indexes: sampleIndexes, regions: sampleRegions },
+			form: { error: 'Failed to create index' }
+		});
+
+		await fireEvent.click(screen.getByRole('button', { name: /create index/i }));
+
+		const alerts = screen.getAllByRole('alert');
+		expect(alerts).toHaveLength(1);
+		expect(screen.getByTestId('create-index-server-error')).toBeInTheDocument();
+	});
+
+	it.each(['Index name is required', 'Region is required'])(
+		'keeps plain create validation errors scoped to the dialog after enhanced create submit (%s)',
+		async (validationError) => {
+			render(IndexesPage, {
+				data: { ...layoutTestDefaults, user: null, indexes: sampleIndexes, regions: sampleRegions },
+				form: { error: validationError }
+			});
+
+			await fireEvent.click(screen.getByRole('button', { name: /create index/i }));
+			expect(latestEnhanceResultHandler).not.toBeNull();
+
+			await latestEnhanceResultHandler?.({
+				result: {
+					type: 'failure',
+					status: 400,
+					data: { error: validationError }
+				}
+			});
+
+			const alerts = screen.getAllByRole('alert');
+			expect(alerts).toHaveLength(1);
+			expect(screen.getByTestId('create-index-server-error')).toHaveTextContent(validationError);
+		}
+	);
+
+	it('keeps delete failure scoped to page alert when create dialog is opened', async () => {
+		render(IndexesPage, {
+			data: { ...layoutTestDefaults, user: null, indexes: sampleIndexes, regions: sampleRegions },
+			form: { error: 'Failed to delete index' }
+		});
+
+		expect(screen.getByRole('alert')).toHaveTextContent('Failed to delete index');
+
+		await fireEvent.click(screen.getByRole('button', { name: /create index/i }));
+
+		expect(screen.getByRole('alert')).toHaveTextContent('Failed to delete index');
+		expect(screen.queryByTestId('create-index-server-error')).not.toBeInTheDocument();
+		expect(screen.queryByTestId('create-index-quota-callout')).not.toBeInTheDocument();
+	});
+
+	it('shows dedicated quota upgrade callout when dialog is open after quota_exceeded failure', async () => {
+		render(IndexesPage, {
+			data: { ...layoutTestDefaults, user: null, indexes: sampleIndexes, regions: sampleRegions },
+			form: { error: 'quota_exceeded' }
+		});
+
+		await fireEvent.click(screen.getByRole('button', { name: /create index/i }));
+
+		const quotaCallout = screen.getByTestId('create-index-quota-callout');
+		expect(quotaCallout).toBeInTheDocument();
+		expect(quotaCallout.textContent).toMatch(/free plan.*limit/i);
+		expect(screen.getByRole('link', { name: /upgrade your plan/i })).toHaveAttribute(
+			'href',
+			'/console/billing'
+		);
+		expect(screen.queryByText('quota_exceeded')).not.toBeInTheDocument();
 	});
 
 	it('status badges show correct colors', () => {

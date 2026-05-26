@@ -5,7 +5,7 @@
  * for an authenticated customer, including conditional billing estimates.
  */
 
-import type { Locator, Page } from '@playwright/test';
+import type { Download, Locator, Page } from '@playwright/test';
 import { test, expect } from '../../fixtures/fixtures';
 import { formatPeriod, formatCents, SUPPORT_EMAIL } from '../../../src/lib/format';
 import { CANONICAL_PUBLIC_API_DOCS_URL } from '../../../src/lib/public_api';
@@ -56,6 +56,16 @@ async function expectSidebarNavigation(
 	await expect(link).toHaveAttribute('href', options.href);
 	await Promise.all([page.waitForURL(options.url), link.click()]);
 	await expect(page.getByRole('heading', { name: options.heading, exact: true })).toBeVisible();
+}
+
+async function readDownloadText(download: Download): Promise<string> {
+	const stream = await download.createReadStream();
+	if (!stream) return '';
+	const chunks: Buffer[] = [];
+	for await (const chunk of stream) {
+		chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+	}
+	return Buffer.concat(chunks).toString('utf8');
 }
 
 test.describe('Dashboard page', () => {
@@ -224,12 +234,90 @@ test.describe('Dashboard page', () => {
 		await expect(firstDataRow).toContainText('POST');
 
 		await firstDataRow.click();
-		await expect(logPanel.getByText('"method": "POST"')).toBeVisible();
-		await expect(logPanel.getByText('"url": "?/saveSettings"')).toBeVisible();
+		await expect(logPanel.getByText('Request')).toBeVisible();
+		await expect(logPanel.getByText('Response')).toBeVisible();
+		await expect(logPanel.locator('pre')).toHaveCount(2);
+		await expect(logPanel.getByText('"method": "POST"')).toHaveCount(0);
+
+		await firstDataRow.click();
+		await expect(logPanel.getByText('Request')).toHaveCount(0);
+		await expect(logPanel.getByText('Response')).toHaveCount(0);
+
+		await firstDataRow.click();
+		await expect(logPanel.getByText('Request')).toBeVisible();
+		await expect(logPanel.getByText('Response')).toBeVisible();
+
+		const jsonDownloadPromise = page.waitForEvent('download');
+		await logPanel.getByRole('button', { name: 'Export JSON' }).click();
+		const jsonDownload = await jsonDownloadPromise;
+		await expect(jsonDownload.suggestedFilename()).toBe('api_logs.json');
+		const jsonPayload = await readDownloadText(jsonDownload);
+		const jsonRows = JSON.parse(jsonPayload) as Array<{ url: string }>;
+		expect(jsonRows.some((row) => row.url === '?/saveSettings')).toBe(true);
 
 		await logPanel.getByRole('button', { name: 'Clear' }).click();
 		await expect(logPanel.getByText('No API calls recorded')).toBeVisible();
 		await expect(logPanel.getByText('Request')).toHaveCount(0);
+		await expect(logPanel.getByText('Response')).toHaveCount(0);
+	});
+
+	test('logs route deep-link view modes survive reload and keep row interaction', async ({
+		page,
+		seedIndex,
+		testRegion
+	}) => {
+		const indexName = `dash-logs-view-${Date.now()}`;
+		await seedIndex(indexName, testRegion);
+
+		await page.goto(`/console/indexes/${encodeURIComponent(indexName)}`);
+		await page.getByRole('tab', { name: 'Settings' }).click();
+		await expect(page).toHaveURL(
+			new RegExp(`/console/indexes/${encodeURIComponent(indexName)}\\?tab=settings`)
+		);
+		const settingsSection = page.getByTestId('settings-section');
+		await settingsSection.getByRole('button', { name: 'Save Settings' }).click();
+	await expect(settingsSection).toContainText(
+		/Settings saved\.|Failed to save settings|backend temporarily unavailable/
+	);
+	await page.goto('/console/logs');
+	await expect(page.getByTestId('search-log-panel').getByTestId('api-log-row-0')).toBeVisible();
+
+	for (const viewMode of ['compact', 'detailed', 'invalid']) {
+		await page.goto(`/console/logs?view=${viewMode}`);
+		const expectedView = viewMode === 'compact' ? 'compact' : 'detailed';
+		if (viewMode === 'invalid') {
+			await page.getByRole('button', { name: 'Detailed view' }).click();
+		}
+		await expect(page).toHaveURL(new RegExp(`/console/logs\\?view=${expectedView}`));
+		await expect(
+			page.getByRole('button', {
+				name: expectedView === 'compact' ? 'Compact view' : 'Detailed view'
+			})
+		).toHaveAttribute('aria-pressed', 'true');
+
+		await page.reload();
+		await expect(page).toHaveURL(new RegExp(`/console/logs\\?view=${expectedView}`));
+		await expect(
+			page.getByRole('button', {
+				name: expectedView === 'compact' ? 'Compact view' : 'Detailed view'
+			})
+		).toHaveAttribute('aria-pressed', 'true');
+
+			const logPanel = page.getByTestId('search-log-panel');
+			const firstDataRow = logPanel.getByTestId('api-log-row-0');
+			await firstDataRow.click();
+			await expect(logPanel.getByText('Request')).toBeVisible();
+			await expect(logPanel.getByText('Response')).toBeVisible();
+
+			const csvDownloadPromise = page.waitForEvent('download');
+			await logPanel.getByRole('button', { name: 'Export CSV' }).click();
+			const csvDownload = await csvDownloadPromise;
+			await expect(csvDownload.suggestedFilename()).toBe('api_logs.csv');
+			const csvPayload = await readDownloadText(csvDownload);
+			expect(csvPayload.startsWith('id,timestamp,method,url,status,duration,body,response\n')).toBe(
+				true
+			);
+		}
 	});
 
 	test('dashboard shows "Manage indexes" link when indexes exist', async ({ page, seedIndex }) => {

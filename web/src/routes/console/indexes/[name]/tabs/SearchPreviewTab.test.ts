@@ -1,13 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/svelte';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import type { Index } from '$lib/api/types';
 
 vi.mock('$app/forms', () => ({
 	enhance: () => ({ destroy: () => {} })
 }));
 
-vi.mock('$lib/components/InstantSearch.svelte', () => ({
-	default: vi.fn()
+vi.mock('$app/environment', () => ({
+	browser: true
 }));
 
 import SearchPreviewTab from './SearchPreviewTab.svelte';
@@ -25,6 +25,8 @@ const activeIndex: Index = {
 
 afterEach(() => {
 	cleanup();
+	window.history.replaceState({}, '', '/');
+	vi.unstubAllGlobals();
 	vi.clearAllMocks();
 });
 
@@ -98,5 +100,62 @@ describe('SearchPreviewTab', () => {
 		});
 
 		expect(screen.queryByRole('button', { name: /generate preview key/i })).not.toBeInTheDocument();
+	});
+
+	it('falls back to preview-key generation when child reports an expired key', async () => {
+		vi.stubGlobal(
+			'fetch',
+			vi.fn().mockResolvedValue({
+				ok: false,
+				status: 401
+			})
+		);
+
+		render(SearchPreviewTab, {
+			index: activeIndex,
+			previewKey: 'expired-key-123',
+			previewKeyError: '',
+			previewIndexName: activeIndex.name
+		});
+
+		await fireEvent.input(screen.getByLabelText('Search preview query'), {
+			target: { value: 'refresh-needed' }
+		});
+		await waitFor(() =>
+			expect(screen.getByRole('button', { name: /generate preview key/i })).toBeInTheDocument()
+		);
+		expect(screen.getByText(/expired/i)).toBeInTheDocument();
+	});
+
+	it('uses route-owned documents callback from the Search Preview header button', async () => {
+		vi.stubGlobal(
+			'fetch',
+			vi.fn().mockResolvedValue({
+				ok: true,
+				status: 200,
+				json: async () => ({
+					results: [
+						{
+							nbHits: 1,
+							processingTimeMS: 5,
+							page: 1,
+							totalPages: 1,
+							hits: [{ objectID: 'doc-1', title: 'Rust Guide' }]
+						}
+					]
+				})
+			})
+		);
+		const onRequestDocumentsTab = vi.fn();
+		render(SearchPreviewTab, {
+			index: activeIndex,
+			previewKey: 'live-key-123',
+			previewKeyError: '',
+			previewIndexName: activeIndex.name,
+			onRequestDocumentsTab
+		});
+
+		await fireEvent.click(screen.getByRole('button', { name: 'Add documents' }));
+		expect(onRequestDocumentsTab).toHaveBeenCalledTimes(1);
 	});
 });

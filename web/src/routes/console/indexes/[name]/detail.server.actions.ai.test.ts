@@ -263,6 +263,23 @@ describe('Index detail page server -- AI action handlers', () => {
 		expect(chatMock).not.toHaveBeenCalled();
 	});
 
+	it('chat action rejects query longer than maximum allowed length', async () => {
+		const formData = new FormData();
+		formData.set('query', 'x'.repeat(2001));
+
+		const result = await actions.chat(makeActionArgs('chat', formData) as never);
+
+		expect(result).toEqual(
+			expect.objectContaining({
+				status: 400,
+				data: expect.objectContaining({
+					chatError: 'Query must be at most 2000 characters'
+				})
+			})
+		);
+		expect(chatMock).not.toHaveBeenCalled();
+	});
+
 	it('chat action rejects invalid conversationHistory payload', async () => {
 		const formData = new FormData();
 		formData.set('query', 'Hello');
@@ -279,6 +296,74 @@ describe('Index detail page server -- AI action handlers', () => {
 			})
 		);
 		expect(chatMock).not.toHaveBeenCalled();
+	});
+
+	it('chat action rejects conversationHistory longer than maximum allowed entries', async () => {
+		const formData = new FormData();
+		formData.set('query', 'Hello');
+		formData.set('conversationHistory', JSON.stringify(Array.from({ length: 101 }, () => ({ role: 'user' }))));
+
+		const result = await actions.chat(makeActionArgs('chat', formData) as never);
+
+		expect(result).toEqual(
+			expect.objectContaining({
+				status: 400,
+				data: expect.objectContaining({
+					chatError: 'conversationHistory must contain at most 100 entries',
+					chatQuery: 'Hello'
+				})
+			})
+		);
+		expect(chatMock).not.toHaveBeenCalled();
+	});
+
+	it('chat action rejects malformed conversationHistory JSON', async () => {
+		const formData = new FormData();
+		formData.set('query', 'Hello');
+		formData.set('conversationHistory', '{not-json');
+
+		const result = await actions.chat(makeActionArgs('chat', formData) as never);
+
+		expect(result).toEqual(
+			expect.objectContaining({
+				status: 400,
+				data: expect.objectContaining({
+					chatError: 'conversationHistory must be valid JSON',
+					chatQuery: 'Hello'
+				})
+			})
+		);
+		expect(chatMock).not.toHaveBeenCalled();
+	});
+
+	it('chat action trims query and keeps conversationId optional in API payload', async () => {
+		chatMock.mockResolvedValue({
+			answer: 'Ask about socks too',
+			sources: [],
+			conversationId: 'conv-2',
+			queryID: 'q-2'
+		});
+
+		const formData = new FormData();
+		formData.set('query', '   Recommend socks   ');
+		formData.set('conversationId', '   ');
+		formData.set('conversationHistory', '   ');
+
+		const result = await actions.chat(makeActionArgs('chat', formData) as never);
+
+		expect(chatMock).toHaveBeenCalledWith('products', {
+			query: 'Recommend socks',
+			conversationHistory: []
+		});
+		expect(result).toEqual({
+			chatQuery: 'Recommend socks',
+			chatResponse: {
+				answer: 'Ask about socks too',
+				sources: [],
+				conversationId: 'conv-2',
+				queryID: 'q-2'
+			}
+		});
 	});
 
 	it('savePersonalizationStrategy action returns fail on invalid JSON', async () => {
@@ -413,6 +498,25 @@ describe('Index detail page server -- AI action handlers', () => {
 				data: expect.objectContaining({
 					chatError: 'upstream failed',
 					chatQuery: 'What should I buy?'
+				})
+			})
+		);
+	});
+
+	it('chat action returns shared session failure for 401 upstream auth errors', async () => {
+		chatMock.mockRejectedValue(new ApiRequestError(401, 'Unauthorized'));
+
+		const formData = new FormData();
+		formData.set('query', 'What should I buy?');
+
+		const result = await actions.chat(makeActionArgs('chat', formData) as never);
+
+		expect(result).toEqual(
+			expect.objectContaining({
+				status: 401,
+				data: expect.objectContaining({
+					_authSessionExpired: true,
+					error: 'Unauthorized'
 				})
 			})
 		);

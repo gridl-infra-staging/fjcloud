@@ -165,6 +165,27 @@ describe('Index detail page server -- actions (security sources)', () => {
 		expect(appendSecuritySourceMock).not.toHaveBeenCalled();
 	});
 
+	it('appendSecuritySource action rejects whitespace-only source with fail(400)', async () => {
+		const formData = new FormData();
+		formData.set('source', '   ');
+		formData.set('description', 'some desc');
+
+		const result = await actions.appendSecuritySource(
+			makeActionArgs('appendSecuritySource', formData) as never
+		);
+
+		expect(result).toEqual(
+			expect.objectContaining({
+				status: 400,
+				data: expect.objectContaining({
+					securitySourceAppendError: 'source is required',
+					securitySources: { ...EMPTY_SECURITY_SOURCES }
+				})
+			})
+		);
+		expect(appendSecuritySourceMock).not.toHaveBeenCalled();
+	});
+
 	it('appendSecuritySource action returns shared session failure for 401 upstream auth errors', async () => {
 		appendSecuritySourceMock.mockRejectedValue(new ApiRequestError(401, 'Unauthorized'));
 

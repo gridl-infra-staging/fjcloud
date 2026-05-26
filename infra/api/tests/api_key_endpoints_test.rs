@@ -82,6 +82,151 @@ async fn create_returns_key_only_once() {
 }
 
 #[tokio::test]
+async fn create_and_list_round_trip_managed_key_parity_fields() {
+    let customer_repo = mock_repo();
+    let customer = customer_repo.seed("Parity User", "parity@example.com");
+    let api_key_repo = mock_api_key_repo();
+    let token = create_test_jwt(customer.id);
+
+    let app = build_router(test_state_with_api_keys(
+        customer_repo,
+        api_key_repo.clone(),
+    ));
+
+    let expires_at = "2030-01-02T03:04:05Z";
+    let req = Request::builder()
+        .method("POST")
+        .uri("/api-keys")
+        .header("authorization", format!("Bearer {token}"))
+        .header("content-type", "application/json")
+        .body(Body::from(
+            serde_json::to_string(&serde_json::json!({
+                "name": "Managed Search Key",
+                "description": "Managed key for storefront search",
+                "indexes": ["products", "catalog"],
+                "restrict_sources": ["10.0.0.0/8", "192.168.1.0/24"],
+                "expires_at": expires_at,
+                "max_hits_per_query": 120,
+                "max_queries_per_ip_per_hour": 5000,
+                "scopes": ["indexes:read", "indexes:write"]
+            }))
+            .unwrap(),
+        ))
+        .unwrap();
+
+    let create_resp = app.clone().oneshot(req).await.unwrap();
+    assert_eq!(create_resp.status(), StatusCode::CREATED);
+    let created_json = body_json(create_resp.into_body()).await;
+    assert_eq!(
+        created_json["description"],
+        serde_json::json!("Managed key for storefront search")
+    );
+    assert_eq!(
+        created_json["indexes"],
+        serde_json::json!(["products", "catalog"])
+    );
+    assert_eq!(
+        created_json["restrict_sources"],
+        serde_json::json!(["10.0.0.0/8", "192.168.1.0/24"])
+    );
+    assert_eq!(created_json["expires_at"], serde_json::json!(expires_at));
+    assert_eq!(created_json["max_hits_per_query"], serde_json::json!(120));
+    assert_eq!(
+        created_json["max_queries_per_ip_per_hour"],
+        serde_json::json!(5000)
+    );
+
+    let stored = api_key_repo.list_by_customer(customer.id).await.unwrap();
+    assert_eq!(stored.len(), 1);
+    assert_eq!(
+        stored[0].description.as_deref(),
+        Some("Managed key for storefront search")
+    );
+    assert_eq!(stored[0].indexes, vec!["products", "catalog"]);
+    assert_eq!(
+        stored[0].restrict_sources,
+        vec!["10.0.0.0/8", "192.168.1.0/24"]
+    );
+    assert_eq!(
+        stored[0].expires_at,
+        Some(
+            chrono::DateTime::parse_from_rfc3339(expires_at)
+                .unwrap()
+                .with_timezone(&chrono::Utc),
+        )
+    );
+    assert_eq!(stored[0].max_hits_per_query, Some(120));
+    assert_eq!(stored[0].max_queries_per_ip_per_hour, Some(5000));
+
+    let list_req = Request::builder()
+        .method("GET")
+        .uri("/api-keys")
+        .header("authorization", format!("Bearer {token}"))
+        .body(Body::empty())
+        .unwrap();
+    let list_resp = app.oneshot(list_req).await.unwrap();
+    assert_eq!(list_resp.status(), StatusCode::OK);
+    let list_json = body_json(list_resp.into_body()).await;
+    let keys = list_json.as_array().unwrap();
+    assert_eq!(keys.len(), 1);
+    assert_eq!(
+        keys[0]["description"],
+        serde_json::json!("Managed key for storefront search")
+    );
+    assert_eq!(
+        keys[0]["indexes"],
+        serde_json::json!(["products", "catalog"])
+    );
+    assert_eq!(
+        keys[0]["restrict_sources"],
+        serde_json::json!(["10.0.0.0/8", "192.168.1.0/24"])
+    );
+    assert_eq!(keys[0]["expires_at"], serde_json::json!(expires_at));
+    assert_eq!(keys[0]["max_hits_per_query"], serde_json::json!(120));
+    assert_eq!(
+        keys[0]["max_queries_per_ip_per_hour"],
+        serde_json::json!(5000)
+    );
+}
+
+#[tokio::test]
+async fn create_rejects_non_positive_managed_key_limits() {
+    let customer_repo = mock_repo();
+    let customer = customer_repo.seed("Limits User", "limits@example.com");
+    let api_key_repo = mock_api_key_repo();
+    let token = create_test_jwt(customer.id);
+
+    let app = build_router(test_state_with_api_keys(
+        customer_repo,
+        api_key_repo.clone(),
+    ));
+
+    let req = Request::builder()
+        .method("POST")
+        .uri("/api-keys")
+        .header("authorization", format!("Bearer {token}"))
+        .header("content-type", "application/json")
+        .body(Body::from(
+            serde_json::to_string(&serde_json::json!({
+                "name": "Managed Search Key",
+                "scopes": ["indexes:read"],
+                "max_hits_per_query": 0,
+                "max_queries_per_ip_per_hour": -5
+            }))
+            .unwrap(),
+        ))
+        .unwrap();
+
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+
+    let json = body_json(resp.into_body()).await;
+    assert_eq!(json["error"], serde_json::json!("max_hits_per_query must be at least 1"));
+    let stored = api_key_repo.list_by_customer(customer.id).await.unwrap();
+    assert!(stored.is_empty());
+}
+
+#[tokio::test]
 async fn list_returns_keys_without_secrets() {
     let customer_repo = mock_repo();
     let customer = customer_repo.seed("Test User", "test@example.com");

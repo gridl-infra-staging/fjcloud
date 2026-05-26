@@ -17,8 +17,10 @@
 import type { Page } from '@playwright/test';
 import { test, expect } from '../../fixtures/fixtures';
 import {
+	generatePreviewKeyAndWaitForWidget,
 	gotoIndexDetailWithRetry,
 	submitSearchPreviewQuery,
+	waitForSearchPreviewHitsToContain,
 	waitForSearchPreviewReady
 } from '../../fixtures/search-preview-helpers';
 
@@ -163,10 +165,7 @@ test.describe('Fresh-user customer journey — onboard to first search hit', () 
 			await waitForSearchPreviewReady(page);
 
 			// ACT: generate a preview key
-			await page
-				.getByTestId('search-preview-section')
-				.getByRole('button', { name: /generate preview key/i })
-				.click();
+			await generatePreviewKeyAndWaitForWidget(page);
 			await expect(page.getByTestId('instantsearch-widget')).toBeVisible({ timeout: 30_000 });
 
 			// ACT: type a query into the search box
@@ -174,16 +173,7 @@ test.describe('Fresh-user customer journey — onboard to first search hit', () 
 			await submitSearchPreviewQuery(page, 'Journey');
 
 			// ASSERT: the inserted document appears in the hits
-			// Search indexing may have latency; poll for the hit to appear
-			await expect
-				.poll(
-					async () => {
-						const hitsText = await page.getByTestId('instantsearch-hits').textContent();
-						return hitsText;
-					},
-					{ timeout: 30_000, message: 'Waiting for search hit to contain "Journey Test Document"' }
-				)
-				.toContain('Journey Test Document');
+			await waitForSearchPreviewHitsToContain(page, 'Journey Test Document');
 		} finally {
 			// ---------------------------------------------------------------
 			// Step 7: Cleanup — delete index and restore onboarding banner

@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { browser } from '$app/environment';
 	import { goto } from '$app/navigation';
+	import { page } from '$app/state';
+	import { SvelteURLSearchParams } from 'svelte/reactivity';
 	import { AreaChart } from 'layerchart';
 	import { formatNumber } from '$lib/format';
 	import type {
@@ -50,8 +52,10 @@
 	function selectAnalyticsPeriod(period: '7d' | '30d' | '90d') {
 		if (period === analyticsPeriod) return;
 		analyticsLoading = true;
+		const nextSearchParams = new SvelteURLSearchParams(page.url.searchParams);
+		nextSearchParams.set('period', period);
 		// eslint-disable-next-line svelte/no-navigation-without-resolve
-		goto(`?period=${period}`);
+		void goto(`${page.url.pathname}?${nextSearchParams.toString()}`);
 	}
 
 	$effect(() => {

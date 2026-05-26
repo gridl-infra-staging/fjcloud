@@ -109,7 +109,6 @@ These deltas are documented per the 2026-05-25 parity audit ([tab_dictionaries.m
 
 ## Automated Coverage
 
-- Browser-unmocked tests: `web/tests/e2e-ui/full/dictionaries.spec.ts` (new) — type-tab auto-fetch, stopword state round-trip, plurals single-word acceptance, row delete confirm, and typed `Clear All`.
-- Browser-mocked tests: `web/tests/e2e-ui/mocked/dictionaries_errors.spec.ts` (new) — fetch failure Retry branch, malformed-entry save rejection, and 409 edit-conflict handling.
-- Component tests: `web/src/routes/console/indexes/[name]/tabs/DictionariesTab.test.ts` (new) — `buildEntryDescription` rendering, per-type dialog schema swaps, and badge/empty-state branches.
-- Server/contract tests: extend `web/src/routes/console/indexes/[name]/detail.server.actions.test.ts` and dictionary helper tests for `state` parsing, server-side `objectID` minting, plurals `>=1` acceptance, and query-param load routing.
+- Browser-unmocked tests: `web/tests/e2e-ui/full/index-detail.spec.ts`; `web/tests/e2e-ui/full/indexes.spec.ts`
+- Component tests: `web/src/routes/console/indexes/[name]/tabs/DictionariesTab.test.ts`
+- Server/contract tests: `web/src/routes/console/indexes/[name]/detail.server.actions.test.ts`

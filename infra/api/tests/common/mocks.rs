@@ -10,7 +10,7 @@ use api::models::{
     RateCardRow, UsageDaily,
 };
 use api::provisioner::mock::MockVmProvisioner;
-use api::repos::api_key_repo::ApiKeyRepo;
+use api::repos::api_key_repo::{ApiKeyManagedKeyParams, ApiKeyRepo};
 use api::repos::dispute_repo::{DisputeRepo, DisputeRow, DisputeUpsertInput};
 use api::repos::index_migration_repo::IndexMigrationRepo;
 use api::repos::invoice_repo::{InvoiceRepo, NewInvoice, NewLineItem};
@@ -3318,9 +3318,15 @@ impl MockApiKeyRepo {
             id: Uuid::new_v4(),
             customer_id,
             name: name.to_string(),
+            description: None,
             key_prefix: key_prefix.to_string(),
             key_hash: key_hash.to_string(),
             scopes,
+            indexes: Vec::new(),
+            restrict_sources: Vec::new(),
+            expires_at: None,
+            max_hits_per_query: None,
+            max_queries_per_ip_per_hour: None,
             last_used_at: None,
             created_at: Utc::now(),
             revoked_at: None,
@@ -3343,15 +3349,22 @@ impl ApiKeyRepo for MockApiKeyRepo {
         key_hash: &str,
         key_prefix: &str,
         scopes: &[String],
+        managed: ApiKeyManagedKeyParams,
     ) -> Result<ApiKeyRow, RepoError> {
         let mut keys = self.keys.lock().unwrap();
         let row = ApiKeyRow {
             id: Uuid::new_v4(),
             customer_id,
             name: name.to_string(),
+            description: managed.description,
             key_prefix: key_prefix.to_string(),
             key_hash: key_hash.to_string(),
             scopes: scopes.to_vec(),
+            indexes: managed.indexes,
+            restrict_sources: managed.restrict_sources,
+            expires_at: managed.expires_at,
+            max_hits_per_query: managed.max_hits_per_query,
+            max_queries_per_ip_per_hour: managed.max_queries_per_ip_per_hour,
             last_used_at: None,
             created_at: Utc::now(),
             revoked_at: None,

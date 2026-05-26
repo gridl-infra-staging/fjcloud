@@ -64,7 +64,7 @@ const DEFAULT_DOCUMENTS: Array<Record<string, unknown>> = [
 		id: 'doc-1',
 		title: 'Rust Programming Language',
 		body: 'Systems programming',
-		category: 'tech'
+		category: 'language'
 	},
 	{
 		id: 'doc-2',
@@ -76,7 +76,7 @@ const DEFAULT_DOCUMENTS: Array<Record<string, unknown>> = [
 		id: 'doc-3',
 		title: 'Rust Async Book',
 		body: 'Futures and async/await in Rust',
-		category: 'tech'
+		category: 'systems'
 	}
 ];
 const DEFAULT_SEARCH_QUERY = 'Rust';

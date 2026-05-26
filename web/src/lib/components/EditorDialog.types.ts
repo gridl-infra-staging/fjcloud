@@ -2,10 +2,7 @@ export type EditorDialogMode = 'create' | 'edit';
 
 export type EditorDialogValues = Record<string, unknown>;
 
-export type EditorDialogValidate = (
-	value: unknown,
-	allValues: EditorDialogValues
-) => string | null;
+export type EditorDialogValidate = (value: unknown, allValues: EditorDialogValues) => string | null;
 
 export type EditorDialogVisible = (allValues: EditorDialogValues) => boolean;
 

@@ -1,17 +1,22 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Page } from '@playwright/test';
 
-const { pollMock } = vi.hoisted(() => ({
-	pollMock: vi.fn()
+const { pollMock, expectCallMock } = vi.hoisted(() => ({
+	pollMock: vi.fn(),
+	expectCallMock: vi.fn().mockReturnValue({
+		toBeVisible: vi.fn().mockResolvedValue(undefined)
+	})
 }));
+const expectMock = expectCallMock;
 
 vi.mock('@playwright/test', () => ({
-	expect: {
+	expect: Object.assign(expectCallMock, {
 		poll: pollMock
-	}
+	})
 }));
 
 import {
+	generatePreviewKeyAndWaitForWidget,
 	waitForPreviewSubmitOutcome,
 	waitForSearchPreviewReady,
 	waitForSearchPreviewState
@@ -68,6 +73,10 @@ function createMockPage(state: VisibilityState): Page {
 
 beforeEach(() => {
 	pollMock.mockReset();
+	expectCallMock.mockReset();
+	expectCallMock.mockReturnValue({
+		toBeVisible: vi.fn().mockResolvedValue(undefined)
+	});
 	pollMock.mockImplementation((probe: () => Promise<string>) => ({
 		not: {
 			toBe: async (unexpected: string) => {
@@ -87,6 +96,15 @@ beforeEach(() => {
 			}
 			if (value !== expected) {
 				throw new Error(`Expected ${expected}, received ${value}`);
+			}
+		},
+		toContain: async (expected: string) => {
+			let value = await probe();
+			for (let attempt = 0; attempt < 5 && !String(value).includes(expected); attempt += 1) {
+				value = await probe();
+			}
+			if (!String(value).includes(expected)) {
+				throw new Error(`Expected value to contain ${expected}, received ${String(value)}`);
 			}
 		}
 	}));
@@ -202,5 +220,56 @@ describe('search preview helper polling', () => {
 		);
 
 		expect(outcome).toBe('widget');
+	});
+
+	it('generatePreviewKeyAndWaitForWidget keeps a single submit while unknown remains in flight', async () => {
+		const generateButton = {
+			click: vi.fn().mockResolvedValue(undefined)
+		};
+		const transientError = {
+			isVisible: createVisibilityProbe(false)
+		};
+		const widget = {
+			isVisible: createVisibilityProbe([false, false, false, false, false, false, true])
+		};
+		const genericErrorPage = {
+			isVisible: createVisibilityProbe(false)
+		};
+
+		const headingUnion = {
+			first: vi.fn().mockReturnValue(genericErrorPage)
+		};
+		const headingLocator = {
+			or: vi.fn().mockReturnValue(headingUnion)
+		};
+		const section = {
+			getByRole: vi.fn().mockReturnValue(generateButton),
+			getByText: vi.fn().mockReturnValue(transientError)
+		};
+		const page = {
+			url: vi.fn().mockReturnValue('http://localhost:4173/console/indexes/e2e-movies'),
+			getByTestId: vi.fn().mockImplementation((value: string) => {
+				if (value === 'search-preview-section') return section;
+				if (value === 'instantsearch-widget') return widget;
+				throw new Error(`Unexpected test id: ${value}`);
+			}),
+			getByRole: vi.fn().mockReturnValue(headingLocator),
+			waitForTimeout: vi.fn().mockResolvedValue(undefined)
+		} as unknown as Page;
+
+		const nowSpy = vi.spyOn(Date, 'now');
+		let now = 0;
+		nowSpy.mockImplementation(() => {
+			now += 6000;
+			return now;
+		});
+
+		try {
+			await generatePreviewKeyAndWaitForWidget(page);
+		} finally {
+			nowSpy.mockRestore();
+		}
+
+		expect(generateButton.click).toHaveBeenCalledTimes(1);
 	});
 });

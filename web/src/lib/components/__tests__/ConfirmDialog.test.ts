@@ -76,10 +76,12 @@ async function renderConfirmDialogSsrHtml(props: DialogProps): Promise<string> {
 		.replaceAll("'svelte'", `'${resolvedSvelteUrl}'`);
 	const moduleUrl = `data:text/javascript;base64,${Buffer.from(runtimeResolvedCode, 'utf8').toString('base64')}`;
 	const serverModule = (await import(moduleUrl)) as { default: unknown };
-	return (renderServerComponent as (component: unknown, options: { props: DialogProps }) => { body: string })(
-		serverModule.default,
-		{ props }
-	).body;
+	return (
+		renderServerComponent as (
+			component: unknown,
+			options: { props: DialogProps }
+		) => { body: string }
+	)(serverModule.default, { props }).body;
 }
 
 afterEach(() => {
@@ -226,7 +228,10 @@ describe('ConfirmDialog', () => {
 
 	it('supports Enter to confirm in standard mode and blocks Enter in typed mode mismatch', async () => {
 		const standardConfirm = vi.fn(async () => {});
-		const { rerender } = render(ConfirmDialog, buildProps({ mode: 'standard', onConfirm: standardConfirm }));
+		const { rerender } = render(
+			ConfirmDialog,
+			buildProps({ mode: 'standard', onConfirm: standardConfirm })
+		);
 
 		await waitFor(() => {
 			expect(screen.getByTestId('confirm-cancel-btn')).toHaveFocus();
@@ -259,7 +264,10 @@ describe('ConfirmDialog', () => {
 		fallbackMain.setAttribute('role', 'main');
 		document.body.appendChild(fallbackMain);
 
-		const { rerender } = render(ConfirmDialog, buildProps({ mode: 'standard', open: true, triggerRef: triggerButton }));
+		const { rerender } = render(
+			ConfirmDialog,
+			buildProps({ mode: 'standard', open: true, triggerRef: triggerButton })
+		);
 
 		triggerButton.remove();
 		rerender(buildProps({ mode: 'standard', open: false, triggerRef: triggerButton }));

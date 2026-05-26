@@ -1,5 +1,8 @@
 import { test, expect } from '../../fixtures/fixtures';
-import { isRemoteTargetMode, setAuthCookieForToken } from '../../fixtures/fresh_signup_remote_bootstrap';
+import {
+	isRemoteTargetMode,
+	setAuthCookieForToken
+} from '../../fixtures/fresh_signup_remote_bootstrap';
 
 test.use({ storageState: { cookies: [], origins: [] } });
 
@@ -19,7 +22,10 @@ const FOOTER_LINKS: FooterLinkExpectation[] = [
 
 function isSessionExpiredUrl(urlString: string): boolean {
 	const currentUrl = new URL(urlString);
-	return currentUrl.pathname === '/login' && currentUrl.searchParams.get('reason') === SESSION_EXPIRED_REASON;
+	return (
+		currentUrl.pathname === '/login' &&
+		currentUrl.searchParams.get('reason') === SESSION_EXPIRED_REASON
+	);
 }
 
 async function gotoWithSessionRecovery(
@@ -35,7 +41,9 @@ async function gotoWithSessionRecovery(
 		return currentToken;
 	}
 	if (!isRemoteTargetMode() || !loginAs) {
-		throw new Error(`${path} redirected to /login?reason=session_expired and remote recovery is unavailable`);
+		throw new Error(
+			`${path} redirected to /login?reason=session_expired and remote recovery is unavailable`
+		);
 	}
 
 	const recoveredToken = await loginAs(email, password);
@@ -58,7 +66,11 @@ test.describe('Console chrome polish shared-to-paid seam', () => {
 		const fixtureEmail = `chrome-polish-${uniqueSeed}@e2e.griddle.test`;
 		const fixturePassword = `Pw!${uniqueSeed}aA`;
 
-		const createdUser = await createUser(fixtureEmail, fixturePassword, `Chrome Polish ${uniqueSeed}`);
+		const createdUser = await createUser(
+			fixtureEmail,
+			fixturePassword,
+			`Chrome Polish ${uniqueSeed}`
+		);
 		const initialToken = createdUser.token || (await loginAs(fixtureEmail, fixturePassword));
 		await setAuthCookieForToken(page, initialToken);
 		const authToken = await gotoWithSessionRecovery(

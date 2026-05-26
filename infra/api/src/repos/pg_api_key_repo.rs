@@ -4,7 +4,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::models::api_key::ApiKeyRow;
-use crate::repos::api_key_repo::ApiKeyRepo;
+use crate::repos::api_key_repo::{ApiKeyManagedKeyParams, ApiKeyRepo};
 use crate::repos::error::RepoError;
 
 pub struct PgApiKeyRepo {
@@ -28,16 +28,25 @@ impl ApiKeyRepo for PgApiKeyRepo {
         key_hash: &str,
         key_prefix: &str,
         scopes: &[String],
+        managed: ApiKeyManagedKeyParams,
     ) -> Result<ApiKeyRow, RepoError> {
         sqlx::query_as::<_, ApiKeyRow>(
-            "INSERT INTO api_keys (customer_id, name, key_hash, key_prefix, scopes) \
-             VALUES ($1, $2, $3, $4, $5) RETURNING *",
+            "INSERT INTO api_keys (
+                customer_id, name, description, key_hash, key_prefix, scopes,
+                indexes, restrict_sources, expires_at, max_hits_per_query, max_queries_per_ip_per_hour
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *",
         )
         .bind(customer_id)
         .bind(name)
+        .bind(managed.description)
         .bind(key_hash)
         .bind(key_prefix)
         .bind(scopes)
+        .bind(managed.indexes)
+        .bind(managed.restrict_sources)
+        .bind(managed.expires_at)
+        .bind(managed.max_hits_per_query)
+        .bind(managed.max_queries_per_ip_per_hour)
         .fetch_one(&self.pool)
         .await
         .map_err(|e| RepoError::Other(e.to_string()))

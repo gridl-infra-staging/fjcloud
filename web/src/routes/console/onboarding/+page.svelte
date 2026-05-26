@@ -3,8 +3,10 @@
 	import { browser } from '$app/environment';
 	import { resolve } from '$app/paths';
 	import type { SubmitFunction } from '@sveltejs/kit';
+	import { copyToClipboard } from '$lib/clipboard';
 	import { REGIONS, SUPPORT_EMAIL } from '$lib/format';
 	import type { OnboardingStatus, FlapjackCredentials } from '$lib/api/types';
+	import { writeTextToClipboard } from '$lib/clipboard';
 
 	let { data, form: formResult } = $props();
 
@@ -159,24 +161,6 @@
 		}
 		return () => stopPolling();
 	});
-
-	// Copy to clipboard
-	async function copyToClipboard(text: string, buttonId: string) {
-		if (!browser) return;
-		try {
-			await navigator.clipboard.writeText(text);
-			const btn = document.getElementById(buttonId);
-			if (btn) {
-				const original = btn.textContent;
-				btn.textContent = 'Copied!';
-				setTimeout(() => {
-					btn.textContent = original;
-				}, 2000);
-			}
-		} catch {
-			// Clipboard API not available
-		}
-	}
 </script>
 
 <svelte:head>
@@ -490,9 +474,12 @@
 							data-testid="credential-endpoint">{credentials.endpoint}</code
 						>
 						<button
-							id="copy-endpoint"
 							type="button"
-							onclick={() => copyToClipboard(credentials.endpoint, 'copy-endpoint')}
+							onclick={(event) =>
+								void copyToClipboard(
+									credentials.endpoint,
+									event.currentTarget as HTMLButtonElement
+								)}
 							class="rounded-md border border-flapjack-ink/30 px-3 py-2 text-sm text-flapjack-ink/80 hover:bg-flapjack-cream/80"
 						>
 							Copy
@@ -509,9 +496,9 @@
 							data-testid="credential-api-key">{credentials.api_key}</code
 						>
 						<button
-							id="copy-api-key"
 							type="button"
-							onclick={() => copyToClipboard(credentials.api_key, 'copy-api-key')}
+							onclick={(event) =>
+								void copyToClipboard(credentials.api_key, event.currentTarget as HTMLButtonElement)}
 							class="rounded-md border border-flapjack-ink/30 px-3 py-2 text-sm text-flapjack-ink/80 hover:bg-flapjack-cream/80"
 						>
 							Copy

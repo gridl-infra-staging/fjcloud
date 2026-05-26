@@ -177,3 +177,25 @@ describe('OverviewTab — CORS limitation note', () => {
 		expect(connectSection.textContent).toMatch(/CORS/i);
 	});
 });
+
+describe('OverviewTab — endpoint clipboard behavior', () => {
+	it('copies endpoint value and shows temporary success label', async () => {
+		vi.useFakeTimers();
+		const writeTextMock = vi.fn().mockResolvedValue(undefined);
+		Object.defineProperty(navigator, 'clipboard', {
+			value: { writeText: writeTextMock },
+			configurable: true
+		});
+
+		render(OverviewTab, defaultProps());
+
+		const statsSection = screen.getByTestId('stats-section');
+		const copyButton = within(statsSection).getByRole('button', { name: 'Copy' });
+		await fireEvent.click(copyButton);
+
+		expect(writeTextMock).toHaveBeenCalledWith(sampleIndex.endpoint);
+		expect(copyButton).toHaveTextContent('Copied!');
+		vi.advanceTimersByTime(2000);
+		expect(copyButton).toHaveTextContent('Copy');
+	});
+});

@@ -19,9 +19,10 @@ die() {
     exit 1
 }
 
-resolve_listen_port() {
-    local listen_addr="${LISTEN_ADDR:-0.0.0.0:3001}"
-    local normalized="$listen_addr"
+resolve_port_from_addr() {
+    local raw_addr="$1"
+    local env_name="$2"
+    local normalized="$raw_addr"
     local port
 
     if [[ "$normalized" == *"://"* ]]; then
@@ -31,10 +32,18 @@ resolve_listen_port() {
 
     port="${normalized##*:}"
     if ! [[ "$port" =~ ^[0-9]+$ ]]; then
-        die "LISTEN_ADDR must include a numeric port (got: ${listen_addr})"
+        die "${env_name} must include a numeric port (got: ${raw_addr})"
     fi
 
     printf '%s\n' "$port"
+}
+
+resolve_listen_port() {
+    resolve_port_from_addr "${LISTEN_ADDR:-0.0.0.0:3001}" "LISTEN_ADDR"
+}
+
+resolve_s3_listen_port() {
+    resolve_port_from_addr "${S3_LISTEN_ADDR:-0.0.0.0:3002}" "S3_LISTEN_ADDR"
 }
 
 # Force one key from an env file into the current process when present.
@@ -130,8 +139,11 @@ if [ -f "$REPO_ROOT/.env.local" ]; then
 fi
 
 listen_port="$(resolve_listen_port)"
+s3_listen_port="$(resolve_s3_listen_port)"
 check_port_available "$listen_port" "api LISTEN_ADDR" \
     || die "port $listen_port is already in use (needed for api LISTEN_ADDR ${LISTEN_ADDR:-0.0.0.0:3001})"
+check_port_available "$s3_listen_port" "api S3_LISTEN_ADDR" \
+    || die "port $s3_listen_port is already in use (needed for api S3_LISTEN_ADDR ${S3_LISTEN_ADDR:-0.0.0.0:3002})"
 
 # Stage-proof defaults: verification lanes require real token delivery.
 # Opt back in for demo-only quickstart runs via API_DEV_ALLOW_SKIP_EMAIL_VERIFICATION=1.

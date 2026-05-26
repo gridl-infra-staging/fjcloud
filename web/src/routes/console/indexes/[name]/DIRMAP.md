@@ -11,5 +11,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| tabs | This directory contains helper modules for the index console's tabbed interface, providing utilities for displaying app integration code snippets, parsing uploaded document files, and managing experiment-related tab functionality. |
+| tabs | This directory contains helper modules for the index console UI tabs, including utilities for generating code snippets for app integration, parsing document files, and managing experiment-related functionality. |
 <!-- [scrai:end] -->

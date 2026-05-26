@@ -1,19 +1,24 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { render, screen, cleanup, within } from '@testing-library/svelte';
+import { render, screen, cleanup, within, waitFor } from '@testing-library/svelte';
 import { fireEvent } from '@testing-library/dom';
 import type { ComponentProps } from 'svelte';
 
-const { enhanceMock, instantSearchMockFn, invalidateAllMock } = vi.hoisted(() => ({
-	enhanceMock: vi.fn((form: HTMLFormElement) => {
-		void form;
-		return { destroy: () => {} };
-	}),
-	instantSearchMockFn: vi.fn(),
-	invalidateAllMock: vi.fn()
-}));
+const { enhanceMock, applyActionMock, deserializeMock, instantSearchMockFn, invalidateAllMock } =
+	vi.hoisted(() => ({
+		enhanceMock: vi.fn((form: HTMLFormElement) => {
+			void form;
+			return { destroy: () => {} };
+		}),
+		applyActionMock: vi.fn(),
+		deserializeMock: vi.fn(),
+		instantSearchMockFn: vi.fn(),
+		invalidateAllMock: vi.fn()
+	}));
 
 vi.mock('$app/forms', () => ({
-	enhance: enhanceMock
+	enhance: enhanceMock,
+	applyAction: applyActionMock,
+	deserialize: deserializeMock
 }));
 
 vi.mock('$app/navigation', () => ({
@@ -50,6 +55,7 @@ afterEach(() => {
 	cleanup();
 	clearLog();
 	vi.clearAllMocks();
+	vi.unstubAllGlobals();
 });
 
 function renderPage(overrides: DetailPageOverrides = {}, form: DetailPageForm = null) {
@@ -111,14 +117,114 @@ describe('Index detail page — Security Sources tab', () => {
 		expect(within(section).getByText('VPN range')).toBeInTheDocument();
 	});
 
-	it('renders append form with source and description inputs', async () => {
+	it('renders source count badge from loaded sources', async () => {
+		renderPage({ securitySources: sampleSecuritySources });
+		await openTab('Security Sources');
+
+		expect(screen.getByTestId('security-sources-entry-count')).toHaveTextContent('2');
+	});
+
+	it('renders Add Source trigger and hides add inputs before dialog opens', async () => {
 		renderPage();
 		await openTab('Security Sources');
 
 		const section = screen.getByTestId('security-sources-section');
-		expect(within(section).getByLabelText(/^source$/i)).toBeInTheDocument();
-		expect(within(section).getByLabelText(/^description$/i)).toBeInTheDocument();
-		expect(within(section).getByRole('button', { name: /add source/i })).toBeInTheDocument();
+		expect(within(section).getByTestId('add-security-source-btn')).toBeInTheDocument();
+		expect(within(section).queryByLabelText(/^source$/i)).not.toBeInTheDocument();
+		expect(within(section).queryByLabelText(/^description$/i)).not.toBeInTheDocument();
+	});
+
+	it('keeps Add Source trigger visible but disabled during load errors', async () => {
+		renderPage({ securitySourcesLoadError: 'Failed to load security sources' });
+		await openTab('Security Sources');
+
+		const addSourceButton = screen.getByTestId('add-security-source-btn');
+		expect(addSourceButton).toBeInTheDocument();
+		expect(addSourceButton).toBeDisabled();
+	});
+
+	it('opens Add Security Source editor dialog with source fields and submit label', async () => {
+		renderPage();
+		await openTab('Security Sources');
+
+		await fireEvent.click(screen.getByTestId('add-security-source-btn'));
+
+		const dialog = screen.getByRole('dialog', { name: 'Add Security Source' });
+		expect(dialog).toBeInTheDocument();
+		expect(within(dialog).getByTestId('editor-dialog-field-source')).toBeInTheDocument();
+		expect(within(dialog).getByTestId('editor-dialog-field-description')).toBeInTheDocument();
+		expect(within(dialog).getByRole('button', { name: 'Add Source' })).toBeInTheDocument();
+	});
+
+	it('shows inline source required validation for whitespace-only source input', async () => {
+		const fetchMock = vi.fn();
+		vi.stubGlobal('fetch', fetchMock);
+		renderPage();
+		await openTab('Security Sources');
+		await fireEvent.click(screen.getByTestId('add-security-source-btn'));
+
+		const dialog = screen.getByRole('dialog', { name: 'Add Security Source' });
+		const sourceField = within(dialog).getByTestId('editor-dialog-field-source');
+		await fireEvent.input(sourceField, {
+			target: { value: '   ' }
+		});
+		await fireEvent.blur(sourceField);
+
+		const dialogAlert = within(dialog).getByRole('alert');
+		expect(dialogAlert).toHaveTextContent('Source is required.');
+		expect(fetchMock).not.toHaveBeenCalled();
+		expect(screen.queryByTestId('security-sources-section')).toBeInTheDocument();
+		expect(screen.queryByText('source is required')).not.toBeInTheDocument();
+	});
+
+	it('clears inline source validation once non-whitespace input is entered', async () => {
+		renderPage();
+		await openTab('Security Sources');
+		await fireEvent.click(screen.getByTestId('add-security-source-btn'));
+
+		const dialog = screen.getByRole('dialog', { name: 'Add Security Source' });
+		const sourceField = within(dialog).getByTestId('editor-dialog-field-source');
+		await fireEvent.input(sourceField, { target: { value: '   ' } });
+		await fireEvent.blur(sourceField);
+		expect(within(dialog).getByRole('alert')).toHaveTextContent('Source is required.');
+
+		await fireEvent.input(sourceField, { target: { value: ' 1' } });
+		await waitFor(() => {
+			expect(within(dialog).queryByRole('alert')).not.toBeInTheDocument();
+		});
+		expect(dialog).toBeInTheDocument();
+	});
+
+	it('applies failed append action results before surfacing dialog error', async () => {
+		const fetchMock = vi.fn().mockResolvedValue({
+			text: vi.fn().mockResolvedValue('serialized-failure')
+		});
+		vi.stubGlobal('fetch', fetchMock);
+		deserializeMock.mockReturnValue({
+			type: 'failure',
+			status: 403,
+			data: {
+				_authSessionExpired: true,
+				securitySourceAppendError: 'Session expired',
+				securitySources: sampleSecuritySources,
+				securitySourcesReloaded: false,
+				securitySourcesLoadError: 'Failed to reload security sources'
+			}
+		});
+
+		renderPage();
+		await openTab('Security Sources');
+		await fireEvent.click(screen.getByTestId('add-security-source-btn'));
+		await fireEvent.input(screen.getByTestId('editor-dialog-field-source'), {
+			target: { value: '172.16.0.0/12' }
+		});
+		const dialog = screen.getByRole('dialog', { name: 'Add Security Source' });
+		await fireEvent.click(within(dialog).getByRole('button', { name: 'Add Source' }));
+
+		await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+		await waitFor(() => expect(applyActionMock).toHaveBeenCalledTimes(1));
+		expect(screen.getByRole('alert')).toHaveTextContent('Session expired');
+		expect(dialog).toBeInTheDocument();
 	});
 
 	it('renders delete button for each source row', async () => {
@@ -128,17 +234,6 @@ describe('Index detail page — Security Sources tab', () => {
 		const section = screen.getByTestId('security-sources-section');
 		const deleteButtons = within(section).getAllByRole('button', { name: /delete/i });
 		expect(deleteButtons).toHaveLength(2);
-	});
-
-	it('append form posts to appendSecuritySource action', async () => {
-		const { container } = renderPage();
-		await openTab('Security Sources');
-
-		const form = container.querySelector('form[action="?/appendSecuritySource"]');
-		expect(form).not.toBeNull();
-		// Form contains source and description named inputs
-		expect(form!.querySelector('input[name="source"]')).not.toBeNull();
-		expect(form!.querySelector('input[name="description"]')).not.toBeNull();
 	});
 
 	it('delete forms post to deleteSecuritySource with hidden source value', async () => {
@@ -161,10 +256,9 @@ describe('Index detail page — Security Sources tab', () => {
 		renderPage({ securitySources: sampleSecuritySources });
 		await openTab('Security Sources');
 
-		// One append form + two delete forms = 3 enhanced forms
+		// Delete forms remain enhanced for action posts.
 		const enhancedForms = enhanceMock.mock.calls.map((c: unknown[]) => c[0] as HTMLFormElement);
 		const actions = enhancedForms.map((f) => f.getAttribute('action'));
-		expect(actions).toContain('?/appendSecuritySource');
 		expect(actions.filter((a) => a === '?/deleteSecuritySource')).toHaveLength(2);
 	});
 
@@ -210,13 +304,10 @@ describe('Index detail page — Security Sources tab', () => {
 	});
 
 	it('shows action-level reload error instead of clearing back to the stale loaded state', async () => {
-		renderPage(
-			{ securitySources: sampleSecuritySources },
-			{
-				securitySourceAppended: true,
-				securitySourcesLoadError: 'Failed to reload security sources'
-			} as DetailPageForm
-		);
+		renderPage({ securitySources: sampleSecuritySources }, {
+			securitySourceAppended: true,
+			securitySourcesLoadError: 'Failed to reload security sources'
+		} as DetailPageForm);
 		await openTab('Security Sources');
 
 		expect(screen.getByText(/security source added/i)).toBeInTheDocument();

@@ -189,7 +189,6 @@ Compare two search configurations on live traffic, monitor progress with statist
 
 ## Automated Coverage
 
-- Browser-unmocked tests: `web/tests/e2e-ui/full/experiments_list.spec.ts` (new) for count badge, typed Stop/Delete confirms, and list empty/error branches; `web/tests/e2e-ui/full/experiments_detail.spec.ts` (new) for deep-link detail, stored conclusion reason, CUPED badge, interleaving card, SRM banner, and days-gate confirm; `web/tests/e2e-ui/full/experiments_create_wizard.spec.ts` (new) for the 4-step create wizard, variant-index exclusion, runtime-estimate recompute, and user-token warning.
-- Browser-mocked tests: `web/tests/e2e-ui/mocked/experiments_variant_missing.spec.ts` (new) — missing variant index guard-rail banner; `web/tests/e2e-ui/mocked/experiments_conclude_error.spec.ts` (new) — declare-winner 500 keeps the dialog open with `role="alert"`.
-- Component tests: extend `web/src/routes/console/indexes/[name]/tabs/ExperimentsTab.test.ts` for status/metric formatting, detail-state rendering matrix, and confirm-dialog gating.
-- Server/contract tests: extend `web/src/routes/console/indexes/[name]/detail.server.actions.test.ts` for create-wizard payloads, stop/delete/declare-winner actions, and `variantIndexMissing` load shaping.
+- Browser-unmocked tests: `web/tests/e2e-ui/full/index-detail.spec.ts`; `web/tests/e2e-ui/full/indexes.spec.ts`
+- Component tests: `web/src/routes/console/indexes/[name]/detail-experiments.test.ts`
+- Server/contract tests: `web/src/routes/console/indexes/[name]/detail.server.actions.test.ts`

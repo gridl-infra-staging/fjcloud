@@ -22,7 +22,8 @@
 	let eventsTimeRange = $state<'15m' | '1h' | '24h' | '7d'>('24h');
 	let selectedDebugEventIdentity = $state<string | null>(null);
 	const selectedDebugEvent = $derived(
-		filteredDebugEventRows().find((row) => row.identity === selectedDebugEventIdentity)?.event ?? null
+		filteredDebugEventRows().find((row) => row.identity === selectedDebugEventIdentity)?.event ??
+			null
 	);
 	const eventCounts = $derived(debugEventSummary());
 	const eventWindowValues = $derived(eventWindow(eventsTimeRange));
@@ -250,7 +251,8 @@
 							>
 							<td class="px-3 py-2 text-flapjack-ink">{row.event.eventType}</td>
 							<td class="px-3 py-2 text-flapjack-ink">{row.event.eventName}</td>
-							<td class="px-3 py-2 font-mono text-xs text-flapjack-ink/80">{row.event.userToken}</td>
+							<td class="px-3 py-2 font-mono text-xs text-flapjack-ink/80">{row.event.userToken}</td
+							>
 							<td class="px-3 py-2">
 								{#if row.event.httpCode === 200}
 									<span

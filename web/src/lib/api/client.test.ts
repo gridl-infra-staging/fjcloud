@@ -600,13 +600,19 @@ describe('ApiClient', () => {
 			expect(result).toBeUndefined();
 		});
 
-		it('POST /api-keys sends request body with management scopes and returns gridl_live_ key', async () => {
+		it('POST /api-keys preserves managed-key parity fields in snake_case', async () => {
 			const expected: CreateApiKeyResponse = {
 				id: 'key-1',
 				name: 'My Key',
+				description: 'read-only key',
 				key: 'gridl_live_abc123def456abc123def456ab',
 				key_prefix: 'gridl_live_abc12',
 				scopes: ['indexes:read', 'indexes:write'],
+				indexes: ['products', 'orders'],
+				restrict_sources: ['192.168.1.0/24', '10.0.0.8'],
+				expires_at: '2026-06-01T12:00:00Z',
+				max_hits_per_query: 40,
+				max_queries_per_ip_per_hour: 500,
 				created_at: '2026-02-15T00:00:00Z'
 			};
 			const fetch = mockFetch(200, expected);
@@ -614,7 +620,13 @@ describe('ApiClient', () => {
 
 			const result = await client.createApiKey({
 				name: 'My Key',
-				scopes: ['indexes:read', 'indexes:write']
+				scopes: ['indexes:read', 'indexes:write'],
+				description: 'read-only key',
+				indexes: ['products', 'orders'],
+				restrict_sources: ['192.168.1.0/24', '10.0.0.8'],
+				expires_at: '2026-06-01T12:00:00Z',
+				max_hits_per_query: 40,
+				max_queries_per_ip_per_hour: 500
 			});
 
 			expect(fetch).toHaveBeenCalledWith(`${BASE_URL}/api-keys`, {
@@ -623,19 +635,34 @@ describe('ApiClient', () => {
 					'Content-Type': 'application/json',
 					Authorization: 'Bearer my-jwt-token'
 				},
-				body: JSON.stringify({ name: 'My Key', scopes: ['indexes:read', 'indexes:write'] })
+				body: JSON.stringify({
+					name: 'My Key',
+					scopes: ['indexes:read', 'indexes:write'],
+					description: 'read-only key',
+					indexes: ['products', 'orders'],
+					restrict_sources: ['192.168.1.0/24', '10.0.0.8'],
+					expires_at: '2026-06-01T12:00:00Z',
+					max_hits_per_query: 40,
+					max_queries_per_ip_per_hour: 500
+				})
 			});
 			expect(result).toEqual(expected);
 			expect(result.key).toMatch(/^gridl_live_/);
 		});
 
-		it('GET /api-keys returns list of keys with gridl_live_ prefix', async () => {
+		it('GET /api-keys preserves managed-key parity fields in snake_case', async () => {
 			const expected: ApiKeyListItem[] = [
 				{
 					id: 'key-1',
 					name: 'My Key',
+					description: null,
 					key_prefix: 'gridl_live_abc12',
 					scopes: ['search'],
+					indexes: ['products'],
+					restrict_sources: [],
+					expires_at: null,
+					max_hits_per_query: null,
+					max_queries_per_ip_per_hour: null,
 					last_used_at: null,
 					created_at: '2026-02-15T00:00:00Z'
 				}

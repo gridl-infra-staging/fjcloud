@@ -6,6 +6,7 @@
 | admin.auth.setup.ts | Admin auth setup — runs once before any admin test project. |
 | auth.setup.ts | Stub summary for auth.setup.ts. |
 | billing_session_recovery.ts | Shared remote-login + session-expiry recovery helpers used by billing specs (`billing.spec.ts`, `billing_portal_payment_method_update.spec.ts`) and fresh-signup billing proof (`signup_to_paid_invoice.spec.ts`). |
+| create_index_form_helpers.ts | Stub summary for create_index_form_helpers.ts. |
 | customer-journeys.auth.setup.ts | Customer journeys auth setup — runs once before the chromium:customer-journeys project. |
 | fixtures.ts | Stub summary for fixtures.ts. |
 | fresh_signup_remote_bootstrap.ts | Stub summary for fresh_signup_remote_bootstrap.ts. |

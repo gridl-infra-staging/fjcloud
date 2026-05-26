@@ -9,6 +9,10 @@ export const SEARCH_PREVIEW_READY_MESSAGE =
 	'Waiting for Search Preview to become ready for preview-key generation';
 export const INDEX_DETAIL_READY_TIMEOUT_MS = 30_000;
 export const PREVIEW_SUBMIT_OUTCOME_TIMEOUT_MS = 5_000;
+export const PREVIEW_SUBMIT_IN_FLIGHT_TIMEOUT_MS = 30_000;
+export const PREVIEW_SUBMIT_MAX_PENDING_TIMEOUT_MS = 90_000;
+const LOCAL_STACK_UNAVAILABLE_ERROR_PATTERN =
+	/(?:ECONNREFUSED|EHOSTUNREACH|ENOTFOUND|Connection refused|fetch failed|Failed to fetch|network error|127\\.0\\.0\\.1|localhost)/i;
 
 type SearchPreviewLocators = {
 	generateButton: Locator;
@@ -106,6 +110,27 @@ export async function waitForInstantSearchWidget(page: Page): Promise<void> {
 }
 
 type PreviewSubmitOutcome = 'widget' | 'generic' | 'transient' | 'unknown';
+type SearchPreviewAnalyticsCapture = {
+	payloads: unknown[];
+	stop: () => void;
+};
+
+export function failRequiredE2eGate(gateName: string, failure: unknown): never {
+	const message = failure instanceof Error ? failure.message : String(failure);
+	throw new Error(`Stage 6 required e2e gate "${gateName}" failed: ${message}`);
+}
+
+export function isLocalStackUnavailableError(error: unknown): boolean {
+	const message = error instanceof Error ? error.message : String(error);
+	return LOCAL_STACK_UNAVAILABLE_ERROR_PATTERN.test(message);
+}
+
+export function failRequiredE2eGateOnLocalStackError(gateName: string, error: unknown): void {
+	if (!isLocalStackUnavailableError(error)) {
+		return;
+	}
+	failRequiredE2eGate(gateName, error);
+}
 
 function getIndexNameFromDetailPath(detailPath: string): string {
 	return decodeURIComponent(
@@ -116,10 +141,11 @@ function getIndexNameFromDetailPath(detailPath: string): string {
 export async function waitForPreviewSubmitOutcome(
 	page: Page,
 	transientError: Locator,
-	genericErrorPage: Locator
+	genericErrorPage: Locator,
+	timeoutMs: number = PREVIEW_SUBMIT_OUTCOME_TIMEOUT_MS
 ): Promise<PreviewSubmitOutcome> {
 	const startedAt = Date.now();
-	while (Date.now() - startedAt < PREVIEW_SUBMIT_OUTCOME_TIMEOUT_MS) {
+	while (Date.now() - startedAt < timeoutMs) {
 		if (
 			await page
 				.getByTestId('instantsearch-widget')
@@ -143,6 +169,36 @@ export async function waitForPreviewSubmitOutcome(
 	return 'unknown';
 }
 
+async function waitForPreviewSubmitResolution(
+	page: Page,
+	transientError: Locator,
+	genericErrorPage: Locator
+): Promise<PreviewSubmitOutcome> {
+	const startedAt = Date.now();
+	let timeoutMs = PREVIEW_SUBMIT_OUTCOME_TIMEOUT_MS;
+
+	while (Date.now() - startedAt < PREVIEW_SUBMIT_MAX_PENDING_TIMEOUT_MS) {
+		const remainingMs = PREVIEW_SUBMIT_MAX_PENDING_TIMEOUT_MS - (Date.now() - startedAt);
+		if (remainingMs <= 0) {
+			return 'unknown';
+		}
+
+		const outcome = await waitForPreviewSubmitOutcome(
+			page,
+			transientError,
+			genericErrorPage,
+			Math.min(timeoutMs, remainingMs)
+		);
+		if (outcome !== 'unknown') {
+			return outcome;
+		}
+
+		timeoutMs = PREVIEW_SUBMIT_IN_FLIGHT_TIMEOUT_MS;
+	}
+
+	return 'unknown';
+}
+
 export async function generatePreviewKeyAndWaitForWidget(page: Page): Promise<void> {
 	const detailPath = page.url();
 	const indexName = getIndexNameFromDetailPath(detailPath);
@@ -156,13 +212,17 @@ export async function generatePreviewKeyAndWaitForWidget(page: Page): Promise<vo
 
 	for (let attempt = 0; attempt < 6; attempt += 1) {
 		await generateButton.click();
-		const outcome = await waitForPreviewSubmitOutcome(page, transientError, genericErrorPage);
+		const settledOutcome = await waitForPreviewSubmitResolution(
+			page,
+			transientError,
+			genericErrorPage
+		);
 
-		if (outcome === 'widget') {
+		if (settledOutcome === 'widget') {
 			return;
 		}
 
-		if (outcome === 'generic') {
+		if (settledOutcome === 'generic') {
 			await gotoIndexDetailWithRetry(page, indexName);
 			await page.getByRole('tab', { name: 'Search Preview' }).click();
 			await waitForSearchPreviewReady(page);
@@ -170,11 +230,13 @@ export async function generatePreviewKeyAndWaitForWidget(page: Page): Promise<vo
 			continue;
 		}
 
-		if (outcome === 'transient') {
+		if (settledOutcome === 'transient') {
 			await page.waitForTimeout(1000 * (attempt + 1));
 			continue;
 		}
 
+		// Keep single-submit semantics for unknown/pending outcomes and rely on widget
+		// visibility timeout to fail the run instead of issuing duplicate submissions.
 		break;
 	}
 
@@ -183,30 +245,119 @@ export async function generatePreviewKeyAndWaitForWidget(page: Page): Promise<vo
 
 export async function submitSearchPreviewQuery(page: Page, query: string): Promise<void> {
 	const section = page.getByTestId('search-preview-section');
-	const searchInput = section.getByPlaceholder('Search your index...');
+	const searchInput = section.getByRole('searchbox', { name: /search preview query/i });
 	await expect(searchInput).toBeVisible({ timeout: 10_000 });
 	await searchInput.click();
-	await searchInput.evaluate((element, nextQuery) => {
-		const input = element as HTMLInputElement;
-		input.focus();
-		input.value = '';
-		input.dispatchEvent(new Event('input', { bubbles: true }));
-		input.value = nextQuery;
-		input.dispatchEvent(
-			new InputEvent('input', {
-				bubbles: true,
-				data: nextQuery,
-				inputType: 'insertText'
-			})
-		);
-		input.dispatchEvent(new Event('change', { bubbles: true }));
-	}, query);
+	await searchInput.fill(query);
+	await searchInput.press('Enter');
+}
 
-	const submitButton = section.locator('.ais-SearchBox-submit');
-	if (await submitButton.isVisible().catch(() => false)) {
-		await submitButton.click();
-		return;
+export async function toggleSearchPreviewFacet(page: Page, facetLabel: string): Promise<void> {
+	const section = page.getByTestId('search-preview-section');
+	await section.getByLabel(facetLabel).check();
+}
+
+export async function collectVisibleSearchPreviewCardTexts(page: Page): Promise<string[]> {
+	const cards = page.getByTestId('search-preview-results').locator('[data-testid="document-card"]');
+	return cards.allTextContents();
+}
+
+export async function waitForSearchPreviewHitsToContain(
+	page: Page,
+	expectedText: string,
+	timeoutMs = 30_000
+): Promise<void> {
+	await expect
+		.poll(
+			async () => {
+				const cardTexts = await collectVisibleSearchPreviewCardTexts(page);
+				return cardTexts.join('\n');
+			},
+			{
+				timeout: timeoutMs,
+				message: `Waiting for Search Preview hits to contain "${expectedText}"`
+			}
+		)
+		.toContain(expectedText);
+}
+
+export async function collectVisibleSearchPreviewHighlightHtml(page: Page): Promise<string[]> {
+	const highlights = page
+		.getByTestId('search-preview-results')
+		.locator('[data-testid^="document-card-highlight-"]');
+	return highlights.evaluateAll((nodes) => nodes.map((node) => node.innerHTML));
+}
+
+export async function countSearchPreviewHits(page: Page): Promise<number> {
+	const summaryText = await page
+		.getByTestId('search-preview-results')
+		.getByText(/hits\s+·/i)
+		.textContent();
+	const matchedCount = summaryText?.match(/(\d+)\s+hits\b/i);
+	if (!matchedCount) {
+		throw new Error(`Could not parse hit count from summary: ${summaryText ?? '<empty>'}`);
+	}
+	return Number.parseInt(matchedCount[1], 10);
+}
+
+export function getSearchPreviewPaginationControls(page: Page): {
+	previous: Locator;
+	next: Locator;
+} {
+	const section = page.getByTestId('search-preview-results');
+	return {
+		previous: section.getByRole('button', { name: 'Previous page' }),
+		next: section.getByRole('button', { name: 'Next page' })
+	};
+}
+
+export function startSearchPreviewAnalyticsCapture(page: Page): SearchPreviewAnalyticsCapture {
+	const payloads: unknown[] = [];
+	const onRequest = (request: {
+		url: () => string;
+		method: () => string;
+		postDataJSON: () => unknown;
+	}) => {
+		if (request.method() !== 'POST') {
+			return;
+		}
+		if (!request.url().includes('/1/events')) {
+			return;
+		}
+		payloads.push(request.postDataJSON());
+	};
+	page.on('request', onRequest as never);
+	return {
+		payloads,
+		stop: () => {
+			page.off('request', onRequest as never);
+		}
+	};
+}
+
+export async function findSearchPreviewNarrowingFacet(
+	page: Page,
+	preFilterHitCount: number
+): Promise<{ label: string; value: string; narrowedHitCount: number }> {
+	const rows = page.getByTestId('search-preview-facets').locator('li');
+	const rowCount = await rows.count();
+
+	for (let index = 0; index < rowCount; index += 1) {
+		const row = rows.nth(index);
+		const facetLabel = await row.getByRole('checkbox').getAttribute('aria-label');
+		const countText = await row.locator('span').last().textContent();
+		const narrowedHitCount = Number.parseInt((countText ?? '').trim(), 10);
+		if (!facetLabel || Number.isNaN(narrowedHitCount)) {
+			continue;
+		}
+		if (narrowedHitCount > 0 && narrowedHitCount < preFilterHitCount) {
+			return {
+				label: facetLabel,
+				value: facetLabel.split(':').slice(1).join(':'),
+				narrowedHitCount
+			};
+		}
 	}
 
-	await searchInput.press('Enter');
+	throw new Error(`No narrowing facet value found for pre-filter hit count ${preFilterHitCount}`);
 }

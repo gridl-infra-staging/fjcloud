@@ -73,7 +73,9 @@
 	const isTypedMode = $derived(mode === 'typed');
 	const isTypedPhraseMatch = $derived(typedInputValue.trim() === requiredPhrase);
 	const isConfirmDisabled = $derived(isConfirming || (isTypedMode && !isTypedPhraseMatch));
-	const showMismatchHint = $derived(isTypedMode && confirmAttempted && typedInputValue.length > 0 && !isTypedPhraseMatch);
+	const showMismatchHint = $derived(
+		isTypedMode && confirmAttempted && typedInputValue.length > 0 && !isTypedPhraseMatch
+	);
 	const dialogDescribedBy = $derived.by(() => {
 		const describedBy = [consequencesId];
 		if (rationale.trim().length > 0) {
@@ -312,9 +314,7 @@
 					type="text"
 				/>
 				{#if showMismatchHint}
-					<p class="mt-2 text-xs text-flapjack-plum" id={mismatchHintId}>
-						Must match exactly
-					</p>
+					<p class="mt-2 text-xs text-flapjack-plum" id={mismatchHintId}>Must match exactly</p>
 				{/if}
 			{/if}
 

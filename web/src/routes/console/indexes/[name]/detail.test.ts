@@ -696,7 +696,10 @@ describe('Index detail page — tab data-testid hooks', () => {
 describe('Index detail page — load error precedence with action refresh data', () => {
 	it('hides security-sources load error when action confirms a backend refresh', async () => {
 		renderPage(
-			{ securitySourcesLoadError: 'Failed to load security sources', securitySources: { sources: [] } },
+			{
+				securitySourcesLoadError: 'Failed to load security sources',
+				securitySources: { sources: [] }
+			},
 			{
 				securitySources: {
 					sources: [{ source: '172.16.0.0/12', description: 'Action refresh source' }]
@@ -711,12 +714,9 @@ describe('Index detail page — load error precedence with action refresh data',
 	});
 
 	it('hides events load error when action returns refreshed events payload', async () => {
-		renderPage(
-			{ eventsLoadError: 'Failed to load events', debugEvents: null },
-			{
-				refreshedEvents: sampleDebugEvents
-			} as DetailPageForm
-		);
+		renderPage({ eventsLoadError: 'Failed to load events', debugEvents: null }, {
+			refreshedEvents: sampleDebugEvents
+		} as DetailPageForm);
 
 		await openTab('Events');
 		expect(screen.queryByTestId('events-load-error-state')).not.toBeInTheDocument();

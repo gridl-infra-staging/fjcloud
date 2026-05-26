@@ -11,11 +11,47 @@ export type InstantSearchRequest = {
 	params?: string;
 };
 
+export type SearchPreviewParamsInput = {
+	query: string;
+	facets?: string[];
+	facetFilters?: string[][];
+	filters?: string;
+	page?: number;
+	hitsPerPage?: number;
+	attributesToHighlight?: string[];
+};
+
 export type InstantSearchResponse = {
 	results: unknown[];
 };
 
 export const FLAPJACK_SEARCH_APP_ID = 'griddle' as const;
+
+export function buildSearchPreviewParams(input: SearchPreviewParamsInput): string {
+	const params = new URLSearchParams();
+	params.set('query', input.query);
+
+	if (input.facets && input.facets.length > 0) {
+		params.set('facets', JSON.stringify(input.facets));
+	}
+	if (input.facetFilters && input.facetFilters.length > 0) {
+		params.set('facetFilters', JSON.stringify(input.facetFilters));
+	}
+	if (input.filters) {
+		params.set('filters', input.filters);
+	}
+	if (typeof input.page === 'number') {
+		params.set('page', String(input.page));
+	}
+	if (typeof input.hitsPerPage === 'number') {
+		params.set('hitsPerPage', String(input.hitsPerPage));
+	}
+	if (input.attributesToHighlight && input.attributesToHighlight.length > 0) {
+		params.set('attributesToHighlight', JSON.stringify(input.attributesToHighlight));
+	}
+
+	return params.toString();
+}
 
 export function parseFlapjackSearchEndpoint(endpoint: string): {
 	host: string;

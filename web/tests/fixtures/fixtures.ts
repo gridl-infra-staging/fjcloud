@@ -305,6 +305,10 @@ function isTransientAccountLookupFailure(status: number): boolean {
 	return status === 429 || status >= 500;
 }
 
+function isUnauthorizedExpiredTokenAccountFailure(status: number, failureDetails: string): boolean {
+	return status === 401 && /invalid or expired token/i.test(failureDetails);
+}
+
 // Keep the setup:user timeout aligned with the helper retry contract so
 // Playwright does not abort before fixture bootstrap finishes its own retries.
 export const FIXTURE_AUTH_API_RETRY_BUDGET_MS =
@@ -832,13 +836,29 @@ async function getAccountPayloadForTokenWithRetries(
 
 async function getCustomerId(): Promise<string> {
 	if (_customerId) return _customerId;
-	const token = await getAuthToken();
-	const accountPayload = await getAccountPayloadForTokenWithRetries(token, 'GET /account');
-	_customerId = requireNonEmptyString(
-		accountPayload.id ?? '',
-		'GET /account returned an empty customer id'
-	);
-	return _customerId;
+
+	let accountFailure: Error | null = null;
+	for (let attempt = 0; attempt < 2; attempt += 1) {
+		const token = await getAuthToken();
+		try {
+			const accountPayload = await getAccountPayloadForTokenWithRetries(token, 'GET /account');
+			_customerId = requireNonEmptyString(
+				accountPayload.id ?? '',
+				'GET /account returned an empty customer id'
+			);
+			return _customerId;
+		} catch (error) {
+			const details = setupFailureDetailsFromError(error);
+			if (attempt === 0 && isUnauthorizedExpiredTokenAccountFailure(401, details)) {
+				_token = null;
+				continue;
+			}
+			accountFailure = error instanceof Error ? error : new Error(String(error));
+			break;
+		}
+	}
+
+	throw accountFailure ?? new Error('GET /account failed while resolving fixture customer id');
 }
 
 async function apiCall(
@@ -965,11 +985,7 @@ async function cleanupStaleFixtureIndexesOnce(): Promise<void> {
 				deleted = true;
 				break;
 			}
-			if (
-				deleteRes.status !== 429 &&
-				deleteRes.status !== 500 &&
-				deleteRes.status !== 503
-			) {
+			if (deleteRes.status !== 429 && deleteRes.status !== 500 && deleteRes.status !== 503) {
 				break;
 			}
 			await sleep(getRetryDelayMs(attempt, deleteRes.headers.get('retry-after')));
@@ -1052,6 +1068,45 @@ async function createSeededIndex(
 	}
 
 	throw new Error(`seedIndex failed after transient create retries: ${lastFailure}`);
+}
+
+async function createSeededIndexForCurrentCustomer(name: string, region: string): Promise<void> {
+	const maxRetries = 6;
+	let lastFailure = 'none';
+
+	for (let attempt = 0; attempt < maxRetries; attempt++) {
+		const res = await apiCall('POST', '/indexes', {
+			name,
+			region
+		});
+		if (res.ok || res.status === 409) {
+			return;
+		}
+
+		const body = await res.text();
+		lastFailure = `${res.status} ${body}`;
+		if (isUnauthorizedExpiredTokenAccountFailure(res.status, lastFailure)) {
+			_token = null;
+			continue;
+		}
+		if (res.status !== 429 && res.status !== 500) {
+			throw new Error(`seedIndex failed: ${lastFailure}`);
+		}
+
+		await sleep(getTransientRetryDelayMs(attempt));
+	}
+
+	throw new Error(`seedIndex failed after transient create retries: ${lastFailure}`);
+}
+
+function isTransientSeedIndexTransportFailure(error: unknown): boolean {
+	const details = setupFailureDetailsFromError(error).toLowerCase();
+	return (
+		details.includes('fetch failed') ||
+		details.includes('econnrefused') ||
+		details.includes('socket hang up') ||
+		details.includes('aggregateerror')
+	);
 }
 
 async function getCurrentBillingPlan(tokenOverride?: string): Promise<'free' | 'shared'> {
@@ -2170,7 +2225,10 @@ type RegisterIndexForCleanupFn = (name: string) => void;
 type CleanupFixtureIndexesFn = () => Promise<void>;
 type SeedApiKeyFn = (name: string, scopes?: string[]) => Promise<{ id: string }>;
 type ListApiKeysFn = () => Promise<ApiKeyListItem[]>;
-type DiscoverWithApiKeyFn = (indexName: string, apiKey: string) => Promise<{
+type DiscoverWithApiKeyFn = (
+	indexName: string,
+	apiKey: string
+) => Promise<{
 	status: number;
 	body: {
 		vm?: string;
@@ -2532,17 +2590,33 @@ export const test = base.extend<E2eFixtures & E2eInternalFixtures>({
 
 	seedIndex: async ({ _trackIndexForCleanup }, use) => {
 		const factory: SeedIndexFn = async (name, region) => {
-			await cleanupStaleFixtureIndexesOnce();
-			const r = region ?? fixtureEnv.testRegion;
-			// Use the admin endpoint to seed a local Flapjack-backed index directly
-			// so tab/detail browser proofs exercise the real local engine.
-			const customerId = await getCustomerId();
-			await createSeededIndex(customerId, name, r, fixtureEnv.flapjackUrl);
-			// The admin create endpoint can return before the customer index-read
-			// path is consistent enough for the detail page loader. Poll the same
-			// read path the UI uses so seeded detail specs do not flake on a 500.
-			await waitForSeededIndex(name);
-			_trackIndexForCleanup(name);
+			for (let attempt = 0; attempt < 3; attempt++) {
+				try {
+					const r = region ?? fixtureEnv.testRegion;
+					const customerId = await getCustomerId();
+					try {
+						await createSeededIndex(customerId, name, r, fixtureEnv.flapjackUrl);
+					} catch (error) {
+						const details = setupFailureDetailsFromError(error).toLowerCase();
+						if (!details.includes('invalid admin key')) {
+							throw error;
+						}
+						await createSeededIndexForCurrentCustomer(name, r);
+					}
+					// The admin create endpoint can return before the customer index-read
+					// path is consistent enough for the detail page loader. Poll the same
+					// read path the UI uses so seeded detail specs do not flake on a 500.
+					await waitForSeededIndex(name);
+					_trackIndexForCleanup(name);
+					return;
+				} catch (error) {
+					if (attempt === 2 || !isTransientSeedIndexTransportFailure(error)) {
+						throw error;
+					}
+					_token = null;
+					await sleep(getTransientRetryDelayMs(attempt));
+				}
+			}
 		};
 
 		await use(factory);

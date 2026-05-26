@@ -19,5 +19,5 @@ unavailable so staging gets a clear outside-AWS outage signal. |
 
 | Directory | Summary |
 | --- | --- |
-| contracts | This directory contains bash-based contract tests that verify wire payloads, security boundaries, and infrastructure across the full stack—from frontend Playwright mocked specs and web API contracts to backend auth/billing/webhook reject-cases and EC2/Lambda infrastructure. |
+| contracts | This directory contains contract tests validating deterministic fail-closed behaviors (webhook signature/timestamp/JWT rejection, firewall port coverage, Lambda invocation), mocked test spec drift against live wire payloads, and infrastructure configuration contracts (OAuth redirect URIs, API base URLs, web server load behavior). |
 <!-- [scrai:end] -->

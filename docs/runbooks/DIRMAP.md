@@ -6,5 +6,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| evidence | The evidence directory contains timestamped operational artifacts and validation procedures from multiple infrastructure initiatives, including fleet recovery workflows, production launch monitoring, deployment verification, privacy.com contract validation, and database cleanup operations. |
+| evidence | The evidence directory contains timestamped operational artifacts and scripts documenting infrastructure recovery, deployment validation, and live service monitoring procedures, including fleet recovery workflows, launch health checks, database cleanup operations, and Privacy.com contract validation. |
 <!-- [scrai:end] -->

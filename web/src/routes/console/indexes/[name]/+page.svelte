@@ -2,6 +2,8 @@
 	import { browser } from '$app/environment';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
+	import { page } from '$app/state';
+	import { SvelteURLSearchParams } from 'svelte/reactivity';
 	import { indexStatusBadgeColor, statusLabel } from '$lib/format';
 	import type {
 		AnalyticsNoResultRateResponse,
@@ -257,14 +259,35 @@
 	] as const;
 
 	type ActiveTab = (typeof TAB_DEFINITIONS)[number]['id'];
+	const ACTIVE_TAB_IDS = new Set<ActiveTab>(TAB_DEFINITIONS.map((tab) => tab.id));
 
-	let activeTab = $state<ActiveTab>('overview');
+	function parseTabFromUrl(currentUrl: URL): ActiveTab | null {
+		const rawTab = currentUrl.searchParams.get('tab');
+		if (!rawTab) return null;
+		if (!ACTIVE_TAB_IDS.has(rawTab as ActiveTab)) return null;
+		return rawTab as ActiveTab;
+	}
+
+	function currentUrlHasWelcomeBanner(currentUrl: URL): boolean {
+		return currentUrl.searchParams.get('welcome') === '1';
+	}
+
+	function buildWelcomeConsumedSearchPreviewUrl(currentUrl: URL): string {
+		const nextUrl = new URL(currentUrl);
+		nextUrl.searchParams.set('welcome', '0');
+		nextUrl.searchParams.set('tab', 'search-preview');
+		return `${nextUrl.pathname}?${nextUrl.searchParams.toString()}`;
+	}
+
+	const initialTab = parseTabFromUrl(page.url) ?? 'overview';
+	let activeTab = $state<ActiveTab>(initialTab);
 	let visitedTabs = $state<Record<ActiveTab, boolean>>(
-		Object.fromEntries(TAB_DEFINITIONS.map((tab) => [tab.id, tab.id === 'overview'])) as Record<
+		Object.fromEntries(TAB_DEFINITIONS.map((tab) => [tab.id, tab.id === initialTab])) as Record<
 			ActiveTab,
 			boolean
 		>
 	);
+	let showWelcomeBanner = $state(currentUrlHasWelcomeBanner(page.url));
 
 	let showSearchLog = $state(false);
 	let lastSubmittedAction = $state<string | null>(null);
@@ -291,9 +314,43 @@
 	}
 
 	function activateTab(tab: ActiveTab) {
-		activeTab = tab;
-		visitedTabs[tab] = true;
+		if (browser) {
+			const currentUrlTab = parseTabFromUrl(page.url);
+			if (currentUrlTab === tab) {
+				activeTab = tab;
+				visitedTabs[tab] = true;
+				return;
+			}
+
+			const nextSearchParams = new SvelteURLSearchParams(page.url.searchParams);
+			nextSearchParams.set('tab', tab);
+			// Route path is resolved via SvelteKit; query is preserved/merged by design.
+			// eslint-disable-next-line svelte/no-navigation-without-resolve
+			void goto(`${page.url.pathname}?${nextSearchParams.toString()}`, {
+				keepFocus: true,
+				noScroll: true
+			});
+		}
 	}
+
+	function activateSearchPreviewFromWelcomeBanner() {
+		showWelcomeBanner = false;
+		activateTab('search-preview');
+		// eslint-disable-next-line svelte/no-navigation-without-resolve -- dynamically constructed welcome-consumed URL with query params; resolve() rejects non-typed route literals
+		void goto(buildWelcomeConsumedSearchPreviewUrl(page.url));
+	}
+
+	function activateDocumentsTabFromSearchPreview() {
+		activateTab('documents');
+	}
+
+	$effect(() => {
+		showWelcomeBanner = currentUrlHasWelcomeBanner(page.url);
+		const tabFromUrl = parseTabFromUrl(page.url);
+		if (tabFromUrl && tabFromUrl !== activeTab) {
+			activateTab(tabFromUrl);
+		}
+	});
 </script>
 
 <svelte:head>
@@ -330,6 +387,22 @@
 			</span>
 		</div>
 	</div>
+
+	{#if showWelcomeBanner}
+		<div
+			role="status"
+			class="mb-4 flex flex-col gap-3 rounded-lg border border-flapjack-mint/60 bg-flapjack-mint/25 p-4 text-sm text-flapjack-ink sm:flex-row sm:items-center sm:justify-between"
+		>
+			<p class="font-medium">Index ready — try the search preview</p>
+			<button
+				type="button"
+				class="rounded-md bg-flapjack-rose px-3 py-2 text-sm font-medium text-white hover:bg-flapjack-plum"
+				onclick={activateSearchPreviewFromWelcomeBanner}
+			>
+				Open Search Preview
+			</button>
+		</div>
+	{/if}
 
 	<div class="relative mb-6">
 		<div
@@ -519,7 +592,13 @@
 
 	{#if visitedTabs['search-preview']}
 		<div hidden={activeTab !== 'search-preview'}>
-			<SearchPreviewTab {index} {previewKey} {previewKeyError} {previewIndexName} />
+			<SearchPreviewTab
+				{index}
+				{previewKey}
+				{previewKeyError}
+				{previewIndexName}
+				onRequestDocumentsTab={activateDocumentsTabFromSearchPreview}
+			/>
 		</div>
 	{/if}
 

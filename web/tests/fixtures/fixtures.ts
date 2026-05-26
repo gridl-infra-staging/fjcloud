@@ -391,6 +391,20 @@ function isUnauthorizedExpiredTokenAccountFailure(status: number, failureDetails
 	return status === 401 && /invalid or expired token/i.test(failureDetails);
 }
 
+function isTransientSeedIndexTransportFailure(error: unknown): boolean {
+	if (!(error instanceof Error)) {
+		return false;
+	}
+	const message = error.message.toLowerCase();
+	return (
+		message.includes('fetch failed') ||
+		message.includes('econnrefused') ||
+		message.includes('ecconnrefused') ||
+		message.includes('socket hang up') ||
+		message.includes('network error')
+	);
+}
+
 // Keep the setup:user timeout aligned with the helper retry contract so
 // Playwright does not abort before fixture bootstrap finishes its own retries.
 export const FIXTURE_AUTH_API_RETRY_BUDGET_MS =
@@ -1099,10 +1113,11 @@ async function cleanupStaleFixtureIndexesOnce(): Promise<void> {
 		.map((index) => index.name.trim())
 		.filter((name) => name && isStaleFixtureIndexName(name));
 
-	// Shared-host runs can accumulate a very large stale e2e index set.
-	// Use a wider one-time cleanup window so quota and rate-limit pressure
-	// drops before the suite starts creating fresh indexes.
-	const cleanupDeadline = Date.now() + 30_000;
+	// Bounded cleanup window so a single fixture call cannot stall the suite
+	// when the shared test user has accumulated many stale indexes — names
+	// past the deadline are pushed to unresolvedStaleDeletes and retried on
+	// the next fixture call (cleanup stays uncached until convergence).
+	const cleanupDeadline = Date.now() + 8_000;
 	const unresolvedStaleDeletes: string[] = [];
 	for (let staleNameIndex = 0; staleNameIndex < staleNames.length; staleNameIndex += 1) {
 		const name = staleNames[staleNameIndex];
@@ -1136,9 +1151,13 @@ async function cleanupStaleFixtureIndexesOnce(): Promise<void> {
 		}
 	}
 
-	// Cleanup stays retryable across fixture calls until stale rows converge.
+	// Cooldown when deletes don't converge — keeps the fixture retryable across
+	// calls without thrashing the API on every call.
 	if (unresolvedStaleDeletes.length > 0) {
 		_staleFixtureIndexesCleanupCooldownUntil = Date.now() + 30_000;
+	}
+
+	if (unresolvedStaleDeletes.length > 0) {
 		return;
 	}
 
@@ -1206,8 +1225,14 @@ async function createSeededIndex(
 		}
 
 		// Shared-host Playwright runs can restart the API with a different
-		// admin key mid-suite. Recover by creating through the authenticated
-		// customer route when admin auth is rejected.
+		// admin key mid-suite. Signal "invalid admin key" so the seedIndex
+		// factory can fall back to customer-auth creation; only attempt the
+		// in-function fallback when seedCustomerIndex explicitly passed its
+		// own token (it owns a per-customer create flow and does not want
+		// the factory-level fallback to a different customer's auth).
+		if (res.status === 401 && !fallbackToken) {
+			throw new Error(`createSeededIndex: invalid admin key (${lastFailure})`);
+		}
 		if (res.status === 401 && fallbackToken) {
 			const fallbackResponse = await callJsonApi(
 				fetch,
@@ -1256,11 +1281,6 @@ async function createSeededIndex(
 	throw new Error(`seedIndex failed after transient create retries: ${lastFailure}`);
 }
 
-// Retained for the admin→customer-auth fallback path that e2e-fixture-user-helpers
-// asserts in fixtures source. Currently unreferenced from seedIndex itself because
-// a Wave B merge collapsed the retry/fallback wiring; the call site is recorded
-// in docs/post_launch_followups.md ("Stopped Wave B worktrees parked 2026-05-26").
-// eslint-disable-next-line @typescript-eslint/no-unused-vars -- see comment above
 async function createSeededIndexForCurrentCustomer(name: string, region: string): Promise<void> {
 	const maxRetries = 6;
 	let lastFailure = 'none';
@@ -2809,15 +2829,41 @@ export const test = base.extend<E2eFixtures & E2eInternalFixtures>({
 		const factory: SeedIndexFn = async (name, region) => {
 			const r = region ?? fixtureEnv.testRegion;
 			// Use the admin endpoint to seed a local Flapjack-backed index directly
-			// so tab/detail browser proofs exercise the real local engine.
-			const token = await getAuthToken();
+			// so tab/detail browser proofs exercise the real local engine. When
+			// admin auth is invalid mid-suite (shared-host API restart), fall back
+			// to the authenticated customer route. Wrap the whole sequence in a
+			// short transport-retry loop so a single fetch disconnect (worker
+			// restart, port flap) does not fail the spec.
 			const customerId = await getCustomerId();
-			await createSeededIndex(customerId, name, r, fixtureEnv.flapjackUrl, token);
-			// The admin create endpoint can return before the customer index-read
-			// path is consistent enough for the detail page loader. Poll the same
-			// read path the UI uses so seeded detail specs do not flake on a 500.
-			await waitForSeededIndex(name);
-			_trackIndexForCleanup(name);
+			for (let attempt = 0; attempt < 3; attempt++) {
+				try {
+					try {
+						await createSeededIndex(customerId, name, r, fixtureEnv.flapjackUrl);
+					} catch (error) {
+						if (
+							error instanceof Error &&
+							error.message.toLowerCase().includes('invalid admin key')
+						) {
+							await createSeededIndexForCurrentCustomer(name, r);
+						} else {
+							throw error;
+						}
+					}
+					// The admin create endpoint can return before the customer
+					// index-read path is consistent enough for the detail page
+					// loader. Poll the same read path the UI uses so seeded detail
+					// specs do not flake on a 500.
+					await waitForSeededIndex(name);
+					_trackIndexForCleanup(name);
+					return;
+				} catch (error) {
+					if (isTransientSeedIndexTransportFailure(error) && attempt < 2) {
+						await sleep(getTransientRetryDelayMs(attempt));
+						continue;
+					}
+					throw error;
+				}
+			}
 		};
 
 		await use(factory);

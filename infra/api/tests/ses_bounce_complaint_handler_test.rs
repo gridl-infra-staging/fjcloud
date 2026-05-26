@@ -2,6 +2,7 @@ mod common;
 
 use std::sync::Arc;
 
+use api::services::alerting::AlertSeverity;
 use api::services::audit_log::{
     ACTION_SES_COMPLAINT_SUPPRESSED, ACTION_SES_PERMANENT_BOUNCE_SUPPRESSED,
 };
@@ -241,10 +242,12 @@ fn build_app_with_pool(
     pool: PgPool,
     customer_repo: Arc<common::MockCustomerRepo>,
     webhook_http_client: Arc<common::MockWebhookHttpClient>,
+    alert_service: Arc<api::services::alerting::MockAlertService>,
 ) -> axum::Router {
     let mut state = common::TestStateBuilder::new()
         .with_customer_repo(customer_repo)
         .with_webhook_http_client(webhook_http_client)
+        .with_alert_service(alert_service)
         .build();
     state.pool = pool;
     api::router::build_router(state)
@@ -511,6 +514,7 @@ async fn hard_bounce_suppresses_recipient_and_writes_correlated_audit_row() {
     };
 
     let customer_repo = common::mock_repo();
+    let alert_service = common::mock_alert_service();
     let customer = customer_repo.seed("Hard Bounce", "hard-bounce@example.com");
     let fixture = SnsSigningFixture::new();
     let webhook_http_client = webhook_http_client_for_fixture(&fixture);
@@ -518,6 +522,7 @@ async fn hard_bounce_suppresses_recipient_and_writes_correlated_audit_row() {
         pool.clone(),
         Arc::clone(&customer_repo),
         webhook_http_client,
+        Arc::clone(&alert_service),
     );
 
     let message = ses_bounce_message(
@@ -565,6 +570,20 @@ async fn hard_bounce_suppresses_recipient_and_writes_correlated_audit_row() {
         audit_row_count(&pool, ACTION_SES_PERMANENT_BOUNCE_SUPPRESSED, customer.id).await,
         1
     );
+    let alerts = alert_service.recorded_alerts();
+    assert_eq!(alerts.len(), 1, "expected one suppression alert");
+    assert_eq!(alerts[0].severity, AlertSeverity::Warning);
+    assert!(
+        alerts[0]
+            .title
+            .contains("SES permanent bounce suppressed recipient"),
+        "unexpected alert title: {}",
+        alerts[0].title
+    );
+    assert!(
+        alerts[0].message.contains("mail-hard-bounce-1"),
+        "alert should include SES message id for live correlation"
+    );
 
     cleanup_for_customer(&pool, customer.id, "hard-bounce@example.com").await;
 }
@@ -576,6 +595,7 @@ async fn complaint_suppresses_recipient_and_writes_correlated_audit_row() {
     };
 
     let customer_repo = common::mock_repo();
+    let alert_service = common::mock_alert_service();
     let customer = customer_repo.seed("Complaint", "complaint@example.com");
     let fixture = SnsSigningFixture::new();
     let webhook_http_client = webhook_http_client_for_fixture(&fixture);
@@ -583,6 +603,7 @@ async fn complaint_suppresses_recipient_and_writes_correlated_audit_row() {
         pool.clone(),
         Arc::clone(&customer_repo),
         webhook_http_client,
+        Arc::clone(&alert_service),
     );
 
     let message = ses_complaint_message("complaint@example.com", "mail-complaint-1").to_string();
@@ -624,6 +645,20 @@ async fn complaint_suppresses_recipient_and_writes_correlated_audit_row() {
         audit_row_count(&pool, ACTION_SES_COMPLAINT_SUPPRESSED, customer.id).await,
         1
     );
+    let alerts = alert_service.recorded_alerts();
+    assert_eq!(alerts.len(), 1, "expected one suppression alert");
+    assert_eq!(alerts[0].severity, AlertSeverity::Warning);
+    assert!(
+        alerts[0]
+            .title
+            .contains("SES complaint suppressed recipient"),
+        "unexpected alert title: {}",
+        alerts[0].title
+    );
+    assert!(
+        alerts[0].message.contains("mail-complaint-1"),
+        "alert should include SES message id for live correlation"
+    );
 
     cleanup_for_customer(&pool, customer.id, "complaint@example.com").await;
 }
@@ -638,10 +673,12 @@ async fn transient_bounce_event_is_ignored_without_suppression_or_audit() {
     let customer = customer_repo.seed("Transient Bounce", "transient@example.com");
     let fixture = SnsSigningFixture::new();
     let webhook_http_client = webhook_http_client_for_fixture(&fixture);
+    let alert_service = common::mock_alert_service();
     let app = build_app_with_pool(
         pool.clone(),
         Arc::clone(&customer_repo),
         webhook_http_client,
+        Arc::clone(&alert_service),
     );
 
     let message = serde_json::json!({
@@ -696,6 +733,11 @@ async fn transient_bounce_event_is_ignored_without_suppression_or_audit() {
     assert_eq!(
         audit_row_count(&pool, ACTION_SES_COMPLAINT_SUPPRESSED, customer.id).await,
         0
+    );
+    assert_eq!(
+        alert_service.recorded_alerts().len(),
+        0,
+        "transient bounces must not emit suppression alerts"
     );
 
     cleanup_for_customer(&pool, customer.id, "transient@example.com").await;

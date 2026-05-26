@@ -63,6 +63,7 @@ create_mock_rehearsal_runner() {
     cat > "$path" <<'MOCK'
 #!/usr/bin/env bash
 set -euo pipefail
+mode="${STAGE4_REHEARSAL_FIXTURE_MODE:-happy}"
 
 env_file=""
 month=""
@@ -105,6 +106,15 @@ cat > "$artifact_dir/webhook.json" <<JSON
 {"name":"webhook","result":"passed","classification":"webhook_ready","detail":"ok","payload":{"required_invoice_ids":["inv_suspended_001","inv_failed_001","inv_recovered_001"],"transition_invoice_ids":{"failed":"inv_failed_001","suspended":"inv_suspended_001","recovered":"inv_recovered_001"}}}
 JSON
 
+if [[ "$mode" == "transition_ids_missing" ]]; then
+    cat > "$artifact_dir/invoice_rows.json" <<JSON
+{"name":"invoice_rows","result":"passed","classification":"invoice_rows_ready","detail":"ok","payload":{"required_invoice_ids":["inv_suspended_001","inv_failed_001","inv_recovered_001"],"rows":[{"invoice_id":"inv_failed_001","email":"alpha@example.test"},{"invoice_id":"inv_suspended_001","email":"alpha@example.test"},{"invoice_id":"inv_recovered_001","email":"alpha@example.test"}]}}
+JSON
+    cat > "$artifact_dir/webhook.json" <<JSON
+{"name":"webhook","result":"passed","classification":"webhook_ready","detail":"ok","payload":{"required_invoice_ids":["inv_suspended_001","inv_failed_001","inv_recovered_001"]}}
+JSON
+fi
+
 cat <<JSON
 {"result":"passed","classification":"rehearsal_completed","detail":"ok","artifact_dir":"$artifact_dir"}
 JSON
@@ -121,6 +131,12 @@ set -euo pipefail
 mode="${DUNNING_VALIDATOR_MOCK_MODE:-happy}"
 
 if [[ "${1:-}" == "s3api" && "${2:-}" == "list-objects-v2" ]]; then
+    if [[ "$mode" == "no_inbound_messages" ]]; then
+        cat <<JSON
+{"Contents":[]}
+JSON
+        exit 0
+    fi
     if [[ "$mode" == "duplicate_invoice_ids" ]]; then
         cat <<JSON
 {"Contents":[
@@ -230,14 +246,22 @@ ENVFILE
 
 run_validator() {
     local mode="$1" env_file="$2" mock_dir="$3" rehearsal_script="$4"
+    run_validator_with_args "$mode" "$env_file" "$mock_dir" "$rehearsal_script" \
+        --env-file "$env_file" \
+        --month 2026-03 \
+        --confirm-live-mutation
+}
+
+run_validator_with_args() {
+    local mode="$1" env_file="$2" mock_dir="$3" rehearsal_script="$4"
+    shift 4
     DUNNING_VALIDATOR_MOCK_MODE="$mode" \
+        STAGE4_REHEARSAL_FIXTURE_MODE="${STAGE4_REHEARSAL_FIXTURE_MODE:-happy}" \
         STAGING_DUNNING_REHEARSAL_SCRIPT="$rehearsal_script" \
         PATH="$mock_dir:$PATH" \
         TMPDIR="$mock_dir" \
         bash "$REPO_ROOT/scripts/validate_staging_dunning_delivery.sh" \
-            --env-file "$env_file" \
-            --month 2026-03 \
-            --confirm-live-mutation 2>&1
+            "$@" 2>&1
 }
 
 test_validator_happy_path_reports_per_transition_invoice_ids() {
@@ -326,6 +350,94 @@ test_validator_continues_scanning_after_first_invoice_id_hit() {
     assert_eq "$(json_transition_field "$output" "failed" "s3_object_key")" "e2e-emails/run-001/failed-correct.eml" "failed transition should bind to the subject-correct message"
 }
 
+test_validator_requires_explicit_month_and_confirmation() {
+    local mock_dir env_file rehearsal_script missing_month_output missing_month_exit missing_confirm_output missing_confirm_exit
+    mock_dir="$(mktemp -d)"
+    env_file="$mock_dir/staging.env"
+    rehearsal_script="$mock_dir/mock_rehearsal.sh"
+
+    write_env_file "$env_file" "https://api.flapjack.foo"
+    create_mock_rehearsal_runner "$rehearsal_script"
+    create_mock_aws "$mock_dir/aws"
+
+    missing_month_output="$(
+        run_validator_with_args happy "$env_file" "$mock_dir" "$rehearsal_script" \
+            --env-file "$env_file" \
+            --confirm-live-mutation
+    )" || missing_month_exit=$?
+
+    missing_confirm_output="$(
+        run_validator_with_args happy "$env_file" "$mock_dir" "$rehearsal_script" \
+            --env-file "$env_file" \
+            --month 2026-03
+    )" || missing_confirm_exit=$?
+
+    rm -rf "$mock_dir"
+
+    assert_eq "${missing_month_exit:-0}" "1" "validator should fail closed when month is missing"
+    assert_valid_json "$missing_month_output" "missing-month output should be valid JSON"
+    assert_eq "$(json_field "$missing_month_output" "result")" "blocked" "missing month should block live mutation"
+    assert_eq "$(json_field "$missing_month_output" "classification")" "live_mutation_confirmation_required" "missing month should emit stable guard classification"
+
+    assert_eq "${missing_confirm_exit:-0}" "1" "validator should fail closed when confirmation flag is missing"
+    assert_valid_json "$missing_confirm_output" "missing-confirm output should be valid JSON"
+    assert_eq "$(json_field "$missing_confirm_output" "result")" "blocked" "missing confirmation should block live mutation"
+    assert_eq "$(json_field "$missing_confirm_output" "classification")" "live_mutation_confirmation_required" "missing confirmation should emit stable guard classification"
+}
+
+test_validator_rejects_repo_default_env_filename() {
+    local mock_dir default_env rehearsal_script output exit_code
+    mock_dir="$(mktemp -d)"
+    default_env="$mock_dir/.env.local"
+    rehearsal_script="$mock_dir/mock_rehearsal.sh"
+
+    write_env_file "$default_env" "https://api.flapjack.foo"
+    create_mock_rehearsal_runner "$rehearsal_script"
+    create_mock_aws "$mock_dir/aws"
+
+    output="$(
+        run_validator_with_args happy "$default_env" "$mock_dir" "$rehearsal_script" \
+            --env-file "$default_env" \
+            --month 2026-03 \
+            --confirm-live-mutation
+    )" || exit_code=$?
+
+    rm -rf "$mock_dir"
+
+    assert_eq "${exit_code:-0}" "1" "validator should reject repo-default env filenames"
+    assert_valid_json "$output" "repo-default-env output should be valid JSON"
+    assert_eq "$(json_field "$output" "result")" "blocked" "repo-default env filename should block execution"
+    assert_eq "$(json_field "$output" "classification")" "repo_default_env_file_rejected" "repo-default env filename should emit stable guard classification"
+}
+
+test_validator_reports_rehearsal_owner_failure_details() {
+    local mock_dir env_file rehearsal_script output exit_code
+    mock_dir="$(mktemp -d)"
+    env_file="$mock_dir/staging.env"
+    rehearsal_script="$mock_dir/failing_rehearsal.sh"
+
+    write_env_file "$env_file" "https://api.flapjack.foo"
+    create_mock_aws "$mock_dir/aws"
+    cat > "$rehearsal_script" <<'MOCK'
+#!/usr/bin/env bash
+set -euo pipefail
+cat <<'JSON'
+{"result":"failed","classification":"billing_run_no_created_invoices","detail":"Batch billing response had no created invoice IDs"}
+JSON
+exit 1
+MOCK
+    chmod +x "$rehearsal_script"
+
+    output="$(run_validator happy "$env_file" "$mock_dir" "$rehearsal_script")" || exit_code=$?
+    rm -rf "$mock_dir"
+
+    assert_eq "${exit_code:-0}" "1" "validator should fail when rehearsal owner exits non-zero"
+    assert_valid_json "$output" "rehearsal failure output should be valid JSON"
+    assert_eq "$(json_field "$output" "result")" "failed" "rehearsal failure should emit failed result"
+    assert_eq "$(json_field "$output" "classification")" "rehearsal_failed" "rehearsal failure should map to stable validator classification"
+    assert_contains "$output" "billing_run_no_created_invoices" "rehearsal failure details should preserve owner-side classification for diagnosis"
+}
+
 test_validator_fails_closed_for_non_staging_hostname() {
     local mock_dir env_file rehearsal_script output exit_code
     mock_dir="$(mktemp -d)"
@@ -345,12 +457,85 @@ test_validator_fails_closed_for_non_staging_hostname() {
     assert_eq "$(json_field "$output" "classification")" "non_staging_api_hostname" "non-staging hostname should emit stable classifier"
 }
 
+test_validator_fails_when_inbound_message_listing_is_empty() {
+    local mock_dir env_file rehearsal_script output exit_code
+    mock_dir="$(mktemp -d)"
+    env_file="$mock_dir/staging.env"
+    rehearsal_script="$mock_dir/mock_rehearsal.sh"
+
+    write_env_file "$env_file" "https://api.flapjack.foo"
+    create_mock_rehearsal_runner "$rehearsal_script"
+    create_mock_aws "$mock_dir/aws"
+
+    output="$(run_validator no_inbound_messages "$env_file" "$mock_dir" "$rehearsal_script")" || exit_code=$?
+
+    rm -rf "$mock_dir"
+
+    assert_eq "${exit_code:-0}" "1" "validator should fail when inbound RFC822 listing is empty"
+    assert_valid_json "$output" "empty inbound listing output should be valid JSON"
+    assert_eq "$(json_field "$output" "result")" "failed" "empty inbound listing should emit failed result"
+    assert_eq "$(json_field "$output" "classification")" "inbound_messages_missing" "empty inbound listing should emit stable classification"
+    assert_eq "$(json_transition_field "$output" "failed" "result")" "" "transition assertions should not run when no inbound objects are listed"
+}
+
+test_validator_fails_when_transition_invoice_mapping_is_missing() {
+    local mock_dir env_file rehearsal_script output exit_code
+    mock_dir="$(mktemp -d)"
+    env_file="$mock_dir/staging.env"
+    rehearsal_script="$mock_dir/mock_rehearsal.sh"
+
+    write_env_file "$env_file" "https://api.flapjack.foo"
+    create_mock_rehearsal_runner "$rehearsal_script"
+    create_mock_aws "$mock_dir/aws"
+
+    output="$(
+        STAGE4_REHEARSAL_FIXTURE_MODE=transition_ids_missing \
+            run_validator happy "$env_file" "$mock_dir" "$rehearsal_script"
+    )" || exit_code=$?
+
+    rm -rf "$mock_dir"
+
+    assert_eq "${exit_code:-0}" "1" "validator should fail when rehearsal artifacts omit transition invoice mapping"
+    assert_valid_json "$output" "missing-transition-map output should be valid JSON"
+    assert_eq "$(json_field "$output" "result")" "failed" "missing-transition-map should emit failed result"
+    assert_eq "$(json_field "$output" "classification")" "transition_invoice_mapping_missing" "missing-transition-map should emit stable classification"
+}
+
+test_validator_fails_when_ses_region_missing() {
+    local mock_dir env_file rehearsal_script output exit_code
+    mock_dir="$(mktemp -d)"
+    env_file="$mock_dir/staging.env"
+    rehearsal_script="$mock_dir/mock_rehearsal.sh"
+
+    cat > "$env_file" <<ENVFILE
+STAGING_API_URL=https://api.flapjack.foo
+INBOUND_ROUNDTRIP_S3_URI=s3://flapjack-cloud-releases/e2e-emails/run-001/
+ENVFILE
+    create_mock_rehearsal_runner "$rehearsal_script"
+    create_mock_aws "$mock_dir/aws"
+
+    output="$(run_validator happy "$env_file" "$mock_dir" "$rehearsal_script")" || exit_code=$?
+
+    rm -rf "$mock_dir"
+
+    assert_eq "${exit_code:-0}" "1" "validator should fail when SES_REGION is missing"
+    assert_valid_json "$output" "missing-ses-region output should be valid JSON"
+    assert_eq "$(json_field "$output" "result")" "failed" "missing-ses-region should emit failed result"
+    assert_eq "$(json_field "$output" "classification")" "ses_region_missing" "missing-ses-region should emit stable classification"
+}
+
 echo "=== validate_staging_dunning_delivery.sh tests ==="
 test_validator_happy_path_reports_per_transition_invoice_ids
 test_validator_accepts_sanctioned_staging_hostname_contract
 test_validator_fails_when_rfc822_subject_assertion_is_missing
 test_validator_continues_scanning_after_first_invoice_id_hit
+test_validator_requires_explicit_month_and_confirmation
+test_validator_rejects_repo_default_env_filename
+test_validator_reports_rehearsal_owner_failure_details
 test_validator_fails_closed_for_non_staging_hostname
+test_validator_fails_when_inbound_message_listing_is_empty
+test_validator_fails_when_transition_invoice_mapping_is_missing
+test_validator_fails_when_ses_region_missing
 
 echo "=== Results: $PASS_COUNT passed, $FAIL_COUNT failed ==="
 [ "$FAIL_COUNT" -eq 0 ]

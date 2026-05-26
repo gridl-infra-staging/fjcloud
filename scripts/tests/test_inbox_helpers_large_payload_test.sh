@@ -108,11 +108,43 @@ test_finds_match_with_large_list_payload() {
         "helper should return the target key whose body contains the nonce"
 }
 
+test_lists_recent_keys_with_large_list_payload() {
+    local output mock_dir
+    mock_dir="$(mktemp -d)"
+    cat > "$mock_dir/python3" <<'PY3'
+#!/usr/bin/env bash
+set -euo pipefail
+if [ "${1:-}" = "-" ] && [ "${2:-}" = "--argv-guard" ]; then
+    shift 2
+    exec /usr/bin/python3 "$@"
+fi
+for arg in "$@"; do
+    if [ "${#arg}" -gt 4096 ]; then
+        echo "python argv payload too large for test guard" >&2
+        exit 88
+    fi
+done
+exec /usr/bin/python3 "$@"
+PY3
+    chmod +x "$mock_dir/python3"
+
+    if ! output="$(PATH="$mock_dir:$PATH" test_inbox_list_recent_object_keys_json flapjack-cloud-releases e2e-emails/ us-east-1 5 2>&1)"; then
+        rm -rf "$mock_dir"
+        fail "list helper must succeed with large list payload; output: ${output}"
+        return
+    fi
+    rm -rf "$mock_dir"
+    assert_valid_json "$output" "list helper should return valid JSON for large payloads"
+    assert_contains "$output" "$TARGET_KEY" \
+        "list helper should include the newest target key from a large payload"
+}
+
 main() {
     echo "=== test_inbox_helpers_large_payload_test.sh ==="
     echo ""
 
     test_finds_match_with_large_list_payload
+    test_lists_recent_keys_with_large_list_payload
 
     echo ""
     echo "=== Results: $PASS_COUNT passed, $FAIL_COUNT failed ==="

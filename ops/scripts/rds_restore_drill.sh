@@ -158,6 +158,8 @@ require_execute_gate() {
 resolve_source_subnet_group() {
   local describe_payload=""
   local parse_output=""
+  local parsed_identifier=""
+  local parsed_subnet_group=""
   local describe_exit=0
   local parse_exit=0
 
@@ -187,11 +189,13 @@ with open(sys.argv[1], "r", encoding="utf-8") as fh:
     payload = json.load(fh)
 instances = payload.get("DBInstances", [])
 if not instances:
-    print("")
+    print("\t")
     raise SystemExit(0)
 
-subnet_group = (instances[0].get("DBSubnetGroup") or {}).get("DBSubnetGroupName", "")
-print(str(subnet_group))
+instance = instances[0]
+identifier = str(instance.get("DBInstanceIdentifier", ""))
+subnet_group = (instance.get("DBSubnetGroup") or {}).get("DBSubnetGroupName", "")
+print(f"{identifier}\t{subnet_group}")
 PY
   )"
   parse_exit=$?
@@ -202,12 +206,23 @@ PY
     exit 1
   fi
 
-  if [[ -z "$parse_output" ]]; then
+  IFS=$'\t' read -r parsed_identifier parsed_subnet_group <<< "$parse_output"
+  if [[ -z "$parsed_identifier" ]]; then
+    echo "ERROR: describe-db-instances payload did not include requested source identifier '$SOURCE_DB_INSTANCE_ID'"
+    exit 1
+  fi
+
+  if [[ "$parsed_identifier" != "$SOURCE_DB_INSTANCE_ID" ]]; then
+    echo "ERROR: describe-db-instances payload did not include requested source identifier '$SOURCE_DB_INSTANCE_ID' (got '$parsed_identifier')"
+    exit 1
+  fi
+
+  if [[ -z "$parsed_subnet_group" ]]; then
     echo "ERROR: source DB instance '$SOURCE_DB_INSTANCE_ID' has no DBSubnetGroupName; refusing restore without explicit subnet placement"
     exit 1
   fi
 
-  SOURCE_DB_SUBNET_GROUP_NAME="$parse_output"
+  SOURCE_DB_SUBNET_GROUP_NAME="$parsed_subnet_group"
 }
 
 build_restore_command() {

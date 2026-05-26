@@ -96,6 +96,17 @@ JSON
 ]}
 JSON
             ;;
+        run_scoped_unsorted_with_invalid_timestamps)
+            cat <<'JSON'
+{"Contents":[
+  {"Key":"e2e-emails/run-002/invalid-ts.eml","LastModified":"not-a-timestamp"},
+  {"Key":"e2e-emails/run-002/newest.eml","LastModified":"2026-05-16T01:00:03Z"},
+  {"Key":"e2e-emails/run-002/missing-ts.eml"},
+  {"Key":"e2e-emails/run-002/second-newest.eml","LastModified":"2026-05-16T01:00:02Z"},
+  {"Key":"e2e-emails/run-002/oldest.eml","LastModified":"2026-05-16T01:00:01Z"}
+]}
+JSON
+            ;;
         never_found)
             cat <<'JSON'
 {"Contents":[]}
@@ -358,6 +369,59 @@ RFC822
     assert_eq "${fetch_exit:-0}" "2" "fetch helper should fail fast on missing required args"
 }
 
+test_list_recent_object_keys_validates_required_args() {
+    local mock_dir call_log count_file fixture_file list_exit
+    source_helpers
+
+    mock_dir="$(new_mock_command_dir "aws" "$(test_inbox_helpers_mock_aws_body)")"
+    call_log="$mock_dir/aws_calls.log"
+    count_file="$mock_dir/list_count.txt"
+    fixture_file="$mock_dir/fixture.eml"
+    : > "$call_log"
+    printf '0\n' > "$count_file"
+    cat > "$fixture_file" <<'RFC822'
+From: sender@example.com
+To: receiver@example.com
+Subject: validation
+
+body
+RFC822
+
+    TEST_INBOX_HELPERS_AWS_CALL_LOG="$call_log" \
+        TEST_INBOX_HELPERS_LIST_MODE="found_immediately" \
+        TEST_INBOX_HELPERS_LIST_COUNT_FILE="$count_file" \
+        TEST_INBOX_HELPERS_NONCE="helper-list-validate" \
+        TEST_INBOX_HELPERS_RFC822_FIXTURE="$fixture_file" \
+        PATH="$mock_dir:$PATH" \
+        test_inbox_list_recent_object_keys_json "" "e2e-emails/" "us-east-1" "25" >/dev/null 2>&1 || list_exit=$?
+
+    rm -rf "$mock_dir"
+    assert_eq "${list_exit:-0}" "2" "list helper should fail fast on missing required args"
+}
+
+test_list_recent_object_keys_reports_aws_failure() {
+    local mock_dir output exit_code
+    source_helpers
+
+    mock_dir="$(mktemp -d)"
+    cat > "$mock_dir/aws" <<'MOCK'
+#!/usr/bin/env bash
+echo "simulated list failure" >&2
+exit 42
+MOCK
+    chmod +x "$mock_dir/aws"
+
+    output="$(
+        PATH="$mock_dir:$PATH" \
+        test_inbox_list_recent_object_keys_json "flapjack-cloud-releases" "e2e-emails/" "us-east-1" "25" 2>&1
+    )" || exit_code=$?
+
+    rm -rf "$mock_dir"
+    assert_eq "${exit_code:-0}" "1" "list helper should return 1 when aws list call fails"
+    assert_contains "$output" "aws s3api list-objects-v2 failed for s3://flapjack-cloud-releases/e2e-emails/" \
+        "list helper should emit owner error when aws list call fails"
+}
+
 test_extract_verify_token_reads_path_style_link() {
     local payload extracted
     source_helpers
@@ -450,6 +514,46 @@ RFC822
     assert_contains "$keys_json" "e2e-emails/run-001/failed.eml" "run-scoped list helper should include failed object key"
 }
 
+test_list_s3_object_keys_respects_sorting_and_max_keys() {
+    local mock_dir call_log count_file fixture_file keys_json expected_json normalized_json
+    source_helpers
+
+    mock_dir="$(new_mock_command_dir "aws" "$(test_inbox_helpers_mock_aws_body)")"
+    call_log="$mock_dir/aws_calls.log"
+    count_file="$mock_dir/list_count.txt"
+    fixture_file="$mock_dir/fixture.eml"
+    : > "$call_log"
+    printf '0\n' > "$count_file"
+    cat > "$fixture_file" <<'RFC822'
+From: sender@example.com
+To: receiver@example.com
+Subject: fixture
+
+fixture body
+RFC822
+
+    keys_json="$(
+        TEST_INBOX_HELPERS_AWS_CALL_LOG="$call_log" \
+        TEST_INBOX_HELPERS_LIST_MODE="run_scoped_unsorted_with_invalid_timestamps" \
+        TEST_INBOX_HELPERS_LIST_COUNT_FILE="$count_file" \
+        TEST_INBOX_HELPERS_NONCE="helper-run-scope-ordering" \
+        TEST_INBOX_HELPERS_RFC822_FIXTURE="$fixture_file" \
+        PATH="$mock_dir:$PATH" \
+        test_inbox_list_recent_object_keys_json "flapjack-cloud-releases" "e2e-emails/run-002/" "us-east-1" "2"
+    )"
+    rm -rf "$mock_dir"
+
+    assert_valid_json "$keys_json" "sorted list helper should return JSON array"
+    expected_json='["e2e-emails/run-002/newest.eml","e2e-emails/run-002/second-newest.eml"]'
+    normalized_json="$(python3 - "$keys_json" <<'PY'
+import json
+import sys
+print(json.dumps(json.loads(sys.argv[1]), separators=(",", ":")))
+PY
+)"
+    assert_eq "$normalized_json" "$expected_json" "sorted list helper should return newest keys first and honor max_keys"
+}
+
 echo "=== test_inbox_helpers.sh tests ==="
 test_nonce_subject_body_contract
 test_poll_finds_matching_s3_object_after_retries
@@ -458,10 +562,13 @@ test_poll_scans_paginated_s3_listings
 test_poll_times_out_with_timeout_exit_code
 test_fetch_rfc822_reads_message_content
 test_aws_backed_helpers_validate_required_args
+test_list_recent_object_keys_validates_required_args
+test_list_recent_object_keys_reports_aws_failure
 test_extract_verify_token_reads_path_style_link
 test_extract_verify_token_supports_legacy_query_shape
 test_extract_subject_and_body_from_rfc822_payload
 test_list_s3_object_keys_for_run_scope_returns_recent_keys
+test_list_s3_object_keys_respects_sorting_and_max_keys
 
 echo "=== Results: $PASS_COUNT passed, $FAIL_COUNT failed ==="
 [ "$FAIL_COUNT" -eq 0 ]

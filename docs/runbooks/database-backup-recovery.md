@@ -18,12 +18,14 @@ If using AWS RDS for Postgres, automated backups and PITR are built-in.
 1. **Enable automated backups**: RDS console -> DB instance -> Modify -> Backup retention period: 30 days
 2. **Backup window**: Set to a low-traffic period (for example, 04:00-05:00 UTC)
 3. **Enable PITR**: Automatically enabled when backup retention is >0 days
-4. **Enable deletion protection**: RDS console -> Modify -> Enable deletion protection
+4. **Enable deletion protection on production instances**: prod should stay protected against accidental delete calls. Staging may intentionally differ, so always probe the live `DeletionProtection` value before using a delete-based verification step.
 
 ### Restore drill (script first)
 
 Use the guarded script as the primary interface. Base command pattern:
 `bash ops/scripts/rds_restore_drill.sh staging|prod --source-db-instance-id <source-db> --target-db-instance-id <target-db> [--snapshot-id <snapshot>] [--restore-time <timestamp>]`
+
+The live instance identifiers come from `ops/terraform/data/main.tf` (`identifier = "fjcloud-${var.env}"`), so the current source DBs are `fjcloud-staging` and `fjcloud-prod`.
 
 By default the script is dry-run and prints the AWS restore command without dispatching it.
 
@@ -31,16 +33,16 @@ Snapshot-mode dry-run example:
 
 ```bash
 bash ops/scripts/rds_restore_drill.sh staging \
-  --source-db-instance-id fjcloud-staging-db \
+  --source-db-instance-id fjcloud-staging \
   --target-db-instance-id fjcloud-staging-restore-20260422 \
-  --snapshot-id rds:fjcloud-staging-db-2026-04-22-03-00
+  --snapshot-id rds:fjcloud-staging-2026-04-22-03-00
 ```
 
 Point-in-time dry-run example:
 
 ```bash
 bash ops/scripts/rds_restore_drill.sh staging \
-  --source-db-instance-id fjcloud-staging-db \
+  --source-db-instance-id fjcloud-staging \
   --target-db-instance-id fjcloud-staging-restore-20260422-pitr \
   --restore-time 2026-04-22T03:15:00Z
 ```
@@ -56,9 +58,9 @@ The variable is documented in `docs/env-vars.md` under the AWS environment table
 ```bash
 RDS_RESTORE_DRILL_EXECUTE=1 \
 bash ops/scripts/rds_restore_drill.sh staging \
-  --source-db-instance-id fjcloud-staging-db \
+  --source-db-instance-id fjcloud-staging \
   --target-db-instance-id fjcloud-staging-restore-20260422 \
-  --snapshot-id rds:fjcloud-staging-db-2026-04-22-03-00
+  --snapshot-id rds:fjcloud-staging-2026-04-22-03-00
 ```
 
 ### Restore contract and monitoring
@@ -73,20 +75,18 @@ bash ops/scripts/rds_restore_drill.sh staging \
 
 ## Restore verification and evidence (required)
 
-After AWS reports the target instance as available, connect to the restored target endpoint and run sanity queries.
+After AWS reports the target instance as available, connect to the restored target endpoint and run sanity queries. The current RDS topology is private-subnet only (`publicly_accessible = false` in `ops/terraform/data/main.tf`), so run the verification from an in-VPC host such as the environment's API EC2 via SSM rather than from the agent host.
 
 ```bash
-# Example: capture a single evidence log with all query results without putting the
-# DB password in shell history or process arguments. The password file must be
-# owner-only (`chmod 600`) and contain:
-#   <restored-target-endpoint>:5432:<db_name>:<user>:<password>
-PGPASSFILE=/secure/path/restore.pgpass \
-psql "host=<restored-target-endpoint> port=5432 dbname=<db_name> user=<user> sslmode=require" <<'SQL' | tee docs/runbooks/evidence/database-recovery/20260422T031500Z_staging_restore_verification.txt
+PGPASSFILE=~/.pgpass \
+psql "postgres://<user>@<restored-target-endpoint>:5432/fjcloud" <<'SQL' | tee docs/runbooks/evidence/database-recovery/20260422T031500Z_staging_restore_verification.txt
 SELECT COUNT(*) AS customers_total FROM customers;
 SELECT COUNT(*) AS customer_tenants_total FROM customer_tenants;
 SELECT COUNT(*) AS invoices_last_7d FROM invoices WHERE created_at > now() - interval '7 days';
 SELECT COUNT(*) AS deployments_running FROM customer_deployments WHERE status = 'running';
 SELECT COUNT(*) AS usage_records_last_1d FROM usage_records WHERE recorded_at > now() - interval '1 day';
+SELECT COUNT(*) AS migrations_total FROM _sqlx_migrations;
+SELECT MAX(version) AS migrations_max_version FROM _sqlx_migrations;
 SQL
 ```
 
@@ -96,7 +96,7 @@ Verification requirements:
 - `customer_deployments` running count must match the known expected environment state at drill time.
 - Recent invoices and usage rows should be nonzero when billing or metering activity exists in the selected recovery window.
 - Environments with no customer/usage activity (e.g., a freshly-cut staging environment with no seeded customers) will legitimately return zero counts. In that case, capture the zero-count output together with `SELECT COUNT(*) FROM _sqlx_migrations` and `SELECT MAX(version) FROM _sqlx_migrations` to prove the restored schema/migration state is consistent with the source DB. Do not claim restore proof unless the evidence file explicitly notes the empty-baseline condition.
-- Do not pass live DB passwords on the `psql` command line; use an owner-only `PGPASSFILE` or an equivalent secret-loading mechanism.
+- Do not pass live DB passwords on the `psql` command line; use `PGPASSFILE` (or an equivalent libpq password-file flow) so credentials never appear in argv.
 - Store command output and notes under `docs/runbooks/evidence/database-recovery/`.
 - Status docs may claim restore proof only when this evidence path contains captured sanity-query output from a real gated execution that reached `available`.
 - The staging run attempted on `2026-04-23` reached `available` after the wrapper's initial poll window; operator verification on the same day captured the canonical evidence file `docs/runbooks/evidence/database-recovery/20260423T201333Z_staging_restore_verification.txt` (schema intact, 39 migrations present, zero-count data expected for the empty staging baseline).

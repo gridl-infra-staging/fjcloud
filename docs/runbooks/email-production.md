@@ -9,7 +9,7 @@ are enabled in the Stripe Dashboard; the app should not duplicate them.
 | Email | Owner | Source |
 | --- | --- | --- |
 | Invoice receipt (paid) | Stripe Billing | Stripe Dashboard → Settings → Customer emails |
-| Failed payment / dunning | Stripe Billing (Smart Retries) | Stripe Dashboard → Settings → Customer emails |
+| Failed payment / dunning | App (`state.email_service` in webhook invoice-payment handlers; gated by `dunning_emails_disabled`) | `infra/api/src/routes/webhooks.rs` (`process_invoice_payment_failed` / `process_invoice_payment_succeeded`) |
 | Expiring card notification | Stripe Billing | Stripe Dashboard → Settings → Customer emails |
 | Refund confirmation | Stripe Billing | Automatic on Dashboard/API refund |
 | Subscription cancellation | Stripe Billing | Automatic on cancellation |

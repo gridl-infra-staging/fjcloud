@@ -11,6 +11,7 @@ Ownership boundary:
 - Callers own alert-specific metadata values (title/message/source/nonce/env).
 TODO: Document build_slack_critical_payload. |
 | billing_rehearsal_steps.sh | Shared planned-step list for staging billing preflight/rehearsal JSON output. |
+| clickthrough_probe_common.sh | Stub summary for clickthrough_probe_common.sh. |
 | contract_secret_env.sh | Stub summary for contract_secret_env.sh. |
 | customer_lifecycle_steps.sh | Stub summary for customer_lifecycle_steps.sh. |
 | deterministic_batch_payload.sh | Stub summary for deterministic_batch_payload.sh. |

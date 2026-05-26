@@ -67,7 +67,10 @@ TS="$(date -u +%Y%m%dT%H%M%SZ)"
 OUT="docs/live-state/$TS"
 mkdir -p "$OUT"
 
-SUMMARY="$OUT/SUMMARY.md"
+SUMMARY_DEFAULT="$OUT/SUMMARY.md"
+SUMMARY="$SUMMARY_DEFAULT"
+OUTPUT_PATH="${LIVE_STATE_OUTPUT_PATH:-$SUMMARY_DEFAULT}"
+mkdir -p "$(dirname "$SUMMARY")"
 MANIFEST="$OUT/manifest.txt"
 : > "$MANIFEST"   # truncate
 
@@ -785,5 +788,10 @@ fi
   echo "Run: \`bash scripts/probe_live_state.sh\` again to refresh; new timestamp dir per run."
 } >> "$SUMMARY"
 
-echo "Probe complete: $OUT"
+if [ "$OUTPUT_PATH" != "$SUMMARY" ]; then
+  mkdir -p "$(dirname "$OUTPUT_PATH")"
+  cp "$SUMMARY" "$OUTPUT_PATH"
+fi
+
+echo "$OUTPUT_PATH"
 exit 0

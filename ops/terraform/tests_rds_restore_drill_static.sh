@@ -22,6 +22,8 @@ assert_file_contains "$script_file" '\-\-restore-time' "rds_restore_drill.sh sup
 assert_file_contains "$script_file" 'has_snapshot" == true && "\$has_restore_time" == true' "rds_restore_drill.sh rejects simultaneous snapshot and PITR selectors"
 assert_file_contains "$script_file" 'has_snapshot" == false && "\$has_restore_time" == false' "rds_restore_drill.sh rejects missing restore selector"
 assert_file_contains "$script_file" 'provide exactly one restore mode selector \(\-\-snapshot-id or \-\-restore-time\)' "rds_restore_drill.sh documents exactly-one restore selector contract"
+assert_file_contains "$script_file" 'describe-db-instances payload did not include requested source identifier' "rds_restore_drill.sh rejects describe payloads that do not include the requested source identifier"
+assert_file_contains "$script_file" "did not include requested source identifier '\\\$SOURCE_DB_INSTANCE_ID' \\(got '\\\$parsed_identifier'\\)" "rds_restore_drill.sh reports mismatched describe identifier with expected and observed values"
 assert_file_contains "$script_file" 'not supported because CLI arguments can leak secrets via process inspection' "rds_restore_drill.sh rejects password-bearing CLI args to avoid argv secret exposure"
 assert_file_contains "$script_file" 'restore-db-instance-from-db-snapshot' "rds_restore_drill.sh wires snapshot restore API"
 assert_file_contains "$script_file" 'restore-db-instance-to-point-in-time' "rds_restore_drill.sh wires PITR restore API"

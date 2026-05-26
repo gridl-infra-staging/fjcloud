@@ -119,6 +119,32 @@ AWSMOCK
   chmod +x "${MOCK_DIR}/aws"
 }
 
+setup_mismatched_source_identifier_aws() {
+  setup
+
+  cat > "${MOCK_DIR}/aws" <<'AWSMOCK'
+#!/usr/bin/env bash
+set -euo pipefail
+
+LOG_FILE="${RDS_RESTORE_TEST_AWS_LOG:?}"
+printf '%s\n' "$*" >> "$LOG_FILE"
+
+if [[ "$1" == "rds" && "$2" == "describe-db-instances" ]]; then
+  cat <<'JSON'
+{"DBInstances":[{"DBInstanceIdentifier":"fjcloud-unrelated-db","DBSubnetGroup":{"DBSubnetGroupName":"fjcloud-staging"}}]}
+JSON
+  exit 0
+fi
+
+if [[ "$1" == "rds" ]]; then
+  exit 0
+fi
+
+exit 0
+AWSMOCK
+  chmod +x "${MOCK_DIR}/aws"
+}
+
 run_script() {
   local output
   local exit_code=0
@@ -416,6 +442,37 @@ assert_aws_log_contains 'rds restore-db-instance-to-point-in-time' "failing live
 teardown
 
 # source subnet-group lookup failure stops restore path
+echo ""
+echo "--- mismatched describe payload source identifier is rejected ---"
+setup_mismatched_source_identifier_aws
+output=""
+exit_code=0
+output=$(PATH="${MOCK_DIR}:$PATH" \
+  RDS_RESTORE_TEST_AWS_LOG="$AWS_LOG" \
+  RDS_RESTORE_DRILL_EXECUTE=1 \
+  bash "$RESTORE_SCRIPT" staging \
+  --source-db-instance-id fjcloud-staging-db \
+  --target-db-instance-id fjcloud-staging-restore \
+  --snapshot-id rds:fjcloud-staging-db-2026-04-22 2>&1) || exit_code=$?
+
+if [[ "$exit_code" -ne 0 ]]; then
+  pass "mismatched describe payload exits non-zero"
+else
+  fail "mismatched describe payload exits non-zero"
+fi
+if echo "$output" | rg -q "did not include requested source identifier"; then
+  pass "mismatched describe payload output is contextualized"
+else
+  fail "mismatched describe payload output is contextualized"
+fi
+if echo "$output" | rg -q "got 'fjcloud-unrelated-db'"; then
+  pass "mismatched describe payload output names observed identifier"
+else
+  fail "mismatched describe payload output names observed identifier"
+fi
+assert_aws_log_not_contains 'rds restore-db-instance-from-db-snapshot|rds restore-db-instance-to-point-in-time' "mismatched describe payload blocks restore API calls"
+teardown
+
 echo ""
 echo "--- describe-db-instances failure is surfaced ---"
 setup_describe_failure_aws

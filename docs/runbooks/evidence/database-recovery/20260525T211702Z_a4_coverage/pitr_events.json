@@ -1,0 +1,44 @@
+{
+    "Events": [
+        {
+            "SourceIdentifier": "fjcloud-staging-pitr-20260525t213118z",
+            "SourceType": "db-instance",
+            "Message": "The DB instance has a DB engine minor version upgrade available.",
+            "EventCategories": [
+                "maintenance"
+            ],
+            "Date": "2026-05-25T21:33:52.309000+00:00",
+            "SourceArn": "arn:aws:rds:us-east-1:213880904778:db:fjcloud-staging-pitr-20260525t213118z"
+        },
+        {
+            "SourceIdentifier": "fjcloud-staging-pitr-20260525t213118z",
+            "SourceType": "db-instance",
+            "Message": "Restored from DB instance fjcloud-staging to 2026-05-25 20:56:33.0",
+            "EventCategories": [
+                "restoration"
+            ],
+            "Date": "2026-05-25T21:40:12.132000+00:00",
+            "SourceArn": "arn:aws:rds:us-east-1:213880904778:db:fjcloud-staging-pitr-20260525t213118z"
+        },
+        {
+            "SourceIdentifier": "fjcloud-staging-pitr-20260525t213118z",
+            "SourceType": "db-instance",
+            "Message": "DB instance restarted",
+            "EventCategories": [
+                "availability"
+            ],
+            "Date": "2026-05-25T21:40:38.231000+00:00",
+            "SourceArn": "arn:aws:rds:us-east-1:213880904778:db:fjcloud-staging-pitr-20260525t213118z"
+        },
+        {
+            "SourceIdentifier": "fjcloud-staging-pitr-20260525t213118z",
+            "SourceType": "db-instance",
+            "Message": "Backing up DB instance",
+            "EventCategories": [
+                "backup"
+            ],
+            "Date": "2026-05-25T21:42:24.912000+00:00",
+            "SourceArn": "arn:aws:rds:us-east-1:213880904778:db:fjcloud-staging-pitr-20260525t213118z"
+        }
+    ]
+}

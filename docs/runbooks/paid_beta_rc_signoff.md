@@ -57,12 +57,13 @@ API-readable and need operator re-verification on any policy change.
 | Support email (also dispute response) | yes (`business_profile.support_email`) | `stripe_account_config` |
 | Statement descriptor | yes (`settings.payments.statement_descriptor`) | `stripe_account_config` |
 | Customer Emails → invoice receipts | no | operator-verified |
-| Customer Emails → failed payment / dunning | no | operator-verified |
+| Customer Emails → failed payment notices | no | operator-verified |
 | Customer Emails → expiring card | no | operator-verified |
 | Payout schedule + bank account | no | operator-verified |
 
 The Customer Emails toggles are what keep app-side from having to send
-invoice/dunning/expiring-card emails — see the Template Ownership matrix in
+invoice-receipt/expiring-card emails; dunning lifecycle emails remain app-owned
+via webhook handlers — see the Template Ownership matrix in
 [`email-production.md`](email-production.md). Treat these as RC prerequisites,
 not deferrable.
 

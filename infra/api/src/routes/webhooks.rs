@@ -1342,6 +1342,18 @@ async fn handle_bounce_notification(
     )
     .await;
 
+    send_alert_best_effort(
+        state,
+        ses_suppression_alert(
+            AlertSeverity::Warning,
+            "SES permanent bounce suppressed recipient",
+            &normalized_recipient,
+            &notification.mail.message_id,
+            &suppression_reason,
+        ),
+    )
+    .await;
+
     Ok(())
 }
 
@@ -1385,7 +1397,47 @@ async fn handle_complaint_notification(
     )
     .await;
 
+    send_alert_best_effort(
+        state,
+        ses_suppression_alert(
+            AlertSeverity::Warning,
+            "SES complaint suppressed recipient",
+            &normalized_recipient,
+            &notification.mail.message_id,
+            "complaint",
+        ),
+    )
+    .await;
+
     Ok(())
+}
+
+fn ses_suppression_alert(
+    severity: AlertSeverity,
+    title_prefix: &str,
+    recipient_email: &str,
+    ses_mail_message_id: &str,
+    suppression_reason: &str,
+) -> Alert {
+    let mut metadata = HashMap::new();
+    metadata.insert("recipient_email".to_string(), recipient_email.to_string());
+    metadata.insert(
+        "ses_mail_message_id".to_string(),
+        ses_mail_message_id.to_string(),
+    );
+    metadata.insert(
+        "suppression_reason".to_string(),
+        suppression_reason.to_string(),
+    );
+
+    Alert {
+        severity,
+        title: format!("{title_prefix} {recipient_email}"),
+        message: format!(
+            "Recipient {recipient_email} was suppressed for {suppression_reason} (ses_mail_message_id={ses_mail_message_id})"
+        ),
+        metadata,
+    }
 }
 
 fn extract_recipient_from_bounce(bounce: &SesBounce) -> Result<String, ApiError> {

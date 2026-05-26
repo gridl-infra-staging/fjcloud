@@ -1,0 +1,4 @@
+live_deletion_protection=False
+status=aborted_fail_safe
+reason=fjcloud-staging deletion protection is false; refusing delete probe against source instance
+action=re-enable deletion protection before any source delete probe is attempted

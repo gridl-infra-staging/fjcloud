@@ -149,14 +149,19 @@ while [ "$#" -gt 0 ]; do
     esac
 done
 
-if [[ "${PROBE_TEST_BROADCAST_MODE:-success}" == "bad_json" ]]; then
-    echo "not-json"
-    exit 0
-fi
+    if [[ "${PROBE_TEST_BROADCAST_MODE:-success}" == "bad_json" ]]; then
+        echo "not-json"
+        exit 0
+    fi
 
-if [[ "$subject" == *"-second"* ]]; then
-    echo '{"mode":"live_send","suppressed_count":1,"attempted_count":2,"success_count":1,"failure_count":0}'
-else
+    if [[ "${PROBE_TEST_BROADCAST_MODE:-success}" == "bad_json_second_only" && "$subject" == *"-second"* ]]; then
+        echo "not-json"
+        exit 0
+    fi
+
+    if [[ "$subject" == *"-second"* ]]; then
+        echo '{"mode":"live_send","suppressed_count":1,"attempted_count":2,"success_count":1,"failure_count":0}'
+    else
     echo '{"mode":"live_send","suppressed_count":0,"attempted_count":2,"success_count":2,"failure_count":0}'
 fi
 MOCK
@@ -328,6 +333,30 @@ test_first_response_contract_failure_still_cleans_probe_customer() {
     assert_contains "$psql_log" "WHERE id = '11111111-1111-1111-1111-111111111111'" "response contract cleanup should target only the seeded probe customer id"
 }
 
+test_second_response_contract_failure_still_cleans_probe_customer() {
+    local tmp_dir env_file
+    tmp_dir="$(mktemp -d)"
+    trap 'rm -rf "'$tmp_dir'"' RETURN
+    env_file="$tmp_dir/staging.env"
+    make_env_file "$env_file"
+    setup_mock_env "$tmp_dir"
+
+    run_probe "$tmp_dir" "bounce" "$env_file" "PROBE_TEST_MODE=bounce" "PROBE_TEST_BROADCAST_MODE=bad_json_second_only"
+    local psql_log
+    psql_log="$(cat "$tmp_dir/psql.log" 2>/dev/null || true)"
+
+    trap - RETURN
+    rm -rf "$tmp_dir"
+
+    assert_eq "$RUN_EXIT_CODE" "1" "second response contract failure should exit with runtime code"
+    assert_valid_json "$RUN_STDOUT" "second response contract failure should emit machine-readable JSON"
+    assert_eq "$(json_get_step_field "$RUN_STDOUT" "first_live_send" "passed")" "true" "first_live_send should pass before second response contract failure"
+    assert_eq "$(json_get_step_field "$RUN_STDOUT" "second_live_send" "passed")" "false" "second_live_send should report passed=false on contract failure"
+    assert_contains "$psql_log" "UPDATE customers" "second response contract failure should still soft-delete seeded probe customer"
+    assert_contains "$psql_log" "status = 'deleted'" "second response contract cleanup should set probe customer status to deleted"
+    assert_contains "$psql_log" "WHERE id = '11111111-1111-1111-1111-111111111111'" "second response cleanup should target only the seeded probe customer id"
+}
+
 test_successful_probe_runs_two_broadcasts_and_emits_passing_json() {
     local tmp_dir env_file
     tmp_dir="$(mktemp -d)"
@@ -366,6 +395,7 @@ main() {
     test_missing_required_env_fails_preflight
     test_poll_timeout_emits_machine_readable_failure
     test_first_response_contract_failure_still_cleans_probe_customer
+    test_second_response_contract_failure_still_cleans_probe_customer
     test_successful_probe_runs_two_broadcasts_and_emits_passing_json
 
     echo "=== Results: $PASS_COUNT passed, $FAIL_COUNT failed ==="

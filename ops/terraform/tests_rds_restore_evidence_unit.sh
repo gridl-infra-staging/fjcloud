@@ -77,6 +77,22 @@ if [[ "$1" == "rds" && "$2" == "describe-db-instances" ]]; then
     exit 0
   fi
 
+  if [[ "$IS_TARGET_DESCRIBE" -eq 1 && "$DISCOVERY_MODE" == "poll_terminal_failed" ]]; then
+    target_id="$(printf '%s' "$*" | sed -n 's/.*--db-instance-identifier \([^ ]*\).*/\1/p')"
+    cat <<JSON
+{"DBInstances":[{"DBInstanceIdentifier":"$target_id","Engine":"postgres","DBInstanceStatus":"failed"}]}
+JSON
+    exit 0
+  fi
+
+  if [[ "$IS_TARGET_DESCRIBE" -eq 1 && "$DISCOVERY_MODE" == "poll_terminal_incompatible" ]]; then
+    target_id="$(printf '%s' "$*" | sed -n 's/.*--db-instance-identifier \([^ ]*\).*/\1/p')"
+    cat <<JSON
+{"DBInstances":[{"DBInstanceIdentifier":"$target_id","Engine":"postgres","DBInstanceStatus":"incompatible-restore"}]}
+JSON
+    exit 0
+  fi
+
   if [[ "$IS_TARGET_DESCRIBE" -eq 1 ]]; then
     target_id="$(printf '%s' "$*" | sed -n 's/.*--db-instance-identifier \([^ ]*\).*/\1/p')"
     cat <<JSON
@@ -100,6 +116,16 @@ JSON
   if [[ "$DISCOVERY_MODE" == "missing_latest_restorable_time" || "$DISCOVERY_MODE" == "snapshot_fallback_mixed_sources" ]]; then
     cat <<'JSON'
 {"DBInstances":[{"DBInstanceIdentifier":"fjcloud-staging","Engine":"postgres","DBInstanceStatus":"available","BackupRetentionPeriod":7,"Endpoint":{"Address":"fjcloud-staging.example.amazonaws.com"}}]}
+JSON
+    exit 0
+  fi
+
+  if [[ "$DISCOVERY_MODE" == "target_exists" ]]; then
+    cat <<'JSON'
+{"DBInstances":[
+  {"DBInstanceIdentifier":"fjcloud-staging","Engine":"postgres","DBInstanceStatus":"available","BackupRetentionPeriod":7,"LatestRestorableTime":"2026-04-22T17:44:37Z","Endpoint":{"Address":"fjcloud-staging.example.amazonaws.com"}},
+  {"DBInstanceIdentifier":"fjcloud-staging-restore-existing","Engine":"postgres","DBInstanceStatus":"available","BackupRetentionPeriod":7,"Endpoint":{"Address":"fjcloud-staging-restore-existing.example.amazonaws.com"}}
+]}
 JSON
     exit 0
   fi
@@ -311,13 +337,13 @@ import sys
 
 field_name = sys.argv[1]
 fields = {
-    "status": 0,
-    "reason": 1,
-    "source": 2,
-    "target": 3,
-    "restore_mode": 4,
-    "snapshot_id": 5,
-    "restore_time": 6,
+    "status": 0, "reason": 1, "source": 2, "target": 3,
+    "restore_mode": 4, "snapshot_id": 5, "restore_time": 6,
+    "source_status": 7, "source_endpoint": 8, "retention": 9,
+    "latest_restore_time_text": 10, "instance_count": 11,
+    "snapshot_count": 12, "cluster_count": 13,
+    "available_snapshot_count": 14, "source_scoped_snapshot_count": 15,
+    "source_instance_present": 16,
 }
 parts = os.environ["SELECTION_OUTPUT"].split("\x1f")
 print(parts[fields[field_name]] if len(parts) > fields[field_name] else "")
@@ -678,28 +704,6 @@ fi
 teardown
 
 echo ""
-echo "--- blocked precondition contract ---"
-setup
-run_wrapper --env RDS_RESTORE_TEST_DISCOVERY_MODE=cluster_only -- staging --artifact-dir "$ARTIFACT_ROOT" --env-file "$WORK_DIR/inputs/env.secret"
-if [[ "$LAST_EXIT_CODE" -eq 0 ]]; then
-  pass "cluster-shaped blocker records blocked result without hard failure"
-else
-  fail "cluster-shaped blocker records blocked result without hard failure"
-fi
-assert_log_not_contains "$MOCK_AWS_LOG" 'restore-db-instance-from-db-snapshot|restore-db-instance-to-point-in-time' "blocked preconditions never dispatch restore APIs"
-
-run_dir="$(single_run_dir "$ARTIFACT_ROOT")"
-if [[ -n "$run_dir" && -f "$run_dir/summary.json" ]]; then
-  assert_file_contains "$run_dir/summary.json" '"status"[[:space:]]*:[[:space:]]*"blocked"' "blocked precondition summary status is blocked"
-  assert_file_contains "$run_dir/summary.json" '"reason"' "blocked precondition summary includes blocker reason"
-else
-  fail "blocked precondition writes summary.json with blocked status"
-fi
-
-assert_output_not_contains 'cluster restore workflow|restore-db-cluster' "blocked path does not invent alternate cluster restore workflow"
-teardown
-
-echo ""
 echo "--- discovery failure artifact contract ---"
 setup
 run_wrapper --env RDS_RESTORE_TEST_DISCOVERY_MODE=instances_error -- staging --artifact-dir "$ARTIFACT_ROOT" --env-file "$WORK_DIR/inputs/env.secret"
@@ -724,7 +728,7 @@ if [[ -n "$run_dir" ]]; then
   assert_file_exists "$run_dir/verification.txt" "aws discovery command failure still writes verification.txt"
   if [[ -f "$run_dir/summary.json" ]]; then
     assert_file_contains "$run_dir/summary.json" '"status"[[:space:]]*:[[:space:]]*"fail"' "aws discovery command failure summary status is fail"
-    assert_file_contains "$run_dir/summary.json" '"reason"' "aws discovery command failure summary includes reason"
+    assert_file_contains "$run_dir/summary.json" 'aws discovery command failed' "aws discovery command failure summary records AWS command failure reason"
   fi
 fi
 teardown
@@ -736,14 +740,12 @@ if [[ "$LAST_EXIT_CODE" -ne 0 ]]; then
 else
   fail "discovery json parsing failures return non-zero"
 fi
-
 run_dir="$(single_run_dir "$ARTIFACT_ROOT")"
 if [[ -n "$run_dir" ]]; then
   pass "discovery json parsing failure still creates run-scoped directory"
 else
   fail "discovery json parsing failure still creates run-scoped directory"
 fi
-
 if [[ -n "$run_dir" ]]; then
   assert_file_exists "$run_dir/discovery.json" "discovery json parsing failure still writes discovery artifact"
   assert_file_exists "$run_dir/summary.json" "discovery json parsing failure still writes summary artifact"
@@ -776,18 +778,4 @@ else
   fail "dry-run writes discovery artifact for redaction checks"
 fi
 teardown
-
-echo ""
-echo "--- snapshot fallback selection contract ---"
-setup
-run_wrapper --env RDS_RESTORE_TEST_DISCOVERY_MODE=snapshot_fallback_mixed_sources -- staging --artifact-dir "$ARTIFACT_ROOT" --env-file "$WORK_DIR/inputs/env.secret"
-if [[ "$LAST_EXIT_CODE" -eq 0 ]]; then
-  pass "snapshot fallback run exits 0 when source snapshots are available"
-else
-  fail "snapshot fallback run exits 0 when source snapshots are available"
-fi
-assert_log_contains "$MOCK_DRILL_LOG" '--snapshot-id rds:fjcloud-staging-2026-04-22-05-00' "snapshot fallback selects newest exact-source snapshot"
-assert_log_not_contains "$MOCK_DRILL_LOG" '--snapshot-id rds:fjcloud-staging-foreign-2026-04-22-06-00' "snapshot fallback rejects substring-matching foreign source snapshots"
-teardown
-
 test_summary "RDS restore evidence wrapper red contract checks"

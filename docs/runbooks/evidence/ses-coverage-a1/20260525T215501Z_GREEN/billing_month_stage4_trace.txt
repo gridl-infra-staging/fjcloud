@@ -1,0 +1,4 @@
+billing_month=2026-04
+source_artifact=docs/runbooks/evidence/staging-billing-rehearsal/20260426T060756Z_paid_lifecycle/SUMMARY.md
+source_note=explicit owner record in same artifact: scripts/staging_billing_rehearsal.sh --month 2026-04 --confirm-live-mutation
+resolved_at_utc=2026-05-26T00:23:00Z

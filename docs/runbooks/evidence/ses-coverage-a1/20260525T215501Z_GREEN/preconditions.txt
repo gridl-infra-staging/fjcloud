@@ -1,0 +1,5 @@
+preconditions_ok=true
+ses_region=us-east-1
+api_url=https://api.staging.flapjack.foo
+database_url_set=true
+integration_db_url_set=false

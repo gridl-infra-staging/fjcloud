@@ -1,0 +1,4 @@
+delete_rc=0
+describe_rc=0
+post_delete_status=deleting
+post_delete_endpoint=fjcloud-staging-restore-20260526003636.cabwlew6jcjl.us-east-1.rds.amazonaws.com

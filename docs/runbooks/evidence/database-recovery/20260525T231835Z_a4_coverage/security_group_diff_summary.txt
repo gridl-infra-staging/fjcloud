@@ -1,0 +1,6 @@
+staging_api_instance_id=i-0fbc6d6bbbc8bdc6d
+staging_api_security_groups=sg-0e8fd81b9247b53a5
+source_db_sg=sg-0e60946fafe060833
+target_db_sg=sg-02ba3e864ed172b0c
+source_db_ingress_from_sg=sg-047734af5235c69af,sg-0e8fd81b9247b53a5
+target_db_ingress_from_sg=sg-02ba3e864ed172b0c

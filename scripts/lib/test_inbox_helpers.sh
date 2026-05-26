@@ -317,6 +317,60 @@ if legacy_match:
 PY
 }
 
+# TODO: Document test_inbox_extract_reset_token_from_rfc822.
+test_inbox_extract_reset_token_from_rfc822() {
+    local rfc822_payload="$1"
+
+    test_inbox_require_nonempty "$rfc822_payload" "rfc822_payload" || return $?
+
+    python3 - "$rfc822_payload" <<'PY' || true
+import re
+import sys
+from email import policy
+from email.parser import Parser
+
+rfc822_payload = sys.argv[1]
+
+try:
+    message = Parser(policy=policy.default).parsestr(rfc822_payload)
+except Exception:
+    message = None
+
+fragments = []
+if message is not None:
+    if message.is_multipart():
+        for part in message.walk():
+            if part.get_content_type() not in ("text/plain", "text/html"):
+                continue
+            try:
+                content = part.get_content()
+            except Exception:
+                continue
+            if isinstance(content, bytes):
+                content = content.decode("utf-8", "ignore")
+            fragments.append(content)
+    else:
+        try:
+            content = message.get_content()
+            if isinstance(content, bytes):
+                content = content.decode("utf-8", "ignore")
+            fragments.append(content)
+        except Exception:
+            pass
+
+body = "\n".join([fragment for fragment in fragments if fragment]) or rfc822_payload
+
+match = re.search(r"/reset-password/([A-Za-z0-9_-]+)", body)
+if match:
+    print(match.group(1))
+    raise SystemExit(0)
+
+legacy_match = re.search(r"reset-password[?&]token=([A-Za-z0-9_-]+)", body)
+if legacy_match:
+    print(legacy_match.group(1))
+PY
+}
+
 # TODO: Document test_inbox_extract_subject_from_rfc822.
 test_inbox_extract_subject_from_rfc822() {
     local rfc822_payload="$1"
@@ -404,12 +458,17 @@ test_inbox_list_recent_object_keys_json() {
         return 1
     fi
 
-    python3 - "$list_json" "$max_keys" <<'PY' || true
+    local list_json_file
+    list_json_file="$(mktemp)"
+    printf '%s' "$list_json" > "$list_json_file"
+
+    python3 - "$list_json_file" "$max_keys" <<'PY' || true
 import json
 import sys
 from datetime import datetime, timezone
 
-payload = json.loads(sys.argv[1])
+with open(sys.argv[1], 'r', encoding='utf-8') as fh:
+    payload = json.load(fh)
 max_keys = int(sys.argv[2])
 contents = payload.get("Contents", []) or []
 
@@ -428,4 +487,5 @@ ordered = sorted(contents, key=parse_last_modified, reverse=True)
 keys = [item.get("Key", "") for item in ordered if item.get("Key", "")]
 print(json.dumps(keys[:max_keys]))
 PY
+    rm -f "$list_json_file"
 }

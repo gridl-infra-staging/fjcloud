@@ -44,7 +44,19 @@ def load_json_file(path: str) -> dict[str, Any]:
         return json.load(fh)
 
 
+def build_fail_result(reason: str) -> dict[str, Any]:
+    result = build_result("", "", 0, 0, 0)
+    result["status"] = "fail"
+    result["reason"] = reason
+    return result
+
+
 def load_inputs(argv: list[str]) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], str, str, str, str, str]:
+    if len(argv) != 9:
+        raise ValueError(
+            "expected 8 positional args: <instances_json> <snapshots_json> <clusters_json> "
+            "<source_db_instance_id> <target_db_instance_id> <snapshot_id> <restore_time> <timestamp>"
+        )
     instances_doc = load_json_file(argv[1])
     snapshots_doc = load_json_file(argv[2])
     clusters_doc = load_json_file(argv[3])
@@ -113,6 +125,10 @@ def parse_retention(raw_retention: Any) -> int:
         return int(raw_retention or 0)
     except (TypeError, ValueError):
         return 0
+
+
+def target_identifier_exists(target: str, instances: list[dict[str, Any]]) -> bool:
+    return any(str(item.get("DBInstanceIdentifier", "")) == target for item in instances)
 
 
 def resolve_source_instance(
@@ -202,16 +218,20 @@ def select_restore_mode(
 
 
 def main() -> int:
-    (
-        instances_doc,
-        snapshots_doc,
-        clusters_doc,
-        source,
-        target_override,
-        snapshot_override,
-        restore_time_override,
-        timestamp,
-    ) = load_inputs(sys.argv)
+    try:
+        (
+            instances_doc,
+            snapshots_doc,
+            clusters_doc,
+            source,
+            target_override,
+            snapshot_override,
+            restore_time_override,
+            timestamp,
+        ) = load_inputs(sys.argv)
+    except ValueError as exc:
+        emit_result(build_fail_result(str(exc)))
+        return 0
 
     instances = instances_doc.get("DBInstances", [])
     snapshots = snapshots_doc.get("DBSnapshots", [])
@@ -228,6 +248,14 @@ def main() -> int:
         result["target"] = ""
         result["snapshot_id"] = ""
         result["restore_time"] = ""
+        emit_result(result)
+        return 0
+
+    if target_identifier_exists(target, instances):
+        result["status"] = "blocked"
+        result["reason"] = (
+            f"target DB instance id '{target}' already exists; choose a new target identifier"
+        )
         emit_result(result)
         return 0
 

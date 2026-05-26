@@ -1,3 +1,21 @@
+import { browser } from '$app/environment';
+
+export type ClipboardWriteStatus = 'success' | 'unavailable' | 'failed';
+
+export async function writeTextToClipboard(text: string): Promise<ClipboardWriteStatus> {
+	if (!browser) return 'unavailable';
+
+	const clipboard = globalThis.navigator?.clipboard;
+	if (!clipboard?.writeText) return 'unavailable';
+
+	try {
+		await clipboard.writeText(text);
+		return 'success';
+	} catch {
+		return 'failed';
+	}
+}
+
 /**
  * Copy text to the clipboard and temporarily swap the trigger text so the user
  * gets immediate feedback without each route re-implementing the timer logic.

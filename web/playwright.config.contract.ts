@@ -474,12 +474,10 @@ export function resolvePlaywrightRuntime({
 	);
 	processEnv.API_BASE_URL = apiBaseUrl;
 	processEnv.API_URL = apiBaseUrl;
-	const s3ListenPort = apiPort + PLAYWRIGHT_DEFAULT_S3_PORT_OFFSET;
 	const webServerEnv = sanitizeWebServerEnv({
 		...processEnv,
 		...repoEnv,
 		...webEnv,
-		API_URL: apiBaseUrl,
 		API_BASE_URL: apiBaseUrl,
 		API_URL: apiUrl,
 		[PLAYWRIGHT_API_PORT_ENV]: String(apiPort),

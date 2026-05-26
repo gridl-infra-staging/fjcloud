@@ -26,6 +26,12 @@ import {
 import { recommendAction } from './recommendations-management.server';
 import { chatAction } from './chat-management.server';
 import {
+	clearRulesAction,
+	deleteRuleAction,
+	loadRulesPayloadForQuery,
+	saveRuleAction
+} from './rules-management.server';
+import {
 	addDocumentAction,
 	browseDocumentsAction,
 	DEFAULT_DOCUMENT_HITS_PER_PAGE,
@@ -60,6 +66,13 @@ const MAX_EVENTS_REFRESH_LIMIT = 1000;
 function failForDashboardAction<T extends Record<string, unknown>>(error: unknown, payload: T) {
 	const sessionFailure = mapDashboardSessionFailure(error);
 	return sessionFailure ?? fail(400, payload);
+}
+
+function normalizeTransientBackendFailure(message: string): string {
+	if (/fetch failed/i.test(message)) {
+		return 'backend temporarily unavailable';
+	}
+	return message;
 }
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));

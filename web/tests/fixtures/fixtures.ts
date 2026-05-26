@@ -387,6 +387,10 @@ function isTransientTransportFailure(error: unknown): boolean {
 	);
 }
 
+function isUnauthorizedExpiredTokenAccountFailure(status: number, failureDetails: string): boolean {
+	return status === 401 && /invalid or expired token/i.test(failureDetails);
+}
+
 // Keep the setup:user timeout aligned with the helper retry contract so
 // Playwright does not abort before fixture bootstrap finishes its own retries.
 export const FIXTURE_AUTH_API_RETRY_BUDGET_MS =

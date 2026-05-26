@@ -221,7 +221,10 @@ async fn create_rejects_non_positive_managed_key_limits() {
     assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 
     let json = body_json(resp.into_body()).await;
-    assert_eq!(json["error"], serde_json::json!("max_hits_per_query must be at least 1"));
+    assert_eq!(
+        json["error"],
+        serde_json::json!("max_hits_per_query must be at least 1")
+    );
     let stored = api_key_repo.list_by_customer(customer.id).await.unwrap();
     assert!(stored.is_empty());
 }

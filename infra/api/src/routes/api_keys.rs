@@ -76,9 +76,7 @@ fn hash_key(key: &str) -> String {
 fn validate_positive_limit(field: &str, value: Option<i32>) -> Result<(), ApiError> {
     if let Some(limit) = value {
         if limit < 1 {
-            return Err(ApiError::BadRequest(format!(
-                "{field} must be at least 1"
-            )));
+            return Err(ApiError::BadRequest(format!("{field} must be at least 1")));
         }
     }
     Ok(())

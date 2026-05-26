@@ -646,7 +646,14 @@ describe('Index detail page — degraded state for nullable data', () => {
 		await openTab('Rules');
 		expect(screen.getByText(/rules could not be loaded/i)).toBeInTheDocument();
 		expect(screen.queryByText('No rules')).not.toBeInTheDocument();
-		expect(screen.getByRole('button', { name: /save rule/i })).toBeInTheDocument();
+		// The rule-creation entry point stays available in the degraded state so a
+		// customer can still author a rule when the list query fails. Wave B 2D
+		// (commit ff82750ab) migrated rule editing from an inline "Add or Update
+		// Rule" form (with a "Save Rule" submit button) to an "Add Rule" button
+		// that opens RulesEditorDialog with the schema-driven form + save flow.
+		// SynonymsTab retains the inline-form pattern (see sibling synonyms test),
+		// which is why the synonyms assertion still uses /save synonym/i.
+		expect(screen.getByRole('button', { name: /add rule/i })).toBeInTheDocument();
 	});
 
 	it('synonyms tab shows degraded message when synonyms is null', async () => {

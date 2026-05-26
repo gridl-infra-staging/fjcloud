@@ -1,0 +1,36 @@
+COMMAND: cd infra && cargo test -p api --test stripe_webhook_idempotency_test -- --nocapture
+EXIT_CODE: 0
+--- STDOUT ---
+
+running 18 tests
+test common::poll::tests::resolves_immediately_with_predicate_value ... ok
+test common::poll::tests::result_variant_returns_value_when_predicate_hits ... ok
+test common::mocks::failable_email_service_tests::failable_email_service_forces_failure_for_retries_exhausted_and_skips_delegate ... ok
+test common::mocks::failable_email_service_tests::failable_email_service_tracks_recovered_after_failure_attempt_and_delegates ... ok
+test common::mocks::failable_email_service_tests::failable_email_service_tracks_retry_scheduled_attempt_and_delegates ... ok
+test common::poll::tests::predicate_can_be_fnmut ... ok
+test common::builders::tests::builder_threads_oauth_runtime_config_into_app_state ... ok
+test common::poll::tests::result_variant_returns_error_on_timeout ... ok
+test retry_after_first_handler_failure_stays_unprocessed_and_not_acknowledged ... ok
+test replayed_invoice_event_is_processed_once ... ok
+test replayed_subscription_event_is_noop_once ... ok
+test resume_before_pause_waiter_exists_does_not_deadlock_mark_paid ... ok
+test concurrent_duplicate_invoice_event_loser_stays_out_of_handler ... ok
+test seeded_unprocessed_invoice_event_short_circuits_without_handler_side_effects ... ok
+test replayed_checkout_completed_event_is_noop_once ... ok
+test common::poll::tests::resolves_after_multiple_polls_with_real_sleep ... ok
+test common::poll::tests::times_out_and_panics_with_name - should panic ... ok
+test resume_waits_for_pause_handshake_internally ... ok
+
+test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.14s
+
+
+--- STDERR ---
+   Compiling api v0.1.0 (/Users/stuart/parallel_development/fjcloud_dev/may25_2pm_2_a2_billing_stripe_coverage/fjcloud_dev/infra/api)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 5.06s
+     Running tests/stripe_webhook_idempotency_test.rs (target/debug/deps/stripe_webhook_idempotency_test-9ea937728fe880ce)
+
+thread 'common::poll::tests::times_out_and_panics_with_name' (62917160) panicked at api/tests/common/poll.rs:52:25:
+poll_until timed out: test3_must_appear_in_panic_message (after 50ms)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+

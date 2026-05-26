@@ -1,0 +1,14 @@
+COMMAND: cd infra && cargo test -p api --test webhook_dunning_email_test stripe_payment_failure_webhook_fires_on_declined_card -- --nocapture --test-threads=1
+EXIT_CODE: 0
+--- STDOUT ---
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 18 filtered out; finished in 0.00s
+
+
+--- STDERR ---
+   Compiling api v0.1.0 (/Users/stuart/parallel_development/fjcloud_dev/may25_2pm_2_a2_billing_stripe_coverage/fjcloud_dev/infra/api)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 7.30s
+     Running tests/webhook_dunning_email_test.rs (target/debug/deps/webhook_dunning_email_test-83ec298b111975aa)
+

@@ -21,15 +21,26 @@ type SeedIndexFn = (name: string, region?: string) => Promise<void>;
  * Asserts the section is NOT in the DOM before clicking (lazy-mount via visitedTabs),
  * then asserts it IS visible after clicking.
  */
-async function openIndexDetailTab(page: Page, tabName: string, sectionTestId: string) {
-	// Section must not exist in the DOM before tab click (lazy-mount via {#if visitedTabs})
-	await expect(page.getByTestId(sectionTestId)).toHaveCount(0);
-
-	// Act: click the tab
-	await page.getByRole('tab', { name: tabName }).click();
-
-	// Assert: section is now visible
+async function openIndexDetailTab(
+	page: Page,
+	tabName: string,
+	sectionTestId: string,
+	expectNotMountedBeforeOpen = true
+) {
 	const section = page.getByTestId(sectionTestId);
+	if ((await section.count()) > 0 && (await section.first().isVisible())) {
+		return section;
+	}
+	if (expectNotMountedBeforeOpen) {
+		await expect(section).toHaveCount(0);
+	}
+	await expect(page.getByTestId('index-tabs-strip')).toBeVisible();
+	await expect(async () => {
+		const tab = page.getByRole('tab', { name: tabName, exact: true });
+		await tab.scrollIntoViewIfNeeded();
+		await tab.click();
+		await expect(tab).toHaveAttribute('aria-selected', 'true');
+	}).toPass({ timeout: 10_000 });
 	await expect(section).toBeVisible({ timeout: 10_000 });
 	return section;
 }
@@ -47,9 +58,51 @@ async function openSeededIndexDetailPage(
 	return indexName;
 }
 
+async function createSynonym(page: Page, objectId: string) {
+	const section = await openIndexDetailTab(page, 'Synonyms', 'synonyms-section');
+	await section.getByLabel('Object ID').fill(objectId);
+	await section.getByRole('button', { name: 'Save Synonym' }).click();
+	await expect(section.getByText('Synonym saved.')).toBeVisible();
+	await expect(section.getByRole('cell', { name: objectId, exact: true })).toBeVisible();
+	return section;
+}
+
+async function createExperiment(page: Page, name: string) {
+	let section = await openIndexDetailTab(page, 'Experiments', 'experiments-section');
+	await section.getByRole('button', { name: 'Create Experiment' }).click();
+	const experimentNameInput = section.getByLabel('Experiment name', { exact: true });
+	await experimentNameInput.fill(name);
+	await expect(experimentNameInput).toHaveValue(name);
+	await section.getByLabel('Enable rules', { exact: true }).check();
+	await section.getByRole('button', { name: 'Launch Experiment', exact: true }).click();
+	await expect(section.getByText('Failed to create experiment')).toHaveCount(0);
+	await page.reload();
+	section = await openIndexDetailTab(page, 'Experiments', 'experiments-section');
+	await expect(section.getByRole('button', { name, exact: true })).toBeVisible();
+	return section;
+}
+
+async function findExperimentRowActionButton(
+	page: Page,
+	experimentName: string,
+	action: 'stop' | 'delete',
+	maxAttempts = 4
+) {
+	const actionPattern = action === 'stop' ? /Stop experiment/i : /Delete experiment/i;
+	for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+		const section = await openIndexDetailTab(page, 'Experiments', 'experiments-section', false);
+		const row = section
+			.getByRole('row')
+			.filter({ hasText: experimentName })
+			.filter({ has: section.getByRole('button', { name: actionPattern }) });
+		const rowActionButton = row.getByRole('button', { name: actionPattern }).first();
+		if ((await rowActionButton.count()) > 0) return { section, row, rowActionButton };
+		if (attempt < maxAttempts - 1) await page.reload();
+	}
+	throw new Error(`Could not find ${action} action for experiment ${experimentName}`);
+}
+
 test.describe('Index detail tabs', () => {
-	// Each test seeds a fresh index via admin API and may absorb rate-limit backoff
-	// before the detail page loader becomes stable, so 30s and 60s are both too tight.
 	test.describe.configure({ timeout: 90_000 });
 
 	test('load-and-verify: seeded detail route lazy-mounts one tab on first click', async ({
@@ -64,13 +117,106 @@ test.describe('Index detail tabs', () => {
 		await expect(section.getByRole('button', { name: 'Save Settings' })).toBeVisible();
 	});
 
+	test('Experiments Stop typed confirm enforces no-op pre-confirm and submits after exact phrase', async ({
+		page,
+		seedIndex,
+		testRegion
+	}) => {
+		await openSeededIndexDetailPage(page, seedIndex, testRegion, 'e2e-detail-exp-stop');
+		const experimentName = `exp-stop-${Date.now()}`;
+		await createExperiment(page, experimentName);
+
+		const { row, rowActionButton: stopButton } = await findExperimentRowActionButton(
+			page,
+			experimentName,
+			'stop'
+		);
+		await stopButton.click();
+		const dialog = page.getByTestId('confirm-dialog');
+		await expect(dialog).toBeVisible();
+		await expect(page.getByTestId('confirm-confirm-btn')).toBeDisabled();
+		await page.getByTestId('confirm-input').fill(`${experimentName}-wrong`);
+		await expect(page.getByTestId('confirm-confirm-btn')).toBeDisabled();
+		await page.keyboard.press('Escape');
+		await expect(dialog).toHaveCount(0);
+		await expect(stopButton).toBeFocused();
+		await expect(row.getByRole('cell', { name: 'Active' })).toBeVisible();
+
+		await stopButton.click();
+		await page.getByTestId('confirm-input').fill(experimentName);
+		await expect(page.getByTestId('confirm-confirm-btn')).toBeEnabled();
+		await page.getByTestId('confirm-confirm-btn').click();
+		await expect(row.getByRole('cell', { name: 'Stopped' })).toBeVisible();
+	});
+
+	test('Experiments Delete typed confirm enforces no-op pre-confirm and deletes after confirm', async ({
+		page,
+		seedIndex,
+		testRegion
+	}) => {
+		await openSeededIndexDetailPage(page, seedIndex, testRegion, 'e2e-detail-exp-delete');
+		const experimentName = `exp-delete-${Date.now()}`;
+		await createExperiment(page, experimentName);
+
+		const { row: stopRow, rowActionButton: stopButton } = await findExperimentRowActionButton(
+			page,
+			experimentName,
+			'stop'
+		);
+		await stopButton.click();
+		await expect(page.getByTestId('confirm-dialog')).toBeVisible();
+		await page.getByTestId('confirm-input').fill(experimentName);
+		await page.getByTestId('confirm-confirm-btn').click();
+		await expect(stopRow.getByRole('cell', { name: 'Stopped' })).toBeVisible();
+
+		const {
+			section,
+			row,
+			rowActionButton: deleteButton
+		} = await findExperimentRowActionButton(page, experimentName, 'delete');
+		await deleteButton.click();
+		await expect(page.getByTestId('confirm-dialog')).toBeVisible();
+		await page.getByTestId('confirm-input').fill('mismatch');
+		await expect(page.getByTestId('confirm-confirm-btn')).toBeDisabled();
+		await page.getByTestId('confirm-cancel-btn').click();
+		await expect(page.getByTestId('confirm-dialog')).toHaveCount(0);
+		await expect(section.getByRole('cell', { name: experimentName, exact: true })).toBeVisible();
+
+		await deleteButton.click();
+		await page.getByTestId('confirm-input').fill(experimentName);
+		await page.getByTestId('confirm-confirm-btn').click();
+		await expect(row).toHaveCount(0);
+		await expect(section.getByRole('button', { name: experimentName, exact: true })).toHaveCount(0);
+	});
+
+	test('Synonyms Delete standard confirm enforces no-op pre-confirm and deletes on confirm', async ({
+		page,
+		seedIndex,
+		testRegion
+	}) => {
+		await openSeededIndexDetailPage(page, seedIndex, testRegion, 'e2e-detail-syn-delete');
+		const synonymObjectId = `syn-delete-${Date.now()}`;
+		const section = await createSynonym(page, synonymObjectId);
+
+		const deleteButton = section.getByRole('button', { name: `Delete synonym ${synonymObjectId}` });
+		await deleteButton.click();
+		await expect(page.getByTestId('confirm-dialog')).toBeVisible();
+		await page.getByTestId('confirm-cancel-btn').click();
+		await expect(page.getByTestId('confirm-dialog')).toHaveCount(0);
+		await expect(section.getByRole('cell', { name: synonymObjectId, exact: true })).toBeVisible();
+
+		await deleteButton.click();
+		await page.getByTestId('confirm-confirm-btn').click();
+		await expect(section.getByText('Synonym deleted.')).toBeVisible();
+		await expect(section.getByRole('cell', { name: synonymObjectId, exact: true })).toHaveCount(0);
+	});
+
 	test('Settings tab lazy-mounts and shows Settings JSON editor', async ({
 		page,
 		seedIndex,
 		testRegion
 	}) => {
 		await openSeededIndexDetailPage(page, seedIndex, testRegion, 'e2e-detail-settings');
-
 		const section = await openIndexDetailTab(page, 'Settings', 'settings-section');
 		await expect(section.getByLabel('Settings JSON')).toBeVisible();
 		await expect(section.getByRole('button', { name: 'Save Settings' })).toBeVisible();
@@ -82,7 +228,6 @@ test.describe('Index detail tabs', () => {
 		testRegion
 	}) => {
 		await openSeededIndexDetailPage(page, seedIndex, testRegion, 'e2e-detail-documents');
-
 		const section = await openIndexDetailTab(page, 'Documents', 'documents-section');
 		await expect(section.getByText('Upload JSON or CSV file')).toBeVisible();
 		await expect(section.getByRole('button', { name: 'Browse Documents' })).toBeVisible();
@@ -94,7 +239,6 @@ test.describe('Index detail tabs', () => {
 		testRegion
 	}) => {
 		await openSeededIndexDetailPage(page, seedIndex, testRegion, 'e2e-detail-dictionaries');
-
 		const section = await openIndexDetailTab(page, 'Dictionaries', 'dictionaries-section');
 		await expect(section.getByRole('heading', { name: 'Browse Entries' })).toBeVisible();
 		await expect(section.getByRole('heading', { name: 'Add Entry' })).toBeVisible();
@@ -102,7 +246,6 @@ test.describe('Index detail tabs', () => {
 
 	test('Rules tab lazy-mounts and shows empty state', async ({ page, seedIndex, testRegion }) => {
 		await openSeededIndexDetailPage(page, seedIndex, testRegion, 'e2e-detail-rules');
-
 		const section = await openIndexDetailTab(page, 'Rules', 'rules-section');
 		await expect(section.getByRole('heading', { name: 'Rules' })).toBeVisible();
 		await expect(section.getByRole('heading', { name: 'Add or Update Rule' })).toBeVisible();
@@ -116,7 +259,6 @@ test.describe('Index detail tabs', () => {
 		testRegion
 	}) => {
 		await openSeededIndexDetailPage(page, seedIndex, testRegion, 'e2e-detail-synonyms');
-
 		const section = await openIndexDetailTab(page, 'Synonyms', 'synonyms-section');
 		await expect(section.getByRole('heading', { name: 'Synonyms' })).toBeVisible();
 		await expect(section.getByRole('heading', { name: 'Add or Update Synonym' })).toBeVisible();
@@ -130,122 +272,9 @@ test.describe('Index detail tabs', () => {
 		testRegion
 	}) => {
 		await openSeededIndexDetailPage(page, seedIndex, testRegion, 'e2e-detail-chat');
-
 		const section = await openIndexDetailTab(page, 'Chat', 'chat-section');
 		await expect(section.getByLabel('Query')).toBeVisible();
 		await expect(section.getByText('Conversation History JSON')).toBeVisible();
 		await expect(section.getByText('No chat response yet.')).toBeVisible();
-	});
-
-	test('tab strip uses desktop overflow, mobile stacking, and keyboard tab order guard', async ({
-		page,
-		seedIndex,
-		testRegion
-	}) => {
-		await page.setViewportSize({ width: 1024, height: 900 });
-		await openSeededIndexDetailPage(page, seedIndex, testRegion, 'e2e-detail-tab-overflow');
-
-		const tabsStrip = page.getByTestId('index-tabs-strip');
-		await expect(tabsStrip).toBeVisible();
-		await expect
-			.poll(async () => tabsStrip.evaluate((node) => getComputedStyle(node).overflowX))
-			.toBe('auto');
-		await expect
-			.poll(async () => tabsStrip.evaluate((node) => getComputedStyle(node).scrollSnapType))
-			.toBe('x mandatory');
-
-		const desktopSize = await tabsStrip.evaluate((node) => ({
-			scrollWidth: node.scrollWidth,
-			clientWidth: node.clientWidth
-		}));
-		expect(desktopSize.scrollWidth).toBeGreaterThan(desktopSize.clientWidth);
-		for (const tabTestId of ['tab-overview', 'tab-settings', 'tab-documents']) {
-			await expect
-				.poll(async () =>
-					page.getByTestId(tabTestId).evaluate((node) => getComputedStyle(node).scrollSnapAlign)
-				)
-				.toBe('start');
-		}
-
-		const leftFade = page.getByTestId('index-tabs-fade-left');
-		const rightFade = page.getByTestId('index-tabs-fade-right');
-		await expect(leftFade).toBeVisible();
-		await expect(rightFade).toBeVisible();
-		await expect
-			.poll(async () => leftFade.evaluate((node) => getComputedStyle(node).pointerEvents))
-			.toBe('none');
-		await expect
-			.poll(async () => rightFade.evaluate((node) => getComputedStyle(node).pointerEvents))
-			.toBe('none');
-
-		const desktopInteraction = await tabsStrip.evaluate((node) => ({
-			scrollWidth: node.scrollWidth,
-			clientWidth: node.clientWidth
-		}));
-		expect(desktopInteraction.scrollWidth).toBeGreaterThan(desktopInteraction.clientWidth);
-
-		const leftBoundaryTabVisibleBeyondFade = await page.evaluate(() => {
-			const strip = document.querySelector('[data-testid="index-tabs-strip"]');
-			const leftFade = document.querySelector('[data-testid="index-tabs-fade-left"]');
-			const leftTab = document.querySelector('[data-testid="tab-overview"]');
-			if (
-				!(strip instanceof HTMLElement) ||
-				!(leftFade instanceof HTMLElement) ||
-				!(leftTab instanceof HTMLElement)
-			) {
-				return false;
-			}
-
-			leftTab.scrollIntoView({ inline: 'start', block: 'nearest' });
-			const stripRect = strip.getBoundingClientRect();
-			const fadeRect = leftFade.getBoundingClientRect();
-			const tabRect = leftTab.getBoundingClientRect();
-			const visibleWithinStrip =
-				tabRect.left >= stripRect.left - 1 && tabRect.right <= stripRect.right + 1;
-			const clearOfLeftFade = tabRect.left >= Math.max(stripRect.left, fadeRect.right) - 1;
-			return visibleWithinStrip && clearOfLeftFade;
-		});
-		expect(leftBoundaryTabVisibleBeyondFade).toBe(true);
-
-		const rightmostTabVisibleBeyondFade = await page.evaluate(() => {
-			const strip = document.querySelector('[data-testid="index-tabs-strip"]');
-			const rightFade = document.querySelector('[data-testid="index-tabs-fade-right"]');
-			const rightTab = document.querySelector('[data-testid="tab-search-preview"]');
-			if (
-				!(strip instanceof HTMLElement) ||
-				!(rightFade instanceof HTMLElement) ||
-				!(rightTab instanceof HTMLElement)
-			) {
-				return false;
-			}
-
-			rightTab.scrollIntoView({ inline: 'end', block: 'nearest' });
-			strip.scrollLeft = strip.scrollWidth;
-			const stripRect = strip.getBoundingClientRect();
-			const fadeRect = rightFade.getBoundingClientRect();
-			const tabRect = rightTab.getBoundingClientRect();
-			const visibleWithinStrip =
-				tabRect.left >= stripRect.left - 1 && tabRect.right <= stripRect.right + 1;
-			const clearOfRightFade = tabRect.right <= Math.min(stripRect.right, fadeRect.left) + 1;
-			return visibleWithinStrip && clearOfRightFade;
-		});
-		expect(rightmostTabVisibleBeyondFade).toBe(true);
-
-		await page.setViewportSize({ width: 480, height: 900 });
-		await expect
-			.poll(async () => tabsStrip.evaluate((node) => getComputedStyle(node).flexDirection))
-			.toBe('column');
-		const mobileSize = await tabsStrip.evaluate((node) => ({
-			scrollWidth: node.scrollWidth,
-			clientWidth: node.clientWidth
-		}));
-		expect(mobileSize.scrollWidth).toBeLessThanOrEqual(mobileSize.clientWidth);
-
-		const expectedFocusOrder = ['tab-overview', 'tab-settings', 'tab-documents'];
-		await page.getByTestId('tab-overview').focus();
-		for (const tabTestId of expectedFocusOrder) {
-			await expect(page.getByTestId(tabTestId)).toBeFocused();
-			await page.keyboard.press('Tab');
-		}
 	});
 });

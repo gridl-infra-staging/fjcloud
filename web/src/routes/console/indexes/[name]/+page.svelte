@@ -57,6 +57,24 @@
 		total: 0
 	};
 
+	function normalizeExperiments(value: unknown): ExperimentListResponse {
+		if (!value || typeof value !== 'object') {
+			return emptyExperiments;
+		}
+
+		const record = value as Partial<ExperimentListResponse>;
+		const abtests = Array.isArray(record.abtests) ? record.abtests : [];
+		const count = typeof record.count === 'number' ? record.count : abtests.length;
+		const total = typeof record.total === 'number' ? record.total : count;
+
+		return {
+			...record,
+			abtests,
+			count,
+			total
+		} as ExperimentListResponse;
+	}
+
 	const emptyDocuments: BrowseObjectsResponse = {
 		hits: [],
 		cursor: null,
@@ -104,7 +122,7 @@
 	const noResults: AnalyticsTopSearchesResponse | null = $derived(data.noResults ?? null);
 	const analyticsStatus: AnalyticsStatusResponse | null = $derived(data.analyticsStatus ?? null);
 	const analyticsPeriod: '7d' | '30d' | '90d' = $derived(data.analyticsPeriod ?? '7d');
-	const experiments: ExperimentListResponse = $derived(data.experiments ?? emptyExperiments);
+	const experiments: ExperimentListResponse = $derived(normalizeExperiments(data.experiments));
 	const experimentResultsMap: Record<string, ExperimentResults> = $derived(
 		data.experimentResults ?? {}
 	);
@@ -115,7 +133,18 @@
 	const securitySources: SecuritySourcesResponse = $derived(
 		formResult?.securitySources ?? data.securitySources ?? { sources: [] }
 	);
+	const securitySourcesReloaded: boolean = $derived(formResult?.securitySourcesReloaded === true);
+	const actionSecuritySourcesLoadError: string = $derived(
+		formResult?.securitySourcesLoadError ?? ''
+	);
+	const securitySourcesLoadError: string = $derived(
+		actionSecuritySourcesLoadError ||
+			(securitySourcesReloaded ? '' : (data.securitySourcesLoadError ?? ''))
+	);
 	const loadedDebugEvents: DebugEventsResponse | null = $derived(data.debugEvents ?? null);
+	const eventsLoadError: string = $derived(
+		formResult?.refreshedEvents ? '' : (data.eventsLoadError ?? '')
+	);
 	const refreshedDebugEvents: DebugEventsResponse | null = $derived(
 		formResult?.refreshedEvents ?? null
 	);
@@ -470,7 +499,7 @@
 
 	{#if visitedTabs.events}
 		<div hidden={activeTab !== 'events'}>
-			<EventsTab {debugEvents} {eventsError} {index} />
+			<EventsTab {debugEvents} {eventsError} {eventsLoadError} {index} />
 		</div>
 	{/if}
 
@@ -479,6 +508,7 @@
 			<SecuritySourcesTab
 				{index}
 				{securitySources}
+				{securitySourcesLoadError}
 				{securitySourceAppendError}
 				{securitySourceDeleteError}
 				{securitySourceAppended}

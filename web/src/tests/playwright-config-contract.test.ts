@@ -21,10 +21,13 @@ import {
 	DEFAULT_TEST_REGION,
 	PLAYWRIGHT_STORAGE_STATE,
 	PLAYWRIGHT_PROJECT_CONTRACTS,
+	PLAYWRIGHT_WEB_PORT_ENV,
 	PLAYWRIGHT_WEB_SERVER_COMMAND,
+	PLAYWRIGHT_WEB_ONLY_SERVER_COMMAND,
 	PLAYWRIGHT_WEB_SERVER_TIMEOUT_MS,
 	parseDotenvFile,
 	parseDotenvValue,
+	resolveDefaultPlaywrightWebPort,
 	REMOTE_TARGET_OPT_IN_ENV,
 	REMOTE_TARGET_HOST_SUFFIX_ALLOWLIST,
 	requireLoopbackHttpUrl,
@@ -167,6 +170,20 @@ describe('playwright config contract', () => {
 		expect(defaultedEnv.DATABASE_URL).toBeUndefined();
 	});
 
+	it('applyPlaywrightProcessEnvDefaults refuses hardcoded credential fallbacks in remote-target mode', () => {
+		const processEnv = applyEnvDefaults({
+			processEnv: {
+				[REMOTE_TARGET_OPT_IN_ENV]: '1'
+			},
+			repoEnv: {},
+			webEnv: {}
+		});
+
+		expect(processEnv.E2E_USER_EMAIL).toBeUndefined();
+		expect(processEnv.E2E_USER_PASSWORD).toBeUndefined();
+		expect(processEnv.E2E_ADMIN_KEY).toBeUndefined();
+	});
+
 	it('applyPlaywrightProcessEnvDefaults propagates Mailpit and Stripe webhook env for fixture-owned billing lanes', () => {
 		const processEnv = applyEnvDefaults({
 			processEnv: {},
@@ -257,18 +274,22 @@ describe('playwright config contract', () => {
 	});
 
 	it('resolvePlaywrightRuntime uses default base URL and admin fallback chain without BASE_URL override', () => {
+		const workspacePath = '/tmp/fjcloud-worktree-default';
+		const expectedPort = resolveDefaultPlaywrightWebPort(workspacePath);
+		const expectedBaseUrl = `http://localhost:${expectedPort}`;
 		const runtime = resolvePlaywrightRuntime({
 			processEnv: {},
 			repoEnv: {},
 			webEnv: {},
-			fallbackJwtSecret: 'fallback-jwt'
+			fallbackJwtSecret: 'fallback-jwt',
+			workspacePath
 		});
 
-		expect(runtime.baseURL).toBe(DEFAULT_PLAYWRIGHT_BASE_URL);
+		expect(runtime.baseURL).toBe(expectedBaseUrl);
 		expect(runtime.webServer).toEqual({
-			command: PLAYWRIGHT_WEB_SERVER_COMMAND,
+			command: `${PLAYWRIGHT_WEB_SERVER_COMMAND} --host 127.0.0.1 --port ${expectedPort} --strictPort`,
 			env: runtime.webServerEnv,
-			url: DEFAULT_PLAYWRIGHT_BASE_URL,
+			url: expectedBaseUrl,
 			reuseExistingServer: false,
 			timeout: PLAYWRIGHT_WEB_SERVER_TIMEOUT_MS
 		});
@@ -277,10 +298,45 @@ describe('playwright config contract', () => {
 		expect(runtime.webServerEnv.JWT_SECRET).toBe('fallback-jwt');
 	});
 
-	it('uses the local stack launcher command so setup:user has API availability without manual startup', () => {
+	it('uses the local stack launcher base command so setup:user has API availability without manual startup', () => {
 		expect(PLAYWRIGHT_WEB_SERVER_COMMAND).toBe(
-			'../scripts/playwright_local_stack.sh --force-api-restart --host 127.0.0.1 --port 5173 --strictPort'
+			'../scripts/playwright_local_stack.sh --force-api-restart'
 		);
+	});
+
+	it('uses the web-only launcher for public-only smoke selections', () => {
+		const workspacePath = '/tmp/fjcloud-worktree-public';
+		const expectedPort = resolveDefaultPlaywrightWebPort(workspacePath);
+		const runtime = resolvePlaywrightRuntime({
+			processEnv: {},
+			repoEnv: {},
+			webEnv: {},
+			fallbackJwtSecret: 'fallback-jwt',
+			argv: ['test', 'smoke/public-editor_dialog.spec.ts', '--project=chromium:public'],
+			workspacePath
+		});
+
+		expect(runtime.webServer?.command).toBe(
+			`${PLAYWRIGHT_WEB_ONLY_SERVER_COMMAND} --host 127.0.0.1 --port ${expectedPort} --strictPort`
+		);
+		expect(runtime.webServer?.reuseExistingServer).toBe(false);
+	});
+
+	it('uses explicit PLAYWRIGHT_WEB_PORT override for webServer and baseURL', () => {
+		const processEnv: MutableEnv = {
+			[PLAYWRIGHT_WEB_PORT_ENV]: '6123'
+		};
+		const runtime = resolvePlaywrightRuntime({
+			processEnv,
+			repoEnv: {},
+			webEnv: {},
+			fallbackJwtSecret: 'fallback-jwt'
+		});
+
+		expect(runtime.baseURL).toBe('http://localhost:6123');
+		expect(runtime.webServer?.url).toBe('http://localhost:6123');
+		expect(runtime.webServer?.command).toContain('--port 6123');
+		expect(processEnv.BASE_URL).toBe('http://localhost:6123');
 	});
 
 	it('resolvePlaywrightRuntime prefers web ADMIN_KEY then repo then process ADMIN_KEY', () => {

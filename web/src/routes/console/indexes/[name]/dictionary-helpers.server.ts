@@ -1,6 +1,3 @@
-/**
- * @module Stub summary for /Users/stuart/parallel_development/fjcloud_dev/MAR17_11_2_data_management_features/fjcloud_dev/web/src/routes/console/indexes/[name]/dictionary-helpers.server.ts.
- */
 import type { DictionaryLanguagesResponse, DictionaryName } from '$lib/api/types';
 
 export const VALID_DICTIONARIES: DictionaryName[] = ['stopwords', 'plurals', 'compounds'];
@@ -67,6 +64,15 @@ export function parseDictionaryEntryFromForm(
 		if (!entryWord) {
 			throw new Error('entryWord is required for stopwords');
 		}
+
+		const submittedState = (data.get('state') as string | null)?.trim() ?? '';
+		if (submittedState.length > 0) {
+			if (submittedState !== 'enabled' && submittedState !== 'disabled') {
+				throw new Error('state must be enabled or disabled for stopwords');
+			}
+			return { ...baseEntry, word: entryWord, state: submittedState };
+		}
+
 		return { ...baseEntry, word: entryWord };
 	}
 
@@ -76,8 +82,8 @@ export function parseDictionaryEntryFromForm(
 			throw new Error('entryWords is required for plurals');
 		}
 		const words = parseDelimitedValues(rawWords);
-		if (words.length < 2) {
-			throw new Error('entryWords must include at least two comma-separated values for plurals');
+		if (words.length < 1) {
+			throw new Error('entryWords must include at least one parsed value for plurals');
 		}
 		return { ...baseEntry, words };
 	}

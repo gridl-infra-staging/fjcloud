@@ -153,7 +153,7 @@ usage_records to Postgres. |
 
 | Directory | Summary |
 | --- | --- |
-| canary | The canary directory contains synthetic monitoring scripts and contract validation tests that continuously verify fjcloud infrastructure health, including customer workflow probes, external service availability checks, email deliverability, and integration points across the API, frontend, and AWS infrastructure. |
+| canary | The canary directory contains synthetic health probes and contract tests that validate end-to-end system functionality, including a customer-loop canary, external AWS health checks, email deliverability verification, and infrastructure-wide contract tests for security boundaries and wire-protocol correctness. |
 | chaos | The chaos directory contains failure-injection and HA resilience test scripts that validate the system's ability to detect outages, trigger failover, and recover—including region kill/restart tests, metering service failure detection, and end-to-end failover proofs. |
 | launch | The launch directory contains deployment verification and evidence-capture scripts for the fjcloud staging environment, including tenant-map validation, synthetic traffic seeding, post-deploy verification gates, SSM environment hydration, and E2E test orchestration. |
 | lib | A shared shell script library providing infrastructure utilities for validation, alerting, database access, security checks, Stripe integration, and live system probes used across fjcloud's testing and deployment workflows. |

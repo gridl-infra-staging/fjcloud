@@ -50,7 +50,8 @@ const runtimeContract = resolvePlaywrightRuntime({
 	processEnv: process.env,
 	repoEnv,
 	webEnv,
-	fallbackJwtSecret
+	fallbackJwtSecret,
+	argv: process.argv.slice(2)
 });
 
 /** Map a contract-defined project shape to a Playwright-native project config,

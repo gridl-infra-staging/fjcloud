@@ -1,0 +1,14 @@
+HTTP/2 400 
+date: Mon, 25 May 2026 22:13:01 GMT
+content-type: application/json
+content-length: 37
+strict-transport-security: max-age=63072000; includeSubDomains
+x-content-type-options: nosniff
+x-frame-options: DENY
+x-xss-protection: 1; mode=block
+x-robots-tag: noindex, nofollow, noarchive, nosnippet, noimageindex, noai, noimageai
+vary: origin, access-control-request-method, access-control-request-headers
+access-control-allow-credentials: true
+x-request-id: 7b0e6e9b-fec7-470e-8d34-302f3482b805
+
+{"error":"invalid webhook signature"}

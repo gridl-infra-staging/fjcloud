@@ -13,6 +13,7 @@
 | monitoring-coverage | — |
 | privacy_com_contract | This directory contains operational validation scripts for Privacy.com contract integration, with a timestamped live probe routine for monitoring and verifying the contract's health against live services. |
 | prod_db_leak_cleanup | This directory contains stages 4-5 of a production database leak cleanup procedure that terminates customer deployments and soft-deletes tenants while ensuring reproducibility and preventing duplicate operations on reruns. |
+| security-coverage-a3 | — |
 | staging-isolation | — |
 | staging-metering | — |
 | stripe-pre-gut-snapshot | — |

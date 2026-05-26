@@ -7,5 +7,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| [name] | This directory provides server-side logic for the index console interface, including dictionary and document management, security configuration, and integration utilities for the web frontend. |
+| [name] | This directory contains server-side route handlers and utilities for the index console's management interface, providing functionality for dictionary management, document uploads, security configuration, and tabbed UI components. |
 <!-- [scrai:end] -->

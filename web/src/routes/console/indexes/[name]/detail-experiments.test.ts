@@ -102,6 +102,29 @@ describe('Index detail page — Experiments', () => {
 		expect(screen.getByLabelText('Minimum runtime days')).toBeInTheDocument();
 	});
 
+	it('create experiment payload includes endAt based on minimum runtime', async () => {
+		const { container } = render(IndexDetailPage, {
+			data: createMockPageData({
+				experiments: { abtests: [], count: 0, total: 0 }
+			}),
+			form: null
+		});
+
+		await fireEvent.click(screen.getByRole('tab', { name: 'Experiments' }));
+		await fireEvent.click(screen.getByRole('button', { name: 'Create Experiment' }));
+		await fireEvent.input(screen.getByLabelText('Experiment name'), {
+			target: { value: 'runtime-window-test' }
+		});
+
+		const hiddenPayloadInput = container.querySelector<HTMLInputElement>(
+			'input[name="experiment"]'
+		);
+		expect(hiddenPayloadInput).not.toBeNull();
+		const payload = JSON.parse(hiddenPayloadInput!.value) as { endAt?: string };
+		expect(payload.endAt).toBeDefined();
+		expect(new Date(payload.endAt!).toString()).not.toBe('Invalid Date');
+	});
+
 	it('clicking experiment name shows detail view and metric cards', async () => {
 		render(IndexDetailPage, {
 			data: createMockPageData(),
@@ -155,7 +178,8 @@ describe('Index detail page — Experiments', () => {
 
 		expect(screen.getByText('Conclusion')).toBeInTheDocument();
 		expect(screen.getAllByText(/Winner: variant/i).length).toBeGreaterThanOrEqual(1);
-		expect(screen.getByText(/should be promoted/i)).toBeInTheDocument();
+		expect(screen.getByText(/rolled out b; mobile lift was 8%/i)).toBeInTheDocument();
+		expect(screen.getByText(/variant has higher ctr and should be promoted/i)).toBeInTheDocument();
 	});
 
 	it('sample ratio mismatch shows warning banner', async () => {
@@ -188,6 +212,60 @@ describe('Index detail page — Experiments', () => {
 		expect(screen.getByLabelText('No Winner')).toBeInTheDocument();
 		expect(screen.getByLabelText('Reason')).toBeInTheDocument();
 		expect(container.querySelector('form[action="?/concludeExperiment"]')).not.toBeNull();
+	});
+
+	it('stop experiment requires typed confirmation before submit', async () => {
+		const requestSubmitSpy = vi
+			.spyOn(HTMLFormElement.prototype, 'requestSubmit')
+			.mockImplementation(() => {});
+		render(IndexDetailPage, {
+			data: createMockPageData(),
+			form: null
+		});
+
+		await fireEvent.click(screen.getByRole('tab', { name: 'Experiments' }));
+		await fireEvent.click(screen.getByRole('button', { name: 'Stop experiment 7' }));
+
+		expect(screen.getByText('Stop experiment "Ranking test"?')).toBeInTheDocument();
+		const confirmButton = screen.getByTestId('confirm-confirm-btn');
+		expect(confirmButton).toBeDisabled();
+
+		await fireEvent.click(confirmButton);
+		expect(requestSubmitSpy).not.toHaveBeenCalled();
+
+		const confirmInput = screen.getByTestId('confirm-input');
+		await fireEvent.input(confirmInput, { target: { value: 'wrong name' } });
+		expect(confirmButton).toBeDisabled();
+		expect(requestSubmitSpy).not.toHaveBeenCalled();
+
+		await fireEvent.input(confirmInput, { target: { value: 'Ranking test' } });
+		expect(confirmButton).not.toBeDisabled();
+		await fireEvent.click(confirmButton);
+		expect(requestSubmitSpy).toHaveBeenCalledTimes(1);
+	});
+
+	it('delete experiment requires typed confirmation before submit', async () => {
+		const requestSubmitSpy = vi
+			.spyOn(HTMLFormElement.prototype, 'requestSubmit')
+			.mockImplementation(() => {});
+		render(IndexDetailPage, {
+			data: createMockPageData(),
+			form: null
+		});
+
+		await fireEvent.click(screen.getByRole('tab', { name: 'Experiments' }));
+		await fireEvent.click(screen.getByRole('button', { name: 'Delete experiment 9' }));
+
+		expect(screen.getByText('Delete experiment "Stopped test"?')).toBeInTheDocument();
+		const confirmButton = screen.getByTestId('confirm-confirm-btn');
+		expect(confirmButton).toBeDisabled();
+
+		await fireEvent.input(screen.getByTestId('confirm-input'), {
+			target: { value: 'Stopped test' }
+		});
+		expect(confirmButton).not.toBeDisabled();
+		await fireEvent.click(confirmButton);
+		expect(requestSubmitSpy).toHaveBeenCalledTimes(1);
 	});
 });
 

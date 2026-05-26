@@ -250,16 +250,48 @@ fi
 # (invoice receipts, dunning, expiring-card) are NOT exposed by this endpoint
 # and must be operator-verified per docs/runbooks/paid_beta_rc_signoff.md
 # "Stripe Dashboard Prerequisites".
+#
+# Account-level business_profile is mode-scoped: test mode returns
+# `business_profile: null` while live mode returns the populated profile
+# (Stripe maintains separate profiles per mode and `POST /v1/account` is
+# rejected with `Only live keys can access this method` on test keys). For
+# the gate to be meaningful we MUST probe with the live key; checking with a
+# test key produces a misleading ACTION_REQUIRED on values that are correctly
+# set in live mode. The live key is loaded from SSM (same source the prod
+# API binary uses) with a 5s timeout; if SSM is unreachable we fall back to
+# the env's test key and tag the row STALE so the noise is visible but not
+# blocking.
 raw_file="$OUT/stripe_account_config.txt"
 register_raw "stripe_account_config.txt"
-if [ -n "${STRIPE_SECRET_KEY:-}" ]; then
+stripe_account_probe_key=""
+stripe_account_probe_mode=""
+if command -v aws >/dev/null 2>&1; then
+  if live_key_value="$(aws ssm get-parameter \
+      --name /fjcloud/prod/stripe_secret_key \
+      --with-decryption \
+      --query Parameter.Value \
+      --output text \
+      --cli-read-timeout 5 \
+      --cli-connect-timeout 5 2>/dev/null)" \
+     && [ -n "$live_key_value" ] \
+     && [[ "$live_key_value" == sk_live_* ]]; then
+    stripe_account_probe_key="$live_key_value"
+    stripe_account_probe_mode="live"
+  fi
+fi
+if [ -z "$stripe_account_probe_key" ] && [ -n "${STRIPE_SECRET_KEY:-}" ]; then
+  stripe_account_probe_key="$STRIPE_SECRET_KEY"
+  stripe_account_probe_mode="test_fallback"
+fi
+if [ -n "$stripe_account_probe_key" ]; then
   http_status="$(curl -s -o "$OUT/stripe_account_config.body.json" -w '%{http_code}' \
     --max-time 10 \
-    -u "${STRIPE_SECRET_KEY}:" \
+    -u "${stripe_account_probe_key}:" \
     "https://api.stripe.com/v1/account" 2>/dev/null || echo "000")"
   register_raw "stripe_account_config.body.json"
   {
     echo "http_status=$http_status"
+    echo "probe_mode=$stripe_account_probe_mode"
     if [ "$http_status" = "200" ] && command -v python3 >/dev/null; then
       python3 -c '
 import json
@@ -281,16 +313,18 @@ print("missing:", ",".join(missing) if missing else "(none)")
   if [ "$http_status" = "200" ]; then
     missing_line="$(grep '^missing:' "$raw_file" | sed 's/^missing: //')"
     if [ "$missing_line" = "(none)" ]; then
-      add_row "stripe_account_config" "OK" "false" "statement descriptor + business profile complete" "stripe_account_config.txt"
+      add_row "stripe_account_config" "OK" "false" "statement descriptor + business profile complete (probed in $stripe_account_probe_mode mode)" "stripe_account_config.txt"
+    elif [ "$stripe_account_probe_mode" = "test_fallback" ]; then
+      add_row "stripe_account_config" "STALE" "false" "Probed with test-mode key only (SSM /fjcloud/prod/stripe_secret_key unreachable). Test-mode business_profile is irrelevant for paid-beta launch; re-run with AWS creds for the live-mode gate." "stripe_account_config.txt"
     else
-      add_row "stripe_account_config" "ACTION_REQUIRED" "false" "Stripe Dashboard missing: $missing_line (operator action — see docs/runbooks/paid_beta_rc_signoff.md Stripe Dashboard Prerequisites)" "stripe_account_config.txt"
+      add_row "stripe_account_config" "ACTION_REQUIRED" "false" "Stripe Dashboard missing in live mode: $missing_line (operator action — see docs/runbooks/paid_beta_rc_signoff.md Stripe Dashboard Prerequisites)" "stripe_account_config.txt"
     fi
   else
-    add_row "stripe_account_config" "PROBE_ERROR" "false" "Stripe /v1/account returned HTTP $http_status" "stripe_account_config.txt"
+    add_row "stripe_account_config" "PROBE_ERROR" "false" "Stripe /v1/account returned HTTP $http_status (probed in $stripe_account_probe_mode mode)" "stripe_account_config.txt"
   fi
 else
-  echo "STRIPE_SECRET_KEY unset" > "$raw_file"
-  add_row "stripe_account_config" "SKIP_NO_CREDS" "false" "STRIPE_SECRET_KEY unset" "stripe_account_config.txt"
+  echo "STRIPE_SECRET_KEY unset and SSM live key unavailable" > "$raw_file"
+  add_row "stripe_account_config" "SKIP_NO_CREDS" "false" "Neither STRIPE_SECRET_KEY nor SSM /fjcloud/prod/stripe_secret_key available" "stripe_account_config.txt"
 fi
 
 # ---------------------------------------------------------------------------
@@ -458,7 +492,7 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 6. Cloudflare Pages — list env vars (names only, no values)
+# 6. Cloudflare Pages — list env vars + deployment provenance (no values)
 # ---------------------------------------------------------------------------
 # Uses the global-key + email auth that fjcloud's .env.secret carries
 # (CLOUDFLARE_GLOBAL_API_KEY + CLOUDFLARE_EMAIL). If absent → SKIP_NO_CREDS.
@@ -505,19 +539,96 @@ print(ids[0] if ids else "")
     register_raw "cf_pages_projects.json"
 
     if [ "$proj_http" = "200" ] && command -v python3 >/dev/null; then
-      # For each project, list env-var NAMES (not values).
-      python3 -c '
-import json,sys
+      # The projects list endpoint does not consistently expose deployment
+      # provenance fields. Fetch each project detail and emit the canonical
+      # provenance tuple from latest_deployment in the same cloudflare_pages
+      # section output.
+      project_names="$(python3 -c '
+import json
 d = json.load(open("'"$OUT/cf_pages_projects.json"'"))
-for p in d.get("result", []):
-    name = p.get("name", "?")
-    envs = p.get("deployment_configs", {})
-    for env in ("production", "preview"):
-        vars_obj = envs.get(env, {}).get("env_vars") or {}
-        names = sorted(vars_obj.keys()) if isinstance(vars_obj, dict) else []
-        print(f"- project={name} env={env} var_count={len(names)} names={names}")
-' >> "$raw_file" 2>&1
-      add_row "cloudflare_pages" "OK" "false" "Cloudflare Pages projects + env-var names enumerated (values NOT captured)" "cloudflare_pages.txt"
+for project in d.get("result", []):
+    name = project.get("name")
+    if isinstance(name, str) and name:
+        print(name)
+' 2>/dev/null || true)"
+
+      project_count=0
+      detail_errors=0
+      missing_provenance_count=0
+      for project_name in $project_names; do
+        project_count=$((project_count + 1))
+        safe_project_name="$(printf '%s' "$project_name" | sed 's/[^A-Za-z0-9_]/_/g')"
+        detail_json="$OUT/cf_pages_project_${safe_project_name}.json"
+        detail_raw_name="cf_pages_project_${safe_project_name}.json"
+        detail_http="$(curl -s -o "$detail_json" -w '%{http_code}' \
+          -H "X-Auth-Email: $CLOUDFLARE_EMAIL" \
+          -H "X-Auth-Key: $CLOUDFLARE_GLOBAL_API_KEY" \
+          "https://api.cloudflare.com/client/v4/accounts/${acct_id}/pages/projects/${project_name}")"
+        register_raw "$detail_raw_name"
+
+        {
+          echo "- project=${project_name} detail_http_status=${detail_http}"
+        } >> "$raw_file"
+
+        if [ "$detail_http" != "200" ]; then
+          detail_errors=$((detail_errors + 1))
+          continue
+        fi
+
+        detail_lines="$(python3 -c '
+import json, sys
+detail_path = sys.argv[1]
+project_name = sys.argv[2]
+data = json.load(open(detail_path))
+result = data.get("result", {})
+latest = result.get("latest_deployment") or {}
+branch = (((latest.get("deployment_trigger") or {}).get("metadata") or {}).get("branch") or latest.get("production_branch") or "")
+deployment_id = latest.get("id") or ""
+created_on = latest.get("created_on") or ""
+deployment_url = latest.get("url") or ""
+deployment_status = ((latest.get("latest_stage") or {}).get("status")) or ""
+missing = []
+if not branch:
+    missing.append("branch")
+if not deployment_id:
+    missing.append("deployment_id")
+if not created_on:
+    missing.append("created_on")
+if not deployment_url:
+    missing.append("url")
+if not deployment_status:
+    missing.append("status")
+print("  deployment_branch={}".format(branch if branch else "NONE"))
+print("  deployment_id={}".format(deployment_id if deployment_id else "NONE"))
+print("  deployment_created_on={}".format(created_on if created_on else "NONE"))
+print("  deployment_url={}".format(deployment_url if deployment_url else "NONE"))
+print("  deployment_status={}".format(deployment_status if deployment_status else "NONE"))
+print("  missing_fields=" + (",".join(missing) if missing else "none"))
+envs = result.get("deployment_configs", {})
+for env in ("production", "preview"):
+    vars_obj = (envs.get(env, {}) or {}).get("env_vars") or {}
+    names = sorted(vars_obj.keys()) if isinstance(vars_obj, dict) else []
+    print(f"  env={env} var_count={len(names)} names={names}")
+' "$detail_json" "$project_name" 2>/dev/null || true)"
+        if [ -z "$detail_lines" ]; then
+          detail_errors=$((detail_errors + 1))
+          continue
+        fi
+        printf '%s\n' "$detail_lines" >> "$raw_file"
+        if ! printf '%s\n' "$detail_lines" | grep -q 'missing_fields=none'; then
+          missing_provenance_count=$((missing_provenance_count + 1))
+        fi
+      done
+
+      if [ "$detail_errors" -gt 0 ]; then
+        add_row "cloudflare_pages" "PROBE_ERROR" "false" "Cloudflare Pages detail fetch failed for $detail_errors of $project_count projects" "cloudflare_pages.txt"
+      elif [ "$project_count" -eq 0 ]; then
+        add_row "cloudflare_pages" "DRIFT" "false" "Cloudflare Pages projects list returned zero projects" "cloudflare_pages.txt"
+      elif [ "$missing_provenance_count" -gt 0 ]; then
+        add_row "cloudflare_pages" "DRIFT" "false" "Cloudflare Pages missing provenance fields for $missing_provenance_count of $project_count projects" "cloudflare_pages.txt"
+      else
+        add_row "cloudflare_pages" "OK" "false" "Cloudflare Pages deployment provenance + env-var names enumerated (values NOT captured)" "cloudflare_pages.txt"
+      fi
     else
       add_row "cloudflare_pages" "PROBE_ERROR" "false" "Pages projects list returned HTTP $proj_http" "cloudflare_pages.txt"
     fi

@@ -5,6 +5,7 @@
 | --- | --- |
 | ec2_firewalld_contract.sh | EC2 firewalld port-coverage contract. |
 | lambda_canary_invoke_contract.sh | Lambda canary invocation contract. |
+| live_prod_reject_probe_lib.sh | Stub summary for live_prod_reject_probe_lib.sh. |
 | mocked_spec_contract.sh | Mocked-spec drift contract for chromium:mocked Playwright payload owners.
 
 Scope:
@@ -28,6 +29,9 @@ IMPORTANT: This intentionally parses TypeScript/Svelte source using bash + a
 narrow Python helper to avoid introducing a second manifest/fixture owner.
 The coupling is explicit so reviewers can validate it. |
 | oauth_redirect_uri_contract.sh | Stub summary for oauth_redirect_uri_contract.sh. |
+| stripe_webhook_bad_signature_reject_contract.sh | Live prod fail-closed contract: Stripe webhook rejects bad signature (HTTP 400). |
+| stripe_webhook_stale_timestamp_reject_contract.sh | Live prod fail-closed contract: Stripe webhook rejects stale timestamp (HTTP 400). |
+| tenant_jwt_wrong_secret_reject_contract.sh | Live prod fail-closed contract: tenant route rejects JWT signed with wrong secret (HTTP 401). |
 | web_api_base_url_contract.sh | Stub summary for web_api_base_url_contract.sh. |
 | web_form_login_contract.sh | Stub summary for web_form_login_contract.sh. |
 | web_server_load_api_url_contract.sh | Web frontend SERVER-LOAD API URL contract probe. |

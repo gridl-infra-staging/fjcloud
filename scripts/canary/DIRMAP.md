@@ -19,5 +19,5 @@ unavailable so staging gets a clear outside-AWS outage signal. |
 
 | Directory | Summary |
 | --- | --- |
-| contracts | This directory contains contract validation scripts that verify integration points across the fjcloud infrastructure and frontend, including EC2 firewall rules, Lambda canary invocations, browser test payloads, OAuth flows, and API URL endpoints. |
+| contracts | This directory contains bash-based contract tests that verify wire payloads, security boundaries, and infrastructure across the full stack—from frontend Playwright mocked specs and web API contracts to backend auth/billing/webhook reject-cases and EC2/Lambda infrastructure. |
 <!-- [scrai:end] -->

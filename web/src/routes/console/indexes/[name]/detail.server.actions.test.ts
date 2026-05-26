@@ -154,6 +154,7 @@ describe('Index detail page server -- actions', () => {
 			'experiment',
 			JSON.stringify({
 				name: 'Ranking test',
+				endAt: '2026-03-05T00:00:00.000Z',
 				variants: [
 					{ index: 'products', trafficPercentage: 50 },
 					{
@@ -171,12 +172,83 @@ describe('Index detail page server -- actions', () => {
 
 		expect(createExperimentMock).toHaveBeenCalledWith('products', {
 			name: 'Ranking test',
+			endAt: '2026-03-05T00:00:00.000Z',
 			variants: [
 				{ index: 'products', trafficPercentage: 50 },
 				{ index: 'products', trafficPercentage: 50, customSearchParameters: { enableRules: false } }
 			]
 		});
 		expect(result).toEqual({ experimentCreated: true });
+	});
+
+	it('createExperiment action retries transient API errors and succeeds', async () => {
+		createExperimentMock
+			.mockRejectedValueOnce(new ApiRequestError(503, 'endpoint not ready yet'))
+			.mockResolvedValueOnce({ abTestID: 8, index: 'products', taskID: 2 });
+
+		const formData = new FormData();
+		formData.set(
+			'experiment',
+			JSON.stringify({
+				name: 'Retry ranking test',
+				endAt: '2026-03-10T00:00:00.000Z',
+				variants: [
+					{ index: 'products', trafficPercentage: 50 },
+					{
+						index: 'products',
+						trafficPercentage: 50,
+						customSearchParameters: { enableRules: true }
+					}
+				]
+			})
+		);
+
+		const result = await actions.createExperiment(
+			makeActionArgs('createExperiment', formData) as never
+		);
+
+		expect(createExperimentMock).toHaveBeenCalledTimes(2);
+		expect(result).toEqual({ experimentCreated: true });
+	});
+
+	it('appendSecuritySource keeps a reload failure visible instead of replacing the list with an empty fallback', async () => {
+		appendSecuritySourceMock.mockResolvedValue(undefined);
+		getSecuritySourcesMock.mockRejectedValue(new Error('reload unavailable'));
+
+		const formData = new FormData();
+		formData.set('source', '192.168.1.0/24');
+		formData.set('description', 'Office network');
+
+		const result = await actions.appendSecuritySource(
+			makeActionArgs('appendSecuritySource', formData) as never
+		);
+
+		expect(appendSecuritySourceMock).toHaveBeenCalledWith('products', {
+			source: '192.168.1.0/24',
+			description: 'Office network'
+		});
+		expect(result).toEqual({
+			securitySourceAppended: true,
+			securitySourcesLoadError: 'reload unavailable'
+		});
+	});
+
+	it('deleteSecuritySource keeps a reload failure visible instead of returning empty sources', async () => {
+		deleteSecuritySourceMock.mockResolvedValue(undefined);
+		getSecuritySourcesMock.mockRejectedValue(new Error('reload unavailable'));
+
+		const formData = new FormData();
+		formData.set('source', '192.168.1.0/24');
+
+		const result = await actions.deleteSecuritySource(
+			makeActionArgs('deleteSecuritySource', formData) as never
+		);
+
+		expect(deleteSecuritySourceMock).toHaveBeenCalledWith('products', '192.168.1.0/24');
+		expect(result).toEqual({
+			securitySourceDeleted: true,
+			securitySourcesLoadError: 'reload unavailable'
+		});
 	});
 
 	it('deleteExperiment action calls deleteExperiment API and returns success', async () => {

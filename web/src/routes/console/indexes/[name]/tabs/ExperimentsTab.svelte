@@ -1,13 +1,23 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import { formatNumber, statusLabel } from '$lib/format';
+	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
+	import { formatNumber } from '$lib/format';
 	import type {
 		Experiment,
-		ExperimentArm,
 		ExperimentListResponse,
 		ExperimentResults,
 		Index
 	} from '$lib/api/types';
+	import {
+		confidenceBarClass,
+		confidencePercent,
+		experimentMetricLabel,
+		experimentStatusBadgeClass,
+		experimentTrafficSplit,
+		formatRatePercent,
+		getArmMetricValue,
+		statusLabel
+	} from './experiments_tab_helpers';
 
 	type Props = {
 		experiments: ExperimentListResponse;
@@ -33,71 +43,26 @@
 	let concludeWinner = $state<'control' | 'variant' | 'none'>('variant');
 	let concludeReason = $state('');
 	let concludePromoted = $state(false);
-
-	function formatRatePercent(rate: number | null | undefined): string {
-		if (rate === null || rate === undefined) return '0.0%';
-		return `${(rate * 100).toFixed(1)}%`;
-	}
-
-	function getArmMetricValue(arm: ExperimentArm, metric: string): number {
-		switch (metric) {
-			case 'ctr':
-				return arm.ctr;
-			case 'conversionRate':
-			case 'conversion_rate':
-				return arm.conversionRate;
-			case 'revenuePerSearch':
-			case 'revenue_per_search':
-				return arm.revenuePerSearch;
-			case 'zeroResultRate':
-			case 'zero_result_rate':
-				return arm.zeroResultRate;
-			case 'abandonmentRate':
-			case 'abandonment_rate':
-				return arm.abandonmentRate;
-			default:
-				return arm.ctr;
-		}
-	}
-
-	function experimentMetricLabel(metric: string): string {
-		switch (metric) {
-			case 'ctr':
-				return 'CTR';
-			case 'conversionRate':
-			case 'conversion_rate':
-				return 'Conversion';
-			case 'revenuePerSearch':
-			case 'revenue_per_search':
-				return 'Revenue/Search';
-			case 'zeroResultRate':
-			case 'zero_result_rate':
-				return 'Zero Result Rate';
-			case 'abandonmentRate':
-			case 'abandonment_rate':
-				return 'Abandonment Rate';
-			default:
-				return metric;
-		}
-	}
-
-	function experimentStatusBadgeClass(status: string): string {
-		switch (status) {
-			case 'running':
-				return 'bg-flapjack-mint/35 text-flapjack-ink';
-			case 'concluded':
-				return 'bg-flapjack-rose/10 text-flapjack-plum';
-			case 'stopped':
-				return 'bg-flapjack-cream/70 text-flapjack-ink';
-			case 'created':
-			default:
-				return 'bg-flapjack-yellow/30 text-flapjack-ink/80';
-		}
-	}
-
-	function experimentTrafficSplit(experiment: Experiment): string {
-		return experiment.variants.map((variant) => `${variant.trafficPercentage ?? 0}`).join('/');
-	}
+	let showLifecycleConfirmDialog = $state(false);
+	let pendingLifecycleAction = $state<'stop' | 'delete' | null>(null);
+	let pendingLifecycleExperiment = $state<Experiment | null>(null);
+	let pendingLifecycleForm = $state<HTMLFormElement | null>(null);
+	let pendingLifecycleTrigger = $state<HTMLElement | null>(null);
+	const lifecycleDialogOpen = $derived(
+		showLifecycleConfirmDialog &&
+			pendingLifecycleExperiment !== null &&
+			pendingLifecycleAction !== null
+	);
+	const lifecycleDialogTitle = $derived(
+		pendingLifecycleAction === 'stop'
+			? `Stop experiment "${pendingLifecycleExperiment?.name ?? ''}"?`
+			: `Delete experiment "${pendingLifecycleExperiment?.name ?? ''}"?`
+	);
+	const lifecycleDialogConsequences = $derived(
+		pendingLifecycleAction === 'stop'
+			? 'Stopping an experiment ends live traffic allocation and prevents additional data collection.'
+			: 'Deleting this experiment permanently removes it from this index detail workflow.'
+	);
 
 	function openExperiment(experimentId: number) {
 		selectedExperimentId = experimentId;
@@ -122,17 +87,6 @@
 		return experimentResultsMap[String(selected)] ?? null;
 	}
 
-	function confidencePercent(results: ExperimentResults): number {
-		if (!results.significance) return 0;
-		return Math.max(0, Math.min(100, results.significance.confidence * 100));
-	}
-
-	function confidenceBarClass(confidence: number): string {
-		if (confidence >= 95) return 'bg-flapjack-mint';
-		if (confidence >= 90) return 'bg-flapjack-yellow';
-		return 'bg-flapjack-rose';
-	}
-
 	function openConcludeDialog() {
 		const results = selectedExperimentResults();
 		concludeWinner =
@@ -144,6 +98,34 @@
 
 	function closeConcludeDialog() {
 		showConcludeDialog = false;
+	}
+
+	function openLifecycleConfirmDialog(
+		action: 'stop' | 'delete',
+		experiment: Experiment,
+		form: HTMLFormElement,
+		trigger: HTMLElement
+	): void {
+		pendingLifecycleAction = action;
+		pendingLifecycleExperiment = experiment;
+		pendingLifecycleForm = form;
+		pendingLifecycleTrigger = trigger;
+		showLifecycleConfirmDialog = true;
+	}
+
+	function closeLifecycleConfirmDialog(): void {
+		showLifecycleConfirmDialog = false;
+		pendingLifecycleAction = null;
+		pendingLifecycleExperiment = null;
+		pendingLifecycleForm = null;
+		pendingLifecycleTrigger = null;
+	}
+
+	function confirmLifecycleAction(): void {
+		const form = pendingLifecycleForm;
+		if (!form) return;
+		form.requestSubmit();
+		closeLifecycleConfirmDialog();
 	}
 
 	function concludePayload(): string {
@@ -168,6 +150,9 @@
 	}
 
 	function createExperimentPayload(): string {
+		const minimumRuntimeDays = Math.max(1, Math.trunc(createExperimentMinimumRuntimeDays));
+		const endAt = new Date(Date.now() + minimumRuntimeDays * 24 * 60 * 60 * 1000);
+
 		const variant =
 			createExperimentVariantMode === 'modeB'
 				? {
@@ -188,6 +173,7 @@
 
 		return JSON.stringify({
 			name: createExperimentName.trim(),
+			endAt: endAt.toISOString(),
 			variants: [{ index: index.name, trafficPercentage: createExperimentTrafficSplit }, variant]
 		});
 	}
@@ -261,12 +247,19 @@
 								<td class="px-4 py-2">{experimentTrafficSplit(experiment)}</td>
 								<td class="px-4 py-2">{experiment.createdAt.slice(0, 10)}</td>
 								<td class="px-4 py-2 text-right">
-									{#if experiment.status === 'running'}
+									{#if experiment.status === 'running' || experiment.status === 'active'}
 										<form method="POST" action="?/stopExperiment" use:enhance class="inline">
 											<input type="hidden" name="experimentID" value={experiment.abTestID} />
 											<button
-												type="submit"
+												type="button"
 												aria-label={`Stop experiment ${experiment.abTestID}`}
+												onclick={(event) =>
+													openLifecycleConfirmDialog(
+														'stop',
+														experiment,
+														(event.currentTarget as HTMLElement).closest('form') as HTMLFormElement,
+														event.currentTarget as HTMLElement
+													)}
 												class="rounded border border-flapjack-ink/30 px-3 py-1 text-xs text-flapjack-ink/80 hover:bg-flapjack-cream/80"
 											>
 												Stop
@@ -276,8 +269,15 @@
 										<form method="POST" action="?/deleteExperiment" use:enhance class="inline">
 											<input type="hidden" name="experimentID" value={experiment.abTestID} />
 											<button
-												type="submit"
+												type="button"
 												aria-label={`Delete experiment ${experiment.abTestID}`}
+												onclick={(event) =>
+													openLifecycleConfirmDialog(
+														'delete',
+														experiment,
+														(event.currentTarget as HTMLElement).closest('form') as HTMLFormElement,
+														event.currentTarget as HTMLElement
+													)}
 												class="rounded border border-flapjack-rose/45 px-3 py-1 text-xs text-flapjack-plum hover:bg-flapjack-rose/10"
 											>
 												Delete
@@ -322,51 +322,31 @@
 			</div>
 
 			{#if results}
+				{@const experimentArms = [
+					{ title: 'Control arm', metrics: results.control },
+					{ title: 'Variant arm', metrics: results.variant }
+				]}
 				<div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
-					<div class="rounded-md border border-flapjack-ink/20 p-4">
-						<p class="text-sm font-semibold text-flapjack-ink">Control arm</p>
-						<p class="mt-2 text-sm text-flapjack-ink/70">
-							Searches: {formatNumber(results.control.searches)}
-						</p>
-						<p class="text-sm text-flapjack-ink/70">Users: {formatNumber(results.control.users)}</p>
-						<p class="text-sm text-flapjack-ink/70">
-							Clicks: {formatNumber(results.control.clicks)}
-						</p>
-						<p class="text-sm text-flapjack-ink/70">
-							CTR: {formatRatePercent(results.control.ctr)}
-						</p>
-						<p class="text-sm text-flapjack-ink/70">
-							Conversion: {formatRatePercent(results.control.conversionRate)}
-						</p>
-						<p class="text-sm text-flapjack-ink/70">
-							Zero results: {formatRatePercent(results.control.zeroResultRate)}
-						</p>
-						<p class="text-sm text-flapjack-ink/70">
-							Abandonment: {formatRatePercent(results.control.abandonmentRate)}
-						</p>
-					</div>
-					<div class="rounded-md border border-flapjack-ink/20 p-4">
-						<p class="text-sm font-semibold text-flapjack-ink">Variant arm</p>
-						<p class="mt-2 text-sm text-flapjack-ink/70">
-							Searches: {formatNumber(results.variant.searches)}
-						</p>
-						<p class="text-sm text-flapjack-ink/70">Users: {formatNumber(results.variant.users)}</p>
-						<p class="text-sm text-flapjack-ink/70">
-							Clicks: {formatNumber(results.variant.clicks)}
-						</p>
-						<p class="text-sm text-flapjack-ink/70">
-							CTR: {formatRatePercent(results.variant.ctr)}
-						</p>
-						<p class="text-sm text-flapjack-ink/70">
-							Conversion: {formatRatePercent(results.variant.conversionRate)}
-						</p>
-						<p class="text-sm text-flapjack-ink/70">
-							Zero results: {formatRatePercent(results.variant.zeroResultRate)}
-						</p>
-						<p class="text-sm text-flapjack-ink/70">
-							Abandonment: {formatRatePercent(results.variant.abandonmentRate)}
-						</p>
-					</div>
+					{#each experimentArms as arm (arm.title)}
+						<div class="rounded-md border border-flapjack-ink/20 p-4">
+							<p class="text-sm font-semibold text-flapjack-ink">{arm.title}</p>
+							<p class="mt-2 text-sm text-flapjack-ink/70">
+								Searches: {formatNumber(arm.metrics.searches)}
+							</p>
+							<p class="text-sm text-flapjack-ink/70">Users: {formatNumber(arm.metrics.users)}</p>
+							<p class="text-sm text-flapjack-ink/70">Clicks: {formatNumber(arm.metrics.clicks)}</p>
+							<p class="text-sm text-flapjack-ink/70">CTR: {formatRatePercent(arm.metrics.ctr)}</p>
+							<p class="text-sm text-flapjack-ink/70">
+								Conversion: {formatRatePercent(arm.metrics.conversionRate)}
+							</p>
+							<p class="text-sm text-flapjack-ink/70">
+								Zero results: {formatRatePercent(arm.metrics.zeroResultRate)}
+							</p>
+							<p class="text-sm text-flapjack-ink/70">
+								Abandonment: {formatRatePercent(arm.metrics.abandonmentRate)}
+							</p>
+						</div>
+					{/each}
 				</div>
 
 				{#if !results.gate.readyToRead}
@@ -456,6 +436,15 @@
 					</div>
 				{/if}
 
+				{#if results.recommendation}
+					<div
+						class="mt-4 rounded-md border border-flapjack-ink/20 bg-flapjack-cream/80 p-3 text-sm text-flapjack-ink/80"
+					>
+						<p class="font-medium">Recommendation</p>
+						<p class="mt-1">{results.recommendation}</p>
+					</div>
+				{/if}
+
 				{#if showConcludeDialog && experiment}
 					<form
 						method="POST"
@@ -529,7 +518,7 @@
 								getArmMetricValue(results.variant, results.primaryMetric)
 							)}
 						</p>
-						<p class="mt-1">{results.recommendation ?? 'No reason provided.'}</p>
+						<p class="mt-1">{results.conclusion?.reason ?? 'No reason provided.'}</p>
 					</div>
 				{/if}
 			{/if}
@@ -683,3 +672,19 @@
 		</form>
 	{/if}
 </div>
+
+<ConfirmDialog
+	open={lifecycleDialogOpen}
+	mode="typed"
+	dangerLevel="severe"
+	title={lifecycleDialogTitle}
+	consequences={lifecycleDialogConsequences}
+	rationale="Type the experiment name to confirm this destructive action."
+	entityName={pendingLifecycleExperiment?.name ?? ''}
+	typedPhrase={pendingLifecycleExperiment?.name ?? ''}
+	confirmLabel={pendingLifecycleAction === 'stop' ? 'Stop experiment' : 'Delete experiment'}
+	cancelLabel="Cancel"
+	onCancel={closeLifecycleConfirmDialog}
+	onConfirm={confirmLifecycleAction}
+	triggerRef={pendingLifecycleTrigger}
+/>

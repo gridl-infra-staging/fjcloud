@@ -695,5 +695,16 @@ describe('Index detail page server -- load', () => {
 		const result = (await load(makeLoadArgs() as never)) as LoadResult;
 
 		expect(result.securitySources).toEqual({ ...EMPTY_SECURITY_SOURCES });
+		expect((result as Record<string, unknown>).securitySourcesLoadError).toBe('unavailable');
+	});
+
+	it('load marks initial debug events fetch failure as eventsLoadError', async () => {
+		getDebugEventsMock.mockRejectedValue(new Error('events unavailable'));
+
+		const result = (await load(makeLoadArgs() as never)) as LoadResult;
+
+		expect(result.debugEvents).toBeNull();
+		expect((result as Record<string, unknown>).eventsLoadError).toBe('events unavailable');
+		expect((result as Record<string, unknown>).eventsError).toBeUndefined();
 	});
 });

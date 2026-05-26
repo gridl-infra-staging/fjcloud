@@ -1,6 +1,3 @@
-/**
- * @module Stub summary for /Users/stuart/parallel_development/fjcloud_dev/mar19_2_feature_gaps/fjcloud_dev/web/src/routes/console/indexes/[name]/security-sources.server.ts.
- */
 import { fail } from '@sveltejs/kit';
 import type { ApiClient } from '$lib/api/client';
 import { createApiClient } from '$lib/server/api';
@@ -15,6 +12,16 @@ type SecuritySourceActionArgs = {
 	request: Request;
 	indexName: string;
 	token: string | undefined;
+};
+
+type LoadSecuritySourcesOptions = {
+	allowFallbackOnError?: boolean;
+};
+
+type SecuritySourcesRefreshResult = {
+	securitySources?: SecuritySourcesPayload;
+	securitySourcesReloaded?: boolean;
+	securitySourcesLoadError?: string;
 };
 
 function failForSecuritySourceAction<T extends Record<string, unknown>>(
@@ -32,12 +39,36 @@ export function emptySecuritySourcesPayload(): SecuritySourcesPayload {
 
 export async function loadSecuritySourcesPayload(
 	api: ApiClient,
-	indexName: string
+	indexName: string,
+	options: LoadSecuritySourcesOptions = {}
 ): Promise<SecuritySourcesPayload> {
 	try {
 		return await api.getSecuritySources(indexName);
-	} catch {
+	} catch (error) {
+		if (options.allowFallbackOnError === false) {
+			throw error;
+		}
 		return emptySecuritySourcesPayload();
+	}
+}
+
+async function refreshSecuritySourcesResult(
+	api: ApiClient,
+	indexName: string
+): Promise<SecuritySourcesRefreshResult> {
+	try {
+		const securitySources = await loadSecuritySourcesPayload(api, indexName, {
+			allowFallbackOnError: false
+		});
+		return {
+			securitySources,
+			securitySourcesReloaded: true,
+			securitySourcesLoadError: ''
+		};
+	} catch (error) {
+		return {
+			securitySourcesLoadError: errorMessage(error, 'Failed to reload security sources')
+		};
 	}
 }
 
@@ -63,19 +94,17 @@ export async function appendSecuritySourceAction({
 	} catch (error) {
 		const sessionFailure = mapDashboardSessionFailure(error);
 		if (sessionFailure) return sessionFailure;
-		// Refresh list so user sees current state alongside the error
-		const securitySources = await loadSecuritySourcesPayload(api, indexName);
+		const refreshResult = await refreshSecuritySourcesResult(api, indexName);
 		return failForSecuritySourceAction(error, {
 			securitySourceAppendError: errorMessage(error, 'Failed to add security source'),
-			securitySources
+			...refreshResult
 		});
 	}
 
-	// Refresh list after successful append
-	const securitySources = await loadSecuritySourcesPayload(api, indexName);
+	const refreshResult = await refreshSecuritySourcesResult(api, indexName);
 	return {
 		securitySourceAppended: true,
-		securitySources
+		...refreshResult
 	};
 }
 
@@ -101,16 +130,16 @@ export async function deleteSecuritySourceAction({
 	} catch (error) {
 		const sessionFailure = mapDashboardSessionFailure(error);
 		if (sessionFailure) return sessionFailure;
-		const securitySources = await loadSecuritySourcesPayload(api, indexName);
+		const refreshResult = await refreshSecuritySourcesResult(api, indexName);
 		return failForSecuritySourceAction(error, {
 			securitySourceDeleteError: errorMessage(error, 'Failed to delete security source'),
-			securitySources
+			...refreshResult
 		});
 	}
 
-	const securitySources = await loadSecuritySourcesPayload(api, indexName);
+	const refreshResult = await refreshSecuritySourcesResult(api, indexName);
 	return {
 		securitySourceDeleted: true,
-		securitySources
+		...refreshResult
 	};
 }

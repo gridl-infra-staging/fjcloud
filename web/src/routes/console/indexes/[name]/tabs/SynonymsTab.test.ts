@@ -231,6 +231,28 @@ describe('SynonymsTab', () => {
 				screen.getByRole('button', { name: /delete synonym laptop-syn/i })
 			).toBeInTheDocument();
 		});
+
+		it('delete synonym requires explicit confirm and cancel keeps submit blocked', async () => {
+			const requestSubmitSpy = vi
+				.spyOn(HTMLFormElement.prototype, 'requestSubmit')
+				.mockImplementation(() => {});
+			render(SynonymsTab, { props: defaultProps() });
+
+			await fireEvent.click(screen.getByRole('button', { name: /delete synonym laptop-syn/i }));
+			expect(screen.getByText('Delete synonym "laptop-syn"?')).toBeInTheDocument();
+			expect(
+				screen.getByText('Summary: laptop = notebook = computer')
+			).toBeInTheDocument();
+			expect(requestSubmitSpy).not.toHaveBeenCalled();
+
+			await fireEvent.click(screen.getByTestId('confirm-cancel-btn'));
+			expect(screen.queryByText('Delete synonym "laptop-syn"?')).not.toBeInTheDocument();
+			expect(requestSubmitSpy).not.toHaveBeenCalled();
+
+			await fireEvent.click(screen.getByRole('button', { name: /delete synonym laptop-syn/i }));
+			await fireEvent.click(screen.getByTestId('confirm-confirm-btn'));
+			expect(requestSubmitSpy).toHaveBeenCalledTimes(1);
+		});
 	});
 
 	describe('synonym template behavior', () => {

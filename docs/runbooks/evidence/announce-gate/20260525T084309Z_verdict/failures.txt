@@ -1,0 +1,3 @@
+FAIL: landing / not 200 (got 303)
+FAIL: prod /version.dev_sha='d42ffd5498a8492cf620a8a7735852655ad5a918' != main=f718758c0649ea86351883c521539f724ab378b6
+FAIL: validate_subprocessor_disclosure.sh non-zero exit

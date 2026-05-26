@@ -1,0 +1,78 @@
+COMMAND: cd infra && cargo test -p api --test integration_stripe_test stripe_payment_failure_webhook_fires_on_declined_card -- --nocapture --test-threads=1
+EXIT_CODE: 0
+--- STDOUT ---
+
+running 1 test
+test stripe_payment_failure_webhook_fires_on_declined_card ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 40 filtered out; finished in 0.03s
+
+
+--- STDERR ---
+   Compiling api v0.1.0 (/Users/stuart/parallel_development/fjcloud_dev/may25_2pm_2_a2_billing_stripe_coverage/fjcloud_dev/infra/api)
+warning: constant `STRIPE_PRICE_STARTER_ENV` is never used
+ --> api/tests/common/live_stripe_helpers.rs:9:7
+  |
+9 | const STRIPE_PRICE_STARTER_ENV: &str = "STRIPE_PRICE_STARTER";
+  |       ^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `stripe_price_starter_id` is never used
+  --> api/tests/common/live_stripe_helpers.rs:61:8
+   |
+61 | pub fn stripe_price_starter_id() -> Option<String> {
+   |        ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `stripe_price_starter_configured` is never used
+  --> api/tests/common/live_stripe_helpers.rs:71:8
+   |
+71 | pub fn stripe_price_starter_configured() -> bool {
+   |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `create_test_clock` is never used
+   --> api/tests/common/live_stripe_helpers.rs:176:14
+    |
+176 | pub async fn create_test_clock(
+    |              ^^^^^^^^^^^^^^^^^
+
+warning: function `create_clock_bound_customer` is never used
+   --> api/tests/common/live_stripe_helpers.rs:186:14
+    |
+186 | pub async fn create_clock_bound_customer(
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `create_trialing_subscription_for_price` is never used
+   --> api/tests/common/live_stripe_helpers.rs:203:14
+    |
+203 | pub async fn create_trialing_subscription_for_price(
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `advance_test_clock_and_wait_ready` is never used
+   --> api/tests/common/live_stripe_helpers.rs:232:14
+    |
+232 | pub async fn advance_test_clock_and_wait_ready(
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `poll_paid_invoice_for_subscription` is never used
+   --> api/tests/common/live_stripe_helpers.rs:275:14
+    |
+275 | pub async fn poll_paid_invoice_for_subscription(
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `retrieve_subscription` is never used
+   --> api/tests/common/live_stripe_helpers.rs:303:14
+    |
+303 | pub async fn retrieve_subscription(
+    |              ^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `cleanup_test_clock_cycle` is never used
+   --> api/tests/common/live_stripe_helpers.rs:316:14
+    |
+316 | pub async fn cleanup_test_clock_cycle(
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `api` (test "integration_stripe_test") generated 10 warnings
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 9.48s
+     Running tests/integration_stripe_test.rs (target/debug/deps/integration_stripe_test-f90eae81fb2c472e)
+

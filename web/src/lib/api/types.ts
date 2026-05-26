@@ -1,6 +1,3 @@
-/**
- * @module Stub summary for /Users/stuart/parallel_development/fjcloud_dev/MAR17_11_2_data_management_features/fjcloud_dev/web/src/lib/api/types.ts.
- */
 // API response and request types matching the Axum API
 
 export interface AuthResponse {
@@ -567,6 +564,7 @@ export interface ExperimentActionResponse {
 
 export interface CreateExperimentRequest {
 	name: string;
+	endAt?: string;
 	variants: Array<{
 		index: string;
 		trafficPercentage: number;
@@ -620,6 +618,17 @@ export interface ExperimentSignificance {
 	winner?: string;
 }
 
+export interface ExperimentConclusion {
+	reason: string;
+	winner?: string | null;
+	controlMetric?: number;
+	variantMetric?: number;
+	confidence?: number;
+	significant?: boolean;
+	promoted?: boolean;
+	endedAt?: string;
+}
+
 export interface ExperimentResults {
 	experimentID: string;
 	name: string;
@@ -640,6 +649,7 @@ export interface ExperimentResults {
 		dropPct: number;
 	}>;
 	cupedApplied: boolean;
+	conclusion?: ExperimentConclusion;
 	recommendation?: string;
 	interleaving?: {
 		deltaAB: number;

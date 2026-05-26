@@ -1,19 +1,29 @@
 <script lang="ts">
+	import { invalidateAll } from '$app/navigation';
 	import { enhance } from '$app/forms';
 	import type { DebugEvent, DebugEventsResponse, Index } from '$lib/api/types';
 
 	type Props = {
 		debugEvents: DebugEventsResponse | null;
 		eventsError: string;
+		eventsLoadError: string;
 		index: Index;
 	};
 
-	let { debugEvents, eventsError, index }: Props = $props();
+	type DebugEventRow = {
+		identity: string;
+		event: DebugEvent;
+	};
+
+	let { debugEvents, eventsError, eventsLoadError, index }: Props = $props();
 
 	let eventsStatusFilter = $state<'all' | 'ok' | 'error'>('all');
 	let eventsTypeFilter = $state<'all' | 'click' | 'conversion' | 'view'>('all');
 	let eventsTimeRange = $state<'15m' | '1h' | '24h' | '7d'>('24h');
-	let selectedDebugEvent = $state<DebugEvent | null>(null);
+	let selectedDebugEventIdentity = $state<string | null>(null);
+	const selectedDebugEvent = $derived(
+		filteredDebugEventRows().find((row) => row.identity === selectedDebugEventIdentity)?.event ?? null
+	);
 	const eventCounts = $derived(debugEventSummary());
 	const eventWindowValues = $derived(eventWindow(eventsTimeRange));
 
@@ -28,22 +38,36 @@
 		return event.httpCode === 200 ? 'ok' : 'error';
 	}
 
-	function filteredDebugEvents(): DebugEvent[] {
+	function buildDebugEventRows(events: DebugEvent[]): DebugEventRow[] {
+		const duplicateOrdinalByIdentity: Record<string, number> = {};
+		return events.map((event) => {
+			const eventIdentityBase = `${event.timestampMs}-${event.eventName}-${event.userToken}`;
+			const duplicateOrdinal = duplicateOrdinalByIdentity[eventIdentityBase] ?? 0;
+			duplicateOrdinalByIdentity[eventIdentityBase] = duplicateOrdinal + 1;
+			return {
+				identity: `${eventIdentityBase}-${duplicateOrdinal}`,
+				event
+			};
+		});
+	}
+
+	function filteredDebugEventRows(): DebugEventRow[] {
 		const events = debugEvents?.events ?? [];
-		return events.filter((event) => {
+		const filteredEvents = events.filter((event) => {
 			const statusMatch = eventsStatusFilter === 'all' || eventStatus(event) === eventsStatusFilter;
 			const typeMatch = eventsTypeFilter === 'all' || event.eventType === eventsTypeFilter;
 			return statusMatch && typeMatch;
 		});
+		return buildDebugEventRows(filteredEvents);
 	}
 
 	function debugEventSummary() {
-		const events = filteredDebugEvents();
-		const ok = events.filter((event) => event.httpCode === 200).length;
+		const rows = filteredDebugEventRows();
+		const ok = rows.filter((row) => row.event.httpCode === 200).length;
 		return {
-			total: events.length,
+			total: rows.length,
 			ok,
-			error: events.length - ok
+			error: rows.length - ok
 		};
 	}
 
@@ -51,17 +75,16 @@
 		return new Date(timestampMs).toISOString().replace('T', ' ').replace('Z', '');
 	}
 
+	async function retryEventsLoad(): Promise<void> {
+		await invalidateAll();
+	}
+
 	$effect(() => {
-		const events = filteredDebugEvents();
-		const selected = selectedDebugEvent;
-		if (!selected) return;
-		const stillVisible = events.some(
-			(event) =>
-				event.timestampMs === selected.timestampMs &&
-				event.eventName === selected.eventName &&
-				event.userToken === selected.userToken
-		);
-		if (!stillVisible) selectedDebugEvent = null;
+		const rows = filteredDebugEventRows();
+		const selectedIdentity = selectedDebugEventIdentity;
+		if (!selectedIdentity) return;
+		const stillVisible = rows.some((row) => row.identity === selectedIdentity);
+		if (!stillVisible) selectedDebugEventIdentity = null;
 	});
 </script>
 
@@ -172,7 +195,25 @@
 		</div>
 	</div>
 
-	{#if filteredDebugEvents().length === 0}
+	{#if eventsLoadError}
+		<div
+			class="rounded-md border border-flapjack-rose/35 bg-flapjack-rose/10 p-6 text-sm text-flapjack-plum"
+			data-testid="events-load-error-state"
+		>
+			<p class="font-medium">Unable to load events. The debug endpoint may be unavailable.</p>
+			<p class="mt-1">{eventsLoadError}</p>
+			<button
+				type="button"
+				class="mt-3 rounded-md border border-flapjack-ink/30 px-3 py-1.5 text-sm font-medium text-flapjack-ink/80 hover:bg-flapjack-cream/70"
+				data-testid="events-retry-btn"
+				onclick={() => {
+					void retryEventsLoad();
+				}}
+			>
+				Retry
+			</button>
+		</div>
+	{:else if filteredDebugEventRows().length === 0}
 		<div
 			class="rounded-md border border-flapjack-ink/20 bg-flapjack-cream/80 p-6 text-sm text-flapjack-ink/70"
 		>
@@ -197,21 +238,21 @@
 					</tr>
 				</thead>
 				<tbody class="divide-y">
-					{#each filteredDebugEvents() as event (`${event.timestampMs}-${event.eventName}-${event.userToken}`)}
+					{#each filteredDebugEventRows() as row (row.identity)}
 						<tr
 							onclick={() => {
-								selectedDebugEvent = event;
+								selectedDebugEventIdentity = row.identity;
 							}}
 							class="cursor-pointer hover:bg-flapjack-cream/80"
 						>
 							<td class="px-3 py-2 text-xs text-flapjack-ink/70"
-								>{formatEventTimestamp(event.timestampMs)}</td
+								>{formatEventTimestamp(row.event.timestampMs)}</td
 							>
-							<td class="px-3 py-2 text-flapjack-ink">{event.eventType}</td>
-							<td class="px-3 py-2 text-flapjack-ink">{event.eventName}</td>
-							<td class="px-3 py-2 font-mono text-xs text-flapjack-ink/80">{event.userToken}</td>
+							<td class="px-3 py-2 text-flapjack-ink">{row.event.eventType}</td>
+							<td class="px-3 py-2 text-flapjack-ink">{row.event.eventName}</td>
+							<td class="px-3 py-2 font-mono text-xs text-flapjack-ink/80">{row.event.userToken}</td>
 							<td class="px-3 py-2">
-								{#if event.httpCode === 200}
+								{#if row.event.httpCode === 200}
 									<span
 										class="inline-flex rounded-full bg-flapjack-mint/35 px-2 py-0.5 text-xs font-medium text-flapjack-ink"
 										>OK</span
@@ -223,7 +264,7 @@
 									>
 								{/if}
 							</td>
-							<td class="px-3 py-2 text-flapjack-ink/80">{event.objectIds.length}</td>
+							<td class="px-3 py-2 text-flapjack-ink/80">{row.event.objectIds.length}</td>
 						</tr>
 					{/each}
 				</tbody>
@@ -237,7 +278,7 @@
 					<button
 						type="button"
 						onclick={() => {
-							selectedDebugEvent = null;
+							selectedDebugEventIdentity = null;
 						}}
 						class="rounded border border-flapjack-ink/30 px-2 py-1 text-xs text-flapjack-ink/80 hover:bg-flapjack-cream/70"
 					>

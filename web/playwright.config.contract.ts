@@ -4,8 +4,9 @@ import { requireNonBlankString, requireNonEmptyString } from './tests/fixtures/c
 
 export const DEFAULT_PLAYWRIGHT_BASE_URL = 'http://localhost:5173';
 export const DEFAULT_PLAYWRIGHT_ADMIN_KEY = `playwright-local-admin-${randomUUID()}`;
-export const PLAYWRIGHT_WEB_SERVER_COMMAND =
-	'../scripts/playwright_local_stack.sh --force-api-restart --host 127.0.0.1 --port 5173 --strictPort';
+export const PLAYWRIGHT_WEB_SERVER_COMMAND = '../scripts/playwright_local_stack.sh --force-api-restart';
+export const PLAYWRIGHT_WEB_ONLY_SERVER_COMMAND = '../scripts/web-dev.sh';
+export const PLAYWRIGHT_WEB_PORT_ENV = 'PLAYWRIGHT_WEB_PORT';
 export const PLAYWRIGHT_STORAGE_STATE = {
 	user: 'tests/fixtures/.auth/user.json',
 	onboarding: 'tests/fixtures/.auth/onboarding.json',
@@ -47,6 +48,8 @@ export type ResolvePlaywrightRuntimeParams = {
 	repoEnv: Record<string, string>;
 	webEnv: Record<string, string>;
 	fallbackJwtSecret: string;
+	argv?: string[];
+	workspacePath?: string;
 };
 
 export type ApplyPlaywrightProcessEnvDefaultsParams = Omit<
@@ -58,7 +61,7 @@ export type PlaywrightWebServerContract = {
 	command: string;
 	env: Record<string, string>;
 	url: string;
-	reuseExistingServer: false;
+	reuseExistingServer: boolean;
 	timeout: number;
 };
 
@@ -67,6 +70,85 @@ export type PlaywrightRuntimeContract = {
 	webServerEnv: Record<string, string>;
 	webServer: PlaywrightWebServerContract | undefined;
 };
+
+function isPublicOnlyPlaywrightSelection(argv: string[]): boolean {
+	let hasPublicProjectSelection = false;
+	for (let index = 0; index < argv.length; index += 1) {
+		const arg = argv[index];
+		if (arg === '--project' && argv[index + 1] === 'chromium:public') {
+			hasPublicProjectSelection = true;
+			continue;
+		}
+		if (arg.startsWith('--project=') && arg.slice('--project='.length) === 'chromium:public') {
+			hasPublicProjectSelection = true;
+		}
+	}
+
+	if (!hasPublicProjectSelection) {
+		return false;
+	}
+
+	const specFilters = argv.filter((arg) => arg.includes('.spec.ts'));
+	if (specFilters.length === 0) {
+		return true;
+	}
+
+	return specFilters.every((filterArg) => filterArg.includes('public-'));
+}
+
+const PLAYWRIGHT_DEFAULT_PORT_HASH_MIN = 5600;
+const PLAYWRIGHT_DEFAULT_PORT_HASH_SPAN = 2000;
+const LOOPBACK_HTTP_HOST = '127.0.0.1';
+const FNV1A_32_OFFSET_BASIS = 0x811c9dc5;
+const FNV1A_32_PRIME = 0x01000193;
+
+function hashStringFNV1A(input: string): number {
+	let hash = FNV1A_32_OFFSET_BASIS;
+	for (let index = 0; index < input.length; index += 1) {
+		hash ^= input.charCodeAt(index);
+		hash = Math.imul(hash, FNV1A_32_PRIME);
+	}
+	return hash >>> 0;
+}
+
+function parsePlaywrightWebPort(rawPort: string): number {
+	if (!/^\d+$/.test(rawPort)) {
+		throw new Error(
+			`${PLAYWRIGHT_WEB_PORT_ENV} must be an integer TCP port when set (received "${rawPort}")`
+		);
+	}
+	const parsedPort = Number(rawPort);
+	if (!Number.isInteger(parsedPort) || parsedPort < 1024 || parsedPort > 65535) {
+		throw new Error(
+			`${PLAYWRIGHT_WEB_PORT_ENV} must be between 1024 and 65535 when set (received "${rawPort}")`
+		);
+	}
+	return parsedPort;
+}
+
+export function resolveDefaultPlaywrightWebPort(workspacePath: string = process.cwd()): number {
+	const normalizedWorkspacePath = workspacePath.trim();
+	if (normalizedWorkspacePath.length === 0) {
+		return 5173;
+	}
+	const portOffset = hashStringFNV1A(normalizedWorkspacePath) % PLAYWRIGHT_DEFAULT_PORT_HASH_SPAN;
+	return PLAYWRIGHT_DEFAULT_PORT_HASH_MIN + portOffset;
+}
+
+function resolvePlaywrightWebPort(
+	processEnv: Record<string, string | undefined>,
+	workspacePath: string
+): number {
+	const configuredPort = processEnv[PLAYWRIGHT_WEB_PORT_ENV]?.trim();
+	if (configuredPort && configuredPort.length > 0) {
+		return parsePlaywrightWebPort(configuredPort);
+	}
+	return resolveDefaultPlaywrightWebPort(workspacePath);
+}
+
+function buildPlaywrightLoopbackUrl(port: number): string {
+	return `http://localhost:${port}`;
+}
 
 export const PLAYWRIGHT_PROJECT_CONTRACTS: PlaywrightProjectContract[] = [
 	{
@@ -208,6 +290,10 @@ function firstDefinedEnvValue(...values: Array<string | undefined>): string | un
 	return values.find((value) => value !== undefined && value !== '');
 }
 
+function isRemoteTargetOptInActive(processEnv: Record<string, string | undefined>): boolean {
+	return processEnv[REMOTE_TARGET_OPT_IN_ENV] === '1';
+}
+
 function assignFirstDefinedEnvValue(
 	processEnv: Record<string, string | undefined>,
 	key: string,
@@ -224,9 +310,12 @@ export function applyPlaywrightProcessEnvDefaults({
 	repoEnv,
 	webEnv
 }: ApplyPlaywrightProcessEnvDefaultsParams): void {
+	const allowLocalCredentialFallbacks = !isRemoteTargetOptInActive(processEnv);
 	// Terminal fallback to DEFAULT_PLAYWRIGHT_ADMIN_KEY ensures workers see the
 	// same key that resolvePlaywrightRuntime passes to the web server when no
-	// .env.local or explicit ADMIN_KEY is available.
+	// .env.local or explicit ADMIN_KEY is available. Remote-target mode must
+	// fail closed instead of sending local-dev fallbacks to an allowlisted
+	// non-loopback host.
 	assignFirstDefinedEnvValue(
 		processEnv,
 		'E2E_ADMIN_KEY',
@@ -236,7 +325,7 @@ export function applyPlaywrightProcessEnvDefaults({
 		webEnv.ADMIN_KEY,
 		repoEnv.ADMIN_KEY,
 		processEnv.ADMIN_KEY,
-		DEFAULT_PLAYWRIGHT_ADMIN_KEY
+		allowLocalCredentialFallbacks ? DEFAULT_PLAYWRIGHT_ADMIN_KEY : undefined
 	);
 	assignFirstDefinedEnvValue(
 		processEnv,
@@ -247,7 +336,7 @@ export function applyPlaywrightProcessEnvDefaults({
 		processEnv.SEED_USER_EMAIL,
 		repoEnv.SEED_USER_EMAIL,
 		webEnv.SEED_USER_EMAIL,
-		DEFAULT_E2E_USER_EMAIL
+		allowLocalCredentialFallbacks ? DEFAULT_E2E_USER_EMAIL : undefined
 	);
 	assignFirstDefinedEnvValue(
 		processEnv,
@@ -258,7 +347,7 @@ export function applyPlaywrightProcessEnvDefaults({
 		processEnv.SEED_USER_PASSWORD,
 		repoEnv.SEED_USER_PASSWORD,
 		webEnv.SEED_USER_PASSWORD,
-		DEFAULT_E2E_USER_PASSWORD
+		allowLocalCredentialFallbacks ? DEFAULT_E2E_USER_PASSWORD : undefined
 	);
 	assignFirstDefinedEnvValue(
 		processEnv,
@@ -293,16 +382,24 @@ export function resolvePlaywrightRuntime({
 	processEnv,
 	repoEnv,
 	webEnv,
-	fallbackJwtSecret
+	fallbackJwtSecret,
+	argv = [],
+	workspacePath = process.cwd()
 }: ResolvePlaywrightRuntimeParams): PlaywrightRuntimeContract {
+	const webPort = resolvePlaywrightWebPort(processEnv, workspacePath);
+	const defaultBaseUrl = buildPlaywrightLoopbackUrl(webPort);
+	const hasExplicitBaseUrl = Boolean(processEnv.BASE_URL && processEnv.BASE_URL.trim().length > 0);
 	// Thread processEnv through so the LB-2/LB-3 remote-target opt-in
 	// (PLAYWRIGHT_TARGET_REMOTE=1) is observed deterministically by the
 	// loopback guard during runtime resolution.
 	const baseURL = requireLoopbackHttpUrl(
 		'BASE_URL',
-		processEnv.BASE_URL ?? DEFAULT_PLAYWRIGHT_BASE_URL,
+		processEnv.BASE_URL ?? defaultBaseUrl,
 		processEnv
 	);
+	if (!hasExplicitBaseUrl) {
+		processEnv.BASE_URL = baseURL;
+	}
 	const apiBaseUrl = requireLoopbackHttpUrl(
 		'API_BASE_URL',
 		processEnv.API_BASE_URL ?? repoEnv.API_BASE_URL ?? webEnv.API_BASE_URL ?? DEFAULT_API_URL,
@@ -337,16 +434,20 @@ export function resolvePlaywrightRuntime({
 	return {
 		baseURL,
 		webServerEnv,
-		webServer: processEnv.BASE_URL
+		webServer: hasExplicitBaseUrl
 			? undefined
-			: {
-					command: PLAYWRIGHT_WEB_SERVER_COMMAND,
-					env: webServerEnv,
-					url: DEFAULT_PLAYWRIGHT_BASE_URL,
-					reuseExistingServer: false,
-					timeout: PLAYWRIGHT_WEB_SERVER_TIMEOUT_MS
-				}
-	};
+				: {
+						command: `${
+							isPublicOnlyPlaywrightSelection(argv)
+								? PLAYWRIGHT_WEB_ONLY_SERVER_COMMAND
+								: PLAYWRIGHT_WEB_SERVER_COMMAND
+						} --host ${LOOPBACK_HTTP_HOST} --port ${webPort} --strictPort`,
+						env: webServerEnv,
+						url: baseURL,
+						reuseExistingServer: false,
+						timeout: PLAYWRIGHT_WEB_SERVER_TIMEOUT_MS
+					}
+		};
 }
 
 // ---------------------------------------------------------------------------

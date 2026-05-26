@@ -1,0 +1,2 @@
+bash scripts/tests/nightly_workflow_test.sh
+cd infra && cargo test -p api --test stripe_test_clock_full_cycle_test -- --nocapture

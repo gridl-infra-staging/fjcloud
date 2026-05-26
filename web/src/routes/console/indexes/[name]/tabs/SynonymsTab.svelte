@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import type { Index, Synonym, SynonymSearchResponse, SynonymType } from '$lib/api/types';
 
 	type Props = {
@@ -15,6 +16,10 @@
 	let newSynonymObjectID = $state('');
 	let newSynonymType = $state<SynonymType>('synonym');
 	let newSynonymJson = $state('');
+	let showDeleteConfirmDialog = $state(false);
+	let pendingDeleteSynonym = $state<Synonym | null>(null);
+	let pendingDeleteForm = $state<HTMLFormElement | null>(null);
+	let pendingDeleteTrigger = $state<HTMLElement | null>(null);
 
 	$effect(() => {
 		if (newSynonymJson.trim().length === 0) {
@@ -83,6 +88,31 @@
 				return '';
 		}
 	}
+
+	function openDeleteConfirmDialog(
+		synonym: Synonym,
+		form: HTMLFormElement,
+		trigger: HTMLElement
+	): void {
+		pendingDeleteSynonym = synonym;
+		pendingDeleteForm = form;
+		pendingDeleteTrigger = trigger;
+		showDeleteConfirmDialog = true;
+	}
+
+	function closeDeleteConfirmDialog(): void {
+		showDeleteConfirmDialog = false;
+		pendingDeleteSynonym = null;
+		pendingDeleteForm = null;
+		pendingDeleteTrigger = null;
+	}
+
+	function confirmDeleteSynonym(): void {
+		const form = pendingDeleteForm;
+		if (!form) return;
+		form.requestSubmit();
+		closeDeleteConfirmDialog();
+	}
 </script>
 
 <div
@@ -149,8 +179,14 @@
 								<form method="POST" action="?/deleteSynonym" use:enhance>
 									<input type="hidden" name="objectID" value={synonym.objectID} />
 									<button
-										type="submit"
+										type="button"
 										aria-label={`Delete synonym ${synonym.objectID}`}
+										onclick={(event) =>
+											openDeleteConfirmDialog(
+												synonym,
+												(event.currentTarget as HTMLElement).closest('form') as HTMLFormElement,
+												event.currentTarget as HTMLElement
+											)}
 										class="rounded border border-flapjack-rose/45 px-3 py-1 text-xs text-flapjack-plum hover:bg-flapjack-rose/10"
 									>
 										Delete
@@ -216,3 +252,18 @@
 		</form>
 	</div>
 </div>
+
+<ConfirmDialog
+	open={showDeleteConfirmDialog && pendingDeleteSynonym !== null}
+	mode="standard"
+	dangerLevel="severe"
+	title={`Delete synonym "${pendingDeleteSynonym?.objectID ?? ''}"?`}
+	consequences="Deleting this synonym permanently removes it from this index."
+	rationale={`Summary: ${pendingDeleteSynonym ? synonymSummary(pendingDeleteSynonym) : ''}`}
+	entityName={pendingDeleteSynonym?.objectID ?? ''}
+	confirmLabel="Delete synonym"
+	cancelLabel="Cancel"
+	onCancel={closeDeleteConfirmDialog}
+	onConfirm={confirmDeleteSynonym}
+	triggerRef={pendingDeleteTrigger}
+/>

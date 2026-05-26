@@ -144,6 +144,42 @@ describe('DictionariesTab — empty vs populated entries state', () => {
 		).toBeInTheDocument();
 		expect(container.querySelector('form[action="?/deleteDictionaryEntry"]')).not.toBeNull();
 	});
+
+	it('renders stopword state metadata in the JSON preview', () => {
+		const stopwordWithDisabledState: DictionariesPayload = {
+			...sampleDictionaries,
+			entries: {
+				hits: [{ objectID: 'stop-the', language: 'en', word: 'the', state: 'disabled' }],
+				nbHits: 1,
+				page: 0,
+				nbPages: 1
+			}
+		};
+		render(DictionariesTab, defaultProps({ dictionaries: stopwordWithDisabledState }));
+
+		expect(screen.getByText(/"state": "disabled"/)).toBeInTheDocument();
+	});
+
+	it('renders a one-word plural entry in the existing entry JSON preview', () => {
+		const singleWordPluralPayload: DictionariesPayload = {
+			languages: {
+				en: { stopwords: null, plurals: { nbCustomEntries: 1 }, compounds: null }
+			},
+			selectedDictionary: 'plurals' as DictionaryName,
+			selectedLanguage: 'en',
+			entries: {
+				hits: [{ objectID: 'plural-sheep', language: 'en', words: ['sheep'] }],
+				nbHits: 1,
+				page: 0,
+				nbPages: 1
+			}
+		};
+		render(DictionariesTab, defaultProps({ dictionaries: singleWordPluralPayload }));
+
+		expect(screen.getByText('plural-sheep')).toBeInTheDocument();
+		expect(screen.getByText(/"words": \[/)).toBeInTheDocument();
+		expect(screen.getByText(/"sheep"/)).toBeInTheDocument();
+	});
 });
 
 describe('DictionariesTab — form action contracts', () => {

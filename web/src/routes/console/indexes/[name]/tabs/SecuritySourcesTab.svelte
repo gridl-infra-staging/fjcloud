@@ -1,10 +1,12 @@
 <script lang="ts">
+	import { invalidateAll } from '$app/navigation';
 	import { enhance } from '$app/forms';
 	import type { Index, SecuritySource, SecuritySourcesResponse } from '$lib/api/types';
 
 	type Props = {
 		index: Index;
 		securitySources: SecuritySourcesResponse;
+		securitySourcesLoadError: string;
 		securitySourceAppendError: string;
 		securitySourceDeleteError: string;
 		securitySourceAppended: boolean;
@@ -14,6 +16,7 @@
 	let {
 		index,
 		securitySources,
+		securitySourcesLoadError,
 		securitySourceAppendError,
 		securitySourceDeleteError,
 		securitySourceAppended,
@@ -25,6 +28,10 @@
 
 	const sources: SecuritySource[] = $derived(securitySources.sources ?? []);
 	const hasSources: boolean = $derived(sources.length > 0);
+
+	async function retrySecuritySourcesLoad(): Promise<void> {
+		await invalidateAll();
+	}
 </script>
 
 <div class="space-y-6" data-testid="security-sources-section" data-index={index.name}>
@@ -116,7 +123,25 @@
 
 	<div class="rounded-lg bg-white p-6 shadow">
 		<h3 class="mb-3 text-base font-medium text-flapjack-ink">Sources</h3>
-		{#if hasSources}
+		{#if securitySourcesLoadError}
+			<div
+				class="rounded-md border border-flapjack-rose/35 bg-flapjack-rose/10 p-4 text-sm text-flapjack-plum"
+				data-testid="security-sources-error-state"
+			>
+				<p class="font-medium">Unable to load security sources.</p>
+				<p class="mt-1">{securitySourcesLoadError}</p>
+				<button
+					type="button"
+					class="mt-3 rounded-md border border-flapjack-ink/30 px-3 py-1.5 text-sm font-medium text-flapjack-ink/80 hover:bg-flapjack-cream/70"
+					data-testid="security-sources-retry-btn"
+					onclick={() => {
+						void retrySecuritySourcesLoad();
+					}}
+				>
+					Retry
+				</button>
+			</div>
+		{:else if hasSources}
 			<div class="space-y-3">
 				{#each sources as entry (entry.source)}
 					<div

@@ -5,6 +5,9 @@ use std::time::Instant;
 use tokio::sync::OnceCell;
 use uuid::Uuid;
 
+const STRIPE_PRICE_STARTER_ENV: &str = "STRIPE_PRICE_STARTER";
+const STRIPE_PRICE_STARTER_EXPECTED_UNIT_AMOUNT_CENTS_ENV: &str =
+    "STRIPE_PRICE_STARTER_EXPECTED_UNIT_AMOUNT_CENTS";
 const WEBHOOK_PROBE_EVENT_QUERY: &str = "SELECT COUNT(*) FROM webhook_events \
     WHERE event_type IN ('invoice.finalized', 'invoice.payment_succeeded') \
     AND payload->'data'->'object'->>'id' = $1";
@@ -54,6 +57,45 @@ pub fn stripe_api_available() -> bool {
     stripe_test_key().is_some()
 }
 
+pub fn stripe_price_starter_id() -> Option<String> {
+    let price_id = std::env::var(STRIPE_PRICE_STARTER_ENV).ok()?;
+    if price_id.starts_with("price_") {
+        Some(price_id)
+    } else {
+        eprintln!("[skip] STRIPE_PRICE_STARTER is set but doesn't start with price_");
+        None
+    }
+}
+
+pub fn stripe_price_starter_configured() -> bool {
+    stripe_price_starter_id().is_some()
+}
+
+pub fn expected_starter_unit_amount_cents() -> Result<i64, String> {
+    let raw = std::env::var(STRIPE_PRICE_STARTER_EXPECTED_UNIT_AMOUNT_CENTS_ENV).map_err(|_| {
+        format!(
+            "{STRIPE_PRICE_STARTER_EXPECTED_UNIT_AMOUNT_CENTS_ENV} must be set to a positive integer amount in cents"
+        )
+    })?;
+    let amount = raw.parse::<i64>().map_err(|_| {
+        format!(
+            "{STRIPE_PRICE_STARTER_EXPECTED_UNIT_AMOUNT_CENTS_ENV} must be an integer number of cents, got: {raw}"
+        )
+    })?;
+    if amount <= 0 {
+        return Err(format!(
+            "{STRIPE_PRICE_STARTER_EXPECTED_UNIT_AMOUNT_CENTS_ENV} must be > 0, got: {amount}"
+        ));
+    }
+    Ok(amount)
+}
+
+pub fn expected_first_cycle_amount_cents_from_contract(quantity: u64) -> Result<i64, String> {
+    let unit_amount = expected_starter_unit_amount_cents()?;
+    let quantity = i64::try_from(quantity).map_err(|_| "quantity exceeds i64".to_string())?;
+    Ok(unit_amount * quantity)
+}
+
 pub fn stripe_webhook_configured() -> bool {
     stripe_webhook_secret().is_some() && crate::integration_helpers::integration_enabled()
 }
@@ -95,8 +137,13 @@ pub async fn delete_stripe_customer(client: &stripe::Client, customer_id: &str) 
     }
 }
 
-pub async fn attach_test_payment_method(client: &stripe::Client, customer_id: &str) -> String {
-    let customer_id: stripe::CustomerId = customer_id.parse().expect("invalid customer ID");
+pub async fn try_attach_test_payment_method(
+    client: &stripe::Client,
+    customer_id: &str,
+) -> Result<String, String> {
+    let customer_id: stripe::CustomerId = customer_id
+        .parse()
+        .map_err(|_| format!("invalid customer ID: {customer_id}"))?;
     let payment_method = stripe::PaymentMethod::attach(
         client,
         &"pm_card_visa".parse().expect("invalid test payment method"),
@@ -105,13 +152,26 @@ pub async fn attach_test_payment_method(client: &stripe::Client, customer_id: &s
         },
     )
     .await
-    .expect("failed to attach test payment method");
+    .map_err(|err| format!("failed to attach test payment method: {err}"))?;
 
-    payment_method.id.to_string()
+    Ok(payment_method.id.to_string())
 }
 
-pub async fn attach_declining_payment_method(client: &stripe::Client, customer_id: &str) -> String {
-    let customer_id: stripe::CustomerId = customer_id.parse().expect("invalid customer ID");
+#[allow(dead_code)] // Shared helper API used by other integration binaries.
+pub async fn attach_test_payment_method(client: &stripe::Client, customer_id: &str) -> String {
+    try_attach_test_payment_method(client, customer_id)
+        .await
+        .expect("failed to attach test payment method")
+}
+
+/// TODO: Document attach_declining_payment_method.
+pub async fn try_attach_declining_payment_method(
+    client: &stripe::Client,
+    customer_id: &str,
+) -> Result<String, String> {
+    let customer_id: stripe::CustomerId = customer_id
+        .parse()
+        .map_err(|_| format!("invalid customer ID: {customer_id}"))?;
     let payment_method = stripe::PaymentMethod::attach(
         client,
         &"pm_card_chargeCustomerFail"
@@ -122,9 +182,203 @@ pub async fn attach_declining_payment_method(client: &stripe::Client, customer_i
         },
     )
     .await
-    .expect("failed to attach declining payment method");
+    .map_err(|err| format!("failed to attach declining payment method: {err}"))?;
 
-    payment_method.id.to_string()
+    Ok(payment_method.id.to_string())
+}
+
+#[allow(dead_code)] // Shared helper API used by other integration binaries.
+pub async fn attach_declining_payment_method(client: &stripe::Client, customer_id: &str) -> String {
+    try_attach_declining_payment_method(client, customer_id)
+        .await
+        .expect("failed to attach declining payment method")
+}
+
+pub async fn create_test_clock(
+    client: &stripe::Client,
+    name: &str,
+    frozen_time: i64,
+) -> Result<stripe::TestHelpersTestClock, String> {
+    stripe::TestHelpersTestClock::create(client, &stripe::CreateTestClock { frozen_time, name })
+        .await
+        .map_err(|err| format!("failed creating test clock: {err}"))
+}
+
+pub async fn create_clock_bound_customer(
+    client: &stripe::Client,
+    name: &str,
+    email: &str,
+    test_clock_id: &stripe::TestHelpersTestClockId,
+) -> Result<String, String> {
+    let mut params = stripe::CreateCustomer::new();
+    params.name = Some(name);
+    params.email = Some(email);
+    params.test_clock = Some(test_clock_id.as_ref());
+    let customer = stripe::Customer::create(client, params)
+        .await
+        .map_err(|err| format!("failed creating clock-bound customer: {err}"))?;
+    Ok(customer.id.to_string())
+}
+
+pub async fn create_trialing_subscription_for_price(
+    client: &stripe::Client,
+    customer_id: &str,
+    price_id: &str,
+    trial_end: i64,
+) -> Result<stripe::Subscription, String> {
+    let customer_id: stripe::CustomerId = customer_id
+        .parse()
+        .map_err(|_| format!("invalid customer ID: {customer_id}"))?;
+    let price_id: stripe::PriceId = price_id
+        .parse()
+        .map_err(|_| format!("invalid price ID: {price_id}"))?;
+
+    let mut params = stripe::CreateSubscription::new(customer_id);
+    params.collection_method = Some(stripe::CollectionMethod::ChargeAutomatically);
+    params.items = Some(vec![stripe::CreateSubscriptionItems {
+        price: Some(price_id.to_string()),
+        quantity: Some(1),
+        ..Default::default()
+    }]);
+    params.trial_end = Some(stripe::Scheduled::at(trial_end));
+    params.expand = &["latest_invoice"];
+
+    stripe::Subscription::create(client, params)
+        .await
+        .map_err(|err| format!("failed creating trialing subscription: {err}"))
+}
+
+pub async fn advance_test_clock_and_wait_ready(
+    client: &stripe::Client,
+    test_clock_id: &str,
+    target_frozen_time: i64,
+) -> Result<stripe::TestHelpersTestClock, String> {
+    let test_clock_id: stripe::TestHelpersTestClockId = test_clock_id
+        .parse()
+        .map_err(|_| format!("invalid test clock ID: {test_clock_id}"))?;
+
+    stripe::TestHelpersTestClock::advance(
+        client,
+        &test_clock_id,
+        &stripe::AdvanceTestClock {
+            frozen_time: target_frozen_time,
+        },
+    )
+    .await
+    .map_err(|err| format!("failed advancing test clock: {err}"))?;
+
+    let client = client.clone();
+    crate::common::poll::poll_until_result(
+        "stripe_test_clock_ready",
+        std::time::Duration::from_secs(90),
+        std::time::Duration::from_secs(2),
+        move || {
+            let client = client.clone();
+            let clock_id = test_clock_id.clone();
+            async move {
+                let clock = stripe::TestHelpersTestClock::retrieve(&client, &clock_id)
+                    .await
+                    .ok()?;
+                let clock_is_ready = matches!(
+                    clock.status,
+                    Some(stripe::TestHelpersTestClockStatus::Ready)
+                ) && clock.frozen_time.unwrap_or_default()
+                    >= target_frozen_time;
+                clock_is_ready.then_some(clock)
+            }
+        },
+    )
+    .await
+}
+
+pub async fn poll_paid_invoice_for_subscription(
+    client: &stripe::Client,
+    subscription_id: &str,
+) -> Result<stripe::Invoice, String> {
+    let subscription_id: stripe::SubscriptionId = subscription_id
+        .parse()
+        .map_err(|_| format!("invalid subscription ID: {subscription_id}"))?;
+    let client = client.clone();
+    crate::common::poll::poll_until_result(
+        "stripe_subscription_paid_invoice",
+        std::time::Duration::from_secs(90),
+        std::time::Duration::from_secs(2),
+        move || {
+            let client = client.clone();
+            let subscription_id = subscription_id.clone();
+            async move {
+                let mut params = stripe::ListInvoices::new();
+                params.subscription = Some(subscription_id);
+                params.status = Some(stripe::InvoiceStatus::Paid);
+                params.limit = Some(1);
+                let invoices = stripe::Invoice::list(&client, &params).await.ok()?;
+                invoices.data.into_iter().next()
+            }
+        },
+    )
+    .await
+}
+
+pub async fn retrieve_subscription(
+    client: &stripe::Client,
+    subscription_id: &str,
+) -> Result<stripe::Subscription, String> {
+    let subscription_id: stripe::SubscriptionId = subscription_id
+        .parse()
+        .map_err(|_| format!("invalid subscription ID: {subscription_id}"))?;
+    stripe::Subscription::retrieve(client, &subscription_id, &[])
+        .await
+        .map_err(|err| format!("failed retrieving subscription {subscription_id}: {err}"))
+}
+
+pub async fn cleanup_test_clock_cycle(
+    client: &stripe::Client,
+    subscription_id: Option<&str>,
+    customer_id: Option<&str>,
+    test_clock_id: Option<&str>,
+) {
+    if let Some(subscription_id) = subscription_id {
+        let parsed: Result<stripe::SubscriptionId, _> = subscription_id.parse();
+        match parsed {
+            Ok(subscription_id) => {
+                if let Err(err) = stripe::Subscription::cancel(
+                    client,
+                    &subscription_id,
+                    stripe::CancelSubscription::new(),
+                )
+                .await
+                {
+                    eprintln!(
+                        "[cleanup] failed to cancel Stripe subscription {subscription_id}: {err}"
+                    );
+                }
+            }
+            Err(_) => {
+                eprintln!("[cleanup] invalid Stripe subscription ID: {subscription_id}");
+            }
+        }
+    }
+
+    if let Some(customer_id) = customer_id {
+        delete_stripe_customer(client, customer_id).await;
+    }
+
+    if let Some(test_clock_id) = test_clock_id {
+        let parsed: Result<stripe::TestHelpersTestClockId, _> = test_clock_id.parse();
+        match parsed {
+            Ok(test_clock_id) => {
+                if let Err(err) = stripe::TestHelpersTestClock::delete(client, &test_clock_id).await
+                {
+                    eprintln!(
+                        "[cleanup] failed to delete Stripe test clock {test_clock_id}: {err}"
+                    );
+                }
+            }
+            Err(_) => {
+                eprintln!("[cleanup] invalid Stripe test clock ID: {test_clock_id}");
+            }
+        }
+    }
 }
 
 pub async fn validate_stripe_webhook_delivery() -> Result<WebhookProbeResult, String> {
@@ -158,33 +412,43 @@ pub async fn validate_stripe_webhook_delivery() -> Result<WebhookProbeResult, St
         .await
         .map_err(|err| format!("failed creating Stripe probe customer: {err}"))?;
 
-    let pm_id = attach_test_payment_method(&stripe.client, &stripe_customer_id).await;
-    if let Err(err) = stripe
-        .service
-        .set_default_payment_method(&stripe_customer_id, &pm_id)
-        .await
-    {
-        delete_stripe_customer(&stripe.client, &stripe_customer_id).await;
-        return Err(format!(
-            "failed setting default payment method for webhook probe: {err}"
-        ));
+    let stripe_invoice_id = match async {
+        let pm_id = try_attach_test_payment_method(&stripe.client, &stripe_customer_id)
+            .await
+            .map_err(|err| format!("failed attaching payment method for webhook probe: {err}"))?;
+        stripe
+            .service
+            .set_default_payment_method(&stripe_customer_id, &pm_id)
+            .await
+            .map_err(|err| {
+                format!("failed setting default payment method for webhook probe: {err}")
+            })?;
+
+        let probe_invoice = stripe
+            .service
+            .create_and_finalize_invoice(
+                &stripe_customer_id,
+                &[StripeInvoiceLineItem {
+                    description: "Stripe webhook probe".to_string(),
+                    amount_cents: 50,
+                }],
+                None,
+                None,
+            )
+            .await
+            .map_err(|err| format!("failed creating Stripe probe invoice: {err}"))?;
+
+        Ok::<String, String>(probe_invoice.stripe_invoice_id.clone())
     }
+    .await
+    {
+        Ok(stripe_invoice_id) => stripe_invoice_id,
+        Err(err) => {
+            delete_stripe_customer(&stripe.client, &stripe_customer_id).await;
+            return Err(err);
+        }
+    };
 
-    let probe_invoice = stripe
-        .service
-        .create_and_finalize_invoice(
-            &stripe_customer_id,
-            &[StripeInvoiceLineItem {
-                description: "Stripe webhook probe".to_string(),
-                amount_cents: 50,
-            }],
-            None,
-            None,
-        )
-        .await
-        .map_err(|err| format!("failed creating Stripe probe invoice: {err}"))?;
-
-    let stripe_invoice_id = probe_invoice.stripe_invoice_id.clone();
     let poll_pool = pool.clone();
     let webhook_seen = tokio::spawn(async move {
         crate::common::poll::poll_until(
@@ -250,7 +514,69 @@ pub async fn stripe_webhook_available() -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::WEBHOOK_PROBE_EVENT_QUERY;
+    use super::{
+        expected_first_cycle_amount_cents_from_contract, expected_starter_unit_amount_cents,
+        try_attach_declining_payment_method, try_attach_test_payment_method,
+    };
+    use super::{STRIPE_PRICE_STARTER_EXPECTED_UNIT_AMOUNT_CENTS_ENV, WEBHOOK_PROBE_EVENT_QUERY};
+
+    struct EnvRestore {
+        key: &'static str,
+        original: Option<String>,
+    }
+
+    impl EnvRestore {
+        fn capture(key: &'static str) -> Self {
+            Self {
+                key,
+                original: std::env::var(key).ok(),
+            }
+        }
+    }
+
+    impl Drop for EnvRestore {
+        fn drop(&mut self) {
+            if let Some(value) = &self.original {
+                std::env::set_var(self.key, value);
+            } else {
+                std::env::remove_var(self.key);
+            }
+        }
+    }
+
+    #[test]
+    fn expected_starter_amount_requires_positive_integer_env_value() {
+        let _guard = crate::integration_helpers::test_env_lock();
+        let _restore = EnvRestore::capture(STRIPE_PRICE_STARTER_EXPECTED_UNIT_AMOUNT_CENTS_ENV);
+        std::env::remove_var(STRIPE_PRICE_STARTER_EXPECTED_UNIT_AMOUNT_CENTS_ENV);
+        assert!(expected_starter_unit_amount_cents().is_err());
+
+        std::env::set_var(
+            STRIPE_PRICE_STARTER_EXPECTED_UNIT_AMOUNT_CENTS_ENV,
+            "not-a-number",
+        );
+        assert!(expected_starter_unit_amount_cents().is_err());
+
+        std::env::set_var(STRIPE_PRICE_STARTER_EXPECTED_UNIT_AMOUNT_CENTS_ENV, "0");
+        assert!(expected_starter_unit_amount_cents().is_err());
+
+        std::env::set_var(STRIPE_PRICE_STARTER_EXPECTED_UNIT_AMOUNT_CENTS_ENV, "900");
+        assert_eq!(
+            expected_starter_unit_amount_cents().expect("valid env"),
+            900
+        );
+    }
+
+    #[test]
+    fn contract_amount_multiplies_unit_amount_by_quantity() {
+        let _guard = crate::integration_helpers::test_env_lock();
+        let _restore = EnvRestore::capture(STRIPE_PRICE_STARTER_EXPECTED_UNIT_AMOUNT_CENTS_ENV);
+        std::env::set_var(STRIPE_PRICE_STARTER_EXPECTED_UNIT_AMOUNT_CENTS_ENV, "900");
+        assert_eq!(
+            expected_first_cycle_amount_cents_from_contract(2).expect("valid contract amount"),
+            1800
+        );
+    }
 
     #[test]
     fn webhook_probe_query_accepts_fast_invoice_event_delivery() {
@@ -258,5 +584,23 @@ mod tests {
             WEBHOOK_PROBE_EVENT_QUERY.contains("invoice.finalized"),
             "webhook delivery probe should accept invoice.finalized so it stays robust when payment_succeeded is delayed"
         );
+    }
+
+    #[tokio::test]
+    async fn attach_test_payment_method_reports_invalid_customer_id() {
+        let client = stripe::Client::new("sk_test_contract_only");
+        let error = try_attach_test_payment_method(&client, "not-a-customer-id")
+            .await
+            .expect_err("invalid customer IDs should surface as Result errors");
+        assert!(error.contains("invalid customer ID: not-a-customer-id"));
+    }
+
+    #[tokio::test]
+    async fn attach_declining_payment_method_reports_invalid_customer_id() {
+        let client = stripe::Client::new("sk_test_contract_only");
+        let error = try_attach_declining_payment_method(&client, "not-a-customer-id")
+            .await
+            .expect_err("invalid customer IDs should surface as Result errors");
+        assert!(error.contains("invalid customer ID: not-a-customer-id"));
     }
 }

@@ -148,6 +148,8 @@ assert_job_not_contains_regex "stripe-test-clock-live" 'cargo test --workspace' 
 # Env contract: normalized Stripe env vars + integration gate.
 assert_job_contains_regex "stripe-test-clock-live" 'STRIPE_SECRET_KEY:\s+\$\{\{\s*secrets\.STRIPE_SECRET_KEY\s*\}\}' "stripe-test-clock-live maps STRIPE_SECRET_KEY from secrets"
 assert_job_contains_regex "stripe-test-clock-live" 'STRIPE_WEBHOOK_SECRET:\s+\$\{\{\s*secrets\.STRIPE_WEBHOOK_SECRET\s*\}\}' "stripe-test-clock-live maps STRIPE_WEBHOOK_SECRET from secrets"
+assert_job_contains_regex "stripe-test-clock-live" 'STRIPE_PRICE_STARTER:\s+\$\{\{\s*secrets\.STRIPE_PRICE_STARTER\s*\}\}' "stripe-test-clock-live maps STRIPE_PRICE_STARTER from secrets"
+assert_job_contains_regex "stripe-test-clock-live" 'STRIPE_PRICE_STARTER_EXPECTED_UNIT_AMOUNT_CENTS:\s+\$\{\{\s*secrets\.STRIPE_PRICE_STARTER_EXPECTED_UNIT_AMOUNT_CENTS\s*\}\}' "stripe-test-clock-live maps STRIPE_PRICE_STARTER_EXPECTED_UNIT_AMOUNT_CENTS from secrets"
 assert_job_contains_regex "stripe-test-clock-live" 'INTEGRATION:\s+"1"' "stripe-test-clock-live enables integration gate"
 assert_job_contains_regex "stripe-test-clock-live" 'BACKEND_LIVE_GATE:\s+"1"' "stripe-test-clock-live enables live gate"
 

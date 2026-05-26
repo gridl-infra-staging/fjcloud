@@ -147,3 +147,5 @@ cross-browser parity required by launch signoff.
 
 Use `docs/LOCAL_LAUNCH_READINESS.md` for the local-only validation bar and `ROADMAP.md`
 for the complete feature-by-feature breakdown.
+
+<!-- stage7_provenance_sync_marker_2026_05_25T2230Z -->

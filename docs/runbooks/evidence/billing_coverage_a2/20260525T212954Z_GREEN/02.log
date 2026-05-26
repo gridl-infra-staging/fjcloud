@@ -1,0 +1,95 @@
+COMMAND: cd infra && cargo test -p api --test stripe_test_clock_full_cycle_test -- --nocapture --test-threads=1
+EXIT_CODE: 0
+--- STDOUT ---
+
+running 27 tests
+test common::builders::tests::builder_threads_oauth_runtime_config_into_app_state ... ok
+test common::mocks::failable_email_service_tests::failable_email_service_forces_failure_for_retries_exhausted_and_skips_delegate ... ok
+test common::mocks::failable_email_service_tests::failable_email_service_tracks_recovered_after_failure_attempt_and_delegates ... ok
+test common::mocks::failable_email_service_tests::failable_email_service_tracks_retry_scheduled_attempt_and_delegates ... ok
+test common::poll::tests::predicate_can_be_fnmut ... ok
+test common::poll::tests::resolves_after_multiple_polls_with_real_sleep ... ok
+test common::poll::tests::resolves_immediately_with_predicate_value ... ok
+test common::poll::tests::result_variant_returns_error_on_timeout ... ok
+test common::poll::tests::result_variant_returns_value_when_predicate_hits ... ok
+test common::poll::tests::times_out_and_panics_with_name - should panic ... ok
+test integration_helpers::tests::db_url_builds_from_discrete_env_vars_with_password ... ok
+test integration_helpers::tests::db_url_includes_port_without_user ... ok
+test integration_helpers::tests::db_url_prefers_explicit_url_env ... ok
+test integration_helpers::tests::endpoint_reachable_detects_closed_local_port ... ok
+test integration_helpers::tests::endpoint_reachable_rejects_invalid_url ... ok
+test integration_helpers::tests::integration_enabled_is_false_when_unset ... ok
+test integration_helpers::tests::integration_enabled_is_true_only_for_one ... ok
+test integration_helpers::tests::live_gate_enabled_is_false_for_non_one_values ... ok
+test integration_helpers::tests::live_gate_enabled_is_false_when_unset ... ok
+test integration_helpers::tests::live_gate_enabled_is_true_when_set_to_one ... ok
+test integration_helpers::tests::require_live_continues_when_condition_true_regardless_of_gate ... ok
+test integration_helpers::tests::require_live_panics_when_gate_on_and_condition_false ... ok
+test integration_helpers::tests::require_live_skips_silently_when_gate_off_and_condition_false ... ok
+test live_stripe_helpers::tests::contract_amount_multiplies_unit_amount_by_quantity ... ok
+test live_stripe_helpers::tests::expected_starter_amount_requires_positive_integer_env_value ... ok
+test live_stripe_helpers::tests::webhook_probe_query_accepts_fast_invoice_event_delivery ... ok
+test stripe_test_clock_full_cycle_bills_expected_amount ... ok
+
+test result: ok. 27 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.14s
+
+
+--- STDERR ---
+   Compiling api v0.1.0 (/Users/stuart/parallel_development/fjcloud_dev/may25_2pm_2_a2_billing_stripe_coverage/fjcloud_dev/infra/api)
+warning: function `stripe_webhook_secret` is never used
+  --> api/tests/common/live_stripe_helpers.rs:47:8
+   |
+47 | pub fn stripe_webhook_secret() -> Option<String> {
+   |        ^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `stripe_api_available` is never used
+  --> api/tests/common/live_stripe_helpers.rs:57:8
+   |
+57 | pub fn stripe_api_available() -> bool {
+   |        ^^^^^^^^^^^^^^^^^^^^
+
+warning: function `stripe_webhook_configured` is never used
+   --> api/tests/common/live_stripe_helpers.rs:101:8
+    |
+101 | pub fn stripe_webhook_configured() -> bool {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `attach_declining_payment_method` is never used
+   --> api/tests/common/live_stripe_helpers.rs:159:14
+    |
+159 | pub async fn attach_declining_payment_method(client: &stripe::Client, customer_id: &str) -> String {
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `validate_stripe_webhook_delivery` is never used
+   --> api/tests/common/live_stripe_helpers.rs:367:14
+    |
+367 | pub async fn validate_stripe_webhook_delivery() -> Result<WebhookProbeResult, String> {
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: static `STRIPE_WEBHOOK_AVAILABLE` is never used
+   --> api/tests/common/live_stripe_helpers.rs:467:8
+    |
+467 | static STRIPE_WEBHOOK_AVAILABLE: OnceCell<bool> = OnceCell::const_new();
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `stripe_webhook_available` is never used
+   --> api/tests/common/live_stripe_helpers.rs:470:14
+    |
+470 | pub async fn stripe_webhook_available() -> bool {
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `api` (test "stripe_test_clock_full_cycle_test") generated 7 warnings
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 20.54s
+     Running tests/stripe_test_clock_full_cycle_test.rs (target/debug/deps/stripe_test_clock_full_cycle_test-cf54cb840bf21557)
+
+thread 'common::poll::tests::times_out_and_panics_with_name' (62913236) panicked at api/tests/common/poll.rs:52:25:
+poll_until timed out: test3_must_appear_in_panic_message (after 50ms)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+thread 'integration_helpers::tests::require_live_panics_when_gate_on_and_condition_false' (62913252) panicked at api/tests/common/integration_helpers.rs:478:13:
+[BACKEND_LIVE_GATE] required precondition failed: STRIPE_TEST_SECRET_KEY not set
+[skip] test precondition missing
+[skip] INTEGRATION=1 must be set for stripe test-clock nightly coverage
+

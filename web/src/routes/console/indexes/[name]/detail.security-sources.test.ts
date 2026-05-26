@@ -3,12 +3,13 @@ import { render, screen, cleanup, within } from '@testing-library/svelte';
 import { fireEvent } from '@testing-library/dom';
 import type { ComponentProps } from 'svelte';
 
-const { enhanceMock, instantSearchMockFn } = vi.hoisted(() => ({
+const { enhanceMock, instantSearchMockFn, invalidateAllMock } = vi.hoisted(() => ({
 	enhanceMock: vi.fn((form: HTMLFormElement) => {
 		void form;
 		return { destroy: () => {} };
 	}),
-	instantSearchMockFn: vi.fn()
+	instantSearchMockFn: vi.fn(),
+	invalidateAllMock: vi.fn()
 }));
 
 vi.mock('$app/forms', () => ({
@@ -17,7 +18,7 @@ vi.mock('$app/forms', () => ({
 
 vi.mock('$app/navigation', () => ({
 	goto: vi.fn(),
-	invalidateAll: vi.fn()
+	invalidateAll: invalidateAllMock
 }));
 
 vi.mock('$app/state', () => ({
@@ -74,6 +75,29 @@ describe('Index detail page — Security Sources tab', () => {
 		await openTab('Security Sources');
 
 		expect(screen.getByText(/no security sources/i)).toBeInTheDocument();
+	});
+
+	it('renders load error state and retries via invalidateAll', async () => {
+		renderPage({ securitySourcesLoadError: 'Failed to load security sources' });
+		await openTab('Security Sources');
+
+		expect(screen.getByTestId('security-sources-error-state')).toBeInTheDocument();
+		expect(screen.queryByText(/no security sources/i)).not.toBeInTheDocument();
+
+		await fireEvent.click(screen.getByTestId('security-sources-retry-btn'));
+		expect(invalidateAllMock).toHaveBeenCalledTimes(1);
+	});
+
+	it('keeps load error state for validation-only append failures', async () => {
+		renderPage({ securitySourcesLoadError: 'Failed to load security sources' }, {
+			securitySourceAppendError: 'source is required',
+			securitySources: { sources: [] }
+		} as DetailPageForm);
+		await openTab('Security Sources');
+
+		expect(screen.getByTestId('security-sources-error-state')).toBeInTheDocument();
+		expect(screen.queryByText(/no security sources/i)).not.toBeInTheDocument();
+		expect(screen.getByText('source is required')).toBeInTheDocument();
 	});
 
 	it('renders source rows with CIDR values and descriptions', async () => {
@@ -157,7 +181,8 @@ describe('Index detail page — Security Sources tab', () => {
 	it('shows success message when a source is deleted', async () => {
 		renderPage({}, {
 			securitySourceDeleted: true,
-			securitySources: { sources: [] }
+			securitySources: { sources: [] },
+			securitySourcesReloaded: true
 		} as DetailPageForm);
 		await openTab('Security Sources');
 
@@ -182,6 +207,22 @@ describe('Index detail page — Security Sources tab', () => {
 		await openTab('Security Sources');
 
 		expect(screen.getByText('Failed to delete security source')).toBeInTheDocument();
+	});
+
+	it('shows action-level reload error instead of clearing back to the stale loaded state', async () => {
+		renderPage(
+			{ securitySources: sampleSecuritySources },
+			{
+				securitySourceAppended: true,
+				securitySourcesLoadError: 'Failed to reload security sources'
+			} as DetailPageForm
+		);
+		await openTab('Security Sources');
+
+		expect(screen.getByText(/security source added/i)).toBeInTheDocument();
+		expect(screen.getByTestId('security-sources-error-state')).toBeInTheDocument();
+		expect(screen.getByText('Failed to reload security sources')).toBeInTheDocument();
+		expect(screen.queryByText('No security sources configured')).not.toBeInTheDocument();
 	});
 
 	it('derives security sources from formResult when available', async () => {

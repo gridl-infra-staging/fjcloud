@@ -1,0 +1,4 @@
+[validate_subprocessor_disclosure] evidence bundle: /Users/stuart/repos/gridl-infra-dev/fjcloud_dev/docs/runbooks/evidence/subprocessor_disclosure/20260525T163727Z
+[validate_subprocessor_disclosure] summary file: /Users/stuart/repos/gridl-infra-dev/fjcloud_dev/docs/runbooks/evidence/subprocessor_disclosure/20260525T163727Z/summary_status.txt
+[validate_subprocessor_disclosure] status json: /Users/stuart/repos/gridl-infra-dev/fjcloud_dev/docs/runbooks/evidence/subprocessor_disclosure/20260525T163727Z/summary_status.json
+[validate_subprocessor_disclosure] result: PASSED

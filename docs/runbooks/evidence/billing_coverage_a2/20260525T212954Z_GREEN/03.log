@@ -1,0 +1,15 @@
+COMMAND: cd infra && cargo test -p api --test integration_metering_pipeline_test rollup_excludes_rows_on_next_day_boundary -- --nocapture --test-threads=1
+EXIT_CODE: 0
+--- STDOUT ---
+
+running 1 test
+test rollup_excludes_rows_on_next_day_boundary ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 27 filtered out; finished in 0.00s
+
+
+--- STDERR ---
+   Compiling api v0.1.0 (/Users/stuart/parallel_development/fjcloud_dev/may25_2pm_2_a2_billing_stripe_coverage/fjcloud_dev/infra/api)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 10.02s
+     Running tests/integration_metering_pipeline_test.rs (target/debug/deps/integration_metering_pipeline_test-b902e1a76881014a)
+

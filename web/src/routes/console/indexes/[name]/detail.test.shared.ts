@@ -278,6 +278,9 @@ export const sampleConcludedExperimentResults = {
 		winner: 'variant',
 		confidence: 0.98
 	},
+	conclusion: {
+		reason: 'Rolled out B; mobile lift was 8%'
+	},
 	recommendation: 'Variant has higher CTR and should be promoted'
 };
 
@@ -344,6 +347,24 @@ export const sampleDebugEvents = {
 	count: 2
 };
 
+export const sampleDebugEventsWithDuplicateIdentity = {
+	events: [
+		...sampleDebugEvents.events,
+		{
+			timestampMs: 1709251200000,
+			index: 'products',
+			eventType: 'view',
+			eventSubtype: null,
+			eventName: 'Viewed Product',
+			userToken: 'user_abc',
+			objectIds: ['obj9'],
+			httpCode: 200,
+			validationErrors: ['duplicate row payload']
+		}
+	],
+	count: 3
+};
+
 export const sampleSecuritySources = {
 	sources: [
 		{ source: '192.168.1.0/24', description: 'Office network' },
@@ -374,8 +395,10 @@ export function createMockPageData(overrides: Record<string, unknown> = {}) {
 		experiments: sampleExperiments,
 		experimentResults: { '7': sampleExperimentResults },
 		debugEvents: null,
+		eventsLoadError: '',
 		dictionaries: sampleDictionaries,
 		securitySources: sampleSecuritySources,
+		securitySourcesLoadError: '',
 		...overrides
 	};
 }

@@ -19,5 +19,5 @@
 | error-boundary | The error-boundary directory provides client-side error handling and recovery mechanisms, with runtime initialization and error recovery logic for graceful fallback behavior during client-side failures. |
 | http | — |
 | server | Server-side utilities for authentication, session management, and error handling, including impersonation validation and transient API retry logic. |
-| utils | The utils/merchandising module provides utilities for creating search merchandising rules that control item visibility and ranking for specific search queries. |
+| utils | This utils directory contains helper modules for focus management and merchandising features. |
 <!-- [scrai:end] -->

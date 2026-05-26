@@ -20,6 +20,7 @@ import {
 import {
 	appendSecuritySourceAction,
 	deleteSecuritySourceAction,
+	emptySecuritySourcesPayload,
 	loadSecuritySourcesPayload
 } from './security-sources.server';
 import {
@@ -57,6 +58,7 @@ const PERIOD_TO_DAYS: Record<string, number> = {
 	'30d': 30,
 	'90d': 90
 };
+const MAX_EVENTS_REFRESH_LIMIT = 1000;
 
 function failForDashboardAction<T extends Record<string, unknown>>(error: unknown, payload: T) {
 	const sessionFailure = mapDashboardSessionFailure(error);
@@ -135,7 +137,7 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 			noResults,
 			analyticsStatus,
 			experiments,
-			debugEvents
+			debugEventsResult
 		] = await Promise.all([
 			retryTransientDashboardApiRequest(() => api.getIndex(name)),
 			api.getIndexSettings(name).catch(() => null),
@@ -161,7 +163,14 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 					from: defaultEventsFrom,
 					until: defaultEventsUntil
 				})
-				.catch((): DebugEventsResponse | null => null)
+				.then((debugEvents) => ({
+					debugEvents,
+					eventsLoadError: ''
+				}))
+				.catch((loadError) => ({
+					debugEvents: null as DebugEventsResponse | null,
+					eventsLoadError: errorMessage(loadError, 'Failed to load events')
+				}))
 		]);
 
 		const experimentResults: Record<string, ExperimentResults> = {};
@@ -183,14 +192,22 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 			}
 		}
 
-		const [dictionaries, securitySources] = await Promise.all([
+		const [dictionaries, securitySourcesResult] = await Promise.all([
 			loadDictionariesPayload(
 				api,
 				name,
 				url.searchParams.get('dictionary'),
 				url.searchParams.get('dictionaryLang')
 			),
-			loadSecuritySourcesPayload(api, name)
+			loadSecuritySourcesPayload(api, name, { allowFallbackOnError: false })
+				.then((securitySources) => ({
+					securitySources,
+					securitySourcesLoadError: ''
+				}))
+				.catch((loadError) => ({
+					securitySources: emptySecuritySourcesPayload(),
+					securitySourcesLoadError: errorMessage(loadError, 'Failed to load security sources')
+				}))
 		]);
 
 		return {
@@ -212,9 +229,11 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 			experiments,
 			experimentResults,
 			analyticsPeriod,
-			debugEvents,
+			debugEvents: debugEventsResult.debugEvents,
+			eventsLoadError: debugEventsResult.eventsLoadError,
 			dictionaries,
-			securitySources
+			securitySources: securitySourcesResult.securitySources,
+			securitySourcesLoadError: securitySourcesResult.securitySourcesLoadError
 		};
 	} catch (e) {
 		if (isDashboardSessionExpiredError(e)) {
@@ -625,7 +644,9 @@ export const actions: Actions = {
 
 		const api = createApiClient(locals.user?.token);
 		try {
-			await api.createExperiment(params.name, experiment);
+			await retryTransientDashboardApiRequest(() =>
+				api.createExperiment(params.name, experiment)
+			);
 			return { experimentCreated: true };
 		} catch (e) {
 			return failForDashboardAction(e, {
@@ -739,7 +760,7 @@ export const actions: Actions = {
 		try {
 			const limitRaw = (data.get('limit') as string | null)?.trim() ?? '';
 			if (limitRaw) {
-				limit = parsePositiveInt(limitRaw, 'limit');
+				limit = Math.min(parsePositiveInt(limitRaw, 'limit'), MAX_EVENTS_REFRESH_LIMIT);
 			}
 
 			const fromRaw = (data.get('from') as string | null)?.trim() ?? '';

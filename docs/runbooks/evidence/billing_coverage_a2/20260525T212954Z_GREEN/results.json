@@ -1,0 +1,90 @@
+[
+  {
+    "index": 1,
+    "command": "bash scripts/tests/nightly_workflow_test.sh",
+    "status": "ran",
+    "passed": true,
+    "summary": "exit=0; stdout_lines=31; stderr_lines=0",
+    "log": "01.log"
+  },
+  {
+    "index": 2,
+    "command": "cd infra && cargo test -p api --test stripe_test_clock_full_cycle_test -- --nocapture --test-threads=1",
+    "status": "ran",
+    "passed": true,
+    "summary": "exit=0; stdout_lines=32; stderr_lines=57",
+    "log": "02.log"
+  },
+  {
+    "index": 3,
+    "command": "cd infra && cargo test -p api --test integration_metering_pipeline_test rollup_excludes_rows_on_next_day_boundary -- --nocapture --test-threads=1",
+    "status": "ran",
+    "passed": true,
+    "summary": "exit=0; stdout_lines=6; stderr_lines=3",
+    "log": "03.log"
+  },
+  {
+    "index": 4,
+    "command": "cd infra && cargo test -p api --test integration_metering_pipeline_test billing_smoke_uses_pg_usage_repo_read_path -- --nocapture --test-threads=1",
+    "status": "ran",
+    "passed": true,
+    "summary": "exit=0; stdout_lines=6; stderr_lines=2",
+    "log": "04.log"
+  },
+  {
+    "index": 5,
+    "command": "cd infra && cargo test -p api --test stripe_webhook_signature_test -- --nocapture",
+    "status": "ran",
+    "passed": true,
+    "summary": "exit=0; stdout_lines=20; stderr_lines=7",
+    "log": "05.log"
+  },
+  {
+    "index": 6,
+    "command": "cd infra && cargo test -p api --test stripe_webhook_event_matrix_test -- --nocapture",
+    "status": "ran",
+    "passed": true,
+    "summary": "exit=0; stdout_lines=23; stderr_lines=7",
+    "log": "06.log"
+  },
+  {
+    "index": 7,
+    "command": "cd infra && cargo test -p api --test stripe_webhook_idempotency_test -- --nocapture",
+    "status": "ran",
+    "passed": true,
+    "summary": "exit=0; stdout_lines=23; stderr_lines=7",
+    "log": "07.log"
+  },
+  {
+    "index": 8,
+    "command": "cd infra && cargo test -p api --test webhook_dunning_email_test stripe_payment_failure_webhook_fires_on_declined_card -- --nocapture --test-threads=1",
+    "status": "ran",
+    "passed": true,
+    "summary": "exit=0; stdout_lines=5; stderr_lines=3",
+    "log": "08.log"
+  },
+  {
+    "index": 9,
+    "command": "cd infra && cargo test -p api --test billing_regression_test region_multiplier_hot_storage_regression -- --nocapture",
+    "status": "ran",
+    "passed": true,
+    "summary": "exit=0; stdout_lines=6; stderr_lines=3",
+    "log": "09.log"
+  },
+  {
+    "index": 10,
+    "command": "cd infra && cargo test -p api --test billing_regression_test multi_region_storage_attachment_regression -- --nocapture",
+    "status": "ran",
+    "passed": true,
+    "summary": "exit=0; stdout_lines=6; stderr_lines=2",
+    "log": "10.log"
+  },
+  {
+    "index": 11,
+    "command": "cd infra && cargo test -p api --test invoicing_compute_test compute_invoice_for_customer_applies_rate_override_when_present -- --nocapture",
+    "status": "ran",
+    "passed": true,
+    "summary": "exit=0; stdout_lines=6; stderr_lines=3",
+    "log": "11.log"
+  }
+]

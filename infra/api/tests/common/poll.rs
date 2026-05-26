@@ -1,7 +1,3 @@
-//! Polling-style helpers for async test assertions where a side effect
-//! becomes observable some bounded time after the operation that triggers
-//! it (e.g., webhook handlers, eventual-consistency reads).
-
 use std::future::Future;
 use std::time::Duration;
 
@@ -52,6 +48,28 @@ where
     })
     .await
     .unwrap_or_else(|_| panic!("poll_until timed out: {name} (after {timeout:?})"))
+}
+
+pub async fn poll_until_result<T, F, Fut>(
+    name: &'static str,
+    timeout: Duration,
+    poll_interval: Duration,
+    mut predicate: F,
+) -> Result<T, String>
+where
+    F: FnMut() -> Fut,
+    Fut: Future<Output = Option<T>>,
+{
+    tokio::time::timeout(timeout, async {
+        loop {
+            if let Some(v) = predicate().await {
+                return v;
+            }
+            tokio::time::sleep(poll_interval).await;
+        }
+    })
+    .await
+    .map_err(|_| format!("poll_until timed out: {name} (after {timeout:?})"))
 }
 
 #[cfg(test)]
@@ -187,5 +205,33 @@ mod tests {
         )
         .await;
         assert_eq!(result, 2);
+    }
+
+    #[tokio::test]
+    async fn result_variant_returns_error_on_timeout() {
+        let result: Result<u32, String> = poll_until_result(
+            "result_timeout",
+            Duration::from_millis(20),
+            Duration::from_millis(5),
+            || async { None::<u32> },
+        )
+        .await;
+
+        let error = result.expect_err("result variant must return Err on timeout");
+        assert!(error.contains("result_timeout"));
+    }
+
+    #[tokio::test]
+    async fn result_variant_returns_value_when_predicate_hits() {
+        let result = poll_until_result(
+            "result_hit",
+            Duration::from_secs(1),
+            Duration::from_millis(5),
+            || async { Some(7_u32) },
+        )
+        .await
+        .expect("result variant should return value when predicate resolves");
+
+        assert_eq!(result, 7);
     }
 }

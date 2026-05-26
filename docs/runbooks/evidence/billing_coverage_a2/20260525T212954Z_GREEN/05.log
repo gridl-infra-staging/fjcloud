@@ -1,0 +1,33 @@
+COMMAND: cd infra && cargo test -p api --test stripe_webhook_signature_test -- --nocapture
+EXIT_CODE: 0
+--- STDOUT ---
+
+running 15 tests
+test common::poll::tests::resolves_immediately_with_predicate_value ... ok
+test common::poll::tests::result_variant_returns_value_when_predicate_hits ... ok
+test common::mocks::failable_email_service_tests::failable_email_service_tracks_retry_scheduled_attempt_and_delegates ... ok
+test common::mocks::failable_email_service_tests::failable_email_service_tracks_recovered_after_failure_attempt_and_delegates ... ok
+test common::mocks::failable_email_service_tests::failable_email_service_forces_failure_for_retries_exhausted_and_skips_delegate ... ok
+test common::poll::tests::predicate_can_be_fnmut ... ok
+test common::builders::tests::builder_threads_oauth_runtime_config_into_app_state ... ok
+test common::poll::tests::result_variant_returns_error_on_timeout ... ok
+test mock_stripe_service_accepts_any_signature_value ... ok
+test missing_signature_header_returns_bad_request ... ok
+test valid_signature_accepts_deprecated_subscription_event ... ok
+test local_stripe_service_rejects_invalid_signature_with_bad_request ... ok
+test valid_signature_processes_event ... ok
+test common::poll::tests::resolves_after_multiple_polls_with_real_sleep ... ok
+test common::poll::tests::times_out_and_panics_with_name - should panic ... ok
+
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+
+--- STDERR ---
+   Compiling api v0.1.0 (/Users/stuart/parallel_development/fjcloud_dev/may25_2pm_2_a2_billing_stripe_coverage/fjcloud_dev/infra/api)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 5.18s
+     Running tests/stripe_webhook_signature_test.rs (target/debug/deps/stripe_webhook_signature_test-e5323bc6fee0070d)
+
+thread 'common::poll::tests::times_out_and_panics_with_name' (62915731) panicked at api/tests/common/poll.rs:52:25:
+poll_until timed out: test3_must_appear_in_panic_message (after 50ms)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+

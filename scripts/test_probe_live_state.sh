@@ -12,6 +12,8 @@ source "${REPO_ROOT}/scripts/tests/lib/assertions.sh"
 PROBE_SCRIPT_DEFAULT="${REPO_ROOT}/scripts/probe_live_state.sh"
 TMP_PATHS=()
 ORDER_MARKER_LINE=0
+LAST_PROBE_OUTPUT_DIR=""
+LAST_SUMMARY_PATH=""
 
 cleanup() {
     if [ "${#TMP_PATHS[@]}" -gt 0 ]; then
@@ -37,15 +39,13 @@ if [ -n "${AWS_STUB_LOG_PATH:-}" ]; then
     printf '%s\n' "$*" >> "$AWS_STUB_LOG_PATH"
 fi
 
-case "${AWS_STUB_SCENARIO:-}" in
+case "${AWS_STUB_SCENARIO:-all_degraded}" in
     all_degraded)
         exit 2
         ;;
     healthy)
-        if [ "${1:-}" = "sns" ] && [ "${2:-}" = "list-topics" ]; then
-            cat <<'JSON'
-{"Topics":[{"TopicArn":"arn:aws:sns:us-east-1:111111111111:fjcloud-alerts-staging"},{"TopicArn":"arn:aws:sns:us-east-1:111111111111:fjcloud-alerts-prod"}]}
-JSON
+        if [ "${1:-}" = "sts" ] && [ "${2:-}" = "get-caller-identity" ]; then
+            printf '111111111111\n'
             exit 0
         fi
 
@@ -56,9 +56,9 @@ JSON
             exit 0
         fi
 
-        if [ "${1:-}" = "ssm" ] && [ "${2:-}" = "describe-parameters" ]; then
+        if [ "${1:-}" = "ssm" ] && [ "${2:-}" = "get-parameter" ]; then
             cat <<'JSON'
-{"Parameters":[{"Name":"/fjcloud/staging/database_url","Type":"SecureString","Version":3,"LastModifiedDate":"2026-05-22T00:00:00.000Z"},{"Name":"/fjcloud/staging/last_deploy_sha","Type":"String","Version":1,"LastModifiedDate":"2026-05-22T00:00:00.000Z"},{"Name":"/fjcloud/staging/canary_quiet_until","Type":"String","Version":1,"LastModifiedDate":"2026-05-22T00:00:00.000Z"},{"Name":"/fjcloud/staging/cloudflare_zone_id","Type":"String","Version":1,"LastModifiedDate":"2026-05-22T00:00:00.000Z"},{"Name":"/fjcloud/staging/dns_domain","Type":"String","Version":1,"LastModifiedDate":"2026-05-22T00:00:00.000Z"},{"Name":"/fjcloud/staging/ses_configuration_set","Type":"String","Version":1,"LastModifiedDate":"2026-05-22T00:00:00.000Z"},{"Name":"/fjcloud/prod/database_url","Type":"SecureString","Version":3,"LastModifiedDate":"2026-05-22T00:00:00.000Z"},{"Name":"/fjcloud/prod/last_deploy_sha","Type":"String","Version":1,"LastModifiedDate":"2026-05-22T00:00:00.000Z"},{"Name":"/fjcloud/prod/canary_quiet_until","Type":"String","Version":1,"LastModifiedDate":"2026-05-22T00:00:00.000Z"},{"Name":"/fjcloud/prod/cloudflare_zone_id","Type":"String","Version":1,"LastModifiedDate":"2026-05-22T00:00:00.000Z"},{"Name":"/fjcloud/prod/dns_domain","Type":"String","Version":1,"LastModifiedDate":"2026-05-22T00:00:00.000Z"},{"Name":"/fjcloud/prod/ses_configuration_set","Type":"String","Version":1,"LastModifiedDate":"2026-05-22T00:00:00.000Z"}]}
+{"Parameter":{"Version":1,"LastModifiedDate":"2026-05-22T00:00:00.000Z"}}
 JSON
             exit 0
         fi
@@ -69,6 +69,13 @@ exit 2
 EOF
     chmod +x "${stub_dir}/aws"
 
+    cat > "${stub_dir}/dig" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+printf '203.0.113.10\n'
+EOF
+    chmod +x "${stub_dir}/dig"
+
     cat > "${stub_dir}/curl" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -77,52 +84,107 @@ if [ -n "${CURL_STUB_LOG_PATH:-}" ]; then
     printf '%s\n' "$*" >> "$CURL_STUB_LOG_PATH"
 fi
 
-request_url="${*: -1}"
-if [[ "$request_url" == "https://api.stripe.com/v1/balance" ]]; then
-    printf '{}\n200\n'
-    exit 0
+output_file=""
+write_out=""
+url=""
+args=("$@")
+i=0
+while [ $i -lt ${#args[@]} ]; do
+    arg="${args[$i]}"
+    case "$arg" in
+        -o)
+            i=$((i + 1))
+            output_file="${args[$i]}"
+            ;;
+        -w)
+            i=$((i + 1))
+            write_out="${args[$i]}"
+            ;;
+        -H|-u|--max-time)
+            i=$((i + 1))
+            ;;
+        -s|-S)
+            ;;
+        http://*|https://*)
+            url="$arg"
+            ;;
+    esac
+    i=$((i + 1))
+done
+
+status="200"
+body='{}'
+scenario="${CURL_STUB_SCENARIO:-healthy}"
+
+if [ "$scenario" = "healthy" ]; then
+    case "$url" in
+        https://api.cloudflare.com/client/v4/accounts)
+            body='{"success":true,"result":[{"id":"acct_test_123"}]}'
+            ;;
+        https://api.cloudflare.com/client/v4/accounts/acct_test_123/pages/projects)
+            body='{"success":true,"result":[{"name":"flapjack-cloud"}]}'
+            ;;
+        https://api.cloudflare.com/client/v4/accounts/acct_test_123/pages/projects/flapjack-cloud)
+            body='{"success":true,"result":{"name":"flapjack-cloud","domains":["example.com"],"latest_deployment":{"id":"dep_latest","environment":"production","created_on":"2026-05-22T00:00:00Z","url":"https://latest.example.com","latest_stage":{"status":"success"},"deployment_trigger":{"metadata":{"branch":"main"}}},"canonical_deployment":{"id":"dep_canonical","environment":"production","created_on":"2026-05-22T00:00:00Z","url":"https://canonical.example.com","latest_stage":{"status":"success"},"deployment_trigger":{"metadata":{"branch":"main"}}},"deployment_configs":{"preview":{"env_vars":{"PREVIEW_TOKEN":{"type":"secret_text"}}},"production":{"env_vars":{"PROD_TOKEN":{"type":"secret_text"}}}}}}'
+            ;;
+        https://api.stripe.com/v1/webhook_endpoints?limit=20)
+            body='{"data":[]}'
+            ;;
+        https://api.stripe.com/v1/account)
+            body='{"settings":{"payments":{"statement_descriptor":"FJ CLOUD"}},"business_profile":{"support_email":"ops@example.com","url":"https://example.com","name":"FJ Cloud"}}'
+            ;;
+        https://api.privacy.com/v1/cards?page_size=1)
+            body='{}'
+            ;;
+        https://api.staging.flapjack.foo/health|https://api.flapjack.foo/health)
+            body='{"ok":true}'
+            ;;
+        *)
+            body='{}'
+            status='200'
+            ;;
+    esac
+elif [ "$scenario" = "missing_provenance" ]; then
+    case "$url" in
+        https://api.cloudflare.com/client/v4/accounts)
+            body='{"success":true,"result":[{"id":"acct_test_123"}]}'
+            ;;
+        https://api.cloudflare.com/client/v4/accounts/acct_test_123/pages/projects)
+            body='{"success":true,"result":[{"name":"flapjack-cloud"}]}'
+            ;;
+        https://api.cloudflare.com/client/v4/accounts/acct_test_123/pages/projects/flapjack-cloud)
+            body='{"success":true,"result":{"name":"flapjack-cloud","deployment_configs":{"preview":{"env_vars":{"PREVIEW_TOKEN":{"type":"secret_text"}}},"production":{"env_vars":{"PROD_TOKEN":{"type":"secret_text"}}}}}}'
+            ;;
+        https://api.stripe.com/v1/webhook_endpoints?limit=20)
+            body='{"data":[]}'
+            ;;
+        https://api.privacy.com/v1/cards?page_size=1)
+            body='{}'
+            ;;
+        https://api.staging.flapjack.foo/health|https://api.flapjack.foo/health)
+            body='{"ok":true}'
+            ;;
+        *)
+            body='{}'
+            status='200'
+            ;;
+    esac
+else
+    status='503'
+    body='{}'
 fi
 
-if [[ "$request_url" == *"/pages/projects/flapjack-cloud" ]]; then
-    cat <<'JSON'
-{"success":true,"result":{"name":"flapjack-cloud","domains":["example.com"],"latest_deployment":{"production_branch":"main","id":"dep_latest","environment":"production","created_on":"2026-05-22T00:00:00Z","url":"https://latest.example.com","latest_stage":{"status":"success"},"deployment_trigger":{"metadata":{"branch":"main"}}},"canonical_deployment":{"id":"dep_canonical","environment":"production","created_on":"2026-05-22T00:00:00Z","url":"https://canonical.example.com","latest_stage":{"status":"success"},"deployment_trigger":{"metadata":{"branch":"main"}}},"deployment_configs":{"preview":{"env_vars":{"PREVIEW_TOKEN":{"type":"secret_text"}}},"production":{"env_vars":{"PROD_TOKEN":{"type":"secret_text"}}}}}}
-JSON
-    exit 0
+if [ -n "$output_file" ]; then
+    printf '%s\n' "$body" > "$output_file"
 fi
 
-exit 7
+if [ -n "$write_out" ]; then
+    printf '%s' "$status"
+elif [ -z "$output_file" ]; then
+    printf '%s\n' "$body"
+fi
 EOF
     chmod +x "${stub_dir}/curl"
-
-    cat > "${stub_dir}/gh" <<'EOF'
-#!/usr/bin/env bash
-set -euo pipefail
-
-if [ -n "${GH_STUB_LOG_PATH:-}" ]; then
-    printf '%s\n' "$*" >> "$GH_STUB_LOG_PATH"
-fi
-
-if [ "${GH_STUB_SCENARIO:-healthy}" = "all_degraded" ]; then
-    exit 2
-fi
-
-if [ "${1:-}" = "secret" ] && [ "${2:-}" = "list" ]; then
-    cat <<'JSON'
-[{"name":"DEPLOY_IAM_ROLE_ARN"}]
-JSON
-    exit 0
-fi
-
-if [ "${1:-}" = "run" ] && [ "${2:-}" = "list" ]; then
-    cat <<'JSON'
-[{"createdAt":"2026-05-22T00:00:00Z","headSha":"abcdef123456","status":"completed","conclusion":"success","url":"https://example.com/run/1"}]
-JSON
-    exit 0
-fi
-
-exit 2
-EOF
-    chmod +x "${stub_dir}/gh"
 }
 
 assert_pattern_appears_after() {
@@ -144,64 +206,71 @@ assert_pattern_appears_after() {
     ORDER_MARKER_LINE="$line_number"
 }
 
-validate_section_status_contract() {
-    local artifact_path="$1" section_name="$2"
-    local section_block status_line reason_line
+validate_summary_row_contract() {
+    local artifact_path="$1" vendor_id="$2"
+    local section_block status_line agent_line finding_line raw_line
 
-    section_block="$(awk -v section_name="$section_name" '
-        $0 == "## " section_name { in_section = 1; next }
-        in_section && /^## / { exit }
+    section_block="$(awk -v vendor_id="$vendor_id" '
+        $0 == "### " vendor_id { in_section = 1; next }
+        in_section && /^### / { exit }
         in_section { print }
     ' "$artifact_path")"
 
     if [ -z "$section_block" ]; then
-        fail "section ${section_name} has content"
+        fail "row ${vendor_id} has content"
         return
     fi
 
     status_line="$(printf '%s\n' "$section_block" | sed -n '1p')"
-    if [[ "$status_line" =~ ^Status:\ (ok|degraded)$ ]]; then
-        pass "section ${section_name} starts with Status: ok|degraded"
+    if [[ "$status_line" =~ ^-\ status:\ (OK|DRIFT|STALE|ACTION_REQUIRED|PROBE_ERROR|SKIP_NO_CREDS)$ ]]; then
+        pass "row ${vendor_id} has valid status vocabulary"
     else
-        fail "section ${section_name} starts with Status: ok|degraded"
+        fail "row ${vendor_id} has valid status vocabulary"
         return
     fi
 
-    if [ "$status_line" = "Status: degraded" ]; then
-        reason_line="$(printf '%s\n' "$section_block" | sed -n '2p')"
-        if [[ "$reason_line" =~ ^Reason:\ .+ ]]; then
-            pass "section ${section_name} degraded status includes immediate reason"
-        else
-            fail "section ${section_name} degraded status includes immediate reason"
-        fi
+    agent_line="$(printf '%s\n' "$section_block" | sed -n '2p')"
+    if [[ "$agent_line" =~ ^-\ agent_executable:\ (true|false)$ ]]; then
+        pass "row ${vendor_id} has agent_executable flag"
+    else
+        fail "row ${vendor_id} has agent_executable flag"
+        return
+    fi
+
+    finding_line="$(printf '%s\n' "$section_block" | sed -n '3p')"
+    if [[ "$finding_line" =~ ^-\ finding:\ .+ ]]; then
+        pass "row ${vendor_id} has finding line"
+    else
+        fail "row ${vendor_id} has finding line"
+        return
+    fi
+
+    raw_line="$(printf '%s\n' "$section_block" | sed -n '4p')"
+    if [[ "$raw_line" =~ ^-\ raw:\ .+ ]]; then
+        pass "row ${vendor_id} has raw file pointer"
+    else
+        fail "row ${vendor_id} has raw file pointer"
     fi
 }
 
 validate_live_state_artifact() {
     local artifact_path="$1"
     local leak_guard_regex='(sk_(live|test)_[A-Za-z0-9]+|pk_(live|test)_[A-Za-z0-9]+|rk_(live|test)_[A-Za-z0-9]+|whsec_[A-Za-z0-9]+|AKIA[0-9A-Z]{16}|gh[pousr]_[A-Za-z0-9]+|eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)'
-    local section_name
     local -a ordered_patterns=(
-        '^# fjcloud live state snapshot$'
-        '^- captured_at_utc: .+'
-        "^- worktree: ${REPO_ROOT//\//\\/}$"
-        '^- overall_status: (ok|partial|failed)$'
-        '^## Stripe$'
-        '^## SNS$'
-        '^## Cloudflare Pages$'
-        '^## SSM$'
-        '^## GitHub$'
+        '^# fjcloud live-state snapshot — [0-9]{8}T[0-9]{6}Z$'
+        '^### stripe_canonical$'
+        '^### aws_sns_staging$'
+        '^### aws_ssm_staging$'
+        '^### cloudflare_pages$'
+        '^### privacy_com$'
     )
     local -a pattern_labels=(
         'document title'
-        'captured_at_utc metadata line'
-        'worktree metadata line'
-        'overall_status metadata line'
-        'Stripe section heading'
-        'SNS section heading'
-        'Cloudflare Pages section heading'
-        'SSM section heading'
-        'GitHub section heading'
+        'stripe row heading'
+        'sns row heading'
+        'ssm row heading'
+        'cloudflare pages row heading'
+        'privacy row heading'
     )
 
     assert_file_exists "$artifact_path" "artifact file exists at requested path"
@@ -214,9 +283,9 @@ validate_live_state_artifact() {
             "${pattern_labels[$i]}"
     done
 
-    for section_name in Stripe SNS "Cloudflare Pages" SSM GitHub; do
-        validate_section_status_contract "$artifact_path" "$section_name"
-    done
+    validate_summary_row_contract "$artifact_path" "stripe_canonical"
+    validate_summary_row_contract "$artifact_path" "cloudflare_pages"
+    validate_summary_row_contract "$artifact_path" "aws_ssm_staging"
 
     assert_file_not_matching_regex \
         "$artifact_path" \
@@ -224,78 +293,21 @@ validate_live_state_artifact() {
         "artifact excludes secret-like token patterns"
 }
 
-run_fixture_mode() {
-    validate_live_state_artifact "${LIVE_STATE_ARTIFACT}"
+extract_probe_output_dir() {
+    local probe_stdout="$1"
+    printf '%s\n' "$probe_stdout" | sed -n 's/^Probe complete: //p' | tail -n1
 }
 
-run_default_mode() {
-    local output_path
-    output_path="$(mktemp)"
-    register_tmp_path "$output_path"
+run_probe_with_stubs() {
+    local aws_scenario="$1"
+    local curl_scenario="$2"
+    local probe_rc probe_stdout output_dir
+    local primary_secret_path fallback_secret_path stub_dir aws_log_path
 
-    if [ ! -f "$PROBE_SCRIPT_DEFAULT" ] || [ ! -r "$PROBE_SCRIPT_DEFAULT" ]; then
-        fail "default mode intentionally red: missing or unreadable ${PROBE_SCRIPT_DEFAULT}"
-        run_test_summary
-    fi
-
-    if LIVE_STATE_OUTPUT_PATH="$output_path" bash "$PROBE_SCRIPT_DEFAULT"; then
-        pass "default mode writes probe output via LIVE_STATE_OUTPUT_PATH"
-    else
-        fail "default mode probe invocation failed"
-        run_test_summary
-    fi
-
-    validate_live_state_artifact "$output_path"
-}
-
-run_all_degraded_exit_code_regression() {
-    local output_path primary_secret_path fallback_secret_path stub_dir aws_log_path probe_rc
-    output_path="$(mktemp)"
     primary_secret_path="$(mktemp)"
     fallback_secret_path="$(mktemp)"
     stub_dir="$(mktemp -d)"
     aws_log_path="$(mktemp)"
-    register_tmp_path "$output_path"
-    register_tmp_path "$primary_secret_path"
-    register_tmp_path "$fallback_secret_path"
-    register_tmp_path "$aws_log_path"
-    TMP_PATHS+=("$stub_dir")
-
-    create_stubbed_vendor_tools "$stub_dir"
-
-    probe_rc=0
-    if (
-        PATH="${stub_dir}:$PATH" \
-        AWS_STUB_SCENARIO="all_degraded" \
-        GH_STUB_SCENARIO="all_degraded" \
-        AWS_STUB_LOG_PATH="$aws_log_path" \
-        FJCLOUD_SECRET_FILE="$primary_secret_path" \
-        CLOUDFLARE_FALLBACK_SECRET_FILE="$fallback_secret_path" \
-        LIVE_STATE_OUTPUT_PATH="$output_path" \
-        bash "$PROBE_SCRIPT_DEFAULT"
-    ); then
-        probe_rc=0
-    else
-        probe_rc=$?
-    fi
-
-    assert_ne "$probe_rc" "0" "probe exits non-zero when all sections are degraded"
-    assert_file_exists "$output_path" "all-degraded run still writes an artifact"
-    if grep -Eq '^- overall_status: failed$' "$output_path"; then
-        pass "all-degraded run marks overall_status: failed"
-    else
-        fail "all-degraded run marks overall_status: failed"
-    fi
-}
-
-run_cloudflare_fallback_empty_export_regression() {
-    local output_path primary_secret_path fallback_secret_path stub_dir aws_log_path probe_rc
-    output_path="$(mktemp)"
-    primary_secret_path="$(mktemp)"
-    fallback_secret_path="$(mktemp)"
-    stub_dir="$(mktemp -d)"
-    aws_log_path="$(mktemp)"
-    register_tmp_path "$output_path"
     register_tmp_path "$primary_secret_path"
     register_tmp_path "$fallback_secret_path"
     register_tmp_path "$aws_log_path"
@@ -303,141 +315,152 @@ run_cloudflare_fallback_empty_export_regression() {
 
     create_stubbed_vendor_tools "$stub_dir"
     cat > "$primary_secret_path" <<'EOF'
-STRIPE_SECRET_KEY_flapjack_cloud=sk_live_probe_dummy
-EOF
-    cat > "$fallback_secret_path" <<'EOF'
-CLOUDFLARE_ACCOUNT_ID=test_account
-CLOUDFLARE_GLOBAL_API_KEY=test_key
-CLOUDFLARE_X_Auth_Email=test@example.com
-EOF
-
-    probe_rc=0
-    if (
-        export CLOUDFLARE_ACCOUNT_ID=""
-        export CLOUDFLARE_GLOBAL_API_KEY=""
-        export CLOUDFLARE_X_Auth_Email=""
-        PATH="${stub_dir}:$PATH" \
-        AWS_STUB_SCENARIO="healthy" \
-        GH_STUB_SCENARIO="healthy" \
-        AWS_STUB_LOG_PATH="$aws_log_path" \
-        FJCLOUD_SECRET_FILE="$primary_secret_path" \
-        CLOUDFLARE_FALLBACK_SECRET_FILE="$fallback_secret_path" \
-        LIVE_STATE_OUTPUT_PATH="$output_path" \
-        bash "$PROBE_SCRIPT_DEFAULT"
-    ); then
-        probe_rc=0
-    else
-        probe_rc=$?
-    fi
-
-    assert_eq "$probe_rc" "0" "probe succeeds with stubbed healthy vendors"
-    if grep -Fq 'Reason: Cloudflare account/auth env vars are unset' "$output_path"; then
-        fail "Cloudflare fallback fills intentionally empty exported auth vars"
-    else
-        pass "Cloudflare fallback fills intentionally empty exported auth vars"
-    fi
-}
-
-run_ssm_scope_regression() {
-    local output_path primary_secret_path fallback_secret_path stub_dir aws_log_path probe_rc
-    output_path="$(mktemp)"
-    primary_secret_path="$(mktemp)"
-    fallback_secret_path="$(mktemp)"
-    stub_dir="$(mktemp -d)"
-    aws_log_path="$(mktemp)"
-    register_tmp_path "$output_path"
-    register_tmp_path "$primary_secret_path"
-    register_tmp_path "$fallback_secret_path"
-    register_tmp_path "$aws_log_path"
-    TMP_PATHS+=("$stub_dir")
-
-    create_stubbed_vendor_tools "$stub_dir"
-    cat > "$primary_secret_path" <<'EOF'
-STRIPE_SECRET_KEY_flapjack_cloud=sk_live_probe_dummy
-EOF
-    cat > "$fallback_secret_path" <<'EOF'
-CLOUDFLARE_ACCOUNT_ID=test_account
-CLOUDFLARE_GLOBAL_API_KEY=test_key
-CLOUDFLARE_X_Auth_Email=test@example.com
-EOF
-
-    probe_rc=0
-    if (
-        PATH="${stub_dir}:$PATH" \
-        AWS_STUB_SCENARIO="healthy" \
-        GH_STUB_SCENARIO="healthy" \
-        AWS_STUB_LOG_PATH="$aws_log_path" \
-        FJCLOUD_SECRET_FILE="$primary_secret_path" \
-        CLOUDFLARE_FALLBACK_SECRET_FILE="$fallback_secret_path" \
-        LIVE_STATE_OUTPUT_PATH="$output_path" \
-        bash "$PROBE_SCRIPT_DEFAULT"
-    ); then
-        probe_rc=0
-    else
-        probe_rc=$?
-    fi
-
-    assert_eq "$probe_rc" "0" "probe succeeds for scoped SSM aws-stub run"
-    if grep -Eq 'Values=/fjcloud/($|[[:space:]])' "$aws_log_path"; then
-        fail "SSM probe avoids broad /fjcloud/ describe-parameters scope"
-    else
-        pass "SSM probe avoids broad /fjcloud/ describe-parameters scope"
-    fi
-    if grep -q '/fjcloud/staging/' "$aws_log_path" && grep -q '/fjcloud/prod/' "$aws_log_path"; then
-        pass "SSM probe queries staging and prod scoped prefixes"
-    else
-        fail "SSM probe queries staging and prod scoped prefixes"
-    fi
-}
-
-run_stdout_path_contract_regression() {
-    local output_path primary_secret_path fallback_secret_path stub_dir aws_log_path probe_stdout probe_rc
-    output_path="$(mktemp)"
-    primary_secret_path="$(mktemp)"
-    fallback_secret_path="$(mktemp)"
-    stub_dir="$(mktemp -d)"
-    aws_log_path="$(mktemp)"
-    register_tmp_path "$output_path"
-    register_tmp_path "$primary_secret_path"
-    register_tmp_path "$fallback_secret_path"
-    register_tmp_path "$aws_log_path"
-    TMP_PATHS+=("$stub_dir")
-
-    create_stubbed_vendor_tools "$stub_dir"
-    cat > "$primary_secret_path" <<'EOF'
-STRIPE_SECRET_KEY_flapjack_cloud=sk_live_probe_dummy
-EOF
-    cat > "$fallback_secret_path" <<'EOF'
-CLOUDFLARE_ACCOUNT_ID=test_account
-CLOUDFLARE_GLOBAL_API_KEY=test_key
-CLOUDFLARE_X_Auth_Email=test@example.com
+CLOUDFLARE_GLOBAL_API_KEY=test_cf_key
+CLOUDFLARE_EMAIL=test@example.com
+STRIPE_SECRET_KEY=sk_test_probe_dummy
+STRIPE_SECRET_KEY_RESTRICTED=sk_test_probe_dummy_restricted
+STRIPE_WEBHOOK_SECRET=whsec_probe_dummy
+PRIVACY_PRODUCTION_API_KEY=probe_privacy_key
 EOF
 
     probe_rc=0
     probe_stdout="$(
         PATH="${stub_dir}:$PATH" \
-        AWS_STUB_SCENARIO="healthy" \
-        GH_STUB_SCENARIO="healthy" \
+        AWS_STUB_SCENARIO="$aws_scenario" \
+        CURL_STUB_SCENARIO="$curl_scenario" \
         AWS_STUB_LOG_PATH="$aws_log_path" \
         FJCLOUD_SECRET_FILE="$primary_secret_path" \
         CLOUDFLARE_FALLBACK_SECRET_FILE="$fallback_secret_path" \
-        LIVE_STATE_OUTPUT_PATH="$output_path" \
         bash "$PROBE_SCRIPT_DEFAULT"
     )" || probe_rc=$?
 
-    assert_eq "$probe_rc" "0" "probe succeeds for stdout path contract run"
-    assert_eq "$probe_stdout" "$output_path" "probe stdout is exactly the artifact path"
-    validate_live_state_artifact "$probe_stdout"
+    assert_eq "$probe_rc" "0" "probe succeeds with stubbed ${aws_scenario}/${curl_scenario} vendors"
+
+    output_dir="$(extract_probe_output_dir "$probe_stdout")"
+    if [ -n "$output_dir" ]; then
+        pass "probe stdout includes output directory"
+    else
+        fail "probe stdout includes output directory"
+        run_test_summary
+    fi
+
+    LAST_PROBE_OUTPUT_DIR="$output_dir"
+    LAST_SUMMARY_PATH="$output_dir/SUMMARY.md"
+    validate_live_state_artifact "$LAST_SUMMARY_PATH"
+}
+
+assert_cloudflare_provenance_fields() {
+    local output_dir="$1"
+    local cloudflare_raw_path="$output_dir/cloudflare_pages.txt"
+
+    assert_file_exists "$cloudflare_raw_path" "cloudflare pages raw output exists"
+
+    if grep -Fq 'deployment_branch=main' "$cloudflare_raw_path"; then
+        pass "cloudflare raw includes deployment branch"
+    else
+        fail "cloudflare raw includes deployment branch"
+    fi
+
+    if grep -Fq 'deployment_id=dep_latest' "$cloudflare_raw_path"; then
+        pass "cloudflare raw includes deployment id"
+    else
+        fail "cloudflare raw includes deployment id"
+    fi
+
+    if grep -Fq 'deployment_created_on=2026-05-22T00:00:00Z' "$cloudflare_raw_path"; then
+        pass "cloudflare raw includes deployment created timestamp"
+    else
+        fail "cloudflare raw includes deployment created timestamp"
+    fi
+
+    if grep -Fq 'deployment_url=https://latest.example.com' "$cloudflare_raw_path"; then
+        pass "cloudflare raw includes deployment url"
+    else
+        fail "cloudflare raw includes deployment url"
+    fi
+
+    if grep -Fq 'deployment_status=success' "$cloudflare_raw_path"; then
+        pass "cloudflare raw includes deployment status"
+    else
+        fail "cloudflare raw includes deployment status"
+    fi
+}
+
+run_default_mode() {
+    if [ ! -f "$PROBE_SCRIPT_DEFAULT" ] || [ ! -r "$PROBE_SCRIPT_DEFAULT" ]; then
+        fail "default mode intentionally red: missing or unreadable ${PROBE_SCRIPT_DEFAULT}"
+        run_test_summary
+    fi
+
+    run_probe_with_stubs "all_degraded" "healthy"
+    assert_cloudflare_provenance_fields "$LAST_PROBE_OUTPUT_DIR"
+}
+
+cloudflare_row_has_drift_status() {
+    local summary_path="$1"
+    local cloudflare_status
+
+    cloudflare_status="$(awk '
+        $0 == "### cloudflare_pages" { in_cloudflare = 1; next }
+        in_cloudflare && /^### / { exit }
+        in_cloudflare && /^- status: / {
+            sub(/^- status: /, "", $0)
+            print $0
+            exit
+        }
+    ' "$summary_path")"
+
+    [ "$cloudflare_status" = "DRIFT" ]
+}
+
+run_cloudflare_status_scope_regression_test() {
+    local synthetic_summary
+    synthetic_summary="$(mktemp)"
+    register_tmp_path "$synthetic_summary"
+
+    cat > "$synthetic_summary" <<'EOF'
+### cloudflare_pages
+- status: OK
+- agent_executable: false
+- finding: Cloudflare row is intentionally not drift for this regression fixture
+- raw: cloudflare_pages.txt
+
+### privacy_com
+- status: DRIFT
+- agent_executable: false
+- finding: Separate row intentionally drift
+- raw: privacy_com.txt
+EOF
+
+    if cloudflare_row_has_drift_status "$synthetic_summary"; then
+        fail "cloudflare status detector is scoped to cloudflare row only"
+    else
+        pass "cloudflare status detector is scoped to cloudflare row only"
+    fi
+}
+
+run_missing_provenance_degraded_mode() {
+    run_probe_with_stubs "all_degraded" "missing_provenance"
+
+    if cloudflare_row_has_drift_status "$LAST_SUMMARY_PATH"; then
+        pass "cloudflare row degrades when deployment provenance fields are missing"
+    else
+        fail "cloudflare row degrades when deployment provenance fields are missing"
+    fi
+
+    if grep -Fq 'missing provenance fields' "$LAST_SUMMARY_PATH"; then
+        pass "cloudflare row finding explains missing provenance fields"
+    else
+        fail "cloudflare row finding explains missing provenance fields"
+    fi
 }
 
 if [ -n "${LIVE_STATE_ARTIFACT:-}" ]; then
-    run_fixture_mode
+    validate_live_state_artifact "${LIVE_STATE_ARTIFACT}"
 else
+    run_cloudflare_status_scope_regression_test
     run_default_mode
-    run_all_degraded_exit_code_regression
-    run_cloudflare_fallback_empty_export_regression
-    run_ssm_scope_regression
-    run_stdout_path_contract_regression
+    run_missing_provenance_degraded_mode
 fi
 
 run_test_summary

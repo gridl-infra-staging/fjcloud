@@ -49,7 +49,13 @@ json_escape() {
 assert_contains_literal() {
     local file_path="$1"
     local expected_literal="$2"
-    grep -Fq "$expected_literal" "$file_path"
+    # Normalize all whitespace runs (newlines, tabs, multi-space) to a single space
+    # before substring matching. Prettier-formatted Svelte source wraps long
+    # paragraph text across multiple lines; the browser collapses to single
+    # whitespace at render time but `grep -F` is line-bounded. Without this, a
+    # one-line canonical sentence assertion fails against rendered HTML that
+    # contains the same sentence broken across two source lines.
+    tr '[:space:]' ' ' < "$file_path" | tr -s ' ' | grep -Fq "$expected_literal"
 }
 
 assert_path_specific_legal_copy() {

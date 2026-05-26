@@ -435,6 +435,120 @@ describe('Index detail page server -- actions (dictionaries)', () => {
 		});
 	});
 
+	it('saveDictionaryEntry action preserves submitted stopword state in batch payload', async () => {
+		batchDictionaryEntriesMock.mockResolvedValue({ taskID: 42, updatedAt: '2026-03-18T12:00:00Z' });
+		getDictionaryLanguagesMock.mockResolvedValue({
+			en: { stopwords: { nbCustomEntries: 1 }, plurals: null, compounds: null }
+		});
+		searchDictionaryEntriesMock.mockResolvedValue({
+			hits: [{ objectID: 'stop-the', language: 'en', word: 'the', state: 'disabled' }],
+			nbHits: 1,
+			page: 0,
+			nbPages: 1
+		});
+
+		const formData = new FormData();
+		formData.set('dictionary', 'stopwords');
+		formData.set('language', 'en');
+		formData.set('objectID', 'stop-the');
+		formData.set('entryWord', 'the');
+		formData.set('state', 'disabled');
+
+		await actions.saveDictionaryEntry(makeActionArgs('saveDictionaryEntry', formData) as never);
+
+		expect(batchDictionaryEntriesMock).toHaveBeenCalledWith('products', 'stopwords', {
+			clearExistingDictionaryEntries: false,
+			requests: [
+				{
+					action: 'addEntry',
+					body: { objectID: 'stop-the', language: 'en', word: 'the', state: 'disabled' }
+				}
+			]
+		});
+	});
+
+	it('saveDictionaryEntry action accepts a one-word plurals payload', async () => {
+		batchDictionaryEntriesMock.mockResolvedValue({ taskID: 42, updatedAt: '2026-03-18T12:00:00Z' });
+		getDictionaryLanguagesMock.mockResolvedValue({
+			en: { stopwords: null, plurals: { nbCustomEntries: 1 }, compounds: null }
+		});
+		searchDictionaryEntriesMock.mockResolvedValue({
+			hits: [{ objectID: 'plural-sheep', language: 'en', words: ['sheep'] }],
+			nbHits: 1,
+			page: 0,
+			nbPages: 1
+		});
+
+		const formData = new FormData();
+		formData.set('dictionary', 'plurals');
+		formData.set('language', 'en');
+		formData.set('objectID', 'plural-sheep');
+		formData.set('entryWords', 'sheep');
+
+		const result = await actions.saveDictionaryEntry(
+			makeActionArgs('saveDictionaryEntry', formData) as never
+		);
+
+		expect(batchDictionaryEntriesMock).toHaveBeenCalledWith('products', 'plurals', {
+			clearExistingDictionaryEntries: false,
+			requests: [
+				{
+					action: 'addEntry',
+					body: { objectID: 'plural-sheep', language: 'en', words: ['sheep'] }
+				}
+			]
+		});
+		expect(result).toEqual({
+			dictionarySaved: true,
+			dictionaries: {
+				languages: {
+					en: { stopwords: null, plurals: { nbCustomEntries: 1 }, compounds: null }
+				},
+				selectedDictionary: 'plurals',
+				selectedLanguage: 'en',
+				entries: {
+					hits: [{ objectID: 'plural-sheep', language: 'en', words: ['sheep'] }],
+					nbHits: 1,
+					page: 0,
+					nbPages: 1
+				}
+			}
+		});
+	});
+
+	it('saveDictionaryEntry action rejects unexpected stopword state values', async () => {
+		getDictionaryLanguagesMock.mockResolvedValue({
+			en: { stopwords: { nbCustomEntries: 1 }, plurals: null, compounds: null }
+		});
+		searchDictionaryEntriesMock.mockResolvedValue({
+			hits: [{ objectID: 'stop-the', language: 'en', word: 'the', state: 'enabled' }],
+			nbHits: 1,
+			page: 0,
+			nbPages: 1
+		});
+
+		const formData = new FormData();
+		formData.set('dictionary', 'stopwords');
+		formData.set('language', 'en');
+		formData.set('objectID', 'stop-the');
+		formData.set('entryWord', 'the');
+		formData.set('state', 'archived');
+
+		const result = await actions.saveDictionaryEntry(
+			makeActionArgs('saveDictionaryEntry', formData) as never
+		);
+
+		expect(result).toEqual(
+			expect.objectContaining({
+				status: 400,
+				data: expect.objectContaining({
+					dictionarySaveError: expect.stringContaining('state must be enabled or disabled')
+				})
+			})
+		);
+		expect(batchDictionaryEntriesMock).not.toHaveBeenCalled();
+	});
+
 	it('saveDictionaryEntry action rejects missing dictionary selector with fail(400)', async () => {
 		const formData = new FormData();
 		formData.set('language', 'en');

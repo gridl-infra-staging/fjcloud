@@ -157,6 +157,25 @@ describe('Index detail page — AI/search tabs', () => {
 		expect(screen.getByText('shoe-2')).toBeInTheDocument();
 	});
 
+	it('recommendations tab renders trending-facets hits with human readable facet labels', async () => {
+		renderPage(
+			{},
+			{
+				recommendationsResponse: {
+					results: [
+						{
+							hits: [{ facet_name: 'brand', facet_value: 'Apple' }],
+							processingTimeMS: 4
+						}
+					]
+				}
+			}
+		);
+
+		await openTab('Recommendations');
+		expect(screen.getByText('brand: Apple')).toBeInTheDocument();
+	});
+
 	it('rehydrates recommendations draft when the index changes', async () => {
 		const view = renderPage();
 

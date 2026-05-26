@@ -1,0 +1,36 @@
+COMMAND: cd infra && cargo test -p api --test stripe_webhook_event_matrix_test -- --nocapture
+EXIT_CODE: 0
+--- STDOUT ---
+
+running 18 tests
+test dispute_events_append_audit_log_rows_with_real_pool ... ignored, requires DATABASE_URL
+test common::poll::tests::result_variant_returns_value_when_predicate_hits ... ok
+test common::mocks::failable_email_service_tests::failable_email_service_forces_failure_for_retries_exhausted_and_skips_delegate ... ok
+test common::poll::tests::resolves_immediately_with_predicate_value ... ok
+test common::mocks::failable_email_service_tests::failable_email_service_tracks_recovered_after_failure_attempt_and_delegates ... ok
+test common::mocks::failable_email_service_tests::failable_email_service_tracks_retry_scheduled_attempt_and_delegates ... ok
+test common::poll::tests::predicate_can_be_fnmut ... ok
+test common::builders::tests::builder_threads_oauth_runtime_config_into_app_state ... ok
+test common::poll::tests::result_variant_returns_error_on_timeout ... ok
+test invoice_payment_succeeded_marks_invoice_paid ... ok
+test charge_refunded_marks_paid_invoice_refunded ... ok
+test invoice_payment_failed_exhausted_marks_failed_and_suspends_customer ... ok
+test deprecated_subscription_events_are_noops_with_zero_state_mutations ... ok
+test common::poll::tests::resolves_after_multiple_polls_with_real_sleep ... ok
+test common::poll::tests::times_out_and_panics_with_name - should panic ... ok
+test dispute_closed_with_won_status_does_not_refund_paid_invoice ... ok
+test dispute_created_falls_back_to_charge_lookup_when_event_repo_has_no_invoice_mapping ... ok
+test dispute_created_prefers_webhook_event_invoice_mapping_for_upsert_link ... ok
+
+test result: ok. 17 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.24s
+
+
+--- STDERR ---
+   Compiling api v0.1.0 (/Users/stuart/parallel_development/fjcloud_dev/may25_2pm_2_a2_billing_stripe_coverage/fjcloud_dev/infra/api)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 5.04s
+     Running tests/stripe_webhook_event_matrix_test.rs (target/debug/deps/stripe_webhook_event_matrix_test-ca8924b7047950e6)
+
+thread 'common::poll::tests::times_out_and_panics_with_name' (62916500) panicked at api/tests/common/poll.rs:52:25:
+poll_until timed out: test3_must_appear_in_panic_message (after 50ms)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+

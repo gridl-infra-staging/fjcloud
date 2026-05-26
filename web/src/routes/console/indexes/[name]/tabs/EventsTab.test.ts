@@ -8,8 +8,16 @@ vi.mock('$app/forms', () => ({
 	enhance: () => ({ destroy: () => {} })
 }));
 
+vi.mock('$app/navigation', () => ({
+	invalidateAll: vi.fn()
+}));
+
 import EventsTab from './EventsTab.svelte';
-import { sampleIndex, sampleDebugEvents } from '../detail.test.shared';
+import {
+	sampleIndex,
+	sampleDebugEvents,
+	sampleDebugEventsWithDuplicateIdentity
+} from '../detail.test.shared';
 
 type EventsProps = ComponentProps<typeof EventsTab>;
 
@@ -18,6 +26,7 @@ function defaultProps(overrides: Partial<EventsProps> = {}): EventsProps {
 		index: sampleIndex,
 		debugEvents: sampleDebugEvents,
 		eventsError: '',
+		eventsLoadError: '',
 		...overrides
 	};
 }
@@ -25,6 +34,22 @@ function defaultProps(overrides: Partial<EventsProps> = {}): EventsProps {
 afterEach(cleanup);
 
 describe('EventsTab', () => {
+	describe('initial load error state', () => {
+		it('renders load-error card copy from screen spec and hides empty-state copy', () => {
+			render(EventsTab, {
+				props: {
+					...defaultProps({ debugEvents: null }),
+					eventsLoadError: 'Failed to load events'
+				} as EventsProps
+			});
+
+			expect(
+				screen.getByText('Unable to load events. The debug endpoint may be unavailable.')
+			).toBeInTheDocument();
+			expect(screen.queryByText('No events received yet')).not.toBeInTheDocument();
+		});
+	});
+
 	describe('section shell', () => {
 		it('renders the Event Debugger heading', () => {
 			render(EventsTab, { props: defaultProps() });
@@ -258,6 +283,24 @@ describe('EventsTab', () => {
 
 			await fireEvent.click(screen.getByRole('button', { name: 'Close' }));
 			expect(screen.queryByText('Event Detail')).not.toBeInTheDocument();
+		});
+
+		it('keeps duplicate identity rows independently selectable', async () => {
+			render(EventsTab, {
+				props: defaultProps({ debugEvents: sampleDebugEventsWithDuplicateIdentity })
+			});
+
+			const duplicateRows = screen
+				.getAllByRole('row')
+				.filter((row) => row.closest('tbody'))
+				.filter((row) => row.textContent?.includes('Viewed Product'));
+			expect(duplicateRows).toHaveLength(2);
+
+			await fireEvent.click(duplicateRows[0]);
+			expect(screen.queryByText('obj9')).not.toBeInTheDocument();
+
+			await fireEvent.click(duplicateRows[1]);
+			expect(screen.getByText('obj9')).toBeInTheDocument();
 		});
 	});
 

@@ -266,7 +266,7 @@
 	function parseTabFromUrl(currentUrl: URL): ActiveTab | null {
 		const rawTab = currentUrl.searchParams.get('tab');
 		if (!rawTab) return null;
-		if (!ACTIVE_TAB_IDS.has(rawTab as ActiveTab)) return null;
+		if (!validTabIds.has(rawTab as ActiveTab)) return null;
 		return rawTab as ActiveTab;
 	}
 
@@ -334,11 +334,6 @@
 			});
 		}
 	}
-
-	function activateDocumentsTabFromSearchPreview() {
-		activateTab('documents');
-	}
-
 
 	function activateSearchPreviewFromWelcomeBanner() {
 		showWelcomeBanner = false;

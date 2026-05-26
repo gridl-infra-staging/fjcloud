@@ -337,8 +337,7 @@
 
 	function activateSearchPreviewFromWelcomeBanner() {
 		showWelcomeBanner = false;
-		activeTab = 'search-preview';
-		visitedTabs['search-preview'] = true;
+		activateTab('search-preview');
 		// eslint-disable-next-line svelte/no-navigation-without-resolve -- dynamically constructed welcome-consumed URL with query params; resolve() rejects non-typed route literals
 		void goto(buildWelcomeConsumedSearchPreviewUrl(page.url));
 	}

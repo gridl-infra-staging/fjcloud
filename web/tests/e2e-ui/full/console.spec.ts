@@ -236,6 +236,7 @@ test.describe('Dashboard page', () => {
 		await firstDataRow.click();
 		await expect(logPanel.getByText('Request')).toBeVisible();
 		await expect(logPanel.getByText('Response')).toBeVisible();
+		// eslint-disable-next-line playwright/no-raw-locators -- counting reveal-panel <pre> blocks (Request + Response); ApiLogViewer.svelte renders them without data-testids — adding ids belongs in a focused UI lane, not lint cleanup
 		await expect(logPanel.locator('pre')).toHaveCount(2);
 		await expect(logPanel.getByText('"method": "POST"')).toHaveCount(0);
 

@@ -172,10 +172,11 @@ export function validateRule(rule: Rule): string[] {
 		}
 	});
 
-	if (rule.consequence.userData !== undefined && rule.consequence.userData !== '') {
-		if (typeof rule.consequence.userData === 'string') {
+	const userData: unknown = rule.consequence.userData;
+	if (userData !== undefined && userData !== '') {
+		if (typeof userData === 'string') {
 			try {
-				JSON.parse(rule.consequence.userData);
+				JSON.parse(userData);
 			} catch {
 				errors.push('Invalid JSON in User Data field.');
 			}

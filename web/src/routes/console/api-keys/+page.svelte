@@ -308,10 +308,12 @@
 		const query = currentEntries
 			.map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
 			.join('&');
-		void goto(resolve(query.length > 0 ? `/console/api-keys?${query}` : '/console/api-keys'), {
-			keepFocus: true,
-			noScroll: true
-		});
+		if (query.length > 0) {
+			// eslint-disable-next-line svelte/no-navigation-without-resolve -- typed routes reject `${path}?${string}` query forms; resolve() is for path literals only
+			void goto(`/console/api-keys?${query}`, { keepFocus: true, noScroll: true });
+		} else {
+			void goto(resolve('/console/api-keys'), { keepFocus: true, noScroll: true });
+		}
 	}
 </script>
 

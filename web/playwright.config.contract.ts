@@ -128,21 +128,6 @@ function parsePlaywrightWebPort(rawPort: string): number {
 	return parsedPort;
 }
 
-function parsePlaywrightApiPort(rawPort: string): number {
-	if (!/^\d+$/.test(rawPort)) {
-		throw new Error(
-			`${PLAYWRIGHT_API_PORT_ENV} must be an integer TCP port when set (received "${rawPort}")`
-		);
-	}
-	const parsedPort = Number(rawPort);
-	if (!Number.isInteger(parsedPort) || parsedPort < 1024 || parsedPort > 65535) {
-		throw new Error(
-			`${PLAYWRIGHT_API_PORT_ENV} must be between 1024 and 65535 when set (received "${rawPort}")`
-		);
-	}
-	return parsedPort;
-}
-
 export function resolveDefaultPlaywrightWebPort(workspacePath: string = process.cwd()): number {
 	const normalizedWorkspacePath = workspacePath.trim();
 	if (normalizedWorkspacePath.length === 0) {
@@ -434,12 +419,6 @@ export function resolvePlaywrightRuntime({
 	const defaultBaseUrl = buildPlaywrightLoopbackUrl(webPort);
 	const defaultApiBaseUrl = buildPlaywrightApiUrl(apiPort);
 	const hasExplicitBaseUrl = Boolean(processEnv.BASE_URL && processEnv.BASE_URL.trim().length > 0);
-	const hasExplicitApiTarget = Boolean(
-		(processEnv.API_BASE_URL && processEnv.API_BASE_URL.trim().length > 0) ||
-			(processEnv[PLAYWRIGHT_API_PORT_ENV] &&
-				processEnv[PLAYWRIGHT_API_PORT_ENV]?.trim().length &&
-				processEnv[PLAYWRIGHT_API_PORT_ENV]?.trim().length > 0)
-	);
 	// Thread processEnv through so the LB-2/LB-3 remote-target opt-in
 	// (PLAYWRIGHT_TARGET_REMOTE=1) is observed deterministically by the
 	// loopback guard during runtime resolution.

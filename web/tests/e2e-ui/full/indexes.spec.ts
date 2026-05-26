@@ -81,28 +81,32 @@ async function waitForDuplicateCreateSafeOutcome(page: Page, indexName: string):
 	});
 	let outcome = 'pending';
 
-	await expect
-		.poll(readOutcome, { timeout: 30_000 })
-		.not.toBe('pending');
+	async function readOutcome(): Promise<string> {
+		if (await quotaExceededCallout.isVisible().catch(() => false)) {
+			outcome = 'quota-exceeded';
+			return outcome;
+		}
 
-	const outcome = await readOutcome();
+		const alertText = ((await formAlert.textContent().catch(() => '')) ?? '').trim();
+		if (/already exists|duplicate/i.test(alertText)) {
+			outcome = 'duplicate-alert';
+			return outcome;
+		}
 
-				const alertText = ((await formAlert.textContent().catch(() => '')) ?? '').trim();
-				if (/already exists|duplicate/i.test(alertText)) {
-					outcome = 'duplicate-alert';
-					return outcome;
-				}
+		if (await existingRow.isVisible().catch(() => false)) {
+			outcome = 'idempotent';
+			return outcome;
+		}
 
-				if (await existingRow.isVisible().catch(() => false)) {
-					outcome = 'idempotent';
-					return outcome;
-				}
+		if (await createdMsg.isVisible().catch(() => false)) {
+			outcome = 'unexpected-success';
+			return outcome;
+		}
 
-				return 'pending';
-			},
-			{ timeout: 30_000 }
-		)
-		.not.toBe('pending');
+		return 'pending';
+	}
+
+	await expect.poll(readOutcome, { timeout: 30_000 }).not.toBe('pending');
 
 	if (outcome === 'quota-exceeded') {
 		throw new Error('index creation blocked by free-plan capacity in this environment');

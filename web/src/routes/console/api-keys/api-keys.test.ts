@@ -397,7 +397,7 @@ describe('API Keys page', () => {
 		renderPage();
 
 		const productionRow = getRowForKeyName('Production Key');
-		const revokeForm = productionRow.querySelector('form[action=\"?/revoke\"]') as HTMLFormElement;
+		const revokeForm = productionRow.querySelector('form[action="?/revoke"]') as HTMLFormElement;
 		const requestSubmitSpy = vi.spyOn(revokeForm, 'requestSubmit').mockImplementation(() => {});
 		await fireEvent.click(
 			within(productionRow).getByRole('button', { name: 'Revoke key Production Key' })

@@ -3,7 +3,6 @@
 	import { resolve } from '$app/paths';
 	import { copyToClipboard } from '$lib/clipboard';
 	import { formatBytes, formatNumber, statusLabel } from '$lib/format';
-	import { writeTextToClipboard } from '$lib/clipboard';
 	import type { Index, IndexReplicaSummary, InternalRegion, SearchResult } from '$lib/api/types';
 	import {
 		buildSnippetContext,

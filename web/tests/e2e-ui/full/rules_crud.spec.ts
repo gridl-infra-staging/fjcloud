@@ -1,7 +1,10 @@
 import { test, expect } from '../../fixtures/fixtures';
+import type { Page } from '@playwright/test';
 import { createMerchandisingRule } from '../../../src/lib/utils/merchandising';
 
-async function openRulesTab(page: Parameters<typeof test>[0]['page']) {
+type SeedIndexFn = (name: string, region?: string) => Promise<void>;
+
+async function openRulesTab(page: Page) {
 	const section = page.getByTestId('rules-section');
 	if ((await section.count()) > 0 && (await section.first().isVisible())) {
 		return section;
@@ -19,8 +22,8 @@ async function openRulesTab(page: Parameters<typeof test>[0]['page']) {
 
 
 async function gotoSeededIndexRulesTab(
-	page: Parameters<typeof test>[0]['page'],
-	seedIndex: Parameters<typeof test>[0]['seedIndex'],
+	page: Page,
+	seedIndex: SeedIndexFn,
 	testRegion: string,
 	prefix: string
 ) {
@@ -34,7 +37,7 @@ async function gotoSeededIndexRulesTab(
 	return indexName;
 }
 
-async function openAddRuleDialog(page: Parameters<typeof test>[0]['page']) {
+async function openAddRuleDialog(page: Page) {
 	const section = page.getByTestId('rules-section');
 	await section.getByRole('button', { name: 'Add Rule', exact: true }).click();
 	const dialog = page.getByTestId('rules-editor-dialog');

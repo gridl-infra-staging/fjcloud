@@ -6,7 +6,6 @@
 	import { copyToClipboard } from '$lib/clipboard';
 	import { REGIONS, SUPPORT_EMAIL } from '$lib/format';
 	import type { OnboardingStatus, FlapjackCredentials } from '$lib/api/types';
-	import { writeTextToClipboard } from '$lib/clipboard';
 
 	let { data, form: formResult } = $props();
 

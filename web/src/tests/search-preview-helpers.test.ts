@@ -7,7 +7,6 @@ const { pollMock, expectCallMock } = vi.hoisted(() => ({
 		toBeVisible: vi.fn().mockResolvedValue(undefined)
 	})
 }));
-const expectMock = expectCallMock;
 
 vi.mock('@playwright/test', () => ({
 	expect: Object.assign(expectCallMock, {

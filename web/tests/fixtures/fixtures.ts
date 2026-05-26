@@ -907,8 +907,7 @@ async function getAccountPayloadForTokenWithRetries(
 ): Promise<{ id?: string; billing_plan?: 'free' | 'shared' }> {
 	const maxRetries = TRANSIENT_API_MAX_RETRIES;
 	let lastTransientFailure = 'none';
-	let currentToken = token;
-	let refreshedAfterUnauthorized = false;
+	const currentToken = token;
 
 	for (let attempt = 0; attempt < maxRetries; attempt++) {
 		const accountResponse = await callJsonApi(fetch, fixtureEnv.apiUrl, 'GET', '/account', {
@@ -1257,6 +1256,11 @@ async function createSeededIndex(
 	throw new Error(`seedIndex failed after transient create retries: ${lastFailure}`);
 }
 
+// Retained for the admin→customer-auth fallback path that e2e-fixture-user-helpers
+// asserts in fixtures source. Currently unreferenced from seedIndex itself because
+// a Wave B merge collapsed the retry/fallback wiring; the call site is recorded
+// in docs/post_launch_followups.md ("Stopped Wave B worktrees parked 2026-05-26").
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- see comment above
 async function createSeededIndexForCurrentCustomer(name: string, region: string): Promise<void> {
 	const maxRetries = 6;
 	let lastFailure = 'none';

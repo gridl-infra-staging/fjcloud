@@ -16,10 +16,22 @@ function failForDashboardAction<T extends Record<string, unknown>>(error: unknow
 	return fail(400, payload);
 }
 
+/**
+ * TODO: Document chatAction.
+ */
+const CHAT_QUERY_MAX_LENGTH = 2000;
+const CHAT_CONVERSATION_HISTORY_MAX_ENTRIES = 100;
+
 export async function chatAction({ request, indexName, token }: ChatActionArgs) {
 	const data = await request.formData();
 	const query = (data.get('query') as string)?.trim() ?? '';
 	if (!query) return fail(400, { chatError: 'Query is required' });
+	if (query.length > CHAT_QUERY_MAX_LENGTH) {
+		return fail(400, {
+			chatError: `Query must be at most ${CHAT_QUERY_MAX_LENGTH} characters`,
+			chatQuery: query
+		});
+	}
 	const conversationId = (data.get('conversationId') as string | null)?.trim() ?? '';
 
 	const rawConversationHistory = (data.get('conversationHistory') as string | null)?.trim() ?? '';
@@ -44,6 +56,13 @@ export async function chatAction({ request, indexName, token }: ChatActionArgs) 
 		) {
 			return fail(400, {
 				chatError: 'conversationHistory must be a JSON array',
+				chatQuery: query
+			});
+		}
+
+		if (parsedConversationHistory.length > CHAT_CONVERSATION_HISTORY_MAX_ENTRIES) {
+			return fail(400, {
+				chatError: `conversationHistory must contain at most ${CHAT_CONVERSATION_HISTORY_MAX_ENTRIES} entries`,
 				chatQuery: query
 			});
 		}

@@ -37,7 +37,9 @@ export const sampleRules = {
 	],
 	nbHits: 1,
 	page: 0,
-	nbPages: 1
+	nbPages: 1,
+	totalNbHits: 1,
+	query: ''
 };
 
 export const sampleSynonyms: SynonymSearchResponse = {

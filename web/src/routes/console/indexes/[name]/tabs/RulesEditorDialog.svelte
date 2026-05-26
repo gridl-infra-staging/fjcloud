@@ -6,7 +6,7 @@
 		EditorDialogValues
 	} from '$lib/components/EditorDialog.types';
 	import { createEmptyRule, normalizeRule, prepareRuleEditorSave } from '$lib/rules/ruleHelpers';
-	import type { Rule } from '$lib/api/types';
+	import type { Rule, RuleCondition, RuleValidityRange } from '$lib/api/types';
 
 	type Props = {
 		mode: EditorDialogMode;
@@ -123,8 +123,8 @@
 			objectID: String(values.objectID ?? ''),
 			description: String(values.description ?? ''),
 			enabled: Boolean(values.enabled),
-			conditions: parsedConditions.parsed ?? [],
-			validity: parsedValidity.parsed
+			conditions: (parsedConditions.parsed ?? []) as RuleCondition[],
+			validity: parsedValidity.parsed as RuleValidityRange[] | undefined
 		};
 		return nextError;
 	}

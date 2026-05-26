@@ -13,9 +13,6 @@ import type {
 	AnalyticsNoResultRateResponse,
 	AnalyticsTopSearchesResponse,
 	AnalyticsStatusResponse,
-	AnalyticsDevicesResponse,
-	AnalyticsCountriesResponse,
-	AnalyticsFilterValuesResponse,
 	AnalyticsConversionRateResponse
 } from '$lib/api/types';
 import { errorMessage } from './document-management.server';
@@ -160,9 +157,13 @@ function previousDateRange(
 	};
 }
 
-type FetchAnalyticsByDateRangeArgs<T> = AnalyticsActionArgs & {
-	errorKey: AnalyticsDateRangeErrorKey;
-	responseKey: AnalyticsDateRangeResponseKey;
+type FetchAnalyticsByDateRangeArgs<
+	T,
+	TResponseKey extends AnalyticsDateRangeResponseKey,
+	TErrorKey extends AnalyticsDateRangeErrorKey
+> = AnalyticsActionArgs & {
+	errorKey: TErrorKey;
+	responseKey: TResponseKey;
 	invalidDateRangeMessage: string;
 	loadErrorMessage: string;
 	load: (
@@ -172,7 +173,11 @@ type FetchAnalyticsByDateRangeArgs<T> = AnalyticsActionArgs & {
 	) => Promise<T>;
 };
 
-async function fetchAnalyticsByDateRange<T>({
+async function fetchAnalyticsByDateRange<
+	T,
+	TResponseKey extends AnalyticsDateRangeResponseKey,
+	TErrorKey extends AnalyticsDateRangeErrorKey
+>({
 	request,
 	indexName,
 	token,
@@ -181,22 +186,28 @@ async function fetchAnalyticsByDateRange<T>({
 	invalidDateRangeMessage,
 	loadErrorMessage,
 	load
-}: FetchAnalyticsByDateRangeArgs<T>) {
+}: FetchAnalyticsByDateRangeArgs<T, TResponseKey, TErrorKey>) {
 	let params: AnalyticsRequiredDateRangeParams;
 	try {
 		params = requiredDateRange(await request.formData());
 	} catch (err) {
-		return fail(400, { [errorKey]: errorMessage(err, invalidDateRangeMessage) });
+		return fail(400, { [errorKey]: errorMessage(err, invalidDateRangeMessage) } as Record<
+			TErrorKey,
+			string
+		>);
 	}
 
 	const api = createApiClient(token);
 	try {
 		const payload = await load(api, indexName, params);
-		return { [responseKey]: payload };
+		return { [responseKey]: payload } as Record<TResponseKey, T>;
 	} catch (err) {
 		const sessionFailure = mapDashboardSessionFailure(err);
 		if (sessionFailure) return sessionFailure;
-		return fail(400, { [errorKey]: errorMessage(err, loadErrorMessage) });
+		return fail(400, { [errorKey]: errorMessage(err, loadErrorMessage) } as Record<
+			TErrorKey,
+			string
+		>);
 	}
 }
 
@@ -264,7 +275,7 @@ function buildConversionSubtabPayload(
 }
 
 export async function fetchAnalyticsDevicesAction({ request, indexName, token }: AnalyticsActionArgs) {
-	return fetchAnalyticsByDateRange<AnalyticsDevicesResponse>({
+	return fetchAnalyticsByDateRange({
 		request,
 		indexName,
 		token,
@@ -281,7 +292,7 @@ export async function fetchAnalyticsCountriesAction({
 	indexName,
 	token
 }: AnalyticsActionArgs) {
-	return fetchAnalyticsByDateRange<AnalyticsCountriesResponse>({
+	return fetchAnalyticsByDateRange({
 		request,
 		indexName,
 		token,
@@ -294,7 +305,7 @@ export async function fetchAnalyticsCountriesAction({
 }
 
 export async function fetchAnalyticsFiltersAction({ request, indexName, token }: AnalyticsActionArgs) {
-	return fetchAnalyticsByDateRange<AnalyticsFilterValuesResponse>({
+	return fetchAnalyticsByDateRange({
 		request,
 		indexName,
 		token,

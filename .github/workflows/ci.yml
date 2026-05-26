@@ -62,7 +62,7 @@ jobs:
           sudo swapon /swapfile
       - name: Run rust tests
         working-directory: infra
-        run: cargo test --workspace -j 1
+        run: cargo test --workspace
       # Tenant isolation proptest runs in nightly.yml's
       # `tenant-isolation-proptest` job. Moved out of the per-push deploy
       # gate 2026-05-02 because it is a defensive regression check (not a

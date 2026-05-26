@@ -242,6 +242,142 @@ pub async fn get_analytics_no_result_rate(
     Ok(Json(result))
 }
 
+/// GET /indexes/:name/analytics/devices — top device breakdown in date range.
+#[utoipa::path(
+    get,
+    path = "/indexes/{name}/analytics/devices",
+    tag = "Analytics",
+    params(("name" = String, Path, description = "Index name")),
+    responses(
+        (status = 200, description = "Top devices in date range", body = serde_json::Value),
+        (status = 400, description = "Bad request", body = crate::errors::ErrorResponse),
+        (status = 401, description = "Authentication required", body = crate::errors::ErrorResponse),
+        (status = 410, description = "Index is in cold storage", body = crate::errors::ErrorResponse),
+        (status = 503, description = "Index is restoring or endpoint not ready", body = crate::errors::ErrorResponse),
+        (status = 404, description = "Index not found", body = crate::errors::ErrorResponse),
+    )
+)]
+pub async fn get_analytics_devices(
+    auth: AuthenticatedTenant,
+    State(state): State<AppState>,
+    Path(name): Path<String>,
+    RawQuery(raw_query): RawQuery,
+) -> Result<impl IntoResponse, ApiError> {
+    let result = proxy_analytics_endpoint(
+        &state,
+        auth.customer_id,
+        &name,
+        "devices",
+        raw_query.as_deref(),
+        true,
+    )
+    .await?;
+
+    Ok(Json(result))
+}
+
+/// GET /indexes/:name/analytics/countries — top country breakdown in date range.
+#[utoipa::path(
+    get,
+    path = "/indexes/{name}/analytics/countries",
+    tag = "Analytics",
+    params(("name" = String, Path, description = "Index name")),
+    responses(
+        (status = 200, description = "Top countries in date range", body = serde_json::Value),
+        (status = 400, description = "Bad request", body = crate::errors::ErrorResponse),
+        (status = 401, description = "Authentication required", body = crate::errors::ErrorResponse),
+        (status = 410, description = "Index is in cold storage", body = crate::errors::ErrorResponse),
+        (status = 503, description = "Index is restoring or endpoint not ready", body = crate::errors::ErrorResponse),
+        (status = 404, description = "Index not found", body = crate::errors::ErrorResponse),
+    )
+)]
+pub async fn get_analytics_countries(
+    auth: AuthenticatedTenant,
+    State(state): State<AppState>,
+    Path(name): Path<String>,
+    RawQuery(raw_query): RawQuery,
+) -> Result<impl IntoResponse, ApiError> {
+    let result = proxy_analytics_endpoint(
+        &state,
+        auth.customer_id,
+        &name,
+        "countries",
+        raw_query.as_deref(),
+        true,
+    )
+    .await?;
+
+    Ok(Json(result))
+}
+
+/// GET /indexes/:name/analytics/filters — top filter usage in date range.
+#[utoipa::path(
+    get,
+    path = "/indexes/{name}/analytics/filters",
+    tag = "Analytics",
+    params(("name" = String, Path, description = "Index name")),
+    responses(
+        (status = 200, description = "Top filters in date range", body = serde_json::Value),
+        (status = 400, description = "Bad request", body = crate::errors::ErrorResponse),
+        (status = 401, description = "Authentication required", body = crate::errors::ErrorResponse),
+        (status = 410, description = "Index is in cold storage", body = crate::errors::ErrorResponse),
+        (status = 503, description = "Index is restoring or endpoint not ready", body = crate::errors::ErrorResponse),
+        (status = 404, description = "Index not found", body = crate::errors::ErrorResponse),
+    )
+)]
+pub async fn get_analytics_filters(
+    auth: AuthenticatedTenant,
+    State(state): State<AppState>,
+    Path(name): Path<String>,
+    RawQuery(raw_query): RawQuery,
+) -> Result<impl IntoResponse, ApiError> {
+    let result = proxy_analytics_endpoint(
+        &state,
+        auth.customer_id,
+        &name,
+        "filters",
+        raw_query.as_deref(),
+        true,
+    )
+    .await?;
+
+    Ok(Json(result))
+}
+
+/// GET /indexes/:name/analytics/conversions/conversionRate — conversion rate in date range.
+#[utoipa::path(
+    get,
+    path = "/indexes/{name}/analytics/conversions/conversionRate",
+    tag = "Analytics",
+    params(("name" = String, Path, description = "Index name")),
+    responses(
+        (status = 200, description = "Conversion rate in date range", body = serde_json::Value),
+        (status = 400, description = "Bad request", body = crate::errors::ErrorResponse),
+        (status = 401, description = "Authentication required", body = crate::errors::ErrorResponse),
+        (status = 410, description = "Index is in cold storage", body = crate::errors::ErrorResponse),
+        (status = 503, description = "Index is restoring or endpoint not ready", body = crate::errors::ErrorResponse),
+        (status = 404, description = "Index not found", body = crate::errors::ErrorResponse),
+    )
+)]
+pub async fn get_analytics_conversion_rate(
+    auth: AuthenticatedTenant,
+    State(state): State<AppState>,
+    Path(name): Path<String>,
+    RawQuery(raw_query): RawQuery,
+) -> Result<impl IntoResponse, ApiError> {
+    let result = proxy_analytics_endpoint(
+        &state,
+        auth.customer_id,
+        &name,
+        "conversions/conversionRate",
+        raw_query.as_deref(),
+        true,
+    )
+    .await?;
+
+    Ok(Json(result))
+}
+
 /// GET /indexes/:name/analytics/status — analytics status for index.
 #[utoipa::path(
     get,

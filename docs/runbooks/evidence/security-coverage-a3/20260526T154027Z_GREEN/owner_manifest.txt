@@ -1,0 +1,19 @@
+Stage goal: fresh Section-3 evidence bundle proving existing matrix rows are enforced.
+UTC timestamp: 2026-05-26T15:40:30Z
+Git HEAD: f4996ac1483fece2975bb2e91ee19acd55b6b5d1
+
+Rust owners:
+- stripe_webhook_signature_test
+- security_test
+- noisy_neighbor_test
+- auth_lockout_test
+- api_key_auth_test
+- internal_auth_test
+- auth_test
+
+Shell probe owners:
+- oauth_redirect_uri_contract.sh staging
+- ec2_firewalld_contract.sh
+- stripe_webhook_bad_signature_reject_contract.sh
+- stripe_webhook_stale_timestamp_reject_contract.sh
+- tenant_jwt_wrong_secret_reject_contract.sh

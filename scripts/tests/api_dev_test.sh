@@ -296,7 +296,7 @@ EOF
 echo "cargo should not run when s3 listen port is occupied" >> "'"$cargo_log"'"
 exit 0'
     write_mock_script "$tmp_dir/bin/lsof" '
-if [ "${1:-}" = "-i" ] && [ "${2:-}" = ":3002" ]; then
+if [ "${1:-}" = "-i" ] && [ "${2:-}" = ":4514" ]; then
     exit 0
 fi
 exit 1'
@@ -304,18 +304,53 @@ exit 1'
     local output exit_code=0
     output=$(
         PATH="$tmp_dir/bin:$PATH" \
+        PLAYWRIGHT_API_PORT=4513 \
         bash "$REPO_ROOT/scripts/api-dev.sh" 2>&1
     ) || exit_code=$?
 
     assert_eq "$exit_code" "1" \
-        "api-dev should fail fast when S3_LISTEN_ADDR default port is already occupied"
-    assert_contains "$output" "port 3002 is already in use" \
-        "api-dev should report the occupied S3_LISTEN_ADDR port"
+        "api-dev should fail fast when S3_LISTEN_ADDR derived default port is already occupied"
+    assert_contains "$output" "port 4514 is already in use" \
+        "api-dev should report the occupied derived S3_LISTEN_ADDR port"
 
     local cargo_calls
     cargo_calls=$(cat "$cargo_log" 2>/dev/null || true)
     assert_eq "$cargo_calls" "" \
         "api-dev should not invoke cargo when s3 listen port availability checks fail"
+}
+
+test_api_dev_exports_derived_s3_listen_addr_for_runtime() {
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    trap 'restore_repo_path "'"$REPO_ROOT/.env.local"'" "${API_DEV_ENV_BACKUP:-}"; rm -rf "'"$tmp_dir"'"' RETURN
+
+    API_DEV_ENV_BACKUP=$(backup_repo_path "$REPO_ROOT/.env.local" "$tmp_dir/.env.local.backup")
+    cat > "$REPO_ROOT/.env.local" <<'EOF'
+DATABASE_URL=postgres://local-test:local-pass@localhost:5432/local_dev_test
+LISTEN_ADDR=127.0.0.1:4613
+EOF
+
+    mkdir -p "$tmp_dir/bin"
+    local cargo_log="$tmp_dir/cargo.log"
+    write_mock_script "$tmp_dir/bin/cargo" '
+echo "S3_LISTEN_ADDR=${S3_LISTEN_ADDR:-}" >> "'"$cargo_log"'"
+exit 0'
+    write_mock_lsof_reports_free "$tmp_dir/bin/lsof"
+
+    local output exit_code=0
+    output=$(
+        PATH="$tmp_dir/bin:$PATH" \
+        PLAYWRIGHT_API_PORT=4613 \
+        bash "$REPO_ROOT/scripts/api-dev.sh" 2>&1
+    ) || exit_code=$?
+
+    assert_eq "$exit_code" "0" \
+        "api-dev should start when derived S3 port is free"
+
+    local cargo_calls
+    cargo_calls=$(cat "$cargo_log" 2>/dev/null || true)
+    assert_contains "$cargo_calls" "S3_LISTEN_ADDR=0.0.0.0:4614" \
+        "api-dev should export derived S3_LISTEN_ADDR for API runtime instead of relying on hardcoded API defaults"
 }
 
 test_api_dev_prefers_mailpit_over_ses_by_default() {
@@ -704,6 +739,7 @@ main() {
     test_api_dev_preserves_skip_email_verification_with_explicit_opt_in
     test_api_dev_fails_fast_when_listen_port_is_in_use
     test_api_dev_fails_fast_when_s3_listen_port_is_in_use
+    test_api_dev_exports_derived_s3_listen_addr_for_runtime
     test_api_dev_prefers_mailpit_over_ses_by_default
     test_api_dev_preserves_ses_with_explicit_opt_in
     test_api_dev_defaults_to_local_stripe_mode_even_with_live_keys_present

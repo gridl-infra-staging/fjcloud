@@ -13,13 +13,15 @@
 
 | Directory | Summary |
 | --- | --- |
+| analytics | — |
 | api | The api directory provides client-side HTTP communication utilities for the SvelteKit frontend, with a shared base class for API clients and TypeScript type definitions. |
 | api-logs | Manages browser-side API log capture and storage with sanitization, dashboard instrumentation of SvelteKit requests and forms, and export capabilities. |
 | auth | The auth directory provides JWT token utilities including decoding and HS256 signature verification with timing-safe comparison, plus expiration checking. |
-| components | The components directory contains a search module that handles analytics tracking for user search interactions, manages persistence of display preferences, and serializes search state into shareable URL parameters. |
+| components | — |
 | error-boundary | The error-boundary directory provides client-side error handling and recovery mechanisms, with runtime initialization and error recovery logic for graceful fallback behavior during client-side failures. |
 | http | — |
+| recommendations | The recommendations directory contains configuration and business logic for the recommendation feature in the web frontend. |
 | search_templates | — |
 | server | Server-side utilities for authentication, session management, and error handling, including impersonation validation and transient API retry logic. |
-| utils | This utils directory contains helper functions for UI interactions and product presentation, including focus management for accessibility and merchandising logic for billing or product display features. |
+| utils | The utils directory provides keyboard focus management and search merchandising utilities—specifically focus trap functionality for cycling through focusable elements within containers, and rule builders for pinning or hiding search results. |
 <!-- [scrai:end] -->

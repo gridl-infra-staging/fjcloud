@@ -7,6 +7,6 @@
 
 | Directory | Summary |
 | --- | --- |
-| src | The infra/api/src directory contains the main HTTP API server implementation for fjcloud, a Rust-based Axum service that orchestrates billing, metering, and infrastructure provisioning across multiple cloud providers. |
-| tests | This directory contains API integration test utilities and fixtures, including property-based tests for tenant isolation and shared builders, mocks, and helpers for Stripe webhooks, Flapjack proxy operations, storage metering, and S3 routing. |
+| src | This is the HTTP API server implementation for fjcloud's cloud infrastructure and billing platform, containing route handlers, business logic, data access layers, and integrations for authentication, invoicing, resource provisioning, and payment processing across multiple cloud providers. |
+| tests | This directory contains Rust test fixtures and utilities for the API integration test suite, including regression fixtures for CI validation, property-based tenant isolation tests, and shared test builders and mocks for Stripe webhooks, Flapjack proxy operations, storage metering, and S3 routing scenarios. |
 <!-- [scrai:end] -->

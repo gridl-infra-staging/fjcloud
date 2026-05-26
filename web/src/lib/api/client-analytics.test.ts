@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, type Mock } from 'vitest';
 import { ApiClient } from './client';
 import type {
 	CreateExperimentRequest,
@@ -125,6 +125,116 @@ describe('ApiClient - analytics and experiments', () => {
 				headers: { 'Content-Type': 'application/json', Authorization: 'Bearer my-jwt-token' }
 			});
 			expect(result).toEqual(expected);
+		});
+
+		it('GET /indexes/:name/analytics/devices sends required date params', async () => {
+			const expected = {
+				devices: { desktop: 42, mobile: 17, tablet: 8 }
+			};
+			const fetch = mockFetch(200, expected);
+			client.setFetch(fetch);
+
+			const result = await client.getAnalyticsDevices('products', {
+				startDate: '2026-02-18',
+				endDate: '2026-02-25'
+			});
+
+			expect(fetch).toHaveBeenCalledWith(
+				`${BASE_URL}/indexes/products/analytics/devices?startDate=2026-02-18&endDate=2026-02-25`,
+				{
+					method: 'GET',
+					headers: { 'Content-Type': 'application/json', Authorization: 'Bearer my-jwt-token' }
+				}
+			);
+			expect(result).toEqual(expected);
+		});
+
+		it('GET /indexes/:name/analytics/countries sends required date params', async () => {
+			const expected = {
+				countries: { US: 100, FR: 37, DE: 22 }
+			};
+			const fetch = mockFetch(200, expected);
+			client.setFetch(fetch);
+
+			const result = await client.getAnalyticsCountries('products', {
+				startDate: '2026-02-18',
+				endDate: '2026-02-25'
+			});
+
+			expect(fetch).toHaveBeenCalledWith(
+				`${BASE_URL}/indexes/products/analytics/countries?startDate=2026-02-18&endDate=2026-02-25`,
+				{
+					method: 'GET',
+					headers: { 'Content-Type': 'application/json', Authorization: 'Bearer my-jwt-token' }
+				}
+			);
+			expect(result).toEqual(expected);
+		});
+
+		it('GET /indexes/:name/analytics/filters sends required date params', async () => {
+			const expected = {
+				filters: { category: { books: 50, movies: 30 } }
+			};
+			const fetch = mockFetch(200, expected);
+			client.setFetch(fetch);
+
+			const result = await client.getAnalyticsFilters('products', {
+				startDate: '2026-02-18',
+				endDate: '2026-02-25'
+			});
+
+			expect(fetch).toHaveBeenCalledWith(
+				`${BASE_URL}/indexes/products/analytics/filters?startDate=2026-02-18&endDate=2026-02-25`,
+				{
+					method: 'GET',
+					headers: { 'Content-Type': 'application/json', Authorization: 'Bearer my-jwt-token' }
+				}
+			);
+			expect(result).toEqual(expected);
+		});
+
+		it('GET /indexes/:name/analytics/conversions/conversionRate sends date params and optional country scope', async () => {
+			const expected = {
+				conversions: {
+					ctr: 12.5,
+					addToCart: 4.2,
+					purchase: 1.8,
+					conversionRate: 2.5
+				}
+			};
+			const fetch = mockFetch(200, expected);
+			client.setFetch(fetch);
+
+			const result = await client.getAnalyticsConversionRate('products', {
+				startDate: '2026-02-18',
+				endDate: '2026-02-25',
+				country: 'US'
+			});
+
+			expect(fetch).toHaveBeenCalledWith(
+				`${BASE_URL}/indexes/products/analytics/conversions/conversionRate?startDate=2026-02-18&endDate=2026-02-25&country=US`,
+				{
+					method: 'GET',
+					headers: { 'Content-Type': 'application/json', Authorization: 'Bearer my-jwt-token' }
+				}
+			);
+			expect(result).toEqual(expected);
+		});
+
+		it('analytics subtab endpoints include both startDate and endDate in request URL', async () => {
+			const expected = { devices: { desktop: 1, mobile: 1, tablet: 1 } };
+			const fetch = mockFetch(200, expected);
+			client.setFetch(fetch);
+
+			await client.getAnalyticsDevices('products', {
+				startDate: '2026-02-18',
+				endDate: '2026-02-25'
+			});
+
+			const calledUrl = (fetch as unknown as Mock).mock.calls[0]?.[0];
+			expect(typeof calledUrl).toBe('string');
+			expect(calledUrl).toContain('startDate=2026-02-18');
+			expect(calledUrl).toContain('endDate=2026-02-25');
 		});
 	});
 

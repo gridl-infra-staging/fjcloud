@@ -182,16 +182,17 @@ describe('Index detail page server -- load', () => {
 	});
 
 	it('load fetches rules along with index/settings/replicas/regions', async () => {
-		getIndexMock.mockResolvedValue({
-			...DEFAULT_INDEX
-		});
-		getIndexSettingsMock.mockResolvedValue({ searchableAttributes: ['title'] });
-		searchRulesMock.mockResolvedValue({
+		const rulesPayload = {
 			hits: [{ objectID: 'boost-shoes', conditions: [], consequence: {} }],
 			nbHits: 1,
 			page: 0,
 			nbPages: 1
+		};
+		getIndexMock.mockResolvedValue({
+			...DEFAULT_INDEX
 		});
+		getIndexSettingsMock.mockResolvedValue({ searchableAttributes: ['title'] });
+		searchRulesMock.mockResolvedValue(rulesPayload);
 		searchSynonymsMock.mockResolvedValue({
 			hits: [{ objectID: 'laptop-syn', type: 'synonym', synonyms: ['laptop', 'notebook'] }],
 			nbHits: 1
@@ -213,7 +214,10 @@ describe('Index detail page server -- load', () => {
 
 		const result = (await load(makeLoadArgs() as never)) as LoadResult;
 
-		expect(searchRulesMock).toHaveBeenCalledWith('products');
+		expect(searchRulesMock).toHaveBeenCalledWith('products', '', 0, 50);
+		expect(result.rules).toMatchObject(rulesPayload);
+		expect(result.rules.totalNbHits).toBe(1);
+		expect(result.rules.query).toBe('');
 		expect(result.rules.nbHits).toBe(1);
 		expect(result.rules.hits[0].objectID).toBe('boost-shoes');
 		expect(result.synonyms.nbHits).toBe(1);
@@ -221,6 +225,54 @@ describe('Index detail page server -- load', () => {
 		expect(result.personalizationStrategy).toBeNull();
 		expect(result.qsConfig?.indexName).toBe('products');
 		expect(result.qsStatus?.isRunning).toBe(false);
+	});
+
+	it('load fetches rules with URL query and preserves unfiltered total in server payload', async () => {
+		searchRulesMock
+			.mockResolvedValueOnce({
+				hits: [{ objectID: 'boost-shoes', conditions: [], consequence: {} }],
+				nbHits: 1,
+				page: 0,
+				nbPages: 1
+			})
+			.mockResolvedValueOnce({
+				hits: [],
+				nbHits: 14,
+				page: 0,
+				nbPages: 1
+			});
+
+		const result = (await load(makeLoadArgs('?q=boost') as never)) as LoadResult;
+
+		expect(searchRulesMock).toHaveBeenNthCalledWith(1, 'products', 'boost', 0, 50);
+		expect(searchRulesMock).toHaveBeenNthCalledWith(2, 'products', '', 0, 50);
+		expect(result.rules).toMatchObject({
+			nbHits: 1,
+			totalNbHits: 14,
+			query: 'boost'
+		});
+	});
+
+	it('load keeps filtered rules payload when unfiltered total lookup fails', async () => {
+		searchRulesMock
+			.mockResolvedValueOnce({
+				hits: [{ objectID: 'boost-shoes', conditions: [], consequence: {} }],
+				nbHits: 1,
+				page: 0,
+				nbPages: 1
+			})
+			.mockRejectedValueOnce(new Error('unfiltered total unavailable'));
+
+		const result = (await load(makeLoadArgs('?q=boost') as never)) as LoadResult;
+
+		expect(searchRulesMock).toHaveBeenNthCalledWith(1, 'products', 'boost', 0, 50);
+		expect(searchRulesMock).toHaveBeenNthCalledWith(2, 'products', '', 0, 50);
+		expect(result.rules).toMatchObject({
+			nbHits: 1,
+			totalNbHits: 1,
+			query: 'boost'
+		});
+		expect(result.rules?.hits).toHaveLength(1);
 	});
 
 	it('load includes personalization strategy when API returns one', async () => {

@@ -19,5 +19,5 @@ unavailable so staging gets a clear outside-AWS outage signal. |
 
 | Directory | Summary |
 | --- | --- |
-| contracts | This directory contains contract tests validating deterministic fail-closed behaviors (webhook signature/timestamp/JWT rejection, firewall port coverage, Lambda invocation), mocked test spec drift against live wire payloads, and infrastructure configuration contracts (OAuth redirect URIs, API base URLs, web server load behavior). |
+| contracts | This directory contains validation scripts that verify critical system contracts across infrastructure, APIs, and security boundaries—including EC2 firewall configuration, Stripe webhook signature validation, OAuth flows, JWT authentication, and browser test mocking correctness. |
 <!-- [scrai:end] -->

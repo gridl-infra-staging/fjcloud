@@ -53,6 +53,15 @@ PER_FILE_OVERRIDES=(
     # FIXME(pg-customer-repo-split): extract list/query+upgrade/resend seams
     # into focused modules and remove this override entry.
     "infra/api/src/repos/pg_customer_repo.rs|1000|temporary cap during repo seam extraction; bumped after may16_9pm_2 lockout methods landed"
+    # Stage 9 closeout: these web owners are currently above the generic cap.
+    # Keep the deploy gate actionable while a focused split lane extracts
+    # API surface area and dialog sub-seams.
+    # FIXME(stage9-web-owners-split): split these files into focused modules/components
+    # and remove these overrides.
+    "web/src/lib/api/client.ts|900|temporary cap during analytics+billing client surface growth; split pending"
+    "web/src/lib/api/types.ts|900|temporary cap during client type-surface extraction; split pending"
+    "web/src/lib/components/EditorDialog.svelte|1400|temporary cap while editor dialog subcomponents are extracted; split pending"
+    "web/src/lib/components/EditorDialog.test.ts|900|temporary cap while editor dialog test suite is decomposed; split pending"
 )
 
 check_file_size() {

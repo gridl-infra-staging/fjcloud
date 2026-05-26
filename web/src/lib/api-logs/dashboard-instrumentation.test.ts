@@ -93,6 +93,14 @@ describe('deriveFormLogEntry', () => {
 		expect(entry!.url).toBe('?/saveRule');
 	});
 
+	it('derives a clear rules entry', async () => {
+		const { deriveFormLogEntry } = await import('./dashboard-instrumentation');
+		const entry = deriveFormLogEntry({ rulesCleared: true }, null);
+
+		expect(entry).not.toBeNull();
+		expect(entry!.url).toBe('?/clearRules');
+	});
+
 	it('derives a save synonym entry', async () => {
 		const { deriveFormLogEntry } = await import('./dashboard-instrumentation');
 		const entry = deriveFormLogEntry({ synonymSaved: true }, null);

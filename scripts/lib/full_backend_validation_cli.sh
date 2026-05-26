@@ -188,6 +188,10 @@
 # TODO: Document parse_cli_args.
 # TODO: Document parse_cli_args.
 # TODO: Document parse_cli_args.
+# TODO: Document parse_cli_args.
+# TODO: Document parse_cli_args.
+# TODO: Document parse_cli_args.
+# TODO: Document parse_cli_args.
 parse_cli_args() {
     local arg
     for arg in "$@"; do

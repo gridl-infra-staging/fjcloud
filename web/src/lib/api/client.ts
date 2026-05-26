@@ -58,7 +58,12 @@ import type {
 	AnalyticsTopSearchesResponse,
 	AnalyticsSearchCountResponse,
 	AnalyticsNoResultRateResponse,
+	AnalyticsDevicesResponse,
+	AnalyticsCountriesResponse,
+	AnalyticsFilterValuesResponse,
+	AnalyticsConversionRateResponse,
 	AnalyticsDateRangeParams,
+	AnalyticsRequiredDateRangeParams,
 	AnalyticsStatusResponse,
 	ConcludeExperimentRequest,
 	CreateExperimentRequest,
@@ -607,7 +612,8 @@ export class ApiClient extends BaseClient {
 		return this.buildQueryString([
 			['startDate', params.startDate || undefined],
 			['endDate', params.endDate || undefined],
-			['limit', params.limit]
+			['limit', params.limit],
+			['country', params.country || undefined]
 		]);
 	}
 
@@ -653,6 +659,50 @@ export class ApiClient extends BaseClient {
 
 	getAnalyticsStatus(indexName: string): Promise<AnalyticsStatusResponse> {
 		return this.api('GET', this.indexPath(indexName, '/analytics/status'));
+	}
+
+	// === AnalyticsTab subtab additions (Wave B 3E) ===
+	getAnalyticsDevices(
+		indexName: string,
+		params: AnalyticsRequiredDateRangeParams
+	): Promise<AnalyticsDevicesResponse> {
+		return this.api(
+			'GET',
+			this.indexPath(indexName, `/analytics/devices${this.analyticsQuery(params)}`)
+		);
+	}
+
+	getAnalyticsCountries(
+		indexName: string,
+		params: AnalyticsRequiredDateRangeParams
+	): Promise<AnalyticsCountriesResponse> {
+		return this.api(
+			'GET',
+			this.indexPath(indexName, `/analytics/countries${this.analyticsQuery(params)}`)
+		);
+	}
+
+	getAnalyticsFilters(
+		indexName: string,
+		params: AnalyticsRequiredDateRangeParams
+	): Promise<AnalyticsFilterValuesResponse> {
+		return this.api(
+			'GET',
+			this.indexPath(indexName, `/analytics/filters${this.analyticsQuery(params)}`)
+		);
+	}
+
+	getAnalyticsConversionRate(
+		indexName: string,
+		params: AnalyticsRequiredDateRangeParams
+	): Promise<AnalyticsConversionRateResponse> {
+		return this.api(
+			'GET',
+			this.indexPath(
+				indexName,
+				`/analytics/conversions/conversionRate${this.analyticsQuery(params)}`
+			)
+		);
 	}
 
 	listExperiments(indexName: string): Promise<ExperimentListResponse> {

@@ -17,6 +17,7 @@ vi.mock('@playwright/test', () => ({
 
 import {
 	generatePreviewKeyAndWaitForWidget,
+	isLocalStackUnavailableError,
 	waitForPreviewSubmitOutcome,
 	waitForSearchPreviewReady,
 	waitForSearchPreviewState
@@ -271,5 +272,12 @@ describe('search preview helper polling', () => {
 		}
 
 		expect(generateButton.click).toHaveBeenCalledTimes(1);
+	});
+
+	it('isLocalStackUnavailableError matches connection-refused failures', () => {
+		expect(isLocalStackUnavailableError(new Error('fetch failed: connect ECONNREFUSED 127.0.0.1:3099'))).toBe(
+			true
+		);
+		expect(isLocalStackUnavailableError(new Error('validation payload mismatch'))).toBe(false);
 	});
 });

@@ -7,5 +7,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| [name] | This directory contains server-side logic for the index detail console page, handling dictionary management, document operations, security configurations, and tab-based UI helpers for the SvelteKit frontend. |
+| [name] | This directory contains server-side handlers for the index console interface, managing analytics, dictionaries, documents, and security-related features with supporting utilities for code generation, file parsing, and tab management. |
 <!-- [scrai:end] -->

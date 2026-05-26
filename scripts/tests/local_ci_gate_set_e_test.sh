@@ -7,7 +7,7 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 LOCAL_CI="$REPO_ROOT/scripts/local-ci.sh"
-FIXTURE_PATH="$REPO_ROOT/infra/api/tests/_local_ci_set_e_regression_fixture.rs"
+FIXTURE_PATH="$(mktemp "$REPO_ROOT/infra/api/tests/_local_ci_set_e_regression_fixture.XXXXXX.rs")"
 trap 'rm -f "$FIXTURE_PATH"' EXIT
 
 PASS_COUNT=0

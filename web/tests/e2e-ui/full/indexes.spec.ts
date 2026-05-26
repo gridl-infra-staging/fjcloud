@@ -79,20 +79,13 @@ async function waitForDuplicateCreateSafeOutcome(page: Page, indexName: string):
 	const existingRow = page.getByRole('row').filter({
 		has: page.getByRole('link', { name: indexName, exact: true })
 	});
-	let outcome: string = 'pending';
+	let outcome = 'pending';
 
 	await expect
-		.poll(
-			async () => {
-				if (await quotaExceededCallout.isVisible().catch(() => false)) {
-					outcome = 'quota-exceeded';
-					return outcome;
-				}
+		.poll(readOutcome, { timeout: 30_000 })
+		.not.toBe('pending');
 
-				if (await createdMsg.isVisible().catch(() => false)) {
-					outcome = 'unexpected-success';
-					return outcome;
-				}
+	const outcome = await readOutcome();
 
 				const alertText = ((await formAlert.textContent().catch(() => '')) ?? '').trim();
 				if (/already exists|duplicate/i.test(alertText)) {
@@ -111,7 +104,7 @@ async function waitForDuplicateCreateSafeOutcome(page: Page, indexName: string):
 		)
 		.not.toBe('pending');
 
-	if (await quotaExceededCallout.isVisible().catch(() => false)) {
+	if (outcome === 'quota-exceeded') {
 		throw new Error('index creation blocked by free-plan capacity in this environment');
 	}
 

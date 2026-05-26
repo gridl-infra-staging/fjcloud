@@ -97,7 +97,10 @@ describe('Index detail page — Analytics', () => {
 		expect(screen.getByRole('button', { name: '90d' })).toBeInTheDocument();
 
 		await fireEvent.click(screen.getByRole('button', { name: '30d' }));
-		expect(gotoMock).toHaveBeenCalledWith('/console/indexes/products?period=30d');
+		expect(gotoMock).toHaveBeenCalledWith('/console/indexes/products?period=30d', {
+			keepFocus: true,
+			noScroll: true
+		});
 	});
 });
 

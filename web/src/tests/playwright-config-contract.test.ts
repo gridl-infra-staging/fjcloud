@@ -10,6 +10,7 @@ import {
 import { extname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { describe, expect, it } from 'vitest';
+import { deriveApiBaseUrl } from '../lib/config';
 import {
 	applyPlaywrightProcessEnvDefaults,
 	DEFAULT_API_URL,
@@ -20,6 +21,7 @@ import {
 	DEFAULT_TEST_REGION,
 	PLAYWRIGHT_STORAGE_STATE,
 	PLAYWRIGHT_PROJECT_CONTRACTS,
+	PLAYWRIGHT_API_PORT_ENV,
 	PLAYWRIGHT_WEB_PORT_ENV,
 	PLAYWRIGHT_WEB_SERVER_COMMAND,
 	PLAYWRIGHT_WEB_ONLY_SERVER_COMMAND,
@@ -27,6 +29,7 @@ import {
 	parseDotenvFile,
 	parseDotenvValue,
 	resolveDefaultPlaywrightWebPort,
+	resolveDefaultPlaywrightApiPort,
 	REMOTE_TARGET_OPT_IN_ENV,
 	REMOTE_TARGET_HOST_SUFFIX_ALLOWLIST,
 	requireLoopbackHttpUrl,
@@ -53,6 +56,30 @@ const projectContractsByName = Object.fromEntries(
 function applyEnvDefaults(input: EnvDefaultsInput): MutableEnv {
 	applyPlaywrightProcessEnvDefaults(input);
 	return input.processEnv;
+}
+
+function withProcessEnv<T>(overrides: Record<string, string | undefined>, run: () => T): T {
+	const previousEntries = Object.entries(overrides).map(([key]) => [key, process.env[key]] as const);
+
+	for (const [key, value] of Object.entries(overrides)) {
+		if (value === undefined) {
+			delete process.env[key];
+			continue;
+		}
+		process.env[key] = value;
+	}
+
+	try {
+		return run();
+	} finally {
+		for (const [key, value] of previousEntries) {
+			if (value === undefined) {
+				delete process.env[key];
+				continue;
+			}
+			process.env[key] = value;
+		}
+	}
 }
 
 describe('playwright config contract', () => {
@@ -96,6 +123,29 @@ describe('playwright config contract', () => {
 		).toEqual({
 			API_URL: 'http://localhost:3001'
 		});
+	});
+
+	it('deriveApiBaseUrl only rewrites known cloud custom domains', () => {
+		expect(deriveApiBaseUrl('cloud.flapjack.foo')).toBe('https://api.flapjack.foo');
+		expect(deriveApiBaseUrl('cloud.staging.flapjack.foo')).toBe(
+			'https://api.staging.flapjack.foo'
+		);
+	});
+
+	it('deriveApiBaseUrl falls back instead of trusting arbitrary cloud-prefixed hosts', () => {
+		withProcessEnv(
+			{
+				API_BASE_URL: '',
+				API_URL: '',
+				ENVIRONMENT: '',
+				PLAYWRIGHT_API_PORT: '3999'
+			},
+			() => {
+				const expectedFallback = deriveApiBaseUrl('unrecognized-host.example');
+				expect(deriveApiBaseUrl('cloud.flapjack.foo.evil.com')).toBe(expectedFallback);
+				expect(deriveApiBaseUrl('cloud.attacker.example')).toBe(expectedFallback);
+			}
+		);
 	});
 
 	it('applyPlaywrightProcessEnvDefaults seeds runner env from .env values and seed defaults', () => {
@@ -248,11 +298,11 @@ describe('playwright config contract', () => {
 		);
 	});
 
-	it('resolvePlaywrightRuntime rejects non-loopback API_BASE_URL overrides for the spawned web server', () => {
+	it('resolvePlaywrightRuntime rejects non-loopback API_BASE_URL overrides from explicit process env', () => {
 		expect(() =>
 			resolvePlaywrightRuntime({
-				processEnv: {},
-				repoEnv: { API_BASE_URL: 'https://api.example.com' },
+				processEnv: { API_BASE_URL: 'https://api.example.com' },
+				repoEnv: {},
 				webEnv: {},
 				fallbackJwtSecret: 'fallback-jwt'
 			})
@@ -274,8 +324,10 @@ describe('playwright config contract', () => {
 
 	it('resolvePlaywrightRuntime uses default base URL and admin fallback chain without BASE_URL override', () => {
 		const workspacePath = '/tmp/fjcloud-worktree-default';
-		const expectedPort = resolveDefaultPlaywrightWebPort(workspacePath);
-		const expectedBaseUrl = `http://localhost:${expectedPort}`;
+		const expectedWebPort = resolveDefaultPlaywrightWebPort(workspacePath);
+		const expectedApiPort = resolveDefaultPlaywrightApiPort(workspacePath);
+		const expectedBaseUrl = `http://localhost:${expectedWebPort}`;
+		const expectedApiBaseUrl = `http://localhost:${expectedApiPort}`;
 		const runtime = resolvePlaywrightRuntime({
 			processEnv: {},
 			repoEnv: {},
@@ -286,15 +338,29 @@ describe('playwright config contract', () => {
 
 		expect(runtime.baseURL).toBe(expectedBaseUrl);
 		expect(runtime.webServer).toEqual({
-			command: `${PLAYWRIGHT_WEB_SERVER_COMMAND} --host 127.0.0.1 --port ${expectedPort} --strictPort`,
+			command: `${PLAYWRIGHT_WEB_SERVER_COMMAND} --host 127.0.0.1 --port ${expectedWebPort} --strictPort`,
 			env: runtime.webServerEnv,
 			url: expectedBaseUrl,
 			reuseExistingServer: false,
 			timeout: PLAYWRIGHT_WEB_SERVER_TIMEOUT_MS
 		});
 		expect(runtime.webServerEnv.ADMIN_KEY).toBe(DEFAULT_PLAYWRIGHT_ADMIN_KEY);
-		expect(runtime.webServerEnv.API_BASE_URL).toBe(DEFAULT_API_URL);
+		expect(runtime.webServerEnv.API_BASE_URL).toBe(expectedApiBaseUrl);
+		expect(runtime.webServerEnv.API_URL).toBe(expectedApiBaseUrl);
+		expect(runtime.webServerEnv[PLAYWRIGHT_API_PORT_ENV]).toBe(String(expectedApiPort));
 		expect(runtime.webServerEnv.JWT_SECRET).toBe('fallback-jwt');
+	});
+
+	it('resolvePlaywrightRuntime uses explicit PLAYWRIGHT_API_PORT override for API_BASE_URL and API_URL', () => {
+		const runtime = resolvePlaywrightRuntime({
+			processEnv: { [PLAYWRIGHT_API_PORT_ENV]: '6411' },
+			repoEnv: {},
+			webEnv: {},
+			fallbackJwtSecret: 'fallback-jwt'
+		});
+		expect(runtime.webServerEnv.API_BASE_URL).toBe('http://localhost:6411');
+		expect(runtime.webServerEnv.API_URL).toBe('http://localhost:6411');
+		expect(runtime.webServerEnv[PLAYWRIGHT_API_PORT_ENV]).toBe('6411');
 	});
 
 	it('uses the local stack launcher base command so setup:user has API availability without manual startup', () => {
@@ -1638,5 +1704,13 @@ describe('cwd-local playwright config owner contract', () => {
 		);
 		expect(localConfigSource).toMatch(/process\.env\.BASE_URL\s*=\s*CWD_LOCAL_BASE_URL/);
 		expect(localConfigSource).not.toMatch(/if\s*\(!process\.env\.BASE_URL\)/);
+	});
+
+	it('keeps cwd-local config free of hardcoded API listener ports', () => {
+		const localConfigSource = readFileSync(
+			join(process.cwd(), 'tests/e2e-ui/playwright.config.ts'),
+			'utf8'
+		);
+		expect(localConfigSource).not.toContain('3001');
 	});
 });

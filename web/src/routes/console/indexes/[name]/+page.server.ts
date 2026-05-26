@@ -23,7 +23,8 @@ import {
 	emptySecuritySourcesPayload,
 	loadSecuritySourcesPayload
 } from './security-sources.server';
-import { runChatAction } from './chat-management.server';
+import { recommendAction } from './recommendations-management.server';
+import { chatAction } from './chat-management.server';
 import {
 	addDocumentAction,
 	browseDocumentsAction,
@@ -35,68 +36,33 @@ import {
 	normalizeDocumentsBrowseResponse,
 	uploadDocumentsAction
 } from './document-management.server';
+import {
+	fetchAnalyticsConversionRateAction,
+	fetchAnalyticsCountriesAction,
+	fetchAnalyticsDevicesAction,
+	fetchAnalyticsFiltersAction,
+	loadAnalyticsPayload
+} from './analytics-management.server';
 import type {
-	Rule,
-	RuleSearchResponse,
 	Synonym,
 	SynonymSearchResponse,
 	PersonalizationStrategy,
 	PersonalizationProfile,
-	RecommendationsBatchRequest,
-	RecommendationsBatchResponse,
 	QsConfig,
-	AnalyticsDateRangeParams,
 	ConcludeExperimentRequest,
 	CreateExperimentRequest,
 	ExperimentResults,
 	DebugEventsResponse
 } from '$lib/api/types';
 
-const PERIOD_TO_DAYS: Record<string, number> = {
-	'7d': 7,
-	'30d': 30,
-	'90d': 90
-};
 const MAX_EVENTS_REFRESH_LIMIT = 1000;
 
 function failForDashboardAction<T extends Record<string, unknown>>(error: unknown, payload: T) {
 	const sessionFailure = mapDashboardSessionFailure(error);
-	if (sessionFailure) return sessionFailure;
-	return fail(400, payload);
+	return sessionFailure ?? fail(400, payload);
 }
 
-function normalizeTransientBackendFailure(message: string): string {
-	if (/fetch failed/i.test(message)) {
-		return 'backend temporarily unavailable';
-	}
-	return message;
-}
-
-function toIsoDateUtc(date: Date): string {
-	return date.toISOString().slice(0, 10);
-}
-
-function resolveAnalyticsPeriod(rawPeriod: string | null): '7d' | '30d' | '90d' {
-	if (rawPeriod === '30d' || rawPeriod === '90d') return rawPeriod;
-	return '7d';
-}
-
-function analyticsDateRange(period: '7d' | '30d' | '90d'): AnalyticsDateRangeParams {
-	const days = PERIOD_TO_DAYS[period];
-	const now = new Date();
-	const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-	const start = new Date(end);
-	start.setUTCDate(end.getUTCDate() - (days - 1));
-
-	return {
-		startDate: toIsoDateUtc(start),
-		endDate: toIsoDateUtc(end)
-	};
-}
-
-function sleep(ms: number): Promise<void> {
-	return new Promise((resolve) => setTimeout(resolve, ms));
-}
+const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
 function isTransientPreviewKeyFailure(error: unknown): boolean {
 	if (!(error instanceof ApiRequestError)) {
@@ -118,9 +84,6 @@ function isTransientPreviewKeyFailure(error: unknown): boolean {
 export const load: PageServerLoad = async ({ locals, params, url }) => {
 	const api = createApiClient(locals.user?.token);
 	const { name } = params;
-	const analyticsPeriod = resolveAnalyticsPeriod(url.searchParams.get('period'));
-	const analyticsParams = analyticsDateRange(analyticsPeriod);
-	const analyticsTopParams: AnalyticsDateRangeParams = { ...analyticsParams, limit: 10 };
 	const nowMs = Date.now();
 	const defaultEventsUntil = nowMs;
 	const defaultEventsFrom = nowMs - 24 * 60 * 60 * 1000;
@@ -137,11 +100,7 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 			personalizationStrategy,
 			qsConfig,
 			qsStatus,
-			searchCount,
-			noResultRate,
-			topSearches,
-			noResults,
-			analyticsStatus,
+			analyticsPayload,
 			experiments,
 			debugEventsResult
 		] = await Promise.all([
@@ -152,16 +111,12 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 			api
 				.browseObjects(name, { hitsPerPage: DEFAULT_DOCUMENT_HITS_PER_PAGE, query: '' })
 				.catch(() => null),
-			api.searchRules(name).catch((): RuleSearchResponse | null => null),
+			loadRulesPayloadForQuery(api, name, url.searchParams.get('q') ?? ''),
 			api.searchSynonyms(name).catch((): SynonymSearchResponse | null => null),
 			api.getPersonalizationStrategy(name).catch((): PersonalizationStrategy | null => null),
 			api.getQsConfig(name).catch(() => null),
 			api.getQsStatus(name).catch(() => null),
-			api.getAnalyticsSearchCount(name, analyticsParams).catch(() => null),
-			api.getAnalyticsNoResultRate(name, analyticsParams).catch(() => null),
-			api.getAnalyticsTopSearches(name, analyticsTopParams).catch(() => null),
-			api.getAnalyticsNoResults(name, analyticsTopParams).catch(() => null),
-			api.getAnalyticsStatus(name).catch(() => null),
+			loadAnalyticsPayload(api, name, url.searchParams.get('period')),
 			api.listExperiments(name).catch(() => null),
 			api
 				.getDebugEvents(name, {
@@ -227,14 +182,9 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 			personalizationStrategy,
 			qsConfig,
 			qsStatus,
-			searchCount,
-			noResultRate,
-			topSearches,
-			noResults,
-			analyticsStatus,
 			experiments,
 			experimentResults,
-			analyticsPeriod,
+			...analyticsPayload,
 			debugEvents: debugEventsResult.debugEvents,
 			eventsLoadError: debugEventsResult.eventsLoadError,
 			dictionaries,
@@ -327,41 +277,12 @@ export const actions: Actions = {
 			});
 		}
 	},
-	saveRule: async ({ request, locals, params }) => {
-		const data = await request.formData();
-		const objectID = (data.get('objectID') as string)?.trim();
-		const rawRule = (data.get('rule') as string)?.trim();
-		if (!objectID) return fail(400, { ruleError: 'objectID is required' });
-		if (!rawRule) return fail(400, { ruleError: 'Rule JSON is required' });
-
-		let rule: Rule;
-		try {
-			rule = parseJsonObject<Rule>(rawRule, 'rule');
-		} catch (e) {
-			return failForDashboardAction(e, { ruleError: errorMessage(e, 'Invalid rule JSON') });
-		}
-
-		const api = createApiClient(locals.user?.token);
-		try {
-			await api.saveRule(params.name, objectID, rule);
-			return { ruleSaved: true };
-		} catch (e) {
-			return failForDashboardAction(e, { ruleError: errorMessage(e, 'Failed to save rule') });
-		}
-	},
-	deleteRule: async ({ request, locals, params }) => {
-		const data = await request.formData();
-		const objectID = (data.get('objectID') as string)?.trim();
-		if (!objectID) return fail(400, { ruleError: 'objectID is required' });
-
-		const api = createApiClient(locals.user?.token);
-		try {
-			await api.deleteRule(params.name, objectID);
-			return { ruleDeleted: true };
-		} catch (e) {
-			return failForDashboardAction(e, { ruleError: errorMessage(e, 'Failed to delete rule') });
-		}
-	},
+	saveRule: async ({ request, locals, params }) =>
+		saveRuleAction({ request, indexName: params.name, token: locals.user?.token }),
+	deleteRule: async ({ request, locals, params }) =>
+		deleteRuleAction({ request, indexName: params.name, token: locals.user?.token }),
+	clearRules: async ({ locals, params }) =>
+		clearRulesAction({ indexName: params.name, token: locals.user?.token }),
 	saveSynonym: async ({ request, locals, params }) => {
 		const data = await request.formData();
 		const objectID = (data.get('objectID') as string)?.trim();
@@ -434,6 +355,14 @@ export const actions: Actions = {
 			token: locals.user?.token
 		});
 	},
+	fetchAnalyticsDevices: ({ request, locals, params }) =>
+		fetchAnalyticsDevicesAction({ request, indexName: params.name, token: locals.user?.token }),
+	fetchAnalyticsCountries: ({ request, locals, params }) =>
+		fetchAnalyticsCountriesAction({ request, indexName: params.name, token: locals.user?.token }),
+	fetchAnalyticsFilters: ({ request, locals, params }) =>
+		fetchAnalyticsFiltersAction({ request, indexName: params.name, token: locals.user?.token }),
+	fetchAnalyticsConversionRate: ({ request, locals, params }) =>
+		fetchAnalyticsConversionRateAction({ request, indexName: params.name, token: locals.user?.token }),
 	saveDictionaryEntry: async ({ request, locals, params }) => {
 		return saveDictionaryEntryAction({
 			request,
@@ -517,37 +446,14 @@ export const actions: Actions = {
 		}
 	},
 	recommend: async ({ request, locals, params }) => {
-		const data = await request.formData();
-		const rawRequest = (data.get('request') as string)?.trim();
-		if (!rawRequest) return fail(400, { recommendationsError: 'Recommendations JSON is required' });
-
-		let requestBody: RecommendationsBatchRequest;
-		try {
-			requestBody = parseJsonObject<RecommendationsBatchRequest>(rawRequest, 'request');
-			if (!Array.isArray(requestBody.requests)) {
-				throw new Error('request.requests must be an array');
-			}
-		} catch (e) {
-			return failForDashboardAction(e, {
-				recommendationsError: errorMessage(e, 'Invalid recommendations JSON')
-			});
-		}
-
-		const api = createApiClient(locals.user?.token);
-		try {
-			const recommendationsResponse: RecommendationsBatchResponse = await api.recommend(
-				params.name,
-				requestBody
-			);
-			return { recommendationsResponse };
-		} catch (e) {
-			return failForDashboardAction(e, {
-				recommendationsError: errorMessage(e, 'Failed to fetch recommendations')
-			});
-		}
+		return recommendAction({
+			request,
+			indexName: params.name,
+			token: locals.user?.token
+		});
 	},
 	chat: async ({ request, locals, params }) => {
-		return runChatAction({
+		return chatAction({
 			request,
 			indexName: params.name,
 			token: locals.user?.token

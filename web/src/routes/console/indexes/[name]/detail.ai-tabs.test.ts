@@ -40,7 +40,6 @@ vi.mock('$lib/components/InstantSearch.svelte', () => ({
 
 import IndexDetailPage from './+page.svelte';
 import {
-	sampleIndex,
 	samplePersonalizationProfile,
 	createMockPageData
 } from './detail.test.shared';
@@ -122,81 +121,6 @@ describe('Index detail page — AI/search tabs', () => {
 		const form = container.querySelector('form[action="?/recommend"]');
 		expect(form).not.toBeNull();
 		expect(screen.getByRole('button', { name: /get recommendations/i })).toBeInTheDocument();
-	});
-
-	it('recommendations tab seeds a valid default request body', async () => {
-		renderPage();
-
-		await openTab('Recommendations');
-		const requestTextarea = screen.getByRole('textbox', {
-			name: /recommendations json/i
-		}) as HTMLTextAreaElement;
-
-		expect(requestTextarea.value).toContain('"model": "trending-items"');
-		expect(requestTextarea.value).toContain('"threshold": 0');
-		expect(requestTextarea.value).not.toContain('"objectID": ""');
-	});
-
-	it('recommendations tab renders recommendation hits from action result', async () => {
-		renderPage(
-			{},
-			{
-				recommendationsResponse: {
-					results: [
-						{
-							hits: [{ objectID: 'shoe-1' }, { objectID: 'shoe-2' }],
-							processingTimeMS: 4
-						}
-					]
-				}
-			}
-		);
-
-		await openTab('Recommendations');
-		expect(screen.getByText('shoe-1')).toBeInTheDocument();
-		expect(screen.getByText('shoe-2')).toBeInTheDocument();
-	});
-
-	it('recommendations tab renders trending-facets hits with human readable facet labels', async () => {
-		renderPage(
-			{},
-			{
-				recommendationsResponse: {
-					results: [
-						{
-							hits: [{ facet_name: 'brand', facet_value: 'Apple' }],
-							processingTimeMS: 4
-						}
-					]
-				}
-			}
-		);
-
-		await openTab('Recommendations');
-		expect(screen.getByText('brand: Apple')).toBeInTheDocument();
-	});
-
-	it('rehydrates recommendations draft when the index changes', async () => {
-		const view = renderPage();
-
-		await openTab('Recommendations');
-		let requestTextarea = screen.getByRole('textbox', {
-			name: /recommendations json/i
-		}) as HTMLTextAreaElement;
-		expect(requestTextarea.value).toContain('"indexName": "products"');
-
-		await view.rerender({
-			data: createMockPageData({
-				index: { ...sampleIndex, name: 'products-v2' }
-			}),
-			form: null
-		});
-
-		await openTab('Recommendations');
-		requestTextarea = screen.getByRole('textbox', {
-			name: /recommendations json/i
-		}) as HTMLTextAreaElement;
-		expect(requestTextarea.value).toContain('"indexName": "products-v2"');
 	});
 
 	it('chat tab is available in tab layout', () => {

@@ -572,8 +572,9 @@ pub(crate) async fn enforce_write_rate_limit(
 // ---------------------------------------------------------------------------
 
 pub use analytics::{
-    get_analytics_no_result_rate, get_analytics_no_results, get_analytics_searches,
-    get_analytics_searches_count, get_analytics_status,
+    get_analytics_conversion_rate, get_analytics_countries, get_analytics_devices,
+    get_analytics_filters, get_analytics_no_result_rate, get_analytics_no_results,
+    get_analytics_searches, get_analytics_searches_count, get_analytics_status,
 };
 pub use chat::chat;
 pub use debug::get_debug_events;

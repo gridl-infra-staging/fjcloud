@@ -13,50 +13,7 @@
 
 import type { Page } from '@playwright/test';
 import { test, expect } from '../../fixtures/fixtures';
-
-type SeedIndexFn = (name: string, region?: string) => Promise<void>;
-
-/**
- * Opens a tab on the index detail page and returns the section locator.
- * Asserts the section is NOT in the DOM before clicking (lazy-mount via visitedTabs),
- * then asserts it IS visible after clicking.
- */
-async function openIndexDetailTab(
-	page: Page,
-	tabName: string,
-	sectionTestId: string,
-	expectNotMountedBeforeOpen = true
-) {
-	const section = page.getByTestId(sectionTestId);
-	if ((await section.count()) > 0 && (await section.first().isVisible())) {
-		return section;
-	}
-	if (expectNotMountedBeforeOpen) {
-		await expect(section).toHaveCount(0);
-	}
-	await expect(page.getByTestId('index-tabs-strip')).toBeVisible();
-	await expect(async () => {
-		const tab = page.getByRole('tab', { name: tabName, exact: true });
-		await tab.scrollIntoViewIfNeeded();
-		await tab.click();
-		await expect(tab).toHaveAttribute('aria-selected', 'true');
-	}).toPass({ timeout: 10_000 });
-	await expect(section).toBeVisible({ timeout: 10_000 });
-	return section;
-}
-
-async function openSeededIndexDetailPage(
-	page: Page,
-	seedIndex: SeedIndexFn,
-	testRegion: string,
-	namePrefix: string
-) {
-	const indexName = `${namePrefix}-${Date.now()}`;
-	await seedIndex(indexName, testRegion);
-	await page.goto(`/console/indexes/${encodeURIComponent(indexName)}`);
-	await expect(page.getByRole('heading', { name: indexName })).toBeVisible({ timeout: 10_000 });
-	return indexName;
-}
+import { openIndexDetailTab, openSeededIndexDetailPage } from '../../fixtures/index_detail_helpers';
 
 async function createSynonym(page: Page, objectId: string) {
 	const section = await openIndexDetailTab(page, 'Synonyms', 'synonyms-section');
@@ -248,9 +205,8 @@ test.describe('Index detail tabs', () => {
 		await openSeededIndexDetailPage(page, seedIndex, testRegion, 'e2e-detail-rules');
 		const section = await openIndexDetailTab(page, 'Rules', 'rules-section');
 		await expect(section.getByRole('heading', { name: 'Rules' })).toBeVisible();
-		await expect(section.getByRole('heading', { name: 'Add or Update Rule' })).toBeVisible();
-		await expect(section.getByLabel('Object ID')).toBeVisible();
-		await expect(section.getByRole('button', { name: 'Save Rule' })).toBeVisible();
+		await expect(section.getByRole('button', { name: 'Add Rule', exact: true })).toBeVisible();
+		await expect(section).toHaveAttribute('data-testid', 'rules-section');
 	});
 
 	test('Synonyms tab lazy-mounts and shows empty state', async ({
@@ -276,5 +232,21 @@ test.describe('Index detail tabs', () => {
 		await expect(section.getByLabel('Query')).toBeVisible();
 		await expect(section.getByText('Conversation History JSON')).toBeVisible();
 		await expect(section.getByText('No chat response yet.')).toBeVisible();
+	});
+
+	test('Recommendations tab opens from clean detail route with related-products default selected', async ({
+		page,
+		seedIndex,
+		testRegion
+	}) => {
+		const indexName = await openSeededIndexDetailPage(
+			page,
+			seedIndex,
+			testRegion,
+			'e2e-detail-recommendations'
+		);
+		await page.goto(`/console/indexes/${encodeURIComponent(indexName)}`);
+		const section = await openIndexDetailTab(page, 'Recommendations', 'recommendations-section');
+		await expect(section.getByTestId('recommendations-model-select')).toHaveValue('related-products');
 	});
 });

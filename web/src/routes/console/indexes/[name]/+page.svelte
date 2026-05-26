@@ -124,6 +124,8 @@
 	const noResults: AnalyticsTopSearchesResponse | null = $derived(data.noResults ?? null);
 	const analyticsStatus: AnalyticsStatusResponse | null = $derived(data.analyticsStatus ?? null);
 	const analyticsPeriod: '7d' | '30d' | '90d' = $derived(data.analyticsPeriod ?? '7d');
+	const analyticsStartDate: string = $derived(data.analyticsStartDate ?? '');
+	const analyticsEndDate: string = $derived(data.analyticsEndDate ?? '');
 	const experiments: ExperimentListResponse = $derived(normalizeExperiments(data.experiments));
 	const experimentResultsMap: Record<string, ExperimentResults> = $derived(
 		data.experimentResults ?? {}
@@ -259,7 +261,7 @@
 	] as const;
 
 	type ActiveTab = (typeof TAB_DEFINITIONS)[number]['id'];
-	const ACTIVE_TAB_IDS = new Set<ActiveTab>(TAB_DEFINITIONS.map((tab) => tab.id));
+	const validTabIds = new Set<ActiveTab>(TAB_DEFINITIONS.map((tab) => tab.id));
 
 	function parseTabFromUrl(currentUrl: URL): ActiveTab | null {
 		const rawTab = currentUrl.searchParams.get('tab');
@@ -314,11 +316,11 @@
 	}
 
 	function activateTab(tab: ActiveTab) {
+		activeTab = tab;
+		visitedTabs[tab] = true;
 		if (browser) {
 			const currentUrlTab = parseTabFromUrl(page.url);
 			if (currentUrlTab === tab) {
-				activeTab = tab;
-				visitedTabs[tab] = true;
 				return;
 			}
 
@@ -333,16 +335,20 @@
 		}
 	}
 
+	function activateDocumentsTabFromSearchPreview() {
+		activateTab('documents');
+	}
+
+
 	function activateSearchPreviewFromWelcomeBanner() {
 		showWelcomeBanner = false;
-		activateTab('search-preview');
+		activeTab = 'search-preview';
+		visitedTabs['search-preview'] = true;
 		// eslint-disable-next-line svelte/no-navigation-without-resolve -- dynamically constructed welcome-consumed URL with query params; resolve() rejects non-typed route literals
 		void goto(buildWelcomeConsumedSearchPreviewUrl(page.url));
 	}
 
-	function activateDocumentsTabFromSearchPreview() {
-		activateTab('documents');
-	}
+	const activateDocumentsTabFromSearchPreview = () => activateTab('documents');
 
 	$effect(() => {
 		showWelcomeBanner = currentUrlHasWelcomeBanner(page.url);
@@ -553,6 +559,8 @@
 				{noResults}
 				{analyticsStatus}
 				{analyticsPeriod}
+				startDate={analyticsStartDate}
+				endDate={analyticsEndDate}
 				{analyticsUnavailable}
 			/>
 		</div>

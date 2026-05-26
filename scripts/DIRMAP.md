@@ -3,7 +3,7 @@
 
 | File | Summary |
 | --- | --- |
-| api-dev.sh | api-dev.sh — Start the API with repo-local env files exported. |
+| api-dev.sh | Stub summary for api-dev.sh. |
 | audit_secrets.sh | Stub summary for audit_secrets.sh. |
 | bootstrap-env-local.sh | bootstrap-env-local.sh — Generate .env.local from .env.local.example and
 the external secret source.
@@ -153,7 +153,7 @@ usage_records to Postgres. |
 
 | Directory | Summary |
 | --- | --- |
-| canary | The canary directory contains synthetic health probes and continuous monitoring scripts for validating end-to-end customer flows, external infrastructure availability, and email deliverability, along with contract tests that enforce deterministic fail-closed behaviors for webhooks, OAuth, and infrastructure configuration. |
+| canary | The canary directory contains synthetic health probes and contract validators that monitor critical fjcloud system surfaces: customer-facing workflows, external service availability (AWS, DNS, email), Stripe webhooks, OAuth flows, and security boundaries like JWT authentication. |
 | chaos | The chaos directory contains failure-injection and HA resilience test scripts that validate the system's ability to detect outages, trigger failover, and recover—including region kill/restart tests, metering service failure detection, and end-to-end failover proofs. |
 | launch | The launch directory contains deployment verification and evidence-capture scripts for the fjcloud staging environment, including tenant-map validation, synthetic traffic seeding, post-deploy verification gates, SSM environment hydration, and E2E test orchestration. |
 | lib | This is a collection of reusable bash script libraries providing shared contracts for alerting, database operations, validation gates, Stripe/SES integration, environment configuration, and infrastructure health checks across the fjcloud project. |

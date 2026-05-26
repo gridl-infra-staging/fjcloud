@@ -1,3 +1,5 @@
+import type { Snippet } from 'svelte';
+
 export type EditorDialogMode = 'create' | 'edit';
 
 export type EditorDialogValues = Record<string, unknown>;
@@ -102,6 +104,8 @@ export type EditorDialogProps = {
 	open: boolean;
 	onSave: EditorDialogOnSave;
 	onCancel: () => void;
+	hasExternalDirtyState?: boolean;
+	body?: Snippet;
 	description?: string;
 	submitLabel?: string;
 	testId?: string;

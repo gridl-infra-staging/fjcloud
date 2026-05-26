@@ -1,9 +1,16 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import type { Index, RuleSearchResponse } from '$lib/api/types';
+	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
+	import type { Index, Rule, RuleSearchResponse } from '$lib/api/types';
+	import RulesEditorDialog from './RulesEditorDialog.svelte';
+
+	type RulesPayload = RuleSearchResponse & {
+		totalNbHits?: number;
+		query?: string;
+	};
 
 	type Props = {
-		rules: RuleSearchResponse | null;
+		rules: RulesPayload | null;
 		ruleError: string;
 		ruleSaved: boolean;
 		ruleDeleted: boolean;
@@ -12,18 +19,77 @@
 
 	let { rules, ruleError, ruleSaved, ruleDeleted, index }: Props = $props();
 
-	let newRuleObjectID = $state('');
-	let newRuleJson = $state(
-		JSON.stringify(
-			{
-				objectID: '',
-				conditions: [],
-				consequence: {}
-			},
-			null,
-			2
-		)
-	);
+	let editorOpen = $state(false);
+	let editorMode = $state<'create' | 'edit'>('create');
+	let editingRule = $state<Rule | null>(null);
+	let showDeleteConfirmDialog = $state(false);
+	let showClearConfirmDialog = $state(false);
+	let pendingDeleteRule = $state<Rule | null>(null);
+	let pendingDeleteForm = $state<HTMLFormElement | null>(null);
+	let pendingDeleteTrigger = $state<HTMLElement | null>(null);
+	let pendingClearForm = $state<HTMLFormElement | null>(null);
+	let pendingClearTrigger = $state<HTMLElement | null>(null);
+
+	const filteredCount = $derived(rules?.nbHits ?? 0);
+	const totalRuleCount = $derived(rules?.totalNbHits ?? rules?.nbHits ?? 0);
+	const hasAnyRules = $derived(totalRuleCount > 0);
+	const activeQuery = $derived((rules?.query ?? '').trim());
+
+	function openDeleteConfirmDialog(rule: Rule, form: HTMLFormElement, trigger: HTMLElement): void {
+		pendingDeleteRule = rule;
+		pendingDeleteForm = form;
+		pendingDeleteTrigger = trigger;
+		showDeleteConfirmDialog = true;
+	}
+
+	function closeDeleteConfirmDialog(): void {
+		showDeleteConfirmDialog = false;
+		pendingDeleteRule = null;
+		pendingDeleteForm = null;
+		pendingDeleteTrigger = null;
+	}
+
+	function confirmDeleteRule(): void {
+		const form = pendingDeleteForm;
+		if (!form) return;
+		form.requestSubmit();
+		closeDeleteConfirmDialog();
+	}
+
+	function openClearConfirmDialog(form: HTMLFormElement, trigger: HTMLElement): void {
+		pendingClearForm = form;
+		pendingClearTrigger = trigger;
+		showClearConfirmDialog = true;
+	}
+
+	function closeClearConfirmDialog(): void {
+		showClearConfirmDialog = false;
+		pendingClearForm = null;
+		pendingClearTrigger = null;
+	}
+
+	function confirmClearRules(): void {
+		const form = pendingClearForm;
+		if (!form) return;
+		form.requestSubmit();
+		closeClearConfirmDialog();
+	}
+
+	function openCreateRuleEditor(): void {
+		editorMode = 'create';
+		editingRule = null;
+		editorOpen = true;
+	}
+
+	function openEditRuleEditor(rule: Rule): void {
+		editorMode = 'edit';
+		editingRule = rule;
+		editorOpen = true;
+	}
+
+	function closeRuleEditor(): void {
+		editorOpen = false;
+	}
 </script>
 
 <div
@@ -31,8 +97,36 @@
 	data-testid="rules-section"
 	data-index={index.name}
 >
-	<h2 class="mb-4 text-lg font-medium text-flapjack-ink">Rules</h2>
-	<p class="mb-4 text-sm text-flapjack-ink/70">Create and manage ranking rules for this index.</p>
+	<div class="mb-4 flex flex-wrap items-start justify-between gap-3">
+		<div>
+			<h2 class="text-lg font-medium text-flapjack-ink">Rules</h2>
+			<p class="text-sm text-flapjack-ink/70">Create and manage ranking rules for this index.</p>
+		</div>
+		<div class="flex items-center gap-2">
+			<button
+				type="button"
+				class="rounded border border-flapjack-ink/30 px-3 py-2 text-xs font-medium text-flapjack-ink hover:bg-flapjack-cream"
+				onclick={openCreateRuleEditor}
+			>
+				Add Rule
+			</button>
+			{#if hasAnyRules}
+				<form method="POST" action="?/clearRules" use:enhance>
+					<button
+						type="button"
+						onclick={(event) =>
+							openClearConfirmDialog(
+								(event.currentTarget as HTMLElement).closest('form') as HTMLFormElement,
+								event.currentTarget as HTMLElement
+							)}
+						class="rounded border border-flapjack-rose/45 px-3 py-2 text-xs font-medium text-flapjack-plum hover:bg-flapjack-rose/10"
+					>
+						Clear All Rules
+					</button>
+				</form>
+			{/if}
+		</div>
+	</div>
 
 	{#if ruleSaved}
 		<div
@@ -54,6 +148,33 @@
 		<div class="mb-4 rounded-md bg-flapjack-rose/10 p-3 text-sm text-flapjack-plum">
 			{ruleError}
 		</div>
+	{/if}
+
+	<form method="GET" action="" class="mb-4 flex gap-2">
+		<input type="hidden" name="tab" value="rules" />
+		<label for="rules-search" class="sr-only">Search rules</label>
+		<input
+			id="rules-search"
+			type="search"
+			name="q"
+			value={activeQuery}
+			placeholder="Search rules"
+			class="w-full rounded-md border border-flapjack-ink/30 px-3 py-2 text-sm focus:border-flapjack-rose focus:ring-1 focus:ring-flapjack-rose"
+		/>
+		<button
+			type="submit"
+			class="rounded-md border border-flapjack-ink/30 px-4 py-2 text-sm font-medium text-flapjack-ink hover:bg-flapjack-cream"
+		>
+			Search
+		</button>
+	</form>
+
+	{#if rules !== null}
+		<p class="mb-4 text-sm text-flapjack-ink/70">
+			{filteredCount} filtered result{filteredCount === 1 ? '' : 's'}
+			<span class="mx-1">·</span>
+			{totalRuleCount} total rule{totalRuleCount === 1 ? '' : 's'}
+		</p>
 	{/if}
 
 	{#if rules === null}
@@ -94,16 +215,32 @@
 								{/if}
 							</td>
 							<td class="px-4 py-2 text-right">
-								<form method="POST" action="?/deleteRule" use:enhance>
-									<input type="hidden" name="objectID" value={rule.objectID} />
+								<div class="flex justify-end gap-2">
 									<button
-										type="submit"
-										aria-label={`Delete rule ${rule.objectID}`}
-										class="rounded border border-flapjack-rose/45 px-3 py-1 text-xs text-flapjack-plum hover:bg-flapjack-rose/10"
+										type="button"
+										aria-label={`Edit rule ${rule.objectID}`}
+										class="rounded border border-flapjack-ink/30 px-3 py-1 text-xs text-flapjack-ink hover:bg-flapjack-cream"
+										onclick={() => openEditRuleEditor(rule)}
 									>
-										Delete
+										Edit
 									</button>
-								</form>
+									<form method="POST" action="?/deleteRule" use:enhance>
+										<input type="hidden" name="objectID" value={rule.objectID} />
+										<button
+											type="button"
+											aria-label={`Delete rule ${rule.objectID}`}
+											onclick={(event) =>
+												openDeleteConfirmDialog(
+													rule,
+													(event.currentTarget as HTMLElement).closest('form') as HTMLFormElement,
+													event.currentTarget as HTMLElement
+												)}
+											class="rounded border border-flapjack-rose/45 px-3 py-1 text-xs text-flapjack-plum hover:bg-flapjack-rose/10"
+										>
+											Delete
+										</button>
+									</form>
+								</div>
 							</td>
 						</tr>
 					{/each}
@@ -112,38 +249,41 @@
 		</div>
 	{/if}
 
-	<div class="rounded-md border border-flapjack-ink/20 p-4">
-		<h3 class="mb-3 text-sm font-semibold text-flapjack-ink">Add or Update Rule</h3>
-		<form method="POST" action="?/saveRule" use:enhance>
-			<label for="rule-object-id" class="mb-2 block text-sm font-medium text-flapjack-ink/80"
-				>Object ID</label
-			>
-			<input
-				id="rule-object-id"
-				type="text"
-				name="objectID"
-				bind:value={newRuleObjectID}
-				placeholder="e.g. boost-shoes"
-				class="mb-4 w-full rounded-md border border-flapjack-ink/30 px-3 py-2 text-sm focus:border-flapjack-rose focus:ring-1 focus:ring-flapjack-rose"
-			/>
-
-			<label for="rule-json" class="mb-2 block text-sm font-medium text-flapjack-ink/80"
-				>Rule JSON</label
-			>
-			<textarea
-				id="rule-json"
-				name="rule"
-				bind:value={newRuleJson}
-				rows="12"
-				class="mb-4 w-full rounded-md border border-flapjack-ink/30 p-3 font-mono text-sm focus:border-flapjack-rose focus:ring-1 focus:ring-flapjack-rose"
-			></textarea>
-
-			<button
-				type="submit"
-				class="rounded-md bg-flapjack-rose px-4 py-2 text-sm font-medium text-white hover:bg-flapjack-plum"
-			>
-				Save Rule
-			</button>
-		</form>
-	</div>
+	<RulesEditorDialog
+		open={editorOpen}
+		mode={editorMode}
+		initialRule={editingRule}
+		onCancel={closeRuleEditor}
+	/>
 </div>
+
+<ConfirmDialog
+	open={showDeleteConfirmDialog && pendingDeleteRule !== null}
+	mode="standard"
+	dangerLevel="severe"
+	title={`Delete rule "${pendingDeleteRule?.objectID ?? ''}"?`}
+	consequences="This removes the rule from the index immediately."
+	rationale="Only delete a rule when you no longer need this ranking behavior."
+	entityName={pendingDeleteRule?.objectID ?? 'rule'}
+	confirmLabel="Delete rule"
+	cancelLabel="Cancel"
+	onConfirm={confirmDeleteRule}
+	onCancel={closeDeleteConfirmDialog}
+	triggerRef={pendingDeleteTrigger}
+/>
+
+<ConfirmDialog
+	open={showClearConfirmDialog}
+	mode="typed"
+	dangerLevel="severe"
+	title="Clear all rules?"
+	consequences="This removes every rule from the index."
+	rationale="Use this only when you intend to rebuild rule configuration from scratch."
+	entityName="all rules"
+	typedPhrase="clear all rules"
+	confirmLabel="Clear all rules"
+	cancelLabel="Cancel"
+	onConfirm={confirmClearRules}
+	onCancel={closeClearConfirmDialog}
+	triggerRef={pendingClearTrigger}
+/>

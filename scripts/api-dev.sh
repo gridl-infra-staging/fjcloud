@@ -39,11 +39,33 @@ resolve_port_from_addr() {
 }
 
 resolve_listen_port() {
-    resolve_port_from_addr "${LISTEN_ADDR:-0.0.0.0:3001}" "LISTEN_ADDR"
+    local default_api_port="${PLAYWRIGHT_API_PORT:-3001}"
+    resolve_port_from_addr "${LISTEN_ADDR:-0.0.0.0:${default_api_port}}" "LISTEN_ADDR"
+}
+
+resolve_default_s3_port() {
+    local explicit_s3_port="${PLAYWRIGHT_S3_PORT:-}"
+    local default_api_port="${PLAYWRIGHT_API_PORT:-3001}"
+
+    if [ -n "$explicit_s3_port" ]; then
+        if ! [[ "$explicit_s3_port" =~ ^[0-9]+$ ]]; then
+            die "PLAYWRIGHT_S3_PORT must be numeric when set (got: ${explicit_s3_port})"
+        fi
+        printf '%s\n' "$explicit_s3_port"
+        return
+    fi
+
+    if ! [[ "$default_api_port" =~ ^[0-9]+$ ]]; then
+        die "PLAYWRIGHT_API_PORT must be numeric when used for S3 port derivation (got: ${default_api_port})"
+    fi
+
+    printf '%s\n' "$((default_api_port + 1))"
 }
 
 resolve_s3_listen_port() {
-    resolve_port_from_addr "${S3_LISTEN_ADDR:-0.0.0.0:3002}" "S3_LISTEN_ADDR"
+    local default_s3_port
+    default_s3_port="$(resolve_default_s3_port)"
+    resolve_port_from_addr "${S3_LISTEN_ADDR:-0.0.0.0:${default_s3_port}}" "S3_LISTEN_ADDR"
 }
 
 # Force one key from an env file into the current process when present.
@@ -140,10 +162,14 @@ fi
 
 listen_port="$(resolve_listen_port)"
 s3_listen_port="$(resolve_s3_listen_port)"
+default_s3_port="$(resolve_default_s3_port)"
+if [ -z "${S3_LISTEN_ADDR:-}" ]; then
+    export S3_LISTEN_ADDR="0.0.0.0:${default_s3_port}"
+fi
 check_port_available "$listen_port" "api LISTEN_ADDR" \
-    || die "port $listen_port is already in use (needed for api LISTEN_ADDR ${LISTEN_ADDR:-0.0.0.0:3001})"
+    || die "port $listen_port is already in use (needed for api LISTEN_ADDR ${LISTEN_ADDR:-0.0.0.0:${PLAYWRIGHT_API_PORT:-3001}})"
 check_port_available "$s3_listen_port" "api S3_LISTEN_ADDR" \
-    || die "port $s3_listen_port is already in use (needed for api S3_LISTEN_ADDR ${S3_LISTEN_ADDR:-0.0.0.0:3002})"
+    || die "port $s3_listen_port is already in use (needed for api S3_LISTEN_ADDR ${S3_LISTEN_ADDR:-0.0.0.0:${default_s3_port}})"
 
 # Stage-proof defaults: verification lanes require real token delivery.
 # Opt back in for demo-only quickstart runs via API_DEV_ALLOW_SKIP_EMAIL_VERIFICATION=1.

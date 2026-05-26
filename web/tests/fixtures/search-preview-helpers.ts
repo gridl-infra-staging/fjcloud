@@ -12,7 +12,7 @@ export const PREVIEW_SUBMIT_OUTCOME_TIMEOUT_MS = 5_000;
 export const PREVIEW_SUBMIT_IN_FLIGHT_TIMEOUT_MS = 30_000;
 export const PREVIEW_SUBMIT_MAX_PENDING_TIMEOUT_MS = 90_000;
 const LOCAL_STACK_UNAVAILABLE_ERROR_PATTERN =
-	/(?:ECONNREFUSED|EHOSTUNREACH|ENOTFOUND|Connection refused|fetch failed|Failed to fetch|network error|127\\.0\\.0\\.1|localhost)/i;
+	/(local stack unavailable|econnrefused|connect ECONNREFUSED|failed to fetch|service is unavailable|temporarily unavailable)/i;
 
 type SearchPreviewLocators = {
 	generateButton: Locator;
@@ -92,7 +92,7 @@ export async function gotoIndexDetailWithRetry(page: Page, indexName: string): P
 	for (let attempt = 0; attempt < 5; attempt += 1) {
 		await page.goto(path);
 		const heading = page.getByRole('heading', { name: indexName });
-		if (await heading.isVisible().catch(() => false)) {
+		if (await isVisible(heading)) {
 			return;
 		}
 		await page.waitForTimeout(1000 * (attempt + 1));
@@ -138,6 +138,26 @@ function getIndexNameFromDetailPath(detailPath: string): string {
 	);
 }
 
+async function detectPreviewSubmitOutcome(
+	page: Page,
+	transientError: Locator,
+	genericErrorPage: Locator
+): Promise<PreviewSubmitOutcome> {
+	const outcomeLocators: Array<[PreviewSubmitOutcome, Locator]> = [
+		['widget', page.getByTestId('instantsearch-widget')],
+		['generic', genericErrorPage],
+		['transient', transientError]
+	];
+
+	for (const [outcome, locator] of outcomeLocators) {
+		if (await isVisible(locator)) {
+			return outcome;
+		}
+	}
+
+	return 'unknown';
+}
+
 export async function waitForPreviewSubmitOutcome(
 	page: Page,
 	transientError: Locator,
@@ -146,21 +166,9 @@ export async function waitForPreviewSubmitOutcome(
 ): Promise<PreviewSubmitOutcome> {
 	const startedAt = Date.now();
 	while (Date.now() - startedAt < timeoutMs) {
-		if (
-			await page
-				.getByTestId('instantsearch-widget')
-				.isVisible()
-				.catch(() => false)
-		) {
-			return 'widget';
-		}
-
-		if (await genericErrorPage.isVisible().catch(() => false)) {
-			return 'generic';
-		}
-
-		if (await transientError.isVisible().catch(() => false)) {
-			return 'transient';
+		const outcome = await detectPreviewSubmitOutcome(page, transientError, genericErrorPage);
+		if (outcome !== 'unknown') {
+			return outcome;
 		}
 
 		await page.waitForTimeout(250);

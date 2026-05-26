@@ -23,6 +23,10 @@ const getAnalyticsSearchCountMock = vi.fn();
 const getAnalyticsNoResultsMock = vi.fn();
 const getAnalyticsNoResultRateMock = vi.fn();
 const getAnalyticsStatusMock = vi.fn();
+const getAnalyticsDevicesMock = vi.fn();
+const getAnalyticsCountriesMock = vi.fn();
+const getAnalyticsFiltersMock = vi.fn();
+const getAnalyticsConversionRateMock = vi.fn();
 const getDebugEventsMock = vi.fn();
 const listExperimentsMock = vi.fn();
 const createExperimentMock = vi.fn();
@@ -75,6 +79,10 @@ vi.mock('$lib/server/api', () => ({
 		getAnalyticsNoResults: getAnalyticsNoResultsMock,
 		getAnalyticsNoResultRate: getAnalyticsNoResultRateMock,
 		getAnalyticsStatus: getAnalyticsStatusMock,
+		getAnalyticsDevices: getAnalyticsDevicesMock,
+		getAnalyticsCountries: getAnalyticsCountriesMock,
+		getAnalyticsFilters: getAnalyticsFiltersMock,
+		getAnalyticsConversionRate: getAnalyticsConversionRateMock,
 		getDebugEvents: getDebugEventsMock,
 		listExperiments: listExperimentsMock,
 		createExperiment: createExperimentMock,
@@ -209,6 +217,141 @@ describe('Index detail page server -- actions', () => {
 
 		expect(createExperimentMock).toHaveBeenCalledTimes(2);
 		expect(result).toEqual({ experimentCreated: true });
+	});
+
+	it('fetchAnalyticsDevices action forwards required date range and returns payload', async () => {
+		getAnalyticsDevicesMock.mockResolvedValue({
+			devices: { desktop: 11, mobile: 7, tablet: 2 }
+		});
+
+		const formData = new FormData();
+		formData.set('startDate', '2026-02-18');
+		formData.set('endDate', '2026-02-25');
+
+		const result = await actions.fetchAnalyticsDevices(
+			makeActionArgs('fetchAnalyticsDevices', formData) as never
+		);
+
+		expect(getAnalyticsDevicesMock).toHaveBeenCalledWith('products', {
+			startDate: '2026-02-18',
+			endDate: '2026-02-25'
+		});
+		expect(result).toEqual({
+			analyticsDevices: { devices: { desktop: 11, mobile: 7, tablet: 2 } }
+		});
+	});
+
+	it('fetchAnalyticsCountries action forwards required date range and returns payload', async () => {
+		getAnalyticsCountriesMock.mockResolvedValue({
+			countries: { US: 12, CA: 3 }
+		});
+
+		const formData = new FormData();
+		formData.set('startDate', '2026-02-18');
+		formData.set('endDate', '2026-02-25');
+
+		const result = await actions.fetchAnalyticsCountries(
+			makeActionArgs('fetchAnalyticsCountries', formData) as never
+		);
+
+		expect(getAnalyticsCountriesMock).toHaveBeenCalledWith('products', {
+			startDate: '2026-02-18',
+			endDate: '2026-02-25'
+		});
+		expect(result).toEqual({
+			analyticsCountries: { countries: { US: 12, CA: 3 } }
+		});
+	});
+
+	it('fetchAnalyticsFilters action forwards required date range and returns payload', async () => {
+		getAnalyticsFiltersMock.mockResolvedValue({
+			filters: {
+				brand: { acme: 5 }
+			}
+		});
+
+		const formData = new FormData();
+		formData.set('startDate', '2026-02-18');
+		formData.set('endDate', '2026-02-25');
+
+		const result = await actions.fetchAnalyticsFilters(
+			makeActionArgs('fetchAnalyticsFilters', formData) as never
+		);
+
+		expect(getAnalyticsFiltersMock).toHaveBeenCalledWith('products', {
+			startDate: '2026-02-18',
+			endDate: '2026-02-25'
+		});
+		expect(result).toEqual({
+			analyticsFilters: {
+				filters: {
+					brand: { acme: 5 }
+				}
+			}
+		});
+	});
+
+	it('fetchAnalyticsConversionRate action returns kpis, previous-period deltas, trend points, and country state', async () => {
+		getAnalyticsConversionRateMock
+			.mockResolvedValueOnce({
+				conversions: {
+					ctr: 0.12,
+					addToCart: 0.34,
+					purchase: 0.06,
+					conversionRate: 0.025
+				},
+				trend: [
+					{ date: '2026-02-18', conversionRate: 0.02 },
+					{ date: '2026-02-19', conversionRate: 0.024 },
+					{ date: '2026-02-20', conversionRate: 0.025 }
+				],
+				countries: ['US', 'CA']
+			})
+			.mockResolvedValueOnce({
+				conversions: {
+					ctr: 0.1,
+					addToCart: 0.3,
+					purchase: 0.05,
+					conversionRate: 0.02
+				}
+			});
+
+		const formData = new FormData();
+		formData.set('startDate', '2026-02-18');
+		formData.set('endDate', '2026-02-25');
+		formData.set('country', 'US');
+
+		const result = await actions.fetchAnalyticsConversionRate(
+			makeActionArgs('fetchAnalyticsConversionRate', formData) as never
+		);
+
+		expect(getAnalyticsConversionRateMock).toHaveBeenNthCalledWith(1, 'products', {
+			startDate: '2026-02-18',
+			endDate: '2026-02-25',
+			country: 'US'
+		});
+		expect(getAnalyticsConversionRateMock).toHaveBeenNthCalledWith(2, 'products', {
+			startDate: '2026-02-10',
+			endDate: '2026-02-17',
+			country: 'US'
+		});
+		expect(result).toEqual({
+			analyticsConversionRate: {
+				country: 'US',
+				countries: ['US', 'CA'],
+				trend: [
+					{ date: '2026-02-18', conversionRate: 0.02 },
+					{ date: '2026-02-19', conversionRate: 0.024 },
+					{ date: '2026-02-20', conversionRate: 0.025 }
+				],
+				kpis: {
+					ctr: { current: 0.12, previous: 0.1, delta: 0.02 },
+					addToCart: { current: 0.34, previous: 0.3, delta: 0.04 },
+					purchase: { current: 0.06, previous: 0.05, delta: 0.01 },
+					conversionRate: { current: 0.025, previous: 0.02, delta: 0.005 }
+				}
+			}
+		});
 	});
 
 	it('appendSecuritySource keeps a reload failure visible instead of replacing the list with an empty fallback', async () => {
@@ -413,6 +556,29 @@ describe('Index detail page server -- actions', () => {
 		expect(result).toEqual({ ruleSaved: true });
 	});
 
+	it('saveRule uses objectID from form field and forwards parsed rule JSON unchanged', async () => {
+		saveRuleMock.mockResolvedValue({ taskID: 8, id: 'form-object-id' });
+
+		const formData = new FormData();
+		formData.set('objectID', 'form-object-id');
+		formData.set(
+			'rule',
+			JSON.stringify({
+				objectID: 'different-payload-id',
+				conditions: [{ pattern: 'tablet', anchoring: 'contains' }],
+				consequence: { params: { optionalWords: ['tablet'] } }
+			})
+		);
+
+		await actions.saveRule(makeActionArgs('saveRule', formData) as never);
+
+		expect(saveRuleMock).toHaveBeenCalledWith('products', 'form-object-id', {
+			objectID: 'different-payload-id',
+			conditions: [{ pattern: 'tablet', anchoring: 'contains' }],
+			consequence: { params: { optionalWords: ['tablet'] } }
+		});
+	});
+
 	it('deleteRule action calls deleteRule API with objectID', async () => {
 		deleteRuleMock.mockResolvedValue({ taskID: 12, deletedAt: '2026-02-25T02:00:00Z' });
 
@@ -423,6 +589,114 @@ describe('Index detail page server -- actions', () => {
 
 		expect(deleteRuleMock).toHaveBeenCalledWith('products', 'boost-shoes');
 		expect(result).toEqual({ ruleDeleted: true });
+	});
+
+	it('deleteRule returns ruleError on delete failure', async () => {
+		deleteRuleMock.mockRejectedValue(new Error('delete failed'));
+		const formData = new FormData();
+		formData.set('objectID', 'boost-shoes');
+
+		const result = await actions.deleteRule(makeActionArgs('deleteRule', formData) as never);
+
+		expect(result).toEqual(
+			expect.objectContaining({
+				status: 400,
+				data: expect.objectContaining({ ruleError: 'delete failed' })
+			})
+		);
+	});
+
+	it('clearRules deletes every rule by repeatedly scanning page 0 and returns rulesCleared', async () => {
+		searchRulesMock
+			.mockResolvedValueOnce({
+				hits: [{ objectID: 'rule-1' }, { objectID: 'rule-2' }],
+				nbHits: 2,
+				page: 0,
+				nbPages: 1
+			})
+			.mockResolvedValueOnce({
+				hits: [{ objectID: 'rule-3' }],
+				nbHits: 1,
+				page: 0,
+				nbPages: 1
+			})
+			.mockResolvedValueOnce({
+				hits: [],
+				nbHits: 0,
+				page: 0,
+				nbPages: 0
+			});
+		deleteRuleMock.mockResolvedValue({ taskID: 1 });
+
+		const result = await actions.clearRules(makeActionArgs('clearRules', new FormData()) as never);
+
+		expect(searchRulesMock).toHaveBeenNthCalledWith(1, 'products');
+		expect(searchRulesMock).toHaveBeenNthCalledWith(2, 'products');
+		expect(searchRulesMock).toHaveBeenNthCalledWith(3, 'products');
+		expect(deleteRuleMock).toHaveBeenNthCalledWith(1, 'products', 'rule-1');
+		expect(deleteRuleMock).toHaveBeenNthCalledWith(2, 'products', 'rule-2');
+		expect(deleteRuleMock).toHaveBeenNthCalledWith(3, 'products', 'rule-3');
+		expect(result).toEqual({ rulesCleared: true });
+	});
+
+	it('clearRules returns rulesClearError when one delete fails', async () => {
+		searchRulesMock
+			.mockResolvedValueOnce({
+				hits: [{ objectID: 'rule-1' }, { objectID: 'rule-2' }],
+				nbHits: 2,
+				page: 0,
+				nbPages: 1
+			})
+			.mockResolvedValueOnce({
+				hits: [{ objectID: 'rule-2' }],
+				nbHits: 1,
+				page: 0,
+				nbPages: 1
+			});
+		deleteRuleMock.mockRejectedValueOnce(new Error('cannot delete rule-1'));
+
+		const result = await actions.clearRules(makeActionArgs('clearRules', new FormData()) as never);
+
+		expect(result).toEqual(
+			expect.objectContaining({
+				status: 400,
+				data: expect.objectContaining({ rulesClearError: 'cannot delete rule-1' })
+			})
+		);
+	});
+
+	it('clearRules waits for deletion visibility and does not re-delete stale page-0 rule IDs', async () => {
+		searchRulesMock.mockReset();
+		deleteRuleMock.mockReset();
+		searchRulesMock
+			.mockResolvedValueOnce({
+				hits: [{ objectID: 'rule-1' }],
+				nbHits: 1,
+				page: 0,
+				nbPages: 1
+			})
+			.mockResolvedValueOnce({
+				hits: [{ objectID: 'rule-1' }],
+				nbHits: 1,
+				page: 0,
+				nbPages: 1
+			})
+			.mockResolvedValueOnce({
+				hits: [],
+				nbHits: 0,
+				page: 0,
+				nbPages: 0
+			});
+		deleteRuleMock.mockResolvedValue({ taskID: 1 });
+
+		const result = await actions.clearRules(makeActionArgs('clearRules', new FormData()) as never);
+
+		expect(searchRulesMock).toHaveBeenNthCalledWith(1, 'products');
+		expect(searchRulesMock).toHaveBeenNthCalledWith(2, 'products');
+		expect(searchRulesMock).toHaveBeenNthCalledWith(3, 'products');
+		expect(deleteRuleMock).toHaveBeenCalledTimes(1);
+		expect(deleteRuleMock).toHaveBeenCalledWith('products', 'rule-1');
+		expect(result).toEqual({ rulesCleared: true });
 	});
 
 	it('saveSynonym action calls saveSynonym API with objectID and parsed synonym JSON', async () => {

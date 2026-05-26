@@ -11,7 +11,7 @@
 | admin | The admin directory provides a dashboard for system administration with pages for managing alerts, billing operations, customer accounts, and index migrations. |
 | api | The api directory contains SvelteKit server endpoints for three core customer-facing features: pricing comparison, authenticated search execution against Flapjack indexes, and Stripe integration including credential exposure. |
 | billing | The upgrade directory contains a SvelteKit server endpoint that handles upgrade-related backend logic for customers. |
-| console | The console directory is a SvelteKit routes module that implements the customer-facing dashboard with server-side handlers for account management, API keys, billing setup, search indexes, and user onboarding flows. |
+| console | The console directory provides the main customer-facing dashboard routes for user account management, billing setup, search index administration, and onboarding flows within the SvelteKit web application. |
 | dashboard | — |
 | dev_editor_dialog_demo | — |
 | forgot-password | — |

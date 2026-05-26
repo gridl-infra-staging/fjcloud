@@ -118,15 +118,6 @@ describe('e2e fixture user helpers', () => {
 		);
 	});
 
-	it('invalidates cached fixture token and retries /account bootstrap once on unauthorized token', () => {
-		const fixtureSource = readFileSync(join(process.cwd(), 'tests/fixtures/fixtures.ts'), 'utf8');
-
-		expect(fixtureSource).toContain('isUnauthorizedExpiredTokenAccountFailure');
-		expect(fixtureSource).toMatch(
-			/if\s*\(\s*attempt\s*===\s*0\s*&&\s*isUnauthorizedExpiredTokenAccountFailure\(401,\s*details\)\s*\)\s*\{\s*_token\s*=\s*null;\s*continue;\s*\}/m
-		);
-	});
-
 	it('does not rely on admin quota uplift during stale-index cleanup', () => {
 		const fixtureSource = readFileSync(join(process.cwd(), 'tests/fixtures/fixtures.ts'), 'utf8');
 

@@ -391,6 +391,11 @@ export function createMockPageData(overrides: Record<string, unknown> = {}) {
 		noResults: sampleNoResults,
 		analyticsStatus: sampleAnalyticsStatus,
 		analyticsPeriod: '7d' as const,
+		// Canonical date window matching the '7d' period above. Kept in this single
+		// shared base so all createMockPageData() call sites satisfy the required
+		// AnalyticsSummaryPayload.analyticsStartDate/analyticsEndDate fields.
+		analyticsStartDate: '2026-01-01',
+		analyticsEndDate: '2026-01-07',
 		documents: sampleDocuments,
 		experiments: sampleExperiments,
 		experimentResults: { '7': sampleExperimentResults },

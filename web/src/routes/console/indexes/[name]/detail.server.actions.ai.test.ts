@@ -164,9 +164,10 @@ describe('Index detail page server -- AI action handlers', () => {
 			JSON.stringify({
 				requests: [
 					{
-						indexName: 'products',
+						indexName: 'attacker-index',
 						model: 'related-products',
 						objectID: 'shoe-1',
+						threshold: 0,
 						maxRecommendations: 2
 					}
 				]
@@ -181,6 +182,7 @@ describe('Index detail page server -- AI action handlers', () => {
 					indexName: 'products',
 					model: 'related-products',
 					objectID: 'shoe-1',
+					threshold: 0,
 					maxRecommendations: 2
 				}
 			]
@@ -212,6 +214,117 @@ describe('Index detail page server -- AI action handlers', () => {
 			})
 		);
 		expect(recommendMock).not.toHaveBeenCalled();
+	});
+
+	it('recommend action rejects multi-request payloads', async () => {
+		const formData = new FormData();
+		formData.set(
+			'request',
+			JSON.stringify({
+				requests: [
+					{
+						indexName: 'products',
+						model: 'related-products',
+						objectID: 'shoe-1',
+						threshold: 0,
+						maxRecommendations: 2
+					},
+					{
+						indexName: 'products',
+						model: 'related-products',
+						objectID: 'shoe-2',
+						threshold: 0,
+						maxRecommendations: 2
+					}
+				]
+			})
+		);
+
+		const result = await actions.recommend(makeActionArgs('recommend', formData) as never);
+
+		expect(result).toEqual(
+			expect.objectContaining({
+				status: 400,
+				data: expect.objectContaining({
+					recommendationsError: 'request.requests must contain exactly one request'
+				})
+			})
+		);
+		expect(recommendMock).not.toHaveBeenCalled();
+	});
+
+	it('recommend action delegates to recommendations-management owner', async () => {
+		const recommendActionMock = vi.fn().mockResolvedValue({
+			recommendationsResponse: { results: [{ hits: [], processingTimeMS: 1 }] }
+		});
+		vi.resetModules();
+		vi.doMock('./recommendations-management.server', () => ({
+			recommendAction: recommendActionMock
+		}));
+
+		const { actions: reloadedActions } = await import('./+page.server');
+		const actionArgs = makeActionArgs('recommend', new FormData()) as {
+			request: Request;
+			locals: { user: { token: string } };
+			params: { name: string };
+		};
+		const result = await reloadedActions.recommend(actionArgs as never);
+
+		expect(recommendActionMock).toHaveBeenCalledWith({
+			request: actionArgs.request,
+			indexName: actionArgs.params.name,
+			token: actionArgs.locals.user.token
+		});
+		expect(result).toEqual({
+			recommendationsResponse: { results: [{ hits: [], processingTimeMS: 1 }] }
+		});
+
+		vi.doUnmock('./recommendations-management.server');
+		vi.resetModules();
+	});
+
+	it('chat action delegates to chat-management owner', async () => {
+		const chatActionMock = vi.fn().mockResolvedValue({
+			chatQuery: 'What should I buy next?',
+			chatResponse: {
+				answer: 'Try shoe-2',
+				sources: [{ objectID: 'shoe-2' }],
+				conversationId: 'conv-1',
+				queryID: 'q-1'
+			}
+		});
+		vi.resetModules();
+		vi.doMock('./chat-management.server', () => ({
+			chatAction: chatActionMock
+		}));
+
+		const { actions: reloadedActions } = await import('./+page.server');
+		const formData = new FormData();
+		formData.set('query', 'What should I buy next?');
+		const actionArgs = makeActionArgs('chat', formData) as {
+			request: Request;
+			locals: { user: { token: string } };
+			params: { name: string };
+		};
+		const result = await reloadedActions.chat(actionArgs as never);
+
+		expect(chatActionMock).toHaveBeenCalledWith({
+			request: actionArgs.request,
+			indexName: actionArgs.params.name,
+			token: actionArgs.locals.user.token
+		});
+		expect(result).toEqual({
+			chatQuery: 'What should I buy next?',
+			chatResponse: {
+				answer: 'Try shoe-2',
+				sources: [{ objectID: 'shoe-2' }],
+				conversationId: 'conv-1',
+				queryID: 'q-1'
+			}
+		});
+
+		vi.doUnmock('./chat-management.server');
+		vi.resetModules();
 	});
 
 	it('chat action calls API with query, parsed conversation history, and conversationId', async () => {
@@ -449,7 +562,16 @@ describe('Index detail page server -- AI action handlers', () => {
 		const formData = new FormData();
 		formData.set(
 			'request',
-			JSON.stringify({ requests: [{ indexName: 'products', model: 'trending-items' }] })
+			JSON.stringify({
+				requests: [
+					{
+						indexName: 'products',
+						model: 'trending-items',
+						threshold: 0,
+						maxRecommendations: 3
+					}
+				]
+			})
 		);
 
 		const result = await actions.recommend(makeActionArgs('recommend', formData) as never);
@@ -468,7 +590,16 @@ describe('Index detail page server -- AI action handlers', () => {
 		const formData = new FormData();
 		formData.set(
 			'request',
-			JSON.stringify({ requests: [{ indexName: 'products', model: 'trending-items' }] })
+			JSON.stringify({
+				requests: [
+					{
+						indexName: 'products',
+						model: 'trending-items',
+						threshold: 0,
+						maxRecommendations: 3
+					}
+				]
+			})
 		);
 
 		const result = await actions.recommend(makeActionArgs('recommend', formData) as never);

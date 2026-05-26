@@ -339,6 +339,22 @@ fn add_index_analytics_routes(router: Router<AppState>) -> Router<AppState> {
             "/indexes/:name/analytics/status",
             get(indexes::get_analytics_status),
         )
+        .route(
+            "/indexes/:name/analytics/devices",
+            get(indexes::get_analytics_devices),
+        )
+        .route(
+            "/indexes/:name/analytics/countries",
+            get(indexes::get_analytics_countries),
+        )
+        .route(
+            "/indexes/:name/analytics/filters",
+            get(indexes::get_analytics_filters),
+        )
+        .route(
+            "/indexes/:name/analytics/conversions/conversionRate",
+            get(indexes::get_analytics_conversion_rate),
+        )
 }
 
 /// Registers experiment lifecycle routes (CRUD, start/stop/conclude/results),

@@ -8,6 +8,8 @@ use common::indexes_route_test_support::response_json;
 use serde_json::json;
 use tower::ServiceExt;
 
+const FLAPJACK_TEST_HOST: &str = "https://vm-test.flapjack.foo";
+
 async fn assert_chat_proxy_error(
     proxy_error: ProxyError,
     expected_status: StatusCode,
@@ -546,4 +548,141 @@ async fn recommend_returns_not_found_for_missing_index() {
     let (status, _) = response_json(resp).await;
     assert_eq!(status, StatusCode::NOT_FOUND);
     assert_eq!(http_client.take_requests().len(), 0);
+}
+
+#[tokio::test]
+async fn analytics_devices_proxies_expected_url() {
+    let (app, jwt, http_client, customer_id) = setup_ready_index("products").await;
+    http_client.push_json_response(200, json!({"devices": [{"device": "desktop", "count": 9}]}));
+
+    let resp = app
+        .oneshot(
+            Request::builder()
+                .method(http::Method::GET)
+                .uri("/indexes/products/analytics/devices?startDate=2026-02-18&endDate=2026-02-25")
+                .header("authorization", format!("Bearer {jwt}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    let (status, body) = response_json(resp).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["devices"][0]["device"], "desktop");
+
+    let requests = http_client.take_requests();
+    assert_eq!(requests.len(), 1);
+    assert_eq!(requests[0].method, reqwest::Method::GET);
+    assert_eq!(
+        requests[0].url,
+        format!(
+            "{FLAPJACK_TEST_HOST}/2/devices?index={}&startDate=2026-02-18&endDate=2026-02-25",
+            test_flapjack_uid(customer_id, "products")
+        )
+    );
+}
+
+#[tokio::test]
+async fn analytics_countries_proxies_expected_url() {
+    let (app, jwt, http_client, customer_id) = setup_ready_index("products").await;
+    http_client.push_json_response(200, json!({"countries": [{"country": "US", "count": 42}]}));
+
+    let resp = app
+        .oneshot(
+            Request::builder()
+                .method(http::Method::GET)
+                .uri(
+                    "/indexes/products/analytics/countries?startDate=2026-02-18&endDate=2026-02-25",
+                )
+                .header("authorization", format!("Bearer {jwt}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    let (status, body) = response_json(resp).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["countries"][0]["country"], "US");
+
+    let requests = http_client.take_requests();
+    assert_eq!(requests.len(), 1);
+    assert_eq!(requests[0].method, reqwest::Method::GET);
+    assert_eq!(
+        requests[0].url,
+        format!(
+            "{FLAPJACK_TEST_HOST}/2/countries?index={}&startDate=2026-02-18&endDate=2026-02-25",
+            test_flapjack_uid(customer_id, "products")
+        )
+    );
+}
+
+#[tokio::test]
+async fn analytics_filters_proxies_expected_url() {
+    let (app, jwt, http_client, customer_id) = setup_ready_index("products").await;
+    http_client.push_json_response(
+        200,
+        json!({"filters": [{"attribute": "brand", "count": 17}]}),
+    );
+
+    let resp = app
+        .oneshot(
+            Request::builder()
+                .method(http::Method::GET)
+                .uri("/indexes/products/analytics/filters?startDate=2026-02-18&endDate=2026-02-25")
+                .header("authorization", format!("Bearer {jwt}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    let (status, body) = response_json(resp).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["filters"][0]["attribute"], "brand");
+
+    let requests = http_client.take_requests();
+    assert_eq!(requests.len(), 1);
+    assert_eq!(requests[0].method, reqwest::Method::GET);
+    assert_eq!(
+        requests[0].url,
+        format!(
+            "{FLAPJACK_TEST_HOST}/2/filters?index={}&startDate=2026-02-18&endDate=2026-02-25",
+            test_flapjack_uid(customer_id, "products")
+        )
+    );
+}
+
+#[tokio::test]
+async fn analytics_conversion_rate_route_is_registered_and_proxies_expected_url() {
+    let (app, jwt, http_client, customer_id) = setup_ready_index("products").await;
+    http_client.push_json_response(200, json!({"rate": 0.21, "count": 100, "conversions": 21}));
+
+    let resp = app
+        .oneshot(
+            Request::builder()
+                .method(http::Method::GET)
+                .uri("/indexes/products/analytics/conversions/conversionRate?startDate=2026-02-18&endDate=2026-02-25")
+                .header("authorization", format!("Bearer {jwt}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    let (status, body) = response_json(resp).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["rate"], 0.21);
+
+    let requests = http_client.take_requests();
+    assert_eq!(requests.len(), 1);
+    assert_eq!(requests[0].method, reqwest::Method::GET);
+    assert_eq!(
+        requests[0].url,
+        format!(
+            "{FLAPJACK_TEST_HOST}/2/conversions/conversionRate?index={}&startDate=2026-02-18&endDate=2026-02-25",
+            test_flapjack_uid(customer_id, "products")
+        )
+    );
 }

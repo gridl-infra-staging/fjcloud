@@ -114,9 +114,14 @@ const MUTATION_ROUTE_MATCHERS: MutationRouteMatcher[] = [
 		errorField: 'settingsError'
 	}),
 	createMutationRouteMatcher({
-		fieldNames: ['ruleSaved', 'ruleDeleted', 'ruleError'],
-		resolveUrl: (r) => (r.ruleDeleted ? '?/deleteRule' : '?/saveRule'),
-		errorField: 'ruleError'
+		fieldNames: ['ruleSaved', 'ruleDeleted', 'rulesCleared', 'ruleError', 'rulesClearError'],
+		resolveUrl: (r) =>
+			r.rulesCleared || r.rulesClearError
+				? '?/clearRules'
+				: r.ruleDeleted
+					? '?/deleteRule'
+					: '?/saveRule',
+		resolveErrorMessage: (r) => stringField(r, 'ruleError') ?? stringField(r, 'rulesClearError')
 	}),
 	createMutationRouteMatcher({
 		fieldNames: ['synonymSaved', 'synonymDeleted', 'synonymError'],

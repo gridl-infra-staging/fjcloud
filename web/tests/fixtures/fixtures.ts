@@ -29,7 +29,12 @@ import {
 import { AUTH_COOKIE } from '../../src/lib/server/auth-session-contracts';
 import { requireAdminApiKey, requireNonEmptyString } from './contract-guards';
 import { attemptRemoteSignupFallback, isRemoteTargetMode } from './fresh_signup_remote_bootstrap';
-import type { ApiKeyListItem, EstimatedBillResponse } from '../../src/lib/api/types';
+import type {
+	ApiKeyListItem,
+	EstimatedBillResponse,
+	Rule,
+	RuleSearchResponse
+} from '../../src/lib/api/types';
 import type { AdminRateCard } from '../../src/lib/admin-client';
 import {
 	pricingContractSnapshotFromAdminRateCard,
@@ -89,8 +94,72 @@ const fixtureEnv = {
 let _token: string | null = null;
 let _customerId: string | null = null;
 let _staleFixtureIndexesCleaned = false;
+let _staleFixtureIndexesCleanupCooldownUntil = 0;
 
 const STALE_FIXTURE_INDEX_PREFIXES = ['e2e-', 'manual-iso-', 'test-index'] as const;
+
+export class FixtureAuthTokenInvalidError extends Error {
+	status: number;
+
+	constructor(status: number, details: string) {
+		super(details);
+		this.status = status;
+		this.name = 'FixtureAuthTokenInvalidError';
+	}
+}
+
+type BearerTokenRefreshDeps<T> = {
+	getToken: () => Promise<string>;
+	invalidateToken: () => void;
+	invoke: (token: string) => Promise<T>;
+};
+
+// Shared bearer-token refresh seam: every authenticated fixture call routes
+// through one of these helpers so a stale cached token (e.g. left behind by a
+// local API restart) is invalidated and recovered the same way regardless of
+// caller. Pure and DI-driven so tests can exercise the refresh logic without
+// touching module-level state. Used by apiCall and getCustomerId.
+
+/**
+ * Run a bearer-authenticated operation that returns a Response, retrying once
+ * with a refreshed token when the first response is 401 or 403.
+ */
+export async function callWithBearerTokenRefreshOnResponse({
+	getToken,
+	invalidateToken,
+	invoke
+}: BearerTokenRefreshDeps<Response>): Promise<Response> {
+	const token = await getToken();
+	const first = await invoke(token);
+	if (first.status !== 401 && first.status !== 403) {
+		return first;
+	}
+	invalidateToken();
+	const refreshedToken = await getToken();
+	return invoke(refreshedToken);
+}
+
+/**
+ * Run a bearer-authenticated operation that throws FixtureAuthTokenInvalidError
+ * on 401/403, retrying once with a refreshed token. Non-auth errors propagate.
+ */
+export async function callWithBearerTokenRefreshOnUnauthorizedThrow<T>({
+	getToken,
+	invalidateToken,
+	invoke
+}: BearerTokenRefreshDeps<T>): Promise<T> {
+	try {
+		const token = await getToken();
+		return await invoke(token);
+	} catch (error) {
+		if (!(error instanceof FixtureAuthTokenInvalidError)) {
+			throw error;
+		}
+		invalidateToken();
+		const refreshedToken = await getToken();
+		return invoke(refreshedToken);
+	}
+}
 
 type AuthApiResponse = {
 	token: string;
@@ -305,8 +374,17 @@ function isTransientAccountLookupFailure(status: number): boolean {
 	return status === 429 || status >= 500;
 }
 
-function isUnauthorizedExpiredTokenAccountFailure(status: number, failureDetails: string): boolean {
-	return status === 401 && /invalid or expired token/i.test(failureDetails);
+function isTransientTransportFailure(error: unknown): boolean {
+	if (!(error instanceof Error)) {
+		return false;
+	}
+	const message = error.message.toLowerCase();
+	return (
+		message.includes('fetch failed') ||
+		message.includes('econnrefused') ||
+		message.includes('ecconnrefused') ||
+		message.includes('socket hang up')
+	);
 }
 
 // Keep the setup:user timeout aligned with the helper retry contract so
@@ -775,18 +853,29 @@ async function getAuthToken(): Promise<string> {
 	if (_token) return _token;
 	const { email, password } = resolveRequiredFixtureUserCredentials(process.env);
 	const maxRetries = 10;
+	let lastTransportFailure = '';
 	for (let attempt = 0; attempt < maxRetries; attempt++) {
-		const res = await callJsonApi(
-			fetch,
-			fixtureEnv.apiUrl,
-			'POST',
-			'/auth/login',
-			{},
-			{
-				email,
-				password
+		let res: Response;
+		try {
+			res = await callJsonApi(
+				fetch,
+				fixtureEnv.apiUrl,
+				'POST',
+				'/auth/login',
+				{},
+				{
+					email,
+					password
+				}
+			);
+		} catch (error) {
+			if (!isTransientTransportFailure(error) || attempt === maxRetries - 1) {
+				throw error;
 			}
-		);
+			lastTransportFailure = setupFailureDetailsFromError(error);
+			await sleep(getTransientRetryDelayMs(attempt));
+			continue;
+		}
 		if (res.status === 429) {
 			const retryAfterSeconds = Number(res.headers.get('retry-after') ?? '');
 			const retryAfterMs =
@@ -802,6 +891,9 @@ async function getAuthToken(): Promise<string> {
 		return _token;
 	}
 
+	if (lastTransportFailure) {
+		throw new Error(`Auth login failed after transient transport retries: ${lastTransportFailure}`);
+	}
 	throw new Error('Auth login failed: exhausted retries after 429 rate limiting');
 }
 
@@ -811,16 +903,21 @@ async function getAccountPayloadForTokenWithRetries(
 ): Promise<{ id?: string; billing_plan?: 'free' | 'shared' }> {
 	const maxRetries = TRANSIENT_API_MAX_RETRIES;
 	let lastTransientFailure = 'none';
+	let currentToken = token;
+	let refreshedAfterUnauthorized = false;
 
 	for (let attempt = 0; attempt < maxRetries; attempt++) {
 		const accountResponse = await callJsonApi(fetch, fixtureEnv.apiUrl, 'GET', '/account', {
-			Authorization: `Bearer ${token}`
+			Authorization: `Bearer ${currentToken}`
 		});
 		if (accountResponse.ok) {
 			return (await accountResponse.json()) as { id?: string; billing_plan?: 'free' | 'shared' };
 		}
 
 		const failureDetails = `${accountResponse.status} ${await accountResponse.text()}`;
+		if (accountResponse.status === 401 || accountResponse.status === 403) {
+			throw new FixtureAuthTokenInvalidError(accountResponse.status, failureDetails);
+		}
 		if (!isTransientAccountLookupFailure(accountResponse.status)) {
 			throw new Error(`${contextLabel} failed: ${failureDetails}`);
 		}
@@ -834,62 +931,91 @@ async function getAccountPayloadForTokenWithRetries(
 	throw new Error(`${contextLabel} failed after transient retries: ${lastTransientFailure}`);
 }
 
-async function getCustomerId(): Promise<string> {
-	if (_customerId) return _customerId;
-
-	let accountFailure: Error | null = null;
-	for (let attempt = 0; attempt < 2; attempt += 1) {
-		const token = await getAuthToken();
-		try {
-			const accountPayload = await getAccountPayloadForTokenWithRetries(token, 'GET /account');
-			_customerId = requireNonEmptyString(
-				accountPayload.id ?? '',
-				'GET /account returned an empty customer id'
-			);
-			return _customerId;
-		} catch (error) {
-			const details = setupFailureDetailsFromError(error);
-			if (attempt === 0 && isUnauthorizedExpiredTokenAccountFailure(401, details)) {
-				_token = null;
-				continue;
-			}
-			accountFailure = error instanceof Error ? error : new Error(String(error));
-			break;
-		}
-	}
-
-	throw accountFailure ?? new Error('GET /account failed while resolving fixture customer id');
+function invalidateCachedAuthToken(): void {
+	_token = null;
 }
 
+/**
+ * Resolve the shared fixture customer id, refreshing the cached bearer token
+ * once if /account rejects it with 401/403 (e.g. after a local API restart).
+ */
+async function getCustomerId(): Promise<string> {
+	if (_customerId) return _customerId;
+	let token = await getAuthToken();
+	let accountPayload: { id?: string; billing_plan?: 'free' | 'shared' };
+
+	try {
+		accountPayload = await getAccountPayloadForTokenWithRetries(token, 'GET /account');
+	} catch (error) {
+		if (!(error instanceof Error) || !error.message.includes('GET /account failed: 401')) {
+			throw error;
+		}
+
+		_token = null;
+		token = await getAuthToken();
+		accountPayload = await getAccountPayloadForTokenWithRetries(
+			token,
+			'GET /account after token refresh'
+		);
+	}
+
+	_customerId = requireNonEmptyString(
+		accountPayload.id ?? '',
+		'GET /account returned an empty customer id'
+	);
+	return _customerId;
+}
+
+/**
+ * Make a bearer-authenticated fixture API call. When no explicit tokenOverride
+ * is provided, a stale cached token surfacing as 401/403 is invalidated and the
+ * call is retried once with a fresh login token — so every authenticated
+ * fixture helper (cleanupStaleFixtureIndexesOnce, waitForSeededIndex, etc.)
+ * recovers from in-process token expiry without per-helper logic.
+ */
 async function apiCall(
 	method: string,
 	path: string,
 	body?: unknown,
 	tokenOverride?: string
 ): Promise<Response> {
-	const token = tokenOverride ?? (await getAuthToken());
-	return callJsonApi(
-		fetch,
-		fixtureEnv.apiUrl,
-		method,
-		path,
-		{ Authorization: `Bearer ${token}` },
-		body
-	);
+	const invokeWithToken = (token: string): Promise<Response> =>
+		callJsonApi(fetch, fixtureEnv.apiUrl, method, path, { Authorization: `Bearer ${token}` }, body);
+
+	if (tokenOverride !== undefined) {
+		return invokeWithToken(tokenOverride);
+	}
+
+	return callWithBearerTokenRefreshOnResponse({
+		getToken: getAuthToken,
+		invalidateToken: invalidateCachedAuthToken,
+		invoke: invokeWithToken
+	});
 }
 
 async function adminApiCall(method: string, path: string, body?: unknown): Promise<Response> {
 	let lastResponse: Response | null = null;
+	let lastTransportFailure = '';
 
 	for (let attempt = 0; attempt < 10; attempt += 1) {
-		const response = await callJsonApi(
-			fetch,
-			fixtureEnv.apiUrl,
-			method,
-			path,
-			{ 'x-admin-key': requireAdminApiKey(fixtureEnv.adminKey) },
-			body
-		);
+		let response: Response;
+		try {
+			response = await callJsonApi(
+				fetch,
+				fixtureEnv.apiUrl,
+				method,
+				path,
+				{ 'x-admin-key': requireAdminApiKey(fixtureEnv.adminKey) },
+				body
+			);
+		} catch (error) {
+			if (!isTransientTransportFailure(error) || attempt === 9) {
+				throw error;
+			}
+			lastTransportFailure = setupFailureDetailsFromError(error);
+			await sleep(getTransientRetryDelayMs(attempt));
+			continue;
+		}
 
 		if (response.status !== 429) {
 			return response;
@@ -903,6 +1029,11 @@ async function adminApiCall(method: string, path: string, body?: unknown): Promi
 		await sleep(getRetryDelayMs(attempt, response.headers.get('retry-after')));
 	}
 
+	if (lastTransportFailure) {
+		throw new Error(
+			`adminApiCall transport retries exhausted for ${method} ${path}: ${lastTransportFailure}`
+		);
+	}
 	return lastResponse ?? new Response('adminApiCall exhausted without a response', { status: 500 });
 }
 
@@ -932,9 +1063,12 @@ async function cleanupStaleFixtureIndexesOnce(): Promise<void> {
 	if (_staleFixtureIndexesCleaned) {
 		return;
 	}
+	if (Date.now() < _staleFixtureIndexesCleanupCooldownUntil) {
+		return;
+	}
 
 	let res: Response | null = null;
-	for (let attempt = 0; attempt < 10; attempt += 1) {
+	for (let attempt = 0; attempt < 4; attempt += 1) {
 		res = await apiCall('GET', '/indexes');
 		if (res.ok) {
 			break;
@@ -953,6 +1087,7 @@ async function cleanupStaleFixtureIndexesOnce(): Promise<void> {
 		//
 		// Do not mark cleanup as complete when list reads never succeeded: a later
 		// fixture call in this worker should retry once throttling clears.
+		_staleFixtureIndexesCleanupCooldownUntil = Date.now() + 30_000;
 		return;
 	}
 
@@ -961,7 +1096,10 @@ async function cleanupStaleFixtureIndexesOnce(): Promise<void> {
 		.map((index) => index.name.trim())
 		.filter((name) => name && isStaleFixtureIndexName(name));
 
-	const cleanupDeadline = Date.now() + 8_000;
+	// Shared-host runs can accumulate a very large stale e2e index set.
+	// Use a wider one-time cleanup window so quota and rate-limit pressure
+	// drops before the suite starts creating fresh indexes.
+	const cleanupDeadline = Date.now() + 30_000;
 	const unresolvedStaleDeletes: string[] = [];
 	for (let staleNameIndex = 0; staleNameIndex < staleNames.length; staleNameIndex += 1) {
 		const name = staleNames[staleNameIndex];
@@ -997,10 +1135,12 @@ async function cleanupStaleFixtureIndexesOnce(): Promise<void> {
 
 	// Cleanup stays retryable across fixture calls until stale rows converge.
 	if (unresolvedStaleDeletes.length > 0) {
+		_staleFixtureIndexesCleanupCooldownUntil = Date.now() + 30_000;
 		return;
 	}
 
 	_staleFixtureIndexesCleaned = true;
+	_staleFixtureIndexesCleanupCooldownUntil = 0;
 }
 
 async function waitForSeededIndex(name: string): Promise<void> {
@@ -1031,11 +1171,13 @@ async function createSeededIndex(
 	customerId: string,
 	name: string,
 	region: string,
-	flapjackUrl: string
+	flapjackUrl: string,
+	customerToken?: string
 ): Promise<void> {
 	const safeFlapjackUrl = requireLoopbackHttpUrl('FLAPJACK_URL', flapjackUrl);
 	const maxRetries = 6;
 	let lastFailure = 'none';
+	let fallbackToken = customerToken;
 
 	for (let attempt = 0; attempt < maxRetries; attempt++) {
 		const res = await adminApiCall(
@@ -1060,7 +1202,48 @@ async function createSeededIndex(
 			return;
 		}
 
-		if (res.status !== 429 && res.status !== 500) {
+		// Shared-host Playwright runs can restart the API with a different
+		// admin key mid-suite. Recover by creating through the authenticated
+		// customer route when admin auth is rejected.
+		if (res.status === 401 && fallbackToken) {
+			const fallbackResponse = await callJsonApi(
+				fetch,
+				fixtureEnv.apiUrl,
+				'POST',
+				'/indexes',
+				{ Authorization: `Bearer ${fallbackToken}` },
+				{ name, region }
+			);
+			if (fallbackResponse.ok) {
+				return;
+			}
+			const fallbackBody = await fallbackResponse.text();
+			lastFailure = `admin 401; customer fallback ${fallbackResponse.status} ${fallbackBody}`;
+			if (fallbackResponse.status === 409) {
+				return;
+			}
+			if (fallbackResponse.status === 401 || fallbackResponse.status === 403) {
+				_token = null;
+				fallbackToken = await getAuthToken();
+				await sleep(getTransientRetryDelayMs(attempt));
+				continue;
+			}
+			if (
+				fallbackResponse.status === 400 &&
+				fallbackBody.toLowerCase().includes('index limit reached')
+			) {
+				await cleanupStaleFixtureIndexesOnce();
+				await sleep(getTransientRetryDelayMs(attempt));
+				continue;
+			}
+			if (
+				fallbackResponse.status !== 429 &&
+				fallbackResponse.status !== 500 &&
+				fallbackResponse.status !== 503
+			) {
+				throw new Error(`seedIndex failed: ${lastFailure}`);
+			}
+		} else if (res.status !== 401 && res.status !== 429 && res.status !== 500) {
 			throw new Error(`seedIndex failed: ${lastFailure}`);
 		}
 
@@ -1099,15 +1282,9 @@ async function createSeededIndexForCurrentCustomer(name: string, region: string)
 	throw new Error(`seedIndex failed after transient create retries: ${lastFailure}`);
 }
 
-function isTransientSeedIndexTransportFailure(error: unknown): boolean {
-	const details = setupFailureDetailsFromError(error).toLowerCase();
-	return (
-		details.includes('fetch failed') ||
-		details.includes('econnrefused') ||
-		details.includes('socket hang up') ||
-		details.includes('aggregateerror')
-	);
-}
+const RECOMMENDATION_FIXTURE_FACET_NAME = 'category';
+const RECOMMENDATION_FIXTURE_FACET_VALUE = 'language';
+const RECOMMENDATION_FIXTURE_MISSING_FACET_VALUE = 'no-matches-category';
 
 async function getCurrentBillingPlan(tokenOverride?: string): Promise<'free' | 'shared'> {
 	for (let attempt = 0; attempt < TRANSIENT_API_MAX_RETRIES; attempt += 1) {
@@ -2216,6 +2393,18 @@ async function getInvoiceDetailForToken(
 // ---------------------------------------------------------------------------
 
 type SeedIndexFn = (name: string, region?: string) => Promise<void>;
+type SeedRecommendationsConfigResult = {
+	indexName: string;
+	primaryObjectID: string;
+	secondaryObjectID: string;
+	facetName: string;
+	facetValue: string;
+	missingFacetValue: string;
+};
+type SeedRecommendationsConfigFn = (
+	name: string,
+	region?: string
+) => Promise<SeedRecommendationsConfigResult>;
 type SeedCustomerIndexFn = (
 	customer: CreatedFixtureUser,
 	name: string,
@@ -2224,6 +2413,16 @@ type SeedCustomerIndexFn = (
 type RegisterIndexForCleanupFn = (name: string) => void;
 type CleanupFixtureIndexesFn = () => Promise<void>;
 type SeedApiKeyFn = (name: string, scopes?: string[]) => Promise<{ id: string }>;
+type SeedRulePayload = { objectID: string } & Record<string, unknown>;
+type SeedRulesFn = (indexName: string, rules: SeedRulePayload[]) => Promise<void>;
+type GetRuleFn = (indexName: string, objectID: string) => Promise<Rule>;
+type SearchRulesFn = (
+	indexName: string,
+	query?: string,
+	page?: number,
+	hitsPerPage?: number
+) => Promise<RuleSearchResponse>;
+type ReadClipboardTextFn = (page: Page) => Promise<string>;
 type ListApiKeysFn = () => Promise<ApiKeyListItem[]>;
 type DiscoverWithApiKeyFn = (
 	indexName: string,
@@ -2297,6 +2496,14 @@ type E2eFixtures = {
 	cleanupFixtureIndexes: CleanupFixtureIndexesFn;
 	/** Seed an API key and auto-revoke after the test. */
 	seedApiKey: SeedApiKeyFn;
+	/** Seed one or more rules and auto-delete them after the test. */
+	seedRules: SeedRulesFn;
+	/** Read a single rule by objectID through fixture-owned API access. */
+	getRule: GetRuleFn;
+	/** Search rules through fixture-owned API access. */
+	searchRules: SearchRulesFn;
+	/** Read clipboard text through fixture-owned browser permission seam. */
+	readClipboardText: ReadClipboardTextFn;
 	/** Read API-key rows for the authenticated customer through fixture-owned API access. */
 	listApiKeys: ListApiKeysFn;
 	/** Call /discover with a bearer API key through fixture-owned API access. */
@@ -2307,6 +2514,8 @@ type E2eFixtures = {
 	setBillingPlanForCustomer: SetBillingPlanForCustomerFn;
 	/** Read /account payload for a specific auth token through fixture-owned retry semantics. */
 	getAccountPayloadForToken: GetAccountPayloadForTokenFn;
+	/** Seed a recommendation-ready index with deterministic object/facet fixture data. */
+	seedRecommendationsConfig: SeedRecommendationsConfigFn;
 	/** Seed an index backed by Flapjack with searchable documents. */
 	seedSearchableIndex: SeedSearchableIndexFn;
 	/** Ensure an invoice exists for the test user and return its ID. */
@@ -2590,33 +2799,17 @@ export const test = base.extend<E2eFixtures & E2eInternalFixtures>({
 
 	seedIndex: async ({ _trackIndexForCleanup }, use) => {
 		const factory: SeedIndexFn = async (name, region) => {
-			for (let attempt = 0; attempt < 3; attempt++) {
-				try {
-					const r = region ?? fixtureEnv.testRegion;
-					const customerId = await getCustomerId();
-					try {
-						await createSeededIndex(customerId, name, r, fixtureEnv.flapjackUrl);
-					} catch (error) {
-						const details = setupFailureDetailsFromError(error).toLowerCase();
-						if (!details.includes('invalid admin key')) {
-							throw error;
-						}
-						await createSeededIndexForCurrentCustomer(name, r);
-					}
-					// The admin create endpoint can return before the customer index-read
-					// path is consistent enough for the detail page loader. Poll the same
-					// read path the UI uses so seeded detail specs do not flake on a 500.
-					await waitForSeededIndex(name);
-					_trackIndexForCleanup(name);
-					return;
-				} catch (error) {
-					if (attempt === 2 || !isTransientSeedIndexTransportFailure(error)) {
-						throw error;
-					}
-					_token = null;
-					await sleep(getTransientRetryDelayMs(attempt));
-				}
-			}
+			const r = region ?? fixtureEnv.testRegion;
+			// Use the admin endpoint to seed a local Flapjack-backed index directly
+			// so tab/detail browser proofs exercise the real local engine.
+			const token = await getAuthToken();
+			const customerId = await getCustomerId();
+			await createSeededIndex(customerId, name, r, fixtureEnv.flapjackUrl, token);
+			// The admin create endpoint can return before the customer index-read
+			// path is consistent enough for the detail page loader. Poll the same
+			// read path the UI uses so seeded detail specs do not flake on a 500.
+			await waitForSeededIndex(name);
+			_trackIndexForCleanup(name);
 		};
 
 		await use(factory);
@@ -2629,7 +2822,7 @@ export const test = base.extend<E2eFixtures & E2eInternalFixtures>({
 			const r = region ?? fixtureEnv.testRegion;
 			// Admin seeding lets admin browser specs arrange quota/index state for
 			// disposable customers without logging the browser out of admin mode.
-			await createSeededIndex(customer.customerId, name, r, fixtureEnv.flapjackUrl);
+			await createSeededIndex(customer.customerId, name, r, fixtureEnv.flapjackUrl, customer.token);
 			created.push({ token: customer.token, name });
 		};
 
@@ -2670,6 +2863,105 @@ export const test = base.extend<E2eFixtures & E2eInternalFixtures>({
 				/* ignore — may already be gone */
 			});
 		}
+	},
+
+	seedRules: async ({}, use) => {
+		const createdRules: Array<{ indexName: string; objectID: string }> = [];
+
+		const factory: SeedRulesFn = async (indexName, rules) => {
+			for (const rule of rules) {
+				const objectID = rule.objectID;
+				if (!objectID) {
+					throw new Error('seedRules requires each rule to include a non-empty objectID');
+				}
+				let saved = false;
+				let lastFailure = 'none';
+				for (let attempt = 0; attempt < TRANSIENT_API_MAX_RETRIES; attempt += 1) {
+					const response = await apiCall(
+						'PUT',
+						`/indexes/${encodeURIComponent(indexName)}/rules/${encodeURIComponent(objectID)}`,
+						rule
+					);
+					if (response.ok) {
+						saved = true;
+						break;
+					}
+					const body = await response.text();
+					lastFailure = `${response.status} ${body}`;
+					if (
+						response.status === 404 ||
+						response.status === 429 ||
+						response.status === 500 ||
+						response.status === 503
+					) {
+						await sleep(getRetryDelayMs(attempt, response.headers.get('retry-after')));
+						continue;
+					}
+					throw new Error(`seedRules failed: ${lastFailure}`);
+				}
+				if (!saved) {
+					throw new Error(`seedRules failed after transient retries: ${lastFailure}`);
+				}
+				createdRules.push({ indexName, objectID });
+			}
+		};
+
+		await use(factory);
+
+		for (const createdRule of createdRules) {
+			await apiCall(
+				'DELETE',
+				`/indexes/${encodeURIComponent(createdRule.indexName)}/rules/${encodeURIComponent(createdRule.objectID)}`
+			).catch(() => {
+				/* ignore — may already be gone */
+			});
+		}
+	},
+
+	getRule: async ({}, use) => {
+		const fixture: GetRuleFn = async (indexName, objectID) => {
+			const response = await apiCall(
+				'GET',
+				`/indexes/${encodeURIComponent(indexName)}/rules/${encodeURIComponent(objectID)}`
+			);
+			if (!response.ok) {
+				throw new Error(`getRule failed: ${response.status} ${await response.text()}`);
+			}
+			return (await response.json()) as Rule;
+		};
+		await use(fixture);
+	},
+
+	searchRules: async ({}, use) => {
+		const fixture: SearchRulesFn = async (indexName, query = '', page = 0, hitsPerPage = 50) => {
+			const response = await apiCall(
+				'POST',
+				`/indexes/${encodeURIComponent(indexName)}/rules/search`,
+				{
+					query,
+					page,
+					hitsPerPage
+				}
+			);
+			if (!response.ok) {
+				throw new Error(`searchRules failed: ${response.status} ${await response.text()}`);
+			}
+			return (await response.json()) as RuleSearchResponse;
+		};
+		await use(fixture);
+	},
+
+	readClipboardText: async ({}, use) => {
+		const fixture: ReadClipboardTextFn = async (page) => {
+			try {
+				return await page.evaluate(async () => navigator.clipboard.readText());
+			} catch (error) {
+				throw new Error(
+					`readClipboardText failed to access navigator.clipboard.readText(): ${setupFailureDetailsFromError(error)}`
+				);
+			}
+		};
+		await use(fixture);
 	},
 
 	listApiKeys: async ({}, use) => {
@@ -2753,6 +3045,39 @@ export const test = base.extend<E2eFixtures & E2eInternalFixtures>({
 		await use(async (token) => {
 			return getAccountPayloadForTokenWithRetries(token, 'GET /account');
 		});
+	},
+
+	seedRecommendationsConfig: async ({ testRegion, _trackIndexForCleanup }, use) => {
+		const seedSearchableIndex = createSeedSearchableIndexFactory({
+			testRegion,
+			apiCall,
+			adminApiCall,
+			getCustomerId,
+			waitForSeededIndex,
+			flapjackUrl: fixtureEnv.flapjackUrl
+		});
+		const factory: SeedRecommendationsConfigFn = async (name, region) => {
+			await cleanupStaleFixtureIndexesOnce();
+			const targetRegion = region ?? fixtureEnv.testRegion;
+			if (targetRegion === testRegion) {
+				await seedSearchableIndex(name);
+			} else {
+				const customerId = await getCustomerId();
+				await createSeededIndex(customerId, name, targetRegion, fixtureEnv.flapjackUrl);
+				await waitForSeededIndex(name);
+			}
+			_trackIndexForCleanup(name);
+			return {
+				indexName: name,
+				primaryObjectID: 'doc-1',
+				secondaryObjectID: 'doc-2',
+				facetName: RECOMMENDATION_FIXTURE_FACET_NAME,
+				facetValue: RECOMMENDATION_FIXTURE_FACET_VALUE,
+				missingFacetValue: RECOMMENDATION_FIXTURE_MISSING_FACET_VALUE
+			};
+		};
+
+		await use(factory);
 	},
 
 	seedSearchableIndex: async ({ testRegion }, use) => {

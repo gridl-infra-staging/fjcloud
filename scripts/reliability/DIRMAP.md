@@ -7,7 +7,10 @@
 Usage: RELIABILITY=1 ./capture-all.sh
 
 Prerequisites: integration stack running (scripts/integration-up.sh). |
-| cleanup_vm_inventory_proposal.sh | Stub summary for cleanup_vm_inventory_proposal.sh. |
+| cleanup_vm_inventory_proposal.sh | cleanup_vm_inventory_proposal.sh
+
+Offline-only renderer that reads a frozen Stage 1 evidence bundle and prints
+reviewable SQL candidates. |
 | run-profile.sh | run-profile.sh — Run a capacity profiling session for a single document tier.
 Usage: run-profile.sh <tier>
   tier: 1k | 10k | 100k
@@ -58,10 +61,13 @@ For real profiling data, run:
 
 Usage:
   scripts/reliability/seed-test-profiles.sh. |
-| validate_vm_inventory_ec2_consistency.sh | Stub summary for validate_vm_inventory_ec2_consistency.sh. |
+| validate_vm_inventory_ec2_consistency.sh | validate_vm_inventory_ec2_consistency.sh
+
+Reconciles active VM inventory rows against managed EC2 instances and
+deployment linkage markers. |
 
 | Directory | Summary |
 | --- | --- |
 | fixtures | — |
-| lib | This lib directory provides shared utilities for reliability profiling and backend security validation, including metric capture functions, capacity profile parsing, and modular security checks that can be used individually or as a grouped suite. |
+| lib | This lib directory provides reliability profiling utilities including metric capture functions (metrics.sh), capacity profile parsing (parse_capacity_profiles.py), and modular security validation checks (security_checks.sh) that can be run individually or as part of the backend reliability gate. |
 <!-- [scrai:end] -->

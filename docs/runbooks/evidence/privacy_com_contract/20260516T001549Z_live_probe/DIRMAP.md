@@ -3,5 +3,4 @@
 
 | File | Summary |
 | --- | --- |
-| run_live_probe.sh | Stub summary for run_live_probe.sh. |
 <!-- [scrai:end] -->

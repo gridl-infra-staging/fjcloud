@@ -3,7 +3,19 @@
 
 | File | Summary |
 | --- | --- |
-| 00_commands.sh | Stub summary for 00_commands.sh. |
+| 00_commands.sh | Stage 4 admin-route deployment termination runner.
+
+Purpose
+  Terminate exact-cohort deployments through the canonical admin route
+      /admin/tenants/{customer_id}/deployments       (list, pre-mutation)
+      /admin/deployments/{deployment_id}             (DELETE, mutation)
+  for every customer in the Stage 1 exact CSV pair:
+      docs/runbooks/evidence/prod_db_leak_cleanup/20260521T172106Z_stage1_inventory/10_prod_exact_cleanup.csv
+      docs/runbooks/evidence/prod_db_leak_cleanup/20260521T172106Z_stage1_inventory/11_staging_exact_cleanup.csv
+
+Source of truth
+  The Stage 1 exact CSVs are the ONLY input set this runner ever queries.
+  No customer ID is touched unless it appears in those CSVs. |
 | 50_reproducibility_check.sh | Stage 4 reproducibility check.
 
 Compares primary and rerun disposition summaries and asserts:

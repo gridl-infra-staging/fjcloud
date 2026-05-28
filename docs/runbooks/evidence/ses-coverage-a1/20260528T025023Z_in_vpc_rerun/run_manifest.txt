@@ -1,0 +1,15 @@
+utc_timestamp=20260528T025023Z
+head_sha=78b82229ea547ba8fa39668dfd22992fc6099160
+actor=codex
+billing_month=2026-05
+checklist=/Users/stuart/.matt/projects/fjcloud_dev-5fc16cc1/may26_5pm_1_a1_in_vpc_probe_rerun.md-15a40a2f/checklists/stage_02_checklist.md
+script_owner_1=scripts/launch/ssm_exec_staging.sh
+script_owner_2=scripts/launch/hydrate_seeder_env_from_ssm.sh
+script_owner_3=scripts/probe_verify_email_clickthrough_e2e.sh
+script_owner_4=scripts/probe_password_reset_clickthrough_e2e.sh
+script_owner_5=scripts/probe_dunning_email_inbox_e2e.sh
+script_owner_6=scripts/probe_ses_bounce_complaint_e2e.sh
+script_owner_7=scripts/validate_staging_dunning_delivery.sh
+preflight_evidence_dir=docs/runbooks/evidence/ses-coverage-a1/20260528T022338Z_in_vpc_rerun
+matrix_pending_check_file=/tmp/stage2_matrix_pending_check.txt
+preflight_contract_check_file=/tmp/stage2_preflight_contract_check.txt

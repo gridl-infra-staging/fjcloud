@@ -1,0 +1,6 @@
+mapping_A:
+{"customer_id":"7ba5e7c3-4fac-463e-94a8-ff612510caae","tenant_id":"demo-shared-free","flapjack_uid":"7ba5e7c34fac463e94a8ff612510caae_demo-shared-free","flapjack_url":"https://api.staging.flapjack.foo"}
+mapping_B:
+{"customer_id":"f961fc1a-b5db-4621-8793-6cfca5323eb9","tenant_id":"demo-small-dedicated","flapjack_uid":"f961fc1ab5db462187936cfca5323eb9_demo-small-dedicated","flapjack_url":"https://api.staging.flapjack.foo"}
+mapping_C:
+{"customer_id":"0b166bfc-57e2-478e-aad0-9c6a9e2c165f","tenant_id":"demo-medium-dedicated","flapjack_uid":"0b166bfc57e2478eaad09c6a9e2c165f_demo-medium-dedicated","flapjack_url":"https://api.staging.flapjack.foo"}

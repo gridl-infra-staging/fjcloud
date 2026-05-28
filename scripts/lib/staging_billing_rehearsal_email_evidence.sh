@@ -251,6 +251,17 @@
 # TODO: Document extract_required_invoice_email_pairs_json.
 # TODO: Document extract_required_invoice_email_pairs_json.
 # TODO: Document extract_required_invoice_email_pairs_json.
+# TODO: Document extract_required_invoice_email_pairs_json.
+# TODO: Document extract_required_invoice_email_pairs_json.
+# TODO: Document extract_required_invoice_email_pairs_json.
+# TODO: Document extract_required_invoice_email_pairs_json.
+# TODO: Document extract_required_invoice_email_pairs_json.
+# TODO: Document extract_required_invoice_email_pairs_json.
+# TODO: Document extract_required_invoice_email_pairs_json.
+# TODO: Document extract_required_invoice_email_pairs_json.
+# TODO: Document extract_required_invoice_email_pairs_json.
+# TODO: Document extract_required_invoice_email_pairs_json.
+# TODO: Document extract_required_invoice_email_pairs_json.
 extract_required_invoice_email_pairs_json() {
     python3 - "$INVOICE_ROWS_JSON" "$CREATED_INVOICE_IDS_JSON" <<'PY' || true
 import json
@@ -519,8 +530,11 @@ find_mailpit_matching_ids_json() {
         return 1
     fi
     candidate_ids_json="$(mailpit_search_message_ids_json "$response")"
-    matched_ids_file="${TMPDIR:-/tmp}/invoice_email_message_ids_${$}_${invoice_id}.txt"
-    : > "$matched_ids_file"
+    if ! matched_ids_file="$(mktemp "${TMPDIR:-/tmp}/invoice_email_message_ids_${$}_XXXXXX.txt")"; then
+        EVIDENCE_LAST_CLASSIFICATION="invoice_email_tempfile_failed"
+        EVIDENCE_LAST_DETAIL="Unable to create invoice email evidence temp file."
+        return 1
+    fi
 
     while IFS= read -r candidate_message_id; do
         [ -n "$candidate_message_id" ] || continue

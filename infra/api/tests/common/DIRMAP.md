@@ -3,7 +3,6 @@
 
 | File | Summary |
 | --- | --- |
-| builders.rs | Stub summary for builders.rs. |
 | capacity_profiles.rs | Shared capacity profile fixtures for scheduler and placement tests.
 
 

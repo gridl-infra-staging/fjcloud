@@ -6,5 +6,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| 20260518T231734Z | This directory contains a read-only probe script that captures authentication lockout behavior, validating how the system responds to repeated failed login attempts. |
+| 20260518T231734Z | — |
 <!-- [scrai:end] -->

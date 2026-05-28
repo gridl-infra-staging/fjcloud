@@ -9,7 +9,7 @@ are enabled in the Stripe Dashboard; the app should not duplicate them.
 | Email | Owner | Source |
 | --- | --- | --- |
 | Invoice receipt (paid) | Stripe Billing | Stripe Dashboard → Settings → Customer emails |
-| Failed payment / dunning | App (`state.email_service` in webhook invoice-payment handlers; gated by `dunning_emails_disabled`) | `infra/api/src/routes/webhooks.rs` (`process_invoice_payment_failed` / `process_invoice_payment_succeeded`) |
+| Failed payment / dunning | App (`state.email_service` in webhook invoice-payment handlers; gated by `DUNNING_EMAILS_DISABLED`) | `infra/api/src/routes/webhooks.rs` (`handle_payment_failed` :301 / `handle_payment_succeeded` :220) |
 | Expiring card notification | Stripe Billing | Stripe Dashboard → Settings → Customer emails |
 | Refund confirmation | Stripe Billing | Automatic on Dashboard/API refund |
 | Subscription cancellation | Stripe Billing | Automatic on cancellation |
@@ -23,7 +23,27 @@ verifies the Customer Emails toggles per the Stripe Dashboard Prerequisites
 section of [`paid_beta_rc_signoff.md`](paid_beta_rc_signoff.md); those toggles
 are not API-readable, so the live-state probe cannot verify them.
 
+### Verified toggle settings (live mode) — recorded because toggles are not API-readable
+
+These follow from the ownership matrix above; recorded explicitly so the
+decision is not re-derived each launch. Verified 2026-05-28 against code +
+Stripe docs.
+
+| Stripe Dashboard toggle | Setting | Why |
+| --- | --- | --- |
+| Successful payments (receipt) | **ON** | Stripe owns paid-invoice receipts; `handle_payment_succeeded` sends no customer email on normal payment (returns early) — no collision. |
+| Refunds | **ON** | Stripe owns refund confirmations. |
+| Send emails about expiring cards | **ON** | App has no expiring-card sender. **Caveat:** unconfirmed whether Stripe fires this for our *non-subscription* one-off invoices (`collection_method=charge_automatically`, no subscription). If it does not, no expiring-card email exists anywhere — a P1 gap to verify in sandbox, not a launch blocker. |
+| Send emails when card payments fail | **OFF** | App owns dunning, and the app email is co-located with the customer-suspension it describes. Confirmed (Stripe docs) that Stripe *would* send this for one-off `auto_advance=true` invoices, so leaving it on would duplicate **and** potentially contradict the app email. |
+| Send emails when bank debit payments fail | **OFF** | Same owner as card-failure; beta takes cards only. |
+| Trial-ending / upcoming-renewals / subscription-management link | **OFF** | No subscriptions — subscription webhooks are explicit no-ops in `webhooks.rs`. |
+| Payment method update link | **Link to a Stripe-hosted page** | Our `/console/billing/setup` requires login (`locals.user.token`); a customer arriving from a Stripe email would hit a login wall. Stripe-hosted is tokenized + no-login. |
+
+**Dependency — Smart Retries must be ON** (Dashboard → Revenue recovery → Retries, and Settings → Billing → Invoices "Advanced invoicing features" for one-off invoices). The app's grace-period logic keys off Stripe's `next_payment_attempt`: if retries are off, the first failed charge yields `next_payment_attempt=null`, which `handle_retries_exhausted` treats as terminal and **suspends the customer immediately, no grace period**.
+
 Source: [Stripe — Automate customer emails](https://docs.stripe.com/billing/revenue-recovery/customer-emails).
+
+**Operator confirmation (2026-05-28):** the operator set these toggles in **live mode** per the table above — receipts ON, refunds ON, expiring-card ON, failed-payment email **OFF** (app-owned dunning), bank-debit OFF, subscription/trial/renewal toggles OFF, payment-method-update link = Stripe-hosted page — and confirmed **Smart Retries ON**. Recorded here because these are not API-readable; operator attestation is the only record (see [`paid_beta_rc_signoff.md`](paid_beta_rc_signoff.md) Stripe Dashboard Prerequisites). Residual P1 to verify in sandbox (not a launch blocker): whether Stripe's expiring-card email actually fires for our non-subscription one-off invoices.
 
 ## SES Setup
 

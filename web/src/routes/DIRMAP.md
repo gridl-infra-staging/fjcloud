@@ -3,26 +3,23 @@
 
 | File | Summary |
 | --- | --- |
-| +page.server.ts | Stub summary for /Users/stuart/parallel_development/fjcloud_dev/MAR17_11_2_data_management_features/fjcloud_dev/web/src/routes/+page.server.ts. |
 | legal_page_test_helpers.ts | Stub summary for legal_page_test_helpers.ts. |
 
 | Directory | Summary |
 | --- | --- |
-| admin | The admin directory provides server-side routing and data loading for an administrative panel with three main management interfaces: billing administration, customer management with listing and detail views, and database migration controls for triggering migrations across index VMs. |
-| api | The api directory contains SvelteKit server route handlers for key frontend integrations, including pricing comparison endpoints and Stripe operations like publishable-key management, with some areas like the pricing compare route still awaiting full implementation. |
-| billing | The billing directory contains upgrade-related functionality implemented as SvelteKit server-side logic for handling upgrade operations in the fjcloud application. |
-| console | The console directory contains the customer-facing dashboard pages for fjcloud, including account management, API key administration, billing and Stripe integration, various data index management interfaces, and onboarding flows. |
-| console | The console directory is the main customer-facing dashboard interface for fjcloud, containing SvelteKit pages for account management, API key administration, billing and Stripe integration, cloud index operations, user onboarding, and email verification. |
-| console | The console directory contains the main customer-facing dashboard routes for the fjcloud application, providing server-side handlers for account management, billing, API keys, search indexes, onboarding, and email verification functionality. |
+| admin | The admin directory contains SvelteKit server-side pages for administrative dashboards and controls, including billing management with batch invoice operations, customer management and detail views, data migration triggering, and alert administration. |
+| api | The api directory contains SvelteKit server endpoints for core platform integrations, including pricing comparison logic, authenticated instant search functionality against indexes, and Stripe publishable key management. |
+| billing | The billing directory contains SvelteKit server-side route handlers that manage billing-related API endpoints, including upgrade operations for the application. |
+| console | The console directory implements the SvelteKit dashboard interface for customer account management, featuring server-side logic for account settings, API key management, billing configuration, search index administration, and user onboarding flows. |
 | dashboard | — |
 | dev_editor_dialog_demo | — |
 | forgot-password | — |
 | login | — |
 | logout | — |
-| oauth | The oauth directory implements OAuth authentication providers with callback handlers for completing the authorization flow. |
+| oauth | The oauth directory contains callback handlers that process authentication responses from OAuth providers like Google and GitHub through SvelteKit server route handlers. |
 | pricing | — |
 | reset-password | — |
 | signup | — |
-| status | The status directory contains status_contract.ts, which defines contract types and interfaces for status-related functionality. |
+| status | The status directory contains TypeScript contracts for status validation, with status_contract.ts defining the contract specifications for status-related operations. |
 | verify-email | — |
 <!-- [scrai:end] -->

@@ -217,6 +217,17 @@
 # TODO: Document deterministic_batch_payload.
 # TODO: Document deterministic_batch_payload.
 # TODO: Document deterministic_batch_payload.
+# TODO: Document deterministic_batch_payload.
+# TODO: Document deterministic_batch_payload.
+# TODO: Document deterministic_batch_payload.
+# TODO: Document deterministic_batch_payload.
+# TODO: Document deterministic_batch_payload.
+# TODO: Document deterministic_batch_payload.
+# TODO: Document deterministic_batch_payload.
+# TODO: Document deterministic_batch_payload.
+# TODO: Document deterministic_batch_payload.
+# TODO: Document deterministic_batch_payload.
+# TODO: Document deterministic_batch_payload.
 deterministic_batch_payload() {
     local seed="$1"
     local offset="$2"
@@ -250,5 +261,30 @@ for i in range(count):
     )
 
 print(json.dumps({"requests": requests}))
+PY
+}
+
+deterministic_exact_query_term_for_object_id() {
+    local seed="$1"
+    local object_id="$2"
+    local doc_id=""
+
+    case "$object_id" in
+        doc-[0-9]*)
+            doc_id="${object_id#doc-}"
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+
+    python3 - "$seed" "$doc_id" <<'PY'
+import hashlib
+import sys
+
+seed = int(sys.argv[1])
+doc_id = int(sys.argv[2])
+digest = hashlib.sha256(f"{seed}:{doc_id}".encode()).hexdigest()
+print(f"Deterministic content {digest[:32]}")
 PY
 }

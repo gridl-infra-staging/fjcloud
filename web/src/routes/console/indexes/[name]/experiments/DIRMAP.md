@@ -6,5 +6,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| [experimentId] | This SvelteKit dynamic route handles the server-side logic for individual experiment pages within the console, receiving the experiment ID as a route parameter and likely managing data loading and server actions for that specific experiment. |
+| [experimentId] | The [experimentId] directory contains a SvelteKit server page with a stub implementation in +page.server.ts. |
 <!-- [scrai:end] -->

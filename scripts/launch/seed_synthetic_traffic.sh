@@ -78,7 +78,6 @@ DURATION_MINUTES=60
 # index exists, regardless of size, so provisioning alone is sufficient
 # evidence that the metering chain attributes correctly to each tenant.
 PROVISION_ONLY="false"
-TENANT_A_MAPPING_PATH="/tmp/seed-synthetic-demo-shared-free.json"
 SEED_BATCH_SIZE=100
 SEED_BATCH_SEED=42
 MAX_STAGE3_STORAGE_POLLS=400
@@ -163,16 +162,26 @@ tenant_field() {
   eval "printf '%s' \"\${${var}}\""
 }
 
+seed_synthetic_state_dir() {
+  local uid_value state_dir
+  uid_value="${UID:-$(id -u)}"
+  state_dir="${SEED_SYNTHETIC_STATE_DIR:-${TMPDIR:-/tmp}/seed-synthetic-${uid_value}}"
+
+  if [ -L "$state_dir" ]; then
+    die "seed state dir must not be a symlink: ${state_dir}"
+  fi
+  if [ -e "$state_dir" ] && [ ! -d "$state_dir" ]; then
+    die "seed state dir path must be a directory: ${state_dir}"
+  fi
+
+  mkdir -p "$state_dir"
+  chmod 700 "$state_dir" 2>/dev/null || die "failed to secure seed state dir permissions: ${state_dir}"
+  printf '%s' "$state_dir"
+}
+
 tenant_mapping_path() {
   local letter="$1"
-  case "$letter" in
-    A)
-      printf '%s' "$TENANT_A_MAPPING_PATH"
-      ;;
-    *)
-      printf '/tmp/seed-synthetic-%s.json' "$(tenant_field "$letter" NAME)"
-      ;;
-  esac
+  printf '%s/seed-synthetic-%s.json' "$(seed_synthetic_state_dir)" "$(tenant_field "$letter" NAME)"
 }
 
 json_string() {
@@ -219,6 +228,446 @@ mapping_field_or_empty() {
     return 0
   fi
   parse_json_field "$field_name" < "$mapping_path" 2>/dev/null || true
+}
+
+write_tenant_mapping_artifact() {
+  local mapping_path="$1"
+  local customer_id="$2"
+  local tenant_id="$3"
+  local flapjack_uid="$4"
+  local flapjack_url="$5"
+  local mapping_dir mapping_tmp
+
+  mapping_dir="$(dirname "$mapping_path")"
+  mkdir -p "$mapping_dir"
+  chmod 700 "$mapping_dir" 2>/dev/null || die "failed to secure tenant mapping dir permissions: ${mapping_dir}"
+  mapping_tmp="$(mktemp "${mapping_path}.tmp.XXXXXX")" || die "failed to allocate tenant mapping temp file"
+
+  cat > "$mapping_tmp" <<EOF
+{"customer_id":$(json_string "$customer_id"),"tenant_id":$(json_string "$tenant_id"),"flapjack_uid":$(json_string "$flapjack_uid"),"flapjack_url":$(json_string "$flapjack_url")}
+EOF
+  chmod 600 "$mapping_tmp" 2>/dev/null || {
+    rm -f "$mapping_tmp"
+    die "failed to secure tenant mapping file permissions: ${mapping_tmp}"
+  }
+  mv "$mapping_tmp" "$mapping_path"
+}
+
+flapjack_url_host_or_empty() {
+  local flapjack_url="$1"
+  printf '%s' "$flapjack_url" | python3 -c '
+import sys, urllib.parse as u
+parsed = u.urlparse(sys.stdin.read().strip())
+print(parsed.hostname or "")
+'
+}
+
+# Direct-node flows (/internal/storage, /1/indexes/*) must not target public
+# control-plane hosts (api.* / cloud.*). Those hosts are not direct Flapjack
+# node endpoints and return 404 for direct-index routes.
+flapjack_url_is_control_plane() {
+  local flapjack_url="$1"
+  local host
+  host="$(flapjack_url_host_or_empty "$flapjack_url")"
+  case "$host" in
+    api.*|cloud.*)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+direct_fallback_flapjack_url_for_tenant() {
+  local tenant_letter="$1"
+  local mapped_a_url=""
+  local mapped_a_path
+
+  if [ "$tenant_letter" != "A" ]; then
+    mapped_a_path="$(tenant_mapping_path "A")"
+    mapped_a_url="$(mapping_field_or_empty "$mapped_a_path" "flapjack_url")"
+    if [ -n "$mapped_a_url" ] && [ "$mapped_a_url" != "null" ] && ! flapjack_url_is_control_plane "$mapped_a_url"; then
+      printf '%s' "$mapped_a_url"
+      return 0
+    fi
+  fi
+
+  if [ -n "${FLAPJACK_URL:-}" ] && [ "${FLAPJACK_URL}" != "null" ] && ! flapjack_url_is_control_plane "${FLAPJACK_URL}"; then
+    printf '%s' "${FLAPJACK_URL}"
+    return 0
+  fi
+
+  printf '%s' "${FLAPJACK_URL:-}"
+}
+
+probe_owner_counter_dir() {
+  if [ -n "${PROBE_OWNER_COUNTER_DIR:-}" ]; then
+    printf '%s' "$PROBE_OWNER_COUNTER_DIR"
+    return 0
+  fi
+  if [ -n "${PROBE_OUTPUT_DIR:-}" ]; then
+    printf '%s' "$PROBE_OUTPUT_DIR"
+    return 0
+  fi
+  printf ''
+}
+
+probe_owner_counter_path() {
+  local tenant_letter="$1" metric_name="$2"
+  local counter_dir
+  counter_dir="$(probe_owner_counter_dir)"
+  if [ -z "$counter_dir" ]; then
+    printf ''
+    return 0
+  fi
+  printf '%s/%s_%s.count' "$counter_dir" "$tenant_letter" "$metric_name"
+}
+
+probe_owner_event_log_path() {
+  local log_kind="$1"
+  local counter_dir
+  counter_dir="$(probe_owner_counter_dir)"
+  if [ -z "$counter_dir" ]; then
+    printf ''
+    return 0
+  fi
+  printf '%s/probe_owner_%s_events.log' "$counter_dir" "$log_kind"
+}
+
+probe_owner_append_event() {
+  local log_kind="$1" tenant_letter="$2" operation_name="$3" status_code="$4"
+  local event_log_path now_epoch
+  event_log_path="$(probe_owner_event_log_path "$log_kind")"
+  if [ -z "$event_log_path" ] || [ -z "$tenant_letter" ]; then
+    return 0
+  fi
+  now_epoch="$(date +%s)"
+  printf '%s|%s|%s|%s\n' "$now_epoch" "$tenant_letter" "$operation_name" "$status_code" >> "$event_log_path"
+}
+
+probe_owner_read_numeric_or_zero() {
+  local count_path="$1"
+  if [ -z "$count_path" ] || [ ! -f "$count_path" ]; then
+    printf '0'
+    return 0
+  fi
+  local value
+  value="$(tr -dc '0-9\n' < "$count_path" | tail -n 1)"
+  if [ -z "$value" ]; then
+    printf '0'
+    return 0
+  fi
+  printf '%s' "$value"
+}
+
+probe_owner_count_fail_fast_events_in_window() {
+  local tenant_letter="$1" window_start_epoch="$2" window_end_epoch="$3"
+  local write_events_log fail_fast_count
+  write_events_log="$(probe_owner_event_log_path "write")"
+  fail_fast_count="$(
+    python3 - "$tenant_letter" "$window_start_epoch" "$window_end_epoch" "$write_events_log" <<'PY'
+import sys
+
+tenant_letter = sys.argv[1]
+window_start = int(sys.argv[2]) if sys.argv[2].isdigit() else 0
+window_end = int(sys.argv[3]) if sys.argv[3].isdigit() else 0
+paths = [sys.argv[4]]
+
+if window_start <= 0 or window_end <= 0 or window_end < window_start:
+    print("0")
+    raise SystemExit(0)
+
+count = 0
+for path in paths:
+    if not path:
+        continue
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            for raw_line in handle:
+                line = raw_line.strip()
+                if not line:
+                    continue
+                pieces = line.split("|")
+                if len(pieces) != 4:
+                    continue
+                event_epoch_raw, event_tenant, _operation, status_raw = pieces
+                if event_tenant != tenant_letter:
+                    continue
+                try:
+                    event_epoch = int(event_epoch_raw)
+                    status_code = int(status_raw)
+                except ValueError:
+                    continue
+                if event_epoch < window_start or event_epoch > window_end:
+                    continue
+                if status_code not in (200, 202):
+                    count += 1
+    except FileNotFoundError:
+        continue
+
+print(str(count))
+PY
+  )"
+  if [ -z "$fail_fast_count" ]; then
+    printf '0'
+    return 0
+  fi
+  printf '%s' "$fail_fast_count"
+}
+
+probe_owner_query_hit_count() {
+  local flapjack_url="$1" flapjack_uid="$2" query_term="$3"
+  local node_api_key query_payload response status body hit_count
+  node_api_key="$(node_api_key_for_url "$flapjack_url")"
+  query_payload="$(printf '{"query":%s}' "$(json_string "$query_term")")"
+  response="$(curl -sS -X POST "${flapjack_url}/1/indexes/${flapjack_uid}/query" \
+    -H "Content-Type: application/json" \
+    -H "X-Algolia-API-Key: ${node_api_key}" \
+    -H "X-Algolia-Application-Id: ${FLAPJACK_APPLICATION_ID}" \
+    -d "$query_payload" \
+    -w '\n%{http_code}')"
+  status="$(http_response_status "$response")"
+  body="$(http_response_body "$response")"
+  case "$status" in
+    200|202) ;;
+    *)
+      return 9
+      ;;
+  esac
+  if ! hit_count="$(python3 - "$body" <<'PY'
+import json
+import sys
+
+try:
+    payload = json.loads(sys.argv[1])
+except json.JSONDecodeError:
+    raise SystemExit(9)
+
+hits = payload.get("hits")
+if isinstance(hits, list):
+    print(str(len(hits)))
+    raise SystemExit(0)
+
+for key in ("estimatedTotalHits", "nbHits", "totalHits"):
+    value = payload.get(key)
+    if isinstance(value, int):
+        print(str(value))
+        raise SystemExit(0)
+    if isinstance(value, str) and value.isdigit():
+        print(value)
+        raise SystemExit(0)
+
+raise SystemExit(8)
+PY
+  )"; then
+    return 9
+  fi
+  printf '%s' "$hit_count"
+}
+
+probe_owner_health_status_code() {
+  local flapjack_url="$1"
+  local response status
+  response="$(curl -sS -X GET "${flapjack_url}/health" -w '\n%{http_code}')"
+  status="$(http_response_status "$response")"
+  printf '%s' "$status"
+}
+
+probe_owner_fail_fast_during_restart_window_count() {
+  local flapjack_url="$1" flapjack_uid="$2" window_start_epoch="$3" window_end_epoch="$4" tenant_letter="$5"
+  : "$flapjack_url" "$flapjack_uid"
+  probe_owner_count_fail_fast_events_in_window "$tenant_letter" "$window_start_epoch" "$window_end_epoch"
+}
+
+probe_owner_writes_attempted_during_restart_window_count() {
+  local flapjack_url="$1" flapjack_uid="$2" window_start_epoch="$3" window_end_epoch="$4" tenant_letter="$5"
+  local write_events_log attempted_count
+  : "$flapjack_url" "$flapjack_uid"
+  write_events_log="$(probe_owner_event_log_path "write")"
+  attempted_count="$(
+    python3 - "$tenant_letter" "$window_start_epoch" "$window_end_epoch" "$write_events_log" <<'PY'
+import sys
+
+tenant_letter = sys.argv[1]
+window_start = int(sys.argv[2]) if sys.argv[2].isdigit() else 0
+window_end = int(sys.argv[3]) if sys.argv[3].isdigit() else 0
+path = sys.argv[4]
+
+if window_start <= 0 or window_end <= 0 or window_end < window_start:
+    print("0")
+    raise SystemExit(0)
+
+count = 0
+try:
+    with open(path, "r", encoding="utf-8") as handle:
+        for raw_line in handle:
+            line = raw_line.strip()
+            if not line:
+                continue
+            pieces = line.split("|")
+            if len(pieces) != 4:
+                continue
+            event_epoch_raw, event_tenant, _operation, _status_raw = pieces
+            if event_tenant != tenant_letter:
+                continue
+            try:
+                event_epoch = int(event_epoch_raw)
+            except ValueError:
+                continue
+            if event_epoch < window_start or event_epoch > window_end:
+                continue
+            count += 1
+except FileNotFoundError:
+    count = 0
+
+print(str(count))
+PY
+  )"
+  printf '%s' "${attempted_count:-0}"
+}
+
+probe_owner_query_exact_object_hit_count() {
+  local flapjack_url="$1" flapjack_uid="$2" object_id="$3"
+  local exact_query_term hit_count
+  # Live staging disproved GET /documents/<id> as a readback contract for
+  # deterministic probe writes: published batch tasks became searchable on the
+  # canonical flapjack UID while the document endpoint still returned 404.
+  # Reconstruct the write's unique deterministic body token and query for that
+  # exact term instead, which preserves same-index exactness without relying on
+  # the live-broken document read route.
+  if ! exact_query_term="$(deterministic_exact_query_term_for_object_id "$SEED_BATCH_SEED" "$object_id")"; then
+    return 9
+  fi
+  if ! hit_count="$(probe_owner_query_hit_count "$flapjack_url" "$flapjack_uid" "$exact_query_term")"; then
+    return 9
+  fi
+  case "$hit_count" in
+    ''|*[!0-9]*) return 9 ;;
+  esac
+  if [ "$hit_count" -gt 0 ]; then
+    printf '1'
+  else
+    printf '0'
+  fi
+}
+
+probe_owner_visible_in_search_after_count() {
+  local flapjack_url="$1" flapjack_uid="$2" window_start_epoch="$3" window_end_epoch="$4" tenant_letter="$5"
+  local write_events_log visible_count doc_ids doc_id hit_count
+  write_events_log="$(probe_owner_event_log_path "write")"
+  visible_count=0
+  if [ ! -f "$write_events_log" ]; then
+    printf '0'
+    return 0
+  fi
+  doc_ids="$(
+    awk -F'|' -v tenant="$tenant_letter" -v start="$window_start_epoch" -v end="$window_end_epoch" '
+      NF==4 {
+        epoch=$1+0
+        status=$4+0
+        if ($2==tenant && epoch>=start && epoch<=end && (status==200 || status==202) && $3 ~ /^doc-/) {
+          print $3
+        }
+      }
+    ' "$write_events_log"
+  )"
+  if [ -z "$doc_ids" ]; then
+    # Zero successful restart-window writes is a valid measured outcome.
+    # Return a numeric zero so probe consumers keep callback-backed scope.
+    printf '0'
+    return 0
+  fi
+  while IFS= read -r doc_id; do
+    [ -n "$doc_id" ] || continue
+    if hit_count="$(probe_owner_query_exact_object_hit_count "$flapjack_url" "$flapjack_uid" "$doc_id")"; then
+      case "$hit_count" in
+        ''|*[!0-9]*) ;;
+        *)
+          if [ "$hit_count" -gt 0 ]; then
+            visible_count=$((visible_count + 1))
+          fi
+          ;;
+      esac
+    fi
+  done <<EOF
+$doc_ids
+EOF
+  printf '%s' "$visible_count"
+}
+
+probe_owner_cross_tenant_leak_count() {
+  local flapjack_url="$1" flapjack_uid="$2" tenant_letter="$3"
+  local source_offset_base source_doc_id leaks old_ifs peer_letter peer_mapping_path peer_flapjack_url peer_flapjack_uid peer_hits
+  local counter_path
+  : "$flapjack_url" "$flapjack_uid"
+  counter_path="$(probe_owner_counter_path "$tenant_letter" "write_offset_base")"
+  source_offset_base="$(probe_owner_read_numeric_or_zero "$counter_path")"
+  if [ "$source_offset_base" -le 0 ]; then
+    printf '0'
+    return 0
+  fi
+  source_doc_id="doc-${source_offset_base}"
+  leaks=0
+  old_ifs="$IFS"
+  IFS=','
+  for peer_letter in ${PROBE_TENANTS_CSV:-}; do
+    if [ -z "$peer_letter" ] || [ "$peer_letter" = "$tenant_letter" ]; then
+      continue
+    fi
+    peer_mapping_path="$(tenant_mapping_path "$peer_letter")"
+    peer_flapjack_url="$(mapping_field_or_empty "$peer_mapping_path" "flapjack_url")"
+    peer_flapjack_uid="$(mapping_field_or_empty "$peer_mapping_path" "flapjack_uid")"
+    if [ -z "$peer_flapjack_url" ] || [ -z "$peer_flapjack_uid" ]; then
+      return 10
+    fi
+    if ! peer_hits="$(probe_owner_query_exact_object_hit_count "$peer_flapjack_url" "$peer_flapjack_uid" "$source_doc_id")"; then
+      return 11
+    fi
+    case "$peer_hits" in
+      ''|*[!0-9]*) return 12 ;;
+    esac
+    if [ "$peer_hits" -gt 0 ]; then
+      leaks=$((leaks + 1))
+    fi
+  done
+  IFS="$old_ifs"
+  printf '%s' "$leaks"
+}
+
+probe_owner_noisy_neighbor_violation_count() {
+  local flapjack_url="$1" flapjack_uid="$2" tenant_letter="$3"
+  local violations old_ifs peer_letter peer_mapping_path peer_flapjack_url peer_status
+  : "$flapjack_uid" "$tenant_letter"
+  violations=0
+  old_ifs="$IFS"
+  IFS=','
+  for peer_letter in ${PROBE_TENANTS_CSV:-}; do
+    if [ -z "$peer_letter" ] || [ "$peer_letter" = "$tenant_letter" ]; then
+      continue
+    fi
+    peer_mapping_path="$(tenant_mapping_path "$peer_letter")"
+    peer_flapjack_url="$(mapping_field_or_empty "$peer_mapping_path" "flapjack_url")"
+    if [ -z "$peer_flapjack_url" ]; then
+      return 13
+    fi
+    peer_status="$(probe_owner_health_status_code "$peer_flapjack_url")"
+    case "$peer_status" in
+      ''|*[!0-9]*) return 14 ;;
+      200) ;;
+      *) violations=$((violations + 1)) ;;
+    esac
+  done
+  IFS="$old_ifs"
+  # Probe the active tenant last so a callback caller can detect local
+  # availability regression as a noisy-neighbor symptom.
+  peer_status="$(probe_owner_health_status_code "$flapjack_url")"
+  case "$peer_status" in
+    ''|*[!0-9]*) return 15 ;;
+    200) ;;
+    *) violations=$((violations + 1)) ;;
+  esac
+  printf '%s' "$violations"
 }
 
 single_write_batch_payload() {
@@ -274,10 +723,21 @@ run_direct_write_loop() {
       -d "$payload" \
       -w '\n%{http_code}')"
     status="$(http_response_status "$response")"
+    probe_owner_append_event "write" "${PROBE_ACTIVE_TENANT_LETTER:-}" "doc-${document_offset}" "$status"
     case "$status" in
       200|202) ;;
       *)
-        die "sustained write failed for ${flapjack_uid} (status=${status} body=$(http_response_body "$response"))"
+        # Under probe mode the loop runs across the API restart window, where
+        # transient non-200/202 responses are expected. The failure is already
+        # recorded as a fail-fast event via probe_owner_append_event above, so log
+        # and continue (still counting the attempt) instead of aborting — that lets
+        # the probe reach assertion evaluation. The standalone seeder (no
+        # PROBE_ACTIVE_TENANT_LETTER) still treats a write failure as fatal.
+        if [ -n "${PROBE_ACTIVE_TENANT_LETTER:-}" ]; then
+          log "sustained write transient error for ${flapjack_uid} (status=${status}); probe mode continuing"
+        else
+          die "sustained write failed for ${flapjack_uid} (status=${status} body=$(http_response_body "$response"))"
+        fi
         ;;
     esac
     sent=$((sent + 1))
@@ -303,10 +763,19 @@ run_direct_search_loop() {
       -d "$search_payload" \
       -w '\n%{http_code}')"
     status="$(http_response_status "$response")"
+    probe_owner_append_event "search" "${PROBE_ACTIVE_TENANT_LETTER:-}" "query" "$status"
     case "$status" in
       200|202) ;;
       *)
-        die "sustained search failed for ${flapjack_uid} (status=${status} body=$(http_response_body "$response"))"
+        # Searches issued just after restart recovery may still see transient
+        # errors; same probe-mode seam as run_direct_write_loop. The event is
+        # already logged above, so continue under probe mode and stay fatal for
+        # the standalone seeder.
+        if [ -n "${PROBE_ACTIVE_TENANT_LETTER:-}" ]; then
+          log "sustained search transient error for ${flapjack_uid} (status=${status}); probe mode continuing"
+        else
+          die "sustained search failed for ${flapjack_uid} (status=${status} body=$(http_response_body "$response"))"
+        fi
         ;;
     esac
     sent=$((sent + 1))
@@ -502,6 +971,8 @@ ensure_customer_and_tenant() {
   local update_payload update_response update_status
   local index_payload index_response index_status index_body
   local index_name index_endpoint
+  local stale_customer_retry_remaining="true"
+  ENSURE_CUSTOMER_AND_TENANT_CREATED_THIS_CALL="false"
 
   name="$(tenant_field "$letter" NAME)"
   email="${name}@synthetic-seed.invalid"
@@ -520,36 +991,55 @@ ensure_customer_and_tenant() {
   tenant_id="$mapped_tenant_id"
   flapjack_uid="$mapped_flapjack_uid"
   flapjack_url="$mapped_flapjack_url"
+  if [ -n "$flapjack_url" ] && [ "$flapjack_url" != "null" ] && flapjack_url_is_control_plane "$flapjack_url"; then
+    log "  mapped flapjack_url=${flapjack_url} is control-plane only; clearing cached flapjack_url for direct-node fallback resolution"
+    flapjack_url=""
+  fi
 
-  if [ -z "$customer_id" ]; then
-    create_payload="$(printf '{"name":%s,"email":%s}' "$(json_string "$name")" "$(json_string "$email")")"
-    create_response="$(admin_call "POST" "/admin/tenants" -d "$create_payload")"
-    create_status="$(http_response_status "$create_response")"
-    create_body="$(http_response_body "$create_response")"
-    case "$create_status" in
-      201|409)
-        customer_id="$(printf '%s\n' "$create_body" | parse_json_field "id" 2>/dev/null || true)"
-        ;;
-      *)
-        die "create tenant failed for ${name} (status=${create_status} body=${create_body})"
-        ;;
-    esac
-    if [ -z "$customer_id" ] || [ "$customer_id" = "null" ]; then
-      customer_id="$(resolve_customer_id_by_name_or_email "$name" "$email")"
+  while :; do
+    if [ -z "$customer_id" ]; then
+      create_payload="$(printf '{"name":%s,"email":%s}' "$(json_string "$name")" "$(json_string "$email")")"
+      create_response="$(admin_call "POST" "/admin/tenants" -d "$create_payload")"
+      create_status="$(http_response_status "$create_response")"
+      create_body="$(http_response_body "$create_response")"
+      case "$create_status" in
+        201|409)
+          if [ "$create_status" = "201" ]; then
+            ENSURE_CUSTOMER_AND_TENANT_CREATED_THIS_CALL="true"
+          fi
+          customer_id="$(printf '%s\n' "$create_body" | parse_json_field "id" 2>/dev/null || true)"
+          ;;
+        *)
+          die "create tenant failed for ${name} (status=${create_status} body=${create_body})"
+          ;;
+      esac
+      if [ -z "$customer_id" ] || [ "$customer_id" = "null" ]; then
+        customer_id="$(resolve_customer_id_by_name_or_email "$name" "$email")"
+      fi
     fi
-  fi
 
-  if [ "$customer_id" = "null" ]; then
-    customer_id=""
-  fi
-  [ -n "$customer_id" ] || die "tenant provisioning did not resolve customer_id for ${name}"
+    if [ "$customer_id" = "null" ]; then
+      customer_id=""
+    fi
+    [ -n "$customer_id" ] || die "tenant provisioning did not resolve customer_id for ${name}"
 
-  update_payload='{"billing_plan":"shared"}'
-  update_response="$(admin_call "PUT" "/admin/tenants/${customer_id}" -d "$update_payload")"
-  update_status="$(http_response_status "$update_response")"
-  if [ "$update_status" != "200" ]; then
+    update_payload='{"billing_plan":"shared"}'
+    update_response="$(admin_call "PUT" "/admin/tenants/${customer_id}" -d "$update_payload")"
+    update_status="$(http_response_status "$update_response")"
+    if [ "$update_status" = "200" ]; then
+      break
+    fi
+    if [ "$update_status" = "404" ] && [ "$stale_customer_retry_remaining" = "true" ]; then
+      stale_customer_retry_remaining="false"
+      log "  mapped customer_id=${customer_id} was not active (update 404); clearing cached mapping state and reprovisioning once"
+      customer_id=""
+      tenant_id=""
+      flapjack_uid=""
+      flapjack_url=""
+      continue
+    fi
     die "update tenant failed for ${name} (status=${update_status} body=$(http_response_body "$update_response"))"
-  fi
+  done
 
   index_payload="$(printf '{"name":%s,"region":"us-east-1","flapjack_url":%s}' "$(json_string "$name")" "$(json_string "$FLAPJACK_URL")")"
   index_response="$(admin_call "POST" "/admin/tenants/${customer_id}/indexes" -d "$index_payload")"
@@ -577,7 +1067,11 @@ ensure_customer_and_tenant() {
         fi
       fi
       if [ -n "$index_endpoint" ] && [ "$index_endpoint" != "null" ] && { [ -z "$flapjack_url" ] || [ "$flapjack_url" = "null" ]; }; then
-        flapjack_url="$index_endpoint"
+        if flapjack_url_is_control_plane "$index_endpoint"; then
+          log "  index endpoint ${index_endpoint} is control-plane only; ignoring for direct-node traffic"
+        else
+          flapjack_url="$index_endpoint"
+        fi
       fi
       ;;
     *)
@@ -591,13 +1085,14 @@ ensure_customer_and_tenant() {
   if [ -z "$flapjack_uid" ]; then
     flapjack_uid="${customer_id//-/}_${tenant_id}"
   fi
-  if [ -z "$flapjack_url" ] || [ "$flapjack_url" = "null" ]; then
-    flapjack_url="$FLAPJACK_URL"
+  if [ -z "$flapjack_url" ] || [ "$flapjack_url" = "null" ] || flapjack_url_is_control_plane "$flapjack_url"; then
+    flapjack_url="$(direct_fallback_flapjack_url_for_tenant "$letter")"
+  fi
+  if [ -z "$flapjack_url" ] || [ "$flapjack_url" = "null" ] || flapjack_url_is_control_plane "$flapjack_url"; then
+    die "tenant provisioning could not resolve a direct-node flapjack_url for ${name}; got '${flapjack_url}'"
   fi
 
-  cat > "$mapping_path" <<EOF
-{"customer_id":$(json_string "$customer_id"),"tenant_id":$(json_string "$tenant_id"),"flapjack_uid":$(json_string "$flapjack_uid"),"flapjack_url":$(json_string "$flapjack_url")}
-EOF
+  write_tenant_mapping_artifact "$mapping_path" "$customer_id" "$tenant_id" "$flapjack_uid" "$flapjack_url"
   log "  tenant mapping ready at ${mapping_path}"
 }
 

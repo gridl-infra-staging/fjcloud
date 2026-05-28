@@ -7,5 +7,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| vlm_capture | VLM screenshot capture directory that manages visual language model screenshot tuples with redirect guards and manifest configuration for deterministic image capture workflows. |
+| vlm_capture | This directory provides utilities for VLM screenshot capture operations, including manifest handling, capture-time redirect protection, and a canonical definition of screenshot capture tuples. |
 <!-- [scrai:end] -->

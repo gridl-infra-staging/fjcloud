@@ -1,0 +1,17 @@
+$ bash scripts/launch/hydrate_seeder_env_from_ssm.sh staging
+Keys exported: ADMIN_KEY, DATABASE_URL, API_URL, FLAPJACK_URL, STRIPE_SECRET_KEY, SES_FROM_ADDRESS, STRIPE_WEBHOOK_SECRET, STAGING_API_URL, STAGING_STRIPE_WEBHOOK_URL, STAGING_CLOUD_URL
+
+Shape checks:
+  API_URL: present
+  ADMIN_KEY: present
+  SES_FROM_ADDRESS: present (noreply@flapjack.foo)
+  STRIPE_SECRET_KEY: sk_test_* shape OK
+  DATABASE_URL: present
+
+SSM direct fetch:
+  /fjcloud/staging/ses_region: us-east-1
+
+Not present (operator-provided):
+  FJCLOUD_TEST_TENANT_IDS: NOT in .env.secret or SSM (required only by dunning delivery probe)
+
+EXIT: 0 (hydrator itself succeeds; FJCLOUD_TEST_TENANT_IDS and SES_REGION are supplemental)

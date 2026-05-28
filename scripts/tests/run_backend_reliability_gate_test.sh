@@ -333,6 +333,48 @@ test_gate_live_rust_validation_uses_integration_mode() {
     rm -rf "$mock_dir"
 }
 
+test_gate_reliability_api_checks_use_integration_binary_targets() {
+    local mock_dir
+    mock_dir="$(mktemp -d)"
+    setup_mock_cargo "$mock_dir" pass
+
+    local run_output exit_code=0
+    run_output="$(
+        PATH="$mock_dir:$PATH" bash -c "
+            export __RUN_BACKEND_RELIABILITY_GATE_SOURCED=1
+            source '$GATE_SCRIPT'
+            run_reliability_scheduler_tests
+            run_reliability_replication_tests
+            run_reliability_api_crash_tests
+            run_reliability_cold_tier_tests
+            run_reliability_sql_guard_test
+        " 2>&1
+    )" || exit_code="$?"
+
+    assert_eq "$exit_code" "0" "reliability API checks should succeed against mocked cargo"
+    assert_contains "$run_output" "REASON: RELIABILITY_SCHEDULER_TESTS_PASS" "scheduler reliability check should emit pass reason"
+    assert_contains "$run_output" "REASON: RELIABILITY_REPLICATION_TESTS_PASS" "replication reliability check should emit pass reason"
+    assert_contains "$run_output" "REASON: RELIABILITY_API_CRASH_TESTS_PASS" "api crash reliability check should emit pass reason"
+    assert_contains "$run_output" "REASON: RELIABILITY_COLD_TIER_TESTS_PASS" "cold tier reliability check should emit pass reason"
+    assert_contains "$run_output" "REASON: RELIABILITY_SQL_GUARD_TESTS_PASS" "sql guard reliability check should emit pass reason"
+
+    local cargo_invocations
+    cargo_invocations="$(cat "$mock_dir/cargo_invocations.log")"
+
+    assert_contains "$cargo_invocations" "args=test -p api --test integration scheduler_test::" \
+        "scheduler reliability check should use integration test binary selector"
+    assert_contains "$cargo_invocations" "args=test -p api --test integration reliability_replication_test::" \
+        "replication reliability check should use integration test binary selector"
+    assert_contains "$cargo_invocations" "args=test -p api --test integration reliability_api_crash_test::" \
+        "api crash reliability check should use integration test binary selector"
+    assert_contains "$cargo_invocations" "args=test -p api --test integration reliability_cold_tier_test::" \
+        "cold tier reliability check should use integration test binary selector"
+    assert_contains "$cargo_invocations" "args=test -p api --test integration reliability_security_test::" \
+        "sql guard reliability check should use integration test binary selector"
+
+    rm -rf "$mock_dir"
+}
+
 test_gate_profile_freshness_enforces_30_days() {
     local mock_dir
     mock_dir="$(mktemp -d)"
@@ -705,6 +747,7 @@ for test_fn in \
     test_gate_security_only \
     test_gate_live_only_skips_rust_validation_with_flag \
     test_gate_live_rust_validation_uses_integration_mode \
+    test_gate_reliability_api_checks_use_integration_binary_targets \
     test_gate_profile_freshness_enforces_30_days \
     test_gate_profile_check_bootstraps_missing_artifacts \
     test_gate_conflicting_mode_flags_fail \

@@ -95,26 +95,82 @@ write_tier1_mock_cargo() {
     write_mock_script "$path" '
 set -euo pipefail
 args="$*"
+if [ -n "${TIER1_CARGO_ARGS_LOG:-}" ]; then
+    echo "$args" >> "$TIER1_CARGO_ARGS_LOG"
+fi
 if [[ "$args" == "test --workspace" ]]; then
     exit 0
 fi
-if [[ "$args" == *"--test admin_broadcast_test"* ]]; then
+if [[ "$args" == *"--test integration admin_broadcast_test::"* ]] || [[ "$args" == *"--test admin_broadcast_test"* ]]; then
     echo "SKIP: DATABASE_URL not set — skipping admin broadcast integration tests"
     exit 0
 fi
-if [[ "$args" == *"--test pg_customer_repo_test"* ]]; then
+if [[ "$args" == *"--test integration pg_customer_repo_test::"* ]] || [[ "$args" == *"--test pg_customer_repo_test"* ]]; then
     echo "SKIP: DATABASE_URL not set — skipping PgCustomerRepo SQL tests"
     exit 0
 fi
-if [[ "$args" == *"--test admin_audit_view_test"* ]]; then
+if [[ "$args" == *"--test integration admin_audit_view_test::"* ]] || [[ "$args" == *"--test admin_audit_view_test"* ]]; then
     echo "SKIP: DATABASE_URL not set — skipping admin audit view integration tests"
     exit 0
 fi
-if [[ "$args" == *"--test admin_token_audit_test"* ]]; then
+if [[ "$args" == *"--test integration admin_token_audit_test::"* ]] || [[ "$args" == *"--test admin_token_audit_test"* ]]; then
     echo "SKIP: DATABASE_URL not set — skipping audit_log integration tests"
     exit 0
 fi
 exit 0'
+}
+
+test_paid_beta_rc_rust_steps_target_integration_binary() {
+    local tmp_dir cargo_args
+    tmp_dir="$(mktemp -d)"
+    cargo_args="$tmp_dir/cargo_args.log"
+    mkdir -p "$tmp_dir/bin"
+
+    write_tier1_mock_cargo "$tmp_dir/mock_cargo.sh"
+    write_mock_script "$tmp_dir/mock_backend_gate.sh" 'echo "{\"verdict\":\"pass\"}"; exit 0'
+    write_mock_script "$tmp_dir/mock_local_signoff.sh" 'exit 0'
+    write_mock_script "$tmp_dir/mock_ses.sh" 'exit 0'
+    write_mock_script "$tmp_dir/mock_billing.sh" 'echo "{\"result\":\"passed\"}"; exit 0'
+    write_mock_script "$tmp_dir/mock_browser_preflight.sh" 'exit 0'
+    write_mock_script "$tmp_dir/mock_tf_static_stage7.sh" 'exit 0'
+    write_mock_script "$tmp_dir/mock_tf_static_stage8.sh" 'exit 0'
+    write_mock_script "$tmp_dir/mock_runtime_smoke.sh" 'exit 0'
+    write_mock_script "$tmp_dir/mock_canary_outside_aws.sh" 'exit 0'
+    write_mock_script "$tmp_dir/mock_ses_inbound_roundtrip.sh" 'echo "ses_inbound should not run without prerequisites" >&2; exit 99'
+    write_mock_script "$tmp_dir/mock_canary_customer_loop.sh" 'echo "canary_customer_loop should not run without prerequisites" >&2; exit 99'
+    write_mock_script "$tmp_dir/bin/npx" 'exit 0'
+
+    run_orchestrator env \
+        TIER1_CARGO_ARGS_LOG="$cargo_args" \
+        PATH="$tmp_dir/bin:$PATH" \
+        FULL_VALIDATION_CARGO_BIN="$tmp_dir/mock_cargo.sh" \
+        FULL_VALIDATION_BACKEND_GATE_SCRIPT="$tmp_dir/mock_backend_gate.sh" \
+        FULL_VALIDATION_LOCAL_SIGNOFF_SCRIPT="$tmp_dir/mock_local_signoff.sh" \
+        FULL_VALIDATION_SES_READINESS_SCRIPT="$tmp_dir/mock_ses.sh" \
+        FULL_VALIDATION_STAGING_BILLING_REHEARSAL_SCRIPT="$tmp_dir/mock_billing.sh" \
+        FULL_VALIDATION_BROWSER_PREFLIGHT_SCRIPT="$tmp_dir/mock_browser_preflight.sh" \
+        FULL_VALIDATION_TERRAFORM_STAGE7_STATIC_SCRIPT="$tmp_dir/mock_tf_static_stage7.sh" \
+        FULL_VALIDATION_TERRAFORM_STAGE8_STATIC_SCRIPT="$tmp_dir/mock_tf_static_stage8.sh" \
+        FULL_VALIDATION_TERRAFORM_STAGE7_RUNTIME_SMOKE_SCRIPT="$tmp_dir/mock_runtime_smoke.sh" \
+        FULL_VALIDATION_OUTSIDE_AWS_HEALTH_SCRIPT="$tmp_dir/mock_canary_outside_aws.sh" \
+        FULL_VALIDATION_SES_INBOUND_ROUNDTRIP_SCRIPT="$tmp_dir/mock_ses_inbound_roundtrip.sh" \
+        FULL_VALIDATION_CANARY_CUSTOMER_LOOP_SCRIPT="$tmp_dir/mock_canary_customer_loop.sh" \
+        bash "$ORCH_SCRIPT" --paid-beta-rc --sha=aabbccddee00112233445566778899aabbccddee --billing-month=2026-03 --staging-smoke-ami-id=ami-12345678
+
+    cargo_args="$(cat "$cargo_args" 2>/dev/null || true)"
+    rm -rf "$tmp_dir"
+
+    assert_contains "$cargo_args" "test -p api --test integration admin_broadcast_test::" "admin_broadcast must target integration test binary with module selector"
+    assert_contains "$cargo_args" "test -p api --test integration pg_customer_repo_test::" "billing_health_last_activity must target integration PgCustomerRepo module"
+    assert_contains "$cargo_args" "test -p api --test integration tenants_test::" "billing_health_last_activity must target integration tenants module"
+    assert_contains "$cargo_args" "test -p api --test integration admin_audit_view_test::" "audit_timeline must target integration admin audit module"
+    assert_contains "$cargo_args" "test -p api --test integration admin_token_audit_test::" "audit_timeline must target integration admin token audit module"
+    assert_contains "$cargo_args" "test -p api --test integration onboarding_test::status_response_uses_region_not_deployment_field_names" "status_runtime must target integration onboarding test by module path"
+    assert_contains "$cargo_args" "test -p api --test integration stripe_webhook_signature_test::" "stripe_webhook step must target integration signature module"
+    assert_contains "$cargo_args" "test -p api --test integration stripe_webhook_event_matrix_test::" "stripe_webhook step must target integration event-matrix module"
+    assert_contains "$cargo_args" "test -p api --test integration stripe_webhook_idempotency_test::" "stripe_webhook step must target integration idempotency module"
+    assert_contains "$cargo_args" "test -p api --test integration tenant_isolation_proptest::tenant_isolation_proptest_route_family" "tenant_isolation must target integration module and function selector"
+    assert_contains "$cargo_args" "test -p api --test integration signup_abuse_test::" "signup_abuse must target integration module selector"
 }
 
 test_paid_beta_rc_tier1_registry_and_missing_secret_classification() {
@@ -389,6 +445,7 @@ exit "${MOCK_CANARY_CUSTOMER_LOOP_EXIT_CODE:-0}"'
 }
 
 echo "=== full backend validation tier1 registry tests ==="
+test_paid_beta_rc_rust_steps_target_integration_binary
 test_paid_beta_rc_tier1_registry_and_missing_secret_classification
 test_paid_beta_rc_tier1_live_evidence_gap_and_browser_promotion
 test_paid_beta_rc_canary_customer_loop_reads_credential_env_file

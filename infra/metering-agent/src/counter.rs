@@ -100,8 +100,13 @@ pub fn build_counter_usage_records(
 ///   warned and skipped.
 /// - Skips cold/restoring tiers — live counter metrics do not apply to them.
 /// - Calls [`CounterState::advance`] to compute the delta since the previous
-///   scrape.  On the very first scrape for an index, `advance` returns zero
-///   for all counters (the baseline is set but nothing is emitted).
+///   scrape.  On the first observation of an index the baseline depends on
+///   when the index was created relative to the agent start time: indexes
+///   created after the agent started are seeded with a zero baseline (their
+///   flapjack counters began at 0 under our watch, so the first observed value
+///   is billed in full), while pre-existing indexes keep the conservative
+///   `None` baseline (first scrape emits nothing) to avoid re-billing usage
+///   that accrued before we started watching — e.g. across an agent restart.
 /// - Emits one record per event type (search, write, indexed, deleted) only
 ///   when the delta is non-zero, preventing zero-value noise in the DB.
 ///
@@ -140,7 +145,26 @@ fn build_counter_delta_records(
         // Delta state belongs to the canonical tenant id, not the flapjack
         // label observed in this scrape, so alias/canonical label changes do
         // not reset the billing baseline mid-stream.
-        let mut entry = state.entry(tenant.tenant_id.clone()).or_default();
+        //
+        // On the FIRST observation of an index (no prior state), the baseline
+        // we seed decides whether the initial usage burst is billed:
+        //   - Index created AFTER this agent started: its flapjack counters
+        //     genuinely began at 0 under our watch, so seed a zero baseline
+        //     and bill the full first observed value. Without this, tenant-map
+        //     refresh lag means traffic arriving before the first non-skipped
+        //     scrape would silently set a non-zero baseline and the entire
+        //     initial burst would be dropped.
+        //   - Index created BEFORE this agent started (agent-restart case): we
+        //     don't know how much ran before we began watching, so keep the
+        //     conservative `None` baseline (first scrape bills nothing) to
+        //     avoid re-billing historical usage.
+        let mut entry = state.entry(tenant.tenant_id.clone()).or_insert_with(|| {
+            if tenant.created_at > cfg.started_at {
+                crate::delta::CounterState::seeded_zero()
+            } else {
+                crate::delta::CounterState::default()
+            }
+        });
         let write_total = totals.write_totals.get(tenant_id).copied().unwrap_or(0);
         let indexed_total = totals.indexed_totals.get(tenant_id).copied().unwrap_or(0);
         let deleted_total = totals.deleted_totals.get(tenant_id).copied().unwrap_or(0);
@@ -256,6 +280,7 @@ mod tests {
             health_port: 9091,
             tenant_map_url: "http://127.0.0.1:3001/internal/tenant-map".to_string(),
             cold_storage_usage_url: "http://127.0.0.1:3001/internal/cold-storage-usage".to_string(),
+            started_at: chrono::Utc::now(),
         }
     }
 
@@ -270,6 +295,7 @@ mod tests {
                 customer_id,
                 tenant_id: name.to_string(),
                 tier: "active".to_string(),
+                created_at: chrono::DateTime::<chrono::Utc>::UNIX_EPOCH,
             },
         );
         state.insert(name.to_string(), CounterState::default());
@@ -298,6 +324,7 @@ mod tests {
                 customer_id: customer_a,
                 tenant_id: "products".to_string(),
                 tier: "active".to_string(),
+                created_at: chrono::DateTime::<chrono::Utc>::UNIX_EPOCH,
             },
         );
         tenant_map.insert(
@@ -306,6 +333,7 @@ mod tests {
                 customer_id: customer_b,
                 tenant_id: "orders".to_string(),
                 tier: "active".to_string(),
+                created_at: chrono::DateTime::<chrono::Utc>::UNIX_EPOCH,
             },
         );
 
@@ -373,6 +401,7 @@ mod tests {
                 customer_id: customer,
                 tenant_id: "known".to_string(),
                 tier: "active".to_string(),
+                created_at: chrono::DateTime::<chrono::Utc>::UNIX_EPOCH,
             },
         );
 
@@ -421,6 +450,7 @@ mod tests {
                 customer_id,
                 tenant_id: "products".to_string(),
                 tier: "active".to_string(),
+                created_at: chrono::DateTime::<chrono::Utc>::UNIX_EPOCH,
             },
         );
 
@@ -469,6 +499,7 @@ mod tests {
                 customer_id,
                 tenant_id: "products".to_string(),
                 tier: "active".to_string(),
+                created_at: chrono::DateTime::<chrono::Utc>::UNIX_EPOCH,
             },
         );
         tenant_map.insert(
@@ -477,6 +508,7 @@ mod tests {
                 customer_id,
                 tenant_id: "products".to_string(),
                 tier: "active".to_string(),
+                created_at: chrono::DateTime::<chrono::Utc>::UNIX_EPOCH,
             },
         );
 
@@ -525,6 +557,7 @@ mod tests {
                 customer_id,
                 tenant_id: "active".to_string(),
                 tier: "active".to_string(),
+                created_at: chrono::DateTime::<chrono::Utc>::UNIX_EPOCH,
             },
         );
         tenant_map.insert(
@@ -533,6 +566,7 @@ mod tests {
                 customer_id,
                 tenant_id: "cold".to_string(),
                 tier: "cold".to_string(),
+                created_at: chrono::DateTime::<chrono::Utc>::UNIX_EPOCH,
             },
         );
         tenant_map.insert(
@@ -541,6 +575,7 @@ mod tests {
                 customer_id,
                 tenant_id: "restoring".to_string(),
                 tier: "restoring".to_string(),
+                created_at: chrono::DateTime::<chrono::Utc>::UNIX_EPOCH,
             },
         );
 
@@ -653,5 +688,115 @@ mod tests {
 
         assert_eq!(search_delta, 25);
         assert_eq!(write_delta, 30);
+    }
+
+    /// Guards the new-index seed-from-zero behavior: an index created after the
+    /// agent started must have its very first observed counter value billed in
+    /// full, not silently swallowed as a baseline.
+    ///
+    /// This is the regression test for the production gap where tenant-map
+    /// refresh lag meant a freshly-created index's initial usage burst arrived
+    /// before the agent's first non-skipped scrape, so the entire burst was
+    /// dropped (search=0, write=0 in the live attribution test). With no
+    /// pre-seeded `CounterState`, the first scrape of a recently-created index
+    /// must emit the full counter value.
+    #[test]
+    fn metering_bills_full_first_value_for_index_created_after_agent_start() {
+        let cfg = test_config(); // started_at = now()
+        let state: TenantStateMap = Arc::new(DashMap::new());
+        let tenant_map: TenantCustomerMap = Arc::new(DashMap::new());
+        let customer_id = Uuid::new_v4();
+
+        // Index created strictly after the agent started → counters began at 0
+        // under our watch, so the first observed value is genuine usage.
+        tenant_map.insert(
+            "fresh-idx".to_string(),
+            TenantAttribution {
+                customer_id,
+                tenant_id: "fresh-idx".to_string(),
+                tier: "active".to_string(),
+                created_at: cfg.started_at + chrono::Duration::seconds(30),
+            },
+        );
+
+        let mut metrics = crate::scraper::FlapjackMetrics::default();
+        metrics
+            .search_requests_total
+            .insert("fresh-idx".to_string(), 7);
+        metrics
+            .write_operations_total
+            .insert("fresh-idx".to_string(), 4);
+
+        // First scrape — no prior state. Must bill the full observed value.
+        let records = build_counter_usage_records(&cfg, &metrics, &state, &tenant_map, Utc::now());
+
+        let search: i64 = records
+            .iter()
+            .filter(|r| r.event_type == record::EventType::SearchRequests)
+            .map(|r| r.value)
+            .sum();
+        let write: i64 = records
+            .iter()
+            .filter(|r| r.event_type == record::EventType::WriteOperations)
+            .map(|r| r.value)
+            .sum();
+        assert_eq!(
+            search, 7,
+            "first scrape of a new index must bill all searches"
+        );
+        assert_eq!(write, 4, "first scrape of a new index must bill all writes");
+    }
+
+    /// Guards the restart-safety counterpart: an index created BEFORE the agent
+    /// started (the agent-restart case, where flapjack's in-memory counter may
+    /// already hold large historical totals) must NOT be billed from zero on
+    /// first observation, or a restart would re-bill all prior usage.
+    #[test]
+    fn metering_does_not_rebill_preexisting_index_on_first_observation() {
+        let cfg = test_config(); // started_at = now()
+        let state: TenantStateMap = Arc::new(DashMap::new());
+        let tenant_map: TenantCustomerMap = Arc::new(DashMap::new());
+        let customer_id = Uuid::new_v4();
+
+        // Index created before the agent started → we don't know how much ran
+        // before we began watching; first scrape must establish a baseline.
+        tenant_map.insert(
+            "old-idx".to_string(),
+            TenantAttribution {
+                customer_id,
+                tenant_id: "old-idx".to_string(),
+                tier: "active".to_string(),
+                created_at: cfg.started_at - chrono::Duration::hours(1),
+            },
+        );
+
+        let mut metrics = crate::scraper::FlapjackMetrics::default();
+        metrics
+            .search_requests_total
+            .insert("old-idx".to_string(), 9_999);
+
+        let first = build_counter_usage_records(&cfg, &metrics, &state, &tenant_map, Utc::now());
+        let first_search: i64 = first
+            .iter()
+            .filter(|r| r.event_type == record::EventType::SearchRequests)
+            .map(|r| r.value)
+            .sum();
+        assert_eq!(
+            first_search, 0,
+            "pre-existing index must establish a baseline, not re-bill history"
+        );
+
+        // A subsequent real increment is billed normally.
+        let mut metrics2 = crate::scraper::FlapjackMetrics::default();
+        metrics2
+            .search_requests_total
+            .insert("old-idx".to_string(), 10_002);
+        let second = build_counter_usage_records(&cfg, &metrics2, &state, &tenant_map, Utc::now());
+        let second_search: i64 = second
+            .iter()
+            .filter(|r| r.event_type == record::EventType::SearchRequests)
+            .map(|r| r.value)
+            .sum();
+        assert_eq!(second_search, 3, "increment after baseline must be billed");
     }
 }

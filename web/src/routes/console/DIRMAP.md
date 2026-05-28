@@ -8,14 +8,12 @@
 
 | Directory | Summary |
 | --- | --- |
-| account | The account directory contains a SvelteKit page server component that likely handles the account-related page rendering and server-side logic for the web interface. |
-| api-keys | The api-keys directory contains a SvelteKit page server component for managing API keys in the application's authentication or settings area. |
-| billing | The billing directory contains server-side routes for the customer billing interface, including a main billing page and a setup route that initializes Stripe payment intents through the API to provide configuration secrets. |
-| indexes | The indexes directory provides the SvelteKit console page implementation for managing various types of indexes (analytics, chat, dictionary, documents, events, personalization, recommendations, rules, security, suggestions, and synonyms). |
-| indexes | The indexes directory provides a SvelteKit console interface for managing cloud indexes with server-side logic and UI components. |
-| indexes | The indexes directory implements a management console interface for configuring and administering search indexes, with server-side handlers and client utilities. |
-| migrate | The migrate directory contains a SvelteKit server-side page route with auto-generated stub documentation. |
-| onboarding | This is a SvelteKit route directory for the onboarding page, containing a server-side route handler that loads and processes onboarding-related data for the application. |
-| resend-verification | This directory contains a server handler for resending verification emails or similar verification-related actions in a SvelteKit application. |
+| account | The account directory contains server-side page logic for account management functionality, primarily implemented through the +page.server.ts SvelteKit component handler. |
+| api-keys | This SvelteKit page server handles the API keys management dashboard, loading existing keys and indexes while supporting creation of new keys with optional scope, rate-limit, expiration, and source-restriction constraints, and revocation of existing keys. |
+| billing | This directory contains billing page handlers, with a setup module that manages Stripe setup intents for payment method configuration by creating intents and returning client secrets to the frontend. |
+| indexes | The indexes directory implements the console interface for managing search indexes, with server-side logic and modular management features for analytics, chat, documents, recommendations, rules, security, and other index-specific functionality. |
+| migrate | This directory contains a SvelteKit page for migration functionality, with server-side logic defined in +page.server.ts to handle migration-related operations and data flow. |
+| onboarding | The onboarding directory contains a SvelteKit page server implementation with a stub summary, likely handling server-side logic for the initial user onboarding flow. |
+| resend-verification | Handles resend verification email requests for user account verification flows. |
 | settings | — |
 <!-- [scrai:end] -->

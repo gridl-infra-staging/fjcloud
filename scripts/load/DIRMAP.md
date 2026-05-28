@@ -6,5 +6,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| lib | This lib directory provides load regression checking utilities for comparing offline and live load harness results. |
+| lib | The lib directory contains load regression check utilities for comparing offline and live load harness performance. |
 <!-- [scrai:end] -->

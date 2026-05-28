@@ -1,0 +1,11 @@
+{
+  "main_sha": "ed3496c5891024f232b59d4e229101309fa67aa8",
+  "mirror_ci": {
+    "staging": "not_found",
+    "prod": "not_found"
+  },
+  "live_state_green": true,
+  "canary_staging_exit": 0,
+  "canary_prod_exit": 0,
+  "evidence_dir": "/Users/stuart/repos/gridl-infra-dev/fjcloud_dev/docs/runbooks/evidence/launch-rc-runs/20260528T175803Z_b1_final_gate"
+}

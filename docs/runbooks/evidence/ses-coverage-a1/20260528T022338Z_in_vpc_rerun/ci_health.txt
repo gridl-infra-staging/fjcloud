@@ -1,0 +1,8 @@
+$ gh run list -R gridl-infra-staging/fjcloud --workflow=CI --limit 1 --json conclusion,headSha,createdAt
+[{"conclusion":"success","createdAt":"2026-05-28T01:36:28Z","headSha":"d05072c964573fc625ddf4d258d4172e97f77f50"}]
+
+$ gh run list -R gridl-infra-prod/fjcloud --workflow=CI --limit 1 --json conclusion,headSha,createdAt
+[{"conclusion":"","createdAt":"2026-05-28T02:02:52Z","headSha":"b271feba52173694813b545a6d4e8e74bcfb8bf3"}]
+
+Staging: SUCCESS
+Prod: in-progress (not blocking — staging-only lane)

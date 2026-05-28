@@ -3,5 +3,5 @@
 
 | File | Summary |
 | --- | --- |
-| route_assembly.rs | Route assembly helpers for the public API, dashboard, and internal subtrees. |
+| route_assembly.rs | Stub summary for route_assembly.rs. |
 <!-- [scrai:end] -->

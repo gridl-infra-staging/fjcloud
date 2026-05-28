@@ -38,11 +38,11 @@ admin write paths whose abuse would be a customer-trust incident
 
 | Directory | Summary |
 | --- | --- |
-| cold_tier | The cold_tier service manages archival and cold storage operations within the fjcloud API, providing client interfaces for node communication and data processing pipelines to handle cold-tier data workflows. |
-| email | The email directory provides email rendering and testing utilities, with mailpit.rs handling email testing integration and render.rs managing email template rendering. |
-| flapjack_proxy | The flapjack_proxy service module provides HTTP proxy methods and interfaces for interacting with the external Flapjack service from the API. |
-| migration | The migration service module manages data migration operations across multiple concerns: replication for copying data between systems, validation for verifying migration correctness, recovery for handling migration failures, alerting for event notifications, and protocol handling for the underlying migration mechanics. |
-| provisioning | The provisioning directory contains the auto_provision module, which handles automatic provisioning functionality. |
-| scheduler | The scheduler service contains modules for managing workload placement and load balancing, including initial resource placement, run cycle orchestration, and detection of overload, underload, and noisy neighbor conditions. |
-| storage | This storage services module provides S3-compatible object storage functionality, including request proxying, authentication, XML protocol handling, error management, and usage metering for Garage-backed storage infrastructure. |
+| cold_tier | The `cold_tier` service module contains client and pipeline implementations for managing cold storage tier operations, with a node_client for communicating with cold storage nodes and a pipeline for orchestrating cold tier data workflows. |
+| email | The email directory provides local development email delivery and rendering functionality: `mailpit.rs` implements an email service that sends transactional and broadcast messages via the Mailpit HTTP API, while `render.rs` handles rendering various email types (verification, password reset, invoices, dunning, quotas) into structured RenderedEmail objects with validated HTML and text bodies. |
+| flapjack_proxy | Proxies authenticated API requests from fjcloud to individual flapjack search VMs, managing admin API keys from SSM with in-memory TTL-based caching and stale-on-error fallback for resilience. |
+| migration | The migration service module provides data migration infrastructure with components for alerting, protocol definition, replication, validation, and recovery operations. |
+| provisioning | The provisioning directory contains provisioning-related logic, including auto_provision.rs which handles automated provisioning functionality. |
+| scheduler | The scheduler service manages resource allocation and workload placement across the infrastructure, handling initial placement decisions, detection of overload/underload conditions, and noisy neighbor mitigation through coordinated run cycles. |
+| storage | This storage service module implements S3-compatible object storage functionality for the fjcloud API, including authentication, proxying, error handling, XML processing, and usage metering for Garage-based storage. |
 <!-- [scrai:end] -->

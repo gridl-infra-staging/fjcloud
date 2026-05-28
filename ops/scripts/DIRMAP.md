@@ -3,7 +3,16 @@
 
 | File | Summary |
 | --- | --- |
-| cleanup_api_server_metering_ghost.sh | Stub summary for cleanup_api_server_metering_ghost.sh. |
+| cleanup_api_server_metering_ghost.sh | cleanup_api_server_metering_ghost.sh
+
+One-shot operator cleanup for the dormant fj-metering-agent ghost that older
+API-server deploys installed on the control-plane host.
+
+Dry-run for planning on any workstation:
+  bash ops/scripts/cleanup_api_server_metering_ghost.sh --dry-run
+
+Live execution must run on the API server itself after the Stage 3 cleanup
+deploy is live. |
 | deploy.sh | deploy.sh — Zero-downtime deploy via SSM (no SSH keys)
 Called from CI after binaries are uploaded to S3.
 
@@ -19,7 +28,18 @@ Called by deploy.sh via SSM or manually. |
 
 Idempotent counterpart to validate_bootstrap.sh: creates the resources
 that validate_bootstrap.sh checks. |
-| rds_restore_drill.sh | Stub summary for rds_restore_drill.sh. |
+| rds_restore_drill.sh | rds_restore_drill.sh — operator-only restore rehearsal entrypoint
+
+Usage: rds_restore_drill.sh <env> [options]
+  env: staging | prod
+
+Required options:
+  --source-db-instance-id <id>
+  --target-db-instance-id <id>
+
+Exactly one restore mode is required:
+  --snapshot-id <snapshot-id>
+  --restore-time <RFC3339 timestamp>. |
 | rds_restore_evidence.sh | rds_restore_evidence.sh — wrapper around rds_restore_drill.sh for evidence artifacts.
 
 This script owns:
@@ -49,6 +69,6 @@ Prerequisites checked:
 
 | Directory | Summary |
 | --- | --- |
-| lib | Utility library containing deployment validation, AWS SSM environment configuration, Cloudflare zone parsing, and RDS restore selection tools. |
-| tests | The tests directory contains a shell script that captures Cloudflare zone fixtures for use in testing, enabling one-shot fixture data collection for test scenarios. |
+| lib | This lib directory contains shared shell and Python utilities for deployment and infrastructure operations, including pre-deployment validation, AWS SSM parameter mapping to runtime environment files, Cloudflare zone parsing, and RDS restoration tooling. |
+| tests | Captures Cloudflare zone configuration as a test fixture for one-time use in testing scenarios. |
 <!-- [scrai:end] -->

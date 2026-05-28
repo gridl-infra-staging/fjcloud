@@ -3,18 +3,18 @@
 
 | File | Summary |
 | --- | --- |
-| +layout.server.ts | Stub summary for /Users/stuart/parallel_development/fjcloud_dev/MAR17_11_2_data_management_features/fjcloud_dev/web/src/routes/admin/+layout.server.ts. |
+| +layout.server.ts | Stub summary for +layout.server.ts. |
 
 | Directory | Summary |
 | --- | --- |
-| alerts | — |
-| billing | The billing directory contains the server-side route handler for the admin billing management page, responsible for handling data loading and server-side logic for the admin panel's billing interface. |
+| alerts | The alerts directory contains a SvelteKit server-side page handler (+page.server.ts) for the admin alerts interface, which appears to be a stub implementation for managing alerts in the admin dashboard. |
+| billing | Admin billing dashboard page that loads invoices across all tenants and provides server actions for running batch billing by month and bulk-finalizing selected invoices. |
 | cold | — |
-| customers | Admin customer management interface with a main listing page and per-customer detail pages, including test fixtures for component testing. |
+| customers | The admin customers directory provides customer management pages and server actions, including a main listing page, test fixtures for customer detail components, and a dynamic route for individual customer detail pages. |
 | end-impersonation | — |
 | fleet | — |
 | login | — |
 | logout | — |
-| migrations | Handles the admin migrations page, providing a server load function that fetches active and recent database migrations and an action to trigger new migrations by specifying an index name and destination VM ID. |
+| migrations | Admin migrations page server handler that loads and displays active and recent data migrations from an admin API client, and provides a form action to trigger new migrations with validated index name and destination VM ID parameters. |
 | replicas | — |
 <!-- [scrai:end] -->

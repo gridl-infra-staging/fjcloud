@@ -21,6 +21,7 @@ test_helpers.sh — callers should source that first. |
 | local_dev_test_state.sh | Stub summary for local_dev_test_state.sh. |
 | mock_cargo.sh | Shared test helper for mocking cargo invocations in gate script tests. |
 | seed_local_mocks.sh | Stub summary for seed_local_mocks.sh. |
-| staging_billing_rehearsal_harness.sh | Stub summary for staging_billing_rehearsal_harness.sh. |
+| staging_billing_rehearsal_harness.sh | Shared harness helpers for staging_billing_rehearsal shell tests.
+shellcheck source=staging_billing_rehearsal_reset_harness_blocks.sh. |
 | staging_billing_rehearsal_reset_harness_blocks.sh | Stub summary for staging_billing_rehearsal_reset_harness_blocks.sh. |
 <!-- [scrai:end] -->

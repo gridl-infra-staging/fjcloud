@@ -31,6 +31,30 @@ runtime_fail() {
     exit "$EXIT_RUNTIME"
 }
 
+verify_email_poll_until_verified() {
+    local probe_email="$1"
+    local verified_sql="$2"
+    local max_attempts="$3"
+    local sleep_seconds="$4"
+    local attempt=1
+    local verified_marker=""
+
+    while [[ "$attempt" -le "$max_attempts" ]]; do
+        verified_marker="$(probe_trim "$(probe_sql_single_value "$verified_sql" 2>&1)")" || runtime_fail "failed reading email_verified_at for $probe_email"
+        if [[ "$verified_marker" == "true" ]]; then
+            echo "$attempt"
+            return 0
+        fi
+
+        if [[ "$attempt" -lt "$max_attempts" && "$sleep_seconds" -gt 0 ]]; then
+            sleep "$sleep_seconds"
+        fi
+        attempt=$((attempt + 1))
+    done
+
+    return 1
+}
+
 env_file=""
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -109,8 +133,14 @@ fi
 
 escaped_email="$(probe_sql_escape_literal "$probe_email")"
 verified_sql="SELECT CASE WHEN email_verified_at IS NULL THEN 'false' ELSE 'true' END FROM customers WHERE email = '${escaped_email}' ORDER BY created_at DESC LIMIT 1;"
-verified_marker="$(probe_trim "$(probe_sql_single_value "$verified_sql" 2>&1)")" || runtime_fail "failed reading email_verified_at for $probe_email"
-[[ "$verified_marker" == "true" ]] || runtime_fail "email_verified_at not set after clickthrough for $probe_email"
+verify_email_poll_max_attempts="${VERIFY_EMAIL_DB_POLL_MAX_ATTEMPTS:-15}"
+verify_email_poll_sleep_sec="${VERIFY_EMAIL_DB_POLL_SLEEP_SEC:-2}"
+test_inbox_require_nonnegative_int "$verify_email_poll_max_attempts" "VERIFY_EMAIL_DB_POLL_MAX_ATTEMPTS" || precondition_fail "VERIFY_EMAIL_DB_POLL_MAX_ATTEMPTS must be a positive integer"
+test_inbox_require_nonnegative_int "$verify_email_poll_sleep_sec" "VERIFY_EMAIL_DB_POLL_SLEEP_SEC" || precondition_fail "VERIFY_EMAIL_DB_POLL_SLEEP_SEC must be a non-negative integer"
+[[ "$verify_email_poll_max_attempts" -gt 0 ]] || precondition_fail "VERIFY_EMAIL_DB_POLL_MAX_ATTEMPTS must be greater than zero"
+if ! verify_attempts_used="$(verify_email_poll_until_verified "$probe_email" "$verified_sql" "$verify_email_poll_max_attempts" "$verify_email_poll_sleep_sec")"; then
+    runtime_fail "email_verified_at not set after clickthrough for $probe_email after ${verify_email_poll_max_attempts} attempts"
+fi
 
-echo "register_http=$register_code verify_page_http=$verify_code customer_id=$customer_id inbox_key=$inbox_key"
+echo "register_http=$register_code verify_page_http=$verify_code customer_id=$customer_id inbox_key=$inbox_key verify_db_attempts=$verify_attempts_used"
 echo "TERMINUS: email_verified=true"

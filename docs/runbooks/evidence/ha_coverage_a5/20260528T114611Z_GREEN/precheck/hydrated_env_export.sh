@@ -1,0 +1,10 @@
+export ADMIN_KEY=[REDACTED]
+export DATABASE_URL=[REDACTED]
+export API_URL=https://api.staging.flapjack.foo
+export FLAPJACK_URL=https://api.staging.flapjack.foo
+export STRIPE_SECRET_KEY=[REDACTED]
+export SES_FROM_ADDRESS=noreply@flapjack.foo
+export STRIPE_WEBHOOK_SECRET=[REDACTED]
+export STAGING_API_URL=https://api.staging.flapjack.foo
+export STAGING_STRIPE_WEBHOOK_URL=https://api.staging.flapjack.foo/webhooks/stripe
+export STAGING_CLOUD_URL=https://cloud.staging.flapjack.foo

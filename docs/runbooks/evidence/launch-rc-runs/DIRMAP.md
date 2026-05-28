@@ -6,5 +6,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| 20260505T192351Z_prod_first_4h | Monitoring scripts for a production launch window that poll usage_daily rollup freshness every 30 minutes over 4 hours (8 ticks total), mirroring the metering checks from the main codebase. |
+| 20260505T192351Z_prod_first_4h | This directory contains monitoring and probing scripts for the first 4 hours of a production launch on 2026-05-05, including a rollup freshness probe, a 30-minute monitoring tick script, and a 4-hour detached monitor wrapper that runs health checks at 30-minute intervals. |
 <!-- [scrai:end] -->

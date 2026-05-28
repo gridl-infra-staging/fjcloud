@@ -31,6 +31,30 @@ runtime_fail() {
     exit "$EXIT_RUNTIME"
 }
 
+reset_token_poll_until_cleared() {
+    local probe_email="$1"
+    local token_cleared_sql="$2"
+    local max_attempts="$3"
+    local sleep_seconds="$4"
+    local attempt=1
+    local token_cleared=""
+
+    while [[ "$attempt" -le "$max_attempts" ]]; do
+        token_cleared="$(probe_trim "$(probe_sql_single_value "$token_cleared_sql" 2>&1)")" || runtime_fail "failed validating reset token consumption for $probe_email"
+        if [[ "$token_cleared" == "cleared" ]]; then
+            echo "$attempt"
+            return 0
+        fi
+
+        if [[ "$attempt" -lt "$max_attempts" && "$sleep_seconds" -gt 0 ]]; then
+            sleep "$sleep_seconds"
+        fi
+        attempt=$((attempt + 1))
+    done
+
+    return 1
+}
+
 env_file=""
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -150,9 +174,16 @@ login_customer_id="$(probe_json_field "$login_body" "customer_id")"
 
 escaped_email="$(probe_sql_escape_literal "$probe_email")"
 token_cleared_sql="SELECT CASE WHEN password_reset_token IS NULL THEN 'cleared' ELSE 'present' END FROM customers WHERE email = '${escaped_email}' ORDER BY created_at DESC LIMIT 1;"
-token_cleared="$(probe_trim "$(probe_sql_single_value "$token_cleared_sql" 2>&1)")" || runtime_fail "failed validating reset token consumption for $probe_email"
-[[ "$token_cleared" == "cleared" ]] || runtime_fail "password_reset_token not cleared after reset for $probe_email"
+reset_token_poll_max_attempts="${RESET_TOKEN_POLL_MAX_ATTEMPTS:-15}"
+reset_token_poll_sleep_sec="${RESET_TOKEN_POLL_SLEEP_SEC:-2}"
+test_inbox_require_nonnegative_int "$reset_token_poll_max_attempts" "RESET_TOKEN_POLL_MAX_ATTEMPTS" || precondition_fail "RESET_TOKEN_POLL_MAX_ATTEMPTS must be a positive integer"
+test_inbox_require_nonnegative_int "$reset_token_poll_sleep_sec" "RESET_TOKEN_POLL_SLEEP_SEC" || precondition_fail "RESET_TOKEN_POLL_SLEEP_SEC must be a non-negative integer"
+[[ "$reset_token_poll_max_attempts" -gt 0 ]] || precondition_fail "RESET_TOKEN_POLL_MAX_ATTEMPTS must be greater than zero"
+if ! reset_attempts_used="$(reset_token_poll_until_cleared "$probe_email" "$token_cleared_sql" "$reset_token_poll_max_attempts" "$reset_token_poll_sleep_sec")"; then
+    runtime_fail "password_reset_token not cleared after reset for $probe_email after ${reset_token_poll_max_attempts} attempts"
+fi
 
 echo "register_http=$register_code forgot_http=$forgot_code reset_http=$reset_code login_http=$login_code customer_id=$customer_id inbox_key=$inbox_key"
 echo "reset_message=${reset_message:-password has been reset}"
+echo "reset_db_attempts=$reset_attempts_used"
 echo "TERMINUS: login succeeded with new password"

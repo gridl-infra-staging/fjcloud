@@ -1,0 +1,5 @@
+has_FLAPJACK_API_KEY=no
+FLAPJACK_URL=https://api.staging.flapjack.foo
+has_ADMIN_KEY=yes
+has_API_URL=yes
+candidate_ssm_for_flapjack_url=/fjcloud/api.staging.flapjack.foo/api-key

@@ -1,0 +1,26 @@
+[
+  {
+    "id": "d6e4dc27-2f9b-41be-900b-13f4d678105f",
+    "name": "demo-medium-dedicated",
+    "email": "demo-medium-dedicated@synthetic-seed.invalid",
+    "billing_plan": "shared",
+    "created_at": "2026-05-01T20:58:10.732385Z",
+    "deleted_at": null
+  },
+  {
+    "id": "3048552a-a78e-446d-ab94-48fe995e2b6c",
+    "name": "demo-small-dedicated",
+    "email": "demo-small-dedicated@synthetic-seed.invalid",
+    "billing_plan": "shared",
+    "created_at": "2026-05-01T20:58:04.562524Z",
+    "deleted_at": null
+  },
+  {
+    "id": "0a65f0b7-14b3-4e08-acf6-2222a02c7858",
+    "name": "demo-shared-free",
+    "email": "demo-shared-free@synthetic-seed.invalid",
+    "billing_plan": "shared",
+    "created_at": "2026-04-24T23:58:41.121015Z",
+    "deleted_at": null
+  }
+]

@@ -4,9 +4,8 @@
 | File | Summary |
 | --- | --- |
 | aggregate_first_verdict_bundle.py | Stub summary for aggregate_first_verdict_bundle.py. |
-| run_first_verdict_bundle.sh | Stub summary for run_first_verdict_bundle.sh. |
 
 | Directory | Summary |
 | --- | --- |
-| lib | This lib directory contains shell script utilities for Visual Language Model (VLM) operations, including environment variable helpers and prompt evaluation/judging functionality. |
+| lib | The lib directory contains VLM environment helper utilities, specifically a self-contained 5-function closure extracted from uff_dev's deployment common module to support the VLM judge's read_env_value_trimmed contract for environment variable operations. |
 <!-- [scrai:end] -->

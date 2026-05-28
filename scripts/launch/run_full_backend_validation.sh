@@ -689,17 +689,17 @@ run_required_paid_beta_rc_steps() {
         execute_required_step append_staging_only_production_skip_step "browser_portal_cancel"
         return 0
     fi
-    execute_required_step run_paid_beta_rc_rust_step "admin_broadcast" "admin_broadcast_failed" "1" "\"$CARGO_BIN\" test -p api --test admin_broadcast_test -- --ignored"
-    execute_required_step run_paid_beta_rc_rust_step "billing_health_last_activity" "billing_health_last_activity_failed" "1" "\"$CARGO_BIN\" test -p api --test pg_customer_repo_test && \"$CARGO_BIN\" test -p api --test tenants_test"
-    execute_required_step run_paid_beta_rc_rust_step "audit_timeline" "audit_timeline_failed" "1" "\"$CARGO_BIN\" test -p api --test admin_audit_view_test -- --ignored && \"$CARGO_BIN\" test -p api --test admin_token_audit_test -- --ignored"
-    execute_required_step run_paid_beta_rc_rust_step "status_runtime" "status_runtime_failed" "0" "\"$CARGO_BIN\" test -p api --test onboarding_test status_response_uses_region_not_deployment_field_names"
+    execute_required_step run_paid_beta_rc_rust_step "admin_broadcast" "admin_broadcast_failed" "1" "\"$CARGO_BIN\" test -p api --test integration admin_broadcast_test:: -- --ignored"
+    execute_required_step run_paid_beta_rc_rust_step "billing_health_last_activity" "billing_health_last_activity_failed" "1" "\"$CARGO_BIN\" test -p api --test integration pg_customer_repo_test:: && \"$CARGO_BIN\" test -p api --test integration tenants_test::"
+    execute_required_step run_paid_beta_rc_rust_step "audit_timeline" "audit_timeline_failed" "1" "\"$CARGO_BIN\" test -p api --test integration admin_audit_view_test:: -- --ignored && \"$CARGO_BIN\" test -p api --test integration admin_token_audit_test:: -- --ignored"
+    execute_required_step run_paid_beta_rc_rust_step "status_runtime" "status_runtime_failed" "0" "\"$CARGO_BIN\" test -p api --test integration onboarding_test::status_response_uses_region_not_deployment_field_names"
     execute_required_step run_step_paid_beta_rc_ses_inbound
     execute_required_step run_step_paid_beta_rc_canary_customer_loop
     execute_required_step run_delegated_command_step "canary_outside_aws" "canary_outside_aws_failed" "" bash "$OUTSIDE_AWS_HEALTH_SCRIPT"
-    execute_required_step run_paid_beta_rc_rust_step "stripe_webhook_signature_matrix_idempotency" "stripe_webhook_signature_matrix_idempotency_failed" "0" "\"$CARGO_BIN\" test -p api --test stripe_webhook_signature_test && \"$CARGO_BIN\" test -p api --test stripe_webhook_event_matrix_test && \"$CARGO_BIN\" test -p api --test stripe_webhook_idempotency_test"
+    execute_required_step run_paid_beta_rc_rust_step "stripe_webhook_signature_matrix_idempotency" "stripe_webhook_signature_matrix_idempotency_failed" "0" "\"$CARGO_BIN\" test -p api --test integration stripe_webhook_signature_test:: && \"$CARGO_BIN\" test -p api --test integration stripe_webhook_event_matrix_test:: && \"$CARGO_BIN\" test -p api --test integration stripe_webhook_idempotency_test::"
     execute_required_step append_paid_beta_rc_constant_step "test_clock" "live_evidence_gap" "stripe_test_clock_full_cycle_owner_requires_live_mode"
-    execute_required_step run_paid_beta_rc_rust_step "tenant_isolation" "tenant_isolation_failed" "0" "\"$CARGO_BIN\" test -p api --test tenant_isolation_proptest tenant_isolation_proptest_route_family"
-    execute_required_step run_paid_beta_rc_rust_step "signup_abuse" "signup_abuse_failed" "0" "\"$CARGO_BIN\" test -p api --test signup_abuse_test"
+    execute_required_step run_paid_beta_rc_rust_step "tenant_isolation" "tenant_isolation_failed" "0" "\"$CARGO_BIN\" test -p api --test integration tenant_isolation_proptest::tenant_isolation_proptest_route_family"
+    execute_required_step run_paid_beta_rc_rust_step "signup_abuse" "signup_abuse_failed" "0" "\"$CARGO_BIN\" test -p api --test integration signup_abuse_test::"
     execute_required_step append_paid_beta_rc_constant_step "browser_signup_paid" "skipped" "browser_signup_paid_readiness_mode_missing"
     execute_required_step append_paid_beta_rc_constant_step "browser_portal_cancel" "skipped" "browser_portal_cancel_readiness_mode_missing"
 }

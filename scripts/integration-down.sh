@@ -128,6 +128,7 @@ fi
 PID_DIR="$REPO_ROOT/.integration"
 FLAPJACK_PID="$PID_DIR/flapjack.pid"
 API_PID="$PID_DIR/api.pid"
+METERING_AGENT_PID="$PID_DIR/metering-agent.pid"
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -140,6 +141,7 @@ source "$SCRIPT_DIR/lib/process.sh"
 # ---------------------------------------------------------------------------
 # 1. Stop processes
 # ---------------------------------------------------------------------------
+kill_pid_file "$METERING_AGENT_PID" "metering-agent" "metering-agent"
 kill_pid_file "$API_PID" "fjcloud API" "api"
 kill_pid_file "$FLAPJACK_PID" "flapjack" "flapjack"
 

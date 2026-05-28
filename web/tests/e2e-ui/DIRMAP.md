@@ -6,5 +6,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| full | This directory contains E2E UI test infrastructure for the index detail page, including helper utilities and a VLM-powered screenshot capture system with redirect guards and deterministic image tuples for visual validation workflows. |
+| full | This directory provides utilities for index detail operations and VLM screenshot capture functionality, including manifest handling, redirect protection, and canonical capture tuple definitions. |
 <!-- [scrai:end] -->

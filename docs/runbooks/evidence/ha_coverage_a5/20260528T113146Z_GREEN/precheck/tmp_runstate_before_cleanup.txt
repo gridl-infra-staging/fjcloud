@@ -1,0 +1,10 @@
+timestamp=2026-05-28T11:32:07Z
+-rw-r--r--@ 1 stuart  wheel  224 May 28 07:24 /tmp/seed-synthetic-demo-medium-dedicated.json
+-rw-r--r--@ 1 stuart  wheel  199 May 28 07:25 /tmp/seed-synthetic-demo-shared-free.json
+-rw-r--r--@ 1 stuart  wheel  222 May 28 07:24 /tmp/seed-synthetic-demo-small-dedicated.json
+---/tmp/seed-synthetic-demo-medium-dedicated.json---
+{"customer_id":"d6e4dc27-2f9b-41be-900b-13f4d678105f","tenant_id":"demo-medium-dedicated","flapjack_uid":"d6e4dc272f9b41be900b13f4d678105f_demo-medium-dedicated","flapjack_url":"http://vm-shared-f2b9c8a6.flapjack.foo:7700"}
+---/tmp/seed-synthetic-demo-shared-free.json---
+{"customer_id":"11111111-1111-1111-1111-111111111111","tenant_id":"demo-shared-free","flapjack_uid":"11111111111111111111111111111111_demo-shared-free","flapjack_url":"http://synthetic-node-a.test"}
+---/tmp/seed-synthetic-demo-small-dedicated.json---
+{"customer_id":"3048552a-a78e-446d-ab94-48fe995e2b6c","tenant_id":"demo-small-dedicated","flapjack_uid":"3048552aa78e446dab9448fe995e2b6c_demo-small-dedicated","flapjack_url":"http://vm-shared-f2b9c8a6.flapjack.foo:7700"}

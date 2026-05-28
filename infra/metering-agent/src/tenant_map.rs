@@ -13,6 +13,10 @@ pub struct TenantAttribution {
     pub customer_id: uuid::Uuid,
     pub tenant_id: String,
     pub tier: String,
+    /// When the underlying tenant/index was created (from the control-plane
+    /// payload). Compared against the agent's start time to decide whether a
+    /// first-observed counter value should be billed from a zero baseline.
+    pub created_at: chrono::DateTime<chrono::Utc>,
 }
 
 #[derive(Debug, Clone, serde::Deserialize)]
@@ -26,10 +30,24 @@ pub struct TenantMapEntry {
     pub flapjack_url: Option<String>,
     #[serde(default = "default_tier")]
     pub tier: String,
+    /// Tenant creation time. Defaults to the Unix epoch when the control
+    /// plane omits it (older API builds), which conservatively classifies the
+    /// index as pre-existing so its first scrape never bills from zero.
+    #[serde(default = "epoch_datetime")]
+    pub created_at: chrono::DateTime<chrono::Utc>,
 }
 
 pub fn default_tier() -> String {
     "active".to_string()
+}
+
+/// Default `created_at` for payloads that omit it: the Unix epoch.
+///
+/// An epoch timestamp is always earlier than any real agent start time, so an
+/// entry defaulted this way is treated as a pre-existing index and keeps the
+/// conservative first-observation baseline (never billed from zero).
+pub fn epoch_datetime() -> chrono::DateTime<chrono::Utc> {
+    chrono::DateTime::<chrono::Utc>::UNIX_EPOCH
 }
 
 pub fn is_cold_tier(tier: &str) -> bool {
@@ -111,6 +129,7 @@ pub fn replace_tenant_map_cache(
         let alias_flapjack_uid = entry.flapjack_uid;
         let customer_id = entry.customer_id;
         let tier = entry.tier;
+        let created_at = entry.created_at;
 
         tenant_map.insert(
             canonical_tenant_id.clone(),
@@ -118,6 +137,7 @@ pub fn replace_tenant_map_cache(
                 customer_id,
                 tenant_id: canonical_tenant_id.clone(),
                 tier: tier.clone(),
+                created_at,
             },
         );
 
@@ -129,6 +149,7 @@ pub fn replace_tenant_map_cache(
                         customer_id,
                         tenant_id: canonical_tenant_id,
                         tier,
+                        created_at,
                     },
                 );
             }
@@ -300,6 +321,7 @@ mod tests {
                 customer_id: cid,
                 tenant_id: "products".to_string(),
                 tier: "active".to_string(),
+                created_at: chrono::DateTime::<chrono::Utc>::UNIX_EPOCH,
             },
         );
         let result = resolve_tenant_attribution(&map, "products");
@@ -321,6 +343,7 @@ mod tests {
                 customer_id: Uuid::new_v4(),
                 tenant_id: "cold-idx".to_string(),
                 tier: "cold".to_string(),
+                created_at: chrono::DateTime::<chrono::Utc>::UNIX_EPOCH,
             },
         );
         assert_eq!(
@@ -339,6 +362,7 @@ mod tests {
                 customer_id: cid,
                 tenant_id: "products".to_string(),
                 tier: "active".to_string(),
+                created_at: chrono::DateTime::<chrono::Utc>::UNIX_EPOCH,
             },
         );
 
@@ -371,6 +395,7 @@ mod tests {
                     vm_id: None,
                     flapjack_url: None,
                     tier: "active".to_string(),
+                    created_at: chrono::DateTime::<chrono::Utc>::UNIX_EPOCH,
                 },
                 TenantMapEntry {
                     tenant_id: "b".to_string(),
@@ -379,6 +404,7 @@ mod tests {
                     vm_id: None,
                     flapjack_url: None,
                     tier: "active".to_string(),
+                    created_at: chrono::DateTime::<chrono::Utc>::UNIX_EPOCH,
                 },
             ],
             "http://localhost:7700",
@@ -407,6 +433,7 @@ mod tests {
                     vm_id: None,
                     flapjack_url: None,
                     tier: "active".to_string(),
+                    created_at: chrono::DateTime::<chrono::Utc>::UNIX_EPOCH,
                 },
                 TenantMapEntry {
                     tenant_id: "dup".to_string(),
@@ -415,6 +442,7 @@ mod tests {
                     vm_id: None,
                     flapjack_url: None,
                     tier: "active".to_string(),
+                    created_at: chrono::DateTime::<chrono::Utc>::UNIX_EPOCH,
                 },
             ],
             "http://localhost:7700",
@@ -448,6 +476,7 @@ mod tests {
             health_port: 9091,
             tenant_map_url: format!("{base_url}/internal/tenant-map"),
             cold_storage_usage_url: format!("{base_url}/internal/cold-storage-usage"),
+            started_at: chrono::Utc::now(),
         };
         let http = reqwest::Client::new();
 
@@ -475,6 +504,7 @@ mod tests {
                 customer_id: Uuid::new_v4(),
                 tenant_id: "old".to_string(),
                 tier: "active".to_string(),
+                created_at: chrono::DateTime::<chrono::Utc>::UNIX_EPOCH,
             },
         );
         replace_tenant_map_cache(&map, vec![], "http://localhost:7700");
@@ -502,6 +532,7 @@ mod tests {
                     vm_id: None,
                     flapjack_url: Some("http://localhost:7700".to_string()),
                     tier: "active".to_string(),
+                    created_at: chrono::DateTime::<chrono::Utc>::UNIX_EPOCH,
                 },
                 TenantMapEntry {
                     tenant_id: "no-url".to_string(),
@@ -510,6 +541,7 @@ mod tests {
                     vm_id: None,
                     flapjack_url: None,
                     tier: "active".to_string(),
+                    created_at: chrono::DateTime::<chrono::Utc>::UNIX_EPOCH,
                 },
             ],
             "http://localhost:7700",
@@ -543,6 +575,7 @@ mod tests {
                 vm_id: None,
                 flapjack_url: Some("http://localhost:7700".to_string()),
                 tier: "active".to_string(),
+                created_at: chrono::DateTime::<chrono::Utc>::UNIX_EPOCH,
             }],
             "http://localhost:7700",
         );
@@ -589,6 +622,7 @@ mod tests {
                     vm_id: Some(Uuid::new_v4()),
                     flapjack_url: Some(local_url.to_string()),
                     tier: "active".to_string(),
+                    created_at: chrono::DateTime::<chrono::Utc>::UNIX_EPOCH,
                 },
                 TenantMapEntry {
                     tenant_id: "products".to_string(),
@@ -597,6 +631,7 @@ mod tests {
                     vm_id: Some(Uuid::new_v4()),
                     flapjack_url: Some("https://vm-remote.flapjack.foo".to_string()),
                     tier: "active".to_string(),
+                    created_at: chrono::DateTime::<chrono::Utc>::UNIX_EPOCH,
                 },
             ],
             "https://vm-local.flapjack.foo/",
@@ -643,6 +678,7 @@ mod tests {
                 customer_id: first_customer,
                 tenant_id: "products".to_string(),
                 tier: "active".to_string(),
+                created_at: chrono::DateTime::<chrono::Utc>::UNIX_EPOCH,
             },
         );
 
@@ -660,6 +696,7 @@ mod tests {
                     vm_id: None,
                     flapjack_url: Some(local_flapjack_url.to_string()),
                     tier: "active".to_string(),
+                    created_at: chrono::DateTime::<chrono::Utc>::UNIX_EPOCH,
                 },
                 TenantMapEntry {
                     tenant_id: "new-index".to_string(),
@@ -668,6 +705,7 @@ mod tests {
                     vm_id: None,
                     flapjack_url: Some(local_flapjack_url.to_string()),
                     tier: "active".to_string(),
+                    created_at: chrono::DateTime::<chrono::Utc>::UNIX_EPOCH,
                 },
             ],
         );
@@ -689,6 +727,7 @@ mod tests {
                     vm_id: None,
                     flapjack_url: Some(local_flapjack_url.to_string()),
                     tier: "active".to_string(),
+                    created_at: chrono::DateTime::<chrono::Utc>::UNIX_EPOCH,
                 },
                 TenantMapEntry {
                     tenant_id: "new-index".to_string(),
@@ -697,6 +736,7 @@ mod tests {
                     vm_id: None,
                     flapjack_url: Some(local_flapjack_url.to_string()),
                     tier: "active".to_string(),
+                    created_at: chrono::DateTime::<chrono::Utc>::UNIX_EPOCH,
                 },
             ],
         );

@@ -1,0 +1,2 @@
+timestamp=2026-05-28T11:32:07Z
+ls: /tmp/seed-synthetic-*.json: No such file or directory

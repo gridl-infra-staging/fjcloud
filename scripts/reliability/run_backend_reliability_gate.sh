@@ -56,6 +56,11 @@ _integration_cargo_test() {
     INTEGRATION=1 _cargo_test "$@"
 }
 
+_run_api_integration_module_test() {
+    local module_name="$1"
+    _integration_cargo_test -p api --test integration "${module_name}::"
+}
+
 _cargo_check() {
     cd "$REPO_ROOT/infra" && cargo check "$@"
 }
@@ -87,22 +92,22 @@ run_reliability_profile_tests() {
 
 run_reliability_scheduler_tests() {
     _wrap_test_check "RELIABILITY_SCHEDULER_TESTS_PASS" "RELIABILITY_SCHEDULER_TESTS_FAIL" \
-        _cargo_test -p api --test scheduler_test
+        _run_api_integration_module_test "scheduler_test"
 }
 
 run_reliability_replication_tests() {
     _wrap_test_check "RELIABILITY_REPLICATION_TESTS_PASS" "RELIABILITY_REPLICATION_TESTS_FAIL" \
-        _cargo_test -p api --test reliability_replication_test
+        _run_api_integration_module_test "reliability_replication_test"
 }
 
 run_reliability_api_crash_tests() {
     _wrap_test_check "RELIABILITY_API_CRASH_TESTS_PASS" "RELIABILITY_API_CRASH_TESTS_FAIL" \
-        _cargo_test -p api --test reliability_api_crash_test
+        _run_api_integration_module_test "reliability_api_crash_test"
 }
 
 run_reliability_cold_tier_tests() {
     _wrap_test_check "RELIABILITY_COLD_TIER_TESTS_PASS" "RELIABILITY_COLD_TIER_TESTS_FAIL" \
-        _cargo_test -p api --test reliability_cold_tier_test
+        _run_api_integration_module_test "reliability_cold_tier_test"
 }
 
 run_reliability_metering_tests() {
@@ -112,7 +117,7 @@ run_reliability_metering_tests() {
 
 run_reliability_sql_guard_test() {
     _wrap_test_check "RELIABILITY_SQL_GUARD_TESTS_PASS" "RELIABILITY_SQL_GUARD_TESTS_FAIL" \
-        _cargo_test -p api --test reliability_security_test
+        _run_api_integration_module_test "reliability_security_test"
 }
 
 run_security_secret_scan() {

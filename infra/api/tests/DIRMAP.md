@@ -3,10 +3,9 @@
 
 | File | Summary |
 | --- | --- |
-| tenant_isolation_proptest.rs | Stub summary for tenant_isolation_proptest.rs. |
 
 | Directory | Summary |
 | --- | --- |
-| common | Common test utilities and fixtures for API integration tests, providing shared builders, mocks, and helpers for Stripe webhooks, Flapjack proxy operations, storage metering, S3 routing, and capacity profile fixtures. |
-| support | — |
+| common | This directory contains shared test support infrastructure and fixtures for the fjcloud API integration tests, including capacity profile constants, mock HTTP clients, Stripe webhook helpers, and test utilities for indexes, storage, and flapjack proxy routes. |
+| integration | — |
 <!-- [scrai:end] -->

@@ -2,7 +2,8 @@
 # integration-up.sh — Bring up an isolated integration test stack.
 #
 # Creates fjcloud_integration_test DB, runs migrations, builds binaries,
-# starts flapjack on port 7799, starts fjcloud API on port 3099, health-checks both.
+# starts flapjack on port 7799, fjcloud API on port 3099, metering-agent
+# on health port 9191, and health-checks all three.
 #
 # Prerequisites: Postgres 16 running locally, flapjack_dev repo at FLAPJACK_DEV_DIR.
 
@@ -31,11 +32,15 @@ export INTEGRATION_S3_PORT="${INTEGRATION_S3_PORT:-3102}"
 export FLAPJACK_DEV_DIR="${FLAPJACK_DEV_DIR:-}"
 INTEGRATION_RUNTIME_DB_URL="$INTEGRATION_DB_URL"
 
+export METERING_AGENT_HEALTH_PORT="${METERING_AGENT_HEALTH_PORT:-9191}"
+
 PID_DIR="$REPO_ROOT/.integration"
 FLAPJACK_PID="$PID_DIR/flapjack.pid"
 API_PID="$PID_DIR/api.pid"
+METERING_AGENT_PID="$PID_DIR/metering-agent.pid"
 FLAPJACK_LOG="$PID_DIR/flapjack.log"
 API_LOG="$PID_DIR/api.log"
+METERING_AGENT_LOG="$PID_DIR/metering-agent.log"
 FLAPJACK_DATA_DIR="$PID_DIR/flapjack-data"
 
 # ---------------------------------------------------------------------------
@@ -359,13 +364,15 @@ run_integration_migrations \
 # ---------------------------------------------------------------------------
 # 2. Build binaries
 # ---------------------------------------------------------------------------
-log "Building fjcloud API..."
+log "Building fjcloud API and metering-agent..."
 _build_log="$(mktemp)"
-(cd "$INFRA_DIR" && cargo build -p api >"$_build_log" 2>&1)
+(cd "$INFRA_DIR" && cargo build -p api -p metering-agent >"$_build_log" 2>&1)
 tail -3 "$_build_log"
 rm -f "$_build_log"
 API_BIN="$INFRA_DIR/target/debug/api"
 [ -f "$API_BIN" ] || die_with_reason "binary_not_found" "API binary not found at $API_BIN"
+METERING_AGENT_BIN="$INFRA_DIR/target/debug/fj-metering-agent"
+[ -f "$METERING_AGENT_BIN" ] || die_with_reason "binary_not_found" "metering-agent binary not found at $METERING_AGENT_BIN"
 
 FLAPJACK_BIN=""
 if [ -d "$FLAPJACK_DEV_DIR" ]; then
@@ -419,18 +426,22 @@ fi
 log "Starting fjcloud API on port $API_PORT..."
 INTEGRATION_SES_FROM_ADDRESS="$(env_or_repo_value SES_FROM_ADDRESS "integration@example.com")"
 INTEGRATION_SES_REGION="$(env_or_repo_value SES_REGION "us-east-1")"
+INTEGRATION_SES_CONFIGURATION_SET="$(env_or_repo_value SES_CONFIGURATION_SET "integration-test-config-set")"
 INTEGRATION_STORAGE_ENCRYPTION_KEY="$(env_or_repo_value STORAGE_ENCRYPTION_KEY "$(generate_hex_secret 32)")"
 INTEGRATION_NODE_SECRET_BACKEND="$(env_or_repo_value NODE_SECRET_BACKEND "memory")"
 INTEGRATION_JWT_SECRET="${JWT_SECRET:-$(generate_hex_secret 32)}"
 INTEGRATION_API_ADMIN_KEY="${ADMIN_KEY:-$(generate_hex_secret 24)}"
+INTEGRATION_INTERNAL_AUTH_TOKEN="$(generate_hex_secret 24)"
 DATABASE_URL="$INTEGRATION_RUNTIME_DB_URL" \
     LISTEN_ADDR="127.0.0.1:${API_PORT}" \
     S3_LISTEN_ADDR="127.0.0.1:${INTEGRATION_S3_PORT}" \
     JWT_SECRET="$INTEGRATION_JWT_SECRET" \
     ADMIN_KEY="$INTEGRATION_API_ADMIN_KEY" \
+    INTERNAL_AUTH_TOKEN="$INTEGRATION_INTERNAL_AUTH_TOKEN" \
     RUST_LOG="info,api=debug" \
     SES_FROM_ADDRESS="$INTEGRATION_SES_FROM_ADDRESS" \
     SES_REGION="$INTEGRATION_SES_REGION" \
+    SES_CONFIGURATION_SET="$INTEGRATION_SES_CONFIGURATION_SET" \
     STORAGE_ENCRYPTION_KEY="$INTEGRATION_STORAGE_ENCRYPTION_KEY" \
     NODE_SECRET_BACKEND="$INTEGRATION_NODE_SECRET_BACKEND" \
     FLAPJACK_ADMIN_KEY="$INTEGRATION_FLAPJACK_ADMIN_KEY" \
@@ -441,16 +452,45 @@ echo $! > "$API_PID"
 wait_for_health "http://localhost:${API_PORT}/health" "fjcloud API" "${INTEGRATION_HEALTH_TIMEOUT:-15}" \
     || die_with_reason "health_check_timeout" "fjcloud API failed health check"
 
+# Start metering-agent (requires both flapjack and API to be running)
+if [ -n "$FLAPJACK_BIN" ] && [ -x "$FLAPJACK_BIN" ]; then
+    check_port_available "$METERING_AGENT_HEALTH_PORT" "metering-agent" \
+        || die_with_reason "port_in_use" "port $METERING_AGENT_HEALTH_PORT is already in use (needed for metering-agent)"
+    log "Starting metering-agent (health on port $METERING_AGENT_HEALTH_PORT)..."
+    FLAPJACK_URL="http://127.0.0.1:${FLAPJACK_PORT}" \
+        FLAPJACK_API_KEY="$INTEGRATION_FLAPJACK_ADMIN_KEY" \
+        DATABASE_URL="$INTEGRATION_RUNTIME_DB_URL" \
+        CUSTOMER_ID="integration-owner" \
+        NODE_ID="integration-node" \
+        REGION="us-east-1" \
+        ENVIRONMENT="integration" \
+        INTERNAL_KEY="$INTEGRATION_INTERNAL_AUTH_TOKEN" \
+        TENANT_MAP_URL="http://127.0.0.1:${API_PORT}/internal/tenant-map" \
+        COLD_STORAGE_USAGE_URL="http://127.0.0.1:${API_PORT}/internal/cold-storage-usage" \
+        HEALTH_PORT="$METERING_AGENT_HEALTH_PORT" \
+        SCRAPE_INTERVAL_SECS=2 \
+        TENANT_MAP_REFRESH_INTERVAL_SECS=5 \
+        RUST_LOG="info,metering_agent=debug" \
+        nohup "$METERING_AGENT_BIN" > "$METERING_AGENT_LOG" 2>&1 &
+    echo $! > "$METERING_AGENT_PID"
+    wait_for_health "http://localhost:${METERING_AGENT_HEALTH_PORT}/health" "metering-agent" "${INTEGRATION_HEALTH_TIMEOUT:-15}" \
+        || die_with_reason "health_check_timeout" "metering-agent failed health check"
+else
+    log "WARNING: flapjack not running — skipping metering-agent startup"
+fi
+
 # ---------------------------------------------------------------------------
 # Done
 # ---------------------------------------------------------------------------
 log "Integration stack is up!"
-log "  API:       http://localhost:${API_PORT}"
+log "  API:             http://localhost:${API_PORT}"
 if [ -n "$FLAPJACK_BIN" ] && [ -x "$FLAPJACK_BIN" ]; then
-    log "  Flapjack:  http://localhost:${FLAPJACK_PORT}"
+    log "  Flapjack:        http://localhost:${FLAPJACK_PORT}"
+    log "  Metering agent:  http://localhost:${METERING_AGENT_HEALTH_PORT}"
 fi
-log "  Database:      $(redact_db_url "$INTEGRATION_RUNTIME_DB_URL")"
-log "  PIDs:          $PID_DIR"
-log "  Flapjack admin: $(redact_secret "${INTEGRATION_FLAPJACK_ADMIN_KEY:-}")"
-log "  Node secret:   ${INTEGRATION_NODE_SECRET_BACKEND}"
-log "  Flapjack URL:  http://127.0.0.1:${FLAPJACK_PORT}"
+log "  Database:        $(redact_db_url "$INTEGRATION_RUNTIME_DB_URL")"
+log "  PIDs:            $PID_DIR"
+log "  Flapjack admin:  $(redact_secret "${INTEGRATION_FLAPJACK_ADMIN_KEY:-}")"
+log "  Internal auth:   $(redact_secret "${INTEGRATION_INTERNAL_AUTH_TOKEN:-}")"
+log "  Node secret:     ${INTEGRATION_NODE_SECRET_BACKEND}"
+log "  Flapjack URL:    http://127.0.0.1:${FLAPJACK_PORT}"

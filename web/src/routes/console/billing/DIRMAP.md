@@ -8,5 +8,5 @@
 | Directory | Summary |
 | --- | --- |
 | invoices | — |
-| setup | This server-side route loads billing setup data by creating a Stripe setup intent through the API, returning the client secret for payment configuration. |
+| setup | Server-side load handler for the billing setup page that creates a Stripe setup intent and returns the client secret to the frontend for payment method configuration. |
 <!-- [scrai:end] -->

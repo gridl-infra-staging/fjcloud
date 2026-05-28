@@ -11,9 +11,16 @@ Ownership boundary:
 - Callers own alert-specific metadata values (title/message/source/nonce/env).
 TODO: Document build_slack_critical_payload. |
 | billing_rehearsal_steps.sh | Shared planned-step list for staging billing preflight/rehearsal JSON output. |
-| clickthrough_probe_common.sh | Stub summary for clickthrough_probe_common.sh. |
+| clickthrough_probe_common.sh | Shared helpers for auth-email clickthrough probes that prove the inbox path. |
 | contract_secret_env.sh | Stub summary for contract_secret_env.sh. |
-| customer_lifecycle_steps.sh | Stub summary for customer_lifecycle_steps.sh. |
+| customer_lifecycle_steps.sh | Shared customer lifecycle steps reused by canary and VM lifecycle orchestrator.
+
+Caller-owned prerequisites:
+- log function
+- flow globals: FLOW_FAILED, FLOW_FAILURE_STEP, FLOW_FAILURE_DETAIL
+- HTTP seams from scripts/lib/http_json.sh
+- inbox seams from scripts/lib/test_inbox_helpers.sh for verify-email
+- env vars/state variables used below (CANARY_* namespace). |
 | deterministic_batch_payload.sh | Stub summary for deterministic_batch_payload.sh. |
 | env.sh | Shared environment file loading — single source of truth for local env parsing.
 
@@ -48,13 +55,15 @@ Flapjack listeners describe the same topology. |
 Callers must define:
   log "<message>". |
 | http_json.sh | Shared JSON HTTP request helpers for shell scripts.
+shellcheck disable=SC2034
 
 Callers provide:
 - API_URL for all calls
 - ADMIN_KEY for admin_call
 
 Response contract:
-- capture_json_response writes HTTP_RESPONSE_CODE and HTTP_RESPONSE_BODY globals. |
+- capture_json_response writes HTTP_RESPONSE_CODE, HTTP_RESPONSE_BODY, and
+  HTTP_RESPONSE_EXIT_STATUS globals. |
 | live_gate.sh | Live gate enforcement for bash scripts.
 
 When BACKEND_LIVE_GATE=1, precondition failures are fatal (exit 1).
@@ -93,7 +102,8 @@ Usage: run_migrations <db_url> <migrations_dir>. |
 | mocked_spec_contract_parser.py | Stub summary for mocked_spec_contract_parser.py. |
 | parse_inbound_auth_headers.py | Stub summary for parse_inbound_auth_headers.py. |
 | persist_capture_artifact.py | Normalize capture artifacts into a consistent JSON structure. |
-| privacy_com_client.sh | Stub summary for privacy_com_client.sh. |
+| privacy_com_client.sh | Privacy.com transport owner for create/get/list/close card flows.
+shellcheck disable=SC1091,SC2034. |
 | process.sh | Stub summary for process.sh. |
 | psql_path.sh | Stub summary for psql_path.sh. |
 | secret_audit_parsing.sh | Stub summary for secret_audit_parsing.sh. |
@@ -141,21 +151,29 @@ Each check function uses live_gate_require to enforce preconditions:
 
 Functions:
   resolve_stripe_secret_key      — resolves effective key (canonical first, alias fallback)
-  check_stripe_key_present       — effective key is set with sk_test_ prefix
+  check_stripe_key_present       — effective key is set with sk_test_ or rk_test_ prefix
   check_stripe_key_live          — Key authenticates against Stripe GET /v1/balance
   check_stripe_webhook_secret_present — STRIPE_WEBHOOK_SECRET is set with whsec_ prefix
   check_stripe_webhook_forwarding     — `stripe listen` process is running
 
 REASON: codes:
   stripe_key_unset                STRIPE_SECRET_KEY missing (alias fallback allowed)
-  stripe_key_bad_prefix           Effective Stripe key does not start with sk_test_
+  stripe_key_bad_prefix           Effective Stripe key does not start with sk_test_ or rk_test_
   stripe_api_timeout              Stripe API call timed out (connect or overall)
   stripe_auth_failed              Stripe returned authentication_error for key
   stripe_key_http_error           Stripe key live check returned non-200 HTTP
   stripe_webhook_secret_unset     STRIPE_WEBHOOK_SECRET missing
   stripe_webhook_secret_bad_prefix STRIPE_WEBHOOK_SECRET does not start with whsec_
   stripe_listen_not_running       No running "stripe listen" process. |
-| stripe_payment_methods.sh | Stub summary for stripe_payment_methods.sh. |
+| stripe_payment_methods.sh | Shared Stripe payment-method attach/default/detach helpers.
+shellcheck disable=SC2034
+
+Caller-owned prerequisites:
+- stripe_request from scripts/lib/stripe_request.sh
+
+Exports:
+- STRIPE_ATTACHED_PAYMENT_METHOD_ID
+- STRIPE_PAYMENT_METHOD_ERROR_MESSAGE. |
 | stripe_request.sh | Stub summary for stripe_request.sh. |
 | validation_json.sh | Shared JSON/timing helpers for validation scripts.
 Sourced by validate-stripe.sh, local-signoff-commerce.sh, and others. |

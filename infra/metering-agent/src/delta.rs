@@ -29,6 +29,26 @@ pub struct CounterState {
 }
 
 impl CounterState {
+    /// Construct a state whose baseline is an explicit zero for every counter.
+    ///
+    /// Unlike [`CounterState::default`] (all `None`), the next [`advance`]
+    /// against a seeded-zero state bills the full observed value as a delta
+    /// (`current - 0`). This is the correct baseline for an index whose
+    /// flapjack counters genuinely started at 0 while the agent was already
+    /// watching — i.e. an index created after the agent process started. It
+    /// must NOT be used for pre-existing indexes, where a zero baseline would
+    /// re-bill all historical activity on the next scrape.
+    ///
+    /// [`advance`]: CounterState::advance
+    pub fn seeded_zero() -> Self {
+        CounterState {
+            search_requests: Some(0),
+            write_operations: Some(0),
+            documents_indexed: Some(0),
+            documents_deleted: Some(0),
+        }
+    }
+
     /// Compute deltas against a new set of raw counter values, then advance
     /// state to the new values.
     pub fn advance(

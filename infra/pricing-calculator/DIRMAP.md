@@ -6,5 +6,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| src | The pricing-calculator crate implements pricing calculations for multiple search and storage services, including Algolia, AWS OpenSearch, Meilisearch, and Griddle, with support for different pricing models (usage-based, resource-based, and flat-rate). |
+| src | The pricing-calculator crate provides a pricing calculation engine with support for multiple provider backends including Algolia, AWS OpenSearch, Meilisearch, and Griddle, with core modules for pricing presets, RAM heuristics, and type definitions. |
 <!-- [scrai:end] -->

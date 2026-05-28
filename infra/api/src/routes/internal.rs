@@ -22,6 +22,12 @@ pub struct TenantMapEntry {
     pub vm_id: Option<Uuid>,
     pub flapjack_url: Option<String>,
     pub tier: String,
+    /// When the tenant/index was created. The metering agent compares this
+    /// against its own start time to decide whether a newly-observed index's
+    /// first counter value should be billed from a zero baseline (index
+    /// created after the agent started) or treated as a conservative baseline
+    /// (pre-existing index, e.g. across an agent restart).
+    pub created_at: chrono::DateTime<chrono::Utc>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -98,6 +104,7 @@ pub async fn tenant_map(
             vm_id: tenant.vm_id,
             flapjack_url,
             tier: tenant.tier,
+            created_at: tenant.created_at,
         });
     }
 

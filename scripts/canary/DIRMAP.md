@@ -3,7 +3,13 @@
 
 | File | Summary |
 | --- | --- |
-| customer_loop_synthetic.sh | Stub summary for customer_loop_synthetic.sh. |
+| customer_loop_synthetic.sh | customer_loop_synthetic.sh — staging customer-loop canary owner.
+
+Stage 4 scope in this owner:
+- enforce quiet-window short-circuit before any HTTP work
+- run signup -> verification -> Stripe setup-intent wiring -> index loop
+- enforce deterministic teardown (index, account, admin cleanup)
+- dispatch failures only via send_critical_alert. |
 | outside_aws_health_check.sh | outside_aws_health_check.sh — one-shot external health probe owner.
 
 This script is the single owner for:
@@ -19,5 +25,5 @@ unavailable so staging gets a clear outside-AWS outage signal. |
 
 | Directory | Summary |
 | --- | --- |
-| contracts | This directory contains contract tests and validation probes that verify system boundaries — mocked Playwright test payloads against live wire formats, Stripe webhook signature/timestamp fail-closed behavior, JWT secret validation, OAuth redirects, and API URL contracts across the web frontend and backend layers. |
+| contracts | This directory contains bash-based contract tests that validate system boundaries across the fjcloud platform, including authentication (OAuth, JWT, form login), payment processing (Stripe webhooks), billing page data structures, multi-tenant isolation, and infrastructure configuration (EC2, Lambda, API URLs). |
 <!-- [scrai:end] -->

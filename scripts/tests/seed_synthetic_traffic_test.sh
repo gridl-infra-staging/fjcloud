@@ -10,7 +10,9 @@ PASS_COUNT=0
 FAIL_COUNT=0
 RUN_OUTPUT=""
 RUN_EXIT_CODE=0
-TENANT_A_MAPPING_PATH="/tmp/seed-synthetic-demo-shared-free.json"
+SEED_SYNTHETIC_STATE_DIR="${TMPDIR:-/tmp}/seed-synthetic-shell-test-$$"
+TENANT_A_MAPPING_PATH="$SEED_SYNTHETIC_STATE_DIR/seed-synthetic-demo-shared-free.json"
+TENANT_B_MAPPING_PATH="$SEED_SYNTHETIC_STATE_DIR/seed-synthetic-demo-small-dedicated.json"
 
 pass() {
     echo "PASS: $1"
@@ -28,6 +30,12 @@ source "$SCRIPT_DIR/lib/assertions.sh"
 source "$SCRIPT_DIR/lib/test_helpers.sh"
 # shellcheck source=lib/seed_local_mocks.sh
 source "$SCRIPT_DIR/lib/seed_local_mocks.sh"
+
+cleanup_seed_synthetic_test_state() {
+    rm -rf "$SEED_SYNTHETIC_STATE_DIR"
+}
+
+trap cleanup_seed_synthetic_test_state EXIT
 
 read_file_or_empty() {
     local path="$1"
@@ -103,6 +111,7 @@ stash_tenant_a_mapping_artifact() {
 
 restore_tenant_a_mapping_artifact() {
     local backup_path="$1"
+    mkdir -p "$SEED_SYNTHETIC_STATE_DIR"
     if [ -f "$backup_path" ]; then
         cp "$backup_path" "$TENANT_A_MAPPING_PATH"
     else
@@ -181,6 +190,7 @@ write_tenant_a_mapping_artifact() {
     local tenant_id="$2"
     local flapjack_uid="$3"
     local flapjack_url="$4"
+    mkdir -p "$SEED_SYNTHETIC_STATE_DIR"
     cat > "$TENANT_A_MAPPING_PATH" <<EOF
 {"customer_id":"$customer_id","tenant_id":"$tenant_id","flapjack_uid":"$flapjack_uid","flapjack_url":"$flapjack_url"}
 EOF
@@ -193,6 +203,7 @@ run_seed_synthetic_dry_run() {
     RUN_EXIT_CODE=0
     RUN_OUTPUT=$(
         PATH="$tmp_dir/bin:$PATH" \
+        SEED_SYNTHETIC_STATE_DIR="$SEED_SYNTHETIC_STATE_DIR" \
         bash "$REPO_ROOT/scripts/launch/seed_synthetic_traffic.sh" --tenant "$selector" --dry-run 2>&1
     ) || RUN_EXIT_CODE=$?
 }
@@ -201,10 +212,16 @@ run_seed_synthetic_execute() {
     local tmp_dir="$1"
     local selector="$2"
     local duration_minutes="${MOCK_SYNTHETIC_DURATION_MINUTES:-1}"
+    local provision_only_flag=""
+
+    if [ "${MOCK_SYNTHETIC_PROVISION_ONLY:-0}" = "1" ]; then
+        provision_only_flag="--provision-only"
+    fi
 
     RUN_EXIT_CODE=0
     RUN_OUTPUT=$(
         PATH="$tmp_dir/bin:$PATH" \
+        SEED_SYNTHETIC_STATE_DIR="$SEED_SYNTHETIC_STATE_DIR" \
         API_URL="http://synthetic-api.test" \
         ADMIN_KEY="synthetic-admin-key" \
         DATABASE_URL="postgres://griddle:griddle_local@127.0.0.1:15432/fjcloud_dev" \
@@ -217,7 +234,10 @@ run_seed_synthetic_execute() {
         MOCK_SYNTHETIC_STORAGE_OTHER_TENANT_UID="${MOCK_SYNTHETIC_STORAGE_OTHER_TENANT_UID:-}" \
         MOCK_SYNTHETIC_CREATE_STATUS_CODE="${MOCK_SYNTHETIC_CREATE_STATUS_CODE:-}" \
         MOCK_SYNTHETIC_CREATE_409_INCLUDE_ID="${MOCK_SYNTHETIC_CREATE_409_INCLUDE_ID:-}" \
+        MOCK_SYNTHETIC_UPDATE_STATUS_CODE="${MOCK_SYNTHETIC_UPDATE_STATUS_CODE:-}" \
+        MOCK_SYNTHETIC_UPDATE_404_FOR_TENANT_ID="${MOCK_SYNTHETIC_UPDATE_404_FOR_TENANT_ID:-}" \
         MOCK_SYNTHETIC_INDEX_STATUS="${MOCK_SYNTHETIC_INDEX_STATUS:-}" \
+        MOCK_SYNTHETIC_INDEX_ENDPOINT_OVERRIDE="${MOCK_SYNTHETIC_INDEX_ENDPOINT_OVERRIDE:-}" \
         MOCK_SYNTHETIC_DIRECT_DOCUMENTS_COUNT_PATH="${MOCK_SYNTHETIC_DIRECT_DOCUMENTS_COUNT_PATH:-}" \
         MOCK_SYNTHETIC_DIRECT_QUERY_COUNT_PATH="${MOCK_SYNTHETIC_DIRECT_QUERY_COUNT_PATH:-}" \
         MOCK_SYNTHETIC_FAIL_QUERY_ON_CALL="${MOCK_SYNTHETIC_FAIL_QUERY_ON_CALL:-}" \
@@ -227,7 +247,8 @@ run_seed_synthetic_execute() {
             --tenant "$selector" \
             --execute \
             --i-know-this-hits-staging \
-            --duration-minutes "$duration_minutes" 2>&1
+            --duration-minutes "$duration_minutes" \
+            $provision_only_flag 2>&1
     ) || RUN_EXIT_CODE=$?
 }
 
@@ -238,6 +259,7 @@ run_seed_synthetic_execute_without_ack() {
     RUN_EXIT_CODE=0
     RUN_OUTPUT=$(
         PATH="$tmp_dir/bin:$PATH" \
+        SEED_SYNTHETIC_STATE_DIR="$SEED_SYNTHETIC_STATE_DIR" \
         bash "$REPO_ROOT/scripts/launch/seed_synthetic_traffic.sh" \
             --tenant "$selector" \
             --execute \
@@ -381,6 +403,8 @@ test_execute_accepts_all_three_tenants_post_stage2() {
     local selector
     for selector in B C all; do
         clear_mock_logs "$curl_log" "$psql_log" "$psql_stdin"
+        MOCK_SYNTHETIC_DURATION_MINUTES="0" \
+        MOCK_SYNTHETIC_PROVISION_ONLY="1" \
         run_seed_synthetic_execute "$tmp_dir" "$selector"
 
         # The Stage-2 gate must be gone for B/C/all execute selectors.
@@ -506,6 +530,7 @@ test_provisioning_contract_first_run_pins_create_update_and_index_fields() {
     clear_mock_logs "$curl_log" "$psql_log" "$psql_stdin"
     MOCK_SYNTHETIC_DURATION_MINUTES="0" \
     MOCK_SYNTHETIC_STORAGE_MB_SEQUENCE="200,200" \
+    MOCK_SYNTHETIC_STORAGE_UID="11111111111111111111111111111111_demo-shared-free" \
     run_seed_synthetic_execute "$tmp_dir" "A"
 
     assert_eq "$RUN_EXIT_CODE" "0" "tenant A execute should complete when provisioning path is implemented"
@@ -663,6 +688,102 @@ test_provisioning_contract_recovers_when_create_409_omits_customer_id() {
         "provisioning should query tenants to resolve existing customer id after a 409 without id"
     assert_eq "$mapping_customer_id" "11111111-1111-1111-1111-111111111111" \
         "fallback lookup should persist resolved customer_id in tenant mapping artifact"
+}
+
+test_provisioning_contract_recovers_when_mapped_customer_update_returns_404() {
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+
+    local curl_log="$tmp_dir/curl.log"
+    local psql_log="$tmp_dir/psql.log"
+    local psql_stdin="$tmp_dir/psql.stdin"
+    local mapping_backup="$tmp_dir/tenant_a_mapping.backup"
+    local stale_customer_id="99999999-9999-9999-9999-999999999999"
+    trap 'restore_tenant_a_mapping_artifact "'"$mapping_backup"'"; rm -rf "'"$tmp_dir"'"' RETURN
+
+    stash_tenant_a_mapping_artifact "$mapping_backup"
+    write_tenant_a_mapping_artifact \
+        "$stale_customer_id" \
+        "tenant-stale-a" \
+        "stale_uid" \
+        "http://synthetic-node-a.test"
+    setup_mock_workspace "$tmp_dir" "$curl_log" "$psql_log" "$psql_stdin"
+
+    clear_mock_logs "$curl_log" "$psql_log" "$psql_stdin"
+    MOCK_SYNTHETIC_DURATION_MINUTES="0" \
+    MOCK_SYNTHETIC_STORAGE_MB_SEQUENCE="200,200" \
+    MOCK_SYNTHETIC_UPDATE_404_FOR_TENANT_ID="$stale_customer_id" \
+    run_seed_synthetic_execute "$tmp_dir" "A"
+
+    assert_eq "$RUN_EXIT_CODE" "0" \
+        "tenant A execute should recover when mapped customer id returns 404 on update"
+
+    local curl_calls mapping_customer_id
+    curl_calls="$(read_file_or_empty "$curl_log")"
+    mapping_customer_id="$(mapping_json_field_or_empty "customer_id")"
+
+    assert_contains "$curl_calls" "http://synthetic-api.test/admin/tenants/$stale_customer_id" \
+        "provisioning should first attempt update against mapped customer id"
+    assert_contains "$curl_calls" "-X POST http://synthetic-api.test/admin/tenants" \
+        "provisioning should recreate/resolve tenant after stale mapped customer update 404"
+    assert_contains "$curl_calls" "http://synthetic-api.test/admin/tenants/11111111-1111-1111-1111-111111111111" \
+        "provisioning should retry update using the recreated active customer id"
+    assert_eq "$mapping_customer_id" "11111111-1111-1111-1111-111111111111" \
+        "mapping artifact should be refreshed to active customer id after stale mapped 404"
+}
+
+test_provisioning_contract_replaces_control_plane_endpoint_with_direct_fallback() {
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+
+    local curl_log="$tmp_dir/curl.log"
+    local psql_log="$tmp_dir/psql.log"
+    local psql_stdin="$tmp_dir/psql.stdin"
+    local mapping_backup="$tmp_dir/tenant_a_mapping.backup"
+    local tenant_b_mapping="$TENANT_B_MAPPING_PATH"
+    local tenant_b_backup="$tmp_dir/tenant_b_mapping.backup"
+    trap 'restore_tenant_a_mapping_artifact "'"$mapping_backup"'"; if [ -f "'"$tenant_b_backup"'" ]; then cp "'"$tenant_b_backup"'" "'"$tenant_b_mapping"'"; else rm -f "'"$tenant_b_mapping"'"; fi; rm -rf "'"$tmp_dir"'"' RETURN
+
+    stash_tenant_a_mapping_artifact "$mapping_backup"
+    if [ -f "$tenant_b_mapping" ]; then
+        cp "$tenant_b_mapping" "$tenant_b_backup"
+    fi
+    write_tenant_a_mapping_artifact \
+        "customer-stage2-a" \
+        "tenant-stage2-a" \
+        "11111111111111111111111111111111_demo-shared-free" \
+        "http://synthetic-node-a.test"
+    rm -f "$tenant_b_mapping"
+    setup_mock_workspace "$tmp_dir" "$curl_log" "$psql_log" "$psql_stdin"
+
+    clear_mock_logs "$curl_log" "$psql_log" "$psql_stdin"
+    MOCK_SYNTHETIC_DURATION_MINUTES="0" \
+    MOCK_SYNTHETIC_STORAGE_MB_SEQUENCE="200,200" \
+    MOCK_SYNTHETIC_INDEX_ENDPOINT_OVERRIDE="https://api.staging.flapjack.foo" \
+    run_seed_synthetic_execute "$tmp_dir" "B"
+
+    assert_not_contains "$RUN_OUTPUT" "status=404" \
+        "tenant B execute output should no longer report control-plane 404 write/search failures"
+
+    local mapped_flapjack_url
+    mapped_flapjack_url="$(
+        python3 - "$tenant_b_mapping" <<'PY'
+import json
+import sys
+with open(sys.argv[1], "r", encoding="utf-8") as handle:
+    payload = json.load(handle)
+print(payload.get("flapjack_url", ""))
+PY
+    )"
+    assert_eq "$mapped_flapjack_url" "http://synthetic-node-a.test" \
+        "tenant B mapping should replace control-plane endpoint with direct-node fallback"
+
+    local curl_calls
+    curl_calls="$(read_file_or_empty "$curl_log")"
+    assert_contains "$curl_calls" "http://synthetic-node-a.test/1/indexes/22222222222222222222222222222222_demo-small-dedicated/batch" \
+        "tenant B sustained writes should target the direct-node fallback"
+    assert_not_contains "$curl_calls" "https://api.staging.flapjack.foo/1/indexes/22222222222222222222222222222222_demo-small-dedicated/batch" \
+        "tenant B sustained writes must not target control-plane endpoint URLs"
 }
 
 test_storage_floor_contract_skips_backfill_when_target_already_met() {
@@ -952,6 +1073,193 @@ test_tenant_a_execute_stops_writes_when_search_loop_fails() {
     else
         fail "tenant A execute should stop sibling writes promptly after search failure (writes=$direct_documents_count)"
     fi
+}
+
+# Regression for the Stage 4 soak: under probe mode (PROBE_ACTIVE_TENANT_LETTER set)
+# the direct write loop runs across the API restart window, where transient
+# non-200/202 responses are expected. It must log-and-continue (counting every
+# attempt) so the probe can reach assertion evaluation — NOT die. The standalone
+# seeder (no PROBE_ACTIVE_TENANT_LETTER) must still treat a write failure as fatal.
+invoke_direct_write_loop_in_isolation() {
+    # Runs run_direct_write_loop against the mock curl in a fresh subshell and
+    # echoes a LOOP-COMPLETED marker only if the loop returned to its caller.
+    local tmp_dir="$1" probe_letter="$2" fail_on_call="$3" total_writes="$4" count_path="$5"
+    SEED_SYNTHETIC_NO_AUTO_RUN=1 \
+    source "$REPO_ROOT/scripts/launch/seed_synthetic_traffic.sh" --tenant A --dry-run >/dev/null 2>&1
+    export PATH="$tmp_dir/bin:$PATH"
+    FLAPJACK_API_KEY="synthetic-flapjack-api-key"
+    PROBE_ACTIVE_TENANT_LETTER="$probe_letter"
+    [ -z "$probe_letter" ] && unset PROBE_ACTIVE_TENANT_LETTER
+    # The mock curl is a child process, so the failure seam must be exported.
+    export MOCK_SYNTHETIC_FAIL_BATCH_ON_CALL="$fail_on_call"
+    run_direct_write_loop "http://synthetic-node-a.test" "tenant-A" "$total_writes" 0 "$count_path"
+    echo "LOOP-COMPLETED"
+}
+
+test_probe_mode_write_loop_continues_through_transient_error() {
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    trap 'rm -rf "'"$tmp_dir"'"' RETURN
+    local curl_log="$tmp_dir/curl.log"
+    mkdir -p "$tmp_dir/bin"
+    write_mock_curl "$tmp_dir/bin/curl" "$curl_log"
+    local count_path="$tmp_dir/writes.count"
+    local out exit_code=0
+
+    set +e
+    out="$(invoke_direct_write_loop_in_isolation "$tmp_dir" "A" 2 4 "$count_path" 2>&1)"
+    exit_code=$?
+    set -e
+
+    assert_eq "$exit_code" "0" \
+        "probe-mode write loop must return to caller (exit 0) despite a transient 503 mid-loop"
+    assert_contains "$out" "LOOP-COMPLETED" \
+        "probe-mode write loop must reach its end instead of die-ing on the transient 503"
+    assert_contains "$out" "probe mode continuing" \
+        "probe-mode write loop should log the transient error rather than abort"
+    assert_eq "$(read_counter_file_or_zero "$count_path")" "4" \
+        "probe-mode write loop must count every attempted write including the failed one"
+    assert_eq "$(line_count_or_zero "$curl_log")" "4" \
+        "probe-mode write loop must issue all four batch writes even after the 503"
+}
+
+test_standalone_write_loop_stays_fatal_on_error() {
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    trap 'rm -rf "'"$tmp_dir"'"' RETURN
+    local curl_log="$tmp_dir/curl.log"
+    mkdir -p "$tmp_dir/bin"
+    write_mock_curl "$tmp_dir/bin/curl" "$curl_log"
+    local count_path="$tmp_dir/writes.count"
+    local out exit_code=0
+
+    set +e
+    out="$(invoke_direct_write_loop_in_isolation "$tmp_dir" "" 2 4 "$count_path" 2>&1)"
+    exit_code=$?
+    set -e
+
+    assert_eq "$exit_code" "1" \
+        "standalone write loop (no probe seam) must still die with exit 1 on a non-200 write"
+    assert_contains "$out" "sustained write failed" \
+        "standalone write loop must report the fatal write failure"
+    assert_not_contains "$out" "LOOP-COMPLETED" \
+        "standalone write loop must abort at the failed write, not complete the loop"
+}
+
+invoke_direct_search_loop_in_isolation() {
+    # Mirror of invoke_direct_write_loop_in_isolation for the post-restart search loop.
+    local tmp_dir="$1" probe_letter="$2" fail_on_call="$3" total_searches="$4" count_path="$5"
+    SEED_SYNTHETIC_NO_AUTO_RUN=1 \
+    source "$REPO_ROOT/scripts/launch/seed_synthetic_traffic.sh" --tenant A --dry-run >/dev/null 2>&1
+    export PATH="$tmp_dir/bin:$PATH"
+    FLAPJACK_API_KEY="synthetic-flapjack-api-key"
+    PROBE_ACTIVE_TENANT_LETTER="$probe_letter"
+    [ -z "$probe_letter" ] && unset PROBE_ACTIVE_TENANT_LETTER
+    export MOCK_SYNTHETIC_FAIL_QUERY_ON_CALL="$fail_on_call"
+    run_direct_search_loop "http://synthetic-node-a.test" "tenant-A" "$total_searches" 0 "$count_path"
+    echo "LOOP-COMPLETED"
+}
+
+test_probe_mode_search_loop_continues_through_transient_error() {
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    trap 'rm -rf "'"$tmp_dir"'"' RETURN
+    local curl_log="$tmp_dir/curl.log"
+    mkdir -p "$tmp_dir/bin"
+    write_mock_curl "$tmp_dir/bin/curl" "$curl_log"
+    local count_path="$tmp_dir/searches.count"
+    local out exit_code=0
+
+    set +e
+    out="$(invoke_direct_search_loop_in_isolation "$tmp_dir" "A" 2 4 "$count_path" 2>&1)"
+    exit_code=$?
+    set -e
+
+    assert_eq "$exit_code" "0" \
+        "probe-mode search loop must return to caller (exit 0) despite a transient 500 mid-loop"
+    assert_contains "$out" "LOOP-COMPLETED" \
+        "probe-mode search loop must reach its end instead of die-ing on the transient 500"
+    assert_contains "$out" "probe mode continuing" \
+        "probe-mode search loop should log the transient error rather than abort"
+    assert_eq "$(read_counter_file_or_zero "$count_path")" "4" \
+        "probe-mode search loop must count every attempted search including the failed one"
+}
+
+test_probe_exact_object_lookup_uses_deterministic_query_term() {
+    (
+        load_seed_synthetic_functions
+
+        local curl_calls
+        curl_calls="$(mktemp)"
+        curl() {
+            local url="" method="GET" data=""
+            while [ "$#" -gt 0 ]; do
+                case "$1" in
+                    -X)
+                        method="$2"
+                        shift 2
+                        ;;
+                    -H|-w)
+                        shift 2
+                        ;;
+                    -d)
+                        data="$2"
+                        shift 2
+                        ;;
+                    http://*|https://*)
+                        url="$1"
+                        shift
+                        ;;
+                    *)
+                        shift
+                        ;;
+                esac
+            done
+            printf '%s %s %s\n' "$method" "$url" "$data" >> "$curl_calls"
+            case "$url $data" in
+                *"/query"*'"Deterministic content 4c56e149062646024e3b40a997cff6ea"'*)
+                    printf '{"hits":[{"objectID":"doc-424250"}],"nbHits":1}\n200'
+                    ;;
+                *"/query"*'"Deterministic content ec137a3eeba4709bf6e52bf51b17773b"'*)
+                    printf '{"hits":[],"nbHits":0}\n200'
+                    ;;
+                *)
+                    printf '{"error":"unexpected-url"}\n500'
+                    ;;
+            esac
+        }
+
+        local hit_count miss_count
+        hit_count="$(
+            FLAPJACK_API_KEY="synthetic-flapjack-api-key" \
+            probe_owner_query_exact_object_hit_count \
+                "http://synthetic-node-a.test" \
+                "tenant-A" \
+                "doc-424250"
+        )"
+        miss_count="$(
+            FLAPJACK_API_KEY="synthetic-flapjack-api-key" \
+            probe_owner_query_exact_object_hit_count \
+                "http://synthetic-node-a.test" \
+                "tenant-A" \
+                "doc-424251"
+        )"
+
+        local call_log
+        call_log="$(cat "$curl_calls")"
+        rm -f "$curl_calls"
+
+        assert_eq "$hit_count" "1" \
+            "exact object lookup should report 1 when the deterministic exact-query term returns a hit"
+        assert_eq "$miss_count" "0" \
+            "exact object lookup should report 0 when the deterministic exact-query term returns no hits"
+        assert_contains "$call_log" '/query {"query":"Deterministic content 4c56e149062646024e3b40a997cff6ea"}' \
+            "exact object lookup should probe the deterministic query term for hit reads"
+        assert_contains "$call_log" '/query {"query":"Deterministic content ec137a3eeba4709bf6e52bf51b17773b"}' \
+            "exact object lookup should probe the deterministic query term for miss reads"
+        assert_not_contains "$call_log" '/documents/' \
+            "exact object lookup must not rely on the live-broken document endpoint"
+    )
 }
 
 test_staging_execute_seam_is_explicitly_gated() {
@@ -1325,6 +1633,8 @@ main() {
             test_provisioning_contract_rerun_is_idempotent_without_duplicate_create_calls
             test_seed_index_accepts_200_ok_from_idempotent_rerun_path
             test_provisioning_contract_recovers_when_create_409_omits_customer_id
+            test_provisioning_contract_recovers_when_mapped_customer_update_returns_404
+            test_provisioning_contract_replaces_control_plane_endpoint_with_direct_fallback
             ;;
         stage3)
             test_storage_floor_contract_skips_backfill_when_target_already_met
@@ -1335,6 +1645,10 @@ main() {
             test_tenant_a_execute_starts_sustained_traffic_after_floor_is_met
             test_tenant_a_execute_cleans_count_files_when_search_loop_fails
             test_tenant_a_execute_stops_writes_when_search_loop_fails
+            test_probe_mode_write_loop_continues_through_transient_error
+            test_standalone_write_loop_stays_fatal_on_error
+            test_probe_mode_search_loop_continues_through_transient_error
+            test_probe_exact_object_lookup_uses_deterministic_query_term
             ;;
         stage5)
             test_stage5_optional_usage_daily_query_error_is_non_gating
@@ -1353,12 +1667,18 @@ main() {
             test_provisioning_contract_rerun_is_idempotent_without_duplicate_create_calls
             test_seed_index_accepts_200_ok_from_idempotent_rerun_path
             test_provisioning_contract_recovers_when_create_409_omits_customer_id
+            test_provisioning_contract_recovers_when_mapped_customer_update_returns_404
+            test_provisioning_contract_replaces_control_plane_endpoint_with_direct_fallback
             test_storage_floor_contract_skips_backfill_when_target_already_met
             test_storage_floor_contract_polls_until_usage_converges
             test_storage_floor_contract_stops_after_above_tolerance_overshoot
             test_tenant_a_execute_starts_sustained_traffic_after_floor_is_met
             test_tenant_a_execute_cleans_count_files_when_search_loop_fails
             test_tenant_a_execute_stops_writes_when_search_loop_fails
+            test_probe_mode_write_loop_continues_through_transient_error
+            test_standalone_write_loop_stays_fatal_on_error
+            test_probe_mode_search_loop_continues_through_transient_error
+            test_probe_exact_object_lookup_uses_deterministic_query_term
             test_stage5_optional_usage_daily_query_error_is_non_gating
             test_staging_execute_seam_is_explicitly_gated
             test_stage6_docs_publish_verified_contract_and_blocker_state

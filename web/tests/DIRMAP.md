@@ -6,6 +6,6 @@
 
 | Directory | Summary |
 | --- | --- |
-| e2e-ui | E2E UI tests for the web frontend using Playwright, organized into full (unmocked browser tests), mocked (deterministic mock-service flows), and smoke (critical-path subset) categories, with helpers and VLM-powered screenshot validation for visual workflows. |
-| fixtures | This directory contains Playwright test fixtures and shared helper utilities for browser-based e2e tests, including authentication setup for different test projects (admin, onboarding, customer journeys), billing and signup workflow helpers, and utilities for accessing staging database and Stripe data. |
+| e2e-ui | The e2e-ui directory provides end-to-end UI testing infrastructure, with the full/ subdirectory containing utilities for index detail operations and screenshot capture including manifest handling and redirect protection. |
+| fixtures | This fixtures directory contains Playwright test setup hooks and shared helper utilities for browser testing across multiple user journeys including admin auth, customer signup and billing, index creation, and payment workflows. |
 <!-- [scrai:end] -->

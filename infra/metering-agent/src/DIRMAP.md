@@ -4,7 +4,7 @@
 | File | Summary |
 | --- | --- |
 | circuit_breaker.rs | Stub summary for /Users/stuart/parallel_development/fjcloud_dev/MAR17_11_2_data_management_features/fjcloud_dev/infra/metering-agent/src/circuit_breaker.rs. |
-| config.rs | Stub summary for /Users/stuart/parallel_development/fjcloud_dev/MAR17_11_2_data_management_features/fjcloud_dev/infra/metering-agent/src/config.rs. |
+| config.rs | Stub summary for config.rs. |
 | counter.rs | Stub summary for counter.rs. |
 | health.rs | Stub summary for /Users/stuart/parallel_development/fjcloud_dev/MAR17_11_2_data_management_features/fjcloud_dev/infra/metering-agent/src/health.rs. |
 | main.rs | Stub summary for main.rs. |

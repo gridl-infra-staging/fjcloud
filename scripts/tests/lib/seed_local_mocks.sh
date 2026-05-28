@@ -314,6 +314,17 @@
 # TODO: Document write_mock_curl.
 # TODO: Document write_mock_curl.
 # TODO: Document write_mock_curl.
+# TODO: Document write_mock_curl.
+# TODO: Document write_mock_curl.
+# TODO: Document write_mock_curl.
+# TODO: Document write_mock_curl.
+# TODO: Document write_mock_curl.
+# TODO: Document write_mock_curl.
+# TODO: Document write_mock_curl.
+# TODO: Document write_mock_curl.
+# TODO: Document write_mock_curl.
+# TODO: Document write_mock_curl.
+# TODO: Document write_mock_curl.
 write_mock_curl() {
     local path="$1" log_path="$2"
     local state_dir
@@ -399,6 +410,11 @@ synthetic_tenant_name_for_id() {
     esac
 }
 synthetic_endpoint_for_tenant_name() {
+    local endpoint_override="${MOCK_SYNTHETIC_INDEX_ENDPOINT_OVERRIDE:-}"
+    if [ -n "$endpoint_override" ]; then
+        printf '%s' "$endpoint_override"
+        return 0
+    fi
     case "$1" in
         demo-shared-free) printf '%s' "http://synthetic-node-a.test" ;;
         demo-small-dedicated) printf '%s' "http://synthetic-node-b.test" ;;
@@ -505,11 +521,18 @@ case "$url" in
         if [ "$method" = "PUT" ]; then
             synthetic_tenant_id="${url##*/admin/tenants/}"
             synthetic_tenant_id="${synthetic_tenant_id%%\?*}"
+            synthetic_update_404_id="${MOCK_SYNTHETIC_UPDATE_404_FOR_TENANT_ID:-}"
+            if [ -n "$synthetic_update_404_id" ] && [ "$synthetic_tenant_id" = "$synthetic_update_404_id" ]; then
+                printf '{"error":"tenant not found"}\n404'
+                exit 0
+            fi
+            synthetic_update_status="${MOCK_SYNTHETIC_UPDATE_STATUS_CODE:-200}"
             synthetic_tenant_name="$(synthetic_tenant_name_for_id "$synthetic_tenant_id")"
-            printf '{"id":"%s","name":"%s","email":"%s@synthetic-seed.invalid","status":"active","billing_plan":"dedicated","created_at":"2026-04-24T00:00:00Z","updated_at":"2026-04-24T00:00:00Z"}\n200' \
+            printf '{"id":"%s","name":"%s","email":"%s@synthetic-seed.invalid","status":"active","billing_plan":"dedicated","created_at":"2026-04-24T00:00:00Z","updated_at":"2026-04-24T00:00:00Z"}\n%s' \
                 "$synthetic_tenant_id" \
                 "$synthetic_tenant_name" \
-                "$synthetic_tenant_name"
+                "$synthetic_tenant_name" \
+                "$synthetic_update_status"
             exit 0
         fi
         ;;
@@ -539,7 +562,13 @@ case "$url" in
         exit 0
         ;;
     http://synthetic-flapjack.test/1/indexes/*/batch|http://synthetic-node-a.test/1/indexes/*/batch|http://synthetic-node-b.test/1/indexes/*/batch|http://synthetic-node-c.test/1/indexes/*/batch)
+        synthetic_batch_call="$(next_state_counter "synthetic_batch.count")"
         increment_counter_file "${MOCK_SYNTHETIC_DIRECT_DOCUMENTS_COUNT_PATH:-}"
+        synthetic_fail_batch_on_call="${MOCK_SYNTHETIC_FAIL_BATCH_ON_CALL:-0}"
+        if [ "$synthetic_fail_batch_on_call" -gt 0 ] && [ "$synthetic_batch_call" -eq "$synthetic_fail_batch_on_call" ]; then
+            printf '{"error":"synthetic batch failure"}\n503'
+            exit 0
+        fi
         printf '{"taskUid":"synthetic-seed"}\n200'
         exit 0
         ;;

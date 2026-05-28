@@ -1,0 +1,3 @@
+demo-shared-free|201|7ba5e7c3-4fac-463e-94a8-ff612510caae|/tmp/seed-synthetic-demo-shared-free.json
+demo-small-dedicated|201|f961fc1a-b5db-4621-8793-6cfca5323eb9|/tmp/seed-synthetic-demo-small-dedicated.json
+demo-medium-dedicated|201|0b166bfc-57e2-478e-aad0-9c6a9e2c165f|/tmp/seed-synthetic-demo-medium-dedicated.json

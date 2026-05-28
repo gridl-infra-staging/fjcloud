@@ -8,5 +8,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| [id] | This SvelteKit page server component loads index detail data including settings, documents, rules, synonyms, and analytics, then exports multiple form action handlers for managing index features like rules, documents, experiments, replicas, and security sources. |
+| [id] | This server-side page module for the index management dashboard loads comprehensive index configuration and state data on page load, and provides multiple server actions for managing documents, rules, synonyms, analytics, personalization settings, experiments, and security sources through the API. |
 <!-- [scrai:end] -->

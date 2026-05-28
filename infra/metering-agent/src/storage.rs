@@ -276,6 +276,7 @@ mod tests {
             health_port: 9091,
             tenant_map_url: "http://127.0.0.1:3001/internal/tenant-map".to_string(),
             cold_storage_usage_url: "http://127.0.0.1:3001/internal/cold-storage-usage".to_string(),
+            started_at: chrono::Utc::now(),
         };
 
         let tenant_map: super::super::tenant_map::TenantCustomerMap = Arc::new(DashMap::new());
@@ -287,6 +288,7 @@ mod tests {
                 customer_id,
                 tenant_id: "cold-idx".to_string(),
                 tier: "cold".to_string(),
+                created_at: chrono::DateTime::<chrono::Utc>::UNIX_EPOCH,
             },
         );
         tenant_map.insert(
@@ -295,6 +297,7 @@ mod tests {
                 customer_id,
                 tenant_id: "active-idx".to_string(),
                 tier: "active".to_string(),
+                created_at: chrono::DateTime::<chrono::Utc>::UNIX_EPOCH,
             },
         );
 
@@ -385,6 +388,7 @@ mod tests {
             health_port: 9091,
             tenant_map_url: "http://127.0.0.1:0/internal/tenant-map".to_string(),
             cold_storage_usage_url: "http://127.0.0.1:0/internal/cold-storage-usage".to_string(),
+            started_at: chrono::Utc::now(),
         };
         struct NoopWriter;
         #[async_trait::async_trait]
@@ -443,6 +447,7 @@ mod tests {
             health_port: 9091,
             tenant_map_url: format!("{base_url}/internal/tenant-map"),
             cold_storage_usage_url: format!("{base_url}/internal/cold-storage-usage"),
+            started_at: chrono::Utc::now(),
         };
         let http = reqwest::Client::new();
 

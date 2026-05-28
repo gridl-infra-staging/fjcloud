@@ -1,0 +1,1 @@
+{"env":"staging","tenants":"A,B,C","duration_minutes":30,"dry_run":false,"assert_mode":true,"restart_invoked":true,"restart_window_start_epoch":1779960149,"restart_window_end_epoch":1779960165,"writes_attempted":33300,"fail_fast_responses_during_window":0,"visible_in_search_after":1830,"silent_drops":31470,"cross_tenant_leaks":3,"noisy_neighbor_violations":0}

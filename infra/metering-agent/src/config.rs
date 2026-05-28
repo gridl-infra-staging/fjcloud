@@ -52,6 +52,16 @@ pub struct Config {
     pub tenant_map_url: String,
     /// Cold storage usage endpoint URL for completed snapshot sizes.
     pub cold_storage_usage_url: String,
+    /// Wall-clock instant this agent process started.
+    ///
+    /// Used to decide whether a newly-observed index's flapjack counters
+    /// genuinely began at 0 under this agent's watch: an index whose tenant
+    /// `created_at` is later than `started_at` was created after we began
+    /// scraping, so its first observed counter value is real usage to bill
+    /// (see `counter::build_counter_delta_records`). Indexes created before
+    /// `started_at` (the agent-restart case) keep the conservative
+    /// first-observation baseline so historical usage is never re-billed.
+    pub started_at: chrono::DateTime<chrono::Utc>,
 }
 
 #[derive(Debug, Error)]
@@ -182,6 +192,7 @@ impl Config {
             health_port,
             tenant_map_url,
             cold_storage_usage_url,
+            started_at: chrono::Utc::now(),
         })
     }
 

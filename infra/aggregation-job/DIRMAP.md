@@ -6,5 +6,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| src | The src directory contains the aggregation-job's entry point and modules, which implements a daily rollup daemon that aggregates metered usage data into billing periods by querying PostgreSQL and reporting affected row counts. |
+| src | The aggregation-job is a daily batch process that performs metering data rollups into billing periods by connecting to PostgreSQL, executing a rollup query for a target date window, and reporting the rows affected. |
 <!-- [scrai:end] -->

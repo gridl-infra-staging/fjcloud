@@ -8,11 +8,19 @@
 		qsConfigError: string;
 		qsConfigSaved: boolean;
 		qsConfigDeleted: boolean;
+		qsBuildQueued: boolean;
 		index: Index;
 	};
 
-	let { qsConfig, qsStatus, qsConfigError, qsConfigSaved, qsConfigDeleted, index }: Props =
-		$props();
+	let {
+		qsConfig,
+		qsStatus,
+		qsConfigError,
+		qsConfigSaved,
+		qsConfigDeleted,
+		qsBuildQueued,
+		index
+	}: Props = $props();
 	let qsConfigText = $derived(
 		JSON.stringify(
 			qsConfig ?? {
@@ -52,6 +60,14 @@
 			class="mb-4 rounded-md border border-flapjack-mint/60 bg-flapjack-mint/25 p-3 text-sm text-flapjack-ink/80"
 		>
 			Suggestions config deleted.
+		</div>
+	{/if}
+
+	{#if qsBuildQueued}
+		<div
+			class="mb-4 rounded-md border border-flapjack-mint/60 bg-flapjack-mint/25 p-3 text-sm text-flapjack-ink/80"
+		>
+			Suggestions rebuild queued.
 		</div>
 	{/if}
 
@@ -120,6 +136,15 @@
 			</div>
 		</form>
 	</div>
+
+	<form method="POST" action="?/rebuildQsConfig" class="mb-6" use:enhance>
+		<button
+			type="submit"
+			class="rounded-md border border-flapjack-ink/30 bg-white px-4 py-2 text-sm font-medium text-flapjack-ink/80 hover:bg-flapjack-cream/70"
+		>
+			Rebuild Suggestions
+		</button>
+	</form>
 
 	{#if qsStatus}
 		<div

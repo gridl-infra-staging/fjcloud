@@ -25,7 +25,7 @@ run_integration_tests() {
         INTEGRATION_DB_URL="$INTEGRATION_DB_URL" \
         INTEGRATION_JWT_SECRET="integration-test-jwt-secret-000000" \
         INTEGRATION_ADMIN_KEY="integration-test-admin-key" \
-        cargo test -p api integration_ -- --test-threads=1 "$@"
+        cargo test -p api --test integration integration_ -- --test-threads=1 "$@"
 
     log "Integration tests complete!"
 }

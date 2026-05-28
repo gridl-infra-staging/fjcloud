@@ -3,6 +3,7 @@ import { chooseFirstAvailableRegion } from '../../fixtures/create_index_form_hel
 import {
 	generatePreviewKeyAndWaitForWidget,
 	submitSearchPreviewQuery,
+	waitForSearchPreviewHitsToContain,
 	waitForSearchPreviewReady
 } from '../../fixtures/search-preview-helpers';
 
@@ -11,6 +12,7 @@ test.describe('Demo loader end-to-end', () => {
 		page,
 		registerIndexForCleanup,
 		createUser,
+		setBillingPlanForCustomer,
 		completeFreshSignupEmailVerification,
 		isFreshSignupArrangePrerequisiteFailure
 	}) => {
@@ -19,6 +21,7 @@ test.describe('Demo loader end-to-end', () => {
 		const email = `demo-loader-${seed}@e2e.griddle.test`;
 		const password = 'TestPassword123!';
 		const createdIndexName = `e2e-demo-loader-${seed}`;
+		const deterministicHitTitle = `Demo Loader Deterministic Hit ${seed}`;
 
 		const adminKey = process.env.E2E_ADMIN_KEY ?? process.env.ADMIN_KEY;
 		if (!adminKey?.trim()) {
@@ -28,7 +31,10 @@ test.describe('Demo loader end-to-end', () => {
 
 		await page.context().clearCookies();
 		try {
-			await createUser(email, password, `Demo Loader ${seed}`);
+			const createdUser = await createUser(email, password, `Demo Loader ${seed}`);
+			// Shared plan now enforces billing-setup completion; keep demo-loader
+			// coverage on free plan to avoid unrelated billing-gate failures.
+			await setBillingPlanForCustomer(createdUser.customerId, 'free');
 			await completeFreshSignupEmailVerification(page, email);
 		} catch (error) {
 			const failureMessage = error instanceof Error ? error.message : String(error);
@@ -66,13 +72,27 @@ test.describe('Demo loader end-to-end', () => {
 		await expect(page).toHaveURL(/welcome=0/, { timeout: 5_000 });
 		await expect(page).toHaveURL(/tab=search-preview/, { timeout: 5_000 });
 
+		await page.getByRole('tab', { name: 'Documents' }).click();
+		await expect(page.getByTestId('documents-section')).toBeVisible({ timeout: 10_000 });
+		await page.getByLabel('Record JSON').fill(
+			JSON.stringify({
+				objectID: `demo-loader-doc-${seed}`,
+				title: deterministicHitTitle,
+				body: 'demo loader deterministic document'
+			})
+		);
+		await page.getByRole('button', { name: 'Add Record' }).click();
+		await expect(page.getByText('Document added.')).toBeVisible({ timeout: 15_000 });
+
+		await page.getByRole('tab', { name: 'Search Preview' }).click();
+		await expect(page.getByTestId('search-preview-section')).toBeVisible({ timeout: 10_000 });
 		await waitForSearchPreviewReady(page);
 		await generatePreviewKeyAndWaitForWidget(page);
-		await submitSearchPreviewQuery(page, 'the');
-
-		await expect(page.getByTestId('instantsearch-hits').getByRole('article').first()).toBeVisible({
-			timeout: 60_000
-		});
+		await submitSearchPreviewQuery(page, deterministicHitTitle);
+		await waitForSearchPreviewHitsToContain(page, deterministicHitTitle, 60_000);
+		await expect(
+			page.getByTestId('search-preview-results').getByRole('button', { name: /^Open hit / }).first()
+		).toBeVisible({ timeout: 60_000 });
 		await expect(page.getByTestId('instantsearch-widget')).toBeVisible();
 		await expect(page.getByTestId('search-preview-section')).toBeVisible();
 	});

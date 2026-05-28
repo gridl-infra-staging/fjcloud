@@ -33,8 +33,7 @@
 		return `${duration} ms`;
 	}
 
-	const CURL_REDACTION_DISCLAIMER =
-		'Copied curl commands always redact authorization credentials.';
+	const CURL_REDACTION_DISCLAIMER = 'Copied curl commands always redact authorization credentials.';
 
 	async function handleCopyAsCurl(event: MouseEvent, entry: StoredLogEntry): Promise<void> {
 		event.stopPropagation();
@@ -118,15 +117,21 @@
 									<div class="grid gap-3 md:grid-cols-2">
 										<div class="rounded-md border border-gray-200 bg-white p-3">
 											<p class="mb-1 text-xs font-medium uppercase text-gray-500">Request</p>
-											<pre class="overflow-x-auto rounded bg-gray-50 p-2 text-xs text-gray-700"
-												>{JSON.stringify(entry.body, null, 2)}</pre
-											>
+											<pre
+												class="overflow-x-auto rounded bg-gray-50 p-2 text-xs text-gray-700">{JSON.stringify(
+													entry.body,
+													null,
+													2
+												)}</pre>
 										</div>
 										<div class="rounded-md border border-gray-200 bg-white p-3">
 											<p class="mb-1 text-xs font-medium uppercase text-gray-500">Response</p>
-											<pre class="overflow-x-auto rounded bg-gray-50 p-2 text-xs text-gray-700"
-												>{JSON.stringify(entry.response, null, 2)}</pre
-											>
+											<pre
+												class="overflow-x-auto rounded bg-gray-50 p-2 text-xs text-gray-700">{JSON.stringify(
+													entry.response,
+													null,
+													2
+												)}</pre>
 										</div>
 									</div>
 								</td>

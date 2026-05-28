@@ -49,12 +49,17 @@ export function parseDictionaryEntryFromForm(
 	data: FormData,
 	selection: { dictionary: DictionaryName; language: string }
 ): Record<string, unknown> {
-	const objectID = (data.get('objectID') as string | null)?.trim() ?? '';
-	if (!objectID) {
+	const submittedObjectID = (data.get('objectID') as string | null)?.trim() ?? '';
+	const submittedIntent = (data.get('intent') as string | null)?.trim().toLowerCase() ?? '';
+	const shouldEditEntry =
+		submittedIntent === 'edit' || (submittedIntent !== 'add' && submittedObjectID.length > 0);
+	const objectID = shouldEditEntry ? submittedObjectID : globalThis.crypto.randomUUID();
+	if (shouldEditEntry && objectID.length === 0) {
 		throw new Error('objectID is required');
 	}
 
 	const baseEntry: Record<string, unknown> = {
+		// Add mints server-side ID; edit preserves the submitted row objectID.
 		objectID,
 		language: selection.language
 	};
@@ -66,14 +71,19 @@ export function parseDictionaryEntryFromForm(
 		}
 
 		const submittedState = (data.get('state') as string | null)?.trim() ?? '';
-		if (submittedState.length > 0) {
-			if (submittedState !== 'enabled' && submittedState !== 'disabled') {
-				throw new Error('state must be enabled or disabled for stopwords');
-			}
-			return { ...baseEntry, word: entryWord, state: submittedState };
+		if (
+			submittedState.length > 0 &&
+			submittedState !== 'enabled' &&
+			submittedState !== 'disabled'
+		) {
+			throw new Error('state must be enabled or disabled for stopwords');
 		}
 
-		return { ...baseEntry, word: entryWord };
+		return {
+			...baseEntry,
+			word: entryWord,
+			state: submittedState || 'enabled'
+		};
 	}
 
 	if (selection.dictionary === 'plurals') {
@@ -98,10 +108,8 @@ export function parseDictionaryEntryFromForm(
 		throw new Error('entryDecomposition is required for compounds');
 	}
 	const decomposition = parseDelimitedValues(rawDecomposition);
-	if (decomposition.length < 2) {
-		throw new Error(
-			'entryDecomposition must include at least two comma-separated values for compounds'
-		);
+	if (decomposition.length < 1) {
+		throw new Error('entryDecomposition must include at least one parsed value for compounds');
 	}
 
 	return {
@@ -145,40 +153,22 @@ export function resolveDictionarySelection(
 
 	const languageCodes = Object.keys(languages).sort((left, right) => left.localeCompare(right));
 
-	if (requestedDictionary) {
-		if (requestedLanguage && languages[requestedLanguage]) {
-			return {
-				selectedDictionary: requestedDictionary,
-				selectedLanguage: requestedLanguage
-			};
-		}
-
-		for (const language of languageCodes) {
-			if (hasLanguageEntriesForDictionary(languages, requestedDictionary, language)) {
-				return {
-					selectedDictionary: requestedDictionary,
-					selectedLanguage: language
-				};
-			}
-		}
-
+	const selectedDictionary = requestedDictionary ?? 'stopwords';
+	if (requestedLanguage && languages[requestedLanguage]) {
 		return {
-			selectedDictionary: requestedDictionary,
-			selectedLanguage: languageCodes[0] ?? ''
+			selectedDictionary,
+			selectedLanguage: requestedLanguage
 		};
 	}
 
-	for (const dictionary of VALID_DICTIONARIES) {
-		for (const language of languageCodes) {
-			if (!hasLanguageEntriesForDictionary(languages, dictionary, language)) {
-				continue;
-			}
+	for (const language of languageCodes) {
+		if (hasLanguageEntriesForDictionary(languages, selectedDictionary, language)) {
 			return {
-				selectedDictionary: dictionary,
+				selectedDictionary,
 				selectedLanguage: language
 			};
 		}
 	}
 
-	return { selectedDictionary: 'stopwords', selectedLanguage: languageCodes[0] ?? '' };
+	return { selectedDictionary, selectedLanguage: languageCodes[0] ?? '' };
 }

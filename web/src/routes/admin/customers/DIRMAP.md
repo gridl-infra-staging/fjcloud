@@ -8,5 +8,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| [id] | Dynamic SvelteKit route handler for pages identified by an ID parameter. |
+| [id] | This SvelteKit page server component loads index detail data including settings, documents, rules, synonyms, and analytics, then exports multiple form action handlers for managing index features like rules, documents, experiments, replicas, and security sources. |
 <!-- [scrai:end] -->

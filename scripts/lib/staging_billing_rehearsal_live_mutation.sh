@@ -40,13 +40,19 @@ set_convergence_failure() {
 }
 
 build_billing_run_payload() {
-    python3 - "$HTTP_RESPONSE_BODY" "$HTTP_RESPONSE_CODE" "${CREATED_INVOICE_IDS_JSON:-[]}" <<'PY' || true
+    local body_file invoice_ids_file
+    body_file="$(mktemp)"
+    invoice_ids_file="$(mktemp)"
+    printf '%s' "$HTTP_RESPONSE_BODY" > "$body_file"
+    printf '%s' "${CREATED_INVOICE_IDS_JSON:-[]}" > "$invoice_ids_file"
+    python3 - "$body_file" "$HTTP_RESPONSE_CODE" "$invoice_ids_file" <<'PY' || true
 import json
+import pathlib
 import sys
 
-body = sys.argv[1]
+body = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
 code = sys.argv[2]
-invoice_ids = json.loads(sys.argv[3]) if len(sys.argv) > 3 else []
+invoice_ids = json.loads(pathlib.Path(sys.argv[3]).read_text(encoding="utf-8")) if len(sys.argv) > 3 else []
 payload = {"http_status": code, "invoice_ids": invoice_ids}
 try:
     payload["response"] = json.loads(body)
@@ -54,10 +60,12 @@ except Exception:
     payload["response_raw"] = body
 print(json.dumps(payload))
 PY
+    rm -f "$body_file" "$invoice_ids_file"
 }
 
+# TODO: Document capture_billing_run_attempt.
 capture_billing_run_attempt() {
-    local billing_url created_count request_status
+    local billing_url created_count request_status http_body_file
 
     billing_url="${STAGING_API_URL%/}/admin/billing/run"
     request_status=0
@@ -82,9 +90,12 @@ capture_billing_run_attempt() {
         return 1
     fi
 
+    http_body_file="$(mktemp)"
+    printf '%s' "$HTTP_RESPONSE_BODY" > "$http_body_file"
     CREATED_INVOICE_IDS_JSON='[]'
     BILLING_RUN_PAYLOAD="$(build_billing_run_payload)"
     if [ "$HTTP_RESPONSE_CODE" != "200" ]; then
+        rm -f "$http_body_file"
         set_billing_run_failure \
             "billing_run_http_error" \
             "POST /admin/billing/run returned HTTP ${HTTP_RESPONSE_CODE}." \
@@ -92,16 +103,50 @@ capture_billing_run_attempt() {
         return 1
     fi
 
-    if ! is_valid_json "$HTTP_RESPONSE_BODY"; then
+    if ! python3 - "$http_body_file" <<'PY' >/dev/null 2>&1; then
+import json
+import pathlib
+import sys
+
+json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
+PY
         set_billing_run_failure \
             "billing_run_response_invalid" \
             "POST /admin/billing/run returned invalid JSON." \
             "$BILLING_RUN_PAYLOAD"
+        rm -f "$http_body_file"
         return 1
     fi
 
-    CREATED_INVOICE_IDS_JSON="$(extract_created_invoice_ids_json "$HTTP_RESPONSE_BODY")"
+    CREATED_INVOICE_IDS_JSON="$(python3 - "$http_body_file" <<'PY' || true
+import json
+import pathlib
+import sys
+
+try:
+    payload = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
+except Exception:
+    print("[]")
+    raise SystemExit(0)
+
+ids = []
+for item in payload.get("results", []):
+    if not isinstance(item, dict):
+        continue
+    if item.get("status") != "created":
+        continue
+    invoice_id = item.get("invoice_id")
+    if invoice_id is None:
+        continue
+    invoice_id = str(invoice_id).strip()
+    if invoice_id:
+        ids.append(invoice_id)
+
+print(json.dumps(ids))
+PY
+)"
     BILLING_RUN_PAYLOAD="$(build_billing_run_payload)"
+    rm -f "$http_body_file"
     created_count="$(json_array_length "$CREATED_INVOICE_IDS_JSON")"
     if [ "$created_count" -le 0 ]; then
         set_billing_run_failure \

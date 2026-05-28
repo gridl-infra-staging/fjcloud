@@ -20,7 +20,6 @@ async function openRulesTab(page: Page) {
 	return section;
 }
 
-
 async function gotoSeededIndexRulesTab(
 	page: Page,
 	seedIndex: SeedIndexFn,
@@ -54,7 +53,12 @@ test.describe('Rules CRUD', () => {
 		testRegion,
 		getRule
 	}) => {
-		const indexName = await gotoSeededIndexRulesTab(page, seedIndex, testRegion, 'e2e-rules-create');
+		const indexName = await gotoSeededIndexRulesTab(
+			page,
+			seedIndex,
+			testRegion,
+			'e2e-rules-create'
+		);
 		const ruleObjectID = `create-rule-${Date.now()}`;
 		const ruleDescription = `create description ${Date.now()}`;
 		const conditionPattern = `pattern-${Date.now()}`;
@@ -72,7 +76,7 @@ test.describe('Rules CRUD', () => {
 		await dialog.getByLabel('Promote position').fill(promotePosition);
 		await dialog.getByRole('button', { name: 'Create' }).click();
 
-			const section = await openRulesTab(page);
+		const section = await openRulesTab(page);
 		const row = section.getByRole('row').filter({ hasText: ruleObjectID });
 		await expect(row).toBeVisible();
 		await expect(row.getByRole('cell', { name: ruleDescription, exact: true })).toBeVisible();
@@ -123,18 +127,32 @@ test.describe('Rules CRUD', () => {
 		await dialog.getByLabel('Promote position').fill('4');
 		await dialog.getByRole('button', { name: 'Save' }).click();
 
-			const updatedSection = await openRulesTab(page);
-			const updatedRow = updatedSection.getByRole("row").filter({ hasText: objectID });
-			await expect(updatedRow.getByRole("cell", { name: updatedDescription, exact: true })).toBeVisible();
+		const updatedSection = await openRulesTab(page);
+		const updatedRow = updatedSection.getByRole('row').filter({ hasText: objectID });
+		await expect(
+			updatedRow.getByRole('cell', { name: updatedDescription, exact: true })
+		).toBeVisible();
 
 		const backendRule = await getRule(indexName, objectID);
 		expect(backendRule.objectID).toBe(objectID);
 		expect(backendRule.description).toBe(updatedDescription);
-		expect(backendRule.consequence.promote).toEqual([{ objectID: updatedPromoteObjectID, position: 4 }]);
+		expect(backendRule.consequence.promote).toEqual([
+			{ objectID: updatedPromoteObjectID, position: 4 }
+		]);
 	});
 
-	test('JSON preview matches saved backend payload', async ({ page, seedIndex, testRegion, getRule }) => {
-		const indexName = await gotoSeededIndexRulesTab(page, seedIndex, testRegion, 'e2e-rules-preview');
+	test('JSON preview matches saved backend payload', async ({
+		page,
+		seedIndex,
+		testRegion,
+		getRule
+	}) => {
+		const indexName = await gotoSeededIndexRulesTab(
+			page,
+			seedIndex,
+			testRegion,
+			'e2e-rules-preview'
+		);
 		const objectID = `preview-${Date.now()}`;
 		const description = `preview-desc-${Date.now()}`;
 		const conditionPattern = `preview-pattern-${Date.now()}`;
@@ -169,11 +187,20 @@ test.describe('Rules CRUD', () => {
 		seedRules,
 		searchRules
 	}) => {
-		const indexName = await gotoSeededIndexRulesTab(page, seedIndex, testRegion, 'e2e-rules-delete');
+		const indexName = await gotoSeededIndexRulesTab(
+			page,
+			seedIndex,
+			testRegion,
+			'e2e-rules-delete'
+		);
 		const keepObjectID = `keep-${Date.now()}`;
 		const deleteObjectID = `delete-${Date.now()}`;
 		await seedRules(indexName, [
-			{ objectID: keepObjectID, conditions: [{ pattern: 'keep', anchoring: 'is' }], consequence: {} },
+			{
+				objectID: keepObjectID,
+				conditions: [{ pattern: 'keep', anchoring: 'is' }],
+				consequence: {}
+			},
 			{
 				objectID: deleteObjectID,
 				description: 'delete-me',
@@ -246,7 +273,12 @@ test.describe('Rules CRUD', () => {
 		seedRules,
 		searchRules
 	}) => {
-		const indexName = await gotoSeededIndexRulesTab(page, seedIndex, testRegion, 'e2e-rules-clear-many');
+		const indexName = await gotoSeededIndexRulesTab(
+			page,
+			seedIndex,
+			testRegion,
+			'e2e-rules-clear-many'
+		);
 		const now = Date.now();
 		const seededRules = Array.from({ length: 51 }, (_, idx) => ({
 			objectID: `bulk-clear-${now}-${idx}`,
@@ -291,7 +323,9 @@ test.describe('Rules CRUD', () => {
 		const dialog = await openAddRuleDialog(page);
 		await dialog.getByLabel('Object ID').fill(expectedRule.objectID);
 		await dialog.getByLabel('Description').fill(description);
-		await dialog.getByLabel('Conditions JSON').fill(JSON.stringify(expectedRule.conditions, null, 2));
+		await dialog
+			.getByLabel('Conditions JSON')
+			.fill(JSON.stringify(expectedRule.conditions, null, 2));
 		await dialog.getByLabel('Promote item ID').fill(promoteObjectID);
 		await dialog.getByLabel('Promote position').fill(String(promotePosition));
 		await dialog.getByLabel('Hide item ID').fill(hiddenObjectID);

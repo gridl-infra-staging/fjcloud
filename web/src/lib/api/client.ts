@@ -548,6 +548,10 @@ export class ApiClient extends BaseClient {
 		);
 	}
 
+	clearSynonyms(indexName: string): Promise<Record<string, unknown>> {
+		return this.api('POST', this.indexPath(indexName, '/synonyms/clear'));
+	}
+
 	getPersonalizationStrategy(indexName: string): Promise<PersonalizationStrategy> {
 		return this.api('GET', this.indexPath(indexName, '/personalization/strategy'));
 	}
@@ -605,6 +609,10 @@ export class ApiClient extends BaseClient {
 
 	getQsStatus(indexName: string): Promise<QsBuildStatus> {
 		return this.api('GET', this.indexPath(indexName, '/suggestions/status'));
+	}
+
+	triggerQsBuild(indexName: string): Promise<Record<string, unknown>> {
+		return this.api('POST', this.indexPath(indexName, '/suggestions/build'));
 	}
 
 	private analyticsQuery(params?: AnalyticsDateRangeParams): string {

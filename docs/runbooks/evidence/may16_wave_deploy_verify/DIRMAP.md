@@ -6,5 +6,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| 20260518T231734Z | This directory contains evidence artifacts and stub scripts from a multi-stage validation workflow, specifically capturing authentication lockout behavior for stage 5 of a testing or deployment procedure. |
+| 20260518T231734Z | This directory contains a read-only probe script that captures authentication lockout behavior, validating how the system responds to repeated failed login attempts. |
 <!-- [scrai:end] -->

@@ -61,18 +61,21 @@ type SearchableIndexFactoryDeps = {
 
 const DEFAULT_DOCUMENTS: Array<Record<string, unknown>> = [
 	{
+		objectID: 'doc-1',
 		id: 'doc-1',
 		title: 'Rust Programming Language',
 		body: 'Systems programming',
 		category: 'language'
 	},
 	{
+		objectID: 'doc-2',
 		id: 'doc-2',
 		title: 'TypeScript Handbook',
 		body: 'JavaScript with types',
 		category: 'tech'
 	},
 	{
+		objectID: 'doc-3',
 		id: 'doc-3',
 		title: 'Rust Async Book',
 		body: 'Futures and async/await in Rust',
@@ -213,6 +216,29 @@ async function ingestDocumentsViaFlapjack({
 	}
 }
 
+async function ingestDocumentsViaApiBatch({
+	apiCall,
+	indexName,
+	documents,
+	errorPrefix
+}: {
+	apiCall: ApiCallFn;
+	indexName: string;
+	documents: Array<Record<string, unknown>>;
+	errorPrefix: string;
+}): Promise<void> {
+	const response = await apiCall(
+		'POST',
+		`/indexes/${encodeURIComponent(indexName)}/batch`,
+		buildAddDocumentsBatch(documents)
+	);
+	if (!response.ok) {
+		throw new Error(
+			`${errorPrefix}: API batch ingest failed: ${response.status} ${await response.text()}`
+		);
+	}
+}
+
 async function waitForExpectedSearchHit({
 	apiCall,
 	indexName,
@@ -230,13 +256,27 @@ async function waitForExpectedSearchHit({
 	pollIntervalMs?: number;
 	errorPrefix: string;
 }): Promise<void> {
+	const normalizedExpectedText = expectedHitText.toLowerCase();
+
+	const hasExpectedTextInHit = (hit: Record<string, unknown>): boolean => {
+		for (const value of Object.values(hit)) {
+			if (typeof value !== 'string') {
+				continue;
+			}
+			if (value.toLowerCase().includes(normalizedExpectedText)) {
+				return true;
+			}
+		}
+		return false;
+	};
+
 	for (let attempt = 0; attempt < maxAttempts; attempt++) {
 		const searchRes = await apiCall('POST', `/indexes/${encodeURIComponent(indexName)}/search`, {
 			query
 		});
 		if (searchRes.ok) {
 			const searchData = (await searchRes.json()) as SearchHitsResponse;
-			if (searchData.hits?.some((hit) => hit.title?.includes(expectedHitText))) {
+			if (searchData.hits?.some((hit) => hasExpectedTextInHit(hit as Record<string, unknown>))) {
 				return;
 			}
 		}
@@ -244,6 +284,81 @@ async function waitForExpectedSearchHit({
 	}
 
 	throw new Error(`${errorPrefix}: documents not searchable after ${maxAttempts} attempts`);
+}
+
+/**
+ * Prefer direct Flapjack ingest, then fall back to API batch ingest if search
+ * never converges through the primary path.
+ */
+async function ingestDocumentsWithSearchFallback({
+	primaryIngest,
+	apiCall,
+	indexName,
+	query,
+	expectedHitText,
+	documents,
+	errorPrefix
+}: {
+	primaryIngest: () => Promise<void>;
+	apiCall: ApiCallFn;
+	indexName: string;
+	query: string;
+	expectedHitText: string;
+	documents: Array<Record<string, unknown>>;
+	errorPrefix: string;
+}): Promise<void> {
+	const isQuotaExceededFailure = (details: string): boolean =>
+		/\bquota_exceeded\b/i.test(details) && /\bmax_records\b/i.test(details);
+
+	try {
+		await primaryIngest();
+		await waitForExpectedSearchHit({
+			apiCall,
+			indexName,
+			query,
+			expectedHitText,
+			errorPrefix
+		});
+		return;
+	} catch (primaryError) {
+		const primaryDetails =
+			primaryError instanceof Error ? primaryError.message : String(primaryError);
+		try {
+			await ingestDocumentsViaApiBatch({
+				apiCall,
+				indexName,
+				documents,
+				errorPrefix
+			});
+			await waitForExpectedSearchHit({
+				apiCall,
+				indexName,
+				query,
+				expectedHitText,
+				errorPrefix
+			});
+			return;
+		} catch (fallbackError) {
+			const fallbackDetails =
+				fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
+			if (isQuotaExceededFailure(fallbackDetails)) {
+				// Quota-limited environments can reject fallback writes even when the
+				// primary ingest succeeded and searchability only lagged readiness.
+				await waitForExpectedSearchHit({
+					apiCall,
+					indexName,
+					query,
+					expectedHitText,
+					maxAttempts: 60,
+					errorPrefix
+				});
+				return;
+			}
+			throw new Error(
+				`${errorPrefix}: primary ingest path failed (${primaryDetails}); API batch fallback failed (${fallbackDetails})`
+			);
+		}
+	}
 }
 
 async function waitForSeededIndexByToken(
@@ -477,19 +592,21 @@ export async function seedSearchableIndexForCustomer({
 		buildIndexKeyDescription(normalizedAccess.name),
 		['search', 'addObject']
 	);
-	await ingestDocumentsViaFlapjack({
-		flapjackUrl: safeFlapjackUrl,
-		flapjackIndexName: flapjackIndexUid,
-		key,
-		documents,
-		fetchImpl,
-		errorPrefix: 'seedSearchableIndexForCustomer'
-	});
-	await waitForExpectedSearchHit({
+	await ingestDocumentsWithSearchFallback({
+		primaryIngest: () =>
+			ingestDocumentsViaFlapjack({
+				flapjackUrl: safeFlapjackUrl,
+				flapjackIndexName: flapjackIndexUid,
+				key,
+				documents,
+				fetchImpl,
+				errorPrefix: 'seedSearchableIndexForCustomer'
+			}),
 		apiCall: userApiCall,
 		indexName: normalizedAccess.name,
 		query,
 		expectedHitText,
+		documents,
 		errorPrefix: 'seedSearchableIndexForCustomer'
 	});
 
@@ -541,18 +658,20 @@ export function createSeedSearchableIndexFactory({
 
 		const query = DEFAULT_SEARCH_QUERY;
 		const expectedHitText = DEFAULT_EXPECTED_HIT_TEXT;
-		await ingestDocumentsViaFlapjack({
-			flapjackUrl,
-			flapjackIndexName: flapjackIndexUid,
-			key,
-			documents: DEFAULT_DOCUMENTS,
-			errorPrefix: 'seedSearchableIndex'
-		});
-		await waitForExpectedSearchHit({
+		await ingestDocumentsWithSearchFallback({
+			primaryIngest: () =>
+				ingestDocumentsViaFlapjack({
+					flapjackUrl,
+					flapjackIndexName: flapjackIndexUid,
+					key,
+					documents: DEFAULT_DOCUMENTS,
+					errorPrefix: 'seedSearchableIndex'
+				}),
 			apiCall,
 			indexName: name,
 			query,
 			expectedHitText,
+			documents: DEFAULT_DOCUMENTS,
 			errorPrefix: 'seedSearchableIndex'
 		});
 

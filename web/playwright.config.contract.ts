@@ -9,6 +9,13 @@ export const PLAYWRIGHT_WEB_SERVER_COMMAND =
 export const PLAYWRIGHT_WEB_ONLY_SERVER_COMMAND = '../scripts/web-dev.sh';
 export const PLAYWRIGHT_WEB_PORT_ENV = 'PLAYWRIGHT_WEB_PORT';
 export const PLAYWRIGHT_API_PORT_ENV = 'PLAYWRIGHT_API_PORT';
+// Flapjack listens on a workspace-derived port (see resolveDefaultPlaywrightFlapjackPort)
+// so parallel worktrees do not collide on a single shared flapjack instance. Before
+// 2026-05-26 the flapjack URL was hardcoded to DEFAULT_FLAPJACK_URL (:7700) for every
+// workspace; concurrent worktrees then reused each other's flapjack — whose in-memory
+// node admin key did not match — and every proxied index op (settings/browse/rules/
+// synonyms/…) failed flapjack auth with HTTP 403 "Invalid Application-ID or API key".
+export const PLAYWRIGHT_FLAPJACK_PORT_ENV = 'PLAYWRIGHT_FLAPJACK_PORT';
 export const PLAYWRIGHT_STORAGE_STATE = {
 	user: 'tests/fixtures/.auth/user.json',
 	onboarding: 'tests/fixtures/.auth/onboarding.json',
@@ -100,7 +107,11 @@ function isPublicOnlyPlaywrightSelection(argv: string[]): boolean {
 const PLAYWRIGHT_DEFAULT_PORT_HASH_MIN = 5600;
 const PLAYWRIGHT_DEFAULT_PORT_HASH_SPAN = 2000;
 const PLAYWRIGHT_DEFAULT_API_PORT_HASH_MIN = 7600;
-const LOOPBACK_HTTP_HOST = '127.0.0.1';
+// Flapjack band sits above web (5600–7599), API (7600–9599), and the API's S3 sidecar
+// (apiPort+1, ≤9600) so the three workspace-derived ports — which all share the same
+// hash offset — never collide. 9700 + offset(0–1999) → 9700–11699, safely below 65535.
+const PLAYWRIGHT_DEFAULT_FLAPJACK_PORT_HASH_MIN = 9700;
+const LOOPBACK_HTTP_HOST = 'localhost';
 const FNV1A_32_OFFSET_BASIS = 0x811c9dc5;
 const FNV1A_32_PRIME = 0x01000193;
 
@@ -146,6 +157,20 @@ export function resolveDefaultPlaywrightApiPort(workspacePath: string = process.
 	return PLAYWRIGHT_DEFAULT_API_PORT_HASH_MIN + portOffset;
 }
 
+export function resolveDefaultPlaywrightFlapjackPort(
+	workspacePath: string = process.cwd()
+): number {
+	const normalizedWorkspacePath = workspacePath.trim();
+	if (normalizedWorkspacePath.length === 0) {
+		// Mirror the web/API resolvers' empty-path fallback: a fixed default that
+		// matches the legacy hardcoded DEFAULT_FLAPJACK_URL port (7700) so callers
+		// with no workspace context keep the historical behavior.
+		return 7700;
+	}
+	const portOffset = hashStringFNV1A(normalizedWorkspacePath) % PLAYWRIGHT_DEFAULT_PORT_HASH_SPAN;
+	return PLAYWRIGHT_DEFAULT_FLAPJACK_PORT_HASH_MIN + portOffset;
+}
+
 function buildPlaywrightApiUrl(port: number): string {
 	return `http://localhost:${port}`;
 }
@@ -172,6 +197,18 @@ function resolvePlaywrightApiPort(
 		return parsePlaywrightWebPort(configuredPort);
 	}
 	return resolveDefaultPlaywrightApiPort(workspacePath);
+}
+
+function resolvePlaywrightFlapjackPort(
+	processEnv: Record<string, string | undefined>,
+	workspacePath: string
+): number {
+	const configuredPort = processEnv[PLAYWRIGHT_FLAPJACK_PORT_ENV]?.trim();
+	if (configuredPort && configuredPort.length > 0) {
+		// Reuse the web-port parser: same 1024–65535 integer contract.
+		return parsePlaywrightWebPort(configuredPort);
+	}
+	return resolveDefaultPlaywrightFlapjackPort(workspacePath);
 }
 
 function buildPlaywrightLoopbackUrl(port: number): string {
@@ -398,6 +435,13 @@ export function applyPlaywrightProcessEnvDefaults({
 		webEnv.STRIPE_WEBHOOK_SECRET,
 		repoEnv.STRIPE_WEBHOOK_SECRET
 	);
+	assignFirstDefinedEnvValue(
+		processEnv,
+		'STRIPE_SECRET_KEY',
+		processEnv.STRIPE_SECRET_KEY,
+		webEnv.STRIPE_SECRET_KEY,
+		repoEnv.STRIPE_SECRET_KEY
+	);
 }
 
 /**
@@ -416,8 +460,17 @@ export function resolvePlaywrightRuntime({
 }: ResolvePlaywrightRuntimeParams): PlaywrightRuntimeContract {
 	const webPort = resolvePlaywrightWebPort(processEnv, workspacePath);
 	const apiPort = resolvePlaywrightApiPort(processEnv, workspacePath);
+	const flapjackPort = resolvePlaywrightFlapjackPort(processEnv, workspacePath);
 	const defaultBaseUrl = buildPlaywrightLoopbackUrl(webPort);
 	const defaultApiBaseUrl = buildPlaywrightApiUrl(apiPort);
+	// Per-workspace flapjack URL — replaces the legacy hardcoded DEFAULT_FLAPJACK_URL.
+	// Threaded into BOTH the spawned stack (webServerEnv → playwright_local_stack.sh
+	// starts + targets flapjack here, the API inherits it) AND the fixture process
+	// (processEnv.FLAPJACK_URL → resolveFixtureEnv → seedIndex's create body
+	// `flapjack_url`), so the provisioned node and the proxy agree on one isolated
+	// flapjack. Without this thread, seedIndex would point nodes at :7700 (a foreign
+	// worktree's flapjack) while the stack ran its own — the 403 auth-mismatch source.
+	const defaultFlapjackUrl = buildPlaywrightLoopbackUrl(flapjackPort);
 	const hasExplicitBaseUrl = Boolean(processEnv.BASE_URL && processEnv.BASE_URL.trim().length > 0);
 	// Thread processEnv through so the LB-2/LB-3 remote-target opt-in
 	// (PLAYWRIGHT_TARGET_REMOTE=1) is observed deterministically by the
@@ -437,8 +490,29 @@ export function resolvePlaywrightRuntime({
 		if (!processEnv.API_URL || processEnv.API_URL.trim().length === 0) {
 			processEnv.API_URL = defaultApiBaseUrl;
 		}
-		if (!processEnv[PLAYWRIGHT_API_PORT_ENV] || processEnv[PLAYWRIGHT_API_PORT_ENV]?.trim().length === 0) {
+		if (
+			!processEnv[PLAYWRIGHT_API_PORT_ENV] ||
+			processEnv[PLAYWRIGHT_API_PORT_ENV]?.trim().length === 0
+		) {
 			processEnv[PLAYWRIGHT_API_PORT_ENV] = String(apiPort);
+		}
+		// Pin the fixture process to the workspace flapjack port so seedIndex /
+		// resolveFixtureEnv provision nodes against the same instance the stack runs.
+		// Respect an explicit FLAPJACK_URL (e.g. a deliberate override) when present.
+		if (!processEnv.FLAPJACK_URL || processEnv.FLAPJACK_URL.trim().length === 0) {
+			processEnv.FLAPJACK_URL = defaultFlapjackUrl;
+		}
+		if (
+			!processEnv.LOCAL_DEV_FLAPJACK_URL ||
+			processEnv.LOCAL_DEV_FLAPJACK_URL.trim().length === 0
+		) {
+			processEnv.LOCAL_DEV_FLAPJACK_URL = defaultFlapjackUrl;
+		}
+		if (
+			!processEnv[PLAYWRIGHT_FLAPJACK_PORT_ENV] ||
+			processEnv[PLAYWRIGHT_FLAPJACK_PORT_ENV]?.trim().length === 0
+		) {
+			processEnv[PLAYWRIGHT_FLAPJACK_PORT_ENV] = String(flapjackPort);
 		}
 	}
 	const apiBaseUrl = requireLoopbackHttpUrl(
@@ -452,7 +526,7 @@ export function resolvePlaywrightRuntime({
 		processEnv
 	);
 	processEnv.API_BASE_URL = apiBaseUrl;
-	processEnv.API_URL = apiBaseUrl;
+	processEnv.API_URL = apiUrl;
 	const webServerEnv = sanitizeWebServerEnv({
 		...processEnv,
 		...repoEnv,
@@ -460,6 +534,17 @@ export function resolvePlaywrightRuntime({
 		API_BASE_URL: apiBaseUrl,
 		API_URL: apiUrl,
 		[PLAYWRIGHT_API_PORT_ENV]: String(apiPort),
+		[PLAYWRIGHT_FLAPJACK_PORT_ENV]: String(flapjackPort),
+		// Workspace-isolated flapjack URL (see defaultFlapjackUrl above). Prefer an
+		// explicit FLAPJACK_URL the !hasExplicitBaseUrl block already pinned, falling
+		// back to the derived per-workspace URL for the remote-target path.
+		FLAPJACK_URL: processEnv.FLAPJACK_URL ?? defaultFlapjackUrl,
+		LOCAL_DEV_FLAPJACK_URL: processEnv.LOCAL_DEV_FLAPJACK_URL ?? defaultFlapjackUrl,
+		// Keep spawned API listen addresses pinned to the computed Playwright
+		// API port so stale repo env LISTEN_ADDR values (for example 3001) cannot
+		// drift away from the health-check target and stall webServer startup.
+		LISTEN_ADDR: `${LOOPBACK_HTTP_HOST}:${apiPort}`,
+		S3_LISTEN_ADDR: `${LOOPBACK_HTTP_HOST}:${apiPort + 1}`,
 		JWT_SECRET:
 			processEnv.JWT_SECRET ?? webEnv.JWT_SECRET ?? repoEnv.JWT_SECRET ?? fallbackJwtSecret,
 		ADMIN_KEY:

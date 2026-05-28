@@ -172,9 +172,13 @@ test.describe('Admin fleet overview', () => {
 
 	test('VM infrastructure hostname opens the VM detail page', async ({ page }) => {
 		await gotoFleetWithVmRows(page);
+		await page.getByTestId('auto-refresh-toggle').uncheck();
 
 		const vmTable = page.getByTestId('vm-table-body');
-		const firstHostnameLink = vmTable.getByRole('link').first();
+		const localDevHostnameLink = vmTable.getByRole('link', { name: /^local-dev-/ }).first();
+		const firstHostnameLink = (await localDevHostnameLink.count())
+			? localDevHostnameLink
+			: vmTable.getByRole('link').first();
 		await expect(firstHostnameLink).toBeVisible();
 		const hostname = (await firstHostnameLink.textContent())?.trim() ?? '';
 		expect(hostname, 'VM hostname link should have visible text').not.toBe('');
@@ -182,8 +186,9 @@ test.describe('Admin fleet overview', () => {
 		await firstHostnameLink.click();
 
 		await expect(page).toHaveURL(/\/admin\/fleet\/[^/]+$/);
-		await expect(page.getByRole('heading', { name: hostname })).toBeVisible();
-		await expect(page.getByRole('heading', { name: 'VM Info' })).toBeVisible();
+		const vmInfoSection = page.getByTestId('vm-info-section');
+		await expect(vmInfoSection).toBeVisible({ timeout: 30_000 });
+		await expect(vmInfoSection).toContainText(hostname);
 		await expect(page.getByRole('heading', { name: /Indexes on this VM/ })).toBeVisible();
 		await expect(page.getByRole('link', { name: '← Fleet' })).toHaveAttribute(
 			'href',

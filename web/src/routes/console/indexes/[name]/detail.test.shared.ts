@@ -255,6 +255,9 @@ export const sampleExperimentResults = {
 		relativeImprovement: 0.08,
 		winner: 'variant'
 	},
+	bayesian: {
+		probVariantBetter: 0.94
+	},
 	sampleRatioMismatch: false,
 	guardRailAlerts: [],
 	cupedApplied: true
@@ -272,16 +275,63 @@ export const sampleExperimentResultsNotReady = {
 	}
 };
 
+export const sampleExperimentResultsDaysGate = {
+	...sampleExperimentResults,
+	status: 'running',
+	gate: {
+		...sampleExperimentResults.gate,
+		minimumNReached: true,
+		minimumDaysReached: false,
+		readyToRead: false,
+		progressPct: 88,
+		currentSearchesPerArm: 880,
+		requiredSearchesPerArm: 1000,
+		estimatedDaysRemaining: 2
+	}
+};
+
+export const sampleExperimentResultsWithSignals = {
+	...sampleExperimentResults,
+	sampleRatioMismatch: true,
+	guardRailAlerts: [
+		{
+			metricName: 'conversion_rate',
+			controlValue: 0.042,
+			variantValue: 0.031,
+			dropPct: 26.2
+		}
+	],
+	interleaving: {
+		deltaAB: 0.12,
+		winsControl: 45,
+		winsVariant: 63,
+		ties: 8,
+		pValue: 0.03,
+		significant: true,
+		totalQueries: 116,
+		dataQualityOk: true
+	},
+	recommendation: 'Variant has higher CTR and should be promoted'
+};
+
 export const sampleConcludedExperimentResults = {
 	...sampleExperimentResults,
 	status: 'concluded',
+	primaryMetric: 'revenuePerSearch',
 	significance: {
 		...sampleExperimentResults.significance,
 		winner: 'variant',
 		confidence: 0.98
 	},
 	conclusion: {
-		reason: 'Rolled out B; mobile lift was 8%'
+		reason: 'Rolled out B; mobile lift was 8%',
+		winner: 'control',
+		controlMetric: 2.05,
+		variantMetric: 1.75,
+		confidence: 0.91,
+		significant: true,
+		promoted: true,
+		endedAt: '2026-03-21T00:00:00Z'
 	},
 	recommendation: 'Variant has higher CTR and should be promoted'
 };
@@ -367,6 +417,34 @@ export const sampleDebugEventsWithDuplicateIdentity = {
 	count: 3
 };
 
+export const sampleDebugEventsWithSubtype = {
+	events: [
+		{
+			timestampMs: 1709251200000,
+			index: 'products',
+			eventType: 'view',
+			eventSubtype: 'addToCart',
+			eventName: 'Viewed Product',
+			userToken: 'user_abc',
+			objectIds: ['obj1'],
+			httpCode: 200,
+			validationErrors: []
+		},
+		{
+			timestampMs: 1709251260000,
+			index: 'products',
+			eventType: 'click',
+			eventSubtype: null,
+			eventName: 'Clicked Result',
+			userToken: 'user_def',
+			objectIds: ['obj3'],
+			httpCode: 400,
+			validationErrors: ['missing objectID']
+		}
+	],
+	count: 2
+};
+
 export const sampleSecuritySources = {
 	sources: [
 		{ source: '192.168.1.0/24', description: 'Office network' },
@@ -401,11 +479,16 @@ export function createMockPageData(overrides: Record<string, unknown> = {}) {
 		documents: sampleDocuments,
 		experiments: sampleExperiments,
 		experimentResults: { '7': sampleExperimentResults },
+		selectedExperiment: sampleExperiments.abtests[0],
+		selectedExperimentResults: sampleExperimentResults,
+		experimentDetailBackHref: '/console/indexes/products?tab=experiments',
 		debugEvents: null,
 		eventsLoadError: '',
 		dictionaries: sampleDictionaries,
+		dictionaryBrowseError: '',
 		securitySources: sampleSecuritySources,
 		securitySourcesLoadError: '',
+		allIndexes: [sampleIndex],
 		...overrides
 	};
 }

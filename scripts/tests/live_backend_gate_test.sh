@@ -252,10 +252,8 @@ test_gate_runs_cargo_rust_tests_as_composite_check() {
     assert_eq "$checks_run" "7" "checks_run should be 7 (6 bash + 1 cargo)"
     assert_contains "$cargo_invocation" "/infra" "rust validation should run cargo from infra workspace"
     assert_contains "$cargo_invocation" "integration=1" "rust validation should force INTEGRATION=1"
-    assert_contains "$cargo_invocation" "args=test -p api --test integration_metering_pipeline_test -- --test-threads=1" \
-        "rust validation should run the full integration_metering_pipeline_test target"
-    assert_not_contains "$cargo_invocation" " validate_" \
-        "rust validation should not use a name filter that skips all metering tests"
+    assert_contains "$cargo_invocation" "args=test -p api --test integration integration_metering_pipeline_test:: -- --test-threads=1" \
+        "rust validation should run the integration binary scoped to the integration_metering_pipeline_test module"
     assert_eq "${exit_code:-0}" "0" "exit code should be 0 when all pass"
 
     rm -rf "$mock_dir"

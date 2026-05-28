@@ -16,28 +16,32 @@ FAIL_COUNT=0
 pass() { echo "PASS: $1"; PASS_COUNT=$((PASS_COUNT+1)); }
 fail() { echo "FAIL: $*" >&2; FAIL_COUNT=$((FAIL_COUNT+1)); }
 
-rust_lint_block_has_generate_ssm_hook() {
-    local rust_lint_block="$1"
-    if printf '%s\n' "$rust_lint_block" | grep -Eq '^[[:space:]]*bash[[:space:]]+"\$REPO_ROOT/scripts/tests/generate_ssm_env_test\.sh"([[:space:]]*\|\|.*)?$'; then
-        return 0
-    fi
-    return 1
+GENERATE_SSM_HOOK_REGEX='^[[:space:]]*bash[[:space:]]+"\$REPO_ROOT/scripts/tests/generate_ssm_env_test\.sh"([[:space:]]*\|\|.*)?$'
+SET_E_HOOK_REGEX='^[[:space:]]*bash[[:space:]]+"\$REPO_ROOT/scripts/tests/local_ci_gate_set_e_test\.sh"([[:space:]]*\|\|.*)?$'
+LAYOUT_HOOK_REGEX='^[[:space:]]*bash[[:space:]]+"\$REPO_ROOT/scripts/tests/integration_test_layout_test\.sh"([[:space:]]*\|\|.*)?$'
+MOCKED_SPEC_HOOK_REGEX='^[[:space:]]*if[[:space:]]+bash[[:space:]]+scripts/canary/contracts/mocked_spec_contract\.sh[[:space:]]+staging;[[:space:]]*then$'
+
+extract_function_block() {
+    local function_name="$1"
+    awk -v function_name="$function_name" '
+        $0 ~ "^" function_name "\\(\\) \\{$" { in_block=1; print; next }
+        in_block { print }
+        in_block && /^}/ { exit }
+    ' "$LOCAL_CI"
 }
 
-rust_lint_block_has_set_e_hook() {
-    local rust_lint_block="$1"
-    if printf '%s\n' "$rust_lint_block" | grep -Eq '^[[:space:]]*bash[[:space:]]+"\$REPO_ROOT/scripts/tests/local_ci_gate_set_e_test\.sh"([[:space:]]*\|\|.*)?$'; then
-        return 0
-    fi
-    return 1
+extract_with_contracts_block() {
+    awk '
+        /^if \[ "\$WITH_CONTRACTS" -eq 1 \]; then$/ { in_block=1; print; next }
+        in_block { print }
+        in_block && /^fi$/ { exit }
+    ' "$LOCAL_CI"
 }
 
-with_contracts_block_has_mocked_spec_hook() {
-    local with_contracts_block="$1"
-    if printf '%s\n' "$with_contracts_block" | grep -Eq '^[[:space:]]*if[[:space:]]+bash[[:space:]]+scripts/canary/contracts/mocked_spec_contract\.sh[[:space:]]+staging;[[:space:]]*then$'; then
-        return 0
-    fi
-    return 1
+block_has_regex() {
+    local block="$1"
+    local regex="$2"
+    printf '%s\n' "$block" | grep -Eq "$regex"
 }
 
 write_fmt_violation_fixture() {
@@ -110,15 +114,9 @@ test_local_ci_rust_lint_fails_on_real_fmt_violation() {
 
 test_local_ci_rust_lint_includes_generate_ssm_env_contract() {
     local rust_lint_block
-    rust_lint_block="$(
-        awk '
-            /^gate_rust_lint\(\) \{/ { in_block=1; print; next }
-            in_block { print }
-            in_block && /^}/ { exit }
-        ' "$LOCAL_CI"
-    )"
+    rust_lint_block="$(extract_function_block gate_rust_lint)"
 
-    if rust_lint_block_has_generate_ssm_hook "$rust_lint_block"; then
+    if block_has_regex "$rust_lint_block" "$GENERATE_SSM_HOOK_REGEX"; then
         pass "gate_rust_lint executes generate_ssm_env_test.sh"
     else
         fail "gate_rust_lint is missing generate_ssm_env_test.sh contract hook"
@@ -127,15 +125,9 @@ test_local_ci_rust_lint_includes_generate_ssm_env_contract() {
 
 test_local_ci_rust_lint_includes_set_e_regression_hook() {
     local rust_lint_block
-    rust_lint_block="$(
-        awk '
-            /^gate_rust_lint\(\) \{/ { in_block=1; print; next }
-            in_block { print }
-            in_block && /^}/ { exit }
-        ' "$LOCAL_CI"
-    )"
+    rust_lint_block="$(extract_function_block gate_rust_lint)"
 
-    if rust_lint_block_has_set_e_hook "$rust_lint_block"; then
+    if block_has_regex "$rust_lint_block" "$SET_E_HOOK_REGEX"; then
         pass "gate_rust_lint executes local_ci_gate_set_e_test.sh"
     else
         fail "gate_rust_lint is missing local_ci_gate_set_e_test.sh regression hook"
@@ -146,7 +138,7 @@ test_hook_detection_rejects_comment_only_mentions() {
     local comment_only_block
     comment_only_block=$'gate_rust_lint() {\n    # scripts/tests/generate_ssm_env_test.sh is documented here only\n    bash "$REPO_ROOT/scripts/tests/ci_workflow_test.sh" || return $?\n}'
 
-    if rust_lint_block_has_generate_ssm_hook "$comment_only_block"; then
+    if block_has_regex "$comment_only_block" "$GENERATE_SSM_HOOK_REGEX"; then
         fail "hook detection accepted a comment-only mention; expected executable invocation requirement"
     else
         pass "hook detection rejects comment-only mentions of generate_ssm_env_test.sh"
@@ -157,22 +149,38 @@ test_set_e_hook_detection_rejects_comment_only_mentions() {
     local comment_only_block
     comment_only_block=$'gate_rust_lint() {\n    # scripts/tests/local_ci_gate_set_e_test.sh is documented here only\n    bash "$REPO_ROOT/scripts/tests/ci_workflow_test.sh" || return $?\n}'
 
-    if rust_lint_block_has_set_e_hook "$comment_only_block"; then
+    if block_has_regex "$comment_only_block" "$SET_E_HOOK_REGEX"; then
         fail "set-e hook detection accepted a comment-only mention; expected executable invocation requirement"
     else
         pass "set-e hook detection rejects comment-only mentions of local_ci_gate_set_e_test.sh"
     fi
 }
 
+test_local_ci_rust_lint_includes_integration_test_layout_hook() {
+    local rust_lint_block
+    rust_lint_block="$(extract_function_block gate_rust_lint)"
+
+    if block_has_regex "$rust_lint_block" "$LAYOUT_HOOK_REGEX"; then
+        pass "gate_rust_lint executes integration_test_layout_test.sh"
+    else
+        fail "gate_rust_lint is missing integration_test_layout_test.sh contract hook"
+    fi
+}
+
+test_layout_hook_detection_rejects_comment_only_mentions() {
+    local comment_only_block
+    comment_only_block=$'gate_rust_lint() {\n    # scripts/tests/integration_test_layout_test.sh is documented here only\n    bash "$REPO_ROOT/scripts/tests/ci_workflow_test.sh" || return $?\n}'
+
+    if block_has_regex "$comment_only_block" "$LAYOUT_HOOK_REGEX"; then
+        fail "layout hook detection accepted a comment-only mention; expected executable invocation requirement"
+    else
+        pass "layout hook detection rejects comment-only mentions of integration_test_layout_test.sh"
+    fi
+}
+
 test_local_ci_migration_gate_uses_local_postgres_default_url() {
     local migration_block
-    migration_block="$(
-        awk '
-            /^gate_migration_test\(\) \{/ { in_block=1; print; next }
-            in_block { print }
-            in_block && /^}/ { exit }
-        ' "$LOCAL_CI"
-    )"
+    migration_block="$(extract_function_block gate_migration_test)"
 
     local expected_default='local db_url="${DATABASE_URL:-postgres://griddle:griddle_local@127.0.0.1:5432/fjcloud_test}"'
     if [[ "$migration_block" == *"$expected_default"* ]]; then
@@ -204,15 +212,9 @@ test_secret_distinctness_gate_not_wired_by_default() {
 
 test_with_contracts_block_includes_mocked_spec_contract_hook() {
     local with_contracts_block
-    with_contracts_block="$(
-        awk '
-            /^if \[ "\$WITH_CONTRACTS" -eq 1 \]; then$/ { in_block=1; print; next }
-            in_block { print }
-            in_block && /^fi$/ { exit }
-        ' "$LOCAL_CI"
-    )"
+    with_contracts_block="$(extract_with_contracts_block)"
 
-    if with_contracts_block_has_mocked_spec_hook "$with_contracts_block"; then
+    if block_has_regex "$with_contracts_block" "$MOCKED_SPEC_HOOK_REGEX"; then
         pass "--with-contracts block executes mocked_spec_contract.sh"
     else
         fail "--with-contracts block is missing mocked_spec_contract.sh contract hook"
@@ -223,7 +225,7 @@ test_with_contracts_hook_detection_rejects_comment_only_mentions() {
     local comment_only_block
     comment_only_block=$'if [ "$WITH_CONTRACTS" -eq 1 ]; then\n    # mocked_spec_contract.sh staging\n    if bash scripts/canary/contracts/web_server_load_api_url_contract.sh staging; then\n      :\n    fi\nfi'
 
-    if with_contracts_block_has_mocked_spec_hook "$comment_only_block"; then
+    if block_has_regex "$comment_only_block" "$MOCKED_SPEC_HOOK_REGEX"; then
         fail "with-contract hook detection accepted comment-only mention; expected executable invocation requirement"
     else
         pass "with-contract hook detection rejects comment-only mentions of mocked_spec_contract.sh"
@@ -237,6 +239,8 @@ main() {
     test_local_ci_rust_lint_includes_set_e_regression_hook
     test_hook_detection_rejects_comment_only_mentions
     test_set_e_hook_detection_rejects_comment_only_mentions
+    test_local_ci_rust_lint_includes_integration_test_layout_hook
+    test_layout_hook_detection_rejects_comment_only_mentions
     test_local_ci_migration_gate_uses_local_postgres_default_url
     test_secret_distinctness_gate_not_wired_by_default
     test_with_contracts_block_includes_mocked_spec_contract_hook

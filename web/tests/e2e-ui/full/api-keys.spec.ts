@@ -49,11 +49,16 @@ async function createApiKeyViaDialog(
 	}
 	if (options.indexes && options.indexes.length > 0) {
 		const indexesInput = page.getByTestId('editor-dialog-field-indexes');
-		await expect.poll(async () => {
-			return await indexesInput.evaluate((element) =>
-				Array.from((element as HTMLSelectElement).options).map((option) => option.value)
-			);
-		}, { timeout: 30_000 }).toEqual(expect.arrayContaining(options.indexes));
+		await expect
+			.poll(
+				async () => {
+					return await indexesInput.evaluate((element) =>
+						Array.from((element as HTMLSelectElement).options).map((option) => option.value)
+					);
+				},
+				{ timeout: 30_000 }
+			)
+			.toEqual(expect.arrayContaining(options.indexes));
 		await indexesInput.selectOption(options.indexes);
 	}
 	if (options.scopes) {
@@ -62,7 +67,8 @@ async function createApiKeyViaDialog(
 	if (options.restrictSources) {
 		for (const source of options.restrictSources) {
 			await page.getByTestId('editor-dialog-add-restrict_sources').click();
-			const rowIndex = (await page.getByTestId(/^editor-dialog-field-restrict_sources-\d+$/).count()) - 1;
+			const rowIndex =
+				(await page.getByTestId(/^editor-dialog-field-restrict_sources-\d+$/).count()) - 1;
 			await page.getByTestId(`editor-dialog-field-restrict_sources-${rowIndex}`).fill(source);
 		}
 	}
@@ -182,13 +188,14 @@ test.describe('API Keys page', () => {
 	test('create key through UI does not discover seeded indexes in current runtime path', async ({
 		page,
 		discoverWithApiKey,
-		seedSearchableIndex
+		seedIndex,
+		testRegion
 	}) => {
 		test.setTimeout(300_000);
 
 		const name = `e2e-ui-key-auth-${Date.now()}`;
 		const seededIndexName = `searchauthidx-${Date.now()}`;
-		const seededIndex = await seedSearchableIndex(seededIndexName);
+		await seedIndex(seededIndexName, testRegion);
 
 		await page.goto('/console/api-keys');
 		await openCreateDialog(page);
@@ -198,22 +205,24 @@ test.describe('API Keys page', () => {
 
 		const createdKey = await readCreatedApiKeyFromReveal(page);
 
-		const discover = await discoverWithApiKey(seededIndex.name, createdKey);
+		const discover = await discoverWithApiKey(seededIndexName, createdKey);
 		expect(discover.status).toBe(404);
 
 		// Runtime currently resolves management API keys through scope-only auth,
 		// but discover still returns not found in this path.
-		const missingIndex = await discoverWithApiKey(`${seededIndex.name}-missing`, createdKey);
+		const missingIndex = await discoverWithApiKey(`${seededIndexName}-missing`, createdKey);
 		expect(missingIndex.status).toBe(404);
 	});
 
 	test('create key through UI persists lifecycle fields and renders them in table', async ({
 		page,
-		seedSearchableIndex
+		seedIndex,
+		testRegion
 	}) => {
 		const keyName = `e2e-ui-key-lifecycle-${Date.now()}`;
 		const description = `Lifecycle description ${Date.now()}`;
-		const seededIndex = await seedSearchableIndex(`lifecycidx-${Date.now()}`);
+		const seededIndexName = `lifecycidx-${Date.now()}`;
+		await seedIndex(seededIndexName, testRegion);
 		const sourceRestrictions = ['10.0.0.0/24', '198.51.100.22'];
 		const expiresAt = '2097-12-31T23:45';
 
@@ -221,7 +230,7 @@ test.describe('API Keys page', () => {
 		await createApiKeyViaDialog(page, {
 			name: keyName,
 			description,
-			indexes: [seededIndex.name],
+			indexes: [seededIndexName],
 			restrictSources: sourceRestrictions,
 			expiresAt,
 			maxHitsPerQuery: 75,
@@ -238,7 +247,7 @@ test.describe('API Keys page', () => {
 
 		const keyRow = apiKeyRow(page, keyName);
 		await expect(keyRow.getByText(description, { exact: true })).toBeVisible();
-		await expect(keyRow.getByText(seededIndex.name, { exact: true })).toBeVisible();
+		await expect(keyRow.getByText(seededIndexName, { exact: true })).toBeVisible();
 		for (const source of sourceRestrictions) {
 			await expect(keyRow.getByText(source, { exact: true })).toBeVisible();
 		}
@@ -250,7 +259,8 @@ test.describe('API Keys page', () => {
 
 	test('index filter updates URL, preserves query params, and includes all-index keys', async ({
 		page,
-		seedSearchableIndex
+		seedIndex,
+		testRegion
 	}) => {
 		test.setTimeout(120_000);
 
@@ -259,8 +269,10 @@ test.describe('API Keys page', () => {
 		const keyForAllIndexes = `e2e-key-all-indexes-${Date.now()}`;
 		const indexAName = `idxfiltera-${Date.now()}`;
 		const indexBName = `idxfilterb-${Date.now()}`;
-		const indexA = (await seedSearchableIndex(indexAName)).name;
-		const indexB = (await seedSearchableIndex(indexBName)).name;
+		await seedIndex(indexAName, testRegion);
+		await seedIndex(indexBName, testRegion);
+		const indexA = indexAName;
+		const indexB = indexBName;
 
 		await page.goto('/console/api-keys?source=e2e');
 		await createApiKeyViaDialog(page, { name: keyForIndexA, indexes: [indexA] });
@@ -269,7 +281,9 @@ test.describe('API Keys page', () => {
 
 		const indexFilter = page.getByTestId('index-filter');
 		await indexFilter.selectOption(indexA);
-		await expect(page).toHaveURL(new RegExp(`/console/api-keys\\?(?:[^#]*&)?source=e2e(?:&[^#]*)?`));
+		await expect(page).toHaveURL(
+			new RegExp(`/console/api-keys\\?(?:[^#]*&)?source=e2e(?:&[^#]*)?`)
+		);
 		await expect(page).toHaveURL(
 			new RegExp(`/console/api-keys\\?(?:[^#]*&)?index=${encodeURIComponent(indexA)}(?:&[^#]*)?`)
 		);
@@ -286,7 +300,10 @@ test.describe('API Keys page', () => {
 		await expect(apiKeyRow(page, keyForAllIndexes)).toBeVisible();
 	});
 
-	test('copy button shows temporary copied feedback for a key row', async ({ page, seedApiKey }) => {
+	test('copy button shows temporary copied feedback for a key row', async ({
+		page,
+		seedApiKey
+	}) => {
 		const keyName = `e2e-copy-feedback-${Date.now()}`;
 
 		await seedApiKey(keyName, ['search']);

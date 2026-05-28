@@ -551,4 +551,19 @@ describe('Index detail page server -- actions (documents)', () => {
 		);
 		expect(getDebugEventsMock).not.toHaveBeenCalled();
 	});
+
+	it('refreshEvents action maps API failures to the default eventsError message', async () => {
+		getDebugEventsMock.mockRejectedValue(new ApiRequestError(500, 'upstream failed'));
+
+		const result = await actions.refreshEvents(
+			makeActionArgs('refreshEvents', new FormData()) as never
+		);
+
+		expect(result).toEqual(
+			expect.objectContaining({
+				status: 400,
+				data: expect.objectContaining({ eventsError: 'Failed to fetch events' })
+			})
+		);
+	});
 });

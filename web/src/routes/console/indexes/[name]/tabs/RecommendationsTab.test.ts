@@ -9,10 +9,7 @@ const formsMockState = vi.hoisted(() => ({
 }));
 
 vi.mock('$app/forms', () => ({
-	enhance: (
-		_element: HTMLFormElement,
-		submitFunction: () => PromiseLike<unknown> | unknown
-	) => {
+	enhance: (_element: HTMLFormElement, submitFunction: () => PromiseLike<unknown> | unknown) => {
 		formsMockState.enhanceSubmitFunctions.push(submitFunction);
 		return { destroy: () => {} };
 	},
@@ -256,7 +253,11 @@ describe('RecommendationsTab', () => {
 		const firstSubmit = formsMockState.enhanceSubmitFunctions[0];
 		const secondSubmit = formsMockState.enhanceSubmitFunctions[0];
 		const firstResultHandler = firstSubmit() as ({ result }: { result: unknown }) => Promise<void>;
-		const secondResultHandler = secondSubmit() as ({ result }: { result: unknown }) => Promise<void>;
+		const secondResultHandler = secondSubmit() as ({
+			result
+		}: {
+			result: unknown;
+		}) => Promise<void>;
 
 		await secondResultHandler({ result: { type: 'success' } });
 		await firstResultHandler({ result: { type: 'success' } });

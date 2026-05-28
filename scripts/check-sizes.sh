@@ -62,6 +62,16 @@ PER_FILE_OVERRIDES=(
     "web/src/lib/api/types.ts|900|temporary cap during client type-surface extraction; split pending"
     "web/src/lib/components/EditorDialog.svelte|1400|temporary cap while editor dialog subcomponents are extracted; split pending"
     "web/src/lib/components/EditorDialog.test.ts|900|temporary cap while editor dialog test suite is decomposed; split pending"
+    "web/src/routes/console/indexes/[name]/IndexDetailShell.svelte|850|temporary cap while index-detail tabs are extracted; split pending"
+    # Stage 6 dictionaries closeout: new end-to-end lifecycle coverage and
+    # tabbed dictionaries UI logic currently keep these owners above the generic
+    # cap. Keep gates actionable while a focused extraction lane splits
+    # dictionary action tests and tab UI internals into narrower owners.
+    # FIXME(stage6-dictionaries-owner-split): split the dictionaries server action
+    # test owner and dictionaries tab component into focused files, then remove
+    # these override entries.
+    "web/src/routes/console/indexes/[name]/detail.server.actions.dictionaries.test.ts|950|temporary cap while dictionaries action tests are split into focused suites"
+    "web/src/routes/console/indexes/[name]/tabs/DictionariesTab.svelte|800|temporary cap while dictionaries tab state/markup is extracted into focused seams"
 )
 
 check_file_size() {

@@ -31,7 +31,9 @@
 		{ device: 'Mobile', count: devices.mobile },
 		{ device: 'Tablet', count: devices.tablet }
 	]);
-	const allCountsZero = $derived(devices.desktop === 0 && devices.mobile === 0 && devices.tablet === 0);
+	const allCountsZero = $derived(
+		devices.desktop === 0 && devices.mobile === 0 && devices.tablet === 0
+	);
 
 	function toNumberCount(value: unknown): number {
 		return typeof value === 'number' && Number.isFinite(value) ? value : 0;
@@ -89,7 +91,9 @@
 			}
 
 			const failureData =
-				result.type === 'failure' ? (result.data as { analyticsDevicesError?: string } | null) : null;
+				result.type === 'failure'
+					? (result.data as { analyticsDevicesError?: string } | null)
+					: null;
 			devicesError = failureData?.analyticsDevicesError ?? 'Failed to load device analytics';
 			devices = DEFAULT_COUNTS;
 		};
@@ -99,13 +103,16 @@
 	<input type="hidden" name="endDate" value={endDate} />
 </form>
 
-<section class="rounded-lg border border-flapjack-ink/20 p-4" data-testid="analytics-subtab-panel-devices">
+<section
+	class="rounded-lg border border-flapjack-ink/20 p-4"
+	data-testid="analytics-subtab-panel-devices"
+>
 	<h3 class="mb-4 text-sm font-semibold text-flapjack-ink">Devices</h3>
 
 	{#if isLoading && !hasLoaded}
-			<div class="grid grid-cols-1 gap-4 md:grid-cols-3" data-testid="devices-loading-skeleton">
-				{#each ['desktop', 'mobile', 'tablet'] as cardId (cardId)}
-					<div class="animate-pulse rounded-lg border border-flapjack-ink/20 p-4">
+		<div class="grid grid-cols-1 gap-4 md:grid-cols-3" data-testid="devices-loading-skeleton">
+			{#each ['desktop', 'mobile', 'tablet'] as cardId (cardId)}
+				<div class="animate-pulse rounded-lg border border-flapjack-ink/20 p-4">
 					<div class="h-4 w-20 rounded bg-flapjack-ink/20"></div>
 					<div class="mt-3 h-8 w-14 rounded bg-flapjack-ink/15"></div>
 				</div>
@@ -113,7 +120,9 @@
 		</div>
 	{:else}
 		{#if devicesError}
-			<div class="mb-4 rounded-md border border-flapjack-rose/35 bg-flapjack-rose/10 p-3 text-sm text-flapjack-plum">
+			<div
+				class="mb-4 rounded-md border border-flapjack-rose/35 bg-flapjack-rose/10 p-3 text-sm text-flapjack-plum"
+			>
 				{devicesError}
 			</div>
 		{/if}
@@ -134,7 +143,9 @@
 		</div>
 
 		{#if allCountsZero}
-			<div class="rounded-md border border-flapjack-ink/20 bg-flapjack-cream/80 p-4 text-sm text-flapjack-ink/70">
+			<div
+				class="rounded-md border border-flapjack-ink/20 bg-flapjack-cream/80 p-4 text-sm text-flapjack-ink/70"
+			>
 				No device analytics were recorded for this date range.
 			</div>
 		{:else}
@@ -151,7 +162,9 @@
 					</div>
 				{:else}
 					<table class="w-full text-left text-sm">
-						<thead class="border-b bg-flapjack-cream/80 text-xs font-medium uppercase text-flapjack-ink/60">
+						<thead
+							class="border-b bg-flapjack-cream/80 text-xs font-medium uppercase text-flapjack-ink/60"
+						>
 							<tr>
 								<th class="px-3 py-2">Device</th>
 								<th class="px-3 py-2">Count</th>

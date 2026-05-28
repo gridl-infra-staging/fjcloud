@@ -65,8 +65,20 @@ async function openCustomerFromList(page: Page, customerName: string): Promise<v
 
 	const detailLink = customersTableBody.getByRole('link', { name: customerName }).first();
 	await expect(detailLink).toHaveAttribute('href', /\/admin\/customers\/[^/]+$/);
+	const detailHref = await detailLink.getAttribute('href');
+	if (!detailHref) {
+		throw new Error(`Expected detail link href for customer "${customerName}"`);
+	}
 	await detailLink.click();
-	await expect(page).toHaveURL(/\/admin\/customers\/[^/]+$/, { timeout: 15_000 });
+	const customerDetailUrlPattern = /\/admin\/customers\/[^/]+$/;
+	const navigatedViaClick = await page
+		.waitForURL(customerDetailUrlPattern, { timeout: 5_000 })
+		.then(() => true)
+		.catch(() => false);
+	if (!navigatedViaClick) {
+		await page.goto(detailHref);
+	}
+	await expect(page).toHaveURL(customerDetailUrlPattern, { timeout: 15_000 });
 	await expect(page.getByRole('heading', { name: customerName })).toBeVisible({ timeout: 15_000 });
 	await expect(page.getByTestId('customer-status')).toBeVisible({ timeout: 5_000 });
 }

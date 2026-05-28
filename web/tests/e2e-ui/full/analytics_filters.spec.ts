@@ -1,4 +1,5 @@
 import { expect, test } from '../../fixtures/fixtures';
+import { stringify } from 'devalue';
 
 test.describe('Analytics filters subtab', () => {
 	test.describe.configure({ timeout: 90_000 });
@@ -11,19 +12,25 @@ test.describe('Analytics filters subtab', () => {
 		const indexName = `e2e-analytics-filters-${Date.now()}`;
 		await seedIndex(indexName, testRegion);
 
-		await page.route('**/console/indexes/**', async (route, request) => {
-			if (
-				request.method() === 'POST' &&
-				request.url().includes('fetchAnalyticsFilters')
-			) {
+		await page.route('**/*', async (route) => {
+			const request = route.request();
+			if (request.method() === 'POST' && request.url().includes('fetchAnalyticsFilters')) {
+				const payload = {
+					type: 'success',
+					status: 200,
+					data: stringify({
+						analyticsFilters: {
+							filters: {
+								category: { books: 50, movies: 30 },
+								brand: { acme: 70, globex: 60, initech: 45 }
+							}
+						}
+					})
+				};
 				await route.fulfill({
 					status: 200,
 					contentType: 'application/json',
-					body: JSON.stringify({
-						type: 'success',
-						status: 200,
-						data: '[{"analyticsFilters":1},{"filters":2},{"category":3,"brand":4},{"books":5,"movies":6},{"acme":7,"globex":8,"initech":9},50,30,120,45,10]'
-					})
+					body: JSON.stringify(payload)
 				});
 				return;
 			}
@@ -63,5 +70,43 @@ test.describe('Analytics filters subtab', () => {
 
 		await categoryRow.click();
 		await expect(page.getByTestId('filter-values-category')).not.toBeVisible();
+	});
+
+	test('surfaces an error when the filters action returns a malformed success payload', async ({
+		page,
+		seedIndex,
+		testRegion
+	}) => {
+		const indexName = `e2e-analytics-filters-malformed-${Date.now()}`;
+		await seedIndex(indexName, testRegion);
+
+		await page.route('**/*', async (route) => {
+			const request = route.request();
+			if (request.method() === 'POST' && request.url().includes('fetchAnalyticsFilters')) {
+				const payload = {
+					type: 'success',
+					status: 200,
+					data: stringify({
+						unexpectedFiltersEnvelope: {}
+					})
+				};
+				await route.fulfill({
+					status: 200,
+					contentType: 'application/json',
+					body: JSON.stringify(payload)
+				});
+				return;
+			}
+
+			await route.continue();
+		});
+
+		await page.goto(
+			`/console/indexes/${encodeURIComponent(indexName)}?tab=analytics&subtab=filters`
+		);
+
+		await expect(page.getByRole('alert')).toContainText('Failed to load filter analytics');
+		await expect(page.getByTestId('filters-table')).toHaveCount(0);
+		await expect(page.getByText('No filter analytics were recorded for this date range.')).toBeVisible();
 	});
 });

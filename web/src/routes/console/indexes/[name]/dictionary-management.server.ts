@@ -1,6 +1,3 @@
-/**
- * @module Stub summary for /Users/stuart/parallel_development/fjcloud_dev/MAR17_11_2_data_management_features/fjcloud_dev/web/src/routes/console/indexes/[name]/dictionary-management.server.ts.
- */
 import { fail } from '@sveltejs/kit';
 import type { ApiClient } from '$lib/api/client';
 import { createApiClient } from '$lib/server/api';
@@ -58,10 +55,12 @@ async function fetchCanonicalDictionariesPayload(
 	indexName: string,
 	requestedDictionaryRaw: string | null,
 	requestedLanguageRaw: string | null,
+	requestedQueryRaw: string | null,
 	options: { reportLanguagesError?: boolean; captureSessionFailure?: boolean } = {}
 ): Promise<CanonicalDictionariesPayloadResult> {
 	const requestedDictionary = resolveDictionaryName(requestedDictionaryRaw);
 	const requestedLanguage = requestedLanguageRaw?.trim() ?? '';
+	const requestedQuery = requestedQueryRaw?.trim() ?? '';
 
 	let languages: DictionaryLanguagesResponse | null = null;
 	let languagesError: string | null = null;
@@ -120,7 +119,7 @@ async function fetchCanonicalDictionariesPayload(
 
 	try {
 		const entries = await api.searchDictionaryEntries(indexName, selectedDictionary, {
-			query: '',
+			query: requestedQuery,
 			language: selectedLanguage
 		});
 
@@ -168,16 +167,35 @@ export async function loadDictionariesPayload(
 	api: ApiClient,
 	indexName: string,
 	requestedDictionaryRaw: string | null,
-	requestedLanguageRaw: string | null
+	requestedLanguageRaw: string | null,
+	requestedQueryRaw: string | null
 ): Promise<DictionariesPayload> {
 	const { payload } = await fetchCanonicalDictionariesPayload(
 		api,
 		indexName,
 		requestedDictionaryRaw,
-		requestedLanguageRaw
+		requestedLanguageRaw,
+		requestedQueryRaw
 	);
 
 	return payload;
+}
+
+export async function loadDictionariesPayloadResult(
+	api: ApiClient,
+	indexName: string,
+	requestedDictionaryRaw: string | null,
+	requestedLanguageRaw: string | null,
+	requestedQueryRaw: string | null
+): Promise<CanonicalDictionariesPayloadResult> {
+	return fetchCanonicalDictionariesPayload(
+		api,
+		indexName,
+		requestedDictionaryRaw,
+		requestedLanguageRaw,
+		requestedQueryRaw,
+		{ reportLanguagesError: true }
+	);
 }
 
 export async function browseDictionaryEntriesAction({
@@ -186,6 +204,7 @@ export async function browseDictionaryEntriesAction({
 	token
 }: DictionaryActionArgs) {
 	const data = await request.formData();
+	const query = (data.get('query') as string | null)?.trim() ?? '';
 
 	let selection: { dictionary: DictionaryName; language: string };
 	try {
@@ -203,6 +222,7 @@ export async function browseDictionaryEntriesAction({
 		indexName,
 		selection.dictionary,
 		selection.language,
+		query,
 		{ reportLanguagesError: true, captureSessionFailure: true }
 	);
 	if (sessionFailure) return sessionFailure;
@@ -222,6 +242,7 @@ export async function saveDictionaryEntryAction({
 	token
 }: DictionaryActionArgs) {
 	const data = await request.formData();
+	const query = (data.get('query') as string | null)?.trim() ?? '';
 
 	let selection: { dictionary: DictionaryName; language: string };
 	try {
@@ -243,6 +264,7 @@ export async function saveDictionaryEntryAction({
 			indexName,
 			selection.dictionary,
 			selection.language,
+			query,
 			{ captureSessionFailure: true }
 		);
 		if (sessionFailure) return sessionFailure;
@@ -270,6 +292,7 @@ export async function saveDictionaryEntryAction({
 				indexName,
 				selection.dictionary,
 				selection.language,
+				query,
 				{ captureSessionFailure: true }
 			);
 		if (refreshSessionFailure) return refreshSessionFailure;
@@ -284,6 +307,7 @@ export async function saveDictionaryEntryAction({
 		indexName,
 		selection.dictionary,
 		selection.language,
+		query,
 		{ reportLanguagesError: true, captureSessionFailure: true }
 	);
 	if (sessionFailure) return sessionFailure;
@@ -306,6 +330,7 @@ export async function deleteDictionaryEntryAction({
 	token
 }: DictionaryActionArgs) {
 	const data = await request.formData();
+	const query = (data.get('query') as string | null)?.trim() ?? '';
 
 	let selection: { dictionary: DictionaryName; language: string };
 	try {
@@ -325,6 +350,7 @@ export async function deleteDictionaryEntryAction({
 			indexName,
 			selection.dictionary,
 			selection.language,
+			query,
 			{ captureSessionFailure: true }
 		);
 		if (sessionFailure) return sessionFailure;
@@ -352,6 +378,7 @@ export async function deleteDictionaryEntryAction({
 				indexName,
 				selection.dictionary,
 				selection.language,
+				query,
 				{ captureSessionFailure: true }
 			);
 		if (refreshSessionFailure) return refreshSessionFailure;
@@ -366,6 +393,7 @@ export async function deleteDictionaryEntryAction({
 		indexName,
 		selection.dictionary,
 		selection.language,
+		query,
 		{ reportLanguagesError: true, captureSessionFailure: true }
 	);
 	if (sessionFailure) return sessionFailure;
@@ -378,6 +406,73 @@ export async function deleteDictionaryEntryAction({
 
 	return {
 		dictionaryDeleted: true,
+		dictionaries: payload
+	};
+}
+
+export async function clearDictionaryEntriesAction({
+	request,
+	indexName,
+	token
+}: DictionaryActionArgs) {
+	const data = await request.formData();
+	const query = (data.get('query') as string | null)?.trim() ?? '';
+
+	let selection: { dictionary: DictionaryName; language: string };
+	try {
+		selection = parseDictionarySelectionFromForm(data);
+	} catch (error) {
+		return fail(400, {
+			dictionaryClearError: errorMessage(error, 'Invalid dictionary selection'),
+			dictionaries: emptyDictionariesPayload()
+		});
+	}
+
+	const api = createApiClient(token);
+	try {
+		await api.batchDictionaryEntries(indexName, selection.dictionary, {
+			clearExistingDictionaryEntries: true,
+			requests: []
+		});
+	} catch (error) {
+		const sessionFailure = mapDashboardSessionFailure(error);
+		if (sessionFailure) return sessionFailure;
+
+		const { payload, sessionFailure: refreshSessionFailure } =
+			await fetchCanonicalDictionariesPayload(
+				api,
+				indexName,
+				selection.dictionary,
+				selection.language,
+				query,
+				{ captureSessionFailure: true }
+			);
+		if (refreshSessionFailure) return refreshSessionFailure;
+
+		return fail(400, {
+			dictionaryClearError: errorMessage(error, 'Failed to clear dictionary entries'),
+			dictionaries: payload
+		});
+	}
+
+	const { payload, requestError, sessionFailure } = await fetchCanonicalDictionariesPayload(
+		api,
+		indexName,
+		selection.dictionary,
+		selection.language,
+		query,
+		{ reportLanguagesError: true, captureSessionFailure: true }
+	);
+	if (sessionFailure) return sessionFailure;
+	if (requestError) {
+		return fail(400, {
+			dictionaryClearError: requestError,
+			dictionaries: payload
+		});
+	}
+
+	return {
+		dictionaryCleared: true,
 		dictionaries: payload
 	};
 }

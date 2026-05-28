@@ -6,5 +6,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| upgrade | The upgrade directory contains a SvelteKit server endpoint (+server.ts) that handles upgrade-related backend logic, though its specific functionality is currently undocumented. |
+| upgrade | The upgrade directory contains SvelteKit server-side logic for handling upgrade-related operations in the fjcloud application. |
 <!-- [scrai:end] -->

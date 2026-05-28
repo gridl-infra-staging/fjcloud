@@ -450,4 +450,40 @@ describe('EditorDialog', () => {
 			expect(screen.getByTestId('editor-dialog-save')).toHaveTextContent('Create');
 		});
 	});
+
+	it('honors external pendingSave state even after onSave has already resolved', async () => {
+		const onCancel = vi.fn();
+		const view = renderDialog({
+			initialValue: { title: 'Persisted title' },
+			pendingSave: true,
+			onCancel
+		});
+
+		expect(screen.getByTestId('editor-dialog-save')).toHaveTextContent('Saving...');
+		expect(screen.getByTestId('editor-dialog-save')).toBeDisabled();
+		expect(screen.getByLabelText('Title')).toBeDisabled();
+		expect(screen.getByTestId('editor-dialog-cancel')).toBeDisabled();
+		expect(screen.getByTestId('editor-dialog-close')).toBeDisabled();
+
+		await fireEvent.click(screen.getByTestId('editor-dialog-cancel'));
+		await fireEvent.click(screen.getByTestId('editor-dialog-close'));
+		await fireEvent.click(screen.getByTestId('editor-dialog-backdrop'));
+		await fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+		expect(onCancel).not.toHaveBeenCalled();
+
+		await view.rerender({
+			title: 'Create Item',
+			mode: 'create',
+			schema: [{ type: 'text', name: 'title', label: 'Title', required: true }],
+			initialValue: { title: 'Persisted title' },
+			open: true,
+			pendingSave: false,
+			onSave: view.onSave,
+			onCancel
+		});
+
+		expect(screen.getByTestId('editor-dialog-save')).toHaveTextContent('Create');
+		expect(screen.getByLabelText('Title')).not.toBeDisabled();
+		expect(screen.getByTestId('editor-dialog-cancel')).not.toBeDisabled();
+	});
 });

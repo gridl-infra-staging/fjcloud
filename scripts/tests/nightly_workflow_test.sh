@@ -142,7 +142,7 @@ assert_contains_regex '^\s{2}stripe-test-clock-live:\s*$' "stripe-test-clock-liv
 assert_job_contains_regex "stripe-test-clock-live" 'uses:\s+actions/checkout@' "stripe-test-clock-live has checkout step"
 assert_job_contains_regex "stripe-test-clock-live" 'uses:\s+dtolnay/rust-toolchain@' "stripe-test-clock-live installs rust toolchain"
 assert_job_contains_regex "stripe-test-clock-live" 'run:\s+bash scripts/tests/nightly_workflow_test.sh' "stripe-test-clock-live self-checks workflow contract"
-assert_job_contains_regex "stripe-test-clock-live" 'run:\s+cd infra && cargo test -p api --test stripe_test_clock_full_cycle_test' "stripe-test-clock-live runs only the stripe test-clock test"
+assert_job_contains_regex "stripe-test-clock-live" 'run:\s+cd infra && cargo test -p api --test integration stripe_test_clock_full_cycle_test::' "stripe-test-clock-live runs only the stripe test-clock module slice"
 assert_job_not_contains_regex "stripe-test-clock-live" 'cargo test --workspace' "stripe-test-clock-live does not run full workspace test sweep"
 
 # Env contract: normalized Stripe env vars + integration gate.
@@ -161,7 +161,7 @@ assert_job_contains_regex "tenant-isolation-proptest" 'uses:\s+actions/checkout@
 assert_job_contains_regex "tenant-isolation-proptest" 'uses:\s+dtolnay/rust-toolchain@' "tenant-isolation-proptest installs rust toolchain"
 assert_job_contains_regex "tenant-isolation-proptest" 'uses:\s+Swatinem/rust-cache@' "tenant-isolation-proptest uses rust cache"
 assert_job_contains_regex "tenant-isolation-proptest" 'run:\s+bash scripts/tests/nightly_workflow_test.sh' "tenant-isolation-proptest self-checks workflow contract"
-assert_job_contains_regex "tenant-isolation-proptest" 'run:\s+cd infra && cargo test -p api --test tenant_isolation_proptest --features proptest-tests' "tenant-isolation-proptest runs only the proptest binary with proptest-tests feature"
+assert_job_contains_regex "tenant-isolation-proptest" 'run:\s+cd infra && cargo test -p api --test integration --features proptest-tests tenant_isolation_proptest::' "tenant-isolation-proptest runs only the proptest module with proptest-tests feature"
 assert_job_not_contains_regex "tenant-isolation-proptest" 'cargo test --workspace' "tenant-isolation-proptest does not run full workspace test sweep"
 
 assert_all_uses_are_sha_pinned

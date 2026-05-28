@@ -4,10 +4,12 @@ import { fileURLToPath } from 'node:url';
 import { defineConfig, devices, type PlaywrightTestProject } from '@playwright/test';
 import {
 	applyPlaywrightProcessEnvDefaults,
+	resolveDefaultPlaywrightWebPort,
+	resolveDefaultPlaywrightApiPort,
+	PLAYWRIGHT_WEB_PORT_ENV,
 	PLAYWRIGHT_DESKTOP_DEVICE,
 	PLAYWRIGHT_PROJECT_CONTRACTS,
 	parseDotenvFile,
-	resolveDefaultPlaywrightWebPort,
 	resolvePlaywrightRuntime,
 	type PlaywrightProjectContract
 } from './playwright.config.contract';
@@ -31,21 +33,39 @@ import {
  *                      (default: us-east-1)
  */
 const configDir = dirname(fileURLToPath(import.meta.url));
-const repoEnv = parseDotenvFile(resolve(configDir, '..', '.env.local'));
-const webEnv = parseDotenvFile(resolve(configDir, '.env.local'));
+const repoEnvPaths = [
+	resolve(configDir, '..', '.env.local.pre-signoff-backup'),
+	resolve(configDir, '..', '.env.local.bak-codex'),
+	resolve(configDir, '..', '.env.local')
+];
+const webEnvPaths = [resolve(configDir, '.env.local')];
+
+function loadLayeredDotenv(paths: readonly string[]): Record<string, string> {
+	return paths.reduce<Record<string, string>>(
+		(env, path) => ({ ...env, ...parseDotenvFile(path) }),
+		{}
+	);
+}
+
+const repoEnv = loadLayeredDotenv(repoEnvPaths);
+const webEnv = loadLayeredDotenv(webEnvPaths);
 
 function applyWorkspaceScopedApiDefaults(processEnv: Record<string, string | undefined>): void {
+	const hasWebPort = Boolean(processEnv[PLAYWRIGHT_WEB_PORT_ENV]?.trim());
 	const hasApiBaseUrl = Boolean(processEnv.API_BASE_URL?.trim());
 	const hasApiUrl = Boolean(processEnv.API_URL?.trim());
 	const hasListenAddr = Boolean(processEnv.LISTEN_ADDR?.trim());
 	const hasS3ListenAddr = Boolean(processEnv.S3_LISTEN_ADDR?.trim());
-	if (hasApiBaseUrl && hasApiUrl && hasListenAddr && hasS3ListenAddr) {
+	if (hasWebPort && hasApiBaseUrl && hasApiUrl && hasListenAddr && hasS3ListenAddr) {
 		return;
 	}
 
 	const workspaceWebPort = resolveDefaultPlaywrightWebPort(process.cwd());
-	const workspaceApiPort = workspaceWebPort + 1000;
-	const workspaceApiBaseUrl = `http://127.0.0.1:${workspaceApiPort}`;
+	if (!hasWebPort) {
+		processEnv[PLAYWRIGHT_WEB_PORT_ENV] = String(workspaceWebPort);
+	}
+	const workspaceApiPort = resolveDefaultPlaywrightApiPort(process.cwd());
+	const workspaceApiBaseUrl = `http://localhost:${workspaceApiPort}`;
 	if (!hasApiBaseUrl) {
 		processEnv.API_BASE_URL = workspaceApiBaseUrl;
 	}

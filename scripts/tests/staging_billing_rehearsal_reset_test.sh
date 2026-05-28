@@ -111,7 +111,7 @@ test_reset_status_aware_stripe_cleanup_and_db_delete_order() {
         "successful reset should report reset_completed summary classification"
     assert_contains "$calls" "SELECT stripe_customer_id FROM customers WHERE id = '$TEST_TENANT_ID' /* stage4_reset_customer_lookup */" \
         "reset should look up stripe_customer_id from customers.id"
-    assert_contains "$calls" "stripe|invoices list --customer cus_reset_test --limit 100 --format json" \
+    assert_contains "$calls" "stripe|invoices list --customer cus_reset_test --limit 100" \
         "reset should list stripe invoices for the target customer"
     assert_contains "$calls" "stripe|invoices delete si_reset_draft" \
         "draft stripe invoices should be deleted"

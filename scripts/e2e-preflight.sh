@@ -18,17 +18,50 @@ source "$SCRIPT_DIR/lib/env.sh"
 # shellcheck source=lib/web_runtime.sh
 source "$SCRIPT_DIR/lib/web_runtime.sh"
 
+_fnv1a_32() {
+    local input="$1"
+    local hash=2166136261
+    local i char_code
+    for (( i=0; i<${#input}; i++ )); do
+        printf -v char_code '%d' "'${input:$i:1}"
+        hash=$(( (hash ^ char_code) & 0xFFFFFFFF ))
+        hash=$(( (hash * 16777619) & 0xFFFFFFFF ))
+    done
+    echo "$hash"
+}
+
+_resolve_computed_api_url() {
+    local workspace_path="${PWD:-}"
+    if [ -z "$workspace_path" ]; then
+        echo "http://localhost:3001"
+        return
+    fi
+    local port_min port_span
+    port_min="$(grep -oE 'PLAYWRIGHT_DEFAULT_API_PORT_HASH_MIN = [0-9]+' "$PLAYWRIGHT_CONTRACT_FILE" | grep -oE '[0-9]+$' || echo 7600)"
+    port_span="$(grep -oE 'PLAYWRIGHT_DEFAULT_PORT_HASH_SPAN = [0-9]+' "$PLAYWRIGHT_CONTRACT_FILE" | grep -oE '[0-9]+$' || echo 2000)"
+    local hash
+    hash=$(_fnv1a_32 "$workspace_path")
+    local port=$(( port_min + (hash % port_span) ))
+    echo "http://localhost:${port}"
+}
+
 extract_contract_string_constant() {
     local constant_name="$1"
     local constant_line
 
     constant_line="$(grep -E "^[[:space:]]*export const ${constant_name} = '.*';[[:space:]]*$" "$PLAYWRIGHT_CONTRACT_FILE" | head -n 1 || true)"
-    if [ -z "$constant_line" ]; then
-        echo "ERROR: Could not resolve ${constant_name} from ${PLAYWRIGHT_CONTRACT_FILE}" >&2
-        exit 1
+    if [ -n "$constant_line" ]; then
+        printf '%s\n' "$constant_line" | sed -E "s/^[[:space:]]*export const ${constant_name} = '(.*)';[[:space:]]*$/\\1/"
+        return
     fi
 
-    printf '%s\n' "$constant_line" | sed -E "s/^[[:space:]]*export const ${constant_name} = '(.*)';[[:space:]]*$/\\1/"
+    if [ "$constant_name" = "DEFAULT_API_URL" ] && grep -qE "^[[:space:]]*export const DEFAULT_API_URL = " "$PLAYWRIGHT_CONTRACT_FILE"; then
+        _resolve_computed_api_url
+        return
+    fi
+
+    echo "ERROR: Could not resolve ${constant_name} from ${PLAYWRIGHT_CONTRACT_FILE}" >&2
+    exit 1
 }
 
 set_env_default_if_unset() {

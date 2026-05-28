@@ -6,7 +6,7 @@
 
 | Directory | Summary |
 | --- | --- |
-| pricing | The pricing directory contains a SvelteKit API endpoint for pricing comparison functionality. |
-| search | This SvelteKit server route handles POST requests to execute searches against Flapjack indexes, validating authentication and parsing batched search requests before delegating to the executeIndexSearch service. |
-| stripe | The stripe directory contains SvelteKit server endpoints for Stripe integration, including a publishable-key endpoint that exposes Stripe's public API credential to the frontend. |
+| pricing | The pricing directory contains a compare subdirectory with a SvelteKit server route handler that is currently a stub implementation awaiting documentation. |
+| search | I cannot provide a summary because the search directory path wasn't specified or doesn't exist at the location provided. |
+| stripe | The stripe directory contains Stripe integration endpoints for the fjcloud API, including a publishable-key server handler that manages Stripe publishable key operations for the SvelteKit frontend. |
 <!-- [scrai:end] -->

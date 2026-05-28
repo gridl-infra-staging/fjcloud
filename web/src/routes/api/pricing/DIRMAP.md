@@ -6,5 +6,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| compare | This directory contains a SvelteKit API endpoint for pricing comparison functionality. |
+| compare | The compare directory contains a SvelteKit server route handler that appears to be a stub implementation awaiting documentation. |
 <!-- [scrai:end] -->

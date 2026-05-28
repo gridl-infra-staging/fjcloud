@@ -38,11 +38,11 @@ admin write paths whose abuse would be a customer-trust incident
 
 | Directory | Summary |
 | --- | --- |
-| cold_tier | The cold_tier service manages archived or infrequently accessed data storage, with a node_client for communicating with cold storage nodes and a pipeline for orchestrating data movement and archival workflows. |
-| email | The email directory contains email testing and rendering functionality, with mailpit.rs providing local email inbox integration and render.rs handling email template rendering. |
-| flapjack_proxy | The flapjack_proxy module proxies management operations from the fjcloud API to individual flapjack VMs, handling authentication via admin keys cached from SSM with stale-on-error resilience. |
-| migration | The migration service orchestrates index data movement between VMs, handling replication with near-zero-lag cutover, failure recovery, alerting on success/warnings/failures, and protocol negotiation between source and destination nodes. |
-| provisioning | The provisioning service handles infrastructure resource provisioning, including automatic provisioning logic in auto_provision.rs for deploying and configuring cloud infrastructure components. |
-| scheduler | The scheduler service manages cluster node state and resource allocation, handling initial workload placement, noisy neighbor detection (resource contention), and overload/underload conditions across execution cycles. |
-| storage | The storage service provides S3-compatible API integration with Garage (a lightweight S3 backend), handling authentication, request proxying, XML response formatting, usage metering, and admin operations. |
+| cold_tier | The cold_tier service manages archival and cold storage operations within the fjcloud API, providing client interfaces for node communication and data processing pipelines to handle cold-tier data workflows. |
+| email | The email directory provides email rendering and testing utilities, with mailpit.rs handling email testing integration and render.rs managing email template rendering. |
+| flapjack_proxy | The flapjack_proxy service module provides HTTP proxy methods and interfaces for interacting with the external Flapjack service from the API. |
+| migration | The migration service module manages data migration operations across multiple concerns: replication for copying data between systems, validation for verifying migration correctness, recovery for handling migration failures, alerting for event notifications, and protocol handling for the underlying migration mechanics. |
+| provisioning | The provisioning directory contains the auto_provision module, which handles automatic provisioning functionality. |
+| scheduler | The scheduler service contains modules for managing workload placement and load balancing, including initial resource placement, run cycle orchestration, and detection of overload, underload, and noisy neighbor conditions. |
+| storage | This storage services module provides S3-compatible object storage functionality, including request proxying, authentication, XML protocol handling, error management, and usage metering for Garage-backed storage infrastructure. |
 <!-- [scrai:end] -->

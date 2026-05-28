@@ -43,10 +43,7 @@
 		rowsLength: number;
 		onUpdateField: (groupField: EditorDialogSimpleFieldSchema, rawValue: string) => void;
 		onUpdateChecked: (groupField: EditorDialogSimpleFieldSchema, checked: boolean) => void;
-		onUpdateSelected: (
-			groupField: EditorDialogSimpleFieldSchema,
-			selectedValues: string[]
-		) => void;
+		onUpdateSelected: (groupField: EditorDialogSimpleFieldSchema, selectedValues: string[]) => void;
 		onMarkTouched: () => void;
 		onRemove: () => void;
 	} = $props();

@@ -22,6 +22,15 @@ const sampleSearchResult: SearchResult = {
 	nbHits: 2,
 	processingTimeMs: 2
 };
+const sampleSearchResultThreeHits: SearchResult = {
+	hits: [
+		{ objectID: 'prod-1', name: 'Apple iPhone 15' },
+		{ objectID: 'prod-2', name: 'Samsung Galaxy S24' },
+		{ objectID: 'prod-3', name: 'Google Pixel 9' }
+	],
+	nbHits: 3,
+	processingTimeMs: 2
+};
 
 function defaultProps(overrides: Partial<MerchandisingProps> = {}): MerchandisingProps {
 	return {
@@ -176,6 +185,21 @@ describe('MerchandisingTab', () => {
 			// Summary bar should be gone (0 pinned, 0 hidden)
 			expect(screen.queryByText(/pinned/)).not.toBeInTheDocument();
 		});
+
+		it('pin badges reflect reordered positions after multiple pins', async () => {
+			const { container } = await renderWithResults('phone', sampleSearchResultThreeHits);
+
+			await fireEvent.click(screen.getByRole('button', { name: 'Pin prod-3' }));
+			await fireEvent.click(screen.getByRole('button', { name: 'Pin prod-1' }));
+
+			const resultCards = Array.from(container.querySelectorAll('.space-y-3 > div'));
+			expect(resultCards).toHaveLength(3);
+			expect(resultCards[0].textContent).toContain('Apple iPhone 15');
+			expect(resultCards[1].textContent).toContain('Samsung Galaxy S24');
+			expect(resultCards[2].textContent).toContain('Google Pixel 9');
+			expect(resultCards[0].textContent).toContain('#1');
+			expect(resultCards[2].textContent).toContain('#3');
+		});
 	});
 
 	describe('summary bar actions', () => {
@@ -256,6 +280,22 @@ describe('MerchandisingTab', () => {
 			const ruleInput = form.querySelector('input[name="rule"]') as HTMLInputElement;
 			const parsed = JSON.parse(ruleInput.value);
 			expect(parsed.conditions).toEqual([{ pattern: 'phone', anchoring: 'is' }]);
+		});
+
+		it('rule payload keeps promote positions from merchandising reorder math', async () => {
+			const { container } = await renderWithResults('phone', sampleSearchResultThreeHits);
+
+			await fireEvent.click(screen.getByRole('button', { name: 'Pin prod-3' }));
+			await fireEvent.click(screen.getByRole('button', { name: 'Pin prod-1' }));
+			await fireEvent.click(screen.getByRole('button', { name: 'Save as Rule' }));
+
+			const form = container.querySelector('form[action="?/saveRule"]')!;
+			const ruleInput = form.querySelector('input[name="rule"]') as HTMLInputElement;
+			const parsed = JSON.parse(ruleInput.value);
+			expect(parsed.consequence.promote).toEqual([
+				{ objectID: 'prod-3', position: 2 },
+				{ objectID: 'prod-1', position: 0 }
+			]);
 		});
 
 		it('saveRule form is not visible before Save as Rule is clicked', async () => {

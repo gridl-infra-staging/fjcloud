@@ -360,7 +360,10 @@ run_integration_migrations \
 # 2. Build binaries
 # ---------------------------------------------------------------------------
 log "Building fjcloud API..."
-(cd "$INFRA_DIR" && cargo build -p api 2>&1 | tail -3)
+_build_log="$(mktemp)"
+(cd "$INFRA_DIR" && cargo build -p api >"$_build_log" 2>&1)
+tail -3 "$_build_log"
+rm -f "$_build_log"
 API_BIN="$INFRA_DIR/target/debug/api"
 [ -f "$API_BIN" ] || die_with_reason "binary_not_found" "API binary not found at $API_BIN"
 
@@ -370,7 +373,10 @@ if [ -d "$FLAPJACK_DEV_DIR" ]; then
     FLAPJACK_BIN="$(find_flapjack_binary "$FLAPJACK_DEV_DIR" || true)"
     if [ -z "$FLAPJACK_BIN" ]; then
         # Try building
-        (cd "$FLAPJACK_DEV_DIR" && cargo build -p flapjack-http 2>&1 | tail -3) || true
+        _build_log="$(mktemp)"
+        (cd "$FLAPJACK_DEV_DIR" && cargo build -p flapjack-http >"$_build_log" 2>&1) || true
+        tail -3 "$_build_log"
+        rm -f "$_build_log"
         FLAPJACK_BIN="$(find_flapjack_binary "$FLAPJACK_DEV_DIR" || true)"
     fi
 fi

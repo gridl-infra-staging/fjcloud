@@ -2,6 +2,8 @@ import { test, expect } from '../../fixtures/fixtures';
 import type { Locator, Page, Route } from '@playwright/test';
 import { openIndexDetailTab } from '../../fixtures/index_detail_helpers';
 import * as devalue from 'devalue';
+import { seedSearchableIndexForCustomer } from '../../fixtures/searchable-index';
+import { AUTH_COOKIE } from '../../../src/lib/server/auth-session-contracts';
 
 type ActionResult =
 	| {
@@ -19,29 +21,90 @@ type ActionResult =
 			data: { recommendationsError: string };
 	  };
 
-type SeedRecommendationsConfigFn = (
-	name: string,
-	region?: string
-) => Promise<{
+type SeededRecommendationsConfig = {
 	indexName: string;
 	primaryObjectID: string;
 	secondaryObjectID: string;
 	facetName: string;
 	facetValue: string;
 	missingFacetValue: string;
-}>;
+};
+
+type CreatedFixtureUser = {
+	customerId: string;
+	email: string;
+	token: string;
+};
+
+type CreateUserFn = (email: string, password: string, name?: string) => Promise<CreatedFixtureUser>;
+type LoginAsFn = (email: string, password: string) => Promise<string>;
+
+const BASE_URL = process.env.BASE_URL ?? 'http://localhost:5173';
+const API_URL = process.env.API_URL ?? 'http://localhost:3001';
+const RECOMMENDATION_FIXTURE_FACET_NAME = 'category';
+const RECOMMENDATION_FIXTURE_FACET_VALUE = 'language';
+const RECOMMENDATION_FIXTURE_MISSING_FACET_VALUE = 'no-matches-category';
+const FIXTURE_PASSWORD = 'TestPassword123!';
 
 async function openRecommendationsSection(
 	page: Page,
-	seedRecommendationsConfig: SeedRecommendationsConfigFn,
+	createUser: CreateUserFn,
+	loginAs: LoginAsFn,
 	testRegion: string,
 	namePrefix: string
 ) {
-	const indexName = `${namePrefix}-${Date.now()}`;
-	const seeded = await seedRecommendationsConfig(indexName, testRegion);
+	const seed = Date.now();
+	const indexName = `${namePrefix}-${seed}`;
+	const email = `${namePrefix}-${seed}@e2e.griddle.test`;
+	const createdUser = await createUser(email, FIXTURE_PASSWORD, `Recommendations ${seed}`);
+	await seedSearchableIndexForCustomer({
+		apiUrl: API_URL,
+		adminKey: process.env.E2E_ADMIN_KEY,
+		customerId: createdUser.customerId,
+		token: createdUser.token,
+		name: indexName,
+		region: testRegion,
+		query: 'Rust',
+		expectedHitText: 'Rust Programming Language',
+		documents: [
+			{
+				objectID: 'doc-1',
+				title: 'Rust Programming Language',
+				body: 'Systems programming',
+				[RECOMMENDATION_FIXTURE_FACET_NAME]: RECOMMENDATION_FIXTURE_FACET_VALUE
+			},
+			{
+				objectID: 'doc-2',
+				title: 'TypeScript Handbook',
+				body: 'JavaScript with types',
+				[RECOMMENDATION_FIXTURE_FACET_NAME]: RECOMMENDATION_FIXTURE_FACET_VALUE
+			}
+		]
+	});
+	const authToken = await loginAs(email, FIXTURE_PASSWORD);
+	await page.context().clearCookies();
+	await page.context().addCookies([
+		{
+			name: AUTH_COOKIE,
+			value: authToken,
+			url: BASE_URL,
+			httpOnly: true,
+			sameSite: 'Lax'
+		}
+	]);
 	await page.goto(`/console/indexes/${encodeURIComponent(indexName)}`);
 	const section = await openIndexDetailTab(page, 'Recommendations', 'recommendations-section');
-	return { section, seeded };
+	return {
+		section,
+		seeded: {
+			indexName,
+			primaryObjectID: 'doc-1',
+			secondaryObjectID: 'doc-2',
+			facetName: RECOMMENDATION_FIXTURE_FACET_NAME,
+			facetValue: RECOMMENDATION_FIXTURE_FACET_VALUE,
+			missingFacetValue: RECOMMENDATION_FIXTURE_MISSING_FACET_VALUE
+		} satisfies SeededRecommendationsConfig
+	};
 }
 
 async function submitRecommendations(section: Locator) {
@@ -65,14 +128,18 @@ async function fulfillRecommendationsAction(route: Route, nextResult: ActionResu
 }
 
 test.describe('Recommendations tab rendering', () => {
+	test.describe.configure({ timeout: 120_000 });
+
 	test('happy-path submit renders recommendation hits', async ({
 		page,
-		seedRecommendationsConfig,
+		createUser,
+		loginAs,
 		testRegion
 	}) => {
 		const { section, seeded } = await openRecommendationsSection(
 			page,
-			seedRecommendationsConfig,
+			createUser,
+			loginAs,
 			testRegion,
 			'e2e-rec-hits'
 		);
@@ -89,7 +156,12 @@ test.describe('Recommendations tab rendering', () => {
 				status: 200,
 				data: {
 					recommendationsResponse: {
-						results: [{ hits: [{ objectID: 'visible-hit-1' }, { objectID: 'visible-hit-2' }], processingTimeMS: 12 }]
+						results: [
+							{
+								hits: [{ objectID: 'visible-hit-1' }, { objectID: 'visible-hit-2' }],
+								processingTimeMS: 12
+							}
+						]
 					}
 				}
 			};
@@ -104,12 +176,14 @@ test.describe('Recommendations tab rendering', () => {
 
 	test('forced failure submit renders recommendations error in alert region', async ({
 		page,
-		seedRecommendationsConfig,
+		createUser,
+		loginAs,
 		testRegion
 	}) => {
 		const { section, seeded } = await openRecommendationsSection(
 			page,
-			seedRecommendationsConfig,
+			createUser,
+			loginAs,
 			testRegion,
 			'e2e-rec-failure'
 		);
@@ -136,12 +210,14 @@ test.describe('Recommendations tab rendering', () => {
 
 	test('all-empty recommendation results render one aggregate empty-state copy', async ({
 		page,
-		seedRecommendationsConfig,
+		createUser,
+		loginAs,
 		testRegion
 	}) => {
 		const { section, seeded } = await openRecommendationsSection(
 			page,
-			seedRecommendationsConfig,
+			createUser,
+			loginAs,
 			testRegion,
 			'e2e-rec-empty'
 		);

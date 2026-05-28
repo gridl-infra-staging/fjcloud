@@ -79,6 +79,9 @@ probe_build_remote_sql_command() {
 
     cat <<EOF
 set -euo pipefail
+if [[ -z "\${DATABASE_URL:-}" && -r /etc/fjcloud/env ]]; then
+    source /etc/fjcloud/env
+fi
 if [[ -z "\${DATABASE_URL:-}" ]]; then
     echo "DATABASE_URL is required on staging host for clickthrough probe DB reads" >&2
     exit 1

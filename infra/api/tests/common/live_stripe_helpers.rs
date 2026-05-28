@@ -1,6 +1,7 @@
 use api::stripe::live::LiveStripeService;
 use api::stripe::{StripeInvoiceLineItem, StripeService};
 use sqlx::PgPool;
+use std::sync::{Mutex, MutexGuard, OnceLock};
 use std::time::Instant;
 use tokio::sync::OnceCell;
 use uuid::Uuid;
@@ -11,6 +12,7 @@ const STRIPE_PRICE_STARTER_EXPECTED_UNIT_AMOUNT_CENTS_ENV: &str =
 const WEBHOOK_PROBE_EVENT_QUERY: &str = "SELECT COUNT(*) FROM webhook_events \
     WHERE event_type IN ('invoice.finalized', 'invoice.payment_succeeded') \
     AND payload->'data'->'object'->>'id' = $1";
+const DEFAULT_INTEGRATION_API_BASE: &str = "http://localhost:3099";
 
 #[derive(Debug, Clone)]
 #[allow(dead_code)] // fields consumed by launch-gate diagnostics in tests
@@ -97,7 +99,71 @@ pub fn expected_first_cycle_amount_cents_from_contract(quantity: u64) -> Result<
 }
 
 pub fn stripe_webhook_configured() -> bool {
-    stripe_webhook_secret().is_some() && crate::integration_helpers::integration_enabled()
+    stripe_webhook_secret().is_some() && integration_enabled()
+}
+
+fn integration_enabled() -> bool {
+    std::env::var("INTEGRATION")
+        .map(|value| value == "1")
+        .unwrap_or(false)
+}
+
+fn api_base() -> String {
+    std::env::var("INTEGRATION_API_BASE")
+        .unwrap_or_else(|_| DEFAULT_INTEGRATION_API_BASE.to_string())
+}
+
+async fn endpoint_reachable(base_url: &str) -> bool {
+    let parsed = match reqwest::Url::parse(base_url) {
+        Ok(url) => url,
+        Err(_) => return false,
+    };
+
+    let host = match parsed.host_str() {
+        Some(host) => host,
+        None => return false,
+    };
+    let port = parsed
+        .port_or_known_default()
+        .unwrap_or(if parsed.scheme() == "https" { 443 } else { 80 });
+
+    tokio::time::timeout(
+        std::time::Duration::from_millis(500),
+        tokio::net::TcpStream::connect((host, port)),
+    )
+    .await
+    .is_ok_and(|result| result.is_ok())
+}
+
+fn db_url() -> String {
+    if let Ok(url) = std::env::var("INTEGRATION_DB_URL") {
+        return url;
+    }
+
+    let host = std::env::var("INTEGRATION_DB_HOST").unwrap_or_else(|_| "localhost".to_string());
+    let port = std::env::var("INTEGRATION_DB_PORT").unwrap_or_else(|_| "5432".to_string());
+    let user = std::env::var("INTEGRATION_DB_USER").ok();
+    let password = std::env::var("INTEGRATION_DB_PASSWORD").ok();
+    let db_name =
+        std::env::var("INTEGRATION_DB").unwrap_or_else(|_| "fjcloud_integration_test".to_string());
+
+    if let Some(user) = user {
+        if let Some(password) = password {
+            format!("postgres://{user}:{password}@{host}:{port}/{db_name}")
+        } else {
+            format!("postgres://{user}@{host}:{port}/{db_name}")
+        }
+    } else {
+        format!("postgres://{host}:{port}/{db_name}")
+    }
+}
+
+fn test_env_lock() -> MutexGuard<'static, ()> {
+    static ENV_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+    ENV_LOCK
+        .get_or_init(|| Mutex::new(()))
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
 }
 
 pub fn build_stripe_service(stripe_secret_key: &str) -> LiveStripeService {
@@ -394,12 +460,12 @@ pub async fn validate_stripe_webhook_delivery() -> Result<WebhookProbeResult, St
         );
     }
 
-    let api_url = crate::integration_helpers::api_base();
-    if !crate::integration_helpers::endpoint_reachable(&api_url).await {
+    let api_url = api_base();
+    if !endpoint_reachable(&api_url).await {
         return Err(format!("API endpoint unreachable at {api_url}"));
     }
 
-    let db_url = crate::integration_helpers::db_url();
+    let db_url = db_url();
     let pool = PgPool::connect(&db_url)
         .await
         .map_err(|err| format!("integration DB unreachable at {db_url}: {err}"))?;
@@ -546,7 +612,7 @@ mod tests {
 
     #[test]
     fn expected_starter_amount_requires_positive_integer_env_value() {
-        let _guard = crate::integration_helpers::test_env_lock();
+        let _guard = super::test_env_lock();
         let _restore = EnvRestore::capture(STRIPE_PRICE_STARTER_EXPECTED_UNIT_AMOUNT_CENTS_ENV);
         std::env::remove_var(STRIPE_PRICE_STARTER_EXPECTED_UNIT_AMOUNT_CENTS_ENV);
         assert!(expected_starter_unit_amount_cents().is_err());
@@ -569,7 +635,7 @@ mod tests {
 
     #[test]
     fn contract_amount_multiplies_unit_amount_by_quantity() {
-        let _guard = crate::integration_helpers::test_env_lock();
+        let _guard = super::test_env_lock();
         let _restore = EnvRestore::capture(STRIPE_PRICE_STARTER_EXPECTED_UNIT_AMOUNT_CENTS_ENV);
         std::env::set_var(STRIPE_PRICE_STARTER_EXPECTED_UNIT_AMOUNT_CENTS_ENV, "900");
         assert_eq!(

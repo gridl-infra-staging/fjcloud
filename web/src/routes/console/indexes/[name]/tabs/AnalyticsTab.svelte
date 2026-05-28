@@ -95,7 +95,10 @@
 		return nextSearchParams;
 	}
 
-	function navigateAnalyticsWithParam(key: 'period' | 'subtab', value: AnalyticsPeriod | AnalyticsSubtabId) {
+	function navigateAnalyticsWithParam(
+		key: 'period' | 'subtab',
+		value: AnalyticsPeriod | AnalyticsSubtabId
+	) {
 		const nextSearchParams = analyticsSearchParamsWithoutLegacyDates();
 		nextSearchParams.set(key, value);
 		// eslint-disable-next-line svelte/no-navigation-without-resolve

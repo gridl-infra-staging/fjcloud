@@ -33,7 +33,7 @@ jobs:
         with:
           workspaces: infra
       - name: Run stripe test-clock lifecycle lane
-        run: cd infra && cargo test -p api --test stripe_test_clock_full_cycle_test
+        run: cd infra && cargo test -p api --test integration stripe_test_clock_full_cycle_test::
 
   tenant-isolation-proptest:
     # Defensive regression check that runs the proptest-driven tenant
@@ -59,4 +59,4 @@ jobs:
         with:
           workspaces: infra
       - name: Run tenant isolation proptest
-        run: cd infra && cargo test -p api --test tenant_isolation_proptest --features proptest-tests
+        run: cd infra && cargo test -p api --test integration --features proptest-tests tenant_isolation_proptest::

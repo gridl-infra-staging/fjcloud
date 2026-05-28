@@ -79,7 +79,11 @@ kill_owned_api_listener_for_restart() {
 
 	for pid in $listening_pids; do
 		command_line="$(ps -p "$pid" -o command= 2>/dev/null || true)"
-		if [[ "$command_line" == *"fjcloud-api"* ]] || [[ "$command_line" == *"cargo run --manifest-path infra/Cargo.toml -p api"* ]]; then
+		if [[ "$command_line" == *"fjcloud-api"* ]] || \
+			[[ "$command_line" == *"cargo run --manifest-path infra/Cargo.toml -p api"* ]] || \
+			[[ "$command_line" == *"cargo run -p api --manifest-path infra/Cargo.toml"* ]] || \
+			[[ "$command_line" == *"/target/debug/api"* ]] || \
+			[[ "$command_line" == *"/target/release/api"* ]]; then
 			kill "$pid" 2>/dev/null || true
 			wait "$pid" 2>/dev/null || true
 			continue

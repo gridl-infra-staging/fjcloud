@@ -147,10 +147,7 @@ export function isGroupArrayItem(
 	return item.type === 'group';
 }
 
-export function normalizeArrayRows(
-	field: EditorDialogArrayFieldSchema,
-	value: unknown
-): unknown[] {
+export function normalizeArrayRows(field: EditorDialogArrayFieldSchema, value: unknown): unknown[] {
 	if (!Array.isArray(value)) {
 		return [];
 	}

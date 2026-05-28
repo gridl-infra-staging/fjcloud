@@ -274,7 +274,7 @@ test_delegates_exact_cargo_test_command() {
     local calls
     calls=$(call_log_contents)
     assert_contains "$calls" \
-        "cargo test -p api --test integration_cold_tier_test cold_tier_full_lifecycle_s3_round_trip -- --test-threads=1" \
+        "cargo test -p api --test integration -- --exact integration_cold_tier_test::cold_tier_full_lifecycle_s3_round_trip --test-threads=1" \
         "should delegate the exact cargo test command for cold-tier lifecycle"
     assert_contains "$calls" "ENV:PWD=$REPO_ROOT/infra" \
         "should run the delegated cargo command from the infra workspace"

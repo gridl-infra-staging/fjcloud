@@ -6,5 +6,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| src | The aggregation-job is a daily rollup job that initializes structured logging, loads PostgreSQL configuration from environment variables, and executes a parameterized rollup SQL query for a target date window. |
+| src | The src directory contains the aggregation-job's entry point and modules, which implements a daily rollup daemon that aggregates metered usage data into billing periods by querying PostgreSQL and reporting affected row counts. |
 <!-- [scrai:end] -->

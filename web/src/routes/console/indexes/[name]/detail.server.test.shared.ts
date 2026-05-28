@@ -52,6 +52,7 @@ export interface MockFns {
 	deleteSynonym: ReturnType<typeof ViType.fn>;
 	saveQsConfig: ReturnType<typeof ViType.fn>;
 	deleteQsConfig: ReturnType<typeof ViType.fn>;
+	triggerQsBuild: ReturnType<typeof ViType.fn>;
 	createIndexKey: ReturnType<typeof ViType.fn>;
 	getDictionaryLanguages: ReturnType<typeof ViType.fn>;
 	searchDictionaryEntries: ReturnType<typeof ViType.fn>;
@@ -59,6 +60,7 @@ export interface MockFns {
 	getSecuritySources: ReturnType<typeof ViType.fn>;
 	appendSecuritySource: ReturnType<typeof ViType.fn>;
 	deleteSecuritySource: ReturnType<typeof ViType.fn>;
+	getIndexes: ReturnType<typeof ViType.fn>;
 }
 
 // ---------------------------------------------------------------------------
@@ -145,6 +147,7 @@ export function setupDefaultLoadMocks(m: MockFns): void {
 	m.getSecuritySources.mockResolvedValue({ ...EMPTY_SECURITY_SOURCES });
 	m.appendSecuritySource.mockResolvedValue({ createdAt: '2026-03-19T00:00:00Z' });
 	m.deleteSecuritySource.mockResolvedValue({ deletedAt: '2026-03-19T00:00:00Z' });
+	m.getIndexes.mockResolvedValue([{ ...DEFAULT_INDEX }]);
 }
 
 /** Creates the standard load() call arguments for the 'products' index. */
@@ -210,13 +213,15 @@ export function apiClientFactoryFor(
 			deleteSynonym: m.deleteSynonym,
 			saveQsConfig: m.saveQsConfig,
 			deleteQsConfig: m.deleteQsConfig,
+			triggerQsBuild: m.triggerQsBuild,
 			createIndexKey: m.createIndexKey,
 			getDictionaryLanguages: m.getDictionaryLanguages,
 			searchDictionaryEntries: m.searchDictionaryEntries,
 			batchDictionaryEntries: m.batchDictionaryEntries,
 			getSecuritySources: m.getSecuritySources,
 			appendSecuritySource: m.appendSecuritySource,
-			deleteSecuritySource: m.deleteSecuritySource
+			deleteSecuritySource: m.deleteSecuritySource,
+			getIndexes: m.getIndexes
 		})
 	};
 }
@@ -264,13 +269,15 @@ export function createMockFns(makeFn: () => ReturnType<typeof ViType.fn>): MockF
 		deleteSynonym: makeFn(),
 		saveQsConfig: makeFn(),
 		deleteQsConfig: makeFn(),
+		triggerQsBuild: makeFn(),
 		createIndexKey: makeFn(),
 		getDictionaryLanguages: makeFn(),
 		searchDictionaryEntries: makeFn(),
 		batchDictionaryEntries: makeFn(),
 		getSecuritySources: makeFn(),
 		appendSecuritySource: makeFn(),
-		deleteSecuritySource: makeFn()
+		deleteSecuritySource: makeFn(),
+		getIndexes: makeFn()
 	};
 }
 

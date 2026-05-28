@@ -30,18 +30,14 @@ export function inputPattern(field: EditorDialogSimpleFieldSchema): string | und
 	return field.type === 'text' ? field.pattern : undefined;
 }
 
-export function inputMinimum(
-	field: EditorDialogSimpleFieldSchema
-): number | string | undefined {
+export function inputMinimum(field: EditorDialogSimpleFieldSchema): number | string | undefined {
 	if (field.type === 'number' || field.type === 'datetime-local') {
 		return field.min;
 	}
 	return undefined;
 }
 
-export function inputMaximum(
-	field: EditorDialogSimpleFieldSchema
-): number | string | undefined {
+export function inputMaximum(field: EditorDialogSimpleFieldSchema): number | string | undefined {
 	if (field.type === 'number' || field.type === 'datetime-local') {
 		return field.max;
 	}

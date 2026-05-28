@@ -274,9 +274,9 @@ describe('search preview helper polling', () => {
 	});
 
 	it('isLocalStackUnavailableError matches connection-refused failures', () => {
-		expect(isLocalStackUnavailableError(new Error('fetch failed: connect ECONNREFUSED 127.0.0.1:3099'))).toBe(
-			true
-		);
+		expect(
+			isLocalStackUnavailableError(new Error('fetch failed: connect ECONNREFUSED 127.0.0.1:3099'))
+		).toBe(true);
 		expect(isLocalStackUnavailableError(new Error('validation payload mismatch'))).toBe(false);
 	});
 });

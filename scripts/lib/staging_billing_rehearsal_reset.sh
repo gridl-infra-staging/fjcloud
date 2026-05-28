@@ -228,7 +228,7 @@ run_reset_stripe_cleanup() {
 
     timeout_sec="$(rehearsal_http_timeout_sec)"
     set +e
-    stripe_list_output="$(_gate_timeout "$timeout_sec" stripe invoices list --customer "$RESET_STRIPE_CUSTOMER_ID" --limit 100 --format json)"
+    stripe_list_output="$(STRIPE_API_KEY="${STRIPE_SECRET_KEY:-}" _gate_timeout "$timeout_sec" stripe invoices list --customer "$RESET_STRIPE_CUSTOMER_ID" --limit 100)"
     stripe_list_status=$?
     set -e
     if [ "$stripe_list_status" -ne 0 ]; then
@@ -262,7 +262,7 @@ run_reset_stripe_cleanup() {
 
         case "$stripe_status" in
             draft)
-                stripe invoices delete "$stripe_invoice_id" >/dev/null 2>&1 || {
+                STRIPE_API_KEY="${STRIPE_SECRET_KEY:-}" stripe invoices delete "$stripe_invoice_id" >/dev/null 2>&1 || {
                     RESET_STRIPE_BLOCKED_CLASSIFICATION="reset_stripe_mutation_failed"
                     RESET_STRIPE_BLOCKED_DETAIL="Stripe delete failed for invoice ${stripe_invoice_id}."
                     had_blockers=1
@@ -271,7 +271,7 @@ run_reset_stripe_cleanup() {
                 cleared_ids_raw="${cleared_ids_raw}${stripe_invoice_id}"$'\n'
                 ;;
             open|uncollectible)
-                stripe invoices void "$stripe_invoice_id" >/dev/null 2>&1 || {
+                STRIPE_API_KEY="${STRIPE_SECRET_KEY:-}" stripe invoices void "$stripe_invoice_id" >/dev/null 2>&1 || {
                     RESET_STRIPE_BLOCKED_CLASSIFICATION="reset_stripe_mutation_failed"
                     RESET_STRIPE_BLOCKED_DETAIL="Stripe void failed for invoice ${stripe_invoice_id}."
                     had_blockers=1

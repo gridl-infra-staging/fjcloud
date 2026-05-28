@@ -1,5 +1,8 @@
 import type { RecommendationRequest, RecommendationsBatchRequest } from '$lib/api/types';
-import type { EditorDialogFieldSchema, EditorDialogValues } from '$lib/components/EditorDialog.types';
+import type {
+	EditorDialogFieldSchema,
+	EditorDialogValues
+} from '$lib/components/EditorDialog.types';
 import {
 	DEFAULT_RECOMMENDATION_MODEL,
 	metadataForModel,
@@ -163,8 +166,7 @@ export function sanitizeRecommendationRequest(
 	applyModelSpecificRequestFields(normalizedRequest, model, {
 		objectID: () => requireTrimmedString(record.objectID, 'request.requests[0].objectID'),
 		facetName: () => requireTrimmedString(record.facetName, 'request.requests[0].facetName'),
-		facetValue: () =>
-			requireTrimmedString(record.facetValue, 'request.requests[0].facetValue')
+		facetValue: () => requireTrimmedString(record.facetValue, 'request.requests[0].facetValue')
 	});
 	return normalizedRequest;
 }

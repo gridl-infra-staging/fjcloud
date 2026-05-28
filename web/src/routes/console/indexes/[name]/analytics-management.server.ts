@@ -47,10 +47,7 @@ type AnalyticsDateRangeErrorKey =
 	| 'analyticsCountriesError'
 	| 'analyticsFiltersError';
 
-type AnalyticsDateRangeResponseKey =
-	| 'analyticsDevices'
-	| 'analyticsCountries'
-	| 'analyticsFilters';
+type AnalyticsDateRangeResponseKey = 'analyticsDevices' | 'analyticsCountries' | 'analyticsFilters';
 
 function toIsoDateUtc(date: Date): string {
 	return date.toISOString().slice(0, 10);
@@ -166,11 +163,7 @@ type FetchAnalyticsByDateRangeArgs<
 	responseKey: TResponseKey;
 	invalidDateRangeMessage: string;
 	loadErrorMessage: string;
-	load: (
-		api: ApiClient,
-		indexName: string,
-		params: AnalyticsRequiredDateRangeParams
-	) => Promise<T>;
+	load: (api: ApiClient, indexName: string, params: AnalyticsRequiredDateRangeParams) => Promise<T>;
 };
 
 async function fetchAnalyticsByDateRange<
@@ -274,7 +267,11 @@ function buildConversionSubtabPayload(
 	};
 }
 
-export async function fetchAnalyticsDevicesAction({ request, indexName, token }: AnalyticsActionArgs) {
+export async function fetchAnalyticsDevicesAction({
+	request,
+	indexName,
+	token
+}: AnalyticsActionArgs) {
 	return fetchAnalyticsByDateRange({
 		request,
 		indexName,
@@ -304,7 +301,11 @@ export async function fetchAnalyticsCountriesAction({
 	});
 }
 
-export async function fetchAnalyticsFiltersAction({ request, indexName, token }: AnalyticsActionArgs) {
+export async function fetchAnalyticsFiltersAction({
+	request,
+	indexName,
+	token
+}: AnalyticsActionArgs) {
 	return fetchAnalyticsByDateRange({
 		request,
 		indexName,
@@ -359,10 +360,7 @@ export async function fetchAnalyticsConversionRateAction({
 		const sessionFailure = mapDashboardSessionFailure(err);
 		if (sessionFailure) return sessionFailure;
 		return fail(400, {
-			analyticsConversionRateError: errorMessage(
-				err,
-				'Failed to fetch analytics conversion rate'
-			)
+			analyticsConversionRateError: errorMessage(err, 'Failed to fetch analytics conversion rate')
 		});
 	}
 }

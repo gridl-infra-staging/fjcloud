@@ -6,5 +6,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| full | The vlm_capture directory provides infrastructure for VLM screenshot capture, defining canonical capture specifications, managing redirect logic during capture operations, and scaffolding manifests for captured outputs. |
+| full | This directory contains E2E UI test infrastructure for the index detail page, including helper utilities and a VLM-powered screenshot capture system with redirect guards and deterministic image tuples for visual validation workflows. |
 <!-- [scrai:end] -->

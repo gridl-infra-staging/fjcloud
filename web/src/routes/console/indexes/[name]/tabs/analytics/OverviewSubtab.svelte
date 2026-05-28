@@ -77,7 +77,10 @@
 			</div>
 		</div>
 
-		<div class="mb-6 rounded-lg border border-flapjack-ink/20 p-4" data-testid="analytics-volume-chart">
+		<div
+			class="mb-6 rounded-lg border border-flapjack-ink/20 p-4"
+			data-testid="analytics-volume-chart"
+		>
 			<h3 class="mb-3 text-sm font-semibold text-flapjack-ink">Search Volume</h3>
 			{#if browser}
 				<div class="h-64">

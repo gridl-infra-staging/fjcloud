@@ -733,6 +733,9 @@ export interface ExperimentResults {
 		variantValue: number;
 		dropPct: number;
 	}>;
+	outlierUsersExcluded?: number;
+	unstableIdFraction?: number;
+	variantIndexMissing?: boolean;
 	cupedApplied: boolean;
 	conclusion?: ExperimentConclusion;
 	recommendation?: string;

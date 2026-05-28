@@ -22,6 +22,6 @@ This module is the single source of truth for that logic. |
 
 | Directory | Summary |
 | --- | --- |
-| gcp | The gcp directory contains the GCP provisioner module, with an api_client.rs file handling Google Cloud API interactions and a mod.rs file defining the module structure. |
-| oci | The oci directory contains provisioning code for Oracle Cloud Infrastructure, including an API client for OCI service interactions and module-level definitions for the OCI provisioner integration. |
+| gcp | The gcp directory contains Google Cloud Platform provisioning functionality for the fjcloud API, including an API client module for interacting with GCP services and a module definition for the GCP provisioner component. |
+| oci | The oci directory contains OCI (Oracle Cloud Infrastructure) provisioner code, with an API client module for interacting with OCI services and a module definition file organizing the provisioner implementation. |
 <!-- [scrai:end] -->

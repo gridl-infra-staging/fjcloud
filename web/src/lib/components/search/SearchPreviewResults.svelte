@@ -20,7 +20,7 @@
 		totalPages?: number;
 		loading?: boolean;
 		onPageChange?: (nextPage: number) => void;
-		onHitClick?: (hit: SearchHit) => void;
+		onHitClick?: (hit: SearchHit, position: number) => void;
 	} = $props();
 
 	const previousDisabled = $derived(page <= 1 || loading);
@@ -68,11 +68,11 @@
 					role="button"
 					tabindex="0"
 					aria-label={`Open hit ${String(hit.objectID ?? index)}`}
-					onclick={() => onHitClick(hit)}
+					onclick={() => onHitClick(hit, index + 1)}
 					onkeydown={(event) => {
 						if (event.key === 'Enter' || event.key === ' ') {
 							event.preventDefault();
-							onHitClick(hit);
+							onHitClick(hit, index + 1);
 						}
 					}}
 				>

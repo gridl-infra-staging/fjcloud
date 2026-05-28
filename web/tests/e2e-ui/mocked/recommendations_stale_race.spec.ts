@@ -3,6 +3,9 @@ import { openIndexDetailTab } from '../../fixtures/index_detail_helpers';
 import * as devalue from 'devalue';
 import type { Route } from '@playwright/test';
 
+const PRIMARY_OBJECT_ID = 'doc-1';
+const SECONDARY_OBJECT_ID = 'doc-2';
+
 type ActionResult =
 	| {
 			type: 'success';
@@ -38,11 +41,11 @@ async function fulfillRecommendationsAction(route: Route, nextResult: ActionResu
 
 test('recommendations drops stale first response when second submit wins', async ({
 	page,
-	seedRecommendationsConfig,
+	seedIndex,
 	testRegion
 }) => {
 	const indexName = `e2e-rec-stale-mocked-${Date.now()}`;
-	const seeded = await seedRecommendationsConfig(indexName, testRegion);
+	await seedIndex(indexName, testRegion);
 	await page.goto(`/console/indexes/${encodeURIComponent(indexName)}`);
 	const section = await openIndexDetailTab(page, 'Recommendations', 'recommendations-section');
 
@@ -90,7 +93,7 @@ test('recommendations drops stale first response when second submit wins', async
 		});
 	});
 
-	await section.getByLabel('Object ID').fill(seeded.primaryObjectID);
+	await section.getByLabel('Object ID').fill(PRIMARY_OBJECT_ID);
 	await page.evaluate(() => {
 		const requestInput = document.querySelector('input[name="request"]') as HTMLInputElement | null;
 		if (requestInput) {
@@ -100,7 +103,7 @@ test('recommendations drops stale first response when second submit wins', async
 	await section.getByRole('button', { name: 'Get Recommendations' }).click();
 
 	await section.getByTestId('recommendations-model-select').selectOption('looking-similar');
-	await section.getByLabel('Object ID').fill(seeded.secondaryObjectID);
+	await section.getByLabel('Object ID').fill(SECONDARY_OBJECT_ID);
 	await section.getByRole('button', { name: 'Get Recommendations' }).click();
 
 	await expect.poll(() => requestCount).toBe(2);

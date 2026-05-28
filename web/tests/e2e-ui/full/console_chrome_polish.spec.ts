@@ -13,11 +13,9 @@ type FooterLinkExpectation = {
 	href: string;
 };
 
-const FOOTER_LINKS: FooterLinkExpectation[] = [
-	{ label: 'Terms', href: '/terms' },
-	{ label: 'Privacy', href: '/privacy' },
-	{ label: 'DPA', href: '/dpa' },
-	{ label: 'Status', href: '/status' }
+const HELP_LINKS: FooterLinkExpectation[] = [
+	{ label: 'Support', href: 'mailto:support@flapjack.foo' },
+	{ label: 'API Docs', href: 'https://api.flapjack.foo/docs' }
 ];
 
 function isSessionExpiredUrl(urlString: string): boolean {
@@ -60,7 +58,8 @@ test.describe('Console chrome polish shared-to-paid seam', () => {
 		page,
 		createUser,
 		loginAs,
-		getAccountPayloadForToken
+		getAccountPayloadForToken,
+		setBillingPlanForCustomer
 	}) => {
 		const uniqueSeed = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 		const fixtureEmail = `chrome-polish-${uniqueSeed}@e2e.griddle.test`;
@@ -71,6 +70,7 @@ test.describe('Console chrome polish shared-to-paid seam', () => {
 			fixturePassword,
 			`Chrome Polish ${uniqueSeed}`
 		);
+		await setBillingPlanForCustomer(createdUser.customerId, 'shared');
 		const initialToken = createdUser.token || (await loginAs(fixtureEmail, fixturePassword));
 		await setAuthCookieForToken(page, initialToken);
 		const authToken = await gotoWithSessionRecovery(
@@ -86,18 +86,24 @@ test.describe('Console chrome polish shared-to-paid seam', () => {
 
 		const planBadge = page.getByTestId('plan-badge');
 		await expect(planBadge).toBeVisible();
-		await expect(planBadge).toHaveText('Paid Plan');
+		await expect(planBadge).toHaveText('Shared Plan');
 
-		const betaPill = page.getByTestId('dashboard-beta-pill');
-		await expect(betaPill).toBeVisible();
-		await expect(betaPill.getByRole('link', { name: 'Beta' })).toHaveAttribute('href', '/beta');
+		const betaSupportBadge = page.getByTestId('dashboard-beta-support-badge');
+		await expect(betaSupportBadge).toBeVisible();
+		await expect(betaSupportBadge).toContainText(/public beta/i);
+		await expect(betaSupportBadge.getByRole('link', { name: 'View beta scope' })).toHaveAttribute(
+			'href',
+			'/beta'
+		);
+		await expect(betaSupportBadge.getByRole('link', { name: 'Send feedback' })).toHaveAttribute(
+			'href',
+			/mailto:support@flapjack\.foo\?subject=/
+		);
 
-		await expect(page.getByTestId('dashboard-beta-support-badge')).toHaveCount(0);
-
-		const legalNav = page.getByRole('navigation', { name: 'Legal' });
-		await expect(legalNav).toBeVisible();
-		for (const link of FOOTER_LINKS) {
-			await expect(legalNav.getByRole('link', { name: link.label, exact: true })).toHaveAttribute(
+		const sidebar = page.getByRole('complementary');
+		await expect(sidebar).toBeVisible();
+		for (const link of HELP_LINKS) {
+			await expect(sidebar.getByRole('link', { name: link.label, exact: true })).toHaveAttribute(
 				'href',
 				link.href
 			);

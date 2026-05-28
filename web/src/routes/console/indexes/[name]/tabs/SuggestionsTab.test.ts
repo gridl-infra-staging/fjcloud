@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/svelte';
+import { fireEvent } from '@testing-library/dom';
 import type { ComponentProps } from 'svelte';
 
 vi.mock('$app/forms', () => ({
@@ -19,6 +20,7 @@ function defaultProps(overrides: Partial<SuggestionsProps> = {}): SuggestionsPro
 		qsConfigError: '',
 		qsConfigSaved: false,
 		qsConfigDeleted: false,
+		qsBuildQueued: false,
 		...overrides
 	};
 }
@@ -54,6 +56,11 @@ describe('SuggestionsTab', () => {
 			expect(screen.getByText('Suggestions config deleted.')).toBeInTheDocument();
 		});
 
+		it('shows rebuild queued banner when qsBuildQueued is true', () => {
+			render(SuggestionsTab, { props: defaultProps({ qsBuildQueued: true }) });
+			expect(screen.getByText('Suggestions rebuild queued.')).toBeInTheDocument();
+		});
+
 		it('shows error banner with error message', () => {
 			render(SuggestionsTab, { props: defaultProps({ qsConfigError: 'Parse error' }) });
 			expect(screen.getByText('Parse error')).toBeInTheDocument();
@@ -80,6 +87,35 @@ describe('SuggestionsTab', () => {
 		it('does not show no-config prompt when config exists', () => {
 			render(SuggestionsTab, { props: defaultProps() });
 			expect(screen.queryByText('No configuration')).not.toBeInTheDocument();
+		});
+
+		it('Configure Query Suggestions button resets textarea to default config for current index', async () => {
+			render(SuggestionsTab, {
+				props: defaultProps({ qsConfig: null, qsStatus: null })
+			});
+
+			const textarea = screen.getByLabelText(/query suggestions json/i) as HTMLTextAreaElement;
+			await fireEvent.input(textarea, {
+				target: {
+					value: JSON.stringify({
+						indexName: 'wrong-index',
+						sourceIndices: ['other-index'],
+						languages: ['fr'],
+						exclude: ['custom'],
+						allowSpecialCharacters: true,
+						enablePersonalization: true
+					})
+				}
+			});
+
+			await fireEvent.click(screen.getByRole('button', { name: /configure query suggestions/i }));
+			const parsed = JSON.parse(textarea.value);
+			expect(parsed.indexName).toBe('products');
+			expect(parsed.languages).toEqual(['en']);
+			expect(parsed.sourceIndices).toEqual([]);
+			expect(parsed.exclude).toEqual([]);
+			expect(parsed.allowSpecialCharacters).toBe(false);
+			expect(parsed.enablePersonalization).toBe(false);
 		});
 	});
 
@@ -139,6 +175,14 @@ describe('SuggestionsTab', () => {
 	});
 
 	describe('build status', () => {
+		it('rebuild form posts to ?/rebuildQsConfig', () => {
+			const { container } = render(SuggestionsTab, { props: defaultProps() });
+
+			const rebuildForm = container.querySelector('form[action="?/rebuildQsConfig"]');
+			expect(rebuildForm).not.toBeNull();
+			expect(screen.getByRole('button', { name: /rebuild suggestions/i })).toBeInTheDocument();
+		});
+
 		it('renders build status when qsStatus is provided', () => {
 			render(SuggestionsTab, { props: defaultProps() });
 

@@ -108,7 +108,8 @@ describe('e2e fixture user helpers', () => {
 	it('does not cache stale-index cleanup as complete when stale deletes do not converge', () => {
 		const fixtureSource = readFileSync(join(process.cwd(), 'tests/fixtures/fixtures.ts'), 'utf8');
 
-		expect(fixtureSource).toContain('const cleanupDeadline = Date.now() + 8_000;');
+		expect(fixtureSource).toContain('const PASSIVE_STALE_INDEX_CLEANUP_DEADLINE_MS = 8_000;');
+		expect(fixtureSource).toContain('const FORCE_STALE_INDEX_CLEANUP_DEADLINE_MS = 300_000;');
 		expect(fixtureSource).toMatch(/if\s*\(\s*Date\.now\(\)\s*>\s*cleanupDeadline\s*\)\s*\{/m);
 		expect(fixtureSource).toContain('const unresolvedStaleDeletes: string[] = [];');
 		expect(fixtureSource).toContain('if (!deleted) {');
@@ -116,6 +117,19 @@ describe('e2e fixture user helpers', () => {
 		expect(fixtureSource).toMatch(
 			/if\s*\(\s*unresolvedStaleDeletes\.length\s*>\s*0\s*\)\s*\{\s*return;\s*\}/m
 		);
+	});
+
+	it('supports forced stale-index cleanup passes that bypass cached and cooldown-gated cleanup', () => {
+		const fixtureSource = readFileSync(join(process.cwd(), 'tests/fixtures/fixtures.ts'), 'utf8');
+
+		expect(fixtureSource).toContain('type CleanupStaleFixtureIndexesOnceOptions = {');
+		expect(fixtureSource).toContain('force?: boolean;');
+		expect(fixtureSource).toContain('const forceCleanup = options?.force === true;');
+		expect(fixtureSource).toContain('if (!forceCleanup && _staleFixtureIndexesCleaned) {');
+		expect(fixtureSource).toContain(
+			'if (!forceCleanup && Date.now() < _staleFixtureIndexesCleanupCooldownUntil) {'
+		);
+		expect(fixtureSource).toContain('const cleanupDeadline =');
 	});
 
 	it('does not rely on admin quota uplift during stale-index cleanup', () => {
@@ -129,8 +143,10 @@ describe('e2e fixture user helpers', () => {
 	it('seedIndex prefers admin seeding and only falls back to customer auth on invalid admin-key responses', () => {
 		const fixtureSource = readFileSync(join(process.cwd(), 'tests/fixtures/fixtures.ts'), 'utf8');
 
-		expect(fixtureSource).toContain("seedIndex: async ({ _trackIndexForCleanup }, use) => {");
-		expect(fixtureSource).toContain('await createSeededIndex(customerId, name, r, fixtureEnv.flapjackUrl);');
+		expect(fixtureSource).toContain('seedIndex: async ({ _trackIndexForCleanup }, use) => {');
+		expect(fixtureSource).toContain(
+			'await createSeededIndex(customerId, name, r, fixtureEnv.flapjackUrl);'
+		);
 		expect(fixtureSource).toContain('await createSeededIndexForCurrentCustomer(name, r);');
 		expect(fixtureSource).toContain('invalid admin key');
 	});
@@ -139,16 +155,54 @@ describe('e2e fixture user helpers', () => {
 		const fixtureSource = readFileSync(join(process.cwd(), 'tests/fixtures/fixtures.ts'), 'utf8');
 
 		expect(fixtureSource).toContain('createSeededIndexForCurrentCustomer');
-		expect(fixtureSource).toContain('isUnauthorizedExpiredTokenAccountFailure(res.status, lastFailure)');
+		expect(fixtureSource).toContain(
+			'isUnauthorizedExpiredTokenAccountFailure(res.status, lastFailure)'
+		);
 		expect(fixtureSource).toMatch(
 			/if\s*\(\s*isUnauthorizedExpiredTokenAccountFailure\(res\.status,\s*lastFailure\)\s*\)\s*\{\s*_token\s*=\s*null;\s*continue;\s*\}/m
 		);
 	});
 
-	it('seedIndex path does not expand stale-index cleanup prefixes for logs-route names', () => {
+	it('seed index creation retries force stale-index cleanup when quota limits are hit', () => {
 		const fixtureSource = readFileSync(join(process.cwd(), 'tests/fixtures/fixtures.ts'), 'utf8');
 
-		expect(fixtureSource).toContain("const STALE_FIXTURE_INDEX_PREFIXES = ['e2e-', 'manual-iso-', 'test-index'] as const;");
+		expect(fixtureSource).toContain(
+			'function isIndexLimitReachedFailure(status: number, body: string)'
+		);
+		expect(fixtureSource).toContain(
+			'isIndexLimitReachedFailure(fallbackResponse.status, fallbackBody)'
+		);
+		expect(fixtureSource).toContain('isIndexLimitReachedFailure(res.status, body)');
+		expect(fixtureSource).toContain('await cleanupStaleFixtureIndexesOnce({ force: true });');
+		expect(fixtureSource).toContain(
+			'seedSearchableIndex failed after forced stale-index cleanup retry'
+		);
+		expect(fixtureSource).toContain(
+			'seedRecommendationsConfig failed after forced stale-index cleanup retry'
+		);
+	});
+
+	it('stale-index cleanup includes known long-lived fixture prefixes and excludes protected proof/log prefixes', () => {
+		const fixtureSource = readFileSync(join(process.cwd(), 'tests/fixtures/fixtures.ts'), 'utf8');
+
+		expect(fixtureSource).toContain('const STALE_FIXTURE_INDEX_PREFIXES = [');
+		expect(fixtureSource).toContain("'e2e-'");
+		expect(fixtureSource).toContain("'manual-iso-'");
+		expect(fixtureSource).toContain("'test-index'");
+		expect(fixtureSource).toContain("'dash-'");
+		expect(fixtureSource).toContain("'onboard-'");
+		expect(fixtureSource).not.toContain("'stage5syn-proof-'");
+		expect(fixtureSource).not.toContain("'logs-'");
+	});
+
+	it('forced stale-index cleanup uses an extended delete window for high-volume fixture debt', () => {
+		const fixtureSource = readFileSync(join(process.cwd(), 'tests/fixtures/fixtures.ts'), 'utf8');
+
+		expect(fixtureSource).toContain('const FORCE_STALE_INDEX_CLEANUP_DEADLINE_MS = 300_000;');
+		expect(fixtureSource).toContain('const PASSIVE_STALE_INDEX_CLEANUP_DEADLINE_MS = 8_000;');
+		expect(fixtureSource).toMatch(
+			/forceCleanup\s*\?\s*FORCE_STALE_INDEX_CLEANUP_DEADLINE_MS\s*:\s*PASSIVE_STALE_INDEX_CLEANUP_DEADLINE_MS/
+		);
 	});
 
 	it('seedIndex retries transient transport failures instead of failing on single fetch disconnect', () => {
@@ -157,6 +211,30 @@ describe('e2e fixture user helpers', () => {
 		expect(fixtureSource).toContain('function isTransientSeedIndexTransportFailure');
 		expect(fixtureSource).toMatch(
 			/seedIndex:\s*async\s*\(\{\s*_trackIndexForCleanup\s*\},\s*use\)\s*=>\s*\{[\s\S]*for\s*\(let\s+attempt\s*=\s*0;\s*attempt\s*<\s*3;\s*attempt\+\+\)[\s\S]*catch\s*\(error\)[\s\S]*isTransientSeedIndexTransportFailure\(error\)/m
+		);
+	});
+
+	it('saveSynonym fixture helper retries transient invalid-key 400 responses before failing closed', () => {
+		const fixtureSource = readFileSync(join(process.cwd(), 'tests/fixtures/fixtures.ts'), 'utf8');
+
+		expect(fixtureSource).toContain('async function saveSynonymWithFixtureApi');
+		expect(fixtureSource).toMatch(
+			/saveSynonymWithFixtureApi[\s\S]*for\s*\(let\s+attempt\s*=\s*0;\s*attempt\s*<\s*3;\s*attempt\s*\+=\s*1\)[\s\S]*response\.status\s*===\s*400[\s\S]*invalid application-id or api key[\s\S]*sleep\(getTransientRetryDelayMs\(attempt\)\)[\s\S]*continue;/m
+		);
+		expect(fixtureSource).toContain("throw new Error('saveSynonym failed: retries exhausted');");
+	});
+
+	it('fixture contract exposes clearSynonyms API seam backed by /synonyms/clear', () => {
+		const fixtureSource = readFileSync(join(process.cwd(), 'tests/fixtures/fixtures.ts'), 'utf8');
+
+		expect(fixtureSource).toContain('type ClearSynonymsFn = (indexName: string) => Promise<void>;');
+		expect(fixtureSource).toContain('/synonyms/clear');
+		expect(fixtureSource).toContain(
+			'/** Clear all synonyms through fixture-owned bearer-token API access. */'
+		);
+		expect(fixtureSource).toContain('clearSynonyms: async ({}, use) => {');
+		expect(fixtureSource).toContain(
+			'await use((indexName: string) => clearSynonymsWithFixtureApi(indexName));'
 		);
 	});
 

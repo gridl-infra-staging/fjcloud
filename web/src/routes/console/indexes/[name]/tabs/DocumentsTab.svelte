@@ -6,6 +6,7 @@
 		parseUploadFileRecords,
 		type UploadFormat
 	} from './documents-file-parser';
+	import { buildAddObjectBatchPayload } from './documents_batch_payload';
 
 	const DEFAULT_HITS_PER_PAGE = 20;
 	const PREVIEW_LIMIT = 5;
@@ -60,14 +61,7 @@
 		documents.hitsPerPage > 0 ? documents.hitsPerPage : DEFAULT_HITS_PER_PAGE
 	);
 	const uploadPreviewRecords = $derived(parsedUploadRecords.slice(0, PREVIEW_LIMIT));
-	const uploadBatchPayload = $derived(
-		JSON.stringify({
-			requests: parsedUploadRecords.map((record) => ({
-				action: 'addObject',
-				body: record
-			}))
-		})
-	);
+	const uploadBatchPayload = $derived(buildAddObjectBatchPayload(parsedUploadRecords));
 
 	$effect(() => {
 		browseQueryDraft = browseQuery;

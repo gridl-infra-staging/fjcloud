@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiRequestError } from '$lib/api/client';
+import { createApiClient } from '$lib/server/api';
 import { makeActionArgs } from './detail.server.test.shared';
 
 // ---------------------------------------------------------------------------
@@ -39,8 +40,8 @@ describe('Index detail page server -- AI action handlers', () => {
 		vi.clearAllMocks();
 	});
 
-	it('savePersonalizationStrategy action calls API with parsed strategy JSON', async () => {
-		savePersonalizationStrategyMock.mockResolvedValue({ updatedAt: '2026-03-17T00:00:00Z' });
+	it('savePersonalizationStrategy action saves parsed strategy through API client', async () => {
+		savePersonalizationStrategyMock.mockResolvedValue(undefined);
 
 		const formData = new FormData();
 		formData.set(
@@ -73,21 +74,23 @@ describe('Index detail page server -- AI action handlers', () => {
 			],
 			personalizationImpact: 75
 		});
+		expect(createApiClient).toHaveBeenCalledWith('jwt-token');
 		expect(result).toEqual({ personalizationStrategySaved: true });
 	});
 
-	it('deletePersonalizationStrategy action calls delete strategy API', async () => {
-		deletePersonalizationStrategyMock.mockResolvedValue({ deletedAt: '2026-03-17T00:00:00Z' });
+	it('deletePersonalizationStrategy action deletes strategy through API client', async () => {
+		deletePersonalizationStrategyMock.mockResolvedValue(undefined);
 
 		const result = await actions.deletePersonalizationStrategy(
 			makeActionArgs('deletePersonalizationStrategy', new FormData()) as never
 		);
 
 		expect(deletePersonalizationStrategyMock).toHaveBeenCalledWith('products');
+		expect(createApiClient).toHaveBeenCalledWith('jwt-token');
 		expect(result).toEqual({ personalizationStrategyDeleted: true });
 	});
 
-	it('getPersonalizationProfile action calls API and returns profile data', async () => {
+	it('getPersonalizationProfile action loads profile through API client', async () => {
 		getPersonalizationProfileMock.mockResolvedValue({
 			userToken: 'user_abc',
 			lastEventAt: '2026-02-25T00:00:00Z',
@@ -105,6 +108,7 @@ describe('Index detail page server -- AI action handlers', () => {
 		);
 
 		expect(getPersonalizationProfileMock).toHaveBeenCalledWith('products', 'user_abc');
+		expect(createApiClient).toHaveBeenCalledWith('jwt-token');
 		expect(result).toEqual({
 			personalizationProfile: {
 				userToken: 'user_abc',
@@ -113,12 +117,13 @@ describe('Index detail page server -- AI action handlers', () => {
 					brand: { apple: 20 },
 					category: { shoes: 12 }
 				}
-			}
+			},
+			personalizationProfileLookupAttempted: true
 		});
 	});
 
-	it('deletePersonalizationProfile action calls API with userToken', async () => {
-		deletePersonalizationProfileMock.mockResolvedValue({ deletedAt: '2026-03-17T00:00:00Z' });
+	it('deletePersonalizationProfile action deletes profile through API client', async () => {
+		deletePersonalizationProfileMock.mockResolvedValue(undefined);
 
 		const formData = new FormData();
 		formData.set('userToken', 'user_abc');
@@ -128,10 +133,15 @@ describe('Index detail page server -- AI action handlers', () => {
 		);
 
 		expect(deletePersonalizationProfileMock).toHaveBeenCalledWith('products', 'user_abc');
-		expect(result).toEqual({ personalizationProfileDeleted: true, personalizationProfile: null });
+		expect(createApiClient).toHaveBeenCalledWith('jwt-token');
+		expect(result).toEqual({
+			personalizationProfileDeleted: true,
+			personalizationProfile: null,
+			personalizationProfileLookupAttempted: false
+		});
 	});
 
-	it('getPersonalizationProfile action rejects blank userToken', async () => {
+	it('getPersonalizationProfile action rejects blank userToken before API call', async () => {
 		const formData = new FormData();
 		formData.set('userToken', '   ');
 
@@ -414,7 +424,10 @@ describe('Index detail page server -- AI action handlers', () => {
 	it('chat action rejects conversationHistory longer than maximum allowed entries', async () => {
 		const formData = new FormData();
 		formData.set('query', 'Hello');
-		formData.set('conversationHistory', JSON.stringify(Array.from({ length: 101 }, () => ({ role: 'user' }))));
+		formData.set(
+			'conversationHistory',
+			JSON.stringify(Array.from({ length: 101 }, () => ({ role: 'user' })))
+		);
 
 		const result = await actions.chat(makeActionArgs('chat', formData) as never);
 
@@ -492,6 +505,93 @@ describe('Index detail page server -- AI action handlers', () => {
 				status: 400,
 				data: expect.objectContaining({
 					personalizationError: expect.stringContaining('valid JSON')
+				})
+			})
+		);
+		expect(savePersonalizationStrategyMock).not.toHaveBeenCalled();
+	});
+
+	it('savePersonalizationStrategy action rejects unsupported eventType enum values', async () => {
+		const formData = new FormData();
+		formData.set(
+			'strategy',
+			JSON.stringify({
+				eventsScoring: [{ eventName: 'Product viewed', eventType: 'purchase', score: 10 }],
+				facetsScoring: [{ facetName: 'brand', score: 70 }],
+				personalizationImpact: 75
+			})
+		);
+
+		const result = await actions.savePersonalizationStrategy(
+			makeActionArgs('savePersonalizationStrategy', formData) as never
+		);
+
+		expect(result).toEqual(
+			expect.objectContaining({
+				status: 400,
+				data: expect.objectContaining({
+					personalizationError: 'Invalid strategy JSON'
+				})
+			})
+		);
+		expect(savePersonalizationStrategyMock).not.toHaveBeenCalled();
+	});
+
+	it('savePersonalizationStrategy action rejects out-of-bounds integer scores and impact', async () => {
+		const formData = new FormData();
+		formData.set(
+			'strategy',
+			JSON.stringify({
+				eventsScoring: [{ eventName: 'Product viewed', eventType: 'view', score: 10 }],
+				facetsScoring: [{ facetName: 'brand', score: 70 }],
+				personalizationImpact: 101
+			})
+		);
+
+		const result = await actions.savePersonalizationStrategy(
+			makeActionArgs('savePersonalizationStrategy', formData) as never
+		);
+
+		expect(result).toEqual(
+			expect.objectContaining({
+				status: 400,
+				data: expect.objectContaining({
+					personalizationError: expect.stringContaining('must be between')
+				})
+			})
+		);
+		expect(savePersonalizationStrategyMock).not.toHaveBeenCalled();
+	});
+
+	it('savePersonalizationStrategy action rejects strategy arrays larger than 15 rows', async () => {
+		const oversizeEvents = Array.from({ length: 16 }, (_, index) => ({
+			eventName: `Event ${index + 1}`,
+			eventType: 'view',
+			score: 10
+		}));
+		const oversizeFacets = Array.from({ length: 16 }, (_, index) => ({
+			facetName: `facet_${index + 1}`,
+			score: 10
+		}));
+		const formData = new FormData();
+		formData.set(
+			'strategy',
+			JSON.stringify({
+				eventsScoring: oversizeEvents,
+				facetsScoring: oversizeFacets,
+				personalizationImpact: 75
+			})
+		);
+
+		const result = await actions.savePersonalizationStrategy(
+			makeActionArgs('savePersonalizationStrategy', formData) as never
+		);
+
+		expect(result).toEqual(
+			expect.objectContaining({
+				status: 400,
+				data: expect.objectContaining({
+					personalizationError: expect.stringContaining('at most 15')
 				})
 			})
 		);

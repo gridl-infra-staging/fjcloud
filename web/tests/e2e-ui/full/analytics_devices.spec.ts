@@ -12,10 +12,7 @@ test.describe('Analytics devices subtab', () => {
 		await seedIndex(indexName, testRegion);
 
 		await page.route('**/console/indexes/**', async (route, request) => {
-			if (
-				request.method() === 'POST' &&
-				request.url().includes('fetchAnalyticsDevices')
-			) {
+			if (request.method() === 'POST' && request.url().includes('fetchAnalyticsDevices')) {
 				await route.fulfill({
 					status: 200,
 					contentType: 'application/json',
@@ -36,7 +33,10 @@ test.describe('Analytics devices subtab', () => {
 		);
 
 		await expect(page.getByTestId('tab-analytics')).toHaveAttribute('aria-selected', 'true');
-		await expect(page.getByTestId('analytics-subtab-devices')).toHaveAttribute('aria-selected', 'true');
+		await expect(page.getByTestId('analytics-subtab-devices')).toHaveAttribute(
+			'aria-selected',
+			'true'
+		);
 		await expect(page.getByTestId('device-card-desktop')).toContainText('42');
 		await expect(page.getByTestId('device-card-mobile')).toContainText('17');
 		await expect(page.getByTestId('device-card-tablet')).toContainText('8');

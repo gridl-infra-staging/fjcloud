@@ -288,7 +288,8 @@ describe('InstantSearch', () => {
 			indexName: 'cust_products',
 			metadata: {
 				objectID: 'doc-1',
-				page: 1
+				page: 1,
+				position: 1
 			}
 		});
 	});

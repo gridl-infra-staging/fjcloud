@@ -6,6 +6,7 @@ test.describe('Create index dialog welcome flow', () => {
 		page,
 		registerIndexForCleanup,
 		createUser,
+		setBillingPlanForCustomer,
 		completeFreshSignupEmailVerification,
 		isFreshSignupArrangePrerequisiteFailure
 	}) => {
@@ -23,7 +24,10 @@ test.describe('Create index dialog welcome flow', () => {
 
 		await page.context().clearCookies();
 		try {
-			await createUser(email, password, `Indexes Create Welcome ${seed}`);
+			const createdUser = await createUser(email, password, `Indexes Create Welcome ${seed}`);
+			// Shared plan now enforces billing-setup completion; keep this flow on
+			// free plan so create-index redirect coverage is isolated to index UX.
+			await setBillingPlanForCustomer(createdUser.customerId, 'free');
 			await completeFreshSignupEmailVerification(page, email);
 		} catch (error) {
 			const failureMessage = error instanceof Error ? error.message : String(error);

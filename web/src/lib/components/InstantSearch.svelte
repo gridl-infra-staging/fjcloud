@@ -237,7 +237,7 @@
 		trackAnalyticsEnabled = nextEnabled;
 	}
 
-	function handleResultClick(hit: SearchHit): void {
+	function handleResultClick(hit: SearchHit, position: number): void {
 		if (!trackAnalyticsEnabled) {
 			return;
 		}
@@ -247,7 +247,8 @@
 			indexName,
 			metadata: {
 				objectID: hit.objectID ?? null,
-				page
+				page,
+				position
 			}
 		}).catch(() => {
 			// Analytics are fire-and-forget by design.

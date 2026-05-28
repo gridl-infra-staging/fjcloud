@@ -7,14 +7,14 @@
 
 | Directory | Summary |
 | --- | --- |
-| alerts | The admin alerts page server-load function fetches a list of alerts (up to 100) from the admin client, with optional filtering by severity level (info, warning, or critical) via URL search parameters. |
-| billing | Admin billing page server component that loads all invoices across tenants and provides actions to run batch billing for a specified month and bulk finalize multiple invoices with error handling. |
+| alerts | — |
+| billing | The billing directory contains the server-side route handler for the admin billing management page, responsible for handling data loading and server-side logic for the admin panel's billing interface. |
 | cold | — |
-| customers | Admin interface for managing customers with a server-side page handler and dynamic routing to individual customer detail pages, including shared test fixtures for the admin customer component. |
+| customers | Admin customer management interface with a main listing page and per-customer detail pages, including test fixtures for component testing. |
 | end-impersonation | — |
 | fleet | — |
 | login | — |
 | logout | — |
-| migrations | Admin page for managing index migrations, loading active and recent migration status from the API and providing a form action to trigger new migrations between destination VMs. |
+| migrations | Handles the admin migrations page, providing a server load function that fetches active and recent database migrations and an action to trigger new migrations by specifying an index name and destination VM ID. |
 | replicas | — |
 <!-- [scrai:end] -->

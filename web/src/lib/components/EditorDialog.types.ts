@@ -105,6 +105,7 @@ export type EditorDialogProps = {
 	onSave: EditorDialogOnSave;
 	onCancel: () => void;
 	hasExternalDirtyState?: boolean;
+	pendingSave?: boolean;
 	body?: Snippet;
 	description?: string;
 	submitLabel?: string;

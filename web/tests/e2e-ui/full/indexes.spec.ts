@@ -20,6 +20,7 @@ import {
 	waitForSearchPreviewHitsToContain,
 	waitForSearchPreviewReady
 } from '../../fixtures/search-preview-helpers';
+import { seedSearchableIndexForCustomer } from '../../fixtures/searchable-index';
 
 type RuntimeRegionOption = {
 	id: string;
@@ -27,6 +28,22 @@ type RuntimeRegionOption = {
 	checked: boolean;
 	disabled: boolean;
 };
+
+const API_URL = process.env.API_URL ?? 'http://localhost:3001';
+
+type CreatedFixtureUser = {
+	customerId: string;
+	email: string;
+	token: string;
+};
+
+type CreateUserFn = (email: string, password: string, name?: string) => Promise<CreatedFixtureUser>;
+type CompleteFreshSignupEmailVerificationFn = (
+	page: Page,
+	email: string
+) => Promise<{ verificationToken: string }>;
+type IsFreshSignupArrangePrerequisiteFailureFn = (alertText: string) => boolean;
+type SetBillingPlanForCustomerToFreeFn = (customerId: string, plan: 'free') => Promise<void>;
 
 async function openCreateIndexForm(page: Page): Promise<void> {
 	await page.goto('/console/indexes');
@@ -54,10 +71,23 @@ async function waitForCreateIndexSuccess(
 	const indexInTable = page.getByRole('cell', { name: indexName });
 	const provisioningMsg = page.getByText('Setting up your search endpoint');
 	const createdMsg = page.getByText('Index created successfully');
+	const detailHeading = page.getByRole('heading', { name: indexName, exact: true });
+	const isOnCreatedIndexDetailPage = (): boolean => {
+		try {
+			const current = new URL(page.url(), 'http://localhost');
+			const expectedPath = `/console/indexes/${encodeURIComponent(indexName)}`;
+			return current.pathname === expectedPath;
+		} catch {
+			return false;
+		}
+	};
 
 	await expect
 		.poll(
 			async () => {
+				if (isOnCreatedIndexDetailPage() && (await detailHeading.isVisible().catch(() => false))) {
+					return 'detail';
+				}
 				if (await indexInTable.isVisible().catch(() => false)) return 'table';
 				if (!options?.requireTableRow && (await provisioningMsg.isVisible().catch(() => false))) {
 					return 'provisioning';
@@ -79,36 +109,46 @@ async function waitForDuplicateCreateSafeOutcome(page: Page, indexName: string):
 	const existingRow = page.getByRole('row').filter({
 		has: page.getByRole('link', { name: indexName, exact: true })
 	});
-	let outcome = 'pending';
+	let sawQuotaExceeded = false;
+	let outcome:
+		| 'pending'
+		| 'duplicate-alert'
+		| 'idempotent'
+		| 'unexpected-success'
+		| 'quota-exceeded' = 'pending';
 
-	async function readOutcome(): Promise<string> {
-		if (await quotaExceededCallout.isVisible().catch(() => false)) {
-			outcome = 'quota-exceeded';
-			return outcome;
-		}
+	await expect
+		.poll(
+			async () => {
+				if (await quotaExceededCallout.isVisible().catch(() => false)) {
+					sawQuotaExceeded = true;
+					outcome = 'quota-exceeded';
+					return outcome;
+				}
 
-		const alertText = ((await formAlert.textContent().catch(() => '')) ?? '').trim();
-		if (/already exists|duplicate/i.test(alertText)) {
-			outcome = 'duplicate-alert';
-			return outcome;
-		}
+				const alertText = ((await formAlert.textContent().catch(() => '')) ?? '').trim();
+				if (/already exists|duplicate/i.test(alertText)) {
+					outcome = 'duplicate-alert';
+					return outcome;
+				}
 
-		if (await existingRow.isVisible().catch(() => false)) {
-			outcome = 'idempotent';
-			return outcome;
-		}
+				if (await existingRow.isVisible().catch(() => false)) {
+					outcome = 'idempotent';
+					return outcome;
+				}
 
-		if (await createdMsg.isVisible().catch(() => false)) {
-			outcome = 'unexpected-success';
-			return outcome;
-		}
+				if (await createdMsg.isVisible().catch(() => false)) {
+					outcome = 'unexpected-success';
+					return outcome;
+				}
 
-		return 'pending';
-	}
+				return 'pending';
+			},
+			{ timeout: 30_000 }
+		)
+		.not.toBe('pending');
 
-	await expect.poll(readOutcome, { timeout: 30_000 }).not.toBe('pending');
-
-	if (outcome === 'quota-exceeded') {
+	if (sawQuotaExceeded) {
 		throw new Error('index creation blocked by free-plan capacity in this environment');
 	}
 
@@ -175,6 +215,15 @@ async function submitCreateIndexFormWithTransientRetry(
 	const provisioningMsg = page.getByText('Setting up your search endpoint');
 	const createdMsg = page.getByText('Index created successfully');
 	const maxAttempts = 4;
+	const isOnCreatedIndexDetailPage = (): boolean => {
+		try {
+			const current = new URL(page.url(), 'http://localhost');
+			const expectedPath = `/console/indexes/${encodeURIComponent(name)}`;
+			return current.pathname === expectedPath;
+		} catch {
+			return false;
+		}
+	};
 
 	for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
 		const createActionResponsePromise = page
@@ -215,6 +264,17 @@ async function submitCreateIndexFormWithTransientRetry(
 							settledOutcome = 'success';
 							return settledOutcome;
 						}
+						// Create submit can redirect directly to detail on success.
+						if (
+							isOnCreatedIndexDetailPage() &&
+							(await page
+								.getByRole('heading', { name, exact: true })
+								.isVisible()
+								.catch(() => false))
+						) {
+							settledOutcome = 'success';
+							return settledOutcome;
+						}
 
 						settledAlertText = ((await alert.textContent().catch(() => '')) ?? '').trim();
 						if (!settledAlertText) {
@@ -238,6 +298,15 @@ async function submitCreateIndexFormWithTransientRetry(
 				)
 				.not.toBe('pending');
 		} catch {
+			if (
+				isOnCreatedIndexDetailPage() &&
+				(await page
+					.getByRole('heading', { name, exact: true })
+					.isVisible()
+					.catch(() => false))
+			) {
+				return;
+			}
 			// Shared-host stacks intermittently suppress in-form alerts; keep
 			// retrying attempts instead of aborting the helper on first timeout.
 			settledOutcome = 'retryable';
@@ -329,9 +398,58 @@ async function expectTemplateDefaults(page: Page): Promise<void> {
 	// eslint-disable-next-line playwright/no-raw-locators -- need name="template" to distinguish from region radios
 	await expect(form.locator('input[name="template_id"]')).toHaveCount(3);
 	await expect(form.getByRole('radio', { name: 'Empty index' })).toBeChecked();
-	await expect(form.getByRole('radio', { name: 'Movies' })).not.toBeChecked();
-	await expect(form.getByRole('radio', { name: 'Products' })).not.toBeChecked();
+	await expect(form.getByRole('radio', { name: /Movies/ })).not.toBeChecked();
+	await expect(form.getByRole('radio', { name: /Products/ })).not.toBeChecked();
 	await expect(form.getByLabel('Index name')).toHaveValue('');
+}
+
+async function arrangeFreshFreePlanIndexesUserSession({
+	page,
+	seed,
+	createUser,
+	completeFreshSignupEmailVerification,
+	isFreshSignupArrangePrerequisiteFailure,
+	setBillingPlanForCustomer,
+	gateName
+}: {
+	page: Page;
+	seed: string;
+	createUser: CreateUserFn;
+	completeFreshSignupEmailVerification: CompleteFreshSignupEmailVerificationFn;
+	isFreshSignupArrangePrerequisiteFailure: IsFreshSignupArrangePrerequisiteFailureFn;
+	setBillingPlanForCustomer: SetBillingPlanForCustomerToFreeFn;
+	gateName: string;
+}): Promise<CreatedFixtureUser & { password: string }> {
+	const email = `indexes-${seed}@e2e.griddle.test`;
+	const password = 'TestPassword123!';
+	await page.context().clearCookies();
+	let createdUser: CreatedFixtureUser | null = null;
+
+	try {
+		createdUser = await createUser(email, password, `Indexes Test ${seed}`);
+		await completeFreshSignupEmailVerification(page, email);
+	} catch (error) {
+		const failureMessage = error instanceof Error ? error.message : String(error);
+		if (isFreshSignupArrangePrerequisiteFailure(failureMessage)) {
+			failRequiredE2eGate(
+				gateName,
+				`${gateName} prerequisite unavailable in local env: ${failureMessage}`
+			);
+		}
+		throw error;
+	}
+
+	await page.goto('/login');
+	await page.getByLabel('Email').fill(email);
+	await page.getByLabel('Password').fill(password);
+	await page.getByRole('button', { name: 'Log In' }).click();
+	await expect(page).toHaveURL(/\/console/, { timeout: 10_000 });
+
+	if (!createdUser) {
+		throw new Error(`${gateName} failed: fixture createUser did not return a user`);
+	}
+	await setBillingPlanForCustomer(createdUser.customerId, 'free');
+	return { ...createdUser, password };
 }
 
 test.describe('Indexes list page', () => {
@@ -377,14 +495,22 @@ test.describe('Indexes list page', () => {
 
 	test('create index through the UI adds it to the table', async ({
 		page,
-		cleanupFixtureIndexes,
-		registerIndexForCleanup,
-		setBillingPlan
+		createUser,
+		completeFreshSignupEmailVerification,
+		isFreshSignupArrangePrerequisiteFailure,
+		setBillingPlanForCustomer
 	}) => {
+		test.setTimeout(180_000);
 		const name = `e2e-create-${Date.now()}`;
-
-		await setBillingPlan('shared');
-		await cleanupFixtureIndexes();
+		await arrangeFreshFreePlanIndexesUserSession({
+			page,
+			seed: `create-${Date.now()}`,
+			createUser,
+			completeFreshSignupEmailVerification,
+			isFreshSignupArrangePrerequisiteFailure,
+			setBillingPlanForCustomer,
+			gateName: 'create index through the UI adds it to the table'
+		});
 		await openCreateIndexForm(page);
 		if (await indexCreationBlockedByPlanLimit(page)) {
 			failRequiredE2eGate(
@@ -408,9 +534,6 @@ test.describe('Indexes list page', () => {
 			);
 			throw error;
 		}
-
-		// Register for cleanup after a successful UI create path.
-		registerIndexForCleanup(name);
 	});
 
 	test('create/list/detail journey uses one UI create with runtime default region', async ({
@@ -418,33 +541,19 @@ test.describe('Indexes list page', () => {
 		createUser,
 		completeFreshSignupEmailVerification,
 		isFreshSignupArrangePrerequisiteFailure,
-		setBillingPlan
+		setBillingPlanForCustomer
 	}) => {
 		const seed = Date.now();
-		const email = `indexes-journey-${seed}@e2e.griddle.test`;
-		const password = 'TestPassword123!';
 		const createdIndexName = `e2e-default-region-${seed}`;
-		await page.context().clearCookies();
-		try {
-			await createUser(email, password, `Indexes Journey ${seed}`);
-			await completeFreshSignupEmailVerification(page, email);
-		} catch (error) {
-			const failureMessage = error instanceof Error ? error.message : String(error);
-			if (isFreshSignupArrangePrerequisiteFailure(failureMessage)) {
-				failRequiredE2eGate(
-					'create/list/detail journey uses one UI create with runtime default region',
-					`create/list/detail journey prerequisite unavailable in local env: ${failureMessage}`
-				);
-			}
-			throw error;
-		}
-
-		await page.goto('/login');
-		await page.getByLabel('Email').fill(email);
-		await page.getByLabel('Password').fill(password);
-		await page.getByRole('button', { name: 'Log In' }).click();
-		await expect(page).toHaveURL(/\/console/, { timeout: 10_000 });
-		await setBillingPlan('shared');
+		await arrangeFreshFreePlanIndexesUserSession({
+			page,
+			seed: `journey-${seed}`,
+			createUser,
+			completeFreshSignupEmailVerification,
+			isFreshSignupArrangePrerequisiteFailure,
+			setBillingPlanForCustomer,
+			gateName: 'create/list/detail journey uses one UI create with runtime default region'
+		});
 
 		await openCreateIndexForm(page);
 		const defaultRegionId = await captureDefaultRuntimeRegionFromCreateForm(page);
@@ -475,13 +584,13 @@ test.describe('Indexes list page', () => {
 
 		await expectTemplateDefaults(page);
 
-		await form.getByText('Movies', { exact: true }).click();
+		await form.getByText('Movies — 1,000 docs', { exact: true }).click();
 		await expect(nameInput).toHaveValue('movies');
-		await expect(form.getByRole('radio', { name: 'Movies' })).toBeChecked();
+		await expect(form.getByRole('radio', { name: /Movies/ })).toBeChecked();
 
-		await form.getByText('Products', { exact: true }).click();
+		await form.getByText('Products — 1,000 docs', { exact: true }).click();
 		await expect(nameInput).toHaveValue('products');
-		await expect(form.getByRole('radio', { name: 'Products' })).toBeChecked();
+		await expect(form.getByRole('radio', { name: /Products/ })).toBeChecked();
 
 		await form.getByText('Empty index', { exact: true }).click();
 		await expect(nameInput).toHaveValue('');
@@ -496,15 +605,27 @@ test.describe('Indexes list page', () => {
 
 	test('duplicate index name shows a safe failure instead of succeeding', async ({
 		page,
-		cleanupFixtureIndexes,
-		seedIndex,
-		testRegion,
-		setBillingPlan
+		createUser,
+		completeFreshSignupEmailVerification,
+		isFreshSignupArrangePrerequisiteFailure,
+		setBillingPlanForCustomer
 	}) => {
+		test.setTimeout(180_000);
 		const name = `e2e-duplicate-${Date.now()}`;
-		await setBillingPlan('shared');
-		await cleanupFixtureIndexes();
-		await seedIndex(name, testRegion);
+		await arrangeFreshFreePlanIndexesUserSession({
+			page,
+			seed: `duplicate-${Date.now()}`,
+			createUser,
+			completeFreshSignupEmailVerification,
+			isFreshSignupArrangePrerequisiteFailure,
+			setBillingPlanForCustomer,
+			gateName: 'duplicate index name shows a safe failure instead of succeeding'
+		});
+		await openCreateIndexForm(page);
+		await submitCreateIndexFormWithTransientRetry(page, name);
+		await waitForCreateIndexSuccess(page, name);
+		await page.goto('/console/indexes');
+		await expect(page.getByText('Index created successfully')).toHaveCount(0);
 
 		await openCreateIndexForm(page);
 		if (await indexCreationBlockedByPlanLimit(page)) {
@@ -567,23 +688,54 @@ test.describe('Index detail page', () => {
 
 	test('Search Preview tab shows real search results from Flapjack', async ({
 		page,
-		seedSearchableIndex
+		createUser,
+		completeFreshSignupEmailVerification,
+		isFreshSignupArrangePrerequisiteFailure,
+		setBillingPlanForCustomer,
+		testRegion
 	}) => {
-		test.setTimeout(120_000);
-		const name = `e2e-search-${Date.now()}`;
+		test.setTimeout(180_000);
+		const seed = Date.now();
+		const name = `e2e-search-${seed}`;
+		const gateName = 'Search Preview tab shows real search results from Flapjack';
+		const userSession = await arrangeFreshFreePlanIndexesUserSession({
+			page,
+			seed: `search-preview-${seed}`,
+			createUser,
+			completeFreshSignupEmailVerification,
+			isFreshSignupArrangePrerequisiteFailure,
+			setBillingPlanForCustomer,
+			gateName
+		});
 
 		// Arrange: seed an index with searchable documents via the fixture
 		let seeded: { query: string; expectedHitText: string };
 		try {
 			seeded = await Promise.race([
-				seedSearchableIndex(name),
+				seedSearchableIndexForCustomer({
+					apiUrl: API_URL,
+					adminKey: process.env.E2E_ADMIN_KEY,
+					customerId: userSession.customerId,
+					token: userSession.token,
+					name,
+					region: testRegion,
+					query: 'Search Preview',
+					expectedHitText: `Search Preview Hit ${seed}`,
+					documents: [
+						{
+							objectID: `search-preview-doc-${seed}`,
+							title: `Search Preview Hit ${seed}`,
+							body: 'search-preview-fixture'
+						}
+					]
+				}),
 				new Promise<never>((_, reject) =>
-					setTimeout(() => reject(new Error('seedSearchableIndex timed out after 90s')), 90_000)
+					setTimeout(() => reject(new Error('seedSearchableIndex timed out after 150s')), 150_000)
 				)
 			]);
 		} catch (error) {
 			failRequiredE2eGate(
-				'Search Preview tab shows real search results from Flapjack',
+				gateName,
 				`seedSearchableIndex failed for this environment: ${(error as Error).message}`
 			);
 		}

@@ -6,5 +6,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| 20260516T001549Z_live_probe | This directory contains a timestamped live probe script (run_live_probe.sh) that appears to be an operational validation or monitoring routine, likely part of the project's ops-layer probes for checking system health against live AWS/DNS/Stripe/SES services. |
+| 20260516T001549Z_live_probe | This directory contains a live-state probe script from May 16, 2026 that validates the current state of external vendor surfaces like Stripe, AWS, and other dependencies. |
 <!-- [scrai:end] -->

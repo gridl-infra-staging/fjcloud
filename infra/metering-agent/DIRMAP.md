@@ -6,5 +6,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| src | Metering-agent is a Rust daemon that collects and reports resource consumption metrics, with components for configuration management, health monitoring, circuit breaking, metric counters, data storage, scraping, and tenant mapping. |
+| src | The metering-agent is a Rust daemon responsible for collecting and reporting resource consumption metrics across tenants in the fjcloud billing system. |
 <!-- [scrai:end] -->

@@ -50,6 +50,7 @@ const saveSynonymMock = vi.fn();
 const deleteSynonymMock = vi.fn();
 const saveQsConfigMock = vi.fn();
 const deleteQsConfigMock = vi.fn();
+const triggerQsBuildMock = vi.fn();
 const getDictionaryLanguagesMock = vi.fn();
 const createIndexKeyMock = vi.fn();
 const searchDictionaryEntriesMock = vi.fn();
@@ -57,6 +58,7 @@ const batchDictionaryEntriesMock = vi.fn();
 const getSecuritySourcesMock = vi.fn();
 const appendSecuritySourceMock = vi.fn();
 const deleteSecuritySourceMock = vi.fn();
+const getIndexesMock = vi.fn();
 
 // ---------------------------------------------------------------------------
 // vi.mock (top-level, as required by vitest)
@@ -100,12 +102,14 @@ vi.mock('$lib/server/api', () => ({
 		deleteSynonym: deleteSynonymMock,
 		saveQsConfig: saveQsConfigMock,
 		deleteQsConfig: deleteQsConfigMock,
+		triggerQsBuild: triggerQsBuildMock,
 		getDictionaryLanguages: getDictionaryLanguagesMock,
 		searchDictionaryEntries: searchDictionaryEntriesMock,
 		batchDictionaryEntries: batchDictionaryEntriesMock,
 		getSecuritySources: getSecuritySourcesMock,
 		appendSecuritySource: appendSecuritySourceMock,
-		deleteSecuritySource: deleteSecuritySourceMock
+		deleteSecuritySource: deleteSecuritySourceMock,
+		getIndexes: getIndexesMock
 	}))
 }));
 
@@ -158,13 +162,15 @@ const mocks: MockFns = {
 	deleteSynonym: deleteSynonymMock,
 	saveQsConfig: saveQsConfigMock,
 	deleteQsConfig: deleteQsConfigMock,
+	triggerQsBuild: triggerQsBuildMock,
 	createIndexKey: createIndexKeyMock,
 	getDictionaryLanguages: getDictionaryLanguagesMock,
 	searchDictionaryEntries: searchDictionaryEntriesMock,
 	batchDictionaryEntries: batchDictionaryEntriesMock,
 	getSecuritySources: getSecuritySourcesMock,
 	appendSecuritySource: appendSecuritySourceMock,
-	deleteSecuritySource: deleteSecuritySourceMock
+	deleteSecuritySource: deleteSecuritySourceMock,
+	getIndexes: getIndexesMock
 };
 
 // ---------------------------------------------------------------------------
@@ -275,6 +281,25 @@ describe('Index detail page server -- load', () => {
 		expect(result.rules?.hits).toHaveLength(1);
 	});
 
+	it('load forwards q query param to synonym search and keeps synonym payload contract stable', async () => {
+		searchSynonymsMock.mockResolvedValue({
+			hits: [{ objectID: 'laptop-syn', type: 'synonym', synonyms: ['laptop', 'notebook'] }],
+			nbHits: 1,
+			page: 0,
+			nbPages: 1
+		});
+
+		const result = (await load(makeLoadArgs('?tab=synonyms&q=laptop') as never)) as LoadResult;
+
+		expect(searchSynonymsMock).toHaveBeenCalledWith('products', 'laptop');
+		expect(result.synonyms).toEqual({
+			hits: [{ objectID: 'laptop-syn', type: 'synonym', synonyms: ['laptop', 'notebook'] }],
+			nbHits: 1,
+			page: 0,
+			nbPages: 1
+		});
+	});
+
 	it('load includes personalization strategy when API returns one', async () => {
 		getPersonalizationStrategyMock.mockResolvedValue({
 			eventsScoring: [
@@ -375,8 +400,9 @@ describe('Index detail page server -- load', () => {
 	it('load returns synonyms: null when only searchSynonyms fails', async () => {
 		searchSynonymsMock.mockRejectedValue(new Error('synonyms unavailable'));
 
-		const result = (await load(makeLoadArgs() as never)) as LoadResult;
+		const result = (await load(makeLoadArgs('?tab=synonyms&q=laptop') as never)) as LoadResult;
 
+		expect(searchSynonymsMock).toHaveBeenCalledWith('products', 'laptop');
 		expect(result.synonyms).toBeNull();
 		// rules still loaded successfully via setupDefaultLoadMocks
 		expect(result.rules).not.toBeNull();
@@ -608,9 +634,7 @@ describe('Index detail page server -- load', () => {
 			nbPages: 1
 		});
 
-		const result = (await load(
-			makeLoadArgs('?dictionary=plurals&dictionaryLang=fr') as never
-		)) as LoadResult;
+		const result = (await load(makeLoadArgs('?dict=plurals&lang=fr') as never)) as LoadResult;
 
 		expect(searchDictionaryEntriesMock).toHaveBeenCalledWith('products', 'plurals', {
 			query: '',
@@ -642,9 +666,7 @@ describe('Index detail page server -- load', () => {
 			nbPages: 0
 		});
 
-		const result = (await load(
-			makeLoadArgs('?dictionary=plurals&dictionaryLang=en') as never
-		)) as LoadResult;
+		const result = (await load(makeLoadArgs('?dict=plurals&lang=en') as never)) as LoadResult;
 
 		expect(searchDictionaryEntriesMock).toHaveBeenCalledWith('products', 'plurals', {
 			query: '',
@@ -669,9 +691,7 @@ describe('Index detail page server -- load', () => {
 			nbPages: 0
 		});
 
-		const result = (await load(
-			makeLoadArgs('?dictionary=stopwords&dictionaryLang=en') as never
-		)) as LoadResult;
+		const result = (await load(makeLoadArgs('?dict=stopwords&lang=en') as never)) as LoadResult;
 
 		expect(searchDictionaryEntriesMock).toHaveBeenCalledWith('products', 'stopwords', {
 			query: '',
@@ -703,9 +723,7 @@ describe('Index detail page server -- load', () => {
 				compounds: null
 			}
 		});
-		const result = (await load(
-			makeLoadArgs('?dictionary=invalid&dictionaryLang=zz') as never
-		)) as LoadResult;
+		const result = (await load(makeLoadArgs('?dict=invalid&lang=zz') as never)) as LoadResult;
 
 		expect(result.dictionaries.selectedDictionary).toBe('stopwords');
 		expect(result.dictionaries.selectedLanguage).toBe('en');
@@ -758,5 +776,22 @@ describe('Index detail page server -- load', () => {
 		expect(result.debugEvents).toBeNull();
 		expect((result as Record<string, unknown>).eventsLoadError).toBe('events unavailable');
 		expect((result as Record<string, unknown>).eventsError).toBeUndefined();
+	});
+
+	it('load populates allIndexes from getIndexes on success', async () => {
+		const indexes = [{ ...DEFAULT_INDEX }, { ...DEFAULT_INDEX, name: 'products_v2' }];
+		getIndexesMock.mockResolvedValue(indexes);
+
+		const result = (await load(makeLoadArgs() as never)) as LoadResult;
+
+		expect((result as Record<string, unknown>).allIndexes).toEqual(indexes);
+	});
+
+	it('load falls back to empty array when getIndexes fails', async () => {
+		getIndexesMock.mockRejectedValue(new Error('forbidden'));
+
+		const result = (await load(makeLoadArgs() as never)) as LoadResult;
+
+		expect((result as Record<string, unknown>).allIndexes).toEqual([]);
 	});
 });

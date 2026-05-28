@@ -64,10 +64,13 @@ create_mock_rehearsal_runner() {
 #!/usr/bin/env bash
 set -euo pipefail
 mode="${STAGE4_REHEARSAL_FIXTURE_MODE:-happy}"
+call_log="${STAGE4_REHEARSAL_CALL_LOG:-}"
 
 env_file=""
 month=""
 confirm=0
+reset_mode=0
+confirm_test_tenant=""
 while [ "$#" -gt 0 ]; do
     case "$1" in
         --env-file)
@@ -82,11 +85,31 @@ while [ "$#" -gt 0 ]; do
             confirm=1
             shift
             ;;
+        --reset-test-state)
+            reset_mode=1
+            shift
+            ;;
+        --confirm-test-tenant)
+            confirm_test_tenant="$2"
+            shift 2
+            ;;
         *)
             shift
             ;;
     esac
 done
+
+if [[ -n "$call_log" ]]; then
+    printf 'reset_mode=%s confirm=%s month=%s tenant=%s env_file=%s\n' \
+        "$reset_mode" "$confirm" "$month" "$confirm_test_tenant" "$env_file" >> "$call_log"
+fi
+
+if [[ "$reset_mode" == "1" ]]; then
+    cat <<JSON
+{"result":"passed","classification":"reset_completed","detail":"ok","artifact_dir":""}
+JSON
+    exit 0
+fi
 
 if [ -z "$env_file" ] || [ -z "$month" ] || [ "$confirm" -ne 1 ]; then
     cat <<JSON
@@ -288,6 +311,33 @@ test_validator_happy_path_reports_per_transition_invoice_ids() {
     assert_eq "$(json_transition_field "$output" "failed" "result")" "passed" "failed transition should pass on matching subject/body"
     assert_eq "$(json_transition_field "$output" "suspended" "result")" "passed" "suspended transition should pass on matching subject/body"
     assert_eq "$(json_transition_field "$output" "recovered" "result")" "passed" "recovered transition should pass on matching subject/body"
+}
+
+test_validator_resets_allowlisted_tenants_before_live_mutation() {
+    local mock_dir env_file rehearsal_script output exit_code call_log calls
+    mock_dir="$(mktemp -d)"
+    env_file="$mock_dir/staging.env"
+    rehearsal_script="$mock_dir/mock_rehearsal.sh"
+    call_log="$mock_dir/rehearsal_calls.log"
+
+    write_env_file "$env_file" "https://api.flapjack.foo"
+    printf 'FJCLOUD_TEST_TENANT_IDS=11111111-1111-1111-1111-111111111111,22222222-2222-2222-2222-222222222222\n' >> "$env_file"
+    create_mock_rehearsal_runner "$rehearsal_script"
+    create_mock_aws "$mock_dir/aws"
+
+    output="$(STAGE4_REHEARSAL_CALL_LOG="$call_log" run_validator happy "$env_file" "$mock_dir" "$rehearsal_script")" || exit_code=$?
+    calls="$(cat "$call_log" 2>/dev/null || true)"
+
+    rm -rf "$mock_dir"
+
+    assert_eq "${exit_code:-0}" "0" "validator should still pass when allowlisted reset runs first"
+    assert_valid_json "$output" "allowlisted reset output should be valid JSON"
+    assert_contains "$calls" "reset_mode=1 confirm=0 month=2026-03 tenant=11111111-1111-1111-1111-111111111111" \
+        "validator should reset the first allowlisted tenant before live mutation"
+    assert_contains "$calls" "reset_mode=1 confirm=0 month=2026-03 tenant=22222222-2222-2222-2222-222222222222" \
+        "validator should reset the second allowlisted tenant before live mutation"
+    assert_contains "$calls" "reset_mode=0 confirm=1 month=2026-03 tenant=" \
+        "validator should still invoke the live mutation rehearsal after resets"
 }
 
 test_validator_accepts_sanctioned_staging_hostname_contract() {
@@ -526,6 +576,7 @@ ENVFILE
 
 echo "=== validate_staging_dunning_delivery.sh tests ==="
 test_validator_happy_path_reports_per_transition_invoice_ids
+test_validator_resets_allowlisted_tenants_before_live_mutation
 test_validator_accepts_sanctioned_staging_hostname_contract
 test_validator_fails_when_rfc822_subject_assertion_is_missing
 test_validator_continues_scanning_after_first_invoice_id_hit

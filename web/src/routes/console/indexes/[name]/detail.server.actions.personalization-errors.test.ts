@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiRequestError } from '$lib/api/client';
+import { createApiClient } from '$lib/server/api';
 import { makeActionArgs } from './detail.server.test.shared';
 
 const deletePersonalizationStrategyMock = vi.fn();
@@ -34,6 +35,7 @@ describe('Index detail page server -- personalization action API errors', () => 
 				data: expect.objectContaining({ personalizationError: 'upstream failed' })
 			})
 		);
+		expect(createApiClient).toHaveBeenCalledWith('jwt-token');
 	});
 
 	it('getPersonalizationProfile action returns fail on API error', async () => {
@@ -52,6 +54,24 @@ describe('Index detail page server -- personalization action API errors', () => 
 				data: expect.objectContaining({ personalizationError: 'upstream failed' })
 			})
 		);
+		expect(createApiClient).toHaveBeenCalledWith('jwt-token');
+	});
+
+	it('getPersonalizationProfile action maps 404 to empty profile payload', async () => {
+		getPersonalizationProfileMock.mockRejectedValue(new ApiRequestError(404, 'Not found'));
+
+		const formData = new FormData();
+		formData.set('userToken', 'user_abc');
+
+		const result = await actions.getPersonalizationProfile(
+			makeActionArgs('getPersonalizationProfile', formData) as never
+		);
+
+		expect(result).toEqual({
+			personalizationProfile: null,
+			personalizationProfileLookupAttempted: true
+		});
+		expect(createApiClient).toHaveBeenCalledWith('jwt-token');
 	});
 
 	it('deletePersonalizationProfile action returns fail on API error', async () => {
@@ -70,9 +90,10 @@ describe('Index detail page server -- personalization action API errors', () => 
 				data: expect.objectContaining({ personalizationError: 'upstream failed' })
 			})
 		);
+		expect(createApiClient).toHaveBeenCalledWith('jwt-token');
 	});
 
-	it('deletePersonalizationStrategy action returns shared session failure for 403 upstream auth errors', async () => {
+	it('deletePersonalizationStrategy action returns mapped fail payload from extracted owner', async () => {
 		deletePersonalizationStrategyMock.mockRejectedValue(new ApiRequestError(403, 'Forbidden'));
 
 		const result = await actions.deletePersonalizationStrategy(
@@ -88,5 +109,6 @@ describe('Index detail page server -- personalization action API errors', () => 
 				})
 			})
 		);
+		expect(createApiClient).toHaveBeenCalledWith('jwt-token');
 	});
 });

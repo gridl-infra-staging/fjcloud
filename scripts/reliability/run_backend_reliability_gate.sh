@@ -157,7 +157,7 @@ run_load_gate_check() {
 
 run_live_rust_validation_tests() {
     _wrap_test_check "LIVE_RUST_VALIDATION_TESTS_PASS" "LIVE_RUST_VALIDATION_TESTS_FAIL" \
-        _integration_cargo_test --test integration_metering_pipeline_test validate_
+        _integration_cargo_test --test integration integration_metering_pipeline_test::
 }
 
 run_check_or_skip() {

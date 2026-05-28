@@ -47,14 +47,14 @@ describe('buildCurlCommand', () => {
 		);
 
 		expect(command).toContain(
-			"-d '{\"alpha\":{\"first\":1,\"second\":2},\"list\":[{\"a\":1,\"b\":2}],\"zeta\":1}'"
+			'-d \'{"alpha":{"first":1,"second":2},"list":[{"a":1,"b":2}],"zeta":1}\''
 		);
 	});
 
 	it('escapes url shell metacharacters and rejects invalid methods', () => {
 		const command = buildCurlCommand(
 			makeStoredLogEntry({
-				method: "POST; touch /tmp/pwned",
+				method: 'POST; touch /tmp/pwned',
 				url: "?/search?q=abc'; echo hacked; #'",
 				body: undefined
 			})

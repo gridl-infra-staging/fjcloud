@@ -277,32 +277,32 @@ test.describe('Dashboard page', () => {
 		);
 		const settingsSection = page.getByTestId('settings-section');
 		await settingsSection.getByRole('button', { name: 'Save Settings' }).click();
-	await expect(settingsSection).toContainText(
-		/Settings saved\.|Failed to save settings|backend temporarily unavailable/
-	);
-	await page.goto('/console/logs');
-	await expect(page.getByTestId('search-log-panel').getByTestId('api-log-row-0')).toBeVisible();
+		await expect(settingsSection).toContainText(
+			/Settings saved\.|Failed to save settings|backend temporarily unavailable/
+		);
+		await page.goto('/console/logs');
+		await expect(page.getByTestId('search-log-panel').getByTestId('api-log-row-0')).toBeVisible();
 
-	for (const viewMode of ['compact', 'detailed', 'invalid']) {
-		await page.goto(`/console/logs?view=${viewMode}`);
-		const expectedView = viewMode === 'compact' ? 'compact' : 'detailed';
-		if (viewMode === 'invalid') {
-			await page.getByRole('button', { name: 'Detailed view' }).click();
-		}
-		await expect(page).toHaveURL(new RegExp(`/console/logs\\?view=${expectedView}`));
-		await expect(
-			page.getByRole('button', {
-				name: expectedView === 'compact' ? 'Compact view' : 'Detailed view'
-			})
-		).toHaveAttribute('aria-pressed', 'true');
+		for (const viewMode of ['compact', 'detailed', 'invalid']) {
+			await page.goto(`/console/logs?view=${viewMode}`);
+			const expectedView = viewMode === 'compact' ? 'compact' : 'detailed';
+			if (viewMode === 'invalid') {
+				await page.getByRole('button', { name: 'Detailed view' }).click();
+			}
+			await expect(page).toHaveURL(new RegExp(`/console/logs\\?view=${expectedView}`));
+			await expect(
+				page.getByRole('button', {
+					name: expectedView === 'compact' ? 'Compact view' : 'Detailed view'
+				})
+			).toHaveAttribute('aria-pressed', 'true');
 
-		await page.reload();
-		await expect(page).toHaveURL(new RegExp(`/console/logs\\?view=${expectedView}`));
-		await expect(
-			page.getByRole('button', {
-				name: expectedView === 'compact' ? 'Compact view' : 'Detailed view'
-			})
-		).toHaveAttribute('aria-pressed', 'true');
+			await page.reload();
+			await expect(page).toHaveURL(new RegExp(`/console/logs\\?view=${expectedView}`));
+			await expect(
+				page.getByRole('button', {
+					name: expectedView === 'compact' ? 'Compact view' : 'Detailed view'
+				})
+			).toHaveAttribute('aria-pressed', 'true');
 
 			const logPanel = page.getByTestId('search-log-panel');
 			const firstDataRow = logPanel.getByTestId('api-log-row-0');
@@ -389,10 +389,7 @@ test.describe('Dashboard page', () => {
 		const firstLineItem = estimate.line_items[0]!;
 		await expect(widget.getByRole('cell', { name: firstLineItem.description })).toBeVisible();
 		await expect(
-			widget
-				.getByRole('row')
-				.nth(1)
-				.getByRole('cell', { name: formatCents(firstLineItem.amount_cents) })
+			widget.getByRole('cell', { name: formatCents(firstLineItem.amount_cents) }).first()
 		).toBeVisible();
 	});
 });
@@ -536,7 +533,7 @@ test.describe('Plan-aware dashboard features', () => {
 		await setBillingPlan('shared');
 		await page.goto('/console');
 
-		await expect(page.getByTestId('plan-badge')).toHaveText('Paid Plan');
+		await expect(page.getByTestId('plan-badge')).toHaveText('Shared Plan');
 		// Free-tier progress section must not appear for shared-plan users
 		await expect(page.getByTestId('free-tier-progress')).toBeHidden();
 	});

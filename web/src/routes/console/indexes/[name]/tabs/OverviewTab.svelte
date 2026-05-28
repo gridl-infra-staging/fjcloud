@@ -1,15 +1,22 @@
 <script lang="ts">
-	import { enhance } from '$app/forms';
-	import { resolve } from '$app/paths';
+	import { applyAction, deserialize, enhance } from '$app/forms';
+	import { invalidateAll } from '$app/navigation';
+	import { tick } from 'svelte';
 	import { copyToClipboard } from '$lib/clipboard';
 	import { formatBytes, formatNumber, statusLabel } from '$lib/format';
-	import type { Index, IndexReplicaSummary, InternalRegion, SearchResult } from '$lib/api/types';
-	import {
-		buildSnippetContext,
-		buildFrameworkSnippets,
-		CORS_ALLOWED_ORIGINS,
-		type FrameworkId
-	} from './connect-your-app-snippets';
+	import type {
+		AnalyticsNoResultRateResponse,
+		AnalyticsSearchCountResponse,
+		AnalyticsStatusResponse,
+		AnalyticsTopSearchesResponse,
+		Index,
+		IndexReplicaSummary,
+		InternalRegion,
+		SearchResult
+	} from '$lib/api/types';
+	import ConnectYourAppCard from './ConnectYourAppCard.svelte';
+	import { MAX_DOCUMENT_UPLOAD_BYTES, parseUploadFileRecords } from './documents-file-parser';
+	import { buildAddObjectBatchPayload } from './documents_batch_payload';
 
 	type Props = {
 		index: Index;
@@ -22,6 +29,16 @@
 		replicaError: string;
 		deleteError: string;
 		replicaCreated: boolean;
+		analyticsStatus?: AnalyticsStatusResponse | null;
+		searchCount?: AnalyticsSearchCountResponse | null;
+		noResultRate?: AnalyticsNoResultRateResponse | null;
+		topSearches?: AnalyticsTopSearchesResponse | null;
+		analyticsUnavailable?: boolean;
+		documentsUploadSuccess?: boolean;
+		documentsUploadError?: string;
+		settingsTabHref?: string;
+		analyticsTabHref?: string;
+		documentsTabHref?: string;
 	};
 
 	let {
@@ -34,20 +51,199 @@
 		searchError,
 		replicaError,
 		deleteError,
-		replicaCreated
+		replicaCreated,
+		analyticsStatus = null,
+		searchCount = null,
+		noResultRate = null,
+		topSearches = null,
+		analyticsUnavailable = false,
+		documentsUploadSuccess = false,
+		documentsUploadError = '',
+		settingsTabHref = '#',
+		analyticsTabHref = '#',
+		documentsTabHref = '#'
 	}: Props = $props();
 
 	let showAddReplica = $state(false);
 	let selectedReplicaRegion = $state('');
 	let deleteConfirmName = $state('');
 	let showDeleteConfirm = $state(false);
-	let activeSnippetTab = $state<FrameworkId>('react');
-
-	const snippetContext = $derived(
-		index.endpoint ? buildSnippetContext(index.endpoint, index.name) : null
+	let exportInFlight = $state(false);
+	let importInFlight = $state(false);
+	let importBatchPayload = $state('');
+	let localDataManagementError = $state('');
+	let importFileInputElement = $state<HTMLInputElement | null>(null);
+	let importFormElement = $state<HTMLFormElement | null>(null);
+	const indexProvisioned = $derived(index.endpoint !== null);
+	const topSearchCount = $derived(topSearches?.searches.length ?? 0);
+	const totalSearchCount = $derived(searchCount?.count ?? 0);
+	const noResultRatePercent = $derived(
+		typeof noResultRate?.rate === 'number' ? `${(noResultRate.rate * 100).toFixed(1)}%` : 'N/A'
 	);
-	const frameworkSnippets = $derived(snippetContext ? buildFrameworkSnippets(snippetContext) : []);
-	const activeSnippet = $derived(frameworkSnippets.find((s) => s.id === activeSnippetTab) ?? null);
+	const analyticsStatusLabel = $derived(
+		analyticsStatus?.enabled === true
+			? 'Enabled'
+			: analyticsStatus?.enabled === false
+				? 'Disabled'
+				: 'N/A'
+	);
+	const dataManagementAlert = $derived(localDataManagementError || documentsUploadError);
+
+	const EXPORT_HITS_PER_PAGE = 1000;
+	const EXPORT_ENTRY_LIMIT = 10000;
+	const IMPORT_REFRESH_HITS_PER_PAGE = 20;
+
+	type ExportBrowsePage = {
+		cursor: string | null;
+		hits: Record<string, unknown>[];
+	};
+
+	function setLocalDataManagementError(message: string): void {
+		localDataManagementError = message;
+	}
+
+	function clearLocalDataManagementError(): void {
+		localDataManagementError = '';
+	}
+
+	function exportFilenameForIndex(indexName: string): string {
+		const dayStamp = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+		return `${indexName}-export-${dayStamp}.json`;
+	}
+
+	function browsePageFromActionResult(result: unknown): ExportBrowsePage {
+		if (!result || typeof result !== 'object' || !('type' in result)) {
+			throw new Error('Unexpected browse response');
+		}
+
+		const actionResult = result as {
+			type: string;
+			data?: Record<string, unknown>;
+		};
+
+		if (actionResult.type === 'failure') {
+			const errorMessage = actionResult.data?.documentsBrowseError;
+			if (typeof errorMessage === 'string' && errorMessage.trim().length > 0) {
+				throw new Error(errorMessage);
+			}
+			throw new Error('Failed to browse documents for export');
+		}
+		if (actionResult.type !== 'success') {
+			throw new Error('Failed to browse documents for export');
+		}
+
+		const documents = actionResult.data?.documents;
+		if (!documents || typeof documents !== 'object') {
+			throw new Error('Browse response did not include documents');
+		}
+
+		const docs = documents as Record<string, unknown>;
+		const hits = Array.isArray(docs.hits)
+			? docs.hits.filter(
+					(hit): hit is Record<string, unknown> => typeof hit === 'object' && hit !== null
+				)
+			: [];
+		const cursor = typeof docs.cursor === 'string' && docs.cursor.length > 0 ? docs.cursor : null;
+		return { cursor, hits };
+	}
+
+	async function fetchBrowsePageForExport(cursor: string | null): Promise<ExportBrowsePage> {
+		const body = new FormData();
+		body.set('query', '');
+		body.set('hitsPerPage', String(EXPORT_HITS_PER_PAGE));
+		if (cursor) {
+			body.set('cursor', cursor);
+		}
+
+		const response = await fetch('?/browseDocuments', {
+			method: 'POST',
+			headers: {
+				'x-sveltekit-action': 'true'
+			},
+			body
+		});
+		const actionResult = deserialize(await response.text());
+		if (actionResult.type === 'redirect' || actionResult.type === 'error') {
+			await applyAction(actionResult);
+			throw new Error('Failed to browse documents for export');
+		}
+
+		return browsePageFromActionResult(actionResult);
+	}
+
+	function downloadExport(records: Record<string, unknown>[]): void {
+		const blob = new Blob([JSON.stringify(records, null, 2)], { type: 'application/json' });
+		const objectUrl = URL.createObjectURL(blob);
+		const anchor = document.createElement('a');
+		anchor.href = objectUrl;
+		anchor.download = exportFilenameForIndex(index.name);
+		anchor.style.display = 'none';
+		document.body.appendChild(anchor);
+		anchor.click();
+		anchor.remove();
+		URL.revokeObjectURL(objectUrl);
+	}
+
+	async function handleOverviewExportClick(): Promise<void> {
+		if (!indexProvisioned || exportInFlight) return;
+
+		clearLocalDataManagementError();
+		if (index.entries > EXPORT_ENTRY_LIMIT) {
+			setLocalDataManagementError('Export is limited to indexes with 10,000 entries or fewer');
+			return;
+		}
+		if (index.entries === 0) {
+			downloadExport([]);
+			return;
+		}
+
+		exportInFlight = true;
+		try {
+			const exportedHits: Record<string, unknown>[] = [];
+			let cursor: string | null = null;
+			do {
+				const page = await fetchBrowsePageForExport(cursor);
+				exportedHits.push(...page.hits);
+				cursor = page.cursor;
+			} while (cursor);
+			downloadExport(exportedHits);
+		} catch (error) {
+			setLocalDataManagementError(
+				error instanceof Error ? error.message : 'Failed to export documents'
+			);
+		} finally {
+			exportInFlight = false;
+		}
+	}
+
+	function openImportPicker(): void {
+		if (!indexProvisioned || importInFlight) return;
+		clearLocalDataManagementError();
+		importFileInputElement?.click();
+	}
+
+	async function handleOverviewImportFileChange(event: Event): Promise<void> {
+		const input = event.currentTarget;
+		if (!(input instanceof HTMLInputElement)) return;
+		const file = input.files?.[0];
+		input.value = '';
+		if (!file) return;
+
+		clearLocalDataManagementError();
+		if (file.size > MAX_DOCUMENT_UPLOAD_BYTES) {
+			setLocalDataManagementError('File exceeds 100MB limit');
+			return;
+		}
+
+		try {
+			const parsedFile = await parseUploadFileRecords(file);
+			importBatchPayload = buildAddObjectBatchPayload(parsedFile.records);
+			await tick();
+			importFormElement?.requestSubmit();
+		} catch (error) {
+			setLocalDataManagementError(error instanceof Error ? error.message : 'Failed to parse file');
+		}
+	}
 </script>
 
 <div
@@ -91,6 +287,134 @@
 			<p class="mt-1 text-sm text-flapjack-ink/50">Preparing...</p>
 		{/if}
 	</div>
+</div>
+
+<div class="mb-6 rounded-lg bg-white p-6 shadow" data-testid="overview-analytics-summary">
+	<div class="mb-4 flex items-center justify-between">
+		<h2 class="text-lg font-medium text-flapjack-ink">Analytics Summary</h2>
+		<!-- eslint-disable svelte/no-navigation-without-resolve -->
+		<a
+			href={analyticsTabHref}
+			class="text-sm font-medium text-flapjack-rose hover:underline"
+			data-testid="overview-view-analytics-link">View Details</a
+		>
+		<!-- eslint-enable svelte/no-navigation-without-resolve -->
+	</div>
+	<div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+		<div class="rounded-md border border-flapjack-ink/10 bg-flapjack-cream/60 p-3">
+			<p class="text-xs uppercase tracking-wide text-flapjack-ink/60">Searches (7d)</p>
+			<p class="mt-1 text-xl font-semibold text-flapjack-ink">{formatNumber(totalSearchCount)}</p>
+		</div>
+		<div class="rounded-md border border-flapjack-ink/10 bg-flapjack-cream/60 p-3">
+			<p class="text-xs uppercase tracking-wide text-flapjack-ink/60">No Results</p>
+			<p class="mt-1 text-xl font-semibold text-flapjack-ink">{noResultRatePercent}</p>
+		</div>
+		<div class="rounded-md border border-flapjack-ink/10 bg-flapjack-cream/60 p-3">
+			<p class="text-xs uppercase tracking-wide text-flapjack-ink/60">Top Queries</p>
+			<p class="mt-1 text-xl font-semibold text-flapjack-ink">{formatNumber(topSearchCount)}</p>
+		</div>
+	</div>
+	<div
+		class="mt-4 rounded-md border border-dashed border-flapjack-ink/30 bg-flapjack-cream/40 p-4 text-sm text-flapjack-ink/70"
+		data-testid="overview-analytics-sparkline"
+	>
+		Sparkline preview (7-day trend)
+	</div>
+	<p class="mt-2 text-sm text-flapjack-ink/70">
+		Analytics status: <span class="font-medium text-flapjack-ink">{analyticsStatusLabel}</span>
+	</p>
+	{#if (analyticsUnavailable || analyticsStatus === null) && index.entries > 0}
+		<div
+			class="mt-3 rounded-md bg-flapjack-yellow/25 p-3 text-sm text-flapjack-ink/80"
+			role="alert"
+		>
+			<p>Analytics summary unavailable.</p>
+			<button
+				type="button"
+				class="mt-2 rounded-md border border-flapjack-ink/30 px-3 py-1.5 text-sm font-medium text-flapjack-ink/80 hover:bg-flapjack-cream/70"
+				onclick={() => {
+					void invalidateAll();
+				}}
+			>
+				Retry
+			</button>
+		</div>
+	{/if}
+</div>
+
+<div class="mb-6 rounded-lg bg-white p-6 shadow" data-testid="overview-data-management">
+	<h2 class="mb-2 text-lg font-medium text-flapjack-ink">Data Management</h2>
+	<p class="mb-4 text-sm text-flapjack-ink/70">
+		Export your index contents or import new records using existing document actions.
+	</p>
+	<div class="flex flex-wrap gap-3">
+		<button
+			type="button"
+			class="rounded-md bg-flapjack-rose px-4 py-2 text-sm font-medium text-white hover:bg-flapjack-plum disabled:cursor-not-allowed disabled:opacity-50"
+			data-testid="overview-export-btn"
+			disabled={!indexProvisioned || exportInFlight || importInFlight}
+			onclick={() => {
+				void handleOverviewExportClick();
+			}}
+		>
+			{exportInFlight ? 'Exporting…' : 'Export Index'}
+		</button>
+		<button
+			type="button"
+			class="rounded-md border border-flapjack-ink/30 px-4 py-2 text-sm font-medium text-flapjack-ink/80 hover:bg-flapjack-cream/80 disabled:cursor-not-allowed disabled:opacity-50"
+			data-testid="overview-import-btn"
+			disabled={!indexProvisioned || exportInFlight || importInFlight}
+			onclick={openImportPicker}
+		>
+			{importInFlight ? 'Importing…' : 'Import Documents'}
+		</button>
+	</div>
+	<input
+		bind:this={importFileInputElement}
+		id="overview-import-file"
+		aria-label="Import JSON or CSV file"
+		type="file"
+		accept=".json,.csv,application/json,text/csv"
+		onchange={handleOverviewImportFileChange}
+		class="sr-only"
+	/>
+	<form
+		bind:this={importFormElement}
+		method="POST"
+		action="?/uploadDocuments"
+		use:enhance={() => {
+			importInFlight = true;
+			return async ({ update }) => {
+				await update();
+				importInFlight = false;
+				importBatchPayload = '';
+			};
+		}}
+		class="hidden"
+	>
+		<input type="hidden" name="batch" value={importBatchPayload} />
+		<input type="hidden" name="query" value="" />
+		<input type="hidden" name="hitsPerPage" value={String(IMPORT_REFRESH_HITS_PER_PAGE)} />
+	</form>
+	{#if !indexProvisioned}
+		<p class="mt-3 text-sm text-flapjack-ink/60">Available once your index is provisioned</p>
+	{/if}
+	{#if documentsUploadSuccess}
+		<div
+			class="mt-3 rounded-md border border-flapjack-mint/60 bg-flapjack-mint/25 p-3 text-sm text-flapjack-ink/80"
+		>
+			Documents uploaded.
+		</div>
+	{/if}
+	{#if dataManagementAlert}
+		<div
+			class="mt-3 rounded-md bg-flapjack-rose/10 p-3 text-sm text-flapjack-plum"
+			role="alert"
+			aria-label="overview-export-import-alert"
+		>
+			{dataManagementAlert}
+		</div>
+	{/if}
 </div>
 
 <div class="mb-6 rounded-lg bg-white p-6 shadow" data-testid="search-widget">
@@ -141,66 +465,35 @@
 	{/if}
 </div>
 
-<div class="mb-6 rounded-lg bg-white p-6 shadow" data-testid="connect-your-app">
-	<h2 class="mb-2 text-lg font-medium text-flapjack-ink">Connect Your App</h2>
-	<p class="mb-3 text-sm text-flapjack-ink/70">
-		Use the code snippets below to connect your application to this index. You'll need an API key —
-		manage your keys on the
-		<a href={resolve('/console/api-keys')} class="font-medium text-flapjack-rose hover:underline"
-			>API Keys</a
-		> page.
-	</p>
+<ConnectYourAppCard {index} />
 
-	{#if snippetContext && frameworkSnippets.length > 0}
-		<div
-			class="mb-3 inline-flex rounded-lg border border-flapjack-ink/20 bg-flapjack-cream/80 p-1"
-			role="tablist"
-			aria-label="Framework snippets"
-		>
-			{#each frameworkSnippets as fw (fw.id)}
-				<button
-					type="button"
-					role="tab"
-					aria-selected={activeSnippetTab === fw.id}
-					onclick={() => {
-						activeSnippetTab = fw.id;
-					}}
-					class="rounded-md px-3 py-1.5 text-sm font-medium {activeSnippetTab === fw.id
-						? 'bg-white shadow text-flapjack-ink'
-						: 'text-flapjack-ink/70 hover:text-flapjack-ink'}"
-				>
-					{fw.label}
-				</button>
-			{/each}
+{#if indexProvisioned}
+	<div
+		class="mb-6 rounded-lg border border-flapjack-ink/15 bg-white p-5 shadow"
+		data-testid="overview-navigation"
+	>
+		<h2 class="mb-3 text-base font-medium text-flapjack-ink">Continue setup</h2>
+		<div class="flex flex-wrap gap-3 text-sm">
+			<!-- eslint-disable svelte/no-navigation-without-resolve -->
+			<a
+				href={settingsTabHref}
+				class="rounded-md border border-flapjack-ink/20 px-3 py-2 text-flapjack-ink/80 hover:bg-flapjack-cream/80"
+				>Configure Settings</a
+			>
+			<a
+				href={analyticsTabHref}
+				class="rounded-md border border-flapjack-ink/20 px-3 py-2 text-flapjack-ink/80 hover:bg-flapjack-cream/80"
+				>View Analytics</a
+			>
+			<a
+				href={documentsTabHref}
+				class="rounded-md border border-flapjack-ink/20 px-3 py-2 text-flapjack-ink/80 hover:bg-flapjack-cream/80"
+				>Manage Documents</a
+			>
+			<!-- eslint-enable svelte/no-navigation-without-resolve -->
 		</div>
-
-		{#if activeSnippet}
-			<div data-testid="snippet-panel">
-				<pre
-					class="mb-3 overflow-x-auto rounded-md bg-flapjack-ink p-4 text-sm text-flapjack-cream">{activeSnippet.clientSetup}</pre>
-				<pre
-					class="overflow-x-auto rounded-md bg-flapjack-ink p-4 text-sm text-flapjack-cream">{activeSnippet.instantSearchSetup}</pre>
-			</div>
-		{/if}
-	{:else}
-		<p class="text-sm text-flapjack-ink/50">
-			Endpoint not ready — snippets will appear once your index is provisioned.
-		</p>
-	{/if}
-
-	<div class="mt-4 rounded-md border border-flapjack-yellow/50 bg-flapjack-yellow/20 p-3">
-		<p class="text-sm font-medium text-flapjack-ink/80">CORS Limitation</p>
-		<p class="mt-1 text-sm text-flapjack-plum">
-			Browser requests are currently restricted to the following origins:
-			{#each CORS_ALLOWED_ORIGINS as origin, i (origin)}<code
-					class="rounded bg-flapjack-yellow/30 px-1">{origin}</code
-				>{#if i < CORS_ALLOWED_ORIGINS.length - 1}
-					and
-				{/if}{/each}. Server-side requests (e.g. from your backend) are not affected by this
-			restriction.
-		</p>
 	</div>
-</div>
+{/if}
 
 <div class="mb-6 rounded-lg bg-white p-6 shadow" data-testid="replicas-section">
 	<div class="mb-4 flex items-center justify-between">

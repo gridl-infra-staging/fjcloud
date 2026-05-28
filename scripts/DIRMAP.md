@@ -20,12 +20,7 @@ breaking long lines into multi-line form. |
 
 Probes /version on the live API, compares dev_sha against `git rev-parse main`
 in the dev repo, and shows the gap. |
-| e2e-preflight.sh | Preflight checks for Stage 6 browser (Playwright) test runs.
-Validates that required environment variables and services are available
-before invoking Playwright, to produce clear errors instead of cryptic failures.
-
-Loads .env.local via the shared env parser so that ADMIN_KEY and other
-local-dev values are available without manual exports. |
+| e2e-preflight.sh | Stub summary for e2e-preflight.sh. |
 | git_push_with_sync.sh | Wrap git push with best-effort mirror sync on main. |
 | integration-down.sh | integration-down.sh — Tear down the integration test stack.
 
@@ -147,20 +142,22 @@ usage_records to Postgres. |
 | validate_inbound_email_roundtrip.sh | Validate SES outbound-to-inbound roundtrip for the shared test inbox path. |
 | validate_oauth_routes.sh | Stub summary for validate_oauth_routes.sh. |
 | validate_ses_readiness.sh | Stub summary for validate_ses_readiness.sh. |
-| validate_staging_dunning_delivery.sh | Validate staging dunning email delivery by reusing rehearsal artifacts and SES inbound S3 evidence. |
+| validate_staging_dunning_delivery.sh | Stub summary for validate_staging_dunning_delivery.sh. |
 | validate_subprocessor_disclosure.sh | Stub summary for validate_subprocessor_disclosure.sh. |
 | web-dev.sh | web-dev.sh — Start the SvelteKit dev server with repo-local auth env loaded. |
 
 | Directory | Summary |
 | --- | --- |
-| canary | The canary directory contains synthetic health probes and contract validators that monitor critical fjcloud system surfaces: customer-facing workflows, external service availability (AWS, DNS, email), Stripe webhooks, OAuth flows, and security boundaries like JWT authentication. |
-| chaos | The chaos directory contains failure-injection and HA resilience test scripts that validate the system's ability to detect outages, trigger failover, and recover—including region kill/restart tests, metering service failure detection, and end-to-end failover proofs. |
-| launch | The launch directory contains deployment verification and evidence-capture scripts for the fjcloud staging environment, including tenant-map validation, synthetic traffic seeding, post-deploy verification gates, SSM environment hydration, and E2E test orchestration. |
-| lib | This is a collection of reusable bash script libraries providing shared contracts for alerting, database operations, validation gates, Stripe/SES integration, environment configuration, and infrastructure health checks across the fjcloud project. |
-| load | The load directory contains regression checking utilities for validating load testing performance, including scripts that compare offline and live load harness results to detect performance regressions. |
-| reliability | This directory provides backend reliability profiling scripts, security validation gates (cargo audit, secret scanning, unsafe code detection), and test data seeding utilities that measure API capacity across three document-scale tiers and produce machine-readable JSON summaries. |
-| stripe | The stripe directory contains operational scripts for managing Stripe integration with fjcloud: configuring the Customer Portal and creating the canonical Flapjack product catalog, both supporting multi-account operations. |
-| tests | The tests directory contains shell-based integration test suites for ops-layer validation, including smoke tests for customer broadcast functionality and SES bounce/complaint probes, alongside a comprehensive lib/ of shared testing utilities, assertion helpers, and specialized harnesses for billing rehearsal, budget validation, and chaos testing scenarios. |
-| vlm | The vlm directory contains Vision Language Model judge operations, including scripts to run and aggregate verdict bundles and shell utility libraries for environment configuration and prompt generation in the VLM judging system. |
-| w3_triage | The w3_triage directory implements a multi-stage triage pipeline that bootstraps from live state probes, parses audit recommendations, applies rules, and emits dispatch manifests to orchestrate downstream lane execution. |
+| canary | The canary directory contains synthetic monitoring scripts and contract tests that verify system health, external dependencies, and customer-facing flows. |
+| chaos | The chaos directory contains automated failure injection and HA failover tests that simulate region outages, kill primary VMs, and verify system recovery and failover behavior. |
+| dev | Migrates Rust integration test files from infra/api/tests/ to infra/api/tests/integration/ and rewrites their module paths from local declarations to absolute crate references. |
+| launch | The `scripts/launch/` directory contains operational scripts for deployment verification, staging validation, and synthetic traffic testing during the fjcloud launch process. |
+| launch | The `launch/` directory contains bash scripts for verifying, testing, and evidence-capturing during fjcloud's staging deployment and launch process, including tenant-map validation, synthetic traffic seeding, SES deliverability checks, and end-to-end deployment gates. |
+| lib | Reusable shell script helpers used by fjcloud integration tests and operational scripts to provide common functionality like alert dispatch, database operations, API interactions, and validation checks. |
+| load | The load directory contains utilities for load testing and regression analysis, with a lib/ subdirectory providing tools to compare offline and live load harness results. |
+| reliability | This directory provides shell scripts for capacity profiling, reliability testing, and security validation of the backend system across three document tier sizes (1k, 10k, 100k documents). |
+| stripe | This directory contains Stripe configuration automation scripts that set up and manage the billing portal and product catalog for specific Stripe accounts, with support for multi-account environments via environment variable namespacing. |
+| tests | This directory contains shell script-based smoke tests and integration test utilities for validating fjcloud's ops-layer functionality, including customer broadcast handling and SES bounce/complaint workflows. |
+| vlm | This directory contains Visual Language Model (VLM) operations scripts for bundling and aggregating verdict outputs, along with shell utilities for environment configuration and prompt evaluation. |
+| w3_triage | W3 triage is an automated system for processing audit recommendations and coordinating rule application through preflight state discovery, recommendation parsing, and dispatch manifest generation. |
 <!-- [scrai:end] -->

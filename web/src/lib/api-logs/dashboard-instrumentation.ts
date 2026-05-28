@@ -124,8 +124,15 @@ const MUTATION_ROUTE_MATCHERS: MutationRouteMatcher[] = [
 		resolveErrorMessage: (r) => stringField(r, 'ruleError') ?? stringField(r, 'rulesClearError')
 	}),
 	createMutationRouteMatcher({
-		fieldNames: ['synonymSaved', 'synonymDeleted', 'synonymError'],
-		resolveUrl: (r) => (r.synonymDeleted ? '?/deleteSynonym' : '?/saveSynonym'),
+		fieldNames: ['synonymSaved', 'synonymDeleted', 'synonymsCleared', 'synonymError'],
+		resolveUrl: (r) =>
+			r.synonymsCleared
+				? '?/clearSynonyms'
+				: r.synonymDeleted
+					? '?/deleteSynonym'
+					: r.synonymSaved
+						? '?/saveSynonym'
+						: '?/synonymAction',
 		errorField: 'synonymError'
 	}),
 	createMutationRouteMatcher({
@@ -184,7 +191,7 @@ const MUTATION_ROUTE_MATCHERS: MutationRouteMatcher[] = [
 	})
 ];
 
-type AmbiguousMutationRoute = '?/replicaAction' | '?/experimentAction';
+type AmbiguousMutationRoute = '?/replicaAction' | '?/experimentAction' | '?/synonymAction';
 
 const AMBIGUOUS_MUTATION_ROUTES: Record<AmbiguousMutationRoute, string[]> = {
 	'?/replicaAction': ['?/createReplica', '?/deleteReplica'],
@@ -194,7 +201,8 @@ const AMBIGUOUS_MUTATION_ROUTES: Record<AmbiguousMutationRoute, string[]> = {
 		'?/startExperiment',
 		'?/stopExperiment',
 		'?/concludeExperiment'
-	]
+	],
+	'?/synonymAction': ['?/saveSynonym', '?/deleteSynonym', '?/clearSynonyms']
 };
 
 function resolvedMutationRoute(matchedRoute: string, submittedAction: string | null): string {

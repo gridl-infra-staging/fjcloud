@@ -117,6 +117,28 @@ describe('deriveFormLogEntry', () => {
 		expect(entry!.url).toBe('?/deleteSynonym');
 	});
 
+	it('derives a clear synonyms entry', async () => {
+		const { deriveFormLogEntry } = await import('./dashboard-instrumentation');
+		const entry = deriveFormLogEntry({ synonymsCleared: true }, '?/clearSynonyms');
+
+		expect(entry).not.toBeNull();
+		expect(entry!.url).toBe('?/clearSynonyms');
+		expect(entry!.status).toBe(200);
+	});
+
+	it('derives a clear synonyms error entry', async () => {
+		const { deriveFormLogEntry } = await import('./dashboard-instrumentation');
+		const entry = deriveFormLogEntry(
+			{ synonymError: 'Failed to clear synonyms' },
+			'?/clearSynonyms'
+		);
+
+		expect(entry).not.toBeNull();
+		expect(entry!.url).toBe('?/clearSynonyms');
+		expect(entry!.status).toBe(400);
+		expect(entry!.response).toEqual({ error: 'Failed to clear synonyms' });
+	});
+
 	it('derives an append security source entry', async () => {
 		const { deriveFormLogEntry } = await import('./dashboard-instrumentation');
 		const entry = deriveFormLogEntry(

@@ -12,7 +12,7 @@ export const PREVIEW_SUBMIT_OUTCOME_TIMEOUT_MS = 5_000;
 export const PREVIEW_SUBMIT_IN_FLIGHT_TIMEOUT_MS = 30_000;
 export const PREVIEW_SUBMIT_MAX_PENDING_TIMEOUT_MS = 90_000;
 const LOCAL_STACK_UNAVAILABLE_ERROR_PATTERN =
-	/(local stack unavailable|econnrefused|connect ECONNREFUSED|failed to fetch|service is unavailable|temporarily unavailable)/i;
+	/(local stack unavailable|econnrefused|connect ECONNREFUSED|failed to fetch|service is unavailable|temporarily unavailable|prerequisite unavailable in local env|verify (api_url|jwt_secret)|invalid admin key|authentication session could not be established|customer login setup failed before reaching \/console|seedindex failed: 401|get \/account failed: 401)/i;
 
 type SearchPreviewLocators = {
 	generateButton: Locator;

@@ -19,5 +19,5 @@ unavailable so staging gets a clear outside-AWS outage signal. |
 
 | Directory | Summary |
 | --- | --- |
-| contracts | This directory contains validation scripts that verify critical system contracts across infrastructure, APIs, and security boundaries—including EC2 firewall configuration, Stripe webhook signature validation, OAuth flows, JWT authentication, and browser test mocking correctness. |
+| contracts | This directory contains contract tests and validation probes that verify system boundaries — mocked Playwright test payloads against live wire formats, Stripe webhook signature/timestamp fail-closed behavior, JWT secret validation, OAuth redirects, and API URL contracts across the web frontend and backend layers. |
 <!-- [scrai:end] -->

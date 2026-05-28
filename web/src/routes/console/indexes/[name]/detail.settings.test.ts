@@ -410,6 +410,36 @@ describe('Index detail page — Settings', () => {
 		expect(settingsTextarea.value).toContain('"mode": "neuralSearch"');
 	});
 
+	it('Reset appears only after settings draft changes and restores server-hydrated JSON', async () => {
+		const initialSettings = {
+			searchableAttributes: ['title'],
+			mode: 'standard'
+		};
+		const expectedHydratedText = JSON.stringify(initialSettings, null, 2);
+		renderPage({
+			settings: initialSettings
+		});
+
+		await openSettingsTab();
+		const settingsTextarea = getSettingsTextarea();
+		expect(settingsTextarea.value).toBe(expectedHydratedText);
+		expect(screen.queryByRole('button', { name: /reset/i })).not.toBeInTheDocument();
+
+		await fireEvent.input(settingsTextarea, {
+			target: { value: '{"searchableAttributes":["sku"],"mode":"neuralSearch"}' }
+		});
+
+		const resetButton = screen.getByRole('button', { name: /reset/i });
+		expect(resetButton).toBeInTheDocument();
+		expect(getSettingsTextarea().value).toBe(
+			'{"searchableAttributes":["sku"],"mode":"neuralSearch"}'
+		);
+
+		await fireEvent.click(resetButton);
+		expect(getSettingsTextarea().value).toBe(expectedHydratedText);
+		expect(screen.queryByRole('button', { name: /reset/i })).not.toBeInTheDocument();
+	});
+
 	it('settings save success shows confirmation message', async () => {
 		renderPage({}, { settingsSaved: true });
 

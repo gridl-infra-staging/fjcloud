@@ -10,10 +10,7 @@
 		serializeRecommendationsBatchRequest,
 		type RecommendationConfig
 	} from '$lib/recommendations/config';
-	import {
-		metadataForModel,
-		RECOMMENDATION_MODELS
-	} from '$lib/recommendations/model_metadata';
+	import { metadataForModel, RECOMMENDATION_MODELS } from '$lib/recommendations/model_metadata';
 
 	type Props = {
 		index: Index;
@@ -55,7 +52,11 @@
 		return false;
 	}
 
-	function hitValue(hit: Record<string, unknown>, primaryKey: string, fallbackKey: string): string | null {
+	function hitValue(
+		hit: Record<string, unknown>,
+		primaryKey: string,
+		fallbackKey: string
+	): string | null {
 		const primaryValue = hit[primaryKey];
 		if (typeof primaryValue === 'string' && primaryValue.length > 0) {
 			return primaryValue;

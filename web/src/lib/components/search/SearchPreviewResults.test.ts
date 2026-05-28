@@ -61,7 +61,7 @@ describe('SearchPreviewResults', () => {
 		});
 
 		await fireEvent.click(screen.getByRole('button', { name: 'Open hit doc-1' }));
-		expect(onHitClick).toHaveBeenCalledWith({ objectID: 'doc-1', title: 'Rust Guide' });
+		expect(onHitClick).toHaveBeenCalledWith({ objectID: 'doc-1', title: 'Rust Guide' }, 1);
 	});
 
 	it('renders loading skeleton seam while loading', () => {

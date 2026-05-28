@@ -11,7 +11,10 @@ type RecommendationActionArgs = {
 	token: string | undefined;
 };
 
-function failForRecommendationAction<T extends Record<string, unknown>>(error: unknown, payload: T) {
+function failForRecommendationAction<T extends Record<string, unknown>>(
+	error: unknown,
+	payload: T
+) {
 	const sessionFailure = mapDashboardSessionFailure(error);
 	if (sessionFailure) return sessionFailure;
 	return fail(400, payload);

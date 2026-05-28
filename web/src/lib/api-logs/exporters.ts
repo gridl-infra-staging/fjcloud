@@ -28,7 +28,16 @@ export function normalizeJsonValue(value: unknown): JsonValue {
 	return String(value);
 }
 
-const EXPORT_COLUMNS = ['id', 'timestamp', 'method', 'url', 'status', 'duration', 'body', 'response'] as const;
+const EXPORT_COLUMNS = [
+	'id',
+	'timestamp',
+	'method',
+	'url',
+	'status',
+	'duration',
+	'body',
+	'response'
+] as const;
 type ExportColumn = (typeof EXPORT_COLUMNS)[number];
 
 export const EXPORT_FILE_META = {

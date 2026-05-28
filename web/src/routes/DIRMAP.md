@@ -8,19 +8,21 @@
 
 | Directory | Summary |
 | --- | --- |
-| admin | The admin directory provides a dashboard for system administration with pages for managing alerts, billing operations, customer accounts, and index migrations. |
-| api | The api directory contains SvelteKit server endpoints for three core customer-facing features: pricing comparison, authenticated search execution against Flapjack indexes, and Stripe integration including credential exposure. |
-| billing | The upgrade directory contains a SvelteKit server endpoint that handles upgrade-related backend logic for customers. |
-| console | The console directory provides the main customer-facing dashboard routes for user account management, billing setup, search index administration, and onboarding flows within the SvelteKit web application. |
+| admin | The admin directory provides server-side routing and data loading for an administrative panel with three main management interfaces: billing administration, customer management with listing and detail views, and database migration controls for triggering migrations across index VMs. |
+| api | The api directory contains SvelteKit server route handlers for key frontend integrations, including pricing comparison endpoints and Stripe operations like publishable-key management, with some areas like the pricing compare route still awaiting full implementation. |
+| billing | The billing directory contains upgrade-related functionality implemented as SvelteKit server-side logic for handling upgrade operations in the fjcloud application. |
+| console | The console directory contains the customer-facing dashboard pages for fjcloud, including account management, API key administration, billing and Stripe integration, various data index management interfaces, and onboarding flows. |
+| console | The console directory is the main customer-facing dashboard interface for fjcloud, containing SvelteKit pages for account management, API key administration, billing and Stripe integration, cloud index operations, user onboarding, and email verification. |
+| console | The console directory contains the main customer-facing dashboard routes for the fjcloud application, providing server-side handlers for account management, billing, API keys, search indexes, onboarding, and email verification functionality. |
 | dashboard | — |
 | dev_editor_dialog_demo | — |
 | forgot-password | — |
 | login | — |
 | logout | — |
-| oauth | This directory implements OAuth provider callbacks through a SvelteKit server route that intercepts authentication responses from external providers and completes the user login flow. |
+| oauth | The oauth directory implements OAuth authentication providers with callback handlers for completing the authorization flow. |
 | pricing | — |
 | reset-password | — |
 | signup | — |
-| status | This module defines types and utilities for the `/status` route, including the ServiceStatus enum (operational, degraded, outage) and functions to parse status values and map them to human-readable labels. |
+| status | The status directory contains status_contract.ts, which defines contract types and interfaces for status-related functionality. |
 | verify-email | — |
 <!-- [scrai:end] -->

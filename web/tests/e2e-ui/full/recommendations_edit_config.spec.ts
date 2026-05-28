@@ -2,6 +2,8 @@ import { test, expect } from '../../fixtures/fixtures';
 import type { Locator, Page, Route } from '@playwright/test';
 import * as devalue from 'devalue';
 import { openIndexDetailTab } from '../../fixtures/index_detail_helpers';
+import { seedSearchableIndexForCustomer } from '../../fixtures/searchable-index';
+import { AUTH_COOKIE } from '../../../src/lib/server/auth-session-contracts';
 
 type ActionResult =
 	| {
@@ -20,29 +22,90 @@ type ActionResult =
 			data: { recommendationsError: string };
 	  };
 
-type SeedRecommendationsConfigFn = (
-	name: string,
-	region?: string
-) => Promise<{
+type SeededRecommendationsConfig = {
 	indexName: string;
 	primaryObjectID: string;
 	secondaryObjectID: string;
 	facetName: string;
 	facetValue: string;
 	missingFacetValue: string;
-}>;
+};
+
+type CreatedFixtureUser = {
+	customerId: string;
+	email: string;
+	token: string;
+};
+
+type CreateUserFn = (email: string, password: string, name?: string) => Promise<CreatedFixtureUser>;
+type LoginAsFn = (email: string, password: string) => Promise<string>;
+
+const BASE_URL = process.env.BASE_URL ?? 'http://localhost:5173';
+const API_URL = process.env.API_URL ?? 'http://localhost:3001';
+const RECOMMENDATION_FIXTURE_FACET_NAME = 'category';
+const RECOMMENDATION_FIXTURE_FACET_VALUE = 'language';
+const RECOMMENDATION_FIXTURE_MISSING_FACET_VALUE = 'no-matches-category';
+const FIXTURE_PASSWORD = 'TestPassword123!';
 
 async function openRecommendationsSection(
 	page: Page,
-	seedRecommendationsConfig: SeedRecommendationsConfigFn,
+	createUser: CreateUserFn,
+	loginAs: LoginAsFn,
 	testRegion: string,
 	namePrefix: string
 ) {
-	const indexName = `${namePrefix}-${Date.now()}`;
-	const seeded = await seedRecommendationsConfig(indexName, testRegion);
+	const seed = Date.now();
+	const indexName = `${namePrefix}-${seed}`;
+	const email = `${namePrefix}-${seed}@e2e.griddle.test`;
+	const createdUser = await createUser(email, FIXTURE_PASSWORD, `Recommendations ${seed}`);
+	await seedSearchableIndexForCustomer({
+		apiUrl: API_URL,
+		adminKey: process.env.E2E_ADMIN_KEY,
+		customerId: createdUser.customerId,
+		token: createdUser.token,
+		name: indexName,
+		region: testRegion,
+		query: 'Rust',
+		expectedHitText: 'Rust Programming Language',
+		documents: [
+			{
+				objectID: 'doc-1',
+				title: 'Rust Programming Language',
+				body: 'Systems programming',
+				[RECOMMENDATION_FIXTURE_FACET_NAME]: RECOMMENDATION_FIXTURE_FACET_VALUE
+			},
+			{
+				objectID: 'doc-2',
+				title: 'TypeScript Handbook',
+				body: 'JavaScript with types',
+				[RECOMMENDATION_FIXTURE_FACET_NAME]: RECOMMENDATION_FIXTURE_FACET_VALUE
+			}
+		]
+	});
+	const authToken = await loginAs(email, FIXTURE_PASSWORD);
+	await page.context().clearCookies();
+	await page.context().addCookies([
+		{
+			name: AUTH_COOKIE,
+			value: authToken,
+			url: BASE_URL,
+			httpOnly: true,
+			sameSite: 'Lax'
+		}
+	]);
 	await page.goto(`/console/indexes/${encodeURIComponent(indexName)}`);
 	const section = await openIndexDetailTab(page, 'Recommendations', 'recommendations-section');
-	return { section, seeded };
+	return {
+		section,
+		seeded: {
+			indexName,
+			primaryObjectID: 'doc-1',
+			secondaryObjectID: 'doc-2',
+			facetName: RECOMMENDATION_FIXTURE_FACET_NAME,
+			facetValue: RECOMMENDATION_FIXTURE_FACET_VALUE,
+			missingFacetValue: RECOMMENDATION_FIXTURE_MISSING_FACET_VALUE
+		} satisfies SeededRecommendationsConfig
+	};
 }
 
 async function fulfillRecommendationsAction(route: Route, nextResult: ActionResult) {
@@ -62,7 +125,9 @@ async function fulfillRecommendationsAction(route: Route, nextResult: ActionResu
 }
 
 async function openEditDialog(section: Locator) {
-	await section.getByRole('button', { name: 'Edit Configuration' }).click();
+	const editButton = section.getByRole('button', { name: 'Edit Configuration' });
+	await expect(editButton).toBeVisible();
+	await editButton.click();
 	const dialog = section.page().getByTestId('recommendations-edit-dialog');
 	await expect(dialog).toBeVisible();
 	return dialog;
@@ -83,14 +148,18 @@ async function assertModelFieldSet(
 }
 
 test.describe('Recommendations edit configuration dialog', () => {
+	test.describe.configure({ timeout: 120_000 });
+
 	test('edit configuration updates inline state and waits for explicit submit', async ({
 		page,
-		seedRecommendationsConfig,
+		createUser,
+		loginAs,
 		testRegion
 	}) => {
 		const { section, seeded } = await openRecommendationsSection(
 			page,
-			seedRecommendationsConfig,
+			createUser,
+			loginAs,
 			testRegion,
 			'e2e-rec-edit-config'
 		);
@@ -108,7 +177,9 @@ test.describe('Recommendations edit configuration dialog', () => {
 				status: 200,
 				data: {
 					recommendationsResponse: {
-						results: [{ hits: [{ facet_name: 'brand', facet_value: 'Apple' }], processingTimeMS: 7 }]
+						results: [
+							{ hits: [{ facet_name: 'brand', facet_value: 'Apple' }], processingTimeMS: 7 }
+						]
 					},
 					recommendationsError: ''
 				}
@@ -126,7 +197,9 @@ test.describe('Recommendations edit configuration dialog', () => {
 		await expect(dialog).toHaveCount(0);
 		await expect.poll(() => recommendationsSubmitCount).toBe(0);
 
-		await expect(section.getByTestId('recommendations-model-select')).toHaveValue('trending-facets');
+		await expect(section.getByTestId('recommendations-model-select')).toHaveValue(
+			'trending-facets'
+		);
 		await expect(section.getByLabel('Facet Name')).toHaveValue(seeded.facetName);
 		await expect(section.getByLabel('Facet Value')).toHaveValue(seeded.facetValue);
 		await expect(section.getByLabel('Threshold')).toHaveValue('12');
@@ -140,12 +213,14 @@ test.describe('Recommendations edit configuration dialog', () => {
 
 	test('related-products shows objectID and keeps thresholds visible', async ({
 		page,
-		seedRecommendationsConfig,
+		createUser,
+		loginAs,
 		testRegion
 	}) => {
 		const { section } = await openRecommendationsSection(
 			page,
-			seedRecommendationsConfig,
+			createUser,
+			loginAs,
 			testRegion,
 			'e2e-rec-model-related-products'
 		);
@@ -155,12 +230,14 @@ test.describe('Recommendations edit configuration dialog', () => {
 
 	test('bought-together shows objectID and keeps thresholds visible', async ({
 		page,
-		seedRecommendationsConfig,
+		createUser,
+		loginAs,
 		testRegion
 	}) => {
 		const { section } = await openRecommendationsSection(
 			page,
-			seedRecommendationsConfig,
+			createUser,
+			loginAs,
 			testRegion,
 			'e2e-rec-model-bought-together'
 		);
@@ -170,12 +247,14 @@ test.describe('Recommendations edit configuration dialog', () => {
 
 	test('looking-similar shows objectID and keeps thresholds visible', async ({
 		page,
-		seedRecommendationsConfig,
+		createUser,
+		loginAs,
 		testRegion
 	}) => {
 		const { section } = await openRecommendationsSection(
 			page,
-			seedRecommendationsConfig,
+			createUser,
+			loginAs,
 			testRegion,
 			'e2e-rec-model-looking-similar'
 		);
@@ -185,12 +264,14 @@ test.describe('Recommendations edit configuration dialog', () => {
 
 	test('trending-items hides objectID and facet fields while keeping thresholds visible', async ({
 		page,
-		seedRecommendationsConfig,
+		createUser,
+		loginAs,
 		testRegion
 	}) => {
 		const { section } = await openRecommendationsSection(
 			page,
-			seedRecommendationsConfig,
+			createUser,
+			loginAs,
 			testRegion,
 			'e2e-rec-model-trending-items'
 		);
@@ -200,12 +281,14 @@ test.describe('Recommendations edit configuration dialog', () => {
 
 	test('trending-facets shows facet fields and hides objectID while keeping thresholds visible', async ({
 		page,
-		seedRecommendationsConfig,
+		createUser,
+		loginAs,
 		testRegion
 	}) => {
 		const { section } = await openRecommendationsSection(
 			page,
-			seedRecommendationsConfig,
+			createUser,
+			loginAs,
 			testRegion,
 			'e2e-rec-model-trending-facets'
 		);

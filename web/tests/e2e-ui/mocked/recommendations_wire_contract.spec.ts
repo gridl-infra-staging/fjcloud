@@ -3,6 +3,11 @@ import { openIndexDetailTab } from '../../fixtures/index_detail_helpers';
 import type { RecommendationsBatchRequest } from '$lib/api/types';
 import type { Page, Route } from '@playwright/test';
 
+const PRIMARY_OBJECT_ID = 'doc-1';
+const SECONDARY_OBJECT_ID = 'doc-2';
+const FACET_NAME = 'category';
+const FACET_VALUE = 'language';
+
 function decodeRequestBody(postData: string): RecommendationsBatchRequest {
 	const params = new URLSearchParams(postData);
 	const encodedRequest = params.get('request');
@@ -23,21 +28,33 @@ async function captureRecommendationRequest(
 			return;
 		}
 		capturedRequests.push(decodeRequestBody(request.postData() ?? ''));
-		await route.continue();
+		await route.fulfill({
+			status: 200,
+			contentType: 'application/json',
+			body: JSON.stringify({
+				type: 'success',
+				status: 200,
+				data: {
+					recommendationsResponse: {
+						results: []
+					}
+				}
+			})
+		});
 	});
 }
 
 test.describe('Recommendations request wire contract', () => {
-	test('related-products request body is exact', async ({ page, seedRecommendationsConfig, testRegion }) => {
+	test('related-products request body is exact', async ({ page, seedIndex, testRegion }) => {
 		const indexName = `e2e-rec-wire-related-products-${Date.now()}`;
-		const seeded = await seedRecommendationsConfig(indexName, testRegion);
+		await seedIndex(indexName, testRegion);
 		await page.goto(`/console/indexes/${encodeURIComponent(indexName)}`);
 		const section = await openIndexDetailTab(page, 'Recommendations', 'recommendations-section');
 
 		const captured: RecommendationsBatchRequest[] = [];
 		await captureRecommendationRequest(page, captured);
 
-		await section.getByLabel('Object ID').fill(seeded.primaryObjectID);
+		await section.getByLabel('Object ID').fill(PRIMARY_OBJECT_ID);
 		await section.getByLabel('Threshold').fill('4');
 		await section.getByLabel('Max Recommendations').fill('6');
 		await section.getByRole('button', { name: 'Get Recommendations' }).click();
@@ -47,7 +64,7 @@ test.describe('Recommendations request wire contract', () => {
 				{
 					indexName,
 					model: 'related-products',
-					objectID: seeded.primaryObjectID,
+					objectID: PRIMARY_OBJECT_ID,
 					threshold: 4,
 					maxRecommendations: 6
 				}
@@ -55,9 +72,9 @@ test.describe('Recommendations request wire contract', () => {
 		});
 	});
 
-	test('bought-together request body is exact', async ({ page, seedRecommendationsConfig, testRegion }) => {
+	test('bought-together request body is exact', async ({ page, seedIndex, testRegion }) => {
 		const indexName = `e2e-rec-wire-bought-together-${Date.now()}`;
-		const seeded = await seedRecommendationsConfig(indexName, testRegion);
+		await seedIndex(indexName, testRegion);
 		await page.goto(`/console/indexes/${encodeURIComponent(indexName)}`);
 		const section = await openIndexDetailTab(page, 'Recommendations', 'recommendations-section');
 
@@ -65,7 +82,7 @@ test.describe('Recommendations request wire contract', () => {
 		await captureRecommendationRequest(page, captured);
 
 		await section.getByTestId('recommendations-model-select').selectOption('bought-together');
-		await section.getByLabel('Object ID').fill(seeded.secondaryObjectID);
+		await section.getByLabel('Object ID').fill(SECONDARY_OBJECT_ID);
 		await section.getByLabel('Threshold').fill('5');
 		await section.getByLabel('Max Recommendations').fill('10');
 		await section.getByRole('button', { name: 'Get Recommendations' }).click();
@@ -75,7 +92,7 @@ test.describe('Recommendations request wire contract', () => {
 				{
 					indexName,
 					model: 'bought-together',
-					objectID: seeded.secondaryObjectID,
+					objectID: SECONDARY_OBJECT_ID,
 					threshold: 5,
 					maxRecommendations: 10
 				}
@@ -83,9 +100,9 @@ test.describe('Recommendations request wire contract', () => {
 		});
 	});
 
-	test('looking-similar request body is exact', async ({ page, seedRecommendationsConfig, testRegion }) => {
+	test('looking-similar request body is exact', async ({ page, seedIndex, testRegion }) => {
 		const indexName = `e2e-rec-wire-looking-similar-${Date.now()}`;
-		const seeded = await seedRecommendationsConfig(indexName, testRegion);
+		await seedIndex(indexName, testRegion);
 		await page.goto(`/console/indexes/${encodeURIComponent(indexName)}`);
 		const section = await openIndexDetailTab(page, 'Recommendations', 'recommendations-section');
 
@@ -93,7 +110,7 @@ test.describe('Recommendations request wire contract', () => {
 		await captureRecommendationRequest(page, captured);
 
 		await section.getByTestId('recommendations-model-select').selectOption('looking-similar');
-		await section.getByLabel('Object ID').fill(seeded.primaryObjectID);
+		await section.getByLabel('Object ID').fill(PRIMARY_OBJECT_ID);
 		await section.getByLabel('Threshold').fill('7');
 		await section.getByLabel('Max Recommendations').fill('11');
 		await section.getByRole('button', { name: 'Get Recommendations' }).click();
@@ -103,7 +120,7 @@ test.describe('Recommendations request wire contract', () => {
 				{
 					indexName,
 					model: 'looking-similar',
-					objectID: seeded.primaryObjectID,
+					objectID: PRIMARY_OBJECT_ID,
 					threshold: 7,
 					maxRecommendations: 11
 				}
@@ -111,9 +128,9 @@ test.describe('Recommendations request wire contract', () => {
 		});
 	});
 
-	test('trending-items request body is exact', async ({ page, seedRecommendationsConfig, testRegion }) => {
+	test('trending-items request body is exact', async ({ page, seedIndex, testRegion }) => {
 		const indexName = `e2e-rec-wire-trending-items-${Date.now()}`;
-		await seedRecommendationsConfig(indexName, testRegion);
+		await seedIndex(indexName, testRegion);
 		await page.goto(`/console/indexes/${encodeURIComponent(indexName)}`);
 		const section = await openIndexDetailTab(page, 'Recommendations', 'recommendations-section');
 
@@ -137,9 +154,9 @@ test.describe('Recommendations request wire contract', () => {
 		});
 	});
 
-	test('trending-facets request body is exact', async ({ page, seedRecommendationsConfig, testRegion }) => {
+	test('trending-facets request body is exact', async ({ page, seedIndex, testRegion }) => {
 		const indexName = `e2e-rec-wire-trending-facets-${Date.now()}`;
-		const seeded = await seedRecommendationsConfig(indexName, testRegion);
+		await seedIndex(indexName, testRegion);
 		await page.goto(`/console/indexes/${encodeURIComponent(indexName)}`);
 		const section = await openIndexDetailTab(page, 'Recommendations', 'recommendations-section');
 
@@ -147,8 +164,8 @@ test.describe('Recommendations request wire contract', () => {
 		await captureRecommendationRequest(page, captured);
 
 		await section.getByTestId('recommendations-model-select').selectOption('trending-facets');
-		await section.getByLabel('Facet Name').fill(seeded.facetName);
-		await section.getByLabel('Facet Value').fill(seeded.facetValue);
+		await section.getByLabel('Facet Name').fill(FACET_NAME);
+		await section.getByLabel('Facet Value').fill(FACET_VALUE);
 		await section.getByLabel('Threshold').fill('3');
 		await section.getByLabel('Max Recommendations').fill('5');
 		await section.getByRole('button', { name: 'Get Recommendations' }).click();
@@ -158,8 +175,8 @@ test.describe('Recommendations request wire contract', () => {
 				{
 					indexName,
 					model: 'trending-facets',
-					facetName: seeded.facetName,
-					facetValue: seeded.facetValue,
+					facetName: FACET_NAME,
+					facetValue: FACET_VALUE,
 					threshold: 3,
 					maxRecommendations: 5
 				}

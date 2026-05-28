@@ -14,7 +14,7 @@ mod api_client;
 use api_client::{OciApi, ReqwestOciApiClient};
 
 #[cfg(test)]
-#[path = "../../../tests/support/oci.rs"]
+#[path = "../../../tests/common/support/oci.rs"]
 mod test_support;
 
 /// Maps an OCI instance lifecycle state to our `VmStatus` enum.

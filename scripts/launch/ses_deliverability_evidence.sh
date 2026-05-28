@@ -601,7 +601,7 @@ run_live_send_seam() {
     local cargo_stdout_log="$LOGS_DIR/cargo_live_send_stdout.log"
     local cargo_stderr_log="$LOGS_DIR/cargo_live_send_stderr.log"
     local cargo_output
-    local cargo_cmd=(cargo test -p api --test email_test ses_live_smoke_sends_verification_email -- --ignored)
+    local cargo_cmd=(cargo test -p api --test integration -- --exact email_test::ses_live_smoke_sends_verification_email --ignored)
 
     if [ -z "$SES_REGION_RESOLVED" ]; then
         SEND_ATTEMPT_STATUS="blocked"
@@ -755,7 +755,7 @@ summary = {
         "detail": os.environ["SEND_ATTEMPT_DETAIL"],
         "exit_code": int(os.environ["SEND_ATTEMPT_EXIT_CODE"]),
         "named_test_marker_found": os.environ["SEND_ATTEMPT_MARKER_FOUND"] == "true",
-        "command": "cd infra && cargo test -p api --test email_test ses_live_smoke_sends_verification_email -- --ignored",
+        "command": "cd infra && cargo test -p api --test integration -- --exact email_test::ses_live_smoke_sends_verification_email --ignored",
     },
     "suppression_check": {
         "status": os.environ["SUPPRESSION_STATUS"],

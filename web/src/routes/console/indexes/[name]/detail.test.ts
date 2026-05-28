@@ -284,25 +284,23 @@ describe('Index detail page — Documents and Dictionaries tab shell contract', 
 		});
 
 		await openTab('Dictionaries');
-		const dictionaryObjectIdDraft = screen.getByRole('textbox', {
-			name: /object id/i
-		}) as HTMLInputElement;
-		await fireEvent.input(dictionaryObjectIdDraft, {
-			target: { value: 'draft-stopword' }
+		const dictionarySearchDraft = screen.getByTestId('dictionary-search-input') as HTMLInputElement;
+		await fireEvent.input(dictionarySearchDraft, {
+			target: { value: 'draft-query' }
 		});
 
 		await openTab('Overview');
 		const hiddenDocumentsDraft = container.querySelector(
 			'#manual-document-json'
 		) as HTMLTextAreaElement | null;
-		const hiddenDictionaryDraft = container.querySelector(
-			'#dictionary-entry-object-id'
+		const hiddenDictionarySearch = container.querySelector(
+			'#dictionary-search-input'
 		) as HTMLInputElement | null;
 
 		expect(hiddenDocumentsDraft).not.toBeNull();
 		expect(hiddenDocumentsDraft?.value).toContain('doc-draft');
-		expect(hiddenDictionaryDraft).not.toBeNull();
-		expect(hiddenDictionaryDraft?.value).toBe('draft-stopword');
+		expect(hiddenDictionarySearch).not.toBeNull();
+		expect(hiddenDictionarySearch?.value).toBe('draft-query');
 
 		await openTab('Documents');
 		expect(
@@ -310,8 +308,8 @@ describe('Index detail page — Documents and Dictionaries tab shell contract', 
 		).toContain('doc-draft');
 
 		await openTab('Dictionaries');
-		expect((screen.getByRole('textbox', { name: /object id/i }) as HTMLInputElement).value).toBe(
-			'draft-stopword'
+		expect((screen.getByTestId('dictionary-search-input') as HTMLInputElement).value).toBe(
+			'draft-query'
 		);
 	});
 
@@ -388,15 +386,19 @@ describe('Index detail page — Documents and Dictionaries tab shell contract', 
 			'from-form'
 		);
 		expect(screen.getByText(/next cursor: form-cursor/i)).toBeInTheDocument();
-		expect(screen.getByText(/documents uploaded/i)).toBeInTheDocument();
+		const docsPanel = screen.getByTestId('documents-section');
+		expect(within(docsPanel).getByText(/documents uploaded/i)).toBeInTheDocument();
 		expect(screen.getByText(/document added/i)).toBeInTheDocument();
 		expect(screen.getByText(/documents refreshed/i)).toBeInTheDocument();
 		expect(screen.getByText(/document deleted/i)).toBeInTheDocument();
 
 		await openTab('Dictionaries');
-		expect(screen.getByText(/plurals\/fr/i)).toBeInTheDocument();
-		expect(screen.getByText('form-plural')).toBeInTheDocument();
-		expect(screen.queryByText('load-stopword')).not.toBeInTheDocument();
+		expect(screen.getByTestId('dictionary-tab-plurals')).toHaveAttribute('aria-selected', 'true');
+		expect((screen.getByTestId('dictionary-language-filter') as HTMLSelectElement).value).toBe(
+			'fr'
+		);
+		expect(screen.getByText('cheval, chevaux')).toBeInTheDocument();
+		expect(screen.queryByText('the')).not.toBeInTheDocument();
 		expect(screen.getByText(/dictionary entry saved/i)).toBeInTheDocument();
 		expect(screen.getByText(/dictionary entry deleted/i)).toBeInTheDocument();
 	});
@@ -662,7 +664,15 @@ describe('Index detail page — degraded state for nullable data', () => {
 		await openTab('Synonyms');
 		expect(screen.getByText(/synonyms could not be loaded/i)).toBeInTheDocument();
 		expect(screen.queryByText('No synonyms')).not.toBeInTheDocument();
-		expect(screen.getByRole('button', { name: /save synonym/i })).toBeInTheDocument();
+		expect(screen.getByRole('button', { name: /add synonym/i })).toBeInTheDocument();
+	});
+
+	it('synonyms tab shows clear success when form reports synonymsCleared', async () => {
+		renderPage({}, { synonymsCleared: true });
+
+		await openTab('Synonyms');
+		expect(screen.getByText('Synonyms cleared.')).toBeInTheDocument();
+		expect(screen.queryByText('Synonym deleted.')).not.toBeInTheDocument();
 	});
 });
 
@@ -728,5 +738,85 @@ describe('Index detail page — load error precedence with action refresh data',
 		await openTab('Events');
 		expect(screen.queryByTestId('events-load-error-state')).not.toBeInTheDocument();
 		expect(screen.getByText('Viewed Product')).toBeInTheDocument();
+	});
+});
+
+describe('Index detail page — personalization tab wiring and precedence', () => {
+	it('uses structured strategy save form wiring without exposing raw textarea editing', async () => {
+		const view = renderPage();
+
+		await openTab('Personalization');
+		const strategyForm = view.container.querySelector(
+			'form[action="?/savePersonalizationStrategy"]'
+		) as HTMLFormElement | null;
+		expect(strategyForm).not.toBeNull();
+		expect(view.container.querySelector('textarea[name="strategy"]')).toBeNull();
+		expect(strategyForm?.querySelector('input[type="hidden"][name="strategy"]')).not.toBeNull();
+		expect(screen.getByTestId('personalization-strategy-save')).toBeDisabled();
+	});
+
+	it('enables strategy save after valid editor changes and surfaces invalid-seed messaging', async () => {
+		const view = renderPage({
+			personalizationStrategy: {
+				eventsScoring: [{ eventName: 'Product viewed', eventType: 'bogus-event', score: 10 }],
+				facetsScoring: [{ facetName: 'brand', score: 70 }],
+				personalizationImpact: 75
+			}
+		});
+
+		await openTab('Personalization');
+		expect(screen.getByTestId('personalization-strategy-invalid-state')).toBeInTheDocument();
+		const saveButton = screen.getByTestId('personalization-strategy-save');
+		expect(saveButton).toBeDisabled();
+
+		await fireEvent.click(screen.getByRole('button', { name: /edit strategy/i }));
+		await fireEvent.input(screen.getByTestId('editor-dialog-field-personalizationImpact'), {
+			target: { value: '64' }
+		});
+		await fireEvent.click(screen.getByTestId('editor-dialog-save'));
+		expect(screen.queryByTestId('personalization-strategy-editor-dialog')).not.toBeInTheDocument();
+		expect(saveButton).toBeEnabled();
+
+		expect(view.container.querySelector('textarea[name="strategy"]')).toBeNull();
+	});
+
+	it('propagates pending profile lookup state from submitted personalization form', async () => {
+		const view = renderPage();
+
+		await openTab('Personalization');
+		const profileLookupForm = view.container.querySelector(
+			'form[action="?/getPersonalizationProfile"]'
+		) as HTMLFormElement | null;
+		expect(profileLookupForm).not.toBeNull();
+
+		await fireEvent.submit(profileLookupForm as HTMLFormElement);
+
+		expect(screen.getByTestId('personalization-profile-state-loading')).toBeInTheDocument();
+		expect(screen.queryByTestId('personalization-profile-state-untouched')).not.toBeInTheDocument();
+		expect(screen.queryByTestId('personalization-profile-state-found')).not.toBeInTheDocument();
+	});
+
+	it('uses error-first precedence over stale strategy success flags', async () => {
+		renderPage({}, {
+			personalizationError: 'Failed to save personalization strategy'
+		} as DetailPageForm);
+
+		await openTab('Personalization');
+		expect(screen.getByTestId('personalization-strategy-state-error')).toBeInTheDocument();
+		expect(screen.queryByTestId('personalization-strategy-state-saved')).not.toBeInTheDocument();
+		expect(screen.queryByTestId('personalization-strategy-state-deleted')).not.toBeInTheDocument();
+	});
+
+	it('maps empty profile branch when lookup was attempted but no profile returned', async () => {
+		renderPage({}, {
+			personalizationProfileLookupAttempted: true,
+			personalizationProfile: null
+		} as unknown as DetailPageForm);
+
+		await openTab('Personalization');
+		expect(screen.getByTestId('personalization-profile-state-empty')).toBeInTheDocument();
+		expect(screen.queryByTestId('personalization-profile-state-untouched')).not.toBeInTheDocument();
+		expect(screen.queryByTestId('personalization-profile-state-found')).not.toBeInTheDocument();
+		expect(screen.queryByTestId('personalization-profile-state-error')).not.toBeInTheDocument();
 	});
 });

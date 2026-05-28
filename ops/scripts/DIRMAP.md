@@ -49,6 +49,6 @@ Prerequisites checked:
 
 | Directory | Summary |
 | --- | --- |
-| lib | Shared utility library containing shell and Python scripts for deployment validation, AWS SSM environment configuration, Cloudflare DNS operations, and RDS restoration workflows. |
-| tests | This directory contains a single fixture-capture script that one-shot downloads and caches a Cloudflare zone configuration for use in tests. |
+| lib | Utility library containing deployment validation, AWS SSM environment configuration, Cloudflare zone parsing, and RDS restore selection tools. |
+| tests | The tests directory contains a shell script that captures Cloudflare zone fixtures for use in testing, enabling one-shot fixture data collection for test scenarios. |
 <!-- [scrai:end] -->

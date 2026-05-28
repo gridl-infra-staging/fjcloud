@@ -38,8 +38,10 @@ async function expectAnalyticsUrlState(page: Page, indexName: string, expectedSu
 	const parsedUrl = new URL(page.url());
 	expect(parsedUrl.searchParams.get('tab')).toBe('analytics');
 	expect(parsedUrl.searchParams.get('subtab')).toBe(expectedSubtab);
-	expect(parsedUrl.searchParams.get('startDate')).toBe('2026-02-19');
-	expect(parsedUrl.searchParams.get('endDate')).toBe('2026-02-25');
+	// Analytics navigation now uses `period` as the single source of truth.
+	// Legacy explicit date params are intentionally stripped from URL state.
+	expect(parsedUrl.searchParams.get('startDate')).toBeNull();
+	expect(parsedUrl.searchParams.get('endDate')).toBeNull();
 }
 
 test.describe('Analytics subtab shell', () => {

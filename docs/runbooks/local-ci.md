@@ -32,7 +32,7 @@ Each local gate is the line-for-line equivalent of its CI counterpart, with docu
 | Gate | CI command | Local form | Divergence note |
 |---|---|---|---|
 | `rust-lint` | `ci_workflow_test` + email seams + `cargo fmt --check` + `cargo clippy --workspace -- -D warnings` | identical | none |
-| `rust-test` | `cargo test --workspace -j 1` + tenant isolation proptest | drops `-j 1` | `-j 1` is a CI-runner RAM tradeoff irrelevant locally |
+| `rust-test` | `cargo test --workspace` | identical | tenant isolation proptest moved to nightly workflow; no local/CI divergence in this gate |
 | `migration-test` | `sqlx migrate run` against postgres service container | same `sqlx migrate run` against local postgres | SKIP if no local postgres / sqlx-cli (with remediation hint) |
 | `web-test` | `npm ci && npm test` | `npm test` after a stale-lockfile check | if `web/package-lock.json` is newer than `web/node_modules/.package-lock.json`, FAIL with remediation — closes the false-pass gap where CI's `npm ci` would have caught a stale local install |
 | `web-lint` | `npm run check` + `eslint .` + `lint:e2e` + `screen_specs_coverage_test` + `ses_iam_configset_coupling_test` | identical (with the same stale-lockfile check) | none |

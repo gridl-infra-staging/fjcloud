@@ -400,17 +400,29 @@ describe('Index detail page server -- actions (dictionaries)', () => {
 		const formData = new FormData();
 		formData.set('dictionary', 'stopwords');
 		formData.set('language', 'en');
-		formData.set('objectID', 'stop-the');
 		formData.set('entryWord', 'the');
+		formData.set('intent', 'add');
 
+		const randomUuidSpy = vi
+			.spyOn(globalThis.crypto, 'randomUUID')
+			.mockReturnValue('00000000-0000-4000-8000-000000000001');
 		const result = await actions.saveDictionaryEntry(
 			makeActionArgs('saveDictionaryEntry', formData) as never
 		);
+		randomUuidSpy.mockRestore();
 
 		expect(batchDictionaryEntriesMock).toHaveBeenCalledWith('products', 'stopwords', {
 			clearExistingDictionaryEntries: false,
 			requests: [
-				{ action: 'addEntry', body: { objectID: 'stop-the', language: 'en', word: 'the' } }
+				{
+					action: 'addEntry',
+					body: {
+						objectID: '00000000-0000-4000-8000-000000000001',
+						language: 'en',
+						word: 'the',
+						state: 'enabled'
+					}
+				}
 			]
 		});
 		expect(searchDictionaryEntriesMock).toHaveBeenCalledWith('products', 'stopwords', {
@@ -462,6 +474,41 @@ describe('Index detail page server -- actions (dictionaries)', () => {
 				{
 					action: 'addEntry',
 					body: { objectID: 'stop-the', language: 'en', word: 'the', state: 'disabled' }
+				}
+			]
+		});
+	});
+
+	it('saveDictionaryEntry action preserves submitted objectID when editing an existing entry', async () => {
+		batchDictionaryEntriesMock.mockResolvedValue({ taskID: 42, updatedAt: '2026-03-18T12:00:00Z' });
+		getDictionaryLanguagesMock.mockResolvedValue({
+			en: { stopwords: { nbCustomEntries: 1 }, plurals: null, compounds: null }
+		});
+		searchDictionaryEntriesMock.mockResolvedValue({
+			hits: [{ objectID: 'stop-the', language: 'en', word: 'the', state: 'enabled' }],
+			nbHits: 1,
+			page: 0,
+			nbPages: 1
+		});
+
+		const formData = new FormData();
+		formData.set('dictionary', 'stopwords');
+		formData.set('language', 'en');
+		formData.set('intent', 'edit');
+		formData.set('objectID', 'stop-the');
+		formData.set('entryWord', 'the');
+
+		const randomUuidSpy = vi.spyOn(globalThis.crypto, 'randomUUID');
+		await actions.saveDictionaryEntry(makeActionArgs('saveDictionaryEntry', formData) as never);
+		randomUuidSpy.mockRestore();
+
+		expect(randomUuidSpy).not.toHaveBeenCalled();
+		expect(batchDictionaryEntriesMock).toHaveBeenCalledWith('products', 'stopwords', {
+			clearExistingDictionaryEntries: false,
+			requests: [
+				{
+					action: 'addEntry',
+					body: { objectID: 'stop-the', language: 'en', word: 'the', state: 'enabled' }
 				}
 			]
 		});
@@ -593,11 +640,12 @@ describe('Index detail page server -- actions (dictionaries)', () => {
 		expect(batchDictionaryEntriesMock).not.toHaveBeenCalled();
 	});
 
-	it('saveDictionaryEntry action rejects missing objectID with fail(400)', async () => {
+	it('saveDictionaryEntry action rejects missing objectID for edit intent', async () => {
 		const formData = new FormData();
 		formData.set('dictionary', 'stopwords');
 		formData.set('language', 'en');
 		formData.set('entryWord', 'the');
+		formData.set('intent', 'edit');
 
 		const result = await actions.saveDictionaryEntry(
 			makeActionArgs('saveDictionaryEntry', formData) as never
@@ -819,5 +867,47 @@ describe('Index detail page server -- actions (dictionaries)', () => {
 			})
 		);
 		expect(batchDictionaryEntriesMock).not.toHaveBeenCalled();
+	});
+
+	it('clearDictionaryEntries action clears all entries via batch clear payload', async () => {
+		batchDictionaryEntriesMock.mockResolvedValue({ taskID: 44, updatedAt: '2026-03-18T12:00:00Z' });
+		getDictionaryLanguagesMock.mockResolvedValue({
+			en: { stopwords: { nbCustomEntries: 0 }, plurals: null, compounds: null }
+		});
+		searchDictionaryEntriesMock.mockResolvedValue({
+			hits: [],
+			nbHits: 0,
+			page: 0,
+			nbPages: 0
+		});
+
+		const formData = new FormData();
+		formData.set('dictionary', 'stopwords');
+		formData.set('language', 'en');
+
+		const result = await actions.clearDictionaryEntries(
+			makeActionArgs('clearDictionaryEntries', formData) as never
+		);
+
+		expect(batchDictionaryEntriesMock).toHaveBeenCalledWith('products', 'stopwords', {
+			clearExistingDictionaryEntries: true,
+			requests: []
+		});
+		expect(result).toEqual({
+			dictionaryCleared: true,
+			dictionaries: {
+				languages: {
+					en: { stopwords: { nbCustomEntries: 0 }, plurals: null, compounds: null }
+				},
+				selectedDictionary: 'stopwords',
+				selectedLanguage: 'en',
+				entries: {
+					hits: [],
+					nbHits: 0,
+					page: 0,
+					nbPages: 0
+				}
+			}
+		});
 	});
 });

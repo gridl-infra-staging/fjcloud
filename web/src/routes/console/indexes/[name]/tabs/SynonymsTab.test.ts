@@ -1,16 +1,29 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/svelte';
 import { fireEvent } from '@testing-library/dom';
-import { tick } from 'svelte';
 import type { ComponentProps } from 'svelte';
+
+const { gotoMock, mockPage } = vi.hoisted(() => ({
+	gotoMock: vi.fn(),
+	mockPage: {
+		url: new URL('http://localhost/console/indexes/products?tab=synonyms&period=30d')
+	}
+}));
 
 vi.mock('$app/forms', () => ({
 	enhance: () => ({ destroy: () => {} })
 }));
 
+vi.mock('$app/navigation', () => ({
+	goto: gotoMock
+}));
+
+vi.mock('$app/state', () => ({
+	page: mockPage
+}));
+
 import SynonymsTab from './SynonymsTab.svelte';
 import { sampleIndex, sampleSynonyms } from '../detail.test.shared';
-import type { SynonymSearchResponse } from '$lib/api/types';
 
 type SynonymsProps = ComponentProps<typeof SynonymsTab>;
 
@@ -21,19 +34,31 @@ function defaultProps(overrides: Partial<SynonymsProps> = {}): SynonymsProps {
 		synonymError: '',
 		synonymSaved: false,
 		synonymDeleted: false,
+		synonymsCleared: false,
 		...overrides
 	};
 }
 
-afterEach(cleanup);
+function setPageUrl(url: string): void {
+	mockPage.url = new URL(url);
+}
+
+afterEach(() => {
+	cleanup();
+	vi.clearAllMocks();
+	setPageUrl('http://localhost/console/indexes/products?tab=synonyms&period=30d');
+});
 
 describe('SynonymsTab', () => {
 	describe('section shell', () => {
-		it('renders the Synonyms heading and description', () => {
+		it('renders heading, count badge, add button, and no raw JSON textarea', () => {
 			render(SynonymsTab, { props: defaultProps() });
 
 			expect(screen.getByText('Synonyms')).toBeInTheDocument();
 			expect(screen.getByText(/create and manage synonym sets/i)).toBeInTheDocument();
+			expect(screen.getByTestId('synonym-count')).toHaveTextContent('1');
+			expect(screen.getByRole('button', { name: 'Add Synonym' })).toBeInTheDocument();
+			expect(screen.queryByLabelText(/synonym json/i)).not.toBeInTheDocument();
 		});
 
 		it('sets data-testid and data-index on the section root', () => {
@@ -46,282 +71,180 @@ describe('SynonymsTab', () => {
 	});
 
 	describe('success and error banners', () => {
-		it('shows saved banner when synonymSaved is true', () => {
-			render(SynonymsTab, { props: defaultProps({ synonymSaved: true }) });
+		it('shows saved, deleted, cleared, and error banners from page-owned flags', () => {
+			render(SynonymsTab, {
+				props: defaultProps({
+					synonymSaved: true,
+					synonymDeleted: true,
+					synonymsCleared: true,
+					synonymError: 'Bad format'
+				})
+			});
 			expect(screen.getByText('Synonym saved.')).toBeInTheDocument();
-		});
-
-		it('shows deleted banner when synonymDeleted is true', () => {
-			render(SynonymsTab, { props: defaultProps({ synonymDeleted: true }) });
 			expect(screen.getByText('Synonym deleted.')).toBeInTheDocument();
-		});
-
-		it('shows error banner with error message', () => {
-			render(SynonymsTab, { props: defaultProps({ synonymError: 'Bad format' }) });
+			expect(screen.getByText('Synonyms cleared.')).toBeInTheDocument();
 			expect(screen.getByText('Bad format')).toBeInTheDocument();
-		});
-
-		it('does not show banners by default', () => {
-			render(SynonymsTab, { props: defaultProps() });
-			expect(screen.queryByText('Synonym saved.')).not.toBeInTheDocument();
-			expect(screen.queryByText('Synonym deleted.')).not.toBeInTheDocument();
 		});
 	});
 
-	describe('empty vs populated synonym table', () => {
-		it('shows empty state when synonym list is empty', () => {
-			render(SynonymsTab, {
-				props: defaultProps({ synonyms: { hits: [], nbHits: 0 } })
-			});
-			expect(screen.getByText('No synonyms')).toBeInTheDocument();
-		});
-
-		it('renders synonym row with objectID and type badge', () => {
+	describe('list and labels', () => {
+		it('renders helper-backed type badge labels and row edit/delete actions', () => {
 			render(SynonymsTab, { props: defaultProps() });
 
 			expect(screen.getByText('laptop-syn')).toBeInTheDocument();
-			// Type badge shows "synonym"
-			const badges = screen.getAllByText('synonym');
-			expect(badges.length).toBeGreaterThanOrEqual(1);
-		});
-
-		it('renders synonym summary for multi-way synonym', () => {
-			render(SynonymsTab, { props: defaultProps() });
-
-			// sampleSynonyms has synonyms: ['laptop', 'notebook', 'computer']
-			// synonymSummary joins them with ' = '
-			expect(screen.getByText('laptop = notebook = computer')).toBeInTheDocument();
-		});
-
-		it('renders summary for onewaysynonym type', () => {
-			const oneWaySynonyms: SynonymSearchResponse = {
-				hits: [
-					{
-						objectID: 'phone-syn',
-						type: 'onewaysynonym',
-						input: 'mobile',
-						synonyms: ['phone', 'cell']
-					}
-				],
-				nbHits: 1
-			};
-			render(SynonymsTab, { props: defaultProps({ synonyms: oneWaySynonyms }) });
-
-			expect(screen.getByText('mobile -> phone, cell')).toBeInTheDocument();
-		});
-
-		it('renders summary for altcorrection1 type', () => {
-			const altSynonyms: SynonymSearchResponse = {
-				hits: [
-					{
-						objectID: 'alt-syn',
-						type: 'altcorrection1',
-						word: 'colour',
-						corrections: ['color']
-					}
-				],
-				nbHits: 1
-			};
-			render(SynonymsTab, { props: defaultProps({ synonyms: altSynonyms }) });
-
-			expect(screen.getByText('colour -> color')).toBeInTheDocument();
-		});
-
-		it('renders summary for placeholder type', () => {
-			const placeholderSynonyms: SynonymSearchResponse = {
-				hits: [
-					{
-						objectID: 'ph-syn',
-						type: 'placeholder',
-						placeholder: '<brand>',
-						replacements: ['Nike', 'Adidas']
-					}
-				],
-				nbHits: 1
-			};
-			render(SynonymsTab, { props: defaultProps({ synonyms: placeholderSynonyms }) });
-
-			expect(screen.getByText('<brand> => Nike, Adidas')).toBeInTheDocument();
-		});
-
-		it('renders table headers for objectID, Type, and Summary', () => {
-			const { container } = render(SynonymsTab, { props: defaultProps() });
-
-			expect(screen.getByText('objectID')).toBeInTheDocument();
-			// "Type" appears both as a th and a form label — scope to thead
-			const thead = container.querySelector('thead');
-			expect(thead).not.toBeNull();
-			expect(thead!.textContent).toContain('Type');
-			expect(screen.getByText('Summary')).toBeInTheDocument();
-		});
-	});
-
-	describe('degraded state when synonyms fetch failed', () => {
-		it('shows load-failure message when synonyms is null', () => {
-			render(SynonymsTab, { props: defaultProps({ synonyms: null }) });
-			expect(screen.getByText(/synonyms could not be loaded/i)).toBeInTheDocument();
-		});
-
-		it('does not show "No synonyms" empty state when synonyms is null', () => {
-			render(SynonymsTab, { props: defaultProps({ synonyms: null }) });
-			expect(screen.queryByText('No synonyms')).not.toBeInTheDocument();
-		});
-
-		it('keeps the add/update form available when synonyms is null', () => {
-			const { container } = render(SynonymsTab, { props: defaultProps({ synonyms: null }) });
-			expect(container.querySelector('form[action="?/saveSynonym"]')).not.toBeNull();
-			expect(screen.getByRole('button', { name: /save synonym/i })).toBeInTheDocument();
-		});
-	});
-
-	describe('form contracts', () => {
-		it('has saveSynonym form wired to ?/saveSynonym action', () => {
-			const { container } = render(SynonymsTab, { props: defaultProps() });
-
-			const form = container.querySelector('form[action="?/saveSynonym"]');
-			expect(form).not.toBeNull();
-			expect(screen.getByRole('button', { name: /save synonym/i })).toBeInTheDocument();
-		});
-
-		it('saveSynonym form has objectID input, type select, and synonym textarea', () => {
-			render(SynonymsTab, { props: defaultProps() });
-
-			const objectIdInput = screen.getByLabelText(/object id/i);
-			expect(objectIdInput).toBeInTheDocument();
-			expect(objectIdInput.getAttribute('name')).toBe('objectID');
-
-			const typeSelect = screen.getByLabelText(/^type$/i);
-			expect(typeSelect).toBeInTheDocument();
-
-			const synonymTextarea = screen.getByLabelText(/synonym json/i);
-			expect(synonymTextarea).toBeInTheDocument();
-			expect(synonymTextarea.getAttribute('name')).toBe('synonym');
-		});
-
-		it('type selector lists all five synonym types', () => {
-			render(SynonymsTab, { props: defaultProps() });
-
-			const typeSelect = screen.getByLabelText(/^type$/i) as HTMLSelectElement;
-			const options = Array.from(typeSelect.querySelectorAll('option')).map((o) => o.value);
-			expect(options).toEqual([
-				'synonym',
-				'onewaysynonym',
-				'altcorrection1',
-				'altcorrection2',
-				'placeholder'
-			]);
-		});
-
-		it('has deleteSynonym form per synonym row wired to ?/deleteSynonym action', () => {
-			const { container } = render(SynonymsTab, { props: defaultProps() });
-
-			const deleteForms = container.querySelectorAll('form[action="?/deleteSynonym"]');
-			expect(deleteForms.length).toBe(1);
-
-			const hiddenInput = deleteForms[0].querySelector(
-				'input[name="objectID"]'
-			) as HTMLInputElement;
-			expect(hiddenInput.value).toBe('laptop-syn');
-		});
-
-		it('delete button has accessible label with synonym objectID', () => {
-			render(SynonymsTab, { props: defaultProps() });
-
+			expect(screen.getByText('Multi-way')).toBeInTheDocument();
+			expect(screen.queryByText(/^synonym$/i)).not.toBeInTheDocument();
+			expect(screen.getByRole('button', { name: /edit synonym laptop-syn/i })).toBeInTheDocument();
 			expect(
 				screen.getByRole('button', { name: /delete synonym laptop-syn/i })
 			).toBeInTheDocument();
 		});
 
-		it('delete synonym requires explicit confirm and cancel keeps submit blocked', async () => {
+		it('renders empty-state shortcut buttons when there are no synonyms', () => {
+			render(SynonymsTab, {
+				props: defaultProps({ synonyms: { hits: [], nbHits: 0 } })
+			});
+
+			expect(screen.getByText('No synonyms yet')).toBeInTheDocument();
+			expect(screen.getByRole('button', { name: 'Add Multi-way' })).toBeInTheDocument();
+			expect(screen.getByRole('button', { name: 'Add One-way' })).toBeInTheDocument();
+			expect(screen.queryByRole('button', { name: 'Clear All' })).not.toBeInTheDocument();
+		});
+	});
+
+	describe('degraded state', () => {
+		it('shows load-failure message and keeps add flow available when synonyms is null', () => {
+			render(SynonymsTab, { props: defaultProps({ synonyms: null }) });
+			expect(screen.getByText(/synonyms could not be loaded/i)).toBeInTheDocument();
+			expect(screen.queryByText('No synonyms yet')).not.toBeInTheDocument();
+			expect(screen.getByRole('button', { name: 'Add Synonym' })).toBeInTheDocument();
+		});
+	});
+
+	describe('search query URL merge', () => {
+		it('hydrates search input from q query param', () => {
+			setPageUrl('http://localhost/console/indexes/products?tab=synonyms&period=30d&q=hoodie');
+			render(SynonymsTab, { props: defaultProps() });
+
+			expect(screen.getByTestId('synonyms-search')).toHaveValue('hoodie');
+		});
+
+		it('updates q via additive query merge while preserving sibling keys', async () => {
+			render(SynonymsTab, { props: defaultProps() });
+
+			const searchInput = screen.getByTestId('synonyms-search') as HTMLInputElement;
+			await fireEvent.input(searchInput, { target: { value: 'hoodie' } });
+			await fireEvent.submit(searchInput.closest('form') as HTMLFormElement);
+
+			expect(gotoMock).toHaveBeenCalledTimes(1);
+			const [target] = gotoMock.mock.calls[0] as [string, Record<string, unknown>];
+			const nextUrl = new URL(target, 'http://localhost');
+			expect(nextUrl.pathname).toBe('/console/indexes/products');
+			expect(nextUrl.searchParams.get('tab')).toBe('synonyms');
+			expect(nextUrl.searchParams.get('period')).toBe('30d');
+			expect(nextUrl.searchParams.get('q')).toBe('hoodie');
+		});
+	});
+
+	describe('editor dialog create/edit flows', () => {
+		it('opens create dialog from header and remounts defaults when create type changes', async () => {
+			render(SynonymsTab, { props: defaultProps() });
+
+			await fireEvent.click(screen.getByRole('button', { name: 'Add Synonym' }));
+			expect(screen.getByRole('dialog')).toBeInTheDocument();
+			expect(screen.getByRole('heading', { name: 'Create Synonym' })).toBeInTheDocument();
+			expect(screen.getByRole('button', { name: 'Multi-way' })).toBeInTheDocument();
+			expect(screen.getByRole('button', { name: 'One-way' })).toBeInTheDocument();
+
+			const objectIdInput = screen.getByLabelText('Object ID') as HTMLInputElement;
+			await fireEvent.input(objectIdInput, { target: { value: 'sticky-value' } });
+			expect(objectIdInput.value).toBe('sticky-value');
+
+			await fireEvent.click(screen.getByRole('button', { name: 'One-way' }));
+			expect(screen.getByLabelText('Input (source word)')).toBeInTheDocument();
+			expect((screen.getByLabelText('Object ID') as HTMLInputElement).value).toBe('');
+
+			await fireEvent.click(screen.getByRole('button', { name: 'Alt. Correction 1' }));
+			expect(screen.getByLabelText('Word')).toBeInTheDocument();
+			expect(screen.queryByLabelText('Input (source word)')).not.toBeInTheDocument();
+		});
+
+		it('opens create dialog from empty-state shortcuts with preselected type', async () => {
+			render(SynonymsTab, {
+				props: defaultProps({ synonyms: { hits: [], nbHits: 0 } })
+			});
+
+			await fireEvent.click(screen.getByRole('button', { name: 'Add One-way' }));
+			expect(screen.getByRole('heading', { name: 'Create Synonym' })).toBeInTheDocument();
+			expect(screen.getByLabelText('Input (source word)')).toBeInTheDocument();
+			expect(screen.queryByLabelText('Words (bidirectional)')).not.toBeInTheDocument();
+		});
+
+		it('opens edit dialog with objectID locked and no create-type selector', async () => {
+			render(SynonymsTab, { props: defaultProps() });
+
+			await fireEvent.click(screen.getByRole('button', { name: /edit synonym laptop-syn/i }));
+
+			expect(screen.getByRole('heading', { name: 'Edit Synonym' })).toBeInTheDocument();
+			expect(
+				screen.getByText('Object ID: laptop-syn. Type is locked while editing existing synonyms.')
+			).toBeInTheDocument();
+			expect(screen.queryByLabelText('Object ID')).not.toBeInTheDocument();
+			expect(screen.queryByRole('button', { name: 'One-way' })).not.toBeInTheDocument();
+			expect(screen.getByTestId('editor-dialog-save')).toHaveTextContent('Save');
+		});
+	});
+
+	describe('destructive confirms and form contracts', () => {
+		it('has saveSynonym, deleteSynonym, and clearSynonyms form actions', () => {
+			const { container } = render(SynonymsTab, { props: defaultProps() });
+			expect(container.querySelector('form[action="?/saveSynonym"]')).not.toBeNull();
+			expect(container.querySelectorAll('form[action="?/deleteSynonym"]').length).toBe(1);
+			expect(container.querySelector('form[action="?/clearSynonyms"]')).not.toBeNull();
+		});
+
+		it('uses standard/warn delete confirm copy and blocks submit until confirmation', async () => {
 			const requestSubmitSpy = vi
 				.spyOn(HTMLFormElement.prototype, 'requestSubmit')
 				.mockImplementation(() => {});
 			render(SynonymsTab, { props: defaultProps() });
 
 			await fireEvent.click(screen.getByRole('button', { name: /delete synonym laptop-syn/i }));
-			expect(screen.getByText('Delete synonym "laptop-syn"?')).toBeInTheDocument();
-			expect(screen.getByText('Summary: laptop = notebook = computer')).toBeInTheDocument();
+			expect(screen.getByRole('dialog')).toBeInTheDocument();
+			expect(screen.getByText('Delete synonym')).toBeInTheDocument();
+			expect(
+				screen.getByText(
+					'Are you sure you want to delete synonym laptop-syn? This action cannot be undone.'
+				)
+			).toBeInTheDocument();
+			expect(screen.getByTestId('confirm-confirm-btn')).toHaveTextContent('Delete');
 			expect(requestSubmitSpy).not.toHaveBeenCalled();
 
 			await fireEvent.click(screen.getByTestId('confirm-cancel-btn'));
-			expect(screen.queryByText('Delete synonym "laptop-syn"?')).not.toBeInTheDocument();
 			expect(requestSubmitSpy).not.toHaveBeenCalled();
 
 			await fireEvent.click(screen.getByRole('button', { name: /delete synonym laptop-syn/i }));
 			await fireEvent.click(screen.getByTestId('confirm-confirm-btn'));
 			expect(requestSubmitSpy).toHaveBeenCalledTimes(1);
 		});
-	});
 
-	describe('synonym template behavior', () => {
-		it('seeds textarea with default synonym template on initial render', () => {
+		it('uses typed clear-all confirm wired to ?/clearSynonyms', async () => {
+			const requestSubmitSpy = vi
+				.spyOn(HTMLFormElement.prototype, 'requestSubmit')
+				.mockImplementation(() => {});
 			render(SynonymsTab, { props: defaultProps() });
 
-			const textarea = screen.getByLabelText(/synonym json/i) as HTMLTextAreaElement;
-			const parsed = JSON.parse(textarea.value);
-			expect(parsed).toHaveProperty('type', 'synonym');
-			expect(parsed).toHaveProperty('synonyms');
-			expect(parsed.objectID).toBe('');
-		});
+			await fireEvent.click(screen.getByRole('button', { name: 'Clear All' }));
+			expect(screen.getByRole('alertdialog')).toBeInTheDocument();
+			expect(screen.getByText('Delete all synonyms')).toBeInTheDocument();
+			expect(screen.getByLabelText('Type "CLEAR" to confirm')).toBeInTheDocument();
 
-		it('refreshes template when type selector changes', async () => {
-			render(SynonymsTab, { props: defaultProps() });
+			await fireEvent.click(screen.getByTestId('confirm-confirm-btn'));
+			expect(requestSubmitSpy).not.toHaveBeenCalled();
 
-			const typeSelect = screen.getByLabelText(/^type$/i) as HTMLSelectElement;
-			// Set the DOM value directly so Svelte's bind:value reads the new value
-			typeSelect.value = 'onewaysynonym';
-			fireEvent.change(typeSelect);
-			await tick();
-
-			const textarea = screen.getByLabelText(/synonym json/i) as HTMLTextAreaElement;
-			const parsed = JSON.parse(textarea.value);
-			expect(parsed).toHaveProperty('type', 'onewaysynonym');
-			expect(parsed).toHaveProperty('input');
-			expect(parsed).toHaveProperty('synonyms');
-		});
-
-		it('refreshes template when objectID input changes', async () => {
-			render(SynonymsTab, { props: defaultProps() });
-
-			const objectIdInput = screen.getByLabelText(/object id/i) as HTMLInputElement;
-			// Set the DOM value directly so Svelte's bind:value reads the new value
-			objectIdInput.value = 'my-syn';
-			fireEvent.input(objectIdInput);
-			await tick();
-
-			const textarea = screen.getByLabelText(/synonym json/i) as HTMLTextAreaElement;
-			const parsed = JSON.parse(textarea.value);
-			expect(parsed.objectID).toBe('my-syn');
-		});
-
-		it('produces altcorrection1 template with word and corrections fields', async () => {
-			render(SynonymsTab, { props: defaultProps() });
-
-			const typeSelect = screen.getByLabelText(/^type$/i) as HTMLSelectElement;
-			typeSelect.value = 'altcorrection1';
-			fireEvent.change(typeSelect);
-			await tick();
-
-			const textarea = screen.getByLabelText(/synonym json/i) as HTMLTextAreaElement;
-			const parsed = JSON.parse(textarea.value);
-			expect(parsed).toHaveProperty('type', 'altcorrection1');
-			expect(parsed).toHaveProperty('word', '');
-			expect(parsed).toHaveProperty('corrections');
-		});
-
-		it('produces placeholder template with placeholder and replacements fields', async () => {
-			render(SynonymsTab, { props: defaultProps() });
-
-			const typeSelect = screen.getByLabelText(/^type$/i) as HTMLSelectElement;
-			typeSelect.value = 'placeholder';
-			fireEvent.change(typeSelect);
-			await tick();
-
-			const textarea = screen.getByLabelText(/synonym json/i) as HTMLTextAreaElement;
-			const parsed = JSON.parse(textarea.value);
-			expect(parsed).toHaveProperty('type', 'placeholder');
-			expect(parsed).toHaveProperty('placeholder', '');
-			expect(parsed).toHaveProperty('replacements');
+			await fireEvent.input(screen.getByTestId('confirm-input'), { target: { value: 'CLEAR' } });
+			await fireEvent.click(screen.getByTestId('confirm-confirm-btn'));
+			expect(requestSubmitSpy).toHaveBeenCalledTimes(1);
 		});
 	});
 });

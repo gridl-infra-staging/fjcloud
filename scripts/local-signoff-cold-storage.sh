@@ -131,8 +131,8 @@ main() {
     local cargo_exit=0
     cd "$REPO_ROOT/infra"
     set +e
-    cargo test -p api --test integration_cold_tier_test \
-        cold_tier_full_lifecycle_s3_round_trip -- --test-threads=1
+    cargo test -p api --test integration -- \
+        --exact integration_cold_tier_test::cold_tier_full_lifecycle_s3_round_trip --test-threads=1
     cargo_exit=$?
     set -e
 

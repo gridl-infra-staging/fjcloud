@@ -123,3 +123,8 @@ ops/terraform/_shared/tfplan.*
 # Probe evidence bundles produced by scripts/validate_subprocessor_disclosure.sh
 # (UTC-stamped run artifacts; keep as untracked local evidence only)
 docs/runbooks/evidence/subprocessor_disclosure/
+
+# scrai incremental scan caches — derived from source; nothing outside scrai reads them
+.scrai/state.json
+.scrai/summaries.json
+.scrai/dir_summaries.json

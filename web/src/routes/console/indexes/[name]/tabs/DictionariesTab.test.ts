@@ -1,416 +1,659 @@
-import { describe, it, expect, vi, afterEach } from 'vitest';
-import { render, screen, cleanup } from '@testing-library/svelte';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, render, screen } from '@testing-library/svelte';
 import { fireEvent } from '@testing-library/dom';
+import { within } from '@testing-library/dom';
 import type { ComponentProps } from 'svelte';
+
+const { gotoMock } = vi.hoisted(() => ({
+	gotoMock: vi.fn()
+}));
+let mockPageUrl = new URL(
+	'http://localhost/console/indexes/products?tab=dictionaries&dict=stopwords&lang=en&foo=bar'
+);
+
+vi.mock('$app/environment', () => ({
+	browser: true
+}));
 
 vi.mock('$app/forms', () => ({
 	enhance: () => ({ destroy: () => {} })
 }));
 
+vi.mock('$app/navigation', () => ({
+	goto: gotoMock
+}));
+
+vi.mock('$app/state', () => ({
+	page: {
+		get url() {
+			return mockPageUrl;
+		}
+	}
+}));
+
 import DictionariesTab from './DictionariesTab.svelte';
-import { sampleIndex, sampleDictionaries } from '../detail.test.shared';
-import type { DictionaryName } from '$lib/api/types';
+import { sampleDictionaries, sampleIndex } from '../detail.test.shared';
 
 type DictionariesProps = ComponentProps<typeof DictionariesTab>;
 
-type DictionariesPayload = DictionariesProps['dictionaries'];
-
-function defaultProps(overrides: Partial<DictionariesProps> = {}): DictionariesProps {
+function buildProps(overrides: Partial<DictionariesProps> = {}): DictionariesProps {
 	return {
 		index: sampleIndex,
 		dictionaries: sampleDictionaries,
+		dictionaryActionVersion: 0,
 		dictionaryBrowseError: '',
 		dictionarySaveError: '',
 		dictionaryDeleteError: '',
+		dictionaryClearError: '',
 		dictionarySaved: false,
 		dictionaryDeleted: false,
+		dictionaryCleared: false,
 		...overrides
 	};
 }
 
-function emptyDictionaries(): DictionariesPayload {
-	return {
-		languages: { en: { stopwords: { nbCustomEntries: 0 }, plurals: null, compounds: null } },
-		selectedDictionary: 'stopwords' as DictionaryName,
-		selectedLanguage: 'en',
-		entries: { hits: [], nbHits: 0, page: 0, nbPages: 0 }
-	};
-}
-
-function noLanguageDictionaries(): DictionariesPayload {
-	return {
-		languages: {},
-		selectedDictionary: 'stopwords' as DictionaryName,
-		selectedLanguage: '',
-		entries: { hits: [], nbHits: 0, page: 0, nbPages: 0 }
-	};
-}
+beforeEach(() => {
+	mockPageUrl = new URL(
+		'http://localhost/console/indexes/products?tab=dictionaries&dict=stopwords&lang=en&foo=bar'
+	);
+	gotoMock.mockReset();
+});
 
 afterEach(() => {
 	cleanup();
-	vi.clearAllMocks();
 });
 
-describe('DictionariesTab — default render', () => {
-	it('renders the dictionaries section with data-testid and index name', () => {
-		render(DictionariesTab, defaultProps());
+describe('DictionariesTab', () => {
+	it('renders stopwords as human-readable cards with count and state badges', () => {
+		render(DictionariesTab, buildProps());
 
-		const section = screen.getByTestId('dictionaries-section');
-		expect(section).toBeInTheDocument();
-		expect(section.getAttribute('data-index')).toBe('products');
+		expect(screen.getByRole('heading', { name: 'Dictionaries' })).toBeInTheDocument();
+		expect(screen.getByTestId('dictionary-active-count')).toHaveTextContent('1');
+		expect(screen.getByText('the')).toBeInTheDocument();
+		expect(screen.getByTestId('badge-language')).toHaveTextContent('en');
+		expect(screen.getByTestId('badge-state')).toHaveTextContent('enabled');
+		expect(screen.getByText('1 total')).toBeInTheDocument();
+		expect(screen.queryByText(/browse entries/i)).not.toBeInTheDocument();
+		expect(screen.queryByText(/json\.stringify/i)).not.toBeInTheDocument();
 	});
 
-	it('renders section heading and description', () => {
-		render(DictionariesTab, defaultProps());
+	it('renders plural and compound descriptions without raw JSON blocks', () => {
+		mockPageUrl = new URL(
+			'http://localhost/console/indexes/products?tab=dictionaries&dict=plurals&lang=en&foo=bar'
+		);
+		const { unmount } = render(
+			DictionariesTab,
+			buildProps({
+				dictionaries: {
+					languages: {
+						en: { stopwords: null, plurals: { nbCustomEntries: 1 }, compounds: null }
+					},
+					selectedDictionary: 'plurals',
+					selectedLanguage: 'en',
+					entries: {
+						hits: [{ objectID: 'plural-shoe', language: 'en', words: ['shoe', 'shoes'] }],
+						nbHits: 1,
+						page: 0,
+						nbPages: 1
+					}
+				}
+			})
+		);
 
-		expect(screen.getByRole('heading', { name: /dictionaries/i })).toBeInTheDocument();
-		expect(screen.getByText(/browse dictionary entries/i)).toBeInTheDocument();
-	});
+		expect(screen.getByText('shoe, shoes')).toBeInTheDocument();
 
-	it('renders dictionary type and language selectors', () => {
-		render(DictionariesTab, defaultProps());
-
-		expect(screen.getByLabelText(/dictionary type/i)).toBeInTheDocument();
-		expect(screen.getByLabelText(/^language$/i)).toBeInTheDocument();
-	});
-
-	it('renders browse entries button', () => {
-		render(DictionariesTab, defaultProps());
-
-		expect(screen.getByRole('button', { name: /browse entries/i })).toBeInTheDocument();
-	});
-
-	it('renders structured add-entry form fields', () => {
-		const { container } = render(DictionariesTab, defaultProps());
-
-		expect(screen.getByRole('textbox', { name: /object id/i })).toBeInTheDocument();
-		expect(screen.getByRole('textbox', { name: /entry word/i })).toBeInTheDocument();
-		expect(container.querySelector('form[action="?/saveDictionaryEntry"]')).not.toBeNull();
-		expect(screen.getByRole('button', { name: /add entry/i })).toBeInTheDocument();
-	});
-});
-
-describe('DictionariesTab — success banners', () => {
-	it('shows save success banner', () => {
-		render(DictionariesTab, defaultProps({ dictionarySaved: true }));
-		expect(screen.getByText(/dictionary entry saved/i)).toBeInTheDocument();
-	});
-
-	it('shows delete success banner', () => {
-		render(DictionariesTab, defaultProps({ dictionaryDeleted: true }));
-		expect(screen.getByText(/dictionary entry deleted/i)).toBeInTheDocument();
-	});
-});
-
-describe('DictionariesTab — error banners', () => {
-	it('shows browse error banner', () => {
-		render(DictionariesTab, defaultProps({ dictionaryBrowseError: 'dictionary browse failed' }));
-		expect(screen.getByText(/dictionary browse failed/i)).toBeInTheDocument();
-	});
-
-	it('shows save error banner', () => {
+		unmount();
+		mockPageUrl = new URL(
+			'http://localhost/console/indexes/products?tab=dictionaries&dict=compounds&lang=en&foo=bar'
+		);
 		render(
 			DictionariesTab,
-			defaultProps({ dictionarySaveError: 'entryWord is required for stopwords' })
-		);
-		expect(screen.getByText(/entryword is required for stopwords/i)).toBeInTheDocument();
-	});
-
-	it('shows delete error banner', () => {
-		render(DictionariesTab, defaultProps({ dictionaryDeleteError: 'delete upstream failed' }));
-		expect(screen.getByText(/delete upstream failed/i)).toBeInTheDocument();
-	});
-});
-
-describe('DictionariesTab — empty vs populated entries state', () => {
-	it('shows empty state when no dictionary entries exist', () => {
-		render(DictionariesTab, defaultProps({ dictionaries: emptyDictionaries() }));
-		expect(screen.getByText(/no dictionary entries found/i)).toBeInTheDocument();
-	});
-
-	it('renders entry with objectID and JSON preview when entries exist', () => {
-		render(DictionariesTab, defaultProps());
-
-		expect(screen.getByText('stop-the')).toBeInTheDocument();
-		const preElements = screen.getByTestId('dictionaries-section').querySelectorAll('pre');
-		expect(preElements.length).toBeGreaterThan(0);
-	});
-
-	it('renders per-entry delete control wired to deleteDictionaryEntry action', () => {
-		const { container } = render(DictionariesTab, defaultProps());
-
-		expect(
-			screen.getByRole('button', { name: /delete dictionary entry stop-the/i })
-		).toBeInTheDocument();
-		expect(container.querySelector('form[action="?/deleteDictionaryEntry"]')).not.toBeNull();
-	});
-
-	it('renders stopword state metadata in the JSON preview', () => {
-		const stopwordWithDisabledState: DictionariesPayload = {
-			...sampleDictionaries,
-			entries: {
-				hits: [{ objectID: 'stop-the', language: 'en', word: 'the', state: 'disabled' }],
-				nbHits: 1,
-				page: 0,
-				nbPages: 1
-			}
-		};
-		render(DictionariesTab, defaultProps({ dictionaries: stopwordWithDisabledState }));
-
-		expect(screen.getByText(/"state": "disabled"/)).toBeInTheDocument();
-	});
-
-	it('renders a one-word plural entry in the existing entry JSON preview', () => {
-		const singleWordPluralPayload: DictionariesPayload = {
-			languages: {
-				en: { stopwords: null, plurals: { nbCustomEntries: 1 }, compounds: null }
-			},
-			selectedDictionary: 'plurals' as DictionaryName,
-			selectedLanguage: 'en',
-			entries: {
-				hits: [{ objectID: 'plural-sheep', language: 'en', words: ['sheep'] }],
-				nbHits: 1,
-				page: 0,
-				nbPages: 1
-			}
-		};
-		render(DictionariesTab, defaultProps({ dictionaries: singleWordPluralPayload }));
-
-		expect(screen.getByText('plural-sheep')).toBeInTheDocument();
-		expect(screen.getByText(/"words": \[/)).toBeInTheDocument();
-		expect(screen.getByText(/"sheep"/)).toBeInTheDocument();
-	});
-});
-
-describe('DictionariesTab — form action contracts', () => {
-	it('has browseDictionaryEntries form action', () => {
-		const { container } = render(DictionariesTab, defaultProps());
-		expect(container.querySelector('form[action="?/browseDictionaryEntries"]')).not.toBeNull();
-	});
-
-	it('has saveDictionaryEntry form action', () => {
-		const { container } = render(DictionariesTab, defaultProps());
-		expect(container.querySelector('form[action="?/saveDictionaryEntry"]')).not.toBeNull();
-	});
-
-	it('has deleteDictionaryEntry form action with objectID hidden input', () => {
-		const { container } = render(DictionariesTab, defaultProps());
-		const deleteForm = container.querySelector('form[action="?/deleteDictionaryEntry"]');
-		expect(deleteForm).not.toBeNull();
-		const objectIDInput = deleteForm!.querySelector('input[name="objectID"]') as HTMLInputElement;
-		expect(objectIDInput).not.toBeNull();
-		expect(objectIDInput.value).toBe('stop-the');
-	});
-});
-
-describe('DictionariesTab — typed language fallback', () => {
-	it('renders a typed language text input when no dictionary languages exist', () => {
-		render(DictionariesTab, defaultProps({ dictionaries: noLanguageDictionaries() }));
-
-		const languageInput = screen.getByLabelText(/^language$/i) as HTMLInputElement;
-		expect(languageInput.tagName).toBe('INPUT');
-		expect(languageInput.type).toBe('text');
-	});
-
-	it('allows typing a language and enables browse when typed', async () => {
-		render(DictionariesTab, defaultProps({ dictionaries: noLanguageDictionaries() }));
-
-		const languageInput = screen.getByLabelText(/^language$/i) as HTMLInputElement;
-		await fireEvent.input(languageInput, { target: { value: 'en' } });
-
-		expect(languageInput.value).toBe('en');
-		expect(screen.getByRole('button', { name: /browse entries/i })).toBeEnabled();
-	});
-
-	it('renders a select element for language when languages exist', () => {
-		render(DictionariesTab, defaultProps());
-
-		const languageSelect = screen.getByLabelText(/^language$/i) as HTMLSelectElement;
-		expect(languageSelect.tagName).toBe('SELECT');
-	});
-});
-
-describe('DictionariesTab — canonical selector pinning across save/delete forms', () => {
-	it('pins save and delete hidden inputs to canonical dictionary/language', () => {
-		const { container } = render(DictionariesTab, defaultProps());
-
-		const saveDictionary = container.querySelector(
-			'form[action="?/saveDictionaryEntry"] input[name="dictionary"]'
-		) as HTMLInputElement;
-		const saveLanguage = container.querySelector(
-			'form[action="?/saveDictionaryEntry"] input[name="language"]'
-		) as HTMLInputElement;
-		const deleteDictionary = container.querySelector(
-			'form[action="?/deleteDictionaryEntry"] input[name="dictionary"]'
-		) as HTMLInputElement;
-		const deleteLanguage = container.querySelector(
-			'form[action="?/deleteDictionaryEntry"] input[name="language"]'
-		) as HTMLInputElement;
-
-		expect(saveDictionary.value).toBe('stopwords');
-		expect(saveLanguage.value).toBe('en');
-		expect(deleteDictionary.value).toBe('stopwords');
-		expect(deleteLanguage.value).toBe('en');
-	});
-
-	it('keeps canonical selectors pinned while browse drafts change', async () => {
-		const multiLanguageDictionaries: DictionariesPayload = {
-			languages: {
-				en: { stopwords: { nbCustomEntries: 1 }, plurals: null, compounds: null },
-				fr: { stopwords: null, plurals: { nbCustomEntries: 1 }, compounds: null }
-			},
-			selectedDictionary: 'stopwords' as DictionaryName,
-			selectedLanguage: 'en',
-			entries: {
-				hits: [{ objectID: 'stop-the', language: 'en', word: 'the', state: 'enabled' }],
-				nbHits: 1,
-				page: 0,
-				nbPages: 1
-			}
-		};
-		const { container } = render(
-			DictionariesTab,
-			defaultProps({ dictionaries: multiLanguageDictionaries })
+			buildProps({
+				dictionaries: {
+					languages: {
+						en: { stopwords: null, plurals: null, compounds: { nbCustomEntries: 1 } }
+					},
+					selectedDictionary: 'compounds',
+					selectedLanguage: 'en',
+					entries: {
+						hits: [
+							{
+								objectID: 'compound-notebook',
+								language: 'en',
+								word: 'notebook',
+								decomposition: ['note', 'book']
+							}
+						],
+						nbHits: 1,
+						page: 0,
+						nbPages: 1
+					}
+				}
+			})
 		);
 
-		// Change browse drafts
-		await fireEvent.change(screen.getByLabelText(/dictionary type/i), {
-			target: { value: 'plurals' }
+		expect(screen.getByText('notebook -> note + book')).toBeInTheDocument();
+		expect(document.querySelector('pre')).toBeNull();
+	});
+
+	it('navigates with additive query-param merges when tabs and language change', async () => {
+		render(DictionariesTab, buildProps());
+
+		await fireEvent.click(screen.getByTestId('dictionary-tab-plurals'));
+		expect(gotoMock).toHaveBeenCalledWith(
+			'/console/indexes/products?tab=dictionaries&dict=plurals&lang=en&foo=bar',
+			expect.objectContaining({ keepFocus: true, noScroll: true })
+		);
+
+		await fireEvent.change(screen.getByTestId('dictionary-language-filter'), {
+			target: { value: 'fr' }
 		});
-		await fireEvent.change(screen.getByLabelText(/^language$/i), {
+		expect(gotoMock).toHaveBeenLastCalledWith(
+			'/console/indexes/products?tab=dictionaries&dict=plurals&lang=fr&foo=bar',
+			expect.objectContaining({ keepFocus: true, noScroll: true })
+		);
+	});
+
+	it('submits scoped search via q= while preserving sibling query params', async () => {
+		render(DictionariesTab, buildProps());
+
+		await fireEvent.input(screen.getByTestId('dictionary-search-input'), {
+			target: { value: 'needle' }
+		});
+		await fireEvent.submit(screen.getByRole('button', { name: 'Search' }).closest('form')!);
+
+		expect(gotoMock).toHaveBeenCalledWith(
+			'/console/indexes/products?tab=dictionaries&dict=stopwords&lang=en&foo=bar&q=needle',
+			expect.objectContaining({ keepFocus: true, noScroll: true })
+		);
+	});
+
+	it('falls back to canonical selectedLanguage when deep-linked lang is invalid', async () => {
+		mockPageUrl = new URL(
+			'http://localhost/console/indexes/products?tab=dictionaries&dict=stopwords&lang=zz&foo=bar'
+		);
+		render(
+			DictionariesTab,
+			buildProps({
+				dictionaries: {
+					...sampleDictionaries,
+					selectedLanguage: 'en'
+				}
+			})
+		);
+
+		const languageFilter = screen.getByTestId('dictionary-language-filter') as HTMLSelectElement;
+		expect(languageFilter.value).toBe('en');
+
+		await fireEvent.submit(screen.getByRole('button', { name: 'Search' }).closest('form')!);
+		expect(gotoMock).toHaveBeenCalledWith(
+			'/console/indexes/products?tab=dictionaries&dict=stopwords&lang=en&foo=bar',
+			expect.objectContaining({ keepFocus: true, noScroll: true })
+		);
+	});
+
+	it('shows the load error state with retry and hides add-entry controls until recovery', async () => {
+		render(
+			DictionariesTab,
+			buildProps({
+				dictionaryBrowseError: 'Forced dictionary failure'
+			})
+		);
+
+		expect(screen.getByTestId('dictionary-load-error-state')).toHaveTextContent(
+			'Forced dictionary failure'
+		);
+		expect(screen.queryByTestId('dictionary-add-entry-btn')).not.toBeInTheDocument();
+
+		await fireEvent.click(screen.getByTestId('dictionary-retry-btn'));
+		expect(gotoMock).toHaveBeenCalledWith(
+			'/console/indexes/products?tab=dictionaries&dict=stopwords&lang=en&foo=bar',
+			expect.objectContaining({ keepFocus: true, noScroll: true })
+		);
+	});
+
+	it('keeps tabs clickable during load errors and forces retry reloads for same-url retries', async () => {
+		render(
+			DictionariesTab,
+			buildProps({
+				dictionaryBrowseError: 'Forced dictionary failure'
+			})
+		);
+
+		await fireEvent.click(screen.getByTestId('dictionary-retry-btn'));
+		expect(gotoMock).toHaveBeenCalledTimes(1);
+		expect(gotoMock).toHaveBeenCalledWith(
+			'/console/indexes/products?tab=dictionaries&dict=stopwords&lang=en&foo=bar',
+			expect.objectContaining({ keepFocus: true, noScroll: true })
+		);
+
+		gotoMock.mockClear();
+		await fireEvent.click(screen.getByTestId('dictionary-tab-plurals'));
+		expect(gotoMock).toHaveBeenCalledTimes(1);
+		expect(gotoMock).toHaveBeenCalledWith(
+			'/console/indexes/products?tab=dictionaries&dict=plurals&lang=en&foo=bar',
+			expect.objectContaining({ keepFocus: true, noScroll: true })
+		);
+	});
+
+	it('resyncs draft search input from URL-backed q after dictionary navigation resolves', async () => {
+		const view = render(DictionariesTab, buildProps());
+
+		await fireEvent.input(screen.getByTestId('dictionary-search-input'), {
+			target: { value: 'stale unsent term' }
+		});
+		expect(screen.getByTestId('dictionary-search-input')).toHaveValue('stale unsent term');
+
+		await fireEvent.click(screen.getByTestId('dictionary-tab-plurals'));
+		mockPageUrl = new URL(
+			'http://localhost/console/indexes/products?tab=dictionaries&dict=plurals&lang=en&foo=bar'
+		);
+		await view.rerender(
+			buildProps({
+				dictionaries: {
+					...sampleDictionaries,
+					selectedDictionary: 'plurals'
+				}
+			})
+		);
+
+		expect(screen.getByTestId('dictionary-search-input')).toHaveValue('');
+	});
+
+	it('keeps loading state visible through same-url retry force reload', async () => {
+		render(
+			DictionariesTab,
+			buildProps({
+				dictionaryBrowseError: 'Forced dictionary failure'
+			})
+		);
+
+		await fireEvent.click(screen.getByTestId('dictionary-retry-btn'));
+
+		expect(screen.getByTestId('dictionary-loading-state')).toBeInTheDocument();
+		expect(screen.getAllByTestId('dictionary-loading-skeleton')).toHaveLength(3);
+		expect(screen.queryByTestId('dictionary-load-error-state')).not.toBeInTheDocument();
+	});
+
+	it('renders exactly three loading skeleton rows and suppresses mutation controls while loading', async () => {
+		render(DictionariesTab, buildProps());
+
+		await fireEvent.click(screen.getByTestId('dictionary-tab-plurals'));
+
+		expect(screen.getAllByTestId('dictionary-loading-skeleton')).toHaveLength(3);
+		expect(screen.queryByTestId('dictionary-add-entry-btn')).not.toBeInTheDocument();
+		expect(screen.queryByRole('button', { name: 'Clear All' })).not.toBeInTheDocument();
+		expect(
+			screen.queryByRole('button', { name: /delete dictionary entry stop-the/i })
+		).not.toBeInTheDocument();
+		expect(screen.queryByTestId('dictionary-entry-edit-stop-the')).not.toBeInTheDocument();
+	});
+
+	it('shows selected-tab counts while loading after a dictionary switch', async () => {
+		render(DictionariesTab, buildProps());
+
+		await fireEvent.click(screen.getByTestId('dictionary-tab-plurals'));
+
+		expect(screen.getAllByTestId('dictionary-loading-skeleton')).toHaveLength(3);
+		expect(screen.getByTestId('dictionary-active-count')).toHaveTextContent('0');
+		expect(screen.getByTestId('dictionary-active-subheading-count')).toHaveTextContent('0 entries');
+		expect(screen.getByTestId('dictionary-tab-count-plurals')).toHaveTextContent('0');
+	});
+
+	it('keeps loading state active for search submit and search clear navigations', async () => {
+		render(DictionariesTab, buildProps());
+
+		await fireEvent.input(screen.getByTestId('dictionary-search-input'), {
+			target: { value: 'needle' }
+		});
+		await fireEvent.submit(screen.getByRole('button', { name: 'Search' }).closest('form')!);
+		expect(screen.getAllByTestId('dictionary-loading-skeleton')).toHaveLength(3);
+		expect(screen.queryByTestId('dictionary-add-entry-btn')).not.toBeInTheDocument();
+
+		mockPageUrl = new URL(
+			'http://localhost/console/indexes/products?tab=dictionaries&dict=stopwords&lang=en&foo=bar&q=needle'
+		);
+		await fireEvent.click(screen.getByRole('button', { name: 'Clear' }));
+		expect(screen.getAllByTestId('dictionary-loading-skeleton')).toHaveLength(3);
+		expect(screen.queryByRole('button', { name: 'Clear All' })).not.toBeInTheDocument();
+	});
+
+	it('clears loading after search navigation resolves even when counts and browse metadata match', async () => {
+		const view = render(DictionariesTab, buildProps());
+
+		await fireEvent.input(screen.getByTestId('dictionary-search-input'), {
+			target: { value: 'needle' }
+		});
+		await fireEvent.submit(screen.getByRole('button', { name: 'Search' }).closest('form')!);
+		expect(screen.getAllByTestId('dictionary-loading-skeleton')).toHaveLength(3);
+
+		mockPageUrl = new URL(
+			'http://localhost/console/indexes/products?tab=dictionaries&dict=stopwords&lang=en&foo=bar&q=needle'
+		);
+		await view.rerender(
+			buildProps({
+				dictionaries: {
+					...sampleDictionaries,
+					entries: { ...sampleDictionaries.entries }
+				}
+			})
+		);
+
+		expect(screen.queryByTestId('dictionary-loading-state')).not.toBeInTheDocument();
+		expect(screen.getByTestId('dictionary-add-entry-btn')).toBeInTheDocument();
+		expect(screen.getByText('the')).toBeInTheDocument();
+	});
+
+	it('keeps requested language selected during in-flight language navigation', async () => {
+		render(DictionariesTab, buildProps());
+
+		const languageFilter = screen.getByTestId('dictionary-language-filter') as HTMLSelectElement;
+		await fireEvent.change(languageFilter, {
 			target: { value: 'fr' }
 		});
 
-		// Canonical hidden inputs should still reflect original
-		const saveDictionary = container.querySelector(
-			'form[action="?/saveDictionaryEntry"] input[name="dictionary"]'
-		) as HTMLInputElement;
-		const saveLanguage = container.querySelector(
-			'form[action="?/saveDictionaryEntry"] input[name="language"]'
-		) as HTMLInputElement;
-		const deleteDictionary = container.querySelector(
-			'form[action="?/deleteDictionaryEntry"] input[name="dictionary"]'
-		) as HTMLInputElement;
-		const deleteLanguage = container.querySelector(
-			'form[action="?/deleteDictionaryEntry"] input[name="language"]'
-		) as HTMLInputElement;
-
-		expect(saveDictionary.value).toBe('stopwords');
-		expect(saveLanguage.value).toBe('en');
-		expect(deleteDictionary.value).toBe('stopwords');
-		expect(deleteLanguage.value).toBe('en');
-	});
-
-	it('reflects non-default incoming canonical props in hidden inputs and selector state', () => {
-		const nonDefaultDictionaries: DictionariesPayload = {
-			languages: {
-				en: { stopwords: { nbCustomEntries: 1 }, plurals: null, compounds: null },
-				fr: { stopwords: null, plurals: { nbCustomEntries: 3 }, compounds: null }
-			},
-			selectedDictionary: 'plurals' as DictionaryName,
-			selectedLanguage: 'fr',
-			entries: {
-				hits: [{ objectID: 'plural-fr-1', language: 'fr', word: 'cheval', state: 'enabled' }],
-				nbHits: 1,
-				page: 0,
-				nbPages: 1
-			}
-		};
-		const { container } = render(
-			DictionariesTab,
-			defaultProps({ dictionaries: nonDefaultDictionaries })
+		expect(languageFilter.value).toBe('fr');
+		expect(gotoMock).toHaveBeenLastCalledWith(
+			'/console/indexes/products?tab=dictionaries&dict=stopwords&lang=fr&foo=bar',
+			expect.objectContaining({ keepFocus: true, noScroll: true })
 		);
 
-		const dictionarySelect = screen.getByLabelText(/dictionary type/i) as HTMLSelectElement;
-		const languageSelect = screen.getByLabelText(/^language$/i) as HTMLSelectElement;
-		const saveDictionary = container.querySelector(
-			'form[action="?/saveDictionaryEntry"] input[name="dictionary"]'
-		) as HTMLInputElement;
-		const saveLanguage = container.querySelector(
-			'form[action="?/saveDictionaryEntry"] input[name="language"]'
-		) as HTMLInputElement;
-		const deleteDictionary = container.querySelector(
-			'form[action="?/deleteDictionaryEntry"] input[name="dictionary"]'
-		) as HTMLInputElement;
-		const deleteLanguage = container.querySelector(
-			'form[action="?/deleteDictionaryEntry"] input[name="language"]'
-		) as HTMLInputElement;
-
-		expect(dictionarySelect.value).toBe('plurals');
-		expect(languageSelect.value).toBe('fr');
-		expect(saveDictionary.value).toBe('plurals');
-		expect(saveLanguage.value).toBe('fr');
-		expect(deleteDictionary.value).toBe('plurals');
-		expect(deleteLanguage.value).toBe('fr');
-		expect(screen.getByText(/plurals\/fr/)).toBeInTheDocument();
-	});
-
-	it('displays canonical selector state text', () => {
-		render(DictionariesTab, defaultProps());
-
-		expect(screen.getByText(/stopwords\/en/)).toBeInTheDocument();
-	});
-});
-
-describe('DictionariesTab — conditional entry fields per dictionary type', () => {
-	it('shows entry word field for stopwords dictionary', () => {
-		render(DictionariesTab, defaultProps());
-
-		expect(screen.getByRole('textbox', { name: /entry word/i })).toBeInTheDocument();
-		expect(screen.queryByLabelText(/plural words/i)).not.toBeInTheDocument();
-		expect(screen.queryByLabelText(/decomposition/i)).not.toBeInTheDocument();
-	});
-
-	it('shows plural words field for plurals dictionary', () => {
-		const pluralsDictionaries: DictionariesPayload = {
-			...sampleDictionaries,
-			selectedDictionary: 'plurals' as DictionaryName,
-			entries: { hits: [], nbHits: 0, page: 0, nbPages: 0 }
-		};
-		render(DictionariesTab, defaultProps({ dictionaries: pluralsDictionaries }));
-
-		expect(screen.queryByRole('textbox', { name: /entry word/i })).not.toBeInTheDocument();
-		expect(screen.getByLabelText(/plural words/i)).toBeInTheDocument();
-		expect(screen.queryByLabelText(/decomposition/i)).not.toBeInTheDocument();
-	});
-
-	it('shows entry word and decomposition fields for compounds dictionary', () => {
-		const compoundsDictionaries: DictionariesPayload = {
-			...sampleDictionaries,
-			selectedDictionary: 'compounds' as DictionaryName,
-			entries: { hits: [], nbHits: 0, page: 0, nbPages: 0 }
-		};
-		render(DictionariesTab, defaultProps({ dictionaries: compoundsDictionaries }));
-
-		expect(screen.getByRole('textbox', { name: /entry word/i })).toBeInTheDocument();
-		expect(screen.getByLabelText(/decomposition/i)).toBeInTheDocument();
-		expect(screen.queryByLabelText(/plural words/i)).not.toBeInTheDocument();
-	});
-});
-
-describe('DictionariesTab — language switching with multiple languages', () => {
-	it('keeps known languages selectable when switching dictionary type', async () => {
-		const multiLanguageDictionaries: DictionariesPayload = {
-			languages: {
-				en: { stopwords: { nbCustomEntries: 2 }, plurals: null, compounds: null },
-				fr: { stopwords: null, plurals: { nbCustomEntries: 1 }, compounds: null }
-			},
-			selectedDictionary: 'stopwords' as DictionaryName,
-			selectedLanguage: 'en',
-			entries: {
-				hits: [{ objectID: 'stop-the', language: 'en', word: 'the', state: 'enabled' }],
-				nbHits: 1,
-				page: 0,
-				nbPages: 1
-			}
-		};
-		render(DictionariesTab, defaultProps({ dictionaries: multiLanguageDictionaries }));
-
-		await fireEvent.change(screen.getByLabelText(/dictionary type/i), {
-			target: { value: 'plurals' }
+		await fireEvent.input(screen.getByTestId('dictionary-search-input'), {
+			target: { value: 'needle' }
 		});
+		await fireEvent.submit(screen.getByRole('button', { name: 'Search' }).closest('form')!);
+		expect(gotoMock).toHaveBeenLastCalledWith(
+			'/console/indexes/products?tab=dictionaries&dict=stopwords&lang=fr&foo=bar&q=needle',
+			expect.objectContaining({ keepFocus: true, noScroll: true })
+		);
+	});
 
-		const languageSelect = screen.getByLabelText(/^language$/i) as HTMLSelectElement;
-		expect(Array.from(languageSelect.options).map((opt) => opt.value)).toEqual(['en', 'fr']);
+	it('opens Add dialog with dictionary-specific fields and no objectID input', async () => {
+		const view = render(DictionariesTab, buildProps());
+
+		await fireEvent.click(screen.getByTestId('dictionary-add-entry-btn'));
+
+		const addStopwordsHeading = screen.getByRole('heading', { name: 'Add Stopwords Entry' });
+		const stopwordsDialog = within(addStopwordsHeading.closest('[role="dialog"]') as HTMLElement);
+		expect(stopwordsDialog.getByLabelText('Word')).toBeInTheDocument();
+		expect(stopwordsDialog.getByLabelText('Language')).toBeInTheDocument();
+		expect(stopwordsDialog.getByLabelText('State')).toBeInTheDocument();
+		expect(stopwordsDialog.queryByLabelText('Words')).not.toBeInTheDocument();
+		expect(stopwordsDialog.queryByLabelText('Decomposition')).not.toBeInTheDocument();
+		expect(stopwordsDialog.queryByLabelText(/objectID/i)).not.toBeInTheDocument();
+		expect(stopwordsDialog.getByRole('button', { name: 'Add Entry' })).toBeInTheDocument();
+
+		await fireEvent.click(stopwordsDialog.getByRole('button', { name: 'Cancel' }));
+		mockPageUrl = new URL(
+			'http://localhost/console/indexes/products?tab=dictionaries&dict=plurals&lang=en&foo=bar'
+		);
+		await view.rerender(
+			buildProps({
+				dictionaries: {
+					languages: {
+						en: { stopwords: null, plurals: { nbCustomEntries: 1 }, compounds: null }
+					},
+					selectedDictionary: 'plurals',
+					selectedLanguage: 'en',
+					entries: {
+						hits: [{ objectID: 'plural-shoe', language: 'en', words: ['shoe', 'shoes'] }],
+						nbHits: 1,
+						page: 0,
+						nbPages: 1
+					}
+				}
+			})
+		);
+		await fireEvent.click(screen.getByTestId('dictionary-add-entry-btn'));
+		const addPluralsHeading = screen.getByRole('heading', { name: 'Add Plurals Entry' });
+		const pluralsDialog = within(addPluralsHeading.closest('[role="dialog"]') as HTMLElement);
+		expect(pluralsDialog.getByLabelText('Words')).toBeInTheDocument();
+		expect(pluralsDialog.getByLabelText('Language')).toBeInTheDocument();
+		expect(pluralsDialog.queryByLabelText('Word')).not.toBeInTheDocument();
+		expect(pluralsDialog.queryByLabelText('State')).not.toBeInTheDocument();
+		expect(pluralsDialog.queryByLabelText('Decomposition')).not.toBeInTheDocument();
+
+		await fireEvent.click(pluralsDialog.getByRole('button', { name: 'Cancel' }));
+		mockPageUrl = new URL(
+			'http://localhost/console/indexes/products?tab=dictionaries&dict=compounds&lang=en&foo=bar'
+		);
+		await view.rerender(
+			buildProps({
+				dictionaries: {
+					languages: {
+						en: { stopwords: null, plurals: null, compounds: { nbCustomEntries: 1 } }
+					},
+					selectedDictionary: 'compounds',
+					selectedLanguage: 'en',
+					entries: {
+						hits: [
+							{
+								objectID: 'compound-notebook',
+								language: 'en',
+								word: 'notebook',
+								decomposition: ['note', 'book']
+							}
+						],
+						nbHits: 1,
+						page: 0,
+						nbPages: 1
+					}
+				}
+			})
+		);
+		await fireEvent.click(screen.getByTestId('dictionary-add-entry-btn'));
+		const addCompoundsHeading = screen.getByRole('heading', { name: 'Add Compounds Entry' });
+		const compoundsDialog = within(addCompoundsHeading.closest('[role="dialog"]') as HTMLElement);
+		expect(compoundsDialog.getByLabelText('Word')).toBeInTheDocument();
+		expect(compoundsDialog.getByLabelText('Decomposition')).toBeInTheDocument();
+		expect(compoundsDialog.getByLabelText('Language')).toBeInTheDocument();
+		expect(compoundsDialog.queryByLabelText('State')).not.toBeInTheDocument();
+	});
+
+	it('prefills edit mode from row data and create mode from active dictionary/language defaults', async () => {
+		render(DictionariesTab, buildProps());
+
+		await fireEvent.click(screen.getByTestId('dictionary-add-entry-btn'));
+		const addStopwordsHeading = screen.getByRole('heading', { name: 'Add Stopwords Entry' });
+		const addDialog = within(addStopwordsHeading.closest('[role="dialog"]') as HTMLElement);
+		expect((addDialog.getByLabelText('Language') as HTMLSelectElement).value).toBe('en');
+		expect((addDialog.getByLabelText('Word') as HTMLInputElement).value).toBe('');
+		expect((addDialog.getByLabelText('State') as HTMLSelectElement).value).toBe('enabled');
+		expect(addDialog.getByRole('button', { name: 'Add Entry' })).toBeInTheDocument();
+
+		await fireEvent.click(addDialog.getByRole('button', { name: 'Cancel' }));
+		await fireEvent.click(screen.getByTestId('dictionary-entry-edit-stop-the'));
+		const editHeading = screen.getByRole('heading', { name: 'Edit Entry' });
+		const editDialog = within(editHeading.closest('[role="dialog"]') as HTMLElement);
+		expect((editDialog.getByLabelText('Language') as HTMLSelectElement).value).toBe('en');
+		expect((editDialog.getByLabelText('Word') as HTMLInputElement).value).toBe('the');
+		expect((editDialog.getByLabelText('State') as HTMLSelectElement).value).toBe('enabled');
+		expect(editDialog.getByRole('button', { name: 'Save' })).toBeInTheDocument();
+	});
+
+	it('submits hidden save form with create omitting objectID and edit preserving objectID', async () => {
+		render(DictionariesTab, buildProps());
+
+		await fireEvent.click(screen.getByTestId('dictionary-add-entry-btn'));
+		const addHeading = screen.getByRole('heading', { name: 'Add Stopwords Entry' });
+		const addDialog = within(addHeading.closest('[role="dialog"]') as HTMLElement);
+		await fireEvent.input(addDialog.getByLabelText('Word'), { target: { value: 'alpha' } });
+		await fireEvent.click(addDialog.getByRole('button', { name: 'Add Entry' }));
+
+		const saveForm = document.querySelector(
+			'form[action="?/saveDictionaryEntry"]'
+		) as HTMLFormElement | null;
+		expect(saveForm).not.toBeNull();
+		expect(saveForm?.querySelector('input[name="dictionary"]')).toHaveAttribute(
+			'value',
+			'stopwords'
+		);
+		expect(saveForm?.querySelector('input[name="language"]')).toHaveAttribute('value', 'en');
+		expect((saveForm?.querySelector('input[name="query"]') as HTMLInputElement).value).toBe('');
+		expect((saveForm?.querySelector('input[name="objectID"]') as HTMLInputElement).value).toBe('');
+		await fireEvent.click(screen.getByTestId('dictionary-entry-edit-stop-the'));
+		const editHeading = screen.getByRole('heading', { name: 'Edit Entry' });
+		const editDialog = within(editHeading.closest('[role="dialog"]') as HTMLElement);
+		await fireEvent.click(editDialog.getByRole('button', { name: 'Save' }));
+		expect(saveForm?.querySelector('input[name="objectID"]')).toHaveAttribute('value', 'stop-the');
+	});
+
+	it('keeps editor open and surfaces save failures in-dialog', async () => {
+		const view = render(DictionariesTab, buildProps());
+
+		await fireEvent.click(screen.getByTestId('dictionary-add-entry-btn'));
+		const addHeading = screen.getByRole('heading', { name: 'Add Stopwords Entry' });
+		const addDialog = within(addHeading.closest('[role="dialog"]') as HTMLElement);
+		await fireEvent.input(addDialog.getByLabelText('Word'), { target: { value: 'alpha' } });
+		await fireEvent.click(addDialog.getByRole('button', { name: 'Add Entry' }));
+
+		await view.rerender(
+			buildProps({
+				dictionaryActionVersion: 1,
+				dictionarySaveError: 'Server said nope'
+			})
+		);
+		const editorDialog = screen.getByRole('dialog', { name: 'Add Stopwords Entry' });
+		expect(editorDialog).toBeInTheDocument();
+		expect(within(editorDialog).getByText('Server said nope')).toBeInTheDocument();
+	});
+
+	it('does not let stale dictionarySaved close a new save attempt before response', async () => {
+		render(
+			DictionariesTab,
+			buildProps({
+				dictionarySaved: true
+			})
+		);
+
+		await fireEvent.click(screen.getByTestId('dictionary-add-entry-btn'));
+		const addHeading = screen.getByRole('heading', { name: 'Add Stopwords Entry' });
+		const addDialog = within(addHeading.closest('[role="dialog"]') as HTMLElement);
+		await fireEvent.input(addDialog.getByLabelText('Word'), { target: { value: 'alpha' } });
+		await fireEvent.click(addDialog.getByRole('button', { name: 'Add Entry' }));
+
+		expect(screen.getByRole('dialog', { name: 'Add Stopwords Entry' })).toBeInTheDocument();
+	});
+
+	it('ignores non-dictionary action rerenders while a dictionary save is pending', async () => {
+		const view = render(DictionariesTab, buildProps());
+
+		await fireEvent.click(screen.getByTestId('dictionary-add-entry-btn'));
+		const addHeading = screen.getByRole('heading', { name: 'Add Stopwords Entry' });
+		const addDialog = within(addHeading.closest('[role="dialog"]') as HTMLElement);
+		await fireEvent.input(addDialog.getByLabelText('Word'), { target: { value: 'alpha' } });
+		await fireEvent.click(addDialog.getByRole('button', { name: 'Add Entry' }));
+
+		await view.rerender(
+			buildProps({
+				dictionaryActionVersion: 1
+			})
+		);
+
+		const inFlightDialog = within(screen.getByRole('dialog', { name: 'Add Stopwords Entry' }));
+		const inFlightSave = inFlightDialog.getByTestId('editor-dialog-save') as HTMLButtonElement;
+		const inFlightCancel = inFlightDialog.getByTestId('editor-dialog-cancel') as HTMLButtonElement;
+		expect(inFlightSave.disabled).toBe(true);
+		expect(inFlightCancel.disabled).toBe(true);
+		expect(inFlightSave).toHaveTextContent('Saving...');
+
+		await view.rerender(
+			buildProps({
+				dictionaryActionVersion: 2,
+				dictionarySaved: true
+			})
+		);
+		expect(screen.queryByRole('dialog', { name: 'Add Stopwords Entry' })).not.toBeInTheDocument();
+	});
+
+	it('uses ConfirmDialog copy for delete and typed clear-all gating bound to active dictionary label', async () => {
+		render(DictionariesTab, buildProps());
+
+		const deleteButton = screen.getByRole('button', { name: /delete dictionary entry stop-the/i });
+		await fireEvent.click(deleteButton);
+		const deleteDialog = within(screen.getByRole('dialog', { name: 'Delete entry?' }));
+		expect(deleteDialog.getByText('Delete entry?')).toBeInTheDocument();
+		expect(
+			deleteDialog.getByText(/Delete "the" from the stopwords dictionary/i)
+		).toBeInTheDocument();
+
+		await fireEvent.click(deleteDialog.getByRole('button', { name: 'Cancel' }));
+		await fireEvent.click(screen.getByRole('button', { name: 'Clear All' }));
+		const clearDialog = within(screen.getByRole('alertdialog', { name: /clear all stopwords\?/i }));
+		expect(clearDialog.getByText(/clear all stopwords\?/i)).toBeInTheDocument();
+		const confirmButton = clearDialog.getByRole('button', {
+			name: 'Clear All'
+		}) as HTMLButtonElement;
+		expect(confirmButton.disabled).toBe(true);
+		await fireEvent.input(clearDialog.getByLabelText('Type "Stopwords" to confirm'), {
+			target: { value: 'Stopwords' }
+		});
+		expect(confirmButton.disabled).toBe(false);
+	});
+
+	it('keeps Save and Cancel disabled while save is in flight before action response', async () => {
+		render(DictionariesTab, buildProps());
+
+		await fireEvent.click(screen.getByTestId('dictionary-add-entry-btn'));
+		const addHeading = screen.getByRole('heading', { name: 'Add Stopwords Entry' });
+		const addDialog = within(addHeading.closest('[role="dialog"]') as HTMLElement);
+		await fireEvent.input(addDialog.getByLabelText('Word'), { target: { value: 'alpha' } });
+		await fireEvent.click(addDialog.getByRole('button', { name: 'Add Entry' }));
+
+		// Drain microtasks so EditorDialog's handleSubmit fully resolves (onSave completes,
+		// isSaving resets). The buttons should STILL be disabled because the hidden form
+		// action response hasn't arrived yet (no dictionaryActionVersion bump).
+		await new Promise((r) => setTimeout(r, 0));
+
+		const saveBtn = addDialog.getByTestId('editor-dialog-save') as HTMLButtonElement;
+		const cancelBtn = addDialog.getByTestId('editor-dialog-cancel') as HTMLButtonElement;
+		expect(saveBtn.disabled).toBe(true);
+		expect(cancelBtn.disabled).toBe(true);
+		expect(saveBtn).toHaveTextContent('Saving...');
+	});
+
+	it('keeps dialogs closed on success banners and preserves dict/lang/q URL context', () => {
+		mockPageUrl = new URL(
+			'http://localhost/console/indexes/products?tab=dictionaries&dict=plurals&lang=fr&foo=bar&q=needle'
+		);
+		render(
+			DictionariesTab,
+			buildProps({
+				dictionarySaved: true,
+				dictionaryDeleted: true,
+				dictionaryCleared: true,
+				dictionaries: {
+					languages: {
+						fr: {
+							stopwords: { nbCustomEntries: 0 },
+							plurals: { nbCustomEntries: 1 },
+							compounds: null
+						}
+					},
+					selectedDictionary: 'plurals',
+					selectedLanguage: 'fr',
+					entries: {
+						hits: [
+							{ objectID: 'plural-chaussure', language: 'fr', words: ['chaussure', 'chaussures'] }
+						],
+						nbHits: 1,
+						page: 0,
+						nbPages: 1
+					}
+				}
+			})
+		);
+
+		expect(screen.getByText('Dictionary entry saved.')).toBeInTheDocument();
+		expect(screen.getByText('Dictionary entry deleted.')).toBeInTheDocument();
+		expect(screen.getByText('Dictionary entries cleared.')).toBeInTheDocument();
+		expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+		expect((screen.getByTestId('dictionary-language-filter') as HTMLSelectElement).value).toBe(
+			'fr'
+		);
+		expect((screen.getByTestId('dictionary-search-input') as HTMLInputElement).value).toBe(
+			'needle'
+		);
+		expect(screen.getByTestId('dictionary-tab-plurals')).toHaveAttribute('aria-selected', 'true');
 	});
 });

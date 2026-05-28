@@ -14,9 +14,7 @@
 		return input === 'compact' ? 'compact' : DEFAULT_LOG_VIEW_MODE;
 	}
 
-	let logViewMode = $derived(
-		normalizeLogViewMode(page.url.searchParams.get(LOG_VIEW_QUERY_PARAM))
-	);
+	let logViewMode = $derived(normalizeLogViewMode(page.url.searchParams.get(LOG_VIEW_QUERY_PARAM)));
 
 	function activateLogViewMode(nextMode: LogViewMode): void {
 		if (!browser) return;

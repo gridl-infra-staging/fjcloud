@@ -57,6 +57,57 @@ load_required_artifact() {
     cat "$file_path"
 }
 
+allowlisted_test_tenants() {
+    python3 - "$1" <<'PY'
+import sys
+
+seen = set()
+for raw in sys.argv[1].split(","):
+    tenant = raw.strip()
+    if not tenant or tenant in seen:
+        continue
+    seen.add(tenant)
+    print(tenant)
+PY
+}
+
+run_allowlisted_rehearsal_resets() {
+    local allowlist tenant reset_output reset_rc reset_result reset_classification reset_count
+
+    allowlist="${FJCLOUD_TEST_TENANT_IDS:-}"
+    [[ -n "$allowlist" ]] || return 0
+
+    reset_count=0
+    while IFS= read -r tenant; do
+        [[ -n "$tenant" ]] || continue
+        reset_count=$((reset_count + 1))
+
+        set +e
+        reset_output="$(bash "$REHEARSAL_SCRIPT" \
+            --env-file "$ENV_FILE" \
+            --month "$BILLING_MONTH" \
+            --reset-test-state \
+            --confirm-test-tenant "$tenant" 2>&1)"
+        reset_rc=$?
+        set -e
+
+        reset_result="$(json_get_field "$reset_output" "result")"
+        reset_classification="$(json_get_field "$reset_output" "classification")"
+        if [[ "$reset_rc" -ne 0 || "$reset_result" != "passed" || "$reset_classification" != "reset_completed" ]]; then
+            RESULT="failed"
+            CLASSIFICATION="rehearsal_reset_failed"
+            DETAIL="Reset flow failed for allowlisted tenant ${tenant}."
+            append_step "reset_test_state" false "$reset_output"
+            emit_result
+            exit "$EXIT_RUNTIME"
+        fi
+    done < <(allowlisted_test_tenants "$allowlist")
+
+    if [[ "$reset_count" -gt 0 ]]; then
+        append_step "reset_test_state" true "Reset completed for ${reset_count} allowlisted tenant(s)."
+    fi
+}
+
 ENV_FILE=""
 BILLING_MONTH=""
 CONFIRM_LIVE_MUTATION=0
@@ -107,15 +158,17 @@ if [[ ! -x "$REHEARSAL_SCRIPT" ]]; then
 fi
 
 load_layered_env_files "$ENV_FILE"
-if [[ "$(validate_staging_hostname "${STAGING_API_URL:-}")" != "true" ]]; then
-    RESULT="blocked"; CLASSIFICATION="non_staging_api_hostname"; DETAIL="STAGING_API_URL must target a staging hostname."
-    append_step "guard" false "$DETAIL"; emit_result; exit "$EXIT_RUNTIME"
-fi
-append_step "guard" true "Explicit staging env file and hostname checks passed."
+  if [[ "$(validate_staging_hostname "${STAGING_API_URL:-}")" != "true" ]]; then
+      RESULT="blocked"; CLASSIFICATION="non_staging_api_hostname"; DETAIL="STAGING_API_URL must target a staging hostname."
+      append_step "guard" false "$DETAIL"; emit_result; exit "$EXIT_RUNTIME"
+  fi
+  append_step "guard" true "Explicit staging env file and hostname checks passed."
 
-set +e
-rehearsal_output="$(bash "$REHEARSAL_SCRIPT" --env-file "$ENV_FILE" --month "$BILLING_MONTH" --confirm-live-mutation 2>&1)"
-rehearsal_rc=$?
+  run_allowlisted_rehearsal_resets
+
+  set +e
+  rehearsal_output="$(bash "$REHEARSAL_SCRIPT" --env-file "$ENV_FILE" --month "$BILLING_MONTH" --confirm-live-mutation 2>&1)"
+  rehearsal_rc=$?
 set -e
 if [[ "$rehearsal_rc" -ne 0 ]]; then
     RESULT="failed"; CLASSIFICATION="rehearsal_failed"; DETAIL="Rehearsal owner failed."

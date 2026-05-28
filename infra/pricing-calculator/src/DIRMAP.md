@@ -10,5 +10,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| providers | The providers directory contains multiple pricing calculator implementations (Algolia, AWS OpenSearch, Griddle, Meilisearch variants) with a central registry module that registers all available providers. |
+| providers | The providers directory contains pricing calculator implementations for multiple search and storage services including Algolia, AWS OpenSearch, Meilisearch (both resource and usage-based), and Griddle (Flapjack Cloud's flat per-MB storage pricing). |
 <!-- [scrai:end] -->

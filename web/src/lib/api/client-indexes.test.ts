@@ -368,6 +368,20 @@ describe('ApiClient - index endpoints', () => {
 			});
 			expect(result).toEqual(expected);
 		});
+
+		it('POST /indexes/:name/synonyms/clear sends clear request without JSON body', async () => {
+			const expected = { taskID: 23, status: 'enqueued' };
+			const fetch = mockFetch(200, expected);
+			client.setFetch(fetch);
+
+			const result = await client.clearSynonyms('products');
+
+			expect(fetch).toHaveBeenCalledWith(`${BASE_URL}/indexes/products/synonyms/clear`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json', Authorization: 'Bearer my-jwt-token' }
+			});
+			expect(result).toEqual(expected);
+		});
 	});
 
 	describe('query suggestions', () => {
@@ -443,6 +457,20 @@ describe('ApiClient - index endpoints', () => {
 
 			expect(fetch).toHaveBeenCalledWith(`${BASE_URL}/indexes/products/suggestions/status`, {
 				method: 'GET',
+				headers: { 'Content-Type': 'application/json', Authorization: 'Bearer my-jwt-token' }
+			});
+			expect(result).toEqual(expected);
+		});
+
+		it('POST /indexes/:name/suggestions/build triggers query suggestions build', async () => {
+			const expected = { taskID: 77 };
+			const fetch = mockFetch(200, expected);
+			client.setFetch(fetch);
+
+			const result = await client.triggerQsBuild('products');
+
+			expect(fetch).toHaveBeenCalledWith(`${BASE_URL}/indexes/products/suggestions/build`, {
+				method: 'POST',
 				headers: { 'Content-Type': 'application/json', Authorization: 'Bearer my-jwt-token' }
 			});
 			expect(result).toEqual(expected);

@@ -92,6 +92,11 @@
 		settingsControlError = '';
 	}
 
+	function resetSettingsDraftToServerValue(): void {
+		settingsText = settingsFromServerText;
+		settingsControlError = '';
+	}
+
 	function updateHybridDraft(
 		draft: Record<string, unknown>,
 		updateHybrid: (hybrid: Record<string, unknown>) => void
@@ -232,6 +237,7 @@
 			: 'default'
 	);
 	const embedderEntries = $derived(getEmbedderEntries(parsedSettings?.embedders));
+	const hasDraftChanges = $derived(settingsText !== settingsFromServerText);
 	const hybridEmbedderOptions = $derived.by(() => {
 		const names = embedderEntries.map(([name]) => name);
 
@@ -416,11 +422,23 @@
 			rows="16"
 			class="mb-4 w-full rounded-md border border-flapjack-ink/30 p-3 font-mono text-sm focus:border-flapjack-rose focus:ring-1 focus:ring-flapjack-rose"
 		></textarea>
-		<button
-			type="submit"
-			class="rounded-md bg-flapjack-rose px-4 py-2 text-sm font-medium text-white hover:bg-flapjack-plum"
-		>
-			Save Settings
-		</button>
+		<div class="flex items-center gap-2">
+			{#if hasDraftChanges}
+				<button
+					data-testid="settings-reset-button"
+					type="button"
+					class="rounded-md border border-flapjack-ink/30 px-4 py-2 text-sm font-medium text-flapjack-ink/80 hover:bg-flapjack-cream/70"
+					onclick={resetSettingsDraftToServerValue}
+				>
+					Reset
+				</button>
+			{/if}
+			<button
+				type="submit"
+				class="rounded-md bg-flapjack-rose px-4 py-2 text-sm font-medium text-white hover:bg-flapjack-plum"
+			>
+				Save Settings
+			</button>
+		</div>
 	</form>
 </div>

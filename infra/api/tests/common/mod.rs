@@ -1,18 +1,21 @@
-// Each integration test binary compiles common modules independently, so helpers
-// that are used by one test file appear unused in others. Suppress false positives.
-#![allow(dead_code)]
-
 pub mod builders;
 pub mod capacity_profiles;
 pub mod flapjack_proxy_test_support;
 pub mod indexes_route_test_support;
 #[cfg(not(test))]
 pub mod integration_helpers;
+#[cfg(test)]
+#[path = "integration_helpers.rs"]
+pub mod integration_helpers;
+pub mod live_stripe_helpers;
 pub mod mocks;
 pub mod poll;
 pub mod storage_metering_test_support;
+pub mod storage_s3_auth_support;
 pub mod storage_s3_object_route_support;
+pub mod storage_s3_signed_router_harness;
 pub mod stripe_webhook_test_support;
+pub mod support;
 
 pub use builders::*;
 pub use mocks::*;
@@ -80,31 +83,6 @@ pub fn create_expired_jwt(customer_id: Uuid) -> String {
 pub fn create_jwt_with_secret(customer_id: Uuid, secret: &str) -> String {
     let now = unix_now();
     encode_jwt(customer_id, now + 3600, now, secret)
-}
-
-/// Start a tiny HTTP server that responds to GET /health with the given status code.
-/// Returns the base URL (e.g. "http://127.0.0.1:PORT").
-pub async fn start_health_server(status_code: u16) -> String {
-    let app = match status_code {
-        200 => axum::Router::new().route(
-            "/health",
-            axum::routing::get(|| async { (axum::http::StatusCode::OK, "ok") }),
-        ),
-        _ => axum::Router::new().route(
-            "/health",
-            axum::routing::get(|| async {
-                (axum::http::StatusCode::INTERNAL_SERVER_ERROR, "error")
-            }),
-        ),
-    };
-
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let addr = listener.local_addr().unwrap();
-    tokio::spawn(async move {
-        axum::serve(listener, app).await.unwrap();
-    });
-
-    format!("http://127.0.0.1:{}", addr.port())
 }
 
 pub struct TestOAuthProvider {

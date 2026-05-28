@@ -48,6 +48,7 @@
 		onSave,
 		onCancel,
 		hasExternalDirtyState = false,
+		pendingSave = false,
 		body,
 		description,
 		submitLabel,
@@ -72,8 +73,9 @@
 	const visibleFields = $derived(schema.filter((field) => isFieldVisible(field, formValues)));
 	const fieldErrors = $derived(validateForm(schema, formValues));
 	const submitText = $derived(submitLabel ?? (mode === 'create' ? 'Create' : 'Save'));
-	const saveText = $derived(isSaving ? 'Saving...' : submitText);
-	const saveDisabled = $derived(isSaving || Object.keys(fieldErrors).length > 0);
+	const effectivelySaving = $derived(isSaving || pendingSave);
+	const saveText = $derived(effectivelySaving ? 'Saving...' : submitText);
+	const saveDisabled = $derived(effectivelySaving || Object.keys(fieldErrors).length > 0);
 	const hasDirtyValues = $derived(!areValuesEqual(formValues, initialNormalizedValues));
 	const hasUnsavedChanges = $derived(hasDirtyValues || hasExternalDirtyState);
 
@@ -353,7 +355,7 @@
 	}
 
 	function requestDismiss(): void {
-		if (isSaving) {
+		if (effectivelySaving) {
 			return;
 		}
 		if (!hasUnsavedChanges) {
@@ -369,7 +371,7 @@
 	}
 
 	function discardChanges(): void {
-		if (isSaving) {
+		if (effectivelySaving) {
 			return;
 		}
 		onCancel();
@@ -424,7 +426,7 @@
 				type="button"
 				data-testid="editor-dialog-close"
 				onclick={requestDismiss}
-				disabled={isSaving}
+				disabled={effectivelySaving}
 			>
 				Close
 			</button>
@@ -447,7 +449,7 @@
 										{rowValue}
 										{index}
 										{testId}
-										{isSaving}
+										isSaving={effectivelySaving}
 										rowsLength={rows.length}
 										onUpdateField={(groupField, rawValue) =>
 											updateGroupArrayRowField(field, index, groupField, rawValue)}
@@ -474,13 +476,13 @@
 										oninput={(event) =>
 											updateArrayRow(field, index, (event.currentTarget as HTMLInputElement).value)}
 										onblur={() => markArrayRowTouched(field.name, index)}
-										disabled={isSaving}
+										disabled={effectivelySaving}
 									/>
 									<button
 										type="button"
 										data-testid={`editor-dialog-remove-${field.name}-${index}`}
 										onclick={() => removeArrayRow(field, index)}
-										disabled={isSaving || !canRemoveArrayRow(field, rows.length)}
+										disabled={effectivelySaving || !canRemoveArrayRow(field, rows.length)}
 									>
 										Remove
 									</button>
@@ -490,7 +492,7 @@
 								type="button"
 								data-testid={`editor-dialog-add-${field.name}`}
 								onclick={() => addArrayRow(field)}
-								disabled={isSaving ||
+								disabled={effectivelySaving ||
 									(field.maxItems !== undefined && rows.length >= field.maxItems)}
 							>
 								{field.addLabel}
@@ -510,7 +512,7 @@
 								oninput={(event) =>
 									updateSimpleFieldValue(field, (event.currentTarget as HTMLTextAreaElement).value)}
 								onblur={() => markTouched(field.name)}
-								disabled={isSaving}
+								disabled={effectivelySaving}
 							></textarea>
 						{:else if field.type === 'select'}
 							<select
@@ -520,7 +522,7 @@
 								onchange={(event) =>
 									updateSimpleFieldValue(field, (event.currentTarget as HTMLSelectElement).value)}
 								onblur={() => markTouched(field.name)}
-								disabled={isSaving}
+								disabled={effectivelySaving}
 							>
 								{#each field.options as option (option.value)}
 									<option value={option.value}>{option.label}</option>
@@ -539,7 +541,7 @@
 										)
 									)}
 								onblur={() => markTouched(field.name)}
-								disabled={isSaving}
+								disabled={effectivelySaving}
 							>
 								{#each field.options as option (option.value)}
 									<option
@@ -562,7 +564,7 @@
 										(event.currentTarget as HTMLInputElement).checked
 									)}
 								onblur={() => markTouched(field.name)}
-								disabled={isSaving}
+								disabled={effectivelySaving}
 							/>
 						{:else if field.type === 'radio'}
 							<fieldset>
@@ -584,7 +586,7 @@
 												(event.currentTarget as HTMLInputElement).value
 											)}
 										onblur={() => markTouched(field.name)}
-										disabled={isSaving}
+										disabled={effectivelySaving}
 									/>
 								{/each}
 							</fieldset>
@@ -602,7 +604,7 @@
 								oninput={(event) =>
 									updateSimpleFieldValue(field, (event.currentTarget as HTMLInputElement).value)}
 								onblur={() => markTouched(field.name)}
-								disabled={isSaving}
+								disabled={effectivelySaving}
 							/>
 						{/if}
 					{/if}
@@ -631,7 +633,7 @@
 						type="button"
 						data-testid="editor-dialog-cancel"
 						onclick={requestDismiss}
-						disabled={isSaving}
+						disabled={effectivelySaving}
 					>
 						Cancel
 					</button>

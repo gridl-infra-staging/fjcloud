@@ -3,7 +3,6 @@
 
 | File | Summary |
 | --- | --- |
-| _local_ci_set_e_regression_fixture.rs | Regression fixture for scripts/tests/local_ci_gate_set_e_test.sh. |
 | tenant_isolation_proptest.rs | Stub summary for tenant_isolation_proptest.rs. |
 
 | Directory | Summary |

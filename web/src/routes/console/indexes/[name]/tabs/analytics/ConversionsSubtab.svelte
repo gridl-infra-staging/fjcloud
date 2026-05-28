@@ -2,7 +2,10 @@
 	import { browser } from '$app/environment';
 	import { enhance } from '$app/forms';
 	import { AreaChart } from 'layerchart';
-	import type { AnalyticsConversionSubtabPayload, AnalyticsConversionTrendPoint } from '$lib/api/types';
+	import type {
+		AnalyticsConversionSubtabPayload,
+		AnalyticsConversionTrendPoint
+	} from '$lib/api/types';
 	import { formatRatePercent } from '../experiments_tab_helpers';
 
 	type Props = {
@@ -79,7 +82,9 @@
 		return typeof value === 'number' && Number.isFinite(value) ? value : 0;
 	}
 
-	function normalizeTrend(trend: AnalyticsConversionTrendPoint[] | undefined): AnalyticsConversionTrendPoint[] {
+	function normalizeTrend(
+		trend: AnalyticsConversionTrendPoint[] | undefined
+	): AnalyticsConversionTrendPoint[] {
 		if (!Array.isArray(trend)) return [];
 		return trend
 			.filter((row) => row && typeof row.date === 'string')
@@ -98,7 +103,8 @@
 			? payload.countries.filter((country): country is string => typeof country === 'string')
 			: [];
 		const normalizedPayload: AnalyticsConversionSubtabPayload = {
-			country: typeof payload.country === 'string' && payload.country.length > 0 ? payload.country : null,
+			country:
+				typeof payload.country === 'string' && payload.country.length > 0 ? payload.country : null,
 			countries: parsedCountries,
 			trend: normalizeTrend(payload.trend),
 			kpis: {
@@ -195,7 +201,10 @@
 	<input type="hidden" name="country" value={selectedCountry} />
 </form>
 
-<section class="rounded-lg border border-flapjack-ink/20 p-4" data-testid="analytics-subtab-panel-conversions">
+<section
+	class="rounded-lg border border-flapjack-ink/20 p-4"
+	data-testid="analytics-subtab-panel-conversions"
+>
 	<h3 class="mb-4 text-sm font-semibold text-flapjack-ink">Conversions</h3>
 
 	{#if isLoading && !hasLoaded}
@@ -231,7 +240,10 @@
 		{/if}
 
 		<div class="mb-4 flex flex-col gap-2">
-			<label for="conversion-country-filter" class="text-xs font-semibold uppercase tracking-wide text-flapjack-ink/60">
+			<label
+				for="conversion-country-filter"
+				class="text-xs font-semibold uppercase tracking-wide text-flapjack-ink/60"
+			>
 				Country filter
 			</label>
 			<select
@@ -272,7 +284,9 @@
 					</div>
 				{:else}
 					<table class="w-full text-left text-sm">
-						<thead class="border-b bg-flapjack-cream/80 text-xs font-medium uppercase text-flapjack-ink/60">
+						<thead
+							class="border-b bg-flapjack-cream/80 text-xs font-medium uppercase text-flapjack-ink/60"
+						>
 							<tr>
 								<th class="px-3 py-2">Date</th>
 								<th class="px-3 py-2">Conversion Rate</th>
@@ -282,7 +296,9 @@
 							{#each trendPoints as row (row.date)}
 								<tr>
 									<td class="px-3 py-2 text-flapjack-ink/80">{row.date}</td>
-									<td class="px-3 py-2 text-flapjack-ink">{formatRatePercent(row.conversionRate)}</td>
+									<td class="px-3 py-2 text-flapjack-ink"
+										>{formatRatePercent(row.conversionRate)}</td
+									>
 								</tr>
 							{/each}
 						</tbody>
@@ -294,7 +310,9 @@
 		</div>
 
 		{#if noConversionData}
-			<div class="mt-4 rounded-md border border-flapjack-ink/20 bg-flapjack-cream/80 p-4 text-sm text-flapjack-ink/70">
+			<div
+				class="mt-4 rounded-md border border-flapjack-ink/20 bg-flapjack-cream/80 p-4 text-sm text-flapjack-ink/70"
+			>
 				No conversions were recorded for this date range.
 			</div>
 		{/if}

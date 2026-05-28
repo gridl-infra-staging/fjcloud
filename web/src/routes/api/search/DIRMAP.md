@@ -6,5 +6,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| [name] | This SvelteKit server route handles POST requests to execute searches against Flapjack indexes, validating authentication and parsing batched search requests before delegating to the executeIndexSearch service. |
+| [name] | The file path you provided doesn't exist in the current working directory. |
 <!-- [scrai:end] -->

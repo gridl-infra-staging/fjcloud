@@ -362,7 +362,9 @@ describe('Onboarding wizard', () => {
 
 		const step3 = screen.getByTestId('onboarding-step-3');
 		const endpointCode = within(step3).getByTestId('credential-endpoint');
-		const endpointCopyButton = endpointCode.parentElement?.querySelector('button') as HTMLButtonElement;
+		const endpointCopyButton = endpointCode.parentElement?.querySelector(
+			'button'
+		) as HTMLButtonElement;
 		await fireEvent.click(endpointCopyButton);
 		expect(writeTextMock).toHaveBeenNthCalledWith(1, 'https://vm-xyz.flapjack.foo');
 		expect(endpointCopyButton).toHaveTextContent('Copied!');

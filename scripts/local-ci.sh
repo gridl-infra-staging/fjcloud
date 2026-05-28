@@ -158,6 +158,16 @@ gate_check_sizes() {
     bash "$REPO_ROOT/scripts/check-sizes.sh"
 }
 
+gate_status_doc_consistency() {
+    # Asserts docs/NOW.md is at least as fresh as LAUNCH.md's most recent
+    # ## STATUS entry. Catches the doc-SSOT drift class where one of the
+    # two status docs gets a fresh append but the other lags — a pattern
+    # that bit the project on 2026-05-27 (NOW.md saying announce-gate
+    # READY 15/15 while a fresher B1 verdict in LAUNCH.md said NOT-READY).
+    # Costs ~10ms; covered by scripts/tests/check_status_doc_consistency_test.sh.
+    bash "$REPO_ROOT/scripts/check_status_doc_consistency.sh"
+}
+
 gate_validate_bootstrap_parser() {
     # Regression: extract_zone_name (sourced from ops/scripts/lib/parse_cloudflare_zone.sh)
     # must extract .result.name, not .result.plan.name. Captured 2026-05-14 in
@@ -263,6 +273,7 @@ gate_rust_lint() {
     # via `"$@" || rc=$?`, which silently disables `set -e` inside the
     # called function. Pinned by scripts/tests/local_ci_gate_set_e_test.sh.
     bash "$REPO_ROOT/scripts/tests/ci_workflow_test.sh" || return $?
+    bash "$REPO_ROOT/scripts/tests/integration_test_layout_test.sh" || return $?
     # generate_ssm_env_test.sh is treated as a sub-check: non-zero exits fail
     # rust-lint except the shared SKIP sentinel code. Keeping this branch lets
     # the gate continue through fmt/clippy when the test explicitly reports a
@@ -421,6 +432,7 @@ schedule() {
 # bug found 2026-04-30 round-2 self-review.) See post-wait section
 # below for the sequential rust-test invocation.
 schedule check-sizes
+schedule status-doc-consistency
 schedule secret-scan
 schedule web-lint
 schedule web-test
@@ -444,7 +456,7 @@ fi
 if [ "${#SCHEDULED_GATES[@]}" -eq 0 ] && [ "$RUN_RUST_TEST_SEQUENTIAL" -eq 0 ]; then
     if [ -n "$SINGLE_GATE" ]; then
         echo "ERROR: --gate '$SINGLE_GATE' did not match any known gate" >&2
-        echo "Known gates: rust-test rust-lint migration-test web-test check-sizes web-lint secret-scan validate-bootstrap-parser validate-bootstrap-env-local publish-scripts-buildx" >&2
+        echo "Known gates: rust-test rust-lint migration-test web-test check-sizes status-doc-consistency web-lint secret-scan validate-bootstrap-parser validate-bootstrap-env-local publish-scripts-buildx" >&2
         exit 2
     fi
     echo "ERROR: no gates scheduled" >&2
@@ -469,6 +481,7 @@ if [ "${#SCHEDULED_GATES[@]}" -gt 0 ]; then
     for gate in "${SCHEDULED_GATES[@]}"; do
         case "$gate" in
             check-sizes)     run_gate check-sizes     gate_check_sizes ;;
+            status-doc-consistency) run_gate status-doc-consistency gate_status_doc_consistency ;;
             secret-scan)     run_gate secret-scan     gate_secret_scan ;;
             web-lint)        run_gate web-lint        gate_web_lint ;;
             web-test)        run_gate web-test        gate_web_test ;;

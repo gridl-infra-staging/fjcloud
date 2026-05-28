@@ -78,9 +78,14 @@ describe('Index detail page — Search Preview browser behavior', () => {
 		await fireEvent.click(screen.getByRole('button', { name: 'Open Search Preview' }));
 
 		expect(screen.queryByText('Index ready — try the search preview')).not.toBeInTheDocument();
-		expect(screen.getByRole('tab', { name: 'Search Preview' })).toBeInTheDocument();
-		expect(gotoMock).toHaveBeenCalledTimes(2);
-		const [navigationTarget] = gotoMock.mock.calls.at(-1) as [string];
+		expect(screen.getByRole('tab', { name: 'Search Preview' })).toHaveAttribute(
+			'aria-selected',
+			'true'
+		);
+		expect(screen.getByTestId('search-preview-section')).toBeInTheDocument();
+		expect(gotoMock).toHaveBeenCalled();
+		const lastNavigationCall = gotoMock.mock.calls[gotoMock.mock.calls.length - 1] as [string];
+		const [navigationTarget] = lastNavigationCall;
 		const nextUrl = new URL(navigationTarget, 'http://localhost');
 		expect(nextUrl.pathname).toBe('/console/indexes/products');
 		expect(nextUrl.searchParams.get('welcome')).toBe('0');

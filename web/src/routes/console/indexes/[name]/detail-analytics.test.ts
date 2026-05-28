@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { render, screen, cleanup } from '@testing-library/svelte';
+import { render, screen, cleanup, within } from '@testing-library/svelte';
 import { fireEvent } from '@testing-library/dom';
 
 vi.mock('$app/forms', () => ({
@@ -65,10 +65,11 @@ describe('Index detail page — Analytics', () => {
 		});
 
 		await fireEvent.click(screen.getByRole('tab', { name: 'Analytics' }));
-		expect(screen.getByText('Total Searches')).toBeInTheDocument();
-		expect(screen.getByText('1,234')).toBeInTheDocument();
-		expect(screen.getByText('No-Result Rate')).toBeInTheDocument();
-		expect(screen.getByText('12.0%')).toBeInTheDocument();
+		const analyticsSection = screen.getByTestId('analytics-section');
+		expect(within(analyticsSection).getByText('Total Searches')).toBeInTheDocument();
+		expect(within(analyticsSection).getByText('1,234')).toBeInTheDocument();
+		expect(within(analyticsSection).getByText('No-Result Rate')).toBeInTheDocument();
+		expect(within(analyticsSection).getByText('12.0%')).toBeInTheDocument();
 	});
 
 	it('analytics chart and tables render with top/no-result queries', async () => {

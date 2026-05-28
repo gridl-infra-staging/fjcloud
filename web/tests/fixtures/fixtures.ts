@@ -10,7 +10,10 @@
  */
 
 import { test as base, expect, type Page } from '@playwright/test';
+import { mkdir, writeFile } from 'node:fs/promises';
+import path from 'node:path';
 import { createSeedSearchableIndexFactory, type SeedSearchableIndexFn } from './searchable-index';
+import { buildTenantScopedIndexUid } from '../../src/lib/flapjack-index';
 import {
 	findCustomerStatusViaStagingSsm,
 	findPaidInvoiceEvidenceViaStagingSsm,
@@ -31,9 +34,12 @@ import { requireAdminApiKey, requireNonEmptyString } from './contract-guards';
 import { attemptRemoteSignupFallback, isRemoteTargetMode } from './fresh_signup_remote_bootstrap';
 import type {
 	ApiKeyListItem,
+	DebugEvent,
 	EstimatedBillResponse,
 	Rule,
-	RuleSearchResponse
+	RuleSearchResponse,
+	Synonym,
+	SynonymSearchResponse
 } from '../../src/lib/api/types';
 import type { AdminRateCard } from '../../src/lib/admin-client';
 import {
@@ -95,8 +101,20 @@ let _token: string | null = null;
 let _customerId: string | null = null;
 let _staleFixtureIndexesCleaned = false;
 let _staleFixtureIndexesCleanupCooldownUntil = 0;
+type CleanupStaleFixtureIndexesOnceOptions = {
+	force?: boolean;
+};
 
-const STALE_FIXTURE_INDEX_PREFIXES = ['e2e-', 'manual-iso-', 'test-index'] as const;
+const STALE_FIXTURE_INDEX_PREFIXES = [
+	'e2e-',
+	'manual-iso-',
+	'test-index',
+	'dash-',
+	'onboard-'
+] as const;
+const PASSIVE_STALE_INDEX_CLEANUP_DEADLINE_MS = 8_000;
+const FORCE_STALE_INDEX_CLEANUP_DEADLINE_MS = 300_000;
+const STAGE5_SYNONYMS_PROOF_MANIFEST_PATH = 'test-results/stage5-synonyms-proof.json';
 
 export class FixtureAuthTokenInvalidError extends Error {
 	status: number;
@@ -166,6 +184,28 @@ type AuthApiResponse = {
 	customer_id: string;
 };
 type JsonHeaders = Record<string, string>;
+type RegisterIndexCleanupOptions = {
+	deferCleanup?: boolean;
+};
+type SeedIndexOptions = RegisterIndexCleanupOptions & {
+	proofManifestPath?: string;
+};
+type WriteSynonymsProofManifestInput = {
+	indexName: string;
+	objectIDs: string[];
+	manifestPath?: string;
+};
+type SynonymsProofManifest = {
+	indexName: string;
+	objectIDs: string[];
+	cleanup: {
+		method: 'DELETE';
+		path: string;
+		body: { confirm: true };
+	};
+	generatedAt: string;
+	consumed: boolean;
+};
 
 export type CreatedFixtureUser = {
 	customerId: string;
@@ -1010,6 +1050,159 @@ async function apiCall(
 	});
 }
 
+async function saveSynonymWithFixtureApi(
+	indexName: string,
+	synonym: Synonym,
+	tokenOverride?: string
+): Promise<void> {
+	for (let attempt = 0; attempt < 3; attempt += 1) {
+		const response = await apiCall(
+			'PUT',
+			`/indexes/${encodeURIComponent(indexName)}/synonyms/${encodeURIComponent(synonym.objectID)}`,
+			synonym,
+			tokenOverride
+		);
+		if (response.ok) {
+			return;
+		}
+		const responseText = await response.text();
+		if (
+			attempt < 2 &&
+			response.status === 400 &&
+			responseText.toLowerCase().includes('invalid application-id or api key')
+		) {
+			await sleep(getTransientRetryDelayMs(attempt));
+			continue;
+		}
+		throw new Error(`saveSynonym failed: ${response.status} ${responseText}`);
+	}
+	throw new Error('saveSynonym failed: retries exhausted');
+}
+
+async function getSynonymWithFixtureApi(
+	indexName: string,
+	objectID: string,
+	tokenOverride?: string
+): Promise<Synonym | null> {
+	for (let attempt = 0; attempt < 3; attempt += 1) {
+		const response = await apiCall(
+			'GET',
+			`/indexes/${encodeURIComponent(indexName)}/synonyms/${encodeURIComponent(objectID)}`,
+			undefined,
+			tokenOverride
+		);
+		if (response.status === 404) {
+			return null;
+		}
+		if (response.ok) {
+			return (await response.json()) as Synonym;
+		}
+		const responseText = await response.text();
+		if (
+			attempt < 2 &&
+			response.status === 400 &&
+			responseText.toLowerCase().includes('invalid application-id or api key')
+		) {
+			await sleep(getTransientRetryDelayMs(attempt));
+			continue;
+		}
+		throw new Error(`getSynonym failed: ${response.status} ${responseText}`);
+	}
+	throw new Error('getSynonym failed: retries exhausted');
+}
+
+async function searchSynonymsWithFixtureApi(
+	indexName: string,
+	query = '',
+	tokenOverride?: string
+): Promise<SynonymSearchResponse> {
+	for (let attempt = 0; attempt < 3; attempt += 1) {
+		const response = await apiCall(
+			'POST',
+			`/indexes/${encodeURIComponent(indexName)}/synonyms/search`,
+			{
+				query,
+				page: 0,
+				hitsPerPage: 50
+			},
+			tokenOverride
+		);
+		if (response.ok) {
+			return (await response.json()) as SynonymSearchResponse;
+		}
+		const responseText = await response.text();
+		if (
+			attempt < 2 &&
+			response.status === 400 &&
+			responseText.toLowerCase().includes('invalid application-id or api key')
+		) {
+			await sleep(getTransientRetryDelayMs(attempt));
+			continue;
+		}
+		throw new Error(`searchSynonyms failed: ${response.status} ${responseText}`);
+	}
+	throw new Error('searchSynonyms failed: retries exhausted');
+}
+
+async function clearSynonymsWithFixtureApi(
+	indexName: string,
+	tokenOverride?: string
+): Promise<void> {
+	for (let attempt = 0; attempt < 3; attempt += 1) {
+		const response = await apiCall(
+			'POST',
+			`/indexes/${encodeURIComponent(indexName)}/synonyms/clear`,
+			undefined,
+			tokenOverride
+		);
+		if (response.ok) {
+			return;
+		}
+		const responseText = await response.text();
+		if (
+			attempt < 2 &&
+			response.status === 400 &&
+			responseText.toLowerCase().includes('invalid application-id or api key')
+		) {
+			await sleep(getTransientRetryDelayMs(attempt));
+			continue;
+		}
+		throw new Error(`clearSynonyms failed: ${response.status} ${responseText}`);
+	}
+	throw new Error('clearSynonyms failed: retries exhausted');
+}
+
+function normalizeProofObjectIDs(objectIDs: string[]): string[] {
+	const normalized = objectIDs.map((value) => value.trim()).filter((value) => value.length > 0);
+	return Array.from(new Set(normalized));
+}
+
+function resolveSynonymsProofManifestPath(manifestPath?: string): string {
+	const selectedPath = manifestPath?.trim() || STAGE5_SYNONYMS_PROOF_MANIFEST_PATH;
+	return path.resolve(process.cwd(), selectedPath);
+}
+
+async function writeSynonymsProofManifest({
+	indexName,
+	objectIDs,
+	manifestPath
+}: WriteSynonymsProofManifestInput): Promise<void> {
+	const manifest = {
+		indexName,
+		objectIDs: normalizeProofObjectIDs(objectIDs),
+		cleanup: {
+			method: 'DELETE' as const,
+			path: `/indexes/${encodeURIComponent(indexName)}`,
+			body: { confirm: true as const }
+		},
+		generatedAt: new Date().toISOString(),
+		consumed: false
+	} satisfies SynonymsProofManifest;
+	const absolutePath = resolveSynonymsProofManifestPath(manifestPath);
+	await mkdir(path.dirname(absolutePath), { recursive: true });
+	await writeFile(absolutePath, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
+}
+
 async function adminApiCall(method: string, path: string, body?: unknown): Promise<Response> {
 	let lastResponse: Response | null = null;
 	let lastTransportFailure = '';
@@ -1076,11 +1269,24 @@ function isStaleFixtureIndexName(name: string): boolean {
 	return STALE_FIXTURE_INDEX_PREFIXES.some((prefix) => name.startsWith(prefix));
 }
 
-async function cleanupStaleFixtureIndexesOnce(): Promise<void> {
-	if (_staleFixtureIndexesCleaned) {
+function assertDeferredProofIndexAvoidsStalePrefixes(name: string): void {
+	const stalePrefix = STALE_FIXTURE_INDEX_PREFIXES.find((prefix) => name.startsWith(prefix));
+	if (!stalePrefix) {
 		return;
 	}
-	if (Date.now() < _staleFixtureIndexesCleanupCooldownUntil) {
+	throw new Error(
+		`seedIndex deferCleanup index name must avoid stale cleanup prefixes (matched "${stalePrefix}")`
+	);
+}
+
+async function cleanupStaleFixtureIndexesOnce(
+	options?: CleanupStaleFixtureIndexesOnceOptions
+): Promise<void> {
+	const forceCleanup = options?.force === true;
+	if (!forceCleanup && _staleFixtureIndexesCleaned) {
+		return;
+	}
+	if (!forceCleanup && Date.now() < _staleFixtureIndexesCleanupCooldownUntil) {
 		return;
 	}
 
@@ -1117,7 +1323,11 @@ async function cleanupStaleFixtureIndexesOnce(): Promise<void> {
 	// when the shared test user has accumulated many stale indexes — names
 	// past the deadline are pushed to unresolvedStaleDeletes and retried on
 	// the next fixture call (cleanup stays uncached until convergence).
-	const cleanupDeadline = Date.now() + 8_000;
+	const cleanupDeadline =
+		Date.now() +
+		(forceCleanup
+			? FORCE_STALE_INDEX_CLEANUP_DEADLINE_MS
+			: PASSIVE_STALE_INDEX_CLEANUP_DEADLINE_MS);
 	const unresolvedStaleDeletes: string[] = [];
 	for (let staleNameIndex = 0; staleNameIndex < staleNames.length; staleNameIndex += 1) {
 		const name = staleNames[staleNameIndex];
@@ -1189,6 +1399,56 @@ async function waitForSeededIndex(name: string): Promise<void> {
 	);
 }
 
+async function assertIndexNeverBecomesReadable(name: string): Promise<void> {
+	const maxAttempts = 60;
+	const pollIntervalMs = 500;
+
+	for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+		const response = await apiCall('GET', `/indexes/${encodeURIComponent(name)}`);
+		if (response.ok) {
+			throw new Error(
+				`deferred proof absence check failed: index "${name}" became readable (${response.status})`
+			);
+		}
+		if (response.status !== 404 && response.status !== 429 && response.status !== 500) {
+			throw new Error(
+				`deferred proof absence check failed: ${response.status} ${await response.text()}`
+			);
+		}
+		const delay = response.status === 429 ? getTransientRetryDelayMs(attempt) : pollIntervalMs;
+		await sleep(delay);
+	}
+
+	// Terminate with a concrete not-found read so transient throttling cannot
+	// masquerade as proof that the index truly stayed absent.
+	for (let attempt = 0; attempt < 10; attempt += 1) {
+		const response = await apiCall('GET', `/indexes/${encodeURIComponent(name)}`);
+		if (response.status === 404) {
+			return;
+		}
+		if (response.status === 429 || response.status === 500) {
+			await sleep(getRetryDelayMs(attempt, response.headers.get('retry-after')));
+			continue;
+		}
+		if (response.ok) {
+			throw new Error(
+				`deferred proof absence check failed: index "${name}" became readable (${response.status})`
+			);
+		}
+		throw new Error(
+			`deferred proof absence check failed: ${response.status} ${await response.text()}`
+		);
+	}
+
+	throw new Error(
+		`deferred proof absence check failed: could not confirm 404 for index "${name}" after transient retries`
+	);
+}
+
+function isIndexLimitReachedFailure(status: number, body: string): boolean {
+	return status === 400 && body.toLowerCase().includes('index limit reached');
+}
+
 async function createSeededIndex(
 	customerId: string,
 	name: string,
@@ -1256,11 +1516,8 @@ async function createSeededIndex(
 				await sleep(getTransientRetryDelayMs(attempt));
 				continue;
 			}
-			if (
-				fallbackResponse.status === 400 &&
-				fallbackBody.toLowerCase().includes('index limit reached')
-			) {
-				await cleanupStaleFixtureIndexesOnce();
+			if (isIndexLimitReachedFailure(fallbackResponse.status, fallbackBody)) {
+				await cleanupStaleFixtureIndexesOnce({ force: true });
 				await sleep(getTransientRetryDelayMs(attempt));
 				continue;
 			}
@@ -1271,6 +1528,10 @@ async function createSeededIndex(
 			) {
 				throw new Error(`seedIndex failed: ${lastFailure}`);
 			}
+		} else if (isIndexLimitReachedFailure(res.status, body)) {
+			await cleanupStaleFixtureIndexesOnce({ force: true });
+			await sleep(getTransientRetryDelayMs(attempt));
+			continue;
 		} else if (res.status !== 401 && res.status !== 429 && res.status !== 500) {
 			throw new Error(`seedIndex failed: ${lastFailure}`);
 		}
@@ -1298,6 +1559,11 @@ async function createSeededIndexForCurrentCustomer(name: string, region: string)
 		lastFailure = `${res.status} ${body}`;
 		if (isUnauthorizedExpiredTokenAccountFailure(res.status, lastFailure)) {
 			_token = null;
+			continue;
+		}
+		if (isIndexLimitReachedFailure(res.status, body)) {
+			await cleanupStaleFixtureIndexesOnce({ force: true });
+			await sleep(getTransientRetryDelayMs(attempt));
 			continue;
 		}
 		if (res.status !== 429 && res.status !== 500) {
@@ -2088,6 +2354,12 @@ async function payStripeInvoiceWithTestKey(
 	stripeSecretKey: string,
 	contextLabel: string
 ): Promise<void> {
+	// Local-stack proofs can emit synthetic invoice ids that look Stripe-like
+	// (`in_local_*`) but do not exist on stripe.com. Skip remote pay attempts.
+	if (stripeInvoiceId.startsWith('in_local_')) {
+		return;
+	}
+
 	const paymentResponse = await fetch(
 		`https://api.stripe.com/v1/invoices/${encodeURIComponent(stripeInvoiceId)}/pay`,
 		{
@@ -2271,24 +2543,33 @@ async function arrangePaidInvoiceForFreshSignup({
 			customerId,
 			'arrangePaidInvoiceForFreshSignup'
 		);
+		if (stripeCustomerId.startsWith('cus_local_')) {
+			throw new Error(
+				'arrangePaidInvoiceForFreshSignup local Stripe mode does not support paid-invoice proof fixtures'
+			);
+		}
 
-		// Attach pm_card_visa as the default PM BEFORE batch billing runs,
-		// so the invoice that batch billing creates gets auto-charged
-		// (collection_method=charge_automatically with a default PM = paid in
-		// seconds). Without this step, waitForInvoicePaid below times out.
-		const defaultPaymentMethodId = await attachDefaultStripeTestCard(
-			stripeCustomerId,
-			stripeSecretKey,
-			'arrangePaidInvoiceForFreshSignup'
-		);
-		// Stripe can acknowledge attachment before `invoice_settings.default_payment_method`
-		// is query-consistent. Wait for that read seam to converge before batch billing.
-		await waitForStripeDefaultPaymentMethod({
-			stripeCustomerId,
-			stripeSecretKey,
-			expectedPaymentMethodId: defaultPaymentMethodId,
-			contextLabel: 'arrangePaidInvoiceForFreshSignup'
-		});
+		// Local-only Stripe placeholder IDs (`cus_local_*`) are not valid at
+		// stripe.com and must skip external card attachment in local-stack proofs.
+		if (!stripeCustomerId.startsWith('cus_local_')) {
+			// Attach pm_card_visa as the default PM BEFORE batch billing runs,
+			// so the invoice that batch billing creates gets auto-charged
+			// (collection_method=charge_automatically with a default PM = paid in
+			// seconds). Without this step, waitForInvoicePaid below times out.
+			const defaultPaymentMethodId = await attachDefaultStripeTestCard(
+				stripeCustomerId,
+				stripeSecretKey,
+				'arrangePaidInvoiceForFreshSignup'
+			);
+			// Stripe can acknowledge attachment before `invoice_settings.default_payment_method`
+			// is query-consistent. Wait for that read seam to converge before batch billing.
+			await waitForStripeDefaultPaymentMethod({
+				stripeCustomerId,
+				stripeSecretKey,
+				expectedPaymentMethodId: defaultPaymentMethodId,
+				contextLabel: 'arrangePaidInvoiceForFreshSignup'
+			});
+		}
 
 		const billingMonth = currentUtcBillingMonth();
 		const batchBillingResponse = await adminApiCall('POST', '/admin/billing/run', {
@@ -2420,7 +2701,7 @@ async function getInvoiceDetailForToken(
 // Custom fixture types
 // ---------------------------------------------------------------------------
 
-type SeedIndexFn = (name: string, region?: string) => Promise<void>;
+type SeedIndexFn = (name: string, region?: string, options?: SeedIndexOptions) => Promise<void>;
 type SeedRecommendationsConfigResult = {
 	indexName: string;
 	primaryObjectID: string;
@@ -2438,7 +2719,7 @@ type SeedCustomerIndexFn = (
 	name: string,
 	region?: string
 ) => Promise<void>;
-type RegisterIndexForCleanupFn = (name: string) => void;
+type RegisterIndexForCleanupFn = (name: string, options?: RegisterIndexCleanupOptions) => void;
 type CleanupFixtureIndexesFn = () => Promise<void>;
 type SeedApiKeyFn = (name: string, scopes?: string[]) => Promise<{ id: string }>;
 type SeedRulePayload = { objectID: string } & Record<string, unknown>;
@@ -2451,6 +2732,12 @@ type SearchRulesFn = (
 	hitsPerPage?: number
 ) => Promise<RuleSearchResponse>;
 type ReadClipboardTextFn = (page: Page) => Promise<string>;
+type SeedSynonymFn = (indexName: string, synonym: Synonym) => Promise<void>;
+type GetSynonymFn = (indexName: string, objectID: string) => Promise<Synonym | null>;
+type SearchSynonymsFn = (indexName: string, query?: string) => Promise<SynonymSearchResponse>;
+type ClearSynonymsFn = (indexName: string) => Promise<void>;
+type AssertIndexNeverReadableFn = (indexName: string) => Promise<void>;
+type WriteSynonymsProofManifestFn = (input: WriteSynonymsProofManifestInput) => Promise<void>;
 type ListApiKeysFn = () => Promise<ApiKeyListItem[]>;
 type DiscoverWithApiKeyFn = (
 	indexName: string,
@@ -2469,6 +2756,19 @@ type SetBillingPlanForCustomerFn = (customerId: string, plan: 'free' | 'shared')
 type GetAccountPayloadForTokenFn = (
 	token: string
 ) => Promise<{ id?: string; billing_plan?: 'free' | 'shared' }>;
+type SeedEventPayload = {
+	eventType: 'view' | 'click' | 'conversion';
+	eventSubtype?: string;
+	eventName: string;
+	userToken: string;
+	objectIDs: string[];
+	timestampMs?: number;
+};
+type SeedEventsFn = (indexName: string, events: SeedEventPayload[]) => Promise<void>;
+type GetDebugEventsFn = (
+	indexName: string,
+	query?: { eventType?: string; status?: string; limit?: number; from?: number; until?: number }
+) => Promise<{ events: DebugEvent[]; count: number }>;
 type SeedInvoiceFn = () => Promise<{ id: string }>;
 type SeedInvoiceWithPdfUrlFn = () => Promise<{ id: string }>;
 type CreateUserFn = (email: string, password: string, name?: string) => Promise<CreatedFixtureUser>;
@@ -2520,12 +2820,28 @@ type E2eFixtures = {
 	seedCustomerIndex: SeedCustomerIndexFn;
 	/** Register an index name for teardown when the index is created via UI flow. */
 	registerIndexForCleanup: RegisterIndexForCleanupFn;
+	/** Seed a synonym through fixture-owned bearer-token API access. */
+	seedSynonym: SeedSynonymFn;
+	/** Read a synonym object through fixture-owned bearer-token API access. */
+	getSynonym: GetSynonymFn;
+	/** Search synonyms through fixture-owned bearer-token API access. */
+	searchSynonyms: SearchSynonymsFn;
+	/** Clear all synonyms through fixture-owned bearer-token API access. */
+	clearSynonyms: ClearSynonymsFn;
+	/** Prove an index stays unreadable across the seeded-index readiness window. */
+	assertIndexNeverReadable: AssertIndexNeverReadableFn;
+	/** Emit shell-readable Stage 5 synonyms proof metadata and cleanup contract. */
+	writeSynonymsProofManifest: WriteSynonymsProofManifestFn;
 	/** Remove leaked safe-to-delete test indexes from prior runs for the shared fixture user. */
 	cleanupFixtureIndexes: CleanupFixtureIndexesFn;
 	/** Seed an API key and auto-revoke after the test. */
 	seedApiKey: SeedApiKeyFn;
 	/** Seed one or more rules and auto-delete them after the test. */
 	seedRules: SeedRulesFn;
+	/** Seed Insights events via POST to the flapjack engine for debug-event testing. */
+	seedEvents: SeedEventsFn;
+	/** Read debug events for an index through fixture-owned API access. */
+	getDebugEvents: GetDebugEventsFn;
 	/** Read a single rule by objectID through fixture-owned API access. */
 	getRule: GetRuleFn;
 	/** Search rules through fixture-owned API access. */
@@ -2642,14 +2958,20 @@ export const test = base.extend<E2eFixtures & E2eInternalFixtures>({
 	},
 
 	_trackIndexForCleanup: async ({}, use) => {
-		const created = new Set<string>();
-		await use((name: string) => {
+		const created = new Map<string, RegisterIndexCleanupOptions>();
+		await use((name: string, options?: RegisterIndexCleanupOptions) => {
 			const trimmed = name.trim();
 			if (!trimmed) return;
-			created.add(trimmed);
+			const previous = created.get(trimmed);
+			created.set(trimmed, {
+				deferCleanup: Boolean(previous?.deferCleanup || options?.deferCleanup)
+			});
 		});
 
-		for (const name of created) {
+		for (const [name, options] of created) {
+			if (options.deferCleanup) {
+				continue;
+			}
 			await apiCall('DELETE', `/indexes/${encodeURIComponent(name)}`, { confirm: true }).catch(
 				() => {
 					/* ignore — may already be gone */
@@ -2818,16 +3140,53 @@ export const test = base.extend<E2eFixtures & E2eInternalFixtures>({
 	},
 
 	registerIndexForCleanup: async ({ _trackIndexForCleanup }, use) => {
-		await use((name: string) => _trackIndexForCleanup(name));
+		await use((name: string, options?: RegisterIndexCleanupOptions) =>
+			_trackIndexForCleanup(name, options)
+		);
+	},
+
+	seedSynonym: async ({}, use) => {
+		await use((indexName: string, synonym: Synonym) =>
+			saveSynonymWithFixtureApi(indexName, synonym)
+		);
+	},
+
+	getSynonym: async ({}, use) => {
+		await use((indexName: string, objectID: string) =>
+			getSynonymWithFixtureApi(indexName, objectID)
+		);
+	},
+
+	searchSynonyms: async ({}, use) => {
+		await use((indexName: string, query = '') => searchSynonymsWithFixtureApi(indexName, query));
+	},
+
+	clearSynonyms: async ({}, use) => {
+		await use((indexName: string) => clearSynonymsWithFixtureApi(indexName));
+	},
+
+	assertIndexNeverReadable: async ({}, use) => {
+		await use((indexName: string) => assertIndexNeverBecomesReadable(indexName));
+	},
+
+	writeSynonymsProofManifest: async ({}, use) => {
+		await use((input: WriteSynonymsProofManifestInput) => writeSynonymsProofManifest(input));
 	},
 
 	cleanupFixtureIndexes: async ({}, use) => {
-		await use(() => cleanupStaleFixtureIndexesOnce());
+		await use(() => cleanupStaleFixtureIndexesOnce({ force: true }));
 	},
 
 	seedIndex: async ({ _trackIndexForCleanup }, use) => {
-		const factory: SeedIndexFn = async (name, region) => {
+		const factory: SeedIndexFn = async (name, region, options) => {
+			await cleanupStaleFixtureIndexesOnce();
 			const r = region ?? fixtureEnv.testRegion;
+			const deferCleanup = Boolean(options?.deferCleanup);
+			if (deferCleanup) {
+				// Reject stale-prefix proof names before provisioning so deferred
+				// proof failures never leak an index outside the tracked cleanup seam.
+				assertDeferredProofIndexAvoidsStalePrefixes(name);
+			}
 			// Use the admin endpoint to seed a local Flapjack-backed index directly
 			// so tab/detail browser proofs exercise the real local engine. When
 			// admin auth is invalid mid-suite (shared-host API restart), fall back
@@ -2854,7 +3213,14 @@ export const test = base.extend<E2eFixtures & E2eInternalFixtures>({
 					// loader. Poll the same read path the UI uses so seeded detail
 					// specs do not flake on a 500.
 					await waitForSeededIndex(name);
-					_trackIndexForCleanup(name);
+					_trackIndexForCleanup(name, { deferCleanup });
+					if (deferCleanup) {
+						await writeSynonymsProofManifest({
+							indexName: name,
+							objectIDs: [],
+							manifestPath: options?.proofManifestPath
+						});
+					}
 					return;
 				} catch (error) {
 					if (isTransientSeedIndexTransportFailure(error) && attempt < 2) {
@@ -2970,6 +3336,75 @@ export const test = base.extend<E2eFixtures & E2eInternalFixtures>({
 				/* ignore — may already be gone */
 			});
 		}
+	},
+
+	seedEvents: async ({}, use) => {
+		const factory: SeedEventsFn = async (indexName, events) => {
+			const customerId = await getCustomerId();
+			const flapjackIndexUid = buildTenantScopedIndexUid(customerId, indexName);
+			const safeFlapjackUrl = requireLoopbackHttpUrl('FLAPJACK_URL', fixtureEnv.flapjackUrl);
+
+			const keyRes = await apiCall('POST', `/indexes/${encodeURIComponent(indexName)}/keys`, {
+				description: `seedEvents fixture key for ${indexName}`,
+				acl: ['search', 'addObject']
+			});
+			if (!keyRes.ok) {
+				throw new Error(`seedEvents: key creation failed: ${keyRes.status} ${await keyRes.text()}`);
+			}
+			const { key } = (await keyRes.json()) as { key: string };
+
+			const insightsPayload = {
+				events: events.map((e) => ({
+					eventType: e.eventType,
+					eventSubtype: e.eventSubtype ?? undefined,
+					eventName: e.eventName,
+					index: flapjackIndexUid,
+					userToken: e.userToken,
+					objectIDs: e.objectIDs,
+					timestamp: e.timestampMs ?? Date.now()
+				}))
+			};
+
+			let lastFailure = 'none';
+			for (let attempt = 0; attempt < TRANSIENT_API_MAX_RETRIES; attempt += 1) {
+				const res = await fetch(`${safeFlapjackUrl}/1/events`, {
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/json',
+						'X-Algolia-API-Key': key,
+						'X-Algolia-Application-Id': 'flapjack'
+					},
+					body: JSON.stringify(insightsPayload)
+				});
+				if (res.ok || res.status === 202) break;
+				lastFailure = `${res.status} ${await res.text()}`;
+				if (res.status === 429 || res.status === 500 || res.status === 503) {
+					await sleep(getRetryDelayMs(attempt, res.headers.get('retry-after')));
+					continue;
+				}
+				throw new Error(`seedEvents failed: ${lastFailure}`);
+			}
+		};
+		await use(factory);
+	},
+
+	getDebugEvents: async ({}, use) => {
+		const fixture: GetDebugEventsFn = async (indexName, query) => {
+			const params = new URLSearchParams();
+			if (query?.eventType) params.set('eventType', query.eventType);
+			if (query?.status) params.set('status', query.status);
+			if (query?.limit !== undefined) params.set('limit', String(query.limit));
+			if (query?.from !== undefined) params.set('from', String(query.from));
+			if (query?.until !== undefined) params.set('until', String(query.until));
+			const qs = params.toString();
+			const path = `/indexes/${encodeURIComponent(indexName)}/events/debug${qs ? `?${qs}` : ''}`;
+			const response = await apiCall('GET', path);
+			if (!response.ok) {
+				throw new Error(`getDebugEvents failed: ${response.status} ${await response.text()}`);
+			}
+			return (await response.json()) as { events: DebugEvent[]; count: number };
+		};
+		await use(fixture);
 	},
 
 	getRule: async ({}, use) => {
@@ -3114,7 +3549,22 @@ export const test = base.extend<E2eFixtures & E2eInternalFixtures>({
 			await cleanupStaleFixtureIndexesOnce();
 			const targetRegion = region ?? fixtureEnv.testRegion;
 			if (targetRegion === testRegion) {
-				await seedSearchableIndex(name);
+				try {
+					await seedSearchableIndex(name);
+				} catch (error) {
+					const message = error instanceof Error ? error.message : String(error);
+					if (!message.toLowerCase().includes('index limit reached')) {
+						throw error;
+					}
+					await cleanupStaleFixtureIndexesOnce({ force: true });
+					try {
+						await seedSearchableIndex(name);
+					} catch (retryError) {
+						throw new Error(
+							`seedRecommendationsConfig failed after forced stale-index cleanup retry: ${retryError instanceof Error ? retryError.message : String(retryError)}`
+						);
+					}
+				}
 			} else {
 				const customerId = await getCustomerId();
 				await createSeededIndex(customerId, name, targetRegion, fixtureEnv.flapjackUrl);
@@ -3146,7 +3596,23 @@ export const test = base.extend<E2eFixtures & E2eInternalFixtures>({
 		});
 		const factory: SeedSearchableIndexFn = async (name) => {
 			await cleanupStaleFixtureIndexesOnce();
-			const result = await seedSearchableIndex(name);
+			let result;
+			try {
+				result = await seedSearchableIndex(name);
+			} catch (error) {
+				const message = error instanceof Error ? error.message : String(error);
+				if (!message.toLowerCase().includes('index limit reached')) {
+					throw error;
+				}
+				await cleanupStaleFixtureIndexesOnce({ force: true });
+				try {
+					result = await seedSearchableIndex(name);
+				} catch (retryError) {
+					throw new Error(
+						`seedSearchableIndex failed after forced stale-index cleanup retry: ${retryError instanceof Error ? retryError.message : String(retryError)}`
+					);
+				}
+			}
 			cleanupIndexes.push(name);
 			return result;
 		};

@@ -27,7 +27,7 @@ test.describe('Billing upgrade flow (mocked)', () => {
 		await expect(page.getByTestId('upgrade-success-banner')).toBeVisible();
 		await expect(page.getByTestId('upgrade-success-banner')).toContainText("You're on Shared");
 		await expect(page.getByTestId('upgrade-success-banner')).toContainText('$5.00');
-		await expect(page.getByTestId('current-plan-label')).toContainText('Shared');
+		await expect(page.getByTestId('current-plan-label')).toContainText('Paid');
 		await expect(page.getByTestId('upgrade-to-shared-button')).toHaveCount(0);
 	});
 
@@ -71,7 +71,7 @@ test.describe('Billing upgrade flow (mocked)', () => {
 
 		await page.goto('/console/billing');
 		await expect(page.getByTestId('already-shared-banner')).toBeVisible();
-		await expect(page.getByTestId('current-plan-label')).toContainText('Shared');
+		await expect(page.getByTestId('current-plan-label')).toContainText('Paid');
 		await expect(page.getByTestId('upgrade-to-shared-button')).toHaveCount(0);
 	});
 

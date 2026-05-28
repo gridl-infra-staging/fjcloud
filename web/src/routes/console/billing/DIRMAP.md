@@ -8,5 +8,5 @@
 | Directory | Summary |
 | --- | --- |
 | invoices | — |
-| setup | The billing setup page server load function creates a Stripe setup intent for payment method configuration and returns the client secret needed for Stripe Elements initialization, with error handling for missing billing configuration or customers. |
+| setup | This server-side route loads billing setup data by creating a Stripe setup intent through the API, returning the client secret for payment configuration. |
 <!-- [scrai:end] -->

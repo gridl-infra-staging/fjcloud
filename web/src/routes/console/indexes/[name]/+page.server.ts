@@ -11,10 +11,12 @@ import {
 	mapDashboardSessionFailure
 } from '$lib/server/auth-action-errors';
 import { retryTransientDashboardApiRequest } from '$lib/server/transient-api-retry';
+import { declareWinnerSettingsDiff } from '$lib/experiment_helpers';
 import {
 	browseDictionaryEntriesAction,
+	clearDictionaryEntriesAction,
 	deleteDictionaryEntryAction,
-	loadDictionariesPayload,
+	loadDictionariesPayloadResult,
 	saveDictionaryEntryAction
 } from './dictionary-management.server';
 import {
@@ -31,6 +33,13 @@ import {
 	loadRulesPayloadForQuery,
 	saveRuleAction
 } from './rules-management.server';
+import { refreshEventsAction } from './events-management.server';
+import {
+	clearSynonymsAction,
+	deleteSynonymAction,
+	loadSynonymsPayload,
+	saveSynonymAction
+} from './synonyms-management.server';
 import {
 	addDocumentAction,
 	browseDocumentsAction,
@@ -49,19 +58,25 @@ import {
 	fetchAnalyticsFiltersAction,
 	loadAnalyticsPayload
 } from './analytics-management.server';
+import {
+	deleteQsConfigAction,
+	rebuildQsConfigAction,
+	saveQsConfigAction
+} from './suggestions-management.server';
+import {
+	deletePersonalizationProfileAction,
+	deletePersonalizationStrategyAction,
+	getPersonalizationProfileAction,
+	savePersonalizationStrategyAction
+} from './personalization-management.server';
 import type {
-	Synonym,
-	SynonymSearchResponse,
 	PersonalizationStrategy,
-	PersonalizationProfile,
-	QsConfig,
 	ConcludeExperimentRequest,
 	CreateExperimentRequest,
+	Experiment,
 	ExperimentResults,
 	DebugEventsResponse
 } from '$lib/api/types';
-
-const MAX_EVENTS_REFRESH_LIMIT = 1000;
 
 function failForDashboardAction<T extends Record<string, unknown>>(error: unknown, payload: T) {
 	const sessionFailure = mapDashboardSessionFailure(error);
@@ -73,6 +88,42 @@ function normalizeTransientBackendFailure(message: string): string {
 		return 'backend temporarily unavailable';
 	}
 	return message;
+}
+
+type ExperimentLifecycleAction = 'start' | 'stop' | 'delete' | 'conclude';
+
+function loadExperimentMutationFailure(message: string) {
+	return fail(400, { experimentError: message });
+}
+
+async function loadExperimentForLifecycleAction(
+	api: ReturnType<typeof createApiClient>,
+	indexName: string,
+	experimentID: number
+): Promise<Experiment> {
+	return await api.getExperiment(indexName, experimentID);
+}
+
+function ensureExperimentActionAllowed(
+	action: ExperimentLifecycleAction,
+	experiment: Experiment
+): string | null {
+	switch (action) {
+		case 'start':
+			return experiment.status === 'created' ? null : 'Only created experiments can be started.';
+		case 'stop':
+			return experiment.status === 'running' || experiment.status === 'active'
+				? null
+				: 'Only active experiments can be stopped.';
+		case 'delete':
+			return experiment.status === 'running' || experiment.status === 'active'
+				? 'Active experiments must be stopped before they can be deleted.'
+				: null;
+		case 'conclude':
+			return experiment.status === 'running' || experiment.status === 'active'
+				? null
+				: 'Only active experiments can be concluded.';
+	}
 }
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
@@ -97,6 +148,7 @@ function isTransientPreviewKeyFailure(error: unknown): boolean {
 export const load: PageServerLoad = async ({ locals, params, url }) => {
 	const api = createApiClient(locals.user?.token);
 	const { name } = params;
+	const synonymQuery = url.searchParams.get('q') ?? '';
 	const nowMs = Date.now();
 	const defaultEventsUntil = nowMs;
 	const defaultEventsFrom = nowMs - 24 * 60 * 60 * 1000;
@@ -115,7 +167,8 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 			qsStatus,
 			analyticsPayload,
 			experiments,
-			debugEventsResult
+			debugEventsResult,
+			allIndexes
 		] = await Promise.all([
 			retryTransientDashboardApiRequest(() => api.getIndex(name)),
 			api.getIndexSettings(name).catch(() => null),
@@ -125,7 +178,7 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 				.browseObjects(name, { hitsPerPage: DEFAULT_DOCUMENT_HITS_PER_PAGE, query: '' })
 				.catch(() => null),
 			loadRulesPayloadForQuery(api, name, url.searchParams.get('q') ?? ''),
-			api.searchSynonyms(name).catch((): SynonymSearchResponse | null => null),
+			loadSynonymsPayload(api, name, synonymQuery),
 			api.getPersonalizationStrategy(name).catch((): PersonalizationStrategy | null => null),
 			api.getQsConfig(name).catch(() => null),
 			api.getQsStatus(name).catch(() => null),
@@ -144,7 +197,8 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 				.catch((loadError) => ({
 					debugEvents: null as DebugEventsResponse | null,
 					eventsLoadError: errorMessage(loadError, 'Failed to load events')
-				}))
+				})),
+			api.getIndexes().catch(() => [])
 		]);
 
 		const experimentResults: Record<string, ExperimentResults> = {};
@@ -166,12 +220,13 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 			}
 		}
 
-		const [dictionaries, securitySourcesResult] = await Promise.all([
-			loadDictionariesPayload(
+		const [dictionariesResult, securitySourcesResult] = await Promise.all([
+			loadDictionariesPayloadResult(
 				api,
 				name,
-				url.searchParams.get('dictionary'),
-				url.searchParams.get('dictionaryLang')
+				url.searchParams.get('dict'),
+				url.searchParams.get('lang'),
+				url.searchParams.get('q')
 			),
 			loadSecuritySourcesPayload(api, name, { allowFallbackOnError: false })
 				.then((securitySources) => ({
@@ -200,18 +255,20 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 			...analyticsPayload,
 			debugEvents: debugEventsResult.debugEvents,
 			eventsLoadError: debugEventsResult.eventsLoadError,
-			dictionaries,
+			dictionaries: dictionariesResult.payload,
+			dictionaryBrowseError: dictionariesResult.requestError ?? '',
 			securitySources: securitySourcesResult.securitySources,
-			securitySourcesLoadError: securitySourcesResult.securitySourcesLoadError
+			securitySourcesLoadError: securitySourcesResult.securitySourcesLoadError,
+			allIndexes
 		};
 	} catch (e) {
 		if (isDashboardSessionExpiredError(e)) {
-			redirect(303, DASHBOARD_SESSION_EXPIRED_REDIRECT);
+			throw redirect(303, DASHBOARD_SESSION_EXPIRED_REDIRECT);
 		}
 		if (e instanceof ApiRequestError && e.status === 404) {
-			error(404, 'Index not found');
+			throw error(404, 'Index not found');
 		}
-		error(500, 'Failed to load index');
+		throw error(500, 'Failed to load index');
 	}
 };
 
@@ -228,12 +285,17 @@ export const actions: Actions = {
 		}
 	},
 	createPreviewKey: async ({ locals, params }) => {
+		const customerId = locals.user?.customerId?.trim();
+		if (!customerId) {
+			throw redirect(303, DASHBOARD_SESSION_EXPIRED_REDIRECT);
+		}
+
 		const api = createApiClient(locals.user?.token);
 		try {
 			let result: Awaited<ReturnType<typeof api.createIndexKey>> | null = null;
 			for (let attempt = 0; attempt < 10; attempt++) {
 				try {
-					result = await api.createIndexKey(params.name, 'Search preview', ['search']);
+					result = await api.createIndexKey(params.name, 'Search preview', ['search', 'addObject']);
 					break;
 				} catch (error) {
 					if (!isTransientPreviewKeyFailure(error) || attempt === 9) {
@@ -245,7 +307,7 @@ export const actions: Actions = {
 
 			return {
 				previewKey: result!.key,
-				previewIndexName: buildTenantScopedIndexUid(locals.user?.customerId ?? '', params.name)
+				previewIndexName: buildTenantScopedIndexUid(customerId, params.name)
 			};
 		} catch (e) {
 			const message = customerFacingErrorMessage(e, 'Failed to create preview key');
@@ -297,41 +359,25 @@ export const actions: Actions = {
 	clearRules: async ({ locals, params }) =>
 		clearRulesAction({ indexName: params.name, token: locals.user?.token }),
 	saveSynonym: async ({ request, locals, params }) => {
-		const data = await request.formData();
-		const objectID = (data.get('objectID') as string)?.trim();
-		const rawSynonym = (data.get('synonym') as string)?.trim();
-		if (!objectID) return fail(400, { synonymError: 'objectID is required' });
-		if (!rawSynonym) return fail(400, { synonymError: 'Synonym JSON is required' });
-
-		let synonym: Synonym;
-		try {
-			synonym = parseJsonObject<Synonym>(rawSynonym, 'synonym');
-		} catch (e) {
-			return failForDashboardAction(e, { synonymError: errorMessage(e, 'Invalid synonym JSON') });
-		}
-
-		const api = createApiClient(locals.user?.token);
-		try {
-			await api.saveSynonym(params.name, objectID, synonym);
-			return { synonymSaved: true };
-		} catch (e) {
-			return failForDashboardAction(e, { synonymError: errorMessage(e, 'Failed to save synonym') });
-		}
+		return saveSynonymAction({
+			request,
+			indexName: params.name,
+			token: locals.user?.token
+		});
 	},
 	deleteSynonym: async ({ request, locals, params }) => {
-		const data = await request.formData();
-		const objectID = (data.get('objectID') as string)?.trim();
-		if (!objectID) return fail(400, { synonymError: 'objectID is required' });
-
-		const api = createApiClient(locals.user?.token);
-		try {
-			await api.deleteSynonym(params.name, objectID);
-			return { synonymDeleted: true };
-		} catch (e) {
-			return failForDashboardAction(e, {
-				synonymError: errorMessage(e, 'Failed to delete synonym')
-			});
-		}
+		return deleteSynonymAction({
+			request,
+			indexName: params.name,
+			token: locals.user?.token
+		});
+	},
+	clearSynonyms: async ({ request, locals, params }) => {
+		return clearSynonymsAction({
+			request,
+			indexName: params.name,
+			token: locals.user?.token
+		});
 	},
 	uploadDocuments: async ({ request, locals, params }) => {
 		return uploadDocumentsAction({
@@ -368,6 +414,13 @@ export const actions: Actions = {
 			token: locals.user?.token
 		});
 	},
+	clearDictionaryEntries: async ({ request, locals, params }) => {
+		return clearDictionaryEntriesAction({
+			request,
+			indexName: params.name,
+			token: locals.user?.token
+		});
+	},
 	fetchAnalyticsDevices: ({ request, locals, params }) =>
 		fetchAnalyticsDevicesAction({ request, indexName: params.name, token: locals.user?.token }),
 	fetchAnalyticsCountries: ({ request, locals, params }) =>
@@ -375,7 +428,11 @@ export const actions: Actions = {
 	fetchAnalyticsFilters: ({ request, locals, params }) =>
 		fetchAnalyticsFiltersAction({ request, indexName: params.name, token: locals.user?.token }),
 	fetchAnalyticsConversionRate: ({ request, locals, params }) =>
-		fetchAnalyticsConversionRateAction({ request, indexName: params.name, token: locals.user?.token }),
+		fetchAnalyticsConversionRateAction({
+			request,
+			indexName: params.name,
+			token: locals.user?.token
+		}),
 	saveDictionaryEntry: async ({ request, locals, params }) => {
 		return saveDictionaryEntryAction({
 			request,
@@ -391,72 +448,31 @@ export const actions: Actions = {
 		});
 	},
 	savePersonalizationStrategy: async ({ request, locals, params }) => {
-		const data = await request.formData();
-		const rawStrategy = (data.get('strategy') as string)?.trim();
-		if (!rawStrategy) return fail(400, { personalizationError: 'Strategy JSON is required' });
-
-		let strategy: PersonalizationStrategy;
-		try {
-			strategy = parseJsonObject<PersonalizationStrategy>(rawStrategy, 'strategy');
-		} catch (e) {
-			return failForDashboardAction(e, {
-				personalizationError: errorMessage(e, 'Invalid strategy JSON')
-			});
-		}
-
-		const api = createApiClient(locals.user?.token);
-		try {
-			await api.savePersonalizationStrategy(params.name, strategy);
-			return { personalizationStrategySaved: true };
-		} catch (e) {
-			return failForDashboardAction(e, {
-				personalizationError: errorMessage(e, 'Failed to save personalization strategy')
-			});
-		}
+		return savePersonalizationStrategyAction({
+			request,
+			indexName: params.name,
+			token: locals.user?.token
+		});
 	},
 	deletePersonalizationStrategy: async ({ locals, params }) => {
-		const api = createApiClient(locals.user?.token);
-		try {
-			await api.deletePersonalizationStrategy(params.name);
-			return { personalizationStrategyDeleted: true };
-		} catch (e) {
-			return failForDashboardAction(e, {
-				personalizationError: errorMessage(e, 'Failed to delete personalization strategy')
-			});
-		}
+		return deletePersonalizationStrategyAction({
+			indexName: params.name,
+			token: locals.user?.token
+		});
 	},
 	getPersonalizationProfile: async ({ request, locals, params }) => {
-		const data = await request.formData();
-		const userToken = (data.get('userToken') as string)?.trim();
-		if (!userToken) return fail(400, { personalizationError: 'userToken is required' });
-
-		const api = createApiClient(locals.user?.token);
-		try {
-			const profile: PersonalizationProfile = await api.getPersonalizationProfile(
-				params.name,
-				userToken
-			);
-			return { personalizationProfile: profile };
-		} catch (e) {
-			return failForDashboardAction(e, {
-				personalizationError: errorMessage(e, 'Failed to load personalization profile')
-			});
-		}
+		return getPersonalizationProfileAction({
+			request,
+			indexName: params.name,
+			token: locals.user?.token
+		});
 	},
 	deletePersonalizationProfile: async ({ request, locals, params }) => {
-		const data = await request.formData();
-		const userToken = (data.get('userToken') as string)?.trim();
-		if (!userToken) return fail(400, { personalizationError: 'userToken is required' });
-
-		const api = createApiClient(locals.user?.token);
-		try {
-			await api.deletePersonalizationProfile(params.name, userToken);
-			return { personalizationProfileDeleted: true, personalizationProfile: null };
-		} catch (e) {
-			return failForDashboardAction(e, {
-				personalizationError: errorMessage(e, 'Failed to delete personalization profile')
-			});
-		}
+		return deletePersonalizationProfileAction({
+			request,
+			indexName: params.name,
+			token: locals.user?.token
+		});
 	},
 	recommend: async ({ request, locals, params }) => {
 		return recommendAction({
@@ -473,39 +489,23 @@ export const actions: Actions = {
 		});
 	},
 	saveQsConfig: async ({ request, locals, params }) => {
-		const data = await request.formData();
-		const rawConfig = (data.get('config') as string)?.trim();
-		if (!rawConfig) return fail(400, { qsConfigError: 'Suggestions config JSON is required' });
-
-		let config: QsConfig;
-		try {
-			config = parseJsonObject<QsConfig>(rawConfig, 'config');
-		} catch (e) {
-			return failForDashboardAction(e, {
-				qsConfigError: errorMessage(e, 'Invalid suggestions config JSON')
-			});
-		}
-
-		const api = createApiClient(locals.user?.token);
-		try {
-			await api.saveQsConfig(params.name, config);
-			return { qsConfigSaved: true };
-		} catch (e) {
-			return failForDashboardAction(e, {
-				qsConfigError: errorMessage(e, 'Failed to save suggestions config')
-			});
-		}
+		return saveQsConfigAction({
+			request,
+			indexName: params.name,
+			token: locals.user?.token
+		});
 	},
 	deleteQsConfig: async ({ locals, params }) => {
-		const api = createApiClient(locals.user?.token);
-		try {
-			await api.deleteQsConfig(params.name);
-			return { qsConfigDeleted: true };
-		} catch (e) {
-			return failForDashboardAction(e, {
-				qsConfigError: errorMessage(e, 'Failed to delete suggestions config')
-			});
-		}
+		return deleteQsConfigAction({
+			indexName: params.name,
+			token: locals.user?.token
+		});
+	},
+	rebuildQsConfig: async ({ locals, params }) => {
+		return rebuildQsConfigAction({
+			indexName: params.name,
+			token: locals.user?.token
+		});
 	},
 	createExperiment: async ({ request, locals, params }) => {
 		const data = await request.formData();
@@ -544,6 +544,11 @@ export const actions: Actions = {
 
 		const api = createApiClient(locals.user?.token);
 		try {
+			const experiment = await loadExperimentForLifecycleAction(api, params.name, experimentID);
+			const validationError = ensureExperimentActionAllowed('delete', experiment);
+			if (validationError) {
+				return loadExperimentMutationFailure(validationError);
+			}
 			await api.deleteExperiment(params.name, experimentID);
 			return { experimentDeleted: true };
 		} catch (e) {
@@ -565,6 +570,11 @@ export const actions: Actions = {
 
 		const api = createApiClient(locals.user?.token);
 		try {
+			const experiment = await loadExperimentForLifecycleAction(api, params.name, experimentID);
+			const validationError = ensureExperimentActionAllowed('start', experiment);
+			if (validationError) {
+				return loadExperimentMutationFailure(validationError);
+			}
 			await api.startExperiment(params.name, experimentID);
 			return { experimentStarted: true };
 		} catch (e) {
@@ -586,6 +596,11 @@ export const actions: Actions = {
 
 		const api = createApiClient(locals.user?.token);
 		try {
+			const experiment = await loadExperimentForLifecycleAction(api, params.name, experimentID);
+			const validationError = ensureExperimentActionAllowed('stop', experiment);
+			if (validationError) {
+				return loadExperimentMutationFailure(validationError);
+			}
 			await api.stopExperiment(params.name, experimentID);
 			return { experimentStopped: true };
 		} catch (e) {
@@ -619,6 +634,16 @@ export const actions: Actions = {
 
 		const api = createApiClient(locals.user?.token);
 		try {
+			const experiment = await loadExperimentForLifecycleAction(api, params.name, experimentID);
+			const validationError = ensureExperimentActionAllowed('conclude', experiment);
+			if (validationError) {
+				return loadExperimentMutationFailure(validationError);
+			}
+			if (conclusion.promoted && !declareWinnerSettingsDiff(experiment).canPromote) {
+				return loadExperimentMutationFailure(
+					'Winner promotion is only allowed when the experiment changes base-index settings.'
+				);
+			}
 			await api.concludeExperiment(params.name, experimentID, conclusion);
 			return { experimentConcluded: true };
 		} catch (e) {
@@ -628,44 +653,11 @@ export const actions: Actions = {
 		}
 	},
 	refreshEvents: async ({ request, locals, params }) => {
-		const data = await request.formData();
-		const eventType = (data.get('eventType') as string) || undefined;
-		const status = (data.get('status') as string) || undefined;
-		let limit = 100;
-		let from: number | undefined;
-		let until: number | undefined;
-		try {
-			const limitRaw = (data.get('limit') as string | null)?.trim() ?? '';
-			if (limitRaw) {
-				limit = Math.min(parsePositiveInt(limitRaw, 'limit'), MAX_EVENTS_REFRESH_LIMIT);
-			}
-
-			const fromRaw = (data.get('from') as string | null)?.trim() ?? '';
-			if (fromRaw) {
-				from = parsePositiveInt(fromRaw, 'from');
-			}
-
-			const untilRaw = (data.get('until') as string | null)?.trim() ?? '';
-			if (untilRaw) {
-				until = parsePositiveInt(untilRaw, 'until');
-			}
-		} catch (e) {
-			return failForDashboardAction(e, { eventsError: errorMessage(e, 'Invalid event filters') });
-		}
-
-		const api = createApiClient(locals.user?.token);
-		try {
-			const result = await api.getDebugEvents(params.name, {
-				eventType,
-				status,
-				limit,
-				from,
-				until
-			});
-			return { refreshedEvents: result };
-		} catch (e) {
-			return failForDashboardAction(e, { eventsError: errorMessage(e, 'Failed to fetch events') });
-		}
+		return refreshEventsAction({
+			request,
+			indexName: params.name,
+			token: locals.user?.token
+		});
 	},
 	deleteReplica: async ({ request, locals, params }) => {
 		const data = await request.formData();

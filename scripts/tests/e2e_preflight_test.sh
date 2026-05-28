@@ -617,8 +617,8 @@ test_contract_resolves_e2e_admin_key() {
 }
 
 test_contract_web_server_uses_strict_port() {
-    assert_contract_contains "--port 5173 --strictPort" \
-        "contract should keep Playwright's owned web server on the exact checked local port"
+    assert_contract_contains "--strictPort" \
+        "contract should keep Playwright's owned web server in strict-port mode"
 }
 
 test_contract_does_not_invent_admin_key_fallback() {

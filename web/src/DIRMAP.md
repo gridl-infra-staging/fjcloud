@@ -7,7 +7,10 @@
 
 | Directory | Summary |
 | --- | --- |
-| lib | The lib directory provides a collection of TypeScript utilities for the SvelteKit frontend, including HTTP API clients, JWT authentication and session management, error handling and recovery mechanisms, API instrumentation and logging, and feature-specific helpers for pricing, search, and admin functions. |
-| routes | The routes directory contains the SvelteKit server endpoints and page routes for the fjcloud web application, including user authentication via OAuth, customer-facing features like pricing and search, administrative dashboards, billing and upgrade flows, and system status monitoring. |
+| lib | The lib directory provides core frontend utilities for the SvelteKit web application, including API client abstractions, JWT authentication and session management, UI components, search and recommendation logic, and various helper functions. |
+| routes | The routes directory implements the SvelteKit server-side routing and page handlers for fjcloud, providing administrative interfaces for billing and customer management, customer-facing dashboard pages, API integrations with Stripe, and OAuth authentication flows. |
+| lib | The lib directory contains TypeScript utilities and helpers organized by concern (API clients, authentication, error handling, logging, recommendations, UI utilities) to support the SvelteKit web frontend. |
+| routes | The routes directory implements the SvelteKit server-side logic for fjcloud's web application, providing the backend for customer-facing dashboards (billing, API keys, cloud operations), administrative interfaces for billing and customer management, OAuth authentication, and Stripe and pricing APIs. |
+| routes | The routes directory contains SvelteKit server-side handlers for the fjcloud web application, including the main dashboard console, admin panel for billing and customer management, OAuth authentication, API integrations with Stripe, and billing upgrade functionality. |
 | tests | — |
 <!-- [scrai:end] -->

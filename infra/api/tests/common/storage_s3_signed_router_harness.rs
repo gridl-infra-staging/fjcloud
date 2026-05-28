@@ -15,9 +15,9 @@ use std::sync::Arc;
 use uuid::Uuid;
 use wiremock::MockServer;
 
+use super::storage_s3_auth_support::SigningRequest;
 use crate::common::mocks::{mock_garage_admin_client, MockCustomerRepo, MockGarageAdminClient};
 use crate::common::TestStateBuilder;
-use crate::storage_s3_auth_support::SigningRequest;
 
 pub(crate) const TEST_MASTER_KEY: [u8; 32] = [0x42; 32];
 

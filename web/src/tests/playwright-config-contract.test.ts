@@ -22,6 +22,7 @@ import {
 	PLAYWRIGHT_STORAGE_STATE,
 	PLAYWRIGHT_PROJECT_CONTRACTS,
 	PLAYWRIGHT_API_PORT_ENV,
+	PLAYWRIGHT_FLAPJACK_PORT_ENV,
 	PLAYWRIGHT_WEB_PORT_ENV,
 	PLAYWRIGHT_WEB_SERVER_COMMAND,
 	PLAYWRIGHT_WEB_ONLY_SERVER_COMMAND,
@@ -30,6 +31,7 @@ import {
 	parseDotenvValue,
 	resolveDefaultPlaywrightWebPort,
 	resolveDefaultPlaywrightApiPort,
+	resolveDefaultPlaywrightFlapjackPort,
 	REMOTE_TARGET_OPT_IN_ENV,
 	REMOTE_TARGET_HOST_SUFFIX_ALLOWLIST,
 	requireLoopbackHttpUrl,
@@ -59,7 +61,9 @@ function applyEnvDefaults(input: EnvDefaultsInput): MutableEnv {
 }
 
 function withProcessEnv<T>(overrides: Record<string, string | undefined>, run: () => T): T {
-	const previousEntries = Object.entries(overrides).map(([key]) => [key, process.env[key]] as const);
+	const previousEntries = Object.entries(overrides).map(
+		([key]) => [key, process.env[key]] as const
+	);
 
 	for (const [key, value] of Object.entries(overrides)) {
 		if (value === undefined) {
@@ -127,9 +131,7 @@ describe('playwright config contract', () => {
 
 	it('deriveApiBaseUrl only rewrites known cloud custom domains', () => {
 		expect(deriveApiBaseUrl('cloud.flapjack.foo')).toBe('https://api.flapjack.foo');
-		expect(deriveApiBaseUrl('cloud.staging.flapjack.foo')).toBe(
-			'https://api.staging.flapjack.foo'
-		);
+		expect(deriveApiBaseUrl('cloud.staging.flapjack.foo')).toBe('https://api.staging.flapjack.foo');
 	});
 
 	it('deriveApiBaseUrl falls back instead of trusting arbitrary cloud-prefixed hosts', () => {
@@ -233,40 +235,47 @@ describe('playwright config contract', () => {
 		expect(processEnv.E2E_ADMIN_KEY).toBeUndefined();
 	});
 
-	it('applyPlaywrightProcessEnvDefaults propagates Mailpit and Stripe webhook env for fixture-owned billing lanes', () => {
+	it('applyPlaywrightProcessEnvDefaults propagates Mailpit and Stripe env for fixture-owned billing lanes', () => {
 		const processEnv = applyEnvDefaults({
 			processEnv: {},
 			repoEnv: {
 				MAILPIT_API_URL: 'http://localhost:8025',
-				STRIPE_WEBHOOK_SECRET: 'whsec_repo'
+				STRIPE_WEBHOOK_SECRET: 'whsec_repo',
+				STRIPE_SECRET_KEY: 'rk_repo'
 			},
 			webEnv: {
-				STRIPE_WEBHOOK_SECRET: 'whsec_web'
+				STRIPE_WEBHOOK_SECRET: 'whsec_web',
+				STRIPE_SECRET_KEY: 'rk_web'
 			}
 		});
 
 		expect(processEnv.MAILPIT_API_URL).toBe('http://localhost:8025');
 		expect(processEnv.STRIPE_WEBHOOK_SECRET).toBe('whsec_web');
+		expect(processEnv.STRIPE_SECRET_KEY).toBe('rk_web');
 	});
 
-	it('applyPlaywrightProcessEnvDefaults preserves explicit shell overrides for Mailpit and Stripe webhook env', () => {
+	it('applyPlaywrightProcessEnvDefaults preserves explicit shell overrides for Mailpit and Stripe env', () => {
 		const processEnv = applyEnvDefaults({
 			processEnv: {
 				MAILPIT_API_URL: 'http://127.0.0.1:18025',
-				STRIPE_WEBHOOK_SECRET: 'whsec_process'
+				STRIPE_WEBHOOK_SECRET: 'whsec_process',
+				STRIPE_SECRET_KEY: 'rk_process'
 			},
 			repoEnv: {
 				MAILPIT_API_URL: 'http://localhost:8025',
-				STRIPE_WEBHOOK_SECRET: 'whsec_repo'
+				STRIPE_WEBHOOK_SECRET: 'whsec_repo',
+				STRIPE_SECRET_KEY: 'rk_repo'
 			},
 			webEnv: {
 				MAILPIT_API_URL: 'http://localhost:28025',
-				STRIPE_WEBHOOK_SECRET: 'whsec_web'
+				STRIPE_WEBHOOK_SECRET: 'whsec_web',
+				STRIPE_SECRET_KEY: 'rk_web'
 			}
 		});
 
 		expect(processEnv.MAILPIT_API_URL).toBe('http://127.0.0.1:18025');
 		expect(processEnv.STRIPE_WEBHOOK_SECRET).toBe('whsec_process');
+		expect(processEnv.STRIPE_SECRET_KEY).toBe('rk_process');
 	});
 
 	it('resolvePlaywrightRuntime disables webServer when BASE_URL is overridden to local rerun URL', () => {
@@ -322,6 +331,30 @@ describe('playwright config contract', () => {
 		expect(runtime.webServerEnv.API_BASE_URL).toBe('http://127.0.0.1:4100');
 	});
 
+	it('resolvePlaywrightRuntime preserves an explicit process API_URL override for worker-side helpers', () => {
+		const processEnv: MutableEnv = {
+			API_BASE_URL: 'http://127.0.0.1:4100',
+			API_URL: 'http://127.0.0.1:4101'
+		};
+		const runtime = resolvePlaywrightRuntime({
+			processEnv,
+			repoEnv: {
+				API_BASE_URL: 'http://127.0.0.1:4200',
+				API_URL: 'http://127.0.0.1:4201'
+			},
+			webEnv: {
+				API_BASE_URL: 'http://127.0.0.1:4300',
+				API_URL: 'http://127.0.0.1:4301'
+			},
+			fallbackJwtSecret: 'fallback-jwt'
+		});
+
+		expect(runtime.webServerEnv.API_BASE_URL).toBe('http://127.0.0.1:4100');
+		expect(runtime.webServerEnv.API_URL).toBe('http://127.0.0.1:4101');
+		expect(processEnv.API_BASE_URL).toBe('http://127.0.0.1:4100');
+		expect(processEnv.API_URL).toBe('http://127.0.0.1:4101');
+	});
+
 	it('resolvePlaywrightRuntime uses default base URL and admin fallback chain without BASE_URL override', () => {
 		const workspacePath = '/tmp/fjcloud-worktree-default';
 		const expectedWebPort = resolveDefaultPlaywrightWebPort(workspacePath);
@@ -338,7 +371,7 @@ describe('playwright config contract', () => {
 
 		expect(runtime.baseURL).toBe(expectedBaseUrl);
 		expect(runtime.webServer).toEqual({
-			command: `${PLAYWRIGHT_WEB_SERVER_COMMAND} --host 127.0.0.1 --port ${expectedWebPort} --strictPort`,
+			command: `${PLAYWRIGHT_WEB_SERVER_COMMAND} --host localhost --port ${expectedWebPort} --strictPort`,
 			env: runtime.webServerEnv,
 			url: expectedBaseUrl,
 			reuseExistingServer: false,
@@ -363,6 +396,85 @@ describe('playwright config contract', () => {
 		expect(runtime.webServerEnv[PLAYWRIGHT_API_PORT_ENV]).toBe('6411');
 	});
 
+	// Regression — workspace-isolated flapjack port (added 2026-05-26). Before this,
+	// the flapjack URL was hardcoded to :7700 for every workspace, so concurrent
+	// worktrees reused each other's flapjack with mismatched in-memory node admin keys
+	// and every proxied index op failed flapjack auth with 403 "Invalid Application-ID
+	// or API key" — the persistent synonyms-E2E proof-gate failure.
+	it('resolveDefaultPlaywrightFlapjackPort is deterministic, in-band, and distinct from web+api ports', () => {
+		const workspacePath = '/tmp/fjcloud-worktree-flapjack';
+		const flapjackPort = resolveDefaultPlaywrightFlapjackPort(workspacePath);
+		// Deterministic for the same workspace.
+		expect(resolveDefaultPlaywrightFlapjackPort(workspacePath)).toBe(flapjackPort);
+		// In the dedicated 9700–11699 band (above web 5600–7599 and API 7600–9599).
+		expect(flapjackPort).toBeGreaterThanOrEqual(9700);
+		expect(flapjackPort).toBeLessThanOrEqual(11699);
+		// Never collides with the same workspace's web / API / S3-sidecar ports.
+		const apiPort = resolveDefaultPlaywrightApiPort(workspacePath);
+		const webPort = resolveDefaultPlaywrightWebPort(workspacePath);
+		expect(flapjackPort).not.toBe(webPort);
+		expect(flapjackPort).not.toBe(apiPort);
+		expect(flapjackPort).not.toBe(apiPort + 1);
+		// Different workspaces get different flapjack ports (the whole point of isolation).
+		expect(resolveDefaultPlaywrightFlapjackPort('/tmp/fjcloud-worktree-other')).not.toBe(
+			flapjackPort
+		);
+	});
+
+	it('resolveDefaultPlaywrightFlapjackPort falls back to legacy 7700 only for an empty workspace path', () => {
+		expect(resolveDefaultPlaywrightFlapjackPort('')).toBe(7700);
+		expect(resolveDefaultPlaywrightFlapjackPort('   ')).toBe(7700);
+	});
+
+	it('resolvePlaywrightRuntime derives a per-workspace flapjack URL instead of hardcoded :7700', () => {
+		const workspacePath = '/tmp/fjcloud-worktree-flapjack-runtime';
+		const expectedFlapjackPort = resolveDefaultPlaywrightFlapjackPort(workspacePath);
+		const expectedFlapjackUrl = `http://localhost:${expectedFlapjackPort}`;
+		const processEnv: MutableEnv = {};
+		const runtime = resolvePlaywrightRuntime({
+			processEnv,
+			repoEnv: {},
+			webEnv: {},
+			fallbackJwtSecret: 'fallback-jwt',
+			workspacePath
+		});
+		// The spawned stack (flapjack + API) and the fixture process both see the
+		// derived per-workspace URL — not the legacy shared :7700.
+		expect(runtime.webServerEnv.FLAPJACK_URL).toBe(expectedFlapjackUrl);
+		expect(runtime.webServerEnv.LOCAL_DEV_FLAPJACK_URL).toBe(expectedFlapjackUrl);
+		expect(runtime.webServerEnv.FLAPJACK_URL).not.toBe(DEFAULT_FLAPJACK_URL);
+		expect(runtime.webServerEnv[PLAYWRIGHT_FLAPJACK_PORT_ENV]).toBe(String(expectedFlapjackPort));
+		// processEnv is mutated so seedIndex / resolveFixtureEnv provision nodes
+		// against the same instance the stack runs (the load-bearing thread).
+		expect(processEnv.FLAPJACK_URL).toBe(expectedFlapjackUrl);
+		expect(processEnv.LOCAL_DEV_FLAPJACK_URL).toBe(expectedFlapjackUrl);
+	});
+
+	it('resolvePlaywrightRuntime honors an explicit PLAYWRIGHT_FLAPJACK_PORT override', () => {
+		const processEnv: MutableEnv = { [PLAYWRIGHT_FLAPJACK_PORT_ENV]: '10250' };
+		const runtime = resolvePlaywrightRuntime({
+			processEnv,
+			repoEnv: {},
+			webEnv: {},
+			fallbackJwtSecret: 'fallback-jwt'
+		});
+		expect(runtime.webServerEnv.FLAPJACK_URL).toBe('http://localhost:10250');
+		expect(processEnv.FLAPJACK_URL).toBe('http://localhost:10250');
+	});
+
+	it('resolvePlaywrightRuntime preserves an explicit loopback FLAPJACK_URL override', () => {
+		const processEnv: MutableEnv = { FLAPJACK_URL: 'http://127.0.0.1:7799' };
+		const runtime = resolvePlaywrightRuntime({
+			processEnv,
+			repoEnv: {},
+			webEnv: {},
+			fallbackJwtSecret: 'fallback-jwt'
+		});
+		// An operator-pinned FLAPJACK_URL must not be overwritten by the derived port.
+		expect(processEnv.FLAPJACK_URL).toBe('http://127.0.0.1:7799');
+		expect(runtime.webServerEnv.FLAPJACK_URL).toBe('http://127.0.0.1:7799');
+	});
+
 	it('uses the local stack launcher base command so setup:user has API availability without manual startup', () => {
 		expect(PLAYWRIGHT_WEB_SERVER_COMMAND).toBe(
 			'../scripts/playwright_local_stack.sh --force-api-restart'
@@ -382,7 +494,7 @@ describe('playwright config contract', () => {
 		});
 
 		expect(runtime.webServer?.command).toBe(
-			`${PLAYWRIGHT_WEB_ONLY_SERVER_COMMAND} --host 127.0.0.1 --port ${expectedPort} --strictPort`
+			`${PLAYWRIGHT_WEB_ONLY_SERVER_COMMAND} --host localhost --port ${expectedPort} --strictPort`
 		);
 		expect(runtime.webServer?.reuseExistingServer).toBe(false);
 	});
@@ -1178,15 +1290,18 @@ describe('playwright config contract', () => {
 			expect(authSetupSource).toContain('setup.setTimeout(AUTH_SETUP_TIMEOUT_MS);');
 		});
 
-		it('playwright config applies workspace-scoped API/listener defaults so local stacks avoid shared :3001 collisions', () => {
-			const playwrightConfigSource = readFileSync(join(process.cwd(), 'playwright.config.ts'), 'utf8');
-
-			expect(playwrightConfigSource).toContain('applyWorkspaceScopedApiDefaults');
-			expect(playwrightConfigSource).toContain('resolveDefaultPlaywrightWebPort');
-			expect(playwrightConfigSource).toContain('processEnv.API_BASE_URL');
-			expect(playwrightConfigSource).toContain('processEnv.API_URL');
-			expect(playwrightConfigSource).toContain('processEnv.LISTEN_ADDR');
-			expect(playwrightConfigSource).toContain('processEnv.S3_LISTEN_ADDR');
+		it('playwright local stack restart guard accepts both cargo-run and compiled api binary command lines', () => {
+			const localStackSource = readFileSync(
+				join(process.cwd(), '../scripts/playwright_local_stack.sh'),
+				'utf8'
+			);
+			// Restart guard must recognize the directly launched binary shape
+			// (`.../target/{debug,release}/api`) in addition to cargo-run so
+			// force-restart can recycle stale API listeners instead of leaving
+			// mismatched JWT runtimes alive.
+			expect(localStackSource).toContain('"cargo run --manifest-path infra/Cargo.toml -p api"');
+			expect(localStackSource).toContain('"/target/debug/api"');
+			expect(localStackSource).toContain('"/target/release/api"');
 		});
 
 		it('playwright CI job relies on launch wrapper owner and avoids placeholder Stripe secrets', () => {
@@ -1691,7 +1806,7 @@ describe('cwd-local playwright config owner contract', () => {
 		expect(localConfigSource).toContain('const PLAYWRIGHT_CWD_LOCAL_WEB_PORT');
 		expect(localConfigSource).toContain('const CWD_LOCAL_BASE_URL');
 		expect(localConfigSource).toContain(
-			".replace('--port 5173', `--port ${PLAYWRIGHT_CWD_LOCAL_WEB_PORT}`)"
+			'.replace(/--port\\s+\\d+/, `--port ${PLAYWRIGHT_CWD_LOCAL_WEB_PORT}`)'
 		);
 		expect(localConfigSource).toContain('url: CWD_LOCAL_BASE_URL');
 		expect(localConfigSource).toMatch(/baseURL:\s*CWD_LOCAL_BASE_URL/);

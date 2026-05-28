@@ -440,7 +440,7 @@ run_live_rust_validation_tests() {
     (
         cd "$_REPO_ROOT/infra" &&
         INTEGRATION=1 BACKEND_LIVE_GATE=1 \
-            cargo test -p api --test integration_metering_pipeline_test -- --test-threads=1
+            cargo test -p api --test integration integration_metering_pipeline_test:: -- --test-threads=1
     )
 }
 

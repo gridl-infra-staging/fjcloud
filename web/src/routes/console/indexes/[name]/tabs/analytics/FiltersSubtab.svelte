@@ -48,9 +48,12 @@
 
 	function parseFiltersPayload(
 		payload: AnalyticsFilterValuesResponse | null | undefined
-	): Record<string, AnalyticsCountByKey> {
-		if (!payload || typeof payload !== 'object') return {};
-		return payload.filters ?? {};
+	): Record<string, AnalyticsCountByKey> | null {
+		if (!payload || typeof payload !== 'object') return null;
+		if (!('filters' in payload) || !payload.filters || typeof payload.filters !== 'object') {
+			return null;
+		}
+		return payload.filters;
 	}
 
 	function readAnalyticsFiltersPayload(
@@ -68,13 +71,13 @@
 	}
 
 	function toggleAttribute(attribute: string) {
-		const next = new SvelteSet(expandedAttributes);
-		if (next.has(attribute)) {
-			next.delete(attribute);
+		// Keep one reactive SvelteSet instance and mutate it in place.
+		// Reassigning a plain `let` in runes mode does not trigger updates.
+		if (expandedAttributes.has(attribute)) {
+			expandedAttributes.delete(attribute);
 		} else {
-			next.add(attribute);
+			expandedAttributes.add(attribute);
 		}
-		expandedAttributes = next;
 	}
 
 	function retryFetch() {
@@ -100,8 +103,14 @@
 			isLoading = false;
 
 			if (result.type === 'success') {
+				const parsedFilters = parseFiltersPayload(readAnalyticsFiltersPayload(result.data));
+				if (parsedFilters === null) {
+					filtersError = 'Failed to load filter analytics';
+					rawFilters = {};
+					return;
+				}
 				filtersError = '';
-				rawFilters = parseFiltersPayload(readAnalyticsFiltersPayload(result.data));
+				rawFilters = parsedFilters;
 				return;
 			}
 
@@ -118,13 +127,16 @@
 	<input type="hidden" name="endDate" value={endDate} />
 </form>
 
-<section class="rounded-lg border border-flapjack-ink/20 p-4" data-testid="analytics-subtab-panel-filters">
+<section
+	class="rounded-lg border border-flapjack-ink/20 p-4"
+	data-testid="analytics-subtab-panel-filters"
+>
 	<h3 class="mb-4 text-sm font-semibold text-flapjack-ink">Filters</h3>
 
 	{#if isLoading && !hasLoaded}
-			<div class="space-y-3" data-testid="filters-loading-skeleton">
-				{#each [1, 2, 3] as skeletonRow (skeletonRow)}
-					<div class="animate-pulse rounded-lg border border-flapjack-ink/20 p-4">
+		<div class="space-y-3" data-testid="filters-loading-skeleton">
+			{#each [1, 2, 3] as skeletonRow (skeletonRow)}
+				<div class="animate-pulse rounded-lg border border-flapjack-ink/20 p-4">
 					<div class="h-4 w-32 rounded bg-flapjack-ink/20"></div>
 					<div class="mt-2 h-4 w-16 rounded bg-flapjack-ink/15"></div>
 				</div>
@@ -148,13 +160,20 @@
 		{/if}
 
 		{#if filterRows.length === 0}
-			<div class="rounded-md border border-flapjack-ink/20 bg-flapjack-cream/80 p-4 text-sm text-flapjack-ink/70">
+			<div
+				class="rounded-md border border-flapjack-ink/20 bg-flapjack-cream/80 p-4 text-sm text-flapjack-ink/70"
+			>
 				No filter analytics were recorded for this date range.
 			</div>
 		{:else}
-			<div class="overflow-x-auto rounded-lg border border-flapjack-ink/20" data-testid="filters-table">
+			<div
+				class="overflow-x-auto rounded-lg border border-flapjack-ink/20"
+				data-testid="filters-table"
+			>
 				<table class="w-full text-left text-sm">
-					<thead class="border-b bg-flapjack-cream/80 text-xs font-medium uppercase text-flapjack-ink/60">
+					<thead
+						class="border-b bg-flapjack-cream/80 text-xs font-medium uppercase text-flapjack-ink/60"
+					>
 						<tr>
 							<th class="px-3 py-2">Filter attribute</th>
 							<th class="px-3 py-2 text-right">Applied count</th>
@@ -179,7 +198,9 @@
 											class="rounded-md border border-flapjack-ink/10 bg-flapjack-cream/50 p-3"
 											data-testid={`filter-values-${row.attribute}`}
 										>
-											<p class="mb-2 text-xs font-semibold uppercase tracking-wide text-flapjack-ink/60">
+											<p
+												class="mb-2 text-xs font-semibold uppercase tracking-wide text-flapjack-ink/60"
+											>
 												{row.attribute}
 											</p>
 											<ul class="space-y-1 text-sm text-flapjack-ink/80">

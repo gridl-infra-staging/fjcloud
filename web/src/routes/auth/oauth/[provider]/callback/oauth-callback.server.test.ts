@@ -57,7 +57,7 @@ describe('oauth callback route', () => {
 		const setCookie = vi.fn();
 		const deleteCookie = vi.fn();
 		const callbackUrl = new URL(
-			'https://cloud.flapjack.foo/oauth/callback/google?code=oauth-code&state=csrf-state'
+			'https://cloud.flapjack.foo/auth/oauth/google/callback?code=oauth-code&state=csrf-state'
 		);
 		const event = makeEvent({
 			url: callbackUrl.toString(),
@@ -96,7 +96,7 @@ describe('oauth callback route', () => {
 		const setCookie = vi.fn();
 		const deleteCookie = vi.fn();
 		const callbackUrl = new URL(
-			'https://cloud.flapjack.foo/oauth/callback/google?code=oauth-code&state=csrf-state'
+			'https://cloud.flapjack.foo/auth/oauth/google/callback?code=oauth-code&state=csrf-state'
 		);
 		const event = makeEvent({
 			url: callbackUrl.toString(),
@@ -122,7 +122,7 @@ describe('oauth callback route', () => {
 	it('fails safely to oauth_error redirect when callback query params are missing', async () => {
 		const setCookie = vi.fn();
 		const deleteCookie = vi.fn();
-		const callbackUrl = new URL('https://cloud.flapjack.foo/oauth/callback/google?code=oauth-code');
+		const callbackUrl = new URL('https://cloud.flapjack.foo/auth/oauth/google/callback?code=oauth-code');
 		const event = makeEvent({
 			url: callbackUrl.toString(),
 			oauthStateCookie: 'encrypted-state',
@@ -155,7 +155,7 @@ describe('oauth callback route', () => {
 		const setCookie = vi.fn();
 		const deleteCookie = vi.fn();
 		const callbackUrl = new URL(
-			'https://cloud.flapjack.foo/oauth/callback/google?code=oauth-code&state=csrf-state'
+			'https://cloud.flapjack.foo/auth/oauth/google/callback?code=oauth-code&state=csrf-state'
 		);
 		const event = makeEvent({
 			url: callbackUrl.toString(),

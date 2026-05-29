@@ -6,5 +6,6 @@
 
 | Directory | Summary |
 | --- | --- |
-| evidence | The evidence directory contains operational orchestration and monitoring artifacts, including a post-launch production monitoring suite with periodic diagnostic probes for the first 4 hours after deployment, and orchestration tooling for a production database leak cleanup operation that manages customer cohort deployments and tenant deletion operations. |
+| evidence | The evidence directory contains production operations monitoring and cleanup orchestration: launch-rc-runs tracks system health and data freshness during release windows, while prod_db_leak_cleanup manages the final stages of database leak remediation including customer deployment termination and tenant data cleanup with consistency validation. |
+| evidence | The evidence directory contains a 4-hour production launch monitoring bundle that validates metering data rollup freshness through periodic sampling, and database leak cleanup workflow stages that terminate customer deployments and perform soft-deletes with reproducibility and idempotency validation. |
 <!-- [scrai:end] -->

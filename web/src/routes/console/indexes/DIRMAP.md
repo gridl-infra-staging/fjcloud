@@ -7,5 +7,6 @@
 
 | Directory | Summary |
 | --- | --- |
-| [name] | This directory contains the core server-side management logic and UI components for the fjcloud console's index feature, with specialized handlers for analytics, chat, dictionaries, documents, events, personalization, recommendations, rules, security, suggestions, and synonyms. |
+| [name] | This directory contains server-side management modules and UI components for a SvelteKit index console, organizing functionality across analytics, chat, document, dictionary, recommendations, and other domain-specific handlers alongside an experiments section and reusable tab components. |
+| [name] | This directory contains SvelteKit server-side route handlers and UI components for a console dashboard that manages various index features including documents, analytics, chat, dictionaries, events, personalization, recommendations, rules, and security sources. |
 <!-- [scrai:end] -->

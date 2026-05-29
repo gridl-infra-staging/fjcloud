@@ -262,6 +262,30 @@ describe('Index detail page — Security Sources tab', () => {
 		expect(actions.filter((a) => a === '?/deleteSecuritySource')).toHaveLength(2);
 	});
 
+	it('security source delete uses ConfirmDialog cancel/confirm before submitting delete action', async () => {
+		const requestSubmitSpy = vi
+			.spyOn(HTMLFormElement.prototype, 'requestSubmit')
+			.mockImplementation(() => {});
+		renderPage({ securitySources: sampleSecuritySources });
+		await openTab('Security Sources');
+		expect(screen.queryByTestId('confirm-dialog')).not.toBeInTheDocument();
+
+		await fireEvent.click(screen.getByRole('button', { name: 'Delete security source 192.168.1.0/24' }));
+		const deleteDialog = screen.getByTestId('confirm-dialog');
+		expect(deleteDialog).toBeInTheDocument();
+		expect(within(deleteDialog).getByText('Delete security source?')).toBeInTheDocument();
+		expect(requestSubmitSpy).not.toHaveBeenCalled();
+
+		await fireEvent.click(screen.getByTestId('confirm-cancel-btn'));
+		expect(screen.queryByTestId('confirm-dialog')).not.toBeInTheDocument();
+		expect(requestSubmitSpy).not.toHaveBeenCalled();
+
+		await fireEvent.click(screen.getByRole('button', { name: 'Delete security source 192.168.1.0/24' }));
+		await fireEvent.click(screen.getByTestId('confirm-confirm-btn'));
+		expect(requestSubmitSpy).toHaveBeenCalledTimes(1);
+		requestSubmitSpy.mockRestore();
+	});
+
 	it('shows success message when a source is appended', async () => {
 		renderPage({}, {
 			securitySourceAppended: true,

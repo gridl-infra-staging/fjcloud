@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import type { BrowseObjectsResponse, Index } from '$lib/api/types';
+	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import {
 		MAX_DOCUMENT_UPLOAD_BYTES,
 		parseUploadFileRecords,
@@ -54,6 +55,10 @@
 	let browseQueryDraft = $state('');
 	let browseCursorDraft = $state('');
 	let hitsPerPageDraft = $state(DEFAULT_HITS_PER_PAGE);
+	let pendingDeleteObjectId = $state<string | null>(null);
+	let pendingDeleteForm = $state<HTMLFormElement | null>(null);
+	let pendingDeleteTrigger = $state<HTMLElement | null>(null);
+	let showDeleteConfirmDialog = $state(false);
 
 	const hasDocumentHits = $derived(documents.hits.length > 0);
 	const browseQuery = $derived(documents.query ?? '');
@@ -71,6 +76,29 @@
 	function hitObjectId(hit: Record<string, unknown>, indexAt: number): string {
 		const value = hit.objectID;
 		return typeof value === 'string' && value.trim().length > 0 ? value : `row-${indexAt + 1}`;
+	}
+
+	function openDeleteConfirmDialog(
+		objectId: string,
+		form: HTMLFormElement,
+		trigger: HTMLElement
+	): void {
+		pendingDeleteObjectId = objectId;
+		pendingDeleteForm = form;
+		pendingDeleteTrigger = trigger;
+		showDeleteConfirmDialog = true;
+	}
+
+	function closeDeleteConfirmDialog(): void {
+		showDeleteConfirmDialog = false;
+		pendingDeleteObjectId = null;
+		pendingDeleteForm = null;
+		pendingDeleteTrigger = null;
+	}
+
+	function confirmDeleteDocument(): void {
+		pendingDeleteForm?.requestSubmit();
+		closeDeleteConfirmDialog();
 	}
 
 	async function handleUploadFileChange(event: Event): Promise<void> {
@@ -338,9 +366,20 @@
 								<input type="hidden" name="query" value={browseQuery} />
 								<input type="hidden" name="hitsPerPage" value={String(browseHitsPerPage)} />
 								<button
-									type="submit"
+									type="button"
 									aria-label={`Delete document ${objectId}`}
 									class="rounded border border-flapjack-rose/45 px-3 py-1 text-xs text-flapjack-plum hover:bg-flapjack-rose/10"
+									onclick={(event) => {
+										const trigger = event.currentTarget;
+										if (!(trigger instanceof HTMLElement)) {
+											return;
+										}
+										const deleteForm = trigger.closest('form');
+										if (!(deleteForm instanceof HTMLFormElement)) {
+											return;
+										}
+										openDeleteConfirmDialog(objectId, deleteForm, trigger);
+									}}
 								>
 									Delete
 								</button>
@@ -360,3 +399,20 @@
 		{/if}
 	</div>
 </div>
+
+<ConfirmDialog
+	open={showDeleteConfirmDialog}
+	mode="standard"
+	dangerLevel="warn"
+	title="Delete document?"
+	consequences={pendingDeleteObjectId
+		? `Delete document "${pendingDeleteObjectId}" from ${index.name}.`
+		: `Delete this document from ${index.name}.`}
+	rationale="This record will no longer appear in browse results."
+	entityName={pendingDeleteObjectId ?? index.name}
+	confirmLabel="Delete"
+	cancelLabel="Cancel"
+	onCancel={closeDeleteConfirmDialog}
+	onConfirm={confirmDeleteDocument}
+	triggerRef={pendingDeleteTrigger}
+/>

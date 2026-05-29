@@ -159,7 +159,19 @@ tenant_field() {
   # tenant_field <A|B|C> <NAME|PLAN|TARGET_STORAGE_MB|WRITES_PER_MINUTE|SEARCHES_PER_MINUTE|EXPECTED_MIN_CENTS>
   local letter="$1" field="$2"
   local var="TENANT_${letter}_${field}"
-  eval "printf '%s' \"\${${var}}\""
+  case "$letter" in
+    A|B|C) ;;
+    *)
+      return 1
+      ;;
+  esac
+  case "$field" in
+    NAME|PLAN|TARGET_STORAGE_MB|WRITES_PER_MINUTE|SEARCHES_PER_MINUTE|EXPECTED_MIN_CENTS) ;;
+    *)
+      return 1
+      ;;
+  esac
+  printf '%s' "${!var-}"
 }
 
 seed_synthetic_state_dir() {
@@ -816,14 +828,15 @@ preflight_env() {
 # VM's key — not whatever the operator has set as FLAPJACK_API_KEY.
 #
 # Resolution order:
-#   1. ${FLAPJACK_API_KEY} env var, when set (test/local override seam).
+#   1. Non-.flapjack.foo hosts: ${FLAPJACK_API_KEY} env var (test/local seam).
 #   2. SSM GetParameter on /fjcloud/{host}/api-key in ${AWS_DEFAULT_REGION:-us-east-1}.
+#   3. Final fallback to ${FLAPJACK_API_KEY} only when the SSM lookup fails.
 #
 # Results are cached in-process via dynamic var names (bash 3.2 compatible)
 # so hot write/search loops do not re-query SSM per request.
 node_api_key_for_url() {
   local flapjack_url="$1"
-  local host
+  local host ssm_path region key ssm_lookup_error=""
   host="$(printf '%s' "$flapjack_url" | python3 -c '
 import sys, urllib.parse as u
 parsed = u.urlparse(sys.stdin.read().strip())
@@ -840,21 +853,35 @@ print(parsed.hostname or "")
     return 0
   fi
 
+  # Non-production/local hosts (for example synthetic test hosts) continue
+  # to honor FLAPJACK_API_KEY as the primary seam.
+  if [[ "$host" != *.flapjack.foo ]]; then
+    if [ -n "${FLAPJACK_API_KEY:-}" ]; then
+      printf -v "$cache_var" '%s' "${FLAPJACK_API_KEY}"
+      printf '%s' "${FLAPJACK_API_KEY}"
+      return 0
+    fi
+  fi
+
+  ssm_path="/fjcloud/${host}/api-key"
+  region="${AWS_DEFAULT_REGION:-us-east-1}"
+  key=""
+  if key="$(aws ssm get-parameter --name "$ssm_path" --with-decryption --region "$region" --query 'Parameter.Value' --output text 2>&1)"; then
+    [ -n "$key" ] && [ "$key" != "None" ] || die "SSM returned empty value for ${ssm_path}"
+    printf -v "$cache_var" '%s' "$key"
+    printf '%s' "$key"
+    return 0
+  fi
+  ssm_lookup_error="$key"
+
+  # For vm-host paths, stale FLAPJACK_API_KEY values can cause persistent 403s.
+  # Only fall back to FLAPJACK_API_KEY when SSM is unavailable.
   if [ -n "${FLAPJACK_API_KEY:-}" ]; then
-    eval "${cache_var}=\${FLAPJACK_API_KEY}"
+    printf -v "$cache_var" '%s' "${FLAPJACK_API_KEY}"
     printf '%s' "${FLAPJACK_API_KEY}"
     return 0
   fi
-
-  local ssm_path="/fjcloud/${host}/api-key"
-  local region="${AWS_DEFAULT_REGION:-us-east-1}"
-  local key=""
-  if ! key="$(aws ssm get-parameter --name "$ssm_path" --with-decryption --region "$region" --query 'Parameter.Value' --output text 2>&1)"; then
-    die "SSM lookup failed for ${ssm_path} (region=${region}): ${key}; set FLAPJACK_API_KEY or grant ssm:GetParameter on the operator IAM"
-  fi
-  [ -n "$key" ] && [ "$key" != "None" ] || die "SSM returned empty value for ${ssm_path}"
-  eval "${cache_var}=\$key"
-  printf '%s' "$key"
+  die "SSM lookup failed for ${ssm_path} (region=${region}): ${ssm_lookup_error}; set FLAPJACK_API_KEY or grant ssm:GetParameter on the operator IAM"
 }
 
 read_mapped_storage_mb() {
@@ -945,6 +972,8 @@ elif isinstance(payload, list):
 else:
     tenant_rows = []
 
+candidates = []
+
 for tenant in tenant_rows:
     if not isinstance(tenant, dict):
         continue
@@ -953,9 +982,24 @@ for tenant in tenant_rows:
     if tenant_name != expected_name and tenant_email != expected_email:
         continue
     tenant_id = tenant.get("id")
-    if tenant_id:
+    if not tenant_id:
+        continue
+    status = str(tenant.get("status", "")).strip().lower()
+    candidates.append((str(tenant_id), status))
+
+for tenant_id, status in candidates:
+    if status == "active":
         print(tenant_id)
         raise SystemExit(0)
+
+for tenant_id, status in candidates:
+    if status not in {"deleted", "soft_deleted", "soft-deleted", "archived", "inactive", "disabled"}:
+        print(tenant_id)
+        raise SystemExit(0)
+
+if candidates:
+    print(candidates[0][0])
+    raise SystemExit(0)
 
 print("")
 PY

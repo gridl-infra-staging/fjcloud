@@ -15,7 +15,10 @@ PROBE_TENANTS_CSV="A,B,C"
 PROBE_DURATION_MINUTES=30
 PROBE_RESTART_API_ONCE="false"
 PROBE_ASSERT_MODE="false"
+PROBE_OUTPUT_BASE_DIR=""
 PROBE_OUTPUT_DIR=""
+PROBE_OUTPUT_WORKSPACE_DIR=""
+PROBE_LEGACY_OUTPUT_MODE="false"
 PROBE_DRY_RUN="false"
 PROBE_CREATED_TENANTS=""
 
@@ -87,6 +90,7 @@ probe_parse_args() {
         ;;
       --out)
         probe_require_value "$1" "${2:-}"
+        PROBE_OUTPUT_BASE_DIR="$2"
         PROBE_OUTPUT_DIR="$2"
         shift 2
         ;;
@@ -111,9 +115,62 @@ probe_parse_args() {
     staging) ;;
     *) probe_die "--env must be staging for this probe entrypoint" ;;
   esac
-  if [ -z "$PROBE_OUTPUT_DIR" ]; then
+  if [ -z "$PROBE_OUTPUT_BASE_DIR" ] && [ -z "$PROBE_OUTPUT_DIR" ]; then
     probe_die "--out is required"
   fi
+}
+
+probe_output_base_without_suffix() {
+  local out_arg="$1"
+  case "$out_arg" in
+    *_GREEN) printf '%s' "${out_arg%_GREEN}" ;;
+    *_NONGREEN) printf '%s' "${out_arg%_NONGREEN}" ;;
+    *) printf '%s' "$out_arg" ;;
+  esac
+}
+
+probe_output_final_dir_for_verdict() {
+  local out_base="$1"
+  local verdict="$2"
+  printf '%s_%s' "$out_base" "$verdict"
+}
+
+probe_prepare_output_workspace() {
+  local canonical_base workspace_suffix
+  if [ -z "$PROBE_OUTPUT_BASE_DIR" ] && [ -n "$PROBE_OUTPUT_DIR" ]; then
+    PROBE_LEGACY_OUTPUT_MODE="true"
+    mkdir -p "$PROBE_OUTPUT_DIR"
+    return 0
+  fi
+  PROBE_LEGACY_OUTPUT_MODE="false"
+  canonical_base="$(probe_output_base_without_suffix "$PROBE_OUTPUT_BASE_DIR")"
+  workspace_suffix="_RUNNING_$(date +%s)_$$"
+  PROBE_OUTPUT_WORKSPACE_DIR="${canonical_base}${workspace_suffix}"
+  PROBE_OUTPUT_DIR="$PROBE_OUTPUT_WORKSPACE_DIR"
+  mkdir -p "$PROBE_OUTPUT_DIR"
+}
+
+probe_finalize_output_workspace() {
+  local verdict="$1"
+  local final_dir canonical_base
+  if [ "$PROBE_LEGACY_OUTPUT_MODE" = "true" ]; then
+    return 0
+  fi
+  canonical_base="$(probe_output_base_without_suffix "$PROBE_OUTPUT_BASE_DIR")"
+  final_dir="$(probe_output_final_dir_for_verdict "$canonical_base" "$verdict")"
+  if [ "$PROBE_OUTPUT_DIR" = "$final_dir" ]; then
+    return 0
+  fi
+  rm -rf "$final_dir"
+  mv "$PROBE_OUTPUT_DIR" "$final_dir"
+  if [ "$canonical_base" != "$final_dir" ]; then
+    if [ -e "$canonical_base" ]; then
+      cp -R "$final_dir"/. "$canonical_base"/
+    else
+      ln -s "$final_dir" "$canonical_base"
+    fi
+  fi
+  PROBE_OUTPUT_DIR="$final_dir"
 }
 
 probe_now_epoch() { date +%s; }
@@ -349,6 +406,7 @@ probe_consume_startup_cleanup_manifest() {
 }
 
 probe_run() {
+  probe_prepare_output_workspace
   if [ "$PROBE_DRY_RUN" = "true" ] && [ "$PROBE_RESTART_API_ONCE" = "true" ]; then
     probe_restart_api_once_if_requested
   fi
@@ -553,12 +611,16 @@ probe_run() {
     probe_teardown_created_tenants
   fi
 
-  probe_record_artifacts >/dev/null
+  local run_verdict="GREEN"
+  probe_record_artifacts
   if [ "$PROBE_ASSERT_MODE" = "true" ] && ! probe_assertions_pass; then
-    probe_record_artifacts
-    return 1
+    run_verdict="NONGREEN"
   fi
   probe_record_artifacts
+  probe_finalize_output_workspace "$run_verdict"
+  if [ "$run_verdict" = "NONGREEN" ]; then
+    return 1
+  fi
   return 0
 }
 

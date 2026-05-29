@@ -732,6 +732,51 @@ test_provisioning_contract_recovers_when_mapped_customer_update_returns_404() {
         "mapping artifact should be refreshed to active customer id after stale mapped 404"
 }
 
+test_provisioning_contract_prefers_active_customer_when_lookup_returns_soft_deleted_first() {
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+
+    local curl_log="$tmp_dir/curl.log"
+    local psql_log="$tmp_dir/psql.log"
+    local psql_stdin="$tmp_dir/psql.stdin"
+    local mapping_backup="$tmp_dir/tenant_a_mapping.backup"
+    local stale_customer_id="99999999-9999-9999-9999-999999999999"
+    trap 'restore_tenant_a_mapping_artifact "'"$mapping_backup"'"; rm -rf "'"$tmp_dir"'"' RETURN
+
+    stash_tenant_a_mapping_artifact "$mapping_backup"
+    write_tenant_a_mapping_artifact \
+        "$stale_customer_id" \
+        "tenant-stale-a" \
+        "stale_uid" \
+        "http://synthetic-node-a.test"
+    setup_mock_workspace "$tmp_dir" "$curl_log" "$psql_log" "$psql_stdin"
+
+    clear_mock_logs "$curl_log" "$psql_log" "$psql_stdin"
+    MOCK_SYNTHETIC_DURATION_MINUTES="0" \
+    MOCK_SYNTHETIC_STORAGE_MB_SEQUENCE="200,200" \
+    MOCK_SYNTHETIC_CREATE_STATUS_CODE="409" \
+    MOCK_SYNTHETIC_CREATE_409_INCLUDE_ID="0" \
+    MOCK_SYNTHETIC_UPDATE_404_FOR_TENANT_ID="$stale_customer_id" \
+    MOCK_SYNTHETIC_TENANT_LIST_SOFT_DELETED_FIRST="1" \
+    run_seed_synthetic_execute "$tmp_dir" "A"
+
+    assert_eq "$RUN_EXIT_CODE" "0" \
+        "provisioning should select active customer id even when tenant lookup returns soft-deleted row first"
+
+    local curl_calls mapping_customer_id
+    curl_calls="$(read_file_or_empty "$curl_log")"
+    mapping_customer_id="$(mapping_json_field_or_empty "customer_id")"
+
+    assert_contains "$curl_calls" "-X GET http://synthetic-api.test/admin/tenants" \
+        "provisioning should query tenant list during stale-id recovery"
+    assert_not_contains "$curl_calls" "http://synthetic-api.test/admin/tenants/$stale_customer_id -d {\"billing_plan\":\"shared\"}" \
+        "provisioning should not retry update using the soft-deleted customer id after lookup fallback"
+    assert_contains "$curl_calls" "http://synthetic-api.test/admin/tenants/11111111-1111-1111-1111-111111111111" \
+        "provisioning should retry update using the active tenant id from lookup fallback"
+    assert_eq "$mapping_customer_id" "11111111-1111-1111-1111-111111111111" \
+        "mapping artifact should persist active customer id, not soft-deleted id"
+}
+
 test_provisioning_contract_replaces_control_plane_endpoint_with_direct_fallback() {
     local tmp_dir
     tmp_dir=$(mktemp -d)
@@ -1476,44 +1521,88 @@ load_seed_synthetic_functions() {
     set -e
 }
 
-test_node_api_key_for_url_returns_env_override_when_flapjack_api_key_is_set() {
-    (
-        load_seed_synthetic_functions
-        local resolved
-        FLAPJACK_API_KEY="env-override-key" \
-            resolved="$(node_api_key_for_url "http://synthetic-flapjack.test:7700")"
-        assert_eq "$resolved" "env-override-key" \
-            "node_api_key_for_url should honor FLAPJACK_API_KEY env override (test/local seam)"
-    )
+test_node_api_key_for_url_uses_env_override_for_non_vm_hosts() {
+    load_seed_synthetic_functions
+    local resolved
+    aws() {
+        echo "aws should not be called for non-vm host env-override seam" >&2
+        return 99
+    }
+    FLAPJACK_API_KEY="env-override-key" \
+        resolved="$(node_api_key_for_url "http://synthetic-flapjack.test:7700")"
+    assert_eq "$resolved" "env-override-key" \
+        "node_api_key_for_url should honor FLAPJACK_API_KEY env override (test/local seam)"
+    unset -f aws
+}
+
+test_node_api_key_for_url_prefers_ssm_for_vm_hosts_even_when_env_key_is_set() {
+    load_seed_synthetic_functions
+    local resolved ssm_calls_file ssm_calls
+    ssm_calls_file="$(mktemp)"
+    aws() {
+        printf '1\n' >> "$ssm_calls_file"
+        if [ "$1" != "ssm" ] || [ "$2" != "get-parameter" ]; then
+            echo "unexpected aws args: $*" >&2
+            return 91
+        fi
+        printf '%s\n' "ssm-node-key"
+        return 0
+    }
+    local resolved_path
+    resolved_path="$(mktemp)"
+    FLAPJACK_API_KEY="stale-env-key" node_api_key_for_url "http://vm-shared-f2b9c8a6.flapjack.foo:7700" > "$resolved_path"
+    resolved="$(cat "$resolved_path")"
+    rm -f "$resolved_path"
+    ssm_calls="$(line_count_or_zero "$ssm_calls_file")"
+    rm -f "$ssm_calls_file"
+    assert_eq "$resolved" "ssm-node-key" \
+        "vm host key resolution must prefer per-node SSM key over FLAPJACK_API_KEY override to avoid stale-key 403s"
+    assert_eq "$ssm_calls" "1" \
+        "vm host key resolution should call SSM exactly once when cache is cold"
+    unset -f aws
 }
 
 test_node_api_key_for_url_caches_per_host_to_avoid_repeat_lookups() {
-    (
-        load_seed_synthetic_functions
+    load_seed_synthetic_functions
 
-        # In-process cache lives on the current shell; we must not stage
-        # function invocations through a subshell ($(...)). Capture stdout
-        # via a temp file instead, so the dynamic cache-var assignment
-        # persists between calls in the same shell.
-        local cache_probe="$REPO_ROOT/.test-node-key-cache-probe"
-        : > "$cache_probe"
-        FLAPJACK_API_KEY="cached-key"
-        node_api_key_for_url "http://vm-shared-cache.flapjack.foo:7700" > "$cache_probe"
-        local first
-        first="$(cat "$cache_probe")"
-        : > "$cache_probe"
-        unset FLAPJACK_API_KEY
-        # Second call must succeed even with FLAPJACK_API_KEY unset, because
-        # the per-host result was cached in-process during the first call.
-        node_api_key_for_url "http://vm-shared-cache.flapjack.foo:7700" > "$cache_probe"
-        local second
-        second="$(cat "$cache_probe")"
-        rm -f "$cache_probe"
-        assert_eq "$first" "cached-key" \
-            "first node_api_key_for_url call should return the override value"
-        assert_eq "$second" "cached-key" \
-            "second node_api_key_for_url call should return the cached value without falling back to SSM"
-    )
+    # In-process cache lives on the current shell; we must not stage
+    # function invocations through a subshell ($(...)). Capture stdout
+    # via a temp file instead, so the dynamic cache-var assignment
+    # persists between calls in the same shell.
+    local cache_probe="$REPO_ROOT/.test-node-key-cache-probe"
+    : > "$cache_probe"
+    local ssm_calls_file ssm_calls
+    ssm_calls_file="$(mktemp)"
+    aws() {
+        printf '1\n' >> "$ssm_calls_file"
+        if [ "$1" != "ssm" ] || [ "$2" != "get-parameter" ]; then
+            echo "unexpected aws args: $*" >&2
+            return 91
+        fi
+        printf '%s\n' "cached-key-from-ssm"
+        return 0
+    }
+    FLAPJACK_API_KEY="stale-env-key"
+    node_api_key_for_url "http://vm-shared-cache.flapjack.foo:7700" > "$cache_probe"
+    local first
+    first="$(cat "$cache_probe")"
+    : > "$cache_probe"
+    unset FLAPJACK_API_KEY
+    # Second call must succeed with no additional SSM lookup because the
+    # per-host result was cached in-process during the first call.
+    node_api_key_for_url "http://vm-shared-cache.flapjack.foo:7700" > "$cache_probe"
+    local second
+    second="$(cat "$cache_probe")"
+    rm -f "$cache_probe"
+    ssm_calls="$(line_count_or_zero "$ssm_calls_file")"
+    rm -f "$ssm_calls_file"
+    assert_eq "$first" "cached-key-from-ssm" \
+        "first vm-host node_api_key_for_url call should return the SSM-resolved key"
+    assert_eq "$second" "cached-key-from-ssm" \
+        "second vm-host node_api_key_for_url call should return the cached per-host key"
+    assert_eq "$ssm_calls" "1" \
+        "vm-host node_api_key_for_url should not repeat SSM lookups after the first call"
+    unset -f aws
 }
 
 test_node_api_key_for_url_dies_when_url_has_no_host() {
@@ -1530,6 +1619,77 @@ test_node_api_key_for_url_dies_when_url_has_no_host() {
         assert_contains "$output" "failed to parse host" \
             "node_api_key_for_url failure should explain that host parsing failed"
     )
+}
+
+test_tenant_field_rejects_invalid_selector_without_eval() {
+    (
+        load_seed_synthetic_functions
+        local marker output exit_code=0
+        marker="$(mktemp)"
+        rm -f "$marker"
+        output="$(
+            SEEDER_INJECTION_MARKER="$marker" \
+            tenant_field 'A}"; touch "$SEEDER_INJECTION_MARKER"; #' "NAME" 2>&1
+        )" || exit_code=$?
+        if [ "$exit_code" -eq 0 ]; then
+            fail "tenant_field should reject invalid selector input instead of accepting eval-shaped payloads"
+        else
+            pass "tenant_field rejects invalid selector input"
+        fi
+        if [ -e "$marker" ]; then
+            fail "tenant_field must not execute selector input as shell code"
+        else
+            pass "tenant_field treats selector input as data, not code"
+        fi
+        assert_eq "$output" "" \
+            "tenant_field should fail closed without printing injected output"
+    )
+}
+
+test_node_api_key_for_url_treats_env_override_as_data_not_code() {
+    load_seed_synthetic_functions
+    local marker resolved_path resolved expected
+    marker="$(mktemp)"
+    rm -f "$marker"
+    resolved_path="$(mktemp)"
+    expected='$(touch "$SEEDER_INJECTION_MARKER")env-override-key'
+    SEEDER_INJECTION_MARKER="$marker" \
+        FLAPJACK_API_KEY="$expected" \
+        node_api_key_for_url "http://synthetic-flapjack.test:7700" > "$resolved_path"
+    resolved="$(cat "$resolved_path")"
+    rm -f "$resolved_path"
+    assert_eq "$resolved" "$expected" \
+        "non-vm env override should be returned verbatim without eval-parsing shell metacharacters"
+    if [ -e "$marker" ]; then
+        fail "env override key must not be executed while caching node API keys"
+    else
+        pass "env override key is treated as data while caching node API keys"
+    fi
+}
+
+test_node_api_key_for_url_treats_ssm_value_as_data_not_code() {
+    load_seed_synthetic_functions
+    local marker resolved_path resolved expected
+    marker="$(mktemp)"
+    rm -f "$marker"
+    resolved_path="$(mktemp)"
+    expected='$(touch "$SEEDER_INJECTION_MARKER")ssm-node-key'
+    aws() {
+        printf '%s\n' "$expected"
+        return 0
+    }
+    SEEDER_INJECTION_MARKER="$marker" \
+        node_api_key_for_url "http://vm-shared-injection.flapjack.foo:7700" > "$resolved_path"
+    resolved="$(cat "$resolved_path")"
+    rm -f "$resolved_path"
+    unset -f aws
+    assert_eq "$resolved" "$expected" \
+        "vm-host SSM key should be returned verbatim without eval-parsing shell metacharacters"
+    if [ -e "$marker" ]; then
+        fail "SSM-derived node API key must not be executed while caching"
+    else
+        pass "SSM-derived node API key is treated as data while caching"
+    fi
 }
 
 test_duration_minutes_zero_is_a_supported_provisioning_only_seam() {
@@ -1634,6 +1794,7 @@ main() {
             test_seed_index_accepts_200_ok_from_idempotent_rerun_path
             test_provisioning_contract_recovers_when_create_409_omits_customer_id
             test_provisioning_contract_recovers_when_mapped_customer_update_returns_404
+            test_provisioning_contract_prefers_active_customer_when_lookup_returns_soft_deleted_first
             test_provisioning_contract_replaces_control_plane_endpoint_with_direct_fallback
             ;;
         stage3)
@@ -1668,6 +1829,7 @@ main() {
             test_seed_index_accepts_200_ok_from_idempotent_rerun_path
             test_provisioning_contract_recovers_when_create_409_omits_customer_id
             test_provisioning_contract_recovers_when_mapped_customer_update_returns_404
+            test_provisioning_contract_prefers_active_customer_when_lookup_returns_soft_deleted_first
             test_provisioning_contract_replaces_control_plane_endpoint_with_direct_fallback
             test_storage_floor_contract_skips_backfill_when_target_already_met
             test_storage_floor_contract_polls_until_usage_converges
@@ -1682,7 +1844,11 @@ main() {
             test_stage5_optional_usage_daily_query_error_is_non_gating
             test_staging_execute_seam_is_explicitly_gated
             test_stage6_docs_publish_verified_contract_and_blocker_state
-            test_node_api_key_for_url_returns_env_override_when_flapjack_api_key_is_set
+            test_tenant_field_rejects_invalid_selector_without_eval
+            test_node_api_key_for_url_uses_env_override_for_non_vm_hosts
+            test_node_api_key_for_url_treats_env_override_as_data_not_code
+            test_node_api_key_for_url_prefers_ssm_for_vm_hosts_even_when_env_key_is_set
+            test_node_api_key_for_url_treats_ssm_value_as_data_not_code
             test_node_api_key_for_url_caches_per_host_to_avoid_repeat_lookups
             test_node_api_key_for_url_dies_when_url_has_no_host
             test_preflight_env_does_not_require_flapjack_api_key

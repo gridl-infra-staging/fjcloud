@@ -15,7 +15,7 @@ set -a; source .secret/.env.secret; set +a
 
 Verify: `aws sts get-caller-identity` → expect `user/stuart-cli`.
 
-> The legacy `.secret/stuart-cli_accessKeys.csv` is the original onboarding artifact (March 2026) and is no longer kept current. After the 2026-05-21 rotation it holds a revoked key; **do not source AWS creds from the CSV**. See [docs/decisions/2026_05_22_bootstrap_local_env_deny_list.md](../decisions/2026_05_22_bootstrap_local_env_deny_list.md) for the incident that flagged this.
+> Legacy onboarding key exports are historical-only and not maintained. Always source AWS creds from `.secret/.env.secret`. See [docs/decisions/2026_05_22_bootstrap_local_env_deny_list.md](../decisions/2026_05_22_bootstrap_local_env_deny_list.md) for the incident that flagged this.
 
 ---
 
@@ -115,7 +115,7 @@ scripts/launch/ssm_exec_staging.sh "journalctl -u fjcloud-api -f --no-pager"
 | Parameter | Contents |
 |---|---|
 | `/fjcloud/staging/database_url` | Full postgres:// URL with credentials |
-| `/fjcloud/prod/database_url` | Not yet created (prod not deployed) |
+| `/fjcloud/prod/database_url` | Full postgres:// URL with credentials (prod) |
 
 Fetch any parameter:
 ```bash

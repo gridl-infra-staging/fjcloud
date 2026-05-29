@@ -184,6 +184,32 @@ describe('DocumentsTab — form action contracts', () => {
 	});
 });
 
+describe('DocumentsTab — delete confirmation gating', () => {
+	it('requires ConfirmDialog cancel/confirm before submitting deleteDocument action', async () => {
+		const requestSubmitSpy = vi
+			.spyOn(HTMLFormElement.prototype, 'requestSubmit')
+			.mockImplementation(() => {});
+
+		render(DocumentsTab, defaultProps());
+		expect(screen.queryByTestId('confirm-dialog')).not.toBeInTheDocument();
+
+		await fireEvent.click(screen.getByRole('button', { name: /delete document doc-1/i }));
+		const deleteDialog = screen.getByTestId('confirm-dialog');
+		expect(deleteDialog).toBeInTheDocument();
+		expect(screen.getByText('Delete document?')).toBeInTheDocument();
+		expect(requestSubmitSpy).not.toHaveBeenCalled();
+
+		await fireEvent.click(screen.getByTestId('confirm-cancel-btn'));
+		expect(screen.queryByTestId('confirm-dialog')).not.toBeInTheDocument();
+		expect(requestSubmitSpy).not.toHaveBeenCalled();
+
+		await fireEvent.click(screen.getByRole('button', { name: /delete document doc-1/i }));
+		await fireEvent.click(screen.getByTestId('confirm-confirm-btn'));
+		expect(requestSubmitSpy).toHaveBeenCalledTimes(1);
+		requestSubmitSpy.mockRestore();
+	});
+});
+
 describe('DocumentsTab — file-selection preview', () => {
 	it('shows JSON upload preview record count from selected file', async () => {
 		render(DocumentsTab, defaultProps());

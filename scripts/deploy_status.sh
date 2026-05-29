@@ -6,11 +6,9 @@
 # round-tripping through SSM parameter lookups and status docs that may be
 # stale. See `docs/runbooks/infra-deploy.md` for the broader deploy lifecycle.
 #
-# Topology note: there is currently ONE live environment, reachable at
-# https://api.flapjack.foo. Both the staging and prod mirror repos' CI
-# workflows call `ops/scripts/deploy.sh staging ...` — there is no separate
-# prod environment yet. When prod is stood up at a different hostname, add
-# a second row by extending the ENVS array below.
+# Topology note: two environments are probed — prod (https://api.flapjack.foo)
+# and staging (https://api.staging.flapjack.foo). Each is one row in the ENVS
+# array below. To add or change an environment, edit that array.
 #
 # Usage:  bash scripts/deploy_status.sh
 #         bash scripts/deploy_status.sh --json    # machine-readable

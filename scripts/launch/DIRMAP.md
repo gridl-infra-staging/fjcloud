@@ -15,7 +15,7 @@ execute-contract env vars consumed by staging-targeted tooling.
 
 Despite the historical "seeder" name (kept for path stability), this is the
 canonical SSM hydrator for staging tooling subshells. |
-| multi_tenant_isolation_probe.sh | thin multi-tenant isolation probe wrapper over seed_synthetic_traffic owners. |
+| multi_tenant_isolation_probe.sh | Stub summary for multi_tenant_isolation_probe.sh. |
 | post_deploy_verify_tenant_map.sh | post_deploy_verify_tenant_map.sh — confirm the deployed staging API
 picks up the tenant-map URL fallback from infra/api/src/routes/internal.rs.
 

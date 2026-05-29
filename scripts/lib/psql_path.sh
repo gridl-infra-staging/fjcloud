@@ -248,6 +248,15 @@
 # TODO: Document ensure_psql_on_path.
 # TODO: Document ensure_psql_on_path.
 # TODO: Document ensure_psql_on_path.
+# TODO: Document ensure_psql_on_path.
+# TODO: Document ensure_psql_on_path.
+# TODO: Document ensure_psql_on_path.
+# TODO: Document ensure_psql_on_path.
+# TODO: Document ensure_psql_on_path.
+# TODO: Document ensure_psql_on_path.
+# TODO: Document ensure_psql_on_path.
+# TODO: Document ensure_psql_on_path.
+# TODO: Document ensure_psql_on_path.
 ensure_psql_on_path() {
     if command -v psql >/dev/null 2>&1; then
         return 0

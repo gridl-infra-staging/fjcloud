@@ -21,8 +21,12 @@
 
 | Directory | Summary |
 | --- | --- |
-| admin | The admin routes module provides HTTP handlers for platform management operations including alerts, deployments, indexes, invoices, migrations, providers, rate cards, tenants, JWT token generation with audit logging for impersonation, usage tracking, and VM inventory management. |
+| admin | The admin directory contains route handlers for administrative and operational endpoints, including management of customers, invoices, rate cards, deployments, usage data, VMs, and JWT token generation with optional impersonation auditing. |
 | auth | — |
-| indexes | This directory contains HTTP route handlers for index management and operations in the fjcloud API, including search, settings, suggestions, rules, experiments, and other index-related features. |
-| storage | Storage module implements S3-compatible bucket and object management routes (list, create, delete operations) with path-style routing and inline usage metering for the API server. |
+| indexes | This directory contains API route handlers for index management features, including search, settings, suggestions, and specialized handlers for analytics, chat, documents, experiments, lifecycle, rules, shared VMs, and synonyms. |
+| storage | The storage directory implements S3-compatible object storage routes, providing bucket-level operations (create, list, delete) and object-level handlers (put, get, delete, head) with built-in metering for usage tracking. |
+| admin | Administrative HTTP route handlers for the API, including customer JWT token generation with optional impersonation auditing, rate card CRUD and overrides, VM inventory management, and various operational endpoints. |
+| auth | — |
+| indexes | This directory contains HTTP route handlers for index management operations in the API, including search, settings, suggestions, analytics, chat, experiments, rules, documents, lifecycle, and synonyms. |
+| storage | This module implements S3-compatible storage API route handlers for bucket and object lifecycle operations (create, read, delete, list), with inline metering integration to track usage consumption. |
 <!-- [scrai:end] -->

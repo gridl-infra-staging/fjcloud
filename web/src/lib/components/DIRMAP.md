@@ -8,5 +8,6 @@
 
 | Directory | Summary |
 | --- | --- |
-| search | The search directory contains utilities for managing search feature functionality, including analytics tracking, persistent display preferences storage, and URL-based search state management. |
+| search | The search directory contains utilities for managing search functionality: analytics event tracking, user display preferences storage, and URL state synchronization for search parameters and filters. |
+| search | The search directory contains utilities for managing search functionality in the web frontend, including analytics tracking, user display preferences storage, and URL state management for search queries and filters. |
 <!-- [scrai:end] -->

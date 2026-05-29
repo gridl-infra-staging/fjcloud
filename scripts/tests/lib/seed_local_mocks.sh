@@ -330,6 +330,15 @@
 # TODO: Document write_mock_curl.
 # TODO: Document write_mock_curl.
 # TODO: Document write_mock_curl.
+# TODO: Document write_mock_curl.
+# TODO: Document write_mock_curl.
+# TODO: Document write_mock_curl.
+# TODO: Document write_mock_curl.
+# TODO: Document write_mock_curl.
+# TODO: Document write_mock_curl.
+# TODO: Document write_mock_curl.
+# TODO: Document write_mock_curl.
+# TODO: Document write_mock_curl.
 write_mock_curl() {
     local path="$1" log_path="$2"
     local state_dir
@@ -484,6 +493,10 @@ case "$url" in
         ;;
     http://synthetic-api.test/admin/tenants)
         if [ "$method" = "GET" ]; then
+            if [ "${MOCK_SYNTHETIC_TENANT_LIST_SOFT_DELETED_FIRST:-0}" = "1" ]; then
+                printf '[{"id":"99999999-9999-9999-9999-999999999999","name":"demo-shared-free","email":"demo-shared-free@synthetic-seed.invalid","status":"deleted","billing_plan":"shared"},{"id":"11111111-1111-1111-1111-111111111111","name":"demo-shared-free","email":"demo-shared-free@synthetic-seed.invalid","status":"active","billing_plan":"shared"},{"id":"22222222-2222-2222-2222-222222222222","name":"demo-small-dedicated","email":"demo-small-dedicated@synthetic-seed.invalid","status":"active","billing_plan":"dedicated"},{"id":"33333333-3333-3333-3333-333333333333","name":"demo-medium-dedicated","email":"demo-medium-dedicated@synthetic-seed.invalid","status":"active","billing_plan":"dedicated"}]\n200'
+                exit 0
+            fi
             printf '[{"id":"11111111-1111-1111-1111-111111111111","name":"demo-shared-free","email":"demo-shared-free@synthetic-seed.invalid","status":"active","billing_plan":"shared"},{"id":"22222222-2222-2222-2222-222222222222","name":"demo-small-dedicated","email":"demo-small-dedicated@synthetic-seed.invalid","status":"active","billing_plan":"dedicated"},{"id":"33333333-3333-3333-3333-333333333333","name":"demo-medium-dedicated","email":"demo-medium-dedicated@synthetic-seed.invalid","status":"active","billing_plan":"dedicated"}]\n200'
             exit 0
         fi

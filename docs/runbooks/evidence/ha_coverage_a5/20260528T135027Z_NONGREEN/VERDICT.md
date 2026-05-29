@@ -1,6 +1,6 @@
 # Stage 4 Soak Verdict — 20260528T135027Z_NONGREEN
 
-- Command: `bash scripts/launch/multi_tenant_isolation_probe.sh --env staging --tenants A,B,C --duration-minutes 30 --restart-api-once --assert --out docs/runbooks/evidence/ha_coverage_a5/20260528T135027Z_GREEN`
+- Command: `bash scripts/launch/multi_tenant_isolation_probe.sh --env staging --tenants A,B,C --duration-minutes 30 --restart-api-once --assert --out docs/runbooks/evidence/ha_coverage_a5/20260528T135027Z`
 - Terminal artifacts present: `soak_exit_code.txt` + `summary.json` + `soak_stdout_stderr.log`
 - Probe exit: `1` (assertion failure, no crash)
 

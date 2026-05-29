@@ -38,11 +38,18 @@ admin write paths whose abuse would be a customer-trust incident
 
 | Directory | Summary |
 | --- | --- |
-| cold_tier | The cold_tier service module provides infrastructure for managing cold/archived data, with a node client for communicating with cold storage nodes and a pipeline for processing data transitions between storage tiers. |
-| email | The email directory handles email rendering and mailpit integration for the billing platform, supporting template rendering for transactional emails and test email capture for validation. |
-| flapjack_proxy | The flapjack_proxy module provides a proxy service that forwards authenticated management operations from the fjcloud API to flapjack VMs, with built-in caching of node admin keys from SSM and fallback to stale cache entries during outages. |
-| migration | The migration module provides infrastructure for managing data migrations with components for replication, validation, recovery, alerting, and protocol handling. |
-| provisioning | The provisioning directory contains auto_provision.rs, which handles automatic provisioning functionality. |
-| scheduler | The scheduler service manages workload placement and load balancing with strategies for different capacity conditions, including initial placement, noisy neighbor isolation, and responses to overload and underload scenarios. |
-| storage | This storage service module implements S3-compatible object storage integration, featuring authentication, XML serialization, error handling, request proxying, and usage metering for the Garage distributed storage backend. |
+| cold_tier | I cannot access those files as they're in a different branch (`MAR17_11_2_data_management_features`) than the current working directory. |
+| email | The email directory handles email rendering and local testing infrastructure, with mailpit integration for development email capture and render utilities for email template processing. |
+| flapjack_proxy | The flapjack_proxy service proxies authenticated management operations from the fjcloud API to individual flapjack VMs using node admin keys fetched from SSM. |
+| migration | The migration service module provides infrastructure for managing data migrations with support for protocol definition, replication, validation, recovery mechanisms, and alerting. |
+| provisioning | The provisioning directory handles automatic VM provisioning across multiple cloud providers (AWS, Hetzner, GCP, OCI), orchestrating VM creation, secret management, inventory tracking, and resource cleanup through the ProvisioningService. |
+| scheduler | The scheduler service manages resource allocation and load balancing for the metering infrastructure, with modules for initial placement, detecting noisy neighbors, and handling overload and underload conditions through periodic scheduling cycles. |
+| storage | This storage service module provides S3-compatible object storage integration with Garage backend, implementing S3 authentication, XML request/response handling, error translation, object metering for billing, and administrative operations. |
+| cold_tier | The cold_tier service appears to manage cold storage data operations, with a node client for communicating with remote nodes and a pipeline for orchestrating data workflows across the cold storage tier. |
+| email | The email directory handles email template rendering and delivery integration, with modules for rendering email content and interfacing with Mailpit for email testing and delivery. |
+| flapjack_proxy | The flapjack_proxy service proxies authenticated HTTP requests from the fjcloud API to individual flapjack VMs, managing admin key retrieval from SSM with in-memory caching and TTL-based expiry, while providing error handling and helper methods for request construction and response parsing across various operation types (analytics, search, documents, settings, etc.). |
+| migration | The migration service module provides database migration capabilities including data replication, validation, recovery, alerting, and protocol coordination for the API. |
+| provisioning | The provisioning directory contains auto-provisioning logic for infrastructure setup and configuration management. |
+| scheduler | The scheduler service manages resource placement and load balancing, with modules for initial task placement, load monitoring (overload/underload detection), noisy neighbor interference management, and run cycle orchestration. |
+| storage | The storage directory implements S3-compatible object storage services with modules for authentication, error handling, XML serialization, proxy request handling, object metering, and garage admin operations. |
 <!-- [scrai:end] -->

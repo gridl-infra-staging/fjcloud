@@ -1,8 +1,9 @@
 <script lang="ts">
-	import { invalidateAll } from '$app/navigation';
-	import { applyAction, deserialize, enhance } from '$app/forms';
-	import type { Index, SecuritySource, SecuritySourcesResponse } from '$lib/api/types';
-	import EditorDialog from '$lib/components/EditorDialog.svelte';
+import { invalidateAll } from '$app/navigation';
+import { applyAction, deserialize, enhance } from '$app/forms';
+import type { Index, SecuritySource, SecuritySourcesResponse } from '$lib/api/types';
+import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
+import EditorDialog from '$lib/components/EditorDialog.svelte';
 	import type {
 		EditorDialogFieldSchema,
 		EditorDialogSaveRejection,
@@ -55,7 +56,11 @@
 		description: ''
 	};
 
-	let addSourceDialogOpen = $state(false);
+let addSourceDialogOpen = $state(false);
+let pendingDeleteSource = $state<SecuritySource | null>(null);
+let pendingDeleteForm = $state<HTMLFormElement | null>(null);
+let pendingDeleteTrigger = $state<HTMLElement | null>(null);
+let deleteConfirmDialogOpen = $state(false);
 
 	const sources: SecuritySource[] = $derived(securitySources.sources ?? []);
 	const sourceEntryCount = $derived(sources.length);
@@ -73,9 +78,32 @@
 		addSourceDialogOpen = true;
 	}
 
-	function closeAddSourceDialog(): void {
-		addSourceDialogOpen = false;
-	}
+function closeAddSourceDialog(): void {
+	addSourceDialogOpen = false;
+}
+
+function openDeleteSourceConfirmDialog(
+	source: SecuritySource,
+	form: HTMLFormElement,
+	trigger: HTMLElement
+): void {
+	pendingDeleteSource = source;
+	pendingDeleteForm = form;
+	pendingDeleteTrigger = trigger;
+	deleteConfirmDialogOpen = true;
+}
+
+function closeDeleteSourceConfirmDialog(): void {
+	deleteConfirmDialogOpen = false;
+	pendingDeleteSource = null;
+	pendingDeleteForm = null;
+	pendingDeleteTrigger = null;
+}
+
+function confirmDeleteSource(): void {
+	pendingDeleteForm?.requestSubmit();
+	closeDeleteSourceConfirmDialog();
+}
 
 	function isSaveRejection(error: unknown): error is EditorDialogSaveRejection {
 		return (
@@ -228,10 +256,21 @@
 						<form method="POST" action="?/deleteSecuritySource" use:enhance>
 							<input type="hidden" name="source" value={entry.source} />
 							<button
-								type="submit"
+								type="button"
 								data-testid="delete-security-source-btn"
 								aria-label={`Delete security source ${entry.source}`}
 								class="rounded border border-flapjack-rose/45 px-3 py-1 text-xs text-flapjack-plum hover:bg-flapjack-rose/10"
+								onclick={(event) => {
+									const trigger = event.currentTarget;
+									if (!(trigger instanceof HTMLElement)) {
+										return;
+									}
+									const deleteForm = trigger.closest('form');
+									if (!(deleteForm instanceof HTMLFormElement)) {
+										return;
+									}
+									openDeleteSourceConfirmDialog(entry, deleteForm, trigger);
+								}}
 							>
 								Delete
 							</button>
@@ -255,5 +294,22 @@
 		onSave={submitAddSource}
 		onCancel={closeAddSourceDialog}
 		submitLabel="Add Source"
+	/>
+
+	<ConfirmDialog
+		open={deleteConfirmDialogOpen}
+		mode="standard"
+		dangerLevel="warn"
+		title="Delete security source?"
+		consequences={pendingDeleteSource
+			? `Delete "${pendingDeleteSource.source}" from ${index.name} security sources.`
+			: `Delete this security source from ${index.name}.`}
+		rationale="Requests from this source will no longer be allowlisted."
+		entityName={pendingDeleteSource?.source ?? index.name}
+		confirmLabel="Delete"
+		cancelLabel="Cancel"
+		onCancel={closeDeleteSourceConfirmDialog}
+		onConfirm={confirmDeleteSource}
+		triggerRef={pendingDeleteTrigger}
 	/>
 </div>

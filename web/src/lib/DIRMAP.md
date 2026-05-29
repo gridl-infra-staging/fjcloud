@@ -14,17 +14,17 @@
 | Directory | Summary |
 | --- | --- |
 | analytics | — |
-| api | This api directory contains the API client implementation with a shared base class for HTTP requests and client-specific logic. |
-| api-logs | The api-logs directory provides browser-based API logging and instrumentation for the dashboard, capturing sanitized records of SvelteKit form submissions and fetch requests. |
-| auth | The auth directory contains JWT token handling utilities for the web frontend, specifically managing authentication token operations. |
-| components | The components directory contains EditorDialog utilities for normalization and validation, alongside a search feature implementation with analytics tracking, persistent storage of display preferences, and URL-based state management for search parameters and filters. |
-| error-boundary | The error-boundary directory contains client-side error handling functionality, with client-runtime.ts managing error detection and recovery at the application runtime level, and recovery-copy.ts handling recovery messaging or copy presentation when errors occur. |
-| events | The events directory contains event bucketing logic, with eventBuckets.ts handling the organization and grouping of events into logical buckets for processing or analysis. |
-| http | The http directory contains retry logic utilities, specifically handling HTTP Retry-After header parsing and retry delay management for request operations. |
-| recommendations | The recommendations directory contains configuration code for the recommendations feature. |
-| rules | The rules directory contains helper utilities for rule-related functionality, with ruleHelpers.ts providing support functions for rule operations. |
+| api | This API directory contains a TypeScript client implementation with a shared base class for API clients, a main client module, and type definitions for the API. |
+| api-logs | This module provides browser-side API logging and instrumentation for the dashboard, capturing and sanitizing SvelteKit form submissions and fetch requests into a centralized store. |
+| auth | The auth directory provides JWT token utilities for the web frontend, including functions to decode JWT payloads, validate HS256 signatures using timing-safe comparison, and check token expiration. |
+| components | The components directory contains utilities for an EditorDialog component with normalization and validation logic, along with a search subdirectory providing utilities for search feature management including analytics tracking, display preferences, and URL-based state handling. |
+| error-boundary | The error-boundary directory provides client-side error handling and recovery functionality, with runtime management for error boundaries and recovery copy/messaging for failed operations. |
+| events | The events directory contains eventBuckets.ts, which appears to manage the organization or categorization of events based on its naming. |
+| http | The `http` directory contains `retry_after.ts`, which handles parsing and managing HTTP Retry-After headers to control client retry behavior for rate-limited or temporarily unavailable endpoints. |
+| recommendations | The recommendations directory contains configuration-related code, with config.ts serving as the primary module for managing recommendation-related settings and initialization. |
+| rules | The rules directory contains TypeScript utilities for rule-related functionality, specifically ruleHelpers.ts which provides helper functions and utilities for managing or processing rules. |
 | search_templates | — |
-| server | The server directory contains authentication and admin session utilities, including error mapping for login failures, impersonation helpers with return-path validation, and transient API retry logic for handling temporary failures. |
+| server | This directory contains authentication and session management utilities, including error mapping for login and dashboard authentication failures, impersonation helpers with return-path validation, and admin session handling. |
 | synonyms | — |
-| utils | The utils directory contains keyboard focus management utilities (focus cycling within modals/containers) and search merchandising rule builders (pinning/hiding results by query). |
+| utils | The utils directory provides two focused helper modules: focus_trap.ts for managing keyboard navigation and focus cycling within modal or dialog containers, and merchandising.ts for creating search result merchandising rules that pin or hide specific items based on query patterns. |
 <!-- [scrai:end] -->

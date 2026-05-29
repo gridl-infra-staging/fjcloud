@@ -6,5 +6,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| src | The aggregation-job is a daily batch process that performs metering data rollups into billing periods by connecting to PostgreSQL, executing a rollup query for a target date window, and reporting the rows affected. |
+| src | The aggregation-job/src directory contains the daily rollup job that consolidates metering data into billing periods by executing a PostgreSQL query over a target date window. |
 <!-- [scrai:end] -->

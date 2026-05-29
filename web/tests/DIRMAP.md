@@ -6,6 +6,6 @@
 
 | Directory | Summary |
 | --- | --- |
-| e2e-ui | The e2e-ui directory provides end-to-end UI testing infrastructure, with the full/ subdirectory containing utilities for index detail operations and screenshot capture including manifest handling and redirect protection. |
-| fixtures | This fixtures directory contains Playwright test setup hooks and shared helper utilities for browser testing across multiple user journeys including admin auth, customer signup and billing, index creation, and payment workflows. |
+| e2e-ui | The e2e-ui directory contains end-to-end browser testing infrastructure, with the full subdirectory providing VLM screenshot capture tooling, index detail helpers, and configuration management for capture specifications and redirect handling. |
+| fixtures | The fixtures directory contains Playwright test setup routines and helper utilities that support end-to-end browser testing, including authentication initialization for different test projects, billing and signup flow helpers, and database/Stripe lookup utilities for test data management. |
 <!-- [scrai:end] -->

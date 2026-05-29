@@ -8,5 +8,5 @@
 | Directory | Summary |
 | --- | --- |
 | invoices | — |
-| setup | Server-side load handler for the billing setup page that creates a Stripe setup intent and returns the client secret to the frontend for payment method configuration. |
+| setup | The setup directory contains a SvelteKit page server component (+page.server.ts) for the billing setup route in the console application. |
 <!-- [scrai:end] -->

@@ -6,5 +6,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| full | This directory provides utilities for index detail operations and VLM screenshot capture functionality, including manifest handling, redirect protection, and canonical capture tuple definitions. |
+| full | This directory contains browser test tooling for VLM screenshot capture, with index_detail_helpers providing utility functions and vlm_capture managing capture specifications, redirect handling, and configuration metadata. |
 <!-- [scrai:end] -->

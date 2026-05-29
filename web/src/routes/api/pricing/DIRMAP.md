@@ -6,5 +6,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| compare | The compare directory contains a SvelteKit API route (+server.ts) that handles server-side logic. |
+| compare | The compare directory contains a SvelteKit server route handler that appears to implement comparison functionality. |
 <!-- [scrai:end] -->

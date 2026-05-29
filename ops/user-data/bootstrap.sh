@@ -112,6 +112,10 @@ mkdir -p /etc/flapjack /etc/fjcloud
 cat > /etc/flapjack/env <<ENVEOF
 DATABASE_URL=$DB_URL
 FLAPJACK_API_KEY=$API_KEY
+# Bind all interfaces so the same-host metering agent (FLAPJACK_URL uses the
+# node hostname, not loopback) and the API security group can reach the engine.
+# Network exposure is gated by the AWS SG + firewalld, not by the bind address.
+FLAPJACK_BIND_ADDR=0.0.0.0:7700
 ENVEOF
 
 # Metering agent env — var names match what the binary expects

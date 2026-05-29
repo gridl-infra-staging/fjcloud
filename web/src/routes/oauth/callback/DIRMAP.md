@@ -6,5 +6,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| [provider] | The [provider] directory contains a SvelteKit server route handler (+server.ts) with placeholder documentation. |
+| [provider] | The [provider] directory contains a SvelteKit server route handler that appears to need proper documentation. |
 <!-- [scrai:end] -->

@@ -7,5 +7,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| lib | The lib directory contains VLM environment helper utilities, specifically a self-contained 5-function closure extracted from uff_dev's deployment common module to support the VLM judge's read_env_value_trimmed contract for environment variable operations. |
+| lib | This directory contains VLM environment helper functions, specifically a self-contained 5-function closure extracted from the deployment_common.sh script to support the VLM judge's read_env_value_trimmed contract. |
 <!-- [scrai:end] -->

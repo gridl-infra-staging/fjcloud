@@ -7,6 +7,6 @@
 
 | Directory | Summary |
 | --- | --- |
-| src | The src directory contains the Rust backend implementation for fjcloud's HTTP API server, with modules for multi-tenant authentication, invoice and billing management, multi-cloud provisioning (AWS/GCP/OCI/Hetzner), data access via PostgreSQL repositories, Stripe integration, and cross-cutting services like email delivery, webhook handling, and health monitoring. |
-| tests | The tests directory contains shared test infrastructure and fixtures for fjcloud API integration tests, including mock HTTP clients, Stripe webhook helpers, and test utilities for indexes, storage, and flapjack proxy routes. |
+| src | This is the Rust backend API server for fjcloud, a cloud billing and infrastructure platform, organized into modules for HTTP routing, authentication, billing/invoicing logic, cloud provisioning across multiple providers, data persistence, Stripe integration, and operational services like alerting and metrics. |
+| tests | The tests directory provides shared testing infrastructure for fjcloud API integration tests, including mock HTTP clients for external services (Flapjack, Stripe), capacity profiles for scheduler testing, and helper utilities for testing index routes, storage operations, and webhook handling. |
 <!-- [scrai:end] -->

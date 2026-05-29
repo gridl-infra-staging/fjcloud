@@ -9,5 +9,5 @@
 | Directory | Summary |
 | --- | --- |
 | fixtures | — |
-| lib | A collection of shell script testing utilities and helpers that provide shared functionality for various test scenarios, including assertions, mock generation, environment setup, and test harnesses for integration, chaos, and billing validation tests. |
+| lib | This directory contains shared bash test utilities and helpers for integration testing, mocking, and validation scenarios across the fjcloud project. |
 <!-- [scrai:end] -->

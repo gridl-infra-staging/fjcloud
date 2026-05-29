@@ -6,5 +6,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| [experimentId] | The [experimentId] directory contains a SvelteKit server page with a stub implementation in +page.server.ts. |
+| [experimentId] | This directory contains a SvelteKit server-side page handler stub with minimal implementation details. |
 <!-- [scrai:end] -->

@@ -8,5 +8,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| search | This directory implements search feature infrastructure, including analytics tracking for search events, persistent storage of display preferences, and URL-based state management for search parameters and filters. |
+| search | The search directory contains utilities for managing search feature functionality, including analytics tracking, persistent display preferences storage, and URL-based search state management. |
 <!-- [scrai:end] -->

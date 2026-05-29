@@ -21,8 +21,8 @@
 
 | Directory | Summary |
 | --- | --- |
-| admin | The admin directory contains HTTP endpoint handlers for administrative operations across the fjcloud platform, including customer token minting, rate card management, VM inventory control, and operational workflows like deployments and migrations. |
+| admin | The admin routes module provides HTTP handlers for platform management operations including alerts, deployments, indexes, invoices, migrations, providers, rate cards, tenants, JWT token generation with audit logging for impersonation, usage tracking, and VM inventory management. |
 | auth | — |
-| indexes | This directory contains the HTTP route handlers for index management operations in the API, including endpoints for searching indexes, managing index settings, handling suggestions, and supporting features like analytics, chat, experiments, and lifecycle management. |
-| storage | This storage module implements S3-compatible API endpoints for bucket and object operations (list, create, get, put, delete) with path-style routing and inline usage metering. |
+| indexes | This directory contains HTTP route handlers for index management and operations in the fjcloud API, including search, settings, suggestions, rules, experiments, and other index-related features. |
+| storage | Storage module implements S3-compatible bucket and object management routes (list, create, delete operations) with path-style routing and inline usage metering for the API server. |
 <!-- [scrai:end] -->

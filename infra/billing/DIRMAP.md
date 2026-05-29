@@ -6,5 +6,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| src | This module implements a billing engine that aggregates raw metering records into billing-period summaries and applies rate-card pricing to generate invoices. |
+| src | The billing module aggregates raw metering records into usage summaries, applies configurable rate cards to calculate pricing, and generates invoices—providing the core billing engine for the platform. |
 <!-- [scrai:end] -->

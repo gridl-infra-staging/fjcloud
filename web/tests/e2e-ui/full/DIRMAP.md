@@ -7,5 +7,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| vlm_capture | This directory provides utilities for VLM screenshot capture operations, including manifest handling, capture-time redirect protection, and a canonical definition of screenshot capture tuples. |
+| vlm_capture | VLM screenshot capture tooling with tuples.ts serving as the single source of truth for capture specifications, redirect_guard.ts managing capture-time redirects, and manifest.ts providing configuration metadata. |
 <!-- [scrai:end] -->

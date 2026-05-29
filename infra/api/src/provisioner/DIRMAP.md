@@ -22,6 +22,6 @@ This module is the single source of truth for that logic. |
 
 | Directory | Summary |
 | --- | --- |
-| gcp | The gcp directory provides a GCP Compute Engine provisioner for the fjcloud API that implements VM lifecycle operations (create, destroy, stop, start, status) with configuration from environment variables and HTTP client abstraction for the GCP Compute API. |
-| oci | The oci directory contains Oracle Cloud Infrastructure provisioner integration, with an API client module and module exports. |
+| gcp | The gcp directory contains the Google Cloud Platform provisioner module for the fjcloud API, with an api_client.rs stub for GCP API interactions and a mod.rs entry point. |
+| oci | The oci directory contains provisioner code for Oracle Cloud Infrastructure, with an API client module and main module definition. |
 <!-- [scrai:end] -->

@@ -7,7 +7,7 @@
 
 | Directory | Summary |
 | --- | --- |
-| lib | The lib directory contains the shared utility layer for the SvelteKit frontend, including API clients (admin, search, Stripe), authentication token handling, pricing helpers, UI component utilities, error recovery, and instrumentation for form submissions and API logging. |
-| routes | The routes directory contains SvelteKit server-side pages and API endpoints for fjcloud's customer-facing console, administrative dashboards, billing operations, OAuth authentication, search index integration, and Stripe payment management. |
+| lib | This is a utilities and helpers library for the SvelteKit web frontend, containing modules for authentication, API clients, pricing calculations, search functionality, error handling, and various UI/business logic utilities organized by concern. |
+| routes | The routes directory contains SvelteKit server-side handlers for the fjcloud web application, implementing endpoints for customer dashboards, administrative interfaces, OAuth authentication, billing and upgrade flows, and API management. |
 | tests | — |
 <!-- [scrai:end] -->

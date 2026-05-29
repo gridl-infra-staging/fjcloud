@@ -6,7 +6,7 @@
 
 | Directory | Summary |
 | --- | --- |
-| pricing | The pricing directory contains API route handlers for pricing-related functionality, with a compare endpoint that provides server-side logic for comparing pricing options or plans. |
-| search | This directory contains a SvelteKit API endpoint that processes authenticated POST requests for instant search functionality by parsing batch search requests and executing them against indexes via the executeIndexSearch service. |
-| stripe | This stripe directory contains SvelteKit server endpoints for Stripe integration, with a publishable-key endpoint that handles retrieval and management of Stripe publishable keys for client-side API operations. |
+| pricing | The pricing directory contains a SvelteKit server route handler in the compare subdirectory that implements pricing comparison functionality. |
+| search | The search directory does not exist at the path specified. |
+| stripe | The stripe directory contains a SvelteKit server route handler for managing Stripe publishable keys, providing API endpoints for retrieving or validating publishable key credentials that external clients use for payment operations. |
 <!-- [scrai:end] -->

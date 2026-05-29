@@ -7,14 +7,14 @@
 
 | Directory | Summary |
 | --- | --- |
-| alerts | The alerts directory contains a SvelteKit server-side page handler (+page.server.ts) for the admin alerts interface, which appears to be a stub implementation for managing alerts in the admin dashboard. |
-| billing | Admin billing dashboard page that loads invoices across all tenants and provides server actions for running batch billing by month and bulk-finalizing selected invoices. |
+| alerts | Server load function for the admin alerts page that fetches alerts from an admin client with optional severity filtering (info, warning, critical) parsed from URL parameters. |
+| billing | — |
 | cold | — |
-| customers | The admin customers directory provides customer management pages and server actions, including a main listing page, test fixtures for customer detail components, and a dynamic route for individual customer detail pages. |
+| customers | The `customers` directory provides admin interface functionality to view and manage customers: the list page shows all tenants with billing plans and access timestamps, while the `[id]` subdirectory handles individual customer detail views with timeline auditing and billing information. |
 | end-impersonation | — |
 | fleet | — |
 | login | — |
 | logout | — |
-| migrations | Admin migrations page server handler that loads and displays active and recent data migrations from an admin API client, and provides a form action to trigger new migrations with validated index name and destination VM ID parameters. |
+| migrations | The migrations admin page loads active and recent database migrations via the admin client, separating them by status to display running vs. |
 | replicas | — |
 <!-- [scrai:end] -->

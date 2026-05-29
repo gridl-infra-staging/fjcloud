@@ -21,6 +21,6 @@
 
 | Directory | Summary |
 | --- | --- |
-| experiments | The experiments directory contains SvelteKit server pages organized by experiment ID, with stub implementations in +page.server.ts files that appear to be placeholder code awaiting full implementation. |
-| tabs | This directory contains UI tab components for the index console, including utilities for generating integration code snippets, parsing document files for upload, and managing personalization strategy configuration through a dialog interface. |
+| experiments | The experiments directory contains a SvelteKit server-side page handler stub for experiment pages, organized by experiment ID with minimal implementation details currently in place. |
+| tabs | The tabs directory contains UI components for the indexes console feature, including code snippet display for app integration, document file parsing utilities, and a personalization strategy configuration dialog. |
 <!-- [scrai:end] -->

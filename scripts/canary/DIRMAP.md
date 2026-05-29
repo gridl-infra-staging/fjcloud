@@ -25,5 +25,5 @@ unavailable so staging gets a clear outside-AWS outage signal. |
 
 | Directory | Summary |
 | --- | --- |
-| contracts | This directory contains bash-based contract tests that validate system boundaries across the fjcloud platform, including authentication (OAuth, JWT, form login), payment processing (Stripe webhooks), billing page data structures, multi-tenant isolation, and infrastructure configuration (EC2, Lambda, API URLs). |
+| contracts | This directory contains bash-based contract test suites that verify critical system boundaries: security gates (Stripe webhooks, JWT validation, OAuth flows), infrastructure contracts (EC2, Lambda, DNS), and application-layer payload structures (auth forms, billing data, multi-tenant isolation). |
 <!-- [scrai:end] -->

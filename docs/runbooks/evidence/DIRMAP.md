@@ -10,11 +10,11 @@
 | database-recovery | — |
 | fleet-recovery | — |
 | ha_coverage_a5 | — |
-| launch-rc-runs | This directory contains monitoring and health-check scripts for a production launch that occurred on 2026-05-05, including probes for rollup freshness and automated health checks that ran at 30-minute intervals over a 4-hour period. |
+| launch-rc-runs | This directory contains a production monitoring suite designed for the first 4 hours post-launch, with rollup freshness probes and periodic diagnostic queries executed at 30-minute intervals across eight monitoring ticks. |
 | may16_wave_deploy_verify | — |
 | monitoring-coverage | — |
 | privacy_com_contract | — |
-| prod_db_leak_cleanup | This directory contains a two-stage cleanup pipeline for remediating a production database leak: Stage 4 terminates affected customer deployments via the admin API and validates idempotency, while Stage 5 performs tenant soft-deletes using the termination results and includes consistency checks across multiple runs. |
+| prod_db_leak_cleanup | This directory contains orchestration artifacts for a production database leak cleanup operation, with Stage 4 terminating exact-cohort deployments for affected customers via admin API and Stage 5 performing idempotent soft-deletes of eligible tenants, both verifying reproducibility between multiple runs before passing summary artifacts to downstream stages. |
 | security-coverage-a3 | — |
 | staging-isolation | — |
 | staging-metering | — |

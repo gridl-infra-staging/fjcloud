@@ -89,6 +89,10 @@ mkdir -p /etc/flapjack /etc/fjcloud
 cat > /etc/flapjack/env <<ENVEOF
 DATABASE_URL=$DB_URL
 FLAPJACK_API_KEY=$API_KEY
+# Bind all interfaces so the same-host metering agent (FLAPJACK_URL uses the
+# node hostname, not loopback) and the API security group can reach the engine.
+# Network exposure is gated by the AWS SG + firewalld, not by the bind address.
+FLAPJACK_BIND_ADDR=0.0.0.0:7700
 ENVEOF
 
 cat > /etc/fjcloud/metering-env <<ENVEOF
@@ -150,6 +154,13 @@ mod tests {
         assert!(script.contains("ENVIRONMENT='staging'"));
         assert!(script.contains(r#"/fjcloud/$ENVIRONMENT/database_url"#));
         assert!(script.contains(r#"/fjcloud/$ENVIRONMENT/internal_auth_token"#));
+        // Flapjack must bind a routable interface (not loopback) so the
+        // same-host metering agent (FLAPJACK_URL=http://$NODE_ID:7700) and the
+        // API security group can reach it; network exposure is gated by the SG
+        // + firewalld, not by binding loopback. resolve_bind_addr() in
+        // flapjack-server lets FLAPJACK_BIND_ADDR override the 127.0.0.1:7700
+        // default.
+        assert!(script.contains("FLAPJACK_BIND_ADDR=0.0.0.0:7700"));
         assert!(!script.contains("runtime-env.conf"));
         assert!(!script.contains("/etc/flapjack/metering-env"));
         assert!(script.contains("cat > /etc/fjcloud/metering-env <<ENVEOF"));
@@ -187,6 +198,7 @@ mod tests {
         assert!(script.contains("Secrets delivered via user-data (Hetzner)"));
         assert!(script.contains("postgres://db.example.com/fjcloud"));
         assert!(script.contains("sk-secret-key"));
+        assert!(script.contains("FLAPJACK_BIND_ADDR=0.0.0.0:7700"));
         assert!(!script.contains("runtime-env.conf"));
         assert!(!script.contains("/etc/flapjack/metering-env"));
         assert!(script.contains("cat > /etc/fjcloud/metering-env <<ENVEOF"));

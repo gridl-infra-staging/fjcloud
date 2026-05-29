@@ -6,5 +6,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| scripts | This directory contains scripts for installing, initializing, and monitoring Garage object storage: install-garage.sh downloads and sets up Garage as a systemd service, init-cluster.sh initializes the cluster and creates credentials, and health-check.sh probes the admin and S3 API endpoints for health status. |
+| scripts | This scripts directory contains operational shell scripts for installing and managing Garage, a distributed object storage system. |
 <!-- [scrai:end] -->

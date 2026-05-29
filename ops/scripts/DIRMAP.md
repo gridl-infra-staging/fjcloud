@@ -69,6 +69,6 @@ Prerequisites checked:
 
 | Directory | Summary |
 | --- | --- |
-| lib | This lib directory contains shared shell and Python utilities for deployment and infrastructure operations, including pre-deployment validation, AWS SSM parameter mapping to runtime environment files, Cloudflare zone parsing, and RDS restoration tooling. |
-| tests | Captures Cloudflare zone configuration as a test fixture for one-time use in testing scenarios. |
+| lib | This lib directory provides shared utility scripts for deployment validation, AWS SSM parameter-to-environment-variable mapping for service startup, Cloudflare zone parsing, and RDS restoration utilities. |
+| tests | This directory contains a single-use Bash script that captures Cloudflare zone configuration as test fixtures, likely for use in validating DNS or Cloudflare API integration behavior. |
 <!-- [scrai:end] -->

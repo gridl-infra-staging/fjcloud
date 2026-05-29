@@ -6,9 +6,10 @@
 
 | Directory | Summary |
 | --- | --- |
-| garage | This directory contains bash scripts for deploying and managing Garage object storage, including installation as a systemd service, cluster initialization with credential generation, and health monitoring for the admin and S3 API endpoints. |
-| runbooks | This directory contains operational runbooks for fjcloud, including incident recovery procedures. |
-| scripts | The scripts directory contains deployment and infrastructure operations tooling for fjcloud, including zero-downtime deployment via SSM, database migrations, AWS bootstrap validation and provisioning, RDS restore/backup workflows, and resource cleanup. |
-| terraform | This directory contains Terraform automation scripts and comprehensive test suites for infrastructure deployment, covering bootstrap provisioning, deploy/migrate/rollback operations, RDS restoration, canary publishing, and secret hygiene auditing. |
-| user-data | The user-data directory contains bootstrap.sh, an idempotent VM bootstrap script that reads AWS instance metadata and secrets from SSM Parameter Store to configure and start services on fjcloud instances. |
+| build | The build directory contains binary verification utilities, including verify_binaries.sh which validates compiled artifacts. |
+| garage | The scripts directory contains operational shell scripts for installing, configuring, and managing Garage, a distributed object storage system. |
+| runbooks | The runbooks directory contains operational procedures, including a site_takedown_20260503 subdirectory with a restore script to revert the customer-facing site after a planned maintenance takedown in early May 2026 following the v1.0.0 launch review. |
+| scripts | This directory contains operational deployment and infrastructure scripts, including zero-downtime deployments, database migrations, RDS restore procedures, and AWS bootstrap validation, along with shared utilities and test fixtures for production operations. |
+| terraform | This directory contains Terraform-related ops scripts for AWS infrastructure provisioning, deployment orchestration (deploy/migrate/rollback), bootstrap resource management, and RDS operations, along with comprehensive static and unit test contracts that validate script behavior before execution. |
+| user-data | Bootstrap script for fjcloud VMs baked into AMI that reads instance metadata and secrets from AWS SSM, configures environment files, and starts services idempotently. |
 <!-- [scrai:end] -->

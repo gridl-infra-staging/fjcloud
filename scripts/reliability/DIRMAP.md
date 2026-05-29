@@ -69,5 +69,5 @@ deployment linkage markers. |
 | Directory | Summary |
 | --- | --- |
 | fixtures | — |
-| lib | This lib directory provides reliability profiling utilities including metric capture functions (metrics.sh), capacity profile parsing (parse_capacity_profiles.py), and modular security validation checks (security_checks.sh) that can be run individually or as part of the backend reliability gate. |
+| lib | This library provides utility scripts for backend reliability profiling and security validation, including shared metric capture functions, capacity profile parsing, and a modular security checks suite. |
 <!-- [scrai:end] -->

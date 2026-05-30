@@ -24,7 +24,7 @@ fn openapi_spec_generates_valid_json() {
         .pointer("/info/title")
         .and_then(|v| v.as_str())
         .expect("spec must contain info.title");
-    assert_eq!(title, "fjcloud API");
+    assert_eq!(title, "Flapjack Cloud API");
 
     // Bearer JWT security scheme must be registered as a component
     let scheme = spec

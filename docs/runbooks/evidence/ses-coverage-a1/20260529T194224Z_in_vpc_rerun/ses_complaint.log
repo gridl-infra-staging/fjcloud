@@ -1,0 +1,1 @@
+{"passed":false,"steps":[{"name":"preflight","passed":false,"detail":"customer_broadcast script not found at /tmp/a1_vpc_rerun_20260529T194224Z_43714/scripts/customer_broadcast.sh"}],"elapsed_ms":177}failed to run commands: exit status 2

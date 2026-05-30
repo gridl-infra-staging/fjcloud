@@ -6,14 +6,14 @@
 
 | Directory | Summary |
 | --- | --- |
-| aggregation-job | The aggregation-job crate is a periodic service that processes collected usage metrics and aggregates them into billing-cycle data for the billing engine. |
-| api | The `api` crate is fjcloud's core HTTP server implementing authentication, billing and invoicing, multi-cloud infrastructure provisioning (AWS/GCP/OCI/Hetzner), Stripe integration, webhook handlers, and resource management services. |
-| billing | The billing engine aggregates raw metering records into usage summaries and applies rate card pricing to generate invoices, with shared types and configuration supporting multiple billing plans. |
-| metering-agent | The metering-agent is a Rust daemon that collects and reports resource consumption metrics across tenants, with components for configuration management, health monitoring, circuit breaker resilience, metric scraping, and data storage. |
-| pricing-calculator | The pricing-calculator module provides a registry-based infrastructure for computing resource costs across multiple search and storage service providers. |
-| aggregation-job | The aggregation-job is a daily batch service that aggregates metering data by executing rollup queries against PostgreSQL for target date windows. |
-| api | The api crate is an axum-based HTTP server that implements customer-facing endpoints for billing, provisioning across multiple cloud providers, Stripe integration, DNS management, and authentication. |
-| billing | The billing directory implements fjcloud's core billing engine, executing a three-stage pipeline that aggregates metering records into billing-period summaries, applies rate-card pricing rules to generate invoices, and manages the supporting types and configurations that drive the calculations. |
-| metering-agent | The metering-agent is a Rust daemon that collects resource usage metrics and stores consumption data for billing cycles while maintaining resilience through health monitoring and circuit-breaker patterns. |
-| pricing-calculator | The pricing-calculator module implements cost estimation logic for multiple search and storage services including Algolia, AWS OpenSearch, Meilisearch, and Griddle, with shared types, RAM heuristics, and preset configurations. |
+| aggregation-job | The aggregation-job binary aggregates metering data daily into PostgreSQL by executing a rollup query for a target date and reporting the number of affected rows. |
+| api | The fjcloud API server implementation built with axum, providing HTTP routing, authentication, billing and invoicing, multi-cloud infrastructure provisioning, DNS management, and Stripe payment integration. |
+| billing | The billing crate is the core billing calculation engine that aggregates raw metering records into usage summaries and applies rate card pricing to generate invoices. |
+| metering-agent | The metering-agent is a Rust daemon that collects and reports resource usage metrics for billing purposes, with modules for configuration, data scraping, storage, and tenant mapping. |
+| pricing-calculator | The pricing-calculator crate computes pricing across multiple search and storage providers (Algolia, AWS OpenSearch, Meilisearch, Flapjack Cloud) using a modular registry pattern with type definitions, preset configurations, and RAM-based heuristics. |
+| aggregation-job | The aggregation-job crate is a scheduled task that initializes structured logging and database connectivity to aggregate metering data into daily rollups for billing cycles. |
+| api | The api crate is fjcloud's Axum-based HTTP API server that handles billing, invoicing, customer management, OAuth authentication, cloud provisioning, and webhook processing for multiple cloud providers. |
+| billing | The billing crate contains the invoice generation pipeline, aggregating raw metering records into usage summaries and applying configurable rate card pricing to produce customer invoices. |
+| metering-agent | The metering-agent is a daemon that collects and reports resource consumption data for billing purposes, with modules handling configuration, metrics scraping, data storage, and tenant routing. |
+| pricing-calculator | The pricing-calculator module provides core types, presets, and heuristics for calculating cloud service costs across multiple providers. |
 <!-- [scrai:end] -->

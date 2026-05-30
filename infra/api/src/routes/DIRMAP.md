@@ -21,12 +21,12 @@
 
 | Directory | Summary |
 | --- | --- |
-| admin | The admin directory contains route handlers for administrative and operational endpoints, including management of customers, invoices, rate cards, deployments, usage data, VMs, and JWT token generation with optional impersonation auditing. |
+| admin | The admin directory contains HTTP route handlers for administrative operations on the API, including JWT token minting with optional audit logging, rate card CRUD and customer overrides, VM inventory management, and other infrastructure control endpoints. |
 | auth | — |
-| indexes | This directory contains API route handlers for index management features, including search, settings, suggestions, and specialized handlers for analytics, chat, documents, experiments, lifecycle, rules, shared VMs, and synonyms. |
-| storage | The storage directory implements S3-compatible object storage routes, providing bucket-level operations (create, list, delete) and object-level handlers (put, get, delete, head) with built-in metering for usage tracking. |
-| admin | Administrative HTTP route handlers for the API, including customer JWT token generation with optional impersonation auditing, rate card CRUD and overrides, VM inventory management, and various operational endpoints. |
+| indexes | This directory contains route handlers for index management in the API, covering operations like search, settings, suggestions, and synonyms alongside specialized features such as analytics, chat, debugging, and rule management. |
+| storage | This storage module implements S3-compatible API route handlers for bucket and object operations, including listing, creating, retrieving, and deleting resources across path-style endpoints. |
+| admin | This directory contains administrative API endpoints for managing platform resources including rate cards, customer overrides, JWT token issuance with impersonation auditing, and VM inventory operations. |
 | auth | — |
-| indexes | This directory contains HTTP route handlers for index management operations in the API, including search, settings, suggestions, analytics, chat, experiments, rules, documents, lifecycle, and synonyms. |
-| storage | This module implements S3-compatible storage API route handlers for bucket and object lifecycle operations (create, read, delete, list), with inline metering integration to track usage consumption. |
+| indexes | This directory contains route handlers for index-related API operations, including search, settings, suggestions, and administrative features like analytics, debugging, experiments, and lifecycle management. |
+| storage | The storage directory implements S3-compatible API routes for bucket and object operations, including list, create, read, delete, and head operations on both buckets and objects. |
 <!-- [scrai:end] -->

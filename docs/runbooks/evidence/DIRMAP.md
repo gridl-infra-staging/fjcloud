@@ -10,16 +10,16 @@
 | database-recovery | — |
 | fleet-recovery | — |
 | ha_coverage_a5 | — |
-| launch-rc-runs | This directory contains launch-window monitoring bundles designed to track system health during production releases, specifically probing the freshness of usage_daily rollup data and executing monitoring queries at regular intervals. |
+| launch-rc-runs | The launch-rc-runs directory contains timestamped production launch monitoring artifacts, including scripts that validate rollup freshness and run periodic monitoring queries over the first 4 hours after deployment. |
 | may16_wave_deploy_verify | — |
 | monitoring-coverage | — |
 | privacy_com_contract | — |
-| prod_db_leak_cleanup | This directory orchestrates the final two stages of a production database leak cleanup: Stage 4 terminates customer deployments via the admin API with reproducibility validation, and Stage 5 performs tenant soft-deletes with strict consistency checks to ensure customer sets remain stable across reruns. |
-| launch-rc-runs | A monitoring bundle for the first 4 hours of production launch containing probes that verify metering data rollup freshness through 30-minute sampling queries run eight times across a 4-hour window. |
+| prod_db_leak_cleanup | This directory contains Stage 4 and Stage 5 of a multi-stage production database cleanup pipeline that systematically terminates deployments and soft-deletes tenants for a specific cohort of customers affected by a data leak. |
+| launch-rc-runs | This directory contains production launch monitoring scripts that validate data freshness and system health during the critical first 4 hours after deployment, with orchestration for repeated 30-minute monitoring cycles. |
 | may16_wave_deploy_verify | — |
 | monitoring-coverage | — |
 | privacy_com_contract | — |
-| prod_db_leak_cleanup | This directory contains stages 4 and 5 of a production database leak cleanup workflow, where Stage 4 terminates customer deployments via admin APIs with reproducibility validation, and Stage 5 performs soft-deletes of those customers with idempotency checks and cross-run summary artifacts. |
+| prod_db_leak_cleanup | This directory contains the final execution stages of a production database leak cleanup procedure: Stage 4 terminates exact-cohort customer deployments through admin API routes with reproducibility safeguards, and Stage 5 performs exact-cohort tenant soft-deletes with fail-closed validation and idempotency enforcement to ensure safe, reversible cleanup operations. |
 | security-coverage-a3 | — |
 | staging-isolation | — |
 | staging-metering | — |

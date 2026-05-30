@@ -38,7 +38,7 @@ Captured 2026-05-14 in the prod-env-provision lane post-mortem. |
 | tests_rds_restore_evidence_static.sh | Static ownership assertions for ops/scripts/rds_restore_evidence.sh. |
 | tests_rds_restore_evidence_unit.sh | Red-phase contract tests for ops/scripts/rds_restore_evidence.sh.
 Stage 1 intentionally locks the behavior contract before wrapper implementation. |
-| tests_rds_restore_evidence_unit_execute_and_poll_contract.sh | Stub summary for tests_rds_restore_evidence_unit_execute_and_poll_contract.sh. |
+| tests_rds_restore_evidence_unit_execute_and_poll_contract.sh | Stub summary for /Users/stuart/parallel_development/fjcloud_dev/may29_pm_10_lint_fix_and_pm4_merge/fjcloud_dev/ops/terraform/tests_rds_restore_evidence_unit_execute_and_poll_contract.sh. |
 | tests_rds_restore_evidence_unit_selection_helper_contract.sh | Selection-helper fail-row regression coverage extracted from the main unit harness. |
 | tests_runbooks_static.sh | Static content tests for infrastructure runbooks.
 TDD red phase for Task 5 — Backend Runbook Finalization.
@@ -80,6 +80,6 @@ TDD: this test locks ownership, delegation, and secret-boundary contracts. |
 
 | Directory | Summary |
 | --- | --- |
-| support_email_canary | The support_email_canary directory contains a Lambda handler that executes email deliverability canary checks by resolving webhook notification URLs from SSM parameters and running validation scripts. |
-| support_email_canary | The support_email_canary directory contains a Lambda function handler that monitors the support email system to ensure it's operational and properly handling incoming and outgoing messages. |
+| support_email_canary | AWS Lambda function that runs email deliverability and inbound validation canaries, resolving optional Slack/Discord webhook URLs from SSM parameters before executing the test scripts. |
+| support_email_canary | This directory contains a Lambda function handler for a support email canary—a synthetic monitoring probe that validates the support email system is operational end-to-end. |
 <!-- [scrai:end] -->

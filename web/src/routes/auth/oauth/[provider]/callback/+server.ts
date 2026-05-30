@@ -4,6 +4,11 @@ import { AUTH_COOKIE, COOKIE_MAX_AGE } from '$lib/config';
 import { createApiClient } from '$lib/server/api';
 import { authCookieOptions, oauthStateCookieOptions } from '$lib/server/auth-cookies';
 
+function hasUnsafeCookieHeaderBytes(value: string): boolean {
+	// eslint-disable-next-line no-control-regex -- intentional: reject raw ASCII control bytes in reflected Cookie header values.
+	return /[\u0000-\u001f\u007f\s;",\\]/u.test(value);
+}
+
 export const GET: RequestHandler = async ({ params, url, cookies, fetch }) => {
 	const code = url.searchParams.get('code');
 	const state = url.searchParams.get('state');
@@ -26,6 +31,17 @@ export const GET: RequestHandler = async ({ params, url, cookies, fetch }) => {
 	};
 
 	if (!code || !state) {
+		clearOAuthCookies();
+		redirect(303, '/login?reason=oauth_error');
+	}
+
+	// These cookies are reflected into a server-side Cookie header for the API
+	// exchange request. Reject any separator/control characters rather than
+	// trusting a tampered browser cookie to stay header-safe.
+	if (
+		(oauthStateCookie && hasUnsafeCookieHeaderBytes(oauthStateCookie)) ||
+		(oauthStateBindingCookie && hasUnsafeCookieHeaderBytes(oauthStateBindingCookie))
+	) {
 		clearOAuthCookies();
 		redirect(303, '/login?reason=oauth_error');
 	}

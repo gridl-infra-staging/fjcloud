@@ -8,6 +8,6 @@
 
 | Directory | Summary |
 | --- | --- |
-| [id] | This directory contains a SvelteKit page route handler (+page.server.ts) that manages server-side logic for a page, likely handling form submissions and data loading for a console or dashboard interface. |
-| [id] | This directory contains a SvelteKit server-side page file (+page.server.ts) that serves as a stub with placeholder implementation. |
+| [id] | This is a SvelteKit server-side page module with stub implementation, likely handling data loading or form actions for a specific route in the application. |
+| [id] | This directory contains the server-side route handler for a SvelteKit page, implementing backend logic for data loading and form actions. |
 <!-- [scrai:end] -->

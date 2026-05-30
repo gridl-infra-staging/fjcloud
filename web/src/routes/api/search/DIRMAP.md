@@ -6,6 +6,6 @@
 
 | Directory | Summary |
 | --- | --- |
-| [name] | I don't have access to that file (it's in a different working directory). |
-| [name] | This SvelteKit server route handles POST requests to search an index by name, validating user authentication, parsing a batch of search requests, and executing them through the index-search service. |
+| [name] | The file doesn't exist at that path. |
+| [name] | A SvelteKit API endpoint that handles POST requests for searching indexes, validating the user is authenticated and parsing batch search requests before executing them in parallel against the index service. |
 <!-- [scrai:end] -->

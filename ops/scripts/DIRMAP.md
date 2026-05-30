@@ -69,8 +69,8 @@ Prerequisites checked:
 
 | Directory | Summary |
 | --- | --- |
-| lib | This lib directory contains shared deployment and infrastructure helper scripts for managing configuration (SSM parameter reading, environment variable generation), pre-deployment validation, and cloud resource interactions (Cloudflare zone parsing, RDS restoration). |
-| tests | The tests directory contains a single Bash script for capturing Cloudflare zone configuration as a fixture, used for one-time setup of test data. |
-| lib | This lib directory contains deployment and infrastructure utilities, including scripts for pre-deployment validation, SSM parameter to environment variable mapping, Cloudflare zone parsing, and RDS restore operations. |
-| tests | Captures Cloudflare zone configuration as a one-shot fixture for testing purposes. |
+| lib | The lib directory contains shared deployment and infrastructure utilities including SSM parameter-to-environment mapping (generate_ssm_env.sh), pre-deployment validation adapters, Cloudflare zone parsing, and RDS restore selection helpers. |
+| tests | The tests directory contains a fixture capture script for Cloudflare zones, used to create test data snapshots of Cloudflare zone configurations. |
+| lib | The lib directory contains shared operational helper scripts for deployment workflows, including pre-deployment validation, SSM parameter-to-environment-file generation for systemd services, Cloudflare zone parsing, and RDS restore utilities. |
+| tests | The tests directory contains a single shell script that captures Cloudflare zone fixtures for testing purposes. |
 <!-- [scrai:end] -->

@@ -410,7 +410,7 @@ for s in d.get("Subscriptions", []):
 done
 
 # ---------------------------------------------------------------------------
-# 4. AWS SSM — critical parameter freshness (no values captured)
+# 4. AWS SSM — critical parameter freshness + AMI pointer capture
 # ---------------------------------------------------------------------------
 
 # Verified at probe-build time against `aws ssm get-parameters-by-path --recursive`:
@@ -456,10 +456,24 @@ for env in staging prod; do
     } >> "$raw_file"
   done
 
+  pointer_name="/fjcloud/${env}/aws_ami_id"
+  pointer_value="$(aws ssm get-parameter --name "$pointer_name" --query 'Parameter.Value' --output text 2>&1)"
+  pointer_rc=$?
+  {
+    echo "=== $pointer_name ==="
+    if [ "$pointer_rc" -eq 0 ]; then
+      echo "aws_ami_id=$pointer_value"
+    else
+      echo "ERROR (rc=$pointer_rc): $pointer_value"
+      param_errors=$((param_errors + 1))
+    fi
+  } >> "$raw_file"
+
+  total_checks=$((param_count + 1))
   if [ "$param_errors" -eq 0 ]; then
-    add_row "$vendor_id" "OK" "false" "all $param_count SSM params readable (metadata only)" "aws_ssm_${env}.txt"
+    add_row "$vendor_id" "OK" "false" "all $total_checks SSM checks readable (metadata + aws_ami_id pointer)" "aws_ssm_${env}.txt"
   else
-    add_row "$vendor_id" "DRIFT" "false" "$param_errors of $param_count SSM params failed (missing or unauthorized)" "aws_ssm_${env}.txt"
+    add_row "$vendor_id" "DRIFT" "false" "$param_errors of $total_checks SSM checks failed (missing, unauthorized, or pointer unreadable)" "aws_ssm_${env}.txt"
   fi
 done
 
@@ -688,7 +702,10 @@ register_raw "staging_rds.txt"
 : > "$raw_file"
 
 ssm_exec="scripts/launch/ssm_exec_staging.sh"
-if [ ! -x "$ssm_exec" ]; then
+if [ "${LIVE_STATE_SKIP_STAGING_RDS:-0}" = "1" ]; then
+  echo "SKIP_BY_ENV: LIVE_STATE_SKIP_STAGING_RDS=1" > "$raw_file"
+  add_row "staging_rds" "SKIP_NO_CREDS" "false" "staging RDS probe skipped by LIVE_STATE_SKIP_STAGING_RDS=1" "staging_rds.txt"
+elif [ ! -x "$ssm_exec" ]; then
   echo "SKIP_NO_CREDS: $ssm_exec missing or not executable" > "$raw_file"
   add_row "staging_rds" "SKIP_NO_CREDS" "false" "ssm_exec_staging.sh not available" "staging_rds.txt"
 elif [ "$AWS_OK" -eq 0 ]; then

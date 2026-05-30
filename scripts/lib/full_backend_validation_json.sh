@@ -224,6 +224,9 @@
 # TODO: Document parse_delegated_billing_summary.
 # TODO: Document parse_delegated_billing_summary.
 # TODO: Document parse_delegated_billing_summary.
+# TODO: Document parse_delegated_billing_summary.
+# TODO: Document parse_delegated_billing_summary.
+# TODO: Document parse_delegated_billing_summary.
 parse_delegated_billing_summary() {
     local json_body="$1"
     DELEGATED_JSON_RESULT=""
@@ -352,13 +355,17 @@ except Exception:
 if data.get("verdict") == "pass":
     print("")
 else:
-    gates = data.get("gates", [])
-    if isinstance(gates, list):
+    # The current repo-owned emitter writes per-check results under "steps".
+    # Keep the older "gates" fallback so historical artifacts still summarize.
+    checks = data.get("steps")
+    if not isinstance(checks, list):
+        checks = data.get("gates", [])
+    if isinstance(checks, list):
         failures = []
-        for gate in gates:
-            if isinstance(gate, dict) and gate.get("status") == "fail":
-                name = gate.get("name", "unknown")
-                reason = gate.get("reason", "")
+        for check in checks:
+            if isinstance(check, dict) and check.get("status") == "fail":
+                name = check.get("name", "unknown")
+                reason = check.get("reason", "")
                 failures.append(f"{name}: {reason}" if reason else str(name))
         if failures:
             print("; ".join(failures))

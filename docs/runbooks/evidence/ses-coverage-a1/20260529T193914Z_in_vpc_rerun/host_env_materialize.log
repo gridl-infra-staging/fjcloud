@@ -1,0 +1,6 @@
+
+An error occurred (ParameterNotFound) when calling the GetParameter operation: 
+
+An error occurred (ParameterNotFound) when calling the GetParameter operation: 
+FAIL: env var API_URL resolved empty
+failed to run commands: exit status 1

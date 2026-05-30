@@ -72,14 +72,32 @@ JSON
 
         if [ "${1:-}" = "ssm" ] && [ "${2:-}" = "get-parameter" ]; then
             param_name=""
+            query_value=""
             while [ "$#" -gt 0 ]; do
                 if [ "$1" = "--name" ] && [ "${2:-}" != "" ]; then
                     param_name="$2"
+                fi
+                if [ "$1" = "--query" ] && [ "${2:-}" != "" ]; then
+                    query_value="$2"
+                fi
+                if [ -n "$param_name" ] && [ -n "$query_value" ]; then
                     break
                 fi
                 shift
             done
             if [ -n "$param_name" ]; then
+                if [ "$query_value" = "Parameter.Value" ]; then
+                    case "$param_name" in
+                        /fjcloud/staging/aws_ami_id)
+                            echo "ami-070b3dfb46c944d7e"
+                            exit 0
+                            ;;
+                        /fjcloud/prod/aws_ami_id)
+                            echo "ami-078228dbe86117d85"
+                            exit 0
+                            ;;
+                    esac
+                fi
                 cat <<'JSON'
 {"Parameter":{"Version":3,"LastModifiedDate":"2026-05-22T00:00:00.000Z"}}
 JSON
@@ -330,6 +348,7 @@ run_all_degraded_exit_code_regression() {
         AWS_STUB_LOG_PATH="$aws_log_path" \
         FJCLOUD_SECRET_FILE="$primary_secret_path" \
         CLOUDFLARE_FALLBACK_SECRET_FILE="$fallback_secret_path" \
+        LIVE_STATE_SKIP_STAGING_RDS=1 \
         LIVE_STATE_OUTPUT_PATH="$output_path" \
         bash "$PROBE_SCRIPT_DEFAULT"
     ); then
@@ -453,6 +472,58 @@ EOF
     fi
 }
 
+run_ssm_ami_pointer_capture_regression() {
+    local output_path primary_secret_path fallback_secret_path stub_dir aws_log_path probe_rc
+    local timestamp canonical_dir staging_raw prod_raw
+    output_path="$(mktemp)"
+    primary_secret_path="$(mktemp)"
+    fallback_secret_path="$(mktemp)"
+    stub_dir="$(mktemp -d)"
+    aws_log_path="$(mktemp)"
+    register_tmp_path "$output_path"
+    register_tmp_path "$primary_secret_path"
+    register_tmp_path "$fallback_secret_path"
+    register_tmp_path "$aws_log_path"
+    TMP_PATHS+=("$stub_dir")
+
+    create_stubbed_vendor_tools "$stub_dir"
+    cat > "$primary_secret_path" <<'EOF'
+STRIPE_SECRET_KEY_flapjack_cloud=sk_live_probe_dummy
+EOF
+    cat > "$fallback_secret_path" <<'EOF'
+CLOUDFLARE_ACCOUNT_ID=test_account
+CLOUDFLARE_GLOBAL_API_KEY=test_key
+CLOUDFLARE_EMAIL=test@example.com
+EOF
+
+    probe_rc=0
+    if (
+        PATH="${stub_dir}:$PATH" \
+        AWS_STUB_SCENARIO="healthy" \
+        GH_STUB_SCENARIO="healthy" \
+        AWS_STUB_LOG_PATH="$aws_log_path" \
+        FJCLOUD_SECRET_FILE="$primary_secret_path" \
+        CLOUDFLARE_FALLBACK_SECRET_FILE="$fallback_secret_path" \
+        LIVE_STATE_OUTPUT_PATH="$output_path" \
+        bash "$PROBE_SCRIPT_DEFAULT"
+    ); then
+        probe_rc=0
+    else
+        probe_rc=$?
+    fi
+
+    assert_eq "$probe_rc" "0" "probe succeeds for SSM AMI pointer capture run"
+    timestamp="$(sed -n 's/^# fjcloud live-state snapshot — //p' "$output_path" | head -n1)"
+    canonical_dir="${REPO_ROOT}/docs/live-state/${timestamp}"
+    staging_raw="${canonical_dir}/aws_ssm_staging.txt"
+    prod_raw="${canonical_dir}/aws_ssm_prod.txt"
+
+    assert_file_exists "$staging_raw" "staging SSM raw output file is created"
+    assert_file_exists "$prod_raw" "prod SSM raw output file is created"
+    assert_file_contains "$staging_raw" "aws_ami_id=ami-070b3dfb46c944d7e" "staging SSM raw output includes aws_ami_id pointer value"
+    assert_file_contains "$prod_raw" "aws_ami_id=ami-078228dbe86117d85" "prod SSM raw output includes aws_ami_id pointer value"
+}
+
 run_stdout_path_contract_regression() {
     local output_path primary_secret_path fallback_secret_path stub_dir aws_log_path probe_stdout probe_rc
     output_path="$(mktemp)"
@@ -493,13 +564,23 @@ EOF
     validate_live_state_artifact "$probe_stdout"
 }
 
-if [ -n "${LIVE_STATE_ARTIFACT:-}" ]; then
+if [ -n "${PROBE_TEST_CASE:-}" ]; then
+    case "$PROBE_TEST_CASE" in
+        ssm_ami_pointer_capture)
+            run_ssm_ami_pointer_capture_regression
+            ;;
+        *)
+            fail "unknown PROBE_TEST_CASE=$PROBE_TEST_CASE"
+            ;;
+    esac
+elif [ -n "${LIVE_STATE_ARTIFACT:-}" ]; then
     run_fixture_mode
 else
     run_default_mode
     run_all_degraded_exit_code_regression
     run_cloudflare_fallback_empty_export_regression
     run_ssm_scope_regression
+    run_ssm_ami_pointer_capture_regression
     run_stdout_path_contract_regression
 fi
 

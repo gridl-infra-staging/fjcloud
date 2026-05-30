@@ -9,6 +9,6 @@
 | Directory | Summary |
 | --- | --- |
 | fixtures | — |
-| lib | This directory contains shared shell script helpers and utilities for testing infrastructure, including assertion frameworks, mocking helpers for cargo and integration tests, and harness scripts for specialized test scenarios like chaos tests, budget guardrails, and billing rehearsal workflows. |
-| lib | This directory contains shell script testing utilities and test harness helpers, including shared assertion functions, mock builders for cargo and integration tests, and specialized helpers for chaos testing, budget guardrail validation, and billing rehearsal scenarios. |
+| lib | This directory contains shared shell script utilities for test infrastructure, including assertion helpers, mock writers, and harness support for chaos tests, integration tests, budget guardrail validation, and staging billing rehearsals. |
+| lib | This directory contains shared shell script test utilities and helpers for integration, e2e, staging, and chaos testing, providing common functionality for assertions, mocking, harness setup, and test state management. |
 <!-- [scrai:end] -->

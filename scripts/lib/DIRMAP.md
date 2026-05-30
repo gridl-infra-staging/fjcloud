@@ -12,7 +12,7 @@ Ownership boundary:
 TODO: Document build_slack_critical_payload. |
 | billing_rehearsal_steps.sh | Shared planned-step list for staging billing preflight/rehearsal JSON output. |
 | clickthrough_probe_common.sh | Shared helpers for auth-email clickthrough probes that prove the inbox path. |
-| contract_secret_env.sh | Stub summary for contract_secret_env.sh. |
+| contract_secret_env.sh | Stub summary for /Users/stuart/parallel_development/fjcloud_dev/may29_pm_10_lint_fix_and_pm4_merge/fjcloud_dev/scripts/lib/contract_secret_env.sh. |
 | customer_lifecycle_steps.sh | Shared customer lifecycle steps reused by canary and VM lifecycle orchestrator.
 
 Caller-owned prerequisites:
@@ -21,7 +21,7 @@ Caller-owned prerequisites:
 - HTTP seams from scripts/lib/http_json.sh
 - inbox seams from scripts/lib/test_inbox_helpers.sh for verify-email
 - env vars/state variables used below (CANARY_* namespace). |
-| deterministic_batch_payload.sh | Stub summary for deterministic_batch_payload.sh. |
+| deterministic_batch_payload.sh | Stub summary for /Users/stuart/parallel_development/fjcloud_dev/may29_pm_10_lint_fix_and_pm4_merge/fjcloud_dev/scripts/lib/deterministic_batch_payload.sh. |
 | env.sh | Shared environment file loading — single source of truth for local env parsing.
 
 Exports:
@@ -48,8 +48,8 @@ Contract:
 
 The local HA proof only means anything when the VM inventory and the running
 Flapjack listeners describe the same topology. |
-| full_backend_validation_cli.sh | Stub summary for full_backend_validation_cli.sh. |
-| full_backend_validation_json.sh | Stub summary for full_backend_validation_json.sh. |
+| full_backend_validation_cli.sh | Stub summary for /Users/stuart/parallel_development/fjcloud_dev/may29_pm_10_lint_fix_and_pm4_merge/fjcloud_dev/scripts/lib/full_backend_validation_cli.sh. |
+| full_backend_validation_json.sh | Stub summary for /Users/stuart/parallel_development/fjcloud_dev/may29_pm_10_lint_fix_and_pm4_merge/fjcloud_dev/scripts/lib/full_backend_validation_json.sh. |
 | health.sh | Shared health-check helpers for shell scripts.
 
 Callers must define:
@@ -104,9 +104,9 @@ Usage: run_migrations <db_url> <migrations_dir>. |
 | persist_capture_artifact.py | Normalize capture artifacts into a consistent JSON structure. |
 | privacy_com_client.sh | Privacy.com transport owner for create/get/list/close card flows.
 shellcheck disable=SC1091,SC2034. |
-| process.sh | Stub summary for process.sh. |
-| psql_path.sh | Stub summary for psql_path.sh. |
-| secret_audit_parsing.sh | Stub summary for secret_audit_parsing.sh. |
+| process.sh | Stub summary for /Users/stuart/parallel_development/fjcloud_dev/may29_pm_10_lint_fix_and_pm4_merge/fjcloud_dev/scripts/lib/process.sh. |
+| psql_path.sh | Stub summary for /Users/stuart/parallel_development/fjcloud_dev/may29_pm_10_lint_fix_and_pm4_merge/fjcloud_dev/scripts/lib/psql_path.sh. |
+| secret_audit_parsing.sh | Stub summary for /Users/stuart/parallel_development/fjcloud_dev/may29_pm_10_lint_fix_and_pm4_merge/fjcloud_dev/scripts/lib/secret_audit_parsing.sh. |
 | security_checks.sh | Security validation checks for the backend reliability gate.
 
 Three automated checks:
@@ -116,8 +116,8 @@ Three automated checks:
 
 Each function prints a single JSON line to stdout and returns 0 (pass) or 1 (fail/skip).
 On failure, emits REASON:<code> to stderr for structured reason extraction. |
-| staging_billing_rehearsal_email_evidence.sh | Stub summary for staging_billing_rehearsal_email_evidence.sh. |
-| staging_billing_rehearsal_evidence.sh | Stub summary for staging_billing_rehearsal_evidence.sh. |
+| staging_billing_rehearsal_email_evidence.sh | Stub summary for /Users/stuart/parallel_development/fjcloud_dev/may29_pm_10_lint_fix_and_pm4_merge/fjcloud_dev/scripts/lib/staging_billing_rehearsal_email_evidence.sh. |
+| staging_billing_rehearsal_evidence.sh | Stub summary for /Users/stuart/parallel_development/fjcloud_dev/may29_pm_10_lint_fix_and_pm4_merge/fjcloud_dev/scripts/lib/staging_billing_rehearsal_evidence.sh. |
 | staging_billing_rehearsal_flow.sh | Flow helpers for scripts/staging_billing_rehearsal.sh. |
 | staging_billing_rehearsal_impl.sh | shellcheck source=psql_path.sh. |
 | staging_billing_rehearsal_live_mutation.sh | Live mutation execution helpers for staging billing rehearsal. |
@@ -174,7 +174,7 @@ Caller-owned prerequisites:
 Exports:
 - STRIPE_ATTACHED_PAYMENT_METHOD_ID
 - STRIPE_PAYMENT_METHOD_ERROR_MESSAGE. |
-| stripe_request.sh | Stub summary for stripe_request.sh. |
+| stripe_request.sh | Stub summary for /Users/stuart/parallel_development/fjcloud_dev/may29_pm_10_lint_fix_and_pm4_merge/fjcloud_dev/scripts/lib/stripe_request.sh. |
 | validation_json.sh | Shared JSON/timing helpers for validation scripts.
 Sourced by validate-stripe.sh, local-signoff-commerce.sh, and others. |
 | web_runtime.sh | Shared local web runtime prerequisite checks. |

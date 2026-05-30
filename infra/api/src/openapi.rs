@@ -8,7 +8,7 @@ pub const BEARER_SCHEME_NAME: &str = "bearer_jwt";
 #[derive(OpenApi)]
 #[openapi(
     info(
-        title = "fjcloud API",
+        title = "Flapjack Cloud API",
         description = "Cloud infrastructure and billing platform API",
         version = "0.1.0",
     ),

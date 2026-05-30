@@ -8,8 +8,8 @@
 
 | Directory | Summary |
 | --- | --- |
-| src | The src directory contains the SvelteKit web frontend for fjcloud, with client-side utilities in lib/ for API clients, authentication, session management, and pricing logic, and server-side route handlers in routes/ for admin console, customer dashboards, OAuth authentication, billing/Stripe APIs, and system monitoring. |
-| tests | The tests directory contains end-to-end browser testing infrastructure for fjcloud, including Playwright-based test suites for comprehensive user flow validation and reusable test fixtures for authentication, billing workflows, and staging environment helpers. |
-| src | The src directory is the SvelteKit web frontend for fjcloud, containing request hooks, utility libraries for API clients and authentication, and server routes organized by customer-facing features (console dashboard, OAuth, billing, pricing), administrative operations, and external integrations (Stripe webhooks, search). |
-| tests | This directory contains end-to-end browser tests and shared Playwright fixtures for testing fjcloud's web frontend, including customer flows, authentication setup, billing interactions, and VLM screenshot capture infrastructure. |
+| src | The web/src directory contains the SvelteKit frontend application with server-side hooks, a comprehensive shared utility library for API client abstraction, authentication, billing integration, and UI components, and server routes handling OAuth, admin dashboards, billing APIs, and customer account management. |
+| tests | The tests directory contains browser automation testing infrastructure with e2e-ui subdirectories for full-workflow screenshot testing, and fixtures providing TypeScript helpers for Playwright test setup including authentication, billing flows, and staging database/Stripe query utilities. |
+| src | This directory implements the SvelteKit frontend for fjcloud, with a utility library providing API clients, authentication, Stripe integration, and UI helpers, alongside organized route handlers for customer and admin dashboards, OAuth authentication, and API integrations. |
+| tests | This tests directory contains end-to-end browser testing infrastructure, including Playwright fixtures for authentication, billing, and session management across multiple test journeys, plus comprehensive UI validation helpers powered by Vision Language Model-based screenshot capture. |
 <!-- [scrai:end] -->

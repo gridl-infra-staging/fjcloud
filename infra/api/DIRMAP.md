@@ -7,8 +7,8 @@
 
 | Directory | Summary |
 | --- | --- |
-| src | The `infra/api/src/` directory is the core HTTP API server implementation for fjcloud, containing authentication and authorization, billing and invoicing logic, multi-cloud infrastructure provisioning across AWS/GCP/OCI/Hetzner, Stripe integration, data repositories, webhook handlers, and business-logic services for resource management and metering. |
-| tests | The tests directory provides shared test infrastructure and fixtures for API integration testing, including test state builders, Flapjack proxy stubs, Stripe webhook utilities, and S3 storage test harnesses. |
-| src | This is the main API server source code for fjcloud, implementing HTTP endpoints and business logic for customer management, billing, infrastructure provisioning across multiple cloud providers (AWS, GCP, OCI, Hetzner), Stripe integration, DNS management, and authentication/authorization. |
-| tests | This directory provides shared test fixtures, helpers, and mocks for the API integration test suite, including utilities for capacity profiling, Flapjack proxy simulation, Stripe webhook handling, and storage/metering validation. |
+| src | The fjcloud API server implementation, organized into modules for HTTP routing, authentication, billing and invoicing, multi-cloud infrastructure provisioning, DNS management, data access, domain services, and Stripe payment integration. |
+| tests | The tests directory contains shared test utilities and fixtures for the API integration test suite, including helper modules for capacity profiling, index routes, Flapjack proxy mocking, and Stripe webhook testing. |
+| src | This is the main source directory for fjcloud's Axum-based HTTP API server, containing the complete backend implementation for billing, invoicing, customer management, OAuth authentication, cloud infrastructure provisioning, and webhook handling across multiple cloud providers. |
+| tests | The tests/common directory provides shared test infrastructure for fjcloud API integration testing, including fixtures, mocks, and helpers for scheduler and placement testing, Flapjack proxy integration, Stripe webhooks, and S3 storage operations. |
 <!-- [scrai:end] -->

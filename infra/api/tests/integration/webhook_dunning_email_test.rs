@@ -124,6 +124,67 @@ async fn payment_failed_exhausted_retries_sends_exhausted_dunning_email() {
 }
 
 #[tokio::test]
+async fn payment_failed_without_next_payment_attempt_does_not_suspend_customer_or_fail_invoice() {
+    let customer_repo = mock_repo();
+    let invoice_repo = mock_invoice_repo();
+    let alert_service = Arc::new(MockAlertService::new());
+    let email_service = Arc::new(MockEmailService::new());
+    let customer = customer_repo.seed("Acme", "acme@example.com");
+
+    let invoice = seed_draft_invoice(&invoice_repo, customer.id);
+    invoice_repo.finalize(invoice.id).await.unwrap();
+    invoice_repo
+        .set_stripe_fields(
+            invoice.id,
+            "in_stripe_missing_next_attempt",
+            "https://stripe.com/inv/missing_next_attempt",
+            None,
+        )
+        .await
+        .unwrap();
+
+    let app = test_app_with_services(
+        Arc::clone(&customer_repo),
+        Arc::clone(&invoice_repo),
+        Arc::clone(&alert_service) as Arc<dyn AlertService>,
+        Arc::clone(&email_service) as Arc<dyn EmailService>,
+        false,
+    );
+
+    let payload = r#"{"id":"evt_missing_next_attempt","type":"invoice.payment_failed","data":{"object":{"id":"in_stripe_missing_next_attempt","attempt_count":2}}}"#;
+    let resp = app.oneshot(webhook_request(payload)).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let invoice_after = invoice_repo.find_by_id(invoice.id).await.unwrap().unwrap();
+    assert_eq!(
+        invoice_after.status, "finalized",
+        "missing next_payment_attempt must not be treated as retries exhausted (billing_run_no_created_invoices regression)"
+    );
+
+    let customer_after = customer_repo
+        .find_by_id(customer.id)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        customer_after.status, "active",
+        "missing next_payment_attempt must not suspend the customer"
+    );
+    assert!(
+        email_service.sent_emails().is_empty(),
+        "missing next_payment_attempt must not send dunning emails"
+    );
+
+    let alerts = alert_service.recorded_alerts();
+    assert_eq!(
+        alerts.len(),
+        1,
+        "missing next_payment_attempt should still emit a warning alert for operator visibility"
+    );
+    assert_eq!(alerts[0].severity, AlertSeverity::Warning);
+}
+
+#[tokio::test]
 async fn payment_succeeded_after_failed_invoice_sends_recovery_dunning_email() {
     let customer_repo = mock_repo();
     let invoice_repo = mock_invoice_repo();

@@ -7,6 +7,6 @@
 
 | Directory | Summary |
 | --- | --- |
-| [name] | This directory contains server-side management modules and UI components for a SvelteKit index console, organizing functionality across analytics, chat, document, dictionary, recommendations, and other domain-specific handlers alongside an experiments section and reusable tab components. |
-| [name] | This directory contains SvelteKit server-side route handlers and UI components for a console dashboard that manages various index features including documents, analytics, chat, dictionaries, events, personalization, recommendations, rules, and security sources. |
+| [name] | This directory contains the SvelteKit route handlers and components for a comprehensive index detail management console, with multiple feature-specific server-side handlers (document, dictionary, events, analytics, chat, personalization, recommendations, rules, security, suggestions, synonyms) and subdirectories for experiment details and UI tabs. |
+| [name] | This directory contains SvelteKit server-side management modules for a dynamic index console interface, handling features like analytics, chat, documents, personalization, recommendations, and rules alongside UI utilities for experiments and index configuration tabs. |
 <!-- [scrai:end] -->

@@ -25,6 +25,6 @@ unavailable so staging gets a clear outside-AWS outage signal. |
 
 | Directory | Summary |
 | --- | --- |
-| contracts | This directory contains contract and integration tests that validate external system integrations (Stripe webhooks, OAuth, Lambda), security boundaries (JWT signature validation, webhook signing), and frontend-backend communication contracts (API URLs, auth flows, billing data shapes). |
-| contracts | The `contracts/` directory contains bash-based contract tests that validate coupling between fjcloud frontend and backend components, including mocked vs. |
+| contracts | This directory contains contract tests that validate system boundaries and integrations, including OAuth flows, Stripe webhook security rejection cases (bad signatures, stale timestamps), authentication failure modes, multi-tenant isolation, and web/billing page payload structures across EC2, Lambda, and deployed frontend configurations. |
+| contracts | Contract test scripts that validate API payload shapes, authentication flows, webhook behaviors, and infrastructure correctness across mocked and live production environments using bash with minimal Python helpers. |
 <!-- [scrai:end] -->

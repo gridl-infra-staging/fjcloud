@@ -7,6 +7,6 @@
 
 | Directory | Summary |
 | --- | --- |
-| vlm_capture | The vlm_capture directory contains utilities for capturing VLM screenshots, including a redirect guard to handle redirect logic during capture, tuples defining the canonical screenshot capture configurations, and a manifest for metadata management. |
-| vlm_capture | This directory contains VLM screenshot capture infrastructure, including redirect guard logic for capture-time navigation control and the canonical tuple definitions that specify what screenshots to capture. |
+| vlm_capture | VLM capture module handling Vision Language Model screenshot capture, including manifest configuration, redirect guards for capture-time flow control, and centralized tuple definitions for screenshot capture specifications. |
+| vlm_capture | The vlm_capture directory provides utilities for Vision Language Model screenshot capture, including redirect guard logic to handle navigation during capture and a centralized configuration for screenshot capture specifications. |
 <!-- [scrai:end] -->

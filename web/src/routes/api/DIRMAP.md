@@ -6,10 +6,10 @@
 
 | Directory | Summary |
 | --- | --- |
-| pricing | The pricing directory contains pricing-related functionality for the fjcloud application, including a compare subdirectory with a SvelteKit server endpoint stub for comparing pricing options. |
-| search | I don't have access to the search directory as it's in a different working directory than the current session. |
-| stripe | This directory contains Stripe integration utilities for the web frontend, including a SvelteKit server endpoint that manages publishable key operations and retrieval for client-side Stripe interactions. |
-| pricing | The pricing directory contains the pricing-related API endpoints for the SvelteKit frontend, with a compare subdirectory that implements server-side comparison logic via a +server.ts endpoint. |
-| search | This SvelteKit server route validates user authentication and handles POST requests to search a specified index, parsing and executing batches of search queries through the index-search service. |
-| stripe | The stripe directory contains SvelteKit server endpoints for Stripe integration, specifically including a publishable-key endpoint that handles API operations related to Stripe publishable keys. |
+| pricing | The pricing directory contains routing logic for pricing-related features, including a compare subdirectory that handles price comparison functionality through a SvelteKit server route in its +server.ts file. |
+| search | The search directory does not exist at the specified path. |
+| stripe | The stripe directory contains SvelteKit server endpoints for Stripe integration, with a publishable-key endpoint that handles serving or managing Stripe publishable keys for client-side payment operations. |
+| pricing | The pricing directory contains server-side endpoints for pricing-related functionality, including a compare route that handles pricing comparison operations via a SvelteKit server endpoint. |
+| search | This directory contains a SvelteKit API endpoint that handles authenticated POST requests for searching indexes, parsing and executing batch search requests in parallel against the index service. |
+| stripe | The stripe directory contains API route handlers for Stripe integration, including a publishable-key endpoint that serves public credentials needed for client-side Stripe API interactions. |
 <!-- [scrai:end] -->

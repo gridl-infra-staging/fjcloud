@@ -6,7 +6,7 @@
 
 | Directory | Summary |
 | --- | --- |
-| common | This directory contains shared test fixtures, helpers, and mocks used by API integration tests, including capacity profile constants for scheduler tests, Flapjack proxy stub clients, Stripe webhook support utilities, and S3 storage testing harnesses. |
-| common | This directory contains shared test fixtures, helpers, and mocks for the API integration test suite, including capacity profile data, Flapjack proxy stubs, Stripe webhook support, and storage/metering test utilities. |
+| common | This directory contains shared test utilities and fixtures for the API integration test suite, including capacity profile measurements for document tiers and helper modules for index routes, Flapjack proxy mocking, and Stripe webhook testing. |
+| common | This directory contains shared test fixtures, helpers, and mock implementations for fjcloud API integration tests, including capacity profile constants for scheduler and placement testing, Flapjack proxy stubs, index route helpers, Stripe webhook support, and S3 storage test utilities. |
 | integration | — |
 <!-- [scrai:end] -->

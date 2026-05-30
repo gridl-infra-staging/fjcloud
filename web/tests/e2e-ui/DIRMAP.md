@@ -6,6 +6,6 @@
 
 | Directory | Summary |
 | --- | --- |
-| full | The 'full' directory contains end-to-end browser testing utilities for fjcloud's comprehensive test suite, including VLM screenshot capture infrastructure for visual validation with redirect handling and metadata management. |
-| full | This directory contains e2e UI tests for the full customer flow, including helper utilities for index detail views and VLM screenshot capture infrastructure that manages screenshot collection with redirect guards and canonical capture specifications. |
+| full | This directory contains browser automation helpers and Vision Language Model screenshot capture utilities for full end-to-end UI testing workflows. |
+| full | This directory contains helper utilities for the full e2e UI test suite, including index detail helpers and Vision Language Model screenshot capture functionality with redirect guard logic and centralized capture configuration. |
 <!-- [scrai:end] -->

@@ -245,6 +245,10 @@ gate_web_lint() {
     cd "$REPO_ROOT" || return $?
     bash "$REPO_ROOT/scripts/tests/screen_specs_coverage_test.sh" || return $?
     bash "$REPO_ROOT/scripts/tests/ses_iam_configset_coupling_test.sh" || return $?
+    # Hermetic (curl-stubbed) unit test for the OAuth contract probe's
+    # self-test isolation. No network/secrets needed, unlike the live
+    # oauth_redirect_uri_contract.sh run gated behind --with-contracts.
+    bash "$REPO_ROOT/scripts/canary/contracts/oauth_redirect_uri_contract_test.sh" || return $?
 }
 
 gate_web_test() {

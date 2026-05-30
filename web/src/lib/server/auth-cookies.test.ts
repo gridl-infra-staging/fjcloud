@@ -37,7 +37,7 @@ describe('oauthStateCookieOptions', () => {
 	});
 
 	it('omits domain for localhost development hosts', () => {
-		expect(oauthStateCookieOptions(new URL('http://127.0.0.1:5173/oauth/callback/google'))).toEqual(
+		expect(oauthStateCookieOptions(new URL('http://127.0.0.1:5173/auth/oauth/google/callback'))).toEqual(
 			expect.objectContaining({
 				path: '/',
 				secure: false,

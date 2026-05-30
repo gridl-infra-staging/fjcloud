@@ -7,19 +7,19 @@
 
 | Directory | Summary |
 | --- | --- |
-| alerts | The alerts directory contains the server-side route handler for an admin alerts page, currently with a stub implementation. |
-| billing | Admin billing page server handler that loads all tenant invoices enriched with customer details and provides actions to run batch billing for a specific month and bulk finalize selected invoices. |
+| alerts | This directory contains the admin alerts page route for the SvelteKit frontend, with a server-side handler that currently lacks documentation. |
+| billing | The billing directory contains a SvelteKit server component for the billing admin page that requires implementation. |
 | cold | — |
-| customers | This directory contains the admin customers section of the web console, with a main page route handler, shared test fixtures for customer detail components, and a dynamic [id] subdirectory that manages server-side logic for individual customer detail pages including form submissions and data loading. |
-| alerts | The admin alerts page loads up to 100 alert records from the admin client, optionally filtered by severity level (info, warning, or critical) from URL query parameters, and gracefully returns an empty array on fetch failure. |
-| billing | This SvelteKit server page for the admin billing interface loads invoices across all tenants and provides actions to run batch billing for a specific month or bulk-finalize multiple invoices, with utilities for month validation and invoice sorting. |
+| customers | Admin customer management section containing SvelteKit page routes for customer details and related operations, with shared test fixtures supporting component testing across the admin customer detail views. |
+| alerts | This module implements a SvelteKit page server loader for the admin alerts interface that parses a severity filter from URL query parameters and fetches alerts from an admin client API. |
+| billing | Admin billing page that loads and displays all tenant invoices with sorting, and provides server actions to run batch billing for a specified month and bulk-finalize selected invoices. |
 | cold | — |
-| customers | The customers directory contains admin customer management pages and related test fixtures for a SvelteKit application, with a main page handler and nested routing for individual customer details. |
+| customers | This directory implements the admin customers management interface for the SvelteKit web frontend, including a main page server handler, shared test fixtures for customer detail components, and a dynamic route handler for viewing and managing individual customer data. |
 | end-impersonation | — |
 | fleet | — |
 | login | — |
 | logout | — |
-| migrations | The migrations directory contains a SvelteKit admin page server module that handles backend logic for a migrations management interface, though it appears to be a stub pending full implementation. |
-| migrations | Server-side route handler for the admin migrations management page in the SvelteKit web frontend. |
+| migrations | This SvelteKit server-side route handler manages the admin migrations page, loading both active and recent index migrations from the admin API and providing a server action to trigger new migrations with validation. |
+| migrations | This directory contains database schema migrations and an admin interface for managing data migrations. |
 | replicas | — |
 <!-- [scrai:end] -->

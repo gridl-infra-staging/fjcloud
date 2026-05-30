@@ -6,6 +6,6 @@
 
 | Directory | Summary |
 | --- | --- |
-| lib | This bash library provides regression testing functions that compare load test results against baseline measurements for five target API endpoints, evaluating latency percentiles, throughput, and error rates to classify performance regressions as pass, warn, or fail based on configurable degradation thresholds. |
-| lib | This directory contains load_checks.sh, a shell script that provides regression checks and validation logic for comparing offline and live load test harness results. |
+| lib | This directory contains load testing validation utilities, specifically `load_checks.sh` which performs regression testing by comparing offline simulated load harness results against live load test results to detect performance regressions. |
+| lib | Load regression checks for comparing offline and live load harness comparisons to validate performance consistency across test environments. |
 <!-- [scrai:end] -->

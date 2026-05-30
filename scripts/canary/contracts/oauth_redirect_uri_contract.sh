@@ -28,10 +28,6 @@
 # Usage: oauth_redirect_uri_contract.sh [prod|staging|all]
 set -euo pipefail
 
-env_arg="${1:-all}"
-[[ "$env_arg" == "prod" || "$env_arg" == "staging" || "$env_arg" == "all" ]] \
-  || { echo "usage: $0 [prod|staging|all]" >&2; exit 2; }
-
 # Per-env APP_BASE_URL. prod default matches infra/api/src/services/email.rs
 # DEFAULT_APP_BASE_URL. Staging has no compiled-in default; the probe SKIPs
 # staging rather than guessing if APP_BASE_URL_STAGING is unset.
@@ -50,6 +46,41 @@ app_base_for() {
 }
 
 fail=0
+
+# Probe callback path reachability on the web host after provider acceptance.
+# Stage-2 objective: detect the cross-repo regression where provider/API accept
+# /auth/oauth/{provider}/callback but the web host route tree still returns 404.
+probe_callback_path_reachability() {
+  local env="$1" provider="$2" redirect_uri="$3"
+  # Self-test isolation: when APP_BASE_OVERRIDE is set, redirect_uri is the
+  # deliberately-unregistered .invalid self-test URL, not a real callback. Skip
+  # reachability entirely so the self-test verdict depends ONLY on whether the
+  # provider token endpoint rejected the bad URI. Otherwise a DNS-unresolvable
+  # callback curl (HTTP 000) would set fail=1 and mask a provider that has
+  # started ACCEPTING unregistered URIs -- the exact false-PASS this guards.
+  if [[ -n "$APP_BASE_OVERRIDE" ]]; then
+    return
+  fi
+  local callback_probe_url="${redirect_uri}?code=fjcloud_probe_dummy_code&state=fjcloud_probe_dummy_state"
+  local callback_status
+  if ! callback_status=$(curl -sS -o /dev/null -w "%{http_code}" --max-time 10 "$callback_probe_url"); then
+    callback_status="000"
+  fi
+
+  if [[ "$callback_status" == "404" ]]; then
+    echo "FAIL: OAuth callback reachability regression env=$env provider=$provider: API/provider contract accepted $redirect_uri, but the web host did not serve that callback path (HTTP 404)"
+    fail=1
+    return
+  fi
+
+  if [[ "$callback_status" == "000" ]]; then
+    echo "WARN: OAuth callback reachability env=$env provider=$provider could not fetch $redirect_uri (HTTP 000)"
+    fail=1
+    return
+  fi
+
+  echo "PASS: OAuth callback reachability env=$env provider=$provider served callback path (HTTP $callback_status)"
+}
 
 # Probe Google's token endpoint. Sets global $fail=1 on rejection.
 # Sentinel "fjcloud_probe_invalid_code" is sent as the auth code so any
@@ -102,6 +133,7 @@ probe_google() {
     invalid_grant)
       # redirect_uri accepted, bogus code rejected -> the success path.
       echo "PASS: Google OAuth env=$env accepted $redirect_uri (token endpoint error=invalid_grant -- expected for bogus code)"
+      probe_callback_path_reachability "$env" "google" "$redirect_uri"
       ;;
     "")
       echo "WARN: Google OAuth env=$env returned no .error field. Body: ${body:0:300}"
@@ -142,6 +174,7 @@ probe_github() {
       # incorrect_client_credentials would surface a different misconfig but still
       # means redirect_uri itself was not flagged -- pass with a note.
       echo "PASS: GitHub OAuth env=$env accepted $redirect_uri (token endpoint error=$err -- expected for bogus code)"
+      probe_callback_path_reachability "$env" "github" "$redirect_uri"
       ;;
     "")
       echo "WARN: GitHub OAuth env=$env returned no .error field. Body: ${body:0:300}"
@@ -186,18 +219,6 @@ run_self_test() {
   return 0
 }
 
-# Run self-tests before touching real URLs. Hard exit if any is broken.
-self_test_failed=0
-if [[ -n "${GOOGLE_CLIENT_ID:-}" && -n "${GOOGLE_CLIENT_SECRET:-}" ]]; then
-  run_self_test google "$GOOGLE_CLIENT_ID" "$GOOGLE_CLIENT_SECRET" || self_test_failed=1
-fi
-if [[ -n "${GITHUB_CLIENT_ID:-}" && -n "${GITHUB_CLIENT_SECRET:-}" ]]; then
-  run_self_test github "$GITHUB_CLIENT_ID" "$GITHUB_CLIENT_SECRET" || self_test_failed=1
-fi
-if [[ "$self_test_failed" -ne 0 ]]; then
-  exit 1
-fi
-
 # Skip an env when its base URL resolves empty rather than fabricating a
 # probe against a guessed URL.
 require_app_base() {
@@ -213,38 +234,67 @@ require_app_base() {
   return 0
 }
 
-for env in prod staging; do
-  if [[ "$env_arg" != "all" && "$env_arg" != "$env" ]]; then continue; fi
-  require_app_base "$env" || continue
-  case "$env" in
-    prod)
-      if [[ -n "${GOOGLE_CLIENT_ID:-}" && -n "${GOOGLE_CLIENT_SECRET:-}" ]]; then
-        probe_google prod "$GOOGLE_CLIENT_ID" "$GOOGLE_CLIENT_SECRET"
-      else
-        echo "SKIP: GOOGLE_CLIENT_ID/SECRET not set, prod Google probe skipped"
-      fi
-      if [[ -n "${GITHUB_CLIENT_ID:-}" && -n "${GITHUB_CLIENT_SECRET:-}" ]]; then
-        probe_github prod "$GITHUB_CLIENT_ID" "$GITHUB_CLIENT_SECRET"
-      else
-        echo "SKIP: GITHUB_CLIENT_ID/SECRET not set, prod GitHub probe skipped"
-      fi
-      ;;
-    staging)
-      # Staging Google reuses the prod client -- Google allows multiple URIs in
-      # the allow-list, so one client covers both envs.
-      if [[ -n "${GOOGLE_CLIENT_ID:-}" && -n "${GOOGLE_CLIENT_SECRET:-}" ]]; then
-        probe_google staging "$GOOGLE_CLIENT_ID" "$GOOGLE_CLIENT_SECRET"
-      else
-        echo "SKIP: GOOGLE_CLIENT_ID/SECRET not set, staging Google probe skipped"
-      fi
-      # Staging GitHub uses a SEPARATE OAuth App (single-callback constraint).
-      if [[ -n "${GITHUB_OAUTH_CLIENT_ID_STAGING:-}" && -n "${GITHUB_OAUTH_CLIENT_SECRET_STAGING:-}" ]]; then
-        probe_github staging "$GITHUB_OAUTH_CLIENT_ID_STAGING" "$GITHUB_OAUTH_CLIENT_SECRET_STAGING"
-      else
-        echo "SKIP: GITHUB_OAUTH_CLIENT_ID_STAGING/SECRET not set, staging GitHub probe skipped"
-      fi
-      ;;
-  esac
-done
+# Orchestrates a full probe run: validate args, run provider self-tests (hard
+# exit if any is broken), then probe the requested env(s). Wrapped in a function
+# behind a BASH_SOURCE guard so the companion test can source this file to unit
+# test individual probe functions without triggering live network probes.
+main() {
+  local env_arg="${1:-all}"
+  [[ "$env_arg" == "prod" || "$env_arg" == "staging" || "$env_arg" == "all" ]] \
+    || { echo "usage: $0 [prod|staging|all]" >&2; exit 2; }
 
-exit $fail
+  # Run self-tests before touching real URLs. Hard exit if any is broken.
+  local self_test_failed=0
+  if [[ -n "${GOOGLE_CLIENT_ID:-}" && -n "${GOOGLE_CLIENT_SECRET:-}" ]]; then
+    run_self_test google "$GOOGLE_CLIENT_ID" "$GOOGLE_CLIENT_SECRET" || self_test_failed=1
+  fi
+  if [[ -n "${GITHUB_CLIENT_ID:-}" && -n "${GITHUB_CLIENT_SECRET:-}" ]]; then
+    run_self_test github "$GITHUB_CLIENT_ID" "$GITHUB_CLIENT_SECRET" || self_test_failed=1
+  fi
+  if [[ "$self_test_failed" -ne 0 ]]; then
+    exit 1
+  fi
+
+  local env
+  for env in prod staging; do
+    if [[ "$env_arg" != "all" && "$env_arg" != "$env" ]]; then continue; fi
+    require_app_base "$env" || continue
+    case "$env" in
+      prod)
+        if [[ -n "${GOOGLE_CLIENT_ID:-}" && -n "${GOOGLE_CLIENT_SECRET:-}" ]]; then
+          probe_google prod "$GOOGLE_CLIENT_ID" "$GOOGLE_CLIENT_SECRET"
+        else
+          echo "SKIP: GOOGLE_CLIENT_ID/SECRET not set, prod Google probe skipped"
+        fi
+        if [[ -n "${GITHUB_CLIENT_ID:-}" && -n "${GITHUB_CLIENT_SECRET:-}" ]]; then
+          probe_github prod "$GITHUB_CLIENT_ID" "$GITHUB_CLIENT_SECRET"
+        else
+          echo "SKIP: GITHUB_CLIENT_ID/SECRET not set, prod GitHub probe skipped"
+        fi
+        ;;
+      staging)
+        # Staging Google reuses the prod client -- Google allows multiple URIs in
+        # the allow-list, so one client covers both envs.
+        if [[ -n "${GOOGLE_CLIENT_ID:-}" && -n "${GOOGLE_CLIENT_SECRET:-}" ]]; then
+          probe_google staging "$GOOGLE_CLIENT_ID" "$GOOGLE_CLIENT_SECRET"
+        else
+          echo "SKIP: GOOGLE_CLIENT_ID/SECRET not set, staging Google probe skipped"
+        fi
+        # Staging GitHub uses a SEPARATE OAuth App (single-callback constraint).
+        if [[ -n "${GITHUB_OAUTH_CLIENT_ID_STAGING:-}" && -n "${GITHUB_OAUTH_CLIENT_SECRET_STAGING:-}" ]]; then
+          probe_github staging "$GITHUB_OAUTH_CLIENT_ID_STAGING" "$GITHUB_OAUTH_CLIENT_SECRET_STAGING"
+        else
+          echo "SKIP: GITHUB_OAUTH_CLIENT_ID_STAGING/SECRET not set, staging GitHub probe skipped"
+        fi
+        ;;
+    esac
+  done
+
+  exit $fail
+}
+
+# Only run live probes when executed directly; sourcing (e.g. by the companion
+# unit test) loads the functions without triggering any network activity.
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+  main "$@"
+fi

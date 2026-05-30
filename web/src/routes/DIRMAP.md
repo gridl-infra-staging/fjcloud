@@ -7,28 +7,25 @@
 
 | Directory | Summary |
 | --- | --- |
-| admin | The admin directory provides the server-side backend for an administrative console with functional sections for billing management (invoice enrichment and batch operations), customer administration (including individual customer detail pages), and stub implementations for alerts and migrations. |
-| api | The `api` directory contains SvelteKit server endpoints for the web frontend's external-facing functionality, including pricing comparison and Stripe publishable key management. |
-| billing | The upgrade/ directory contains a SvelteKit server route handler that manages upgrade-related operations for the billing system, though the core implementation logic is currently stubbed out pending development. |
-| console | The console directory is the SvelteKit customer-facing dashboard containing server-side route handlers for account management, API keys, billing configuration, index management, onboarding, and email verification. |
-| admin | The admin directory contains SvelteKit server routes for administrative operations, including alert management with severity filtering, batch billing and invoice finalization tools, customer management pages, and database migration controls. |
-| api | The api directory contains SvelteKit server routes for core customer-facing features including pricing comparison, authenticated index search, and Stripe integration. |
-| billing | The billing directory contains upgrade-related functionality, specifically a SvelteKit server route handler that manages upgrade operations. |
-| console | The console directory contains the customer-facing SvelteKit dashboard for managing fjcloud accounts, including pages for account settings, API key management, billing and payment setup, index management with multiple features, Algolia migration, onboarding flow, and email verification resend functionality. |
+| admin | The admin directory contains the SvelteKit frontend routes and components for the admin dashboard, including pages for managing alerts, billing, customers, and index migrations with their associated server-side handlers and test fixtures. |
+| api | The api directory contains SvelteKit server routes for handling pricing comparisons and Stripe integration, including endpoints for serving Stripe publishable keys and managing price comparison functionality. |
+| auth | The auth directory contains OAuth authentication logic, with provider-specific callback handlers in the oauth/ subdirectory that implement server-side SvelteKit routes to process authorization responses from external providers like Google and GitHub. |
+| billing | The billing directory contains SvelteKit server endpoints for handling billing-related operations, including an upgrade endpoint that manages upgrade transactions and related functionality. |
+| console | The console directory is a SvelteKit-based customer dashboard that provides routes for account management, API key administration, billing workflows, index and document management, user onboarding, and email verification. |
+| admin | The admin directory implements the SvelteKit admin dashboard with pages for managing alerts, billing operations, customer data, and database migrations. |
+| api | The api directory contains SvelteKit server-side endpoints for customer-facing functionality including pricing comparisons, authenticated index searches, and Stripe integration for handling payments and publishable credentials. |
+| auth | The auth directory handles OAuth authentication for the application, with provider-specific subdirectories containing SvelteKit server route handlers that process OAuth callbacks from external providers like Google and GitHub. |
+| billing | The billing crate is a Rust library implementing the core billing engine with modules for invoice generation, pricing logic, rate cards, metering aggregation, and type definitions used across the fjcloud platform's billing system. |
+| console | The console directory contains SvelteKit server-side route handlers for a customer-facing dashboard, providing functionality for account management, API key administration, billing operations, index management with various features, onboarding flows, and email verification. |
 | dashboard | — |
 | dev_editor_dialog_demo | — |
 | forgot-password | — |
 | login | — |
 | logout | — |
-| oauth | The oauth directory implements OAuth authentication handlers for social login integration, specifically with the callback subdirectory managing provider (Google, GitHub) authorization responses and session establishment. |
 | pricing | — |
 | reset-password | — |
 | signup | — |
-| status | Defines the TypeScript contract for the `/status` route, including the `ServiceStatus` type enum (operational/degraded/outage) and parsing utilities for converting raw status values to typed service status with human-readable labels. |
-| oauth | The oauth directory handles OAuth authentication flows, specifically processing callbacks from social login providers like Google and GitHub. |
-| pricing | — |
-| reset-password | — |
-| signup | — |
-| status | This directory contains status contract definitions, likely for type-safe validation or testing of status-related API responses or data structures in the web frontend. |
+| status | Defines type contracts and utilities for the /status route, including ServiceStatus enum (operational/degraded/outage), status data structures, and functions to parse status strings and map them to human-readable labels. |
+| status | The status directory contains a TypeScript contract file that defines status-related type definitions and validation schemas. |
 | verify-email | — |
 <!-- [scrai:end] -->

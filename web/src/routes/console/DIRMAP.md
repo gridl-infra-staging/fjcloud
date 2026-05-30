@@ -8,19 +8,19 @@
 
 | Directory | Summary |
 | --- | --- |
-| account | The account directory contains a SvelteKit route with a server-side page component that handles data loading and server actions for the account management page. |
-| api-keys | The api-keys directory contains a SvelteKit server-side route for managing API keys, with route handlers defined in +page.server.ts. |
-| billing | The billing directory contains SvelteKit server-side routes for the console's billing configuration interface. |
-| indexes | This directory contains the SvelteKit index console interface, with a dynamic [name] route that organizes server-side management modules and UI components for various domain-specific handlers including analytics, chat, documents, and experiments. |
-| migrate | The migrate directory contains a SvelteKit server-side route handler that appears to be a stub awaiting implementation. |
-| onboarding | The onboarding directory contains a +page.server.ts file that serves as the server-side handler for an onboarding route in the SvelteKit application. |
-| resend-verification | The resend-verification directory contains a SvelteKit server route handler that appears to manage email verification logic, though the implementation details are currently documented as a stub. |
-| account | The account directory contains a SvelteKit server-side page component that likely handles the account management route for the customer-facing dashboard. |
-| api-keys | The api-keys directory contains a SvelteKit server-side route page handler for managing API keys in the fjcloud customer console. |
-| billing | The billing directory contains SvelteKit pages for customer billing management, including a setup component that creates Stripe setup intents through the API to enable secure payment configuration. |
-| indexes | The indexes directory contains the SvelteKit console dashboard interface for managing various index features including documents, analytics, chat, dictionaries, events, personalization, recommendations, rules, and security sources. |
-| migrate | This SvelteKit server-side module handles Algolia-to-fjcloud index migration, providing two form actions: `listIndexes` to fetch available Algolia indexes with user credentials, and `migrate` to initiate a migration from a selected index. |
-| onboarding | This directory contains the onboarding page route handler for a SvelteKit application. |
-| resend-verification | SvelteKit POST endpoint that resends a verification email by calling the backend API with the user's token and returns appropriate retry-after headers for rate limiting. |
+| account | The account directory contains a SvelteKit page server component that handles server-side logic for the account-related route. |
+| api-keys | The api-keys directory contains a SvelteKit page for managing API keys, with server-side logic in +page.server.ts handling backend operations for key creation, retrieval, and management. |
+| billing | The billing directory contains SvelteKit server-side routes for customer billing workflows, including a page server file and setup subdirectory that manages billing configuration and initial setup flows. |
+| indexes | The indexes directory provides SvelteKit route handlers and components for a comprehensive index detail management console, offering feature-specific server-side handlers for document management, analytics, chat, personalization, recommendations, and other index operations. |
+| migrate | The migrate directory contains a SvelteKit page server handler (+page.server.ts) with stub documentation, indicating its implementation details are not yet documented. |
+| onboarding | The onboarding directory contains the server-side handler for the onboarding flow, managing user signup and initial account setup through SvelteKit's load and action handlers. |
+| resend-verification | The resend-verification directory contains a server-side route handler for resending verification emails or verification-related requests. |
+| account | Account management page server that handles loading user profile data and processing actions for profile updates, password changes, account deletion, and data exports with proper session and API error handling. |
+| api-keys | This is a SvelteKit route for an API keys management page, implemented with server-side logic that likely handles displaying, creating, and managing user API keys. |
+| billing | The billing directory contains SvelteKit server-side route handlers for the customer billing console. |
+| indexes | The indexes directory contains SvelteKit server-side modules for a dynamic index management console, handling features like analytics, chat, documents, personalization, recommendations, and rules configuration. |
+| migrate | The migrate directory contains a SvelteKit page server component (+page.server.ts) that handles server-side logic for a migration-related page. |
+| onboarding | The onboarding directory contains a SvelteKit server-side page route that handles the onboarding flow logic and data. |
+| resend-verification | This directory contains the server-side handler for a resend-verification email route, likely part of the authentication or user account management flow. |
 | settings | — |
 <!-- [scrai:end] -->

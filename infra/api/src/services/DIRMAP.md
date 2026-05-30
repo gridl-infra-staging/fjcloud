@@ -38,18 +38,18 @@ admin write paths whose abuse would be a customer-trust incident
 
 | Directory | Summary |
 | --- | --- |
-| cold_tier | I cannot access those files as they're in a different branch (`MAR17_11_2_data_management_features`) than the current working directory. |
-| email | The email directory handles email rendering and local testing infrastructure, with mailpit integration for development email capture and render utilities for email template processing. |
-| flapjack_proxy | The flapjack_proxy service proxies authenticated management operations from the fjcloud API to individual flapjack VMs using node admin keys fetched from SSM. |
-| migration | The migration service module provides infrastructure for managing data migrations with support for protocol definition, replication, validation, recovery mechanisms, and alerting. |
-| provisioning | The provisioning directory handles automatic VM provisioning across multiple cloud providers (AWS, Hetzner, GCP, OCI), orchestrating VM creation, secret management, inventory tracking, and resource cleanup through the ProvisioningService. |
-| scheduler | The scheduler service manages resource allocation and load balancing for the metering infrastructure, with modules for initial placement, detecting noisy neighbors, and handling overload and underload conditions through periodic scheduling cycles. |
-| storage | This storage service module provides S3-compatible object storage integration with Garage backend, implementing S3 authentication, XML request/response handling, error translation, object metering for billing, and administrative operations. |
-| cold_tier | The cold_tier service appears to manage cold storage data operations, with a node client for communicating with remote nodes and a pipeline for orchestrating data workflows across the cold storage tier. |
-| email | The email directory handles email template rendering and delivery integration, with modules for rendering email content and interfacing with Mailpit for email testing and delivery. |
-| flapjack_proxy | The flapjack_proxy service proxies authenticated HTTP requests from the fjcloud API to individual flapjack VMs, managing admin key retrieval from SSM with in-memory caching and TTL-based expiry, while providing error handling and helper methods for request construction and response parsing across various operation types (analytics, search, documents, settings, etc.). |
-| migration | The migration service module provides database migration capabilities including data replication, validation, recovery, alerting, and protocol coordination for the API. |
-| provisioning | The provisioning directory contains auto-provisioning logic for infrastructure setup and configuration management. |
-| scheduler | The scheduler service manages resource placement and load balancing, with modules for initial task placement, load monitoring (overload/underload detection), noisy neighbor interference management, and run cycle orchestration. |
-| storage | The storage directory implements S3-compatible object storage services with modules for authentication, error handling, XML serialization, proxy request handling, object metering, and garage admin operations. |
+| cold_tier | The cold_tier module manages automatic tiering of idle search indexes from hot tier VMs to cold storage via snapshot export, object store upload, and VM eviction, with configurable idle thresholds, retry logic, and failure alerts. |
+| email | The email directory contains utilities for email rendering and Mailpit integration for testing and development purposes. |
+| flapjack_proxy | This module provides a proxy service that forwards authenticated requests from the fjcloud API to flapjack VMs, with in-memory API key caching backed by SSM, TTL management, and stale-key fallback for resilience. |
+| migration | The migration service module handles data migration operations with support for replication, validation, recovery, and alerting. |
+| provisioning | Implements automatic provisioning of shared VMs for capacity fallback across multiple cloud providers (AWS, Hetzner, GCP, OCI), orchestrating VM creation, DNS record management, API key generation, and comprehensive failure cleanup. |
+| scheduler | The scheduler service manages resource placement and load balancing across the infrastructure, handling initial placement of workloads and adaptive responses to various load conditions including overload, underload, and noisy neighbor scenarios through periodic scheduling cycles. |
+| storage | The storage module implements S3-compatible object storage with authentication, error handling, XML response formatting, and metering integration for billing. |
+| cold_tier | The cold_tier directory contains a Rust service module for managing cold storage tier operations, with components for node client communication and data pipeline processing. |
+| email | Email module providing template rendering and mailpit integration for testing and development email capture. |
+| flapjack_proxy | This module provides a proxy service that handles authenticated requests from the fjcloud API to individual flapjack VMs using SSM-backed admin keys with a 5-minute cache TTL. |
+| migration | The migration service module provides data migration functionality across the API layer, with components for protocol definition, replication, validation, recovery, and alerting during migration operations. |
+| provisioning | The provisioning directory contains infrastructure provisioning code, with auto_provision.rs as its primary component handling automated provisioning logic. |
+| scheduler | The scheduler service manages task placement and resource allocation across infrastructure, with modules handling initial placement, load balancing through overload/underload detection, and noisy-neighbor isolation to prevent performance interference between workloads. |
+| storage | The storage directory implements S3 API proxying and metering functionality, including authentication, request/response handling, XML parsing, error management, and usage tracking for object storage. |
 <!-- [scrai:end] -->

@@ -300,7 +300,9 @@ async fn handle_payment_failed(state: &AppState, data: &serde_json::Value) -> Re
         return Ok(());
     };
 
-    let next_payment_attempt_is_null = data["object"]["next_payment_attempt"].is_null();
+    let next_payment_attempt_is_null = data["object"]
+        .get("next_payment_attempt")
+        .is_some_and(serde_json::Value::is_null);
     let next_payment_attempt = data["object"]["next_payment_attempt"].as_i64();
     let attempt_count = data["object"]["attempt_count"]
         .as_i64()

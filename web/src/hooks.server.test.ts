@@ -223,6 +223,28 @@ describe('hooks.server handle', () => {
 			expect(resolved).toBe(true);
 		});
 
+		it('does not redirect unauthenticated /auth/oauth/google/callback requests', async () => {
+			resolveAuthMock.mockReturnValue(null);
+			const { resolved, response, resolveSpy } = await callHandle(
+				'/auth/oauth/google/callback?code=dummy&state=dummy',
+				undefined
+			);
+			expect(resolved).toBe(true);
+			expect(resolveSpy).toHaveBeenCalledTimes(1);
+			expect(response?.headers.get('X-Robots-Tag')).toBe(ROBOTS_TAG);
+		});
+
+		it('does not redirect unauthenticated /auth/oauth/github/callback requests', async () => {
+			resolveAuthMock.mockReturnValue(null);
+			const { resolved, response, resolveSpy } = await callHandle(
+				'/auth/oauth/github/callback?code=dummy&state=dummy',
+				undefined
+			);
+			expect(resolved).toBe(true);
+			expect(resolveSpy).toHaveBeenCalledTimes(1);
+			expect(response?.headers.get('X-Robots-Tag')).toBe(ROBOTS_TAG);
+		});
+
 		it('clears a stale auth cookie before redirecting dashboard traffic to /login', async () => {
 			resolveAuthMock.mockReturnValue(null);
 			const event = makeEvent('/console', 'stale-jwt');

@@ -18,10 +18,10 @@ Callers must define REPO_ROOT before sourcing.
 Shared helpers (write_mock_script, backup/restore_repo_env_file) come from
 test_helpers.sh — callers should source that first. |
 | live_e2e_budget_guardrail_prep_harness.sh | Shared harness helpers for live_e2e_budget_guardrail_prep contract tests. |
-| local_dev_test_state.sh | Stub summary for local_dev_test_state.sh. |
+| local_dev_test_state.sh | Stub summary for /Users/stuart/parallel_development/fjcloud_dev/may29_pm_10_lint_fix_and_pm4_merge/fjcloud_dev/scripts/tests/lib/local_dev_test_state.sh. |
 | mock_cargo.sh | Shared test helper for mocking cargo invocations in gate script tests. |
-| seed_local_mocks.sh | Stub summary for seed_local_mocks.sh. |
+| seed_local_mocks.sh | Stub summary for /Users/stuart/parallel_development/fjcloud_dev/may29_pm_10_lint_fix_and_pm4_merge/fjcloud_dev/scripts/tests/lib/seed_local_mocks.sh. |
 | staging_billing_rehearsal_harness.sh | Shared harness helpers for staging_billing_rehearsal shell tests.
 shellcheck source=staging_billing_rehearsal_reset_harness_blocks.sh. |
-| staging_billing_rehearsal_reset_harness_blocks.sh | Stub summary for staging_billing_rehearsal_reset_harness_blocks.sh. |
+| staging_billing_rehearsal_reset_harness_blocks.sh | Stub summary for /Users/stuart/parallel_development/fjcloud_dev/may29_pm_10_lint_fix_and_pm4_merge/fjcloud_dev/scripts/tests/lib/staging_billing_rehearsal_reset_harness_blocks.sh. |
 <!-- [scrai:end] -->

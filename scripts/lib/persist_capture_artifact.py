@@ -30,6 +30,8 @@ if capture_mode == "privacy" and isinstance(body, (dict, list)):
     body = redact_json(body, {"token", "pan", "cvv"})
 elif capture_mode == "step" and isinstance(body, (dict, list)):
     body = redact_json(body, {"client_secret"})
+elif capture_mode == "stripe_invoice" and isinstance(body, (dict, list)):
+    body = redact_json(body, {"payment_intent", "charge"})
 elif capture_mode == "attach" and isinstance(body, (dict, list)):
     body = redact_json(body, {"pm_id"})
 try:
@@ -37,7 +39,7 @@ try:
 except Exception:
     http_code_value = http_code
 capture = {"http_code": http_code_value, "body": body}
-if capture_mode in {"step", "attach"}:
+if capture_mode in {"step", "stripe_invoice", "attach"}:
     try:
         status_value = int(status_value) if status_value != "" else None
     except Exception:

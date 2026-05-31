@@ -10,6 +10,7 @@ LIVE_E2E_REPO_ROOT="$(cd "$LIVE_E2E_SCRIPT_DIR/../.." && pwd)"
 source "$LIVE_E2E_REPO_ROOT/scripts/lib/stripe_checks.sh"
 source "$LIVE_E2E_REPO_ROOT/scripts/lib/privacy_com_client.sh"
 source "$LIVE_E2E_REPO_ROOT/scripts/lib/env.sh"
+source "$LIVE_E2E_REPO_ROOT/scripts/lib/identifier_redaction.sh"
 
 DRY_RUN="false"
 TARGET_ENV=""
@@ -21,8 +22,14 @@ LIVE_E2E_CONVERGENCE_SLEEP_SECONDS="${LIVE_E2E_CONVERGENCE_SLEEP_SECONDS:-5}"
 
 TOKEN=""
 PM_ID=""
+PAYMENT_INTENT_ID=""
+CHARGE_ID=""
 INVOICE_IDS_JSON='[]'
 INVOICE_CUSTOMERS_JSON='[]'
+LAST_INVOICE_POLL_BODY=""
+TARGET_INVOICE_ID=""
+TARGET_INVOICE_CUSTOMER_ID=""
+TARGET_INVOICE_POLL_BODY=""
 WEBHOOK_OK="false"
 SWEEPER_SUMMARY='{}'
 STRIPE_CUTOVER="false"
@@ -33,15 +40,7 @@ RUN_DIR=""
 RUN_LOGS_DIR=""
 SUMMARY_PATH=""
 SUMMARY_EMITTED="false"
-
-redact_identifier() {
-    local value="${1:-}"
-    if [ -n "$value" ]; then
-        printf '[REDACTED]\n'
-        return
-    fi
-    printf '\n'
-}
+SETUP_INTENT_CLIENT_SECRET=""
 
 require_env_var() {
     local var_name="$1"
@@ -195,9 +194,47 @@ run_sweeper() {
     fi
 
     sweeper_output="$(cat "$RUN_LOGS_DIR/sweeper.stdout.log")"
-    SWEEPER_SUMMARY="$sweeper_output"
+    SWEEPER_SUMMARY="$(redact_sweeper_summary "$sweeper_output")"
     local sweeper_summary_file="$RUN_DIR/sweeper_summary.json"
-    printf '%s\n' "$sweeper_output" > "$sweeper_summary_file"
+    printf '%s\n' "$SWEEPER_SUMMARY" > "$sweeper_summary_file"
+}
+
+redact_sweeper_summary() {
+    local raw_summary="$1"
+    python3 - "$raw_summary" <<'PY'
+import json
+import sys
+
+raw = sys.argv[1]
+
+try:
+    body = json.loads(raw)
+except Exception:
+    print(raw)
+    raise SystemExit(0)
+
+
+def redact(value):
+    if isinstance(value, dict):
+        redacted = {}
+        for key, item in value.items():
+            if key.endswith("_token") and item not in (None, ""):
+                redacted[key] = "[REDACTED]"
+            elif key.endswith("_tokens") and isinstance(item, list):
+                redacted[key] = [
+                    "[REDACTED]" if token not in (None, "") else token
+                    for token in item
+                ]
+            else:
+                redacted[key] = redact(item)
+        return redacted
+    if isinstance(value, list):
+        return [redact(item) for item in value]
+    return value
+
+
+print(json.dumps(redact(body), separators=(",", ":")))
+PY
 }
 
 parse_privacy_card_fields() {
@@ -240,7 +277,7 @@ create_setup_intent() {
         -d "customer=${LIVE_E2E_STRIPE_CUSTOMER_ID}" \
         -d "payment_method_types[]=card" \
         -d "usage=off_session"
-    persist_step_capture "stripe_setup_intent"
+    persist_setup_intent_capture "stripe_setup_intent"
 
     if [ "${HTTP_RESPONSE_EXIT_STATUS:-0}" -ne 0 ]; then
         fail_with_classification "stripe_setup_intent_request_failed" "Stripe SetupIntent request failed before HTTP response"
@@ -249,7 +286,8 @@ create_setup_intent() {
         fail_with_classification "stripe_setup_intent_http_error" "Stripe SetupIntent returned HTTP ${HTTP_RESPONSE_CODE}"
     fi
 
-    python3 - "$HTTP_RESPONSE_BODY" <<'PY'
+    local parsed_client_secret
+    parsed_client_secret="$(python3 - "$HTTP_RESPONSE_BODY" <<'PY'
 import json
 import sys
 
@@ -259,6 +297,9 @@ if not secret:
     raise SystemExit(1)
 print(secret)
 PY
+)" || fail_with_classification "stripe_setup_intent_shape_invalid" "Stripe SetupIntent response missing client_secret"
+
+    SETUP_INTENT_CLIENT_SECRET="$parsed_client_secret"
 }
 
 attach_card_via_setup_intent() {
@@ -299,7 +340,7 @@ if not pm_id:
     raise SystemExit(1)
 print(pm_id)
 PY
-)"
+)" || fail_with_classification "stripe_attach_failed" "$attach_output"
 
     PM_ID="$pm_id"
 }
@@ -308,8 +349,43 @@ persist_privacy_client_capture() {
     # Persist the Privacy.com client's last response from PRIVACY_CLIENT_*
     # globals so failures (notably HTTP 405 max-card-limit) leave a parseable
     # artifact in the run dir instead of only stderr text.
+    #
+    # The docs/runbooks evidence tree is mirrored publicly, so strip the
+    # account/card-program UUIDs from the persisted copy while keeping the
+    # in-memory body unchanged for this process.
     local capture_name="$1"
     [ -n "${RUN_LOGS_DIR:-}" ] || return 0
+    local redacted_body
+    redacted_body="$(python3 - "${PRIVACY_CLIENT_BODY:-}" <<'PY'
+import json
+import sys
+
+raw = sys.argv[1]
+
+try:
+    body = json.loads(raw)
+except Exception:
+    print(raw)
+    raise SystemExit(0)
+
+
+def redact(value):
+    if isinstance(value, dict):
+        redacted = {}
+        for key, item in value.items():
+            if key in {"account_token", "card_program_token", "digital_card_art_token", "token", "pan", "cvv"} and item not in (None, ""):
+                redacted[key] = "[REDACTED]"
+            else:
+                redacted[key] = redact(item)
+        return redacted
+    if isinstance(value, list):
+        return [redact(item) for item in value]
+    return value
+
+
+print(json.dumps(redact(body), separators=(",", ":")))
+PY
+)"
     local capture_path="$RUN_LOGS_DIR/${capture_name}.response.json"
     persist_capture_artifact \
         "$capture_path" \
@@ -317,7 +393,7 @@ persist_privacy_client_capture() {
         "${PRIVACY_CLIENT_HTTP_CODE:-}" \
         "${PRIVACY_CLIENT_EXIT_CLASS:-}" \
         "${PRIVACY_CLIENT_ERROR_MESSAGE:-}" \
-        "${PRIVACY_CLIENT_BODY:-}"
+        "$redacted_body"
 }
 
 persist_capture_artifact() {
@@ -351,6 +427,126 @@ persist_step_capture() {
         "${HTTP_RESPONSE_EXIT_STATUS:-}" \
         "" \
         "${HTTP_RESPONSE_BODY:-}"
+}
+
+persist_invoice_poll_capture() {
+    # Admin invoice-list payloads can surface Stripe IDs directly on the
+    # tenant invoice rows. Redact them before persisting because the run
+    # directory is synced via docs/runbooks/ mirrors, while the in-memory
+    # copy still needs raw IDs for the live refund/readback path.
+    local capture_name="$1"
+    [ -n "${RUN_LOGS_DIR:-}" ] || return 0
+
+    local redacted_body
+    redacted_body="$(python3 - "${HTTP_RESPONSE_BODY:-}" <<'PY'
+import json
+import sys
+
+raw = sys.argv[1]
+
+try:
+    body = json.loads(raw)
+except Exception:
+    print(raw)
+    raise SystemExit(0)
+
+
+def redact(value):
+    if isinstance(value, dict):
+        redacted = {}
+        for key, item in value.items():
+            if key in {"payment_intent_id", "payment_intent", "charge_id", "charge"} and item not in (None, ""):
+                redacted[key] = "[REDACTED]"
+            else:
+                redacted[key] = redact(item)
+        return redacted
+    if isinstance(value, list):
+        return [redact(item) for item in value]
+    return value
+
+
+print(json.dumps(redact(body), separators=(",", ":")))
+PY
+)"
+
+    local capture_path="$RUN_LOGS_DIR/${capture_name}.response.json"
+    persist_capture_artifact \
+        "$capture_path" \
+        "step" \
+        "${HTTP_RESPONSE_CODE:-}" \
+        "${HTTP_RESPONSE_EXIT_STATUS:-}" \
+        "" \
+        "$redacted_body"
+}
+
+persist_stripe_invoice_lookup_capture() {
+    # Stripe invoice payloads include live identifier fields (payment_intent
+    # and charge). Persist via a redaction mode dedicated to this payload.
+    [ -n "${RUN_LOGS_DIR:-}" ] || return 0
+    local capture_path="$RUN_LOGS_DIR/stripe_invoice_lookup.response.json"
+    persist_capture_artifact \
+        "$capture_path" \
+        "stripe_invoice" \
+        "${HTTP_RESPONSE_CODE:-}" \
+        "${HTTP_RESPONSE_EXIT_STATUS:-}" \
+        "" \
+        "${HTTP_RESPONSE_BODY:-}"
+}
+
+persist_setup_intent_capture() {
+    # SetupIntent payloads and error messages can carry live Stripe object IDs
+    # (seti/cus/req/acct) that should not land in mirrored evidence bundles.
+    local capture_name="$1"
+    [ -n "${RUN_LOGS_DIR:-}" ] || return 0
+
+    local redacted_body
+    redacted_body="$(python3 - "${HTTP_RESPONSE_BODY:-}" <<'PY'
+import json
+import re
+import sys
+
+raw = sys.argv[1]
+stripe_id_pattern = re.compile(r"\b(?:acct|cus|seti|req|pm|pi|ch|re)_[A-Za-z0-9_]+\b")
+
+try:
+    body = json.loads(raw)
+except Exception:
+    print(stripe_id_pattern.sub("[REDACTED]", raw))
+    raise SystemExit(0)
+
+
+def redact_string(value):
+    return stripe_id_pattern.sub("[REDACTED]", value)
+
+
+def redact(value):
+    if isinstance(value, dict):
+        redacted = {}
+        for key, item in value.items():
+            if key in {"client_secret", "customer", "request_log_url", "id"} and item not in (None, ""):
+                redacted[key] = "[REDACTED]"
+            else:
+                redacted[key] = redact(item)
+        return redacted
+    if isinstance(value, list):
+        return [redact(item) for item in value]
+    if isinstance(value, str):
+        return redact_string(value)
+    return value
+
+
+print(json.dumps(redact(body), separators=(",", ":")))
+PY
+)"
+
+    local capture_path="$RUN_LOGS_DIR/${capture_name}.response.json"
+    persist_capture_artifact \
+        "$capture_path" \
+        "step" \
+        "${HTTP_RESPONSE_CODE:-}" \
+        "${HTTP_RESPONSE_EXIT_STATUS:-}" \
+        "" \
+        "$redacted_body"
 }
 
 persist_attach_capture() {
@@ -416,7 +612,7 @@ invoice_is_paid_for_customer() {
     capture_json_response admin_call GET "/admin/tenants/${customer_id}/invoices"
     if [ -n "${RUN_LOGS_DIR:-}" ]; then
         LIVE_E2E_POLL_SEQ=$((${LIVE_E2E_POLL_SEQ:-0} + 1))
-        persist_step_capture "$(printf 'invoice_poll_%04d_%s' "$LIVE_E2E_POLL_SEQ" "$invoice_id")"
+        persist_invoice_poll_capture "$(printf 'invoice_poll_%04d_%s' "$LIVE_E2E_POLL_SEQ" "$invoice_id")"
     fi
     if [ "${HTTP_RESPONSE_EXIT_STATUS:-0}" -ne 0 ]; then
         return 2
@@ -424,6 +620,7 @@ invoice_is_paid_for_customer() {
     if [ "$HTTP_RESPONSE_CODE" != "200" ]; then
         return 3
     fi
+    LAST_INVOICE_POLL_BODY="$HTTP_RESPONSE_BODY"
 
     python3 - "$HTTP_RESPONSE_BODY" "$invoice_id" <<'PY'
 import json
@@ -442,6 +639,141 @@ raise SystemExit(1)
 PY
 }
 
+extract_lane_invoice_pair() {
+    local stripe_key
+    stripe_key="$(resolve_stripe_secret_key)"
+
+    local match_count=0
+    local selected_invoice_id=""
+    local selected_customer_id=""
+
+    while IFS='|' read -r invoice_id customer_id; do
+        [ -n "$invoice_id" ] || continue
+        [ -n "$customer_id" ] || continue
+
+        capture_json_response curl -sS \
+            --config <(stripe_curl_user_config "$stripe_key") \
+            --max-time 20 \
+            --connect-timeout 10 \
+            "https://api.stripe.com/v1/invoices/${invoice_id}"
+
+        if [ "${HTTP_RESPONSE_EXIT_STATUS:-0}" -ne 0 ]; then
+            fail_with_classification "stripe_invoice_lookup_request_failed" "Stripe invoice lookup failed before HTTP response for invoice_id=${invoice_id}"
+        fi
+        if [ "$HTTP_RESPONSE_CODE" != "200" ]; then
+            fail_with_classification "stripe_invoice_lookup_http_error" "Stripe invoice lookup returned HTTP ${HTTP_RESPONSE_CODE} for invoice_id=${invoice_id}"
+        fi
+
+        local stripe_customer_id
+        stripe_customer_id="$(python3 - "$HTTP_RESPONSE_BODY" <<'PY'
+import json
+import sys
+
+invoice = json.loads(sys.argv[1])
+stripe_customer_id = str(invoice.get("customer", "")).strip()
+if not stripe_customer_id:
+    raise SystemExit(1)
+print(stripe_customer_id)
+PY
+)" || fail_with_classification "stripe_invoice_shape_invalid" "Stripe invoice response missing customer identifier for invoice_id=${invoice_id}"
+
+        if [ "$stripe_customer_id" = "$LIVE_E2E_STRIPE_CUSTOMER_ID" ]; then
+            match_count=$((match_count + 1))
+            selected_invoice_id="$invoice_id"
+            selected_customer_id="$customer_id"
+        fi
+    done < <(python3 - "$INVOICE_CUSTOMERS_JSON" <<'PY'
+import json
+import sys
+
+pairs = json.loads(sys.argv[1])
+for pair in pairs:
+    print(f"{pair.get('invoice_id', '')}|{pair.get('customer_id', '')}")
+PY
+)
+
+    if [ "$match_count" -ne 1 ] || [ -z "$selected_invoice_id" ] || [ -z "$selected_customer_id" ]; then
+        return 1
+    fi
+
+    printf '%s|%s\n' "$selected_invoice_id" "$selected_customer_id"
+}
+
+extract_invoice_identifiers_from_admin_poll() {
+    local invoices_body="$1"
+    local invoice_id="$2"
+    python3 - "$invoices_body" "$invoice_id" <<'PY'
+import json
+import sys
+
+invoices = json.loads(sys.argv[1])
+invoice_id = sys.argv[2]
+for item in invoices:
+    if str(item.get("id", "")).strip() != invoice_id:
+        continue
+    payment_intent_id = (
+        str(item.get("payment_intent_id", "")).strip()
+        or str(item.get("payment_intent", "")).strip()
+    )
+    charge_id = (
+        str(item.get("charge_id", "")).strip()
+        or str(item.get("charge", "")).strip()
+    )
+    if payment_intent_id and charge_id:
+        print(f"{payment_intent_id}|{charge_id}")
+        raise SystemExit(0)
+    raise SystemExit(1)
+raise SystemExit(1)
+PY
+}
+
+capture_invoice_payment_identifiers() {
+    if [ -z "$TARGET_INVOICE_ID" ] || [ -z "$TARGET_INVOICE_CUSTOMER_ID" ]; then
+        fail_with_classification "invoice_identifier_missing" "unable to determine lane invoice/customer pair from billing run output"
+    fi
+
+    if [ -n "$TARGET_INVOICE_POLL_BODY" ]; then
+        local poll_identifiers
+        if poll_identifiers="$(extract_invoice_identifiers_from_admin_poll "$TARGET_INVOICE_POLL_BODY" "$TARGET_INVOICE_ID" 2>/dev/null)"; then
+            IFS='|' read -r PAYMENT_INTENT_ID CHARGE_ID <<< "$poll_identifiers"
+            return 0
+        fi
+    fi
+
+    local stripe_key
+    stripe_key="$(resolve_stripe_secret_key)"
+
+    capture_json_response curl -sS \
+        --config <(stripe_curl_user_config "$stripe_key") \
+        --max-time 20 \
+        --connect-timeout 10 \
+        "https://api.stripe.com/v1/invoices/${TARGET_INVOICE_ID}"
+    persist_stripe_invoice_lookup_capture
+
+    if [ "${HTTP_RESPONSE_EXIT_STATUS:-0}" -ne 0 ]; then
+        fail_with_classification "stripe_invoice_lookup_request_failed" "Stripe invoice lookup failed before HTTP response"
+    fi
+    if [ "$HTTP_RESPONSE_CODE" != "200" ]; then
+        fail_with_classification "stripe_invoice_lookup_http_error" "Stripe invoice lookup returned HTTP ${HTTP_RESPONSE_CODE}"
+    fi
+
+    local stripe_identifiers
+    stripe_identifiers="$(python3 - "$HTTP_RESPONSE_BODY" <<'PY'
+import json
+import sys
+
+invoice = json.loads(sys.argv[1])
+payment_intent_id = str(invoice.get("payment_intent", "")).strip()
+charge_id = str(invoice.get("charge", "")).strip()
+if not payment_intent_id or not charge_id:
+    raise SystemExit(1)
+print(f"{payment_intent_id}|{charge_id}")
+PY
+)" || fail_with_classification "stripe_invoice_shape_invalid" "Stripe invoice response missing payment_intent or charge identifiers"
+
+    IFS='|' read -r PAYMENT_INTENT_ID CHARGE_ID <<< "$stripe_identifiers"
+}
+
 run_invoice_webhook_convergence() {
     local attempt=1
 
@@ -458,6 +790,9 @@ run_invoice_webhook_convergence() {
             set -e
 
             if [ "$invoice_check_rc" -eq 0 ]; then
+                if [ "$invoice_id" = "$TARGET_INVOICE_ID" ] && [ "$customer_id" = "$TARGET_INVOICE_CUSTOMER_ID" ]; then
+                    TARGET_INVOICE_POLL_BODY="$LAST_INVOICE_POLL_BODY"
+                fi
                 continue
             fi
             if [ "$invoice_check_rc" -eq 2 ]; then
@@ -493,12 +828,14 @@ PY
     fail_with_classification "webhook_convergence_timeout" "invoice status did not converge to paid within bounded attempts"
 }
 
-emit_summary_json() {
+emit_summary_json_with_stripe_ids() {
+    local payment_intent_id="$1"
+    local charge_id="$2"
     local redacted_token
     local redacted_pm_id
     redacted_token="$(redact_identifier "$TOKEN")"
     redacted_pm_id="$(redact_identifier "$PM_ID")"
-    python3 - "$DRY_RUN" "$TARGET_ENV" "$STRIPE_CUTOVER" "$SWEEPER_SUMMARY" "$redacted_token" "$redacted_pm_id" "$INVOICE_IDS_JSON" "$WEBHOOK_OK" "$CLEANUP_CARD_CLOSED" "$CLEANUP_PM_DETACHED" "$RUN_CLASSIFICATION" "$RUN_DIR" <<'PY'
+    python3 - "$DRY_RUN" "$TARGET_ENV" "$STRIPE_CUTOVER" "$SWEEPER_SUMMARY" "$redacted_token" "$redacted_pm_id" "$INVOICE_IDS_JSON" "$WEBHOOK_OK" "$CLEANUP_CARD_CLOSED" "$CLEANUP_PM_DETACHED" "$RUN_CLASSIFICATION" "$RUN_DIR" "$payment_intent_id" "$charge_id" <<'PY'
 import json
 import sys
 
@@ -511,6 +848,8 @@ summary = {
     "pm_id": sys.argv[6],
     "invoice_ids": json.loads(sys.argv[7]),
     "webhook_ok": sys.argv[8] == "true",
+    "payment_intent_id": sys.argv[13] or None,
+    "charge_id": sys.argv[14] or None,
     "cleanup": {
         "card_closed": sys.argv[9] == "true",
         "pm_detached": sys.argv[10] == "true",
@@ -522,10 +861,24 @@ print(json.dumps(summary, separators=(",", ":")))
 PY
 }
 
+emit_runtime_summary_json() {
+    emit_summary_json_with_stripe_ids "$PAYMENT_INTENT_ID" "$CHARGE_ID"
+}
+
+emit_persisted_summary_json() {
+    local redacted_payment_intent_id
+    local redacted_charge_id
+    redacted_payment_intent_id="$(redact_identifier "$PAYMENT_INTENT_ID")"
+    redacted_charge_id="$(redact_identifier "$CHARGE_ID")"
+    emit_summary_json_with_stripe_ids "$redacted_payment_intent_id" "$redacted_charge_id"
+}
+
 persist_summary() {
-    local summary_json
-    summary_json="$(emit_summary_json)"
-    printf '%s\n' "$summary_json" | tee "$SUMMARY_PATH"
+    local runtime_summary_json persisted_summary_json
+    runtime_summary_json="$(emit_runtime_summary_json)"
+    persisted_summary_json="$(emit_persisted_summary_json)"
+    printf '%s\n' "$persisted_summary_json" > "$SUMMARY_PATH"
+    printf '%s\n' "$runtime_summary_json"
     SUMMARY_EMITTED="true"
 }
 
@@ -574,12 +927,16 @@ main() {
     local card_number card_cvc card_exp
     IFS='|' read -r card_number card_cvc card_exp <<< "$card_fields"
 
-    local client_secret
-    client_secret="$(create_setup_intent)"
+    create_setup_intent
+    local client_secret="$SETUP_INTENT_CLIENT_SECRET"
 
     attach_card_via_setup_intent "$client_secret" "$card_number" "$card_cvc" "$card_exp"
     run_billing_trigger
+    local lane_invoice_pair
+    lane_invoice_pair="$(extract_lane_invoice_pair)" || fail_with_classification "invoice_identifier_missing" "billing run did not include a unique invoice for LIVE_E2E_STRIPE_CUSTOMER_ID=${LIVE_E2E_STRIPE_CUSTOMER_ID}"
+    IFS='|' read -r TARGET_INVOICE_ID TARGET_INVOICE_CUSTOMER_ID <<< "$lane_invoice_pair"
     run_invoice_webhook_convergence
+    capture_invoice_payment_identifiers
 
     cleanup_resources
     persist_summary

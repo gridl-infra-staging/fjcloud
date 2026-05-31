@@ -6,6 +6,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| src | The pricing-calculator crate provides a modular system for computing pricing across multiple search and storage providers (Algolia, AWS OpenSearch, Meilisearch, Flapjack Cloud) through a registry pattern, with core utilities for type definitions, preset configurations, and RAM-based heuristics. |
-| src | The pricing-calculator module contains core types, presets, and RAM heuristics for calculating cloud service costs, with provider-specific implementations including a complete Flapjack Cloud flat per-MB storage model and placeholder stubs for Algolia, AWS OpenSearch, and Meilisearch. |
+| src | The pricing-calculator crate provides pricing models for multiple search and database services (Algolia, AWS OpenSearch, Griddle, Meilisearch) with supporting modules for RAM heuristics, configuration presets, and type definitions. |
 <!-- [scrai:end] -->

@@ -69,6 +69,5 @@ deployment linkage markers. |
 | Directory | Summary |
 | --- | --- |
 | fixtures | — |
-| lib | This library provides shared utilities for reliability profiling and security validation, including metric capture functions, capacity profile parsing, and modular security checks for backend reliability gates. |
-| lib | This library provides utility functions for backend reliability profiling through shared metric capture and capacity profile analysis, along with security validation checks that support both individual and grouped test execution. |
+| lib | This lib directory contains shared utility functions for reliability profiling and security validation, including metric capture functions, capacity profile parsing, and security checks that can be run individually or as a grouped suite for backend reliability gates. |
 <!-- [scrai:end] -->

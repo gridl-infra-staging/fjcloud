@@ -6,6 +6,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| oauth | The oauth directory contains provider-specific callback handlers for OAuth authentication flows, with server-side route logic in SvelteKit that processes authorization responses after users consent to login through external providers like Google or GitHub. |
-| oauth | The oauth directory contains provider-specific subdirectories with SvelteKit server route handlers that process OAuth authentication callbacks from external providers. |
+| oauth | The oauth directory handles callback processing for external authentication providers through SvelteKit server endpoints, receiving and processing responses from services like Google and GitHub OAuth providers. |
 <!-- [scrai:end] -->

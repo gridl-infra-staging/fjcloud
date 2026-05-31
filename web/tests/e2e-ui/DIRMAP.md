@@ -6,6 +6,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| full | This directory contains browser automation helpers and Vision Language Model screenshot capture utilities for full end-to-end UI testing workflows. |
-| full | This directory contains helper utilities for the full e2e UI test suite, including index detail helpers and Vision Language Model screenshot capture functionality with redirect guard logic and centralized capture configuration. |
+| full | This directory contains test utilities for index detail operations and Vision Language Model screenshot capture, including helpers for managing VLM screenshot collection with redirect handling and configuration tuples that define capture targets. |
 <!-- [scrai:end] -->

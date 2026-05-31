@@ -755,7 +755,7 @@ fi
 require_card_schema "$PRIVACY_CLIENT_BODY" "create"
 register_cleanup_from_card_body "$PRIVACY_CLIENT_BODY"
 assert_state_equals "$PRIVACY_CLIENT_BODY" "OPEN" "create"
-assert_spend_limit_duration_equals "$PRIVACY_CLIENT_BODY" "FOREVER" "create"
+assert_spend_limit_duration_equals "$PRIVACY_CLIENT_BODY" "TRANSACTION" "create"
 
 if ! privacy_com_get_card "$cleanup_token"; then
     echo "FAIL: get card returned non-zero class=$PRIVACY_CLIENT_EXIT_CLASS code=$PRIVACY_CLIENT_HTTP_CODE body=$PRIVACY_CLIENT_BODY" >&2

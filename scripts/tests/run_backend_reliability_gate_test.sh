@@ -481,6 +481,21 @@ test_gate_unknown_flag_fails() {
     rm -rf "$mock_dir"
 }
 
+test_gate_help_describes_actual_check_scope() {
+    local mock_dir
+    mock_dir="$(mktemp -d)"
+    local stdout exit_code=0
+
+    stdout="$(run_gate_with_mocks "$mock_dir" "" --help)" || exit_code="$?"
+    assert_eq "$exit_code" "0" "--help should exit 0"
+    assert_contains "$stdout" "secret scan, dep-audit, SQL guard, cmd injection, SQL guard tests" \
+        "--help should list every security-only check"
+    assert_contains "$stdout" "Rust validation unless skipped" \
+        "--help should explain live Rust validation behavior"
+
+    rm -rf "$mock_dir"
+}
+
 test_gate_fail_fast_stops_on_first_failure() {
     local mock_dir
     mock_dir="$(mktemp -d)"
@@ -752,6 +767,7 @@ for test_fn in \
     test_gate_profile_check_bootstraps_missing_artifacts \
     test_gate_conflicting_mode_flags_fail \
     test_gate_unknown_flag_fails \
+    test_gate_help_describes_actual_check_scope \
     test_gate_fail_fast_stops_on_first_failure \
     test_gate_mock_helper_handles_posix_errexit_on_failure \
     test_gate_dep_audit_missing_tool_is_failure_reason \

@@ -1,6 +1,25 @@
 #!/usr/bin/env bash
 # Execute-path and polling failure contracts extracted from the main unit harness.
 
+if ! declare -F setup >/dev/null 2>&1 ||
+   ! declare -F teardown >/dev/null 2>&1 ||
+   ! declare -F run_wrapper >/dev/null 2>&1 ||
+   ! declare -F single_run_dir >/dev/null 2>&1 ||
+   ! declare -F pass >/dev/null 2>&1 ||
+   ! declare -F fail >/dev/null 2>&1; then
+  echo "ERROR: source this file from ops/terraform/tests_rds_restore_evidence_unit.sh; do not run it directly." >&2
+  exit 2
+fi
+
+# TODO: Document assert_json_top_level_field_equals.
+# TODO: Document assert_json_top_level_field_equals.
+# TODO: Document assert_json_top_level_field_equals.
+# TODO: Document assert_json_top_level_field_equals.
+# TODO: Document assert_json_top_level_field_equals.
+# TODO: Document assert_json_top_level_field_equals.
+# TODO: Document assert_json_top_level_field_equals.
+# TODO: Document assert_json_top_level_field_equals.
+# TODO: Document assert_json_top_level_field_equals.
 # TODO: Document assert_json_top_level_field_equals.
 # TODO: Document assert_json_top_level_field_equals.
 # TODO: Document assert_json_top_level_field_equals.

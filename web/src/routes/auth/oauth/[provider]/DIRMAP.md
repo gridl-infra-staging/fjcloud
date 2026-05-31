@@ -6,6 +6,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| callback | The callback directory contains a +server.ts file that serves as a server-side route handler, likely for processing OAuth or authentication callback requests in this SvelteKit application. |
-| callback | The callback directory contains a SvelteKit server route handler that processes OAuth or authentication callback requests. |
+| callback | The callback directory contains a SvelteKit server endpoint (+server.ts) that likely handles callback requests for authentication, payment processing, or webhook events. |
 <!-- [scrai:end] -->

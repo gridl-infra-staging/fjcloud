@@ -6,6 +6,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| [name] | The file doesn't exist at that path. |
-| [name] | A SvelteKit API endpoint that handles POST requests for searching indexes, validating the user is authenticated and parsing batch search requests before executing them in parallel against the index service. |
+| [name] | This is a SvelteKit server route handler that processes API search requests for a dynamically named resource or entity type. |
 <!-- [scrai:end] -->

@@ -223,6 +223,8 @@ assert_contains_regex '^\s{2}rust-lint:\s*$' "job rust-lint exists"
 assert_contains_regex '^\s{2}migration-test:\s*$' "job migration-test exists"
 assert_contains_regex '^\s{2}web-test:\s*$' "job web-test exists"
 assert_contains_regex '^\s{2}check-sizes:\s*$' "job check-sizes exists"
+assert_contains_regex '^\s{2}shell-hygiene:\s*$' "job shell-hygiene exists"
+assert_contains_regex '^\s{2}local-dev-up-smoke:\s*$' "job local-dev-up-smoke exists"
 assert_contains_regex '^\s{2}web-lint:\s*$' "job web-lint exists"
 assert_contains_regex '^\s{2}e2e-deployed:\s*$' "job e2e-deployed exists"
 assert_contains_regex '^\s{2}secret-scan:\s*$' "job secret-scan exists"
@@ -258,6 +260,22 @@ assert_job_contains_regex "web-test" 'npm test' "web-test has test command"
 
 assert_job_contains_regex "check-sizes" 'uses:\s+actions/checkout@' "check-sizes has checkout step"
 assert_job_contains_regex "check-sizes" 'run:\s+bash scripts/check-sizes.sh' "check-sizes runs size check script"
+
+# shell-hygiene job — anchored 2026-05-31 after the exec-bit + SIGPIPE +
+# seaweedfs probe regression cluster. Each named test must stay wired.
+assert_job_contains_regex "shell-hygiene" 'uses:\s+actions/checkout@' "shell-hygiene has checkout step"
+assert_job_contains_regex "shell-hygiene" 'scripts/tests/script_exec_bits_test\.sh' "shell-hygiene runs exec-bit regression test"
+assert_job_contains_regex "shell-hygiene" 'scripts/tests/port_collision_diagnose_test\.sh' "shell-hygiene runs port-collision diagnose test"
+assert_job_contains_regex "shell-hygiene" 'scripts/tests/compose_project_test\.sh' "shell-hygiene runs compose-project resolver test"
+
+# local-dev-up-smoke job — exercises the real docker compose path that
+# the mocked unit tests cannot. Catches seaweedfs probe / docker compose
+# project-name / env bootstrap regressions that only manifest on a real
+# Linux runner with a real docker daemon.
+assert_job_contains_regex "local-dev-up-smoke" 'uses:\s+actions/checkout@' "local-dev-up-smoke has checkout step"
+assert_job_contains_regex "local-dev-up-smoke" 'FLAPJACK_DEV_DIR:\s+/nonexistent' "local-dev-up-smoke runs without flapjack so it doesn't need a sibling repo build"
+assert_job_contains_regex "local-dev-up-smoke" 'bash scripts/local-dev-up\.sh' "local-dev-up-smoke runs local-dev-up.sh end-to-end"
+assert_job_contains_regex "local-dev-up-smoke" 'bash scripts/local-dev-down\.sh' "local-dev-up-smoke tears down after itself"
 
 assert_job_contains_regex "web-lint" 'uses:\s+actions/checkout@' "web-lint has checkout step"
 assert_job_contains_regex "web-lint" 'uses:\s+actions/setup-node@' "web-lint has node setup step"
@@ -320,7 +338,7 @@ assert_job_contains_regex "deploy-staging" 'dnf install -y .*rust.*cargo' "deplo
 assert_job_contains_regex "deploy-staging" 'name:\s+Upload release artifacts' "deploy-staging has S3 upload step"
 assert_job_contains_regex "deploy-staging" 'name:\s+Trigger API deploy' "deploy-staging has deploy trigger step"
 assert_job_contains_regex "deploy-staging" 'needs:' "deploy-staging declares required gate dependencies"
-for required_gate in rust-test rust-lint migration-test web-test check-sizes web-lint secret-scan; do
+for required_gate in rust-test rust-lint migration-test web-test check-sizes shell-hygiene local-dev-up-smoke web-lint secret-scan; do
   assert_job_contains_regex "deploy-staging" "${required_gate},?" "deploy-staging needs ${required_gate}"
 done
 assert_job_contains_regex "deploy-staging" "if:\s+github\\.repository == 'gridl-infra-staging/fjcloud' && github\\.ref == 'refs/heads/main' && github\\.event_name == 'push'" "deploy-staging is gated to main push on the staging mirror repo"

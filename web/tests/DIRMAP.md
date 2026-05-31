@@ -6,8 +6,6 @@
 
 | Directory | Summary |
 | --- | --- |
-| e2e-ui | The e2e-ui directory contains browser automation testing infrastructure for end-to-end UI validation, with subdirectories providing helpers and utilities for full testing workflows including screenshot capture and analysis capabilities. |
-| fixtures | This fixtures directory contains TypeScript test utilities and setup helpers for Playwright browser tests, including authentication bootstrapping for different user types (admin, customers, onboarding), billing and payment flow helpers, and utilities for querying staging databases and Stripe test data. |
-| e2e-ui | The e2e-ui directory contains full-suite testing helpers for comprehensive UI validation, including index detail utilities and Vision Language Model-powered screenshot capture with redirect guard logic and centralized configuration. |
-| fixtures | This directory contains Playwright test fixtures and shared helpers for end-to-end browser testing, including project-specific authentication setup (admin, onboarding, customer journeys), billing and session recovery utilities, and helper modules for database/Stripe lookups and UI interactions across multiple test specs. |
+| e2e-ui | The e2e-ui directory contains end-to-end browser testing utilities, specifically including tools for testing index detail operations and capturing screenshots with Vision Language Model integration, with helpers for managing VLM collection workflows and defining capture targets. |
+| fixtures | This fixtures directory contains shared Playwright test setup and helper utilities for browser testing across multiple authentication contexts (admin, customer journeys, onboarding) and user workflows, including auth session management, billing operations, database/Stripe lookups, and form submission helpers. |
 <!-- [scrai:end] -->

@@ -948,6 +948,137 @@ test_seed_region_helper_rejects_empty_region_entries() {
         "empty FLAPJACK_REGIONS region should explain the bad entry"
 }
 
+# Regression test for the SIGPIPE bug in `verify_seeded_indexes_for_user`.
+#
+# Failure mode (anchored 2026-05-31): the verify step used
+# `printf '%s\n' "$names" | grep -Fxq "$target"` under `set -o pipefail`.
+# When the upstream `printf` writes a large stream (~4000+ lines) and grep
+# finds the match and closes stdin early, printf gets SIGPIPE and exits 141.
+# Pipefail propagates that exit code as the pipeline's, and `if !` mis-reads
+# it as "target not found", incorrectly failing the seed.
+#
+# Reproduction conditions: 5000-entry index list on stdin, one of which
+# matches the seed target. On the buggy implementation, the function dies
+# with "Seeded index test-index is missing from GET /indexes ...". On the
+# fixed implementation (membership check inside Python which drains stdin
+# before deciding), the function returns 0.
+test_verify_seeded_indexes_handles_realistic_index_volume() {
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    trap 'rm -rf "'"$tmp_dir"'"' RETURN
+
+    # Generate a 5000-entry index response with one matching the seed target
+    # plus 4999 lookalike e2e fixtures (the real shape of a developer DB that
+    # has accumulated test fixtures over weeks).
+    python3 - "$tmp_dir/indexes.json" <<'PY'
+import json, sys
+out_path = sys.argv[1]
+items = [{
+    "name": "test-index",  # the seed's SEED_INDEX_NAME default
+    "region": "us-east-1",
+    "endpoint": "http://127.0.0.1:7700",
+    "entries": 0,
+    "data_size_bytes": 0,
+    "status": "healthy",
+    "tier": "active",
+    "created_at": "2026-05-31T00:00:00+00:00",
+}]
+for i in range(4999):
+    items.append({
+        "name": f"e2e-noise-{i}",
+        "region": "us-east-1",
+        "endpoint": None,
+        "entries": 0,
+        "data_size_bytes": 0,
+        "status": "unknown",
+        "tier": "active",
+        "created_at": "2026-05-29T19:40:45+00:00",
+    })
+with open(out_path, "w") as f:
+    json.dump(items, f)
+PY
+
+    # Generate a separate bash script that exercises the verify function with
+    # the seed's runtime guarantees stubbed (die/log/api_call_with_token).
+    # We use a generated file rather than `bash -c '...'` to avoid the nested
+    # quoting hazard of inlining bash inside a `"$(...)"` capture.
+    local runner="$tmp_dir/runner.sh"
+    cat > "$runner" <<RUNNER
+#!/usr/bin/env bash
+set -euo pipefail
+die() { printf '[seed] ERROR: %s\n' "\$*" >&2; exit 1; }
+log() { printf '[seed] %s\n' "\$*"; }
+api_call_with_token() {
+    # Verify the call shape matches the seed's real invocation.
+    [ "\$1" = "GET" ] || { printf 'BAD METHOD: %s\n' "\$1" >&2; exit 2; }
+    [ "\$2" = "/indexes" ] || { printf 'BAD PATH: %s\n' "\$2" >&2; exit 2; }
+    cat "$tmp_dir/indexes.json"
+}
+SEED_INDEX_TARGETS=("shared|test-index|us-east-1")
+# shellcheck disable=SC1091
+source "$REPO_ROOT/scripts/lib/seed_verify.sh"
+verify_seeded_indexes_for_user "shared" "test@example.com" "fake-token"
+RUNNER
+
+    local output exit_code=0
+    output=$(bash "$runner" 2>&1) || exit_code=$?
+
+    assert_eq "$exit_code" "0" \
+        "verify_seeded_indexes_for_user should succeed with a 5000-entry index list including the target (SIGPIPE regression)"
+    assert_contains "$output" "Verified seeded index names for test@example.com" \
+        "verify should log success when target is present in a large list"
+}
+
+# Negative path coverage: when the target is genuinely missing, verify must
+# still die — the SIGPIPE-safe rewrite must not have turned a real failure
+# into a silent pass.
+test_verify_seeded_indexes_still_dies_when_target_missing() {
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    trap 'rm -rf "'"$tmp_dir"'"' RETURN
+
+    # Big response, NONE of which match the seed target.
+    python3 - "$tmp_dir/indexes.json" <<'PY'
+import json, sys
+out_path = sys.argv[1]
+items = [{"name": f"e2e-noise-{i}", "region": "us-east-1"} for i in range(5000)]
+with open(out_path, "w") as f:
+    json.dump(items, f)
+PY
+
+    local runner="$tmp_dir/runner.sh"
+    cat > "$runner" <<RUNNER
+#!/usr/bin/env bash
+set -euo pipefail
+die() { printf '[seed] ERROR: %s\n' "\$*" >&2; exit 1; }
+log() { printf '[seed] %s\n' "\$*"; }
+api_call_with_token() { cat "$tmp_dir/indexes.json"; }
+SEED_INDEX_TARGETS=("shared|test-index|us-east-1")
+# shellcheck disable=SC1091
+source "$REPO_ROOT/scripts/lib/seed_verify.sh"
+verify_seeded_indexes_for_user "shared" "test@example.com" "fake-token"
+RUNNER
+
+    local output exit_code=0
+    output=$(bash "$runner" 2>&1) || exit_code=$?
+
+    assert_eq "$exit_code" "1" \
+        "verify must die when target is genuinely missing from a large response"
+    assert_contains "$output" "Seeded index test-index is missing" \
+        "verify must surface the missing index name in its error"
+}
+
+# Anti-pattern guard: seed_local.sh must never reintroduce the
+# `printf ... | grep -Fxq` idiom for index-name membership checks, since
+# that idiom is broken under pipefail with large input streams.
+test_seed_local_does_not_contain_sigpipe_grep_idiom() {
+    if grep -nE 'printf .* \| grep -Fxq' "$REPO_ROOT/scripts/seed_local.sh" >/dev/null 2>&1; then
+        fail "scripts/seed_local.sh reintroduced the SIGPIPE-prone 'printf | grep -Fxq' idiom. See test_verify_seeded_indexes_handles_realistic_index_volume for context. Use a Python membership check that drains stdin instead."
+    else
+        pass "seed_local.sh free of the SIGPIPE-prone grep -Fxq idiom"
+    fi
+}
+
 main() {
     echo "=== seed_local.sh tests ==="
     echo ""
@@ -977,6 +1108,9 @@ main() {
     test_seed_region_helper_follows_flapjack_regions_in_multi_region_mode
     test_seed_region_helper_keeps_single_instance_override
     test_seed_region_helper_rejects_empty_region_entries
+    test_verify_seeded_indexes_handles_realistic_index_volume
+    test_verify_seeded_indexes_still_dies_when_target_missing
+    test_seed_local_does_not_contain_sigpipe_grep_idiom
 
     echo ""
     echo "=== Results: $PASS_COUNT passed, $FAIL_COUNT failed ==="

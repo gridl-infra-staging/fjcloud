@@ -158,6 +158,39 @@ gate_check_sizes() {
     bash "$REPO_ROOT/scripts/check-sizes.sh"
 }
 
+gate_script_exec_bits() {
+    # Anchored 2026-05-31: scripts/api-dev.sh shipped at git mode 100644 for
+    # weeks. Tests passed because they all invoke scripts via `bash $script`;
+    # `local_demo.sh` invokes api-dev.sh via `env ... api-dev.sh` which DOES
+    # need the exec bit and crashed at runtime instead. This gate asserts on
+    # top-level scripts/*.sh git modes so the next mis-permissioned script
+    # fails in CI, not in a user's local-demo run 5 days later.
+    bash "$REPO_ROOT/scripts/tests/script_exec_bits_test.sh"
+}
+
+gate_port_collision_diagnose() {
+    # Anchored 2026-05-31: local_demo.sh hit "port 5173 unavailable" with
+    # no information about who held the port. Holder turned out to be a
+    # vite from a different worktree's batman session 5 days earlier; took
+    # interactive lsof/ps debugging to identify. The check_port_available
+    # helper in scripts/lib/health.sh now surfaces PID + cmd + cwd + start
+    # time + a kill command on collision. This gate asserts that diagnostic
+    # output stays present so the next port-conflict failure is
+    # self-explanatory.
+    bash "$REPO_ROOT/scripts/tests/port_collision_diagnose_test.sh"
+}
+
+gate_compose_project() {
+    # Anchored 2026-05-31: docker compose defaults its project name to the
+    # basename of the working directory. Two fjcloud worktrees at paths
+    # ending in `/fjcloud_dev` both named their stack `fjcloud_dev` and
+    # silently clobbered each other on `docker compose up`. The
+    # resolve_compose_project_name helper derives a worktree-unique name;
+    # this gate guards against regressions in the resolver AND that
+    # local-dev-up.sh / local-dev-down.sh wire it correctly.
+    bash "$REPO_ROOT/scripts/tests/compose_project_test.sh"
+}
+
 gate_status_doc_consistency() {
     # Asserts docs/NOW.md is at least as fresh as LAUNCH.md's most recent
     # ## STATUS entry. Catches the doc-SSOT drift class where one of the
@@ -436,6 +469,9 @@ schedule() {
 # bug found 2026-04-30 round-2 self-review.) See post-wait section
 # below for the sequential rust-test invocation.
 schedule check-sizes
+schedule script-exec-bits
+schedule port-collision-diagnose
+schedule compose-project
 schedule status-doc-consistency
 schedule secret-scan
 schedule web-lint
@@ -485,6 +521,9 @@ if [ "${#SCHEDULED_GATES[@]}" -gt 0 ]; then
     for gate in "${SCHEDULED_GATES[@]}"; do
         case "$gate" in
             check-sizes)     run_gate check-sizes     gate_check_sizes ;;
+            script-exec-bits) run_gate script-exec-bits gate_script_exec_bits ;;
+            port-collision-diagnose) run_gate port-collision-diagnose gate_port_collision_diagnose ;;
+            compose-project) run_gate compose-project gate_compose_project ;;
             status-doc-consistency) run_gate status-doc-consistency gate_status_doc_consistency ;;
             secret-scan)     run_gate secret-scan     gate_secret_scan ;;
             web-lint)        run_gate web-lint        gate_web_lint ;;

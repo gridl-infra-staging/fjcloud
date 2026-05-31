@@ -15,10 +15,17 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # shellcheck source=lib/process.sh
 source "$SCRIPT_DIR/lib/process.sh"
+# shellcheck source=lib/compose_project.sh
+source "$SCRIPT_DIR/lib/compose_project.sh"
 
 PID_DIR="$REPO_ROOT/.local"
 
 log() { echo "[local-dev-down] $*"; }
+
+# Match the project namespace local-dev-up.sh used to bring containers up;
+# otherwise `docker compose down` would target the wrong project (default
+# basename) and leave the worktree's containers running.
+export COMPOSE_PROJECT_NAME="$(resolve_compose_project_name "$REPO_ROOT")"
 
 # ---------------------------------------------------------------------------
 # 1. Stop flapjack (single-instance and multi-region)

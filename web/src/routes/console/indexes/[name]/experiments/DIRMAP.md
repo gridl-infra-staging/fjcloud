@@ -6,6 +6,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| [experimentId] | +page.server.ts is a SvelteKit server-side component that handles server-side page logic and data loading for the [experimentId] route. |
-| [experimentId] | This directory contains a SvelteKit server-side page component with only a stub implementation placeholder. |
+| [experimentId] | I need the actual content of the files in this directory to provide a meaningful summary. |
 <!-- [scrai:end] -->

@@ -8,8 +8,8 @@
 // behind hCaptcha image puzzles that we can't auto-solve). The SetupIntent
 // flow uses pure Stripe.js Elements and does not trigger hCaptcha.
 //
-// Originally built 2026-05-03 for the Phase G live invoice probe — attaching
-// a Privacy.com test card to cus_URij8h4pXDprIK on the live Stripe account.
+// Originally built 2026-05-03 for the Phase G live invoice probe to attach
+// a card via SetupIntent on the live Stripe account.
 // Kept as a reusable ops-layer helper for future card-attach scenarios:
 //   - Replacement card for an existing customer
 //   - Synthetic test customer setup against live mode for ops probes
@@ -19,17 +19,14 @@
 //   set -a; source .secret/.env.secret; set +a
 //   PK_LIVE="$STRIPE_PUBLISHABLE_KEY" \
 //   CLIENT_SECRET=seti_...secret_... \
-//   CARD_NUMBER=5439300693299475 \
-//   CARD_EXP=05/31 \
-//   CARD_CVC=294 \
+//   CARD_NUMBER=4242424242424242 \
+//   CARD_EXP=12/30 \
+//   CARD_CVC=123 \
 //   CARD_ZIP=10001 \
 //   node scripts/stripe/attach_card_via_setup_intent.mjs
 //
-// Current ops test card (Privacy.com virtual, low-limit, safe to commit):
-//   Number: 5439300693299475  Exp: 05/31  CVC: 294
-//   Replaced 5439300620174338 (4338) — that card was consumed/deactivated after
-//   the 2026-05-03 Phase G probe. Updated 2026-05-05.
-//   Previous card 4338: cus_URij8h4pXDprIK was the Phase G customer (now deleted).
+// Do not commit live card numbers, CVCs, or customer identifiers here. Supply
+// real values only via environment variables at runtime.
 //
 // To create the SetupIntent first:
 //   curl -u "$STRIPE_SECRET_KEY_flapjack_cloud:" \
@@ -38,7 +35,8 @@
 //
 // Required env: PK_LIVE, CLIENT_SECRET, CARD_NUMBER, CARD_EXP, CARD_CVC.
 // Optional: CARD_ZIP (default 10001), HEADLESS (default 1), TIMEOUT_MS (default 60000),
-//           SCREENSHOT_DIR (default /tmp/setup_intent_drive), PORT (default 8765).
+//           SCREENSHOT_DIR (unset by default; enables diagnostic screenshots when set),
+//           PORT (default 8765).
 //
 // Output (stdout, JSON): {"ok": true, "status": "OK succeeded", "pm_id": "pm_..."}
 // or {"ok": false, "error": "..."} with non-zero exit.
@@ -66,10 +64,13 @@ const CARD_CVC = required('CARD_CVC');
 const CARD_ZIP = process.env.CARD_ZIP || '10001';
 const HEADLESS = process.env.HEADLESS !== '0';
 const TIMEOUT_MS = Number(process.env.TIMEOUT_MS || '60000');
-const SCREENSHOT_DIR = process.env.SCREENSHOT_DIR || '/tmp/setup_intent_drive';
+const SCREENSHOT_DIR = process.env.SCREENSHOT_DIR || '';
 const PORT = Number(process.env.PORT || '8765');
 
-await fs.mkdir(SCREENSHOT_DIR, { recursive: true });
+if (SCREENSHOT_DIR) {
+	await fs.mkdir(SCREENSHOT_DIR, { recursive: true, mode: 0o700 });
+	await fs.chmod(SCREENSHOT_DIR, 0o700).catch(() => {});
+}
 
 // Inline the minimal HTML page to avoid an extra file. Stripe.js loads from
 // the CDN, mounts Elements, and confirms the SetupIntent on form submit.
@@ -134,6 +135,9 @@ const server = http.createServer((req, res) => {
 await new Promise((r) => server.listen(PORT, '127.0.0.1', r));
 
 async function shot(p, name) {
+	if (!SCREENSHOT_DIR) {
+		return;
+	}
 	await p.screenshot({ path: `${SCREENSHOT_DIR}/${Date.now()}_${name}.png`, fullPage: true });
 }
 
@@ -152,11 +156,74 @@ try {
 	await page.waitForFunction(() => document.querySelectorAll('iframe').length > 0, null, {
 		timeout: 15000
 	});
-	const elementsFrame = page.frames().find((f) =>
-		f.url().includes('elements-inner-card')
-	);
+	// DIAGNOSTIC_INJECTED_2026_05_31
+		const captureDiagnosticEvidence = async (label) => {
+			if (!SCREENSHOT_DIR) {
+				return;
+			}
+			const ts = new Date().toISOString().replace(/[:.]/g, '-');
+			const dir = `${SCREENSHOT_DIR}/diagnostic_${ts}_${label}`;
+			await fs.mkdir(dir, { recursive: true, mode: 0o700 });
+			await fs.chmod(dir, 0o700).catch(() => {});
+			await page.screenshot({ path: `${dir}/full.png`, fullPage: true });
+		const frames = [];
+		for (const frame of page.frames()) {
+			let html = '';
+			try {
+				html = await frame.content();
+			} catch {
+				html = '<frame-error>';
+			}
+			frames.push({
+				url: frame.url(),
+				name: frame.name(),
+				html_len: html.length,
+				html_head: html.slice(0, 4000)
+			});
+		}
+		await fs.writeFile(`${dir}/frames.json`, JSON.stringify(frames, null, 2));
+		console.error(`DIAGNOSTIC: wrote ${dir} (${frames.length} frames)`);
+	};
+	const resolveCardElementsFrame = () => {
+		const frames = page.frames();
+		const frameMatchers = [
+			(frame) => frame.url().includes('elements-inner-card'),
+			(frame) =>
+				frame.url().includes('componentName=card') &&
+				frame.url().includes('js.stripe.com/v3/') &&
+				!frame.url().includes('elements-inner-link-button'),
+			(frame) =>
+				frame.name().startsWith('__privateStripeFrame') &&
+				frame.url().includes('js.stripe.com/v3/') &&
+				!frame.url().includes('elements-inner-link-button')
+		];
+		for (const matcher of frameMatchers) {
+			const match = frames.find((frame) => matcher(frame));
+			if (match) {
+				console.error(`[selector-match] frame: ${match.url().slice(0, 140)}`);
+				return match;
+			}
+		}
+		return null;
+	};
+	const resolveFieldLocator = async (frame, label, selectors, optional = false) => {
+		for (const selector of selectors) {
+			const locator = frame.locator(selector).first();
+			if ((await locator.count()) > 0) {
+				console.error(`[selector-match] ${label}: ${selector}`);
+				return locator;
+			}
+		}
+		if (optional) {
+			console.error(`[selector-miss-optional] ${label}`);
+			return null;
+		}
+		throw new Error(`no ${label} selector matched in card frame: ${selectors.join(' | ')}`);
+	};
+	const elementsFrame = resolveCardElementsFrame();
 	if (!elementsFrame) {
 		const urls = page.frames().map((f) => f.url().substring(0, 80));
+		await captureDiagnosticEvidence('no_elements_inner_card_iframe');
 		throw new Error(`no elements-inner-card iframe; frames: ${urls.join(' | ')}`);
 	}
 	await page.waitForTimeout(1500);
@@ -164,28 +231,64 @@ try {
 	// Stripe Elements bind validation to keystroke events, so fill() (which
 	// sets .value directly) leaves the submit button disabled. pressSequentially
 	// simulates real keypresses.
-	const numberInput = elementsFrame
-		.locator('#Field-numberInput, input[name="number"]')
-		.first();
-	await numberInput.click();
+	const numberInput = await resolveFieldLocator(elementsFrame, 'number', [
+		'#Field-numberInput',
+		'input[name="number"]',
+		'input[name="cardnumber"]',
+		'input[autocomplete="cc-number"]',
+		'input[aria-label*="card number" i]',
+		'input[placeholder*="card number" i]',
+		'input[id^="Field-"][id*="number"]'
+	]);
+	try {
+		await numberInput.click();
+	} catch (err) {
+		await captureDiagnosticEvidence('numberinput_click_failed');
+		throw err;
+	}
 	await numberInput.pressSequentially(CARD_NUMBER, { delay: 20 });
 
-	const expInput = elementsFrame
-		.locator('#Field-expiryInput, input[name="expiry"]')
-		.first();
+	const expInput = await resolveFieldLocator(elementsFrame, 'expiry', [
+		'#Field-expiryInput',
+		'input[name="expiry"]',
+		'input[name="exp-date"]',
+		'input[autocomplete="cc-exp"]',
+		'input[aria-label*="expiration" i]',
+		'input[aria-label*="expiry" i]',
+		'input[placeholder*="MM / YY" i]',
+		'input[id^="Field-"][id*="expiry"]'
+	]);
 	await expInput.click();
 	await expInput.pressSequentially(CARD_EXP.replace('/', ''), { delay: 20 });
 
-	const cvcInput = elementsFrame
-		.locator('#Field-cvcInput, input[name="cvc"]')
-		.first();
+	const cvcInput = await resolveFieldLocator(elementsFrame, 'cvc', [
+		'#Field-cvcInput',
+		'input[name="cvc"]',
+		'input[name="securityCode"]',
+		'input[autocomplete="cc-csc"]',
+		'input[aria-label*="cvc" i]',
+		'input[aria-label*="security code" i]',
+		'input[placeholder*="CVC" i]',
+		'input[id^="Field-"][id*="cvc"]'
+	]);
 	await cvcInput.click();
 	await cvcInput.pressSequentially(CARD_CVC, { delay: 20 });
 
-	const zipInput = elementsFrame
-		.locator('#Field-postalCodeInput, input[name="postalCode"]')
-		.first();
-	if (await zipInput.count()) {
+	const zipInput = await resolveFieldLocator(
+		elementsFrame,
+		'postal',
+		[
+			'#Field-postalCodeInput',
+			'input[name="postalCode"]',
+			'input[name="postal-code"]',
+			'input[autocomplete="postal-code"]',
+			'input[aria-label*="postal" i]',
+			'input[placeholder*="ZIP" i]',
+			'input[id^="Field-"][id*="postal"]'
+		],
+		true
+	);
+	if (zipInput) {
 		await zipInput.click();
 		await zipInput.pressSequentially(CARD_ZIP, { delay: 20 });
 		await zipInput.press('Tab');

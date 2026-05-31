@@ -50,7 +50,11 @@ ensure_demo_env() {
         } >> "$ENV_FILE"
     fi
 
-    append_env_if_missing "API_BASE_URL" "http://127.0.0.1:3001"
+    # `API_BASE_URL` and `MAILPIT_API_URL` resolve their port from the same
+    # env vars `run_demo_stack` reads, so an operator who overrides
+    # PLAYWRIGHT_API_PORT or LOCAL_MAILPIT_UI_PORT for a parallel-worktree
+    # stack gets matching URLs without editing .env.local by hand.
+    append_env_if_missing "API_BASE_URL" "http://127.0.0.1:${PLAYWRIGHT_API_PORT:-3001}"
     append_env_if_missing "SKIP_EMAIL_VERIFICATION" "1"
     append_env_if_missing "LOCAL_DEV_FLAPJACK_URL" "http://127.0.0.1:7700"
     append_env_if_missing "FLAPJACK_ADMIN_KEY" "$DEFAULT_LOCAL_FLAPJACK_ADMIN_KEY"
@@ -106,8 +110,36 @@ run_demo_stack() {
     ensure_demo_env
     load_env_file "$ENV_FILE"
 
+    # Ports are env-overridable so a second worktree can run a parallel
+    # demo stack without colliding:
+    #   LOCAL_WEB_PORT=5273 PLAYWRIGHT_API_PORT=3101 \
+    #     LOCAL_DB_PORT=5433 LOCAL_S3_PORT=8433 LOCAL_MAILPIT_UI_PORT=8125 \
+    #     LOCAL_SMTP_PORT=1125 bash scripts/local_demo.sh
+    # The lower layers (api-dev.sh, web-dev.sh, docker-compose.yml,
+    # local-dev-up.sh) already honor these env vars; this script just stops
+    # hard-coding the defaults so they can flow through. The PLAYWRIGHT_*
+    # name on the API port is the legacy var the Rust runtime + Playwright
+    # config both honor — kept as-is to avoid a separate rename lane.
+    local api_port="${PLAYWRIGHT_API_PORT:-3001}"
+    local web_host="127.0.0.1"
+    local web_port="${LOCAL_WEB_PORT:-5173}"
+    local api_url="http://${web_host}:${api_port}"
+    local web_url="http://${web_host}:${web_port}"
+
     log "Starting infra"
     bash "$SCRIPT_DIR/local-dev-up.sh"
+
+    # Pre-flight the API port at this layer so collisions surface here with
+    # the new diagnostic output (PID, cmd, cwd, kill command from
+    # scripts/lib/health.sh::check_port_available). Without this, api-dev.sh's
+    # own port check fires inside the nohup'd subprocess, the diagnostic
+    # gets buried in .local/api.log, and wait_for_health then succeeds
+    # against whatever stale process was already on the port — masking the
+    # collision until the seed step fails on an admin-key mismatch.
+    if ! tracked_process_is_running "$PID_DIR/api.pid"; then
+        check_port_available "$api_port" "api" \
+            || { log "api port ${api_port} is unavailable; refusing to start a stack on top of a stale process"; exit 1; }
+    fi
 
     start_tracked_process \
         "API" \
@@ -116,12 +148,9 @@ run_demo_stack() {
         env \
         API_DEV_ALLOW_SKIP_EMAIL_VERIFICATION=1 \
         "$SCRIPT_DIR/api-dev.sh"
-    wait_for_health "http://127.0.0.1:3001/health" "api" 90 \
+    wait_for_health "$api_url/health" "api" 90 \
         || { log "API failed; see $PID_DIR/api.log"; exit 1; }
 
-    local web_host="127.0.0.1"
-    local web_port="5173"
-    local web_url="http://${web_host}:${web_port}"
     if ! tracked_process_is_running "$PID_DIR/web.pid"; then
         check_port_available "$web_port" "web" \
             || { log "web port ${web_port} is unavailable; strict-port startup would not be trustworthy"; exit 1; }
@@ -148,7 +177,8 @@ run_demo_stack() {
     log "Ready"
     log "  App:       $web_url"
     log "  Admin:     $web_url/admin"
-    log "  Mailpit:   http://localhost:8025"
+    log "  API:       $api_url"
+    log "  Mailpit:   http://localhost:${LOCAL_MAILPIT_UI_PORT:-8025}"
     log "  Users:     dev@example.com / localdev-password-1234"
     log "             free@example.com / localdev-password-1234"
     log "  Stop:      scripts/local-dev-down.sh"

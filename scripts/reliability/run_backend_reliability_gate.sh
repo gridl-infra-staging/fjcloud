@@ -276,10 +276,10 @@ Usage:
   run_backend_reliability_gate.sh [--reliability-only] [--security-only] [--load-only] [--live-only] \
     [--skip-rust-tests] [--fail-fast]
 
-  --reliability-only  Run Stage 1-3 checks only (profiles + reliability tests)
-  --security-only     Run security checks only (secret scan, dep-audit, SQL guard)
-  --load-only         Run load harness checks only
-  --live-only         Run existing live-backend checks only
+    --reliability-only  Run Stage 1-3 checks only (profiles + reliability tests)
+    --security-only     Run security checks only (secret scan, dep-audit, SQL guard, cmd injection, SQL guard tests)
+    --load-only         Run load harness checks only
+    --live-only         Run live checks only (Stripe, metering, and Rust validation unless skipped)
   --skip-rust-tests   Skip live Rust validation tests
   --fail-fast         Stop after the first check failure
 USAGE

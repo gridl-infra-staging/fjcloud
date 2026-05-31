@@ -68,9 +68,21 @@ exit 0'
 setup_mock_bin() {
     local mock_dir="$1" call_log="$2"
 
-    # Mock docker: log calls, succeed on compose up/exec/down
+    # Mock docker: log calls and, when called as `compose ps ... --format
+    # json`, emit a synthetic JSON row with Health=healthy so the new
+    # `compose_service_health` SSOT (scripts/local-dev-up.sh, anchored
+    # 2026-05-31) sees healthy services in the healthy-test path. Without
+    # this, the seaweedfs probe waits the full 60s timeout while the test
+    # holds the real /bin/sleep (which the healthy test doesn't mock),
+    # turning a fast unit test into a 60s+ hang per script invocation.
     write_mock_script "$mock_dir/docker" \
-        'echo "LOCAL_DB_PORT=${LOCAL_DB_PORT:-} docker $@" >> "'"$call_log"'"; exit 0'
+        'echo "LOCAL_DB_PORT=${LOCAL_DB_PORT:-} docker $@" >> "'"$call_log"'"
+case "$*" in
+    "compose ps "*"--format json"*)
+        printf "%s\n" "[{\"Service\":\"$3\",\"Health\":\"healthy\"}]"
+        ;;
+esac
+exit 0'
 
     # Mock curl: succeed (services healthy)
     write_healthy_mock_curl "$mock_dir/curl" "$call_log"
@@ -86,6 +98,14 @@ setup_mock_bin() {
     # Mock nohup: run the command directly (no backgrounding)
     write_mock_script "$mock_dir/nohup" \
         'echo "nohup $@" >> "'"$call_log"'"; "$@" &'
+
+    # Mock sleep: instant exit. wait_until_success now polls docker
+    # compose health (which the docker mock answers immediately), so
+    # without an instant sleep the inner script's 60s timeout × 2s
+    # interval blocks for 60s per script invocation under the real
+    # /bin/sleep. Adding a mock sleep here keeps healthy-path tests fast.
+    write_mock_script "$mock_dir/sleep" \
+        'exit 0'
 }
 
 # ============================================================================
@@ -273,6 +293,8 @@ test_discovers_default_repo_relative_fresh_host_candidates_when_unset() {
     cp "$REPO_ROOT/scripts/lib/db_url.sh" "$fixture_repo_root/scripts/lib/"
     cp "$REPO_ROOT/scripts/lib/health.sh" "$fixture_repo_root/scripts/lib/"
     cp "$REPO_ROOT/scripts/lib/flapjack_binary.sh" "$fixture_repo_root/scripts/lib/"
+    cp "$REPO_ROOT/scripts/lib/compose_project.sh" "$fixture_repo_root/scripts/lib/"
+    cp "$REPO_ROOT/scripts/lib/process.sh" "$fixture_repo_root/scripts/lib/"
     mkdir -p "$fixture_repo_root/infra"
     cp -R "$REPO_ROOT/infra/migrations" "$fixture_repo_root/infra/"
     write_local_dev_env_file "$fixture_repo_root/.env.local" "$LOCAL_DEV_TEST_DB_URL"

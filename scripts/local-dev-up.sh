@@ -22,6 +22,14 @@ source "$SCRIPT_DIR/lib/db_url.sh"
 source "$SCRIPT_DIR/lib/health.sh"
 # shellcheck source=lib/flapjack_binary.sh
 source "$SCRIPT_DIR/lib/flapjack_binary.sh"
+# shellcheck source=lib/compose_project.sh
+source "$SCRIPT_DIR/lib/compose_project.sh"
+
+# Each worktree gets its own docker compose project namespace so a second
+# worktree's `docker compose up` cannot clobber the first worktree's
+# containers (and its postgres volume). See scripts/lib/compose_project.sh
+# for the resolution rules and operator override path.
+export COMPOSE_PROJECT_NAME="$(resolve_compose_project_name "$REPO_ROOT")"
 
 FLAPJACK_PORT="${FLAPJACK_PORT:-7700}"
 
@@ -67,22 +75,47 @@ start_optional_service() {
     return 1
 }
 
-seaweedfs_s3_is_reachable() {
-    local port="$1"
-    local code
-    code="$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:${port}/" 2>/dev/null || true)"
-    [ "$code" = "200" ] || [ "$code" = "403" ]
+# Reads docker compose's reported Health state for the named service.
+# The seaweedfs image ships with its own curl-based healthcheck (accepts
+# HTTP 200 or 403 — 403 is the correct unauthenticated S3 response) which
+# IS the single source of truth for "is seaweedfs up". The previous
+# probe duplicated that check via an outside-the-container curl, but
+# routinely fired before the container had finished booting — leading
+# to a permanent false-negative "[local-dev-up] seaweedfs failed health
+# check after 15s" on every cold start. Anchored 2026-05-31.
+compose_service_health() {
+    local service="$1"
+    (cd "$REPO_ROOT" && docker compose ps "$service" --format json 2>/dev/null) \
+        | python3 -c '
+import json, sys
+try:
+    payload = json.load(sys.stdin)
+except json.JSONDecodeError:
+    sys.exit(0)
+items = payload if isinstance(payload, list) else [payload]
+for item in items:
+    h = item.get("Health") or ""
+    if h:
+        print(h)
+        break
+' 2>/dev/null || true
+}
+
+seaweedfs_is_healthy() {
+    [ "$(compose_service_health seaweedfs)" = "healthy" ]
 }
 
 start_seaweedfs_service() {
-    local port="$1" timeout="${2:-15}"
+    local port="$1" timeout="${2:-60}"
     log "Starting seaweedfs..."
     (cd "$REPO_ROOT" && docker compose up -d seaweedfs) 2>&1 | while IFS= read -r line; do log "$line"; done
-    if wait_until_success "$timeout" 1 seaweedfs_s3_is_reachable "$port"; then
-        log "seaweedfs is healthy (http://localhost:${port}/)"
+    # Cold-boot of seaweedfs (image pull + start) can exceed 15s; default
+    # to 60s so the first run on a fresh machine doesn't false-negative.
+    if wait_until_success "$timeout" 2 seaweedfs_is_healthy; then
+        log "seaweedfs is healthy (per docker compose health)"
         return 0
     fi
-    log "seaweedfs failed health check after ${timeout}s (http://localhost:${port}/)"
+    log "seaweedfs failed health check after ${timeout}s (docker compose Health was not 'healthy') — non-fatal; API will fall back to InMemoryObjectStore"
     return 1
 }
 

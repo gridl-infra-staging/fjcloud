@@ -28,6 +28,11 @@ source "$SCRIPT_DIR/lib/flapjack_regions.sh"
 log() { echo "[seed] $*"; }
 die() { echo "[seed] ERROR: $*" >&2; exit 1; }
 
+# verify_seeded_indexes_for_user lives in a sourceable lib so its SIGPIPE-safe
+# implementation can be regression-tested in isolation. See seed_verify.sh.
+# shellcheck source=lib/seed_verify.sh
+source "$SCRIPT_DIR/lib/seed_verify.sh"
+
 json_string() {
     python3 -c 'import json, sys; print(json.dumps(sys.argv[1]))' "$1"
 }
@@ -692,47 +697,6 @@ build_index_payload() {
     printf '{"name":%s,"region":%s}' \
         "$(json_string "$index_name")" \
         "$(json_string "$index_region")"
-}
-
-verify_seeded_indexes_for_user() {
-    local user_key="$1"
-    local user_email="$2"
-    local user_token="$3"
-    local indexes_response index_names
-    local seed_target target_user_key target_index_name target_region
-
-    indexes_response=$(api_call_with_token GET /indexes "$user_token")
-    index_names="$(printf '%s' "$indexes_response" | python3 -c '
-import json
-import sys
-
-payload = json.load(sys.stdin)
-if isinstance(payload, dict):
-    items = payload.get("indexes", [])
-elif isinstance(payload, list):
-    items = payload
-else:
-    items = []
-
-for item in items:
-    if isinstance(item, dict):
-        name = item.get("name")
-        if isinstance(name, str):
-            print(name)
-')"
-
-    for seed_target in "${SEED_INDEX_TARGETS[@]}"; do
-        IFS='|' read -r target_user_key target_index_name target_region <<<"$seed_target"
-        if [ "$target_user_key" != "$user_key" ]; then
-            continue
-        fi
-
-        if ! printf '%s\n' "$index_names" | grep -Fxq "$target_index_name"; then
-            die "Seeded index ${target_index_name} is missing from GET /indexes for ${user_email}"
-        fi
-    done
-
-    log "Verified seeded index names for ${user_email}"
 }
 
 # In STRIPE_LOCAL_MODE, seed_local guarantees each seeded customer has a

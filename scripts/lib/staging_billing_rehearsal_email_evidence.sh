@@ -279,6 +279,25 @@
 # TODO: Document extract_required_invoice_email_pairs_json.
 # TODO: Document extract_required_invoice_email_pairs_json.
 # TODO: Document extract_required_invoice_email_pairs_json.
+# TODO: Document extract_required_invoice_email_pairs_json.
+# TODO: Document extract_required_invoice_email_pairs_json.
+# TODO: Document extract_required_invoice_email_pairs_json.
+# TODO: Document extract_required_invoice_email_pairs_json.
+# TODO: Document extract_required_invoice_email_pairs_json.
+# TODO: Document extract_required_invoice_email_pairs_json.
+# TODO: Document extract_required_invoice_email_pairs_json.
+# TODO: Document extract_required_invoice_email_pairs_json.
+# TODO: Document extract_required_invoice_email_pairs_json.
+# TODO: Document extract_required_invoice_email_pairs_json.
+# TODO: Document extract_required_invoice_email_pairs_json.
+# TODO: Document extract_required_invoice_email_pairs_json.
+# TODO: Document extract_required_invoice_email_pairs_json.
+# TODO: Document extract_required_invoice_email_pairs_json.
+# TODO: Document extract_required_invoice_email_pairs_json.
+# TODO: Document extract_required_invoice_email_pairs_json.
+# TODO: Document extract_required_invoice_email_pairs_json.
+# TODO: Document extract_required_invoice_email_pairs_json.
+# TODO: Document extract_required_invoice_email_pairs_json.
 extract_required_invoice_email_pairs_json() {
     python3 - "$INVOICE_ROWS_JSON" "$CREATED_INVOICE_IDS_JSON" <<'PY' || true
 import json
@@ -305,6 +324,27 @@ for invoice_id in required_ids:
         pairs.append(row)
 print(json.dumps(pairs))
 PY
+}
+
+create_private_invoice_email_temp_file() {
+    local template="$1"
+    local failure_detail="$2"
+    local temp_file
+
+    temp_file="$(mktemp "$template")" || {
+        EVIDENCE_LAST_CLASSIFICATION="invoice_email_tempfile_failed"
+        EVIDENCE_LAST_DETAIL="$failure_detail"
+        EVIDENCE_TERMINAL_FAILURE=1
+        return 1
+    }
+    if ! chmod 600 "$temp_file"; then
+        rm -f "$temp_file"
+        EVIDENCE_LAST_CLASSIFICATION="invoice_email_tempfile_failed"
+        EVIDENCE_LAST_DETAIL="$failure_detail"
+        EVIDENCE_TERMINAL_FAILURE=1
+        return 1
+    fi
+    printf '%s\n' "$temp_file"
 }
 
 invoice_email_pairs_to_lines() {
@@ -547,11 +587,11 @@ find_mailpit_matching_ids_json() {
         return 1
     fi
     candidate_ids_json="$(mailpit_search_message_ids_json "$response")"
-    if ! matched_ids_file="$(mktemp "${TMPDIR:-/tmp}/invoice_email_message_ids_${$}_XXXXXX.txt")"; then
-        EVIDENCE_LAST_CLASSIFICATION="invoice_email_tempfile_failed"
-        EVIDENCE_LAST_DETAIL="Unable to create invoice email evidence temp file."
-        return 1
-    fi
+    matched_ids_file="$(
+        create_private_invoice_email_temp_file \
+            "${TMPDIR:-/tmp}/invoice_email_message_ids_${$}_XXXXXX.txt" \
+            "Unable to allocate and secure a private temp file for Mailpit message-id correlation."
+    )" || return 1
 
     while IFS= read -r candidate_message_id; do
         [ -n "$candidate_message_id" ] || continue
@@ -608,8 +648,11 @@ check_invoice_email_evidence_once() {
         return 1
     fi
 
-    evidence_records="${TMPDIR:-/tmp}/invoice_email_matches_$$.jsonl"
-    : > "$evidence_records"
+    evidence_records="$(
+        create_private_invoice_email_temp_file \
+            "${TMPDIR:-/tmp}/invoice_email_matches.XXXXXX" \
+            "Unable to allocate and secure a private temp file for Mailpit invoice email evidence."
+    )" || return 1
 
     while IFS='|' read -r invoice_id email; do
         [ -n "$invoice_id" ] || continue

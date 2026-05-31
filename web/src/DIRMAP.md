@@ -7,9 +7,7 @@
 
 | Directory | Summary |
 | --- | --- |
-| lib | The web/src/lib directory is a comprehensive shared utility library for the SvelteKit frontend, providing implementations for API client abstraction, authentication and authorization, billing and pricing logic, Stripe integration, search and recommendation features, event handling, error boundaries, and UI utilities for forms, modals, and dashboard instrumentation. |
-| routes | The routes directory contains SvelteKit server-side routes for the application's core functionality, including OAuth authentication handlers, administrative dashboard pages, billing and pricing APIs, and a customer-facing console for account and billing management. |
-| lib | This lib directory provides a comprehensive TypeScript utility layer for the SvelteKit frontend, including API clients for admin and search functionality, JWT-based authentication utilities, Stripe and pricing helpers, browser-side API logging and instrumentation, error handling with recovery logic, and UI utilities for components, focus management, and search state management. |
-| routes | The routes directory implements a SvelteKit web application's endpoint structure, organized into functional domains including OAuth authentication, a customer-facing console dashboard, an admin dashboard for operations and billing management, server-side API endpoints for pricing and Stripe integration, and status definitions. |
+| lib | This lib directory contains core TypeScript utilities and client code for the SvelteKit web frontend, including authentication (JWT parsing and validation), API client abstractions, Stripe integration, UI components, error handling, and helpers for pricing, search, rules, and server-side operations. |
+| routes | The routes directory contains SvelteKit server-side routing handlers for fjcloud's web application, organized by domain: authentication with OAuth support, administrative functions, public API endpoints for pricing and search, billing operations, customer dashboard (console) with account and index management, and status pages. |
 | tests | — |
 <!-- [scrai:end] -->

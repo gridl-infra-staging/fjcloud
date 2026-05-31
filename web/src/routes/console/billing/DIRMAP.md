@@ -8,6 +8,5 @@
 | Directory | Summary |
 | --- | --- |
 | invoices | — |
-| setup | This directory contains the server-side logic for a billing setup route in the SvelteKit web frontend, handling initial configuration and data management for customer billing workflows. |
-| setup | This is a SvelteKit server-side route handler that loads payment setup data for the billing console by creating a Stripe Setup Intent and returning the client secret to the client. |
+| setup | This page server load function initializes Stripe payment setup by creating a setup intent and returning its client secret to the frontend, with error handling for missing billing configuration or customer data. |
 <!-- [scrai:end] -->

@@ -189,37 +189,58 @@ jobs:
       - name: Start local dev infrastructure (no flapjack)
         run: bash scripts/local-dev-up.sh
       - name: Verify postgres reports healthy via docker compose
+        # Each `run:` step is a fresh bash subprocess that does NOT inherit
+        # the COMPOSE_PROJECT_NAME local-dev-up.sh exported. Re-derive it
+        # here so `docker compose ps` queries the SAME project the up
+        # script created — otherwise compose defaults to the basename
+        # (`fjcloud` in CI) and finds zero containers, returning empty
+        # JSON that breaks the probe.
+        #
+        # `jq -s '.[0]'` slurps both possible output shapes (a JSON array
+        # OR newline-delimited JSON, depending on docker-compose version)
+        # into a single item; `// empty` makes a missing Health field
+        # surface as the empty string rather than `null`.
         run: |
-          health=$(docker compose ps postgres --format json | python3 -c 'import json,sys; d=json.load(sys.stdin); print((d if isinstance(d, list) else [d])[0].get("Health", ""))')
+          source scripts/lib/compose_project.sh
+          export COMPOSE_PROJECT_NAME="$(resolve_compose_project_name "$PWD")"
+          health=$(docker compose ps postgres --format json | jq -rs 'if length == 0 then "" elif (.[0] | type) == "array" then .[0][0].Health // "" else .[0].Health // "" end')
           if [ "$health" != "healthy" ]; then
             echo "postgres Health=$health (expected healthy)" >&2
+            docker compose ps --format json >&2 || true
             exit 1
           fi
       - name: Verify seaweedfs reports healthy via docker compose
         run: |
-          health=$(docker compose ps seaweedfs --format json | python3 -c 'import json,sys; d=json.load(sys.stdin); print((d if isinstance(d, list) else [d])[0].get("Health", ""))')
+          source scripts/lib/compose_project.sh
+          export COMPOSE_PROJECT_NAME="$(resolve_compose_project_name "$PWD")"
+          health=$(docker compose ps seaweedfs --format json | jq -rs 'if length == 0 then "" elif (.[0] | type) == "array" then .[0][0].Health // "" else .[0].Health // "" end')
           if [ "$health" != "healthy" ]; then
             echo "seaweedfs Health=$health (expected healthy)" >&2
+            docker compose ps --format json >&2 || true
             exit 1
           fi
       - name: Verify mailpit is reachable on its API
         run: curl -fsS "http://localhost:${LOCAL_MAILPIT_UI_PORT:-8025}/api/v1/info" >/dev/null
       - name: Verify COMPOSE_PROJECT_NAME isolates containers per worktree
-        # The container should be named with the resolved project name, not
-        # the default basename. Catches a future regression where someone
-        # removes the COMPOSE_PROJECT_NAME export from local-dev-up.sh.
+        # The container should be named with the resolved project name,
+        # not the default basename. Catches a future regression where
+        # someone removes the COMPOSE_PROJECT_NAME export from
+        # local-dev-up.sh.
         run: |
           source scripts/lib/compose_project.sh
-          expected=$(resolve_compose_project_name "$PWD")
-          actual_count=$(docker compose ps postgres --format json | python3 -c "import json,sys; d=json.load(sys.stdin); items=d if isinstance(d, list) else [d]; print(sum(1 for i in items if i.get('Project') == '$expected'))")
-          if [ "$actual_count" != "1" ]; then
-            echo "expected one postgres container with Project=$expected, got $actual_count" >&2
-            docker compose ps --format json | python3 -m json.tool >&2
+          export COMPOSE_PROJECT_NAME="$(resolve_compose_project_name "$PWD")"
+          actual_project=$(docker compose ps postgres --format json | jq -rs 'if length == 0 then "" elif (.[0] | type) == "array" then .[0][0].Project // "" else .[0].Project // "" end')
+          if [ "$actual_project" != "$COMPOSE_PROJECT_NAME" ]; then
+            echo "expected postgres container Project=$COMPOSE_PROJECT_NAME, got Project=$actual_project" >&2
+            docker compose ps --format json >&2 || true
             exit 1
           fi
       - name: Tear down
         if: always()
-        run: bash scripts/local-dev-down.sh --clean
+        run: |
+          source scripts/lib/compose_project.sh
+          export COMPOSE_PROJECT_NAME="$(resolve_compose_project_name "$PWD")"
+          bash scripts/local-dev-down.sh --clean
 
   web-lint:
     runs-on: ubuntu-latest

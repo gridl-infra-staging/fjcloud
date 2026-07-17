@@ -1,0 +1,358 @@
+{
+  "config": {
+    "configFile": "web/playwright.config.ts",
+    "rootDir": "web/tests",
+    "forbidOnly": false,
+    "fullyParallel": false,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "setup:user",
+        "name": "setup:user",
+        "testDir": "web/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/fixtures\\/auth\\.setup\\.ts/"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "setup:admin",
+        "name": "setup:admin",
+        "testDir": "web/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/fixtures\\/admin\\.auth\\.setup\\.ts/"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "setup:onboarding",
+        "name": "setup:onboarding",
+        "testDir": "web/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/fixtures\\/onboarding\\.auth\\.setup\\.ts/"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "setup:customer-journeys",
+        "name": "setup:customer-journeys",
+        "testDir": "web/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/fixtures\\/customer-journeys\\.auth\\.setup\\.ts/"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium:public",
+        "name": "chromium:public",
+        "testDir": "web/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/e2e-ui\\/(smoke|full)\\/public-.+\\.spec\\.ts/"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium:signup",
+        "name": "chromium:signup",
+        "testDir": "web/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/e2e-ui\\/full\\/signup_to_paid_invoice\\.spec\\.ts/"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium:mocked",
+        "name": "chromium:mocked",
+        "testDir": "web/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/e2e-ui\\/mocked\\/.+\\.spec\\.ts/"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium",
+        "name": "chromium",
+        "testDir": "web/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/e2e-ui\\/(smoke|full)\\/(?!admin|public-|onboarding\\.|customer-journeys\\.|signup_to_paid_invoice\\.).+\\.spec\\.ts/"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium:onboarding",
+        "name": "chromium:onboarding",
+        "testDir": "web/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/e2e-ui\\/full\\/onboarding\\.spec\\.ts/"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium:customer-journeys",
+        "name": "chromium:customer-journeys",
+        "testDir": "web/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/e2e-ui\\/full\\/customer-journeys\\.spec\\.ts/"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium:admin",
+        "name": "chromium:admin",
+        "testDir": "web/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/e2e-ui\\/full\\/admin\\/.+\\.spec\\.ts/"
+        ],
+        "timeout": 30000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "json"
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "runAgents": "none",
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.58.2",
+    "workers": 1,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "fixtures/auth.setup.ts",
+      "file": "fixtures/auth.setup.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "authenticate as customer",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 220000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "setup:user",
+              "projectName": "setup:user",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1181,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-07-06T21:34:04.232Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "6db7255f214771fc958b-8ad38d4213689c9057c1",
+          "file": "fixtures/auth.setup.ts",
+          "line": 110,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "title": "e2e-ui/full/polished_beta_staging_verify.spec.ts",
+      "file": "e2e-ui/full/polished_beta_staging_verify.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Polished beta deployed staging verification",
+          "file": "e2e-ui/full/polished_beta_staging_verify.spec.ts",
+          "line": 178,
+          "column": 6,
+          "specs": [
+            {
+              "title": "Lane B - Rules tab slug lands on merchandising hub @staging_verify",
+              "ok": false,
+              "tags": [
+                "staging_verify"
+              ],
+              "tests": [
+                {
+                  "timeout": 240000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 918,
+                      "error": {
+                        "message": "Error: ssm_exec_staging.sh exited 254. stdout= stderr=",
+                        "stack": "Error: ssm_exec_staging.sh exited 254. stdout= stderr=\n    at execSsmStagingShell (web/tests/fixtures/staging_db_lookup.ts:166:9)\n    at findVerificationTokenViaStagingSsm (web/tests/fixtures/staging_db_lookup.ts:181:17)\n    at verifyTrackedCustomerEmailForRemote (web/tests/fixtures/fixtures.ts:92:34)\n    at web/tests/fixtures/fixtures.ts:3829:10\n    at web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts:184:20",
+                        "location": {
+                          "file": "web/tests/fixtures/staging_db_lookup.ts",
+                          "column": 9,
+                          "line": 166
+                        },
+                        "snippet": "   at fixtures/staging_db_lookup.ts:166\n\n  164 | \t}\n  165 | \tif (result.status !== 0) {\n> 166 | \t\tthrow new Error(\n      | \t\t      ^\n  167 | \t\t\t`ssm_exec_staging.sh exited ${result.status}. stdout=${result.stdout?.trim() ?? ''} stderr=${result.stderr?.trim() ?? ''}`\n  168 | \t\t);\n  169 | \t}"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "web/tests/fixtures/staging_db_lookup.ts",
+                            "column": 9,
+                            "line": 166
+                          },
+                          "message": "Error: ssm_exec_staging.sh exited 254. stdout= stderr=\n\n   at fixtures/staging_db_lookup.ts:166\n\n  164 | \t}\n  165 | \tif (result.status !== 0) {\n> 166 | \t\tthrow new Error(\n      | \t\t      ^\n  167 | \t\t\t`ssm_exec_staging.sh exited ${result.status}. stdout=${result.stdout?.trim() ?? ''} stderr=${result.stderr?.trim() ?? ''}`\n  168 | \t\t);\n  169 | \t}\n    at execSsmStagingShell (web/tests/fixtures/staging_db_lookup.ts:166:9)\n    at findVerificationTokenViaStagingSsm (web/tests/fixtures/staging_db_lookup.ts:181:17)\n    at verifyTrackedCustomerEmailForRemote (web/tests/fixtures/fixtures.ts:92:34)\n    at web/tests/fixtures/fixtures.ts:3829:10\n    at web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts:184:20"
+                        },
+                        {
+                          "location": {
+                            "file": "web/tests/fixtures/contract-guards.ts",
+                            "column": 9,
+                            "line": 11
+                          },
+                          "message": "Error: E2E_ADMIN_KEY must be set for admin API calls\n\n   at fixtures/contract-guards.ts:11\n\n   9 | export function requireNonBlankString(value: string, errorMessage: string): string {\n  10 | \tif (!value.trim()) {\n> 11 | \t\tthrow new Error(errorMessage);\n     | \t\t      ^\n  12 | \t}\n  13 | \treturn value;\n  14 | }\n    at requireNonBlankString (web/tests/fixtures/contract-guards.ts:11:9)\n    at requireAdminApiKey (web/tests/fixtures/contract-guards.ts:17:9)\n    at adminApiCall (web/tests/fixtures/fixtures.ts:1501:22)\n    at deleteCustomerForCleanup (web/tests/fixtures/fixtures.ts:1552:25)\n    at runTrackedCustomerCleanup (web/tests/fixtures/fixtures.ts:1675:10)\n    at Object._trackCustomerForCleanup (web/tests/fixtures/fixtures.ts:3712:3)"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-07-06T21:34:06.146Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "web/test-results/e2e-ui-full-polished_beta_-d9ae2-andising-hub-staging-verify-chromium/test-failed-1.png"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "web/tests/fixtures/staging_db_lookup.ts",
+                        "column": 9,
+                        "line": 166
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "def1f8a49cd90f5801f0-4d7686fe716750862572",
+              "file": "e2e-ui/full/polished_beta_staging_verify.spec.ts",
+              "line": 229,
+              "column": 2
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-07-06T21:34:03.797Z",
+    "duration": 3543.741,
+    "expected": 1,
+    "skipped": 0,
+    "unexpected": 1,
+    "flaky": 0
+  }
+}

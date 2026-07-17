@@ -1,0 +1,3 @@
+timestamp_start=2026-04-29T08:29:48Z
+command=gh run watch 25098729424 --exit-status
+Run CI (25098729424) has already completed with 'failure'

@@ -1,0 +1,1 @@
+bash scripts/check_evidence_secret_hygiene.sh

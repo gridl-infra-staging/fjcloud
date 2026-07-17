@@ -1,0 +1,7 @@
+source_green_bundle=docs/runbooks/evidence/staging-billing-rehearsal/20260712T010555Z_current_main
+billing_month=2026-07
+secret_source=/Users/stuart/repos/gridl-infra-dev/fjcloud_dev/.secret/.env.secret
+stripe_environment_contract=docs/design/stripe_environments.md
+head_sha=d800fde0b307ac7ee1bc23ab36b8b7d52cab57c9
+inbox_probe_default_month=2026-07
+inbox_probe_default_month_matches_billing_month=true

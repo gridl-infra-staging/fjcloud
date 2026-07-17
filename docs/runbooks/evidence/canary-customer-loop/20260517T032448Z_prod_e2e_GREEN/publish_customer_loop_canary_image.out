@@ -1,0 +1,3 @@
+Login Succeeded
+Published customer-loop canary image: 213880904778.dkr.ecr.us-east-1.amazonaws.com/fjcloud-prod-customer-loop-canary:9e9714cf7137
+INFO: skipping post-publish prod invoke because the wrapper did not enable it.

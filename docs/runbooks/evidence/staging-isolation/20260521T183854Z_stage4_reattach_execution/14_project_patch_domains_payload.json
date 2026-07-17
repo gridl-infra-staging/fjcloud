@@ -1,0 +1,7 @@
+{
+  "domains": [
+    "flapjack-cloud.pages.dev",
+    "cloud.flapjack.foo",
+    "cloud.staging.flapjack.foo"
+  ]
+}

@@ -1,0 +1,776 @@
+# Repo GC Manifest
+
+Created UTC: 20260712T184857Z
+Repo: fjcloud_dev
+HEAD: 97a16b11e4750bc312f1aedde7105b76c5690423
+Purpose: committed approval bundle for Stage 2 repo garbage collection. This bundle is the single source of truth for Stage 2 deletion; no destructive operation was run while creating it.
+
+## PURPOSE
+
+Create deletion-ready approval lists and per-ref receipts for stale fjcloud worktrees and refs that were already dispositioned by ROADMAP.md. Stage 2 may delete only items named in the machine-readable manifest files in this directory.
+
+## Out Of Scope
+
+- No worktree removal, branch deletion, remote mutation, pruning, or ~/.matt/** mutation is approved by this Stage 1 bundle.
+- Protected refs/checkouts: main, origin/main, /Users/stuart/repos/gridl-infra-dev/fjcloud_dev, the current jul12 worktree, every batman/jul12_pm_* branch/worktree, ~/.matt/**, and worktrees outside <worktree-root>/fjcloud_dev/.
+- Branch-backed worktrees whose branch is not an ancestor of main are recorded as rejected/out-of-scope, never listed for deletion.
+
+## Safety Rails
+
+- Worktree approvals are path-only in manifest_worktrees.txt.
+- Local branch approvals are one ref name per line in manifest_freed_branches.txt and manifest_backup_refs.txt.
+- Remote branch approvals are short branch names only in manifest_remote_branches.txt; receipts use origin/<branch>.
+- manifest_branches.txt is the union of local branch/ref names Stage 2 may pass to git branch -D.
+
+## Source Evidence Paths
+
+- docs/runbooks/evidence/repo-gc/20260712T184857Z/metadata.txt
+- docs/runbooks/evidence/repo-gc/20260712T184857Z/source_context.txt
+- docs/runbooks/evidence/repo-gc/20260712T184857Z/inventory_worktrees_porcelain.txt
+- docs/runbooks/evidence/repo-gc/20260712T184857Z/inventory_branch_merged_main.txt
+- docs/runbooks/evidence/repo-gc/20260712T184857Z/inventory_branch_no_merged_main.txt
+- docs/runbooks/evidence/repo-gc/20260712T184857Z/inventory_branch_backup.txt
+- docs/runbooks/evidence/repo-gc/20260712T184857Z/inventory_remote_no_merged_origin_main.txt
+- docs/runbooks/evidence/repo-gc/20260712T184857Z/inventory_ls_remote_heads_origin.txt
+
+## Approved Worktrees
+
+- fjcloud_dev
+  - Branch: batman/jul06_pm_2_signup_cta_restore_public_launch
+  - HEAD SHA: 8a3c6e18364b8619e7c891232008345702301f1e
+  - Ancestor proof: git merge-base --is-ancestor batman/jul06_pm_2_signup_cta_restore_public_launch main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_dev
+  - Branch: batman/jul06_pm_3_deploy_currency_drift_alarm
+  - HEAD SHA: bd1095d7380a2453c42dd3a92a4dd5741c31e6c3
+  - Ancestor proof: git merge-base --is-ancestor batman/jul06_pm_3_deploy_currency_drift_alarm main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_dev
+  - Branch: batman/jul06_pm_5_public_release_verify_and_closeout
+  - HEAD SHA: 8b456e86a81598a454cf96f579a8fac6ae8899aa
+  - Ancestor proof: git merge-base --is-ancestor batman/jul06_pm_5_public_release_verify_and_closeout main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_dev
+  - Branch: batman/jul07_3pm_15_staging_billing_rehearsal_rerun
+  - HEAD SHA: e59ea7e72d103cd8c64aaed4f4c650dfa99c49b1
+  - Ancestor proof: git merge-base --is-ancestor batman/jul07_3pm_15_staging_billing_rehearsal_rerun main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_dev
+  - Branch: batman/jul07_3pm_17_e2e_deployed_failure_paging
+  - HEAD SHA: a139aaf1d17deb70424e9c6e86d3ff2ed861ee0f
+  - Ancestor proof: git merge-base --is-ancestor batman/jul07_3pm_17_e2e_deployed_failure_paging main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_dev
+  - Branch: batman/jul07_3pm_7_api_types_client_split_openapi_drift
+  - HEAD SHA: 809ac50810f121eda4f21caa189d9b168a76e791
+  - Ancestor proof: git merge-base --is-ancestor batman/jul07_3pm_7_api_types_client_split_openapi_drift main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_dev
+  - Branch: batman/jul07_am_1_polished_beta_staging_verify_rerun2
+  - HEAD SHA: fc2c0981cc344ce3d399775605841692351bba73
+  - Ancestor proof: git merge-base --is-ancestor batman/jul07_am_1_polished_beta_staging_verify_rerun2 main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_dev
+  - Branch: batman/jul07_am_2_web_deploy_automation
+  - HEAD SHA: a6d5d3f380008150107384e896a3ab8a1b0db5dc
+  - Ancestor proof: git merge-base --is-ancestor batman/jul07_am_2_web_deploy_automation main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_dev
+  - Branch: batman/jul07_pm_1_verify_findings_fix
+  - HEAD SHA: 29b02ccb9c6d2ad17d1d84b8449cc199a52ef4b5
+  - Ancestor proof: git merge-base --is-ancestor batman/jul07_pm_1_verify_findings_fix main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_dev
+  - Branch: batman/jul07_pm_8_polished_beta_staging_verify_rerun6
+  - HEAD SHA: f6d2088f4a4c5ef24a347939d4b5669eee6fd4fe
+  - Ancestor proof: git merge-base --is-ancestor batman/jul07_pm_8_polished_beta_staging_verify_rerun6 main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_dev
+  - Branch: batman/jul08_pm_2_rc_rerun_clean_bundle_v2
+  - HEAD SHA: efb46663c7ad56da68709c2b1eba6b68158700a7
+  - Ancestor proof: git merge-base --is-ancestor batman/jul08_pm_2_rc_rerun_clean_bundle_v2 main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_dev
+  - Branch: batman/jul09_am_2_panics_total_cloudwatch_alarm
+  - HEAD SHA: d0891e3b5ad9ed810f6866fd570234c2c56cd82d
+  - Ancestor proof: git merge-base --is-ancestor batman/jul09_am_2_panics_total_cloudwatch_alarm main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_dev
+  - Branch: batman/jul09_am_6_staging_billing_rehearsal_rerun2
+  - HEAD SHA: 6770f172e517bfa36c4e60d741259b3691afad49
+  - Ancestor proof: git merge-base --is-ancestor batman/jul09_am_6_staging_billing_rehearsal_rerun2 main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_dev
+  - Branch: batman/jul09_pm_1_staging_domain_remap_and_served_content_gate
+  - HEAD SHA: 2fe30f54dc6f8203114756fae3f2b1b623545ea4
+  - Ancestor proof: git merge-base --is-ancestor batman/jul09_pm_1_staging_domain_remap_and_served_content_gate main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_dev
+  - Branch: batman/jul09_pm_3_tenant_isolation_proptest_fix
+  - HEAD SHA: 492c642ef302947f9d85f0ee006ed4a298520048
+  - Ancestor proof: git merge-base --is-ancestor batman/jul09_pm_3_tenant_isolation_proptest_fix main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_dev
+  - Branch: batman/jun04_am_1_ci_hygiene_deploy_currency_and_playwright_stripe_mode
+  - HEAD SHA: 3498dac8232ce9a6bde1da3ab317bf3a8a445ef4
+  - Ancestor proof: git merge-base --is-ancestor batman/jun04_am_1_ci_hygiene_deploy_currency_and_playwright_stripe_mode main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_stage3_mainline
+  - Branch: stage3_mainline_integration
+  - HEAD SHA: 17bc8521e32f6fa207d50d387eaa1d8ee4a848e4
+  - Ancestor proof: git merge-base --is-ancestor stage3_mainline_integration main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_dev
+  - Branch: batman/jun04_pm_4_editor_dialog_styling_pass
+  - HEAD SHA: bec1a6ecdb6f0e73a292ec543fdd05eb6904dc0b
+  - Ancestor proof: git merge-base --is-ancestor batman/jun04_pm_4_editor_dialog_styling_pass main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_dev
+  - Branch: batman/jun05_pm_2_rc_harness_critical_browser_surface
+  - HEAD SHA: 779c226b3022e0e6a6552d0154e874bae141c74b
+  - Ancestor proof: git merge-base --is-ancestor batman/jun05_pm_2_rc_harness_critical_browser_surface main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_dev
+  - Branch: batman/jun05_pm_3_rc_harness_live_evidence_completeness
+  - HEAD SHA: 78aae9138145bd66796929336f54586bc9cb804d
+  - Ancestor proof: git merge-base --is-ancestor batman/jun05_pm_3_rc_harness_live_evidence_completeness main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_dev
+  - Branch: batman/jun05_ui_1147am_10_unified_search_tab
+  - HEAD SHA: f3df3254d37b6d0cf1110d302b8a0986dd0b9b25
+  - Ancestor proof: git merge-base --is-ancestor batman/jun05_ui_1147am_10_unified_search_tab main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_dev
+  - Branch: batman/jun05_ui_1147am_2_toast_p0_migration
+  - HEAD SHA: aed2761d46df8dc3f957d215837dfbe81379c24a
+  - Ancestor proof: git merge-base --is-ancestor batman/jun05_ui_1147am_2_toast_p0_migration main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_dev
+  - Branch: batman/jun05_ui_1147am_5_oauth_local_dx_and_account_delete_copy
+  - HEAD SHA: ac4dcddb63a02ea51143409c6cca7732e472103b
+  - Ancestor proof: git merge-base --is-ancestor batman/jun05_ui_1147am_5_oauth_local_dx_and_account_delete_copy main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_dev
+  - Branch: batman/jun09_am_2_verify_email_clickthrough_definitive_classification
+  - HEAD SHA: 407f6b06d9c25b5d4eedc0dc69818543fabd664f
+  - Ancestor proof: git merge-base --is-ancestor batman/jun09_am_2_verify_email_clickthrough_definitive_classification main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_dev
+  - Branch: batman/jun09_pm_10_pricing_tax_alert_emails_ci_polish
+  - HEAD SHA: 957eeec204e17e3fb166b1565b9240a0f66d603a
+  - Ancestor proof: git merge-base --is-ancestor batman/jun09_pm_10_pricing_tax_alert_emails_ci_polish main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_dev
+  - Branch: batman/jun09_pm_11_cargo_indexes_test_env_leak_fix_lane
+  - HEAD SHA: 9240e400e447966f3af58ae0b2de9df5e968fb04
+  - Ancestor proof: git merge-base --is-ancestor batman/jun09_pm_11_cargo_indexes_test_env_leak_fix_lane main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_dev
+  - Branch: batman/jun09_pm_1_merchandising_hub_pivot
+  - HEAD SHA: cc9db222bcf0e43e3429a0e62bf20cd600b92066
+  - Ancestor proof: git merge-base --is-ancestor batman/jun09_pm_1_merchandising_hub_pivot main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_dev
+  - Branch: batman/jun09_pm_2_ui_test_coverage_p0
+  - HEAD SHA: 9a0e517720d450086b3b2ebd062849a5c2ec29b9
+  - Ancestor proof: git merge-base --is-ancestor batman/jun09_pm_2_ui_test_coverage_p0 main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_dev
+  - Branch: batman/jun09_pm_4_merch_mode_toggle_on_search
+  - HEAD SHA: 8f3544f5570b348d400e97a991abfeda2f0ef786
+  - Ancestor proof: git merge-base --is-ancestor batman/jun09_pm_4_merch_mode_toggle_on_search main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_dev
+  - Branch: batman/jun09_pm_5_staging_verification_rc_reverdict_and_closeout
+  - HEAD SHA: c6bc443e93510781968cb23b3a689a2f16d6b28c
+  - Ancestor proof: git merge-base --is-ancestor batman/jun09_pm_5_staging_verification_rc_reverdict_and_closeout main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_dev
+  - Branch: batman/jun09_pm_8_staging_billing_rehearsal_seed
+  - HEAD SHA: 1a513d42522905df94fef660f8f1643a5b851dc4
+  - Ancestor proof: git merge-base --is-ancestor batman/jun09_pm_8_staging_billing_rehearsal_seed main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_dev
+  - Branch: batman/jun10_pm_1_probe_contract_drift_and_lane_b_count_reconciliation
+  - HEAD SHA: 9f1d5e3554621a8f4f0369f63dac05dca32214fa
+  - Ancestor proof: git merge-base --is-ancestor batman/jun10_pm_1_probe_contract_drift_and_lane_b_count_reconciliation main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_dev
+  - Branch: batman/jun10_pm_2_staging_billing_rehearsal_repeatability
+  - HEAD SHA: b6659fca41481a972e0748ce99e2971ad3b579de
+  - Ancestor proof: git merge-base --is-ancestor batman/jun10_pm_2_staging_billing_rehearsal_repeatability main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_dev
+  - Branch: batman/jun10_pm_3_worktree_path_and_duplicate_todo_cleanup
+  - HEAD SHA: a29ac8efb31ea71adf7dd1264d049bbfc299aa7f
+  - Ancestor proof: git merge-base --is-ancestor batman/jun10_pm_3_worktree_path_and_duplicate_todo_cleanup main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_dev
+  - Branch: batman/jun10_pm_4_polished_beta_staging_verification_rerun
+  - HEAD SHA: 75bebb18af9c89f3731afee63fd9aec18f5ad3a9
+  - Ancestor proof: git merge-base --is-ancestor batman/jun10_pm_4_polished_beta_staging_verification_rerun main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_dev
+  - Branch: detached
+  - HEAD SHA: f0c00c7baffe1e4b547edb27dea71b33a17f1ab0
+  - Ancestor proof: git merge-base --is-ancestor f0c00c7baffe1e4b547edb27dea71b33a17f1ab0 main exit=0
+  - Disposition: approved-detached
+- fjcloud_dev
+  - Branch: batman/jun11_pm_10_final_rc_and_closeout
+  - HEAD SHA: d244f08c7c59db87fb629d7060e5f80a59ea735c
+  - Ancestor proof: git merge-base --is-ancestor batman/jun11_pm_10_final_rc_and_closeout main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_dev
+  - Branch: batman/jun11_pm_2_stage2_blocked_evidence
+  - HEAD SHA: ce1d0258c8508b04bed646e0ae0d35ae4d0294f4
+  - Ancestor proof: git merge-base --is-ancestor batman/jun11_pm_2_stage2_blocked_evidence main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_dev
+  - Branch: detached
+  - HEAD SHA: 417a036f6a07c4c7cc7d576b6d85140dc0ec6774
+  - Ancestor proof: git merge-base --is-ancestor 417a036f6a07c4c7cc7d576b6d85140dc0ec6774 main exit=1
+  - Disposition: approved-detached
+- fjcloud_dev
+  - Branch: batman/jun11_pm_7_aws_live_infra_e2e
+  - HEAD SHA: ce9f76ac5509cd31b6a9e72b0ac492f84a9c2be6
+  - Ancestor proof: git merge-base --is-ancestor batman/jun11_pm_7_aws_live_infra_e2e main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_dev
+  - Branch: batman/may16_9pm_1_ses_production_access_and_reputation_alarms
+  - HEAD SHA: 497bf9891d0e1eeff8459ff973c4bae9fcba1b25
+  - Ancestor proof: git merge-base --is-ancestor batman/may16_9pm_1_ses_production_access_and_reputation_alarms main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_dev
+  - Branch: batman/may16_9pm_2_auth_hardening_lockout_and_rate_limits
+  - HEAD SHA: f37f579b8e605f8821dd3b155c2b965064c724f7
+  - Ancestor proof: git merge-base --is-ancestor batman/may16_9pm_2_auth_hardening_lockout_and_rate_limits main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_dev
+  - Branch: batman/may16_9pm_3_stripe_dispute_chargeback_handlers
+  - HEAD SHA: ed34c74a3c6180687b33219c35d2dd9da609765d
+  - Ancestor proof: git merge-base --is-ancestor batman/may16_9pm_3_stripe_dispute_chargeback_handlers main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_dev
+  - Branch: batman/may16_9pm_4_full_prod_vm_lifecycle_proof
+  - HEAD SHA: 3e0b73bb10ffa88dae000f5199f31a0c09bf126e
+  - Ancestor proof: git merge-base --is-ancestor batman/may16_9pm_4_full_prod_vm_lifecycle_proof main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_dev
+  - Branch: batman/may16_pm_1_gitleaks_evidence_dir_allowlist
+  - HEAD SHA: 81fe4e130b493fe4ad861f9255516398eb90c755
+  - Ancestor proof: git merge-base --is-ancestor batman/may16_pm_1_gitleaks_evidence_dir_allowlist main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_dev
+  - Branch: batman/may16_pm_2_debbie_stub_strip_blank_line
+  - HEAD SHA: 35806ecc7854113bf69eb83f867a73338fa79a0e
+  - Ancestor proof: git merge-base --is-ancestor batman/may16_pm_2_debbie_stub_strip_blank_line main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_dev
+  - Branch: batman/may16_pm_3_playwright_customer_login_fixture
+  - HEAD SHA: f74cc82c0c0cef5e1eedd0c214f82074a00b5bd4
+  - Ancestor proof: git merge-base --is-ancestor batman/may16_pm_3_playwright_customer_login_fixture main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_dev
+  - Branch: batman/may16_pm_4_prod_canary_e2e_evidence
+  - HEAD SHA: f3e42ddc473d6e06f870c66fbf682eb242d0422c
+  - Ancestor proof: git merge-base --is-ancestor batman/may16_pm_4_prod_canary_e2e_evidence main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_dev
+  - Branch: batman/may16_pm_5_self_service_upgrade_endpoint_and_trust_ratchet
+  - HEAD SHA: adf2c68c1e34caaf62c866ae2a947287cb5fc10b
+  - Ancestor proof: git merge-base --is-ancestor batman/may16_pm_5_self_service_upgrade_endpoint_and_trust_ratchet main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_dev
+  - Branch: batman/may16_pm_6_quota_warning_emails_records_storage
+  - HEAD SHA: 76f2a9da2cab18578d71f8122faf9aafc4dc1b36
+  - Ancestor proof: git merge-base --is-ancestor batman/may16_pm_6_quota_warning_emails_records_storage main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_dev
+  - Branch: batman/may18_pm_1_may16_wave_deploy_verify_sweep
+  - HEAD SHA: a99a745d9b9db6bfbcebcf9ededc5cf1a9668534
+  - Ancestor proof: git merge-base --is-ancestor batman/may18_pm_1_may16_wave_deploy_verify_sweep main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_dev
+  - Branch: batman/may18_pm_3_customer_trust_surfaces
+  - HEAD SHA: a681755667175c7e22fd287225702aef397ee7a4
+  - Ancestor proof: git merge-base --is-ancestor batman/may18_pm_3_customer_trust_surfaces main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_dev
+  - Branch: batman/may19_pm_1_privacy_card_reuse_pattern
+  - HEAD SHA: 2d6bcfb419f8744d0661c13965ccb94bf45ba02a
+  - Ancestor proof: git merge-base --is-ancestor batman/may19_pm_1_privacy_card_reuse_pattern main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_dev
+  - Branch: batman/may19_pm_3_stripe_key_rotation_and_audit
+  - HEAD SHA: 99f791612bccbe3568979e17b1caa3c818ce4bf1
+  - Ancestor proof: git merge-base --is-ancestor batman/may19_pm_3_stripe_key_rotation_and_audit main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_dev
+  - Branch: batman/may19_pm_4_gitleaks_secret_scan_remediation
+  - HEAD SHA: f58513313d9e8a5ecba02430e3b3ee07ff86b775
+  - Ancestor proof: git merge-base --is-ancestor batman/may19_pm_4_gitleaks_secret_scan_remediation main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_dev
+  - Branch: batman/may19_pm_5_staging_tls_host_routing
+  - HEAD SHA: 58f17c15be35abdb9adaecdb9c85090b3e69b2fa
+  - Ancestor proof: git merge-base --is-ancestor batman/may19_pm_5_staging_tls_host_routing main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_dev
+  - Branch: batman/may19_pm_6_subprocessor_disclosure_and_tax_posture
+  - HEAD SHA: 5aff60740bc408718761fb811f9517fce129326f
+  - Ancestor proof: git merge-base --is-ancestor batman/may19_pm_6_subprocessor_disclosure_and_tax_posture main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_dev
+  - Branch: batman/may20_3pm_1_fleet_recovery
+  - HEAD SHA: d26d99622635f55b28513ae5d03561994fb1a637
+  - Ancestor proof: git merge-base --is-ancestor batman/may20_3pm_1_fleet_recovery main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_dev
+  - Branch: batman/may20_3pm_2_pipeline_propagation
+  - HEAD SHA: 74bf84243e20091583262f966eed00e185340771
+  - Ancestor proof: git merge-base --is-ancestor batman/may20_3pm_2_pipeline_propagation main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_dev
+  - Branch: batman/may20_3pm_3_stripe_credential_revocation
+  - HEAD SHA: 8e296ec1b97f16714743f10419fba74164a5d642
+  - Ancestor proof: git merge-base --is-ancestor batman/may20_3pm_3_stripe_credential_revocation main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_dev
+  - Branch: batman/may20_3pm_4_launch_verification
+  - HEAD SHA: 4f8eb97c4f4047cecb31f477722d73d746fa4ad7
+  - Ancestor proof: git merge-base --is-ancestor batman/may20_3pm_4_launch_verification main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_dev
+  - Branch: batman/may21_12pm_10_subprocessor_probe_rerun
+  - HEAD SHA: 3827d61cbd21b7a513191a9690c62d85ec425c38
+  - Ancestor proof: git merge-base --is-ancestor batman/may21_12pm_10_subprocessor_probe_rerun main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_dev
+  - Branch: batman/may21_12pm_11_inventory_diagnosis
+  - HEAD SHA: c2ad6045c157beada0b2e339c45f745bb10c0d77
+  - Ancestor proof: git merge-base --is-ancestor batman/may21_12pm_11_inventory_diagnosis main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_dev
+  - Branch: batman/may21_12pm_12_app_flapjack_foo_retirement
+  - HEAD SHA: 8ea753fbf370117dd609c9d4654e3abb9aab955a
+  - Ancestor proof: git merge-base --is-ancestor batman/may21_12pm_12_app_flapjack_foo_retirement main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_dev
+  - Branch: batman/may21_12pm_1_cloudflare_prod_env_flip
+  - HEAD SHA: 93850e39390b4ee62ce13e5ac689a221adeabcd1
+  - Ancestor proof: git merge-base --is-ancestor batman/may21_12pm_1_cloudflare_prod_env_flip main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_dev
+  - Branch: batman/may21_12pm_2_prod_db_leak_cleanup
+  - HEAD SHA: f8fe82f9c3c798497aa580100fe76fbbab94afca
+  - Ancestor proof: git merge-base --is-ancestor batman/may21_12pm_2_prod_db_leak_cleanup main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_dev
+  - Branch: batman/may21_12pm_3_staging_web_isolation
+  - HEAD SHA: cb643e7970590fbe4535cc5d6122125b140db7e6
+  - Ancestor proof: git merge-base --is-ancestor batman/may21_12pm_3_staging_web_isolation main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_dev
+  - Branch: batman/may21_12pm_4_browser_lane_rerun
+  - HEAD SHA: 22f42a7d68b8b5d96e8ee1ddccbc5d46f6d13cb9
+  - Ancestor proof: git merge-base --is-ancestor batman/may21_12pm_4_browser_lane_rerun main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_dev
+  - Branch: batman/may21_12pm_8_alert_emails
+  - HEAD SHA: 4b28570f7b9fe32264a87347e8d6237dc00efc04
+  - Ancestor proof: git merge-base --is-ancestor batman/may21_12pm_8_alert_emails main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_dev
+  - Branch: batman/may22_1pm_1_lb2_lb3_diagnose_and_fix
+  - HEAD SHA: 9d068f2f147726a33aef4955e6ab964a33596554
+  - Ancestor proof: git merge-base --is-ancestor batman/may22_1pm_1_lb2_lb3_diagnose_and_fix main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_dev
+  - Branch: batman/may22_2pm_1_state_ssot_framework
+  - HEAD SHA: 8bf722ab525a6a2d97d3e76cab5e102543d6d9c8
+  - Ancestor proof: git merge-base --is-ancestor batman/may22_2pm_1_state_ssot_framework main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_dev
+  - Branch: batman/may23_9pm_2_routes_dashboard_to_console
+  - HEAD SHA: b1711a34419533d3ab7ad45a6cd438f86189ec0a
+  - Ancestor proof: git merge-base --is-ancestor batman/may23_9pm_2_routes_dashboard_to_console main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_dev
+  - Branch: batman/may23_9pm_3_shared_layout_polish
+  - HEAD SHA: 3fccc51caba46ec47fac2148c105259e468e534e
+  - Ancestor proof: git merge-base --is-ancestor batman/may23_9pm_3_shared_layout_polish main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_dev
+  - Branch: batman/may23_9pm_4_visual_polish_pass
+  - HEAD SHA: e635364e4ba6ca58fe2f1b2aff0654857cf45821
+  - Ancestor proof: git merge-base --is-ancestor batman/may23_9pm_4_visual_polish_pass main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_dev
+  - Branch: batman/may23_9pm_5_landing_ssot_and_cloud_redirect
+  - HEAD SHA: cd1b50732f5c0d5c3b5cd39f98e0e68031bdaabc
+  - Ancestor proof: git merge-base --is-ancestor batman/may23_9pm_5_landing_ssot_and_cloud_redirect main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_dev
+  - Branch: batman/may23_9pm_7_parity_audit
+  - HEAD SHA: 3aa973a964c81141d8a7c00dc9f85b3e98dcf0ed
+  - Ancestor proof: git merge-base --is-ancestor batman/may23_9pm_7_parity_audit main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_dev
+  - Branch: batman/may23_9pm_8_console_e2e_coverage_audit
+  - HEAD SHA: 6ca70d05fd70df357e7ddeedb533ac872640c5bb
+  - Ancestor proof: git merge-base --is-ancestor batman/may23_9pm_8_console_e2e_coverage_audit main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_dev
+  - Branch: batman/may24_20260524T202244Z_w3_1_implement_demo_index_loader_in
+  - HEAD SHA: 7623eaf4d720cacd78046debfc4af7f7cb4b54d7
+  - Ancestor proof: git merge-base --is-ancestor batman/may24_20260524T202244Z_w3_1_implement_demo_index_loader_in main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_dev
+  - Branch: batman/may24_812am_1_prod_unblock_and_ship
+  - HEAD SHA: 17e22d399b14862ec45a573203a1e31e18237bc7
+  - Ancestor proof: git merge-base --is-ancestor batman/may24_812am_1_prod_unblock_and_ship main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_dev
+  - Branch: batman/may24_812am_2_api_key_recognizer_tighten
+  - HEAD SHA: 6df8ece795c269456e29624af3a1fe8da5d0538f
+  - Ancestor proof: git merge-base --is-ancestor batman/may24_812am_2_api_key_recognizer_tighten main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_dev
+  - Branch: batman/may24_812am_3_w3_triage_fanout
+  - HEAD SHA: 04c83ecc057278c45c042d83c0f2fb1ae1a763cc
+  - Ancestor proof: git merge-base --is-ancestor batman/may24_812am_3_w3_triage_fanout main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_dev
+  - Branch: batman/may25_151pm_3_demo_loader_and_create_dialog
+  - HEAD SHA: feb19df82b2a6bc0aedfa3a8a6da484ddf3e9225
+  - Ancestor proof: git merge-base --is-ancestor batman/may25_151pm_3_demo_loader_and_create_dialog main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_dev
+  - Branch: batman/may25_151pm_wave_b_2b_recommendations_restructure
+  - HEAD SHA: 5fdb1a7b85d190f1ff1c7c830713f5e06aec9cca
+  - Ancestor proof: git merge-base --is-ancestor batman/may25_151pm_wave_b_2b_recommendations_restructure main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_dev
+  - Branch: batman/may25_151pm_wave_b_2d_rules_compound_editor
+  - HEAD SHA: 397a8e42e19a7cff120541fd23acecb9c3b0ab36
+  - Ancestor proof: git merge-base --is-ancestor batman/may25_151pm_wave_b_2d_rules_compound_editor main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_dev
+  - Branch: batman/may25_151pm_wave_b_3a_api_keys_parity
+  - HEAD SHA: b2ba9bf89166cb25b64afb72f143b9328a8d8a3e
+  - Ancestor proof: git merge-base --is-ancestor batman/may25_151pm_wave_b_3a_api_keys_parity main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_dev
+  - Branch: batman/may25_151pm_wave_b_3e_analytics_subtabs
+  - HEAD SHA: 751764bfbacd55804fa334d408abe0ab27b7e428
+  - Ancestor proof: git merge-base --is-ancestor batman/may25_151pm_wave_b_3e_analytics_subtabs main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_dev
+  - Branch: detached
+  - HEAD SHA: 7114c811cff5b56d736a6a7ab240925a3ed74310
+  - Ancestor proof: git merge-base --is-ancestor 7114c811cff5b56d736a6a7ab240925a3ed74310 main exit=1
+  - Disposition: approved-detached
+- fjcloud_dev
+  - Branch: batman/may27_pm_2_b1_rerun_final_launch_gate
+  - HEAD SHA: 27f69dacfccdb43c95e69e0a5d295599d25cc941
+  - Ancestor proof: git merge-base --is-ancestor batman/may27_pm_2_b1_rerun_final_launch_gate main exit=0
+  - Disposition: approved-merged-branch
+- fjcloud_dev
+  - Branch: batman/may29_pm_7_dunning_probe_rca
+  - HEAD SHA: 90470ed5020535df37ae89db05d24fe508c35bc7
+  - Ancestor proof: git merge-base --is-ancestor batman/may29_pm_7_dunning_probe_rca main exit=0
+  - Disposition: approved-merged-branch
+
+## Approved Freed Local Branches
+
+- batman/jul06_pm_2_signup_cta_restore_public_launch
+  - Receipt: disposition/batman_jul06_pm_2_signup_cta_restore_public_launch.txt
+- batman/jul06_pm_3_deploy_currency_drift_alarm
+  - Receipt: disposition/batman_jul06_pm_3_deploy_currency_drift_alarm.txt
+- batman/jul06_pm_5_public_release_verify_and_closeout
+  - Receipt: disposition/batman_jul06_pm_5_public_release_verify_and_closeout.txt
+- batman/jul07_3pm_15_staging_billing_rehearsal_rerun
+  - Receipt: disposition/batman_jul07_3pm_15_staging_billing_rehearsal_rerun.txt
+- batman/jul07_3pm_17_e2e_deployed_failure_paging
+  - Receipt: disposition/batman_jul07_3pm_17_e2e_deployed_failure_paging.txt
+- batman/jul07_3pm_7_api_types_client_split_openapi_drift
+  - Receipt: disposition/batman_jul07_3pm_7_api_types_client_split_openapi_drift.txt
+- batman/jul07_am_1_polished_beta_staging_verify_rerun2
+  - Receipt: disposition/batman_jul07_am_1_polished_beta_staging_verify_rerun2.txt
+- batman/jul07_am_2_web_deploy_automation
+  - Receipt: disposition/batman_jul07_am_2_web_deploy_automation.txt
+- batman/jul07_pm_1_verify_findings_fix
+  - Receipt: disposition/batman_jul07_pm_1_verify_findings_fix.txt
+- batman/jul07_pm_8_polished_beta_staging_verify_rerun6
+  - Receipt: disposition/batman_jul07_pm_8_polished_beta_staging_verify_rerun6.txt
+- batman/jul08_pm_2_rc_rerun_clean_bundle_v2
+  - Receipt: disposition/batman_jul08_pm_2_rc_rerun_clean_bundle_v2.txt
+- batman/jul09_am_2_panics_total_cloudwatch_alarm
+  - Receipt: disposition/batman_jul09_am_2_panics_total_cloudwatch_alarm.txt
+- batman/jul09_am_6_staging_billing_rehearsal_rerun2
+  - Receipt: disposition/batman_jul09_am_6_staging_billing_rehearsal_rerun2.txt
+- batman/jul09_pm_1_staging_domain_remap_and_served_content_gate
+  - Receipt: disposition/batman_jul09_pm_1_staging_domain_remap_and_served_content_gate.txt
+- batman/jul09_pm_3_tenant_isolation_proptest_fix
+  - Receipt: disposition/batman_jul09_pm_3_tenant_isolation_proptest_fix.txt
+- batman/jun04_am_1_ci_hygiene_deploy_currency_and_playwright_stripe_mode
+  - Receipt: disposition/batman_jun04_am_1_ci_hygiene_deploy_currency_and_playwright_stripe_mode.txt
+- batman/jun04_pm_4_editor_dialog_styling_pass
+  - Receipt: disposition/batman_jun04_pm_4_editor_dialog_styling_pass.txt
+- batman/jun05_pm_2_rc_harness_critical_browser_surface
+  - Receipt: disposition/batman_jun05_pm_2_rc_harness_critical_browser_surface.txt
+- batman/jun05_pm_3_rc_harness_live_evidence_completeness
+  - Receipt: disposition/batman_jun05_pm_3_rc_harness_live_evidence_completeness.txt
+- batman/jun05_ui_1147am_10_unified_search_tab
+  - Receipt: disposition/batman_jun05_ui_1147am_10_unified_search_tab.txt
+- batman/jun05_ui_1147am_2_toast_p0_migration
+  - Receipt: disposition/batman_jun05_ui_1147am_2_toast_p0_migration.txt
+- batman/jun05_ui_1147am_5_oauth_local_dx_and_account_delete_copy
+  - Receipt: disposition/batman_jun05_ui_1147am_5_oauth_local_dx_and_account_delete_copy.txt
+- batman/jun09_am_2_verify_email_clickthrough_definitive_classification
+  - Receipt: disposition/batman_jun09_am_2_verify_email_clickthrough_definitive_classification.txt
+- batman/jun09_pm_10_pricing_tax_alert_emails_ci_polish
+  - Receipt: disposition/batman_jun09_pm_10_pricing_tax_alert_emails_ci_polish.txt
+- batman/jun09_pm_11_cargo_indexes_test_env_leak_fix_lane
+  - Receipt: disposition/batman_jun09_pm_11_cargo_indexes_test_env_leak_fix_lane.txt
+- batman/jun09_pm_1_merchandising_hub_pivot
+  - Receipt: disposition/batman_jun09_pm_1_merchandising_hub_pivot.txt
+- batman/jun09_pm_2_ui_test_coverage_p0
+  - Receipt: disposition/batman_jun09_pm_2_ui_test_coverage_p0.txt
+- batman/jun09_pm_4_merch_mode_toggle_on_search
+  - Receipt: disposition/batman_jun09_pm_4_merch_mode_toggle_on_search.txt
+- batman/jun09_pm_5_staging_verification_rc_reverdict_and_closeout
+  - Receipt: disposition/batman_jun09_pm_5_staging_verification_rc_reverdict_and_closeout.txt
+- batman/jun09_pm_8_staging_billing_rehearsal_seed
+  - Receipt: disposition/batman_jun09_pm_8_staging_billing_rehearsal_seed.txt
+- batman/jun10_pm_1_probe_contract_drift_and_lane_b_count_reconciliation
+  - Receipt: disposition/batman_jun10_pm_1_probe_contract_drift_and_lane_b_count_reconciliation.txt
+- batman/jun10_pm_2_staging_billing_rehearsal_repeatability
+  - Receipt: disposition/batman_jun10_pm_2_staging_billing_rehearsal_repeatability.txt
+- batman/jun10_pm_3_worktree_path_and_duplicate_todo_cleanup
+  - Receipt: disposition/batman_jun10_pm_3_worktree_path_and_duplicate_todo_cleanup.txt
+- batman/jun10_pm_4_polished_beta_staging_verification_rerun
+  - Receipt: disposition/batman_jun10_pm_4_polished_beta_staging_verification_rerun.txt
+- batman/jun11_pm_10_final_rc_and_closeout
+  - Receipt: disposition/batman_jun11_pm_10_final_rc_and_closeout.txt
+- batman/jun11_pm_2_stage2_blocked_evidence
+  - Receipt: disposition/batman_jun11_pm_2_stage2_blocked_evidence.txt
+- batman/jun11_pm_7_aws_live_infra_e2e
+  - Receipt: disposition/batman_jun11_pm_7_aws_live_infra_e2e.txt
+- batman/may16_9pm_1_ses_production_access_and_reputation_alarms
+  - Receipt: disposition/batman_may16_9pm_1_ses_production_access_and_reputation_alarms.txt
+- batman/may16_9pm_2_auth_hardening_lockout_and_rate_limits
+  - Receipt: disposition/batman_may16_9pm_2_auth_hardening_lockout_and_rate_limits.txt
+- batman/may16_9pm_3_stripe_dispute_chargeback_handlers
+  - Receipt: disposition/batman_may16_9pm_3_stripe_dispute_chargeback_handlers.txt
+- batman/may16_9pm_4_full_prod_vm_lifecycle_proof
+  - Receipt: disposition/batman_may16_9pm_4_full_prod_vm_lifecycle_proof.txt
+- batman/may16_pm_1_gitleaks_evidence_dir_allowlist
+  - Receipt: disposition/batman_may16_pm_1_gitleaks_evidence_dir_allowlist.txt
+- batman/may16_pm_2_debbie_stub_strip_blank_line
+  - Receipt: disposition/batman_may16_pm_2_debbie_stub_strip_blank_line.txt
+- batman/may16_pm_3_playwright_customer_login_fixture
+  - Receipt: disposition/batman_may16_pm_3_playwright_customer_login_fixture.txt
+- batman/may16_pm_4_prod_canary_e2e_evidence
+  - Receipt: disposition/batman_may16_pm_4_prod_canary_e2e_evidence.txt
+- batman/may16_pm_5_self_service_upgrade_endpoint_and_trust_ratchet
+  - Receipt: disposition/batman_may16_pm_5_self_service_upgrade_endpoint_and_trust_ratchet.txt
+- batman/may16_pm_6_quota_warning_emails_records_storage
+  - Receipt: disposition/batman_may16_pm_6_quota_warning_emails_records_storage.txt
+- batman/may18_pm_1_may16_wave_deploy_verify_sweep
+  - Receipt: disposition/batman_may18_pm_1_may16_wave_deploy_verify_sweep.txt
+- batman/may18_pm_3_customer_trust_surfaces
+  - Receipt: disposition/batman_may18_pm_3_customer_trust_surfaces.txt
+- batman/may19_pm_1_privacy_card_reuse_pattern
+  - Receipt: disposition/batman_may19_pm_1_privacy_card_reuse_pattern.txt
+- batman/may19_pm_3_stripe_key_rotation_and_audit
+  - Receipt: disposition/batman_may19_pm_3_stripe_key_rotation_and_audit.txt
+- batman/may19_pm_4_gitleaks_secret_scan_remediation
+  - Receipt: disposition/batman_may19_pm_4_gitleaks_secret_scan_remediation.txt
+- batman/may19_pm_5_staging_tls_host_routing
+  - Receipt: disposition/batman_may19_pm_5_staging_tls_host_routing.txt
+- batman/may19_pm_6_subprocessor_disclosure_and_tax_posture
+  - Receipt: disposition/batman_may19_pm_6_subprocessor_disclosure_and_tax_posture.txt
+- batman/may20_3pm_1_fleet_recovery
+  - Receipt: disposition/batman_may20_3pm_1_fleet_recovery.txt
+- batman/may20_3pm_2_pipeline_propagation
+  - Receipt: disposition/batman_may20_3pm_2_pipeline_propagation.txt
+- batman/may20_3pm_3_stripe_credential_revocation
+  - Receipt: disposition/batman_may20_3pm_3_stripe_credential_revocation.txt
+- batman/may20_3pm_4_launch_verification
+  - Receipt: disposition/batman_may20_3pm_4_launch_verification.txt
+- batman/may21_12pm_10_subprocessor_probe_rerun
+  - Receipt: disposition/batman_may21_12pm_10_subprocessor_probe_rerun.txt
+- batman/may21_12pm_11_inventory_diagnosis
+  - Receipt: disposition/batman_may21_12pm_11_inventory_diagnosis.txt
+- batman/may21_12pm_12_app_flapjack_foo_retirement
+  - Receipt: disposition/batman_may21_12pm_12_app_flapjack_foo_retirement.txt
+- batman/may21_12pm_1_cloudflare_prod_env_flip
+  - Receipt: disposition/batman_may21_12pm_1_cloudflare_prod_env_flip.txt
+- batman/may21_12pm_2_prod_db_leak_cleanup
+  - Receipt: disposition/batman_may21_12pm_2_prod_db_leak_cleanup.txt
+- batman/may21_12pm_3_staging_web_isolation
+  - Receipt: disposition/batman_may21_12pm_3_staging_web_isolation.txt
+- batman/may21_12pm_4_browser_lane_rerun
+  - Receipt: disposition/batman_may21_12pm_4_browser_lane_rerun.txt
+- batman/may21_12pm_8_alert_emails
+  - Receipt: disposition/batman_may21_12pm_8_alert_emails.txt
+- batman/may22_1pm_1_lb2_lb3_diagnose_and_fix
+  - Receipt: disposition/batman_may22_1pm_1_lb2_lb3_diagnose_and_fix.txt
+- batman/may22_2pm_1_state_ssot_framework
+  - Receipt: disposition/batman_may22_2pm_1_state_ssot_framework.txt
+- batman/may23_9pm_2_routes_dashboard_to_console
+  - Receipt: disposition/batman_may23_9pm_2_routes_dashboard_to_console.txt
+- batman/may23_9pm_3_shared_layout_polish
+  - Receipt: disposition/batman_may23_9pm_3_shared_layout_polish.txt
+- batman/may23_9pm_4_visual_polish_pass
+  - Receipt: disposition/batman_may23_9pm_4_visual_polish_pass.txt
+- batman/may23_9pm_5_landing_ssot_and_cloud_redirect
+  - Receipt: disposition/batman_may23_9pm_5_landing_ssot_and_cloud_redirect.txt
+- batman/may23_9pm_7_parity_audit
+  - Receipt: disposition/batman_may23_9pm_7_parity_audit.txt
+- batman/may23_9pm_8_console_e2e_coverage_audit
+  - Receipt: disposition/batman_may23_9pm_8_console_e2e_coverage_audit.txt
+- batman/may24_20260524T202244Z_w3_1_implement_demo_index_loader_in
+  - Receipt: disposition/batman_may24_20260524T202244Z_w3_1_implement_demo_index_loader_in.txt
+- batman/may24_812am_1_prod_unblock_and_ship
+  - Receipt: disposition/batman_may24_812am_1_prod_unblock_and_ship.txt
+- batman/may24_812am_2_api_key_recognizer_tighten
+  - Receipt: disposition/batman_may24_812am_2_api_key_recognizer_tighten.txt
+- batman/may24_812am_3_w3_triage_fanout
+  - Receipt: disposition/batman_may24_812am_3_w3_triage_fanout.txt
+- batman/may25_151pm_3_demo_loader_and_create_dialog
+  - Receipt: disposition/batman_may25_151pm_3_demo_loader_and_create_dialog.txt
+- batman/may25_151pm_wave_b_2b_recommendations_restructure
+  - Receipt: disposition/batman_may25_151pm_wave_b_2b_recommendations_restructure.txt
+- batman/may25_151pm_wave_b_2d_rules_compound_editor
+  - Receipt: disposition/batman_may25_151pm_wave_b_2d_rules_compound_editor.txt
+- batman/may25_151pm_wave_b_3a_api_keys_parity
+  - Receipt: disposition/batman_may25_151pm_wave_b_3a_api_keys_parity.txt
+- batman/may25_151pm_wave_b_3e_analytics_subtabs
+  - Receipt: disposition/batman_may25_151pm_wave_b_3e_analytics_subtabs.txt
+- batman/may27_pm_2_b1_rerun_final_launch_gate
+  - Receipt: disposition/batman_may27_pm_2_b1_rerun_final_launch_gate.txt
+- batman/may29_pm_7_dunning_probe_rca
+  - Receipt: disposition/batman_may29_pm_7_dunning_probe_rca.txt
+- stage3_mainline_integration
+  - Receipt: disposition/stage3_mainline_integration.txt
+
+## Approved backup/* Refs
+
+- backup/stage1_before_replay_repair_20260527_011701
+  - Receipt: disposition/backup_stage1_before_replay_repair_20260527_011701.txt
+- backup/stage1_e8ce_before_xtheirs_20260527_011857
+  - Receipt: disposition/backup_stage1_e8ce_before_xtheirs_20260527_011857.txt
+- backup/stage1_parked_tip_before_rebase_20260527_011719
+  - Receipt: disposition/backup_stage1_parked_tip_before_rebase_20260527_011719.txt
+
+## Approved Remote Branches
+
+- batman/apr07_pm_2_local_evidence_ha_and_cold_storage
+  - Receipt: disposition/origin_batman_apr07_pm_2_local_evidence_ha_and_cold_storage.txt
+- batman/apr27_3pm_3_alert_webhook_and_canary_activation
+  - Receipt: disposition/origin_batman_apr27_3pm_3_alert_webhook_and_canary_activation.txt
+- batman/jul09_am_6_billing_rehearsal_real_run
+  - Receipt: disposition/origin_batman_jul09_am_6_billing_rehearsal_real_run.txt
+- batman/may25_151pm_wave_b_2a_synonyms_restructure
+  - Receipt: disposition/origin_batman_may25_151pm_wave_b_2a_synonyms_restructure.txt
+- batman/may25_151pm_wave_b_2c_events_overhaul
+  - Receipt: disposition/origin_batman_may25_151pm_wave_b_2c_events_overhaul.txt
+- batman/may25_151pm_wave_b_2e_personalization_full
+  - Receipt: disposition/origin_batman_may25_151pm_wave_b_2e_personalization_full.txt
+- batman/may25_151pm_wave_b_2f_dictionaries_rebuild
+  - Receipt: disposition/origin_batman_may25_151pm_wave_b_2f_dictionaries_rebuild.txt
+- batman/may25_151pm_wave_b_2g_experiments_wizard_and_detail
+  - Receipt: disposition/origin_batman_may25_151pm_wave_b_2g_experiments_wizard_and_detail.txt
+- batman/may25_151pm_wave_b_3f_merch_drag_suggestions_lifecycle
+  - Receipt: disposition/origin_batman_may25_151pm_wave_b_3f_merch_drag_suggestions_lifecycle.txt
+- batman/may25_151pm_wave_b_3h_settings_migrate_audit
+  - Receipt: disposition/origin_batman_may25_151pm_wave_b_3h_settings_migrate_audit.txt
+- batman/may26_9pm_wave_b_3f_refresh
+  - Receipt: disposition/origin_batman_may26_9pm_wave_b_3f_refresh.txt
+- codex/preserve_concurrent_dns_runtime_changes
+  - Receipt: disposition/origin_codex_preserve_concurrent_dns_runtime_changes.txt
+- matt/stage2-bundle-landed-s55
+  - Receipt: disposition/origin_matt_stage2_bundle_landed_s55.txt
+- mattman/MAR17_11_3_ux_polish_commerce
+  - Receipt: disposition/origin_mattman_MAR17_11_3_ux_polish_commerce.txt
+- s41_push_fix
+  - Receipt: disposition/origin_s41_push_fix.txt
+- stage4_s57_fix_blockers
+  - Receipt: disposition/origin_stage4_s57_fix_blockers.txt
+
+## Rejected Or Out-Of-Scope Worktrees
+
+- /Users/stuart/repos/gridl-infra-dev/fjcloud_dev
+  - Branch: main
+  - HEAD SHA: 247d7b8c0230982e3e553c6b3401b24d3059fed4
+  - Reason: other-repo-or-outside-parallel-root
+- /Users/stuart/.matt/merge-worktrees/fjcloud_dev-cc786cd1
+  - Branch: detached
+  - HEAD SHA: 23ef950135f4705478a5faf1ee3e56f75ba857a3
+  - Reason: other-repo-or-outside-parallel-root
+- fjcloud_dev
+  - Branch: batman/jul12_pm_1_rc_env_scoping_fix
+  - HEAD SHA: c0ba77d3d7d4a4da850577d29937a56c21c57987
+  - Reason: forbidden-jul12-worktree-or-branch
+- fjcloud_dev
+  - Branch: batman/jul12_pm_2_s1_clickthrough_db_visibility_fix
+  - HEAD SHA: 9412d332247b7d1d407d769109f2215e14a09e18
+  - Reason: forbidden-jul12-worktree-or-branch
+- fjcloud_dev
+  - Branch: batman/jul12_pm_3_s1_dunning_reset_stripe_json_fix
+  - HEAD SHA: bc6fa4b16e96cea2c276ce369e23cb2029fe8ef6
+  - Reason: forbidden-jul12-worktree-or-branch
+- fjcloud_dev
+  - Branch: batman/jul12_pm_4_shared_login_storage_state
+  - HEAD SHA: 5b8a214399bd668beeec94d85ce74d227e47e7bb
+  - Reason: forbidden-jul12-worktree-or-branch
+- fjcloud_dev
+  - Branch: batman/jul12_pm_5_metrics_probe_devalue_contract_fix
+  - HEAD SHA: 460d6f78bfb19912451cdc574cf6afe3abe1a8b4
+  - Reason: forbidden-jul12-worktree-or-branch
+- fjcloud_dev
+  - Branch: batman/jul12_pm_6_repo_gc_manifest_and_receipts
+  - HEAD SHA: 97a16b11e4750bc312f1aedde7105b76c5690423
+  - Reason: forbidden-jul12-worktree-or-branch
+
+## Rejected Or Out-Of-Scope Refs
+
+- main: protected local branch, never approved.
+- origin/main: protected remote branch, never approved.
+- backup/jun09_am_l1_rc_harness_pre_publish
+  - Receipt: disposition/backup_jun09_am_l1_rc_harness_pre_publish.txt
+  - Reason: discovered merged backup ref; not approved because ROADMAP.md scoped local backup deletion to backup/stage1_* refs.
+- batman/jul12_pm_1_rc_env_scoping_fix
+  - Receipt: disposition/batman_jul12_pm_1_rc_env_scoping_fix.txt
+  - Reason: unmerged local branch intentionally outside deletion scope.
+- batman/jul12_pm_2_s1_clickthrough_db_visibility_fix
+  - Receipt: disposition/batman_jul12_pm_2_s1_clickthrough_db_visibility_fix.txt
+  - Reason: unmerged local branch intentionally outside deletion scope.
+- batman/jul12_pm_3_s1_dunning_reset_stripe_json_fix
+  - Receipt: disposition/batman_jul12_pm_3_s1_dunning_reset_stripe_json_fix.txt
+  - Reason: unmerged local branch intentionally outside deletion scope.
+- batman/jul12_pm_4_shared_login_storage_state
+  - Receipt: disposition/batman_jul12_pm_4_shared_login_storage_state.txt
+  - Reason: unmerged local branch intentionally outside deletion scope.
+- batman/jul12_pm_5_metrics_probe_devalue_contract_fix
+  - Receipt: disposition/batman_jul12_pm_5_metrics_probe_devalue_contract_fix.txt
+  - Reason: unmerged local branch intentionally outside deletion scope.
+- batman/jul12_pm_6_repo_gc_manifest_and_receipts
+  - Receipt: disposition/batman_jul12_pm_6_repo_gc_manifest_and_receipts.txt
+  - Reason: unmerged local branch intentionally outside deletion scope.
+
+## Counts
+
+# Repo GC Manifest Summary
+
+| Count | Value |
+|---|---:|
+| Registered worktrees | 97 |
+| Approved worktrees | 89 |
+| Forbidden jul12 worktrees | 6 |
+| Local backup/* refs | 4 |
+| Approved local branch/ref deletions | 89 |
+| Unmerged local refs excluding batman/jul12_pm_* | 3 |
+| Approved unmerged remote refs | 16 |

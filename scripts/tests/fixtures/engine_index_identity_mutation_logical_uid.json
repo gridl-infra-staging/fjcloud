@@ -1,0 +1,4 @@
+{
+  "mutation": "logical_uid",
+  "expected_failure": "physical UID does not match expected tenant-scoped UID"
+}

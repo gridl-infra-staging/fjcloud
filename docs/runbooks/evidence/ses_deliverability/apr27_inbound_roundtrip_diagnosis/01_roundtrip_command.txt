@@ -1,0 +1,1 @@
+source scripts/lib/env.sh; load_env_file .secret/.env.secret; scripts/validate_inbound_email_roundtrip.sh

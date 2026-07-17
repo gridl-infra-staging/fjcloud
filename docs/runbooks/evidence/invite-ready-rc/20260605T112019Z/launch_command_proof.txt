@@ -1,0 +1,17 @@
+repo_root=fjcloud_dev
+bundle_path=docs/runbooks/evidence/invite-ready-rc/20260605T112019Z
+credential_env_file=/Users/stuart/repos/gridl-infra-dev/fjcloud_dev/.secret/.env.secret
+dispatch_start_utc=2026-06-05T11:20:19Z
+pre_existing_launch_rc_summary_count=8
+
+exact_single_shell_command_block:
+```bash
+set -a
+source /Users/stuart/repos/gridl-infra-dev/fjcloud_dev/.secret/.env.secret
+set +a
+bash scripts/launch/run_full_backend_validation.sh --paid-beta-rc --artifact-dir=docs/runbooks/evidence/invite-ready-rc/20260605T112019Z --credential-env-file=/Users/stuart/repos/gridl-infra-dev/fjcloud_dev/.secret/.env.secret 2>&1 | tee docs/runbooks/evidence/invite-ready-rc/20260605T112019Z/rc_harness_stdout.log
+```
+
+post_dispatch_launch_rc_summary_selection:
+No docs/runbooks/evidence/launch-rc-runs/*/summary.json file had mtime or JSON timestamp at-or-after dispatch_start_utc=2026-06-05T11:20:19Z.
+Fallback applied: copied harness-owned docs/runbooks/evidence/invite-ready-rc/20260605T112019Z/summary.json to docs/runbooks/evidence/invite-ready-rc/20260605T112019Z/rc_summary.json.

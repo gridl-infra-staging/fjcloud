@@ -1,0 +1,3 @@
+url=https://cloud.staging.flapjack.foo/_app/version.json
+http_code=200
+time_total=0.244661

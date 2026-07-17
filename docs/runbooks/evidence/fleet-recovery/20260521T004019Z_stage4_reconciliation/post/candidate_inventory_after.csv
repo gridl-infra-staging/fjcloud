@@ -1,0 +1,4 @@
+id,status,region,provider,hostname,flapjack_url,created_at,updated_at
+67b73188-86e0-4c80-b573-ec4180a6c205,active,us-east-1,aws,vm-shared-391f314f.flapjack.foo,http://vm-shared-391f314f.flapjack.foo:7700,2026-05-21 00:52:05.491125+00,2026-05-21 00:52:05.491125+00
+8afff260-6795-4239-9ac8-0a963746782b,active,us-east-1,aws,vm-shared-3bd2b971.flapjack.foo,http://vm-shared-3bd2b971.flapjack.foo:7700,2026-05-21 00:52:05.491125+00,2026-05-21 00:52:05.491125+00
+84f62708-e895-4fd9-a4c6-21f01d811b36,active,us-east-1,aws,vm-shared-480b5169.flapjack.foo,http://vm-shared-480b5169.flapjack.foo:7700,2026-05-21 00:52:05.491125+00,2026-05-21 00:52:05.491125+00

@@ -1,0 +1,15 @@
+{
+  "captured_at": "2026-07-09T07:10:46Z",
+  "dev": {
+    "repo": "gridl-infra-dev/fjcloud_dev",
+    "head": "f18b74af8eeee9909e93568693ff0921fedba53b"
+  },
+  "staging": {
+    "repo": "gridl-infra-staging/fjcloud",
+    "head": "d6cc42182bcd8c0f32335b8520e5a576e36cc1dd"
+  },
+  "prod": {
+    "repo": "gridl-infra-prod/fjcloud",
+    "head": "7cc594d8c4c88bf3cb9c0e3fdaaff6856cb507d7"
+  }
+}

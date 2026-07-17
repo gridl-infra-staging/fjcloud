@@ -1,0 +1,5 @@
+timestamp_utc=20260516T011241Z
+baseline_prod_ami=ami-078228dbe86117d85
+stage2_new_ami_id=ami-0df77f1c103ce1be7
+live_prod_ami=ami-078228dbe86117d85
+ami_assertions=pass

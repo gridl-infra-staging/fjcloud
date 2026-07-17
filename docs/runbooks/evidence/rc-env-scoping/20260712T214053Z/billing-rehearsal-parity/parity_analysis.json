@@ -1,0 +1,64 @@
+{
+  "conclusion": "RC-prepared billing preflight is ready and no RC-specific preflight or email-evidence mode switch is visible in sanitized inputs; the remaining named red remains invoice_email_ses_not_ready in the existing product/email owner.",
+  "coordinator_reference": {
+    "ready": false,
+    "staging_billing_rehearsal": {
+      "elapsed_ms": 88475,
+      "name": "staging_billing_rehearsal",
+      "reason": "invoice_email_ses_not_ready",
+      "status": "fail"
+    }
+  },
+  "email_evidence_mode_proof": {
+    "aws_default_region": "set",
+    "code_branch": "scripts/lib/staging_billing_rehearsal_email_evidence.sh::check_invoice_email_evidence_once calls check_ses_invoice_email_evidence_once when MAILPIT_API_URL is unset.",
+    "coordinator_detail_limit": "docs/runbooks/evidence/invite-ready-rc/20260712T034925Z_stage2_paid_beta_rc/staging_billing_rehearsal.log is empty; preserved coordinator evidence retains the failed row in summary.json/verdict.json but not delegated rehearsal sub-artifacts.",
+    "mailpit_api_url": "unset",
+    "ses_lookup_owner": "run_ses_cloudwatch_logs_lookup uses SES_REGION, then AWS_DEFAULT_REGION, then us-east-1 and defaults REHEARSAL_SES_SEND_EVENTS_LOG_GROUP to /fjcloud/staging/ses/send-events.",
+    "ses_region": "set"
+  },
+  "manifest_argv": [
+    "bash",
+    "scripts/staging_billing_dry_run.sh",
+    "--check",
+    "--env-file",
+    "/Users/stuart/repos/gridl-infra-dev/fjcloud_dev/.secret/.env.secret"
+  ],
+  "manifest_env": {
+    "ADMIN_KEY": "set",
+    "AWS_DEFAULT_REGION": "set",
+    "DATABASE_URL": "set",
+    "INTEGRATION_DB_URL": "unset",
+    "MAILPIT_API_URL": "unset",
+    "SES_REGION": "set",
+    "STAGING_API_URL": "set",
+    "STAGING_STRIPE_WEBHOOK_URL": "set",
+    "STRIPE_SECRET_KEY": "set",
+    "STRIPE_WEBHOOK_SECRET": "set"
+  },
+  "rc_prepared_check": {
+    "bundle": "docs/runbooks/evidence/rc-env-scoping/20260712T214053Z/billing-rehearsal-parity",
+    "classification": "ready",
+    "exit_code": "0",
+    "manifest_exists": true,
+    "passed": true
+  },
+  "standalone_reference": {
+    "classification": "rehearsal_completed",
+    "preflight_classification": "ready",
+    "preflight_step_names": [
+      "staging_api_url_present",
+      "staging_api_url_format",
+      "staging_webhook_url_present",
+      "staging_webhook_url_https",
+      "staging_webhook_url_path",
+      "stripe_secret_key_present",
+      "stripe_secret_key_mode",
+      "stripe_webhook_secret_present",
+      "stripe_webhook_secret_prefix",
+      "operator_auth_path_present",
+      "preflight_plan_ready"
+    ],
+    "result": "passed"
+  }
+}

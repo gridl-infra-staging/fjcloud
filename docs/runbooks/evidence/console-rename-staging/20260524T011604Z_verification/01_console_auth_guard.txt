@@ -1,0 +1,9 @@
+probe: GET https://cloud.staging.flapjack.foo/console
+timestamp: 2026-05-24T02:02:53Z
+expected: 303 redirect to /login (auth guard)
+result: PASS
+
+HTTP/2 303
+location: /login
+
+Unauthenticated request to /console correctly redirected to /login.

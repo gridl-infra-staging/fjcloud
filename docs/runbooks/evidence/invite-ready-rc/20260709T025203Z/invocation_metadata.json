@@ -1,0 +1,19 @@
+{
+  "rc_sha": "7125cc4db3cf3a28b4ea313b47a55c52ab4cd4bc",
+  "billing_month": "2026-07",
+  "staging_smoke_ami_id": "ami-070b3dfb46c944d7e",
+  "artifact_dir": "docs/runbooks/evidence/invite-ready-rc/20260709T025203Z",
+  "exit_code": 1,
+  "wrapper": "scripts/launch/invoke_rc_with_env.sh",
+  "classifier": "scripts/lib/rc_invocation.sh::rc_write_verdict_for_summary",
+  "delegated_command_shape": [
+    "bash",
+    "scripts/launch/run_full_backend_validation.sh",
+    "--paid-beta-rc",
+    "--sha=<RC_SHA>",
+    "--artifact-dir=<ARTIFACT_DIR>",
+    "--credential-env-file=<credential-env-file>",
+    "--billing-month=2026-07",
+    "--staging-smoke-ami-id=ami-070b3dfb46c944d7e"
+  ]
+}

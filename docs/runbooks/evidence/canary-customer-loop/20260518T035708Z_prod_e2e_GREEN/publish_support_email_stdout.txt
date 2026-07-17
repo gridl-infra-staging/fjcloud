@@ -1,0 +1,3 @@
+Login Succeeded
+Published support-email canary image: 213880904778.dkr.ecr.us-east-1.amazonaws.com/fjcloud-prod-support-email-canary:3ada746fe2f5
+INFO: skipping post-publish prod invoke because the wrapper did not enable it.

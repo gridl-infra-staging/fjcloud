@@ -1,0 +1,1 @@
+[{"probe_id": "dunning_email_inbox", "failure_class": "empty_log"}, {"probe_id": "staging_dunning_delivery", "failure_class": "json_result_not_passed"}]

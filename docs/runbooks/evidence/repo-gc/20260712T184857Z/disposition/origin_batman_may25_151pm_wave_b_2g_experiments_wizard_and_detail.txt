@@ -1,0 +1,54 @@
+# Disposition Receipt: origin/batman/may25_151pm_wave_b_2g_experiments_wizard_and_detail
+
+Classification: approved remote branch deletion; manifest stores short branch name
+Evidence source: current read-only git refs at bundle creation.
+
+## rev-parse
+$ git rev-parse origin/batman/may25_151pm_wave_b_2g_experiments_wizard_and_detail
+942732a4201a59f7f9ae0e67e5d1fec3f19f4bae
+
+## cherry
+$ git cherry -v main origin/batman/may25_151pm_wave_b_2g_experiments_wizard_and_detail | tail -20
+- a89ea7c6006c3335a4e34aa2b700dd40f0630546 scrai: 14 files documented, 2 guidance files assembled, 3 state files tracked
++ a7c57fd091fac7f564600107ff5f1381b233c9c3 matt: stage 3 build session 1
++ 14b363f07ca0c0016d56cb8819ce2e039be4ef2e matt: stage 3 build session 1
++ a82775fc136066f9902f5e482e8ba05aa1af9c26 Fix Stage 3 wizard and typecheck gate regressions
++ 2f9566dfebcb3f715dc00066838e5bc990b018ee matt: unstuck stage 3
++ d7083a78d9a7dc54438e51dffe77d2217abe4eb6 matt: stage 3 build session 1
++ 6dcb8515217a3f503f10d5bdd0a7beda637dad5b matt: stage 3 completion
++ ffb14f0d0b0d829db21578e82fcb637a12e3e2c5 scrai: 16 files documented, 1 artifacts generated, 2 guidance files assembled, 3 state files tracked
++ 992e0fa5e40ed5d50f2659c761dca3105f7bdeab Add step-4 experiment review and retry persistence coverage
++ d5d73504035a9d458ab65c8b77985a6c0ee9714d matt: stage 4 build session 1
++ 5b7d506186051ba74dc82845653f085f31103778 matt: stage 4 build session 1
++ ad93e3872745d63506f338b2571ed64a6c0f3452 matt: stage 4 build session 1
++ e3af4c935d935d94104ad209962ea1f7b0b35c56 matt: stage 4 build session 1
++ 3f0f1c247887ba7c9ae01add266f380e87978f11 matt: stage 4 build session 1
++ 46dc44b8928a3de7c8f2538db60f29ecdcf9328f matt: unstuck stage 4
++ 7d963a4f1dcd51c4798f11d91e93fe65a6f66ccf matt: stage 4 build session 1
++ 5fc7b558153d4599f2a4df23293dcdbe54ae4f63 matt: unstuck stage 4
++ b3cf63db2041c4455336512b8b5dbddc7ef5fd5e Harden Stage 4 auth and detail retry flows
++ ba72fffd9919297b7ddcdbd1c15ec0d7cf91645a matt: unstuck stage 4
++ 942732a4201a59f7f9ae0e67e5d1fec3f19f4bae matt: stage 4 build session 1
+
+## diff main...
+$ git diff main...origin/batman/may25_151pm_wave_b_2g_experiments_wizard_and_detail --stat | tail -20
+ .../indexes/[name]/detail-experiments.test.ts      |   274 +-
+ .../[name]/detail-search-preview.browser.test.ts   |     8 +-
+ .../indexes/[name]/detail.server.actions.test.ts   |    92 +
+ .../indexes/[name]/detail.server.load.test.ts      |    16 +
+ .../indexes/[name]/detail.server.test.shared.ts    |     7 +
+ .../console/indexes/[name]/detail.test.shared.ts   |     1 +
+ .../indexes/[name]/document-management.server.ts   |    27 +-
+ .../[name]/experiments-management.server.test.ts   |   313 +
+ .../[name]/experiments-management.server.ts        |   200 +
+ .../[name]/tabs/CreateExperimentDialog.svelte      |   456 +
+ .../indexes/[name]/tabs/ExperimentsTab.svelte      |   199 +-
+ .../indexes/[name]/tabs/experiments_tab_helpers.ts |    38 +
+ web/src/tests/playwright-config-contract.test.ts   |   236 +-
+ web/src/tests/search-preview-helpers.test.ts       |     4 +-
+ web/tests/e2e-ui/full/index-detail.spec.ts         |   628 +-
+ web/tests/e2e-ui/full/indexes.spec.ts              |    18 +-
+ web/tests/fixtures/auth.setup.ts                   |    83 +-
+ web/tests/fixtures/fixtures.ts                     |   260 +-
+ web/tests/fixtures/search-preview-helpers.ts       |     2 +
+ 58 files changed, 22508 insertions(+), 18484 deletions(-)

@@ -1,0 +1,3 @@
+run_started_utc=2026-04-29T07:52:15Z
+api_url=https://api.flapjack.foo
+flapjack_url_placeholder=https://api.flapjack.foo

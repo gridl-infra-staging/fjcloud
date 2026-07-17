@@ -1,0 +1,32 @@
+<!-- [matt:progress] -->
+## Matt Build Progress
+
+### Stage 1: Persist cycle anchors and atomic Shared promotion state [build]
+Add `subscription_cycle_anchor_at` as the canonical persisted anchor in `infra/migrations/`, `infra/api/src/models/customer.rs`, `infra/api/src/repos/customer_repo.rs`, and `infra/api/src/repos/pg_customer_repo.rs`, and introduce the atomic repo transitions needed for provisional promotion and anchor-matched rollback. Keep this stage focused on storage semantics and race safety so later route logic can depend on a single source of truth for “free -> shared” state instead of ad hoc checks.
+- 0/1 checklist items completed
+
+### Stage 2: Extend the Stripe service with pay and void invoice primitives [build]
+Extend the existing Stripe abstraction in `infra/api/src/stripe/mod.rs` with the new payment result surface and `pay_invoice` plus `void_invoice`, then carry that contract through `infra/api/src/stripe/live.rs`, `infra/api/src/stripe/local.rs`, `infra/api/src/startup/unconfigured_stripe.rs`, and `infra/api/tests/common/mocks.rs`. This stage should also seed deterministic paid, declined, and `requires_action` outcomes in the mock/local implementations so endpoint and browser tests can reuse one Stripe seam instead of inventing lane-specific fakes.
+- 0/1 checklist items completed
+
+### Stage 3: Ship backend upgrade and upgrade-status endpoints [build]
+Implement `POST /billing/upgrade` in `infra/api/src/routes/billing.rs` and wire it in `infra/api/src/router/route_assembly.rs`, using the existing `create_and_finalize_invoice` flow plus the new repo and Stripe primitives to enforce charge-first activation, 409 loser behavior, and anchor-matched rollback/void on failure. In the same stage, add `GET /account/upgrade-status` in `infra/api/src/routes/account.rs` as the explicit read seam for `stripe_customer_id` and `has_default_payment_method`, and cover the full backend contract in `infra/api/tests/billing_endpoints_test.rs` without widening `CustomerProfileResponse`.
+- @work:build Deliver charge-first upgrade + upgrade-status backend contract
+- 1/1 checklist items completed
+
+### Stage 4: Add an anchor-aware billing window helper [build]
+Extend `infra/api/src/invoicing.rs` with a pure exported helper that computes deterministic `[start, end)` invoice windows from a stored anchor, including month-end clamping and DST-crossing cases. Keep scheduler integration out of scope here so this helper becomes the future SSOT for recurring billing windows without coupling it to the new upgrade endpoint.
+- @work:build Add anchor-aware invoice window helper as the invoicing SSOT
+- 1/1 checklist items completed
+
+### Stage 5: Add the dashboard self-service upgrade flow and mocked coverage [build]
+Update `web/src/lib/api/client.ts`, `web/src/lib/api/types.ts`, and the existing billing page owner in `web/src/routes/dashboard/billing/+page.server.ts` and `+page.svelte` to fetch upgrade status, render the free-to-shared CTA only when appropriate, submit the upgrade, and show success, decline, `requires_action`, missing-payment-method, and already-shared states. Gate the accepted `window.__FJCLOUD_UPGRADE_TEST_FIXTURE__` smell to non-production builds only, and cover the flow with the existing server/component tests plus mocked browser coverage in the current `web/tests/e2e-ui/` suite.
+- @work:build Ship dashboard self-service upgrade flow on existing billing owners
+- 1/1 checklist items completed
+
+### Stage 6: Validate, deploy, and capture Stripe sandbox evidence [deploy]
+Run the mirror-CI preflight, the focused backend and web commands from the execution plan, and `bash scripts/local-ci.sh`, then release the change through the repo’s normal staging path once the local gates are green. Finish by capturing durable staging evidence that the upgrade path creates a paid Stripe sandbox invoice on success and returns the locked 402 contract on decline or `requires_action`, so the live trust-ratchet behavior is verified at the system boundary rather than inferred from tests alone.
+- 0/3 checklist items completed
+
+**Run finished_with_deferrals** — 6/6 stages · $59.88 · 1h 10m 39s
+<!-- [matt:progress:end] -->

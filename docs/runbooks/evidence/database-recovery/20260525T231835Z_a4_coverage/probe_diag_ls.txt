@@ -1,0 +1,25 @@
+total 456
+drwxr-xr-x@ 24 stuart  staff     768 May 25 19:24 .
+drwxr-xr-x  10 stuart  staff     320 May 25 19:18 ..
+-rw-r--r--@  1 stuart  staff      70 May 25 19:18 evdir_path.txt
+-rw-r--r--@  1 stuart  staff    1479 May 25 19:19 gate_01.log
+-rw-r--r--@  1 stuart  staff       5 May 25 19:19 gate_01_cache.txt
+-rw-r--r--@  1 stuart  staff       5 May 25 19:19 gate_01_status.txt
+-rw-r--r--@  1 stuart  staff    2680 May 25 19:19 gate_02.log
+-rw-r--r--@  1 stuart  staff       5 May 25 19:19 gate_02_cache.txt
+-rw-r--r--@  1 stuart  staff       5 May 25 19:19 gate_02_status.txt
+-rw-r--r--@  1 stuart  staff    2892 May 25 19:19 gate_03.log
+-rw-r--r--@  1 stuart  staff       5 May 25 19:19 gate_03_cache.txt
+-rw-r--r--@  1 stuart  staff       5 May 25 19:19 gate_03_status.txt
+-rw-r--r--@  1 stuart  staff   12677 May 25 19:19 gate_04.log
+-rw-r--r--@  1 stuart  staff       5 May 25 19:19 gate_04_cache.txt
+-rw-r--r--@  1 stuart  staff       5 May 25 19:19 gate_04_status.txt
+-rw-r--r--@  1 stuart  staff    2224 May 25 19:22 gate_05.log
+-rw-r--r--@  1 stuart  staff       5 May 25 19:19 gate_05_cache.txt
+-rw-r--r--@  1 stuart  staff       5 May 25 19:22 gate_05_status.txt
+-rw-r--r--@  1 stuart  staff  139882 May 25 19:19 gate_process_scan_before.txt
+-rw-r--r--@  1 stuart  staff      97 May 25 19:18 gate_runner_context.txt
+-rw-r--r--@  1 stuart  staff       0 May 25 19:24 probe_diag_ls.txt
+-rw-r--r--@  1 stuart  staff    2822 May 25 19:24 probe_diag_output.md
+-rw-r--r--@  1 stuart  staff       0 May 25 19:22 probe_diag_stderr.txt
+-rw-r--r--@  1 stuart  staff      91 May 25 19:24 probe_diag_stdout.txt

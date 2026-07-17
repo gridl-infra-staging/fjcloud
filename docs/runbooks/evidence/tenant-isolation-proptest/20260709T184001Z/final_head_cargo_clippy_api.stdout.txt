@@ -1,0 +1,4 @@
+   Compiling api v0.1.0 (infra/api)
+    Checking pricing-calculator v0.1.0 (infra/pricing-calculator)
+    Checking billing v0.1.0 (infra/billing)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 10.62s

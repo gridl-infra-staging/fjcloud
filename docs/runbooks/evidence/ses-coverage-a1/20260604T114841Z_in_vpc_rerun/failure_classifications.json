@@ -1,0 +1,67 @@
+{
+  "failures": [
+    {
+      "classification": "verify_email_token_invalid_or_expired",
+      "final_json": null,
+      "observed_detail": "ERROR: verify-email page rendered failure branch \u2014 token invalid or expired",
+      "owner_path": "scripts/probe_verify_email_clickthrough_e2e.sh",
+      "pass": false,
+      "probe_id": "verify_email_clickthrough",
+      "rc": 1,
+      "reason": "No email verification TERMINUS; rendered failure branch reported token invalid or expired."
+    },
+    {
+      "classification": "password_reset_token_not_cleared",
+      "final_json": null,
+      "observed_detail": "ERROR: password_reset_token not cleared after reset for resetprobe2026060411523724977@test.flapjack.foo after 15 attempts",
+      "owner_path": "scripts/probe_password_reset_clickthrough_e2e.sh",
+      "pass": false,
+      "probe_id": "password_reset_clickthrough",
+      "rc": 1,
+      "reason": "No password reset login TERMINUS; database poll did not observe token clearing."
+    },
+    {
+      "classification": "rehearsal_reset_failed",
+      "final_json": {
+        "classification": "rehearsal_reset_failed",
+        "detail": "dunning owner script exited 1",
+        "result": "failed"
+      },
+      "observed_detail": "dunning owner script exited 1",
+      "owner_path": "scripts/probe_dunning_email_inbox_e2e.sh",
+      "pass": false,
+      "probe_id": "dunning_email_inbox",
+      "rc": 1,
+      "reason": "Final JSON result did not satisfy terminus_and_result_json detection."
+    },
+    {
+      "classification": "stripe_cli_missing",
+      "final_json": {
+        "artifact_dir": "",
+        "classification": "rehearsal_reset_failed",
+        "detail": "Reset flow failed for tenant 193638a5-35f7-407f-a734-3f73de224336: unknown_classification \u2014 no_detail",
+        "elapsed_ms": 11642,
+        "result": "failed",
+        "steps": [
+          {
+            "detail": "Explicit staging env file, SSM hydration, and hostname checks passed.",
+            "name": "guard",
+            "passed": true
+          },
+          {
+            "detail": "/tmp/a1_vpc_rerun_20260604T114841Z/scripts/lib/live_gate.sh: line 107: stripe: command not found\n{\"result\":\"blocked\",\"classification\":\"reset_stripe_list_failed\",\"detail\":\"Stripe invoice list failed for cus_UdbjVZP7CSWuA5.\",\"artifact_dir\":\"/tmp/fjcloud_staging_billing_rehearsal_20260604T115640Z_828946\",\"planned_steps\":[\"metering collection\", \"aggregation job\", \"invoice finalization\", \"Stripe test webhook delivery\", \"invoice paid reconciliation\", \"email evidence capture\"],\"steps\":[{\"name\":\"preflight\",\"result\":\"blocked\",\"classification\":\"not_run\",\"detail\":\"Preflight did not run.\"},{\"name\":\"metering_evidence\",\"result\":\"blocked\",\"classification\":\"not_run\",\"detail\":\"Metering evidence did not run.\"},{\"name\":\"live_mutation_guard\",\"result\":\"blocked\",\"classification\":\"reset_stripe_list_failed\",\"detail\":\"Stripe invoice list failed for cus_UdbjVZP7CSWuA5.\"},{\"name\":\"live_mutation_attempt\",\"result\":\"blocked\",\"classification\":\"reset_stripe_list_failed\",\"detail\":\"Reset flow was not completed.\"}],\"elapsed_ms\":6030}",
+            "name": "reset_test_state",
+            "passed": false
+          }
+        ],
+        "transitions": []
+      },
+      "observed_detail": "Reset flow failed for tenant 193638a5-35f7-407f-a734-3f73de224336: unknown_classification \u2014 no_detail",
+      "owner_path": "scripts/validate_staging_dunning_delivery.sh",
+      "pass": false,
+      "probe_id": "staging_dunning_delivery",
+      "rc": 1,
+      "reason": "Dunning delivery reset failed before tenant-state assertion because the staging host command path lacked the stripe CLI."
+    }
+  ]
+}

@@ -1,0 +1,170 @@
+# Pre-Commit Validation Transcript
+
+Bundle: docs/runbooks/evidence/repo-gc/20260712T184857Z
+HEAD: 97a16b11e4750bc312f1aedde7105b76c5690423
+
+## Red test before generation
+
+Command: test -s manifest files for docs/runbooks/evidence/repo-gc/20260712T184857Z before generation
+Result: exit=1 as expected; manifest files were absent before implementation.
+
+## Manifest consistency and safety checks
+
+Command: test -s manifests; wc -l approval lists; verify receipts for freed, backup, and remote refs; verify worktree receipt coverage; reject protected refs, jul12 approval refs, .matt/primary paths; require remote approval count 16.
+Result: exit=0
+
+      89 docs/runbooks/evidence/repo-gc/20260712T184857Z/manifest_worktrees.txt
+      86 docs/runbooks/evidence/repo-gc/20260712T184857Z/manifest_freed_branches.txt
+       3 docs/runbooks/evidence/repo-gc/20260712T184857Z/manifest_backup_refs.txt
+      16 docs/runbooks/evidence/repo-gc/20260712T184857Z/manifest_remote_branches.txt
+      89 docs/runbooks/evidence/repo-gc/20260712T184857Z/manifest_branches.txt
+     283 total
+
+## Safety grep notes
+
+Approval files contain no exact main/origin/main, no batman/jul12_pm_* approval refs, no .matt path approvals, and all approved worktree paths are under <worktree-root>/fjcloud_dev/.
+The raw inventory and rejected/out-of-scope evidence intentionally record forbidden .matt and jul12 refs as non-approved evidence.
+
+## Diff inspection
+
+ .../evidence/repo-gc/20260712T184857Z/SUMMARY.md   |  11 +
+ .../evidence/repo-gc/20260712T184857Z/counts.txt   |  11 +
+ .../backup_jun09_am_l1_rc_harness_pre_publish.txt  |  14 +
+ ...stage1_before_replay_repair_20260527_011701.txt |  54 ++
+ ..._stage1_e8ce_before_xtheirs_20260527_011857.txt |  54 ++
+ ...e1_parked_tip_before_rebase_20260527_011719.txt |  54 ++
+ ...jul06_pm_2_signup_cta_restore_public_launch.txt |  14 +
+ ...tman_jul06_pm_3_deploy_currency_drift_alarm.txt |  14 +
+ ...l06_pm_5_public_release_verify_and_closeout.txt |  14 +
+ ...ul07_3pm_15_staging_billing_rehearsal_rerun.txt |  14 +
+ ...an_jul07_3pm_17_e2e_deployed_failure_paging.txt |  14 +
+ ..._3pm_7_api_types_client_split_openapi_drift.txt |  14 +
+ ...07_am_1_polished_beta_staging_verify_rerun2.txt |  14 +
+ .../batman_jul07_am_2_web_deploy_automation.txt    |  14 +
+ .../batman_jul07_pm_1_verify_findings_fix.txt      |  14 +
+ ...07_pm_8_polished_beta_staging_verify_rerun6.txt |  14 +
+ .../batman_jul08_pm_2_rc_rerun_clean_bundle_v2.txt |  14 +
+ ...an_jul09_am_2_panics_total_cloudwatch_alarm.txt |  14 +
+ ...jul09_am_6_staging_billing_rehearsal_rerun2.txt |  14 +
+ ...taging_domain_remap_and_served_content_gate.txt |  14 +
+ ...an_jul09_pm_3_tenant_isolation_proptest_fix.txt |  14 +
+ .../batman_jul12_pm_1_rc_env_scoping_fix.txt       |  36 +
+ ...ul12_pm_2_s1_clickthrough_db_visibility_fix.txt |  36 +
+ ...jul12_pm_3_s1_dunning_reset_stripe_json_fix.txt |  36 +
+ ...atman_jul12_pm_4_shared_login_storage_state.txt |  37 +
+ ...l12_pm_5_metrics_probe_devalue_contract_fix.txt |  36 +
+ ...an_jul12_pm_6_repo_gc_manifest_and_receipts.txt |  36 +
+ ..._deploy_currency_and_playwright_stripe_mode.txt |  14 +
+ ...atman_jun04_pm_4_editor_dialog_styling_pass.txt |  14 +
+ ...05_pm_2_rc_harness_critical_browser_surface.txt |  14 +
+ ..._pm_3_rc_harness_live_evidence_completeness.txt |  14 +
+ ...atman_jun05_ui_1147am_10_unified_search_tab.txt |  14 +
+ ...batman_jun05_ui_1147am_2_toast_p0_migration.txt |  14 +
+ ...am_5_oauth_local_dx_and_account_delete_copy.txt |  14 +
+ ...mail_clickthrough_definitive_classification.txt |  14 +
+ ...09_pm_10_pricing_tax_alert_emails_ci_polish.txt |  14 +
+ ..._pm_11_cargo_indexes_test_env_leak_fix_lane.txt |  14 +
+ .../batman_jun09_pm_1_merchandising_hub_pivot.txt  |  14 +
+ .../batman_jun09_pm_2_ui_test_coverage_p0.txt      |  14 +
+ ...tman_jun09_pm_4_merch_mode_toggle_on_search.txt |  14 +
+ ...ging_verification_rc_reverdict_and_closeout.txt |  14 +
+ ...n_jun09_pm_8_staging_billing_rehearsal_seed.txt |  14 +
+ ...tract_drift_and_lane_b_count_reconciliation.txt |  14 +
+ ...m_2_staging_billing_rehearsal_repeatability.txt |  14 +
+ ..._3_worktree_path_and_duplicate_todo_cleanup.txt |  14 +
+ ..._4_polished_beta_staging_verification_rerun.txt |  14 +
+ .../batman_jun11_pm_10_final_rc_and_closeout.txt   |  14 +
+ .../batman_jun11_pm_2_stage2_blocked_evidence.txt  |  14 +
+ .../batman_jun11_pm_7_aws_live_infra_e2e.txt       |  14 +
+ ...ses_production_access_and_reputation_alarms.txt |  14 +
+ ...pm_2_auth_hardening_lockout_and_rate_limits.txt |  14 +
+ ...16_9pm_3_stripe_dispute_chargeback_handlers.txt |  14 +
+ ...an_may16_9pm_4_full_prod_vm_lifecycle_proof.txt |  14 +
+ ..._may16_pm_1_gitleaks_evidence_dir_allowlist.txt |  14 +
+ ...man_may16_pm_2_debbie_stub_strip_blank_line.txt |  14 +
+ ...ay16_pm_3_playwright_customer_login_fixture.txt |  14 +
+ .../batman_may16_pm_4_prod_canary_e2e_evidence.txt |  14 +
+ ..._service_upgrade_endpoint_and_trust_ratchet.txt |  14 +
+ ...6_pm_6_quota_warning_emails_records_storage.txt |  14 +
+ ...n_may18_pm_1_may16_wave_deploy_verify_sweep.txt |  14 +
+ .../batman_may18_pm_3_customer_trust_surfaces.txt  |  14 +
+ ...atman_may19_pm_1_privacy_card_reuse_pattern.txt |  14 +
+ ...an_may19_pm_3_stripe_key_rotation_and_audit.txt |  14 +
+ ...may19_pm_4_gitleaks_secret_scan_remediation.txt |  14 +
+ .../batman_may19_pm_5_staging_tls_host_routing.txt |  14 +
+ ...m_6_subprocessor_disclosure_and_tax_posture.txt |  14 +
+ .../batman_may20_3pm_1_fleet_recovery.txt          |  14 +
+ .../batman_may20_3pm_2_pipeline_propagation.txt    |  14 +
+ ...an_may20_3pm_3_stripe_credential_revocation.txt |  14 +
+ .../batman_may20_3pm_4_launch_verification.txt     |  14 +
+ ...tman_may21_12pm_10_subprocessor_probe_rerun.txt |  14 +
+ .../batman_may21_12pm_11_inventory_diagnosis.txt   |  14 +
+ ...n_may21_12pm_12_app_flapjack_foo_retirement.txt |  14 +
+ ...atman_may21_12pm_1_cloudflare_prod_env_flip.txt |  14 +
+ .../batman_may21_12pm_2_prod_db_leak_cleanup.txt   |  14 +
+ .../batman_may21_12pm_3_staging_web_isolation.txt  |  14 +
+ .../batman_may21_12pm_4_browser_lane_rerun.txt     |  14 +
+ .../batman_may21_12pm_8_alert_emails.txt           |  14 +
+ ...batman_may22_1pm_1_lb2_lb3_diagnose_and_fix.txt |  14 +
+ .../batman_may22_2pm_1_state_ssot_framework.txt    |  14 +
+ ...man_may23_9pm_2_routes_dashboard_to_console.txt |  14 +
+ .../batman_may23_9pm_3_shared_layout_polish.txt    |  14 +
+ .../batman_may23_9pm_4_visual_polish_pass.txt      |  14 +
+ ...may23_9pm_5_landing_ssot_and_cloud_redirect.txt |  14 +
+ .../batman_may23_9pm_7_parity_audit.txt            |  14 +
+ ...tman_may23_9pm_8_console_e2e_coverage_audit.txt |  14 +
+ ...202244Z_w3_1_implement_demo_index_loader_in.txt |  14 +
+ .../batman_may24_812am_1_prod_unblock_and_ship.txt |  14 +
+ ...an_may24_812am_2_api_key_recognizer_tighten.txt |  14 +
+ .../batman_may24_812am_3_w3_triage_fanout.txt      |  14 +
+ ...may25_151pm_3_demo_loader_and_create_dialog.txt |  14 +
+ ...151pm_wave_b_2b_recommendations_restructure.txt |  14 +
+ ...may25_151pm_wave_b_2d_rules_compound_editor.txt |  14 +
+ ...atman_may25_151pm_wave_b_3a_api_keys_parity.txt |  14 +
+ ...man_may25_151pm_wave_b_3e_analytics_subtabs.txt |  14 +
+ ...atman_may27_pm_2_b1_rerun_final_launch_gate.txt |  14 +
+ .../batman_may29_pm_7_dunning_probe_rca.txt        |  14 +
+ ...r07_pm_2_local_evidence_ha_and_cold_storage.txt |  54 ++
+ ...7_3pm_3_alert_webhook_and_canary_activation.txt |  54 ++
+ ...atman_jul09_am_6_billing_rehearsal_real_run.txt |  15 +
+ ..._may25_151pm_wave_b_2a_synonyms_restructure.txt |  54 ++
+ ...atman_may25_151pm_wave_b_2c_events_overhaul.txt |  54 ++
+ ..._may25_151pm_wave_b_2e_personalization_full.txt |  54 ++
+ ..._may25_151pm_wave_b_2f_dictionaries_rebuild.txt |  49 ++
+ ...1pm_wave_b_2g_experiments_wizard_and_detail.txt |  54 ++
+ ..._wave_b_3f_merch_drag_suggestions_lifecycle.txt |  54 ++
+ ...ay25_151pm_wave_b_3h_settings_migrate_audit.txt |  54 ++
+ .../origin_batman_may26_9pm_wave_b_3f_refresh.txt  |  54 ++
+ ...dex_preserve_concurrent_dns_runtime_changes.txt |  28 +
+ .../origin_matt_stage2_bundle_landed_s55.txt       |  45 ++
+ ...rigin_mattman_MAR17_11_3_ux_polish_commerce.txt |  54 ++
+ .../disposition/origin_s41_push_fix.txt            |  54 ++
+ .../disposition/origin_stage4_s57_fix_blockers.txt |  44 ++
+ .../disposition/stage3_mainline_integration.txt    |  14 +
+ ..._synthetic_canary_rollout_proof_fjcloud_dev.txt |  18 +
+ ...staging_billing_rehearsal_rerun_fjcloud_dev.txt |  46 ++
+ ...ay25_2pm_6_b1_final_launch_gate_fjcloud_dev.txt |  49 ++
+ .../20260712T184857Z/inventory_branch_backup.txt   |   4 +
+ .../inventory_branch_merged_main.txt               | 100 +++
+ .../inventory_branch_no_merged_main.txt            |   9 +
+ .../inventory_ls_remote_heads_origin.txt           | 149 ++++
+ .../inventory_remote_no_merged_origin_main.txt     |  16 +
+ .../inventory_worktrees_porcelain.txt              | 388 +++++++++++
+ .../evidence/repo-gc/20260712T184857Z/manifest.txt | 776 +++++++++++++++++++++
+ .../20260712T184857Z/manifest_backup_refs.txt      |   3 +
+ .../repo-gc/20260712T184857Z/manifest_branches.txt |  89 +++
+ .../20260712T184857Z/manifest_freed_branches.txt   |  86 +++
+ .../20260712T184857Z/manifest_remote_branches.txt  |  16 +
+ .../20260712T184857Z/manifest_worktrees.txt        |  89 +++
+ .../evidence/repo-gc/20260712T184857Z/metadata.txt |   6 +
+ .../out_of_scope_unmerged_local_refs.txt           |   6 +
+ .../repo-gc/20260712T184857Z/source_context.txt    | 218 ++++++
+ .../20260712T184857Z/stage2_count_probes.txt       | 164 +++++
+ .../20260712T184857Z/worktree_candidates.tsv       |  89 +++
+ .../repo-gc/20260712T184857Z/worktree_rejected.tsv |   8 +
+ 135 files changed, 4723 insertions(+)
+
+## Diff whitespace check after formatting fix
+
+Command: git diff --check -- docs/runbooks/evidence/repo-gc/20260712T184857Z
+Result: exit=0

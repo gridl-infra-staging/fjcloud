@@ -1,0 +1,5 @@
+{"command":"preflight:aws_creds","timestamp":"2026-06-12T00:49:38Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"preflight:ami_exists","timestamp":"2026-06-12T00:49:38Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"preflight:cloudflare_dns","timestamp":"2026-06-12T00:49:38Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"terraform plan","timestamp":"2026-06-12T00:49:38Z","verdict":"PASS","output":"plan captured","artifact_path":"ops/terraform/artifacts/plan_staging_20260612T004937Z.txt"}
+{"command":"runtime:acm_not_issued","timestamp":"2026-06-12T00:49:38Z","verdict":"FAIL","output":"ACM certificate for flapjack.foo status is 'PENDING_VALIDATION', expected ISSUED.","artifact_path":""}

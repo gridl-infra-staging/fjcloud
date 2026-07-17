@@ -1,0 +1,3 @@
+GET https://api.cloudflare.com/client/v4/accounts/<account_id>/pages/projects/flapjack-cloud/domains/cloud.staging.flapjack.foo
+account_id=99deba6554f68cb3544bd9ecfd08ff06
+auth=global_key_email_redacted

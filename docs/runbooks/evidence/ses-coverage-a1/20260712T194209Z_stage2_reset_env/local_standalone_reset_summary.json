@@ -1,0 +1,46 @@
+{
+  "artifact_dir": "/var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//fjcloud_staging_billing_rehearsal_20260712T194251Z_22993",
+  "classification": "reset_completed",
+  "deployable_currency": {
+    "deployable_drift": "unknown",
+    "doc_only_ahead": "unknown"
+  },
+  "detail": "Reset path completed: Stripe and DB invoice cleanup succeeded. paid Stripe invoice(s); paid Stripe invoices were left unchanged while local DB rows were reset.",
+  "dev_sha": "unknown",
+  "elapsed_ms": 12498,
+  "planned_steps": [
+    "metering collection",
+    "aggregation job",
+    "invoice finalization",
+    "Stripe test webhook delivery",
+    "invoice paid reconciliation",
+    "email evidence capture"
+  ],
+  "result": "passed",
+  "steps": [
+    {
+      "classification": "reset_mode",
+      "detail": "Preflight owner skipped in reset-only mode.",
+      "name": "preflight",
+      "result": "passed"
+    },
+    {
+      "classification": "reset_mode",
+      "detail": "Metering evidence skipped in reset-only mode.",
+      "name": "metering_evidence",
+      "result": "passed"
+    },
+    {
+      "classification": "reset_mode",
+      "detail": "Reset allowlist and tenant confirmation gate passed.",
+      "name": "live_mutation_guard",
+      "result": "passed"
+    },
+    {
+      "classification": "reset_mode",
+      "detail": "Reset path completed: Stripe and DB invoice cleanup succeeded. paid Stripe invoice(s); paid Stripe invoices were left unchanged while local DB rows were reset.",
+      "name": "live_mutation_attempt",
+      "result": "passed"
+    }
+  ]
+}

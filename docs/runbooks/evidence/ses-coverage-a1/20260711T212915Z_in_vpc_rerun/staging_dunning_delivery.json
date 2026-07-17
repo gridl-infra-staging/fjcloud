@@ -1,0 +1,32 @@
+{
+  "detect_kind": "final_json_result_passed",
+  "log_path": "docs/runbooks/evidence/ses-coverage-a1/20260711T212915Z_in_vpc_rerun/staging_dunning_delivery.log",
+  "parsed_evidence": {
+    "final_json": {
+      "artifact_dir": "",
+      "classification": "rehearsal_reset_failed",
+      "detail": "Reset flow failed for tenant 193638a5-35f7-407f-a734-3f73de224336: reset_stripe_list_invalid \u2014 Stripe invoice list returned invalid JSON.",
+      "elapsed_ms": 12763,
+      "result": "failed",
+      "steps": [
+        {
+          "detail": "Explicit staging env file, SSM hydration, and hostname checks passed.",
+          "name": "guard",
+          "passed": true
+        },
+        {
+          "detail": "{\"result\":\"blocked\",\"classification\":\"reset_stripe_list_invalid\",\"detail\":\"Stripe invoice list returned invalid JSON.\",\"artifact_dir\":\"/tmp/fjcloud_staging_billing_rehearsal_20260711T213528Z_3071204\",\"planned_steps\":[\"metering collection\", \"aggregation job\", \"invoice finalization\", \"Stripe test webhook delivery\", \"invoice paid reconciliation\", \"email evidence capture\"],\"steps\":[{\"name\":\"preflight\",\"result\":\"blocked\",\"classification\":\"not_run\",\"detail\":\"Preflight did not run.\"},{\"name\":\"metering_evidence\",\"result\":\"blocked\",\"classification\":\"not_run\",\"detail\":\"Metering evidence did not run.\"},{\"name\":\"live_mutation_guard\",\"result\":\"blocked\",\"classification\":\"reset_stripe_list_invalid\",\"detail\":\"Stripe invoice list returned invalid JSON.\"},{\"name\":\"live_mutation_attempt\",\"result\":\"blocked\",\"classification\":\"reset_stripe_list_invalid\",\"detail\":\"Reset flow was not completed.\"}],\"elapsed_ms\":7058}",
+          "name": "reset_test_state",
+          "passed": false
+        }
+      ],
+      "transitions": []
+    },
+    "json_object_count": 1,
+    "last_nonempty_line": "{\"result\":\"failed\",\"classification\":\"rehearsal_reset_failed\",\"detail\":\"Reset flow failed for tenant 193638a5-35f7-407f-a734-3f73de224336: reset_stripe_list_invalid \\u2014 Stripe invoice list returned invalid JSON.\",\"artifact_dir\":\"\",\"transitions\":[],\"steps\":[{\"name\":\"guard\",\"passed\":true,\"detail\":\"Explicit staging env file, SSM hydration, and hostname checks passed.\"},{\"name\":\"reset_test_state\",\"passed\":false,\"detail\":\"{\\\"result\\\":\\\"blocked\\\",\\\"classification\\\":\\\"reset_stripe_list_invalid\\\",\\\"detail\\\":\\\"Stripe invoice list returned invalid JSON.\\\",\\\"artifact_dir\\\":\\\"/tmp/fjcloud_staging_billing_rehearsal_20260711T213528Z_3071204\\\",\\\"planned_steps\\\":[\\\"metering collection\\\", \\\"aggregation job\\\", \\\"invoice finalization\\\", \\\"Stripe test webhook delivery\\\", \\\"invoice paid reconciliation\\\", \\\"email evidence capture\\\"],\\\"steps\\\":[{\\\"name\\\":\\\"preflight\\\",\\\"result\\\":\\\"blocked\\\",\\\"classification\\\":\\\"not_run\\\",\\\"detail\\\":\\\"Preflight did not run.\\\"},{\\\"name\\\":\\\"metering_evidence\\\",\\\"result\\\":\\\"blocked\\\",\\\"classification\\\":\\\"not_run\\\",\\\"detail\\\":\\\"Metering evidence did not run.\\\"},{\\\"name\\\":\\\"live_mutation_guard\\\",\\\"result\\\":\\\"blocked\\\",\\\"classification\\\":\\\"reset_stripe_list_invalid\\\",\\\"detail\\\":\\\"Stripe invoice list returned invalid JSON.\\\"},{\\\"name\\\":\\\"live_mutation_attempt\\\",\\\"result\\\":\\\"blocked\\\",\\\"classification\\\":\\\"reset_stripe_list_invalid\\\",\\\"detail\\\":\\\"Reset flow was not completed.\\\"}],\\\"elapsed_ms\\\":7058}\"}],\"elapsed_ms\":12763}failed to run commands: exit status 1",
+    "terminus_line": null
+  },
+  "pass": false,
+  "probe_id": "staging_dunning_delivery",
+  "rc": 1
+}

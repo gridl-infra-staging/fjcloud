@@ -1,0 +1,10 @@
+{
+  "captured_at_utc": "2026-05-16T02:13:43.901958Z",
+  "discovery_artifact_path": "/Users/stuart/.matt/projects/fjcloud_dev-e4fc442e/may15_9pm_2_prod_rds_restore_drill.md-49bb35e9/artifacts/stage1_preflight/rds_restore_evidence_prod_20260516T021324Z_980/discovery.json",
+  "discovery_run_dir": "/Users/stuart/.matt/projects/fjcloud_dev-e4fc442e/may15_9pm_2_prod_rds_restore_drill.md-49bb35e9/artifacts/stage1_preflight/rds_restore_evidence_prod_20260516T021324Z_980",
+  "env": "prod",
+  "restore_mode": "pitr",
+  "selected_restore_time": "2026-05-16T02:09:35+00:00",
+  "selected_snapshot_id": "",
+  "source_db_instance_id": "fjcloud-prod"
+}

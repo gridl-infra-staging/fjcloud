@@ -1,0 +1,10 @@
+probe: GET https://cloud.staging.flapjack.foo/dashboard/billing
+timestamp: 2026-05-24T02:02:53Z
+expected: 308 permanent redirect to /console/billing
+result: PASS
+
+HTTP/2 308
+location: /console/billing
+x-robots-tag: noindex, nofollow, noarchive, nosnippet, noimageindex, noai, noimageai
+
+Deep path /dashboard/billing correctly redirects to /console/billing with 308 permanent.

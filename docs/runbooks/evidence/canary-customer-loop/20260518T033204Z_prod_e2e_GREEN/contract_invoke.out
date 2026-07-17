@@ -1,0 +1,19 @@
+FAIL: function fjcloud-prod-customer-loop-canary threw Unhandled
+==response body==
+{"errorType":"Runtime.ExitError","errorMessage":"RequestId: 9ff7a504-7fbe-4f71-be7d-8d081b244c38 Error: Runtime exited with error: exit status 1"}==log tail (base64 in invoke response; decode if needed)==
+START RequestId: 9ff7a504-7fbe-4f71-be7d-8d081b244c38 Version: $LATEST
+Traceback (most recent call last):
+File "<stdin>", line 4, in <module>
+File "/usr/lib64/python3.9/json/__init__.py", line 293, in load
+return loads(fp.read(),
+File "/usr/lib64/python3.9/json/__init__.py", line 346, in loads
+return _default_decoder.decode(s)
+File "/usr/lib64/python3.9/json/decoder.py", line 337, in decode
+obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+File "/usr/lib64/python3.9/json/decoder.py", line 355, in raw_decode
+raise JSONDecodeError("Expecting value", s, err.value) from None
+json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+Exception ignored in: <_io.TextIOWrapper name='<stdout>' mode='w' encoding='utf-8'>
+BrokenPipeError: [Errno 32] Broken pipe
+END RequestId: 9ff7a504-7fbe-4f71-be7d-8d081b244c38
+REPORT RequestId: 9ff7a504-7fbe-4f71-be7d-8d081b244c38	Duration: 4172.43 ms	Billed Duration: 4355 ms	Memory Size: 512 MB	Max Memory Used: 134 MB	Init Duration: 182.37 ms	Status: error	Error Type: Runtime.ExitError

@@ -1,0 +1,6 @@
+{
+  "copy_ran": true,
+  "trace_bundle_subdir": "playwright-traces",
+  "trace_files_copied": 3,
+  "source_directories": ["web/test-results/billing_portal_payment_method_update"]
+}

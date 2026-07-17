@@ -1,0 +1,7 @@
+exact_filter=email LIKE 'signup-paid-%@e2e.griddle.test'
+canary_filter=email LIKE 'canary+%@test.flapjack.foo'
+suspicious_filter=(email LIKE '%test%' OR email LIKE '%example%') excluding exact and canary
+created_at_floor=customers.created_at >= '2026-05-14'
+source_fixture=web/tests/fixtures/fixtures.ts::buildFreshSignupIdentity
+source_canary=scripts/lib/customer_lifecycle_steps.sh::run_signup_step
+source_db_owner=scripts/lib/staging_db.sh::staging_db_run_sql

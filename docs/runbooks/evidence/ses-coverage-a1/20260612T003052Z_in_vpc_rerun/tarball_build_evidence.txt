@@ -1,0 +1,10 @@
+tarball_exists=true
+tarball_size_bytes=1035255
+contains_.runtime/materialize_host_env.sh=true
+contains_scripts/launch/ssm_exec_staging.sh=true
+contains_scripts/probe_dunning_email_inbox_e2e.sh=true
+contains_scripts/probe_password_reset_clickthrough_e2e.sh=true
+contains_scripts/probe_ses_bounce_complaint_e2e.sh=true
+contains_scripts/probe_verify_email_clickthrough_e2e.sh=true
+contains_scripts/validate_staging_dunning_delivery.sh=true
+required_paths_present=true

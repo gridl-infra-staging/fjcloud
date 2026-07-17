@@ -1,0 +1,100 @@
+  ✓ Post Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+  ✓ Complete job
+✓ web-lint in 1m33s (ID 86081736044)
+  ✓ Set up job
+  ✓ Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+  ✓ Set up Node.js
+  ✓ Install dependencies
+  ✓ Run svelte-check
+  ✓ Run eslint
+  ✓ Run browser-unmocked lint
+  ✓ Run screen spec coverage contract
+  ✓ Run SES IAM/configset coupling contract
+  ✓ Post Set up Node.js
+  ✓ Post Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+  ✓ Complete job
+✓ rust-lint in 1m2s (ID 86081736049)
+  ✓ Set up job
+  ✓ Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+  ✓ Run CI workflow contract tests
+  ✓ Run web-deploy contract test
+  ✓ Run integration-test layout contract
+  ✓ Run SSM env projection contract test
+  ✓ Run SES support email unit seams
+  ✓ Install Rust
+  ✓ Set up rust cache
+  ✓ Run local-ci rust-lint regression test
+  ✓ Check formatting
+  ✓ Run clippy
+  ✓ Post Set up rust cache
+  ✓ Post Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+  ✓ Complete job
+✓ migration-test in 1m37s (ID 86081736055)
+  ✓ Set up job
+  ✓ Initialize containers
+  ✓ Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+  ✓ Install Rust
+  ✓ Install sqlx-cli
+  ✓ Run migration test
+  ✓ Post Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+  ✓ Stop containers
+  ✓ Complete job
+✓ web-test in 3m4s (ID 86081736068)
+  ✓ Set up job
+  ✓ Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+  ✓ Set up Node.js
+  ✓ Run web tests
+  ✓ Post Set up Node.js
+  ✓ Post Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+  ✓ Complete job
+✓ secret-scan in 16s (ID 86081736077)
+  ✓ Set up job
+  ✓ Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+  - Run gitleaks (PR diff)
+  ✓ Install gitleaks CLI (main full history)
+  ✓ Run gitleaks (main full history)
+  ✓ Post Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+  ✓ Complete job
+✓ rust-test in 4m12s (ID 86081736104)
+  ✓ Set up job
+  ✓ Initialize containers
+  ✓ Free disk space
+  ✓ Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+  ✓ Seed reliability profile artifacts
+  ✓ Install Rust
+  ✓ Set up rust cache
+  ✓ Set up swap space
+  ✓ Run rust tests
+  ✓ Post Set up rust cache
+  ✓ Post Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+  ✓ Stop containers
+  ✓ Complete job
+* deploy-staging (ID 86082584616)
+  ✓ Set up job
+  ✓ Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+  ✓ Configure AWS credentials
+  ✓ Inject build-time provenance from debbie sync manifest
+  * Build release binaries in Amazon Linux 2023
+  * Upload release artifacts
+  * Trigger API deploy
+  * Set up Node.js
+  * Deploy web to Cloudflare Pages
+  * Post Configure AWS credentials
+  * Post Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+- deploy-prod (ID 86082585104)
+
+ANNOTATIONS
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+check-sizes: .github#2
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+shell-hygiene: .github#2
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+secret-scan: .github#2
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5, Swatinem/rust-cache@ad397744b0d591a723ab90405b7247fac0e6b8db. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+rust-test: .github#2
+
+Refreshing run status every 3 seconds. Press Ctrl+C to quit.
+watch timeout after 1800s

@@ -1,0 +1,44 @@
+# Disposition Receipt: origin/stage4_s57_fix_blockers
+
+Classification: approved remote branch deletion; manifest stores short branch name
+Evidence source: current read-only git refs at bundle creation.
+
+## rev-parse
+$ git rev-parse origin/stage4_s57_fix_blockers
+1a159db0b455919c3747095c62eb1441e9e8583a
+
+## cherry
+$ git cherry -v main origin/stage4_s57_fix_blockers | tail -20
++ b8930f6c1fe8bddf3b8a68dabb0cd63bf169a507 matt: unstuck stage 4
++ bfd8634a675229ce2908e9e640d621f680624542 matt: stage 4 completion
+- dc72b8ff5d067a77d78b144b9617f4c03458a625 Fix search preview fresh key retry
++ fb758177ca18ebec4c8c5d6e24d8c4d835c73291 matt: stage 5 checklist
++ c6e0491c4fdc48cf2f625cda893e1b22152e52c0 matt: stage 5 build session 1
++ 5bc18b0e7036b2c0b3272676cb24842ef3342f6f evidence(cold-customer-audit): publish rerun findings closeout
++ c4cebcbe68510d87d4e833150b4397c4513dcaee matt: stage 5 completion
++ e38606b779ca4e6320e092276e3e14ea4ee60e76 fix: restore local shell entrypoint exec bits
++ bbf6a744bcb2f516ee5b079e62f04294f8cfff0c matt: posthoc security
++ 1a159db0b455919c3747095c62eb1441e9e8583a matt: terminal progress annotation
+
+## diff main...
+$ git diff main...origin/stage4_s57_fix_blockers --stat | tail -20
+ web/src/routes/api/DIRMAP.md                       |  18 +--
+ web/src/routes/api/pricing/DIRMAP.md               |   6 +-
+ web/src/routes/api/search/DIRMAP.md                |   6 +-
+ web/src/routes/api/search/[name]/+server.ts        |  26 +++-
+ web/src/routes/api/stripe/DIRMAP.md                |   6 +-
+ web/src/routes/auth/DIRMAP.md                      |   6 +-
+ web/src/routes/auth/oauth/DIRMAP.md                |   6 +-
+ web/src/routes/auth/oauth/[provider]/DIRMAP.md     |   6 +-
+ web/src/routes/billing/DIRMAP.md                   |   6 +-
+ web/src/routes/console/DIRMAP.md                   |  42 ++-----
+ web/src/routes/console/billing/DIRMAP.md           |   6 +-
+ web/src/routes/console/indexes/DIRMAP.md           |   6 +-
+ web/src/routes/console/indexes/[name]/DIRMAP.md    |  12 +-
+ .../console/indexes/[name]/experiments/DIRMAP.md   |   6 +-
+ web/tests/DIRMAP.md                                |  12 +-
+ web/tests/e2e-ui/DIRMAP.md                         |   6 +-
+ web/tests/e2e-ui/full/DIRMAP.md                    |   6 +-
+ web/tests/fixtures/DIRMAP.md                       |   2 +-
+ web/tests/fixtures/fixtures.ts                     |   2 +-
+ 87 files changed, 605 insertions(+), 903 deletions(-)

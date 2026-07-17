@@ -1,0 +1,369 @@
+### 2026-05-21T20:01:15Z stage5_command_transcript
++ bash scripts/tests/stage5_tenant_soft_delete_contract_test.sh
+  exit=0
++ bash docs/runbooks/evidence/prod_db_leak_cleanup/20260521T193529Z_stage5_tenant_soft_delete/00_commands.sh primary
+  exit=0
++ bash docs/runbooks/evidence/prod_db_leak_cleanup/20260521T193529Z_stage5_tenant_soft_delete/00_commands.sh rerun
+  exit=0
++ bash docs/runbooks/evidence/prod_db_leak_cleanup/20260521T193529Z_stage5_tenant_soft_delete/50_reproducibility_check.sh
+reproducibility_check=PASS
+primary_soft_deleted_via_admin_route=0
+primary_already_deleted_confirmed=62
+rerun_soft_deleted_via_admin_route=0
+rerun_already_deleted_confirmed=62
+active_exact_cleanup_customers_total=62
++ bash docs/runbooks/evidence/prod_db_leak_cleanup/20260521T193529Z_stage5_tenant_soft_delete/60_build_stage5_summary.sh
+  exit=0
+--- runs/primary/40_stage5_soft_delete_summary.json ---
+{
+  "run_label": "primary",
+  "lineage": {
+    "stage1_prod_exact_cleanup_csv": "docs/runbooks/evidence/prod_db_leak_cleanup/20260521T172106Z_stage1_inventory/10_prod_exact_cleanup.csv",
+    "stage1_staging_exact_cleanup_csv": "docs/runbooks/evidence/prod_db_leak_cleanup/20260521T172106Z_stage1_inventory/11_staging_exact_cleanup.csv"
+  },
+  "active_exact_cleanup_customers": {
+    "source": "Stage 1 exact CSVs",
+    "prod": 43,
+    "staging": 19,
+    "total": 62
+  },
+  "bucket_counts": {
+    "soft_deleted_via_admin_route": 0,
+    "already_deleted_confirmed": 62,
+    "delete_failed": 0
+  },
+  "per_environment": {
+    "prod": {
+      "csv_customer_count": 43,
+      "soft_deleted_via_admin_route": 0,
+      "already_deleted_confirmed": 43,
+      "delete_failed": 0
+    },
+    "staging": {
+      "csv_customer_count": 19,
+      "soft_deleted_via_admin_route": 0,
+      "already_deleted_confirmed": 19,
+      "delete_failed": 0
+    }
+  },
+  "post_delete_status_evidence_pointers": {
+    "disposition_table_json": "docs/runbooks/evidence/prod_db_leak_cleanup/20260521T193529Z_stage5_tenant_soft_delete/runs/primary/30_stage5_soft_delete_dispositions.json",
+    "disposition_table_csv": "docs/runbooks/evidence/prod_db_leak_cleanup/20260521T193529Z_stage5_tenant_soft_delete/runs/primary/31_stage5_soft_delete_dispositions.csv"
+  },
+  "violations": []
+}
+--- runs/rerun/40_stage5_soft_delete_summary.json ---
+{
+  "run_label": "rerun",
+  "lineage": {
+    "stage1_prod_exact_cleanup_csv": "docs/runbooks/evidence/prod_db_leak_cleanup/20260521T172106Z_stage1_inventory/10_prod_exact_cleanup.csv",
+    "stage1_staging_exact_cleanup_csv": "docs/runbooks/evidence/prod_db_leak_cleanup/20260521T172106Z_stage1_inventory/11_staging_exact_cleanup.csv"
+  },
+  "active_exact_cleanup_customers": {
+    "source": "Stage 1 exact CSVs",
+    "prod": 43,
+    "staging": 19,
+    "total": 62
+  },
+  "bucket_counts": {
+    "soft_deleted_via_admin_route": 0,
+    "already_deleted_confirmed": 62,
+    "delete_failed": 0
+  },
+  "per_environment": {
+    "prod": {
+      "csv_customer_count": 43,
+      "soft_deleted_via_admin_route": 0,
+      "already_deleted_confirmed": 43,
+      "delete_failed": 0
+    },
+    "staging": {
+      "csv_customer_count": 19,
+      "soft_deleted_via_admin_route": 0,
+      "already_deleted_confirmed": 19,
+      "delete_failed": 0
+    }
+  },
+  "post_delete_status_evidence_pointers": {
+    "disposition_table_json": "docs/runbooks/evidence/prod_db_leak_cleanup/20260521T193529Z_stage5_tenant_soft_delete/runs/rerun/30_stage5_soft_delete_dispositions.json",
+    "disposition_table_csv": "docs/runbooks/evidence/prod_db_leak_cleanup/20260521T193529Z_stage5_tenant_soft_delete/runs/rerun/31_stage5_soft_delete_dispositions.csv"
+  },
+  "violations": []
+}
+--- 40_stage5_summary.json ---
+{
+  "stage": "stage5_tenant_soft_delete",
+  "active_exact_cleanup_customers": {
+    "source": "Stage 1 exact CSVs",
+    "prod": 43,
+    "staging": 19,
+    "total": 62
+  },
+  "primary_bucket_counts": {
+    "soft_deleted_via_admin_route": 0,
+    "already_deleted_confirmed": 62,
+    "delete_failed": 0
+  },
+  "rerun_bucket_counts": {
+    "soft_deleted_via_admin_route": 0,
+    "already_deleted_confirmed": 62,
+    "delete_failed": 0
+  },
+  "primary_violations": [],
+  "rerun_violations": [],
+  "rerun_is_no_op_for_mutation": true,
+  "customer_terminal_dispositions": {
+    "prod:87ca3375-c69d-4844-98b0-4bd2cc471687": {
+      "bucket": "already_deleted_confirmed",
+      "bucket_reason": "delete_404_admin_get_deleted"
+    },
+    "prod:2d292d38-83f1-4ad1-85c2-a91c88851c8b": {
+      "bucket": "already_deleted_confirmed",
+      "bucket_reason": "delete_404_admin_get_deleted"
+    },
+    "prod:adce70ce-de4f-490f-a5f2-5002f946351d": {
+      "bucket": "already_deleted_confirmed",
+      "bucket_reason": "delete_404_admin_get_deleted"
+    },
+    "prod:b2c60561-f0d7-4a8a-a4bf-ae0b01fdfcfa": {
+      "bucket": "already_deleted_confirmed",
+      "bucket_reason": "delete_404_admin_get_deleted"
+    },
+    "prod:5a182d14-dbb8-4abf-a70c-d3ae440bad4d": {
+      "bucket": "already_deleted_confirmed",
+      "bucket_reason": "delete_404_admin_get_deleted"
+    },
+    "prod:f8ee712c-330a-4d3a-9ea7-7c60f890e615": {
+      "bucket": "already_deleted_confirmed",
+      "bucket_reason": "delete_404_admin_get_deleted"
+    },
+    "prod:64756236-1ef8-4a6e-a331-274ad5b50e45": {
+      "bucket": "already_deleted_confirmed",
+      "bucket_reason": "delete_404_admin_get_deleted"
+    },
+    "prod:2972a142-eeee-4399-a2cf-f8d323cf654d": {
+      "bucket": "already_deleted_confirmed",
+      "bucket_reason": "delete_404_admin_get_deleted"
+    },
+    "prod:afcb1eab-2469-4473-9458-ebe599c59087": {
+      "bucket": "already_deleted_confirmed",
+      "bucket_reason": "delete_404_admin_get_deleted"
+    },
+    "prod:9945212b-c0d6-4370-89f5-5adec450970a": {
+      "bucket": "already_deleted_confirmed",
+      "bucket_reason": "delete_404_admin_get_deleted"
+    },
+    "prod:b125d205-7481-4591-83f1-dcc63822aa5f": {
+      "bucket": "already_deleted_confirmed",
+      "bucket_reason": "delete_404_admin_get_deleted"
+    },
+    "prod:cf5fbc76-f3c2-4f59-9119-92d60ee18f4f": {
+      "bucket": "already_deleted_confirmed",
+      "bucket_reason": "delete_404_admin_get_deleted"
+    },
+    "prod:8f1ef34e-cd84-489d-883d-bcf25681b105": {
+      "bucket": "already_deleted_confirmed",
+      "bucket_reason": "delete_404_admin_get_deleted"
+    },
+    "prod:e25fdf82-66e6-4179-83a8-99c48f7e6e50": {
+      "bucket": "already_deleted_confirmed",
+      "bucket_reason": "delete_404_admin_get_deleted"
+    },
+    "prod:bc7c2b72-f3a0-48ab-bce6-9e97f2cdcc2e": {
+      "bucket": "already_deleted_confirmed",
+      "bucket_reason": "delete_404_admin_get_deleted"
+    },
+    "prod:9305d4a4-38c3-4dba-ab83-842c32a2e161": {
+      "bucket": "already_deleted_confirmed",
+      "bucket_reason": "delete_404_admin_get_deleted"
+    },
+    "prod:20529eff-3ea2-4d9f-820f-13583ee81bd8": {
+      "bucket": "already_deleted_confirmed",
+      "bucket_reason": "delete_404_admin_get_deleted"
+    },
+    "prod:042da7ab-71af-4f8e-876e-07ba44557c60": {
+      "bucket": "already_deleted_confirmed",
+      "bucket_reason": "delete_404_admin_get_deleted"
+    },
+    "prod:e57a162a-7c0d-4a08-bf4a-4b877021c1fe": {
+      "bucket": "already_deleted_confirmed",
+      "bucket_reason": "delete_404_admin_get_deleted"
+    },
+    "prod:7c3ef8de-b912-4879-847b-7dea44b73f5b": {
+      "bucket": "already_deleted_confirmed",
+      "bucket_reason": "delete_404_admin_get_deleted"
+    },
+    "prod:5ce40f27-7aa9-460a-aac0-5804f2697ef9": {
+      "bucket": "already_deleted_confirmed",
+      "bucket_reason": "delete_404_admin_get_deleted"
+    },
+    "prod:657c107b-72e0-4616-a059-f24258d4e6df": {
+      "bucket": "already_deleted_confirmed",
+      "bucket_reason": "delete_404_admin_get_deleted"
+    },
+    "prod:c3c5ef36-9215-4948-b2e2-c0c9f42888a3": {
+      "bucket": "already_deleted_confirmed",
+      "bucket_reason": "delete_404_admin_get_deleted"
+    },
+    "prod:d06edbe3-4a16-41d5-9328-74a519a9103a": {
+      "bucket": "already_deleted_confirmed",
+      "bucket_reason": "delete_404_admin_get_deleted"
+    },
+    "prod:6cf83d45-5641-404e-8d38-72b6e1e4a2ce": {
+      "bucket": "already_deleted_confirmed",
+      "bucket_reason": "delete_404_admin_get_deleted"
+    },
+    "prod:c5abda10-a045-4b1b-bc50-cdddc5ad6903": {
+      "bucket": "already_deleted_confirmed",
+      "bucket_reason": "delete_404_admin_get_deleted"
+    },
+    "prod:2a0d4324-87b7-4f03-b1ac-63493ed211e7": {
+      "bucket": "already_deleted_confirmed",
+      "bucket_reason": "delete_404_admin_get_deleted"
+    },
+    "prod:d6852b16-ccba-4986-aecf-feada8f65a52": {
+      "bucket": "already_deleted_confirmed",
+      "bucket_reason": "delete_404_admin_get_deleted"
+    },
+    "prod:199b20ef-c5c9-4ffc-a8dd-8ffbdbce3a27": {
+      "bucket": "already_deleted_confirmed",
+      "bucket_reason": "delete_404_admin_get_deleted"
+    },
+    "prod:4e172e6b-c10a-479c-bb89-4cd807c71f61": {
+      "bucket": "already_deleted_confirmed",
+      "bucket_reason": "delete_404_admin_get_deleted"
+    },
+    "prod:e77f2323-1e2d-486b-906d-c26de35f66a8": {
+      "bucket": "already_deleted_confirmed",
+      "bucket_reason": "delete_404_admin_get_deleted"
+    },
+    "prod:f99e551a-524e-4ba2-acbb-e5d06b78e2f7": {
+      "bucket": "already_deleted_confirmed",
+      "bucket_reason": "delete_404_admin_get_deleted"
+    },
+    "prod:4c2f1ee5-05ec-45eb-a4f4-153897a339eb": {
+      "bucket": "already_deleted_confirmed",
+      "bucket_reason": "delete_404_admin_get_deleted"
+    },
+    "prod:c4df8e66-f443-4023-91a2-f45fd29ddb45": {
+      "bucket": "already_deleted_confirmed",
+      "bucket_reason": "delete_404_admin_get_deleted"
+    },
+    "prod:f5cabc9e-83ef-4cc8-ae4b-a880e5b4e208": {
+      "bucket": "already_deleted_confirmed",
+      "bucket_reason": "delete_404_admin_get_deleted"
+    },
+    "prod:1c239c5e-7a73-4847-8ced-bb977ba969af": {
+      "bucket": "already_deleted_confirmed",
+      "bucket_reason": "delete_404_admin_get_deleted"
+    },
+    "prod:09f4197b-456e-4a8e-ab0c-82299b2cbc6f": {
+      "bucket": "already_deleted_confirmed",
+      "bucket_reason": "delete_404_admin_get_deleted"
+    },
+    "prod:f1db3cc1-195d-489c-9000-ca5602beea85": {
+      "bucket": "already_deleted_confirmed",
+      "bucket_reason": "delete_404_admin_get_deleted"
+    },
+    "prod:e91b3759-a9dc-4ea4-86e4-731712ed5a9b": {
+      "bucket": "already_deleted_confirmed",
+      "bucket_reason": "delete_404_admin_get_deleted"
+    },
+    "prod:da8bd203-7ba9-4de6-88c5-a53390142b21": {
+      "bucket": "already_deleted_confirmed",
+      "bucket_reason": "delete_404_admin_get_deleted"
+    },
+    "prod:27b5e4ea-31b5-41fc-b4dd-78006ee22d83": {
+      "bucket": "already_deleted_confirmed",
+      "bucket_reason": "delete_404_admin_get_deleted"
+    },
+    "prod:aaf69144-55ca-47ca-8e97-d1af866ee8c6": {
+      "bucket": "already_deleted_confirmed",
+      "bucket_reason": "delete_404_admin_get_deleted"
+    },
+    "prod:871fcac7-1b34-4d2c-bde2-a5a599436ba6": {
+      "bucket": "already_deleted_confirmed",
+      "bucket_reason": "delete_404_admin_get_deleted"
+    },
+    "staging:5678419f-db8b-45e8-8096-e2ff547ecf06": {
+      "bucket": "already_deleted_confirmed",
+      "bucket_reason": "stage4_list_http_404_db_confirmed"
+    },
+    "staging:91bd1c83-760d-497c-8e5a-f801a0678859": {
+      "bucket": "already_deleted_confirmed",
+      "bucket_reason": "stage4_list_http_404_db_confirmed"
+    },
+    "staging:f087a22f-b356-4471-957f-beb45467d3a0": {
+      "bucket": "already_deleted_confirmed",
+      "bucket_reason": "stage4_list_http_404_db_confirmed"
+    },
+    "staging:3aae7a8c-df9a-4d3d-ac4e-90b611def503": {
+      "bucket": "already_deleted_confirmed",
+      "bucket_reason": "stage4_list_http_404_db_confirmed"
+    },
+    "staging:e090beb9-4e87-438f-b24e-22502c5d83b1": {
+      "bucket": "already_deleted_confirmed",
+      "bucket_reason": "delete_404_admin_get_deleted"
+    },
+    "staging:2fb3f55a-0a05-451b-abe7-e9e995cfe1a2": {
+      "bucket": "already_deleted_confirmed",
+      "bucket_reason": "delete_404_admin_get_deleted"
+    },
+    "staging:8c86dc74-3d94-424e-bf3f-08724dec571c": {
+      "bucket": "already_deleted_confirmed",
+      "bucket_reason": "delete_404_admin_get_deleted"
+    },
+    "staging:5b9e22b4-c760-40f5-b0b0-aea473b3b35c": {
+      "bucket": "already_deleted_confirmed",
+      "bucket_reason": "delete_404_admin_get_deleted"
+    },
+    "staging:2fcfe758-49a2-4919-a887-925fcf7e6e34": {
+      "bucket": "already_deleted_confirmed",
+      "bucket_reason": "delete_404_admin_get_deleted"
+    },
+    "staging:81d06028-581a-4ea7-9e95-1026adedefad": {
+      "bucket": "already_deleted_confirmed",
+      "bucket_reason": "delete_404_admin_get_deleted"
+    },
+    "staging:4fc9a6d7-35ab-4b4f-bd3d-67185cc02aa9": {
+      "bucket": "already_deleted_confirmed",
+      "bucket_reason": "stage4_list_http_404_db_confirmed"
+    },
+    "staging:62c16e8b-62b1-445b-8e2e-78a530d919e3": {
+      "bucket": "already_deleted_confirmed",
+      "bucket_reason": "stage4_list_http_404_db_confirmed"
+    },
+    "staging:12806dcc-d3d6-4e60-a57b-bc75cb045f02": {
+      "bucket": "already_deleted_confirmed",
+      "bucket_reason": "stage4_list_http_404_db_confirmed"
+    },
+    "staging:8f331a34-d7db-4f38-b281-5d1abda9914b": {
+      "bucket": "already_deleted_confirmed",
+      "bucket_reason": "stage4_list_http_404_db_confirmed"
+    },
+    "staging:b2a36d77-6826-4481-b8c0-8d1b0e23d55b": {
+      "bucket": "already_deleted_confirmed",
+      "bucket_reason": "stage4_list_http_404_db_confirmed"
+    },
+    "staging:a50a82fd-ec9e-4b07-a6fe-5ed59e60b58f": {
+      "bucket": "already_deleted_confirmed",
+      "bucket_reason": "stage4_list_http_404_db_confirmed"
+    },
+    "staging:aa04b5c0-5c98-45f4-98e9-c29586369424": {
+      "bucket": "already_deleted_confirmed",
+      "bucket_reason": "stage4_list_http_404_db_confirmed"
+    },
+    "staging:b5eb7e38-2959-4edf-ba26-4cbb758b743b": {
+      "bucket": "already_deleted_confirmed",
+      "bucket_reason": "stage4_list_http_404_db_confirmed"
+    },
+    "staging:f6bb31ed-2fa3-49c6-bb72-cea5fe259f3e": {
+      "bucket": "already_deleted_confirmed",
+      "bucket_reason": "stage4_list_http_404_db_confirmed"
+    }
+  },
+  "post_delete_status_evidence_pointers": {
+    "disposition_table_json": "docs/runbooks/evidence/prod_db_leak_cleanup/20260521T193529Z_stage5_tenant_soft_delete/runs/primary/30_stage5_soft_delete_dispositions.json",
+    "disposition_table_csv": "docs/runbooks/evidence/prod_db_leak_cleanup/20260521T193529Z_stage5_tenant_soft_delete/runs/primary/31_stage5_soft_delete_dispositions.csv"
+  }
+}

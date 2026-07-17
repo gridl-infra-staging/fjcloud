@@ -1,0 +1,36 @@
+# Disposition Receipt: batman/jul12_pm_3_s1_dunning_reset_stripe_json_fix
+
+Classification: out of deletion scope for this stage
+Evidence source: current read-only git refs at bundle creation.
+
+## rev-parse
+$ git rev-parse batman/jul12_pm_3_s1_dunning_reset_stripe_json_fix
+bc6fa4b16e96cea2c276ce369e23cb2029fe8ef6
+
+## cherry
+$ git cherry -v main batman/jul12_pm_3_s1_dunning_reset_stripe_json_fix | tail -20
++ 571af0f8e139e364028f1e2497459c5b244ee53b baseline: pre-session scrai/tooling sync
++ bc6fa4b16e96cea2c276ce369e23cb2029fe8ef6 matt: stage 1 checklist
+
+## diff main...
+$ git diff main...batman/jul12_pm_3_s1_dunning_reset_stripe_json_fix --stat | tail -20
+ web/src/lib/components/DIRMAP.md                   |  2 +-
+ web/src/routes/DIRMAP.md                           | 12 ++++++------
+ web/src/routes/admin/DIRMAP.md                     |  2 +-
+ web/src/routes/admin/customers/DIRMAP.md           |  2 +-
+ web/src/routes/api/DIRMAP.md                       |  6 +++---
+ web/src/routes/api/pricing/DIRMAP.md               |  2 +-
+ web/src/routes/api/search/DIRMAP.md                |  2 +-
+ web/src/routes/api/stripe/DIRMAP.md                |  2 +-
+ web/src/routes/auth/DIRMAP.md                      |  2 +-
+ web/src/routes/auth/oauth/DIRMAP.md                |  2 +-
+ web/src/routes/auth/oauth/[provider]/DIRMAP.md     |  2 +-
+ web/src/routes/billing/DIRMAP.md                   |  2 +-
+ web/src/routes/console/DIRMAP.md                   | 14 +++++++-------
+ web/src/routes/console/indexes/DIRMAP.md           |  2 +-
+ web/src/routes/console/indexes/[name]/DIRMAP.md    |  2 +-
+ .../console/indexes/[name]/experiments/DIRMAP.md   |  2 +-
+ web/tests/DIRMAP.md                                |  4 ++--
+ web/tests/e2e-ui/DIRMAP.md                         |  2 +-
+ web/tests/e2e-ui/full/DIRMAP.md                    |  2 +-
+ 60 files changed, 125 insertions(+), 112 deletions(-)

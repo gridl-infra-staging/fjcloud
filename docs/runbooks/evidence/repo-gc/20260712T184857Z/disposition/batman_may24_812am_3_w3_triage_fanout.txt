@@ -1,0 +1,14 @@
+# Disposition Receipt: batman/may24_812am_3_w3_triage_fanout
+
+Classification: approved freed local branch after approved worktree removal
+Evidence source: current read-only git refs at bundle creation.
+
+## rev-parse
+$ git rev-parse batman/may24_812am_3_w3_triage_fanout
+04c83ecc057278c45c042d83c0f2fb1ae1a763cc
+
+## cherry
+$ git cherry -v main batman/may24_812am_3_w3_triage_fanout | tail -20
+
+## diff main...
+$ git diff main...batman/may24_812am_3_w3_triage_fanout --stat | tail -20

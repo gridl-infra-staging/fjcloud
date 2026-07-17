@@ -1,0 +1,7 @@
+command: bash scripts/probe_deployed_signup_renders.sh
+head_sha: 444c9cc4b7920beed806ef0b06ac1865e1a77e97
+clean_tree: true
+cache_check: MISS
+[probe-signup] OK url=https://cloud.flapjack.foo/signup status=200 markers=all-present
+RECORDED
+status: pass

@@ -1,0 +1,8 @@
+FAIL: function fjcloud-prod-customer-loop-canary threw Unhandled
+==response body==
+{"errorType":"Runtime.ExitError","errorMessage":"RequestId: ae7d6825-fb44-4adc-b53a-ffe1daf34092 Error: Runtime exited with error: exit status 1"}==log tail (base64 in invoke response; decode if needed)==
+START RequestId: ae7d6825-fb44-4adc-b53a-ffe1daf34092 Version: $LATEST
+An error occurred (AccessDeniedException) when calling the GetParameters operation: User: arn:aws:sts::213880904778:assumed-role/fjcloud-prod-customer-loop-canary-lambda/fjcloud-prod-customer-loop-canary is not authorized to perform: ssm:GetParameters on resource: arn:aws:ssm:us-east-1:213880904778:parameter/uiaeMnmRzsOPw0aEglARrv5hW6GX0pi because no identity-based policy allows the ssm:GetParameters action
+failed to resolve SSM parameters in bootstrap hydration
+END RequestId: ae7d6825-fb44-4adc-b53a-ffe1daf34092
+REPORT RequestId: ae7d6825-fb44-4adc-b53a-ffe1daf34092	Duration: 3007.61 ms	Billed Duration: 3008 ms	Memory Size: 512 MB	Max Memory Used: 139 MB	Status: error	Error Type: Runtime.ExitError

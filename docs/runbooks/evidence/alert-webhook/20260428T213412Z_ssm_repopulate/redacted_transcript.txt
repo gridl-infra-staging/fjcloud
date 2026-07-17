@@ -1,0 +1,42 @@
+timestamp_utc=20260428T213412Z
+secret_source=/Users/stuart/repos/gridl-infra-dev/fjcloud_dev/.secret/.env.secret
+discord_source_mode=env_secret_canonical
+
+# Step 1: Caller identity
+$ aws sts get-caller-identity --output json
+{
+    "UserId": "AIDATDTCLTRFKVSWMJCGQ",
+    "Account": "213880904778",
+    "Arn": "arn:aws:iam::213880904778:user/stuart-cli"
+}
+
+# Step 2: Region probe
+$ aws configure get region
+(empty — explicit --region us-east-1 used on all SSM commands below)
+
+# Step 3: Discord upsert from canonical secret source
+$ aws ssm put-parameter --overwrite --type SecureString --name /fjcloud/staging/discord_webhook_url --value <redacted> --region us-east-1
+{
+    "Version": 4,
+    "Tier": "Standard"
+}
+
+# Step 4: Readback with decryption (value redacted, metadata preserved)
+$ aws ssm get-parameter --name /fjcloud/staging/discord_webhook_url --with-decryption --query Parameter.{Name:Name,Type:Type,Version:Version,LastModifiedDate:LastModifiedDate} --output json --region us-east-1
+{
+    "Name": "/fjcloud/staging/discord_webhook_url",
+    "Type": "SecureString",
+    "Version": 4,
+    "LastModifiedDate": "2026-04-28T17:34:13.622000-04:00"
+}
+
+# Step 5: Structural contract check — path matches generate_ssm_env.sh SSM_TO_ENV suffixes
+$ aws ssm get-parameters-by-path --path /fjcloud/staging/ --with-decryption --query "Parameters[?ends_with(Name, 'discord_webhook_url') || ends_with(Name, 'slack_webhook_url')].{Name:Name,Type:Type,Version:Version,LastModifiedDate:LastModifiedDate}" --output json --region us-east-1
+[
+    {
+        "Name": "/fjcloud/staging/discord_webhook_url",
+        "Type": "SecureString",
+        "Version": 4,
+        "LastModifiedDate": "2026-04-28T17:34:13.622000-04:00"
+    }
+]

@@ -1,0 +1,8 @@
+START RequestId: b65855f0-ab8b-4d5e-8325-fbc1837b2626 Version: $LATEST
+{"passed":false,"steps":[{"name":"send_probe","passed":false,"detail":"aws sesv2 send-email failed for recipient 'roundtrip-inbound-probe-20260518T040034Z-8139@test.flapjack.foo'."},{"name":"poll_inbox_s3","passed":false,"detail":"Skipped because send_probe failed."},{"name":"fetch_rfc822","passed":false,"detail":"Skipped because send_probe failed."},{"name":"auth_verdict","passed":false,"detail":"Skipped because send_probe failed."}],"elapsed_ms":2218}
+[OK]   discord: HTTP 204
+[FAIL] slack: HTTP 400 (expected 2xx)
+WARN: support email deliverability alert dispatch failed for one or more channels.
+[ERROR] RuntimeError: support email canary failed with exit code 1Traceback (most recent call last):  File "/var/task/lambda_handler.py", line 86, in handler    return _run_canary()  File "/var/task/lambda_handler.py", line 77, in _run_canary    raise RuntimeError(f"support email canary failed with exit code {completed.returncode}")
+END RequestId: b65855f0-ab8b-4d5e-8325-fbc1837b2626
+REPORT RequestId: b65855f0-ab8b-4d5e-8325-fbc1837b2626	Duration: 2812.70 ms	Billed Duration: 2813 ms	Memory Size: 512 MB	Max Memory Used: 147 MB	

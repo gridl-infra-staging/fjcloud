@@ -1,0 +1,1 @@
+command=bash scripts/staging_billing_rehearsal.sh --env-file .secret/.env.secret --month 2026-07 --confirm-live-mutation

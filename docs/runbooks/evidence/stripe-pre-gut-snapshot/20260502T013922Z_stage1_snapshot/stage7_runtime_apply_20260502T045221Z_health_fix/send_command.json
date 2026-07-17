@@ -1,0 +1,46 @@
+{
+    "Command": {
+        "CommandId": "792a193f-b648-4126-9338-c6edd2549994",
+        "DocumentName": "AWS-RunShellScript",
+        "DocumentVersion": "$DEFAULT",
+        "Comment": "stage7 health fix diagnostic and verify",
+        "ExpiresAfter": "2026-05-02T02:52:22.535000-04:00",
+        "Parameters": {
+            "commands": [
+                "set -euo pipefail\\necho \"=== pre_restart_diag ===\"\\ndate -u +%Y-%m-%dT%H:%M:%SZ\\nsystemctl is-active fjcloud-api || true\\nsystemctl status fjcloud-api --no-pager -l || true\\njournalctl -u fjcloud-api --since \"30 minutes ago\" --no-pager || true\\nss -ltnp | grep -E \":3001\\\\b\" || true\\nawk -F= '/^(PORT|HOST|BIND)=/ { print } /^(DATABASE_URL|STRIPE_SECRET_KEY|STRIPE_PUBLISHABLE_KEY|STRIPE_WEBHOOK_SECRET)=/ { print $1 \"=<redacted>\" }' /etc/fjcloud/env || true\\n\\necho \"=== restart_and_verify ===\"\\nsudo systemctl restart fjcloud-api\\nsystemctl is-active fjcloud-api\\nfor i in $(seq 1 30); do\\n  if curl -fsS http://127.0.0.1:3001/health; then\\n    echo\\n    echo \"health_ok_after_seconds=$i\"\\n    break\\n  fi\\n  sleep 1\\n  if [ \"$i\" -eq 30 ]; then\\n    echo \"health_check_timeout_after_30s\" >&2\\n    exit 7\\n  fi\\ndone\\njournalctl -u fjcloud-api --since \"10 minutes ago\" --no-pager"
+            ]
+        },
+        "InstanceIds": [
+            "i-0afc7651593f12372"
+        ],
+        "Targets": [],
+        "RequestedDateTime": "2026-05-02T00:52:22.535000-04:00",
+        "Status": "Pending",
+        "StatusDetails": "Pending",
+        "OutputS3Region": "us-east-1",
+        "OutputS3BucketName": "",
+        "OutputS3KeyPrefix": "",
+        "MaxConcurrency": "50",
+        "MaxErrors": "0",
+        "TargetCount": 1,
+        "CompletedCount": 0,
+        "ErrorCount": 0,
+        "DeliveryTimedOutCount": 0,
+        "ServiceRole": "",
+        "NotificationConfig": {
+            "NotificationArn": "",
+            "NotificationEvents": [],
+            "NotificationType": ""
+        },
+        "CloudWatchOutputConfig": {
+            "CloudWatchLogGroupName": "",
+            "CloudWatchOutputEnabled": false
+        },
+        "TimeoutSeconds": 3600,
+        "AlarmConfiguration": {
+            "IgnorePollAlarmFailure": false,
+            "Alarms": []
+        },
+        "TriggeredAlarms": []
+    }
+}

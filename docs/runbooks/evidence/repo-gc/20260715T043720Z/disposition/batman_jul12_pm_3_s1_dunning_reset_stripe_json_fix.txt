@@ -1,0 +1,11 @@
+# Disposition: batman/jul12_pm_3_s1_dunning_reset_stripe_json_fix
+
+Classification: excluded-dirty-worktree
+Worktree: `<parallel-root>/fjcloud_dev/jul12_pm_3_s1_dunning_reset_stripe_json_fix/fjcloud_dev`
+Tip: a1e2dc2b20bb1507fc4d48fe90506dd230a907cc
+Ancestor exit: 0
+Bounded cherry: no output
+Three-dot diff stat: no output
+Porcelain rows: 14
+
+The worktree contains tracked script and generated-file modifications. It is not approved for removal.

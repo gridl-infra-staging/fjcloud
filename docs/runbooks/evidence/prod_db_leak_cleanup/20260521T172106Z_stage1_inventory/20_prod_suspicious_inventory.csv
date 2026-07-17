@@ -1,0 +1,41 @@
+customer_id,email,status,deleted_at,stripe_customer_id,tenant_id,deployment_id,deployment_status,provider_vm_id,hostname,flapjack_url,ip_address,created_at
+75e7e89c-8c60-40c5-a33f-9d3de31b2ede,stage5-live-1778900135@test.flapjack.foo,deleted,2026-05-17 06:52:30.007082+00,cus_UWbbKWz1rQqAvu,,,,,,,,2026-05-16 02:55:35.158104+00
+ca2aaff4-bad3-400c-913e-3f4dedb0fbfe,stage5-live-1778900169@test.flapjack.foo,deleted,2026-05-17 06:52:29.929259+00,cus_UWbboomd0Fx0WP,,,,,,,,2026-05-16 02:56:10.009029+00
+7a72560c-84c8-4bb6-95d2-be116ac162c5,stage5-live-1778900654@test.flapjack.foo,deleted,2026-05-16 03:04:17.090721+00,cus_UWbjVnDH1i50of,,,,,,,,2026-05-16 03:04:14.447895+00
+77008797-9a4a-4a4b-95ce-8977a6e4ea3c,stage5_live_card_e2e_20260516t032124z_40939@example.invalid,deleted,2026-05-17 06:52:29.860262+00,cus_UWc1IXkTT4MbLc,,,,,,,,2026-05-16 03:21:25.185743+00
+5c649985-df0f-4e28-8af2-35c45ec14c04,stage5_live_card_e2e_20260516t032223z_49117@example.invalid,deleted,2026-05-17 06:52:29.793363+00,cus_UWc2poLEl0uxoN,,,,,,,,2026-05-16 03:22:23.409641+00
+60dc2284-ba43-4a1e-a26e-83996dd5dd5e,stage5-vm-refresh-20260517070945@test.flapjack.foo,deleted,2026-05-17 07:13:21.584939+00,,stage5seed10071019,33500862-610e-495f-8aed-53ef10131fb0,running,,,,,2026-05-17 07:09:45.497145+00
+60dc2284-ba43-4a1e-a26e-83996dd5dd5e,stage5-vm-refresh-20260517070945@test.flapjack.foo,deleted,2026-05-17 07:13:21.584939+00,,stage5seed1071017,33500862-610e-495f-8aed-53ef10131fb0,running,,,,,2026-05-17 07:09:45.497145+00
+60dc2284-ba43-4a1e-a26e-83996dd5dd5e,stage5-vm-refresh-20260517070945@test.flapjack.foo,deleted,2026-05-17 07:13:21.584939+00,,stage5seed11071019,33500862-610e-495f-8aed-53ef10131fb0,running,,,,,2026-05-17 07:09:45.497145+00
+60dc2284-ba43-4a1e-a26e-83996dd5dd5e,stage5-vm-refresh-20260517070945@test.flapjack.foo,deleted,2026-05-17 07:13:21.584939+00,,stage5seed12071019,33500862-610e-495f-8aed-53ef10131fb0,running,,,,,2026-05-17 07:09:45.497145+00
+60dc2284-ba43-4a1e-a26e-83996dd5dd5e,stage5-vm-refresh-20260517070945@test.flapjack.foo,deleted,2026-05-17 07:13:21.584939+00,,stage5seed13071020,33500862-610e-495f-8aed-53ef10131fb0,running,,,,,2026-05-17 07:09:45.497145+00
+60dc2284-ba43-4a1e-a26e-83996dd5dd5e,stage5-vm-refresh-20260517070945@test.flapjack.foo,deleted,2026-05-17 07:13:21.584939+00,,stage5seed2071017,33500862-610e-495f-8aed-53ef10131fb0,running,,,,,2026-05-17 07:09:45.497145+00
+60dc2284-ba43-4a1e-a26e-83996dd5dd5e,stage5-vm-refresh-20260517070945@test.flapjack.foo,deleted,2026-05-17 07:13:21.584939+00,,stage5seed3071017,33500862-610e-495f-8aed-53ef10131fb0,running,,,,,2026-05-17 07:09:45.497145+00
+60dc2284-ba43-4a1e-a26e-83996dd5dd5e,stage5-vm-refresh-20260517070945@test.flapjack.foo,deleted,2026-05-17 07:13:21.584939+00,,stage5seed4071018,33500862-610e-495f-8aed-53ef10131fb0,running,,,,,2026-05-17 07:09:45.497145+00
+60dc2284-ba43-4a1e-a26e-83996dd5dd5e,stage5-vm-refresh-20260517070945@test.flapjack.foo,deleted,2026-05-17 07:13:21.584939+00,,stage5seed5071018,33500862-610e-495f-8aed-53ef10131fb0,running,,,,,2026-05-17 07:09:45.497145+00
+60dc2284-ba43-4a1e-a26e-83996dd5dd5e,stage5-vm-refresh-20260517070945@test.flapjack.foo,deleted,2026-05-17 07:13:21.584939+00,,stage5seed6071018,33500862-610e-495f-8aed-53ef10131fb0,running,,,,,2026-05-17 07:09:45.497145+00
+60dc2284-ba43-4a1e-a26e-83996dd5dd5e,stage5-vm-refresh-20260517070945@test.flapjack.foo,deleted,2026-05-17 07:13:21.584939+00,,stage5seed7071018,33500862-610e-495f-8aed-53ef10131fb0,running,,,,,2026-05-17 07:09:45.497145+00
+60dc2284-ba43-4a1e-a26e-83996dd5dd5e,stage5-vm-refresh-20260517070945@test.flapjack.foo,deleted,2026-05-17 07:13:21.584939+00,,stage5seed8071019,33500862-610e-495f-8aed-53ef10131fb0,running,,,,,2026-05-17 07:09:45.497145+00
+60dc2284-ba43-4a1e-a26e-83996dd5dd5e,stage5-vm-refresh-20260517070945@test.flapjack.foo,deleted,2026-05-17 07:13:21.584939+00,,stage5seed9071019,33500862-610e-495f-8aed-53ef10131fb0,running,,,,,2026-05-17 07:09:45.497145+00
+60dc2284-ba43-4a1e-a26e-83996dd5dd5e,stage5-vm-refresh-20260517070945@test.flapjack.foo,deleted,2026-05-17 07:13:21.584939+00,,stage5seedhealthy071235,33500862-610e-495f-8aed-53ef10131fb0,running,,,,,2026-05-17 07:09:45.497145+00
+5e511632-7760-4ad2-9a12-ce4e3b5f8dff,trust-ratchet-success_paid-20260518t030511z@test.flapjack.foo,active,,cus_UXMCev2o7jv0kL,,,,,,,,2026-05-18 03:05:11.233455+00
+17554fbd-cf38-48a1-a4d9-9e893a419e0a,probe4-20260518t030700z@test.flapjack.foo,active,,,,,,,,,,2026-05-18 03:07:00.369866+00
+14f0e300-1125-461b-b121-4ac5c00c150e,probe4-20260518t030713z@test.flapjack.foo,active,,cus_UXMEb9BpUkYmnW,,,,,,,,2026-05-18 03:07:13.140624+00
+46d702a4-5ef7-472b-adcc-158c3c326d23,probe5-20260518t030826z@test.flapjack.foo,active,,cus_UXMGRYPA4YOyS8,,,,,,,,2026-05-18 03:08:26.911264+00
+cd84af03-3206-48f9-b091-daff9b02f47e,trust-ratchet-success_paid-20260518t032311z@test.flapjack.foo,active,,cus_UXMUpo8g5dpCLX,,,,,,,,2026-05-18 03:23:11.616489+00
+e5f1ea4e-f1b9-429c-8ec2-dee6c5a50388,trust-ratchet-success_paid-20260518t032420z@test.flapjack.foo,active,,cus_UXMWQ5cPa7lNuo,,,,,,,,2026-05-18 03:24:21.15361+00
+4f6b58a8-1716-44e7-9e29-97e9efc3e071,trust-ratchet-success_paid-20260518t033101z@test.flapjack.foo,active,,cus_UXMcpK4PIHhIy6,,,,,,,,2026-05-18 03:31:01.371489+00
+90ca0996-39b7-448e-aa52-3d42dc938b27,trust-ratchet-success_paid-20260519t001313z@test.flapjack.foo,active,,cus_UXgepsnG2DtTMf,,,,,,,,2026-05-19 00:13:13.484691+00
+131e986f-9e8b-4772-9402-529b88ae0d9f,trust-ratchet-success_paid-20260519t001538z@test.flapjack.foo,active,,cus_UXghGe9xAYEuHw,,,,,,,,2026-05-19 00:15:38.67573+00
+bc6c086f-ffe9-4463-b897-8f17cf247cc2,trust-ratchet-success_paid-20260519t002024z@test.flapjack.foo,active,,cus_UXgmRrKW5Bs6kb,,,,,,,,2026-05-19 00:20:24.684397+00
+80e816df-1dab-4172-89bf-222bac72a3a8,trust-ratchet-success_paid-20260519t002518z@test.flapjack.foo,active,,cus_UXgqj4B1GEhI54,,,,,,,,2026-05-19 00:25:18.562708+00
+034fa82c-27e6-44bc-b58a-c94bf0df7620,s70-1779169891-6562@e2e.griddle.test,active,,,,,,,,,,2026-05-19 05:51:31.16551+00
+89122e00-234c-47b0-abec-b70b20579d2f,s70-sameorigin-1779170202-23266@e2e.griddle.test,active,,,,,,,,,,2026-05-19 05:56:42.870146+00
+84b765c4-ed93-42a0-9844-b92b3405a0c8,stage5-probe-20260519t140447z@e2e.griddle.test,active,,,,,,,,,,2026-05-19 14:04:48.120114+00
+46a046aa-6e35-40f6-b878-c3d9e10d85b0,stage5-probe-20260519t140503z@e2e.griddle.test,active,,,,,,,,,,2026-05-19 14:05:03.342153+00
+e2d98c1a-e1e1-4eb5-8420-50cbff06a40a,stage5-probe-20260519t140528z@e2e.griddle.test,active,,,,,,,,,,2026-05-19 14:05:28.627118+00
+1c96833c-6e40-4464-89a3-b0ed2dc1d426,stage5-probe-api-flapjack-foo-20260519t140544z@e2e.griddle.test,active,,,,,,,,,,2026-05-19 14:05:44.447358+00
+43acc046-b739-4ddd-9460-c8a4f6227d89,stage5-prodpath-20260519t141448z@e2e.griddle.test,active,,,,,,,,,,2026-05-19 14:14:48.488507+00
+bad6fa64-06b0-4575-a230-0be0e05e7db9,stage5-prodpath-20260519t141503z@e2e.griddle.test,active,,cus_UXuEHLYCuaQYTg,,,,,,,,2026-05-19 14:15:03.712571+00
+152051a2-922d-43ab-a2e3-64000f4b420f,stage6+1779335586@test.flapjack.foo,active,,,,,,,,,,2026-05-21 03:53:06.797609+00
+f56db4ca-89f1-4da9-9290-2fdea8a44d55,stage6-probe+1779335688@test.flapjack.foo,active,,,,,,,,,,2026-05-21 03:54:48.221766+00

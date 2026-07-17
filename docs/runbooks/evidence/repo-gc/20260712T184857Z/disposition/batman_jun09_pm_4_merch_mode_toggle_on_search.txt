@@ -1,0 +1,14 @@
+# Disposition Receipt: batman/jun09_pm_4_merch_mode_toggle_on_search
+
+Classification: approved freed local branch after approved worktree removal
+Evidence source: current read-only git refs at bundle creation.
+
+## rev-parse
+$ git rev-parse batman/jun09_pm_4_merch_mode_toggle_on_search
+8f3544f5570b348d400e97a991abfeda2f0ef786
+
+## cherry
+$ git cherry -v main batman/jun09_pm_4_merch_mode_toggle_on_search | tail -20
+
+## diff main...
+$ git diff main...batman/jun09_pm_4_merch_mode_toggle_on_search --stat | tail -20

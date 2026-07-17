@@ -1,0 +1,28 @@
+# Disposition Receipt: origin/codex/preserve_concurrent_dns_runtime_changes
+
+Classification: approved remote branch deletion; manifest stores short branch name
+Evidence source: current read-only git refs at bundle creation.
+
+## rev-parse
+$ git rev-parse origin/codex/preserve_concurrent_dns_runtime_changes
+4db458dd27163ec0b8691e1621b316960a91733d
+
+## cherry
+$ git cherry -v main origin/codex/preserve_concurrent_dns_runtime_changes | tail -20
++ 4db458dd27163ec0b8691e1621b316960a91733d wip: preserve concurrent dns runtime changes
+
+## diff main...
+$ git diff main...origin/codex/preserve_concurrent_dns_runtime_changes --stat | tail -20
+ docs/env-vars.md                             |  10 +-
+ infra/api/src/dns/cloudflare.rs              | 230 +++++++++++++++++++++++++++
+ infra/api/src/dns/mod.rs                     |  10 ++
+ infra/api/src/dns/route53.rs                 |  10 +-
+ infra/api/src/provisioner/cloud_init.rs      |  17 ++
+ infra/api/src/startup.rs                     |  40 ++++-
+ ops/scripts/lib/generate_ssm_env.sh          |  12 ++
+ ops/systemd/fj-metering-agent.service        |   7 +-
+ ops/terraform/_shared/main.tf                |  44 +++++
+ ops/terraform/tests_iac_validation_static.sh |  17 +-
+ ops/terraform/tests_stage3_static.sh         |  11 ++
+ ops/user-data/bootstrap.sh                   |  14 ++
+ 12 files changed, 394 insertions(+), 28 deletions(-)

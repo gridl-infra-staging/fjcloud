@@ -1,0 +1,22 @@
+$ bash scripts/local-ci.sh
+
+Running 9 gate(s): check-sizes secret-scan web-lint web-test rust-lint migration-test validate-bootstrap-parser validate-bootstrap-env-local publish-scripts-buildx
+Mode: fast
+
+=== local-ci summary (wall 30s) ===
+GATE                STATUS   SECS  LOG
+----                ------   ----  ---
+check-sizes         PASS        2
+migration-test      PASS        1
+publish-scripts-buildx  PASS        0
+rust-lint           PASS       30
+secret-scan         PASS        1
+validate-bootstrap-env-local  PASS        3
+validate-bootstrap-parser  PASS        0
+web-lint            PASS       18
+web-test            PASS       12
+
+Totals: pass=9 fail=0 skip=0
+Result: PASS
+
+VERDICT: PASS — all 9 local-ci gates pass, no regressions

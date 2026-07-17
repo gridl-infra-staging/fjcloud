@@ -1,0 +1,60 @@
+{
+  "cloud_staging_domain_binding": {
+    "name": "cloud.staging.flapjack.foo",
+    "project_name": null,
+    "status": "active"
+  },
+  "latest_deployment_env": "preview",
+  "latest_deployment_id": "e386f98d-a372-4fdc-8de1-87f943207af8",
+  "latest_deployment_source": null,
+  "preview_branch_controls": {
+    "preview_branch_excludes": null,
+    "preview_branch_includes": null,
+    "production_branch": "main"
+  },
+  "preview_env_vars": {
+    "ADMIN_KEY": {
+      "type": "secret_text",
+      "value": ""
+    },
+    "API_BASE_URL": {
+      "type": "plain_text",
+      "value": "https://api.flapjack.foo"
+    },
+    "ENVIRONMENT": {
+      "type": "plain_text",
+      "value": "staging"
+    },
+    "JWT_SECRET": {
+      "type": "secret_text",
+      "value": ""
+    },
+    "WEB_DEV_LOG_RAW_ERRORS": {
+      "type": "plain_text",
+      "value": "1"
+    }
+  },
+  "production_env_vars": {
+    "ADMIN_KEY": {
+      "type": "secret_text",
+      "value": ""
+    },
+    "API_BASE_URL": {
+      "type": "plain_text",
+      "value": "https://api.flapjack.foo"
+    },
+    "ENVIRONMENT": {
+      "type": "plain_text",
+      "value": "staging"
+    },
+    "JWT_SECRET": {
+      "type": "secret_text",
+      "value": ""
+    },
+    "WEB_DEV_LOG_RAW_ERRORS": {
+      "type": "plain_text",
+      "value": "1"
+    }
+  },
+  "source_type": null
+}

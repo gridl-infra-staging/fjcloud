@@ -1,0 +1,38 @@
+{
+  "all_green": false,
+  "n": 6,
+  "failures": [
+    {
+      "probe_id": "dunning_email_inbox",
+      "rc": 1,
+      "classification": "rehearsal_failed",
+      "classification_category": "setup_infra",
+      "detail": "dunning owner script exited 1"
+    },
+    {
+      "probe_id": "ses_bounce",
+      "rc": 1,
+      "classification": "unclassified",
+      "classification_category": "investigate",
+      "detail": ""
+    },
+    {
+      "probe_id": "ses_complaint",
+      "rc": 1,
+      "classification": "unclassified",
+      "classification_category": "investigate",
+      "detail": ""
+    },
+    {
+      "probe_id": "staging_dunning_delivery",
+      "rc": 1,
+      "classification": "rehearsal_failed",
+      "classification_category": "setup_infra",
+      "detail": "Rehearsal owner failed."
+    }
+  ],
+  "green_rows": [
+    "verify_email_clickthrough",
+    "password_reset_clickthrough"
+  ]
+}

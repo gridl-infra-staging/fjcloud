@@ -1,0 +1,54 @@
+
+Warning: Deprecated Parameter
+
+The parameter "dynamodb_table" is deprecated. Use parameter "use_lockfile"
+instead.
+module.monitoring.aws_cloudwatch_event_rule.customer_loop_canary: Modifying... [id=fjcloud-prod-customer-loop-canary]
+module.monitoring.aws_lambda_function.customer_loop_canary: Modifying... [id=fjcloud-prod-customer-loop-canary]
+module.monitoring.aws_cloudwatch_event_rule.customer_loop_canary: Modifications complete after 1s [id=fjcloud-prod-customer-loop-canary]
+module.monitoring.aws_lambda_function.customer_loop_canary: Still modifying... [id=fjcloud-prod-customer-loop-canary, 00m10s elapsed]
+module.monitoring.aws_lambda_function.customer_loop_canary: Modifications complete after 16s [id=fjcloud-prod-customer-loop-canary]
+
+Warning: Applied changes may be incomplete
+
+The plan was created with the -target option in effect, so some changes
+requested in the configuration may have been ignored and the output values
+may not be fully updated. Run the following command to verify that no other
+changes are pending:
+    terraform plan
+
+Note that the -target option is not suitable for routine use, and is provided
+only for exceptional situations such as recovering from errors or mistakes,
+or when Terraform specifically suggests to use it as part of an error
+message.
+
+Warning: Argument is deprecated
+
+  with module.monitoring.aws_cloudwatch_event_rule.customer_loop_canary,
+  on ../monitoring/main.tf line 210, in resource "aws_cloudwatch_event_rule" "customer_loop_canary":
+ 210:   is_enabled          = var.canary_schedule.enabled
+
+is_enabled is deprecated. Use state instead.
+
+Apply complete! Resources: 0 added, 2 changed, 0 destroyed.
+
+Outputs:
+
+acm_certificate_arn = "arn:aws:acm:us-east-1:213880904778:certificate/569915c9-3e7f-454e-b742-d6c6b4a53278"
+alb_dns_name = "fjcloud-prod-alb-1846218892.us-east-1.elb.amazonaws.com"
+api_instance_ip = "10.0.10.179"
+cloudflare_zone_id = "fafbf95a076d7e8ee984dbd18a62c933"
+customer_loop_canary_ecr_repository_url = "213880904778.dkr.ecr.us-east-1.amazonaws.com/fjcloud-prod-customer-loop-canary"
+customer_loop_canary_image_uri = "213880904778.dkr.ecr.us-east-1.amazonaws.com/fjcloud-prod-customer-loop-canary:ad592f80c25d"
+customer_loop_canary_lambda_function_arn = "arn:aws:lambda:us-east-1:213880904778:function:fjcloud-prod-customer-loop-canary"
+customer_loop_canary_schedule_rule_name = "fjcloud-prod-customer-loop-canary"
+db_endpoint = "fjcloud-prod.cabwlew6jcjl.us-east-1.rds.amazonaws.com:5432"
+private_subnet_ids = [
+  "subnet-0dd734629615035d5",
+  "subnet-043cead8e64e4a79b",
+]
+public_subnet_ids = [
+  "subnet-0f20d0fd83a362024",
+  "subnet-0f3ce1c789e764a13",
+]
+vpc_id = "vpc-0125cfcf4cc36762c"

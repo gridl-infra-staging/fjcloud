@@ -1,0 +1,30 @@
+@import 'tailwindcss';
+
+@theme {
+	--font-brand: 'Cabinet', 'Inter', system-ui, sans-serif;
+	--color-flapjack-yellow: #f6c15b;
+	--color-flapjack-rose: #d65479;
+	--color-flapjack-plum: #8d2842;
+	--color-flapjack-ink: #1f1b18;
+	--color-flapjack-cream: #fff8ea;
+	--color-flapjack-mint: #9fd8d2;
+
+	/* Semantic console surface alias that maps back to the canonical cream primitive. */
+	--color-brand-cream: var(--color-flapjack-cream);
+	/* Semantic verification-banner alias that maps back to the canonical rose primitive. */
+	--color-brand-pink: var(--color-flapjack-rose);
+	/* Reusable neo-brutalist hard-shadow token for compact CTA buttons. */
+	--shadow-elevation-button: 4px 4px 0 0 var(--color-flapjack-ink);
+	/* Reusable neo-brutalist hard-shadow token for larger card-like CTAs. */
+	--shadow-elevation-card: 6px 6px 0 0 var(--color-flapjack-ink);
+}
+
+button:not(:disabled):not([aria-disabled='true']),
+[role='button']:not([aria-disabled='true']) {
+	cursor: pointer;
+}
+
+button:disabled,
+[role='button'][aria-disabled='true'] {
+	cursor: not-allowed;
+}

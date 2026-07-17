@@ -1,0 +1,85 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic:
+      - region "Notifications alt+T"
+    - generic [ref=e3]:
+      - complementary [ref=e4]:
+        - generic [ref=e6]: Flapjack Cloud
+        - generic [ref=e7]:
+          - navigation [ref=e8]:
+            - link "Console" [ref=e9] [cursor=pointer]:
+              - /url: /console
+            - link "Indexes" [ref=e10] [cursor=pointer]:
+              - /url: /console/indexes
+            - link "Billing" [ref=e11] [cursor=pointer]:
+              - /url: /console/billing
+            - link "API Keys" [ref=e12] [cursor=pointer]:
+              - /url: /console/api-keys
+            - link "Logs" [ref=e13] [cursor=pointer]:
+              - /url: /console/logs
+            - link "Migrate" [ref=e14] [cursor=pointer]:
+              - /url: /console/migrate
+            - link "Account" [ref=e15] [cursor=pointer]:
+              - /url: /console/account
+          - generic [ref=e16]:
+            - paragraph [ref=e17]: Help
+            - generic [ref=e18]:
+              - link "Support" [ref=e19] [cursor=pointer]:
+                - /url: mailto:support@flapjack.foo
+              - link "API Docs" [ref=e20] [cursor=pointer]:
+                - /url: https://api.flapjack.foo/docs
+      - generic [ref=e21]:
+        - banner [ref=e22]:
+          - generic [ref=e24]: Paid Plan
+          - generic [ref=e25]:
+            - generic [ref=e26]: Billing Portal 1783505775769-9uj6iq9p
+            - button "Logout" [ref=e28]
+        - generic [ref=e30]:
+          - generic [ref=e31]: BETA
+          - generic [ref=e32]: Public beta.
+          - link "View beta scope" [ref=e33] [cursor=pointer]:
+            - /url: /beta
+          - link "Send feedback" [ref=e34] [cursor=pointer]:
+            - /url: mailto:support@flapjack.foo?subject=Flapjack%20Cloud%20beta%20feedback
+          - link "Support" [ref=e35] [cursor=pointer]:
+            - /url: mailto:support@flapjack.foo
+        - main [ref=e36]:
+          - generic [ref=e37]:
+            - navigation "Billing navigation" [ref=e38]:
+              - link "Payment Methods" [ref=e39] [cursor=pointer]:
+                - /url: /console/billing
+              - link "Invoices" [ref=e40] [cursor=pointer]:
+                - /url: /console/billing/invoices
+            - generic [ref=e41]:
+              - heading "Add Payment Method" [level=1] [ref=e42]
+              - generic [ref=e44]:
+                - iframe [ref=e47]:
+                  - generic [ref=f6e7]:
+                    - generic [ref=f6e8]:
+                      - button "Card" [ref=f6e10] [cursor=pointer]:
+                        - generic [ref=f6e17]: Card
+                      - button "Pix" [ref=f6e19] [cursor=pointer]:
+                        - generic [ref=f6e25]: Pix
+                      - button "Klarna" [ref=f6e27] [cursor=pointer]:
+                        - generic [ref=f6e36]: Klarna
+                      - button "Cash App Pay" [ref=f6e38] [cursor=pointer]:
+                        - generic [ref=f6e44]: Cash App Pay
+                      - button "Kakao Pay" [ref=f6e46] [cursor=pointer]:
+                        - generic [ref=f6e52]: Kakao Pay
+                    - button "Additional Payment Methods" [ref=f6e55] [cursor=pointer]:
+                      - generic [ref=f6e58]: More
+                - generic [ref=e48]:
+                  - link "Cancel" [ref=e49] [cursor=pointer]:
+                    - /url: /console/billing
+                  - button "Save payment method" [ref=e50]
+  - iframe [ref=e52]:
+    - button "Open Stripe Developer Tools" [ref=f7e5] [cursor=pointer]:
+      - banner [ref=f7e8]:
+        - generic "View Errors" [ref=f7e9]:
+          - status [ref=f7e10]: "1"
+        - img [ref=f7e11]
+        - img [ref=f7e13]
+```

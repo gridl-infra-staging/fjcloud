@@ -1,0 +1,48 @@
+# Stage 1 SES clean-env evidence transcript
+repo: fjcloud_dev worktree
+head: 734f8d6bc4bb2620039905a593acd498919732b0
+transcript_started_at_utc: 2026-07-09T10:47:34Z
+
+## live_state
+command: bash scripts/probe_live_state.sh
+started_at_utc: 2026-07-09T10:47:34Z
+exit_code: 0
+finished_at_utc: 2026-07-09T10:49:49Z
+stdout_file: docs/runbooks/evidence/ses-inbox-canary-clean-env/20260709T104734Z/ses/live_state.stdout
+stderr_file: docs/runbooks/evidence/ses-inbox-canary-clean-env/20260709T104734Z/ses/live_state.stderr
+evidence_dir: docs/runbooks/evidence/ses-inbox-canary-clean-env/20260709T104734Z/ses
+live_state_summary: docs/live-state/20260709T104734Z/SUMMARY.md
+live_state_dir: docs/live-state/20260709T104734Z
+
+## credential_scrub_and_source
+command: unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AWS_PROFILE AWS_DEFAULT_PROFILE; set -a; source /Users/stuart/repos/gridl-infra-dev/fjcloud_dev/.secret/.env.secret; set +a
+exit_code: 0
+
+## sts_identity
+command: aws sts get-caller-identity --region us-east-1
+started_at_utc: 2026-07-09T10:49:49Z
+exit_code: 0
+finished_at_utc: 2026-07-09T10:49:50Z
+stdout_file: docs/runbooks/evidence/ses-inbox-canary-clean-env/20260709T104734Z/ses/sts_get_caller_identity.stdout
+stderr_file: docs/runbooks/evidence/ses-inbox-canary-clean-env/20260709T104734Z/ses/sts_get_caller_identity.stderr
+
+## ses_bounce
+command: bash scripts/probe_ses_bounce_complaint_e2e.sh bounce /Users/stuart/repos/gridl-infra-dev/fjcloud_dev/.secret/.env.secret
+started_at_utc: 2026-07-09T10:49:50Z
+exit_code: 2
+finished_at_utc: 2026-07-09T10:49:50Z
+stdout_file: docs/runbooks/evidence/ses-inbox-canary-clean-env/20260709T104734Z/ses/ses_bounce.stdout
+stderr_file: docs/runbooks/evidence/ses-inbox-canary-clean-env/20260709T104734Z/ses/ses_bounce.stderr
+
+## credential_scrub_and_source_for_complaint
+command: unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AWS_PROFILE AWS_DEFAULT_PROFILE; set -a; source /Users/stuart/repos/gridl-infra-dev/fjcloud_dev/.secret/.env.secret; set +a
+exit_code: 0
+
+## ses_complaint
+command: bash scripts/probe_ses_bounce_complaint_e2e.sh complaint /Users/stuart/repos/gridl-infra-dev/fjcloud_dev/.secret/.env.secret
+started_at_utc: 2026-07-09T10:50:53Z
+exit_code: 2
+finished_at_utc: 2026-07-09T10:50:54Z
+stdout_file: docs/runbooks/evidence/ses-inbox-canary-clean-env/20260709T104734Z/ses/ses_complaint.stdout
+stderr_file: docs/runbooks/evidence/ses-inbox-canary-clean-env/20260709T104734Z/ses/ses_complaint.stderr
+run_status: complaint_captured

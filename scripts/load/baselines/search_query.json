@@ -1,0 +1,22 @@
+{
+  "concurrency": 5,
+  "duration_sec": 45,
+  "endpoint": "search_query",
+  "error_rate": 0.0,
+  "latency_p50_ms": 16.126,
+  "latency_p95_ms": 19.6652,
+  "latency_p99_ms": 0.0,
+  "meta": {
+    "approval_script": "scripts/load/approve-baselines.sh",
+    "approved_at": "2026-03-25T01:51:35.810480Z",
+    "artifact_dir": "/Users/stuart/repos/gridl-infra-dev/fjcloud_dev/tmp/load-baselines/20260325T014736Z",
+    "k6_exit_code": 0,
+    "k6_mode": "fixed",
+    "k6_status": "pass",
+    "notes": "approved local load baseline captured from a live local stack run",
+    "source": "approved_local",
+    "summary_file": "/Users/stuart/repos/gridl-infra-dev/fjcloud_dev/tmp/load-baselines/20260325T014736Z/search_query_summary.json"
+  },
+  "throughput_rps": 4.918488190513115,
+  "timestamp": "2026-03-25T01:49:10.629259Z"
+}

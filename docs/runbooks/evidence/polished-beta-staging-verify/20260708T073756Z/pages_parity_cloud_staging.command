@@ -1,0 +1,1 @@
+COMMAND: TARGET_SHA=29658e72ad174ae546ea8e2fd05a8877330ab367 PAGES_ALIAS_URL=https://cloud.staging.flapjack.foo GITHUB_OUTPUT=docs/runbooks/evidence/polished-beta-staging-verify/20260708T073756Z/pages_parity_cloud_staging.github_output MAX_POLL_ATTEMPTS=20 POLL_INTERVAL_SECONDS=15 bash scripts/launch/wait_for_pages_parity.sh

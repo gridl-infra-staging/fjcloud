@@ -1,0 +1,26 @@
+{
+    "events": [
+        {
+            "timestamp": 1783596076045,
+            "message": "START RequestId: c5f14650-3e71-4b9e-813c-cd47c0bc6b28 Version: $LATEST\n",
+            "ingestionTime": 1783596081843
+        },
+        {
+            "timestamp": 1783596082792,
+            "message": "[customer-loop-canary] quiet window active; skipping customer loop execution\n",
+            "ingestionTime": 1783596091814
+        },
+        {
+            "timestamp": 1783596082837,
+            "message": "END RequestId: c5f14650-3e71-4b9e-813c-cd47c0bc6b28\n",
+            "ingestionTime": 1783596091814
+        },
+        {
+            "timestamp": 1783596082837,
+            "message": "REPORT RequestId: c5f14650-3e71-4b9e-813c-cd47c0bc6b28\tDuration: 6791.23 ms\tBilled Duration: 6868 ms\tMemory Size: 512 MB\tMax Memory Used: 134 MB\tInit Duration: 76.24 ms\t\n",
+            "ingestionTime": 1783596091814
+        }
+    ],
+    "nextForwardToken": "f/39775521780445255325588005510774933222405874734760525826/s",
+    "nextBackwardToken": "b/39775521628978593937168013121410238210520056359616512000/s"
+}

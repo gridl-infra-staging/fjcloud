@@ -1,0 +1,14 @@
+# Disposition Receipt: batman/may23_9pm_7_parity_audit
+
+Classification: approved freed local branch after approved worktree removal
+Evidence source: current read-only git refs at bundle creation.
+
+## rev-parse
+$ git rev-parse batman/may23_9pm_7_parity_audit
+3aa973a964c81141d8a7c00dc9f85b3e98dcf0ed
+
+## cherry
+$ git cherry -v main batman/may23_9pm_7_parity_audit | tail -20
+
+## diff main...
+$ git diff main...batman/may23_9pm_7_parity_audit --stat | tail -20

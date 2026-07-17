@@ -1,0 +1,8 @@
++ git status --short --branch
+## batman/may23_9pm_2_routes_dashboard_to_console...origin/batman/may23_9pm_2_routes_dashboard_to_console
+?? docs/runbooks/evidence/console-rename-prod/
+
++ git log --oneline main..HEAD
+79b30c8b8 scrai: 13 files documented, 3 artifacts generated, 2 guidance files assembled, 3 state files tracked
+937387eb2 matt: stage 6 completion
+e52ff31b3 fix: use +server.ts for dashboard→console 308 redirects

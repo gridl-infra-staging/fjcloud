@@ -1,0 +1,19 @@
+literal_check_command: jq ' .suites | length, .stats, [.. | .specs? // empty | .[]] | length ' playwright_first_pass.json
+jq: error (at docs/runbooks/evidence/polished-beta-staging-verify/20260708T082333Z/playwright_first_pass.json:537): Cannot index array with string "stats"
+2
+literal_check_exit_code: 5
+
+corrected_check_command: jq '(.suites | length), .stats, ([.. | .specs? // empty | .[]] | length)' playwright_first_pass.json
+2
+{
+  "startTime": "2026-07-08T08:28:15.844Z",
+  "duration": 112458.038,
+  "expected": 8,
+  "skipped": 0,
+  "unexpected": 0,
+  "flaky": 0
+}
+8
+
+lane_spec_count_command: jq '[.. | .specs? // empty | .[] | select(.title | test("^Lane [A-G] - .*@staging_verify"))] | length' playwright_first_pass.json
+7

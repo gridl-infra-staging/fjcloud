@@ -1,0 +1,32 @@
+{
+  "account_id": "213880904778",
+  "api_probes": {
+    "describe_log_groups": "ok",
+    "describe_log_streams": "ok",
+    "filter_log_events": "ok",
+    "get_log_events": "ok"
+  },
+  "apply_method": "terraform_apply",
+  "bound_instance_id": "i-0fbc6d6bbbc8bdc6d",
+  "bound_role_name": "fjcloud-instance-role",
+  "caller_arn_sanitized": "arn:aws:iam::213880904778:user/REDACTED",
+  "cleanup": {
+    "new_policy_apply_json_deleted": true,
+    "prior_policy_snapshot": "not_created",
+    "state_snapshot": "not_created"
+  },
+  "onhost_role_arn_sanitized": "arn:aws:sts::213880904778:assumed-role/fjcloud-instance-role/REDACTED",
+  "plan_actions": [
+    "create"
+  ],
+  "plan_denominator": 1,
+  "policy_match": "n/a",
+  "prior_policy_state": "absent",
+  "profile_name": "fjcloud-instance-profile",
+  "propagation_attempts": 2,
+  "source_sha": "6908a39e99673ec77510e4384abd4721e315f167",
+  "state_reconciliation": "not_needed",
+  "status": "success",
+  "stream_denominator": 5,
+  "verify_only": false
+}

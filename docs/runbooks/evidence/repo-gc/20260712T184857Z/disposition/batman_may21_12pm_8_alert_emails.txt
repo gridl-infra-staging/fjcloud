@@ -1,0 +1,14 @@
+# Disposition Receipt: batman/may21_12pm_8_alert_emails
+
+Classification: approved freed local branch after approved worktree removal
+Evidence source: current read-only git refs at bundle creation.
+
+## rev-parse
+$ git rev-parse batman/may21_12pm_8_alert_emails
+4b28570f7b9fe32264a87347e8d6237dc00efc04
+
+## cherry
+$ git cherry -v main batman/may21_12pm_8_alert_emails | tail -20
+
+## diff main...
+$ git diff main...batman/may21_12pm_8_alert_emails --stat | tail -20

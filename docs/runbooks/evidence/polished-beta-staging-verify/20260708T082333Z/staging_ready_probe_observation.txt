@@ -1,0 +1,5 @@
+probe: curl -sSf --max-time 20 https://cloud.staging.flapjack.foo/
+exit_code: 0
+stdout_file: staging_ready_probe.txt
+stdout_bytes: 0
+observation: curl --fail succeeded; body was empty, so readiness is based on HTTP success rather than non-empty response body.

@@ -1,0 +1,12 @@
+[full-vm-lifecycle] mode=run-a
+[full-vm-lifecycle] signup succeeded for canary+canary2026051903412920926@test.flapjack.foo (customer=ed7aaeb6-4fd0-4d42-bf3c-75cd3607a141)
+[full-vm-lifecycle] email verification succeeded for canary+canary2026051903412920926@test.flapjack.foo
+[full-vm-lifecycle] index created (lifecycle-canary2026051903412920926)
+[full-vm-lifecycle] index write succeeded (lifecycle-canary2026051903412920926)
+[full-vm-lifecycle] index search succeeded (lifecycle-canary2026051903412920926)
+[full-vm-lifecycle] evidence: pre-cleanup artifacts written to docs/runbooks/evidence/may16_wave_deploy_verify/20260518T231734Z/stage6_full_vm_lifecycle_proof/run_a
+[full-vm-lifecycle] run-a completed successfully
+[full-vm-lifecycle] index deleted (lifecycle-canary2026051903412920926)
+[full-vm-lifecycle] account delete attempted for customer ed7aaeb6-4fd0-4d42-bf3c-75cd3607a141
+[full-vm-lifecycle] admin cleanup completed for tenant ed7aaeb6-4fd0-4d42-bf3c-75cd3607a141
+[full-vm-lifecycle] evidence: post-cleanup artifacts written to docs/runbooks/evidence/may16_wave_deploy_verify/20260518T231734Z/stage6_full_vm_lifecycle_proof/run_a

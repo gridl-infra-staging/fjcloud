@@ -1,0 +1,20 @@
+{
+  "available_snapshot_count": 0,
+  "db_cluster_count": 0,
+  "db_instance_count": 4,
+  "db_snapshot_count": 97,
+  "env": "staging",
+  "reason": "",
+  "restore_mode": "snapshot",
+  "restore_time": "",
+  "snapshot_id": "rds:fjcloud-staging-2026-06-11-02-13",
+  "source_backup_retention_period": "30",
+  "source_db_endpoint": "fjcloud-staging.*.us-east-1.rds.amazonaws.com",
+  "source_db_instance_id": "fjcloud-staging",
+  "source_db_instance_status": "available",
+  "source_instance_present": true,
+  "source_latest_restorable_time": "2026-06-12T00:26:35+00:00",
+  "source_scoped_snapshot_count": 0,
+  "status": "ok",
+  "target_db_instance_id": "fjcloud-staging-restore-20260612002802"
+}

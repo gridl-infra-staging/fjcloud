@@ -1,0 +1,75 @@
+# Garage Object Storage — Configuration Template
+#
+# Placeholders replaced by install-garage.sh:
+#   %%GARAGE_META_DIR%%    → /var/lib/garage/meta
+#   %%GARAGE_DATA_DIR%%    → /var/lib/garage/data
+#   %%GARAGE_RPC_SECRET%%  → openssl rand -hex 32
+#   %%GARAGE_ADMIN_TOKEN%% → openssl rand -base64 32
+
+# ---------------------------------------------------------------------------
+# Core
+# ---------------------------------------------------------------------------
+
+metadata_dir = "%%GARAGE_META_DIR%%"
+data_dir = "%%GARAGE_DATA_DIR%%"
+
+db_engine = "lmdb"
+
+replication_factor = 1
+
+# LMDB virtual address space reservation (mmap, not physical allocation).
+# 1TiB is the 64-bit default — no reason to override (OQ-2).
+lmdb_map_size = "1TiB"
+
+# ---------------------------------------------------------------------------
+# Durability — single-node safety (no replication recovery)
+# ---------------------------------------------------------------------------
+
+# Metadata: fsync every write. Critical for single-node LMDB safety.
+metadata_fsync = true
+
+# Data blocks: skip fsync. Garage checksums blocks; corruption is detectable
+# via scrub. Lost block = re-upload (acceptable for bridge backend). OQ-5.
+data_fsync = false
+
+# Auto-snapshot metadata every 6h for LMDB corruption recovery.
+metadata_auto_snapshot_interval = "6h"
+
+# ---------------------------------------------------------------------------
+# Block storage tuning (top-level keys, NOT under [block_manager])
+# ---------------------------------------------------------------------------
+
+block_size = "1MiB"
+
+# Conservative for shared server (default 256MiB).
+block_ram_buffer_max = "100MiB"
+
+# Limit I/O pressure on shared HDD.
+block_max_concurrent_reads = 4
+block_max_concurrent_writes_per_request = 3
+
+# zstd level 1: good compression/speed tradeoff.
+compression_level = 1
+
+# ---------------------------------------------------------------------------
+# RPC
+# ---------------------------------------------------------------------------
+
+rpc_bind_addr = "[::]:3901"
+rpc_secret = "%%GARAGE_RPC_SECRET%%"
+
+# ---------------------------------------------------------------------------
+# S3 API
+# ---------------------------------------------------------------------------
+
+[s3_api]
+api_bind_addr = "0.0.0.0:3900"
+s3_region = "garage"
+
+# ---------------------------------------------------------------------------
+# Admin API (localhost only — used by init/health scripts)
+# ---------------------------------------------------------------------------
+
+[admin]
+api_bind_addr = "127.0.0.1:3903"
+admin_token = "%%GARAGE_ADMIN_TOKEN%%"

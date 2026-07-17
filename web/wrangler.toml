@@ -1,0 +1,63 @@
+# Cloudflare Pages configuration for the fjcloud web frontend.
+#
+# Owns:
+#   - `pages_build_output_dir`: where CF Pages should look for the SvelteKit
+#     adapter-cloudflare output (Worker entry + static assets).
+#   - `compatibility_date` / `compatibility_flags`: pin Workers runtime
+#     behavior so a future runtime update can't silently change semantics.
+#
+# Why `nodejs_compat`: two production-path files import from `node:crypto`
+# for security-critical work — `src/lib/auth/jwt.ts` (HMAC + timingSafeEqual
+# for JWT verify) and `src/lib/server/admin-session.ts` (SHA, UUID,
+# timingSafeEqual for admin session ids). The `nodejs_compat` flag is CF's
+# GA Node.js compatibility layer for Workers and is the standard fix for
+# projects that ship with `node:crypto` in the hot path. Rewriting these to
+# Web Crypto would be ~50 lines of changes to security-critical code with no
+# functional benefit — explicitly avoided to keep the launch migration
+# scoped to "configuration swap, not refactor".
+#
+# Public, non-secret runtime env vars belong in `[vars]` below. Secrets
+# (JWT_SECRET, ADMIN_KEY) MUST be set via CF Pages dashboard env vars
+# with the secret flag, or via `wrangler pages secret put`. Never put a
+# secret in this file — it ships in the public mirror under debbie sync.
+name = "flapjack-cloud"
+pages_build_output_dir = ".svelte-kit/cloudflare"
+compatibility_date = "2026-04-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Runtime env vars exposed to the SvelteKit Worker via $env/dynamic/private.
+# API_BASE_URL is the stable public API origin checked into the repo.
+#
+# Per-environment overrides: `wrangler pages deploy` overwrites the CF Pages
+# dashboard `env_vars` from this file's `[vars]` table on every deploy
+# (https://developers.cloudflare.com/pages/functions/wrangler-configuration/).
+# Since `vars` is a non-inheritable key, the per-env tables must specify ALL
+# vars (no merge with top-level). Top-level `[vars]` is retained as the
+# wrangler default for local dev / one-off invocations.
+[vars]
+API_BASE_URL = "https://api.flapjack.foo"
+ENVIRONMENT = "staging"
+SERVICE_STATUS = "outage"
+SERVICE_STATUS_UPDATED = "2026-07-17T00:25:22Z"
+SERVICE_STATUS_MESSAGE = "Search provisioning and queries are unavailable while we repair production."
+
+# Production env (deploys via `--branch=main`). Owns ENVIRONMENT=production so
+# the admin-layout label stays correct after deploy. Secrets (JWT_SECRET,
+# ADMIN_KEY) are NOT in this file — they live in CF Pages dashboard secrets
+# and persist across deploys; manage via `wrangler pages secret put`.
+[env.production.vars]
+API_BASE_URL = "https://api.flapjack.foo"
+ENVIRONMENT = "production"
+SERVICE_STATUS = "outage"
+SERVICE_STATUS_UPDATED = "2026-07-17T00:25:22Z"
+SERVICE_STATUS_MESSAGE = "Search provisioning and queries are unavailable while we repair production."
+
+# Preview env (deploys via any non-production branch, e.g. `--branch=staging`).
+# Mirrors top-level [vars] explicitly so preview deploys don't accidentally
+# pick up future top-level changes intended only for local dev.
+[env.preview.vars]
+API_BASE_URL = "https://api.flapjack.foo"
+ENVIRONMENT = "staging"
+SERVICE_STATUS = "outage"
+SERVICE_STATUS_UPDATED = "2026-07-17T00:25:22Z"
+SERVICE_STATUS_MESSAGE = "Search provisioning and queries are unavailable while we repair production."

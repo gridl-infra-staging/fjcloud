@@ -1,0 +1,17 @@
+{"command":"preflight:aws_creds","timestamp":"2026-06-12T00:49:40Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"preflight:ami_exists","timestamp":"2026-06-12T00:49:40Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"preflight:cloudflare_dns","timestamp":"2026-06-12T00:49:40Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"terraform plan","timestamp":"2026-06-12T00:49:40Z","verdict":"PASS","output":"plan captured","artifact_path":"ops/terraform/artifacts/plan_staging_20260612T004940Z.txt"}
+{"command":"assert:acm_cert_issued","timestamp":"2026-06-12T00:49:40Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"assert:alb_https_listener","timestamp":"2026-06-12T00:49:40Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"assert:target_group_healthy","timestamp":"2026-06-12T00:49:40Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"runtime:dns_record_mismatch","timestamp":"2026-06-12T00:49:40Z","verdict":"FAIL","output":"Cloudflare record flapjack.foo is missing or does not CNAME to an ALB target.","artifact_path":""}
+{"command":"preflight:aws_creds","timestamp":"2026-06-12T00:49:40Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"preflight:ami_exists","timestamp":"2026-06-12T00:49:40Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"preflight:cloudflare_dns","timestamp":"2026-06-12T00:49:40Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"terraform plan","timestamp":"2026-06-12T00:49:41Z","verdict":"PASS","output":"plan captured","artifact_path":"ops/terraform/artifacts/plan_staging_20260612T004940Z.txt"}
+{"command":"assert:acm_cert_issued","timestamp":"2026-06-12T00:49:41Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"assert:alb_https_listener","timestamp":"2026-06-12T00:49:41Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"assert:target_group_healthy","timestamp":"2026-06-12T00:49:41Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"assert:cloudflare_public_records","timestamp":"2026-06-12T00:49:41Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"runtime:ses_not_verified","timestamp":"2026-06-12T00:49:41Z","verdict":"FAIL","output":"SES identity flapjack.foo is not fully verified (identity=FAILED, dkim=FAILED).","artifact_path":""}

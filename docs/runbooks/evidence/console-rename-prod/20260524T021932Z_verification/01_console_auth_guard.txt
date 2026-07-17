@@ -1,0 +1,11 @@
++ curl -sI https://cloud.flapjack.foo/console
+HTTP/2 303 
+date: Sun, 24 May 2026 02:29:35 GMT
+location: /login
+report-to: {"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4?s=vUN%2FmT2VQakgF2pDCu3Hn7kJAI2%2B9BBKSKHbC1Px6Avs1ZZMJRZfITKgIMUU7dQbbooJRmMw1VUdgRYib1KN6KY9vTqPZJtuVJsPV%2FI8C5eeeZIr28mHlTK4mltexfrM5Qn10WjMcrspsN63T4ybFU4%3D"}]}
+nel: {"report_to":"cf-nel","success_fraction":0.0,"max_age":604800}
+server: cloudflare
+cf-cache-status: DYNAMIC
+cf-ray: a008dfa07d973b66-IAD
+alt-svc: h3=":443"; ma=86400
+

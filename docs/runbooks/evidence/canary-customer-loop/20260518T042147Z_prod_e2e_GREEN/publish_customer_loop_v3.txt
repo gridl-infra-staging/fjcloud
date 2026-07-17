@@ -1,0 +1,57 @@
+
+WARNING! Your credentials are stored unencrypted in '/Users/stuart/.docker/config.json'.
+Configure a credential helper to remove this warning. See
+https://docs.docker.com/go/credential-store/
+
+Login Succeeded
+#0 building with "colima" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 855B done
+#1 DONE 0.0s
+
+#2 [internal] load metadata for public.ecr.aws/lambda/provided:al2023
+#2 DONE 0.3s
+
+#3 [internal] load .dockerignore
+#3 transferring context: 2B done
+#3 DONE 0.0s
+
+#4 [1/6] FROM public.ecr.aws/lambda/provided:al2023@sha256:9bf7cb6982c753c4a8e601aeb34132bd6a041c2c5e6b65592fa056c0efaecb5a
+#4 resolve public.ecr.aws/lambda/provided:al2023@sha256:9bf7cb6982c753c4a8e601aeb34132bd6a041c2c5e6b65592fa056c0efaecb5a done
+#4 DONE 0.0s
+
+#5 [internal] load build context
+#5 transferring context: 3.13MB 0.0s done
+#5 DONE 0.0s
+
+#6 [2/6] RUN dnf install -y awscli bash python3     && dnf clean all     && rm -rf /var/cache/dnf
+#6 CACHED
+
+#7 [3/6] WORKDIR /workspace
+#7 CACHED
+
+#8 [4/6] COPY scripts/ ./scripts/
+#8 DONE 0.0s
+
+#9 [5/6] COPY scripts/canary/lambda_image/bootstrap /var/runtime/bootstrap
+#9 DONE 0.0s
+
+#10 [6/6] RUN chmod 0755 /var/runtime/bootstrap ./scripts/canary/customer_loop_synthetic.sh     && chmod 0644 ./scripts/lib/*.sh
+#10 DONE 0.1s
+
+#11 [auth] sharing credentials for 213880904778.dkr.ecr.us-east-1.amazonaws.com
+#11 DONE 0.0s
+
+#12 exporting to image
+#12 exporting layers 0.1s done
+#12 exporting manifest sha256:6abb474283dc7d56a4c2a67f3d2ed347eb77b024108a76780aed710c97c0cbfb done
+#12 exporting config sha256:62e22a435b65eb90d05085944d3b3820c71d65553919385354eeb617ff575de0 done
+#12 naming to 213880904778.dkr.ecr.us-east-1.amazonaws.com/fjcloud-prod-customer-loop-canary:3804b56236d4 done
+#12 pushing layers
+#12 pushing layers 0.8s done
+#12 pushing manifest for 213880904778.dkr.ecr.us-east-1.amazonaws.com/fjcloud-prod-customer-loop-canary:3804b56236d4@sha256:6abb474283dc7d56a4c2a67f3d2ed347eb77b024108a76780aed710c97c0cbfb
+#12 pushing manifest for 213880904778.dkr.ecr.us-east-1.amazonaws.com/fjcloud-prod-customer-loop-canary:3804b56236d4@sha256:6abb474283dc7d56a4c2a67f3d2ed347eb77b024108a76780aed710c97c0cbfb 0.4s done
+#12 DONE 1.2s
+Published customer-loop canary image: 213880904778.dkr.ecr.us-east-1.amazonaws.com/fjcloud-prod-customer-loop-canary:3804b56236d4
+INFO: skipping post-publish prod invoke because the wrapper did not enable it.

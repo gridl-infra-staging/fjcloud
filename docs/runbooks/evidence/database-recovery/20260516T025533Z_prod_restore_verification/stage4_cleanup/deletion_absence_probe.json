@@ -1,0 +1,8 @@
+{
+  "target_db_instance_id": "fjcloud-prod-restore-20260516025535",
+  "poll_count": 4,
+  "poll_interval_seconds": 30,
+  "max_polls": 30,
+  "verdict": "pass",
+  "captured_at_utc": "2026-05-16T03:39:31Z"
+}

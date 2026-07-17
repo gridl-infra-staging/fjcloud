@@ -1,0 +1,20 @@
+{
+  "captured_at_utc": "2026-05-16T03:07:18Z",
+  "source_db_instance_id": "fjcloud-prod",
+  "target_db_instance_id": "fjcloud-prod-restore-20260516025535",
+  "source_security_group_ids": [
+    "sg-0c6ae08699b5405f0"
+  ],
+  "target_security_group_ids_before": [
+    "sg-0963f6561614e1b41"
+  ],
+  "target_security_group_ids_after": [
+    "sg-0c6ae08699b5405f0"
+  ],
+  "source_vpc_id": "vpc-0125cfcf4cc36762c",
+  "target_vpc_id_before": "vpc-0125cfcf4cc36762c",
+  "target_vpc_id_after": "vpc-0125cfcf4cc36762c",
+  "source_db_subnet_group": "fjcloud-prod",
+  "target_db_subnet_group_before": "fjcloud-prod",
+  "target_db_subnet_group_after": "fjcloud-prod"
+}

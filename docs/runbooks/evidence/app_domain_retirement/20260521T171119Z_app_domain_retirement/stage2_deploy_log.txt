@@ -1,0 +1,11 @@
+stage2_started_utc=2026-05-21T17:41:18Z
+decision=retire
+pre_pages_success=true
+pre_dns_success=true
+deleting_pages_domain_id=a8f9a689-5245-497c-ac87-fc4ba0ae4918
+False [{'code': 8000021, 'message': 'The domain you have requested does not exist. Add a custom domain to your Pages project before continuing.'}]
+deleting_dns_record_id=199bd40c9e514969de9ec32739156b85
+True []
+post_pages_success=true
+post_dns_success=true
+stage2_finished_utc=2026-05-21T17:41:22Z

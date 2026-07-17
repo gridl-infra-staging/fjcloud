@@ -1,0 +1,13 @@
+{
+  "product_sha": "873f39ef4a375e69f81fcb021f0297fd75381708",
+  "ready": false,
+  "verdict": "fail",
+  "status_counts": {
+    "external_secret_missing": 1,
+    "fail": 4,
+    "pass": 16,
+    "skipped": 1
+  },
+  "summary_json": "docs/runbooks/evidence/invite-ready-rc/20260711T035722Z/summary.json",
+  "rc_run_log": "docs/runbooks/evidence/invite-ready-rc/20260711T035722Z/rc_run.log"
+}

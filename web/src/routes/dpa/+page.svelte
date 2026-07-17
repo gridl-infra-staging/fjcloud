@@ -1,0 +1,94 @@
+<script lang="ts">
+	import {
+		LEGAL_EFFECTIVE_DATE_TEXT,
+		LEGAL_ENTITY_NAME,
+		LEGAL_SUPPORT_MAILTO,
+		SUPPORT_EMAIL
+	} from '$lib/format';
+</script>
+
+<svelte:head>
+	<title>Data Processing Addendum — Flapjack Cloud</title>
+</svelte:head>
+
+<article class="mt-6 space-y-8 rounded-3xl border border-[#e3d7bf] bg-flapjack-cream p-8 shadow-sm">
+	<header class="space-y-4">
+		<p class="text-sm font-black uppercase tracking-[0.18em] text-flapjack-plum">
+			{LEGAL_ENTITY_NAME}
+		</p>
+		<h1 class="text-3xl font-black text-flapjack-ink sm:text-4xl">Data Processing Addendum</h1>
+		<p class="text-sm font-semibold uppercase tracking-[0.12em] text-[#7f4d21]">
+			{LEGAL_EFFECTIVE_DATE_TEXT}
+		</p>
+		<p class="max-w-3xl text-base leading-7 text-flapjack-ink/80">
+			This addendum describes Flapjack Cloud data-processing commitments when handling
+			customer-controlled data in the hosted service.
+		</p>
+	</header>
+
+	<section class="space-y-3">
+		<h2 class="text-xl font-bold text-flapjack-ink">Roles</h2>
+		<p class="leading-7 text-flapjack-ink/80">
+			Customers act as data controllers for data they submit to the service, and Flapjack Cloud acts
+			as a processor to provide and support the contracted service.
+		</p>
+	</section>
+
+	<section class="space-y-3">
+		<h2 class="text-xl font-bold text-flapjack-ink">Sub-processors</h2>
+		<p class="leading-7 text-flapjack-ink/80">
+			Flapjack Cloud engages the following sub-processors to deliver the service:
+		</p>
+		<ul class="list-disc pl-6 leading-7 text-flapjack-ink/80">
+			<li>Amazon Web Services, Inc.</li>
+			<li>Stripe, Inc.</li>
+			<li>Cloudflare, Inc.</li>
+			<li>Slack Technologies, LLC</li>
+			<li>Discord, Inc.</li>
+		</ul>
+		<p class="leading-7 text-flapjack-ink/80">
+			Flapjack Cloud maintains written sub-processor agreements, including Standard Contractual
+			Clauses where required by applicable law.
+		</p>
+		<p class="leading-7 text-flapjack-ink/80">
+			Flapjack Cloud commits to maintaining and periodically reviewing this sub-processor disclosure
+			to reflect current vendor processing roles.
+		</p>
+		<p class="leading-7 text-flapjack-ink/80">
+			Slack Technologies, LLC and Discord, Inc. are limited to social identity and support
+			communications and are not used for payment processing.
+		</p>
+	</section>
+
+	<section class="space-y-3">
+		<h2 class="text-xl font-bold text-flapjack-ink">Security</h2>
+		<p class="leading-7 text-flapjack-ink/80">
+			Flapjack Cloud applies technical and organizational safeguards appropriate to the hosted
+			platform, including access controls, logging, and operational monitoring.
+		</p>
+	</section>
+
+	<section class="space-y-3">
+		<h2 class="text-xl font-bold text-flapjack-ink">Data Subject Requests</h2>
+		<p class="leading-7 text-flapjack-ink/80">
+			Customer teams remain responsible for responding to data-subject requests involving customer
+			data, and Flapjack Cloud provides reasonable assistance through support.
+		</p>
+	</section>
+
+	<section class="space-y-3">
+		<h2 class="text-xl font-bold text-flapjack-ink">Contact</h2>
+		<p class="leading-7 text-flapjack-ink/80">
+			To request a signed DPA, email
+			<!-- eslint-disable svelte/no-navigation-without-resolve -- mailto links must stay scheme URLs -->
+			<a
+				href={LEGAL_SUPPORT_MAILTO}
+				class="font-semibold text-flapjack-rose underline hover:text-flapjack-plum"
+			>
+				{SUPPORT_EMAIL}
+			</a>
+			<!-- eslint-enable svelte/no-navigation-without-resolve -->
+			and reference the relevant customer account.
+		</p>
+	</section>
+</article>

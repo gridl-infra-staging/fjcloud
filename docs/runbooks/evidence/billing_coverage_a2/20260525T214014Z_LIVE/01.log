@@ -1,0 +1,31 @@
+
+=== Nightly Workflow Contract Tests ===
+
+PASS: nightly workflow file exists
+PASS: workflow defines on block
+PASS: workflow uses schedule trigger
+PASS: workflow defines a nightly cron
+PASS: workflow does not use push trigger
+PASS: workflow does not use pull_request trigger
+PASS: workflow does not run full workspace tests
+PASS: stripe-test-clock-live job exists
+PASS: stripe-test-clock-live has checkout step
+PASS: stripe-test-clock-live installs rust toolchain
+PASS: stripe-test-clock-live self-checks workflow contract
+PASS: stripe-test-clock-live runs only the stripe test-clock test
+PASS: stripe-test-clock-live does not run full workspace test sweep
+PASS: stripe-test-clock-live maps STRIPE_SECRET_KEY from secrets
+PASS: stripe-test-clock-live maps STRIPE_WEBHOOK_SECRET from secrets
+PASS: stripe-test-clock-live maps STRIPE_PRICE_STARTER_EXPECTED_UNIT_AMOUNT_CENTS from secrets
+PASS: stripe-test-clock-live enables integration gate
+PASS: stripe-test-clock-live enables live gate
+PASS: tenant-isolation-proptest job exists
+PASS: tenant-isolation-proptest has checkout step
+PASS: tenant-isolation-proptest installs rust toolchain
+PASS: tenant-isolation-proptest uses rust cache
+PASS: tenant-isolation-proptest self-checks workflow contract
+PASS: tenant-isolation-proptest runs only the proptest binary with proptest-tests feature
+PASS: tenant-isolation-proptest does not run full workspace test sweep
+PASS: all uses: entries pin exact 40-char commit SHA
+
+Summary: 26 passed, 0 failed

@@ -1,0 +1,3 @@
+{"command":"preflight:aws_creds","timestamp":"2026-06-12T03:07:33Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"preflight:ami_exists","timestamp":"2026-06-12T03:07:34Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"preflight:cloudflare_dns","timestamp":"2026-06-12T03:07:34Z","verdict":"FAIL","output":"CLOUDFLARE_ZONE_ID or CLOUDFLARE_ZONE_ID_STAGING_FLAPJACK_FOO is missing from .secret/.env.secret.","artifact_path":""}

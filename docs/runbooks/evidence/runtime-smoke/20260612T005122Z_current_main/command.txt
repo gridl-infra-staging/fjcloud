@@ -1,0 +1,1 @@
+bash ops/terraform/tests_stage7_runtime_smoke.sh --env staging --env-file "$(pwd)/.secret/.env.secret"

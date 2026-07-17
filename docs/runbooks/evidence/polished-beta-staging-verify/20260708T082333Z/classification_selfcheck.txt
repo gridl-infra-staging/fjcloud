@@ -1,0 +1,3 @@
+assertion_1 [PASS]: ready_precondition.real_bug_count (0) == (real_bug_after_reruns | length) (0)
+assertion_2 [PASS]: final_pass_including_flakes (7) == (first_pass_pass|length)+(reruns_to_flake|length) (7)
+overall: PASS

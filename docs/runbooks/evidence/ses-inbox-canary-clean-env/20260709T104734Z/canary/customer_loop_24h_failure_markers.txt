@@ -1,0 +1,3 @@
+step_failed: count=1
+step_failed: timestamp=1783537583644 stream=2026/07/08/[$LATEST]1b98bc3fdd7c4882934e339d8115d93f message=[customer-loop-canary] step 'signup' failed: register returned HTTP 429
+error_marker: count=0

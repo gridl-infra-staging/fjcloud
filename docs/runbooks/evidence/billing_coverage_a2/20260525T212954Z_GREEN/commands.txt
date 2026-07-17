@@ -1,0 +1,11 @@
+bash scripts/tests/nightly_workflow_test.sh
+cd infra && cargo test -p api --test stripe_test_clock_full_cycle_test -- --nocapture --test-threads=1
+cd infra && cargo test -p api --test integration_metering_pipeline_test rollup_excludes_rows_on_next_day_boundary -- --nocapture --test-threads=1
+cd infra && cargo test -p api --test integration_metering_pipeline_test billing_smoke_uses_pg_usage_repo_read_path -- --nocapture --test-threads=1
+cd infra && cargo test -p api --test stripe_webhook_signature_test -- --nocapture
+cd infra && cargo test -p api --test stripe_webhook_event_matrix_test -- --nocapture
+cd infra && cargo test -p api --test stripe_webhook_idempotency_test -- --nocapture
+cd infra && cargo test -p api --test webhook_dunning_email_test stripe_payment_failure_webhook_fires_on_declined_card -- --nocapture --test-threads=1
+cd infra && cargo test -p api --test billing_regression_test region_multiplier_hot_storage_regression -- --nocapture
+cd infra && cargo test -p api --test billing_regression_test multi_region_storage_attachment_regression -- --nocapture
+cd infra && cargo test -p api --test invoicing_compute_test compute_invoice_for_customer_applies_rate_override_when_present -- --nocapture

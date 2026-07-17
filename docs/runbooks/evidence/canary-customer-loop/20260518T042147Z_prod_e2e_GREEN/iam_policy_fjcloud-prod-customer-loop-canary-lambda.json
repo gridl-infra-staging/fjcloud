@@ -1,0 +1,54 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Action": [
+                "logs:CreateLogGroup"
+            ],
+            "Effect": "Allow",
+            "Resource": "arn:aws:logs:us-east-1:213880904778:*"
+        },
+        {
+            "Action": [
+                "logs:CreateLogStream",
+                "logs:PutLogEvents"
+            ],
+            "Effect": "Allow",
+            "Resource": "arn:aws:logs:us-east-1:213880904778:log-group:/aws/lambda/fjcloud-prod-customer-loop-canary:*"
+        },
+        {
+            "Action": [
+                "ssm:GetParameter",
+                "ssm:GetParameters"
+            ],
+            "Effect": "Allow",
+            "Resource": [
+                "arn:aws:ssm:us-east-1:213880904778:parameter/fjcloud/prod/canary_quiet_until",
+                "arn:aws:ssm:us-east-1:213880904778:parameter/fjcloud/prod/admin_key",
+                "arn:aws:ssm:us-east-1:213880904778:parameter/fjcloud/prod/stripe_secret_key",
+                "arn:aws:ssm:us-east-1:213880904778:parameter/fjcloud/prod/slack_webhook_url",
+                "arn:aws:ssm:us-east-1:213880904778:parameter/fjcloud/prod/discord_webhook_url"
+            ]
+        },
+        {
+            "Action": "s3:ListBucket",
+            "Condition": {
+                "StringLike": {
+                    "s3:prefix": [
+                        "e2e-emails",
+                        "e2e-emails/*"
+                    ]
+                }
+            },
+            "Effect": "Allow",
+            "Resource": "arn:aws:s3:::flapjack-cloud-releases",
+            "Sid": "AllowCustomerLoopCanaryListInboundBucket"
+        },
+        {
+            "Action": "s3:GetObject",
+            "Effect": "Allow",
+            "Resource": "arn:aws:s3:::flapjack-cloud-releases/e2e-emails/*",
+            "Sid": "AllowCustomerLoopCanaryReadInboundObjects"
+        }
+    ]
+}

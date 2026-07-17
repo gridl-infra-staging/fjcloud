@@ -1,0 +1,40 @@
+classification=infra_gap
+ready=false
+head_sha=19c8c44fa7db04aadbf4633e78be60717f4ecdff
+wave1_lane1_test=W1_L1_TEST_OK
+wave1_lane1_clean=W1_L1_CLEAN_OK
+wave1_lane1_clean_match_count=0
+wave1_lane2_roadmap=W1_L2_ROADMAP_OK
+wave1_lane3_bundle=W1_L3_BUNDLE_OK
+wave1_lane3_bundle_dir=20260611T031829Z
+wave1_lane4=W1_L4_OK
+jun10_pm_5=JUN10_PM_5_OK
+mirror_retry=debbie sync staging && debbie sync prod ran once
+mirror_retry_result=still_not_current
+mirror_parity=BLOCK_MIRROR_PARITY
+staging_commits_behind_main=60
+prod_commits_behind_main=60
+staging_dev_sha=d45755199f9725f95cee85fbeaa6f2723f24be8c
+prod_dev_sha=d45755199f9725f95cee85fbeaa6f2723f24be8c
+aws_auth=present
+cloudflare_auth=present
+ssm_exit_status=0
+ssm_ADMIN_KEY=emitted
+ssm_FLAPJACK_URL=emitted
+ssm_STAGING_API_URL=emitted
+
+Dispatch probe correction:
+- Prior bundle 20260611T080933Z incorrectly recorded BLOCK_W1_L1_TEST. origin/main at 19c8c44fa7db04aadbf4633e78be60717f4ecdff contains scripts/tests/local_ci_worktree_path_leak_guard_test.sh.
+- The scoped worktree-path grep returned 0 matching files, so the semantic Wave 1 Lane 1 cleanliness result is W1_L1_CLEAN_OK.
+- The orchestration snippet's raw macOS wc comparison can emit BLOCK_W1_L1_CLEAN for zero matches because wc pads the count; this bundle records the zero-match result explicitly.
+
+Gap spec:
+- deployed staging and prod /version must report commits_behind_main == "0" after the single mirror-sync retry; current result remains staging=60 prod=60.
+- Pages parity polling is not trustworthy until live deploy currency reaches zero behind for both staging and prod.
+
+Proxy offer:
+- No acceptable proxy for Stage 2 deployed-browser verification. Local or stale-staging Playwright would not prove the customer-visible staging UI.
+
+Conditional disposition:
+- Do not run Playwright.
+- Re-run Stage 1 after live deploy currency reaches commits_behind_main == "0" for staging/prod, then invoke scripts/launch/wait_for_pages_parity.sh.

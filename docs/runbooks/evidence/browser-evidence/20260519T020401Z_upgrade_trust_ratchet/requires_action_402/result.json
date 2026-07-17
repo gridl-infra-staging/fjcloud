@@ -1,0 +1,7 @@
+{
+    "label": "requires_action_402",
+    "expected_http": 402,
+    "actual_http": 402,
+    "customer_id": "031d2adb-4798-4c84-94d1-e72dfc58d92a",
+    "stripe_customer_id": "cus_UXiSu4QyUKvxd8"
+}

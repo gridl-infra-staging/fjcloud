@@ -1,0 +1,7 @@
+PASS: SES bounce/complaint live probes exercised suppression side effects.
+- bounce exit: 0
+- bounce steps: preflight, seed_probe_customer, first_live_send, poll_sns_side_effects, second_live_send, cleanup_probe_customer all passed.
+- bounce reason/source/audit: bounce_permanent_general / ses_sns_webhook / ses_permanent_bounce_suppressed.
+- complaint exit: 0
+- complaint steps: preflight, seed_probe_customer, first_live_send, poll_sns_side_effects, second_live_send, cleanup_probe_customer all passed.
+- complaint reason/source/audit: complaint / ses_sns_webhook / ses_complaint_suppressed.

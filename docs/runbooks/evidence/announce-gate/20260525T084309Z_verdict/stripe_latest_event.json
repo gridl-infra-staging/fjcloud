@@ -1,0 +1,52 @@
+{
+  "object": "list",
+  "data": [
+    {
+      "id": "evt_1Tau4PGXI8zVz4UHUIpFpYST",
+      "object": "event",
+      "api_version": "2026-01-28.clover",
+      "created": 1779698469,
+      "data": {
+        "object": {
+          "id": "cus_Ua4CFYSoPydLJu",
+          "object": "customer",
+          "address": null,
+          "balance": 0,
+          "created": 1779698469,
+          "currency": null,
+          "customer_account": null,
+          "default_source": null,
+          "delinquent": false,
+          "description": null,
+          "discount": null,
+          "email": "canary+canary2026052508405721126@test.flapjack.foo",
+          "invoice_prefix": "JTJEFVEC",
+          "invoice_settings": {
+            "custom_fields": null,
+            "default_payment_method": null,
+            "footer": null,
+            "rendering_options": null
+          },
+          "livemode": true,
+          "metadata": {},
+          "name": "Staging Customer Canary",
+          "next_invoice_sequence": 1,
+          "phone": null,
+          "preferred_locales": [],
+          "shipping": null,
+          "tax_exempt": "none",
+          "test_clock": null
+        }
+      },
+      "livemode": true,
+      "pending_webhooks": 0,
+      "request": {
+        "id": "req_BYunyuuHzl4yLk",
+        "idempotency_key": "975953e2-6d9d-4b02-8012-d6bf5faae647"
+      },
+      "type": "customer.created"
+    }
+  ],
+  "has_more": true,
+  "url": "/v1/events"
+}

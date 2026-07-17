@@ -1,0 +1,13 @@
+2026-05-18T05:42:57.185000+00:00 2026/05/18/[$LATEST]5ef0abc63e924ec4b7142dd316c2d9c5 START RequestId: 8f71fc09-e241-43ed-a288-c8f4b90dbf42 Version: $LATEST
+2026-05-18T05:43:05.497000+00:00 2026/05/18/[$LATEST]5ef0abc63e924ec4b7142dd316c2d9c5 [customer-loop-canary] signup succeeded for canary+canary2026051805430424151@test.flapjack.foo (customer=87ca3d0b-9aaf-4a7c-92b9-d3892d6f0ad3)
+2026-05-18T05:43:16.177000+00:00 2026/05/18/[$LATEST]5ef0abc63e924ec4b7142dd316c2d9c5 [customer-loop-canary] email verification succeeded for canary+canary2026051805430424151@test.flapjack.foo
+2026-05-18T05:43:16.177000+00:00 2026/05/18/[$LATEST]5ef0abc63e924ec4b7142dd316c2d9c5 [customer-loop-canary] CANARY_LIVE_MODE=0; skipping live Stripe branch
+2026-05-18T05:43:16.597000+00:00 2026/05/18/[$LATEST]5ef0abc63e924ec4b7142dd316c2d9c5 [customer-loop-canary] index created (canary-canary2026051805430424151)
+2026-05-18T05:43:16.818000+00:00 2026/05/18/[$LATEST]5ef0abc63e924ec4b7142dd316c2d9c5 [customer-loop-canary] index write succeeded (canary-canary2026051805430424151)
+2026-05-18T05:43:17.161000+00:00 2026/05/18/[$LATEST]5ef0abc63e924ec4b7142dd316c2d9c5 [customer-loop-canary] index search succeeded (canary-canary2026051805430424151)
+2026-05-18T05:43:17.317000+00:00 2026/05/18/[$LATEST]5ef0abc63e924ec4b7142dd316c2d9c5 [customer-loop-canary] index deleted (canary-canary2026051805430424151)
+2026-05-18T05:43:17.557000+00:00 2026/05/18/[$LATEST]5ef0abc63e924ec4b7142dd316c2d9c5 [customer-loop-canary] account delete attempted for customer 87ca3d0b-9aaf-4a7c-92b9-d3892d6f0ad3
+2026-05-18T05:43:17.657000+00:00 2026/05/18/[$LATEST]5ef0abc63e924ec4b7142dd316c2d9c5 [customer-loop-canary] admin cleanup completed for tenant 87ca3d0b-9aaf-4a7c-92b9-d3892d6f0ad3
+2026-05-18T05:43:17.658000+00:00 2026/05/18/[$LATEST]5ef0abc63e924ec4b7142dd316c2d9c5 [customer-loop-canary] customer loop canary completed successfully
+2026-05-18T05:43:17.702000+00:00 2026/05/18/[$LATEST]5ef0abc63e924ec4b7142dd316c2d9c5 END RequestId: 8f71fc09-e241-43ed-a288-c8f4b90dbf42
+2026-05-18T05:43:17.702000+00:00 2026/05/18/[$LATEST]5ef0abc63e924ec4b7142dd316c2d9c5 REPORT RequestId: 8f71fc09-e241-43ed-a288-c8f4b90dbf42	Duration: 20515.39 ms	Billed Duration: 20591 ms	Memory Size: 512 MB	Max Memory Used: 139 MB	Init Duration: 75.40 ms

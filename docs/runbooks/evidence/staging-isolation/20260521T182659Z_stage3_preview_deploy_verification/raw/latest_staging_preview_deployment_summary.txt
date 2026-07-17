@@ -1,0 +1,8 @@
+id=239b093c-acf2-43fa-8eca-6b45961d2a84
+environment=preview
+branch=staging
+status=success
+created_on=2026-05-21T18:17:42.065086Z
+modified_on=2026-05-21T18:17:46.266735Z
+trigger_type=ad_hoc
+url=https://239b093c.flapjack-cloud.pages.dev

@@ -1,0 +1,2 @@
+2026-05-25T20:00:00-04:00: Local wrapper process was interrupted after restore request submission while target remained in DBInstanceStatus=creating.
+Restore request had already been accepted by AWS; follow-up session should continue from target status probes and wrapper artifact directory.

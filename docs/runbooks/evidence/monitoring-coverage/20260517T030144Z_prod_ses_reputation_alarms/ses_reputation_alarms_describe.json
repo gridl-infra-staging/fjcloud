@@ -1,0 +1,61 @@
+{
+    "MetricAlarms": [
+        {
+            "AlarmName": "fjcloud-prod-ses-reputation-bounce-rate-high",
+            "AlarmArn": "arn:aws:cloudwatch:us-east-1:213880904778:alarm:fjcloud-prod-ses-reputation-bounce-rate-high",
+            "AlarmDescription": "SES account-level bounce-rate reputation metric reached or exceeded 5%",
+            "AlarmConfigurationUpdatedTimestamp": "2026-05-16T23:03:25.591000-04:00",
+            "ActionsEnabled": true,
+            "OKActions": [
+                "arn:aws:sns:us-east-1:213880904778:fjcloud-alerts-prod"
+            ],
+            "AlarmActions": [
+                "arn:aws:sns:us-east-1:213880904778:fjcloud-alerts-prod"
+            ],
+            "InsufficientDataActions": [],
+            "StateValue": "INSUFFICIENT_DATA",
+            "StateReason": "Unchecked: Initial alarm creation",
+            "StateUpdatedTimestamp": "2026-05-16T23:03:25.591000-04:00",
+            "MetricName": "Reputation.BounceRate",
+            "Namespace": "AWS/SES",
+            "Statistic": "Maximum",
+            "Dimensions": [],
+            "Period": 900,
+            "EvaluationPeriods": 1,
+            "DatapointsToAlarm": 1,
+            "Threshold": 0.05,
+            "ComparisonOperator": "GreaterThanOrEqualToThreshold",
+            "TreatMissingData": "notBreaching",
+            "StateTransitionedTimestamp": "2026-05-16T23:03:25.591000-04:00"
+        },
+        {
+            "AlarmName": "fjcloud-prod-ses-reputation-complaint-rate-high",
+            "AlarmArn": "arn:aws:cloudwatch:us-east-1:213880904778:alarm:fjcloud-prod-ses-reputation-complaint-rate-high",
+            "AlarmDescription": "SES account-level complaint-rate reputation metric reached or exceeded 0.1%",
+            "AlarmConfigurationUpdatedTimestamp": "2026-05-16T23:03:25.597000-04:00",
+            "ActionsEnabled": true,
+            "OKActions": [
+                "arn:aws:sns:us-east-1:213880904778:fjcloud-alerts-prod"
+            ],
+            "AlarmActions": [
+                "arn:aws:sns:us-east-1:213880904778:fjcloud-alerts-prod"
+            ],
+            "InsufficientDataActions": [],
+            "StateValue": "INSUFFICIENT_DATA",
+            "StateReason": "Unchecked: Initial alarm creation",
+            "StateUpdatedTimestamp": "2026-05-16T23:03:25.597000-04:00",
+            "MetricName": "Reputation.ComplaintRate",
+            "Namespace": "AWS/SES",
+            "Statistic": "Maximum",
+            "Dimensions": [],
+            "Period": 900,
+            "EvaluationPeriods": 1,
+            "DatapointsToAlarm": 1,
+            "Threshold": 0.001,
+            "ComparisonOperator": "GreaterThanOrEqualToThreshold",
+            "TreatMissingData": "notBreaching",
+            "StateTransitionedTimestamp": "2026-05-16T23:03:25.597000-04:00"
+        }
+    ],
+    "CompositeAlarms": []
+}

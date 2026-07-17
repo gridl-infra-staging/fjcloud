@@ -1,0 +1,14 @@
+# Disposition Receipt: batman/jun09_pm_10_pricing_tax_alert_emails_ci_polish
+
+Classification: approved freed local branch after approved worktree removal
+Evidence source: current read-only git refs at bundle creation.
+
+## rev-parse
+$ git rev-parse batman/jun09_pm_10_pricing_tax_alert_emails_ci_polish
+957eeec204e17e3fb166b1565b9240a0f66d603a
+
+## cherry
+$ git cherry -v main batman/jun09_pm_10_pricing_tax_alert_emails_ci_polish | tail -20
+
+## diff main...
+$ git diff main...batman/jun09_pm_10_pricing_tax_alert_emails_ci_polish --stat | tail -20

@@ -1,0 +1,9 @@
+{"body_shape_keys": ["customer_id", "token"], "http_status": 201, "latency_ms": 391, "outcome": "pass", "step": "register"}
+{"body_shape_keys": ["message"], "http_status": 200, "latency_ms": 19107, "outcome": "pass", "step": "verify_email"}
+{"body_shape_keys": ["billing_plan", "created_at", "email", "email_verified", "id", "name"], "http_status": 200, "latency_ms": 122, "outcome": "pass", "step": "confirm_verified"}
+{"body_shape_keys": ["created_at", "data_size_bytes", "endpoint", "entries", "name", "region", "status", "tier"], "http_status": 201, "latency_ms": 303, "outcome": "pass", "step": "create_index"}
+{"body_shape_keys": ["objectIDs", "taskID"], "http_status": 200, "latency_ms": 299, "outcome": "pass", "step": "batch_write"}
+{"body_shape_keys": ["_automaticInsights", "exhaustive", "exhaustiveNbHits", "exhaustiveTypo", "hits", "hitsPerPage", "index", "nbHits", "nbPages", "page", "params", "parsedQuery", "processingTimeMS", "processingTimingsMS", "query", "renderingContent", "serverTimeMS", "serverUsed"], "detail": "seeded_record_missing", "http_status": 200, "latency_ms": 5026, "outcome": "fail", "step": "search_index"}
+{"body_shape_keys": [], "http_status": 204, "latency_ms": 167, "outcome": "pass", "step": "delete_index"}
+{"body_shape_keys": [], "http_status": 204, "latency_ms": 228, "outcome": "pass", "step": "delete_account"}
+{"body_shape_keys": ["error"], "http_status": 404, "latency_ms": 97, "outcome": "pass", "step": "admin_cleanup"}

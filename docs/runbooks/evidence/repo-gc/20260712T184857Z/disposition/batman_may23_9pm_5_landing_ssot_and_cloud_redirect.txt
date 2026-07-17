@@ -1,0 +1,14 @@
+# Disposition Receipt: batman/may23_9pm_5_landing_ssot_and_cloud_redirect
+
+Classification: approved freed local branch after approved worktree removal
+Evidence source: current read-only git refs at bundle creation.
+
+## rev-parse
+$ git rev-parse batman/may23_9pm_5_landing_ssot_and_cloud_redirect
+cd1b50732f5c0d5c3b5cd39f98e0e68031bdaabc
+
+## cherry
+$ git cherry -v main batman/may23_9pm_5_landing_ssot_and_cloud_redirect | tail -20
+
+## diff main...
+$ git diff main...batman/may23_9pm_5_landing_ssot_and_cloud_redirect --stat | tail -20

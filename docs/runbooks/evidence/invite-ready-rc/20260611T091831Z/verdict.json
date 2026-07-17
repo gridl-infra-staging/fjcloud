@@ -1,0 +1,123 @@
+{
+  "verdict": "NOT-READY-on-section-1",
+  "timestamp": "2026-06-11T09:23:02Z",
+  "summary_source": "summary.json",
+  "non_pass_steps": [
+    {
+      "name": "local_signoff",
+      "status": "skipped",
+      "reason": "local_signoff_not_applicable_in_paid_beta_rc_mode",
+      "section": 6,
+      "classification": "mode_skip"
+    },
+    {
+      "name": "browser_auth_setup",
+      "status": "external_secret_missing",
+      "reason": "browser_auth_setup_env_gap",
+      "section": 6,
+      "classification": "env_gap"
+    },
+    {
+      "name": "admin_broadcast",
+      "status": "skipped",
+      "reason": "staging_only_production_surface",
+      "section": 4,
+      "classification": "mode_skip"
+    },
+    {
+      "name": "billing_health_last_activity",
+      "status": "skipped",
+      "reason": "staging_only_production_surface",
+      "section": 2,
+      "classification": "mode_skip"
+    },
+    {
+      "name": "audit_timeline",
+      "status": "skipped",
+      "reason": "staging_only_production_surface",
+      "section": 4,
+      "classification": "mode_skip"
+    },
+    {
+      "name": "status_runtime",
+      "status": "skipped",
+      "reason": "staging_only_production_surface",
+      "section": 6,
+      "classification": "mode_skip"
+    },
+    {
+      "name": "ses_inbound",
+      "status": "skipped",
+      "reason": "staging_only_production_surface",
+      "section": 3,
+      "classification": "mode_skip"
+    },
+    {
+      "name": "canary_customer_loop",
+      "status": "skipped",
+      "reason": "staging_only_production_surface",
+      "section": 6,
+      "classification": "mode_skip"
+    },
+    {
+      "name": "canary_outside_aws",
+      "status": "skipped",
+      "reason": "staging_only_production_surface",
+      "section": 6,
+      "classification": "mode_skip"
+    },
+    {
+      "name": "stripe_webhook_signature_matrix_idempotency",
+      "status": "skipped",
+      "reason": "staging_only_production_surface",
+      "section": 2,
+      "classification": "mode_skip"
+    },
+    {
+      "name": "test_clock",
+      "status": "skipped",
+      "reason": "staging_only_production_surface",
+      "section": 2,
+      "classification": "mode_skip"
+    },
+    {
+      "name": "tenant_isolation",
+      "status": "skipped",
+      "reason": "staging_only_production_surface",
+      "section": 4,
+      "classification": "mode_skip"
+    },
+    {
+      "name": "signup_abuse",
+      "status": "skipped",
+      "reason": "staging_only_production_surface",
+      "section": 4,
+      "classification": "mode_skip"
+    },
+    {
+      "name": "browser_signup_paid",
+      "status": "skipped",
+      "reason": "staging_only_production_surface",
+      "section": 1,
+      "classification": "mode_skip"
+    },
+    {
+      "name": "browser_portal_cancel",
+      "status": "skipped",
+      "reason": "staging_only_production_surface",
+      "section": 1,
+      "classification": "mode_skip"
+    }
+  ],
+  "section_impact": {
+    "1": "partial",
+    "2": "green",
+    "3": "green",
+    "4": "green",
+    "5": "green",
+    "6": "green"
+  },
+  "other_real_count": 0,
+  "pre_authorized_shape_match": true,
+  "rationale": "15 non-pass steps; other_real_count=0. external_secret_missing/live_evidence_gap rows and the committed staging_billing_rehearsal billing_run_no_created_invoices row classify as env_gap; paid-beta/staging-only skips classify as mode_skip; all remaining non-pass rows fail closed as other_real. Section 1 follows docs/launch_verification_matrix.md when no real defect supersedes it."
+}

@@ -1,0 +1,188 @@
+# Root configuration — composes all infrastructure modules.
+#
+# Usage:
+#   cd ops/terraform/_shared
+#   terraform init -backend-config=...
+#   terraform plan -var="env=staging" -var="api_ami_id=ami-0123456789abcdef0" -var="flapjack_ami_id=ami-0fedcba9876543210"
+#   terraform apply -var="env=staging" -var="api_ami_id=ami-0123456789abcdef0" -var="flapjack_ami_id=ami-0fedcba9876543210"
+
+locals {
+  deployment_domain = var.env == "staging" && var.domain == "flapjack.foo" ? "staging.flapjack.foo" : var.domain
+
+  dns_public_record_names = {
+    apex  = local.deployment_domain
+    api   = "api.${local.deployment_domain}"
+    www   = "www.${local.deployment_domain}"
+    cloud = "cloud.${local.deployment_domain}"
+  }
+
+  # Staging already had manual Cloudflare Pages records for some public hosts.
+  # Discover them in the root module so Terraform can import and update them in
+  # place during the cutover instead of failing with duplicate-record errors.
+  existing_public_record_ids = {
+    for key, lookup in data.cloudflare_dns_records.existing_public :
+    key => lookup.result[0].id
+    if length(lookup.result) > 0
+  }
+
+  alert_emails_normalized = [for email in var.alert_emails : trimspace(email)]
+}
+
+data "cloudflare_dns_records" "existing_public" {
+  for_each = local.dns_public_record_names
+
+  zone_id   = var.cloudflare_zone_id
+  type      = "CNAME"
+  max_items = 1
+
+  name = {
+    exact = each.value
+  }
+}
+
+module "networking" {
+  source = "../networking"
+
+  env    = var.env
+  region = var.region
+}
+
+module "data" {
+  source = "../data"
+
+  env                = var.env
+  region             = var.region
+  private_subnet_ids = module.networking.private_subnet_ids
+  sg_rds_id          = module.networking.sg_rds_id
+  db_instance_class  = var.db_instance_class
+}
+
+module "compute" {
+  source = "../compute"
+
+  env                   = var.env
+  region                = var.region
+  ami_id                = var.api_ami_id
+  api_instance_type     = var.api_instance_type
+  private_subnet_ids    = module.networking.private_subnet_ids
+  sg_api_id             = module.networking.sg_api_id
+  instance_profile_name = "fjcloud-instance-profile"
+}
+
+# Runtime-only provisioning inputs are owned by the dedicated runtime_params
+# module. deploy.sh regenerates /etc/fjcloud/env on the host exclusively from
+# Parameter Store, so these parameters must exist before a runtime deploy.
+# Parameter NAMES (/fjcloud/${env}/*) are the external contract and preserved
+# identically across the move.
+module "runtime_params" {
+  source = "../runtime_params"
+
+  env                        = var.env
+  ami_id                     = var.flapjack_ami_id
+  subnet_id                  = element(module.networking.public_subnet_ids, 0)
+  security_group_ids         = module.networking.sg_flapjack_vm_id
+  key_pair_name              = module.compute.ssh_key_pair_name
+  instance_profile_name      = "fjcloud-instance-profile"
+  cloudflare_zone_id         = var.cloudflare_zone_id
+  dns_domain                 = local.deployment_domain
+  ses_configuration_set_name = module.dns.ses_configuration_set_name
+}
+
+module "dns" {
+  source = "../dns"
+
+  env                    = var.env
+  region                 = var.region
+  domain                 = local.deployment_domain
+  cloudflare_zone_id     = var.cloudflare_zone_id
+  vpc_id                 = module.networking.vpc_id
+  public_subnet_ids      = module.networking.public_subnet_ids
+  sg_alb_id              = module.networking.sg_alb_id
+  api_instance_id        = module.compute.api_instance_id
+  ses_feedback_topic_arn = module.monitoring.ses_feedback_sns_topic_arn
+}
+
+resource "terraform_data" "prod_alert_emails_guard" {
+  input = local.alert_emails_normalized
+
+  lifecycle {
+    precondition {
+      condition     = var.env != "prod" || length(local.alert_emails_normalized) > 0
+      error_message = "env=prod requires at least one alert_emails entry."
+    }
+  }
+}
+
+module "monitoring" {
+  source = "../monitoring"
+
+  env                                                 = var.env
+  region                                              = var.region
+  domain                                              = local.deployment_domain
+  api_instance_id                                     = module.compute.api_instance_id
+  db_instance_identifier                              = module.data.db_instance_identifier
+  alb_arn_suffix                                      = module.dns.alb_arn_suffix
+  api_target_group_arn_suffix                         = module.dns.api_target_group_arn_suffix
+  alert_emails                                        = local.alert_emails_normalized
+  canary_image                                        = var.canary_image
+  canary_schedule                                     = var.canary_schedule
+  live_e2e_monthly_spend_limit_usd                    = var.live_e2e_monthly_spend_limit_usd
+  live_e2e_budget_action_enabled                      = var.live_e2e_budget_action_enabled
+  live_e2e_budget_action_principal_arn                = var.live_e2e_budget_action_principal_arn
+  live_e2e_budget_action_policy_arn                   = var.live_e2e_budget_action_policy_arn
+  live_e2e_budget_action_role_name                    = var.live_e2e_budget_action_role_name
+  live_e2e_budget_action_execution_role_arn           = var.live_e2e_budget_action_execution_role_arn
+  support_email_canary_image_uri                      = var.support_email_canary_image_uri
+  support_email_canary_image_tag                      = var.support_email_canary_image_tag
+  support_email_canary_ses_from_address               = var.support_email_canary_ses_from_address
+  support_email_canary_schedule_expression            = var.support_email_canary_schedule_expression
+  support_email_canary_inbound_roundtrip_s3_uri       = var.support_email_canary_inbound_roundtrip_s3_uri
+  support_email_canary_recipient_domain_default       = var.support_email_canary_recipient_domain_default
+  support_email_canary_recipient_local_part_default   = var.support_email_canary_recipient_local_part_default
+  support_email_canary_slack_webhook_parameter_name   = var.support_email_canary_slack_webhook_parameter_name
+  support_email_canary_discord_webhook_parameter_name = var.support_email_canary_discord_webhook_parameter_name
+}
+
+import {
+  for_each = local.existing_public_record_ids
+  to       = module.dns.cloudflare_dns_record.public[each.key]
+  id       = "${var.cloudflare_zone_id}/${each.value}"
+}
+
+# Safe state migration for 2026-04-24 move of runtime SSM parameters into
+# the dedicated runtime_params module. Prevents destroy+create of live
+# SSM parameters that deploy.sh reads from Parameter Store at host boot.
+moved {
+  from = aws_ssm_parameter.runtime_aws_ami_id
+  to   = module.runtime_params.aws_ssm_parameter.runtime_aws_ami_id
+}
+
+moved {
+  from = aws_ssm_parameter.runtime_aws_subnet_id
+  to   = module.runtime_params.aws_ssm_parameter.runtime_aws_subnet_id
+}
+
+moved {
+  from = aws_ssm_parameter.runtime_aws_security_group_ids
+  to   = module.runtime_params.aws_ssm_parameter.runtime_aws_security_group_ids
+}
+
+moved {
+  from = aws_ssm_parameter.runtime_aws_key_pair_name
+  to   = module.runtime_params.aws_ssm_parameter.runtime_aws_key_pair_name
+}
+
+moved {
+  from = aws_ssm_parameter.runtime_aws_instance_profile_name
+  to   = module.runtime_params.aws_ssm_parameter.runtime_aws_instance_profile_name
+}
+
+moved {
+  from = aws_ssm_parameter.runtime_cloudflare_zone_id
+  to   = module.runtime_params.aws_ssm_parameter.runtime_cloudflare_zone_id
+}
+
+moved {
+  from = aws_ssm_parameter.runtime_dns_domain
+  to   = module.runtime_params.aws_ssm_parameter.runtime_dns_domain
+}

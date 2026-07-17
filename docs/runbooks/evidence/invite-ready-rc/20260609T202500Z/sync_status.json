@@ -1,0 +1,9 @@
+{
+  "head_sha": "7f98e5c9499783bbb43997c9b310972e97053173",
+  "staging_dev_sha": "7f98e5c9499783bbb43997c9b310972e97053173",
+  "prod_dev_sha": "7f98e5c9499783bbb43997c9b310972e97053173",
+  "converged": true,
+  "fallback_branch": null,
+  "wait_seconds_staging": 1326,
+  "wait_seconds_prod": 1265
+}

@@ -1,0 +1,14 @@
+# Disposition: batman/jul12_pm_7b_rc_verdict_launch_anchor
+
+Classification: approved-clean-merged-jul12-residue
+Worktree: `<parallel-root>/fjcloud_dev/jul12_pm_7b_rc_verdict_launch_anchor/fjcloud_dev`
+Tip: 45b794221898ec52d2b24ceb01ac030610c4ddd1
+Disposition: dispatched+merged(77d713f9dc69700caa5e622aef5d30cc00edb47e)
+
+`git merge-base --is-ancestor batman/jul12_pm_7b_rc_verdict_launch_anchor main` exit: 0
+
+`git cherry -v main batman/jul12_pm_7b_rc_verdict_launch_anchor | tail -20`: no output
+
+`git diff main...batman/jul12_pm_7b_rc_verdict_launch_anchor --stat | tail -20`: no output
+
+`git -C <worktree> status --porcelain`: no output

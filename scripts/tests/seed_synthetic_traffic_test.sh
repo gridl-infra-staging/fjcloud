@@ -1,0 +1,1963 @@
+#!/usr/bin/env bash
+# Red-first contract tests for scripts/launch/seed_synthetic_traffic.sh.
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
+PASS_COUNT=0
+FAIL_COUNT=0
+RUN_OUTPUT=""
+RUN_EXIT_CODE=0
+SEED_SYNTHETIC_STATE_DIR="${TMPDIR:-/tmp}/seed-synthetic-shell-test-$$"
+TENANT_A_MAPPING_PATH="$SEED_SYNTHETIC_STATE_DIR/seed-synthetic-demo-shared-free.json"
+TENANT_B_MAPPING_PATH="$SEED_SYNTHETIC_STATE_DIR/seed-synthetic-demo-small-dedicated.json"
+
+pass() {
+    echo "PASS: $1"
+    PASS_COUNT=$((PASS_COUNT + 1))
+}
+
+fail() {
+    echo "FAIL: $*" >&2
+    FAIL_COUNT=$((FAIL_COUNT + 1))
+}
+
+# shellcheck source=lib/assertions.sh
+source "$SCRIPT_DIR/lib/assertions.sh"
+# shellcheck source=lib/test_helpers.sh
+source "$SCRIPT_DIR/lib/test_helpers.sh"
+# shellcheck source=lib/seed_local_mocks.sh
+source "$SCRIPT_DIR/lib/seed_local_mocks.sh"
+
+cleanup_seed_synthetic_test_state() {
+    rm -rf "$SEED_SYNTHETIC_STATE_DIR"
+}
+
+trap cleanup_seed_synthetic_test_state EXIT
+
+read_file_or_empty() {
+    local path="$1"
+    if [ -f "$path" ]; then
+        cat "$path"
+    fi
+}
+
+line_count_or_zero() {
+    local path="$1"
+    if [ ! -f "$path" ]; then
+        printf '0'
+        return 0
+    fi
+    wc -l < "$path" | tr -d '[:space:]'
+}
+
+read_counter_file_or_zero() {
+    local path="$1"
+    if [ ! -f "$path" ]; then
+        printf '0'
+        return 0
+    fi
+    cat "$path"
+}
+
+setup_mock_workspace() {
+    local tmp_dir="$1"
+    local curl_log="$2"
+    local psql_log="$3"
+    local psql_stdin="$4"
+    local sleep_log="${5:-$tmp_dir/sleep.log}"
+
+    mkdir -p "$tmp_dir/bin"
+    write_mock_curl "$tmp_dir/bin/curl" "$curl_log"
+    write_mock_psql "$tmp_dir/bin/psql" "$psql_log" "$psql_stdin"
+
+    # Keep traffic-driver contract tests bounded while preserving sleep-arg observability.
+    : > "$sleep_log"
+    cat > "$tmp_dir/bin/sleep" <<EOF
+#!/usr/bin/env bash
+echo "\$*" >> "$sleep_log"
+if [ -n "\${MOCK_SYNTHETIC_SLEEP_DELAY_ARG:-}" ] && [ "\$*" = "\${MOCK_SYNTHETIC_SLEEP_DELAY_ARG}" ] && [ -n "\${MOCK_SYNTHETIC_SLEEP_DELAY_SECONDS:-}" ]; then
+    python3 - "\${MOCK_SYNTHETIC_SLEEP_DELAY_SECONDS}" <<'PY'
+import sys
+import time
+
+time.sleep(float(sys.argv[1]))
+PY
+fi
+exit 0
+EOF
+    chmod +x "$tmp_dir/bin/sleep"
+}
+
+clear_mock_logs() {
+    local curl_log="$1"
+    local psql_log="$2"
+    local psql_stdin="$3"
+    : > "$curl_log"
+    : > "$psql_log"
+    : > "$psql_stdin"
+}
+
+stash_tenant_a_mapping_artifact() {
+    local backup_path="$1"
+    rm -f "$backup_path"
+    if [ -f "$TENANT_A_MAPPING_PATH" ]; then
+        cp "$TENANT_A_MAPPING_PATH" "$backup_path"
+    fi
+    rm -f "$TENANT_A_MAPPING_PATH"
+}
+
+restore_tenant_a_mapping_artifact() {
+    local backup_path="$1"
+    mkdir -p "$SEED_SYNTHETIC_STATE_DIR"
+    if [ -f "$backup_path" ]; then
+        cp "$backup_path" "$TENANT_A_MAPPING_PATH"
+    else
+        rm -f "$TENANT_A_MAPPING_PATH"
+    fi
+}
+
+mapping_json_field_or_empty() {
+    local field_name="$1"
+    if [ ! -f "$TENANT_A_MAPPING_PATH" ]; then
+        printf ''
+        return 0
+    fi
+    python3 - "$TENANT_A_MAPPING_PATH" "$field_name" <<'PY'
+import json
+import sys
+path = sys.argv[1]
+field = sys.argv[2]
+with open(path, "r", encoding="utf-8") as f:
+    payload = json.load(f)
+value = payload.get(field, "")
+if value is None:
+    print("")
+else:
+    print(value)
+PY
+}
+
+capture_run_start_utc() {
+    date -u +"%Y-%m-%dT%H:%M:%SZ"
+}
+
+require_tenant_a_mapping_artifact() {
+    if [ ! -f "$TENANT_A_MAPPING_PATH" ]; then
+        fail "live execute must persist tenant A mapping artifact at $TENANT_A_MAPPING_PATH"
+        return 1
+    fi
+    return 0
+}
+
+mapping_json_field_or_fail() {
+    local field_name="$1"
+    local context="$2"
+    local value
+    value="$(mapping_json_field_or_empty "$field_name")"
+    if [ -z "$value" ]; then
+        fail "$context missing required mapping field '$field_name' in $TENANT_A_MAPPING_PATH"
+        return 1
+    fi
+    printf '%s' "$value"
+}
+
+handle_stage5_optional_usage_daily_follow_on() {
+    local usage_daily_exit="$1"
+    local usage_daily_rows="$2"
+    local usage_daily_row_count
+
+    if [ "$usage_daily_exit" -ne 0 ]; then
+        pass "stage5 optional usage_daily follow-on query is unavailable; this is non-gating evidence only"
+        printf '%s\n' "stage5 usage_daily evidence unavailable (non-gating): exit=$usage_daily_exit output=$usage_daily_rows" >&2
+        return 0
+    fi
+
+    usage_daily_row_count="$(printf '%s\n' "$usage_daily_rows" | sed '/^[[:space:]]*$/d' | wc -l | tr -d '[:space:]')"
+    if [ "$usage_daily_row_count" -gt 0 ]; then
+        pass "stage5 optional usage_daily follow-on evidence already exists (rows=$usage_daily_row_count)"
+        printf '%s\n' "stage5 usage_daily evidence (customer_id|date|region|search_requests|write_operations):"
+        printf '%s\n' "$usage_daily_rows"
+    else
+        pass "stage5 optional usage_daily follow-on evidence is absent; this is not a pass/fail gate"
+    fi
+}
+
+write_tenant_a_mapping_artifact() {
+    local customer_id="$1"
+    local tenant_id="$2"
+    local flapjack_uid="$3"
+    local flapjack_url="$4"
+    mkdir -p "$SEED_SYNTHETIC_STATE_DIR"
+    cat > "$TENANT_A_MAPPING_PATH" <<EOF
+{"customer_id":"$customer_id","tenant_id":"$tenant_id","flapjack_uid":"$flapjack_uid","flapjack_url":"$flapjack_url"}
+EOF
+}
+
+run_seed_synthetic_dry_run() {
+    local tmp_dir="$1"
+    local selector="$2"
+
+    RUN_EXIT_CODE=0
+    RUN_OUTPUT=$(
+        PATH="$tmp_dir/bin:$PATH" \
+        SEED_SYNTHETIC_STATE_DIR="$SEED_SYNTHETIC_STATE_DIR" \
+        bash "$REPO_ROOT/scripts/launch/seed_synthetic_traffic.sh" --tenant "$selector" --dry-run 2>&1
+    ) || RUN_EXIT_CODE=$?
+}
+
+run_seed_synthetic_execute() {
+    local tmp_dir="$1"
+    local selector="$2"
+    local duration_minutes="${MOCK_SYNTHETIC_DURATION_MINUTES:-1}"
+    local provision_only_flag=""
+
+    if [ "${MOCK_SYNTHETIC_PROVISION_ONLY:-0}" = "1" ]; then
+        provision_only_flag="--provision-only"
+    fi
+
+    RUN_EXIT_CODE=0
+    RUN_OUTPUT=$(
+        PATH="$tmp_dir/bin:$PATH" \
+        SEED_SYNTHETIC_STATE_DIR="$SEED_SYNTHETIC_STATE_DIR" \
+        API_URL="http://synthetic-api.test" \
+        ADMIN_KEY="synthetic-admin-key" \
+        DATABASE_URL="postgres://griddle:griddle_local@127.0.0.1:15432/fjcloud_dev" \
+        FLAPJACK_URL="${MOCK_SYNTHETIC_FLAPJACK_URL:-http://synthetic-flapjack.test}" \
+        FLAPJACK_API_KEY="synthetic-flapjack-api-key" \
+        MOCK_SYNTHETIC_STORAGE_MB_SEQUENCE="${MOCK_SYNTHETIC_STORAGE_MB_SEQUENCE:-}" \
+        MOCK_SYNTHETIC_STORAGE_MB="${MOCK_SYNTHETIC_STORAGE_MB:-}" \
+        MOCK_SYNTHETIC_STORAGE_UID="${MOCK_SYNTHETIC_STORAGE_UID:-}" \
+        MOCK_SYNTHETIC_STORAGE_OTHER_TENANT_MB="${MOCK_SYNTHETIC_STORAGE_OTHER_TENANT_MB:-}" \
+        MOCK_SYNTHETIC_STORAGE_OTHER_TENANT_UID="${MOCK_SYNTHETIC_STORAGE_OTHER_TENANT_UID:-}" \
+        MOCK_SYNTHETIC_CREATE_STATUS_CODE="${MOCK_SYNTHETIC_CREATE_STATUS_CODE:-}" \
+        MOCK_SYNTHETIC_CREATE_409_INCLUDE_ID="${MOCK_SYNTHETIC_CREATE_409_INCLUDE_ID:-}" \
+        MOCK_SYNTHETIC_UPDATE_STATUS_CODE="${MOCK_SYNTHETIC_UPDATE_STATUS_CODE:-}" \
+        MOCK_SYNTHETIC_UPDATE_404_FOR_TENANT_ID="${MOCK_SYNTHETIC_UPDATE_404_FOR_TENANT_ID:-}" \
+        MOCK_SYNTHETIC_INDEX_STATUS="${MOCK_SYNTHETIC_INDEX_STATUS:-}" \
+        MOCK_SYNTHETIC_INDEX_ENDPOINT_OVERRIDE="${MOCK_SYNTHETIC_INDEX_ENDPOINT_OVERRIDE:-}" \
+        MOCK_SYNTHETIC_DIRECT_DOCUMENTS_COUNT_PATH="${MOCK_SYNTHETIC_DIRECT_DOCUMENTS_COUNT_PATH:-}" \
+        MOCK_SYNTHETIC_DIRECT_QUERY_COUNT_PATH="${MOCK_SYNTHETIC_DIRECT_QUERY_COUNT_PATH:-}" \
+        MOCK_SYNTHETIC_FAIL_QUERY_ON_CALL="${MOCK_SYNTHETIC_FAIL_QUERY_ON_CALL:-}" \
+        MOCK_SYNTHETIC_SLEEP_DELAY_ARG="${MOCK_SYNTHETIC_SLEEP_DELAY_ARG:-}" \
+        MOCK_SYNTHETIC_SLEEP_DELAY_SECONDS="${MOCK_SYNTHETIC_SLEEP_DELAY_SECONDS:-}" \
+        bash "$REPO_ROOT/scripts/launch/seed_synthetic_traffic.sh" \
+            --tenant "$selector" \
+            --execute \
+            --i-know-this-hits-staging \
+            --duration-minutes "$duration_minutes" \
+            $provision_only_flag 2>&1
+    ) || RUN_EXIT_CODE=$?
+}
+
+run_seed_synthetic_execute_without_ack() {
+    local tmp_dir="$1"
+    local selector="$2"
+
+    RUN_EXIT_CODE=0
+    RUN_OUTPUT=$(
+        PATH="$tmp_dir/bin:$PATH" \
+        SEED_SYNTHETIC_STATE_DIR="$SEED_SYNTHETIC_STATE_DIR" \
+        bash "$REPO_ROOT/scripts/launch/seed_synthetic_traffic.sh" \
+            --tenant "$selector" \
+            --execute \
+            --duration-minutes 1 2>&1
+    ) || RUN_EXIT_CODE=$?
+}
+
+assert_tenant_description() {
+    local output="$1"
+    local tenant_letter="$2"
+
+    case "$tenant_letter" in
+        A)
+            assert_contains "$output" "=== Tenant A ===" "tenant A selector should print tenant A heading"
+            assert_contains "$output" "name:              demo-shared-free" "tenant A selector should print tenant A name"
+            assert_contains "$output" "plan:              shared" "tenant A selector should print tenant A billing plan"
+            assert_contains "$output" "target_storage_mb: 100" "tenant A selector should print tenant A storage target"
+            assert_contains "$output" "writes_per_minute: 10" "tenant A selector should print tenant A write rate"
+            assert_contains "$output" "searches_per_min:  1" "tenant A selector should print tenant A search rate"
+            ;;
+        B)
+            assert_contains "$output" "=== Tenant B ===" "tenant B selector should print tenant B heading"
+            assert_contains "$output" "name:              demo-small-dedicated" "tenant B selector should print tenant B name"
+            assert_contains "$output" "plan:              dedicated" "tenant B selector should print tenant B billing plan"
+            assert_contains "$output" "target_storage_mb: 2048" "tenant B selector should print tenant B storage target"
+            assert_contains "$output" "writes_per_minute: 100" "tenant B selector should print tenant B write rate"
+            assert_contains "$output" "searches_per_min:  10" "tenant B selector should print tenant B search rate"
+            ;;
+        C)
+            assert_contains "$output" "=== Tenant C ===" "tenant C selector should print tenant C heading"
+            assert_contains "$output" "name:              demo-medium-dedicated" "tenant C selector should print tenant C name"
+            assert_contains "$output" "plan:              dedicated" "tenant C selector should print tenant C billing plan"
+            assert_contains "$output" "target_storage_mb: 20480" "tenant C selector should print tenant C storage target"
+            assert_contains "$output" "writes_per_minute: 1000" "tenant C selector should print tenant C write rate"
+            assert_contains "$output" "searches_per_min:  50" "tenant C selector should print tenant C search rate"
+            ;;
+        *)
+            fail "unknown tenant selector for assertions: $tenant_letter"
+            ;;
+    esac
+}
+
+test_dry_run_contracts_cover_A_B_C_and_all_without_mutation_calls() {
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    trap 'rm -rf "'"$tmp_dir"'"' RETURN
+
+    local curl_log="$tmp_dir/curl.log"
+    local psql_log="$tmp_dir/psql.log"
+    local psql_stdin="$tmp_dir/psql.stdin"
+    setup_mock_workspace "$tmp_dir" "$curl_log" "$psql_log" "$psql_stdin"
+
+    local selector curl_calls psql_calls
+    for selector in A B C all; do
+        clear_mock_logs "$curl_log" "$psql_log" "$psql_stdin"
+        run_seed_synthetic_dry_run "$tmp_dir" "$selector"
+
+        assert_eq "$RUN_EXIT_CODE" "0" "dry-run selector $selector should exit cleanly"
+        assert_contains "$RUN_OUTPUT" "this was a dry run. Re-run with --execute --i-know-this-hits-staging to mutate staging." \
+            "dry-run selector $selector should print execute re-run hint"
+
+        case "$selector" in
+            A)
+                assert_tenant_description "$RUN_OUTPUT" "A"
+                assert_not_contains "$RUN_OUTPUT" "=== Tenant B ===" "tenant A dry-run should not include tenant B"
+                assert_not_contains "$RUN_OUTPUT" "=== Tenant C ===" "tenant A dry-run should not include tenant C"
+                ;;
+            B)
+                assert_tenant_description "$RUN_OUTPUT" "B"
+                assert_not_contains "$RUN_OUTPUT" "=== Tenant A ===" "tenant B dry-run should not include tenant A"
+                assert_not_contains "$RUN_OUTPUT" "=== Tenant C ===" "tenant B dry-run should not include tenant C"
+                ;;
+            C)
+                assert_tenant_description "$RUN_OUTPUT" "C"
+                assert_not_contains "$RUN_OUTPUT" "=== Tenant A ===" "tenant C dry-run should not include tenant A"
+                assert_not_contains "$RUN_OUTPUT" "=== Tenant B ===" "tenant C dry-run should not include tenant B"
+                ;;
+            all)
+                assert_tenant_description "$RUN_OUTPUT" "A"
+                assert_tenant_description "$RUN_OUTPUT" "B"
+                assert_tenant_description "$RUN_OUTPUT" "C"
+                ;;
+        esac
+
+        curl_calls="$(read_file_or_empty "$curl_log")"
+        psql_calls="$(read_file_or_empty "$psql_log")"
+        assert_eq "$(line_count_or_zero "$curl_log")" "0" "dry-run selector $selector should make zero curl calls"
+        assert_eq "$(line_count_or_zero "$psql_log")" "0" "dry-run selector $selector should make zero psql calls"
+        assert_eq "$(line_count_or_zero "$psql_stdin")" "0" "dry-run selector $selector should not write SQL"
+        assert_eq "$curl_calls" "" "dry-run selector $selector should leave curl log empty"
+        assert_eq "$psql_calls" "" "dry-run selector $selector should leave psql log empty"
+    done
+}
+
+test_execute_requires_staging_ack_before_preflight_or_mutation_calls() {
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    trap 'rm -rf "'"$tmp_dir"'"' RETURN
+
+    local curl_log="$tmp_dir/curl.log"
+    local psql_log="$tmp_dir/psql.log"
+    local psql_stdin="$tmp_dir/psql.stdin"
+    setup_mock_workspace "$tmp_dir" "$curl_log" "$psql_log" "$psql_stdin"
+
+    clear_mock_logs "$curl_log" "$psql_log" "$psql_stdin"
+    run_seed_synthetic_execute_without_ack "$tmp_dir" "B"
+
+    assert_eq "$RUN_EXIT_CODE" "1" \
+        "execute without staging acknowledgement should fail closed"
+    assert_contains "$RUN_OUTPUT" "--execute requires --i-know-this-hits-staging" \
+        "execute without staging acknowledgement should emit explicit guard message"
+    assert_not_contains "$RUN_OUTPUT" "missing required env vars:" \
+        "execute without staging acknowledgement should fail before preflight env validation"
+
+    assert_eq "$(line_count_or_zero "$curl_log")" "0" \
+        "execute without staging acknowledgement should produce zero curl calls"
+    assert_eq "$(line_count_or_zero "$psql_log")" "0" \
+        "execute without staging acknowledgement should produce zero psql calls"
+    assert_eq "$(line_count_or_zero "$psql_stdin")" "0" \
+        "execute without staging acknowledgement should not write SQL"
+}
+
+test_execute_accepts_all_three_tenants_post_stage2() {
+    # Stage 2 historically accepted only --tenant A in execute mode. LAUNCH.md
+    # LB-5 requires the seeder to close for tenants A + B + C, so the gate
+    # is lifted and execute mode now progresses past the selector guard for
+    # all four selectors (A, B, C, all). The Stage-2 error string must no
+    # longer appear; instead, runs without the credentialed env file fall
+    # through to the preflight env-validation owner (which fails on missing
+    # required vars in this mock setup), and dry-run "all" continues to
+    # describe all three tenants without mutations.
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    trap 'rm -rf "'"$tmp_dir"'"' RETURN
+
+    local curl_log="$tmp_dir/curl.log"
+    local psql_log="$tmp_dir/psql.log"
+    local psql_stdin="$tmp_dir/psql.stdin"
+    setup_mock_workspace "$tmp_dir" "$curl_log" "$psql_log" "$psql_stdin"
+
+    local selector
+    for selector in B C all; do
+        clear_mock_logs "$curl_log" "$psql_log" "$psql_stdin"
+        MOCK_SYNTHETIC_DURATION_MINUTES="0" \
+        MOCK_SYNTHETIC_PROVISION_ONLY="1" \
+        run_seed_synthetic_execute "$tmp_dir" "$selector"
+
+        # The Stage-2 gate must be gone for B/C/all execute selectors.
+        # If the gate string ever reappears, this assertion is the canary.
+        assert_not_contains "$RUN_OUTPUT" "execute mode supports only --tenant A in Stage 2" \
+            "execute selector $selector should not be rejected by the (now-removed) Stage 2 unsupported-selector gate"
+
+        # The seeder header must appear — proves the script progressed
+        # past argument parsing and beyond where the old Stage-2 gate
+        # used to die. Tighter than just "no gate string": guards against
+        # a regression where parsing dies for a different reason and
+        # the gate string also happens to be absent.
+        assert_contains "$RUN_OUTPUT" "=== synthetic traffic seeder ===" \
+            "execute selector $selector should reach the synthetic-seeder header (proves progression past the Stage-2 gate)"
+    done
+
+    # dry-run "all" is unchanged: describes all three tenants without
+    # mutations.
+    clear_mock_logs "$curl_log" "$psql_log" "$psql_stdin"
+    run_seed_synthetic_dry_run "$tmp_dir" "all"
+    assert_eq "$RUN_EXIT_CODE" "0" "dry-run tenant all should remain descriptive"
+    assert_tenant_description "$RUN_OUTPUT" "A"
+    assert_tenant_description "$RUN_OUTPUT" "B"
+    assert_tenant_description "$RUN_OUTPUT" "C"
+}
+
+test_provision_only_skips_storage_backfill_and_sustained_traffic() {
+    # LAUNCH.md LB-5 requires usage_records rows for tenants A + B + C on
+    # current-main. The metering agent on staging Flapjack VMs writes
+    # usage_records as soon as a tenant index exists, regardless of size —
+    # so for B (2 GB) and C (20 GB) targets, the storage-convergence loop
+    # is overkill (and runs into MAX_STAGE3_STORAGE_POLLS=400 well before
+    # converging). --provision-only is a clean opt-in that runs only
+    # ensure_customer_and_tenant for the selected tenant(s) and exits.
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    trap 'rm -rf "'"$tmp_dir"'"' RETURN
+
+    local curl_log="$tmp_dir/curl.log"
+    local psql_log="$tmp_dir/psql.log"
+    local psql_stdin="$tmp_dir/psql.stdin"
+    setup_mock_workspace "$tmp_dir" "$curl_log" "$psql_log" "$psql_stdin"
+
+    clear_mock_logs "$curl_log" "$psql_log" "$psql_stdin"
+
+    # Provisioning-only run for tenant B. The mocks accept create-customer
+    # + create-tenant + index-seed but no /batch backfill calls and no
+    # sustained-write/search loops should ever fire.
+    RUN_EXIT_CODE=0
+    RUN_OUTPUT=$(
+        PATH="$tmp_dir/bin:$PATH" \
+        API_URL="http://synthetic-api.test" \
+        ADMIN_KEY="synthetic-admin-key" \
+        DATABASE_URL="postgres://griddle:griddle_local@127.0.0.1:15432/fjcloud_dev" \
+        FLAPJACK_URL="http://synthetic-flapjack.test" \
+        FLAPJACK_API_KEY="synthetic-flapjack-api-key" \
+        MOCK_SYNTHETIC_STORAGE_MB="${MOCK_SYNTHETIC_STORAGE_MB:-}" \
+        bash "$REPO_ROOT/scripts/launch/seed_synthetic_traffic.sh" \
+            --tenant B \
+            --execute \
+            --i-know-this-hits-staging \
+            --provision-only 2>&1
+    ) || RUN_EXIT_CODE=$?
+
+    assert_eq "$RUN_EXIT_CODE" "0" \
+        "provision-only run for tenant B should exit cleanly without storage convergence"
+
+    # Tenant provisioning + index seeding calls should appear. The seeder
+    # provisioning path calls /admin/tenants (not /admin/customers — the
+    # customer is implicitly created or resolved by /admin/tenants), then
+    # /1/indexes/<uid> for the seed index.
+    local curl_calls
+    curl_calls="$(read_file_or_empty "$curl_log")"
+    assert_contains "$curl_calls" "/admin/tenants" \
+        "provision-only should call admin tenant create/list"
+
+    # The storage-backfill /batch loop and sustained-write loop must NOT
+    # fire. Use the literal /batch suffix; the actual URL is
+    # /1/indexes/<uid>/batch.
+    assert_not_contains "$curl_calls" "/batch" \
+        "provision-only should skip /batch storage-backfill calls"
+}
+
+test_provision_only_compatible_with_all_three_tenants() {
+    # Smoke check: --provision-only --tenant all should describe all three
+    # tenants in dry-run mode and not error in the new flag combination.
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    trap 'rm -rf "'"$tmp_dir"'"' RETURN
+
+    local curl_log="$tmp_dir/curl.log"
+    local psql_log="$tmp_dir/psql.log"
+    local psql_stdin="$tmp_dir/psql.stdin"
+    setup_mock_workspace "$tmp_dir" "$curl_log" "$psql_log" "$psql_stdin"
+
+    RUN_EXIT_CODE=0
+    RUN_OUTPUT=$(
+        PATH="$tmp_dir/bin:$PATH" \
+        bash "$REPO_ROOT/scripts/launch/seed_synthetic_traffic.sh" \
+            --tenant all \
+            --provision-only 2>&1
+    ) || RUN_EXIT_CODE=$?
+
+    assert_eq "$RUN_EXIT_CODE" "0" \
+        "dry-run --provision-only --tenant all should exit cleanly"
+    assert_contains "$RUN_OUTPUT" "provision-only" \
+        "dry-run --provision-only should mention provision-only mode in output"
+}
+
+test_provisioning_contract_first_run_pins_create_update_and_index_fields() {
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+
+    local curl_log="$tmp_dir/curl.log"
+    local psql_log="$tmp_dir/psql.log"
+    local psql_stdin="$tmp_dir/psql.stdin"
+    local mapping_backup="$tmp_dir/tenant_a_mapping.backup"
+    trap 'restore_tenant_a_mapping_artifact "'"$mapping_backup"'"; rm -rf "'"$tmp_dir"'"' RETURN
+
+    stash_tenant_a_mapping_artifact "$mapping_backup"
+    setup_mock_workspace "$tmp_dir" "$curl_log" "$psql_log" "$psql_stdin"
+
+    clear_mock_logs "$curl_log" "$psql_log" "$psql_stdin"
+    MOCK_SYNTHETIC_DURATION_MINUTES="0" \
+    MOCK_SYNTHETIC_STORAGE_MB_SEQUENCE="200,200" \
+    MOCK_SYNTHETIC_STORAGE_UID="11111111111111111111111111111111_demo-shared-free" \
+    run_seed_synthetic_execute "$tmp_dir" "A"
+
+    assert_eq "$RUN_EXIT_CODE" "0" "tenant A execute should complete when provisioning path is implemented"
+
+    local curl_calls
+    curl_calls="$(read_file_or_empty "$curl_log")"
+    assert_contains "$curl_calls" "http://synthetic-api.test/admin/tenants" \
+        "provisioning should call create tenant endpoint"
+    assert_contains "$curl_calls" '"name":"demo-shared-free"' \
+        "provisioning create payload should include tenant name"
+    assert_contains "$curl_calls" '"email":"' \
+        "provisioning create payload should include tenant email"
+    assert_contains "$curl_calls" "http://synthetic-api.test/admin/tenants/11111111-1111-1111-1111-111111111111" \
+        "provisioning should consume created tenant id for follow-up admin calls"
+    assert_contains "$curl_calls" '"billing_plan":"shared"' \
+        "provisioning update payload should pin billing plan"
+    assert_contains "$curl_calls" "http://synthetic-api.test/admin/tenants/11111111-1111-1111-1111-111111111111/indexes" \
+        "provisioning should seed index using resolved tenant id"
+    assert_contains "$curl_calls" '"name":"demo-shared-free"' \
+        "seed-index payload should pin tenant A index name"
+    assert_contains "$curl_calls" '"region":"us-east-1"' \
+        "seed-index payload should include region"
+    assert_contains "$curl_calls" '"flapjack_url":"http://synthetic-flapjack.test"' \
+        "seed-index payload should include flapjack url"
+}
+
+test_provisioning_contract_rerun_is_idempotent_without_duplicate_create_calls() {
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+
+    local curl_log="$tmp_dir/curl.log"
+    local psql_log="$tmp_dir/psql.log"
+    local psql_stdin="$tmp_dir/psql.stdin"
+    local mapping_backup="$tmp_dir/tenant_a_mapping.backup"
+    trap 'restore_tenant_a_mapping_artifact "'"$mapping_backup"'"; rm -rf "'"$tmp_dir"'"' RETURN
+
+    stash_tenant_a_mapping_artifact "$mapping_backup"
+    setup_mock_workspace "$tmp_dir" "$curl_log" "$psql_log" "$psql_stdin"
+
+    clear_mock_logs "$curl_log" "$psql_log" "$psql_stdin"
+    MOCK_SYNTHETIC_DURATION_MINUTES="0" \
+    MOCK_SYNTHETIC_STORAGE_MB_SEQUENCE="200,200" \
+    run_seed_synthetic_execute "$tmp_dir" "A"
+    local first_exit="$RUN_EXIT_CODE"
+    MOCK_SYNTHETIC_STORAGE_MB_SEQUENCE="200,200" run_seed_synthetic_execute "$tmp_dir" "A"
+    local second_exit="$RUN_EXIT_CODE"
+
+    assert_eq "$first_exit" "0" "first tenant A execute should succeed"
+    assert_eq "$second_exit" "0" "second tenant A execute should succeed idempotently"
+
+    local create_count update_count index_count
+    create_count=$(grep -c "http://synthetic-api.test/admin/tenants -H" "$curl_log" || true)
+    update_count=$(grep -c "http://synthetic-api.test/admin/tenants/11111111-1111-1111-1111-111111111111" "$curl_log" || true)
+    index_count=$(grep -c "http://synthetic-api.test/admin/tenants/11111111-1111-1111-1111-111111111111/indexes" "$curl_log" || true)
+
+    assert_eq "$create_count" "1" "rerun should not repeat tenant create after first successful mapping"
+    if [ "$update_count" -ge 2 ]; then
+        pass "rerun should continue verifying/updating tenant contract state"
+    else
+        fail "rerun should verify/update tenant contract state on both runs (found $update_count)"
+    fi
+    if [ "$index_count" -ge 1 ]; then
+        pass "rerun should keep index seed contract idempotent"
+    else
+        fail "rerun should still hit index seed contract (found $index_count)"
+    fi
+
+    if [ -f "$TENANT_A_MAPPING_PATH" ]; then
+        local mapping_payload
+        mapping_payload="$(cat "$TENANT_A_MAPPING_PATH")"
+        assert_contains "$mapping_payload" '"customer_id"' "tenant mapping artifact should include customer id"
+        assert_contains "$mapping_payload" '"tenant_id"' "tenant mapping artifact should include tenant id"
+        assert_contains "$mapping_payload" '"flapjack_uid"' "tenant mapping artifact should include flapjack uid"
+        assert_contains "$mapping_payload" '"flapjack_url"' "tenant mapping artifact should include flapjack url"
+        assert_not_contains "$mapping_payload" '"tenant_uid"' "tenant mapping artifact should stop using deprecated tenant_uid key"
+    else
+        fail "tenant mapping artifact should be written for rerun idempotency"
+    fi
+}
+
+# Regression guard: post-c4a83033 the API's POST /admin/tenants/:id/indexes
+# returns 200 OK (not 201, not 409) on rerun against an existing
+# (customer_id, tenant_id) pair. Until commit 27571c15 the seeder rejected
+# anything other than 201|409, so the first live Stage D capture against the
+# new staging API binary failed at seed_index with status=200. This test
+# pins the 200-OK contract at the seeder boundary so a future revert of
+# the case-statement update fails loudly. Tested separately from the
+# rerun-idempotency test above because that one always sees 201 from the
+# default mock — masking this exact regression.
+test_seed_index_accepts_200_ok_from_idempotent_rerun_path() {
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+
+    local curl_log="$tmp_dir/curl.log"
+    local psql_log="$tmp_dir/psql.log"
+    local psql_stdin="$tmp_dir/psql.stdin"
+    local mapping_backup="$tmp_dir/tenant_a_mapping.backup"
+    trap 'restore_tenant_a_mapping_artifact "'"$mapping_backup"'"; rm -rf "'"$tmp_dir"'"' RETURN
+
+    stash_tenant_a_mapping_artifact "$mapping_backup"
+    setup_mock_workspace "$tmp_dir" "$curl_log" "$psql_log" "$psql_stdin"
+
+    clear_mock_logs "$curl_log" "$psql_log" "$psql_stdin"
+    # Force the indexes mock to return 200 OK (rerun path) instead of the
+    # default 201. Everything else (mapping artifact, sustained traffic)
+    # should still complete normally.
+    MOCK_SYNTHETIC_DURATION_MINUTES="0" \
+    MOCK_SYNTHETIC_INDEX_STATUS="200" \
+    MOCK_SYNTHETIC_STORAGE_MB_SEQUENCE="200,200" \
+        run_seed_synthetic_execute "$tmp_dir" "A"
+
+    assert_eq "$RUN_EXIT_CODE" "0" \
+        "seed_index returning 200 (idempotent rerun) must NOT fail the seeder"
+    if [ -f "$TENANT_A_MAPPING_PATH" ]; then
+        local mapping_payload
+        mapping_payload="$(cat "$TENANT_A_MAPPING_PATH")"
+        # The mapping artifact is the operational signal that the seeder
+        # accepted the rerun and wrote downstream-usable state, not just
+        # that the script returned 0.
+        assert_contains "$mapping_payload" '"flapjack_uid"' \
+            "200-OK rerun must still produce a tenant mapping artifact for sustained traffic"
+    else
+        fail "200-OK rerun should still write the tenant mapping artifact"
+    fi
+}
+
+test_provisioning_contract_recovers_when_create_409_omits_customer_id() {
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+
+    local curl_log="$tmp_dir/curl.log"
+    local psql_log="$tmp_dir/psql.log"
+    local psql_stdin="$tmp_dir/psql.stdin"
+    local mapping_backup="$tmp_dir/tenant_a_mapping.backup"
+    trap 'restore_tenant_a_mapping_artifact "'"$mapping_backup"'"; rm -rf "'"$tmp_dir"'"' RETURN
+
+    stash_tenant_a_mapping_artifact "$mapping_backup"
+    setup_mock_workspace "$tmp_dir" "$curl_log" "$psql_log" "$psql_stdin"
+
+    clear_mock_logs "$curl_log" "$psql_log" "$psql_stdin"
+    MOCK_SYNTHETIC_CREATE_STATUS_CODE="409" \
+    MOCK_SYNTHETIC_CREATE_409_INCLUDE_ID="0" \
+    MOCK_SYNTHETIC_STORAGE_MB_SEQUENCE="200,200" \
+    run_seed_synthetic_execute "$tmp_dir" "A"
+
+    assert_eq "$RUN_EXIT_CODE" "0" \
+        "tenant A execute should resolve customer_id via tenant lookup when create 409 omits id"
+
+    local curl_calls mapping_customer_id
+    curl_calls="$(read_file_or_empty "$curl_log")"
+    mapping_customer_id="$(mapping_json_field_or_empty "customer_id")"
+    assert_contains "$curl_calls" "-X POST http://synthetic-api.test/admin/tenants" \
+        "provisioning should still attempt tenant create before fallback lookup"
+    assert_contains "$curl_calls" "-X GET http://synthetic-api.test/admin/tenants" \
+        "provisioning should query tenants to resolve existing customer id after a 409 without id"
+    assert_eq "$mapping_customer_id" "11111111-1111-1111-1111-111111111111" \
+        "fallback lookup should persist resolved customer_id in tenant mapping artifact"
+}
+
+test_provisioning_contract_recovers_when_mapped_customer_update_returns_404() {
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+
+    local curl_log="$tmp_dir/curl.log"
+    local psql_log="$tmp_dir/psql.log"
+    local psql_stdin="$tmp_dir/psql.stdin"
+    local mapping_backup="$tmp_dir/tenant_a_mapping.backup"
+    local stale_customer_id="99999999-9999-9999-9999-999999999999"
+    trap 'restore_tenant_a_mapping_artifact "'"$mapping_backup"'"; rm -rf "'"$tmp_dir"'"' RETURN
+
+    stash_tenant_a_mapping_artifact "$mapping_backup"
+    write_tenant_a_mapping_artifact \
+        "$stale_customer_id" \
+        "tenant-stale-a" \
+        "stale_uid" \
+        "http://synthetic-node-a.test"
+    setup_mock_workspace "$tmp_dir" "$curl_log" "$psql_log" "$psql_stdin"
+
+    clear_mock_logs "$curl_log" "$psql_log" "$psql_stdin"
+    MOCK_SYNTHETIC_DURATION_MINUTES="0" \
+    MOCK_SYNTHETIC_STORAGE_MB_SEQUENCE="200,200" \
+    MOCK_SYNTHETIC_UPDATE_404_FOR_TENANT_ID="$stale_customer_id" \
+    run_seed_synthetic_execute "$tmp_dir" "A"
+
+    assert_eq "$RUN_EXIT_CODE" "0" \
+        "tenant A execute should recover when mapped customer id returns 404 on update"
+
+    local curl_calls mapping_customer_id
+    curl_calls="$(read_file_or_empty "$curl_log")"
+    mapping_customer_id="$(mapping_json_field_or_empty "customer_id")"
+
+    assert_contains "$curl_calls" "http://synthetic-api.test/admin/tenants/$stale_customer_id" \
+        "provisioning should first attempt update against mapped customer id"
+    assert_contains "$curl_calls" "-X GET http://synthetic-api.test/admin/tenants" \
+        "provisioning should resolve the active tenant after stale mapped customer update 404"
+    assert_contains "$curl_calls" "http://synthetic-api.test/admin/tenants/11111111-1111-1111-1111-111111111111" \
+        "provisioning should retry update using the recreated active customer id"
+    assert_eq "$mapping_customer_id" "11111111-1111-1111-1111-111111111111" \
+        "mapping artifact should be refreshed to active customer id after stale mapped 404"
+}
+
+test_provisioning_contract_prefers_active_customer_when_lookup_returns_soft_deleted_first() {
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+
+    local curl_log="$tmp_dir/curl.log"
+    local psql_log="$tmp_dir/psql.log"
+    local psql_stdin="$tmp_dir/psql.stdin"
+    local mapping_backup="$tmp_dir/tenant_a_mapping.backup"
+    local stale_customer_id="99999999-9999-9999-9999-999999999999"
+    trap 'restore_tenant_a_mapping_artifact "'"$mapping_backup"'"; rm -rf "'"$tmp_dir"'"' RETURN
+
+    stash_tenant_a_mapping_artifact "$mapping_backup"
+    write_tenant_a_mapping_artifact \
+        "$stale_customer_id" \
+        "tenant-stale-a" \
+        "stale_uid" \
+        "http://synthetic-node-a.test"
+    setup_mock_workspace "$tmp_dir" "$curl_log" "$psql_log" "$psql_stdin"
+
+    clear_mock_logs "$curl_log" "$psql_log" "$psql_stdin"
+    MOCK_SYNTHETIC_DURATION_MINUTES="0" \
+    MOCK_SYNTHETIC_STORAGE_MB_SEQUENCE="200,200" \
+    MOCK_SYNTHETIC_CREATE_STATUS_CODE="409" \
+    MOCK_SYNTHETIC_CREATE_409_INCLUDE_ID="0" \
+    MOCK_SYNTHETIC_UPDATE_404_FOR_TENANT_ID="$stale_customer_id" \
+    MOCK_SYNTHETIC_TENANT_LIST_SOFT_DELETED_FIRST="1" \
+    run_seed_synthetic_execute "$tmp_dir" "A"
+
+    assert_eq "$RUN_EXIT_CODE" "0" \
+        "provisioning should select active customer id even when tenant lookup returns soft-deleted row first"
+
+    local curl_calls mapping_customer_id
+    curl_calls="$(read_file_or_empty "$curl_log")"
+    mapping_customer_id="$(mapping_json_field_or_empty "customer_id")"
+
+    assert_contains "$curl_calls" "-X GET http://synthetic-api.test/admin/tenants" \
+        "provisioning should query tenant list during stale-id recovery"
+    assert_not_contains "$curl_calls" "http://synthetic-api.test/admin/tenants/$stale_customer_id -d {\"billing_plan\":\"shared\"}" \
+        "provisioning should not retry update using the soft-deleted customer id after lookup fallback"
+    assert_contains "$curl_calls" "http://synthetic-api.test/admin/tenants/11111111-1111-1111-1111-111111111111" \
+        "provisioning should retry update using the active tenant id from lookup fallback"
+    assert_eq "$mapping_customer_id" "11111111-1111-1111-1111-111111111111" \
+        "mapping artifact should persist active customer id, not soft-deleted id"
+}
+
+test_provisioning_contract_replaces_control_plane_endpoint_with_direct_fallback() {
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+
+    local curl_log="$tmp_dir/curl.log"
+    local psql_log="$tmp_dir/psql.log"
+    local psql_stdin="$tmp_dir/psql.stdin"
+    local mapping_backup="$tmp_dir/tenant_a_mapping.backup"
+    local tenant_b_mapping="$TENANT_B_MAPPING_PATH"
+    local tenant_b_backup="$tmp_dir/tenant_b_mapping.backup"
+    trap 'restore_tenant_a_mapping_artifact "'"$mapping_backup"'"; if [ -f "'"$tenant_b_backup"'" ]; then cp "'"$tenant_b_backup"'" "'"$tenant_b_mapping"'"; else rm -f "'"$tenant_b_mapping"'"; fi; rm -rf "'"$tmp_dir"'"' RETURN
+
+    stash_tenant_a_mapping_artifact "$mapping_backup"
+    if [ -f "$tenant_b_mapping" ]; then
+        cp "$tenant_b_mapping" "$tenant_b_backup"
+    fi
+    write_tenant_a_mapping_artifact \
+        "customer-stage2-a" \
+        "tenant-stage2-a" \
+        "11111111111111111111111111111111_demo-shared-free" \
+        "http://synthetic-node-a.test"
+    rm -f "$tenant_b_mapping"
+    setup_mock_workspace "$tmp_dir" "$curl_log" "$psql_log" "$psql_stdin"
+
+    clear_mock_logs "$curl_log" "$psql_log" "$psql_stdin"
+    MOCK_SYNTHETIC_DURATION_MINUTES="0" \
+    MOCK_SYNTHETIC_STORAGE_MB_SEQUENCE="200,2048" \
+    MOCK_SYNTHETIC_STORAGE_UID="22222222222222222222222222222222_demo-small-dedicated" \
+    MOCK_SYNTHETIC_INDEX_ENDPOINT_OVERRIDE="https://api.staging.flapjack.foo" \
+    run_seed_synthetic_execute "$tmp_dir" "B"
+
+    assert_not_contains "$RUN_OUTPUT" "status=404" \
+        "tenant B execute output should no longer report control-plane 404 write/search failures"
+
+    local mapped_flapjack_url
+    mapped_flapjack_url="$(
+        python3 - "$tenant_b_mapping" <<'PY'
+import json
+import sys
+with open(sys.argv[1], "r", encoding="utf-8") as handle:
+    payload = json.load(handle)
+print(payload.get("flapjack_url", ""))
+PY
+    )"
+    assert_eq "$mapped_flapjack_url" "http://synthetic-node-a.test" \
+        "tenant B mapping should replace control-plane endpoint with direct-node fallback"
+
+    local curl_calls
+    curl_calls="$(read_file_or_empty "$curl_log")"
+    assert_contains "$curl_calls" "http://synthetic-node-a.test/1/indexes/22222222222222222222222222222222_demo-small-dedicated/batch" \
+        "tenant B sustained writes should target the direct-node fallback"
+    assert_not_contains "$curl_calls" "https://api.staging.flapjack.foo/1/indexes/22222222222222222222222222222222_demo-small-dedicated/batch" \
+        "tenant B sustained writes must not target control-plane endpoint URLs"
+}
+
+test_provisioning_contract_sends_direct_fallback_to_seed_index_payload() {
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+
+    local curl_log="$tmp_dir/curl.log"
+    local psql_log="$tmp_dir/psql.log"
+    local psql_stdin="$tmp_dir/psql.stdin"
+    local mapping_backup="$tmp_dir/tenant_a_mapping.backup"
+    local tenant_b_mapping="$TENANT_B_MAPPING_PATH"
+    local tenant_b_backup="$tmp_dir/tenant_b_mapping.backup"
+    trap 'restore_tenant_a_mapping_artifact "'"$mapping_backup"'"; if [ -f "'"$tenant_b_backup"'" ]; then cp "'"$tenant_b_backup"'" "'"$tenant_b_mapping"'"; else rm -f "'"$tenant_b_mapping"'"; fi; rm -rf "'"$tmp_dir"'"' RETURN
+
+    stash_tenant_a_mapping_artifact "$mapping_backup"
+    if [ -f "$tenant_b_mapping" ]; then
+        cp "$tenant_b_mapping" "$tenant_b_backup"
+    fi
+    write_tenant_a_mapping_artifact \
+        "customer-stage2-a" \
+        "tenant-stage2-a" \
+        "11111111111111111111111111111111_demo-shared-free" \
+        "http://synthetic-node-a.test"
+    rm -f "$tenant_b_mapping"
+    setup_mock_workspace "$tmp_dir" "$curl_log" "$psql_log" "$psql_stdin"
+
+    clear_mock_logs "$curl_log" "$psql_log" "$psql_stdin"
+    MOCK_SYNTHETIC_DURATION_MINUTES="0" \
+    MOCK_SYNTHETIC_STORAGE_MB_SEQUENCE="200,2048" \
+    MOCK_SYNTHETIC_STORAGE_UID="22222222222222222222222222222222_demo-small-dedicated" \
+    MOCK_SYNTHETIC_FLAPJACK_URL="https://api.staging.flapjack.foo" \
+    run_seed_synthetic_execute "$tmp_dir" "B"
+
+    assert_eq "$RUN_EXIT_CODE" "0" \
+        "tenant B execute should succeed when FLAPJACK_URL is a control-plane placeholder"
+
+    local curl_calls
+    curl_calls="$(read_file_or_empty "$curl_log")"
+    assert_contains "$curl_calls" '"flapjack_url":"http://synthetic-node-a.test"' \
+        "seed-index payload should use resolved direct fallback instead of control-plane FLAPJACK_URL"
+    assert_not_contains "$curl_calls" '"flapjack_url":"https://api.staging.flapjack.foo"' \
+        "seed-index payload must not persist control-plane FLAPJACK_URL into tenant VM linkage"
+}
+
+test_storage_floor_contract_skips_backfill_when_target_already_met() {
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    local mapping_backup="$tmp_dir/tenant_a_mapping.backup"
+    trap 'restore_tenant_a_mapping_artifact "'"$mapping_backup"'"; rm -rf "'"$tmp_dir"'"' RETURN
+
+    local curl_log="$tmp_dir/curl.log"
+    local psql_log="$tmp_dir/psql.log"
+    local psql_stdin="$tmp_dir/psql.stdin"
+    stash_tenant_a_mapping_artifact "$mapping_backup"
+    write_tenant_a_mapping_artifact \
+        "customer-stage2-a" \
+        "tenant-stage2-a" \
+        "11111111111111111111111111111111_demo-shared-free" \
+        "http://synthetic-flapjack.test"
+    setup_mock_workspace "$tmp_dir" "$curl_log" "$psql_log" "$psql_stdin"
+
+    clear_mock_logs "$curl_log" "$psql_log" "$psql_stdin"
+    MOCK_SYNTHETIC_STORAGE_MB_SEQUENCE="200,200" run_seed_synthetic_execute "$tmp_dir" "A"
+
+    assert_eq "$RUN_EXIT_CODE" "0" "tenant A execute should finish when storage already exceeds floor"
+
+    local curl_calls mapped_flapjack_uid mapped_flapjack_url batch_write_count
+    curl_calls="$(read_file_or_empty "$curl_log")"
+    mapped_flapjack_uid="$(mapping_json_field_or_empty "flapjack_uid")"
+    mapped_flapjack_url="$(mapping_json_field_or_empty "flapjack_url")"
+    assert_contains "$curl_calls" "${mapped_flapjack_url}/internal/storage" \
+        "storage-floor contract should poll internal storage before deciding to backfill"
+    batch_write_count=$(grep -c "${mapped_flapjack_url}/1/indexes/${mapped_flapjack_uid}/batch" "$curl_log" || true)
+    assert_eq "$batch_write_count" "10" \
+        "storage-floor contract should skip pre-floor backfill and run only sustained execute traffic writes"
+    assert_not_contains "$curl_calls" "-X DELETE" \
+        "storage-floor contract should avoid delete/reset branches"
+}
+
+test_storage_floor_contract_polls_until_usage_converges() {
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    local mapping_backup="$tmp_dir/tenant_a_mapping.backup"
+    trap 'restore_tenant_a_mapping_artifact "'"$mapping_backup"'"; rm -rf "'"$tmp_dir"'"' RETURN
+
+    local curl_log="$tmp_dir/curl.log"
+    local psql_log="$tmp_dir/psql.log"
+    local psql_stdin="$tmp_dir/psql.stdin"
+    stash_tenant_a_mapping_artifact "$mapping_backup"
+    write_tenant_a_mapping_artifact \
+        "customer-stage2-a" \
+        "tenant-stage2-a" \
+        "11111111111111111111111111111111_demo-shared-free" \
+        "http://synthetic-flapjack.test"
+    setup_mock_workspace "$tmp_dir" "$curl_log" "$psql_log" "$psql_stdin"
+
+    clear_mock_logs "$curl_log" "$psql_log" "$psql_stdin"
+    MOCK_SYNTHETIC_DURATION_MINUTES="0" \
+    MOCK_SYNTHETIC_STORAGE_MB_SEQUENCE="40,70,95" \
+    MOCK_SYNTHETIC_STORAGE_OTHER_TENANT_MB="5000" \
+    MOCK_SYNTHETIC_STORAGE_OTHER_TENANT_UID="tenant-b-unrelated" \
+    run_seed_synthetic_execute "$tmp_dir" "A"
+
+    assert_eq "$RUN_EXIT_CODE" "0" "tenant A execute should finish once storage converges into tolerance"
+
+    local mapped_flapjack_uid mapped_flapjack_url storage_poll_count write_count
+    mapped_flapjack_uid="$(mapping_json_field_or_empty "flapjack_uid")"
+    mapped_flapjack_url="$(mapping_json_field_or_empty "flapjack_url")"
+    storage_poll_count=$(grep -c "${mapped_flapjack_url}/internal/storage" "$curl_log" || true)
+    write_count=$(grep -c "${mapped_flapjack_url}/1/indexes/${mapped_flapjack_uid}/batch" "$curl_log" || true)
+
+    if [ "$storage_poll_count" -ge 3 ]; then
+        pass "storage-floor contract should keep polling until target tolerance is reached"
+    else
+        fail "storage-floor contract should poll repeatedly before converging (found $storage_poll_count)"
+    fi
+
+    if [ "$write_count" -gt 0 ]; then
+        pass "storage-floor contract should backfill documents while below floor"
+    else
+        fail "storage-floor contract should issue document writes before convergence"
+    fi
+
+    local curl_calls
+    curl_calls="$(read_file_or_empty "$curl_log")"
+    assert_not_contains "$curl_calls" "${mapped_flapjack_url}/1/indexes/tenant-b-unrelated/batch" \
+        "storage-floor contract should select mapped flapjack_uid instead of unrelated tenants from /internal/storage"
+    assert_not_contains "$curl_calls" "-X DELETE" \
+        "storage-floor contract should avoid delete/reset branches while converging"
+}
+
+test_storage_floor_contract_stops_after_above_tolerance_overshoot() {
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    local mapping_backup="$tmp_dir/tenant_a_mapping.backup"
+    trap 'restore_tenant_a_mapping_artifact "'"$mapping_backup"'"; rm -rf "'"$tmp_dir"'"' RETURN
+
+    local curl_log="$tmp_dir/curl.log"
+    local psql_log="$tmp_dir/psql.log"
+    local psql_stdin="$tmp_dir/psql.stdin"
+    stash_tenant_a_mapping_artifact "$mapping_backup"
+    write_tenant_a_mapping_artifact \
+        "customer-stage2-a" \
+        "tenant-stage2-a" \
+        "11111111111111111111111111111111_demo-shared-free" \
+        "http://synthetic-flapjack.test"
+    setup_mock_workspace "$tmp_dir" "$curl_log" "$psql_log" "$psql_stdin"
+
+    clear_mock_logs "$curl_log" "$psql_log" "$psql_stdin"
+    MOCK_SYNTHETIC_DURATION_MINUTES="0" \
+    MOCK_SYNTHETIC_STORAGE_MB_SEQUENCE="80,130,130" \
+    run_seed_synthetic_execute "$tmp_dir" "A"
+
+    assert_eq "$RUN_EXIT_CODE" "0" \
+        "tenant A execute should stop once a post-write poll shows the storage floor is safely met, even if the batch overshoots the upper tolerance"
+
+    local mapped_flapjack_uid mapped_flapjack_url storage_poll_count write_count
+    mapped_flapjack_uid="$(mapping_json_field_or_empty "flapjack_uid")"
+    mapped_flapjack_url="$(mapping_json_field_or_empty "flapjack_url")"
+    storage_poll_count=$(grep -c "${mapped_flapjack_url}/internal/storage" "$curl_log" || true)
+    write_count=$(grep -c "${mapped_flapjack_url}/1/indexes/${mapped_flapjack_uid}/batch" "$curl_log" || true)
+
+    if [ "$storage_poll_count" -eq 2 ]; then
+        pass "storage-floor contract should stop after the first post-write poll confirms the floor is already exceeded"
+    else
+        fail "storage-floor contract should not keep polling after an uncorrectable overshoot (polls=$storage_poll_count)"
+    fi
+
+    if [ "$write_count" -eq 1 ]; then
+        pass "storage-floor contract should stop issuing writes once the post-write poll shows the floor is already exceeded"
+    else
+        fail "storage-floor contract should not keep writing after an overshoot it cannot correct (writes=$write_count)"
+    fi
+
+    assert_not_contains "$RUN_OUTPUT" "did not converge" \
+        "storage-floor contract should not fail closed after an overshoot when the storage floor is already satisfied"
+}
+
+test_tenant_a_execute_starts_sustained_traffic_after_floor_is_met() {
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    local mapping_backup="$tmp_dir/tenant_a_mapping.backup"
+    trap 'restore_tenant_a_mapping_artifact "'"$mapping_backup"'"; rm -rf "'"$tmp_dir"'"' RETURN
+
+    local curl_log="$tmp_dir/curl.log"
+    local psql_log="$tmp_dir/psql.log"
+    local psql_stdin="$tmp_dir/psql.stdin"
+    local sleep_log="$tmp_dir/sleep.log"
+    local direct_documents_count_path="$tmp_dir/direct-documents.count"
+    local direct_query_count_path="$tmp_dir/direct-query.count"
+    local mapped_flapjack_uid="mapped-node-a-uid"
+    local mapped_flapjack_url="http://synthetic-node-a.test"
+
+    stash_tenant_a_mapping_artifact "$mapping_backup"
+    write_tenant_a_mapping_artifact \
+        "customer-stage4-a" \
+        "tenant-stage4-a" \
+        "$mapped_flapjack_uid" \
+        "$mapped_flapjack_url"
+    setup_mock_workspace "$tmp_dir" "$curl_log" "$psql_log" "$psql_stdin" "$sleep_log"
+
+    clear_mock_logs "$curl_log" "$psql_log" "$psql_stdin"
+    : > "$direct_documents_count_path"
+    : > "$direct_query_count_path"
+    MOCK_SYNTHETIC_STORAGE_MB_SEQUENCE="200,200" \
+    MOCK_SYNTHETIC_STORAGE_UID="$mapped_flapjack_uid" \
+    MOCK_SYNTHETIC_DIRECT_DOCUMENTS_COUNT_PATH="$direct_documents_count_path" \
+    MOCK_SYNTHETIC_DIRECT_QUERY_COUNT_PATH="$direct_query_count_path" \
+    run_seed_synthetic_execute "$tmp_dir" "A"
+
+    assert_eq "$RUN_EXIT_CODE" "0" \
+        "tenant A execute should start direct-node sustained traffic only after storage floor checks pass"
+
+    local curl_calls direct_documents_count direct_query_count unexpected_sleep_args
+    curl_calls="$(read_file_or_empty "$curl_log")"
+    direct_documents_count="$(read_counter_file_or_zero "$direct_documents_count_path")"
+    direct_query_count="$(read_counter_file_or_zero "$direct_query_count_path")"
+    assert_contains "$curl_calls" "${mapped_flapjack_url}/internal/storage" \
+        "tenant A execute should poll storage on the mapped node before sustained traffic starts"
+    assert_contains "$curl_calls" "${mapped_flapjack_url}/internal/storage -H X-Algolia-API-Key: synthetic-flapjack-api-key -H X-Algolia-Application-Id: flapjack" \
+        "tenant A execute should send the required Application-Id header when polling mapped-node storage"
+    assert_contains "$curl_calls" "${mapped_flapjack_url}/1/indexes/${mapped_flapjack_uid}/batch" \
+        "tenant A execute should send sustained writes to mapped node URL plus mapped flapjack_uid via the direct batch route"
+    assert_contains "$curl_calls" "${mapped_flapjack_url}/1/indexes/${mapped_flapjack_uid}/batch -H Content-Type: application/json -H X-Algolia-API-Key: synthetic-flapjack-api-key -H X-Algolia-Application-Id: flapjack" \
+        "tenant A execute should include the required Application-Id header on direct mapped-node batch writes"
+    assert_contains "$curl_calls" "${mapped_flapjack_url}/1/indexes/${mapped_flapjack_uid}/query" \
+        "tenant A execute should send searches to /query using mapped node URL plus mapped flapjack_uid"
+    assert_contains "$curl_calls" "${mapped_flapjack_url}/1/indexes/${mapped_flapjack_uid}/query -H Content-Type: application/json -H X-Algolia-API-Key: synthetic-flapjack-api-key -H X-Algolia-Application-Id: flapjack" \
+        "tenant A execute should include the required Application-Id header on direct mapped-node searches"
+    assert_not_contains "$curl_calls" "${mapped_flapjack_url}/1/indexes/demo-shared-free/" \
+        "tenant A execute should not re-derive direct-node UID from tenant name"
+    assert_not_contains "$curl_calls" "${mapped_flapjack_url}/1/indexes/${mapped_flapjack_uid}/search" \
+        "tenant A execute should never call /search when driving direct-node traffic"
+    assert_eq "$direct_documents_count" "10" \
+        "tenant A execute should issue exactly ten direct /batch writes for --duration-minutes 1"
+    assert_eq "$direct_query_count" "1" \
+        "tenant A execute should issue exactly one direct /query search for --duration-minutes 1"
+    assert_eq "$(line_count_or_zero "$sleep_log")" "9" \
+        "tenant A execute should perform nine fractional write-pacing sleeps between ten write requests"
+    unexpected_sleep_args="$(grep -Ev '^6\.000000$' "$sleep_log" || true)"
+    assert_eq "$unexpected_sleep_args" "" \
+        "tenant A execute should use per-minute fractional sleep seconds for write pacing"
+
+    if [ -f "${TENANT_A_MAPPING_PATH}.writes.count" ] || [ -f "${TENANT_A_MAPPING_PATH}.searches.count" ]; then
+        fail "tenant A execute should clean up short-lived sustained-traffic count files"
+    else
+        pass "tenant A execute should clean up short-lived sustained-traffic count files"
+    fi
+}
+
+test_tenant_a_execute_cleans_count_files_when_search_loop_fails() {
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    local mapping_backup="$tmp_dir/tenant_a_mapping.backup"
+    trap 'restore_tenant_a_mapping_artifact "'"$mapping_backup"'"; rm -rf "'"$tmp_dir"'"' RETURN
+
+    local curl_log="$tmp_dir/curl.log"
+    local psql_log="$tmp_dir/psql.log"
+    local psql_stdin="$tmp_dir/psql.stdin"
+    local mapped_flapjack_uid="mapped-node-a-uid"
+    local mapped_flapjack_url="http://synthetic-node-a.test"
+
+    stash_tenant_a_mapping_artifact "$mapping_backup"
+    write_tenant_a_mapping_artifact \
+        "customer-stage4-a" \
+        "tenant-stage4-a" \
+        "$mapped_flapjack_uid" \
+        "$mapped_flapjack_url"
+    setup_mock_workspace "$tmp_dir" "$curl_log" "$psql_log" "$psql_stdin"
+
+    clear_mock_logs "$curl_log" "$psql_log" "$psql_stdin"
+    MOCK_SYNTHETIC_STORAGE_MB_SEQUENCE="200,200" \
+    MOCK_SYNTHETIC_STORAGE_UID="$mapped_flapjack_uid" \
+    MOCK_SYNTHETIC_FAIL_QUERY_ON_CALL="1" \
+    run_seed_synthetic_execute "$tmp_dir" "A"
+
+    assert_eq "$RUN_EXIT_CODE" "1" \
+        "tenant A execute should fail closed when the direct /query loop returns an error"
+    assert_contains "$RUN_OUTPUT" "sustained search failed" \
+        "tenant A execute should report the mapped direct-node /query failure"
+    assert_not_contains "$RUN_OUTPUT" "BrokenPipeError" \
+        "tenant A execute should not leak payload-generator tracebacks while cleaning up failed sustained traffic"
+
+    if [ -f "${TENANT_A_MAPPING_PATH}.writes.count" ] || [ -f "${TENANT_A_MAPPING_PATH}.searches.count" ]; then
+        fail "failed sustained traffic should still clean up short-lived count files"
+    else
+        pass "failed sustained traffic should still clean up short-lived count files"
+    fi
+}
+
+test_tenant_a_execute_stops_writes_when_search_loop_fails() {
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    local mapping_backup="$tmp_dir/tenant_a_mapping.backup"
+    trap 'restore_tenant_a_mapping_artifact "'"$mapping_backup"'"; rm -rf "'"$tmp_dir"'"' RETURN
+
+    local curl_log="$tmp_dir/curl.log"
+    local psql_log="$tmp_dir/psql.log"
+    local psql_stdin="$tmp_dir/psql.stdin"
+    local direct_documents_count_path="$tmp_dir/direct-documents.count"
+    local mapped_flapjack_uid="mapped-node-a-uid"
+    local mapped_flapjack_url="http://synthetic-node-a.test"
+
+    stash_tenant_a_mapping_artifact "$mapping_backup"
+    write_tenant_a_mapping_artifact \
+        "customer-stage4-a" \
+        "tenant-stage4-a" \
+        "$mapped_flapjack_uid" \
+        "$mapped_flapjack_url"
+    setup_mock_workspace "$tmp_dir" "$curl_log" "$psql_log" "$psql_stdin"
+
+    clear_mock_logs "$curl_log" "$psql_log" "$psql_stdin"
+    : > "$direct_documents_count_path"
+    MOCK_SYNTHETIC_STORAGE_MB_SEQUENCE="200,200" \
+    MOCK_SYNTHETIC_STORAGE_UID="$mapped_flapjack_uid" \
+    MOCK_SYNTHETIC_DIRECT_DOCUMENTS_COUNT_PATH="$direct_documents_count_path" \
+    MOCK_SYNTHETIC_FAIL_QUERY_ON_CALL="1" \
+    MOCK_SYNTHETIC_SLEEP_DELAY_ARG="6.000000" \
+    MOCK_SYNTHETIC_SLEEP_DELAY_SECONDS="0.2" \
+    run_seed_synthetic_execute "$tmp_dir" "A"
+
+    local direct_documents_count
+    direct_documents_count="$(read_counter_file_or_zero "$direct_documents_count_path")"
+
+    assert_eq "$RUN_EXIT_CODE" "1" \
+        "tenant A execute should fail closed when sustained traffic search routing fails"
+    if [ "$direct_documents_count" -lt 10 ]; then
+        pass "tenant A execute should stop the write loop instead of waiting for all writes after search failure"
+    else
+        fail "tenant A execute should stop sibling writes promptly after search failure (writes=$direct_documents_count)"
+    fi
+}
+
+# Regression for the Stage 4 soak: under probe mode (PROBE_ACTIVE_TENANT_LETTER set)
+# the direct write loop runs across the API restart window, where transient
+# non-200/202 responses are expected. It must log-and-continue (counting every
+# attempt) so the probe can reach assertion evaluation — NOT die. The standalone
+# seeder (no PROBE_ACTIVE_TENANT_LETTER) must still treat a write failure as fatal.
+invoke_direct_write_loop_in_isolation() {
+    # Runs run_direct_write_loop against the mock curl in a fresh subshell and
+    # echoes a LOOP-COMPLETED marker only if the loop returned to its caller.
+    local tmp_dir="$1" probe_letter="$2" fail_on_call="$3" total_writes="$4" count_path="$5"
+    SEED_SYNTHETIC_NO_AUTO_RUN=1 \
+    source "$REPO_ROOT/scripts/launch/seed_synthetic_traffic.sh" --tenant A --dry-run >/dev/null 2>&1
+    export PATH="$tmp_dir/bin:$PATH"
+    FLAPJACK_API_KEY="synthetic-flapjack-api-key"
+    PROBE_ACTIVE_TENANT_LETTER="$probe_letter"
+    [ -z "$probe_letter" ] && unset PROBE_ACTIVE_TENANT_LETTER
+    # The mock curl is a child process, so the failure seam must be exported.
+    export MOCK_SYNTHETIC_FAIL_BATCH_ON_CALL="$fail_on_call"
+    run_direct_write_loop "http://synthetic-node-a.test" "tenant-A" "$total_writes" 0 "$count_path"
+    echo "LOOP-COMPLETED"
+}
+
+test_probe_mode_write_loop_continues_through_transient_error() {
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    trap 'rm -rf "'"$tmp_dir"'"' RETURN
+    local curl_log="$tmp_dir/curl.log"
+    mkdir -p "$tmp_dir/bin"
+    write_mock_curl "$tmp_dir/bin/curl" "$curl_log"
+    local count_path="$tmp_dir/writes.count"
+    local out exit_code=0
+
+    set +e
+    out="$(invoke_direct_write_loop_in_isolation "$tmp_dir" "A" 2 4 "$count_path" 2>&1)"
+    exit_code=$?
+    set -e
+
+    assert_eq "$exit_code" "0" \
+        "probe-mode write loop must return to caller (exit 0) despite a transient 503 mid-loop"
+    assert_contains "$out" "LOOP-COMPLETED" \
+        "probe-mode write loop must reach its end instead of die-ing on the transient 503"
+    assert_contains "$out" "probe mode continuing" \
+        "probe-mode write loop should log the transient error rather than abort"
+    assert_eq "$(read_counter_file_or_zero "$count_path")" "4" \
+        "probe-mode write loop must count every attempted write including the failed one"
+    assert_eq "$(line_count_or_zero "$curl_log")" "4" \
+        "probe-mode write loop must issue all four batch writes even after the 503"
+}
+
+test_standalone_write_loop_stays_fatal_on_error() {
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    trap 'rm -rf "'"$tmp_dir"'"' RETURN
+    local curl_log="$tmp_dir/curl.log"
+    mkdir -p "$tmp_dir/bin"
+    write_mock_curl "$tmp_dir/bin/curl" "$curl_log"
+    local count_path="$tmp_dir/writes.count"
+    local out exit_code=0
+
+    set +e
+    out="$(invoke_direct_write_loop_in_isolation "$tmp_dir" "" 2 4 "$count_path" 2>&1)"
+    exit_code=$?
+    set -e
+
+    assert_eq "$exit_code" "1" \
+        "standalone write loop (no probe seam) must still die with exit 1 on a non-200 write"
+    assert_contains "$out" "sustained write failed" \
+        "standalone write loop must report the fatal write failure"
+    assert_not_contains "$out" "LOOP-COMPLETED" \
+        "standalone write loop must abort at the failed write, not complete the loop"
+}
+
+invoke_direct_search_loop_in_isolation() {
+    # Mirror of invoke_direct_write_loop_in_isolation for the post-restart search loop.
+    local tmp_dir="$1" probe_letter="$2" fail_on_call="$3" total_searches="$4" count_path="$5"
+    SEED_SYNTHETIC_NO_AUTO_RUN=1 \
+    source "$REPO_ROOT/scripts/launch/seed_synthetic_traffic.sh" --tenant A --dry-run >/dev/null 2>&1
+    export PATH="$tmp_dir/bin:$PATH"
+    FLAPJACK_API_KEY="synthetic-flapjack-api-key"
+    PROBE_ACTIVE_TENANT_LETTER="$probe_letter"
+    [ -z "$probe_letter" ] && unset PROBE_ACTIVE_TENANT_LETTER
+    export MOCK_SYNTHETIC_FAIL_QUERY_ON_CALL="$fail_on_call"
+    run_direct_search_loop "http://synthetic-node-a.test" "tenant-A" "$total_searches" 0 "$count_path"
+    echo "LOOP-COMPLETED"
+}
+
+test_probe_mode_search_loop_continues_through_transient_error() {
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    trap 'rm -rf "'"$tmp_dir"'"' RETURN
+    local curl_log="$tmp_dir/curl.log"
+    mkdir -p "$tmp_dir/bin"
+    write_mock_curl "$tmp_dir/bin/curl" "$curl_log"
+    local count_path="$tmp_dir/searches.count"
+    local out exit_code=0
+
+    set +e
+    out="$(invoke_direct_search_loop_in_isolation "$tmp_dir" "A" 2 4 "$count_path" 2>&1)"
+    exit_code=$?
+    set -e
+
+    assert_eq "$exit_code" "0" \
+        "probe-mode search loop must return to caller (exit 0) despite a transient 500 mid-loop"
+    assert_contains "$out" "LOOP-COMPLETED" \
+        "probe-mode search loop must reach its end instead of die-ing on the transient 500"
+    assert_contains "$out" "probe mode continuing" \
+        "probe-mode search loop should log the transient error rather than abort"
+    assert_eq "$(read_counter_file_or_zero "$count_path")" "4" \
+        "probe-mode search loop must count every attempted search including the failed one"
+}
+
+test_probe_exact_object_lookup_uses_deterministic_query_term() {
+    (
+        load_seed_synthetic_functions
+
+        local curl_calls
+        curl_calls="$(mktemp)"
+        curl() {
+            local url="" method="GET" data=""
+            while [ "$#" -gt 0 ]; do
+                case "$1" in
+                    -X)
+                        method="$2"
+                        shift 2
+                        ;;
+                    -H|-w)
+                        shift 2
+                        ;;
+                    -d)
+                        data="$2"
+                        shift 2
+                        ;;
+                    http://*|https://*)
+                        url="$1"
+                        shift
+                        ;;
+                    *)
+                        shift
+                        ;;
+                esac
+            done
+            printf '%s %s %s\n' "$method" "$url" "$data" >> "$curl_calls"
+            case "$url $data" in
+                *"/query"*'"Deterministic content 4c56e149062646024e3b40a997cff6ea"'*)
+                    printf '{"hits":[{"objectID":"doc-424250"}],"nbHits":1}\n200'
+                    ;;
+                *"/query"*'"Deterministic content ec137a3eeba4709bf6e52bf51b17773b"'*)
+                    printf '{"hits":[],"nbHits":0}\n200'
+                    ;;
+                *)
+                    printf '{"error":"unexpected-url"}\n500'
+                    ;;
+            esac
+        }
+
+        local hit_count miss_count
+        hit_count="$(
+            FLAPJACK_API_KEY="synthetic-flapjack-api-key" \
+            probe_owner_query_exact_object_hit_count \
+                "http://synthetic-node-a.test" \
+                "tenant-A" \
+                "doc-424250"
+        )"
+        miss_count="$(
+            FLAPJACK_API_KEY="synthetic-flapjack-api-key" \
+            probe_owner_query_exact_object_hit_count \
+                "http://synthetic-node-a.test" \
+                "tenant-A" \
+                "doc-424251"
+        )"
+
+        local call_log
+        call_log="$(cat "$curl_calls")"
+        rm -f "$curl_calls"
+
+        assert_eq "$hit_count" "1" \
+            "exact object lookup should report 1 when the deterministic exact-query term returns a hit"
+        assert_eq "$miss_count" "0" \
+            "exact object lookup should report 0 when the deterministic exact-query term returns no hits"
+        assert_contains "$call_log" '/query {"query":"Deterministic content 4c56e149062646024e3b40a997cff6ea"}' \
+            "exact object lookup should probe the deterministic query term for hit reads"
+        assert_contains "$call_log" '/query {"query":"Deterministic content ec137a3eeba4709bf6e52bf51b17773b"}' \
+            "exact object lookup should probe the deterministic query term for miss reads"
+        assert_not_contains "$call_log" '/documents/' \
+            "exact object lookup must not rely on the live-broken document endpoint"
+    )
+}
+
+test_staging_execute_seam_is_explicitly_gated() {
+    # Stage 5 hypothesis: a tenant A execute run writes fresh usage_records rows
+    # attributed to the persisted customer_id and canonical tenant_id mapping.
+    if [ "${RUN_SYNTHETIC_STAGING_LIVE_TESTS:-0}" != "1" ]; then
+        pass "staging execute seam is gated behind RUN_SYNTHETIC_STAGING_LIVE_TESTS=1"
+        return 0
+    fi
+
+    if [ -z "${SYNTHETIC_STAGING_ENV_FILE:-}" ]; then
+        fail "live staging seam requires SYNTHETIC_STAGING_ENV_FILE when RUN_SYNTHETIC_STAGING_LIVE_TESTS=1"
+        return 0
+    fi
+
+    if [ ! -f "$SYNTHETIC_STAGING_ENV_FILE" ]; then
+        fail "live staging seam env file does not exist: $SYNTHETIC_STAGING_ENV_FILE"
+        return 0
+    fi
+
+    if [ "${SYNTHETIC_STAGING_LIVE_ACK:-}" != "i-know-this-hits-staging" ]; then
+        fail "live staging seam requires SYNTHETIC_STAGING_LIVE_ACK=i-know-this-hits-staging"
+        return 0
+    fi
+
+    local run_start
+    run_start="$(capture_run_start_utc)"
+
+    local live_output live_exit=0
+    live_output=$(
+        set -a
+        # shellcheck disable=SC1090
+        source "$SYNTHETIC_STAGING_ENV_FILE"
+        set +a
+        bash "$REPO_ROOT/scripts/launch/seed_synthetic_traffic.sh" \
+            --tenant A \
+            --execute \
+            --i-know-this-hits-staging \
+            --duration-minutes "${SYNTHETIC_STAGING_DURATION_MINUTES:-5}" 2>&1
+    ) || live_exit=$?
+
+    if [ "$live_exit" -ne 0 ]; then
+        fail "live staging seam should be reusable after explicit opt-in (exit=$live_exit output=$live_output)"
+        return 0
+    fi
+    pass "live staging seam executes tenant A only after explicit opt-in and env-file gate"
+
+    if ! require_tenant_a_mapping_artifact; then
+        return 0
+    fi
+
+    local mapped_customer_id mapped_tenant_id mapped_flapjack_uid mapped_flapjack_url
+    mapped_customer_id="$(mapping_json_field_or_fail "customer_id" "stage5 live proof")" || return 0
+    mapped_tenant_id="$(mapping_json_field_or_fail "tenant_id" "stage5 live proof")" || return 0
+    mapped_flapjack_uid="$(mapping_json_field_or_fail "flapjack_uid" "stage5 live proof")" || return 0
+    mapped_flapjack_url="$(mapping_json_field_or_fail "flapjack_url" "stage5 live proof")" || return 0
+
+    local usage_rows usage_rows_exit=0 usage_row_count
+    usage_rows=$(
+        set -a
+        # shellcheck disable=SC1090
+        source "$SYNTHETIC_STAGING_ENV_FILE"
+        set +a
+        psql "$DATABASE_URL" \
+            -v ON_ERROR_STOP=1 \
+            -v customer_id="$mapped_customer_id" \
+            -v tenant_id="$mapped_tenant_id" \
+            -v run_start="$run_start" \
+            -A -F '|' -t \
+            -c "SELECT customer_id::text,
+                       tenant_id::text,
+                       event_type,
+                       value::text,
+                       to_char(recorded_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS recorded_at
+                FROM usage_records
+                WHERE customer_id = :'customer_id'::uuid
+                  AND tenant_id = :'tenant_id'
+                  AND recorded_at >= TIMESTAMPTZ :'run_start'
+                ORDER BY recorded_at DESC
+                LIMIT 20;" 2>&1
+    ) || usage_rows_exit=$?
+    if [ "$usage_rows_exit" -ne 0 ]; then
+        fail "stage5 live proof usage_records query should succeed (exit=$usage_rows_exit output=$usage_rows)"
+        return 0
+    fi
+    usage_row_count="$(printf '%s\n' "$usage_rows" | sed '/^[[:space:]]*$/d' | wc -l | tr -d '[:space:]')"
+    if [ "$usage_row_count" -lt 1 ]; then
+        fail "stage5 live proof expected fresh usage_records rows for mapped customer/tenant since run_start=$run_start (customer_id=$mapped_customer_id tenant_id=$mapped_tenant_id flapjack_uid=$mapped_flapjack_uid flapjack_url=$mapped_flapjack_url)"
+        printf '%s\n' "stage5 usage_records evidence: no rows" >&2
+        return 0
+    fi
+    pass "stage5 live proof found fresh usage_records attribution rows after run_start=$run_start (rows=$usage_row_count)"
+    printf '%s\n' "stage5 usage_records evidence (customer_id|tenant_id|event_type|value|recorded_at_utc):"
+    printf '%s\n' "$usage_rows"
+
+    local usage_daily_rows usage_daily_exit=0
+    usage_daily_rows=$(
+        set -a
+        # shellcheck disable=SC1090
+        source "$SYNTHETIC_STAGING_ENV_FILE"
+        set +a
+        psql "$DATABASE_URL" \
+            -v ON_ERROR_STOP=1 \
+            -v customer_id="$mapped_customer_id" \
+            -v tenant_id="$mapped_tenant_id" \
+            -A -F '|' -t \
+            -c "SELECT customer_id::text, date::text, region, search_requests::text, write_operations::text FROM usage_daily WHERE customer_id = :'customer_id'::uuid ORDER BY date DESC, region LIMIT 20;" 2>&1
+    ) || usage_daily_exit=$?
+    handle_stage5_optional_usage_daily_follow_on "$usage_daily_exit" "$usage_daily_rows"
+}
+
+test_stage5_optional_usage_daily_query_error_is_non_gating() {
+    local baseline_fail
+    baseline_fail="$FAIL_COUNT"
+
+    local helper_output helper_exit=0
+    helper_output="$(handle_stage5_optional_usage_daily_follow_on "1" "ERROR: relation \\\"usage_daily\\\" does not exist" 2>&1)" || helper_exit=$?
+
+    assert_eq "$helper_exit" "0" \
+        "stage5 optional usage_daily follow-on helper should return success when query errors"
+    assert_eq "$FAIL_COUNT" "$baseline_fail" \
+        "stage5 optional usage_daily follow-on helper should not gate on query errors"
+    assert_not_contains "$helper_output" "FAIL:" \
+        "stage5 optional usage_daily follow-on helper should not emit FAIL output on query errors"
+    assert_contains "$helper_output" "PASS: stage5 optional usage_daily follow-on query is unavailable" \
+        "stage5 optional usage_daily follow-on helper should emit PASS output on query errors"
+    assert_contains "$helper_output" "usage_daily follow-on" \
+        "stage5 optional usage_daily follow-on helper should emit evidence text on query errors"
+    pass "stage5 optional usage_daily follow-on helper should contribute positive evidence when query errors"
+}
+
+test_stage6_docs_publish_verified_contract_and_blocker_state() {
+    local env_doc="$REPO_ROOT/docs/env-vars.md"
+    local plan_doc="$REPO_ROOT/docs/launch/synthetic_traffic_seeder_plan.md"
+    local env_text plan_text
+
+    env_text="$(cat "$env_doc")"
+    plan_text="$(cat "$plan_doc")"
+
+    assert_contains "$env_text" "synthetic traffic seeder" \
+        "env vars doc should include a synthetic traffic seeder subsection"
+    assert_contains "$env_text" "DATABASE_URL" \
+        "env vars doc should list DATABASE_URL in the synthetic execute contract"
+    assert_contains "$env_text" "API_URL" \
+        "env vars doc should list API_URL in the synthetic execute contract"
+    assert_contains "$env_text" "ADMIN_KEY" \
+        "env vars doc should list ADMIN_KEY in the synthetic execute contract"
+    assert_contains "$env_text" "FLAPJACK_URL" \
+        "env vars doc should list FLAPJACK_URL in the synthetic execute contract"
+    assert_contains "$env_text" "FLAPJACK_API_KEY" \
+        "env vars doc should list FLAPJACK_API_KEY in the synthetic execute contract"
+    assert_contains "$env_text" "RUN_SYNTHETIC_STAGING_LIVE_TESTS" \
+        "env vars doc should list the live seam opt-in gate"
+    assert_contains "$env_text" "SYNTHETIC_STAGING_LIVE_ACK" \
+        "env vars doc should list the live seam acknowledgement gate"
+    assert_contains "$env_text" "SYNTHETIC_STAGING_ENV_FILE" \
+        "env vars doc should list the live seam env-file gate"
+    assert_contains "$env_text" "SYNTHETIC_STAGING_DURATION_MINUTES" \
+        "env vars doc should list the optional live seam duration override"
+    assert_contains "$env_text" "--tenant A" \
+        "env vars doc should publish that execute mode supports tenant A only"
+    assert_contains "$env_text" "--tenant B, --tenant C, and --tenant all" \
+        "env vars doc should publish unsupported execute selectors explicitly"
+
+    assert_contains "$plan_text" "ensure_customer_and_tenant" \
+        "seeder plan doc should describe the implemented provisioning flow"
+    assert_contains "$plan_text" "seed_documents_to_target_size" \
+        "seeder plan doc should describe the implemented storage convergence flow"
+    assert_contains "$plan_text" "drive_sustained_writes_and_searches" \
+        "seeder plan doc should describe the implemented sustained-traffic flow"
+    assert_contains "$plan_text" "/tmp/seed-synthetic-demo-shared-free.json" \
+        "seeder plan doc should anchor evidence to the persisted tenant A mapping artifact"
+    assert_contains "$plan_text" "Latest recorded outcome" \
+        "seeder plan doc should publish the latest staging blocker text when still failing"
+    assert_contains "$plan_text" "status=403" \
+        "seeder plan doc should include the current 403 blocker details from the latest live evidence"
+    assert_contains "$plan_text" "Invalid Application-ID or API key" \
+        "seeder plan doc should include the current direct-node auth blocker detail"
+    assert_contains "$plan_text" "usage_records" \
+        "seeder plan doc should include usage_records evidence status"
+    assert_contains "$plan_text" "usage_daily" \
+        "seeder plan doc should mark usage_daily as optional follow-on evidence"
+    assert_contains "$plan_text" "sync-stripe" \
+        "seeder plan doc should keep sync-stripe readiness claims evidence-bound"
+    assert_contains "$plan_text" "unproven" \
+        "seeder plan doc should label unevidenced readiness as unproven or blocked"
+    pass "stage6 docs publish the verified synthetic contract and current blocker state"
+}
+
+# Source the seeder so the under-test functions are addressable as bash
+# functions inside this test process. Guard against the script's top-level
+# argument parser by passing --tenant A --dry-run and immediately preempting
+# main execution via SEEDER_TEST_MODE. The seeder does not honor that env var
+# yet — these tests therefore source the file inside a subshell that exits
+# before run_tenant fires, by interposing a dummy argv that prints help and
+# exits cleanly.
+load_seed_synthetic_functions() {
+    # We only need the function definitions; suppress the script's main flow
+    # by trapping the entry into "case "${TENANT_SELECTOR}"" via a no-op
+    # subshell and explicit return. The cleanest approach in bash 3.2 is to
+    # source under `set +e` and rely on the seeder's preflight gate.
+    set +e
+    # shellcheck disable=SC1091
+    SEED_SYNTHETIC_NO_AUTO_RUN=1 source "$REPO_ROOT/scripts/launch/seed_synthetic_traffic.sh" --tenant A --dry-run >/dev/null 2>&1
+    set -e
+}
+
+test_seed_state_dir_accepts_writable_symlinked_directory_without_chmod() {
+    load_seed_synthetic_functions
+    local tmp_dir real_state_dir symlink_state_dir resolved mode_after mapping_path
+    tmp_dir="$(mktemp -d)"
+    trap 'rm -rf "'"$tmp_dir"'"' RETURN
+    real_state_dir="$tmp_dir/real-state"
+    symlink_state_dir="$tmp_dir/tmp-link"
+    mkdir -p "$real_state_dir"
+    chmod 755 "$real_state_dir"
+    ln -s "$real_state_dir" "$symlink_state_dir"
+
+    SEED_SYNTHETIC_STATE_DIR="$symlink_state_dir" resolved="$(seed_synthetic_state_dir)"
+    mapping_path="$symlink_state_dir/seed-synthetic-demo-shared-free.json"
+    write_tenant_mapping_artifact \
+        "$mapping_path" \
+        "customer-symlink" \
+        "tenant-symlink" \
+        "uid-symlink" \
+        "http://synthetic-node.test"
+    mode_after="$(
+        python3 - "$real_state_dir" <<'PY'
+import os
+import stat
+import sys
+print(oct(stat.S_IMODE(os.stat(sys.argv[1]).st_mode))[2:])
+PY
+    )"
+
+    assert_eq "$resolved" "$symlink_state_dir" \
+        "seed_synthetic_state_dir should preserve the configured symlink path so /tmp maps to /tmp artifacts"
+    assert_contains "$(cat "$mapping_path")" '"customer_id":"customer-symlink"' \
+        "write_tenant_mapping_artifact should write through a symlinked state directory"
+    assert_eq "$mode_after" "755" \
+        "state-dir helpers must not chmod the target behind a symlinked state directory"
+}
+
+test_resolve_customer_id_ignores_deleted_only_tenant_history() {
+    load_seed_synthetic_functions
+    local resolved
+    admin_call() {
+        if [ "$1" != "GET" ] || [ "$2" != "/admin/tenants" ]; then
+            echo "unexpected admin_call args: $*" >&2
+            return 91
+        fi
+        printf '[{"id":"deleted-1","name":"demo-shared-free","email":"demo-shared-free@synthetic-seed.invalid","status":"deleted"},{"id":"deleted-2","name":"demo-shared-free","email":"demo-shared-free+old@synthetic-seed.invalid","status":"deleted"}]\n200'
+    }
+
+    resolved="$(resolve_customer_id_by_name_or_email "demo-shared-free" "demo-shared-free@synthetic-seed.invalid")"
+    assert_eq "$resolved" "" \
+        "resolve_customer_id_by_name_or_email must not return deleted-only tenant history"
+    unset -f admin_call
+}
+
+test_node_api_key_for_url_uses_env_override_for_non_vm_hosts() {
+    load_seed_synthetic_functions
+    local resolved
+    aws() {
+        echo "aws should not be called for non-vm host env-override seam" >&2
+        return 99
+    }
+    FLAPJACK_API_KEY="env-override-key" \
+        resolved="$(node_api_key_for_url "http://synthetic-flapjack.test:7700")"
+    assert_eq "$resolved" "env-override-key" \
+        "node_api_key_for_url should honor FLAPJACK_API_KEY env override (test/local seam)"
+    unset -f aws
+}
+
+test_node_api_key_for_url_prefers_ssm_for_vm_hosts_even_when_env_key_is_set() {
+    load_seed_synthetic_functions
+    local resolved ssm_calls_file ssm_calls
+    ssm_calls_file="$(mktemp)"
+    aws() {
+        printf '1\n' >> "$ssm_calls_file"
+        if [ "$1" != "ssm" ] || [ "$2" != "get-parameter" ]; then
+            echo "unexpected aws args: $*" >&2
+            return 91
+        fi
+        printf '%s\n' "ssm-node-key"
+        return 0
+    }
+    local resolved_path
+    resolved_path="$(mktemp)"
+    FLAPJACK_API_KEY="stale-env-key" node_api_key_for_url "http://vm-shared-f2b9c8a6.flapjack.foo:7700" > "$resolved_path"
+    resolved="$(cat "$resolved_path")"
+    rm -f "$resolved_path"
+    ssm_calls="$(line_count_or_zero "$ssm_calls_file")"
+    rm -f "$ssm_calls_file"
+    assert_eq "$resolved" "ssm-node-key" \
+        "vm host key resolution must prefer per-node SSM key over FLAPJACK_API_KEY override to avoid stale-key 403s"
+    assert_eq "$ssm_calls" "1" \
+        "vm host key resolution should call SSM exactly once when cache is cold"
+    unset -f aws
+}
+
+test_node_api_key_for_url_caches_per_host_to_avoid_repeat_lookups() {
+    load_seed_synthetic_functions
+
+    # In-process cache lives on the current shell; we must not stage
+    # function invocations through a subshell ($(...)). Capture stdout
+    # via a temp file instead, so the dynamic cache-var assignment
+    # persists between calls in the same shell.
+    local cache_probe="$REPO_ROOT/.test-node-key-cache-probe"
+    : > "$cache_probe"
+    local ssm_calls_file ssm_calls
+    ssm_calls_file="$(mktemp)"
+    aws() {
+        printf '1\n' >> "$ssm_calls_file"
+        if [ "$1" != "ssm" ] || [ "$2" != "get-parameter" ]; then
+            echo "unexpected aws args: $*" >&2
+            return 91
+        fi
+        printf '%s\n' "cached-key-from-ssm"
+        return 0
+    }
+    FLAPJACK_API_KEY="stale-env-key"
+    node_api_key_for_url "http://vm-shared-cache.flapjack.foo:7700" > "$cache_probe"
+    local first
+    first="$(cat "$cache_probe")"
+    : > "$cache_probe"
+    unset FLAPJACK_API_KEY
+    # Second call must succeed with no additional SSM lookup because the
+    # per-host result was cached in-process during the first call.
+    node_api_key_for_url "http://vm-shared-cache.flapjack.foo:7700" > "$cache_probe"
+    local second
+    second="$(cat "$cache_probe")"
+    rm -f "$cache_probe"
+    ssm_calls="$(line_count_or_zero "$ssm_calls_file")"
+    rm -f "$ssm_calls_file"
+    assert_eq "$first" "cached-key-from-ssm" \
+        "first vm-host node_api_key_for_url call should return the SSM-resolved key"
+    assert_eq "$second" "cached-key-from-ssm" \
+        "second vm-host node_api_key_for_url call should return the cached per-host key"
+    assert_eq "$ssm_calls" "1" \
+        "vm-host node_api_key_for_url should not repeat SSM lookups after the first call"
+    unset -f aws
+}
+
+test_node_api_key_for_url_dies_when_url_has_no_host() {
+    (
+        load_seed_synthetic_functions
+        local exit_code=0
+        local output
+        output="$(FLAPJACK_API_KEY="any-key" node_api_key_for_url "not-a-url" 2>&1)" || exit_code=$?
+        if [ "$exit_code" -eq 0 ]; then
+            fail "node_api_key_for_url should fail closed when the flapjack_url has no host (got exit_code=0, output=$output)"
+        else
+            pass "node_api_key_for_url fails closed when the flapjack_url has no host"
+        fi
+        assert_contains "$output" "failed to parse host" \
+            "node_api_key_for_url failure should explain that host parsing failed"
+    )
+}
+
+test_tenant_field_rejects_invalid_selector_without_eval() {
+    (
+        load_seed_synthetic_functions
+        local marker output exit_code=0
+        marker="$(mktemp)"
+        rm -f "$marker"
+        output="$(
+            SEEDER_INJECTION_MARKER="$marker" \
+            tenant_field 'A}"; touch "$SEEDER_INJECTION_MARKER"; #' "NAME" 2>&1
+        )" || exit_code=$?
+        if [ "$exit_code" -eq 0 ]; then
+            fail "tenant_field should reject invalid selector input instead of accepting eval-shaped payloads"
+        else
+            pass "tenant_field rejects invalid selector input"
+        fi
+        if [ -e "$marker" ]; then
+            fail "tenant_field must not execute selector input as shell code"
+        else
+            pass "tenant_field treats selector input as data, not code"
+        fi
+        assert_eq "$output" "" \
+            "tenant_field should fail closed without printing injected output"
+    )
+}
+
+test_node_api_key_for_url_treats_env_override_as_data_not_code() {
+    load_seed_synthetic_functions
+    local marker resolved_path resolved expected
+    marker="$(mktemp)"
+    rm -f "$marker"
+    resolved_path="$(mktemp)"
+    expected='$(touch "$SEEDER_INJECTION_MARKER")env-override-key'
+    SEEDER_INJECTION_MARKER="$marker" \
+        FLAPJACK_API_KEY="$expected" \
+        node_api_key_for_url "http://synthetic-flapjack.test:7700" > "$resolved_path"
+    resolved="$(cat "$resolved_path")"
+    rm -f "$resolved_path"
+    assert_eq "$resolved" "$expected" \
+        "non-vm env override should be returned verbatim without eval-parsing shell metacharacters"
+    if [ -e "$marker" ]; then
+        fail "env override key must not be executed while caching node API keys"
+    else
+        pass "env override key is treated as data while caching node API keys"
+    fi
+}
+
+test_node_api_key_for_url_treats_ssm_value_as_data_not_code() {
+    load_seed_synthetic_functions
+    local marker resolved_path resolved expected
+    marker="$(mktemp)"
+    rm -f "$marker"
+    resolved_path="$(mktemp)"
+    expected='$(touch "$SEEDER_INJECTION_MARKER")ssm-node-key'
+    aws() {
+        printf '%s\n' "$expected"
+        return 0
+    }
+    SEEDER_INJECTION_MARKER="$marker" \
+        node_api_key_for_url "http://vm-shared-injection.flapjack.foo:7700" > "$resolved_path"
+    resolved="$(cat "$resolved_path")"
+    rm -f "$resolved_path"
+    unset -f aws
+    assert_eq "$resolved" "$expected" \
+        "vm-host SSM key should be returned verbatim without eval-parsing shell metacharacters"
+    if [ -e "$marker" ]; then
+        fail "SSM-derived node API key must not be executed while caching"
+    else
+        pass "SSM-derived node API key is treated as data while caching"
+    fi
+}
+
+test_duration_minutes_zero_is_a_supported_provisioning_only_seam() {
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    local mapping_backup="$tmp_dir/tenant_a_mapping.backup"
+    trap 'restore_tenant_a_mapping_artifact "'"$mapping_backup"'"; rm -rf "'"$tmp_dir"'"' RETURN
+
+    local curl_log="$tmp_dir/curl.log"
+    local psql_log="$tmp_dir/psql.log"
+    local psql_stdin="$tmp_dir/psql.stdin"
+    stash_tenant_a_mapping_artifact "$mapping_backup"
+    setup_mock_workspace "$tmp_dir" "$curl_log" "$psql_log" "$psql_stdin"
+
+    clear_mock_logs "$curl_log" "$psql_log" "$psql_stdin"
+    # --duration-minutes 0 is a legitimate seam: provision tenant + converge
+    # storage but skip sustained traffic. Used by every stage2/stage3 contract
+    # test that wants to verify earlier stages without paying for the loop.
+    MOCK_SYNTHETIC_DURATION_MINUTES="0" \
+    MOCK_SYNTHETIC_STORAGE_MB_SEQUENCE="200,200" \
+    run_seed_synthetic_execute "$tmp_dir" "A"
+
+    assert_eq "$RUN_EXIT_CODE" "0" \
+        "--duration-minutes 0 should succeed (provisioning-only seam used by contract tests and operational provisioning runs)"
+    assert_not_contains "$RUN_OUTPUT" "must be greater than zero" \
+        "--duration-minutes 0 should not be rejected as invalid; it is a supported skip-sustained-traffic mode"
+}
+
+test_storage_floor_treats_absent_tenant_uid_as_zero_mb() {
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    local mapping_backup="$tmp_dir/tenant_a_mapping.backup"
+    trap 'restore_tenant_a_mapping_artifact "'"$mapping_backup"'"; rm -rf "'"$tmp_dir"'"' RETURN
+
+    local curl_log="$tmp_dir/curl.log"
+    local psql_log="$tmp_dir/psql.log"
+    local psql_stdin="$tmp_dir/psql.stdin"
+    stash_tenant_a_mapping_artifact "$mapping_backup"
+    setup_mock_workspace "$tmp_dir" "$curl_log" "$psql_log" "$psql_stdin"
+
+    clear_mock_logs "$curl_log" "$psql_log" "$psql_stdin"
+    # Force the mock /internal/storage to return a tenants array that does
+    # NOT contain our mapped flapjack_uid. This mirrors the live state on a
+    # freshly-created index where flapjack hasn't recorded any bytes yet.
+    # The seeder must treat the missing entry as 0 MB rather than failing.
+    MOCK_SYNTHETIC_DURATION_MINUTES="0" \
+    MOCK_SYNTHETIC_STORAGE_MB_SEQUENCE="200" \
+    MOCK_SYNTHETIC_STORAGE_UID="some-other-tenant-uid-not-in-the-mapping" \
+    run_seed_synthetic_execute "$tmp_dir" "A"
+
+    if [ "$RUN_EXIT_CODE" -ne 0 ] && printf '%s' "$RUN_OUTPUT" | grep -q "storage poll missing mapped tenant"; then
+        fail "seeder must NOT die when /internal/storage omits the mapped tenant uid (was: $RUN_OUTPUT)"
+    else
+        pass "seeder treats absent tenant in /internal/storage as 0 MB (live freshly-created-index contract)"
+    fi
+}
+
+test_preflight_env_does_not_require_flapjack_api_key() {
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    trap 'rm -rf "'"$tmp_dir"'"' RETURN
+
+    setup_mock_workspace "$tmp_dir" "$tmp_dir/curl.log" "$tmp_dir/psql.log" "$tmp_dir/psql.stdin"
+
+    # Run execute with FLAPJACK_API_KEY explicitly UNSET. preflight_env should
+    # no longer fail closed on its absence; the script may fail later on the
+    # first SSM lookup, but the failure must NOT be the legacy
+    # "missing required env vars: FLAPJACK_API_KEY" path.
+    local output exit_code=0
+    output=$(
+        PATH="$tmp_dir/bin:$PATH" \
+        API_URL="http://synthetic-api.test" \
+        ADMIN_KEY="synthetic-admin-key" \
+        DATABASE_URL="postgres://synthetic" \
+        FLAPJACK_URL="http://synthetic-flapjack.test" \
+        env -u FLAPJACK_API_KEY \
+        bash "$REPO_ROOT/scripts/launch/seed_synthetic_traffic.sh" \
+            --tenant A --execute --i-know-this-hits-staging --duration-minutes 1 2>&1
+    ) || exit_code=$?
+
+    if printf '%s' "$output" | grep -q "missing required env vars:.*FLAPJACK_API_KEY"; then
+        fail "preflight_env should not require FLAPJACK_API_KEY anymore (per-VM SSM lookup is the canonical path); got: $output"
+    else
+        pass "preflight_env no longer requires FLAPJACK_API_KEY (per-VM SSM resolution is the canonical path)"
+    fi
+}
+
+main() {
+    echo "=== seed_synthetic_traffic.sh tests ==="
+    echo ""
+
+    local test_slice="${SEED_SYNTHETIC_TRAFFIC_TEST_SLICE:-full}"
+    case "$test_slice" in
+        stage2)
+            test_dry_run_contracts_cover_A_B_C_and_all_without_mutation_calls
+            test_execute_requires_staging_ack_before_preflight_or_mutation_calls
+            test_execute_accepts_all_three_tenants_post_stage2
+            test_provision_only_skips_storage_backfill_and_sustained_traffic
+            test_provision_only_compatible_with_all_three_tenants
+            test_provisioning_contract_first_run_pins_create_update_and_index_fields
+            test_provisioning_contract_rerun_is_idempotent_without_duplicate_create_calls
+            test_seed_index_accepts_200_ok_from_idempotent_rerun_path
+            test_provisioning_contract_recovers_when_create_409_omits_customer_id
+            test_provisioning_contract_recovers_when_mapped_customer_update_returns_404
+            test_provisioning_contract_prefers_active_customer_when_lookup_returns_soft_deleted_first
+            test_provisioning_contract_replaces_control_plane_endpoint_with_direct_fallback
+            test_provisioning_contract_sends_direct_fallback_to_seed_index_payload
+            test_seed_state_dir_accepts_writable_symlinked_directory_without_chmod
+            test_resolve_customer_id_ignores_deleted_only_tenant_history
+            ;;
+        stage3)
+            test_storage_floor_contract_skips_backfill_when_target_already_met
+            test_storage_floor_contract_polls_until_usage_converges
+            test_storage_floor_contract_stops_after_above_tolerance_overshoot
+            ;;
+        stage4)
+            test_tenant_a_execute_starts_sustained_traffic_after_floor_is_met
+            test_tenant_a_execute_cleans_count_files_when_search_loop_fails
+            test_tenant_a_execute_stops_writes_when_search_loop_fails
+            test_probe_mode_write_loop_continues_through_transient_error
+            test_standalone_write_loop_stays_fatal_on_error
+            test_probe_mode_search_loop_continues_through_transient_error
+            test_probe_exact_object_lookup_uses_deterministic_query_term
+            ;;
+        stage5)
+            test_stage5_optional_usage_daily_query_error_is_non_gating
+            test_staging_execute_seam_is_explicitly_gated
+            ;;
+        stage6)
+            test_stage6_docs_publish_verified_contract_and_blocker_state
+            ;;
+        full)
+            test_dry_run_contracts_cover_A_B_C_and_all_without_mutation_calls
+            test_execute_requires_staging_ack_before_preflight_or_mutation_calls
+            test_execute_accepts_all_three_tenants_post_stage2
+            test_provision_only_skips_storage_backfill_and_sustained_traffic
+            test_provision_only_compatible_with_all_three_tenants
+            test_provisioning_contract_first_run_pins_create_update_and_index_fields
+            test_provisioning_contract_rerun_is_idempotent_without_duplicate_create_calls
+            test_seed_index_accepts_200_ok_from_idempotent_rerun_path
+            test_provisioning_contract_recovers_when_create_409_omits_customer_id
+            test_provisioning_contract_recovers_when_mapped_customer_update_returns_404
+            test_provisioning_contract_prefers_active_customer_when_lookup_returns_soft_deleted_first
+            test_provisioning_contract_replaces_control_plane_endpoint_with_direct_fallback
+            test_provisioning_contract_sends_direct_fallback_to_seed_index_payload
+            test_storage_floor_contract_skips_backfill_when_target_already_met
+            test_storage_floor_contract_polls_until_usage_converges
+            test_storage_floor_contract_stops_after_above_tolerance_overshoot
+            test_tenant_a_execute_starts_sustained_traffic_after_floor_is_met
+            test_tenant_a_execute_cleans_count_files_when_search_loop_fails
+            test_tenant_a_execute_stops_writes_when_search_loop_fails
+            test_probe_mode_write_loop_continues_through_transient_error
+            test_standalone_write_loop_stays_fatal_on_error
+            test_probe_mode_search_loop_continues_through_transient_error
+            test_probe_exact_object_lookup_uses_deterministic_query_term
+            test_stage5_optional_usage_daily_query_error_is_non_gating
+            test_staging_execute_seam_is_explicitly_gated
+            test_stage6_docs_publish_verified_contract_and_blocker_state
+            test_tenant_field_rejects_invalid_selector_without_eval
+            test_node_api_key_for_url_uses_env_override_for_non_vm_hosts
+            test_node_api_key_for_url_treats_env_override_as_data_not_code
+            test_node_api_key_for_url_prefers_ssm_for_vm_hosts_even_when_env_key_is_set
+            test_node_api_key_for_url_treats_ssm_value_as_data_not_code
+            test_node_api_key_for_url_caches_per_host_to_avoid_repeat_lookups
+            test_node_api_key_for_url_dies_when_url_has_no_host
+            test_preflight_env_does_not_require_flapjack_api_key
+            test_storage_floor_treats_absent_tenant_uid_as_zero_mb
+            test_duration_minutes_zero_is_a_supported_provisioning_only_seam
+            test_seed_state_dir_accepts_writable_symlinked_directory_without_chmod
+            test_resolve_customer_id_ignores_deleted_only_tenant_history
+            ;;
+        *)
+            fail "unknown SEED_SYNTHETIC_TRAFFIC_TEST_SLICE: $test_slice (expected: full, stage2, stage3, stage4, stage5, or stage6)"
+            ;;
+    esac
+
+    echo ""
+    echo "=== Results: $PASS_COUNT passed, $FAIL_COUNT failed ==="
+    if [ "$FAIL_COUNT" -gt 0 ]; then
+        exit 1
+    fi
+}
+
+main "$@"

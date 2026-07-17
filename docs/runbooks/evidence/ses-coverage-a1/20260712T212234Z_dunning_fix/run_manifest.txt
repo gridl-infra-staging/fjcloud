@@ -1,0 +1,9 @@
+source_green_bundle=docs/runbooks/evidence/staging-billing-rehearsal/20260712T010555Z_current_main
+billing_month=2026-07
+secret_source=/Users/stuart/repos/gridl-infra-dev/fjcloud_dev/.secret/.env.secret
+stripe_environment_contract=docs/design/stripe_environments.md
+head=4ebd415c63c1dddac72500d09653f35c3f30fecc
+local_ci_fast_pre_sync=failed_source_pollution
+local_ci_fast_detail=source-pollution would rewrite chats/icg/jul12_pm_6_repo_gc_manifest_and_receipts.md; canonical dev repo sanitizer check also reported repo-gc evidence files, so debbie sync staging was not run.
+inbox_default_month=2026-07
+inbox_default_month_matches_selected=true

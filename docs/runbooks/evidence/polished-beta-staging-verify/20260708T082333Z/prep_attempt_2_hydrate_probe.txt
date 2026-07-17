@@ -1,0 +1,4 @@
+attempt: 2
+command: source .secret/.env.secret if present; source scripts/lib/hydrate_staging_env.sh; hydrate_staging_env_from_ssm
+stdout: redacted by design
+exit_code: 0

@@ -1,0 +1,54 @@
+# Disposition Receipt: origin/batman/apr07_pm_2_local_evidence_ha_and_cold_storage
+
+Classification: approved remote branch deletion; manifest stores short branch name
+Evidence source: current read-only git refs at bundle creation.
+
+## rev-parse
+$ git rev-parse origin/batman/apr07_pm_2_local_evidence_ha_and_cold_storage
+4bb7b1c51956333dad39a6dab106520cfa862d81
+
+## cherry
+$ git cherry -v main origin/batman/apr07_pm_2_local_evidence_ha_and_cold_storage | tail -20
+- 0e8437a25fe2040ed2c36feaeaf8cedd1f5144c3 scrai: 3 files documented, 3 state files tracked
++ c87b7e89c2dd67248bf03d20558105406d180669 matt: stage 2 completion
+- 5616788da6629f3086c4e8b6da318dc87760f216 scrai: 3 files documented, 3 state files tracked
++ 72aac6f240bd40a7a274575185c35fbdcef53fa7 matt: stage 3 completion
+- 4ff8f505c533e4ee03ce05f530ee92c1fe8192f4 scrai: 3 files documented, 3 state files tracked
++ 680bafe2129fb96e29d89ee9de6206addcbd6574 stage 4: fix HA failover proof repeatability — failed-replica detection and node-key seed gap
++ 9222eddd8e1ffa4a3aeba09245e61498970b5bf1 matt: stage 4 completion
++ da25cf6eba6f2f3ac7cd6a4bc9167b8aae0e348f matt: forced pre-review commit (stage 6 cycle 1)
++ a28151446069747f528d3e6bae3deda60646210f Fix session-expired login recovery
++ 9ab2abd963caee9d2e5606583bf1e8bbfd32dfff matt: stage 6 completion
++ 5da6dbe49536de2fcd3fa86b4ae55dc9e8ed4e7c matt: forced pre-review commit (stage 7 cycle 1)
++ 1e28f906646d5b4fe3b6464a9efc6d201e119462 Fix cold-storage lifecycle: flapjack UID mismatch, auth headers, test robustness
++ cfdf24af357e0bc66ee141c7253748702774fb99 matt: forced pre-review commit (stage 8 cycle 1)
++ d7f82d6d9fc01d831d827be2a446e99270fafe3f Cleanup: revert out-of-scope changes, fix shell modes and scrai assembly
++ f05dae8a279e065a65c75e234f7107df7aba68e9 stage9: finalize cleanup and validation alignment
++ 75830370af45bc7aeb95fa7221b83937a495c715 matt: stage 9 completion
++ da4b4b16897e2e0b6ac665973f9e0a7d88273068 scrai: 7 files documented, 2 guidance files assembled, 3 state files tracked
++ 571ba699614e050513ad4222a21782b9773ae806 stage10: update ROADMAP.md and PRIORITIES.md for completed HA and cold-storage evidence
++ d4bf959ca7183d9df6d1ca731b3f3d2309459a1c matt: stage 10 completion
++ 4bb7b1c51956333dad39a6dab106520cfa862d81 chats: matt run progress footer for apr07_pm_2
+
+## diff main...
+$ git diff main...origin/batman/apr07_pm_2_local_evidence_ha_and_cold_storage --stat | tail -20
+ infra/api/src/services/object_store.rs             |  36 +++-
+ infra/api/src/services/restore.rs                  |   9 +-
+ infra/api/tests/admin_vms_test.rs                  | 101 +++++++++-
+ infra/api/tests/cold_tier_test.rs                  |  22 ++-
+ infra/api/tests/garage_object_store_test.rs        |   2 +
+ infra/api/tests/integration_cold_tier_test.rs      | 210 +++++++++++++++++----
+ infra/api/tests/provisioning_service_test.rs       |  64 +++++--
+ scripts/chaos/ha-failover-proof.sh                 |  14 +-
+ scripts/lib/process.sh                             |   5 +
+ scripts/local-dev-up.sh                            |  18 +-
+ scripts/local-signoff-cold-storage.sh              |  24 ++-
+ scripts/local-signoff-commerce.sh                  |  40 ++++
+ scripts/local-signoff.sh                           |   0
+ scripts/seaweedfs/s3.json                          |  30 +++
+ scripts/seed_local.sh                              |  12 ++
+ scripts/tests/ha_failover_repeatability_test.sh    |  65 +++++++
+ scripts/tests/lib/local_dev_test_state.sh          |   5 +
+ scripts/tests/lib/seed_local_mocks.sh              |   9 +
+ scripts/tests/local_signoff_cold_storage_test.sh   |  33 ++++
+ 33 files changed, 801 insertions(+), 123 deletions(-)

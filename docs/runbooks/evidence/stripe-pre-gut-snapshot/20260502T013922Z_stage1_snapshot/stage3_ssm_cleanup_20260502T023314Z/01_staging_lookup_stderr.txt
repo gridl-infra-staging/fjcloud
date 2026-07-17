@@ -1,0 +1,4 @@
+
+Bad value for --query Parameters[?starts_with(Name, /fjcloud/staging/stripe_price_)].Name: Bad jmespath expression: Unknown token /:
+Parameters[?starts_with(Name, /fjcloud/staging/stripe_price_)].Name
+                              ^

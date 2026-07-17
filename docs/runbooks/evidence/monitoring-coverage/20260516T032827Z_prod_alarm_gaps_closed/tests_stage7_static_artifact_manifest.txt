@@ -1,0 +1,4 @@
+command: bash ops/terraform/tests_stage7_static.sh
+exit_code: 0
+output_file: docs/runbooks/evidence/monitoring-coverage/20260516T032827Z_prod_alarm_gaps_closed/tests_stage7_static_output.txt
+exit_file: docs/runbooks/evidence/monitoring-coverage/20260516T032827Z_prod_alarm_gaps_closed/tests_stage7_static_exit_code.txt

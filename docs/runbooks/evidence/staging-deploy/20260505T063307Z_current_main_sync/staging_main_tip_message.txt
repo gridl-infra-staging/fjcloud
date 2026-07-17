@@ -1,0 +1,1 @@
+fix: satisfy rust fmt gate for staging sync

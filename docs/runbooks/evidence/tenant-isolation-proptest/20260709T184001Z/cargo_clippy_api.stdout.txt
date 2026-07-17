@@ -1,0 +1,10 @@
+$ cd infra && cargo clippy -p api
+started_epoch=1783622533.417
+   Compiling api v0.1.0 (infra/api)
+    Checking billing v0.1.0 (infra/billing)
+    Checking pricing-calculator v0.1.0 (infra/pricing-calculator)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 10.97s
+
+finished_epoch=1783622544.441
+duration_seconds=11.024
+exit_code=0

@@ -1,0 +1,191 @@
+{
+  "callers": [
+    {
+      "auth_secret_owner": "VmInventory::node_secret_id",
+      "caller_id": "migration.protocol.start_replication",
+      "expected_upstream_headers": {
+        "x-algolia-api-key": "sha256:*",
+        "x-algolia-application-id": "flapjack-replication"
+      },
+      "expected_upstream_kind": "physical_uid",
+      "expected_upstream_path": "/internal/replicate",
+      "owner_path": "infra/api/src/services/migration/protocol.rs::MigrationService::start_replication",
+      "same_logical_name_isolation": true
+    },
+    {
+      "auth_secret_owner": "VmInventory::node_secret_id",
+      "caller_id": "migration.protocol.pause_index",
+      "expected_upstream_headers": {
+        "x-algolia-api-key": "sha256:*",
+        "x-algolia-application-id": "flapjack-replication"
+      },
+      "expected_upstream_kind": "physical_uid",
+      "expected_upstream_path": "/internal/pause/{physical_uid}",
+      "owner_path": "infra/api/src/services/migration/protocol.rs::MigrationService::pause_index",
+      "same_logical_name_isolation": true
+    },
+    {
+      "auth_secret_owner": "VmInventory::node_secret_id",
+      "caller_id": "migration.protocol.resume_index",
+      "expected_upstream_headers": {
+        "x-algolia-api-key": "sha256:*",
+        "x-algolia-application-id": "flapjack-replication"
+      },
+      "expected_upstream_kind": "physical_uid",
+      "expected_upstream_path": "/internal/resume/{physical_uid}",
+      "owner_path": "infra/api/src/services/migration/protocol.rs::MigrationService::resume_index",
+      "same_logical_name_isolation": true
+    },
+    {
+      "auth_secret_owner": "VmInventory::node_secret_id",
+      "caller_id": "migration.protocol.delete_index",
+      "expected_upstream_headers": {
+        "x-algolia-api-key": "sha256:*",
+        "x-algolia-application-id": "flapjack-replication"
+      },
+      "expected_upstream_kind": "physical_uid",
+      "expected_upstream_path": "/1/indexes/{physical_uid}",
+      "owner_path": "infra/api/src/services/migration/protocol.rs::MigrationService::delete_index",
+      "same_logical_name_isolation": true
+    },
+    {
+      "auth_secret_owner": "VmInventory::node_secret_id",
+      "caller_id": "migration.recovery.rollback_replicating",
+      "expected_upstream_headers": {
+        "x-algolia-api-key": "sha256:*",
+        "x-algolia-application-id": "flapjack-replication"
+      },
+      "expected_upstream_kind": "physical_uid",
+      "expected_upstream_path": "/1/indexes/{physical_uid}",
+      "owner_path": "infra/api/src/services/migration/recovery.rs::MigrationService::rollback_replicating",
+      "same_logical_name_isolation": true
+    },
+    {
+      "auth_secret_owner": "VmInventory::node_secret_id",
+      "caller_id": "migration.recovery.recover_source_on_failure",
+      "expected_upstream_headers": {
+        "x-algolia-api-key": "sha256:*",
+        "x-algolia-application-id": "flapjack-replication"
+      },
+      "expected_upstream_kind": "physical_uid",
+      "expected_upstream_path": "/1/indexes/{physical_uid}",
+      "owner_path": "infra/api/src/services/migration/recovery.rs::MigrationService::recover_source_on_failure",
+      "same_logical_name_isolation": true
+    },
+    {
+      "auth_secret_owner": "VmInventory::node_secret_id",
+      "caller_id": "migration.replication.fetch_oplog_seq",
+      "expected_upstream_headers": {
+        "x-algolia-api-key": "sha256:*",
+        "x-algolia-application-id": "flapjack-replication"
+      },
+      "expected_upstream_kind": "physical_uid",
+      "expected_upstream_path": "/metrics",
+      "owner_path": "infra/api/src/services/migration/replication.rs::MigrationService::fetch_oplog_seq",
+      "same_logical_name_isolation": true
+    },
+    {
+      "auth_secret_owner": "VmInventory::node_secret_id",
+      "caller_id": "migration.replication.build_auth_headers",
+      "expected_upstream_headers": {
+        "x-algolia-api-key": "sha256:*",
+        "x-algolia-application-id": "flapjack-replication"
+      },
+      "expected_upstream_kind": "physical_uid",
+      "expected_upstream_path": "/internal/resume/{physical_uid}",
+      "owner_path": "infra/api/src/services/migration/replication.rs::MigrationService::build_auth_headers",
+      "same_logical_name_isolation": true
+    },
+    {
+      "auth_secret_owner": "no direct Flapjack request",
+      "caller_id": "routes.indexes.lifecycle.create_replica",
+      "expected_upstream_headers": {},
+      "expected_upstream_kind": "catalog_only",
+      "expected_upstream_path": null,
+      "owner_path": "infra/api/src/routes/indexes/lifecycle.rs::create_replica",
+      "same_logical_name_isolation": false
+    },
+    {
+      "auth_secret_owner": "no direct Flapjack request",
+      "caller_id": "routes.indexes.lifecycle.list_replicas",
+      "expected_upstream_headers": {},
+      "expected_upstream_kind": "catalog_only",
+      "expected_upstream_path": null,
+      "owner_path": "infra/api/src/routes/indexes/lifecycle.rs::list_replicas",
+      "same_logical_name_isolation": false
+    },
+    {
+      "auth_secret_owner": "no direct Flapjack request",
+      "caller_id": "routes.indexes.lifecycle.delete_replica",
+      "expected_upstream_headers": {},
+      "expected_upstream_kind": "catalog_only",
+      "expected_upstream_path": null,
+      "owner_path": "infra/api/src/routes/indexes/lifecycle.rs::delete_replica",
+      "same_logical_name_isolation": false
+    },
+    {
+      "auth_secret_owner": "VmInventory::node_secret_id",
+      "caller_id": "routes.indexes.lifecycle.delete_index",
+      "expected_upstream_headers": {
+        "x-algolia-api-key": "sha256:*",
+        "x-algolia-application-id": "flapjack"
+      },
+      "expected_upstream_kind": "physical_uid",
+      "expected_upstream_path": "/1/indexes/{physical_uid}",
+      "owner_path": "infra/api/src/routes/indexes/lifecycle.rs::delete_index",
+      "same_logical_name_isolation": true
+    },
+    {
+      "auth_secret_owner": "VmInventory::node_secret_id",
+      "caller_id": "routes.indexes.index_metrics_route.get_index_metrics",
+      "expected_upstream_headers": {
+        "x-algolia-api-key": "sha256:*",
+        "x-algolia-application-id": "flapjack"
+      },
+      "expected_upstream_kind": "physical_uid",
+      "expected_upstream_path": "/metrics",
+      "owner_path": "infra/api/src/routes/indexes/index_metrics_route.rs::get_index_metrics",
+      "same_logical_name_isolation": true
+    },
+    {
+      "auth_secret_owner": "no direct Flapjack request",
+      "caller_id": "routes.admin.migrations.validate_migration_request",
+      "expected_upstream_headers": {},
+      "expected_upstream_kind": "catalog_only",
+      "expected_upstream_path": null,
+      "owner_path": "infra/api/src/routes/admin/migrations.rs::validate_migration_request",
+      "same_logical_name_isolation": false
+    },
+    {
+      "auth_secret_owner": "VmInventory::node_secret_id",
+      "caller_id": "routes.admin.migrations.execute_migration",
+      "expected_upstream_headers": {
+        "x-algolia-api-key": "sha256:*",
+        "x-algolia-application-id": "flapjack-replication"
+      },
+      "expected_upstream_kind": "physical_uid",
+      "expected_upstream_path": "/internal/replicate",
+      "owner_path": "infra/api/src/routes/admin/migrations.rs::execute_migration",
+      "same_logical_name_isolation": true
+    },
+    {
+      "auth_secret_owner": "no direct Flapjack request",
+      "caller_id": "routes.admin.migrations.list_migrations",
+      "expected_upstream_headers": {},
+      "expected_upstream_kind": "catalog_only",
+      "expected_upstream_path": null,
+      "owner_path": "infra/api/src/routes/admin/migrations.rs::list_migrations",
+      "same_logical_name_isolation": false
+    },
+    {
+      "auth_secret_owner": "no direct Flapjack request",
+      "caller_id": "routes.admin.replicas.list_replicas",
+      "expected_upstream_headers": {},
+      "expected_upstream_kind": "catalog_only",
+      "expected_upstream_path": null,
+      "owner_path": "infra/api/src/routes/admin/replicas.rs::list_replicas",
+      "same_logical_name_isolation": false
+    }
+  ],
+  "expected_caller_count": 17
+}

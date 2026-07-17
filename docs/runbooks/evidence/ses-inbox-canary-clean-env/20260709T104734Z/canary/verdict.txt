@@ -1,0 +1,39 @@
+Stage 3 customer-loop canary verdict
+captured_utc=2026-07-09T11:36:30Z
+head_sha=0b4b169c8325578df14fcbc5fc5dca557447e12b
+evidence_dir=docs/runbooks/evidence/ses-inbox-canary-clean-env/20260709T104734Z/canary
+
+credential_gate=pass
+probe_live_state_exit=0
+sts_exit=0
+sts_account=213880904778
+
+direct_rerun_command=ENVIRONMENT=staging FJCLOUD_SECRET_FILE=/Users/stuart/repos/gridl-infra-dev/fjcloud_dev/.secret/.env.secret bash scripts/canary/customer_loop_synthetic.sh --dry-run
+direct_rerun_exit=0
+direct_rerun_result=quiet_window_short_circuit
+direct_rerun_success_marker=absent
+direct_rerun_owner_detail=[customer-loop-canary] quiet window active; skipping customer loop execution
+direct_rerun_first_failed_step=none
+direct_rerun_skip_reason=none
+
+readback_command=bash scripts/probe_canary_live_state.sh staging --json
+readback_exit=1
+readback_ready=false
+schedule_state=pass | EventBridge rule fjcloud-staging-customer-loop-canary ENABLED
+invocations_24h=pass | Invocations sum 24h = 97.0 (canary firing)
+errors_24h=fail | Errors sum 24h = 1.0 (canary throwing)
+alarms=pass | all canary alarms OK
+last_invocation=fail | last completed invocation missing 'completed successfully' marker
+
+support_email_followup=not_run
+support_email_reason=probe alarms passed and no support-email canary failure was named
+
+source_diagnosis_latest_invocations=latest three completed Lambda streams logged quiet-window skip and no success marker
+source_diagnosis_errors_24h=customer-loop 24h log scan found one owner failure: step 'signup' failed: register returned HTTP 429 at 2026-07-08T19:06:23.644Z
+
+historical_comparison=not_cleared
+historical_errors_24h=docs/runbooks/evidence/support-inbox-canary-rollout/20260611T031829Z/probe_canary_live_state_staging.json recorded errors_24h fail with Errors sum 24h = 1.0
+current_delta=credentials are now valid, but customer-loop is still not green because errors_24h remains red and latest completed invocations are quiet-window skips without the success marker
+
+final_classification=customer_loop_canary_not_green
+next_owner=scripts/canary/customer_loop_synthetic.sh::main and signup flow owner for HTTP 429; scripts/probe_canary_live_state.sh remains the readback owner for quiet-window success-marker semantics

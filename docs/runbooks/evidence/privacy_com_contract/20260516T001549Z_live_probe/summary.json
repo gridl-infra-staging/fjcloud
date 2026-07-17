@@ -1,0 +1,11 @@
+{
+  "list_cards_auth_raw_status": "200",
+  "list_cards_auth_api_key_status": "200",
+  "list_cards_missing_auth_status": "403",
+  "create_card_status": "200",
+  "update_card_status": "200",
+  "get_card_after_close_status": "200",
+  "create_state": "OPEN",
+  "update_state": "CLOSED",
+  "get_after_close_state": "CLOSED"
+}

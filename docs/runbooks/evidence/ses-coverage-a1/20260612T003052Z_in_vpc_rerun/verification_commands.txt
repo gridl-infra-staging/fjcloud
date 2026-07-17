@@ -1,0 +1,221 @@
+# Stage 3 derivation transcript for docs/runbooks/evidence/ses-coverage-a1/20260612T003052Z_in_vpc_rerun
+# Secret values intentionally omitted. All final status reads are anchored to the checked-in bundle path.
+
+set -euo pipefail
+bundle="docs/runbooks/evidence/ses-coverage-a1/20260612T003052Z_in_vpc_rerun"
+reference="docs/runbooks/evidence/ses-coverage-a1/20260609T174733Z_in_vpc_rerun"
+
+# Intentional red check against the partially assembled Stage 2 bundle before Stage 3 normalization.
+python3 "$reference/stage4_integrity.py" "$bundle"
+# Observed: rc=1, stderr: ERROR: required file missing: run_manifest.txt
+
+cp "$reference/stage4_integrity.py" "$bundle/stage4_integrity.py"
+cmp "$reference/stage4_integrity.py" "$bundle/stage4_integrity.py"
+
+# Derive the six probe sidecars, probe_results.tsv, and all_green.txt from saved *.log/*.rc only.
+python3 - "$bundle" <<'PY'
+import csv
+import importlib.util
+import json
+import sys
+from pathlib import Path
+
+bundle = Path(sys.argv[1])
+spec = importlib.util.spec_from_file_location("stage4_integrity", bundle / "stage4_integrity.py")
+stage4 = importlib.util.module_from_spec(spec)
+assert spec.loader is not None
+spec.loader.exec_module(stage4)
+
+rows = []
+all_green = True
+for probe_id in stage4.EXPECTED:
+    log_path = bundle / f"{probe_id}.log"
+    rc_path = bundle / f"{probe_id}.rc"
+    rc = int(rc_path.read_text().strip())
+    detected_pass, evidence = stage4.detect_from_log(probe_id, log_path.read_text())
+    sidecar = {
+        "probe_id": probe_id,
+        "rc": rc,
+        "pass": detected_pass,
+        "detect_kind": stage4.DETECT_KIND[probe_id],
+        "log_path": str(log_path),
+        "parsed_evidence": evidence,
+    }
+    (bundle / f"{probe_id}.json").write_text(json.dumps(sidecar, indent=2, sort_keys=True) + "\n")
+    rows.append({
+        "probe_id": probe_id,
+        "rc": str(rc),
+        "pass": "1" if detected_pass else "0",
+        "log_path": str(log_path),
+    })
+    all_green = all_green and rc == 0 and detected_pass
+
+with (bundle / "probe_results.tsv").open("w", newline="") as handle:
+    writer = csv.DictWriter(handle, fieldnames=["probe_id", "rc", "pass", "log_path"], delimiter="\t")
+    writer.writeheader()
+    writer.writerows(rows)
+
+(bundle / "all_green.txt").write_text(("1" if all_green else "0") + "\n")
+PY
+
+# Add parser-required support/status files and demote Stage 2 scratch files to supporting evidence.
+# The support files were written from the checked-in bundle inputs only:
+#   staging_version_after.json
+#   probe_results.tsv
+#   six generated sidecars
+#   six saved logs
+#   stage4_integrity.py::detect_from_log()
+python3 - "$bundle" "$reference" <<'PY'
+import csv
+import importlib.util
+import json
+import sys
+from pathlib import Path
+
+bundle = Path(sys.argv[1])
+reference = Path(sys.argv[2])
+spec = importlib.util.spec_from_file_location("stage4_integrity", bundle / "stage4_integrity.py")
+stage4 = importlib.util.module_from_spec(spec)
+assert spec.loader is not None
+spec.loader.exec_module(stage4)
+
+with (bundle / "probe_results.tsv").open(newline="") as handle:
+    rows = list(csv.DictReader(handle, delimiter="\t"))
+sidecars = {row["probe_id"]: json.loads((bundle / f"{row['probe_id']}.json").read_text()) for row in rows}
+staging_version = json.loads((bundle / "staging_version_after.json").read_text())
+deployed_sha = staging_version.get("commit") or staging_version.get("dev_sha") or staging_version.get("sha") or "unknown"
+passing = [row["probe_id"] for row in rows if row["rc"] == "0" and row["pass"] == "1"]
+non_green = [row["probe_id"] for row in rows if not (row["rc"] == "0" and row["pass"] == "1")]
+
+(bundle / "run_manifest.txt").write_text(
+    "\n".join([
+        f"bundle={bundle}",
+        "run_utc=20260612T003052Z",
+        "billing_month=2026-06",
+        f"deployed_sha={deployed_sha}",
+        "parser_owner=stage4_integrity.py",
+        "status_owner=probe_results.tsv",
+        "sidecar_owner=stage4_integrity.py::detect_from_log",
+        "owner_path=scripts/probe_verify_email_clickthrough_e2e.sh::verify_email_poll_until_verified",
+        "owner_path=scripts/probe_password_reset_clickthrough_e2e.sh::reset_token_poll_until_cleared",
+        "owner_path=scripts/probe_dunning_email_inbox_e2e.sh::exit_with_validator_result",
+        "owner_path=scripts/lib/env.sh::load_layered_env_files",
+        "owner_path=scripts/validate_staging_dunning_delivery.sh::run_allowlisted_rehearsal_resets",
+        "",
+    ])
+)
+
+failures = {
+    "bundle": str(bundle),
+    "failures": [
+        {
+            "probe_id": "verify_email_clickthrough",
+            "classification": "verify_email_not_marked_verified",
+            "current_owner": "scripts/probe_verify_email_clickthrough_e2e.sh::verify_email_poll_until_verified",
+            "smallest_unblocking_owner": "scripts/probe_verify_email_clickthrough_e2e.sh::verify_email_poll_until_verified",
+            "blocker": "Saved log did not contain the email verified terminus line.",
+            "proxy_evidence": sidecars["verify_email_clickthrough"]["parsed_evidence"],
+            "conditional_disposition": "blocked_until_clickthrough_verification_converges",
+        },
+        {
+            "probe_id": "password_reset_clickthrough",
+            "classification": "password_reset_token_not_cleared",
+            "current_owner": "scripts/probe_password_reset_clickthrough_e2e.sh::reset_token_poll_until_cleared",
+            "smallest_unblocking_owner": "scripts/probe_password_reset_clickthrough_e2e.sh::reset_token_poll_until_cleared",
+            "blocker": "Saved log did not contain the password reset login terminus line.",
+            "proxy_evidence": sidecars["password_reset_clickthrough"]["parsed_evidence"],
+            "conditional_disposition": "blocked_until_reset_token_clearance_converges",
+        },
+        {
+            "probe_id": "dunning_email_inbox",
+            "classification": "dunning_owner_rehearsal_reset_failed",
+            "current_owner": "scripts/probe_dunning_email_inbox_e2e.sh::exit_with_validator_result",
+            "smallest_unblocking_owner": "scripts/probe_dunning_email_inbox_e2e.sh::exit_with_validator_result",
+            "blocker": "Saved log ended before dunning inbox terminus and final passed result.",
+            "proxy_evidence": sidecars["dunning_email_inbox"]["parsed_evidence"],
+            "conditional_disposition": "blocked_until_dunning_validator_reset_and_inbox_evidence_converge",
+        },
+        {
+            "probe_id": "staging_dunning_delivery",
+            "classification": "tenant_allowlist_shell_quoting_backslash_uuid",
+            "current_owner": "scripts/lib/env.sh::load_layered_env_files + scripts/validate_staging_dunning_delivery.sh::run_allowlisted_rehearsal_resets",
+            "smallest_unblocking_owner": "scripts/lib/env.sh::load_layered_env_files",
+            "blocker": "FJCLOUD_TEST_TENANT_IDS reached reset_customer_lookup with a trailing backslash, producing invalid UUID syntax.",
+            "proxy_evidence": sidecars["staging_dunning_delivery"]["parsed_evidence"],
+            "conditional_disposition": "blocked_until_materialized_tenant_allowlist_escapes_are_normalized",
+        },
+    ],
+}
+(bundle / "failure_classifications.json").write_text(json.dumps(failures, indent=2, sort_keys=True) + "\n")
+
+(bundle / "GAP_SPEC.md").write_text(
+    "# SES Coverage A1 Gap Spec\n\n"
+    f"Bundle: `{bundle}`\n\n"
+    "## Non-Green Probes\n\n"
+    "- `verify_email_clickthrough`: `verify_email_not_marked_verified`; owner `scripts/probe_verify_email_clickthrough_e2e.sh::verify_email_poll_until_verified`.\n"
+    "- `password_reset_clickthrough`: `password_reset_token_not_cleared`; owner `scripts/probe_password_reset_clickthrough_e2e.sh::reset_token_poll_until_cleared`.\n"
+    "- `dunning_email_inbox`: `dunning_owner_rehearsal_reset_failed`; owner `scripts/probe_dunning_email_inbox_e2e.sh::exit_with_validator_result`.\n"
+    "- `staging_dunning_delivery`: `tenant_allowlist_shell_quoting_backslash_uuid`; owner `scripts/lib/env.sh::load_layered_env_files + scripts/validate_staging_dunning_delivery.sh::run_allowlisted_rehearsal_resets`.\n\n"
+    "## Preserved Tenant Allowlist Bug\n\n"
+    "The staging dunning delivery failure is not a generic dunning failure. The preserved blocker is the `%q`/backslash `FJCLOUD_TEST_TENANT_IDS` env-materialization bug: the reset lookup saw a tenant UUID with a retained trailing backslash and Postgres rejected it as invalid UUID syntax.\n"
+)
+
+(bundle / "reference_bundle_comparison.md").write_text(
+    "# Reference Bundle Comparison\n\n"
+    f"- Current bundle: `{bundle}`.\n"
+    f"- Reference bundle: `{reference}`.\n"
+    "- Parser contract: current `stage4_integrity.py` is copied from the reference bundle and remains the single parser owner.\n"
+    f"- Current passing rows: `{passing}`.\n"
+    f"- Current non-green rows: `{non_green}`.\n"
+    "- Current non-green classifications: `{'verify_email_clickthrough': 'verify_email_not_marked_verified', 'password_reset_clickthrough': 'password_reset_token_not_cleared', 'dunning_email_inbox': 'dunning_owner_rehearsal_reset_failed', 'staging_dunning_delivery': 'tenant_allowlist_shell_quoting_backslash_uuid'}`.\n"
+    "- This current bundle supersedes older status prose for the rerun lane.\n"
+)
+
+(bundle / "SUMMARY.md").write_text(
+    "# SES Coverage A1 Stage 3 Evidence Summary\n\n"
+    f"Bundle path: `{bundle}`\n"
+    "Run UTC: `20260612T003052Z`\n"
+    "Billing month: `2026-06`\n"
+    f"Terminal deployed SHA: `{deployed_sha}`\n\n"
+    "## Canonical Status Files\n\n"
+    f"- Parser: `{bundle / 'stage4_integrity.py'}`.\n"
+    f"- Probe TSV: `{bundle / 'probe_results.tsv'}`.\n"
+    f"- Sidecars: `{bundle / 'verify_email_clickthrough.json'}`, `{bundle / 'password_reset_clickthrough.json'}`, `{bundle / 'dunning_email_inbox.json'}`, `{bundle / 'ses_bounce.json'}`, `{bundle / 'ses_complaint.json'}`, `{bundle / 'staging_dunning_delivery.json'}`.\n"
+    f"- Aggregate status: `{bundle / 'all_green.txt'}`.\n"
+    f"- Failure classification: `{bundle / 'failure_classifications.json'}` and `{bundle / 'GAP_SPEC.md'}`.\n"
+    f"- Reference comparison: `{bundle / 'reference_bundle_comparison.md'}`.\n"
+    f"- Final integrity output: `{bundle / 'integrity_check.log'}`.\n\n"
+    "## Probe Results\n\n"
+    "```tsv\n"
+    + (bundle / "probe_results.tsv").read_text()
+    + "```\n\n"
+    "## Disposition\n\n"
+    f"- `all_green.txt={(bundle / 'all_green.txt').read_text().strip()}`.\n"
+    f"- Parser-passing rows: `{passing}`.\n"
+    f"- Non-green classifications are in `{bundle / 'failure_classifications.json'}` and `{bundle / 'GAP_SPEC.md'}`.\n"
+    "- `ses_bounce` remains `rc=0` with sidecar `passed=true`.\n"
+    "- `ses_complaint` remains `rc=0` with sidecar `passed=true`.\n\n"
+    "## Supporting Stage 2 Scratch Evidence\n\n"
+    "- Raw Stage 2 status/scratch files retained as supporting evidence only: `probe_results.json`, `probe_run_order.txt`, `preflight_failures.txt`, `aws_identity.err`, `aws_identity.out`, `aws_identity.rc`, `aws_identity_secret_source.err`, `aws_identity_secret_source.out`, `aws_identity_secret_source.rc`, `aws_identity_secret_source_summary.txt`, `stage2_runtime.env`, `ssm_addressability_check.txt`, `instance_id.txt`, `aws_credential_probe.txt`, `host_env_materialize_secret_scan.txt`, `host_env_shape_after_cleanup_probe.log`, and `secret_leak_scan.txt`.\n"
+    "- Current status must not be derived from remote `/tmp/a1_vpc_rerun_20260612T003052Z`, S3, or the scratch `probe_results.json` after this Stage 3 landing.\n"
+)
+PY
+
+# Final Stage 3 integrity and post-landing assertions. These read only checked-in bundle paths.
+python3 "$bundle/stage4_integrity.py" "$bundle" | tee "$bundle/integrity_check.log"
+awk -F '\t' '$1=="ses_bounce" || $1=="ses_complaint" {print}' "$bundle/probe_results.tsv"
+test "$(cat "$bundle/ses_bounce.rc")" = "0"
+test "$(cat "$bundle/ses_complaint.rc")" = "0"
+python3 - "$bundle" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+bundle = Path(sys.argv[1])
+for name in ("ses_bounce", "ses_complaint"):
+    sidecar = json.loads((bundle / f"{name}.json").read_text())
+    if sidecar.get("pass") is not True:
+        raise SystemExit(f"{name} sidecar pass is not true")
+    if sidecar.get("parsed_evidence", {}).get("final_json", {}).get("passed") is not True:
+        raise SystemExit(f"{name} final_json.passed is not true")
+PY

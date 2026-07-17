@@ -1,0 +1,54 @@
+# Disposition Receipt: backup/stage1_parked_tip_before_rebase_20260527_011719
+
+Classification: approved local backup ref deletion
+Evidence source: current read-only git refs at bundle creation.
+
+## rev-parse
+$ git rev-parse backup/stage1_parked_tip_before_rebase_20260527_011719
+b2bf08c093ac3e62160e50166a5ea9f9fb1f1d2d
+
+## cherry
+$ git cherry -v main backup/stage1_parked_tip_before_rebase_20260527_011719 | tail -20
++ 3a3100e18247da2eb4d4f9bbddeaa367522a7cc6 fix(web): repair +page.svelte merge corruption in activateTab
+- 35f353ed921f97a06146cce0e6681bfc48a60f32 Stage 2: classify all 18 Settings parity rows with evidence-backed verdicts
+- c1ceb059355dcb85b5705bc3b7d4e0284384d742 matt: stage 2 completion
+- 73a884212cb78d2861c33842f3846eec9276d9d2 scrai: 14 files documented, 2 guidance files assembled, 3 state files tracked
++ ab12c89d4d5962ff785f694987063c993fcba8b8 matt: stage 3 build session 1
++ ba7c1f974c90a872136b7269465da0a142a15f13 fix settings stage3 auth setup restart guard and close reset findings
+- cfb6c22a2478067a34b8cf8a4c26690c795fb4dd matt: stage 3 build session 1
+- 4274a5c44a1057281e857c249d60d0022e8cb5a4 matt: stage 3 completion
+- 5921fbb88195cca7a76c9b0869e8a47acad76358 scrai: 15 files documented, 2 guidance files assembled, 3 state files tracked
+- 90c7fe35578335402f89eb37ce26ca7cbe81decf Audit migrate parity rows for stage 4
+- 72d2a57d69f5a13bde1ba3993ded405c3965ef11 matt: stage 4 completion
+- 7858def4cfe08c7e52264d781e81040e68505a70 scrai: 14 files documented, 2 guidance files assembled, 3 state files tracked
+- cd454137504546471a52bfe671dcd81774350e4f matt: stage 5 build session 1
+- 68e8292d187e18b175ed8ecd4a5971b3101d9e32 matt: review bugs stage 5
+- f083d163ccfce50a7daadfdb0721e71cb7ad793c matt: stage 5 completion
+- 9afddd0e4762e7d1d10712223108981a57bd9c5f scrai: 14 files documented, 2 guidance files assembled, 3 state files tracked
+- e1362d0510893e3cb827f728eb231f7138299237 matt: stage 6 build session 2
++ 4e04e4bf2d70479cc4394627816f796d4d455f90 stage6: update ssot docs and fix owner validation seams
+- cebc24c7ca80953f06be76be1d3b65cf06ee2a1c restore .env.local.example bootstrap template contract
++ b2bf08c093ac3e62160e50166a5ea9f9fb1f1d2d matt: terminal progress annotation
+
+## diff main...
+$ git diff main...backup/stage1_parked_tip_before_rebase_20260527_011719 --stat | tail -20
+ validation_cache.jsonl                             |  12 ++
+ web/DIRMAP.md                                      |   2 +-
+ web/src/DIRMAP.md                                  |   4 +-
+ web/src/lib/DIRMAP.md                              |   4 +-
+ web/src/lib/components/DIRMAP.md                   |   2 +-
+ web/src/routes/DIRMAP.md                           |   2 +-
+ web/src/routes/console/DIRMAP.md                   |   2 +-
+ web/src/routes/console/indexes/+page.server.ts     |   5 +-
+ web/src/routes/console/indexes/DIRMAP.md           |   4 +-
+ web/src/routes/console/indexes/[name]/+page.svelte |  37 +++--
+ web/src/routes/console/indexes/[name]/DIRMAP.md    |   2 +-
+ .../[name]/detail-search-preview.browser.test.ts   |  10 +-
+ .../console/indexes/[name]/detail.settings.test.ts |  28 ++++
+ .../console/indexes/[name]/tabs/SettingsTab.svelte |  30 +++-
+ web/src/tests/playwright-config-contract.test.ts   |  15 +-
+ web/src/tests/search-preview-helpers.test.ts       |   4 +-
+ web/tests/e2e-ui/full/index-detail.spec.ts         |  27 +++-
+ web/tests/e2e-ui/full/indexes.spec.ts              |   4 +-
+ web/tests/fixtures/search-preview-helpers.ts       |   2 +
+ 45 files changed, 591 insertions(+), 93 deletions(-)

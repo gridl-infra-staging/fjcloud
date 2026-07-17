@@ -1,0 +1,71 @@
+# module.dns.aws_lb_target_group.api:
+resource "aws_lb_target_group" "api" {
+    arn                                = "arn:aws:elasticloadbalancing:us-east-1:213880904778:targetgroup/fjcloud-staging-api-tg/a806a5dbe49fac17"
+    arn_suffix                         = "targetgroup/fjcloud-staging-api-tg/a806a5dbe49fac17"
+    deregistration_delay               = "30"
+    id                                 = "arn:aws:elasticloadbalancing:us-east-1:213880904778:targetgroup/fjcloud-staging-api-tg/a806a5dbe49fac17"
+    ip_address_type                    = "ipv4"
+    lambda_multi_value_headers_enabled = false
+    load_balancer_arns                 = [
+        "arn:aws:elasticloadbalancing:us-east-1:213880904778:loadbalancer/app/fjcloud-staging-alb/4c07fd1f59dff0a7",
+    ]
+    load_balancing_algorithm_type      = "round_robin"
+    load_balancing_anomaly_mitigation  = "off"
+    load_balancing_cross_zone_enabled  = "use_load_balancer_configuration"
+    name                               = "fjcloud-staging-api-tg"
+    name_prefix                        = [90mnull[0m[0m
+    port                               = 3001
+    protocol                           = "HTTP"
+    protocol_version                   = "HTTP1"
+    proxy_protocol_v2                  = false
+    region                             = "us-east-1"
+    slow_start                         = 0
+    tags                               = {
+        "Env"  = "staging"
+        "Name" = "fjcloud-staging-api-tg"
+    }
+    tags_all                           = {
+        "Env"        = "staging"
+        "Name"       = "fjcloud-staging-api-tg"
+        "env"        = "staging"
+        "managed-by" = "terraform"
+        "service"    = "fjcloud"
+    }
+    target_control_port                = 0
+    target_type                        = "instance"
+    vpc_id                             = "vpc-0748bcfc19bd0e1ab"
+
+    health_check {
+        enabled             = true
+        healthy_threshold   = 3
+        interval            = 30
+        matcher             = "200"
+        path                = "/health"
+        port                = "traffic-port"
+        protocol            = "HTTP"
+        timeout             = 5
+        unhealthy_threshold = 3
+    }
+
+    stickiness {
+        cookie_duration = 86400
+        cookie_name     = [90mnull[0m[0m
+        enabled         = false
+        type            = "lb_cookie"
+    }
+
+    target_failover {}
+
+    target_group_health {
+        dns_failover {
+            minimum_healthy_targets_count      = "1"
+            minimum_healthy_targets_percentage = "off"
+        }
+        unhealthy_state_routing {
+            minimum_healthy_targets_count      = 1
+            minimum_healthy_targets_percentage = "off"
+        }
+    }
+
+    target_health_state {}
+}

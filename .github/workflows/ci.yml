@@ -1,0 +1,724 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+
+jobs:
+  rust-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: fjcloud_test
+          POSTGRES_USER: fjcloud
+          POSTGRES_PASSWORD: password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U fjcloud -d fjcloud_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      CARGO_INCREMENTAL: "0"
+      DATABASE_URL: postgres://fjcloud:password@127.0.0.1:5432/fjcloud_test
+      # Disable debug info for test binaries — each binary with AWS SDK deps
+      # is 500 MB+ with debug info, which exhausts the runner's disk when
+      # linking all workspace test binaries sequentially.  Without debug info
+      # each binary shrinks to ~50 MB.
+      CARGO_PROFILE_TEST_DEBUG: "0"
+    steps:
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/share/boost
+          sudo apt-get clean
+          df -h /
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Seed reliability profile artifacts
+        run: bash scripts/reliability/seed-test-profiles.sh
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # stable
+      - name: Set up rust cache
+        uses: Swatinem/rust-cache@ad397744b0d591a723ab90405b7247fac0e6b8db # v2
+        with:
+          workspaces: infra
+      - name: Set up swap space
+        run: |
+          if [ -f /swapfile ]; then
+            sudo swapoff /swapfile 2>/dev/null || true
+            sudo rm -f /swapfile
+          fi
+          sudo fallocate -l 8G /swapfile
+          sudo chmod 600 /swapfile
+          sudo mkswap /swapfile
+          sudo swapon /swapfile
+      - name: Run rust tests
+        working-directory: infra
+        run: cargo test --workspace
+      # Tenant isolation proptest runs in nightly.yml's
+      # `tenant-isolation-proptest` job. Moved out of the per-push deploy
+      # gate 2026-05-02 because it is a defensive regression check (not a
+      # gate on functional correctness) and was costing ~3-5 min per push.
+      # Failure surfaces nightly with workflow_dispatch available for
+      # operator-driven reruns.
+
+  rust-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Run CI workflow contract tests
+        run: bash scripts/tests/ci_workflow_test.sh
+      - name: Run web-deploy contract test
+        run: bash scripts/tests/ci_deploy_web_contract_test.sh
+      - name: Run integration-test layout contract
+        run: bash scripts/tests/integration_test_layout_test.sh
+      - name: Run SSM env projection contract test
+        run: bash scripts/tests/generate_ssm_env_test.sh
+      - name: Run SES support email unit seams
+        run: |
+          bash scripts/tests/validate_inbound_email_roundtrip_test.sh
+          bash scripts/tests/support_email_deliverability_test.sh
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # stable
+      - name: Set up rust cache
+        uses: Swatinem/rust-cache@ad397744b0d591a723ab90405b7247fac0e6b8db # v2
+        with:
+          workspaces: infra
+      - name: Run local-ci rust-lint regression test
+        # This shells back into scripts/local-ci.sh with an intentional
+        # rustfmt violation to prove the gate returns FAIL on a real error
+        # rather than printing an error and exiting 0 under bash semantics.
+        run: bash scripts/tests/local_ci_gate_set_e_test.sh
+      - name: Check formatting
+        working-directory: infra
+        run: cargo fmt --check
+      - name: Run clippy
+        working-directory: infra
+        run: cargo clippy --workspace -- -D warnings
+
+  migration-test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: fjcloud_test
+          POSTGRES_USER: fjcloud
+          POSTGRES_PASSWORD: password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U fjcloud -d fjcloud_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # stable
+      - name: Install sqlx-cli
+        run: cargo install sqlx-cli --version 0.8.6 --no-default-features --features postgres
+      - name: Run migration test
+        env:
+          DATABASE_URL: postgres://fjcloud:password@127.0.0.1:5432/fjcloud_test
+        run: sqlx migrate run --source infra/migrations --database-url "$DATABASE_URL"
+
+  web-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Set up Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 22
+      - name: Run web tests
+        working-directory: web
+        run: |
+          npm ci
+          npm test
+
+  check-sizes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Check source file size limits
+        run: bash scripts/check-sizes.sh
+
+  shell-hygiene:
+    # Anchored 2026-05-31: scripts/api-dev.sh shipped at git mode 100644
+    # for weeks because no test asserted exec-bit hygiene; local_demo.sh
+    # only failed at runtime in users' laptops. seed_local.sh's verify
+    # path also broke with a SIGPIPE-class regression invisible to the
+    # mocked unit tests. This job runs the shell-level regression tests
+    # that surface those classes (exec bits, port-collision diagnostics,
+    # compose-project worktree isolation) so they're caught at PR time.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Run script exec-bit regression test
+        run: bash scripts/tests/script_exec_bits_test.sh
+      - name: Run port-collision diagnostic regression test
+        run: bash scripts/tests/port_collision_diagnose_test.sh
+      - name: Run compose-project resolver regression test
+        run: bash scripts/tests/compose_project_test.sh
+      - name: Run source-pollution contract test
+        run: bash scripts/tests/source_pollution_contract_test.sh
+      - name: Run mirror-sync wrapper contract test
+        run: bash scripts/tests/git_push_with_sync_test.sh
+      - name: Run prod-promotion gate contract test
+        run: bash scripts/tests/post_wave_a_sync_prod_test.sh
+      - name: Run roadmap v2 shape contract
+        run: bash scripts/check_roadmap_v2_shape.sh
+      - name: Run local-dev contract regression test
+        run: bash scripts/tests/local_dev_runbook_currency_test.sh
+      - name: Run clean-orphans regression test
+        run: bash scripts/tests/clean_orphans_test.sh
+      - name: Run local stack compatibility contract tests
+        run: |
+          bash scripts/tests/local_stack_contract_test.sh
+          bash scripts/tests/e2e_preflight_test.sh
+
+  local-dev-up-smoke:
+    # Stage 1 demo gate owner: scripts/local_demo.sh. This job validates the
+    # real full demo path (infra + api + web + seed + auth/index checks) on
+    # every push. The flapjack binary is downloaded from the public
+    # `flapjackhq/flapjack` release page (pinned version below; bump
+    # intentionally when fjcloud needs a newer flapjack).
+    runs-on: ubuntu-latest
+    env:
+      FLAPJACK_DEV_DIR: ${{ github.workspace }}/.flapjack
+      DEFAULT_LOCAL_FLAPJACK_ADMIN_KEY: fj_local_dev_admin_key_000000000000
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Download flapjack release binary
+        run: |
+          set -euo pipefail
+          source scripts/lib/flapjack_binary.sh
+          FLAPJACK_VERSION="v${FJCLOUD_FLAPJACK_VERSION}"
+          FLAPJACK_ASSET="flapjack-x86_64-unknown-linux-musl.tar.gz"
+          base="https://github.com/flapjackhq/flapjack/releases/download/${FLAPJACK_VERSION}"
+          workdir="$(mktemp -d)"
+          trap 'rm -rf "$workdir"' EXIT
+          curl -fsSL --retry 5 --retry-delay 2 \
+              "${base}/${FLAPJACK_ASSET}" -o "$workdir/${FLAPJACK_ASSET}"
+          curl -fsSL --retry 5 --retry-delay 2 \
+              "${base}/${FLAPJACK_ASSET}.sha256" -o "$workdir/${FLAPJACK_ASSET}.sha256"
+          (cd "$workdir" && sha256sum -c "${FLAPJACK_ASSET}.sha256")
+          mkdir -p .flapjack/target/release
+          tar -xzf "$workdir/${FLAPJACK_ASSET}" -C .flapjack/target/release
+          chmod +x .flapjack/target/release/flapjack
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # stable
+      - name: Set up rust cache
+        uses: Swatinem/rust-cache@ad397744b0d591a723ab90405b7247fac0e6b8db # v2
+        with:
+          workspaces: infra
+      - name: Pre-build api + metering-agent
+        # scripts/api-dev.sh ends with `cargo run -p api` and
+        # scripts/start-metering.sh with `cargo run -p metering-agent`.
+        # Pre-building so `cargo run` is instant — otherwise the api
+        # cold-build blows past local_demo.sh's 90s health timeout.
+        working-directory: infra
+        run: cargo build -p api -p metering-agent
+      - name: Bootstrap .env.local from example
+        run: bash scripts/bootstrap-env-local.sh
+      - name: Set up Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 22
+      - name: Install web dependencies
+        run: cd web && npm ci
+      - name: Run full local demo stack
+        run: bash scripts/local_demo.sh
+      - name: Probe API health endpoint
+        run: curl -fsS "http://127.0.0.1:3001/health" >/dev/null
+      - name: Probe web root endpoint
+        run: curl -fsS "http://127.0.0.1:5173/" >/dev/null
+      - name: Probe seeded authenticated indexes endpoint
+        run: |
+          set -euo pipefail
+          login_body="$(curl -fsS -X POST "http://127.0.0.1:3001/auth/login" -H "Content-Type: application/json" -d '{"email":"dev@example.com","password":"localdev-password-1234"}')"
+          user_token="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["token"])' <<<"$login_body")"
+          indexes_body="$(curl -fsS -H "Authorization: Bearer ${user_token}" "http://127.0.0.1:3001/indexes")"
+          python3 -c 'import json,sys; payload=json.load(sys.stdin); rows=payload if isinstance(payload,list) else payload.get("items", []); names={row.get("name") for row in rows if isinstance(row,dict)}; assert "test-index" in names, f"expected test-index in seeded indexes, got: {sorted(names)}"' <<<"$indexes_body"
+      - name: Tear down
+        if: always()
+        run: |
+          source scripts/lib/compose_project.sh
+          export COMPOSE_PROJECT_NAME="$(resolve_compose_project_name "$PWD")"
+          bash scripts/local-dev-down.sh --clean
+
+  web-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Set up Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 22
+      - name: Install dependencies
+        working-directory: web
+        run: npm ci
+      - name: Run svelte-check
+        working-directory: web
+        run: npm run check
+      - name: Run eslint
+        working-directory: web
+        run: npx eslint .
+      - name: Run browser-unmocked lint
+        working-directory: web
+        run: npm run lint:e2e
+      - name: Run screen spec coverage contract
+        run: bash scripts/tests/screen_specs_coverage_test.sh
+      - name: Run SES IAM/configset coupling contract
+        # Static cross-file regression guard: if email.rs attaches a SES
+        # configuration_set on SendEmail calls, the instance role's IAM
+        # policy MUST grant ses:SendEmail on the matching configuration-set
+        # ARN. Bug class caught: 2026-04-30 silent denial of all staging
+        # SES sends for ~36 hours after Apr 29 d8c81ce7 added the configset
+        # attach without updating IAM. Failing this step blocks the deploy
+        # gate so the same regression cannot reach production silently.
+        run: bash scripts/tests/ses_iam_configset_coupling_test.sh
+
+  secret-scan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+      - name: Run gitleaks (PR diff)
+        if: github.event_name == 'pull_request'
+        uses: gitleaks/gitleaks-action@dcedce43c6f43de0b836d1fe38946645c9c638dc # v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+      - name: Install gitleaks CLI (main full history)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          GITLEAKS_VERSION=8.24.3
+          GITLEAKS_BASE_URL="https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}"
+          GITLEAKS_ARCHIVE="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          GITLEAKS_CHECKSUMS="gitleaks_${GITLEAKS_VERSION}_checksums.txt"
+          curl -fsSLO "${GITLEAKS_BASE_URL}/${GITLEAKS_ARCHIVE}"
+          curl -fsSLO "${GITLEAKS_BASE_URL}/${GITLEAKS_CHECKSUMS}"
+          EXPECTED_SHA="$(awk -v artifact="$GITLEAKS_ARCHIVE" '$2 == artifact { print $1 }' "$GITLEAKS_CHECKSUMS")"
+          if [[ -z "$EXPECTED_SHA" ]]; then
+            echo "ERROR: missing checksum for ${GITLEAKS_ARCHIVE} in ${GITLEAKS_CHECKSUMS}" >&2
+            exit 1
+          fi
+          printf '%s  %s\n' "$EXPECTED_SHA" "$GITLEAKS_ARCHIVE" | sha256sum -c -
+          tar -xzf "$GITLEAKS_ARCHIVE" gitleaks
+          sudo install -m 0755 gitleaks /usr/local/bin/gitleaks
+          rm -f "$GITLEAKS_ARCHIVE" "$GITLEAKS_CHECKSUMS" gitleaks
+      - name: Run gitleaks (main full history)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: gitleaks detect --redact -v --exit-code=2
+
+  deploy-staging:
+    concurrency:
+      group: deploy-staging-${{ github.ref }}
+      cancel-in-progress: false
+    # MAINTENANCE: scripts/local-ci.sh mirrors this `needs[]` list so devs can
+    # reproduce the deploy-{staging,prod} gate locally in ~20s instead of waiting
+    # ~15 min for the staging CI cycle. When you ADD, REMOVE, or CHANGE any
+    # job in this list, also update scripts/local-ci.sh to keep the local
+    # mirror in sync. See docs/runbooks/local-ci.md for the contract.
+    needs:
+      [
+        rust-test,
+        rust-lint,
+        migration-test,
+        web-test,
+        check-sizes,
+        shell-hygiene,
+        local-dev-up-smoke,
+        web-lint,
+        secret-scan,
+      ]
+    if: github.repository == 'gridl-infra-staging/fjcloud' && github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-24.04-arm
+    # Bound the job so a hung docker build or a wedged `wrangler pages deploy`
+    # cannot burn the six-hour (360 min) GitHub Actions default. Observed
+    # healthy runtime is ~19 min (3 recent staging runs, 2026-07-09); 45 min
+    # matches the sibling `e2e-deployed` bound and leaves ~2.4x headroom.
+    # Guarded by scripts/tests/ci_deploy_web_contract_test.sh.
+    timeout-minutes: 45
+    permissions:
+      id-token: write
+      contents: read
+    env:
+      AWS_REGION: us-east-1
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@ff717079ee2060e4bcee96c4779b553acc87447c # v4
+        with:
+          role-to-assume: ${{ secrets.DEPLOY_IAM_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Inject build-time provenance from debbie sync manifest
+        run: |
+          # `.debbie/sync_manifest.json` is written by `debbie sync` into the
+          # mirror tree (see debbie/src/debbie/sync.py::write_sync_manifest).
+          # It maps mirror_sha -> dev_sha so /version can report what dev-repo
+          # commit produced this binary. If the manifest is absent (first
+          # deploy after this change lands, or any non-synced commit), fall
+          # back to GITHUB_SHA for mirror_sha and "local-dev" for the rest —
+          # the next sync will produce a complete manifest and a real /version.
+          MANIFEST=".debbie/sync_manifest.json"
+          if [[ -f "$MANIFEST" ]]; then
+            DEV_SHA=$(jq -r '.dev_sha' "$MANIFEST")
+            SYNCED_AT=$(jq -r '.synced_at' "$MANIFEST")
+          else
+            DEV_SHA="local-dev"
+            SYNCED_AT="local-dev"
+          fi
+          BUILD_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          # Forward to subsequent steps via GITHUB_ENV (the docker run step
+          # passes these into the build container as -e flags).
+          echo "FJCLOUD_DEV_SHA=${DEV_SHA}" >> "$GITHUB_ENV"
+          echo "FJCLOUD_MIRROR_SHA=${GITHUB_SHA}" >> "$GITHUB_ENV"
+          echo "FJCLOUD_SYNCED_AT=${SYNCED_AT}" >> "$GITHUB_ENV"
+          echo "FJCLOUD_BUILD_TIME=${BUILD_TIME}" >> "$GITHUB_ENV"
+          echo "Build provenance: dev_sha=${DEV_SHA} mirror_sha=${GITHUB_SHA} synced_at=${SYNCED_AT} build_time=${BUILD_TIME}"
+      - name: Build release binaries in Amazon Linux 2023
+        run: |
+          # Staging instances run Amazon Linux 2023 (glibc 2.34). Build in the
+          # same userland so uploaded ARM binaries do not pick up newer Ubuntu
+          # glibc symbols like GLIBC_2.38 and fail at runtime on the fleet.
+          docker run --rm \
+            --platform linux/arm64 \
+            -v "${GITHUB_WORKSPACE}:/work" \
+            -w /work/infra \
+            -e FJCLOUD_DEV_SHA="${FJCLOUD_DEV_SHA}" \
+            -e FJCLOUD_MIRROR_SHA="${FJCLOUD_MIRROR_SHA}" \
+            -e FJCLOUD_SYNCED_AT="${FJCLOUD_SYNCED_AT}" \
+            -e FJCLOUD_BUILD_TIME="${FJCLOUD_BUILD_TIME}" \
+            public.ecr.aws/amazonlinux/amazonlinux:2023 \
+            bash -lc '
+              set -euo pipefail
+              # Use distro-signed Rust toolchain packages; avoid curl-pipe-shell installers.
+              dnf install -y gcc gcc-c++ git openssl-devel pkgconfig perl-FindBin tar gzip rust cargo
+              cargo build --release -p api -p aggregation-job -p retention-job -p metering-agent
+              mv target/release/fjcloud-api fjcloud-api
+              mv target/release/fj-metering-agent fj-metering-agent
+              mv target/release/fjcloud-aggregation-job fjcloud-aggregation-job
+              mv target/release/fjcloud-retention-job fjcloud-retention-job
+            '
+      - name: Upload release artifacts
+        run: |
+          ARTIFACT_PREFIX="staging/${GITHUB_SHA}/"
+          # JMESPath: default Contents to [] when the response has no objects.
+          # Without `|| `[]``, length(null) errors and aborts the step under `set -e`.
+          EXISTING_OBJECT_COUNT="$(aws s3api list-objects-v2 --bucket fjcloud-releases-staging --prefix "${ARTIFACT_PREFIX}" --max-items 1 --query 'length(Contents || `[]`)' --output text)"
+          if [[ "$EXISTING_OBJECT_COUNT" != "0" ]]; then
+            echo "ERROR: release artifacts already exist for ${GITHUB_SHA} (${EXISTING_OBJECT_COUNT} objects at ${ARTIFACT_PREFIX})"
+            exit 1
+          fi
+          source ops/scripts/lib/rollback_compatibility.sh
+          rollback_write_release_manifest \
+            infra/rollback_contract.json \
+            "${FJCLOUD_DEV_SHA}" \
+            "${GITHUB_SHA}" \
+            infra
+          aws s3 cp infra/fjcloud-api s3://fjcloud-releases-staging/staging/${GITHUB_SHA}/fjcloud-api
+          aws s3 cp infra/fj-metering-agent s3://fjcloud-releases-staging/staging/${GITHUB_SHA}/fj-metering-agent
+          aws s3 cp infra/fjcloud-aggregation-job s3://fjcloud-releases-staging/staging/${GITHUB_SHA}/fjcloud-aggregation-job
+          aws s3 cp infra/fjcloud-retention-job s3://fjcloud-releases-staging/staging/${GITHUB_SHA}/fjcloud-retention-job
+          aws s3 sync infra/migrations s3://fjcloud-releases-staging/staging/${GITHUB_SHA}/migrations
+          aws s3 cp ops/scripts/migrate.sh s3://fjcloud-releases-staging/staging/${GITHUB_SHA}/scripts/migrate.sh
+          aws s3 cp ops/scripts/lib/generate_ssm_env.sh s3://fjcloud-releases-staging/staging/${GITHUB_SHA}/scripts/generate_ssm_env.sh
+          aws s3 cp ops/scripts/lib/rollback_compatibility.sh s3://fjcloud-releases-staging/staging/${GITHUB_SHA}/scripts/lib/rollback_compatibility.sh
+          aws s3 cp ops/systemd/fj-metering-agent.service s3://fjcloud-releases-staging/staging/${GITHUB_SHA}/systemd/fj-metering-agent.service
+          aws s3 cp infra/rollback_contract.json s3://fjcloud-releases-staging/staging/${GITHUB_SHA}/rollback_contract.json
+      - name: Trigger API deploy
+        run: bash ops/scripts/deploy.sh staging "${GITHUB_SHA}"
+      # --- Web plane (Cloudflare Pages) deploy -------------------------------
+      # The `flapjack-cloud` Pages project has NO git integration
+      # (`source: null` in the Pages API), so a web deploy only happens when
+      # something runs `wrangler pages deploy`. Nothing did automatically, so
+      # the web app served at cloud.{staging.,}flapjack.foo went stale for a
+      # month (2026-06-05 → 07-07) while every pipeline signal stayed green.
+      # These two steps make the web plane deploy on every staging-mirror CI
+      # pass, so web staleness becomes structurally impossible.
+      #
+      # SINGLE DEPLOYER, TWO BRANCH DEPLOYS — do NOT copy this to deploy-prod or
+      # add a second deployer. One deployer runs BOTH branch deploys from one
+      # build: --branch=main publishes the Pages production alias serving
+      # cloud.flapjack.foo, and --branch=staging publishes the `staging` BRANCH
+      # alias (staging.flapjack-cloud.pages.dev) that cloud.staging.flapjack.foo
+      # is a CNAME to. Staging and prod mirrors carry byte-identical synced
+      # content, so this one deployer suffices for both customer domains; a
+      # second deployer (e.g. on deploy-prod) would race this one for the same
+      # two branch aliases. The staging mirror owns this.
+      #
+      # Placed AFTER `Trigger API deploy` so the web bundle never ships ahead
+      # of the API it talks to. deploy-staging has no Node setup of its own
+      # (the Rust build runs inside an Amazon Linux docker container), and
+      # wrangler is not a repo dependency, so we set up Node here and fetch
+      # wrangler via `npx --yes wrangler@4`.
+      - name: Set up Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 22
+      - name: Deploy web to Cloudflare Pages
+        # CREDENTIAL MODEL: least-privilege, Pages-scoped API token
+        # (Account → Cloudflare Pages → Edit) provided as CLOUDFLARE_API_TOKEN
+        # + CLOUDFLARE_ACCOUNT_ID — the Cloudflare-documented auth for
+        # `wrangler pages deploy`. NOT the legacy global API key. (The separate
+        # e2e-deployed parity poll still uses the global key pending a future
+        # consolidation of the two Cloudflare auth surfaces.)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          # svelte.config.js stamps _app/version.json from CF_PAGES_COMMIT_SHA.
+          # Cloudflare only sets that on git-integrated Pages builds; this
+          # project builds on the runner and deploys via wrangler, so without
+          # this wiring the version falls back to Date.now() and the
+          # e2e-deployed parity poll can never match the mirror commit SHA.
+          CF_PAGES_COMMIT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          cd web
+          # Build the served bundle. NOT retried: a build failure is
+          # deterministic and must fail fast rather than burn three attempts.
+          npm ci
+          npm run build
+          # Retry the DEPLOY only. The Pages API intermittently returns a
+          # transient "Unknown internal error" (observed 2026-07-07, succeeded
+          # on retry); the build above is deterministic and stays outside the
+          # loop. Run from web/ so web/wrangler.toml supplies
+          # [env.production.vars]. --branch=main publishes the Pages production
+          # alias that serves cloud.flapjack.foo; the --branch=staging deploy
+          # below refreshes the staging branch alias. --commit-hash stamps the
+          # served bundle so served-commit == mirror-CI-commit is provable.
+          for attempt in 1 2 3; do
+            if npx --yes wrangler@4 pages deploy .svelte-kit/cloudflare \
+              --project-name=flapjack-cloud --branch=main \
+              --commit-hash="$GITHUB_SHA"; then
+              echo "wrangler pages deploy succeeded on attempt ${attempt}"
+              break
+            fi
+            if [[ "$attempt" -eq 3 ]]; then
+              echo "ERROR: wrangler pages deploy failed after 3 attempts" >&2
+              exit 1
+            fi
+            echo "wrangler pages deploy attempt ${attempt} failed; retrying in 20s" >&2
+            sleep 20
+          done
+          # SECOND branch deploy, same built bundle: --branch=staging publishes
+          # the Pages `staging` branch alias (staging.flapjack-cloud.pages.dev),
+          # which cloud.staging.flapjack.foo is a CNAME to. That alias ONLY
+          # refreshes on a --branch=staging deploy, so without this the staging
+          # customer domain goes stale even though --branch=main succeeded.
+          # Own retry loop AFTER the prod deploy so a transient staging-branch
+          # hiccup can never regress the already-live --branch=main deploy.
+          for attempt in 1 2 3; do
+            if npx --yes wrangler@4 pages deploy .svelte-kit/cloudflare \
+              --project-name=flapjack-cloud --branch=staging \
+              --commit-hash="$GITHUB_SHA"; then
+              echo "wrangler pages deploy (staging branch) succeeded on attempt ${attempt}"
+              break
+            fi
+            if [[ "$attempt" -eq 3 ]]; then
+              echo "ERROR: wrangler pages deploy (staging branch) failed after 3 attempts" >&2
+              exit 1
+            fi
+            echo "wrangler pages deploy (staging branch) attempt ${attempt} failed; retrying in 20s" >&2
+            sleep 20
+          done
+
+  e2e-deployed:
+    concurrency:
+      group: e2e-deployed-${{ github.ref }}
+      cancel-in-progress: false
+    needs: deploy-staging
+    if: github.repository == 'gridl-infra-staging/fjcloud' && github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      id-token: write
+      contents: read
+    env:
+      AWS_REGION: us-east-1
+      STRIPE_LOCAL_MODE: "1"
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Set up Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 22
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@ff717079ee2060e4bcee96c4779b553acc87447c # v4
+        with:
+          role-to-assume: ${{ secrets.DEPLOY_IAM_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Install dependencies
+        run: cd web && npm ci
+      - name: Install Playwright browsers
+        run: cd web && npx playwright install --with-deps chromium
+      - name: Wait for staging Pages deploy parity
+        id: pages_parity
+        # Served content is authoritative for the browser lane: Cloudflare
+        # metadata can point at the intended deployment while the customer
+        # alias still serves stale bytes. The owner script polls
+        # _app/version.json at the staging Pages URL and fails non-zero on
+        # stale content so browser evidence is never trusted for the wrong
+        # bundle.
+        env:
+          TARGET_SHA: ${{ github.sha }}
+        run: bash scripts/launch/wait_for_pages_parity.sh
+      - name: Run deployed staging browser lane wrapper
+        timeout-minutes: 35
+        run: bash scripts/launch/produce_launch_verification_bundle.sh
+      - name: Upload launch verification artifacts
+        if: always()
+        uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4
+        with:
+          name: launch-verification-bundle
+          path: docs/runbooks/evidence/launch-verification/*_GREEN
+          if-no-files-found: warn
+      - name: Page e2e-deployed failure
+        if: failure()
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          set -euo pipefail
+          source scripts/lib/alert_dispatch.sh
+
+          run_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          title="e2e-deployed failed"
+          message="The deployed staging browser verification job failed. Run: ${run_url}"
+
+          if [[ -z "$DISCORD_WEBHOOK_URL" ]]; then
+            echo "ALERT DELIVERY UNCONFIGURED: e2e-deployed: ${title}" >&2
+            exit 1
+          fi
+
+          send_critical_alert \
+            "discord" \
+            "$DISCORD_WEBHOOK_URL" \
+            "$title" \
+            "$message" \
+            "ci/e2e-deployed" \
+            "e2e-deployed-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+            "staging"
+
+  deploy-prod:
+    concurrency:
+      group: deploy-prod-${{ github.ref }}
+      cancel-in-progress: false
+    # MAINTENANCE: scripts/local-ci.sh mirrors this `needs[]` list so devs can
+    # reproduce the deploy-{staging,prod} gate locally in ~20s instead of waiting
+    # ~15 min for the staging CI cycle. When you ADD, REMOVE, or CHANGE any
+    # job in this list, also update scripts/local-ci.sh to keep the local
+    # mirror in sync. See docs/runbooks/local-ci.md for the contract.
+    needs:
+      [
+        rust-test,
+        rust-lint,
+        migration-test,
+        web-test,
+        check-sizes,
+        shell-hygiene,
+        local-dev-up-smoke,
+        web-lint,
+        secret-scan,
+      ]
+    if: github.repository == 'gridl-infra-prod/fjcloud' && github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      id-token: write
+      contents: read
+    env:
+      AWS_REGION: us-east-1
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@ff717079ee2060e4bcee96c4779b553acc87447c # v4
+        with:
+          role-to-assume: ${{ secrets.DEPLOY_IAM_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Inject build-time provenance from debbie sync manifest
+        run: |
+          # `.debbie/sync_manifest.json` is written by `debbie sync` into the
+          # mirror tree (see debbie/src/debbie/sync.py::write_sync_manifest).
+          # It maps mirror_sha -> dev_sha so /version can report what dev-repo
+          # commit produced this binary. If the manifest is absent (first
+          # deploy after this change lands, or any non-synced commit), fall
+          # back to GITHUB_SHA for mirror_sha and "local-dev" for the rest —
+          # the next sync will produce a complete manifest and a real /version.
+          MANIFEST=".debbie/sync_manifest.json"
+          if [[ -f "$MANIFEST" ]]; then
+            DEV_SHA=$(jq -r '.dev_sha' "$MANIFEST")
+            SYNCED_AT=$(jq -r '.synced_at' "$MANIFEST")
+          else
+            DEV_SHA="local-dev"
+            SYNCED_AT="local-dev"
+          fi
+          BUILD_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          # Forward to subsequent steps via GITHUB_ENV (the docker run step
+          # passes these into the build container as -e flags).
+          echo "FJCLOUD_DEV_SHA=${DEV_SHA}" >> "$GITHUB_ENV"
+          echo "FJCLOUD_MIRROR_SHA=${GITHUB_SHA}" >> "$GITHUB_ENV"
+          echo "FJCLOUD_SYNCED_AT=${SYNCED_AT}" >> "$GITHUB_ENV"
+          echo "FJCLOUD_BUILD_TIME=${BUILD_TIME}" >> "$GITHUB_ENV"
+          echo "Build provenance: dev_sha=${DEV_SHA} mirror_sha=${GITHUB_SHA} synced_at=${SYNCED_AT} build_time=${BUILD_TIME}"
+      - name: Build release binaries in Amazon Linux 2023
+        run: |
+          # Staging instances run Amazon Linux 2023 (glibc 2.34). Build in the
+          # same userland so uploaded ARM binaries do not pick up newer Ubuntu
+          # glibc symbols like GLIBC_2.38 and fail at runtime on the fleet.
+          docker run --rm \
+            --platform linux/arm64 \
+            -v "${GITHUB_WORKSPACE}:/work" \
+            -w /work/infra \
+            -e FJCLOUD_DEV_SHA="${FJCLOUD_DEV_SHA}" \
+            -e FJCLOUD_MIRROR_SHA="${FJCLOUD_MIRROR_SHA}" \
+            -e FJCLOUD_SYNCED_AT="${FJCLOUD_SYNCED_AT}" \
+            -e FJCLOUD_BUILD_TIME="${FJCLOUD_BUILD_TIME}" \
+            public.ecr.aws/amazonlinux/amazonlinux:2023 \
+            bash -lc '
+              set -euo pipefail
+              # Use distro-signed Rust toolchain packages; avoid curl-pipe-shell installers.
+              dnf install -y gcc gcc-c++ git openssl-devel pkgconfig perl-FindBin tar gzip rust cargo
+              cargo build --release -p api -p aggregation-job -p retention-job -p metering-agent
+              mv target/release/fjcloud-api fjcloud-api
+              mv target/release/fj-metering-agent fj-metering-agent
+              mv target/release/fjcloud-aggregation-job fjcloud-aggregation-job
+              mv target/release/fjcloud-retention-job fjcloud-retention-job
+            '
+      - name: Upload release artifacts
+        run: |
+          ARTIFACT_PREFIX="prod/${GITHUB_SHA}/"
+          # JMESPath: default Contents to [] when the response has no objects.
+          # Without `|| `[]``, length(null) errors and aborts the step under `set -e`.
+          EXISTING_OBJECT_COUNT="$(aws s3api list-objects-v2 --bucket fjcloud-releases-prod --prefix "${ARTIFACT_PREFIX}" --max-items 1 --query 'length(Contents || `[]`)' --output text)"
+          if [[ "$EXISTING_OBJECT_COUNT" != "0" ]]; then
+            echo "ERROR: release artifacts already exist for ${GITHUB_SHA} (${EXISTING_OBJECT_COUNT} objects at ${ARTIFACT_PREFIX})"
+            exit 1
+          fi
+          source ops/scripts/lib/rollback_compatibility.sh
+          rollback_write_release_manifest \
+            infra/rollback_contract.json \
+            "${FJCLOUD_DEV_SHA}" \
+            "${GITHUB_SHA}" \
+            infra
+          aws s3 cp infra/fjcloud-api s3://fjcloud-releases-prod/prod/${GITHUB_SHA}/fjcloud-api
+          aws s3 cp infra/fj-metering-agent s3://fjcloud-releases-prod/prod/${GITHUB_SHA}/fj-metering-agent
+          aws s3 cp infra/fjcloud-aggregation-job s3://fjcloud-releases-prod/prod/${GITHUB_SHA}/fjcloud-aggregation-job
+          aws s3 cp infra/fjcloud-retention-job s3://fjcloud-releases-prod/prod/${GITHUB_SHA}/fjcloud-retention-job
+          aws s3 sync infra/migrations s3://fjcloud-releases-prod/prod/${GITHUB_SHA}/migrations
+          aws s3 cp ops/scripts/migrate.sh s3://fjcloud-releases-prod/prod/${GITHUB_SHA}/scripts/migrate.sh
+          aws s3 cp ops/scripts/lib/generate_ssm_env.sh s3://fjcloud-releases-prod/prod/${GITHUB_SHA}/scripts/generate_ssm_env.sh
+          aws s3 cp ops/scripts/lib/rollback_compatibility.sh s3://fjcloud-releases-prod/prod/${GITHUB_SHA}/scripts/lib/rollback_compatibility.sh
+          aws s3 cp ops/systemd/fj-metering-agent.service s3://fjcloud-releases-prod/prod/${GITHUB_SHA}/systemd/fj-metering-agent.service
+          aws s3 cp infra/rollback_contract.json s3://fjcloud-releases-prod/prod/${GITHUB_SHA}/rollback_contract.json
+      - name: Trigger API deploy
+        run: bash ops/scripts/deploy.sh prod "${GITHUB_SHA}"

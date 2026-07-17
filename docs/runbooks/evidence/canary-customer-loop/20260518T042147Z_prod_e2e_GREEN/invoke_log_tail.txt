@@ -1,0 +1,5 @@
+START RequestId: c134fde6-515a-40ca-9ead-8a8c00ba8b60 Version: $LATEST
+failed to resolve SSM parameter /uiaeMnmRzsOPw0aEglARrv5hW6GX0pi for ADMIN_KEY
+END RequestId: c134fde6-515a-40ca-9ead-8a8c00ba8b60
+REPORT RequestId: c134fde6-515a-40ca-9ead-8a8c00ba8b60	Duration: 6817.27 ms	Billed Duration: 7000 ms	Memory Size: 512 MB	Max Memory Used: 134 MB	Init Duration: 182.04 ms	
+

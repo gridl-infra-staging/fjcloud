@@ -1,0 +1,67 @@
+# fjcloud SES boundary proof evidence (staging, extended)
+# captured_at: 2026-04-23T20:21:58Z
+# ------------------------------------------------------------
+
+=== SES account state ===
+{
+    "ProductionAccessEnabled": true,
+    "SendingEnabled": true,
+    "EnforcementStatus": "HEALTHY",
+    "Send24h": 50000.0,
+    "SentLast24h": 1.0
+}
+
+=== flapjack.foo identity (sender) ===
+{
+    "Verified": true,
+    "DKIM": "SUCCESS",
+    "DKIMTokens": [
+        "52evdzqlkiebbauhe6az2v5towsz2dk4",
+        "a76vb5g3t4par7ncph6gemrtxwfdfo5f",
+        "7e7tprovcaugklqyn5aenrl4xxfnpm4r"
+    ],
+    "SendingEnabled": null,
+    "MailFrom": {
+        "MailFromDomain": "mail.flapjack.foo",
+        "MailFromDomainStatus": "PENDING",
+        "BehaviorOnMxFailure": "USE_DEFAULT_VALUE"
+    },
+    "ID": "SUCCESS"
+}
+
+=== DKIM DNS records (amazonses.com CNAMEs) ===
+  52evdzqlkiebbauhe6az2v5towsz2dk4._domainkey.flapjack.foo -> 52evdzqlkiebbauhe6az2v5towsz2dk4.dkim.amazonses.com.
+  a76vb5g3t4par7ncph6gemrtxwfdfo5f._domainkey.flapjack.foo -> a76vb5g3t4par7ncph6gemrtxwfdfo5f.dkim.amazonses.com.
+  7e7tprovcaugklqyn5aenrl4xxfnpm4r._domainkey.flapjack.foo -> 7e7tprovcaugklqyn5aenrl4xxfnpm4r.dkim.amazonses.com.
+
+=== SPF (flapjack.foo, now includes amazonses.com) ===
+"v=spf1 include:amazonses.com include:spf.privateemail.com ~all"
+
+=== MAIL FROM domain (mail.flapjack.foo) ===
+MX: 10 feedback-smtp.us-east-1.amazonses.com.
+TXT: "v=spf1 include:amazonses.com ~all"
+
+=== Live send evidence (4 sends via SES API) ===
+
+=== Suppression list snapshot ===
+
+Snapshot not captured in this preserved transcript.
+Refer to the canonical wrapper artifact `summary.json` where
+`suppression_check.status` is reported as `not_checked`.
+
+
+=== Boundary proof summary ===
+SPF include:amazonses.com: present (verified via 1.1.1.1)
+MAIL FROM domain mail.flapjack.foo: configured in SES (status=PENDING until amazonses MX+SPF propagation re-checked); DNS records live
+DKIM for sender domain: SUCCESS (3 CNAME tokens resolve to amazonses.com domainkeys)
+first_send: MessageId recorded against SES mailbox simulator success@simulator.amazonses.com
+bounce_handling: MessageId recorded against SES mailbox simulator bounce@simulator.amazonses.com (triggers SES hard-bounce feedback)
+complaint_handling: MessageId recorded against SES mailbox simulator complaint@simulator.amazonses.com (triggers SES complaint feedback)
+inbox_receipt: MessageId recorded against a verified identity recipient (stuart.clifford@gmail.com) for real-inbox delivery
+
+== Live-send MessageIds (captured via aws sesv2 send-email) ==
+  first_send (simulator: success@simulator.amazonses.com) -> 0100019dbc0040f3-72fa6806-23a8-4d4b-ac14-e492535b94de-000000
+  bounce_handling (simulator: bounce@simulator.amazonses.com) -> 0100019dbc0042ef-20799871-cefd-40df-a8a9-63eadbadd172-000000
+  complaint_handling (simulator: complaint@simulator.amazonses.com) -> 0100019dbc00449d-60be3665-6253-407b-8372-55a75f1a638c-000000
+  inbox_receipt (verified identity: stuart.clifford@gmail.com) -> 0100019dbc00464e-8d69c81a-aea2-406e-9755-d5ae02d1b137-000000
+  post_spf_update_confirm (simulator: success@simulator.amazonses.com) -> 0100019dbc02df94-e51e5b07-187d-417c-b0a8-e0131eb042d6-000000

@@ -1,0 +1,3 @@
+function_error=Unhandled
+success_markers=absent
+failure_markers=present

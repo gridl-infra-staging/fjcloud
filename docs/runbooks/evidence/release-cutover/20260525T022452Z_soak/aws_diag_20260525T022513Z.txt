@@ -1,0 +1,15 @@
+diag_ts=20260525T022513Z
+pwd=fjcloud_dev
+aws_version=aws-cli/2.34.48 Python/3.14.5 Darwin/25.3.0 source/arm64
+aws_profile=<unset>
+aws_region=<unset>
+aws_default_region=us-east-1
+---- aws configure list ----
+NAME       : VALUE                    : TYPE             : LOCATION
+profile    : <not set>                : None             : None
+access_key : ****************MAUL     : env              : 
+secret_key : ****************ySRu     : env              : 
+region     : us-east-1                : env              : ['AWS_REGION', 'AWS_DEFAULT_REGION']
+---- aws sts get-caller-identity ----
+
+aws: [ERROR]: An error occurred (InvalidClientTokenId) when calling the GetCallerIdentity operation: The security token included in the request is invalid.

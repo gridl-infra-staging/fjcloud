@@ -1,0 +1,32 @@
+[
+  {
+    "source": "stage2_baseline",
+    "hostname": "vm-shared-1f4d5f46.flapjack.foo",
+    "instance_id": "i-0c2ea206fe232f6d6",
+    "probe_url": "http://vm-shared-1f4d5f46.flapjack.foo:7700/health"
+  },
+  {
+    "source": "stage5_unhealthy_ranked",
+    "hostname": "vm-shared-480b5169.flapjack.foo",
+    "instance_id": "i-019d556392acdada7",
+    "probe_url": "http://vm-shared-480b5169.flapjack.foo:7700/health"
+  },
+  {
+    "source": "stage5_unhealthy_ranked",
+    "hostname": "vm-shared-c7f8cda3.flapjack.foo",
+    "instance_id": "i-02c0367ffe4f6d507",
+    "probe_url": "http://vm-shared-c7f8cda3.flapjack.foo:7700/health"
+  },
+  {
+    "source": "stage5_unhealthy_ranked",
+    "hostname": "vm-shared-a65c4ff9.flapjack.foo",
+    "instance_id": "i-0275ad8188825a1f9",
+    "probe_url": "http://vm-shared-a65c4ff9.flapjack.foo:7700/health"
+  },
+  {
+    "source": "stage5_unhealthy_ranked",
+    "hostname": "vm-shared-c47d2e32.flapjack.foo",
+    "instance_id": "i-02f6f821eaf7c6ce7",
+    "probe_url": "http://vm-shared-c47d2e32.flapjack.foo:7700/health"
+  }
+]

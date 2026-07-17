@@ -1,0 +1,14 @@
+# Disposition Receipt: batman/may16_pm_5_self_service_upgrade_endpoint_and_trust_ratchet
+
+Classification: approved freed local branch after approved worktree removal
+Evidence source: current read-only git refs at bundle creation.
+
+## rev-parse
+$ git rev-parse batman/may16_pm_5_self_service_upgrade_endpoint_and_trust_ratchet
+adf2c68c1e34caaf62c866ae2a947287cb5fc10b
+
+## cherry
+$ git cherry -v main batman/may16_pm_5_self_service_upgrade_endpoint_and_trust_ratchet | tail -20
+
+## diff main...
+$ git diff main...batman/may16_pm_5_self_service_upgrade_endpoint_and_trust_ratchet --stat | tail -20

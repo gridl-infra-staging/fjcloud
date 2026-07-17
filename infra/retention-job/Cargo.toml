@@ -1,0 +1,28 @@
+[package]
+name = "retention-job"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "retention_job"
+path = "src/lib.rs"
+
+[[bin]]
+name = "fjcloud-retention-job"
+path = "src/main.rs"
+
+[dependencies]
+anyhow      = { workspace = true }
+api         = { path = "../api" }
+async-trait = "0.1"
+chrono      = { workspace = true }
+reqwest     = { workspace = true }
+rust_decimal = { workspace = true }
+serde       = { workspace = true }
+serde_json  = { workspace = true }
+sqlx        = { workspace = true }
+thiserror   = { workspace = true }
+tokio       = { workspace = true }
+tracing     = { workspace = true }
+tracing-subscriber = { workspace = true }
+uuid        = { workspace = true }

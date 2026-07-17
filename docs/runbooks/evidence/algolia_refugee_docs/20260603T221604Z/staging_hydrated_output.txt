@@ -1,0 +1,22 @@
+[validate_customer_quickstart] quickstart markers: auth_register auth_verify_email indexes_create indexes_batch_add_object indexes_search
+[validate_customer_quickstart] migration markers: migration_indexes_list migration_indexes_create migration_indexes_batch_add_object migration_indexes_search migration_indexes_get_object migration_indexes_batch_update_object migration_indexes_delete_object migration_indexes_save_synonym migration_indexes_save_rule
+{"passed":true,"steps":[{"name":"send_probe","passed":true,"detail":"Sent probe from 'noreply@flapjack.foo' to 'roundtrip-inbound-probe-20260603T221454Z-16078@test.flapjack.foo' (message_id='0100019e8f8dc978-6afb67e8-9f1b-4b73-8696-2c87eb4ed980-000000')."},{"name":"poll_inbox_s3","passed":true,"detail":"Found nonce 'inbound-probe-20260603T221454Z-16078' at s3://flapjack-cloud-releases/e2e-emails/584flulkvbb75cda8mrsli15q4o954mk1s7pr8o1."},{"name":"fetch_rfc822","passed":true,"detail":"Fetched RFC822 payload for s3://flapjack-cloud-releases/e2e-emails/584flulkvbb75cda8mrsli15q4o954mk1s7pr8o1."},{"name":"auth_verdict","passed":true,"detail":"Authentication-Results has dkim=pass, spf=pass, dmarc=pass."}],"elapsed_ms":17515}
+[customer-loop-canary] signup succeeded for canary+canary2026060322151114430@test.flapjack.foo (customer=2847e61e-cf49-4037-b597-ccc7d6ce2487)
+[customer-loop-canary] email verification succeeded for canary+canary2026060322151114430@test.flapjack.foo
+[customer-loop-canary] index created (canary-canary2026060322151114430)
+[validate_customer_quickstart] migration case succeeded: migration_indexes_create
+[customer-loop-canary] index write succeeded (canary-canary2026060322151114430)
+[customer-loop-canary] index search succeeded (canary-canary2026060322151114430)
+[validate_customer_quickstart] migration case succeeded: migration_indexes_list
+[validate_customer_quickstart] migration case succeeded: migration_indexes_batch_add_object
+[validate_customer_quickstart] migration case succeeded: migration_indexes_search
+[validate_customer_quickstart] migration case succeeded: migration_indexes_get_object
+[validate_customer_quickstart] migration case succeeded: migration_indexes_batch_update_object
+[validate_customer_quickstart] migration case succeeded: migration_indexes_delete_object
+[validate_customer_quickstart] migration case succeeded: migration_indexes_save_synonym
+[validate_customer_quickstart] migration case succeeded: migration_indexes_save_rule
+[customer-loop-canary] index deleted (canary-canary2026060322151114430)
+[customer-loop-canary] account delete attempted for customer 2847e61e-cf49-4037-b597-ccc7d6ce2487
+[customer-loop-canary] admin cleanup completed for tenant 2847e61e-cf49-4037-b597-ccc7d6ce2487
+[customer-loop-canary] customer quickstart signup/verify/search flow succeeded
+[customer-loop-canary] staging full-flow validation passed

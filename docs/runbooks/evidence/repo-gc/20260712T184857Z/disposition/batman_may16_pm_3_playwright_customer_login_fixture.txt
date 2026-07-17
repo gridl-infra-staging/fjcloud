@@ -1,0 +1,14 @@
+# Disposition Receipt: batman/may16_pm_3_playwright_customer_login_fixture
+
+Classification: approved freed local branch after approved worktree removal
+Evidence source: current read-only git refs at bundle creation.
+
+## rev-parse
+$ git rev-parse batman/may16_pm_3_playwright_customer_login_fixture
+f74cc82c0c0cef5e1eedd0c214f82074a00b5bd4
+
+## cherry
+$ git cherry -v main batman/may16_pm_3_playwright_customer_login_fixture | tail -20
+
+## diff main...
+$ git diff main...batman/may16_pm_3_playwright_customer_login_fixture --stat | tail -20

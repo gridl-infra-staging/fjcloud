@@ -1,0 +1,20 @@
+{
+    "imageDetails": [
+        {
+            "registryId": "213880904778",
+            "repositoryName": "fjcloud-prod-customer-loop-canary",
+            "imageDigest": "sha256:4ea714a45fcc188a45db22fc21ebdb059bbb6192c3ceefc71cfa45405545eb5f",
+            "imageTags": [
+                "ad592f80c25d",
+                "latest",
+                "pending-publication"
+            ],
+            "imageSizeInBytes": 102581784,
+            "imagePushedAt": "2026-05-13T23:15:52.567000-04:00",
+            "imageManifestMediaType": "application/vnd.docker.distribution.manifest.v2+json",
+            "artifactMediaType": "application/vnd.docker.container.image.v1+json",
+            "lastRecordedPullTime": "2026-05-16T22:41:31.251000-04:00",
+            "imageStatus": "ACTIVE"
+        }
+    ]
+}

@@ -1,0 +1,14 @@
+# Disposition: batman/jul12_pm_8_batch_closeout_reconcile_producer
+
+Classification: approved-clean-merged-jul12-residue
+Worktree: `<parallel-root>/fjcloud_dev/jul12_pm_8_batch_closeout_reconcile/fjcloud_dev`
+Tip: df5c56511b0c28c4f9e3824a2f3cdbe6093131bd
+Disposition: dispatched+merged(2477cffd11f92c1ff5743176f2d586c7cce04c1e)
+
+`git merge-base --is-ancestor batman/jul12_pm_8_batch_closeout_reconcile_producer main` exit: 0
+
+`git cherry -v main batman/jul12_pm_8_batch_closeout_reconcile_producer | tail -20`: no output
+
+`git diff main...batman/jul12_pm_8_batch_closeout_reconcile_producer --stat | tail -20`: no output
+
+`git -C <worktree> status --porcelain`: no output

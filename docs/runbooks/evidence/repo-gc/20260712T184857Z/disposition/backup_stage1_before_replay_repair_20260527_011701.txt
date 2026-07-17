@@ -1,0 +1,54 @@
+# Disposition Receipt: backup/stage1_before_replay_repair_20260527_011701
+
+Classification: approved local backup ref deletion
+Evidence source: current read-only git refs at bundle creation.
+
+## rev-parse
+$ git rev-parse backup/stage1_before_replay_repair_20260527_011701
+e8ce12f2027fc0cda12e2f3949b8fee2630af4e9
+
+## cherry
+$ git cherry -v main backup/stage1_before_replay_repair_20260527_011701 | tail -20
+- fda290d76134243de64bad4488946cbecd22dafc Add Stage 1 settings/migrate findings SSOT
+- 573a43b39bbee7c1e32c6a8485d4517a749371ca matt: stage 1 completion
++ c60285fd5bb4fad7d0d7ba6587360c7335beddb6 fix(web): repair +page.svelte merge corruption in activateTab
+- fc0e2d353c3d207d733be765930cae88abd87438 Stage 2: classify all 18 Settings parity rows with evidence-backed verdicts
+- b684dec3302646d1ae9c6454ac07ce06373e0a1a matt: stage 2 completion
++ 21fc303a0e61dcbe65bb2b940035fa92d9dcacd5 matt: stage 3 build session 1
++ 4d928a0e553af7a4e6230f131aa741a549be3921 fix settings stage3 auth setup restart guard and close reset findings
++ a2bab3bfaa2aceeba01994da463e740991962cf8 matt: stage 3 build session 1
+- f5d1fc9c2b054462757e5ef979abe6673cc5bebf matt: stage 3 completion
++ ffe1e4571153672b9dbc4a3a057f8994f8db1dd7 scrai: 15 files documented, 2 guidance files assembled, 3 state files tracked
+- 24c9a1a4950f1215de2e25da3017fc7c7bdfc1bc Audit migrate parity rows for stage 4
+- c3efca9d9e748cc5c0bca93a4ac47e53cf509f9f matt: stage 4 completion
+- ac9303dc401c178596eda7fb0c597d9895fc4efb matt: stage 5 build session 1
+- e6a2c19faeb8ebe62e7f3cbe7f1aa0cef8e4b9aa matt: review bugs stage 5
+- 2ed9d390493a73254ebd03935905a0f27488becf matt: stage 5 completion
+- d3354a181f01cd20c42ddaeeef6e85b287d2e9c8 matt: stage 6 build session 2
++ a20c65e76bb031e02505dfdea7efd05d0fed79c4 stage6: update ssot docs and fix owner validation seams
+- 0be569fa64ca571ffdc41f2ac8c0de2c67323a4d restore .env.local.example bootstrap template contract
++ 3abac44a26d4360b507164fe72579d7ba2b203f8 matt: terminal progress annotation
++ e8ce12f2027fc0cda12e2f3949b8fee2630af4e9 fix(web): resolve stage1 rebase regressions and gate failures
+
+## diff main...
+$ git diff main...backup/stage1_before_replay_repair_20260527_011701 --stat | tail -20
+ web/src/lib/DIRMAP.md                              |   1 +
+ web/src/routes/DIRMAP.md                           |   2 +-
+ web/src/routes/console/DIRMAP.md                   |   2 +-
+ web/src/routes/console/indexes/DIRMAP.md           |   2 +-
+ web/src/routes/console/indexes/[name]/+page.svelte |  30 ++--
+ web/src/routes/console/indexes/[name]/DIRMAP.md    |   1 +
+ .../[name]/detail-search-preview.browser.test.ts   |  11 +-
+ .../[name]/detail.server.actions.documents.test.ts |   4 +-
+ .../detail.server.actions.preview_events.test.ts   | 159 +++++++++++++++++++++
+ .../indexes/[name]/detail.server.actions.test.ts   | 137 ------------------
+ .../console/indexes/[name]/detail.settings.test.ts |  28 ++++
+ .../[name]/events-management.server.test.ts        |   4 +-
+ .../indexes/[name]/events-management.server.ts     |   2 +-
+ .../indexes/[name]/tabs/MerchandisingTab.test.ts   |   4 +-
+ .../console/indexes/[name]/tabs/SettingsTab.svelte |  30 +++-
+ web/src/tests/playwright-config-contract.test.ts   |  14 ++
+ web/tests/e2e-ui/full/index-detail.spec.ts         |  27 +++-
+ web/tests/e2e-ui/full/indexes.spec.ts              |  58 ++++----
+ web/tests/fixtures/search-preview-helpers.ts       |   2 +-
+ 49 files changed, 792 insertions(+), 258 deletions(-)

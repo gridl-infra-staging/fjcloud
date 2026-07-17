@@ -1,0 +1,6 @@
+tarball_path=/tmp/a1_vpc_rerun_20260604T114841Z/scripts.tar.gz
+tarball_size_bytes=961190
+contains_scripts=1
+contains_runtime_materializer=1
+materializer_committed_to_repo=0
+printed_secret_values=0

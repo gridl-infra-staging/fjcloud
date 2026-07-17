@@ -1,0 +1,87 @@
+{
+  "failures": [
+    {
+      "classification": "verify_email_clickthrough_not_green",
+      "disposition": "probe_side_residual_requires_green_deployed_bundle",
+      "final_json": null,
+      "fresh_deployed_sha": "b0fc91ff9580e5e79d7c4f5a0d4576f41e55f4ff",
+      "last_nonempty_line": "failed to run commands: exit status 1",
+      "matches_pre_authorized_section1_partial": false,
+      "observed_detail": "ERROR: email_verified_at not set after clickthrough for verifyprobe2026071122150123670@test.flapjack.foo after 15 attempts",
+      "owner_path": "scripts/probe_verify_email_clickthrough_e2e.sh",
+      "pass": false,
+      "probe_id": "verify_email_clickthrough",
+      "rc": 1,
+      "reason": "Probe-side residual can be retired only by a green deployed bundle; this row did not satisfy rc=0/pass=1.",
+      "terminus_line": null
+    },
+    {
+      "classification": "password_reset_clickthrough_not_green",
+      "disposition": "probe_side_residual_requires_green_deployed_bundle",
+      "final_json": null,
+      "fresh_deployed_sha": "b0fc91ff9580e5e79d7c4f5a0d4576f41e55f4ff",
+      "last_nonempty_line": "failed to run commands: exit status 1",
+      "matches_pre_authorized_section1_partial": false,
+      "observed_detail": "ERROR: password_reset_token not cleared after reset for resetprobe2026071122161327557@test.flapjack.foo after 15 attempts",
+      "owner_path": "scripts/probe_password_reset_clickthrough_e2e.sh",
+      "pass": false,
+      "probe_id": "password_reset_clickthrough",
+      "rc": 1,
+      "reason": "Probe-side residual can be retired only by a green deployed bundle; this row did not satisfy rc=0/pass=1.",
+      "terminus_line": null
+    },
+    {
+      "classification": "dunning_email_inbox_not_green",
+      "disposition": "new_terminal_bundle_failure",
+      "final_json": {
+        "classification": "rehearsal_reset_failed",
+        "detail": "dunning owner script exited 1",
+        "result": "failed"
+      },
+      "fresh_deployed_sha": "b0fc91ff9580e5e79d7c4f5a0d4576f41e55f4ff",
+      "last_nonempty_line": "failed to run commands: exit status 1",
+      "matches_pre_authorized_section1_partial": false,
+      "observed_detail": "probe did not reach its parser-owned pass terminus",
+      "owner_path": "scripts/probe_dunning_email_inbox_e2e.sh",
+      "pass": false,
+      "probe_id": "dunning_email_inbox",
+      "rc": 1,
+      "reason": "This row was expected green in the terminal six-row bundle but did not satisfy rc=0/pass=1.",
+      "terminus_line": null
+    },
+    {
+      "classification": "staging_dunning_delivery_not_green",
+      "disposition": "new_terminal_bundle_failure",
+      "final_json": {
+        "artifact_dir": "",
+        "classification": "rehearsal_reset_failed",
+        "detail": "Reset flow failed for tenant 193638a5-35f7-407f-a734-3f73de224336\\: reset_stripe_list_invalid \u2014 Stripe invoice list returned invalid JSON.",
+        "elapsed_ms": 11956,
+        "result": "failed",
+        "steps": [
+          {
+            "detail": "Explicit staging env file, SSM hydration, and hostname checks passed.",
+            "name": "guard",
+            "passed": true
+          },
+          {
+            "detail": "{\"result\":\"blocked\",\"classification\":\"reset_stripe_list_invalid\",\"detail\":\"Stripe invoice list returned invalid JSON.\",\"artifact_dir\":\"/tmp/fjcloud_staging_billing_rehearsal_20260711T222055Z_3075790\",\"planned_steps\":[\"metering collection\", \"aggregation job\", \"invoice finalization\", \"Stripe test webhook delivery\", \"invoice paid reconciliation\", \"email evidence capture\"],\"steps\":[{\"name\":\"preflight\",\"result\":\"blocked\",\"classification\":\"not_run\",\"detail\":\"Preflight did not run.\"},{\"name\":\"metering_evidence\",\"result\":\"blocked\",\"classification\":\"not_run\",\"detail\":\"Metering evidence did not run.\"},{\"name\":\"live_mutation_guard\",\"result\":\"blocked\",\"classification\":\"reset_stripe_list_invalid\",\"detail\":\"Stripe invoice list returned invalid JSON.\"},{\"name\":\"live_mutation_attempt\",\"result\":\"blocked\",\"classification\":\"reset_stripe_list_invalid\",\"detail\":\"Reset flow was not completed.\"}],\"elapsed_ms\":6308}",
+            "name": "reset_test_state",
+            "passed": false
+          }
+        ],
+        "transitions": []
+      },
+      "fresh_deployed_sha": "b0fc91ff9580e5e79d7c4f5a0d4576f41e55f4ff",
+      "last_nonempty_line": "{\"result\":\"failed\",\"classification\":\"rehearsal_reset_failed\",\"detail\":\"Reset flow failed for tenant 193638a5-35f7-407f-a734-3f73de224336\\\\: reset_stripe_list_invalid \\u2014 Stripe invoice list returned invalid JSON.\",\"artifact_dir\":\"\",\"transitions\":[],\"steps\":[{\"name\":\"guard\",\"passed\":true,\"detail\":\"Explicit staging env file, SSM hydration, and hostname checks passed.\"},{\"name\":\"reset_test_state\",\"passed\":false,\"detail\":\"{\\\"result\\\":\\\"blocked\\\",\\\"classification\\\":\\\"reset_stripe_list_invalid\\\",\\\"detail\\\":\\\"Stripe invoice list returned invalid JSON.\\\",\\\"artifact_dir\\\":\\\"/tmp/fjcloud_staging_billing_rehearsal_20260711T222055Z_3075790\\\",\\\"planned_steps\\\":[\\\"metering collection\\\", \\\"aggregation job\\\", \\\"invoice finalization\\\", \\\"Stripe test webhook delivery\\\", \\\"invoice paid reconciliation\\\", \\\"email evidence capture\\\"],\\\"steps\\\":[{\\\"name\\\":\\\"preflight\\\",\\\"result\\\":\\\"blocked\\\",\\\"classification\\\":\\\"not_run\\\",\\\"detail\\\":\\\"Preflight did not run.\\\"},{\\\"name\\\":\\\"metering_evidence\\\",\\\"result\\\":\\\"blocked\\\",\\\"classification\\\":\\\"not_run\\\",\\\"detail\\\":\\\"Metering evidence did not run.\\\"},{\\\"name\\\":\\\"live_mutation_guard\\\",\\\"result\\\":\\\"blocked\\\",\\\"classification\\\":\\\"reset_stripe_list_invalid\\\",\\\"detail\\\":\\\"Stripe invoice list returned invalid JSON.\\\"},{\\\"name\\\":\\\"live_mutation_attempt\\\",\\\"result\\\":\\\"blocked\\\",\\\"classification\\\":\\\"reset_stripe_list_invalid\\\",\\\"detail\\\":\\\"Reset flow was not completed.\\\"}],\\\"elapsed_ms\\\":6308}\"}],\"elapsed_ms\":11956}failed to run commands: exit status 1",
+      "matches_pre_authorized_section1_partial": false,
+      "observed_detail": "probe did not reach its parser-owned pass terminus",
+      "owner_path": "scripts/validate_staging_dunning_delivery.sh",
+      "pass": false,
+      "probe_id": "staging_dunning_delivery",
+      "rc": 1,
+      "reason": "This row was expected green in the terminal six-row bundle but did not satisfy rc=0/pass=1.",
+      "terminus_line": null
+    }
+  ]
+}

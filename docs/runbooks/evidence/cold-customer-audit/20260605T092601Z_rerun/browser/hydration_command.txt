@@ -1,0 +1,1 @@
+env -u AWS_ACCESS_KEY_ID -u AWS_SECRET_ACCESS_KEY -u AWS_SESSION_TOKEN -u AWS_PROFILE -u AWS_DEFAULT_PROFILE bash -lc 'set -a; source .secret/.env.secret; set +a; source <(bash scripts/launch/hydrate_seeder_env_from_ssm.sh staging); export E2E_ADMIN_KEY="$ADMIN_KEY"'

@@ -1,0 +1,26 @@
+{
+  "env": "staging",
+  "ready": false,
+  "checks": {
+    "schedule_state": {
+      "status": "pass",
+      "detail": "EventBridge rule fjcloud-staging-customer-loop-canary ENABLED"
+    },
+    "invocations_24h": {
+      "status": "pass",
+      "detail": "Invocations sum 24h = 97.0 (canary firing)"
+    },
+    "errors_24h": {
+      "status": "fail",
+      "detail": "Errors sum 24h = 1.0 (canary throwing)"
+    },
+    "alarms": {
+      "status": "pass",
+      "detail": "all canary alarms OK"
+    },
+    "last_invocation": {
+      "status": "pass",
+      "detail": "last completed invocation logged success marker"
+    }
+  }
+}

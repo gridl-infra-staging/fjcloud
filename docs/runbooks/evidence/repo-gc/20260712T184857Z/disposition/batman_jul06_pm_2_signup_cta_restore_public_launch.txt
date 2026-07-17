@@ -1,0 +1,14 @@
+# Disposition Receipt: batman/jul06_pm_2_signup_cta_restore_public_launch
+
+Classification: approved freed local branch after approved worktree removal
+Evidence source: current read-only git refs at bundle creation.
+
+## rev-parse
+$ git rev-parse batman/jul06_pm_2_signup_cta_restore_public_launch
+8a3c6e18364b8619e7c891232008345702301f1e
+
+## cherry
+$ git cherry -v main batman/jul06_pm_2_signup_cta_restore_public_launch | tail -20
+
+## diff main...
+$ git diff main...batman/jul06_pm_2_signup_cta_restore_public_launch --stat | tail -20

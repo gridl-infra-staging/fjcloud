@@ -1,0 +1,42 @@
+Stage 3 customer-loop canary verification transcript
+started_utc=2026-07-09T11:28:26Z
+head_sha=0b4b169c8325578df14fcbc5fc5dca557447e12b
+evidence_root=docs/runbooks/evidence/ses-inbox-canary-clean-env/20260709T104734Z
+
+$ bash scripts/probe_live_state.sh
+timestamp_utc=2026-07-09T11:29:24Z
+exit=0
+
+$ unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AWS_PROFILE AWS_DEFAULT_PROFILE
+$ set -a; source /Users/stuart/repos/gridl-infra-dev/fjcloud_dev/.secret/.env.secret; set +a
+$ export FJCLOUD_SECRET_FILE=/Users/stuart/repos/gridl-infra-dev/fjcloud_dev/.secret/.env.secret
+$ aws sts get-caller-identity --region us-east-1
+timestamp_utc=2026-07-09T11:31:38Z
+exit=0
+account=213880904778
+arn_prefix=arn:aws:iam::213880904778:user
+
+$ unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AWS_PROFILE AWS_DEFAULT_PROFILE
+$ set -a; source /Users/stuart/repos/gridl-infra-dev/fjcloud_dev/.secret/.env.secret; set +a
+$ export FJCLOUD_SECRET_FILE=/Users/stuart/repos/gridl-infra-dev/fjcloud_dev/.secret/.env.secret
+$ ENVIRONMENT=staging FJCLOUD_SECRET_FILE=/Users/stuart/repos/gridl-infra-dev/fjcloud_dev/.secret/.env.secret bash scripts/canary/customer_loop_synthetic.sh --dry-run
+timestamp_utc=2026-07-09T11:32:36Z
+exit=0
+
+$ unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AWS_PROFILE AWS_DEFAULT_PROFILE
+$ set -a; source /Users/stuart/repos/gridl-infra-dev/fjcloud_dev/.secret/.env.secret; set +a
+$ export FJCLOUD_SECRET_FILE=/Users/stuart/repos/gridl-infra-dev/fjcloud_dev/.secret/.env.secret
+$ bash scripts/probe_canary_live_state.sh staging --json
+timestamp_utc=2026-07-09T11:33:40Z
+exit=1
+stderr_first_line=
+
+$ aws logs describe-log-streams/get-log-events for /aws/lambda/fjcloud-staging-customer-loop-canary latest streams
+timestamp_utc=2026-07-09T11:34:53Z
+describe_log_streams_exit=0
+
+$ aws logs filter-log-events for customer-loop error markers over last 24h
+timestamp_utc=2026-07-09T11:35:50Z
+filter_step_failed_exit=0
+filter_error_markers_exit=0
+

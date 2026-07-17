@@ -1,0 +1,14 @@
+name: Outside AWS Health
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+jobs:
+  outside-aws-health:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Run outside-AWS health check
+        run: bash scripts/canary/outside_aws_health_check.sh

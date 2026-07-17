@@ -1,0 +1,2 @@
+SES_FROM_ADDRESS=system@flapjack.foo
+SES_REGION=us-east-1

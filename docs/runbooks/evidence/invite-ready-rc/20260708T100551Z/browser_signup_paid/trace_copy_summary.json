@@ -1,0 +1,11 @@
+{
+  "copy_ran": true,
+  "security_redaction_applied": true,
+  "redaction_reason": "Removed committed failing Playwright trace archive because it embedded authenticated cookies and plaintext test credentials.",
+  "redacted_files": [
+    "playwright-traces/signup_to_paid_invoice/e2e-ui-full-signup_to_paid-43e41-aches-paid-invoice-evidence-chromium-signup/trace.zip"
+  ],
+  "trace_bundle_subdir": "playwright-traces",
+  "trace_files_copied": 4,
+  "source_directories": ["web/test-results/signup_to_paid_invoice"]
+}

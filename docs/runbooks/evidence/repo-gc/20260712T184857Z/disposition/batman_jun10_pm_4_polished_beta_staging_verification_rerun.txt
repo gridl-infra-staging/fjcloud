@@ -1,0 +1,14 @@
+# Disposition Receipt: batman/jun10_pm_4_polished_beta_staging_verification_rerun
+
+Classification: approved freed local branch after approved worktree removal
+Evidence source: current read-only git refs at bundle creation.
+
+## rev-parse
+$ git rev-parse batman/jun10_pm_4_polished_beta_staging_verification_rerun
+75bebb18af9c89f3731afee63fd9aec18f5ad3a9
+
+## cherry
+$ git cherry -v main batman/jun10_pm_4_polished_beta_staging_verification_rerun | tail -20
+
+## diff main...
+$ git diff main...batman/jun10_pm_4_polished_beta_staging_verification_rerun --stat | tail -20

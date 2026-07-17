@@ -1,0 +1,12 @@
+fjcloud-prod-alb-5xx-error-rate	OK				arn:aws:sns:us-east-1:213880904778:fjcloud-alerts-prod	arn:aws:sns:us-east-1:213880904778:fjcloud-alerts-prod
+fjcloud-prod-alb-p99-target-response-time	OK	AWS/ApplicationELB	TargetResponseTime	LoadBalancer=app/fjcloud-prod-alb/d9357ed423f11e4a	arn:aws:sns:us-east-1:213880904778:fjcloud-alerts-prod	arn:aws:sns:us-east-1:213880904778:fjcloud-alerts-prod
+fjcloud-prod-alb-unhealthy-hosts	OK	AWS/ApplicationELB	UnHealthyHostCount	LoadBalancer=app/fjcloud-prod-alb/d9357ed423f11e4a;TargetGroup=targetgroup/fjcloud-prod-api-tg/43196471aa3ac595	arn:aws:sns:us-east-1:213880904778:fjcloud-alerts-prod	arn:aws:sns:us-east-1:213880904778:fjcloud-alerts-prod
+fjcloud-prod-api-cpu-high	OK	AWS/EC2	CPUUtilization	InstanceId=i-0af0ff2e18725b6ba	arn:aws:sns:us-east-1:213880904778:fjcloud-alerts-prod	arn:aws:sns:us-east-1:213880904778:fjcloud-alerts-prod
+fjcloud-prod-api-heartbeat-missing	OK	fjcloud/api	Heartbeat	Env=prod	arn:aws:sns:us-east-1:213880904778:fjcloud-alerts-prod	arn:aws:sns:us-east-1:213880904778:fjcloud-alerts-prod
+fjcloud-prod-api-root-disk-high	OK	CWAgent	disk_used_percent	device=nvme0n1p1;fstype=xfs;InstanceId=i-0af0ff2e18725b6ba;path=/	arn:aws:sns:us-east-1:213880904778:fjcloud-alerts-prod	arn:aws:sns:us-east-1:213880904778:fjcloud-alerts-prod
+fjcloud-prod-api-status-check-failed	OK	AWS/EC2	StatusCheckFailed	InstanceId=i-0af0ff2e18725b6ba	arn:aws:sns:us-east-1:213880904778:fjcloud-alerts-prod	arn:aws:sns:us-east-1:213880904778:fjcloud-alerts-prod
+fjcloud-prod-billing-estimated-charges-high	OK	AWS/Billing	EstimatedCharges	Currency=USD	arn:aws:sns:us-east-1:213880904778:fjcloud-alerts-prod	arn:aws:sns:us-east-1:213880904778:fjcloud-alerts-prod
+fjcloud-prod-customer-loop-canary-lambda-errors	OK	AWS/Lambda	Errors	FunctionName=fjcloud-prod-customer-loop-canary	arn:aws:sns:us-east-1:213880904778:fjcloud-alerts-prod	arn:aws:sns:us-east-1:213880904778:fjcloud-alerts-prod
+fjcloud-prod-rds-connections-high	OK	AWS/RDS	DatabaseConnections	DBInstanceIdentifier=fjcloud-prod	arn:aws:sns:us-east-1:213880904778:fjcloud-alerts-prod	arn:aws:sns:us-east-1:213880904778:fjcloud-alerts-prod
+fjcloud-prod-rds-cpu-high	OK	AWS/RDS	CPUUtilization	DBInstanceIdentifier=fjcloud-prod	arn:aws:sns:us-east-1:213880904778:fjcloud-alerts-prod	arn:aws:sns:us-east-1:213880904778:fjcloud-alerts-prod
+fjcloud-prod-rds-free-storage-low	OK	AWS/RDS	FreeStorageSpace	DBInstanceIdentifier=fjcloud-prod	arn:aws:sns:us-east-1:213880904778:fjcloud-alerts-prod	arn:aws:sns:us-east-1:213880904778:fjcloud-alerts-prod

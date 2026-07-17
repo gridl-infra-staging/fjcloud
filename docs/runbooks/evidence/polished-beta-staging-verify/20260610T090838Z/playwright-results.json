@@ -1,0 +1,783 @@
+{
+  "config": {
+    "configFile": "web/playwright.config.ts",
+    "rootDir": "web/tests",
+    "forbidOnly": false,
+    "fullyParallel": false,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "setup:user",
+        "name": "setup:user",
+        "testDir": "web/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/fixtures\\/auth\\.setup\\.ts/"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "setup:admin",
+        "name": "setup:admin",
+        "testDir": "web/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/fixtures\\/admin\\.auth\\.setup\\.ts/"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "setup:onboarding",
+        "name": "setup:onboarding",
+        "testDir": "web/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/fixtures\\/onboarding\\.auth\\.setup\\.ts/"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "setup:customer-journeys",
+        "name": "setup:customer-journeys",
+        "testDir": "web/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/fixtures\\/customer-journeys\\.auth\\.setup\\.ts/"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium:public",
+        "name": "chromium:public",
+        "testDir": "web/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/e2e-ui\\/(smoke|full)\\/public-.+\\.spec\\.ts/"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium:signup",
+        "name": "chromium:signup",
+        "testDir": "web/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/e2e-ui\\/full\\/signup_to_paid_invoice\\.spec\\.ts/"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium:mocked",
+        "name": "chromium:mocked",
+        "testDir": "web/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/e2e-ui\\/mocked\\/.+\\.spec\\.ts/"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium",
+        "name": "chromium",
+        "testDir": "web/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/e2e-ui\\/(smoke|full)\\/(?!admin|public-|onboarding\\.|customer-journeys\\.|signup_to_paid_invoice\\.).+\\.spec\\.ts/"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium:onboarding",
+        "name": "chromium:onboarding",
+        "testDir": "web/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/e2e-ui\\/full\\/onboarding\\.spec\\.ts/"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium:customer-journeys",
+        "name": "chromium:customer-journeys",
+        "testDir": "web/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/e2e-ui\\/full\\/customer-journeys\\.spec\\.ts/"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium:admin",
+        "name": "chromium:admin",
+        "testDir": "web/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/e2e-ui\\/full\\/admin\\/.+\\.spec\\.ts/"
+        ],
+        "timeout": 30000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "html"
+      ],
+      [
+        "json"
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.60.0",
+    "workers": 1,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "fixtures/auth.setup.ts",
+      "file": "fixtures/auth.setup.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "authenticate as customer",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 220000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "setup:user",
+              "projectName": "setup:user",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1000,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-06-10T09:11:15.787Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "6db7255f214771fc958b-8ad38d4213689c9057c1",
+          "file": "fixtures/auth.setup.ts",
+          "line": 110,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "title": "e2e-ui/full/polished_beta_staging_verify.spec.ts",
+      "file": "e2e-ui/full/polished_beta_staging_verify.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Polished beta deployed staging verification",
+          "file": "e2e-ui/full/polished_beta_staging_verify.spec.ts",
+          "line": 192,
+          "column": 6,
+          "specs": [
+            {
+              "title": "Lane A - Merchandising hub renders rules and no legacy search canvas @staging_verify",
+              "ok": false,
+              "tags": [
+                "staging_verify"
+              ],
+              "tests": [
+                {
+                  "timeout": 240000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 1151,
+                      "error": {
+                        "message": "Error: fresh-signup email verification replay setup failed before reaching /verify-email/{token}. Current URL: about:blank\nAPI URL: https://api.staging.flapjack.foo\nAdmin key fingerprint: (present, len=32)\nVisible alert text: ssm_exec_staging.sh exited 254. stdout= stderr=\nLogin response: (none observed)\nRemediation: Run scripts/bootstrap-env-local.sh to bootstrap .env.local, then start the local stack with scripts/local-dev-up.sh and the Rust API with scripts/api-dev.sh. If you override BASE_URL, start the web frontend with scripts/web-dev.sh too. See docs/runbooks/local-dev.md for setup instructions.",
+                        "stack": "Error: fresh-signup email verification replay setup failed before reaching /verify-email/{token}. Current URL: about:blank\nAPI URL: https://api.staging.flapjack.foo\nAdmin key fingerprint: (present, len=32)\nVisible alert text: ssm_exec_staging.sh exited 254. stdout= stderr=\nLogin response: (none observed)\nRemediation: Run scripts/bootstrap-env-local.sh to bootstrap .env.local, then start the local stack with scripts/local-dev-up.sh and the Rust API with scripts/api-dev.sh. If you override BASE_URL, start the web frontend with scripts/web-dev.sh too. See docs/runbooks/local-dev.md for setup instructions.\n    at completeFreshSignupEmailVerificationViaRoute (web/tests/fixtures/fixtures.ts:2577:9)\n    at web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts:207:4",
+                        "location": {
+                          "file": "web/tests/fixtures/fixtures.ts",
+                          "column": 9,
+                          "line": 2577
+                        },
+                        "snippet": "\u001b[90m   at \u001b[39mfixtures/fixtures.ts:2577\n\n  2575 | \t} catch (error) {\n  2576 | \t\tconst diagnosticEnv = fixtureEnvForFailureDiagnostics();\n> 2577 | \t\tthrow new Error(\n       | \t\t      ^\n  2578 | \t\t\tformatFixtureSetupFailure({\n  2579 | \t\t\t\tsetupName: 'fresh-signup email verification replay setup',\n  2580 | \t\t\t\texpectedPath: '/verify-email/{token}',"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "web/tests/fixtures/fixtures.ts",
+                            "column": 9,
+                            "line": 2577
+                          },
+                          "message": "Error: fresh-signup email verification replay setup failed before reaching /verify-email/{token}. Current URL: about:blank\nAPI URL: https://api.staging.flapjack.foo\nAdmin key fingerprint: (present, len=32)\nVisible alert text: ssm_exec_staging.sh exited 254. stdout= stderr=\nLogin response: (none observed)\nRemediation: Run scripts/bootstrap-env-local.sh to bootstrap .env.local, then start the local stack with scripts/local-dev-up.sh and the Rust API with scripts/api-dev.sh. If you override BASE_URL, start the web frontend with scripts/web-dev.sh too. See docs/runbooks/local-dev.md for setup instructions.\n\n   at fixtures/fixtures.ts:2577\n\n  2575 | \t} catch (error) {\n  2576 | \t\tconst diagnosticEnv = fixtureEnvForFailureDiagnostics();\n> 2577 | \t\tthrow new Error(\n       | \t\t      ^\n  2578 | \t\t\tformatFixtureSetupFailure({\n  2579 | \t\t\t\tsetupName: 'fresh-signup email verification replay setup',\n  2580 | \t\t\t\texpectedPath: '/verify-email/{token}',\n    at completeFreshSignupEmailVerificationViaRoute (web/tests/fixtures/fixtures.ts:2577:9)\n    at web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts:207:4"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-10T09:11:17.327Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "web/test-results/e2e-ui-full-polished_beta_-5cf22-earch-canvas-staging-verify-chromium/test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "web/test-results/e2e-ui-full-polished_beta_-5cf22-earch-canvas-staging-verify-chromium/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "web/tests/fixtures/fixtures.ts",
+                        "column": 9,
+                        "line": 2577
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "def1f8a49cd90f5801f0-5828c087c68fb3a649b6",
+              "file": "e2e-ui/full/polished_beta_staging_verify.spec.ts",
+              "line": 218,
+              "column": 2
+            },
+            {
+              "title": "Lane B - Rules tab slug lands on merchandising hub @staging_verify",
+              "ok": false,
+              "tags": [
+                "staging_verify"
+              ],
+              "tests": [
+                {
+                  "timeout": 240000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 962,
+                      "error": {
+                        "message": "Error: fresh-signup email verification replay setup failed before reaching /verify-email/{token}. Current URL: about:blank\nAPI URL: https://api.staging.flapjack.foo\nAdmin key fingerprint: (present, len=32)\nVisible alert text: ssm_exec_staging.sh exited 254. stdout= stderr=\nLogin response: (none observed)\nRemediation: Run scripts/bootstrap-env-local.sh to bootstrap .env.local, then start the local stack with scripts/local-dev-up.sh and the Rust API with scripts/api-dev.sh. If you override BASE_URL, start the web frontend with scripts/web-dev.sh too. See docs/runbooks/local-dev.md for setup instructions.",
+                        "stack": "Error: fresh-signup email verification replay setup failed before reaching /verify-email/{token}. Current URL: about:blank\nAPI URL: https://api.staging.flapjack.foo\nAdmin key fingerprint: (present, len=32)\nVisible alert text: ssm_exec_staging.sh exited 254. stdout= stderr=\nLogin response: (none observed)\nRemediation: Run scripts/bootstrap-env-local.sh to bootstrap .env.local, then start the local stack with scripts/local-dev-up.sh and the Rust API with scripts/api-dev.sh. If you override BASE_URL, start the web frontend with scripts/web-dev.sh too. See docs/runbooks/local-dev.md for setup instructions.\n    at completeFreshSignupEmailVerificationViaRoute (web/tests/fixtures/fixtures.ts:2577:9)\n    at web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts:207:4",
+                        "location": {
+                          "file": "web/tests/fixtures/fixtures.ts",
+                          "column": 9,
+                          "line": 2577
+                        },
+                        "snippet": "\u001b[90m   at \u001b[39mfixtures/fixtures.ts:2577\n\n  2575 | \t} catch (error) {\n  2576 | \t\tconst diagnosticEnv = fixtureEnvForFailureDiagnostics();\n> 2577 | \t\tthrow new Error(\n       | \t\t      ^\n  2578 | \t\t\tformatFixtureSetupFailure({\n  2579 | \t\t\t\tsetupName: 'fresh-signup email verification replay setup',\n  2580 | \t\t\t\texpectedPath: '/verify-email/{token}',"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "web/tests/fixtures/fixtures.ts",
+                            "column": 9,
+                            "line": 2577
+                          },
+                          "message": "Error: fresh-signup email verification replay setup failed before reaching /verify-email/{token}. Current URL: about:blank\nAPI URL: https://api.staging.flapjack.foo\nAdmin key fingerprint: (present, len=32)\nVisible alert text: ssm_exec_staging.sh exited 254. stdout= stderr=\nLogin response: (none observed)\nRemediation: Run scripts/bootstrap-env-local.sh to bootstrap .env.local, then start the local stack with scripts/local-dev-up.sh and the Rust API with scripts/api-dev.sh. If you override BASE_URL, start the web frontend with scripts/web-dev.sh too. See docs/runbooks/local-dev.md for setup instructions.\n\n   at fixtures/fixtures.ts:2577\n\n  2575 | \t} catch (error) {\n  2576 | \t\tconst diagnosticEnv = fixtureEnvForFailureDiagnostics();\n> 2577 | \t\tthrow new Error(\n       | \t\t      ^\n  2578 | \t\t\tformatFixtureSetupFailure({\n  2579 | \t\t\t\tsetupName: 'fresh-signup email verification replay setup',\n  2580 | \t\t\t\texpectedPath: '/verify-email/{token}',\n    at completeFreshSignupEmailVerificationViaRoute (web/tests/fixtures/fixtures.ts:2577:9)\n    at web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts:207:4"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-10T09:11:18.986Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "web/test-results/e2e-ui-full-polished_beta_-d9ae2-andising-hub-staging-verify-chromium/test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "web/test-results/e2e-ui-full-polished_beta_-d9ae2-andising-hub-staging-verify-chromium/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "web/tests/fixtures/fixtures.ts",
+                        "column": 9,
+                        "line": 2577
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "def1f8a49cd90f5801f0-4d7686fe716750862572",
+              "file": "e2e-ui/full/polished_beta_staging_verify.spec.ts",
+              "line": 259,
+              "column": 2
+            },
+            {
+              "title": "Lane C - Unified Search renders image-backed document cards @staging_verify",
+              "ok": false,
+              "tags": [
+                "staging_verify"
+              ],
+              "tests": [
+                {
+                  "timeout": 240000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 3,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 911,
+                      "error": {
+                        "message": "Error: fresh-signup email verification replay setup failed before reaching /verify-email/{token}. Current URL: about:blank\nAPI URL: https://api.staging.flapjack.foo\nAdmin key fingerprint: (present, len=32)\nVisible alert text: ssm_exec_staging.sh exited 254. stdout= stderr=\nLogin response: (none observed)\nRemediation: Run scripts/bootstrap-env-local.sh to bootstrap .env.local, then start the local stack with scripts/local-dev-up.sh and the Rust API with scripts/api-dev.sh. If you override BASE_URL, start the web frontend with scripts/web-dev.sh too. See docs/runbooks/local-dev.md for setup instructions.",
+                        "stack": "Error: fresh-signup email verification replay setup failed before reaching /verify-email/{token}. Current URL: about:blank\nAPI URL: https://api.staging.flapjack.foo\nAdmin key fingerprint: (present, len=32)\nVisible alert text: ssm_exec_staging.sh exited 254. stdout= stderr=\nLogin response: (none observed)\nRemediation: Run scripts/bootstrap-env-local.sh to bootstrap .env.local, then start the local stack with scripts/local-dev-up.sh and the Rust API with scripts/api-dev.sh. If you override BASE_URL, start the web frontend with scripts/web-dev.sh too. See docs/runbooks/local-dev.md for setup instructions.\n    at completeFreshSignupEmailVerificationViaRoute (web/tests/fixtures/fixtures.ts:2577:9)\n    at web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts:207:4",
+                        "location": {
+                          "file": "web/tests/fixtures/fixtures.ts",
+                          "column": 9,
+                          "line": 2577
+                        },
+                        "snippet": "\u001b[90m   at \u001b[39mfixtures/fixtures.ts:2577\n\n  2575 | \t} catch (error) {\n  2576 | \t\tconst diagnosticEnv = fixtureEnvForFailureDiagnostics();\n> 2577 | \t\tthrow new Error(\n       | \t\t      ^\n  2578 | \t\t\tformatFixtureSetupFailure({\n  2579 | \t\t\t\tsetupName: 'fresh-signup email verification replay setup',\n  2580 | \t\t\t\texpectedPath: '/verify-email/{token}',"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "web/tests/fixtures/fixtures.ts",
+                            "column": 9,
+                            "line": 2577
+                          },
+                          "message": "Error: fresh-signup email verification replay setup failed before reaching /verify-email/{token}. Current URL: about:blank\nAPI URL: https://api.staging.flapjack.foo\nAdmin key fingerprint: (present, len=32)\nVisible alert text: ssm_exec_staging.sh exited 254. stdout= stderr=\nLogin response: (none observed)\nRemediation: Run scripts/bootstrap-env-local.sh to bootstrap .env.local, then start the local stack with scripts/local-dev-up.sh and the Rust API with scripts/api-dev.sh. If you override BASE_URL, start the web frontend with scripts/web-dev.sh too. See docs/runbooks/local-dev.md for setup instructions.\n\n   at fixtures/fixtures.ts:2577\n\n  2575 | \t} catch (error) {\n  2576 | \t\tconst diagnosticEnv = fixtureEnvForFailureDiagnostics();\n> 2577 | \t\tthrow new Error(\n       | \t\t      ^\n  2578 | \t\t\tformatFixtureSetupFailure({\n  2579 | \t\t\t\tsetupName: 'fresh-signup email verification replay setup',\n  2580 | \t\t\t\texpectedPath: '/verify-email/{token}',\n    at completeFreshSignupEmailVerificationViaRoute (web/tests/fixtures/fixtures.ts:2577:9)\n    at web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts:207:4"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-10T09:11:20.455Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "web/test-results/e2e-ui-full-polished_beta_-cb13f-cument-cards-staging-verify-chromium/test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "web/test-results/e2e-ui-full-polished_beta_-cb13f-cument-cards-staging-verify-chromium/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "web/tests/fixtures/fixtures.ts",
+                        "column": 9,
+                        "line": 2577
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "def1f8a49cd90f5801f0-b2151b13d98869fcb40d",
+              "file": "e2e-ui/full/polished_beta_staging_verify.spec.ts",
+              "line": 279,
+              "column": 2
+            },
+            {
+              "title": "Lane D - Display Preferences exposes document card controls @staging_verify",
+              "ok": false,
+              "tags": [
+                "staging_verify"
+              ],
+              "tests": [
+                {
+                  "timeout": 240000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 4,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 854,
+                      "error": {
+                        "message": "Error: fresh-signup email verification replay setup failed before reaching /verify-email/{token}. Current URL: about:blank\nAPI URL: https://api.staging.flapjack.foo\nAdmin key fingerprint: (present, len=32)\nVisible alert text: ssm_exec_staging.sh exited 254. stdout= stderr=\nLogin response: (none observed)\nRemediation: Run scripts/bootstrap-env-local.sh to bootstrap .env.local, then start the local stack with scripts/local-dev-up.sh and the Rust API with scripts/api-dev.sh. If you override BASE_URL, start the web frontend with scripts/web-dev.sh too. See docs/runbooks/local-dev.md for setup instructions.",
+                        "stack": "Error: fresh-signup email verification replay setup failed before reaching /verify-email/{token}. Current URL: about:blank\nAPI URL: https://api.staging.flapjack.foo\nAdmin key fingerprint: (present, len=32)\nVisible alert text: ssm_exec_staging.sh exited 254. stdout= stderr=\nLogin response: (none observed)\nRemediation: Run scripts/bootstrap-env-local.sh to bootstrap .env.local, then start the local stack with scripts/local-dev-up.sh and the Rust API with scripts/api-dev.sh. If you override BASE_URL, start the web frontend with scripts/web-dev.sh too. See docs/runbooks/local-dev.md for setup instructions.\n    at completeFreshSignupEmailVerificationViaRoute (web/tests/fixtures/fixtures.ts:2577:9)\n    at web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts:207:4",
+                        "location": {
+                          "file": "web/tests/fixtures/fixtures.ts",
+                          "column": 9,
+                          "line": 2577
+                        },
+                        "snippet": "\u001b[90m   at \u001b[39mfixtures/fixtures.ts:2577\n\n  2575 | \t} catch (error) {\n  2576 | \t\tconst diagnosticEnv = fixtureEnvForFailureDiagnostics();\n> 2577 | \t\tthrow new Error(\n       | \t\t      ^\n  2578 | \t\t\tformatFixtureSetupFailure({\n  2579 | \t\t\t\tsetupName: 'fresh-signup email verification replay setup',\n  2580 | \t\t\t\texpectedPath: '/verify-email/{token}',"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "web/tests/fixtures/fixtures.ts",
+                            "column": 9,
+                            "line": 2577
+                          },
+                          "message": "Error: fresh-signup email verification replay setup failed before reaching /verify-email/{token}. Current URL: about:blank\nAPI URL: https://api.staging.flapjack.foo\nAdmin key fingerprint: (present, len=32)\nVisible alert text: ssm_exec_staging.sh exited 254. stdout= stderr=\nLogin response: (none observed)\nRemediation: Run scripts/bootstrap-env-local.sh to bootstrap .env.local, then start the local stack with scripts/local-dev-up.sh and the Rust API with scripts/api-dev.sh. If you override BASE_URL, start the web frontend with scripts/web-dev.sh too. See docs/runbooks/local-dev.md for setup instructions.\n\n   at fixtures/fixtures.ts:2577\n\n  2575 | \t} catch (error) {\n  2576 | \t\tconst diagnosticEnv = fixtureEnvForFailureDiagnostics();\n> 2577 | \t\tthrow new Error(\n       | \t\t      ^\n  2578 | \t\t\tformatFixtureSetupFailure({\n  2579 | \t\t\t\tsetupName: 'fresh-signup email verification replay setup',\n  2580 | \t\t\t\texpectedPath: '/verify-email/{token}',\n    at completeFreshSignupEmailVerificationViaRoute (web/tests/fixtures/fixtures.ts:2577:9)\n    at web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts:207:4"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-10T09:11:21.827Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "web/test-results/e2e-ui-full-polished_beta_-08821-ard-controls-staging-verify-chromium/test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "web/test-results/e2e-ui-full-polished_beta_-08821-ard-controls-staging-verify-chromium/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "web/tests/fixtures/fixtures.ts",
+                        "column": 9,
+                        "line": 2577
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "def1f8a49cd90f5801f0-6e291dc40cbcbaadfb5e",
+              "file": "e2e-ui/full/polished_beta_staging_verify.spec.ts",
+              "line": 304,
+              "column": 2
+            },
+            {
+              "title": "Lane E - Query metrics report hit count and processing time @staging_verify",
+              "ok": false,
+              "tags": [
+                "staging_verify"
+              ],
+              "tests": [
+                {
+                  "timeout": 240000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 5,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 58098,
+                      "error": {
+                        "message": "Error: fresh-signup email verification replay setup failed before reaching /verify-email/{token}. Current URL: about:blank\nAPI URL: https://api.staging.flapjack.foo\nAdmin key fingerprint: (present, len=32)\nVisible alert text: ssm_exec_staging.sh exited 254. stdout= stderr=\nLogin response: (none observed)\nRemediation: Run scripts/bootstrap-env-local.sh to bootstrap .env.local, then start the local stack with scripts/local-dev-up.sh and the Rust API with scripts/api-dev.sh. If you override BASE_URL, start the web frontend with scripts/web-dev.sh too. See docs/runbooks/local-dev.md for setup instructions.",
+                        "stack": "Error: fresh-signup email verification replay setup failed before reaching /verify-email/{token}. Current URL: about:blank\nAPI URL: https://api.staging.flapjack.foo\nAdmin key fingerprint: (present, len=32)\nVisible alert text: ssm_exec_staging.sh exited 254. stdout= stderr=\nLogin response: (none observed)\nRemediation: Run scripts/bootstrap-env-local.sh to bootstrap .env.local, then start the local stack with scripts/local-dev-up.sh and the Rust API with scripts/api-dev.sh. If you override BASE_URL, start the web frontend with scripts/web-dev.sh too. See docs/runbooks/local-dev.md for setup instructions.\n    at completeFreshSignupEmailVerificationViaRoute (web/tests/fixtures/fixtures.ts:2577:9)\n    at web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts:207:4",
+                        "location": {
+                          "file": "web/tests/fixtures/fixtures.ts",
+                          "column": 9,
+                          "line": 2577
+                        },
+                        "snippet": "\u001b[90m   at \u001b[39mfixtures/fixtures.ts:2577\n\n  2575 | \t} catch (error) {\n  2576 | \t\tconst diagnosticEnv = fixtureEnvForFailureDiagnostics();\n> 2577 | \t\tthrow new Error(\n       | \t\t      ^\n  2578 | \t\t\tformatFixtureSetupFailure({\n  2579 | \t\t\t\tsetupName: 'fresh-signup email verification replay setup',\n  2580 | \t\t\t\texpectedPath: '/verify-email/{token}',"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "web/tests/fixtures/fixtures.ts",
+                            "column": 9,
+                            "line": 2577
+                          },
+                          "message": "Error: fresh-signup email verification replay setup failed before reaching /verify-email/{token}. Current URL: about:blank\nAPI URL: https://api.staging.flapjack.foo\nAdmin key fingerprint: (present, len=32)\nVisible alert text: ssm_exec_staging.sh exited 254. stdout= stderr=\nLogin response: (none observed)\nRemediation: Run scripts/bootstrap-env-local.sh to bootstrap .env.local, then start the local stack with scripts/local-dev-up.sh and the Rust API with scripts/api-dev.sh. If you override BASE_URL, start the web frontend with scripts/web-dev.sh too. See docs/runbooks/local-dev.md for setup instructions.\n\n   at fixtures/fixtures.ts:2577\n\n  2575 | \t} catch (error) {\n  2576 | \t\tconst diagnosticEnv = fixtureEnvForFailureDiagnostics();\n> 2577 | \t\tthrow new Error(\n       | \t\t      ^\n  2578 | \t\t\tformatFixtureSetupFailure({\n  2579 | \t\t\t\tsetupName: 'fresh-signup email verification replay setup',\n  2580 | \t\t\t\texpectedPath: '/verify-email/{token}',\n    at completeFreshSignupEmailVerificationViaRoute (web/tests/fixtures/fixtures.ts:2577:9)\n    at web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts:207:4"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-10T09:11:23.169Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "web/test-results/e2e-ui-full-polished_beta_-346af-cessing-time-staging-verify-chromium/test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "web/test-results/e2e-ui-full-polished_beta_-346af-cessing-time-staging-verify-chromium/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "web/tests/fixtures/fixtures.ts",
+                        "column": 9,
+                        "line": 2577
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "def1f8a49cd90f5801f0-0fde170802ba68ba807d",
+              "file": "e2e-ui/full/polished_beta_staging_verify.spec.ts",
+              "line": 332,
+              "column": 2
+            },
+            {
+              "title": "Lane F - Numbered pagination reaches first second and last pages @staging_verify",
+              "ok": false,
+              "tags": [
+                "staging_verify"
+              ],
+              "tests": [
+                {
+                  "timeout": 240000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 6,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 953,
+                      "error": {
+                        "message": "Error: fresh-signup email verification replay setup failed before reaching /verify-email/{token}. Current URL: about:blank\nAPI URL: https://api.staging.flapjack.foo\nAdmin key fingerprint: (present, len=32)\nVisible alert text: ssm_exec_staging.sh exited 254. stdout= stderr=\nLogin response: (none observed)\nRemediation: Run scripts/bootstrap-env-local.sh to bootstrap .env.local, then start the local stack with scripts/local-dev-up.sh and the Rust API with scripts/api-dev.sh. If you override BASE_URL, start the web frontend with scripts/web-dev.sh too. See docs/runbooks/local-dev.md for setup instructions.",
+                        "stack": "Error: fresh-signup email verification replay setup failed before reaching /verify-email/{token}. Current URL: about:blank\nAPI URL: https://api.staging.flapjack.foo\nAdmin key fingerprint: (present, len=32)\nVisible alert text: ssm_exec_staging.sh exited 254. stdout= stderr=\nLogin response: (none observed)\nRemediation: Run scripts/bootstrap-env-local.sh to bootstrap .env.local, then start the local stack with scripts/local-dev-up.sh and the Rust API with scripts/api-dev.sh. If you override BASE_URL, start the web frontend with scripts/web-dev.sh too. See docs/runbooks/local-dev.md for setup instructions.\n    at completeFreshSignupEmailVerificationViaRoute (web/tests/fixtures/fixtures.ts:2577:9)\n    at web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts:207:4",
+                        "location": {
+                          "file": "web/tests/fixtures/fixtures.ts",
+                          "column": 9,
+                          "line": 2577
+                        },
+                        "snippet": "\u001b[90m   at \u001b[39mfixtures/fixtures.ts:2577\n\n  2575 | \t} catch (error) {\n  2576 | \t\tconst diagnosticEnv = fixtureEnvForFailureDiagnostics();\n> 2577 | \t\tthrow new Error(\n       | \t\t      ^\n  2578 | \t\t\tformatFixtureSetupFailure({\n  2579 | \t\t\t\tsetupName: 'fresh-signup email verification replay setup',\n  2580 | \t\t\t\texpectedPath: '/verify-email/{token}',"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "web/tests/fixtures/fixtures.ts",
+                            "column": 9,
+                            "line": 2577
+                          },
+                          "message": "Error: fresh-signup email verification replay setup failed before reaching /verify-email/{token}. Current URL: about:blank\nAPI URL: https://api.staging.flapjack.foo\nAdmin key fingerprint: (present, len=32)\nVisible alert text: ssm_exec_staging.sh exited 254. stdout= stderr=\nLogin response: (none observed)\nRemediation: Run scripts/bootstrap-env-local.sh to bootstrap .env.local, then start the local stack with scripts/local-dev-up.sh and the Rust API with scripts/api-dev.sh. If you override BASE_URL, start the web frontend with scripts/web-dev.sh too. See docs/runbooks/local-dev.md for setup instructions.\n\n   at fixtures/fixtures.ts:2577\n\n  2575 | \t} catch (error) {\n  2576 | \t\tconst diagnosticEnv = fixtureEnvForFailureDiagnostics();\n> 2577 | \t\tthrow new Error(\n       | \t\t      ^\n  2578 | \t\t\tformatFixtureSetupFailure({\n  2579 | \t\t\t\tsetupName: 'fresh-signup email verification replay setup',\n  2580 | \t\t\t\texpectedPath: '/verify-email/{token}',\n    at completeFreshSignupEmailVerificationViaRoute (web/tests/fixtures/fixtures.ts:2577:9)\n    at web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts:207:4"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-10T09:12:21.757Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "web/test-results/e2e-ui-full-polished_beta_-03901-d-last-pages-staging-verify-chromium/test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "web/test-results/e2e-ui-full-polished_beta_-03901-d-last-pages-staging-verify-chromium/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "web/tests/fixtures/fixtures.ts",
+                        "column": 9,
+                        "line": 2577
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "def1f8a49cd90f5801f0-405c4c824b3234706cc7",
+              "file": "e2e-ui/full/polished_beta_staging_verify.spec.ts",
+              "line": 355,
+              "column": 2
+            },
+            {
+              "title": "Lane G - Merchandising rule creation replaces old pin controls @staging_verify",
+              "ok": false,
+              "tags": [
+                "staging_verify"
+              ],
+              "tests": [
+                {
+                  "timeout": 240000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 7,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 867,
+                      "error": {
+                        "message": "Error: fresh-signup email verification replay setup failed before reaching /verify-email/{token}. Current URL: about:blank\nAPI URL: https://api.staging.flapjack.foo\nAdmin key fingerprint: (present, len=32)\nVisible alert text: ssm_exec_staging.sh exited 254. stdout= stderr=\nLogin response: (none observed)\nRemediation: Run scripts/bootstrap-env-local.sh to bootstrap .env.local, then start the local stack with scripts/local-dev-up.sh and the Rust API with scripts/api-dev.sh. If you override BASE_URL, start the web frontend with scripts/web-dev.sh too. See docs/runbooks/local-dev.md for setup instructions.",
+                        "stack": "Error: fresh-signup email verification replay setup failed before reaching /verify-email/{token}. Current URL: about:blank\nAPI URL: https://api.staging.flapjack.foo\nAdmin key fingerprint: (present, len=32)\nVisible alert text: ssm_exec_staging.sh exited 254. stdout= stderr=\nLogin response: (none observed)\nRemediation: Run scripts/bootstrap-env-local.sh to bootstrap .env.local, then start the local stack with scripts/local-dev-up.sh and the Rust API with scripts/api-dev.sh. If you override BASE_URL, start the web frontend with scripts/web-dev.sh too. See docs/runbooks/local-dev.md for setup instructions.\n    at completeFreshSignupEmailVerificationViaRoute (web/tests/fixtures/fixtures.ts:2577:9)\n    at web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts:207:4",
+                        "location": {
+                          "file": "web/tests/fixtures/fixtures.ts",
+                          "column": 9,
+                          "line": 2577
+                        },
+                        "snippet": "\u001b[90m   at \u001b[39mfixtures/fixtures.ts:2577\n\n  2575 | \t} catch (error) {\n  2576 | \t\tconst diagnosticEnv = fixtureEnvForFailureDiagnostics();\n> 2577 | \t\tthrow new Error(\n       | \t\t      ^\n  2578 | \t\t\tformatFixtureSetupFailure({\n  2579 | \t\t\t\tsetupName: 'fresh-signup email verification replay setup',\n  2580 | \t\t\t\texpectedPath: '/verify-email/{token}',"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "web/tests/fixtures/fixtures.ts",
+                            "column": 9,
+                            "line": 2577
+                          },
+                          "message": "Error: fresh-signup email verification replay setup failed before reaching /verify-email/{token}. Current URL: about:blank\nAPI URL: https://api.staging.flapjack.foo\nAdmin key fingerprint: (present, len=32)\nVisible alert text: ssm_exec_staging.sh exited 254. stdout= stderr=\nLogin response: (none observed)\nRemediation: Run scripts/bootstrap-env-local.sh to bootstrap .env.local, then start the local stack with scripts/local-dev-up.sh and the Rust API with scripts/api-dev.sh. If you override BASE_URL, start the web frontend with scripts/web-dev.sh too. See docs/runbooks/local-dev.md for setup instructions.\n\n   at fixtures/fixtures.ts:2577\n\n  2575 | \t} catch (error) {\n  2576 | \t\tconst diagnosticEnv = fixtureEnvForFailureDiagnostics();\n> 2577 | \t\tthrow new Error(\n       | \t\t      ^\n  2578 | \t\t\tformatFixtureSetupFailure({\n  2579 | \t\t\t\tsetupName: 'fresh-signup email verification replay setup',\n  2580 | \t\t\t\texpectedPath: '/verify-email/{token}',\n    at completeFreshSignupEmailVerificationViaRoute (web/tests/fixtures/fixtures.ts:2577:9)\n    at web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts:207:4"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-10T09:12:23.131Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "web/test-results/e2e-ui-full-polished_beta_-67ac0-pin-controls-staging-verify-chromium/test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "web/test-results/e2e-ui-full-polished_beta_-67ac0-pin-controls-staging-verify-chromium/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "web/tests/fixtures/fixtures.ts",
+                        "column": 9,
+                        "line": 2577
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "def1f8a49cd90f5801f0-aa2022d01fd87057325d",
+              "file": "e2e-ui/full/polished_beta_staging_verify.spec.ts",
+              "line": 390,
+              "column": 2
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-06-10T09:11:15.439Z",
+    "duration": 68686.79,
+    "expected": 1,
+    "skipped": 0,
+    "unexpected": 7,
+    "flaky": 0
+  }
+}

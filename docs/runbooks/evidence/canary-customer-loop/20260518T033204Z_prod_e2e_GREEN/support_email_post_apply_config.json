@@ -1,0 +1,15 @@
+{
+    "Architectures": [
+        "arm64"
+    ],
+    "LastModified": "2026-05-18T03:21:32.000+0000",
+    "Env": {
+        "SES_FROM_ADDRESS": "system@flapjack.foo",
+        "INBOUND_ROUNDTRIP_RECIPIENT_DOMAIN": "test.flapjack.foo",
+        "INBOUND_ROUNDTRIP_S3_URI": "s3://flapjack-cloud-releases/e2e-emails/",
+        "ENVIRONMENT": "prod",
+        "SES_REGION": "us-east-1",
+        "DISCORD_WEBHOOK_URL": "/fjcloud/prod/discord_webhook_url",
+        "SLACK_WEBHOOK_URL": "/fjcloud/prod/slack_webhook_url"
+    }
+}

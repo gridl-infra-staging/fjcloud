@@ -1,0 +1,11 @@
+{
+  "error": {
+    "code": "resource_missing",
+    "doc_url": "https://stripe.com/docs/error-codes/resource-missing",
+    "message": "No such product: 'prod_UNtgEJYIBn4N3l'",
+    "param": "id",
+    "request_log_url": "https://dashboard.stripe.com/acct_1SyNWVKH9mdklKeI/test/workbench/logs?object=req_yG2BJkrvkhcgP0",
+    "type": "invalid_request_error"
+  }
+}
+

@@ -1,0 +1,24 @@
+{
+    "EvaluationResults": [
+        {
+            "EvalActionName": "ec2:StartInstances",
+            "EvalResourceName": "*",
+            "EvalDecision": "allowed",
+            "MatchedStatements": [
+                {
+                    "SourcePolicyId": "role_fjcloud-instance-role_fjcloud-ec2-control",
+                    "SourcePolicyType": "IAM Policy",
+                    "StartPosition": {
+                        "Line": 3,
+                        "Column": 17
+                    },
+                    "EndPosition": {
+                        "Line": 15,
+                        "Column": 6
+                    }
+                }
+            ],
+            "MissingContextValues": []
+        }
+    ]
+}

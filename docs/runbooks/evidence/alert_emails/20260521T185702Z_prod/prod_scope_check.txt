@@ -1,0 +1,4 @@
+allowed_regex=^(terraform_data\.prod_alert_emails_guard|module\.monitoring\.aws_sns_topic_subscription\.email\[[^]]+\])$
+changed_count=3
+offending_count=0
+scope_gate_result=PASS

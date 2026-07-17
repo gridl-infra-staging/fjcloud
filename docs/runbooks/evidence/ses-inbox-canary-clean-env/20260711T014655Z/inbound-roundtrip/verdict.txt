@@ -1,0 +1,3 @@
+PASS: inbound roundtrip live probe green.
+- exit: 0
+- steps: send_probe, poll_inbox_s3, fetch_rfc822, auth_verdict all passed.

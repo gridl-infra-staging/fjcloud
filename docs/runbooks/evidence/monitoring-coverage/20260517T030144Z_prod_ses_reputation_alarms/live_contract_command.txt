@@ -1,0 +1,1 @@
+aws cloudwatch describe-alarms --region us-east-1 --alarm-names fjcloud-prod-ses-reputation-bounce-rate-high fjcloud-prod-ses-reputation-complaint-rate-high

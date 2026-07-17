@@ -1,0 +1,2 @@
+# dig CNAME a76vb5g3t4par7ncph6gemrtxwfdfo5f._domainkey.flapjack.foo
+a76vb5g3t4par7ncph6gemrtxwfdfo5f.dkim.amazonses.com.

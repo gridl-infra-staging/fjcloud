@@ -1,0 +1,80 @@
+{
+  "name": "local_signoff",
+  "status": "skipped",
+  "reason": "local_signoff_not_applicable_in_paid_beta_rc_mode"
+}
+{
+  "name": "staging_billing_rehearsal",
+  "status": "fail",
+  "reason": "billing_run_no_created_invoices"
+}
+{
+  "name": "browser_auth_setup",
+  "status": "external_secret_missing",
+  "reason": "browser_auth_setup_env_gap"
+}
+{
+  "name": "admin_broadcast",
+  "status": "skipped",
+  "reason": "staging_only_production_surface"
+}
+{
+  "name": "billing_health_last_activity",
+  "status": "skipped",
+  "reason": "staging_only_production_surface"
+}
+{
+  "name": "audit_timeline",
+  "status": "skipped",
+  "reason": "staging_only_production_surface"
+}
+{
+  "name": "status_runtime",
+  "status": "skipped",
+  "reason": "staging_only_production_surface"
+}
+{
+  "name": "ses_inbound",
+  "status": "skipped",
+  "reason": "staging_only_production_surface"
+}
+{
+  "name": "canary_customer_loop",
+  "status": "skipped",
+  "reason": "staging_only_production_surface"
+}
+{
+  "name": "canary_outside_aws",
+  "status": "skipped",
+  "reason": "staging_only_production_surface"
+}
+{
+  "name": "stripe_webhook_signature_matrix_idempotency",
+  "status": "skipped",
+  "reason": "staging_only_production_surface"
+}
+{
+  "name": "test_clock",
+  "status": "skipped",
+  "reason": "staging_only_production_surface"
+}
+{
+  "name": "tenant_isolation",
+  "status": "skipped",
+  "reason": "staging_only_production_surface"
+}
+{
+  "name": "signup_abuse",
+  "status": "skipped",
+  "reason": "staging_only_production_surface"
+}
+{
+  "name": "browser_signup_paid",
+  "status": "skipped",
+  "reason": "staging_only_production_surface"
+}
+{
+  "name": "browser_portal_cancel",
+  "status": "skipped",
+  "reason": "staging_only_production_surface"
+}

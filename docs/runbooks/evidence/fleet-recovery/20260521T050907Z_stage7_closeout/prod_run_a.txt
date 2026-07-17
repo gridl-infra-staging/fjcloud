@@ -1,0 +1,10 @@
+[full-vm-lifecycle] mode=run-a
+[full-vm-lifecycle] signup succeeded for canary+canary2026052105101211264@test.flapjack.foo (customer=43043e86-453d-42f5-b0da-5d2b54eaf9a8)
+[full-vm-lifecycle] email verification succeeded for canary+canary2026052105101211264@test.flapjack.foo
+[full-vm-lifecycle] index created (lifecycle-canary2026052105101211264)
+[full-vm-lifecycle] index write succeeded (lifecycle-canary2026052105101211264)
+[full-vm-lifecycle] index search succeeded (lifecycle-canary2026052105101211264)
+[full-vm-lifecycle] run-a completed successfully
+[full-vm-lifecycle] index deleted (lifecycle-canary2026052105101211264)
+[full-vm-lifecycle] account delete attempted for customer 43043e86-453d-42f5-b0da-5d2b54eaf9a8
+[full-vm-lifecycle] admin cleanup completed for tenant 43043e86-453d-42f5-b0da-5d2b54eaf9a8

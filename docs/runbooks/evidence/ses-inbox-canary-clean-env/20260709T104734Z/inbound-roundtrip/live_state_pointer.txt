@@ -1,0 +1,3 @@
+live_state_stdout_path=docs/runbooks/evidence/ses-inbox-canary-clean-env/20260709T104734Z/inbound-roundtrip/live_state.stdout
+live_state_stderr_path=docs/runbooks/evidence/ses-inbox-canary-clean-env/20260709T104734Z/inbound-roundtrip/live_state.stderr
+live_state_exit_path=docs/runbooks/evidence/ses-inbox-canary-clean-env/20260709T104734Z/inbound-roundtrip/live_state.exit

@@ -1,0 +1,21 @@
+{
+  "runs": [
+    {
+      "run": 1,
+      "exit_code": 0,
+      "json_found": true,
+      "passed_true": true,
+      "auth_verdict_passed": true,
+      "run_gate_passed": true
+    },
+    {
+      "run": 2,
+      "exit_code": 0,
+      "json_found": true,
+      "passed_true": true,
+      "auth_verdict_passed": true,
+      "run_gate_passed": true
+    }
+  ],
+  "all_runs_gate_passed": true
+}

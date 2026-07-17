@@ -1,0 +1,6 @@
+{
+    "error": "payment_required",
+    "code": "invoice_payment_intent_requires_action",
+    "decline_code": null,
+    "message": "Additional customer authentication is required."
+}

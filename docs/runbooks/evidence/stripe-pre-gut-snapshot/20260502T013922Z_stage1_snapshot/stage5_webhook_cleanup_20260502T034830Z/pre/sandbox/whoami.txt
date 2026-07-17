@@ -1,0 +1,7 @@
+Profile:              default
+Account:              flapjack-cloud sandbox (acct_1SyNWVKH9mdklKeI)
+Device name:          stuarts-MBP-2.lan
+Test mode key:        available (expires 2026-07-22)
+Live mode key:        not available
+API version:          2026-03-25.dahlia
+Preview API version:  2026-03-25.preview

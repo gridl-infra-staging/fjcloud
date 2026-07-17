@@ -1,0 +1,4 @@
+START RequestId: bc26ecae-b37e-4ddc-a458-2ab9005e2bde Version: $LATEST
+scripts/canary/customer_loop_synthetic.sh: line 29: /workspace/scripts/lib/stripe_request.sh: Permission denied
+END RequestId: bc26ecae-b37e-4ddc-a458-2ab9005e2bde
+REPORT RequestId: bc26ecae-b37e-4ddc-a458-2ab9005e2bde	Duration: 4203.48 ms	Billed Duration: 4332 ms	Memory Size: 512 MB	Max Memory Used: 133 MB	Init Duration: 127.90 ms	

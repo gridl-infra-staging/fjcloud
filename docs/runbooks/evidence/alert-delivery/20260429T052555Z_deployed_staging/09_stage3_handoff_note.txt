@@ -1,0 +1,16 @@
+# Stage 3 handoff note
+
+Stage 2 webhook-mode readiness is proven on deployed staging.
+
+Use this canonical bundle for Stage 3:
+- docs/runbooks/evidence/alert-delivery/20260429T052555Z_deployed_staging/
+
+Key proof artifacts:
+- 01_instance_and_sha.txt
+- 03_live_state_stdout.txt
+- 06_startup_mode_retry_stdout.txt
+- 08_stage2_readiness_gate.txt
+
+Operational note:
+- Initial host log extraction attempt used `rg` and produced `rg: command not found` on the instance.
+- Retry with `grep -E` captured the required startup-mode line successfully.

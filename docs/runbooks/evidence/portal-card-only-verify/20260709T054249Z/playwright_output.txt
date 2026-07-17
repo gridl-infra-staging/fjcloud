@@ -1,0 +1,27 @@
+[local-browser-lane] Sourcing AWS credentials from .secret/.env.secret
+[local-browser-lane] Hydrating test-mode Stripe keys from SSM (region us-east-1)
+[local-browser-lane] Stripe keys OK (publishable pk_test_…, secret sk_test_…, webhook whsec_tb…)
+[local-browser-lane] Validating live Stripe test key against Stripe API
+[local-browser-lane] Stripe key authenticates
+[local-browser-lane] Starting flapjack (/Users/stuart/repos/gridl-dev/flapjack_dev/engine/target/debug/flapjack) on :7751
+[local-browser-lane] flapjack is healthy (http://127.0.0.1:7751/health)
+[local-browser-lane] Starting local API on :3051 (real Stripe test mode; publishable pk_test_…)
+[local-browser-lane] api is healthy (http://127.0.0.1:3051/health)
+=== Running billing_portal_payment_method_update (spec: tests/e2e-ui/full/billing_portal_payment_method_update.spec.ts) against local http://localhost:5273 / api http://127.0.0.1:3051 ===
+(node:41980) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+[WebServer] (node:42501) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+[WebServer] (Use `node --trace-deprecation ...` to show where the warning was created)
+
+Running 2 tests using 1 worker
+
+(node:42573) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+  ✓  1 [chromium] › tests/e2e-ui/full/billing_portal_payment_method_update.spec.ts:127:2 › Billing in-app payment-method updates › updates default payment method in-app and keeps billing page stable (17.4s)
+  ✓  2 [chromium] › tests/e2e-ui/full/billing_portal_payment_method_update.spec.ts:212:2 › Billing in-app payment-method updates › saves a new payment method via the Stripe Payment Element on /console/billing/setup @p0_coverage (14.4s)
+
+  2 passed (38.0s)
+
+[local-browser-lane] Evidence bundle: .local/browser-lane-evidence/20260709T054303Z
+[local-browser-lane] Stopping local API (pid 41808)
+[local-browser-lane] Stopping local flapjack (pid 41775)

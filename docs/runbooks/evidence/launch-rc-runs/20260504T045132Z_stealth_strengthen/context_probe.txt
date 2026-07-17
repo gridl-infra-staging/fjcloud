@@ -1,0 +1,6 @@
+timestamp_utc=20260504T045132Z
+run_dir=docs/runbooks/evidence/launch-rc-runs/20260504T045132Z_stealth_strengthen
+secret_file=.secret/.env.secret
+has_cloudflare_api_token=no
+has_cloudflare_global_api_key=yes
+zone_id_alias_present=no

@@ -1,0 +1,21 @@
+# Red run 1 (remote host rejected by loopback guard)
+export BASE_URL=https://staging.flapjack.cloud API_URL=https://api.staging.flapjack.cloud API_BASE_URL=https://api.staging.flapjack.cloud PLAYWRIGHT_TARGET_REMOTE=1
+cd web && npx playwright test tests/e2e-ui/full/console_chrome_polish.spec.ts --project=chromium --reporter=list --no-deps
+
+Error: BASE_URL must use a local loopback host (localhost, 127.0.0.1, or [::1]) for credentialed local browser runs
+
+# Red run 2 (allowlisted host, reaches spec assertions/fixtures)
+set -a; source .secret/.env.secret; set +a
+export BASE_URL=https://cloud.flapjack.foo API_URL=https://api.flapjack.foo API_BASE_URL=https://api.flapjack.foo PLAYWRIGHT_TARGET_REMOTE=1
+cd web && npx playwright test tests/e2e-ui/full/console_chrome_polish.spec.ts --project=chromium --reporter=list --no-deps
+
+Running 1 test using 1 worker
+✘ console_chrome_polish.spec.ts ... staging seam shows shared API plan ...
+Error: expect(received).toBeTruthy()
+Received: false
+at setSharedPlanResponse.ok()
+
+Error: tracked fixture customer cleanup failed ... 401 {"error":"invalid admin key"}
+
+# Earlier red run before fixture-creds pivot
+Error: Auth login failed: 400 {"error":"invalid email or password"}

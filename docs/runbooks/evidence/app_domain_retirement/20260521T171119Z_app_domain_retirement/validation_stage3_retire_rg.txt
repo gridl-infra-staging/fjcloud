@@ -1,0 +1,3 @@
+ops/runbooks/site_takedown_20260503/STATUS.md:13:- `https://app.flapjack.foo/`    (was Pages alias at takedown time; alias retired on 2026-05-21)
+ops/runbooks/site_takedown_20260503/STATUS.md:43:- `restore.sh` does **not** restore `app.flapjack.foo`; the alias-retirement lane marked it unsupported.
+docs/decisions/2026-05-02_adapter_cloudflare_migration.md:32:alias `app.flapjack.foo` was retired on 2026-05-21 by the alias-retirement

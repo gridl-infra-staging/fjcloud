@@ -1,0 +1,46 @@
+# Disposition Receipt: worktree fjcloud_dev
+
+Classification: approved worktree-only removal candidate.
+Worktree path: fjcloud_dev
+Branch: detached
+HEAD SHA: 417a036f6a07c4c7cc7d576b6d85140dc0ec6774
+Ancestor proof command: git merge-base --is-ancestor 417a036f6a07c4c7cc7d576b6d85140dc0ec6774 main
+Ancestor proof exit: 1
+
+## rev-parse
+$ git rev-parse 417a036f6a07c4c7cc7d576b6d85140dc0ec6774
+417a036f6a07c4c7cc7d576b6d85140dc0ec6774
+
+## cherry
+$ git cherry -v main 417a036f6a07c4c7cc7d576b6d85140dc0ec6774 | tail -20
++ 80f02fdeb7c0b6fab1999c7fac566d8214985f28 Fix staging rehearsal UUID fixtures
++ 043e845e04844f3b93b61c749848d80d74195a2f matt: stage 5 checklist
++ f7e494eb3ed5cc54dffab41f776726b6dab60691 matt: stage 5 completion
++ bbb1e878746771f9d5a766d1c0c074cdfb2cff78 matt: stage 6 checklist
++ 498c27bd0984feb0062a1f8e644f86b0dd97111f Fix local CI closeout hygiene
++ 50740c4e1b33a141bd2da40b8c35424178736707 matt: posthoc review
++ 4e63223f39b41b85395dd683873e94156c1fc0f2 matt: posthoc security
++ 417a036f6a07c4c7cc7d576b6d85140dc0ec6774 matt: terminal progress annotation
+
+## diff main...
+$ git diff main...417a036f6a07c4c7cc7d576b6d85140dc0ec6774 --stat | tail -20
+ web/src/lib/components/DIRMAP.md                   |   2 +-
+ web/src/routes/DIRMAP.md                           |  12 +-
+ web/src/routes/admin/DIRMAP.md                     |   2 +-
+ web/src/routes/admin/customers/DIRMAP.md           |   2 +-
+ web/src/routes/api/DIRMAP.md                       |   6 +-
+ web/src/routes/api/pricing/DIRMAP.md               |   2 +-
+ web/src/routes/api/search/DIRMAP.md                |   2 +-
+ web/src/routes/api/stripe/DIRMAP.md                |   2 +-
+ web/src/routes/auth/DIRMAP.md                      |   2 +-
+ web/src/routes/auth/oauth/DIRMAP.md                |   2 +-
+ web/src/routes/auth/oauth/[provider]/DIRMAP.md     |   2 +-
+ web/src/routes/billing/DIRMAP.md                   |   2 +-
+ web/src/routes/console/DIRMAP.md                   |  14 +-
+ web/src/routes/console/indexes/DIRMAP.md           |   2 +-
+ web/src/routes/console/indexes/[name]/DIRMAP.md    |   2 +-
+ .../console/indexes/[name]/experiments/DIRMAP.md   |   2 +-
+ web/tests/DIRMAP.md                                |   4 +-
+ web/tests/e2e-ui/DIRMAP.md                         |   2 +-
+ web/tests/e2e-ui/full/DIRMAP.md                    |   2 +-
+ 62 files changed, 425 insertions(+), 375 deletions(-)

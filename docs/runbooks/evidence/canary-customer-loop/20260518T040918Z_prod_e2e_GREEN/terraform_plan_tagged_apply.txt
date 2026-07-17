@@ -1,0 +1,13 @@
+[33m╷[0m[0m
+[33m│[0m [0m[1m[33mWarning: [0m[0m[1mDeprecated Parameter[0m
+[33m│[0m [0m
+[33m│[0m [0m[0mThe parameter "dynamodb_table" is deprecated. Use parameter "use_lockfile"
+[33m│[0m [0minstead.
+[33m╵[0m[0m
+[31m╷[0m[0m
+[31m│[0m [0m[1m[31mError: [0m[0m[1mValue for undeclared variable[0m
+[31m│[0m [0m
+[31m│[0m [0m[0mA variable named "customer_loop_canary_image_tag" was assigned on the
+[31m│[0m [0mcommand line, but the root module does not declare a variable of that name.
+[31m│[0m [0mTo use this value, add a "variable" block to the configuration.
+[31m╵[0m[0m

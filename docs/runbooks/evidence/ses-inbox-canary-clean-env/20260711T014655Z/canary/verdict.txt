@@ -1,0 +1,5 @@
+PASS: customer-loop canary live proof green.
+- invoke exit: 0
+- invoke result: StatusCode 200, no FunctionError; stdout reports PASS.
+- readback exit: 0
+- readback result: ready=true, errors_24h pass with Errors sum 24h = 0, last_invocation pass with success marker.

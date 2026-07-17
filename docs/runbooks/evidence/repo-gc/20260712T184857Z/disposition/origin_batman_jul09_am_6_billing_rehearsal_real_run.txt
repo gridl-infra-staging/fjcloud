@@ -1,0 +1,15 @@
+# Disposition Receipt: origin/batman/jul09_am_6_billing_rehearsal_real_run
+
+Classification: approved remote branch deletion; manifest stores short branch name
+Evidence source: current read-only git refs at bundle creation.
+
+## rev-parse
+$ git rev-parse origin/batman/jul09_am_6_billing_rehearsal_real_run
+677b952a382b660ed4e77dad6ed842901ba2597d
+
+## cherry
+$ git cherry -v main origin/batman/jul09_am_6_billing_rehearsal_real_run | tail -20
+- 677b952a382b660ed4e77dad6ed842901ba2597d baseline: pre-session scrai/tooling sync
+
+## diff main...
+$ git diff main...origin/batman/jul09_am_6_billing_rehearsal_real_run --stat | tail -20

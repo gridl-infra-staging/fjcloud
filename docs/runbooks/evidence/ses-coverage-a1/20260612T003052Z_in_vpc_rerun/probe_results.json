@@ -1,0 +1,34 @@
+{
+  "probes": [
+    {
+      "first_status_line": "ERROR: email_verified_at not set after clickthrough for verifyprobe2026061200343430018@test.flapjack.foo after 15 attempts",
+      "probe_id": "verify_email_clickthrough",
+      "rc": 1
+    },
+    {
+      "first_status_line": "ERROR: password_reset_token not cleared after reset for resetprobe202606120036128021@test.flapjack.foo after 15 attempts",
+      "probe_id": "password_reset_clickthrough",
+      "rc": 1
+    },
+    {
+      "first_status_line": "{\"result\":\"failed\",\"classification\":\"rehearsal_reset_failed\",\"detail\":\"dunning owner script exited 1\"}ERROR: dunning owner script exited 1",
+      "probe_id": "dunning_email_inbox",
+      "rc": 1
+    },
+    {
+      "first_status_line": "{\"passed\":true,\"steps\":[{\"name\":\"preflight\",\"passed\":true,\"detail\":\"Loaded env file '.runtime/host.env'; mode='bounce'; recipient='bounce@simulator.amazonses.com'; subject_prefix='fjcloud-ses-bounce-complaint-probe'.\"},{\"name\":\"seed_probe_customer\",\"passed\":true,\"detail\":\"Seeded probe customer id '6031e9c4-464a-4c8a-9218-555392005373' and cleared prior probe-owned rows for recipient 'bounce@simulator.amazonses.com'.\"},{\"name\":\"first_live_send\",\"passed\":true,\"detail\":\"First live broadcast complet",
+      "probe_id": "ses_bounce",
+      "rc": 0
+    },
+    {
+      "first_status_line": "{\"passed\":true,\"steps\":[{\"name\":\"preflight\",\"passed\":true,\"detail\":\"Loaded env file '.runtime/host.env'; mode='complaint'; recipient='complaint@simulator.amazonses.com'; subject_prefix='fjcloud-ses-bounce-complaint-probe'.\"},{\"name\":\"seed_probe_customer\",\"passed\":true,\"detail\":\"Seeded probe customer id '81b371a0-a039-43fe-9df1-4486dde8f946' and cleared prior probe-owned rows for recipient 'complaint@simulator.amazonses.com'.\"},{\"name\":\"first_live_send\",\"passed\":true,\"detail\":\"First live broadcas",
+      "probe_id": "ses_complaint",
+      "rc": 0
+    },
+    {
+      "first_status_line": "{\"result\":\"failed\",\"classification\":\"rehearsal_reset_failed\",\"detail\":\"Reset flow failed for tenant 193638a5-35f7-407f-a734-3f73de224336\\\\: reset_customer_lookup_query_failed \\u2014 reset_customer_lookup query failed: ERROR:  invalid input syntax for type uuid: \\\"193638a5-35f7-407f-a734-3f73de224336\\\\\\\"\\nLINE 1: ...LECT stripe_customer_id FROM customers WHERE id = '193638a5-...\\n                                                             ^\",\"artifact_dir\":\"\",\"transitions\":[],\"steps\":[{\"name\":\"g",
+      "probe_id": "staging_dunning_delivery",
+      "rc": 1
+    }
+  ]
+}

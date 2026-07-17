@@ -1,0 +1,5 @@
+--- convergence record ---
+dev_main_HEAD=568ef287ddff81ba26ff7cc13d47b35012aca4a0
+prod_version_dev_sha=568ef287ddff81ba26ff7cc13d47b35012aca4a0
+prod_ci_run=26382917893 conclusion=success at 05:06:08Z
+probed_at=2026-05-25T05:06:31Z

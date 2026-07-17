@@ -1,0 +1,5 @@
+cached_hit=false
+command=FJCLOUD_SECRET_FILE=/Users/stuart/repos/gridl-infra-dev/fjcloud_dev/.secret/.env.secret bash scripts/local-ci.sh --with-contracts
+head_sha=35aeb127bf452aaf2d0078377de42f06b02d6ef6
+clean_tree=false
+exit_code=0

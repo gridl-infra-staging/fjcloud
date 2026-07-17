@@ -1,0 +1,24 @@
+{
+  "domains_success": true,
+  "project_success": true,
+  "deployments_success": true,
+  "dns_recheck_success": false,
+  "dns_recheck_auth_error": true,
+  "dns_source_for_gate": "19_dns_final.json",
+  "dns_source_success": true,
+  "dns_points_to_staging_preview": true,
+  "dns_recheck_points_to_staging_preview": false,
+  "cloud_staging_domain_present": true,
+  "cloud_staging_domain_status": "active",
+  "canonical_alias_contains_cloud_staging": true,
+  "latest_staging_preview_id": "239b093c-acf2-43fa-8eca-6b45961d2a84",
+  "latest_staging_preview_aliases": [
+    "https://staging.flapjack-cloud.pages.dev"
+  ],
+  "signup_oauth_origins": [
+    "https://api.staging.flapjack.foo"
+  ],
+  "signup_oauth_origins_all_staging_api": true,
+  "owner_proof_contract": "domain_present_and_active + proxied_dns_cname_to_staging_branch_alias + runtime_oauth_origins_to_api_staging",
+  "stage4_cutover_pass": true
+}

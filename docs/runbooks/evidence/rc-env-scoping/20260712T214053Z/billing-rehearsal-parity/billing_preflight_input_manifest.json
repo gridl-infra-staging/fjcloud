@@ -1,0 +1,21 @@
+{
+  "argv": [
+    "bash",
+    "scripts/staging_billing_dry_run.sh",
+    "--check",
+    "--env-file",
+    "/Users/stuart/repos/gridl-infra-dev/fjcloud_dev/.secret/.env.secret"
+  ],
+  "env": {
+    "ADMIN_KEY": "set",
+    "AWS_DEFAULT_REGION": "set",
+    "DATABASE_URL": "set",
+    "INTEGRATION_DB_URL": "unset",
+    "MAILPIT_API_URL": "unset",
+    "SES_REGION": "set",
+    "STAGING_API_URL": "set",
+    "STAGING_STRIPE_WEBHOOK_URL": "set",
+    "STRIPE_SECRET_KEY": "set",
+    "STRIPE_WEBHOOK_SECRET": "set"
+  }
+}

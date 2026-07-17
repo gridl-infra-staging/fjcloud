@@ -1,0 +1,14 @@
+# Disposition Receipt: batman/jun05_ui_1147am_10_unified_search_tab
+
+Classification: approved freed local branch after approved worktree removal
+Evidence source: current read-only git refs at bundle creation.
+
+## rev-parse
+$ git rev-parse batman/jun05_ui_1147am_10_unified_search_tab
+f3df3254d37b6d0cf1110d302b8a0986dd0b9b25
+
+## cherry
+$ git cherry -v main batman/jun05_ui_1147am_10_unified_search_tab | tail -20
+
+## diff main...
+$ git diff main...batman/jun05_ui_1147am_10_unified_search_tab --stat | tail -20

@@ -1,0 +1,3 @@
+EVIDENCE_DIR=docs/runbooks/evidence/polished-beta-staging-verify/20260707T053057Z
+HEAD_SHA=744e2cf4912f687c2dde6c77fd449910a519d361
+PLAYWRIGHT_JSON=docs/runbooks/evidence/polished-beta-staging-verify/20260707T053057Z/playwright-results.json

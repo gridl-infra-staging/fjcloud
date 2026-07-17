@@ -1,0 +1,14 @@
+# Disposition Receipt: batman/may21_12pm_11_inventory_diagnosis
+
+Classification: approved freed local branch after approved worktree removal
+Evidence source: current read-only git refs at bundle creation.
+
+## rev-parse
+$ git rev-parse batman/may21_12pm_11_inventory_diagnosis
+c2ad6045c157beada0b2e339c45f745bb10c0d77
+
+## cherry
+$ git cherry -v main batman/may21_12pm_11_inventory_diagnosis | tail -20
+
+## diff main...
+$ git diff main...batman/may21_12pm_11_inventory_diagnosis --stat | tail -20

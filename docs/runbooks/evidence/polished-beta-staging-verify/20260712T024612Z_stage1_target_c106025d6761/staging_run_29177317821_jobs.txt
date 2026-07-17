@@ -1,0 +1,13 @@
+run status=in_progress conclusion= created=2026-07-12T02:49:10Z updated=2026-07-12T03:10:03Z url=https://github.com/gridl-infra-staging/fjcloud/actions/runs/29177317821
+check-sizes	completed	success	2026-07-12T02:49:13Z	2026-07-12T02:49:23Z	https://github.com/gridl-infra-staging/fjcloud/actions/runs/29177317821/job/86608645402
+rust-test	completed	success	2026-07-12T02:49:15Z	2026-07-12T02:53:35Z	https://github.com/gridl-infra-staging/fjcloud/actions/runs/29177317821/job/86608645403
+web-test	completed	success	2026-07-12T02:49:13Z	2026-07-12T02:52:06Z	https://github.com/gridl-infra-staging/fjcloud/actions/runs/29177317821/job/86608645407
+rust-lint	completed	success	2026-07-12T02:49:13Z	2026-07-12T02:50:13Z	https://github.com/gridl-infra-staging/fjcloud/actions/runs/29177317821/job/86608645413
+shell-hygiene	completed	success	2026-07-12T02:49:15Z	2026-07-12T02:49:30Z	https://github.com/gridl-infra-staging/fjcloud/actions/runs/29177317821/job/86608645414
+web-lint	completed	success	2026-07-12T02:49:13Z	2026-07-12T02:50:28Z	https://github.com/gridl-infra-staging/fjcloud/actions/runs/29177317821/job/86608645418
+secret-scan	completed	success	2026-07-12T02:49:14Z	2026-07-12T02:49:30Z	https://github.com/gridl-infra-staging/fjcloud/actions/runs/29177317821/job/86608645419
+migration-test	completed	success	2026-07-12T02:49:13Z	2026-07-12T02:50:37Z	https://github.com/gridl-infra-staging/fjcloud/actions/runs/29177317821/job/86608645428
+local-dev-up-smoke	completed	success	2026-07-12T02:49:14Z	2026-07-12T02:52:16Z	https://github.com/gridl-infra-staging/fjcloud/actions/runs/29177317821/job/86608645438
+deploy-staging	completed	success	2026-07-12T02:53:41Z	2026-07-12T03:09:59Z	https://github.com/gridl-infra-staging/fjcloud/actions/runs/29177317821/job/86608918415
+deploy-prod	completed	skipped	2026-07-12T02:53:35Z	2026-07-12T02:53:35Z	https://github.com/gridl-infra-staging/fjcloud/actions/runs/29177317821/job/86608918670
+e2e-deployed	in_progress		2026-07-12T03:10:03Z	0001-01-01T00:00:00Z	https://github.com/gridl-infra-staging/fjcloud/actions/runs/29177317821/job/86610085472

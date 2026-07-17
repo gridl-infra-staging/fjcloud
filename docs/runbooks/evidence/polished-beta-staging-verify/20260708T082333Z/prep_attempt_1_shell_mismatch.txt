@@ -1,0 +1,5 @@
+command_shell: zsh
+classification: harness_shell_mismatch
+exit_code: 126
+stderr: scripts/lib/hydrate_staging_env.sh:57: parse error near `;`
+resolution: rerun preparation under bash per AGENTS.md

@@ -1,0 +1,35 @@
+HEAD: e8b879f278d26fbacc8bfb1634eb25c129739776
+
+Status:
+M  AGENTS.md
+M  CLAUDE.md
+M  DIRMAP.md
+ M chats/icg/_followups.md
+M  scripts/lib/compose_project.sh
+M  scripts/lib/deterministic_batch_payload.sh
+M  scripts/lib/full_backend_validation_cli.sh
+M  scripts/lib/local_seed_replicas.sh
+M  scripts/lib/process.sh
+M  scripts/lib/psql_path.sh
+M  scripts/lib/secret_audit_parsing.sh
+M  scripts/lib/seed_verify.sh
+M  scripts/lib/staging_billing_rehearsal_cross_check.sh
+M  scripts/lib/staging_billing_rehearsal_email_evidence.sh
+M  scripts/lib/staging_billing_rehearsal_evidence.sh
+M  scripts/tests/lib/api_dev_stage4_tests.sh
+M  scripts/tests/lib/local_dev_test_state.sh
+M  scripts/tests/lib/seed_local_mocks.sh
+M  scripts/tests/lib/staging_billing_rehearsal_reset_harness_blocks.sh
+M  scripts/tests/lib/validate_customer_quickstart_fixtures.sh
+M  web/DIRMAP.md
+M  web/playwright.config.contract.ts
+M  web/tests/DIRMAP.md
+M  web/tests/fixtures/DIRMAP.md
+M  web/tests/fixtures/fixtures.ts
+?? docs/runbooks/evidence/playwright-fixture-salvage/20260709T211656Z/
+
+Node: v26.0.0
+Playwright: Version 1.58.2
+
+Config workers line:
+151:	workers: 1,

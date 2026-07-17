@@ -1,0 +1,13 @@
+# Stage2 SSM populate evidence
+timestamp_utc=2026-04-28T20:10:00Z
+repo_head=9b01a16d
+
+$ aws sts get-caller-identity
+{
+    "UserId": "AIDATDTCLTRFKVSWMJCGQ",
+    "Account": "213880904778",
+    "Arn": "arn:aws:iam::213880904778:user/stuart-cli"
+}
+
+$ aws configure get region
+discord_webhook_url_missing_in_secret_source=/Users/stuart/repos/gridl-infra-dev/fjcloud_dev/.secret/.env.secret

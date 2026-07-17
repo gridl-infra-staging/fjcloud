@@ -1,0 +1,12 @@
+{
+  "DocumentName": "AWS-RunShellScript",
+  "InstanceIds": [
+    "i-0afc7651593f12372"
+  ],
+  "Comment": "stage7 ",
+  "Parameters": {
+    "commands": [
+      "set -euo pipefail; echo \"=== diag_start ===\"; date -u +%Y-%m-%dT%H:%M:%SZ; systemctl is-active fjcloud-api || true; systemctl status fjcloud-api --no-pager -l || true; journalctl -u fjcloud-api --since \"30 minutes ago\" --no-pager || true; ss -ltnp || true; awk -F= '/^(PORT|HOST|BIND)=/ { print } /^(STRIPE_SECRET_KEY|STRIPE_PUBLISHABLE_KEY|STRIPE_WEBHOOK_SECRET)=/ { print $1 \"=<redacted>\" }' /etc/fjcloud/env || true; echo \"=== diag_end ===\""
+    ]
+  }
+}

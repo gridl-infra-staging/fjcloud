@@ -1,0 +1,14 @@
+# Disposition Receipt: batman/may21_12pm_12_app_flapjack_foo_retirement
+
+Classification: approved freed local branch after approved worktree removal
+Evidence source: current read-only git refs at bundle creation.
+
+## rev-parse
+$ git rev-parse batman/may21_12pm_12_app_flapjack_foo_retirement
+8ea753fbf370117dd609c9d4654e3abb9aab955a
+
+## cherry
+$ git cherry -v main batman/may21_12pm_12_app_flapjack_foo_retirement | tail -20
+
+## diff main...
+$ git diff main...batman/may21_12pm_12_app_flapjack_foo_retirement --stat | tail -20

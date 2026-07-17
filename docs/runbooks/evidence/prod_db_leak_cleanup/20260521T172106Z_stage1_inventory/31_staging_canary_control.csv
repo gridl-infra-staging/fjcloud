@@ -1,0 +1,33 @@
+customer_id,email,status,deleted_at,stripe_customer_id,tenant_id,deployment_id,deployment_status,provider_vm_id,hostname,flapjack_url,ip_address,created_at
+f1ae949a-cf23-4b0b-8f3e-ab1586a19c18,canary+canary2026051603590329743@test.flapjack.foo,deleted,2026-05-16 03:59:11.776934+00,cus_UWccSUGlu4jeeh,,,,,,,,2026-05-16 03:59:04.036841+00
+889b64e9-f998-45d8-83eb-f347576365b7,canary+dbg2026051803514131269@test.flapjack.foo,deleted,2026-05-18 03:51:54.876196+00,cus_UXMxG5UCm4Vjen,dbg-dbg2026051803514131269,5e0583e5-5df9-410d-9398-235b8e1f095d,running,d0c73b11-2565-4d9b-b8e2-2f4ce0fbf8b6,vm-shared-f2b9c8a6.flapjack.foo,http://vm-shared-f2b9c8a6.flapjack.foo:7700,0.0.0.0,2026-05-18 03:51:41.866537+00
+eb9d6920-637e-42b7-8922-2e4f1f284fad,canary+canary2026051902261120312@test.flapjack.foo,active,,,,,,,,,,2026-05-19 02:26:11.36641+00
+e985ba36-ce7e-4789-a30d-a65ecd97a4c3,canary+canary202605190226286876@test.flapjack.foo,deleted,2026-05-19 02:26:54.443928+00,cus_UXioKX13B4qbzo,canary-canary202605190226286876,65586783-2596-4524-b457-240a907c1696,running,d0c73b11-2565-4d9b-b8e2-2f4ce0fbf8b6,vm-shared-f2b9c8a6.flapjack.foo,http://vm-shared-f2b9c8a6.flapjack.foo:7700,0.0.0.0,2026-05-19 02:26:28.405976+00
+73eef4d8-7f63-4614-b959-d336c95f5693,canary+canary2026051902270390@test.flapjack.foo,deleted,2026-05-19 02:27:29.796355+00,cus_UXiosnYG40oa9V,canary-canary2026051902270390,f1e97d0d-8d36-4329-b0a7-86fda204bf35,running,d0c73b11-2565-4d9b-b8e2-2f4ce0fbf8b6,vm-shared-f2b9c8a6.flapjack.foo,http://vm-shared-f2b9c8a6.flapjack.foo:7700,0.0.0.0,2026-05-19 02:27:03.697694+00
+67ea7137-ecda-4ccc-a86e-46b0a814cb52,canary+canary202605190227389368@test.flapjack.foo,deleted,2026-05-19 02:29:29.914185+00,cus_UXipHu7hS3tO7i,,,,,,,,2026-05-19 02:27:38.311725+00
+5e284cdd-1fdf-4e85-8962-40db9a31d12a,canary+stage5b2026051902535619920@test.flapjack.foo,deleted,2026-05-19 02:54:08.454136+00,,,,,,,,,2026-05-19 02:53:57.017685+00
+9ffc0bca-ffc8-4974-836e-57dcd8d41e8c,canary+canary202605211136227948@test.flapjack.foo,deleted,2026-05-21 11:36:34.049216+00,cus_UYc80x7FKpYBJ1,,,,,,,,2026-05-21 11:36:23.031954+00
+f58ba2ae-b9ce-492b-b5ad-ebead0b78920,canary+canary202605211151231983@test.flapjack.foo,deleted,2026-05-21 11:51:37.082048+00,cus_UYcN4bvMX0Kuld,,,,,,,,2026-05-21 11:51:23.983497+00
+3b4b3c3a-bc68-4c16-b15c-ec8fad039a32,canary+canary2026052112062313786@test.flapjack.foo,deleted,2026-05-21 12:06:36.071175+00,cus_UYccRl4hGwUT8Z,,,,,,,,2026-05-21 12:06:23.607858+00
+5e46c99a-b34a-41b8-a420-c19f77632cfc,canary+canary202605211221238675@test.flapjack.foo,deleted,2026-05-21 12:21:35.307117+00,cus_UYcrB9mdfMvdS7,,,,,,,,2026-05-21 12:21:23.499348+00
+01687dec-a9b0-480d-8744-9e7990deafb1,canary+canary2026052112362315457@test.flapjack.foo,deleted,2026-05-21 12:36:36.705294+00,cus_UYd6aYgKb7fqaS,,,,,,,,2026-05-21 12:36:23.998874+00
+9deb42d7-19ac-4d1e-a541-41f2f247cb94,canary+canary202605211251224203@test.flapjack.foo,deleted,2026-05-21 12:51:33.405272+00,cus_UYdL8UhPTHacMC,,,,,,,,2026-05-21 12:51:22.761524+00
+8b795efd-602f-4923-a2f4-d64a0320897c,canary+canary2026052113062310618@test.flapjack.foo,deleted,2026-05-21 13:06:37.452994+00,cus_UYda4OVCgRNoDf,,,,,,,,2026-05-21 13:06:24.248667+00
+cd695e8a-6f5c-4eb5-887e-9597e4a8e2d3,canary+canary2026052113212319520@test.flapjack.foo,deleted,2026-05-21 13:21:36.716244+00,cus_UYdp5DW9jvemGe,,,,,,,,2026-05-21 13:21:23.973718+00
+bbfc467e-c2d2-4525-97bf-378d2b505e5a,canary+canary2026052113362210381@test.flapjack.foo,deleted,2026-05-21 13:36:34.950173+00,cus_UYe4JlXoKbkDDe,,,,,,,,2026-05-21 13:36:23.331306+00
+66daa712-c05f-46c0-8004-62e8f5d4f540,canary+canary202605211351237428@test.flapjack.foo,deleted,2026-05-21 13:51:35.234525+00,cus_UYeJuc42r3eZmm,,,,,,,,2026-05-21 13:51:23.567885+00
+c0b680a5-78a6-4857-a16b-ef2202ff27bc,canary+canary2026052114062210004@test.flapjack.foo,deleted,2026-05-21 14:06:34.999233+00,cus_UYeYCz1pHmZSSj,,,,,,,,2026-05-21 14:06:23.289943+00
+35d4879f-6212-4049-87cd-b00659d79290,canary+canary2026052114212329013@test.flapjack.foo,deleted,2026-05-21 14:21:37.712045+00,cus_UYenblzUeon4yh,,,,,,,,2026-05-21 14:21:24.424531+00
+86c938c3-e236-44f6-b2dc-1c21d9a89ff3,canary+canary202605211436228014@test.flapjack.foo,deleted,2026-05-21 14:36:35.039266+00,cus_UYf2IKJukiDz3x,,,,,,,,2026-05-21 14:36:23.414302+00
+72412a75-ad02-467c-a6f8-2f923ed718e9,canary+canary2026052114512316515@test.flapjack.foo,deleted,2026-05-21 14:51:36.204785+00,cus_UYfH0Tn6DMBk2V,,,,,,,,2026-05-21 14:51:23.720884+00
+6b10eeff-ae2d-4d7d-bc23-0e0a1f8572a4,canary+canary2026052115062325707@test.flapjack.foo,deleted,2026-05-21 15:06:37.222512+00,cus_UYfWbLs6ZhOGhG,,,,,,,,2026-05-21 15:06:24.276928+00
+1b2de4e2-21db-43ed-82a3-c79c11b7739a,canary+canary2026052115212223749@test.flapjack.foo,deleted,2026-05-21 15:21:35.611793+00,cus_UYflOlPRbQAgX2,,,,,,,,2026-05-21 15:21:23.306855+00
+b879b0b2-a1bf-4b61-ae22-66f8509c02b3,canary+canary202605211536235719@test.flapjack.foo,deleted,2026-05-21 15:36:36.387047+00,cus_UYg00tPMgaS9PF,,,,,,,,2026-05-21 15:36:23.761163+00
+9546370e-28df-4b2f-95df-226531e79826,canary+canary202605211551236055@test.flapjack.foo,deleted,2026-05-21 15:51:37.105948+00,cus_UYgFbpt7MlV3v6,,,,,,,,2026-05-21 15:51:23.915577+00
+b238bd93-7079-4284-8ef9-805a993fd3f6,canary+canary20260521160623594@test.flapjack.foo,deleted,2026-05-21 16:06:37.494654+00,cus_UYgUvcyVIPAnjT,,,,,,,,2026-05-21 16:06:24.172205+00
+1559742a-cc7a-4bf0-8acc-0525b3d0f5e2,canary+canary202605211621225368@test.flapjack.foo,deleted,2026-05-21 16:21:34.588055+00,cus_UYgjIXWUHiey67,,,,,,,,2026-05-21 16:21:23.155098+00
+34095ac1-becb-4425-bc07-835607be6343,canary+canary2026052116362314417@test.flapjack.foo,deleted,2026-05-21 16:36:37.106265+00,cus_UYgyh36OYowN7C,,,,,,,,2026-05-21 16:36:23.978991+00
+d5c649d1-5824-42fc-8851-1eea3c96a514,canary+canary202605211651234404@test.flapjack.foo,deleted,2026-05-21 16:51:37.856674+00,cus_UYhDrOHXXaeAlB,,,,,,,,2026-05-21 16:51:24.269758+00
+14c3a223-6339-48f8-965a-cd84f41550eb,canary+canary202605211706239531@test.flapjack.foo,deleted,2026-05-21 17:06:36.919129+00,cus_UYhSBVqeZhRGSu,,,,,,,,2026-05-21 17:06:24.136381+00
+0d19d615-0457-4391-92da-a7c07537ad55,canary+canary2026052117212214222@test.flapjack.foo,deleted,2026-05-21 17:21:35.271332+00,cus_UYhh3heTJqfbin,,,,,,,,2026-05-21 17:21:23.407951+00
+4e654d09-a08e-49db-bd06-5bd63faf8b5e,canary+canary2026052117362330951@test.flapjack.foo,deleted,2026-05-21 17:36:37.077727+00,cus_UYhwndM60dUBvi,,,,,,,,2026-05-21 17:36:24.112949+00

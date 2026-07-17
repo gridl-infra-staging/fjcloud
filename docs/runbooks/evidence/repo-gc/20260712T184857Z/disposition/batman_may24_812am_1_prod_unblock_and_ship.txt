@@ -1,0 +1,14 @@
+# Disposition Receipt: batman/may24_812am_1_prod_unblock_and_ship
+
+Classification: approved freed local branch after approved worktree removal
+Evidence source: current read-only git refs at bundle creation.
+
+## rev-parse
+$ git rev-parse batman/may24_812am_1_prod_unblock_and_ship
+17e22d399b14862ec45a573203a1e31e18237bc7
+
+## cherry
+$ git cherry -v main batman/may24_812am_1_prod_unblock_and_ship | tail -20
+
+## diff main...
+$ git diff main...batman/may24_812am_1_prod_unblock_and_ship --stat | tail -20

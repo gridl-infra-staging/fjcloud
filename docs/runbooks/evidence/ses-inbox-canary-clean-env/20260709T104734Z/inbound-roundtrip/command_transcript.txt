@@ -1,0 +1,22 @@
+Stage 2 inbound roundtrip clean-env evidence
+UTC start: 2026-07-09T11:10:20Z
+repo: fjcloud_dev worktree (repo-relative evidence)
+head: 2220c755e7985a7ef47aa36af4ae6df86d947a7e
+bundle_root: docs/runbooks/evidence/ses-inbox-canary-clean-env/20260709T104734Z
+inbound_dir: docs/runbooks/evidence/ses-inbox-canary-clean-env/20260709T104734Z/inbound-roundtrip
+note: a discarded local capture attempt before this canonical run had a logging argv bug; it was not used for verdict.
+
+$ bash scripts/probe_live_state.sh
+exit 0
+
+$ unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AWS_PROFILE AWS_DEFAULT_PROFILE
+$ set -a; source /Users/stuart/repos/gridl-infra-dev/fjcloud_dev/.secret/.env.secret; set +a
+exit 0
+
+$ aws sts get-caller-identity --region us-east-1
+exit 0
+
+$ bash scripts/validate_inbound_email_roundtrip.sh
+exit 0
+
+UTC end: 2026-07-09T11:12:42Z

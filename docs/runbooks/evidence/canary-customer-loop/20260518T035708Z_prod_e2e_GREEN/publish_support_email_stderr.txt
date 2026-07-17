@@ -1,0 +1,175 @@
+
+WARNING! Your credentials are stored unencrypted in '/Users/stuart/.docker/config.json'.
+Configure a credential helper to remove this warning. See
+https://docs.docker.com/go/credential-store/
+
+#0 building with "colima" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 1.01kB done
+#1 DONE 0.0s
+
+#2 [internal] load metadata for public.ecr.aws/lambda/python:3.12
+#2 DONE 0.6s
+
+#3 [internal] load .dockerignore
+#3 transferring context: 2B done
+#3 DONE 0.0s
+
+#4 [internal] load build context
+#4 transferring context: 3.17kB done
+#4 DONE 0.0s
+
+#5 [ 1/11] FROM public.ecr.aws/lambda/python:3.12@sha256:5b72e124977f6958a7e07e43ddbd5c593ad2f63e6b954fbd75505d89e2f973f3
+#5 resolve public.ecr.aws/lambda/python:3.12@sha256:5b72e124977f6958a7e07e43ddbd5c593ad2f63e6b954fbd75505d89e2f973f3 done
+#5 sha256:cf1698bf2272f33f509f571d7b81277ea4d9863bb9aeeabab3dede44e45f77b4 14.20kB / 14.20kB 0.1s done
+#5 sha256:25a41e99e146997e706a44ed426e34cc3335b6268b942579741cb0c3af2e1ba2 0B / 144.48MB 0.2s
+#5 sha256:46b5d72d59806ce5fe97d503510eabd8f81fb327e40f6a0ceda2f31ac635e122 0B / 3.42MB 0.2s
+#5 sha256:e932efd7a220a16373b08f129b1c6497b42c4583ed62e1e5de6002988a34a5a6 416B / 416B 0.2s done
+#5 sha256:370272c8685d219e14ef4142f7d641298d004b7e3fd99766f5da3bd260f6ed5b 88.12kB / 88.12kB 0.1s done
+#5 extracting sha256:370272c8685d219e14ef4142f7d641298d004b7e3fd99766f5da3bd260f6ed5b done
+#5 extracting sha256:e932efd7a220a16373b08f129b1c6497b42c4583ed62e1e5de6002988a34a5a6 done
+#5 sha256:25a41e99e146997e706a44ed426e34cc3335b6268b942579741cb0c3af2e1ba2 8.39MB / 144.48MB 0.6s
+#5 sha256:46b5d72d59806ce5fe97d503510eabd8f81fb327e40f6a0ceda2f31ac635e122 1.05MB / 3.42MB 0.5s
+#5 sha256:46b5d72d59806ce5fe97d503510eabd8f81fb327e40f6a0ceda2f31ac635e122 2.10MB / 3.42MB 0.6s
+#5 sha256:46b5d72d59806ce5fe97d503510eabd8f81fb327e40f6a0ceda2f31ac635e122 3.42MB / 3.42MB 0.8s done
+#5 extracting sha256:46b5d72d59806ce5fe97d503510eabd8f81fb327e40f6a0ceda2f31ac635e122 0.0s done
+#5 sha256:25a41e99e146997e706a44ed426e34cc3335b6268b942579741cb0c3af2e1ba2 19.92MB / 144.48MB 1.1s
+#5 sha256:25a41e99e146997e706a44ed426e34cc3335b6268b942579741cb0c3af2e1ba2 27.26MB / 144.48MB 1.4s
+#5 sha256:25a41e99e146997e706a44ed426e34cc3335b6268b942579741cb0c3af2e1ba2 39.85MB / 144.48MB 1.8s
+#5 sha256:25a41e99e146997e706a44ed426e34cc3335b6268b942579741cb0c3af2e1ba2 47.19MB / 144.48MB 2.1s
+#5 sha256:25a41e99e146997e706a44ed426e34cc3335b6268b942579741cb0c3af2e1ba2 55.57MB / 144.48MB 2.4s
+#5 sha256:25a41e99e146997e706a44ed426e34cc3335b6268b942579741cb0c3af2e1ba2 63.96MB / 144.48MB 2.7s
+#5 sha256:25a41e99e146997e706a44ed426e34cc3335b6268b942579741cb0c3af2e1ba2 71.30MB / 144.48MB 3.0s
+#5 sha256:25a41e99e146997e706a44ed426e34cc3335b6268b942579741cb0c3af2e1ba2 79.69MB / 144.48MB 3.3s
+#5 sha256:25a41e99e146997e706a44ed426e34cc3335b6268b942579741cb0c3af2e1ba2 88.08MB / 144.48MB 3.6s
+#5 sha256:25a41e99e146997e706a44ed426e34cc3335b6268b942579741cb0c3af2e1ba2 95.42MB / 144.48MB 3.9s
+#5 sha256:25a41e99e146997e706a44ed426e34cc3335b6268b942579741cb0c3af2e1ba2 102.76MB / 144.48MB 4.2s
+#5 sha256:25a41e99e146997e706a44ed426e34cc3335b6268b942579741cb0c3af2e1ba2 112.20MB / 144.48MB 4.5s
+#5 sha256:25a41e99e146997e706a44ed426e34cc3335b6268b942579741cb0c3af2e1ba2 119.54MB / 144.48MB 4.8s
+#5 sha256:25a41e99e146997e706a44ed426e34cc3335b6268b942579741cb0c3af2e1ba2 127.93MB / 144.48MB 5.1s
+#5 sha256:25a41e99e146997e706a44ed426e34cc3335b6268b942579741cb0c3af2e1ba2 135.27MB / 144.48MB 5.4s
+#5 sha256:25a41e99e146997e706a44ed426e34cc3335b6268b942579741cb0c3af2e1ba2 143.65MB / 144.48MB 5.7s
+#5 sha256:25a41e99e146997e706a44ed426e34cc3335b6268b942579741cb0c3af2e1ba2 144.48MB / 144.48MB 5.7s done
+#5 extracting sha256:25a41e99e146997e706a44ed426e34cc3335b6268b942579741cb0c3af2e1ba2
+#5 extracting sha256:25a41e99e146997e706a44ed426e34cc3335b6268b942579741cb0c3af2e1ba2 1.3s done
+#5 DONE 7.0s
+
+#5 [ 1/11] FROM public.ecr.aws/lambda/python:3.12@sha256:5b72e124977f6958a7e07e43ddbd5c593ad2f63e6b954fbd75505d89e2f973f3
+#5 extracting sha256:cf1698bf2272f33f509f571d7b81277ea4d9863bb9aeeabab3dede44e45f77b4 done
+#5 DONE 7.0s
+
+#6 [ 2/11] RUN dnf install -y bash jq     && pip3 install --no-cache-dir awscli     && dnf clean all
+#6 0.087 Downloading metadata...
+#6 8.391 Package                                   Repository      Size
+#6 8.391 Installing:                                                   
+#6 8.391  jq-1.7.1-51.amzn2023.aarch64             amazonlinux 202.1 kB
+#6 8.391  oniguruma-6.9.7.1-1.amzn2023.0.2.aarch64 amazonlinux 218.1 kB
+#6 8.391 Transaction Summary:
+#6 8.391  Installing:        2 packages
+#6 8.391  Reinstalling:      0 packages
+#6 8.391  Upgrading:         0 packages
+#6 8.391  Obsoleting:        0 packages
+#6 8.391  Removing:          0 packages
+#6 8.391  Downgrading:       0 packages
+#6 8.543 Downloading packages...
+#6 8.651 Running transaction test...
+#6 8.657 Installing: oniguruma;6.9.7.1-1.amzn2023.0.2;aarch64;amazonlinux
+#6 8.662 Installing: jq;1.7.1-51.amzn2023;aarch64;amazonlinux
+#6 8.711 Complete.
+#6 9.044 Collecting awscli
+#6 9.112   Downloading awscli-1.45.9-py3-none-any.whl.metadata (11 kB)
+#6 9.245 Collecting botocore==1.43.9 (from awscli)
+#6 9.261   Downloading botocore-1.43.9-py3-none-any.whl.metadata (5.6 kB)
+#6 9.283 Collecting docutils<=0.19,>=0.18.1 (from awscli)
+#6 9.297   Downloading docutils-0.19-py3-none-any.whl.metadata (2.7 kB)
+#6 9.330 Collecting s3transfer<0.18.0,>=0.17.0 (from awscli)
+#6 9.345   Downloading s3transfer-0.17.0-py3-none-any.whl.metadata (1.7 kB)
+#6 9.375 Collecting PyYAML<6.1,>=3.10 (from awscli)
+#6 9.390   Downloading pyyaml-6.0.3-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl.metadata (2.4 kB)
+#6 9.410 Collecting colorama<0.4.7,>=0.2.5 (from awscli)
+#6 9.423   Downloading colorama-0.4.6-py2.py3-none-any.whl.metadata (17 kB)
+#6 9.446 Collecting rsa<4.8,>=3.1.2 (from awscli)
+#6 9.460   Downloading rsa-4.7.2-py3-none-any.whl.metadata (3.6 kB)
+#6 9.461 Requirement already satisfied: jmespath<2.0.0,>=0.7.1 in /var/lang/lib/python3.12/site-packages (from botocore==1.43.9->awscli) (1.0.1)
+#6 9.462 Requirement already satisfied: python-dateutil<3.0.0,>=2.1 in /var/lang/lib/python3.12/site-packages (from botocore==1.43.9->awscli) (2.9.0.post0)
+#6 9.462 Requirement already satisfied: urllib3!=2.2.0,<3,>=1.25.4 in /var/lang/lib/python3.12/site-packages (from botocore==1.43.9->awscli) (2.6.3)
+#6 9.485 Collecting pyasn1>=0.1.3 (from rsa<4.8,>=3.1.2->awscli)
+#6 9.498   Downloading pyasn1-0.6.3-py3-none-any.whl.metadata (8.4 kB)
+#6 9.549 Requirement already satisfied: six>=1.5 in /var/lang/lib/python3.12/site-packages (from python-dateutil<3.0.0,>=2.1->botocore==1.43.9->awscli) (1.17.0)
+#6 9.566 Downloading awscli-1.45.9-py3-none-any.whl (4.6 MB)
+#6 9.798    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 4.6/4.6 MB 23.5 MB/s eta 0:00:00
+#6 9.814 Downloading botocore-1.43.9-py3-none-any.whl (15.0 MB)
+#6 10.44    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 15.0/15.0 MB 24.1 MB/s eta 0:00:00
+#6 10.45 Downloading colorama-0.4.6-py2.py3-none-any.whl (25 kB)
+#6 10.47 Downloading docutils-0.19-py3-none-any.whl (570 kB)
+#6 10.50    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 570.5/570.5 kB 26.1 MB/s eta 0:00:00
+#6 10.51 Downloading pyyaml-6.0.3-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (775 kB)
+#6 10.55    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 775.1/775.1 kB 22.7 MB/s eta 0:00:00
+#6 10.56 Downloading rsa-4.7.2-py3-none-any.whl (34 kB)
+#6 10.58 Downloading s3transfer-0.17.0-py3-none-any.whl (86 kB)
+#6 10.60 Downloading pyasn1-0.6.3-py3-none-any.whl (83 kB)
+#6 10.64 Installing collected packages: PyYAML, pyasn1, docutils, colorama, rsa, botocore, s3transfer, awscli
+#6 10.80   Attempting uninstall: botocore
+#6 10.81     Found existing installation: botocore 1.40.4
+#6 10.83     Uninstalling botocore-1.40.4:
+#6 11.15       Successfully uninstalled botocore-1.40.4
+#6 11.35   Attempting uninstall: s3transfer
+#6 11.35     Found existing installation: s3transfer 0.13.1
+#6 11.35     Uninstalling s3transfer-0.13.1:
+#6 11.35       Successfully uninstalled s3transfer-0.13.1
+#6 11.67 ERROR: pip's dependency resolver does not currently take into account all the packages that are installed. This behaviour is the source of the following dependency conflicts.
+#6 11.67 boto3 1.40.4 requires botocore<1.41.0,>=1.40.4, but you have botocore 1.43.9 which is incompatible.
+#6 11.67 boto3 1.40.4 requires s3transfer<0.14.0,>=0.13.0, but you have s3transfer 0.17.0 which is incompatible.
+#6 11.67 WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
+#6 11.67 Successfully installed PyYAML-6.0.3 awscli-1.45.9 botocore-1.43.9 colorama-0.4.6 docutils-0.19 pyasn1-0.6.3 rsa-4.7.2 s3transfer-0.17.0
+#6 11.76 
+#6 11.76 [notice] A new release of pip is available: 25.0.1 -> 26.1.1
+#6 11.76 [notice] To update, run: pip install --upgrade pip
+#6 11.81 Complete.
+#6 DONE 11.9s
+
+#7 [ 3/11] WORKDIR /opt/fjcloud
+#7 DONE 0.0s
+
+#8 [ 4/11] COPY scripts/canary/support_email_deliverability.sh /opt/fjcloud/scripts/canary/support_email_deliverability.sh
+#8 DONE 0.0s
+
+#9 [ 5/11] COPY scripts/validate_inbound_email_roundtrip.sh /opt/fjcloud/scripts/validate_inbound_email_roundtrip.sh
+#9 DONE 0.0s
+
+#10 [ 6/11] COPY scripts/lib/alert_dispatch.sh /opt/fjcloud/scripts/lib/alert_dispatch.sh
+#10 DONE 0.0s
+
+#11 [ 7/11] COPY scripts/lib/validation_json.sh /opt/fjcloud/scripts/lib/validation_json.sh
+#11 DONE 0.0s
+
+#12 [ 8/11] COPY scripts/lib/test_inbox_helpers.sh /opt/fjcloud/scripts/lib/test_inbox_helpers.sh
+#12 DONE 0.0s
+
+#13 [ 9/11] COPY scripts/lib/parse_inbound_auth_headers.py /opt/fjcloud/scripts/lib/parse_inbound_auth_headers.py
+#13 DONE 0.0s
+
+#14 [10/11] COPY ops/terraform/support_email_canary/lambda_handler.py /var/task/lambda_handler.py
+#14 DONE 0.0s
+
+#15 [11/11] RUN chmod +x /opt/fjcloud/scripts/canary/support_email_deliverability.sh     /opt/fjcloud/scripts/validate_inbound_email_roundtrip.sh
+#15 DONE 0.1s
+
+#16 exporting to image
+#16 exporting layers
+#16 exporting layers 0.8s done
+#16 ...
+
+#17 [auth] sharing credentials for 213880904778.dkr.ecr.us-east-1.amazonaws.com
+#17 DONE 0.0s
+
+#16 exporting to image
+#16 exporting manifest sha256:38672b6d4a2b6723d7c4024cb212cac2bcdcdd189da0a5218b0ac75d4543b1f6 done
+#16 exporting config sha256:eac751deb08f39babb9b7913b72a762208d1171f1a8db85da390029d3035037f done
+#16 naming to 213880904778.dkr.ecr.us-east-1.amazonaws.com/fjcloud-prod-support-email-canary:3ada746fe2f5 done
+#16 pushing layers
+#16 pushing layers 10.9s done
+#16 pushing manifest for 213880904778.dkr.ecr.us-east-1.amazonaws.com/fjcloud-prod-support-email-canary:3ada746fe2f5@sha256:38672b6d4a2b6723d7c4024cb212cac2bcdcdd189da0a5218b0ac75d4543b1f6
+#16 pushing manifest for 213880904778.dkr.ecr.us-east-1.amazonaws.com/fjcloud-prod-support-email-canary:3ada746fe2f5@sha256:38672b6d4a2b6723d7c4024cb212cac2bcdcdd189da0a5218b0ac75d4543b1f6 0.5s done
+#16 DONE 12.2s

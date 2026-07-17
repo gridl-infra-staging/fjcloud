@@ -1,0 +1,3 @@
+FAIL: aws lambda invoke for fjcloud-prod-customer-loop-canary returned non-zero
+
+aws: [ERROR]: Read timeout on endpoint URL: "https://lambda.us-east-1.amazonaws.com/2015-03-31/functions/fjcloud-prod-customer-loop-canary/invocations"

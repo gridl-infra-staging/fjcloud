@@ -1,0 +1,82 @@
+<!-- [scrai:start] -->
+## scripts
+
+| File | Summary |
+| --- | --- |
+| cleanup_api_server_metering_ghost.sh | cleanup_api_server_metering_ghost.sh
+
+One-shot operator cleanup for the dormant fj-metering-agent ghost that older
+API-server deploys installed on the control-plane host.
+
+Dry-run for planning on any workstation:
+  bash ops/scripts/cleanup_api_server_metering_ghost.sh --dry-run
+
+Live execution must run on the API server itself after the Stage 3 cleanup
+deploy is live. |
+| deploy.sh | deploy.sh — Zero-downtime deploy via SSM (no SSH keys)
+Called from CI after binaries are uploaded to S3.
+
+Usage: deploy.sh <env> <git-sha>
+
+Flow:
+  1. |
+| live_e2e_budget_guardrail_prep.sh | live_e2e_budget_guardrail_prep.sh -- prepare a non-mutating budget-action proposal. |
+| live_e2e_ttl_janitor.sh | live_e2e_ttl_janitor.sh — fail-closed TTL cleanup for disposable live-E2E resources. |
+| migrate.sh | migrate.sh — Run SQL migrations on EC2 instance
+Called by deploy.sh via SSM or manually. |
+| provision_bootstrap.sh | provision_bootstrap.sh — Create AWS bootstrap prerequisites for fjcloud
+
+Idempotent counterpart to validate_bootstrap.sh: creates the resources
+that validate_bootstrap.sh checks. |
+| rds_restore_drill.sh | rds_restore_drill.sh — operator-only restore rehearsal entrypoint
+
+Usage: rds_restore_drill.sh <env> [options]
+  env: staging | prod
+
+Required options:
+  --source-db-instance-id <id>
+  --target-db-instance-id <id>
+
+Exactly one restore mode is required:
+  --snapshot-id <snapshot-id>
+  --restore-time <RFC3339 timestamp>. |
+| rds_restore_evidence.sh | rds_restore_evidence.sh — wrapper around rds_restore_drill.sh for evidence artifacts.
+
+This script owns:
+- input discovery and wrapper-level execution gating
+- run-scoped artifact generation
+- live-only polling and verification artifact wiring
+
+Restore API command construction remains delegated to rds_restore_drill.sh. |
+| rollback.sh | rollback.sh — Roll back to a previous release via SSM
+Does NOT run migrations (never roll back migrations).
+
+Usage: rollback.sh <env> <previous-sha>. |
+| set_algolia_migration_availability.sh | set_algolia_migration_availability.sh — bounded Algolia migration toggle.
+
+Dry-run by default. |
+| set_flapjack_ami_pointer.sh | Guarded owner for /fjcloud/<env>/aws_ami_id operational values.
+Dry-run is the default; --execute and --rollback are explicit mutations.
+Live mutation uses a cooperative DynamoDB lock. |
+| validate_bootstrap.sh | validate_bootstrap.sh — Verify AWS bootstrap prerequisites for fjcloud
+
+Checks that all infrastructure prerequisites exist and are correctly
+configured before running terraform init or deploy scripts.
+
+Usage: validate_bootstrap.sh <env>
+  env: staging | prod
+
+Prerequisites checked:
+  - S3 tfstate bucket (versioned, encrypted, public access blocked)
+  - S3 releases bucket (versioned, public access blocked)
+  - DynamoDB lock table with LockID key
+  - SSM parameters (database_url as SecureString)
+  - Cloudflare DNS credentials for the public staging zone. |
+
+| Directory | Summary |
+| --- | --- |
+| lib | This lib directory contains shared deployment and infrastructure utilities: a pre-deployment validation adapter, an SSM parameter-to-environment-file generator for runtime service configuration on instances, and a database restore selection tool. |
+| tests | The tests directory contains fixture capture tooling for test data management. |
+| lib | The lib directory contains shared deployment and infrastructure utilities: pre-deployment validation checks, SSM parameter-to-environment-file generation for service configuration, and database restore selection logic. |
+| tests | The tests directory contains a single-purpose shell script that captures Cloudflare zone fixtures for use in testing. |
+<!-- [scrai:end] -->

@@ -1,0 +1,7 @@
+source_green_bundle=docs/runbooks/evidence/staging-billing-rehearsal/20260712T010555Z_current_main
+billing_month=2026-07
+secret_source=/Users/stuart/repos/gridl-infra-dev/fjcloud_dev/.secret/.env.secret
+stripe_environment_contract=docs/design/stripe_environments.md
+head_sha=864913dc9760130f29f18e840869a3982c8b4ae8
+staging_sync_triggered=true
+staging_ci_run_id=29209841965

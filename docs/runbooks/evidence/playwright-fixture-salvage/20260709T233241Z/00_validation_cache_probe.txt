@@ -1,0 +1,2 @@
+cd web && npx playwright test --workers=2: MISS
+cd web && npx playwright test --workers=4: MISS

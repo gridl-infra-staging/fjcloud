@@ -1,0 +1,19 @@
+<!-- [matt:progress] -->
+## Matt Build Progress
+
+### Stage 1: Reproduce locally and capture root cause [research]
+Reproduce the failing `setup:user` Playwright auth fixture locally using the CI-equivalent environment and commands, then trace the failure path to a single concrete owner with file-and-line evidence. This stage is investigation-only and must prove whether the login rejection originates in fixture credentials/seed state, customer repo lookup behavior, auth route checks, or another shared seam. Deliverable is a root-cause statement that explains the observed cascade behavior and defines any follow-up gap specs when downstream failures are not the same bug.
+- @work:research Reproduce fixture failure and identify root cause
+- 1/1 checklist items completed
+
+### Stage 2: Fix root cause plus regression test [build]
+Implement the smallest owner-local fix identified in Stage 1 and land it with a failing-then-passing regression test in the same commit. The fix must extend the existing owner (fixture setup, auth service/route, or customer repo) rather than adding parallel shims or bypasses, and scope must stay narrow to avoid cross-lane blast radius. Complete this stage by proving red-to-green for the new regression test and running the relevant nearby suite plus local CI gates.
+- @work:build Make `setup:user` self-bootstrap on fresh DBs and lock it in with regression coverage
+- 1/1 checklist items completed
+
+### Stage 3: External-system validation via mirror CI [deploy]
+Push the fix and verify the live staging/prod mirror CI `playwright` job conclusions, treating `gh run view` job status as the terminal evidence source. If mirror failures differ from local behavior, diagnose and resolve the environment delta before closure rather than deferring as follow-up. Stage completion requires the committed fix, bundled regression test, and successful mirror CI outcome for this lane’s target job.
+- 0/1 checklist items completed
+
+**Run finished_with_deferrals** — 3/3 stages · $30.32 · 1h 23m 25s
+<!-- [matt:progress:end] -->

@@ -1,0 +1,11 @@
+{
+  "copy_ran": true,
+  "security_redaction_applied": true,
+  "redaction_reason": "Removed committed failing Playwright trace archive because it embedded authenticated cookies and plaintext test credentials.",
+  "redacted_files": [
+    "playwright-traces/billing_portal_payment_method_update/e2e-ui-full-billing_portal-c3b83-e-billing-setup-p0-coverage-chromium/trace.zip"
+  ],
+  "trace_bundle_subdir": "playwright-traces",
+  "trace_files_copied": 5,
+  "source_directories": ["web/test-results/billing_portal_payment_method_update"]
+}

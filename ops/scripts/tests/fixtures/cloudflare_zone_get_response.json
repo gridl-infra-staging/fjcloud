@@ -1,0 +1,68 @@
+{
+  "result": {
+    "id": "TESTFIXTUREZONEID",
+    "name": "flapjack.foo",
+    "status": "active",
+    "paused": false,
+    "type": "full",
+    "development_mode": 0,
+    "name_servers": [
+      "alfred.ns.cloudflare.com",
+      "bailey.ns.cloudflare.com"
+    ],
+    "original_name_servers": [
+      "dns1.registrar-servers.com",
+      "dns2.registrar-servers.com"
+    ],
+    "original_registrar": "namecheap inc. (id: 1068)",
+    "original_dnshost": null,
+    "modified_on": "2026-01-29T20:40:30.337414Z",
+    "created_on": "2026-01-29T20:36:00.121655Z",
+    "activated_on": "2026-01-29T20:40:30.337414Z",
+    "vanity_name_servers": [],
+    "vanity_name_servers_ips": null,
+    "meta": {
+      "step": 2,
+      "custom_certificate_quota": 0,
+      "page_rule_quota": 3,
+      "phishing_detected": false
+    },
+    "owner": {
+      "id": "TESTFIXTUREACCT",
+      "type": "user",
+      "email": null
+    },
+    "account": {
+      "id": "TESTFIXTUREACCT",
+      "name": "Stuart.clifford@gmail.com's Account"
+    },
+    "tenant": {
+      "id": null,
+      "name": null
+    },
+    "tenant_unit": {
+      "id": null
+    },
+    "permissions": [
+      "#zone:read",
+      "#zone_settings:read",
+      "#dns_records:edit",
+      "#dns_records:read"
+    ],
+    "plan": {
+      "id": "0feeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "name": "Free Website",
+      "price": 0,
+      "currency": "USD",
+      "frequency": "",
+      "is_subscribed": false,
+      "can_subscribe": false,
+      "legacy_id": "free",
+      "legacy_discount": false,
+      "externally_managed": false
+    }
+  },
+  "success": true,
+  "errors": [],
+  "messages": []
+}

@@ -1,0 +1,2 @@
+classification=invoice_email_ses_not_ready
+artifact_dir=/var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//fjcloud_staging_billing_rehearsal_20260709T144534Z_96842

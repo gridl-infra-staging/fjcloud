@@ -1,0 +1,13 @@
+{
+  "env": "prod",
+  "ami_id": "ami-078228dbe86117d85",
+  "cloudflare_zone_id": "fafbf95a076d7e8ee984dbd18a62c933",
+  "alert_emails": [
+    "stacy.saunders.2002@gmail.com"
+  ],
+  "domain": "flapjack.foo",
+  "canary_image": {
+    "tag": "stage6fix-20260521T035230Z"
+  },
+  "support_email_canary_image_tag": "stage6fix-20260521T033250Z"
+}

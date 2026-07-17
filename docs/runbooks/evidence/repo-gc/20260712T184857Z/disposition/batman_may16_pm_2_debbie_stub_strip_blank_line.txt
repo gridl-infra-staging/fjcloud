@@ -1,0 +1,14 @@
+# Disposition Receipt: batman/may16_pm_2_debbie_stub_strip_blank_line
+
+Classification: approved freed local branch after approved worktree removal
+Evidence source: current read-only git refs at bundle creation.
+
+## rev-parse
+$ git rev-parse batman/may16_pm_2_debbie_stub_strip_blank_line
+35806ecc7854113bf69eb83f867a73338fa79a0e
+
+## cherry
+$ git cherry -v main batman/may16_pm_2_debbie_stub_strip_blank_line | tail -20
+
+## diff main...
+$ git diff main...batman/may16_pm_2_debbie_stub_strip_blank_line --stat | tail -20

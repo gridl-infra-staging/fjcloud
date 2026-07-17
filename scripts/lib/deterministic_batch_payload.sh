@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+# Shared deterministic flapjack batch-payload generator.
+
+# Emit a stable batch-import payload for the requested seed, offset, and count.
+# TODO: Document deterministic_batch_payload.
+# TODO: Document deterministic_batch_payload.
+# TODO: Document deterministic_batch_payload.
+# TODO: Document deterministic_batch_payload.
+# TODO: Document deterministic_batch_payload.
+# Generate document bodies solely from the numeric seed, offset, and count inputs.
+# Emit compact JSON suitable for repeatable batch-import known-answer tests.
+# TODO: Document deterministic_batch_payload.
+# TODO: Document deterministic_batch_payload.
+deterministic_batch_payload() {
+    local seed="$1"
+    local offset="$2"
+    local count="$3"
+
+    python3 - "$seed" "$offset" "$count" <<'PY'
+import hashlib
+import json
+import sys
+
+seed = int(sys.argv[1])
+offset = int(sys.argv[2])
+count = int(sys.argv[3])
+
+requests = []
+for i in range(count):
+    doc_id = offset + i
+    digest = hashlib.sha256(f"{seed}:{doc_id}".encode()).hexdigest()
+    requests.append(
+        {
+            "action": "addObject",
+            "body": {
+                "objectID": f"doc-{doc_id}",
+                "title": f"Document {doc_id}",
+                "body": f"Deterministic content {digest[:32]}",
+                "category": ["alpha", "beta", "gamma", "delta"][doc_id % 4],
+                "score": (doc_id * 17 + seed) % 1000 / 10.0,
+                "tags": [f"tag{(doc_id * 3 + j) % 20}" for j in range(3)],
+            },
+        }
+    )
+
+print(json.dumps({"requests": requests}))
+PY
+}
+
+deterministic_exact_query_term_for_object_id() {
+    local seed="$1"
+    local object_id="$2"
+    local doc_id=""
+
+    case "$object_id" in
+        doc-[0-9]*)
+            doc_id="${object_id#doc-}"
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+
+    python3 - "$seed" "$doc_id" <<'PY'
+import hashlib
+import sys
+
+seed = int(sys.argv[1])
+doc_id = int(sys.argv[2])
+digest = hashlib.sha256(f"{seed}:{doc_id}".encode()).hexdigest()
+print(f"Deterministic content {digest[:32]}")
+PY
+}

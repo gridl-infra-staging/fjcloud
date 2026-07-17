@@ -1,0 +1,13 @@
+$ bash scripts/canary/contracts/lambda_canary_invoke_contract.sh prod customer-loop
+FAIL: function fjcloud-prod-customer-loop-canary threw Unhandled
+==response body==
+{"errorType":"CustomerLoopCanaryError","errorMessage":"customer loop canary failed with exit code 0"}==log tail (base64 in invoke response; decode if needed)==
+START RequestId: d092d18b-22c7-4f5d-b70d-84cd8a729ce2 Version: $LATEST
+[customer-loop-canary] signup succeeded for canary+canary2026051703174919962@test.flapjack.foo (customer=a208c2e2-444f-43c1-95fd-8551c0dc696d)
+[customer-loop-canary] customer loop failed before completion; entering cleanup
+[customer-loop-canary] account delete attempted for customer a208c2e2-444f-43c1-95fd-8551c0dc696d
+[customer-loop-canary] step 'verify_email' failed: verification email not found in inbox within timeout
+[FAIL] slack: webhook URL must use https://
+[FAIL] discord: webhook URL must use https://
+END RequestId: d092d18b-22c7-4f5d-b70d-84cd8a729ce2
+REPORT RequestId: d092d18b-22c7-4f5d-b70d-84cd8a729ce2	Duration: 7157.99 ms	Billed Duration: 7158 ms	Memory Size: 512 MB	Max Memory Used: 138 MB	

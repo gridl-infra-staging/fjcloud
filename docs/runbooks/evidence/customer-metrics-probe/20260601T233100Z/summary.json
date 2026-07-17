@@ -1,0 +1,20 @@
+{
+  "api_url": "https://api.staging.flapjack.foo",
+  "cache_reuse_ok": false,
+  "cleanup_ok": false,
+  "cleanup_state": {
+    "account_deleted": false,
+    "admin_cleaned": false,
+    "index_created": false
+  },
+  "customer_id": "",
+  "failure_detail": "",
+  "fetched_at_first": "",
+  "fetched_at_second": "",
+  "index_name": "",
+  "metrics_populated_ok": false,
+  "metrics_tab_data_ok": false,
+  "metrics_tab_data_response_type": "",
+  "shape_ok": false,
+  "skip_reason": "AWS credentials unavailable; cannot poll the staging verification inbox"
+}

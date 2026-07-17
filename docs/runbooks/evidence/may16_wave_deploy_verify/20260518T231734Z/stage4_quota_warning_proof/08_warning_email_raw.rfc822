@@ -1,0 +1,67 @@
+Return-Path: <0100019e3e0fc4a9-9deb5d8d-1a09-431a-b072-c6ef926ce9f7-000000@mail.flapjack.foo>
+Received: from a48-105.smtp-out.amazonses.com (a48-105.smtp-out.amazonses.com [54.240.48.105])
+ by inbound-smtp.us-east-1.amazonaws.com with SMTP id h2521v3t4pjl571gi4p3qpqn3nu5trpbvprubmo1
+ for canary+canary202605190227389368@test.flapjack.foo;
+ Tue, 19 May 2026 02:28:01 +0000 (UTC)
+X-SES-Spam-Verdict: PASS
+X-SES-Virus-Verdict: PASS
+Received-SPF: pass (spfCheck: domain of mail.flapjack.foo designates 54.240.48.105 as permitted sender) client-ip=54.240.48.105; envelope-from=0100019e3e0fc4a9-9deb5d8d-1a09-431a-b072-c6ef926ce9f7-000000@mail.flapjack.foo; helo=a48-105.smtp-out.amazonses.com;
+Authentication-Results: amazonses.com;
+ spf=pass (spfCheck: domain of mail.flapjack.foo designates 54.240.48.105 as permitted sender) client-ip=54.240.48.105; envelope-from=0100019e3e0fc4a9-9deb5d8d-1a09-431a-b072-c6ef926ce9f7-000000@mail.flapjack.foo; helo=a48-105.smtp-out.amazonses.com;
+ dkim=pass header.i=@amazonses.com;
+ dkim=pass header.i=@flapjack.foo;
+ dmarc=pass header.from=flapjack.foo;
+X-SES-RECEIPT: AEFBQUFBQUFBQUFFaVFNbEJlS0dTd3hSbmdBR2tiT0gyUkxDYWlKRXl5QlFJSkg1elo4STdsWlZkcXdiYW4wYi8zNUpmQ0kvNFkzT0U1bGg3NzRBZ3ZMdDNFOVhMaFRNSmFMQUxSNFpvK25kYURvTmloQzdEcitKTytza0RSRE5VYVpMRlp2VEVNRWo2UUsxVmZUV0hhOEV5UjdnTm9RdXhIMUtrUlNsVFZmOHl1S1FDOUVIejAwTG5qQ3dIYlJwaHEzUlE4Rm02dnh2eUxBVXdzRmF4ck1sM2hEZEdTOHF2a2FsS2xxZWk2cWRwZDlQa2Uwa0UvK0EwUVFPalNrc1VMQVlMdkMrNllhK2Q4YmN6WGEwejhwR3ZBWklLZUVEUG9kMmxhSVlQd2x2UkRrZllTcVRLczFzcVB3b1FEb2lqdFJWNFo0OFppM1IvRmp4eks0V1NZYTlTOXg3RS8vNnQxTkdmVWNjS1JJNnk0ZDlaL281ZXpuVDk4cVNWSmtQWkJTcEtGUjlpSkF3PQ==
+X-SES-DKIM-SIGNATURE: a=rsa-sha256; q=dns/txt; b=B61KAg1CymRuGJAC4XVY4z7i8XOcqwL3GISyZA/GxiphfrM+nFDNOy8dJ1LhWRCDj7UKXkgsa58sI/7nwXDzIGewxN1lnrRTl3xWiUVzhWFfRzsOXvQlxIiaodwJN+zYObsnDEesh+yTpCpktvdyPzuBTq5KWCDJydggkq/72Xs=; c=relaxed/simple; s=224i4yxa5dv7c2xz3womw6peuasteono; d=amazonses.com; t=1779157682; v=1; bh=tF4UFo6cEM/v//w0PCEvRp5OhxrZXrVGkG7ay4qVAHw=; h=From:To:Cc:Bcc:Subject:Date:Message-ID:MIME-Version:Content-Type:X-SES-RECEIPT;
+DKIM-Signature: v=1; a=rsa-sha256; q=dns/txt; c=relaxed/simple;
+	s=52evdzqlkiebbauhe6az2v5towsz2dk4; d=flapjack.foo; t=1779157681;
+	h=From:To:Subject:MIME-Version:Content-Type:Message-ID:Date;
+	bh=tF4UFo6cEM/v//w0PCEvRp5OhxrZXrVGkG7ay4qVAHw=;
+	b=0cFSiKRxDCkLUirH90s06g4OvyqbJElmtzWo+SAexnaYoeoTZIT7/xYOmDxTXuX8
+	zdPFmumMaaQA9v467Wp17m23d0oVA0ykfV5146BoAsZz3ddjBKEnVau/3/sLkj2s11g
+	FD/+iftZQQdHuh2snd0wL8ZTxqtqxZzdCIj3T3Fk+N8ltC68fKTxj2koKAlJxpPILAq
+	lAoBz2+wXpt4/XwpG9We0SrZy86yJz37ySm1hzoo90QTMz8q1IobqqTJKEWNZBJGD9d
+	xAJyQXU1QngyZqV0eDZb7zhK3J177tx0d5BtagoyhkkfuioZRniORFvbyJruqfCt8GI
+	c4FtC0Sx9Q==
+DKIM-Signature: v=1; a=rsa-sha256; q=dns/txt; c=relaxed/simple;
+	s=224i4yxa5dv7c2xz3womw6peuasteono; d=amazonses.com; t=1779157681;
+	h=From:To:Subject:MIME-Version:Content-Type:Message-ID:Date:Feedback-ID;
+	bh=tF4UFo6cEM/v//w0PCEvRp5OhxrZXrVGkG7ay4qVAHw=;
+	b=PapnDyKTOhOPdMY/JjgI3qvt67mOM1bNc51XWa82tgz2qnfmAm6Ny+QZ859IxJNV
+	IIZPKsj86YMffBy0gBDdxBB1EcveUN/H6jAuczZK4f/YKbcmQZ/EIA8lzzGzRFScvMf
+	ZWASCyQpwuyCeWqI2VYupYsX253xNEzOiPstHOuY=
+From: Flapjack Cloud <noreply@flapjack.foo>
+To: canary+canary202605190227389368@test.flapjack.foo
+Subject: Usage warning
+MIME-Version: 1.0
+Content-Type: multipart/alternative; 
+	boundary="----=_Part_507149_702671131.1779157681321"
+Message-ID: <0100019e3e0fc4a9-9deb5d8d-1a09-431a-b072-c6ef926ce9f7-000000@email.amazonses.com>
+Date: Tue, 19 May 2026 02:28:01 +0000
+Feedback-ID: ::1.us-east-1.BPF9Me4osiN3bz1VVgZoGhTHknCF21Z5ojuuit3v2WI=:AmazonSES
+X-SES-Outgoing: 2026.05.19-54.240.48.105
+
+------=_Part_507149_702671131.1779157681321
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 7bit
+
+Flapjack Cloud usage warning.
+
+Metric: records
+Usage: 80.0%
+Current: 80000
+Limit: 100000
+------=_Part_507149_702671131.1779157681321
+Content-Type: text/html; charset=UTF-8
+Content-Transfer-Encoding: 7bit
+
+
+<html>
+  <body>
+    <h2>Flapjack Cloud usage warning</h2>
+    <p>Your records usage on Flapjack Cloud is now at <strong>80.0%</strong>.</p>
+    <p>Current: 80000 / Limit: 100000</p>
+  </body>
+</html>
+
+------=_Part_507149_702671131.1779157681321--

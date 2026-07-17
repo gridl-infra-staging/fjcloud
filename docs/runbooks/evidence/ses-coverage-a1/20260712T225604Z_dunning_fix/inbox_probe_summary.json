@@ -1,0 +1,5 @@
+{
+  "result": "passed",
+  "classification": "dunning_delivery_verified",
+  "detail": "Dunning email body contains a Stripe hosted invoice URL."
+}

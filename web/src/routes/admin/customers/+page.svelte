@@ -1,0 +1,238 @@
+<script lang="ts">
+	import { applyAction, enhance } from '$app/forms';
+	import { invalidate } from '$app/navigation';
+	import { resolve } from '$app/paths';
+	import type { AdminCustomerListItem } from './+page.server';
+	import { adminBadgeColor, formatDate, formatRelativeTime, statusLabel } from '$lib/format';
+
+	let { data } = $props();
+
+	let searchQuery = $state('');
+	let statusFilter = $state('all');
+	let sortMode = $state<'default' | 'health'>('default');
+
+	type BillingHealthStatus = AdminCustomerListItem['billing_health'];
+
+	// Red-first ordering matches the operator workflow: surface the riskiest
+	// customer billing states before healthy rows when the sort is enabled.
+	const BILLING_HEALTH_RANK: Record<BillingHealthStatus, number> = {
+		red: 0,
+		yellow: 1,
+		grey: 2,
+		green: 3
+	};
+
+	const customersUnavailable = $derived(data.customers === null);
+	const customers = $derived((data.customers ?? []) as AdminCustomerListItem[]);
+
+	function createdAtMs(customer: AdminCustomerListItem): number {
+		return new Date(customer.created_at).getTime();
+	}
+
+	const filteredCustomers = $derived.by(() => {
+		const filtered = customers.filter((customer) => {
+			const normalizedQuery = searchQuery.trim().toLowerCase();
+			const matchesSearch =
+				normalizedQuery.length === 0 ||
+				customer.name.toLowerCase().includes(normalizedQuery) ||
+				customer.email.toLowerCase().includes(normalizedQuery);
+			const matchesStatus = statusFilter === 'all' || customer.status === statusFilter;
+			return matchesSearch && matchesStatus;
+		});
+
+		if (sortMode === 'default') {
+			return filtered;
+		}
+
+		return [...filtered].sort((left, right) => {
+			const rankDelta =
+				BILLING_HEALTH_RANK[left.billing_health] - BILLING_HEALTH_RANK[right.billing_health];
+			if (rankDelta !== 0) {
+				return rankDelta;
+			}
+			return createdAtMs(right) - createdAtMs(left);
+		});
+	});
+
+	/** Build the detail-route action URL for a given customer and action name. */
+	function detailActionUrl(customerId: string, action: string): string {
+		return resolve(`/admin/customers/${customerId}?/${action}`);
+	}
+
+	function toggleBillingHealthSort(): void {
+		sortMode = sortMode === 'default' ? 'health' : 'default';
+	}
+
+	function handleQuickAction() {
+		return async ({ result }: { result: { type: string } }) => {
+			if (result.type !== 'success') {
+				await applyAction(result as never);
+				return;
+			}
+
+			await invalidate('admin:customers:list');
+		};
+	}
+</script>
+
+<svelte:head>
+	<title>Customers - Admin Panel</title>
+</svelte:head>
+
+<div class="space-y-6">
+	<div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+		<h2 class="text-xl font-semibold text-white">Customer Management</h2>
+		<div class="flex flex-col gap-3 sm:flex-row">
+			<input
+				data-testid="customer-search"
+				type="search"
+				bind:value={searchQuery}
+				placeholder="Search name or email"
+				class="rounded-md border border-[#f6c15b] bg-[#fff8ea] px-3 py-2 text-sm text-slate-900 placeholder:text-slate-500 focus:border-amber-500 focus:outline-none"
+			/>
+			<select
+				data-testid="status-filter"
+				bind:value={statusFilter}
+				class="rounded-md border border-[#f6c15b] bg-[#fff8ea] px-3 py-2 text-sm text-slate-900 focus:border-amber-500 focus:outline-none"
+			>
+				<option value="all">All statuses</option>
+				<option value="active">Active</option>
+				<option value="suspended">Suspended</option>
+				<option value="deleted">Deleted</option>
+			</select>
+		</div>
+	</div>
+
+	{#if customersUnavailable}
+		<div class="rounded-lg border border-slate-700 bg-slate-800/40 p-8 text-center">
+			<p class="text-slate-300">Customer data unavailable.</p>
+			<p class="mt-2 text-slate-400">
+				We could not load customer records. Try refreshing this page.
+			</p>
+		</div>
+	{:else if customers.length === 0}
+		<div class="rounded-lg border border-slate-700 bg-slate-800/40 p-8 text-center">
+			<p class="text-slate-400">No customers found.</p>
+			<p class="mt-2 text-slate-500">
+				Customers will appear here after signup and onboarding complete.
+			</p>
+		</div>
+	{:else if filteredCustomers.length === 0}
+		<div class="rounded-lg border border-slate-700 bg-slate-800/40 p-8 text-center">
+			<p class="text-slate-400">No customers match the current filters.</p>
+			<p class="mt-2 text-slate-500">Try broadening your search or status filter.</p>
+		</div>
+	{:else}
+		<div class="overflow-x-auto rounded-lg border border-slate-700">
+			<table data-testid="customers-table" class="w-full text-left text-sm">
+				<thead
+					class="border-b border-slate-700 bg-slate-800/80 text-xs uppercase tracking-wide text-slate-400"
+				>
+					<tr>
+						<th scope="col" class="px-4 py-3">Name</th>
+						<th scope="col" class="px-4 py-3">Email</th>
+						<th scope="col" class="px-4 py-3">Status</th>
+						<th scope="col" class="px-4 py-3">Created</th>
+						<th scope="col" class="px-4 py-3">Last activity</th>
+						<th scope="col" class="px-4 py-3">Indexes</th>
+						<th scope="col" class="px-4 py-3">
+							<button
+								type="button"
+								data-testid="sort-billing-health"
+								onclick={toggleBillingHealthSort}
+								class="inline-flex items-center gap-2 text-xs uppercase tracking-wide text-slate-400 transition hover:text-slate-200"
+							>
+								Billing health
+								<span class="text-[10px] text-slate-500">
+									{sortMode === 'health' ? 'sorted' : 'default'}
+								</span>
+							</button>
+						</th>
+						<th scope="col" class="px-4 py-3">Actions</th>
+					</tr>
+				</thead>
+				<tbody data-testid="customers-table-body" class="divide-y divide-slate-700/50">
+					{#each filteredCustomers as customer (customer.id)}
+						<tr
+							data-testid={`customer-row-${customer.id}`}
+							class="h-14 transition hover:bg-slate-800/40"
+						>
+							<td class="px-4 py-3">
+								<a
+									href={resolve(`/admin/customers/${customer.id}`)}
+									class="font-medium text-violet-300 hover:text-violet-200"
+								>
+									{customer.name}
+								</a>
+							</td>
+							<td class="px-4 py-3 text-slate-300">{customer.email}</td>
+							<td class="px-4 py-3">
+								<span
+									class="inline-flex rounded-full border px-2 py-0.5 text-xs font-medium {adminBadgeColor(
+										customer.status
+									)}"
+								>
+									{customer.status}
+								</span>
+							</td>
+							<td class="px-4 py-3 text-xs text-slate-400">{formatDate(customer.created_at)}</td>
+							<td
+								class="px-4 py-3 text-slate-300"
+								data-testid={`last-activity-cell-${customer.id}`}
+							>
+								{formatRelativeTime(customer.last_accessed_at)}
+							</td>
+							<td class="px-4 py-3 text-slate-300" data-testid="index-count"
+								>{customer.index_count ?? '—'}</td
+							>
+							<td class="px-4 py-3">
+								<span
+									data-testid={`billing-health-badge-${customer.id}`}
+									class="inline-flex rounded-full border px-2 py-0.5 text-xs font-medium {adminBadgeColor(
+										customer.billing_health
+									)}"
+								>
+									{statusLabel(customer.billing_health)}
+								</span>
+							</td>
+							<td class="px-4 py-3">
+								<div class="flex gap-1">
+									{#if customer.status === 'active'}
+										<form
+											method="POST"
+											action={detailActionUrl(customer.id, 'suspend')}
+											use:enhance={handleQuickAction}
+										>
+											<button
+												type="submit"
+												data-testid="quick-suspend"
+												class="rounded border border-yellow-500/40 bg-yellow-500/20 px-2 py-1 text-xs font-medium text-yellow-200 hover:bg-yellow-500/30"
+											>
+												Suspend
+											</button>
+										</form>
+									{/if}
+									{#if customer.status !== 'deleted'}
+										<form
+											method="POST"
+											action={detailActionUrl(customer.id, 'impersonate')}
+											use:enhance={handleQuickAction}
+										>
+											<button
+												type="submit"
+												data-testid="quick-impersonate"
+												class="rounded border border-violet-500/40 bg-violet-500/20 px-2 py-1 text-xs font-medium text-violet-200 hover:bg-violet-500/30"
+											>
+												Impersonate
+											</button>
+										</form>
+									{/if}
+								</div>
+							</td>
+						</tr>
+					{/each}
+				</tbody>
+			</table>
+		</div>
+	{/if}
+</div>

@@ -1,0 +1,8 @@
+HEAD_SHA=06c25684ef7fd983d14f3fe3d49dca6937d30ff0
+branch=origin/main
+working_branch=batman/jun09_pm_5_staging_verification_rc_reverdict_and_closeout
+utc_timestamp=2026-06-10T10:30:36Z
+operator_hostname=stuarts-MBP-3.lan
+new_utc=20260610T103031Z
+probe_timestamp_dir=docs/live-state/20260610T103250Z
+all_probe_rows_status=PENDING_CONVERGENCE_CHECK

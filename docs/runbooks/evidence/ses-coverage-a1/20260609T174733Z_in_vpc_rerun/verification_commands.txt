@@ -1,0 +1,389 @@
+# Stage 3 command transcript for docs/runbooks/evidence/ses-coverage-a1/20260609T174733Z_in_vpc_rerun
+# .runtime/host.env is the remote equivalent of the authorized local --env-file source /Users/stuart/repos/gridl-infra-dev/fjcloud_dev/.secret/.env.secret, materialized from that file's allowed test tenant list plus staging SSM parameters. Secret values are intentionally not committed.
+
+set -euo pipefail
+
+RUN_UTC="20260609T174733Z"
+BUNDLE="docs/runbooks/evidence/ses-coverage-a1/20260609T174733Z_in_vpc_rerun"
+BUNDLE_ABS="$(pwd)/$BUNDLE"
+SECRET_SOURCE="/Users/stuart/repos/gridl-infra-dev/fjcloud_dev/.secret/.env.secret"
+BILLING_MONTH="2026-06"
+TMP_ROOT="/tmp/a1_vpc_rerun_20260609T174733Z"
+S3_PREFIX="s3://fjcloud-releases-staging/a1-vpc-rerun/20260609T174733Z"
+
+mkdir -p "$BUNDLE"
+cp docs/runbooks/evidence/ses-coverage-a1/20260605T203605Z_in_vpc_rerun/stage4_integrity.py "$BUNDLE/stage4_integrity.py"
+cmp docs/runbooks/evidence/ses-coverage-a1/20260605T203605Z_in_vpc_rerun/stage4_integrity.py "$BUNDLE/stage4_integrity.py"
+set +e
+python3 "$BUNDLE/stage4_integrity.py" "$BUNDLE" > "$BUNDLE/integrity_red_check.log" 2>&1
+red_check_rc=$?
+set -e
+[ "$red_check_rc" -eq 1 ]
+
+set -a; source "$SECRET_SOURCE"; set +a
+INBOUND_ROUNDTRIP_S3_URI="${INBOUND_ROUNDTRIP_S3_URI:-s3://flapjack-cloud-releases/e2e-emails/}"
+SES_REGION="${SES_REGION:-us-east-1}"
+export INBOUND_ROUNDTRIP_S3_URI SES_REGION
+
+aws sts get-caller-identity --output json > "$BUNDLE/aws_identity.json"
+aws ec2 describe-instances --region us-east-1 --filters "Name=tag:Name,Values=fjcloud-api-staging" "Name=instance-state-name,Values=running" --output json > "$BUNDLE/ec2_instance_discovery.json"
+INSTANCE_ID="$(python3 - "$BUNDLE/ec2_instance_discovery.json" <<'PY'
+import json
+import sys
+
+payload = json.loads(open(sys.argv[1]).read())
+instances = [
+    instance
+    for reservation in payload.get("Reservations", [])
+    for instance in reservation.get("Instances", [])
+]
+if len(instances) != 1 or not instances[0].get("InstanceId"):
+    raise SystemExit("expected exactly one running fjcloud-api-staging instance")
+print(instances[0]["InstanceId"])
+PY
+)"
+aws ssm describe-instance-information --region us-east-1 --filters "Key=InstanceIds,Values=$INSTANCE_ID" --output json > "$BUNDLE/ssm_target_preflight.json"
+SECRET_SOURCE="$SECRET_SOURCE" python3 - <<'PY' > "$BUNDLE/secret_preflight_evidence.txt"
+import os
+from pathlib import Path
+
+secret_source = Path(os.environ["SECRET_SOURCE"])
+stripe_secret = os.environ.get("STRIPE_SECRET_KEY", "")
+tenant_ids = os.environ.get("FJCLOUD_TEST_TENANT_IDS", "")
+test_key_prefix = "sk" + "_test_"
+print(f"secret_source_exists={int(secret_source.is_file())}")
+print(f"STRIPE_SECRET_KEY_prefix_ok={str(stripe_secret.startswith(test_key_prefix)).lower()}")
+print(f"FJCLOUD_TEST_TENANT_IDS_present={str(bool(tenant_ids.strip())).lower()}")
+print("printed_secret_values=0")
+PY
+
+rm -rf "$TMP_ROOT" && mkdir -p "$TMP_ROOT/.runtime"
+cp -R scripts "$TMP_ROOT/scripts"
+cat > "$TMP_ROOT/.runtime/materialize_host_env.sh" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+source <(bash scripts/launch/hydrate_seeder_env_from_ssm.sh staging)
+: "${FJCLOUD_TEST_TENANT_IDS:?}"
+: "${INBOUND_ROUNDTRIP_S3_URI:?}"
+: "${SES_REGION:?}"
+keys=(
+  ADMIN_KEY
+  API_URL
+  APP_BASE_URL
+  DATABASE_URL
+  FLAPJACK_URL
+  FJCLOUD_TEST_TENANT_IDS
+  INBOUND_ROUNDTRIP_S3_URI
+  SES_FROM_ADDRESS
+  SES_REGION
+  STAGING_API_URL
+  STAGING_CLOUD_URL
+  STAGING_STRIPE_WEBHOOK_URL
+  STRIPE_SECRET_KEY
+  STRIPE_WEBHOOK_SECRET
+)
+: > .runtime/host.env
+for key in "${keys[@]}"; do
+  value="${!key:-}"
+  if [ -z "$value" ]; then
+    echo "ERROR: missing $key" >&2
+    exit 1
+  fi
+  printf '%s=%q\n' "$key" "$value" >> .runtime/host.env
+  printf '%s\n' "$key"
+done
+SH
+chmod +x "$TMP_ROOT/.runtime/materialize_host_env.sh"
+(cd "$TMP_ROOT" && COPYFILE_DISABLE=1 tar -czf scripts.tar.gz scripts .runtime > "$BUNDLE_ABS/tarball_build.log" 2>&1)
+TMP_ROOT="$TMP_ROOT" python3 - <<'PY' > "$BUNDLE/tarball_build_evidence.txt"
+import os
+import tarfile
+from pathlib import Path
+
+tarball = Path(os.environ["TMP_ROOT"]) / "scripts.tar.gz"
+required = {"scripts/probe_verify_email_clickthrough_e2e.sh", "scripts/probe_password_reset_clickthrough_e2e.sh", "scripts/probe_dunning_email_inbox_e2e.sh", "scripts/probe_ses_bounce_complaint_e2e.sh", "scripts/validate_staging_dunning_delivery.sh", "scripts/launch/ssm_exec_staging.sh", ".runtime/materialize_host_env.sh"}
+with tarfile.open(tarball, "r:gz") as archive:
+    names = set(archive.getnames())
+print(f"tarball_exists={int(tarball.is_file())}")
+print(f"tarball_size_bytes={tarball.stat().st_size}")
+print(f"required_paths_present={int(required <= names)}")
+PY
+aws s3 cp "$TMP_ROOT/scripts.tar.gz" "$S3_PREFIX/scripts.tar.gz" --region us-east-1 > "$BUNDLE/s3_upload.log" 2>&1
+SSM_EXEC_TIMEOUT_SECONDS=300 AWS_DEFAULT_REGION=us-east-1 scripts/launch/ssm_exec_staging.sh "set -euo pipefail; rm -rf $TMP_ROOT; mkdir -p $TMP_ROOT; cd $TMP_ROOT; aws s3 cp $S3_PREFIX/scripts.tar.gz scripts.tar.gz --region us-east-1; tar -xzf scripts.tar.gz; chmod +x scripts/*.sh scripts/launch/*.sh .runtime/*.sh; echo HOST_CHECKOUT_READY" > "$BUNDLE/host_checkout.log" 2>&1
+host_env_cmd="$(printf 'cd %q && export FJCLOUD_TEST_TENANT_IDS=%q INBOUND_ROUNDTRIP_S3_URI=%q SES_REGION=%q && bash .runtime/materialize_host_env.sh' "$TMP_ROOT" "$FJCLOUD_TEST_TENANT_IDS" "$INBOUND_ROUNDTRIP_S3_URI" "$SES_REGION")"
+SSM_EXEC_TIMEOUT_SECONDS=300 AWS_DEFAULT_REGION=us-east-1 scripts/launch/ssm_exec_staging.sh "$host_env_cmd" > "$BUNDLE/host_env_materialize.log" 2>&1
+
+run_probe() {
+  probe_id="$1"
+  remote_cmd="$2"
+  set +e
+  SSM_EXEC_TIMEOUT_SECONDS=1800 AWS_DEFAULT_REGION=us-east-1 scripts/launch/ssm_exec_staging.sh "set -euo pipefail; cd $TMP_ROOT && $remote_cmd" > "$BUNDLE/${probe_id}.log" 2>&1
+  rc=$?
+  set -e
+  printf '%s\n' "$rc" > "$BUNDLE/${probe_id}.rc"
+}
+run_probe verify_email_clickthrough "bash scripts/probe_verify_email_clickthrough_e2e.sh --env-file .runtime/host.env"
+run_probe password_reset_clickthrough "bash scripts/probe_password_reset_clickthrough_e2e.sh --env-file .runtime/host.env"
+run_probe dunning_email_inbox "bash scripts/probe_dunning_email_inbox_e2e.sh --env-file .runtime/host.env --month 2026-06"
+run_probe ses_bounce "bash scripts/probe_ses_bounce_complaint_e2e.sh bounce .runtime/host.env"
+run_probe ses_complaint "bash scripts/probe_ses_bounce_complaint_e2e.sh complaint .runtime/host.env"
+run_probe staging_dunning_delivery "bash scripts/validate_staging_dunning_delivery.sh --env-file .runtime/host.env --month 2026-06 --confirm-live-mutation"
+SSM_EXEC_TIMEOUT_SECONDS=300 AWS_DEFAULT_REGION=us-east-1 scripts/launch/ssm_exec_staging.sh "rm -rf $TMP_ROOT; echo HOST_CLEANUP_READY" > "$BUNDLE/host_cleanup.log" 2>&1
+aws s3 rm "$S3_PREFIX" --recursive --region us-east-1 > "$BUNDLE/s3_cleanup.log" 2>&1
+curl -fsS https://api.staging.flapjack.foo/version > "$BUNDLE/staging_version_after.json"
+python3 - "$BUNDLE" <<'PY'
+import importlib.util
+import json
+import sys
+from pathlib import Path
+
+bundle = Path(sys.argv[1])
+spec = importlib.util.spec_from_file_location("stage4_integrity", bundle / "stage4_integrity.py")
+stage4 = importlib.util.module_from_spec(spec)
+assert spec.loader is not None
+spec.loader.exec_module(stage4)
+
+rows = ["probe_id\trc\tpass\tlog_path"]
+all_green = True
+for probe_id in stage4.EXPECTED:
+    log_path = bundle / f"{probe_id}.log"
+    rc = int((bundle / f"{probe_id}.rc").read_text().strip())
+    passed, parsed_evidence = stage4.detect_from_log(probe_id, log_path.read_text())
+    sidecar = {
+        "detect_kind": stage4.DETECT_KIND[probe_id],
+        "log_path": str(log_path),
+        "parsed_evidence": parsed_evidence,
+        "pass": passed,
+        "probe_id": probe_id,
+        "rc": rc,
+    }
+    (bundle / f"{probe_id}.json").write_text(json.dumps(sidecar, indent=2, sort_keys=True) + "\n")
+    rows.append(f"{probe_id}\t{rc}\t{int(passed)}\t{log_path}")
+    all_green = all_green and rc == 0 and passed
+(bundle / "probe_results.tsv").write_text("\n".join(rows) + "\n")
+(bundle / "all_green.txt").write_text(("1" if all_green else "0") + "\n")
+PY
+python3 - "$BUNDLE" "$RUN_UTC" "$BILLING_MONTH" <<'PY'
+import csv
+import json
+import sys
+from pathlib import Path
+
+bundle = Path(sys.argv[1])
+run_utc = sys.argv[2]
+billing_month = sys.argv[3]
+bundle_path = str(bundle)
+reference_bundle = "docs/runbooks/evidence/ses-coverage-a1/20260605T203605Z_in_vpc_rerun"
+head_sha = "7017590031cb4e945edd3081556e27fec504f3ef"
+secret_source = "/Users/stuart/repos/gridl-infra-dev/fjcloud_dev/.secret/.env.secret"
+owner_paths = [
+    "scripts/probe_verify_email_clickthrough_e2e.sh",
+    "scripts/probe_password_reset_clickthrough_e2e.sh",
+    "scripts/probe_dunning_email_inbox_e2e.sh",
+    "scripts/probe_ses_bounce_complaint_e2e.sh",
+    "scripts/validate_staging_dunning_delivery.sh",
+    "scripts/launch/ssm_exec_staging.sh",
+]
+failure_specs = {
+    "verify_email_clickthrough": {
+        "classification": "verify_email_not_marked_verified",
+        "disposition": "same_deployed_sha_repeat_required",
+        "matches_pre_authorized_section1_partial": False,
+        "owner_path": "scripts/probe_verify_email_clickthrough_e2e.sh",
+        "reason": "No email verification TERMINUS; database poll did not observe email_verified_at after clickthrough in this current staging bundle.",
+        "fallback_detail": "email_verified_at not set after clickthrough",
+    },
+    "password_reset_clickthrough": {
+        "classification": "password_reset_token_not_cleared",
+        "disposition": "pre_authorized_section1_partial",
+        "matches_pre_authorized_section1_partial": True,
+        "owner_path": "scripts/probe_password_reset_clickthrough_e2e.sh",
+        "reason": "No password reset login TERMINUS; database poll did not observe token clearing.",
+        "fallback_detail": "password_reset_token not cleared after reset",
+    },
+}
+
+version = json.loads((bundle / "staging_version_after.json").read_text())
+with (bundle / "probe_results.tsv").open(newline="") as handle:
+    rows = list(csv.DictReader(handle, delimiter="\t"))
+
+
+def observed_detail(probe_id):
+    for line in (bundle / f"{probe_id}.log").read_text().splitlines():
+        if line.startswith("ERROR: "):
+            return line
+    return failure_specs.get(probe_id, {}).get("fallback_detail", "probe did not reach its parser-owned pass terminus")
+
+
+failures = []
+for row in rows:
+    if row["rc"] == "0" and row["pass"] == "1":
+        continue
+    probe_id = row["probe_id"]
+    sidecar = json.loads((bundle / f"{probe_id}.json").read_text())
+    evidence = sidecar["parsed_evidence"]
+    spec = failure_specs[probe_id]
+    failures.append(
+        {
+            "classification": spec["classification"],
+            "disposition": spec["disposition"],
+            "final_json": evidence["final_json"],
+            "fresh_deployed_sha": version["dev_sha"],
+            "last_nonempty_line": evidence["last_nonempty_line"],
+            "matches_pre_authorized_section1_partial": spec["matches_pre_authorized_section1_partial"],
+            "observed_detail": observed_detail(probe_id),
+            "owner_path": spec["owner_path"],
+            "pass": bool(sidecar["pass"]),
+            "probe_id": probe_id,
+            "rc": int(sidecar["rc"]),
+            "reason": spec["reason"],
+            "terminus_line": evidence["terminus_line"],
+        }
+    )
+
+(bundle / "failure_classifications.json").write_text(
+    json.dumps({"failures": failures}, indent=2) + "\n"
+)
+
+manifest_lines = [
+    f"run_utc={run_utc}",
+    f"bundle={bundle_path}",
+    f"head_sha={head_sha}",
+    f"terminal_deployed_sha={version['dev_sha']}",
+    f"terminal_mirror_sha={version['mirror_sha']}",
+    f"terminal_build_time={version['build_time']}",
+    f"terminal_synced_at={version['synced_at']}",
+    "scope=staging_only",
+    f"billing_month={billing_month}",
+    f"secret_source={secret_source}",
+]
+manifest_lines.extend(f"owner_path={path}" for path in owner_paths)
+manifest_lines.extend(
+    [
+        "remote_host_env=.runtime/host.env",
+        f"remote_host_env_equivalent=authorized local --env-file source materialized from {secret_source} plus staging SSM parameters",
+        f"reference_bundle_comparison_target={reference_bundle}",
+    ]
+)
+(bundle / "run_manifest.txt").write_text("\n".join(manifest_lines) + "\n")
+
+probe_tsv = (bundle / "probe_results.tsv").read_text().rstrip()
+passing = [row["probe_id"] for row in rows if row["rc"] == "0" and row["pass"] == "1"]
+all_green = (bundle / "all_green.txt").read_text().strip()
+
+(bundle / "SUMMARY.md").write_text(
+    f"""# SES Coverage A1 Stage 3 Staging Evidence Summary
+
+Bundle path: `{bundle_path}`
+Run UTC: `{run_utc}`
+Billing month: `{billing_month}`
+Terminal deployed SHA: `{version['dev_sha']}`
+
+## Verification Termini
+
+- AWS caller identity: `{bundle_path}/aws_identity.json`.
+- EC2 staging instance discovery: `{bundle_path}/ec2_instance_discovery.json`.
+- SSM reachability: `{bundle_path}/ssm_target_preflight.json`.
+- Secret preflight: `{bundle_path}/secret_preflight_evidence.txt` confirms test Stripe key prefix and tenant allowlist presence without printing values.
+- Remote checkout/env setup: `{bundle_path}/tarball_build_evidence.txt`, `{bundle_path}/s3_upload.log`, `{bundle_path}/host_checkout.log`, and `{bundle_path}/host_env_materialize.log`.
+- Probe logs and sidecars: six `*.log` files and six `*.json` sidecars.
+- Parser integrity: `{bundle_path}/integrity_check.log`.
+
+## Probe Results
+
+```tsv
+{probe_tsv}
+```
+
+## Disposition
+
+- `all_green.txt={all_green}`.
+- Parser-passing rows: `{passing}`.
+- Non-green classifications are in `{bundle_path}/failure_classifications.json` and `{bundle_path}/GAP_SPEC.md`.
+- `verify_email_clickthrough` does not contain `TERMINUS: email_verified=true` in this bundle and its rc is `1`, so the Stage 2 resolved stale-evidence disposition is not carried into this current deployed-SHA bundle.
+"""
+)
+
+gap_lines = [
+    "# GAP SPEC",
+    "",
+    f"Bundle: `{bundle_path}`",
+    "",
+    f"`all_green.txt` is `{all_green}`.",
+    "",
+    "## Non-Green Rows",
+    "",
+]
+for failure in failures:
+    gap_lines.extend(
+        [
+            f"- `{failure['probe_id']}`: rc={failure['rc']} pass={int(failure['pass'])}",
+            f"  - Classification: `{failure['classification']}`",
+            f"  - Smallest owner path: `{failure['owner_path']}`",
+            f"  - Observed detail: {failure['observed_detail']}",
+            f"  - Reason: {failure['reason']}",
+            f"  - Section 1 partial match: `{failure['matches_pre_authorized_section1_partial']}`",
+            f"  - Disposition: `{failure['disposition']}`",
+            "",
+        ]
+    )
+gap_lines.extend(
+    [
+        "## Open Questions",
+        "",
+        "- `verify_email_clickthrough` is non-green again in this fresh current-staging bundle. Stage 2 resolved the stale-evidence question for an earlier unchanged deployed SHA, but this bundle is on a newer `dev_sha`; repeat against the same deployed `dev_sha` before recommending product remediation.",
+    ]
+)
+(bundle / "GAP_SPEC.md").write_text("\n".join(gap_lines) + "\n")
+
+reference_path = Path(reference_bundle)
+reference_rows = {}
+reference_results = reference_path / "probe_results.tsv"
+if reference_results.exists():
+    with reference_results.open(newline="") as handle:
+        for row in csv.DictReader(handle, delimiter="\t"):
+            if row["rc"] != "0" or row["pass"] != "1":
+                reference_rows[row["probe_id"]] = {"rc": row["rc"], "pass": row["pass"]}
+current_failures = {failure["probe_id"]: failure["classification"] for failure in failures}
+reference_classifications = set()
+reference_failures = reference_path / "failure_classifications.json"
+if reference_failures.exists():
+    reference_payload = json.loads(reference_failures.read_text())
+    reference_classifications = {
+        failure.get("classification")
+        for failure in reference_payload.get("failures", [])
+        if failure.get("classification")
+    }
+new_shapes = [
+    classification
+    for classification in current_failures.values()
+    if classification not in reference_classifications
+]
+(bundle / "reference_bundle_comparison.md").write_text(
+    f"""# Reference Bundle Comparison
+
+Current bundle: `{bundle_path}`
+Reference bundle: `{reference_bundle}`
+
+## Artifact Shape
+
+- Current bundle reuses the copied `stage4_integrity.py` parser and validates the same six probe IDs.
+- Required parser files are present or generated in the current bundle: `probe_results.tsv`, six per-probe logs, six per-probe sidecars, `all_green.txt`, `failure_classifications.json`, `GAP_SPEC.md`, `run_manifest.txt`, `verification_commands.txt`, `reference_bundle_comparison.md`, `SUMMARY.md`, and `stage4_integrity.py`.
+- `probe_results.tsv` keeps the established columns: `probe_id`, `rc`, `pass`, `log_path`.
+- Sidecar pass values are parser-owned: each was derived from saved logs via `stage4_integrity.py::detect_from_log`.
+
+## Probe Outcome Comparison
+
+- Reference non-green rows: `{reference_rows}`.
+- Current non-green classifications: `{current_failures}`.
+- Current parser-passing rows: `{passing}`.
+- New classification shapes in this bundle: `{new_shapes}`.
+
+## Disposition
+
+- The current bundle is not all-green because `verify_email_clickthrough` and `password_reset_clickthrough` are non-green.
+- The old 2026-06-05 bundle is used only as a shape and reference comparison input here; current launch-tracking prose should source final status from `{bundle_path}`.
+"""
+)
+PY
+python3 "$BUNDLE/stage4_integrity.py" "$BUNDLE" | tee "$BUNDLE/integrity_check.log"

@@ -1,0 +1,6 @@
+{"command":"preflight:aws_creds","timestamp":"2026-06-12T00:49:38Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"preflight:ami_exists","timestamp":"2026-06-12T00:49:38Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"preflight:cloudflare_dns","timestamp":"2026-06-12T00:49:38Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"terraform plan","timestamp":"2026-06-12T00:49:38Z","verdict":"PASS","output":"plan captured","artifact_path":"ops/terraform/artifacts/plan_staging_20260612T004938Z.txt"}
+{"command":"assert:acm_cert_issued","timestamp":"2026-06-12T00:49:38Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"runtime:alb_no_listener","timestamp":"2026-06-12T00:49:38Z","verdict":"FAIL","output":"ALB 'fjcloud-staging-alb' has no HTTPS listener on port 443.","artifact_path":""}

@@ -1,0 +1,14 @@
+# Disposition Receipt: batman/jul06_pm_3_deploy_currency_drift_alarm
+
+Classification: approved freed local branch after approved worktree removal
+Evidence source: current read-only git refs at bundle creation.
+
+## rev-parse
+$ git rev-parse batman/jul06_pm_3_deploy_currency_drift_alarm
+bd1095d7380a2453c42dd3a92a4dd5741c31e6c3
+
+## cherry
+$ git cherry -v main batman/jul06_pm_3_deploy_currency_drift_alarm | tail -20
+
+## diff main...
+$ git diff main...batman/jul06_pm_3_deploy_currency_drift_alarm --stat | tail -20

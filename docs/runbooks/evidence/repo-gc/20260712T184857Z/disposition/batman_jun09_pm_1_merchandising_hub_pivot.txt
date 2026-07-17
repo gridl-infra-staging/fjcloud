@@ -1,0 +1,14 @@
+# Disposition Receipt: batman/jun09_pm_1_merchandising_hub_pivot
+
+Classification: approved freed local branch after approved worktree removal
+Evidence source: current read-only git refs at bundle creation.
+
+## rev-parse
+$ git rev-parse batman/jun09_pm_1_merchandising_hub_pivot
+cc9db222bcf0e43e3429a0e62bf20cd600b92066
+
+## cherry
+$ git cherry -v main batman/jun09_pm_1_merchandising_hub_pivot | tail -20
+
+## diff main...
+$ git diff main...batman/jun09_pm_1_merchandising_hub_pivot --stat | tail -20

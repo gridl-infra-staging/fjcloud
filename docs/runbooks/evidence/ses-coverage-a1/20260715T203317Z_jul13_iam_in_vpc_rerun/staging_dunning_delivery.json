@@ -1,0 +1,32 @@
+{
+  "probe_id": "staging_dunning_delivery",
+  "detect_kind": "final_json_result_passed",
+  "log_path": "/tmp/fjcloud_wave3_44e00ddef877e8a31c08560854dae4219b542357/docs/runbooks/evidence/ses-coverage-a1/20260715T203317Z_jul13_iam_in_vpc_rerun/staging_dunning_delivery.log",
+  "pass": false,
+  "rc": 1,
+  "parsed_evidence": {
+    "json_object_count": 1,
+    "final_json": {
+      "result": "failed",
+      "classification": "rehearsal_failed",
+      "detail": "Rehearsal owner failed.",
+      "artifact_dir": "/tmp/fjcloud_staging_billing_rehearsal_20260715T212733Z_3372902",
+      "transitions": [],
+      "steps": [
+        {
+          "name": "guard",
+          "passed": true,
+          "detail": "Explicit staging env file, SSM hydration, and hostname checks passed."
+        },
+        {
+          "name": "run_rehearsal",
+          "passed": false,
+          "detail": "{\"result\":\"blocked\",\"classification\":\"deployable_currency_unknown\",\"detail\":\"Deployable-currency probe failed before live rehearsal: /opt/ses-coverage-a1/scripts/deploy_status.sh: line 109: git: command not found\",\"artifact_dir\":\"/tmp/fjcloud_staging_billing_rehearsal_20260715T212733Z_3372902\",\"dev_sha\":\"unknown\",\"deployable_currency\":{\"deployable_drift\":\"unknown\",\"doc_only_ahead\":\"unknown\"},\"planned_steps\":[\"metering collection\", \"aggregation job\", \"invoice finalization\", \"Stripe test webhook delivery\", \"invoice paid reconciliation\", \"email evidence capture\"],\"steps\":[{\"name\":\"preflight\",\"result\":\"blocked\",\"classification\":\"deployable_currency_unknown\",\"detail\":\"Deployable-currency probe failed before live rehearsal: /opt/ses-coverage-a1/scripts/deploy_status.sh: line 109: git: command not found\"},{\"name\":\"metering_evidence\",\"result\":\"blocked\",\"classification\":\"preflight_failed\",\"detail\":\"Metering evidence skipped because preflight failed.\"},{\"name\":\"live_mutation_guard\",\"result\":\"blocked\",\"classification\":\"preflight_failed\",\"detail\":\"Guard evaluation skipped because preflight failed.\"},{\"name\":\"live_mutation_attempt\",\"result\":\"blocked\",\"classification\":\"preflight_failed\",\"detail\":\"Live mutation was not attempted because preflight failed.\"}],\"elapsed_ms\":7181}"
+        }
+      ],
+      "elapsed_ms": 13670
+    },
+    "terminus_line": null,
+    "last_nonempty_line": "{\"result\":\"failed\",\"classification\":\"rehearsal_failed\",\"detail\":\"Rehearsal owner failed.\",\"artifact_dir\":\"/tmp/fjcloud_staging_billing_rehearsal_20260715T212733Z_3372902\",\"transitions\":[],\"steps\":[{\"name\":\"guard\",\"passed\":true,\"detail\":\"Explicit staging env file, SSM hydration, and hostname checks passed.\"},{\"name\":\"run_rehearsal\",\"passed\":false,\"detail\":\"{\\\"result\\\":\\\"blocked\\\",\\\"classification\\\":\\\"deployable_currency_unknown\\\",\\\"detail\\\":\\\"Deployable-currency probe failed before live rehearsal: /opt/ses-coverage-a1/scripts/deploy_status.sh: line 109: git: command not found\\\",\\\"artifact_dir\\\":\\\"/tmp/fjcloud_staging_billing_rehearsal_20260715T212733Z_3372902\\\",\\\"dev_sha\\\":\\\"unknown\\\",\\\"deployable_currency\\\":{\\\"deployable_drift\\\":\\\"unknown\\\",\\\"doc_only_ahead\\\":\\\"unknown\\\"},\\\"planned_steps\\\":[\\\"metering collection\\\", \\\"aggregation job\\\", \\\"invoice finalization\\\", \\\"Stripe test webhook delivery\\\", \\\"invoice paid reconciliation\\\", \\\"email evidence capture\\\"],\\\"steps\\\":[{\\\"name\\\":\\\"preflight\\\",\\\"result\\\":\\\"blocked\\\",\\\"classification\\\":\\\"deployable_currency_unknown\\\",\\\"detail\\\":\\\"Deployable-currency probe failed before live rehearsal: /opt/ses-coverage-a1/scripts/deploy_status.sh: line 109: git: command not found\\\"},{\\\"name\\\":\\\"metering_evidence\\\",\\\"result\\\":\\\"blocked\\\",\\\"classification\\\":\\\"preflight_failed\\\",\\\"detail\\\":\\\"Metering evidence skipped because preflight failed.\\\"},{\\\"name\\\":\\\"live_mutation_guard\\\",\\\"result\\\":\\\"blocked\\\",\\\"classification\\\":\\\"preflight_failed\\\",\\\"detail\\\":\\\"Guard evaluation skipped because preflight failed.\\\"},{\\\"name\\\":\\\"live_mutation_attempt\\\",\\\"result\\\":\\\"blocked\\\",\\\"classification\\\":\\\"preflight_failed\\\",\\\"detail\\\":\\\"Live mutation was not attempted because preflight failed.\\\"}],\\\"elapsed_ms\\\":7181}\"}],\"elapsed_ms\":13670}"
+  }
+}

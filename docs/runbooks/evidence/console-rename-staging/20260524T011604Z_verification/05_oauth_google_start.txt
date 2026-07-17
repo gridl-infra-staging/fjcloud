@@ -1,0 +1,9 @@
+$ curl -sI https://api.staging.flapjack.foo/auth/oauth/google/start
+
+HTTP/2 302
+location: https://accounts.google.com/o/oauth2/v2/auth?client_id=890576478022-svbrc494affipr3lubjinu699it19e06.apps.googleusercontent.com&redirect_uri=https%3A%2F%2Fcloud.staging.flapjack.foo%2Fauth%2Foauth%2Fgoogle%2Fcallback&state=le0dRAzGXJjEZMkz5PN2oaw0MbGAbYii&response_type=code&scope=openid%20email%20profile&code_challenge=xCSTQosbvrgKuBTiUGS3Km4YvSxj2NflenFwXLqmGE0&code_challenge_method=S256
+set-cookie: oauth_state=...; Path=/; HttpOnly; SameSite=None; Max-Age=600; Secure; Domain=.flapjack.foo
+x-request-id: 6f8bee0b-821a-4b99-b1af-5b7bb41c10b5
+
+VERDICT: PASS — 302 to accounts.google.com (not 501 oauth_not_implemented).
+redirect_uri points at cloud.staging.flapjack.foo, not prod.

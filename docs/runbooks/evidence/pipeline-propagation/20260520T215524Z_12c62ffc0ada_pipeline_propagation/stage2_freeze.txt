@@ -1,0 +1,4 @@
+capture_time_utc=2026-05-20T21:55:24Z
+candidate_dev_sha=12c62ffc0ada773b6a98db8b5f66885bbe443f45
+candidate_dev_sha12=12c62ffc0ada
+bundle_rel=docs/runbooks/evidence/pipeline-propagation/20260520T215524Z_12c62ffc0ada_pipeline_propagation

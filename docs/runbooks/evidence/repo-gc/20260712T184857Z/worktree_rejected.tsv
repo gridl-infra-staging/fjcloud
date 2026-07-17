@@ -1,0 +1,8 @@
+/Users/stuart/repos/gridl-infra-dev/fjcloud_dev	247d7b8c0230982e3e553c6b3401b24d3059fed4	main	no	other-repo-or-outside-parallel-root
+/Users/stuart/.matt/merge-worktrees/fjcloud_dev-cc786cd1	23ef950135f4705478a5faf1ee3e56f75ba857a3		yes	other-repo-or-outside-parallel-root
+fjcloud_dev	c0ba77d3d7d4a4da850577d29937a56c21c57987	batman/jul12_pm_1_rc_env_scoping_fix	no	forbidden-jul12-worktree-or-branch
+fjcloud_dev	9412d332247b7d1d407d769109f2215e14a09e18	batman/jul12_pm_2_s1_clickthrough_db_visibility_fix	no	forbidden-jul12-worktree-or-branch
+fjcloud_dev	bc6fa4b16e96cea2c276ce369e23cb2029fe8ef6	batman/jul12_pm_3_s1_dunning_reset_stripe_json_fix	no	forbidden-jul12-worktree-or-branch
+fjcloud_dev	5b8a214399bd668beeec94d85ce74d227e47e7bb	batman/jul12_pm_4_shared_login_storage_state	no	forbidden-jul12-worktree-or-branch
+fjcloud_dev	460d6f78bfb19912451cdc574cf6afe3abe1a8b4	batman/jul12_pm_5_metrics_probe_devalue_contract_fix	no	forbidden-jul12-worktree-or-branch
+fjcloud_dev	97a16b11e4750bc312f1aedde7105b76c5690423	batman/jul12_pm_6_repo_gc_manifest_and_receipts	no	forbidden-jul12-worktree-or-branch

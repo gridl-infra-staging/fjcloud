@@ -1,0 +1,10 @@
+PASS: staging_db_run_sql should return stdout when SSM status is Success
+PASS: staging_db_run_sql should continue polling while SSM status is nonterminal
+PASS: staging_db_run_sql should still return stdout with quoted credentials and SQL
+PASS: SSM payload safely shell-quotes password containing shell metacharacters
+PASS: SSM payload safely shell-quotes SQL argument as one psql -c token
+PASS: prod run resolves prod API instance
+PASS: staging run resolves staging API instance
+PASS: send-command targets prod then staging instances in order
+
+=== Results: 8 passed, 0 failed ===

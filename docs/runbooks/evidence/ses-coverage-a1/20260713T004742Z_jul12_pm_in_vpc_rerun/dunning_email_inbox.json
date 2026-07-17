@@ -1,0 +1,17 @@
+{
+  "detect_kind": "terminus_and_result_json",
+  "log_path": "docs/runbooks/evidence/ses-coverage-a1/20260713T004742Z_jul12_pm_in_vpc_rerun/dunning_email_inbox.log",
+  "parsed_evidence": {
+    "final_json": {
+      "classification": "rehearsal_failed",
+      "detail": "dunning owner script exited 1",
+      "result": "failed"
+    },
+    "json_object_count": 1,
+    "last_nonempty_line": "failed to run commands: exit status 1",
+    "terminus_line": null
+  },
+  "pass": false,
+  "probe_id": "dunning_email_inbox",
+  "rc": 1
+}

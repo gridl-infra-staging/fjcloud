@@ -1,0 +1,5 @@
+summary_selfcheck: Stage 4 SUMMARY.md launch-gate verification
+derived_gate_line: final_pass_including_flakes: 7 / 7
+assertion_1 [PASS]: derived gate line appears verbatim in SUMMARY.md
+assertion_2 [PASS]: classification.json real_bug_after_reruns == [] and ready_precondition.real_bug_count == 0
+assertion_3 [PASS]: authored_stubs.json == []

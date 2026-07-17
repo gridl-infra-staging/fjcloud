@@ -1,0 +1,2 @@
+$ gh run list -R gridl-infra-prod/fjcloud --workflow=CI --limit 1 --json conclusion,headSha,createdAt,displayTitle,url
+[{"conclusion":"failure","createdAt":"2026-05-16T21:36:53Z","displayTitle":"wip: save uncommitted state before laptop migration","headSha":"04b92ea084db5d2f2b04c99b7a806dd01440f9fb","url":"https://github.com/gridl-infra-prod/fjcloud/actions/runs/25973577376"}]

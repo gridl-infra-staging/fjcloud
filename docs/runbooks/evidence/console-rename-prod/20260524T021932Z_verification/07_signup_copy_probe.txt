@@ -1,0 +1,1 @@
++ curl -s https://cloud.flapjack.foo/signup | grep -oiE '(console|dashboard)' | sort | uniq -c

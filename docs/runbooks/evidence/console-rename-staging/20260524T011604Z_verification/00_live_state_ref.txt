@@ -1,0 +1,3 @@
+Live-state probe: docs/live-state/20260524T012853Z
+All vendors OK except stripe_account_config (pre-existing ACTION_REQUIRED for missing support_email/business_url/business_name — unrelated to /console rename).
+No blockers for staging verification probes.

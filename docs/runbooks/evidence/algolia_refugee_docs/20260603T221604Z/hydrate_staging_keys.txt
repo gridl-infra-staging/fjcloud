@@ -1,0 +1,11 @@
+hydrate_rc=0
+export ADMIN_KEY=<redacted>
+export DATABASE_URL=<redacted>
+export API_URL=<redacted>
+export FLAPJACK_URL=<redacted>
+export STRIPE_SECRET_KEY=<redacted>
+export SES_FROM_ADDRESS=<redacted>
+export STRIPE_WEBHOOK_SECRET=<redacted>
+export STAGING_API_URL=<redacted>
+export STAGING_STRIPE_WEBHOOK_URL=<redacted>
+export STAGING_CLOUD_URL=<redacted>

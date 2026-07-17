@@ -1,0 +1,11 @@
+{"command":"preflight:aws_creds","timestamp":"2026-07-15T15:10:58Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"preflight:ami_exists","timestamp":"2026-07-15T15:10:59Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"preflight:ami_exists","timestamp":"2026-07-15T15:11:00Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"preflight:cloudflare_dns","timestamp":"2026-07-15T15:11:01Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"terraform plan","timestamp":"2026-07-15T15:11:12Z","verdict":"PASS","output":"plan captured","artifact_path":"ops/terraform/artifacts/plan_prod_20260715T151058Z.txt"}
+{"command":"assert:acm_cert_issued","timestamp":"2026-07-15T15:11:13Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"assert:alb_https_listener","timestamp":"2026-07-15T15:11:14Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"assert:target_group_healthy","timestamp":"2026-07-15T15:11:15Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"assert:cloudflare_public_records","timestamp":"2026-07-15T15:11:15Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"assert:ses_identity_verified","timestamp":"2026-07-15T15:11:16Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"assert:health_fail","timestamp":"2026-07-15T15:11:16Z","verdict":"PASS","output":"","artifact_path":""}

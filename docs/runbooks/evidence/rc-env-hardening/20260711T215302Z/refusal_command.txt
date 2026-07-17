@@ -1,0 +1,1 @@
+bash scripts/launch/invoke_rc_with_env.sh --credential-env-file=/var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T/tmp.aUOJ9JpOhX/bogus_credentials.env --dry-run --sha=69c152dc7e8b99c477f0d8f49999cef740673a07 --artifact-dir=docs/runbooks/evidence/rc-env-hardening/20260711T215302Z --staging-smoke-ami-id=ami-0123456789abcdef0

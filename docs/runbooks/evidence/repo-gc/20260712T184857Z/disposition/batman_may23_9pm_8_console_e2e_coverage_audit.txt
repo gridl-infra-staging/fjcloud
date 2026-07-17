@@ -1,0 +1,14 @@
+# Disposition Receipt: batman/may23_9pm_8_console_e2e_coverage_audit
+
+Classification: approved freed local branch after approved worktree removal
+Evidence source: current read-only git refs at bundle creation.
+
+## rev-parse
+$ git rev-parse batman/may23_9pm_8_console_e2e_coverage_audit
+6ca70d05fd70df357e7ddeedb533ac872640c5bb
+
+## cherry
+$ git cherry -v main batman/may23_9pm_8_console_e2e_coverage_audit | tail -20
+
+## diff main...
+$ git diff main...batman/may23_9pm_8_console_e2e_coverage_audit --stat | tail -20

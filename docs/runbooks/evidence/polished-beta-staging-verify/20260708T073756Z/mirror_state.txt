@@ -1,0 +1,4 @@
+staging_mirror_path=/Users/stuart/repos/gridl-infra-staging/fjcloud
+staging_mirror_head=29658e72ad174ae546ea8e2fd05a8877330ab367
+staging_mirror_status_porcelain_start
+staging_mirror_status_porcelain_end

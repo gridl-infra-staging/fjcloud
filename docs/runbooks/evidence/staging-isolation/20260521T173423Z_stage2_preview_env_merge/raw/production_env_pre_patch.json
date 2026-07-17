@@ -1,0 +1,18 @@
+{
+  "ADMIN_KEY": {
+    "type": "secret_text",
+    "value": ""
+  },
+  "API_BASE_URL": {
+    "type": "plain_text",
+    "value": "https://api.flapjack.foo"
+  },
+  "ENVIRONMENT": {
+    "type": "plain_text",
+    "value": "production"
+  },
+  "JWT_SECRET": {
+    "type": "secret_text",
+    "value": ""
+  }
+}

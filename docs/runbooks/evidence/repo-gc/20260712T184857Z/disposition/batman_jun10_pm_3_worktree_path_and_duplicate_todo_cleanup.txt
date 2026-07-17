@@ -1,0 +1,14 @@
+# Disposition Receipt: batman/jun10_pm_3_worktree_path_and_duplicate_todo_cleanup
+
+Classification: approved freed local branch after approved worktree removal
+Evidence source: current read-only git refs at bundle creation.
+
+## rev-parse
+$ git rev-parse batman/jun10_pm_3_worktree_path_and_duplicate_todo_cleanup
+a29ac8efb31ea71adf7dd1264d049bbfc299aa7f
+
+## cherry
+$ git cherry -v main batman/jun10_pm_3_worktree_path_and_duplicate_todo_cleanup | tail -20
+
+## diff main...
+$ git diff main...batman/jun10_pm_3_worktree_path_and_duplicate_todo_cleanup --stat | tail -20

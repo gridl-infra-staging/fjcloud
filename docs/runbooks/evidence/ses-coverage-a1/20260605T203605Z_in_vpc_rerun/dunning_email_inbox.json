@@ -1,0 +1,17 @@
+{
+  "detect_kind": "terminus_and_result_json",
+  "log_path": "docs/runbooks/evidence/ses-coverage-a1/20260605T203605Z_in_vpc_rerun/dunning_email_inbox.log",
+  "parsed_evidence": {
+    "final_json": {
+      "classification": "dunning_delivery_verified",
+      "detail": "Dunning email body contains a Stripe hosted invoice URL.",
+      "result": "passed"
+    },
+    "json_object_count": 1,
+    "last_nonempty_line": "{\"result\":\"passed\",\"classification\":\"dunning_delivery_verified\",\"detail\":\"Dunning email body contains a Stripe hosted invoice URL.\"}",
+    "terminus_line": "TERMINUS: body contains hosted invoice url transition=failed url=https://invoice.stripe.com/i/acct_1SyNWBGXI8zVz4UH/test_YWNjdF8xU3lOV0JHWEk4elZ6NFVILF9VZU5KM21IWHl4WU96TmhyQXdLZnpPc0ZjYkZRd0hILDE3MTIzMjg4NQ0200xH9svTBm?s=ap"
+  },
+  "pass": true,
+  "probe_id": "dunning_email_inbox",
+  "rc": 0
+}

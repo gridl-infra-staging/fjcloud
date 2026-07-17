@@ -1,0 +1,12 @@
+FAIL: env=staging web frontend points OAuth-start at WRONG API origin
+       web frontend: https://cloud.staging.flapjack.foo
+       expected API: https://api.staging.flapjack.foo
+       observed API: https://api.flapjack.foo
+       Fix: Cloudflare Pages dashboard -> the Pages project serving
+            https://cloud.staging.flapjack.foo -> Settings -> Environment variables ->
+            the deployment env serving this origin (Production or
+            Preview, depending on project layout) -> set
+            API_BASE_URL=https://api.staging.flapjack.foo -> trigger redeploy.
+       Note: the env var is read via $env/dynamic/private at
+             runtime (Cloudflare Pages Functions env), NOT a
+             build-time PUBLIC_* var. See web/src/lib/config.ts.

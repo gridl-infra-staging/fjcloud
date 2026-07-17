@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<!--12qhfyh--><link rel="icon" href="/_app/immutable/assets/favicon.a0_SR-9W.ico"/><!----><!--1xd49a3--><!----><title>Service Status - Flapjack Cloud</title>
+		<link href="./_app/immutable/assets/0.ChYtc2EZ.css" rel="stylesheet">
+	</head>
+	<body data-sveltekit-preload-data="hover">
+		<div style="display: contents"><!--[--><!--[--><!--[--><!--[!--><!--[--><!--[--><!--[!--><!--[--><header class="border-b border-flapjack-ink/20 bg-white"><div class="mx-auto flex h-16 max-w-3xl items-center justify-between px-6"><a href="./" class="text-xl font-bold text-flapjack-ink">Flapjack Cloud</a> <nav class="flex items-center gap-4"><a href="./login" class="text-sm font-medium text-flapjack-ink/70 hover:text-flapjack-ink">Log In</a></nav></div></header> <main class="mx-auto max-w-3xl px-6 py-12"><h1 class="text-2xl font-bold text-flapjack-ink">Service Status</h1> <div data-testid="status-badge" class="mt-6 flex items-center gap-3 rounded-lg border p-5 bg-flapjack-mint/25 border-flapjack-mint/60"><span class="h-3 w-3 rounded-full bg-flapjack-mint"></span> <span class="text-lg font-semibold text-flapjack-ink">All Systems Operational</span></div> <p data-testid="status-last-updated" class="mt-4 text-sm text-flapjack-ink/60">Last updated: 5/25/2026, 2:24:53 AM</p> <!--[!--><!--]--> <div class="mt-10 rounded-lg border border-flapjack-ink/20 bg-white p-6"><h2 class="text-lg font-semibold text-flapjack-ink">About this page</h2> <p class="mt-2 text-sm text-flapjack-ink/70">This page reflects the current operational status of Flapjack Cloud services. During
+			incidents, this page is updated with the latest information.</p> <p class="mt-3 text-sm text-flapjack-ink/70">Flapjack Cloud operations owns incident updates for this page. Public beta support targets a
+			response within 48 business hours.</p> <p class="mt-4"><a href="./beta" class="text-sm font-medium text-flapjack-rose hover:text-flapjack-plum">View beta scope</a> <span class="mx-2 text-flapjack-ink/40">|</span> <a href="/cdn-cgi/l/email-protection#54272124243b262014323835243e35373f7a323b3b6b2721363e31372069123835243e35373f71666417383b213071666436312035716664323131303635373f" class="text-sm font-medium text-flapjack-rose hover:text-flapjack-plum">Email support</a></p></div></main><!--]--><!--]--><!----><!--]--><!--]--><!----><!--]--><!--]--><!--]--> <!--[!--><!--]--><!--]-->
+			
+			<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+				{
+					__sveltekit_82nhpy = {
+						base: new URL(".", location).pathname.slice(0, -1)
+					};
+
+					const element = document.currentScript.parentElement;
+
+					Promise.all([
+						import("./_app/immutable/entry/start.BP6zZ3jc.js"),
+						import("./_app/immutable/entry/app.BuE8kVWL.js")
+					]).then(([kit, app]) => {
+						kit.start(app, element, {
+							node_ids: [0, 6, 41],
+							data: [null,null,{type:"data",data:{status:"operational",statusLabel:"All Systems Operational",lastUpdated:"2026-05-25T01:31:58Z"},uses:{}}],
+							form: null,
+							error: null
+						});
+					});
+				}
+			</script>
+		</div>
+	</body>
+</html>

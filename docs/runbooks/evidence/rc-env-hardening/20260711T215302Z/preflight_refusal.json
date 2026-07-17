@@ -1,0 +1,11 @@
+{
+  "classification": "credential_invalid",
+  "status": "invalid_credentials",
+  "diagnostic": "aws credentials rejected by STS after trying ambient and /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T/tmp.aUOJ9JpOhX/bogus_credentials.env: \naws: [ERROR]: An error occurred (InvalidClientTokenId) when calling the GetCallerIdentity operation: The security token included in the request is invalid.",
+  "details": {
+    "source": "",
+    "account": "",
+    "arn": "",
+    "raw_error": "\naws: [ERROR]: An error occurred (InvalidClientTokenId) when calling the GetCallerIdentity operation: The security token included in the request is invalid."
+  }
+}

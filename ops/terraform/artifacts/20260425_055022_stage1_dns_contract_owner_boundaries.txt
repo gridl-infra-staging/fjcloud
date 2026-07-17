@@ -1,0 +1,236 @@
+token=20260425_055022_stage1_dns_contract
+head_sha=fb81589e9f6548e15645ecb0414e6302de16ce5c
+clean_tree=true
+timestamp_utc=2026-04-25T05:50:22Z
+
+# smoke: assert_cloudflare_public_records @553 and runtime invocation @675
+   548	# Verify the Cloudflare zone contains the canonical public routing records
+   549	# Terraform owns. Apex/api/www stay DNS-only ALB routes, while cloud stays
+   550	# proxied to the current Pages host until the dedicated cloud-host deploy path
+   551	# replaces it. We intentionally assert CNAME targets instead of exact IPs
+   552	# because Cloudflare flattens apex CNAME responses and ALB IPs rotate.
+   553	assert_cloudflare_public_records() {
+   554	  local response expected_name
+   555	  local alb_backed_names=(
+   556	    "$DOMAIN"
+   557	    "api.${DOMAIN}"
+   558	    "www.${DOMAIN}"
+   559	  )
+   560	
+   561	  if ! response="$(cloudflare_api_get "/zones/${CLOUDFLARE_ZONE_ID}/dns_records?type=CNAME&per_page=100" 2>&1)"; then
+   562	    runtime_fail "$EXIT_DNS_RECORD_MISMATCH" "dns_record_mismatch" \
+   563	      "Cloudflare DNS record lookup failed for ${DOMAIN}." \
+   564	      "Verify Cloudflare token permissions and inspect DNS records for ${DOMAIN}."
+   565	  fi
+   566	
+   567	  for expected_name in "${alb_backed_names[@]}"; do
+   568	    if ! cloudflare_record_matches_alb "$response" "$expected_name"; then
+   569	      runtime_fail "$EXIT_DNS_RECORD_MISMATCH" "dns_record_mismatch" \
+   570	        "Cloudflare record ${expected_name} is missing or does not CNAME to an ALB target." \
+   571	        "Expected ${expected_name} to be a DNS-only CNAME pointing at an AWS ALB (*.elb.amazonaws.com). Check the Cloudflare DNS tab and Terraform state."
+   572	    fi
+   573	  done
+   574	
+   575	  if ! cloudflare_record_matches_pages "$response" "cloud.${DOMAIN}" "flapjack-cloud.pages.dev"; then
+   576	    runtime_fail "$EXIT_DNS_RECORD_MISMATCH" "dns_record_mismatch" \
+   577	      "Cloudflare record cloud.${DOMAIN} is missing or does not route to the expected Pages host." \
+   578	      "Expected cloud.${DOMAIN} to stay proxied to flapjack-cloud.pages.dev until the full cloud-host deploy path replaces the current Pages-backed surface."
+   579	  fi
+   580	
+   581	  evidence_log "assert:cloudflare_public_records" "PASS"
+   582	}
+   583	
+   584	# TODO: Document assert_ses_identity_verified.
+   585	assert_ses_identity_verified() {
+   586	  local identity_state verification_status dkim_status
+   587	  identity_state=$(aws sesv2 get-email-identity \
+   588	    --email-identity "$DOMAIN" \
+   589	    --query '[VerificationStatus,DkimAttributes.Status]' \
+   590	    --output text 2>/dev/null || echo "NONE NONE")
+   591	
+   592	  verification_status="$(awk '{print $1}' <<< "$identity_state")"
+   593	  dkim_status="$(awk '{print $2}' <<< "$identity_state")"
+   594	
+   595	  if [[ "$verification_status" != "SUCCESS" || "$dkim_status" != "SUCCESS" ]]; then
+   596	    runtime_fail "$EXIT_SES_NOT_VERIFIED" "ses_not_verified" \
+   597	      "SES identity ${DOMAIN} is not fully verified (identity=${verification_status}, dkim=${dkim_status})." \
+   598	      "Publish the SES Easy DKIM CNAME records in Cloudflare, then rerun:
+   599	  aws sesv2 get-email-identity --email-identity ${DOMAIN}
+   600	  dig +short CNAME '*._domainkey.${DOMAIN}'"
+   601	  fi
+   602	
+   603	  evidence_log "assert:ses_identity_verified" "PASS"
+   604	}
+   605	
+   606	# Health endpoint assertion with bounded retry/polling and deterministic timeout.
+   607	# $1: fail tag (default: health_fail), $2: exit code (default: EXIT_HEALTH_FAIL)
+   608	check_health_once() {
+   609	  curl -fsS --connect-timeout 10 --max-time 30 "$HEALTH_URL" >/dev/null 2>&1
+   610	}
+   611	
+   612	# Deploy health sampling configuration.
+   613	# $1: fail tag (default: deploy_health_fail), $2: exit code (default: EXIT_DEPLOY_HEALTH_FAIL)
+   614	run_deploy_with_health_sampling() {
+   615	  local attempt=0
+   616	  local deploy_pid
+   617	
+   618	  bash "${SCRIPTS_DIR}/deploy.sh" "${ENV}" "${RELEASE_SHA}" &
+   619	  deploy_pid=$!
+   620	  while kill -0 "$deploy_pid" 2>/dev/null; do
+   621	    if ! check_health_once; then
+   622	      kill "$deploy_pid" 2>/dev/null || true
+   623	      wait "$deploy_pid" 2>/dev/null || true
+   624	      runtime_fail "$EXIT_DEPLOY_HEALTH_FAIL" "deploy_health_fail" \
+   625	        "Deploy rollout health probe failed while deployment was in progress."
+   626	    fi
+   627	    evidence_log "assert:deploy_health_sample_${attempt}" "PASS"
+   628	    attempt=$((attempt + 1))
+   629	    sleep "$HEALTH_RETRY_INTERVAL"
+   630	  done
+   631	
+   632	  if ! wait "$deploy_pid"; then
+   633	    runtime_fail "$EXIT_DEPLOY_HEALTH_FAIL" "deploy_health_fail" \
+   634	      "Deploy script failed for SHA ${RELEASE_SHA}." \
+   635	      "Review deploy logs: ${SCRIPTS_DIR}/deploy.sh ${ENV} ${RELEASE_SHA}"
+   636	  fi
+   637	}
+   638	
+   639	# TODO: Document assert_health_endpoint.
+   640	assert_health_endpoint() {
+   641	  local tag="${1:-health_fail}"
+   642	  local code="${2:-$EXIT_HEALTH_FAIL}"
+   643	  local attempt=0
+   644	
+   645	  while [[ "$attempt" -lt "$HEALTH_MAX_RETRIES" ]]; do
+   646	    if check_health_once; then
+   647	      evidence_log "assert:${tag}" "PASS"
+   648	      return 0
+   649	    fi
+   650	    attempt=$((attempt + 1))
+   651	    if [[ "$attempt" -lt "$HEALTH_MAX_RETRIES" ]]; then
+   652	      sleep "$HEALTH_RETRY_INTERVAL"
+   653	    fi
+   654	  done
+   655	
+   656	  runtime_fail "$code" "$tag" \
+   657	    "Health endpoint ${HEALTH_URL} did not return 200 after ${HEALTH_MAX_RETRIES} attempts." \
+   658	    "Verify the service is running and reachable:
+   659	  curl -v ${HEALTH_URL}
+   660	Check target group health and application logs."
+   661	}
+   662	
+   663	echo "==> verifying ACM certificate status"
+   664	assert_acm_cert_issued
+   665	echo "    OK: ACM cert status is ISSUED"
+   666	
+   667	echo "==> verifying ALB HTTPS listener on 443"
+   668	assert_alb_https_listener
+   669	echo "    OK: HTTPS listener present on port 443"
+   670	
+   671	echo "==> verifying target group health"
+   672	assert_target_group_healthy
+   673	echo "    OK: target group has healthy targets"
+   674	
+   675	echo "==> verifying Cloudflare public routing records"
+   676	assert_cloudflare_public_records
+   677	echo "    OK: Cloudflare public records match the canonical ALB/Pages split"
+   678	
+   679	echo "==> verifying SES identity and DKIM status"
+   680	assert_ses_identity_verified
+   681	echo "    OK: SES identity and DKIM are verified"
+   682	
+
+# static wiring checks around line 74
+    70	assert_file_contains "$runtime_smoke" 'HEALTH_URL' "HEALTH_URL variable defined"
+    71	assert_file_contains "$runtime_smoke" 'HEALTH_MAX_RETRIES' "Health retry count is configurable"
+    72	
+    73	echo ""
+    74	echo "--- Cloudflare public record assertion wired ---"
+    75	assert_file_contains "$runtime_smoke" 'assert_cloudflare_public_records' "assert_cloudflare_public_records function defined"
+    76	assert_file_contains "$runtime_smoke" 'EXIT_DNS_RECORD_MISMATCH' "Cloudflare DNS record failure uses EXIT_DNS_RECORD_MISMATCH"
+    77	assert_file_contains "$runtime_smoke" 'dns_record_mismatch' "Cloudflare DNS record failure class is dns_record_mismatch"
+    78	assert_file_contains "$runtime_smoke" 'dns_records\?type=CNAME' "Cloudflare DNS records API queried"
+    79	
+    80	echo ""
+    81	echo "--- SES identity assertion wired ---"
+    82	assert_file_contains "$runtime_smoke" 'assert_ses_identity_verified' "assert_ses_identity_verified function defined"
+    83	assert_file_contains "$runtime_smoke" 'aws sesv2 get-email-identity' "SES identity is queried"
+    84	assert_file_contains "$runtime_smoke" 'EXIT_SES_NOT_VERIFIED' "SES failure uses EXIT_SES_NOT_VERIFIED"
+    85	assert_file_contains "$runtime_smoke" 'ses_not_verified' "SES failure class is ses_not_verified"
+    86	
+
+# terraform SSOT public_dns_records @ line 8
+     1	locals {
+     2	  api_domain   = "api.${var.domain}"
+     3	  www_domain   = "www.${var.domain}"
+     4	  cloud_domain = "cloud.${var.domain}"
+     5	
+     6	  # Cloudflare does CNAME flattening at the zone apex, which is the closest
+     7	  # equivalent to the prior Route53 ALIAS record for the public ALB.
+     8	  public_dns_records = {
+     9	    apex = {
+    10	      name    = var.domain
+    11	      type    = "CNAME"
+    12	      content = aws_lb.api.dns_name
+    13	      ttl     = var.dns_ttl
+    14	      proxied = false
+    15	    }
+    16	    api = {
+    17	      name    = local.api_domain
+    18	      type    = "CNAME"
+    19	      content = aws_lb.api.dns_name
+    20	      ttl     = var.dns_ttl
+    21	      proxied = false
+    22	    }
+    23	    www = {
+    24	      name    = local.www_domain
+    25	      type    = "CNAME"
+    26	      content = aws_lb.api.dns_name
+    27	      ttl     = var.dns_ttl
+    28	      proxied = false
+    29	    }
+    30	    cloud = {
+    31	      name    = local.cloud_domain
+    32	      type    = "CNAME"
+    33	      # The canonical cloud hostname still uses the existing Pages-backed web
+    34	      # deploy while runtime/API traffic stays on the ALB-backed hosts.
+    35	      content = "flapjack-cloud.pages.dev"
+    36	      ttl     = 1
+    37	      proxied = true
+    38	    }
+    39	  }
+    40	
+
+# runbook claims @ lines 45 and 279
+    43	- Public health check: `https://api.flapjack.foo/health` returned `200`.
+    44	
+    45	Latest live reconciliation recorded on 2026-04-25:
+    46	
+    47	- `cloud.flapjack.foo` currently exists in Cloudflare as a proxied `CNAME`
+    48	  pointing to `flapjack-cloud.pages.dev`.
+    49	- The checked-in Terraform DNS contract in `ops/terraform/dns/main.tf` and the
+    50	  runtime owner in `ops/terraform/tests_stage7_runtime_smoke.sh` now match that
+    51	  provider-side truth instead of forcing `cloud.flapjack.foo` onto the staging
+    52	  ALB.
+    53	- `web/svelte.config.js` and `web/src/routes/+layout.ts` now describe the
+    54	  Pages-backed `cloud` surface as a current deployment detail rather than as a
+    55	  contradictory ownership claim.
+    56	- `bash ops/terraform/tests_stage7_runtime_smoke.sh --env staging --domain flapjack.foo --ami-id ami-078228dbe86117d85 --env-file /Users/stuart/repos/gridl-infra-dev/fjcloud_dev/.secret/.env.secret`
+    57	  passed on 2026-04-25, so `dns_record_mismatch` is no longer an active DNS-contract blocker.
+    58	
+    59	Historical notes from the 2026-04-20 correction lane:
+    60	
+   276	  `/Users/stuart/.matt/projects/fjcloud_dev-17570fdc/live_e2e_runtime_rerun_artifacts/fjcloud_live_e2e_evidence_20260424T215911Z_59523/logs/runtime_smoke.log`.
+   277	  Delegated owner command remains `ops/terraform/tests_stage7_runtime_smoke.sh`
+   278	  via `scripts/launch/live_e2e_evidence.sh`.
+   279	- A fresh direct runtime-owner rerun on 2026-04-25 passed after the checked-in
+   280	  DNS contract was reconciled to the live provider truth. Rerun command:
+   281	  `bash ops/terraform/tests_stage7_runtime_smoke.sh --env staging --domain flapjack.foo --ami-id ami-078228dbe86117d85 --env-file /Users/stuart/repos/gridl-infra-dev/fjcloud_dev/.secret/.env.secret`.
+   282	  The canonical contract is now:
+   283	  - `flapjack.foo`, `api.flapjack.foo`, and `www.flapjack.foo` are DNS-only
+   284	    `CNAME`s to the staging ALB.
+   285	  - `cloud.flapjack.foo` is a proxied `CNAME` to
+   286	    `flapjack-cloud.pages.dev`.
+   287	  The preserved 2026-04-24 wrapper artifact remains historically red, but the
+   288	  runtime-smoke lane is no longer blocked by `dns_record_mismatch`.
+   289	- Live billing-lane triage on 2026-04-25 confirmed the current seed-index

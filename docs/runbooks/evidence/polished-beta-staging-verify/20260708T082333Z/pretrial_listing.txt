@@ -1,0 +1,15 @@
+total 64
+drwxr-xr-x@ 14 stuart  staff  448 Jul  8 04:25 .
+drwxr-xr-x  15 stuart  staff  480 Jul  8 04:23 ..
+-rw-r--r--@  1 stuart  staff   70 Jul  8 04:25 credential_presence.txt
+-rw-r--r--@  1 stuart  staff  237 Jul  8 04:23 hypothesis.md
+-rw-r--r--@  1 stuart  staff  196 Jul  8 04:24 prep_attempt_1_shell_mismatch.txt
+-rw-r--r--@  1 stuart  staff    0 Jul  8 04:24 prep_attempt_2_hydrate.stderr.log
+-rw-r--r--@  1 stuart  staff    8 Jul  8 04:24 prep_attempt_2_hydrate.stdout.redacted.log
+-rw-r--r--@  1 stuart  staff  171 Jul  8 04:24 prep_attempt_2_hydrate_probe.txt
+-rw-r--r--@  1 stuart  staff    0 Jul  8 04:25 pretrial_listing.txt
+-rw-r--r--@  1 stuart  staff    2 Jul  8 04:25 staging_ready_probe.exit_code
+-rw-r--r--@  1 stuart  staff    0 Jul  8 04:25 staging_ready_probe.stderr.log
+-rw-r--r--@  1 stuart  staff    0 Jul  8 04:25 staging_ready_probe.txt
+-rw-r--r--@  1 stuart  staff  260 Jul  8 04:25 staging_ready_probe_observation.txt
+-rw-r--r--@  1 stuart  staff  169 Jul  8 04:23 target_shas.txt

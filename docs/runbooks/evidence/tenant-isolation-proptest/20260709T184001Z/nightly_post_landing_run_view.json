@@ -1,0 +1,9 @@
+{
+  "url": "https://github.com/gridl-infra-staging/fjcloud/actions/runs/29044920073",
+  "headSha": "a2f013b50d9e331aaa9e59c7f9c46042d1f93ab1",
+  "workflowConclusion": "success",
+  "tenantIsolationJob": {
+    "name": "tenant-isolation-proptest",
+    "conclusion": "success"
+  }
+}

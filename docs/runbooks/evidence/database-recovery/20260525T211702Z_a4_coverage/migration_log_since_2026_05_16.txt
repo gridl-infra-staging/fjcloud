@@ -1,0 +1,10 @@
+7f305254b matt: stage 1 build session 1
+282b32b92 Merge batman/may16_9pm_3_stripe_dispute_chargeback_handlers into main
+27a4d9bd4 Merge batman/may16_9pm_2_auth_hardening_lockout_and_rate_limits into main
+c9347823f Merge batman/may16_pm_5_self_service_upgrade_endpoint_and_trust_ratchet into main
+d85367b91 Revert migration 042 to original checksum (minimum_spend_cents=1000)
+df34cc9ac Revert migration 042 to original checksum (minimum_spend_cents=1000)
+9d936349e feat(auth): add durable login lockout state to customers table
+57360f8a4 matt: stage 2 build session 1
+efd1e373f matt: stage 1 build session 1
+9f9dd2932 matt: stage 1 build session 2

@@ -1,0 +1,89 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - generic:
+    - region "Notifications alt+T"
+  - generic [ref=e3]:
+    - complementary [ref=e4]:
+      - generic [ref=e6]: Flapjack Cloud
+      - generic [ref=e7]:
+        - navigation [ref=e8]:
+          - link "Console" [ref=e9] [cursor=pointer]:
+            - /url: /console
+          - link "Indexes" [ref=e10] [cursor=pointer]:
+            - /url: /console/indexes
+          - link "Billing" [ref=e11] [cursor=pointer]:
+            - /url: /console/billing
+          - link "API Keys" [ref=e12] [cursor=pointer]:
+            - /url: /console/api-keys
+          - link "Logs" [ref=e13] [cursor=pointer]:
+            - /url: /console/logs
+          - link "Migrate" [ref=e14] [cursor=pointer]:
+            - /url: /console/migrate
+          - link "Account" [ref=e15] [cursor=pointer]:
+            - /url: /console/account
+        - generic [ref=e16]:
+          - paragraph [ref=e17]: Help
+          - generic [ref=e18]:
+            - link "Support" [ref=e19] [cursor=pointer]:
+              - /url: mailto:support@flapjack.foo
+            - link "API Docs" [ref=e20] [cursor=pointer]:
+              - /url: https://api.flapjack.foo/docs
+    - generic [ref=e21]:
+      - banner [ref=e22]:
+        - generic [ref=e24]: Paid Plan
+        - generic [ref=e25]:
+          - generic [ref=e26]: Signup Lane 1783505695813-qalf3w5j
+          - button "Logout" [ref=e28]
+      - generic [ref=e30]:
+        - generic [ref=e31]: BETA
+        - generic [ref=e32]: Public beta.
+        - link "View beta scope" [ref=e33] [cursor=pointer]:
+          - /url: /beta
+        - link "Send feedback" [ref=e34] [cursor=pointer]:
+          - /url: mailto:support@flapjack.foo?subject=Flapjack%20Cloud%20beta%20feedback
+        - link "Support" [ref=e35] [cursor=pointer]:
+          - /url: mailto:support@flapjack.foo
+      - main [ref=e36]:
+        - generic [ref=e37]:
+          - navigation "Billing navigation" [ref=e38]:
+            - link "Payment Methods" [ref=e39] [cursor=pointer]:
+              - /url: /console/billing
+            - link "Invoices" [ref=e40] [cursor=pointer]:
+              - /url: /console/billing/invoices
+          - generic [ref=e41]:
+            - link "← Back to invoices" [ref=e43] [cursor=pointer]:
+              - /url: /console/billing/invoices
+            - generic [ref=e44]:
+              - generic [ref=e45]:
+                - generic [ref=e46]:
+                  - heading "Jul 2026" [level=1] [ref=e47]
+                  - generic [ref=e48]: Paid
+                - generic [ref=e49]:
+                  - paragraph [ref=e50]: $5.00
+                  - paragraph [ref=e51]: "Subtotal: $0.00"
+              - generic [ref=e52]:
+                - generic [ref=e53]:
+                  - paragraph [ref=e54]: Created
+                  - paragraph [ref=e55]: Jul 8, 2026
+                - generic [ref=e56]:
+                  - paragraph [ref=e57]: Finalized
+                  - paragraph [ref=e58]: Jul 8, 2026
+                - generic [ref=e59]:
+                  - paragraph [ref=e60]: Paid
+                  - paragraph [ref=e61]: Jul 8, 2026
+              - link "Download PDF" [ref=e63] [cursor=pointer]:
+                - /url: [REDACTED_HOSTED_INVOICE_URL]
+            - generic [ref=e64]:
+              - heading "Line Items" [level=2] [ref=e65]
+              - table [ref=e67]:
+                - rowgroup [ref=e68]:
+                  - row "Description Quantity Unit Price Amount Region" [ref=e69]:
+                    - columnheader "Description" [ref=e70]
+                    - columnheader "Quantity" [ref=e71]
+                    - columnheader "Unit Price" [ref=e72]
+                    - columnheader "Amount" [ref=e73]
+                    - columnheader "Region" [ref=e74]
+                - rowgroup
+```

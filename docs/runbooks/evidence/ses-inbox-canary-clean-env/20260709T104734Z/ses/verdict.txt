@@ -1,0 +1,29 @@
+Stage 1 SES bounce/complaint clean-env verdict
+
+bundle: docs/runbooks/evidence/ses-inbox-canary-clean-env/20260709T104734Z/ses
+live_state_snapshot: docs/live-state/20260709T104734Z/SUMMARY.md
+canonical_sts_account: 213880904778
+canonical_sts_arn: arn:aws:iam::213880904778:user/stuart-cli
+stage_green: false
+
+Command evidence
+- live_state: exit=0; stdout=live_state.stdout; stderr=live_state.stderr
+- sts_identity: exit=0; stdout=sts_get_caller_identity.stdout; stderr=sts_get_caller_identity.stderr
+- ses_bounce: exit=2; stdout=ses_bounce.stdout; stderr=ses_bounce.stderr
+- ses_complaint: exit=2; stdout=ses_complaint.stdout; stderr=ses_complaint.stderr
+
+Probe-owned pass criteria
+- ses_bounce: passed=false; poll_sns_side_effects_ok=false; second_live_send_suppression_ok=false
+  first_failed_step=preflight: Missing required environment values: DATABASE_URL|INTEGRATION_DB_URL
+- ses_complaint: passed=false; poll_sns_side_effects_ok=false; second_live_send_suppression_ok=false
+  first_failed_step=preflight: Missing required environment values: DATABASE_URL|INTEGRATION_DB_URL
+
+Prior preserved-blocker comparison
+- Prior bundle: docs/runbooks/evidence/ses-coverage-a1/20260612T003052Z_in_vpc_rerun
+- Prior SUMMARY records ses_bounce rc=0 pass=1 and ses_complaint rc=0 pass=1 while unrelated verify/password-reset/dunning rows kept all_green.txt=0.
+- This Stage 1 non-green result is not one of those preserved unrelated blockers: both fresh SES modes fail before live send at preflight because DATABASE_URL|INTEGRATION_DB_URL is missing.
+
+Conclusion
+- STS/canonical key proof is green for account 213880904778.
+- SES bounce/complaint side effects were not exercised in this run; no suppression/audit success can be inferred.
+- See GAP_SPEC.md for the smallest current owner/fix surface.

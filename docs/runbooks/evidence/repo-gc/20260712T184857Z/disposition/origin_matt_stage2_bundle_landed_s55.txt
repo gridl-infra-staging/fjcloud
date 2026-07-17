@@ -1,0 +1,45 @@
+# Disposition Receipt: origin/matt/stage2-bundle-landed-s55
+
+Classification: approved remote branch deletion; manifest stores short branch name
+Evidence source: current read-only git refs at bundle creation.
+
+## rev-parse
+$ git rev-parse origin/matt/stage2-bundle-landed-s55
+bfb7cb8515f0dd47195684165b990150cee4bfd9
+
+## cherry
+$ git cherry -v main origin/matt/stage2-bundle-landed-s55 | tail -20
++ 8cf4326437f2d707adc1abebef528e3aac6b889a matt: land stage2 pinned announce-gate bundle
++ dd5f5a8c819f3349273790216a1f6b351eee40b2 matt: record stage2 remediation validation cache
+- 9e353c21e5775a49d89016b4d1b2e45967d2ce77 stage2: restore owner-compatible oauth verdict text
++ 6fb02bd48aa55e3f0971d2a7be40fe2b9c78d12b matt: stage 2 build session 1
++ 6a22daf87f7b532841ff33380b03ecd138cf9ed4 Refresh pinned oauth probe from pinned inputs
++ a12892842ec33da4e6e16fa03cb1168f519e495c Fix pinned announce-gate inputs
++ 06b63c5d73b2ed09ac489c87dbc4eb4ccbff8cf8 matt: stage 2 build session 1
++ 8199c074102ae8a921ba817b9d620ad9b8608ee9 matt: stage 2 completion
++ 2de2161e26e2ca559fd181f269fca6ea6662f93d scrai: 20 files documented, 17 artifacts generated, 2 guidance files assembled, 3 state files tracked
++ 4d2e138e594ec57600131a2ebb34b554ce138b86 matt: stage 3 build session 3
++ bfb7cb8515f0dd47195684165b990150cee4bfd9 matt: stage 3 build session 1
+
+## diff main...
+$ git diff main...origin/matt/stage2-bundle-landed-s55 --stat | tail -20
+ scripts/lib/staging_billing_rehearsal_evidence.sh  |   1 +
+ scripts/lib/stripe_request.sh                      |   1 +
+ scripts/tests/lib/local_dev_test_state.sh          |   1 +
+ scripts/tests/lib/seed_local_mocks.sh              |   1 +
+ ...aging_billing_rehearsal_reset_harness_blocks.sh |   1 +
+ validation_cache.jsonl                             |   5 +
+ web/DIRMAP.md                                      |   4 +-
+ web/src/DIRMAP.md                                  |   4 +-
+ web/src/lib/DIRMAP.md                              |   3 +-
+ web/src/lib/components/DIRMAP.md                   |   2 +
+ web/src/lib/components/EditorDialog.normalize.ts   |  18 ++++
+ web/src/lib/components/EditorDialog.validation.ts  |  24 +++++
+ web/src/routes/DIRMAP.md                           |   2 +-
+ web/src/routes/console/DIRMAP.md                   |   2 +-
+ web/src/routes/console/indexes/DIRMAP.md           |   2 +-
+ web/src/routes/console/indexes/[name]/DIRMAP.md    |   2 +
+ .../indexes/[name]/analytics-management.server.ts  |   3 +
+ .../indexes/[name]/chat-management.server.ts       |   3 +
+ web/tests/fixtures/fixtures.ts                     |   3 +
+ 69 files changed, 754 insertions(+), 79 deletions(-)

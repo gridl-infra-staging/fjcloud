@@ -1,0 +1,2 @@
+ERROR: email_verified_at not set after clickthrough for verifyprobe202606052038412652@test.flapjack.foo after 15 attempts
+failed to run commands: exit status 1

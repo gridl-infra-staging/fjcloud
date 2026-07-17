@@ -1,0 +1,14 @@
+# Disposition Receipt: batman/jun11_pm_7_aws_live_infra_e2e
+
+Classification: approved freed local branch after approved worktree removal
+Evidence source: current read-only git refs at bundle creation.
+
+## rev-parse
+$ git rev-parse batman/jun11_pm_7_aws_live_infra_e2e
+ce9f76ac5509cd31b6a9e72b0ac492f84a9c2be6
+
+## cherry
+$ git cherry -v main batman/jun11_pm_7_aws_live_infra_e2e | tail -20
+
+## diff main...
+$ git diff main...batman/jun11_pm_7_aws_live_infra_e2e --stat | tail -20

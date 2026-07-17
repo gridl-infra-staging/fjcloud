@@ -1,0 +1,2 @@
+module.monitoring.aws_sns_topic_subscription.email["stuart.clifford@gmail.com"]
+terraform_data.prod_alert_emails_guard

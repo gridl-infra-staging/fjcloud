@@ -1,0 +1,6 @@
+# direct /version fallback
+## prod
+PROBE_FAILED
+
+## staging
+{"build_time":"2026-05-18T03:55:12Z","dev_sha":"67d48abce51678885b86b248d1c449756fd9206d","mirror_sha":"fa64aba192866d5aa72e6409b3ec04fe6375ea16","synced_at":"2026-05-18T03:22:57Z"}

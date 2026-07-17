@@ -1,0 +1,60 @@
+{
+    "Configuration": {
+        "FunctionName": "fjcloud-prod-customer-loop-canary",
+        "FunctionArn": "arn:aws:lambda:us-east-1:213880904778:function:fjcloud-prod-customer-loop-canary",
+        "Role": "arn:aws:iam::213880904778:role/fjcloud-prod-customer-loop-canary-lambda",
+        "CodeSize": 0,
+        "Description": "",
+        "Timeout": 900,
+        "MemorySize": 512,
+        "LastModified": "2026-05-14T03:17:56.564+0000",
+        "CodeSha256": "4ea714a45fcc188a45db22fc21ebdb059bbb6192c3ceefc71cfa45405545eb5f",
+        "Version": "$LATEST",
+        "Environment": {
+            "Variables": {
+                "ENVIRONMENT": "prod",
+                "CANARY_AWS_REGION": "us-east-1",
+                "CANARY_LIVE_MODE": "0"
+            }
+        },
+        "TracingConfig": {
+            "Mode": "PassThrough"
+        },
+        "RevisionId": "0213dba1-f4da-49fd-98c2-a7b7dfd6769c",
+        "State": "Active",
+        "LastUpdateStatus": "Successful",
+        "PackageType": "Image",
+        "ImageConfigResponse": {
+            "ImageConfig": {
+                "Command": [
+                    "scripts/canary/customer_loop_synthetic.sh"
+                ],
+                "WorkingDirectory": ""
+            }
+        },
+        "Architectures": [
+            "x86_64"
+        ],
+        "EphemeralStorage": {
+            "Size": 512
+        },
+        "SnapStart": {
+            "ApplyOn": "None",
+            "OptimizationStatus": "Off"
+        },
+        "LoggingConfig": {
+            "LogFormat": "Text",
+            "LogGroup": "/aws/lambda/fjcloud-prod-customer-loop-canary"
+        }
+    },
+    "Code": {
+        "RepositoryType": "ECR",
+        "ImageUri": "213880904778.dkr.ecr.us-east-1.amazonaws.com/fjcloud-prod-customer-loop-canary:pending-publication",
+        "ResolvedImageUri": "213880904778.dkr.ecr.us-east-1.amazonaws.com/fjcloud-prod-customer-loop-canary@sha256:4ea714a45fcc188a45db22fc21ebdb059bbb6192c3ceefc71cfa45405545eb5f"
+    },
+    "Tags": {
+        "managed-by": "terraform",
+        "service": "fjcloud",
+        "env": "prod"
+    }
+}

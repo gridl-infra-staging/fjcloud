@@ -1,0 +1,3 @@
+# Stage3 command transcript
+timestamp_utc=20260517T031727Z
+bundle=docs/runbooks/evidence/canary-customer-loop/20260517T031727Z_prod_e2e_GREEN

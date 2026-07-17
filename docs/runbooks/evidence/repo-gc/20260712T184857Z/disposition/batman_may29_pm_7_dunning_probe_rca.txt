@@ -1,0 +1,14 @@
+# Disposition Receipt: batman/may29_pm_7_dunning_probe_rca
+
+Classification: approved freed local branch after approved worktree removal
+Evidence source: current read-only git refs at bundle creation.
+
+## rev-parse
+$ git rev-parse batman/may29_pm_7_dunning_probe_rca
+90470ed5020535df37ae89db05d24fe508c35bc7
+
+## cherry
+$ git cherry -v main batman/may29_pm_7_dunning_probe_rca | tail -20
+
+## diff main...
+$ git diff main...batman/may29_pm_7_dunning_probe_rca --stat | tail -20

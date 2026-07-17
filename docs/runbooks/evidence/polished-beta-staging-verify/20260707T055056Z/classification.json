@@ -1,0 +1,19 @@
+{
+  "first_pass_pass": [
+    "B",
+    "E"
+  ],
+  "reruns_to_flake": [],
+  "real_bug_after_reruns": [
+    "A",
+    "C",
+    "D",
+    "F",
+    "G"
+  ],
+  "final_pass_including_flakes": 2,
+  "ready_precondition": {
+    "real_bug_count": 5,
+    "final_pass_ge_4": false
+  }
+}

@@ -1,0 +1,1 @@
+10 inbound-smtp.us-east-1.amazonaws.com.

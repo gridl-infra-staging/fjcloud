@@ -1,0 +1,4 @@
+env=staging
+ami_id=<redacted>
+domain=flapjack.foo
+cloudflare_zone_id=<redacted>

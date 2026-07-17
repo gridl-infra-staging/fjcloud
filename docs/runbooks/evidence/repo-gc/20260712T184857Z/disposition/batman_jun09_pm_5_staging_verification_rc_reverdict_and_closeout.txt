@@ -1,0 +1,14 @@
+# Disposition Receipt: batman/jun09_pm_5_staging_verification_rc_reverdict_and_closeout
+
+Classification: approved freed local branch after approved worktree removal
+Evidence source: current read-only git refs at bundle creation.
+
+## rev-parse
+$ git rev-parse batman/jun09_pm_5_staging_verification_rc_reverdict_and_closeout
+c6bc443e93510781968cb23b3a689a2f16d6b28c
+
+## cherry
+$ git cherry -v main batman/jun09_pm_5_staging_verification_rc_reverdict_and_closeout | tail -20
+
+## diff main...
+$ git diff main...batman/jun09_pm_5_staging_verification_rc_reverdict_and_closeout --stat | tail -20

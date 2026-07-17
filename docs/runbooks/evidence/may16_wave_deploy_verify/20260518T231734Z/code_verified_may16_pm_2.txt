@@ -1,0 +1,46 @@
+# Command outputs proving deploy-status /version owner seams (live verification required)
+$ rg -n "Deferred deploy-verify stages" docs/NOW.md
+17:**Deferred deploy-verify stages + secret rotation.** Most may16 lanes left their deploy-side verification stages deferred (`pm_2/Stage 4`, `pm_3/Stage 3`, `pm_5/Stage 6`, `pm_6/Stage 5`, `9pm_4/Stages 4–5`). Mirror-CI `secret-scan` stays red until `may16_pm_1/Stage 3` operator-driven secret rotation lands. See [chatting/may18_post_merge_roadmap_reconciliation.md](../chatting/may18_post_merge_roadmap_reconciliation.md) BLOCKERS section for the next-session intervention plan.
+
+$ rg -n "pm_2|pm_3" chats/icg/may18_pm_1_may16_wave_deploy_verify_sweep.md
+7:- [may18_pm_2_first_run_ux_evidence_audit.md](may18_pm_2_first_run_ux_evidence_audit.md) — captures live signup → ingest → query → invoice walkthrough; owns `docs/runbooks/evidence/first-run-ux-audit/`. Disjoint.
+8:- [may18_pm_3_customer_trust_surfaces.md](may18_pm_3_customer_trust_surfaces.md) — Delete/Export UI + support contact in chrome + L9 SES retry + beta badge. Touches `web/src/routes/dashboard/`, `infra/api/src/routes/auth.rs`, `services/email/`. Disjoint from this lane.
+103:- `chats/icg/may16_pm_2_debbie_stub_strip_blank_line.md` Stage 4 footer
+104:- `chats/icg/may16_pm_3_playwright_customer_login_fixture.md` Stage 3 footer
+107:- `chats/icg/may16_9pm_2_auth_hardening_lockout_and_rate_limits.md` Stage 4 footer (2/3 — final local-CI gate not ticked)
+121:   - `9pm_2` Stage 4: `grep -n 'lockout_at\|failed_login_attempts' infra/migrations/052_auth_lockout_state.sql` must return ≥2 lines.
+142:for lane in may16_pm_2_debbie_stub_strip_blank_line may16_pm_3_playwright_customer_login_fixture \
+144:            may16_9pm_2_auth_hardening_lockout_and_rate_limits may16_9pm_4_full_prod_vm_lifecycle_proof; do
+175:| `pm_2` Stage 4 (mirror sync + CI recovery) | `gh run view` against current staging+prod mirror CI runs on the synced wave SHA. PASS = both green. |
+176:| `pm_3` Stage 3 (mirror CI playwright recovery) | `gh run view --job=<playwright-job>` against current mirror CI. PASS = playwright conclusion=success on the wave SHA. |
+179:| `9pm_2` Stage 4 (final local-CI gate + 5-failures-yields-429 staging probe) | `bash scripts/local-ci.sh` locally first. Then 5 sequential `POST /auth/login` against staging with a known-bad password; assert HTTP 429 + `Retry-After` header. Also `psql` against staging RDS confirming the 9 lockout columns exist on `customers`. |
+266:for required_lane in may16_pm_2 may16_pm_3 may16_pm_5 may16_pm_6 may16_9pm_2 may16_9pm_4; do
+296:   | HARDENING | Sweep deferred deploy-verify stages from may16 wave into one closure lane | `chats/icg/may16_pm_2/3/5/6` + `may16_9pm_4` deferred-stage list in chatting handoff | 2026-05-18 |
+331:  - [may18_pm_2_first_run_ux_evidence_audit.md](may18_pm_2_first_run_ux_evidence_audit.md) and [may18_pm_3_customer_trust_surfaces.md](may18_pm_3_customer_trust_surfaces.md) — both dispatchable in parallel; both also touch `docs/NOW.md` for their own row removals. Each lane removes only its own row; mechanical rebase if conflicts arise.
+
+$ rg -n "/version|dev_sha|mirror_sha|sync|probe" scripts/deploy_status.sh
+4:# Probes /version on the live API, compares dev_sha against `git rev-parse main`
+23:  "prod|https://api.flapjack.foo/version"
+24:  "staging|https://api.staging.flapjack.foo/version"
+32:# Probe /version. Returns the JSON body or the literal "PROBE_FAILED" if
+36:probe_version() {
+44:  # Validate it's parseable JSON with at least dev_sha — defends against an
+45:  # HTML error page being mistaken for a /version response. The endpoint
+48:  if echo "$body" | jq -e '.dev_sha' >/dev/null 2>&1; then
+73:# Returns "unknown" if the deployed dev_sha is not in dev-repo history
+74:# (e.g. it's "local-dev" or pre-/version era, or a different repo's SHA).
+103:  body=$(probe_version "$url")
+104:  # Pull dev_sha first so we can compute the gap before appending (macOS
+106:  dev_sha=$(extract_field "$body" "dev_sha")
+109:  DEV_SHAS+=("$dev_sha")
+110:  MIRROR_SHAS+=("$(extract_field "$body" "mirror_sha")")
+111:  SYNCED_ATS+=("$(extract_field "$body" "synced_at")")
+113:  GAPS+=("$(commits_behind_main "$dev_sha")")
+124:      --arg dev_sha "${DEV_SHAS[$i]}" \
+125:      --arg mirror_sha "${MIRROR_SHAS[$i]}" \
+126:      --arg synced_at "${SYNCED_ATS[$i]}" \
+129:      '$acc + {($label): {url: $url, dev_sha: $dev_sha, mirror_sha: $mirror_sha, synced_at: $synced_at, build_time: $build_time, commits_behind_main: $gap}}')
+138:printf "%-10s %-14s %-14s %-22s %-22s %s\n" "env" "dev_sha" "mirror_sha" "synced_at" "build_time" "behind_main"
+
+$ rg -n "route\(\"/version\"|version::version" infra/api/src/router/route_assembly.rs
+105:        .route("/version", get(version::version))

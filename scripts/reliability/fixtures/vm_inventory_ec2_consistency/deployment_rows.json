@@ -1,0 +1,82 @@
+[
+  {
+    "id": "dep-provider-qualified",
+    "customer_id": "cust-provider",
+    "status": "running",
+    "vm_provider": "aws",
+    "provider_vm_id": "aws:i-provider-match",
+    "hostname": "vm-provider.flapjack.foo",
+    "flapjack_url": "http://vm-provider.flapjack.foo:7700",
+    "created_at": "2026-05-20T00:00:00Z"
+  },
+  {
+    "id": "dep-shared-placement",
+    "customer_id": "cust-shared",
+    "status": "provisioning",
+    "vm_provider": "aws",
+    "provider_vm_id": "11111111-1111-1111-1111-111111111111",
+    "hostname": "vm-shared-good.flapjack.foo",
+    "flapjack_url": "http://vm-shared-good.flapjack.foo:7700",
+    "created_at": "2026-05-20T00:10:00Z"
+  },
+  {
+    "id": "dep-fresh-lock",
+    "customer_id": "cust-fresh",
+    "status": "provisioning",
+    "vm_provider": "aws",
+    "provider_vm_id": "provisioning-lock:dep-fresh-lock",
+    "hostname": "vm-fresh-lock.flapjack.foo",
+    "flapjack_url": "http://vm-fresh-lock.flapjack.foo:7700",
+    "created_at": "2026-05-20T00:59:30.12345+00:00"
+  },
+  {
+    "id": "dep-aged-lock",
+    "customer_id": "cust-aged",
+    "status": "provisioning",
+    "vm_provider": "aws",
+    "provider_vm_id": "provisioning-lock:dep-aged-lock",
+    "hostname": "vm-aged-lock.flapjack.foo",
+    "flapjack_url": "http://vm-aged-lock.flapjack.foo:7700",
+    "created_at": "2026-05-20T00:55:00Z"
+  },
+  {
+    "id": "dep-provisioning-bare-metal-non-lock",
+    "customer_id": "cust-provisioning-bare-metal-non-lock",
+    "status": "provisioning",
+    "vm_provider": "bare_metal",
+    "provider_vm_id": "55555555-5555-5555-5555-555555555555",
+    "hostname": "vm-provisioning-bare-metal-non-lock.flapjack.foo",
+    "flapjack_url": "http://vm-provisioning-bare-metal-non-lock.flapjack.foo:7700",
+    "created_at": "2026-05-20T00:45:00Z"
+  },
+  {
+    "id": "dep-terminated-provider-qualified",
+    "customer_id": "cust-terminated",
+    "status": "terminated",
+    "vm_provider": "aws",
+    "provider_vm_id": "aws:i-terminated-history",
+    "hostname": "vm-terminated-history.flapjack.foo",
+    "flapjack_url": "http://vm-terminated-history.flapjack.foo:7700",
+    "created_at": "2026-05-19T00:00:00Z"
+  },
+  {
+    "id": "dep-running-non-provider-qualified",
+    "customer_id": "cust-running-non-provider-qualified",
+    "status": "running",
+    "vm_provider": "aws",
+    "provider_vm_id": "33333333-3333-3333-3333-333333333333",
+    "hostname": "vm-running-non-provider-qualified.flapjack.foo",
+    "flapjack_url": "http://vm-running-non-provider-qualified.flapjack.foo:7700",
+    "created_at": "2026-05-20T00:20:00Z"
+  },
+  {
+    "id": "dep-running-bare-metal-provider-qualified",
+    "customer_id": "cust-running-bare-metal-provider-qualified",
+    "status": "running",
+    "vm_provider": "bare_metal",
+    "provider_vm_id": "bare_metal:bm-instance-1",
+    "hostname": "vm-running-bare-metal-provider-qualified.flapjack.foo",
+    "flapjack_url": "http://vm-running-bare-metal-provider-qualified.flapjack.foo:7700",
+    "created_at": "2026-05-20T00:30:00Z"
+  }
+]

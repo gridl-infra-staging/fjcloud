@@ -1,0 +1,7 @@
+
+Running 1 test using 1 worker
+
+  ✓  1 [chromium:signup] › tests/e2e-ui/full/signup_to_paid_invoice.spec.ts:80:2 › Fresh signup to paid invoice › signs up, verifies email, reaches paid invoice evidence (13.5s)
+
+  1 passed (14.5s)
+exit=0

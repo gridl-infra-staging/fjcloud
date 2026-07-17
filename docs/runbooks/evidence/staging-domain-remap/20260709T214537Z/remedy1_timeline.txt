@@ -1,0 +1,9 @@
+remedy=1
+start_utc=2026-07-09T21:47:00Z
+operation=DELETE then POST same Pages custom domain
+delete_http=200
+post_http=200
+end_utc=2026-07-09T21:50:03Z
+elapsed_seconds=183
+outage_window_observed=none_in_single_after_delete_probe
+poll_pass=0

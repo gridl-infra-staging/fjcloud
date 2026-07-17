@@ -1,0 +1,75 @@
+{
+  "artifact_dir": "/var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//fjcloud_staging_billing_rehearsal_20260712T195413Z_49371",
+  "classification": "dunning_subject_or_body_mismatch",
+  "detail": "One or more dunning transitions failed subject/body invoice-id assertions.",
+  "elapsed_ms": 136968,
+  "result": "failed",
+  "steps": [
+    {
+      "detail": "Explicit staging env file, SSM hydration, and hostname checks passed.",
+      "name": "guard",
+      "passed": true
+    },
+    {
+      "detail": "Reset completed for 2 allowlisted tenant(s).",
+      "name": "reset_test_state",
+      "passed": true
+    },
+    {
+      "detail": "Rehearsal completed with artifact_dir=/var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//fjcloud_staging_billing_rehearsal_20260712T195413Z_49371",
+      "name": "run_rehearsal",
+      "passed": true
+    },
+    {
+      "detail": "Loaded invoice_rows.json and webhook.json",
+      "name": "load_artifacts",
+      "passed": true
+    },
+    {
+      "detail": "Using s3://flapjack-cloud-releases/e2e-emails/ in region us-east-1",
+      "name": "load_s3_scope",
+      "passed": true
+    },
+    {
+      "detail": "Loaded inbound RFC822 object keys for run scope.",
+      "name": "list_rfc822_objects",
+      "passed": true
+    },
+    {
+      "detail": "Loaded transition invoice mapping from rehearsal artifacts.",
+      "name": "load_artifacts",
+      "passed": true
+    },
+    {
+      "detail": "One or more dunning transitions failed subject/body invoice-id assertions.",
+      "name": "assert_dunning_transitions",
+      "passed": false
+    }
+  ],
+  "transitions": [
+    {
+      "actual_subject": "",
+      "expected_subject": "Payment retry scheduled",
+      "invoice_id": "cdc50d75-5397-4203-a855-72667d87dc4d",
+      "result": "failed",
+      "s3_object_key": "",
+      "transition": "failed"
+    },
+    {
+      "actual_subject": "",
+      "expected_subject": "Payment retries exhausted",
+      "invoice_id": "73a9116c-d08e-4c5a-a442-13b5e6734467",
+      "result": "failed",
+      "s3_object_key": "",
+      "transition": "suspended"
+    },
+    {
+      "actual_subject": "",
+      "expected_subject": "Payment recovered",
+      "invoice_id": "cdc50d75-5397-4203-a855-72667d87dc4d",
+      "result": "failed",
+      "s3_object_key": "",
+      "transition": "recovered"
+    }
+  ]
+}

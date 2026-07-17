@@ -1,0 +1,41 @@
+$ bash scripts/tests/configure_billing_portal_test.sh
+
+=== configure_billing_portal.sh tests ===
+== Stripe customer portal configuration ==
+Active Stripe key prefix: sk_live_...
+PASS: configure_billing_portal should emit valid JSON when --account is used
+PASS: configure_billing_portal should report the target account name
+PASS: configure_billing_portal should include the Stripe account id
+PASS: configure_billing_portal should include the configuration id
+PASS: configure_billing_portal should surface cloud.flapjack.foo as the active hosted-portal default return path
+PASS: configure_billing_portal should authenticate with the suffixed account key
+PASS: configure_billing_portal should fetch the active Stripe account first
+PASS: configure_billing_portal should query portal configurations
+PASS: configure_billing_portal should update the existing default configuration
+PASS: configure_billing_portal should enable invoice history
+PASS: configure_billing_portal should enable payment method updates
+PASS: configure_billing_portal should configure customer-update fields
+PASS: configure_billing_portal should exit 2 when --account key is missing
+PASS: configure_billing_portal missing-key error should name the suffixed variable
+PASS: configure_billing_portal should exit 2 when --account value is missing
+PASS: configure_billing_portal missing-value error should be explicit
+== Stripe customer portal configuration ==
+Active Stripe key prefix: sk_live_...
+PASS: configure_billing_portal should emit valid JSON with canonical key
+PASS: configure_billing_portal should mark canonical key path when --account is omitted
+PASS: configure_billing_portal should include newly created configuration id
+PASS: configure_billing_portal should use canonical STRIPE_SECRET_KEY when --account is omitted
+PASS: configure_billing_portal should create a configuration when none exists
+== Flapjack Stripe catalog creation ==
+Active Stripe key prefix: sk_live_...
+Active account: acct_catalog_mock
+...
+== Done. Summary: ==
+PASS: create_catalog should still emit valid JSON when using --account after helper extraction
+PASS: create_catalog regression path should still fetch account id
+PASS: create_catalog should still resolve STRIPE_SECRET_KEY_<account> for --account runs
+PASS: create_catalog should exit 2 when --account value is missing
+PASS: create_catalog missing-value error should be explicit
+=== Results: 26 passed, 0 failed ===
+
+VERDICT: PASS — all billing portal test assertions pass, confirming /console/billing return URLs

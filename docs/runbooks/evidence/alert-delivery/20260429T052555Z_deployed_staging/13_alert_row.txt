@@ -1,0 +1,23 @@
+# Stage 3 persisted-send proof check (read-only)
+
+utc_recorded=2026-04-29T17:06:24Z
+instance_id=<redacted-instance-id>
+ssm_command_id=<redacted-command-id>
+ssm_status=Success
+ssm_response_code=0
+invoice_id=4266f700-6337-400d-b798-69ef03a43436
+baseline_matching_alert_count=0 (from 11_pre_replay_baseline.txt)
+baseline_matching_sent_count=0 (from 11_pre_replay_baseline.txt)
+
+post_replay_sql:
+SELECT count(*) FROM alerts WHERE metadata->>'invoice_id'='4266f700-6337-400d-b798-69ef03a43436';
+SELECT count(*) FROM alerts WHERE metadata->>'invoice_id'='4266f700-6337-400d-b798-69ef03a43436' AND delivery_status='sent';
+SELECT newest matching rows with severity, delivery_status, title/message, and required metadata fields.
+
+post_replay_result:
+- matching_alert_count_after|0
+- matching_sent_count_after|0
+
+verdict:
+- FAIL: no strictly newer matching alert row was persisted after replay; matching_alert_count remained 0 and matching_sent_count remained 0.
+- Because no new row exists, required `delivery_status=sent` retry-warning proof cannot be established for this replay.

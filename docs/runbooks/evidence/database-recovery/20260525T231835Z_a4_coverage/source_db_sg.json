@@ -1,0 +1,51 @@
+{
+    "SecurityGroups": [
+        {
+            "GroupId": "sg-0e60946fafe060833",
+            "IpPermissionsEgress": [],
+            "Tags": [
+                {
+                    "Key": "service",
+                    "Value": "fjcloud"
+                },
+                {
+                    "Key": "env",
+                    "Value": "staging"
+                },
+                {
+                    "Key": "managed-by",
+                    "Value": "terraform"
+                },
+                {
+                    "Key": "Name",
+                    "Value": "fjcloud-staging-sg-rds"
+                }
+            ],
+            "VpcId": "vpc-0748bcfc19bd0e1ab",
+            "SecurityGroupArn": "arn:aws:ec2:us-east-1:213880904778:security-group/sg-0e60946fafe060833",
+            "OwnerId": "213880904778",
+            "GroupName": "fjcloud-staging-sg-rds",
+            "Description": "RDS: inbound 5432 from API SG only",
+            "IpPermissions": [
+                {
+                    "IpProtocol": "tcp",
+                    "FromPort": 5432,
+                    "ToPort": 5432,
+                    "UserIdGroupPairs": [
+                        {
+                            "UserId": "213880904778",
+                            "GroupId": "sg-0e8fd81b9247b53a5"
+                        },
+                        {
+                            "UserId": "213880904778",
+                            "GroupId": "sg-047734af5235c69af"
+                        }
+                    ],
+                    "IpRanges": [],
+                    "Ipv6Ranges": [],
+                    "PrefixListIds": []
+                }
+            ]
+        }
+    ]
+}

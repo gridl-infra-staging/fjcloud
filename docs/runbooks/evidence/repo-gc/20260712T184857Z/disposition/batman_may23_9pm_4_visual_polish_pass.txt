@@ -1,0 +1,14 @@
+# Disposition Receipt: batman/may23_9pm_4_visual_polish_pass
+
+Classification: approved freed local branch after approved worktree removal
+Evidence source: current read-only git refs at bundle creation.
+
+## rev-parse
+$ git rev-parse batman/may23_9pm_4_visual_polish_pass
+e635364e4ba6ca58fe2f1b2aff0654857cf45821
+
+## cherry
+$ git cherry -v main batman/may23_9pm_4_visual_polish_pass | tail -20
+
+## diff main...
+$ git diff main...batman/may23_9pm_4_visual_polish_pass --stat | tail -20

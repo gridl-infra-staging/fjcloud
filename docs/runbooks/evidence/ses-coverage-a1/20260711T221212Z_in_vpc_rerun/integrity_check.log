@@ -1,0 +1,8 @@
+probe_id	rc	pass	log_path
+verify_email_clickthrough	1	0	docs/runbooks/evidence/ses-coverage-a1/20260711T221212Z_in_vpc_rerun/verify_email_clickthrough.log
+password_reset_clickthrough	1	0	docs/runbooks/evidence/ses-coverage-a1/20260711T221212Z_in_vpc_rerun/password_reset_clickthrough.log
+dunning_email_inbox	1	0	docs/runbooks/evidence/ses-coverage-a1/20260711T221212Z_in_vpc_rerun/dunning_email_inbox.log
+ses_bounce	0	1	docs/runbooks/evidence/ses-coverage-a1/20260711T221212Z_in_vpc_rerun/ses_bounce.log
+ses_complaint	0	1	docs/runbooks/evidence/ses-coverage-a1/20260711T221212Z_in_vpc_rerun/ses_complaint.log
+staging_dunning_delivery	1	0	docs/runbooks/evidence/ses-coverage-a1/20260711T221212Z_in_vpc_rerun/staging_dunning_delivery.log
+all_green=0

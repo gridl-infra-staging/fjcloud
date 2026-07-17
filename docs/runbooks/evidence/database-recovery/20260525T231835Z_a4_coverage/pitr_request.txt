@@ -1,0 +1,3 @@
+source_latest_restorable_time=2026-05-25T21:26:33+00:00
+requested_restore_time=2026-05-25T20:56:33Z
+note=aws docs expose LatestRestorableTime for choosing PITR targets but DescribeDBInstances does not expose a separate actual_restored_to timestamp for the new instance

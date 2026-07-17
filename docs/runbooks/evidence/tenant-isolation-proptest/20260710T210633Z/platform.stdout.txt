@@ -1,0 +1,1324 @@
+   Compiling api v0.1.0 (infra/api)
+   Compiling retention-job v0.1.0 (infra/retention-job)
+warning: function `create_expired_jwt` is never used
+  --> api/tests/common/mod.rs:79:8
+   |
+79 | pub fn create_expired_jwt(customer_id: Uuid) -> String {
+   |        ^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `create_jwt_with_secret` is never used
+  --> api/tests/common/mod.rs:85:8
+   |
+85 | pub fn create_jwt_with_secret(customer_id: Uuid, secret: &str) -> String {
+   |        ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: struct `TestOAuthProvider` is never constructed
+  --> api/tests/common/mod.rs:90:12
+   |
+90 | pub struct TestOAuthProvider {
+   |            ^^^^^^^^^^^^^^^^^
+
+warning: function `spawn_test_oauth_provider` is never used
+  --> api/tests/common/mod.rs:96:14
+   |
+96 | pub async fn spawn_test_oauth_provider() -> TestOAuthProvider {
+   |              ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: method `inner` is never used
+   --> api/tests/common/mod.rs:258:12
+    |
+253 | impl FailableObjectStore {
+    | ------------------------ method in this implementation
+...
+258 |     pub fn inner(&self) -> &InMemoryObjectStore {
+    |            ^^^^^
+
+warning: constant `STRIPE_PRICE_STARTER_ENV` is never used
+  --> api/tests/common/live_stripe_helpers.rs:10:7
+   |
+10 | const STRIPE_PRICE_STARTER_ENV: &str = "STRIPE_PRICE_STARTER";
+   |       ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: constant `DEFAULT_INTEGRATION_API_BASE` is never used
+  --> api/tests/common/live_stripe_helpers.rs:16:7
+   |
+16 | const DEFAULT_INTEGRATION_API_BASE: &str = "http://localhost:3099";
+   |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: struct `LiveStripeHandles` is never constructed
+  --> api/tests/common/live_stripe_helpers.rs:26:12
+   |
+26 | pub struct LiveStripeHandles {
+   |            ^^^^^^^^^^^^^^^^^
+
+warning: constant `ACCEPTED_TEST_PREFIXES` is never used
+  --> api/tests/common/live_stripe_helpers.rs:31:7
+   |
+31 | const ACCEPTED_TEST_PREFIXES: &[&str] = &["sk_test_", "rk_test_"];
+   |       ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `has_accepted_test_prefix` is never used
+  --> api/tests/common/live_stripe_helpers.rs:33:4
+   |
+33 | fn has_accepted_test_prefix(key: &str) -> bool {
+   |    ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `stripe_test_key` is never used
+  --> api/tests/common/live_stripe_helpers.rs:37:8
+   |
+37 | pub fn stripe_test_key() -> Option<String> {
+   |        ^^^^^^^^^^^^^^^
+
+warning: function `stripe_webhook_secret` is never used
+  --> api/tests/common/live_stripe_helpers.rs:49:8
+   |
+49 | pub fn stripe_webhook_secret() -> Option<String> {
+   |        ^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `stripe_api_available` is never used
+  --> api/tests/common/live_stripe_helpers.rs:59:8
+   |
+59 | pub fn stripe_api_available() -> bool {
+   |        ^^^^^^^^^^^^^^^^^^^^
+
+warning: function `stripe_price_starter_id` is never used
+  --> api/tests/common/live_stripe_helpers.rs:63:8
+   |
+63 | pub fn stripe_price_starter_id() -> Option<String> {
+   |        ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `stripe_price_starter_configured` is never used
+  --> api/tests/common/live_stripe_helpers.rs:73:8
+   |
+73 | pub fn stripe_price_starter_configured() -> bool {
+   |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `stripe_webhook_configured` is never used
+   --> api/tests/common/live_stripe_helpers.rs:103:8
+    |
+103 | pub fn stripe_webhook_configured() -> bool {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `integration_enabled` is never used
+   --> api/tests/common/live_stripe_helpers.rs:107:4
+    |
+107 | fn integration_enabled() -> bool {
+    |    ^^^^^^^^^^^^^^^^^^^
+
+warning: function `api_base` is never used
+   --> api/tests/common/live_stripe_helpers.rs:113:4
+    |
+113 | fn api_base() -> String {
+    |    ^^^^^^^^
+
+warning: function `endpoint_reachable` is never used
+   --> api/tests/common/live_stripe_helpers.rs:119:10
+    |
+119 | async fn endpoint_reachable(base_url: &str) -> bool {
+    |          ^^^^^^^^^^^^^^^^^^
+
+warning: function `db_url` is never used
+   --> api/tests/common/live_stripe_helpers.rs:142:4
+    |
+142 | fn db_url() -> String {
+    |    ^^^^^^
+
+warning: function `build_stripe_service` is never used
+   --> api/tests/common/live_stripe_helpers.rs:173:8
+    |
+173 | pub fn build_stripe_service(stripe_secret_key: &str) -> LiveStripeService {
+    |        ^^^^^^^^^^^^^^^^^^^^
+
+warning: function `build_live_stripe_handles` is never used
+   --> api/tests/common/live_stripe_helpers.rs:177:8
+    |
+177 | pub fn build_live_stripe_handles() -> LiveStripeHandles {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `validate_stripe_key_live` is never used
+   --> api/tests/common/live_stripe_helpers.rs:186:14
+    |
+186 | pub async fn validate_stripe_key_live() -> Result<(), String> {
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `delete_stripe_customer` is never used
+   --> api/tests/common/live_stripe_helpers.rs:204:14
+    |
+204 | pub async fn delete_stripe_customer(client: &stripe::Client, customer_id: &str) {
+    |              ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `create_test_clock` is never used
+   --> api/tests/common/live_stripe_helpers.rs:269:14
+    |
+269 | pub async fn create_test_clock(
+    |              ^^^^^^^^^^^^^^^^^
+
+warning: function `create_clock_bound_customer` is never used
+   --> api/tests/common/live_stripe_helpers.rs:279:14
+    |
+279 | pub async fn create_clock_bound_customer(
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `create_trialing_subscription_for_price` is never used
+   --> api/tests/common/live_stripe_helpers.rs:296:14
+    |
+296 | pub async fn create_trialing_subscription_for_price(
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `advance_test_clock_and_wait_ready` is never used
+   --> api/tests/common/live_stripe_helpers.rs:325:14
+    |
+325 | pub async fn advance_test_clock_and_wait_ready(
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `poll_paid_invoice_for_subscription` is never used
+   --> api/tests/common/live_stripe_helpers.rs:369:14
+    |
+369 | pub async fn poll_paid_invoice_for_subscription(
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `retrieve_subscription` is never used
+   --> api/tests/common/live_stripe_helpers.rs:397:14
+    |
+397 | pub async fn retrieve_subscription(
+    |              ^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `cleanup_test_clock_cycle` is never used
+   --> api/tests/common/live_stripe_helpers.rs:410:14
+    |
+410 | pub async fn cleanup_test_clock_cycle(
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `validate_stripe_webhook_delivery` is never used
+   --> api/tests/common/live_stripe_helpers.rs:461:14
+    |
+461 | pub async fn validate_stripe_webhook_delivery() -> Result<WebhookProbeResult, String> {
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: static `STRIPE_WEBHOOK_AVAILABLE` is never used
+   --> api/tests/common/live_stripe_helpers.rs:571:8
+    |
+571 | static STRIPE_WEBHOOK_AVAILABLE: OnceCell<bool> = OnceCell::const_new();
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `stripe_webhook_available` is never used
+   --> api/tests/common/live_stripe_helpers.rs:574:14
+    |
+574 | pub async fn stripe_webhook_available() -> bool {
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `build_webhook_test_app` is never used
+   --> api/tests/common/stripe_webhook_test_support.rs:200:4
+    |
+200 | fn build_webhook_test_app(
+    |    ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `local_stripe_webhook_app` is never used
+   --> api/tests/common/stripe_webhook_test_support.rs:210:8
+    |
+210 | pub fn local_stripe_webhook_app(
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `mock_stripe_webhook_app` is never used
+   --> api/tests/common/stripe_webhook_test_support.rs:234:8
+    |
+234 | pub fn mock_stripe_webhook_app(
+    |        ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `api` (test "platform") generated 37 warnings
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1m 28s
+     Running tests/platform.rs (target/debug/deps/platform-546e38e03ae4a790)
+
+running 1087 tests
+test access_tracker_test::record_access_updates_in_memory ... ok
+test access_tracker_test::flush_no_ops_when_empty ... ok
+test access_tracker_test::flush_writes_to_repo ... ok
+test access_tracker_test::multiple_accesses_same_index_coalesce ... ok
+test account_test::delete_account_already_deleted_returns_401 ... ok
+test account_test::delete_account_without_password_hash_returns_400 ... ok
+test account_test::get_profile_returns_correct_data ... ok
+test account_test::get_profile_returns_shared_billing_plan ... ok
+test account_test::get_profile_canonicalizes_non_lowercase_billing_plan ... ok
+test account_test::account_endpoints_401_without_auth ... ok
+test account_test::delete_account_without_auth_returns_401 ... ok
+test account_test::account_export_returns_exact_profile_payload_without_sensitive_fields ... ok
+test alerting_test::discord_severity_colors_are_correct ... ok
+test alerting_test::alert_severity_round_trip ... ok
+test alerting_test::get_recent_alerts_with_non_positive_limit_returns_empty ... ok
+test alerting_test::discord_formats_message_correctly ... ok
+test alerting_test::mock_handles_empty_metadata ... ok
+test alerting_test::mock_records_alerts ... ok
+test alerting_test::severity_colors_are_correct ... ok
+test alerting_test::webhook_delivery_status_resolution_paths_are_correct ... ok
+test alerting_test::slack_formats_message_correctly ... ok
+test alerting_webhook_smoke_test::webhook_alert_with_both_channels_fires_both_posts ... ignored, wiremock smoke test; run with --ignored
+test alerting_webhook_smoke_test::webhook_critical_alert_posts_correct_discord_body ... ignored, wiremock smoke test; run with --ignored
+test alerting_webhook_smoke_test::webhook_critical_alert_posts_correct_slack_body ... ignored, wiremock smoke test; run with --ignored
+test alerting_webhook_smoke_test::webhook_warning_alert_posts_correct_slack_color ... ignored, wiremock smoke test; run with --ignored
+test account_test::update_with_empty_name_returns_400 ... ok
+test account_test::update_name_works ... ok
+test api_key_endpoints_test::create_issues_fjc_live_prefix ... ok
+test api_key_endpoints_test::create_and_list_round_trip_managed_key_parity_fields ... ok
+test api_key_endpoints_test::create_rejects_empty_name ... ok
+test api_key_endpoints_test::create_rejects_name_exceeding_max_length ... ok
+test api_key_endpoints_test::create_returns_key_only_once ... ok
+test api_key_endpoints_test::create_rejects_non_positive_managed_key_limits ... ok
+test api_key_endpoints_test::delete_other_customers_key_returns_404 ... ok
+test api_key_endpoints_test::delete_revokes_key ... ok
+test api_key_repo_test::create_find_list_round_trip_managed_key_parity_fields ... ok
+test alerting_test::get_recent_alerts_returns_in_reverse_chronological_order ... ok
+test api_key_repo_test::create_stores_key ... ok
+test api_key_repo_test::find_by_prefix_returns_matches ... ok
+test api_key_repo_test::list_returns_non_revoked_only ... ok
+test api_key_repo_test::revoke_already_revoked_errors ... ok
+test api_key_repo_test::revoke_sets_timestamp ... ok
+test api_key_repo_test::update_last_used_updates_timestamp ... ok
+test aws_provisioner_test::aws_config_instance_profile_optional ... ok
+test aws_provisioner_test::aws_config_parses_from_values ... ok
+test aws_provisioner_test::aws_from_env_empty_instance_profile_returns_none ... ok
+test aws_provisioner_test::aws_from_env_happy_path ... ok
+test aws_provisioner_test::aws_from_env_rejects_empty_required_vars ... ok
+test aws_provisioner_test::aws_from_env_security_groups_split_cleanly ... ok
+test aws_provisioner_test::aws_from_env_trims_required_values ... ok
+test aws_provisioner_test::aws_from_env_unset_instance_profile_returns_none ... ok
+test aws_provisioner_test::ec2_state_to_vm_status_mapping ... ok
+test api_key_endpoints_test::list_returns_keys_without_secrets ... ok
+test api_key_endpoints_test::scopes_stored_correctly ... ok
+test api_key_endpoints_test::unauthorized_without_auth ... ok
+test browser_error_reporting_test::browser_error_report_accepts_valid_payload_and_logs_sanitized_fields ... ok
+test cold_snapshot_repo_test::cold_snapshot_create_and_get ... ok
+test cold_snapshot_repo_test::cold_snapshot_duplicate_prevention ... ok
+test cold_snapshot_repo_test::cold_snapshot_find_active_for_index ... ok
+test cold_snapshot_repo_test::cold_snapshot_set_failed ... ok
+test cold_snapshot_repo_test::cold_snapshot_status_transitions ... ok
+test cold_snapshot_repo_test::list_completed_for_billing_returns_completed_only ... ok
+test cold_tier_integration_test::cold_storage_usage_endpoint_returns_snapshot_sizes ... ok
+test browser_error_reporting_test::browser_error_report_is_public_but_auth_rate_limited ... ok
+test cold_tier_integration_test::scheduler_skips_cold_indexes_in_overload_calc ... ok
+test cold_tier_integration_test::scheduler_skips_cold_indexes_in_noisy_neighbor ... ok
+test cold_tier_integration_test::scheduler_skips_restoring_indexes_in_unplaced ... ok
+test cold_tier_test::candidate_detection_respects_max_candidates_per_cycle ... ok
+test cold_tier_test::cold_snapshot_from_hetzner_vm_succeeds ... ok
+test cold_tier_test::cold_storage_with_custom_endpoint ... ok
+test cold_tier_test::idle_index_detected_as_cold_candidate ... ok
+test cold_tier_test::migrating_index_excluded ... ok
+test cold_tier_test::pinned_index_excluded ... ok
+test cold_tier_test::recent_index_not_cold_candidate ... ok
+test cold_tier_test::run_cycle_respects_max_concurrent_snapshots_limit ... ok
+test cold_tier_test::snapshot_delete_failure_rolls_back_catalog_state ... ok
+test cold_tier_test::snapshot_failure_retries_next_cycle ... ok
+test cold_tier_test::snapshot_pipeline_exports_uploads_evicts ... ok
+test cold_tier_test::snapshot_terminal_failure_fires_critical_alert ... ok
+test cold_tier_integration_test::tenant_map_includes_tier_field ... ok
+test common::builders::tests::builder_threads_oauth_runtime_config_into_app_state ... ok
+test common::integration_helpers::tests::db_url_builds_from_discrete_env_vars_with_password ... ok
+test common::integration_helpers::tests::db_url_includes_port_without_user ... ok
+test common::integration_helpers::tests::db_url_prefers_explicit_url_env ... ok
+test common::integration_helpers::tests::endpoint_reachable_detects_closed_local_port ... ok
+test common::integration_helpers::tests::endpoint_reachable_rejects_invalid_url ... ok
+test common::integration_helpers::tests::integration_enabled_is_false_when_unset ... ok
+test common::integration_helpers::tests::integration_enabled_is_true_only_for_one ... ok
+test common::integration_helpers::tests::live_gate_enabled_is_false_for_non_one_values ... ok
+test common::integration_helpers::tests::live_gate_enabled_is_false_when_unset ... ok
+test common::integration_helpers::tests::live_gate_enabled_is_true_when_set_to_one ... ok
+test common::integration_helpers::tests::require_live_continues_when_condition_true_regardless_of_gate ... ok
+test common::integration_helpers::tests::require_live_panics_when_gate_on_and_condition_false ... ok
+test common::integration_helpers::tests::require_live_skips_silently_when_gate_off_and_condition_false ... ok
+test browser_error_reporting_test::browser_error_report_rejects_invalid_payloads_without_echoing_sensitive_values ... ok
+test common::live_stripe_helpers::tests::attach_declining_payment_method_reports_invalid_customer_id ... ok
+test common::live_stripe_helpers::tests::attach_test_payment_method_reports_invalid_customer_id ... ok
+test common::live_stripe_helpers::tests::contract_amount_multiplies_unit_amount_by_quantity ... ok
+test common::live_stripe_helpers::tests::webhook_probe_query_accepts_fast_invoice_event_delivery ... ok
+test common::live_stripe_helpers::tests::expected_starter_amount_requires_positive_integer_env_value ... ok
+test common::mocks::failable_email_service_tests::failable_email_service_forces_failure_for_retries_exhausted_and_skips_delegate ... ok
+test common::mocks::failable_email_service_tests::failable_email_service_tracks_recovered_after_failure_attempt_and_delegates ... ok
+test common::mocks::failable_email_service_tests::failable_email_service_tracks_retry_scheduled_attempt_and_delegates ... ok
+test common::poll::tests::predicate_can_be_fnmut ... ok
+test common::poll::tests::resolves_immediately_with_predicate_value ... ok
+test browser_error_reporting_test::browser_error_report_rejects_malformed_json_without_echoing_sensitive_values ... ok
+test common::poll::tests::result_variant_returns_value_when_predicate_hits ... ok
+test browser_error_reporting_test::browser_error_report_rejects_oversized_payload ... ok
+test cross_repo_contract_test::contract_401_classified_as_deterministic_auth_failure ... ok
+test cross_repo_contract_test::contract_403_classified_as_peer_rejected ... ok
+test cross_repo_contract_test::contract_constants_match_flapjack_dev ... ok
+test cross_repo_contract_test::contract_every_variant_has_nonempty_reason_code ... ok
+test common::poll::tests::result_variant_returns_error_on_timeout ... ok
+test cross_tenant_isolation_test::ai_chat_post_blocked_for_foreign_tenant ... ok
+test alerting_test::webhook_not_configured_skips_both_channels ... ok
+test common::poll::tests::resolves_after_multiple_polls_with_real_sleep ... ok
+test cross_tenant_isolation_test::ai_personalization_profile_delete_blocked_for_foreign_tenant ... ok
+test cross_tenant_isolation_test::ai_personalization_profile_get_blocked_for_foreign_tenant ... ok
+test cross_tenant_isolation_test::ai_personalization_strategy_delete_blocked_for_foreign_tenant ... ok
+test cross_tenant_isolation_test::ai_personalization_strategy_get_blocked_for_foreign_tenant ... ok
+test cross_tenant_isolation_test::ai_personalization_strategy_put_blocked_for_foreign_tenant ... ok
+test cross_tenant_isolation_test::ai_recommendations_post_blocked_for_foreign_tenant ... ok
+test cross_tenant_isolation_test::classic_dictionaries_languages_get_blocked_for_foreign_tenant ... ok
+test cross_tenant_isolation_test::classic_dictionaries_batch_post_blocked_for_foreign_tenant ... ok
+test cross_tenant_isolation_test::classic_dictionaries_search_post_blocked_for_foreign_tenant ... ok
+test common::poll::tests::times_out_and_panics_with_name - should panic ... ok
+test cross_tenant_isolation_test::classic_dictionaries_settings_get_blocked_for_foreign_tenant ... ok
+test cross_tenant_isolation_test::classic_dictionaries_settings_put_blocked_for_foreign_tenant ... ok
+test cross_tenant_isolation_test::classic_search_post_blocked_for_foreign_tenant ... ok
+test cross_tenant_isolation_test::classic_settings_get_blocked_for_foreign_tenant ... ok
+test cross_tenant_isolation_test::classic_settings_put_blocked_for_foreign_tenant ... ok
+test cross_tenant_isolation_test::classic_suggestions_delete_blocked_for_foreign_tenant ... ok
+test cross_tenant_isolation_test::classic_suggestions_put_blocked_for_foreign_tenant ... ok
+test cross_tenant_isolation_test::classic_suggestions_get_blocked_for_foreign_tenant ... ok
+test cross_tenant_isolation_test::classic_suggestions_status_get_blocked_for_foreign_tenant ... ok
+test customer_hard_delete_test::hard_erase_active_customer_rejected_with_400 ... ok
+test customer_hard_delete_test::hard_erase_blocked_by_open_invoices_returns_409 ... ok
+test customer_hard_delete_test::hard_erase_suspended_customer_rejected_with_400 ... ok
+test customer_hard_delete_test::hard_erase_unknown_customer_returns_404 ... ok
+test customer_metrics_test::authenticated_200_returns_canonical_six_field_payload ... ok
+test customer_metrics_test::cache_hit_returns_stable_fetched_at_with_one_upstream_call ... ok
+test customer_metrics_test::cross_tenant_returns_404_without_upstream_call ... ok
+test customer_metrics_test::proxy_flapjack_error_does_not_map_to_503 ... ok
+test customer_metrics_test::proxy_timeout_maps_to_503 ... ok
+test deployment_repo_test::list_active_excludes_provisioning_without_url ... ok
+test deployment_repo_test::list_active_includes_failed_with_flapjack_url ... ok
+test deployment_repo_test::list_active_includes_stopped_with_flapjack_url ... ok
+test deployment_repo_test::list_active_returns_running_with_flapjack_url ... ok
+test deployment_repo_test::list_by_customer_excludes_terminated_by_default ... ok
+test deployment_repo_test::new_columns_default_correctly_on_create_find ... ok
+test deployment_repo_test::terminate_already_terminated_returns_false ... ok
+test deployment_repo_test::terminate_nonexistent_returns_false ... ok
+test deployment_repo_test::terminate_sets_status_and_terminated_at ... ok
+test deployment_repo_test::terminated_deployment_has_terminated_at_set ... ok
+test deployment_repo_test::update_health_nonexistent_returns_error ... ok
+test deployment_repo_test::update_health_sets_fields ... ok
+test deployment_repo_test::update_health_transitions_round_trip ... ok
+test deployment_repo_test::update_provisioning_nonexistent_returns_none ... ok
+test deployment_repo_test::update_provisioning_sets_all_fields ... ok
+test customer_metrics_test::proxy_unreachable_maps_to_503 ... ok
+test deployments_route_removed_test::all_removed_customer_deployment_routes_return_404 ... ok
+test deployments_route_removed_test::post_deployments_returns_404 ... ok
+test deployments_test::create_deployment_deleted_tenant_returns_404 ... ok
+test account_test::change_password_rejects_current_password_exceeding_max_length ... ok
+test account_test::change_password_rejects_new_password_exceeding_max_length ... ok
+test account_test::delete_account_rejects_password_exceeding_max_length ... ok
+test deployments_test::create_deployment_duplicate_node_id_returns_409 ... ok
+test deployments_test::create_deployment_invalid_vm_provider_returns_400 ... ok
+test deployments_test::create_deployment_missing_auth_returns_401 ... ok
+test deployments_test::create_deployment_response_includes_health_status ... ok
+test deployments_test::create_deployment_unknown_tenant_returns_404 ... ok
+test deployments_test::create_deployment_returns_201 ... ok
+test deployments_test::list_deployments_empty_returns_200_with_empty_array ... ok
+test deployments_test::list_deployments_deleted_tenant_returns_404 ... ok
+test deployments_test::list_deployments_include_terminated ... ok
+test deployments_test::list_deployments_returns_200_excludes_terminated ... ok
+test deployments_test::list_deployments_shows_provisioned_fields ... ok
+test deployments_test::list_deployments_unknown_tenant_returns_404 ... ok
+test deployments_test::seed_index_deleted_tenant_returns_404 ... ok
+test account_test::update_profile_rejects_name_exceeding_max_length ... ok
+test deployments_test::terminate_deployment_returns_204 ... ok
+test deployments_test::terminate_deployment_not_found_returns_404 ... ok
+test deployments_test::update_deployment_cannot_set_status_terminated ... ok
+test deployments_test::update_deployment_empty_body_returns_400 ... ok
+test dns_test::mock_create_and_delete_records ... ok
+test dns_test::mock_create_is_idempotent_upsert ... ok
+test dns_test::mock_create_twice_same_params_succeeds ... ok
+test dns_test::mock_delete_nonexistent_is_idempotent ... ok
+test dns_test::mock_failure_injection_works ... ok
+test dns_test::unconfigured_dns_manager_returns_not_configured ... ok
+test email_service_test::auth_email_links_use_explicit_application_base_url ... ok
+test email_service_test::invoice_email_with_pdf_url ... ok
+test email_service_test::invoice_email_without_pdf_url ... ok
+test deployments_test::terminate_deployment_already_terminated_returns_404 ... ok
+test deployments_test::update_deployment_invalid_status_returns_400 ... ok
+test email_service_test::mailpit_dunning_recovered_after_failure_sends_correct_payload_and_tag ... ok
+test email_service_test::mailpit_broadcast_sends_pre_wrapped_text_payload_and_tag ... ok
+test email_service_test::mailpit_200_returns_ok ... ok
+test email_service_test::mailpit_email_service_rejects_empty_recipient ... ok
+test email_service_test::mailpit_email_service_rejects_whitespace_recipient ... ok
+test email_service_test::mailpit_dunning_retries_exhausted_sends_correct_payload_and_tag ... ok
+test email_service_test::mailpit_dunning_retry_scheduled_sends_correct_payload_and_tag ... ok
+test email_service_test::mailpit_email_service_returns_delivery_failed_on_connection_error ... ok
+test email_service_test::mailpit_html_only_broadcast_preserves_empty_text_payload_and_tag ... ok
+test email_service_test::mailpit_invoice_omits_pdf_link_when_none ... ok
+test email_service_test::mailpit_invoice_sends_correct_payload_and_tag_with_pdf ... ok
+test email_service_test::mailpit_normalizes_blank_sender_display_name_to_default ... ok
+test email_service_test::mailpit_password_reset_sends_correct_payload_and_tag ... ok
+test email_service_test::mailpit_quota_warning_sends_correct_payload_and_tag ... ok
+test email_service_test::mailpit_returns_delivery_failed_on_500 ... ok
+test email_service_test::mailpit_returns_delivery_failed_on_422 ... ok
+test email_service_test::noop_email_accepts_non_empty_recipient_for_all_methods ... ok
+test email_service_test::mailpit_trims_trailing_slash_from_api_url ... ok
+test email_service_test::noop_email_rejects_blank_or_whitespace_recipient_with_record_validation_error ... ok
+test email_service_test::password_reset_email_contains_token_url ... ok
+test email_service_test::quota_warning_email_renders_all_fields ... ok
+test email_service_test::mailpit_verification_sends_correct_payload_and_tag ... ok
+test deployments_test::update_deployment_not_found_returns_404 ... ok
+test deployments_test::update_deployment_status_failed_returns_200 ... ok
+test deployments_test::update_deployment_returns_200 ... ok
+test alerting_test::log_alert_service_logs_and_attempts_persist ... ok
+test customer_hard_delete_test::hard_erase_soft_deleted_customer_returns_204_and_removes_row ... ok
+test email_service_test::verification_email_contains_token_url ... ok
+test email_test::mock_email_rejects_empty_recipient ... ok
+test email_test::mock_email_rejects_whitespace_recipient ... ok
+test email_test::mock_email_service_captures_dunning_recovered_after_failure_email ... ok
+test email_test::mock_email_service_captures_dunning_retries_exhausted_email ... ok
+test email_test::mock_email_service_captures_dunning_retry_scheduled_email ... ok
+test email_test::mock_email_service_captures_invoice_ready_email ... ok
+test email_test::mock_email_service_captures_password_reset_email ... ok
+test email_test::mock_email_service_captures_quota_warning_email ... ok
+test email_test::mock_email_service_captures_verification_email ... ok
+test email_test::mock_email_service_omits_pdf_link_when_pdf_url_missing ... ok
+test email_test::mock_email_service_preserves_html_only_broadcast_as_html_only ... ok
+test email_test::mock_email_service_preserves_operator_whitespace_in_broadcast_bodies ... ok
+test email_test::mock_email_service_records_broadcast_plain_text_as_pre_wrapped_html ... ok
+test email_test::mock_email_service_uses_dashboard_fallback_link_when_hosted_invoice_url_missing ... ok
+test email_test::quota_warning_helpers_keep_unknown_metric_fallback_behavior ... ok
+test email_test::ses_config_defaults_from_name_when_missing_or_blank ... ok
+test email_test::ses_config_parses_valid_config ... ok
+test email_test::ses_config_rejects_empty_from_address ... ok
+test email_test::ses_config_rejects_empty_region ... ok
+test email_test::ses_config_rejects_whitespace_from_address ... ok
+test email_test::ses_config_rejects_whitespace_region ... ok
+test email_test::ses_config_requires_from_address ... ok
+test email_test::ses_config_requires_region ... ok
+test email_test::ses_config_trims_whitespace ... ok
+test email_test::ses_live_smoke_sends_password_reset_email ... ignored
+test email_test::ses_live_smoke_sends_verification_email ... ignored
+test email_test::ses_startup_mode_keeps_non_local_absent_ses_on_fail_fast_path ... ok
+test email_test::ses_startup_mode_routes_blank_and_partial_to_existing_parser_error_path ... ok
+test email_test::ses_startup_mode_uses_noop_only_for_local_mode_with_absent_ses_env ... ok
+test email_test::startup_env_snapshot_captures_ses_configuration_set_for_central_ses_parser ... ok
+test flapjack_proxy_ai_methods_test::chat_sends_post_to_index_chat_endpoint ... ok
+test flapjack_proxy_ai_methods_test::delete_personalization_profile_percent_encodes_user_token_path_segment ... ok
+test flapjack_proxy_ai_methods_test::delete_personalization_strategy_sends_delete_to_strategies_endpoint ... ok
+test flapjack_proxy_ai_methods_test::get_personalization_profile_percent_encodes_user_token_path_segment ... ok
+test flapjack_proxy_ai_methods_test::get_personalization_strategy_sends_get_to_strategies_endpoint ... ok
+test flapjack_proxy_ai_methods_test::recommend_sends_post_to_literal_indexes_star_endpoint ... ok
+test flapjack_proxy_ai_methods_test::save_personalization_strategy_sends_post_with_body ... ok
+test flapjack_proxy_domain_methods_test::delete_qs_config_sends_delete_to_configs_index_name ... ok
+test flapjack_proxy_domain_methods_test::delete_rule_sends_delete_to_rules_object_id ... ok
+test flapjack_proxy_domain_methods_test::delete_synonym_sends_delete_to_synonyms_object_id ... ok
+test flapjack_proxy_domain_methods_test::documents_batch_sends_post_to_batch_endpoint ... ok
+test flapjack_proxy_domain_methods_test::documents_browse_sends_post_with_cursor_and_params ... ok
+test customer_hard_delete_test::repeated_hard_erase_returns_404_after_prior_erase ... ok
+test flapjack_proxy_domain_methods_test::documents_browse_with_cursor_forwards_cursor ... ok
+test flapjack_proxy_domain_methods_test::documents_get_sends_get_to_object_endpoint ... ok
+test flapjack_proxy_domain_methods_test::documents_delete_sends_delete_to_object_endpoint ... ok
+test flapjack_proxy_domain_methods_test::get_index_settings_mirrors_engine_attribute_arrays_to_dashboard_keys ... ok
+test flapjack_proxy_domain_methods_test::get_qs_config_sends_get_to_configs_index_name ... ok
+test flapjack_proxy_domain_methods_test::get_qs_status_sends_get_to_configs_index_name_status ... ok
+test flapjack_proxy_domain_methods_test::get_synonym_sends_get_to_synonyms_object_id ... ok
+test flapjack_proxy_domain_methods_test::get_rule_sends_get_to_rules_object_id ... ok
+test flapjack_proxy_domain_methods_test::save_rule_sends_put_with_rule_body ... ok
+test flapjack_proxy_domain_methods_test::save_synonym_sends_put_with_synonym_body ... ok
+test flapjack_proxy_domain_methods_test::search_rules_sends_post_to_rules_search ... ok
+test flapjack_proxy_domain_methods_test::search_synonyms_sends_post_to_synonyms_search ... ok
+test flapjack_proxy_domain_methods_test::search_synonyms_with_type_filter_includes_type_in_body ... ok
+test flapjack_proxy_domain_methods_test::update_index_settings_sends_post_with_body ... ok
+test flapjack_proxy_domain_methods_test::upsert_qs_config_updates_when_exists ... ok
+test flapjack_proxy_domain_methods_test::upsert_qs_config_creates_when_not_exists ... ok
+test flapjack_proxy_migration_test::algolia_list_indexes_posts_body_and_returns_upstream_response ... ok
+test flapjack_proxy_migration_test::migrate_from_algolia_posts_body_and_returns_upstream_response ... ok
+test flapjack_proxy_routing_edge_cases_test::analytics_trims_mixed_leading_query_delimiters ... ok
+test flapjack_proxy_routing_edge_cases_test::event_debug_trims_mixed_leading_query_delimiters ... ok
+test flapjack_proxy_routing_edge_cases_test::experiment_query_params_trim_mixed_leading_delimiters ... ok
+test flapjack_proxy_routing_edge_cases_test::experiment_unsupported_method_returns_400_with_uppercased_method ... ok
+test flapjack_proxy_test::cache_hit_avoids_ssm_read ... ok
+test flapjack_proxy_test::cache_miss_reads_from_ssm ... ok
+test flapjack_proxy_test::cold_cache_returns_error_when_ssm_fails ... ok
+test flapjack_proxy_test::create_index_sends_correct_request ... ok
+test flapjack_proxy_test::create_search_key_sends_correct_request ... ok
+test flapjack_proxy_test::delete_index_sends_correct_request ... ok
+test flapjack_proxy_test::flapjack_error_propagates_status ... ok
+test flapjack_proxy_test::get_index_settings_returns_settings ... ok
+test flapjack_proxy_test::get_index_stats_finds_single_index ... ok
+test flapjack_proxy_test::get_index_stats_returns_not_found_for_missing ... ok
+test flapjack_proxy_test::list_indexes_parses_response ... ok
+test flapjack_proxy_test::cache_ttl_expiry_triggers_fresh_ssm_fetch ... ok
+test flapjack_proxy_test::secret_error_propagates_when_key_not_found ... ok
+test flapjack_proxy_test::stale_cache_used_when_ssm_fails_after_expiry ... ok
+test flapjack_proxy_test::test_search_does_not_record_access ... ok
+test flapjack_proxy_test::test_search_for_tenant_records_access ... ok
+test flapjack_proxy_test::test_search_forwards_query_and_returns_results ... ok
+test flapjack_proxy_test::timeout_error_propagates_through_proxy ... ok
+test flapjack_proxy_test::unreachable_vm_returns_proxy_error_unreachable ... ok
+test flapjack_proxy_test::pruning_preserves_entries_within_4x_ttl_for_stale_fallback ... ok
+test free_tier_caps_test::free_plan_ingest_warning_not_sent_twice_in_same_month ... ok
+test free_tier_caps_test::free_plan_max_records_blocks_over_100k ... ok
+test free_tier_caps_test::free_plan_max_storage_mb_blocks_over_250mb ... ok
+test email_service_test::ses_send_short_circuits_when_recipient_is_suppressed ... ok
+test free_tier_caps_test::failed_quota_warning_delivery_releases_monthly_claim_for_retry ... ok
+test email_service_test::ses_invoice_ready_email_attaches_invoice_id_message_tag ... ok
+test email_service_test::ses_html_only_broadcast_preserves_empty_text_payload ... ok
+test email_service_test::ses_dunning_recovered_email_attaches_invoice_id_message_tag ... ok
+test email_service_test::ses_transactional_payload_includes_override_from_name_and_text_body ... ok
+test email_service_test::ses_send_applies_exactly_one_configuration_set_name ... ok
+test email_service_test::ses_verification_email_omits_email_tags_array ... ok
+test garage_object_store_test::garage_cold_tier_key_format ... ok
+test garage_object_store_test::garage_concurrent_writes ... ok
+test garage_object_store_test::garage_large_object_integrity ... ok
+test garage_object_store_test::garage_overwrite_semantics ... ok
+test free_tier_caps_test::free_plan_negative_usage_rows_do_not_trigger_false_quota_exceeded ... ok
+test garage_object_store_test::garage_put_get_delete_lifecycle ... ok
+test gcp_provisioner_test::gcp_config_defaults ... ok
+test gcp_provisioner_test::gcp_config_from_env ... ok
+test gcp_provisioner_test::gcp_config_requires_token_and_project ... ok
+test gcp_provisioner_test::gcp_status_mapping_complete ... ok
+test free_tier_caps_test::shared_plan_ingest_above_free_caps ... ok
+test free_tier_caps_test::free_plan_over_cap_ingest_rejection_does_not_send_warning_or_consume_monthly_slot ... ok
+test health_monitor_alert_test::cooldown_prevents_duplicate_alerts ... ok
+test health_monitor_alert_test::healthy_to_unhealthy_fires_critical_alert ... ok
+test health_monitor_alert_test::provisioning_deployment_does_not_fire_alert ... ok
+test free_tier_caps_test::free_plan_storage_over_cap_ingest_rejection_does_not_send_warning_or_consume_monthly_slot ... ok
+test health_monitor_alert_test::stopped_deployment_healthy_check_does_not_fire_recovery_alert ... ok
+test health_monitor_alert_test::unhealthy_to_healthy_fires_info_alert ... ok
+test health_monitor_test::check_all_processes_multiple_deployments_concurrently ... ok
+test health_monitor_test::check_all_with_no_active_deployments_is_safe ... ok
+test ha_demo_integration_test::kill_rejects_prefix_attack_urls ... ok
+test ha_demo_integration_test::kill_rejects_remote_url_even_with_admin_auth ... ok
+test health_monitor_test::consecutive_failures_mark_unhealthy_after_threshold ... ok
+test health_monitor_test::deployments_without_flapjack_url_skipped ... ok
+test health_monitor_test::failed_deployment_not_marked_unhealthy ... ok
+test health_monitor_test::healthy_vm_updates_health_status ... ok
+test health_monitor_test::healthy_running_deployment_no_op_has_no_spurious_alerts ... ok
+test health_monitor_test::provisioning_to_running_on_healthy_check ... ok
+test health_monitor_test::recovery_resets_to_healthy ... ok
+test health_monitor_test::stopped_deployment_not_marked_unhealthy ... ok
+test health_monitor_test::unreachable_counts_as_failure ... ok
+test ha_demo_integration_test::kill_rejects_localhost_subdomain_attack ... ok
+test ha_demo_integration_test::list_vms_returns_seeded_local_vms ... ok
+test hetzner_provisioner_test::hetzner_config_defaults_from_env ... ok
+test hetzner_provisioner_test::hetzner_config_from_env ... ok
+test hetzner_provisioner_test::hetzner_config_from_env_rejects_invalid_numeric_ids ... ok
+test free_tier_caps_test::free_plan_records_ingest_at_80_percent_sends_warning_email ... ok
+test hetzner_provisioner_test::hetzner_from_env_defaultable_fields_trim_and_reject_empty ... ok
+test hetzner_provisioner_test::hetzner_from_env_defaultable_fields_trimmed_when_set ... ok
+test hetzner_provisioner_test::hetzner_from_env_rejects_empty_token ... ok
+test hetzner_provisioner_test::hetzner_from_env_trims_token_whitespace ... ok
+test hetzner_provisioner_test::hetzner_status_mapping_complete ... ok
+test free_tier_caps_test::free_plan_storage_ingest_at_80_percent_sends_warning_email ... ok
+test health_test::health_returns_200_with_status_ok ... ok
+test input_validation_test::admin_broadcast_requires_html_or_text_body ... ok
+test heartbeat_publisher_test::heartbeat_publisher_sends_expected_metric_payload ... ok
+test input_validation_test::admin_create_tenant_rejects_empty_name ... ok
+test input_validation_test::admin_create_tenant_rejects_invalid_email ... ok
+test account_test::change_password_wrong_current_password_does_not_leak_account_info ... ok
+test input_validation_test::admin_create_tenant_rejects_name_over_128_chars ... ok
+test account_test::delete_account_with_wrong_password_returns_400 ... ok
+test input_validation_test::admin_update_tenant_rejects_name_over_128_chars ... ok
+test input_validation_test::admin_update_tenant_rejects_invalid_email ... ok
+test input_validation_test::create_api_key_accepts_valid_scopes ... ok
+test input_validation_test::create_api_key_rejects_empty_name ... ok
+test input_validation_test::create_api_key_rejects_empty_scopes ... ok
+test input_validation_test::create_api_key_rejects_name_over_128_chars ... ok
+test input_validation_test::create_api_key_rejects_invalid_scope ... ok
+test input_validation_test::create_api_key_rejects_too_many_scopes ... ok
+test health_monitor_alert_test::recovery_alert_includes_duration ... ok
+test input_validation_test::create_index_key_rejects_description_over_1000_chars ... ok
+test input_validation_test::create_index_key_rejects_empty_description ... ok
+test health_monitor_test::respects_shutdown_signal ... ok
+test input_validation_test::create_index_key_rejects_too_many_acls ... ok
+test input_validation_test::rate_override_rejects_negative_decimal ... ok
+test input_validation_test::rate_override_rejects_invalid_region_multipliers ... ok
+test input_validation_test::create_index_key_rejects_whitespace_only_description ... ok
+test health_monitor_alert_test::warning_fires_after_cooldown_elapses ... ok
+test input_validation_test::rate_override_rejects_negative_minimum_spend ... ok
+test integration_cold_tier_test::cold_tier_full_lifecycle_s3_round_trip ... ok
+test integration_cold_tier_test::helper_tests::cold_storage_access_key_reads_env ... ok
+test integration_cold_tier_test::helper_tests::cold_storage_bucket_defaults_to_fjcloud_cold ... ok
+test integration_cold_tier_test::helper_tests::cold_storage_endpoint_reads_env ... ok
+test integration_flapjack_proxy_test::helper_tests::exact_string_array_accepts_exact_match ... ok
+test integration_flapjack_proxy_test::helper_tests::exact_string_array_rejects_superset ... ok
+test input_validation_test::rate_override_rejects_negative_region_multipliers ... ok
+test integration_flapjack_proxy_test::helper_tests::retry_with_delay_returns_last_error_when_exhausted ... ok
+test integration_flapjack_proxy_test::integration_flapjack_health_check ... ok
+test integration_flapjack_proxy_test::integration_flapjack_proxy_bogus_key_rejected ... ok
+test integration_flapjack_proxy_test::integration_flapjack_proxy_create_index ... ok
+test integration_flapjack_proxy_test::integration_flapjack_proxy_create_search_key ... ok
+test integration_flapjack_proxy_test::integration_flapjack_proxy_delete_index ... ok
+test input_validation_test::rate_override_rejects_negative_shared_minimum_spend ... ok
+test integration_flapjack_proxy_test::integration_flapjack_proxy_ingest_and_search ... ok
+test integration_flapjack_proxy_test::integration_flapjack_proxy_invalid_settings_rejected ... ok
+test integration_flapjack_proxy_test::integration_flapjack_proxy_key_authorizes_flapjack_search ... ok
+test input_validation_test::register_rejects_email_over_254_chars ... ok
+test integration_flapjack_proxy_test::integration_flapjack_proxy_read_settings_after_update ... ok
+test integration_flapjack_proxy_test::integration_flapjack_proxy_register_and_login ... ok
+test integration_flapjack_proxy_test::integration_flapjack_proxy_tenant_independent_indexes ... ok
+test integration_flapjack_proxy_test::integration_flapjack_proxy_tenant_isolation_read ... ok
+test integration_flapjack_proxy_test::search_hits_validation_requires_expected_titles ... ok
+test integration_flapjack_proxy_test::integration_flapjack_proxy_update_settings ... ok
+test integration_flapjack_proxy_test::search_hits_validation_rejects_empty_hits ... ok
+test input_validation_test::register_rejects_name_over_128_chars ... ok
+test integration_health_monitor_test::flapjack_url_none_deployment_is_safely_ignored ... ok
+test integration_health_monitor_test::health_monitor_detects_flapjack_crash ... ok
+test integration_health_monitor_test::health_monitor_recovers_after_flapjack_restart ... ok
+test integration_health_monitor_test::check_all_tolerates_mixed_unreachable_and_healthy ... ok
+test integration_flapjack_proxy_test::helper_tests::retry_with_delay_succeeds_after_transient_failures ... ok
+test integration_health_monitor_test::stale_deployment_tracking_pruned_after_termination ... ok
+test integration_metering_pipeline_test::billing_smoke_uses_pg_usage_repo_read_path ... ok
+test integration_metering_pipeline_test::metering_agent_attributes_usage_to_correct_customer_across_two_tenants ... ok
+test integration_metering_pipeline_test::metering_agent_captures_real_flapjack_usage ... ok
+test integration_metering_pipeline_test::rollup_averages_and_rounds_same_day_gauge_snapshots ... ok
+test integration_metering_pipeline_test::rollup_excludes_rows_on_next_day_boundary ... ok
+test integration_metering_pipeline_test::rollup_rerun_overwrites_row_after_same_day_mutation ... ok
+test integration_metrics_test::integration_metrics_endpoint_returns_prometheus_format ... ok
+test integration_smoke_test::integration_smoke_health_check ... ok
+test invoicing_compute_test::compute_invoice_carryforward_only_month_persists_remainder ... ok
+test invoicing_compute_test::compute_invoice_applies_customer_egress_carryforward_to_whole_cent_split ... ok
+test invoicing_compute_test::compute_invoice_for_customer_applies_rate_override_when_present ... ok
+test invoicing_compute_test::compute_invoice_for_customer_includes_cold_storage_gb_months ... ok
+test invoicing_compute_test::compute_invoice_for_customer_rejects_invalid_persisted_rate_override ... ok
+test invoicing_compute_test::compute_invoice_for_customer_returns_not_found_without_active_rate_card ... ok
+test invoicing_compute_test::compute_invoice_ignores_other_customers_buckets ... ok
+test invoicing_compute_test::compute_invoice_includes_object_storage_from_buckets ... ok
+test invoicing_compute_test::compute_invoice_multiple_buckets_aggregated ... ok
+test invoicing_compute_test::compute_invoice_object_storage_without_hot_usage ... ok
+test invoicing_compute_test::compute_invoice_with_shared_inputs_carryforward_only_month_persists_remainder ... ok
+test invoicing_compute_test::compute_invoice_with_shared_inputs_retains_sub_cent_remainder ... ok
+test input_validation_test::register_rejects_password_over_128_chars ... ok
+test input_validation_test::reset_password_rejects_password_over_128_chars ... ok
+test input_validation_test::test_search_rejects_query_over_1000_chars ... ok
+test input_validation_test::update_profile_rejects_name_over_128_chars ... ok
+test logging_test::caller_request_id_preserved_in_response_and_request_completed_log_full_router ... ok
+test integration_health_monitor_test::full_crash_detection_and_recovery_cycle ... ok
+test integration_health_monitor_test::all_deployments_starting_down_recover_after_unblock ... ok
+test logging_test::generated_request_id_matches_request_completed_log_in_full_router ... ok
+test logging_test::internal_error_body_masked_and_request_id_preserved_with_full_middleware_stack ... ok
+test logging_test::json_log_output_is_valid_json ... ok
+test logging_test::panic_in_handler_returns_500 ... ok
+test logging_test::panic_path_response_metric_and_log_contract_with_full_middleware_stack ... ok
+test logging_test::request_completed_log_includes_method_path_status_and_duration_from_full_stack ... ok
+test logging_test::request_completed_log_includes_tenant_id_from_jwt ... ok
+test metering_multitenant_test::internal_regions_endpoint_excludes_unconfigured_provider_regions ... ok
+test metering_multitenant_test::internal_regions_endpoint_returns_available_regions ... ok
+test metering_multitenant_test::tenant_map_endpoint_returns_all_active_tenants ... ok
+test logging_test::request_id_appears_in_response ... ok
+test metering_multitenant_test::tenant_map_falls_back_to_vm_inventory_url_when_deployment_has_none ... ok
+test metering_multitenant_test::tenant_map_keeps_flapjack_url_null_when_neither_deployment_nor_vm_has_one ... ok
+test migration_046_drops_subscriptions_test::subscriptions_table_is_absent_after_migrations ... ok
+test migration_053_disputes_test::disputes_schema_queries_do_not_contain_literal_backslashes ... ok
+test migration_053_disputes_test::disputes_table_matches_stage1_contract ... ok
+test migration_054_password_reset_resend_cooldown_test::migration_054_is_present_in_compiled_set ... ok
+test migration_054_password_reset_resend_cooldown_test::password_reset_resend_cooldown_column_schema_contract ... ok
+test metrics_endpoint_test::metrics_reflects_health_requests_count ... ok
+test integration_health_monitor_test::repeated_unhealthy_cycles_suppressed_during_cooldown ... ok
+test logging_test::request_id_generated_when_not_provided ... ok
+test metrics_endpoint_test::metrics_requires_internal_key_header ... ok
+test metrics_endpoint_test::metrics_with_valid_internal_key_returns_prometheus_text ... ok
+test migration_routes_test::algolia_list_indexes_rejects_blank_api_key ... ok
+test migration_routes_test::algolia_list_indexes_rejects_blank_app_id ... ok
+test migration_routes_test::algolia_list_indexes_rejects_missing_api_key ... ok
+test logging_test::request_id_preserved_when_provided_in_header ... ok
+test migration_routes_test::algolia_list_indexes_rejects_missing_app_id ... ok
+test logging_test::response_logger_emits_correct_log_level_for_status_codes ... ok
+test logging_test::response_logger_uses_provided_span_without_manual_enter ... ok
+test migration_routes_test::algolia_list_indexes_rejects_non_string_api_key ... ok
+test migration_routes_test::algolia_list_indexes_rejects_non_object_json ... ok
+test migration_routes_test::algolia_list_indexes_rejects_non_string_app_id ... ok
+test migration_routes_test::algolia_list_indexes_requires_auth ... ok
+test migration_routes_test::algolia_list_indexes_returns_503_when_no_deployment ... ok
+test migration_routes_test::algolia_list_indexes_uses_shared_vm_secret_for_shared_deployments ... ok
+test migration_routes_test::algolia_list_indexes_skips_deployment_without_flapjack_url ... ok
+test migration_routes_test::algolia_list_indexes_success ... ok
+test migration_routes_test::algolia_migrate_rejects_missing_target_index ... ok
+test migration_routes_test::algolia_migrate_rejects_missing_app_id ... ok
+test migration_routes_test::algolia_migrate_rejects_blank_target_index ... ok
+test migration_routes_test::algolia_migrate_rejects_blank_source_index ... ok
+test migration_test::migration_cache_invalidated_on_flip ... ok
+test migration_test::migration_catalog_flip_updates_vm_id ... ok
+test migration_routes_test::algolia_migrate_rejects_missing_source_index ... ok
+test migration_test::migration_create_and_list_active ... ok
+test migration_test::migration_completed_rollback_resumes_source_index ... ok
+test migration_test::migration_concurrent_limit_enforced ... ok
+test migration_test::migration_failure_fires_critical_alert ... ok
+test migration_test::migration_failure_after_catalog_flip_recovers_source_routing ... ok
+test migration_test::migration_failure_recovery_restores_routing_even_if_source_resume_fails ... ok
+test migration_test::migration_refuses_when_internal_key_lookup_fails ... ok
+test migration_test::migration_pause_on_source ... ok
+test migration_test::migration_rejects_non_active_destination_vm ... ok
+test migration_test::migration_rejects_same_source_and_destination_vm ... ok
+test migration_test::migration_resume_on_destination ... ok
+test migration_test::migration_replication_start ... ok
+test migration_test::migration_rollback_during_replicating_deletes_dest_copy ... ok
+test migration_test::migration_rollback_reverts_catalog ... ok
+test migration_test::migration_rollback_unsupported_status_returns_error ... ok
+test migration_test::migration_service_scheduler_adapter_forwards_reason_and_executes ... ok
+test migration_test::migration_success_fires_info_alert ... ok
+test multi_provisioner_test::build_vm_provisioner_empty_map_falls_back_to_unconfigured ... ok
+test multi_provisioner_test::build_vm_provisioner_single_provider_uses_multi_provider_routing ... ok
+test multi_provisioner_test::multi_provisioner_destroy_uses_composite_id ... ok
+test multi_provisioner_test::multi_provisioner_malformed_composite_id_returns_error ... ok
+test multi_provisioner_test::multi_provisioner_passes_provider_location_and_preserves_customer_region ... ok
+test multi_provisioner_test::multi_provisioner_routes_custom_region_to_bare_metal ... ok
+test multi_provisioner_test::multi_provisioner_routes_custom_region_to_gcp ... ok
+test multi_provisioner_test::multi_provisioner_routes_custom_region_to_oci ... ok
+test multi_provisioner_test::multi_provisioner_routes_to_correct_provider ... ok
+test multi_provisioner_test::multi_provisioner_unknown_region_returns_error ... ok
+test multi_provisioner_test::multi_provisioner_stop_start_status_route_correctly ... ok
+test multi_provisioner_test::region_config_defaults_include_both_providers ... ok
+test multi_provisioner_test::multi_provisioner_with_single_provider_works ... ok
+test multi_provisioner_test::region_config_from_env_parses_json ... ok
+test multi_provisioner_test::region_config_get_available_excludes_unavailable ... ok
+test node_secret_test::commit_removes_previous_key_state ... ok
+test node_secret_test::commit_rotation_keeps_current_key ... ok
+test migration_test::migration_long_running_fires_warning_alert ... ok
+test node_secret_test::failed_commit_preserves_overlap_state ... ok
+test node_secret_test::get_after_create_returns_key ... ok
+test node_secret_test::failed_rotate_preserves_current_key ... ok
+test node_secret_test::get_non_existent_returns_error ... ok
+test node_secret_test::in_memory_create_and_get_roundtrip ... ok
+test node_secret_test::in_memory_get_missing_returns_api_error ... ok
+test node_secret_test::in_memory_rotate_and_commit_keeps_new_key ... ok
+test node_secret_test::rotate_retains_previous_key_for_overlap ... ok
+test node_secret_test::rotate_returns_old_and_new_keys ... ok
+test node_secret_test::rotate_fails_when_key_missing ... ok
+test node_secret_test::unconfigured_get_returns_not_configured ... ok
+test migration_routes_test::algolia_migrate_rejects_non_boolean_overwrite ... ok
+test migration_routes_test::algolia_migrate_rejects_non_object_json ... ok
+test migration_routes_test::algolia_migrate_rejects_non_string_source_index ... ok
+test migration_routes_test::algolia_migrate_success ... ok
+test noisy_neighbor_test::admin_put_quotas_returns_404_for_unknown_tenant ... ok
+test noisy_neighbor_test::admin_put_quotas_rejects_empty_update ... ok
+test noisy_neighbor_test::admin_get_quotas_returns_404_for_unknown_tenant ... ok
+test noisy_neighbor_test::admin_get_quotas_returns_defaults_and_overrides ... ok
+test noisy_neighbor_test::proxy_throttle_429_includes_retry_after ... ok
+test noisy_neighbor_test::proxy_throttle_does_not_affect_other_tenants ... ok
+test noisy_neighbor_test::proxy_throttles_tenant_at_query_rate_limit ... ok
+test object_store_test::app_state_includes_usable_object_store ... ok
+test object_store_test::in_memory_object_store_put_get_delete ... ok
+test object_store_test::local_memory_backend_with_absent_cold_storage_env_uses_in_memory_mode ... ok
+test object_store_test::local_memory_backend_with_explicit_cold_storage_env_uses_s3_mode ... ok
+test object_store_test::non_local_backend_with_absent_cold_storage_env_uses_s3_mode ... ok
+test object_store_test::rate_card_cold_storage_override ... ok
+test object_store_test::region_resolver_returns_region_specific_store ... ok
+test object_store_test::region_resolver_single_always_returns_default ... ok
+test object_store_test::s3_object_store_default_uses_aws ... ok
+test health_monitor_test::check_all_with_one_slow_health_check_does_not_block_others ... ok
+test noisy_neighbor_test::proxy_throttle_uses_per_index_quota_override ... ok
+test object_store_test::s3_object_store_with_custom_endpoint_configures_correctly ... ok
+test noisy_neighbor_test::quota_enforcement_rejects_excess_indexes ... ok
+test oci_provisioner_test::oci_status_mapping_complete ... ok
+test noisy_neighbor_test::proxy_throttles_tenant_at_write_rate_limit ... ok
+test oci_provisioner_test::oci_config_defaults ... ok
+test oci_provisioner_test::oci_config_from_env ... ok
+test oci_provisioner_test::oci_config_requires_auth_and_instance_fields ... ok
+test noisy_neighbor_test::unknown_index_quota_lookup_does_not_poison_future_quota_cache ... ok
+test noisy_neighbor_test::zero_query_quota_override_is_clamped_safely ... ok
+test onboarding_credentials_test::returns_400_when_deployment_still_provisioning ... ok
+test onboarding_credentials_test::returns_400_when_no_deployment ... ok
+test onboarding_credentials_test::returns_400_when_running_but_no_indexes ... ok
+test onboarding_credentials_test::shared_vm_credentials_use_vm_secret_instead_of_deployment_secret ... ok
+test onboarding_credentials_test::returns_credentials_when_deployment_running ... ok
+test migration_test::migration_failure_cleans_up_destination_replica ... ok
+test onboarding_test::free_customer_completed_with_just_index_even_if_plan_is_uppercase ... ok
+test onboarding_test::customer_with_payment_method_returns_has_payment_method ... ok
+test migration_test::migration_replication_lag_timeout_restores_source_routing ... ok
+test onboarding_test::free_customer_status_uses_configured_free_tier_limits ... ok
+test onboarding_test::free_customer_ignores_stripe_lookup_failures ... ok
+test onboarding_test::fresh_customer_returns_all_false ... ok
+test onboarding_test::fully_onboarded_returns_completed ... ok
+test onboarding_test::provisioning_deployment_shows_waiting_step ... ok
+test onboarding_test::running_deployment_no_index_shows_create_step ... ok
+test onboarding_test::shared_customer_still_surfaces_stripe_lookup_failures ... ok
+test onboarding_test::shared_customer_needs_payment_for_completion ... ok
+test openapi_spec_final_test::spec_contains_stage5_operations ... ok
+test onboarding_test::shared_customer_suggests_payment_first ... ok
+test onboarding_test::status_response_uses_region_not_deployment_field_names ... ok
+test openapi_spec_final_test::spec_every_operation_has_success_response ... ok
+test openapi_spec_final_test::spec_no_empty_tags ... ok
+test openapi_spec_final_test::spec_contains_stage5_schemas ... ok
+test openapi_spec_stages3_5_test::spec_authenticated_billing_routes_document_401 ... ok
+test openapi_spec_final_test::spec_path_count_guard ... ok
+test openapi_spec_stages3_5_test::spec_billing_legacy_subscription_routes_are_removed ... ok
+test openapi_spec_stages3_5_test::spec_billing_pm_routes_declare_pm_id_path_parameter ... ok
+test openapi_spec_stages3_5_test::spec_contains_configuration_proxy_operations ... ok
+test openapi_spec_stages3_5_test::spec_contains_configuration_schemas ... ok
+test openapi_spec_stages3_5_test::spec_contains_billing_schemas ... ok
+test openapi_spec_stages3_5_test::spec_contains_billing_operations ... ok
+test openapi_spec_stages3_5_test::spec_billing_portal_uses_dedicated_request_response_schemas ... ok
+test openapi_spec_stages3_5_test::spec_contains_document_and_advanced_operations ... ok
+test openapi_spec_stages3_5_test::spec_contains_index_lifecycle_and_search_operations ... ok
+test openapi_spec_stages3_5_test::spec_contains_document_schemas ... ok
+test openapi_spec_stages3_5_test::spec_contains_index_lifecycle_schemas ... ok
+test openapi_spec_stages3_5_test::spec_stage4_delete_operations_document_no_content_status ... ok
+test openapi_spec_stages3_5_test::spec_stage4_json_proxy_operations_declare_request_bodies ... ok
+test openapi_spec_stages3_5_test::spec_contains_only_stage_1_through_5_paths ... ok
+test openapi_spec_stages3_5_test::spec_stage4_proxy_operations_document_cold_and_not_ready_errors ... ok
+test openapi_spec_stages3_5_test::spec_does_not_reference_subscription_status_field ... ok
+test openapi_spec_test::openapi_spec_generates_valid_json ... ok
+test openapi_spec_stages3_5_test::spec_stage4_recommendations_and_chat_use_distinct_tags ... ok
+test openapi_spec_test::openapi_spec_matches_committed_artifact ... ok
+test openapi_spec_test::docs_endpoint_returns_200 ... ok
+test openapi_spec_test::spec_authenticated_stage2_routes_document_401_error_response ... ok
+test openapi_spec_test::spec_contains_auth_operations ... ok
+test openapi_spec_test::spec_contains_lifecycle_operations ... ok
+test openapi_spec_test::spec_contains_auth_schemas ... ok
+test openapi_spec_test::spec_contains_lifecycle_schemas ... ok
+test pg_customer_repo_schema_harness_test::cleanup_schema_drops_isolated_schema ... ok
+test openapi_spec_test::spec_free_tier_limits_schema_uses_mb_storage_key ... ok
+test pg_customer_repo_schema_harness_test::db_harness_drop_cleans_schema_after_panic_unwind ... ok
+test pg_customer_repo_test::claim_ingest_quota_warning_is_monthly_per_metric_and_atomic ... ok
+test pg_customer_repo_test::create_and_link_oauth_customer_flow_preserves_existing_identity_on_conflict ... ok
+test pg_customer_repo_test::create_customer_has_zero_carryforward ... ok
+test pg_customer_repo_test::create_with_password_has_zero_carryforward ... ok
+test pg_customer_repo_test::deleted_customer_cutoff_selector_filters_and_orders_by_deleted_at_then_id ... ok
+test pg_customer_repo_test::deleted_customer_cutoff_selector_tie_breaks_equal_deleted_at_by_id ... ok
+test pg_customer_repo_test::hard_delete_rejects_customers_with_open_invoices ... ok
+test pg_customer_repo_test::hard_delete_removes_customer_and_dependents_then_404s_on_repeat ... ok
+test pg_customer_repo_test::list_aggregates_billing_health_inputs_without_duplicate_customer_rows ... ok
+test pg_customer_repo_test::lockout_concurrent_failures_reach_exact_count ... ok
+test pg_customer_repo_test::lockout_record_failed_login_increments_and_eventually_locks ... ok
+test pg_customer_repo_test::lockout_successful_login_resets_counters ... ok
+test pg_customer_repo_test::oauth_identity_link_enforces_provider_user_uniqueness ... ok
+test pg_customer_repo_test::oauth_identity_link_rejects_deleted_customer_rows ... ok
+test pg_customer_repo_test::oauth_identity_lookup_returns_linked_customer ... ok
+test pg_customer_repo_test::resend_password_reset_cooldown_persists_across_repo_reload ... ok
+test pg_customer_repo_test::resend_verification_cooldown_persists_across_repo_reload ... ok
+test pg_customer_repo_test::reset_password_succeeds_even_when_deferred_reset_lockout_columns_are_active ... ok
+test pg_customer_repo_test::rollback_ingest_quota_warning_reopens_same_month_claim ... ok
+test pg_customer_repo_test::rollback_password_reset_resend_restores_previous_token_and_cooldown_state ... ok
+test pg_customer_repo_test::rollback_resend_verification_restores_previous_token_and_cooldown_state ... ok
+test pg_customer_repo_test::set_and_read_carryforward_round_trips ... ok
+test pg_customer_repo_test::set_carryforward_on_deleted_customer_returns_false ... ok
+test pg_customer_repo_test::soft_delete_retains_row_and_is_idempotent ... ok
+test pg_customer_repo_test::subscription_cycle_anchor_round_trip_and_clear_with_none ... ok
+test pg_customer_repo_test::try_upgrade_to_shared_atomic_allows_exactly_one_concurrent_winner ... ok
+test pg_customer_repo_test::try_upgrade_to_shared_atomic_returns_false_without_mutation_for_shared_or_deleted_rows ... ok
+test pg_customer_repo_test::verify_email_succeeds_even_when_deferred_verify_lockout_columns_are_active ... ok
+test pg_dispute_repo_test::upsert_is_idempotent_by_stripe_dispute_id ... ok
+test pg_dispute_repo_test::upsert_persists_nullable_invoice_id ... ok
+test pg_dispute_repo_test::upsert_updates_lifecycle_status_transition_fields ... ok
+test openapi_spec_test::spec_delete_api_key_declares_key_id_path_parameter ... ok
+test pg_dispute_repo_test::upsert_with_null_invoice_id_preserves_existing_invoice_link ... ok
+test pg_webhook_event_repo_test::count_stale_unprocessed_counts_only_unprocessed_rows_older_than_threshold ... ok
+test pg_webhook_event_repo_test::find_by_stripe_event_id_returns_none_when_no_rows ... ok
+test pg_webhook_event_repo_test::find_by_stripe_event_id_returns_seeded_row_shape ... ok
+test pg_webhook_event_repo_test::find_latest_invoice_id_by_payment_intent_finds_seeded_row ... ok
+test pg_webhook_event_repo_test::find_latest_invoice_id_by_payment_intent_returns_none_when_no_rows ... ok
+test pg_webhook_event_repo_test::try_insert_same_event_id_has_single_winner_under_concurrency ... ok
+test placement_test::placement_allows_fresh_vm ... ok
+test placement_test::placement_batch_decreasing_order ... ok
+test placement_test::placement_empty_vm_chosen_for_first_index ... ok
+test placement_test::placement_excludes_draining_vms ... ok
+test placement_test::placement_excludes_full_vms ... ok
+test placement_test::placement_excludes_stale_vm ... ok
+test openapi_spec_test::spec_resend_password_reset_documents_stage1_status_matrix ... ok
+test placement_test::placement_excludes_vm_with_null_load_scraped_at ... ok
+test placement_test::placement_prefers_fresh_vm_over_stale_even_if_stale_has_more_capacity ... ok
+test placement_test::placement_rejects_index_exceeding_any_single_dimension ... ok
+test openapi_spec_test::spec_public_routes_override_bearer_security ... ok
+test placement_test::placement_returns_none_when_no_capacity ... ok
+test placement_test::placement_scores_complementary_workloads_higher ... ok
+test placement_test::resource_vector_add ... ok
+test placement_test::resource_vector_dot_normalized_equal_weights ... ok
+test placement_test::resource_vector_dot_normalized_zero_capacity_safe ... ok
+test placement_test::resource_vector_dot_product_basic ... ok
+test placement_test::resource_vector_exceeds_capacity ... ok
+test placement_test::resource_vector_from_empty_json ... ok
+test placement_test::resource_vector_from_json_missing_fields_default_to_zero ... ok
+test placement_test::resource_vector_json_round_trip ... ok
+test placement_test::resource_vector_total_weight_ordering ... ok
+test openapi_spec_test::spec_lifecycle_routes_do_not_override_bearer_with_public_security ... ok
+test panics_publisher_test::panics_publisher_sends_per_period_panic_deltas ... ok
+test openapi_spec_test::spec_resend_verification_documents_stage3_status_matrix ... ok
+test openapi_spec_test::spec_stage5_documents_public_security_and_response_contracts ... ok
+test pricing_compare_test::pricing_compare_rejects_invalid_avg_document_size ... ok
+test pricing_compare_test::pricing_compare_line_items_have_required_fields ... ok
+test provisioner_test::mock_create_vm_returns_instance ... ok
+test pricing_compare_test::pricing_compare_estimates_sorted_cheapest_first ... ok
+test provisioner_test::mock_destroy_nonexistent_is_idempotent ... ok
+test provisioner_test::mock_destroy_vm_removes_instance ... ok
+test provisioner_test::mock_failure_injection_works ... ok
+test provisioner_test::mock_get_status_nonexistent_returns_vm_not_found ... ok
+test provisioner_test::mock_get_status_returns_current ... ok
+test provisioner_test::mock_start_nonexistent_returns_vm_not_found ... ok
+test provisioner_test::mock_start_running_returns_invalid_state ... ok
+test provisioner_test::mock_stop_nonexistent_returns_vm_not_found ... ok
+test provisioner_test::mock_stop_pending_returns_invalid_state ... ok
+test provisioner_test::mock_stop_start_changes_status ... ok
+test provisioner_test::mock_vm_count_reflects_creates_and_destroys ... ok
+test provisioner_test::unconfigured_create_vm_returns_not_configured ... ok
+test pricing_compare_test::pricing_compare_flapjack_cloud_contract ... ok
+test pricing_compare_test::pricing_compare_rejects_malformed_json ... ok
+test provisioner_test::unconfigured_destroy_vm_returns_not_configured ... ok
+test pricing_compare_test::pricing_compare_omits_retired_meilisearch_usage_provider ... ok
+test provisioner_test::unconfigured_start_vm_returns_not_configured ... ok
+test provisioner_test::unconfigured_get_vm_status_returns_not_configured ... ok
+test provisioner_test::unconfigured_stop_vm_returns_not_configured ... ok
+test provisioning_service_test::auto_provision_shared_vm_cleans_up_all_on_db_failure ... ok
+test provisioning_service_test::auto_provision_shared_vm_cleans_up_vm_and_ssm_on_dns_failure ... ok
+test provisioning_service_test::auto_provision_shared_vm_cleans_up_vm_and_ssm_on_missing_public_ip ... ok
+test provisioning_service_test::auto_provision_shared_vm_normalizes_path_slash_without_mutating_query_suffix ... ok
+test provisioning_service_test::auto_provision_shared_vm_cleans_up_ssm_on_vm_failure ... ok
+test provisioning_service_test::auto_provision_shared_vm_normalizes_trailing_slash_in_local_dev_flapjack_url ... ok
+test provisioning_service_test::auto_provision_shared_vm_trims_local_dev_flapjack_url_before_persisting ... ok
+test provisioning_service_test::auto_provision_shared_vm_reuses_existing_local_dev_vm_for_region ... ok
+test provisioning_service_test::auto_provision_shared_vm_rejects_non_loopback_local_dev_url ... ok
+test provisioning_service_test::auto_provision_shared_vm_with_blank_local_dev_url_fails_with_unconfigured_provisioner ... ok
+test provisioning_service_test::auto_provision_shared_vm_with_empty_local_dev_url_fails_with_unconfigured_provisioner ... ok
+test provisioning_service_test::auto_provision_shared_vm_uses_local_dev_bypass_when_url_configured ... ok
+test provisioning_service_test::complete_provisioning_cleans_up_ssm_on_dns_failure ... ok
+test provisioning_service_test::auto_provision_shared_vm_without_local_dev_url_fails_with_unconfigured_provisioner ... ok
+test provisioning_service_test::complete_provisioning_cleans_up_on_update_provisioning_failure ... ok
+test pricing_compare_test::pricing_compare_rejects_invalid_document_count ... ok
+test provisioning_service_test::complete_provisioning_creates_ssm_secret ... ok
+test provisioning_service_test::complete_provisioning_fails_when_ssm_fails ... ok
+test provisioning_service_test::complete_provisioning_creates_vm_dns_updates_record ... ok
+test provisioning_service_test::complete_provisioning_fails_when_no_public_ip ... ok
+test provisioning_service_test::complete_provisioning_sets_failed_on_dns_error ... ok
+test provisioning_service_test::complete_provisioning_skips_non_provisioning_deployment ... ok
+test provisioning_service_test::complete_provisioning_sets_failed_on_vm_error ... ok
+test provisioning_service_test::default_dns_domain_is_flapjack_foo ... ok
+test provisioning_service_test::deployment_limit_excludes_failed ... ok
+test provisioning_service_test::deployment_limit_counts_active_not_failed ... ok
+test provisioning_service_test::deployment_limit_excludes_terminated ... ok
+test pricing_compare_test::pricing_compare_rejects_missing_fields ... ok
+test provisioning_service_test::ownership_check_deployment_not_found ... ok
+test pricing_compare_test::pricing_compare_requires_no_authentication ... ok
+test provisioning_service_test::ownership_check_not_owned ... ok
+test provisioning_service_test::provision_fails_for_deleted_customer ... ok
+test provisioning_service_test::provision_fails_for_nonexistent_customer ... ok
+test provisioning_service_test::provision_fails_for_suspended_customer ... ok
+test provisioning_service_test::provision_fails_when_deployment_limit_reached ... ok
+test provisioning_service_test::start_non_stopped_deployment_returns_invalid_state ... ok
+test provisioning_service_test::stop_deployment_without_provider_vm_id_returns_invalid_state ... ok
+test provisioning_service_test::stop_and_start_lifecycle ... ok
+test provisioning_service_test::stop_non_running_deployment_returns_invalid_state ... ok
+test provisioning_service_test::terminate_already_terminated_returns_invalid_state ... ok
+test provisioning_service_test::terminate_cleans_up_ssm_even_when_ssm_delete_partially_fails ... ok
+test provisioning_service_test::terminate_cleans_up_ssm_secret ... ok
+test provisioning_service_test::terminate_fails_when_vm_destruction_fails ... ok
+test provisioning_service_test::terminate_succeeds_even_when_dns_cleanup_fails ... ok
+test provisioning_service_test::terminate_cleans_up_vm_dns_deployment ... ok
+test provisioning_service_test::terminate_succeeds_when_vm_already_externally_terminated ... ok
+test input_validation_test::change_password_rejects_new_password_over_128_chars ... ok
+test pricing_compare_test::pricing_compare_returns_comparison_result_for_valid_workload ... ok
+test rate_card_test::get_rate_card_200_base_card_no_override ... ok
+test public_site_test::robots_txt_blocks_generic_crawlers_and_allows_unfurl_bots ... ok
+test public_site_test::root_serves_public_landing_page_with_review_metadata ... ok
+test rate_card_test::get_rate_card_200_with_override ... ok
+test rate_card_test::get_rate_card_404_deleted_tenant ... ok
+test rate_card_test::get_rate_card_404_no_active_rate_card ... ok
+test public_site_test::favicon_and_preview_image_are_served_with_asset_content_types ... ok
+test rate_card_test::get_rate_card_404_unknown_tenant ... ok
+test account_test::change_password_with_correct_current_succeeds ... ok
+test rate_card_test::set_rate_override_400_empty_body ... ok
+test rate_card_test::set_rate_override_400_invalid_decimal ... ok
+test rate_card_test::set_rate_override_401_missing_auth ... ok
+test rate_card_test::set_rate_override_404_deleted_tenant ... ok
+test rate_card_test::set_rate_override_404_no_active_rate_card ... ok
+test region_failover_test::failover_config_defaults_are_sensible ... ok
+test region_failover_test::failover_config_from_reader_reads_all_vars ... ok
+test region_failover_test::failover_config_invalid_values_fall_back_to_defaults ... ok
+test region_failover_test::region_failover_anti_flap_prevents_down_transition ... ok
+test region_failover_test::region_failover_clears_tracking_after_down_degraded_healthy ... ok
+test region_failover_test::region_failover_continues_failover_for_new_indexes_while_region_stays_down ... ok
+test region_failover_test::region_failover_degraded_to_down_transition ... ok
+test region_failover_test::region_failover_full_lifecycle_alert_sequence ... ok
+test region_failover_test::region_failover_healthy_region_stays_healthy ... ok
+test region_failover_test::region_failover_no_replica_fires_warning_without_panic ... ok
+test region_failover_test::region_failover_no_replica_warning_includes_metadata ... ok
+test region_failover_test::region_failover_partial_health_sets_degraded ... ok
+test region_failover_test::region_failover_promotes_replica_when_region_goes_down ... ok
+test region_failover_test::region_failover_recovery_fires_alert_without_automatic_switchback ... ok
+test region_failover_test::region_failover_recovery_requires_sustained_healthy_cycles ... ok
+test region_failover_test::region_failover_recovery_scoped_to_region ... ok
+test region_failover_test::region_failover_selects_lowest_lag_replica ... ok
+test region_failover_test::region_failover_skips_unhealthy_replica_vm_even_with_lower_lag ... ok
+test region_failover_test::region_failover_spawn_stops_on_shutdown_signal ... ok
+test region_failover_test::region_failover_suspends_promoted_replica ... ok
+test reliability_api_crash_test::complete_provisioning_rejects_non_provisioning_deployment ... ok
+test reliability_api_crash_test::concurrent_complete_provisioning_single_winner_no_duplicate_side_effects ... ok
+test reliability_api_crash_test::dns_creation_failure_cleans_up_vm_and_ssm ... ok
+test reliability_api_crash_test::ssm_failure_during_rollback_still_marks_deployment_failed ... ok
+test reliability_api_crash_test::vm_creation_failure_cleans_up_ssm_secret ... ok
+test reliability_cold_tier_test::s3_auth_revocation_during_snapshot_upload_fires_critical_alert ... ok
+test reliability_cold_tier_test::s3_recovery_after_auth_fix_completes_snapshot ... ok
+test reliability_cold_tier_test::s3_upload_failure_returns_cold_tier_error_upload ... ok
+test reliability_failure_injection_test::api_kill_during_mutation_rolls_back_without_orphaned_state ... ok
+test reliability_failure_injection_test::dependency_auth_revocation_trips_circuit_breaker_after_threshold ... ok
+test rate_card_test::set_rate_override_404_unknown_tenant ... ok
+test reliability_failure_injection_test::flapjack_crash_during_replication_marks_failed_without_progressing_state ... ok
+test reliability_failure_injection_test::usage_summary_repo_call_fails_once_on_disconnect_then_recovers ... ok
+test reliability_migration_test::cutover_abort_on_dest_failure_restores_source_routing ... ok
+test reliability_migration_test::cutover_abort_restores_routing_even_when_source_resume_fails ... ok
+test reliability_migration_test::migration_pressure_allows_after_slot_freed ... ok
+test reliability_migration_test::migration_pressure_rejects_when_at_capacity ... ok
+test noisy_neighbor_test::admin_put_quotas_updates_resource_quota ... ok
+test reliability_profile_freshness_test::bootstraps_missing_profiles_from_seed_script ... ok
+test reliability_failure_injection_test::metering_db_disconnect_returns_500_with_bounded_attempts_then_recovers ... ok
+test provisioning_service_test::provision_creates_deployment_with_provisioning_status ... ok
+test provisioning_service_test::provision_hostname_uses_flapjack_foo_domain ... ok
+test account_test::delete_account_returns_404_when_soft_delete_reports_missing ... ok
+test reliability_profile_freshness_test::stale_profile_fails_with_clear_error_context ... ok
+test reliability_profile_freshness_test::summary_artifact_exists ... ok
+test reliability_profile_freshness_test::profile_artifacts_exist ... ok
+test retention_job_test::retention_job_erases_only_api_selected_eligible_customer ... ok
+test reliability_profile_freshness_test::profile_disk_drift_within_tolerance ... ok
+test reliability_profile_freshness_test::profile_mem_drift_within_tolerance ... ok
+test reliability_profile_freshness_test::profile_schema_valid ... ok
+test reliability_profile_freshness_test::profile_artifacts_not_stale ... ok
+test scheduler_test::noisy_neighbor_no_capacity_fires_admin_attention_alert ... ok
+test scheduler_test::noisy_neighbor_migration_after_prolonged_quota_overage ... ok
+test scheduler_test::noisy_neighbor_uses_default_quotas_when_override_missing ... ok
+test scheduler_test::noisy_neighbor_no_capacity_flag_prevents_duplicate_alerts ... ok
+test scheduler_test::in_flight_dedup_is_per_cycle_only ... ok
+test scheduler_test::noisy_neighbor_warning_alert_after_sustained_quota_overage ... ok
+test scheduler_test::overload_does_not_migrate_to_vm_with_failed_scrape ... ok
+test scheduler_test::overload_triggers_migration_of_heaviest_index ... ok
+test scheduler_test::run_cycle_does_not_update_load_scraped_at_on_scrape_failure ... ok
+test scheduler_test::overload_re_migration_allowed_on_subsequent_cycle ... ok
+test scheduler_test::run_cycle_handles_repo_list_active_failure_gracefully ... ok
+test scheduler_test::placement_uses_profile_artifacts_consistently ... ok
+test scheduler_test::run_cycle_scrapes_metrics_and_updates_vm_load ... ok
+test scheduler_test::run_cycle_sets_load_scraped_at_on_success ... ok
+test scheduler_test::run_cycle_uses_vm_hostname_secret_for_internal_scrapes ... ok
+test scheduler_test::scheduler_config_defaults_when_env_missing ... ok
+test scheduler_test::run_cycle_uses_previous_counters_for_rps_delta ... ok
+test scheduler_test::scheduler_config_invalid_values_fall_back_to_defaults ... ok
+test scheduler_test::scheduler_config_reads_env_values ... ok
+test scheduler_test::scheduler_alerts_when_no_same_provider_capacity ... ok
+test scheduler_test::scheduler_run_cycle_returns_active_vm_count ... ok
+test scheduler_test::scheduler_overload_no_destination_capacity_does_not_overcommit ... ok
+test scheduler_test::scheduler_places_within_same_provider ... ok
+test scheduler_test::scrape_failure_does_not_crash_cycle ... ok
+test scheduler_test::scheduler_run_stops_on_shutdown_signal ... ok
+test scheduler_test::underload_drain_updates_intermediate_capacity_between_indexes ... ok
+test scheduler_test::underload_triggers_drain ... ok
+test scheduler_test::unplaced_index_assignment_is_region_aware ... ok
+test ses_bounce_complaint_handler_test::complaint_suppresses_recipient_and_writes_correlated_audit_row ... ok
+test scheduler_test::unplaced_index_gets_assigned_to_active_vm ... ok
+test ses_bounce_complaint_handler_test::hard_bounce_suppresses_recipient_and_writes_correlated_audit_row ... ok
+test ses_bounce_complaint_handler_test::ses_sns_route_exists_and_rejects_malformed_outer_envelope ... ok
+test provisioning_service_test::aws_deployment_uses_ssm_secrets_in_cloud_init ... ok
+test provisioning_service_test::hetzner_deployment_uses_direct_secrets_in_cloud_init ... ok
+test ses_bounce_complaint_handler_test::ses_sns_route_rejects_invalid_signature ... ok
+test ses_bounce_complaint_handler_test::ses_sns_route_rejects_unsupported_sns_type ... ok
+test rate_card_test::set_rate_override_200_creates_new ... ok
+test ses_bounce_complaint_handler_test::transient_bounce_event_is_ignored_without_suppression_or_audit ... ok
+test rate_card_test::set_rate_override_200_supports_cold_and_minimum_fields ... ok
+test rate_card_test::set_rate_override_200_supports_object_storage_fields ... ok
+test rate_card_test::set_rate_override_200_updates_existing ... ok
+test signup_abuse_test::register_rejects_disposable_domain_without_creating_customer_or_stripe_customer ... ok
+test rate_card_test::set_rate_override_200_supports_shared_minimum_field_only ... ok
+test ssh_provisioner_test::bare_metal_server_deserializes_correctly ... ok
+test ssh_provisioner_test::bare_metal_server_private_ip_optional ... ok
+test ssh_provisioner_test::ssh_config_defaults_from_env ... ok
+test ssh_provisioner_test::ssh_config_from_env ... ok
+test ssh_provisioner_test::ssh_config_rejects_empty_key_path ... ok
+test ssh_provisioner_test::ssh_config_rejects_empty_servers ... ok
+test ssh_provisioner_test::ssh_config_rejects_invalid_port ... ok
+test ssh_provisioner_test::ssh_config_rejects_missing_key_path ... ok
+test ssh_provisioner_test::ssh_config_rejects_missing_servers ... ok
+test ssh_provisioner_test::ssh_status_mapping_complete ... ok
+test storage_bucket_repo_test::deleted_name_can_be_reused ... ok
+test storage_bucket_repo_test::create_and_get_bucket ... ok
+test storage_bucket_repo_test::get_by_name_returns_active_only ... ok
+test storage_bucket_repo_test::duplicate_active_name_conflicts ... ok
+test storage_bucket_repo_test::increment_on_nonexistent_returns_not_found ... ok
+test storage_bucket_repo_test::increment_egress ... ok
+test storage_bucket_repo_test::increment_size_positive_and_negative ... ok
+test storage_bucket_repo_test::list_all_returns_active_across_customers ... ok
+test storage_bucket_repo_test::list_by_customer_excludes_deleted ... ok
+test storage_bucket_repo_test::update_egress_watermark ... ok
+test storage_key_repo_test::create_and_get_by_access_key ... ok
+test storage_key_repo_test::duplicate_access_key_conflicts ... ok
+test storage_key_repo_test::duplicate_garage_access_key_id_conflicts ... ok
+test storage_key_repo_test::get_by_access_key_returns_none_for_revoked ... ok
+test storage_key_repo_test::get_returns_none_for_missing_key ... ok
+test storage_key_repo_test::list_active_for_bucket ... ok
+test storage_key_repo_test::list_active_for_different_bucket_returns_empty ... ok
+test storage_key_repo_test::revoke_nonexistent_returns_not_found ... ok
+test storage_load_test::manual_delete_list_churn_keeps_visibility_and_totals_consistent ... ignored, manual load harness
+test storage_load_test::manual_put_get_load_harness_converges_bucket_metering ... ignored, manual load harness
+test storage_key_repo_test::revoke_twice_returns_not_found ... ok
+test storage_s3_bucket_lifecycle_integration_test::delete_bucket_completes_local_cleanup_after_prior_garage_delete ... ok
+test storage_s3_bucket_lifecycle_integration_test::bucket_list_returns_seeded_bucket ... ok
+test storage_s3_bucket_lifecycle_integration_test::delete_bucket_soft_deletes_bucket_and_revokes_key ... ok
+test storage_s3_bucket_lifecycle_integration_test::delete_bucket_returns_internal_error_when_garage_delete_fails ... ok
+test storage_s3_bucket_lifecycle_integration_test::revoked_key_returns_invalid_access_key_id ... ok
+test storage_s3_bucket_lifecycle_integration_test::list_objects_v2_proxied_to_garage ... ok
+test storage_s3_bucket_lifecycle_integration_test::wrong_secret_returns_signature_does_not_match ... ok
+test storage_s3_bucket_routes_test::create_bucket_with_bucket_scoped_key_returns_access_denied ... ok
+test storage_s3_bucket_routes_test::delete_bucket_nonexistent_returns_no_such_bucket ... ok
+test storage_s3_bucket_routes_test::head_bucket_nonexistent_returns_not_found ... ok
+test storage_s3_bucket_routes_test::head_bucket_forwards_to_garage ... ok
+test storage_s3_bucket_routes_test::head_bucket_wrong_bucket_id_returns_forbidden ... ok
+test storage_s3_bucket_routes_test::list_buckets_only_returns_authenticated_bucket ... ok
+test storage_s3_bucket_routes_test::list_buckets_empty_returns_xml ... ok
+test storage_s3_bucket_routes_test::list_objects_v2_forwards_query_to_garage ... ok
+test ses_bounce_complaint_handler_test::ses_sns_route_rejects_untrusted_signing_cert_url_host ... ok
+test storage_s3_concurrent_metering_test::concurrent_delete_put_recreate_aggregates_are_correct ... ok
+test storage_s3_concurrent_metering_test::concurrent_put_delete_initially_empty_aggregates_are_correct ... ok
+test storage_s3_error_test::auth_internal_maps_to_internal_error ... ok
+test storage_s3_error_test::auth_invalid_key_maps_to_invalid_access_key ... ok
+test storage_s3_error_test::auth_malformed_maps_to_authorization_header_malformed ... ok
+test storage_s3_error_test::auth_signature_mismatch_maps_to_signature_does_not_match ... ok
+test storage_s3_error_test::auth_time_skew_maps_to_request_time_too_skewed ... ok
+test storage_s3_error_test::garage_error_xml_is_parsed_into_s3_response ... ok
+test storage_s3_error_test::garage_error_xml_missing_message_falls_back_to_internal_error ... ok
+test storage_s3_error_test::garage_error_xml_with_non_whitespace_outside_root_falls_back_to_internal_error ... ok
+test storage_s3_error_test::known_s3_codes_map_to_correct_status ... ok
+test storage_s3_concurrent_metering_test::concurrent_put_put_overwrite_aggregates_are_correct ... ok
+test storage_s3_error_test::malformed_garage_error_xml_falls_back_to_internal_error ... ok
+test storage_s3_error_test::non_error_xml_falls_back_to_internal_error ... ok
+test storage_s3_error_test::proxy_connect_error_maps_to_internal_error ... ok
+test storage_s3_error_test::proxy_internal_error_maps_to_internal_error ... ok
+test storage_s3_error_test::s3_error_response_produces_status_and_xml ... ok
+test storage_s3_error_test::s3_error_response_into_response_sets_xml_content_type ... ok
+test storage_s3_error_test::unknown_code_falls_back_to_internal_error ... ok
+test storage_s3_extractor_test::extension_context_short_circuits_authentication ... ok
+test storage_s3_extractor_test::invalid_signature_returns_signature_does_not_match_xml ... ok
+test storage_s3_extractor_test::missing_authorization_returns_header_malformed_xml ... ok
+test storage_s3_extractor_test::unknown_access_key_returns_invalid_access_key_id_xml ... ok
+test storage_s3_extractor_test::valid_sigv4_extracts_context ... ok
+test storage_s3_integration_test::garage_404_propagated_to_client ... ok
+test storage_s3_integration_test::rate_limit_burst_returns_slowdown_xml ... ok
+test storage_s3_integration_test::security_headers_present_on_s3_response ... ok
+test storage_s3_integration_test::shared_signed_router_harness_smoke_lists_seeded_bucket ... ok
+test ses_bounce_complaint_handler_test::ses_sns_route_rejects_malformed_inner_ses_json ... ok
+test storage_s3_integration_test::suspended_customer_returns_access_denied ... ok
+test storage_s3_integration_test::unauthenticated_request_returns_s3_xml_error ... ok
+test storage_s3_integration_test::wrong_bucket_key_returns_access_denied ... ok
+test cold_tier_test::snapshot_timeout_rolls_back_catalog_state_and_warns ... ok
+test storage_s3_integration_test::lifecycle_put_get_delete_with_metering ... ok
+test ses_bounce_complaint_handler_test::subscription_confirmation_confirms_verified_request ... ok
+test storage_s3_object_routes_test::delete_object_heads_then_deletes_and_meters ... ok
+test storage_s3_object_routes_test::delete_object_zero_byte_still_decrements_object_count ... ok
+test storage_s3_object_routes_test::get_object_multi_segment_key ... ok
+test storage_s3_object_routes_test::head_object_forwards_to_garage ... ok
+test storage_s3_object_routes_test::head_object_wrong_bucket_returns_forbidden ... ok
+test storage_s3_object_routes_test::get_object_forwards_and_meters_egress ... ok
+test storage_s3_object_routes_test::put_object_nonexistent_bucket_returns_no_such_bucket ... ok
+test storage_s3_object_routes_test::put_object_forwards_to_garage_and_meters ... ok
+test storage_s3_proxy_test::forward_get_passes_through_response_body ... ok
+test storage_s3_proxy_test::forward_preserves_query_string ... ok
+test storage_s3_proxy_test::forward_put_sends_body_to_garage ... ok
+test storage_s3_object_routes_test::put_object_overwrite_updates_metering_by_delta_only ... ok
+test storage_s3_proxy_test::garage_404_translates_to_s3_nosuchkey_via_error_mapper ... ok
+test storage_s3_proxy_test::garage_409_translates_to_s3_bucket_conflict_via_error_mapper ... ok
+test storage_s3_proxy_test::forward_signs_with_garage_credentials ... ok
+test storage_s3_proxy_test::proxy_connection_failure_maps_to_s3_internal_error_xml ... ok
+test storage_s3_proxy_test::response_headers_are_filtered ... ok
+test storage_s3_proxy_test::upstream_403_is_preserved ... ok
+test storage_s3_proxy_test::upstream_409_is_preserved ... ok
+test storage_s3_proxy_test::upstream_404_is_preserved ... ok
+test storage_s3_xml_test::error_response_escapes_special_characters ... ok
+test storage_s3_xml_test::error_response_produces_valid_xml ... ok
+test storage_s3_xml_test::list_buckets_empty_produces_valid_xml ... ok
+test storage_s3_xml_test::list_buckets_with_entries ... ok
+test storage_s3_xml_test::list_objects_v2_empty_produces_valid_xml ... ok
+test storage_s3_xml_test::list_objects_v2_truncated_includes_continuation_token ... ok
+test storage_s3_proxy_test::upstream_connection_failure_returns_error ... ok
+test storage_s3_xml_test::list_objects_v2_with_objects ... ok
+test storage_service_test::create_access_key_rejects_bucket_customer_mismatch ... ok
+test storage_service_test::create_access_key_deletes_garage_key_when_repo_insert_fails ... ok
+test storage_service_test::create_access_key_rejects_deleted_bucket ... ok
+test storage_service_test::create_bucket_deletes_garage_bucket_when_repo_insert_conflicts ... ok
+test storage_service_test::create_bucket_persists_to_repo ... ok
+test storage_service_test::create_access_key_returns_decrypted_secret ... ok
+test storage_service_test::create_bucket_uses_unique_internal_garage_aliases ... ok
+test storage_service_test::delete_bucket_marks_deleted ... ok
+test storage_service_test::delete_bucket_rejects_deleted_bucket ... ok
+test storage_service_test::delete_nonexistent_bucket_errors ... ok
+test storage_service_test::delete_bucket_revokes_active_access_keys ... ok
+test storage_service_test::get_bucket_returns_none_for_missing ... ok
+test storage_service_test::get_bucket_returns_none_for_deleted_bucket ... ok
+test storage_service_test::list_buckets_for_customer ... ok
+test storage_service_test::revoke_access_key ... ok
+test storage_service_test::revoke_access_key_rejects_already_revoked_key ... ok
+test tenant_repo_test::count_by_customer_excludes_terminated_deployments ... ok
+test tenant_repo_test::count_by_customer_is_accurate ... ok
+test tenant_repo_test::create_defaults_service_type_to_flapjack ... ok
+test tenant_repo_test::create_duplicate_returns_conflict ... ok
+test tenant_repo_test::create_inserts_and_returns_tenant ... ok
+test tenant_repo_test::delete_non_existent_returns_false ... ok
+test tenant_repo_test::delete_removes_and_returns_true ... ok
+test tenant_repo_test::find_by_customer_excludes_terminated_deployments ... ok
+test tenant_repo_test::find_by_customer_includes_service_type_in_summary ... ok
+test tenant_repo_test::find_by_customer_returns_all_with_deployment_info ... ok
+test tenant_repo_test::find_by_deployment_returns_all_indexes_on_vm ... ok
+test tenant_repo_test::find_by_name_excludes_terminated_deployment ... ok
+test tenant_repo_test::find_by_name_includes_service_type_in_summary ... ok
+test tenant_repo_test::find_by_name_returns_single ... ok
+test storage_s3_concurrent_metering_test::wait_for_aggregate_does_not_finish_before_blocked_metering_writes_complete ... ok
+test ses_bounce_complaint_handler_test::ses_sns_route_rejects_untrusted_subscribe_url_host ... ok
+test tenants_test::create_tenant_missing_auth_returns_401 ... ok
+test tenants_test::create_tenant_duplicate_email_returns_409 ... ok
+test tenants_test::delete_tenant_not_found_returns_404 ... ok
+test account_test::delete_account_with_correct_password_succeeds ... ok
+test account_test::delete_account_soft_delete_retains_row_for_audit_visibility ... ok
+test account_test::delete_account_login_after_delete_returns_generic_invalid_credentials_without_leaks ... ok
+test tenants_test::get_tenant_not_found_returns_404 ... ok
+test tenants_test::get_tenant_returns_200 ... ok
+test tenants_test::get_tenant_returns_200_for_deleted_tenant ... ok
+test tenants_test::list_tenants_empty_returns_200_with_empty_array ... ok
+test tenants_test::list_tenants_includes_deleted ... ok
+test storage_s3_object_metering_concurrency_test::same_key_put_delete_keeps_bucket_totals_correct ... ok
+test tenants_test::list_tenants_returns_200_with_data ... ok
+test storage_s3_object_metering_concurrency_test::same_key_delete_put_recreate_keeps_bucket_totals_correct ... ok
+test tenants_test::list_tenants_returns_billing_health_from_invoice_signals ... ok
+test tenants_test::update_tenant_duplicate_email_stays_409_when_invoice_lookup_fails ... ok
+test tenants_test::update_tenant_deleted_returns_404 ... ok
+test tenants_test::update_tenant_duplicate_email_returns_409 ... ok
+test storage_s3_object_metering_concurrency_test::same_key_put_put_overwrite_keeps_bucket_totals_correct ... ok
+test customer_metrics_test::cache_expiry_re_scrapes_and_advances_fetched_at ... ok
+test tenants_test::update_tenant_empty_body_returns_400 ... ok
+test tenants_test::update_tenant_invalid_billing_plan_returns_400 ... ok
+test tenants_test::update_tenant_invoice_repo_failure_short_circuits_before_mutation ... ok
+test tenants_test::update_tenant_not_found_stays_404_when_invoice_lookup_fails ... ok
+test tenants_test::update_tenant_not_found_returns_404 ... ok
+test vm_inventory_test::tenant_repo_find_by_tenant_id_global ... ok
+test vm_inventory_test::tenant_repo_find_raw_returns_vm_id_and_tier ... ok
+test tenants_test::update_tenant_with_only_unknown_fields_returns_400 ... ok
+test vm_inventory_test::tenant_repo_set_vm_id_and_list_by_vm ... ok
+test vm_inventory_test::tenant_repo_tier_transitions ... ok
+test version_test::version_falls_back_to_local_dev_when_env_vars_unset ... ok
+test vm_inventory_test::vm_inventory_create_and_get ... ok
+test vm_inventory_test::vm_inventory_find_by_hostname ... ok
+test vm_inventory_test::vm_inventory_new_vm_has_null_load_scraped_at ... ok
+test vm_inventory_test::vm_inventory_list_active_excludes_decommissioned ... ok
+test vm_inventory_test::vm_inventory_list_active_filters_by_region ... ok
+test vm_inventory_test::vm_inventory_set_status ... ok
+test vm_inventory_test::vm_inventory_update_load ... ok
+test version_test::version_returns_all_four_provenance_fields ... ok
+test webhook_alert_test::deprecated_subscription_events_do_not_emit_alerts ... ok
+test signup_abuse_test::skip_email_verification_is_ignored_outside_local_environment ... ok
+test webhook_alert_test::payment_action_required_sends_warning_alert_without_suspending_customer ... ok
+test webhook_alert_test::payment_failed_critical_alert_failure_is_swallowed ... ok
+test webhook_alert_test::payment_failed_exhausted_retries_sends_critical_alert ... ok
+test webhook_alert_test::payment_failed_for_unknown_invoice_is_ignored ... ok
+test tenants_test::create_tenant_succeeds_when_invoice_repo_read_fails ... ok
+test tenants_test::create_tenant_returns_201 ... ok
+test webhook_alert_test::payment_failed_warning_alert_failure_is_swallowed ... ok
+test webhook_alert_test::payment_failed_with_retries_keeps_invoice_finalized_and_customer_active ... ok
+test webhook_alert_test::payment_recovery_succeeds_even_when_reactivate_fails ... ok
+test webhook_alert_test::payment_failed_with_retries_sends_warning_alert ... ok
+test webhook_alert_test::payment_succeeded_after_failed_invoice_sends_recovery_info_alert ... ok
+test tenants_test::delete_tenant_already_deleted_returns_404 ... ok
+test webhook_alert_test::payment_succeeded_recovery_alert_failure_is_swallowed ... ok
+test tenants_test::delete_tenant_returns_204 ... ok
+test webhook_alert_test::payment_succeeded_replay_is_idempotent ... ok
+test webhook_alert_test::payment_succeeded_without_prior_failure_does_not_send_recovery_alert ... ok
+test webhook_dunning_email_test::dunning_email_delivery_failure_is_swallowed ... ok
+test webhook_dunning_email_test::payment_failed_exhausted_retries_sends_exhausted_dunning_email ... ok
+test webhook_dunning_email_test::payment_failed_with_retries_sends_retry_scheduled_dunning_email ... ok
+test webhook_dunning_email_test::payment_failed_without_next_payment_attempt_does_not_suspend_customer_or_fail_invoice ... ok
+test webhook_dunning_email_test::payment_succeeded_after_failed_invoice_sends_recovery_dunning_email ... ok
+test webhook_dunning_email_test::payment_succeeded_skips_recovery_email_when_reactivate_errors ... ok
+test webhook_dunning_email_test::payment_succeeded_skips_recovery_email_when_reactivate_returns_false ... ok
+test webhook_dunning_email_test::dunning_emails_disabled_suppresses_delivery_but_keeps_alerting_and_state_transitions ... ok
+test webhook_dunning_email_test::payment_succeeded_without_prior_failure_does_not_send_recovery_dunning_email ... ok
+test webhook_lag_publisher_test::webhook_lag_publisher_sends_webhook_backlog_metric ... ok
+test tenants_test::update_tenant_billing_plan_returns_200 ... ok
+test tenants_test::update_tenant_billing_plan_with_name_returns_200 ... ok
+test tenants_test::update_tenant_returns_200 ... ok
+test webhook_alert_test::dispute_created_emits_single_alert_with_invoice_metadata_when_resolved ... ok
+test webhook_alert_test::dispute_funds_withdrawn_unresolved_mapping_emits_single_alert_with_lookup_metadata ... ok
+test signup_abuse_test::skip_email_verification_uses_shared_post_verification_stripe_path_exactly_once ... ok
+test webhook_alert_test::dispute_funds_reinstated_and_closed_do_not_emit_alerts ... ok
+test signup_abuse_test::stripe_customer_is_created_only_after_email_verification ... ok
+test scheduler_test::migration_failure_preserves_overload_timer ... ok
+test scheduler_test::overload_clears_timer_when_load_drops ... ok
+test scheduler_test::overload_duration_gates_migration ... ok
+test scheduler_test::underload_drain_failure_preserves_timer ... ok
+
+test result: ok. 1079 passed; 0 failed; 8 ignored; 0 measured; 0 filtered out; finished in 2.10s
+

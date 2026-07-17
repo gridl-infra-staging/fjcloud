@@ -1,0 +1,11 @@
+Running 1 gate(s): validate-bootstrap-parser
+Mode: fast
+
+
+=== local-ci summary (wall 0s) ===
+GATE                STATUS   SECS  LOG
+----                ------   ----  ---
+validate-bootstrap-parser  PASS        0  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/validate-bootstrap-parser.log
+
+Totals: pass=1 fail=0 skip=0
+Result: PASS

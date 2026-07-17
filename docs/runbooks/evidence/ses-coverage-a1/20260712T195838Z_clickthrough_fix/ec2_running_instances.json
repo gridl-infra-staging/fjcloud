@@ -1,0 +1,9 @@
+[
+    {
+        "InstanceId": "i-0fbc6d6bbbc8bdc6d",
+        "PrivateIpAddress": "10.0.10.178",
+        "State": "running",
+        "LaunchTime": "2026-05-21T01:51:19+00:00",
+        "Name": "fjcloud-api-staging"
+    }
+]

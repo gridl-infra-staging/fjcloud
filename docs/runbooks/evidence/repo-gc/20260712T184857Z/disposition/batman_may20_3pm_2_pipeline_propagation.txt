@@ -1,0 +1,14 @@
+# Disposition Receipt: batman/may20_3pm_2_pipeline_propagation
+
+Classification: approved freed local branch after approved worktree removal
+Evidence source: current read-only git refs at bundle creation.
+
+## rev-parse
+$ git rev-parse batman/may20_3pm_2_pipeline_propagation
+74bf84243e20091583262f966eed00e185340771
+
+## cherry
+$ git cherry -v main batman/may20_3pm_2_pipeline_propagation | tail -20
+
+## diff main...
+$ git diff main...batman/may20_3pm_2_pipeline_propagation --stat | tail -20

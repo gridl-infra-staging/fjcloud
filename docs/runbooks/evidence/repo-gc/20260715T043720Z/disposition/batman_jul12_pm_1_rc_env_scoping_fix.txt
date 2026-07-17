@@ -1,0 +1,11 @@
+# Disposition: batman/jul12_pm_1_rc_env_scoping_fix
+
+Classification: excluded-dirty-worktree
+Worktree: `<parallel-root>/fjcloud_dev/jul12_pm_1_rc_env_scoping_fix/fjcloud_dev`
+Tip: a34ef9b6c63ea7ed29a66e2ea2eee7ed2c6553c1
+Ancestor exit: 0
+Bounded cherry: no output
+Three-dot diff stat: no output
+Porcelain rows: 20
+
+The worktree contains tracked modifications, including `chats/icg/_followups.md` and script/generated-file changes. It is not approved for removal.

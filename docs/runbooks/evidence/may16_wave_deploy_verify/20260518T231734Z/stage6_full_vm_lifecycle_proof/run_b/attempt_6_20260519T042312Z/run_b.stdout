@@ -1,0 +1,11 @@
+[full-vm-lifecycle] mode=run-b
+[full-vm-lifecycle] signup succeeded for canary+canary2026051904231227652@test.flapjack.foo (customer=2791a852-26ed-4c93-bc70-8b126bcc2ecc)
+[full-vm-lifecycle] email verification succeeded for canary+canary2026051904231227652@test.flapjack.foo
+[full-vm-lifecycle] index created (lifecycle-canary2026051904231227652)
+[full-vm-lifecycle] index write succeeded (lifecycle-canary2026051904231227652)
+[full-vm-lifecycle] index search succeeded (lifecycle-canary2026051904231227652)
+[full-vm-lifecycle] step 'probe_payment_method' failed: attach payment method failed with HTTP 400
+[full-vm-lifecycle] index deleted (lifecycle-canary2026051904231227652)
+[full-vm-lifecycle] account delete attempted for customer 2791a852-26ed-4c93-bc70-8b126bcc2ecc
+[full-vm-lifecycle] admin cleanup completed for tenant 2791a852-26ed-4c93-bc70-8b126bcc2ecc
+[full-vm-lifecycle] evidence: post-cleanup artifacts written to docs/runbooks/evidence/may16_wave_deploy_verify/20260518T231734Z/stage6_full_vm_lifecycle_proof/run_b

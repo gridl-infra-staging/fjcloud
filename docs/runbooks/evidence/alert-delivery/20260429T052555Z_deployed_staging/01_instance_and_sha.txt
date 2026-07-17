@@ -1,0 +1,99 @@
+$ aws sts get-caller-identity --output json
+{
+    "UserId": "<redacted-aws-user-id>",
+    "Account": "<redacted-aws-account-id>",
+    "Arn": "<redacted-aws-arn>"
+}
+
+$ aws ec2 describe-instances --filters Name=tag:Name,Values=fjcloud-api-staging Name=instance-state-name,Values=running --query "Reservations[].Instances[].InstanceId" --output text
+<redacted-instance-id>
+
+$ aws ssm get-parameter --name /fjcloud/staging/last_deploy_sha --query "Parameter.Value" --output text
+62fabe596675b28023c8d374125cd4c758110f36
+
+$ git rev-parse HEAD
+f87fc8b8efb0a900575a54ed35a8c4b488b00ecb
+
+# Refresh for clean-review current-SHA proof
+# utc_now=2026-04-29T05:33:20Z
+
+$ aws ec2 describe-instances --filters Name=tag:Name,Values=fjcloud-api-staging Name=instance-state-name,Values=running --query "Reservations[].Instances[].InstanceId" --output text
+<redacted-instance-id>
+
+$ aws ssm get-parameter --name /fjcloud/staging/last_deploy_sha --query "Parameter.Value" --output text
+62fabe596675b28023c8d374125cd4c758110f36
+
+$ git rev-parse HEAD
+5ee65cd841f1744f94d8bb67f07819679a4f57c7
+
+# Refresh for clean-review current-SHA proof
+# utc_now=2026-04-29T05:36:37Z
+
+$ aws ec2 describe-instances --filters Name=tag:Name,Values=fjcloud-api-staging Name=instance-state-name,Values=running --query "Reservations[].Instances[].InstanceId" --output text
+<redacted-instance-id>
+
+$ aws ssm get-parameter --name /fjcloud/staging/last_deploy_sha --query "Parameter.Value" --output text
+62fabe596675b28023c8d374125cd4c758110f36
+
+$ git rev-parse HEAD
+17729abd06711c9c8080d2b3319b31e065145d31
+
+# Refresh for clean-review current-SHA proof
+# utc_now=2026-04-29T05:39:44Z
+
+$ aws ec2 describe-instances --filters Name=tag:Name,Values=fjcloud-api-staging Name=instance-state-name,Values=running --query "Reservations[].Instances[].InstanceId" --output text
+<redacted-instance-id>
+
+$ aws ssm get-parameter --name /fjcloud/staging/last_deploy_sha --query "Parameter.Value" --output text
+62fabe596675b28023c8d374125cd4c758110f36
+
+$ git rev-parse HEAD
+afd6e9a08a260627445be016384f95aab5c1e639
+
+# Refresh for clean-review current-SHA proof
+# utc_now=2026-04-29T05:42:07Z
+
+$ aws ec2 describe-instances --filters Name=tag:Name,Values=fjcloud-api-staging Name=instance-state-name,Values=running --query "Reservations[].Instances[].InstanceId" --output text
+<redacted-instance-id>
+
+$ aws ssm get-parameter --name /fjcloud/staging/last_deploy_sha --query "Parameter.Value" --output text
+62fabe596675b28023c8d374125cd4c758110f36
+
+$ git rev-parse HEAD
+7f7e146415f3c6dc3b315d1d9f31455a26f026df
+
+# Refresh for clean-review current-SHA proof
+# utc_now=2026-04-29T05:43:30Z
+
+$ aws ec2 describe-instances --filters Name=tag:Name,Values=fjcloud-api-staging Name=instance-state-name,Values=running --query "Reservations[].Instances[].InstanceId" --output text
+<redacted-instance-id>
+
+$ aws ssm get-parameter --name /fjcloud/staging/last_deploy_sha --query "Parameter.Value" --output text
+62fabe596675b28023c8d374125cd4c758110f36
+
+$ git rev-parse HEAD
+87ad71936ab1172889c95822733bbdbf98a066af
+
+# Refresh for clean-review current-SHA proof
+# utc_now=2026-04-29T05:46:32Z
+
+$ aws ec2 describe-instances --filters Name=tag:Name,Values=fjcloud-api-staging Name=instance-state-name,Values=running --query "Reservations[].Instances[].InstanceId" --output text
+<redacted-instance-id>
+
+$ aws ssm get-parameter --name /fjcloud/staging/last_deploy_sha --query "Parameter.Value" --output text
+62fabe596675b28023c8d374125cd4c758110f36
+
+$ git rev-parse HEAD
+68b39e97788fee8b7b0628f4af32d58e15e2e9b5
+
+# Refresh for clean-review current-SHA proof
+# utc_now=2026-04-29T05:48:30Z
+
+$ aws ec2 describe-instances --filters Name=tag:Name,Values=fjcloud-api-staging Name=instance-state-name,Values=running --query "Reservations[].Instances[].InstanceId" --output text
+<redacted-instance-id>
+
+$ aws ssm get-parameter --name /fjcloud/staging/last_deploy_sha --query "Parameter.Value" --output text
+62fabe596675b28023c8d374125cd4c758110f36
+
+$ git rev-parse HEAD
+81ca4556806464b7afd22aad06eee1349c7c2442

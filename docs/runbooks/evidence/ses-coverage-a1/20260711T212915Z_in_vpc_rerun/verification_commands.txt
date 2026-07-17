@@ -1,0 +1,14 @@
+# Stage 1 command transcript for docs/runbooks/evidence/ses-coverage-a1/20260711T212915Z_in_vpc_rerun
+# Derived from docs/runbooks/evidence/ses-coverage-a1/20260609T174733Z_in_vpc_rerun/verification_commands.txt with the Stage 1 same-SHA guard and clean credential wrapper.
+# Before every live probe or AWS/SSM command this runner executes: unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN; set -a; source /Users/stuart/repos/gridl-infra-dev/fjcloud_dev/.secret/.env.secret; set +a.
+# Secret values are intentionally not committed.
+
+RUN_UTC="20260711T212915Z"
+BUNDLE="docs/runbooks/evidence/ses-coverage-a1/20260711T212915Z_in_vpc_rerun"
+SECRET_SOURCE="/Users/stuart/repos/gridl-infra-dev/fjcloud_dev/.secret/.env.secret"
+BILLING_MONTH="2026-06"
+REFERENCE="docs/runbooks/evidence/ses-coverage-a1/20260609T174733Z_in_vpc_rerun"
+
+# Starting deployed SHA evidence, remote .runtime/host.env materialization, scripts/launch/ssm_exec_staging.sh execution path,
+# six canonical probe rows, sidecar generation through stage4_integrity.py::detect_from_log, post-run same-SHA checks,
+# and integrity validation were executed by /tmp/run_stage1_invpc_bundles.sh in this session.

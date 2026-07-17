@@ -1,0 +1,70 @@
+{
+  "schema_version": "1",
+  "source_sha": "44e00ddef877e8a31c08560854dae4219b542357",
+  "billing_month": "2026-06",
+  "tree_digest": "44e00ddef877e8a31c08560854dae4219b542357",
+  "archive_digest": "556649c4dcf73aec87cfdfe11b8c52c552548f181c2fd16961a8c7ed2e607a73",
+  "bundle_path": "/tmp/fjcloud_wave3_44e00ddef877e8a31c08560854dae4219b542357/docs/runbooks/evidence/ses-coverage-a1/20260715T203317Z_jul13_iam_in_vpc_rerun",
+  "instance_id": "i-0fbc6d6bbbc8bdc6d",
+  "n": 6,
+  "all_green": false,
+  "probes": [
+    {
+      "probe_id": "verify_email_clickthrough",
+      "pass": true,
+      "rc": 0,
+      "log_path": "/tmp/fjcloud_wave3_44e00ddef877e8a31c08560854dae4219b542357/docs/runbooks/evidence/ses-coverage-a1/20260715T203317Z_jul13_iam_in_vpc_rerun/verify_email_clickthrough.log",
+      "detect_kind": "terminus_email_verified"
+    },
+    {
+      "probe_id": "password_reset_clickthrough",
+      "pass": true,
+      "rc": 0,
+      "log_path": "/tmp/fjcloud_wave3_44e00ddef877e8a31c08560854dae4219b542357/docs/runbooks/evidence/ses-coverage-a1/20260715T203317Z_jul13_iam_in_vpc_rerun/password_reset_clickthrough.log",
+      "detect_kind": "terminus_password_reset_login"
+    },
+    {
+      "probe_id": "dunning_email_inbox",
+      "pass": false,
+      "rc": 1,
+      "log_path": "/tmp/fjcloud_wave3_44e00ddef877e8a31c08560854dae4219b542357/docs/runbooks/evidence/ses-coverage-a1/20260715T203317Z_jul13_iam_in_vpc_rerun/dunning_email_inbox.log",
+      "detect_kind": "terminus_and_result_json",
+      "classification": "rehearsal_failed",
+      "classification_category": "setup_infra"
+    },
+    {
+      "probe_id": "ses_bounce",
+      "pass": false,
+      "rc": 1,
+      "log_path": "/tmp/fjcloud_wave3_44e00ddef877e8a31c08560854dae4219b542357/docs/runbooks/evidence/ses-coverage-a1/20260715T203317Z_jul13_iam_in_vpc_rerun/ses_bounce.log",
+      "detect_kind": "final_json_passed_true",
+      "classification": "unclassified",
+      "classification_category": "investigate"
+    },
+    {
+      "probe_id": "ses_complaint",
+      "pass": false,
+      "rc": 1,
+      "log_path": "/tmp/fjcloud_wave3_44e00ddef877e8a31c08560854dae4219b542357/docs/runbooks/evidence/ses-coverage-a1/20260715T203317Z_jul13_iam_in_vpc_rerun/ses_complaint.log",
+      "detect_kind": "final_json_passed_true",
+      "classification": "unclassified",
+      "classification_category": "investigate"
+    },
+    {
+      "probe_id": "staging_dunning_delivery",
+      "pass": false,
+      "rc": 1,
+      "log_path": "/tmp/fjcloud_wave3_44e00ddef877e8a31c08560854dae4219b542357/docs/runbooks/evidence/ses-coverage-a1/20260715T203317Z_jul13_iam_in_vpc_rerun/staging_dunning_delivery.log",
+      "detect_kind": "final_json_result_passed",
+      "classification": "rehearsal_failed",
+      "classification_category": "setup_infra"
+    }
+  ],
+  "integrity_status": "validated",
+  "hygiene_status": "clean",
+  "cleanup_status": "clean",
+  "integrity_library_source": "scripts/lib/ses_coverage_a1_integrity.py",
+  "owner_digests": {
+    "integrity_library": "a4cb96609f047232158386af24d84c7d1bc980b5ec6f236464956eed72d66e51"
+  }
+}

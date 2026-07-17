@@ -1,0 +1,6 @@
+remedy=2
+status=not_executable
+CLOUDFLARE_API_TOKEN=absent
+CLOUDFLARE_ACCOUNT_ID=absent
+owner=.github/workflows/ci.yml::deploy-staging Deploy web to Cloudflare Pages
+decision=did_not_run_wrangler_or_invent_second_deployer

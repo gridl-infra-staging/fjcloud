@@ -1,0 +1,28 @@
+{
+  "deployment_configs": {
+    "preview": {
+      "env_vars": {
+        "ADMIN_KEY": {
+          "type": "secret_text",
+          "value": "[REDACTED_FROM_SSM]"
+        },
+        "API_BASE_URL": {
+          "type": "plain_text",
+          "value": "https://api.staging.flapjack.foo"
+        },
+        "ENVIRONMENT": {
+          "type": "plain_text",
+          "value": "staging"
+        },
+        "JWT_SECRET": {
+          "type": "secret_text",
+          "value": "[REDACTED_FROM_SSM]"
+        },
+        "WEB_DEV_LOG_RAW_ERRORS": {
+          "type": "plain_text",
+          "value": "1"
+        }
+      }
+    }
+  }
+}

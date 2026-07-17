@@ -1,0 +1,7 @@
+
+Running 1 test using 1 worker
+
+  ✓  1 [chromium] › tests/e2e-ui/full/billing_portal_payment_method_update.spec.ts:38:2 › Billing portal payment-method update handoff › manage billing hands off to portal URL and resolves return path to billing (25.3s)
+
+  1 passed (26.4s)
+exit=0

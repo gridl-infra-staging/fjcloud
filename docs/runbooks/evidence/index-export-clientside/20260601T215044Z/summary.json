@@ -1,0 +1,11 @@
+{
+  "run_utc": "20260601T215044Z",
+  "playwright_command": "cd web && npx playwright test tests/e2e-ui/full/overview_enrichment.spec.ts --project=chromium",
+  "playwright_exit_status": 0,
+  "export_filename_verdict": true,
+  "export_payload_verdict": true,
+  "import_banner_verdict": true,
+  "overall_verdict": "pass",
+  "playwright_log_path": "playwright.log",
+  "playwright_verdict_path": "playwright_verdict.json"
+}

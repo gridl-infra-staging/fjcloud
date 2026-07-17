@@ -1,0 +1,25 @@
+launch_started_utc=2026-06-04T14:05:37Z
+repo_root=fjcloud_dev
+bundle=docs/runbooks/evidence/invite-ready-rc/20260604T140537Z
+credential_env_file=/Users/stuart/repos/gridl-infra-dev/fjcloud_dev/.secret/.env.secret
+full_backend_validation_log=docs/runbooks/evidence/invite-ready-rc/20260604T140537Z/full_backend_validation.log
+rc_exit_code_file=docs/runbooks/evidence/invite-ready-rc/20260604T140537Z/rc_exit_code.txt
+command_block_begin
+set -a
+source /Users/stuart/repos/gridl-infra-dev/fjcloud_dev/.secret/.env.secret
+set +a
+bash scripts/launch/run_full_backend_validation.sh --paid-beta-rc --artifact-dir=docs/runbooks/evidence/invite-ready-rc/20260604T140537Z --credential-env-file=/Users/stuart/repos/gridl-infra-dev/fjcloud_dev/.secret/.env.secret > docs/runbooks/evidence/invite-ready-rc/20260604T140537Z/full_backend_validation.log 2>&1
+printf '%s\n' "$?" > docs/runbooks/evidence/invite-ready-rc/20260604T140537Z/rc_exit_code.txt
+command_block_end
+background_pid=62174
+source_rc=0
+monitor_utc=2026-06-04T14:05:42Z log_bytes=0
+monitor_utc=2026-06-04T14:05:47Z log_bytes=0
+monitor_utc=2026-06-04T14:05:52Z log_bytes=     137
+monitor_utc=2026-06-04T14:05:57Z log_bytes=    1138
+monitor_utc=2026-06-04T14:06:02Z log_bytes=    1564
+monitor_utc=2026-06-04T14:06:07Z log_bytes=    1564
+harness_exit_code=1
+harness_finished_utc=2026-06-04T14:06:11Z
+monitor_utc=2026-06-04T14:06:12Z log_bytes=    4108
+parent_wait_finished_utc=2026-06-04T14:06:13Z

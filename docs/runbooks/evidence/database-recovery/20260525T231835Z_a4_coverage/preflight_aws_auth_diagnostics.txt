@@ -1,0 +1,13 @@
+== aws env vars (redacted) ==
+AWS_DEFAULT_REGION=[REDACTED]
+AWS_SECRET_ACCESS_KEY=[REDACTED]
+AWS_ACCESS_KEY_ID=[REDACTED]
+== sts without sourcing secret ==
+
+aws: [ERROR]: An error occurred (InvalidClientTokenId) when calling the GetCallerIdentity operation: The security token included in the request is invalid.
+== sts with sourced .secret/.env.secret ==
+{
+    "UserId": "AIDATDTCLTRFKVSWMJCGQ",
+    "Account": "213880904778",
+    "Arn": "arn:aws:iam::213880904778:user/stuart-cli"
+}

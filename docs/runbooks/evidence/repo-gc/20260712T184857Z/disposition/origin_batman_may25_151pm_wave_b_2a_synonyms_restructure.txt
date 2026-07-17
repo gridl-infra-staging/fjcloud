@@ -1,0 +1,54 @@
+# Disposition Receipt: origin/batman/may25_151pm_wave_b_2a_synonyms_restructure
+
+Classification: approved remote branch deletion; manifest stores short branch name
+Evidence source: current read-only git refs at bundle creation.
+
+## rev-parse
+$ git rev-parse origin/batman/may25_151pm_wave_b_2a_synonyms_restructure
+57790a7b514eba09aeee3f5c1591dab9801f9b73
+
+## cherry
+$ git cherry -v main origin/batman/may25_151pm_wave_b_2a_synonyms_restructure | tail -20
+- 63523903a17f25ecb824842aff7b976ba484823c matt: stage 2 completion
+- c317ecd99e00e0e70a5bc9e9c8c2f95da293be74 matt: stage 2 review
++ ef333fded1cf49ccf106938ebcaa45426ecd7d05 scrai: 16 files documented, 7 artifacts generated, 2 guidance files assembled, 3 state files tracked
++ b9ff2eb5ae81a04f6fd0417446b8e60580ec672f matt: stage 3 build session 1
++ d601591f14ce08672ceb48ca1bde56e2a437bf16 Fix clear-synonyms dashboard log routing
+- 4804577c2dc69094961ee1d917b5352f39e93b25 matt: stage 3 completion
+- 3b217cbb610a3b18763513b2c413e6abaa33c8f5 scrai: 15 files documented, 2 guidance files assembled, 3 state files tracked
++ 1f109876bcd23bc7aa179aebb619206b2a12dc4c matt: stage 4 build session 1
+- 85e28c36d12126264fed035ca7f8b1ff47538c32 matt: stage 4 completion
+- d7fa3f2302c0072fa8a1706e458315cd7ba09b59 scrai: 14 files documented, 5 artifacts generated, 2 guidance files assembled, 3 state files tracked
++ d52f9bbcf573ea0cff759ba18cd35285ec5d6821 matt: stage 5 build session 1
+- 6b4381406c6b10fa4dc42442efcd75dfb6c7bb8b Stabilize synonyms readiness wait in E2E proof
+- e8ce8f7c957d827c165c39ed18bf66b27c4cbff8 Record Stage 5 validation cache results
+- c2ead187e891270ccfcda9f526a59ff55b642552 Update Stage 5 synonyms validation cache
+- 803d7a7c138814d7790c91dd5deb54f29a218bcc Revert Stage 5 lockfile drift
+- 9c1cd0a2856f28262955e092e71a780325589f0a Harden Stage 5 synonyms proof assertions
++ 4f6b534c714eb6f75a2e4eaf09013d0f0068b97d Harden Stage 5 synonym proof guard and lockfile
++ 7f33014d9a8fd7617b33ede6c389c7d76d3f7805 Fix deferred-proof guard ordering and add regression test
+- fd3d5d8435519b54708500341490cd3268a28acb Harden stale-prefix synonyms absence regression proof
+- 57790a7b514eba09aeee3f5c1591dab9801f9b73 matt: terminal progress annotation
+
+## diff main...
+$ git diff main...origin/batman/may25_151pm_wave_b_2a_synonyms_restructure --stat | tail -20
+ web/src/routes/DIRMAP.md                           |   2 +-
+ web/src/routes/console/DIRMAP.md                   |   2 +-
+ web/src/routes/console/indexes/+page.server.ts     |   5 +-
+ web/src/routes/console/indexes/DIRMAP.md           |   4 +-
+ .../routes/console/indexes/[name]/+page.server.ts  |  61 +--
+ web/src/routes/console/indexes/[name]/+page.svelte |  38 +-
+ web/src/routes/console/indexes/[name]/DIRMAP.md    |   3 +-
+ .../[name]/detail-search-preview.browser.test.ts   |   4 -
+ .../indexes/[name]/detail.server.actions.test.ts   |  68 +++
+ .../indexes/[name]/detail.server.load.test.ts      |  22 +-
+ .../routes/console/indexes/[name]/detail.test.ts   |  10 +-
+ .../indexes/[name]/synonyms-management.server.ts   |  91 +++
+ .../console/indexes/[name]/tabs/SynonymsTab.svelte | 608 ++++++++++++++++-----
+ .../indexes/[name]/tabs/SynonymsTab.test.ts        | 355 +++++-------
+ web/src/tests/search-preview-helpers.test.ts       |   4 +-
+ web/tests/e2e-ui/full/index-detail.spec.ts         | 230 +++++++-
+ web/tests/e2e-ui/full/indexes.spec.ts              |  14 +-
+ web/tests/fixtures/fixtures.ts                     | 258 ++++++++-
+ web/tests/fixtures/search-preview-helpers.ts       |   2 +
+ 64 files changed, 1816 insertions(+), 500 deletions(-)

@@ -1,0 +1,6 @@
+remedy=3
+start_utc=2026-07-09T21:50:55Z
+purge_http=200
+end_utc=2026-07-09T21:53:57Z
+elapsed_seconds=182
+poll_pass=0

@@ -1,0 +1,14 @@
+# Disposition Receipt: backup/jun09_am_l1_rc_harness_pre_publish
+
+Classification: discovered merged backup ref; not approved because ROADMAP.md scoped local backup deletion to backup/stage1_* refs
+Evidence source: current read-only git refs at bundle creation.
+
+## rev-parse
+$ git rev-parse backup/jun09_am_l1_rc_harness_pre_publish
+3ebeec9f8d612afa6caa829edcb6d586c3aea6f2
+
+## cherry
+$ git cherry -v main backup/jun09_am_l1_rc_harness_pre_publish | tail -20
+
+## diff main...
+$ git diff main...backup/jun09_am_l1_rc_harness_pre_publish --stat | tail -20

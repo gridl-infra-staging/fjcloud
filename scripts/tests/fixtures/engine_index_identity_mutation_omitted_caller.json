@@ -1,0 +1,4 @@
+{
+  "mutation": "omitted_caller",
+  "expected_failure": "observed caller IDs do not match inventory"
+}

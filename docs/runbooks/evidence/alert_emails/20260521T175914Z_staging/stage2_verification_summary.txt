@@ -1,0 +1,17 @@
+topic_arn=arn:aws:sns:us-east-1:213880904778:fjcloud-alerts-staging
+attempts=12
+bounded_retry_command=aws sns list-subscriptions-by-topic --topic-arn arn:aws:sns:us-east-1:213880904778:fjcloud-alerts-staging --output json
+poll=1 set_equality=PASS pending=PASS pending_count=0
+poll=2 set_equality=PASS pending=PASS pending_count=0
+poll=3 set_equality=PASS pending=PASS pending_count=0
+poll=4 set_equality=PASS pending=PASS pending_count=0
+poll=5 set_equality=PASS pending=PASS pending_count=0
+poll=6 set_equality=PASS pending=PASS pending_count=0
+poll=7 set_equality=PASS pending=PASS pending_count=0
+poll=8 set_equality=PASS pending=PASS pending_count=0
+poll=9 set_equality=PASS pending=PASS pending_count=0
+poll=10 set_equality=PASS pending=PASS pending_count=0
+poll=11 set_equality=PASS pending=PASS pending_count=0
+poll=12 set_equality=PASS pending=PASS pending_count=0
+set_equality_gate_result=PASS
+pending_confirmation_gate_result=PASS

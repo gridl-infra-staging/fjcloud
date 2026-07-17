@@ -1,0 +1,31 @@
+                              Table "public.customer_deployments"
+        Column        |           Type           | Collation | Nullable |       Default        
+----------------------+--------------------------+-----------+----------+----------------------
+ id                   | uuid                     |           | not null | gen_random_uuid()
+ customer_id          | uuid                     |           | not null | 
+ node_id              | text                     |           | not null | 
+ region               | text                     |           | not null | 
+ vm_type              | text                     |           | not null | 
+ vm_provider          | text                     |           | not null | 
+ ip_address           | text                     |           |          | 
+ status               | text                     |           | not null | 'provisioning'::text
+ created_at           | timestamp with time zone |           | not null | now()
+ terminated_at        | timestamp with time zone |           |          | 
+ provider_vm_id       | text                     |           |          | 
+ hostname             | text                     |           |          | 
+ flapjack_url         | text                     |           |          | 
+ last_health_check_at | timestamp with time zone |           |          | 
+ health_status        | text                     |           | not null | 'unknown'::text
+Indexes:
+    "customer_deployments_pkey" PRIMARY KEY, btree (id)
+    "customer_deployments_node_id_key" UNIQUE CONSTRAINT, btree (node_id)
+    "idx_deployments_active" btree (status) WHERE status <> 'terminated'::text
+    "idx_deployments_customer" btree (customer_id)
+    "idx_deployments_status" btree (status)
+Check constraints:
+    "customer_deployments_status_check" CHECK (status = ANY (ARRAY['provisioning'::text, 'running'::text, 'stopped'::text, 'terminated'::text, 'failed'::text]))
+    "customer_deployments_vm_provider_check" CHECK (vm_provider = ANY (ARRAY['aws'::text, 'hetzner'::text, 'gcp'::text, 'oci'::text, 'bare_metal'::text, 'local'::text]))
+Foreign-key constraints:
+    "customer_deployments_customer_id_fkey" FOREIGN KEY (customer_id) REFERENCES customers(id)
+Referenced by:
+    TABLE "customer_tenants" CONSTRAINT "customer_tenants_deployment_id_fkey" FOREIGN KEY (deployment_id) REFERENCES customer_deployments(id)

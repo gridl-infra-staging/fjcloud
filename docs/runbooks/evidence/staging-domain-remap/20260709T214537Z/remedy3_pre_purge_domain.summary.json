@@ -1,0 +1,8 @@
+{
+  "name": "cloud.staging.flapjack.foo",
+  "status": "active",
+  "success": true,
+  "validation_status": "active",
+  "verification_status": "active",
+  "zone_tag": "fafbf95a076d7e8ee984dbd18a62c933"
+}

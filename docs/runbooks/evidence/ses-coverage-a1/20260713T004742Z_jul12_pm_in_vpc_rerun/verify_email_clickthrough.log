@@ -1,0 +1,2 @@
+probe_email=verifyprobe2026071300593010673@test.flapjack.foo register_http=201 verify_page_http=200 customer_id=6da747a6-dc6a-4448-adea-20ffb2145ad8 inbox_key=e2e-emails/3341k5hv69qodsg0rgn5016b9el0jnn9f4gb5301 verify_db_attempts=1
+TERMINUS: email_verified=true

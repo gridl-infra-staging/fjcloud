@@ -1,0 +1,1 @@
+/var/lib/amazon/ssm/<redacted-instance-id>/document/orchestration/<redacted-command-id>/awsrunShellScript/0.awsrunShellScript/_script.sh: line 10: rg: command not found

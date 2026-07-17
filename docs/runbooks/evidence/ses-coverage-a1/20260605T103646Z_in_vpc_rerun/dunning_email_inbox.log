@@ -1,0 +1,3 @@
+validator_classification=dunning_delivery_verified artifact_dir=/tmp/fjcloud_staging_billing_rehearsal_20260605T104420Z_897031
+TERMINUS: body contains hosted invoice url transition=failed url=https://invoice.stripe.com/i/acct_1SyNWBGXI8zVz4UH/test_YWNjdF8xU3lOV0JHWEk4elZ6NFVILF9VZURnQjJOZXF3Um5obWFtdWJSZ1hZNlZnYjhiRWdCLDE3MTE5NzA2OA0200vUM7oUa0?s=ap
+{"result":"passed","classification":"dunning_delivery_verified","detail":"Dunning email body contains a Stripe hosted invoice URL."}

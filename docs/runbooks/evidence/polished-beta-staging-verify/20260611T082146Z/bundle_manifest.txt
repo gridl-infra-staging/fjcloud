@@ -1,0 +1,12 @@
+     664 docs/runbooks/evidence/polished-beta-staging-verify/20260611T082146Z/SUMMARY.md
+      41 docs/runbooks/evidence/polished-beta-staging-verify/20260611T082146Z/head_sha.txt
+     196 docs/runbooks/evidence/polished-beta-staging-verify/20260611T082146Z/secret_resolution.txt
+      59 docs/runbooks/evidence/polished-beta-staging-verify/20260611T082146Z/live_state_probe.log
+      33 docs/runbooks/evidence/polished-beta-staging-verify/20260611T082146Z/live_state_timestamp.txt
+    2847 docs/runbooks/evidence/polished-beta-staging-verify/20260611T082146Z/live_state_summary.md
+      77 docs/runbooks/evidence/polished-beta-staging-verify/20260611T082146Z/ssm_hydrate.log
+    1951 docs/runbooks/evidence/polished-beta-staging-verify/20260611T082146Z/preflight_verdict.txt
+      12 docs/runbooks/evidence/polished-beta-staging-verify/20260611T082146Z/parity_output.env
+     519 docs/runbooks/evidence/polished-beta-staging-verify/20260611T082146Z/parity_probe.log
+    1451 docs/runbooks/evidence/polished-beta-staging-verify/20260611T082146Z/parity_verdict.md
+    7850 total

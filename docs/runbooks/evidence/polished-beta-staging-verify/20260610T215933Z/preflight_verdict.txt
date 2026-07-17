@@ -1,0 +1,9 @@
+aws_sts=pass
+required_export_ADMIN_KEY=present
+required_export_FLAPJACK_URL=present
+required_export_STAGING_API_URL=present
+ssm_hydrate=pass
+parity=fail
+classification=infra_gap
+step=pages_parity
+status=fail

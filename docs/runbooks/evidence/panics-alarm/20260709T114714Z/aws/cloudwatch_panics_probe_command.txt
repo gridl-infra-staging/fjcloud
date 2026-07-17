@@ -1,0 +1,1 @@
+set -a; source /Users/stuart/repos/gridl-infra-dev/fjcloud_dev/.secret/.env.secret; set +a; aws cloudwatch describe-alarms --region us-east-1 --alarm-name-prefix "fjcloud-" --query 'MetricAlarms[?MetricName==`PanicsPerPeriod`].{Name:AlarmName,Metric:MetricName,Namespace:Namespace,Dimensions:Dimensions,State:StateValue,Updated:StateUpdatedTimestamp}' --output json

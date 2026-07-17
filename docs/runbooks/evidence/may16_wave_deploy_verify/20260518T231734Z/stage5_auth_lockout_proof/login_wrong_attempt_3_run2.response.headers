@@ -1,0 +1,13 @@
+HTTP/2 400 
+date: Tue, 19 May 2026 02:53:57 GMT
+content-type: application/json
+content-length: 37
+strict-transport-security: max-age=63072000; includeSubDomains
+x-content-type-options: nosniff
+x-frame-options: DENY
+x-xss-protection: 1; mode=block
+x-robots-tag: noindex, nofollow, noarchive, nosnippet, noimageindex, noai, noimageai
+vary: origin, access-control-request-method, access-control-request-headers
+access-control-allow-credentials: true
+x-request-id: ef277367-13d2-4325-b5f0-3571f8c47076
+

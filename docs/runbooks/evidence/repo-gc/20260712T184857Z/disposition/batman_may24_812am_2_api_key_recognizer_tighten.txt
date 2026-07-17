@@ -1,0 +1,14 @@
+# Disposition Receipt: batman/may24_812am_2_api_key_recognizer_tighten
+
+Classification: approved freed local branch after approved worktree removal
+Evidence source: current read-only git refs at bundle creation.
+
+## rev-parse
+$ git rev-parse batman/may24_812am_2_api_key_recognizer_tighten
+6df8ece795c269456e29624af3a1fe8da5d0538f
+
+## cherry
+$ git cherry -v main batman/may24_812am_2_api_key_recognizer_tighten | tail -20
+
+## diff main...
+$ git diff main...batman/may24_812am_2_api_key_recognizer_tighten --stat | tail -20

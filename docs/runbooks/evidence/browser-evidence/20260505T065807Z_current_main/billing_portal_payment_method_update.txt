@@ -1,0 +1,38 @@
+
+Running 1 test using 1 worker
+
+  ✘  1 [chromium] › tests/e2e-ui/full/billing_portal_payment_method_update.spec.ts:22:2 › Billing in-app payment-method updates › updates default payment method in-app and keeps billing page stable (9.1s)
+
+
+  1) [chromium] › tests/e2e-ui/full/billing_portal_payment_method_update.spec.ts:22:2 › Billing in-app payment-method updates › updates default payment method in-app and keeps billing page stable 
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: getByRole('heading', { name: 'Payment methods' })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 5000ms[22m
+    [2m  - waiting for getByRole('heading', { name: 'Payment methods' })[22m
+
+
+      30 | 		await page.goto('/dashboard/billing');
+      31 | 		await expect(page.getByRole('heading', { name: 'Billing' })).toBeVisible();
+    > 32 | 		await expect(page.getByRole('heading', { name: 'Payment methods' })).toBeVisible();
+         | 		                                                                     ^
+      33 | 		await expect(page.getByRole('button', { name: 'Manage billing' })).toHaveCount(0);
+      34 |
+      35 | 		if (arrangedCustomer.stripeCustomerId.startsWith('cus_local_')) {
+        at web/tests/e2e-ui/full/billing_portal_payment_method_update.spec.ts:32:72
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/e2e-ui-full-billing_portal-8de8c-d-keeps-billing-page-stable-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/e2e-ui-full-billing_portal-8de8c-d-keeps-billing-page-stable-chromium/error-context.md
+
+  1 failed
+    [chromium] › tests/e2e-ui/full/billing_portal_payment_method_update.spec.ts:22:2 › Billing in-app payment-method updates › updates default payment method in-app and keeps billing page stable 
+exit=1

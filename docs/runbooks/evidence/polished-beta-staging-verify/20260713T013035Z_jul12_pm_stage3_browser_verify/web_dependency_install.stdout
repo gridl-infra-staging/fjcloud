@@ -1,0 +1,54 @@
+Lockfile is up to date, resolution step is skipped
+Progress: resolved 1, reused 0, downloaded 0, added 0
+Packages: +485
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+Progress: resolved 485, reused 485, downloaded 0, added 356
+Progress: resolved 485, reused 485, downloaded 0, added 484
+Progress: resolved 485, reused 485, downloaded 0, added 485, done
+.../sharp@0.34.5/node_modules/sharp install$ node install/check.js || npm run build
+.../sharp@0.34.5/node_modules/sharp install: Done
+
+dependencies:
++ @stripe/stripe-js 8.11.0
++ @tailwindcss/vite 4.3.0
++ algoliasearch 5.52.1
++ d3-array 3.2.4
++ d3-scale 4.0.2
++ dompurify 3.4.5
++ instantsearch.js 4.97.0
++ layerchart 1.0.13
++ svelte-sonner 1.1.1
++ tailwindcss 4.3.0
+
+devDependencies:
++ @eslint/compat 2.1.0
++ @eslint/js 9.39.4
++ @playwright/test 1.60.0
++ @sveltejs/adapter-auto 7.0.1
++ @sveltejs/adapter-cloudflare 7.2.8
++ @sveltejs/kit 2.60.1
++ @sveltejs/vite-plugin-svelte 6.2.4
++ @testing-library/dom 10.4.1
++ @testing-library/jest-dom 6.9.1
++ @testing-library/svelte 5.3.1
++ @types/d3-scale 4.0.9
++ @types/node 24.12.4
++ devalue 5.8.1
++ eslint 9.39.4
++ eslint-config-prettier 10.1.8
++ eslint-plugin-playwright 2.10.2
++ eslint-plugin-svelte 3.17.1
++ globals 17.6.0
++ jsdom 28.1.0
++ prettier 3.8.3
++ prettier-plugin-svelte 3.5.2
++ svelte 5.55.7
++ svelte-check 4.4.8
++ typescript 5.9.3
++ typescript-eslint 8.59.3
++ vite 7.3.3
++ vitest 4.1.6
+
+. prepare$ svelte-kit sync || echo ''
+. prepare: Done
+Done in 6.3s using pnpm v11.1.2

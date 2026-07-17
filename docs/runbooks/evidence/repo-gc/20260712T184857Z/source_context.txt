@@ -1,0 +1,218 @@
+## ROADMAP.md matched owner lines
+65:| P2       | Repo GC completion — worktree and remote-branch manifest | The 2026-07-12 GC executed exactly its approved manifest (31/31 local branches deleted; `docs/runbooks/evidence/repo-gc/20260712T052116Z/`) but approved no worktrees: 89 stale worktrees under `parallel_development/fjcloud_dev/` remain registered, plus 3 local `backup/stage1_*` refs and 16 unmerged `origin/*` branches. All were re-audited 2026-07-12 with zero unlanded product code found (the `codex/preserve_concurrent_dns_runtime_changes` DNS work is re-landed at `infra/api/src/dns/cloudflare.rs`; `matt/stage2-bundle-landed-s55` was cherry-picked at B1 closeout per `LAUNCH.md ## STATUS` 2026-05-27; the six `may25 wave_b` branches are superseded by the may26 refresh lanes). Next GC should place them on an approved deletion manifest rather than re-deriving the disposition. Exit: after the manifest run, `git worktree list | wc -l` ≤ 2, `git branch --no-merged main | wc -l` == 0, and `git branch -r --no-merged origin/main | wc -l` == 0. |
+77:- **Unmerged lane disposition (re-verified 2026-07-10 — every branch below re-checked with `git merge-base --is-ancestor` and `git cherry -v main`).** ABANDON, all confirmed unmerged and carrying no salvageable product code: `batman/jul08_am_1_rc_shape_drift_investigate_and_rerun` (stopped 0/5 stages; its one product diff re-adds an `onclick` handler to `PaymentMethodSetupForm.svelte` that main **deliberately rejected** — main carries an explicit "Do NOT reintroduce onclick / capture-phase click+pointerdown listeners here" comment, so merging would regress main; its `ops/terraform/dns/main.tf` change is byte-identical to main's and the branch is otherwise *behind* main), `batman/jul08_pm_1_rc_rerun_produce_clean_bundle` (4 unique commits, 214 files, essentially all `DIRMAP.md` noise), `batman/jul09_am_6_billing_rehearsal_real_run` (evidence/DIRMAP/checklist only), and the `polished-beta-staging-verify` rerun4/rerun5 branches. **`batman/jul07_3pm_14_playwright_parallel_workers` is now ABANDON, not SALVAGE (correction).** Its fixture/spec-ownership refactor **already reached main independently** via `5256ad368`, `159053c14`, `a74928abe` (`web/tests/fixtures/fixtures.ts`, 4660 lines, full disposable-fixture machinery). Note the salvage lane `jul09_pm_4` did **not** carry that refactor — it landed only evidence, DIRMAP, config, and `scripts/lib/stripe_request.sh`; the refactor was re-authored on main under a different spec-naming scheme (main: `account-delete.spec.ts` / `auth-end-effects.spec.ts`; branch 14: `public-` prefixed). Branch 14's sole remaining unique delta is the `workers: 4` flip, which failed its own Stage-5 3-green-runs gate. Nothing left to salvage. **Full-sweep extension (2026-07-11):** every remaining unmerged branch beyond the five above — 25 branches plus the stray `stage3-pages-parity-publish` worktree — was classified via `git cherry -v main` and three-dot product diffs: 13 carry content that already landed on main (main's re-authored version is newer where it matters), 12 are evidence/checklist-only, **zero orphaned product code — nothing to merge**. The only unique un-landed content anywhere is planning prose on `prep/post-5d631-queued-edits` (a deploy-latency profiling idea and a shared-login verify-harness idea; its third row, the search-preview pagination undercount, already landed via `bfe5e7223`/`3cca4b672`/`c9eedd2dc`). Every listed branch/worktree is safe to delete under the same ABANDON basis. **Remote extension (2026-07-12):** the 16 unmerged `origin/*` branches and the 3 local `backup/stage1_*` refs were audited the same way — zero unlanded product code; details and the deletion-manifest follow-up live in the "Repo GC completion" Planned row above. The pruned `prep/post-5d631-queued-edits` tip's two open-work rows are now recovered as Planned rows above (note: the pagination undercount commits cited earlier in this bullet are the frontend workaround; the backend root fix is the recovered open row).
+
+## LAUNCH.md closeout anchor lines
+539:- Announce verdict bundle restored at `docs/runbooks/evidence/announce-gate/20260526T221743Z_verdict/VERDICT.md` (Stage 2 bundle was orphaned on `matt/stage2-bundle-landed-s55` branch during Stage 1 detached-HEAD checkout; supervisor cherry-picked at B1 closeout).
+
+## .debbie.toml public sync scope
+[project]
+name = "fjcloud"
+
+[repos.dev]
+path = "/Users/stuart/repos/gridl-infra-dev/fjcloud_dev"
+github = "gridl-infra-dev/fjcloud_dev"
+
+[repos.staging]
+path = "/Users/stuart/repos/gridl-infra-staging/fjcloud"
+github = "gridl-infra-staging/fjcloud"
+
+# Web plane (Cloudflare Pages) now deploys automatically. Prior to the
+# jul07 web-deploy lane this was "wrangler-manual" — a hand-run
+# `wrangler pages deploy` — which let the web app go stale for a month
+# (2026-06-05 → 07-07). The `deploy-web` step in the mirror ci.yml
+# deploy-staging job now publishes on every staging-mirror CI pass. This key
+# is display-only (debbie prints it as a sync banner; nothing branches on it),
+# so it stays as the operator-facing reminder of how the web plane ships.
+downstream = "ci-automated: deploy-web step in mirror ci.yml deploy-staging"
+[repos.prod]
+path = "/Users/stuart/repos/gridl-infra-prod/fjcloud"
+github = "gridl-infra-prod/fjcloud"
+
+# Strict public mirror: whitelist only required code/build/test/runtime assets
+# and public-facing README files. Never sync the repo root with an exclude list.
+[sync]
+files = [
+    ".env.local.example",
+    ".gitignore",
+    ".gitleaks.toml",
+    ".nvmrc",
+    "Makefile",
+    "README.md",
+    "ROADMAP.md",
+    "docker-compose.yml",
+    "docker-compose.override.yml.example",
+    "docs/LOCAL_LAUNCH_READINESS.md",
+    "docs/LOCAL_DEV.md",
+    "docs/env-vars.md",
+    "docs/checklists/LOCAL_SIGNOFF_CHECKLIST.md",
+    "docs/load-testing/sla-baseline.md",
+    "docs/reference/openapi.json",
+]
+
+[[sync.dirs]]
+path = ".github/"
+
+[[sync.dirs]]
+path = "infra/"
+exclude = [
+    "target",
+]
+
+[[sync.dirs]]
+path = "web/"
+exclude = [
+    "node_modules",
+    ".svelte-kit",
+    "build",
+    "dist",
+    "playwright-report",
+    "test-results",
+]
+
+[[sync.dirs]]
+path = "ops/"
+exclude = [
+    ".terraform",
+    "*.tfstate",
+    "*.tfstate.*",
+]
+
+[[sync.dirs]]
+path = "scripts/"
+
+[[sync.dirs]]
+path = "tests/"
+
+[[sync.dirs]]
+path = "docs/runbooks/"
+
+[[sync.dirs]]
+# Screen specs are referenced by `scripts/tests/screen_specs_coverage_test.sh`
+# (a staging CI gate); the test fails on the mirror when this dir is missing.
+path = "docs/screen_specs/"
+
+[[sync.dirs]]
+path = "docs/getting-started/"
+
+[rewrite]
+files = []
+
+[hooks]
+staging = ".debbie/post-sync.sh"
+prod = ".debbie/post-sync.sh"
+
+## Prior manifest shape: manifest.txt head
+# Repo GC Manifest
+
+Created UTC: 20260712T052116Z
+Repo: fjcloud_dev
+Deletion contract owner: refined_input.md `Approved local branch deletion manifest`.
+Disposition rationale owner: ROADMAP.md `Unmerged lane disposition`.
+Stage 1 prerequisite: prep/post-5d631-queued-edits was already harvested in chatting/20260712T050500Z_jul11_pm_launch_unblock_closeout.md under `Harvested Follow-Up Candidates` before this GC stage.
+
+## Approved Branch Inventory
+
+The first token of each line is also copied to manifest_branches.txt for the survivor check.
+
+- batman/jul06_pm_1_polished_beta_staging_verify_rerun d3505e906c6760a6f474b57cd7de69dbda59044a
+  - Rationale: ROADMAP.md Unmerged lane disposition classifies the approved branch/worktree set as ABANDON: zero orphaned product code, with already-landed content or evidence/checklist-only deltas; `prep/post-5d631-queued-edits` planning prose was harvested before deletion.
+- batman/jul07_3pm_14_playwright_parallel_workers 37c9543b2e3a06672233a40bdb827d8d8750d41f
+  - Rationale: ROADMAP.md Unmerged lane disposition classifies the approved branch/worktree set as ABANDON: zero orphaned product code, with already-landed content or evidence/checklist-only deltas; `prep/post-5d631-queued-edits` planning prose was harvested before deletion.
+- batman/jul07_pm_4_polished_beta_staging_verify_rerun4 da5784ff6f35527f5497d9aa0cfd7245ffa55f3c
+  - Rationale: ROADMAP.md Unmerged lane disposition classifies the approved branch/worktree set as ABANDON: zero orphaned product code, with already-landed content or evidence/checklist-only deltas; `prep/post-5d631-queued-edits` planning prose was harvested before deletion.
+- batman/jul07_pm_6_polished_beta_staging_verify_rerun5 48a81a52a90e63912dc688dafb47ec115ae0e8e4
+  - Rationale: ROADMAP.md Unmerged lane disposition classifies the approved branch/worktree set as ABANDON: zero orphaned product code, with already-landed content or evidence/checklist-only deltas; `prep/post-5d631-queued-edits` planning prose was harvested before deletion.
+- batman/jul08_am_1_rc_shape_drift_investigate_and_rerun 6d487ec8332007a8630baf50a3a376651e18432b
+  - Rationale: ROADMAP.md Unmerged lane disposition classifies the approved branch/worktree set as ABANDON: zero orphaned product code, with already-landed content or evidence/checklist-only deltas; `prep/post-5d631-queued-edits` planning prose was harvested before deletion.
+- batman/jul08_pm_1_rc_rerun_produce_clean_bundle 540a3a0e1a051584d22852a0eb87ff4b278831d3
+  - Rationale: ROADMAP.md Unmerged lane disposition classifies the approved branch/worktree set as ABANDON: zero orphaned product code, with already-landed content or evidence/checklist-only deltas; `prep/post-5d631-queued-edits` planning prose was harvested before deletion.
+- batman/jul09_am_6_billing_rehearsal_real_run 66ee5c58a947f90267de391e07607f97e05d8e61
+  - Rationale: ROADMAP.md Unmerged lane disposition classifies the approved branch/worktree set as ABANDON: zero orphaned product code, with already-landed content or evidence/checklist-only deltas; `prep/post-5d631-queued-edits` planning prose was harvested before deletion.
+- batman/jun04_pm_7_screen_spec_visual_contract_template_and_application 51171e24f92c04d6b73dc00019479653cc5bf0f3
+  - Rationale: ROADMAP.md Unmerged lane disposition classifies the approved branch/worktree set as ABANDON: zero orphaned product code, with already-landed content or evidence/checklist-only deltas; `prep/post-5d631-queued-edits` planning prose was harvested before deletion.
+- batman/jun05_ui_1147am_4_password_and_tooltip_ssot 19acd9d1991f4e34e2c423b557fc4bd688c277b5
+  - Rationale: ROADMAP.md Unmerged lane disposition classifies the approved branch/worktree set as ABANDON: zero orphaned product code, with already-landed content or evidence/checklist-only deltas; `prep/post-5d631-queued-edits` planning prose was harvested before deletion.
+- batman/jun11_am_3_support_inbox_and_synthetic_canary_rollout_proof b13fbaa5a3676856d135bc2a1e8104c087342832
+  - Rationale: ROADMAP.md Unmerged lane disposition classifies the approved branch/worktree set as ABANDON: zero orphaned product code, with already-landed content or evidence/checklist-only deltas; `prep/post-5d631-queued-edits` planning prose was harvested before deletion.
+- batman/jun11_pm_2_synthetic_traffic_and_usage_records 85517ec129e36099e2cab731f72ea2abdd1290d0
+  - Rationale: ROADMAP.md Unmerged lane disposition classifies the approved branch/worktree set as ABANDON: zero orphaned product code, with already-landed content or evidence/checklist-only deltas; `prep/post-5d631-queued-edits` planning prose was harvested before deletion.
+- batman/jun11_pm_9_polished_beta_staging_verify 394c25d55b843501609154f08adb62b41196556a
+  - Rationale: ROADMAP.md Unmerged lane disposition classifies the approved branch/worktree set as ABANDON: zero orphaned product code, with already-landed content or evidence/checklist-only deltas; `prep/post-5d631-queued-edits` planning prose was harvested before deletion.
+- batman/may21_12pm_7_announce_gate 3edacbd3bc869cd21029f9c83ab7cad47e4ae9bb
+  - Rationale: ROADMAP.md Unmerged lane disposition classifies the approved branch/worktree set as ABANDON: zero orphaned product code, with already-landed content or evidence/checklist-only deltas; `prep/post-5d631-queued-edits` planning prose was harvested before deletion.
+- batman/may25_151pm_wave_b_2a_synonyms_restructure 57790a7b514eba09aeee3f5c1591dab9801f9b73
+  - Rationale: ROADMAP.md Unmerged lane disposition classifies the approved branch/worktree set as ABANDON: zero orphaned product code, with already-landed content or evidence/checklist-only deltas; `prep/post-5d631-queued-edits` planning prose was harvested before deletion.
+- batman/may25_151pm_wave_b_2c_events_overhaul 74b05e5b8f496d6625f8c65987a5d2b96dc93d57
+  - Rationale: ROADMAP.md Unmerged lane disposition classifies the approved branch/worktree set as ABANDON: zero orphaned product code, with already-landed content or evidence/checklist-only deltas; `prep/post-5d631-queued-edits` planning prose was harvested before deletion.
+- batman/may25_151pm_wave_b_2e_personalization_full 92237ece7292e9261e6bf14c3cc14191630a88e5
+  - Rationale: ROADMAP.md Unmerged lane disposition classifies the approved branch/worktree set as ABANDON: zero orphaned product code, with already-landed content or evidence/checklist-only deltas; `prep/post-5d631-queued-edits` planning prose was harvested before deletion.
+- batman/may25_151pm_wave_b_2f_dictionaries_rebuild 9c5b630d1ffbed5bda11564803236f9de058c06e
+  - Rationale: ROADMAP.md Unmerged lane disposition classifies the approved branch/worktree set as ABANDON: zero orphaned product code, with already-landed content or evidence/checklist-only deltas; `prep/post-5d631-queued-edits` planning prose was harvested before deletion.
+- batman/may25_151pm_wave_b_2g_experiments_wizard_and_detail 102a1f6f0948d2519222bf07eabe3567c076f906
+  - Rationale: ROADMAP.md Unmerged lane disposition classifies the approved branch/worktree set as ABANDON: zero orphaned product code, with already-landed content or evidence/checklist-only deltas; `prep/post-5d631-queued-edits` planning prose was harvested before deletion.
+- batman/may25_151pm_wave_b_3d_overview_tab_enrichment dd4754e2bd45d66834c70d6f46803fe7f7585888
+  - Rationale: ROADMAP.md Unmerged lane disposition classifies the approved branch/worktree set as ABANDON: zero orphaned product code, with already-landed content or evidence/checklist-only deltas; `prep/post-5d631-queued-edits` planning prose was harvested before deletion.
+- batman/may25_151pm_wave_b_3f_merch_drag_suggestions_lifecycle 83309145bec345c413837141b33f589cfcbcae05
+  - Rationale: ROADMAP.md Unmerged lane disposition classifies the approved branch/worktree set as ABANDON: zero orphaned product code, with already-landed content or evidence/checklist-only deltas; `prep/post-5d631-queued-edits` planning prose was harvested before deletion.
+- batman/may25_151pm_wave_b_3h_settings_migrate_audit b2bf08c093ac3e62160e50166a5ea9f9fb1f1d2d
+  - Rationale: ROADMAP.md Unmerged lane disposition classifies the approved branch/worktree set as ABANDON: zero orphaned product code, with already-landed content or evidence/checklist-only deltas; `prep/post-5d631-queued-edits` planning prose was harvested before deletion.
+- matt/stage2-bundle-landed-s55 bfb7cb8515f0dd47195684165b990150cee4bfd9
+  - Rationale: ROADMAP.md Unmerged lane disposition classifies the approved branch/worktree set as ABANDON: zero orphaned product code, with already-landed content or evidence/checklist-only deltas; `prep/post-5d631-queued-edits` planning prose was harvested before deletion.
+- prep/post-5d631-queued-edits ea967c83666950d3d79621c1d9034c87a1acf6d1
+  - Rationale: ROADMAP.md Unmerged lane disposition classifies the approved branch/worktree set as ABANDON: zero orphaned product code, with already-landed content or evidence/checklist-only deltas; `prep/post-5d631-queued-edits` planning prose was harvested before deletion.
+- publish/jul09-stage2-billing-rehearsal 70bf811e3d9f4df0a15ed8715245f30f1b3ff0d2
+  - Rationale: ROADMAP.md Unmerged lane disposition classifies the approved branch/worktree set as ABANDON: zero orphaned product code, with already-landed content or evidence/checklist-only deltas; `prep/post-5d631-queued-edits` planning prose was harvested before deletion.
+- publish/jun09_am_l1_rc_harness dae0ebdadc6f5c1b744fc4bbc4699cdd5fab24bf
+  - Rationale: ROADMAP.md Unmerged lane disposition classifies the approved branch/worktree set as ABANDON: zero orphaned product code, with already-landed content or evidence/checklist-only deltas; `prep/post-5d631-queued-edits` planning prose was harvested before deletion.
+- rapid-local-verify-and-web-deploy 7447225e52ce91a7254b7bbe6f3a8f3ebcb8547b
+  - Rationale: ROADMAP.md Unmerged lane disposition classifies the approved branch/worktree set as ABANDON: zero orphaned product code, with already-landed content or evidence/checklist-only deltas; `prep/post-5d631-queued-edits` planning prose was harvested before deletion.
+- s41_push_fix f8b3b5f74a56d2eca47c142f48788a48c674336b
+  - Rationale: ROADMAP.md Unmerged lane disposition classifies the approved branch/worktree set as ABANDON: zero orphaned product code, with already-landed content or evidence/checklist-only deltas; `prep/post-5d631-queued-edits` planning prose was harvested before deletion.
+- stage3_ci_prereq_fix 254245cea02bcc748fb6f478f5542cb2a6fcdd89
+  - Rationale: ROADMAP.md Unmerged lane disposition classifies the approved branch/worktree set as ABANDON: zero orphaned product code, with already-landed content or evidence/checklist-only deltas; `prep/post-5d631-queued-edits` planning prose was harvested before deletion.
+- stage3_final_browser_evidence 3f3264d1bef7c8e96e956eb43282335ef06bacd5
+  - Rationale: ROADMAP.md Unmerged lane disposition classifies the approved branch/worktree set as ABANDON: zero orphaned product code, with already-landed content or evidence/checklist-only deltas; `prep/post-5d631-queued-edits` planning prose was harvested before deletion.
+- stage4_dc729_backup dc729925dfc880851ddc27265e5cffe62123de4e
+  - Rationale: ROADMAP.md Unmerged lane disposition classifies the approved branch/worktree set as ABANDON: zero orphaned product code, with already-landed content or evidence/checklist-only deltas; `prep/post-5d631-queued-edits` planning prose was harvested before deletion.
+- stage4_s57_fix_blockers 1a159db0b455919c3747095c62eb1441e9e8583a
+  - Rationale: ROADMAP.md Unmerged lane disposition classifies the approved branch/worktree set as ABANDON: zero orphaned product code, with already-landed content or evidence/checklist-only deltas; `prep/post-5d631-queued-edits` planning prose was harvested before deletion.
+
+## ROADMAP Rationale Source
+
+- **Unmerged lane disposition (re-verified 2026-07-10 — every branch below re-checked with `git merge-base --is-ancestor` and `git cherry -v main`).** ABANDON, all confirmed unmerged and carrying no salvageable product code: `batman/jul08_am_1_rc_shape_drift_investigate_and_rerun` (stopped 0/5 stages; its one product diff re-adds an `onclick` handler to `PaymentMethodSetupForm.svelte` that main **deliberately rejected** — main carries an explicit "Do NOT reintroduce onclick / capture-phase click+pointerdown listeners here" comment, so merging would regress main; its `ops/terraform/dns/main.tf` change is byte-identical to main's and the branch is otherwise *behind* main), `batman/jul08_pm_1_rc_rerun_produce_clean_bundle` (4 unique commits, 214 files, essentially all `DIRMAP.md` noise), `batman/jul09_am_6_billing_rehearsal_real_run` (evidence/DIRMAP/checklist only), and the `polished-beta-staging-verify` rerun4/rerun5 branches. **`batman/jul07_3pm_14_playwright_parallel_workers` is now ABANDON, not SALVAGE (correction).** Its fixture/spec-ownership refactor **already reached main independently** via `5256ad368`, `159053c14`, `a74928abe` (`web/tests/fixtures/fixtures.ts`, 4660 lines, full disposable-fixture machinery). Note the salvage lane `jul09_pm_4` did **not** carry that refactor — it landed only evidence, DIRMAP, config, and `scripts/lib/stripe_request.sh`; the refactor was re-authored on main under a different spec-naming scheme (main: `account-delete.spec.ts` / `auth-end-effects.spec.ts`; branch 14: `public-` prefixed). Branch 14's sole remaining unique delta is the `workers: 4` flip, which failed its own Stage-5 3-green-runs gate. Nothing left to salvage. **Full-sweep extension (2026-07-11):** every remaining unmerged branch beyond the five above — 25 branches plus the stray `stage3-pages-parity-publish` worktree — was classified via `git cherry -v main` and three-dot product diffs: 13 carry content that already landed on main (main's re-authored version is newer where it matters), 12 are evidence/checklist-only, **zero orphaned product code — nothing to merge**. The only unique un-landed content anywhere is planning prose on `prep/post-5d631-queued-edits` (a deploy-latency profiling idea and a shared-login verify-harness idea; its third row, the search-preview pagination undercount, already landed via `bfe5e7223`/`3cca4b672`/`c9eedd2dc`). Every listed branch/worktree is safe to delete under the same ABANDON basis.
+
+## Worktree Inventory Command
+
+## Prior manifest shape: manifest_branches.txt
+batman/jul06_pm_1_polished_beta_staging_verify_rerun d3505e906c6760a6f474b57cd7de69dbda59044a
+batman/jul07_3pm_14_playwright_parallel_workers 37c9543b2e3a06672233a40bdb827d8d8750d41f
+batman/jul07_pm_4_polished_beta_staging_verify_rerun4 da5784ff6f35527f5497d9aa0cfd7245ffa55f3c
+batman/jul07_pm_6_polished_beta_staging_verify_rerun5 48a81a52a90e63912dc688dafb47ec115ae0e8e4
+batman/jul08_am_1_rc_shape_drift_investigate_and_rerun 6d487ec8332007a8630baf50a3a376651e18432b
+batman/jul08_pm_1_rc_rerun_produce_clean_bundle 540a3a0e1a051584d22852a0eb87ff4b278831d3
+batman/jul09_am_6_billing_rehearsal_real_run 66ee5c58a947f90267de391e07607f97e05d8e61
+batman/jun04_pm_7_screen_spec_visual_contract_template_and_application 51171e24f92c04d6b73dc00019479653cc5bf0f3
+batman/jun05_ui_1147am_4_password_and_tooltip_ssot 19acd9d1991f4e34e2c423b557fc4bd688c277b5
+batman/jun11_am_3_support_inbox_and_synthetic_canary_rollout_proof b13fbaa5a3676856d135bc2a1e8104c087342832
+batman/jun11_pm_2_synthetic_traffic_and_usage_records 85517ec129e36099e2cab731f72ea2abdd1290d0
+batman/jun11_pm_9_polished_beta_staging_verify 394c25d55b843501609154f08adb62b41196556a
+batman/may21_12pm_7_announce_gate 3edacbd3bc869cd21029f9c83ab7cad47e4ae9bb
+batman/may25_151pm_wave_b_2a_synonyms_restructure 57790a7b514eba09aeee3f5c1591dab9801f9b73
+batman/may25_151pm_wave_b_2c_events_overhaul 74b05e5b8f496d6625f8c65987a5d2b96dc93d57
+batman/may25_151pm_wave_b_2e_personalization_full 92237ece7292e9261e6bf14c3cc14191630a88e5
+batman/may25_151pm_wave_b_2f_dictionaries_rebuild 9c5b630d1ffbed5bda11564803236f9de058c06e
+batman/may25_151pm_wave_b_2g_experiments_wizard_and_detail 102a1f6f0948d2519222bf07eabe3567c076f906
+batman/may25_151pm_wave_b_3d_overview_tab_enrichment dd4754e2bd45d66834c70d6f46803fe7f7585888
+batman/may25_151pm_wave_b_3f_merch_drag_suggestions_lifecycle 83309145bec345c413837141b33f589cfcbcae05
+batman/may25_151pm_wave_b_3h_settings_migrate_audit b2bf08c093ac3e62160e50166a5ea9f9fb1f1d2d
+matt/stage2-bundle-landed-s55 bfb7cb8515f0dd47195684165b990150cee4bfd9
+prep/post-5d631-queued-edits ea967c83666950d3d79621c1d9034c87a1acf6d1
+publish/jul09-stage2-billing-rehearsal 70bf811e3d9f4df0a15ed8715245f30f1b3ff0d2
+publish/jun09_am_l1_rc_harness dae0ebdadc6f5c1b744fc4bbc4699cdd5fab24bf
+rapid-local-verify-and-web-deploy 7447225e52ce91a7254b7bbe6f3a8f3ebcb8547b
+s41_push_fix f8b3b5f74a56d2eca47c142f48788a48c674336b
+stage3_ci_prereq_fix 254245cea02bcc748fb6f478f5542cb2a6fcdd89
+stage3_final_browser_evidence 3f3264d1bef7c8e96e956eb43282335ef06bacd5
+stage4_dc729_backup dc729925dfc880851ddc27265e5cffe62123de4e
+stage4_s57_fix_blockers 1a159db0b455919c3747095c62eb1441e9e8583a

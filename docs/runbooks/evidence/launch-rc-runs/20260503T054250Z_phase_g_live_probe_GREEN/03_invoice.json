@@ -1,0 +1,10 @@
+{
+  "id": "in_1TSse8GXI8zVz4UHDE4bxd8v",
+  "status": "paid",
+  "amount_paid": 100,
+  "total": 100,
+  "currency": "usd",
+  "default_pm": null,
+  "hosted_invoice_url": "https://invoice.stripe.com/i/acct_1SyNWBGXI8zVz4UH/live_YWNjdF8xU3lOV0JHWEk4elZ6NFVILF9VUm1DRTRiTk5YNVlqQm5SWU9TZ3F5alVnQnFsaEFsLDE2ODMyNzc3MA02001suHoZYy?s=ap",
+  "charge": null
+}

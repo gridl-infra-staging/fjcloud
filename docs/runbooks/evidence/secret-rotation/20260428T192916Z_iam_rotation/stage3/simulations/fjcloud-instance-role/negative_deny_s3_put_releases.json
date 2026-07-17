@@ -1,0 +1,20 @@
+{
+    "EvaluationResults": [
+        {
+            "EvalActionName": "s3:PutObject",
+            "EvalResourceName": "arn:aws:s3:::fjcloud-releases-staging/deploy/test-artifact",
+            "EvalDecision": "implicitDeny",
+            "MatchedStatements": [],
+            "MissingContextValues": [],
+            "EvalDecisionDetails": {},
+            "ResourceSpecificResults": [
+                {
+                    "EvalResourceName": "arn:aws:s3:::fjcloud-releases-staging/deploy/test-artifact",
+                    "EvalResourceDecision": "implicitDeny",
+                    "MatchedStatements": [],
+                    "MissingContextValues": []
+                }
+            ]
+        }
+    ]
+}

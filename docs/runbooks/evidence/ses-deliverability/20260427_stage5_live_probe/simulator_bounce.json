@@ -1,0 +1,1 @@
+{"passed":true,"steps":[{"name":"send_probe","passed":true,"detail":"Sent simulator probe mode 'bounce' from '[REDACTED_SENDER]' to 'bounce@simulator.amazonses.com' (message_id='0100019dd1b4d27a-4776bf19-77a1-4f6b-a50c-ae06f4d2b2d2-000000')."}],"elapsed_ms":584}

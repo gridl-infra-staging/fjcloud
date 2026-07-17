@@ -1,0 +1,4 @@
+selfcheck_command: jq -e <contract assertions> lane_verdicts_first_pass.json
+true
+selfcheck_exit_code: 0
+selfcheck_result: pass

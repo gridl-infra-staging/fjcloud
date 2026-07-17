@@ -1,0 +1,2 @@
+[{"customer_id":"0a65f0b7-14b3-4e08-acf6-2222a02c7858","date":"2026-04-26","region":"us-east-1","search_requests":9,"write_operations":184,"storage_bytes_avg":34405462,"documents_count_avg":20131,"aggregated_at":"2026-04-27T01:00:07.477318+00:00"}, 
+ {"customer_id":"0a65f0b7-14b3-4e08-acf6-2222a02c7858","date":"2026-04-27","region":"us-east-1","search_requests":0,"write_operations":0,"storage_bytes_avg":34424997,"documents_count_avg":20131,"aggregated_at":"2026-04-28T01:00:22.021187+00:00"}]

@@ -1,0 +1,14 @@
+# Disposition Receipt: batman/jun10_pm_1_probe_contract_drift_and_lane_b_count_reconciliation
+
+Classification: approved freed local branch after approved worktree removal
+Evidence source: current read-only git refs at bundle creation.
+
+## rev-parse
+$ git rev-parse batman/jun10_pm_1_probe_contract_drift_and_lane_b_count_reconciliation
+9f1d5e3554621a8f4f0369f63dac05dca32214fa
+
+## cherry
+$ git cherry -v main batman/jun10_pm_1_probe_contract_drift_and_lane_b_count_reconciliation | tail -20
+
+## diff main...
+$ git diff main...batman/jun10_pm_1_probe_contract_drift_and_lane_b_count_reconciliation --stat | tail -20

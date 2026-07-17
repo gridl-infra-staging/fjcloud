@@ -1,0 +1,1067 @@
+{
+  "result": [
+    {
+      "id": "76349ef5-d192-4bcf-b1f3-1fc9d8e1c920",
+      "short_id": "76349ef5",
+      "project_id": "1b05abf3-10ac-42c9-b9b1-88e711ffc919",
+      "project_name": "flapjack-cloud",
+      "environment": "production",
+      "url": "https://76349ef5.flapjack-cloud.pages.dev",
+      "created_on": "2026-07-09T19:58:16.558352Z",
+      "modified_on": "2026-07-09T19:58:20.031617Z",
+      "latest_stage": {
+        "name": "deploy",
+        "started_on": null,
+        "ended_on": "2026-07-09T19:58:20.031617Z",
+        "status": "success"
+      },
+      "deployment_trigger": {
+        "type": "ad_hoc",
+        "metadata": {
+          "branch": "main",
+          "commit_hash": "a2f013b50d9e331aaa9e59c7f9c46042d1f93ab1",
+          "commit_message": "chore: debbie post-sync mirror update",
+          "commit_dirty": true
+        }
+      },
+      "stages": [
+        {
+          "name": "queued",
+          "started_on": "2026-07-09T19:58:16.558352Z",
+          "ended_on": null,
+          "status": "active"
+        },
+        {
+          "name": "initialize",
+          "started_on": null,
+          "ended_on": null,
+          "status": "idle"
+        },
+        {
+          "name": "clone_repo",
+          "started_on": null,
+          "ended_on": null,
+          "status": "idle"
+        },
+        {
+          "name": "build",
+          "started_on": null,
+          "ended_on": null,
+          "status": "idle"
+        },
+        {
+          "name": "deploy",
+          "started_on": null,
+          "ended_on": "2026-07-09T19:58:20.031617Z",
+          "status": "success"
+        }
+      ],
+      "build_config": {
+        "build_command": null,
+        "destination_dir": ".svelte-kit/cloudflare",
+        "build_caching": null,
+        "root_dir": null,
+        "web_analytics_tag": null,
+        "web_analytics_token": null
+      },
+      "env_vars": {
+        "ADMIN_KEY": {
+          "type": "secret_text",
+          "value": ""
+        },
+        "API_BASE_URL": {
+          "type": "plain_text",
+          "value": "https://api.flapjack.foo"
+        },
+        "ENVIRONMENT": {
+          "type": "plain_text",
+          "value": "production"
+        },
+        "JWT_SECRET": {
+          "type": "secret_text",
+          "value": ""
+        },
+        "SERVICE_STATUS": {
+          "type": "plain_text",
+          "value": "operational"
+        },
+        "SERVICE_STATUS_MESSAGE": {
+          "type": "plain_text",
+          "value": ""
+        },
+        "SERVICE_STATUS_UPDATED": {
+          "type": "plain_text",
+          "value": "2026-05-25T01:31:58Z"
+        }
+      },
+      "compatibility_date": "2026-04-01",
+      "compatibility_flags": [
+        "nodejs_compat"
+      ],
+      "build_image_major_version": 3,
+      "usage_model": "bundled",
+      "aliases": [
+        "https://cloud.flapjack.foo",
+        "https://cloud.staging.flapjack.foo"
+      ],
+      "is_skipped": false,
+      "production_branch": "main",
+      "uses_functions": true
+    },
+    {
+      "id": "736b585e-aa16-4a4d-962c-3e03e2ccb81e",
+      "short_id": "736b585e",
+      "project_id": "1b05abf3-10ac-42c9-b9b1-88e711ffc919",
+      "project_name": "flapjack-cloud",
+      "environment": "production",
+      "url": "https://736b585e.flapjack-cloud.pages.dev",
+      "created_on": "2026-07-09T14:38:44.913842Z",
+      "modified_on": "2026-07-09T14:38:48.648404Z",
+      "latest_stage": {
+        "name": "deploy",
+        "started_on": null,
+        "ended_on": "2026-07-09T14:38:48.648404Z",
+        "status": "success"
+      },
+      "deployment_trigger": {
+        "type": "ad_hoc",
+        "metadata": {
+          "branch": "main",
+          "commit_hash": "3bab197306dff4afc2e21a4e6be3d6ff8408b78c",
+          "commit_message": "chore: debbie post-sync mirror update",
+          "commit_dirty": true
+        }
+      },
+      "stages": [
+        {
+          "name": "queued",
+          "started_on": "2026-07-09T14:38:44.913842Z",
+          "ended_on": null,
+          "status": "active"
+        },
+        {
+          "name": "initialize",
+          "started_on": null,
+          "ended_on": null,
+          "status": "idle"
+        },
+        {
+          "name": "clone_repo",
+          "started_on": null,
+          "ended_on": null,
+          "status": "idle"
+        },
+        {
+          "name": "build",
+          "started_on": null,
+          "ended_on": null,
+          "status": "idle"
+        },
+        {
+          "name": "deploy",
+          "started_on": null,
+          "ended_on": "2026-07-09T14:38:48.648404Z",
+          "status": "success"
+        }
+      ],
+      "build_config": {
+        "build_command": null,
+        "destination_dir": ".svelte-kit/cloudflare",
+        "build_caching": null,
+        "root_dir": null,
+        "web_analytics_tag": null,
+        "web_analytics_token": null
+      },
+      "env_vars": {
+        "ADMIN_KEY": {
+          "type": "secret_text",
+          "value": ""
+        },
+        "API_BASE_URL": {
+          "type": "plain_text",
+          "value": "https://api.flapjack.foo"
+        },
+        "ENVIRONMENT": {
+          "type": "plain_text",
+          "value": "production"
+        },
+        "JWT_SECRET": {
+          "type": "secret_text",
+          "value": ""
+        },
+        "SERVICE_STATUS": {
+          "type": "plain_text",
+          "value": "operational"
+        },
+        "SERVICE_STATUS_MESSAGE": {
+          "type": "plain_text",
+          "value": ""
+        },
+        "SERVICE_STATUS_UPDATED": {
+          "type": "plain_text",
+          "value": "2026-05-25T01:31:58Z"
+        }
+      },
+      "compatibility_date": "2026-04-01",
+      "compatibility_flags": [
+        "nodejs_compat"
+      ],
+      "build_image_major_version": 3,
+      "usage_model": "bundled",
+      "aliases": null,
+      "is_skipped": false,
+      "production_branch": "main",
+      "uses_functions": true
+    },
+    {
+      "id": "116f229e-58ed-4d88-b951-a9894e0cd76a",
+      "short_id": "116f229e",
+      "project_id": "1b05abf3-10ac-42c9-b9b1-88e711ffc919",
+      "project_name": "flapjack-cloud",
+      "environment": "production",
+      "url": "https://116f229e.flapjack-cloud.pages.dev",
+      "created_on": "2026-07-09T12:42:39.972992Z",
+      "modified_on": "2026-07-09T12:42:44.435538Z",
+      "latest_stage": {
+        "name": "deploy",
+        "started_on": null,
+        "ended_on": "2026-07-09T12:42:44.435538Z",
+        "status": "success"
+      },
+      "deployment_trigger": {
+        "type": "ad_hoc",
+        "metadata": {
+          "branch": "main",
+          "commit_hash": "2248622e6fc6448d1033db204864a6635c8cc028",
+          "commit_message": "chore: debbie post-sync mirror update",
+          "commit_dirty": true
+        }
+      },
+      "stages": [
+        {
+          "name": "queued",
+          "started_on": "2026-07-09T12:42:39.972992Z",
+          "ended_on": null,
+          "status": "active"
+        },
+        {
+          "name": "initialize",
+          "started_on": null,
+          "ended_on": null,
+          "status": "idle"
+        },
+        {
+          "name": "clone_repo",
+          "started_on": null,
+          "ended_on": null,
+          "status": "idle"
+        },
+        {
+          "name": "build",
+          "started_on": null,
+          "ended_on": null,
+          "status": "idle"
+        },
+        {
+          "name": "deploy",
+          "started_on": null,
+          "ended_on": "2026-07-09T12:42:44.435538Z",
+          "status": "success"
+        }
+      ],
+      "build_config": {
+        "build_command": null,
+        "destination_dir": ".svelte-kit/cloudflare",
+        "build_caching": null,
+        "root_dir": null,
+        "web_analytics_tag": null,
+        "web_analytics_token": null
+      },
+      "env_vars": {
+        "ADMIN_KEY": {
+          "type": "secret_text",
+          "value": ""
+        },
+        "API_BASE_URL": {
+          "type": "plain_text",
+          "value": "https://api.flapjack.foo"
+        },
+        "ENVIRONMENT": {
+          "type": "plain_text",
+          "value": "production"
+        },
+        "JWT_SECRET": {
+          "type": "secret_text",
+          "value": ""
+        },
+        "SERVICE_STATUS": {
+          "type": "plain_text",
+          "value": "operational"
+        },
+        "SERVICE_STATUS_MESSAGE": {
+          "type": "plain_text",
+          "value": ""
+        },
+        "SERVICE_STATUS_UPDATED": {
+          "type": "plain_text",
+          "value": "2026-05-25T01:31:58Z"
+        }
+      },
+      "compatibility_date": "2026-04-01",
+      "compatibility_flags": [
+        "nodejs_compat"
+      ],
+      "build_image_major_version": 3,
+      "usage_model": "bundled",
+      "aliases": null,
+      "is_skipped": false,
+      "production_branch": "main",
+      "uses_functions": true
+    },
+    {
+      "id": "1520db50-b08b-4d03-8775-1f6f80b57cfe",
+      "short_id": "1520db50",
+      "project_id": "1b05abf3-10ac-42c9-b9b1-88e711ffc919",
+      "project_name": "flapjack-cloud",
+      "environment": "production",
+      "url": "https://1520db50.flapjack-cloud.pages.dev",
+      "created_on": "2026-07-09T12:19:22.818172Z",
+      "modified_on": "2026-07-09T12:19:25.961726Z",
+      "latest_stage": {
+        "name": "deploy",
+        "started_on": null,
+        "ended_on": "2026-07-09T12:19:25.961726Z",
+        "status": "success"
+      },
+      "deployment_trigger": {
+        "type": "ad_hoc",
+        "metadata": {
+          "branch": "main",
+          "commit_hash": "1bc560207326800c2ca94fbde914a2665246135c",
+          "commit_message": "chore: debbie post-sync mirror update",
+          "commit_dirty": true
+        }
+      },
+      "stages": [
+        {
+          "name": "queued",
+          "started_on": "2026-07-09T12:19:22.818172Z",
+          "ended_on": null,
+          "status": "active"
+        },
+        {
+          "name": "initialize",
+          "started_on": null,
+          "ended_on": null,
+          "status": "idle"
+        },
+        {
+          "name": "clone_repo",
+          "started_on": null,
+          "ended_on": null,
+          "status": "idle"
+        },
+        {
+          "name": "build",
+          "started_on": null,
+          "ended_on": null,
+          "status": "idle"
+        },
+        {
+          "name": "deploy",
+          "started_on": null,
+          "ended_on": "2026-07-09T12:19:25.961726Z",
+          "status": "success"
+        }
+      ],
+      "build_config": {
+        "build_command": null,
+        "destination_dir": ".svelte-kit/cloudflare",
+        "build_caching": null,
+        "root_dir": null,
+        "web_analytics_tag": null,
+        "web_analytics_token": null
+      },
+      "env_vars": {
+        "ADMIN_KEY": {
+          "type": "secret_text",
+          "value": ""
+        },
+        "API_BASE_URL": {
+          "type": "plain_text",
+          "value": "https://api.flapjack.foo"
+        },
+        "ENVIRONMENT": {
+          "type": "plain_text",
+          "value": "production"
+        },
+        "JWT_SECRET": {
+          "type": "secret_text",
+          "value": ""
+        },
+        "SERVICE_STATUS": {
+          "type": "plain_text",
+          "value": "operational"
+        },
+        "SERVICE_STATUS_MESSAGE": {
+          "type": "plain_text",
+          "value": ""
+        },
+        "SERVICE_STATUS_UPDATED": {
+          "type": "plain_text",
+          "value": "2026-05-25T01:31:58Z"
+        }
+      },
+      "compatibility_date": "2026-04-01",
+      "compatibility_flags": [
+        "nodejs_compat"
+      ],
+      "build_image_major_version": 3,
+      "usage_model": "bundled",
+      "aliases": null,
+      "is_skipped": false,
+      "production_branch": "main",
+      "uses_functions": true
+    },
+    {
+      "id": "80af544c-2e1c-49c6-acf9-e2417acbb50a",
+      "short_id": "80af544c",
+      "project_id": "1b05abf3-10ac-42c9-b9b1-88e711ffc919",
+      "project_name": "flapjack-cloud",
+      "environment": "production",
+      "url": "https://80af544c.flapjack-cloud.pages.dev",
+      "created_on": "2026-07-09T12:02:16.545853Z",
+      "modified_on": "2026-07-09T12:02:20.517Z",
+      "latest_stage": {
+        "name": "deploy",
+        "started_on": null,
+        "ended_on": "2026-07-09T12:02:20.517Z",
+        "status": "success"
+      },
+      "deployment_trigger": {
+        "type": "ad_hoc",
+        "metadata": {
+          "branch": "main",
+          "commit_hash": "6d0b37f0cb28d9776308775f0601e05e7febfa45",
+          "commit_message": "chore: debbie post-sync mirror update",
+          "commit_dirty": true
+        }
+      },
+      "stages": [
+        {
+          "name": "queued",
+          "started_on": "2026-07-09T12:02:16.545853Z",
+          "ended_on": null,
+          "status": "active"
+        },
+        {
+          "name": "initialize",
+          "started_on": null,
+          "ended_on": null,
+          "status": "idle"
+        },
+        {
+          "name": "clone_repo",
+          "started_on": null,
+          "ended_on": null,
+          "status": "idle"
+        },
+        {
+          "name": "build",
+          "started_on": null,
+          "ended_on": null,
+          "status": "idle"
+        },
+        {
+          "name": "deploy",
+          "started_on": null,
+          "ended_on": "2026-07-09T12:02:20.517Z",
+          "status": "success"
+        }
+      ],
+      "build_config": {
+        "build_command": null,
+        "destination_dir": ".svelte-kit/cloudflare",
+        "build_caching": null,
+        "root_dir": null,
+        "web_analytics_tag": null,
+        "web_analytics_token": null
+      },
+      "env_vars": {
+        "ADMIN_KEY": {
+          "type": "secret_text",
+          "value": ""
+        },
+        "API_BASE_URL": {
+          "type": "plain_text",
+          "value": "https://api.flapjack.foo"
+        },
+        "ENVIRONMENT": {
+          "type": "plain_text",
+          "value": "production"
+        },
+        "JWT_SECRET": {
+          "type": "secret_text",
+          "value": ""
+        },
+        "SERVICE_STATUS": {
+          "type": "plain_text",
+          "value": "operational"
+        },
+        "SERVICE_STATUS_MESSAGE": {
+          "type": "plain_text",
+          "value": ""
+        },
+        "SERVICE_STATUS_UPDATED": {
+          "type": "plain_text",
+          "value": "2026-05-25T01:31:58Z"
+        }
+      },
+      "compatibility_date": "2026-04-01",
+      "compatibility_flags": [
+        "nodejs_compat"
+      ],
+      "build_image_major_version": 3,
+      "usage_model": "bundled",
+      "aliases": null,
+      "is_skipped": false,
+      "production_branch": "main",
+      "uses_functions": true
+    },
+    {
+      "id": "7e6618c0-784a-4012-a829-68861865a75e",
+      "short_id": "7e6618c0",
+      "project_id": "1b05abf3-10ac-42c9-b9b1-88e711ffc919",
+      "project_name": "flapjack-cloud",
+      "environment": "production",
+      "url": "https://7e6618c0.flapjack-cloud.pages.dev",
+      "created_on": "2026-07-09T11:05:31.482871Z",
+      "modified_on": "2026-07-09T11:05:34.885356Z",
+      "latest_stage": {
+        "name": "deploy",
+        "started_on": null,
+        "ended_on": "2026-07-09T11:05:34.885356Z",
+        "status": "success"
+      },
+      "deployment_trigger": {
+        "type": "ad_hoc",
+        "metadata": {
+          "branch": "main",
+          "commit_hash": "8f6aa59f2b2a5fd29816ae1ca23e1f288a91a5ac",
+          "commit_message": "chore: debbie post-sync mirror update",
+          "commit_dirty": true
+        }
+      },
+      "stages": [
+        {
+          "name": "queued",
+          "started_on": "2026-07-09T11:05:31.482871Z",
+          "ended_on": null,
+          "status": "active"
+        },
+        {
+          "name": "initialize",
+          "started_on": null,
+          "ended_on": null,
+          "status": "idle"
+        },
+        {
+          "name": "clone_repo",
+          "started_on": null,
+          "ended_on": null,
+          "status": "idle"
+        },
+        {
+          "name": "build",
+          "started_on": null,
+          "ended_on": null,
+          "status": "idle"
+        },
+        {
+          "name": "deploy",
+          "started_on": null,
+          "ended_on": "2026-07-09T11:05:34.885356Z",
+          "status": "success"
+        }
+      ],
+      "build_config": {
+        "build_command": null,
+        "destination_dir": ".svelte-kit/cloudflare",
+        "build_caching": null,
+        "root_dir": null,
+        "web_analytics_tag": null,
+        "web_analytics_token": null
+      },
+      "env_vars": {
+        "ADMIN_KEY": {
+          "type": "secret_text",
+          "value": ""
+        },
+        "API_BASE_URL": {
+          "type": "plain_text",
+          "value": "https://api.flapjack.foo"
+        },
+        "ENVIRONMENT": {
+          "type": "plain_text",
+          "value": "production"
+        },
+        "JWT_SECRET": {
+          "type": "secret_text",
+          "value": ""
+        },
+        "SERVICE_STATUS": {
+          "type": "plain_text",
+          "value": "operational"
+        },
+        "SERVICE_STATUS_MESSAGE": {
+          "type": "plain_text",
+          "value": ""
+        },
+        "SERVICE_STATUS_UPDATED": {
+          "type": "plain_text",
+          "value": "2026-05-25T01:31:58Z"
+        }
+      },
+      "compatibility_date": "2026-04-01",
+      "compatibility_flags": [
+        "nodejs_compat"
+      ],
+      "build_image_major_version": 3,
+      "usage_model": "bundled",
+      "aliases": null,
+      "is_skipped": false,
+      "production_branch": "main",
+      "uses_functions": true
+    },
+    {
+      "id": "f79ea443-ff76-4d65-8d31-5ad440cae564",
+      "short_id": "f79ea443",
+      "project_id": "1b05abf3-10ac-42c9-b9b1-88e711ffc919",
+      "project_name": "flapjack-cloud",
+      "environment": "production",
+      "url": "https://f79ea443.flapjack-cloud.pages.dev",
+      "created_on": "2026-07-09T10:40:13.570131Z",
+      "modified_on": "2026-07-09T10:40:16.205248Z",
+      "latest_stage": {
+        "name": "deploy",
+        "started_on": null,
+        "ended_on": "2026-07-09T10:40:16.205248Z",
+        "status": "success"
+      },
+      "deployment_trigger": {
+        "type": "ad_hoc",
+        "metadata": {
+          "branch": "main",
+          "commit_hash": "b94f75162cf2674b4a076c9bc09654ec72389fca",
+          "commit_message": "chore: debbie post-sync mirror update",
+          "commit_dirty": true
+        }
+      },
+      "stages": [
+        {
+          "name": "queued",
+          "started_on": "2026-07-09T10:40:13.570131Z",
+          "ended_on": null,
+          "status": "active"
+        },
+        {
+          "name": "initialize",
+          "started_on": null,
+          "ended_on": null,
+          "status": "idle"
+        },
+        {
+          "name": "clone_repo",
+          "started_on": null,
+          "ended_on": null,
+          "status": "idle"
+        },
+        {
+          "name": "build",
+          "started_on": null,
+          "ended_on": null,
+          "status": "idle"
+        },
+        {
+          "name": "deploy",
+          "started_on": null,
+          "ended_on": "2026-07-09T10:40:16.205248Z",
+          "status": "success"
+        }
+      ],
+      "build_config": {
+        "build_command": null,
+        "destination_dir": ".svelte-kit/cloudflare",
+        "build_caching": null,
+        "root_dir": null,
+        "web_analytics_tag": null,
+        "web_analytics_token": null
+      },
+      "env_vars": {
+        "ADMIN_KEY": {
+          "type": "secret_text",
+          "value": ""
+        },
+        "API_BASE_URL": {
+          "type": "plain_text",
+          "value": "https://api.flapjack.foo"
+        },
+        "ENVIRONMENT": {
+          "type": "plain_text",
+          "value": "production"
+        },
+        "JWT_SECRET": {
+          "type": "secret_text",
+          "value": ""
+        },
+        "SERVICE_STATUS": {
+          "type": "plain_text",
+          "value": "operational"
+        },
+        "SERVICE_STATUS_MESSAGE": {
+          "type": "plain_text",
+          "value": ""
+        },
+        "SERVICE_STATUS_UPDATED": {
+          "type": "plain_text",
+          "value": "2026-05-25T01:31:58Z"
+        }
+      },
+      "compatibility_date": "2026-04-01",
+      "compatibility_flags": [
+        "nodejs_compat"
+      ],
+      "build_image_major_version": 3,
+      "usage_model": "bundled",
+      "aliases": null,
+      "is_skipped": false,
+      "production_branch": "main",
+      "uses_functions": true
+    },
+    {
+      "id": "a000f107-0c8b-4bcc-8c14-04691b9e0da8",
+      "short_id": "a000f107",
+      "project_id": "1b05abf3-10ac-42c9-b9b1-88e711ffc919",
+      "project_name": "flapjack-cloud",
+      "environment": "production",
+      "url": "https://a000f107.flapjack-cloud.pages.dev",
+      "created_on": "2026-07-09T09:49:06.1933Z",
+      "modified_on": "2026-07-09T09:49:09.490512Z",
+      "latest_stage": {
+        "name": "deploy",
+        "started_on": null,
+        "ended_on": "2026-07-09T09:49:09.490512Z",
+        "status": "success"
+      },
+      "deployment_trigger": {
+        "type": "ad_hoc",
+        "metadata": {
+          "branch": "main",
+          "commit_hash": "5823d7b60188983af4a3a06b628745353f7a41bb",
+          "commit_message": "chore: debbie post-sync mirror update",
+          "commit_dirty": true
+        }
+      },
+      "stages": [
+        {
+          "name": "queued",
+          "started_on": "2026-07-09T09:49:06.1933Z",
+          "ended_on": null,
+          "status": "active"
+        },
+        {
+          "name": "initialize",
+          "started_on": null,
+          "ended_on": null,
+          "status": "idle"
+        },
+        {
+          "name": "clone_repo",
+          "started_on": null,
+          "ended_on": null,
+          "status": "idle"
+        },
+        {
+          "name": "build",
+          "started_on": null,
+          "ended_on": null,
+          "status": "idle"
+        },
+        {
+          "name": "deploy",
+          "started_on": null,
+          "ended_on": "2026-07-09T09:49:09.490512Z",
+          "status": "success"
+        }
+      ],
+      "build_config": {
+        "build_command": null,
+        "destination_dir": ".svelte-kit/cloudflare",
+        "build_caching": null,
+        "root_dir": null,
+        "web_analytics_tag": null,
+        "web_analytics_token": null
+      },
+      "env_vars": {
+        "ADMIN_KEY": {
+          "type": "secret_text",
+          "value": ""
+        },
+        "API_BASE_URL": {
+          "type": "plain_text",
+          "value": "https://api.flapjack.foo"
+        },
+        "ENVIRONMENT": {
+          "type": "plain_text",
+          "value": "production"
+        },
+        "JWT_SECRET": {
+          "type": "secret_text",
+          "value": ""
+        },
+        "SERVICE_STATUS": {
+          "type": "plain_text",
+          "value": "operational"
+        },
+        "SERVICE_STATUS_MESSAGE": {
+          "type": "plain_text",
+          "value": ""
+        },
+        "SERVICE_STATUS_UPDATED": {
+          "type": "plain_text",
+          "value": "2026-05-25T01:31:58Z"
+        }
+      },
+      "compatibility_date": "2026-04-01",
+      "compatibility_flags": [
+        "nodejs_compat"
+      ],
+      "build_image_major_version": 3,
+      "usage_model": "bundled",
+      "aliases": null,
+      "is_skipped": false,
+      "production_branch": "main",
+      "uses_functions": true
+    },
+    {
+      "id": "7dfda288-0657-46d2-8648-520e8b74938e",
+      "short_id": "7dfda288",
+      "project_id": "1b05abf3-10ac-42c9-b9b1-88e711ffc919",
+      "project_name": "flapjack-cloud",
+      "environment": "production",
+      "url": "https://7dfda288.flapjack-cloud.pages.dev",
+      "created_on": "2026-07-09T09:31:30.711217Z",
+      "modified_on": "2026-07-09T09:31:34.041373Z",
+      "latest_stage": {
+        "name": "deploy",
+        "started_on": null,
+        "ended_on": "2026-07-09T09:31:34.041373Z",
+        "status": "success"
+      },
+      "deployment_trigger": {
+        "type": "ad_hoc",
+        "metadata": {
+          "branch": "main",
+          "commit_hash": "596397b9a6349e43146f246fdb44b5bc4ba7817b",
+          "commit_message": "chore: debbie post-sync mirror update",
+          "commit_dirty": true
+        }
+      },
+      "stages": [
+        {
+          "name": "queued",
+          "started_on": "2026-07-09T09:31:30.711217Z",
+          "ended_on": null,
+          "status": "active"
+        },
+        {
+          "name": "initialize",
+          "started_on": null,
+          "ended_on": null,
+          "status": "idle"
+        },
+        {
+          "name": "clone_repo",
+          "started_on": null,
+          "ended_on": null,
+          "status": "idle"
+        },
+        {
+          "name": "build",
+          "started_on": null,
+          "ended_on": null,
+          "status": "idle"
+        },
+        {
+          "name": "deploy",
+          "started_on": null,
+          "ended_on": "2026-07-09T09:31:34.041373Z",
+          "status": "success"
+        }
+      ],
+      "build_config": {
+        "build_command": null,
+        "destination_dir": ".svelte-kit/cloudflare",
+        "build_caching": null,
+        "root_dir": null,
+        "web_analytics_tag": null,
+        "web_analytics_token": null
+      },
+      "env_vars": {
+        "ADMIN_KEY": {
+          "type": "secret_text",
+          "value": ""
+        },
+        "API_BASE_URL": {
+          "type": "plain_text",
+          "value": "https://api.flapjack.foo"
+        },
+        "ENVIRONMENT": {
+          "type": "plain_text",
+          "value": "production"
+        },
+        "JWT_SECRET": {
+          "type": "secret_text",
+          "value": ""
+        },
+        "SERVICE_STATUS": {
+          "type": "plain_text",
+          "value": "operational"
+        },
+        "SERVICE_STATUS_MESSAGE": {
+          "type": "plain_text",
+          "value": ""
+        },
+        "SERVICE_STATUS_UPDATED": {
+          "type": "plain_text",
+          "value": "2026-05-25T01:31:58Z"
+        }
+      },
+      "compatibility_date": "2026-04-01",
+      "compatibility_flags": [
+        "nodejs_compat"
+      ],
+      "build_image_major_version": 3,
+      "usage_model": "bundled",
+      "aliases": null,
+      "is_skipped": false,
+      "production_branch": "main",
+      "uses_functions": true
+    },
+    {
+      "id": "613a3b36-d519-40c4-868b-7627a41990d4",
+      "short_id": "613a3b36",
+      "project_id": "1b05abf3-10ac-42c9-b9b1-88e711ffc919",
+      "project_name": "flapjack-cloud",
+      "environment": "production",
+      "url": "https://613a3b36.flapjack-cloud.pages.dev",
+      "created_on": "2026-07-09T07:41:57.102449Z",
+      "modified_on": "2026-07-09T07:42:00.279235Z",
+      "latest_stage": {
+        "name": "deploy",
+        "started_on": null,
+        "ended_on": "2026-07-09T07:42:00.279235Z",
+        "status": "success"
+      },
+      "deployment_trigger": {
+        "type": "ad_hoc",
+        "metadata": {
+          "branch": "main",
+          "commit_hash": "d6cc42182bcd8c0f32335b8520e5a576e36cc1dd",
+          "commit_message": "chore: debbie post-sync mirror update",
+          "commit_dirty": true
+        }
+      },
+      "stages": [
+        {
+          "name": "queued",
+          "started_on": "2026-07-09T07:41:57.102449Z",
+          "ended_on": null,
+          "status": "active"
+        },
+        {
+          "name": "initialize",
+          "started_on": null,
+          "ended_on": null,
+          "status": "idle"
+        },
+        {
+          "name": "clone_repo",
+          "started_on": null,
+          "ended_on": null,
+          "status": "idle"
+        },
+        {
+          "name": "build",
+          "started_on": null,
+          "ended_on": null,
+          "status": "idle"
+        },
+        {
+          "name": "deploy",
+          "started_on": null,
+          "ended_on": "2026-07-09T07:42:00.279235Z",
+          "status": "success"
+        }
+      ],
+      "build_config": {
+        "build_command": null,
+        "destination_dir": ".svelte-kit/cloudflare",
+        "build_caching": null,
+        "root_dir": null,
+        "web_analytics_tag": null,
+        "web_analytics_token": null
+      },
+      "env_vars": {
+        "ADMIN_KEY": {
+          "type": "secret_text",
+          "value": ""
+        },
+        "API_BASE_URL": {
+          "type": "plain_text",
+          "value": "https://api.flapjack.foo"
+        },
+        "ENVIRONMENT": {
+          "type": "plain_text",
+          "value": "production"
+        },
+        "JWT_SECRET": {
+          "type": "secret_text",
+          "value": ""
+        },
+        "SERVICE_STATUS": {
+          "type": "plain_text",
+          "value": "operational"
+        },
+        "SERVICE_STATUS_MESSAGE": {
+          "type": "plain_text",
+          "value": ""
+        },
+        "SERVICE_STATUS_UPDATED": {
+          "type": "plain_text",
+          "value": "2026-05-25T01:31:58Z"
+        }
+      },
+      "compatibility_date": "2026-04-01",
+      "compatibility_flags": [
+        "nodejs_compat"
+      ],
+      "build_image_major_version": 3,
+      "usage_model": "bundled",
+      "aliases": null,
+      "is_skipped": false,
+      "production_branch": "main",
+      "uses_functions": true
+    }
+  ],
+  "success": true,
+  "errors": [],
+  "messages": [],
+  "result_info": {
+    "page": 1,
+    "per_page": 10,
+    "count": 10,
+    "total_count": 108,
+    "total_pages": 11
+  }
+}

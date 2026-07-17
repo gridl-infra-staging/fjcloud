@@ -1,0 +1,14 @@
+# Disposition Receipt: batman/may27_pm_2_b1_rerun_final_launch_gate
+
+Classification: approved freed local branch after approved worktree removal
+Evidence source: current read-only git refs at bundle creation.
+
+## rev-parse
+$ git rev-parse batman/may27_pm_2_b1_rerun_final_launch_gate
+27f69dacfccdb43c95e69e0a5d295599d25cc941
+
+## cherry
+$ git cherry -v main batman/may27_pm_2_b1_rerun_final_launch_gate | tail -20
+
+## diff main...
+$ git diff main...batman/may27_pm_2_b1_rerun_final_launch_gate --stat | tail -20

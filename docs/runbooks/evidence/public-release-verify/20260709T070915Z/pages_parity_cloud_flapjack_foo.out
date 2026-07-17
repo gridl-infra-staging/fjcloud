@@ -1,0 +1,1 @@
+wait_for_pages_parity: Pages https://cloud.flapjack.foo reached d6cc42182bcd8c0f32335b8520e5a576e36cc1dd via canonical_deployment commit d6cc42182bcd8c0f32335b8520e5a576e36cc1dd on attempt 1/20

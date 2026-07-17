@@ -1,0 +1,1 @@
+timestamp=2026-05-17T04:42:42Z exit_code=0 customer_id=6d966d23-1bd2-45a7-a914-3186b1845393 evidence_files=run_a_output.log,post_cleanup_tenant_state.json,index_deletion_evidence.txt,SUMMARY.txt

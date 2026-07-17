@@ -1,0 +1,44 @@
+
+Running 1 test using 1 worker
+
+(node:86224) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:86224) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  1 [chromium] › tests/e2e-ui/full/billing_portal_cancel.spec.ts:20:2 › Billing portal cancellation › billing portal cancel returns to billing with server-owned cancellation banner (7.3s)
+
+
+  1) [chromium] › tests/e2e-ui/full/billing_portal_cancel.spec.ts:20:2 › Billing portal cancellation › billing portal cancel returns to billing with server-owned cancellation banner 
+
+    Error: billing-portal arrange failed before reaching /dashboard/billing. Current URL: (arrangeBillingPortalCustomer)
+    API URL: https://api.flapjack.foo
+    Admin key fingerprint: (present, len=32)
+    Visible alert text: Stripe POST /v1/payment_methods failed: 401 {
+      "error": {
+        "message": "Invalid API Key provided: \u003cvaluefr****************ile\u003e",
+        "type": "invalid_request_error"
+      }
+    }
+    Login response: (none observed)
+    Remediation: Run scripts/bootstrap-env-local.sh to bootstrap .env.local, then start the local stack with scripts/local-dev-up.sh and the Rust API with scripts/api-dev.sh. If you override BASE_URL, start the web frontend with scripts/web-dev.sh too. See docs/runbooks/local-dev.md for setup instructions.
+
+       at fixtures/fixtures.ts:213
+
+      211 | 	responseUrl
+      212 | }: ThrowBillingPortalArrangeFailureParams): never {
+    > 213 | 	throw new Error(
+          | 	      ^
+      214 | 		formatFixtureSetupFailure({
+      215 | 			setupName: 'billing-portal arrange',
+      216 | 			expectedPath: '/dashboard/billing',
+        at throwBillingPortalArrangeFailure (/Users/stuart/repos/gridl-infra-dev/fjcloud_dev/web/tests/fixtures/fixtures.ts:213:8)
+        at arrangeBillingPortalCustomer (/Users/stuart/repos/gridl-infra-dev/fjcloud_dev/web/tests/fixtures/fixtures.ts:1236:3)
+        at /Users/stuart/repos/gridl-infra-dev/fjcloud_dev/web/tests/e2e-ui/full/billing_portal_cancel.spec.ts:25:28
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/e2e-ui-full-billing_portal-ffbff-r-owned-cancellation-banner-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [chromium] › tests/e2e-ui/full/billing_portal_cancel.spec.ts:20:2 › Billing portal cancellation › billing portal cancel returns to billing with server-owned cancellation banner 
+exit=1

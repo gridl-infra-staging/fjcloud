@@ -1,0 +1,83 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e3]:
+  - complementary [ref=e4]:
+    - generic [ref=e6]: Flapjack Cloud
+    - generic [ref=e7]:
+      - navigation [ref=e8]:
+        - link "Dashboard" [ref=e9] [cursor=pointer]:
+          - /url: /dashboard
+        - link "Indexes" [ref=e10] [cursor=pointer]:
+          - /url: /dashboard/indexes
+        - link "Billing" [ref=e11] [cursor=pointer]:
+          - /url: /dashboard/billing
+        - link "API Keys" [ref=e12] [cursor=pointer]:
+          - /url: /dashboard/api-keys
+        - link "Logs" [ref=e13] [cursor=pointer]:
+          - /url: /dashboard/logs
+        - link "Migrate" [ref=e14] [cursor=pointer]:
+          - /url: /dashboard/migrate
+        - link "Settings" [ref=e15] [cursor=pointer]:
+          - /url: /dashboard/settings
+      - generic [ref=e16]:
+        - paragraph [ref=e17]: Help
+        - generic [ref=e18]:
+          - link "Support" [ref=e19] [cursor=pointer]:
+            - /url: mailto:support@flapjack.foo
+          - link "API Docs" [ref=e20] [cursor=pointer]:
+            - /url: https://api.flapjack.foo/docs
+  - generic [ref=e21]:
+    - banner [ref=e22]:
+      - generic [ref=e24]: Shared Plan
+      - generic [ref=e25]:
+        - link "Send feedback" [ref=e26] [cursor=pointer]:
+          - /url: mailto:support@flapjack.foo?subject=Flapjack%20Cloud%20beta%20feedback
+        - generic [ref=e27]: Billing Portal 1777965732526-xbnkyufp
+        - button "Logout" [ref=e29]
+    - generic [ref=e31]:
+      - paragraph [ref=e32]: Flapjack Cloud is in public beta. Features and limits may change before general availability.
+      - link "View beta scope" [ref=e33] [cursor=pointer]:
+        - /url: /beta
+    - generic [ref=e35]:
+      - paragraph [ref=e36]: Verify your email address to keep full access to dashboard features and account recovery.
+      - button "Resend verification email" [ref=e37]
+    - main [ref=e38]:
+      - generic [ref=e39]:
+        - navigation "Billing navigation" [ref=e40]:
+          - link "Payment Methods" [ref=e41] [cursor=pointer]:
+            - /url: /dashboard/billing
+          - link "Invoices" [ref=e42] [cursor=pointer]:
+            - /url: /dashboard/billing/invoices
+        - generic [ref=e43]:
+          - heading "Billing" [level=1] [ref=e45]
+          - generic [ref=e46]:
+            - generic [ref=e47]:
+              - heading "Payment methods" [level=2] [ref=e48]
+              - list [ref=e49]:
+                - listitem [ref=e50]:
+                  - generic [ref=e51]:
+                    - generic [ref=e52]:
+                      - paragraph [ref=e53]: Mastercard ending in 4444
+                      - paragraph [ref=e54]: Exp 05/2027
+                    - button "Set as default" [ref=e56]
+                - listitem [ref=e57]:
+                  - generic [ref=e58]:
+                    - generic [ref=e59]:
+                      - paragraph [ref=e60]: Visa ending in 4242
+                      - paragraph [ref=e61]: Exp 05/2027
+                    - generic [ref=e62]: Default
+            - generic [ref=e63]:
+              - heading "Add or update card" [level=2] [ref=e64]
+              - button "Save payment method" [ref=e67]
+            - generic [ref=e68]:
+              - heading "Need to cancel?" [level=2] [ref=e69]
+              - paragraph [ref=e70]:
+                - text: Contact
+                - link "support@flapjack.foo" [ref=e71] [cursor=pointer]:
+                  - /url: mailto:support@flapjack.foo
+                - text: to cancel your subscription.
+              - paragraph [ref=e72]:
+                - link "Contact support@flapjack.foo to cancel" [ref=e73] [cursor=pointer]:
+                  - /url: mailto:support@flapjack.foo
+```

@@ -1,0 +1,4 @@
+{
+  "mutation": "cross_tenant_collision",
+  "expected_failure": "unrelated tenant state changed"
+}

@@ -1,0 +1,14 @@
+# Disposition Receipt: batman/jul09_pm_1_staging_domain_remap_and_served_content_gate
+
+Classification: approved freed local branch after approved worktree removal
+Evidence source: current read-only git refs at bundle creation.
+
+## rev-parse
+$ git rev-parse batman/jul09_pm_1_staging_domain_remap_and_served_content_gate
+2fe30f54dc6f8203114756fae3f2b1b623545ea4
+
+## cherry
+$ git cherry -v main batman/jul09_pm_1_staging_domain_remap_and_served_content_gate | tail -20
+
+## diff main...
+$ git diff main...batman/jul09_pm_1_staging_domain_remap_and_served_content_gate --stat | tail -20

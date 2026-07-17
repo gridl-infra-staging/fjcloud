@@ -1,0 +1,83 @@
+# Command transcript for docs/runbooks/evidence/ses-coverage-a1/20260713T004742Z_jul12_pm_in_vpc_rerun
+# All six probe owners ran on the staging host (fjcloud-api-staging, i-0fbc6d6bbbc8bdc6d)
+# via scripts/launch/ssm_exec_staging.sh against a current-HEAD script checkout.
+# .runtime/host.env was hydrated ON the host from staging SSM parameters (instance role
+# has ssm:GetParameter) plus the authorized test-tenant allowlist. Secret VALUES are
+# intentionally not committed anywhere in this bundle.
+
+set -euo pipefail
+RUN_UTC="20260713T004742Z"
+BUNDLE="docs/runbooks/evidence/ses-coverage-a1/20260713T004742Z_jul12_pm_in_vpc_rerun"
+SECRET_SOURCE="/Users/stuart/repos/gridl-infra-dev/fjcloud_dev/.secret/.env.secret"
+REMOTE_DIR="/tmp/a1_vpc_rerun_20260713T004742Z"
+S3_PREFIX="s3://fjcloud-releases-staging/a1-vpc-rerun/20260713T004742Z"
+
+# --- credential load (exact stage preamble) ---
+unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN
+set -a; source "$SECRET_SOURCE"; set +a
+export AWS_DEFAULT_REGION=us-east-1
+
+# --- preflight ---
+aws sts get-caller-identity --output json > "$BUNDLE/aws_identity.json"
+bash scripts/deploy_status.sh --json --env staging > "$BUNDLE/deploy_status_staging.json"
+#   -> deployed dev_sha 81a1c486... == origin/main; deployable_drift=false; commits_behind_main=0
+aws ec2 describe-instances --filters Name=tag:Name,Values=fjcloud-api-staging \
+  Name=instance-state-name,Values=running --output json > "$BUNDLE/ec2_instance_discovery.json"
+aws ssm describe-instance-information --filters Key=InstanceIds,Values=i-0fbc6d6bbbc8bdc6d \
+  --output json > "$BUNDLE/ssm_target_preflight.json"   # PingStatus=Online
+
+# --- ship current-HEAD scripts to the host ---
+tar -czf scripts.tar.gz scripts
+aws s3 cp scripts.tar.gz "$S3_PREFIX/scripts.tar.gz"        # -> s3_upload.log
+# on host: download+extract, hydrate .runtime/host.env from SSM, add APP_BASE_URL=$STAGING_CLOUD_URL,
+#          INBOUND_ROUNDTRIP_S3_URI, SES_REGION, FJCLOUD_TEST_TENANT_IDS (tenant IDs only), DATABASE_URL;
+#          write bin/ssm_exec_local.sh (local psql shim for clickthrough DB reads).
+bash scripts/launch/ssm_exec_staging.sh "<checkout + host.env materialize>"  # -> host_checkout.log, host_env_materialize.log
+
+# --- deployable-currency injection for the on-host rehearsal ---
+# The staging host has no git, so the rehearsal's default deploy_status.sh preflight cannot
+# recompute dev-repo drift. Stage 1 + this run already proved staging is deploy-current
+# (dev_sha==merged main, deployable_drift=false). We inject that operator-verified status via
+# the designed override STAGING_REHEARSAL_DEPLOY_STATUS_SCRIPT -> bin/deploy_status_shim.sh,
+# which emits the real captured deploy_status_staging.json.
+
+# --- six probe owners, on-host, current-HEAD copies (no new runner) ---
+SSM_EXEC_TIMEOUT_SECONDS=600 bash scripts/launch/ssm_exec_staging.sh \
+  "cd $REMOTE_DIR; bash scripts/probe_ses_bounce_complaint_e2e.sh bounce .runtime/host.env"      # ses_bounce.log/.rc
+SSM_EXEC_TIMEOUT_SECONDS=600 bash scripts/launch/ssm_exec_staging.sh \
+  "cd $REMOTE_DIR; bash scripts/probe_ses_bounce_complaint_e2e.sh complaint .runtime/host.env"   # ses_complaint.log/.rc
+SSM_EXEC_TIMEOUT_SECONDS=600 bash scripts/launch/ssm_exec_staging.sh \
+  "cd $REMOTE_DIR; export PROBE_SSM_EXEC_STAGING_SCRIPT=$REMOTE_DIR/bin/ssm_exec_local.sh; \
+   bash scripts/probe_verify_email_clickthrough_e2e.sh .runtime/host.env"                        # verify_email_clickthrough.log/.rc
+SSM_EXEC_TIMEOUT_SECONDS=600 bash scripts/launch/ssm_exec_staging.sh \
+  "cd $REMOTE_DIR; export PROBE_SSM_EXEC_STAGING_SCRIPT=$REMOTE_DIR/bin/ssm_exec_local.sh; \
+   bash scripts/probe_password_reset_clickthrough_e2e.sh .runtime/host.env"                      # password_reset_clickthrough.log/.rc
+SSM_EXEC_TIMEOUT_SECONDS=900 bash scripts/launch/ssm_exec_staging.sh \
+  "cd $REMOTE_DIR; export STAGING_REHEARSAL_DEPLOY_STATUS_SCRIPT=$REMOTE_DIR/bin/deploy_status_shim.sh; \
+   bash scripts/validate_staging_dunning_delivery.sh --env-file .runtime/host.env --month 2026-06 --confirm-live-mutation"  # staging_dunning_delivery.log/.rc
+SSM_EXEC_TIMEOUT_SECONDS=900 bash scripts/launch/ssm_exec_staging.sh \
+  "cd $REMOTE_DIR; export STAGING_REHEARSAL_DEPLOY_STATUS_SCRIPT=$REMOTE_DIR/bin/deploy_status_shim.sh; \
+   bash scripts/probe_dunning_email_inbox_e2e.sh .runtime/host.env --month 2026-06"              # dunning_email_inbox.log/.rc
+
+# --- sidecars/TSV/all_green/failure_classifications generated from stage4_integrity.py::detect_from_log ---
+cp docs/runbooks/evidence/ses-coverage-a1/20260711T221212Z_in_vpc_rerun/stage4_integrity.py "$BUNDLE/stage4_integrity.py"
+python3 <bundle-artifact-generator importing detect_from_log> "$BUNDLE"
+
+# --- integrity validation ---
+python3 "$BUNDLE/stage4_integrity.py" "$BUNDLE" | tee "$BUNDLE/integrity_check.log"
+test -s "$BUNDLE/all_green.txt"   # -> "0" (4/6 green)
+
+# --- diagnosis of the two failing rows (root cause of invoice_email_ses_query_failed) ---
+# on host, the instance role is denied CloudWatch Logs read:
+#   aws logs filter-log-events --log-group-name /fjcloud/staging/ses/send-events ...
+#   -> AccessDeniedException: fjcloud-instance-role not authorized for logs:FilterLogEvents
+# operator-side (creds with the perm) confirms the log group exists and is populated:
+#   aws logs describe-log-groups --log-group-name-prefix /fjcloud/staging/ses/send-events
+#   -> storedBytes=8088216, retentionInDays=14
+
+# --- cleanup ---
+aws s3 rm "$S3_PREFIX/scripts.tar.gz"   # -> s3_cleanup.log
+bash scripts/launch/ssm_exec_staging.sh "rm -rf $REMOTE_DIR; echo HOST_CLEANUP_READY"  # -> host_cleanup.log
+
+# --- hygiene gate (must exit 0 before commit) ---
+bash scripts/check_evidence_secret_hygiene.sh

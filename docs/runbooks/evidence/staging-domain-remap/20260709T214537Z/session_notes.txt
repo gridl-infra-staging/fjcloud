@@ -1,0 +1,4 @@
+timestamp_utc=20260709T214537Z
+secret_loader=scripts/lib/env.sh::load_env_file
+secret_file=/Users/stuart/repos/gridl-infra-dev/fjcloud_dev/.secret/.env.secret
+commands=prewrite accounts/domain/pricing probes

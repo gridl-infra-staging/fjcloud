@@ -1,0 +1,6 @@
+env=prod
+status=success
+result=pass
+target_status=available
+target_endpoint=fjcloud-prod-restore-20260516025535.*.us-east-1.rds.amazonaws.com
+runbook_source=docs/runbooks/database-backup-recovery.md

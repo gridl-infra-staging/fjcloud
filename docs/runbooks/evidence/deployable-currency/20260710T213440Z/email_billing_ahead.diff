@@ -1,0 +1,56 @@
+diff --git a/infra/api/src/services/email.rs b/infra/api/src/services/email.rs
+index 37c8382f7..d35805ddb 100644
+--- a/infra/api/src/services/email.rs
++++ b/infra/api/src/services/email.rs
+@@ -1,4 +1,4 @@
+-//! Stub summary for email.rs.
++//! Stub summary for infra/api/src/services/email.rs.
+ use crate::services::email_suppression::EmailSuppressionStore;
+ use async_trait::async_trait;
+ use aws_sdk_sesv2::types::{Body, Content, Destination, EmailContent, Message, MessageTag};
+@@ -580,6 +580,7 @@ impl EmailService for SesEmailService {
+         .map(|_| ())
+     }
+ 
++    /// TODO: Document SesEmailService.send_invoice_ready_email.
+     async fn send_invoice_ready_email(
+         &self,
+         to: &str,
+@@ -624,6 +625,7 @@ impl EmailService for SesEmailService {
+         .map(|_| ())
+     }
+ 
++    /// TODO: Document SesEmailService.send_dunning_retry_scheduled_email.
+     async fn send_dunning_retry_scheduled_email(
+         &self,
+         to: &str,
+@@ -641,6 +643,7 @@ impl EmailService for SesEmailService {
+         .map(|_| ())
+     }
+ 
++    /// TODO: Document SesEmailService.send_dunning_retries_exhausted_email.
+     async fn send_dunning_retries_exhausted_email(
+         &self,
+         to: &str,
+@@ -658,6 +661,7 @@ impl EmailService for SesEmailService {
+         .map(|_| ())
+     }
+ 
++    /// TODO: Document SesEmailService.send_dunning_recovered_after_failure_email.
+     async fn send_dunning_recovered_after_failure_email(
+         &self,
+         to: &str,
+diff --git a/infra/billing/DIRMAP.md b/infra/billing/DIRMAP.md
+index eb83e545b..e7eb0a642 100644
+--- a/infra/billing/DIRMAP.md
++++ b/infra/billing/DIRMAP.md
+@@ -6,8 +6,5 @@
+ 
+ | Directory | Summary |
+ | --- | --- |
+-| src | Billing engine that aggregates raw metering records into usage summaries and applies rate card pricing to generate invoices. |
+-| src | This module implements the billing calculation pipeline: aggregating raw metering records into billing-period summaries, applying rate-card pricing to generate invoices, and managing the shared types and configurations that support these operations. |
+-| src | This directory implements a billing calculation pipeline that aggregates raw metering records into usage summaries, applies rate card pricing to generate invoices, and defines the shared data structures and pricing configuration for the billing system. |
+-| src | This billing module converts raw metering data into invoices through a three-stage pipeline: aggregating usage records into billing-period summaries, applying rate card pricing to calculate charges, and sharing core types across the system. |
++| src | This billing module converts raw metering records into invoices by aggregating usage data, applying configurable rate-card pricing, and producing period-based summaries. |
+ <!-- [scrai:end] -->

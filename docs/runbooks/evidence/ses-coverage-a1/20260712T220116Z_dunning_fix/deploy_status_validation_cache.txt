@@ -1,0 +1,4 @@
+cache_hit=false
+head=12c9227c6a55e3fe03a389bfc6da9050e21e0ae1
+clean_tree=false
+command=bash scripts/deploy_status.sh --json --env staging

@@ -1,0 +1,8 @@
+bundle=docs/runbooks/evidence/canary-customer-loop/20260518T032122Z_prod_e2e_GREEN
+function_error=present:Unhandled
+success_markers=absent
+failure_markers=present
+invoke_status=200
+support_email_function_error=present:Unhandled
+support_email_image_uri=213880904778.dkr.ecr.us-east-1.amazonaws.com/fjcloud-prod-support-email-canary:latest
+support_email_architectures=["arm64"]

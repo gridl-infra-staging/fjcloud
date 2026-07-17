@@ -1,0 +1,5 @@
+target_dev_sha=c106025d6761b51d05d0b624e2c10aeba9589c8e
+current_mirror_sha=0b069a56a9e73e97b1b9859a8676f938535777d1
+served_pages_value=0b069a56a9e73e97b1b9859a8676f938535777d1
+pricing_http_status=200
+pricing_cta=pass

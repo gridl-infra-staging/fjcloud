@@ -1,0 +1,12 @@
+timestamp=2026-04-29T08:29:41Z
+command=gh run list --branch main --limit 10
+queued		Fix SES configuration set env mapping for staging runtime	CI	main	push	25098729424	8s	2026-04-29T08:29:34Z
+completed	failure	Nightly Stripe Clock	Nightly Stripe Clock	main	schedule	25094525412	5s	2026-04-29T06:36:35Z
+completed	failure	Outside AWS Health	Outside AWS Health	main	schedule	25094250648	9s	2026-04-29T06:27:57Z
+completed	failure	mwip	CI	main	push	25090675966	5s	2026-04-29T04:18:37Z
+completed	failure	Outside AWS Health	Outside AWS Health	main	schedule	25090175351	4s	2026-04-29T03:59:06Z
+completed	failure	Merge branch 'batman/apr28_2pm_4_browser_evidence_bundle_current_main'	CI	main	push	25088682547	12s	2026-04-29T02:59:01Z
+completed	failure	docs: reconcile apr28 merge status and beta readiness	CI	main	push	25088527298	5s	2026-04-29T02:52:35Z
+completed	failure	docs: align IAM inventory evidence pointer	CI	main	push	25088279634	11s	2026-04-29T02:42:26Z
+completed	failure	docs: point secret rotation to captured IAM artifact	CI	main	push	25088273833	4s	2026-04-29T02:42:12Z
+completed	failure	Outside AWS Health	Outside AWS Health	main	schedule	25084134998	5s	2026-04-29T00:06:31Z

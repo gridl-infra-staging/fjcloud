@@ -1,0 +1,14 @@
+# Disposition Receipt: batman/may20_3pm_4_launch_verification
+
+Classification: approved freed local branch after approved worktree removal
+Evidence source: current read-only git refs at bundle creation.
+
+## rev-parse
+$ git rev-parse batman/may20_3pm_4_launch_verification
+4f8eb97c4f4047cecb31f477722d73d746fa4ad7
+
+## cherry
+$ git cherry -v main batman/may20_3pm_4_launch_verification | tail -20
+
+## diff main...
+$ git diff main...batman/may20_3pm_4_launch_verification --stat | tail -20

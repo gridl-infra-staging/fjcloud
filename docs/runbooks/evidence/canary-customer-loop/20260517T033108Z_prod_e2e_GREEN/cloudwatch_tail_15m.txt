@@ -1,0 +1,81 @@
+2026-05-17T03:17:28.620000+00:00 2026/05/17/[$LATEST]d47fc9390b424939bda8d71095438310 START RequestId: 0df2aee9-b7b0-449f-b51b-be1f940d166f Version: $LATEST
+2026-05-17T03:17:32.269000+00:00 2026/05/17/[$LATEST]d47fc9390b424939bda8d71095438310 [customer-loop-canary] signup succeeded for canary+canary2026051703173117602@test.flapjack.foo (customer=bda7d141-4a4d-4d48-839a-209f94ca006f)
+2026-05-17T03:17:35.431000+00:00 2026/05/17/[$LATEST]d47fc9390b424939bda8d71095438310 [customer-loop-canary] customer loop failed before completion; entering cleanup
+2026-05-17T03:17:35.571000+00:00 2026/05/17/[$LATEST]d47fc9390b424939bda8d71095438310 [customer-loop-canary] account delete attempted for customer bda7d141-4a4d-4d48-839a-209f94ca006f
+2026-05-17T03:17:35.674000+00:00 2026/05/17/[$LATEST]d47fc9390b424939bda8d71095438310 [customer-loop-canary] step 'verify_email' failed: verification email not found in inbox within timeout
+2026-05-17T03:17:35.709000+00:00 2026/05/17/[$LATEST]d47fc9390b424939bda8d71095438310 [FAIL] slack: webhook URL must use https://
+2026-05-17T03:17:35.733000+00:00 2026/05/17/[$LATEST]d47fc9390b424939bda8d71095438310 [FAIL] discord: webhook URL must use https://
+2026-05-17T03:17:35.895000+00:00 2026/05/17/[$LATEST]d47fc9390b424939bda8d71095438310 END RequestId: 0df2aee9-b7b0-449f-b51b-be1f940d166f
+2026-05-17T03:17:35.895000+00:00 2026/05/17/[$LATEST]d47fc9390b424939bda8d71095438310 REPORT RequestId: 0df2aee9-b7b0-449f-b51b-be1f940d166f	Duration: 7274.44 ms	Billed Duration: 7275 ms	Memory Size: 512 MB	Max Memory Used: 138 MB
+2026-05-17T03:17:46.719000+00:00 2026/05/17/[$LATEST]d47fc9390b424939bda8d71095438310 START RequestId: d092d18b-22c7-4f5d-b70d-84cd8a729ce2 Version: $LATEST
+2026-05-17T03:17:50.369000+00:00 2026/05/17/[$LATEST]d47fc9390b424939bda8d71095438310 [customer-loop-canary] signup succeeded for canary+canary2026051703174919962@test.flapjack.foo (customer=a208c2e2-444f-43c1-95fd-8551c0dc696d)
+2026-05-17T03:17:53.449000+00:00 2026/05/17/[$LATEST]d47fc9390b424939bda8d71095438310 [customer-loop-canary] customer loop failed before completion; entering cleanup
+2026-05-17T03:17:53.571000+00:00 2026/05/17/[$LATEST]d47fc9390b424939bda8d71095438310 [customer-loop-canary] account delete attempted for customer a208c2e2-444f-43c1-95fd-8551c0dc696d
+2026-05-17T03:17:53.672000+00:00 2026/05/17/[$LATEST]d47fc9390b424939bda8d71095438310 [customer-loop-canary] step 'verify_email' failed: verification email not found in inbox within timeout
+2026-05-17T03:17:53.694000+00:00 2026/05/17/[$LATEST]d47fc9390b424939bda8d71095438310 [FAIL] slack: webhook URL must use https://
+2026-05-17T03:17:53.729000+00:00 2026/05/17/[$LATEST]d47fc9390b424939bda8d71095438310 [FAIL] discord: webhook URL must use https://
+2026-05-17T03:17:53.889000+00:00 2026/05/17/[$LATEST]d47fc9390b424939bda8d71095438310 END RequestId: d092d18b-22c7-4f5d-b70d-84cd8a729ce2
+2026-05-17T03:17:53.889000+00:00 2026/05/17/[$LATEST]d47fc9390b424939bda8d71095438310 REPORT RequestId: d092d18b-22c7-4f5d-b70d-84cd8a729ce2	Duration: 7157.99 ms	Billed Duration: 7158 ms	Memory Size: 512 MB	Max Memory Used: 138 MB
+2026-05-17T03:17:54.420000+00:00 2026/05/17/[$LATEST]d47fc9390b424939bda8d71095438310 START RequestId: feef209d-633f-45bc-92a6-c2a51ac1c67d Version: $LATEST
+2026-05-17T03:17:57.991000+00:00 2026/05/17/[$LATEST]d47fc9390b424939bda8d71095438310 [customer-loop-canary] signup succeeded for canary+canary2026051703175713200@test.flapjack.foo (customer=90edb89b-b025-4413-87dd-1319b0483f80)
+2026-05-17T03:18:01.089000+00:00 2026/05/17/[$LATEST]d47fc9390b424939bda8d71095438310 [customer-loop-canary] customer loop failed before completion; entering cleanup
+2026-05-17T03:18:01.231000+00:00 2026/05/17/[$LATEST]d47fc9390b424939bda8d71095438310 [customer-loop-canary] account delete attempted for customer 90edb89b-b025-4413-87dd-1319b0483f80
+2026-05-17T03:18:01.332000+00:00 2026/05/17/[$LATEST]d47fc9390b424939bda8d71095438310 [customer-loop-canary] step 'verify_email' failed: verification email not found in inbox within timeout
+2026-05-17T03:18:01.369000+00:00 2026/05/17/[$LATEST]d47fc9390b424939bda8d71095438310 [FAIL] slack: webhook URL must use https://
+2026-05-17T03:18:01.389000+00:00 2026/05/17/[$LATEST]d47fc9390b424939bda8d71095438310 [FAIL] discord: webhook URL must use https://
+2026-05-17T03:18:01.549000+00:00 2026/05/17/[$LATEST]d47fc9390b424939bda8d71095438310 END RequestId: feef209d-633f-45bc-92a6-c2a51ac1c67d
+2026-05-17T03:18:01.549000+00:00 2026/05/17/[$LATEST]d47fc9390b424939bda8d71095438310 REPORT RequestId: feef209d-633f-45bc-92a6-c2a51ac1c67d	Duration: 7117.50 ms	Billed Duration: 7118 ms	Memory Size: 512 MB	Max Memory Used: 138 MB
+2026-05-17T03:19:45.074000+00:00 2026/05/17/[$LATEST]d47fc9390b424939bda8d71095438310 START RequestId: 0df2aee9-b7b0-449f-b51b-be1f940d166f Version: $LATEST
+2026-05-17T03:19:48.686000+00:00 2026/05/17/[$LATEST]d47fc9390b424939bda8d71095438310 [customer-loop-canary] signup succeeded for canary+canary2026051703194826034@test.flapjack.foo (customer=5896f9db-4a53-4d0d-8c47-e9ff42355e3f)
+2026-05-17T03:19:51.730000+00:00 2026/05/17/[$LATEST]d47fc9390b424939bda8d71095438310 [customer-loop-canary] customer loop failed before completion; entering cleanup
+2026-05-17T03:19:51.868000+00:00 2026/05/17/[$LATEST]d47fc9390b424939bda8d71095438310 [customer-loop-canary] account delete attempted for customer 5896f9db-4a53-4d0d-8c47-e9ff42355e3f
+2026-05-17T03:19:51.969000+00:00 2026/05/17/[$LATEST]d47fc9390b424939bda8d71095438310 [customer-loop-canary] step 'verify_email' failed: verification email not found in inbox within timeout
+2026-05-17T03:19:51.990000+00:00 2026/05/17/[$LATEST]d47fc9390b424939bda8d71095438310 [FAIL] slack: webhook URL must use https://
+2026-05-17T03:19:52.026000+00:00 2026/05/17/[$LATEST]d47fc9390b424939bda8d71095438310 [FAIL] discord: webhook URL must use https://
+2026-05-17T03:19:52.172000+00:00 2026/05/17/[$LATEST]d47fc9390b424939bda8d71095438310 END RequestId: 0df2aee9-b7b0-449f-b51b-be1f940d166f
+2026-05-17T03:19:52.172000+00:00 2026/05/17/[$LATEST]d47fc9390b424939bda8d71095438310 REPORT RequestId: 0df2aee9-b7b0-449f-b51b-be1f940d166f	Duration: 7097.30 ms	Billed Duration: 7098 ms	Memory Size: 512 MB	Max Memory Used: 138 MB
+2026-05-17T03:26:39.476000+00:00 2026/05/17/[$LATEST]0326a3c534f64bcc80c297b554943d31 START RequestId: 49681fb8-b0f3-4100-b17c-cdcb5480ef1a Version: $LATEST
+2026-05-17T03:26:53.211000+00:00 2026/05/17/[$LATEST]0326a3c534f64bcc80c297b554943d31 [customer-loop-canary] signup succeeded for canary+canary2026051703265230349@test.flapjack.foo (customer=9ec800b1-b696-4eb0-a7db-d14c65594d94)
+2026-05-17T03:26:56.173000+00:00 2026/05/17/[$LATEST]0326a3c534f64bcc80c297b554943d31 [customer-loop-canary] customer loop failed before completion; entering cleanup
+2026-05-17T03:26:56.295000+00:00 2026/05/17/[$LATEST]0326a3c534f64bcc80c297b554943d31 [customer-loop-canary] account delete attempted for customer 9ec800b1-b696-4eb0-a7db-d14c65594d94
+2026-05-17T03:26:56.393000+00:00 2026/05/17/[$LATEST]0326a3c534f64bcc80c297b554943d31 [customer-loop-canary] step 'verify_email' failed: verification email not found in inbox within timeout
+2026-05-17T03:26:56.414000+00:00 2026/05/17/[$LATEST]0326a3c534f64bcc80c297b554943d31 [FAIL] slack: webhook URL must use https://
+2026-05-17T03:26:56.451000+00:00 2026/05/17/[$LATEST]0326a3c534f64bcc80c297b554943d31 [FAIL] discord: webhook URL must use https://
+2026-05-17T03:26:56.592000+00:00 2026/05/17/[$LATEST]0326a3c534f64bcc80c297b554943d31 END RequestId: 49681fb8-b0f3-4100-b17c-cdcb5480ef1a
+2026-05-17T03:26:56.592000+00:00 2026/05/17/[$LATEST]0326a3c534f64bcc80c297b554943d31 REPORT RequestId: 49681fb8-b0f3-4100-b17c-cdcb5480ef1a	Duration: 17101.94 ms	Billed Duration: 17309 ms	Memory Size: 512 MB	Max Memory Used: 139 MB	Init Duration: 206.96 ms
+2026-05-17T03:27:20.421000+00:00 2026/05/17/[$LATEST]0326a3c534f64bcc80c297b554943d31 START RequestId: b2a99a57-f470-4ffe-af64-8264434a5d88 Version: $LATEST
+2026-05-17T03:27:23.673000+00:00 2026/05/17/[$LATEST]0326a3c534f64bcc80c297b554943d31 [customer-loop-canary] signup succeeded for canary+canary2026051703272316410@test.flapjack.foo (customer=985ea76f-84fe-4509-8dae-84a43ff7454b)
+2026-05-17T03:27:26.416000+00:00 2026/05/17/[$LATEST]0326a3c534f64bcc80c297b554943d31 [customer-loop-canary] customer loop failed before completion; entering cleanup
+2026-05-17T03:27:26.535000+00:00 2026/05/17/[$LATEST]0326a3c534f64bcc80c297b554943d31 [customer-loop-canary] account delete attempted for customer 985ea76f-84fe-4509-8dae-84a43ff7454b
+2026-05-17T03:27:26.634000+00:00 2026/05/17/[$LATEST]0326a3c534f64bcc80c297b554943d31 [customer-loop-canary] step 'verify_email' failed: verification email not found in inbox within timeout
+2026-05-17T03:27:26.656000+00:00 2026/05/17/[$LATEST]0326a3c534f64bcc80c297b554943d31 [FAIL] slack: webhook URL must use https://
+2026-05-17T03:27:26.693000+00:00 2026/05/17/[$LATEST]0326a3c534f64bcc80c297b554943d31 [FAIL] discord: webhook URL must use https://
+2026-05-17T03:27:26.833000+00:00 2026/05/17/[$LATEST]0326a3c534f64bcc80c297b554943d31 END RequestId: b2a99a57-f470-4ffe-af64-8264434a5d88
+2026-05-17T03:27:26.833000+00:00 2026/05/17/[$LATEST]0326a3c534f64bcc80c297b554943d31 REPORT RequestId: b2a99a57-f470-4ffe-af64-8264434a5d88	Duration: 6399.12 ms	Billed Duration: 6400 ms	Memory Size: 512 MB	Max Memory Used: 139 MB
+2026-05-17T03:27:27.184000+00:00 2026/05/17/[$LATEST]0326a3c534f64bcc80c297b554943d31 START RequestId: 1514d796-b19c-4968-9fe0-955dcfa13a33 Version: $LATEST
+2026-05-17T03:27:30.373000+00:00 2026/05/17/[$LATEST]0326a3c534f64bcc80c297b554943d31 [customer-loop-canary] signup succeeded for canary+canary202605170327299088@test.flapjack.foo (customer=2d9c6c1f-2f91-4bba-9ee8-7a0fa2216472)
+2026-05-17T03:27:32.974000+00:00 2026/05/17/[$LATEST]0326a3c534f64bcc80c297b554943d31 [customer-loop-canary] customer loop failed before completion; entering cleanup
+2026-05-17T03:27:33.097000+00:00 2026/05/17/[$LATEST]0326a3c534f64bcc80c297b554943d31 [customer-loop-canary] account delete attempted for customer 2d9c6c1f-2f91-4bba-9ee8-7a0fa2216472
+2026-05-17T03:27:33.195000+00:00 2026/05/17/[$LATEST]0326a3c534f64bcc80c297b554943d31 [customer-loop-canary] step 'verify_email' failed: verification email not found in inbox within timeout
+2026-05-17T03:27:33.216000+00:00 2026/05/17/[$LATEST]0326a3c534f64bcc80c297b554943d31 [FAIL] slack: webhook URL must use https://
+2026-05-17T03:27:33.253000+00:00 2026/05/17/[$LATEST]0326a3c534f64bcc80c297b554943d31 [FAIL] discord: webhook URL must use https://
+2026-05-17T03:27:33.393000+00:00 2026/05/17/[$LATEST]0326a3c534f64bcc80c297b554943d31 END RequestId: 1514d796-b19c-4968-9fe0-955dcfa13a33
+2026-05-17T03:27:33.393000+00:00 2026/05/17/[$LATEST]0326a3c534f64bcc80c297b554943d31 REPORT RequestId: 1514d796-b19c-4968-9fe0-955dcfa13a33	Duration: 6195.28 ms	Billed Duration: 6196 ms	Memory Size: 512 MB	Max Memory Used: 139 MB
+2026-05-17T03:31:10.423000+00:00 2026/05/17/[$LATEST]0326a3c534f64bcc80c297b554943d31 START RequestId: f7014441-bdb8-4f04-a8e6-a5bd4861168d Version: $LATEST
+2026-05-17T03:31:13.658000+00:00 2026/05/17/[$LATEST]0326a3c534f64bcc80c297b554943d31 [customer-loop-canary] signup succeeded for canary+canary202605170331137756@test.flapjack.foo (customer=207ed34f-4826-4c9d-b869-192e43c161ae)
+2026-05-17T03:31:16.379000+00:00 2026/05/17/[$LATEST]0326a3c534f64bcc80c297b554943d31 [customer-loop-canary] customer loop failed before completion; entering cleanup
+2026-05-17T03:31:16.502000+00:00 2026/05/17/[$LATEST]0326a3c534f64bcc80c297b554943d31 [customer-loop-canary] account delete attempted for customer 207ed34f-4826-4c9d-b869-192e43c161ae
+2026-05-17T03:31:16.600000+00:00 2026/05/17/[$LATEST]0326a3c534f64bcc80c297b554943d31 [customer-loop-canary] step 'verify_email' failed: verification email not found in inbox within timeout
+2026-05-17T03:31:16.621000+00:00 2026/05/17/[$LATEST]0326a3c534f64bcc80c297b554943d31 [FAIL] slack: webhook URL must use https://
+2026-05-17T03:31:16.658000+00:00 2026/05/17/[$LATEST]0326a3c534f64bcc80c297b554943d31 [FAIL] discord: webhook URL must use https://
+2026-05-17T03:31:16.804000+00:00 2026/05/17/[$LATEST]0326a3c534f64bcc80c297b554943d31 END RequestId: f7014441-bdb8-4f04-a8e6-a5bd4861168d
+2026-05-17T03:31:16.804000+00:00 2026/05/17/[$LATEST]0326a3c534f64bcc80c297b554943d31 REPORT RequestId: f7014441-bdb8-4f04-a8e6-a5bd4861168d	Duration: 6380.64 ms	Billed Duration: 6381 ms	Memory Size: 512 MB	Max Memory Used: 139 MB
+2026-05-17T03:31:17.151000+00:00 2026/05/17/[$LATEST]0326a3c534f64bcc80c297b554943d31 START RequestId: 71e2bd91-1cd3-46ef-89ed-9b8eda83cd11 Version: $LATEST
+2026-05-17T03:31:21.058000+00:00 2026/05/17/[$LATEST]0326a3c534f64bcc80c297b554943d31 [customer-loop-canary] signup succeeded for canary+canary2026051703312024906@test.flapjack.foo (customer=21f7d26d-5375-4cf3-aafb-e32a4d28bb92)
+2026-05-17T03:31:24.639000+00:00 2026/05/17/[$LATEST]0326a3c534f64bcc80c297b554943d31 [customer-loop-canary] customer loop failed before completion; entering cleanup
+2026-05-17T03:31:24.781000+00:00 2026/05/17/[$LATEST]0326a3c534f64bcc80c297b554943d31 [customer-loop-canary] account delete attempted for customer 21f7d26d-5375-4cf3-aafb-e32a4d28bb92
+2026-05-17T03:31:24.941000+00:00 2026/05/17/[$LATEST]0326a3c534f64bcc80c297b554943d31 [customer-loop-canary] step 'verify_email' failed: verification email not found in inbox within timeout
+2026-05-17T03:31:24.998000+00:00 2026/05/17/[$LATEST]0326a3c534f64bcc80c297b554943d31 [FAIL] slack: webhook URL must use https://
+2026-05-17T03:31:25.079000+00:00 2026/05/17/[$LATEST]0326a3c534f64bcc80c297b554943d31 [FAIL] discord: webhook URL must use https://
+2026-05-17T03:31:25.284000+00:00 2026/05/17/[$LATEST]0326a3c534f64bcc80c297b554943d31 END RequestId: 71e2bd91-1cd3-46ef-89ed-9b8eda83cd11
+2026-05-17T03:31:25.284000+00:00 2026/05/17/[$LATEST]0326a3c534f64bcc80c297b554943d31 REPORT RequestId: 71e2bd91-1cd3-46ef-89ed-9b8eda83cd11	Duration: 8130.31 ms	Billed Duration: 8131 ms	Memory Size: 512 MB	Max Memory Used: 139 MB

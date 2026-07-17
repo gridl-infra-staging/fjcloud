@@ -1,0 +1,12 @@
+{
+  "executed_command": "bash scripts/stripe_webhook_replay_fixture.sh --run --allow-staging-target --env-file <temp-redacted> --target-url https://api.flapjack.foo/webhooks/stripe --event-type invoice.payment_failed --invoice-id in_1TRbUXKH9mdklKeInGaHrbVv --next-payment-attempt 1745949789 --attempt-count 2 --timestamp 1745946189 --event-id evt_stage3_retry_20260429T170311Z",
+  "capture_note": "Replay command executed once; local artifact write failed immediately afterward. Values below are authoritative readback from staging DB/webhook_events.",
+  "observed_outcome": {
+    "event_id": "evt_stage3_retry_20260429T170311Z",
+    "event_type": "invoice.payment_failed",
+    "stripe_invoice_id": "in_1TRbUXKH9mdklKeInGaHrbVv",
+    "processed_at_utc": "2026-04-29T17:03:11.708Z",
+    "invoice_id": "4266f700-6337-400d-b798-69ef03a43436",
+    "invoice_status_at_postcheck": "paid"
+  }
+}

@@ -1,0 +1,2 @@
+fjcloud-staging.cabwlew6jcjl.us-east-1.rds.amazonaws.com:5432\tconnect=ok
+fjcloud-staging-restore-20260525235041.cabwlew6jcjl.us-east-1.rds.amazonaws.com:5432\tconnect=fail

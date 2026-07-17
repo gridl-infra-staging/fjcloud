@@ -1,0 +1,13 @@
+{
+  "dev_main_sha": "06c25684ef7fd983d14f3fe3d49dca6937d30ff0",
+  "envs": {
+    "prod": {
+      "url": "https://api.flapjack.foo/version",
+      "dev_sha": "06c25684ef7fd983d14f3fe3d49dca6937d30ff0",
+      "mirror_sha": "cd382c5ea7727ea62bd80c0129a3fa5b4570cc18",
+      "synced_at": "2026-06-10T09:16:46Z",
+      "build_time": "2026-06-10T09:20:35Z",
+      "commits_behind_main": "0"
+    }
+  }
+}

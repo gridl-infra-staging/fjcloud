@@ -1,0 +1,14 @@
+# Disposition Receipt: batman/may16_pm_6_quota_warning_emails_records_storage
+
+Classification: approved freed local branch after approved worktree removal
+Evidence source: current read-only git refs at bundle creation.
+
+## rev-parse
+$ git rev-parse batman/may16_pm_6_quota_warning_emails_records_storage
+76f2a9da2cab18578d71f8122faf9aafc4dc1b36
+
+## cherry
+$ git cherry -v main batman/may16_pm_6_quota_warning_emails_records_storage | tail -20
+
+## diff main...
+$ git diff main...batman/may16_pm_6_quota_warning_emails_records_storage --stat | tail -20

@@ -1,0 +1,47 @@
+timestamp=2026-04-29T08:30:00Z
+command=gh run view 25098729424
+
+X main CI · 25098729424
+Triggered via push less than a minute ago
+
+JOBS
+X check-sizes in 12s (ID 73542023553)
+X rust-lint in 11s (ID 73542023554)
+X secret-scan in 11s (ID 73542023561)
+X rust-test in 4s (ID 73542023563)
+X playwright in 4s (ID 73542023565)
+X web-lint in 4s (ID 73542023571)
+X migration-test in 4s (ID 73542023577)
+X web-test in 5s (ID 73542023612)
+- deploy-staging in 0s (ID 73542050731)
+
+ANNOTATIONS
+X The job was not started because recent account payments have failed or your spending limit needs to be increased. Please check the 'Billing & plans' section in your settings
+check-sizes: .github#1
+
+X The job was not started because recent account payments have failed or your spending limit needs to be increased. Please check the 'Billing & plans' section in your settings
+rust-lint: .github#1
+
+X The job was not started because recent account payments have failed or your spending limit needs to be increased. Please check the 'Billing & plans' section in your settings
+secret-scan: .github#1
+
+X The job was not started because recent account payments have failed or your spending limit needs to be increased. Please check the 'Billing & plans' section in your settings
+rust-test: .github#1
+
+X The job was not started because recent account payments have failed or your spending limit needs to be increased. Please check the 'Billing & plans' section in your settings
+playwright: .github#1
+
+X The job was not started because recent account payments have failed or your spending limit needs to be increased. Please check the 'Billing & plans' section in your settings
+web-lint: .github#1
+
+X The job was not started because recent account payments have failed or your spending limit needs to be increased. Please check the 'Billing & plans' section in your settings
+migration-test: .github#1
+
+X The job was not started because recent account payments have failed or your spending limit needs to be increased. Please check the 'Billing & plans' section in your settings
+web-test: .github#1
+
+
+To see what failed, try: gh run view 25098729424 --log-failed
+View this run on GitHub: https://github.com/gridl-infra-dev/fjcloud_dev/actions/runs/25098729424
+--- JOB LIST JSON ---
+{"conclusion":"failure","createdAt":"2026-04-29T08:29:34Z","event":"push","headBranch":"main","headSha":"e0b9b45a28c9888e80c697b40c7cf8588174e4bb","jobs":[{"completedAt":"2026-04-29T08:29:46Z","conclusion":"failure","databaseId":73542023553,"name":"check-sizes","startedAt":"2026-04-29T08:29:34Z","status":"completed","steps":[],"url":"https://github.com/gridl-infra-dev/fjcloud_dev/actions/runs/25098729424/job/73542023553"},{"completedAt":"2026-04-29T08:29:45Z","conclusion":"failure","databaseId":73542023554,"name":"rust-lint","startedAt":"2026-04-29T08:29:34Z","status":"completed","steps":[],"url":"https://github.com/gridl-infra-dev/fjcloud_dev/actions/runs/25098729424/job/73542023554"},{"completedAt":"2026-04-29T08:29:45Z","conclusion":"failure","databaseId":73542023561,"name":"secret-scan","startedAt":"2026-04-29T08:29:34Z","status":"completed","steps":[],"url":"https://github.com/gridl-infra-dev/fjcloud_dev/actions/runs/25098729424/job/73542023561"},{"completedAt":"2026-04-29T08:29:38Z","conclusion":"failure","databaseId":73542023563,"name":"rust-test","startedAt":"2026-04-29T08:29:34Z","status":"completed","steps":[],"url":"https://github.com/gridl-infra-dev/fjcloud_dev/actions/runs/25098729424/job/73542023563"},{"completedAt":"2026-04-29T08:29:38Z","conclusion":"failure","databaseId":73542023565,"name":"playwright","startedAt":"2026-04-29T08:29:34Z","status":"completed","steps":[],"url":"https://github.com/gridl-infra-dev/fjcloud_dev/actions/runs/25098729424/job/73542023565"},{"completedAt":"2026-04-29T08:29:38Z","conclusion":"failure","databaseId":73542023571,"name":"web-lint","startedAt":"2026-04-29T08:29:34Z","status":"completed","steps":[],"url":"https://github.com/gridl-infra-dev/fjcloud_dev/actions/runs/25098729424/job/73542023571"},{"completedAt":"2026-04-29T08:29:38Z","conclusion":"failure","databaseId":73542023577,"name":"migration-test","startedAt":"2026-04-29T08:29:34Z","status":"completed","steps":[],"url":"https://github.com/gridl-infra-dev/fjcloud_dev/actions/runs/25098729424/job/73542023577"},{"completedAt":"2026-04-29T08:29:39Z","conclusion":"failure","databaseId":73542023612,"name":"web-test","startedAt":"2026-04-29T08:29:34Z","status":"completed","steps":[],"url":"https://github.com/gridl-infra-dev/fjcloud_dev/actions/runs/25098729424/job/73542023612"},{"completedAt":"2026-04-29T08:29:46Z","conclusion":"skipped","databaseId":73542050731,"name":"deploy-staging","startedAt":"2026-04-29T08:29:46Z","status":"completed","steps":[],"url":"https://github.com/gridl-infra-dev/fjcloud_dev/actions/runs/25098729424/job/73542050731"}],"name":"CI","status":"completed","updatedAt":"2026-04-29T08:29:46Z","url":"https://github.com/gridl-infra-dev/fjcloud_dev/actions/runs/25098729424"}

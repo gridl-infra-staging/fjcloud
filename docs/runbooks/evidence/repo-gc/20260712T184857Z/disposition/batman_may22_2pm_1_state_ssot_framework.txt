@@ -1,0 +1,14 @@
+# Disposition Receipt: batman/may22_2pm_1_state_ssot_framework
+
+Classification: approved freed local branch after approved worktree removal
+Evidence source: current read-only git refs at bundle creation.
+
+## rev-parse
+$ git rev-parse batman/may22_2pm_1_state_ssot_framework
+8bf722ab525a6a2d97d3e76cab5e102543d6d9c8
+
+## cherry
+$ git cherry -v main batman/may22_2pm_1_state_ssot_framework | tail -20
+
+## diff main...
+$ git diff main...batman/may22_2pm_1_state_ssot_framework --stat | tail -20

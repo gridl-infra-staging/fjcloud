@@ -1,0 +1,48 @@
+customer_id,email,status,deleted_at,stripe_customer_id,tenant_id,deployment_id,deployment_status,provider_vm_id,hostname,flapjack_url,ip_address,created_at
+3c8320f3-0cf8-4353-86ab-6a6f718e8b30,trust-ratchet-success_paid-20260517t094429z@test.flapjack.foo,active,,cus_UX5QtctIZAV8sZ,,,,,,,,2026-05-17 09:44:29.69754+00
+93ee1a83-2630-419a-9154-7eebff1478f5,trust-ratchet-debug-20260517t094438z@test.flapjack.foo,active,,,,,,,,,,2026-05-17 09:44:39.033721+00
+d4b5cf6b-391d-4c04-ae20-bb13fcd8ad5d,trust-ratchet-success_paid-20260517t094453z@test.flapjack.foo,active,,cus_UX5QerrNRYtLAB,,,,,,,,2026-05-17 09:44:53.647365+00
+68d2c6b9-678c-4544-9ff5-69c6cf49e029,trust-ratchet-success_paid-20260517t094508z@test.flapjack.foo,active,,cus_UX5QBlTh2K0FJP,,,,,,,,2026-05-17 09:45:08.31937+00
+74d7f640-bdd6-4539-a78d-b71f72b873b7,trust-ratchet-success_paid-20260517t094517z@test.flapjack.foo,active,,cus_UX5Qx7SW92tzBo,,,,,,,,2026-05-17 09:45:17.23968+00
+4d1a74f3-3907-47bc-a242-60354203e422,trust-ratchet-success_paid-20260517t094538z@test.flapjack.foo,active,,cus_UX5RUrvvTmcQ2o,,,,,,,,2026-05-17 09:45:39.159016+00
+9363c455-5f81-4895-975f-511383c7b865,trust-ratchet-success_paid-20260518t032619z@test.flapjack.foo,active,,cus_UXMXonsrxlzpzK,,,,,,,,2026-05-18 03:26:19.453895+00
+ba3ded44-4945-4c3b-bdcd-f5c934508104,trust-ratchet-success_paid-20260518t033747z@test.flapjack.foo,active,,cus_UXMj66B8cdlRSF,,,,,,,,2026-05-18 03:37:47.877406+00
+96472cad-dce1-4666-b25b-2f8e36a4b274,trust-ratchet-success_paid-20260519t002353z@test.flapjack.foo,active,,cus_UXgpD0wuzwBBOB,,,,,,,,2026-05-19 00:23:53.372014+00
+6c2fc2ad-c627-4c74-b28c-5a852b0b6702,stage3-endpoint-probe-20260519t002706z@example.com,active,,,,,,,,,,2026-05-19 00:27:06.709696+00
+fecdfd6c-cc57-4dd3-b2d3-9b756cbbf7ed,trust-ratchet-success_paid-20260519t002902z@test.flapjack.foo,active,,cus_UXgu4UdbKY0Wrb,,,,,,,,2026-05-19 00:29:03.04149+00
+4085adb0-473c-482a-822f-713a463d275e,trust-ratchet-success_paid-20260519t003404z@test.flapjack.foo,active,,cus_UXgzIrmKRXhcJC,,,,,,,,2026-05-19 00:34:05.016385+00
+4d060825-d92a-4fb7-8cf1-98c3001d890a,trust-ratchet-success_paid-20260519t005216z@test.flapjack.foo,active,,cus_UXhHcSBDl41M1X,,,,,,,,2026-05-19 00:52:16.619778+00
+f5264ec8-9b93-44d0-9713-99d22156e96f,trust-ratchet-success_paid-20260519t012702z@test.flapjack.foo,active,,cus_UXhqS1lIJMoWAw,,,,,,,,2026-05-19 01:27:03.110682+00
+b5ae1f4f-d464-47dd-ae94-d56e7f737aeb,trust-ratchet-declined_402-20260519t012702z@test.flapjack.foo,active,,cus_UXhqIOGNlJ3VnM,,,,,,,,2026-05-19 01:27:12.496844+00
+5bf7966b-bbbc-4993-aace-346268f3f29a,trust-ratchet-success_paid-20260519t012825z@test.flapjack.foo,active,,cus_UXhsyPEbGisivJ,,,,,,,,2026-05-19 01:28:25.707379+00
+e38f654a-f373-435f-a8d2-1e42b2c611c8,trust-ratchet-declined_402-20260519t012825z@test.flapjack.foo,active,,cus_UXhsG6uLERxxOy,,,,,,,,2026-05-19 01:28:34.653306+00
+25917952-cd51-4e74-99a8-6638f1c2d8c0,trust-ratchet-requires_action_402-20260519t012825z@test.flapjack.foo,active,,cus_UXhsIBQudhkk1V,,,,,,,,2026-05-19 01:28:48.429951+00
+37233797-3d60-4cf8-bb9b-769fa37e6f55,trust-ratchet-success_paid-20260519t014531z@test.flapjack.foo,active,,cus_UXi937XUii2v6V,,,,,,,,2026-05-19 01:45:31.735626+00
+961ce5d7-d94b-4951-a814-d9d02eca1dfd,trust-ratchet-declined_402-20260519t014531z@test.flapjack.foo,active,,cus_UXi9h7pWHSgoRG,,,,,,,,2026-05-19 01:45:40.848921+00
+be8455b1-c03c-4a8b-a34b-76fccf2d285d,trust-ratchet-requires_action_402-20260519t014531z@test.flapjack.foo,active,,cus_UXi9htQdRGj0j9,,,,,,,,2026-05-19 01:45:50.792624+00
+9fb1b907-94d7-4d24-82d4-6fd0f05d4a1f,trust-ratchet-success_paid-20260519t015340z@test.flapjack.foo,active,,cus_UXiHpDfGA1tqQl,,,,,,,,2026-05-19 01:53:40.692651+00
+24ba0b6a-e334-4efb-b729-9e302b8da2d5,trust-ratchet-declined_402-20260519t015340z@test.flapjack.foo,active,,cus_UXiH6SQx9OYMhg,,,,,,,,2026-05-19 01:53:49.045644+00
+4ad2266b-656e-486d-9124-ac05da2984f5,trust-ratchet-requires_action_402-20260519t015340z@test.flapjack.foo,active,,cus_UXiHVXirHPWCKk,,,,,,,,2026-05-19 01:53:58.558844+00
+fed2126f-9560-45b5-872a-37eded48a9a8,trust-ratchet-success_paid-20260519t015821z@test.flapjack.foo,active,,cus_UXiM7oXx7x9TSm,,,,,,,,2026-05-19 01:58:21.585379+00
+658c931c-c216-4fd4-b2c9-8a1ebf9303b3,trust-ratchet-declined_402-20260519t015821z@test.flapjack.foo,active,,cus_UXiMdtRTo9nlG6,,,,,,,,2026-05-19 01:58:30.493873+00
+c75dd18a-b3f2-4743-9d98-c0d1c20a1a01,trust-ratchet-requires_action_402-20260519t015821z@test.flapjack.foo,active,,cus_UXiMx4SldJFDC3,,,,,,,,2026-05-19 01:58:43.611506+00
+78904188-5506-4dad-8d97-4a1f66e63a5b,trust-ratchet-success_paid-20260519t020401z@test.flapjack.foo,active,,cus_UXiREHQgASxwQr,,,,,,,,2026-05-19 02:04:02.208192+00
+46af4127-1763-4ab3-938c-43f82c7f246b,trust-ratchet-declined_402-20260519t020401z@test.flapjack.foo,active,,cus_UXiRbkqZTNJyGU,,,,,,,,2026-05-19 02:04:11.36957+00
+031d2adb-4798-4c84-94d1-e72dfc58d92a,trust-ratchet-requires_action_402-20260519t020401z@test.flapjack.foo,active,,cus_UXiSu4QyUKvxd8,,,,,,,,2026-05-19 02:04:25.66884+00
+f31b7c03-b34c-4d08-ac6b-72bcc867f06e,trust-ratchet-success_paid-20260519t020552z@test.flapjack.foo,active,,cus_UXiTNnT0csubs9,,,,,,,,2026-05-19 02:05:52.316169+00
+0efbac45-1acb-46ab-992f-4b7edd9596c8,trust-ratchet-declined_402-20260519t020552z@test.flapjack.foo,active,,cus_UXiTN5ZVOYSg1S,,,,,,,,2026-05-19 02:06:01.598492+00
+a62c0eec-2181-404a-ab06-7f2a4598dd62,trust-ratchet-requires_action_402-20260519t020552z@test.flapjack.foo,active,,cus_UXiTCMCsjgoWpD,,,,,,,,2026-05-19 02:06:15.764262+00
+f97fcd48-5590-4372-93ca-4b43e68ae8c5,s70-1779169900-22009@e2e.griddle.test,active,,,,,,,,,,2026-05-19 05:51:41.057282+00
+a1402368-ae2a-4408-a424-e8bdc7a76f42,billing-portal-1779170330371-nqon048g@e2e.griddle.test,active,,,,,,,,,,2026-05-19 05:58:50.434207+00
+592609d7-de8a-4635-b5bf-db547714af24,billing-portal-1779170359181-nz73r70z@e2e.griddle.test,active,,,,,,,,,,2026-05-19 05:59:52.306536+00
+57f634fd-b16b-4d09-82ec-0c6bc893cc2d,stage5-probe-api-staging-flapjack-foo-20260519t140549z@e2e.griddle.test,active,,,,,,,,,,2026-05-19 14:05:49.543904+00
+8835829c-95a2-44e1-82d9-dbf2c5dcb267,stage5-crosscheck-20260519t140941z@e2e.griddle.test,active,,,,,,,,,,2026-05-19 14:09:41.779835+00
+dc044652-c641-487e-884e-63ae7e6be788,billing-portal-1779366671368-klmsciha@e2e.griddle.test,deleted,2026-05-21 12:31:20.272121+00,cus_UYd0xmbB62NTVh,,,,,,,,2026-05-21 12:31:11.519283+00
+3643f5cc-5635-4cdb-8ba4-dd0c0d659135,billing-portal-1779367124508-fvgxrir9@e2e.griddle.test,deleted,2026-05-21 12:38:53.566426+00,cus_UYd8q3cPAEaW4C,,,,,,,,2026-05-21 12:38:44.628049+00
+c2009f28-3fd9-40ba-b635-a7153393ae52,billing-portal-1779367324330-lb67sfbq@e2e.griddle.test,deleted,2026-05-21 12:42:13.241464+00,cus_UYdBSbRVwv4W6A,,,,,,,,2026-05-21 12:42:04.439588+00
+18c00030-38aa-4503-ae47-18f7867c06b9,billing-portal-1779367427277-9f3dw311@e2e.griddle.test,deleted,2026-05-21 12:43:56.235513+00,cus_UYdDK1lEXc9ixo,,,,,,,,2026-05-21 12:43:47.395529+00
+1b7ecf3b-8dbd-4730-b8c4-fd4be7be8f2d,billing-portal-1779367882591-hgsh2sub@e2e.griddle.test,deleted,2026-05-21 12:51:31.231367+00,cus_UYdLOp2tALAlng,,,,,,,,2026-05-21 12:51:22.711991+00
+42004bdc-4d09-45d4-944b-45b8935646cd,billing-portal-1779367985553-0q6yi1h1@e2e.griddle.test,deleted,2026-05-21 12:53:14.559259+00,cus_UYdMlYyOeMqv62,,,,,,,,2026-05-21 12:53:05.669292+00
+66db35cf-6d41-4383-b4fb-8fed35d44623,billing-portal-1779368087188-p69wknri@e2e.griddle.test,deleted,2026-05-21 12:54:56.106282+00,cus_UYdOaCwqebT4ut,,,,,,,,2026-05-21 12:54:47.30384+00
+bea84930-a621-4602-ad70-dbb26f99555b,billing-portal-1779368881590-340s4ocu@e2e.griddle.test,deleted,2026-05-21 13:08:10.313906+00,cus_UYdbgOIQCF23or,,,,,,,,2026-05-21 13:08:01.710981+00
+6208615a-6a09-4693-98c2-7c203d2ed5f9,billing-portal-1779369111476-woabc9e1@e2e.griddle.test,deleted,2026-05-21 13:12:00.562089+00,cus_UYdf4AIShAulD3,,,,,,,,2026-05-21 13:11:51.597233+00

@@ -1,0 +1,31 @@
+{
+  "generated_at_utc": "20260602T004302Z",
+  "evidence_dir": "docs/runbooks/evidence/customer-release-verification/20260602T004302Z",
+  "deploy_currency_gate": {
+    "status": "skip",
+    "reason": "deploy_not_current",
+    "detail": "missing:web/src/routes/console/indexes/[name]/tabs/MetricsTab.svelte",
+    "head_sha": "1ace360608c271c68379a211fcd8336d46183e94",
+    "staging_dev_sha": "94081286436f594b61e7ae3fb9bb5a455f638053"
+  },
+  "metrics_probe": {
+    "status": "skip",
+    "artifact_path": "docs/runbooks/evidence/customer-release-verification/20260602T004302Z/metrics-probe-stdout.log",
+    "assertions": {}
+  },
+  "export_probe": {
+    "status": "skip",
+    "artifact_path": "docs/runbooks/evidence/customer-release-verification/20260602T004302Z/export-probe-stdout.log",
+    "assertions": {}
+  },
+  "customer_loop": {
+    "status": "skip",
+    "artifact_path": "docs/runbooks/evidence/customer-release-verification/20260602T004302Z/customer-loop-stdout.log",
+    "assertions": {}
+  },
+  "browser_smoke": {
+    "status": "skip",
+    "artifact_path": "docs/runbooks/evidence/customer-release-verification/20260602T004302Z/browser-smoke-stdout.log",
+    "assertions": {}
+  }
+}

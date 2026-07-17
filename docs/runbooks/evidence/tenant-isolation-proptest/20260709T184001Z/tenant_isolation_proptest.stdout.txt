@@ -1,0 +1,247 @@
+$ cd infra && cargo test -p api --test platform --features proptest-tests tenant_isolation_proptest::
+started_epoch=1783622532.240
+warning: function `create_expired_jwt` is never used
+  --> api/tests/common/mod.rs:79:8
+   |
+79 | pub fn create_expired_jwt(customer_id: Uuid) -> String {
+   |        ^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `create_jwt_with_secret` is never used
+  --> api/tests/common/mod.rs:85:8
+   |
+85 | pub fn create_jwt_with_secret(customer_id: Uuid, secret: &str) -> String {
+   |        ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: struct `TestOAuthProvider` is never constructed
+  --> api/tests/common/mod.rs:90:12
+   |
+90 | pub struct TestOAuthProvider {
+   |            ^^^^^^^^^^^^^^^^^
+
+warning: function `spawn_test_oauth_provider` is never used
+  --> api/tests/common/mod.rs:96:14
+   |
+96 | pub async fn spawn_test_oauth_provider() -> TestOAuthProvider {
+   |              ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: method `inner` is never used
+   --> api/tests/common/mod.rs:258:12
+    |
+253 | impl FailableObjectStore {
+    | ------------------------ method in this implementation
+...
+258 |     pub fn inner(&self) -> &InMemoryObjectStore {
+    |            ^^^^^
+
+warning: constant `STRIPE_PRICE_STARTER_ENV` is never used
+  --> api/tests/common/live_stripe_helpers.rs:10:7
+   |
+10 | const STRIPE_PRICE_STARTER_ENV: &str = "STRIPE_PRICE_STARTER";
+   |       ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: constant `DEFAULT_INTEGRATION_API_BASE` is never used
+  --> api/tests/common/live_stripe_helpers.rs:16:7
+   |
+16 | const DEFAULT_INTEGRATION_API_BASE: &str = "http://localhost:3099";
+   |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: struct `LiveStripeHandles` is never constructed
+  --> api/tests/common/live_stripe_helpers.rs:26:12
+   |
+26 | pub struct LiveStripeHandles {
+   |            ^^^^^^^^^^^^^^^^^
+
+warning: constant `ACCEPTED_TEST_PREFIXES` is never used
+  --> api/tests/common/live_stripe_helpers.rs:31:7
+   |
+31 | const ACCEPTED_TEST_PREFIXES: &[&str] = &["sk_test_", "rk_test_"];
+   |       ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `has_accepted_test_prefix` is never used
+  --> api/tests/common/live_stripe_helpers.rs:33:4
+   |
+33 | fn has_accepted_test_prefix(key: &str) -> bool {
+   |    ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `stripe_test_key` is never used
+  --> api/tests/common/live_stripe_helpers.rs:37:8
+   |
+37 | pub fn stripe_test_key() -> Option<String> {
+   |        ^^^^^^^^^^^^^^^
+
+warning: function `stripe_webhook_secret` is never used
+  --> api/tests/common/live_stripe_helpers.rs:49:8
+   |
+49 | pub fn stripe_webhook_secret() -> Option<String> {
+   |        ^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `stripe_api_available` is never used
+  --> api/tests/common/live_stripe_helpers.rs:59:8
+   |
+59 | pub fn stripe_api_available() -> bool {
+   |        ^^^^^^^^^^^^^^^^^^^^
+
+warning: function `stripe_price_starter_id` is never used
+  --> api/tests/common/live_stripe_helpers.rs:63:8
+   |
+63 | pub fn stripe_price_starter_id() -> Option<String> {
+   |        ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `stripe_price_starter_configured` is never used
+  --> api/tests/common/live_stripe_helpers.rs:73:8
+   |
+73 | pub fn stripe_price_starter_configured() -> bool {
+   |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `stripe_webhook_configured` is never used
+   --> api/tests/common/live_stripe_helpers.rs:103:8
+    |
+103 | pub fn stripe_webhook_configured() -> bool {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `integration_enabled` is never used
+   --> api/tests/common/live_stripe_helpers.rs:107:4
+    |
+107 | fn integration_enabled() -> bool {
+    |    ^^^^^^^^^^^^^^^^^^^
+
+warning: function `api_base` is never used
+   --> api/tests/common/live_stripe_helpers.rs:113:4
+    |
+113 | fn api_base() -> String {
+    |    ^^^^^^^^
+
+warning: function `endpoint_reachable` is never used
+   --> api/tests/common/live_stripe_helpers.rs:119:10
+    |
+119 | async fn endpoint_reachable(base_url: &str) -> bool {
+    |          ^^^^^^^^^^^^^^^^^^
+
+warning: function `db_url` is never used
+   --> api/tests/common/live_stripe_helpers.rs:142:4
+    |
+142 | fn db_url() -> String {
+    |    ^^^^^^
+
+warning: function `build_stripe_service` is never used
+   --> api/tests/common/live_stripe_helpers.rs:173:8
+    |
+173 | pub fn build_stripe_service(stripe_secret_key: &str) -> LiveStripeService {
+    |        ^^^^^^^^^^^^^^^^^^^^
+
+warning: function `build_live_stripe_handles` is never used
+   --> api/tests/common/live_stripe_helpers.rs:177:8
+    |
+177 | pub fn build_live_stripe_handles() -> LiveStripeHandles {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `validate_stripe_key_live` is never used
+   --> api/tests/common/live_stripe_helpers.rs:186:14
+    |
+186 | pub async fn validate_stripe_key_live() -> Result<(), String> {
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `delete_stripe_customer` is never used
+   --> api/tests/common/live_stripe_helpers.rs:204:14
+    |
+204 | pub async fn delete_stripe_customer(client: &stripe::Client, customer_id: &str) {
+    |              ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `create_test_clock` is never used
+   --> api/tests/common/live_stripe_helpers.rs:269:14
+    |
+269 | pub async fn create_test_clock(
+    |              ^^^^^^^^^^^^^^^^^
+
+warning: function `create_clock_bound_customer` is never used
+   --> api/tests/common/live_stripe_helpers.rs:279:14
+    |
+279 | pub async fn create_clock_bound_customer(
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `create_trialing_subscription_for_price` is never used
+   --> api/tests/common/live_stripe_helpers.rs:296:14
+    |
+296 | pub async fn create_trialing_subscription_for_price(
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `advance_test_clock_and_wait_ready` is never used
+   --> api/tests/common/live_stripe_helpers.rs:325:14
+    |
+325 | pub async fn advance_test_clock_and_wait_ready(
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `poll_paid_invoice_for_subscription` is never used
+   --> api/tests/common/live_stripe_helpers.rs:369:14
+    |
+369 | pub async fn poll_paid_invoice_for_subscription(
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `retrieve_subscription` is never used
+   --> api/tests/common/live_stripe_helpers.rs:397:14
+    |
+397 | pub async fn retrieve_subscription(
+    |              ^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `cleanup_test_clock_cycle` is never used
+   --> api/tests/common/live_stripe_helpers.rs:410:14
+    |
+410 | pub async fn cleanup_test_clock_cycle(
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `validate_stripe_webhook_delivery` is never used
+   --> api/tests/common/live_stripe_helpers.rs:461:14
+    |
+461 | pub async fn validate_stripe_webhook_delivery() -> Result<WebhookProbeResult, String> {
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: static `STRIPE_WEBHOOK_AVAILABLE` is never used
+   --> api/tests/common/live_stripe_helpers.rs:571:8
+    |
+571 | static STRIPE_WEBHOOK_AVAILABLE: OnceCell<bool> = OnceCell::const_new();
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `stripe_webhook_available` is never used
+   --> api/tests/common/live_stripe_helpers.rs:574:14
+    |
+574 | pub async fn stripe_webhook_available() -> bool {
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `build_webhook_test_app` is never used
+   --> api/tests/common/stripe_webhook_test_support.rs:200:4
+    |
+200 | fn build_webhook_test_app(
+    |    ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `local_stripe_webhook_app` is never used
+   --> api/tests/common/stripe_webhook_test_support.rs:210:8
+    |
+210 | pub fn local_stripe_webhook_app(
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `mock_stripe_webhook_app` is never used
+   --> api/tests/common/stripe_webhook_test_support.rs:234:8
+    |
+234 | pub fn mock_stripe_webhook_app(
+    |        ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `api` (test "platform") generated 37 warnings
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.70s
+     Running tests/platform.rs (target/debug/deps/platform-335188d3adac8ec8)
+
+running 6 tests
+test tenant_isolation_proptest::tenant_isolation_proptest_config_uses_direct_failure_persistence ... ok
+test tenant_isolation_proptest::tenant_isolation_proptest_regression_artifact_has_durable_proof_markers ... ok
+test tenant_isolation_proptest::tenant_isolation_proptest_saved_case_replays_committed_route_label_first ... ok
+test tenant_isolation_proptest::tenant_isolation_proptest_saved_case_replays_before_random_generation ... ok
+test tenant_isolation_proptest::tenant_isolation_proptest_deliberate_leaky_variant_trips_failure_signature ... ok
+test tenant_isolation_proptest::tenant_isolation_proptest_route_family ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 1084 filtered out; finished in 0.19s
+
+
+finished_epoch=1783622533.231
+duration_seconds=0.991
+exit_code=0

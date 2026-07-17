@@ -1,0 +1,8 @@
+ssm_exec_remote_instance_id=i-0fbc6d6bbbc8bdc6d
+systemctl_environment_database_url=MISSING
+systemctl_environment_sha256_16=062bbf88edad05f7
+etc_fjcloud_env_endpoint=fjcloud-staging.cabwlew6jcjl.us-east-1.rds.amazonaws.com:5432/fjcloud
+etc_fjcloud_env_sha256_16=a377bb0163e33e75
+fjcloud_api_main_pid=3111879
+proc_environ_endpoint=fjcloud-staging.cabwlew6jcjl.us-east-1.rds.amazonaws.com:5432/fjcloud
+proc_environ_sha256_16=a377bb0163e33e75

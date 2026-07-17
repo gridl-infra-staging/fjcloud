@@ -1,0 +1,14 @@
+# Disposition Receipt: batman/jun05_ui_1147am_5_oauth_local_dx_and_account_delete_copy
+
+Classification: approved freed local branch after approved worktree removal
+Evidence source: current read-only git refs at bundle creation.
+
+## rev-parse
+$ git rev-parse batman/jun05_ui_1147am_5_oauth_local_dx_and_account_delete_copy
+ac4dcddb63a02ea51143409c6cca7732e472103b
+
+## cherry
+$ git cherry -v main batman/jun05_ui_1147am_5_oauth_local_dx_and_account_delete_copy | tail -20
+
+## diff main...
+$ git diff main...batman/jun05_ui_1147am_5_oauth_local_dx_and_account_delete_copy --stat | tail -20

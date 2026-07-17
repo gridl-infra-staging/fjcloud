@@ -1,0 +1,39 @@
+{
+  "api_url": "https://api.staging.flapjack.foo",
+  "cache_reuse_ok": true,
+  "cleanup_ok": true,
+  "cleanup_state": {
+    "account_deleted": true,
+    "admin_cleaned": true,
+    "index_created": false
+  },
+  "customer_id": "94eff6c3-9590-4362-8bed-0fd73d6b59b3",
+  "exit_code": 1,
+  "failure_detail": "metrics tab __data.json response did not expose the expected metrics payload shape",
+  "fetched_at_first": "2026-07-11T22:04:36.376630902Z",
+  "fetched_at_second": "2026-07-11T22:04:36.376630902Z",
+  "first_response": {
+    "documents_count": 1,
+    "fetched_at": "2026-07-11T22:04:36.376630902Z",
+    "index": "canary-canary2026071122041712957",
+    "search_requests_total": 0,
+    "storage_bytes": 0,
+    "write_operations_total": 1
+  },
+  "index_name": "canary-canary2026071122041712957",
+  "metrics_populated_ok": true,
+  "metrics_tab_data_ok": false,
+  "metrics_tab_data_response_type": "",
+  "second_response": {
+    "documents_count": 1,
+    "fetched_at": "2026-07-11T22:04:36.376630902Z",
+    "index": "canary-canary2026071122041712957",
+    "search_requests_total": 0,
+    "storage_bytes": 0,
+    "write_operations_total": 1
+  },
+  "shape_ok": true,
+  "skip_detail": "",
+  "skip_reason": "",
+  "status": "fail"
+}

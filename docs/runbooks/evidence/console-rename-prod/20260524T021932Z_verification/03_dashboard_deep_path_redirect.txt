@@ -1,0 +1,12 @@
++ curl -sI https://cloud.flapjack.foo/dashboard/billing
+HTTP/2 308 
+date: Sun, 24 May 2026 02:29:36 GMT
+location: /console/billing
+x-robots-tag: noindex, nofollow, noarchive, nosnippet, noimageindex, noai, noimageai
+report-to: {"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4?s=RCot4ObkNQQSM6CkWYtsZ6%2FuiesF3INoAbzjimMMpDOlcBZ7amtGIIRT5XGP7jPOjSrDfBm%2FVt1%2BRoE3%2F5J838Ri0GG0ia3BRd4QAg5DcYmNMIFnnxl2wgCFvoamYEyuwMbGWO4neNn6XDox4GHZaOY%3D"}]}
+nel: {"report_to":"cf-nel","success_fraction":0.0,"max_age":604800}
+server: cloudflare
+cf-cache-status: DYNAMIC
+cf-ray: a008dfa3f9cdc036-IAD
+alt-svc: h3=":443"; ma=86400
+

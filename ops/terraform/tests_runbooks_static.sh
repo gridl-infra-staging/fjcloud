@@ -1,0 +1,362 @@
+#!/usr/bin/env bash
+# Static content tests for infrastructure runbooks.
+# TDD red phase for Task 5 — Backend Runbook Finalization.
+#
+# These tests assert that each required runbook exists and contains
+# the key commands, sections, and procedures documented in the checklist.
+
+set -euo pipefail
+
+source "$(dirname "${BASH_SOURCE[0]}")/test_helpers.sh"
+
+canonical_prod_alert_emails_var="-var='alert_emails=[\"stuart.clifford@gmail.com\"]'"
+declined_prod_alert_recipient_pattern='stacy.saunders.2002@gmail.com|clifford.kriv@gmail.com'
+
+production_command_active_text() {
+  local command_text="$1"
+  printf '%s\n' "$command_text" | awk '$0 !~ /^[[:space:]]*#/'
+}
+
+production_command_pins_prod_alert_emails_var() {
+  local command_text="$1"
+  local active_text
+  active_text="$(production_command_active_text "$command_text")"
+  printf '%s\n' "$active_text" | rg -q -- '-var=\"env=prod\"' && \
+    printf '%s\n' "$active_text" | rg -Fq -- "$canonical_prod_alert_emails_var"
+}
+
+production_command_omits_declined_alert_recipients() {
+  local command_text="$1"
+  local active_text
+  active_text="$(production_command_active_text "$command_text")"
+  ! printf '%s\n' "$active_text" | rg -q -- "$declined_prod_alert_recipient_pattern"
+}
+
+dns_runbook="docs/runbooks/infra-dns-cutover.md"
+deploy_runbook="docs/runbooks/infra-deploy.md"
+terraform_runbook="docs/runbooks/infra-terraform-apply.md"
+alarm_runbook="docs/runbooks/infra-alarm-triage.md"
+bootstrap_doc="ops/BOOTSTRAP.md"
+old_deploy_runbook="docs/runbooks/api-deployment.md"
+database_recovery_runbook="docs/runbooks/database-backup-recovery.md"
+restore_drill_script="ops/scripts/rds_restore_drill.sh"
+launch_runbook="docs/runbooks/launch-backend.md"
+env_vars_doc="docs/env-vars.md"
+ops_readme="ops/README.md"
+deploy_surfaces_runbook="docs/runbooks/deploy_surfaces.md"
+live_validation_runbook="docs/runbooks/live-validation.md"
+staging_dns_contract_runbook="docs/runbooks/staging_dns_contract.md"
+aws_live_guardrails_runbook="docs/runbooks/aws_live_e2e_guardrails.md"
+infra_evidence_bundle_runbook="docs/runbooks/infra-evidence-bundle.md"
+
+echo ""
+echo "=== Runbook Static Tests ==="
+echo ""
+
+# ---------------------------------------------------------------------------
+# Split API / Flapjack AMI ownership
+# ---------------------------------------------------------------------------
+
+echo "--- Split API / Flapjack AMI operator contract ---"
+assert_file_contains "$env_vars_doc" 'AWS_AMI_ID.*Flapjack.*\/fjcloud\/<env>\/aws_ami_id' "env vars: AWS_AMI_ID is the Flapjack runtime pointer fact"
+assert_file_contains "$ops_readme" 'set_flapjack_ami_pointer\.sh' "ops README: guarded pointer owner is documented"
+assert_file_contains "$deploy_surfaces_runbook" 'set_flapjack_ami_pointer\.sh' "deploy surfaces: guarded pointer owner is documented"
+assert_file_contains "$deploy_surfaces_runbook" 'ignore_changes.*value|schema-only|existence/schema' "deploy surfaces: Terraform schema-only pointer ownership is documented"
+
+active_terraform_ami_runbooks=(
+  "$terraform_runbook"
+  "$dns_runbook"
+  "$live_validation_runbook"
+)
+for runbook in "${active_terraform_ami_runbooks[@]}"; do
+  assert_file_not_contains "$runbook" "\\-var=[\"']ami_id=" "${runbook}: active Terraform commands reject the removed root ami_id"
+  assert_file_contains "$runbook" 'api_ami_id' "${runbook}: API AMI input is explicit"
+  assert_file_contains "$runbook" 'flapjack_ami_id' "${runbook}: Flapjack AMI input is explicit"
+done
+
+active_runtime_smoke_runbooks=(
+  "$terraform_runbook"
+  "$dns_runbook"
+  "$staging_dns_contract_runbook"
+  "$aws_live_guardrails_runbook"
+  "$infra_evidence_bundle_runbook"
+)
+for runbook in "${active_runtime_smoke_runbooks[@]}"; do
+  assert_file_not_contains "$runbook" '^[[:space:]]*--ami-id([[:space:]]|$)' "${runbook}: runtime smoke rejects legacy AMI fan-out"
+  assert_file_contains "$runbook" '\-\-api-ami-id' "${runbook}: runtime smoke sources API AMI independently"
+  assert_file_contains "$runbook" '\-\-flapjack-ami-id' "${runbook}: runtime smoke sources Flapjack AMI independently"
+done
+
+echo ""
+
+# ---------------------------------------------------------------------------
+# infra-dns-cutover.md
+# ---------------------------------------------------------------------------
+
+echo "--- DNS cutover runbook ---"
+assert_file_exists "$dns_runbook" "infra-dns-cutover.md exists"
+assert_file_contains "$dns_runbook" 'flapjack\.foo' "dns: references flapjack.foo domain"
+assert_file_contains "$dns_runbook" 'Cloudflare' "dns: references Cloudflare"
+assert_file_contains "$dns_runbook" 'CLOUDFLARE_API_TOKEN' "dns: documents CLOUDFLARE_API_TOKEN"
+assert_file_contains "$dns_runbook" 'CLOUDFLARE_ZONE_ID' "dns: documents CLOUDFLARE_ZONE_ID"
+assert_file_contains "$dns_runbook" 'CLOUDFLARE_EDIT_READ_ZONE_DNS_API_TOKEN_FLAPJACK_FOO' "dns: documents flapjack.foo token alias"
+assert_file_contains "$dns_runbook" 'CLOUDFLARE_ZONE_ID_FLAPJACK_FOO' "dns: documents flapjack.foo zone-id alias"
+assert_file_contains "$dns_runbook" 'api.cloudflare.com/client/v4/zones' "dns: Cloudflare zone API command"
+assert_file_contains "$dns_runbook" 'terraform plan' "dns: Terraform plan command"
+assert_file_contains "$dns_runbook" 'cloudflare_dns_record' "dns: Terraform Cloudflare DNS resource referenced"
+assert_file_contains "$dns_runbook" 'ACM|acm|certificate' "dns: ACM cert validation unblock"
+assert_file_contains "$dns_runbook" 'SES|DKIM|_domainkey' "dns: SES/DKIM validation unblock"
+assert_file_contains "$dns_runbook" '[Rr]ollback' "dns: rollback path documented"
+assert_file_contains "$dns_runbook" 'tests_stage7_runtime_smoke' "dns: runtime smoke validation command"
+assert_file_not_contains "$dns_runbook" 'aws_route53_zone|aws route53|awsdns|Porkbun → Route53' "dns: no Route53 public-zone instructions"
+
+echo ""
+
+# ---------------------------------------------------------------------------
+# infra-deploy-rollback.md
+# ---------------------------------------------------------------------------
+
+echo "--- Deploy/rollback runbook ---"
+assert_file_exists "$deploy_runbook" "infra-deploy-rollback.md exists"
+assert_file_contains "$deploy_runbook" 'deploy\.sh' "deploy: references deploy.sh"
+assert_file_contains "$deploy_runbook" 'rollback\.sh' "deploy: references rollback.sh"
+assert_file_contains "$deploy_runbook" 'migrate\.sh' "deploy: references migrate.sh"
+assert_file_contains "$deploy_runbook" '/health' "deploy: health check endpoint"
+assert_file_contains "$deploy_runbook" 'last_deploy_sha' "deploy: SSM last_deploy_sha param"
+assert_file_contains "$deploy_runbook" 'SSM|ssm' "deploy: SSM-based deployment"
+assert_file_contains "$deploy_runbook" 'fjcloud-releases' "deploy: S3 releases bucket"
+assert_file_contains "$deploy_runbook" 'ssm send-command|send-command' "deploy: SSM send-command usage"
+assert_file_contains "$deploy_runbook" 'ssm get-command-invocation|get-command-invocation' "deploy: SSM command status polling"
+assert_file_contains "$deploy_runbook" '[Pp]re-deploy' "deploy: pre-deploy checklist"
+assert_file_contains "$deploy_runbook" '[Tt]roubleshoot' "deploy: troubleshooting section"
+assert_file_contains "$deploy_runbook" 'systemctl' "deploy: service restart via systemctl"
+
+echo ""
+
+# ---------------------------------------------------------------------------
+# infra-terraform-apply.md
+# ---------------------------------------------------------------------------
+
+echo "--- Terraform apply runbook ---"
+assert_file_exists "$terraform_runbook" "infra-terraform-apply.md exists"
+assert_file_contains "$terraform_runbook" 'terraform init' "terraform: init command"
+assert_file_contains "$terraform_runbook" 'terraform plan' "terraform: plan command"
+assert_file_contains "$terraform_runbook" 'terraform apply' "terraform: apply command"
+assert_file_contains "$terraform_runbook" 'backend-config' "terraform: backend config flags"
+assert_file_contains "$terraform_runbook" 'fjcloud-tfstate' "terraform: S3 state bucket name"
+assert_file_contains "$terraform_runbook" 'fjcloud-tflock' "terraform: DynamoDB lock table"
+production_apply_section=$(awk '
+  /^## Production Apply$/ { in_section = 1; next }
+  /^## / && in_section { exit }
+  in_section { print }
+' "$terraform_runbook")
+if [[ -n "$production_apply_section" ]]; then
+  pass "terraform: production apply section exists"
+else
+  fail "terraform: production apply section exists"
+fi
+
+if printf '%s\n' "$production_apply_section" | rg -Fq 'export CLOUDFLARE_ZONE_ID="${CLOUDFLARE_ZONE_ID:-${CLOUDFLARE_ZONE_ID_FLAPJACK_FOO:-}}"'; then
+  pass "terraform: production section normalizes flapjack.foo zone-id alias"
+else
+  fail "terraform: production section normalizes flapjack.foo zone-id alias"
+fi
+
+if printf '%s\n' "$production_apply_section" | rg -Fq 'export CLOUDFLARE_API_KEY="${CLOUDFLARE_API_KEY:-${CLOUDFLARE_GLOBAL_API_KEY:-}}"' && \
+  printf '%s\n' "$production_apply_section" | rg -Fq 'export CLOUDFLARE_EMAIL="${CLOUDFLARE_EMAIL:-${CLOUDFLARE_X_Auth_Email:-}}"'; then
+  pass "terraform: production section normalizes Cloudflare global-key auth aliases"
+else
+  fail "terraform: production section normalizes Cloudflare global-key auth aliases"
+fi
+
+production_plan_command=$(printf '%s\n' "$production_apply_section" | awk '
+  /^```bash$/ { in_code = 1; next }
+  /^```$/ && in_code { in_code = 0; next }
+  in_code && /^terraform plan([[:space:]]|$)/ { capture = 1 }
+  in_code && capture {
+    if (started && $0 == "") { exit }
+    print
+    started = 1
+  }
+')
+if [[ -n "$production_plan_command" ]]; then
+  pass "terraform: production plan command is present"
+else
+  fail "terraform: production plan command is present"
+fi
+
+if production_command_pins_prod_alert_emails_var "$production_plan_command"; then
+  pass "terraform: production plan command pins env=prod and alert_emails var"
+else
+  fail "terraform: production plan command pins env=prod and alert_emails var"
+fi
+
+synthetic_comment_only_plan_command='terraform plan \
+  -var="env=prod" \
+  -var="api_ami_id=ami-0123456789abcdef0" \
+  -var="flapjack_ami_id=ami-0fedcba9876543210" \
+  # -var='\''alert_emails=["stuart.clifford@gmail.com"]'\'''
+if production_command_pins_prod_alert_emails_var "$synthetic_comment_only_plan_command"; then
+  fail "terraform: production plan gate rejects comment-only alert_emails mentions"
+else
+  pass "terraform: production plan gate rejects comment-only alert_emails mentions"
+fi
+
+if production_command_omits_declined_alert_recipients "$production_plan_command"; then
+  pass "terraform: production plan command omits declined alert recipients"
+else
+  fail "terraform: production plan command omits declined alert recipients"
+fi
+
+production_apply_command=$(printf '%s\n' "$production_apply_section" | awk '
+  /^```bash$/ { in_code = 1; next }
+  /^```$/ && in_code { in_code = 0; next }
+  in_code && /^terraform apply([[:space:]]|$)/ { capture = 1 }
+  in_code && capture {
+    if (started && $0 == "") { exit }
+    print
+    started = 1
+  }
+')
+if [[ -n "$production_apply_command" ]]; then
+  pass "terraform: production apply command is present"
+else
+  fail "terraform: production apply command is present"
+fi
+
+if production_command_pins_prod_alert_emails_var "$production_apply_command"; then
+  pass "terraform: production apply command pins env=prod and alert_emails var"
+else
+  fail "terraform: production apply command pins env=prod and alert_emails var"
+fi
+
+if production_command_omits_declined_alert_recipients "$production_apply_command"; then
+  pass "terraform: production apply command omits declined alert recipients"
+else
+  fail "terraform: production apply command omits declined alert recipients"
+fi
+
+assert_file_contains "$terraform_runbook" '[Pp]rod(uction)?.*rejects.*empty.*alert_emails' "terraform: runbook documents prod empty alert_emails rejection"
+assert_file_contains "$terraform_runbook" 'terraform destroy -target|destroy -target' "terraform: targeted destroy for rollback"
+assert_file_contains "$terraform_runbook" 'terraform state' "terraform: state commands for recovery"
+assert_file_contains "$terraform_runbook" 'tests_stage7_runtime_smoke' "terraform: runtime smoke script reference"
+assert_file_contains "$terraform_runbook" 'staging|prod' "terraform: environment references"
+assert_file_contains "$terraform_runbook" '[Rr]ollback' "terraform: rollback procedure documented"
+
+echo ""
+
+# ---------------------------------------------------------------------------
+# infra-alarm-triage.md
+# ---------------------------------------------------------------------------
+
+echo "--- Alarm triage runbook ---"
+assert_file_exists "$alarm_runbook" "infra-alarm-triage.md exists"
+
+# All 6 alarm types with full naming convention
+assert_file_contains "$alarm_runbook" 'api-cpu-high' "alarm: api-cpu-high alarm"
+assert_file_contains "$alarm_runbook" 'api-status-check-failed' "alarm: api-status-check-failed alarm"
+assert_file_contains "$alarm_runbook" 'rds-cpu-high' "alarm: rds-cpu-high alarm"
+assert_file_contains "$alarm_runbook" 'rds-free-storage-low' "alarm: rds-free-storage-low alarm"
+assert_file_contains "$alarm_runbook" 'alb-5xx-error-rate' "alarm: alb-5xx-error-rate alarm"
+assert_file_contains "$alarm_runbook" 'alb-p99-target-response-time' "alarm: alb-p99-target-response-time alarm"
+
+# Naming convention
+assert_file_contains "$alarm_runbook" 'fjcloud-.*-' "alarm: fjcloud naming convention"
+
+# Thresholds (from monitoring/main.tf)
+assert_file_contains "$alarm_runbook" '80%|80 ?%' "alarm: 80% CPU threshold"
+assert_file_contains "$alarm_runbook" '2 ?GiB|2147483648|2 GB' "alarm: 2 GiB storage threshold"
+assert_file_contains "$alarm_runbook" '1%|1 ?%' "alarm: 1% 5XX error rate threshold"
+assert_file_contains "$alarm_runbook" '2s|2 seconds|> 2' "alarm: 2s p99 response time threshold"
+
+# SNS topic
+assert_file_contains "$alarm_runbook" 'SNS|sns' "alarm: SNS topic referenced"
+assert_file_contains "$alarm_runbook" 'fjcloud-alerts' "alarm: SNS topic name"
+
+# Investigation steps for each alarm type
+assert_file_contains "$alarm_runbook" 'Performance Insights|performance_insights|slow quer' "alarm: RDS slow query investigation"
+assert_file_contains "$alarm_runbook" 'StatusCheckFailed|status.check|reachability' "alarm: status check investigation"
+assert_file_contains "$alarm_runbook" 'aws cloudwatch describe-alarms' "alarm: uses describe-alarms for investigation"
+assert_file_contains "$alarm_runbook" 'aws cloudwatch describe-alarm-history' "alarm: uses describe-alarm-history for investigation"
+assert_file_contains "$alarm_runbook" '/aws/rds/instance/fjcloud-<env>/postgresql' "alarm: uses canonical RDS PostgreSQL log group path"
+assert_file_contains "$alarm_runbook" 'journalctl -u fjcloud-api' "alarm: uses host journalctl API evidence"
+assert_file_not_contains "$alarm_runbook" 'API application logs are centralized in CloudWatch|CloudWatch is the source of truth for API application logs' "alarm: no centralized API log pipeline claim"
+assert_file_contains "$alarm_runbook" '[Ee]scalation' "alarm: escalation path"
+
+echo ""
+
+# ---------------------------------------------------------------------------
+# launch-backend.md
+# ---------------------------------------------------------------------------
+
+echo "--- Launch backend runbook ---"
+assert_file_exists "$launch_runbook" "launch-backend.md exists"
+assert_file_contains "$launch_runbook" 'bash scripts/validate-stripe\.sh' "launch: stripe validation command documented"
+assert_file_contains "$launch_runbook" 'Load `STRIPE_SECRET_KEY` into the current shell or session manager' "launch: stripe secret loaded via environment/session manager guidance"
+assert_file_not_contains "$launch_runbook" 'STRIPE_SECRET_KEY=' "launch: no inline Stripe secret assignment example"
+assert_file_contains "$launch_runbook" 'bash scripts/validate-metering\.sh' "launch: metering validation command documented"
+assert_file_contains "$launch_runbook" 'Load `DATABASE_URL` or `INTEGRATION_DB_URL` into the current shell or session manager' "launch: database credential loaded via environment/session manager guidance"
+assert_file_not_contains "$launch_runbook" 'DATABASE_URL=' "launch: no inline database credential assignment example"
+
+echo ""
+
+# ---------------------------------------------------------------------------
+# BOOTSTRAP.md — updated to reference automation scripts
+# ---------------------------------------------------------------------------
+
+echo "--- BOOTSTRAP.md references ---"
+assert_file_contains "$bootstrap_doc" 'provision_bootstrap\.sh' "bootstrap: references provision_bootstrap.sh"
+assert_file_contains "$bootstrap_doc" 'validate_bootstrap\.sh' "bootstrap: references validate_bootstrap.sh"
+
+echo ""
+
+# ---------------------------------------------------------------------------
+# api-deployment.md — deprecation notice
+# ---------------------------------------------------------------------------
+
+echo "--- api-deployment.md deprecation ---"
+assert_file_exists "$old_deploy_runbook" "api-deployment.md still exists"
+assert_file_contains "$old_deploy_runbook" '[Dd]eprecated|DEPRECATED|superseded|SUPERSEDED' "api-deployment.md has deprecation notice"
+assert_file_contains "$old_deploy_runbook" 'infra-deploy\.md' "api-deployment.md points to new runbook"
+
+echo ""
+
+# ---------------------------------------------------------------------------
+# database-backup-recovery.md
+# ---------------------------------------------------------------------------
+
+echo "--- Database backup/recovery runbook ---"
+assert_file_exists "$database_recovery_runbook" "database-backup-recovery.md exists"
+assert_file_exists "$restore_drill_script" "rds_restore_drill.sh exists"
+
+assert_file_contains "$database_recovery_runbook" 'bash ops/scripts/rds_restore_drill\.sh staging\|prod' "database recovery: script-first staging|prod command documented"
+assert_file_contains "$database_recovery_runbook" '\-\-source-db-instance-id' "database recovery: source DB instance argument documented"
+assert_file_contains "$database_recovery_runbook" '\-\-target-db-instance-id' "database recovery: target DB instance argument documented"
+assert_file_contains "$database_recovery_runbook" '\-\-snapshot-id' "database recovery: snapshot selector documented"
+assert_file_contains "$database_recovery_runbook" '\-\-restore-time' "database recovery: PITR selector documented"
+assert_file_contains "$database_recovery_runbook" 'RDS_RESTORE_DRILL_EXECUTE=1' "database recovery: execute gate documented"
+assert_file_contains "$database_recovery_runbook" 'docs/env-vars\.md' "database recovery: env var reference documented"
+assert_file_contains "$database_recovery_runbook" 'must be different' "database recovery: source and target DB identifiers must differ"
+assert_file_contains "$database_recovery_runbook" 'exactly one restore mode selector' "database recovery: exactly-one restore selector documented"
+assert_file_contains "$database_recovery_runbook" 'SELECT COUNT\(\*\) AS customers_total FROM customers;' "database recovery: customers sanity query documented (canonical schema)"
+assert_file_contains "$database_recovery_runbook" 'SELECT COUNT\(\*\) AS invoices_last_7d FROM invoices WHERE created_at > now\(\) - interval '\''7 days'\'';' "database recovery: invoice recency sanity query documented"
+assert_file_contains "$database_recovery_runbook" 'SELECT COUNT\(\*\) AS deployments_running FROM customer_deployments WHERE status = '\''running'\'';' "database recovery: deployment sanity query documented (canonical schema)"
+assert_file_contains "$database_recovery_runbook" 'SELECT COUNT\(\*\) AS usage_records_last_1d FROM usage_records WHERE recorded_at > now\(\) - interval '\''1 day'\'';' "database recovery: usage sanity query documented"
+assert_file_contains "$database_recovery_runbook" 'docs/runbooks/evidence/database-recovery/' "database recovery: evidence path documented"
+assert_file_contains "$database_recovery_runbook" 'must not mutate `/fjcloud/<env>/database_url`' "database recovery: SSM database_url cutover boundary documented"
+assert_file_contains "$database_recovery_runbook" 'must not restart services' "database recovery: restart boundary documented"
+assert_file_contains "$database_recovery_runbook" 'must not update `DATABASE_URL`' "database recovery: DATABASE_URL boundary documented"
+
+assert_file_contains "$restore_drill_script" 'Dry run: no restore API call dispatched\.' "rds_restore_drill.sh defaults to dry-run"
+assert_file_contains "$restore_drill_script" 'RDS_RESTORE_DRILL_EXECUTE=1' "rds_restore_drill.sh execute gate is RDS_RESTORE_DRILL_EXECUTE=1"
+assert_file_contains "$restore_drill_script" 'must be different' "rds_restore_drill.sh enforces source/target DB instance difference"
+assert_file_contains "$restore_drill_script" 'provide exactly one restore mode selector' "rds_restore_drill.sh enforces exactly-one restore selector"
+assert_file_contains "$restore_drill_script" 'handle cutover separately' "rds_restore_drill.sh documents no implicit cutover"
+
+echo ""
+
+# ---------------------------------------------------------------------------
+# Summary
+# ---------------------------------------------------------------------------
+
+test_summary "Runbook Static Tests"

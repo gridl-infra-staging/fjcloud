@@ -1,0 +1,20 @@
+name: Deploy Currency Drift
+
+on:
+  schedule:
+    - cron: "23 * * * *"
+  workflow_dispatch:
+
+jobs:
+  deploy-currency:
+    if: github.repository == 'gridl-infra-staging/fjcloud' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Run deploy-currency workflow contract tests
+        run: bash scripts/tests/deploy_currency_workflow_test.sh
+      - name: Run deploy-currency drift check
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: bash scripts/canary/deploy_currency_check.sh

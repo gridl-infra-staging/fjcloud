@@ -1,0 +1,42 @@
+2026-05-18T04:51:04.159000+00:00 2026/05/18/[$LATEST]50eb2c4dc4394a789cc21af93a69195b START RequestId: 508df2f0-a158-4662-875e-ec7f657bdfab Version: $LATEST
+2026-05-18T04:51:12.581000+00:00 2026/05/18/[$LATEST]50eb2c4dc4394a789cc21af93a69195b [customer-loop-canary] signup succeeded for canary+canary2026051804511128541@test.flapjack.foo (customer=1c3c5dcd-5e1b-44dc-b5ca-1708e7d62738)
+2026-05-18T04:51:22.841000+00:00 2026/05/18/[$LATEST]50eb2c4dc4394a789cc21af93a69195b [customer-loop-canary] email verification succeeded for canary+canary2026051804511128541@test.flapjack.foo
+2026-05-18T04:51:22.841000+00:00 2026/05/18/[$LATEST]50eb2c4dc4394a789cc21af93a69195b [customer-loop-canary] CANARY_LIVE_MODE=0; skipping live Stripe branch
+2026-05-18T04:51:23.261000+00:00 2026/05/18/[$LATEST]50eb2c4dc4394a789cc21af93a69195b [customer-loop-canary] index created (canary-canary2026051804511128541)
+2026-05-18T04:51:23.481000+00:00 2026/05/18/[$LATEST]50eb2c4dc4394a789cc21af93a69195b [customer-loop-canary] index write succeeded (canary-canary2026051804511128541)
+2026-05-18T04:51:23.861000+00:00 2026/05/18/[$LATEST]50eb2c4dc4394a789cc21af93a69195b [customer-loop-canary] index search succeeded (canary-canary2026051804511128541)
+2026-05-18T04:51:24.001000+00:00 2026/05/18/[$LATEST]50eb2c4dc4394a789cc21af93a69195b [customer-loop-canary] index deleted (canary-canary2026051804511128541)
+2026-05-18T04:51:24.240000+00:00 2026/05/18/[$LATEST]50eb2c4dc4394a789cc21af93a69195b [customer-loop-canary] account delete attempted for customer 1c3c5dcd-5e1b-44dc-b5ca-1708e7d62738
+2026-05-18T04:51:24.341000+00:00 2026/05/18/[$LATEST]50eb2c4dc4394a789cc21af93a69195b [customer-loop-canary] admin cleanup completed for tenant 1c3c5dcd-5e1b-44dc-b5ca-1708e7d62738
+2026-05-18T04:51:24.341000+00:00 2026/05/18/[$LATEST]50eb2c4dc4394a789cc21af93a69195b [customer-loop-canary] customer loop canary completed successfully
+2026-05-18T04:51:24.380000+00:00 2026/05/18/[$LATEST]50eb2c4dc4394a789cc21af93a69195b END RequestId: 508df2f0-a158-4662-875e-ec7f657bdfab
+2026-05-18T04:51:24.380000+00:00 2026/05/18/[$LATEST]50eb2c4dc4394a789cc21af93a69195b REPORT RequestId: 508df2f0-a158-4662-875e-ec7f657bdfab	Duration: 20207.81 ms	Billed Duration: 20402 ms	Memory Size: 512 MB	Max Memory Used: 139 MB	Init Duration: 193.67 ms
+2026-05-18T04:51:38.799000+00:00 2026/05/18/[$LATEST]50eb2c4dc4394a789cc21af93a69195b START RequestId: ae7d6825-fb44-4adc-b53a-ffe1daf34092 Version: $LATEST
+2026-05-18T04:51:41.276000+00:00 2026/05/18/[$LATEST]50eb2c4dc4394a789cc21af93a69195b An error occurred (AccessDeniedException) when calling the GetParameters operation: User: arn:aws:sts::213880904778:assumed-role/fjcloud-prod-customer-loop-canary-lambda/fjcloud-prod-customer-loop-canary is not authorized to perform: ssm:GetParameters on resource: arn:aws:ssm:us-east-1:213880904778:parameter/uiaeMnmRzsOPw0aEglARrv5hW6GX0pi because no identity-based policy allows the ssm:GetParameters action
+2026-05-18T04:51:41.801000+00:00 2026/05/18/[$LATEST]50eb2c4dc4394a789cc21af93a69195b failed to resolve SSM parameters in bootstrap hydration
+2026-05-18T04:51:41.807000+00:00 2026/05/18/[$LATEST]50eb2c4dc4394a789cc21af93a69195b END RequestId: ae7d6825-fb44-4adc-b53a-ffe1daf34092
+2026-05-18T04:51:41.807000+00:00 2026/05/18/[$LATEST]50eb2c4dc4394a789cc21af93a69195b REPORT RequestId: ae7d6825-fb44-4adc-b53a-ffe1daf34092	Duration: 3007.61 ms	Billed Duration: 3008 ms	Memory Size: 512 MB	Max Memory Used: 139 MB	Status: error	Error Type: Runtime.ExitError
+2026-05-18T04:55:57.719000+00:00 2026/05/18/[$LATEST]9c5986e34e4d45149714b6636f836456 START RequestId: 3f0f783d-0afa-455f-8f98-ea1694bdb1bc Version: $LATEST
+2026-05-18T04:56:06.145000+00:00 2026/05/18/[$LATEST]9c5986e34e4d45149714b6636f836456 [customer-loop-canary] signup succeeded for canary+canary2026051804560522584@test.flapjack.foo (customer=6576c89f-de86-47fb-a1a7-cdf0b4e84a63)
+2026-05-18T04:56:16.764000+00:00 2026/05/18/[$LATEST]9c5986e34e4d45149714b6636f836456 [customer-loop-canary] email verification succeeded for canary+canary2026051804560522584@test.flapjack.foo
+2026-05-18T04:56:16.764000+00:00 2026/05/18/[$LATEST]9c5986e34e4d45149714b6636f836456 [customer-loop-canary] CANARY_LIVE_MODE=0; skipping live Stripe branch
+2026-05-18T04:57:17.104000+00:00 2026/05/18/[$LATEST]9c5986e34e4d45149714b6636f836456 [customer-loop-canary] customer loop failed before completion; entering cleanup
+2026-05-18T04:57:17.344000+00:00 2026/05/18/[$LATEST]9c5986e34e4d45149714b6636f836456 [customer-loop-canary] account delete attempted for customer 6576c89f-de86-47fb-a1a7-cdf0b4e84a63
+2026-05-18T04:57:17.445000+00:00 2026/05/18/[$LATEST]9c5986e34e4d45149714b6636f836456 [customer-loop-canary] admin cleanup completed for tenant 6576c89f-de86-47fb-a1a7-cdf0b4e84a63
+2026-05-18T04:57:17.445000+00:00 2026/05/18/[$LATEST]9c5986e34e4d45149714b6636f836456 [customer-loop-canary] step 'create_index' failed: create index returned HTTP 504
+2026-05-18T04:57:17.601000+00:00 2026/05/18/[$LATEST]9c5986e34e4d45149714b6636f836456 [FAIL] slack: HTTP 400 (expected 2xx)
+2026-05-18T04:57:17.866000+00:00 2026/05/18/[$LATEST]9c5986e34e4d45149714b6636f836456 [OK]   discord: HTTP 204
+2026-05-18T04:57:18.022000+00:00 2026/05/18/[$LATEST]9c5986e34e4d45149714b6636f836456 END RequestId: 3f0f783d-0afa-455f-8f98-ea1694bdb1bc
+2026-05-18T04:57:18.023000+00:00 2026/05/18/[$LATEST]9c5986e34e4d45149714b6636f836456 REPORT RequestId: 3f0f783d-0afa-455f-8f98-ea1694bdb1bc	Duration: 80290.64 ms	Billed Duration: 80456 ms	Memory Size: 512 MB	Max Memory Used: 139 MB	Init Duration: 165.18 ms
+2026-05-18T04:57:33.235000+00:00 2026/05/18/[$LATEST]9c5986e34e4d45149714b6636f836456 START RequestId: f8f239e6-72b3-4bd1-852c-2a307bd6a48e Version: $LATEST
+2026-05-18T04:57:37.265000+00:00 2026/05/18/[$LATEST]9c5986e34e4d45149714b6636f836456 [customer-loop-canary] signup succeeded for canary+canary2026051804573620052@test.flapjack.foo (customer=8dee9ced-995c-4970-b309-5cafcb31dfd9)
+2026-05-18T04:57:47.604000+00:00 2026/05/18/[$LATEST]9c5986e34e4d45149714b6636f836456 [customer-loop-canary] email verification succeeded for canary+canary2026051804573620052@test.flapjack.foo
+2026-05-18T04:57:47.604000+00:00 2026/05/18/[$LATEST]9c5986e34e4d45149714b6636f836456 [customer-loop-canary] CANARY_LIVE_MODE=0; skipping live Stripe branch
+2026-05-18T04:58:47.907000+00:00 2026/05/18/[$LATEST]9c5986e34e4d45149714b6636f836456 [customer-loop-canary] customer loop failed before completion; entering cleanup
+2026-05-18T04:58:48.146000+00:00 2026/05/18/[$LATEST]9c5986e34e4d45149714b6636f836456 [customer-loop-canary] account delete attempted for customer 8dee9ced-995c-4970-b309-5cafcb31dfd9
+2026-05-18T04:58:48.247000+00:00 2026/05/18/[$LATEST]9c5986e34e4d45149714b6636f836456 [customer-loop-canary] admin cleanup completed for tenant 8dee9ced-995c-4970-b309-5cafcb31dfd9
+2026-05-18T04:58:48.247000+00:00 2026/05/18/[$LATEST]9c5986e34e4d45149714b6636f836456 [customer-loop-canary] step 'create_index' failed: create index returned HTTP 504
+2026-05-18T04:58:48.405000+00:00 2026/05/18/[$LATEST]9c5986e34e4d45149714b6636f836456 [FAIL] slack: HTTP 400 (expected 2xx)
+2026-05-18T04:58:48.856000+00:00 2026/05/18/[$LATEST]9c5986e34e4d45149714b6636f836456 [OK]   discord: HTTP 204
+2026-05-18T04:58:48.990000+00:00 2026/05/18/[$LATEST]9c5986e34e4d45149714b6636f836456 END RequestId: f8f239e6-72b3-4bd1-852c-2a307bd6a48e
+2026-05-18T04:58:48.990000+00:00 2026/05/18/[$LATEST]9c5986e34e4d45149714b6636f836456 REPORT RequestId: f8f239e6-72b3-4bd1-852c-2a307bd6a48e	Duration: 75753.73 ms	Billed Duration: 75754 ms	Memory Size: 512 MB	Max Memory Used: 139 MB

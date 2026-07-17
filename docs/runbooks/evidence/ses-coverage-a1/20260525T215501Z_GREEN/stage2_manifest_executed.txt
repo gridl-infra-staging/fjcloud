@@ -1,0 +1,3 @@
+scripts/probe_inbound_support_routing_e2e.sh
+scripts/probe_bounce_alert_discord_readback.sh
+scripts/tests/probe_stage2_email_coverage_test.sh

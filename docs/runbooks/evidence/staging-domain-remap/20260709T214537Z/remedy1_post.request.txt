@@ -1,0 +1,4 @@
+POST https://api.cloudflare.com/client/v4/accounts/<account_id>/pages/projects/flapjack-cloud/domains
+account_id=99deba6554f68cb3544bd9ecfd08ff06
+body={"name":"cloud.staging.flapjack.foo"}
+auth=global_key_email_redacted

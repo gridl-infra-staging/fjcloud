@@ -1,0 +1,14 @@
+# Disposition Receipt: stage3_mainline_integration
+
+Classification: approved freed local branch after approved worktree removal
+Evidence source: current read-only git refs at bundle creation.
+
+## rev-parse
+$ git rev-parse stage3_mainline_integration
+17bc8521e32f6fa207d50d387eaa1d8ee4a848e4
+
+## cherry
+$ git cherry -v main stage3_mainline_integration | tail -20
+
+## diff main...
+$ git diff main...stage3_mainline_integration --stat | tail -20

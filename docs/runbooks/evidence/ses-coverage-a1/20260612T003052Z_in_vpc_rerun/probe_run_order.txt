@@ -1,0 +1,12 @@
+running verify_email_clickthrough
+verify_email_clickthrough rc=1
+running password_reset_clickthrough
+password_reset_clickthrough rc=1
+running dunning_email_inbox
+dunning_email_inbox rc=1
+running ses_bounce
+ses_bounce rc=0
+running ses_complaint
+ses_complaint rc=0
+running staging_dunning_delivery
+staging_dunning_delivery rc=1

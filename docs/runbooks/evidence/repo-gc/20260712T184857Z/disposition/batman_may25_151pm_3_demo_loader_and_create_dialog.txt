@@ -1,0 +1,14 @@
+# Disposition Receipt: batman/may25_151pm_3_demo_loader_and_create_dialog
+
+Classification: approved freed local branch after approved worktree removal
+Evidence source: current read-only git refs at bundle creation.
+
+## rev-parse
+$ git rev-parse batman/may25_151pm_3_demo_loader_and_create_dialog
+feb19df82b2a6bc0aedfa3a8a6da484ddf3e9225
+
+## cherry
+$ git cherry -v main batman/may25_151pm_3_demo_loader_and_create_dialog | tail -20
+
+## diff main...
+$ git diff main...batman/may25_151pm_3_demo_loader_and_create_dialog --stat | tail -20

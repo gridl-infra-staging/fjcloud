@@ -1,0 +1,5 @@
+bundle=docs/runbooks/evidence/canary-customer-loop/20260518T034024Z_prod_e2e_GREEN
+support_fn_error=Unhandled
+customer_fn_error=
+customer_success_marker=
+customer_failure_marker=

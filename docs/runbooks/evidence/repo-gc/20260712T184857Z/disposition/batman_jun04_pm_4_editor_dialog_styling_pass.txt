@@ -1,0 +1,14 @@
+# Disposition Receipt: batman/jun04_pm_4_editor_dialog_styling_pass
+
+Classification: approved freed local branch after approved worktree removal
+Evidence source: current read-only git refs at bundle creation.
+
+## rev-parse
+$ git rev-parse batman/jun04_pm_4_editor_dialog_styling_pass
+bec1a6ecdb6f0e73a292ec543fdd05eb6904dc0b
+
+## cherry
+$ git cherry -v main batman/jun04_pm_4_editor_dialog_styling_pass | tail -20
+
+## diff main...
+$ git diff main...batman/jun04_pm_4_editor_dialog_styling_pass --stat | tail -20

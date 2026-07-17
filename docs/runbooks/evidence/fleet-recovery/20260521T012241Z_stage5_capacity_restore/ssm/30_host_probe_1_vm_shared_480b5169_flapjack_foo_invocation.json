@@ -1,0 +1,5 @@
+{
+    "Status": "Success",
+    "Stdout": "=== systemctl status flapjack ===\n○ flapjack.service - Flapjack Search Engine\n     Loaded: loaded (/etc/systemd/system/flapjack.service; disabled; preset: disabled)\n     Active: inactive (dead)\n       Docs: https://github.com/gridl/flapjack_dev\n__cmd_exit:systemctl_status_flapjack:3\n=== journalctl -u flapjack ===\n-- No entries --\n__cmd_exit:journalctl_flapjack:0\n=== ls -l /usr/local/bin/flapjack ===\nls: cannot access '/usr/local/bin/flapjack': No such file or directory\n__cmd_exit:ls_flapjack_bin:2\n=== curl http://vm-shared-480b5169.flapjack.foo:7700/health ===\ncurl: (7) Failed to connect to vm-shared-480b5169.flapjack.foo port 7700 after 58 ms: Could not connect to server\n__cmd_exit:curl_probe_url:7\n=== curl localhost:7700/health ===\ncurl: (7) Failed to connect to localhost port 7700 after 0 ms: Could not connect to server\n__cmd_exit:curl_local_7700:7\n",
+    "Stderr": ""
+}

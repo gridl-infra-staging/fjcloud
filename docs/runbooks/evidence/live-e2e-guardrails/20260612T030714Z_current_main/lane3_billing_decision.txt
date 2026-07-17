@@ -1,0 +1,9 @@
+utc=20260612T030714Z
+chosen_summary=none found
+billing_decision=include-billing
+billing_month=2026-06
+staging_env_file=.secret/.env.secret
+wrapper_billing_flags=--run-billing-rehearsal --month 2026-06 --confirm-live-mutation --env-file .secret/.env.secret
+rerun_reason=runtime smoke required generic CLOUDFLARE_ZONE_ID; using private temp overlay outside repo
+rerun_env_file=<private-temp-env-file>
+rerun_wrapper_billing_flags=--run-billing-rehearsal --month 2026-06 --confirm-live-mutation --env-file <private-temp-env-file>

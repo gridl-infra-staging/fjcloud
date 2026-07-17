@@ -1,0 +1,9 @@
+{
+    "Name": "fjcloud-prod-customer-loop-canary",
+    "Arn": "arn:aws:events:us-east-1:213880904778:rule/fjcloud-prod-customer-loop-canary",
+    "ScheduleExpression": "rate(15 minutes)",
+    "State": "DISABLED",
+    "Description": "Scheduled trigger for customer loop synthetic canary",
+    "EventBusName": "default",
+    "CreatedBy": "213880904778"
+}

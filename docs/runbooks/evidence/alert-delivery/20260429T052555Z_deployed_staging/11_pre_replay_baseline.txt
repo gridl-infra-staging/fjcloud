@@ -1,0 +1,19 @@
+# Stage 3 pre-replay baseline (read-only)
+
+utc_recorded=2026-04-29T17:02:55Z
+instance_id=<redacted-instance-id>
+ssm_command_id=<redacted-command-id>
+ssm_status=Success
+ssm_response_code=0
+invoice_id=4266f700-6337-400d-b798-69ef03a43436
+
+sql:
+SELECT count(*) FROM alerts;
+SELECT count(*) FROM alerts WHERE metadata->>'invoice_id'='4266f700-6337-400d-b798-69ef03a43436';
+SELECT count(*) FROM alerts WHERE metadata->>'invoice_id'='4266f700-6337-400d-b798-69ef03a43436' AND delivery_status='sent';
+SELECT newest matching rows with severity, delivery_status, title/message, and metadata fields.
+
+result:
+- alerts_count|60
+- matching_alert_count|0
+- matching_sent_count|0

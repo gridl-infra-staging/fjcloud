@@ -1,0 +1,13 @@
+{
+  "cleanup_lifecycle": "manual cleanup required: delete the restored DB instance after verification and evidence capture",
+  "env": "prod",
+  "reason": null,
+  "restore_command": "aws rds restore-db-instance-to-point-in-time --region us-east-1 --source-db-instance-identifier fjcloud-prod --target-db-instance-identifier fjcloud-prod-restore-20260516025535 --restore-time 2026-05-16T02:09:35+00:00 --db-subnet-group-name fjcloud-prod ",
+  "restore_mode": "pitr",
+  "result": "pass",
+  "source_db_instance_id": "fjcloud-prod",
+  "status": "success",
+  "target_db_instance_id": "fjcloud-prod-restore-20260516025535",
+  "target_endpoint": "fjcloud-prod-restore-20260516025535.*.us-east-1.rds.amazonaws.com",
+  "target_status": "available"
+}

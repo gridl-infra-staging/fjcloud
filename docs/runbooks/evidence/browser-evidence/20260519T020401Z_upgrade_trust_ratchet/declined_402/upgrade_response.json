@@ -1,0 +1,6 @@
+{
+    "error": "payment_required",
+    "code": "card_declined",
+    "decline_code": "generic_decline",
+    "message": "Your card was declined."
+}

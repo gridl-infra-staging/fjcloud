@@ -1,0 +1,14 @@
+source_green_bundle=docs/runbooks/evidence/staging-billing-rehearsal/20260712T010555Z_current_main
+billing_month=2026-07
+secret_source=/Users/stuart/repos/gridl-infra-dev/fjcloud_dev/.secret/.env.secret
+stripe_environment_contract=docs/design/stripe_environments.md
+head=2ceac5415a43bf836728a0b0daef924e192604c4
+validator_fix_commit=2ceac5415a43bf836728a0b0daef924e192604c4
+clean_credential_shell=true
+
+staging_sync_triggered=true
+staging_ci_run_id=29211645943
+staging_ci_run_url=https://github.com/gridl-infra-staging/fjcloud/actions/runs/29211645943
+staging_mirror_sha=7a8d9843b90fd60105182b049d902dfd5ba9f82a
+staging_main_dev_sha=06af41521c986e54afdd441bad3118c76dde8b67
+staging_deploy_status=deploy-staging in_progress at 2026-07-12T22:49:01Z

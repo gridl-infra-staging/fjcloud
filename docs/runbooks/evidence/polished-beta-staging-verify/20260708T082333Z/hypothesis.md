@@ -1,0 +1,1 @@
+Hypothesis: at the Stage 1 mirror SHA, the seven @staging_verify lanes render the polished-beta UI as designed; measurement: one serial Playwright JSON first pass derives lane_verdicts_first_pass.json in the rerun-driver contract shape.

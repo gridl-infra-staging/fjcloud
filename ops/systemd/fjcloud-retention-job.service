@@ -1,0 +1,28 @@
+[Unit]
+Description=fjcloud Retention Job (daily deleted-account purge)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=fjcloud
+Group=fjcloud
+
+EnvironmentFile=-/etc/fjcloud/env
+# Retention job targets the API on the local control-plane host only.
+Environment=API_URL=http://127.0.0.1:3001
+# The fjcloud-retention-job binary defaults to dry-run mode; the baked
+# host runs a live purge, so pin RETENTION_DRY_RUN=0 explicitly here.
+Environment=RETENTION_DRY_RUN=0
+ExecStart=/usr/local/bin/fjcloud-retention-job
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=fjcloud-retention-job

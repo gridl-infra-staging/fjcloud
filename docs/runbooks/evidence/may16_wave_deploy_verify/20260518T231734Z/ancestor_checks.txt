@@ -1,0 +1,6 @@
+# ancestor checks
+prod_dev_sha=unknown class=unknown
+exit=128 cmd=git merge-base --is-ancestor 687be7359ae01523e5c5bb500dea77db85fccb4f unknown
+exit=128 cmd=git -C /Users/stuart/repos/gridl-infra-prod/fjcloud merge-base --is-ancestor 687be7359ae01523e5c5bb500dea77db85fccb4f unknown
+exit=128 cmd=git merge-base --is-ancestor 3d179dd0ea6d0f9bb4879bf4dcb7c24166346d9e 67d48abce51678885b86b248d1c449756fd9206d
+exit=1 cmd=git -C /Users/stuart/repos/gridl-infra-staging/fjcloud merge-base --is-ancestor 3d179dd0ea6d0f9bb4879bf4dcb7c24166346d9e fa64aba192866d5aa72e6409b3ec04fe6375ea16

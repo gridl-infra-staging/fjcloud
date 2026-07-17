@@ -1,0 +1,13 @@
+{
+  "detect_kind": "terminus_email_verified",
+  "log_path": "docs/runbooks/evidence/ses-coverage-a1/20260713T004742Z_jul12_pm_in_vpc_rerun/verify_email_clickthrough.log",
+  "parsed_evidence": {
+    "final_json": null,
+    "json_object_count": 0,
+    "last_nonempty_line": "TERMINUS: email_verified=true",
+    "terminus_line": "TERMINUS: email_verified=true"
+  },
+  "pass": true,
+  "probe_id": "verify_email_clickthrough",
+  "rc": 0
+}

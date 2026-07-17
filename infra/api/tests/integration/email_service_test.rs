@@ -1,0 +1,1095 @@
+//! Transport and backend tests for email service implementations.
+
+use api::services::email::{
+    invoice_ready_email_html, password_reset_email_html, password_reset_email_html_with_base_url,
+    password_reset_email_text, password_reset_email_text_with_base_url, quota_warning_email_html,
+    verification_email_html, verification_email_html_with_base_url, verification_email_text,
+    verification_email_text_with_base_url, BroadcastDeliveryStatus,
+    DunningRecoveredAfterFailureEmailRequest, DunningRetriesExhaustedEmailRequest,
+    DunningRetryScheduledEmailRequest, EmailService, MailpitEmailService, NoopEmailService,
+    SesEmailService, DUNNING_RECOVERED_AFTER_FAILURE_SUBJECT, DUNNING_RETRIES_EXHAUSTED_SUBJECT,
+    DUNNING_RETRY_SCHEDULED_SUBJECT, INVOICE_READY_SUBJECT, PASSWORD_RESET_SUBJECT,
+    QUOTA_WARNING_SUBJECT, VERIFICATION_SUBJECT,
+};
+use api::services::email_suppression::InMemoryEmailSuppressionStore;
+use std::sync::Arc;
+use wiremock::matchers::{method, path};
+use wiremock::{Mock, MockServer, ResponseTemplate};
+
+// ---------------------------------------------------------------------------
+// Template HTML unit tests
+// ---------------------------------------------------------------------------
+
+#[test]
+fn verification_email_contains_token_url() {
+    let html = verification_email_html("abc123");
+    let text = verification_email_text("abc123");
+    assert!(html.contains(r#"href="https://cloud.flapjack.foo/verify-email/abc123""#));
+    assert!(!html.contains("verify-email?token="));
+    assert!(text.contains("https://cloud.flapjack.foo/verify-email/abc123"));
+    assert!(!text.contains("verify-email?token="));
+    assert!(html.contains("Verify your Flapjack Cloud account"));
+    assert!(!html.contains("app.griddle.io"));
+    assert!(!html.contains("Griddle"));
+}
+
+#[test]
+fn password_reset_email_contains_token_url() {
+    let html = password_reset_email_html("reset-tok-42");
+    let text = password_reset_email_text("reset-tok-42");
+    assert!(html.contains(r#"href="https://cloud.flapjack.foo/reset-password/reset-tok-42""#));
+    assert!(!html.contains("reset-password?token="));
+    assert!(text.contains("https://cloud.flapjack.foo/reset-password/reset-tok-42"));
+    assert!(!text.contains("reset-password?token="));
+    assert!(html.contains("Flapjack Cloud password reset"));
+    assert!(!html.contains("app.griddle.io"));
+    assert!(!html.contains("Griddle"));
+}
+
+#[test]
+fn auth_email_links_use_explicit_application_base_url() {
+    let verify_html = verification_email_html_with_base_url("https://preview.example.test", "v1");
+    let reset_html = password_reset_email_html_with_base_url("https://preview.example.test/", "r1");
+    let verify_text = verification_email_text_with_base_url("https://preview.example.test", "v1");
+    let reset_text = password_reset_email_text_with_base_url("https://preview.example.test/", "r1");
+
+    assert!(verify_html.contains(r#"href="https://preview.example.test/verify-email/v1""#));
+    assert!(reset_html.contains(r#"href="https://preview.example.test/reset-password/r1""#));
+    assert!(!verify_html.contains("verify-email?token="));
+    assert!(!reset_html.contains("reset-password?token="));
+    assert!(verify_text.contains("https://preview.example.test/verify-email/v1"));
+    assert!(reset_text.contains("https://preview.example.test/reset-password/r1"));
+    assert!(!verify_text.contains("verify-email?token="));
+    assert!(!reset_text.contains("reset-password?token="));
+    assert!(!verify_html.contains("cloud.flapjack.foo"));
+    assert!(!reset_html.contains("cloud.flapjack.foo"));
+}
+
+#[test]
+fn invoice_email_with_pdf_url() {
+    let html = invoice_ready_email_html(
+        "INV-001",
+        "https://stripe.com/inv",
+        Some("https://s3.example.com/inv.pdf"),
+    );
+    assert!(html.contains("INV-001"));
+    assert!(html.contains("https://stripe.com/inv"));
+    assert!(html.contains("Download PDF"));
+    assert!(html.contains("https://s3.example.com/inv.pdf"));
+}
+
+#[test]
+fn invoice_email_without_pdf_url() {
+    let html = invoice_ready_email_html("INV-002", "https://stripe.com/inv2", None);
+    assert!(html.contains("INV-002"));
+    assert!(!html.contains("Download PDF"));
+}
+
+#[test]
+fn quota_warning_email_renders_all_fields() {
+    let html = quota_warning_email_html("queries", 85.3, 8530, 10000);
+    assert!(html.contains("queries"));
+    assert!(html.contains("85.3%"));
+    assert!(html.contains("8530"));
+    assert!(html.contains("10000"));
+}
+
+// ---------------------------------------------------------------------------
+// NoopEmailService tests
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn noop_email_accepts_non_empty_recipient_for_all_methods() {
+    let service = NoopEmailService;
+    let recipient = "noop@test.com";
+
+    service
+        .send_verification_email(recipient, "verify-token")
+        .await
+        .expect("verification should be accepted");
+    service
+        .send_password_reset_email(recipient, "reset-token")
+        .await
+        .expect("password reset should be accepted");
+    service
+        .send_invoice_ready_email(
+            recipient,
+            "inv_123",
+            "https://billing.example.com/invoices/inv_123",
+            Some("https://billing.example.com/invoices/inv_123.pdf"),
+            "test",
+        )
+        .await
+        .expect("invoice ready should be accepted");
+    service
+        .send_quota_warning_email(recipient, "requests", 90.0, 900, 1000)
+        .await
+        .expect("quota warning should be accepted");
+    service
+        .send_dunning_retry_scheduled_email(
+            recipient,
+            &DunningRetryScheduledEmailRequest {
+                customer_id: "cus_noop_retry",
+                invoice_id: "in_noop_retry",
+                hosted_invoice_url: Some("https://stripe.com/invoice/noop-retry"),
+                next_payment_attempt_unix_seconds: 1_708_300_800,
+                attempt_count: Some(2),
+            },
+        )
+        .await
+        .expect("dunning retry scheduled should be accepted");
+    service
+        .send_dunning_retries_exhausted_email(
+            recipient,
+            &DunningRetriesExhaustedEmailRequest {
+                customer_id: "cus_noop_exhausted",
+                invoice_id: "in_noop_exhausted",
+                hosted_invoice_url: Some("https://stripe.com/invoice/noop-exhausted"),
+                attempt_count: Some(4),
+            },
+        )
+        .await
+        .expect("dunning retries exhausted should be accepted");
+    service
+        .send_dunning_recovered_after_failure_email(
+            recipient,
+            &DunningRecoveredAfterFailureEmailRequest {
+                customer_id: "cus_noop_recovered",
+                invoice_id: "in_noop_recovered",
+                hosted_invoice_url: Some("https://stripe.com/invoice/noop-recovered"),
+            },
+        )
+        .await
+        .expect("dunning recovered should be accepted");
+    service
+        .send_broadcast_email(
+            recipient,
+            "Maintenance notice",
+            Some("<p>Planned maintenance at 02:00 UTC</p>"),
+            None,
+        )
+        .await
+        .expect("broadcast should be accepted");
+}
+
+#[tokio::test]
+async fn noop_email_rejects_blank_or_whitespace_recipient_with_record_validation_error() {
+    let service = NoopEmailService;
+
+    for recipient in ["", "   "] {
+        let verification_err = service
+            .send_verification_email(recipient, "verify-token")
+            .await
+            .expect_err("blank/whitespace recipients must fail");
+        assert_eq!(
+            verification_err.to_string(),
+            "invalid email request: recipient email must not be empty"
+        );
+
+        let reset_err = service
+            .send_password_reset_email(recipient, "reset-token")
+            .await
+            .expect_err("blank/whitespace recipients must fail");
+        assert_eq!(
+            reset_err.to_string(),
+            "invalid email request: recipient email must not be empty"
+        );
+
+        let invoice_err = service
+            .send_invoice_ready_email(
+                recipient,
+                "inv_123",
+                "https://billing.example.com",
+                None,
+                "test",
+            )
+            .await
+            .expect_err("blank/whitespace recipients must fail");
+        assert_eq!(
+            invoice_err.to_string(),
+            "invalid email request: recipient email must not be empty"
+        );
+
+        let quota_err = service
+            .send_quota_warning_email(recipient, "requests", 90.0, 900, 1000)
+            .await
+            .expect_err("blank/whitespace recipients must fail");
+        assert_eq!(
+            quota_err.to_string(),
+            "invalid email request: recipient email must not be empty"
+        );
+
+        let retry_scheduled_err = service
+            .send_dunning_retry_scheduled_email(
+                recipient,
+                &DunningRetryScheduledEmailRequest {
+                    customer_id: "cus_noop_retry",
+                    invoice_id: "in_noop_retry",
+                    hosted_invoice_url: Some("https://stripe.com/invoice/noop-retry"),
+                    next_payment_attempt_unix_seconds: 1_708_300_800,
+                    attempt_count: Some(2),
+                },
+            )
+            .await
+            .expect_err("blank/whitespace recipients must fail");
+        assert_eq!(
+            retry_scheduled_err.to_string(),
+            "invalid email request: recipient email must not be empty"
+        );
+
+        let exhausted_err = service
+            .send_dunning_retries_exhausted_email(
+                recipient,
+                &DunningRetriesExhaustedEmailRequest {
+                    customer_id: "cus_noop_exhausted",
+                    invoice_id: "in_noop_exhausted",
+                    hosted_invoice_url: Some("https://stripe.com/invoice/noop-exhausted"),
+                    attempt_count: Some(4),
+                },
+            )
+            .await
+            .expect_err("blank/whitespace recipients must fail");
+        assert_eq!(
+            exhausted_err.to_string(),
+            "invalid email request: recipient email must not be empty"
+        );
+
+        let recovered_err = service
+            .send_dunning_recovered_after_failure_email(
+                recipient,
+                &DunningRecoveredAfterFailureEmailRequest {
+                    customer_id: "cus_noop_recovered",
+                    invoice_id: "in_noop_recovered",
+                    hosted_invoice_url: Some("https://stripe.com/invoice/noop-recovered"),
+                },
+            )
+            .await
+            .expect_err("blank/whitespace recipients must fail");
+        assert_eq!(
+            recovered_err.to_string(),
+            "invalid email request: recipient email must not be empty"
+        );
+
+        let broadcast_err = service
+            .send_broadcast_email(
+                recipient,
+                "Maintenance notice",
+                Some("<p>Planned maintenance at 02:00 UTC</p>"),
+                None,
+            )
+            .await
+            .expect_err("blank/whitespace recipients must fail");
+        assert_eq!(
+            broadcast_err.to_string(),
+            "invalid email request: recipient email must not be empty"
+        );
+    }
+}
+
+async fn ses_client_for_mock_server(server: &MockServer) -> aws_sdk_sesv2::Client {
+    let aws_config = aws_config::defaults(aws_config::BehaviorVersion::latest())
+        .region(aws_sdk_sesv2::config::Region::new("us-east-1"))
+        .load()
+        .await;
+    let credentials = aws_sdk_sesv2::config::Credentials::new(
+        "test-access-key",
+        "test-secret-key",
+        None,
+        None,
+        "email-service-test",
+    );
+    let ses_config = aws_sdk_sesv2::config::Builder::from(&aws_config)
+        .endpoint_url(server.uri())
+        .credentials_provider(credentials)
+        .build();
+    aws_sdk_sesv2::Client::from_conf(ses_config)
+}
+
+#[tokio::test]
+async fn ses_send_applies_exactly_one_configuration_set_name() {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "MessageId": "msg-123"
+        })))
+        .mount(&server)
+        .await;
+    let client = ses_client_for_mock_server(&server).await;
+    let suppression = Arc::new(InMemoryEmailSuppressionStore::default());
+    let service = SesEmailService::new(
+        client,
+        "system@flapjack.foo",
+        "stage2-config-set",
+        suppression,
+    );
+
+    let outcome = service
+        .send_broadcast_email(
+            "ops@example.com",
+            "maintenance window",
+            Some("<p>maintenance</p>"),
+            None,
+        )
+        .await
+        .expect("SES request should succeed");
+
+    assert_eq!(outcome, BroadcastDeliveryStatus::Sent);
+    let requests = server
+        .received_requests()
+        .await
+        .expect("wiremock should record requests");
+    assert!(
+        !requests.is_empty(),
+        "SES should emit at least one outbound request"
+    );
+
+    for request in requests {
+        let body = String::from_utf8_lossy(&request.body);
+        assert_eq!(
+            body.matches("\"ConfigurationSetName\"").count(),
+            1,
+            "SES payload should include exactly one ConfigurationSetName field; body={body}"
+        );
+        assert!(
+            body.contains("\"ConfigurationSetName\":\"stage2-config-set\""),
+            "SES payload should include configured ConfigurationSetName value; body={body}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn ses_transactional_payload_includes_override_from_name_and_text_body() {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "MessageId": "msg-123"
+        })))
+        .mount(&server)
+        .await;
+    let client = ses_client_for_mock_server(&server).await;
+    let suppression = Arc::new(InMemoryEmailSuppressionStore::default());
+    let service = SesEmailService::with_app_base_url(
+        client,
+        "system@flapjack.foo",
+        "Stage Two Sender",
+        "stage2-config-set",
+        suppression,
+        "https://cloud.flapjack.foo",
+    );
+
+    service
+        .send_verification_email("alice@example.com", "verify-123")
+        .await
+        .expect("SES transactional send should succeed");
+
+    let requests = server
+        .received_requests()
+        .await
+        .expect("wiremock should record requests");
+    assert_eq!(requests.len(), 1);
+    let body = String::from_utf8_lossy(&requests[0].body);
+    assert!(
+        body.contains("\"FromEmailAddress\":\"Stage Two Sender <system@flapjack.foo>\""),
+        "SES payload should include override display-name sender; body={body}"
+    );
+    assert!(
+        body.contains("\"Text\""),
+        "SES payload should include text content for transactional emails; body={body}"
+    );
+    assert!(
+        body.contains("https://cloud.flapjack.foo/verify-email/verify-123"),
+        "SES payload should preserve the verification token path in both rendered bodies; body={body}"
+    );
+    assert!(
+        !body.contains("verify-email?token="),
+        "SES payload must not regress to the obsolete query-param verification route; body={body}"
+    );
+}
+
+#[tokio::test]
+async fn ses_html_only_broadcast_preserves_empty_text_payload() {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "MessageId": "msg-123"
+        })))
+        .mount(&server)
+        .await;
+    let client = ses_client_for_mock_server(&server).await;
+    let suppression = Arc::new(InMemoryEmailSuppressionStore::default());
+    let service = SesEmailService::new(
+        client,
+        "system@flapjack.foo",
+        "stage2-config-set",
+        suppression,
+    );
+    let subject = "Release notice";
+    let html_body = "<p>Release at 02:00 UTC</p>";
+
+    service
+        .send_broadcast_email("ops@example.com", subject, Some(html_body), None)
+        .await
+        .expect("SES html-only broadcast should succeed");
+
+    let requests = server
+        .received_requests()
+        .await
+        .expect("wiremock should record requests");
+    assert_eq!(requests.len(), 1);
+    let body = String::from_utf8_lossy(&requests[0].body);
+    assert!(
+        body.contains("\"Subject\":{\"Data\":\"Release notice\""),
+        "SES payload should include broadcast subject; body={body}"
+    );
+    assert!(
+        body.contains("\"Html\":{\"Data\":\"<p>Release at 02:00 UTC</p>\""),
+        "SES payload should preserve HTML payload; body={body}"
+    );
+    assert!(
+        body.contains("\"Text\":{\"Data\":\"\""),
+        "SES payload should keep text payload empty for html-only broadcasts; body={body}"
+    );
+}
+
+/// The SES SEND event destination the staging billing rehearsal will observe
+/// only carries the fields the SES v2 `SendEmail` request itself sets — so
+/// the fjcloud invoice UUID must ride on the request as an `EmailTags` entry.
+/// Correlation-by-body (the invoice ID that renders into the HTML) is not
+/// observable in any SES delivery event, and CloudTrail data-events for SES
+/// v2 sends are unqueryable via `lookup-events`. If this test fails, the paid
+/// invoice email is unobservable end-to-end.
+#[tokio::test]
+async fn ses_invoice_ready_email_attaches_invoice_id_message_tag() {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "MessageId": "msg-invoice-ready-1"
+        })))
+        .mount(&server)
+        .await;
+    let client = ses_client_for_mock_server(&server).await;
+    let suppression = Arc::new(InMemoryEmailSuppressionStore::default());
+    let service = SesEmailService::new(
+        client,
+        "system@flapjack.foo",
+        "stage3-config-set",
+        suppression,
+    );
+
+    let invoice_id = "1c9f5b04-6e2b-4c9d-9c1b-1d7f2a8e6cad";
+    service
+        .send_invoice_ready_email(
+            "user@example.com",
+            invoice_id,
+            "https://pay.stripe.com/invoice/hosted",
+            None,
+            "invoice_payment_succeeded",
+        )
+        .await
+        .expect("SES invoice-ready send should succeed");
+
+    let requests = server
+        .received_requests()
+        .await
+        .expect("wiremock should record requests");
+    assert_eq!(requests.len(), 1);
+    let body = String::from_utf8_lossy(&requests[0].body);
+    let expected_tags = format!(
+        "\"EmailTags\":[{{\"Name\":\"invoice_id\",\"Value\":\"{invoice_id}\"}},{{\"Name\":\"email_type\",\"Value\":\"invoice_ready\"}},{{\"Name\":\"dispatch_source\",\"Value\":\"invoice_payment_succeeded\"}}]"
+    );
+    assert!(
+        body.contains(&expected_tags),
+        "SES invoice-ready payload must carry invoice_id and email_type as EmailTags \
+         so downstream SES SEND event destinations can correlate the message \
+         to the fjcloud invoice; body={body}"
+    );
+}
+
+/// The billing rehearsal drives paid invoices through failed→recovered, so
+/// `handle_payment_succeeded` fires the dunning-recovered email, not the
+/// invoice-ready one. That path must carry the same invoice_id tag or the
+/// rehearsal's evidence gate has nothing to correlate against.
+#[tokio::test]
+async fn ses_dunning_recovered_email_attaches_invoice_id_message_tag() {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "MessageId": "msg-dunning-recovered-1"
+        })))
+        .mount(&server)
+        .await;
+    let client = ses_client_for_mock_server(&server).await;
+    let suppression = Arc::new(InMemoryEmailSuppressionStore::default());
+    let service = SesEmailService::new(
+        client,
+        "system@flapjack.foo",
+        "stage3-config-set",
+        suppression,
+    );
+
+    let invoice_id = "a2b7d4e8-1234-4bcd-9ef0-56789abcdef0";
+    let request = DunningRecoveredAfterFailureEmailRequest {
+        customer_id: "cus_test_stage3",
+        invoice_id,
+        hosted_invoice_url: Some("https://pay.stripe.com/invoice/recovered"),
+    };
+    service
+        .send_dunning_recovered_after_failure_email("user@example.com", &request)
+        .await
+        .expect("SES dunning-recovered send should succeed");
+
+    let requests = server
+        .received_requests()
+        .await
+        .expect("wiremock should record requests");
+    assert_eq!(requests.len(), 1);
+    let body = String::from_utf8_lossy(&requests[0].body);
+    let expected_tags = format!(
+        "\"EmailTags\":[{{\"Name\":\"invoice_id\",\"Value\":\"{invoice_id}\"}},{{\"Name\":\"email_type\",\"Value\":\"dunning_recovered_after_failure\"}}]"
+    );
+    assert!(
+        body.contains(&expected_tags),
+        "SES dunning-recovered payload must carry invoice_id and email_type as EmailTags; body={body}"
+    );
+}
+
+/// Guardrail: SES sends that carry no business identifier (verification,
+/// password reset, broadcast) must NOT ship an empty `EmailTags` array either.
+/// SES rejects tag names outside `[A-Za-z0-9_-]`, so we want to be explicit
+/// that we don't accidentally attach tags to auth or broadcast paths.
+#[tokio::test]
+async fn ses_verification_email_omits_email_tags_array() {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "MessageId": "msg-verify-1"
+        })))
+        .mount(&server)
+        .await;
+    let client = ses_client_for_mock_server(&server).await;
+    let suppression = Arc::new(InMemoryEmailSuppressionStore::default());
+    let service = SesEmailService::new(
+        client,
+        "system@flapjack.foo",
+        "stage3-config-set",
+        suppression,
+    );
+
+    service
+        .send_verification_email("user@example.com", "verify-token")
+        .await
+        .expect("SES verification send should succeed");
+
+    let requests = server
+        .received_requests()
+        .await
+        .expect("wiremock should record requests");
+    assert_eq!(requests.len(), 1);
+    let body = String::from_utf8_lossy(&requests[0].body);
+    assert!(
+        !body.contains("\"EmailTags\""),
+        "verification email should not attach any EmailTags; body={body}"
+    );
+}
+
+#[tokio::test]
+async fn ses_send_short_circuits_when_recipient_is_suppressed() {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "MessageId": "msg-123"
+        })))
+        .mount(&server)
+        .await;
+
+    let client = ses_client_for_mock_server(&server).await;
+    let suppression = Arc::new(InMemoryEmailSuppressionStore::new_with_recipients([
+        "suppressed@example.com",
+    ]));
+    let service = SesEmailService::new(
+        client,
+        "system@flapjack.foo",
+        "stage2-config-set",
+        suppression,
+    );
+
+    let outcome = service
+        .send_broadcast_email(
+            "suppressed@example.com",
+            "maintenance window",
+            Some("<p>maintenance</p>"),
+            None,
+        )
+        .await
+        .expect("suppressed send should return a non-error outcome");
+
+    assert_eq!(outcome, BroadcastDeliveryStatus::Suppressed);
+    let requests = server
+        .received_requests()
+        .await
+        .expect("wiremock should record requests");
+    assert!(
+        requests.is_empty(),
+        "suppressed recipients must short-circuit before outbound SES send"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// MailpitEmailService tests
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn mailpit_email_service_rejects_empty_recipient() {
+    let service = MailpitEmailService::new("http://localhost:99999", "noreply@test.com", "Test");
+    let err = service
+        .send_verification_email("", "token123")
+        .await
+        .unwrap_err();
+    assert_eq!(
+        err.to_string(),
+        "invalid email request: recipient email must not be empty"
+    );
+}
+
+#[tokio::test]
+async fn mailpit_email_service_rejects_whitespace_recipient() {
+    let service = MailpitEmailService::new("http://localhost:99999", "noreply@test.com", "Test");
+    let err = service
+        .send_verification_email("   ", "token123")
+        .await
+        .unwrap_err();
+    assert!(err.to_string().contains("must not be empty"));
+}
+
+#[tokio::test]
+async fn mailpit_email_service_returns_delivery_failed_on_connection_error() {
+    let service = MailpitEmailService::new(
+        "http://localhost:99999",
+        "noreply@test.com",
+        "Flapjack Test",
+    );
+    let err = service
+        .send_verification_email("user@example.com", "tok")
+        .await
+        .unwrap_err();
+    assert!(
+        err.to_string().contains("Mailpit request failed"),
+        "expected connection error, got: {err}"
+    );
+}
+
+#[tokio::test]
+async fn mailpit_normalizes_blank_sender_display_name_to_default() {
+    let server = MockServer::start().await;
+    mount_mailpit_ok(&server).await;
+    let service = MailpitEmailService::new(server.uri(), "system@flapjack.foo", "   ");
+
+    service
+        .send_verification_email("alice@example.com", "tok-abc")
+        .await
+        .expect("mailpit send should succeed");
+
+    let body = single_request_json(&server).await;
+    assert_eq!(body["From"]["Name"], "Flapjack Cloud");
+}
+
+// ---------------------------------------------------------------------------
+// MailpitEmailService wiremock tests — payload, tags, URL, error handling
+// ---------------------------------------------------------------------------
+
+/// Helper: build a MailpitEmailService pointing at the given wiremock server.
+fn mailpit_service(base_url: &str) -> MailpitEmailService {
+    MailpitEmailService::new(base_url, "system@flapjack.foo", "Flapjack Cloud Dev")
+}
+
+/// Helper: extract the JSON body from the single request received by the mock.
+async fn single_request_json(server: &MockServer) -> serde_json::Value {
+    let requests = server.received_requests().await.expect("recorded requests");
+    assert_eq!(requests.len(), 1, "expected exactly 1 request to Mailpit");
+    serde_json::from_slice(&requests[0].body).expect("request body should be valid JSON")
+}
+
+/// Shared assertions for every Mailpit email payload.
+fn assert_common_payload(
+    body: &serde_json::Value,
+    expected_to: &str,
+    expected_subject: &str,
+    expected_tag: &str,
+    require_non_empty_text: bool,
+) {
+    assert_eq!(body["From"]["Email"], "system@flapjack.foo");
+    assert_eq!(body["From"]["Name"], "Flapjack Cloud Dev");
+    assert_eq!(body["To"][0]["Email"], expected_to);
+    assert!(body["To"].as_array().unwrap().len() == 1);
+    assert_eq!(body["Subject"], expected_subject);
+    assert_eq!(body["Tags"][0], expected_tag);
+    assert!(body["Tags"].as_array().unwrap().len() == 1);
+    assert!(body["HTML"].as_str().is_some_and(|s| !s.is_empty()));
+    let text_body = body["Text"]
+        .as_str()
+        .expect("Mailpit payload should include a string Text field");
+    if require_non_empty_text {
+        assert!(
+            !text_body.is_empty(),
+            "Mailpit payload should include non-empty text content for this email type"
+        );
+    }
+}
+
+async fn mount_mailpit_ok(server: &MockServer) {
+    Mock::given(method("POST"))
+        .and(path("/api/v1/send"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({})))
+        .mount(server)
+        .await;
+}
+
+#[tokio::test]
+async fn mailpit_verification_sends_correct_payload_and_tag() {
+    let server = MockServer::start().await;
+    mount_mailpit_ok(&server).await;
+    let svc = mailpit_service(&server.uri());
+    svc.send_verification_email("alice@example.com", "tok-abc")
+        .await
+        .expect("should succeed");
+    let body = single_request_json(&server).await;
+    assert_common_payload(
+        &body,
+        "alice@example.com",
+        VERIFICATION_SUBJECT,
+        "verification",
+        true,
+    );
+    let html = body["HTML"].as_str().unwrap();
+    let text = body["Text"].as_str().unwrap();
+    assert!(html.contains(r#"href="https://cloud.flapjack.foo/verify-email/tok-abc""#));
+    assert!(!html.contains("verify-email?token="));
+    assert!(text.contains("https://cloud.flapjack.foo/verify-email/tok-abc"));
+    assert!(!text.contains("verify-email?token="));
+}
+
+#[tokio::test]
+async fn mailpit_password_reset_sends_correct_payload_and_tag() {
+    let server = MockServer::start().await;
+    mount_mailpit_ok(&server).await;
+    let svc = mailpit_service(&server.uri());
+    svc.send_password_reset_email("bob@example.com", "rst-xyz")
+        .await
+        .expect("should succeed");
+    let body = single_request_json(&server).await;
+    assert_common_payload(
+        &body,
+        "bob@example.com",
+        PASSWORD_RESET_SUBJECT,
+        "password-reset",
+        true,
+    );
+    let html = body["HTML"].as_str().unwrap();
+    let text = body["Text"].as_str().unwrap();
+    assert!(html.contains(r#"href="https://cloud.flapjack.foo/reset-password/rst-xyz""#));
+    assert!(!html.contains("reset-password?token="));
+    assert!(text.contains("https://cloud.flapjack.foo/reset-password/rst-xyz"));
+    assert!(!text.contains("reset-password?token="));
+}
+
+#[tokio::test]
+async fn mailpit_invoice_sends_correct_payload_and_tag_with_pdf() {
+    let server = MockServer::start().await;
+    mount_mailpit_ok(&server).await;
+    let svc = mailpit_service(&server.uri());
+    svc.send_invoice_ready_email(
+        "carol@example.com",
+        "INV-42",
+        "https://billing.example.com/inv/42",
+        Some("https://cdn.example.com/inv-42.pdf"),
+        "test",
+    )
+    .await
+    .expect("should succeed");
+    let body = single_request_json(&server).await;
+    assert_common_payload(
+        &body,
+        "carol@example.com",
+        INVOICE_READY_SUBJECT,
+        "invoice",
+        true,
+    );
+    let html = body["HTML"].as_str().unwrap();
+    assert!(html.contains("INV-42"));
+    assert!(html.contains("https://billing.example.com/inv/42"));
+    assert!(html.contains("https://cdn.example.com/inv-42.pdf"));
+    assert!(html.contains("Download PDF"));
+}
+
+#[tokio::test]
+async fn mailpit_invoice_omits_pdf_link_when_none() {
+    let server = MockServer::start().await;
+    mount_mailpit_ok(&server).await;
+    let svc = mailpit_service(&server.uri());
+    svc.send_invoice_ready_email(
+        "dan@example.com",
+        "INV-99",
+        "https://b.example.com/99",
+        None,
+        "test",
+    )
+    .await
+    .expect("should succeed");
+    let body = single_request_json(&server).await;
+    assert_common_payload(
+        &body,
+        "dan@example.com",
+        INVOICE_READY_SUBJECT,
+        "invoice",
+        true,
+    );
+    let html = body["HTML"].as_str().unwrap();
+    assert!(!html.contains("Download PDF"));
+}
+
+#[tokio::test]
+async fn mailpit_quota_warning_sends_correct_payload_and_tag() {
+    let server = MockServer::start().await;
+    mount_mailpit_ok(&server).await;
+    let svc = mailpit_service(&server.uri());
+    svc.send_quota_warning_email("eve@example.com", "searches", 92.5, 9250, 10000)
+        .await
+        .expect("should succeed");
+    let body = single_request_json(&server).await;
+    assert_common_payload(
+        &body,
+        "eve@example.com",
+        QUOTA_WARNING_SUBJECT,
+        "quota-warning",
+        true,
+    );
+    let html = body["HTML"].as_str().unwrap();
+    assert!(html.contains("searches"));
+    assert!(html.contains("92.5%"));
+    assert!(html.contains("9250"));
+    assert!(html.contains("10000"));
+}
+
+#[tokio::test]
+async fn mailpit_dunning_retry_scheduled_sends_correct_payload_and_tag() {
+    let server = MockServer::start().await;
+    mount_mailpit_ok(&server).await;
+    let svc = mailpit_service(&server.uri());
+    svc.send_dunning_retry_scheduled_email(
+        "retry@example.com",
+        &DunningRetryScheduledEmailRequest {
+            customer_id: "cus_mailpit_retry",
+            invoice_id: "in_mailpit_retry",
+            hosted_invoice_url: Some("https://stripe.com/invoice/mailpit-retry"),
+            next_payment_attempt_unix_seconds: 1_708_300_800,
+            attempt_count: Some(2),
+        },
+    )
+    .await
+    .expect("should succeed");
+    let body = single_request_json(&server).await;
+    assert_common_payload(
+        &body,
+        "retry@example.com",
+        DUNNING_RETRY_SCHEDULED_SUBJECT,
+        "dunning-retry-scheduled",
+        true,
+    );
+    let html = body["HTML"].as_str().unwrap();
+    assert!(html.contains("couldn't process your payment"));
+    assert!(html.contains("automatically retry your payment"));
+    assert!(html.contains("2024-02-19 00:00:00 UTC"));
+    let text = body["Text"].as_str().unwrap();
+    assert!(text.contains("couldn't process your payment"));
+    assert!(text.contains("automatically retry your payment"));
+    assert!(text.contains("2024-02-19 00:00:00 UTC"));
+    assert!(text.contains("attempt 2"));
+    assert!(!text.contains("cus_mailpit_retry"));
+    assert!(!text.contains("in_mailpit_retry"));
+}
+
+#[tokio::test]
+async fn mailpit_dunning_retries_exhausted_sends_correct_payload_and_tag() {
+    let server = MockServer::start().await;
+    mount_mailpit_ok(&server).await;
+    let svc = mailpit_service(&server.uri());
+    svc.send_dunning_retries_exhausted_email(
+        "exhausted@example.com",
+        &DunningRetriesExhaustedEmailRequest {
+            customer_id: "cus_mailpit_exhausted",
+            invoice_id: "in_mailpit_exhausted",
+            hosted_invoice_url: Some("https://stripe.com/invoice/mailpit-exhausted"),
+            attempt_count: Some(4),
+        },
+    )
+    .await
+    .expect("should succeed");
+    let body = single_request_json(&server).await;
+    assert_common_payload(
+        &body,
+        "exhausted@example.com",
+        DUNNING_RETRIES_EXHAUSTED_SUBJECT,
+        "dunning-retries-exhausted",
+        true,
+    );
+    let html = body["HTML"].as_str().unwrap();
+    assert!(html.contains("still couldn't process your payment"));
+    assert!(html.contains("No more automatic retries are scheduled"));
+    assert!(html.contains("attempt 4"));
+    let text = body["Text"].as_str().unwrap();
+    assert!(text.contains("still couldn't process your payment"));
+    assert!(text.contains("No more automatic retries are scheduled"));
+    assert!(text.contains("attempt 4"));
+    assert!(text.contains("temporarily limited"));
+    assert!(!text.contains("cus_mailpit_exhausted"));
+    assert!(!text.contains("in_mailpit_exhausted"));
+}
+
+#[tokio::test]
+async fn mailpit_dunning_recovered_after_failure_sends_correct_payload_and_tag() {
+    let server = MockServer::start().await;
+    mount_mailpit_ok(&server).await;
+    let svc = mailpit_service(&server.uri());
+    svc.send_dunning_recovered_after_failure_email(
+        "recovered@example.com",
+        &DunningRecoveredAfterFailureEmailRequest {
+            customer_id: "cus_mailpit_recovered",
+            invoice_id: "in_mailpit_recovered",
+            hosted_invoice_url: Some("https://stripe.com/invoice/mailpit-recovered"),
+        },
+    )
+    .await
+    .expect("should succeed");
+    let body = single_request_json(&server).await;
+    assert_common_payload(
+        &body,
+        "recovered@example.com",
+        DUNNING_RECOVERED_AFTER_FAILURE_SUBJECT,
+        "dunning-recovered-after-failure",
+        true,
+    );
+    let html = body["HTML"].as_str().unwrap();
+    assert!(html.contains("payment is now successful"));
+    assert!(html.contains("account access remains active"));
+    assert!(html.contains("active"));
+    let text = body["Text"].as_str().unwrap();
+    assert!(text.contains("payment is now successful"));
+    assert!(text.contains("account access remains active"));
+    assert!(!text.contains("cus_mailpit_recovered"));
+    assert!(!text.contains("in_mailpit_recovered"));
+}
+
+#[tokio::test]
+async fn mailpit_broadcast_sends_pre_wrapped_text_payload_and_tag() {
+    let server = MockServer::start().await;
+    mount_mailpit_ok(&server).await;
+    let svc = mailpit_service(&server.uri());
+    let subject = "Maintenance notice";
+    let text_body = "Planned <script>alert(1)</script> & follow-up";
+
+    svc.send_broadcast_email("ops@example.com", subject, None, Some(text_body))
+        .await
+        .expect("should succeed");
+
+    let body = single_request_json(&server).await;
+    assert_common_payload(&body, "ops@example.com", subject, "broadcast", true);
+    assert_eq!(
+        body["HTML"],
+        "<pre>Planned &lt;script&gt;alert(1)&lt;/script&gt; &amp; follow-up</pre>"
+    );
+    assert_eq!(body["Text"], text_body);
+}
+
+#[tokio::test]
+async fn mailpit_html_only_broadcast_preserves_empty_text_payload_and_tag() {
+    let server = MockServer::start().await;
+    mount_mailpit_ok(&server).await;
+    let svc = mailpit_service(&server.uri());
+    let subject = "Release notice";
+    let html_body = "<p>Release at 02:00 UTC</p>";
+
+    svc.send_broadcast_email("ops@example.com", subject, Some(html_body), None)
+        .await
+        .expect("should succeed");
+
+    let body = single_request_json(&server).await;
+    assert_common_payload(&body, "ops@example.com", subject, "broadcast", false);
+    assert_eq!(body["HTML"], html_body);
+    assert_eq!(body["Text"], "");
+}
+
+#[tokio::test]
+async fn mailpit_trims_trailing_slash_from_api_url() {
+    let server = MockServer::start().await;
+    mount_mailpit_ok(&server).await;
+    let url_with_slash = format!("{}/", server.uri());
+    let svc = mailpit_service(&url_with_slash);
+    svc.send_verification_email("frank@example.com", "tok")
+        .await
+        .expect("trailing slash should not break the request");
+    let requests = server.received_requests().await.expect("recorded requests");
+    assert_eq!(requests.len(), 1);
+}
+
+#[tokio::test]
+async fn mailpit_returns_delivery_failed_on_500() {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/api/v1/send"))
+        .respond_with(ResponseTemplate::new(500).set_body_string("internal error"))
+        .mount(&server)
+        .await;
+    let svc = mailpit_service(&server.uri());
+    let err = svc
+        .send_verification_email("user@example.com", "tok")
+        .await
+        .unwrap_err();
+    let msg = err.to_string();
+    assert!(
+        msg.contains("500"),
+        "should contain status code, got: {msg}"
+    );
+    assert!(
+        msg.contains("internal error"),
+        "should contain body, got: {msg}"
+    );
+}
+
+#[tokio::test]
+async fn mailpit_returns_delivery_failed_on_422() {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/api/v1/send"))
+        .respond_with(ResponseTemplate::new(422).set_body_string("unprocessable entity"))
+        .mount(&server)
+        .await;
+    let svc = mailpit_service(&server.uri());
+    let err = svc
+        .send_password_reset_email("user@example.com", "tok")
+        .await
+        .unwrap_err();
+    let msg = err.to_string();
+    assert!(
+        msg.contains("422"),
+        "should contain status code, got: {msg}"
+    );
+}
+
+#[tokio::test]
+async fn mailpit_200_returns_ok() {
+    let server = MockServer::start().await;
+    mount_mailpit_ok(&server).await;
+    let svc = mailpit_service(&server.uri());
+    svc.send_verification_email("a@b.com", "t1")
+        .await
+        .expect("verification 200 -> Ok");
+    svc.send_password_reset_email("a@b.com", "t2")
+        .await
+        .expect("password reset 200 -> Ok");
+    svc.send_invoice_ready_email("a@b.com", "inv", "http://x", None, "test")
+        .await
+        .expect("invoice 200 -> Ok");
+    svc.send_quota_warning_email("a@b.com", "m", 50.0, 50, 100)
+        .await
+        .expect("quota warning 200 -> Ok");
+}

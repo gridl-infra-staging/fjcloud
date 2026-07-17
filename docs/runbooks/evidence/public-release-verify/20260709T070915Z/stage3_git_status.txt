@@ -1,0 +1,15 @@
+?? chats/icg/stubs/jul06_pm_5_guardrail_pricing_freshness_defect.md
+?? docs/runbooks/evidence/public-release-verify/20260709T070915Z/deploy_currency_dispatch_run.json
+?? docs/runbooks/evidence/public-release-verify/20260709T070915Z/deploy_currency_schedule.txt
+?? docs/runbooks/evidence/public-release-verify/20260709T070915Z/nightly_dispatch_failed_logs.txt
+?? docs/runbooks/evidence/public-release-verify/20260709T070915Z/nightly_dispatch_jobs_api.json
+?? docs/runbooks/evidence/public-release-verify/20260709T070915Z/nightly_dispatch_run.json
+?? docs/runbooks/evidence/public-release-verify/20260709T070915Z/nightly_dispatch_run_rerun.json
+?? docs/runbooks/evidence/public-release-verify/20260709T070915Z/stage3_deploy_currency_run_id.txt
+?? docs/runbooks/evidence/public-release-verify/20260709T070915Z/stage3_deploy_currency_watch_status.txt
+?? docs/runbooks/evidence/public-release-verify/20260709T070915Z/stage3_git_status.txt
+?? docs/runbooks/evidence/public-release-verify/20260709T070915Z/stage3_guardrails_evidence.md
+?? docs/runbooks/evidence/public-release-verify/20260709T070915Z/stage3_nightly_run_id.txt
+?? docs/runbooks/evidence/public-release-verify/20260709T070915Z/stage3_nightly_watch_status.txt
+?? docs/runbooks/evidence/public-release-verify/20260709T070915Z/stage3_staging_mirror_head.txt
+?? docs/runbooks/evidence/public-release-verify/20260709T070915Z/stage3_staging_secrets.txt

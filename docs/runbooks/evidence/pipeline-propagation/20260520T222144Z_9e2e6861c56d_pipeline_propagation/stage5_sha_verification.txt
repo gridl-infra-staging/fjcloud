@@ -1,0 +1,54 @@
+# Stage 5 SHA identity verification
+# Captured: 2026-05-21T04:16Z
+
+## Frozen values (from earlier stages of this lane)
+
+- Stage 2 frozen candidate dev SHA: 9e2e6861c56d4598587538099953086d2604ea93
+- Stage 4 frozen prod mirror SHA:     3f4370ff52acf7a96e989a949eeb9dbc64169569
+- Stage 4 effective dev SHA after IAM-reconcile delta: 8599b33a41d32f9fba662b47e1bd747ee51dbde8
+  (commit "fix deploy role prod bucket and trust scope" — see stage4_prod_summary.md
+   "Failed-to-Green Delta" section.)
+
+## Live /version (dev mirror_sha + dev_sha + synced_at) from https://api.flapjack.foo/version
+
+{
+  "build_time":"2026-05-21T03:33:55Z",
+  "dev_sha":"8599b33a41d32f9fba662b47e1bd747ee51dbde8",
+  "mirror_sha":"3f4370ff52acf7a96e989a949eeb9dbc64169569",
+  "synced_at":"2026-05-21T02:26:59Z"
+}
+
+## Prod mirror's .debbie/sync_manifest.json at commit 3f4370ff
+
+(Source: gridl-infra-prod/fjcloud, `git show 3f4370ff:.debbie/sync_manifest.json`)
+
+{
+  "schema_version": 1,
+  "dev_sha": "8599b33a41d32f9fba662b47e1bd747ee51dbde8",
+  "dev_repo": "gridl-infra-dev/fjcloud_dev",
+  "synced_at": "2026-05-21T02:26:59Z"
+}
+
+## Verdicts
+
+- mirror_sha live == Stage 4 frozen prod mirror SHA:
+    3f4370ff52acf7a96e989a949eeb9dbc64169569 == 3f4370ff52acf7a96e989a949eeb9dbc64169569
+    => MATCH
+
+- dev_sha live == manifest dev_sha in prod mirror commit 3f4370ff:
+    8599b33a41d32f9fba662b47e1bd747ee51dbde8 == 8599b33a41d32f9fba662b47e1bd747ee51dbde8
+    => MATCH (binary's reported dev_sha is the manifest baked into the mirror tree)
+
+- dev_sha live == Stage 2 frozen candidate dev SHA:
+    8599b33a41d32f9fba662b47e1bd747ee51dbde8 != 9e2e6861c56d4598587538099953086d2604ea93
+    => DELTA, expected: this is the IAM reconcile commit pushed during Stage 4 to
+       unblock deploy-prod (see stage4_prod_summary.md). The mirror SHA
+       3f4370ff is the post-reconcile republish that all 8 required gates passed
+       on CI run 26201800954.
+
+## Conclusion
+
+The prod API at https://api.flapjack.foo is alive (HTTP 200 /health: status=ok)
+and identity-confirmed to be running the exact mirror SHA frozen by Stage 4
+after the IAM reconcile delta. No untracked source-of-truth divergence between
+declared evidence and the deployed binary.

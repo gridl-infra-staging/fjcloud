@@ -1,0 +1,14 @@
+# Disposition Receipt: batman/may19_pm_6_subprocessor_disclosure_and_tax_posture
+
+Classification: approved freed local branch after approved worktree removal
+Evidence source: current read-only git refs at bundle creation.
+
+## rev-parse
+$ git rev-parse batman/may19_pm_6_subprocessor_disclosure_and_tax_posture
+5aff60740bc408718761fb811f9517fce129326f
+
+## cherry
+$ git cherry -v main batman/may19_pm_6_subprocessor_disclosure_and_tax_posture | tail -20
+
+## diff main...
+$ git diff main...batman/may19_pm_6_subprocessor_disclosure_and_tax_posture --stat | tail -20

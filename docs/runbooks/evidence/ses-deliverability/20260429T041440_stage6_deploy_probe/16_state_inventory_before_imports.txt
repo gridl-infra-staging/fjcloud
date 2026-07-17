@@ -1,0 +1,3 @@
+COMMAND: terraform state list | rg runtime_params|internal_auth|rds_postgresql
+module.data.random_password.internal_auth_token
+module.runtime_params.aws_ssm_parameter.runtime_ses_configuration_set

@@ -1,0 +1,12 @@
+{
+  "batch_accepted": 5,
+  "customer_id": "ce6d1515-f07e-4642-bd69-df41db61a026",
+  "detail": "seeded_record_missing",
+  "failing_step": "search_index",
+  "index_name": "cold-customer-canary2026060408553718986",
+  "overall": "fail",
+  "probe_sha": "cc85f5fa8ea641af9f863f0e085baa444471adc4",
+  "seeded_record_object_id": "",
+  "seeded_record_title": "",
+  "verified": true
+}

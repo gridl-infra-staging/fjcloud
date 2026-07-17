@@ -1,0 +1,11 @@
++ bash scripts/deploy_status.sh
+dev-repo main:   a9cc5ddd308c  (a9cc5ddd308cd8b2ebd451a3f21a9c36650c759f)
+
+env        dev_sha        mirror_sha     synced_at              build_time             behind_main
+---        -------        ----------     ---------              ----------             -----------
+prod       03ba53af92f6   8724c275874d   2026-05-23T01:01:17Z   2026-05-23T01:39:32Z   162
+staging    31151172423e   1f7be160c31a   2026-05-24T01:26:54Z   2026-05-24T02:03:49Z   98
+
+Probe URLs:
+  prod:      https://api.flapjack.foo/version
+  staging:   https://api.staging.flapjack.foo/version

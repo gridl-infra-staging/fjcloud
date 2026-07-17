@@ -1,0 +1,58 @@
+                                                Table "public.customers"
+                  Column                  |           Type           | Collation | Nullable |          Default          
+------------------------------------------+--------------------------+-----------+----------+---------------------------
+ id                                       | uuid                     |           | not null | gen_random_uuid()
+ name                                     | text                     |           | not null | 
+ email                                    | text                     |           | not null | 
+ stripe_customer_id                       | text                     |           |          | 
+ status                                   | text                     |           | not null | 'active'::text
+ created_at                               | timestamp with time zone |           | not null | now()
+ updated_at                               | timestamp with time zone |           | not null | now()
+ password_hash                            | text                     |           |          | 
+ email_verified_at                        | timestamp with time zone |           |          | 
+ email_verify_token                       | text                     |           |          | 
+ email_verify_expires_at                  | timestamp with time zone |           |          | 
+ password_reset_token                     | text                     |           |          | 
+ password_reset_expires_at                | timestamp with time zone |           |          | 
+ billing_plan                             | character varying(20)    |           | not null | 'free'::character varying
+ quota_warning_sent_at                    | timestamp with time zone |           |          | 
+ object_storage_egress_carryforward_cents | numeric(12,4)            |           | not null | 0
+ deleted_at                               | timestamp with time zone |           |          | 
+ resend_verification_sent_at              | timestamp with time zone |           |          | 
+ quota_warnings_sent                      | jsonb                    |           | not null | '{}'::jsonb
+ subscription_cycle_anchor_at             | timestamp with time zone |           |          | 
+ failed_login_count                       | integer                  |           | not null | 0
+ failed_login_window_start                | timestamp with time zone |           |          | 
+ login_locked_until                       | timestamp with time zone |           |          | 
+ failed_verify_count                      | integer                  |           | not null | 0
+ failed_verify_window_start               | timestamp with time zone |           |          | 
+ verify_locked_until                      | timestamp with time zone |           |          | 
+ failed_reset_count                       | integer                  |           | not null | 0
+ failed_reset_window_start                | timestamp with time zone |           |          | 
+ reset_locked_until                       | timestamp with time zone |           |          | 
+ resend_password_reset_sent_at            | timestamp with time zone |           |          | 
+Indexes:
+    "customers_pkey" PRIMARY KEY, btree (id)
+    "customers_email_key" UNIQUE CONSTRAINT, btree (email)
+    "idx_customers_billing_plan" btree (billing_plan)
+    "idx_customers_deleted_at" btree (deleted_at)
+    "idx_customers_email" btree (email)
+    "idx_customers_email_verify_token" UNIQUE, btree (email_verify_token) WHERE email_verify_token IS NOT NULL
+    "idx_customers_password_reset_token" UNIQUE, btree (password_reset_token) WHERE password_reset_token IS NOT NULL
+    "idx_customers_status" btree (status)
+Check constraints:
+    "customers_status_check" CHECK (status = ANY (ARRAY['active'::text, 'suspended'::text, 'deleted'::text]))
+Referenced by:
+    TABLE "api_keys" CONSTRAINT "api_keys_customer_id_fkey" FOREIGN KEY (customer_id) REFERENCES customers(id)
+    TABLE "cold_snapshots" CONSTRAINT "cold_snapshots_customer_id_fkey" FOREIGN KEY (customer_id) REFERENCES customers(id)
+    TABLE "customer_deployments" CONSTRAINT "customer_deployments_customer_id_fkey" FOREIGN KEY (customer_id) REFERENCES customers(id)
+    TABLE "customer_rate_overrides" CONSTRAINT "customer_rate_overrides_customer_id_fkey" FOREIGN KEY (customer_id) REFERENCES customers(id)
+    TABLE "customer_tenants" CONSTRAINT "customer_tenants_customer_id_fkey" FOREIGN KEY (customer_id) REFERENCES customers(id)
+    TABLE "index_replicas" CONSTRAINT "index_replicas_customer_id_fkey" FOREIGN KEY (customer_id) REFERENCES customers(id)
+    TABLE "invoices" CONSTRAINT "invoices_customer_id_fkey" FOREIGN KEY (customer_id) REFERENCES customers(id)
+    TABLE "oauth_identities" CONSTRAINT "oauth_identities_customer_id_fkey" FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE
+    TABLE "restore_jobs" CONSTRAINT "restore_jobs_customer_id_fkey" FOREIGN KEY (customer_id) REFERENCES customers(id)
+    TABLE "storage_access_keys" CONSTRAINT "storage_access_keys_customer_id_fkey" FOREIGN KEY (customer_id) REFERENCES customers(id)
+    TABLE "storage_buckets" CONSTRAINT "storage_buckets_customer_id_fkey" FOREIGN KEY (customer_id) REFERENCES customers(id)
+    TABLE "usage_daily" CONSTRAINT "usage_daily_customer_id_fkey" FOREIGN KEY (customer_id) REFERENCES customers(id)
+    TABLE "usage_records" CONSTRAINT "usage_records_customer_id_fkey" FOREIGN KEY (customer_id) REFERENCES customers(id)

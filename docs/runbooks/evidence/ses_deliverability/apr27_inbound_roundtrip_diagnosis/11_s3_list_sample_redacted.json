@@ -1,0 +1,230 @@
+{
+  "Contents": [
+    {
+      "ChecksumAlgorithm": [
+        "CRC64NVME"
+      ],
+      "ChecksumType": "FULL_OBJECT",
+      "ETag": "\"cc923e1dc5acf2985bf7e19889ad5c76\"",
+      "Key": "e2e-emails/0gdljmrmau9eg9fe7kitosvqjludo05e07tmilo1",
+      "LastModified": "2026-02-12T19:48:25+00:00",
+      "Size": 4439,
+      "StorageClass": "STANDARD"
+    },
+    {
+      "ChecksumAlgorithm": [
+        "CRC64NVME"
+      ],
+      "ChecksumType": "FULL_OBJECT",
+      "ETag": "\"5de030af52d35ab46dfec0b22e7a130e\"",
+      "Key": "e2e-emails/1psptsm90c4vfdf5rkfnl3elss3acubd1phf1jg1",
+      "LastModified": "2026-02-12T08:02:28+00:00",
+      "Size": 4462,
+      "StorageClass": "STANDARD"
+    },
+    {
+      "ChecksumAlgorithm": [
+        "CRC64NVME"
+      ],
+      "ChecksumType": "FULL_OBJECT",
+      "ETag": "\"89bf60a4b03afbc31e46cf7f69e631db\"",
+      "Key": "e2e-emails/1vgh3bt93ag4ohu1465jitk4nddfk9k5dfj78ig1",
+      "LastModified": "2026-02-12T19:51:58+00:00",
+      "Size": 4472,
+      "StorageClass": "STANDARD"
+    },
+    {
+      "ChecksumAlgorithm": [
+        "CRC64NVME"
+      ],
+      "ChecksumType": "FULL_OBJECT",
+      "ETag": "\"d960f56f8ea54952cba5029abb590a20\"",
+      "Key": "e2e-emails/4gscsoulvviaqmktjsjrtbbdvkebovbu931l2ro1",
+      "LastModified": "2026-02-11T22:17:47+00:00",
+      "Size": 4462,
+      "StorageClass": "STANDARD"
+    },
+    {
+      "ChecksumAlgorithm": [
+        "CRC64NVME"
+      ],
+      "ChecksumType": "FULL_OBJECT",
+      "ETag": "\"58daeb6e74663f70347fa169273bc0c2\"",
+      "Key": "e2e-emails/77m4iagmek6h943bgpl1cop9q0op2jg9t6900fg1",
+      "LastModified": "2026-02-12T06:32:21+00:00",
+      "Size": 4462,
+      "StorageClass": "STANDARD"
+    },
+    {
+      "ChecksumAlgorithm": [
+        "CRC64NVME"
+      ],
+      "ChecksumType": "FULL_OBJECT",
+      "ETag": "\"c028d7e3f812396fc38efe7ab385cb93\"",
+      "Key": "e2e-emails/7fm4vdo5l67thaqmm7ped7d4j1sti1daapcclt01",
+      "LastModified": "2026-02-12T19:47:30+00:00",
+      "Size": 4439,
+      "StorageClass": "STANDARD"
+    },
+    {
+      "ChecksumAlgorithm": [
+        "CRC64NVME"
+      ],
+      "ChecksumType": "FULL_OBJECT",
+      "ETag": "\"20562acf326dea5203148fc7d83fcc0b\"",
+      "Key": "e2e-emails/85dmhismg3jd1thnu40dsjerl54ega843guqv481",
+      "LastModified": "2026-02-11T22:50:25+00:00",
+      "Size": 4462,
+      "StorageClass": "STANDARD"
+    },
+    {
+      "ChecksumAlgorithm": [
+        "CRC64NVME"
+      ],
+      "ChecksumType": "FULL_OBJECT",
+      "ETag": "\"8a840390cdb5e7042f520730bb8d0394\"",
+      "Key": "e2e-emails/8qshacogodkvfv7a8ojv4me4rgupqgiu8dfcpsg1",
+      "LastModified": "2026-02-12T07:53:18+00:00",
+      "Size": 4462,
+      "StorageClass": "STANDARD"
+    },
+    {
+      "ChecksumAlgorithm": [
+        "CRC64NVME"
+      ],
+      "ChecksumType": "FULL_OBJECT",
+      "ETag": "\"236004013aeb754b6a1635d39d11eb46\"",
+      "Key": "e2e-emails/8v3uiu3aidrsk3psjgb961ti638n0cdqsp2ddq01",
+      "LastModified": "2026-04-27T09:23:35+00:00",
+      "Size": 3812,
+      "StorageClass": "STANDARD"
+    },
+    {
+      "ChecksumAlgorithm": [
+        "CRC64NVME"
+      ],
+      "ChecksumType": "FULL_OBJECT",
+      "ETag": "\"8241882d44b316b2f5f7ffb9dd7281df\"",
+      "Key": "e2e-emails/AMAZON_SES_SETUP_NOTIFICATION",
+      "LastModified": "2026-02-11T21:29:19+00:00",
+      "Size": 645,
+      "StorageClass": "STANDARD"
+    },
+    {
+      "ChecksumAlgorithm": [
+        "CRC64NVME"
+      ],
+      "ChecksumType": "FULL_OBJECT",
+      "ETag": "\"c357229362ce61751b2103adde4d4129\"",
+      "Key": "e2e-emails/fkj7v49pe487h3ampa1kuj1qa6o11jgje7u6sk01",
+      "LastModified": "2026-02-12T09:02:33+00:00",
+      "Size": 4462,
+      "StorageClass": "STANDARD"
+    },
+    {
+      "ChecksumAlgorithm": [
+        "CRC64NVME"
+      ],
+      "ChecksumType": "FULL_OBJECT",
+      "ETag": "\"af923e73db3b08c15a1da434573cb20a\"",
+      "Key": "e2e-emails/js1uk3llrjca3nlved5rfkvrl95umd2mkbo64n01",
+      "LastModified": "2026-02-12T07:03:58+00:00",
+      "Size": 4462,
+      "StorageClass": "STANDARD"
+    },
+    {
+      "ChecksumAlgorithm": [
+        "CRC64NVME"
+      ],
+      "ChecksumType": "FULL_OBJECT",
+      "ETag": "\"ba95b56f98719a1714ebbab004e6f68d\"",
+      "Key": "e2e-emails/p18ojanppn4hl1j7acdinjh0bet1lhdm9sibd201",
+      "LastModified": "2026-02-12T07:20:23+00:00",
+      "Size": 4462,
+      "StorageClass": "STANDARD"
+    },
+    {
+      "ChecksumAlgorithm": [
+        "CRC64NVME"
+      ],
+      "ChecksumType": "FULL_OBJECT",
+      "ETag": "\"5e35b28f09c38390cfa28dd4026c8169\"",
+      "Key": "e2e-emails/pduv3vl4vl23a7ihp2hkne3iss3afu84gedgido1",
+      "LastModified": "2026-04-27T23:11:50+00:00",
+      "Size": 3798,
+      "StorageClass": "STANDARD"
+    },
+    {
+      "ChecksumAlgorithm": [
+        "CRC64NVME"
+      ],
+      "ChecksumType": "FULL_OBJECT",
+      "ETag": "\"818b005dbf8b8b4a25f4858017df095f\"",
+      "Key": "e2e-emails/pr07f3c6nb9s19bm27085c11iprte5jm31dsjto1",
+      "LastModified": "2026-02-11T21:46:29+00:00",
+      "Size": 4462,
+      "StorageClass": "STANDARD"
+    },
+    {
+      "ChecksumAlgorithm": [
+        "CRC64NVME"
+      ],
+      "ChecksumType": "FULL_OBJECT",
+      "ETag": "\"61fce73c5b75c240c10ed735650dc90f\"",
+      "Key": "e2e-emails/ps74f5aasmseimfdlgktsmtal14uha9l6e41k901",
+      "LastModified": "2026-04-27T09:48:29+00:00",
+      "Size": 3792,
+      "StorageClass": "STANDARD"
+    },
+    {
+      "ChecksumAlgorithm": [
+        "CRC64NVME"
+      ],
+      "ChecksumType": "FULL_OBJECT",
+      "ETag": "\"99c824bf273b157ed886f8b6d0560744\"",
+      "Key": "e2e-emails/q4ldhv9vkad82goas2rjstqv1rnks3tm0r6luo81",
+      "LastModified": "2026-04-27T10:18:33+00:00",
+      "Size": 3798,
+      "StorageClass": "STANDARD"
+    },
+    {
+      "ChecksumAlgorithm": [
+        "CRC64NVME"
+      ],
+      "ChecksumType": "FULL_OBJECT",
+      "ETag": "\"90e83ca3995b2b8324cb99dfa95fb879\"",
+      "Key": "e2e-emails/qj26c0p9ht6f0isrk5f7qnq9sk2a8u5812v2o4g1",
+      "LastModified": "2026-02-12T18:27:31+00:00",
+      "Size": 4462,
+      "StorageClass": "STANDARD"
+    },
+    {
+      "ChecksumAlgorithm": [
+        "CRC64NVME"
+      ],
+      "ChecksumType": "FULL_OBJECT",
+      "ETag": "\"17340d2f0cf714f6b7a43ffa686e9261\"",
+      "Key": "e2e-emails/r90j6hk3oolit30hcq2j5e6uoki88h9lepou7n81",
+      "LastModified": "2026-02-11T22:03:47+00:00",
+      "Size": 4462,
+      "StorageClass": "STANDARD"
+    },
+    {
+      "ChecksumAlgorithm": [
+        "CRC64NVME"
+      ],
+      "ChecksumType": "FULL_OBJECT",
+      "ETag": "\"34035a1f320db3e648b7a20a4b7e306d\"",
+      "Key": "e2e-emails/uqv118g5ov47av46489g5h4g0fh450sup7rmamo1",
+      "LastModified": "2026-02-11T22:33:13+00:00",
+      "Size": 4472,
+      "StorageClass": "STANDARD"
+    }
+  ],
+  "EncodingType": "url",
+  "IsTruncated": false,
+  "KeyCount": 20,
+  "MaxKeys": 25,
+  "Name": "flapjack-cloud-releases",
+  "Prefix": "e2e-emails/"
+}

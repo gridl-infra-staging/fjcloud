@@ -1,0 +1,17 @@
+{
+  "probe_id": "dunning_email_inbox",
+  "detect_kind": "terminus_and_result_json",
+  "log_path": "/tmp/fjcloud_wave3_44e00ddef877e8a31c08560854dae4219b542357/docs/runbooks/evidence/ses-coverage-a1/20260715T203317Z_jul13_iam_in_vpc_rerun/dunning_email_inbox.log",
+  "pass": false,
+  "rc": 1,
+  "parsed_evidence": {
+    "json_object_count": 1,
+    "final_json": {
+      "result": "failed",
+      "classification": "rehearsal_failed",
+      "detail": "dunning owner script exited 1"
+    },
+    "terminus_line": null,
+    "last_nonempty_line": "{\"result\":\"failed\",\"classification\":\"rehearsal_failed\",\"detail\":\"dunning owner script exited 1\"}"
+  }
+}

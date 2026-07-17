@@ -1,0 +1,18 @@
+# Disposition Receipt: worktree fjcloud_dev
+
+Classification: approved worktree-only removal candidate.
+Worktree path: fjcloud_dev
+Branch: detached
+HEAD SHA: f0c00c7baffe1e4b547edb27dea71b33a17f1ab0
+Ancestor proof command: git merge-base --is-ancestor f0c00c7baffe1e4b547edb27dea71b33a17f1ab0 main
+Ancestor proof exit: 0
+
+## rev-parse
+$ git rev-parse f0c00c7baffe1e4b547edb27dea71b33a17f1ab0
+f0c00c7baffe1e4b547edb27dea71b33a17f1ab0
+
+## cherry
+$ git cherry -v main f0c00c7baffe1e4b547edb27dea71b33a17f1ab0 | tail -20
+
+## diff main...
+$ git diff main...f0c00c7baffe1e4b547edb27dea71b33a17f1ab0 --stat | tail -20

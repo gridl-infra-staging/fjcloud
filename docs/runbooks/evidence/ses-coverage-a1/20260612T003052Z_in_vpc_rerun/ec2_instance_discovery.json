@@ -1,0 +1,175 @@
+{
+    "Reservations": [
+        {
+            "ReservationId": "r-0eb3ac4679ee94af2",
+            "OwnerId": "213880904778",
+            "Groups": [],
+            "Instances": [
+                {
+                    "Architecture": "arm64",
+                    "BlockDeviceMappings": [
+                        {
+                            "DeviceName": "/dev/xvda",
+                            "Ebs": {
+                                "AttachTime": "2026-05-21T01:51:19+00:00",
+                                "DeleteOnTermination": true,
+                                "Status": "attached",
+                                "VolumeId": "vol-0924b0192d31b1986",
+                                "EbsCardIndex": 0
+                            }
+                        }
+                    ],
+                    "ClientToken": "terraform-20260521015118083200000001",
+                    "EbsOptimized": false,
+                    "EnaSupport": true,
+                    "Hypervisor": "xen",
+                    "IamInstanceProfile": {
+                        "Arn": "arn:aws:iam::213880904778:instance-profile/fjcloud-instance-profile",
+                        "Id": "AIPATDTCLTRFOYGMZ7WTD"
+                    },
+                    "NetworkInterfaces": [
+                        {
+                            "Attachment": {
+                                "AttachTime": "2026-05-21T01:51:19+00:00",
+                                "AttachmentId": "eni-attach-0c256fcdad3b0c165",
+                                "DeleteOnTermination": true,
+                                "DeviceIndex": 0,
+                                "Status": "attached",
+                                "NetworkCardIndex": 0
+                            },
+                            "Description": "",
+                            "Groups": [
+                                {
+                                    "GroupId": "sg-0e8fd81b9247b53a5",
+                                    "GroupName": "fjcloud-staging-sg-api"
+                                }
+                            ],
+                            "Ipv6Addresses": [],
+                            "MacAddress": "0a:ff:c4:be:ee:63",
+                            "NetworkInterfaceId": "eni-0006e1638e8f4e3cb",
+                            "OwnerId": "213880904778",
+                            "PrivateDnsName": "ip-10-0-10-178.ec2.internal",
+                            "PrivateIpAddress": "10.0.10.178",
+                            "PrivateIpAddresses": [
+                                {
+                                    "Primary": true,
+                                    "PrivateDnsName": "ip-10-0-10-178.ec2.internal",
+                                    "PrivateIpAddress": "10.0.10.178"
+                                }
+                            ],
+                            "SourceDestCheck": true,
+                            "Status": "in-use",
+                            "SubnetId": "subnet-094032cc47eb9f444",
+                            "VpcId": "vpc-0748bcfc19bd0e1ab",
+                            "InterfaceType": "interface",
+                            "Operator": {
+                                "Managed": false
+                            }
+                        }
+                    ],
+                    "RootDeviceName": "/dev/xvda",
+                    "RootDeviceType": "ebs",
+                    "SecurityGroups": [
+                        {
+                            "GroupId": "sg-0e8fd81b9247b53a5",
+                            "GroupName": "fjcloud-staging-sg-api"
+                        }
+                    ],
+                    "SourceDestCheck": true,
+                    "Tags": [
+                        {
+                            "Key": "service",
+                            "Value": "fjcloud"
+                        },
+                        {
+                            "Key": "env",
+                            "Value": "staging"
+                        },
+                        {
+                            "Key": "Env",
+                            "Value": "staging"
+                        },
+                        {
+                            "Key": "Name",
+                            "Value": "fjcloud-api-staging"
+                        },
+                        {
+                            "Key": "managed-by",
+                            "Value": "terraform"
+                        }
+                    ],
+                    "VirtualizationType": "hvm",
+                    "CpuOptions": {
+                        "CoreCount": 2,
+                        "ThreadsPerCore": 1
+                    },
+                    "CapacityReservationSpecification": {
+                        "CapacityReservationPreference": "open"
+                    },
+                    "HibernationOptions": {
+                        "Configured": false
+                    },
+                    "MetadataOptions": {
+                        "State": "applied",
+                        "HttpTokens": "required",
+                        "HttpPutResponseHopLimit": 1,
+                        "HttpEndpoint": "enabled",
+                        "HttpProtocolIpv6": "disabled",
+                        "InstanceMetadataTags": "enabled"
+                    },
+                    "EnclaveOptions": {
+                        "Enabled": false
+                    },
+                    "BootMode": "uefi",
+                    "PlatformDetails": "Linux/UNIX",
+                    "UsageOperation": "RunInstances",
+                    "UsageOperationUpdateTime": "2026-05-21T01:51:19+00:00",
+                    "PrivateDnsNameOptions": {
+                        "HostnameType": "ip-name",
+                        "EnableResourceNameDnsARecord": false,
+                        "EnableResourceNameDnsAAAARecord": false
+                    },
+                    "MaintenanceOptions": {
+                        "AutoRecovery": "default",
+                        "RebootMigration": "default"
+                    },
+                    "CurrentInstanceBootMode": "uefi",
+                    "NetworkPerformanceOptions": {
+                        "BandwidthWeighting": "default"
+                    },
+                    "Operator": {
+                        "Managed": false,
+                        "HiddenByDefault": false
+                    },
+                    "SecondaryInterfaces": [],
+                    "InstanceId": "i-0fbc6d6bbbc8bdc6d",
+                    "ImageId": "ami-0df77f1c103ce1be7",
+                    "State": {
+                        "Code": 16,
+                        "Name": "running"
+                    },
+                    "PrivateDnsName": "ip-10-0-10-178.ec2.internal",
+                    "PublicDnsName": "",
+                    "StateTransitionReason": "",
+                    "KeyName": "fjcloud-api-staging",
+                    "AmiLaunchIndex": 0,
+                    "ProductCodes": [],
+                    "InstanceType": "t4g.small",
+                    "LaunchTime": "2026-05-21T01:51:19+00:00",
+                    "Placement": {
+                        "AvailabilityZoneId": "use1-az4",
+                        "GroupName": "",
+                        "Tenancy": "default",
+                        "AvailabilityZone": "us-east-1a"
+                    },
+                    "Monitoring": {
+                        "State": "disabled"
+                    },
+                    "SubnetId": "subnet-094032cc47eb9f444",
+                    "VpcId": "vpc-0748bcfc19bd0e1ab",
+                    "PrivateIpAddress": "10.0.10.178"
+                }
+            ]
+        }
+    ]
+}

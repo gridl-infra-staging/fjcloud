@@ -1,0 +1,14 @@
+# Disposition Receipt: batman/jul07_3pm_7_api_types_client_split_openapi_drift
+
+Classification: approved freed local branch after approved worktree removal
+Evidence source: current read-only git refs at bundle creation.
+
+## rev-parse
+$ git rev-parse batman/jul07_3pm_7_api_types_client_split_openapi_drift
+809ac50810f121eda4f21caa189d9b168a76e791
+
+## cherry
+$ git cherry -v main batman/jul07_3pm_7_api_types_client_split_openapi_drift | tail -20
+
+## diff main...
+$ git diff main...batman/jul07_3pm_7_api_types_client_split_openapi_drift --stat | tail -20

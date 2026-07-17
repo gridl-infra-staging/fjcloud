@@ -1,0 +1,30 @@
+# Stage 5 complaint retrieval blocker (2026-04-24)
+
+Complaint simulator send was executed and recorded in:
+- docs/runbooks/evidence/ses-deliverability/20260424_boundary_proof/complaint_send_response.json
+
+Shared Stage 4 destination-discovery inputs consulted before retrieval ownership decision:
+- docs/runbooks/evidence/ses-deliverability/20260424_boundary_proof/bounce_live_domain_identity.json
+- docs/runbooks/evidence/ses-deliverability/20260424_boundary_proof/bounce_destination_discovery.txt
+- docs/runbooks/evidence/ses-deliverability/20260424_boundary_proof/domain_identity.json
+- docs/runbooks/evidence/ses-deliverability/20260424_boundary_proof/dns_mail_from_mx.txt
+- docs/runbooks/evidence/ses-deliverability/20260424_boundary_proof/reconciliation_summary.md
+- docs/runbooks/evidence/ses-deliverability/20260423T202158Z_ses_boundary_proof_full.txt
+
+Discovered feedback destination evidence:
+- MAIL FROM MX points at feedback-smtp.us-east-1.amazonses.com
+- SES identity reports FeedbackForwardingStatus=true
+
+Missing retrieval owner:
+- No checked-in repo owner retrieves SES bounce/complaint feedback events from this destination path.
+- scripts/lib/staging_billing_rehearsal_email_evidence.sh is Mailpit-only and does not own SES feedback retrieval.
+- Recipient disambiguation policy: when multiple complaint recipients are present, select the recipient that exactly matches the simulator destination from `complaint_send_response.json` MessageId linkage and classify all others as non-canonical noise for this Stage 5 proof path.
+- Minimum unblocking change: extend `scripts/lib/staging_billing_rehearsal_email_evidence.sh` with a repo-owned SES complaint retrieval step that applies the recipient disambiguation policy and writes a checked-in complaint evidence artifact under `docs/runbooks/evidence/ses-deliverability/20260424_boundary_proof/`, while keeping `deliverability_boundaries.bounce_complaint_handling=unproven` until event proof is observed.
+
+No manual mailbox validation is allowed.
+Out-of-scope in this stage:
+- mailbox UI inspection
+- ad hoc SNS/SQS polling
+- one-off CloudWatch retrieval recipes
+
+deliverability_boundaries.bounce_complaint_handling=unproven

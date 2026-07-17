@@ -1,0 +1,111 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - complementary [ref=e4]:
+      - generic [ref=e6]: Flapjack Cloud
+      - generic [ref=e7]:
+        - navigation [ref=e8]:
+          - link "Console" [ref=e9] [cursor=pointer]:
+            - /url: /console
+          - link "Indexes" [ref=e10] [cursor=pointer]:
+            - /url: /console/indexes
+          - link "Billing" [ref=e11] [cursor=pointer]:
+            - /url: /console/billing
+          - link "API Keys" [ref=e12] [cursor=pointer]:
+            - /url: /console/api-keys
+          - link "Logs" [ref=e13] [cursor=pointer]:
+            - /url: /console/logs
+          - link "Migrate" [ref=e14] [cursor=pointer]:
+            - /url: /console/migrate
+          - link "Account" [ref=e15] [cursor=pointer]:
+            - /url: /console/account
+        - generic [ref=e16]:
+          - paragraph [ref=e17]: Help
+          - generic [ref=e18]:
+            - link "Support" [ref=e19] [cursor=pointer]:
+              - /url: mailto:support@flapjack.foo
+            - link "API Docs" [ref=e20] [cursor=pointer]:
+              - /url: https://api.flapjack.foo/docs
+    - generic [ref=e21]:
+      - banner [ref=e22]:
+        - generic [ref=e24]: Free Plan
+        - generic [ref=e25]:
+          - generic [ref=e26]: Signup Lane 1780563568228-wpcz9jct
+          - button "Logout" [ref=e28]
+      - generic [ref=e30]:
+        - generic [ref=e31]: BETA
+        - generic [ref=e32]: Public beta.
+        - link "View beta scope" [ref=e33] [cursor=pointer]:
+          - /url: /beta
+        - link "Send feedback" [ref=e34] [cursor=pointer]:
+          - /url: mailto:support@flapjack.foo?subject=Flapjack%20Cloud%20beta%20feedback
+        - link "Support" [ref=e35] [cursor=pointer]:
+          - /url: mailto:support@flapjack.foo
+      - main [ref=e36]:
+        - generic [ref=e37]:
+          - navigation [ref=e38]:
+            - link "Console" [ref=e39] [cursor=pointer]:
+              - /url: /console
+            - text: /
+            - link "Indexes" [ref=e40] [cursor=pointer]:
+              - /url: /console/indexes
+            - text: / cold-customer-1780563568228
+          - generic [ref=e41]:
+            - heading "cold-customer-1780563568228" [level=1] [ref=e42]
+            - generic [ref=e43]:
+              - button "Search Log" [ref=e44]
+              - generic [ref=e45]: Unknown
+          - status [ref=e46]:
+            - paragraph [ref=e47]: Index ready — try the search preview
+            - button "Open Search Preview" [ref=e48]
+          - tablist "Index detail sections" [ref=e50]:
+            - tab "Overview" [ref=e51]
+            - tab "Settings" [ref=e52]
+            - tab "Documents" [ref=e53]
+            - tab "Dictionaries" [ref=e54]
+            - tab "Rules" [ref=e55]
+            - tab "Synonyms" [ref=e56]
+            - tab "Personalization" [ref=e57]
+            - tab "Recommendations" [ref=e58]
+            - tab "Chat" [ref=e59]
+            - tab "Suggestions" [ref=e60]
+            - tab "Analytics" [ref=e61]
+            - tab "Metrics" [ref=e62]
+            - tab "Merchandising" [ref=e63]
+            - tab "Experiments" [ref=e64]
+            - tab "Events" [ref=e65]
+            - tab "Security Sources" [ref=e66]
+            - tab "Search Preview" [selected] [ref=e67]
+          - generic [ref=e69]:
+            - heading "Search Preview" [level=2] [ref=e70]
+            - generic [ref=e71]:
+              - generic [ref=e72]:
+                - generic [ref=e73]:
+                  - heading "Search Preview" [level=2] [ref=e74]
+                  - generic [ref=e75]: "Vector: unavailable"
+                - generic [ref=e76]:
+                  - generic [ref=e77]:
+                    - checkbox "Track analytics events" [ref=e78]
+                    - text: Track analytics events
+                  - button "Display preferences" [ref=e79]
+                  - button "Add documents" [ref=e80]
+              - generic [ref=e82]:
+                - generic [ref=e83]: Search preview query
+                - searchbox "Search preview query" [active] [ref=e84]: Blue Ridge
+                - button "Show filters" [ref=e85]
+              - complementary [ref=e86]:
+                - generic [ref=e87]:
+                  - heading "Facets" [level=2] [ref=e88]
+                  - button "Clear all facets" [ref=e89]
+              - paragraph [ref=e90]: Failed to fetch
+              - generic [ref=e92]:
+                - generic [ref=e93]:
+                  - paragraph [ref=e94]: 0 hits · 0ms
+                  - generic [ref=e95]:
+                    - button "Previous page" [disabled] [ref=e96]: Prev
+                    - button "Next page" [disabled] [ref=e97]: Next
+                - paragraph [ref=e98]: No preview hits yet.
+  - generic [ref=e99]: cold-customer-1780563568228 - Indexes - Flapjack Cloud
+```

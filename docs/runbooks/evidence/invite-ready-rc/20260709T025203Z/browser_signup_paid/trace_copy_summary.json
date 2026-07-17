@@ -1,0 +1,6 @@
+{
+  "copy_ran": true,
+  "trace_bundle_subdir": "playwright-traces",
+  "trace_files_copied": 2,
+  "source_directories": ["web/test-results/signup_to_paid_invoice"]
+}

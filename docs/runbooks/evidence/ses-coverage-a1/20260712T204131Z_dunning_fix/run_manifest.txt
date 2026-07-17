@@ -1,0 +1,9 @@
+source_green_bundle=docs/runbooks/evidence/staging-billing-rehearsal/20260712T010555Z_current_main
+billing_month=2026-07
+secret_source=/Users/stuart/repos/gridl-infra-dev/fjcloud_dev/.secret/.env.secret
+stripe_environment_contract=docs/design/stripe_environments.md
+head_sha=909a77321821174c5d0b1ba77514c7e3d20828c3
+created_utc=20260712T204131Z
+reset_gate_evidence_note=docs/runbooks/evidence/ses-coverage-a1/20260712T194209Z_stage2_reset_env/ is reset-gate evidence only, not the Stage 3 billing month owner.
+inbox_probe_default_month=2026-07
+inbox_probe_default_month_note=Default delegated validator month matched selected rehearsal billing_month=2026-07 at run time; no divergent month was printed before failure.

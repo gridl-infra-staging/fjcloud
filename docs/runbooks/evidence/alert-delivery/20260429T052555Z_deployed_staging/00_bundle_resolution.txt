@@ -1,0 +1,3 @@
+# Stage 2 canonical bundle resolution
+utc_now=2026-04-29T05:25:55Z
+bundle_path=docs/runbooks/evidence/alert-delivery/20260429T052555Z_deployed_staging

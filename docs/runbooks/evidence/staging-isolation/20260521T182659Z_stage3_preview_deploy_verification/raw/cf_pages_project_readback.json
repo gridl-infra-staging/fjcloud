@@ -1,0 +1,285 @@
+{
+  "result": {
+    "id": "1b05abf3-10ac-42c9-b9b1-88e711ffc919",
+    "name": "flapjack-cloud",
+    "subdomain": "flapjack-cloud.pages.dev",
+    "domains": [
+      "flapjack-cloud.pages.dev",
+      "cloud.flapjack.foo",
+      "cloud.staging.flapjack.foo"
+    ],
+    "build_config": {
+      "destination_dir": ".svelte-kit/cloudflare",
+      "web_analytics_tag": null,
+      "web_analytics_token": null
+    },
+    "deployment_configs": {
+      "preview": {
+        "env_vars": {
+          "ADMIN_KEY": {
+            "type": "secret_text",
+            "value": ""
+          },
+          "API_BASE_URL": {
+            "type": "plain_text",
+            "value": "https://api.staging.flapjack.foo"
+          },
+          "ENVIRONMENT": {
+            "type": "plain_text",
+            "value": "staging"
+          },
+          "JWT_SECRET": {
+            "type": "secret_text",
+            "value": ""
+          },
+          "WEB_DEV_LOG_RAW_ERRORS": {
+            "type": "plain_text",
+            "value": "1"
+          }
+        },
+        "fail_open": true,
+        "always_use_latest_compatibility_date": false,
+        "compatibility_date": "2026-04-01",
+        "compatibility_flags": [
+          "nodejs_compat"
+        ],
+        "build_image_major_version": 3,
+        "usage_model": "standard"
+      },
+      "production": {
+        "env_vars": {
+          "ADMIN_KEY": {
+            "type": "secret_text",
+            "value": ""
+          },
+          "API_BASE_URL": {
+            "type": "plain_text",
+            "value": "https://api.flapjack.foo"
+          },
+          "ENVIRONMENT": {
+            "type": "plain_text",
+            "value": "staging"
+          },
+          "JWT_SECRET": {
+            "type": "secret_text",
+            "value": ""
+          }
+        },
+        "fail_open": true,
+        "always_use_latest_compatibility_date": false,
+        "compatibility_date": "2026-04-01",
+        "compatibility_flags": [
+          "nodejs_compat"
+        ],
+        "build_image_major_version": 3,
+        "usage_model": "standard",
+        "wrangler_config_hash": "e8de80b1864e3336953d2653f281d566a0610635b872c6e62445516e0a855865"
+      }
+    },
+    "latest_deployment": {
+      "id": "239b093c-acf2-43fa-8eca-6b45961d2a84",
+      "short_id": "239b093c",
+      "project_id": "1b05abf3-10ac-42c9-b9b1-88e711ffc919",
+      "project_name": "flapjack-cloud",
+      "environment": "preview",
+      "url": "https://239b093c.flapjack-cloud.pages.dev",
+      "created_on": "2026-05-21T18:17:42.065086Z",
+      "modified_on": "2026-05-21T18:17:46.266735Z",
+      "latest_stage": {
+        "name": "deploy",
+        "started_on": null,
+        "ended_on": "2026-05-21T18:17:46.266735Z",
+        "status": "success"
+      },
+      "deployment_trigger": {
+        "type": "ad_hoc",
+        "metadata": {
+          "branch": "staging",
+          "commit_hash": "08f303223991ee93202c5e21e6d0c3f8410a4c8e",
+          "commit_message": "scrai: 14 files documented, 12 artifacts generated, 2 guidance files assembled, 3 state files tracked",
+          "commit_dirty": true
+        }
+      },
+      "stages": [
+        {
+          "name": "queued",
+          "started_on": "2026-05-21T18:17:42.065086Z",
+          "ended_on": null,
+          "status": "active"
+        },
+        {
+          "name": "initialize",
+          "started_on": null,
+          "ended_on": null,
+          "status": "idle"
+        },
+        {
+          "name": "clone_repo",
+          "started_on": null,
+          "ended_on": null,
+          "status": "idle"
+        },
+        {
+          "name": "build",
+          "started_on": null,
+          "ended_on": null,
+          "status": "idle"
+        },
+        {
+          "name": "deploy",
+          "started_on": null,
+          "ended_on": "2026-05-21T18:17:46.266735Z",
+          "status": "success"
+        }
+      ],
+      "build_config": {
+        "build_command": null,
+        "destination_dir": ".svelte-kit/cloudflare",
+        "build_caching": null,
+        "root_dir": null,
+        "web_analytics_tag": null,
+        "web_analytics_token": null
+      },
+      "env_vars": {
+        "ADMIN_KEY": {
+          "type": "secret_text",
+          "value": ""
+        },
+        "API_BASE_URL": {
+          "type": "plain_text",
+          "value": "https://api.staging.flapjack.foo"
+        },
+        "ENVIRONMENT": {
+          "type": "plain_text",
+          "value": "staging"
+        },
+        "JWT_SECRET": {
+          "type": "secret_text",
+          "value": ""
+        },
+        "WEB_DEV_LOG_RAW_ERRORS": {
+          "type": "plain_text",
+          "value": "1"
+        }
+      },
+      "compatibility_date": "2026-04-01",
+      "compatibility_flags": [
+        "nodejs_compat"
+      ],
+      "build_image_major_version": 3,
+      "usage_model": "bundled",
+      "aliases": [
+        "https://staging.flapjack-cloud.pages.dev"
+      ],
+      "is_skipped": false,
+      "production_branch": "main",
+      "uses_functions": true
+    },
+    "canonical_deployment": {
+      "id": "45ec9629-b1e8-468a-9463-150a48b82aa1",
+      "short_id": "45ec9629",
+      "project_id": "1b05abf3-10ac-42c9-b9b1-88e711ffc919",
+      "project_name": "flapjack-cloud",
+      "environment": "production",
+      "url": "https://45ec9629.flapjack-cloud.pages.dev",
+      "created_on": "2026-05-21T18:07:06.546029Z",
+      "modified_on": "2026-05-21T18:07:09.749291Z",
+      "latest_stage": {
+        "name": "deploy",
+        "started_on": null,
+        "ended_on": "2026-05-21T18:07:09.749291Z",
+        "status": "success"
+      },
+      "deployment_trigger": {
+        "type": "ad_hoc",
+        "metadata": {
+          "branch": "main",
+          "commit_hash": "88f069abe63892ebb9fbb8791a138c208677ecb8",
+          "commit_message": "scrai: 13 files documented, 2 guidance files assembled, 3 state files tracked",
+          "commit_dirty": false
+        }
+      },
+      "stages": [
+        {
+          "name": "queued",
+          "started_on": "2026-05-21T18:07:06.546029Z",
+          "ended_on": null,
+          "status": "active"
+        },
+        {
+          "name": "initialize",
+          "started_on": null,
+          "ended_on": null,
+          "status": "idle"
+        },
+        {
+          "name": "clone_repo",
+          "started_on": null,
+          "ended_on": null,
+          "status": "idle"
+        },
+        {
+          "name": "build",
+          "started_on": null,
+          "ended_on": null,
+          "status": "idle"
+        },
+        {
+          "name": "deploy",
+          "started_on": null,
+          "ended_on": "2026-05-21T18:07:09.749291Z",
+          "status": "success"
+        }
+      ],
+      "build_config": {
+        "build_command": null,
+        "destination_dir": ".svelte-kit/cloudflare",
+        "build_caching": null,
+        "root_dir": null,
+        "web_analytics_tag": null,
+        "web_analytics_token": null
+      },
+      "env_vars": {
+        "ADMIN_KEY": {
+          "type": "secret_text",
+          "value": ""
+        },
+        "API_BASE_URL": {
+          "type": "plain_text",
+          "value": "https://api.flapjack.foo"
+        },
+        "ENVIRONMENT": {
+          "type": "plain_text",
+          "value": "staging"
+        },
+        "JWT_SECRET": {
+          "type": "secret_text",
+          "value": ""
+        }
+      },
+      "compatibility_date": "2026-04-01",
+      "compatibility_flags": [
+        "nodejs_compat"
+      ],
+      "build_image_major_version": 3,
+      "usage_model": "bundled",
+      "aliases": [
+        "https://cloud.flapjack.foo",
+        "https://cloud.staging.flapjack.foo"
+      ],
+      "is_skipped": false,
+      "production_branch": "main",
+      "uses_functions": true
+    },
+    "created_on": "2026-02-08T18:07:04.4658Z",
+    "production_branch": "main",
+    "production_script_name": "pages-worker--10856500-production",
+    "preview_script_name": "pages-worker--10856500-preview",
+    "uses_functions": true,
+    "framework": "",
+    "framework_version": ""
+  },
+  "success": true,
+  "errors": [],
+  "messages": []
+}

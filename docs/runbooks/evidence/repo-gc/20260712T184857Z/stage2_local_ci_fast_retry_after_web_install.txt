@@ -1,0 +1,58 @@
+command: bash scripts/local-ci.sh --fast
+timeout_seconds: 1800
+
+Running 20 gate(s): check-sizes script-exec-bits port-collision-diagnose compose-project mirror-sync-contract deploy-currency-check-contract rc-wrapper-contract source-pollution status-doc-consistency roadmap-v2-shape secret-scan evidence-secret-hygiene web-lint web-test index-export-clientside-contract rust-lint migration-test validate-bootstrap-parser validate-bootstrap-env-local publish-scripts-buildx
+Mode: fast
+
+
+=== local-ci summary (wall 36s) ===
+GATE                STATUS   SECS  LOG
+----                ------   ----  ---
+check-sizes         PASS        4  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/check-sizes.log
+compose-project     PASS        0  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/compose-project.log
+deploy-currency-check-contract  PASS        7  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/deploy-currency-check-contract.log
+evidence-secret-hygiene  PASS        6  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/evidence-secret-hygiene.log
+index-export-clientside-contract  PASS        0  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/index-export-clientside-contract.log
+migration-test      PASS        1  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/migration-test.log
+mirror-sync-contract  PASS        8  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/mirror-sync-contract.log
+port-collision-diagnose  PASS        4  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/port-collision-diagnose.log
+publish-scripts-buildx  PASS        0  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/publish-scripts-buildx.log
+rc-wrapper-contract  PASS       15  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/rc-wrapper-contract.log
+roadmap-v2-shape    PASS        0  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/roadmap-v2-shape.log
+rust-lint           PASS       36  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/rust-lint.log
+script-exec-bits    PASS        1  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/script-exec-bits.log
+secret-scan         PASS        1  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/secret-scan.log
+source-pollution    FAIL        1  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/source-pollution.log
+status-doc-consistency  PASS        0  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/status-doc-consistency.log
+validate-bootstrap-env-local  PASS        4  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/validate-bootstrap-env-local.log
+validate-bootstrap-parser  PASS        0  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/validate-bootstrap-parser.log
+web-lint            PASS       33  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/web-lint.log
+web-test            PASS       21  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/web-test.log
+
+=== FAIL tails ===
+
+--- source-pollution (1s) ---
+[sanitize] would rewrite .scrai/codemap_graph_cache.json
+[sanitize] would rewrite chats/icg/jul12_pm_6_repo_gc_manifest_and_receipts.md
+[sanitize] would rewrite docs/runbooks/evidence/repo-gc/20260712T184857Z/disposition/worktree__Users_stuart_parallel_development_fjcloud_dev_jun11_am_3_support_inbox_and_synthetic_canary_rollout_proof_fjcloud_dev.txt
+[sanitize] would rewrite docs/runbooks/evidence/repo-gc/20260712T184857Z/disposition/worktree__Users_stuart_parallel_development_fjcloud_dev_jun11_pm_3_staging_billing_rehearsal_rerun_fjcloud_dev.txt
+[sanitize] would rewrite docs/runbooks/evidence/repo-gc/20260712T184857Z/disposition/worktree__Users_stuart_parallel_development_fjcloud_dev_may25_2pm_6_b1_final_launch_gate_fjcloud_dev.txt
+[sanitize] would rewrite docs/runbooks/evidence/repo-gc/20260712T184857Z/inventory_worktrees_porcelain.txt
+[sanitize] would rewrite docs/runbooks/evidence/repo-gc/20260712T184857Z/manifest.txt
+[sanitize] would rewrite docs/runbooks/evidence/repo-gc/20260712T184857Z/manifest_worktrees.txt
+[sanitize] would rewrite docs/runbooks/evidence/repo-gc/20260712T184857Z/validation_precommit.txt
+[sanitize] would rewrite docs/runbooks/evidence/repo-gc/20260712T184857Z/worktree_candidates.tsv
+[sanitize] would rewrite docs/runbooks/evidence/repo-gc/20260712T184857Z/worktree_rejected.tsv
+[sanitize] CHECK: run 'bash scripts/sanitize_worktree_paths.sh --write' to scrub rewritable files
+
+## Prod deploy drift (informational — does not affect exit code)
+Prod deploy drift:
+  dev_sha:            55757a6e01ea527a56d4fd53c4b35edcddb55861
+  build_time:         2026-07-12T07:10:26Z (12h 13m ago)
+  commits_behind:     3
+  deployable_drift:   false (converged (doc-only ahead))
+  doc_only_ahead:     true
+  dev_main_sha:       247d7b8c0230
+
+Totals: pass=19 fail=1 skip=0
+Result: FAIL

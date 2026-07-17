@@ -1,0 +1,21 @@
+{
+  "result": {
+    "id": "4fe54292-b090-4905-b88c-d61efe40d898",
+    "domain_id": "4fe54292-b090-4905-b88c-d61efe40d898",
+    "name": "cloud.staging.flapjack.foo",
+    "status": "initializing",
+    "verification_data": {
+      "status": "pending"
+    },
+    "validation_data": {
+      "status": "initializing",
+      "method": "http"
+    },
+    "certificate_authority": "google",
+    "zone_tag": "fafbf95a076d7e8ee984dbd18a62c933",
+    "created_on": "2026-07-09T21:47:01.073676Z"
+  },
+  "success": true,
+  "errors": [],
+  "messages": []
+}

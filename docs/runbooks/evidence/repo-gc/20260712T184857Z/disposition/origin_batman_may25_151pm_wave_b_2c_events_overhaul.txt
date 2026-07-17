@@ -1,0 +1,54 @@
+# Disposition Receipt: origin/batman/may25_151pm_wave_b_2c_events_overhaul
+
+Classification: approved remote branch deletion; manifest stores short branch name
+Evidence source: current read-only git refs at bundle creation.
+
+## rev-parse
+$ git rev-parse origin/batman/may25_151pm_wave_b_2c_events_overhaul
+74b05e5b8f496d6625f8c65987a5d2b96dc93d57
+
+## cherry
+$ git cherry -v main origin/batman/may25_151pm_wave_b_2c_events_overhaul | tail -20
++ 69d90c66f4419af9840665d11f3a1114fe4c3afe fix: restore activateTab SSR compilation and add route-change selection test
++ aca4b0dc1af60967f8d91a44b15daa5b8cf33077 matt: stage 3 completion
++ 911ee3a691523c0bf2aefa7883c4628f24763468 scrai: 15 files documented, 2 guidance files assembled, 3 state files tracked
++ 39ea2dcf2a4869280a9d53235ab036e3febd5d14 test: harden events parity coverage and fixture stability
+- acd3c93c030c8de1d53bf6b32f57cf634a1b8f44 test: lock playwright admin key parity for flapjack env
++ 4170f480b46a0b2c7198002d0ce8732fe95b1b90 test: harden playwright auth setup contracts
++ 04650046bdde36f3ccdac6481b0b8c40eddbdac9 matt: unstuck stage 4
++ a35a60ca2f203af1883c027f621547c196f59471 test: harden events auto-refresh e2e assertions
++ 5377b26fdc57c94e231d3e04e3ffd291882ac9c8 Harden events e2e seeding and playwright port contracts
++ d8838e424e0bcb0d8b0f44512be7b4b1df2cb053 matt: stage 4 completion
++ dc63570c4686c1c136b878315cff87ca205d8061 scrai: 18 files documented, 1 artifacts generated, 2 guidance files assembled, 3 state files tracked
++ 2d44ec2148aab02fcde42acc1c6b55ce1fa3527f matt: stage 5 build session 1
++ ea2f5bcf61b6aea54d2902aeca91cec34bd2aa32 matt: stage 5 build session 2
++ 136a465c2f05535c73e282c9d550cb1ce7f92894 matt: stage 5 build session 3
++ b78ac2e7eb9d5dcb9a6b052f87acfadbc7a616bc matt: stage 5 build session 4
++ e1fb75137ce85a9e2c034dd401a368b515a35591 Fix events auto-refresh parity spec routing
++ 9e90f681f552d727157e5caafeb7e12ce68f3ffe Restore events refresh render assertion and API env precedence
++ 9d75b34bcf2e6e8652b0f6df0f2f95ec4d9e60b3 Use success action result in events auto-refresh parity spec
++ 1eff359174f29d6766f51d49d0d05ff6291c0998 Fix events auto-refresh resume parity stability
++ 74b05e5b8f496d6625f8c65987a5d2b96dc93d57 matt: terminal progress annotation
+
+## diff main...
+$ git diff main...origin/batman/may25_151pm_wave_b_2c_events_overhaul --stat | tail -20
+ web/src/lib/DIRMAP.md                              |   4 +-
+ web/src/lib/components/DIRMAP.md                   |   2 +-
+ web/src/routes/DIRMAP.md                           |   2 +-
+ web/src/routes/console/DIRMAP.md                   |   2 +-
+ web/src/routes/console/indexes/+page.server.ts     |   5 +-
+ web/src/routes/console/indexes/DIRMAP.md           |   4 +-
+ .../routes/console/indexes/[name]/+page.server.ts  |  45 +-
+ web/src/routes/console/indexes/[name]/+page.svelte |  29 +-
+ web/src/routes/console/indexes/[name]/DIRMAP.md    |   3 +-
+ .../[name]/detail.server.actions.documents.test.ts |  34 ++
+ .../indexes/[name]/events_management.server.ts     |  69 ++++
+ .../console/indexes/[name]/tabs/EventsTab.svelte   | 441 ++++++++++++++++++--
+ .../console/indexes/[name]/tabs/EventsTab.test.ts  | 454 ++++++++++++++++++++-
+ web/src/tests/playwright-config-contract.test.ts   |  83 +++-
+ web/tests/e2e-ui/full/index-detail.spec.ts         | 339 +++++++++++++++
+ .../e2e-ui/mocked/events_initial_load_500.spec.ts  |  16 +-
+ web/tests/e2e-ui/playwright.config.ts              |  14 +-
+ web/tests/fixtures/auth.setup.ts                   |  61 ++-
+ web/tests/fixtures/fixtures.ts                     |  26 +-
+ 50 files changed, 1884 insertions(+), 290 deletions(-)

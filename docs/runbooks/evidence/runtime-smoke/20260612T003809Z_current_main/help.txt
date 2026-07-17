@@ -1,0 +1,15 @@
+Usage: tests_stage7_runtime_smoke.sh --ami-id <ami-xxxxxxxxxxxxxxxxx> [options]
+
+Options:
+  --env <staging|prod>            Deployment environment (default: staging)
+  --domain <domain>               Root domain (default: flapjack.foo)
+  --ami-id <ami-id>               AMI ID for compute module (required)
+  --alert-email <email>           Alert email (repeatable)
+  --release-sha <40-char-sha>     Release SHA for deploy checks
+  --rollback-sha <40-char-sha>    Previous SHA for rollback validation
+  --apply                         Run terraform apply after plan
+  --run-deploy                    Run ops/scripts/deploy.sh (requires --release-sha)
+  --run-migrate                   Run ops/scripts/migrate.sh and verify idempotency
+  --run-rollback                  Run ops/scripts/rollback.sh (requires --rollback-sha)
+  --env-file <path>               AWS env file (default: .secret/.env.secret)
+  -h, --help                      Show this help

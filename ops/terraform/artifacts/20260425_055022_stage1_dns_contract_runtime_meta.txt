@@ -1,0 +1,4 @@
+RUNTIME_EXIT=0
+RUNTIME_LOG=ops/terraform/artifacts/20260425_055022_stage1_dns_contract_tests_stage7_runtime_smoke.log
+SUMMARY_FILE=ops/terraform/artifacts/20260425_055022_stage1_dns_contract_stage1_summary.txt
+TOKEN=20260425_055022_stage1_dns_contract

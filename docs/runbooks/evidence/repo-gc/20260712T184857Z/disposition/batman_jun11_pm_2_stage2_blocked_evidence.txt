@@ -1,0 +1,14 @@
+# Disposition Receipt: batman/jun11_pm_2_stage2_blocked_evidence
+
+Classification: approved freed local branch after approved worktree removal
+Evidence source: current read-only git refs at bundle creation.
+
+## rev-parse
+$ git rev-parse batman/jun11_pm_2_stage2_blocked_evidence
+ce1d0258c8508b04bed646e0ae0d35ae4d0294f4
+
+## cherry
+$ git cherry -v main batman/jun11_pm_2_stage2_blocked_evidence | tail -20
+
+## diff main...
+$ git diff main...batman/jun11_pm_2_stage2_blocked_evidence --stat | tail -20

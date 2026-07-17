@@ -1,0 +1,14 @@
+# Disposition Receipt: batman/jun05_pm_2_rc_harness_critical_browser_surface
+
+Classification: approved freed local branch after approved worktree removal
+Evidence source: current read-only git refs at bundle creation.
+
+## rev-parse
+$ git rev-parse batman/jun05_pm_2_rc_harness_critical_browser_surface
+779c226b3022e0e6a6552d0154e874bae141c74b
+
+## cherry
+$ git cherry -v main batman/jun05_pm_2_rc_harness_critical_browser_surface | tail -20
+
+## diff main...
+$ git diff main...batman/jun05_pm_2_rc_harness_critical_browser_surface --stat | tail -20

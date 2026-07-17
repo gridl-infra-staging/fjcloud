@@ -1,0 +1,14 @@
+# Disposition Receipt: batman/may24_20260524T202244Z_w3_1_implement_demo_index_loader_in
+
+Classification: approved freed local branch after approved worktree removal
+Evidence source: current read-only git refs at bundle creation.
+
+## rev-parse
+$ git rev-parse batman/may24_20260524T202244Z_w3_1_implement_demo_index_loader_in
+7623eaf4d720cacd78046debfc4af7f7cb4b54d7
+
+## cherry
+$ git cherry -v main batman/may24_20260524T202244Z_w3_1_implement_demo_index_loader_in | tail -20
+
+## diff main...
+$ git diff main...batman/may24_20260524T202244Z_w3_1_implement_demo_index_loader_in --stat | tail -20

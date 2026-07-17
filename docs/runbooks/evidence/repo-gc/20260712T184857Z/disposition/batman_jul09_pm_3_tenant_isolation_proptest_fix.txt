@@ -1,0 +1,14 @@
+# Disposition Receipt: batman/jul09_pm_3_tenant_isolation_proptest_fix
+
+Classification: approved freed local branch after approved worktree removal
+Evidence source: current read-only git refs at bundle creation.
+
+## rev-parse
+$ git rev-parse batman/jul09_pm_3_tenant_isolation_proptest_fix
+492c642ef302947f9d85f0ee006ed4a298520048
+
+## cherry
+$ git cherry -v main batman/jul09_pm_3_tenant_isolation_proptest_fix | tail -20
+
+## diff main...
+$ git diff main...batman/jul09_pm_3_tenant_isolation_proptest_fix --stat | tail -20

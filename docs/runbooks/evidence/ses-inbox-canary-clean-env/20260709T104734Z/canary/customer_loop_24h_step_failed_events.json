@@ -1,0 +1,12 @@
+{
+    "events": [
+        {
+            "logStreamName": "2026/07/08/[$LATEST]1b98bc3fdd7c4882934e339d8115d93f",
+            "timestamp": 1783537583644,
+            "message": "[customer-loop-canary] step 'signup' failed: register returned HTTP 429\n",
+            "ingestionTime": 1783537583796,
+            "eventId": "39774217204847842659348367814621538114975970717183705090"
+        }
+    ],
+    "searchedLogStreams": []
+}

@@ -1,0 +1,6 @@
+MISSING_ALARM: fjcloud-prod-api-root-disk-high
+MISSING_ALARM: fjcloud-prod-rds-connections-high
+MISSING_ALARM: fjcloud-prod-alb-unhealthy-hosts
+MISSING_ALARM: fjcloud-prod-customer-loop-canary-lambda-errors
+VALIDATION: FAIL
+red_exit_code=1

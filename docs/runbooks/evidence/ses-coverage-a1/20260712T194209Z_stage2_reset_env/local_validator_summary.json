@@ -1,0 +1,15 @@
+{
+  "artifact_dir": "",
+  "classification": "staging_ssm_hydration_failed",
+  "detail": "Failed to hydrate canonical staging runtime credentials from SSM.",
+  "elapsed_ms": 1014,
+  "result": "blocked",
+  "steps": [
+    {
+      "detail": "Failed to hydrate canonical staging runtime credentials from SSM.",
+      "name": "guard",
+      "passed": false
+    }
+  ],
+  "transitions": []
+}

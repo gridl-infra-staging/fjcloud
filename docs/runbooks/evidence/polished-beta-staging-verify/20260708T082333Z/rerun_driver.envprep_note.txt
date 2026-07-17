@@ -1,0 +1,14 @@
+env-prep note (Stage 3):
+  first driver invocation exited 78 (RERUN_INFRA_ERROR: ADMIN_KEY missing after
+  hydrate_staging_env_from_ssm). Root cause was NOT a driver defect and NOT a
+  Wave-2 harness failure: the invoking shell carried an invalid/expired AWS
+  session token, so the driver's SSM shim (scripts/launch/hydrate_seeder_env_from_ssm.sh)
+  got "The security token included in the request is invalid" and returned empty
+  ADMIN_KEY.
+  Fix (documented prerequisite in the shim header): provide valid AWS credentials
+  by `set -a; source .secret/.env.secret; set +a` before invoking the driver.
+  ADMIN_KEY is deliberately kept UNSET in the environment so the driver still
+  hydrates it from SSM itself (checklist item forbids pre-setting ADMIN_KEY).
+  Canonical outputs (rerun_driver.stdout.log / .stderr.log / .exit_code) reflect
+  the credentialed classification run; this file preserves the env-blocked first
+  attempt as rerun_driver.envblocked_attempt.*.

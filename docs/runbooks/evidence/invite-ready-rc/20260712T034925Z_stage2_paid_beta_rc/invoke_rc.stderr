@@ -1,0 +1,22 @@
+  [PASS] reliability_profile_tests (746ms)
+  [PASS] reliability_scheduler_tests (1688ms)
+  [PASS] reliability_replication_tests (222ms)
+  [PASS] reliability_api_crash_tests (220ms)
+  [PASS] reliability_cold_tier_tests (227ms)
+  [PASS] reliability_metering_tests (8998ms)
+  [PASS] security_secret_scan (877ms)
+  [PASS] security_dep_audit (1154ms)
+  [PASS] security_sql_guard (106ms)
+  [PASS] security_cmd_injection (78ms)
+  [PASS] security_sql_guard_tests (252ms)
+Backend launch gate — running checks...
+  [PASS] check_stripe_key_present (24ms)
+  [PASS] check_stripe_key_live (247ms)
+  [PASS] check_stripe_webhook_secret_present (26ms)
+  [SKIP] check_stripe_webhook_forwarding (48ms)
+  [SKIP] check_usage_records_populated (70ms)
+  [SKIP] check_rollup_current (47ms)
+  [SKIP] rust_validation_tests (0ms) — skip_rust_tests_flag
+
+  [PASS] load_gate (424ms)
+[evidence] Archived to: docs/runbooks/evidence/invite-ready-rc/20260712T034925Z_stage2_paid_beta_rc/backend_gate_2026-07-11_235343.json

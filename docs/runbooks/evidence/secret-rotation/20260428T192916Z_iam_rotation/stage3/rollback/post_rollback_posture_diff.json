@@ -1,0 +1,54 @@
+[
+  {
+    "role": "fjcloud-deploy",
+    "type": "trust",
+    "match": true
+  },
+  {
+    "role": "fjcloud-deploy",
+    "type": "inline",
+    "policy": "fjcloud-deploy-ec2",
+    "match": true
+  },
+  {
+    "role": "fjcloud-deploy",
+    "type": "inline",
+    "policy": "fjcloud-deploy-s3",
+    "match": true
+  },
+  {
+    "role": "fjcloud-deploy",
+    "type": "inline",
+    "policy": "fjcloud-deploy-ssm",
+    "match": true
+  },
+  {
+    "role": "fjcloud-instance-role",
+    "type": "trust",
+    "match": true
+  },
+  {
+    "role": "fjcloud-instance-role",
+    "type": "inline",
+    "policy": "fjcloud-ec2-control",
+    "match": true
+  },
+  {
+    "role": "fjcloud-instance-role",
+    "type": "inline",
+    "policy": "fjcloud-s3-releases-read",
+    "match": true
+  },
+  {
+    "role": "fjcloud-instance-role",
+    "type": "inline",
+    "policy": "fjcloud-ses-send",
+    "match": true
+  },
+  {
+    "role": "fjcloud-instance-role",
+    "type": "inline",
+    "policy": "fjcloud-ssm-read",
+    "match": true
+  }
+]

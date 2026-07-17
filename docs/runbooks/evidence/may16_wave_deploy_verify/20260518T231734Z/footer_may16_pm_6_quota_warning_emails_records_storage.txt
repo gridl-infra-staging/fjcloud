@@ -1,0 +1,36 @@
+<!-- [matt:progress] -->
+## Matt Build Progress
+
+### Stage 1: Lock The Regression Harness [test-audit]
+Extend the existing route-level owner in `infra/api/tests/free_tier_caps_test.rs` so `/indexes/{name}/batch` covers the new 80%-warning cases for records and storage, same-month dedupe, shared-plan no-warning, no warning on an over-cap rejected batch, and preserved 100% blocking behavior. Add quota-warning copy assertions in `infra/api/tests/email_test.rs`, using the monthly-search warning behavior already exercised in `infra/api/tests/quota_enforcement_test.rs` as the reference pattern instead of creating a second warning test harness.
+- @work:test-audit Extend `/indexes/{name}/batch` route-owner regression coverage in `infra/api/tests/free_tier_caps_te...
+- @work:test-audit Tighten quota-warning email copy assertions in existing owner `infra/api/tests/email_test.rs`
+- 2/2 checklist items completed
+
+### Stage 2: Persist Per-Metric Warning State [build]
+Add the next additive migration under `infra/migrations/` for `customers.quota_warnings_sent JSONB NOT NULL DEFAULT '{}'::jsonb`; the current migration tail is `049_free_plan_zero_minimum_spend.sql`, so this stage must reserve the next available number rather than hardcoding `051`. In this lane the JSONB column becomes the single persisted owner for the new `records` and `storage_mb` warning state only: do not backfill or mirror `monthly_searches` while `infra/api/src/routes/indexes/search.rs` still reads the legacy `quota_warning_sent_at` column. Extend `infra/api/src/models/customer.rs`, `infra/api/src/repos/customer_repo.rs`, and the schema-tolerant `CUSTOMER_COLUMNS` projection in `infra/api/src/repos/pg_customer_repo.rs` with per-metric/month read helpers plus an atomic claim/write API, keeping the JSONB shape encapsulated behind model/repo helpers and extracting the new Postgres quota-warning SQL into a sibling `pg_customer_repo` module so the oversized repo file does not grow further.
+- 0/1 checklist items completed
+
+### Stage 3: Render Human-Readable Warning Copy [build]
+Update `infra/api/src/services/email.rs` and `infra/api/src/services/email/render.rs` so the existing `send_quota_warning_email(...)` seam renders customer-readable labels and values for `monthly_searches`, `records`, and `storage_mb`, including binary-MiB storage presentation instead of raw metric keys. Keep one formatting helper as the single source of truth for metric label/value text and avoid adding a second renderer or any new `EmailService` trait method.
+- @work:build Render human-readable quota-warning copy through the existing email owner
+- 1/1 checklist items completed
+
+### Stage 4: Wire Warnings Into Ingest Caps [build]
+Attach the new warning flow to `infra/api/src/routes/indexes/documents.rs::check_free_tier_ingest_caps`, reusing the same projected-usage math and `BYTES_PER_MIB` constants as the existing enforcement path so warning math and hard-cap math cannot diverge. Only claim/send a warning when the request crosses the 80% threshold and still passes the 100% cap check, so rejected over-cap batches cannot consume the monthly warning slot or emit email. Claim the monthly warning atomically through the repo before spawning email delivery, keep shared-plan behavior unchanged, and only extract private or module-local helpers if `documents.rs` needs a narrower seam for deterministic tests.
+- @work:build Wire ingest warning flow through existing cap owner
+- 1/1 checklist items completed
+
+### Stage 5: Deploy And Prove Staging Delivery [deploy]
+Run the mirror-CI preflight, deploy the implementation through the normal staging path, then exercise the real `/indexes/{name}/batch` route with a JWT minted to the same contract as `infra/api/src/routes/auth.rs::issue_jwt` and usage seeded through `scripts/lib/staging_db.sh`. Capture proof that the request stays below the hard cap, the warning email arrives through `scripts/lib/test_inbox_helpers.sh`, and `customers.quota_warnings_sent` persisted the exercised metric key for the current month.
+- @work:deploy Prove end-to-end records warning delivery on the live staging route
+- @work:deploy Refresh Stage 5 blocking gate evidence (session s76)
+- 2/3 checklist items completed
+
+### Stage 6: Reconcile Canonical Status Docs [maintenance]
+Update `docs/NOW.md`, `PRIORITIES.md`, `ROADMAP.md`, and `roadmap/implemented.md` as needed so the open hardening item only leaves active/open status after the staging proof exists. Keep the documentation delta narrow to this lane and validate it with `bash scripts/check-sizes.sh` plus grep checks against the retired quota-warning wording.
+- @work:maintenance Reconcile canonical status docs to reflect quota-warning emails as implemented
+- 1/1 checklist items completed
+
+**Run finished_with_deferrals** — 6/6 stages · $50.39 · 1h 39m 32s
+<!-- [matt:progress:end] -->

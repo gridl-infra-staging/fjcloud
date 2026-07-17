@@ -1,0 +1,7 @@
+mode=dry-run
+exit_code=0
+steps_passed=signup succeeded;email verification succeeded;index created;index write succeeded;index search succeeded;index deleted;account delete attempted;admin cleanup completed;customer loop canary completed successfully
+stripe_skipped=true
+verdict=GREEN
+deployed_sha=5a57ea6a280a1d63b54957b3732dcf8cc0a08c2e
+api_url=https://api.flapjack.foo

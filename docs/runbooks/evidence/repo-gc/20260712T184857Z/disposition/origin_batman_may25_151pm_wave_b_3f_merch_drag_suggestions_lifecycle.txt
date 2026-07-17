@@ -1,0 +1,54 @@
+# Disposition Receipt: origin/batman/may25_151pm_wave_b_3f_merch_drag_suggestions_lifecycle
+
+Classification: approved remote branch deletion; manifest stores short branch name
+Evidence source: current read-only git refs at bundle creation.
+
+## rev-parse
+$ git rev-parse origin/batman/may25_151pm_wave_b_3f_merch_drag_suggestions_lifecycle
+83309145bec345c413837141b33f589cfcbcae05
+
+## cherry
+$ git cherry -v main origin/batman/may25_151pm_wave_b_3f_merch_drag_suggestions_lifecycle | tail -20
++ 1bb6fcc739d1cdd5e3a34f7e7e02df41e1a1baa7 scrai: 15 files documented, 7 artifacts generated, 2 guidance files assembled, 3 state files tracked
++ 51a074c20f7ba6de47a328899fa2344291168aeb matt: stage 3 build session 1
++ 99a1d4246cd0760873baf7fcbef30feca11e9448 matt: stage 3 build session 1
++ 5af14797b810f8ac522a00e1f7f205c8b45f81ee matt: stage 3 completion
++ aa2d68d1f0a53b0d88ba46e470a6f8259608e267 scrai: 15 files documented, 2 guidance files assembled, 3 state files tracked
++ 0c249cd5f92b6ef5e81eba9d318bd55d27f9d720 matt: stage 4 build session 1
++ 04b7e5462ae6d626ff71f56b5e6afc956a5d79ba matt: stage 4 build session 2
++ ed8ae9251d718b8751afb68ca6d0969b9d13e6af matt: stage 4 build session 4
++ f85cbb82e0eec575a7e24abc2c1fad6e8c0dd170 matt: stage 4 build session 5
++ 1c29e4e1443893700770c7e6faa8d542ed7947af matt: stage 4 build session 6
++ 0a264eadcaaf7b0166fdfa94178669e4e243537b matt: stage 4 build session 7
++ 0e49745b5d8e1508816855348737f6671ac19c72 unstuck: harden e2e cleanup against cross-worktree DB race
++ b9b0387b272ca8b56493cdbe899591e94a529c53 matt: stage 4 build session 1
++ fb87d6ff6818f3aafc9260a7083e45677a28bb3c matt: stage 4 build session 2
++ 716921014ab3639db0b88f7911f176a258c2834d matt: stage 4 build session 3
++ f35eeb5ca42e2ac7b754a29f152aa3b3f2cf3a8a fix integration stack SES startup and apply cargo fmt
++ a7149e6459264a243e230bf0c7dc8ffe792eb503 matt: review bugs stage 4
++ 4975eae757624f25e7862c6e5d6fee7e630b6cb0 matt: stage 4 build session 1
++ c2ba9b7b55809079cae8ea9b5f11c6bc02cad6be matt: review bugs stage 4
++ 83309145bec345c413837141b33f589cfcbcae05 matt: terminal progress annotation
+
+## diff main...
+$ git diff main...origin/batman/may25_151pm_wave_b_3f_merch_drag_suggestions_lifecycle --stat | tail -20
+ .../[name]/suggestions-management.server.ts        |    72 +
+ .../indexes/[name]/tabs/ExperimentsTab.svelte      |    36 +-
+ .../indexes/[name]/tabs/MerchandisingTab.svelte    |   255 +-
+ .../indexes/[name]/tabs/MerchandisingTab.test.ts   |   215 +-
+ .../indexes/[name]/tabs/SuggestionsTab.svelte      |   309 +-
+ .../indexes/[name]/tabs/SuggestionsTab.test.ts     |   131 +-
+ .../[name]/tabs/experiments_tab_helpers.test.ts    |    79 +
+ .../indexes/[name]/tabs/experiments_tab_helpers.ts |    71 +
+ web/src/tests/e2e-fixture-user-helpers.test.ts     |    52 +-
+ .../tests/fixture-seeded-index-contract.test.ts    |    27 +
+ web/src/tests/playwright-config-contract.test.ts   |   170 +-
+ web/src/tests/search-preview-helpers.test.ts       |     4 +-
+ web/src/tests/searchable-index-fixture.test.ts     |   138 +
+ web/tests/e2e-ui/full/index-detail.spec.ts         |   124 +-
+ web/tests/e2e-ui/full/indexes.spec.ts              |     7 +-
+ web/tests/e2e-ui/playwright.config.ts              |     2 +-
+ web/tests/fixtures/fixtures.ts                     |   128 +-
+ web/tests/fixtures/search-preview-helpers.ts       |     2 +
+ web/tests/fixtures/searchable-index.ts             |    85 +-
+ 77 files changed, 21557 insertions(+), 18287 deletions(-)

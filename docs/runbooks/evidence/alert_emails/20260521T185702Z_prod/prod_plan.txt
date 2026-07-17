@@ -1,0 +1,65 @@
+
+Terraform used the selected providers to generate the following execution
+plan. Resource actions are indicated with the following symbols:
+  + create
+  ~ update in-place
+  - destroy
+
+Terraform will perform the following actions:
+
+  # terraform_data.prod_alert_emails_guard will be updated in-place
+  ~ resource "terraform_data" "prod_alert_emails_guard" {
+        id     = "894e3247-dac4-abad-9cc9-e4c73ce39d1a"
+      ~ input  = [
+          ~ "clifford.kriv@gmail.com" -> "stuart.clifford@gmail.com",
+        ]
+      ~ output = [
+          - "clifford.kriv@gmail.com",
+        ] -> (known after apply)
+    }
+
+  # module.dns.aws_lb_target_group_attachment.api has moved to module.dns.aws_lb_target_group_attachment.api["prod"]
+    resource "aws_lb_target_group_attachment" "api" {
+        id               = "arn:aws:elasticloadbalancing:us-east-1:213880904778:targetgroup/fjcloud-prod-api-tg/43196471aa3ac595-20260514025320873000000001"
+        # (4 unchanged attributes hidden)
+    }
+
+  # module.monitoring.aws_sns_topic_subscription.email["clifford.kriv@gmail.com"] will be destroyed
+  # (because key ["clifford.kriv@gmail.com"] is not in for_each map)
+  - resource "aws_sns_topic_subscription" "email" {
+      - arn                             = "arn:aws:sns:us-east-1:213880904778:fjcloud-alerts-prod:3b293a82-8070-406c-9ad9-81fbb985f5f9" -> null
+      - confirmation_timeout_in_minutes = 1 -> null
+      - confirmation_was_authenticated  = false -> null
+      - endpoint                        = "clifford.kriv@gmail.com" -> null
+      - endpoint_auto_confirms          = false -> null
+      - id                              = "arn:aws:sns:us-east-1:213880904778:fjcloud-alerts-prod:3b293a82-8070-406c-9ad9-81fbb985f5f9" -> null
+      - owner_id                        = "213880904778" -> null
+      - pending_confirmation            = true -> null
+      - protocol                        = "email" -> null
+      - raw_message_delivery            = false -> null
+      - region                          = "us-east-1" -> null
+      - topic_arn                       = "arn:aws:sns:us-east-1:213880904778:fjcloud-alerts-prod" -> null
+        # (6 unchanged attributes hidden)
+    }
+
+  # module.monitoring.aws_sns_topic_subscription.email["stuart.clifford@gmail.com"] will be created
+  + resource "aws_sns_topic_subscription" "email" {
+      + arn                             = (known after apply)
+      + confirmation_timeout_in_minutes = 1
+      + confirmation_was_authenticated  = (known after apply)
+      + endpoint                        = "stuart.clifford@gmail.com"
+      + endpoint_auto_confirms          = false
+      + filter_policy_scope             = (known after apply)
+      + id                              = (known after apply)
+      + owner_id                        = (known after apply)
+      + pending_confirmation            = (known after apply)
+      + protocol                        = "email"
+      + raw_message_delivery            = false
+      + region                          = "us-east-1"
+      + topic_arn                       = "arn:aws:sns:us-east-1:213880904778:fjcloud-alerts-prod"
+    }
+
+Plan: 1 to add, 1 to change, 1 to destroy.
+
+Changes to Outputs:
+  ~ customer_loop_canary_image_uri           = "213880904778.dkr.ecr.us-east-1.amazonaws.com/fjcloud-prod-customer-loop-canary:pending-publication" -> "213880904778.dkr.ecr.us-east-1.amazonaws.com/fjcloud-prod-customer-loop-canary:stage6fix-20260521T035230Z"

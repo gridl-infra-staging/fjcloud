@@ -1,0 +1,21 @@
+# Stage 3 command transcript for docs/runbooks/evidence/ses-coverage-a1/20260711T221212Z_in_vpc_rerun
+# .runtime/host.env is the remote equivalent of the authorized local --env-file source /Users/stuart/repos/gridl-infra-dev/fjcloud_dev/.secret/.env.secret, materialized from that file's allowed test tenant list plus staging SSM parameters. Secret values are intentionally not committed.
+
+set -euo pipefail
+RUN_UTC="20260711T221212Z"
+BUNDLE="docs/runbooks/evidence/ses-coverage-a1/20260711T221212Z_in_vpc_rerun"
+SECRET_SOURCE="/Users/stuart/repos/gridl-infra-dev/fjcloud_dev/.secret/.env.secret"
+BILLING_MONTH="2026-06"
+TMP_ROOT="/tmp/a1_vpc_rerun_20260711T221212Z"
+S3_PREFIX="s3://fjcloud-releases-staging/a1-vpc-rerun/20260711T221212Z"
+HEAD_SHA="c6c9054dd050fe4b21844280fa251fdefe43a4a7"
+unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN
+set -a; source "/Users/stuart/repos/gridl-infra-dev/fjcloud_dev/.secret/.env.secret"; set +a
+bash scripts/deploy_status.sh --json --env staging > "$BUNDLE/deploy_status_staging.json"
+# Remote checkout/env setup and six probes ran through scripts/launch/ssm_exec_staging.sh using copied current-HEAD scripts.
+# Probes: verify_email_clickthrough, password_reset_clickthrough, dunning_email_inbox, ses_bounce, ses_complaint, staging_dunning_delivery.
+# Sidecars, probe_results.tsv, all_green.txt, failure_classifications.json, run_manifest.txt, SUMMARY.md, GAP_SPEC.md, and reference_bundle_comparison.md were generated from stage4_integrity.py::detect_from_log.
+python3 "$BUNDLE/stage4_integrity.py" "$BUNDLE" | tee "$BUNDLE/integrity_check.log"
+test -s "$BUNDLE/all_green.txt"
+
+# CORRECTED during execution: current scripts/lib/clickthrough_probe_common.sh derives APP_BASE_URL from STAGING_CLOUD_URL, and hydrate_seeder_env_from_ssm.sh exports STAGING_CLOUD_URL rather than APP_BASE_URL directly. The bundle-local host env materializer was updated to write APP_BASE_URL=${STAGING_CLOUD_URL} after SSM hydration before rerunning remote setup and all six probes in this same bundle.

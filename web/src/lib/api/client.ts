@@ -1,0 +1,844 @@
+import type {
+	AuthResponse,
+	MessageResponse,
+	MessageWithRetryAfterResponse,
+	RegisterRequest,
+	LoginRequest,
+	VerifyEmailRequest,
+	ForgotPasswordRequest,
+	ResetPasswordRequest,
+	OAuthExchangeRequest,
+	UsageSummaryResponse,
+	DailyUsageEntry,
+	InvoiceListItem,
+	InvoiceDetailResponse,
+	EstimatedBillResponse,
+	SetupIntentResponse,
+	CreateBillingPortalSessionRequest,
+	CreateBillingPortalSessionResponse,
+	BillingUpgradeResponse,
+	PaymentMethod,
+	ApiKeyListItem,
+	CreateApiKeyRequest,
+	CreateApiKeyResponse,
+	CustomerProfileResponse,
+	CustomerUpgradeStatusResponse,
+	AccountExportResponse,
+	UpdateProfileRequest,
+	ChangePasswordRequest,
+	Index,
+	CreateIndexResponse,
+	SearchResult,
+	PreviewEventRequest,
+	AddObjectsRequest,
+	AddObjectsResponse,
+	BrowseObjectsRequest,
+	BrowseObjectsResponse,
+	CreateIndexKeyRequest,
+	InternalRegion,
+	IndexReplicaSummary,
+	OnboardingStatus,
+	FreeTierLimits,
+	FlapjackCredentials,
+	FlapjackApiKey,
+	Rule,
+	RuleSearchResponse,
+	Synonym,
+	SynonymType,
+	SynonymSearchResponse,
+	PersonalizationStrategy,
+	PersonalizationProfile,
+	RecommendationsBatchRequest,
+	RecommendationsBatchResponse,
+	IndexChatRequest,
+	IndexChatResponse,
+	QsConfig,
+	QsBuildStatus,
+	AnalyticsTopSearchesResponse,
+	AnalyticsSearchCountResponse,
+	AnalyticsNoResultRateResponse,
+	AnalyticsDevicesResponse,
+	AnalyticsCountriesResponse,
+	AnalyticsFilterValuesResponse,
+	AnalyticsConversionRateResponse,
+	AnalyticsDateRangeParams,
+	AnalyticsRequiredDateRangeParams,
+	AnalyticsStatusResponse,
+	IndexMetricsResponse,
+	ConcludeExperimentRequest,
+	CreateExperimentRequest,
+	Experiment,
+	ExperimentActionResponse,
+	ExperimentListResponse,
+	ExperimentResults,
+	DebugEventsResponse,
+	DebugEventsFilters,
+	DictionaryLanguagesResponse,
+	DictionarySearchRequest,
+	DictionarySearchResponse,
+	DictionaryBatchRequest,
+	DictionaryBatchResponse,
+	SecuritySourcesResponse,
+	PricingCompareRequest,
+	PricingCompareResponse,
+	AlgoliaMigrationAvailabilityResponse,
+	ListAlgoliaIndexesRequest,
+	AlgoliaSourceListResponse
+} from './types';
+import { BaseClient } from './base-client';
+import { retryAfterSecondsFromHeaders } from '$lib/http/retry_after';
+import { ApiRequestError } from './api_request_error';
+export { ApiRequestError } from './api_request_error';
+
+type LegacyFreeTierLimits = Omit<FreeTierLimits, 'max_storage_mb'> & {
+	max_storage_mb?: number;
+	max_storage_gb?: number;
+};
+
+type LegacyOnboardingStatus = Omit<OnboardingStatus, 'free_tier_limits'> & {
+	free_tier_limits: LegacyFreeTierLimits | null;
+};
+
+export class ApiClient extends BaseClient {
+	private readonly token?: string;
+
+	constructor(baseUrl: string, token?: string) {
+		super(baseUrl);
+		this.token = token;
+	}
+
+	protected authHeaders(): Record<string, string> {
+		if (this.token) {
+			return { Authorization: `Bearer ${this.token}` };
+		}
+		return {};
+	}
+
+	protected async handleErrorResponse(res: Response): Promise<never> {
+		const data = await res.json().catch(() => ({ error: 'unknown error' }));
+		const headers = res.headers ? new Headers(res.headers) : undefined;
+		const requestId = headers?.get('x-request-id') ?? undefined;
+		throw new ApiRequestError(res.status, data.error ?? 'unknown error', {
+			// Backend x-request-id is operator-facing correlation metadata. It is
+			// stored for logs/reporting, not rendered directly to customers.
+			requestId,
+			headers,
+			body: data
+		});
+	}
+
+	private api<T>(
+		method: string,
+		path: string,
+		body?: unknown,
+		options?: { includeAuth?: boolean }
+	): Promise<T> {
+		const init: RequestInit = { method };
+		if (body !== undefined) {
+			init.body = JSON.stringify(body);
+		}
+		return this.request<T>(path, init, options);
+	}
+
+	private buildQueryString(entries: Array<[string, string | number | undefined]>): string {
+		const params = new URLSearchParams();
+		for (const [key, value] of entries) {
+			if (value !== undefined) {
+				params.set(key, String(value));
+			}
+		}
+		const query = params.toString();
+		return query ? `?${query}` : '';
+	}
+
+	private pathSegment(value: string | number): string {
+		return encodeURIComponent(String(value));
+	}
+
+	private indexPath(indexName: string, suffix = ''): string {
+		return `/indexes/${this.pathSegment(indexName)}${suffix}`;
+	}
+
+	private experimentPath(indexName: string, id: number | string, suffix = ''): string {
+		return this.indexPath(indexName, `/experiments/${this.pathSegment(id)}${suffix}`);
+	}
+
+	private dictionaryPath(indexName: string, dictionaryName: string, suffix = ''): string {
+		return this.indexPath(indexName, `/dictionaries/${this.pathSegment(dictionaryName)}${suffix}`);
+	}
+
+	private normalizeStorageLimitMb(freeTierLimits: LegacyFreeTierLimits): number {
+		if (
+			typeof freeTierLimits.max_storage_mb === 'number' &&
+			Number.isFinite(freeTierLimits.max_storage_mb)
+		) {
+			return freeTierLimits.max_storage_mb;
+		}
+		if (
+			typeof freeTierLimits.max_storage_gb === 'number' &&
+			Number.isFinite(freeTierLimits.max_storage_gb)
+		) {
+			return Math.round(freeTierLimits.max_storage_gb * 1024);
+		}
+		throw new Error('Onboarding free-tier limits must include max_storage_mb or max_storage_gb');
+	}
+
+	private normalizeOnboardingStatus(payload: LegacyOnboardingStatus): OnboardingStatus {
+		if (!payload.free_tier_limits) {
+			return {
+				...payload,
+				free_tier_limits: null
+			};
+		}
+
+		return {
+			...payload,
+			free_tier_limits: {
+				max_searches_per_month: payload.free_tier_limits.max_searches_per_month,
+				max_records: payload.free_tier_limits.max_records,
+				max_storage_mb: this.normalizeStorageLimitMb(payload.free_tier_limits),
+				max_indexes: payload.free_tier_limits.max_indexes
+			}
+		};
+	}
+
+	// --- Public (no auth) ---
+
+	healthCheck(): Promise<unknown> {
+		return this.api('GET', '/health');
+	}
+
+	register(body: RegisterRequest): Promise<AuthResponse> {
+		return this.api('POST', '/auth/register', body);
+	}
+
+	login(body: LoginRequest): Promise<AuthResponse> {
+		return this.api('POST', '/auth/login', body);
+	}
+
+	verifyEmail(body: VerifyEmailRequest): Promise<MessageResponse> {
+		return this.api('POST', '/auth/verify-email', body);
+	}
+
+	forgotPassword(body: ForgotPasswordRequest): Promise<MessageResponse> {
+		return this.api('POST', '/auth/forgot-password', body);
+	}
+
+	async resendPasswordReset(body: ForgotPasswordRequest): Promise<MessageWithRetryAfterResponse> {
+		const response = await this.fetchFn(`${this.baseUrl}/auth/resend-password-reset`, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json'
+			},
+			body: JSON.stringify(body)
+		});
+
+		if (!response.ok) {
+			const errorPayload = await response.json().catch(() => ({ error: 'unknown error' }));
+			const headers = response.headers ? new Headers(response.headers) : undefined;
+			const requestId = headers?.get('x-request-id') ?? undefined;
+			const retryAfterSeconds = retryAfterSecondsFromHeaders(headers);
+			const metadataBody =
+				errorPayload && typeof errorPayload === 'object'
+					? { ...errorPayload, retryAfterSeconds }
+					: { error: 'unknown error', retryAfterSeconds };
+			const errorMessage =
+				errorPayload &&
+				typeof errorPayload === 'object' &&
+				'error' in errorPayload &&
+				typeof errorPayload.error === 'string'
+					? errorPayload.error
+					: 'unknown error';
+
+			throw new ApiRequestError(response.status, errorMessage, {
+				requestId,
+				headers,
+				body: metadataBody
+			});
+		}
+
+		const payload = (await response.json()) as MessageResponse;
+		return {
+			message: payload.message,
+			retryAfterSeconds: retryAfterSecondsFromHeaders(response.headers)
+		};
+	}
+
+	resetPassword(body: ResetPasswordRequest): Promise<MessageResponse> {
+		return this.api('POST', '/auth/reset-password', body);
+	}
+
+	oauthExchange(
+		provider: string,
+		body: OAuthExchangeRequest,
+		cookieHeader?: string
+	): Promise<AuthResponse> {
+		const headers = cookieHeader ? { Cookie: cookieHeader } : undefined;
+		return this.request<AuthResponse>(
+			`/auth/oauth/${this.pathSegment(provider)}/exchange`,
+			{
+				method: 'POST',
+				body: JSON.stringify(body),
+				headers
+			},
+			{ includeAuth: false }
+		);
+	}
+
+	async resendVerification(): Promise<MessageWithRetryAfterResponse> {
+		const response = await this.fetchFn(`${this.baseUrl}/auth/resend-verification`, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				...this.authHeaders()
+			}
+		});
+
+		if (!response.ok) {
+			await this.handleErrorResponse(response);
+		}
+
+		const payload = (await response.json()) as MessageResponse;
+		return {
+			message: payload.message,
+			retryAfterSeconds: retryAfterSecondsFromHeaders(response.headers)
+		};
+	}
+
+	comparePricing(workload: PricingCompareRequest): Promise<PricingCompareResponse> {
+		return this.api('POST', '/pricing/compare', workload, { includeAuth: false });
+	}
+
+	// --- Authenticated (tenant) ---
+
+	getUsage(month?: string): Promise<UsageSummaryResponse> {
+		return this.api('GET', `/usage${this.buildQueryString([['month', month]])}`);
+	}
+
+	getUsageDaily(month?: string): Promise<DailyUsageEntry[]> {
+		return this.api('GET', `/usage/daily${this.buildQueryString([['month', month]])}`);
+	}
+
+	getInvoices(): Promise<InvoiceListItem[]> {
+		return this.api('GET', '/invoices');
+	}
+
+	getInvoice(invoiceId: string): Promise<InvoiceDetailResponse> {
+		return this.api('GET', `/invoices/${this.pathSegment(invoiceId)}`);
+	}
+
+	// --- Billing ---
+
+	getEstimatedBill(month?: string): Promise<EstimatedBillResponse> {
+		return this.api('GET', `/billing/estimate${this.buildQueryString([['month', month]])}`);
+	}
+
+	createSetupIntent(): Promise<SetupIntentResponse> {
+		return this.api('POST', '/billing/setup-intent');
+	}
+
+	getPaymentMethods(): Promise<PaymentMethod[]> {
+		return this.api('GET', '/billing/payment-methods');
+	}
+
+	deletePaymentMethod(pmId: string): Promise<void> {
+		return this.api('DELETE', `/billing/payment-methods/${this.pathSegment(pmId)}`);
+	}
+
+	setDefaultPaymentMethod(pmId: string): Promise<void> {
+		return this.api('POST', `/billing/payment-methods/${this.pathSegment(pmId)}/default`);
+	}
+
+	createBillingPortalSession(
+		req: CreateBillingPortalSessionRequest
+	): Promise<CreateBillingPortalSessionResponse> {
+		return this.api('POST', '/billing/portal', req);
+	}
+
+	upgradeToShared(): Promise<BillingUpgradeResponse> {
+		return this.api('POST', '/billing/upgrade', {});
+	}
+
+	// --- API Keys ---
+
+	createApiKey(req: CreateApiKeyRequest): Promise<CreateApiKeyResponse> {
+		return this.api('POST', '/api-keys', req);
+	}
+
+	getApiKeys(): Promise<ApiKeyListItem[]> {
+		return this.api('GET', '/api-keys');
+	}
+
+	deleteApiKey(id: string): Promise<void> {
+		return this.api('DELETE', `/api-keys/${this.pathSegment(id)}`);
+	}
+
+	// --- Account ---
+
+	getProfile(): Promise<CustomerProfileResponse> {
+		return this.api('GET', '/account');
+	}
+
+	getUpgradeStatus(): Promise<CustomerUpgradeStatusResponse> {
+		return this.api('GET', '/account/upgrade-status');
+	}
+
+	exportAccount(): Promise<AccountExportResponse> {
+		return this.api('GET', '/account/export');
+	}
+
+	updateProfile(req: UpdateProfileRequest): Promise<CustomerProfileResponse> {
+		return this.api('PATCH', '/account', req);
+	}
+
+	changePassword(req: ChangePasswordRequest): Promise<void> {
+		return this.api('POST', '/account/change-password', req);
+	}
+
+	deleteAccount(password: string): Promise<void> {
+		return this.api('DELETE', '/account', { password });
+	}
+
+	// --- Indexes ---
+
+	getIndexes(): Promise<Index[]> {
+		return this.api('GET', '/indexes');
+	}
+
+	getInternalRegions(): Promise<InternalRegion[]> {
+		return this.api('GET', '/internal/regions');
+	}
+
+	getIndex(name: string): Promise<Index> {
+		return this.api('GET', this.indexPath(name));
+	}
+
+	getIndexMetrics(indexName: string): Promise<IndexMetricsResponse> {
+		return this.api('GET', this.indexPath(indexName, '/metrics'));
+	}
+
+	createIndex(name: string, region: string): Promise<CreateIndexResponse> {
+		return this.api('POST', '/indexes', { name, region });
+	}
+
+	deleteIndex(name: string): Promise<void> {
+		return this.api('DELETE', this.indexPath(name), { confirm: true });
+	}
+
+	restoreIndex(indexName: string): Promise<{
+		restore_job_id: string;
+		status: string;
+		poll_url: string;
+	}> {
+		return this.api('POST', this.indexPath(indexName, '/restore'));
+	}
+
+	testSearch(indexName: string, params: Record<string, unknown>): Promise<SearchResult> {
+		return this.api('POST', this.indexPath(indexName, '/search'), params);
+	}
+
+	addObjects(indexName: string, requestBody: AddObjectsRequest): Promise<AddObjectsResponse> {
+		return this.api('POST', this.indexPath(indexName, '/batch'), requestBody);
+	}
+
+	browseObjects(
+		indexName: string,
+		requestBody: BrowseObjectsRequest = {}
+	): Promise<BrowseObjectsResponse> {
+		return this.api('POST', this.indexPath(indexName, '/browse'), requestBody);
+	}
+
+	getObject(indexName: string, objectID: string): Promise<Record<string, unknown>> {
+		return this.api('GET', this.indexPath(indexName, `/objects/${this.pathSegment(objectID)}`));
+	}
+
+	deleteObject(indexName: string, objectID: string): Promise<Record<string, unknown>> {
+		return this.api('DELETE', this.indexPath(indexName, `/objects/${this.pathSegment(objectID)}`));
+	}
+
+	getIndexSettings(indexName: string): Promise<Record<string, unknown>> {
+		return this.api('GET', this.indexPath(indexName, '/settings'));
+	}
+
+	updateIndexSettings(
+		indexName: string,
+		settings: Record<string, unknown>
+	): Promise<Record<string, unknown>> {
+		return this.api('PUT', this.indexPath(indexName, '/settings'), settings);
+	}
+
+	searchRules(
+		indexName: string,
+		query = '',
+		page = 0,
+		hitsPerPage = 50
+	): Promise<RuleSearchResponse> {
+		return this.api('POST', this.indexPath(indexName, '/rules/search'), {
+			query,
+			page,
+			hitsPerPage
+		});
+	}
+
+	saveRule(indexName: string, objectID: string, rule: Rule): Promise<Record<string, unknown>> {
+		return this.api('PUT', this.indexPath(indexName, `/rules/${this.pathSegment(objectID)}`), rule);
+	}
+
+	getRule(indexName: string, objectID: string): Promise<Rule> {
+		return this.api('GET', this.indexPath(indexName, `/rules/${this.pathSegment(objectID)}`));
+	}
+
+	deleteRule(indexName: string, objectID: string): Promise<Record<string, unknown>> {
+		return this.api('DELETE', this.indexPath(indexName, `/rules/${this.pathSegment(objectID)}`));
+	}
+
+	/**
+	 * TODO: Document ApiClient.searchSynonyms.
+	 */
+	searchSynonyms(
+		indexName: string,
+		query = '',
+		synonymType?: SynonymType,
+		page = 0,
+		hitsPerPage = 50
+	): Promise<SynonymSearchResponse> {
+		const body: {
+			query: string;
+			page: number;
+			hitsPerPage: number;
+			type?: SynonymType;
+		} = { query, page, hitsPerPage };
+		if (synonymType) {
+			body.type = synonymType;
+		}
+
+		return this.api('POST', this.indexPath(indexName, '/synonyms/search'), body);
+	}
+
+	saveSynonym(
+		indexName: string,
+		objectID: string,
+		synonym: Synonym
+	): Promise<Record<string, unknown>> {
+		return this.api(
+			'PUT',
+			this.indexPath(indexName, `/synonyms/${this.pathSegment(objectID)}`),
+			synonym
+		);
+	}
+
+	getSynonym(indexName: string, objectID: string): Promise<Synonym> {
+		return this.api('GET', this.indexPath(indexName, `/synonyms/${this.pathSegment(objectID)}`));
+	}
+
+	deleteSynonym(indexName: string, objectID: string): Promise<Record<string, unknown>> {
+		return this.api(
+			'DELETE',
+			this.indexPath(indexName, `/synonyms/${encodeURIComponent(objectID)}`)
+		);
+	}
+
+	clearSynonyms(indexName: string): Promise<Record<string, unknown>> {
+		return this.api('POST', this.indexPath(indexName, '/synonyms/clear'));
+	}
+
+	getPersonalizationStrategy(indexName: string): Promise<PersonalizationStrategy> {
+		return this.api('GET', this.indexPath(indexName, '/personalization/strategy'));
+	}
+
+	savePersonalizationStrategy(
+		indexName: string,
+		strategy: PersonalizationStrategy
+	): Promise<Record<string, unknown>> {
+		return this.api('PUT', this.indexPath(indexName, '/personalization/strategy'), strategy);
+	}
+
+	deletePersonalizationStrategy(indexName: string): Promise<Record<string, unknown>> {
+		return this.api('DELETE', this.indexPath(indexName, '/personalization/strategy'));
+	}
+
+	getPersonalizationProfile(indexName: string, userToken: string): Promise<PersonalizationProfile> {
+		return this.api(
+			'GET',
+			this.indexPath(indexName, `/personalization/profiles/${this.pathSegment(userToken)}`)
+		);
+	}
+
+	deletePersonalizationProfile(
+		indexName: string,
+		userToken: string
+	): Promise<Record<string, unknown>> {
+		return this.api(
+			'DELETE',
+			this.indexPath(indexName, `/personalization/profiles/${this.pathSegment(userToken)}`)
+		);
+	}
+
+	recommend(
+		indexName: string,
+		requestBody: RecommendationsBatchRequest
+	): Promise<RecommendationsBatchResponse> {
+		return this.api('POST', this.indexPath(indexName, '/recommendations'), requestBody);
+	}
+
+	chat(indexName: string, requestBody: IndexChatRequest): Promise<IndexChatResponse> {
+		return this.api('POST', this.indexPath(indexName, '/chat'), requestBody);
+	}
+
+	getQsConfig(indexName: string): Promise<QsConfig> {
+		return this.api('GET', this.indexPath(indexName, '/suggestions'));
+	}
+
+	saveQsConfig(indexName: string, config: QsConfig): Promise<Record<string, unknown>> {
+		return this.api('PUT', this.indexPath(indexName, '/suggestions'), config);
+	}
+
+	deleteQsConfig(indexName: string): Promise<Record<string, unknown>> {
+		return this.api('DELETE', this.indexPath(indexName, '/suggestions'));
+	}
+
+	getQsStatus(indexName: string): Promise<QsBuildStatus> {
+		return this.api('GET', this.indexPath(indexName, '/suggestions/status'));
+	}
+
+	triggerQsBuild(indexName: string): Promise<Record<string, unknown>> {
+		return this.api('POST', this.indexPath(indexName, '/suggestions/build'));
+	}
+
+	private analyticsQuery(params?: AnalyticsDateRangeParams): string {
+		if (!params) return '';
+		return this.buildQueryString([
+			['startDate', params.startDate || undefined],
+			['endDate', params.endDate || undefined],
+			['limit', params.limit],
+			['country', params.country || undefined]
+		]);
+	}
+
+	getAnalyticsTopSearches(
+		indexName: string,
+		params?: AnalyticsDateRangeParams
+	): Promise<AnalyticsTopSearchesResponse> {
+		return this.api(
+			'GET',
+			this.indexPath(indexName, `/analytics/searches${this.analyticsQuery(params)}`)
+		);
+	}
+
+	getAnalyticsSearchCount(
+		indexName: string,
+		params?: AnalyticsDateRangeParams
+	): Promise<AnalyticsSearchCountResponse> {
+		return this.api(
+			'GET',
+			this.indexPath(indexName, `/analytics/searches/count${this.analyticsQuery(params)}`)
+		);
+	}
+
+	getAnalyticsNoResults(
+		indexName: string,
+		params?: AnalyticsDateRangeParams
+	): Promise<AnalyticsTopSearchesResponse> {
+		return this.api(
+			'GET',
+			this.indexPath(indexName, `/analytics/searches/noResults${this.analyticsQuery(params)}`)
+		);
+	}
+
+	getAnalyticsNoResultRate(
+		indexName: string,
+		params?: AnalyticsDateRangeParams
+	): Promise<AnalyticsNoResultRateResponse> {
+		return this.api(
+			'GET',
+			this.indexPath(indexName, `/analytics/searches/noResultRate${this.analyticsQuery(params)}`)
+		);
+	}
+
+	getAnalyticsStatus(indexName: string): Promise<AnalyticsStatusResponse> {
+		return this.api('GET', this.indexPath(indexName, '/analytics/status'));
+	}
+
+	// === AnalyticsTab subtab additions (Wave B 3E) ===
+	getAnalyticsDevices(
+		indexName: string,
+		params: AnalyticsRequiredDateRangeParams
+	): Promise<AnalyticsDevicesResponse> {
+		return this.api(
+			'GET',
+			this.indexPath(indexName, `/analytics/devices${this.analyticsQuery(params)}`)
+		);
+	}
+
+	getAnalyticsCountries(
+		indexName: string,
+		params: AnalyticsRequiredDateRangeParams
+	): Promise<AnalyticsCountriesResponse> {
+		return this.api(
+			'GET',
+			this.indexPath(indexName, `/analytics/countries${this.analyticsQuery(params)}`)
+		);
+	}
+
+	getAnalyticsFilters(
+		indexName: string,
+		params: AnalyticsRequiredDateRangeParams
+	): Promise<AnalyticsFilterValuesResponse> {
+		return this.api(
+			'GET',
+			this.indexPath(indexName, `/analytics/filters${this.analyticsQuery(params)}`)
+		);
+	}
+
+	getAnalyticsConversionRate(
+		indexName: string,
+		params: AnalyticsRequiredDateRangeParams
+	): Promise<AnalyticsConversionRateResponse> {
+		return this.api(
+			'GET',
+			this.indexPath(
+				indexName,
+				`/analytics/conversions/conversionRate${this.analyticsQuery(params)}`
+			)
+		);
+	}
+
+	listExperiments(indexName: string): Promise<ExperimentListResponse> {
+		return this.api('GET', this.indexPath(indexName, '/experiments'));
+	}
+
+	createExperiment(
+		indexName: string,
+		requestBody: CreateExperimentRequest
+	): Promise<ExperimentActionResponse> {
+		return this.api('POST', this.indexPath(indexName, '/experiments'), requestBody);
+	}
+
+	getExperiment(indexName: string, id: number | string): Promise<Experiment> {
+		return this.api('GET', this.experimentPath(indexName, id));
+	}
+
+	updateExperiment(
+		indexName: string,
+		id: number | string,
+		requestBody: Record<string, unknown>
+	): Promise<ExperimentActionResponse> {
+		return this.api('PUT', this.experimentPath(indexName, id), requestBody);
+	}
+
+	deleteExperiment(indexName: string, id: number | string): Promise<ExperimentActionResponse> {
+		return this.api('DELETE', this.experimentPath(indexName, id));
+	}
+
+	startExperiment(indexName: string, id: number | string): Promise<ExperimentActionResponse> {
+		return this.api('POST', this.experimentPath(indexName, id, '/start'));
+	}
+
+	stopExperiment(indexName: string, id: number | string): Promise<ExperimentActionResponse> {
+		return this.api('POST', this.experimentPath(indexName, id, '/stop'));
+	}
+
+	concludeExperiment(
+		indexName: string,
+		id: number | string,
+		requestBody: ConcludeExperimentRequest
+	): Promise<ExperimentActionResponse> {
+		return this.api('POST', this.experimentPath(indexName, id, '/conclude'), requestBody);
+	}
+
+	getExperimentResults(indexName: string, id: number | string): Promise<ExperimentResults> {
+		return this.api('GET', this.experimentPath(indexName, id, '/results'));
+	}
+
+	getDebugEvents(indexName: string, filters?: DebugEventsFilters): Promise<DebugEventsResponse> {
+		const query = filters
+			? this.buildQueryString([
+					['eventType', filters.eventType || undefined],
+					['status', filters.status || undefined],
+					['limit', filters.limit],
+					['from', filters.from],
+					['until', filters.until]
+				])
+			: '';
+		return this.api('GET', this.indexPath(indexName, `/events/debug${query}`));
+	}
+	postPreviewEvent(indexName: string, requestBody: PreviewEventRequest): Promise<void> {
+		return this.api('POST', this.indexPath(indexName, '/events'), requestBody);
+	}
+	getDictionaryLanguages(indexName: string): Promise<DictionaryLanguagesResponse> {
+		return this.api('GET', this.indexPath(indexName, '/dictionaries/languages'));
+	}
+
+	searchDictionaryEntries(
+		indexName: string,
+		dictionaryName: string,
+		body: DictionarySearchRequest
+	): Promise<DictionarySearchResponse> {
+		return this.api('POST', this.dictionaryPath(indexName, dictionaryName, '/search'), body);
+	}
+
+	batchDictionaryEntries(
+		indexName: string,
+		dictionaryName: string,
+		body: DictionaryBatchRequest
+	): Promise<DictionaryBatchResponse> {
+		return this.api('POST', this.dictionaryPath(indexName, dictionaryName, '/batch'), body);
+	}
+
+	getSecuritySources(indexName: string): Promise<SecuritySourcesResponse> {
+		return this.api('GET', this.indexPath(indexName, '/security/sources'));
+	}
+
+	appendSecuritySource(
+		indexName: string,
+		body: { source: string; description: string }
+	): Promise<Record<string, unknown>> {
+		return this.api('POST', this.indexPath(indexName, '/security/sources'), body);
+	}
+
+	deleteSecuritySource(indexName: string, source: string): Promise<Record<string, unknown>> {
+		return this.api(
+			'DELETE',
+			this.indexPath(indexName, `/security/sources/${this.pathSegment(source)}`)
+		);
+	}
+
+	createIndexKey(indexName: string, description: string, acl: string[]): Promise<FlapjackApiKey> {
+		return this.api('POST', this.indexPath(indexName, '/keys'), {
+			description,
+			acl
+		} as CreateIndexKeyRequest);
+	}
+
+	listReplicas(indexName: string): Promise<IndexReplicaSummary[]> {
+		return this.api('GET', this.indexPath(indexName, '/replicas'));
+	}
+
+	createReplica(indexName: string, region: string): Promise<IndexReplicaSummary> {
+		return this.api('POST', this.indexPath(indexName, '/replicas'), { region });
+	}
+
+	deleteReplica(indexName: string, replicaId: string): Promise<void> {
+		return this.api(
+			'DELETE',
+			this.indexPath(indexName, `/replicas/${this.pathSegment(replicaId)}`)
+		);
+	}
+
+	getAlgoliaMigrationAvailability(): Promise<AlgoliaMigrationAvailabilityResponse> {
+		return this.api('GET', '/migration/algolia/availability');
+	}
+
+	listAlgoliaSourceIndexes(request: ListAlgoliaIndexesRequest): Promise<AlgoliaSourceListResponse> {
+		return this.api('POST', '/migration/algolia/list-indexes', request);
+	}
+
+	async getOnboardingStatus(): Promise<OnboardingStatus> {
+		const payload = await this.api<LegacyOnboardingStatus>('GET', '/onboarding/status');
+		return this.normalizeOnboardingStatus(payload);
+	}
+
+	generateCredentials(): Promise<FlapjackCredentials> {
+		return this.api('POST', '/onboarding/credentials');
+	}
+}

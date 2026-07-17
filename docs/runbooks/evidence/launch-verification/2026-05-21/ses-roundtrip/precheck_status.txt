@@ -1,0 +1,6 @@
+timestamp_utc=2026-05-21T10:38:28Z
+precheck_file=.secret/.env.secret
+ses_from_address_present=no
+ses_region_present=no
+aws_sts_ok=yes
+aws_sts_account=213880904778

@@ -1,0 +1,39 @@
+{
+  "verdict": "NOT-READY-on-section-1",
+  "timestamp": "2026-07-09T03:23:48Z",
+  "summary_source": "summary.json",
+  "non_pass_steps": [
+    {
+      "name": "local_signoff",
+      "status": "skipped",
+      "reason": "local_signoff_not_applicable_in_paid_beta_rc_mode",
+      "section": 6,
+      "classification": "mode_skip"
+    },
+    {
+      "name": "browser_auth_setup",
+      "status": "external_secret_missing",
+      "reason": "browser_auth_setup_env_gap",
+      "section": 6,
+      "classification": "env_gap"
+    },
+    {
+      "name": "browser_portal_cancel",
+      "status": "fail",
+      "reason": "browser_portal_cancel_failed",
+      "section": 1,
+      "classification": "harness_gap"
+    }
+  ],
+  "section_impact": {
+    "1": "partial",
+    "2": "green",
+    "3": "green",
+    "4": "green",
+    "5": "green",
+    "6": "green"
+  },
+  "other_real_count": 0,
+  "pre_authorized_shape_match": true,
+  "rationale": "3 non-pass steps; other_real_count=0. env_gap rows: browser_auth_setup(external_secret_missing:browser_auth_setup_env_gap). harness_gap rows: browser_portal_cancel(fail:browser_portal_cancel_failed). mode_skip rows: local_signoff(skipped:local_signoff_not_applicable_in_paid_beta_rc_mode). other_real rows: none. Section 1 follows docs/launch_verification_matrix.md when no real defect supersedes it."
+}

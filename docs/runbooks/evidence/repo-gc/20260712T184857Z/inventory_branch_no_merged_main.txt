@@ -1,0 +1,9 @@
+  backup/stage1_before_replay_repair_20260527_011701
+  backup/stage1_e8ce_before_xtheirs_20260527_011857
+  backup/stage1_parked_tip_before_rebase_20260527_011719
++ batman/jul12_pm_1_rc_env_scoping_fix
++ batman/jul12_pm_2_s1_clickthrough_db_visibility_fix
++ batman/jul12_pm_3_s1_dunning_reset_stripe_json_fix
++ batman/jul12_pm_4_shared_login_storage_state
++ batman/jul12_pm_5_metrics_probe_devalue_contract_fix
+* batman/jul12_pm_6_repo_gc_manifest_and_receipts

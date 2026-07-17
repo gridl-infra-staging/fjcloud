@@ -1,0 +1,26 @@
+classification=infra_gap
+ready=false
+head_sha=19c8c44fa7db04aadbf4633e78be60717f4ecdff
+wave1_lane1_test=BLOCK_W1_L1_TEST
+mirror_retry=debbie sync staging && debbie sync prod ran once
+mirror_retry_result=still_not_current
+staging_commits_behind_main=60
+prod_commits_behind_main=60
+aws_auth=present
+cloudflare_auth=present
+ssm_hydrate_exit_status=0
+ssm_ADMIN_KEY=emitted
+ssm_FLAPJACK_URL=emitted
+ssm_STAGING_API_URL=emitted
+
+Gap spec:
+- origin/main must contain scripts/tests/local_ci_worktree_path_leak_guard_test.sh so W1_L1_TEST_OK can pass.
+- deployed staging and prod /version must report commits_behind_main == "0" after the single mirror-sync retry; current result remains staging=60 prod=60.
+- Pages parity polling is not trustworthy until those prerequisites pass.
+
+Proxy offer:
+- No acceptable proxy for Stage 2 deployed-browser verification. Local or stale-staging Playwright would not prove the customer-visible staging UI.
+
+Conditional disposition:
+- Do not run Playwright.
+- Re-run Stage 1 after Wave 1 Lane 1 is present on origin/main and live deploy currency reaches 0 behind for staging/prod.

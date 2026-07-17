@@ -1,0 +1,25 @@
+{
+  "dev_main_sha": "49f8197eb8fca42c419f89c33141cc870a091fec",
+  "envs": {
+    "prod": {
+      "url": "https://api.flapjack.foo/version",
+      "dev_sha": "55757a6e01ea527a56d4fd53c4b35edcddb55861",
+      "mirror_sha": "b17f6f5e466c796371098e17222007a6971b057e",
+      "synced_at": "2026-07-12T07:05:48Z",
+      "build_time": "2026-07-12T07:10:26Z",
+      "commits_behind_main": "132",
+      "deployable_drift": "true",
+      "doc_only_ahead": "false"
+    },
+    "staging": {
+      "url": "https://api.staging.flapjack.foo/version",
+      "dev_sha": "81a1c486f7b52638af445b34fcf9e22f8c857cfa",
+      "mirror_sha": "a787e504ef65415543856887327ed7ba13fd08d0",
+      "synced_at": "2026-07-12T23:50:40Z",
+      "build_time": "2026-07-12T23:58:17Z",
+      "commits_behind_main": "18",
+      "deployable_drift": "true",
+      "doc_only_ahead": "false"
+    }
+  }
+}

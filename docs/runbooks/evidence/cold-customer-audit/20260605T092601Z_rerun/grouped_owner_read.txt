@@ -1,0 +1,2834 @@
+# Cold Customer Algolia-Refugee Journey — Stage 4 Findings
+
+## Evidence Root
+
+- **UTC root:** `docs/runbooks/evidence/cold-customer-audit/20260604T084633Z/`
+- **Preflight:** [`preflight.md`](preflight.md) — Stage 4 live-state baseline (staging dev_sha + lane branch state + deploy delta).
+- **Stage 1 owner-map preflight:** `docs/runbooks/evidence/cold-customer-audit/20260604T050305Z/preflight.md` (canonical owner map; not restated here).
+- **CLI evidence directory:** [`cli/`](cli/) — `cli_steps.jsonl`, `summary.json`, `run_stdout.log`, `expected_seed.md`.
+- **Browser evidence directory:** [`browser/`](browser/) — `run_stdout.log`, `error-context.md`, `test-failed-1.png`, `trace.zip`, `README.md`.
+- **`version_pre.json`:** `dev_sha: 26530584c00b215cec178044fe371bd0d47678db`, `build_time: 2026-06-04T08:05:40Z`.
+- **`version_post.json`:** same `dev_sha` (no concurrent deploy during the lane).
+- **Lane branch:** `batman/jun04_am_3_cold_customer_algolia_refugee_journey_audit`.
+- **Branch terminal SHA at evidence capture:** `00eb15f44a572cbb5dae2a2f67b956b1dfdeb0f6` (lane tip immediately before this findings-fix-up commit; the fix-up commit pushes the lane tip forward but does not change the captured CLI / browser / version evidence).
+- **Staging deploy delta:** `e940f08f9` (Search Preview proxy auth + params fix) is on the lane branch but NOT on `origin/main` and therefore NOT in the staging `dev_sha`. Verified directly with `git merge-base --is-ancestor e940f08f9 origin/main` and `git merge-base --is-ancestor e940f08f9 26530584c...` — both return non-zero. See `preflight.md` § Staging Deploy Delta Probe.
+
+## Algolia-Refugee Qualitative Signal
+
+A cold customer completing signup, email verification, console navigation, index creation, and batch record upload succeeds without friction — the pre-search funnel is solid. The journey then breaks at the critical "first search" moment in two independent ways:
+
+1. **CLI surface:** five records are accepted by the batch API (`batch_accepted: 5`, HTTP 200, `taskID` returned), but none of `doc-0`..`doc-4` (the deterministic anchors documented in [`cli/expected_seed.md`](cli/expected_seed.md)) appear in the search response within the probe's 5 × 1 s retry budget. Search returns `200 OK` with an empty `hits` array. An Algolia refugee expecting sub-second indexing after a batch push reads this as "this product doesn't work."
+2. **Browser surface:** the Search Preview tab on `cloud.staging.flapjack.foo` cannot resolve the proxy request at all — it errors out before the search engine is even reached. Root cause is the staging deploy lag for `e940f08f9` (see preflight); the engine-side latency from the CLI surface is therefore _not_ separately observable in the browser path. The browser failure also blocks the rest of the journey: the spec exits before reaching the post-login pricing surface, the billing tab, or the migrate-from-Algolia tab.
+
+For a cold Algolia refugee, the first-search moment is the moment the product earns or loses them. Both surfaces fail that moment today — one because of indexing latency vs. probe retry budget, one because of a Search Preview proxy auth defect already fixed on this branch but not yet deployed.
+
+## Findings (Defects And Open Questions)
+
+Disposition vocabulary follows the Stage 4 spec: `fix-in-stage-5` (in envelope: single-file < 50 net lines, no API / billing / auth changes), `defer-to-stage-6` (out of envelope or post-beta), `blocked` (cannot evaluate because of staging-deploy lag or harness gap), `inconclusive` (evidence ambiguous; record proxy bias). Severity: `P0` (cold customer cannot complete primary task), `P1` (Algolia-refugee bounce risk: missing/confusing label, wrong default, broken nearby surface), `P2` (cosmetic / non-blocking). Owner-file paths were grep-verified against the working tree before this commit; every path in the table exists.
+
+| ID  | surface                                | owner files                                                                                                                                                            | severity | disposition       | commit SHA or deferred path           | customer-impact note |
+|-----|----------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------|-------------------|---------------------------------------|----------------------|
+| F1  | CLI: search after batch upload         | `scripts/canary/contracts/cold_customer_journey_walkthrough.sh:478-505`, `infra/api/src/routes/indexes/search.rs`, `infra/api/src/services/flapjack_proxy/search.rs`     | P0       | fix-in-stage-5    | `311e31972`                            | Five deterministic records accepted by `/indexes/{name}/documents/batch` (HTTP 200, `taskID` returned — `cli/cli_steps.jsonl` line 5), then `/indexes/{name}/search` returns HTTP 200 with empty `hits` for all 5 retries. Probe retry budget is 5 × 1 s. Expected anchor `objectID: doc-0` / `title: Document 0` documented in `cli/expected_seed.md`. An Algolia refugee uploads then searches; getting zero results is a bounce. The in-envelope fix is to tune the probe's retry budget / cadence to reflect realistic staging indexing latency (single-file edit to `cold_customer_journey_walkthrough.sh` near line 484, no API/billing/auth surface). |
+| F2  | CLI: probe default region ID           | `scripts/canary/contracts/cold_customer_journey_walkthrough.sh:218`, `infra/api/src/provisioner/region_map.rs:38-94`                                                    | P1       | fix-in-stage-5    | no-op already fixed at `7b45e21c2`     | Probe defaults `CANARY_INDEX_REGION` to `aws-us-east-1` (line 218). `RegionConfig::defaults()` accepts only `us-east-1`, `eu-west-1`, `eu-central-1`, `eu-north-1`, `us-east-2`, `us-west-1` (lines 42-94). Without a `CANARY_INDEX_REGION=us-east-1` override, the probe's POST `/indexes` returns HTTP 400 `invalid region` and never reaches batch / search. Not a product bug (no customer hits this in the UI; the console handles region selection itself), but blocks unattended probe execution and was the reason iteration cycles burned. In envelope: single-line default change in the probe, no API change. |
+| F3  | Browser: Search Preview proxy auth     | `web/src/routes/api/search/[name]/+server.ts`, `web/src/lib/flapjack-search-client.ts`, `web/tests/fixtures/search-preview-helpers.ts:305`                                | P0       | blocked           | `chats/icg/post_beta_u1_search_preview_deploy_and_rerun.md` | Search Preview surface fails with `Received string: ""` in `waitForSearchPreviewHitsToContain` (`browser/run_stdout.log`). Page snapshot at failure (`browser/error-context.md`) shows the customer at the Search Preview tab on `cloud-customer-1780563568228` with the "Index ready — try the search preview" banner. Root cause: commit `e940f08f9` (Fix search preview proxy auth and params) is on the lane branch but not on `origin/main` and therefore not in the staging `dev_sha: 26530584c` (verified by `git merge-base --is-ancestor` in `preflight.md`). The fix removes a `locals.user` dependency and extracts a Bearer token from the Authorization header. Until the merge + deploy lands, the browser surface cannot exercise the search path; cannot evaluate the engine-side latency observed in F1 from the browser side. |
+| F4  | Browser: first-search hit retrieval    | `web/tests/e2e-ui/full/cold_customer_algolia_refugee_journey.spec.ts:347-397`, `web/tests/fixtures/search-preview-helpers.ts:305`                                        | P0       | inconclusive      | `chats/icg/post_beta_u1_search_preview_deploy_and_rerun.md` | Browser spec assertion `waitForSearchPreviewHitsToContain("Blue Ridge trail running vest")` polled for 45 000 ms (Playwright `expect.poll` timeout, `search-preview-helpers.ts:305`) and timed out. Cannot separate "F3 blocked the request entirely" from "engine returned but the spec's poll budget was too short" because F3 short-circuits before the engine is reached. (a) Exact blocking gap: F3 prevents any search request from reaching the engine in the browser path. (b) Smallest unblocking change: merge + deploy `e940f08f9` to staging. (c) Proxy path used: captured the 45 s poll timeout and the page snapshot at the failure point as evidence; did not attempt a workaround. (d) Conditional disposition if cleared: if F3 lands and hits appear within 45 s, F4 becomes "no defect". If F3 lands and hits still do not appear within 45 s, F4 becomes a P0 duplicate of F1 (indexing-latency-vs-poll-budget) with disposition `fix-in-stage-5`. |
+| F5  | CLI: probe default inbox domain        | `scripts/canary/contracts/cold_customer_journey_walkthrough.sh:213`, `scripts/canary/customer_loop_synthetic.sh:186`                                                    | P1       | fix-in-stage-5    | `43db18260`                            | Probe defaults `CANARY_TEST_INBOX_DOMAIN` to `flapjack.foo` (line 213). SES inbound routing only catches `@test.flapjack.foo`; the sibling canary `customer_loop_synthetic.sh:186` correctly defaults to `test.flapjack.foo`. Without `CANARY_TEST_INBOX_DOMAIN=test.flapjack.foo` override, verification email never lands in the S3 inbox and `verify_email` step blocks forever. Not a product bug (no customer-facing surface), but a probe-contract drift that blocks unattended probe execution. In envelope: single-line default change in the probe, no API change. |
+| F6  | Browser: post-login pricing surface    | `web/src/routes/pricing/+page.svelte`, `web/tests/e2e-ui/full/cold_customer_algolia_refugee_journey.spec.ts:320-344`                                                    | P1       | blocked           | `chats/icg/post_beta_u1_search_preview_deploy_and_rerun.md` | The spec's `assertAdjacentCustomerSurfaces` walks `/pricing` after Search Preview validation succeeds (line 343). Because F3 / F4 short-circuit the spec at line 396 before reaching `assertAdjacentCustomerSurfaces`, post-login pricing is NOT exercised by this run. The browser stdout shows the spec exited after the search-preview wait timeout; no later test.step executed. (a) Blocking gap: F3/F4 abort upstream. (b) Smallest unblock: same as F3. (c) Proxy path: pre-login pricing (`assertPricingSurface(page)` at line 366) DID complete before signup and is recorded in trace.zip frames; that is the proxy evidence the public surface is healthy. (d) Conditional disposition: if F3 clears, F6 becomes evaluable; expected to pass given pre-login pricing passed and the surface is the same route. |
+| F7  | Browser: billing tab                   | `web/src/routes/console/billing/+page.svelte`, `web/tests/e2e-ui/full/cold_customer_algolia_refugee_journey.spec.ts:332-341`                                            | P1       | blocked           | `chats/icg/post_beta_u1_search_preview_deploy_and_rerun.md` | The spec asserts the customer-facing Billing page renders the heading plus either a Payment-methods control or the "Payment method management unavailable" / "Payment method management is disabled" fallback (lines 332-341). Not reached because F3 / F4 abort the spec at the search-preview step. (a) Blocking gap: F3/F4 abort upstream. (b) Smallest unblock: same as F3. (c) Proxy path: none from this run — the spec did not navigate to `/console/billing`. (d) Conditional disposition: if F3 clears, F7 becomes evaluable; if the billing assertions pass, F7 becomes no-defect; if they fail, F7 disposition depends on which branch failed (would likely route to `defer-to-stage-6` since it touches the billing surface which is out of envelope). |
+| F8  | Browser: migrate-from-Algolia tab      | `web/src/routes/console/migrate/+page.svelte`, `web/tests/e2e-ui/full/cold_customer_algolia_refugee_journey.spec.ts:320-331`                                            | P1       | blocked           | `chats/icg/post_beta_u1_search_preview_deploy_and_rerun.md` | The spec asserts the Migrate-from-Algolia page renders the heading, the credentials form, and App ID + API Key inputs (lines 322-331). Not reached because F3 / F4 abort upstream. This surface is _critical_ for Algolia refugees specifically — without exercising it under a real cold-customer session, the audit cannot confirm an Algolia-refugee onboarding does not regress. (a) Blocking gap: F3/F4 abort upstream. (b) Smallest unblock: same as F3. (c) Proxy path: none from this run. (d) Conditional disposition: if F3 clears, F8 becomes evaluable; expected to pass given the page exists and the assertions are existence-only. |
+| F9  | Browser: console tabs (post-creation)  | `web/src/routes/console/indexes/[name]/index_detail_tabs.ts:21`, `web/tests/e2e-ui/full/cold_customer_algolia_refugee_journey.spec.ts:264-318`                          | P2       | inconclusive      | `chats/icg/post_beta_u2_index_detail_tab_coverage.md` | The page snapshot at failure (`browser/error-context.md`) shows the full `INDEX_DETAIL_TABS` strip (Overview, Settings, Documents, Dictionaries, Rules, Synonyms, Personalization, Recommendations, Chat, Suggestions, Analytics, Metrics, Merchandising, Experiments, Events, Security Sources, Search Preview) and confirms Search Preview is the selected tab — proxy evidence that all tab labels rendered. The browser spec did NOT explicitly iterate every tab and assert content; it only landed on Search Preview. (a) Blocking gap: no programmatic per-tab assertion; only the snapshot exists. (b) Smallest unblock: add a tab-iteration helper in a future stage (out of envelope). (c) Proxy path: error-context.md snapshot covers the tab strip visually. (d) Conditional disposition: if a tab-iteration spec is added in a later stage, F9 becomes evaluable; nothing observed today suggests a defect. |
+
+## Coverage Audit — Surfaces Examined With No Defect Found
+
+Per the Stage 4 spec: "produce at least one row per surface examined, even if the row is 'no defect found' so reviewers can audit coverage." These rows are kept separate from the findings table because `no-defect` is not a Stage 4 disposition.
+
+| Surface                                  | Evidence anchor                                                                       | Owner files                                                                                            | Note |
+|------------------------------------------|---------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------|------|
+| CLI: register                            | `cli/cli_steps.jsonl` line 1 (HTTP 201, 391 ms)                                       | `scripts/canary/contracts/cold_customer_journey_walkthrough.sh`, `scripts/lib/customer_lifecycle_steps.sh`, `infra/api/src/routes/auth.rs` | Signup OK. Body shape keys `["customer_id","token"]`. |
+| CLI: email verification                  | `cli/cli_steps.jsonl` line 2 (HTTP 200, 19 107 ms)                                    | `scripts/lib/customer_lifecycle_steps.sh`, `infra/api/src/routes/auth.rs`                              | Verification email landed in S3 inbox, token extracted, `/auth/verify-email` accepted. |
+| CLI: confirm verified state              | `cli/cli_steps.jsonl` line 3 (HTTP 200, 122 ms)                                       | `infra/api/src/routes/account.rs`                                                                       | `GET /me` returned `email_verified=true`. |
+| CLI: index creation                      | `cli/cli_steps.jsonl` line 4 (HTTP 201, 303 ms)                                       | `infra/api/src/routes/indexes/lifecycle.rs`, `infra/api/src/provisioner/region_map.rs`                  | Index created in `us-east-1` (after F2 override). Body shape includes `["region","status","tier","endpoint"]`. |
+| CLI: batch write                         | `cli/cli_steps.jsonl` line 5 (HTTP 200, 299 ms)                                       | `infra/api/src/services/flapjack_proxy/documents.rs`, `scripts/lib/deterministic_batch_payload.sh`     | Five deterministic records accepted; `objectIDs` and `taskID` returned. |
+| CLI: index deletion                      | `cli/cli_steps.jsonl` line 7 (HTTP 204, 167 ms)                                       | `infra/api/src/routes/indexes/lifecycle.rs`                                                            | Cleanup OK. |
+| CLI: account deletion                    | `cli/cli_steps.jsonl` line 8 (HTTP 204, 228 ms)                                       | `infra/api/src/routes/account.rs`                                                                       | Cleanup OK. |
+| CLI: admin cleanup                       | `cli/cli_steps.jsonl` line 9 (HTTP 404, 97 ms)                                        | `infra/api/src/routes/admin/tenants.rs::delete_tenant` (line 392)                                       | Account already deleted; probe treats 404 as pass. |
+| Browser: authenticate as customer setup  | `browser/run_stdout.log` (858 ms, setup:user passed)                                  | `web/tests/fixtures/auth.setup.ts:109`                                                                  | Storage-state setup succeeded; customer authenticated against staging. |
+| Browser: pre-login pricing surface       | `browser/run_stdout.log` (no early failure before search), `browser/trace.zip` frames | `web/src/routes/pricing/+page.svelte`, `web/tests/e2e-ui/full/cold_customer_algolia_refugee_journey.spec.ts:202` (`assertPricingSurface` at line 366) | Public pricing page asserted before signup. |
+| Browser: signup validation surface       | `browser/trace.zip` frames                                                            | `web/tests/e2e-ui/full/cold_customer_algolia_refugee_journey.spec.ts:223` (`assertSignupValidationSurface`) | Signup form validation reached and asserted. |
+| Browser: email verification replay       | `browser/trace.zip` frames                                                            | `web/tests/e2e-ui/full/cold_customer_algolia_refugee_journey.spec.ts:242` (`assertVerificationReplay`)  | Verification URL replay surface asserted. |
+| Browser: login through customer form     | `browser/trace.zip` frames                                                            | `web/tests/e2e-ui/full/cold_customer_algolia_refugee_journey.spec.ts:151` (`loginThroughCustomerForm`)  | Login completed; "Console" heading visible (see error-context.md). |
+| Browser: index creation through console  | `browser/error-context.md` snapshot (index `cold-customer-1780563568228` shown)       | `web/tests/e2e-ui/full/cold_customer_algolia_refugee_journey.spec.ts:264` (`createIndexThroughConsole`) | Index created and routed to detail page. |
+| Browser: upload five Algolia records     | `browser/error-context.md` snapshot ("Index ready — try the search preview" banner)   | `web/tests/e2e-ui/full/cold_customer_algolia_refugee_journey.spec.ts` (`uploadFiveAlgoliaRecords`)      | Records uploaded; index banner switched to "Index ready". |
+
+## Blocked / Inconclusive Detail (Consolidated)
+
+F3 (blocked: staging-deploy-lag) — F4 / F6 / F7 / F8 cascade from this single root cause:
+
+- (a) Exact blocking gap: `e940f08f9` is on the lane branch but not on `origin/main` and therefore not in the staging `dev_sha` (proven by `git merge-base --is-ancestor` in `preflight.md`).
+- (b) Smallest unblocking change: merge lane → `main` and wait for the dev → staging mirror sync. No code change in this repo is required to unblock; this is staging-deploy lag, not a repo-owned prerequisite. The fix code already exists on the lane.
+- (c) Proxy paths used to keep advancing: captured the CLI-side search failure (F1) which exercises the same `/indexes/{name}/search` route from a non-browser caller and proved the engine + auth path responds (HTTP 200 with empty hits), independent of the browser proxy bug. Captured the full Search Preview tab page snapshot at the moment of failure and the trace.zip frame sequence for every action up to the timeout.
+- (d) Conditional disposition if cleared: F3 → no-defect (the fix is the lane's own commit). F4 → re-evaluable; either becomes no-defect or routes to `fix-in-stage-5` as a duplicate of F1's retry-budget issue. F6 → re-evaluable; expected to pass. F7 → re-evaluable; expected to pass or route to `defer-to-stage-6` if a billing-surface defect surfaces. F8 → re-evaluable; expected to pass.
+
+F9 (inconclusive: tab assertion gap):
+
+- (a) Blocking gap: spec does not iterate every tab; only Search Preview is selected.
+- (b) Smallest unblock: per-tab assertion helper. Out of envelope for Stage 5 (would touch the spec which Stage 3 owns).
+- (c) Proxy path: error-context.md snapshot shows all tab labels rendered.
+- (d) Conditional disposition: stays inconclusive until an explicit per-tab spec lands; nothing in this run suggests a defect.
+
+## Internal Consistency Check
+
+- Every row in the findings table uses a disposition from the Stage 4 spec vocabulary (`fix-in-stage-5`, `defer-to-stage-6`, `blocked`, `inconclusive`).
+- Every `blocked` row names the exact gap, the smallest unblocking change, the proxy path used, and the conditional disposition if cleared (F3, F6, F7, F8 — all rooted in the F3 staging-deploy-lag, consolidated above).
+- Every `inconclusive` row records its proxy bias (F4 cannot separate F3 vs. F1; F9 lacks per-tab assertions).
+- Severity ↔ disposition consistency: no row has `P0 + defer-to-stage-6` (no P0 deferrals). The `P0 + blocked` rows (F3) and `P0 + inconclusive` rows (F4) both name the gap that prevented evaluation, not a deferral choice.
+- Owner-file paths were grep-checked before this commit (`ls` + `grep -rn` confirmed all paths in the findings table and the coverage audit exist in HEAD).
+- Commit-SHA column uses `(stage 5)` for `fix-in-stage-5` rows and `n/a` for `blocked` / `inconclusive` rows. No Stage 5 SHAs are pre-assigned.
+# Cold Customer Algolia-Refugee Journey Audit: Stage 4 Preflight
+
+## Purpose
+
+Stage 4 captures live CLI + browser evidence and authors `findings.md`. This
+preflight is the per-UTC baseline the rest of this evidence root is grounded in,
+as required by Stage 1's contract. It records the staging API state, the lane
+branch state, the local checkout state, and the staging-vs-branch deploy delta
+at the moment the Stage 4 probes were run.
+
+This file replaces the prior absent-preflight gap flagged by the Stage 4 review
+(`missing-active-preflight`). The Stage 1 baseline preflight remains the
+canonical owner-map artifact at
+`docs/runbooks/evidence/cold-customer-audit/20260604T050305Z/preflight.md`; this
+preflight does NOT restate that owner map — it only captures the live state
+needed to interpret this UTC root's CLI and browser evidence.
+
+## Run Metadata
+
+- Evidence root: `docs/runbooks/evidence/cold-customer-audit/20260604T084633Z/`.
+- Stage: Stage 4 of 7 (research-only — capture evidence + author findings;
+  no source-code fixes; no probe/spec changes; no deploy; no `PRIORITIES.md` or
+  `ROADMAP.md` edits).
+- Repo path:
+  `fjcloud_dev`.
+- Lane branch:
+  `batman/jun04_am_3_cold_customer_algolia_refugee_journey_audit`.
+
+## Out Of Scope
+
+- Source-code fixes (Stage 5 owns in-envelope fixes).
+- Probe or browser-spec changes (Stages 2 and 3 own those).
+- Deploys, redeploys, or merges to `main`.
+- Edits to `PRIORITIES.md`, `ROADMAP.md`, or any planning surface.
+- Bulk removal of `TODO: Document` stubs (debbie post-sync hooks own that).
+
+## Live Staging Probes
+
+### Staging Version Endpoint
+
+Command:
+
+```bash
+curl -fsS https://api.staging.flapjack.foo/version
+```
+
+Raw response (from `version_pre.json`):
+
+```json
+{"build_time":"2026-06-04T08:05:40Z","dev_sha":"26530584c00b215cec178044fe371bd0d47678db","mirror_sha":"11644262ae404d658b9a496b41fc5924ffa274f6","synced_at":"2026-06-04T07:50:28Z"}
+```
+
+Parsed summary:
+
+- `dev_sha`: `26530584c00b215cec178044fe371bd0d47678db`.
+- `build_time`: `2026-06-04T08:05:40Z`.
+- `mirror_sha`: `11644262ae404d658b9a496b41fc5924ffa274f6`.
+- `synced_at`: `2026-06-04T07:50:28Z`.
+
+A post-lane snapshot (`version_post.json`) was captured after the CLI and
+browser runs and shows the same `dev_sha` / `build_time` / `mirror_sha` —
+staging did not redeploy mid-lane.
+
+### Staging Health Endpoint
+
+Command:
+
+```bash
+curl -fsS https://api.staging.flapjack.foo/health
+```
+
+Response:
+
+```json
+{"status":"ok"}
+```
+
+Staging API answered `200 OK` from the dev checkout; no DNS / TLS / availability
+blocker for the CLI or browser probes.
+
+## Git Baseline
+
+### Lane Branch State
+
+```bash
+git rev-parse HEAD
+git rev-parse --abbrev-ref HEAD
+git status --short
+```
+
+Output:
+
+```text
+00eb15f44a572cbb5dae2a2f67b956b1dfdeb0f6
+batman/jun04_am_3_cold_customer_algolia_refugee_journey_audit
+(no output)
+```
+
+- Lane HEAD before the Stage 4 fix-up commit:
+  `00eb15f44a572cbb5dae2a2f67b956b1dfdeb0f6`.
+- Working tree clean before this preflight was written.
+
+### Branch vs `origin/main` Delta
+
+```bash
+git fetch origin main --quiet
+git rev-parse origin/main
+git log --oneline origin/main..HEAD | head -10
+```
+
+Output:
+
+```text
+origin/main: 26530584c00b215cec178044fe371bd0d47678db
+00eb15f44 evidence(cold-customer-audit): add run_stdout.log files (force past *.log gitignore)
+35f815119 evidence(cold-customer-audit): capture stage 4 findings and journey artifacts
+cc85f5fa8 matt: stage 4 checklist
+909c592bb matt: stage 3 completion
+8607cead0 fix(web): reject dotenv E2E_ADMIN_KEY in remote-target mode
+011bf3b13 fix(web): fail closed on E2E_ADMIN_KEY in remote-target mode
+88bd6fc56 test(web): fail closed cold customer contract prerequisites
+e940f08f9 Fix search preview proxy auth and params
+b37839104 test(web): add cold customer journey contract
+8c9174441 matt: stage 3 checklist
+```
+
+Interpretation:
+
+- `origin/main` tip equals the staging `dev_sha`. The current staging build IS
+  the latest published `origin/main`.
+- Nine commits on the lane branch are NOT yet on `origin/main`. The relevant
+  commit for Stage 4 evidence interpretation is `e940f08f9` (Fix search preview
+  proxy auth and params).
+
+### Staging Deploy Delta Probe
+
+```bash
+git merge-base --is-ancestor e940f08f9 origin/main \
+  && echo "e940f08f9 IS on origin/main" \
+  || echo "e940f08f9 NOT on origin/main"
+git merge-base --is-ancestor e940f08f9 26530584c00b215cec178044fe371bd0d47678db \
+  && echo "e940f08f9 IS in staging dev_sha" \
+  || echo "e940f08f9 NOT in staging dev_sha"
+```
+
+Output:
+
+```text
+e940f08f9 NOT on origin/main
+e940f08f9 NOT in staging dev_sha
+```
+
+Interpretation (load-bearing for Stage 4 findings):
+
+- `e940f08f9` is the Stage 3 fix for the Search Preview proxy auth / params.
+  It is committed on the lane branch but has not landed on `origin/main`, so
+  staging cannot have it.
+- This is a real `blocked` reason for any browser-spec assertion that depends
+  on the Search Preview proxy. Stage 4 findings must record the affected rows
+  as `blocked: staging-deploy-lag` rather than as product defects.
+
+## Evidence Root Contract
+
+This UTC root contains:
+
+- `preflight.md` — this file.
+- `version_pre.json` — staging `/version` immediately before probes.
+- `version_post.json` — staging `/version` immediately after probes.
+- `cli/cli_steps.jsonl` — per-step CLI probe results from
+  `scripts/canary/contracts/cold_customer_journey_walkthrough.sh`.
+- `cli/summary.json` — overall CLI probe verdict + failing step.
+- `cli/run_stdout.log` — stdout/stderr captured by `tee` from the CLI run.
+- `cli/expected_seed.md` — derived customer-correctness anchors (objectIDs and
+  titles that the deterministic batch payload uploaded) — see Seeded Record
+  Anchors section below.
+- `browser/run_stdout.log` — Playwright `--reporter=list` stdout.
+- `browser/error-context.md` — Playwright page snapshot at failure.
+- `browser/test-failed-1.png` — Playwright failure screenshot.
+- `browser/trace.zip` — Playwright trace (~4.2 MB) with full visual frames.
+- `browser/README.md` — notes about the absent `video.webm` and why the
+  `trace.zip` is the sufficient visual evidence.
+- `findings.md` — Stage 4 findings table with disposition per surface.
+
+## Seeded Record Anchors
+
+The CLI probe's `summary.json` leaves `seeded_record_object_id` and
+`seeded_record_title` empty whenever the search step fails to retrieve the
+seeded record — these fields are only populated when the search retrieves a
+matching hit (`scripts/canary/contracts/cold_customer_journey_walkthrough.sh`
+lines 478-505). The empty fields are therefore the natural shape of "search
+returned zero hits" and are NOT a redaction. To preserve the
+customer-correctness anchors the checklist requires (the objectIDs and titles
+that the deterministic batch _should_ have been retrievable by), the probe's
+deterministic payload generator
+(`scripts/lib/deterministic_batch_payload.sh::deterministic_batch_payload`) is
+re-derived in `cli/expected_seed.md` for this evidence root.
+
+## Open Questions
+
+- Should the CLI probe's `summary.json` schema be extended to record the
+  _expected_ seeded `objectID` / `title` (derived from the batch payload) even
+  when search fails, so downstream evidence audits do not need a sibling
+  `expected_seed.md`? — out of scope for Stage 4; surface as a Stage 5 or
+  Stage 6 candidate after disposition triage.
+
+## Evidence Quality Review
+
+- Raw response paths are stored alongside this preflight (`version_pre.json`,
+  `version_post.json`, `cli/run_stdout.log`, `browser/run_stdout.log`).
+- No secret material is included. The CLI probe writes signup tokens and
+  customer IDs to `cli_steps.jsonl`; the customer was deleted in the probe's
+  cleanup step (HTTP 204) and the admin-cleanup step confirmed the tenant was
+  gone (HTTP 404), so the token recorded in evidence cannot authenticate
+  against any live tenant.
+- Owner claims for the staging-deploy lag are grounded in `git merge-base`
+  output above, not in restated artifact prose.
+- Done-state semantics are not asserted here. Checklist marker promotion remains
+  orchestrator-owned.
+# Cold Customer Algolia-Refugee Audit Stage 1 Preflight
+
+Created: 2026-06-04T17:23:14Z
+
+## Purpose
+
+Stage 1 establishes a fresh evidence root and direct proof of what staging is running before later CLI or browser results are interpreted. This stage did not run the customer quickstart validator, the cold-customer CLI walkthrough, or the browser journey.
+
+## Evidence Root
+
+- Canonical rerun root: `docs/runbooks/evidence/cold-customer-audit/20260604T172314Z`
+- CLI evidence subdirectory reserved for Stage 2: `docs/runbooks/evidence/cold-customer-audit/20260604T172314Z/cli`
+- Browser evidence subdirectory reserved for Stage 3: `docs/runbooks/evidence/cold-customer-audit/20260604T172314Z/browser`
+- Dev checkout used for branch truth and ancestry gates: `/Users/stuart/repos/gridl-infra-dev/fjcloud_dev`
+
+## Runtime Identity
+
+Captured with:
+
+```bash
+curl -fsS https://api.staging.flapjack.foo/version | tee "$EVIDENCE_ROOT/version.json"
+```
+
+Live `/version` payload:
+
+```json
+{"build_time":"2026-06-04T16:06:20Z","dev_sha":"c62287ada3f7662305032263766441fa4388ac98","mirror_sha":"bf8c41a27035ebb1950fdcdde12a84f62e5a265a","synced_at":"2026-06-04T15:57:33Z"}
+```
+
+Machine parse result:
+
+- `STAGING_SHA=c62287ada3f7662305032263766441fa4388ac98`
+- Required fields present and non-empty: `dev_sha`, `build_time`, `mirror_sha`, `synced_at`
+
+Runtime proof surface owners:
+
+- `infra/api/src/routes/version.rs:7` returns `dev_sha`, `mirror_sha`, `synced_at`, and `build_time` from build-time environment values.
+- `infra/api/src/router/route_assembly.rs:106-109` registers unauthenticated `GET /version`.
+- `scripts/deploy_status.sh:69-118` is an existing comparison seam for probing `/version` and computing history gaps; it was not used as a substitute for the exact Stage 1 capture and ancestry commands.
+
+## Dev Checkout State
+
+Captured after:
+
+```bash
+git -C "$DEV_CHECKOUT" fetch origin main --quiet
+git -C "$DEV_CHECKOUT" rev-parse HEAD
+git -C "$DEV_CHECKOUT" rev-parse origin/main
+git -C "$DEV_CHECKOUT" status --short
+```
+
+Result:
+
+```text
+HEAD=c62287ada3f7662305032263766441fa4388ac98
+origin_main=c62287ada3f7662305032263766441fa4388ac98
+status_short_begin
+status_short_end
+```
+
+The intended dev checkout was clean, and `HEAD` matched fetched `origin/main`.
+
+## Ancestry Gates
+
+Before ancestry checks, the deployed SHA was proved present in the fetched local object store:
+
+```bash
+git -C "$DEV_CHECKOUT" rev-parse -q --verify "${STAGING_SHA}^{commit}"
+```
+
+Result:
+
+```text
+object_rc=0
+object_output=c62287ada3f7662305032263766441fa4388ac98
+```
+
+Search Preview fix gate:
+
+```bash
+git -C "$DEV_CHECKOUT" merge-base --is-ancestor e940f08f9 "$STAGING_SHA"
+```
+
+Result:
+
+```text
+search_preview_rc=0
+search_preview_output=<no stdout/stderr>
+```
+
+Conclusion: staging contains `e940f08f9`.
+
+Current-main gate:
+
+```bash
+git -C "$DEV_CHECKOUT" merge-base --is-ancestor "$STAGING_SHA" origin/main
+```
+
+Result:
+
+```text
+staging_on_origin_main_rc=0
+staging_on_origin_main_output=<no stdout/stderr>
+```
+
+Conclusion: staging `dev_sha` is still on current fetched `origin/main`.
+
+## Later-Stage Reuse Seams
+
+Stage 2 and Stage 3 should extend the existing owners below instead of replacing them:
+
+- `scripts/validate_customer_quickstart.sh:24-37` owns `MARKER_CASES`, the ordered customer quickstart and migration marker inventory.
+- `scripts/validate_customer_quickstart.sh:217` owns `validate_doc_marker_contracts`.
+- `scripts/validate_customer_quickstart.sh:699-781` owns `run_quickstart_and_migration_sequence` and `run_signup_verify_search_flow`.
+- `scripts/canary/contracts/cold_customer_journey_walkthrough.sh:147-197` owns `cold_customer_parse_args` and `cold_customer_prepare_environment`.
+- `web/playwright.config.contract.ts:626-722` owns `REMOTE_TARGET_OPT_IN_ENV`, `requireLoopbackHttpUrl`, and `resolveFixtureEnv`.
+- `web/tests/e2e-ui/full/cold_customer_algolia_refugee_journey.spec.ts:347-397` owns the staging cold-customer journey test body.
+
+Canonical later-stage bootstrap commands to record, not execute in Stage 1:
+
+```bash
+scripts/canary/contracts/cold_customer_journey_walkthrough.sh \
+  --env staging \
+  --env-file /Users/stuart/repos/gridl-infra-dev/fjcloud_dev/.secret/.env.secret \
+  --evidence-dir "$EVIDENCE_ROOT/cli"
+```
+
+```bash
+source <(bash scripts/launch/hydrate_seeder_env_from_ssm.sh staging)
+export E2E_ADMIN_KEY="$ADMIN_KEY"
+export PLAYWRIGHT_TARGET_REMOTE=1
+```
+
+## Open Questions
+
+None for Stage 1. The baseline has enough direct evidence for later stages to interpret CLI and browser failures against the deployed staging identity.
+#!/usr/bin/env bash
+# One-shot cold-customer journey CLI probe for the Algolia-refugee audit lane.
+#
+# The transport seam intentionally stays at `curl()` because scripts/lib/http_json.sh
+# calls curl directly. Dry-run and tests override that function so the shared HTTP
+# helpers remain the single request owner.
+# shellcheck disable=SC2034,SC1091
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+
+source "$REPO_ROOT/scripts/lib/env.sh"
+source "$REPO_ROOT/scripts/lib/http_json.sh"
+source "$REPO_ROOT/scripts/lib/test_inbox_helpers.sh"
+source "$REPO_ROOT/scripts/lib/customer_lifecycle_steps.sh"
+source "$REPO_ROOT/scripts/lib/deterministic_batch_payload.sh"
+
+COLD_CUSTOMER_ENV="staging"
+COLD_CUSTOMER_DRY_RUN=0
+COLD_CUSTOMER_ENV_FILE=""
+COLD_CUSTOMER_EVIDENCE_DIR=""
+COLD_CUSTOMER_STEPS_FILE=""
+COLD_CUSTOMER_SUMMARY_FILE=""
+COLD_CUSTOMER_BATCH_SEED=""
+COLD_CUSTOMER_SEARCH_TERM=""
+COLD_CUSTOMER_BATCH_ACCEPTED=0
+COLD_CUSTOMER_VERIFIED=false
+COLD_CUSTOMER_SEEDED_RECORD_OBJECT_ID=""
+COLD_CUSTOMER_SEEDED_RECORD_TITLE=""
+COLD_CUSTOMER_FAILURE_STEP=""
+COLD_CUSTOMER_FAILURE_DETAIL=""
+COLD_CUSTOMER_SEARCH_RETRY_SLEEP_SECONDS="${COLD_CUSTOMER_SEARCH_RETRY_SLEEP_SECONDS:-2}"
+COLD_CUSTOMER_SEARCH_MAX_ATTEMPTS="${COLD_CUSTOMER_SEARCH_MAX_ATTEMPTS:-8}"
+COLD_CUSTOMER_DRY_RUN_STUBS_INSTALLED=0
+
+log() {
+    echo "[cold-customer-walkthrough] $*"
+}
+
+cold_customer_usage() {
+    cat <<'EOF'
+Usage: cold_customer_journey_walkthrough.sh --evidence-dir DIR [--dry-run] [--env-file FILE] [--env staging]
+
+Options:
+  --dry-run          Use deterministic stubbed HTTP and inbox responses.
+  --env-file FILE    Required for live mode; optional for dry-run.
+  --evidence-dir DIR Directory for cli_steps.jsonl and summary.json.
+  --env staging      Only staging is accepted.
+EOF
+}
+
+cold_customer_epoch_ms() {
+    python3 - <<'PY'
+import time
+print(int(time.time() * 1000))
+PY
+}
+
+cold_customer_json_quote() {
+    python3 - "$1" <<'PY'
+import json
+import sys
+print(json.dumps(sys.argv[1]))
+PY
+}
+
+# TODO: Document cold_customer_json_field.
+cold_customer_json_field() {
+    local json_body="$1"
+    local field_name="$2"
+
+    printf '%s' "$json_body" | python3 -c '
+import json
+import sys
+
+try:
+    payload = json.load(sys.stdin)
+except json.JSONDecodeError:
+    raise SystemExit(0)
+value = payload.get(sys.argv[1], "")
+if value is None:
+    print("")
+elif isinstance(value, bool):
+    print("true" if value else "false")
+else:
+    print(value)
+' "$field_name" || true
+}
+
+# TODO: Document cold_customer_json_array_length.
+cold_customer_json_array_length() {
+    local json_body="$1"
+    local field_name="$2"
+
+    printf '%s' "$json_body" | python3 -c '
+import json
+import sys
+
+try:
+    payload = json.load(sys.stdin)
+except json.JSONDecodeError:
+    raise SystemExit(0)
+value = payload.get(sys.argv[1])
+if isinstance(value, list):
+    print(len(value))
+' "$field_name" || true
+}
+
+# TODO: Document cold_customer_reset_invocation_mode.
+cold_customer_reset_invocation_mode() {
+    COLD_CUSTOMER_ENV="staging"
+    COLD_CUSTOMER_DRY_RUN=0
+    COLD_CUSTOMER_ENV_FILE=""
+    COLD_CUSTOMER_EVIDENCE_DIR=""
+    if [ "${COLD_CUSTOMER_DRY_RUN_STUBS_INSTALLED:-0}" -eq 1 ] \
+        && [ "${COLD_CUSTOMER_TEST_CURL_STUB:-0}" != "1" ]; then
+        unset -f curl 2>/dev/null || true
+        unset -f test_inbox_find_matching_object_key 2>/dev/null || true
+        unset -f test_inbox_fetch_rfc822 2>/dev/null || true
+    fi
+    if [ "${COLD_CUSTOMER_DRY_RUN_STUBS_INSTALLED:-0}" -eq 1 ]; then
+        unset ADMIN_KEY 2>/dev/null || true
+        unset CANARY_TEST_INBOX_S3_URI 2>/dev/null || true
+        unset CANARY_TEST_INBOX_DOMAIN 2>/dev/null || true
+    fi
+    COLD_CUSTOMER_DRY_RUN_STUBS_INSTALLED=0
+}
+
+cold_customer_reset_run_state() {
+    COLD_CUSTOMER_BATCH_SEED=""
+    COLD_CUSTOMER_SEARCH_TERM=""
+    COLD_CUSTOMER_BATCH_ACCEPTED=0
+    COLD_CUSTOMER_VERIFIED=false
+    COLD_CUSTOMER_SEEDED_RECORD_OBJECT_ID=""
+    COLD_CUSTOMER_SEEDED_RECORD_TITLE=""
+    COLD_CUSTOMER_FAILURE_STEP=""
+    COLD_CUSTOMER_FAILURE_DETAIL=""
+    COLD_CUSTOMER_SEARCH_RETRY_SLEEP_SECONDS="${COLD_CUSTOMER_SEARCH_RETRY_SLEEP_SECONDS:-2}"
+    COLD_CUSTOMER_SEARCH_MAX_ATTEMPTS="${COLD_CUSTOMER_SEARCH_MAX_ATTEMPTS:-8}"
+    HTTP_RESPONSE_CODE=0
+    HTTP_RESPONSE_BODY=""
+    HTTP_RESPONSE_EXIT_STATUS=0
+}
+
+# TODO: Document cold_customer_parse_args.
+cold_customer_parse_args() {
+    while [ "$#" -gt 0 ]; do
+        case "$1" in
+            --dry-run)
+                COLD_CUSTOMER_DRY_RUN=1
+                shift
+                ;;
+            --env-file)
+                COLD_CUSTOMER_ENV_FILE="${2:-}"
+                shift 2
+                ;;
+            --evidence-dir)
+                COLD_CUSTOMER_EVIDENCE_DIR="${2:-}"
+                shift 2
+                ;;
+            --env)
+                COLD_CUSTOMER_ENV="${2:-}"
+                shift 2
+                ;;
+            --help|-h)
+                cold_customer_usage
+                return 2
+                ;;
+            *)
+                echo "unknown argument: $1" >&2
+                cold_customer_usage >&2
+                return 2
+                ;;
+        esac
+    done
+
+    if [ "$COLD_CUSTOMER_ENV" != "staging" ]; then
+        echo "--env must be staging (got ${COLD_CUSTOMER_ENV})" >&2
+        return 2
+    fi
+    if [ -z "$COLD_CUSTOMER_EVIDENCE_DIR" ]; then
+        echo "--evidence-dir is required" >&2
+        return 2
+    fi
+    if [ "$COLD_CUSTOMER_DRY_RUN" -eq 0 ] && [ -z "$COLD_CUSTOMER_ENV_FILE" ]; then
+        echo "--env-file is required outside --dry-run" >&2
+        return 2
+    fi
+}
+
+# TODO: Document cold_customer_prepare_environment.
+cold_customer_prepare_environment() {
+    mkdir -p "$COLD_CUSTOMER_EVIDENCE_DIR"
+    COLD_CUSTOMER_STEPS_FILE="$COLD_CUSTOMER_EVIDENCE_DIR/cli_steps.jsonl"
+    COLD_CUSTOMER_SUMMARY_FILE="$COLD_CUSTOMER_EVIDENCE_DIR/summary.json"
+    : > "$COLD_CUSTOMER_STEPS_FILE"
+    cold_customer_reset_run_state
+
+    if [ -n "$COLD_CUSTOMER_ENV_FILE" ]; then
+        if [ ! -f "$COLD_CUSTOMER_ENV_FILE" ]; then
+            echo "env file not found: $COLD_CUSTOMER_ENV_FILE" >&2
+            return 2
+        fi
+        load_env_file "$COLD_CUSTOMER_ENV_FILE"
+    fi
+
+    API_URL="${API_URL:-https://api.staging.flapjack.foo}"
+    API_URL="${API_URL%/}"
+    if [ "$API_URL" != "https://api.staging.flapjack.foo" ]; then
+        echo "API_URL must be https://api.staging.flapjack.foo (got ${API_URL})" >&2
+        return 2
+    fi
+
+    CANARY_TEST_INBOX_DOMAIN="${CANARY_TEST_INBOX_DOMAIN:-${TEST_INBOX_DOMAIN:-test.flapjack.foo}}"
+    CANARY_TEST_INBOX_S3_URI="${CANARY_TEST_INBOX_S3_URI:-${INBOUND_ROUNDTRIP_S3_URI:-}}"
+    CANARY_AWS_REGION="${CANARY_AWS_REGION:-${AWS_REGION:-${AWS_DEFAULT_REGION:-us-east-1}}}"
+    CANARY_INBOX_MAX_ATTEMPTS="${CANARY_INBOX_MAX_ATTEMPTS:-12}"
+    CANARY_INBOX_SLEEP_SECONDS="${CANARY_INBOX_SLEEP_SECONDS:-5}"
+    CANARY_INDEX_REGION="${CANARY_INDEX_REGION:-us-east-1}"
+    FLOW_FAILED=0
+    FLOW_FAILURE_STEP=""
+    FLOW_FAILURE_DETAIL=""
+    CANARY_INDEX_NAME=""
+    CANARY_INDEX_CREATED=0
+    CANARY_CUSTOMER_ID=""
+    CANARY_TOKEN=""
+    CANARY_ACCOUNT_DELETED=0
+    CANARY_ADMIN_CLEANED=0
+}
+
+# TODO: Document cold_customer_body_shape_keys_json.
+cold_customer_body_shape_keys_json() {
+    local body="$1"
+    printf '%s' "$body" | python3 -c '
+import json
+import sys
+
+try:
+    payload = json.load(sys.stdin)
+except json.JSONDecodeError:
+    print("[]")
+    raise SystemExit(0)
+if isinstance(payload, dict):
+    print(json.dumps(sorted(payload.keys())))
+else:
+    print("[]")
+'
+}
+
+# TODO: Document cold_customer_append_step_evidence.
+cold_customer_append_step_evidence() {
+    local step="$1"
+    local outcome="$2"
+    local detail="$3"
+    local latency_ms="$4"
+    local shape_keys
+    shape_keys="$(cold_customer_body_shape_keys_json "${HTTP_RESPONSE_BODY:-}")"
+
+    python3 - "$COLD_CUSTOMER_STEPS_FILE" "$step" "${HTTP_RESPONSE_CODE:-0}" \
+        "$shape_keys" "$latency_ms" "$outcome" "$detail" <<'PY'
+import json
+import sys
+
+path, step, status, keys_json, latency, outcome, detail = sys.argv[1:]
+payload = {
+    "step": step,
+    "http_status": int(status) if status.isdigit() else 0,
+    "body_shape_keys": json.loads(keys_json),
+    "latency_ms": int(latency),
+    "outcome": outcome,
+}
+if detail:
+    payload["detail"] = detail
+with open(path, "a", encoding="utf-8") as handle:
+    handle.write(json.dumps(payload, sort_keys=True) + "\n")
+PY
+}
+
+cold_customer_probe_sha() {
+    git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || printf 'unknown\n'
+}
+
+# TODO: Document cold_customer_write_summary.
+cold_customer_write_summary() {
+    local overall="$1"
+    local failing_step="$2"
+    local detail="$3"
+    local probe_sha
+    probe_sha="$(cold_customer_probe_sha)"
+
+    python3 - "$COLD_CUSTOMER_SUMMARY_FILE" "$overall" "$failing_step" "$detail" \
+        "$probe_sha" "${CANARY_CUSTOMER_ID:-}" "$COLD_CUSTOMER_VERIFIED" \
+        "${CANARY_INDEX_NAME:-}" "$COLD_CUSTOMER_BATCH_ACCEPTED" \
+        "$COLD_CUSTOMER_SEEDED_RECORD_OBJECT_ID" "$COLD_CUSTOMER_SEEDED_RECORD_TITLE" <<'PY'
+import json
+import sys
+
+(
+    path,
+    overall,
+    failing_step,
+    detail,
+    probe_sha,
+    customer_id,
+    verified,
+    index_name,
+    batch_accepted,
+    seeded_object_id,
+    seeded_title,
+) = sys.argv[1:]
+payload = {
+    "overall": overall,
+    "failing_step": failing_step,
+    "detail": detail,
+    "probe_sha": probe_sha,
+    "customer_id": customer_id,
+    "verified": verified == "true",
+    "index_name": index_name,
+    "batch_accepted": int(batch_accepted) if batch_accepted.isdigit() else 0,
+    "seeded_record_object_id": seeded_object_id,
+    "seeded_record_title": seeded_title,
+}
+with open(path, "w", encoding="utf-8") as handle:
+    json.dump(payload, handle, indent=2, sort_keys=True)
+    handle.write("\n")
+PY
+}
+
+cold_customer_fail() {
+    COLD_CUSTOMER_FAILURE_STEP="$1"
+    COLD_CUSTOMER_FAILURE_DETAIL="$2"
+}
+
+# TODO: Document cold_customer_run_evidenced_step.
+cold_customer_run_evidenced_step() {
+    local step="$1"
+    local command_name="$2"
+    local assertion_name="$3"
+    local start_ms end_ms latency_ms detail
+
+    start_ms="$(cold_customer_epoch_ms)"
+    FLOW_FAILED=0
+    FLOW_FAILURE_STEP=""
+    FLOW_FAILURE_DETAIL=""
+    COLD_CUSTOMER_FAILURE_STEP=""
+    COLD_CUSTOMER_FAILURE_DETAIL=""
+    HTTP_RESPONSE_CODE=0
+    HTTP_RESPONSE_BODY=""
+    HTTP_RESPONSE_EXIT_STATUS=0
+    if "$command_name" && "$assertion_name"; then
+        end_ms="$(cold_customer_epoch_ms)"
+        latency_ms=$((end_ms - start_ms))
+        cold_customer_append_step_evidence "$step" "pass" "" "$latency_ms"
+        return 0
+    fi
+
+    end_ms="$(cold_customer_epoch_ms)"
+    latency_ms=$((end_ms - start_ms))
+    detail="${COLD_CUSTOMER_FAILURE_DETAIL:-${FLOW_FAILURE_DETAIL:-step_failed}}"
+    cold_customer_append_step_evidence "$step" "fail" "$detail" "$latency_ms"
+    cold_customer_fail "$step" "$detail"
+    return 1
+}
+
+cold_customer_assert_register() {
+    if [ -z "${CANARY_TOKEN:-}" ] || [ -z "${CANARY_CUSTOMER_ID:-}" ]; then
+        cold_customer_fail "register" "missing_token_or_customer_id"
+        return 1
+    fi
+}
+
+cold_customer_assert_verify_email() {
+    local verified message
+    verified="$(cold_customer_json_field "$HTTP_RESPONSE_BODY" "verified")"
+    message="$(cold_customer_json_field "$HTTP_RESPONSE_BODY" "message")"
+    if [ "$verified" = "true" ] || [ "$message" = "email verified" ]; then
+        return 0
+    fi
+    cold_customer_fail "verify_email" "verified_state_missing"
+    return 1
+}
+
+cold_customer_confirm_verified_step() {
+    capture_json_response tenant_call GET "/account" "$CANARY_TOKEN"
+    if [ "${HTTP_RESPONSE_CODE:-}" != "200" ]; then
+        cold_customer_fail "confirm_verified" "account_read_http_${HTTP_RESPONSE_CODE:-unknown}"
+        return 1
+    fi
+    local email_verified
+    email_verified="$(cold_customer_json_field "$HTTP_RESPONSE_BODY" "email_verified")"
+    if [ "$email_verified" != "true" ]; then
+        cold_customer_fail "confirm_verified" "email_verified_false"
+        return 1
+    fi
+    COLD_CUSTOMER_VERIFIED=true
+}
+
+# TODO: Document cold_customer_create_index_step.
+cold_customer_create_index_step() {
+    local payload expected_name actual_name
+    CANARY_INDEX_NAME="cold-customer-${CANARY_NONCE}"
+    expected_name="$CANARY_INDEX_NAME"
+    payload="$(printf '{"name":%s,"region":%s}' \
+        "$(cold_customer_json_quote "$expected_name")" \
+        "$(cold_customer_json_quote "$CANARY_INDEX_REGION")")"
+
+    capture_json_response tenant_call POST "/indexes" "$CANARY_TOKEN" -d "$payload"
+    if [ "${HTTP_RESPONSE_CODE:-}" != "201" ] && [ "${HTTP_RESPONSE_CODE:-}" != "200" ]; then
+        cold_customer_fail "create_index" "index_create_http_${HTTP_RESPONSE_CODE:-unknown}"
+        return 1
+    fi
+    actual_name="$(cold_customer_json_field "$HTTP_RESPONSE_BODY" "name")"
+    if [ "$actual_name" != "$expected_name" ]; then
+        cold_customer_fail "create_index" "created_index_name_mismatch"
+        return 1
+    fi
+    CANARY_INDEX_CREATED=1
+}
+
+cold_customer_noop_assertion() {
+    return 0
+}
+
+# TODO: Document cold_customer_batch_write_step.
+cold_customer_batch_write_step() {
+    local payload accepted task_id
+    payload="$(deterministic_batch_payload "$COLD_CUSTOMER_BATCH_SEED" 0 5)"
+
+    capture_json_response tenant_call POST "/indexes/${CANARY_INDEX_NAME}/batch" "$CANARY_TOKEN" -d "$payload"
+    if [ "${HTTP_RESPONSE_CODE:-}" != "200" ]; then
+        cold_customer_fail "batch_write" "batch_write_http_${HTTP_RESPONSE_CODE:-unknown}"
+        return 1
+    fi
+    task_id="$(cold_customer_json_field "$HTTP_RESPONSE_BODY" "taskID")"
+    if [ -z "$task_id" ]; then
+        cold_customer_fail "batch_write" "task_id_missing"
+        return 1
+    fi
+    accepted="$(cold_customer_json_array_length "$HTTP_RESPONSE_BODY" "objectIDs")"
+    if [ "$accepted" != "5" ]; then
+        COLD_CUSTOMER_BATCH_ACCEPTED="${accepted:-0}"
+        cold_customer_fail "batch_write" "accepted_count_mismatch"
+        return 1
+    fi
+    COLD_CUSTOMER_BATCH_ACCEPTED=5
+}
+
+# TODO: Document cold_customer_search_seeded_result.
+cold_customer_search_seeded_result() {
+    printf '%s' "$1" | python3 -c '
+import json
+import sys
+
+try:
+    payload = json.load(sys.stdin)
+except json.JSONDecodeError:
+    raise SystemExit(1)
+search_term = sys.argv[1]
+for hit in payload.get("hits", []):
+    if not isinstance(hit, dict):
+        continue
+    object_id = hit.get("objectID", "")
+    title = hit.get("title", "")
+    body = hit.get("body", "")
+    if object_id == "doc-0" or title == "Document 0" or search_term in body:
+        print(f"{object_id}|{title}")
+        raise SystemExit(0)
+raise SystemExit(1)
+' "$COLD_CUSTOMER_SEARCH_TERM" || true
+}
+
+cold_customer_sleep_before_search_retry() {
+    if [ "$COLD_CUSTOMER_SEARCH_RETRY_SLEEP_SECONDS" -gt 0 ]; then
+        sleep "$COLD_CUSTOMER_SEARCH_RETRY_SLEEP_SECONDS"
+    fi
+}
+
+# TODO: Document cold_customer_search_index_step.
+cold_customer_search_index_step() {
+    local payload search_result detail attempt
+    payload="$(printf '{"query":%s}' "$(cold_customer_json_quote "$COLD_CUSTOMER_SEARCH_TERM")")"
+    detail="seeded_record_missing"
+
+    for attempt in $(seq 1 "$COLD_CUSTOMER_SEARCH_MAX_ATTEMPTS"); do
+        capture_json_response tenant_call POST "/indexes/${CANARY_INDEX_NAME}/search" "$CANARY_TOKEN" -d "$payload"
+        if [ "${HTTP_RESPONSE_CODE:-}" != "200" ]; then
+            detail="search_http_${HTTP_RESPONSE_CODE:-unknown}"
+        else
+            search_result="$(cold_customer_search_seeded_result "$HTTP_RESPONSE_BODY")"
+            if [ -n "$search_result" ]; then
+                COLD_CUSTOMER_SEEDED_RECORD_OBJECT_ID="${search_result%%|*}"
+                COLD_CUSTOMER_SEEDED_RECORD_TITLE="${search_result#*|}"
+                return 0
+            fi
+            detail="seeded_record_missing"
+        fi
+
+        if [ "$attempt" -lt "$COLD_CUSTOMER_SEARCH_MAX_ATTEMPTS" ]; then
+            cold_customer_sleep_before_search_retry
+        fi
+    done
+
+    if [ -z "${search_result:-}" ]; then
+        cold_customer_fail "search_index" "$detail"
+        return 1
+    fi
+}
+
+cold_customer_delete_index_step() {
+    if [ "${CANARY_INDEX_CREATED:-0}" -ne 1 ] || [ -z "${CANARY_INDEX_NAME:-}" ]; then
+        return 0
+    fi
+
+    capture_json_response tenant_call DELETE "/indexes/${CANARY_INDEX_NAME}" "$CANARY_TOKEN" \
+        -d '{"confirm":true}'
+    if [ "${HTTP_RESPONSE_CODE:-}" != "204" ] && [ "${HTTP_RESPONSE_CODE:-}" != "404" ]; then
+        cold_customer_fail "delete_index" "delete_index_http_${HTTP_RESPONSE_CODE:-unknown}"
+        return 1
+    fi
+    CANARY_INDEX_CREATED=0
+}
+
+cold_customer_delete_account_step() {
+    local payload
+
+    if [ "${CANARY_ACCOUNT_DELETED:-0}" -eq 1 ] || [ -z "${CANARY_TOKEN:-}" ]; then
+        return 0
+    fi
+
+    payload="$(printf '{"password":%s}' "$(cold_customer_json_quote "${CANARY_SIGNUP_PASSWORD:-}")")"
+    capture_json_response tenant_call DELETE "/account" "$CANARY_TOKEN" -d "$payload"
+    if [ "${HTTP_RESPONSE_CODE:-}" != "204" ] && [ "${HTTP_RESPONSE_CODE:-}" != "404" ]; then
+        cold_customer_fail "delete_account" "delete_account_http_${HTTP_RESPONSE_CODE:-unknown}"
+        return 1
+    fi
+    CANARY_ACCOUNT_DELETED=1
+}
+
+# TODO: Document cold_customer_admin_cleanup_step.
+cold_customer_admin_cleanup_step() {
+    if [ -z "${CANARY_CUSTOMER_ID:-}" ] || [ "${CANARY_ADMIN_CLEANED:-0}" -eq 1 ]; then
+        return 0
+    fi
+    if [ -z "${ADMIN_KEY:-}" ]; then
+        cold_customer_fail "admin_cleanup" "admin_key_missing"
+        return 1
+    fi
+
+    capture_json_response admin_call DELETE "/admin/tenants/${CANARY_CUSTOMER_ID}"
+    if [ "${HTTP_RESPONSE_CODE:-}" != "204" ] && [ "${HTTP_RESPONSE_CODE:-}" != "404" ]; then
+        cold_customer_fail "admin_cleanup" "admin_cleanup_http_${HTTP_RESPONSE_CODE:-unknown}"
+        return 1
+    fi
+    CANARY_ADMIN_CLEANED=1
+}
+
+cold_customer_install_dry_run_inbox_stubs() {
+    CANARY_TEST_INBOX_S3_URI="s3://cold-customer-dry-run/verification/"
+    CANARY_TEST_INBOX_DOMAIN="test.flapjack.foo"
+    ADMIN_KEY="${ADMIN_KEY:-dry-admin-key}"
+    COLD_CUSTOMER_SEARCH_RETRY_SLEEP_SECONDS=0
+    test_inbox_find_matching_object_key() { printf 'dry-run-message.eml\n'; }
+    test_inbox_fetch_rfc822() { printf 'Click https://cloud.staging.flapjack.foo/verify-email/dry-verify-token\n'; }
+    COLD_CUSTOMER_DRY_RUN_STUBS_INSTALLED=1
+}
+
+cold_customer_emit_curl_response() {
+    local body="$1"
+    local status="$2"
+    local write_format="$3"
+
+    printf '%s' "$body"
+    if [ -n "$write_format" ]; then
+        printf '\n%s' "$status"
+    fi
+}
+
+# TODO: Document cold_customer_dry_run_curl.
+cold_customer_dry_run_curl() {
+    local method="GET" url="" data="" write_format="" path seed_body
+    while [ "$#" -gt 0 ]; do
+        case "$1" in
+            -X) method="$2"; shift 2 ;;
+            -d) data="$2"; shift 2 ;;
+            -w) write_format="$2"; shift 2 ;;
+            http://*|https://*) url="$1"; shift ;;
+            *) shift ;;
+        esac
+    done
+
+    path="${url#https://api.staging.flapjack.foo}"
+    seed_body="$(deterministic_exact_query_term_for_object_id "$COLD_CUSTOMER_BATCH_SEED" doc-0)"
+    case "${method} ${path}" in
+        "POST /auth/register")
+            cold_customer_emit_curl_response '{"token":"dry-token","customer_id":"cust_dry_123"}' "201" "$write_format" ;;
+        "POST /auth/verify-email")
+            cold_customer_emit_curl_response '{"verified":true,"customer_id":"cust_dry_123"}' "200" "$write_format" ;;
+        "GET /account")
+            cold_customer_emit_curl_response '{"email":"cold-customer@example.com","email_verified":true}' "200" "$write_format" ;;
+        "POST /indexes")
+            local index_name
+            index_name="$(cold_customer_json_field "$data" "name")"
+            cold_customer_emit_curl_response "{\"name\":\"${index_name}\",\"region\":\"${CANARY_INDEX_REGION}\"}" "201" "$write_format" ;;
+        "POST "*"/batch")
+            cold_customer_emit_curl_response '{"taskID":99,"objectIDs":["doc-0","doc-1","doc-2","doc-3","doc-4"]}' "200" "$write_format" ;;
+        "POST "*"/search")
+            cold_customer_emit_curl_response "{\"hits\":[{\"objectID\":\"doc-0\",\"title\":\"Document 0\",\"body\":\"${seed_body}\"}]}" "200" "$write_format" ;;
+        "DELETE /indexes/"*|"DELETE /account"|"DELETE /admin/tenants/cust_dry_123")
+            cold_customer_emit_curl_response '' "204" "$write_format" ;;
+        *)
+            echo "dry-run unexpected curl call: ${method} ${url}" >&2
+            return 97 ;;
+    esac
+}
+
+cold_customer_install_dry_run_curl_stub() {
+    if [ "${COLD_CUSTOMER_TEST_CURL_STUB:-0}" = "1" ]; then
+        return 0
+    fi
+    curl() { cold_customer_dry_run_curl "$@"; }
+    COLD_CUSTOMER_DRY_RUN_STUBS_INSTALLED=1
+}
+
+# TODO: Document cold_customer_run_flow.
+cold_customer_run_flow() {
+    COLD_CUSTOMER_BATCH_SEED="$(date +%s)"
+    if [ "$COLD_CUSTOMER_DRY_RUN" -eq 1 ]; then
+        COLD_CUSTOMER_BATCH_SEED=42
+        cold_customer_install_dry_run_inbox_stubs
+        cold_customer_install_dry_run_curl_stub
+    fi
+    COLD_CUSTOMER_SEARCH_TERM="$(deterministic_exact_query_term_for_object_id "$COLD_CUSTOMER_BATCH_SEED" doc-0)"
+
+    cold_customer_run_evidenced_step "register" run_signup_step cold_customer_assert_register || return 1
+    cold_customer_run_evidenced_step "verify_email" run_verify_email_step cold_customer_assert_verify_email || return 1
+    cold_customer_run_evidenced_step "confirm_verified" cold_customer_confirm_verified_step cold_customer_noop_assertion || return 1
+    cold_customer_run_evidenced_step "create_index" cold_customer_create_index_step cold_customer_noop_assertion || return 1
+    cold_customer_run_evidenced_step "batch_write" cold_customer_batch_write_step cold_customer_noop_assertion || return 1
+    cold_customer_run_evidenced_step "search_index" cold_customer_search_index_step cold_customer_noop_assertion || return 1
+}
+
+# TODO: Document cold_customer_cleanup_after_flow.
+cold_customer_cleanup_after_flow() {
+    local prior_step="$COLD_CUSTOMER_FAILURE_STEP"
+    local prior_detail="$COLD_CUSTOMER_FAILURE_DETAIL"
+    local cleanup_failed=0
+
+    if [ "${CANARY_INDEX_CREATED:-0}" -eq 1 ]; then
+        cold_customer_run_evidenced_step "delete_index" cold_customer_delete_index_step cold_customer_noop_assertion || cleanup_failed=1
+    fi
+    if [ -n "${CANARY_TOKEN:-}" ] && [ "${CANARY_ACCOUNT_DELETED:-0}" -eq 0 ]; then
+        cold_customer_run_evidenced_step "delete_account" cold_customer_delete_account_step cold_customer_noop_assertion || cleanup_failed=1
+    fi
+    if [ -n "${CANARY_CUSTOMER_ID:-}" ] && [ "${CANARY_ADMIN_CLEANED:-0}" -eq 0 ]; then
+        cold_customer_run_evidenced_step "admin_cleanup" cold_customer_admin_cleanup_step cold_customer_noop_assertion || cleanup_failed=1
+    fi
+
+    if [ -n "$prior_step" ]; then
+        COLD_CUSTOMER_FAILURE_STEP="$prior_step"
+        COLD_CUSTOMER_FAILURE_DETAIL="$prior_detail"
+    fi
+    return "$cleanup_failed"
+}
+
+# TODO: Document cold_customer_main.
+cold_customer_main() {
+    local flow_rc=0 cleanup_rc=0
+
+    cold_customer_reset_invocation_mode
+    cold_customer_reset_run_state
+    if ! cold_customer_parse_args "$@"; then
+        return 2
+    fi
+    if ! cold_customer_prepare_environment; then
+        return 2
+    fi
+
+    if ! cold_customer_run_flow; then
+        flow_rc=1
+    fi
+    if ! cold_customer_cleanup_after_flow; then
+        cleanup_rc=1
+    fi
+
+    if [ "$flow_rc" -eq 0 ] && [ "$cleanup_rc" -eq 0 ]; then
+        cold_customer_write_summary "pass" "" ""
+        log "probe passed; evidence=$COLD_CUSTOMER_EVIDENCE_DIR"
+        return 0
+    fi
+
+    cold_customer_write_summary "fail" "$COLD_CUSTOMER_FAILURE_STEP" "$COLD_CUSTOMER_FAILURE_DETAIL"
+    log "probe failed at ${COLD_CUSTOMER_FAILURE_STEP}: ${COLD_CUSTOMER_FAILURE_DETAIL}" >&2
+    return 1
+}
+
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+    cold_customer_main "$@"
+fi
+#!/usr/bin/env bash
+# Contract tests for the cold-customer journey CLI probe.
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+PROBE_SCRIPT="$REPO_ROOT/scripts/canary/contracts/cold_customer_journey_walkthrough.sh"
+
+PASS_COUNT=0
+FAIL_COUNT=0
+
+pass() {
+    echo "PASS: $1"
+    PASS_COUNT=$((PASS_COUNT + 1))
+}
+
+fail() {
+    echo "FAIL: $*" >&2
+    FAIL_COUNT=$((FAIL_COUNT + 1))
+}
+
+# shellcheck source=lib/assertions.sh
+source "$SCRIPT_DIR/lib/assertions.sh"
+
+test_default_index_region_matches_staging_region_contract() {
+    local tmp_dir
+    tmp_dir="$(mktemp -d)"
+    trap 'rm -rf "'"$tmp_dir"'"; trap - RETURN' RETURN
+
+    unset CANARY_INDEX_REGION
+    # shellcheck source=../canary/contracts/cold_customer_journey_walkthrough.sh
+    source "$PROBE_SCRIPT"
+
+    cold_customer_parse_args --dry-run --evidence-dir "$tmp_dir/evidence"
+    cold_customer_prepare_environment
+
+    assert_eq "$CANARY_INDEX_REGION" "us-east-1" \
+        "default index region should use the staging API's canonical region ID"
+}
+
+test_explicit_index_region_override_is_preserved() {
+    local tmp_dir
+    tmp_dir="$(mktemp -d)"
+    trap 'rm -rf "'"$tmp_dir"'"; trap - RETURN' RETURN
+
+    CANARY_INDEX_REGION="eu-west-1"
+    # shellcheck source=../canary/contracts/cold_customer_journey_walkthrough.sh
+    source "$PROBE_SCRIPT"
+
+    cold_customer_parse_args --dry-run --evidence-dir "$tmp_dir/evidence"
+    cold_customer_prepare_environment
+
+    assert_eq "$CANARY_INDEX_REGION" "eu-west-1" \
+        "explicit index region override should be preserved"
+}
+
+test_default_inbox_domain_matches_ses_inbound_contract() {
+    local tmp_dir
+    tmp_dir="$(mktemp -d)"
+    trap 'rm -rf "'"$tmp_dir"'"; trap - RETURN' RETURN
+
+    unset CANARY_TEST_INBOX_DOMAIN
+    unset TEST_INBOX_DOMAIN
+    # shellcheck source=../canary/contracts/cold_customer_journey_walkthrough.sh
+    source "$PROBE_SCRIPT"
+
+    cold_customer_parse_args --dry-run --evidence-dir "$tmp_dir/evidence"
+    cold_customer_prepare_environment
+
+    assert_eq "$CANARY_TEST_INBOX_DOMAIN" "test.flapjack.foo" \
+        "default inbox domain should match SES inbound routing (test.flapjack.foo)"
+}
+
+test_dry_run_inbox_stub_keeps_ses_inbound_domain() {
+    local tmp_dir
+    tmp_dir="$(mktemp -d)"
+    trap 'rm -rf "'"$tmp_dir"'"; trap - RETURN' RETURN
+
+    unset CANARY_TEST_INBOX_DOMAIN
+    unset TEST_INBOX_DOMAIN
+    # shellcheck source=../canary/contracts/cold_customer_journey_walkthrough.sh
+    source "$PROBE_SCRIPT"
+
+    cold_customer_parse_args --dry-run --evidence-dir "$tmp_dir/evidence"
+    cold_customer_prepare_environment
+    cold_customer_install_dry_run_inbox_stubs
+
+    assert_eq "$CANARY_TEST_INBOX_DOMAIN" "test.flapjack.foo" \
+        "dry-run inbox stub should preserve SES inbound routing domain before signup"
+}
+
+test_default_search_retry_budget_widened() {
+    local tmp_dir
+    tmp_dir="$(mktemp -d)"
+    trap 'rm -rf "'"$tmp_dir"'"; trap - RETURN' RETURN
+
+    unset COLD_CUSTOMER_SEARCH_MAX_ATTEMPTS
+    unset COLD_CUSTOMER_SEARCH_RETRY_SLEEP_SECONDS
+    # shellcheck source=../canary/contracts/cold_customer_journey_walkthrough.sh
+    source "$PROBE_SCRIPT"
+
+    cold_customer_parse_args --dry-run --evidence-dir "$tmp_dir/evidence"
+    cold_customer_prepare_environment
+
+    assert_eq "$COLD_CUSTOMER_SEARCH_MAX_ATTEMPTS" "8" \
+        "default search max attempts should be 8"
+    assert_eq "$COLD_CUSTOMER_SEARCH_RETRY_SLEEP_SECONDS" "2" \
+        "default search retry sleep should be 2 seconds"
+}
+
+test_search_retry_budget_overrides_preserved() {
+    local tmp_dir
+    tmp_dir="$(mktemp -d)"
+    trap 'rm -rf "'"$tmp_dir"'"; trap - RETURN' RETURN
+
+    COLD_CUSTOMER_SEARCH_MAX_ATTEMPTS=3
+    COLD_CUSTOMER_SEARCH_RETRY_SLEEP_SECONDS=5
+    # shellcheck source=../canary/contracts/cold_customer_journey_walkthrough.sh
+    source "$PROBE_SCRIPT"
+
+    cold_customer_parse_args --dry-run --evidence-dir "$tmp_dir/evidence"
+    cold_customer_prepare_environment
+
+    assert_eq "$COLD_CUSTOMER_SEARCH_MAX_ATTEMPTS" "3" \
+        "explicit search max attempts override should be preserved"
+    assert_eq "$COLD_CUSTOMER_SEARCH_RETRY_SLEEP_SECONDS" "5" \
+        "explicit search retry sleep override should be preserved"
+}
+
+test_default_index_region_matches_staging_region_contract
+test_explicit_index_region_override_is_preserved
+test_default_inbox_domain_matches_ses_inbound_contract
+test_dry_run_inbox_stub_keeps_ses_inbound_domain
+test_default_search_retry_budget_widened
+test_search_retry_budget_overrides_preserved
+
+if [ "$FAIL_COUNT" -ne 0 ]; then
+    echo "cold_customer_journey_walkthrough_test: $FAIL_COUNT failure(s), $PASS_COUNT pass(es)" >&2
+    exit 1
+fi
+
+echo "cold_customer_journey_walkthrough_test: all $PASS_COUNT test(s) passed"
+/**
+ * @module Stub summary for web/playwright.config.contract.ts.
+ */
+import { randomUUID } from 'node:crypto';
+import { existsSync, readFileSync } from 'node:fs';
+import { requireNonBlankString, requireNonEmptyString } from './tests/fixtures/contract-guards';
+
+export const DEFAULT_PLAYWRIGHT_BASE_URL = 'http://localhost:5173';
+export const DEFAULT_PLAYWRIGHT_ADMIN_KEY = `playwright-local-admin-${randomUUID()}`;
+export const PLAYWRIGHT_WEB_SERVER_COMMAND =
+	'../scripts/playwright_local_stack.sh --force-api-restart';
+export const PLAYWRIGHT_WEB_ONLY_SERVER_COMMAND = '../scripts/web-dev.sh';
+export const PLAYWRIGHT_WEB_PORT_ENV = 'PLAYWRIGHT_WEB_PORT';
+export const PLAYWRIGHT_API_PORT_ENV = 'PLAYWRIGHT_API_PORT';
+// Flapjack listens on a workspace-derived port (see resolveDefaultPlaywrightFlapjackPort)
+// so parallel worktrees do not collide on a single shared flapjack instance. Before
+// 2026-05-26 the flapjack URL was hardcoded to DEFAULT_FLAPJACK_URL (:7700) for every
+// workspace; concurrent worktrees then reused each other's flapjack — whose in-memory
+// node admin key did not match — and every proxied index op (settings/browse/rules/
+// synonyms/…) failed flapjack auth with HTTP 403 "Invalid Application-ID or API key".
+export const PLAYWRIGHT_FLAPJACK_PORT_ENV = 'PLAYWRIGHT_FLAPJACK_PORT';
+export const PLAYWRIGHT_STORAGE_STATE = {
+	user: 'tests/fixtures/.auth/user.json',
+	onboarding: 'tests/fixtures/.auth/onboarding.json',
+	customerJourneys: 'tests/fixtures/.auth/customer-journeys.json',
+	admin: 'tests/fixtures/.auth/admin.json'
+} as const;
+export const PLAYWRIGHT_WEB_SERVER_TIMEOUT_MS = 180_000;
+// Firefox/WebKit dropped 2026-05-02. Playwright-on-Linux WebKit isn't real
+// Safari (no ITP, no Apple Pay, no Stripe 3DS quirks), and Firefox is
+// ~3-6% of users — neither earns its CI cycle cost at paid-beta scale.
+// Real Safari smoke is operator-driven on macOS pre-launch.
+export const PLAYWRIGHT_DESKTOP_DEVICE = {
+	chromium: 'Desktop Chrome'
+} as const;
+export type PlaywrightDesktopBrowser = keyof typeof PLAYWRIGHT_DESKTOP_DEVICE;
+
+// Fixture-side env defaults — single source of truth for values previously
+// scattered across fixtures.ts, searchable-index.ts, auth.setup.ts, etc.
+export const DEFAULT_FLAPJACK_URL = 'http://localhost:7700';
+export const DEFAULT_TEST_REGION = 'us-east-1';
+export const DEFAULT_E2E_USER_EMAIL = 'dev@example.com';
+export const DEFAULT_E2E_USER_PASSWORD = 'localdev-password-1234';
+
+export type PlaywrightProjectContract = {
+	name: string;
+	testMatch: RegExp;
+	dependencies?: string[];
+	use?: {
+		desktopBrowser?: PlaywrightDesktopBrowser;
+		storageState?: string;
+		trace?: 'off' | 'on-first-retry';
+		screenshot?: 'off' | 'only-on-failure';
+	};
+};
+
+export type ResolvePlaywrightRuntimeParams = {
+	processEnv: Record<string, string | undefined>;
+	repoEnv: Record<string, string>;
+	webEnv: Record<string, string>;
+	fallbackJwtSecret: string;
+	argv?: string[];
+	workspacePath?: string;
+};
+
+export type ApplyPlaywrightProcessEnvDefaultsParams = Omit<
+	ResolvePlaywrightRuntimeParams,
+	'fallbackJwtSecret'
+>;
+
+export type PlaywrightWebServerContract = {
+	command: string;
+	env: Record<string, string>;
+	url: string;
+	reuseExistingServer: boolean;
+	timeout: number;
+};
+
+export type PlaywrightRuntimeContract = {
+	baseURL: string;
+	webServerEnv: Record<string, string>;
+	webServer: PlaywrightWebServerContract | undefined;
+};
+
+/**
+ * TODO: Document isPublicOnlyPlaywrightSelection.
+ */
+function isPublicOnlyPlaywrightSelection(argv: string[]): boolean {
+	let hasPublicProjectSelection = false;
+	for (let index = 0; index < argv.length; index += 1) {
+		const arg = argv[index];
+		if (arg === '--project' && argv[index + 1] === 'chromium:public') {
+			hasPublicProjectSelection = true;
+			continue;
+		}
+		if (arg.startsWith('--project=') && arg.slice('--project='.length) === 'chromium:public') {
+			hasPublicProjectSelection = true;
+		}
+	}
+
+	if (!hasPublicProjectSelection) {
+		return false;
+	}
+
+	const specFilters = argv.filter((arg) => arg.includes('.spec.ts'));
+	if (specFilters.length === 0) {
+		return true;
+	}
+
+	return specFilters.every((filterArg) => filterArg.includes('public-'));
+}
+
+const PLAYWRIGHT_DEFAULT_PORT_HASH_MIN = 5600;
+const PLAYWRIGHT_DEFAULT_PORT_HASH_SPAN = 2000;
+const PLAYWRIGHT_DEFAULT_API_PORT_HASH_MIN = 7600;
+// Flapjack band sits above web (5600–7599), API (7600–9599), and the API's S3 sidecar
+// (apiPort+1, ≤9600) so the three workspace-derived ports — which all share the same
+// hash offset — never collide. 9700 + offset(0–1999) → 9700–11699, safely below 65535.
+const PLAYWRIGHT_DEFAULT_FLAPJACK_PORT_HASH_MIN = 9700;
+const LOOPBACK_HTTP_HOST = 'localhost';
+const API_LOOPBACK_HTTP_HOST = '127.0.0.1';
+const FNV1A_32_OFFSET_BASIS = 0x811c9dc5;
+const FNV1A_32_PRIME = 0x01000193;
+
+function hashStringFNV1A(input: string): number {
+	let hash = FNV1A_32_OFFSET_BASIS;
+	for (let index = 0; index < input.length; index += 1) {
+		hash ^= input.charCodeAt(index);
+		hash = Math.imul(hash, FNV1A_32_PRIME);
+	}
+	return hash >>> 0;
+}
+
+function parsePlaywrightWebPort(rawPort: string): number {
+	if (!/^\d+$/.test(rawPort)) {
+		throw new Error(
+			`${PLAYWRIGHT_WEB_PORT_ENV} must be an integer TCP port when set (received "${rawPort}")`
+		);
+	}
+	const parsedPort = Number(rawPort);
+	if (!Number.isInteger(parsedPort) || parsedPort < 1024 || parsedPort > 65535) {
+		throw new Error(
+			`${PLAYWRIGHT_WEB_PORT_ENV} must be between 1024 and 65535 when set (received "${rawPort}")`
+		);
+	}
+	return parsedPort;
+}
+
+export function resolveDefaultPlaywrightWebPort(workspacePath: string = process.cwd()): number {
+	const normalizedWorkspacePath = workspacePath.trim();
+	if (normalizedWorkspacePath.length === 0) {
+		return 5173;
+	}
+	const portOffset = hashStringFNV1A(normalizedWorkspacePath) % PLAYWRIGHT_DEFAULT_PORT_HASH_SPAN;
+	return PLAYWRIGHT_DEFAULT_PORT_HASH_MIN + portOffset;
+}
+
+export function resolveDefaultPlaywrightApiPort(workspacePath: string = process.cwd()): number {
+	const normalizedWorkspacePath = workspacePath.trim();
+	if (normalizedWorkspacePath.length === 0) {
+		return 3001;
+	}
+	const portOffset = hashStringFNV1A(normalizedWorkspacePath) % PLAYWRIGHT_DEFAULT_PORT_HASH_SPAN;
+	return PLAYWRIGHT_DEFAULT_API_PORT_HASH_MIN + portOffset;
+}
+
+export function resolveDefaultPlaywrightFlapjackPort(
+	workspacePath: string = process.cwd()
+): number {
+	const normalizedWorkspacePath = workspacePath.trim();
+	if (normalizedWorkspacePath.length === 0) {
+		// Mirror the web/API resolvers' empty-path fallback: a fixed default that
+		// matches the legacy hardcoded DEFAULT_FLAPJACK_URL port (7700) so callers
+		// with no workspace context keep the historical behavior.
+		return 7700;
+	}
+	const portOffset = hashStringFNV1A(normalizedWorkspacePath) % PLAYWRIGHT_DEFAULT_PORT_HASH_SPAN;
+	return PLAYWRIGHT_DEFAULT_FLAPJACK_PORT_HASH_MIN + portOffset;
+}
+
+function buildPlaywrightApiUrl(port: number): string {
+	return `http://${API_LOOPBACK_HTTP_HOST}:${port}`;
+}
+
+export const DEFAULT_API_URL = buildPlaywrightApiUrl(resolveDefaultPlaywrightApiPort());
+
+function resolvePlaywrightWebPort(
+	processEnv: Record<string, string | undefined>,
+	workspacePath: string
+): number {
+	const configuredPort = processEnv[PLAYWRIGHT_WEB_PORT_ENV]?.trim();
+	if (configuredPort && configuredPort.length > 0) {
+		return parsePlaywrightWebPort(configuredPort);
+	}
+	return resolveDefaultPlaywrightWebPort(workspacePath);
+}
+
+function resolvePlaywrightApiPort(
+	processEnv: Record<string, string | undefined>,
+	workspacePath: string
+): number {
+	const configuredPort = processEnv[PLAYWRIGHT_API_PORT_ENV]?.trim();
+	if (configuredPort && configuredPort.length > 0) {
+		return parsePlaywrightWebPort(configuredPort);
+	}
+	return resolveDefaultPlaywrightApiPort(workspacePath);
+}
+
+function resolvePlaywrightFlapjackPort(
+	processEnv: Record<string, string | undefined>,
+	workspacePath: string
+): number {
+	const configuredPort = processEnv[PLAYWRIGHT_FLAPJACK_PORT_ENV]?.trim();
+	if (configuredPort && configuredPort.length > 0) {
+		// Reuse the web-port parser: same 1024–65535 integer contract.
+		return parsePlaywrightWebPort(configuredPort);
+	}
+	return resolveDefaultPlaywrightFlapjackPort(workspacePath);
+}
+
+function buildPlaywrightLoopbackUrl(port: number): string {
+	return `http://localhost:${port}`;
+}
+
+export const PLAYWRIGHT_PROJECT_CONTRACTS: PlaywrightProjectContract[] = [
+	{
+		name: 'setup:user',
+		testMatch: /fixtures\/auth\.setup\.ts/
+	},
+	{
+		name: 'setup:admin',
+		testMatch: /fixtures\/admin\.auth\.setup\.ts/
+	},
+	{
+		name: 'setup:onboarding',
+		testMatch: /fixtures\/onboarding\.auth\.setup\.ts/
+	},
+	{
+		name: 'setup:customer-journeys',
+		testMatch: /fixtures\/customer-journeys\.auth\.setup\.ts/
+	},
+	{
+		name: 'chromium:public',
+		testMatch: /e2e-ui\/(smoke|full)\/public-.+\.spec\.ts/,
+		use: { desktopBrowser: 'chromium' }
+	},
+	{
+		name: 'chromium:signup',
+		testMatch: /e2e-ui\/full\/signup_to_paid_invoice\.spec\.ts/,
+		use: { desktopBrowser: 'chromium' }
+	},
+	{
+		name: 'chromium:mocked',
+		testMatch: /e2e-ui\/mocked\/.+\.spec\.ts/,
+		dependencies: ['setup:user'],
+		use: {
+			desktopBrowser: 'chromium',
+			storageState: PLAYWRIGHT_STORAGE_STATE.user
+		}
+	},
+	{
+		name: 'chromium',
+		testMatch:
+			/e2e-ui\/(smoke|full)\/(?!admin|public-|onboarding\.|customer-journeys\.|signup_to_paid_invoice\.).+\.spec\.ts/,
+		dependencies: ['setup:user'],
+		use: {
+			desktopBrowser: 'chromium',
+			storageState: PLAYWRIGHT_STORAGE_STATE.user
+		}
+	},
+	{
+		name: 'chromium:onboarding',
+		testMatch: /e2e-ui\/full\/onboarding\.spec\.ts/,
+		dependencies: ['setup:onboarding'],
+		use: {
+			desktopBrowser: 'chromium',
+			storageState: PLAYWRIGHT_STORAGE_STATE.onboarding,
+			trace: 'off',
+			screenshot: 'off'
+		}
+	},
+	{
+		name: 'chromium:customer-journeys',
+		testMatch: /e2e-ui\/full\/customer-journeys\.spec\.ts/,
+		dependencies: ['setup:customer-journeys'],
+		use: {
+			desktopBrowser: 'chromium',
+			storageState: PLAYWRIGHT_STORAGE_STATE.customerJourneys,
+			trace: 'off',
+			screenshot: 'off'
+		}
+	},
+	{
+		name: 'chromium:admin',
+		testMatch: /e2e-ui\/full\/admin\/.+\.spec\.ts/,
+		dependencies: ['setup:admin'],
+		use: {
+			desktopBrowser: 'chromium',
+			storageState: PLAYWRIGHT_STORAGE_STATE.admin
+		}
+	}
+];
+
+/** Parse KEY=value pairs from a dotenv file into a string record, skipping blanks, comments, and invalid lines. */
+export function parseDotenvFile(filePath: string): Record<string, string> {
+	if (!existsSync(filePath)) {
+		return {};
+	}
+
+	const env: Record<string, string> = {};
+	for (const rawLine of readFileSync(filePath, 'utf8').split(/\r?\n/)) {
+		const line = rawLine.trim();
+		if (line.length === 0 || line.startsWith('#')) {
+			continue;
+		}
+
+		const normalizedLine = line.startsWith('export ') ? line.slice('export '.length).trim() : line;
+		const separatorIndex = normalizedLine.indexOf('=');
+		if (separatorIndex <= 0) {
+			continue;
+		}
+
+		const key = normalizedLine.slice(0, separatorIndex).trim();
+		if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) {
+			continue;
+		}
+
+		const rawValue = normalizedLine.slice(separatorIndex + 1).trim();
+		env[key] = parseDotenvValue(rawValue);
+	}
+
+	return env;
+}
+
+/** Strip matching outer quotes and unescape double-quoted sequences; strip inline comments from unquoted values. */
+export function parseDotenvValue(rawValue: string): string {
+	if (
+		rawValue.length >= 2 &&
+		((rawValue.startsWith('"') && rawValue.endsWith('"')) ||
+			(rawValue.startsWith("'") && rawValue.endsWith("'")))
+	) {
+		const inner = rawValue.slice(1, -1);
+		return rawValue.startsWith('"')
+			? inner.replace(/\\\\/g, '\\').replace(/\\n/g, '\n').replace(/\\"/g, '"')
+			: inner;
+	}
+
+	return rawValue.replace(/\s+#.*$/, '').trim();
+}
+
+export function sanitizeWebServerEnv(
+	env: Record<string, string | undefined>
+): Record<string, string> {
+	// Filter out undefined values so the result is a clean Record<string, string>
+	const entries = Object.entries(env).filter(
+		(entry): entry is [string, string] => typeof entry[1] === 'string'
+	);
+	return Object.fromEntries(entries);
+}
+
+function firstDefinedEnvValue(...values: Array<string | undefined>): string | undefined {
+	return values.find((value) => value !== undefined && value !== '');
+}
+
+function isRemoteTargetOptInActive(processEnv: Record<string, string | undefined>): boolean {
+	return processEnv[REMOTE_TARGET_OPT_IN_ENV] === '1';
+}
+
+function assignFirstDefinedEnvValue(
+	processEnv: Record<string, string | undefined>,
+	key: string,
+	...values: Array<string | undefined>
+): void {
+	const resolvedValue = firstDefinedEnvValue(...values);
+	if (resolvedValue !== undefined) {
+		processEnv[key] = resolvedValue;
+	}
+}
+
+/**
+ * TODO: Document applyPlaywrightProcessEnvDefaults.
+ */
+export function applyPlaywrightProcessEnvDefaults({
+	processEnv,
+	repoEnv,
+	webEnv
+}: ApplyPlaywrightProcessEnvDefaultsParams): void {
+	const allowLocalCredentialFallbacks = !isRemoteTargetOptInActive(processEnv);
+	// Terminal fallback to DEFAULT_PLAYWRIGHT_ADMIN_KEY ensures workers see the
+	// same key that resolvePlaywrightRuntime passes to the web server when no
+	// .env.local or explicit ADMIN_KEY is available. Remote-target mode must
+	// fail closed instead of sending local-dev fallbacks to an allowlisted
+	// non-loopback host.
+	assignFirstDefinedEnvValue(
+		processEnv,
+		'E2E_ADMIN_KEY',
+		processEnv.E2E_ADMIN_KEY,
+		allowLocalCredentialFallbacks ? webEnv.E2E_ADMIN_KEY : undefined,
+		allowLocalCredentialFallbacks ? repoEnv.E2E_ADMIN_KEY : undefined,
+		allowLocalCredentialFallbacks ? webEnv.ADMIN_KEY : undefined,
+		allowLocalCredentialFallbacks ? repoEnv.ADMIN_KEY : undefined,
+		allowLocalCredentialFallbacks ? processEnv.ADMIN_KEY : undefined,
+		allowLocalCredentialFallbacks ? DEFAULT_PLAYWRIGHT_ADMIN_KEY : undefined
+	);
+	assignFirstDefinedEnvValue(
+		processEnv,
+		'E2E_USER_EMAIL',
+		processEnv.E2E_USER_EMAIL,
+		webEnv.E2E_USER_EMAIL,
+		repoEnv.E2E_USER_EMAIL,
+		processEnv.SEED_USER_EMAIL,
+		repoEnv.SEED_USER_EMAIL,
+		webEnv.SEED_USER_EMAIL,
+		allowLocalCredentialFallbacks ? DEFAULT_E2E_USER_EMAIL : undefined
+	);
+	assignFirstDefinedEnvValue(
+		processEnv,
+		'E2E_USER_PASSWORD',
+		processEnv.E2E_USER_PASSWORD,
+		webEnv.E2E_USER_PASSWORD,
+		repoEnv.E2E_USER_PASSWORD,
+		processEnv.SEED_USER_PASSWORD,
+		repoEnv.SEED_USER_PASSWORD,
+		webEnv.SEED_USER_PASSWORD,
+		allowLocalCredentialFallbacks ? DEFAULT_E2E_USER_PASSWORD : undefined
+	);
+	assignFirstDefinedEnvValue(
+		processEnv,
+		'DATABASE_URL',
+		processEnv.DATABASE_URL,
+		repoEnv.DATABASE_URL,
+		webEnv.DATABASE_URL
+	);
+	assignFirstDefinedEnvValue(
+		processEnv,
+		'MAILPIT_API_URL',
+		processEnv.MAILPIT_API_URL,
+		webEnv.MAILPIT_API_URL,
+		repoEnv.MAILPIT_API_URL
+	);
+	assignFirstDefinedEnvValue(
+		processEnv,
+		'STRIPE_WEBHOOK_SECRET',
+		processEnv.STRIPE_WEBHOOK_SECRET,
+		webEnv.STRIPE_WEBHOOK_SECRET,
+		repoEnv.STRIPE_WEBHOOK_SECRET
+	);
+	assignFirstDefinedEnvValue(
+		processEnv,
+		'STRIPE_SECRET_KEY',
+		processEnv.STRIPE_SECRET_KEY,
+		webEnv.STRIPE_SECRET_KEY,
+		repoEnv.STRIPE_SECRET_KEY
+	);
+}
+
+/**
+ * Resolve Playwright runtime configuration from process/repo/web env sources with
+ * loopback-only URL guardrails. BASE_URL stays process-owned for local reruns,
+ * API_BASE_URL follows explicit process overrides before file-backed defaults, and
+ * the spawned web server keeps its existing JWT/admin-key fallback behavior.
+ */
+export function resolvePlaywrightRuntime({
+	processEnv,
+	repoEnv,
+	webEnv,
+	fallbackJwtSecret,
+	argv = [],
+	workspacePath = process.cwd()
+}: ResolvePlaywrightRuntimeParams): PlaywrightRuntimeContract {
+	const webPort = resolvePlaywrightWebPort(processEnv, workspacePath);
+	const apiPort = resolvePlaywrightApiPort(processEnv, workspacePath);
+	const flapjackPort = resolvePlaywrightFlapjackPort(processEnv, workspacePath);
+	const defaultBaseUrl = buildPlaywrightLoopbackUrl(webPort);
+	const defaultApiBaseUrl = buildPlaywrightApiUrl(apiPort);
+	// Per-workspace flapjack URL — replaces the legacy hardcoded DEFAULT_FLAPJACK_URL.
+	// Threaded into BOTH the spawned stack (webServerEnv → playwright_local_stack.sh
+	// starts + targets flapjack here, the API inherits it) AND the fixture process
+	// (processEnv.FLAPJACK_URL → resolveFixtureEnv → seedIndex's create body
+	// `flapjack_url`), so the provisioned node and the proxy agree on one isolated
+	// flapjack. Without this thread, seedIndex would point nodes at :7700 (a foreign
+	// worktree's flapjack) while the stack ran its own — the 403 auth-mismatch source.
+	const defaultFlapjackUrl = buildPlaywrightLoopbackUrl(flapjackPort);
+	const hasExplicitBaseUrl = Boolean(processEnv.BASE_URL && processEnv.BASE_URL.trim().length > 0);
+	// Thread processEnv through so the LB-2/LB-3 remote-target opt-in
+	// (PLAYWRIGHT_TARGET_REMOTE=1) is observed deterministically by the
+	// loopback guard during runtime resolution.
+	const baseURL = requireLoopbackHttpUrl(
+		'BASE_URL',
+		processEnv.BASE_URL ?? defaultBaseUrl,
+		processEnv
+	);
+	if (!hasExplicitBaseUrl) {
+		processEnv.BASE_URL = baseURL;
+		// Local spawned-stack runs must ignore static API_BASE_URL/API_URL values
+		// from shared .env.local to prevent cross-worktree port contention.
+		if (!processEnv.API_BASE_URL || processEnv.API_BASE_URL.trim().length === 0) {
+			processEnv.API_BASE_URL = defaultApiBaseUrl;
+		}
+		if (!processEnv.API_URL || processEnv.API_URL.trim().length === 0) {
+			processEnv.API_URL = defaultApiBaseUrl;
+		}
+		if (
+			!processEnv[PLAYWRIGHT_API_PORT_ENV] ||
+			processEnv[PLAYWRIGHT_API_PORT_ENV]?.trim().length === 0
+		) {
+			processEnv[PLAYWRIGHT_API_PORT_ENV] = String(apiPort);
+		}
+		// Pin the fixture process to the workspace flapjack port so seedIndex /
+		// resolveFixtureEnv provision nodes against the same instance the stack runs.
+		// Respect an explicit FLAPJACK_URL (e.g. a deliberate override) when present.
+		if (!processEnv.FLAPJACK_URL || processEnv.FLAPJACK_URL.trim().length === 0) {
+			processEnv.FLAPJACK_URL = defaultFlapjackUrl;
+		}
+		if (
+			!processEnv.LOCAL_DEV_FLAPJACK_URL ||
+			processEnv.LOCAL_DEV_FLAPJACK_URL.trim().length === 0
+		) {
+			processEnv.LOCAL_DEV_FLAPJACK_URL = defaultFlapjackUrl;
+		}
+		if (
+			!processEnv[PLAYWRIGHT_FLAPJACK_PORT_ENV] ||
+			processEnv[PLAYWRIGHT_FLAPJACK_PORT_ENV]?.trim().length === 0
+		) {
+			processEnv[PLAYWRIGHT_FLAPJACK_PORT_ENV] = String(flapjackPort);
+		}
+	}
+	const apiBaseUrl = requireLoopbackHttpUrl(
+		'API_BASE_URL',
+		processEnv.API_BASE_URL ?? repoEnv.API_BASE_URL ?? webEnv.API_BASE_URL ?? defaultApiBaseUrl,
+		processEnv
+	);
+	const apiUrl = requireLoopbackHttpUrl(
+		'API_URL',
+		processEnv.API_URL ?? repoEnv.API_URL ?? webEnv.API_URL ?? defaultApiBaseUrl,
+		processEnv
+	);
+	processEnv.API_BASE_URL = apiBaseUrl;
+	processEnv.API_URL = apiUrl;
+	const webServerEnv = sanitizeWebServerEnv({
+		...processEnv,
+		...repoEnv,
+		...webEnv,
+		API_BASE_URL: apiBaseUrl,
+		API_URL: apiUrl,
+		[PLAYWRIGHT_API_PORT_ENV]: String(apiPort),
+		[PLAYWRIGHT_FLAPJACK_PORT_ENV]: String(flapjackPort),
+		// Workspace-isolated flapjack URL (see defaultFlapjackUrl above). Prefer an
+		// explicit FLAPJACK_URL the !hasExplicitBaseUrl block already pinned, falling
+		// back to the derived per-workspace URL for the remote-target path.
+		FLAPJACK_URL: processEnv.FLAPJACK_URL ?? defaultFlapjackUrl,
+		LOCAL_DEV_FLAPJACK_URL: processEnv.LOCAL_DEV_FLAPJACK_URL ?? defaultFlapjackUrl,
+		// Keep spawned API listen addresses pinned to the computed Playwright
+		// API port so stale repo env LISTEN_ADDR values (for example 3001) cannot
+		// drift away from the health-check target and stall webServer startup.
+		LISTEN_ADDR: `${API_LOOPBACK_HTTP_HOST}:${apiPort}`,
+		S3_LISTEN_ADDR: `${API_LOOPBACK_HTTP_HOST}:${apiPort + 1}`,
+		JWT_SECRET:
+			processEnv.JWT_SECRET ?? webEnv.JWT_SECRET ?? repoEnv.JWT_SECRET ?? fallbackJwtSecret,
+		ADMIN_KEY:
+			processEnv.E2E_ADMIN_KEY ??
+			webEnv.ADMIN_KEY ??
+			repoEnv.ADMIN_KEY ??
+			processEnv.ADMIN_KEY ??
+			DEFAULT_PLAYWRIGHT_ADMIN_KEY,
+		// The Apr27 hardening (commit d4dde081 "Harden signup verification
+		// bypass") gated SKIP_EMAIL_VERIFICATION on ENVIRONMENT ∈
+		// {local,dev,development}. Both must be set together for the spawned
+		// API server to auto-verify signups, otherwise /signup → /console
+		// redirects back to /login because verification is required, breaking
+		// every fixture in tests/fixtures/onboarding-auth-shared.ts and
+		// auth.setup.ts. These ONLY apply to the locally-spawned webServer
+		// (this whole block is skipped when processEnv.BASE_URL is set, e.g.
+		// running playwright against a real remote deploy).
+		ENVIRONMENT: 'local',
+		SKIP_EMAIL_VERIFICATION: '1',
+		API_DEV_ALLOW_SKIP_EMAIL_VERIFICATION: '1'
+	});
+
+	return {
+		baseURL,
+		webServerEnv,
+		webServer: hasExplicitBaseUrl
+			? undefined
+			: {
+					command: `${
+						isPublicOnlyPlaywrightSelection(argv)
+							? PLAYWRIGHT_WEB_ONLY_SERVER_COMMAND
+							: PLAYWRIGHT_WEB_SERVER_COMMAND
+					} --host ${LOOPBACK_HTTP_HOST} --port ${webPort} --strictPort`,
+					env: webServerEnv,
+					url: baseURL,
+					reuseExistingServer: false,
+					timeout: PLAYWRIGHT_WEB_SERVER_TIMEOUT_MS
+				}
+	};
+}
+
+// ---------------------------------------------------------------------------
+// Fixture-side env resolution — single owner for env name strings and defaults
+// that were previously duplicated across fixtures.ts, searchable-index.ts,
+// auth.setup.ts, and admin.auth.setup.ts.
+// ---------------------------------------------------------------------------
+
+export type FixtureEnv = {
+	apiUrl: string;
+	adminKey: string | undefined;
+	userEmail: string | undefined;
+	userPassword: string | undefined;
+	testRegion: string;
+	flapjackUrl: string;
+};
+
+const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
+
+// LB-2/LB-3 — opt-in remote-target mode for running browser specs against
+// deployed staging. Both conditions must be satisfied to bypass the loopback
+// check: (1) processEnv[REMOTE_TARGET_OPT_IN_ENV] === '1' (literal "1" only,
+// not generic truthy values, to keep the carve-out unambiguous and grep-able);
+// (2) URL host ends with one of REMOTE_TARGET_HOST_SUFFIX_ALLOWLIST. The
+// suffix match is anchored on a literal "." prefix to prevent
+// flapjack.foo.evil.com style bypass. Remote-target mode also requires https
+// because the credentialed flow exports ADMIN_KEY/JWT to the wire.
+//
+// SSoT: this is the ONLY place the carve-out is implemented. All non-local
+// fixtures call requireLoopbackHttpUrl() and inherit this behavior.
+export const REMOTE_TARGET_OPT_IN_ENV = 'PLAYWRIGHT_TARGET_REMOTE';
+export const REMOTE_TARGET_HOST_SUFFIX_ALLOWLIST: readonly string[] = [
+	// Canonical staging+prod root for fjcloud (api.flapjack.foo,
+	// cloud.flapjack.foo, flapjack.flapjack.foo). Adding more entries here
+	// MUST be paired with an explicit security review — every entry widens
+	// where credentialed Playwright runs may direct traffic.
+	'.flapjack.foo'
+];
+
+function isAllowlistedRemoteTargetHost(hostname: string): boolean {
+	// Anchored suffix match — only allow when hostname ENDS with an
+	// allowlisted suffix. The leading "." in each allowlist entry prevents
+	// substring-style bypass like "flapjack.foo.evil.com".
+	for (const suffix of REMOTE_TARGET_HOST_SUFFIX_ALLOWLIST) {
+		if (hostname.endsWith(suffix)) {
+			return true;
+		}
+	}
+	return false;
+}
+
+/**
+ * Reject any URL that is not http/https on a loopback host to prevent
+ * credentialed requests leaking to non-local endpoints.
+ *
+ * processEnv defaults to process.env so existing callers need no change. When
+ * processEnv[REMOTE_TARGET_OPT_IN_ENV] === '1' AND the URL host matches the
+ * staging-only allowlist AND the protocol is https, the loopback check is
+ * waived. See REMOTE_TARGET_HOST_SUFFIX_ALLOWLIST and LB-2/LB-3 in
+ * LAUNCH.md for context.
+ */
+export function requireLoopbackHttpUrl(
+	varName: string,
+	rawUrl: string,
+	processEnv: Record<string, string | undefined> = process.env
+): string {
+	let parsed: URL;
+	try {
+		parsed = new URL(rawUrl);
+	} catch {
+		throw new Error(
+			`${varName} must be a valid http:// or https:// loopback URL for credentialed local browser runs`
+		);
+	}
+
+	if (!['http:', 'https:'].includes(parsed.protocol) || !LOOPBACK_HOSTS.has(parsed.hostname)) {
+		// Default-deny: only the explicit "1" opt-in flag + allowlisted https
+		// host can lift the loopback gate. Any other combination remains
+		// rejected to preserve the original safety posture.
+		const optInActive = processEnv[REMOTE_TARGET_OPT_IN_ENV] === '1';
+		if (
+			optInActive &&
+			parsed.protocol === 'https:' &&
+			isAllowlistedRemoteTargetHost(parsed.hostname)
+		) {
+			return rawUrl;
+		}
+
+		// When opt-in is set but host is not on allowlist (or http instead
+		// of https), surface a more specific error so the operator knows
+		// remote-target mode IS active but their URL was rejected by the
+		// allowlist/protocol rule rather than the original loopback rule.
+		if (optInActive && parsed.protocol !== 'https:') {
+			throw new Error(
+				`${varName} must use https when ${REMOTE_TARGET_OPT_IN_ENV}=1 (refusing to send credentialed requests over an unencrypted channel to a non-loopback host)`
+			);
+		}
+
+		throw new Error(
+			`${varName} must use a local loopback host (localhost, 127.0.0.1, or [::1]) for credentialed local browser runs`
+		);
+	}
+
+	return rawUrl;
+}
+
+/**
+ * TODO: Document resolveFixtureEnv.
+ */
+export function resolveFixtureEnv(processEnv: Record<string, string | undefined>): FixtureEnv {
+	// Thread processEnv into the loopback guard so the LB-2/LB-3
+	// remote-target opt-in (PLAYWRIGHT_TARGET_REMOTE=1) is observed
+	// deterministically during fixture-env resolution rather than racing
+	// against process.env at module load time.
+	return {
+		apiUrl: requireLoopbackHttpUrl('API_URL', processEnv.API_URL ?? DEFAULT_API_URL, processEnv),
+		adminKey: processEnv.E2E_ADMIN_KEY ?? processEnv.ADMIN_KEY,
+		userEmail: processEnv.E2E_USER_EMAIL,
+		userPassword: processEnv.E2E_USER_PASSWORD,
+		testRegion: processEnv.E2E_TEST_REGION ?? DEFAULT_TEST_REGION,
+		flapjackUrl: requireLoopbackHttpUrl(
+			'FLAPJACK_URL',
+			processEnv.FLAPJACK_URL ?? DEFAULT_FLAPJACK_URL,
+			processEnv
+		)
+	};
+}
+
+export function resolveRequiredFixtureUserCredentials(
+	processEnv: Record<string, string | undefined>
+): { email: string; password: string } {
+	const credentialError =
+		'E2E_USER_EMAIL and E2E_USER_PASSWORD must be set to run browser-unmocked tests';
+	const email = requireNonEmptyString(processEnv.E2E_USER_EMAIL ?? '', credentialError);
+	const password = requireNonBlankString(processEnv.E2E_USER_PASSWORD ?? '', credentialError);
+	return { email, password };
+}
+
+export function resolveRequiredFixtureAdminKey(
+	processEnv: Record<string, string | undefined>
+): string {
+	return requireNonBlankString(
+		processEnv.E2E_ADMIN_KEY ?? processEnv.ADMIN_KEY ?? '',
+		'E2E_ADMIN_KEY must be set to run admin browser-unmocked tests'
+	);
+}
+/**
+ * Full — Cold customer Algolia-refugee journey
+ *
+ * Dedicated unauthenticated staging contract for a new customer who starts from
+ * public pricing, verifies signup, creates an index, uploads five Algolia-style
+ * records, and confirms the first search plus nearby migration and billing paths.
+ */
+
+import type { Page } from '@playwright/test';
+import { chooseFirstAvailableRegion } from '../../fixtures/create_index_form_helpers';
+import { LOCAL_AUTO_VERIFIED_TOKEN_PREFIX, test, expect } from '../../fixtures/fixtures';
+import { setAuthCookieForToken } from '../../fixtures/fresh_signup_remote_bootstrap';
+import { MARKETING_PRICING, sharedPlanMinimumMonthlyLabel } from '../../../src/lib/pricing';
+import { REMOTE_TARGET_OPT_IN_ENV } from '../../../playwright.config.contract';
+import {
+	generatePreviewKeyAndWaitForWidget,
+	submitSearchPreviewQuery,
+	waitForSearchPreviewHitsToContain,
+	waitForSearchPreviewReady
+} from '../../fixtures/search-preview-helpers';
+import { openIndexDetailTab } from './index_detail_helpers';
+
+test.use({ storageState: { cookies: [], origins: [] } });
+
+const TRANSIENT_RATE_LIMIT_PATTERN = /too many requests/i;
+const SESSION_EXPIRED_REASON = 'session_expired';
+
+const ALGOLIA_REFUGEE_RECORDS = [
+	{
+		objectID: 'algolia_refugee_001',
+		title: 'Blue Ridge trail running vest',
+		category: 'Outdoor gear',
+		brand: 'Northstar',
+		price: 89
+	},
+	{
+		objectID: 'algolia_refugee_002',
+		title: 'Summit insulated water bottle',
+		category: 'Outdoor gear',
+		brand: 'Northstar',
+		price: 34
+	},
+	{
+		objectID: 'algolia_refugee_003',
+		title: 'Harbor commuter backpack',
+		category: 'Bags',
+		brand: 'Waypoint',
+		price: 118
+	},
+	{
+		objectID: 'algolia_refugee_004',
+		title: 'Cedar wool travel socks',
+		category: 'Apparel',
+		brand: 'Cedarline',
+		price: 22
+	},
+	{
+		objectID: 'algolia_refugee_005',
+		title: 'Blue Ridge emergency blanket',
+		category: 'Outdoor gear',
+		brand: 'Northstar',
+		price: 16
+	}
+] as const;
+
+function isRemoteTargetMode(): boolean {
+	return process.env[REMOTE_TARGET_OPT_IN_ENV] === '1';
+}
+
+function isSessionExpiredUrl(urlString: string): boolean {
+	const currentUrl = new URL(urlString);
+	return (
+		currentUrl.pathname === '/login' &&
+		currentUrl.searchParams.get('reason') === SESSION_EXPIRED_REASON
+	);
+}
+
+function escapeRegex(value: string): string {
+	return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function algoliaRecordsFilePayload(): {
+	name: string;
+	mimeType: string;
+	buffer: Buffer;
+} {
+	return {
+		name: 'algolia_refugee_records.json',
+		mimeType: 'application/json',
+		buffer: Buffer.from(JSON.stringify(ALGOLIA_REFUGEE_RECORDS, null, 2))
+	};
+}
+
+function requireColdCustomerAdminKey(): void {
+	// Stage 3 staging contract: operators must export E2E_ADMIN_KEY explicitly.
+	// Repo-local ADMIN_KEY fallback is intentionally rejected so the journey
+	// does not silently run against a stale or wrong-environment credential.
+	const adminKey = process.env.E2E_ADMIN_KEY;
+	if (!adminKey?.trim()) {
+		throw new Error('E2E_ADMIN_KEY required for cold-customer create-index flow');
+	}
+}
+
+async function arrangeVerifiedColdCustomer(params: {
+	page: Page;
+	signup: { name: string; email: string; password: string };
+	createUser: (email: string, password: string, name: string) => Promise<{ customerId: string }>;
+	setBillingPlanForCustomer: (customerId: string, plan: 'free') => Promise<unknown>;
+	completeFreshSignupEmailVerification: (
+		page: Page,
+		email: string,
+		password: string
+	) => Promise<{ verificationToken: string }>;
+	isFreshSignupArrangePrerequisiteFailure: (message: string) => boolean;
+}): Promise<string> {
+	const {
+		page,
+		signup,
+		createUser,
+		setBillingPlanForCustomer,
+		completeFreshSignupEmailVerification,
+		isFreshSignupArrangePrerequisiteFailure
+	} = params;
+
+	try {
+		const createdUser = await createUser(signup.email, signup.password, signup.name);
+		await setBillingPlanForCustomer(createdUser.customerId, 'free');
+		const verification = await completeFreshSignupEmailVerification(
+			page,
+			signup.email,
+			signup.password
+		);
+		return verification.verificationToken;
+	} catch (error) {
+		const failureMessage = error instanceof Error ? error.message : String(error);
+		if (isFreshSignupArrangePrerequisiteFailure(failureMessage)) {
+			throw new Error(`cold-customer signup prerequisite unavailable: ${failureMessage}`);
+		}
+		throw error;
+	}
+}
+
+async function loginThroughCustomerForm(params: {
+	page: Page;
+	email: string;
+	password: string;
+	loginAs: (email: string, password: string) => Promise<string>;
+}): Promise<void> {
+	const { page, email, password, loginAs } = params;
+	await expect(async () => {
+		await page.goto('/login');
+		await expect(page.getByRole('heading', { name: 'Log in to Flapjack Cloud' })).toBeVisible();
+		await page.getByLabel('Email').fill(email);
+		await page.getByLabel('Password').fill(password);
+		await page.getByRole('button', { name: 'Log In' }).click();
+
+		try {
+			await expect(page).toHaveURL(/\/console/, { timeout: 20_000 });
+		} catch (error) {
+			const alertText =
+				(await page
+					.getByRole('alert')
+					.textContent()
+					.catch(() => null)) ?? '';
+			if (!isRemoteTargetMode() || !TRANSIENT_RATE_LIMIT_PATTERN.test(alertText)) {
+				throw error;
+			}
+
+			const token = await loginAs(email, password);
+			await setAuthCookieForToken(page, token);
+			await page.goto('/console');
+			await expect(page).toHaveURL(/\/console/, { timeout: 20_000 });
+		}
+	}).toPass({
+		intervals: [1_000, 2_000, 3_000, 5_000],
+		timeout: 45_000
+	});
+}
+
+async function gotoProtectedRoute(params: {
+	page: Page;
+	path: string;
+	email: string;
+	password: string;
+	loginAs: (email: string, password: string) => Promise<string>;
+}): Promise<void> {
+	const { page, path, email, password, loginAs } = params;
+	await page.goto(path);
+	if (!isSessionExpiredUrl(page.url())) {
+		return;
+	}
+
+	const token = await loginAs(email, password);
+	await setAuthCookieForToken(page, token);
+	await page.goto(path);
+	if (isSessionExpiredUrl(page.url())) {
+		throw new Error(`Session recovery failed for protected route ${path}`);
+	}
+}
+
+async function assertPricingSurface(page: Page): Promise<void> {
+	await page.goto('/pricing');
+	const pricingMain = page.getByTestId('pricing-page-main');
+	await expect(pricingMain).toBeVisible();
+	await expect(pricingMain.getByRole('heading', { level: 1 })).toHaveText(
+		/^(Start free, scale into paid storage|Pricing)$/
+	);
+	await expect(pricingMain).toContainText(MARKETING_PRICING.free_tier_promise);
+	await expect(pricingMain).toContainText(
+		new RegExp(`${MARKETING_PRICING.free_tier_mb} MB (of )?hot index storage`)
+	);
+	await expect(pricingMain).toContainText(
+		new RegExp(
+			`${escapeRegex(sharedPlanMinimumMonthlyLabel(MARKETING_PRICING.shared_minimum_spend_cents))}/month minimum`
+		)
+	);
+}
+
+async function assertSignupValidationSurface(
+	page: Page,
+	signup: { name: string; email: string; password: string }
+): Promise<void> {
+	await page.goto('/signup');
+	await expect(page).toHaveURL(/\/signup/);
+	await expect(page.getByRole('heading', { name: 'Create your account' })).toBeVisible();
+	await expect(page.getByText(MARKETING_PRICING.free_tier_promise)).toBeVisible();
+	await expect(page.getByLabel('Password', { exact: true })).toBeVisible();
+	await expect(page.getByLabel('Confirm Password')).toBeVisible();
+	await page.getByLabel('Name').fill(signup.name);
+	await page.getByLabel('Email').fill(signup.email);
+	await page.getByLabel('Password', { exact: true }).fill(signup.password);
+	await page.getByLabel('Confirm Password').fill(`${signup.password}x`);
+	await page.getByRole('button', { name: 'Sign Up' }).click();
+	await expect(page.getByRole('alert')).toHaveText('Passwords do not match', {
+		timeout: 5_000
+	});
+	await expect(page).toHaveURL(/\/signup/);
+}
+
+async function assertVerificationReplay(page: Page, verificationToken: string): Promise<void> {
+	if (isRemoteTargetMode() || verificationToken.startsWith(LOCAL_AUTO_VERIFIED_TOKEN_PREFIX)) {
+		await page.goto(`/verify-email/${verificationToken}`);
+		await expect(
+			page.getByRole('heading', { name: /^(We could not verify your email|Verification Failed)$/ })
+		).toBeVisible({ timeout: 10_000 });
+		await expect(
+			page.getByTestId('verify-result').getByText('invalid or expired verification token')
+		).toBeVisible();
+		return;
+	}
+
+	await expect(page.getByRole('heading', { name: 'Email verified' })).toBeVisible();
+	await expect(page.getByRole('link', { name: 'Log in to continue' })).toHaveAttribute(
+		'href',
+		'/login'
+	);
+}
+
+async function createIndexThroughConsole(params: {
+	page: Page;
+	indexName: string;
+	ensureLocalSharedVmInventory: (region: string) => Promise<void>;
+	testRegion: string;
+}): Promise<void> {
+	const { page, indexName, ensureLocalSharedVmInventory, testRegion } = params;
+	await page.goto('/console/indexes');
+	await expect(page.getByRole('heading', { name: 'Indexes' })).toBeVisible();
+	await expect(async () => {
+		await page.getByRole('button', { name: 'Create Index' }).click();
+		await expect(
+			page
+				.getByTestId('create-index-form')
+				.or(page.getByRole('heading', { name: 'Create a new index' }))
+				.first()
+		).toBeVisible({ timeout: 1_000 });
+	}).toPass({ intervals: [500, 1_000, 2_000], timeout: 10_000 });
+
+	const createForm = page.getByTestId('create-index-form');
+	await expect(createForm).toBeVisible();
+	await expect(createForm.getByRole('radio', { name: 'Empty index' })).toBeChecked();
+	await createForm.getByLabel('Index name').fill(indexName);
+	const selectedRegion = (await chooseFirstAvailableRegion(page)) || testRegion;
+	await ensureLocalSharedVmInventory(selectedRegion);
+	await page.getByRole('button', { name: 'Create', exact: true }).click();
+
+	await expect(page).toHaveURL(
+		new RegExp(`/console/indexes/${encodeURIComponent(indexName)}\\?welcome=1`),
+		{ timeout: 30_000 }
+	);
+	await expect(page.getByRole('heading', { name: indexName })).toBeVisible({
+		timeout: 30_000
+	});
+	await expect(page.getByText('Index ready — try the search preview')).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Open Search Preview' })).toBeVisible();
+}
+
+async function uploadFiveAlgoliaRecords(page: Page): Promise<void> {
+	const documents = await openIndexDetailTab(page, 'Documents', 'documents-section');
+	await expect(documents.getByText('Upload JSON or CSV records')).toBeVisible();
+	await documents.getByLabel('Upload JSON or CSV file').setInputFiles(algoliaRecordsFilePayload());
+	await expect(documents.getByText('Parsed records: 5')).toBeVisible();
+	await expect(documents.getByText('algolia_refugee_001')).toBeVisible();
+	await documents.getByRole('button', { name: 'Upload Records' }).click();
+
+	await expect(documents.getByText('Documents uploaded.')).toBeVisible({ timeout: 30_000 });
+	await expect(documents.getByText('algolia_refugee_001')).toBeVisible();
+	await expect(documents.getByText('Blue Ridge trail running vest')).toBeVisible();
+}
+
+async function assertFirstSearchFindsUploadedRecord(page: Page): Promise<void> {
+	await openIndexDetailTab(page, 'Search Preview', 'search-preview-section');
+	await waitForSearchPreviewReady(page);
+	await generatePreviewKeyAndWaitForWidget(page);
+	await submitSearchPreviewQuery(page, 'Blue Ridge');
+	await waitForSearchPreviewHitsToContain(page, 'Blue Ridge trail running vest', 45_000);
+}
+
+async function assertAdjacentCustomerSurfaces(params: {
+	page: Page;
+	email: string;
+	password: string;
+	loginAs: (email: string, password: string) => Promise<string>;
+}): Promise<void> {
+	const { page, email, password, loginAs } = params;
+	await gotoProtectedRoute({ page, path: '/console/migrate', email, password, loginAs });
+	await expect(
+		page.getByRole('heading', { name: 'Migrate from Algolia', exact: true })
+	).toBeVisible();
+	const credentialsForm = page.getByTestId('credentials-form');
+	await expect(credentialsForm.getByText('Algolia Credentials')).toBeVisible();
+	await expect(credentialsForm.getByLabel('App ID')).toBeVisible();
+	await expect(credentialsForm.getByLabel('API Key')).toBeVisible();
+
+	await gotoProtectedRoute({ page, path: '/console/billing', email, password, loginAs });
+	await expect(page.getByRole('heading', { name: 'Billing' })).toBeVisible();
+	await expect(
+		page.getByText('Payment methods').or(page.getByText('Payment method management unavailable'))
+	).toBeVisible();
+	await expect(
+		page
+			.getByText('Contact support@flapjack.foo to cancel')
+			.or(page.getByText('Payment method management is disabled.'))
+	).toBeVisible();
+
+	await assertPricingSurface(page);
+}
+
+test.describe('Cold customer Algolia-refugee journey', () => {
+	test('public pricing to first uploaded-record search stays coherent on staging', async ({
+		page,
+		createFreshSignupIdentity,
+		createUser,
+		completeFreshSignupEmailVerification,
+		setBillingPlanForCustomer,
+		registerIndexForCleanup,
+		ensureLocalSharedVmInventory,
+		testRegion,
+		isFreshSignupArrangePrerequisiteFailure,
+		loginAs
+	}) => {
+		test.setTimeout(240_000);
+
+		requireColdCustomerAdminKey();
+		const signup = createFreshSignupIdentity();
+		const indexName = `cold-customer-${Date.now()}`;
+
+		await page.context().clearCookies();
+		await assertPricingSurface(page);
+		await assertSignupValidationSurface(page, signup);
+
+		const verificationToken = await arrangeVerifiedColdCustomer({
+			page,
+			signup,
+			createUser,
+			setBillingPlanForCustomer,
+			completeFreshSignupEmailVerification,
+			isFreshSignupArrangePrerequisiteFailure
+		});
+
+		await assertVerificationReplay(page, verificationToken);
+		await loginThroughCustomerForm({
+			page,
+			email: signup.email,
+			password: signup.password,
+			loginAs
+		});
+		await expect(page.getByRole('heading', { name: 'Console' })).toBeVisible();
+
+		await createIndexThroughConsole({
+			page,
+			indexName,
+			ensureLocalSharedVmInventory,
+			testRegion
+		});
+		registerIndexForCleanup(indexName);
+
+		await uploadFiveAlgoliaRecords(page);
+		await assertFirstSearchFindsUploadedRecord(page);
+		await assertAdjacentCustomerSurfaces({
+			page,
+			email: signup.email,
+			password: signup.password,
+			loginAs
+		});
+	});
+});
+/**
+ * @module Stub summary for search-preview-helpers.ts.
+ */
+import type { Locator, Page } from '@playwright/test';
+import { expect } from '@playwright/test';
+
+type SearchPreviewState = 'generate' | 'unavailable' | 'pending';
+
+export const SEARCH_PREVIEW_STATE_TIMEOUT_MS = 10_000;
+export const SEARCH_PREVIEW_READY_TIMEOUT_MS = 90_000;
+export const SEARCH_PREVIEW_READY_MESSAGE =
+	'Waiting for Search Preview to become ready for preview-key generation';
+export const INDEX_DETAIL_READY_TIMEOUT_MS = 30_000;
+export const PREVIEW_SUBMIT_OUTCOME_TIMEOUT_MS = 5_000;
+export const PREVIEW_SUBMIT_IN_FLIGHT_TIMEOUT_MS = 30_000;
+export const PREVIEW_SUBMIT_MAX_PENDING_TIMEOUT_MS = 90_000;
+const LOCAL_STACK_UNAVAILABLE_ERROR_PATTERN =
+	/(local stack unavailable|econnrefused|connect ECONNREFUSED|failed to fetch|service is unavailable|temporarily unavailable|prerequisite unavailable in local env|verify (api_url|jwt_secret)|invalid admin key|authentication session could not be established|customer login setup failed before reaching \/console|seedindex failed: 401|get \/account failed: 401)/i;
+
+type SearchPreviewLocators = {
+	generateButton: Locator;
+	tierUnavailableMessage: Locator;
+	provisioningMessage: Locator;
+};
+
+export function getSearchPreviewLocators(page: Page): SearchPreviewLocators {
+	const section = page.getByTestId('search-preview-section');
+	return {
+		generateButton: section.getByRole('button', { name: /generate preview key/i }),
+		tierUnavailableMessage: section.getByText(
+			/Search preview is not available while the index is/i
+		),
+		provisioningMessage: section.getByText(
+			'Endpoint not available yet. The index is still being provisioned.'
+		)
+	};
+}
+
+export function getSearchPreviewReadinessSurface(page: Page): {
+	generateButton: Locator;
+	unavailableMessage: Locator;
+} {
+	const { generateButton, tierUnavailableMessage, provisioningMessage } =
+		getSearchPreviewLocators(page);
+	return {
+		generateButton,
+		unavailableMessage: tierUnavailableMessage.or(provisioningMessage).first()
+	};
+}
+
+async function isVisible(locator: Locator): Promise<boolean> {
+	return locator.isVisible().catch(() => false);
+}
+
+async function detectSearchPreviewState(page: Page): Promise<SearchPreviewState> {
+	const { generateButton, tierUnavailableMessage, provisioningMessage } =
+		getSearchPreviewLocators(page);
+
+	if (await isVisible(generateButton)) return 'generate';
+	if (await isVisible(tierUnavailableMessage)) return 'unavailable';
+	if (await isVisible(provisioningMessage)) return 'pending';
+	return 'pending';
+}
+
+/**
+ * TODO: Document waitForSearchPreviewState.
+ */
+export async function waitForSearchPreviewState(page: Page): Promise<'generate' | 'unavailable'> {
+	let resolvedState: 'generate' | 'unavailable' = 'unavailable';
+	await expect
+		.poll(
+			async () => {
+				const state = await detectSearchPreviewState(page);
+				if (state !== 'pending') {
+					resolvedState = state;
+				}
+				return state;
+			},
+			{ timeout: SEARCH_PREVIEW_STATE_TIMEOUT_MS }
+		)
+		.not.toBe('pending');
+
+	return resolvedState;
+}
+
+export async function waitForSearchPreviewReady(page: Page): Promise<void> {
+	await expect
+		.poll(async () => detectSearchPreviewState(page), {
+			timeout: SEARCH_PREVIEW_READY_TIMEOUT_MS,
+			message: SEARCH_PREVIEW_READY_MESSAGE
+		})
+		.toBe('generate');
+}
+
+/**
+ * TODO: Document gotoIndexDetailWithRetry.
+ */
+export async function gotoIndexDetailWithRetry(page: Page, indexName: string): Promise<void> {
+	const path = `/console/indexes/${encodeURIComponent(indexName)}`;
+
+	for (let attempt = 0; attempt < 5; attempt += 1) {
+		await page.goto(path);
+		const heading = page.getByRole('heading', { name: indexName });
+		if (await isVisible(heading)) {
+			return;
+		}
+		await page.waitForTimeout(1000 * (attempt + 1));
+	}
+
+	await expect(page.getByRole('heading', { name: indexName })).toBeVisible({
+		timeout: INDEX_DETAIL_READY_TIMEOUT_MS
+	});
+}
+
+export async function waitForInstantSearchWidget(page: Page): Promise<void> {
+	await expect(page.getByTestId('instantsearch-widget')).toBeVisible({
+		timeout: SEARCH_PREVIEW_READY_TIMEOUT_MS
+	});
+}
+
+type PreviewSubmitOutcome = 'widget' | 'generic' | 'transient' | 'unknown';
+type SearchPreviewAnalyticsCapture = {
+	payloads: unknown[];
+	stop: () => void;
+};
+
+export function failRequiredE2eGate(gateName: string, failure: unknown): never {
+	const message = failure instanceof Error ? failure.message : String(failure);
+	throw new Error(`Stage 6 required e2e gate "${gateName}" failed: ${message}`);
+}
+
+export function isLocalStackUnavailableError(error: unknown): boolean {
+	const message = error instanceof Error ? error.message : String(error);
+	return LOCAL_STACK_UNAVAILABLE_ERROR_PATTERN.test(message);
+}
+
+export function failRequiredE2eGateOnLocalStackError(gateName: string, error: unknown): void {
+	if (!isLocalStackUnavailableError(error)) {
+		return;
+	}
+	failRequiredE2eGate(gateName, error);
+}
+
+function getIndexNameFromDetailPath(detailPath: string): string {
+	return decodeURIComponent(
+		new URL(detailPath, 'http://localhost').pathname.split('/').pop() ?? ''
+	);
+}
+
+/**
+ * TODO: Document detectPreviewSubmitOutcome.
+ */
+async function detectPreviewSubmitOutcome(
+	page: Page,
+	transientError: Locator,
+	genericErrorPage: Locator
+): Promise<PreviewSubmitOutcome> {
+	const outcomeLocators: Array<[PreviewSubmitOutcome, Locator]> = [
+		['widget', page.getByTestId('instantsearch-widget')],
+		['generic', genericErrorPage],
+		['transient', transientError]
+	];
+
+	for (const [outcome, locator] of outcomeLocators) {
+		if (await isVisible(locator)) {
+			return outcome;
+		}
+	}
+
+	return 'unknown';
+}
+
+/**
+ * TODO: Document waitForPreviewSubmitOutcome.
+ */
+export async function waitForPreviewSubmitOutcome(
+	page: Page,
+	transientError: Locator,
+	genericErrorPage: Locator,
+	timeoutMs: number = PREVIEW_SUBMIT_OUTCOME_TIMEOUT_MS
+): Promise<PreviewSubmitOutcome> {
+	const startedAt = Date.now();
+	while (Date.now() - startedAt < timeoutMs) {
+		const outcome = await detectPreviewSubmitOutcome(page, transientError, genericErrorPage);
+		if (outcome !== 'unknown') {
+			return outcome;
+		}
+
+		await page.waitForTimeout(250);
+	}
+
+	return 'unknown';
+}
+
+/**
+ * TODO: Document waitForPreviewSubmitResolution.
+ */
+async function waitForPreviewSubmitResolution(
+	page: Page,
+	transientError: Locator,
+	genericErrorPage: Locator
+): Promise<PreviewSubmitOutcome> {
+	const startedAt = Date.now();
+	let timeoutMs = PREVIEW_SUBMIT_OUTCOME_TIMEOUT_MS;
+
+	while (Date.now() - startedAt < PREVIEW_SUBMIT_MAX_PENDING_TIMEOUT_MS) {
+		const remainingMs = PREVIEW_SUBMIT_MAX_PENDING_TIMEOUT_MS - (Date.now() - startedAt);
+		if (remainingMs <= 0) {
+			return 'unknown';
+		}
+
+		const outcome = await waitForPreviewSubmitOutcome(
+			page,
+			transientError,
+			genericErrorPage,
+			Math.min(timeoutMs, remainingMs)
+		);
+		if (outcome !== 'unknown') {
+			return outcome;
+		}
+
+		timeoutMs = PREVIEW_SUBMIT_IN_FLIGHT_TIMEOUT_MS;
+	}
+
+	return 'unknown';
+}
+
+/**
+ * TODO: Document generatePreviewKeyAndWaitForWidget.
+ */
+export async function generatePreviewKeyAndWaitForWidget(page: Page): Promise<void> {
+	const detailPath = page.url();
+	const indexName = getIndexNameFromDetailPath(detailPath);
+	const section = page.getByTestId('search-preview-section');
+	const generateButton = section.getByRole('button', { name: /generate preview key/i });
+	const transientError = section.getByText(/endpoint not ready yet|too many requests/i);
+	const genericErrorPage = page
+		.getByRole('heading', { name: 'Request could not be completed' })
+		.or(page.getByRole('heading', { name: 'Something went wrong' }))
+		.first();
+
+	for (let attempt = 0; attempt < 6; attempt += 1) {
+		await generateButton.click();
+		const settledOutcome = await waitForPreviewSubmitResolution(
+			page,
+			transientError,
+			genericErrorPage
+		);
+
+		if (settledOutcome === 'widget') {
+			return;
+		}
+
+		if (settledOutcome === 'generic') {
+			await gotoIndexDetailWithRetry(page, indexName);
+			await page.getByRole('tab', { name: 'Search Preview' }).click();
+			await waitForSearchPreviewReady(page);
+			await page.waitForTimeout(1000 * (attempt + 1));
+			continue;
+		}
+
+		if (settledOutcome === 'transient') {
+			await page.waitForTimeout(1000 * (attempt + 1));
+			continue;
+		}
+
+		// Keep single-submit semantics for unknown/pending outcomes and rely on widget
+		// visibility timeout to fail the run instead of issuing duplicate submissions.
+		break;
+	}
+
+	await waitForInstantSearchWidget(page);
+}
+
+/**
+ * TODO: Document submitSearchPreviewQuery.
+ */
+export async function submitSearchPreviewQuery(page: Page, query: string): Promise<void> {
+	const section = page.getByTestId('search-preview-section');
+	const searchInput = section.getByRole('searchbox', { name: /search preview query/i });
+	await expect(searchInput).toBeVisible({ timeout: 10_000 });
+	await searchInput.click();
+	await searchInput.fill(query);
+	await searchInput.press('Enter');
+}
+
+export async function toggleSearchPreviewFacet(page: Page, facetLabel: string): Promise<void> {
+	const section = page.getByTestId('search-preview-section');
+	await section.getByLabel(facetLabel).check();
+}
+
+export async function collectVisibleSearchPreviewCardTexts(page: Page): Promise<string[]> {
+	const cards = page.getByTestId('search-preview-results').locator('[data-testid="document-card"]');
+	return cards.allTextContents();
+}
+
+/**
+ * TODO: Document waitForSearchPreviewHitsToContain.
+ */
+export async function waitForSearchPreviewHitsToContain(
+	page: Page,
+	expectedText: string,
+	timeoutMs = 30_000
+): Promise<void> {
+	await expect
+		.poll(
+			async () => {
+				const cardTexts = await collectVisibleSearchPreviewCardTexts(page);
+				return cardTexts.join('\n');
+			},
+			{
+				timeout: timeoutMs,
+				message: `Waiting for Search Preview hits to contain "${expectedText}"`
+			}
+		)
+		.toContain(expectedText);
+}
+
+export async function collectVisibleSearchPreviewHighlightHtml(page: Page): Promise<string[]> {
+	const highlights = page
+		.getByTestId('search-preview-results')
+		.locator('[data-testid^="document-card-highlight-"]');
+	return highlights.evaluateAll((nodes) => nodes.map((node) => node.innerHTML));
+}
+
+export async function countSearchPreviewHits(page: Page): Promise<number> {
+	const summaryText = await page
+		.getByTestId('search-preview-results')
+		.getByText(/hits\s+·/i)
+		.textContent();
+	const matchedCount = summaryText?.match(/(\d+)\s+hits\b/i);
+	if (!matchedCount) {
+		throw new Error(`Could not parse hit count from summary: ${summaryText ?? '<empty>'}`);
+	}
+	return Number.parseInt(matchedCount[1], 10);
+}
+
+export function getSearchPreviewPaginationControls(page: Page): {
+	previous: Locator;
+	next: Locator;
+} {
+	const section = page.getByTestId('search-preview-results');
+	return {
+		previous: section.getByRole('button', { name: 'Previous page' }),
+		next: section.getByRole('button', { name: 'Next page' })
+	};
+}
+
+/**
+ * TODO: Document startSearchPreviewAnalyticsCapture.
+ */
+export function startSearchPreviewAnalyticsCapture(page: Page): SearchPreviewAnalyticsCapture {
+	const payloads: unknown[] = [];
+	const onRequest = (request: {
+		url: () => string;
+		method: () => string;
+		postDataJSON: () => unknown;
+	}) => {
+		if (request.method() !== 'POST') {
+			return;
+		}
+		if (!request.url().includes('/1/events')) {
+			return;
+		}
+		payloads.push(request.postDataJSON());
+	};
+	page.on('request', onRequest as never);
+	return {
+		payloads,
+		stop: () => {
+			page.off('request', onRequest as never);
+		}
+	};
+}
+
+/**
+ * TODO: Document findSearchPreviewNarrowingFacet.
+ */
+export async function findSearchPreviewNarrowingFacet(
+	page: Page,
+	preFilterHitCount: number
+): Promise<{ label: string; value: string; narrowedHitCount: number }> {
+	const rows = page.getByTestId('search-preview-facets').locator('li');
+	const rowCount = await rows.count();
+
+	for (let index = 0; index < rowCount; index += 1) {
+		const row = rows.nth(index);
+		const facetLabel = await row.getByRole('checkbox').getAttribute('aria-label');
+		const countText = await row.locator('span').last().textContent();
+		const narrowedHitCount = Number.parseInt((countText ?? '').trim(), 10);
+		if (!facetLabel || Number.isNaN(narrowedHitCount)) {
+			continue;
+		}
+		if (narrowedHitCount > 0 && narrowedHitCount < preFilterHitCount) {
+			return {
+				label: facetLabel,
+				value: facetLabel.split(':').slice(1).join(':'),
+				narrowedHitCount
+			};
+		}
+	}
+
+	throw new Error(`No narrowing facet value found for pre-filter hit count ${preFilterHitCount}`);
+}

@@ -1,0 +1,125 @@
+{
+  "captured_at_utc": "2026-05-21T17:17:50Z",
+  "run_directory": "docs/runbooks/evidence/app_domain_retirement/20260521T171119Z_app_domain_retirement",
+  "stage": "stage_1_alias_retirement_read_only_gate",
+  "owner_confirmation": {
+    "file": "owner_confirmations.md",
+    "required_owner_files_confirmed": true
+  },
+  "cloudflare": {
+    "pages_domains": {
+      "source": "cloudflare_pages_domains_raw.json",
+      "success": true,
+      "domains": [
+        {
+          "name": "app.flapjack.foo",
+          "status": "active",
+          "created_on": "2026-05-04T04:53:22.479602Z"
+        },
+        {
+          "name": "cloud.flapjack.foo",
+          "status": "active",
+          "created_on": "2026-05-04T04:53:21.504155Z"
+        },
+        {
+          "name": "cloud.staging.flapjack.foo",
+          "status": "active",
+          "created_on": "2026-05-19T16:58:12.65947Z"
+        }
+      ],
+      "app_domain_present": true
+    },
+    "dns_record": {
+      "source": "cloudflare_dns_app_raw.json",
+      "success": true,
+      "exists": true,
+      "target": "flapjack-cloud.pages.dev",
+      "proxied": true,
+      "type": "CNAME"
+    }
+  },
+  "reachability": {
+    "http": {
+      "source_files": [
+        "http_app_headers.txt",
+        "http_app_meta.txt"
+      ],
+      "http_code": 200,
+      "remote_ip": "2606:4700:3031::ac43:bb8d",
+      "url_effective": "https://app.flapjack.foo/"
+    },
+    "resolvers": {
+      "dig_1_1_1_1": [
+        "172.67.187.141",
+        "104.21.7.70"
+      ],
+      "dig_8_8_8_8": [
+        "172.67.187.141",
+        "104.21.7.70"
+      ]
+    }
+  },
+  "analytics": {
+    "status": "unavailable",
+    "attempts": [
+      {
+        "query_file": "cloudflare_analytics_query.json",
+        "response_file": "cloudflare_analytics_raw.json",
+        "error_messages": [
+          "error parsing args for \"httpRequests1dGroups\": filter: unknown arg datetime_geq"
+        ]
+      },
+      {
+        "query_file": "cloudflare_analytics_query_alt.json",
+        "response_file": "cloudflare_analytics_raw_alt.json",
+        "error_messages": [
+          "error parsing args for \"httpRequests1dGroups\": filter: unknown arg clientRequestHTTPHost"
+        ]
+      }
+    ]
+  },
+  "stripe": {
+    "script_validation": {
+      "command": "bash scripts/tests/configure_billing_portal_test.sh",
+      "result_file": "configure_billing_portal_test.txt"
+    },
+    "environments": {
+      "canonical": {
+        "command": "bash scripts/stripe/configure_billing_portal.sh",
+        "exit_code": 0,
+        "default_return_url": null,
+        "contains_app_flapjack_foo": false,
+        "source_file": "stripe_portal_default_stdout.json"
+      },
+      "flapjack_cloud_live": {
+        "command": "bash scripts/stripe/configure_billing_portal.sh --account flapjack_cloud",
+        "exit_code": 0,
+        "default_return_url": null,
+        "contains_app_flapjack_foo": false,
+        "source_file": "stripe_portal_live_stdout.json"
+      }
+    },
+    "blocking_environments": []
+  },
+  "decision": {
+    "operator_preference": null,
+    "L12_DECISION_default": "retire",
+    "retire_default_allowed": true,
+    "gate_blocked": false,
+    "block_reason": null
+  },
+  "sources": [
+    "owner_confirmations.md",
+    "repo_app_alias_scoped_rg.txt",
+    "cloudflare_pages_domains_raw.json",
+    "cloudflare_dns_app_raw.json",
+    "http_app_headers.txt",
+    "http_app_meta.txt",
+    "dig_app_1_1_1_1.txt",
+    "dig_app_8_8_8_8.txt",
+    "cloudflare_analytics_raw.json",
+    "cloudflare_analytics_raw_alt.json",
+    "stripe_portal_default_stdout.json",
+    "stripe_portal_live_stdout.json"
+  ]
+}

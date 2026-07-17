@@ -1,0 +1,14 @@
+COMMAND: aws ssm get-parameter --name /fjcloud/staging/ses_configuration_set --region us-east-1
+{
+    "Parameter": {
+        "Name": "/fjcloud/staging/ses_configuration_set",
+        "Type": "String",
+        "Value": "fjcloud-staging-flapjack-foo-feedback",
+        "Version": 1,
+        "LastModifiedDate": "2026-04-29T04:19:54.551000-04:00",
+        "ARN": "arn:aws:ssm:us-east-1:213880904778:parameter/fjcloud/staging/ses_configuration_set",
+        "DataType": "text"
+    }
+}
+COMMAND: aws ssm get-parameter --name /fjcloud/staging/last_deploy_sha --query Parameter.Value --output text --region us-east-1
+f68856f7f93f7e5fb96b837d020415d2c64180af

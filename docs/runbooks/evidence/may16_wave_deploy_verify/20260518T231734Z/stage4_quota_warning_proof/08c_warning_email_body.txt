@@ -1,0 +1,14 @@
+Flapjack Cloud usage warning.
+
+Metric: records
+Usage: 80.0%
+Current: 80000
+Limit: 100000
+
+<html>
+  <body>
+    <h2>Flapjack Cloud usage warning</h2>
+    <p>Your records usage on Flapjack Cloud is now at <strong>80.0%</strong>.</p>
+    <p>Current: 80000 / Limit: 100000</p>
+  </body>
+</html>

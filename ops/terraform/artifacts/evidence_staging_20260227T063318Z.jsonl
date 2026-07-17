@@ -1,0 +1,11 @@
+{"command":"preflight:aws_creds","timestamp":"2026-02-27T06:33:18Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"preflight:ami_exists","timestamp":"2026-02-27T06:33:18Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"preflight:release_artifact","timestamp":"2026-02-27T06:33:18Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"preflight:dns_delegation","timestamp":"2026-02-27T06:33:18Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"terraform plan","timestamp":"2026-02-27T06:33:18Z","verdict":"PASS","output":"plan captured","artifact_path":"/Users/stuart/repos/gridl/fjcloud/ops/terraform/artifacts/plan_staging_20260227T063318Z.txt"}
+{"command":"assert:acm_cert_issued","timestamp":"2026-02-27T06:33:18Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"assert:alb_https_listener","timestamp":"2026-02-27T06:33:18Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"assert:target_group_healthy","timestamp":"2026-02-27T06:33:18Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"assert:health_fail","timestamp":"2026-02-27T06:33:18Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"assert:deploy_health_sample_0","timestamp":"2026-02-27T06:33:18Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"runtime:deploy_health_fail","timestamp":"2026-02-27T06:33:18Z","verdict":"FAIL","output":"Deploy rollout health probe failed while deployment was in progress.","artifact_path":""}

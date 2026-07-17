@@ -1,0 +1,9 @@
+customer_id=67ea7137-ecda-4ccc-a86e-46b0a814cb52
+signup_email=canary+canary202605190227389368@test.flapjack.foo
+nonce=canary202605190227389368
+index_name=canary-canary202605190227389368
+api_url=https://api.staging.flapjack.foo
+date_utc=2026-05-19
+month_key=2026-05
+inbound_bucket=flapjack-cloud-releases
+inbound_prefix=e2e-emails/

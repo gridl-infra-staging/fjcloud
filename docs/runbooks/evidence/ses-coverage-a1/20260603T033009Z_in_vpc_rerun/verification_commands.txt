@@ -1,0 +1,47 @@
+aws sts get-caller-identity --output json > docs/runbooks/evidence/ses-coverage-a1/20260603T033009Z_in_vpc_rerun/aws_identity.json
+
+aws ec2 describe-instances --region us-east-1 --filters "Name=tag:Name,Values=fjcloud-api-staging" "Name=instance-state-name,Values=running" --query "Reservations[0].Instances[0].InstanceId" --output text
+
+aws ssm describe-instance-information --region us-east-1 --filters "Key=InstanceIds,Values=i-0fbc6d6bbbc8bdc6d" --output json > docs/runbooks/evidence/ses-coverage-a1/20260603T033009Z_in_vpc_rerun/ssm_target_preflight.json
+
+aws s3 cp /tmp/a1_vpc_rerun_20260603T033009Z-70468/scripts.tar.gz s3://fjcloud-releases-staging/a1-vpc-rerun/20260603T033009Z-70468/scripts.tar.gz
+
+SSM_EXEC_TIMEOUT_SECONDS=300 scripts/launch/ssm_exec_staging.sh "set -euo pipefail; rm -rf /tmp/a1_vpc_rerun_20260603T033009Z-70468; mkdir -p /tmp/a1_vpc_rerun_20260603T033009Z-70468; cd /tmp/a1_vpc_rerun_20260603T033009Z-70468; aws s3 cp s3://fjcloud-releases-staging/a1-vpc-rerun/20260603T033009Z-70468/scripts.tar.gz scripts.tar.gz --region us-east-1; tar -xzf scripts.tar.gz; chmod +x scripts/*.sh scripts/launch/*.sh .runtime/*.sh; echo HOST_CHECKOUT_READY" > docs/runbooks/evidence/ses-coverage-a1/20260603T033009Z_in_vpc_rerun/host_checkout.log 2>&1
+
+SSM_EXEC_TIMEOUT_SECONDS=300 scripts/launch/ssm_exec_staging.sh "cd /tmp/a1_vpc_rerun_20260603T033009Z-70468 && bash .runtime/materialize_host_env.sh" > docs/runbooks/evidence/ses-coverage-a1/20260603T033009Z_in_vpc_rerun/host_env_materialize.log 2>&1
+
+SSM_EXEC_TIMEOUT_SECONDS=1800 scripts/launch/ssm_exec_staging.sh "cd /tmp/a1_vpc_rerun_20260603T033009Z-70468 && bash scripts/probe_verify_email_clickthrough_e2e.sh --env-file .runtime/host.env" > docs/runbooks/evidence/ses-coverage-a1/20260603T033009Z_in_vpc_rerun/verify_email_clickthrough.log 2>&1
+
+SSM_EXEC_TIMEOUT_SECONDS=1800 scripts/launch/ssm_exec_staging.sh "cd /tmp/a1_vpc_rerun_20260603T033009Z-70468 && bash scripts/probe_password_reset_clickthrough_e2e.sh --env-file .runtime/host.env" > docs/runbooks/evidence/ses-coverage-a1/20260603T033009Z_in_vpc_rerun/password_reset_clickthrough.log 2>&1
+
+SSM_EXEC_TIMEOUT_SECONDS=1800 scripts/launch/ssm_exec_staging.sh "cd /tmp/a1_vpc_rerun_20260603T033009Z-70468 && bash scripts/probe_dunning_email_inbox_e2e.sh --env-file .runtime/host.env --month 2026-06" > docs/runbooks/evidence/ses-coverage-a1/20260603T033009Z_in_vpc_rerun/dunning_email_inbox.log 2>&1
+
+SSM_EXEC_TIMEOUT_SECONDS=1800 scripts/launch/ssm_exec_staging.sh "cd /tmp/a1_vpc_rerun_20260603T033009Z-70468 && bash scripts/probe_ses_bounce_complaint_e2e.sh bounce .runtime/host.env" > docs/runbooks/evidence/ses-coverage-a1/20260603T033009Z_in_vpc_rerun/ses_bounce.log 2>&1
+
+SSM_EXEC_TIMEOUT_SECONDS=1800 scripts/launch/ssm_exec_staging.sh "cd /tmp/a1_vpc_rerun_20260603T033009Z-70468 && bash scripts/probe_ses_bounce_complaint_e2e.sh complaint .runtime/host.env" > docs/runbooks/evidence/ses-coverage-a1/20260603T033009Z_in_vpc_rerun/ses_complaint.log 2>&1
+
+SSM_EXEC_TIMEOUT_SECONDS=1800 scripts/launch/ssm_exec_staging.sh "cd /tmp/a1_vpc_rerun_20260603T033009Z-70468 && bash scripts/validate_staging_dunning_delivery.sh --env-file .runtime/host.env --month 2026-06 --confirm-live-mutation" > docs/runbooks/evidence/ses-coverage-a1/20260603T033009Z_in_vpc_rerun/staging_dunning_delivery.log 2>&1
+
+SSM_EXEC_TIMEOUT_SECONDS=300 scripts/launch/ssm_exec_staging.sh "rm -rf /tmp/a1_vpc_rerun_20260603T033009Z-70468; echo HOST_CLEANUP_READY" > docs/runbooks/evidence/ses-coverage-a1/20260603T033009Z_in_vpc_rerun/host_cleanup.log 2>&1
+
+aws s3 rm s3://fjcloud-releases-staging/a1-vpc-rerun/20260603T033009Z-70468/ --recursive > docs/runbooks/evidence/ses-coverage-a1/20260603T033009Z_in_vpc_rerun/s3_cleanup.log 2>&1
+
+python3 docs/runbooks/evidence/ses-coverage-a1/20260603T033009Z_in_vpc_rerun/stage4_integrity.py docs/runbooks/evidence/ses-coverage-a1/20260603T033009Z_in_vpc_rerun > docs/runbooks/evidence/ses-coverage-a1/20260603T033009Z_in_vpc_rerun/integrity_check.log 2>&1
+
+python3 - <<'PY_SECRET_PREFLIGHT'
+from pathlib import Path
+path = Path('/Users/stuart/repos/gridl-infra-dev/fjcloud_dev/.secret/.env.secret')
+keys = {}
+for raw in path.read_text().splitlines():
+    line = raw.strip()
+    if not line or line.startswith('#') or '=' not in line:
+        continue
+    key, value = line.split('=', 1)
+    keys[key.strip()] = value.strip().strip('"').strip("'")
+assert keys.get('STRIPE_SECRET_KEY', '').startswith('sk_test_')
+assert keys.get('FJCLOUD_TEST_TENANT_IDS')
+print('secret_source_exists=1')
+print('STRIPE_SECRET_KEY_prefix_ok=true')
+print('FJCLOUD_TEST_TENANT_IDS_present=true')
+print('printed_secret_values=0')
+PY_SECRET_PREFLIGHT

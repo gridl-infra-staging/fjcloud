@@ -1,0 +1,14 @@
+# Disposition Receipt: batman/may21_12pm_2_prod_db_leak_cleanup
+
+Classification: approved freed local branch after approved worktree removal
+Evidence source: current read-only git refs at bundle creation.
+
+## rev-parse
+$ git rev-parse batman/may21_12pm_2_prod_db_leak_cleanup
+f8fe82f9c3c798497aa580100fe76fbbab94afca
+
+## cherry
+$ git cherry -v main batman/may21_12pm_2_prod_db_leak_cleanup | tail -20
+
+## diff main...
+$ git diff main...batman/may21_12pm_2_prod_db_leak_cleanup --stat | tail -20

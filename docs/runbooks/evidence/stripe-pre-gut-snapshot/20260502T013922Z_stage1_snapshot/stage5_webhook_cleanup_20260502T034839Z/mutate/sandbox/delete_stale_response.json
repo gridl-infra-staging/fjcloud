@@ -1,0 +1,8 @@
+This command will be executed on the account with the following details:
+> Mode: Test
+> Account Name: flapjack-cloud sandbox
+{
+  "id": "we_1SyNmKKH9mdklKeIucug7tZE",
+  "object": "webhook_endpoint",
+  "deleted": true
+}

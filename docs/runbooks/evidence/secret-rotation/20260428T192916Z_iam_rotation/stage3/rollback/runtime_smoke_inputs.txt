@@ -1,0 +1,1 @@
+instance_ami=ami-078228dbe86117d85

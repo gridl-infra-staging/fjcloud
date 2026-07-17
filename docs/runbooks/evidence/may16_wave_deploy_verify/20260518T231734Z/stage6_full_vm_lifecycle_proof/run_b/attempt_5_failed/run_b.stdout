@@ -1,0 +1,12 @@
+[full-vm-lifecycle] mode=run-b
+[full-vm-lifecycle] signup succeeded for canary+canary2026051903513826634@test.flapjack.foo (customer=68059682-5aa8-4533-9a91-3436d3107707)
+[full-vm-lifecycle] email verification succeeded for canary+canary2026051903513826634@test.flapjack.foo
+[full-vm-lifecycle] index created (lifecycle-canary2026051903513826634)
+[full-vm-lifecycle] index write succeeded (lifecycle-canary2026051903513826634)
+[full-vm-lifecycle] index search succeeded (lifecycle-canary2026051903513826634)
+[full-vm-lifecycle] step 'validation' failed: unsafe payment_method_id value: pm_card_visa
+[full-vm-lifecycle] index deleted (lifecycle-canary2026051903513826634)
+[full-vm-lifecycle] account delete attempted for customer 68059682-5aa8-4533-9a91-3436d3107707
+[full-vm-lifecycle] admin cleanup completed for tenant 68059682-5aa8-4533-9a91-3436d3107707
+[full-vm-lifecycle] evidence: failed to capture db_post_cleanup_invoice.sql.txt; see docs/runbooks/evidence/may16_wave_deploy_verify/20260518T231734Z/stage6_full_vm_lifecycle_proof/run_b/db_post_cleanup_invoice.sql.txt.error.txt
+[full-vm-lifecycle] evidence: post-cleanup artifacts written to docs/runbooks/evidence/may16_wave_deploy_verify/20260518T231734Z/stage6_full_vm_lifecycle_proof/run_b

@@ -1,0 +1,14 @@
+# Disposition Receipt: batman/may23_9pm_3_shared_layout_polish
+
+Classification: approved freed local branch after approved worktree removal
+Evidence source: current read-only git refs at bundle creation.
+
+## rev-parse
+$ git rev-parse batman/may23_9pm_3_shared_layout_polish
+3fccc51caba46ec47fac2148c105259e468e534e
+
+## cherry
+$ git cherry -v main batman/may23_9pm_3_shared_layout_polish | tail -20
+
+## diff main...
+$ git diff main...batman/may23_9pm_3_shared_layout_polish --stat | tail -20

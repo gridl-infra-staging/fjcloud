@@ -1,0 +1,47 @@
+{
+    "SecurityGroups": [
+        {
+            "GroupId": "sg-0c6ae08699b5405f0",
+            "IpPermissionsEgress": [],
+            "Tags": [
+                {
+                    "Key": "Name",
+                    "Value": "fjcloud-prod-sg-rds"
+                },
+                {
+                    "Key": "env",
+                    "Value": "prod"
+                },
+                {
+                    "Key": "service",
+                    "Value": "fjcloud"
+                },
+                {
+                    "Key": "managed-by",
+                    "Value": "terraform"
+                }
+            ],
+            "VpcId": "vpc-0125cfcf4cc36762c",
+            "SecurityGroupArn": "arn:aws:ec2:us-east-1:213880904778:security-group/sg-0c6ae08699b5405f0",
+            "OwnerId": "213880904778",
+            "GroupName": "fjcloud-prod-sg-rds",
+            "Description": "RDS: inbound 5432 from API SG only",
+            "IpPermissions": [
+                {
+                    "IpProtocol": "tcp",
+                    "FromPort": 5432,
+                    "ToPort": 5432,
+                    "UserIdGroupPairs": [
+                        {
+                            "UserId": "213880904778",
+                            "GroupId": "sg-007c0829f01e4f2fb"
+                        }
+                    ],
+                    "IpRanges": [],
+                    "Ipv6Ranges": [],
+                    "PrefixListIds": []
+                }
+            ]
+        }
+    ]
+}

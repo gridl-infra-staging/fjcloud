@@ -1,0 +1,12 @@
+release_tag=v0.0.18-beta
+deploy_sha=5a57ea6a280a1d63b54957b3732dcf8cc0a08c2e
+flapjack_sha256=d2f1f499b1dc1f73744a2f2a42455be97a86d13b748742bdf0ad8ae539a5ddf8
+fjcloud_api_sha256=ba42152c1bb2cedc6671b14cb0ef11b756ab4d6d3ab2c987e0ab99810d7a8ebd
+ops/build/flapjack: ELF 64-bit LSB executable, ARM aarch64, version 1 (SYSV), statically linked, not stripped
+total 385160
+drwxr-xr-x@  6 stuart  staff        192 May 15 20:25 .
+drwxr-xr-x@ 16 stuart  staff        512 May 15 20:25 ..
+-rwxr-xr-x@  1 stuart  staff   11105984 May  4 04:46 fj-metering-agent
+-rwxr-xr-x@  1 stuart  staff    6863928 May  4 04:46 fjcloud-aggregation-job
+-rwxr-xr-x@  1 stuart  staff   63187160 May  4 04:46 fjcloud-api
+-rwxr-xr-x@  1 stuart  staff  116036088 May 15 20:25 flapjack

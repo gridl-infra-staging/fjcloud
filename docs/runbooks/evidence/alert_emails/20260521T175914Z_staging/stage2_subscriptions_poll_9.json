@@ -1,0 +1,11 @@
+{
+    "Subscriptions": [
+        {
+            "SubscriptionArn": "arn:aws:sns:us-east-1:213880904778:fjcloud-alerts-staging:2c27ef34-2b4a-4be2-a97b-bd884e4a6023",
+            "Owner": "213880904778",
+            "Protocol": "email",
+            "Endpoint": "stuart.clifford@gmail.com",
+            "TopicArn": "arn:aws:sns:us-east-1:213880904778:fjcloud-alerts-staging"
+        }
+    ]
+}

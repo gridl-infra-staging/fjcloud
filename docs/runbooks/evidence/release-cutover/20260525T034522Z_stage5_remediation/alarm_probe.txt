@@ -1,0 +1,10 @@
+# target alarm state
+[
+    {
+        "Name": "fjcloud-prod-customer-loop-canary-lambda-errors",
+        "State": "OK",
+        "Updated": "2026-05-24T23:43:38.594000-04:00",
+        "Reason": "Threshold Crossed: 1 out of the last 1 datapoints [0.0 (25/05/26 03:28:00)] was not greater than the threshold (0.0) (minimum 1 datapoint for ALARM -> OK transition)."
+    }
+]
+# any fjcloud-prod alarms currently in ALARM (empty = none)

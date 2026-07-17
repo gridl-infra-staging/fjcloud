@@ -1,0 +1,36 @@
+{
+  "all_green": false,
+  "summary": "4/6 in-VPC probe rows green. Both prior probe-side residuals (verify_email_clickthrough, password_reset_clickthrough) now pass on the deployed merged-main SHA. The merged s1_dunning_reset_stripe_json_fix cleared the original reset_stripe_list_invalid blocker: the dunning rehearsal reset_test_state, preflight, metering_evidence and live_mutation_guard steps now pass. The two dunning rows now fail one step later, at email-evidence capture, blocked by a staging instance-role IAM gap (logs:FilterLogEvents denied on the SES send-events log group).",
+  "failures": [
+    {
+      "probe_id": "staging_dunning_delivery",
+      "owner_path": "scripts/validate_staging_dunning_delivery.sh",
+      "rc": 1,
+      "observed_classification": "invoice_email_ses_query_failed",
+      "observed_detail": "CloudWatch Logs SES send-events query failed while checking invoice email evidence. (attempts=1). Reset/preflight/metering/live_mutation_guard all passed; failure is at live_mutation_attempt email-evidence capture.",
+      "root_cause": "Staging EC2 instance role arn:aws:iam::213880904778:role/fjcloud-instance-role is not authorized to perform logs:FilterLogEvents / logs:DescribeLogGroups on log-group /fjcloud/staging/ses/send-events. ops/iam/fjcloud-instance-role.tf grants only CloudWatch Logs write actions (CreateLogGroup, CreateLogStream, DescribeLogStreams, PutLogEvents), never read/query actions. The on-host billing rehearsal email-evidence step (scripts/lib/staging_billing_rehearsal_email_evidence.sh::run_ses_cloudwatch_logs_lookup) requires logs:FilterLogEvents. The log group itself exists and is populated (verified operator-side: 8088216 stored bytes, 14-day retention).",
+      "disposition": "P1 repo-owned-prerequisite infra gap. Fix owner: ops/iam/fjcloud-instance-role.tf (add a read policy granting logs:FilterLogEvents + logs:DescribeLogGroups + logs:GetLogEvents on arn:aws:logs:*:*:log-group:/fjcloud/staging/ses/send-events:*), then terraform apply staging. Out of scope for this verify-only stage (no product/infra code changes); tracked for an ops/IAM follow-up stage. The email SEND itself is not implicated (ses:SendEmail/SendRawEmail are granted); only the on-host evidence QUERY is IAM-blocked.",
+      "severity": "P1",
+      "regression": false,
+      "progress_vs_reference": "Reference bundle 20260711T221212Z failed at reset_test_state with reset_stripe_list_invalid (Stripe invoice list returned invalid JSON). That blocker is now cleared; this row advances through metering and live mutation and fails at a distinct, newly-surfaced IAM gate."
+    },
+    {
+      "probe_id": "dunning_email_inbox",
+      "owner_path": "scripts/probe_dunning_email_inbox_e2e.sh",
+      "rc": 1,
+      "observed_classification": "rehearsal_failed",
+      "observed_detail": "dunning owner script exited 1 (wraps scripts/validate_staging_dunning_delivery.sh). Inbox hosted-invoice-URL assertion was never reached because the validator did not return result=passed.",
+      "root_cause": "Dependent on staging_dunning_delivery. Same underlying instance-role IAM gap (logs:FilterLogEvents denied) blocks the wrapped validator from passing, so the inbox hosted-invoice-URL check does not run.",
+      "disposition": "P1 dependent gap. Clears automatically once staging_dunning_delivery clears (i.e. once the instance-role CloudWatch Logs read policy is added and applied). No independent fix required.",
+      "severity": "P1",
+      "regression": false,
+      "progress_vs_reference": "Reference bundle failed at rehearsal_reset_failed (reset_stripe_list_invalid). Now fails one gate later, on the same email-evidence IAM block inherited from staging_dunning_delivery."
+    }
+  ],
+  "green_rows": [
+    {"probe_id": "verify_email_clickthrough", "note": "Now PASS on deployed merged-main SHA (was FAIL in reference bundle 20260711T221212Z). Probe-side residual retired for this deployed run."},
+    {"probe_id": "password_reset_clickthrough", "note": "Now PASS on deployed merged-main SHA (was FAIL in reference bundle 20260711T221212Z). Probe-side residual retired for this deployed run."},
+    {"probe_id": "ses_bounce", "note": "PASS. Permanent-bounce suppression observed via ses_sns_webhook; consistent with reference."},
+    {"probe_id": "ses_complaint", "note": "PASS. Complaint suppression observed via ses_sns_webhook; consistent with reference."}
+  ]
+}

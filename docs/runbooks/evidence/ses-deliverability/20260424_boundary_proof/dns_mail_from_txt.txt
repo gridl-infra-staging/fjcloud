@@ -1,0 +1,2 @@
+# dig TXT mail.flapjack.foo
+"v=spf1 include:amazonses.com ~all"

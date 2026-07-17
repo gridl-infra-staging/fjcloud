@@ -1,0 +1,4 @@
+timestamp=2026-05-28T11:31:31Z
+-rw-r--r--@ 1 stuart  wheel  224 May 28 07:24 /tmp/seed-synthetic-demo-medium-dedicated.json
+-rw-r--r--@ 1 stuart  wheel  199 May 28 07:25 /tmp/seed-synthetic-demo-shared-free.json
+-rw-r--r--@ 1 stuart  wheel  222 May 28 07:24 /tmp/seed-synthetic-demo-small-dedicated.json

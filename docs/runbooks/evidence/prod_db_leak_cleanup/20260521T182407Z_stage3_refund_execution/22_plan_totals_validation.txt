@@ -1,0 +1,5 @@
+plan_totals_validation=PASS
+expected_refund_eligible_charge_count=0
+recomputed_refund_eligible_charge_count=0
+expected_refund_total_cents=0
+recomputed_refund_total_cents=0

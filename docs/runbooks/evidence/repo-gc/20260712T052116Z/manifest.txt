@@ -1,0 +1,1711 @@
+# Repo GC Manifest
+
+Created UTC: 20260712T052116Z
+Repo: fjcloud_dev
+Deletion contract owner: refined_input.md `Approved local branch deletion manifest`.
+Disposition rationale owner: ROADMAP.md `Unmerged lane disposition`.
+Stage 1 prerequisite: prep/post-5d631-queued-edits was already harvested in chatting/20260712T050500Z_jul11_pm_launch_unblock_closeout.md under `Harvested Follow-Up Candidates` before this GC stage.
+
+## Approved Branch Inventory
+
+The first token of each line is also copied to manifest_branches.txt for the survivor check.
+
+- batman/jul06_pm_1_polished_beta_staging_verify_rerun d3505e906c6760a6f474b57cd7de69dbda59044a
+  - Rationale: ROADMAP.md Unmerged lane disposition classifies the approved branch/worktree set as ABANDON: zero orphaned product code, with already-landed content or evidence/checklist-only deltas; `prep/post-5d631-queued-edits` planning prose was harvested before deletion.
+- batman/jul07_3pm_14_playwright_parallel_workers 37c9543b2e3a06672233a40bdb827d8d8750d41f
+  - Rationale: ROADMAP.md Unmerged lane disposition classifies the approved branch/worktree set as ABANDON: zero orphaned product code, with already-landed content or evidence/checklist-only deltas; `prep/post-5d631-queued-edits` planning prose was harvested before deletion.
+- batman/jul07_pm_4_polished_beta_staging_verify_rerun4 da5784ff6f35527f5497d9aa0cfd7245ffa55f3c
+  - Rationale: ROADMAP.md Unmerged lane disposition classifies the approved branch/worktree set as ABANDON: zero orphaned product code, with already-landed content or evidence/checklist-only deltas; `prep/post-5d631-queued-edits` planning prose was harvested before deletion.
+- batman/jul07_pm_6_polished_beta_staging_verify_rerun5 48a81a52a90e63912dc688dafb47ec115ae0e8e4
+  - Rationale: ROADMAP.md Unmerged lane disposition classifies the approved branch/worktree set as ABANDON: zero orphaned product code, with already-landed content or evidence/checklist-only deltas; `prep/post-5d631-queued-edits` planning prose was harvested before deletion.
+- batman/jul08_am_1_rc_shape_drift_investigate_and_rerun 6d487ec8332007a8630baf50a3a376651e18432b
+  - Rationale: ROADMAP.md Unmerged lane disposition classifies the approved branch/worktree set as ABANDON: zero orphaned product code, with already-landed content or evidence/checklist-only deltas; `prep/post-5d631-queued-edits` planning prose was harvested before deletion.
+- batman/jul08_pm_1_rc_rerun_produce_clean_bundle 540a3a0e1a051584d22852a0eb87ff4b278831d3
+  - Rationale: ROADMAP.md Unmerged lane disposition classifies the approved branch/worktree set as ABANDON: zero orphaned product code, with already-landed content or evidence/checklist-only deltas; `prep/post-5d631-queued-edits` planning prose was harvested before deletion.
+- batman/jul09_am_6_billing_rehearsal_real_run 66ee5c58a947f90267de391e07607f97e05d8e61
+  - Rationale: ROADMAP.md Unmerged lane disposition classifies the approved branch/worktree set as ABANDON: zero orphaned product code, with already-landed content or evidence/checklist-only deltas; `prep/post-5d631-queued-edits` planning prose was harvested before deletion.
+- batman/jun04_pm_7_screen_spec_visual_contract_template_and_application 51171e24f92c04d6b73dc00019479653cc5bf0f3
+  - Rationale: ROADMAP.md Unmerged lane disposition classifies the approved branch/worktree set as ABANDON: zero orphaned product code, with already-landed content or evidence/checklist-only deltas; `prep/post-5d631-queued-edits` planning prose was harvested before deletion.
+- batman/jun05_ui_1147am_4_password_and_tooltip_ssot 19acd9d1991f4e34e2c423b557fc4bd688c277b5
+  - Rationale: ROADMAP.md Unmerged lane disposition classifies the approved branch/worktree set as ABANDON: zero orphaned product code, with already-landed content or evidence/checklist-only deltas; `prep/post-5d631-queued-edits` planning prose was harvested before deletion.
+- batman/jun11_am_3_support_inbox_and_synthetic_canary_rollout_proof b13fbaa5a3676856d135bc2a1e8104c087342832
+  - Rationale: ROADMAP.md Unmerged lane disposition classifies the approved branch/worktree set as ABANDON: zero orphaned product code, with already-landed content or evidence/checklist-only deltas; `prep/post-5d631-queued-edits` planning prose was harvested before deletion.
+- batman/jun11_pm_2_synthetic_traffic_and_usage_records 85517ec129e36099e2cab731f72ea2abdd1290d0
+  - Rationale: ROADMAP.md Unmerged lane disposition classifies the approved branch/worktree set as ABANDON: zero orphaned product code, with already-landed content or evidence/checklist-only deltas; `prep/post-5d631-queued-edits` planning prose was harvested before deletion.
+- batman/jun11_pm_9_polished_beta_staging_verify 394c25d55b843501609154f08adb62b41196556a
+  - Rationale: ROADMAP.md Unmerged lane disposition classifies the approved branch/worktree set as ABANDON: zero orphaned product code, with already-landed content or evidence/checklist-only deltas; `prep/post-5d631-queued-edits` planning prose was harvested before deletion.
+- batman/may21_12pm_7_announce_gate 3edacbd3bc869cd21029f9c83ab7cad47e4ae9bb
+  - Rationale: ROADMAP.md Unmerged lane disposition classifies the approved branch/worktree set as ABANDON: zero orphaned product code, with already-landed content or evidence/checklist-only deltas; `prep/post-5d631-queued-edits` planning prose was harvested before deletion.
+- batman/may25_151pm_wave_b_2a_synonyms_restructure 57790a7b514eba09aeee3f5c1591dab9801f9b73
+  - Rationale: ROADMAP.md Unmerged lane disposition classifies the approved branch/worktree set as ABANDON: zero orphaned product code, with already-landed content or evidence/checklist-only deltas; `prep/post-5d631-queued-edits` planning prose was harvested before deletion.
+- batman/may25_151pm_wave_b_2c_events_overhaul 74b05e5b8f496d6625f8c65987a5d2b96dc93d57
+  - Rationale: ROADMAP.md Unmerged lane disposition classifies the approved branch/worktree set as ABANDON: zero orphaned product code, with already-landed content or evidence/checklist-only deltas; `prep/post-5d631-queued-edits` planning prose was harvested before deletion.
+- batman/may25_151pm_wave_b_2e_personalization_full 92237ece7292e9261e6bf14c3cc14191630a88e5
+  - Rationale: ROADMAP.md Unmerged lane disposition classifies the approved branch/worktree set as ABANDON: zero orphaned product code, with already-landed content or evidence/checklist-only deltas; `prep/post-5d631-queued-edits` planning prose was harvested before deletion.
+- batman/may25_151pm_wave_b_2f_dictionaries_rebuild 9c5b630d1ffbed5bda11564803236f9de058c06e
+  - Rationale: ROADMAP.md Unmerged lane disposition classifies the approved branch/worktree set as ABANDON: zero orphaned product code, with already-landed content or evidence/checklist-only deltas; `prep/post-5d631-queued-edits` planning prose was harvested before deletion.
+- batman/may25_151pm_wave_b_2g_experiments_wizard_and_detail 102a1f6f0948d2519222bf07eabe3567c076f906
+  - Rationale: ROADMAP.md Unmerged lane disposition classifies the approved branch/worktree set as ABANDON: zero orphaned product code, with already-landed content or evidence/checklist-only deltas; `prep/post-5d631-queued-edits` planning prose was harvested before deletion.
+- batman/may25_151pm_wave_b_3d_overview_tab_enrichment dd4754e2bd45d66834c70d6f46803fe7f7585888
+  - Rationale: ROADMAP.md Unmerged lane disposition classifies the approved branch/worktree set as ABANDON: zero orphaned product code, with already-landed content or evidence/checklist-only deltas; `prep/post-5d631-queued-edits` planning prose was harvested before deletion.
+- batman/may25_151pm_wave_b_3f_merch_drag_suggestions_lifecycle 83309145bec345c413837141b33f589cfcbcae05
+  - Rationale: ROADMAP.md Unmerged lane disposition classifies the approved branch/worktree set as ABANDON: zero orphaned product code, with already-landed content or evidence/checklist-only deltas; `prep/post-5d631-queued-edits` planning prose was harvested before deletion.
+- batman/may25_151pm_wave_b_3h_settings_migrate_audit b2bf08c093ac3e62160e50166a5ea9f9fb1f1d2d
+  - Rationale: ROADMAP.md Unmerged lane disposition classifies the approved branch/worktree set as ABANDON: zero orphaned product code, with already-landed content or evidence/checklist-only deltas; `prep/post-5d631-queued-edits` planning prose was harvested before deletion.
+- matt/stage2-bundle-landed-s55 bfb7cb8515f0dd47195684165b990150cee4bfd9
+  - Rationale: ROADMAP.md Unmerged lane disposition classifies the approved branch/worktree set as ABANDON: zero orphaned product code, with already-landed content or evidence/checklist-only deltas; `prep/post-5d631-queued-edits` planning prose was harvested before deletion.
+- prep/post-5d631-queued-edits ea967c83666950d3d79621c1d9034c87a1acf6d1
+  - Rationale: ROADMAP.md Unmerged lane disposition classifies the approved branch/worktree set as ABANDON: zero orphaned product code, with already-landed content or evidence/checklist-only deltas; `prep/post-5d631-queued-edits` planning prose was harvested before deletion.
+- publish/jul09-stage2-billing-rehearsal 70bf811e3d9f4df0a15ed8715245f30f1b3ff0d2
+  - Rationale: ROADMAP.md Unmerged lane disposition classifies the approved branch/worktree set as ABANDON: zero orphaned product code, with already-landed content or evidence/checklist-only deltas; `prep/post-5d631-queued-edits` planning prose was harvested before deletion.
+- publish/jun09_am_l1_rc_harness dae0ebdadc6f5c1b744fc4bbc4699cdd5fab24bf
+  - Rationale: ROADMAP.md Unmerged lane disposition classifies the approved branch/worktree set as ABANDON: zero orphaned product code, with already-landed content or evidence/checklist-only deltas; `prep/post-5d631-queued-edits` planning prose was harvested before deletion.
+- rapid-local-verify-and-web-deploy 7447225e52ce91a7254b7bbe6f3a8f3ebcb8547b
+  - Rationale: ROADMAP.md Unmerged lane disposition classifies the approved branch/worktree set as ABANDON: zero orphaned product code, with already-landed content or evidence/checklist-only deltas; `prep/post-5d631-queued-edits` planning prose was harvested before deletion.
+- s41_push_fix f8b3b5f74a56d2eca47c142f48788a48c674336b
+  - Rationale: ROADMAP.md Unmerged lane disposition classifies the approved branch/worktree set as ABANDON: zero orphaned product code, with already-landed content or evidence/checklist-only deltas; `prep/post-5d631-queued-edits` planning prose was harvested before deletion.
+- stage3_ci_prereq_fix 254245cea02bcc748fb6f478f5542cb2a6fcdd89
+  - Rationale: ROADMAP.md Unmerged lane disposition classifies the approved branch/worktree set as ABANDON: zero orphaned product code, with already-landed content or evidence/checklist-only deltas; `prep/post-5d631-queued-edits` planning prose was harvested before deletion.
+- stage3_final_browser_evidence 3f3264d1bef7c8e96e956eb43282335ef06bacd5
+  - Rationale: ROADMAP.md Unmerged lane disposition classifies the approved branch/worktree set as ABANDON: zero orphaned product code, with already-landed content or evidence/checklist-only deltas; `prep/post-5d631-queued-edits` planning prose was harvested before deletion.
+- stage4_dc729_backup dc729925dfc880851ddc27265e5cffe62123de4e
+  - Rationale: ROADMAP.md Unmerged lane disposition classifies the approved branch/worktree set as ABANDON: zero orphaned product code, with already-landed content or evidence/checklist-only deltas; `prep/post-5d631-queued-edits` planning prose was harvested before deletion.
+- stage4_s57_fix_blockers 1a159db0b455919c3747095c62eb1441e9e8583a
+  - Rationale: ROADMAP.md Unmerged lane disposition classifies the approved branch/worktree set as ABANDON: zero orphaned product code, with already-landed content or evidence/checklist-only deltas; `prep/post-5d631-queued-edits` planning prose was harvested before deletion.
+
+## ROADMAP Rationale Source
+
+- **Unmerged lane disposition (re-verified 2026-07-10 — every branch below re-checked with `git merge-base --is-ancestor` and `git cherry -v main`).** ABANDON, all confirmed unmerged and carrying no salvageable product code: `batman/jul08_am_1_rc_shape_drift_investigate_and_rerun` (stopped 0/5 stages; its one product diff re-adds an `onclick` handler to `PaymentMethodSetupForm.svelte` that main **deliberately rejected** — main carries an explicit "Do NOT reintroduce onclick / capture-phase click+pointerdown listeners here" comment, so merging would regress main; its `ops/terraform/dns/main.tf` change is byte-identical to main's and the branch is otherwise *behind* main), `batman/jul08_pm_1_rc_rerun_produce_clean_bundle` (4 unique commits, 214 files, essentially all `DIRMAP.md` noise), `batman/jul09_am_6_billing_rehearsal_real_run` (evidence/DIRMAP/checklist only), and the `polished-beta-staging-verify` rerun4/rerun5 branches. **`batman/jul07_3pm_14_playwright_parallel_workers` is now ABANDON, not SALVAGE (correction).** Its fixture/spec-ownership refactor **already reached main independently** via `5256ad368`, `159053c14`, `a74928abe` (`web/tests/fixtures/fixtures.ts`, 4660 lines, full disposable-fixture machinery). Note the salvage lane `jul09_pm_4` did **not** carry that refactor — it landed only evidence, DIRMAP, config, and `scripts/lib/stripe_request.sh`; the refactor was re-authored on main under a different spec-naming scheme (main: `account-delete.spec.ts` / `auth-end-effects.spec.ts`; branch 14: `public-` prefixed). Branch 14's sole remaining unique delta is the `workers: 4` flip, which failed its own Stage-5 3-green-runs gate. Nothing left to salvage. **Full-sweep extension (2026-07-11):** every remaining unmerged branch beyond the five above — 25 branches plus the stray `stage3-pages-parity-publish` worktree — was classified via `git cherry -v main` and three-dot product diffs: 13 carry content that already landed on main (main's re-authored version is newer where it matters), 12 are evidence/checklist-only, **zero orphaned product code — nothing to merge**. The only unique un-landed content anywhere is planning prose on `prep/post-5d631-queued-edits` (a deploy-latency profiling idea and a shared-login verify-harness idea; its third row, the search-preview pagination undercount, already landed via `bfe5e7223`/`3cca4b672`/`c9eedd2dc`). Every listed branch/worktree is safe to delete under the same ABANDON basis.
+
+## Worktree Inventory Command
+
+$ git worktree list --porcelain
+```
+worktree /Users/stuart/repos/gridl-infra-dev/fjcloud_dev
+HEAD 96e63f5a38664f34853ec9c3ffbf52f1b45fca34
+branch refs/heads/main
+
+worktree /private/tmp/fjcloud-stage3-publish.aqahSw/worktree
+HEAD 7292ad2d3b9a98f0f38827867accbd5e50afc1f2
+branch refs/heads/stage3-pages-parity-publish
+
+worktree /Users/stuart/.matt/merge-worktrees/fjcloud_dev-cc786cd1
+HEAD 96e63f5a38664f34853ec9c3ffbf52f1b45fca34
+detached
+
+worktree fjcloud_dev
+HEAD d3505e906c6760a6f474b57cd7de69dbda59044a
+branch refs/heads/batman/jul06_pm_1_polished_beta_staging_verify_rerun
+
+worktree fjcloud_dev
+HEAD 8a3c6e18364b8619e7c891232008345702301f1e
+branch refs/heads/batman/jul06_pm_2_signup_cta_restore_public_launch
+
+worktree fjcloud_dev
+HEAD bd1095d7380a2453c42dd3a92a4dd5741c31e6c3
+branch refs/heads/batman/jul06_pm_3_deploy_currency_drift_alarm
+
+worktree fjcloud_dev
+HEAD 8b456e86a81598a454cf96f579a8fac6ae8899aa
+branch refs/heads/batman/jul06_pm_5_public_release_verify_and_closeout
+
+worktree fjcloud_dev
+HEAD 37c9543b2e3a06672233a40bdb827d8d8750d41f
+branch refs/heads/batman/jul07_3pm_14_playwright_parallel_workers
+
+worktree fjcloud_dev
+HEAD e59ea7e72d103cd8c64aaed4f4c650dfa99c49b1
+branch refs/heads/batman/jul07_3pm_15_staging_billing_rehearsal_rerun
+
+worktree fjcloud_dev
+HEAD a139aaf1d17deb70424e9c6e86d3ff2ed861ee0f
+branch refs/heads/batman/jul07_3pm_17_e2e_deployed_failure_paging
+
+worktree fjcloud_dev
+HEAD 809ac50810f121eda4f21caa189d9b168a76e791
+branch refs/heads/batman/jul07_3pm_7_api_types_client_split_openapi_drift
+
+worktree fjcloud_dev
+HEAD fc2c0981cc344ce3d399775605841692351bba73
+branch refs/heads/batman/jul07_am_1_polished_beta_staging_verify_rerun2
+
+worktree fjcloud_dev
+HEAD a6d5d3f380008150107384e896a3ab8a1b0db5dc
+branch refs/heads/batman/jul07_am_2_web_deploy_automation
+
+worktree fjcloud_dev
+HEAD 29b02ccb9c6d2ad17d1d84b8449cc199a52ef4b5
+branch refs/heads/batman/jul07_pm_1_verify_findings_fix
+
+worktree fjcloud_dev
+HEAD da5784ff6f35527f5497d9aa0cfd7245ffa55f3c
+branch refs/heads/batman/jul07_pm_4_polished_beta_staging_verify_rerun4
+
+worktree fjcloud_dev
+HEAD 48a81a52a90e63912dc688dafb47ec115ae0e8e4
+branch refs/heads/batman/jul07_pm_6_polished_beta_staging_verify_rerun5
+
+worktree fjcloud_dev
+HEAD f6d2088f4a4c5ef24a347939d4b5669eee6fd4fe
+branch refs/heads/batman/jul07_pm_8_polished_beta_staging_verify_rerun6
+
+worktree fjcloud_dev
+HEAD 540a3a0e1a051584d22852a0eb87ff4b278831d3
+branch refs/heads/batman/jul08_pm_1_rc_rerun_produce_clean_bundle
+
+worktree fjcloud_dev
+HEAD efb46663c7ad56da68709c2b1eba6b68158700a7
+branch refs/heads/batman/jul08_pm_2_rc_rerun_clean_bundle_v2
+
+worktree fjcloud_dev
+HEAD d0891e3b5ad9ed810f6866fd570234c2c56cd82d
+branch refs/heads/batman/jul09_am_2_panics_total_cloudwatch_alarm
+
+worktree fjcloud_dev
+HEAD 70bf811e3d9f4df0a15ed8715245f30f1b3ff0d2
+branch refs/heads/publish/jul09-stage2-billing-rehearsal
+
+worktree fjcloud_dev
+HEAD 6770f172e517bfa36c4e60d741259b3691afad49
+branch refs/heads/batman/jul09_am_6_staging_billing_rehearsal_rerun2
+
+worktree fjcloud_dev
+HEAD 2fe30f54dc6f8203114756fae3f2b1b623545ea4
+branch refs/heads/batman/jul09_pm_1_staging_domain_remap_and_served_content_gate
+
+worktree fjcloud_dev
+HEAD 492c642ef302947f9d85f0ee006ed4a298520048
+branch refs/heads/batman/jul09_pm_3_tenant_isolation_proptest_fix
+
+worktree fjcloud_dev
+HEAD c6b4db65821780861d4f8bff0149417f2ba83606
+branch refs/heads/batman/jul11_pm_7_batch_closeout_and_repo_gc
+
+worktree fjcloud_dev
+HEAD 3498dac8232ce9a6bde1da3ab317bf3a8a445ef4
+branch refs/heads/batman/jun04_am_1_ci_hygiene_deploy_currency_and_playwright_stripe_mode
+
+worktree fjcloud_stage3_mainline
+HEAD 17bc8521e32f6fa207d50d387eaa1d8ee4a848e4
+branch refs/heads/stage3_mainline_integration
+
+worktree fjcloud_dev
+HEAD bec1a6ecdb6f0e73a292ec543fdd05eb6904dc0b
+branch refs/heads/batman/jun04_pm_4_editor_dialog_styling_pass
+
+worktree fjcloud_dev
+HEAD 779c226b3022e0e6a6552d0154e874bae141c74b
+branch refs/heads/batman/jun05_pm_2_rc_harness_critical_browser_surface
+
+worktree fjcloud_dev
+HEAD 78aae9138145bd66796929336f54586bc9cb804d
+branch refs/heads/batman/jun05_pm_3_rc_harness_live_evidence_completeness
+
+worktree fjcloud_dev
+HEAD f3df3254d37b6d0cf1110d302b8a0986dd0b9b25
+branch refs/heads/batman/jun05_ui_1147am_10_unified_search_tab
+
+worktree fjcloud_dev
+HEAD aed2761d46df8dc3f957d215837dfbe81379c24a
+branch refs/heads/batman/jun05_ui_1147am_2_toast_p0_migration
+
+worktree fjcloud_dev
+HEAD 19acd9d1991f4e34e2c423b557fc4bd688c277b5
+branch refs/heads/batman/jun05_ui_1147am_4_password_and_tooltip_ssot
+
+worktree fjcloud_dev
+HEAD ac4dcddb63a02ea51143409c6cca7732e472103b
+branch refs/heads/batman/jun05_ui_1147am_5_oauth_local_dx_and_account_delete_copy
+
+worktree fjcloud_dev
+HEAD dae0ebdadc6f5c1b744fc4bbc4699cdd5fab24bf
+branch refs/heads/publish/jun09_am_l1_rc_harness
+
+worktree fjcloud_dev
+HEAD 407f6b06d9c25b5d4eedc0dc69818543fabd664f
+branch refs/heads/batman/jun09_am_2_verify_email_clickthrough_definitive_classification
+
+worktree fjcloud_dev
+HEAD 957eeec204e17e3fb166b1565b9240a0f66d603a
+branch refs/heads/batman/jun09_pm_10_pricing_tax_alert_emails_ci_polish
+
+worktree fjcloud_dev
+HEAD 9240e400e447966f3af58ae0b2de9df5e968fb04
+branch refs/heads/batman/jun09_pm_11_cargo_indexes_test_env_leak_fix_lane
+
+worktree fjcloud_dev
+HEAD cc9db222bcf0e43e3429a0e62bf20cd600b92066
+branch refs/heads/batman/jun09_pm_1_merchandising_hub_pivot
+
+worktree fjcloud_dev
+HEAD 9a0e517720d450086b3b2ebd062849a5c2ec29b9
+branch refs/heads/batman/jun09_pm_2_ui_test_coverage_p0
+
+worktree fjcloud_dev
+HEAD 8f3544f5570b348d400e97a991abfeda2f0ef786
+branch refs/heads/batman/jun09_pm_4_merch_mode_toggle_on_search
+
+worktree fjcloud_dev
+HEAD c6bc443e93510781968cb23b3a689a2f16d6b28c
+branch refs/heads/batman/jun09_pm_5_staging_verification_rc_reverdict_and_closeout
+
+worktree fjcloud_dev
+HEAD 1a513d42522905df94fef660f8f1643a5b851dc4
+branch refs/heads/batman/jun09_pm_8_staging_billing_rehearsal_seed
+
+worktree fjcloud_dev
+HEAD 9f1d5e3554621a8f4f0369f63dac05dca32214fa
+branch refs/heads/batman/jun10_pm_1_probe_contract_drift_and_lane_b_count_reconciliation
+
+worktree fjcloud_dev
+HEAD b6659fca41481a972e0748ce99e2971ad3b579de
+branch refs/heads/batman/jun10_pm_2_staging_billing_rehearsal_repeatability
+
+worktree fjcloud_dev
+HEAD a29ac8efb31ea71adf7dd1264d049bbfc299aa7f
+branch refs/heads/batman/jun10_pm_3_worktree_path_and_duplicate_todo_cleanup
+
+worktree fjcloud_dev
+HEAD 75bebb18af9c89f3731afee63fd9aec18f5ad3a9
+branch refs/heads/batman/jun10_pm_4_polished_beta_staging_verification_rerun
+
+worktree fjcloud_dev
+HEAD f0c00c7baffe1e4b547edb27dea71b33a17f1ab0
+detached
+
+worktree fjcloud_dev
+HEAD d244f08c7c59db87fb629d7060e5f80a59ea735c
+branch refs/heads/batman/jun11_pm_10_final_rc_and_closeout
+
+worktree fjcloud_dev
+HEAD ce1d0258c8508b04bed646e0ae0d35ae4d0294f4
+branch refs/heads/batman/jun11_pm_2_stage2_blocked_evidence
+
+worktree fjcloud_dev
+HEAD 417a036f6a07c4c7cc7d576b6d85140dc0ec6774
+detached
+
+worktree fjcloud_dev
+HEAD ce9f76ac5509cd31b6a9e72b0ac492f84a9c2be6
+branch refs/heads/batman/jun11_pm_7_aws_live_infra_e2e
+
+worktree fjcloud_dev
+HEAD 394c25d55b843501609154f08adb62b41196556a
+branch refs/heads/batman/jun11_pm_9_polished_beta_staging_verify
+
+worktree fjcloud_dev
+HEAD 497bf9891d0e1eeff8459ff973c4bae9fcba1b25
+branch refs/heads/batman/may16_9pm_1_ses_production_access_and_reputation_alarms
+
+worktree fjcloud_dev
+HEAD f37f579b8e605f8821dd3b155c2b965064c724f7
+branch refs/heads/batman/may16_9pm_2_auth_hardening_lockout_and_rate_limits
+
+worktree fjcloud_dev
+HEAD ed34c74a3c6180687b33219c35d2dd9da609765d
+branch refs/heads/batman/may16_9pm_3_stripe_dispute_chargeback_handlers
+
+worktree fjcloud_dev
+HEAD 3e0b73bb10ffa88dae000f5199f31a0c09bf126e
+branch refs/heads/batman/may16_9pm_4_full_prod_vm_lifecycle_proof
+
+worktree fjcloud_dev
+HEAD 81fe4e130b493fe4ad861f9255516398eb90c755
+branch refs/heads/batman/may16_pm_1_gitleaks_evidence_dir_allowlist
+
+worktree fjcloud_dev
+HEAD 35806ecc7854113bf69eb83f867a73338fa79a0e
+branch refs/heads/batman/may16_pm_2_debbie_stub_strip_blank_line
+
+worktree fjcloud_dev
+HEAD f74cc82c0c0cef5e1eedd0c214f82074a00b5bd4
+branch refs/heads/batman/may16_pm_3_playwright_customer_login_fixture
+
+worktree fjcloud_dev
+HEAD f3e42ddc473d6e06f870c66fbf682eb242d0422c
+branch refs/heads/batman/may16_pm_4_prod_canary_e2e_evidence
+
+worktree fjcloud_dev
+HEAD adf2c68c1e34caaf62c866ae2a947287cb5fc10b
+branch refs/heads/batman/may16_pm_5_self_service_upgrade_endpoint_and_trust_ratchet
+
+worktree fjcloud_dev
+HEAD 76f2a9da2cab18578d71f8122faf9aafc4dc1b36
+branch refs/heads/batman/may16_pm_6_quota_warning_emails_records_storage
+
+worktree fjcloud_dev
+HEAD a99a745d9b9db6bfbcebcf9ededc5cf1a9668534
+branch refs/heads/batman/may18_pm_1_may16_wave_deploy_verify_sweep
+
+worktree fjcloud_dev
+HEAD a681755667175c7e22fd287225702aef397ee7a4
+branch refs/heads/batman/may18_pm_3_customer_trust_surfaces
+
+worktree fjcloud_dev
+HEAD 2d6bcfb419f8744d0661c13965ccb94bf45ba02a
+branch refs/heads/batman/may19_pm_1_privacy_card_reuse_pattern
+
+worktree fjcloud_dev
+HEAD 99f791612bccbe3568979e17b1caa3c818ce4bf1
+branch refs/heads/batman/may19_pm_3_stripe_key_rotation_and_audit
+
+worktree fjcloud_dev
+HEAD f58513313d9e8a5ecba02430e3b3ee07ff86b775
+branch refs/heads/batman/may19_pm_4_gitleaks_secret_scan_remediation
+
+worktree fjcloud_dev
+HEAD 58f17c15be35abdb9adaecdb9c85090b3e69b2fa
+branch refs/heads/batman/may19_pm_5_staging_tls_host_routing
+
+worktree fjcloud_dev
+HEAD 5aff60740bc408718761fb811f9517fce129326f
+branch refs/heads/batman/may19_pm_6_subprocessor_disclosure_and_tax_posture
+
+worktree fjcloud_dev
+HEAD d26d99622635f55b28513ae5d03561994fb1a637
+branch refs/heads/batman/may20_3pm_1_fleet_recovery
+
+worktree fjcloud_dev
+HEAD 74bf84243e20091583262f966eed00e185340771
+branch refs/heads/batman/may20_3pm_2_pipeline_propagation
+
+worktree fjcloud_dev
+HEAD 8e296ec1b97f16714743f10419fba74164a5d642
+branch refs/heads/batman/may20_3pm_3_stripe_credential_revocation
+
+worktree fjcloud_dev
+HEAD 4f8eb97c4f4047cecb31f477722d73d746fa4ad7
+branch refs/heads/batman/may20_3pm_4_launch_verification
+
+worktree fjcloud_dev
+HEAD 3827d61cbd21b7a513191a9690c62d85ec425c38
+branch refs/heads/batman/may21_12pm_10_subprocessor_probe_rerun
+
+worktree fjcloud_dev
+HEAD c2ad6045c157beada0b2e339c45f745bb10c0d77
+branch refs/heads/batman/may21_12pm_11_inventory_diagnosis
+
+worktree fjcloud_dev
+HEAD 8ea753fbf370117dd609c9d4654e3abb9aab955a
+branch refs/heads/batman/may21_12pm_12_app_flapjack_foo_retirement
+
+worktree fjcloud_dev
+HEAD 93850e39390b4ee62ce13e5ac689a221adeabcd1
+branch refs/heads/batman/may21_12pm_1_cloudflare_prod_env_flip
+
+worktree fjcloud_dev
+HEAD f8fe82f9c3c798497aa580100fe76fbbab94afca
+branch refs/heads/batman/may21_12pm_2_prod_db_leak_cleanup
+
+worktree fjcloud_dev
+HEAD cb643e7970590fbe4535cc5d6122125b140db7e6
+branch refs/heads/batman/may21_12pm_3_staging_web_isolation
+
+worktree fjcloud_dev
+HEAD 22f42a7d68b8b5d96e8ee1ddccbc5d46f6d13cb9
+branch refs/heads/batman/may21_12pm_4_browser_lane_rerun
+
+worktree fjcloud_dev
+HEAD 3edacbd3bc869cd21029f9c83ab7cad47e4ae9bb
+branch refs/heads/batman/may21_12pm_7_announce_gate
+
+worktree fjcloud_dev
+HEAD 4b28570f7b9fe32264a87347e8d6237dc00efc04
+branch refs/heads/batman/may21_12pm_8_alert_emails
+
+worktree fjcloud_dev
+HEAD 9d068f2f147726a33aef4955e6ab964a33596554
+branch refs/heads/batman/may22_1pm_1_lb2_lb3_diagnose_and_fix
+
+worktree fjcloud_dev
+HEAD 8bf722ab525a6a2d97d3e76cab5e102543d6d9c8
+branch refs/heads/batman/may22_2pm_1_state_ssot_framework
+
+worktree fjcloud_dev
+HEAD b1711a34419533d3ab7ad45a6cd438f86189ec0a
+branch refs/heads/batman/may23_9pm_2_routes_dashboard_to_console
+
+worktree fjcloud_dev
+HEAD 3fccc51caba46ec47fac2148c105259e468e534e
+branch refs/heads/batman/may23_9pm_3_shared_layout_polish
+
+worktree fjcloud_dev
+HEAD e635364e4ba6ca58fe2f1b2aff0654857cf45821
+branch refs/heads/batman/may23_9pm_4_visual_polish_pass
+
+worktree fjcloud_dev
+HEAD cd1b50732f5c0d5c3b5cd39f98e0e68031bdaabc
+branch refs/heads/batman/may23_9pm_5_landing_ssot_and_cloud_redirect
+
+worktree fjcloud_dev
+HEAD 3aa973a964c81141d8a7c00dc9f85b3e98dcf0ed
+branch refs/heads/batman/may23_9pm_7_parity_audit
+
+worktree fjcloud_dev
+HEAD 6ca70d05fd70df357e7ddeedb533ac872640c5bb
+branch refs/heads/batman/may23_9pm_8_console_e2e_coverage_audit
+
+worktree fjcloud_dev
+HEAD 7623eaf4d720cacd78046debfc4af7f7cb4b54d7
+branch refs/heads/batman/may24_20260524T202244Z_w3_1_implement_demo_index_loader_in
+
+worktree fjcloud_dev
+HEAD 17e22d399b14862ec45a573203a1e31e18237bc7
+branch refs/heads/batman/may24_812am_1_prod_unblock_and_ship
+
+worktree fjcloud_dev
+HEAD 6df8ece795c269456e29624af3a1fe8da5d0538f
+branch refs/heads/batman/may24_812am_2_api_key_recognizer_tighten
+
+worktree fjcloud_dev
+HEAD 04c83ecc057278c45c042d83c0f2fb1ae1a763cc
+branch refs/heads/batman/may24_812am_3_w3_triage_fanout
+
+worktree fjcloud_dev
+HEAD feb19df82b2a6bc0aedfa3a8a6da484ddf3e9225
+branch refs/heads/batman/may25_151pm_3_demo_loader_and_create_dialog
+
+worktree fjcloud_dev
+HEAD 57790a7b514eba09aeee3f5c1591dab9801f9b73
+branch refs/heads/batman/may25_151pm_wave_b_2a_synonyms_restructure
+
+worktree fjcloud_dev
+HEAD 5fdb1a7b85d190f1ff1c7c830713f5e06aec9cca
+branch refs/heads/batman/may25_151pm_wave_b_2b_recommendations_restructure
+
+worktree fjcloud_dev
+HEAD 74b05e5b8f496d6625f8c65987a5d2b96dc93d57
+branch refs/heads/batman/may25_151pm_wave_b_2c_events_overhaul
+
+worktree fjcloud_dev
+HEAD 397a8e42e19a7cff120541fd23acecb9c3b0ab36
+branch refs/heads/batman/may25_151pm_wave_b_2d_rules_compound_editor
+
+worktree fjcloud_dev
+HEAD 92237ece7292e9261e6bf14c3cc14191630a88e5
+branch refs/heads/batman/may25_151pm_wave_b_2e_personalization_full
+
+worktree fjcloud_dev
+HEAD 9c5b630d1ffbed5bda11564803236f9de058c06e
+branch refs/heads/batman/may25_151pm_wave_b_2f_dictionaries_rebuild
+
+worktree fjcloud_dev
+HEAD 102a1f6f0948d2519222bf07eabe3567c076f906
+branch refs/heads/batman/may25_151pm_wave_b_2g_experiments_wizard_and_detail
+
+worktree fjcloud_dev
+HEAD b2ba9bf89166cb25b64afb72f143b9328a8d8a3e
+branch refs/heads/batman/may25_151pm_wave_b_3a_api_keys_parity
+
+worktree fjcloud_dev
+HEAD dd4754e2bd45d66834c70d6f46803fe7f7585888
+branch refs/heads/batman/may25_151pm_wave_b_3d_overview_tab_enrichment
+
+worktree fjcloud_dev
+HEAD 751764bfbacd55804fa334d408abe0ab27b7e428
+branch refs/heads/batman/may25_151pm_wave_b_3e_analytics_subtabs
+
+worktree fjcloud_dev
+HEAD 83309145bec345c413837141b33f589cfcbcae05
+branch refs/heads/batman/may25_151pm_wave_b_3f_merch_drag_suggestions_lifecycle
+
+worktree fjcloud_dev
+HEAD b2bf08c093ac3e62160e50166a5ea9f9fb1f1d2d
+branch refs/heads/batman/may25_151pm_wave_b_3h_settings_migrate_audit
+
+worktree fjcloud_dev
+HEAD 7114c811cff5b56d736a6a7ab240925a3ed74310
+detached
+
+worktree fjcloud_dev
+HEAD f8b3b5f74a56d2eca47c142f48788a48c674336b
+branch refs/heads/s41_push_fix
+
+worktree fjcloud_dev
+HEAD 27f69dacfccdb43c95e69e0a5d295599d25cc941
+branch refs/heads/batman/may27_pm_2_b1_rerun_final_launch_gate
+
+worktree fjcloud_dev
+HEAD 90470ed5020535df37ae89db05d24fe508c35bc7
+branch refs/heads/batman/may29_pm_7_dunning_probe_rca
+```
+
+## Approved Worktrees Mapped To Approved Branches
+
+- fjcloud_dev
+  - branch: batman/jul06_pm_1_polished_beta_staging_verify_rerun
+  - HEAD: d3505e906c6760a6f474b57cd7de69dbda59044a
+  - recorded branch tip: d3505e906c6760a6f474b57cd7de69dbda59044a
+- fjcloud_dev
+  - branch: batman/jul07_3pm_14_playwright_parallel_workers
+  - HEAD: 37c9543b2e3a06672233a40bdb827d8d8750d41f
+  - recorded branch tip: 37c9543b2e3a06672233a40bdb827d8d8750d41f
+- fjcloud_dev
+  - branch: batman/jul07_pm_4_polished_beta_staging_verify_rerun4
+  - HEAD: da5784ff6f35527f5497d9aa0cfd7245ffa55f3c
+  - recorded branch tip: da5784ff6f35527f5497d9aa0cfd7245ffa55f3c
+- fjcloud_dev
+  - branch: batman/jul07_pm_6_polished_beta_staging_verify_rerun5
+  - HEAD: 48a81a52a90e63912dc688dafb47ec115ae0e8e4
+  - recorded branch tip: 48a81a52a90e63912dc688dafb47ec115ae0e8e4
+- fjcloud_dev
+  - branch: batman/jul08_pm_1_rc_rerun_produce_clean_bundle
+  - HEAD: 540a3a0e1a051584d22852a0eb87ff4b278831d3
+  - recorded branch tip: 540a3a0e1a051584d22852a0eb87ff4b278831d3
+- fjcloud_dev
+  - branch: publish/jul09-stage2-billing-rehearsal
+  - HEAD: 70bf811e3d9f4df0a15ed8715245f30f1b3ff0d2
+  - recorded branch tip: 70bf811e3d9f4df0a15ed8715245f30f1b3ff0d2
+- fjcloud_dev
+  - branch: batman/jun05_ui_1147am_4_password_and_tooltip_ssot
+  - HEAD: 19acd9d1991f4e34e2c423b557fc4bd688c277b5
+  - recorded branch tip: 19acd9d1991f4e34e2c423b557fc4bd688c277b5
+- fjcloud_dev
+  - branch: publish/jun09_am_l1_rc_harness
+  - HEAD: dae0ebdadc6f5c1b744fc4bbc4699cdd5fab24bf
+  - recorded branch tip: dae0ebdadc6f5c1b744fc4bbc4699cdd5fab24bf
+- fjcloud_dev
+  - branch: batman/jun11_pm_9_polished_beta_staging_verify
+  - HEAD: 394c25d55b843501609154f08adb62b41196556a
+  - recorded branch tip: 394c25d55b843501609154f08adb62b41196556a
+- fjcloud_dev
+  - branch: batman/may21_12pm_7_announce_gate
+  - HEAD: 3edacbd3bc869cd21029f9c83ab7cad47e4ae9bb
+  - recorded branch tip: 3edacbd3bc869cd21029f9c83ab7cad47e4ae9bb
+- fjcloud_dev
+  - branch: batman/may25_151pm_wave_b_2a_synonyms_restructure
+  - HEAD: 57790a7b514eba09aeee3f5c1591dab9801f9b73
+  - recorded branch tip: 57790a7b514eba09aeee3f5c1591dab9801f9b73
+- fjcloud_dev
+  - branch: batman/may25_151pm_wave_b_2c_events_overhaul
+  - HEAD: 74b05e5b8f496d6625f8c65987a5d2b96dc93d57
+  - recorded branch tip: 74b05e5b8f496d6625f8c65987a5d2b96dc93d57
+- fjcloud_dev
+  - branch: batman/may25_151pm_wave_b_2e_personalization_full
+  - HEAD: 92237ece7292e9261e6bf14c3cc14191630a88e5
+  - recorded branch tip: 92237ece7292e9261e6bf14c3cc14191630a88e5
+- fjcloud_dev
+  - branch: batman/may25_151pm_wave_b_2f_dictionaries_rebuild
+  - HEAD: 9c5b630d1ffbed5bda11564803236f9de058c06e
+  - recorded branch tip: 9c5b630d1ffbed5bda11564803236f9de058c06e
+- fjcloud_dev
+  - branch: batman/may25_151pm_wave_b_2g_experiments_wizard_and_detail
+  - HEAD: 102a1f6f0948d2519222bf07eabe3567c076f906
+  - recorded branch tip: 102a1f6f0948d2519222bf07eabe3567c076f906
+- fjcloud_dev
+  - branch: batman/may25_151pm_wave_b_3d_overview_tab_enrichment
+  - HEAD: dd4754e2bd45d66834c70d6f46803fe7f7585888
+  - recorded branch tip: dd4754e2bd45d66834c70d6f46803fe7f7585888
+- fjcloud_dev
+  - branch: batman/may25_151pm_wave_b_3f_merch_drag_suggestions_lifecycle
+  - HEAD: 83309145bec345c413837141b33f589cfcbcae05
+  - recorded branch tip: 83309145bec345c413837141b33f589cfcbcae05
+- fjcloud_dev
+  - branch: batman/may25_151pm_wave_b_3h_settings_migrate_audit
+  - HEAD: b2bf08c093ac3e62160e50166a5ea9f9fb1f1d2d
+  - recorded branch tip: b2bf08c093ac3e62160e50166a5ea9f9fb1f1d2d
+- fjcloud_dev
+  - branch: s41_push_fix
+  - HEAD: f8b3b5f74a56d2eca47c142f48788a48c674336b
+  - recorded branch tip: f8b3b5f74a56d2eca47c142f48788a48c674336b
+
+## Approved Stray Worktree
+
+- /private/tmp/fjcloud-stage3-publish.aqahSw/worktree
+  - branch: stage3-pages-parity-publish
+  - HEAD: 7292ad2d3b9a98f0f38827867accbd5e50afc1f2
+  - branch tip: 7292ad2d3b9a98f0f38827867accbd5e50afc1f2
+
+## Conditional Stage3 Branch Deletion Probe
+
+$ git merge-base --is-ancestor stage3-pages-parity-publish main
+exit=0
+Decision: delete local stage3-pages-parity-publish branch after approved worktree cleanup because the recorded merge-base proof passed.
+
+## Batman Status Probe
+
+$ batman status fjcloud_dev
+```
+
+  Dashboard    http://localhost:5111
+
+  Auto-lifecycle daemons    1 scope tracked · 0 alive
+  STATE  REPO               PID  ROUND  NOTE
+  never  mike_dev-6bee6f97  —    —      never started
+
+  matt status  1 running · 19 recent · +200 older
+
+              ID     PROJECT      TASK                         STG        TSK  IT  SINCE   DUR         LAST
+  ────────────────────────────────────────────────────────────────────────────────────────────────
+  ● build     d7a37  fjcloud_dev  jul11_pm_7_batch_closeout_a →2/3      →0/20   1    44m   44m  07/12 01:21  $25.97+
+  ────────────────────────────────────────────────────────────────────────────────────────────────
+  ✓ done      ba9a2  fjcloud_dev  jul11_pm_6_deployed_launch_  3/3      50/50   0     2h    2h  07/12 00:35  $97.91+  merged
+  ✓ done      fcd45  fjcloud_dev  jul11_pm_2_evidence_capture  3/3      51/51   0     8h    2h  07/11 19:20  $114.73+  merged
+  ✓ done      a720b  fjcloud_dev  jul11_pm_5_s1_invpc_clickth  3/3      36/36   0     8h    1h  07/11 18:42  $89.60+  merged
+  ✓ done      6ce12  fjcloud_dev  jul11_pm_3_metrics_probe_ns  3/3 29/32 (3d)   0     8h    1h  07/11 18:23  $56.40+  merged
+  ✓ done      4f72b  fjcloud_dev  jul11_pm_1_rc_credential_en  3/3      42/42   0     8h    1h  07/11 18:17  $73.73+  merged
+  ✓ done      f40b7  fjcloud_dev  jul10_pm_9_batch_closeout_r  4/4      60/60   0    23h    1h  07/11 03:33  $55.48  merged
+  ✓ done      39223  fjcloud_dev  jul10_pm_8_deployed_launch_ →3/3 45/51 (4d)   0     1d    2h  07/11 01:41  $115.53+  merged
+  ✓ done      9dc6d  fjcloud_dev  jul10_pm_7_ses_bounce_compl  4/4 59/61 (2d)   0     1d    3h  07/10 22:25  $170.92+  merged
+  ✓ done      761ad  fjcloud_dev  jul10_pm_6_metrics_tab_reco  4/4 59/61 (2d)   0     1d    2h  07/10 21:36  $108.47+  merged
+  ✓ done      86527  fjcloud_dev  jul10_pm_3_playwright_seria  3/3      49/49   0     1d    3h  07/10 19:05  $134.15+  merged
+  ✓ done      d8ec1  fjcloud_dev  jul10_pm_4_deployable_servi  3/3      55/55   0     1d    2h  07/10 17:59  $71.17+  merged
+  ✓ done      fa612  fjcloud_dev  jul10_pm_1_staging_web_depl  4/4 33/37 (4d)   0     1d    1h  07/10 17:43  $59.09+  merged
+  ✓ done      d131c  fjcloud_dev  jul10_pm_5_tenant_isolation  3/3 33/38 (5d)   0     1d    1h  07/10 17:38  $35.53+  merged
+  ✓ done      72763  fjcloud_dev  jul10_pm_2_panics_alarm_liv  3/3      57/57   0     1d    1h  07/10 17:31  $48.22+  merged
+  ✓ done      3c823  fjcloud_dev  jul09_pm_2_invoice_email_se  3/3 41/43 (2d)   0     2d   23h  07/10 12:54  $30.74  merged
+  ✓ done      2244d  fjcloud_dev  jul09_pm_4_playwright_fixtu →3/3 46/51 (3d)   0     2d    7h  07/09 20:29  $108.71  merged
+  ✓ done      9e063  fjcloud_dev  jul09_pm_1_staging_domain_r  5/5 67/72 (5d)   0     2d    5h  07/09 19:08  $88.28+  merged
+  ✓ done      e2538  fjcloud_dev  jul09_am_6_billing_rehearsa  2/2 15/24 (9d)   0     2d    9h  07/09 18:02  $51.40+  local
+  ○ stopped   2f166  fjcloud_dev  jul07_3pm_14_playwright_par →6/6 70/89 (5d)   0     2d   11h  07/09 17:20  $0.00+  local
+
+  Blocked accounts
+    quota        stacy.saunders.2002@gmail.com  44h 02m
+
+  Audit findings
+  fjcloud_dev:
+    - not run
+```
+
+No live batman session was detected for any approved branch or the stage3-pages-parity-publish worktree. The only running fjcloud_dev session is this Stage 2 build.
+
+## Deletion Log
+
+Pending. Worktree and branch deletion commands append here.
+
+## Verification Log
+
+Pending. Post-GC verification commands append here.
+
+## Pre-GC Red Check
+
+$ while read -r branch _; do [ -z "$branch" ] || test -z "$(git branch --list "$branch")" || exit 1; done < docs/runbooks/evidence/repo-gc/20260712T052116Z/manifest_branches.txt
+exit=1
+Expected red before deletion: approved branches still exist locally.
+
+## Cleanup Worktree Mapping
+
+$ git worktree list --porcelain
+```
+worktree /Users/stuart/repos/gridl-infra-dev/fjcloud_dev
+HEAD 96e63f5a38664f34853ec9c3ffbf52f1b45fca34
+branch refs/heads/main
+
+worktree /private/tmp/fjcloud-stage3-publish.aqahSw/worktree
+HEAD 7292ad2d3b9a98f0f38827867accbd5e50afc1f2
+branch refs/heads/stage3-pages-parity-publish
+
+worktree /Users/stuart/.matt/merge-worktrees/fjcloud_dev-cc786cd1
+HEAD 96e63f5a38664f34853ec9c3ffbf52f1b45fca34
+detached
+
+worktree fjcloud_dev
+HEAD d3505e906c6760a6f474b57cd7de69dbda59044a
+branch refs/heads/batman/jul06_pm_1_polished_beta_staging_verify_rerun
+
+worktree fjcloud_dev
+HEAD 8a3c6e18364b8619e7c891232008345702301f1e
+branch refs/heads/batman/jul06_pm_2_signup_cta_restore_public_launch
+
+worktree fjcloud_dev
+HEAD bd1095d7380a2453c42dd3a92a4dd5741c31e6c3
+branch refs/heads/batman/jul06_pm_3_deploy_currency_drift_alarm
+
+worktree fjcloud_dev
+HEAD 8b456e86a81598a454cf96f579a8fac6ae8899aa
+branch refs/heads/batman/jul06_pm_5_public_release_verify_and_closeout
+
+worktree fjcloud_dev
+HEAD 37c9543b2e3a06672233a40bdb827d8d8750d41f
+branch refs/heads/batman/jul07_3pm_14_playwright_parallel_workers
+
+worktree fjcloud_dev
+HEAD e59ea7e72d103cd8c64aaed4f4c650dfa99c49b1
+branch refs/heads/batman/jul07_3pm_15_staging_billing_rehearsal_rerun
+
+worktree fjcloud_dev
+HEAD a139aaf1d17deb70424e9c6e86d3ff2ed861ee0f
+branch refs/heads/batman/jul07_3pm_17_e2e_deployed_failure_paging
+
+worktree fjcloud_dev
+HEAD 809ac50810f121eda4f21caa189d9b168a76e791
+branch refs/heads/batman/jul07_3pm_7_api_types_client_split_openapi_drift
+
+worktree fjcloud_dev
+HEAD fc2c0981cc344ce3d399775605841692351bba73
+branch refs/heads/batman/jul07_am_1_polished_beta_staging_verify_rerun2
+
+worktree fjcloud_dev
+HEAD a6d5d3f380008150107384e896a3ab8a1b0db5dc
+branch refs/heads/batman/jul07_am_2_web_deploy_automation
+
+worktree fjcloud_dev
+HEAD 29b02ccb9c6d2ad17d1d84b8449cc199a52ef4b5
+branch refs/heads/batman/jul07_pm_1_verify_findings_fix
+
+worktree fjcloud_dev
+HEAD da5784ff6f35527f5497d9aa0cfd7245ffa55f3c
+branch refs/heads/batman/jul07_pm_4_polished_beta_staging_verify_rerun4
+
+worktree fjcloud_dev
+HEAD 48a81a52a90e63912dc688dafb47ec115ae0e8e4
+branch refs/heads/batman/jul07_pm_6_polished_beta_staging_verify_rerun5
+
+worktree fjcloud_dev
+HEAD f6d2088f4a4c5ef24a347939d4b5669eee6fd4fe
+branch refs/heads/batman/jul07_pm_8_polished_beta_staging_verify_rerun6
+
+worktree fjcloud_dev
+HEAD 540a3a0e1a051584d22852a0eb87ff4b278831d3
+branch refs/heads/batman/jul08_pm_1_rc_rerun_produce_clean_bundle
+
+worktree fjcloud_dev
+HEAD efb46663c7ad56da68709c2b1eba6b68158700a7
+branch refs/heads/batman/jul08_pm_2_rc_rerun_clean_bundle_v2
+
+worktree fjcloud_dev
+HEAD d0891e3b5ad9ed810f6866fd570234c2c56cd82d
+branch refs/heads/batman/jul09_am_2_panics_total_cloudwatch_alarm
+
+worktree fjcloud_dev
+HEAD 70bf811e3d9f4df0a15ed8715245f30f1b3ff0d2
+branch refs/heads/publish/jul09-stage2-billing-rehearsal
+
+worktree fjcloud_dev
+HEAD 6770f172e517bfa36c4e60d741259b3691afad49
+branch refs/heads/batman/jul09_am_6_staging_billing_rehearsal_rerun2
+
+worktree fjcloud_dev
+HEAD 2fe30f54dc6f8203114756fae3f2b1b623545ea4
+branch refs/heads/batman/jul09_pm_1_staging_domain_remap_and_served_content_gate
+
+worktree fjcloud_dev
+HEAD 492c642ef302947f9d85f0ee006ed4a298520048
+branch refs/heads/batman/jul09_pm_3_tenant_isolation_proptest_fix
+
+worktree fjcloud_dev
+HEAD c6b4db65821780861d4f8bff0149417f2ba83606
+branch refs/heads/batman/jul11_pm_7_batch_closeout_and_repo_gc
+
+worktree fjcloud_dev
+HEAD 3498dac8232ce9a6bde1da3ab317bf3a8a445ef4
+branch refs/heads/batman/jun04_am_1_ci_hygiene_deploy_currency_and_playwright_stripe_mode
+
+worktree fjcloud_stage3_mainline
+HEAD 17bc8521e32f6fa207d50d387eaa1d8ee4a848e4
+branch refs/heads/stage3_mainline_integration
+
+worktree fjcloud_dev
+HEAD bec1a6ecdb6f0e73a292ec543fdd05eb6904dc0b
+branch refs/heads/batman/jun04_pm_4_editor_dialog_styling_pass
+
+worktree fjcloud_dev
+HEAD 779c226b3022e0e6a6552d0154e874bae141c74b
+branch refs/heads/batman/jun05_pm_2_rc_harness_critical_browser_surface
+
+worktree fjcloud_dev
+HEAD 78aae9138145bd66796929336f54586bc9cb804d
+branch refs/heads/batman/jun05_pm_3_rc_harness_live_evidence_completeness
+
+worktree fjcloud_dev
+HEAD f3df3254d37b6d0cf1110d302b8a0986dd0b9b25
+branch refs/heads/batman/jun05_ui_1147am_10_unified_search_tab
+
+worktree fjcloud_dev
+HEAD aed2761d46df8dc3f957d215837dfbe81379c24a
+branch refs/heads/batman/jun05_ui_1147am_2_toast_p0_migration
+
+worktree fjcloud_dev
+HEAD 19acd9d1991f4e34e2c423b557fc4bd688c277b5
+branch refs/heads/batman/jun05_ui_1147am_4_password_and_tooltip_ssot
+
+worktree fjcloud_dev
+HEAD ac4dcddb63a02ea51143409c6cca7732e472103b
+branch refs/heads/batman/jun05_ui_1147am_5_oauth_local_dx_and_account_delete_copy
+
+worktree fjcloud_dev
+HEAD dae0ebdadc6f5c1b744fc4bbc4699cdd5fab24bf
+branch refs/heads/publish/jun09_am_l1_rc_harness
+
+worktree fjcloud_dev
+HEAD 407f6b06d9c25b5d4eedc0dc69818543fabd664f
+branch refs/heads/batman/jun09_am_2_verify_email_clickthrough_definitive_classification
+
+worktree fjcloud_dev
+HEAD 957eeec204e17e3fb166b1565b9240a0f66d603a
+branch refs/heads/batman/jun09_pm_10_pricing_tax_alert_emails_ci_polish
+
+worktree fjcloud_dev
+HEAD 9240e400e447966f3af58ae0b2de9df5e968fb04
+branch refs/heads/batman/jun09_pm_11_cargo_indexes_test_env_leak_fix_lane
+
+worktree fjcloud_dev
+HEAD cc9db222bcf0e43e3429a0e62bf20cd600b92066
+branch refs/heads/batman/jun09_pm_1_merchandising_hub_pivot
+
+worktree fjcloud_dev
+HEAD 9a0e517720d450086b3b2ebd062849a5c2ec29b9
+branch refs/heads/batman/jun09_pm_2_ui_test_coverage_p0
+
+worktree fjcloud_dev
+HEAD 8f3544f5570b348d400e97a991abfeda2f0ef786
+branch refs/heads/batman/jun09_pm_4_merch_mode_toggle_on_search
+
+worktree fjcloud_dev
+HEAD c6bc443e93510781968cb23b3a689a2f16d6b28c
+branch refs/heads/batman/jun09_pm_5_staging_verification_rc_reverdict_and_closeout
+
+worktree fjcloud_dev
+HEAD 1a513d42522905df94fef660f8f1643a5b851dc4
+branch refs/heads/batman/jun09_pm_8_staging_billing_rehearsal_seed
+
+worktree fjcloud_dev
+HEAD 9f1d5e3554621a8f4f0369f63dac05dca32214fa
+branch refs/heads/batman/jun10_pm_1_probe_contract_drift_and_lane_b_count_reconciliation
+
+worktree fjcloud_dev
+HEAD b6659fca41481a972e0748ce99e2971ad3b579de
+branch refs/heads/batman/jun10_pm_2_staging_billing_rehearsal_repeatability
+
+worktree fjcloud_dev
+HEAD a29ac8efb31ea71adf7dd1264d049bbfc299aa7f
+branch refs/heads/batman/jun10_pm_3_worktree_path_and_duplicate_todo_cleanup
+
+worktree fjcloud_dev
+HEAD 75bebb18af9c89f3731afee63fd9aec18f5ad3a9
+branch refs/heads/batman/jun10_pm_4_polished_beta_staging_verification_rerun
+
+worktree fjcloud_dev
+HEAD f0c00c7baffe1e4b547edb27dea71b33a17f1ab0
+detached
+
+worktree fjcloud_dev
+HEAD d244f08c7c59db87fb629d7060e5f80a59ea735c
+branch refs/heads/batman/jun11_pm_10_final_rc_and_closeout
+
+worktree fjcloud_dev
+HEAD ce1d0258c8508b04bed646e0ae0d35ae4d0294f4
+branch refs/heads/batman/jun11_pm_2_stage2_blocked_evidence
+
+worktree fjcloud_dev
+HEAD 417a036f6a07c4c7cc7d576b6d85140dc0ec6774
+detached
+
+worktree fjcloud_dev
+HEAD ce9f76ac5509cd31b6a9e72b0ac492f84a9c2be6
+branch refs/heads/batman/jun11_pm_7_aws_live_infra_e2e
+
+worktree fjcloud_dev
+HEAD 394c25d55b843501609154f08adb62b41196556a
+branch refs/heads/batman/jun11_pm_9_polished_beta_staging_verify
+
+worktree fjcloud_dev
+HEAD 497bf9891d0e1eeff8459ff973c4bae9fcba1b25
+branch refs/heads/batman/may16_9pm_1_ses_production_access_and_reputation_alarms
+
+worktree fjcloud_dev
+HEAD f37f579b8e605f8821dd3b155c2b965064c724f7
+branch refs/heads/batman/may16_9pm_2_auth_hardening_lockout_and_rate_limits
+
+worktree fjcloud_dev
+HEAD ed34c74a3c6180687b33219c35d2dd9da609765d
+branch refs/heads/batman/may16_9pm_3_stripe_dispute_chargeback_handlers
+
+worktree fjcloud_dev
+HEAD 3e0b73bb10ffa88dae000f5199f31a0c09bf126e
+branch refs/heads/batman/may16_9pm_4_full_prod_vm_lifecycle_proof
+
+worktree fjcloud_dev
+HEAD 81fe4e130b493fe4ad861f9255516398eb90c755
+branch refs/heads/batman/may16_pm_1_gitleaks_evidence_dir_allowlist
+
+worktree fjcloud_dev
+HEAD 35806ecc7854113bf69eb83f867a73338fa79a0e
+branch refs/heads/batman/may16_pm_2_debbie_stub_strip_blank_line
+
+worktree fjcloud_dev
+HEAD f74cc82c0c0cef5e1eedd0c214f82074a00b5bd4
+branch refs/heads/batman/may16_pm_3_playwright_customer_login_fixture
+
+worktree fjcloud_dev
+HEAD f3e42ddc473d6e06f870c66fbf682eb242d0422c
+branch refs/heads/batman/may16_pm_4_prod_canary_e2e_evidence
+
+worktree fjcloud_dev
+HEAD adf2c68c1e34caaf62c866ae2a947287cb5fc10b
+branch refs/heads/batman/may16_pm_5_self_service_upgrade_endpoint_and_trust_ratchet
+
+worktree fjcloud_dev
+HEAD 76f2a9da2cab18578d71f8122faf9aafc4dc1b36
+branch refs/heads/batman/may16_pm_6_quota_warning_emails_records_storage
+
+worktree fjcloud_dev
+HEAD a99a745d9b9db6bfbcebcf9ededc5cf1a9668534
+branch refs/heads/batman/may18_pm_1_may16_wave_deploy_verify_sweep
+
+worktree fjcloud_dev
+HEAD a681755667175c7e22fd287225702aef397ee7a4
+branch refs/heads/batman/may18_pm_3_customer_trust_surfaces
+
+worktree fjcloud_dev
+HEAD 2d6bcfb419f8744d0661c13965ccb94bf45ba02a
+branch refs/heads/batman/may19_pm_1_privacy_card_reuse_pattern
+
+worktree fjcloud_dev
+HEAD 99f791612bccbe3568979e17b1caa3c818ce4bf1
+branch refs/heads/batman/may19_pm_3_stripe_key_rotation_and_audit
+
+worktree fjcloud_dev
+HEAD f58513313d9e8a5ecba02430e3b3ee07ff86b775
+branch refs/heads/batman/may19_pm_4_gitleaks_secret_scan_remediation
+
+worktree fjcloud_dev
+HEAD 58f17c15be35abdb9adaecdb9c85090b3e69b2fa
+branch refs/heads/batman/may19_pm_5_staging_tls_host_routing
+
+worktree fjcloud_dev
+HEAD 5aff60740bc408718761fb811f9517fce129326f
+branch refs/heads/batman/may19_pm_6_subprocessor_disclosure_and_tax_posture
+
+worktree fjcloud_dev
+HEAD d26d99622635f55b28513ae5d03561994fb1a637
+branch refs/heads/batman/may20_3pm_1_fleet_recovery
+
+worktree fjcloud_dev
+HEAD 74bf84243e20091583262f966eed00e185340771
+branch refs/heads/batman/may20_3pm_2_pipeline_propagation
+
+worktree fjcloud_dev
+HEAD 8e296ec1b97f16714743f10419fba74164a5d642
+branch refs/heads/batman/may20_3pm_3_stripe_credential_revocation
+
+worktree fjcloud_dev
+HEAD 4f8eb97c4f4047cecb31f477722d73d746fa4ad7
+branch refs/heads/batman/may20_3pm_4_launch_verification
+
+worktree fjcloud_dev
+HEAD 3827d61cbd21b7a513191a9690c62d85ec425c38
+branch refs/heads/batman/may21_12pm_10_subprocessor_probe_rerun
+
+worktree fjcloud_dev
+HEAD c2ad6045c157beada0b2e339c45f745bb10c0d77
+branch refs/heads/batman/may21_12pm_11_inventory_diagnosis
+
+worktree fjcloud_dev
+HEAD 8ea753fbf370117dd609c9d4654e3abb9aab955a
+branch refs/heads/batman/may21_12pm_12_app_flapjack_foo_retirement
+
+worktree fjcloud_dev
+HEAD 93850e39390b4ee62ce13e5ac689a221adeabcd1
+branch refs/heads/batman/may21_12pm_1_cloudflare_prod_env_flip
+
+worktree fjcloud_dev
+HEAD f8fe82f9c3c798497aa580100fe76fbbab94afca
+branch refs/heads/batman/may21_12pm_2_prod_db_leak_cleanup
+
+worktree fjcloud_dev
+HEAD cb643e7970590fbe4535cc5d6122125b140db7e6
+branch refs/heads/batman/may21_12pm_3_staging_web_isolation
+
+worktree fjcloud_dev
+HEAD 22f42a7d68b8b5d96e8ee1ddccbc5d46f6d13cb9
+branch refs/heads/batman/may21_12pm_4_browser_lane_rerun
+
+worktree fjcloud_dev
+HEAD 3edacbd3bc869cd21029f9c83ab7cad47e4ae9bb
+branch refs/heads/batman/may21_12pm_7_announce_gate
+
+worktree fjcloud_dev
+HEAD 4b28570f7b9fe32264a87347e8d6237dc00efc04
+branch refs/heads/batman/may21_12pm_8_alert_emails
+
+worktree fjcloud_dev
+HEAD 9d068f2f147726a33aef4955e6ab964a33596554
+branch refs/heads/batman/may22_1pm_1_lb2_lb3_diagnose_and_fix
+
+worktree fjcloud_dev
+HEAD 8bf722ab525a6a2d97d3e76cab5e102543d6d9c8
+branch refs/heads/batman/may22_2pm_1_state_ssot_framework
+
+worktree fjcloud_dev
+HEAD b1711a34419533d3ab7ad45a6cd438f86189ec0a
+branch refs/heads/batman/may23_9pm_2_routes_dashboard_to_console
+
+worktree fjcloud_dev
+HEAD 3fccc51caba46ec47fac2148c105259e468e534e
+branch refs/heads/batman/may23_9pm_3_shared_layout_polish
+
+worktree fjcloud_dev
+HEAD e635364e4ba6ca58fe2f1b2aff0654857cf45821
+branch refs/heads/batman/may23_9pm_4_visual_polish_pass
+
+worktree fjcloud_dev
+HEAD cd1b50732f5c0d5c3b5cd39f98e0e68031bdaabc
+branch refs/heads/batman/may23_9pm_5_landing_ssot_and_cloud_redirect
+
+worktree fjcloud_dev
+HEAD 3aa973a964c81141d8a7c00dc9f85b3e98dcf0ed
+branch refs/heads/batman/may23_9pm_7_parity_audit
+
+worktree fjcloud_dev
+HEAD 6ca70d05fd70df357e7ddeedb533ac872640c5bb
+branch refs/heads/batman/may23_9pm_8_console_e2e_coverage_audit
+
+worktree fjcloud_dev
+HEAD 7623eaf4d720cacd78046debfc4af7f7cb4b54d7
+branch refs/heads/batman/may24_20260524T202244Z_w3_1_implement_demo_index_loader_in
+
+worktree fjcloud_dev
+HEAD 17e22d399b14862ec45a573203a1e31e18237bc7
+branch refs/heads/batman/may24_812am_1_prod_unblock_and_ship
+
+worktree fjcloud_dev
+HEAD 6df8ece795c269456e29624af3a1fe8da5d0538f
+branch refs/heads/batman/may24_812am_2_api_key_recognizer_tighten
+
+worktree fjcloud_dev
+HEAD 04c83ecc057278c45c042d83c0f2fb1ae1a763cc
+branch refs/heads/batman/may24_812am_3_w3_triage_fanout
+
+worktree fjcloud_dev
+HEAD feb19df82b2a6bc0aedfa3a8a6da484ddf3e9225
+branch refs/heads/batman/may25_151pm_3_demo_loader_and_create_dialog
+
+worktree fjcloud_dev
+HEAD 57790a7b514eba09aeee3f5c1591dab9801f9b73
+branch refs/heads/batman/may25_151pm_wave_b_2a_synonyms_restructure
+
+worktree fjcloud_dev
+HEAD 5fdb1a7b85d190f1ff1c7c830713f5e06aec9cca
+branch refs/heads/batman/may25_151pm_wave_b_2b_recommendations_restructure
+
+worktree fjcloud_dev
+HEAD 74b05e5b8f496d6625f8c65987a5d2b96dc93d57
+branch refs/heads/batman/may25_151pm_wave_b_2c_events_overhaul
+
+worktree fjcloud_dev
+HEAD 397a8e42e19a7cff120541fd23acecb9c3b0ab36
+branch refs/heads/batman/may25_151pm_wave_b_2d_rules_compound_editor
+
+worktree fjcloud_dev
+HEAD 92237ece7292e9261e6bf14c3cc14191630a88e5
+branch refs/heads/batman/may25_151pm_wave_b_2e_personalization_full
+
+worktree fjcloud_dev
+HEAD 9c5b630d1ffbed5bda11564803236f9de058c06e
+branch refs/heads/batman/may25_151pm_wave_b_2f_dictionaries_rebuild
+
+worktree fjcloud_dev
+HEAD 102a1f6f0948d2519222bf07eabe3567c076f906
+branch refs/heads/batman/may25_151pm_wave_b_2g_experiments_wizard_and_detail
+
+worktree fjcloud_dev
+HEAD b2ba9bf89166cb25b64afb72f143b9328a8d8a3e
+branch refs/heads/batman/may25_151pm_wave_b_3a_api_keys_parity
+
+worktree fjcloud_dev
+HEAD dd4754e2bd45d66834c70d6f46803fe7f7585888
+branch refs/heads/batman/may25_151pm_wave_b_3d_overview_tab_enrichment
+
+worktree fjcloud_dev
+HEAD 751764bfbacd55804fa334d408abe0ab27b7e428
+branch refs/heads/batman/may25_151pm_wave_b_3e_analytics_subtabs
+
+worktree fjcloud_dev
+HEAD 83309145bec345c413837141b33f589cfcbcae05
+branch refs/heads/batman/may25_151pm_wave_b_3f_merch_drag_suggestions_lifecycle
+
+worktree fjcloud_dev
+HEAD b2bf08c093ac3e62160e50166a5ea9f9fb1f1d2d
+branch refs/heads/batman/may25_151pm_wave_b_3h_settings_migrate_audit
+
+worktree fjcloud_dev
+HEAD 7114c811cff5b56d736a6a7ab240925a3ed74310
+detached
+
+worktree fjcloud_dev
+HEAD f8b3b5f74a56d2eca47c142f48788a48c674336b
+branch refs/heads/s41_push_fix
+
+worktree fjcloud_dev
+HEAD 27f69dacfccdb43c95e69e0a5d295599d25cc941
+branch refs/heads/batman/may27_pm_2_b1_rerun_final_launch_gate
+
+worktree fjcloud_dev
+HEAD 90470ed5020535df37ae89db05d24fe508c35bc7
+branch refs/heads/batman/may29_pm_7_dunning_probe_rca
+```
+
+$ batman gc fjcloud_dev
+```
+  Would remove: fjcloud_dev (batman/may24_812am_3_w3_triage_fanout, reason: merged)
+  Would remove: fjcloud_dev (batman/jun09_pm_8_staging_billing_rehearsal_seed, reason: merged)
+  Would remove: fjcloud_dev (batman/may20_3pm_1_fleet_recovery, reason: merged)
+  Would remove: fjcloud_dev (batman/jun09_pm_5_staging_verification_rc_reverdict_and_closeout, reason: merged)
+  Would remove: fjcloud_dev (batman/may16_9pm_3_stripe_dispute_chargeback_handlers, reason: merged)
+  Would remove: fjcloud_dev (batman/jun04_am_1_ci_hygiene_deploy_currency_and_playwright_stripe_mode, reason: merged)
+  Would remove: fjcloud_dev (batman/may22_2pm_1_state_ssot_framework, reason: merged)
+  Would remove: fjcloud_dev (batman/jun05_ui_1147am_10_unified_search_tab, reason: merged)
+  Would remove: fjcloud_dev (batman/may16_pm_4_prod_canary_e2e_evidence, reason: merged)
+  Would remove: fjcloud_dev (batman/may20_3pm_3_stripe_credential_revocation, reason: merged)
+  Would remove: fjcloud_dev (batman/may22_1pm_1_lb2_lb3_diagnose_and_fix, reason: merged)
+  Would remove: fjcloud_dev (batman/may16_pm_1_gitleaks_evidence_dir_allowlist, reason: merged)
+  Would remove: fjcloud_dev (batman/may25_151pm_wave_b_2b_recommendations_restructure, reason: merged)
+  Would remove: fjcloud_dev (batman/may24_812am_1_prod_unblock_and_ship, reason: merged)
+  Would remove: fjcloud_dev (batman/may23_9pm_4_visual_polish_pass, reason: merged)
+  Would remove: fjcloud_dev (batman/may25_151pm_3_demo_loader_and_create_dialog, reason: merged)
+  Would remove: fjcloud_dev (batman/jun11_pm_7_aws_live_infra_e2e, reason: merged)
+  Would remove: fjcloud_dev (batman/may25_151pm_wave_b_3a_api_keys_parity, reason: merged)
+  Would remove: fjcloud_dev (batman/jun10_pm_2_staging_billing_rehearsal_repeatability, reason: merged)
+  Would remove: fjcloud_dev (batman/jun09_pm_10_pricing_tax_alert_emails_ci_polish, reason: merged)
+  Would remove: fjcloud_dev (batman/jun05_ui_1147am_5_oauth_local_dx_and_account_delete_copy, reason: merged)
+  Would remove: fjcloud_dev (batman/jul09_pm_3_tenant_isolation_proptest_fix, reason: merged)
+  Would remove: fjcloud_dev (batman/jul07_am_1_polished_beta_staging_verify_rerun2, reason: merged)
+  Would remove: fjcloud_dev (batman/may21_12pm_10_subprocessor_probe_rerun, reason: merged)
+  Would remove: fjcloud_dev (batman/may21_12pm_11_inventory_diagnosis, reason: merged)
+  Would remove: fjcloud_dev (batman/jul09_pm_1_staging_domain_remap_and_served_content_gate, reason: merged)
+  Would remove: fjcloud_dev (batman/jun05_pm_3_rc_harness_live_evidence_completeness, reason: merged)
+  Would remove: fjcloud_dev (batman/may24_812am_2_api_key_recognizer_tighten, reason: merged)
+  Would remove: fjcloud_dev (batman/may25_151pm_wave_b_2d_rules_compound_editor, reason: merged)
+  Would remove: fjcloud_dev (batman/jun10_pm_4_polished_beta_staging_verification_rerun, reason: merged)
+  Would remove: fjcloud_dev (batman/may21_12pm_8_alert_emails, reason: merged)
+  Would remove: fjcloud_dev (batman/jun10_pm_1_probe_contract_drift_and_lane_b_count_reconciliation, reason: merged)
+  Would remove: fjcloud_dev (batman/may16_pm_2_debbie_stub_strip_blank_line, reason: merged)
+  Would remove: fjcloud_dev (batman/may23_9pm_5_landing_ssot_and_cloud_redirect, reason: merged)
+  Would remove: fjcloud_dev (batman/may18_pm_1_may16_wave_deploy_verify_sweep, reason: merged)
+  Would remove: fjcloud_dev (batman/may16_9pm_4_full_prod_vm_lifecycle_proof, reason: merged)
+  Would remove: fjcloud_dev (batman/may21_12pm_12_app_flapjack_foo_retirement, reason: merged)
+  Would remove: fjcloud_dev (batman/may21_12pm_3_staging_web_isolation, reason: merged)
+  Would remove: fjcloud_dev (batman/jun05_pm_2_rc_harness_critical_browser_surface, reason: merged)
+  Would remove: fjcloud_dev (batman/may23_9pm_8_console_e2e_coverage_audit, reason: merged)
+  Would remove: fjcloud_dev (batman/jun05_ui_1147am_2_toast_p0_migration, reason: merged)
+  Would remove: fjcloud_dev (batman/may23_9pm_3_shared_layout_polish, reason: merged)
+  Would remove: fjcloud_dev (batman/jun04_pm_4_editor_dialog_styling_pass, reason: merged)
+  Would remove: fjcloud_dev (batman/jul06_pm_2_signup_cta_restore_public_launch, reason: merged)
+  Would remove: fjcloud_dev (batman/jul07_am_2_web_deploy_automation, reason: merged)
+  Would remove: fjcloud_dev (batman/may25_151pm_wave_b_3e_analytics_subtabs, reason: merged)
+  Would remove: fjcloud_dev (batman/jul06_pm_5_public_release_verify_and_closeout, reason: merged)
+  Would remove: fjcloud_dev (batman/jul06_pm_3_deploy_currency_drift_alarm, reason: merged)
+  Would remove: fjcloud_dev (batman/may16_pm_6_quota_warning_emails_records_storage, reason: merged)
+  Would remove: fjcloud_dev (batman/may19_pm_4_gitleaks_secret_scan_remediation, reason: merged)
+  Would remove: fjcloud_dev (batman/jul09_am_6_staging_billing_rehearsal_rerun2, reason: merged)
+  Would remove: fjcloud_dev (batman/may23_9pm_7_parity_audit, reason: merged)
+  Would remove: fjcloud_dev (batman/jul07_3pm_15_staging_billing_rehearsal_rerun, reason: merged)
+  Would remove: fjcloud_dev (batman/may21_12pm_4_browser_lane_rerun, reason: merged)
+  Would remove: fjcloud_dev (batman/may21_12pm_1_cloudflare_prod_env_flip, reason: merged)
+  Would remove: fjcloud_dev (batman/may23_9pm_2_routes_dashboard_to_console, reason: merged)
+  Would remove: fjcloud_dev (batman/may29_pm_7_dunning_probe_rca, reason: merged)
+  Would remove: fjcloud_dev (batman/may16_pm_5_self_service_upgrade_endpoint_and_trust_ratchet, reason: merged)
+  Would remove: fjcloud_dev (batman/jul07_pm_8_polished_beta_staging_verify_rerun6, reason: merged)
+  Would remove: fjcloud_dev (batman/jun09_pm_4_merch_mode_toggle_on_search, reason: merged)
+  Would remove: fjcloud_dev (batman/may16_9pm_2_auth_hardening_lockout_and_rate_limits, reason: merged)
+  Would remove: fjcloud_dev (batman/jun09_pm_11_cargo_indexes_test_env_leak_fix_lane, reason: merged)
+  Would remove: fjcloud_dev (batman/jul07_3pm_17_e2e_deployed_failure_paging, reason: merged)
+  Would remove: fjcloud_dev (batman/may20_3pm_4_launch_verification, reason: merged)
+  Would remove: fjcloud_dev (batman/jul08_pm_2_rc_rerun_clean_bundle_v2, reason: merged)
+  Would remove: fjcloud_dev (batman/jul07_pm_1_verify_findings_fix, reason: merged)
+  Would remove: fjcloud_dev (batman/jun09_am_2_verify_email_clickthrough_definitive_classification, reason: merged)
+  Would remove: fjcloud_dev (batman/may20_3pm_2_pipeline_propagation, reason: merged)
+  Would remove: fjcloud_dev (batman/may21_12pm_2_prod_db_leak_cleanup, reason: merged)
+  Would remove: fjcloud_dev (batman/may19_pm_5_staging_tls_host_routing, reason: merged)
+  Would remove: fjcloud_dev (batman/may18_pm_3_customer_trust_surfaces, reason: merged)
+  Would remove: fjcloud_dev (batman/may24_20260524T202244Z_w3_1_implement_demo_index_loader_in, reason: merged)
+  Would remove: fjcloud_dev (batman/jun09_pm_2_ui_test_coverage_p0, reason: merged)
+  Would remove: fjcloud_dev (batman/jul09_am_2_panics_total_cloudwatch_alarm, reason: merged)
+  Would remove: fjcloud_dev (batman/may27_pm_2_b1_rerun_final_launch_gate, reason: merged)
+  Would remove: fjcloud_dev (batman/may19_pm_3_stripe_key_rotation_and_audit, reason: merged)
+  Would remove: fjcloud_dev (batman/jun09_pm_1_merchandising_hub_pivot, reason: merged)
+  Would remove: fjcloud_dev (batman/jul07_3pm_7_api_types_client_split_openapi_drift, reason: merged)
+  Would remove: fjcloud_dev (batman/may19_pm_6_subprocessor_disclosure_and_tax_posture, reason: merged)
+  Would remove: fjcloud_dev (batman/may19_pm_1_privacy_card_reuse_pattern, reason: merged)
+  Would remove: fjcloud_dev (batman/may16_pm_3_playwright_customer_login_fixture, reason: merged)
+  Would remove: fjcloud_dev (batman/jun11_pm_2_stage2_blocked_evidence, reason: merged)
+  Would remove: fjcloud_dev (batman/jun10_pm_3_worktree_path_and_duplicate_todo_cleanup, reason: merged)
+  Would remove: fjcloud_dev (batman/jun11_pm_10_final_rc_and_closeout, reason: merged)
+
+Would remove 84 worktree(s). Run with --force to execute.
+--- stderr ---
+[batman] Dry run (use --force to actually remove):
+```
+batman dry-run target count: 84
+approved manifest worktree cleanup path count: 20
+dry-run target set subset of approved manifest: False
+batman dry-run extras outside approved manifest:
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+batman dry-run misses approved manifest paths:
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- fjcloud_dev
+- /private/tmp/fjcloud-stage3-publish.aqahSw/worktree
+Decision: use manifest-driven git worktree remove --force only for approved paths; do not run batman gc --force because dry-run includes unapproved worktrees.
+
+## Actual Deletion Routes
+
+$ git worktree remove --force fjcloud_dev
+exit=0
+route: git worktree remove --force; branch=batman/jul06_pm_1_polished_beta_staging_verify_rerun; path=fjcloud_dev
+$ git worktree remove --force fjcloud_dev
+exit=0
+route: git worktree remove --force; branch=batman/jul07_3pm_14_playwright_parallel_workers; path=fjcloud_dev
+$ git worktree remove --force fjcloud_dev
+exit=0
+route: git worktree remove --force; branch=batman/jul07_pm_4_polished_beta_staging_verify_rerun4; path=fjcloud_dev
+$ git worktree remove --force fjcloud_dev
+exit=0
+route: git worktree remove --force; branch=batman/jul07_pm_6_polished_beta_staging_verify_rerun5; path=fjcloud_dev
+$ git worktree remove --force fjcloud_dev
+exit=0
+route: git worktree remove --force; branch=batman/jul08_pm_1_rc_rerun_produce_clean_bundle; path=fjcloud_dev
+$ git worktree remove --force fjcloud_dev
+exit=0
+route: git worktree remove --force; branch=publish/jul09-stage2-billing-rehearsal; path=fjcloud_dev
+$ git worktree remove --force fjcloud_dev
+exit=0
+route: git worktree remove --force; branch=batman/jun05_ui_1147am_4_password_and_tooltip_ssot; path=fjcloud_dev
+$ git worktree remove --force fjcloud_dev
+exit=0
+route: git worktree remove --force; branch=publish/jun09_am_l1_rc_harness; path=fjcloud_dev
+$ git worktree remove --force fjcloud_dev
+exit=0
+route: git worktree remove --force; branch=batman/jun11_pm_9_polished_beta_staging_verify; path=fjcloud_dev
+$ git worktree remove --force fjcloud_dev
+exit=0
+route: git worktree remove --force; branch=batman/may21_12pm_7_announce_gate; path=fjcloud_dev
+$ git worktree remove --force fjcloud_dev
+exit=0
+route: git worktree remove --force; branch=batman/may25_151pm_wave_b_2a_synonyms_restructure; path=fjcloud_dev
+$ git worktree remove --force fjcloud_dev
+exit=0
+route: git worktree remove --force; branch=batman/may25_151pm_wave_b_2c_events_overhaul; path=fjcloud_dev
+$ git worktree remove --force fjcloud_dev
+exit=0
+route: git worktree remove --force; branch=batman/may25_151pm_wave_b_2e_personalization_full; path=fjcloud_dev
+$ git worktree remove --force fjcloud_dev
+exit=0
+route: git worktree remove --force; branch=batman/may25_151pm_wave_b_2f_dictionaries_rebuild; path=fjcloud_dev
+$ git worktree remove --force fjcloud_dev
+exit=0
+route: git worktree remove --force; branch=batman/may25_151pm_wave_b_2g_experiments_wizard_and_detail; path=fjcloud_dev
+$ git worktree remove --force fjcloud_dev
+exit=0
+route: git worktree remove --force; branch=batman/may25_151pm_wave_b_3d_overview_tab_enrichment; path=fjcloud_dev
+$ git worktree remove --force fjcloud_dev
+exit=0
+route: git worktree remove --force; branch=batman/may25_151pm_wave_b_3f_merch_drag_suggestions_lifecycle; path=fjcloud_dev
+$ git worktree remove --force fjcloud_dev
+exit=0
+route: git worktree remove --force; branch=batman/may25_151pm_wave_b_3h_settings_migrate_audit; path=fjcloud_dev
+$ git worktree remove --force fjcloud_dev
+exit=0
+route: git worktree remove --force; branch=s41_push_fix; path=fjcloud_dev
+$ git worktree remove --force /private/tmp/fjcloud-stage3-publish.aqahSw/worktree
+exit=0
+route: git worktree remove --force; branch=stage3-pages-parity-publish; path=/private/tmp/fjcloud-stage3-publish.aqahSw/worktree
+$ git branch -D batman/jul06_pm_1_polished_beta_staging_verify_rerun
+exit=0
+route: git branch -D; branch=batman/jul06_pm_1_polished_beta_staging_verify_rerun
+stdout:
+```
+Deleted branch batman/jul06_pm_1_polished_beta_staging_verify_rerun (was d3505e906).
+```
+$ git branch -D batman/jul07_3pm_14_playwright_parallel_workers
+exit=0
+route: git branch -D; branch=batman/jul07_3pm_14_playwright_parallel_workers
+stdout:
+```
+Deleted branch batman/jul07_3pm_14_playwright_parallel_workers (was 37c9543b2).
+```
+$ git branch -D batman/jul07_pm_4_polished_beta_staging_verify_rerun4
+exit=0
+route: git branch -D; branch=batman/jul07_pm_4_polished_beta_staging_verify_rerun4
+stdout:
+```
+Deleted branch batman/jul07_pm_4_polished_beta_staging_verify_rerun4 (was da5784ff6).
+```
+$ git branch -D batman/jul07_pm_6_polished_beta_staging_verify_rerun5
+exit=0
+route: git branch -D; branch=batman/jul07_pm_6_polished_beta_staging_verify_rerun5
+stdout:
+```
+Deleted branch batman/jul07_pm_6_polished_beta_staging_verify_rerun5 (was 48a81a52a).
+```
+$ git branch -D batman/jul08_am_1_rc_shape_drift_investigate_and_rerun
+exit=0
+route: git branch -D; branch=batman/jul08_am_1_rc_shape_drift_investigate_and_rerun
+stdout:
+```
+Deleted branch batman/jul08_am_1_rc_shape_drift_investigate_and_rerun (was 6d487ec83).
+```
+$ git branch -D batman/jul08_pm_1_rc_rerun_produce_clean_bundle
+exit=0
+route: git branch -D; branch=batman/jul08_pm_1_rc_rerun_produce_clean_bundle
+stdout:
+```
+Deleted branch batman/jul08_pm_1_rc_rerun_produce_clean_bundle (was 540a3a0e1).
+```
+$ git branch -D batman/jul09_am_6_billing_rehearsal_real_run
+exit=0
+route: git branch -D; branch=batman/jul09_am_6_billing_rehearsal_real_run
+stdout:
+```
+Deleted branch batman/jul09_am_6_billing_rehearsal_real_run (was 66ee5c58a).
+```
+$ git branch -D batman/jun04_pm_7_screen_spec_visual_contract_template_and_application
+exit=0
+route: git branch -D; branch=batman/jun04_pm_7_screen_spec_visual_contract_template_and_application
+stdout:
+```
+Deleted branch batman/jun04_pm_7_screen_spec_visual_contract_template_and_application (was 51171e24f).
+```
+$ git branch -D batman/jun05_ui_1147am_4_password_and_tooltip_ssot
+exit=0
+route: git branch -D; branch=batman/jun05_ui_1147am_4_password_and_tooltip_ssot
+stdout:
+```
+Deleted branch batman/jun05_ui_1147am_4_password_and_tooltip_ssot (was 19acd9d19).
+```
+$ git branch -D batman/jun11_am_3_support_inbox_and_synthetic_canary_rollout_proof
+exit=0
+route: git branch -D; branch=batman/jun11_am_3_support_inbox_and_synthetic_canary_rollout_proof
+stdout:
+```
+Deleted branch batman/jun11_am_3_support_inbox_and_synthetic_canary_rollout_proof (was b13fbaa5a).
+```
+$ git branch -D batman/jun11_pm_2_synthetic_traffic_and_usage_records
+exit=0
+route: git branch -D; branch=batman/jun11_pm_2_synthetic_traffic_and_usage_records
+stdout:
+```
+Deleted branch batman/jun11_pm_2_synthetic_traffic_and_usage_records (was 85517ec12).
+```
+$ git branch -D batman/jun11_pm_9_polished_beta_staging_verify
+exit=0
+route: git branch -D; branch=batman/jun11_pm_9_polished_beta_staging_verify
+stdout:
+```
+Deleted branch batman/jun11_pm_9_polished_beta_staging_verify (was 394c25d55).
+```
+$ git branch -D batman/may21_12pm_7_announce_gate
+exit=0
+route: git branch -D; branch=batman/may21_12pm_7_announce_gate
+stdout:
+```
+Deleted branch batman/may21_12pm_7_announce_gate (was 3edacbd3b).
+```
+$ git branch -D batman/may25_151pm_wave_b_2a_synonyms_restructure
+exit=0
+route: git branch -D; branch=batman/may25_151pm_wave_b_2a_synonyms_restructure
+stdout:
+```
+Deleted branch batman/may25_151pm_wave_b_2a_synonyms_restructure (was 57790a7b5).
+```
+$ git branch -D batman/may25_151pm_wave_b_2c_events_overhaul
+exit=0
+route: git branch -D; branch=batman/may25_151pm_wave_b_2c_events_overhaul
+stdout:
+```
+Deleted branch batman/may25_151pm_wave_b_2c_events_overhaul (was 74b05e5b8).
+```
+$ git branch -D batman/may25_151pm_wave_b_2e_personalization_full
+exit=0
+route: git branch -D; branch=batman/may25_151pm_wave_b_2e_personalization_full
+stdout:
+```
+Deleted branch batman/may25_151pm_wave_b_2e_personalization_full (was 92237ece7).
+```
+$ git branch -D batman/may25_151pm_wave_b_2f_dictionaries_rebuild
+exit=0
+route: git branch -D; branch=batman/may25_151pm_wave_b_2f_dictionaries_rebuild
+stdout:
+```
+Deleted branch batman/may25_151pm_wave_b_2f_dictionaries_rebuild (was 9c5b630d1).
+```
+$ git branch -D batman/may25_151pm_wave_b_2g_experiments_wizard_and_detail
+exit=0
+route: git branch -D; branch=batman/may25_151pm_wave_b_2g_experiments_wizard_and_detail
+stdout:
+```
+Deleted branch batman/may25_151pm_wave_b_2g_experiments_wizard_and_detail (was 102a1f6f0).
+```
+$ git branch -D batman/may25_151pm_wave_b_3d_overview_tab_enrichment
+exit=0
+route: git branch -D; branch=batman/may25_151pm_wave_b_3d_overview_tab_enrichment
+stdout:
+```
+Deleted branch batman/may25_151pm_wave_b_3d_overview_tab_enrichment (was dd4754e2b).
+```
+$ git branch -D batman/may25_151pm_wave_b_3f_merch_drag_suggestions_lifecycle
+exit=0
+route: git branch -D; branch=batman/may25_151pm_wave_b_3f_merch_drag_suggestions_lifecycle
+stdout:
+```
+Deleted branch batman/may25_151pm_wave_b_3f_merch_drag_suggestions_lifecycle (was 83309145b).
+```
+$ git branch -D batman/may25_151pm_wave_b_3h_settings_migrate_audit
+exit=0
+route: git branch -D; branch=batman/may25_151pm_wave_b_3h_settings_migrate_audit
+stdout:
+```
+Deleted branch batman/may25_151pm_wave_b_3h_settings_migrate_audit (was b2bf08c09).
+```
+$ git branch -D matt/stage2-bundle-landed-s55
+exit=0
+route: git branch -D; branch=matt/stage2-bundle-landed-s55
+stdout:
+```
+Deleted branch matt/stage2-bundle-landed-s55 (was bfb7cb851).
+```
+$ git branch -D prep/post-5d631-queued-edits
+exit=0
+route: git branch -D; branch=prep/post-5d631-queued-edits
+stdout:
+```
+Deleted branch prep/post-5d631-queued-edits (was ea967c836).
+```
+$ git branch -D publish/jul09-stage2-billing-rehearsal
+exit=0
+route: git branch -D; branch=publish/jul09-stage2-billing-rehearsal
+stdout:
+```
+Deleted branch publish/jul09-stage2-billing-rehearsal (was 70bf811e3).
+```
+$ git branch -D publish/jun09_am_l1_rc_harness
+exit=0
+route: git branch -D; branch=publish/jun09_am_l1_rc_harness
+stdout:
+```
+Deleted branch publish/jun09_am_l1_rc_harness (was dae0ebdad).
+```
+$ git branch -D rapid-local-verify-and-web-deploy
+exit=0
+route: git branch -D; branch=rapid-local-verify-and-web-deploy
+stdout:
+```
+Deleted branch rapid-local-verify-and-web-deploy (was 7447225e5).
+```
+$ git branch -D s41_push_fix
+exit=0
+route: git branch -D; branch=s41_push_fix
+stdout:
+```
+Deleted branch s41_push_fix (was f8b3b5f74).
+```
+$ git branch -D stage3_ci_prereq_fix
+exit=0
+route: git branch -D; branch=stage3_ci_prereq_fix
+stdout:
+```
+Deleted branch stage3_ci_prereq_fix (was 254245cea).
+```
+$ git branch -D stage3_final_browser_evidence
+exit=0
+route: git branch -D; branch=stage3_final_browser_evidence
+stdout:
+```
+Deleted branch stage3_final_browser_evidence (was 3f3264d1b).
+```
+$ git branch -D stage4_dc729_backup
+exit=0
+route: git branch -D; branch=stage4_dc729_backup
+stdout:
+```
+Deleted branch stage4_dc729_backup (was dc729925d).
+```
+$ git branch -D stage4_s57_fix_blockers
+exit=0
+route: git branch -D; branch=stage4_s57_fix_blockers
+stdout:
+```
+Deleted branch stage4_s57_fix_blockers (was 1a159db0b).
+```
+$ git branch -D stage3-pages-parity-publish
+exit=0
+route: git branch -D; branch=stage3-pages-parity-publish; condition=merge-base proof exit 0 recorded before cleanup
+stdout:
+```
+Deleted branch stage3-pages-parity-publish (was 7292ad2d3).
+```
+$ git worktree prune
+exit=0
+route: git worktree prune
+
+## Post-GC Verification Commands
+
+$ test -s docs/runbooks/evidence/repo-gc/20260712T052116Z/manifest.txt
+cache_hit=False; clean_tree=False
+exit=0
+
+$ test -s docs/runbooks/evidence/repo-gc/20260712T052116Z/manifest_branches.txt
+cache_hit=False; clean_tree=False
+exit=0
+
+$ while read -r branch _; do [ -z "$branch" ] || test -z "$(git branch --list "$branch")" || exit 1; done < docs/runbooks/evidence/repo-gc/20260712T052116Z/manifest_branches.txt
+cache_hit=False; clean_tree=False
+exit=0
+
+$ git branch --no-merged main | wc -l
+cache_hit=False; clean_tree=False
+exit=0
+stdout:
+```
+       4
+```
+
+$ git worktree list | wc -l
+cache_hit=False; clean_tree=False
+exit=0
+stdout:
+```
+      92
+```
+
+$ git branch --list stage3-pages-parity-publish
+cache_hit=False; clean_tree=False
+exit=0
+
+$ git -C /Users/stuart/repos/gridl-infra-dev/fjcloud_dev status --short
+cache_hit=False; clean_tree=False
+exit=0
+clean_status=true
+
+
+## Final HEAD Reverification
+
+HEAD before evidence amend: 62224a1b32fd6b226200ad0f5fa6d2dcf8c6d88c
+
+$ test -s docs/runbooks/evidence/repo-gc/20260712T052116Z/manifest.txt
+cache_hit=False; clean_tree=False
+exit=0
+
+$ test -s docs/runbooks/evidence/repo-gc/20260712T052116Z/manifest_branches.txt
+cache_hit=False; clean_tree=False
+exit=0
+
+$ while read -r branch _; do [ -z "$branch" ] || test -z "$(git branch --list "$branch")" || exit 1; done < docs/runbooks/evidence/repo-gc/20260712T052116Z/manifest_branches.txt
+cache_hit=False; clean_tree=False
+exit=0
+
+$ git branch --no-merged main | wc -l
+cache_hit=False; clean_tree=False
+exit=0
+stdout:
+```
+       4
+```
+
+$ git worktree list | wc -l
+cache_hit=False; clean_tree=False
+exit=0
+stdout:
+```
+      92
+```
+
+$ git branch --list stage3-pages-parity-publish
+cache_hit=False; clean_tree=False
+exit=0
+
+$ git -C /Users/stuart/repos/gridl-infra-dev/fjcloud_dev status --short
+cache_hit=False; clean_tree=False
+exit=0
+clean_status=true
+

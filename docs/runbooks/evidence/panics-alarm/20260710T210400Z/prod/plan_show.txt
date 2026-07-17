@@ -1,0 +1,42 @@
+
+Terraform used the selected providers to generate the following execution
+plan. Resource actions are indicated with the following symbols:
+  + create
+
+Terraform will perform the following actions:
+
+  # module.monitoring.aws_cloudwatch_metric_alarm.api_panics_high will be created
+  + resource "aws_cloudwatch_metric_alarm" "api_panics_high" {
+      + actions_enabled                       = true
+      + alarm_actions                         = [
+          + "arn:aws:sns:us-east-1:213880904778:fjcloud-alerts-prod",
+        ]
+      + alarm_description                     = "API panic counter reported one or more panics in a one-minute period"
+      + alarm_name                            = "fjcloud-prod-api-panics-high"
+      + arn                                   = (known after apply)
+      + comparison_operator                   = "GreaterThanThreshold"
+      + datapoints_to_alarm                   = 1
+      + dimensions                            = {
+          + "Env" = "prod"
+        }
+      + evaluate_low_sample_count_percentiles = (known after apply)
+      + evaluation_periods                    = 1
+      + id                                    = (known after apply)
+      + metric_name                           = "PanicsPerPeriod"
+      + namespace                             = "fjcloud/api"
+      + ok_actions                            = [
+          + "arn:aws:sns:us-east-1:213880904778:fjcloud-alerts-prod",
+        ]
+      + period                                = 60
+      + region                                = "us-east-1"
+      + statistic                             = "Sum"
+      + tags_all                              = {
+          + "env"        = "prod"
+          + "managed-by" = "terraform"
+          + "service"    = "fjcloud"
+        }
+      + threshold                             = 0
+      + treat_missing_data                    = "notBreaching"
+    }
+
+Plan: 1 to add, 0 to change, 0 to destroy.

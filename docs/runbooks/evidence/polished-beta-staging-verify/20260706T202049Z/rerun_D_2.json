@@ -1,0 +1,341 @@
+{
+  "config": {
+    "configFile": "web/playwright.config.ts",
+    "rootDir": "web/tests",
+    "forbidOnly": false,
+    "fullyParallel": false,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "setup:user",
+        "name": "setup:user",
+        "testDir": "web/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/fixtures\\/auth\\.setup\\.ts/"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "setup:admin",
+        "name": "setup:admin",
+        "testDir": "web/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/fixtures\\/admin\\.auth\\.setup\\.ts/"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "setup:onboarding",
+        "name": "setup:onboarding",
+        "testDir": "web/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/fixtures\\/onboarding\\.auth\\.setup\\.ts/"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "setup:customer-journeys",
+        "name": "setup:customer-journeys",
+        "testDir": "web/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/fixtures\\/customer-journeys\\.auth\\.setup\\.ts/"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium:public",
+        "name": "chromium:public",
+        "testDir": "web/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/e2e-ui\\/(smoke|full)\\/public-.+\\.spec\\.ts/"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium:signup",
+        "name": "chromium:signup",
+        "testDir": "web/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/e2e-ui\\/full\\/signup_to_paid_invoice\\.spec\\.ts/"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium:mocked",
+        "name": "chromium:mocked",
+        "testDir": "web/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/e2e-ui\\/mocked\\/.+\\.spec\\.ts/"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium",
+        "name": "chromium",
+        "testDir": "web/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/e2e-ui\\/(smoke|full)\\/(?!admin|public-|onboarding\\.|customer-journeys\\.|signup_to_paid_invoice\\.).+\\.spec\\.ts/"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium:onboarding",
+        "name": "chromium:onboarding",
+        "testDir": "web/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/e2e-ui\\/full\\/onboarding\\.spec\\.ts/"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium:customer-journeys",
+        "name": "chromium:customer-journeys",
+        "testDir": "web/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/e2e-ui\\/full\\/customer-journeys\\.spec\\.ts/"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium:admin",
+        "name": "chromium:admin",
+        "testDir": "web/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/e2e-ui\\/full\\/admin\\/.+\\.spec\\.ts/"
+        ],
+        "timeout": 30000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "json"
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "runAgents": "none",
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.58.2",
+    "workers": 1,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "fixtures/auth.setup.ts",
+      "file": "fixtures/auth.setup.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "authenticate as customer",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 220000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "setup:user",
+              "projectName": "setup:user",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "failed",
+                  "duration": 415,
+                  "error": {
+                    "message": "Error: Customer login setup failed before reaching /console. Current URL: https://cloud.staging.flapjack.foo/login\nAPI URL: https://api.staging.flapjack.foo\nAdmin key fingerprint: (missing)\nVisible alert text: too many requests\nLogin response: status 429 at https://cloud.staging.flapjack.foo/login\nRemediation: Run scripts/bootstrap-env-local.sh to bootstrap .env.local, then start the local stack with scripts/local-dev-up.sh and the Rust API with scripts/api-dev.sh. If you override BASE_URL, start the web frontend with scripts/web-dev.sh too. See docs/runbooks/local-dev.md for setup instructions.",
+                    "stack": "Error: Customer login setup failed before reaching /console. Current URL: https://cloud.staging.flapjack.foo/login\nAPI URL: https://api.staging.flapjack.foo\nAdmin key fingerprint: (missing)\nVisible alert text: too many requests\nLogin response: status 429 at https://cloud.staging.flapjack.foo/login\nRemediation: Run scripts/bootstrap-env-local.sh to bootstrap .env.local, then start the local stack with scripts/local-dev-up.sh and the Rust API with scripts/api-dev.sh. If you override BASE_URL, start the web frontend with scripts/web-dev.sh too. See docs/runbooks/local-dev.md for setup instructions.\n    at web/tests/fixtures/auth.setup.ts:154:9",
+                    "location": {
+                      "file": "web/tests/fixtures/auth.setup.ts",
+                      "column": 9,
+                      "line": 154
+                    },
+                    "snippet": "  152 |\n  153 | \tif (!finalLoginAttempt.reachedDashboard) {\n> 154 | \t\tthrow new Error(\n      | \t\t      ^\n  155 | \t\t\tformatFixtureSetupFailure({\n  156 | \t\t\t\tsetupName: 'Customer login setup',\n  157 | \t\t\t\texpectedPath: '/console',"
+                  },
+                  "errors": [
+                    {
+                      "location": {
+                        "file": "web/tests/fixtures/auth.setup.ts",
+                        "column": 9,
+                        "line": 154
+                      },
+                      "message": "Error: Customer login setup failed before reaching /console. Current URL: https://cloud.staging.flapjack.foo/login\nAPI URL: https://api.staging.flapjack.foo\nAdmin key fingerprint: (missing)\nVisible alert text: too many requests\nLogin response: status 429 at https://cloud.staging.flapjack.foo/login\nRemediation: Run scripts/bootstrap-env-local.sh to bootstrap .env.local, then start the local stack with scripts/local-dev-up.sh and the Rust API with scripts/api-dev.sh. If you override BASE_URL, start the web frontend with scripts/web-dev.sh too. See docs/runbooks/local-dev.md for setup instructions.\n\n  152 |\n  153 | \tif (!finalLoginAttempt.reachedDashboard) {\n> 154 | \t\tthrow new Error(\n      | \t\t      ^\n  155 | \t\t\tformatFixtureSetupFailure({\n  156 | \t\t\t\tsetupName: 'Customer login setup',\n  157 | \t\t\t\texpectedPath: '/console',\n    at web/tests/fixtures/auth.setup.ts:154:9"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-07-06T21:34:16.082Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "web/test-results/fixtures-auth.setup.ts-authenticate-as-customer-setup-user/test-failed-1.png"
+                    },
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "web/test-results/fixtures-auth.setup.ts-authenticate-as-customer-setup-user/error-context.md"
+                    }
+                  ],
+                  "errorLocation": {
+                    "file": "web/tests/fixtures/auth.setup.ts",
+                    "column": 9,
+                    "line": 154
+                  }
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "6db7255f214771fc958b-8ad38d4213689c9057c1",
+          "file": "fixtures/auth.setup.ts",
+          "line": 110,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "title": "e2e-ui/full/polished_beta_staging_verify.spec.ts",
+      "file": "e2e-ui/full/polished_beta_staging_verify.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Polished beta deployed staging verification",
+          "file": "e2e-ui/full/polished_beta_staging_verify.spec.ts",
+          "line": 178,
+          "column": 6,
+          "specs": [
+            {
+              "title": "Lane D - Display Preferences exposes document card controls @staging_verify",
+              "ok": true,
+              "tags": [
+                "staging_verify"
+              ],
+              "tests": [
+                {
+                  "timeout": 240000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "def1f8a49cd90f5801f0-6e291dc40cbcbaadfb5e",
+              "file": "e2e-ui/full/polished_beta_staging_verify.spec.ts",
+              "line": 272,
+              "column": 2
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-07-06T21:34:15.649Z",
+    "duration": 1125.051,
+    "expected": 0,
+    "skipped": 1,
+    "unexpected": 1,
+    "flaky": 0
+  }
+}

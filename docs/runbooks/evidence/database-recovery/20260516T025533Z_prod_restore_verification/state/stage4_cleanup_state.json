@@ -1,0 +1,21 @@
+{
+  "source_db_instance_id": "fjcloud-prod",
+  "target_db_instance_id": "fjcloud-prod-restore-20260516025535",
+  "stage4_run_dir_path": "/Users/stuart/.matt/projects/fjcloud_dev-e4fc442e/may15_9pm_2_prod_rds_restore_drill.md-49bb35e9/artifacts/stage4_cleanup/stage4_cleanup_prod_20260516T033709Z",
+  "artifacts": {
+    "target_describe_before_delete": "/Users/stuart/.matt/projects/fjcloud_dev-e4fc442e/may15_9pm_2_prod_rds_restore_drill.md-49bb35e9/artifacts/stage4_cleanup/stage4_cleanup_prod_20260516T033709Z/target_describe_before_delete.json",
+    "delete_command_json": "/Users/stuart/.matt/projects/fjcloud_dev-e4fc442e/may15_9pm_2_prod_rds_restore_drill.md-49bb35e9/artifacts/stage4_cleanup/stage4_cleanup_prod_20260516T033709Z/delete_command.json",
+    "delete_command_log": "/Users/stuart/.matt/projects/fjcloud_dev-e4fc442e/may15_9pm_2_prod_rds_restore_drill.md-49bb35e9/artifacts/stage4_cleanup/stage4_cleanup_prod_20260516T033709Z/delete_command.log",
+    "target_describe_after_delete": "/Users/stuart/.matt/projects/fjcloud_dev-e4fc442e/may15_9pm_2_prod_rds_restore_drill.md-49bb35e9/artifacts/stage4_cleanup/stage4_cleanup_prod_20260516T033709Z/target_describe_after_delete.json",
+    "deletion_absence_probe": "/Users/stuart/.matt/projects/fjcloud_dev-e4fc442e/may15_9pm_2_prod_rds_restore_drill.md-49bb35e9/artifacts/stage4_cleanup/stage4_cleanup_prod_20260516T033709Z/deletion_absence_probe.json",
+    "source_sg_describe": "/Users/stuart/.matt/projects/fjcloud_dev-e4fc442e/may15_9pm_2_prod_rds_restore_drill.md-49bb35e9/artifacts/stage4_cleanup/stage4_cleanup_prod_20260516T033709Z/source_sg_describe.json",
+    "network_residue_assertion": "/Users/stuart/.matt/projects/fjcloud_dev-e4fc442e/may15_9pm_2_prod_rds_restore_drill.md-49bb35e9/artifacts/stage4_cleanup/stage4_cleanup_prod_20260516T033709Z/network_residue_assertion.json"
+  },
+  "captured_at_utc": "2026-05-16T03:40:10Z",
+  "deletion_verdict": "pass",
+  "deletion_reason": "target instance fjcloud-prod-restore-20260516025535 deleted and confirmed absent via DBInstanceNotFound after 4 polls",
+  "network_residue_verdict": "pass",
+  "network_residue_reason": "Only Stage 2 mutation was per-target SG attachment removed by instance deletion; live SG probe confirms no drill-introduced ingress rules remain",
+  "verdict": "pass",
+  "reason": "target_deleted_and_no_network_residue"
+}

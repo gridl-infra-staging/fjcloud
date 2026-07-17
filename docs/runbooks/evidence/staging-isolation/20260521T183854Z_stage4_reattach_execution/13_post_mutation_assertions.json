@@ -1,0 +1,10 @@
+{
+  "delete_success": false,
+  "add_success": false,
+  "post_domain_present": true,
+  "post_prod_canonical_has_cloud_staging": true,
+  "post_latest_staging_preview_id": "239b093c-acf2-43fa-8eca-6b45961d2a84",
+  "post_latest_staging_has_cloud_staging": false,
+  "post_dns_content": "staging.flapjack-cloud.pages.dev",
+  "post_dns_proxied": true
+}

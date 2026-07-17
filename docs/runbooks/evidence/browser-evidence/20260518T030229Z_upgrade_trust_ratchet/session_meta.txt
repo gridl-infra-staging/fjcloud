@@ -1,0 +1,2 @@
+bundle=docs/runbooks/evidence/browser-evidence/20260518T030229Z_upgrade_trust_ratchet
+started_at=2026-05-18T03:02:29Z

@@ -1,0 +1,11 @@
+## prod_pricing
+pricing-main-present=True
+signup-anchor-count-in-pricing-main=1
+signup-anchor-labels=[{'href': './signup', 'label': 'Get Started Free'}]
+cta-label-get-started-free-in-pricing-main=True
+
+## staging_pricing
+pricing-main-present=True
+signup-anchor-count-in-pricing-main=0
+signup-anchor-labels=[]
+cta-label-get-started-free-in-pricing-main=False

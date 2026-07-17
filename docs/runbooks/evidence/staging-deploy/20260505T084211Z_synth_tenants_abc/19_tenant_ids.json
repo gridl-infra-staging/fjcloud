@@ -1,0 +1,17 @@
+{
+  "A": {
+    "customer_id": "0a65f0b7-14b3-4e08-acf6-2222a02c7858",
+    "tenant_name": "demo-shared-free",
+    "plan": "shared"
+  },
+  "B": {
+    "customer_id": "3048552a-a78e-446d-ab94-48fe995e2b6c",
+    "tenant_name": "demo-small-dedicated",
+    "plan": "dedicated"
+  },
+  "C": {
+    "customer_id": "d6e4dc27-2f9b-41be-900b-13f4d678105f",
+    "tenant_name": "demo-medium-dedicated",
+    "plan": "dedicated"
+  }
+}

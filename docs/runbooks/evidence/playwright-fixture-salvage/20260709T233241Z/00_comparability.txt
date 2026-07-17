@@ -1,0 +1,8 @@
+evidence_root=docs/runbooks/evidence/playwright-fixture-salvage/20260709T233241Z
+head=ba001e6efd322fb33d4927cf0967dc8ea88bcedf
+status_short_start<<EOF
+?? docs/runbooks/evidence/playwright-fixture-salvage/20260709T233241Z/
+EOF
+node=v26.0.0
+playwright=Version 1.58.2
+workers_line=151:	workers: 1,

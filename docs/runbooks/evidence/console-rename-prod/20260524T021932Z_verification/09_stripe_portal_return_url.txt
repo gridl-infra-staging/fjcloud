@@ -1,0 +1,81 @@
++ stripe billing_portal configurations list --limit 1
+{
+  "object": "list",
+  "data": [
+    {
+      "id": "bpc_1TPqiCGXI8zVz4UH1SvfqpoH",
+      "object": "billing_portal.configuration",
+      "active": true,
+      "application": null,
+      "business_profile": {
+        "headline": null,
+        "privacy_policy_url": null,
+        "terms_of_service_url": null
+      },
+      "created": 1777063952,
+      "default_return_url": null,
+      "features": {
+        "customer_update": {
+          "allowed_updates": [
+            "address",
+            "email",
+            "name",
+            "phone",
+            "shipping",
+            "tax_id"
+          ],
+          "enabled": true
+        },
+        "invoice_history": {
+          "enabled": true
+        },
+        "payment_method_update": {
+          "enabled": true,
+          "payment_method_configuration": null
+        },
+        "subscription_cancel": {
+          "cancellation_reason": {
+            "enabled": false,
+            "options": [
+              "too_expensive",
+              "missing_features",
+              "switched_service",
+              "unused",
+              "other"
+            ]
+          },
+          "enabled": false,
+          "mode": "at_period_end",
+          "proration_behavior": "none"
+        },
+        "subscription_pause": {
+          "enabled": false
+        },
+        "subscription_update": {
+          "billing_cycle_anchor": "unchanged",
+          "default_allowed_updates": [],
+          "enabled": false,
+          "proration_behavior": "none",
+          "schedule_at_period_end": {
+            "conditions": []
+          },
+          "trial_update_behavior": "end_trial"
+        }
+      },
+      "is_default": true,
+      "livemode": true,
+      "login_page": {
+        "enabled": false,
+        "url": null
+      },
+      "metadata": {
+        "catalog_version": "2026-04-24",
+        "source": "scripts/stripe/configure_billing_portal.sh"
+      },
+      "name": null,
+      "updated": 1779383708
+    }
+  ],
+  "has_more": false,
+  "url": "/v1/billing_portal/configurations"
+}

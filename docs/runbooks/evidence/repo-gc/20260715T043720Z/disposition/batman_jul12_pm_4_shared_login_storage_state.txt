@@ -1,0 +1,14 @@
+# Disposition: batman/jul12_pm_4_shared_login_storage_state
+
+Classification: approved-clean-merged-jul12-residue
+Worktree: `<parallel-root>/fjcloud_dev/jul12_pm_4_shared_login_storage_state/fjcloud_dev`
+Tip: 437f36700fecaf42a93ba380675910fede0fae6a
+Disposition: dispatched+merged(1029bedb76a0501809f24b5f451b1c7390d55345)
+
+`git merge-base --is-ancestor batman/jul12_pm_4_shared_login_storage_state main` exit: 0
+
+`git cherry -v main batman/jul12_pm_4_shared_login_storage_state | tail -20`: no output
+
+`git diff main...batman/jul12_pm_4_shared_login_storage_state --stat | tail -20`: no output
+
+`git -C <worktree> status --porcelain`: no output

@@ -1,0 +1,4 @@
+ active_exact_cleanup_customers 
+--------------------------------
+                              0
+(1 row)

@@ -1,0 +1,14 @@
+# Disposition Receipt: batman/jun05_ui_1147am_2_toast_p0_migration
+
+Classification: approved freed local branch after approved worktree removal
+Evidence source: current read-only git refs at bundle creation.
+
+## rev-parse
+$ git rev-parse batman/jun05_ui_1147am_2_toast_p0_migration
+aed2761d46df8dc3f957d215837dfbe81379c24a
+
+## cherry
+$ git cherry -v main batman/jun05_ui_1147am_2_toast_p0_migration | tail -20
+
+## diff main...
+$ git diff main...batman/jun05_ui_1147am_2_toast_p0_migration --stat | tail -20

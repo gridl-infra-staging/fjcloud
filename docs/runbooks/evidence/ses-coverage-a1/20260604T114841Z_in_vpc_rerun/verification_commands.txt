@@ -1,0 +1,136 @@
+aws sts get-caller-identity --output json > docs/runbooks/evidence/ses-coverage-a1/20260604T114841Z_in_vpc_rerun/aws_identity.json
+
+aws ec2 describe-instances --region us-east-1 --filters "Name=tag:Name,Values=fjcloud-api-staging" "Name=instance-state-name,Values=running" --output json > docs/runbooks/evidence/ses-coverage-a1/20260604T114841Z_in_vpc_rerun/ec2_instance_discovery.json
+
+aws ssm describe-instance-information --region us-east-1 --filters "Key=InstanceIds,Values=i-0fbc6d6bbbc8bdc6d" --output json > docs/runbooks/evidence/ses-coverage-a1/20260604T114841Z_in_vpc_rerun/ssm_target_preflight.json
+
+python3 - <<'PY_SECRET_PREFLIGHT' > docs/runbooks/evidence/ses-coverage-a1/20260604T114841Z_in_vpc_rerun/secret_preflight_evidence.txt
+from pathlib import Path
+secret_path = Path('/Users/stuart/repos/gridl-infra-dev/fjcloud_dev/.secret/.env.secret')
+keys = {}
+for line in secret_path.read_text().splitlines():
+    line = line.strip()
+    if not line or line.startswith('#') or '=' not in line:
+        continue
+    key, value = line.split('=', 1)
+    keys[key] = value.strip().strip('"').strip("'")
+assert keys.get('STRIPE_SECRET_KEY', '').startswith('sk_test_')
+assert keys.get('FJCLOUD_TEST_TENANT_IDS')
+print('secret_source_exists=1')
+print('STRIPE_SECRET_KEY_prefix_ok=true')
+print('FJCLOUD_TEST_TENANT_IDS_present=true')
+print('printed_secret_values=0')
+PY_SECRET_PREFLIGHT
+
+export TENANT_ALLOWLIST="$(
+python3 - <<'PY_TENANT_ALLOWLIST'
+from pathlib import Path
+secret_path = Path('/Users/stuart/repos/gridl-infra-dev/fjcloud_dev/.secret/.env.secret')
+keys = {}
+for line in secret_path.read_text().splitlines():
+    line = line.strip()
+    if not line or line.startswith('#') or '=' not in line:
+        continue
+    key, value = line.split('=', 1)
+    keys[key] = value.strip().strip('"').strip("'")
+allowlist = keys.get('FJCLOUD_TEST_TENANT_IDS', '')
+assert allowlist
+assert '\n' not in allowlist and '\r' not in allowlist
+print(allowlist)
+PY_TENANT_ALLOWLIST
+)"
+rm -rf /tmp/a1_vpc_rerun_20260604T114841Z
+mkdir -p /tmp/a1_vpc_rerun_20260604T114841Z/.runtime
+cp -R scripts /tmp/a1_vpc_rerun_20260604T114841Z/scripts
+cat > /tmp/a1_vpc_rerun_20260604T114841Z/.runtime/materialize_host_env.sh <<'MATERIALIZE_HOST_ENV'
+#!/usr/bin/env bash
+set -euo pipefail
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT_DIR"
+RUNTIME_DIR="$ROOT_DIR/.runtime"
+HOST_ENV="$RUNTIME_DIR/host.env"
+REGION="${AWS_DEFAULT_REGION:-us-east-1}"
+export AWS_DEFAULT_REGION="$REGION"
+ssm_value() {
+  aws ssm get-parameter --name "$1" --with-decryption --region "$REGION" --query 'Parameter.Value' --output text
+}
+source <(AWS_DEFAULT_REGION="$REGION" bash scripts/launch/hydrate_seeder_env_from_ssm.sh staging)
+APP_BASE_URL="$(ssm_value /fjcloud/staging/app_base_url)"
+SES_REGION="$(ssm_value /fjcloud/staging/ses_region)"
+INTEGRATION_DB_URL="${DATABASE_URL}"
+INBOUND_ROUNDTRIP_S3_URI="${INBOUND_ROUNDTRIP_S3_URI:-s3://flapjack-cloud-releases/e2e-emails/}"
+FJCLOUD_TEST_TENANT_IDS=__FJCLOUD_TEST_TENANT_IDS_SHELL__
+required=(API_URL APP_BASE_URL DATABASE_URL INTEGRATION_DB_URL ADMIN_KEY SES_FROM_ADDRESS SES_REGION AWS_DEFAULT_REGION INBOUND_ROUNDTRIP_S3_URI STRIPE_SECRET_KEY STRIPE_WEBHOOK_SECRET FJCLOUD_TEST_TENANT_IDS STAGING_STRIPE_WEBHOOK_URL STAGING_API_URL)
+: > "$HOST_ENV"
+chmod 0600 "$HOST_ENV"
+for key in "${required[@]}"; do
+  value="${!key:-}"
+  if [[ -z "$value" || "$value" == "None" ]]; then
+    echo "ERROR: missing $key" >&2
+    exit 1
+  fi
+  if [[ "$value" == *$'\n'* || "$value" == *$'\r'* ]]; then
+    echo "ERROR: $key contains newline bytes" >&2
+    exit 1
+  fi
+  printf '%s=%s\n' "$key" "$value" >> "$HOST_ENV"
+  printf '%s\n' "$key"
+done
+printf '%s\n' HOST_ENV_READY
+MATERIALIZE_HOST_ENV
+python3 - <<'PY_MATERIALIZER_SECRET_SUBSTITUTE'
+from pathlib import Path
+import os
+import shlex
+path = Path('/tmp/a1_vpc_rerun_20260604T114841Z/.runtime/materialize_host_env.sh')
+allowlist = os.environ['TENANT_ALLOWLIST']
+if '\n' in allowlist or '\r' in allowlist:
+    raise SystemExit('tenant allowlist contains newline bytes')
+text = path.read_text()
+text = text.replace('__FJCLOUD_TEST_TENANT_IDS_SHELL__', shlex.quote(allowlist))
+path.write_text(text)
+print('materializer_tenant_allowlist_injected=1')
+print('printed_secret_values=0')
+PY_MATERIALIZER_SECRET_SUBSTITUTE
+unset TENANT_ALLOWLIST
+chmod +x /tmp/a1_vpc_rerun_20260604T114841Z/.runtime/materialize_host_env.sh
+
+(cd /tmp/a1_vpc_rerun_20260604T114841Z && COPYFILE_DISABLE=1 tar -czf scripts.tar.gz scripts .runtime > docs/runbooks/evidence/ses-coverage-a1/20260604T114841Z_in_vpc_rerun/tarball_build.log 2>&1)
+
+python3 - <<'PY_TARBALL_SHAPE' > docs/runbooks/evidence/ses-coverage-a1/20260604T114841Z_in_vpc_rerun/tarball_build_evidence.txt
+from pathlib import Path
+import tarfile
+tarball = Path('/tmp/a1_vpc_rerun_20260604T114841Z/scripts.tar.gz')
+with tarfile.open(tarball, 'r:gz') as tf:
+    names = set(tf.getnames())
+print(f'tarball_path={tarball}')
+print(f'tarball_size_bytes={tarball.stat().st_size}')
+print(f'contains_scripts={int(any(name.startswith("scripts/") for name in names))}')
+print(f'contains_runtime_materializer={int(".runtime/materialize_host_env.sh" in names)}')
+print('materializer_committed_to_repo=0')
+print('printed_secret_values=0')
+PY_TARBALL_SHAPE
+
+aws s3 cp /tmp/a1_vpc_rerun_20260604T114841Z/scripts.tar.gz s3://fjcloud-releases-staging/a1-vpc-rerun/20260604T114841Z/scripts.tar.gz --region us-east-1 > docs/runbooks/evidence/ses-coverage-a1/20260604T114841Z_in_vpc_rerun/s3_upload.log 2>&1
+
+SSM_EXEC_TIMEOUT_SECONDS=300 AWS_DEFAULT_REGION=us-east-1 scripts/launch/ssm_exec_staging.sh "set -euo pipefail; rm -rf /tmp/a1_vpc_rerun_20260604T114841Z; mkdir -p /tmp/a1_vpc_rerun_20260604T114841Z; cd /tmp/a1_vpc_rerun_20260604T114841Z; aws s3 cp s3://fjcloud-releases-staging/a1-vpc-rerun/20260604T114841Z/scripts.tar.gz scripts.tar.gz --region us-east-1; tar -xzf scripts.tar.gz; chmod +x scripts/*.sh scripts/launch/*.sh .runtime/*.sh; echo HOST_CHECKOUT_READY" > docs/runbooks/evidence/ses-coverage-a1/20260604T114841Z_in_vpc_rerun/host_checkout.log 2>&1
+
+SSM_EXEC_TIMEOUT_SECONDS=300 AWS_DEFAULT_REGION=us-east-1 scripts/launch/ssm_exec_staging.sh "cd /tmp/a1_vpc_rerun_20260604T114841Z && bash .runtime/materialize_host_env.sh" > docs/runbooks/evidence/ses-coverage-a1/20260604T114841Z_in_vpc_rerun/host_env_materialize.log 2>&1
+
+SSM_EXEC_TIMEOUT_SECONDS=1800 AWS_DEFAULT_REGION=us-east-1 scripts/launch/ssm_exec_staging.sh "cd /tmp/a1_vpc_rerun_20260604T114841Z && bash scripts/probe_verify_email_clickthrough_e2e.sh --env-file .runtime/host.env" > docs/runbooks/evidence/ses-coverage-a1/20260604T114841Z_in_vpc_rerun/verify_email_clickthrough.log 2>&1
+
+SSM_EXEC_TIMEOUT_SECONDS=1800 AWS_DEFAULT_REGION=us-east-1 scripts/launch/ssm_exec_staging.sh "cd /tmp/a1_vpc_rerun_20260604T114841Z && bash scripts/probe_password_reset_clickthrough_e2e.sh --env-file .runtime/host.env" > docs/runbooks/evidence/ses-coverage-a1/20260604T114841Z_in_vpc_rerun/password_reset_clickthrough.log 2>&1
+
+SSM_EXEC_TIMEOUT_SECONDS=1800 AWS_DEFAULT_REGION=us-east-1 scripts/launch/ssm_exec_staging.sh "cd /tmp/a1_vpc_rerun_20260604T114841Z && bash scripts/probe_ses_bounce_complaint_e2e.sh bounce .runtime/host.env" > docs/runbooks/evidence/ses-coverage-a1/20260604T114841Z_in_vpc_rerun/ses_bounce.log 2>&1
+
+SSM_EXEC_TIMEOUT_SECONDS=1800 AWS_DEFAULT_REGION=us-east-1 scripts/launch/ssm_exec_staging.sh "cd /tmp/a1_vpc_rerun_20260604T114841Z && bash scripts/probe_ses_bounce_complaint_e2e.sh complaint .runtime/host.env" > docs/runbooks/evidence/ses-coverage-a1/20260604T114841Z_in_vpc_rerun/ses_complaint.log 2>&1
+
+SSM_EXEC_TIMEOUT_SECONDS=1800 AWS_DEFAULT_REGION=us-east-1 scripts/launch/ssm_exec_staging.sh "cd /tmp/a1_vpc_rerun_20260604T114841Z && bash scripts/probe_dunning_email_inbox_e2e.sh --env-file .runtime/host.env --month 2026-06" > docs/runbooks/evidence/ses-coverage-a1/20260604T114841Z_in_vpc_rerun/dunning_email_inbox.log 2>&1
+
+SSM_EXEC_TIMEOUT_SECONDS=1800 AWS_DEFAULT_REGION=us-east-1 scripts/launch/ssm_exec_staging.sh "cd /tmp/a1_vpc_rerun_20260604T114841Z && bash scripts/validate_staging_dunning_delivery.sh --env-file .runtime/host.env --month 2026-06 --confirm-live-mutation" > docs/runbooks/evidence/ses-coverage-a1/20260604T114841Z_in_vpc_rerun/staging_dunning_delivery.log 2>&1
+
+SSM_EXEC_TIMEOUT_SECONDS=300 AWS_DEFAULT_REGION=us-east-1 scripts/launch/ssm_exec_staging.sh "rm -rf /tmp/a1_vpc_rerun_20260604T114841Z; echo HOST_CLEANUP_READY" > docs/runbooks/evidence/ses-coverage-a1/20260604T114841Z_in_vpc_rerun/host_cleanup.log 2>&1
+
+aws s3 rm s3://fjcloud-releases-staging/a1-vpc-rerun/20260604T114841Z --recursive --region us-east-1 > docs/runbooks/evidence/ses-coverage-a1/20260604T114841Z_in_vpc_rerun/s3_cleanup.log 2>&1
+
+python3 docs/runbooks/evidence/ses-coverage-a1/20260604T114841Z_in_vpc_rerun/stage4_integrity.py docs/runbooks/evidence/ses-coverage-a1/20260604T114841Z_in_vpc_rerun > docs/runbooks/evidence/ses-coverage-a1/20260604T114841Z_in_vpc_rerun/integrity_check.log 2>&1

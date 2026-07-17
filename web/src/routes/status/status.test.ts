@@ -1,0 +1,285 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, render, screen } from '@testing-library/svelte';
+import { parseServiceStatus, statusLabelForServiceStatus } from './status_contract';
+
+vi.mock('$env/dynamic/private', () => ({
+	env: new Proxy({}, { get: (_target, prop) => process.env[prop as string] })
+}));
+
+afterEach(() => {
+	cleanup();
+	vi.restoreAllMocks();
+	vi.unstubAllGlobals();
+});
+
+describe('Status contract', () => {
+	it.each([
+		['operational', 'operational', 'All Systems Operational'],
+		['degraded', 'degraded', 'Degraded Performance'],
+		['outage', 'outage', 'Major Outage'],
+		['unexpected', 'unknown', 'Status Unavailable'],
+		[undefined, 'unknown', 'Status Unavailable']
+	] as const)(
+		'parses "%s" to "%s" and derives label "%s"',
+		(rawStatus, expectedStatus, expectedLabel) => {
+			const parsedStatus = parseServiceStatus(rawStatus);
+			expect(parsedStatus).toBe(expectedStatus);
+			expect(statusLabelForServiceStatus(parsedStatus)).toBe(expectedLabel);
+		}
+	);
+});
+
+describe('Status page', () => {
+	const TEST_STATUS_URL = 'http://localhost/status';
+
+	function setStatusPageLocation(url: string): void {
+		const jsdomGlobal = globalThis as typeof globalThis & {
+			jsdom?: { reconfigure: (settings: { url: string }) => void };
+		};
+		if (!jsdomGlobal.jsdom) {
+			throw new Error('Missing jsdom global; cannot set status-page hostname in tests.');
+		}
+		jsdomGlobal.jsdom.reconfigure({ url });
+	}
+
+	beforeEach(() => {
+		setStatusPageLocation(TEST_STATUS_URL);
+	});
+
+	it('renders current status with "Status Unavailable" default', async () => {
+		const StatusPage = (await import('./+page.svelte')).default;
+		const parsedStatus = parseServiceStatus(undefined);
+
+		render(StatusPage, {
+			data: {
+				status: parsedStatus,
+				statusLabel: statusLabelForServiceStatus(parsedStatus),
+				lastUpdated: undefined
+			}
+		});
+
+		expect(screen.getByRole('heading', { name: /service status/i })).toBeInTheDocument();
+		expect(screen.getByTestId('status-badge').textContent).toContain('Status Unavailable');
+		expect(screen.getByRole('link', { name: 'Flapjack Cloud' })).toHaveClass('text-flapjack-ink');
+		expect(screen.getByRole('link', { name: 'Log In' })).toHaveAttribute('href', '/login');
+		expect(screen.queryByRole('link', { name: 'Sign Up' })).not.toBeInTheDocument();
+	});
+
+	it('shows last updated timestamp', async () => {
+		const StatusPage = (await import('./+page.svelte')).default;
+
+		render(StatusPage, {
+			data: {
+				status: 'operational',
+				statusLabel: statusLabelForServiceStatus('operational'),
+				lastUpdated: '2026-02-21T12:00:00Z'
+			}
+		});
+
+		expect(screen.getByTestId('status-last-updated')).toBeInTheDocument();
+		expect(screen.getByTestId('status-last-updated').textContent).toContain('2026');
+	});
+
+	it('renders degraded performance status with warning styling', async () => {
+		const StatusPage = (await import('./+page.svelte')).default;
+
+		render(StatusPage, {
+			data: {
+				status: 'degraded',
+				statusLabel: statusLabelForServiceStatus('degraded'),
+				lastUpdated: '2026-02-21T14:30:00Z'
+			}
+		});
+
+		expect(screen.getByText('Degraded Performance')).toBeInTheDocument();
+		const badge = screen.getByTestId('status-badge');
+		expect(badge.textContent).toContain('Degraded Performance');
+	});
+
+	it('renders major outage status', async () => {
+		const StatusPage = (await import('./+page.svelte')).default;
+
+		render(StatusPage, {
+			data: {
+				status: 'outage',
+				statusLabel: statusLabelForServiceStatus('outage'),
+				lastUpdated: '2026-02-21T15:00:00Z'
+			}
+		});
+
+		expect(screen.getByText('Major Outage')).toBeInTheDocument();
+		const badge = screen.getByTestId('status-badge');
+		expect(badge.textContent).toContain('Major Outage');
+	});
+
+	it('links to the beta scope instead of an unimplemented incident-history page', async () => {
+		const StatusPage = (await import('./+page.svelte')).default;
+
+		render(StatusPage, {
+			data: {
+				status: 'operational',
+				statusLabel: statusLabelForServiceStatus('operational'),
+				lastUpdated: '2026-02-21T12:00:00Z'
+			}
+		});
+
+		expect(screen.queryByRole('link', { name: /incident history/i })).not.toBeInTheDocument();
+		const betaScopeLink = screen.getByRole('link', { name: /beta scope/i });
+		expect(betaScopeLink).toHaveAttribute('href', '/beta');
+		expect(betaScopeLink).toHaveClass('text-flapjack-rose');
+	});
+
+	it('states incident communications ownership and support response target', async () => {
+		const StatusPage = (await import('./+page.svelte')).default;
+
+		render(StatusPage, {
+			data: {
+				status: 'operational',
+				statusLabel: statusLabelForServiceStatus('operational'),
+				lastUpdated: '2026-02-21T12:00:00Z'
+			}
+		});
+
+		expect(
+			screen.getByText(/Flapjack Cloud operations owns incident updates/i)
+		).toBeInTheDocument();
+		expect(screen.getByText(/48 business hours/i)).toBeInTheDocument();
+		expect(screen.getByRole('link', { name: /email support/i })).toHaveAttribute(
+			'href',
+			expect.stringContaining('mailto:support@flapjack.foo')
+		);
+	});
+
+	it('renders Flapjack Cloud status copy without legacy product branding', async () => {
+		const StatusPage = (await import('./+page.svelte')).default;
+
+		render(StatusPage, {
+			data: {
+				status: 'operational',
+				statusLabel: statusLabelForServiceStatus('operational'),
+				lastUpdated: '2026-02-21T12:00:00Z'
+			}
+		});
+
+		expect(screen.getByRole('link', { name: 'Flapjack Cloud' })).toBeInTheDocument();
+		expect(screen.getByText(/Flapjack Cloud services/)).toBeInTheDocument();
+		expect(screen.queryByText(/Griddle services/)).not.toBeInTheDocument();
+	});
+
+	it('does not expose infrastructure details', async () => {
+		const StatusPage = (await import('./+page.svelte')).default;
+
+		render(StatusPage, {
+			data: {
+				status: 'outage',
+				statusLabel: statusLabelForServiceStatus('outage'),
+				lastUpdated: '2026-02-21T15:00:00Z'
+			}
+		});
+
+		expect(screen.queryByText(/ec2/i)).not.toBeInTheDocument();
+		expect(screen.queryByText(/postgres/i)).not.toBeInTheDocument();
+		expect(screen.queryByText(/vm/i)).not.toBeInTheDocument();
+		expect(screen.queryByText(/deployment/i)).not.toBeInTheDocument();
+	});
+
+	it('keeps server fallback values on cloud host without runtime S3 fetch', async () => {
+		const fallbackMessage = 'Fallback incident message.';
+		setStatusPageLocation('https://cloud.flapjack.foo/status');
+		const fetchMock = vi.fn();
+		vi.stubGlobal('fetch', fetchMock);
+		const StatusPage = (await import('./+page.svelte')).default;
+
+		render(StatusPage, {
+			data: {
+				status: 'degraded',
+				statusLabel: statusLabelForServiceStatus('degraded'),
+				lastUpdated: '2026-05-04T12:00:00.000Z',
+				message: fallbackMessage
+			}
+		});
+
+		expect(fetchMock).not.toHaveBeenCalled();
+		expect(screen.getByText('Degraded Performance')).toBeInTheDocument();
+		expect(screen.getByTestId('status-last-updated').textContent).toContain('2026');
+		expect(screen.getByText(fallbackMessage)).toBeInTheDocument();
+	});
+});
+
+describe('Status page server load', () => {
+	it('disables prerender for the status route to keep env-backed runtime values dynamic', async () => {
+		const module = await import('./+page');
+		expect(module.prerender).toBe(false);
+	});
+
+	const savedEnv: Record<string, string | undefined> = {};
+
+	beforeEach(() => {
+		savedEnv.SERVICE_STATUS = process.env.SERVICE_STATUS;
+		savedEnv.SERVICE_STATUS_UPDATED = process.env.SERVICE_STATUS_UPDATED;
+		savedEnv.SERVICE_STATUS_MESSAGE = process.env.SERVICE_STATUS_MESSAGE;
+		delete process.env.SERVICE_STATUS;
+		delete process.env.SERVICE_STATUS_UPDATED;
+		delete process.env.SERVICE_STATUS_MESSAGE;
+	});
+
+	afterEach(() => {
+		process.env.SERVICE_STATUS = savedEnv.SERVICE_STATUS;
+		process.env.SERVICE_STATUS_UPDATED = savedEnv.SERVICE_STATUS_UPDATED;
+		process.env.SERVICE_STATUS_MESSAGE = savedEnv.SERVICE_STATUS_MESSAGE;
+	});
+
+	it('returns unknown status without freshness when SERVICE_STATUS env var is not set', async () => {
+		const { load } = await import('./+page.server');
+
+		const result = load();
+
+		expect.soft(result.status).toBe('unknown');
+		expect.soft(result.statusLabel).toBe('Status Unavailable');
+		expect.soft(result.lastUpdated).toBeUndefined();
+		expect(result.message).toBeUndefined();
+	});
+
+	it('maps SERVICE_STATUS=degraded to correct label', async () => {
+		process.env.SERVICE_STATUS = 'degraded';
+		process.env.SERVICE_STATUS_UPDATED = '2026-02-21T14:00:00Z';
+
+		const { load } = await import('./+page.server');
+
+		const result = load();
+
+		expect(result.status).toBe('degraded');
+		expect(result.statusLabel).toBe(statusLabelForServiceStatus('degraded'));
+		expect(result.lastUpdated).toBe('2026-02-21T14:00:00Z');
+	});
+
+	it('returns SERVICE_STATUS_MESSAGE through the status route contract', async () => {
+		process.env.SERVICE_STATUS = 'degraded';
+		process.env.SERVICE_STATUS_UPDATED = '2026-02-21T14:00:00Z';
+		process.env.SERVICE_STATUS_MESSAGE = 'Investigating elevated latency.';
+
+		const { load } = await import('./+page.server');
+
+		const result = load();
+
+		expect(result).toMatchObject({
+			status: 'degraded',
+			statusLabel: statusLabelForServiceStatus('degraded'),
+			lastUpdated: '2026-02-21T14:00:00Z',
+			message: 'Investigating elevated latency.'
+		});
+	});
+
+	it('collapses invalid SERVICE_STATUS values to unknown fallback', async () => {
+		process.env.SERVICE_STATUS = 'paused';
+		process.env.SERVICE_STATUS_UPDATED = '2026-02-21T16:00:00Z';
+
+		const { load } = await import('./+page.server');
+
+		const result = load();
+
+		expect(result.status).toBe('unknown');
+		expect(result.statusLabel).toBe('Status Unavailable');
+		expect(result.lastUpdated).toBe('2026-02-21T16:00:00Z');
+	});
+});

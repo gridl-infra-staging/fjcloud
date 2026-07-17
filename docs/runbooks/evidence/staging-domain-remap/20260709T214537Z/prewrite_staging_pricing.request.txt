@@ -1,0 +1,1 @@
+curl -sS -L --max-time 30 https://cloud.staging.flapjack.foo/pricing

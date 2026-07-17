@@ -1,0 +1,13 @@
+{
+  "cleanup_lifecycle": "manual cleanup required: delete the restored DB instance after verification and evidence capture",
+  "env": "staging",
+  "reason": null,
+  "restore_command": "aws rds restore-db-instance-from-db-snapshot --region us-east-1 --db-instance-identifier fjcloud-staging-restore-20260612002802 --db-snapshot-identifier rds:fjcloud-staging-2026-06-11-02-13 --db-subnet-group-name fjcloud-staging ",
+  "restore_mode": "snapshot",
+  "result": "pass",
+  "source_db_instance_id": "fjcloud-staging",
+  "status": "success",
+  "target_db_instance_id": "fjcloud-staging-restore-20260612002802",
+  "target_endpoint": "fjcloud-staging-restore-20260612002802.*.us-east-1.rds.amazonaws.com",
+  "target_status": "available"
+}

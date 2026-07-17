@@ -1,0 +1,21 @@
+{
+  "first_pass_pass": [
+    "A",
+    "B",
+    "C",
+    "D",
+    "E",
+    "G"
+  ],
+  "reruns_to_flake": [],
+  "real_bug_after_reruns": [],
+  "setup_failure_inconclusive": [
+    "F"
+  ],
+  "final_pass_including_flakes": 6,
+  "ready_precondition": {
+    "real_bug_count": 0,
+    "final_pass_ge_4": true
+  },
+  "driver_gap": "Lane F reruns both failed in auth.setup.ts:154 (login timeout, 220s) before reaching the pagination test. The rerun driver is_auth_budget_setup_failure only detects HTTP 429 patterns and missed this non-429 timeout mode, incorrectly classifying F as real_bug. Corrected to setup_failure_inconclusive. See chats/icg/stubs/jun11_pm_9_rerun_driver_gap_setup_timeout.md."
+}

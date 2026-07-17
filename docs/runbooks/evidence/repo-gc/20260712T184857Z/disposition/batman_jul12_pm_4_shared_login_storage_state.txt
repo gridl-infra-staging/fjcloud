@@ -1,0 +1,37 @@
+# Disposition Receipt: batman/jul12_pm_4_shared_login_storage_state
+
+Classification: out of deletion scope for this stage
+Evidence source: current read-only git refs at bundle creation.
+
+## rev-parse
+$ git rev-parse batman/jul12_pm_4_shared_login_storage_state
+5b8a214399bd668beeec94d85ce74d227e47e7bb
+
+## cherry
+$ git cherry -v main batman/jul12_pm_4_shared_login_storage_state | tail -20
++ d265b6afada6cd80033bace3ad2f741ed89ad1de baseline: pre-session scrai/tooling sync
++ cd5f212820dffafdaf4c70a94709ac82574d4af0 matt: stage 1 checklist
++ 5b8a214399bd668beeec94d85ce74d227e47e7bb test(web): classify polished-beta staging lanes and guard empty storageState override
+
+## diff main...
+$ git diff main...batman/jul12_pm_4_shared_login_storage_state --stat | tail -20
+ web/src/routes/admin/DIRMAP.md                     |  2 +-
+ web/src/routes/admin/customers/DIRMAP.md           |  2 +-
+ web/src/routes/api/DIRMAP.md                       |  6 ++---
+ web/src/routes/api/pricing/DIRMAP.md               |  2 +-
+ web/src/routes/api/search/DIRMAP.md                |  2 +-
+ web/src/routes/api/stripe/DIRMAP.md                |  2 +-
+ web/src/routes/auth/DIRMAP.md                      |  2 +-
+ web/src/routes/auth/oauth/DIRMAP.md                |  2 +-
+ web/src/routes/auth/oauth/[provider]/DIRMAP.md     |  2 +-
+ web/src/routes/billing/DIRMAP.md                   |  2 +-
+ web/src/routes/console/DIRMAP.md                   | 14 +++++------
+ web/src/routes/console/indexes/DIRMAP.md           |  2 +-
+ web/src/routes/console/indexes/[name]/DIRMAP.md    |  2 +-
+ .../console/indexes/[name]/experiments/DIRMAP.md   |  4 +++-
+ web/src/tests/playwright-config-contract.test.ts   | 23 ++++++++++++++++++
+ web/tests/DIRMAP.md                                |  4 ++--
+ web/tests/e2e-ui/DIRMAP.md                         |  2 +-
+ web/tests/e2e-ui/full/DIRMAP.md                    |  2 +-
+ .../full/polished_beta_staging_verify.spec.ts      | 28 ++++++++++++++++++++++
+ 62 files changed, 178 insertions(+), 112 deletions(-)

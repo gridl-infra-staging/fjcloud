@@ -1,0 +1,2 @@
+Command: (same as 06_probe_readback_stdout.txt)
+stderr: (empty — no errors during probe execution)

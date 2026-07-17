@@ -1,0 +1,15 @@
+
+debbie sync -> staging
+  project: fjcloud
+  config:  
+<worktree-root>/fjcloud_dev/jul11_pm_6_deployed_launch_verify
+_leakfree_rc/fjcloud_dev/.debbie.toml
+  DOWNSTREAM: ci-automated: deploy-web step in mirror ci.yml deploy-staging
+
+scrai strip: files_discovered=874 files_modified=379 candidates_removed=1607
+[main 0b069a56a] chore: debbie post-sync mirror update
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+ok Synced 9 dirs, 14 files
+   hook: executed
+
+ok fjcloud -> staging complete

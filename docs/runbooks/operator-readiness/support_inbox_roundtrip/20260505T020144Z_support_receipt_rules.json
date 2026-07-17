@@ -1,0 +1,42 @@
+{
+    "Metadata": {
+        "Name": "mailpail",
+        "CreatedTimestamp": "2026-02-11T21:28:48.590000+00:00"
+    },
+    "Rules": [
+        {
+            "Name": "sigil-to-s3",
+            "Enabled": true,
+            "TlsPolicy": "Optional",
+            "Recipients": [
+                "test.sigil.fit"
+            ],
+            "Actions": [
+                {
+                    "S3Action": {
+                        "BucketName": "sigil-test-emails",
+                        "ObjectKeyPrefix": "mailpail/"
+                    }
+                }
+            ],
+            "ScanEnabled": true
+        },
+        {
+            "Name": "mailpail-to-s3",
+            "Enabled": true,
+            "TlsPolicy": "Optional",
+            "Recipients": [
+                "test.flapjack.foo"
+            ],
+            "Actions": [
+                {
+                    "S3Action": {
+                        "BucketName": "flapjack-cloud-releases",
+                        "ObjectKeyPrefix": "e2e-emails/"
+                    }
+                }
+            ],
+            "ScanEnabled": true
+        }
+    ]
+}

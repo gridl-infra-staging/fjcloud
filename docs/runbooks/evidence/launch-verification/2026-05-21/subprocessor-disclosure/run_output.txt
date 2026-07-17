@@ -1,0 +1,4 @@
+[validate_subprocessor_disclosure] evidence bundle: docs/runbooks/evidence/subprocessor_disclosure/20260521T112726Z
+[validate_subprocessor_disclosure] summary file: docs/runbooks/evidence/subprocessor_disclosure/20260521T112726Z/summary_status.txt
+[validate_subprocessor_disclosure] status json: docs/runbooks/evidence/subprocessor_disclosure/20260521T112726Z/summary_status.json
+[validate_subprocessor_disclosure] result: PASSED

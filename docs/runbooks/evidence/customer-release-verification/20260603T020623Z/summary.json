@@ -1,0 +1,64 @@
+{
+  "browser_smoke": {
+    "status": "fail",
+    "artifact_path": "docs/runbooks/evidence/customer-release-verification/20260603T020623Z/browser-smoke-stdout.log",
+    "exit_code": 1,
+    "failure_detail": "Playwright reached authenticated index detail on live staging, but the Metrics tab was missing; expected getByRole('tab', { name: 'Metrics' }) to have aria-selected=true after navigating to ?tab=metrics."
+  },
+  "customer_loop": {
+    "artifact_path": "/Users/stuart/repos/gridl-infra-dev/fjcloud_dev/docs/runbooks/evidence/customer-release-verification/20260603T020623Z/customer-loop-stdout.log",
+    "cleanup_artifact_path": "/Users/stuart/repos/gridl-infra-dev/fjcloud_dev/docs/runbooks/evidence/customer-release-verification/20260603T020623Z/customer-loop-cleanup-stdout.log",
+    "cleanup_readback_artifact_path": "/Users/stuart/repos/gridl-infra-dev/fjcloud_dev/docs/runbooks/evidence/customer-release-verification/20260603T020623Z/customer-loop-cleanup-readback.env",
+    "exit_code": 1,
+    "failure_detail": "step 'verify_email' failed: inbox lookup command failed (exit=1): aws s3api list-objects-v2 failed for s3://flapjack-cloud-releases/e2e-emails/",
+    "status": "fail"
+  },
+  "deploy_currency_gate": {
+    "artifact_path": "/Users/stuart/repos/gridl-infra-dev/fjcloud_dev/docs/runbooks/evidence/customer-release-verification/20260603T020623Z/staging-version.json",
+    "commands_artifact_path": "/Users/stuart/repos/gridl-infra-dev/fjcloud_dev/docs/runbooks/evidence/customer-release-verification/20260603T020623Z/deploy-currency-commands.env",
+    "merge_base_exit_code": 0,
+    "prod_ci_artifact_path": "/Users/stuart/repos/gridl-infra-dev/fjcloud_dev/docs/runbooks/evidence/customer-release-verification/20260603T020623Z/prod-ci-latest.json",
+    "prod_ci_latest": [
+      {
+        "conclusion": "success",
+        "createdAt": "2026-06-02T21:21:55Z",
+        "headSha": "32a4c61ff093431c660b3de8973d3f1a03790d5e"
+      }
+    ],
+    "required_ancestor_sha": "1ace360608c271c68379a211fcd8336d46183e94",
+    "staging_ci_artifact_path": "/Users/stuart/repos/gridl-infra-dev/fjcloud_dev/docs/runbooks/evidence/customer-release-verification/20260603T020623Z/staging-ci-latest.json",
+    "staging_ci_latest": [
+      {
+        "conclusion": "success",
+        "createdAt": "2026-06-02T21:21:47Z",
+        "headSha": "4888d365b4f9daf2c3a2d3e52c53e42af75b9616"
+      }
+    ],
+    "staging_dev_sha": "0d6fe4755658072675dfd4ffe35c4e4cb313d282",
+    "status": "pass",
+    "version": {
+      "build_time": "2026-06-02T21:25:20Z",
+      "dev_sha": "0d6fe4755658072675dfd4ffe35c4e4cb313d282",
+      "mirror_sha": "4888d365b4f9daf2c3a2d3e52c53e42af75b9616",
+      "synced_at": "2026-06-02T21:21:40Z"
+    },
+    "version_curl_exit_code": 0
+  },
+  "evidence_dir": "/Users/stuart/repos/gridl-infra-dev/fjcloud_dev/docs/runbooks/evidence/customer-release-verification/20260603T020623Z",
+  "export_probe": {
+    "artifact_path": "/Users/stuart/repos/gridl-infra-dev/fjcloud_dev/docs/runbooks/evidence/customer-release-verification/20260603T020623Z/export-probe-stdout.log",
+    "exit_code": 0,
+    "overall_verdict": "pass",
+    "status": "pass",
+    "summary_json_path": "/Users/stuart/repos/gridl-infra-dev/fjcloud_dev/docs/runbooks/evidence/index-export-clientside/20260603T020715Z/summary.json"
+  },
+  "generated_at_utc": "20260603T020623Z",
+  "metrics_probe": {
+    "artifact_path": "/Users/stuart/repos/gridl-infra-dev/fjcloud_dev/docs/runbooks/evidence/customer-release-verification/20260603T020623Z/metrics-probe-stdout.log",
+    "exit_code": 100,
+    "failure_detail": "",
+    "skip_reason": "AWS credentials unavailable; cannot poll the staging verification inbox",
+    "status": "skip",
+    "summary_json_path": "/Users/stuart/repos/gridl-infra-dev/fjcloud_dev/docs/runbooks/evidence/customer-metrics-probe/20260603T020859Z/summary.json"
+  }
+}

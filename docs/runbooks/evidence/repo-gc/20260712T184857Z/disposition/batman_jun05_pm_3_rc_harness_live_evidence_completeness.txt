@@ -1,0 +1,14 @@
+# Disposition Receipt: batman/jun05_pm_3_rc_harness_live_evidence_completeness
+
+Classification: approved freed local branch after approved worktree removal
+Evidence source: current read-only git refs at bundle creation.
+
+## rev-parse
+$ git rev-parse batman/jun05_pm_3_rc_harness_live_evidence_completeness
+78aae9138145bd66796929336f54586bc9cb804d
+
+## cherry
+$ git cherry -v main batman/jun05_pm_3_rc_harness_live_evidence_completeness | tail -20
+
+## diff main...
+$ git diff main...batman/jun05_pm_3_rc_harness_live_evidence_completeness --stat | tail -20

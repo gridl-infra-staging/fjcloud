@@ -1,0 +1,26 @@
+{
+  "exit_code": 21,
+  "json_parse_ok": true,
+  "steps": [
+    {
+      "detail": "Sent probe from '<redacted>@flapjack.foo' to '<redacted>@test.flapjack.foo' (message_id='<redacted>').",
+      "name": "send_probe",
+      "passed": true
+    },
+    {
+      "detail": "Timed out waiting for nonce '<redacted>' in s3://flapjack-cloud-releases/e2e-emails/ after 30 attempts.",
+      "name": "poll_inbox_s3",
+      "passed": false
+    },
+    {
+      "detail": "Skipped because poll_inbox_s3 timed out.",
+      "name": "fetch_rfc822",
+      "passed": false
+    },
+    {
+      "detail": "Skipped because poll_inbox_s3 timed out.",
+      "name": "auth_verdict",
+      "passed": false
+    }
+  ]
+}

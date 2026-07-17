@@ -1,0 +1,14 @@
+current_origin_main=5f32d715639f13c353b6e6e8397aa528a8903b72
+recorded_origin_main=5f32d715639f13c353b6e6e8397aa528a8903b72
+origin_main_consistent=yes
+mirror_sha=29658e72ad174ae546ea8e2fd05a8877330ab367
+mirror_head_now=29658e72ad174ae546ea8e2fd05a8877330ab367
+control_plane_dev_sha=5f32d715639f13c353b6e6e8397aa528a8903b72
+control_plane_gap=0
+cloud_staging_ready=true
+cloud_prod_ready=true
+browser_claim_scan_start
+docs/runbooks/evidence/polished-beta-staging-verify/20260708T073756Z/parity_verdict.md:28:- No browser proof was run in this stage.
+docs/runbooks/evidence/polished-beta-staging-verify/20260708T073756Z/owner_context.md:2:- stages.md: Stage 1 is deploy parity only before browser proof.
+docs/runbooks/evidence/polished-beta-staging-verify/20260708T073756Z/owner_context.md:6:- .github/workflows/ci.yml: deploy-staging triggers API deploy; e2e-deployed waits on Pages parity before browser proof.
+browser_claim_scan_end

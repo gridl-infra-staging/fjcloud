@@ -1,0 +1,9 @@
+[
+  {
+    "instance_id": "i-0fbc6d6bbbc8bdc6d",
+    "command_id": "8da5137b-a111-46c6-82db-98331b1184f1",
+    "status": "Success",
+    "stdout": "file_DATABASE_URL\tfjcloud-staging.cabwlew6jcjl.us-east-1.rds.amazonaws.com:5432/fjcloud\tsha256_16=a377bb0163e33e75\nsystemctl_Environment_DATABASE_URL\tMISSING\tsha256_16=none\nproc_MainPID_DATABASE_URL\tfjcloud-staging.cabwlew6jcjl.us-east-1.rds.amazonaws.com:5432/fjcloud\tsha256_16=a377bb0163e33e75\nmain_pid\t3111879\n",
+    "stderr": ""
+  }
+]

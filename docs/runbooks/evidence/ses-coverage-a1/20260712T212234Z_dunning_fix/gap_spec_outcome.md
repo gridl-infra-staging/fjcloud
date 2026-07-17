@@ -1,0 +1,25 @@
+# Stage 3 gap-spec outcome
+
+- HEAD: 4ebd415c63c1dddac72500d09653f35c3f30fecc
+- Evidence bundle: docs/runbooks/evidence/ses-coverage-a1/20260712T212234Z_dunning_fix
+- Billing month: 2026-07
+- Source green bundle: docs/runbooks/evidence/staging-billing-rehearsal/20260712T010555Z_current_main
+- Validator command: `bash scripts/validate_staging_dunning_delivery.sh --env-file /Users/stuart/repos/gridl-infra-dev/fjcloud_dev/.secret/.env.secret --month 2026-07 --confirm-live-mutation`
+- Validator rc: 1
+- Validator result/classification: failed / rehearsal_failed
+- Validator gate status: `guard` passed; `reset_test_state` passed for 2 allowlisted tenants.
+- Validator failing step: `run_rehearsal`
+- Nested failure: deployable_currency_drift; Staging deploy is behind deployable dev changes; deploy staging before running billing rehearsal.
+- Nested deployed SHA: 55757a6e01ea527a56d4fd53c4b35edcddb55861
+- Deploy status command: `bash scripts/deploy_status.sh --json --env staging`
+- Deploy status rc: 0
+- Deploy status diagnosis: staging dev_sha 55757a6e01ea527a56d4fd53c4b35edcddb55861; dev-main 35baf16307bbcc9056562b0eb5f0aa57039edc38; staging is 61 commits behind main; deployable_drift=true.
+- Pre-sync gate: `bash scripts/local-ci.sh --fast` failed before any `debbie sync staging` attempt; source-pollution would rewrite `chats/icg/jul12_pm_6_repo_gc_manifest_and_receipts.md`. Canonical dev repo `bash scripts/sanitize_worktree_paths.sh --check` also reported source-pollution in repo-gc evidence files, so a staging sync would not satisfy deploy-staging gates yet.
+- Inbox command: `bash scripts/probe_dunning_email_inbox_e2e.sh --env-file /Users/stuart/repos/gridl-infra-dev/fjcloud_dev/.secret/.env.secret`
+- Inbox rc: 1
+- Inbox result/classification: failed / rehearsal_failed
+- Inbox detail: dunning owner script exited 1; hosted invoice URL assertion was not reached.
+- Inbox month behavior: script default month is the current UTC month, `2026-07`, matching the selected rehearsal month.
+- Hygiene command: `bash scripts/check_evidence_secret_hygiene.sh`
+- Hygiene rc: 0
+- Hygiene result: Evidence secret hygiene passed

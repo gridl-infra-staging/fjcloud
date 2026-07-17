@@ -1,0 +1,130 @@
+{
+  "verdict": "NOT-READY-on-section-1",
+  "timestamp": "2026-06-10T19:24:15Z",
+  "summary_source": "summary.json",
+  "non_pass_steps": [
+    {
+      "name": "local_signoff",
+      "status": "skipped",
+      "reason": "local_signoff_not_applicable_in_paid_beta_rc_mode",
+      "section": 6,
+      "classification": "mode_skip"
+    },
+    {
+      "name": "staging_billing_rehearsal",
+      "status": "fail",
+      "reason": "billing_run_no_created_invoices",
+      "section": 2,
+      "classification": "env_gap"
+    },
+    {
+      "name": "browser_auth_setup",
+      "status": "external_secret_missing",
+      "reason": "browser_auth_setup_env_gap",
+      "section": 6,
+      "classification": "env_gap"
+    },
+    {
+      "name": "admin_broadcast",
+      "status": "skipped",
+      "reason": "staging_only_production_surface",
+      "section": 4,
+      "classification": "mode_skip"
+    },
+    {
+      "name": "billing_health_last_activity",
+      "status": "skipped",
+      "reason": "staging_only_production_surface",
+      "section": 2,
+      "classification": "mode_skip"
+    },
+    {
+      "name": "audit_timeline",
+      "status": "skipped",
+      "reason": "staging_only_production_surface",
+      "section": 4,
+      "classification": "mode_skip"
+    },
+    {
+      "name": "status_runtime",
+      "status": "skipped",
+      "reason": "staging_only_production_surface",
+      "section": 6,
+      "classification": "mode_skip"
+    },
+    {
+      "name": "ses_inbound",
+      "status": "skipped",
+      "reason": "staging_only_production_surface",
+      "section": 3,
+      "classification": "mode_skip"
+    },
+    {
+      "name": "canary_customer_loop",
+      "status": "skipped",
+      "reason": "staging_only_production_surface",
+      "section": 6,
+      "classification": "mode_skip"
+    },
+    {
+      "name": "canary_outside_aws",
+      "status": "skipped",
+      "reason": "staging_only_production_surface",
+      "section": 6,
+      "classification": "mode_skip"
+    },
+    {
+      "name": "stripe_webhook_signature_matrix_idempotency",
+      "status": "skipped",
+      "reason": "staging_only_production_surface",
+      "section": 2,
+      "classification": "mode_skip"
+    },
+    {
+      "name": "test_clock",
+      "status": "skipped",
+      "reason": "staging_only_production_surface",
+      "section": 2,
+      "classification": "mode_skip"
+    },
+    {
+      "name": "tenant_isolation",
+      "status": "skipped",
+      "reason": "staging_only_production_surface",
+      "section": 4,
+      "classification": "mode_skip"
+    },
+    {
+      "name": "signup_abuse",
+      "status": "skipped",
+      "reason": "staging_only_production_surface",
+      "section": 4,
+      "classification": "mode_skip"
+    },
+    {
+      "name": "browser_signup_paid",
+      "status": "skipped",
+      "reason": "staging_only_production_surface",
+      "section": 1,
+      "classification": "mode_skip"
+    },
+    {
+      "name": "browser_portal_cancel",
+      "status": "skipped",
+      "reason": "staging_only_production_surface",
+      "section": 1,
+      "classification": "mode_skip"
+    }
+  ],
+  "section_impact": {
+    "1": "partial",
+    "2": "green",
+    "3": "green",
+    "4": "green",
+    "5": "green",
+    "6": "green"
+  },
+  "other_real_count": 0,
+  "pre_authorized_shape_match": true,
+  "rationale": "16 non-pass steps; other_real_count=0. cargo_workspace_tests status=pass with reason='', so the prior LOCAL_DEV_FLAPJACK_URL env-lock defect is gone in this fixed checkout. staging_billing_rehearsal remains env_gap (billing_run_no_created_invoices), matching prior bundle classification and not counted as a Section 2 real defect. Section 1 remains partial per docs/launch_verification_matrix.md. browser_auth_setup remains env_gap because the credentialed local browser setup rejects the staging API_URL loopback contract. All remaining non-pass rows are mode_skip from --staging-only or local_signoff in paid_beta_rc mode."
+}

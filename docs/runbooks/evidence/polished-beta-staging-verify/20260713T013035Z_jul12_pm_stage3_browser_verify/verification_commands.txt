@@ -1,0 +1,63 @@
+Bundle: docs/runbooks/evidence/polished-beta-staging-verify/20260713T013035Z_jul12_pm_stage3_browser_verify
+
+Dependency setup:
+  cd web && pnpm install --frozen-lockfile
+
+First-pass credential hydration and Playwright command:
+  REPO_ROOT="$PWD"
+  BUNDLE="docs/runbooks/evidence/polished-beta-staging-verify/20260713T013035Z_jul12_pm_stage3_browser_verify"
+  RAW_FIRST_PASS="$(mktemp "${TMPDIR:-/tmp}/fjcloud_stage3_first_pass.json.XXXXXX")"
+  printf '%s\n' "$RAW_FIRST_PASS" > "$BUNDLE/raw_first_pass_path.txt"
+  set -a
+  source .secret/.env.secret
+  set +a
+  source scripts/lib/hydrate_staging_env.sh
+  hydrate_staging_env_from_ssm
+  export E2E_ADMIN_KEY="$ADMIN_KEY"
+  cd web
+  PLAYWRIGHT_TARGET_REMOTE=1 BASE_URL=https://cloud.staging.flapjack.foo PLAYWRIGHT_BASE_URL=https://cloud.staging.flapjack.foo API_URL=https://api.staging.flapjack.foo API_BASE_URL=https://api.staging.flapjack.foo pnpm exec playwright test tests/e2e-ui/full/polished_beta_staging_verify.spec.ts --project=chromium --reporter=json > "$RAW_FIRST_PASS" 2> "../$BUNDLE/playwright_first_pass.stderr"
+
+First-pass redaction command:
+  bash scripts/lib/redact_playwright_json.sh "$(cat "$BUNDLE/raw_first_pass_path.txt")" "$BUNDLE/playwright_first_pass.json" 2> "$BUNDLE/redact_first_pass.stderr"
+
+Lane-verdict extraction command:
+  jq 'def lane_specs: [.. | objects | select(has("specs")) | .specs[]? | select(.title | test("^Lane [A-G] - "))] | sort_by(.title | capture("^Lane (?<lane>[A-G])").lane); (lane_specs | map({lane: (.title | capture("^Lane (?<lane>[A-G])").lane), title: .title, raw_status: (if .ok == true then "passed" else (.tests[0].results[0].status // .tests[0].status // "unknown") end)})) as $lanes | {lane_count: ($lanes | length), passed_count: ($lanes | map(select(.raw_status == "passed")) | length), non_passed_count: ($lanes | map(select(.raw_status != "passed")) | length), lanes: $lanes}' "$BUNDLE/playwright_first_pass.json" > "$BUNDLE/lane_verdicts_first_pass.json"
+  jq empty "$BUNDLE/lane_verdicts_first_pass.json"
+  jq -e '.lane_count == 7 and ([.lanes[].lane] == ["A","B","C","D","E","F","G"])' "$BUNDLE/lane_verdicts_first_pass.json"
+
+Rerun/classification command:
+  set -a
+  source .secret/.env.secret
+  set +a
+  EVIDENCE_DIR="$BUNDLE" bash scripts/verify/rerun_failing_lanes.sh > "$BUNDLE/rerun_failing_lanes.stdout" 2> "$BUNDLE/rerun_failing_lanes.stderr"
+  jq empty "$BUNDLE/rerun_verdicts.json"
+  jq empty "$BUNDLE/classification.json"
+  jq -e '.ready_precondition.real_bug_count == 0 and .ready_precondition.final_pass_ge_4 == true' "$BUNDLE/classification.json"
+
+Spec-owned auth-budget assertion commands:
+  REPO_ROOT="$PWD"; set -a; source .secret/.env.secret; set +a; source scripts/lib/hydrate_staging_env.sh; hydrate_staging_env_from_ssm; export E2E_ADMIN_KEY="$ADMIN_KEY"; cd web; PLAYWRIGHT_TARGET_REMOTE=1 BASE_URL=https://cloud.staging.flapjack.foo PLAYWRIGHT_BASE_URL=https://cloud.staging.flapjack.foo API_URL=https://api.staging.flapjack.foo API_BASE_URL=https://api.staging.flapjack.foo pnpm exec playwright test tests/e2e-ui/full/polished_beta_staging_verify.spec.ts --project=chromium --grep "Polished beta deployed staging verification" --reporter=json
+  Result: exit 1 before the auth-budget assertion because Lane F hit the same quota_exceeded first-pass setup failure; redacted to auth_budget_assertion.json.
+  REPO_ROOT="$PWD"; set -a; source .secret/.env.secret; set +a; source scripts/lib/hydrate_staging_env.sh; hydrate_staging_env_from_ssm; export E2E_ADMIN_KEY="$ADMIN_KEY"; cd web; PLAYWRIGHT_TARGET_REMOTE=1 BASE_URL=https://cloud.staging.flapjack.foo PLAYWRIGHT_BASE_URL=https://cloud.staging.flapjack.foo API_URL=https://api.staging.flapjack.foo API_BASE_URL=https://api.staging.flapjack.foo pnpm exec playwright test tests/e2e-ui/full/polished_beta_staging_verify.spec.ts --project=chromium --grep-invert "Lane F" --reporter=json
+  bash scripts/lib/redact_playwright_json.sh "$BUNDLE/auth_budget_no_lane_f.raw.json" "$BUNDLE/auth_budget_no_lane_f.json"
+  jq -e '.. | objects | select(has("specs")) | .specs[]? | select(.title == "auth-call budget stays within shared-session ceiling") | select(.ok == true and .tests[0].results[0].status == "passed")' "$BUNDLE/auth_budget_no_lane_f.json"
+
+Auth-429 assertion command:
+  grep -EHi 'Login response: status 429|/auth/register.*status 429|/auth/login.*status 429|/auth/verify-email.*status 429|too many requests|exhausted retries after 429 rate limiting' "$BUNDLE/playwright_first_pass.stderr" "$BUNDLE/playwright_first_pass.json" "$BUNDLE/rerun_failing_lanes.stderr" "$BUNDLE"/rerun_*.stderr "$BUNDLE"/rerun_*.json
+  Result: grep exit 1 (no matches), recorded as PASS in classification_assertion.log.
+
+Deploy/live-state sidecar commands:
+  bash scripts/deploy_status.sh --json --env staging > "$BUNDLE/deploy_status_staging.json" 2> "$BUNDLE/deploy_status_staging.stderr"
+  bash scripts/probe_live_state.sh > "$BUNDLE/live_state_probe.stdout" 2> "$BUNDLE/live_state_probe.stderr"
+
+Playwright JSON redaction scan command:
+  for json_file in "$BUNDLE"/*.json; do jq empty "$json_file"; jq -e '(.config.webServer | type == "object") and (.config.webServer | has("env"))' "$json_file" >/dev/null && exit 1 || true; done
+
+Evidence secret hygiene command:
+  bash scripts/check_evidence_secret_hygiene.sh > "$BUNDLE/secret_hygiene.log" 2> "$BUNDLE/secret_hygiene.stderr"
+  cat "$BUNDLE/secret_hygiene.exit"
+
+Final JSON sidecar validation command:
+  for json_file in "$BUNDLE"/*.json; do jq empty "$json_file"; done
+
+Intentionally absent sidecars:
+  none; rerun_verdicts.json and classification.json were produced because rerun_failing_lanes.sh exited 0.

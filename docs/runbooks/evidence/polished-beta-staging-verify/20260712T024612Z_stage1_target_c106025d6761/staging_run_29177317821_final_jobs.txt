@@ -1,0 +1,13 @@
+run status=completed conclusion=success updated=2026-07-12T03:12:37Z url=https://github.com/gridl-infra-staging/fjcloud/actions/runs/29177317821
+check-sizes	completed	success	2026-07-12T02:49:13Z	2026-07-12T02:49:23Z
+rust-test	completed	success	2026-07-12T02:49:15Z	2026-07-12T02:53:35Z
+web-test	completed	success	2026-07-12T02:49:13Z	2026-07-12T02:52:06Z
+rust-lint	completed	success	2026-07-12T02:49:13Z	2026-07-12T02:50:13Z
+shell-hygiene	completed	success	2026-07-12T02:49:15Z	2026-07-12T02:49:30Z
+web-lint	completed	success	2026-07-12T02:49:13Z	2026-07-12T02:50:28Z
+secret-scan	completed	success	2026-07-12T02:49:14Z	2026-07-12T02:49:30Z
+migration-test	completed	success	2026-07-12T02:49:13Z	2026-07-12T02:50:37Z
+local-dev-up-smoke	completed	success	2026-07-12T02:49:14Z	2026-07-12T02:52:16Z
+deploy-staging	completed	success	2026-07-12T02:53:41Z	2026-07-12T03:09:59Z
+deploy-prod	completed	skipped	2026-07-12T02:53:35Z	2026-07-12T02:53:35Z
+e2e-deployed	completed	success	2026-07-12T03:10:03Z	2026-07-12T03:12:37Z

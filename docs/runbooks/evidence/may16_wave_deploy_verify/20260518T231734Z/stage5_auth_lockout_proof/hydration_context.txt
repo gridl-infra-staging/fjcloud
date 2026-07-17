@@ -1,0 +1,4 @@
+hydration_command=source <(bash scripts/launch/hydrate_seeder_env_from_ssm.sh staging)
+api_url=https://api.staging.flapjack.foo
+staging_api_url=https://api.staging.flapjack.foo
+staging_cloud_url=https://staging.flapjack.foo

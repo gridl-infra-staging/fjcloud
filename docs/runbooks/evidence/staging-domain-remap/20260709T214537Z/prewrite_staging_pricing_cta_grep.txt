@@ -1,0 +1,3 @@
+command=curl -sS -L --max-time 30 https://cloud.staging.flapjack.foo/pricing | grep -qE 'Get Started Free|href="/signup"|/signup'
+exit_code=1
+result=fail

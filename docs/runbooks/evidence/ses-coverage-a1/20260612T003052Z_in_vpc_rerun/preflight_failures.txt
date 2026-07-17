@@ -1,0 +1,4 @@
+command=aws sts get-caller-identity --output json
+rc=254
+stderr_class=
+smallest_unblocking_owner=AWS credentials/session for staging account

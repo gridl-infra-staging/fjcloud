@@ -1,0 +1,872 @@
+[
+  {
+    "environment": "prod",
+    "customer_id": "034fa82c-27e6-44bc-b58a-c94bf0df7620",
+    "tenant_id": null,
+    "deployment_id": null,
+    "email": "s70-1779169891-6562@e2e.griddle.test",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "prod",
+    "customer_id": "131e986f-9e8b-4772-9402-529b88ae0d9f",
+    "tenant_id": null,
+    "deployment_id": null,
+    "email": "trust-ratchet-success_paid-20260519t001538z@test.flapjack.foo",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "prod",
+    "customer_id": "14f0e300-1125-461b-b121-4ac5c00c150e",
+    "tenant_id": null,
+    "deployment_id": null,
+    "email": "probe4-20260518t030713z@test.flapjack.foo",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "prod",
+    "customer_id": "152051a2-922d-43ab-a2e3-64000f4b420f",
+    "tenant_id": null,
+    "deployment_id": null,
+    "email": "stage6+1779335586@test.flapjack.foo",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "prod",
+    "customer_id": "17554fbd-cf38-48a1-a4d9-9e893a419e0a",
+    "tenant_id": null,
+    "deployment_id": null,
+    "email": "probe4-20260518t030700z@test.flapjack.foo",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "prod",
+    "customer_id": "1c96833c-6e40-4464-89a3-b0ed2dc1d426",
+    "tenant_id": null,
+    "deployment_id": null,
+    "email": "stage5-probe-api-flapjack-foo-20260519t140544z@e2e.griddle.test",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "prod",
+    "customer_id": "43acc046-b739-4ddd-9460-c8a4f6227d89",
+    "tenant_id": null,
+    "deployment_id": null,
+    "email": "stage5-prodpath-20260519t141448z@e2e.griddle.test",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "prod",
+    "customer_id": "46a046aa-6e35-40f6-b878-c3d9e10d85b0",
+    "tenant_id": null,
+    "deployment_id": null,
+    "email": "stage5-probe-20260519t140503z@e2e.griddle.test",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "prod",
+    "customer_id": "46d702a4-5ef7-472b-adcc-158c3c326d23",
+    "tenant_id": null,
+    "deployment_id": null,
+    "email": "probe5-20260518t030826z@test.flapjack.foo",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "prod",
+    "customer_id": "4f6b58a8-1716-44e7-9e29-97e9efc3e071",
+    "tenant_id": null,
+    "deployment_id": null,
+    "email": "trust-ratchet-success_paid-20260518t033101z@test.flapjack.foo",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "prod",
+    "customer_id": "5c649985-df0f-4e28-8af2-35c45ec14c04",
+    "tenant_id": null,
+    "deployment_id": null,
+    "email": "stage5_live_card_e2e_20260516t032223z_49117@example.invalid",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "prod",
+    "customer_id": "5e511632-7760-4ad2-9a12-ce4e3b5f8dff",
+    "tenant_id": null,
+    "deployment_id": null,
+    "email": "trust-ratchet-success_paid-20260518t030511z@test.flapjack.foo",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "prod",
+    "customer_id": "60dc2284-ba43-4a1e-a26e-83996dd5dd5e",
+    "tenant_id": "stage5seed10071019",
+    "deployment_id": "33500862-610e-495f-8aed-53ef10131fb0",
+    "email": "stage5-vm-refresh-20260517070945@test.flapjack.foo",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "prod",
+    "customer_id": "60dc2284-ba43-4a1e-a26e-83996dd5dd5e",
+    "tenant_id": "stage5seed1071017",
+    "deployment_id": "33500862-610e-495f-8aed-53ef10131fb0",
+    "email": "stage5-vm-refresh-20260517070945@test.flapjack.foo",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "prod",
+    "customer_id": "60dc2284-ba43-4a1e-a26e-83996dd5dd5e",
+    "tenant_id": "stage5seed11071019",
+    "deployment_id": "33500862-610e-495f-8aed-53ef10131fb0",
+    "email": "stage5-vm-refresh-20260517070945@test.flapjack.foo",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "prod",
+    "customer_id": "60dc2284-ba43-4a1e-a26e-83996dd5dd5e",
+    "tenant_id": "stage5seed12071019",
+    "deployment_id": "33500862-610e-495f-8aed-53ef10131fb0",
+    "email": "stage5-vm-refresh-20260517070945@test.flapjack.foo",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "prod",
+    "customer_id": "60dc2284-ba43-4a1e-a26e-83996dd5dd5e",
+    "tenant_id": "stage5seed13071020",
+    "deployment_id": "33500862-610e-495f-8aed-53ef10131fb0",
+    "email": "stage5-vm-refresh-20260517070945@test.flapjack.foo",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "prod",
+    "customer_id": "60dc2284-ba43-4a1e-a26e-83996dd5dd5e",
+    "tenant_id": "stage5seed2071017",
+    "deployment_id": "33500862-610e-495f-8aed-53ef10131fb0",
+    "email": "stage5-vm-refresh-20260517070945@test.flapjack.foo",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "prod",
+    "customer_id": "60dc2284-ba43-4a1e-a26e-83996dd5dd5e",
+    "tenant_id": "stage5seed3071017",
+    "deployment_id": "33500862-610e-495f-8aed-53ef10131fb0",
+    "email": "stage5-vm-refresh-20260517070945@test.flapjack.foo",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "prod",
+    "customer_id": "60dc2284-ba43-4a1e-a26e-83996dd5dd5e",
+    "tenant_id": "stage5seed4071018",
+    "deployment_id": "33500862-610e-495f-8aed-53ef10131fb0",
+    "email": "stage5-vm-refresh-20260517070945@test.flapjack.foo",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "prod",
+    "customer_id": "60dc2284-ba43-4a1e-a26e-83996dd5dd5e",
+    "tenant_id": "stage5seed5071018",
+    "deployment_id": "33500862-610e-495f-8aed-53ef10131fb0",
+    "email": "stage5-vm-refresh-20260517070945@test.flapjack.foo",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "prod",
+    "customer_id": "60dc2284-ba43-4a1e-a26e-83996dd5dd5e",
+    "tenant_id": "stage5seed6071018",
+    "deployment_id": "33500862-610e-495f-8aed-53ef10131fb0",
+    "email": "stage5-vm-refresh-20260517070945@test.flapjack.foo",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "prod",
+    "customer_id": "60dc2284-ba43-4a1e-a26e-83996dd5dd5e",
+    "tenant_id": "stage5seed7071018",
+    "deployment_id": "33500862-610e-495f-8aed-53ef10131fb0",
+    "email": "stage5-vm-refresh-20260517070945@test.flapjack.foo",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "prod",
+    "customer_id": "60dc2284-ba43-4a1e-a26e-83996dd5dd5e",
+    "tenant_id": "stage5seed8071019",
+    "deployment_id": "33500862-610e-495f-8aed-53ef10131fb0",
+    "email": "stage5-vm-refresh-20260517070945@test.flapjack.foo",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "prod",
+    "customer_id": "60dc2284-ba43-4a1e-a26e-83996dd5dd5e",
+    "tenant_id": "stage5seed9071019",
+    "deployment_id": "33500862-610e-495f-8aed-53ef10131fb0",
+    "email": "stage5-vm-refresh-20260517070945@test.flapjack.foo",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "prod",
+    "customer_id": "60dc2284-ba43-4a1e-a26e-83996dd5dd5e",
+    "tenant_id": "stage5seedhealthy071235",
+    "deployment_id": "33500862-610e-495f-8aed-53ef10131fb0",
+    "email": "stage5-vm-refresh-20260517070945@test.flapjack.foo",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "prod",
+    "customer_id": "75e7e89c-8c60-40c5-a33f-9d3de31b2ede",
+    "tenant_id": null,
+    "deployment_id": null,
+    "email": "stage5-live-1778900135@test.flapjack.foo",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "prod",
+    "customer_id": "77008797-9a4a-4a4b-95ce-8977a6e4ea3c",
+    "tenant_id": null,
+    "deployment_id": null,
+    "email": "stage5_live_card_e2e_20260516t032124z_40939@example.invalid",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "prod",
+    "customer_id": "7a72560c-84c8-4bb6-95d2-be116ac162c5",
+    "tenant_id": null,
+    "deployment_id": null,
+    "email": "stage5-live-1778900654@test.flapjack.foo",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "prod",
+    "customer_id": "80e816df-1dab-4172-89bf-222bac72a3a8",
+    "tenant_id": null,
+    "deployment_id": null,
+    "email": "trust-ratchet-success_paid-20260519t002518z@test.flapjack.foo",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "prod",
+    "customer_id": "84b765c4-ed93-42a0-9844-b92b3405a0c8",
+    "tenant_id": null,
+    "deployment_id": null,
+    "email": "stage5-probe-20260519t140447z@e2e.griddle.test",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "prod",
+    "customer_id": "89122e00-234c-47b0-abec-b70b20579d2f",
+    "tenant_id": null,
+    "deployment_id": null,
+    "email": "s70-sameorigin-1779170202-23266@e2e.griddle.test",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "prod",
+    "customer_id": "90ca0996-39b7-448e-aa52-3d42dc938b27",
+    "tenant_id": null,
+    "deployment_id": null,
+    "email": "trust-ratchet-success_paid-20260519t001313z@test.flapjack.foo",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "prod",
+    "customer_id": "bad6fa64-06b0-4575-a230-0be0e05e7db9",
+    "tenant_id": null,
+    "deployment_id": null,
+    "email": "stage5-prodpath-20260519t141503z@e2e.griddle.test",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "prod",
+    "customer_id": "bc6c086f-ffe9-4463-b897-8f17cf247cc2",
+    "tenant_id": null,
+    "deployment_id": null,
+    "email": "trust-ratchet-success_paid-20260519t002024z@test.flapjack.foo",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "prod",
+    "customer_id": "ca2aaff4-bad3-400c-913e-3f4dedb0fbfe",
+    "tenant_id": null,
+    "deployment_id": null,
+    "email": "stage5-live-1778900169@test.flapjack.foo",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "prod",
+    "customer_id": "cd84af03-3206-48f9-b091-daff9b02f47e",
+    "tenant_id": null,
+    "deployment_id": null,
+    "email": "trust-ratchet-success_paid-20260518t032311z@test.flapjack.foo",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "prod",
+    "customer_id": "e2d98c1a-e1e1-4eb5-8420-50cbff06a40a",
+    "tenant_id": null,
+    "deployment_id": null,
+    "email": "stage5-probe-20260519t140528z@e2e.griddle.test",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "prod",
+    "customer_id": "e5f1ea4e-f1b9-429c-8ec2-dee6c5a50388",
+    "tenant_id": null,
+    "deployment_id": null,
+    "email": "trust-ratchet-success_paid-20260518t032420z@test.flapjack.foo",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "prod",
+    "customer_id": "f56db4ca-89f1-4da9-9290-2fdea8a44d55",
+    "tenant_id": null,
+    "deployment_id": null,
+    "email": "stage6-probe+1779335688@test.flapjack.foo",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "staging",
+    "customer_id": "031d2adb-4798-4c84-94d1-e72dfc58d92a",
+    "tenant_id": null,
+    "deployment_id": null,
+    "email": "trust-ratchet-requires_action_402-20260519t020401z@test.flapjack.foo",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "staging",
+    "customer_id": "0efbac45-1acb-46ab-992f-4b7edd9596c8",
+    "tenant_id": null,
+    "deployment_id": null,
+    "email": "trust-ratchet-declined_402-20260519t020552z@test.flapjack.foo",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "staging",
+    "customer_id": "18c00030-38aa-4503-ae47-18f7867c06b9",
+    "tenant_id": null,
+    "deployment_id": null,
+    "email": "billing-portal-1779367427277-9f3dw311@e2e.griddle.test",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "staging",
+    "customer_id": "1b7ecf3b-8dbd-4730-b8c4-fd4be7be8f2d",
+    "tenant_id": null,
+    "deployment_id": null,
+    "email": "billing-portal-1779367882591-hgsh2sub@e2e.griddle.test",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "staging",
+    "customer_id": "24ba0b6a-e334-4efb-b729-9e302b8da2d5",
+    "tenant_id": null,
+    "deployment_id": null,
+    "email": "trust-ratchet-declined_402-20260519t015340z@test.flapjack.foo",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "staging",
+    "customer_id": "25917952-cd51-4e74-99a8-6638f1c2d8c0",
+    "tenant_id": null,
+    "deployment_id": null,
+    "email": "trust-ratchet-requires_action_402-20260519t012825z@test.flapjack.foo",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "staging",
+    "customer_id": "3643f5cc-5635-4cdb-8ba4-dd0c0d659135",
+    "tenant_id": null,
+    "deployment_id": null,
+    "email": "billing-portal-1779367124508-fvgxrir9@e2e.griddle.test",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "staging",
+    "customer_id": "37233797-3d60-4cf8-bb9b-769fa37e6f55",
+    "tenant_id": null,
+    "deployment_id": null,
+    "email": "trust-ratchet-success_paid-20260519t014531z@test.flapjack.foo",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "staging",
+    "customer_id": "3c8320f3-0cf8-4353-86ab-6a6f718e8b30",
+    "tenant_id": null,
+    "deployment_id": null,
+    "email": "trust-ratchet-success_paid-20260517t094429z@test.flapjack.foo",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "staging",
+    "customer_id": "4085adb0-473c-482a-822f-713a463d275e",
+    "tenant_id": null,
+    "deployment_id": null,
+    "email": "trust-ratchet-success_paid-20260519t003404z@test.flapjack.foo",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "staging",
+    "customer_id": "42004bdc-4d09-45d4-944b-45b8935646cd",
+    "tenant_id": null,
+    "deployment_id": null,
+    "email": "billing-portal-1779367985553-0q6yi1h1@e2e.griddle.test",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "staging",
+    "customer_id": "46af4127-1763-4ab3-938c-43f82c7f246b",
+    "tenant_id": null,
+    "deployment_id": null,
+    "email": "trust-ratchet-declined_402-20260519t020401z@test.flapjack.foo",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "staging",
+    "customer_id": "4ad2266b-656e-486d-9124-ac05da2984f5",
+    "tenant_id": null,
+    "deployment_id": null,
+    "email": "trust-ratchet-requires_action_402-20260519t015340z@test.flapjack.foo",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "staging",
+    "customer_id": "4d060825-d92a-4fb7-8cf1-98c3001d890a",
+    "tenant_id": null,
+    "deployment_id": null,
+    "email": "trust-ratchet-success_paid-20260519t005216z@test.flapjack.foo",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "staging",
+    "customer_id": "4d1a74f3-3907-47bc-a242-60354203e422",
+    "tenant_id": null,
+    "deployment_id": null,
+    "email": "trust-ratchet-success_paid-20260517t094538z@test.flapjack.foo",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "staging",
+    "customer_id": "57f634fd-b16b-4d09-82ec-0c6bc893cc2d",
+    "tenant_id": null,
+    "deployment_id": null,
+    "email": "stage5-probe-api-staging-flapjack-foo-20260519t140549z@e2e.griddle.test",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "staging",
+    "customer_id": "592609d7-de8a-4635-b5bf-db547714af24",
+    "tenant_id": null,
+    "deployment_id": null,
+    "email": "billing-portal-1779170359181-nz73r70z@e2e.griddle.test",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "staging",
+    "customer_id": "5bf7966b-bbbc-4993-aace-346268f3f29a",
+    "tenant_id": null,
+    "deployment_id": null,
+    "email": "trust-ratchet-success_paid-20260519t012825z@test.flapjack.foo",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "staging",
+    "customer_id": "6208615a-6a09-4693-98c2-7c203d2ed5f9",
+    "tenant_id": null,
+    "deployment_id": null,
+    "email": "billing-portal-1779369111476-woabc9e1@e2e.griddle.test",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "staging",
+    "customer_id": "658c931c-c216-4fd4-b2c9-8a1ebf9303b3",
+    "tenant_id": null,
+    "deployment_id": null,
+    "email": "trust-ratchet-declined_402-20260519t015821z@test.flapjack.foo",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "staging",
+    "customer_id": "66db35cf-6d41-4383-b4fb-8fed35d44623",
+    "tenant_id": null,
+    "deployment_id": null,
+    "email": "billing-portal-1779368087188-p69wknri@e2e.griddle.test",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "staging",
+    "customer_id": "68d2c6b9-678c-4544-9ff5-69c6cf49e029",
+    "tenant_id": null,
+    "deployment_id": null,
+    "email": "trust-ratchet-success_paid-20260517t094508z@test.flapjack.foo",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "staging",
+    "customer_id": "6c2fc2ad-c627-4c74-b28c-5a852b0b6702",
+    "tenant_id": null,
+    "deployment_id": null,
+    "email": "stage3-endpoint-probe-20260519t002706z@example.com",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "staging",
+    "customer_id": "74d7f640-bdd6-4539-a78d-b71f72b873b7",
+    "tenant_id": null,
+    "deployment_id": null,
+    "email": "trust-ratchet-success_paid-20260517t094517z@test.flapjack.foo",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "staging",
+    "customer_id": "78904188-5506-4dad-8d97-4a1f66e63a5b",
+    "tenant_id": null,
+    "deployment_id": null,
+    "email": "trust-ratchet-success_paid-20260519t020401z@test.flapjack.foo",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "staging",
+    "customer_id": "8835829c-95a2-44e1-82d9-dbf2c5dcb267",
+    "tenant_id": null,
+    "deployment_id": null,
+    "email": "stage5-crosscheck-20260519t140941z@e2e.griddle.test",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "staging",
+    "customer_id": "9363c455-5f81-4895-975f-511383c7b865",
+    "tenant_id": null,
+    "deployment_id": null,
+    "email": "trust-ratchet-success_paid-20260518t032619z@test.flapjack.foo",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "staging",
+    "customer_id": "93ee1a83-2630-419a-9154-7eebff1478f5",
+    "tenant_id": null,
+    "deployment_id": null,
+    "email": "trust-ratchet-debug-20260517t094438z@test.flapjack.foo",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "staging",
+    "customer_id": "961ce5d7-d94b-4951-a814-d9d02eca1dfd",
+    "tenant_id": null,
+    "deployment_id": null,
+    "email": "trust-ratchet-declined_402-20260519t014531z@test.flapjack.foo",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "staging",
+    "customer_id": "96472cad-dce1-4666-b25b-2f8e36a4b274",
+    "tenant_id": null,
+    "deployment_id": null,
+    "email": "trust-ratchet-success_paid-20260519t002353z@test.flapjack.foo",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "staging",
+    "customer_id": "9fb1b907-94d7-4d24-82d4-6fd0f05d4a1f",
+    "tenant_id": null,
+    "deployment_id": null,
+    "email": "trust-ratchet-success_paid-20260519t015340z@test.flapjack.foo",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "staging",
+    "customer_id": "a1402368-ae2a-4408-a424-e8bdc7a76f42",
+    "tenant_id": null,
+    "deployment_id": null,
+    "email": "billing-portal-1779170330371-nqon048g@e2e.griddle.test",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "staging",
+    "customer_id": "a62c0eec-2181-404a-ab06-7f2a4598dd62",
+    "tenant_id": null,
+    "deployment_id": null,
+    "email": "trust-ratchet-requires_action_402-20260519t020552z@test.flapjack.foo",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "staging",
+    "customer_id": "b5ae1f4f-d464-47dd-ae94-d56e7f737aeb",
+    "tenant_id": null,
+    "deployment_id": null,
+    "email": "trust-ratchet-declined_402-20260519t012702z@test.flapjack.foo",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "staging",
+    "customer_id": "ba3ded44-4945-4c3b-bdcd-f5c934508104",
+    "tenant_id": null,
+    "deployment_id": null,
+    "email": "trust-ratchet-success_paid-20260518t033747z@test.flapjack.foo",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "staging",
+    "customer_id": "be8455b1-c03c-4a8b-a34b-76fccf2d285d",
+    "tenant_id": null,
+    "deployment_id": null,
+    "email": "trust-ratchet-requires_action_402-20260519t014531z@test.flapjack.foo",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "staging",
+    "customer_id": "bea84930-a621-4602-ad70-dbb26f99555b",
+    "tenant_id": null,
+    "deployment_id": null,
+    "email": "billing-portal-1779368881590-340s4ocu@e2e.griddle.test",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "staging",
+    "customer_id": "c2009f28-3fd9-40ba-b635-a7153393ae52",
+    "tenant_id": null,
+    "deployment_id": null,
+    "email": "billing-portal-1779367324330-lb67sfbq@e2e.griddle.test",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "staging",
+    "customer_id": "c75dd18a-b3f2-4743-9d98-c0d1c20a1a01",
+    "tenant_id": null,
+    "deployment_id": null,
+    "email": "trust-ratchet-requires_action_402-20260519t015821z@test.flapjack.foo",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "staging",
+    "customer_id": "d4b5cf6b-391d-4c04-ae20-bb13fcd8ad5d",
+    "tenant_id": null,
+    "deployment_id": null,
+    "email": "trust-ratchet-success_paid-20260517t094453z@test.flapjack.foo",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "staging",
+    "customer_id": "dc044652-c641-487e-884e-63ae7e6be788",
+    "tenant_id": null,
+    "deployment_id": null,
+    "email": "billing-portal-1779366671368-klmsciha@e2e.griddle.test",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "staging",
+    "customer_id": "e38f654a-f373-435f-a8d2-1e42b2c611c8",
+    "tenant_id": null,
+    "deployment_id": null,
+    "email": "trust-ratchet-declined_402-20260519t012825z@test.flapjack.foo",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "staging",
+    "customer_id": "f31b7c03-b34c-4d08-ac6b-72bcc867f06e",
+    "tenant_id": null,
+    "deployment_id": null,
+    "email": "trust-ratchet-success_paid-20260519t020552z@test.flapjack.foo",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "staging",
+    "customer_id": "f5264ec8-9b93-44d0-9713-99d22156e96f",
+    "tenant_id": null,
+    "deployment_id": null,
+    "email": "trust-ratchet-success_paid-20260519t012702z@test.flapjack.foo",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "staging",
+    "customer_id": "f97fcd48-5590-4372-93ca-4b43e68ae8c5",
+    "tenant_id": null,
+    "deployment_id": null,
+    "email": "s70-1779169900-22009@e2e.griddle.test",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "staging",
+    "customer_id": "fecdfd6c-cc57-4dd3-b2d3-9b756cbbf7ed",
+    "tenant_id": null,
+    "deployment_id": null,
+    "email": "trust-ratchet-success_paid-20260519t002902z@test.flapjack.foo",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  },
+  {
+    "environment": "staging",
+    "customer_id": "fed2126f-9560-45b5-872a-37eded48a9a8",
+    "tenant_id": null,
+    "deployment_id": null,
+    "email": "trust-ratchet-success_paid-20260519t015821z@test.flapjack.foo",
+    "stage1_present": true,
+    "stage6_rerun_present": true,
+    "disposition": "inventory_only_not_mutated_in_cleanup_lane"
+  }
+]

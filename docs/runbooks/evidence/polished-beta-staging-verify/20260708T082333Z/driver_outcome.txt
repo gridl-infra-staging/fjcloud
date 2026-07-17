@@ -1,0 +1,9 @@
+driver: scripts/verify/rerun_failing_lanes.sh
+exit_code: 0
+disposition: driver_completed
+branch_taken: all-green short-circuit (rerun_failing_lanes.sh:48-64), non_passed_count=0
+reruns_run: 0
+real_bug_after_reruns: []
+note: ADMIN_KEY hydrated from SSM by the driver (not pre-set); AWS credential
+      prerequisite provided from .secret/.env.secret. See rerun_driver.envprep_note.txt.
+next: proceed to verdict translation (zero real bugs → authored_stubs.json = []).

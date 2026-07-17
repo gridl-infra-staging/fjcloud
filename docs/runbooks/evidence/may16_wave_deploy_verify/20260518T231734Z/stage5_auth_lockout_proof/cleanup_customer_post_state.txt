@@ -1,0 +1,3 @@
+ id | status | has_deleted_at 
+----+--------+----------------
+(0 rows)

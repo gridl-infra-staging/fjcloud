@@ -1,0 +1,20 @@
+{
+  "source_sg_id": "sg-0c6ae08699b5405f0",
+  "stage2_mutation_type": "per_target_sg_attachment_only",
+  "stage2_sg_alignment": {
+    "applied": true,
+    "reason": "source security group attached successfully on restored target",
+    "target_security_group_ids_before": [
+      "sg-0963f6561614e1b41"
+    ],
+    "target_security_group_ids_after": [
+      "sg-0c6ae08699b5405f0"
+    ]
+  },
+  "target_instance_deleted": true,
+  "live_source_sg_ingress_rule_count": 1,
+  "live_source_sg_expected_ingress": true,
+  "residue_found": false,
+  "verdict": "pass",
+  "reason": "Only Stage 2 mutation was per-target SG attachment (removed by instance deletion); live SG probe confirms no drill-introduced ingress rules remain"
+}

@@ -1,0 +1,4 @@
+{
+  "mutation": "sync_202",
+  "expected_failure": "observed HTTP status is not terminal success"
+}

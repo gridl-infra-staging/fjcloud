@@ -1,0 +1,54 @@
+# Disposition Receipt: origin/mattman/MAR17_11_3_ux_polish_commerce
+
+Classification: approved remote branch deletion; manifest stores short branch name
+Evidence source: current read-only git refs at bundle creation.
+
+## rev-parse
+$ git rev-parse origin/mattman/MAR17_11_3_ux_polish_commerce
+f03f6c25132958612154cc3e0b94db7ab57a1142
+
+## cherry
+$ git cherry -v main origin/mattman/MAR17_11_3_ux_polish_commerce | tail -20
++ 8381bf8dea1226453e92fbf8c5c3d58f5561b1dd matt: stage 4 build session 1
+- dc52b499b0f22082653c4e4ab66bb8f4c647e030 stage 4 WG4: browser e2e coverage for plan-aware dashboard
+- 3656d60fc17640d2bdbfb380a2d671b0ab8e1fd6 stage 4: fix plan-authority drift and dashboard completion source of truth
+- 323ee563a0d4aa31a9688a56f15acf8fa9a6f787 matt: unstuck stage 4
+- 283ee431b77bfdc0a6e7ca5cda9cf266c0f452bb matt: stage 4 review
++ b3f4142d0e1b4a547a017186b2d0dbeaa15e5763 scrai: 3 files documented, 33 artifacts generated
+- 7d931cecf5b29d3229a5f5bb5028346efe75b05a matt: stage 5 build session 1
+- f5cbb7417c596a76340c66cee8ceb840a3fd2725 matt: fix calculator default-region bug and browser spec inline-skip
+- 6e415ee52349a0a26e225ae209343d5908e461d4 test(e2e): require pricing calculator result rows
+- d371dfdb6980da320c1a6bbc8f95e3d9da66d7c7 matt: stage 5 review
++ a1d89f28bf36e48587da9ef76ed3798eeac21afe scrai: 4 files documented, 35 artifacts generated
+- 6053b91b5a99a4458ffd897acc89a81efcc12459 matt: stage 6 build session 1
+- da27bc829a9dac25fa575ca26b4fe8c355e7cc4e matt: stage 6 completion
+- cf00662e8c4207a88bf62eb362452ed8dc6c0e42 matt: stage 6 review
+- e42d5742bc659efde8e5e3730457d8ba1ad7aeb9 matt: posthoc review
+- 9f69892fe190ac52c4def84f00321fe4e83b9e57 matt: posthoc security
++ 4f141ecc81683d7572821680d2f7289c4150f83a matt: posthoc refactor
+- dd7f055bc7ea9e1d7647feee899f71cadaa76e89 matt: review bugs all stages
+- 82798a99a546ecb39bc83d1726d0368f78109f53 matt: review bugs all stages
++ f03f6c25132958612154cc3e0b94db7ab57a1142 scrai: 9 files documented, 34 artifacts generated
+
+## diff main...
+$ git diff main...origin/mattman/MAR17_11_3_ux_polish_commerce --stat | tail -20
+ web/src/routes/login/DIRMAP.md                     |   6 +
+ web/src/routes/logout/DIRMAP.md                    |   6 +
+ web/src/routes/reset-password/DIRMAP.md            |  10 +
+ web/src/routes/reset-password/[token]/DIRMAP.md    |   6 +
+ web/src/routes/signup/+page.svelte                 |   2 +
+ web/src/routes/signup/DIRMAP.md                    |   6 +
+ web/src/routes/signup/signup.test.ts               |   6 +
+ web/src/routes/status/DIRMAP.md                    |   6 +
+ web/src/routes/verify-email/DIRMAP.md              |  10 +
+ web/src/routes/verify-email/[token]/DIRMAP.md      |   6 +
+ web/src/tests/DIRMAP.md                            |   6 +
+ web/tests/DIRMAP.md                                |  10 +
+ web/tests/e2e-ui/full/billing.spec.ts              |  31 +-
+ web/tests/e2e-ui/full/dashboard.spec.ts            |  75 ++++-
+ web/tests/e2e-ui/full/public-pages.spec.ts         |  36 +++
+ web/tests/e2e-ui/smoke/dashboard.spec.ts           |  10 +-
+ web/tests/fixtures/DIRMAP.md                       |   9 +
+ web/tests/fixtures/fixtures.ts                     | 146 ++++++++++
+ web/tests/fixtures/public-pages.ts                 |  11 +
+ 384 files changed, 6568 insertions(+), 389 deletions(-)

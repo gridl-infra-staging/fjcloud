@@ -1,0 +1,37 @@
+[Unit]
+Description=Garage Object Storage (S3-compatible)
+Documentation=https://garagehq.deuxfleurs.fr/documentation/
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=garage
+Group=garage
+WorkingDirectory=/var/lib/garage
+
+ExecStart=/usr/local/bin/garage -c /etc/garage/garage.toml server
+
+Restart=always
+RestartSec=5
+
+# --- Security hardening (matches flapjack.service pattern) ---
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/garage
+PrivateTmp=true
+
+# --- Resource limits ---
+MemoryMax=512M
+CPUQuota=80%
+IOWeight=50
+LimitNOFILE=42000
+
+# --- Logging ---
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=garage
+
+[Install]
+WantedBy=multi-user.target

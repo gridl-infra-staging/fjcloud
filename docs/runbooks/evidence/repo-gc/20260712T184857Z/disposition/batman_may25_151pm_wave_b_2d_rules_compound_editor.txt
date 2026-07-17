@@ -1,0 +1,14 @@
+# Disposition Receipt: batman/may25_151pm_wave_b_2d_rules_compound_editor
+
+Classification: approved freed local branch after approved worktree removal
+Evidence source: current read-only git refs at bundle creation.
+
+## rev-parse
+$ git rev-parse batman/may25_151pm_wave_b_2d_rules_compound_editor
+397a8e42e19a7cff120541fd23acecb9c3b0ab36
+
+## cherry
+$ git cherry -v main batman/may25_151pm_wave_b_2d_rules_compound_editor | tail -20
+
+## diff main...
+$ git diff main...batman/may25_151pm_wave_b_2d_rules_compound_editor --stat | tail -20

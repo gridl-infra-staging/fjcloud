@@ -1,0 +1,761 @@
+[
+    {
+        "InstanceId": "i-0c74e2fe5fa24b116",
+        "State": "running",
+        "Tags": [
+            {
+                "Key": "managed-by",
+                "Value": "fjcloud"
+            },
+            {
+                "Key": "node_id",
+                "Value": "vm-shared-3bd2b971.flapjack.foo"
+            },
+            {
+                "Key": "Name",
+                "Value": "fj-vm-shared-3bd2b971.flapjack.foo"
+            },
+            {
+                "Key": "customer_id",
+                "Value": "00000000-0000-0000-0000-000000000000"
+            }
+        ],
+        "LaunchTime": "2026-04-24T06:01:24+00:00"
+    },
+    {
+        "InstanceId": "i-00a3b28ba4c00433a",
+        "State": "running",
+        "Tags": [
+            {
+                "Key": "Name",
+                "Value": "fj-vm-shared-f2b9c8a6.flapjack.foo"
+            },
+            {
+                "Key": "node_id",
+                "Value": "vm-shared-f2b9c8a6.flapjack.foo"
+            },
+            {
+                "Key": "managed-by",
+                "Value": "fjcloud"
+            },
+            {
+                "Key": "customer_id",
+                "Value": "00000000-0000-0000-0000-000000000000"
+            }
+        ],
+        "LaunchTime": "2026-04-24T06:40:27+00:00"
+    },
+    {
+        "InstanceId": "i-0b2188437baeeacdf",
+        "State": "running",
+        "Tags": [
+            {
+                "Key": "node_id",
+                "Value": "node-149ffef7-c451-4d96-86e8-714aa3c33e27"
+            },
+            {
+                "Key": "Name",
+                "Value": "fj-vm-20aa6d79.flapjack.foo"
+            },
+            {
+                "Key": "customer_id",
+                "Value": "666b38f9-f383-4acb-9cf9-1bbfc4904178"
+            },
+            {
+                "Key": "managed-by",
+                "Value": "fjcloud"
+            }
+        ],
+        "LaunchTime": "2026-05-05T22:55:37+00:00"
+    },
+    {
+        "InstanceId": "i-01f9ddc0bf4b89fc2",
+        "State": "running",
+        "Tags": [
+            {
+                "Key": "Name",
+                "Value": "fj-vm-shared-cbe1f8ee.flapjack.foo"
+            },
+            {
+                "Key": "node_id",
+                "Value": "vm-shared-cbe1f8ee.flapjack.foo"
+            },
+            {
+                "Key": "managed-by",
+                "Value": "fjcloud"
+            },
+            {
+                "Key": "customer_id",
+                "Value": "00000000-0000-0000-0000-000000000000"
+            }
+        ],
+        "LaunchTime": "2026-05-17T04:26:42+00:00"
+    },
+    {
+        "InstanceId": "i-041c296baa2787242",
+        "State": "running",
+        "Tags": [
+            {
+                "Key": "customer_id",
+                "Value": "00000000-0000-0000-0000-000000000000"
+            },
+            {
+                "Key": "managed-by",
+                "Value": "fjcloud"
+            },
+            {
+                "Key": "Name",
+                "Value": "fj-vm-shared-e1d3b51e.flapjack.foo"
+            },
+            {
+                "Key": "node_id",
+                "Value": "vm-shared-e1d3b51e.flapjack.foo"
+            }
+        ],
+        "LaunchTime": "2026-05-17T06:42:30+00:00"
+    },
+    {
+        "InstanceId": "i-03413fd8c243d4584",
+        "State": "running",
+        "Tags": [
+            {
+                "Key": "node_id",
+                "Value": "vm-shared-dfc3d6e4.flapjack.foo"
+            },
+            {
+                "Key": "Name",
+                "Value": "fj-vm-shared-dfc3d6e4.flapjack.foo"
+            },
+            {
+                "Key": "customer_id",
+                "Value": "00000000-0000-0000-0000-000000000000"
+            },
+            {
+                "Key": "managed-by",
+                "Value": "fjcloud"
+            }
+        ],
+        "LaunchTime": "2026-05-17T06:47:11+00:00"
+    },
+    {
+        "InstanceId": "i-059a16b0b13495168",
+        "State": "running",
+        "Tags": [
+            {
+                "Key": "Name",
+                "Value": "fj-vm-shared-03ff3efa.flapjack.foo"
+            },
+            {
+                "Key": "customer_id",
+                "Value": "00000000-0000-0000-0000-000000000000"
+            },
+            {
+                "Key": "node_id",
+                "Value": "vm-shared-03ff3efa.flapjack.foo"
+            },
+            {
+                "Key": "managed-by",
+                "Value": "fjcloud"
+            }
+        ],
+        "LaunchTime": "2026-05-17T06:40:10+00:00"
+    },
+    {
+        "InstanceId": "i-0d70e752dcc597c31",
+        "State": "running",
+        "Tags": [
+            {
+                "Key": "node_id",
+                "Value": "vm-shared-3f5dd6f2.flapjack.foo"
+            },
+            {
+                "Key": "Name",
+                "Value": "fj-vm-shared-3f5dd6f2.flapjack.foo"
+            },
+            {
+                "Key": "managed-by",
+                "Value": "fjcloud"
+            },
+            {
+                "Key": "customer_id",
+                "Value": "00000000-0000-0000-0000-000000000000"
+            }
+        ],
+        "LaunchTime": "2026-05-18T03:20:35+00:00"
+    },
+    {
+        "InstanceId": "i-010e7ea0a3b9efd51",
+        "State": "running",
+        "Tags": [
+            {
+                "Key": "Name",
+                "Value": "fj-vm-shared-f9b4725c.flapjack.foo"
+            },
+            {
+                "Key": "customer_id",
+                "Value": "00000000-0000-0000-0000-000000000000"
+            },
+            {
+                "Key": "node_id",
+                "Value": "vm-shared-f9b4725c.flapjack.foo"
+            },
+            {
+                "Key": "managed-by",
+                "Value": "fjcloud"
+            }
+        ],
+        "LaunchTime": "2026-05-18T03:50:30+00:00"
+    },
+    {
+        "InstanceId": "i-0275ad8188825a1f9",
+        "State": "running",
+        "Tags": [
+            {
+                "Key": "Name",
+                "Value": "fj-vm-shared-a65c4ff9.flapjack.foo"
+            },
+            {
+                "Key": "customer_id",
+                "Value": "00000000-0000-0000-0000-000000000000"
+            },
+            {
+                "Key": "managed-by",
+                "Value": "fjcloud"
+            },
+            {
+                "Key": "node_id",
+                "Value": "vm-shared-a65c4ff9.flapjack.foo"
+            }
+        ],
+        "LaunchTime": "2026-05-19T04:37:35+00:00"
+    },
+    {
+        "InstanceId": "i-03e4a8ca3f878c8a0",
+        "State": "running",
+        "Tags": [
+            {
+                "Key": "managed-by",
+                "Value": "fjcloud"
+            },
+            {
+                "Key": "node_id",
+                "Value": "vm-shared-d81c0965.flapjack.foo"
+            },
+            {
+                "Key": "customer_id",
+                "Value": "00000000-0000-0000-0000-000000000000"
+            },
+            {
+                "Key": "Name",
+                "Value": "fj-vm-shared-d81c0965.flapjack.foo"
+            }
+        ],
+        "LaunchTime": "2026-05-19T03:53:31+00:00"
+    },
+    {
+        "InstanceId": "i-0c0ab4de9dc5e3afb",
+        "State": "running",
+        "Tags": [
+            {
+                "Key": "managed-by",
+                "Value": "fjcloud"
+            },
+            {
+                "Key": "Name",
+                "Value": "fj-vm-shared-f7a712ea.flapjack.foo"
+            },
+            {
+                "Key": "node_id",
+                "Value": "vm-shared-f7a712ea.flapjack.foo"
+            },
+            {
+                "Key": "customer_id",
+                "Value": "00000000-0000-0000-0000-000000000000"
+            }
+        ],
+        "LaunchTime": "2026-05-19T03:42:46+00:00"
+    },
+    {
+        "InstanceId": "i-019d556392acdada7",
+        "State": "running",
+        "Tags": [
+            {
+                "Key": "node_id",
+                "Value": "vm-shared-480b5169.flapjack.foo"
+            },
+            {
+                "Key": "Name",
+                "Value": "fj-vm-shared-480b5169.flapjack.foo"
+            },
+            {
+                "Key": "managed-by",
+                "Value": "fjcloud"
+            },
+            {
+                "Key": "customer_id",
+                "Value": "00000000-0000-0000-0000-000000000000"
+            }
+        ],
+        "LaunchTime": "2026-04-24T06:26:34+00:00"
+    },
+    {
+        "InstanceId": "i-0f9b2a9bd8cbaeeec",
+        "State": "running",
+        "Tags": [
+            {
+                "Key": "managed-by",
+                "Value": "fjcloud"
+            },
+            {
+                "Key": "node_id",
+                "Value": "vm-shared-391f314f.flapjack.foo"
+            },
+            {
+                "Key": "Name",
+                "Value": "fj-vm-shared-391f314f.flapjack.foo"
+            },
+            {
+                "Key": "customer_id",
+                "Value": "00000000-0000-0000-0000-000000000000"
+            }
+        ],
+        "LaunchTime": "2026-05-04T09:18:34+00:00"
+    },
+    {
+        "InstanceId": "i-0ef83dda4bc361d03",
+        "State": "running",
+        "Tags": [
+            {
+                "Key": "Name",
+                "Value": "fj-vm-shared-eb0b5c17.flapjack.foo"
+            },
+            {
+                "Key": "node_id",
+                "Value": "vm-shared-eb0b5c17.flapjack.foo"
+            },
+            {
+                "Key": "customer_id",
+                "Value": "00000000-0000-0000-0000-000000000000"
+            },
+            {
+                "Key": "managed-by",
+                "Value": "fjcloud"
+            }
+        ],
+        "LaunchTime": "2026-05-17T03:49:20+00:00"
+    },
+    {
+        "InstanceId": "i-09f82701f45939543",
+        "State": "running",
+        "Tags": [
+            {
+                "Key": "customer_id",
+                "Value": "00000000-0000-0000-0000-000000000000"
+            },
+            {
+                "Key": "managed-by",
+                "Value": "fjcloud"
+            },
+            {
+                "Key": "Name",
+                "Value": "fj-vm-shared-1cc4ec8f.flapjack.foo"
+            },
+            {
+                "Key": "node_id",
+                "Value": "vm-shared-1cc4ec8f.flapjack.foo"
+            }
+        ],
+        "LaunchTime": "2026-05-17T03:47:20+00:00"
+    },
+    {
+        "InstanceId": "i-052aa19f27bc9d05e",
+        "State": "running",
+        "Tags": [
+            {
+                "Key": "customer_id",
+                "Value": "00000000-0000-0000-0000-000000000000"
+            },
+            {
+                "Key": "managed-by",
+                "Value": "fjcloud"
+            },
+            {
+                "Key": "node_id",
+                "Value": "vm-shared-835d996d.flapjack.foo"
+            },
+            {
+                "Key": "Name",
+                "Value": "fj-vm-shared-835d996d.flapjack.foo"
+            }
+        ],
+        "LaunchTime": "2026-05-17T04:24:10+00:00"
+    },
+    {
+        "InstanceId": "i-0f443d793d34c958d",
+        "State": "running",
+        "Tags": [
+            {
+                "Key": "Name",
+                "Value": "fj-vm-shared-76672b2a.flapjack.foo"
+            },
+            {
+                "Key": "customer_id",
+                "Value": "00000000-0000-0000-0000-000000000000"
+            },
+            {
+                "Key": "managed-by",
+                "Value": "fjcloud"
+            },
+            {
+                "Key": "node_id",
+                "Value": "vm-shared-76672b2a.flapjack.foo"
+            }
+        ],
+        "LaunchTime": "2026-05-17T06:52:56+00:00"
+    },
+    {
+        "InstanceId": "i-04d746336708ee82b",
+        "State": "running",
+        "Tags": [
+            {
+                "Key": "managed-by",
+                "Value": "fjcloud"
+            },
+            {
+                "Key": "node_id",
+                "Value": "vm-shared-2795f91e.flapjack.foo"
+            },
+            {
+                "Key": "Name",
+                "Value": "fj-vm-shared-2795f91e.flapjack.foo"
+            },
+            {
+                "Key": "customer_id",
+                "Value": "00000000-0000-0000-0000-000000000000"
+            }
+        ],
+        "LaunchTime": "2026-05-17T06:44:46+00:00"
+    },
+    {
+        "InstanceId": "i-0547fbf243eefcc9e",
+        "State": "running",
+        "Tags": [
+            {
+                "Key": "managed-by",
+                "Value": "fjcloud"
+            },
+            {
+                "Key": "customer_id",
+                "Value": "00000000-0000-0000-0000-000000000000"
+            },
+            {
+                "Key": "node_id",
+                "Value": "vm-shared-d9dc45a6.flapjack.foo"
+            },
+            {
+                "Key": "Name",
+                "Value": "fj-vm-shared-d9dc45a6.flapjack.foo"
+            }
+        ],
+        "LaunchTime": "2026-05-17T03:48:22+00:00"
+    },
+    {
+        "InstanceId": "i-0978d25a41bed6bbc",
+        "State": "running",
+        "Tags": [
+            {
+                "Key": "Name",
+                "Value": "fj-vm-shared-4d2fd397.flapjack.foo"
+            },
+            {
+                "Key": "customer_id",
+                "Value": "00000000-0000-0000-0000-000000000000"
+            },
+            {
+                "Key": "managed-by",
+                "Value": "fjcloud"
+            },
+            {
+                "Key": "node_id",
+                "Value": "vm-shared-4d2fd397.flapjack.foo"
+            }
+        ],
+        "LaunchTime": "2026-05-17T03:50:22+00:00"
+    },
+    {
+        "InstanceId": "i-0ece42b4c8c96de36",
+        "State": "running",
+        "Tags": [
+            {
+                "Key": "customer_id",
+                "Value": "00000000-0000-0000-0000-000000000000"
+            },
+            {
+                "Key": "managed-by",
+                "Value": "fjcloud"
+            },
+            {
+                "Key": "Name",
+                "Value": "fj-vm-shared-26c8d813.flapjack.foo"
+            },
+            {
+                "Key": "node_id",
+                "Value": "vm-shared-26c8d813.flapjack.foo"
+            }
+        ],
+        "LaunchTime": "2026-05-17T04:22:17+00:00"
+    },
+    {
+        "InstanceId": "i-05ad42c2af96dd313",
+        "State": "running",
+        "Tags": [
+            {
+                "Key": "node_id",
+                "Value": "vm-shared-4b34a919.flapjack.foo"
+            },
+            {
+                "Key": "Name",
+                "Value": "fj-vm-shared-4b34a919.flapjack.foo"
+            },
+            {
+                "Key": "managed-by",
+                "Value": "fjcloud"
+            },
+            {
+                "Key": "customer_id",
+                "Value": "00000000-0000-0000-0000-000000000000"
+            }
+        ],
+        "LaunchTime": "2026-05-17T07:06:42+00:00"
+    },
+    {
+        "InstanceId": "i-0b688c1e92518930b",
+        "State": "running",
+        "Tags": [
+            {
+                "Key": "customer_id",
+                "Value": "00000000-0000-0000-0000-000000000000"
+            },
+            {
+                "Key": "managed-by",
+                "Value": "fjcloud"
+            },
+            {
+                "Key": "Name",
+                "Value": "fj-vm-shared-6122c565.flapjack.foo"
+            },
+            {
+                "Key": "node_id",
+                "Value": "vm-shared-6122c565.flapjack.foo"
+            }
+        ],
+        "LaunchTime": "2026-05-18T04:56:18+00:00"
+    },
+    {
+        "InstanceId": "i-0657fb83cdb23fc35",
+        "State": "running",
+        "Tags": [
+            {
+                "Key": "customer_id",
+                "Value": "00000000-0000-0000-0000-000000000000"
+            },
+            {
+                "Key": "Name",
+                "Value": "fj-vm-shared-8579b158.flapjack.foo"
+            },
+            {
+                "Key": "managed-by",
+                "Value": "fjcloud"
+            },
+            {
+                "Key": "node_id",
+                "Value": "vm-shared-8579b158.flapjack.foo"
+            }
+        ],
+        "LaunchTime": "2026-05-18T04:57:49+00:00"
+    },
+    {
+        "InstanceId": "i-07bb5f2638e4e56d9",
+        "State": "running",
+        "Tags": [
+            {
+                "Key": "node_id",
+                "Value": "vm-shared-72f72383.flapjack.foo"
+            },
+            {
+                "Key": "managed-by",
+                "Value": "fjcloud"
+            },
+            {
+                "Key": "Name",
+                "Value": "fj-vm-shared-72f72383.flapjack.foo"
+            },
+            {
+                "Key": "customer_id",
+                "Value": "00000000-0000-0000-0000-000000000000"
+            }
+        ],
+        "LaunchTime": "2026-05-18T03:47:09+00:00"
+    },
+    {
+        "InstanceId": "i-07b93f5b144a98784",
+        "State": "running",
+        "Tags": [
+            {
+                "Key": "customer_id",
+                "Value": "00000000-0000-0000-0000-000000000000"
+            },
+            {
+                "Key": "managed-by",
+                "Value": "fjcloud"
+            },
+            {
+                "Key": "Name",
+                "Value": "fj-vm-shared-7530816c.flapjack.foo"
+            },
+            {
+                "Key": "node_id",
+                "Value": "vm-shared-7530816c.flapjack.foo"
+            }
+        ],
+        "LaunchTime": "2026-05-18T03:48:49+00:00"
+    },
+    {
+        "InstanceId": "i-0c2ea206fe232f6d6",
+        "State": "running",
+        "Tags": [
+            {
+                "Key": "customer_id",
+                "Value": "00000000-0000-0000-0000-000000000000"
+            },
+            {
+                "Key": "managed-by",
+                "Value": "fjcloud"
+            },
+            {
+                "Key": "Name",
+                "Value": "fj-vm-shared-1f4d5f46.flapjack.foo"
+            },
+            {
+                "Key": "node_id",
+                "Value": "vm-shared-1f4d5f46.flapjack.foo"
+            }
+        ],
+        "LaunchTime": "2026-05-19T04:40:42+00:00"
+    },
+    {
+        "InstanceId": "i-0415d94c4e0c06a8c",
+        "State": "running",
+        "Tags": [
+            {
+                "Key": "customer_id",
+                "Value": "00000000-0000-0000-0000-000000000000"
+            },
+            {
+                "Key": "Name",
+                "Value": "fj-vm-shared-f338a857.flapjack.foo"
+            },
+            {
+                "Key": "node_id",
+                "Value": "vm-shared-f338a857.flapjack.foo"
+            },
+            {
+                "Key": "managed-by",
+                "Value": "fjcloud"
+            }
+        ],
+        "LaunchTime": "2026-05-19T03:44:39+00:00"
+    },
+    {
+        "InstanceId": "i-0b1499240f089cebf",
+        "State": "running",
+        "Tags": [
+            {
+                "Key": "customer_id",
+                "Value": "00000000-0000-0000-0000-000000000000"
+            },
+            {
+                "Key": "Name",
+                "Value": "fj-vm-shared-e15ebff6.flapjack.foo"
+            },
+            {
+                "Key": "managed-by",
+                "Value": "fjcloud"
+            },
+            {
+                "Key": "node_id",
+                "Value": "vm-shared-e15ebff6.flapjack.foo"
+            }
+        ],
+        "LaunchTime": "2026-05-19T04:29:56+00:00"
+    },
+    {
+        "InstanceId": "i-02c0367ffe4f6d507",
+        "State": "running",
+        "Tags": [
+            {
+                "Key": "customer_id",
+                "Value": "00000000-0000-0000-0000-000000000000"
+            },
+            {
+                "Key": "managed-by",
+                "Value": "fjcloud"
+            },
+            {
+                "Key": "node_id",
+                "Value": "vm-shared-c7f8cda3.flapjack.foo"
+            },
+            {
+                "Key": "Name",
+                "Value": "fj-vm-shared-c7f8cda3.flapjack.foo"
+            }
+        ],
+        "LaunchTime": "2026-05-19T04:38:37+00:00"
+    },
+    {
+        "InstanceId": "i-0ec5723a6fd66beb4",
+        "State": "running",
+        "Tags": [
+            {
+                "Key": "node_id",
+                "Value": "vm-shared-b322e2c3.flapjack.foo"
+            },
+            {
+                "Key": "customer_id",
+                "Value": "00000000-0000-0000-0000-000000000000"
+            },
+            {
+                "Key": "managed-by",
+                "Value": "fjcloud"
+            },
+            {
+                "Key": "Name",
+                "Value": "fj-vm-shared-b322e2c3.flapjack.foo"
+            }
+        ],
+        "LaunchTime": "2026-05-19T04:25:27+00:00"
+    },
+    {
+        "InstanceId": "i-02f6f821eaf7c6ce7",
+        "State": "running",
+        "Tags": [
+            {
+                "Key": "node_id",
+                "Value": "vm-shared-c47d2e32.flapjack.foo"
+            },
+            {
+                "Key": "customer_id",
+                "Value": "00000000-0000-0000-0000-000000000000"
+            },
+            {
+                "Key": "managed-by",
+                "Value": "fjcloud"
+            },
+            {
+                "Key": "Name",
+                "Value": "fj-vm-shared-c47d2e32.flapjack.foo"
+            }
+        ],
+        "LaunchTime": "2026-05-19T04:36:33+00:00"
+    }
+]

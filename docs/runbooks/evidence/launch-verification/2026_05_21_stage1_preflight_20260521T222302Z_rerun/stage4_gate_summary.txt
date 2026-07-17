@@ -1,0 +1,8 @@
+stage=4
+evdir=_GREEN/staging-browser/stage1_preflight_20260521T222302Z
+stage0_ts=2026-05-21T22:23:24Z
+prod_leak_audit_count=0
+stage2_gate=FAIL
+stage3_gate=FAIL
+stage4_gate=PASS
+stage4_gate_reason=no_prod_fixture_leak_since_stage0_baseline

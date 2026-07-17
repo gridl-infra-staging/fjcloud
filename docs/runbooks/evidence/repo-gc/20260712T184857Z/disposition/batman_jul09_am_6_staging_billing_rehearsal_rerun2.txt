@@ -1,0 +1,14 @@
+# Disposition Receipt: batman/jul09_am_6_staging_billing_rehearsal_rerun2
+
+Classification: approved freed local branch after approved worktree removal
+Evidence source: current read-only git refs at bundle creation.
+
+## rev-parse
+$ git rev-parse batman/jul09_am_6_staging_billing_rehearsal_rerun2
+6770f172e517bfa36c4e60d741259b3691afad49
+
+## cherry
+$ git cherry -v main batman/jul09_am_6_staging_billing_rehearsal_rerun2 | tail -20
+
+## diff main...
+$ git diff main...batman/jul09_am_6_staging_billing_rehearsal_rerun2 --stat | tail -20

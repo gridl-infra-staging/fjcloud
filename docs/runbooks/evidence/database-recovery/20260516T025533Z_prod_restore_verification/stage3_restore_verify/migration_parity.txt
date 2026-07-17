@@ -1,0 +1,7 @@
+source_host=fjcloud-prod.cabwlew6jcjl.us-east-1.rds.amazonaws.com
+target_host=fjcloud-prod-restore-20260516025535.cabwlew6jcjl.us-east-1.rds.amazonaws.com
+source_count=45
+source_max_version=46
+target_count=45
+target_max_version=46
+parity_result=pass

@@ -1,0 +1,86 @@
+name: Nightly Stripe Clock
+
+on:
+  schedule:
+    - cron: "17 4 * * *"
+  workflow_dispatch:
+
+jobs:
+  stripe-test-clock-live:
+    # This lane is an unattended live Stripe clock regression check.
+    # It is intentionally isolated from pull_request/push CI in ci.yml.
+    runs-on: ubuntu-latest
+    env:
+      CARGO_INCREMENTAL: "0"
+      CARGO_PROFILE_TEST_DEBUG: "0"
+      RUSTFLAGS: "-Clink-arg=-fuse-ld=bfd"
+      STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+      STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+      STRIPE_PRICE_STARTER: ${{ secrets.STRIPE_PRICE_STARTER }}
+      STRIPE_PRICE_STARTER_EXPECTED_UNIT_AMOUNT_CENTS: ${{ secrets.STRIPE_PRICE_STARTER_EXPECTED_UNIT_AMOUNT_CENTS }}
+      INTEGRATION: "1"
+      BACKEND_LIVE_GATE: "1"
+      INTEGRATION_API_BASE: ${{ secrets.INTEGRATION_API_BASE }}
+      INTEGRATION_DB_URL: ${{ secrets.INTEGRATION_DB_URL }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Run nightly workflow contract tests
+        run: bash scripts/tests/nightly_workflow_test.sh
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # stable
+      - name: Set up rust cache
+        uses: Swatinem/rust-cache@ad397744b0d591a723ab90405b7247fac0e6b8db # v2
+        with:
+          workspaces: infra
+      - name: Run stripe test-clock lifecycle lane
+        # Quoted: a plain scalar ending in ':' is invalid YAML and kills the whole workflow at parse time.
+        run: "cd infra && cargo test -p api --test billing stripe_test_clock_full_cycle_test::"
+
+  tenant-isolation-proptest:
+    # Defensive regression check that runs the proptest-driven tenant
+    # isolation suite against the api crate's mock-backed test harness.
+    # Moved out of per-push CI on 2026-05-02 because it costs ~3-5 min per
+    # push and is a defensive regression check (not a gate on functional
+    # correctness). Failure surfaces nightly; workflow_dispatch supports
+    # operator-driven reruns. The test is mock-only and needs no postgres,
+    # stripe, or other services.
+    runs-on: ubuntu-latest
+    env:
+      CARGO_INCREMENTAL: "0"
+      CARGO_PROFILE_TEST_DEBUG: "0"
+      RUSTFLAGS: "-Clink-arg=-fuse-ld=bfd"
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Run nightly workflow contract tests
+        run: bash scripts/tests/nightly_workflow_test.sh
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # stable
+      - name: Set up rust cache
+        uses: Swatinem/rust-cache@ad397744b0d591a723ab90405b7247fac0e6b8db # v2
+        with:
+          workspaces: infra
+      - name: Run tenant isolation proptest
+        # Quoted: a plain scalar ending in ':' is invalid YAML and kills the whole workflow at parse time.
+        run: "cd infra && cargo test -p api --test platform --features proptest-tests tenant_isolation_proptest::"
+
+  pricing-freshness:
+    # Non-gating nightly wall-clock tripwire for stale competitor pricing.
+    # Freshness semantics live in the pricing-calculator Rust tests; this
+    # workflow only schedules the ignored tripwire.
+    runs-on: ubuntu-latest
+    env:
+      CARGO_INCREMENTAL: "0"
+      CARGO_PROFILE_TEST_DEBUG: "0"
+      RUSTFLAGS: "-Clink-arg=-fuse-ld=bfd"
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Run nightly workflow contract tests
+        run: bash scripts/tests/nightly_workflow_test.sh
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # stable
+      - name: Set up rust cache
+        uses: Swatinem/rust-cache@ad397744b0d591a723ab90405b7247fac0e6b8db # v2
+        with:
+          workspaces: infra
+      - name: Run pricing freshness wall-clock tripwire
+        run: "cd infra && cargo test -p pricing-calculator -- --ignored pricing_freshness_wall_clock_tripwire"

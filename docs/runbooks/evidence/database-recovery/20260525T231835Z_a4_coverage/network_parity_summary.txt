@@ -1,0 +1,10 @@
+source_status=available
+target_status=available
+source_endpoint=fjcloud-staging.cabwlew6jcjl.us-east-1.rds.amazonaws.com
+target_endpoint=fjcloud-staging-restore-20260525235041.cabwlew6jcjl.us-east-1.rds.amazonaws.com
+source_subnet_group=fjcloud-staging
+target_subnet_group=fjcloud-staging
+source_az=us-east-1a
+target_az=us-east-1a
+source_sg_ids=sg-0e60946fafe060833
+target_sg_ids=sg-02ba3e864ed172b0c

@@ -1,0 +1,5 @@
+=== ses_bounce failure classification ===
+rc=1 pass=0 detect_kind=jq_passed
+--- tail(80) of probe log ---
+{"passed":false,"steps":[{"name":"preflight","passed":false,"detail":"customer_broadcast script not found at /tmp/a1_vpc_rerun_20260529T194224Z_43714/scripts/customer_broadcast.sh"}],"elapsed_ms":173}failed to run commands: exit status 2--- end ---
+Agent: classify this failure as (a) external-unreachable [name the real noun: vendor API, network, DB], or (b) repo-owned-prerequisite [name the owner file]. Required before stage exits.

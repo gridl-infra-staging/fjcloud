@@ -1,0 +1,2 @@
++ bash scripts/canary/contracts/web_api_base_url_contract.sh prod
+PASS: env=prod https://cloud.flapjack.foo OAuth-start -> https://api.flapjack.foo

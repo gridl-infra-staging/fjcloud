@@ -1,0 +1,29 @@
+Running 8 gate(s): check-sizes secret-scan web-lint web-test rust-lint migration-test validate-bootstrap-parser publish-scripts-buildx
+Mode: fast
+
+
+=== local-ci summary (wall 73s) ===
+GATE                STATUS   SECS  LOG
+----                ------   ----  ---
+check-sizes         PASS        2  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/check-sizes.log
+migration-test      PASS        0  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/migration-test.log
+publish-scripts-buildx  PASS        0  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/publish-scripts-buildx.log
+rust-lint           PASS       73  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/rust-lint.log
+secret-scan         PASS        0  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/secret-scan.log
+validate-bootstrap-parser  PASS        0  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/validate-bootstrap-parser.log
+web-lint            PASS       15  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/web-lint.log
+web-test            PASS       11  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/web-test.log
+
+==contracts: oauth_redirect_uri ==
+self-test PASS: google probe correctly rejected https://NEVER-REGISTERED-WITH-PROVIDER.example.invalid/oauth-probe-self-test
+self-test PASS: github probe correctly rejected https://NEVER-REGISTERED-WITH-PROVIDER.example.invalid/oauth-probe-self-test
+PASS: Google OAuth env=prod accepted https://cloud.flapjack.foo/auth/oauth/google/callback (token endpoint error=invalid_grant -- expected for bogus code)
+PASS: GitHub OAuth env=prod accepted https://cloud.flapjack.foo/auth/oauth/github/callback (token endpoint error=bad_verification_code -- expected for bogus code)
+SKIP: APP_BASE_URL_STAGING not set; staging probes skipped (set in .env.secret)
+
+==contracts: web_api_base_url ==
+PASS: env=prod https://cloud.flapjack.foo OAuth-start -> https://api.flapjack.foo
+PASS: env=staging https://cloud.staging.flapjack.foo OAuth-start -> https://api.staging.flapjack.foo
+
+Totals: pass=10 fail=0 skip=0
+Result: PASS

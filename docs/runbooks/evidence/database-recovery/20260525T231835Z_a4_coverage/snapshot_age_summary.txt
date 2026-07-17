@@ -1,0 +1,2 @@
+fjcloud-prod	available_snapshot_count=12	oldest_snapshot=rds:fjcloud-prod-2026-05-14-03-06	oldest_age_days=11	latest_snapshot=rds:fjcloud-prod-2026-05-25-02-06	latest_age_hours=19
+fjcloud-staging	available_snapshot_count=30	oldest_snapshot=rds:fjcloud-staging-2026-04-24-02-13	oldest_age_days=31	latest_snapshot=rds:fjcloud-staging-2026-05-25-02-13	latest_age_hours=19

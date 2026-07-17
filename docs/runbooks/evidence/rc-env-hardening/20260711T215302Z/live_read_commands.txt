@@ -1,0 +1,9 @@
+export AWS_SESSION_TOKEN=stale-garbage
+export CREDENTIAL_ENV_FILE=/Users/stuart/repos/gridl-infra-dev/fjcloud_dev/.secret/.env.secret
+source scripts/lib/env.sh
+source scripts/lib/rc_invocation.sh
+source scripts/lib/aws_identity.sh
+rc_load_credential_env_file "$CREDENTIAL_ENV_FILE"
+bash -c 'test -z "${AWS_SESSION_TOKEN:-}"'
+aws sts get-caller-identity
+aws sesv2 get-account --region us-east-1

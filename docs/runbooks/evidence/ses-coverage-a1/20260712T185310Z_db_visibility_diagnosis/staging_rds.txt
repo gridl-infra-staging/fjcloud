@@ -1,0 +1,7 @@
+=== total customers (status != deleted) ===
+376
+(q1 exit=0)
+
+=== test-pattern customers ===
+14
+(q2 exit=0)

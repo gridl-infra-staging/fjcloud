@@ -1,0 +1,83 @@
+{
+  "reruns_run": 6,
+  "lanes": [
+    {
+      "lane": "a",
+      "title": "Lane A - Merchandising hub renders rules and no legacy search canvas @staging_verify",
+      "attempts": [
+        {
+          "attempt": 1,
+          "status": "passed",
+          "duration_ms": 11915,
+          "reporter_path": "rerun_a_1.json"
+        }
+      ],
+      "classification": "flake"
+    },
+    {
+      "lane": "b",
+      "title": "Lane B - Rules tab slug lands on merchandising hub @staging_verify",
+      "attempts": [
+        {
+          "attempt": 1,
+          "status": "passed",
+          "duration_ms": 10948,
+          "reporter_path": "rerun_b_1.json"
+        }
+      ],
+      "classification": "flake"
+    },
+    {
+      "lane": "c",
+      "title": "Lane C - Unified Search renders image-backed document cards @staging_verify",
+      "attempts": [
+        {
+          "attempt": 1,
+          "status": "passed",
+          "duration_ms": 15147,
+          "reporter_path": "rerun_c_1.json"
+        }
+      ],
+      "classification": "flake"
+    },
+    {
+      "lane": "d",
+      "title": "Lane D - Display Preferences exposes document card controls @staging_verify",
+      "attempts": [
+        {
+          "attempt": 1,
+          "status": "passed",
+          "duration_ms": 14136,
+          "reporter_path": "rerun_d_1.json"
+        }
+      ],
+      "classification": "flake"
+    },
+    {
+      "lane": "e",
+      "title": "Lane E - Query metrics report hit count and processing time @staging_verify",
+      "attempts": [
+        {
+          "attempt": 1,
+          "status": "passed",
+          "duration_ms": 15267,
+          "reporter_path": "rerun_e_1.json"
+        }
+      ],
+      "classification": "flake"
+    },
+    {
+      "lane": "f",
+      "title": "Lane F - Numbered pagination reaches first second and last pages @staging_verify",
+      "attempts": [
+        {
+          "attempt": 1,
+          "status": "passed",
+          "duration_ms": 16571,
+          "reporter_path": "rerun_f_1.json"
+        }
+      ],
+      "classification": "flake"
+    }
+  ]
+}

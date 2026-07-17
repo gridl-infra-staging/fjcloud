@@ -1,0 +1,2 @@
+ssm_target_count=1
+ssm_addressable=true

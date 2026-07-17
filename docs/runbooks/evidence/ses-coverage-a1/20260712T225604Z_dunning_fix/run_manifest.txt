@@ -1,0 +1,12 @@
+source_green_bundle=docs/runbooks/evidence/staging-billing-rehearsal/20260712T010555Z_current_main
+billing_month=2026-07
+secret_source=/Users/stuart/repos/gridl-infra-dev/fjcloud_dev/.secret/.env.secret
+stripe_environment_contract=docs/design/stripe_environments.md
+head=3626058afcf3a8636d23754a79de56cbfed623a0
+validator_fix_commit=2ceac5415a43bf836728a0b0daef924e192604c4
+clean_credential_shell=true
+staging_deploy_status=current
+staging_dev_sha=06af41521c986e54afdd441bad3118c76dde8b67
+staging_commits_behind_main=0
+staging_deployable_drift=false
+unit_tests=130_passed_0_failed

@@ -1,0 +1,34 @@
+{
+  "captured_at_utc": "2026-05-16T03:07:54Z",
+  "target_db_instance_id": "fjcloud-prod-restore-20260516025535",
+  "restore_command": "aws rds restore-db-instance-to-point-in-time --region us-east-1 --source-db-instance-identifier fjcloud-prod --target-db-instance-identifier fjcloud-prod-restore-20260516025535 --restore-time 2026-05-16T02:09:35+00:00 --db-subnet-group-name fjcloud-prod ",
+  "artifact_run_dir_path": "/Users/stuart/.matt/projects/fjcloud_dev-e4fc442e/may15_9pm_2_prod_rds_restore_drill.md-49bb35e9/artifacts/stage2_restore_execute/rds_restore_evidence_prod_20260516T025533Z_76548",
+  "dispatch_timestamp_utc": "2026-05-16T02:55:33Z",
+  "target_endpoint": "fjcloud-prod-restore-20260516025535.cabwlew6jcjl.us-east-1.rds.amazonaws.com",
+  "readiness_verdict": {
+    "status": "success",
+    "result": "pass",
+    "target_status": "available"
+  },
+  "target_security_group_ids": [
+    "sg-0c6ae08699b5405f0"
+  ],
+  "source_security_group_ids": [
+    "sg-0c6ae08699b5405f0"
+  ],
+  "security_group_alignment": {
+    "applied": true,
+    "reason": "source security group attached successfully on restored target",
+    "target_security_group_ids_before": [
+      "sg-0963f6561614e1b41"
+    ],
+    "target_security_group_ids_after": [
+      "sg-0c6ae08699b5405f0"
+    ]
+  },
+  "target_vpc_id": "vpc-0125cfcf4cc36762c",
+  "source_vpc_id": "vpc-0125cfcf4cc36762c",
+  "stage3_ready": true,
+  "stage3_blocker_reason": "",
+  "source_db_instance_id": "fjcloud-prod"
+}

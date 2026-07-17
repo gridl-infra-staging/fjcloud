@@ -1,0 +1,37 @@
+[
+  {
+    "lane": "A",
+    "title": "Lane A - Merchandising hub renders rules and no legacy search canvas @staging_verify",
+    "path": "chats/icg/stubs/jun11_pm_9_lane_a_merchandising_hub_renders_rules_real_defect.md"
+  },
+  {
+    "lane": "B",
+    "title": "Lane B - Rules tab slug lands on merchandising hub @staging_verify",
+    "path": "chats/icg/stubs/jun11_pm_9_lane_b_rules_tab_slug_lands_on_merch_hub_real_defect.md"
+  },
+  {
+    "lane": "C",
+    "title": "Lane C - Unified Search renders image-backed document cards @staging_verify",
+    "path": "chats/icg/stubs/jun11_pm_9_lane_c_unified_search_renders_document_cards_real_defect.md"
+  },
+  {
+    "lane": "D",
+    "title": "Lane D - Display Preferences exposes document card controls @staging_verify",
+    "path": "chats/icg/stubs/jun11_pm_9_lane_d_display_preferences_document_card_controls_real_defect.md"
+  },
+  {
+    "lane": "E",
+    "title": "Lane E - Query metrics report hit count and processing time @staging_verify",
+    "path": "chats/icg/stubs/jun11_pm_9_lane_e_query_metrics_report_hit_count_real_defect.md"
+  },
+  {
+    "lane": "F",
+    "title": "Lane F - Numbered pagination reaches first second and last pages @staging_verify",
+    "path": "chats/icg/stubs/jun11_pm_9_lane_f_numbered_pagination_reaches_pages_real_defect.md"
+  },
+  {
+    "lane": "G",
+    "title": "Lane G - Merch mode pin controls are deferred to follow-up contract @staging_verify",
+    "path": "chats/icg/stubs/jun11_pm_9_lane_g_merch_mode_pin_controls_deferred_real_defect.md"
+  }
+]

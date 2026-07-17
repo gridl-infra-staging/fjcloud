@@ -1,0 +1,36 @@
+# Disposition Receipt: batman/jul12_pm_2_s1_clickthrough_db_visibility_fix
+
+Classification: out of deletion scope for this stage
+Evidence source: current read-only git refs at bundle creation.
+
+## rev-parse
+$ git rev-parse batman/jul12_pm_2_s1_clickthrough_db_visibility_fix
+9412d332247b7d1d407d769109f2215e14a09e18
+
+## cherry
+$ git cherry -v main batman/jul12_pm_2_s1_clickthrough_db_visibility_fix | tail -20
++ ec1b3821a53e996fb52993714e236f05e21aeaa1 baseline: pre-session scrai/tooling sync
++ 9412d332247b7d1d407d769109f2215e14a09e18 matt: stage 1 checklist
+
+## diff main...
+$ git diff main...batman/jul12_pm_2_s1_clickthrough_db_visibility_fix --stat | tail -20
+ web/src/lib/components/DIRMAP.md                   |  2 +-
+ web/src/routes/DIRMAP.md                           | 12 ++++++------
+ web/src/routes/admin/DIRMAP.md                     |  2 +-
+ web/src/routes/admin/customers/DIRMAP.md           |  2 +-
+ web/src/routes/api/DIRMAP.md                       |  6 +++---
+ web/src/routes/api/pricing/DIRMAP.md               |  2 +-
+ web/src/routes/api/search/DIRMAP.md                |  2 +-
+ web/src/routes/api/stripe/DIRMAP.md                |  2 +-
+ web/src/routes/auth/DIRMAP.md                      |  2 +-
+ web/src/routes/auth/oauth/DIRMAP.md                |  2 +-
+ web/src/routes/auth/oauth/[provider]/DIRMAP.md     |  2 +-
+ web/src/routes/billing/DIRMAP.md                   |  2 +-
+ web/src/routes/console/DIRMAP.md                   | 14 +++++++-------
+ web/src/routes/console/indexes/DIRMAP.md           |  2 +-
+ web/src/routes/console/indexes/[name]/DIRMAP.md    |  2 +-
+ .../console/indexes/[name]/experiments/DIRMAP.md   |  2 +-
+ web/tests/DIRMAP.md                                |  4 ++--
+ web/tests/e2e-ui/DIRMAP.md                         |  2 +-
+ web/tests/e2e-ui/full/DIRMAP.md                    |  2 +-
+ 60 files changed, 125 insertions(+), 112 deletions(-)

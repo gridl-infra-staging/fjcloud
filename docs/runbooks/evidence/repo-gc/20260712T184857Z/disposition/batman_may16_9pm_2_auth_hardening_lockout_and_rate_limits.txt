@@ -1,0 +1,14 @@
+# Disposition Receipt: batman/may16_9pm_2_auth_hardening_lockout_and_rate_limits
+
+Classification: approved freed local branch after approved worktree removal
+Evidence source: current read-only git refs at bundle creation.
+
+## rev-parse
+$ git rev-parse batman/may16_9pm_2_auth_hardening_lockout_and_rate_limits
+f37f579b8e605f8821dd3b155c2b965064c724f7
+
+## cherry
+$ git cherry -v main batman/may16_9pm_2_auth_hardening_lockout_and_rate_limits | tail -20
+
+## diff main...
+$ git diff main...batman/may16_9pm_2_auth_hardening_lockout_and_rate_limits --stat | tail -20

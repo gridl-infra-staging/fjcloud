@@ -1,0 +1,14 @@
+# Disposition Receipt: batman/may21_12pm_3_staging_web_isolation
+
+Classification: approved freed local branch after approved worktree removal
+Evidence source: current read-only git refs at bundle creation.
+
+## rev-parse
+$ git rev-parse batman/may21_12pm_3_staging_web_isolation
+cb643e7970590fbe4535cc5d6122125b140db7e6
+
+## cherry
+$ git cherry -v main batman/may21_12pm_3_staging_web_isolation | tail -20
+
+## diff main...
+$ git diff main...batman/may21_12pm_3_staging_web_isolation --stat | tail -20

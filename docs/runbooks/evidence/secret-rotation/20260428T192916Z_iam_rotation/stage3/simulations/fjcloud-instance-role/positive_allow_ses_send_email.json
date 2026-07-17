@@ -1,0 +1,46 @@
+{
+    "EvaluationResults": [
+        {
+            "EvalActionName": "ses:SendEmail",
+            "EvalResourceName": "arn:aws:ses:us-east-1:213880904778:identity/flapjack.foo",
+            "EvalDecision": "allowed",
+            "MatchedStatements": [
+                {
+                    "SourcePolicyId": "role_fjcloud-instance-role_fjcloud-ses-send",
+                    "SourcePolicyType": "IAM Policy",
+                    "StartPosition": {
+                        "Line": 3,
+                        "Column": 17
+                    },
+                    "EndPosition": {
+                        "Line": 8,
+                        "Column": 6
+                    }
+                }
+            ],
+            "MissingContextValues": [],
+            "EvalDecisionDetails": {},
+            "ResourceSpecificResults": [
+                {
+                    "EvalResourceName": "arn:aws:ses:us-east-1:213880904778:identity/flapjack.foo",
+                    "EvalResourceDecision": "allowed",
+                    "MatchedStatements": [
+                        {
+                            "SourcePolicyId": "role_fjcloud-instance-role_fjcloud-ses-send",
+                            "SourcePolicyType": "IAM Policy",
+                            "StartPosition": {
+                                "Line": 3,
+                                "Column": 17
+                            },
+                            "EndPosition": {
+                                "Line": 8,
+                                "Column": 6
+                            }
+                        }
+                    ],
+                    "MissingContextValues": []
+                }
+            ]
+        }
+    ]
+}

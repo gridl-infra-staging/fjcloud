@@ -1,0 +1,749 @@
+{
+  "config": {
+    "configFile": "web/playwright.config.ts",
+    "rootDir": "web/tests",
+    "forbidOnly": false,
+    "fullyParallel": false,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "setup:user",
+        "name": "setup:user",
+        "testDir": "web/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/fixtures\\/auth\\.setup\\.ts/"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "setup:admin",
+        "name": "setup:admin",
+        "testDir": "web/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/fixtures\\/admin\\.auth\\.setup\\.ts/"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "setup:onboarding",
+        "name": "setup:onboarding",
+        "testDir": "web/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/fixtures\\/onboarding\\.auth\\.setup\\.ts/"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "setup:customer-journeys",
+        "name": "setup:customer-journeys",
+        "testDir": "web/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/fixtures\\/customer-journeys\\.auth\\.setup\\.ts/"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium:public",
+        "name": "chromium:public",
+        "testDir": "web/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/e2e-ui\\/(smoke|full)\\/public-.+\\.spec\\.ts/"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium:signup",
+        "name": "chromium:signup",
+        "testDir": "web/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/e2e-ui\\/full\\/signup_to_paid_invoice\\.spec\\.ts/"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium:mocked",
+        "name": "chromium:mocked",
+        "testDir": "web/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/e2e-ui\\/mocked\\/.+\\.spec\\.ts/"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium",
+        "name": "chromium",
+        "testDir": "web/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/e2e-ui\\/(smoke|full)\\/(?!admin|public-|onboarding\\.|customer-journeys\\.|signup_to_paid_invoice\\.).+\\.spec\\.ts/"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium:onboarding",
+        "name": "chromium:onboarding",
+        "testDir": "web/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/e2e-ui\\/full\\/onboarding\\.spec\\.ts/"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium:customer-journeys",
+        "name": "chromium:customer-journeys",
+        "testDir": "web/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/e2e-ui\\/full\\/customer-journeys\\.spec\\.ts/"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium:admin",
+        "name": "chromium:admin",
+        "testDir": "web/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/e2e-ui\\/full\\/admin\\/.+\\.spec\\.ts/"
+        ],
+        "timeout": 30000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "html"
+      ],
+      [
+        "json"
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.60.0",
+    "workers": 1,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "fixtures/auth.setup.ts",
+      "file": "fixtures/auth.setup.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "authenticate as customer",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 220000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "setup:user",
+              "projectName": "setup:user",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1417,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-06-10T09:51:22.025Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "6db7255f214771fc958b-8ad38d4213689c9057c1",
+          "file": "fixtures/auth.setup.ts",
+          "line": 110,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "title": "e2e-ui/full/polished_beta_staging_verify.spec.ts",
+      "file": "e2e-ui/full/polished_beta_staging_verify.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "Lane G - Merch mode pin controls are deferred to follow-up contract @staging_verify",
+          "ok": true,
+          "tags": [
+            "staging_verify"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 7,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 3,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-06-10T10:04:59.396Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "def1f8a49cd90f5801f0-2776e4334496a459571c",
+          "file": "e2e-ui/full/polished_beta_staging_verify.spec.ts",
+          "line": 351,
+          "column": 1
+        }
+      ],
+      "suites": [
+        {
+          "title": "Polished beta deployed staging verification",
+          "file": "e2e-ui/full/polished_beta_staging_verify.spec.ts",
+          "line": 176,
+          "column": 6,
+          "specs": [
+            {
+              "title": "Lane A - Merchandising hub renders rules and no legacy search canvas @staging_verify",
+              "ok": false,
+              "tags": [
+                "staging_verify"
+              ],
+              "tests": [
+                {
+                  "timeout": 240000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 17185,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByTestId('merchandising-section').getByRole('heading', { name: 'Merchandising hub' })\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for getByTestId('merchandising-section').getByRole('heading', { name: 'Merchandising hub' })\u001b[22m\n",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByTestId('merchandising-section').getByRole('heading', { name: 'Merchandising hub' })\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for getByTestId('merchandising-section').getByRole('heading', { name: 'Merchandising hub' })\u001b[22m\n\n    at web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts:214:77",
+                        "location": {
+                          "file": "web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts",
+                          "column": 77,
+                          "line": 214
+                        },
+                        "snippet": "  212 | \t\tawait page.reload();\n  213 | \t\tconst section = await openMerchandisingHub(page);\n> 214 | \t\tawait expect(section.getByRole('heading', { name: 'Merchandising hub' })).toBeVisible();\n      | \t\t                                                                          ^\n  215 | \t\tawait expect(\n  216 | \t\t\tsection.getByText('Merchandising performance stats are not available yet.')\n  217 | \t\t).toBeVisible();"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts",
+                            "column": 77,
+                            "line": 214
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByTestId('merchandising-section').getByRole('heading', { name: 'Merchandising hub' })\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for getByTestId('merchandising-section').getByRole('heading', { name: 'Merchandising hub' })\u001b[22m\n\n\n  212 | \t\tawait page.reload();\n  213 | \t\tconst section = await openMerchandisingHub(page);\n> 214 | \t\tawait expect(section.getByRole('heading', { name: 'Merchandising hub' })).toBeVisible();\n      | \t\t                                                                          ^\n  215 | \t\tawait expect(\n  216 | \t\t\tsection.getByText('Merchandising performance stats are not available yet.')\n  217 | \t\t).toBeVisible();\n    at web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts:214:77"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-10T09:51:24.006Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "web/test-results/e2e-ui-full-polished_beta_-5cf22-earch-canvas-staging-verify-chromium/test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "web/test-results/e2e-ui-full-polished_beta_-5cf22-earch-canvas-staging-verify-chromium/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts",
+                        "column": 77,
+                        "line": 214
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "def1f8a49cd90f5801f0-5828c087c68fb3a649b6",
+              "file": "e2e-ui/full/polished_beta_staging_verify.spec.ts",
+              "line": 187,
+              "column": 2
+            },
+            {
+              "title": "Lane B - Rules tab slug lands on merchandising hub @staging_verify",
+              "ok": false,
+              "tags": [
+                "staging_verify"
+              ],
+              "tests": [
+                {
+                  "timeout": 240000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 12279,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoHaveCount\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator:  getByRole('tab', { name: 'Rules', exact: true })\nExpected: \u001b[32m0\u001b[39m\nReceived: \u001b[31m1\u001b[39m\nTimeout:  5000ms\n\nCall log:\n\u001b[2m  - Expect \"toHaveCount\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for getByRole('tab', { name: 'Rules', exact: true })\u001b[22m\n\u001b[2m    14 × locator resolved to 1 element\u001b[22m\n\u001b[2m       - unexpected value \"1\"\u001b[22m\n",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoHaveCount\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator:  getByRole('tab', { name: 'Rules', exact: true })\nExpected: \u001b[32m0\u001b[39m\nReceived: \u001b[31m1\u001b[39m\nTimeout:  5000ms\n\nCall log:\n\u001b[2m  - Expect \"toHaveCount\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for getByRole('tab', { name: 'Rules', exact: true })\u001b[22m\n\u001b[2m    14 × locator resolved to 1 element\u001b[22m\n\u001b[2m       - unexpected value \"1\"\u001b[22m\n\n    at web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts:240:71",
+                        "location": {
+                          "file": "web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts",
+                          "column": 71,
+                          "line": 240
+                        },
+                        "snippet": "  238 | \t\t);\n  239 | \t\tawait expect(page.getByTestId('index-tabs-strip')).toBeVisible();\n> 240 | \t\tawait expect(page.getByRole('tab', { name: 'Rules', exact: true })).toHaveCount(0);\n      | \t\t                                                                    ^\n  241 | \t\tawait page.goto(`/console/indexes/${encodeURIComponent(indexName)}?tab=rules`);\n  242 | \t\tawait expect(page.getByRole('heading', { name: indexName })).toBeVisible({ timeout: 15_000 });\n  243 | \t\tawait expect(page.getByRole('tab', { name: 'Rules', exact: true })).toHaveCount(0);"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts",
+                            "column": 71,
+                            "line": 240
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoHaveCount\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator:  getByRole('tab', { name: 'Rules', exact: true })\nExpected: \u001b[32m0\u001b[39m\nReceived: \u001b[31m1\u001b[39m\nTimeout:  5000ms\n\nCall log:\n\u001b[2m  - Expect \"toHaveCount\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for getByRole('tab', { name: 'Rules', exact: true })\u001b[22m\n\u001b[2m    14 × locator resolved to 1 element\u001b[22m\n\u001b[2m       - unexpected value \"1\"\u001b[22m\n\n\n  238 | \t\t);\n  239 | \t\tawait expect(page.getByTestId('index-tabs-strip')).toBeVisible();\n> 240 | \t\tawait expect(page.getByRole('tab', { name: 'Rules', exact: true })).toHaveCount(0);\n      | \t\t                                                                    ^\n  241 | \t\tawait page.goto(`/console/indexes/${encodeURIComponent(indexName)}?tab=rules`);\n  242 | \t\tawait expect(page.getByRole('heading', { name: indexName })).toBeVisible({ timeout: 15_000 });\n  243 | \t\tawait expect(page.getByRole('tab', { name: 'Rules', exact: true })).toHaveCount(0);\n    at web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts:240:71"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-10T09:51:41.672Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "web/test-results/e2e-ui-full-polished_beta_-d9ae2-andising-hub-staging-verify-chromium/test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "web/test-results/e2e-ui-full-polished_beta_-d9ae2-andising-hub-staging-verify-chromium/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts",
+                        "column": 71,
+                        "line": 240
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "def1f8a49cd90f5801f0-4d7686fe716750862572",
+              "file": "e2e-ui/full/polished_beta_staging_verify.spec.ts",
+              "line": 227,
+              "column": 2
+            },
+            {
+              "title": "Lane C - Unified Search renders image-backed document cards @staging_verify",
+              "ok": false,
+              "tags": [
+                "staging_verify"
+              ],
+              "tests": [
+                {
+                  "timeout": 240000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 3,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 219863,
+                      "error": {
+                        "message": "Error: seedSearchableIndex: key creation failed after retries: 404 {\"error\":\"\"}",
+                        "stack": "Error: seedSearchableIndex: key creation failed after retries: 404 {\"error\":\"\"}\n    at createIndexKeyWithRetries (web/tests/fixtures/searchable-index.ts:545:8)\n    at seedSearchableIndexForCustomer (web/tests/fixtures/searchable-index.ts:625:18)\n    at openSearchWithDocuments (web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts:107:2)\n    at web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts:251:3",
+                        "location": {
+                          "file": "web/tests/fixtures/searchable-index.ts",
+                          "column": 8,
+                          "line": 545
+                        },
+                        "snippet": "\u001b[90m   at \u001b[39mfixtures/searchable-index.ts:545\n\n  543 | \t}\n  544 |\n> 545 | \tthrow new Error(`seedSearchableIndex: key creation failed after retries: ${lastFailure}`);\n      | \t      ^\n  546 | }\n  547 |\n  548 | /**"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "web/tests/fixtures/searchable-index.ts",
+                            "column": 8,
+                            "line": 545
+                          },
+                          "message": "Error: seedSearchableIndex: key creation failed after retries: 404 {\"error\":\"\"}\n\n   at fixtures/searchable-index.ts:545\n\n  543 | \t}\n  544 |\n> 545 | \tthrow new Error(`seedSearchableIndex: key creation failed after retries: ${lastFailure}`);\n      | \t      ^\n  546 | }\n  547 |\n  548 | /**\n    at createIndexKeyWithRetries (web/tests/fixtures/searchable-index.ts:545:8)\n    at seedSearchableIndexForCustomer (web/tests/fixtures/searchable-index.ts:625:18)\n    at openSearchWithDocuments (web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts:107:2)\n    at web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts:251:3"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-10T09:51:54.426Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "web/test-results/e2e-ui-full-polished_beta_-cb13f-cument-cards-staging-verify-chromium/test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "web/test-results/e2e-ui-full-polished_beta_-cb13f-cument-cards-staging-verify-chromium/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "web/tests/fixtures/searchable-index.ts",
+                        "column": 8,
+                        "line": 545
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "def1f8a49cd90f5801f0-b2151b13d98869fcb40d",
+              "file": "e2e-ui/full/polished_beta_staging_verify.spec.ts",
+              "line": 247,
+              "column": 2
+            },
+            {
+              "title": "Lane D - Display Preferences exposes document card controls @staging_verify",
+              "ok": false,
+              "tags": [
+                "staging_verify"
+              ],
+              "tests": [
+                {
+                  "timeout": 240000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 4,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 187895,
+                      "error": {
+                        "message": "Error: seedSearchableIndex: key creation failed after retries: 404 {\"error\":\"\"}",
+                        "stack": "Error: seedSearchableIndex: key creation failed after retries: 404 {\"error\":\"\"}\n    at createIndexKeyWithRetries (web/tests/fixtures/searchable-index.ts:545:8)\n    at seedSearchableIndexForCustomer (web/tests/fixtures/searchable-index.ts:625:18)\n    at openSearchWithDocuments (web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts:107:2)\n    at web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts:274:3",
+                        "location": {
+                          "file": "web/tests/fixtures/searchable-index.ts",
+                          "column": 8,
+                          "line": 545
+                        },
+                        "snippet": "\u001b[90m   at \u001b[39mfixtures/searchable-index.ts:545\n\n  543 | \t}\n  544 |\n> 545 | \tthrow new Error(`seedSearchableIndex: key creation failed after retries: ${lastFailure}`);\n      | \t      ^\n  546 | }\n  547 |\n  548 | /**"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "web/tests/fixtures/searchable-index.ts",
+                            "column": 8,
+                            "line": 545
+                          },
+                          "message": "Error: seedSearchableIndex: key creation failed after retries: 404 {\"error\":\"\"}\n\n   at fixtures/searchable-index.ts:545\n\n  543 | \t}\n  544 |\n> 545 | \tthrow new Error(`seedSearchableIndex: key creation failed after retries: ${lastFailure}`);\n      | \t      ^\n  546 | }\n  547 |\n  548 | /**\n    at createIndexKeyWithRetries (web/tests/fixtures/searchable-index.ts:545:8)\n    at seedSearchableIndexForCustomer (web/tests/fixtures/searchable-index.ts:625:18)\n    at openSearchWithDocuments (web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts:107:2)\n    at web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts:274:3"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-10T09:55:34.764Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "web/test-results/e2e-ui-full-polished_beta_-08821-ard-controls-staging-verify-chromium/test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "web/test-results/e2e-ui-full-polished_beta_-08821-ard-controls-staging-verify-chromium/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "web/tests/fixtures/searchable-index.ts",
+                        "column": 8,
+                        "line": 545
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "def1f8a49cd90f5801f0-6e291dc40cbcbaadfb5e",
+              "file": "e2e-ui/full/polished_beta_staging_verify.spec.ts",
+              "line": 270,
+              "column": 2
+            },
+            {
+              "title": "Lane E - Query metrics report hit count and processing time @staging_verify",
+              "ok": false,
+              "tags": [
+                "staging_verify"
+              ],
+              "tests": [
+                {
+                  "timeout": 240000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 5,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 187623,
+                      "error": {
+                        "message": "Error: seedSearchableIndex: key creation failed after retries: 404 {\"error\":\"\"}",
+                        "stack": "Error: seedSearchableIndex: key creation failed after retries: 404 {\"error\":\"\"}\n    at createIndexKeyWithRetries (web/tests/fixtures/searchable-index.ts:545:8)\n    at seedSearchableIndexForCustomer (web/tests/fixtures/searchable-index.ts:625:18)\n    at openSearchWithDocuments (web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts:107:2)\n    at web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts:300:3",
+                        "location": {
+                          "file": "web/tests/fixtures/searchable-index.ts",
+                          "column": 8,
+                          "line": 545
+                        },
+                        "snippet": "\u001b[90m   at \u001b[39mfixtures/searchable-index.ts:545\n\n  543 | \t}\n  544 |\n> 545 | \tthrow new Error(`seedSearchableIndex: key creation failed after retries: ${lastFailure}`);\n      | \t      ^\n  546 | }\n  547 |\n  548 | /**"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "web/tests/fixtures/searchable-index.ts",
+                            "column": 8,
+                            "line": 545
+                          },
+                          "message": "Error: seedSearchableIndex: key creation failed after retries: 404 {\"error\":\"\"}\n\n   at fixtures/searchable-index.ts:545\n\n  543 | \t}\n  544 |\n> 545 | \tthrow new Error(`seedSearchableIndex: key creation failed after retries: ${lastFailure}`);\n      | \t      ^\n  546 | }\n  547 |\n  548 | /**\n    at createIndexKeyWithRetries (web/tests/fixtures/searchable-index.ts:545:8)\n    at seedSearchableIndexForCustomer (web/tests/fixtures/searchable-index.ts:625:18)\n    at openSearchWithDocuments (web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts:107:2)\n    at web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts:300:3"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-10T09:58:43.192Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "web/test-results/e2e-ui-full-polished_beta_-346af-cessing-time-staging-verify-chromium/test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "web/test-results/e2e-ui-full-polished_beta_-346af-cessing-time-staging-verify-chromium/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "web/tests/fixtures/searchable-index.ts",
+                        "column": 8,
+                        "line": 545
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "def1f8a49cd90f5801f0-0fde170802ba68ba807d",
+              "file": "e2e-ui/full/polished_beta_staging_verify.spec.ts",
+              "line": 296,
+              "column": 2
+            },
+            {
+              "title": "Lane F - Numbered pagination reaches first second and last pages @staging_verify",
+              "ok": false,
+              "tags": [
+                "staging_verify"
+              ],
+              "tests": [
+                {
+                  "timeout": 240000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 6,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 187592,
+                      "error": {
+                        "message": "Error: seedSearchableIndex: key creation failed after retries: 404 {\"error\":\"\"}",
+                        "stack": "Error: seedSearchableIndex: key creation failed after retries: 404 {\"error\":\"\"}\n    at createIndexKeyWithRetries (web/tests/fixtures/searchable-index.ts:545:8)\n    at seedSearchableIndexForCustomer (web/tests/fixtures/searchable-index.ts:625:18)\n    at openSearchWithDocuments (web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts:107:2)\n    at web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts:321:3",
+                        "location": {
+                          "file": "web/tests/fixtures/searchable-index.ts",
+                          "column": 8,
+                          "line": 545
+                        },
+                        "snippet": "\u001b[90m   at \u001b[39mfixtures/searchable-index.ts:545\n\n  543 | \t}\n  544 |\n> 545 | \tthrow new Error(`seedSearchableIndex: key creation failed after retries: ${lastFailure}`);\n      | \t      ^\n  546 | }\n  547 |\n  548 | /**"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "web/tests/fixtures/searchable-index.ts",
+                            "column": 8,
+                            "line": 545
+                          },
+                          "message": "Error: seedSearchableIndex: key creation failed after retries: 404 {\"error\":\"\"}\n\n   at fixtures/searchable-index.ts:545\n\n  543 | \t}\n  544 |\n> 545 | \tthrow new Error(`seedSearchableIndex: key creation failed after retries: ${lastFailure}`);\n      | \t      ^\n  546 | }\n  547 |\n  548 | /**\n    at createIndexKeyWithRetries (web/tests/fixtures/searchable-index.ts:545:8)\n    at seedSearchableIndexForCustomer (web/tests/fixtures/searchable-index.ts:625:18)\n    at openSearchWithDocuments (web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts:107:2)\n    at web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts:321:3"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-10T10:01:51.306Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "web/test-results/e2e-ui-full-polished_beta_-03901-d-last-pages-staging-verify-chromium/test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "web/test-results/e2e-ui-full-polished_beta_-03901-d-last-pages-staging-verify-chromium/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "web/tests/fixtures/searchable-index.ts",
+                        "column": 8,
+                        "line": 545
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "def1f8a49cd90f5801f0-405c4c824b3234706cc7",
+              "file": "e2e-ui/full/polished_beta_staging_verify.spec.ts",
+              "line": 317,
+              "column": 2
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-06-10T09:51:21.481Z",
+    "duration": 817942.675,
+    "expected": 2,
+    "skipped": 0,
+    "unexpected": 6,
+    "flaky": 0
+  }
+}

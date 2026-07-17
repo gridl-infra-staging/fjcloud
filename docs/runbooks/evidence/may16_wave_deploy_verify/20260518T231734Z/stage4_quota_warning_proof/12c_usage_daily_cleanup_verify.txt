@@ -1,0 +1,4 @@
+ remaining_seed_rows 
+---------------------
+                   0
+(1 row)

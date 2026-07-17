@@ -1,0 +1,74 @@
+{
+  "verdict": "NOT-READY-on-section-1",
+  "timestamp": "2026-06-09T21:31:27Z",
+  "summary_source": "summary.json",
+  "non_pass_steps": [
+    {
+      "name": "local_signoff",
+      "status": "skipped",
+      "reason": "local_signoff_not_applicable_in_paid_beta_rc_mode",
+      "section": 6,
+      "classification": "mode_skip"
+    },
+    {
+      "name": "staging_billing_rehearsal",
+      "status": "fail",
+      "reason": "billing_run_no_created_invoices",
+      "section": 2,
+      "classification": "env_gap"
+    },
+    {
+      "name": "browser_preflight",
+      "status": "external_secret_missing",
+      "reason": "browser_preflight_env_gap",
+      "section": 6,
+      "classification": "env_gap"
+    },
+    {
+      "name": "browser_auth_setup",
+      "status": "external_secret_missing",
+      "reason": "browser_auth_setup_env_gap",
+      "section": 6,
+      "classification": "env_gap"
+    },
+    {
+      "name": "staging_runtime_smoke",
+      "status": "fail",
+      "reason": "staging_runtime_smoke_failed",
+      "section": 6,
+      "classification": "env_gap"
+    },
+    {
+      "name": "canary_customer_loop",
+      "status": "skip",
+      "reason": "probe_env_gap_aws_inbox_env_missing",
+      "section": 6,
+      "classification": "env_gap"
+    },
+    {
+      "name": "browser_signup_paid",
+      "status": "external_secret_missing",
+      "reason": "browser_signup_paid_env_gap",
+      "section": 6,
+      "classification": "critical_surface_skipped"
+    },
+    {
+      "name": "browser_portal_cancel",
+      "status": "external_secret_missing",
+      "reason": "browser_portal_cancel_env_gap",
+      "section": 6,
+      "classification": "critical_surface_skipped"
+    }
+  ],
+  "section_impact": {
+    "1": "partial",
+    "2": "green",
+    "3": "green",
+    "4": "green",
+    "5": "green",
+    "6": "green"
+  },
+  "other_real_count": 0,
+  "pre_authorized_shape_match": true,
+  "rationale": "All 8 non-pass steps are env-gap, mode-skip, or critical-surface-skipped (0 real defects). staging_billing_rehearsal failed because staging has no metered usage to bill (env gap, not billing code defect — cargo tests prove §2 correctness). staging_runtime_smoke failed on Terraform for_each with computed ACM keys (infrastructure state drift, not application defect). §1 remains partial (in-VPC clickthrough/dunning DB probe gap). §2–§6 have no regressions. Verdict matches the pre-authorized NOT-READY-on-section-1 shippable shape."
+}

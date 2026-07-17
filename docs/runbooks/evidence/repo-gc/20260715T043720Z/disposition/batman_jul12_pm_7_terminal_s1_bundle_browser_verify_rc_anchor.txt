@@ -1,0 +1,14 @@
+# Disposition: batman/jul12_pm_7_terminal_s1_bundle_browser_verify_rc_anchor
+
+Classification: approved-clean-merged-and-stopped-jul12-residue
+Worktree: `<parallel-root>/fjcloud_dev/jul12_pm_7_terminal_s1_bundle_browser_verify_rc_anchor/fjcloud_dev`
+Tip: 1ffe147f541ff406f18057bae04a3215e916a176
+Disposition: dispatched+stopped(Stage 3 completed; run budget $250.35 >= $250.00 stopped before Stage 4)
+
+`git merge-base --is-ancestor batman/jul12_pm_7_terminal_s1_bundle_browser_verify_rc_anchor main` exit: 0
+
+`git cherry -v main batman/jul12_pm_7_terminal_s1_bundle_browser_verify_rc_anchor | tail -20`: no output
+
+`git diff main...batman/jul12_pm_7_terminal_s1_bundle_browser_verify_rc_anchor --stat | tail -20`: no output
+
+`git -C <worktree> status --porcelain`: no output

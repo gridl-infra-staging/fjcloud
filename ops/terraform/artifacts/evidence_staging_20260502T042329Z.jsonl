@@ -1,0 +1,3 @@
+{"command":"preflight:aws_creds","timestamp":"2026-05-02T04:23:30Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"preflight:ami_exists","timestamp":"2026-05-02T04:23:30Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"preflight:cloudflare_dns","timestamp":"2026-05-02T04:23:30Z","verdict":"FAIL","output":"CLOUDFLARE_API_TOKEN or CLOUDFLARE_EDIT_READ_ZONE_DNS_API_TOKEN_FLAPJACK_FOO is missing from /Users/stuart/repos/gridl-infra-dev/fjcloud_dev/.secret/.env.secret.","artifact_path":""}

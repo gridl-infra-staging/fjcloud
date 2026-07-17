@@ -1,0 +1,45 @@
+(node:44630) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+Running 2 tests using 1 worker
+
+(node:44639) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+  ✓  1 [chromium] › tests/e2e-ui/full/billing_portal_payment_method_update.spec.ts:111:2 › Billing in-app payment-method updates › updates default payment method in-app and keeps billing page stable (45.2s)
+  ✘  2 [chromium] › tests/e2e-ui/full/billing_portal_payment_method_update.spec.ts:196:2 › Billing in-app payment-method updates › saves a new payment method via the Stripe Payment Element on /console/billing/setup @p0_coverage (1.2m)
+
+
+  1) [chromium] › tests/e2e-ui/full/billing_portal_payment_method_update.spec.ts:196:2 › Billing in-app payment-method updates › saves a new payment method via the Stripe Payment Element on /console/billing/setup @p0_coverage 
+
+    TimeoutError: page.waitForURL: Timeout 60000ms exceeded.
+    =========================== logs ===========================
+    waiting for navigation until "load"
+    ============================================================
+
+      258 |
+      259 | 		await page.getByRole('button', { name: 'Save payment method' }).click();
+    > 260 | 		await page.waitForURL(/\/console\/billing(?:\?|$)/, { timeout: 60_000 });
+          | 		           ^
+      261 |
+      262 | 		// End-effect: the setup flow returns to the billing page and preserves the
+      263 | 		// existing default card. Stripe may or may not de-duplicate the identical
+        at web/tests/e2e-ui/full/billing_portal_payment_method_update.spec.ts:260:14
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/billing_portal_payment_method_update/e2e-ui-full-billing_portal-c3b83-e-billing-setup-p0-coverage-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/billing_portal_payment_method_update/e2e-ui-full-billing_portal-c3b83-e-billing-setup-p0-coverage-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/billing_portal_payment_method_update/e2e-ui-full-billing_portal-c3b83-e-billing-setup-p0-coverage-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/billing_portal_payment_method_update/e2e-ui-full-billing_portal-c3b83-e-billing-setup-p0-coverage-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [chromium] › tests/e2e-ui/full/billing_portal_payment_method_update.spec.ts:196:2 › Billing in-app payment-method updates › saves a new payment method via the Stripe Payment Element on /console/billing/setup @p0_coverage 
+  1 passed (1.9m)
+exit=1

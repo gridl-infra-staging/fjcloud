@@ -1,0 +1,20 @@
+customer_id,email,status,deleted_at,stripe_customer_id,tenant_id,deployment_id,deployment_status,provider_vm_id,hostname,flapjack_url,ip_address,created_at
+5678419f-db8b-45e8-8096-e2ff547ecf06,signup-paid-1779075364452-fe3gq7pv@e2e.griddle.test,deleted,2026-05-18 03:37:02.764902+00,,,,,,,,,2026-05-18 03:36:26.104504+00
+91bd1c83-760d-497c-8e5a-f801a0678859,signup-paid-1779075479930-turomnbw@e2e.griddle.test,deleted,2026-05-18 03:38:48.095123+00,cus_UXMk13VRTP1KAX,,,,,,,,2026-05-18 03:38:21.445058+00
+f087a22f-b356-4471-957f-beb45467d3a0,signup-paid-1779075544620-w9prtg6s@e2e.griddle.test,deleted,2026-05-18 03:39:53.546372+00,cus_UXMlzLBab79BAf,,,,,,,,2026-05-18 03:39:26.027396+00
+3aae7a8c-df9a-4d3d-ac4e-90b611def503,signup-paid-1779075618529-9x4ip2na@e2e.griddle.test,deleted,2026-05-18 03:41:13.426389+00,cus_UXMmWuGSGS7S2k,,,,,,,,2026-05-18 03:40:39.84556+00
+e090beb9-4e87-438f-b24e-22502c5d83b1,signup-paid-1779170304089-wp6irkzc@e2e.griddle.test,active,,,,,,,,,,2026-05-19 05:58:48.808899+00
+2fb3f55a-0a05-451b-abe7-e9e995cfe1a2,signup-paid-1779170332708-auir77gf@e2e.griddle.test,active,,,,,,,,,,2026-05-19 05:59:17.459774+00
+8c86dc74-3d94-424e-bf3f-08724dec571c,signup-paid-1779221420599-aryi89rt@e2e.griddle.test,active,,cus_UXzyk94TwrRahK,,,,,,,,2026-05-19 20:10:23.333552+00
+5b9e22b4-c760-40f5-b0b0-aea473b3b35c,signup-paid-1779221457159-pw18uvii@e2e.griddle.test,active,,cus_UXzzf0C6ZSrPnW,,,,,,,,2026-05-19 20:10:59.952211+00
+2fcfe758-49a2-4919-a887-925fcf7e6e34,signup-paid-1779221917541-2ojyedb0@e2e.griddle.test,active,,cus_UY06C8zJeIKecg,,,,,,,,2026-05-19 20:18:40.030266+00
+81d06028-581a-4ea7-9e95-1026adedefad,signup-paid-1779221953499-6agptqiz@e2e.griddle.test,active,,cus_UY079oIYPI81XR,,,,,,,,2026-05-19 20:19:16.124821+00
+4fc9a6d7-35ab-4b4f-bd3d-67185cc02aa9,signup-paid-1779366613474-09yf9d7i@e2e.griddle.test,deleted,2026-05-21 12:31:10.017858+00,cus_UYd02gmfwu8gud,,,,,,,,2026-05-21 12:30:35.668757+00
+62c16e8b-62b1-445b-8e2e-78a530d919e3,signup-paid-1779367067604-nk87pfuh@e2e.griddle.test,deleted,2026-05-21 12:38:43.193737+00,cus_UYd7XYatkC9W4F,,,,,,,,2026-05-21 12:38:09.40554+00
+12806dcc-d3d6-4e60-a57b-bc75cb045f02,signup-paid-1779367267082-id6em74u@e2e.griddle.test,deleted,2026-05-21 12:42:03.001864+00,cus_UYdBwCTgQZyBEx,,,,,,,,2026-05-21 12:41:28.663662+00
+8f331a34-d7db-4f38-b281-5d1abda9914b,signup-paid-1779367370650-3auf3yps@e2e.griddle.test,deleted,2026-05-21 12:43:45.884538+00,cus_UYdCbMjgSh7Fuv,,,,,,,,2026-05-21 12:43:12.214104+00
+b2a36d77-6826-4481-b8c0-8d1b0e23d55b,signup-paid-1779367825752-l5sbh4o3@e2e.griddle.test,deleted,2026-05-21 12:51:21.190315+00,cus_UYdKkMA4xjIgur,,,,,,,,2026-05-21 12:50:47.295379+00
+a50a82fd-ec9e-4b07-a6fe-5ed59e60b58f,signup-paid-1779367928645-5aen6d3y@e2e.griddle.test,deleted,2026-05-21 12:53:04.210564+00,cus_UYdMRJJfO6QG35,,,,,,,,2026-05-21 12:52:30.181702+00
+aa04b5c0-5c98-45f4-98e9-c29586369424,signup-paid-1779368030268-zq5xlxw4@e2e.griddle.test,deleted,2026-05-21 12:54:45.877335+00,cus_UYdNMzBP2VIaSD,,,,,,,,2026-05-21 12:54:11.976571+00
+b5eb7e38-2959-4edf-ba26-4cbb758b743b,signup-paid-1779368824410-6oobjc9b@e2e.griddle.test,deleted,2026-05-21 13:08:00.263888+00,cus_UYdbML6Jdy4Gaq,,,,,,,,2026-05-21 13:07:26.320404+00
+f6bb31ed-2fa3-49c6-bb72-cea5fe259f3e,signup-paid-1779369054438-qarslcqu@e2e.griddle.test,deleted,2026-05-21 13:11:50.08377+00,cus_UYdfAmFmLByqyW,,,,,,,,2026-05-21 13:11:16.172575+00

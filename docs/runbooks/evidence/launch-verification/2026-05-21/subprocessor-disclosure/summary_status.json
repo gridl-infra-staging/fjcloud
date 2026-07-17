@@ -1,0 +1,12 @@
+{
+  "run_utc": "20260521T112726Z",
+  "expected_date": "2026-05-19",
+  "status": "PASSED",
+  "summary_file": "summary_status.txt",
+  "probes": [
+    {"host":"https://cloud.staging.flapjack.foo","path":"/dpa","status":"PASSED","reason":"all checks passed","artifact":"cloud_staging_flapjack_foo__dpa.html","http_code":"200","curl_exit":0},
+    {"host":"https://cloud.staging.flapjack.foo","path":"/privacy","status":"PASSED","reason":"all checks passed","artifact":"cloud_staging_flapjack_foo__privacy.html","http_code":"200","curl_exit":0},
+    {"host":"https://cloud.flapjack.foo","path":"/dpa","status":"PASSED","reason":"all checks passed","artifact":"cloud_flapjack_foo__dpa.html","http_code":"200","curl_exit":0},
+    {"host":"https://cloud.flapjack.foo","path":"/privacy","status":"PASSED","reason":"all checks passed","artifact":"cloud_flapjack_foo__privacy.html","http_code":"200","curl_exit":0}
+  ]
+}

@@ -1,0 +1,606 @@
+$ terraform plan -input=false -var=env=staging -var=ami_id=<redacted> -var=domain=flapjack.foo -var=cloudflare_zone_id=<redacted> -var=canary_image={tag=...} -var=canary_schedule={expression=rate(15 minutes),enabled=true} -var=support_email_canary_image_uri=<explicit>
+[0m[1mmodule.compute.tls_private_key.api_ssh: Refreshing state... [id=7189dad3108c339a68bb2ea48397b74b31e92442][0m
+[0m[1mmodule.data.random_password.db: Refreshing state... [id=none][0m
+[0m[1mmodule.data.random_password.internal_auth_token: Refreshing state... [id=none][0m
+[0m[1mdata.cloudflare_dns_records.existing_public["cloud"]: Reading...[0m[0m
+[0m[1mdata.cloudflare_dns_records.existing_public["api"]: Reading...[0m[0m
+[0m[1mdata.cloudflare_dns_records.existing_public["apex"]: Reading...[0m[0m
+[0m[1mdata.cloudflare_dns_records.existing_public["www"]: Reading...[0m[0m
+[0m[1mmodule.networking.aws_vpc.main: Refreshing state... [id=vpc-0748bcfc19bd0e1ab][0m
+[0m[1mmodule.dns.aws_acm_certificate.main: Refreshing state... [id=arn:aws:acm:us-east-1:213880904778:certificate/569915c9-3e7f-454e-b742-d6c6b4a53278][0m
+[0m[1mmodule.dns.aws_sesv2_email_identity.domain: Refreshing state... [id=flapjack.foo][0m
+[0m[1mmodule.networking.aws_eip.nat: Refreshing state... [id=eipalloc-0378781b32e09f912][0m
+[0m[1mmodule.monitoring.aws_cloudwatch_log_group.support_email_canary: Refreshing state... [id=/aws/lambda/fjcloud-staging-support-email-canary][0m
+[0m[1mmodule.monitoring.aws_iam_role.support_email_canary: Refreshing state... [id=fjcloud-staging-support-email-canary-lambda-role][0m
+[0m[1mmodule.monitoring.aws_ecr_repository.customer_loop_canary: Refreshing state... [id=fjcloud-staging-customer-loop-canary][0m
+[0m[1mmodule.monitoring.aws_ecr_repository.support_email_canary: Refreshing state... [id=fjcloud-staging-support-email-canary][0m
+[0m[1mmodule.monitoring.aws_cloudwatch_event_rule.customer_loop_canary: Refreshing state... [id=fjcloud-staging-customer-loop-canary][0m
+[0m[1mmodule.monitoring.data.aws_partition.current: Reading...[0m[0m
+[0m[1mmodule.monitoring.data.aws_partition.current: Read complete after 0s [id=aws][0m
+[0m[1mmodule.monitoring.aws_sns_topic.alerts: Refreshing state... [id=arn:aws:sns:us-east-1:213880904778:fjcloud-alerts-staging][0m
+[0m[1mmodule.monitoring.aws_s3_bucket.cloudtrail_export: Refreshing state... [id=fjcloud-staging-cloudtrail-export][0m
+[0m[1mmodule.monitoring.aws_cloudwatch_event_rule.support_email_canary: Refreshing state... [id=fjcloud-staging-support-email-canary-schedule][0m
+[0m[1mmodule.monitoring.aws_iam_role.customer_loop_canary_lambda: Refreshing state... [id=fjcloud-staging-customer-loop-canary-lambda][0m
+[0m[1mmodule.monitoring.data.aws_caller_identity.current: Reading...[0m[0m
+[0m[1mmodule.monitoring.data.aws_caller_identity.current: Read complete after 0s [id=213880904778][0m
+[0m[1mmodule.data.aws_ssm_parameter.db_password: Refreshing state... [id=/fjcloud/staging/db_password][0m
+[0m[1mmodule.data.aws_s3_bucket.cold: Refreshing state... [id=fjcloud-cold-staging][0m
+[0m[1mmodule.compute.aws_key_pair.api_ssh: Refreshing state... [id=fjcloud-api-staging][0m
+[0m[1mmodule.dns.cloudflare_dns_record.ses_dkim[2]: Refreshing state... [id=6ee0f7d596d4e0e4e0b1b31571487622][0m
+[0m[1mmodule.dns.cloudflare_dns_record.ses_dkim[0]: Refreshing state... [id=5ad9fe00a8df389b7f298d45485c8c55][0m
+[0m[1mmodule.dns.cloudflare_dns_record.ses_dkim[1]: Refreshing state... [id=06132617f5d4806b5e07e9838dba2ac4][0m
+[0m[1mmodule.monitoring.aws_cloudwatch_metric_alarm.billing_estimated_charges_high: Refreshing state... [id=fjcloud-staging-billing-estimated-charges-high][0m
+[0m[1mmodule.monitoring.aws_ecr_lifecycle_policy.customer_loop_canary: Refreshing state... [id=fjcloud-staging-customer-loop-canary][0m
+[0m[1mmodule.monitoring.aws_iam_role_policy.customer_loop_canary_lambda: Refreshing state... [id=fjcloud-staging-customer-loop-canary-lambda:fjcloud-staging-customer-loop-canary-lambda][0m
+[0m[1mmodule.monitoring.aws_lambda_function.support_email_canary: Refreshing state... [id=fjcloud-staging-support-email-canary][0m
+[0m[1mmodule.monitoring.aws_iam_role_policy.support_email_canary: Refreshing state... [id=fjcloud-staging-support-email-canary-lambda-role:fjcloud-staging-support-email-canary-lambda-policy][0m
+[0m[1mmodule.dns.cloudflare_dns_record.cert_validation["flapjack.foo"]: Refreshing state... [id=1362c84de9d8cc1ae661d9dbb731bc6f][0m
+[0m[1mmodule.monitoring.aws_lambda_function.customer_loop_canary: Refreshing state... [id=fjcloud-staging-customer-loop-canary][0m
+[0m[1mmodule.monitoring.aws_lambda_permission.support_email_canary_eventbridge: Refreshing state... [id=AllowEventBridgeInvokeSupportEmailCanary][0m
+[0m[1mmodule.monitoring.aws_cloudwatch_event_target.support_email_canary: Refreshing state... [id=fjcloud-staging-support-email-canary-schedule-support-email-canary][0m
+[0m[1mmodule.monitoring.aws_lambda_permission.customer_loop_canary_eventbridge: Refreshing state... [id=AllowExecutionFromEventBridgeSchedule][0m
+[0m[1mmodule.monitoring.aws_cloudwatch_event_target.customer_loop_canary: Refreshing state... [id=fjcloud-staging-customer-loop-canary-customer-loop-canary][0m
+[0m[1mmodule.monitoring.aws_s3_bucket_public_access_block.cloudtrail_export: Refreshing state... [id=fjcloud-staging-cloudtrail-export][0m
+[0m[1mmodule.monitoring.aws_s3_bucket_policy.cloudtrail_export: Refreshing state... [id=fjcloud-staging-cloudtrail-export][0m
+[0m[1mmodule.monitoring.aws_s3_bucket_lifecycle_configuration.cloudtrail_export_retention: Refreshing state... [id=fjcloud-staging-cloudtrail-export][0m
+[0m[1mmodule.data.aws_s3_bucket_public_access_block.cold: Refreshing state... [id=fjcloud-cold-staging][0m
+[0m[1mmodule.data.aws_s3_bucket_versioning.cold: Refreshing state... [id=fjcloud-cold-staging][0m
+[0m[1mmodule.data.aws_ssm_parameter.cold_bucket_name: Refreshing state... [id=/fjcloud/staging/cold_bucket_name][0m
+[0m[1mmodule.data.aws_s3_bucket_lifecycle_configuration.cold: Refreshing state... [id=fjcloud-cold-staging][0m
+[0m[1mmodule.data.aws_s3_bucket_server_side_encryption_configuration.cold: Refreshing state... [id=fjcloud-cold-staging][0m
+[0m[1mmodule.monitoring.aws_cloudtrail.cloudtrail: Refreshing state... [id=arn:aws:cloudtrail:us-east-1:213880904778:trail/fjcloud-staging-guardrails][0m
+[0m[1mmodule.networking.aws_subnet.public_a: Refreshing state... [id=subnet-03e3357684f12dcc8][0m
+[0m[1mmodule.networking.aws_security_group.flapjack_vm: Refreshing state... [id=sg-047734af5235c69af][0m
+[0m[1mmodule.networking.aws_subnet.private_a: Refreshing state... [id=subnet-094032cc47eb9f444][0m
+[0m[1mmodule.networking.aws_security_group.api: Refreshing state... [id=sg-0e8fd81b9247b53a5][0m
+[0m[1mmodule.dns.aws_lb_target_group.api: Refreshing state... [id=arn:aws:elasticloadbalancing:us-east-1:213880904778:targetgroup/fjcloud-staging-api-tg/a806a5dbe49fac17][0m
+[0m[1mmodule.networking.aws_security_group.alb: Refreshing state... [id=sg-0c92ea806133e676d][0m
+[0m[1mmodule.networking.aws_subnet.private_b: Refreshing state... [id=subnet-0fed650d25324fd88][0m
+[0m[1mmodule.networking.aws_subnet.public_b: Refreshing state... [id=subnet-01bde00484c8a6245][0m
+[0m[1mmodule.networking.aws_security_group.rds: Refreshing state... [id=sg-0e60946fafe060833][0m
+[0m[1mmodule.networking.aws_internet_gateway.main: Refreshing state... [id=igw-05ea73be355cfc6a3][0m
+[0m[1mmodule.networking.aws_vpc_security_group_egress_rule.api_outbound: Refreshing state... [id=sgr-09b1da838d2cba05c][0m
+[0m[1mmodule.networking.aws_vpc_security_group_ingress_rule.api_self: Refreshing state... [id=sgr-0183de92206af77ff][0m
+[0m[1mmodule.networking.aws_vpc_security_group_ingress_rule.flapjack_from_api: Refreshing state... [id=sgr-0018ea9ac3189e142][0m
+[0m[1mmodule.networking.aws_vpc_security_group_egress_rule.flapjack_outbound: Refreshing state... [id=sgr-0bc2afb7e1b648f66][0m
+[0m[1mmodule.networking.aws_vpc_security_group_egress_rule.alb_to_api: Refreshing state... [id=sgr-0c19dce65168cad70][0m
+[0m[1mmodule.networking.aws_vpc_security_group_ingress_rule.alb_http: Refreshing state... [id=sgr-0027bb707bfabab04][0m
+[0m[1mmodule.networking.aws_vpc_security_group_ingress_rule.api_from_alb: Refreshing state... [id=sgr-08eea4e338629ac59][0m
+[0m[1mmodule.networking.aws_vpc_security_group_ingress_rule.alb_https: Refreshing state... [id=sgr-00c3d16573ace701e][0m
+[0m[1mmodule.networking.aws_vpc_security_group_ingress_rule.rds_from_api: Refreshing state... [id=sgr-02c795e96b5978f5a][0m
+[0m[1mmodule.networking.aws_route_table.public: Refreshing state... [id=rtb-053ae1b319a6f9b2b][0m
+[0m[1mmodule.networking.aws_nat_gateway.main: Refreshing state... [id=nat-0c494afc65806af5e][0m
+[0m[1mmodule.dns.aws_lb.api: Refreshing state... [id=arn:aws:elasticloadbalancing:us-east-1:213880904778:loadbalancer/app/fjcloud-staging-alb/4c07fd1f59dff0a7][0m
+[0m[1mmodule.data.aws_db_subnet_group.main: Refreshing state... [id=fjcloud-staging][0m
+[0m[1mmodule.compute.aws_instance.api: Refreshing state... [id=i-0afc7651593f12372][0m
+[0m[1mmodule.networking.aws_route_table.private: Refreshing state... [id=rtb-003e8c00462593f07][0m
+[0m[1mmodule.networking.aws_route_table_association.public_b: Refreshing state... [id=rtbassoc-092d2a34d1f37e7f3][0m
+[0m[1mmodule.networking.aws_route_table_association.public_a: Refreshing state... [id=rtbassoc-072723a060895c09e][0m
+[0m[1mmodule.networking.aws_route_table_association.private_a: Refreshing state... [id=rtbassoc-03df7eae3bde2e582][0m
+[0m[1mmodule.networking.aws_route_table_association.private_b: Refreshing state... [id=rtbassoc-031089b78bbdd50a1][0m
+[0m[1mmodule.dns.aws_lb_listener.http_redirect: Refreshing state... [id=arn:aws:elasticloadbalancing:us-east-1:213880904778:listener/app/fjcloud-staging-alb/4c07fd1f59dff0a7/b726f7043a4bded6][0m
+[0m[1mmodule.monitoring.aws_cloudwatch_metric_alarm.alb_p99_target_response_time: Refreshing state... [id=fjcloud-staging-alb-p99-target-response-time][0m
+[0m[1mmodule.monitoring.aws_cloudwatch_metric_alarm.alb_5xx_error_rate: Refreshing state... [id=fjcloud-staging-alb-5xx-error-rate][0m
+[0m[1mmodule.data.aws_db_instance.main: Refreshing state... [id=db-JL5EMSOPHV2GZAMY6E3SAH4JQI][0m
+[0m[1mmodule.data.aws_ssm_parameter.database_url: Refreshing state... [id=/fjcloud/staging/database_url][0m
+[0m[1mmodule.monitoring.aws_cloudwatch_metric_alarm.rds_free_storage_low: Refreshing state... [id=fjcloud-staging-rds-free-storage-low][0m
+[0m[1mmodule.monitoring.aws_cloudwatch_metric_alarm.rds_cpu_high: Refreshing state... [id=fjcloud-staging-rds-cpu-high][0m
+[0m[1mmodule.dns.aws_lb_target_group_attachment.api: Refreshing state... [id=arn:aws:elasticloadbalancing:us-east-1:213880904778:targetgroup/fjcloud-staging-api-tg/a806a5dbe49fac17-20260409105310657600000001][0m
+[0m[1mmodule.monitoring.aws_cloudwatch_metric_alarm.api_status_check_failed: Refreshing state... [id=fjcloud-staging-api-status-check-failed][0m
+[0m[1mmodule.monitoring.aws_cloudwatch_metric_alarm.api_cpu_high: Refreshing state... [id=fjcloud-staging-api-cpu-high][0m
+
+Terraform used the selected providers to generate the following execution
+plan. Resource actions are indicated with the following symbols:
+  [32m+[0m create[0m
+  [33m~[0m update in-place[0m
+
+Terraform planned the following actions, but then encountered a problem:
+
+[1m  # module.compute.aws_instance.api[0m will be updated in-place
+[0m  [33m~[0m[0m resource "aws_instance" "api" {
+        id                                   = "i-0afc7651593f12372"
+      [33m~[0m[0m tags                                 = {
+            "Env"         = "staging"
+            "Name"        = "fjcloud-api-staging"
+          [31m-[0m[0m "customer_id" = "staging" [90m-> null[0m[0m
+          [31m-[0m[0m "node_id"     = "vm-shared-f2b9c8a6.flapjack.foo" [90m-> null[0m[0m
+        }
+      [33m~[0m[0m tags_all                             = {
+          [31m-[0m[0m "customer_id" = "staging" [90m-> null[0m[0m
+          [31m-[0m[0m "node_id"     = "vm-shared-f2b9c8a6.flapjack.foo" [90m-> null[0m[0m
+            [90m# (5 unchanged elements hidden)[0m[0m
+        }
+        [90m# (40 unchanged attributes hidden)[0m[0m
+
+        [90m# (9 unchanged blocks hidden)[0m[0m
+    }
+
+[1m  # module.data.aws_cloudwatch_log_group.rds_postgresql[0m will be created
+[0m  [32m+[0m[0m resource "aws_cloudwatch_log_group" "rds_postgresql" {
+      [32m+[0m[0m arn                         = (known after apply)
+      [32m+[0m[0m deletion_protection_enabled = (known after apply)
+      [32m+[0m[0m id                          = (known after apply)
+      [32m+[0m[0m log_group_class             = (known after apply)
+      [32m+[0m[0m name                        = "/aws/rds/instance/fjcloud-staging/postgresql"
+      [32m+[0m[0m name_prefix                 = (known after apply)
+      [32m+[0m[0m region                      = "us-east-1"
+      [32m+[0m[0m retention_in_days           = 30
+      [32m+[0m[0m skip_destroy                = false
+      [32m+[0m[0m tags_all                    = {
+          [32m+[0m[0m "env"        = "staging"
+          [32m+[0m[0m "managed-by" = "terraform"
+          [32m+[0m[0m "service"    = "fjcloud"
+        }
+    }
+
+[1m  # module.data.aws_s3_bucket_server_side_encryption_configuration.cold[0m will be updated in-place
+[0m  [33m~[0m[0m resource "aws_s3_bucket_server_side_encryption_configuration" "cold" {
+        id                    = "fjcloud-cold-staging"
+        [90m# (3 unchanged attributes hidden)[0m[0m
+
+      [31m-[0m[0m rule {
+          [31m-[0m[0m blocked_encryption_types = [
+              [31m-[0m[0m "NONE",
+            ] [90m-> null[0m[0m
+          [31m-[0m[0m bucket_key_enabled       = false [90m-> null[0m[0m
+
+          [31m-[0m[0m apply_server_side_encryption_by_default {
+              [31m-[0m[0m sse_algorithm     = "AES256" [90m-> null[0m[0m
+                [90m# (1 unchanged attribute hidden)[0m[0m
+            }
+        }
+      [32m+[0m[0m rule {
+          [32m+[0m[0m blocked_encryption_types = []
+
+          [32m+[0m[0m apply_server_side_encryption_by_default {
+              [32m+[0m[0m sse_algorithm     = "AES256"
+                [90m# (1 unchanged attribute hidden)[0m[0m
+            }
+        }
+    }
+
+[1m  # module.data.aws_ssm_parameter.internal_auth_token[0m will be created
+[0m  [32m+[0m[0m resource "aws_ssm_parameter" "internal_auth_token" {
+      [32m+[0m[0m arn            = (known after apply)
+      [32m+[0m[0m data_type      = (known after apply)
+      [32m+[0m[0m has_value_wo   = (known after apply)
+      [32m+[0m[0m id             = (known after apply)
+      [32m+[0m[0m insecure_value = (known after apply)
+      [32m+[0m[0m key_id         = (known after apply)
+      [32m+[0m[0m name           = "/fjcloud/staging/internal_auth_token"
+      [32m+[0m[0m region         = "us-east-1"
+      [32m+[0m[0m tags           = {
+          [32m+[0m[0m "Name" = "fjcloud-staging-internal-auth-token"
+        }
+      [32m+[0m[0m tags_all       = {
+          [32m+[0m[0m "Name"       = "fjcloud-staging-internal-auth-token"
+          [32m+[0m[0m "env"        = "staging"
+          [32m+[0m[0m "managed-by" = "terraform"
+          [32m+[0m[0m "service"    = "fjcloud"
+        }
+      [32m+[0m[0m tier           = (known after apply)
+      [32m+[0m[0m type           = "SecureString"
+      [32m+[0m[0m value          = (sensitive value)
+      [32m+[0m[0m value_wo       = (write-only attribute)
+      [32m+[0m[0m version        = (known after apply)
+    }
+
+[1m  # module.monitoring.aws_cloudwatch_event_rule.support_email_canary[0m will be updated in-place
+[0m  [33m~[0m[0m resource "aws_cloudwatch_event_rule" "support_email_canary" {
+        id                  = "fjcloud-staging-support-email-canary-schedule"
+        name                = "fjcloud-staging-support-email-canary-schedule"
+      [33m~[0m[0m schedule_expression = "rate(15 minutes)" [33m->[0m[0m "rate(6 hours)"
+        tags                = {}
+        [90m# (10 unchanged attributes hidden)[0m[0m
+    }
+
+[1m  # module.monitoring.aws_iam_role_policy.customer_loop_canary_lambda[0m will be updated in-place
+[0m  [33m~[0m[0m resource "aws_iam_role_policy" "customer_loop_canary_lambda" {
+        id          = "fjcloud-staging-customer-loop-canary-lambda:fjcloud-staging-customer-loop-canary-lambda"
+        name        = "fjcloud-staging-customer-loop-canary-lambda"
+      [33m~[0m[0m policy      = jsonencode(
+          [33m~[0m[0m {
+              [33m~[0m[0m Statement = [
+                    [90m# (1 unchanged element hidden)[0m[0m
+                    {
+                        Action   = [
+                            "logs:CreateLogStream",
+                            "logs:PutLogEvents",
+                        ]
+                        Effect   = "Allow"
+                        Resource = "arn:aws:logs:us-east-1:213880904778:log-group:/aws/lambda/fjcloud-staging-customer-loop-canary:*"
+                    },
+                  [33m~[0m[0m {
+                      [33m~[0m[0m Resource = [
+                          [31m-[0m[0m "arn:aws:ssm:us-east-1:213880904778:parameter/fjcloud/staging/canary_quiet_until",
+                          [31m-[0m[0m "arn:aws:ssm:us-east-1:213880904778:parameter/fjcloud/staging/admin_key",
+                          [31m-[0m[0m "arn:aws:ssm:us-east-1:213880904778:parameter/fjcloud/staging/stripe_secret_key",
+                          [31m-[0m[0m "arn:aws:ssm:us-east-1:213880904778:parameter/fjcloud/staging/slack_webhook_url",
+                          [31m-[0m[0m "arn:aws:ssm:us-east-1:213880904778:parameter/fjcloud/staging/discord_webhook_url",
+                          [31m-[0m[0m "arn:aws:ssm:us-east-1:213880904778:parameter/fjcloud/staging/dns_domain",
+                        ] [33m->[0m[0m "arn:aws:ssm:us-east-1:213880904778:parameter/fjcloud/staging/canary_quiet_until"
+                        [90m# (2 unchanged attributes hidden)[0m[0m
+                    },
+                  [31m-[0m[0m {
+                      [31m-[0m[0m Action    = [
+                          [31m-[0m[0m "s3:ListBucket",
+                        ]
+                      [31m-[0m[0m Condition = {
+                          [31m-[0m[0m StringLike = {
+                              [31m-[0m[0m "s3:prefix" = [
+                                  [31m-[0m[0m "e2e-emails/*",
+                                ]
+                            }
+                        }
+                      [31m-[0m[0m Effect    = "Allow"
+                      [31m-[0m[0m Resource  = "arn:aws:s3:::flapjack-cloud-releases"
+                    },
+                  [31m-[0m[0m {
+                      [31m-[0m[0m Action   = [
+                          [31m-[0m[0m "s3:GetObject",
+                        ]
+                      [31m-[0m[0m Effect   = "Allow"
+                      [31m-[0m[0m Resource = "arn:aws:s3:::flapjack-cloud-releases/e2e-emails/*"
+                    },
+                ]
+                [90m# (1 unchanged attribute hidden)[0m[0m
+            }
+        )
+        [90m# (2 unchanged attributes hidden)[0m[0m
+    }
+
+[1m  # module.monitoring.aws_iam_role_policy.support_email_canary[0m will be updated in-place
+[0m  [33m~[0m[0m resource "aws_iam_role_policy" "support_email_canary" {
+        id          = "fjcloud-staging-support-email-canary-lambda-role:fjcloud-staging-support-email-canary-lambda-policy"
+        name        = "fjcloud-staging-support-email-canary-lambda-policy"
+      [33m~[0m[0m policy      = jsonencode(
+          [33m~[0m[0m {
+              [33m~[0m[0m Statement = [
+                    {
+                        Action   = [
+                            "logs:CreateLogStream",
+                            "logs:PutLogEvents",
+                        ]
+                        Effect   = "Allow"
+                        Resource = [
+                            "arn:aws:logs:us-east-1:213880904778:log-group:/aws/lambda/fjcloud-staging-support-email-canary",
+                            "arn:aws:logs:us-east-1:213880904778:log-group:/aws/lambda/fjcloud-staging-support-email-canary:*",
+                        ]
+                        Sid      = "AllowCanaryLogWrites"
+                    },
+                  [33m~[0m[0m {
+                      [31m-[0m[0m Condition = {
+                          [31m-[0m[0m StringEquals = {
+                              [31m-[0m[0m "ses:FromAddress" = "system@flapjack.foo"
+                            }
+                        }
+                      [33m~[0m[0m Resource  = "*" [33m->[0m[0m [
+                          [32m+[0m[0m "arn:aws:ses:us-east-1:213880904778:identity/system@flapjack.foo",
+                          [32m+[0m[0m "arn:aws:ses:us-east-1:213880904778:identity/flapjack.foo",
+                        ]
+                        [90m# (3 unchanged attributes hidden)[0m[0m
+                    },
+                    {
+                        Action    = "s3:ListBucket"
+                        Condition = {
+                            StringLike = {
+                                "s3:prefix" = [
+                                    "e2e-emails",
+                                    "e2e-emails/*",
+                                ]
+                            }
+                        }
+                        Effect    = "Allow"
+                        Resource  = "arn:aws:s3:::flapjack-cloud-releases"
+                        Sid       = "AllowCanaryListInboundBucket"
+                    },
+                    [90m# (2 unchanged elements hidden)[0m[0m
+                ]
+                [90m# (1 unchanged attribute hidden)[0m[0m
+            }
+        )
+        [90m# (2 unchanged attributes hidden)[0m[0m
+    }
+
+[1m  # module.monitoring.aws_lambda_function.customer_loop_canary[0m will be updated in-place
+[0m  [33m~[0m[0m resource "aws_lambda_function" "customer_loop_canary" {
+        id                             = "fjcloud-staging-customer-loop-canary"
+        tags                           = {}
+        [90m# (31 unchanged attributes hidden)[0m[0m
+
+      [33m~[0m[0m environment {
+          [33m~[0m[0m variables = {
+              [31m-[0m[0m "ADMIN_KEY"           = "/fjcloud/staging/admin_key" [90m-> null[0m[0m
+              [31m-[0m[0m "DISCORD_WEBHOOK_URL" = "/fjcloud/staging/discord_webhook_url" [90m-> null[0m[0m
+              [31m-[0m[0m "DNS_DOMAIN"          = "/fjcloud/staging/dns_domain" [90m-> null[0m[0m
+              [31m-[0m[0m "SLACK_WEBHOOK_URL"   = "/fjcloud/staging/slack_webhook_url" [90m-> null[0m[0m
+              [31m-[0m[0m "STRIPE_SECRET_KEY"   = "/fjcloud/staging/stripe_secret_key" [90m-> null[0m[0m
+                [90m# (2 unchanged elements hidden)[0m[0m
+            }
+        }
+
+        [90m# (4 unchanged blocks hidden)[0m[0m
+    }
+
+[1m  # module.runtime_params.aws_ssm_parameter.runtime_aws_ami_id[0m will be created
+[0m  [32m+[0m[0m resource "aws_ssm_parameter" "runtime_aws_ami_id" {
+      [32m+[0m[0m arn            = (known after apply)
+      [32m+[0m[0m data_type      = (known after apply)
+      [32m+[0m[0m has_value_wo   = (known after apply)
+      [32m+[0m[0m id             = (known after apply)
+      [32m+[0m[0m insecure_value = (known after apply)
+      [32m+[0m[0m key_id         = (known after apply)
+      [32m+[0m[0m name           = "/fjcloud/staging/aws_ami_id"
+      [32m+[0m[0m region         = "us-east-1"
+      [32m+[0m[0m tags_all       = {
+          [32m+[0m[0m "env"        = "staging"
+          [32m+[0m[0m "managed-by" = "terraform"
+          [32m+[0m[0m "service"    = "fjcloud"
+        }
+      [32m+[0m[0m tier           = (known after apply)
+      [32m+[0m[0m type           = "String"
+      [32m+[0m[0m value          = (sensitive value)
+      [32m+[0m[0m value_wo       = (write-only attribute)
+      [32m+[0m[0m version        = (known after apply)
+    }
+
+[1m  # module.runtime_params.aws_ssm_parameter.runtime_aws_instance_profile_name[0m will be created
+[0m  [32m+[0m[0m resource "aws_ssm_parameter" "runtime_aws_instance_profile_name" {
+      [32m+[0m[0m arn            = (known after apply)
+      [32m+[0m[0m data_type      = (known after apply)
+      [32m+[0m[0m has_value_wo   = (known after apply)
+      [32m+[0m[0m id             = (known after apply)
+      [32m+[0m[0m insecure_value = (known after apply)
+      [32m+[0m[0m key_id         = (known after apply)
+      [32m+[0m[0m name           = "/fjcloud/staging/aws_instance_profile_name"
+      [32m+[0m[0m region         = "us-east-1"
+      [32m+[0m[0m tags_all       = {
+          [32m+[0m[0m "env"        = "staging"
+          [32m+[0m[0m "managed-by" = "terraform"
+          [32m+[0m[0m "service"    = "fjcloud"
+        }
+      [32m+[0m[0m tier           = (known after apply)
+      [32m+[0m[0m type           = "String"
+      [32m+[0m[0m value          = (sensitive value)
+      [32m+[0m[0m value_wo       = (write-only attribute)
+      [32m+[0m[0m version        = (known after apply)
+    }
+
+[1m  # module.runtime_params.aws_ssm_parameter.runtime_aws_key_pair_name[0m will be created
+[0m  [32m+[0m[0m resource "aws_ssm_parameter" "runtime_aws_key_pair_name" {
+      [32m+[0m[0m arn            = (known after apply)
+      [32m+[0m[0m data_type      = (known after apply)
+      [32m+[0m[0m has_value_wo   = (known after apply)
+      [32m+[0m[0m id             = (known after apply)
+      [32m+[0m[0m insecure_value = (known after apply)
+      [32m+[0m[0m key_id         = (known after apply)
+      [32m+[0m[0m name           = "/fjcloud/staging/aws_key_pair_name"
+      [32m+[0m[0m region         = "us-east-1"
+      [32m+[0m[0m tags_all       = {
+          [32m+[0m[0m "env"        = "staging"
+          [32m+[0m[0m "managed-by" = "terraform"
+          [32m+[0m[0m "service"    = "fjcloud"
+        }
+      [32m+[0m[0m tier           = (known after apply)
+      [32m+[0m[0m type           = "String"
+      [32m+[0m[0m value          = (sensitive value)
+      [32m+[0m[0m value_wo       = (write-only attribute)
+      [32m+[0m[0m version        = (known after apply)
+    }
+
+[1m  # module.runtime_params.aws_ssm_parameter.runtime_aws_security_group_ids[0m will be created
+[0m  [32m+[0m[0m resource "aws_ssm_parameter" "runtime_aws_security_group_ids" {
+      [32m+[0m[0m arn            = (known after apply)
+      [32m+[0m[0m data_type      = (known after apply)
+      [32m+[0m[0m has_value_wo   = (known after apply)
+      [32m+[0m[0m id             = (known after apply)
+      [32m+[0m[0m insecure_value = (known after apply)
+      [32m+[0m[0m key_id         = (known after apply)
+      [32m+[0m[0m name           = "/fjcloud/staging/aws_security_group_ids"
+      [32m+[0m[0m region         = "us-east-1"
+      [32m+[0m[0m tags_all       = {
+          [32m+[0m[0m "env"        = "staging"
+          [32m+[0m[0m "managed-by" = "terraform"
+          [32m+[0m[0m "service"    = "fjcloud"
+        }
+      [32m+[0m[0m tier           = (known after apply)
+      [32m+[0m[0m type           = "String"
+      [32m+[0m[0m value          = (sensitive value)
+      [32m+[0m[0m value_wo       = (write-only attribute)
+      [32m+[0m[0m version        = (known after apply)
+    }
+
+[1m  # module.runtime_params.aws_ssm_parameter.runtime_aws_subnet_id[0m will be created
+[0m  [32m+[0m[0m resource "aws_ssm_parameter" "runtime_aws_subnet_id" {
+      [32m+[0m[0m arn            = (known after apply)
+      [32m+[0m[0m data_type      = (known after apply)
+      [32m+[0m[0m has_value_wo   = (known after apply)
+      [32m+[0m[0m id             = (known after apply)
+      [32m+[0m[0m insecure_value = (known after apply)
+      [32m+[0m[0m key_id         = (known after apply)
+      [32m+[0m[0m name           = "/fjcloud/staging/aws_subnet_id"
+      [32m+[0m[0m region         = "us-east-1"
+      [32m+[0m[0m tags_all       = {
+          [32m+[0m[0m "env"        = "staging"
+          [32m+[0m[0m "managed-by" = "terraform"
+          [32m+[0m[0m "service"    = "fjcloud"
+        }
+      [32m+[0m[0m tier           = (known after apply)
+      [32m+[0m[0m type           = "String"
+      [32m+[0m[0m value          = (sensitive value)
+      [32m+[0m[0m value_wo       = (write-only attribute)
+      [32m+[0m[0m version        = (known after apply)
+    }
+
+[1m  # module.runtime_params.aws_ssm_parameter.runtime_cloudflare_zone_id[0m will be created
+[0m  [32m+[0m[0m resource "aws_ssm_parameter" "runtime_cloudflare_zone_id" {
+      [32m+[0m[0m arn            = (known after apply)
+      [32m+[0m[0m data_type      = (known after apply)
+      [32m+[0m[0m has_value_wo   = (known after apply)
+      [32m+[0m[0m id             = (known after apply)
+      [32m+[0m[0m insecure_value = (known after apply)
+      [32m+[0m[0m key_id         = (known after apply)
+      [32m+[0m[0m name           = "/fjcloud/staging/cloudflare_zone_id"
+      [32m+[0m[0m region         = "us-east-1"
+      [32m+[0m[0m tags_all       = {
+          [32m+[0m[0m "env"        = "staging"
+          [32m+[0m[0m "managed-by" = "terraform"
+          [32m+[0m[0m "service"    = "fjcloud"
+        }
+      [32m+[0m[0m tier           = (known after apply)
+      [32m+[0m[0m type           = "String"
+      [32m+[0m[0m value          = (sensitive value)
+      [32m+[0m[0m value_wo       = (write-only attribute)
+      [32m+[0m[0m version        = (known after apply)
+    }
+
+[1m  # module.runtime_params.aws_ssm_parameter.runtime_dns_domain[0m will be created
+[0m  [32m+[0m[0m resource "aws_ssm_parameter" "runtime_dns_domain" {
+      [32m+[0m[0m arn            = (known after apply)
+      [32m+[0m[0m data_type      = (known after apply)
+      [32m+[0m[0m has_value_wo   = (known after apply)
+      [32m+[0m[0m id             = (known after apply)
+      [32m+[0m[0m insecure_value = (known after apply)
+      [32m+[0m[0m key_id         = (known after apply)
+      [32m+[0m[0m name           = "/fjcloud/staging/dns_domain"
+      [32m+[0m[0m region         = "us-east-1"
+      [32m+[0m[0m tags_all       = {
+          [32m+[0m[0m "env"        = "staging"
+          [32m+[0m[0m "managed-by" = "terraform"
+          [32m+[0m[0m "service"    = "fjcloud"
+        }
+      [32m+[0m[0m tier           = (known after apply)
+      [32m+[0m[0m type           = "String"
+      [32m+[0m[0m value          = (sensitive value)
+      [32m+[0m[0m value_wo       = (write-only attribute)
+      [32m+[0m[0m version        = (known after apply)
+    }
+
+[1mPlan:[0m [0m9 to add, 6 to change, 0 to destroy.
+
+Changes to Outputs:
+  [31m-[0m[0m customer_loop_canary_log_group_name       = "/aws/lambda/fjcloud-staging-customer-loop-canary" [90m-> null[0m[0m
+  [31m-[0m[0m support_email_canary_lambda_function_name = "fjcloud-staging-support-email-canary" [90m-> null[0m[0m
+  [31m-[0m[0m support_email_canary_log_group_name       = "/aws/lambda/fjcloud-staging-support-email-canary" [90m-> null[0m[0m
+  [31m-[0m[0m support_email_canary_schedule_name        = "fjcloud-staging-support-email-canary-schedule" [90m-> null[0m[0m
+[33m╷[0m[0m
+[33m│[0m [0m[1m[33mWarning: [0m[0m[1mArgument is deprecated[0m
+[33m│[0m [0m
+[33m│[0m [0m[0m  with module.monitoring.aws_cloudwatch_event_rule.customer_loop_canary,
+[33m│[0m [0m  on ../monitoring/main.tf line 141, in resource "aws_cloudwatch_event_rule" "customer_loop_canary":
+[33m│[0m [0m 141:   is_enabled          = [4mvar.canary_schedule.enabled[0m[0m
+[33m│[0m [0m
+[33m│[0m [0mis_enabled is deprecated. Use state instead.
+[33m╵[0m[0m
+[31m╷[0m[0m
+[31m│[0m [0m[1m[31mError: [0m[0m[1mfailed to make http request[0m
+[31m│[0m [0m
+[31m│[0m [0m[0m  with data.cloudflare_dns_records.existing_public["apex"],
+[31m│[0m [0m  on main.tf line 27, in data "cloudflare_dns_records" "existing_public":
+[31m│[0m [0m  27: data "cloudflare_dns_records" "existing_public" [4m{[0m[0m
+[31m│[0m [0m
+[31m│[0m [0mGET
+[31m│[0m [0m"https://api.cloudflare.com/client/v4/zones/fafbf95a076d7e8ee984dbd18a62c933/dns_records?name.exact=flapjack.foo&type=CNAME":
+[31m│[0m [0m400 Bad Request {"success":false,"errors":[{"code":9106,"message":"Missing
+[31m│[0m [0mX-Auth-Key, X-Auth-Email or Authorization
+[31m│[0m [0mheaders"}],"messages":[],"result":null}
+[31m│[0m [0m
+[31m╵[0m[0m
+[31m╷[0m[0m
+[31m│[0m [0m[1m[31mError: [0m[0m[1mfailed to make http request[0m
+[31m│[0m [0m
+[31m│[0m [0m[0m  with data.cloudflare_dns_records.existing_public["www"],
+[31m│[0m [0m  on main.tf line 27, in data "cloudflare_dns_records" "existing_public":
+[31m│[0m [0m  27: data "cloudflare_dns_records" "existing_public" [4m{[0m[0m
+[31m│[0m [0m
+[31m│[0m [0mGET
+[31m│[0m [0m"https://api.cloudflare.com/client/v4/zones/fafbf95a076d7e8ee984dbd18a62c933/dns_records?name.exact=www.flapjack.foo&type=CNAME":
+[31m│[0m [0m400 Bad Request {"success":false,"errors":[{"code":9106,"message":"Missing
+[31m│[0m [0mX-Auth-Key, X-Auth-Email or Authorization
+[31m│[0m [0mheaders"}],"messages":[],"result":null}
+[31m│[0m [0m
+[31m╵[0m[0m
+[31m╷[0m[0m
+[31m│[0m [0m[1m[31mError: [0m[0m[1mfailed to make http request[0m
+[31m│[0m [0m
+[31m│[0m [0m[0m  with data.cloudflare_dns_records.existing_public["cloud"],
+[31m│[0m [0m  on main.tf line 27, in data "cloudflare_dns_records" "existing_public":
+[31m│[0m [0m  27: data "cloudflare_dns_records" "existing_public" [4m{[0m[0m
+[31m│[0m [0m
+[31m│[0m [0mGET
+[31m│[0m [0m"https://api.cloudflare.com/client/v4/zones/fafbf95a076d7e8ee984dbd18a62c933/dns_records?name.exact=cloud.flapjack.foo&type=CNAME":
+[31m│[0m [0m400 Bad Request {"success":false,"errors":[{"code":9106,"message":"Missing
+[31m│[0m [0mX-Auth-Key, X-Auth-Email or Authorization
+[31m│[0m [0mheaders"}],"messages":[],"result":null}
+[31m│[0m [0m
+[31m╵[0m[0m
+[31m╷[0m[0m
+[31m│[0m [0m[1m[31mError: [0m[0m[1mfailed to make http request[0m
+[31m│[0m [0m
+[31m│[0m [0m[0m  with data.cloudflare_dns_records.existing_public["api"],
+[31m│[0m [0m  on main.tf line 27, in data "cloudflare_dns_records" "existing_public":
+[31m│[0m [0m  27: data "cloudflare_dns_records" "existing_public" [4m{[0m[0m
+[31m│[0m [0m
+[31m│[0m [0mGET
+[31m│[0m [0m"https://api.cloudflare.com/client/v4/zones/fafbf95a076d7e8ee984dbd18a62c933/dns_records?name.exact=api.flapjack.foo&type=CNAME":
+[31m│[0m [0m400 Bad Request {"success":false,"errors":[{"code":9106,"message":"Missing
+[31m│[0m [0mX-Auth-Key, X-Auth-Email or Authorization
+[31m│[0m [0mheaders"}],"messages":[],"result":null}
+[31m│[0m [0m
+[31m╵[0m[0m
+[31m╷[0m[0m
+[31m│[0m [0m[1m[31mError: [0m[0m[1mfailed to make http request[0m
+[31m│[0m [0m
+[31m│[0m [0m[0m  with module.dns.cloudflare_dns_record.cert_validation["flapjack.foo"],
+[31m│[0m [0m  on ../dns/main.tf line 115, in resource "cloudflare_dns_record" "cert_validation":
+[31m│[0m [0m 115: resource "cloudflare_dns_record" "cert_validation" [4m{[0m[0m
+[31m│[0m [0m
+[31m│[0m [0mGET
+[31m│[0m [0m"https://api.cloudflare.com/client/v4/zones/fafbf95a076d7e8ee984dbd18a62c933/dns_records/1362c84de9d8cc1ae661d9dbb731bc6f":
+[31m│[0m [0m400 Bad Request {"success":false,"errors":[{"code":9106,"message":"Missing
+[31m│[0m [0mX-Auth-Key, X-Auth-Email or Authorization
+[31m│[0m [0mheaders"}],"messages":[],"result":null}
+[31m│[0m [0m
+[31m╵[0m[0m
+[31m╷[0m[0m
+[31m│[0m [0m[1m[31mError: [0m[0m[1mfailed to make http request[0m
+[31m│[0m [0m
+[31m│[0m [0m[0m  with module.dns.cloudflare_dns_record.ses_dkim[1],
+[31m│[0m [0m  on ../dns/main.tf line 144, in resource "cloudflare_dns_record" "ses_dkim":
+[31m│[0m [0m 144: resource "cloudflare_dns_record" "ses_dkim" [4m{[0m[0m
+[31m│[0m [0m
+[31m│[0m [0mGET
+[31m│[0m [0m"https://api.cloudflare.com/client/v4/zones/fafbf95a076d7e8ee984dbd18a62c933/dns_records/06132617f5d4806b5e07e9838dba2ac4":
+[31m│[0m [0m400 Bad Request {"success":false,"errors":[{"code":9106,"message":"Missing
+[31m│[0m [0mX-Auth-Key, X-Auth-Email or Authorization
+[31m│[0m [0mheaders"}],"messages":[],"result":null}
+[31m│[0m [0m
+[31m╵[0m[0m
+[31m╷[0m[0m
+[31m│[0m [0m[1m[31mError: [0m[0m[1mfailed to make http request[0m
+[31m│[0m [0m
+[31m│[0m [0m[0m  with module.dns.cloudflare_dns_record.ses_dkim[2],
+[31m│[0m [0m  on ../dns/main.tf line 144, in resource "cloudflare_dns_record" "ses_dkim":
+[31m│[0m [0m 144: resource "cloudflare_dns_record" "ses_dkim" [4m{[0m[0m
+[31m│[0m [0m
+[31m│[0m [0mGET
+[31m│[0m [0m"https://api.cloudflare.com/client/v4/zones/fafbf95a076d7e8ee984dbd18a62c933/dns_records/6ee0f7d596d4e0e4e0b1b31571487622":
+[31m│[0m [0m400 Bad Request {"success":false,"errors":[{"code":9106,"message":"Missing
+[31m│[0m [0mX-Auth-Key, X-Auth-Email or Authorization
+[31m│[0m [0mheaders"}],"messages":[],"result":null}
+[31m│[0m [0m
+[31m╵[0m[0m
+[31m╷[0m[0m
+[31m│[0m [0m[1m[31mError: [0m[0m[1mfailed to make http request[0m
+[31m│[0m [0m
+[31m│[0m [0m[0m  with module.dns.cloudflare_dns_record.ses_dkim[0],
+[31m│[0m [0m  on ../dns/main.tf line 144, in resource "cloudflare_dns_record" "ses_dkim":
+[31m│[0m [0m 144: resource "cloudflare_dns_record" "ses_dkim" [4m{[0m[0m
+[31m│[0m [0m
+[31m│[0m [0mGET
+[31m│[0m [0m"https://api.cloudflare.com/client/v4/zones/fafbf95a076d7e8ee984dbd18a62c933/dns_records/5ad9fe00a8df389b7f298d45485c8c55":
+[31m│[0m [0m400 Bad Request {"success":false,"errors":[{"code":9106,"message":"Missing
+[31m│[0m [0mX-Auth-Key, X-Auth-Email or Authorization
+[31m│[0m [0mheaders"}],"messages":[],"result":null}
+[31m│[0m [0m
+[31m╵[0m[0m

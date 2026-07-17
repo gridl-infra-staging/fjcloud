@@ -1,0 +1,54 @@
+# Disposition Receipt: origin/batman/apr27_3pm_3_alert_webhook_and_canary_activation
+
+Classification: approved remote branch deletion; manifest stores short branch name
+Evidence source: current read-only git refs at bundle creation.
+
+## rev-parse
+$ git rev-parse origin/batman/apr27_3pm_3_alert_webhook_and_canary_activation
+5bca211c442df91a451571193dbdd00cf0bb6859
+
+## cherry
+$ git cherry -v main origin/batman/apr27_3pm_3_alert_webhook_and_canary_activation | tail -20
+- b23a4876608da4de53be1e292e5b32fc41814fee scrai: 9 files documented, 2 guidance files assembled, 3 state files tracked
++ 893703c267c131efa4d941e1ddd4e9c6587ca066 matt: forced pre-review commit (stage 1 cycle 1)
++ 184b2bdd27e80598ea6d2349087dcfbee50ebfdd matt: stage 1 completion
++ 438c5f8d949bc37811526589ee16ea5a56782a33 scrai: 11 files documented, 3 artifacts generated, 2 guidance files assembled, 3 state files tracked
++ 70cf704a29d4ae88a7ef51cd1c26637a3cbc7a0d stage 2 gap spec: webhook URL parking per anti-stop rule
++ 139e3236995642d924b32500e345d9b2c773b126 matt: stage 2 completion
+- a2dfb3322088f81c340424356897e5d90d4003a0 scrai: 9 files documented, 2 guidance files assembled, 3 state files tracked
++ 9873eced8e59a2b5f971b36a42266e01a19a962a matt: stage 3 build session 1
++ 8d70a0adb327ddc1c9f556a47b5ef1d896514ce6 matt: stage 3 build session 1
++ bf39f767378ffeea794c2637e22e5108886707d5 Fix canary verify fallback and inbox IAM access
++ ff821122a5575e122bebc2df16e1d48913317ba3 matt: stage 3 completion
++ d3844fcd73a098f43a1ef3aa943237d6d51e7fad scrai: 10 files documented, 3 artifacts generated, 2 guidance files assembled, 3 state files tracked
++ 413192ddf0abe60b413a05d81a61d5eea14aa808 matt: stage 4 build session 1
++ 27015d5ba37f9367bcd88a6ce002f79b971d3972 matt: stage 4 completion
++ cf5421545b04f7079107efdc10bbd715fb676738 Fix review findings in canary validation
++ 20d47ac2b86bcb51622b445b2fadab4f26717e95 scrai: 9 files documented, 2 guidance files assembled, 3 state files tracked
++ b0e46d9c983ab4264bdac3866c50df67569194dd canary: retry transient 403 during index creation
++ 1913e2d629e299784944e4dfa2dc2f4dbc53408b matt: stage 3 build session 1
++ 9ba84b309c397d97bfcd119086d795c614fe80a4 matt: stage 3 build session 3
++ 5bca211c442df91a451571193dbdd00cf0bb6859 chats: matt run progress footer for apr27_3pm_3
+
+## diff main...
+$ git diff main...origin/batman/apr27_3pm_3_alert_webhook_and_canary_activation --stat | tail -20
+ scripts/lib/staging_billing_rehearsal_evidence.sh  |     7 +
+ scripts/lib/stripe_request.sh                      |     7 +
+ scripts/lib/test_inbox_helpers.sh                  |    92 +-
+ scripts/probe_alert_delivery.sh                    |    50 +-
+ scripts/tests/DIRMAP.md                            |     1 +
+ scripts/tests/canary_create_index_retry_test.sh    |   333 +
+ scripts/tests/canary_shared_seam_reuse_test.sh     |     4 +
+ scripts/tests/canary_verify_email_fallback_test.sh |   332 +
+ scripts/tests/incident_response_runbook_test.sh    |    43 +
+ scripts/tests/lib/local_dev_test_state.sh          |     7 +
+ scripts/tests/lib/seed_local_mocks.sh              |     7 +
+ scripts/tests/probe_alert_delivery_test.sh         |    71 +-
+ scripts/tests/test_inbox_helpers_test.sh           |    57 +-
+ .../tests/validate_inbound_email_roundtrip_test.sh |   131 +-
+ scripts/validate_inbound_email_roundtrip.sh        |    12 +-
+ web/DIRMAP.md                                      |     2 +-
+ web/src/DIRMAP.md                                  |     4 +-
+ web/src/routes/DIRMAP.md                           |     2 +-
+ web/src/routes/status/DIRMAP.md                    |     1 +
+ 61 files changed, 20412 insertions(+), 15775 deletions(-)

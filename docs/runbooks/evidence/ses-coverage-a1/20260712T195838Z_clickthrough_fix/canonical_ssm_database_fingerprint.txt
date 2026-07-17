@@ -1,0 +1,2 @@
+canonical_ssm_endpoint=fjcloud-staging.cabwlew6jcjl.us-east-1.rds.amazonaws.com:5432/fjcloud
+canonical_ssm_sha256_16=a377bb0163e33e75

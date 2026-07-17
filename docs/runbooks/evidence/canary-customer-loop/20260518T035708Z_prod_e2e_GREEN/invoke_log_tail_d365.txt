@@ -1,0 +1,16 @@
+START RequestId: d4378260-5b29-425c-8eb4-32d84dcb85d7 Version: $LATEST
+Traceback (most recent call last):
+File "<stdin>", line 4, in <module>
+File "/usr/lib64/python3.9/json/__init__.py", line 293, in load
+return loads(fp.read(),
+File "/usr/lib64/python3.9/json/__init__.py", line 346, in loads
+return _default_decoder.decode(s)
+File "/usr/lib64/python3.9/json/decoder.py", line 337, in decode
+obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+File "/usr/lib64/python3.9/json/decoder.py", line 355, in raw_decode
+raise JSONDecodeError("Expecting value", s, err.value) from None
+json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+Exception ignored in: <_io.TextIOWrapper name='<stdout>' mode='w' encoding='utf-8'>
+BrokenPipeError: [Errno 32] Broken pipe
+END RequestId: d4378260-5b29-425c-8eb4-32d84dcb85d7
+REPORT RequestId: d4378260-5b29-425c-8eb4-32d84dcb85d7	Duration: 4152.21 ms	Billed Duration: 4261 ms	Memory Size: 512 MB	Max Memory Used: 132 MB	Init Duration: 108.08 ms	Status: error	Error Type: Runtime.ExitError

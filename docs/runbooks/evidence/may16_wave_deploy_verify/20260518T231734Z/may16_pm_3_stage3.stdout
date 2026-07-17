@@ -1,0 +1,10 @@
+# may16_pm_3 playwright leftover classification
+## staging run 26011767092
+createdAt=2026-05-18T03:23:27Z url=https://github.com/gridl-infra-staging/fjcloud/actions/runs/26011767092 headSha=fa64aba192866d5aa72e6409b3ec04fe6375ea16 conclusion=failure
+job=playwright conclusion=failure
+## staging run 26061903895
+createdAt=2026-05-18T21:36:40Z url=https://github.com/gridl-infra-staging/fjcloud/actions/runs/26061903895 headSha=3d179dd0ea6d0f9bb4879bf4dcb7c24166346d9e conclusion=failure
+job=playwright conclusion=failure
+## prod run 26061910339
+createdAt=2026-05-18T21:36:49Z url=https://github.com/gridl-infra-prod/fjcloud/actions/runs/26061910339 headSha=687be7359ae01523e5c5bb500dea77db85fccb4f conclusion=failure
+job=playwright conclusion=failure

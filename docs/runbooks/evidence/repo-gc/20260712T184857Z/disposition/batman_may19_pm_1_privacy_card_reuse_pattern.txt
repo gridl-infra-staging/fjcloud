@@ -1,0 +1,14 @@
+# Disposition Receipt: batman/may19_pm_1_privacy_card_reuse_pattern
+
+Classification: approved freed local branch after approved worktree removal
+Evidence source: current read-only git refs at bundle creation.
+
+## rev-parse
+$ git rev-parse batman/may19_pm_1_privacy_card_reuse_pattern
+2d6bcfb419f8744d0661c13965ccb94bf45ba02a
+
+## cherry
+$ git cherry -v main batman/may19_pm_1_privacy_card_reuse_pattern | tail -20
+
+## diff main...
+$ git diff main...batman/may19_pm_1_privacy_card_reuse_pattern --stat | tail -20

@@ -1,0 +1,3 @@
+http_code=200
+remote_ip=2606:4700:3031::ac43:bb8d
+url_effective=https://app.flapjack.foo/

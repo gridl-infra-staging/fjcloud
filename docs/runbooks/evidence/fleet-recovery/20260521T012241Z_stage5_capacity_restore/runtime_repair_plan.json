@@ -1,0 +1,29 @@
+{
+  "restart_in_place": [
+    {
+      "probe_artifact": "30_host_probe_1_vm_shared_480b5169_flapjack_foo_invocation.json"
+    }
+  ],
+  "replace_via_terminate": [
+    {
+      "host": "vm-shared-1f4d5f46.flapjack.foo",
+      "deployment_id": "f59936aa-599c-4372-81af-b7c5dc90825f",
+      "probe_artifact": "30_host_probe_0_vm_shared_1f4d5f46_flapjack_foo_invocation.json"
+    },
+    {
+      "host": "vm-shared-c7f8cda3.flapjack.foo",
+      "deployment_id": "a44c4083-4741-4f85-923a-806f47c551d7",
+      "probe_artifact": "30_host_probe_2_vm_shared_c7f8cda3_flapjack_foo_invocation.json"
+    },
+    {
+      "host": "vm-shared-a65c4ff9.flapjack.foo",
+      "deployment_id": "c7ad779a-1419-4f6c-8ee1-24105002e8dd",
+      "probe_artifact": "30_host_probe_3_vm_shared_a65c4ff9_flapjack_foo_invocation.json"
+    },
+    {
+      "host": "vm-shared-c47d2e32.flapjack.foo",
+      "deployment_id": "bd69690c-b3d8-4aa0-b49e-70665bd33613",
+      "probe_artifact": "30_host_probe_4_vm_shared_c47d2e32_flapjack_foo_invocation.json"
+    }
+  ]
+}

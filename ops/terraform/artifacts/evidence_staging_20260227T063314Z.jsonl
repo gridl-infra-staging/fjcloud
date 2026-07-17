@@ -1,0 +1,12 @@
+{"command":"preflight:aws_creds","timestamp":"2026-02-27T06:33:14Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"preflight:ami_exists","timestamp":"2026-02-27T06:33:14Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"preflight:dns_delegation","timestamp":"2026-02-27T06:33:14Z","verdict":"FAIL","output":"Domain nameserver delegation mismatch for flapjack.cloud.","artifact_path":""}
+{"command":"preflight:aws_creds","timestamp":"2026-02-27T06:33:15Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"preflight:ami_exists","timestamp":"2026-02-27T06:33:15Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"preflight:release_artifact","timestamp":"2026-02-27T06:33:15Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"preflight:dns_delegation","timestamp":"2026-02-27T06:33:15Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"terraform plan","timestamp":"2026-02-27T06:33:15Z","verdict":"PASS","output":"plan captured","artifact_path":"/Users/stuart/repos/gridl/fjcloud/ops/terraform/artifacts/plan_staging_20260227T063314Z.txt"}
+{"command":"assert:acm_cert_issued","timestamp":"2026-02-27T06:33:15Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"assert:alb_https_listener","timestamp":"2026-02-27T06:33:15Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"assert:target_group_healthy","timestamp":"2026-02-27T06:33:15Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"assert:health_fail","timestamp":"2026-02-27T06:33:15Z","verdict":"PASS","output":"","artifact_path":""}

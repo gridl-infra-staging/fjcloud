@@ -1,0 +1,6 @@
+env=staging
+status=success
+result=pass
+target_status=available
+target_endpoint=fjcloud-staging-restore-20260526003636.*.us-east-1.rds.amazonaws.com
+runbook_source=docs/runbooks/database-backup-recovery.md

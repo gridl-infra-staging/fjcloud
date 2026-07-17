@@ -1,0 +1,49 @@
+# Disposition Receipt: worktree fjcloud_dev
+
+Classification: approved worktree-only removal candidate.
+Worktree path: fjcloud_dev
+Branch: detached
+HEAD SHA: 7114c811cff5b56d736a6a7ab240925a3ed74310
+Ancestor proof command: git merge-base --is-ancestor 7114c811cff5b56d736a6a7ab240925a3ed74310 main
+Ancestor proof exit: 1
+
+## rev-parse
+$ git rev-parse 7114c811cff5b56d736a6a7ab240925a3ed74310
+7114c811cff5b56d736a6a7ab240925a3ed74310
+
+## cherry
+$ git cherry -v main 7114c811cff5b56d736a6a7ab240925a3ed74310 | tail -20
++ f9ef62e0eaa3bf1ce15f532c28718ffd662edc60 matt: stage 3 build session 3
++ 0a9bb0c31603ea33b7a5d56aa7d556349e9bc4ea matt: stage 3 build session 4
++ 77a6e1a313ba2964c68b47e41005bf31a88acf46 matt: stage 3 build session 6
++ bf4bf7a821a7857f433e319b7bda458f7911da4b matt: stage 3 completion
++ 98121dced9d1105146ef60305a78a4777691753e scrai: 21 files documented, 17 artifacts generated, 2 guidance files assembled, 3 state files tracked
++ 41db8b8c07b9a9f1dd87af179ef553531034f84a matt: stage 4 build session 5
++ c8b279ebaf461e030e763dd9c94adcc6b5703f00 matt: stage 4 completion
++ d3e0158c10bc9b15574f7b07e57cf7c88f01eb3a matt: posthoc review
++ 53ed05ad077f3f3f4b576e7d2add837a671bb8f5 matt: posthoc security
++ 27e0cf94242abf18f4684dd17065ffc28af83c6a scrai: 15 files documented, 2 guidance files assembled, 3 state files tracked
++ 7114c811cff5b56d736a6a7ab240925a3ed74310 matt: terminal progress annotation
+
+## diff main...
+$ git diff main...7114c811cff5b56d736a6a7ab240925a3ed74310 --stat | tail -20
+ scripts/lib/stripe_request.sh                      |   2 +
+ scripts/tests/full_backend_validation_test.sh      | 132 +++++
+ scripts/tests/lib/local_dev_test_state.sh          |   2 +
+ scripts/tests/lib/seed_local_mocks.sh              |   2 +
+ ...aging_billing_rehearsal_reset_harness_blocks.sh |   2 +
+ validation_cache.jsonl                             |   1 +
+ web/DIRMAP.md                                      |   4 +-
+ web/src/DIRMAP.md                                  |   4 +-
+ web/src/lib/DIRMAP.md                              |   3 +-
+ web/src/lib/components/DIRMAP.md                   |   2 +
+ web/src/lib/components/EditorDialog.normalize.ts   |  18 +
+ web/src/lib/components/EditorDialog.validation.ts  |  24 +
+ web/src/routes/DIRMAP.md                           |   2 +-
+ web/src/routes/console/DIRMAP.md                   |   2 +-
+ web/src/routes/console/indexes/DIRMAP.md           |   2 +-
+ web/src/routes/console/indexes/[name]/DIRMAP.md    |   2 +
+ .../indexes/[name]/analytics-management.server.ts  |   3 +
+ .../indexes/[name]/chat-management.server.ts       |   3 +
+ web/tests/fixtures/fixtures.ts                     |   3 +
+ 49 files changed, 1162 insertions(+), 278 deletions(-)

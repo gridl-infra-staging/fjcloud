@@ -1,0 +1,2 @@
+/var/lib/amazon/ssm/i-0fbc6d6bbbc8bdc6d/document/orchestration/55947132-11df-4d4e-aa78-8e66fde28ddc/awsrunShellScript/0.awsrunShellScript/_script.sh: line 18: /usr/bin/python3: Argument list too long
+failed to run commands: exit status 126

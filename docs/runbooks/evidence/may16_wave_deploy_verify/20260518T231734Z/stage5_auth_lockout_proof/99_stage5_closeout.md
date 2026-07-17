@@ -1,0 +1,33 @@
+# Stage 5 auth-lockout live proof closeout
+
+- Local CI gate artifacts:
+  - `docs/runbooks/evidence/may16_wave_deploy_verify/20260518T231734Z/stage5_auth_lockout_proof/local_ci.stdout`
+  - `docs/runbooks/evidence/may16_wave_deploy_verify/20260518T231734Z/stage5_auth_lockout_proof/local_ci.stderr`
+  - `docs/runbooks/evidence/may16_wave_deploy_verify/20260518T231734Z/stage5_auth_lockout_proof/local_ci.exit`
+- Local CI precondition remediation artifacts (first run failed due missing `web/node_modules`, then remediated and rerun):
+  - `docs/runbooks/evidence/may16_wave_deploy_verify/20260518T231734Z/stage5_auth_lockout_proof/local_ci_preinstall_missing_node_modules.stdout`
+  - `docs/runbooks/evidence/may16_wave_deploy_verify/20260518T231734Z/stage5_auth_lockout_proof/local_ci_preinstall_missing_node_modules.stderr`
+  - `docs/runbooks/evidence/may16_wave_deploy_verify/20260518T231734Z/stage5_auth_lockout_proof/local_ci_preinstall_missing_node_modules.exit`
+- Hydrated staging exports artifact:
+  - `docs/runbooks/evidence/may16_wave_deploy_verify/20260518T231734Z/stage5_auth_lockout_proof/hydration_context.txt`
+- HTTP contract proof set used for final verdict (run2 capture):
+  - Signup: `signup_run2.request.json`, `signup_run2.response.headers`, `signup_run2.response.body.json`, `signup_run2.http_code` (`201`)
+  - Pre-lockout success login: `login_prelockout_success_run2.request.json`, `login_prelockout_success_run2.response.headers`, `login_prelockout_success_run2.response.body.json`, `login_prelockout_success_run2.http_code` (`200`)
+  - Wrong-password attempts 1-4 (`400` each): `login_wrong_attempt_1_run2.*` through `login_wrong_attempt_4_run2.*`
+  - Fifth wrong-password lockout (`429`): `login_wrong_attempt_5_run2.request.json`, `login_wrong_attempt_5_run2.response.headers`, `login_wrong_attempt_5_run2.response.body.json`, `login_wrong_attempt_5_run2.http_code`
+  - Correct-password during active lockout (`429`): `login_correct_after_five_failures_run2.request.json`, `login_correct_after_five_failures_run2.response.headers`, `login_correct_after_five_failures_run2.response.body.json`, `login_correct_after_five_failures_run2.http_code`
+  - Evidence hygiene: committed JSON artifacts redact sensitive fields (`password` and `token` are `[REDACTED]`) while preserving HTTP codes, headers, and lockout-state proof values.
+- Parsed `Retry-After` evidence:
+  - `retry_after_wrong5_run2.txt` (`1800`)
+  - `retry_after_correct_after_five_run2.txt` (`1800`)
+- Staging RDS schema/state verification:
+  - Schema columns: `information_schema_lockout_columns_run2.txt`
+  - Customer lockout row: `customer_lockout_state_row_run2.txt`
+  - Assertion query (`failed_login_count>=5`, window start non-null, lockout in future): `customer_lockout_state_assertions_run2.txt`
+- Cleanup evidence:
+  - Admin cleanup response: `cleanup_admin_delete_run2.http_code` (`204`), `cleanup_admin_delete_run2.response.headers`, `cleanup_admin_delete_run2.response.body.json`
+  - Post-cleanup row state: `cleanup_customer_post_state_run2.txt` (`status=deleted`, `has_deleted_at=t`)
+- Observed Stage 5 probe anomaly retained for audit:
+  - Initial probe artifacts (without `_run2`) show a 5th-attempt `400`; rerun with fresh isolated customer produced the expected lockout contract and is the authoritative proof set for Stage 7.
+- SKIP status handling:
+  - `bash scripts/local-ci.sh` reported no `SKIP` gates in the passing run.

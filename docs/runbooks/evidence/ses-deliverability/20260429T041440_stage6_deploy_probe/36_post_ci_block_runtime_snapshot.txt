@@ -1,0 +1,7 @@
+timestamp=2026-04-29T08:30:30Z
+command=aws ssm get-parameter --name /fjcloud/staging/last_deploy_sha --query Parameter.Value --output text --region us-east-1
+f68856f7f93f7e5fb96b837d020415d2c64180af
+command=scripts/launch/ssm_exec_staging.sh grep SES_CONFIGURATION_SET
+host_env_check_status=missing
+command=curl -fsS https://api.flapjack.foo/health
+{"status":"ok"}

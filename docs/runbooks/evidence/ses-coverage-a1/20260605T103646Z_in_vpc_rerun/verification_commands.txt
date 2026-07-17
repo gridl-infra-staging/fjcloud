@@ -1,0 +1,73 @@
+# Stage 2 command transcript for docs/runbooks/evidence/ses-coverage-a1/20260605T103646Z_in_vpc_rerun
+# .runtime/host.env is the remote equivalent of the authorized local --env-file source /Users/stuart/repos/gridl-infra-dev/fjcloud_dev/.secret/.env.secret, materialized from that file's allowed test tenant list plus staging SSM parameters. Secret values are intentionally not committed.
+
+RUN_UTC="20260605T103646Z"
+BUNDLE="docs/runbooks/evidence/ses-coverage-a1/20260605T103646Z_in_vpc_rerun"
+SECRET_SOURCE="/Users/stuart/repos/gridl-infra-dev/fjcloud_dev/.secret/.env.secret"
+BILLING_MONTH="2026-06"
+TMP_ROOT="/tmp/a1_vpc_rerun_20260605T103646Z"
+S3_PREFIX="s3://fjcloud-releases-staging/a1-vpc-rerun/20260605T103646Z"
+
+mkdir -p "$BUNDLE"
+cp docs/runbooks/evidence/ses-coverage-a1/20260603T033009Z_in_vpc_rerun/stage4_integrity.py "$BUNDLE/stage4_integrity.py"
+cmp docs/runbooks/evidence/ses-coverage-a1/20260603T033009Z_in_vpc_rerun/stage4_integrity.py "$BUNDLE/stage4_integrity.py"
+aws sts get-caller-identity --output json > "$BUNDLE/aws_identity.json"
+aws ec2 describe-instances --region us-east-1 --filters "Name=tag:Name,Values=fjcloud-api-staging" "Name=instance-state-name,Values=running" --output json > "$BUNDLE/ec2_instance_discovery.json"
+aws ssm describe-instance-information --region us-east-1 --filters "Key=InstanceIds,Values=<instance id from ec2_instance_discovery.json>" --output json > "$BUNDLE/ssm_target_preflight.json"
+python3 - <<'PY_SECRET_PREFLIGHT' > "$BUNDLE/secret_preflight_evidence.txt"
+from pathlib import Path
+secret_path = Path('/Users/stuart/repos/gridl-infra-dev/fjcloud_dev/.secret/.env.secret')
+keys = {}
+for line in secret_path.read_text().splitlines():
+    line = line.strip()
+    if not line or line.startswith('#') or '=' not in line:
+        continue
+    key, value = line.split('=', 1)
+    keys[key] = value.strip().strip('"').strip("'")
+assert keys.get('STRIPE_SECRET_KEY', '').startswith('sk_test_')
+assert keys.get('FJCLOUD_TEST_TENANT_IDS')
+print('secret_source_exists=1')
+print('STRIPE_SECRET_KEY_prefix_ok=true')
+print('FJCLOUD_TEST_TENANT_IDS_present=true')
+print('printed_secret_values=0')
+PY_SECRET_PREFLIGHT
+
+# Credential correction: the ambient shell AWS env returned InvalidClientTokenId. The remaining AWS/SSM commands export the authorized project-local secret source before execution:
+# set -a; source /Users/stuart/repos/gridl-infra-dev/fjcloud_dev/.secret/.env.secret; set +a
+
+# Prepare in-VPC checkout payload with a temporary materializer. The tenant allowlist is read from SECRET_SOURCE at execution time and never printed.
+rm -rf "$TMP_ROOT" && mkdir -p "$TMP_ROOT/.runtime"
+cp -R scripts "$TMP_ROOT/scripts"
+# write "$TMP_ROOT/.runtime/materialize_host_env.sh", substitute shell-quoted FJCLOUD_TEST_TENANT_IDS from SECRET_SOURCE, then tar scripts + .runtime
+(cd "$TMP_ROOT" && COPYFILE_DISABLE=1 tar -czf scripts.tar.gz scripts .runtime > "$BUNDLE/tarball_build.log" 2>&1)
+python3 <tarball shape probe> > "$BUNDLE/tarball_build_evidence.txt"
+aws s3 cp "$TMP_ROOT/scripts.tar.gz" "s3://fjcloud-releases-staging/a1-vpc-rerun/20260605T103646Z/scripts.tar.gz" --region us-east-1 > "$BUNDLE/s3_upload.log" 2>&1
+SSM_EXEC_TIMEOUT_SECONDS=300 AWS_DEFAULT_REGION=us-east-1 scripts/launch/ssm_exec_staging.sh "set -euo pipefail; rm -rf /tmp/a1_vpc_rerun_20260605T103646Z; mkdir -p /tmp/a1_vpc_rerun_20260605T103646Z; cd /tmp/a1_vpc_rerun_20260605T103646Z; aws s3 cp s3://fjcloud-releases-staging/a1-vpc-rerun/20260605T103646Z/scripts.tar.gz scripts.tar.gz --region us-east-1; tar -xzf scripts.tar.gz; chmod +x scripts/*.sh scripts/launch/*.sh .runtime/*.sh; echo HOST_CHECKOUT_READY" > "$BUNDLE/host_checkout.log" 2>&1
+SSM_EXEC_TIMEOUT_SECONDS=300 AWS_DEFAULT_REGION=us-east-1 scripts/launch/ssm_exec_staging.sh "cd /tmp/a1_vpc_rerun_20260605T103646Z && bash .runtime/materialize_host_env.sh" > "$BUNDLE/host_env_materialize.log" 2>&1
+
+# Short probes through the staging SSM wrapper.
+SSM_EXEC_TIMEOUT_SECONDS=1800 AWS_DEFAULT_REGION=us-east-1 scripts/launch/ssm_exec_staging.sh "cd /tmp/a1_vpc_rerun_20260605T103646Z && bash scripts/probe_verify_email_clickthrough_e2e.sh --env-file .runtime/host.env" > "$BUNDLE/verify_email_clickthrough.log" 2>&1
+SSM_EXEC_TIMEOUT_SECONDS=1800 AWS_DEFAULT_REGION=us-east-1 scripts/launch/ssm_exec_staging.sh "cd /tmp/a1_vpc_rerun_20260605T103646Z && bash scripts/probe_password_reset_clickthrough_e2e.sh --env-file .runtime/host.env" > "$BUNDLE/password_reset_clickthrough.log" 2>&1
+SSM_EXEC_TIMEOUT_SECONDS=1800 AWS_DEFAULT_REGION=us-east-1 scripts/launch/ssm_exec_staging.sh "cd /tmp/a1_vpc_rerun_20260605T103646Z && bash scripts/probe_ses_bounce_complaint_e2e.sh bounce .runtime/host.env" > "$BUNDLE/ses_bounce.log" 2>&1
+SSM_EXEC_TIMEOUT_SECONDS=1800 AWS_DEFAULT_REGION=us-east-1 scripts/launch/ssm_exec_staging.sh "cd /tmp/a1_vpc_rerun_20260605T103646Z && bash scripts/probe_ses_bounce_complaint_e2e.sh complaint .runtime/host.env" > "$BUNDLE/ses_complaint.log" 2>&1
+
+# Long probes use local wrapper background-and-poll, not detached host work. Actual PID and wait result are appended below.
+dunning_email_inbox_wrapper_command=SSM_EXEC_TIMEOUT_SECONDS=1800 AWS_DEFAULT_REGION=us-east-1 scripts/launch/ssm_exec_staging.sh "cd /tmp/a1_vpc_rerun_20260605T103646Z && bash scripts/probe_dunning_email_inbox_e2e.sh --env-file .runtime/host.env --month 2026-06"
+dunning_email_inbox_wrapper_pid=19072
+dunning_email_inbox_wait_rc=0
+staging_dunning_delivery_wrapper_command=SSM_EXEC_TIMEOUT_SECONDS=1800 AWS_DEFAULT_REGION=us-east-1 scripts/launch/ssm_exec_staging.sh "cd /tmp/a1_vpc_rerun_20260605T103646Z && bash scripts/validate_staging_dunning_delivery.sh --env-file .runtime/host.env --month 2026-06 --confirm-live-mutation"
+staging_dunning_delivery_wrapper_pid=30282
+staging_dunning_delivery_wait_rc=0
+SSM_EXEC_TIMEOUT_SECONDS=300 AWS_DEFAULT_REGION=us-east-1 scripts/launch/ssm_exec_staging.sh "rm -rf /tmp/a1_vpc_rerun_20260605T103646Z; echo HOST_CLEANUP_READY" > "$BUNDLE/host_cleanup.log" 2>&1
+aws s3 rm "s3://fjcloud-releases-staging/a1-vpc-rerun/20260605T103646Z" --recursive --region us-east-1 > "$BUNDLE/s3_cleanup.log" 2>&1
+python3 "$BUNDLE/stage4_integrity.py" "$BUNDLE" > "$BUNDLE/integrity_check.log" 2>&1
+cat "$BUNDLE/all_green.txt"
+cat "$BUNDLE/probe_results.tsv"
+python3 -m json.tool "$BUNDLE/failure_classifications.json"
+python3 "$BUNDLE/stage4_integrity.py" "$BUNDLE"
+dunning_email_inbox.log.rc=0
+password_reset_clickthrough.log.rc=1
+ses_bounce.log.rc=0
+ses_complaint.log.rc=0
+staging_dunning_delivery.log.rc=0
+verify_email_clickthrough.log.rc=1

@@ -1,0 +1,53 @@
+PRECREATED web/tests/fixtures/.auth/{user,admin,onboarding,customer-journeys}.json
+BASE_URL=https://cloud.staging.flapjack.foo API_URL=https://api.staging.flapjack.foo API_BASE_URL=https://api.staging.flapjack.foo PLAYWRIGHT_TARGET_REMOTE=1
+COMMAND=cd web && npx playwright test tests/e2e-ui/full/console_chrome_polish.spec.ts --project=chromium --reporter=list --no-deps
+
+
+Running 1 test using 1 worker
+
+  ✘  1 [chromium] › tests/e2e-ui/full/console_chrome_polish.spec.ts:51:2 › Console chrome polish shared-to-paid seam › staging seam shows shared API plan with paid console chrome and migrated shell elements (6.0s)
+
+
+  1) [chromium] › tests/e2e-ui/full/console_chrome_polish.spec.ts:51:2 › Console chrome polish shared-to-paid seam › staging seam shows shared API plan with paid console chrome and migrated shell elements 
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoHaveText[2m([22m[32mexpected[39m[2m)[22m failed
+
+    Locator:  getByTestId('plan-badge')
+    Expected: [32m"[7mPai[27md Plan"[39m
+    Received: [31m"[7mShare[27md Plan"[39m
+    Timeout:  5000ms
+
+    Call log:
+    [2m  - Expect "toHaveText" with timeout 5000ms[22m
+    [2m  - waiting for getByTestId('plan-badge')[22m
+    [2m    9 × locator resolved to <span data-testid="plan-badge" class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-[#9fd8d2]/30 text-[#1f1b18]">Shared Plan</span>[22m
+    [2m      - unexpected value "Shared Plan"[22m
+
+
+      78 | 		const planBadge = page.getByTestId('plan-badge');
+      79 | 		await expect(planBadge).toBeVisible();
+    > 80 | 		await expect(planBadge).toHaveText('Paid Plan');
+         | 		                        ^
+      81 |
+      82 | 		const betaPill = page.getByTestId('dashboard-beta-pill');
+      83 | 		await expect(betaPill).toBeVisible();
+        at web/tests/e2e-ui/full/console_chrome_polish.spec.ts:80:27
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/e2e-ui-full-console_chrome-d13c2-and-migrated-shell-elements-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/e2e-ui-full-console_chrome-d13c2-and-migrated-shell-elements-chromium/error-context.md
+
+  1 failed
+    [chromium] › tests/e2e-ui/full/console_chrome_polish.spec.ts:51:2 › Console chrome polish shared-to-paid seam › staging seam shows shared API plan with paid console chrome and migrated shell elements 
+
+(node:13319) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:13331) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:13331) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:13331) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+EXIT=1

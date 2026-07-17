@@ -1,0 +1,6 @@
+reproducibility_check=PASS
+primary_soft_deleted_via_admin_route=0
+primary_already_deleted_confirmed=62
+rerun_soft_deleted_via_admin_route=0
+rerun_already_deleted_confirmed=62
+active_exact_cleanup_customers_total=62

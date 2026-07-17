@@ -1,0 +1,5 @@
+{
+  "execution_disposition": "no_mutation",
+  "refund_post_count": 0,
+  "reason": "All exact prod cohort rows have null stripe_customer_id in Stage 1 exact CSV; Stage 2 correctly emits no_stripe_account dispositions and proposes zero refunds."
+}

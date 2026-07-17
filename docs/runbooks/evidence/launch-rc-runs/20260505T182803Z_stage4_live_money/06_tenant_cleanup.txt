@@ -1,0 +1,23 @@
+Stage 4 Tenant Cleanup
+======================
+timestamp_utc=20260505T184216Z
+
+Cleanup seam: DELETE /admin/tenants/{id} with x-admin-key header
+Owner: scripts/canary/customer_loop_synthetic.sh::cleanup_after_flow (same path)
+
+Tenant 1: 6ba3cd90-9ed0-430a-adec-cdde977fca51
+  Email: signup-paid-20260505t182156z-9106@e2e.griddle.test
+  Cleanup: DELETE /admin/tenants/6ba3cd90-9ed0-430a-adec-cdde977fca51 -> HTTP 204
+  Confirm: GET /admin/tenants/6ba3cd90-... -> status=deleted, billing_health=grey
+
+Tenant 2: b2ab79bd-ec77-403e-91ae-0f430396ff63
+  Email: stage4+s4live202605051828472975@test.flapjack.foo
+  Cleanup: DELETE /admin/tenants/b2ab79bd-ec77-403e-91ae-0f430396ff63 -> HTTP 204
+  Confirm: GET /admin/tenants/b2ab79bd-... -> status=deleted, billing_health=grey
+
+VERDICT: fjcloud-side tenant cleanup PASS (both tenants deleted via existing admin API seam)
+
+Stripe-side cleanup pending operator action (STOP-8):
+  cus_USjANpIjWX1zM7 (test-mode, synced from staging API)
+  cus_USjFZnH4OX8hWr (live-mode, created directly, no PM)
+  cus_URij8h4pXDprIK (Phase G, voided invoice + 2 failed charges from this session)

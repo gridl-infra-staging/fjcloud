@@ -1,0 +1,22 @@
+# Stage 4 Prod Strip Check
+
+timestamp_utc=2026-05-21T01:42:08Z
+owner=.debbie/post-sync.sh::run_scrai_strip()
+
+## debbie_hook_output
+[debbie_sync_prod]
+
+debbie sync -> prod
+  project: fjcloud
+  config:  $TMPDIR/redacted-path
+
+scrai strip: files_discovered=674 files_modified=244 candidates_removed=1086
+ok Synced 9 dirs, 13 files
+   hook: executed
+
+ok fjcloud -> prod complete
+
+## todo_document_probe
+[strip_probe]
+    1846
+note=hook executed; residual TODO comments recorded as evidence; no fallback strip rerun required

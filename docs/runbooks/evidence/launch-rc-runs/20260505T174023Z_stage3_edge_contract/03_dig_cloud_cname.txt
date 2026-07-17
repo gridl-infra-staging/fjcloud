@@ -1,0 +1,10 @@
+command: dig +short CNAME cloud.flapjack.foo @1.1.1.1
+head_sha: 444c9cc4b7920beed806ef0b06ac1865e1a77e97
+clean_tree: true
+cache_check: MISS
+(no CNAME answer returned by 1.1.1.1 for proxied host)
+resolver_a_readback: dig +short cloud.flapjack.foo @1.1.1.1
+172.67.187.141
+104.21.7.70
+RECORDED
+status: pass

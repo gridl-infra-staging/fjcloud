@@ -1,0 +1,8 @@
+source_green_bundle=docs/runbooks/evidence/staging-billing-rehearsal/20260712T010555Z_current_main
+billing_month=2026-07
+secret_source=/Users/stuart/repos/gridl-infra-dev/fjcloud_dev/.secret/.env.secret
+stripe_environment_contract=docs/design/stripe_environments.md
+head_sha=31e77ce08abd3e67116b7081dd78b549b7834bff
+created_utc=2026-07-12T21:10:53Z
+inbox_probe_default_month=2026-07
+inbox_probe_month_behavior=script default is date -u +%Y-%m; current default matched selected billing_month before owner validator exited 1

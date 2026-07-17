@@ -1,0 +1,38 @@
+{
+  "detect_kind": "final_json_passed_true",
+  "log_path": "docs/runbooks/evidence/ses-coverage-a1/20260603T033009Z_in_vpc_rerun/ses_complaint.log",
+  "parsed_evidence": {
+    "final_json": {
+      "elapsed_ms": 585,
+      "passed": false,
+      "steps": [
+        {
+          "detail": "Loaded env file '.runtime/host.env'; mode='complaint'; recipient='complaint@simulator.amazonses.com'; subject_prefix='fjcloud-ses-bounce-complaint-probe'.",
+          "name": "preflight",
+          "passed": true
+        },
+        {
+          "detail": "Seeded probe customer id '81b371a0-a039-43fe-9df1-4486dde8f946' and cleared prior probe-owned rows for recipient 'complaint@simulator.amazonses.com'.",
+          "name": "seed_probe_customer",
+          "passed": true
+        },
+        {
+          "detail": "First broadcast call failed for subject 'fjcloud-ses-bounce-complaint-probe-complaint-20260603T033330Z-739428-first': [customer-broadcast] ERROR: broadcast request failed with HTTP 401.",
+          "name": "first_live_send",
+          "passed": false
+        },
+        {
+          "detail": "Soft-deleted probe customer id '81b371a0-a039-43fe-9df1-4486dde8f946' so future broadcasts exclude the simulator recipient.",
+          "name": "cleanup_probe_customer",
+          "passed": true
+        }
+      ]
+    },
+    "json_object_count": 5,
+    "last_nonempty_line": "{\"passed\":false,\"steps\":[{\"name\":\"preflight\",\"passed\":true,\"detail\":\"Loaded env file '.runtime/host.env'; mode='complaint'; recipient='complaint@simulator.amazonses.com'; subject_prefix='fjcloud-ses-bounce-complaint-probe'.\"},{\"name\":\"seed_probe_customer\",\"passed\":true,\"detail\":\"Seeded probe customer id '81b371a0-a039-43fe-9df1-4486dde8f946' and cleared prior probe-owned rows for recipient 'complaint@simulator.amazonses.com'.\"},{\"name\":\"first_live_send\",\"passed\":false,\"detail\":\"First broadcast call failed for subject 'fjcloud-ses-bounce-complaint-probe-complaint-20260603T033330Z-739428-first': [customer-broadcast] ERROR: broadcast request failed with HTTP 401.\"},{\"name\":\"cleanup_probe_customer\",\"passed\":true,\"detail\":\"Soft-deleted probe customer id '81b371a0-a039-43fe-9df1-4486dde8f946' so future broadcasts exclude the simulator recipient.\"}],\"elapsed_ms\":585}failed to run commands: exit status 1",
+    "terminus_line": null
+  },
+  "pass": false,
+  "probe_id": "ses_complaint",
+  "rc": 1
+}

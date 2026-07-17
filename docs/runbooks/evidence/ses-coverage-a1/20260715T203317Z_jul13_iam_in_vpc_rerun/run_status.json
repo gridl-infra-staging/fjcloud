@@ -1,0 +1,11 @@
+{
+  "status": "complete_red",
+  "rc": 10,
+  "argv": [
+    "--sha=44e00ddef877e8a31c08560854dae4219b542357",
+    "--artifact-dir=docs/runbooks/evidence/ses-coverage-a1/20260715T203317Z_jul13_iam_in_vpc_rerun",
+    "--credential-env-file=/Users/stuart/repos/gridl-infra-dev/fjcloud_dev/.secret/.env.secret",
+    "--billing-month=2026-06"
+  ],
+  "instance_id": "i-0fbc6d6bbbc8bdc6d"
+}

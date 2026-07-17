@@ -1,0 +1,1 @@
+command=bash scripts/staging_billing_rehearsal.sh --env-file .secret/.env.secret --reset-test-state --confirm-test-tenant 9ef0c894-b3f1-4d78-bc50-949433ded7b3

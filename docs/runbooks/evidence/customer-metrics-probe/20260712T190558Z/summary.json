@@ -1,0 +1,430 @@
+{
+  "api_url": "https://api.staging.flapjack.foo",
+  "cache_reuse_ok": true,
+  "cleanup_ok": true,
+  "cleanup_state": {
+    "account_deleted": true,
+    "admin_cleaned": true,
+    "index_created": false
+  },
+  "customer_id": "2dc1ca7d-fc81-4637-8265-20a2a8be1e16",
+  "exit_code": 0,
+  "failure_detail": "",
+  "fetched_at_first": "2026-07-12T19:06:04.876434310Z",
+  "fetched_at_second": "2026-07-12T19:06:04.876434310Z",
+  "first_response": {
+    "documents_count": 1,
+    "fetched_at": "2026-07-12T19:06:04.876434310Z",
+    "index": "canary-canary202607121905592624",
+    "search_requests_total": 0,
+    "storage_bytes": 0,
+    "write_operations_total": 1
+  },
+  "index_name": "canary-canary202607121905592624",
+  "metrics_populated_ok": true,
+  "metrics_tab_data_ok": true,
+  "metrics_tab_data_response": {
+    "nodes": [
+      null,
+      {
+        "data": [
+          {
+            "impersonation": 16,
+            "onboardingStatus": 9,
+            "planContext": 18,
+            "profile": 3,
+            "user": 1
+          },
+          {
+            "customerId": 2
+          },
+          "2dc1ca7d-fc81-4637-8265-20a2a8be1e16",
+          {
+            "billing_plan": 7,
+            "created_at": 8,
+            "email": 5,
+            "email_verified": 6,
+            "id": 2,
+            "name": 4
+          },
+          "Staging Customer Canary",
+          "canary+canary202607121905592624@test.flapjack.foo",
+          true,
+          "free",
+          "2026-07-12T19:05:59.274293Z",
+          {
+            "billing_plan": 7,
+            "completed": 6,
+            "flapjack_url": 16,
+            "free_tier_limits": 11,
+            "has_api_key": 10,
+            "has_index": 6,
+            "has_payment_method": 10,
+            "has_region": 6,
+            "region_ready": 10,
+            "suggested_next_step": 17
+          },
+          false,
+          {
+            "max_indexes": 15,
+            "max_records": 13,
+            "max_searches_per_month": 12,
+            "max_storage_mb": 14
+          },
+          50000,
+          100000,
+          250,
+          3,
+          null,
+          "You're all set!",
+          {
+            "billing_plan": 7,
+            "free_tier_limits": 19,
+            "has_payment_method": 10,
+            "onboarding_completed": 6,
+            "onboarding_status_loaded": 6
+          },
+          {
+            "max_indexes": 15,
+            "max_records": 13,
+            "max_searches_per_month": 12,
+            "max_storage_mb": 14
+          }
+        ],
+        "type": "data",
+        "uses": {}
+      },
+      {
+        "data": [
+          {
+            "allIndexes": 98,
+            "analyticsEndDate": 76,
+            "analyticsPeriod": 74,
+            "analyticsStartDate": 75,
+            "analyticsStatus": 85,
+            "debugEvents": 90,
+            "dictionaries": 92,
+            "dictionaryBrowseError": 33,
+            "documents": 60,
+            "eventsLoadError": 33,
+            "experimentResults": 73,
+            "experiments": 72,
+            "index": 1,
+            "metrics": 88,
+            "metricsError": 14,
+            "noResultRate": 79,
+            "noResults": 83,
+            "personalizationStrategy": 14,
+            "qsConfig": 14,
+            "qsStatus": 14,
+            "rawIndexName": 2,
+            "regions": 35,
+            "replicas": 34,
+            "rules": 68,
+            "searchCount": 77,
+            "securitySources": 97,
+            "securitySourcesLoadError": 33,
+            "settings": 10,
+            "synonyms": 70,
+            "topSearches": 81
+          },
+          {
+            "created_at": 9,
+            "data_size_bytes": 6,
+            "endpoint": 4,
+            "entries": 5,
+            "name": 2,
+            "region": 3,
+            "status": 7,
+            "tier": 8
+          },
+          "canary-canary202607121905592624",
+          "us-east-1",
+          "http://vm-shared-f2b9c8a6.flapjack.foo:7700",
+          1,
+          129,
+          "unknown",
+          "active",
+          "2026-07-12T19:06:04.120826+00:00",
+          {
+            "alternativesAsExact": 11,
+            "attributeForDistinct": 14,
+            "attributesForFaceting": 14,
+            "attributesToHighlight": 14,
+            "attributesToRetrieve": 14,
+            "attributesToSnippet": 14,
+            "customRanking": 14,
+            "exactOnSingleWordQuery": 15,
+            "highlightPostTag": 16,
+            "highlightPreTag": 17,
+            "hitsPerPage": 18,
+            "maxValuesPerFacet": 19,
+            "minWordSizefor1Typo": 20,
+            "minWordSizefor2Typos": 21,
+            "numericAttributesForFiltering": 14,
+            "optionalWords": 14,
+            "paginationLimitedTo": 22,
+            "queryType": 23,
+            "ranking": 24,
+            "removeWordsIfNoResults": 32,
+            "searchableAttributes": 14,
+            "separatorsToIndex": 33,
+            "unretrievableAttributes": 14,
+            "version": 5
+          },
+          [
+            12,
+            13
+          ],
+          "ignorePlurals",
+          "singleWordSynonym",
+          null,
+          "attribute",
+          "</em>",
+          "<em>",
+          20,
+          100,
+          4,
+          8,
+          1000,
+          "prefixLast",
+          [
+            25,
+            26,
+            27,
+            28,
+            29,
+            15,
+            30,
+            31
+          ],
+          "typo",
+          "geo",
+          "words",
+          "filters",
+          "proximity",
+          "exact",
+          "custom",
+          "none",
+          "",
+          [],
+          [
+            36,
+            40,
+            43,
+            48,
+            52,
+            56
+          ],
+          {
+            "available": 39,
+            "display_name": 37,
+            "id": 3,
+            "provider": 38,
+            "provider_location": 3
+          },
+          "US East (Virginia)",
+          "aws",
+          true,
+          {
+            "available": 39,
+            "display_name": 42,
+            "id": 41,
+            "provider": 38,
+            "provider_location": 41
+          },
+          "eu-west-1",
+          "EU West (Ireland)",
+          {
+            "available": 39,
+            "display_name": 45,
+            "id": 44,
+            "provider": 46,
+            "provider_location": 47
+          },
+          "eu-central-1",
+          "EU Central (Germany)",
+          "hetzner",
+          "fsn1",
+          {
+            "available": 39,
+            "display_name": 50,
+            "id": 49,
+            "provider": 46,
+            "provider_location": 51
+          },
+          "eu-north-1",
+          "EU North (Helsinki)",
+          "hel1",
+          {
+            "available": 39,
+            "display_name": 54,
+            "id": 53,
+            "provider": 46,
+            "provider_location": 55
+          },
+          "us-east-2",
+          "US East (Ashburn)",
+          "ash",
+          {
+            "available": 39,
+            "display_name": 58,
+            "id": 57,
+            "provider": 46,
+            "provider_location": 59
+          },
+          "us-west-1",
+          "US West (Oregon)",
+          "hil",
+          {
+            "cursor": 14,
+            "hits": 61,
+            "hitsPerPage": 18,
+            "nbHits": 5,
+            "nbPages": 5,
+            "page": 66,
+            "params": 67,
+            "query": 33
+          },
+          [
+            62
+          ],
+          {
+            "body": 63,
+            "objectID": 64,
+            "title": 65
+          },
+          "canary202607121905592624",
+          "canary-doc-1",
+          "Customer Loop Canary Document",
+          0,
+          "hitsPerPage=20",
+          {
+            "hits": 69,
+            "nbHits": 66,
+            "nbPages": 66,
+            "page": 66,
+            "query": 33,
+            "totalNbHits": 66
+          },
+          [],
+          {
+            "hits": 71,
+            "nbHits": 66,
+            "nbPages": 66,
+            "page": 66
+          },
+          [],
+          {
+            "abtests": 14,
+            "count": 66,
+            "total": 66
+          },
+          {},
+          "7d",
+          "2026-07-06",
+          "2026-07-12",
+          {
+            "count": 66,
+            "dates": 78
+          },
+          [],
+          {
+            "count": 66,
+            "dates": 80,
+            "noResults": 66,
+            "rate": 14
+          },
+          [],
+          {
+            "searches": 82
+          },
+          [],
+          {
+            "searches": 84
+          },
+          [],
+          {
+            "enabled": 39,
+            "hasData": 86,
+            "retentionDays": 87
+          },
+          false,
+          90,
+          {
+            "documents_count": 5,
+            "fetched_at": 89,
+            "index": 2,
+            "search_requests_total": 66,
+            "storage_bytes": 66,
+            "write_operations_total": 5
+          },
+          "2026-07-12T19:06:04.876434310Z",
+          {
+            "count": 66,
+            "events": 91
+          },
+          [],
+          {
+            "entries": 95,
+            "languages": 93,
+            "selectedDictionary": 94,
+            "selectedLanguage": 33
+          },
+          {},
+          "stopwords",
+          {
+            "hits": 96,
+            "nbHits": 66,
+            "nbPages": 66,
+            "page": 66
+          },
+          [],
+          [],
+          [
+            99
+          ],
+          {
+            "created_at": 9,
+            "data_size_bytes": 66,
+            "endpoint": 4,
+            "entries": 66,
+            "name": 2,
+            "region": 3,
+            "status": 7,
+            "tier": 8
+          }
+        ],
+        "type": "data",
+        "uses": {
+          "dependencies": [
+            "app:index-metrics:canary-canary202607121905592624"
+          ],
+          "params": [
+            "name"
+          ],
+          "search_params": [
+            "q",
+            "period",
+            "dict",
+            "lang"
+          ]
+        }
+      }
+    ],
+    "type": "data"
+  },
+  "metrics_tab_data_response_type": "data",
+  "second_response": {
+    "documents_count": 1,
+    "fetched_at": "2026-07-12T19:06:04.876434310Z",
+    "index": "canary-canary202607121905592624",
+    "search_requests_total": 0,
+    "storage_bytes": 0,
+    "write_operations_total": 1
+  },
+  "shape_ok": true,
+  "skip_detail": "",
+  "skip_reason": "",
+  "status": "pass"
+}

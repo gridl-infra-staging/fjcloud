@@ -1,0 +1,10 @@
+{
+  "captured_at_utc": "2026-05-18T04:15:04.753913Z",
+  "mode": "run-b",
+  "stripe_pay_out_of_band": true,
+  "fjcloud_customer_id": "2b45124d-7d03-451a-b825-9934d1e5b084",
+  "stripe_customer_id": "cus_UXNJDNHG5X9Tjl",
+  "fjcloud_invoice_id": "d936b848-9a38-408f-9069-5bd953727b3b",
+  "stripe_invoice_id": "in_1TYIZ3GXI8zVz4UHhxYiLFku",
+  "index_name": "lifecycle-canary2026051804134717840"
+}

@@ -1,0 +1,3 @@
+url=https://cloud.staging.flapjack.foo/pricing
+http_code=200
+time_total=0.199146

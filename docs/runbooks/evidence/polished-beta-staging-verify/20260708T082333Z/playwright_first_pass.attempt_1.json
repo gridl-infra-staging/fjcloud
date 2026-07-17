@@ -1,0 +1,6 @@
+{
+  "reporterCapture": {
+    "status": "empty",
+    "reason": "Original Playwright reporter artifact was zero bytes before evidence secret hygiene guard cleanup."
+  }
+}

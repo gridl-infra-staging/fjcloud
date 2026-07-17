@@ -1,0 +1,14 @@
+timestamp_utc: 2026-05-21T07:16:47Z
+CI staging gate: PASS (run_conclusion=failure, deploy-staging=success)
+CI prod gate: PASS (run_conclusion=failure, deploy-prod=success)
+canary alarm gate: PASS (state=OK)
+run-a gate: FAIL
+version SHA match staging: FAIL (mirror_sha=unknown, ci_headSha=f689fb069c8625259e8c212a4d0aadb29d805cf7)
+version SHA match prod: PASS (mirror_sha=3f4370ff52acf7a96e989a949eeb9dbc64169569, ci_headSha=3f4370ff52acf7a96e989a949eeb9dbc64169569)
+prod commits_behind_main gate: FAIL (commits_behind_main=86)
+OVERALL VERDICT: FAIL
+
+Owning lane gaps:
+- may20_3pm_1_fleet_recovery: run-a create_index step failed with HTTP 503 after retries; provisioning/index path is not healthy.
+- may20_3pm_2_pipeline_propagation: staging /version returned unknown mirror/dev SHA, so deploy propagation to staging API is unverified/broken.
+- may20_3pm_2_pipeline_propagation: prod deploy is 86 commits behind dev main despite CI deploy job success; main convergence not achieved.

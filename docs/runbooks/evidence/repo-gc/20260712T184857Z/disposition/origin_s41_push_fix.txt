@@ -1,0 +1,54 @@
+# Disposition Receipt: origin/s41_push_fix
+
+Classification: approved remote branch deletion; manifest stores short branch name
+Evidence source: current read-only git refs at bundle creation.
+
+## rev-parse
+$ git rev-parse origin/s41_push_fix
+f8b3b5f74a56d2eca47c142f48788a48c674336b
+
+## cherry
+$ git cherry -v main origin/s41_push_fix | tail -20
+- 0aebe0595377134335bb97897aca509c6648bf3f matt: stage 1 build session 3
+- 0ae6d0f345322571405ea7e7780bfbd7958599a2 matt: terminal progress annotation
++ 7a09d9e0d8cf4048edace7dd663c322109695875 Strengthen Suggestions and cross-surface test coverage
+- aad6477b653031dbc9295e0456c4e12783f06d40 matt: terminal progress annotation
++ ad365e2fa9bb8424373773a80adf00b16e3fce3c matt: stage 1 build session 2
+- 048e2503bbe562e0327b4b18cbfb074c17678664 matt: stage 1 completion
+- 9b29c4f5b0e604515f44f977c2d74fab72cefac7 test: assert suggestions rebuild POST in 3f e2e
+- f4ab67232294380e075ebb57cd97d54a212170b2 test: strengthen 3f suggestions rebuild proof
+- 359c2825fd750fc1e3f69ef1921427e2e22a61f9 test: tighten 3f cross-surface assertions with worktree-local flapjack
+- ebce735a0de0ad7aaced68719d7549591ea8d0ca test: tighten 3f rebuild proof and merchandising payload assertions
+- 3aa610cb3255eaf8d10c3aaa6b7a36108052be55 test: cover suggestions action error delegation paths
+- 9f7911c4574778f6a9ef3777e6c6574739db08b3 test: tighten 3F rules readback proof assertions
+- 449f4619dd1fde79284ebebeccb84b06d0ce1851 Fix experiment action locators in index-detail e2e
++ e901f73145870343fb2915ac9542ffde9a81f567 test: remove dead 3F rebuild var, tighten QS-action delegation seam
++ 52dd0c16b3579e348a7bacffcfc5fde7d07139f4 matt: stage 2 completion
++ 4b1a8a0b50664155c35a67242f6a0a69e7aee0e7 scrai: 17 files documented, 10 artifacts generated, 2 guidance files assembled, 3 state files tracked
++ 3a6116109a801539025cd3f1cc6b2570dce30452 test: drop useless quote escapes in MerchandisingTab rule-payload selectors
++ a98c9fb091cdaa0c9de3bb13fd40412f789dfac9 matt: stage 3 completion
++ 2c8fdadafff0a9964b3d9fabbd3409f82f33a33f scrai: 19 files documented, 13 artifacts generated, 2 guidance files assembled, 3 state files tracked
++ f8b3b5f74a56d2eca47c142f48788a48c674336b matt: terminal progress annotation
+
+## diff main...
+$ git diff main...origin/s41_push_fix --stat | tail -20
+ web/DIRMAP.md                                      |   2 +-
+ web/src/DIRMAP.md                                  |   4 +-
+ web/src/lib/DIRMAP.md                              |   1 +
+ web/src/lib/api/client-indexes.test.ts             |  14 ++
+ web/src/lib/api/client.ts                          |   4 +
+ web/src/routes/DIRMAP.md                           |   2 +-
+ web/src/routes/console/DIRMAP.md                   |   2 +-
+ web/src/routes/console/indexes/DIRMAP.md           |   2 +-
+ .../routes/console/indexes/[name]/+page.server.ts  |  52 ++----
+ web/src/routes/console/indexes/[name]/+page.svelte |   2 +
+ web/src/routes/console/indexes/[name]/DIRMAP.md    |   1 +
+ .../detail.server.actions.suggestions.test.ts      | 118 ++++++++++++
+ .../indexes/[name]/detail.server.load.test.ts      |   3 +
+ .../indexes/[name]/detail.server.test.shared.ts    |   3 +
+ .../[name]/suggestions-management.server.ts        |  84 +++++++++
+ .../indexes/[name]/tabs/MerchandisingTab.test.ts   |  40 ++++
+ .../indexes/[name]/tabs/SuggestionsTab.svelte      |  20 +-
+ .../indexes/[name]/tabs/SuggestionsTab.test.ts     |  44 +++++
+ web/tests/e2e-ui/full/index-detail.spec.ts         | 205 ++++++++++++++++++++-
+ 44 files changed, 767 insertions(+), 93 deletions(-)

@@ -1,0 +1,774 @@
+{
+  "config": {
+    "configFile": "web/playwright.config.ts",
+    "rootDir": "web/tests",
+    "forbidOnly": false,
+    "fullyParallel": false,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "setup:user",
+        "name": "setup:user",
+        "testDir": "web/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/fixtures\\/auth\\.setup\\.ts/"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "setup:admin",
+        "name": "setup:admin",
+        "testDir": "web/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/fixtures\\/admin\\.auth\\.setup\\.ts/"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "setup:onboarding",
+        "name": "setup:onboarding",
+        "testDir": "web/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/fixtures\\/onboarding\\.auth\\.setup\\.ts/"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "setup:customer-journeys",
+        "name": "setup:customer-journeys",
+        "testDir": "web/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/fixtures\\/customer-journeys\\.auth\\.setup\\.ts/"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium:public",
+        "name": "chromium:public",
+        "testDir": "web/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/e2e-ui\\/(smoke|full)\\/public-.+\\.spec\\.ts/"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium:signup",
+        "name": "chromium:signup",
+        "testDir": "web/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/e2e-ui\\/full\\/signup_to_paid_invoice\\.spec\\.ts/"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium:mocked",
+        "name": "chromium:mocked",
+        "testDir": "web/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/e2e-ui\\/mocked\\/.+\\.spec\\.ts/"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium",
+        "name": "chromium",
+        "testDir": "web/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/e2e-ui\\/(smoke|full)\\/(?!admin|public-|onboarding\\.|customer-journeys\\.|signup_to_paid_invoice\\.).+\\.spec\\.ts/"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium:onboarding",
+        "name": "chromium:onboarding",
+        "testDir": "web/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/e2e-ui\\/full\\/onboarding\\.spec\\.ts/"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium:customer-journeys",
+        "name": "chromium:customer-journeys",
+        "testDir": "web/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/e2e-ui\\/full\\/customer-journeys\\.spec\\.ts/"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium:admin",
+        "name": "chromium:admin",
+        "testDir": "web/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/e2e-ui\\/full\\/admin\\/.+\\.spec\\.ts/"
+        ],
+        "timeout": 30000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "html"
+      ],
+      [
+        "json"
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "runAgents": "none",
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.58.2",
+    "workers": 1,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "fixtures/auth.setup.ts",
+      "file": "fixtures/auth.setup.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "authenticate as customer",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 220000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "setup:user",
+              "projectName": "setup:user",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 7232,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-07-06T21:13:39.002Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "6db7255f214771fc958b-8ad38d4213689c9057c1",
+          "file": "fixtures/auth.setup.ts",
+          "line": 110,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "title": "e2e-ui/full/polished_beta_staging_verify.spec.ts",
+      "file": "e2e-ui/full/polished_beta_staging_verify.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "Lane G - Merch mode pin controls are deferred to follow-up contract @staging_verify",
+          "ok": false,
+          "tags": [
+            "staging_verify"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 7,
+                  "parallelIndex": 0,
+                  "status": "failed",
+                  "duration": 2,
+                  "error": {
+                    "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32mtrue\u001b[39m\nReceived: \u001b[31mfalse\u001b[39m",
+                    "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32mtrue\u001b[39m\nReceived: \u001b[31mfalse\u001b[39m\n    at web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts:354:51",
+                    "location": {
+                      "file": "web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts",
+                      "column": 51,
+                      "line": 354
+                    },
+                    "snippet": "  352 |\n  353 | test('Lane G - Merch mode pin controls are deferred to follow-up contract @staging_verify', async () => {\n> 354 | \texpect(existsSync(MERCH_MODE_PIN_FOLLOWUP_PATH)).toBe(true);\n      | \t                                                 ^\n  355 | \tconst followup = readFileSync(MERCH_MODE_PIN_FOLLOWUP_PATH, 'utf8');\n  356 | \texpect(followup).toContain('Lane G');\n  357 | \texpect(followup).toContain('no current `merchandising mode`, `merchMode`, or `@merch_mode_pin`');"
+                  },
+                  "errors": [
+                    {
+                      "location": {
+                        "file": "web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts",
+                        "column": 51,
+                        "line": 354
+                      },
+                      "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32mtrue\u001b[39m\nReceived: \u001b[31mfalse\u001b[39m\n\n  352 |\n  353 | test('Lane G - Merch mode pin controls are deferred to follow-up contract @staging_verify', async () => {\n> 354 | \texpect(existsSync(MERCH_MODE_PIN_FOLLOWUP_PATH)).toBe(true);\n      | \t                                                 ^\n  355 | \tconst followup = readFileSync(MERCH_MODE_PIN_FOLLOWUP_PATH, 'utf8');\n  356 | \texpect(followup).toContain('Lane G');\n  357 | \texpect(followup).toContain('no current `merchandising mode`, `merchMode`, or `@merch_mode_pin`');\n    at web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts:354:51"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-07-06T21:16:51.718Z",
+                  "annotations": [],
+                  "attachments": [],
+                  "errorLocation": {
+                    "file": "web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts",
+                    "column": 51,
+                    "line": 354
+                  }
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "def1f8a49cd90f5801f0-2776e4334496a459571c",
+          "file": "e2e-ui/full/polished_beta_staging_verify.spec.ts",
+          "line": 353,
+          "column": 1
+        }
+      ],
+      "suites": [
+        {
+          "title": "Polished beta deployed staging verification",
+          "file": "e2e-ui/full/polished_beta_staging_verify.spec.ts",
+          "line": 178,
+          "column": 6,
+          "specs": [
+            {
+              "title": "Lane A - Merchandising hub renders rules and no legacy search canvas @staging_verify",
+              "ok": false,
+              "tags": [
+                "staging_verify"
+              ],
+              "tests": [
+                {
+                  "timeout": 240000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 70654,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByTestId('merchandising-section').getByRole('heading', { name: 'Merchandising hub' })\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for getByTestId('merchandising-section').getByRole('heading', { name: 'Merchandising hub' })\u001b[22m\n",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByTestId('merchandising-section').getByRole('heading', { name: 'Merchandising hub' })\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for getByTestId('merchandising-section').getByRole('heading', { name: 'Merchandising hub' })\u001b[22m\n\n    at web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts:216:77",
+                        "location": {
+                          "file": "web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts",
+                          "column": 77,
+                          "line": 216
+                        },
+                        "snippet": "  214 | \t\tawait page.reload();\n  215 | \t\tconst section = await openMerchandisingHub(page);\n> 216 | \t\tawait expect(section.getByRole('heading', { name: 'Merchandising hub' })).toBeVisible();\n      | \t\t                                                                          ^\n  217 | \t\tawait expect(\n  218 | \t\t\tsection.getByText('Merchandising performance stats are not available yet.')\n  219 | \t\t).toBeVisible();"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts",
+                            "column": 77,
+                            "line": 216
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByTestId('merchandising-section').getByRole('heading', { name: 'Merchandising hub' })\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for getByTestId('merchandising-section').getByRole('heading', { name: 'Merchandising hub' })\u001b[22m\n\n\n  214 | \t\tawait page.reload();\n  215 | \t\tconst section = await openMerchandisingHub(page);\n> 216 | \t\tawait expect(section.getByRole('heading', { name: 'Merchandising hub' })).toBeVisible();\n      | \t\t                                                                          ^\n  217 | \t\tawait expect(\n  218 | \t\t\tsection.getByText('Merchandising performance stats are not available yet.')\n  219 | \t\t).toBeVisible();\n    at web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts:216:77"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-07-06T21:13:47.238Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "web/test-results/e2e-ui-full-polished_beta_-5cf22-earch-canvas-staging-verify-chromium/test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "web/test-results/e2e-ui-full-polished_beta_-5cf22-earch-canvas-staging-verify-chromium/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts",
+                        "column": 77,
+                        "line": 216
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "def1f8a49cd90f5801f0-5828c087c68fb3a649b6",
+              "file": "e2e-ui/full/polished_beta_staging_verify.spec.ts",
+              "line": 189,
+              "column": 2
+            },
+            {
+              "title": "Lane B - Rules tab slug lands on merchandising hub @staging_verify",
+              "ok": false,
+              "tags": [
+                "staging_verify"
+              ],
+              "tests": [
+                {
+                  "timeout": 240000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 13158,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoHaveCount\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator:  getByRole('tab', { name: 'Rules', exact: true })\nExpected: \u001b[32m0\u001b[39m\nReceived: \u001b[31m1\u001b[39m\nTimeout:  5000ms\n\nCall log:\n\u001b[2m  - Expect \"toHaveCount\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for getByRole('tab', { name: 'Rules', exact: true })\u001b[22m\n\u001b[2m    9 × locator resolved to 1 element\u001b[22m\n\u001b[2m      - unexpected value \"1\"\u001b[22m\n",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoHaveCount\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator:  getByRole('tab', { name: 'Rules', exact: true })\nExpected: \u001b[32m0\u001b[39m\nReceived: \u001b[31m1\u001b[39m\nTimeout:  5000ms\n\nCall log:\n\u001b[2m  - Expect \"toHaveCount\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for getByRole('tab', { name: 'Rules', exact: true })\u001b[22m\n\u001b[2m    9 × locator resolved to 1 element\u001b[22m\n\u001b[2m      - unexpected value \"1\"\u001b[22m\n\n    at web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts:242:71",
+                        "location": {
+                          "file": "web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts",
+                          "column": 71,
+                          "line": 242
+                        },
+                        "snippet": "  240 | \t\t);\n  241 | \t\tawait expect(page.getByTestId('index-tabs-strip')).toBeVisible();\n> 242 | \t\tawait expect(page.getByRole('tab', { name: 'Rules', exact: true })).toHaveCount(0);\n      | \t\t                                                                    ^\n  243 | \t\tawait page.goto(`/console/indexes/${encodeURIComponent(indexName)}?tab=rules`);\n  244 | \t\tawait expect(page.getByRole('heading', { name: indexName })).toBeVisible({ timeout: 15_000 });\n  245 | \t\tawait expect(page.getByRole('tab', { name: 'Rules', exact: true })).toHaveCount(0);"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts",
+                            "column": 71,
+                            "line": 242
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoHaveCount\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator:  getByRole('tab', { name: 'Rules', exact: true })\nExpected: \u001b[32m0\u001b[39m\nReceived: \u001b[31m1\u001b[39m\nTimeout:  5000ms\n\nCall log:\n\u001b[2m  - Expect \"toHaveCount\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for getByRole('tab', { name: 'Rules', exact: true })\u001b[22m\n\u001b[2m    9 × locator resolved to 1 element\u001b[22m\n\u001b[2m      - unexpected value \"1\"\u001b[22m\n\n\n  240 | \t\t);\n  241 | \t\tawait expect(page.getByTestId('index-tabs-strip')).toBeVisible();\n> 242 | \t\tawait expect(page.getByRole('tab', { name: 'Rules', exact: true })).toHaveCount(0);\n      | \t\t                                                                    ^\n  243 | \t\tawait page.goto(`/console/indexes/${encodeURIComponent(indexName)}?tab=rules`);\n  244 | \t\tawait expect(page.getByRole('heading', { name: indexName })).toBeVisible({ timeout: 15_000 });\n  245 | \t\tawait expect(page.getByRole('tab', { name: 'Rules', exact: true })).toHaveCount(0);\n    at web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts:242:71"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-07-06T21:14:58.611Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "web/test-results/e2e-ui-full-polished_beta_-d9ae2-andising-hub-staging-verify-chromium/test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "web/test-results/e2e-ui-full-polished_beta_-d9ae2-andising-hub-staging-verify-chromium/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts",
+                        "column": 71,
+                        "line": 242
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "def1f8a49cd90f5801f0-4d7686fe716750862572",
+              "file": "e2e-ui/full/polished_beta_staging_verify.spec.ts",
+              "line": 229,
+              "column": 2
+            },
+            {
+              "title": "Lane C - Unified Search renders image-backed document cards @staging_verify",
+              "ok": false,
+              "tags": [
+                "staging_verify"
+              ],
+              "tests": [
+                {
+                  "timeout": 240000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 3,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 24744,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByTestId('search-section')\nExpected: visible\nTimeout: 15000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 15000ms\u001b[22m\n\u001b[2m  - waiting for getByTestId('search-section')\u001b[22m\n",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByTestId('search-section')\nExpected: visible\nTimeout: 15000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 15000ms\u001b[22m\n\u001b[2m  - waiting for getByTestId('search-section')\u001b[22m\n\n    at openSearchWithDocuments (web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts:125:55)\n    at web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts:253:3",
+                        "location": {
+                          "file": "web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts",
+                          "column": 55,
+                          "line": 125
+                        },
+                        "snippet": "  123 | \tawait expect(page.getByRole('heading', { name: indexName })).toBeVisible({ timeout: 30_000 });\n  124 | \tawait page.getByRole('tab', { name: SEARCH_TAB_LABEL }).click();\n> 125 | \tawait expect(page.getByTestId(SEARCH_PANEL_TEST_ID)).toBeVisible({ timeout: 15_000 });\n      | \t                                                     ^\n  126 | \tconst currentUrl = new URL(page.url());\n  127 | \texpect(currentUrl.searchParams.get('tab')).toBe(SEARCH_TAB_QUERY_VALUE);\n  128 | \tawait waitForSearchPreviewReady(page);"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts",
+                            "column": 55,
+                            "line": 125
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByTestId('search-section')\nExpected: visible\nTimeout: 15000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 15000ms\u001b[22m\n\u001b[2m  - waiting for getByTestId('search-section')\u001b[22m\n\n\n  123 | \tawait expect(page.getByRole('heading', { name: indexName })).toBeVisible({ timeout: 30_000 });\n  124 | \tawait page.getByRole('tab', { name: SEARCH_TAB_LABEL }).click();\n> 125 | \tawait expect(page.getByTestId(SEARCH_PANEL_TEST_ID)).toBeVisible({ timeout: 15_000 });\n      | \t                                                     ^\n  126 | \tconst currentUrl = new URL(page.url());\n  127 | \texpect(currentUrl.searchParams.get('tab')).toBe(SEARCH_TAB_QUERY_VALUE);\n  128 | \tawait waitForSearchPreviewReady(page);\n    at openSearchWithDocuments (web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts:125:55)\n    at web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts:253:3"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-07-06T21:15:12.568Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "web/test-results/e2e-ui-full-polished_beta_-cb13f-cument-cards-staging-verify-chromium/test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "web/test-results/e2e-ui-full-polished_beta_-cb13f-cument-cards-staging-verify-chromium/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts",
+                        "column": 55,
+                        "line": 125
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "def1f8a49cd90f5801f0-b2151b13d98869fcb40d",
+              "file": "e2e-ui/full/polished_beta_staging_verify.spec.ts",
+              "line": 249,
+              "column": 2
+            },
+            {
+              "title": "Lane D - Display Preferences exposes document card controls @staging_verify",
+              "ok": false,
+              "tags": [
+                "staging_verify"
+              ],
+              "tests": [
+                {
+                  "timeout": 240000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 4,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 23419,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByTestId('search-section')\nExpected: visible\nTimeout: 15000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 15000ms\u001b[22m\n\u001b[2m  - waiting for getByTestId('search-section')\u001b[22m\n",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByTestId('search-section')\nExpected: visible\nTimeout: 15000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 15000ms\u001b[22m\n\u001b[2m  - waiting for getByTestId('search-section')\u001b[22m\n\n    at openSearchWithDocuments (web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts:125:55)\n    at web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts:276:3",
+                        "location": {
+                          "file": "web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts",
+                          "column": 55,
+                          "line": 125
+                        },
+                        "snippet": "  123 | \tawait expect(page.getByRole('heading', { name: indexName })).toBeVisible({ timeout: 30_000 });\n  124 | \tawait page.getByRole('tab', { name: SEARCH_TAB_LABEL }).click();\n> 125 | \tawait expect(page.getByTestId(SEARCH_PANEL_TEST_ID)).toBeVisible({ timeout: 15_000 });\n      | \t                                                     ^\n  126 | \tconst currentUrl = new URL(page.url());\n  127 | \texpect(currentUrl.searchParams.get('tab')).toBe(SEARCH_TAB_QUERY_VALUE);\n  128 | \tawait waitForSearchPreviewReady(page);"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts",
+                            "column": 55,
+                            "line": 125
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByTestId('search-section')\nExpected: visible\nTimeout: 15000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 15000ms\u001b[22m\n\u001b[2m  - waiting for getByTestId('search-section')\u001b[22m\n\n\n  123 | \tawait expect(page.getByRole('heading', { name: indexName })).toBeVisible({ timeout: 30_000 });\n  124 | \tawait page.getByRole('tab', { name: SEARCH_TAB_LABEL }).click();\n> 125 | \tawait expect(page.getByTestId(SEARCH_PANEL_TEST_ID)).toBeVisible({ timeout: 15_000 });\n      | \t                                                     ^\n  126 | \tconst currentUrl = new URL(page.url());\n  127 | \texpect(currentUrl.searchParams.get('tab')).toBe(SEARCH_TAB_QUERY_VALUE);\n  128 | \tawait waitForSearchPreviewReady(page);\n    at openSearchWithDocuments (web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts:125:55)\n    at web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts:276:3"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-07-06T21:15:38.055Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "web/test-results/e2e-ui-full-polished_beta_-08821-ard-controls-staging-verify-chromium/test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "web/test-results/e2e-ui-full-polished_beta_-08821-ard-controls-staging-verify-chromium/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts",
+                        "column": 55,
+                        "line": 125
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "def1f8a49cd90f5801f0-6e291dc40cbcbaadfb5e",
+              "file": "e2e-ui/full/polished_beta_staging_verify.spec.ts",
+              "line": 272,
+              "column": 2
+            },
+            {
+              "title": "Lane E - Query metrics report hit count and processing time @staging_verify",
+              "ok": false,
+              "tags": [
+                "staging_verify"
+              ],
+              "tests": [
+                {
+                  "timeout": 240000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 5,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 23515,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByTestId('search-section')\nExpected: visible\nTimeout: 15000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 15000ms\u001b[22m\n\u001b[2m  - waiting for getByTestId('search-section')\u001b[22m\n",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByTestId('search-section')\nExpected: visible\nTimeout: 15000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 15000ms\u001b[22m\n\u001b[2m  - waiting for getByTestId('search-section')\u001b[22m\n\n    at openSearchWithDocuments (web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts:125:55)\n    at web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts:302:3",
+                        "location": {
+                          "file": "web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts",
+                          "column": 55,
+                          "line": 125
+                        },
+                        "snippet": "  123 | \tawait expect(page.getByRole('heading', { name: indexName })).toBeVisible({ timeout: 30_000 });\n  124 | \tawait page.getByRole('tab', { name: SEARCH_TAB_LABEL }).click();\n> 125 | \tawait expect(page.getByTestId(SEARCH_PANEL_TEST_ID)).toBeVisible({ timeout: 15_000 });\n      | \t                                                     ^\n  126 | \tconst currentUrl = new URL(page.url());\n  127 | \texpect(currentUrl.searchParams.get('tab')).toBe(SEARCH_TAB_QUERY_VALUE);\n  128 | \tawait waitForSearchPreviewReady(page);"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts",
+                            "column": 55,
+                            "line": 125
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByTestId('search-section')\nExpected: visible\nTimeout: 15000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 15000ms\u001b[22m\n\u001b[2m  - waiting for getByTestId('search-section')\u001b[22m\n\n\n  123 | \tawait expect(page.getByRole('heading', { name: indexName })).toBeVisible({ timeout: 30_000 });\n  124 | \tawait page.getByRole('tab', { name: SEARCH_TAB_LABEL }).click();\n> 125 | \tawait expect(page.getByTestId(SEARCH_PANEL_TEST_ID)).toBeVisible({ timeout: 15_000 });\n      | \t                                                     ^\n  126 | \tconst currentUrl = new URL(page.url());\n  127 | \texpect(currentUrl.searchParams.get('tab')).toBe(SEARCH_TAB_QUERY_VALUE);\n  128 | \tawait waitForSearchPreviewReady(page);\n    at openSearchWithDocuments (web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts:125:55)\n    at web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts:302:3"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-07-06T21:16:02.249Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "web/test-results/e2e-ui-full-polished_beta_-346af-cessing-time-staging-verify-chromium/test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "web/test-results/e2e-ui-full-polished_beta_-346af-cessing-time-staging-verify-chromium/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts",
+                        "column": 55,
+                        "line": 125
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "def1f8a49cd90f5801f0-0fde170802ba68ba807d",
+              "file": "e2e-ui/full/polished_beta_staging_verify.spec.ts",
+              "line": 298,
+              "column": 2
+            },
+            {
+              "title": "Lane F - Numbered pagination reaches first second and last pages @staging_verify",
+              "ok": false,
+              "tags": [
+                "staging_verify"
+              ],
+              "tests": [
+                {
+                  "timeout": 240000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 6,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 24389,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByTestId('search-section')\nExpected: visible\nTimeout: 15000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 15000ms\u001b[22m\n\u001b[2m  - waiting for getByTestId('search-section')\u001b[22m\n",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByTestId('search-section')\nExpected: visible\nTimeout: 15000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 15000ms\u001b[22m\n\u001b[2m  - waiting for getByTestId('search-section')\u001b[22m\n\n    at openSearchWithDocuments (web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts:125:55)\n    at web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts:323:3",
+                        "location": {
+                          "file": "web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts",
+                          "column": 55,
+                          "line": 125
+                        },
+                        "snippet": "  123 | \tawait expect(page.getByRole('heading', { name: indexName })).toBeVisible({ timeout: 30_000 });\n  124 | \tawait page.getByRole('tab', { name: SEARCH_TAB_LABEL }).click();\n> 125 | \tawait expect(page.getByTestId(SEARCH_PANEL_TEST_ID)).toBeVisible({ timeout: 15_000 });\n      | \t                                                     ^\n  126 | \tconst currentUrl = new URL(page.url());\n  127 | \texpect(currentUrl.searchParams.get('tab')).toBe(SEARCH_TAB_QUERY_VALUE);\n  128 | \tawait waitForSearchPreviewReady(page);"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts",
+                            "column": 55,
+                            "line": 125
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByTestId('search-section')\nExpected: visible\nTimeout: 15000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 15000ms\u001b[22m\n\u001b[2m  - waiting for getByTestId('search-section')\u001b[22m\n\n\n  123 | \tawait expect(page.getByRole('heading', { name: indexName })).toBeVisible({ timeout: 30_000 });\n  124 | \tawait page.getByRole('tab', { name: SEARCH_TAB_LABEL }).click();\n> 125 | \tawait expect(page.getByTestId(SEARCH_PANEL_TEST_ID)).toBeVisible({ timeout: 15_000 });\n      | \t                                                     ^\n  126 | \tconst currentUrl = new URL(page.url());\n  127 | \texpect(currentUrl.searchParams.get('tab')).toBe(SEARCH_TAB_QUERY_VALUE);\n  128 | \tawait waitForSearchPreviewReady(page);\n    at openSearchWithDocuments (web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts:125:55)\n    at web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts:323:3"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-07-06T21:16:26.599Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "web/test-results/e2e-ui-full-polished_beta_-03901-d-last-pages-staging-verify-chromium/test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "web/test-results/e2e-ui-full-polished_beta_-03901-d-last-pages-staging-verify-chromium/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts",
+                        "column": 55,
+                        "line": 125
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "def1f8a49cd90f5801f0-405c4c824b3234706cc7",
+              "file": "e2e-ui/full/polished_beta_staging_verify.spec.ts",
+              "line": 319,
+              "column": 2
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-07-06T21:13:38.568Z",
+    "duration": 193173.168,
+    "expected": 1,
+    "skipped": 0,
+    "unexpected": 7,
+    "flaky": 0
+  }
+}

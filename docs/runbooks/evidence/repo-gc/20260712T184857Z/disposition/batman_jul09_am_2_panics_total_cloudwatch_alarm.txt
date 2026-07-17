@@ -1,0 +1,14 @@
+# Disposition Receipt: batman/jul09_am_2_panics_total_cloudwatch_alarm
+
+Classification: approved freed local branch after approved worktree removal
+Evidence source: current read-only git refs at bundle creation.
+
+## rev-parse
+$ git rev-parse batman/jul09_am_2_panics_total_cloudwatch_alarm
+d0891e3b5ad9ed810f6866fd570234c2c56cd82d
+
+## cherry
+$ git cherry -v main batman/jul09_am_2_panics_total_cloudwatch_alarm | tail -20
+
+## diff main...
+$ git diff main...batman/jul09_am_2_panics_total_cloudwatch_alarm --stat | tail -20

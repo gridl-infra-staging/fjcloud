@@ -1,0 +1,6 @@
+[staging_db] detecting fjcloud-api-prod instance for SSM DB access...
+[staging_db] using instance: i-0af0ff2e18725b6ba
+             customer_id              |              tenant_id              |  tier  
+--------------------------------------+-------------------------------------+--------
+ ed7aaeb6-4fd0-4d42-bf3c-75cd3607a141 | lifecycle-canary2026051903412920926 | active
+(1 row)

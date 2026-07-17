@@ -1,0 +1,23 @@
+=== cold invoke assertions ===
+function_error=Unhandled
+payload_v={"errorType":"CustomerLoopCanaryError","errorMessage":"customer loop canary failed with exit code 1"}
+success_marker=0
+0
+failure_marker_create_index=1
+failure_marker_verify_email=0
+0
+email_verification_succeeded=1
+ssm_hydration_error=0
+0
+
+=== warm invoke assertions ===
+function_error=Unhandled
+payload_v={"errorType":"CustomerLoopCanaryError","errorMessage":"customer loop canary failed with exit code 1"}
+success_marker=0
+0
+failure_marker_create_index=1
+failure_marker_verify_email=0
+0
+email_verification_succeeded=1
+ssm_hydration_error=0
+0

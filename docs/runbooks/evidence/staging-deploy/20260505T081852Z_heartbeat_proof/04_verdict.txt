@@ -1,0 +1,6 @@
+alarm_state=OK
+datapoint_count=10
+min_sum=1.0
+non_ok_transitions_since_stage3=0
+verdict=GREEN
+reason=

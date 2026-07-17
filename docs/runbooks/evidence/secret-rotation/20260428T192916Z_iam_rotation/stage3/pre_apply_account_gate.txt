@@ -1,0 +1,2 @@
+discovery_account=213880904778
+sts_account=213880904778

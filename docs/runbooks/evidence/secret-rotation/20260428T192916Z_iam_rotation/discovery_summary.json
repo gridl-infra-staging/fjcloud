@@ -1,0 +1,41 @@
+{
+  "deploy_workflow_role_name": "fjcloud-deploy",
+  "deploy_workflow_role_arn": "arn:aws:iam::213880904778:role/fjcloud-deploy",
+  "deploy_workflow_inline_policy_names": [
+    "fjcloud-deploy-ec2",
+    "fjcloud-deploy-s3",
+    "fjcloud-deploy-ssm"
+  ],
+  "local_dev_role_name": "missing",
+  "local_dev_role_arn": "missing",
+  "staging_account_id": "213880904778",
+  "managed_roles": [
+    {
+      "role_name": "fjcloud-deploy",
+      "role_arn": "arn:aws:iam::213880904778:role/fjcloud-deploy",
+      "category": "deploy_workflow",
+      "attached_policy_arns": [],
+      "inline_policy_names": [
+        "fjcloud-deploy-ec2",
+        "fjcloud-deploy-s3",
+        "fjcloud-deploy-ssm"
+      ],
+      "trust_principal_summary": "federated:arn:aws:iam::213880904778:oidc-provider/token.actions.githubusercontent.com"
+    },
+    {
+      "role_name": "fjcloud-instance-role",
+      "role_arn": "arn:aws:iam::213880904778:role/fjcloud-instance-role",
+      "category": "instance",
+      "attached_policy_arns": [
+        "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+      ],
+      "inline_policy_names": [
+        "fjcloud-ec2-control",
+        "fjcloud-s3-releases-read",
+        "fjcloud-ses-send",
+        "fjcloud-ssm-read"
+      ],
+      "trust_principal_summary": "service:ec2.amazonaws.com"
+    }
+  ]
+}

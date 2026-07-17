@@ -1,0 +1,5 @@
+$ curl -s "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID" -H "X-Auth-Email: $CLOUDFLARE_X_Auth_Email" -H "X-Auth-Key: $CLOUDFLARE_GLOBAL_API_KEY"
+success: True
+account_name: Stuart.clifford@gmail.com's Account
+enforce_twofactor: False
+EXIT: 0

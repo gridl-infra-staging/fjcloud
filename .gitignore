@@ -1,0 +1,137 @@
+**/target/
+/.cargo
+/.cache
+**/.terraform/
+*.tfstate
+*.tfstate.backup
+**/node_modules/
+node_modules/
+
+# SvelteKit
+**/.svelte-kit/
+**/build/
+
+
+/.vscode
+/.env
+/.secret
+.admin_key
+*.pem
+*.key
+/dev-data
+/data
+/tmp
+/venv
+
+# Data directories
+/datasets/
+
+# Generated reliability profiling artifacts (produced by scripts/reliability/run-profile.sh)
+scripts/reliability/profiles/
+
+# Generated/temporary JSON (specific files, not blanket *.json)
+railway.json
+validation_cache.jsonl
+.claude/settings.local.json
+sdk_test/.cache/
+**/test-results/
+benchmarks_2/results.json
+demo-dualclient/dist/openapi.json
+demo-dualclient/dist/stats.json
+demo-dualclient/public/openapi.json
+
+# Build artifacts
+/dist
+/.wrangler
+
+# PHP / Composer
+**/vendor/
+composer.lock
+*.phpunit.result.cache
+
+# Build output (all subprojects)
+**/dist/
+
+# Lock files for dependencies (keep Cargo.lock for binaries, ignore others)
+**/package-lock.json
+!engine/dashboard/package-lock.json
+!web/package-lock.json
+
+# ML model caches
+**/.fastembed_cache/
+
+# Tantivy lock files
+*.tantivy-meta.lock
+*.tantivy-writer.lock
+
+# Logs
+/logs
+*.log
+!docs/runbooks/evidence/billing_coverage_a2/**/*.log
+!docs/runbooks/evidence/ses-coverage-a1/**/*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# matt runtime state/logs
+.matt/
+
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Stable server binary for dashboard dev/testing
+bin/
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Node
+node_modules/
+
+__pycache__/
+
+# Integration test runtime artifacts
+.integration/
+
+# Large binary/archive files
+sdks/wordpress/*.zip
+sdks/javascript/.yarn/releases/
+
+
+*.parquet
+
+.hashbrown
+
+
+# Per-lane state files (e.g. prod_env_provision lane writes to .tmp/prod_env_lane/)
+.tmp/
+
+# Flapjack release binary extracted by the local-dev-up-smoke CI job
+# (.github/workflows/ci.yml sets FLAPJACK_DEV_DIR to $WORKSPACE/.flapjack).
+# Only created in CI; defensive in case a dev mirrors the workflow locally.
+.flapjack/
+ops/build/
+ops/packer/flapjack-ami-manifest.json
+ops/terraform/_shared/tfplan.*
+
+# Probe evidence bundles produced by scripts/validate_subprocessor_disclosure.sh
+# (UTC-stamped run artifacts; keep as untracked local evidence only)
+docs/runbooks/evidence/subprocessor_disclosure/
+
+# scrai incremental scan caches — derived from source; nothing outside scrai reads them
+.scrai/state.json
+.scrai/summaries.json
+.scrai/dir_summaries.json

@@ -1,0 +1,7 @@
+allowed_pattern: ^(terraform_data\.prod_alert_emails_guard|module\.monitoring\.aws_sns_topic_subscription\.email\[[^]]+\])$
+changed_addresses:
+module.monitoring.aws_sns_topic_subscription.email["stuart.clifford@gmail.com"]
+terraform_data.prod_alert_emails_guard
+offending_addresses:
+<none>
+result: PASS

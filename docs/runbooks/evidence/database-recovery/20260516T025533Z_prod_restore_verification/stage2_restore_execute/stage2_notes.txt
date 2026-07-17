@@ -1,0 +1,29 @@
+2026-05-16T02:55:33Z dispatched wrapper execute:
+RDS_RESTORE_DRILL_EXECUTE=1 bash ops/scripts/rds_restore_evidence.sh prod --artifact-dir /Users/stuart/.matt/projects/fjcloud_dev-e4fc442e/may15_9pm_2_prod_rds_restore_drill.md-49bb35e9/artifacts/stage2_restore_execute --execute --restore-time 2026-05-16T02:09:35+00:00
+
+Run directory:
+/Users/stuart/.matt/projects/fjcloud_dev-e4fc442e/may15_9pm_2_prod_rds_restore_drill.md-49bb35e9/artifacts/stage2_restore_execute/rds_restore_evidence_prod_20260516T025533Z_76548
+
+Wrapper readiness verdict (summary.json + verification.txt):
+status=success
+result=pass
+target_status=available
+
+Restore command captured from wrapper summary:
+aws rds restore-db-instance-to-point-in-time --region us-east-1 --source-db-instance-identifier fjcloud-prod --target-db-instance-identifier fjcloud-prod-restore-20260516025535 --restore-time 2026-05-16T02:09:35+00:00 --db-subnet-group-name fjcloud-prod
+
+2026-05-16T03:06:46Z SG alignment command:
+aws rds modify-db-instance --region us-east-1 --db-instance-identifier fjcloud-prod-restore-20260516025535 --vpc-security-group-ids sg-0c6ae08699b5405f0 --apply-immediately
+
+SG alignment result:
+source SG set: ["sg-0c6ae08699b5405f0"]
+target SG set before: ["sg-0963f6561614e1b41"]
+target SG set after: ["sg-0c6ae08699b5405f0", "sg-0963f6561614e1b41"]
+
+after-alignment control-plane shape (target_describe_after_sg.json):
+status=available
+vpc=vpc-0125cfcf4cc36762c
+subnet_group=fjcloud-prod
+endpoint=fjcloud-prod-restore-20260516025535.cabwlew6jcjl.us-east-1.rds.amazonaws.com
+
+CORRECTION (post-convergence): final attached SG set on target after settle is ["sg-0c6ae08699b5405f0"] (default restore SG detached); before/after transition remains preserved in sg_alignment_before_after.json.

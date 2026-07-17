@@ -1,0 +1,239 @@
+# Paid-Beta RC Signoff Runbook
+
+Reusable operator runbook for the paid-beta RC coordinator path in
+`scripts/launch/run_full_backend_validation.sh`.
+
+## Purpose
+
+- Run the coordinator in a way that preserves existing `--dry-run --sha=<GIT_SHA>` behavior.
+- Interpret operator-facing JSON output for paid-beta RC mode.
+- Route each delegated proof to its canonical owner doc/script instead of copying internals.
+
+## Stabilization Posture (RC convergence / launch burn-down)
+
+During the RC stabilization phase, the canonical risk is **status-doc drift**: LAUNCH.md, ROADMAP.md, evidence bundles, and prior handoffs describe what was true when written, not what is true now. Multiple in-flight checklists compound the drift — each one may mutate the gate as it lands.
+
+Posture: treat every carried-over "pending/BLOCKED/deferred" claim as a hypothesis. Probe before drafting action.
+
+Required reads before acting on this gate:
+
+- [`LAUNCH.md`](../../LAUNCH.md) — current launch gate and verdict owner.
+- [`ROADMAP.md`](../../ROADMAP.md) — open-work ledger.
+- `~/.matt/scrai/globals/standards/live_state_discipline.md` — vendor is truth, doc is hypothesis; probe before drafting.
+- `~/.matt/scrai/globals/standards/blocker_discipline.md` — what counts as actually open; session-end walk.
+- `git log --oneline -20` — surfaces drift between status docs and merged state (e.g. a P0 already closed by a recent merge).
+
+## Out Of Scope
+
+- Browser environment setup details beyond the owner scripts/runbooks.
+- Terraform provisioning internals beyond owner scripts/runbooks.
+- Live credential provisioning, secret creation, or secret rotation.
+- Dated evidence snapshots and command transcripts in this runbook.
+- Rewriting blocker priority wording in `PROJECT_OVERVIEW.md` or `ROADMAP.md`.
+
+## Operator Prerequisites
+
+- Run from repo root with `bash`, `python3`, and the project scripts available.
+- Choose a commit SHA and pass it explicitly (`--sha=<GIT_SHA>`).
+- For required credentialed proofs, provide:
+  - readable `--credential-env-file=<path>` outside git
+  - `--billing-month=<YYYY-MM>`
+  - `--staging-smoke-api-ami-id=<ami-id>` from the current staging API instance `ImageId`
+  - `--staging-smoke-flapjack-ami-id=<ami-id>` from the staging Flapjack runtime pointer or `flapjack-ami-manifest.json`
+    produced by the `ops/README.md` AMI build flow
+- Keep secrets out of docs and terminal transcripts committed to git.
+
+### Stripe Dashboard Prerequisites
+
+Operator clicks once per Stripe environment (test + live separately). The
+API-readable subset is verified on every `scripts/probe_live_state.sh` run by
+the `stripe_account_config` row; the Customer Emails toggles are not
+API-readable and need operator re-verification on any policy change.
+
+| Dashboard setting | API-readable | Probe / verification |
+| --- | --- | --- |
+| Public business name | yes (`business_profile.name`) | `stripe_account_config` |
+| Public business URL | yes (`business_profile.url`) | `stripe_account_config` |
+| Support email (also dispute response) | yes (`business_profile.support_email`) | `stripe_account_config` |
+| Statement descriptor | yes (`settings.payments.statement_descriptor`) | `stripe_account_config` |
+| Customer Emails → invoice receipts | no | operator-verified |
+| Customer Emails → failed payment notices | no | operator-verified |
+| Customer Emails → expiring card | no | operator-verified |
+| Payout schedule + bank account | no | operator-verified |
+
+**Where the toggles actually live (Stripe Dashboard, verified 2026-07-06 —
+the settings are split across two pages and the page names don't match the
+table's shorthand):**
+
+1. *Successful-payment receipts:* Settings → Business → **Customer emails** →
+   Payments → "Successful payments" → ON.
+2. *Failed-payment emails + expiring-card emails:*
+   <https://dashboard.stripe.com/revenue_recovery/emails> (Settings → Billing →
+   Subscriptions and emails / Revenue recovery) → "Send emails when card
+   payments fail" → **OFF** (app-owned dunning; ON would double-email
+   customers) and "Send emails about expiring cards" → **ON**.
+3. *Smart Retries:* <https://dashboard.stripe.com/settings/billing/automatic>
+   ("Prevent failed payments" section) → Smart Retries → ON.
+
+Check Live mode and Test mode separately (the toggle states are per-mode).
+
+The Customer Emails toggles are what keep app-side from having to send
+invoice-receipt/expiring-card emails; dunning lifecycle emails remain app-owned
+via webhook handlers — see the Template Ownership matrix in
+[`email-production.md`](email-production.md). Treat these as RC prerequisites,
+not deferrable.
+
+## Canonical Coordinator Commands
+
+Dry-run compatibility command:
+
+```bash
+bash scripts/launch/run_full_backend_validation.sh --dry-run --sha=<GIT_SHA>
+```
+
+Paid-beta RC coordinator command:
+
+```bash
+bash scripts/launch/run_full_backend_validation.sh \
+  --paid-beta-rc \
+  --sha=<GIT_SHA> \
+  --artifact-dir=<dir> \
+  --credential-env-file=<path> \
+  --billing-month=<YYYY-MM> \
+  --staging-smoke-api-ami-id=<ami-id> \
+  --staging-smoke-flapjack-ami-id=<ami-id>
+```
+
+The RC mode syntax above mirrors the script usage contract in
+`scripts/launch/run_full_backend_validation.sh`.
+
+Staging-only RC command (staging proofs only):
+
+```bash
+bash scripts/launch/run_full_backend_validation.sh \
+  --paid-beta-rc \
+  --staging-only \
+  --sha=<GIT_SHA> \
+  --artifact-dir=<dir> \
+  --credential-env-file=<path> \
+  --billing-month=<YYYY-MM> \
+  --staging-smoke-api-ami-id=<ami-id> \
+  --staging-smoke-flapjack-ami-id=<ami-id>
+```
+
+`--staging-only` is valid only with `--paid-beta-rc`. It is rejected in live
+and dry-run modes.
+
+## Operator-Facing JSON Interpretation
+
+Interpret the final JSON payload as follows:
+
+- `mode=paid_beta_rc`: confirms RC mode output.
+- `ready`: readiness gate result for required proofs.
+- `verdict`: overall verdict (`pass` or `fail`).
+- `steps[]`: ordered proof results with per-step `status`, `reason`, and elapsed time.
+- `summary.json`: canonical machine-readable artifact at `<artifact-dir>/summary.json`;
+  stdout prints the same final JSON object for compatibility.
+- Step status values (legacy `blocked` is removed):
+  - `pass`: proof succeeded.
+  - `fail`: proof executed and failed.
+  - `external_secret_missing`: required external credentials/secrets were unavailable.
+  - `live_evidence_gap`: live proof inputs/evidence were not yet available.
+  - `skipped`: explicit non-critical bypass only.
+
+Required proof rule: if a required proof is `fail`, `external_secret_missing`, or
+`live_evidence_gap`, readiness is not achieved and the run must remain
+`ready=false` with a failing verdict.
+Critical browser rule: `browser_preflight` and `browser_auth_setup` are critical
+surfaces; if either is `skipped`, the coordinator promotes it to `fail`.
+The promoted reason is `critical_surface_skipped`.
+local_signoff is useful local evidence only.
+local webhook replay acceptance is local/mock evidence only.
+local/mock pass results do not satisfy credentialed billing/webhook/SES proof.
+
+Current paid-beta RC step names are validated by the coordinator output and the
+Stage 2 coverage in `scripts/tests/full_backend_validation_test.sh` (see the
+paid-beta RC pass-path assertions), not this runbook. Current names:
+
+- `cargo_workspace_tests`
+- `backend_launch_gate`
+- `local_signoff`
+- `ses_readiness`
+- `staging_billing_rehearsal`
+- `browser_preflight`
+- `browser_auth_setup`
+- `terraform_static_guardrails`
+- `staging_runtime_smoke`
+
+In `--paid-beta-rc --staging-only` mode, the coordinator still executes the
+staging proofs above and records deterministic `skipped` rows (with coordinator
+reason code `staging_only_production_surface`) for production-facing proofs.
+The exact production-facing proof list remains owned by
+`scripts/launch/run_full_backend_validation.sh`.
+
+## Delegated Proof Owners
+
+Use owner artifacts below instead of duplicating step internals here:
+
+- Local signoff:
+  - `docs/runbooks/local-dev.md`
+  - `docs/runbooks/local-dev.md`
+  - `docs/checklists/LOCAL_SIGNOFF_CHECKLIST.md`
+- SES readiness:
+  - `docs/runbooks/email-production.md`
+  - `scripts/validate_ses_readiness.sh`
+  - `scripts/launch/ses_deliverability_evidence.sh` (live SES delivery and inbox proof owner wrapper)
+- Staging billing rehearsal:
+  - `docs/runbooks/staging_billing_dry_run.md`
+  - `scripts/staging_billing_rehearsal.sh`
+- Webhook proof boundaries:
+  - local webhook replay acceptance is local/mock evidence only: `scripts/stripe_webhook_replay_fixture.sh`
+  - credentialed live webhook proof must come from: `scripts/launch/live_e2e_evidence.sh` and `docs/runbooks/aws_live_e2e_guardrails.md`
+- Browser preflight and auth setup:
+  - `scripts/e2e-preflight.sh`
+  - `scripts/launch/run_full_backend_validation.sh` (browser delegated command builders, including auth setup wiring)
+- Terraform static and runtime smoke:
+  - `ops/terraform/tests_stage7_static.sh`
+  - `ops/terraform/tests_stage8_static.sh`
+  - `ops/terraform/tests_stage7_runtime_smoke.sh`
+  - `docs/runbooks/infra-terraform-apply.md`
+
+Credentialed SES, billing, runtime-smoke, and live webhook proof must come from
+their canonical owner scripts/artifacts before RC readiness can pass.
+
+## Current Gap Reasons Emitted By The Coordinator
+
+The reasons below are current machine-readable emissions from
+`scripts/launch/run_full_backend_validation.sh` and should be interpreted as
+coordinator output, not rewritten by this runbook.
+
+- SES delegated proof gaps:
+  - `credentialed_ses_identity_missing`
+  - `credentialed_env_file_missing`
+  - `credentialed_env_file_parse_failed`
+- Staging billing rehearsal gaps:
+  - `credentialed_billing_env_file_missing`
+  - `credentialed_billing_month_missing`
+  - delegated billing classifications and billing evidence boundaries from `scripts/staging_billing_rehearsal.sh`
+    (delegated `result` and `classification` passthrough; delegated `blocked` maps to `live_evidence_gap`)
+- Staging runtime smoke gap:
+  - `credentialed_staging_smoke_inputs_missing`
+
+If any required proof reports `fail`, `external_secret_missing`, or
+`live_evidence_gap`, keep the run in `ready=false`; do not treat that as ready/pass.
+
+## Evidence Safety
+
+- Do not paste credential values, account identifiers, or live command transcripts here.
+- Do not add dated RC evidence snapshots in this runbook.
+- Live SES delivery and inbox proof remain delegated to `docs/runbooks/email-production.md` plus `scripts/launch/ses_deliverability_evidence.sh`.
+- For dated live DNS/HTTPS/SES status, use `docs/runbooks/staging-evidence.md`
+  as the current evidence authority.
+- For Stage 4 post-deploy capture handoff decisions, gate on
+  `<artifact_root>/<run_id>/summary.json` from
+  `scripts/launch/post_deploy_evidence_capture.sh`. Read
+  `<artifact_root>/<run_id>/logs/stdout.log` and
+  `<artifact_root>/<run_id>/03_paid_beta_rc/full_backend_validation.log` for
+  disposition detail, and keep readiness open unless summary status is
+  `"pass"`.
+- For strategic priority and sequencing text, use `ROADMAP.md`.

@@ -1,0 +1,6 @@
+utc=20260612T033222Z
+artifact_root=docs/runbooks/evidence/live-e2e-guardrails/20260612T033222Z_current_main
+billing_summary=none found
+billing_mode=include-billing
+billing_month=2026-06
+flags=--run-billing-rehearsal --month 2026-06 --confirm-live-mutation --env-file .secret/.env.secret

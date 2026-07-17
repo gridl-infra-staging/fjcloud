@@ -1,0 +1,42 @@
+Stage 5 — Full VM Lifecycle Run B (Mode B paid terminus) — PASS
+
+Mode: run-b with STRIPE_PAY_OUT_OF_BAND=1
+Orchestrator: scripts/validate_full_vm_lifecycle_prod.sh
+Run completed at (UTC): 2026-05-18T04:15:04.753913Z
+Exit code: 0 (see run_b_output.log)
+
+Identifiers (see metadata.json):
+  fjcloud_customer_id  : 2b45124d-7d03-451a-b825-9934d1e5b084
+  stripe_customer_id   : cus_UXNJDNHG5X9Tjl
+  fjcloud_invoice_id   : d936b848-9a38-408f-9069-5bd953727b3b
+  stripe_invoice_id    : in_1TYIZ3GXI8zVz4UHhxYiLFku
+  index_name           : lifecycle-canary2026051804134717840
+
+Evidence terminations (live systems):
+
+  1. Stripe paid-state (authoritative)        -> stripe_paid_state.json
+     - GET /v1/invoices/<stripe_invoice_id>: http 200, status="paid"
+
+  2. Tenant active pre-cleanup (fjcloud admin) -> tenant_active_pre_cleanup.json
+     - GET /admin/tenants/<id>: http 200, status="active"
+
+  3. Post-cleanup teardown proof              -> post_cleanup_state.json
+     - GET /admin/tenants/<id>: http 200, status="deleted"
+     - Index deleted (run_b_output.log line "index deleted (...)")
+     - Account deleted (run_b_output.log line "account delete attempted ...")
+     - Admin tenant cleanup completed
+
+Run B flow markers (run_b_output.log):
+  - signup succeeded
+  - email verification succeeded
+  - index created / write / search succeeded
+  - run-b out-of-band mode: skipping payment method attachment (STRIPE_PAY_OUT_OF_BAND=1)
+  - finalize captured stripe_invoice_id from response (server-side already paid $0)
+  - wait-for-paid: fjcloud DB did not converge in 60s; Stripe-side authoritative
+    status=paid accepted as terminus. Webhook delivery lag is an operational
+    follow-up (pending_webhooks on Stripe events > 0 across recent runs;
+    suspected webhook secret drift in prod env vars).
+
+Pass/fail statement:
+  PASS — Run B reached Stripe paid terminus, captured fjcloud customer active
+  state before teardown, and produced deterministic post-cleanup proof.

@@ -1,0 +1,5 @@
+Zero real bugs were classified by the canonical rerun driver
+(scripts/verify/rerun_failing_lanes.sh): classification.json has
+real_bug_after_reruns == [] and ready_precondition.real_bug_count == 0.
+Driver exited 0 via the all-green short-circuit (non_passed_count == 0),
+so no reruns ran. Zero stubs are owed for this stage; authored_stubs.json = [].

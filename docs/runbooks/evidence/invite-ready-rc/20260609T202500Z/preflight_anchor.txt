@@ -1,0 +1,8 @@
+HEAD_SHA=7f98e5c9499783bbb43997c9b310972e97053173
+branch=origin/main
+working_branch=batman/jun09_am_3_rc_reverdict_and_launch_status_flip
+utc_timestamp=2026-06-09T20:25:05Z
+operator_hostname=stuarts-MBP-3.lan
+new_utc=20260609T202500Z
+probe_timestamp_dir=docs/live-state/20260609T202510Z
+all_probe_rows_status=OK_no_blockers

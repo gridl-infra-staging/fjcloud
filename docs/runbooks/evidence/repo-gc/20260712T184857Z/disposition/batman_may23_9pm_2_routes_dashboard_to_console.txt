@@ -1,0 +1,14 @@
+# Disposition Receipt: batman/may23_9pm_2_routes_dashboard_to_console
+
+Classification: approved freed local branch after approved worktree removal
+Evidence source: current read-only git refs at bundle creation.
+
+## rev-parse
+$ git rev-parse batman/may23_9pm_2_routes_dashboard_to_console
+b1711a34419533d3ab7ad45a6cd438f86189ec0a
+
+## cherry
+$ git cherry -v main batman/may23_9pm_2_routes_dashboard_to_console | tail -20
+
+## diff main...
+$ git diff main...batman/may23_9pm_2_routes_dashboard_to_console --stat | tail -20

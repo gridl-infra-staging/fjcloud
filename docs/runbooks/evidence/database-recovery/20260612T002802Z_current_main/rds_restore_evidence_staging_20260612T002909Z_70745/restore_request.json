@@ -1,0 +1,11 @@
+{
+  "drill_execute_gate": "1",
+  "env": "staging",
+  "region": "us-east-1",
+  "restore_mode": "snapshot",
+  "restore_time": "",
+  "snapshot_id": "rds:fjcloud-staging-2026-06-11-02-13",
+  "source_db_instance_id": "fjcloud-staging",
+  "target_db_instance_id": "fjcloud-staging-restore-20260612002802",
+  "wrapper_execute": true
+}

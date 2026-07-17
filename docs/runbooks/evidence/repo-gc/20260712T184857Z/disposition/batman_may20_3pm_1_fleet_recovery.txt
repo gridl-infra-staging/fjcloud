@@ -1,0 +1,14 @@
+# Disposition Receipt: batman/may20_3pm_1_fleet_recovery
+
+Classification: approved freed local branch after approved worktree removal
+Evidence source: current read-only git refs at bundle creation.
+
+## rev-parse
+$ git rev-parse batman/may20_3pm_1_fleet_recovery
+d26d99622635f55b28513ae5d03561994fb1a637
+
+## cherry
+$ git cherry -v main batman/may20_3pm_1_fleet_recovery | tail -20
+
+## diff main...
+$ git diff main...batman/may20_3pm_1_fleet_recovery --stat | tail -20

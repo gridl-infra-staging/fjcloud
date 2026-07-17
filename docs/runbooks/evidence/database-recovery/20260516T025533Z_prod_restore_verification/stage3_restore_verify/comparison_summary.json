@@ -1,0 +1,22 @@
+{
+  "source_db_instance_id": "fjcloud-prod",
+  "target_db_instance_id": "fjcloud-prod-restore-20260516025535",
+  "target_endpoint": "fjcloud-prod-restore-20260516025535.cabwlew6jcjl.us-east-1.rds.amazonaws.com",
+  "query_file_path": "/Users/stuart/.matt/projects/fjcloud_dev-e4fc442e/may15_9pm_2_prod_rds_restore_drill.md-49bb35e9/artifacts/stage2_restore_execute/rds_restore_evidence_prod_20260516T025533Z_76548/verification.sql",
+  "target_verification_output_path": "/Users/stuart/.matt/projects/fjcloud_dev-e4fc442e/may15_9pm_2_prod_rds_restore_drill.md-49bb35e9/artifacts/stage3_restore_verify/stage3_restore_verify_prod_20260516T032554Z/target_verification.txt",
+  "migration_parity_output_path": "/Users/stuart/.matt/projects/fjcloud_dev-e4fc442e/may15_9pm_2_prod_rds_restore_drill.md-49bb35e9/artifacts/stage3_restore_verify/stage3_restore_verify_prod_20260516T032554Z/migration_parity.txt",
+  "restored_target_sanity": {
+    "result": "pass",
+    "reason": "query_output_present"
+  },
+  "migration_parity": {
+    "source_count": "45",
+    "source_max_version": "46",
+    "target_count": "45",
+    "target_max_version": "46",
+    "result": "pass"
+  },
+  "verdict": "pass",
+  "reason": "target_sanity_queries_succeeded_and_migration_parity_passed",
+  "captured_at_utc": "2026-05-16T03:26:10Z"
+}

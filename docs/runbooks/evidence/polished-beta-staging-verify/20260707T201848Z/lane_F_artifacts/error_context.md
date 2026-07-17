@@ -1,0 +1,814 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - generic:
+    - region "Notifications alt+T"
+  - generic [ref=e3]:
+    - complementary [ref=e4]:
+      - generic [ref=e6]: Flapjack Cloud
+      - generic [ref=e7]:
+        - navigation [ref=e8]:
+          - link "Console" [ref=e9] [cursor=pointer]:
+            - /url: /console
+          - link "Indexes" [ref=e10] [cursor=pointer]:
+            - /url: /console/indexes
+          - link "Billing" [ref=e11] [cursor=pointer]:
+            - /url: /console/billing
+          - link "API Keys" [ref=e12] [cursor=pointer]:
+            - /url: /console/api-keys
+          - link "Logs" [ref=e13] [cursor=pointer]:
+            - /url: /console/logs
+          - link "Migrate" [ref=e14] [cursor=pointer]:
+            - /url: /console/migrate
+          - link "Account" [ref=e15] [cursor=pointer]:
+            - /url: /console/account
+        - generic [ref=e16]:
+          - paragraph [ref=e17]: Help
+          - generic [ref=e18]:
+            - link "Support" [ref=e19] [cursor=pointer]:
+              - /url: mailto:support@flapjack.foo
+            - link "API Docs" [ref=e20] [cursor=pointer]:
+              - /url: https://api.flapjack.foo/docs
+    - generic [ref=e21]:
+      - banner [ref=e22]:
+        - generic [ref=e24]: Free Plan
+        - generic [ref=e25]:
+          - generic [ref=e26]: E2E e2e-staging-verify 1783459542630-ep4yd0
+          - button "Logout" [ref=e28]
+      - generic [ref=e30]:
+        - generic [ref=e31]: BETA
+        - generic [ref=e32]: Public beta.
+        - link "View beta scope" [ref=e33] [cursor=pointer]:
+          - /url: /beta
+        - link "Send feedback" [ref=e34] [cursor=pointer]:
+          - /url: mailto:support@flapjack.foo?subject=Flapjack%20Cloud%20beta%20feedback
+        - link "Support" [ref=e35] [cursor=pointer]:
+          - /url: mailto:support@flapjack.foo
+      - main [ref=e36]:
+        - generic [ref=e37]:
+          - navigation [ref=e38]:
+            - link "Console" [ref=e39] [cursor=pointer]:
+              - /url: /console
+            - text: /
+            - link "Indexes" [ref=e40] [cursor=pointer]:
+              - /url: /console/indexes
+            - text: / e2e-stage-pagination-1783459547887-39o1qj
+          - generic [ref=e41]:
+            - heading "e2e-stage-pagination-1783459547887-39o1qj" [level=1] [ref=e42]
+            - generic [ref=e43]:
+              - button "API Activity Log" [ref=e44]
+              - generic [ref=e45]: Unknown
+          - tablist "Index detail sections" [ref=e47]:
+            - tab "Overview" [ref=e48]
+            - tab "Settings" [ref=e49]
+            - tab "Documents" [ref=e50]
+            - tab "Dictionaries" [ref=e51]
+            - tab "Synonyms" [ref=e52]
+            - tab "Personalization" [ref=e53]
+            - tab "Recommendations" [ref=e54]
+            - tab "Chat" [ref=e55]
+            - tab "Suggestions" [ref=e56]
+            - tab "Analytics" [ref=e57]
+            - tab "Metrics" [ref=e58]
+            - tab "Merchandising" [ref=e59]
+            - tab "Experiments" [ref=e60]
+            - tab "Events" [ref=e61]
+            - tab "Security Sources" [ref=e62]
+            - tab "Search" [selected] [ref=e63]
+          - generic [ref=e65]:
+            - heading "Search" [level=2] [ref=e66]
+            - generic [ref=e67]:
+              - generic [ref=e68]:
+                - generic [ref=e69]:
+                  - heading "Search" [level=2] [ref=e70]
+                  - generic [ref=e71]: "Vector: unavailable"
+                - generic [ref=e72]:
+                  - generic [ref=e73]:
+                    - generic [ref=e74]:
+                      - checkbox "Track analytics events" [ref=e75]
+                      - text: Track analytics events
+                    - button "About Track Analytics" [ref=e77]: "?"
+                  - generic [ref=e78]:
+                    - checkbox "Merchandising mode" [ref=e79]
+                    - text: Merchandising mode
+                  - button "Display preferences" [ref=e80]
+                  - button "Add documents" [ref=e81]
+              - generic [ref=e83]:
+                - generic [ref=e84]: Search preview query
+                - searchbox "Search preview query" [active] [ref=e85]: Polished Beta
+                - button "Show filters" [ref=e86]
+              - complementary [ref=e87]:
+                - generic [ref=e88]:
+                  - heading "Facets" [level=2] [ref=e89]
+                  - button "Clear all facets" [ref=e90]
+              - generic [ref=e92]:
+                - generic [ref=e93]:
+                  - paragraph [ref=e94]: 45 hits in 6ms
+                  - generic [ref=e95]:
+                    - button "Previous page" [disabled] [ref=e96]: Prev
+                    - button "Page 1" [disabled] [ref=e97]: "1"
+                    - button "Next page" [disabled] [ref=e98]: Next
+                - generic [ref=e99]:
+                  - button "Open hit e2e-stage-pagination-1783459547887-39o1qj-doc-1" [ref=e100]:
+                    - article [ref=e101]:
+                      - generic [ref=e102]:
+                        - generic [ref=e103]: objectID
+                        - generic [ref=e104]: e2e-stage-pagination-1783459547887-39o1qj-doc-1
+                      - generic [ref=e105]:
+                        - generic [ref=e106]: body
+                        - generic [ref=e107]:
+                          - emphasis [ref=e108]: polished
+                          - emphasis [ref=e109]: beta
+                          - text: staging verification searchable document 1
+                      - generic [ref=e110]:
+                        - generic [ref=e111]: category
+                        - generic [ref=e112]:
+                          - emphasis [ref=e113]: sta
+                          - text: ging_verify
+                      - generic [ref=e114]:
+                        - generic [ref=e115]: image_url
+                        - generic [ref=e116]: https://placehold.co/120x80/png?text=PB1
+                      - generic [ref=e117]:
+                        - generic [ref=e118]: subtitle
+                        - generic [ref=e119]:
+                          - emphasis [ref=e120]: Sta
+                          - text: ging verification card 1
+                      - generic [ref=e121]:
+                        - generic [ref=e122]: tags
+                        - generic [ref=e123]: "[\"polished-beta\",\"odd\"]"
+                      - generic [ref=e124]:
+                        - generic [ref=e125]: title
+                        - generic [ref=e126]:
+                          - emphasis [ref=e127]: Polished
+                          - emphasis [ref=e128]: Beta
+                          - text: Pancake 1
+                      - button "Show JSON" [ref=e129]
+                    - button "Delete document e2e-stage-pagination-1783459547887-39o1qj-doc-1" [ref=e131]: Delete
+                  - button "Open hit e2e-stage-pagination-1783459547887-39o1qj-doc-10" [ref=e132]:
+                    - article [ref=e133]:
+                      - generic [ref=e134]:
+                        - generic [ref=e135]: objectID
+                        - generic [ref=e136]: e2e-stage-pagination-1783459547887-39o1qj-doc-10
+                      - generic [ref=e137]:
+                        - generic [ref=e138]: body
+                        - generic [ref=e139]:
+                          - emphasis [ref=e140]: polished
+                          - emphasis [ref=e141]: beta
+                          - text: staging verification searchable document 10
+                      - generic [ref=e142]:
+                        - generic [ref=e143]: category
+                        - generic [ref=e144]:
+                          - emphasis [ref=e145]: sta
+                          - text: ging_verify
+                      - generic [ref=e146]:
+                        - generic [ref=e147]: image_url
+                        - generic [ref=e148]: https://placehold.co/120x80/png?text=PB10
+                      - generic [ref=e149]:
+                        - generic [ref=e150]: subtitle
+                        - generic [ref=e151]:
+                          - emphasis [ref=e152]: Sta
+                          - text: ging verification card 10
+                      - generic [ref=e153]:
+                        - generic [ref=e154]: tags
+                        - generic [ref=e155]: "[\"polished-beta\",\"even\"]"
+                      - generic [ref=e156]:
+                        - generic [ref=e157]: title
+                        - generic [ref=e158]:
+                          - emphasis [ref=e159]: Polished
+                          - emphasis [ref=e160]: Beta
+                          - text: Pancake 10
+                      - button "Show JSON" [ref=e161]
+                    - button "Delete document e2e-stage-pagination-1783459547887-39o1qj-doc-10" [ref=e163]: Delete
+                  - button "Open hit e2e-stage-pagination-1783459547887-39o1qj-doc-11" [ref=e164]:
+                    - article [ref=e165]:
+                      - generic [ref=e166]:
+                        - generic [ref=e167]: objectID
+                        - generic [ref=e168]: e2e-stage-pagination-1783459547887-39o1qj-doc-11
+                      - generic [ref=e169]:
+                        - generic [ref=e170]: body
+                        - generic [ref=e171]:
+                          - emphasis [ref=e172]: polished
+                          - emphasis [ref=e173]: beta
+                          - text: staging verification searchable document 11
+                      - generic [ref=e174]:
+                        - generic [ref=e175]: category
+                        - generic [ref=e176]:
+                          - emphasis [ref=e177]: sta
+                          - text: ging_verify
+                      - generic [ref=e178]:
+                        - generic [ref=e179]: image_url
+                        - generic [ref=e180]: https://placehold.co/120x80/png?text=PB11
+                      - generic [ref=e181]:
+                        - generic [ref=e182]: subtitle
+                        - generic [ref=e183]:
+                          - emphasis [ref=e184]: Sta
+                          - text: ging verification card 11
+                      - generic [ref=e185]:
+                        - generic [ref=e186]: tags
+                        - generic [ref=e187]: "[\"polished-beta\",\"odd\"]"
+                      - generic [ref=e188]:
+                        - generic [ref=e189]: title
+                        - generic [ref=e190]:
+                          - emphasis [ref=e191]: Polished
+                          - emphasis [ref=e192]: Beta
+                          - text: Pancake 11
+                      - button "Show JSON" [ref=e193]
+                    - button "Delete document e2e-stage-pagination-1783459547887-39o1qj-doc-11" [ref=e195]: Delete
+                  - button "Open hit e2e-stage-pagination-1783459547887-39o1qj-doc-12" [ref=e196]:
+                    - article [ref=e197]:
+                      - generic [ref=e198]:
+                        - generic [ref=e199]: objectID
+                        - generic [ref=e200]: e2e-stage-pagination-1783459547887-39o1qj-doc-12
+                      - generic [ref=e201]:
+                        - generic [ref=e202]: body
+                        - generic [ref=e203]:
+                          - emphasis [ref=e204]: polished
+                          - emphasis [ref=e205]: beta
+                          - text: staging verification searchable document 12
+                      - generic [ref=e206]:
+                        - generic [ref=e207]: category
+                        - generic [ref=e208]:
+                          - emphasis [ref=e209]: sta
+                          - text: ging_verify
+                      - generic [ref=e210]:
+                        - generic [ref=e211]: image_url
+                        - generic [ref=e212]: https://placehold.co/120x80/png?text=PB12
+                      - generic [ref=e213]:
+                        - generic [ref=e214]: subtitle
+                        - generic [ref=e215]:
+                          - emphasis [ref=e216]: Sta
+                          - text: ging verification card 12
+                      - generic [ref=e217]:
+                        - generic [ref=e218]: tags
+                        - generic [ref=e219]: "[\"polished-beta\",\"even\"]"
+                      - generic [ref=e220]:
+                        - generic [ref=e221]: title
+                        - generic [ref=e222]:
+                          - emphasis [ref=e223]: Polished
+                          - emphasis [ref=e224]: Beta
+                          - text: Pancake 12
+                      - button "Show JSON" [ref=e225]
+                    - button "Delete document e2e-stage-pagination-1783459547887-39o1qj-doc-12" [ref=e227]: Delete
+                  - button "Open hit e2e-stage-pagination-1783459547887-39o1qj-doc-13" [ref=e228]:
+                    - article [ref=e229]:
+                      - generic [ref=e230]:
+                        - generic [ref=e231]: objectID
+                        - generic [ref=e232]: e2e-stage-pagination-1783459547887-39o1qj-doc-13
+                      - generic [ref=e233]:
+                        - generic [ref=e234]: body
+                        - generic [ref=e235]:
+                          - emphasis [ref=e236]: polished
+                          - emphasis [ref=e237]: beta
+                          - text: staging verification searchable document 13
+                      - generic [ref=e238]:
+                        - generic [ref=e239]: category
+                        - generic [ref=e240]:
+                          - emphasis [ref=e241]: sta
+                          - text: ging_verify
+                      - generic [ref=e242]:
+                        - generic [ref=e243]: image_url
+                        - generic [ref=e244]: https://placehold.co/120x80/png?text=PB13
+                      - generic [ref=e245]:
+                        - generic [ref=e246]: subtitle
+                        - generic [ref=e247]:
+                          - emphasis [ref=e248]: Sta
+                          - text: ging verification card 13
+                      - generic [ref=e249]:
+                        - generic [ref=e250]: tags
+                        - generic [ref=e251]: "[\"polished-beta\",\"odd\"]"
+                      - generic [ref=e252]:
+                        - generic [ref=e253]: title
+                        - generic [ref=e254]:
+                          - emphasis [ref=e255]: Polished
+                          - emphasis [ref=e256]: Beta
+                          - text: Pancake 13
+                      - button "Show JSON" [ref=e257]
+                    - button "Delete document e2e-stage-pagination-1783459547887-39o1qj-doc-13" [ref=e259]: Delete
+                  - button "Open hit e2e-stage-pagination-1783459547887-39o1qj-doc-14" [ref=e260]:
+                    - article [ref=e261]:
+                      - generic [ref=e262]:
+                        - generic [ref=e263]: objectID
+                        - generic [ref=e264]: e2e-stage-pagination-1783459547887-39o1qj-doc-14
+                      - generic [ref=e265]:
+                        - generic [ref=e266]: body
+                        - generic [ref=e267]:
+                          - emphasis [ref=e268]: polished
+                          - emphasis [ref=e269]: beta
+                          - text: staging verification searchable document 14
+                      - generic [ref=e270]:
+                        - generic [ref=e271]: category
+                        - generic [ref=e272]:
+                          - emphasis [ref=e273]: sta
+                          - text: ging_verify
+                      - generic [ref=e274]:
+                        - generic [ref=e275]: image_url
+                        - generic [ref=e276]: https://placehold.co/120x80/png?text=PB14
+                      - generic [ref=e277]:
+                        - generic [ref=e278]: subtitle
+                        - generic [ref=e279]:
+                          - emphasis [ref=e280]: Sta
+                          - text: ging verification card 14
+                      - generic [ref=e281]:
+                        - generic [ref=e282]: tags
+                        - generic [ref=e283]: "[\"polished-beta\",\"even\"]"
+                      - generic [ref=e284]:
+                        - generic [ref=e285]: title
+                        - generic [ref=e286]:
+                          - emphasis [ref=e287]: Polished
+                          - emphasis [ref=e288]: Beta
+                          - text: Pancake 14
+                      - button "Show JSON" [ref=e289]
+                    - button "Delete document e2e-stage-pagination-1783459547887-39o1qj-doc-14" [ref=e291]: Delete
+                  - button "Open hit e2e-stage-pagination-1783459547887-39o1qj-doc-15" [ref=e292]:
+                    - article [ref=e293]:
+                      - generic [ref=e294]:
+                        - generic [ref=e295]: objectID
+                        - generic [ref=e296]: e2e-stage-pagination-1783459547887-39o1qj-doc-15
+                      - generic [ref=e297]:
+                        - generic [ref=e298]: body
+                        - generic [ref=e299]:
+                          - emphasis [ref=e300]: polished
+                          - emphasis [ref=e301]: beta
+                          - text: staging verification searchable document 15
+                      - generic [ref=e302]:
+                        - generic [ref=e303]: category
+                        - generic [ref=e304]:
+                          - emphasis [ref=e305]: sta
+                          - text: ging_verify
+                      - generic [ref=e306]:
+                        - generic [ref=e307]: image_url
+                        - generic [ref=e308]: https://placehold.co/120x80/png?text=PB15
+                      - generic [ref=e309]:
+                        - generic [ref=e310]: subtitle
+                        - generic [ref=e311]:
+                          - emphasis [ref=e312]: Sta
+                          - text: ging verification card 15
+                      - generic [ref=e313]:
+                        - generic [ref=e314]: tags
+                        - generic [ref=e315]: "[\"polished-beta\",\"odd\"]"
+                      - generic [ref=e316]:
+                        - generic [ref=e317]: title
+                        - generic [ref=e318]:
+                          - emphasis [ref=e319]: Polished
+                          - emphasis [ref=e320]: Beta
+                          - text: Pancake 15
+                      - button "Show JSON" [ref=e321]
+                    - button "Delete document e2e-stage-pagination-1783459547887-39o1qj-doc-15" [ref=e323]: Delete
+                  - button "Open hit e2e-stage-pagination-1783459547887-39o1qj-doc-16" [ref=e324]:
+                    - article [ref=e325]:
+                      - generic [ref=e326]:
+                        - generic [ref=e327]: objectID
+                        - generic [ref=e328]: e2e-stage-pagination-1783459547887-39o1qj-doc-16
+                      - generic [ref=e329]:
+                        - generic [ref=e330]: body
+                        - generic [ref=e331]:
+                          - emphasis [ref=e332]: polished
+                          - emphasis [ref=e333]: beta
+                          - text: staging verification searchable document 16
+                      - generic [ref=e334]:
+                        - generic [ref=e335]: category
+                        - generic [ref=e336]:
+                          - emphasis [ref=e337]: sta
+                          - text: ging_verify
+                      - generic [ref=e338]:
+                        - generic [ref=e339]: image_url
+                        - generic [ref=e340]: https://placehold.co/120x80/png?text=PB16
+                      - generic [ref=e341]:
+                        - generic [ref=e342]: subtitle
+                        - generic [ref=e343]:
+                          - emphasis [ref=e344]: Sta
+                          - text: ging verification card 16
+                      - generic [ref=e345]:
+                        - generic [ref=e346]: tags
+                        - generic [ref=e347]: "[\"polished-beta\",\"even\"]"
+                      - generic [ref=e348]:
+                        - generic [ref=e349]: title
+                        - generic [ref=e350]:
+                          - emphasis [ref=e351]: Polished
+                          - emphasis [ref=e352]: Beta
+                          - text: Pancake 16
+                      - button "Show JSON" [ref=e353]
+                    - button "Delete document e2e-stage-pagination-1783459547887-39o1qj-doc-16" [ref=e355]: Delete
+                  - button "Open hit e2e-stage-pagination-1783459547887-39o1qj-doc-17" [ref=e356]:
+                    - article [ref=e357]:
+                      - generic [ref=e358]:
+                        - generic [ref=e359]: objectID
+                        - generic [ref=e360]: e2e-stage-pagination-1783459547887-39o1qj-doc-17
+                      - generic [ref=e361]:
+                        - generic [ref=e362]: body
+                        - generic [ref=e363]:
+                          - emphasis [ref=e364]: polished
+                          - emphasis [ref=e365]: beta
+                          - text: staging verification searchable document 17
+                      - generic [ref=e366]:
+                        - generic [ref=e367]: category
+                        - generic [ref=e368]:
+                          - emphasis [ref=e369]: sta
+                          - text: ging_verify
+                      - generic [ref=e370]:
+                        - generic [ref=e371]: image_url
+                        - generic [ref=e372]: https://placehold.co/120x80/png?text=PB17
+                      - generic [ref=e373]:
+                        - generic [ref=e374]: subtitle
+                        - generic [ref=e375]:
+                          - emphasis [ref=e376]: Sta
+                          - text: ging verification card 17
+                      - generic [ref=e377]:
+                        - generic [ref=e378]: tags
+                        - generic [ref=e379]: "[\"polished-beta\",\"odd\"]"
+                      - generic [ref=e380]:
+                        - generic [ref=e381]: title
+                        - generic [ref=e382]:
+                          - emphasis [ref=e383]: Polished
+                          - emphasis [ref=e384]: Beta
+                          - text: Pancake 17
+                      - button "Show JSON" [ref=e385]
+                    - button "Delete document e2e-stage-pagination-1783459547887-39o1qj-doc-17" [ref=e387]: Delete
+                  - button "Open hit e2e-stage-pagination-1783459547887-39o1qj-doc-18" [ref=e388]:
+                    - article [ref=e389]:
+                      - generic [ref=e390]:
+                        - generic [ref=e391]: objectID
+                        - generic [ref=e392]: e2e-stage-pagination-1783459547887-39o1qj-doc-18
+                      - generic [ref=e393]:
+                        - generic [ref=e394]: body
+                        - generic [ref=e395]:
+                          - emphasis [ref=e396]: polished
+                          - emphasis [ref=e397]: beta
+                          - text: staging verification searchable document 18
+                      - generic [ref=e398]:
+                        - generic [ref=e399]: category
+                        - generic [ref=e400]:
+                          - emphasis [ref=e401]: sta
+                          - text: ging_verify
+                      - generic [ref=e402]:
+                        - generic [ref=e403]: image_url
+                        - generic [ref=e404]: https://placehold.co/120x80/png?text=PB18
+                      - generic [ref=e405]:
+                        - generic [ref=e406]: subtitle
+                        - generic [ref=e407]:
+                          - emphasis [ref=e408]: Sta
+                          - text: ging verification card 18
+                      - generic [ref=e409]:
+                        - generic [ref=e410]: tags
+                        - generic [ref=e411]: "[\"polished-beta\",\"even\"]"
+                      - generic [ref=e412]:
+                        - generic [ref=e413]: title
+                        - generic [ref=e414]:
+                          - emphasis [ref=e415]: Polished
+                          - emphasis [ref=e416]: Beta
+                          - text: Pancake 18
+                      - button "Show JSON" [ref=e417]
+                    - button "Delete document e2e-stage-pagination-1783459547887-39o1qj-doc-18" [ref=e419]: Delete
+                  - button "Open hit e2e-stage-pagination-1783459547887-39o1qj-doc-19" [ref=e420]:
+                    - article [ref=e421]:
+                      - generic [ref=e422]:
+                        - generic [ref=e423]: objectID
+                        - generic [ref=e424]: e2e-stage-pagination-1783459547887-39o1qj-doc-19
+                      - generic [ref=e425]:
+                        - generic [ref=e426]: body
+                        - generic [ref=e427]:
+                          - emphasis [ref=e428]: polished
+                          - emphasis [ref=e429]: beta
+                          - text: staging verification searchable document 19
+                      - generic [ref=e430]:
+                        - generic [ref=e431]: category
+                        - generic [ref=e432]:
+                          - emphasis [ref=e433]: sta
+                          - text: ging_verify
+                      - generic [ref=e434]:
+                        - generic [ref=e435]: image_url
+                        - generic [ref=e436]: https://placehold.co/120x80/png?text=PB19
+                      - generic [ref=e437]:
+                        - generic [ref=e438]: subtitle
+                        - generic [ref=e439]:
+                          - emphasis [ref=e440]: Sta
+                          - text: ging verification card 19
+                      - generic [ref=e441]:
+                        - generic [ref=e442]: tags
+                        - generic [ref=e443]: "[\"polished-beta\",\"odd\"]"
+                      - generic [ref=e444]:
+                        - generic [ref=e445]: title
+                        - generic [ref=e446]:
+                          - emphasis [ref=e447]: Polished
+                          - emphasis [ref=e448]: Beta
+                          - text: Pancake 19
+                      - button "Show JSON" [ref=e449]
+                    - button "Delete document e2e-stage-pagination-1783459547887-39o1qj-doc-19" [ref=e451]: Delete
+                  - button "Open hit e2e-stage-pagination-1783459547887-39o1qj-doc-2" [ref=e452]:
+                    - article [ref=e453]:
+                      - generic [ref=e454]:
+                        - generic [ref=e455]: objectID
+                        - generic [ref=e456]: e2e-stage-pagination-1783459547887-39o1qj-doc-2
+                      - generic [ref=e457]:
+                        - generic [ref=e458]: body
+                        - generic [ref=e459]:
+                          - emphasis [ref=e460]: polished
+                          - emphasis [ref=e461]: beta
+                          - text: staging verification searchable document 2
+                      - generic [ref=e462]:
+                        - generic [ref=e463]: category
+                        - generic [ref=e464]:
+                          - emphasis [ref=e465]: sta
+                          - text: ging_verify
+                      - generic [ref=e466]:
+                        - generic [ref=e467]: image_url
+                        - generic [ref=e468]: https://placehold.co/120x80/png?text=PB2
+                      - generic [ref=e469]:
+                        - generic [ref=e470]: subtitle
+                        - generic [ref=e471]:
+                          - emphasis [ref=e472]: Sta
+                          - text: ging verification card 2
+                      - generic [ref=e473]:
+                        - generic [ref=e474]: tags
+                        - generic [ref=e475]: "[\"polished-beta\",\"even\"]"
+                      - generic [ref=e476]:
+                        - generic [ref=e477]: title
+                        - generic [ref=e478]:
+                          - emphasis [ref=e479]: Polished
+                          - emphasis [ref=e480]: Beta
+                          - text: Pancake 2
+                      - button "Show JSON" [ref=e481]
+                    - button "Delete document e2e-stage-pagination-1783459547887-39o1qj-doc-2" [ref=e483]: Delete
+                  - button "Open hit e2e-stage-pagination-1783459547887-39o1qj-doc-20" [ref=e484]:
+                    - article [ref=e485]:
+                      - generic [ref=e486]:
+                        - generic [ref=e487]: objectID
+                        - generic [ref=e488]: e2e-stage-pagination-1783459547887-39o1qj-doc-20
+                      - generic [ref=e489]:
+                        - generic [ref=e490]: body
+                        - generic [ref=e491]:
+                          - emphasis [ref=e492]: polished
+                          - emphasis [ref=e493]: beta
+                          - text: staging verification searchable document 20
+                      - generic [ref=e494]:
+                        - generic [ref=e495]: category
+                        - generic [ref=e496]:
+                          - emphasis [ref=e497]: sta
+                          - text: ging_verify
+                      - generic [ref=e498]:
+                        - generic [ref=e499]: image_url
+                        - generic [ref=e500]: https://placehold.co/120x80/png?text=PB20
+                      - generic [ref=e501]:
+                        - generic [ref=e502]: subtitle
+                        - generic [ref=e503]:
+                          - emphasis [ref=e504]: Sta
+                          - text: ging verification card 20
+                      - generic [ref=e505]:
+                        - generic [ref=e506]: tags
+                        - generic [ref=e507]: "[\"polished-beta\",\"even\"]"
+                      - generic [ref=e508]:
+                        - generic [ref=e509]: title
+                        - generic [ref=e510]:
+                          - emphasis [ref=e511]: Polished
+                          - emphasis [ref=e512]: Beta
+                          - text: Pancake 20
+                      - button "Show JSON" [ref=e513]
+                    - button "Delete document e2e-stage-pagination-1783459547887-39o1qj-doc-20" [ref=e515]: Delete
+                  - button "Open hit e2e-stage-pagination-1783459547887-39o1qj-doc-3" [ref=e516]:
+                    - article [ref=e517]:
+                      - generic [ref=e518]:
+                        - generic [ref=e519]: objectID
+                        - generic [ref=e520]: e2e-stage-pagination-1783459547887-39o1qj-doc-3
+                      - generic [ref=e521]:
+                        - generic [ref=e522]: body
+                        - generic [ref=e523]:
+                          - emphasis [ref=e524]: polished
+                          - emphasis [ref=e525]: beta
+                          - text: staging verification searchable document 3
+                      - generic [ref=e526]:
+                        - generic [ref=e527]: category
+                        - generic [ref=e528]:
+                          - emphasis [ref=e529]: sta
+                          - text: ging_verify
+                      - generic [ref=e530]:
+                        - generic [ref=e531]: image_url
+                        - generic [ref=e532]: https://placehold.co/120x80/png?text=PB3
+                      - generic [ref=e533]:
+                        - generic [ref=e534]: subtitle
+                        - generic [ref=e535]:
+                          - emphasis [ref=e536]: Sta
+                          - text: ging verification card 3
+                      - generic [ref=e537]:
+                        - generic [ref=e538]: tags
+                        - generic [ref=e539]: "[\"polished-beta\",\"odd\"]"
+                      - generic [ref=e540]:
+                        - generic [ref=e541]: title
+                        - generic [ref=e542]:
+                          - emphasis [ref=e543]: Polished
+                          - emphasis [ref=e544]: Beta
+                          - text: Pancake 3
+                      - button "Show JSON" [ref=e545]
+                    - button "Delete document e2e-stage-pagination-1783459547887-39o1qj-doc-3" [ref=e547]: Delete
+                  - button "Open hit e2e-stage-pagination-1783459547887-39o1qj-doc-4" [ref=e548]:
+                    - article [ref=e549]:
+                      - generic [ref=e550]:
+                        - generic [ref=e551]: objectID
+                        - generic [ref=e552]: e2e-stage-pagination-1783459547887-39o1qj-doc-4
+                      - generic [ref=e553]:
+                        - generic [ref=e554]: body
+                        - generic [ref=e555]:
+                          - emphasis [ref=e556]: polished
+                          - emphasis [ref=e557]: beta
+                          - text: staging verification searchable document 4
+                      - generic [ref=e558]:
+                        - generic [ref=e559]: category
+                        - generic [ref=e560]:
+                          - emphasis [ref=e561]: sta
+                          - text: ging_verify
+                      - generic [ref=e562]:
+                        - generic [ref=e563]: image_url
+                        - generic [ref=e564]: https://placehold.co/120x80/png?text=PB4
+                      - generic [ref=e565]:
+                        - generic [ref=e566]: subtitle
+                        - generic [ref=e567]:
+                          - emphasis [ref=e568]: Sta
+                          - text: ging verification card 4
+                      - generic [ref=e569]:
+                        - generic [ref=e570]: tags
+                        - generic [ref=e571]: "[\"polished-beta\",\"even\"]"
+                      - generic [ref=e572]:
+                        - generic [ref=e573]: title
+                        - generic [ref=e574]:
+                          - emphasis [ref=e575]: Polished
+                          - emphasis [ref=e576]: Beta
+                          - text: Pancake 4
+                      - button "Show JSON" [ref=e577]
+                    - button "Delete document e2e-stage-pagination-1783459547887-39o1qj-doc-4" [ref=e579]: Delete
+                  - button "Open hit e2e-stage-pagination-1783459547887-39o1qj-doc-5" [ref=e580]:
+                    - article [ref=e581]:
+                      - generic [ref=e582]:
+                        - generic [ref=e583]: objectID
+                        - generic [ref=e584]: e2e-stage-pagination-1783459547887-39o1qj-doc-5
+                      - generic [ref=e585]:
+                        - generic [ref=e586]: body
+                        - generic [ref=e587]:
+                          - emphasis [ref=e588]: polished
+                          - emphasis [ref=e589]: beta
+                          - text: staging verification searchable document 5
+                      - generic [ref=e590]:
+                        - generic [ref=e591]: category
+                        - generic [ref=e592]:
+                          - emphasis [ref=e593]: sta
+                          - text: ging_verify
+                      - generic [ref=e594]:
+                        - generic [ref=e595]: image_url
+                        - generic [ref=e596]: https://placehold.co/120x80/png?text=PB5
+                      - generic [ref=e597]:
+                        - generic [ref=e598]: subtitle
+                        - generic [ref=e599]:
+                          - emphasis [ref=e600]: Sta
+                          - text: ging verification card 5
+                      - generic [ref=e601]:
+                        - generic [ref=e602]: tags
+                        - generic [ref=e603]: "[\"polished-beta\",\"odd\"]"
+                      - generic [ref=e604]:
+                        - generic [ref=e605]: title
+                        - generic [ref=e606]:
+                          - emphasis [ref=e607]: Polished
+                          - emphasis [ref=e608]: Beta
+                          - text: Pancake 5
+                      - button "Show JSON" [ref=e609]
+                    - button "Delete document e2e-stage-pagination-1783459547887-39o1qj-doc-5" [ref=e611]: Delete
+                  - button "Open hit e2e-stage-pagination-1783459547887-39o1qj-doc-6" [ref=e612]:
+                    - article [ref=e613]:
+                      - generic [ref=e614]:
+                        - generic [ref=e615]: objectID
+                        - generic [ref=e616]: e2e-stage-pagination-1783459547887-39o1qj-doc-6
+                      - generic [ref=e617]:
+                        - generic [ref=e618]: body
+                        - generic [ref=e619]:
+                          - emphasis [ref=e620]: polished
+                          - emphasis [ref=e621]: beta
+                          - text: staging verification searchable document 6
+                      - generic [ref=e622]:
+                        - generic [ref=e623]: category
+                        - generic [ref=e624]:
+                          - emphasis [ref=e625]: sta
+                          - text: ging_verify
+                      - generic [ref=e626]:
+                        - generic [ref=e627]: image_url
+                        - generic [ref=e628]: https://placehold.co/120x80/png?text=PB6
+                      - generic [ref=e629]:
+                        - generic [ref=e630]: subtitle
+                        - generic [ref=e631]:
+                          - emphasis [ref=e632]: Sta
+                          - text: ging verification card 6
+                      - generic [ref=e633]:
+                        - generic [ref=e634]: tags
+                        - generic [ref=e635]: "[\"polished-beta\",\"even\"]"
+                      - generic [ref=e636]:
+                        - generic [ref=e637]: title
+                        - generic [ref=e638]:
+                          - emphasis [ref=e639]: Polished
+                          - emphasis [ref=e640]: Beta
+                          - text: Pancake 6
+                      - button "Show JSON" [ref=e641]
+                    - button "Delete document e2e-stage-pagination-1783459547887-39o1qj-doc-6" [ref=e643]: Delete
+                  - button "Open hit e2e-stage-pagination-1783459547887-39o1qj-doc-7" [ref=e644]:
+                    - article [ref=e645]:
+                      - generic [ref=e646]:
+                        - generic [ref=e647]: objectID
+                        - generic [ref=e648]: e2e-stage-pagination-1783459547887-39o1qj-doc-7
+                      - generic [ref=e649]:
+                        - generic [ref=e650]: body
+                        - generic [ref=e651]:
+                          - emphasis [ref=e652]: polished
+                          - emphasis [ref=e653]: beta
+                          - text: staging verification searchable document 7
+                      - generic [ref=e654]:
+                        - generic [ref=e655]: category
+                        - generic [ref=e656]:
+                          - emphasis [ref=e657]: sta
+                          - text: ging_verify
+                      - generic [ref=e658]:
+                        - generic [ref=e659]: image_url
+                        - generic [ref=e660]: https://placehold.co/120x80/png?text=PB7
+                      - generic [ref=e661]:
+                        - generic [ref=e662]: subtitle
+                        - generic [ref=e663]:
+                          - emphasis [ref=e664]: Sta
+                          - text: ging verification card 7
+                      - generic [ref=e665]:
+                        - generic [ref=e666]: tags
+                        - generic [ref=e667]: "[\"polished-beta\",\"odd\"]"
+                      - generic [ref=e668]:
+                        - generic [ref=e669]: title
+                        - generic [ref=e670]:
+                          - emphasis [ref=e671]: Polished
+                          - emphasis [ref=e672]: Beta
+                          - text: Pancake 7
+                      - button "Show JSON" [ref=e673]
+                    - button "Delete document e2e-stage-pagination-1783459547887-39o1qj-doc-7" [ref=e675]: Delete
+                  - button "Open hit e2e-stage-pagination-1783459547887-39o1qj-doc-8" [ref=e676]:
+                    - article [ref=e677]:
+                      - generic [ref=e678]:
+                        - generic [ref=e679]: objectID
+                        - generic [ref=e680]: e2e-stage-pagination-1783459547887-39o1qj-doc-8
+                      - generic [ref=e681]:
+                        - generic [ref=e682]: body
+                        - generic [ref=e683]:
+                          - emphasis [ref=e684]: polished
+                          - emphasis [ref=e685]: beta
+                          - text: staging verification searchable document 8
+                      - generic [ref=e686]:
+                        - generic [ref=e687]: category
+                        - generic [ref=e688]:
+                          - emphasis [ref=e689]: sta
+                          - text: ging_verify
+                      - generic [ref=e690]:
+                        - generic [ref=e691]: image_url
+                        - generic [ref=e692]: https://placehold.co/120x80/png?text=PB8
+                      - generic [ref=e693]:
+                        - generic [ref=e694]: subtitle
+                        - generic [ref=e695]:
+                          - emphasis [ref=e696]: Sta
+                          - text: ging verification card 8
+                      - generic [ref=e697]:
+                        - generic [ref=e698]: tags
+                        - generic [ref=e699]: "[\"polished-beta\",\"even\"]"
+                      - generic [ref=e700]:
+                        - generic [ref=e701]: title
+                        - generic [ref=e702]:
+                          - emphasis [ref=e703]: Polished
+                          - emphasis [ref=e704]: Beta
+                          - text: Pancake 8
+                      - button "Show JSON" [ref=e705]
+                    - button "Delete document e2e-stage-pagination-1783459547887-39o1qj-doc-8" [ref=e707]: Delete
+                  - button "Open hit e2e-stage-pagination-1783459547887-39o1qj-doc-9" [ref=e708]:
+                    - article [ref=e709]:
+                      - generic [ref=e710]:
+                        - generic [ref=e711]: objectID
+                        - generic [ref=e712]: e2e-stage-pagination-1783459547887-39o1qj-doc-9
+                      - generic [ref=e713]:
+                        - generic [ref=e714]: body
+                        - generic [ref=e715]:
+                          - emphasis [ref=e716]: polished
+                          - emphasis [ref=e717]: beta
+                          - text: staging verification searchable document 9
+                      - generic [ref=e718]:
+                        - generic [ref=e719]: category
+                        - generic [ref=e720]:
+                          - emphasis [ref=e721]: sta
+                          - text: ging_verify
+                      - generic [ref=e722]:
+                        - generic [ref=e723]: image_url
+                        - generic [ref=e724]: https://placehold.co/120x80/png?text=PB9
+                      - generic [ref=e725]:
+                        - generic [ref=e726]: subtitle
+                        - generic [ref=e727]:
+                          - emphasis [ref=e728]: Sta
+                          - text: ging verification card 9
+                      - generic [ref=e729]:
+                        - generic [ref=e730]: tags
+                        - generic [ref=e731]: "[\"polished-beta\",\"odd\"]"
+                      - generic [ref=e732]:
+                        - generic [ref=e733]: title
+                        - generic [ref=e734]:
+                          - emphasis [ref=e735]: Polished
+                          - emphasis [ref=e736]: Beta
+                          - text: Pancake 9
+                      - button "Show JSON" [ref=e737]
+                    - button "Delete document e2e-stage-pagination-1783459547887-39o1qj-doc-9" [ref=e739]: Delete
+  - generic [ref=e740]: e2e-stage-pagination-1783459547887-39o1qj - Indexes - Flapjack Cloud
+```

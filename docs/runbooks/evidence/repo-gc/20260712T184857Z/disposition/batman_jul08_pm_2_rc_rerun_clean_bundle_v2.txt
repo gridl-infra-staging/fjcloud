@@ -1,0 +1,14 @@
+# Disposition Receipt: batman/jul08_pm_2_rc_rerun_clean_bundle_v2
+
+Classification: approved freed local branch after approved worktree removal
+Evidence source: current read-only git refs at bundle creation.
+
+## rev-parse
+$ git rev-parse batman/jul08_pm_2_rc_rerun_clean_bundle_v2
+efb46663c7ad56da68709c2b1eba6b68158700a7
+
+## cherry
+$ git cherry -v main batman/jul08_pm_2_rc_rerun_clean_bundle_v2 | tail -20
+
+## diff main...
+$ git diff main...batman/jul08_pm_2_rc_rerun_clean_bundle_v2 --stat | tail -20

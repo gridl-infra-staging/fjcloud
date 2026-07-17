@@ -1,0 +1,13 @@
+START RequestId: 3f0f783d-0afa-455f-8f98-ea1694bdb1bc Version: $LATEST
+[customer-loop-canary] signup succeeded for canary+canary2026051804560522584@test.flapjack.foo (customer=6576c89f-de86-47fb-a1a7-cdf0b4e84a63)
+[customer-loop-canary] email verification succeeded for canary+canary2026051804560522584@test.flapjack.foo
+[customer-loop-canary] CANARY_LIVE_MODE=0; skipping live Stripe branch
+[customer-loop-canary] customer loop failed before completion; entering cleanup
+[customer-loop-canary] account delete attempted for customer 6576c89f-de86-47fb-a1a7-cdf0b4e84a63
+[customer-loop-canary] admin cleanup completed for tenant 6576c89f-de86-47fb-a1a7-cdf0b4e84a63
+[customer-loop-canary] step 'create_index' failed: create index returned HTTP 504
+[FAIL] slack: HTTP 400 (expected 2xx)
+[OK]   discord: HTTP 204
+END RequestId: 3f0f783d-0afa-455f-8f98-ea1694bdb1bc
+REPORT RequestId: 3f0f783d-0afa-455f-8f98-ea1694bdb1bc	Duration: 80290.64 ms	Billed Duration: 80456 ms	Memory Size: 512 MB	Max Memory Used: 139 MB	Init Duration: 165.18 ms	
+

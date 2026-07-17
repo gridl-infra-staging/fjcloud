@@ -1,0 +1,4 @@
+             customer_id              | records_month | quota_warnings_sent_json 
+--------------------------------------+---------------+--------------------------
+ 67ea7137-ecda-4ccc-a86e-46b0a814cb52 | 2026-05       | {"records": "2026-05"}
+(1 row)

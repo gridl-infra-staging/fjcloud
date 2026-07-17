@@ -1,0 +1,11 @@
+FAIL: function fjcloud-prod-support-email-canary threw Unhandled
+==response body==
+{"errorMessage": "support email canary failed with exit code 1", "errorType": "RuntimeError", "requestId": "43616f3c-edeb-4e14-84f2-dc7709dff3cb", "stackTrace": ["  File \"/var/task/lambda_handler.py\", line 86, in handler\n    return _run_canary()\n", "  File \"/var/task/lambda_handler.py\", line 77, in _run_canary\n    raise RuntimeError(f\"support email canary failed with exit code {completed.returncode}\")\n"]}==log tail (base64 in invoke response; decode if needed)==
+START RequestId: 43616f3c-edeb-4e14-84f2-dc7709dff3cb Version: $LATEST
+{"passed":false,"steps":[{"name":"send_probe","passed":false,"detail":"aws sesv2 send-email failed for recipient 'roundtrip-inbound-probe-20260518T040030Z-20150@test.flapjack.foo'."},{"name":"poll_inbox_s3","passed":false,"detail":"Skipped because send_probe failed."},{"name":"fetch_rfc822","passed":false,"detail":"Skipped because send_probe failed."},{"name":"auth_verdict","passed":false,"detail":"Skipped because send_probe failed."}],"elapsed_ms":2200}
+[OK]   discord: HTTP 204
+[FAIL] slack: HTTP 400 (expected 2xx)
+WARN: support email deliverability alert dispatch failed for one or more channels.
+[ERROR] RuntimeError: support email canary failed with exit code 1Traceback (most recent call last):  File "/var/task/lambda_handler.py", line 86, in handler    return _run_canary()  File "/var/task/lambda_handler.py", line 77, in _run_canary    raise RuntimeError(f"support email canary failed with exit code {completed.returncode}")
+END RequestId: 43616f3c-edeb-4e14-84f2-dc7709dff3cb
+REPORT RequestId: 43616f3c-edeb-4e14-84f2-dc7709dff3cb	Duration: 2789.51 ms	Billed Duration: 2790 ms	Memory Size: 512 MB	Max Memory Used: 147 MB	

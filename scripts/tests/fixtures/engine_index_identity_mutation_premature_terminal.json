@@ -1,0 +1,4 @@
+{
+  "mutation": "premature_terminal",
+  "expected_failure": "terminal migration state is not completed"
+}

@@ -1,0 +1,5 @@
+cached_hit=false
+command=bash scripts/canary/contracts/web_api_base_url_contract.sh prod
+head_sha=35aeb127bf452aaf2d0078377de42f06b02d6ef6
+clean_tree=false
+exit_code=0

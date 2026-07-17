@@ -1,0 +1,28 @@
+==> Deploying a368d3c633fbe9c420973e8538037527e24b6ede to staging
+==> Pre-deploy validation: mode=mock, sha=a368d3c633fbe9c420973e8538037527e24b6ede
+==> Pre-deploy validation passed for SHA a368d3c633fbe9c420973e8538037527e24b6ede
+==> Looking up instance fjcloud-api-staging
+    Instance: i-0afc7651593f12372
+==> Previous deploy SHA: fa64aba192866d5aa72e6409b3ec04fe6375ea16
+{
+    "Version": 68,
+    "Tier": "Standard"
+}
+==> Saved current SHA to /fjcloud/staging/last_deploy_sha
+{
+    "Version": 32,
+    "Tier": "Standard"
+}
+==> Set canary quiet window until 2026-05-19T01:05:35Z
+==> Sending SSM command to i-0afc7651593f12372
+    Command ID: f357a186-9f30-4c4e-869b-5058bd4440f1
+==> Polling command status
+ERROR: SSM command Failed
+==> [instance] Starting deploy of a368d3c633fbe9c420973e8538037527e24b6ede
+    Downloading fjcloud-api
+	fatal error: An error occurred (404) when calling the HeadObject operation: Key "staging/a368d3c633fbe9c420973e8538037527e24b6ede/fjcloud-api" does not exist
+failed to run commands: exit status 1
+{
+    "Version": 69,
+    "Tier": "Standard"
+}

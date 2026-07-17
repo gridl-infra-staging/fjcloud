@@ -1,0 +1,34 @@
+{
+  "errors": [],
+  "messages": [],
+  "result": [
+    {
+      "created_on": "2019-11-23T07:28:56.331854Z",
+      "id": "99deba6554f68cb3544bd9ecfd08ff06",
+      "legacy_flags": {
+        "enterprise_zone_quota": {
+          "available": 0,
+          "current": 0,
+          "maximum": 0
+        }
+      },
+      "name": "Stuart.clifford@gmail.com's Account",
+      "settings": {
+        "abuse_contact_email": null,
+        "access_approval_expiry": null,
+        "api_access_enabled": null,
+        "enforce_twofactor": true,
+        "oauth_app_access_enabled": true
+      },
+      "type": "standard"
+    }
+  ],
+  "result_info": {
+    "count": 1,
+    "page": 1,
+    "per_page": 20,
+    "total_count": 1,
+    "total_pages": 1
+  },
+  "success": true
+}

@@ -1,0 +1,4 @@
+function_error=Unhandled
+support_function_error=Unhandled
+success_marker=absent
+failure_marker=present

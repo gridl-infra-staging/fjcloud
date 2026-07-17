@@ -1,0 +1,11 @@
+# Command 1 (active shell source only)
+rg -n "dashboard-beta-support-badge" web/src/routes/console web/src/lib/components
+
+# Output 1
+(no matches)
+
+# Command 2 (spec assertion reference)
+rg -n "dashboard-beta-support-badge" web/tests/e2e-ui/full/console_chrome_polish.spec.ts
+
+# Output 2
+web/tests/e2e-ui/full/console_chrome_polish.spec.ts:86:		await expect(page.getByTestId('dashboard-beta-support-badge')).toHaveCount(0);

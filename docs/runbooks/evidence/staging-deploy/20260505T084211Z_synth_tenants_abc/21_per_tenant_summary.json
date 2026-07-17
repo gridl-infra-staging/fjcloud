@@ -1,0 +1,26 @@
+{
+  "A": {
+    "customer_id": "0a65f0b7-14b3-4e08-acf6-2222a02c7858",
+    "plan": "shared",
+    "total_search_requests": 0,
+    "total_write_operations": 0,
+    "avg_storage_gb": 0.02591528370976448,
+    "avg_document_count": 20131
+  },
+  "B": {
+    "customer_id": "3048552a-a78e-446d-ab94-48fe995e2b6c",
+    "plan": "dedicated",
+    "total_search_requests": 0,
+    "total_write_operations": 0,
+    "avg_storage_gb": 0.0004778672009706497,
+    "avg_document_count": 500
+  },
+  "C": {
+    "customer_id": "d6e4dc27-2f9b-41be-900b-13f4d678105f",
+    "plan": "dedicated",
+    "total_search_requests": 0,
+    "total_write_operations": 0,
+    "avg_storage_gb": 0.00047833286225795746,
+    "avg_document_count": 500
+  }
+}

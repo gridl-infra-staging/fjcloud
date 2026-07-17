@@ -1,0 +1,30 @@
+{
+  "account_id": "213880904778",
+  "api_probes": {
+    "describe_log_groups": "skipped",
+    "describe_log_streams": "skipped",
+    "filter_log_events": "skipped",
+    "get_log_events": "skipped"
+  },
+  "apply_method": "none",
+  "bound_instance_id": "i-0fbc6d6bbbc8bdc6d",
+  "bound_role_name": "fjcloud-instance-role",
+  "caller_arn_sanitized": "arn:aws:iam::213880904778:user/REDACTED",
+  "cleanup": {
+    "new_policy_apply_json_deleted": true,
+    "prior_policy_snapshot": "not_created",
+    "state_snapshot": "kept"
+  },
+  "onhost_role_arn_sanitized": "arn:aws:sts::213880904778:assumed-role/fjcloud-instance-role/REDACTED",
+  "plan_actions": [],
+  "plan_denominator": 14,
+  "policy_match": "n/a",
+  "prior_policy_state": "absent",
+  "profile_name": "fjcloud-instance-profile",
+  "propagation_attempts": 0,
+  "source_sha": "88d31a2d874b928b784cf409d32cc9962c32db2f",
+  "state_reconciliation": "rolled_back",
+  "status": "unsafe_plan_refused",
+  "stream_denominator": 0,
+  "verify_only": false
+}

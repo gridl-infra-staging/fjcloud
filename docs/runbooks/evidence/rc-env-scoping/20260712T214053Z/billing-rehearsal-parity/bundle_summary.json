@@ -1,0 +1,7 @@
+{
+  "bundle": "docs/runbooks/evidence/rc-env-scoping/20260712T214053Z/billing-rehearsal-parity",
+  "exit_code": "0",
+  "classification": "ready",
+  "passed": true,
+  "manifest_exists": true
+}

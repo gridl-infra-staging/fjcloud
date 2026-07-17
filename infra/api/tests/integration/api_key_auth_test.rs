@@ -1,0 +1,650 @@
+use axum::body::Body;
+use axum::http::{Request, StatusCode};
+use axum::routing::get;
+use axum::Router;
+use http_body_util::BodyExt;
+use sha2::{Digest, Sha256};
+use std::sync::Arc;
+use tower::ServiceExt;
+
+use api::auth::api_key::ApiKeyAuth;
+use api::auth::api_key::Stage1ApiKeyCompatDecision;
+use api::errors::ApiError;
+
+const TEST_KEY: &str = "fjc_live_0123456789abcdef0123456789abcdef";
+const TEST_KEY_PREFIX: &str = "fjc_live_0123456";
+const LEGACY_FJ_LIVE_KEY: &str = "fj_live_0123456789abcdef0123456789abcdef";
+const LEGACY_FJ_LIVE_KEY_PREFIX: &str = "fj_live_01234567";
+
+fn hash_key(key: &str) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(key.as_bytes());
+    hex::encode(hasher.finalize())
+}
+
+async fn test_handler(auth: ApiKeyAuth) -> String {
+    serde_json::json!({
+        "customer_id": auth.customer_id,
+        "key_id": auth.key_id,
+        "scopes": auth.scopes,
+    })
+    .to_string()
+}
+
+async fn scoped_handler(auth: ApiKeyAuth) -> Result<String, ApiError> {
+    auth.require_scope("read")?;
+    Ok(format!("ok: {}", auth.customer_id))
+}
+
+fn build_test_app(
+    customer_repo: Arc<crate::common::MockCustomerRepo>,
+    api_key_repo: Arc<crate::common::MockApiKeyRepo>,
+) -> Router {
+    let state = crate::common::test_state_with_api_key_repo(customer_repo, api_key_repo);
+    Router::new()
+        .route("/test", get(test_handler))
+        .route("/scoped", get(scoped_handler))
+        .with_state(state)
+}
+
+async fn body_json(resp: axum::response::Response) -> serde_json::Value {
+    let bytes = resp.into_body().collect().await.unwrap().to_bytes();
+    serde_json::from_slice(&bytes).unwrap()
+}
+
+// ---- Tests (RED phase — these should fail until ApiKeyAuth is implemented) ----
+
+#[tokio::test]
+async fn valid_key_authenticates() {
+    let customer_repo = crate::common::mock_repo();
+    let api_key_repo = crate::common::mock_api_key_repo();
+
+    let customer = customer_repo.seed("Acme Corp", "acme@example.com");
+    let key_hash = hash_key(TEST_KEY);
+    let seeded = api_key_repo.seed(
+        customer.id,
+        "prod-key",
+        &key_hash,
+        TEST_KEY_PREFIX,
+        vec!["read".into(), "write".into()],
+    );
+
+    let app = build_test_app(customer_repo, api_key_repo);
+
+    let resp = app
+        .oneshot(
+            Request::get("/test")
+                .header("authorization", format!("Bearer {TEST_KEY}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = body_json(resp).await;
+    assert_eq!(body["customer_id"], customer.id.to_string());
+    assert_eq!(body["key_id"], seeded.id.to_string());
+    assert_eq!(body["scopes"], serde_json::json!(["read", "write"]));
+}
+
+#[tokio::test]
+async fn missing_auth_header_returns_401() {
+    let app = build_test_app(
+        crate::common::mock_repo(),
+        crate::common::mock_api_key_repo(),
+    );
+
+    let resp = app
+        .oneshot(Request::get("/test").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn invalid_key_returns_401() {
+    let app = build_test_app(
+        crate::common::mock_repo(),
+        crate::common::mock_api_key_repo(),
+    );
+
+    let resp = app
+        .oneshot(
+            Request::get("/test")
+                .header(
+                    "authorization",
+                    "Bearer fj_live_ffffffffffffffffffffffffffffffff",
+                )
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn revoked_key_returns_401() {
+    let customer_repo = crate::common::mock_repo();
+    let api_key_repo = crate::common::mock_api_key_repo();
+
+    let customer = customer_repo.seed("Acme Corp", "acme@example.com");
+    let key_hash = hash_key(TEST_KEY);
+    let seeded = api_key_repo.seed(
+        customer.id,
+        "prod-key",
+        &key_hash,
+        TEST_KEY_PREFIX,
+        vec!["read".into()],
+    );
+
+    // Revoke the key
+    use api::repos::api_key_repo::ApiKeyRepo;
+    api_key_repo.revoke(seeded.id).await.unwrap();
+
+    let app = build_test_app(customer_repo, api_key_repo);
+
+    let resp = app
+        .oneshot(
+            Request::get("/test")
+                .header("authorization", format!("Bearer {TEST_KEY}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn wrong_hash_returns_401() {
+    let customer_repo = crate::common::mock_repo();
+    let api_key_repo = crate::common::mock_api_key_repo();
+
+    let customer = customer_repo.seed("Acme Corp", "acme@example.com");
+    // Seed with a DIFFERENT hash than what TEST_KEY produces
+    api_key_repo.seed(
+        customer.id,
+        "prod-key",
+        "badhash_not_a_real_sha256_value_at_all_aaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        TEST_KEY_PREFIX,
+        vec!["read".into()],
+    );
+
+    let app = build_test_app(customer_repo, api_key_repo);
+
+    let resp = app
+        .oneshot(
+            Request::get("/test")
+                .header("authorization", format!("Bearer {TEST_KEY}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn suspended_customer_returns_403() {
+    let customer_repo = crate::common::mock_repo();
+    let api_key_repo = crate::common::mock_api_key_repo();
+
+    let customer = customer_repo.seed("Acme Corp", "acme@example.com");
+    let key_hash = hash_key(TEST_KEY);
+    api_key_repo.seed(
+        customer.id,
+        "prod-key",
+        &key_hash,
+        TEST_KEY_PREFIX,
+        vec!["read".into()],
+    );
+
+    // Suspend the customer
+    use api::repos::CustomerRepo;
+    customer_repo.suspend(customer.id).await.unwrap();
+
+    let app = build_test_app(customer_repo, api_key_repo);
+
+    let resp = app
+        .oneshot(
+            Request::get("/test")
+                .header("authorization", format!("Bearer {TEST_KEY}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn scope_check_passes() {
+    let customer_repo = crate::common::mock_repo();
+    let api_key_repo = crate::common::mock_api_key_repo();
+
+    let customer = customer_repo.seed("Acme Corp", "acme@example.com");
+    let key_hash = hash_key(TEST_KEY);
+    api_key_repo.seed(
+        customer.id,
+        "prod-key",
+        &key_hash,
+        TEST_KEY_PREFIX,
+        vec!["read".into(), "write".into()],
+    );
+
+    let app = build_test_app(customer_repo, api_key_repo);
+
+    // The /scoped endpoint requires "read" scope — this key has it
+    let resp = app
+        .oneshot(
+            Request::get("/scoped")
+                .header("authorization", format!("Bearer {TEST_KEY}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::OK);
+}
+
+#[tokio::test]
+async fn scope_check_fails_returns_403() {
+    let customer_repo = crate::common::mock_repo();
+    let api_key_repo = crate::common::mock_api_key_repo();
+
+    let customer = customer_repo.seed("Acme Corp", "acme@example.com");
+    let key_hash = hash_key(TEST_KEY);
+    // Key only has "write" scope, not "read"
+    api_key_repo.seed(
+        customer.id,
+        "prod-key",
+        &key_hash,
+        TEST_KEY_PREFIX,
+        vec!["write".into()],
+    );
+
+    let app = build_test_app(customer_repo, api_key_repo);
+
+    // The /scoped endpoint requires "read" scope — this key doesn't have it
+    let resp = app
+        .oneshot(
+            Request::get("/scoped")
+                .header("authorization", format!("Bearer {TEST_KEY}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn last_used_at_updated() {
+    let customer_repo = crate::common::mock_repo();
+    let api_key_repo = crate::common::mock_api_key_repo();
+
+    let customer = customer_repo.seed("Acme Corp", "acme@example.com");
+    let key_hash = hash_key(TEST_KEY);
+    let seeded = api_key_repo.seed(
+        customer.id,
+        "prod-key",
+        &key_hash,
+        TEST_KEY_PREFIX,
+        vec!["read".into()],
+    );
+
+    // Verify initially null
+    assert!(seeded.last_used_at.is_none());
+
+    let app = build_test_app(customer_repo, api_key_repo.clone());
+
+    let resp = app
+        .oneshot(
+            Request::get("/test")
+                .header("authorization", format!("Bearer {TEST_KEY}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    // Give the fire-and-forget task a moment to complete
+    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+
+    // Check that last_used_at was updated
+    use api::repos::api_key_repo::ApiKeyRepo;
+    let updated = api_key_repo.find_by_id(seeded.id).await.unwrap().unwrap();
+    assert!(updated.last_used_at.is_some());
+}
+
+#[tokio::test]
+async fn deleted_customer_returns_401() {
+    let customer_repo = crate::common::mock_repo();
+    let api_key_repo = crate::common::mock_api_key_repo();
+
+    let customer = customer_repo.seed_deleted("Gone Corp", "gone@example.com");
+    let key_hash = hash_key(TEST_KEY);
+    api_key_repo.seed(
+        customer.id,
+        "prod-key",
+        &key_hash,
+        TEST_KEY_PREFIX,
+        vec!["read".into()],
+    );
+
+    let app = build_test_app(customer_repo, api_key_repo);
+
+    let resp = app
+        .oneshot(
+            Request::get("/test")
+                .header("authorization", format!("Bearer {TEST_KEY}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn non_fj_live_prefix_returns_401() {
+    let app = build_test_app(
+        crate::common::mock_repo(),
+        crate::common::mock_api_key_repo(),
+    );
+
+    let resp = app
+        .oneshot(
+            Request::get("/test")
+                .header("authorization", "Bearer sk_test_1234567890abcdef")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn fjc_live_key_authenticates() {
+    let customer_repo = crate::common::mock_repo();
+    let api_key_repo = crate::common::mock_api_key_repo();
+
+    let customer = customer_repo.seed("Flapjack Cloud Corp", "customer@example.com");
+    let key_hash = hash_key(TEST_KEY);
+    let seeded = api_key_repo.seed(
+        customer.id,
+        "fjc-key",
+        &key_hash,
+        TEST_KEY_PREFIX,
+        vec!["read".into(), "search".into()],
+    );
+
+    let app = build_test_app(customer_repo, api_key_repo);
+
+    let resp = app
+        .oneshot(
+            Request::get("/test")
+                .header("authorization", format!("Bearer {TEST_KEY}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = body_json(resp).await;
+    assert_eq!(body["customer_id"], customer.id.to_string());
+    assert_eq!(body["key_id"], seeded.id.to_string());
+}
+
+// --- Stage 1 compatibility-token tests ---
+
+const GRIDL_KEY: &str = "gridl_live_0123456789abcdef0123456789abcdef";
+const GRIDL_KEY_PREFIX: &str = "gridl_live_01234";
+// Stage 1 decision artifact (`docs/research/20260524T174343Z_fj_live_prod_usage.md`)
+// resolved to HARD_CUT, so Stage 2 locks the audited branch to HardCutOk.
+const AUDITED_STAGE1_DECISION: Stage1ApiKeyCompatDecision = Stage1ApiKeyCompatDecision::HardCutOk;
+
+async fn send_gridl_test_request(app: Router) -> axum::response::Response {
+    let request = Request::get("/test")
+        .header("authorization", format!("Bearer {GRIDL_KEY}"))
+        .body(Body::empty())
+        .unwrap();
+
+    app.oneshot(request).await.unwrap()
+}
+
+async fn extract_gridl_auth_with_decision(
+    decision: Stage1ApiKeyCompatDecision,
+    key: &str,
+    key_prefix: &str,
+) -> Result<ApiKeyAuth, api::auth::error::AuthError> {
+    let customer_repo = crate::common::mock_repo();
+    let api_key_repo = crate::common::mock_api_key_repo();
+
+    let customer = customer_repo.seed("Flapjack Cloud Corp", "customer@example.com");
+    let key_hash = hash_key(key);
+    let _seeded = api_key_repo.seed(
+        customer.id,
+        "gridl-key",
+        &key_hash,
+        key_prefix,
+        vec!["read".into(), "search".into()],
+    );
+
+    let state = crate::common::test_state_with_api_key_repo(customer_repo, api_key_repo);
+    let request = Request::get("/test")
+        .header("authorization", format!("Bearer {key}"))
+        .body(Body::empty())
+        .unwrap();
+    let (mut parts, _) = request.into_parts();
+
+    ApiKeyAuth::from_request_parts_with_stage1_decision(&mut parts, &state, decision).await
+}
+
+#[tokio::test]
+async fn gridl_live_behavior_matches_stage1_decision_token() {
+    let customer_repo = crate::common::mock_repo();
+    let api_key_repo = crate::common::mock_api_key_repo();
+
+    let customer = customer_repo.seed("Flapjack Cloud Corp", "customer@example.com");
+    let key_hash = hash_key(GRIDL_KEY);
+    let _seeded = api_key_repo.seed(
+        customer.id,
+        "gridl-key",
+        &key_hash,
+        GRIDL_KEY_PREFIX,
+        vec!["read".into(), "search".into()],
+    );
+
+    let app = build_test_app(customer_repo, api_key_repo);
+
+    let resp = send_gridl_test_request(app).await;
+
+    assert_eq!(
+        AUDITED_STAGE1_DECISION,
+        Stage1ApiKeyCompatDecision::HardCutOk
+    );
+    assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn gridl_live_ignores_request_extension_override() {
+    let customer_repo = crate::common::mock_repo();
+    let api_key_repo = crate::common::mock_api_key_repo();
+
+    let customer = customer_repo.seed("Flapjack Cloud Corp", "customer@example.com");
+    let key_hash = hash_key(GRIDL_KEY);
+    let _seeded = api_key_repo.seed(
+        customer.id,
+        "gridl-key",
+        &key_hash,
+        GRIDL_KEY_PREFIX,
+        vec!["read".into(), "search".into()],
+    );
+
+    let app = build_test_app(customer_repo, api_key_repo);
+    let mut request = Request::get("/test")
+        .header("authorization", format!("Bearer {GRIDL_KEY}"))
+        .body(Body::empty())
+        .unwrap();
+    request
+        .extensions_mut()
+        .insert(Stage1ApiKeyCompatDecision::HardCutOk);
+
+    let resp = app.oneshot(request).await.unwrap();
+
+    assert_eq!(
+        AUDITED_STAGE1_DECISION,
+        Stage1ApiKeyCompatDecision::HardCutOk
+    );
+    assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[test]
+fn active_stage1_decision_matches_audited_verdict() {
+    assert_eq!(
+        ApiKeyAuth::active_stage1_compat_decision(),
+        AUDITED_STAGE1_DECISION
+    );
+}
+
+#[test]
+fn stage1_token_parser_accepts_hard_cut_literals() {
+    assert_eq!(
+        Stage1ApiKeyCompatDecision::from_token("HARD_CUT"),
+        Stage1ApiKeyCompatDecision::HardCutOk
+    );
+    assert_eq!(
+        Stage1ApiKeyCompatDecision::from_token("HARD_CUT_OK"),
+        Stage1ApiKeyCompatDecision::HardCutOk
+    );
+}
+
+#[tokio::test]
+async fn api_key_fj_live_extractor_accepts_when_decision_is_keep_legacy_accept() {
+    let auth = extract_gridl_auth_with_decision(
+        Stage1ApiKeyCompatDecision::KeepLegacyAccept,
+        LEGACY_FJ_LIVE_KEY,
+        LEGACY_FJ_LIVE_KEY_PREFIX,
+    )
+    .await
+    .expect("fj_live_ key should authenticate when KEEP_LEGACY_ACCEPT is active");
+    assert!(!auth.scopes.is_empty());
+}
+
+#[tokio::test]
+async fn gridl_live_extractor_rejects_when_decision_is_hard_cut_ok() {
+    let err = extract_gridl_auth_with_decision(
+        Stage1ApiKeyCompatDecision::HardCutOk,
+        GRIDL_KEY,
+        GRIDL_KEY_PREFIX,
+    )
+    .await
+    .expect_err("gridl_live_ key should be rejected when HARD_CUT is active");
+    assert!(matches!(err, api::auth::error::AuthError::InvalidToken));
+}
+
+#[tokio::test]
+async fn api_key_fj_live_extractor_rejects_when_decision_is_hard_cut_ok() {
+    // If Stage 1 had resolved DUAL_ACCEPT, this assertion would invert to expect success.
+    let err = extract_gridl_auth_with_decision(
+        Stage1ApiKeyCompatDecision::HardCutOk,
+        LEGACY_FJ_LIVE_KEY,
+        LEGACY_FJ_LIVE_KEY_PREFIX,
+    )
+    .await
+    .expect_err("fj_live_ key should be rejected when HARD_CUT is active");
+    assert!(matches!(err, api::auth::error::AuthError::InvalidToken));
+}
+
+#[tokio::test]
+async fn api_key_legacy_fj_live_key_rejected_under_hard_cut() {
+    // HARD_CUT contract: legacy fj_live_ keys must now be rejected.
+    let customer_repo = crate::common::mock_repo();
+    let api_key_repo = crate::common::mock_api_key_repo();
+
+    let customer = customer_repo.seed("Legacy Corp", "legacy@example.com");
+    let key_hash = hash_key(LEGACY_FJ_LIVE_KEY);
+    api_key_repo.seed(
+        customer.id,
+        "legacy-key",
+        &key_hash,
+        LEGACY_FJ_LIVE_KEY_PREFIX,
+        vec!["read".into()],
+    );
+
+    let app = build_test_app(customer_repo, api_key_repo);
+
+    let resp = app
+        .oneshot(
+            Request::get("/test")
+                .header("authorization", format!("Bearer {LEGACY_FJ_LIVE_KEY}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+    let body = body_json(resp).await;
+    assert_eq!(body["error"], "invalid or expired token");
+}
+
+#[tokio::test]
+async fn unrecognized_prefix_returns_401() {
+    let app = build_test_app(
+        crate::common::mock_repo(),
+        crate::common::mock_api_key_repo(),
+    );
+
+    let resp = app
+        .oneshot(
+            Request::get("/test")
+                .header(
+                    "authorization",
+                    "Bearer unknown_live_0123456789abcdef0123456789abcdef",
+                )
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn short_key_returns_401() {
+    let app = build_test_app(
+        crate::common::mock_repo(),
+        crate::common::mock_api_key_repo(),
+    );
+
+    // Key starts with fj_live_ but is too short for prefix extraction
+    let resp = app
+        .oneshot(
+            Request::get("/test")
+                .header("authorization", "Bearer fj_live_short")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+}

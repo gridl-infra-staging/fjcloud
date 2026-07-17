@@ -1,0 +1,1 @@
+{"dry_run":false,"env":"prod","stripe_cutover":false,"sweeper_summary":{},"card_token":"","pm_id":"","invoice_ids":[],"webhook_ok":false,"payment_intent_id":null,"charge_id":null,"cleanup":{"card_closed":false,"pm_detached":false},"classification":"env_missing","run_dir":"docs/runbooks/evidence/privacy_com_contract/live_card_e2e/fjcloud_live_e2e_evidence_20260531T180418Z_56213"}

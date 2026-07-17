@@ -1,0 +1,113 @@
+{
+    "DBInstance": {
+        "DBInstanceIdentifier": "fjcloud-prod-restore-20260516025535",
+        "DBInstanceClass": "db.t4g.small",
+        "Engine": "postgres",
+        "DBInstanceStatus": "deleting",
+        "MasterUsername": "fjcloud",
+        "DBName": "fjcloud",
+        "Endpoint": {
+            "Address": "fjcloud-prod-restore-20260516025535.cabwlew6jcjl.us-east-1.rds.amazonaws.com",
+            "Port": 5432,
+            "HostedZoneId": "Z2R2ITUGPM61AM"
+        },
+        "AllocatedStorage": 20,
+        "InstanceCreateTime": "2026-05-16T02:58:06.802000+00:00",
+        "PreferredBackupWindow": "02:00-03:00",
+        "BackupRetentionPeriod": 30,
+        "DBSecurityGroups": [],
+        "VpcSecurityGroups": [
+            {
+                "VpcSecurityGroupId": "sg-0c6ae08699b5405f0",
+                "Status": "active"
+            }
+        ],
+        "DBParameterGroups": [
+            {
+                "DBParameterGroupName": "default.postgres17",
+                "ParameterApplyStatus": "in-sync"
+            }
+        ],
+        "AvailabilityZone": "us-east-1a",
+        "DBSubnetGroup": {
+            "DBSubnetGroupName": "fjcloud-prod",
+            "DBSubnetGroupDescription": "Managed by Terraform",
+            "VpcId": "vpc-0125cfcf4cc36762c",
+            "SubnetGroupStatus": "Complete",
+            "Subnets": [
+                {
+                    "SubnetIdentifier": "subnet-043cead8e64e4a79b",
+                    "SubnetAvailabilityZone": {
+                        "Name": "us-east-1b"
+                    },
+                    "SubnetOutpost": {},
+                    "SubnetStatus": "Active"
+                },
+                {
+                    "SubnetIdentifier": "subnet-0dd734629615035d5",
+                    "SubnetAvailabilityZone": {
+                        "Name": "us-east-1a"
+                    },
+                    "SubnetOutpost": {},
+                    "SubnetStatus": "Active"
+                }
+            ]
+        },
+        "PreferredMaintenanceWindow": "sun:04:00-sun:05:00",
+        "UpgradeRolloutOrder": "second",
+        "PendingModifiedValues": {},
+        "LatestRestorableTime": "2026-05-16T03:32:36+00:00",
+        "MultiAZ": false,
+        "EngineVersion": "17.9",
+        "AutoMinorVersionUpgrade": true,
+        "ReadReplicaDBInstanceIdentifiers": [],
+        "LicenseModel": "postgresql-license",
+        "Iops": 3000,
+        "StorageThroughput": 125,
+        "OptionGroupMemberships": [
+            {
+                "OptionGroupName": "default:postgres-17",
+                "Status": "in-sync"
+            }
+        ],
+        "PubliclyAccessible": false,
+        "StorageType": "gp3",
+        "DbInstancePort": 0,
+        "StorageEncrypted": true,
+        "KmsKeyId": "arn:aws:kms:us-east-1:213880904778:key/75d7b364-1442-46c0-af3c-1b25572b8eeb",
+        "DbiResourceId": "db-VRUFDHW2OEPR7ZF7UYBGEUYT6I",
+        "CACertificateIdentifier": "",
+        "DomainMemberships": [],
+        "CopyTagsToSnapshot": false,
+        "MonitoringInterval": 0,
+        "DBInstanceArn": "arn:aws:rds:us-east-1:213880904778:db:fjcloud-prod-restore-20260516025535",
+        "IAMDatabaseAuthenticationEnabled": false,
+        "DatabaseInsightsMode": "standard",
+        "PerformanceInsightsEnabled": false,
+        "DeletionProtection": false,
+        "AssociatedRoles": [],
+        "TagList": [
+            {
+                "Key": "managed-by",
+                "Value": "terraform"
+            },
+            {
+                "Key": "env",
+                "Value": "prod"
+            },
+            {
+                "Key": "service",
+                "Value": "fjcloud"
+            },
+            {
+                "Key": "Name",
+                "Value": "fjcloud-prod-db"
+            }
+        ],
+        "CustomerOwnedIpEnabled": false,
+        "NetworkType": "IPV4",
+        "BackupTarget": "region",
+        "DedicatedLogVolume": false,
+        "EngineLifecycleSupport": "open-source-rds-extended-support"
+    }
+}

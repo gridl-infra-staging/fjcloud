@@ -1,0 +1,20 @@
+COMMAND: aws s3 ls s3://fjcloud-releases-staging/staging/
+                           PRE 09cd9be3713c233186b5f873053cb9a8bc30027e/
+                           PRE 0eb071e8d4f5132892bf304974bc3278a27dcb72/
+                           PRE 250019a6e4e055078cfb63c32cfabc2132631ee6/
+                           PRE 296a3db40d0bcfd276e6da98a7878cd218c7f7be/
+                           PRE 4fd24e79255285e002394faca94b1a7f7c57091a/
+                           PRE 62fabe596675b28023c8d374125cd4c758110f36/
+                           PRE 6a1f5ca4e350e5aeb51e0facd802496f396afdeb/
+                           PRE 9224b4dfcd74438ff1ec51c7bc33fa173a09750e/
+                           PRE a6e7e1835f86e74f7506ea763202a8a3b5c58ad9/
+                           PRE build/
+                           PRE cb3eddda21b1c5612195e620a00ddc8ff52b9d6b/
+                           PRE d905f90affd45104bc95526acc0a48ca96c7c8ae/
+                           PRE da0ca7d01a745be49b7a10143fbb079705970f58/
+                           PRE da6d8afdf33f4bfee2f3b20bc602f04294d529da/
+                           PRE e15819c5f6c5e5b273891c2164dffd4bc6d3b9a2/
+                           PRE f68856f7f93f7e5fb96b837d020415d2c64180af/
+                           PRE live_recovery/
+                           PRE migrations/
+                           PRE scripts/

@@ -1,0 +1,14 @@
+# Disposition Receipt: batman/may25_151pm_wave_b_3a_api_keys_parity
+
+Classification: approved freed local branch after approved worktree removal
+Evidence source: current read-only git refs at bundle creation.
+
+## rev-parse
+$ git rev-parse batman/may25_151pm_wave_b_3a_api_keys_parity
+b2ba9bf89166cb25b64afb72f143b9328a8d8a3e
+
+## cherry
+$ git cherry -v main batman/may25_151pm_wave_b_3a_api_keys_parity | tail -20
+
+## diff main...
+$ git diff main...batman/may25_151pm_wave_b_3a_api_keys_parity --stat | tail -20

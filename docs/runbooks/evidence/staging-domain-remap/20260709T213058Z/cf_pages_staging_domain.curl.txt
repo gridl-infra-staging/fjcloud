@@ -1,0 +1,3 @@
+url=https://api.cloudflare.com/client/v4/accounts/<cloudflare_account_id>/pages/projects/flapjack-cloud/domains/cloud.staging.flapjack.foo
+http_code=200
+time_total=0.769715

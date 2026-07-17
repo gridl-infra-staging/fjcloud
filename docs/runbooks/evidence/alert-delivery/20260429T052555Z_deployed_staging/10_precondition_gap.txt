@@ -1,0 +1,10 @@
+# Stage 3 precondition gap: no eligible finalized invoice for replay
+
+utc_recorded=2026-04-29T06:25:29Z
+bundle=docs/runbooks/evidence/alert-delivery/20260429T052555Z_deployed_staging
+failed_predicate=no staging invoice matched status='finalized' AND stripe_invoice_id IS NOT NULL
+
+owner_for_creating_real_finalized_invoice_state=scripts/staging_billing_rehearsal.sh
+live_evidence_owner_flow=scripts/lib/staging_billing_rehearsal_live_mutation.sh
+
+stage3_action=Stop before replay and mark Stage 3 branch as precondition_gap; do not fabricate invoice state.

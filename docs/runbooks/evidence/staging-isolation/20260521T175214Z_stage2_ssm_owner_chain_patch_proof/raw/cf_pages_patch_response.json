@@ -1,0 +1,288 @@
+{
+  "result": {
+    "id": "1b05abf3-10ac-42c9-b9b1-88e711ffc919",
+    "name": "flapjack-cloud",
+    "subdomain": "flapjack-cloud.pages.dev",
+    "domains": [
+      "flapjack-cloud.pages.dev",
+      "cloud.flapjack.foo",
+      "cloud.staging.flapjack.foo"
+    ],
+    "build_config": {
+      "destination_dir": ".svelte-kit/cloudflare",
+      "web_analytics_tag": null,
+      "web_analytics_token": null
+    },
+    "deployment_configs": {
+      "preview": {
+        "env_vars": {
+          "ADMIN_KEY": {
+            "type": "secret_text",
+            "value": ""
+          },
+          "API_BASE_URL": {
+            "type": "plain_text",
+            "value": "https://api.staging.flapjack.foo"
+          },
+          "ENVIRONMENT": {
+            "type": "plain_text",
+            "value": "staging"
+          },
+          "JWT_SECRET": {
+            "type": "secret_text",
+            "value": ""
+          },
+          "WEB_DEV_LOG_RAW_ERRORS": {
+            "type": "plain_text",
+            "value": "1"
+          }
+        },
+        "fail_open": true,
+        "always_use_latest_compatibility_date": false,
+        "compatibility_date": "2026-04-01",
+        "compatibility_flags": [
+          "nodejs_compat"
+        ],
+        "build_image_major_version": 3,
+        "usage_model": "standard"
+      },
+      "production": {
+        "env_vars": {
+          "ADMIN_KEY": {
+            "type": "secret_text",
+            "value": ""
+          },
+          "API_BASE_URL": {
+            "type": "plain_text",
+            "value": "https://api.flapjack.foo"
+          },
+          "ENVIRONMENT": {
+            "type": "plain_text",
+            "value": "production"
+          },
+          "JWT_SECRET": {
+            "type": "secret_text",
+            "value": ""
+          }
+        },
+        "fail_open": true,
+        "always_use_latest_compatibility_date": false,
+        "compatibility_date": "2026-04-01",
+        "compatibility_flags": [
+          "nodejs_compat"
+        ],
+        "build_image_major_version": 3,
+        "usage_model": "standard"
+      }
+    },
+    "latest_deployment": {
+      "id": "e386f98d-a372-4fdc-8de1-87f943207af8",
+      "short_id": "e386f98d",
+      "project_id": "1b05abf3-10ac-42c9-b9b1-88e711ffc919",
+      "project_name": "flapjack-cloud",
+      "environment": "preview",
+      "url": "https://e386f98d.flapjack-cloud.pages.dev",
+      "created_on": "2026-05-21T11:25:49.137016Z",
+      "modified_on": "2026-05-21T11:25:52.546283Z",
+      "latest_stage": {
+        "name": "deploy",
+        "started_on": null,
+        "ended_on": "2026-05-21T11:25:52.546283Z",
+        "status": "success"
+      },
+      "deployment_trigger": {
+        "type": "ad_hoc",
+        "metadata": {
+          "branch": "staging",
+          "commit_hash": "b61a75a72e664828271b43fca5fb15fe48f93c90",
+          "commit_message": "stage4-resync: bring prod to current dev main (043cdb89) — supervisor coordination after Lane 1 merged\r\n\r\nCloses the Wave 2 cross-lane coupling: Lane 1's merge added 86 commits\r\nto dev main that needed propagation via Lane 2's pipeline. Re-syncing\r\nprod with the post-Lane-1 main HEAD so Lane 4 (VERIFY) can run against\r\ncurrent code.",
+          "commit_dirty": false
+        }
+      },
+      "stages": [
+        {
+          "name": "queued",
+          "started_on": "2026-05-21T11:25:49.137016Z",
+          "ended_on": null,
+          "status": "active"
+        },
+        {
+          "name": "initialize",
+          "started_on": null,
+          "ended_on": null,
+          "status": "idle"
+        },
+        {
+          "name": "clone_repo",
+          "started_on": null,
+          "ended_on": null,
+          "status": "idle"
+        },
+        {
+          "name": "build",
+          "started_on": null,
+          "ended_on": null,
+          "status": "idle"
+        },
+        {
+          "name": "deploy",
+          "started_on": null,
+          "ended_on": "2026-05-21T11:25:52.546283Z",
+          "status": "success"
+        }
+      ],
+      "build_config": {
+        "build_command": null,
+        "destination_dir": ".svelte-kit/cloudflare",
+        "build_caching": null,
+        "root_dir": null,
+        "web_analytics_tag": null,
+        "web_analytics_token": null
+      },
+      "env_vars": {
+        "ADMIN_KEY": {
+          "type": "secret_text",
+          "value": ""
+        },
+        "API_BASE_URL": {
+          "type": "plain_text",
+          "value": "https://api.flapjack.foo"
+        },
+        "ENVIRONMENT": {
+          "type": "plain_text",
+          "value": "staging"
+        },
+        "JWT_SECRET": {
+          "type": "secret_text",
+          "value": ""
+        },
+        "WEB_DEV_LOG_RAW_ERRORS": {
+          "type": "plain_text",
+          "value": "1"
+        }
+      },
+      "compatibility_date": "2026-04-01",
+      "compatibility_flags": [
+        "nodejs_compat"
+      ],
+      "build_image_major_version": 3,
+      "usage_model": "bundled",
+      "aliases": [
+        "https://staging.flapjack-cloud.pages.dev"
+      ],
+      "is_skipped": false,
+      "production_branch": "main",
+      "uses_functions": true
+    },
+    "canonical_deployment": {
+      "id": "1074c4f6-411d-4e38-a5d6-865ee9e4a6ac",
+      "short_id": "1074c4f6",
+      "project_id": "1b05abf3-10ac-42c9-b9b1-88e711ffc919",
+      "project_name": "flapjack-cloud",
+      "environment": "production",
+      "url": "https://1074c4f6.flapjack-cloud.pages.dev",
+      "created_on": "2026-05-21T11:23:46.486787Z",
+      "modified_on": "2026-05-21T11:23:49.641156Z",
+      "latest_stage": {
+        "name": "deploy",
+        "started_on": null,
+        "ended_on": "2026-05-21T11:23:49.641156Z",
+        "status": "success"
+      },
+      "deployment_trigger": {
+        "type": "ad_hoc",
+        "metadata": {
+          "branch": "main",
+          "commit_hash": "b61a75a72e664828271b43fca5fb15fe48f93c90",
+          "commit_message": "stage4-resync: bring prod to current dev main (043cdb89) — supervisor coordination after Lane 1 merged\r\n\r\nCloses the Wave 2 cross-lane coupling: Lane 1's merge added 86 commits\r\nto dev main that needed propagation via Lane 2's pipeline. Re-syncing\r\nprod with the post-Lane-1 main HEAD so Lane 4 (VERIFY) can run against\r\ncurrent code.",
+          "commit_dirty": false
+        }
+      },
+      "stages": [
+        {
+          "name": "queued",
+          "started_on": "2026-05-21T11:23:46.486787Z",
+          "ended_on": null,
+          "status": "active"
+        },
+        {
+          "name": "initialize",
+          "started_on": null,
+          "ended_on": null,
+          "status": "idle"
+        },
+        {
+          "name": "clone_repo",
+          "started_on": null,
+          "ended_on": null,
+          "status": "idle"
+        },
+        {
+          "name": "build",
+          "started_on": null,
+          "ended_on": null,
+          "status": "idle"
+        },
+        {
+          "name": "deploy",
+          "started_on": null,
+          "ended_on": "2026-05-21T11:23:49.641156Z",
+          "status": "success"
+        }
+      ],
+      "build_config": {
+        "build_command": null,
+        "destination_dir": ".svelte-kit/cloudflare",
+        "build_caching": null,
+        "root_dir": null,
+        "web_analytics_tag": null,
+        "web_analytics_token": null
+      },
+      "env_vars": {
+        "ADMIN_KEY": {
+          "type": "secret_text",
+          "value": ""
+        },
+        "API_BASE_URL": {
+          "type": "plain_text",
+          "value": "https://api.flapjack.foo"
+        },
+        "ENVIRONMENT": {
+          "type": "plain_text",
+          "value": "staging"
+        },
+        "JWT_SECRET": {
+          "type": "secret_text",
+          "value": ""
+        },
+        "WEB_DEV_LOG_RAW_ERRORS": {
+          "type": "plain_text",
+          "value": "1"
+        }
+      },
+      "compatibility_date": "2026-04-01",
+      "compatibility_flags": [
+        "nodejs_compat"
+      ],
+      "build_image_major_version": 3,
+      "usage_model": "bundled",
+      "aliases": [
+        "https://cloud.flapjack.foo",
+        "https://cloud.staging.flapjack.foo"
+      ],
+      "is_skipped": false,
+      "production_branch": "main",
+      "uses_functions": true
+    },
+    "created_on": "2026-02-08T18:07:04.4658Z",
+    "production_branch": "main",
+    "production_script_name": "pages-worker--10856500-production",
+    "preview_script_name": "pages-worker--10856500-preview",
+    "uses_functions": true,
+    "framework": "",
+    "framework_version": ""
+  },
+  "success": true,
+  "errors": [],
+  "messages": []
+}

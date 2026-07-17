@@ -1,0 +1,18 @@
+# Stage 5 prod /version probe
+# Captured: 2026-05-21T04:15:56Z
+# Command: curl -sS -i https://api.flapjack.foo/version
+---
+HTTP/2 200 
+date: Thu, 21 May 2026 04:15:56 GMT
+content-type: application/json
+content-length: 181
+strict-transport-security: max-age=63072000; includeSubDomains
+x-content-type-options: nosniff
+x-frame-options: DENY
+x-xss-protection: 1; mode=block
+x-robots-tag: noindex, nofollow, noarchive, nosnippet, noimageindex, noai, noimageai
+vary: origin, access-control-request-method, access-control-request-headers
+access-control-allow-credentials: true
+x-request-id: 9e3b177f-2811-406f-bce9-7590c8fcddfe
+
+{"build_time":"2026-05-21T03:33:55Z","dev_sha":"8599b33a41d32f9fba662b47e1bd747ee51dbde8","mirror_sha":"3f4370ff52acf7a96e989a949eeb9dbc64169569","synced_at":"2026-05-21T02:26:59Z"}

@@ -1,0 +1,20 @@
+51dc301a scrai: 13 files documented, 2 artifacts generated, 2 guidance files assembled, 3 state files tracked
+b42a7040 matt: stage 1 completion
+e6ea84e9 fix: webhook retry-after-failure via delete_unprocessed pattern
+f5349f5a Merge batman/may04_pm_3_vlm_polish into main
+0ddd95f0 matt: stage 4 completion
+89d54d00 STREAM C COMPLETE — VLM UI polish closure
+04f556bd Stage 4 ROADMAP reconcile: file 3 admin MAINT rows + drop unused waiver lines
+d6eb26d1 Stage 4 closure annotations: STREAM_C_PLAN + NOW.md
+5895a295 scrai: 14 files documented, 2 guidance files assembled, 3 state files tracked
+73521aae matt: stage 3 completion
+b818f2de Stage 3 post-fixes VLM verdict bundle + closure accounting
+b6b9e1d7 style: add DIRMAP.md to prettierignore and fix pre-existing prettier drift
+26a892a2 style: prettier format layout.test.ts error-accent assertion
+a2c3b373 scrai: 13 files documented, 2 guidance files assembled, 3 state files tracked
+e18dcde6 matt: stage 2 completion
+bfbd470b docs: add ROADMAP HARDENING rows for 4 waivered Stage 2 VLM tuples
+10e59769 Merge batman/may04_pm_4_operator_announce_prep into main
+9b0b44e6 Merge batman/may04_pm_2_vlm_scaffold into main
+148e006e Stage 2 remediation: ROADMAP impersonation-banner row + error-accent test assertion
+a5c7953a Restore distinct success accent for resend banner

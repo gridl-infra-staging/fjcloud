@@ -1,0 +1,24 @@
+{
+    "EvaluationResults": [
+        {
+            "EvalActionName": "ssm:SendCommand",
+            "EvalResourceName": "*",
+            "EvalDecision": "allowed",
+            "MatchedStatements": [
+                {
+                    "SourcePolicyId": "role_fjcloud-deploy_fjcloud-deploy-ssm",
+                    "SourcePolicyType": "IAM Policy",
+                    "StartPosition": {
+                        "Line": 1,
+                        "Column": 176
+                    },
+                    "EndPosition": {
+                        "Line": 1,
+                        "Column": 266
+                    }
+                }
+            ],
+            "MissingContextValues": []
+        }
+    ]
+}

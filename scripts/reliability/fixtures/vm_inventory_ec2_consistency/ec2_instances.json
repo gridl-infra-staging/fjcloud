@@ -1,0 +1,39 @@
+[
+  {
+    "InstanceId": "i-shared-good",
+    "State": "running",
+    "LaunchTime": "2026-05-19T00:00:00Z",
+    "Tags": [
+      {"Key": "managed-by", "Value": "fjcloud"},
+      {"Key": "Name", "Value": "fj-vm-shared-good.flapjack.foo"}
+    ]
+  },
+  {
+    "InstanceId": "i-provider-match",
+    "State": "running",
+    "LaunchTime": "2026-05-19T00:00:00Z",
+    "Tags": [
+      {"Key": "managed-by", "Value": "fjcloud"},
+      {"Key": "Name", "Value": "fj-vm-provider.flapjack.foo"}
+    ]
+  },
+  {
+    "InstanceId": "i-untracked-managed",
+    "State": "running",
+    "LaunchTime": "2026-05-19T00:00:00Z",
+    "Tags": [
+      {"Key": "managed-by", "Value": "fjcloud"},
+      {"Key": "Name", "Value": "fj-vm-shared-untracked.flapjack.foo"}
+    ]
+  },
+  {
+    "InstanceId": "i-nonshared-managed",
+    "State": "running",
+    "LaunchTime": "2026-05-19T00:00:00Z",
+    "Tags": [
+      {"Key": "managed-by", "Value": "fjcloud"},
+      {"Key": "customer_id", "Value": "cust-nonshared-1"},
+      {"Key": "Name", "Value": "fj-vm-customer-a.flapjack.foo"}
+    ]
+  }
+]

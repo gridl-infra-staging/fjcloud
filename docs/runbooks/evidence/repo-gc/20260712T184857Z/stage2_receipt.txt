@@ -1,0 +1,638 @@
+# Stage 2 Repo GC Receipt
+
+## Preflight
+timestamp_utc=20260712T191135Z
+command: git rev-parse HEAD
+62349d8292b6863ee4447eb76575ee0a0e4880da
+
+command: git status --short
+?? docs/runbooks/evidence/repo-gc/20260712T184857Z/stage2_receipt.txt
+
+command: git worktree list | wc -l
+      97
+
+command: wc -l manifests
+      89 docs/runbooks/evidence/repo-gc/20260712T184857Z/manifest_worktrees.txt
+      89 docs/runbooks/evidence/repo-gc/20260712T184857Z/manifest_branches.txt
+      16 docs/runbooks/evidence/repo-gc/20260712T184857Z/manifest_remote_branches.txt
+       3 docs/runbooks/evidence/repo-gc/20260712T184857Z/manifest_backup_refs.txt
+     197 total
+
+## Worktree Safety Probe
+manifest_worktree_count=89
+current_checkout=fjcloud_dev
+primary_checkout=/Users/stuart/repos/gridl-infra-dev/fjcloud_dev
+safety_error_count=0
+
+## Worktree Removal
+timestamp_utc=20260712T191202Z
+manifest=docs/runbooks/evidence/repo-gc/20260712T184857Z/manifest_worktrees.txt
+command_template: git worktree remove --force <manifest-path>
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_stage3_mainline
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+REMOVE fjcloud_dev
+
+## Worktree Prune And Survivor Checks
+timestamp_utc=20260712T191652Z
+command: git worktree prune
+
+command: git worktree list | wc -l
+       8
+
+command: manifest approved worktree survivor check
+manifest_worktree_count=89
+manifest_worktree_survivor_count=0
+
+command: protected/rejected worktree presence check
+rejected_worktree_count=8
+rejected_missing_count=0
+
+## Local Branch Deletion
+timestamp_utc=20260712T191720Z
+manifest=docs/runbooks/evidence/repo-gc/20260712T184857Z/manifest_branches.txt
+command_template: git branch -D <manifest-branch>
+DELETE_LOCAL_BRANCH backup/stage1_before_replay_repair_20260527_011701
+Deleted branch backup/stage1_before_replay_repair_20260527_011701 (was e8ce12f20).
+DELETE_LOCAL_BRANCH backup/stage1_e8ce_before_xtheirs_20260527_011857
+Deleted branch backup/stage1_e8ce_before_xtheirs_20260527_011857 (was e8ce12f20).
+DELETE_LOCAL_BRANCH backup/stage1_parked_tip_before_rebase_20260527_011719
+Deleted branch backup/stage1_parked_tip_before_rebase_20260527_011719 (was b2bf08c09).
+DELETE_LOCAL_BRANCH batman/jul06_pm_2_signup_cta_restore_public_launch
+Deleted branch batman/jul06_pm_2_signup_cta_restore_public_launch (was 8a3c6e183).
+DELETE_LOCAL_BRANCH batman/jul06_pm_3_deploy_currency_drift_alarm
+Deleted branch batman/jul06_pm_3_deploy_currency_drift_alarm (was bd1095d73).
+DELETE_LOCAL_BRANCH batman/jul06_pm_5_public_release_verify_and_closeout
+Deleted branch batman/jul06_pm_5_public_release_verify_and_closeout (was 8b456e86a).
+DELETE_LOCAL_BRANCH batman/jul07_3pm_15_staging_billing_rehearsal_rerun
+Deleted branch batman/jul07_3pm_15_staging_billing_rehearsal_rerun (was e59ea7e72).
+DELETE_LOCAL_BRANCH batman/jul07_3pm_17_e2e_deployed_failure_paging
+Deleted branch batman/jul07_3pm_17_e2e_deployed_failure_paging (was a139aaf1d).
+DELETE_LOCAL_BRANCH batman/jul07_3pm_7_api_types_client_split_openapi_drift
+Deleted branch batman/jul07_3pm_7_api_types_client_split_openapi_drift (was 809ac5081).
+DELETE_LOCAL_BRANCH batman/jul07_am_1_polished_beta_staging_verify_rerun2
+Deleted branch batman/jul07_am_1_polished_beta_staging_verify_rerun2 (was fc2c0981c).
+DELETE_LOCAL_BRANCH batman/jul07_am_2_web_deploy_automation
+Deleted branch batman/jul07_am_2_web_deploy_automation (was a6d5d3f38).
+DELETE_LOCAL_BRANCH batman/jul07_pm_1_verify_findings_fix
+Deleted branch batman/jul07_pm_1_verify_findings_fix (was 29b02ccb9).
+DELETE_LOCAL_BRANCH batman/jul07_pm_8_polished_beta_staging_verify_rerun6
+Deleted branch batman/jul07_pm_8_polished_beta_staging_verify_rerun6 (was f6d2088f4).
+DELETE_LOCAL_BRANCH batman/jul08_pm_2_rc_rerun_clean_bundle_v2
+Deleted branch batman/jul08_pm_2_rc_rerun_clean_bundle_v2 (was efb46663c).
+DELETE_LOCAL_BRANCH batman/jul09_am_2_panics_total_cloudwatch_alarm
+Deleted branch batman/jul09_am_2_panics_total_cloudwatch_alarm (was d0891e3b5).
+DELETE_LOCAL_BRANCH batman/jul09_am_6_staging_billing_rehearsal_rerun2
+Deleted branch batman/jul09_am_6_staging_billing_rehearsal_rerun2 (was 6770f172e).
+DELETE_LOCAL_BRANCH batman/jul09_pm_1_staging_domain_remap_and_served_content_gate
+Deleted branch batman/jul09_pm_1_staging_domain_remap_and_served_content_gate (was 2fe30f54d).
+DELETE_LOCAL_BRANCH batman/jul09_pm_3_tenant_isolation_proptest_fix
+Deleted branch batman/jul09_pm_3_tenant_isolation_proptest_fix (was 492c642ef).
+DELETE_LOCAL_BRANCH batman/jun04_am_1_ci_hygiene_deploy_currency_and_playwright_stripe_mode
+Deleted branch batman/jun04_am_1_ci_hygiene_deploy_currency_and_playwright_stripe_mode (was 3498dac82).
+DELETE_LOCAL_BRANCH batman/jun04_pm_4_editor_dialog_styling_pass
+Deleted branch batman/jun04_pm_4_editor_dialog_styling_pass (was bec1a6ecd).
+DELETE_LOCAL_BRANCH batman/jun05_pm_2_rc_harness_critical_browser_surface
+Deleted branch batman/jun05_pm_2_rc_harness_critical_browser_surface (was 779c226b3).
+DELETE_LOCAL_BRANCH batman/jun05_pm_3_rc_harness_live_evidence_completeness
+Deleted branch batman/jun05_pm_3_rc_harness_live_evidence_completeness (was 78aae9138).
+DELETE_LOCAL_BRANCH batman/jun05_ui_1147am_10_unified_search_tab
+Deleted branch batman/jun05_ui_1147am_10_unified_search_tab (was f3df3254d).
+DELETE_LOCAL_BRANCH batman/jun05_ui_1147am_2_toast_p0_migration
+Deleted branch batman/jun05_ui_1147am_2_toast_p0_migration (was aed2761d4).
+DELETE_LOCAL_BRANCH batman/jun05_ui_1147am_5_oauth_local_dx_and_account_delete_copy
+Deleted branch batman/jun05_ui_1147am_5_oauth_local_dx_and_account_delete_copy (was ac4dcddb6).
+DELETE_LOCAL_BRANCH batman/jun09_am_2_verify_email_clickthrough_definitive_classification
+Deleted branch batman/jun09_am_2_verify_email_clickthrough_definitive_classification (was 407f6b06d).
+DELETE_LOCAL_BRANCH batman/jun09_pm_10_pricing_tax_alert_emails_ci_polish
+Deleted branch batman/jun09_pm_10_pricing_tax_alert_emails_ci_polish (was 957eeec20).
+DELETE_LOCAL_BRANCH batman/jun09_pm_11_cargo_indexes_test_env_leak_fix_lane
+Deleted branch batman/jun09_pm_11_cargo_indexes_test_env_leak_fix_lane (was 9240e400e).
+DELETE_LOCAL_BRANCH batman/jun09_pm_1_merchandising_hub_pivot
+Deleted branch batman/jun09_pm_1_merchandising_hub_pivot (was cc9db222b).
+DELETE_LOCAL_BRANCH batman/jun09_pm_2_ui_test_coverage_p0
+Deleted branch batman/jun09_pm_2_ui_test_coverage_p0 (was 9a0e51772).
+DELETE_LOCAL_BRANCH batman/jun09_pm_4_merch_mode_toggle_on_search
+Deleted branch batman/jun09_pm_4_merch_mode_toggle_on_search (was 8f3544f55).
+DELETE_LOCAL_BRANCH batman/jun09_pm_5_staging_verification_rc_reverdict_and_closeout
+Deleted branch batman/jun09_pm_5_staging_verification_rc_reverdict_and_closeout (was c6bc443e9).
+DELETE_LOCAL_BRANCH batman/jun09_pm_8_staging_billing_rehearsal_seed
+Deleted branch batman/jun09_pm_8_staging_billing_rehearsal_seed (was 1a513d425).
+DELETE_LOCAL_BRANCH batman/jun10_pm_1_probe_contract_drift_and_lane_b_count_reconciliation
+Deleted branch batman/jun10_pm_1_probe_contract_drift_and_lane_b_count_reconciliation (was 9f1d5e355).
+DELETE_LOCAL_BRANCH batman/jun10_pm_2_staging_billing_rehearsal_repeatability
+Deleted branch batman/jun10_pm_2_staging_billing_rehearsal_repeatability (was b6659fca4).
+DELETE_LOCAL_BRANCH batman/jun10_pm_3_worktree_path_and_duplicate_todo_cleanup
+Deleted branch batman/jun10_pm_3_worktree_path_and_duplicate_todo_cleanup (was a29ac8efb).
+DELETE_LOCAL_BRANCH batman/jun10_pm_4_polished_beta_staging_verification_rerun
+Deleted branch batman/jun10_pm_4_polished_beta_staging_verification_rerun (was 75bebb18a).
+DELETE_LOCAL_BRANCH batman/jun11_pm_10_final_rc_and_closeout
+Deleted branch batman/jun11_pm_10_final_rc_and_closeout (was d244f08c7).
+DELETE_LOCAL_BRANCH batman/jun11_pm_2_stage2_blocked_evidence
+Deleted branch batman/jun11_pm_2_stage2_blocked_evidence (was ce1d0258c).
+DELETE_LOCAL_BRANCH batman/jun11_pm_7_aws_live_infra_e2e
+Deleted branch batman/jun11_pm_7_aws_live_infra_e2e (was ce9f76ac5).
+DELETE_LOCAL_BRANCH batman/may16_9pm_1_ses_production_access_and_reputation_alarms
+Deleted branch batman/may16_9pm_1_ses_production_access_and_reputation_alarms (was 497bf9891).
+DELETE_LOCAL_BRANCH batman/may16_9pm_2_auth_hardening_lockout_and_rate_limits
+Deleted branch batman/may16_9pm_2_auth_hardening_lockout_and_rate_limits (was f37f579b8).
+DELETE_LOCAL_BRANCH batman/may16_9pm_3_stripe_dispute_chargeback_handlers
+Deleted branch batman/may16_9pm_3_stripe_dispute_chargeback_handlers (was ed34c74a3).
+DELETE_LOCAL_BRANCH batman/may16_9pm_4_full_prod_vm_lifecycle_proof
+Deleted branch batman/may16_9pm_4_full_prod_vm_lifecycle_proof (was 3e0b73bb1).
+DELETE_LOCAL_BRANCH batman/may16_pm_1_gitleaks_evidence_dir_allowlist
+Deleted branch batman/may16_pm_1_gitleaks_evidence_dir_allowlist (was 81fe4e130).
+DELETE_LOCAL_BRANCH batman/may16_pm_2_debbie_stub_strip_blank_line
+Deleted branch batman/may16_pm_2_debbie_stub_strip_blank_line (was 35806ecc7).
+DELETE_LOCAL_BRANCH batman/may16_pm_3_playwright_customer_login_fixture
+Deleted branch batman/may16_pm_3_playwright_customer_login_fixture (was f74cc82c0).
+DELETE_LOCAL_BRANCH batman/may16_pm_4_prod_canary_e2e_evidence
+Deleted branch batman/may16_pm_4_prod_canary_e2e_evidence (was f3e42ddc4).
+DELETE_LOCAL_BRANCH batman/may16_pm_5_self_service_upgrade_endpoint_and_trust_ratchet
+Deleted branch batman/may16_pm_5_self_service_upgrade_endpoint_and_trust_ratchet (was adf2c68c1).
+DELETE_LOCAL_BRANCH batman/may16_pm_6_quota_warning_emails_records_storage
+Deleted branch batman/may16_pm_6_quota_warning_emails_records_storage (was 76f2a9da2).
+DELETE_LOCAL_BRANCH batman/may18_pm_1_may16_wave_deploy_verify_sweep
+Deleted branch batman/may18_pm_1_may16_wave_deploy_verify_sweep (was a99a745d9).
+DELETE_LOCAL_BRANCH batman/may18_pm_3_customer_trust_surfaces
+Deleted branch batman/may18_pm_3_customer_trust_surfaces (was a68175566).
+DELETE_LOCAL_BRANCH batman/may19_pm_1_privacy_card_reuse_pattern
+Deleted branch batman/may19_pm_1_privacy_card_reuse_pattern (was 2d6bcfb41).
+DELETE_LOCAL_BRANCH batman/may19_pm_3_stripe_key_rotation_and_audit
+Deleted branch batman/may19_pm_3_stripe_key_rotation_and_audit (was 99f791612).
+DELETE_LOCAL_BRANCH batman/may19_pm_4_gitleaks_secret_scan_remediation
+Deleted branch batman/may19_pm_4_gitleaks_secret_scan_remediation (was f58513313).
+DELETE_LOCAL_BRANCH batman/may19_pm_5_staging_tls_host_routing
+Deleted branch batman/may19_pm_5_staging_tls_host_routing (was 58f17c15b).
+DELETE_LOCAL_BRANCH batman/may19_pm_6_subprocessor_disclosure_and_tax_posture
+Deleted branch batman/may19_pm_6_subprocessor_disclosure_and_tax_posture (was 5aff60740).
+DELETE_LOCAL_BRANCH batman/may20_3pm_1_fleet_recovery
+Deleted branch batman/may20_3pm_1_fleet_recovery (was d26d99622).
+DELETE_LOCAL_BRANCH batman/may20_3pm_2_pipeline_propagation
+Deleted branch batman/may20_3pm_2_pipeline_propagation (was 74bf84243).
+DELETE_LOCAL_BRANCH batman/may20_3pm_3_stripe_credential_revocation
+Deleted branch batman/may20_3pm_3_stripe_credential_revocation (was 8e296ec1b).
+DELETE_LOCAL_BRANCH batman/may20_3pm_4_launch_verification
+Deleted branch batman/may20_3pm_4_launch_verification (was 4f8eb97c4).
+DELETE_LOCAL_BRANCH batman/may21_12pm_10_subprocessor_probe_rerun
+Deleted branch batman/may21_12pm_10_subprocessor_probe_rerun (was 3827d61cb).
+DELETE_LOCAL_BRANCH batman/may21_12pm_11_inventory_diagnosis
+Deleted branch batman/may21_12pm_11_inventory_diagnosis (was c2ad6045c).
+DELETE_LOCAL_BRANCH batman/may21_12pm_12_app_flapjack_foo_retirement
+Deleted branch batman/may21_12pm_12_app_flapjack_foo_retirement (was 8ea753fbf).
+DELETE_LOCAL_BRANCH batman/may21_12pm_1_cloudflare_prod_env_flip
+Deleted branch batman/may21_12pm_1_cloudflare_prod_env_flip (was 93850e393).
+DELETE_LOCAL_BRANCH batman/may21_12pm_2_prod_db_leak_cleanup
+Deleted branch batman/may21_12pm_2_prod_db_leak_cleanup (was f8fe82f9c).
+DELETE_LOCAL_BRANCH batman/may21_12pm_3_staging_web_isolation
+Deleted branch batman/may21_12pm_3_staging_web_isolation (was cb643e797).
+DELETE_LOCAL_BRANCH batman/may21_12pm_4_browser_lane_rerun
+Deleted branch batman/may21_12pm_4_browser_lane_rerun (was 22f42a7d6).
+DELETE_LOCAL_BRANCH batman/may21_12pm_8_alert_emails
+Deleted branch batman/may21_12pm_8_alert_emails (was 4b28570f7).
+DELETE_LOCAL_BRANCH batman/may22_1pm_1_lb2_lb3_diagnose_and_fix
+Deleted branch batman/may22_1pm_1_lb2_lb3_diagnose_and_fix (was 9d068f2f1).
+DELETE_LOCAL_BRANCH batman/may22_2pm_1_state_ssot_framework
+Deleted branch batman/may22_2pm_1_state_ssot_framework (was 8bf722ab5).
+DELETE_LOCAL_BRANCH batman/may23_9pm_2_routes_dashboard_to_console
+Deleted branch batman/may23_9pm_2_routes_dashboard_to_console (was b1711a344).
+DELETE_LOCAL_BRANCH batman/may23_9pm_3_shared_layout_polish
+Deleted branch batman/may23_9pm_3_shared_layout_polish (was 3fccc51ca).
+DELETE_LOCAL_BRANCH batman/may23_9pm_4_visual_polish_pass
+Deleted branch batman/may23_9pm_4_visual_polish_pass (was e635364e4).
+DELETE_LOCAL_BRANCH batman/may23_9pm_5_landing_ssot_and_cloud_redirect
+Deleted branch batman/may23_9pm_5_landing_ssot_and_cloud_redirect (was cd1b50732).
+DELETE_LOCAL_BRANCH batman/may23_9pm_7_parity_audit
+Deleted branch batman/may23_9pm_7_parity_audit (was 3aa973a96).
+DELETE_LOCAL_BRANCH batman/may23_9pm_8_console_e2e_coverage_audit
+Deleted branch batman/may23_9pm_8_console_e2e_coverage_audit (was 6ca70d05f).
+DELETE_LOCAL_BRANCH batman/may24_20260524T202244Z_w3_1_implement_demo_index_loader_in
+Deleted branch batman/may24_20260524T202244Z_w3_1_implement_demo_index_loader_in (was 7623eaf4d).
+DELETE_LOCAL_BRANCH batman/may24_812am_1_prod_unblock_and_ship
+Deleted branch batman/may24_812am_1_prod_unblock_and_ship (was 17e22d399).
+DELETE_LOCAL_BRANCH batman/may24_812am_2_api_key_recognizer_tighten
+Deleted branch batman/may24_812am_2_api_key_recognizer_tighten (was 6df8ece79).
+DELETE_LOCAL_BRANCH batman/may24_812am_3_w3_triage_fanout
+Deleted branch batman/may24_812am_3_w3_triage_fanout (was 04c83ecc0).
+DELETE_LOCAL_BRANCH batman/may25_151pm_3_demo_loader_and_create_dialog
+Deleted branch batman/may25_151pm_3_demo_loader_and_create_dialog (was feb19df82).
+DELETE_LOCAL_BRANCH batman/may25_151pm_wave_b_2b_recommendations_restructure
+Deleted branch batman/may25_151pm_wave_b_2b_recommendations_restructure (was 5fdb1a7b8).
+DELETE_LOCAL_BRANCH batman/may25_151pm_wave_b_2d_rules_compound_editor
+Deleted branch batman/may25_151pm_wave_b_2d_rules_compound_editor (was 397a8e42e).
+DELETE_LOCAL_BRANCH batman/may25_151pm_wave_b_3a_api_keys_parity
+Deleted branch batman/may25_151pm_wave_b_3a_api_keys_parity (was b2ba9bf89).
+DELETE_LOCAL_BRANCH batman/may25_151pm_wave_b_3e_analytics_subtabs
+Deleted branch batman/may25_151pm_wave_b_3e_analytics_subtabs (was 751764bfb).
+DELETE_LOCAL_BRANCH batman/may27_pm_2_b1_rerun_final_launch_gate
+Deleted branch batman/may27_pm_2_b1_rerun_final_launch_gate (was 27f69dacf).
+DELETE_LOCAL_BRANCH batman/may29_pm_7_dunning_probe_rca
+Deleted branch batman/may29_pm_7_dunning_probe_rca (was 90470ed50).
+DELETE_LOCAL_BRANCH stage3_mainline_integration
+Deleted branch stage3_mainline_integration (was 17bc8521e).
+
+## Backup Ref Absence Checks
+timestamp_utc=20260712T191732Z
+manifest=docs/runbooks/evidence/repo-gc/20260712T184857Z/manifest_backup_refs.txt
+command: git show-ref --verify --quiet refs/heads/backup/stage1_before_replay_repair_20260527_011701
+BACKUP_REF_ABSENT backup/stage1_before_replay_repair_20260527_011701
+command: git show-ref --verify --quiet refs/heads/backup/stage1_e8ce_before_xtheirs_20260527_011857
+BACKUP_REF_ABSENT backup/stage1_e8ce_before_xtheirs_20260527_011857
+command: git show-ref --verify --quiet refs/heads/backup/stage1_parked_tip_before_rebase_20260527_011719
+BACKUP_REF_ABSENT backup/stage1_parked_tip_before_rebase_20260527_011719
+
+## Remote Branch Deletion
+timestamp_utc=20260712T191752Z
+manifest=docs/runbooks/evidence/repo-gc/20260712T184857Z/manifest_remote_branches.txt
+command_template: git push origin --delete <manifest-remote-branch>
+DELETE_REMOTE_BRANCH batman/apr07_pm_2_local_evidence_ha_and_cold_storage
+To github.com:gridl-infra-dev/fjcloud_dev.git
+ - [deleted]             batman/apr07_pm_2_local_evidence_ha_and_cold_storage
+DELETE_REMOTE_BRANCH batman/apr27_3pm_3_alert_webhook_and_canary_activation
+To github.com:gridl-infra-dev/fjcloud_dev.git
+ - [deleted]             batman/apr27_3pm_3_alert_webhook_and_canary_activation
+DELETE_REMOTE_BRANCH batman/jul09_am_6_billing_rehearsal_real_run
+To github.com:gridl-infra-dev/fjcloud_dev.git
+ - [deleted]             batman/jul09_am_6_billing_rehearsal_real_run
+DELETE_REMOTE_BRANCH batman/may25_151pm_wave_b_2a_synonyms_restructure
+To github.com:gridl-infra-dev/fjcloud_dev.git
+ - [deleted]             batman/may25_151pm_wave_b_2a_synonyms_restructure
+DELETE_REMOTE_BRANCH batman/may25_151pm_wave_b_2c_events_overhaul
+To github.com:gridl-infra-dev/fjcloud_dev.git
+ - [deleted]             batman/may25_151pm_wave_b_2c_events_overhaul
+DELETE_REMOTE_BRANCH batman/may25_151pm_wave_b_2e_personalization_full
+To github.com:gridl-infra-dev/fjcloud_dev.git
+ - [deleted]             batman/may25_151pm_wave_b_2e_personalization_full
+DELETE_REMOTE_BRANCH batman/may25_151pm_wave_b_2f_dictionaries_rebuild
+To github.com:gridl-infra-dev/fjcloud_dev.git
+ - [deleted]             batman/may25_151pm_wave_b_2f_dictionaries_rebuild
+DELETE_REMOTE_BRANCH batman/may25_151pm_wave_b_2g_experiments_wizard_and_detail
+To github.com:gridl-infra-dev/fjcloud_dev.git
+ - [deleted]             batman/may25_151pm_wave_b_2g_experiments_wizard_and_detail
+DELETE_REMOTE_BRANCH batman/may25_151pm_wave_b_3f_merch_drag_suggestions_lifecycle
+To github.com:gridl-infra-dev/fjcloud_dev.git
+ - [deleted]             batman/may25_151pm_wave_b_3f_merch_drag_suggestions_lifecycle
+DELETE_REMOTE_BRANCH batman/may25_151pm_wave_b_3h_settings_migrate_audit
+To github.com:gridl-infra-dev/fjcloud_dev.git
+ - [deleted]             batman/may25_151pm_wave_b_3h_settings_migrate_audit
+DELETE_REMOTE_BRANCH batman/may26_9pm_wave_b_3f_refresh
+To github.com:gridl-infra-dev/fjcloud_dev.git
+ - [deleted]             batman/may26_9pm_wave_b_3f_refresh
+DELETE_REMOTE_BRANCH codex/preserve_concurrent_dns_runtime_changes
+To github.com:gridl-infra-dev/fjcloud_dev.git
+ - [deleted]             codex/preserve_concurrent_dns_runtime_changes
+DELETE_REMOTE_BRANCH matt/stage2-bundle-landed-s55
+To github.com:gridl-infra-dev/fjcloud_dev.git
+ - [deleted]             matt/stage2-bundle-landed-s55
+DELETE_REMOTE_BRANCH mattman/MAR17_11_3_ux_polish_commerce
+To github.com:gridl-infra-dev/fjcloud_dev.git
+ - [deleted]             mattman/MAR17_11_3_ux_polish_commerce
+DELETE_REMOTE_BRANCH s41_push_fix
+To github.com:gridl-infra-dev/fjcloud_dev.git
+ - [deleted]             s41_push_fix
+DELETE_REMOTE_BRANCH stage4_s57_fix_blockers
+To github.com:gridl-infra-dev/fjcloud_dev.git
+ - [deleted]             stage4_s57_fix_blockers
+
+## Remote Branch Absence Checks
+timestamp_utc=20260712T191822Z
+manifest=docs/runbooks/evidence/repo-gc/20260712T184857Z/manifest_remote_branches.txt
+command: git ls-remote --heads origin batman/apr07_pm_2_local_evidence_ha_and_cold_storage
+REMOTE_BRANCH_ABSENT_ZERO_OUTPUT batman/apr07_pm_2_local_evidence_ha_and_cold_storage
+command: git ls-remote --heads origin batman/apr27_3pm_3_alert_webhook_and_canary_activation
+REMOTE_BRANCH_ABSENT_ZERO_OUTPUT batman/apr27_3pm_3_alert_webhook_and_canary_activation
+command: git ls-remote --heads origin batman/jul09_am_6_billing_rehearsal_real_run
+REMOTE_BRANCH_ABSENT_ZERO_OUTPUT batman/jul09_am_6_billing_rehearsal_real_run
+command: git ls-remote --heads origin batman/may25_151pm_wave_b_2a_synonyms_restructure
+REMOTE_BRANCH_ABSENT_ZERO_OUTPUT batman/may25_151pm_wave_b_2a_synonyms_restructure
+command: git ls-remote --heads origin batman/may25_151pm_wave_b_2c_events_overhaul
+REMOTE_BRANCH_ABSENT_ZERO_OUTPUT batman/may25_151pm_wave_b_2c_events_overhaul
+command: git ls-remote --heads origin batman/may25_151pm_wave_b_2e_personalization_full
+REMOTE_BRANCH_ABSENT_ZERO_OUTPUT batman/may25_151pm_wave_b_2e_personalization_full
+command: git ls-remote --heads origin batman/may25_151pm_wave_b_2f_dictionaries_rebuild
+REMOTE_BRANCH_ABSENT_ZERO_OUTPUT batman/may25_151pm_wave_b_2f_dictionaries_rebuild
+command: git ls-remote --heads origin batman/may25_151pm_wave_b_2g_experiments_wizard_and_detail
+REMOTE_BRANCH_ABSENT_ZERO_OUTPUT batman/may25_151pm_wave_b_2g_experiments_wizard_and_detail
+command: git ls-remote --heads origin batman/may25_151pm_wave_b_3f_merch_drag_suggestions_lifecycle
+REMOTE_BRANCH_ABSENT_ZERO_OUTPUT batman/may25_151pm_wave_b_3f_merch_drag_suggestions_lifecycle
+command: git ls-remote --heads origin batman/may25_151pm_wave_b_3h_settings_migrate_audit
+REMOTE_BRANCH_ABSENT_ZERO_OUTPUT batman/may25_151pm_wave_b_3h_settings_migrate_audit
+command: git ls-remote --heads origin batman/may26_9pm_wave_b_3f_refresh
+REMOTE_BRANCH_ABSENT_ZERO_OUTPUT batman/may26_9pm_wave_b_3f_refresh
+command: git ls-remote --heads origin codex/preserve_concurrent_dns_runtime_changes
+REMOTE_BRANCH_ABSENT_ZERO_OUTPUT codex/preserve_concurrent_dns_runtime_changes
+command: git ls-remote --heads origin matt/stage2-bundle-landed-s55
+REMOTE_BRANCH_ABSENT_ZERO_OUTPUT matt/stage2-bundle-landed-s55
+command: git ls-remote --heads origin mattman/MAR17_11_3_ux_polish_commerce
+REMOTE_BRANCH_ABSENT_ZERO_OUTPUT mattman/MAR17_11_3_ux_polish_commerce
+command: git ls-remote --heads origin s41_push_fix
+REMOTE_BRANCH_ABSENT_ZERO_OUTPUT s41_push_fix
+command: git ls-remote --heads origin stage4_s57_fix_blockers
+REMOTE_BRANCH_ABSENT_ZERO_OUTPUT stage4_s57_fix_blockers
+
+## Fetch Prune And Unmerged Counts
+timestamp_utc=20260712T191834Z
+command: git fetch --prune origin
+
+command: git branch --no-merged main | grep -v 'batman/jul12_pm_' | wc -l
+       0
+
+## Fetch Prune And Unmerged Counts Retry For Pipefail-Safe Recording
+timestamp_utc=20260712T191850Z
+note: previous count command produced 0 and shell exited because grep returned no selected lines under pipefail; rerun below records all required checks without pipefail abort.
+command: git fetch --prune origin
+
+command: git branch --no-merged main | grep -v 'batman/jul12_pm_' | wc -l
+       0
+
+command: git branch -r --no-merged origin/main | wc -l
+       0
+
+command: git branch -r
+  origin/HEAD -> origin/main
+  origin/batman/apr07_pm_1_browser_signoff_unblock
+  origin/batman/apr07_pm_3_staging_infra_deploy_kickoff
+  origin/batman/apr18_pm_1_browser_auth_preflight_fix
+  origin/batman/apr18_pm_2_cargo_audit_tls_upgrade
+  origin/batman/apr18_pm_3_scope_collapse_doc_hygiene
+  origin/batman/apr19_pm_1_docs_status_reconciliation
+  origin/batman/apr19_pm_2_local_signoff_postrun_hardening
+  origin/batman/apr21_pm_10_fresh_host_local_stack
+  origin/batman/apr21_pm_3_component_assertion_audit
+  origin/batman/apr21_pm_5_aws_spend_ttl_guardrails
+  origin/batman/apr21_pm_6_live_e2e_evidence_harness
+  origin/batman/apr21_pm_7_database_recovery_proof
+  origin/batman/apr21_pm_8_log_retention_alarm_hardening
+  origin/batman/apr21_pm_9_paid_beta_rc_signoff
+  origin/batman/apr22_am_2_ses_deliverability_evidence
+  origin/batman/apr22_am_3_webhook_replay_acceptance
+  origin/batman/apr22_am_4_request_id_error_reporting
+  origin/batman/apr22_am_5_chaos_test_split
+  origin/batman/apr22_am_6_component_assertion_audit
+  origin/batman/apr22_am_7_aws_budget_guardrail_prep
+  origin/batman/apr23_pm_1_secrets_contract_cleanup
+  origin/batman/apr24_1pm_t2_2_legal_stubs_routes
+  origin/batman/apr27_3pm_5_deploy_oidc_and_infra_hygiene
+  origin/batman/apr27_3pm_8_rust_test_extensions
+  origin/batman/apr28_2pm_1_alert_webhook_readback_and_canary_activation
+  origin/batman/apr28_2pm_2_ses_inbound_and_deliverability_live_proof
+  origin/batman/apr28_2pm_3_billing_rehearsal_ssot_rewire_and_verify
+  origin/batman/apr28_2pm_5_runtime_smoke_artifact_and_deploy_owner
+  origin/batman/apr28_2pm_6_stripe_restricted_keys_rotation
+  origin/batman/apr28_2pm_7_aws_scoped_iam_rotation
+  origin/batman/apr28_2pm_8_aws_account_split_tradeoff_doc
+  origin/batman/apr29_am_7_legal_pages_beta_decision
+  origin/batman/apr29_pm_10_staging_evidence_reconciliation
+  origin/batman/apr29_pm_8_fj_metering_agent_architectural_cleanup
+  origin/batman/jul06_pm_2_signup_cta_restore_public_launch
+  origin/batman/jul06_pm_3_deploy_currency_drift_alarm
+  origin/batman/jul06_pm_5_public_release_verify_and_closeout
+  origin/batman/jul07_3pm_15_staging_billing_rehearsal_rerun
+  origin/batman/jul07_3pm_17_e2e_deployed_failure_paging
+  origin/batman/jul07_3pm_7_api_types_client_split_openapi_drift
+  origin/batman/jul09_am_2_panics_total_cloudwatch_alarm
+  origin/batman/jul09_am_6_staging_billing_rehearsal_rerun2
+  origin/batman/jul09_pm_1_staging_domain_remap_and_served_content_gate
+  origin/batman/jul09_pm_3_tenant_isolation_proptest_fix
+  origin/batman/jun04_am_1_ci_hygiene_deploy_currency_and_playwright_stripe_mode
+  origin/batman/jun04_am_3_cold_customer_algolia_refugee_journey_audit
+  origin/batman/jun04_pm_11_ci_pipeline_recovery
+  origin/batman/jun04_pm_3_idempotent_delete_and_continue_setup_fix
+  origin/batman/jun04_pm_4_editor_dialog_styling_pass
+  origin/batman/jun04_pm_6_consumer_page_styling_smokes
+  origin/batman/jun04_pm_7_screen_spec_visual_contract_template_and_application
+  origin/batman/jun05_pm_2_rc_harness_critical_browser_surface
+  origin/batman/jun05_pm_3_rc_harness_live_evidence_completeness
+  origin/batman/jun05_ui_1147am_10_unified_search_tab
+  origin/batman/jun05_ui_1147am_2_toast_p0_migration
+  origin/batman/jun05_ui_1147am_4_password_and_tooltip_ssot
+  origin/batman/jun05_ui_1147am_5_oauth_local_dx_and_account_delete_copy
+  origin/batman/jun09_am_1_rc_harness_paid_beta_rc_wiring_fix
+  origin/batman/jun09_am_2_verify_email_clickthrough_definitive_classification
+  origin/batman/jun09_pm_10_pricing_tax_alert_emails_ci_polish
+  origin/batman/jun09_pm_11_cargo_indexes_test_env_leak_fix_lane
+  origin/batman/jun09_pm_1_merchandising_hub_pivot
+  origin/batman/jun09_pm_2_ui_test_coverage_p0
+  origin/batman/jun09_pm_4_merch_mode_toggle_on_search
+  origin/batman/jun09_pm_5_staging_verification_rc_reverdict_and_closeout
+  origin/batman/jun09_pm_8_staging_billing_rehearsal_seed
+  origin/batman/jun10_pm_1_probe_contract_drift_and_lane_b_count_reconciliation
+  origin/batman/jun10_pm_2_staging_billing_rehearsal_repeatability
+  origin/batman/jun10_pm_3_worktree_path_and_duplicate_todo_cleanup
+  origin/batman/jun10_pm_4_polished_beta_staging_verification_rerun
+  origin/batman/jun11_am_3_support_inbox_and_synthetic_canary_rollout
+  origin/batman/jun11_pm_2_stage2_blocked_evidence
+  origin/batman/jun11_pm_2_synthetic_traffic_and_usage_records
+  origin/batman/jun11_pm_3_staging_billing_rehearsal_rerun
+  origin/batman/jun11_pm_7_aws_live_infra_e2e
+  origin/batman/may01_pm_1_wave1_backend_subscription_gutting
+  origin/batman/may01_pm_3_wave1_browser_specs_reframe
+  origin/batman/may04_pm_2_vlm_scaffold
+  origin/batman/may04_pm_3_vlm_polish
+  origin/batman/may04_pm_4_operator_announce_prep
+  origin/batman/may04_pm_6_public_restoration_go_live
+  origin/batman/may05_pm_4_github_org_move
+  origin/batman/may05_pm_5_seed_accounts
+  origin/batman/may05_pm_9_organic_alert_dispatch_probe
+  origin/batman/may15_9pm_2_prod_rds_restore_drill
+  origin/batman/may15_9pm_4_customer_docs_surface
+  origin/batman/may15_9pm_5_dunning_customer_emails
+  origin/batman/may15_pm_3_oauth_defects_1_3_and_gdpr_hard_erasure
+  origin/batman/may15_pm_6_live_money_privacy_com_card_testing
+  origin/batman/may16_9pm_4_full_prod_vm_lifecycle_proof
+  origin/batman/may16_pm_1_gitleaks_evidence_dir_allowlist
+  origin/batman/may19_pm_6_subprocessor_disclosure_and_tax_posture
+  origin/batman/may20_3pm_1_fleet_recovery
+  origin/batman/may21_12pm_10_subprocessor_probe_rerun
+  origin/batman/may21_12pm_11_inventory_diagnosis
+  origin/batman/may21_12pm_12_app_flapjack_foo_retirement
+  origin/batman/may21_12pm_1_cloudflare_prod_env_flip
+  origin/batman/may21_12pm_2_prod_db_leak_cleanup
+  origin/batman/may21_12pm_3_staging_web_isolation
+  origin/batman/may21_12pm_4_browser_lane_rerun
+  origin/batman/may21_12pm_8_alert_emails
+  origin/batman/may22_1pm_1_lb2_lb3_diagnose_and_fix
+  origin/batman/may22_2pm_1_state_ssot_framework
+  origin/batman/may23_9pm_2_routes_dashboard_to_console
+  origin/batman/may23_9pm_3_shared_layout_polish
+  origin/batman/may23_9pm_4_visual_polish_pass
+  origin/batman/may23_9pm_5_landing_ssot_and_cloud_redirect
+  origin/batman/may23_9pm_7_parity_audit
+  origin/batman/may23_9pm_8_console_e2e_coverage_audit
+  origin/batman/may24_20260524T202244Z_w3_1_implement_demo_index_loader_in
+  origin/batman/may24_812am_1_prod_unblock_and_ship
+  origin/batman/may24_812am_2_api_key_recognizer_tighten
+  origin/batman/may24_812am_3_w3_triage_fanout
+  origin/batman/may25_151pm_3_demo_loader_and_create_dialog
+  origin/batman/may25_151pm_wave_b_2b_recommendations_restructure
+  origin/batman/may25_151pm_wave_b_2d_rules_compound_editor
+  origin/batman/may25_151pm_wave_b_3a_api_keys_parity
+  origin/batman/may25_151pm_wave_b_3e_analytics_subtabs
+  origin/batman/may29_pm_7_dunning_probe_rca
+  origin/batman/may3_pm_3_backend_safety_ops
+  origin/doc-system-v2-wave4-fjcloud-dev-migration
+  origin/main
+  origin/mattman/MAR14_griddle_PLATFORM_checklist
+  origin/mattman/MAR17_11_2_data_management_features
+  origin/mattman/mar29_cleanup_checklist
+  origin/mattman/mar30_pm_1_local_bootstrap_billing_signoff
+  origin/mattman/mar30_pm_2_seaweedfs_cold_storage_proof
+  origin/mattman/mar30_pm_3_ha_failover_signoff_automation
+  origin/mattman/mar31_am_1_ha_failover_repeatability
+  origin/mattman/mar31_am_2_cold_storage_live_signoff
+  origin/mattman/mar31_am_3_local_signoff_orchestration
+  origin/mattman/mar31_pm_1_targeted_browser_signoff_on_unified_local_stack
+  origin/stream-e-deploy-proof
+
+## Final Survivor Checks
+timestamp_utc=20260712T191928Z
+command: final manifest worktree survivor check
+manifest_worktree_count=89
+manifest_worktree_survivor_count=0
+
+command: final manifest branch survivor check
+manifest_branch_count=89
+manifest_branch_survivor_count=0
+
+command: final manifest backup ref survivor check
+manifest_backup_ref_count=3
+manifest_backup_ref_survivor_count=0
+
+command: final manifest remote branch survivor check
+REMOTE_ABSENT_ZERO_OUTPUT batman/apr07_pm_2_local_evidence_ha_and_cold_storage
+REMOTE_ABSENT_ZERO_OUTPUT batman/apr27_3pm_3_alert_webhook_and_canary_activation
+REMOTE_ABSENT_ZERO_OUTPUT batman/jul09_am_6_billing_rehearsal_real_run
+REMOTE_ABSENT_ZERO_OUTPUT batman/may25_151pm_wave_b_2a_synonyms_restructure
+REMOTE_ABSENT_ZERO_OUTPUT batman/may25_151pm_wave_b_2c_events_overhaul
+REMOTE_ABSENT_ZERO_OUTPUT batman/may25_151pm_wave_b_2e_personalization_full
+REMOTE_ABSENT_ZERO_OUTPUT batman/may25_151pm_wave_b_2f_dictionaries_rebuild
+REMOTE_ABSENT_ZERO_OUTPUT batman/may25_151pm_wave_b_2g_experiments_wizard_and_detail
+REMOTE_ABSENT_ZERO_OUTPUT batman/may25_151pm_wave_b_3f_merch_drag_suggestions_lifecycle
+REMOTE_ABSENT_ZERO_OUTPUT batman/may25_151pm_wave_b_3h_settings_migrate_audit
+REMOTE_ABSENT_ZERO_OUTPUT batman/may26_9pm_wave_b_3f_refresh
+REMOTE_ABSENT_ZERO_OUTPUT codex/preserve_concurrent_dns_runtime_changes
+REMOTE_ABSENT_ZERO_OUTPUT matt/stage2-bundle-landed-s55
+REMOTE_ABSENT_ZERO_OUTPUT mattman/MAR17_11_3_ux_polish_commerce
+REMOTE_ABSENT_ZERO_OUTPUT s41_push_fix
+REMOTE_ABSENT_ZERO_OUTPUT stage4_s57_fix_blockers
+
+command: git worktree list | wc -l
+       8
+
+command: git status --short
+?? docs/runbooks/evidence/repo-gc/20260712T184857Z/stage2_receipt.txt
+
+command: git -C /Users/stuart/repos/gridl-infra-dev/fjcloud_dev fsck --no-dangling | tail -3
+
+## Validation
+timestamp_utc=20260712T192241Z
+validation_cache_check=MISS
+command: bash scripts/local-ci.sh --fast
+output_file: docs/runbooks/evidence/repo-gc/20260712T184857Z/stage2_local_ci_fast.txt
+exit_status: 1
+
+## Web Dependency Install For Validation Retry
+timestamp_utc=20260712T192320Z
+command: cd web && pnpm install --frozen-lockfile
+exit_status: 0
+note: installed ignored node_modules only; lockfile unchanged.
+
+## Validation Retry After Web Install
+timestamp_utc=20260712T192412Z
+validation_cache_check=MISS
+command: bash scripts/local-ci.sh --fast
+output_file: docs/runbooks/evidence/repo-gc/20260712T184857Z/stage2_local_ci_fast_retry_after_web_install.txt
+exit_status: 1
+
+## Local CI Failure Scope Rationale
+timestamp_utc=20260712T192435Z
+command: bash scripts/local-ci.sh --fast
+first_attempt_output: docs/runbooks/evidence/repo-gc/20260712T184857Z/stage2_local_ci_fast.txt
+retry_output: docs/runbooks/evidence/repo-gc/20260712T184857Z/stage2_local_ci_fast_retry_after_web_install.txt
+result: FAIL due to source-pollution only after web dependencies were installed; web-lint and web-test passed on retry.
+scope_rationale: source-pollution listed pre-existing .scrai, chat, and Stage 1 manifest/evidence files, not Stage 2 receipt files. Running sanitize --write would rewrite the approved Stage 1 manifest/evidence source of truth and unrelated artifacts, which is outside Stage 2 receipt-only commit scope.

@@ -1,0 +1,14 @@
+# Disposition Receipt: batman/may16_pm_4_prod_canary_e2e_evidence
+
+Classification: approved freed local branch after approved worktree removal
+Evidence source: current read-only git refs at bundle creation.
+
+## rev-parse
+$ git rev-parse batman/may16_pm_4_prod_canary_e2e_evidence
+f3e42ddc473d6e06f870c66fbf682eb242d0422c
+
+## cherry
+$ git cherry -v main batman/may16_pm_4_prod_canary_e2e_evidence | tail -20
+
+## diff main...
+$ git diff main...batman/may16_pm_4_prod_canary_e2e_evidence --stat | tail -20

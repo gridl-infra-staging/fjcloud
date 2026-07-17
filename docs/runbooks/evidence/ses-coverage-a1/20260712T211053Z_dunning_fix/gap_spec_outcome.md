@@ -1,0 +1,22 @@
+# Stage 3 gap-spec outcome
+
+- HEAD: 31e77ce08abd3e67116b7081dd78b549b7834bff
+- Evidence bundle: docs/runbooks/evidence/ses-coverage-a1/20260712T211053Z_dunning_fix
+- Billing month: 2026-07
+- Validator command: `bash scripts/validate_staging_dunning_delivery.sh --env-file /Users/stuart/repos/gridl-infra-dev/fjcloud_dev/.secret/.env.secret --month 2026-07 --confirm-live-mutation`
+- Validator rc: 1
+- Validator result/classification: failed / rehearsal_failed
+- Validator gate status: `guard` passed; `reset_test_state` passed for 2 allowlisted tenants.
+- Validator failing step: `run_rehearsal`
+- Nested failure: `deployable_currency_drift`; staging deploy is behind deployable dev changes and live mutation was not attempted.
+- Nested deployed SHA: 55757a6e01ea527a56d4fd53c4b35edcddb55861
+- Deploy status command: `bash scripts/deploy_status.sh`
+- Deploy status rc: 0
+- Deploy status diagnosis: staging dev_sha 55757a6e01ea527a56d4fd53c4b35edcddb55861; dev-main 35baf16307bbcc9056562b0eb5f0aa57039edc38; staging is 61 commits behind main.
+- Inbox command: `bash scripts/probe_dunning_email_inbox_e2e.sh --env-file /Users/stuart/repos/gridl-infra-dev/fjcloud_dev/.secret/.env.secret`
+- Inbox rc: 1
+- Inbox result/classification: failed / rehearsal_failed
+- Inbox detail: dunning owner script exited 1; hosted invoice URL assertion was not reached.
+- Hygiene command: `bash scripts/check_evidence_secret_hygiene.sh`
+- Hygiene rc: 0
+- Hygiene result: Evidence secret hygiene passed.

@@ -1,0 +1,14 @@
+# Disposition Receipt: batman/may21_12pm_4_browser_lane_rerun
+
+Classification: approved freed local branch after approved worktree removal
+Evidence source: current read-only git refs at bundle creation.
+
+## rev-parse
+$ git rev-parse batman/may21_12pm_4_browser_lane_rerun
+22f42a7d68b8b5d96e8ee1ddccbc5d46f6d13cb9
+
+## cherry
+$ git cherry -v main batman/may21_12pm_4_browser_lane_rerun | tail -20
+
+## diff main...
+$ git diff main...batman/may21_12pm_4_browser_lane_rerun --stat | tail -20

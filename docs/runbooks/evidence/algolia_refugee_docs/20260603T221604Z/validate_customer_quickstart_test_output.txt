@@ -1,0 +1,92 @@
+=== validate_customer_quickstart.sh tests ===
+PASS: missing mode should exit 2
+PASS: missing mode should print usage
+PASS: invalid mode should exit 2
+PASS: invalid mode should print usage
+PASS: staging full-flow should fail fast when roundtrip env is missing
+PASS: staging failure should name SES_FROM_ADDRESS
+PASS: staging failure should name INBOUND_ROUNDTRIP_S3_URI
+PASS: prod full-flow should fail fast when roundtrip env is missing
+PASS: prod failure should name SES_REGION
+PASS: prod failure should name INBOUND_ROUNDTRIP_RECIPIENT_DOMAIN
+PASS: prod --contract-only should succeed without full-flow env
+PASS: contract-only mode should announce skipped full-flow
+PASS: contract-only should probe /health
+PASS: contract-only should probe /docs
+PASS: contract-only should include signup endpoint reachability probe
+PASS: contract-only should include verify-email endpoint reachability probe
+PASS: contract-only should include list-indexes endpoint reachability probe
+PASS: contract-only should include batch endpoint reachability probe
+PASS: contract-only should include search endpoint reachability probe
+PASS: contract-only should include get-object endpoint reachability probe
+PASS: contract-only should include synonym endpoint reachability probe
+PASS: contract-only should include rule endpoint reachability probe
+PASS: contract-only should not invoke inbound roundtrip
+PASS: contract-only should not run signup/verify/index mutation seams
+PASS: prod --contract-only should succeed with documented verb probes
+PASS: contract-only should probe register with POST
+PASS: contract-only should probe verify-email with POST
+PASS: contract-only should probe list indexes with GET
+PASS: contract-only should probe create index with POST
+PASS: contract-only should probe batch with POST
+PASS: contract-only should probe search with POST
+PASS: contract-only should probe get-object with GET
+PASS: contract-only should probe delete-object with DELETE
+PASS: contract-only should probe save-synonym with PUT
+PASS: contract-only should probe save-rule with PUT
+PASS: contract-only should not use OPTIONS for documented verb coverage
+PASS: complete fixture docs should satisfy marker inventory
+PASS: quickstart inventory should be exact
+PASS: migration inventory should be exact
+PASS: doc override should fail closed without explicit test gate
+PASS: doc override failure should explain the test-only gate
+PASS: unknown doc marker should fail validation
+PASS: unknown marker diagnostic should name the marker
+PASS: missing required marker should fail validation
+PASS: missing marker diagnostic should name the case-table ID
+PASS: missing marker diagnostic should name the required doc
+PASS: duplicate quickstart marker should fail validation
+PASS: duplicate quickstart diagnostic should name the marker
+PASS: duplicate quickstart diagnostic should name the doc
+PASS: duplicate migration marker should fail validation
+PASS: duplicate migration diagnostic should name the marker
+PASS: duplicate migration diagnostic should name the doc
+PASS: contract-only should fail when endpoints return 404
+PASS: contract-only failure should mention the HTTP status
+PASS: contract-only should fail when endpoints return 500
+PASS: contract-only failure should mention the HTTP status
+PASS: contract-only should fail when a documented verb returns 405
+PASS: contract-only verb failure should mention method-not-allowed status
+PASS: contract-only should treat auth failures as documented method reachability
+PASS: success output should confirm contract probe completion
+PASS: staging should fail when ADMIN_KEY is missing
+PASS: failure should name ADMIN_KEY
+PASS: no flow steps should run when ADMIN_KEY is missing
+PASS: staging should pass prereqs when FLAPJACK_ADMIN_KEY is set
+PASS: staging should fail fast when API_URL is unset
+PASS: staging failure should name API_URL requirement
+PASS: prod should fail fast when API_URL is unset
+PASS: prod failure should name API_URL requirement
+PASS: staging full-flow should succeed when prerequisites are present
+PASS: verify-email step should read bridged inbox values
+PASS: staging full-flow should execute migration cases with fixture docs
+PASS: full flow should call quickstart, migration, and teardown cases in order
+PASS: staging full-flow should pass before checking migration logs
+PASS: full-flow output should log list-indexes migration success
+PASS: full-flow output should log create-index migration success
+PASS: full-flow output should log batch-add migration success
+PASS: full-flow output should log migration search success
+PASS: full-flow output should log get-object migration success
+PASS: full-flow output should log batch-update migration success
+PASS: full-flow output should log delete-object migration success
+PASS: full-flow output should log save-synonym migration success
+PASS: full-flow output should log save-rule migration success
+PASS: migration searches should retry through normal index visibility lag
+PASS: migration add and update searches should each retry after one empty result
+PASS: get-object case should reject stale object content
+PASS: get-object failure should name the expected title
+PASS: delete-object case should reject a no-op delete response
+PASS: delete-object failure should name the expected deleted object
+PASS: stub-root override should fail closed without explicit test gate
+PASS: stub-root failure should explain the test-only gate
+=== Results: 90 passed, 0 failed ===

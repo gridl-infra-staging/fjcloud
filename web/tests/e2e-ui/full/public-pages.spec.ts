@@ -1,0 +1,266 @@
+/**
+ * Full — Public Pages
+ *
+ * Verifies pages that are accessible without authentication:
+ *   - Landing page (/)
+ *   - Public beta page (/beta)
+ *   - Legal pages (/terms, /privacy, /dpa)
+ *   - Public error boundary (missing routes)
+ *   - Status page (/status)
+ *
+ * These tests do not use stored auth state.
+ */
+
+import { test, expect } from '../../fixtures/fixtures';
+import {
+	MARKETING_PRICING,
+	pricingContractSnapshotFromMarketing,
+	sharedPlanMinimumMonthlyLabel
+} from '../../../src/lib/pricing';
+import { assertSharedLegalPageContract } from '../../fixtures/legal_page_playwright_helpers';
+
+// Unauthenticated — no stored auth state needed
+test.use({ storageState: { cookies: [], origins: [] } });
+
+test.describe('Landing page', () => {
+	test('root path redirects unauthenticated users to /login', async ({ page }) => {
+		await page.goto('/');
+
+		await expect(page).toHaveURL(/\/login/);
+		await expect(page).toHaveTitle(/Flapjack Cloud/);
+		await expect(page).not.toHaveTitle(/Griddle/);
+		await expect(page.getByRole('heading', { name: 'Log in to Flapjack Cloud' })).toBeVisible();
+		await expect(page.getByTestId('public-beta-banner')).toHaveCount(0);
+	});
+
+	test('Log In link reaches the login page', async ({ page }) => {
+		await page.goto('/pricing');
+
+		await page.getByRole('navigation').getByRole('link', { name: 'Log In' }).click();
+
+		await expect(page).toHaveURL(/\/login/);
+		await expect(page).toHaveTitle(/Flapjack Cloud/);
+		await expect(page).not.toHaveTitle(/Griddle/);
+		await expect(page.getByRole('heading', { name: 'Log in to Flapjack Cloud' })).toBeVisible();
+	});
+
+	// Signup discovery is withdrawn, but /signup remains directly reachable.
+	// See decisions/2026-05-23_beta_signup_gate.md.
+	test('direct navigation to /signup still renders the signup form', async ({ page }) => {
+		await page.goto('/signup');
+		await expect(page).toHaveURL(/\/signup/);
+		await expect(page.getByRole('heading', { name: 'Create your account' })).toBeVisible();
+	});
+
+	test('pricing body shows free-tier promise without public signup CTAs', async ({ page }) => {
+		await page.goto('/pricing');
+
+		const freeTierPromiseMatches = page.getByText(MARKETING_PRICING.free_tier_promise);
+		expect(await freeTierPromiseMatches.count()).toBeGreaterThanOrEqual(1);
+
+		const bodyCtas = page
+			.getByRole('main')
+			.getByRole('link', { name: MARKETING_PRICING.cta_label });
+		await expect(bodyCtas).toHaveCount(0);
+		const navSignup = page.getByRole('navigation').getByRole('link', { name: 'Sign Up' });
+		await expect(navSignup).toHaveCount(0);
+	});
+
+	test('pricing page omits legacy landing-only policies section', async ({ page }) => {
+		await page.goto('/pricing');
+		const main = page.getByRole('main');
+		await expect(main.getByRole('heading', { name: 'Policies', level: 2 })).toHaveCount(0);
+		await expect(main.getByRole('heading', { name: 'Cancellation', level: 3 })).toHaveCount(0);
+		await expect(main.getByRole('heading', { name: 'Refunds', level: 3 })).toHaveCount(0);
+	});
+
+	test('pricing page does not render the legacy landing calculator', async ({ page }) => {
+		await page.goto('/pricing');
+		await expect(page.getByTestId('landing-pricing-calculator')).toHaveCount(0);
+	});
+});
+
+test.describe('Pricing page', () => {
+	test('renders pricing-first copy and public links for unauthenticated users', async ({
+		page
+	}) => {
+		await page.goto('/pricing');
+		const pricingMain = page.getByTestId('pricing-page-main');
+		const marketingSnapshot = pricingContractSnapshotFromMarketing(MARKETING_PRICING);
+
+		await expect(pricingMain).toBeVisible();
+		await expect(pricingMain).not.toContainText(/Page not found|Not found/i);
+		await expect(
+			page.getByRole('heading', { name: 'Start free, scale into Paid storage' })
+		).toBeVisible();
+		await expect(pricingMain).toContainText(
+			'Every Flapjack Cloud account starts on the free tier. Paid billing begins only when you upgrade, then storage and the paid-plan minimum are shown clearly in USD.'
+		);
+		await expect(pricingMain).toContainText(MARKETING_PRICING.free_tier_promise);
+		await expect(pricingMain).toContainText(
+			`Your free tier includes ${MARKETING_PRICING.free_tier_mb} MB of hot index storage before paid billing starts.`
+		);
+		await expect(pricingMain).toContainText('Free tier caps');
+		await expect(pricingMain).toContainText(
+			`${MARKETING_PRICING.free_tier_searches_per_month.toLocaleString('en-US')} searches/month`
+		);
+		await expect(pricingMain).toContainText('Hot index storage');
+		await expect(pricingMain).toContainText('Cold snapshot storage');
+		await expect(pricingMain).toContainText('Paid-plan minimum');
+		await expect(pricingMain).toContainText('$5/month paid-plan minimum');
+		await expect(page.getByTestId('public-beta-banner')).toContainText(/public beta/i);
+		await expect(pricingMain).toContainText(marketingSnapshot.storage_rate_per_mb_month);
+		await expect(pricingMain).toContainText(marketingSnapshot.cold_storage_rate_per_gb_month);
+		await expect(pricingMain).toContainText(
+			`Paid accounts have a ${sharedPlanMinimumMonthlyLabel(marketingSnapshot.shared_minimum_spend_cents)}/month paid-plan minimum`
+		);
+		await expect(pricingMain).toContainText(MARKETING_PRICING.tax_disclaimer);
+
+		await expect(pricingMain.getByRole('link', { name: MARKETING_PRICING.cta_label })).toHaveCount(
+			0
+		);
+		await expect(
+			page.getByRole('navigation').getByRole('link', { name: 'Log In' })
+		).toHaveAttribute('href', '/login');
+		const navSignup = page.getByRole('navigation').getByRole('link', { name: 'Sign Up' });
+		await expect(navSignup).toHaveCount(0);
+
+		const regionTable = pricingMain.getByRole('table', { name: 'Region multipliers' });
+		const regionRows = regionTable.getByRole('row');
+		await expect(regionRows).toHaveCount(marketingSnapshot.region_pricing.length + 1);
+		for (let rowIndex = 0; rowIndex < marketingSnapshot.region_pricing.length; rowIndex += 1) {
+			const expectedRegion = marketingSnapshot.region_pricing[rowIndex];
+			const renderedRow = regionRows.nth(rowIndex + 1);
+			await expect(renderedRow.getByRole('rowheader')).toHaveText(expectedRegion.display_name);
+			await expect(renderedRow.getByRole('cell')).toHaveText(expectedRegion.multiplier);
+		}
+
+		await expect(pricingMain).not.toContainText('What you get');
+		await expect(pricingMain).not.toContainText('Quick facts');
+		await expect(pricingMain).not.toContainText('Support reference');
+		await expect(pricingMain).not.toContainText('Go home');
+		await expect(pricingMain).not.toContainText('The page you requested is not available.');
+		await expect(pricingMain).not.toContainText('Not found');
+		await expect(page.getByTestId('landing-pricing-calculator')).toHaveCount(0);
+		await expect(
+			page.getByRole('contentinfo').getByRole('link', { name: 'Terms' })
+		).toHaveAttribute('href', '/terms');
+		await expect(
+			page.getByRole('contentinfo').getByRole('link', { name: 'Privacy' })
+		).toHaveAttribute('href', '/privacy');
+		await expect(page.getByRole('contentinfo').getByRole('link', { name: 'DPA' })).toHaveAttribute(
+			'href',
+			'/dpa'
+		);
+		await expect(
+			page.getByRole('contentinfo').getByRole('link', { name: 'Status' })
+		).toHaveAttribute('href', '/status');
+	});
+
+	test('pricing header Log In link navigates to /login', async ({ page }) => {
+		await page.goto('/pricing');
+		await expect(page.getByTestId('pricing-page-main')).toBeVisible();
+
+		const loginLink = page.getByRole('navigation').getByRole('link', { name: 'Log In' });
+		await expect(loginLink).toHaveAttribute('href', '/login');
+		await loginLink.click();
+
+		await expect(page).toHaveURL(/\/login/);
+		await expect(page.getByRole('heading', { name: 'Log in to Flapjack Cloud' })).toBeVisible();
+	});
+});
+
+test.describe('Public beta and legal pages', () => {
+	test('beta page explains launch scope, support target, feedback, and GA timing', async ({
+		page
+	}) => {
+		await page.goto('/beta');
+
+		await expect(page.getByRole('heading', { name: 'Public Beta' })).toBeVisible();
+		await expect(page.getByRole('main')).toContainText('48 business hours');
+		await expect(page.getByRole('main')).toContainText('General availability');
+		await expect(page.getByRole('link', { name: /email support/i })).toHaveAttribute(
+			'href',
+			/mailto:support@flapjack\.foo/
+		);
+		await expect(
+			page.getByRole('main').getByRole('link', { name: 'Start beta signup' })
+		).toHaveCount(0);
+		await expect(page.getByRole('link', { name: 'Terms' })).toHaveAttribute('href', '/terms');
+		await expect(page.getByRole('link', { name: 'Privacy' })).toHaveAttribute('href', '/privacy');
+		await expect(page.getByRole('link', { name: 'DPA' })).toHaveAttribute('href', '/dpa');
+	});
+
+	test('legal routes expose the finalized shared contract for public users', async ({ page }) => {
+		const legalPages = [
+			{ path: '/terms', heading: 'Terms of Service' },
+			{ path: '/privacy', heading: 'Privacy Policy' },
+			{ path: '/dpa', heading: 'Data Processing Addendum' }
+		];
+
+		for (const legalPage of legalPages) {
+			await page.goto(legalPage.path);
+			await expect(page).toHaveURL(new RegExp(`${legalPage.path}$`));
+			const pageHeading = page.getByRole('heading', {
+				name: legalPage.heading,
+				level: 1,
+				exact: true
+			});
+			await expect(pageHeading).toHaveCount(1);
+			await expect(pageHeading).toBeVisible();
+			await assertSharedLegalPageContract(page);
+			await expect(page.getByTestId('public-beta-banner')).toContainText(/public beta/i);
+			await expect(page.getByRole('main')).not.toContainText('(Draft)');
+			await expect(page.getByRole('main')).not.toContainText('[REVIEW:');
+			await expect(page.getByRole('main')).not.toContainText('TBD');
+		}
+	});
+});
+
+test.describe('Public error boundary', () => {
+	test('unmapped public route renders recovery copy, support reference, and support contact link', async ({
+		page
+	}) => {
+		await page.goto(`/missing-public-route-${Date.now()}`);
+
+		await expect(page.getByRole('heading', { name: 'Page not found' })).toBeVisible();
+		await expect(page.getByRole('main')).toContainText(
+			/The page you requested is not available\.|Not found/i
+		);
+		const primaryCta = page.getByRole('link', { name: 'Go home' });
+		await expect(primaryCta).toBeVisible();
+		await expect(primaryCta).toHaveAttribute('href', '/');
+
+		const supportReferenceLabel = page.getByRole('main').getByText('Support reference');
+		await expect(supportReferenceLabel).toHaveCount(1);
+		await expect(supportReferenceLabel).toBeVisible();
+
+		const supportReferenceToken = page.getByRole('main').getByText(/^web-[a-f0-9]{12}$/);
+		await expect(supportReferenceToken).toHaveCount(1);
+		await expect(supportReferenceToken).toBeVisible();
+
+		await expect(page.getByRole('link', { name: 'support@flapjack.foo' })).toHaveAttribute(
+			'href',
+			/mailto:support@flapjack\.foo\?subject=/
+		);
+	});
+});
+
+test.describe('Status page', () => {
+	test('renders status, support, and beta-scope communication links', async ({ page }) => {
+		await page.goto('/status');
+
+		await expect(page.getByRole('heading', { name: 'Service Status' })).toBeVisible();
+		await expect.soft(page.getByTestId('status-badge')).toContainText('Status Unavailable');
+		await expect.soft(page.getByTestId('status-last-updated')).toHaveCount(0);
+		await expect(page.getByRole('main')).toContainText(
+			'Flapjack Cloud operations owns incident updates'
+		);
+		await expect(page.getByRole('link', { name: /beta scope/i })).toHaveAttribute('href', '/beta');
+		await expect(page.getByRole('link', { name: /email support/i })).toHaveAttribute(
+			'href',
+			/mailto:support@flapjack\.foo/
+		);
+		await expect(page.getByRole('main')).not.toContainText('incident history');
+	});
+});

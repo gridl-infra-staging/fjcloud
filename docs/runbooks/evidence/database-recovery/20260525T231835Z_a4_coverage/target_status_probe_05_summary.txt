@@ -1,0 +1,5 @@
+DBInstanceIdentifier=fjcloud-staging-restore-20260525235041
+DBInstanceStatus=backing-up
+Endpoint=fjcloud-staging-restore-20260525235041.cabwlew6jcjl.us-east-1.rds.amazonaws.com
+Port=5432
+EngineVersion=17.6

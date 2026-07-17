@@ -1,0 +1,27 @@
+HEAD: f2fc5cac674a0c1402ddb9029ac7ccabc345565b
+
+Git status --short:
+M  scripts/lib/compose_project.sh
+M  scripts/lib/deterministic_batch_payload.sh
+M  scripts/lib/full_backend_validation_cli.sh
+M  scripts/lib/local_seed_replicas.sh
+M  scripts/lib/process.sh
+M  scripts/lib/psql_path.sh
+M  scripts/lib/secret_audit_parsing.sh
+M  scripts/lib/seed_verify.sh
+M  scripts/lib/staging_billing_rehearsal_cross_check.sh
+M  scripts/lib/staging_billing_rehearsal_email_evidence.sh
+M  scripts/lib/staging_billing_rehearsal_evidence.sh
+M  scripts/tests/lib/api_dev_stage4_tests.sh
+M  scripts/tests/lib/local_dev_test_state.sh
+M  scripts/tests/lib/seed_local_mocks.sh
+M  scripts/tests/lib/staging_billing_rehearsal_reset_harness_blocks.sh
+M  scripts/tests/lib/validate_customer_quickstart_fixtures.sh
+?? docs/runbooks/evidence/playwright-fixture-salvage/20260709T230655Z/
+
+Node: v26.0.0
+
+Playwright: Version 1.58.2
+
+workers line:
+151:	workers: 1,

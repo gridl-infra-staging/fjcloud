@@ -1,0 +1,265 @@
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { render, screen, cleanup, waitFor } from '@testing-library/svelte';
+import { fireEvent } from '@testing-library/dom';
+import type { ComponentProps } from 'svelte';
+
+const { toastInfoMock, toastSuccessMock } = vi.hoisted(() => ({
+	toastInfoMock: vi.fn(),
+	toastSuccessMock: vi.fn()
+}));
+
+vi.mock('$app/forms', () => ({
+	enhance: () => ({ destroy: () => {} })
+}));
+
+vi.mock('$lib/toast', async () => {
+	const { TOAST_DURATION_MS } =
+		await vi.importActual<typeof import('$lib/toast_contract')>('$lib/toast_contract');
+	return {
+		TOAST_DURATION_MS,
+		toast: {
+			info: toastInfoMock,
+			success: toastSuccessMock
+		}
+	};
+});
+
+import SuggestionsTab from './SuggestionsTab.svelte';
+import { sampleIndex, sampleQsConfig, sampleQsStatus } from '../detail.test.shared';
+import { TOAST_DURATION_MS } from '$lib/toast_contract';
+
+type SuggestionsProps = ComponentProps<typeof SuggestionsTab>;
+
+function defaultProps(overrides: Partial<SuggestionsProps> = {}): SuggestionsProps {
+	return {
+		index: sampleIndex,
+		qsConfig: sampleQsConfig,
+		qsStatus: sampleQsStatus,
+		qsConfigError: '',
+		qsConfigSaved: false,
+		qsConfigDeleted: false,
+		qsBuildQueued: false,
+		...overrides
+	};
+}
+
+afterEach(() => {
+	cleanup();
+	vi.clearAllMocks();
+});
+
+describe('SuggestionsTab', () => {
+	describe('section shell', () => {
+		it('renders the Suggestions heading and description', () => {
+			render(SuggestionsTab, { props: defaultProps() });
+
+			expect(screen.getByText('Suggestions')).toBeInTheDocument();
+			expect(screen.getByText(/configure query suggestions/i)).toBeInTheDocument();
+		});
+
+		it('sets data-testid and data-index on the section root', () => {
+			const { container } = render(SuggestionsTab, { props: defaultProps() });
+
+			const section = container.querySelector('[data-testid="suggestions-section"]');
+			expect(section).not.toBeNull();
+			expect(section!.getAttribute('data-index')).toBe('products');
+		});
+	});
+
+	describe('success toasts and error banner', () => {
+		it('emits saved toast when qsConfigSaved is true without rendering the old inline copy', async () => {
+			render(SuggestionsTab, { props: defaultProps({ qsConfigSaved: true }) });
+			await waitFor(() => {
+				expect(toastSuccessMock).toHaveBeenCalledWith('Suggestions config saved.', {
+					duration: TOAST_DURATION_MS
+				});
+			});
+			expect(screen.queryByText('Suggestions config saved.')).not.toBeInTheDocument();
+		});
+
+		it('emits deleted toast when qsConfigDeleted is true without rendering the old inline copy', async () => {
+			render(SuggestionsTab, { props: defaultProps({ qsConfigDeleted: true }) });
+			await waitFor(() => {
+				expect(toastSuccessMock).toHaveBeenCalledWith('Suggestions config deleted.', {
+					duration: TOAST_DURATION_MS
+				});
+			});
+			expect(screen.queryByText('Suggestions config deleted.')).not.toBeInTheDocument();
+		});
+
+		it('emits rebuild queued info toast when qsBuildQueued is true without rendering the old inline copy', async () => {
+			render(SuggestionsTab, { props: defaultProps({ qsBuildQueued: true }) });
+			await waitFor(() => {
+				expect(toastInfoMock).toHaveBeenCalledWith('Suggestions rebuild queued.', {
+					duration: TOAST_DURATION_MS
+				});
+			});
+			expect(screen.queryByText('Suggestions rebuild queued.')).not.toBeInTheDocument();
+		});
+
+		it('shows error banner with error message', () => {
+			render(SuggestionsTab, { props: defaultProps({ qsConfigError: 'Parse error' }) });
+			expect(screen.getByText('Parse error')).toBeInTheDocument();
+		});
+
+		it('does not show banners by default', () => {
+			render(SuggestionsTab, { props: defaultProps() });
+			expect(screen.queryByText('Suggestions config saved.')).not.toBeInTheDocument();
+			expect(screen.queryByText('Suggestions config deleted.')).not.toBeInTheDocument();
+			expect(screen.queryByText('Suggestions rebuild queued.')).not.toBeInTheDocument();
+			expect(toastInfoMock).not.toHaveBeenCalled();
+			expect(toastSuccessMock).not.toHaveBeenCalled();
+		});
+	});
+
+	describe('no-config prompt', () => {
+		it('shows no-config message when qsConfig is null', () => {
+			render(SuggestionsTab, {
+				props: defaultProps({ qsConfig: null, qsStatus: null })
+			});
+			expect(screen.getByText('No configuration')).toBeInTheDocument();
+			expect(
+				screen.getByRole('button', { name: /configure query suggestions/i })
+			).toBeInTheDocument();
+		});
+
+		it('does not show no-config prompt when config exists', () => {
+			render(SuggestionsTab, { props: defaultProps() });
+			expect(screen.queryByText('No configuration')).not.toBeInTheDocument();
+		});
+
+		it('Configure Query Suggestions button resets textarea to default config for current index', async () => {
+			render(SuggestionsTab, {
+				props: defaultProps({ qsConfig: null, qsStatus: null })
+			});
+
+			const textarea = screen.getByLabelText(/query suggestions json/i) as HTMLTextAreaElement;
+			await fireEvent.input(textarea, {
+				target: {
+					value: JSON.stringify({
+						indexName: 'wrong-index',
+						sourceIndices: ['other-index'],
+						languages: ['fr'],
+						exclude: ['custom'],
+						allowSpecialCharacters: true,
+						enablePersonalization: true
+					})
+				}
+			});
+
+			await fireEvent.click(screen.getByRole('button', { name: /configure query suggestions/i }));
+			const parsed = JSON.parse(textarea.value);
+			expect(parsed.indexName).toBe('products');
+			expect(parsed.languages).toEqual(['en']);
+			expect(parsed.sourceIndices).toEqual([]);
+			expect(parsed.exclude).toEqual([]);
+			expect(parsed.allowSpecialCharacters).toBe(false);
+			expect(parsed.enablePersonalization).toBe(false);
+		});
+	});
+
+	describe('config form', () => {
+		it('has saveQsConfig form wired to ?/saveQsConfig action', () => {
+			const { container } = render(SuggestionsTab, { props: defaultProps() });
+
+			const form = container.querySelector('form[action="?/saveQsConfig"]');
+			expect(form).not.toBeNull();
+			expect(screen.getByRole('button', { name: /save suggestions/i })).toBeInTheDocument();
+		});
+
+		it('config textarea is seeded from existing qsConfig', () => {
+			render(SuggestionsTab, { props: defaultProps() });
+
+			const textarea = screen.getByLabelText(/query suggestions json/i) as HTMLTextAreaElement;
+			const parsed = JSON.parse(textarea.value);
+			expect(parsed.indexName).toBe('products');
+			expect(parsed.sourceIndices).toBeDefined();
+		});
+
+		it('config textarea seeded with index.name when qsConfig is null', () => {
+			render(SuggestionsTab, {
+				props: defaultProps({ qsConfig: null, qsStatus: null })
+			});
+
+			const textarea = screen.getByLabelText(/query suggestions json/i) as HTMLTextAreaElement;
+			const parsed = JSON.parse(textarea.value);
+			expect(parsed.indexName).toBe('products');
+			expect(parsed.languages).toEqual(['en']);
+		});
+
+		it('shows delete button when config exists', () => {
+			render(SuggestionsTab, { props: defaultProps() });
+
+			expect(
+				screen.getByRole('button', { name: /delete suggestions config/i })
+			).toBeInTheDocument();
+		});
+
+		it('hides delete button when qsConfig is null', () => {
+			render(SuggestionsTab, {
+				props: defaultProps({ qsConfig: null, qsStatus: null })
+			});
+
+			expect(
+				screen.queryByRole('button', { name: /delete suggestions config/i })
+			).not.toBeInTheDocument();
+		});
+
+		it('delete button uses formaction ?/deleteQsConfig', () => {
+			const { container } = render(SuggestionsTab, { props: defaultProps() });
+
+			const deleteBtn = container.querySelector('button[formaction="?/deleteQsConfig"]');
+			expect(deleteBtn).not.toBeNull();
+		});
+	});
+
+	describe('build status', () => {
+		it('rebuild form posts to ?/rebuildQsConfig', () => {
+			const { container } = render(SuggestionsTab, { props: defaultProps() });
+
+			const rebuildForm = container.querySelector('form[action="?/rebuildQsConfig"]');
+			expect(rebuildForm).not.toBeNull();
+			expect(screen.getByRole('button', { name: /rebuild suggestions/i })).toBeInTheDocument();
+		});
+
+		it('renders build status when qsStatus is provided', () => {
+			render(SuggestionsTab, { props: defaultProps() });
+
+			expect(screen.getByText('Build Status')).toBeInTheDocument();
+			expect(screen.getByText(/running: no/i)).toBeInTheDocument();
+			expect(screen.getByText(/last built:/i)).toBeInTheDocument();
+			expect(screen.getByText(/last successful build:/i)).toBeInTheDocument();
+		});
+
+		it('shows running status as yes when isRunning is true', () => {
+			render(SuggestionsTab, {
+				props: defaultProps({
+					qsStatus: { ...sampleQsStatus, isRunning: true }
+				})
+			});
+			expect(screen.getByText(/running: yes/i)).toBeInTheDocument();
+		});
+
+		it('does not render build status when qsStatus is null', () => {
+			render(SuggestionsTab, {
+				props: defaultProps({ qsStatus: null })
+			});
+			expect(screen.queryByText('Build Status')).not.toBeInTheDocument();
+		});
+
+		it('shows never for missing build timestamps', () => {
+			render(SuggestionsTab, {
+				props: defaultProps({
+					qsStatus: {
+						indexName: 'products',
+						isRunning: false,
+						lastBuiltAt: null as unknown as string,
+						lastSuccessfulBuiltAt: null as unknown as string
+					}
+				})
+			});
+			const texts = screen.getAllByText(/never/);
+			expect(texts.length).toBeGreaterThanOrEqual(2);
+		});
+	});
+});

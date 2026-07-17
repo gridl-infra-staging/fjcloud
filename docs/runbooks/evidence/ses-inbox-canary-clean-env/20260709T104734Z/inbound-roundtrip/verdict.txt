@@ -1,0 +1,12 @@
+Stage 2 inbound roundtrip verdict: PASS
+
+Boundary: this proves only the automated S3-backed *@test.flapjack.foo path. It does not prove the separate operator-only support@flapjack.foo MX-to-Google-Workspace inbox check named in docs/launch_verification_matrix.md:75.
+
+Probe overall passed: true
+Probe elapsed_ms: 4352
+
+Owned steps:
+- send_probe: passed=true detail=Sent probe from 'noreply@flapjack.foo' to 'roundtrip-inbound-probe-20260709T111237Z-2930@test.flapjack.foo' (message_id='0100019f4694628d-2f864ee7-d09d-4023-a57f-c35b0b5235de-000000').
+- poll_inbox_s3: passed=true detail=Found nonce 'inbound-probe-20260709T111237Z-2930' at s3://flapjack-cloud-releases/e2e-emails/llrbr0rqedjq6h2tf737ov3u3ft5j46fngd8hdg1.
+- fetch_rfc822: passed=true detail=Fetched RFC822 payload for s3://flapjack-cloud-releases/e2e-emails/llrbr0rqedjq6h2tf737ov3u3ft5j46fngd8hdg1.
+- auth_verdict: passed=true detail=Authentication-Results has dkim=pass, spf=pass, dmarc=pass.

@@ -1,0 +1,3 @@
+customer_id,tenant_id,deployment_id,vm_id,status,hostname,flapjack_url,vm_hostname,vm_flapjack_url
+eb0d9cff-cd5b-4ff7-aa67-d1933bb20593,stage5-stage520260518035203338,0b84dcd4-15a2-4a4c-8656-6dc7cc601b1a,055030ec-c610-4ea8-90fc-9b494de527d9,running,vm-shared-f2b9c8a6.flapjack.foo,http://vm-shared-f2b9c8a6.flapjack.foo:7700,vm-shared-f2b9c8a6.flapjack.foo,http://vm-shared-f2b9c8a6.flapjack.foo:7700
+7bda3a2b-221e-400b-b91b-722ed4d04a45,dbg-dbg2026051803513617814,b59d63c1-c842-44ea-82cb-7b870859884b,055030ec-c610-4ea8-90fc-9b494de527d9,running,vm-shared-f2b9c8a6.flapjack.foo,http://vm-shared-f2b9c8a6.flapjack.foo:7700,vm-shared-f2b9c8a6.flapjack.foo,http://vm-shared-f2b9c8a6.flapjack.foo:7700

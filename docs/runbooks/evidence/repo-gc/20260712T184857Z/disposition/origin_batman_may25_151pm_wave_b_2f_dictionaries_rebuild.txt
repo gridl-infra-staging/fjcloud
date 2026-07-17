@@ -1,0 +1,49 @@
+# Disposition Receipt: origin/batman/may25_151pm_wave_b_2f_dictionaries_rebuild
+
+Classification: approved remote branch deletion; manifest stores short branch name
+Evidence source: current read-only git refs at bundle creation.
+
+## rev-parse
+$ git rev-parse origin/batman/may25_151pm_wave_b_2f_dictionaries_rebuild
+9c5b630d1ffbed5bda11564803236f9de058c06e
+
+## cherry
+$ git cherry -v main origin/batman/may25_151pm_wave_b_2f_dictionaries_rebuild | tail -20
++ 3152a1e164d37db26e62f936dabe6e4239fa61e2 scrai: 15 files documented, 13 artifacts generated, 2 guidance files assembled, 3 state files tracked
++ ef53afd1d6ddada052c3c81154fd253a67270f63 dictionaries: split save into add/update actions, add clear action
++ fbfb74f1571203ca2438a8316ca4222ac365434e matt: stage 1 completion
++ ce5f9e89a05a42a2e3363e3a3859ff4edb3a3bdf scrai: 16 files documented, 7 artifacts generated, 2 guidance files assembled, 3 state files tracked
++ 054f73bbca44454ea1a5c308589ea6fd03068bfc dictionaries: stage 2 — tab strip nav, fixed language select, URL state
++ 3d01b7b617e9d793565530c86ac4759f933f41bb matt: stage 2 build session 1
++ 4efa79c0f3e4052f4a4534410b541cc0fec1642d matt: stage 2 build session 1
++ 559cf91b0d91fc092e4f5930db412aa28a9fa542 matt: stage 2 build session 1
++ a4233979cf6718ac9cb5eda0057e374ed087333c matt: stage 2 build session 1
++ c7db0ce6f1b9da056f734f98ebf243468fa0ab9c matt: unstuck stage 2
++ 7d362ae67d598ec16896863b1d784c4a631230d3 matt: stage 2 build session 1
++ ed51765673b78d1f3b300c64de13ee29e5ba1b62 matt: unstuck stage 2
++ ccb6ee3b60141ac8e2a1292dbf60f098d4eaaa7f matt: stage 2 build session 1
++ f01b29234778fa82ebbf88bc098d619c70e235ef matt: review bugs stage 2
++ 9c5b630d1ffbed5bda11564803236f9de058c06e matt: terminal progress annotation
+
+## diff main...
+$ git diff main...origin/batman/may25_151pm_wave_b_2f_dictionaries_rebuild --stat | tail -20
+ web/src/routes/console/DIRMAP.md                   |   2 +-
+ web/src/routes/console/indexes/+page.server.ts     |   5 +-
+ web/src/routes/console/indexes/DIRMAP.md           |   4 +-
+ .../routes/console/indexes/[name]/+page.server.ts  |  30 +-
+ web/src/routes/console/indexes/[name]/+page.svelte |  38 +-
+ web/src/routes/console/indexes/[name]/DIRMAP.md    |   6 +-
+ .../detail.server.actions.dictionaries.test.ts     | 481 +++++++++++++++------
+ .../indexes/[name]/detail.server.load.test.ts      |  43 +-
+ .../routes/console/indexes/[name]/detail.test.ts   |  68 ++-
+ .../indexes/[name]/dictionary-helpers.server.ts    |  22 +-
+ .../indexes/[name]/dictionary-management.server.ts | 196 ++++++++-
+ .../indexes/[name]/tabs/DictionariesTab.svelte     | 177 ++++----
+ .../indexes/[name]/tabs/DictionariesTab.test.ts    | 302 ++++++++-----
+ web/src/tests/e2e-fixture-user-helpers.test.ts     |  31 ++
+ web/src/tests/playwright-config-contract.test.ts   |  30 +-
+ web/tests/e2e-ui/full/admin/admin-pages.spec.ts    |  30 +-
+ web/tests/e2e-ui/full/index-detail.spec.ts         | 176 ++++++++
+ web/tests/fixtures/auth.setup.ts                   |  24 +
+ web/tests/fixtures/fixtures.ts                     |  72 ++-
+ 53 files changed, 1578 insertions(+), 482 deletions(-)

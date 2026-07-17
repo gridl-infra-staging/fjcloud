@@ -1,0 +1,18 @@
+# Stage 3 invoice candidate lookup (read-only)
+
+utc_recorded=2026-04-29T17:02:21Z
+instance_id=<redacted-instance-id>
+ssm_command_id=<redacted-command-id>
+ssm_status=Success
+ssm_response_code=0
+
+executed_lookup_command_on_host:
+- set -euo pipefail
+- source /etc/fjcloud/env
+- printf %s U0VMRUNUIHJvd190b19qc29uKHQpIEZST00gKFNFTEVDVCBpZCwgY3VzdG9tZXJfaWQsIHN0cmlwZV9pbnZvaWNlX2lkLCB0b3RhbF9jZW50cywgZmluYWxpemVkX2F0IEZST00gaW52b2ljZXMgV0hFUkUgc3RhdHVzPSdmaW5hbGl6ZWQnIEFORCBzdHJpcGVfaW52b2ljZV9pZCBJUyBOT1QgTlVMTCBPUkRFUiBCWSBmaW5hbGl6ZWRfYXQgREVTQyBOVUxMUyBMQVNUIExJTUlUIDEpIHQ7 | base64 --decode | env PGCONNECTTIMEOUT=5 psql -tAq "$DATABASE_URL" -c "SET statement_timeout TO 10000" -f -
+
+sql:
+SELECT row_to_json(t) FROM (SELECT id, customer_id, stripe_invoice_id, total_cents, finalized_at FROM invoices WHERE status='finalized' AND stripe_invoice_id IS NOT NULL ORDER BY finalized_at DESC NULLS LAST LIMIT 1) t;
+
+result:
+- no rows returned

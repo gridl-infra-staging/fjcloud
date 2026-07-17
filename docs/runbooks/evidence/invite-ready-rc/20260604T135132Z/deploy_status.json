@@ -1,0 +1,21 @@
+{
+  "dev_main_sha": "802e16e09c3cc47a4fa3e553a286756b5c9b1610",
+  "envs": {
+    "prod": {
+      "url": "https://api.flapjack.foo/version",
+      "dev_sha": "802e16e09c3cc47a4fa3e553a286756b5c9b1610",
+      "mirror_sha": "d3d05441abc0cf9e70f9cd95e437bf0846da5a71",
+      "synced_at": "2026-06-04T12:20:54Z",
+      "build_time": "2026-06-04T12:24:23Z",
+      "commits_behind_main": "0"
+    },
+    "staging": {
+      "url": "https://api.staging.flapjack.foo/version",
+      "dev_sha": "802e16e09c3cc47a4fa3e553a286756b5c9b1610",
+      "mirror_sha": "cefcb74cc7f367f85231ebfc51eabc7b38218bcf",
+      "synced_at": "2026-06-04T12:20:50Z",
+      "build_time": "2026-06-04T12:24:54Z",
+      "commits_behind_main": "0"
+    }
+  }
+}

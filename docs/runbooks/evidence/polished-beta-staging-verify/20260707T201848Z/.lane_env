@@ -1,0 +1,13 @@
+EVIDENCE_DIR=docs/runbooks/evidence/polished-beta-staging-verify/20260707T201848Z
+HEAD_SHA=cb2b1b172d4347563f1f6fddf14fd5536f1424d1
+STAGE1_HEAD_SHA=bdcad5a1aaf21ed6bb93cba5265db9a6b4ef5b1e
+PLAYWRIGHT_JSON=docs/runbooks/evidence/polished-beta-staging-verify/20260707T201848Z/playwright-results.json
+LANE_VERDICTS_JSON=docs/runbooks/evidence/polished-beta-staging-verify/20260707T201848Z/lane_verdicts_first_pass.json
+BASE_URL=https://cloud.staging.flapjack.foo
+PLAYWRIGHT_BASE_URL=https://cloud.staging.flapjack.foo
+API_URL=https://api.staging.flapjack.foo
+API_BASE_URL=https://api.staging.flapjack.foo
+PLAYWRIGHT_TARGET_REMOTE=1
+MAILPIT_API_URL=http://127.0.0.1:9999
+E2E_ADMIN_KEY_PRESENT=yes
+E2E_USER_EMAIL=generated-by-arrangeTrackedCustomerSession

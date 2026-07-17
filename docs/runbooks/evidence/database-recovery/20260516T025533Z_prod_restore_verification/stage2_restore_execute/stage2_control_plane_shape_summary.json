@@ -1,0 +1,17 @@
+{
+  "target_db_instance_id": "fjcloud-prod-restore-20260516025535",
+  "target_engine": "postgres",
+  "target_engine_version": "17.9",
+  "target_status": "available",
+  "target_endpoint": "fjcloud-prod-restore-20260516025535.cabwlew6jcjl.us-east-1.rds.amazonaws.com",
+  "target_vpc_id": "vpc-0125cfcf4cc36762c",
+  "target_db_subnet_group": "fjcloud-prod",
+  "target_security_group_ids": [
+    "sg-0c6ae08699b5405f0"
+  ],
+  "source_vpc_id": "vpc-0125cfcf4cc36762c",
+  "source_db_subnet_group": "fjcloud-prod",
+  "source_security_group_ids": [
+    "sg-0c6ae08699b5405f0"
+  ]
+}

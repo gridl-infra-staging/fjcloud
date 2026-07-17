@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+
+set -o nounset
+set -o pipefail
+set -o errexit
+
+if [ "$#" -eq 0 ]; then
+  echo "usage: ./ops/operator_commit/ship <commit message words...>" >&2
+  exit 1
+fi
+
+if ! repo_root="$(git rev-parse --show-toplevel 2>/dev/null)"; then
+  echo "error: run this command inside a git repository" >&2
+  exit 1
+fi
+
+commit_message="$*"
+
+cd "${repo_root}" || exit 1
+
+git add .
+git commit --no-verify -m "${commit_message}"
+git push

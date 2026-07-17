@@ -1,0 +1,12 @@
+[validate_subprocessor_disclosure] evidence bundle: docs/runbooks/evidence/announce-gate/20260526T221743Z_verdict
+[validate_subprocessor_disclosure] summary file: docs/runbooks/evidence/announce-gate/20260526T221743Z_verdict/summary_status.txt
+[validate_subprocessor_disclosure] status json: docs/runbooks/evidence/announce-gate/20260526T221743Z_verdict/summary_status.json
+[validate_subprocessor_disclosure] result: PASSED
+# subprocessor disclosure validation summary
+classification_format=host_path|STATUS|reason|artifact=file
+run_utc=20260521T112726Z
+expected_date=2026-05-19
+https://cloud.staging.flapjack.foo/dpa|PASSED|all checks passed|artifact=cloud_staging_flapjack_foo__dpa.html
+https://cloud.staging.flapjack.foo/privacy|PASSED|all checks passed|artifact=cloud_staging_flapjack_foo__privacy.html
+https://cloud.flapjack.foo/dpa|PASSED|all checks passed|artifact=cloud_flapjack_foo__dpa.html
+https://cloud.flapjack.foo/privacy|PASSED|all checks passed|artifact=cloud_flapjack_foo__privacy.html

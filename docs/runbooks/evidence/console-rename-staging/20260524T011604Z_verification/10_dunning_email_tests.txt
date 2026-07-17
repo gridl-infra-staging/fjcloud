@@ -1,0 +1,45 @@
+$ cd infra && cargo test -p api --test email_test
+
+running 38 tests
+test common::poll::tests::resolves_immediately_with_predicate_value ... ok
+test mock_email_service_captures_dunning_retry_scheduled_email ... ok
+test mock_email_service_captures_verification_email ... ok
+test mock_email_service_preserves_html_only_broadcast_as_html_only ... ok
+test mock_email_rejects_empty_recipient ... ok
+test mock_email_rejects_whitespace_recipient ... ok
+test mock_email_service_captures_quota_warning_email ... ok
+test mock_email_service_captures_dunning_retries_exhausted_email ... ok
+test mock_email_service_omits_pdf_link_when_pdf_url_missing ... ok
+test mock_email_service_captures_dunning_recovered_after_failure_email ... ok
+test mock_email_service_captures_invoice_ready_email ... ok
+test mock_email_service_captures_password_reset_email ... ok
+test common::mocks::failable_email_service_tests::failable_email_service_tracks_retry_scheduled_attempt_and_delegates ... ok
+test common::mocks::failable_email_service_tests::failable_email_service_tracks_recovered_after_failure_attempt_and_delegates ... ok
+test common::mocks::failable_email_service_tests::failable_email_service_forces_failure_for_retries_exhausted_and_skips_delegate ... ok
+test mock_email_service_preserves_operator_whitespace_in_broadcast_bodies ... ok
+test mock_email_service_records_broadcast_plain_text_as_pre_wrapped_html ... ok
+test quota_warning_helpers_keep_unknown_metric_fallback_behavior ... ok
+test mock_email_service_uses_dashboard_fallback_link_when_hosted_invoice_url_missing ... ok
+test ses_config_defaults_from_name_when_missing_or_blank ... ok
+test ses_config_parses_valid_config ... ok
+test ses_config_rejects_empty_from_address ... ok
+test ses_config_rejects_empty_region ... ok
+test ses_config_rejects_whitespace_from_address ... ok
+test ses_config_rejects_whitespace_region ... ok
+test ses_config_requires_from_address ... ok
+test ses_config_requires_region ... ok
+test ses_config_trims_whitespace ... ok
+test ses_live_smoke_sends_password_reset_email ... ignored
+test ses_live_smoke_sends_verification_email ... ignored
+test ses_startup_mode_keeps_non_local_absent_ses_on_fail_fast_path ... ok
+test ses_startup_mode_routes_blank_and_partial_to_existing_parser_error_path ... ok
+test ses_startup_mode_uses_noop_only_for_local_mode_with_absent_ses_env ... ok
+test startup_env_snapshot_captures_ses_configuration_set_for_central_ses_parser ... ok
+test common::poll::tests::predicate_can_be_fnmut ... ok
+test common::builders::tests::builder_threads_oauth_runtime_config_into_app_state ... ok
+test common::poll::tests::resolves_after_multiple_polls_with_real_sleep ... ok
+test common::poll::tests::times_out_and_panics_with_name - should panic ... ok
+
+test result: ok. 36 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
+VERDICT: PASS — all dunning email tests pass, confirming resolve_dunning_invoice_url renders /console/billing/invoices/{invoice_id}

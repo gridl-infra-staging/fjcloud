@@ -1,0 +1,15 @@
+Found 1 non-passed lanes out of 7 total
+--- Rerunning lane F: Lane F - Numbered pagination reaches first second and last pages @staging_verify...
+  grep pattern: Lane F - Numbered pagination reaches first second and last pages @staging_verify
+  Attempt 1/2...
+  Attempt 1 result: passed (18203ms)
+  Lane F classified: flake
+
+=== Classification Summary ===
+First pass passed: A, B, C, D, E, G
+Reruns → flake:    F
+Real bugs:
+Final pass count:  7 (including flakes)
+Ready precondition: real_bug_count=0, final_pass_ge_4=true
+
+Evidence written to docs/runbooks/evidence/polished-beta-staging-verify/20260713T013035Z_jul12_pm_stage3_browser_verify/

@@ -1,0 +1,18 @@
+{
+  "timestamp_utc": "2026-05-25T21:40:14Z",
+  "bundle_path": "docs/runbooks/evidence/billing_coverage_a2/20260525T214014Z_LIVE/",
+  "results": [
+    {
+      "command": "bash scripts/tests/nightly_workflow_test.sh",
+      "log": "01.log",
+      "exit_code": 0,
+      "status": "passed"
+    },
+    {
+      "command": "cd infra && cargo test -p api --test stripe_test_clock_full_cycle_test -- --nocapture",
+      "log": "02.log",
+      "exit_code": 0,
+      "status": "passed"
+    }
+  ]
+}

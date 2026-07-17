@@ -1,0 +1,5 @@
+timestamp_utc=2026-05-16T00:15:50Z
+method=GET
+url=https://api.privacy.com/v1/cards?page=1&page_size=2
+auth_mode=api-key
+status_code=200

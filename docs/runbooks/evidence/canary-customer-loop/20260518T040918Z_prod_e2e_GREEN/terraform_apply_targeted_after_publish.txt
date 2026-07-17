@@ -1,0 +1,99 @@
+[33m╷[0m[0m
+[33m│[0m [0m[1m[33mWarning: [0m[0m[1mDeprecated Parameter[0m
+[33m│[0m [0m
+[33m│[0m [0m[0mThe parameter "dynamodb_table" is deprecated. Use parameter "use_lockfile"
+[33m│[0m [0minstead.
+[33m╵[0m[0m
+[0m[1mmodule.monitoring.aws_ecr_repository.customer_loop_canary: Refreshing state... [id=fjcloud-prod-customer-loop-canary][0m
+[0m[1mmodule.monitoring.aws_ecr_repository.support_email_canary: Refreshing state... [id=fjcloud-prod-support-email-canary][0m
+[0m[1mmodule.monitoring.aws_cloudwatch_log_group.support_email_canary: Refreshing state... [id=/aws/lambda/fjcloud-prod-support-email-canary][0m
+[0m[1mmodule.monitoring.aws_iam_role.customer_loop_canary_lambda: Refreshing state... [id=fjcloud-prod-customer-loop-canary-lambda][0m
+[0m[1mmodule.monitoring.aws_iam_role.support_email_canary: Refreshing state... [id=fjcloud-prod-support-email-canary-lambda-role][0m
+[0m[1mmodule.monitoring.aws_lambda_function.customer_loop_canary: Refreshing state... [id=fjcloud-prod-customer-loop-canary][0m
+[0m[1mmodule.monitoring.aws_lambda_function.support_email_canary: Refreshing state... [id=fjcloud-prod-support-email-canary][0m
+
+Terraform used the selected providers to generate the following execution
+plan. Resource actions are indicated with the following symbols:
+  [33m~[0m update in-place[0m
+
+Terraform will perform the following actions:
+
+[1m  # module.monitoring.aws_lambda_function.customer_loop_canary[0m will be updated in-place
+[0m  [33m~[0m[0m resource "aws_lambda_function" "customer_loop_canary" {
+        id                             = "fjcloud-prod-customer-loop-canary"
+      [33m~[0m[0m image_uri                      = "213880904778.dkr.ecr.us-east-1.amazonaws.com/fjcloud-prod-customer-loop-canary:d365b0bdc2fe" [33m->[0m[0m "213880904778.dkr.ecr.us-east-1.amazonaws.com/fjcloud-prod-customer-loop-canary:pending-publication"
+      [33m~[0m[0m last_modified                  = "2026-05-18T04:01:15.000+0000" -> (known after apply)
+        tags                           = {}
+        [90m# (29 unchanged attributes hidden)[0m[0m
+
+        [90m# (5 unchanged blocks hidden)[0m[0m
+    }
+
+[1m  # module.monitoring.aws_lambda_function.support_email_canary[0m will be updated in-place
+[0m  [33m~[0m[0m resource "aws_lambda_function" "support_email_canary" {
+        id                             = "fjcloud-prod-support-email-canary"
+      [33m~[0m[0m image_uri                      = "213880904778.dkr.ecr.us-east-1.amazonaws.com/fjcloud-prod-support-email-canary:3ada746fe2f5" [33m->[0m[0m "213880904778.dkr.ecr.us-east-1.amazonaws.com/fjcloud-prod-support-email-canary:latest"
+      [33m~[0m[0m last_modified                  = "2026-05-18T03:58:50.000+0000" -> (known after apply)
+        tags                           = {}
+        [90m# (29 unchanged attributes hidden)[0m[0m
+
+        [90m# (4 unchanged blocks hidden)[0m[0m
+    }
+
+[1mPlan:[0m [0m0 to add, 2 to change, 0 to destroy.
+
+Changes to Outputs:
+  [33m~[0m[0m customer_loop_canary_image_uri           = "213880904778.dkr.ecr.us-east-1.amazonaws.com/fjcloud-prod-customer-loop-canary:d365b0bdc2fe" [33m->[0m[0m "213880904778.dkr.ecr.us-east-1.amazonaws.com/fjcloud-prod-customer-loop-canary:pending-publication"
+[0m[1mmodule.monitoring.aws_lambda_function.support_email_canary: Modifying... [id=fjcloud-prod-support-email-canary][0m[0m
+[0m[1mmodule.monitoring.aws_lambda_function.customer_loop_canary: Modifying... [id=fjcloud-prod-customer-loop-canary][0m[0m
+[0m[1mmodule.monitoring.aws_lambda_function.customer_loop_canary: Modifications complete after 10s [id=fjcloud-prod-customer-loop-canary][0m
+[0m[1mmodule.monitoring.aws_lambda_function.support_email_canary: Still modifying... [id=fjcloud-prod-support-email-canary, 00m10s elapsed][0m[0m
+[0m[1mmodule.monitoring.aws_lambda_function.support_email_canary: Modifications complete after 20s [id=fjcloud-prod-support-email-canary][0m
+[33m╷[0m[0m
+[33m│[0m [0m[1m[33mWarning: [0m[0m[1mResource targeting is in effect[0m
+[33m│[0m [0m
+[33m│[0m [0m[0mYou are creating a plan with the -target option, which means that the
+[33m│[0m [0mresult of this plan may not represent all of the changes requested by the
+[33m│[0m [0mcurrent configuration.
+[33m│[0m [0m
+[33m│[0m [0mThe -target option is not for routine use, and is provided only for
+[33m│[0m [0mexceptional situations such as recovering from errors or mistakes, or when
+[33m│[0m [0mTerraform specifically suggests to use it as part of an error message.
+[33m╵[0m[0m
+[33m╷[0m[0m
+[33m│[0m [0m[1m[33mWarning: [0m[0m[1mApplied changes may be incomplete[0m
+[33m│[0m [0m
+[33m│[0m [0m[0mThe plan was created with the -target option in effect, so some changes
+[33m│[0m [0mrequested in the configuration may have been ignored and the output values
+[33m│[0m [0mmay not be fully updated. Run the following command to verify that no other
+[33m│[0m [0mchanges are pending:
+[33m│[0m [0m    terraform plan
+[33m│[0m [0m
+[33m│[0m [0mNote that the -target option is not suitable for routine use, and is
+[33m│[0m [0mprovided only for exceptional situations such as recovering from errors or
+[33m│[0m [0mmistakes, or when Terraform specifically suggests to use it as part of an
+[33m│[0m [0merror message.
+[33m╵[0m[0m
+[0m[1m[32m
+Apply complete! Resources: 0 added, 2 changed, 0 destroyed.[0m
+[0m[1m[32m
+Outputs:
+
+[0macm_certificate_arn = "arn:aws:acm:us-east-1:213880904778:certificate/569915c9-3e7f-454e-b742-d6c6b4a53278"
+alb_dns_name = "fjcloud-prod-alb-1846218892.us-east-1.elb.amazonaws.com"
+api_instance_ip = "10.0.10.179"
+cloudflare_zone_id = "fafbf95a076d7e8ee984dbd18a62c933"
+customer_loop_canary_ecr_repository_url = "213880904778.dkr.ecr.us-east-1.amazonaws.com/fjcloud-prod-customer-loop-canary"
+customer_loop_canary_image_uri = "213880904778.dkr.ecr.us-east-1.amazonaws.com/fjcloud-prod-customer-loop-canary:pending-publication"
+customer_loop_canary_lambda_function_arn = "arn:aws:lambda:us-east-1:213880904778:function:fjcloud-prod-customer-loop-canary"
+customer_loop_canary_schedule_rule_name = "fjcloud-prod-customer-loop-canary"
+db_endpoint = "fjcloud-prod.cabwlew6jcjl.us-east-1.rds.amazonaws.com:5432"
+private_subnet_ids = [
+  "subnet-0dd734629615035d5",
+  "subnet-043cead8e64e4a79b",
+]
+public_subnet_ids = [
+  "subnet-0f20d0fd83a362024",
+  "subnet-0f3ce1c789e764a13",
+]
+vpc_id = "vpc-0125cfcf4cc36762c"

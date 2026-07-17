@@ -1,0 +1,1 @@
+213880904778.dkr.ecr.us-east-1.amazonaws.com/fjcloud-prod-support-email-canary:8a96d9c30603

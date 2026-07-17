@@ -1,0 +1,26 @@
+{
+  "reruns_run": 2,
+  "lanes": [
+    {
+      "lane": "F",
+      "title": "e2e-ui/full/polished_beta_staging_verify.spec.ts › Polished beta deployed staging verification › Lane F - Numbered pagination reaches first second and last pages @staging_verify",
+      "attempts": [
+        {
+          "attempt": 1,
+          "status": "failed",
+          "duration_ms": 221732,
+          "reporter_path": "rerun_F_1.json"
+        },
+        {
+          "attempt": 2,
+          "status": "failed",
+          "duration_ms": 221423,
+          "reporter_path": "rerun_F_2.json"
+        }
+      ],
+      "classification": "setup_failure_inconclusive",
+      "classification_corrected_from": "real_bug",
+      "correction_reason": "Both reruns failed in auth.setup.ts:154 (login timeout, 220s) before the Lane F pagination test was reached. Lane F status was 'skipped' in both rerun reporter JSONs. The driver's is_auth_budget_setup_failure only matches HTTP 429 patterns and missed this non-429 timeout mode."
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "drill_execute_gate": "",
+  "env": "prod",
+  "region": "us-east-1",
+  "restore_mode": "pitr",
+  "restore_time": "2026-05-16T02:09:35+00:00",
+  "snapshot_id": "",
+  "source_db_instance_id": "fjcloud-prod",
+  "target_db_instance_id": "fjcloud-prod-restore-20260516021326",
+  "wrapper_execute": false
+}

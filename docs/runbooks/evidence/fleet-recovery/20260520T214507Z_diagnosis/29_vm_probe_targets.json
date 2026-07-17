@@ -1,0 +1,14 @@
+{
+  "healthy": {
+    "hostname": "vm-shared-f2b9c8a6.flapjack.foo",
+    "instance_id": "i-00a3b28ba4c00433a",
+    "http_code": "200",
+    "probe_url": "http://vm-shared-f2b9c8a6.flapjack.foo:7700/health"
+  },
+  "unhealthy": {
+    "hostname": "vm-shared-1f4d5f46.flapjack.foo",
+    "instance_id": "i-0c2ea206fe232f6d6",
+    "http_code": "000",
+    "probe_url": "http://vm-shared-1f4d5f46.flapjack.foo:7700/health"
+  }
+}

@@ -1,0 +1,10 @@
+dev-repo main:   1029bedb76a0  (1029bedb76a0501809f24b5f451b1c7390d55345)
+
+env        dev_sha        mirror_sha     synced_at              build_time             behind_main
+---        -------        ----------     ---------              ----------             -----------
+prod       55757a6e01ea   b17f6f5e466c   2026-07-12T07:05:48Z   2026-07-12T07:10:26Z   29
+staging    55757a6e01ea   8689f275cfd8   2026-07-12T07:05:43Z   2026-07-12T07:10:15Z   29
+
+Probe URLs:
+  prod:      https://api.flapjack.foo/version
+  staging:   https://api.staging.flapjack.foo/version

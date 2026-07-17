@@ -1,0 +1,5 @@
+{"command":"preflight:aws_creds","timestamp":"2026-02-27T05:28:46Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"runtime:health_fail","timestamp":"2026-02-27T05:28:46Z","verdict":"FAIL","output":"Health endpoint https://api.flapjack.cloud/health did not return 200.","artifact_path":""}
+{"command":"preflight:aws_creds","timestamp":"2026-02-27T05:28:46Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"preflight:ami_exists","timestamp":"2026-02-27T05:28:46Z","verdict":"PASS","output":"","artifact_path":""}
+{"command":"runtime:deploy_health_fail","timestamp":"2026-02-27T05:28:47Z","verdict":"FAIL","output":"Post-deploy health check failed at https://api.flapjack.cloud/health.","artifact_path":""}

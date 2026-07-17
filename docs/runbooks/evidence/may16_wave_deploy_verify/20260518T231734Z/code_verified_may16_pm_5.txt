@@ -1,0 +1,30 @@
+# Command outputs proving upgrade trust-ratchet owner seams
+$ rg -n "subscription_cycle_anchor_at" infra/migrations/051_customer_subscription_cycle_anchor.sql
+2:ADD COLUMN IF NOT EXISTS subscription_cycle_anchor_at TIMESTAMPTZ NULL;
+
+$ rg -n "pub async fn upgrade_to_shared|create_and_finalize_invoice\(|pay_invoice\(" infra/api/src/routes/billing.rs
+402:pub async fn upgrade_to_shared(
+450:        .create_and_finalize_invoice(
+471:        .pay_invoice(&finalized_invoice.stripe_invoice_id)
+
+$ rg -n "capture_upgrade_trust_ratchet_evidence|stripe_invoice.json|setup.json|contract_.*json" scripts/launch/capture_upgrade_trust_ratchet_evidence.sh
+13:#   bash scripts/launch/capture_upgrade_trust_ratchet_evidence.sh
+140:contract_json_field() {
+158:            billing_plan="$(contract_json_field "$response_body" "repr(data.get('billing_plan', ''))")"
+159:            stripe_invoice_id="$(contract_json_field "$response_body" "repr(data.get('stripe_invoice_id', ''))")"
+160:            anchor_at="$(contract_json_field "$response_body" "repr(data.get('subscription_cycle_anchor_at', ''))")"
+161:            post_upgrade_ready="$(contract_json_field "$post_status" "repr(data.get('upgrade_ready'))")"
+173:            decline_code="$(contract_json_field "$response_body" "repr(data.get('code', ''))")"
+174:            post_upgrade_ready="$(contract_json_field "$post_status" "repr(data.get('upgrade_ready'))")"
+186:            action_code="$(contract_json_field "$response_body" "repr(data.get('code', ''))")"
+187:            post_upgrade_ready="$(contract_json_field "$post_status" "repr(data.get('upgrade_ready'))")"
+271:        | python3 -m json.tool > "$contract_dir/setup.json"
+276:    echo "$pre_status" | python3 -m json.tool > "$contract_dir/pre_upgrade_status.json"
+285:    echo "$response_body" | python3 -m json.tool > "$contract_dir/upgrade_response.json" 2>/dev/null || echo "$response_body" > "$contract_dir/upgrade_response.json"
+293:    echo "$post_status" | python3 -m json.tool > "$contract_dir/post_upgrade_status.json"
+304:                | python3 -m json.tool > "$contract_dir/stripe_invoice.json"
+309:        | python3 -m json.tool > "$contract_dir/result.json"
+342:- `setup.json` — customer_id, stripe_customer_id, payment method used
+348:- `stripe_invoice.json` (success path only) — Stripe invoice confirming paid status
+
+Stage 3 live-proof ownership note: fresh live proof remains owned by scripts/launch/capture_upgrade_trust_ratchet_evidence.sh.

@@ -1,0 +1,100 @@
+{
+  "reruns_run": 10,
+  "lanes": [
+    {
+      "lane": "A",
+      "title": "e2e-ui/full/polished_beta_staging_verify.spec.ts › Polished beta deployed staging verification › Lane A - Merchandising hub renders rules and no legacy search canvas @staging_verify",
+      "attempts": [
+        {
+          "attempt": 1,
+          "status": "failed",
+          "duration_ms": 17261,
+          "reporter_path": "rerun_A_1.json"
+        },
+        {
+          "attempt": 2,
+          "status": "failed",
+          "duration_ms": 16694,
+          "reporter_path": "rerun_A_2.json"
+        }
+      ],
+      "classification": "real_bug"
+    },
+    {
+      "lane": "C",
+      "title": "e2e-ui/full/polished_beta_staging_verify.spec.ts › Polished beta deployed staging verification › Lane C - Unified Search renders image-backed document cards @staging_verify",
+      "attempts": [
+        {
+          "attempt": 1,
+          "status": "failed",
+          "duration_ms": 1875,
+          "reporter_path": "rerun_C_1.json"
+        },
+        {
+          "attempt": 2,
+          "status": "failed",
+          "duration_ms": 1721,
+          "reporter_path": "rerun_C_2.json"
+        }
+      ],
+      "classification": "real_bug"
+    },
+    {
+      "lane": "D",
+      "title": "e2e-ui/full/polished_beta_staging_verify.spec.ts › Polished beta deployed staging verification › Lane D - Display Preferences exposes document card controls @staging_verify",
+      "attempts": [
+        {
+          "attempt": 1,
+          "status": "failed",
+          "duration_ms": 2125,
+          "reporter_path": "rerun_D_1.json"
+        },
+        {
+          "attempt": 2,
+          "status": "failed",
+          "duration_ms": 1702,
+          "reporter_path": "rerun_D_2.json"
+        }
+      ],
+      "classification": "real_bug"
+    },
+    {
+      "lane": "F",
+      "title": "e2e-ui/full/polished_beta_staging_verify.spec.ts › Polished beta deployed staging verification › Lane F - Numbered pagination reaches first second and last pages @staging_verify",
+      "attempts": [
+        {
+          "attempt": 1,
+          "status": "failed",
+          "duration_ms": 1795,
+          "reporter_path": "rerun_F_1.json"
+        },
+        {
+          "attempt": 2,
+          "status": "failed",
+          "duration_ms": 1995,
+          "reporter_path": "rerun_F_2.json"
+        }
+      ],
+      "classification": "real_bug"
+    },
+    {
+      "lane": "G",
+      "title": "e2e-ui/full/polished_beta_staging_verify.spec.ts › Lane G - Merch mode pin controls are deferred to follow-up contract @staging_verify",
+      "attempts": [
+        {
+          "attempt": 1,
+          "status": "failed",
+          "duration_ms": 1773,
+          "reporter_path": "rerun_G_1.json"
+        },
+        {
+          "attempt": 2,
+          "status": "failed",
+          "duration_ms": 1663,
+          "reporter_path": "rerun_G_2.json"
+        }
+      ],
+      "classification": "real_bug"
+    }
+  ]
+}

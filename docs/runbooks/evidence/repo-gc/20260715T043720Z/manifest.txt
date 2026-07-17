@@ -1,0 +1,28 @@
+# jul12_pm Stage 3 Repo-GC Manifest
+
+Created UTC: 20260715T043720Z
+Integration commit: 2477cffd11f92c1ff5743176f2d586c7cce04c1e
+Deletion contract: Stage 3 of `chats/icg/jul12_pm_8_batch_closeout_reconcile.md`
+
+## Purpose
+
+Approve only clean, terminated jul12 worktrees whose exact branch tips are ancestors of `main`. Worktree entries are recorded relative to the shared parallel-development root so committed evidence does not depend on one session's absolute checkout prefix.
+
+## Approved
+
+- `batman/jul12_pm_4_shared_login_storage_state` — clean; exact tip merged.
+- `batman/jul12_pm_7_terminal_s1_bundle_browser_verify_rc_anchor` — clean; exact tip merged and lane explicitly stopped.
+- `batman/jul12_pm_7b_rc_verdict_launch_anchor` — clean; exact tip merged.
+- `batman/jul12_pm_8_batch_closeout_reconcile_producer` — clean; exact tip merged by `2477cffd11f92c1ff5743176f2d586c7cce04c1e`.
+
+## Excluded
+
+- `batman/jul12_pm_1_rc_env_scoping_fix` — dirty worktree (20 porcelain rows); never force-remove.
+- `batman/jul12_pm_3_s1_dunning_reset_stripe_json_fix` — dirty worktree (14 porcelain rows); never force-remove.
+- Prior-list refs for Lanes 2, 5, and 6 no longer exist locally; there is nothing to delete.
+- `batman/jul12_pm_8_batch_closeout_reconcile` was neither in the Lane 6 out-of-scope list nor attached to a current worktree, so this bundle does not approve it.
+- `main`, `origin/main`, all non-jul12 refs, remote refs, active batches, dirty worktrees, and unclassified unique content remain out of scope.
+
+## Contract
+
+Only the four rows in `manifest_worktrees.txt` may be passed to `git worktree remove --force`, and only the four rows in `manifest_branches.txt` may subsequently be passed to `git branch -D`. Every approved receipt records an empty bounded cherry, an empty three-dot diff stat, ancestor exit 0, and clean porcelain output.

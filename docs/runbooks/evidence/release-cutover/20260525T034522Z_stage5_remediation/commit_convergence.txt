@@ -1,0 +1,4 @@
+local_head_sha: 27bbabb6161e151d3f637b9f8fb278811472c585
+prod_version_endpoint: https://api.flapjack.foo/version
+prod_response:
+{"build_time":"2026-05-25T00:31:48Z","dev_sha":"34063abb317d2ffe5ec34aba97243467e9d05177","mirror_sha":"6a5436a8b55f12b75dbc499272d506e840682a64","synced_at":"2026-05-24T23:56:08Z"}

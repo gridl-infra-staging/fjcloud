@@ -1,0 +1,11 @@
+Startup Mode Gate Verdict: PASS
+
+The deployed staging host (fjcloud-api-staging, SHA 5a57ea6a...) emitted
+"Discord alert webhook configured" during service initialization at
+2026-05-04T09:17:44Z. The fallback line "No webhook URLs — using log-only
+alert service" is NOT present in the journal window.
+
+This confirms that init_alert_service (infra/api/src/startup.rs) resolved
+DISCORD_WEBHOOK_URL from /etc/fjcloud/env (populated by generate_ssm_env.sh
+from SSM parameter /fjcloud/staging/discord_webhook_url) and configured the
+AlertService in webhook delivery mode.

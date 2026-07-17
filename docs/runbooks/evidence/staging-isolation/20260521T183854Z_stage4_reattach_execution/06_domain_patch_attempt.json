@@ -1,0 +1,11 @@
+{
+  "result": null,
+  "success": false,
+  "errors": [
+    {
+      "code": 8000021,
+      "message": "The domain you have requested does not exist. Add a custom domain to your Pages project before continuing."
+    }
+  ],
+  "messages": []
+}

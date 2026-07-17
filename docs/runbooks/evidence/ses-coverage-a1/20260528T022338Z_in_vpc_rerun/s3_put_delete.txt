@@ -1,0 +1,6 @@
+$ echo "stage1-preflight" | aws s3 cp - "s3://fjcloud-releases-staging/preflight-test-1779935038.txt"
+PUT OK
+$ aws s3 rm "s3://fjcloud-releases-staging/preflight-test-1779935038.txt"
+delete: s3://fjcloud-releases-staging/preflight-test-1779935038.txt
+DELETE OK
+EXIT: 0

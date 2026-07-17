@@ -1,0 +1,35 @@
+# Stage 4 card-status follow-up probe
+# Purpose: re-verify whether the Privacy.com Mastercard ending 4338 (PM
+# pm_1TSsd2GXI8zVz4UHWdVzmR4l attached to live customer cus_URij8h4pXDprIK)
+# is now usable, since the prior 04_live_flow.txt run on 2026-05-05 was
+# blocked by card_declined + incorrect_number.
+
+probe_ts_utc:           20260505T184959Z
+head_sha:               589edb7f5714baac9924d2a8c418691ba3607e45
+stripe_key_prefix:      sk_live_
+customer_id:            cus_URij8h4pXDprIK
+payment_method_id:      pm_1TSsd2GXI8zVz4UHWdVzmR4l
+payment_method_last4:   4338
+payment_method_brand:   mastercard
+amount_attempted_cents: 50
+
+# Probe command (sensitive headers redacted):
+#   curl -s -u "${STRIPE_KEY}:" \
+#     -X POST https://api.stripe.com/v1/payment_intents \
+#     -d amount=50 -d currency=usd \
+#     -d customer=cus_URij8h4pXDprIK \
+#     -d payment_method=pm_1TSsd2GXI8zVz4UHWdVzmR4l \
+#     -d off_session=true -d confirm=true \
+#     -d description=stage4_card_status_probe_${PROBE_TS}
+
+# Result (from Stripe live API response):
+intent_status:          (no PaymentIntent created — request returned error)
+error_code:             card_declined
+error_decline_code:     generic_decline
+error_message:          Your card was declined.
+
+# Verdict: external-unreachable blocker persists.
+# Card 4338 still cannot complete a live charge. No repo-owned code
+# change can move this lane forward; the unblock requires the operator
+# to reactivate the Privacy.com card or attach a new working card via
+# a manual browser session that can solve hCaptcha on Stripe Elements.

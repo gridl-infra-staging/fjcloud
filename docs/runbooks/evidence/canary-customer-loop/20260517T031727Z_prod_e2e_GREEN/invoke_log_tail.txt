@@ -1,0 +1,9 @@
+START RequestId: feef209d-633f-45bc-92a6-c2a51ac1c67d Version: $LATEST
+[customer-loop-canary] signup succeeded for canary+canary2026051703175713200@test.flapjack.foo (customer=90edb89b-b025-4413-87dd-1319b0483f80)
+[customer-loop-canary] customer loop failed before completion; entering cleanup
+[customer-loop-canary] account delete attempted for customer 90edb89b-b025-4413-87dd-1319b0483f80
+[customer-loop-canary] step 'verify_email' failed: verification email not found in inbox within timeout
+[FAIL] slack: webhook URL must use https://
+[FAIL] discord: webhook URL must use https://
+END RequestId: feef209d-633f-45bc-92a6-c2a51ac1c67d
+REPORT RequestId: feef209d-633f-45bc-92a6-c2a51ac1c67d	Duration: 7117.50 ms	Billed Duration: 7118 ms	Memory Size: 512 MB	Max Memory Used: 138 MB	

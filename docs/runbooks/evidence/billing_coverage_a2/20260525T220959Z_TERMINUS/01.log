@@ -1,0 +1,8 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.84s
+     Running tests/billing_endpoints_test.rs (target/debug/deps/billing_endpoints_test-6ae9d4c30932ed50)
+
+running 1 test
+test billing_upgrade_402_on_requires_action_and_rolls_back_free_plan ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 120 filtered out; finished in 0.09s
+

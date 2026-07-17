@@ -1,0 +1,8 @@
+[full-vm-lifecycle] mode=run-b
+[full-vm-lifecycle] signup succeeded for canary+canary202605190344244128@test.flapjack.foo (customer=337124a1-4929-4ad0-a86d-8c05e7a589a5)
+[full-vm-lifecycle] email verification succeeded for canary+canary202605190344244128@test.flapjack.foo
+[full-vm-lifecycle] step 'create_index' failed: create index returned HTTP 504
+[full-vm-lifecycle] account delete attempted for customer 337124a1-4929-4ad0-a86d-8c05e7a589a5
+[full-vm-lifecycle] admin cleanup completed for tenant 337124a1-4929-4ad0-a86d-8c05e7a589a5
+[full-vm-lifecycle] evidence: failed to capture db_post_cleanup_invoice.sql.txt; see docs/runbooks/evidence/may16_wave_deploy_verify/20260518T231734Z/stage6_full_vm_lifecycle_proof/run_b/db_post_cleanup_invoice.sql.txt.error.txt
+[full-vm-lifecycle] evidence: post-cleanup artifacts written to docs/runbooks/evidence/may16_wave_deploy_verify/20260518T231734Z/stage6_full_vm_lifecycle_proof/run_b

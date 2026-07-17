@@ -1,0 +1,23 @@
+Stage 5 Input Snapshot
+======================
+
+Stage 3 bundle: docs/runbooks/evidence/staging-deploy/20260505T063307Z_current_main_sync/
+  staging_main_sha.txt: 5a57ea6a280a1d63b54957b3732dcf8cc0a08c2e
+  ssm_last_deploy_sha.txt: 5a57ea6a280a1d63b54957b3732dcf8cc0a08c2e
+  api_health_body.json: {"status":"ok"}
+  SHA agreement: VERIFIED
+
+Stage 4 browser evidence (newest current-main):
+  Bundle: docs/runbooks/evidence/browser-evidence/20260505T072141Z_current_main/
+  Verdict: RED
+  Root cause: Stripe.js loading failure (unrelated to alert infra)
+  Note: Alert webhook infrastructure is architecturally independent of browser/Stripe.js
+
+Git HEAD: ca9bcb7c67e22c57de00488efe2451be8e8ee5fa
+Branch: stream-e-deploy-proof
+
+Owner seams used:
+  - scripts/launch/ssm_exec_staging.sh (host execution)
+  - scripts/probe_alert_delivery.sh + scripts/lib/alert_dispatch.sh (webhook transport)
+  - ops/scripts/lib/generate_ssm_env.sh (SSM→env mapping)
+  - infra/api/src/startup.rs::init_alert_service (webhook mode initialization)

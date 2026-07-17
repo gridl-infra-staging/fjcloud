@@ -1,0 +1,10 @@
+{
+  "id": "ch_3TSse9GXI8zVz4UH1AAaiA2K",
+  "paid": true,
+  "amount": 100,
+  "status": "succeeded",
+  "card_brand": "mastercard",
+  "card_last4": "4338",
+  "refunded": true,
+  "amount_refunded": 100
+}

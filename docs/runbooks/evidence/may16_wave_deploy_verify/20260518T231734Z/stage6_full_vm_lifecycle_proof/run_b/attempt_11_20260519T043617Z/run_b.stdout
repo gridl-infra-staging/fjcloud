@@ -1,0 +1,9 @@
+[full-vm-lifecycle] mode=run-b
+[full-vm-lifecycle] signup succeeded for canary+canary2026051904361710357@test.flapjack.foo (customer=55deb38b-c183-419c-9bb4-3429805cf3df)
+[full-vm-lifecycle] email verification succeeded for canary+canary2026051904361710357@test.flapjack.foo
+[full-vm-lifecycle] index create transient HTTP 504; retrying (1/3)
+[full-vm-lifecycle] index create transient HTTP 504; retrying (2/3)
+[full-vm-lifecycle] step 'create_index' failed: create index returned HTTP 504 after 3 attempts
+[full-vm-lifecycle] account delete attempted for customer 55deb38b-c183-419c-9bb4-3429805cf3df
+[full-vm-lifecycle] admin cleanup completed for tenant 55deb38b-c183-419c-9bb4-3429805cf3df
+[full-vm-lifecycle] evidence: post-cleanup artifacts written to docs/runbooks/evidence/may16_wave_deploy_verify/20260518T231734Z/stage6_full_vm_lifecycle_proof/run_b

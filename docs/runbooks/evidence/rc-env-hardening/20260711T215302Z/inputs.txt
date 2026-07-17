@@ -1,0 +1,5 @@
+timestamp_utc=20260711T215302Z
+head_sha=69c152dc7e8b99c477f0d8f49999cef740673a07
+credential_env_file=/Users/stuart/repos/gridl-infra-dev/fjcloud_dev/.secret/.env.secret
+artifact_dir=docs/runbooks/evidence/rc-env-hardening/20260711T215302Z
+staging_smoke_ami_id=ami-0123456789abcdef0

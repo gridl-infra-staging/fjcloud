@@ -1,0 +1,14 @@
+# Disposition Receipt: batman/may19_pm_3_stripe_key_rotation_and_audit
+
+Classification: approved freed local branch after approved worktree removal
+Evidence source: current read-only git refs at bundle creation.
+
+## rev-parse
+$ git rev-parse batman/may19_pm_3_stripe_key_rotation_and_audit
+99f791612bccbe3568979e17b1caa3c818ce4bf1
+
+## cherry
+$ git cherry -v main batman/may19_pm_3_stripe_key_rotation_and_audit | tail -20
+
+## diff main...
+$ git diff main...batman/may19_pm_3_stripe_key_rotation_and_audit --stat | tail -20

@@ -1,0 +1,605 @@
+{
+  "config": {
+    "configFile": "web/playwright.config.ts",
+    "rootDir": "web/tests",
+    "forbidOnly": false,
+    "fullyParallel": false,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "setup:user",
+        "name": "setup:user",
+        "testDir": "web/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/fixtures\\/auth\\.setup\\.ts/"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "setup:admin",
+        "name": "setup:admin",
+        "testDir": "web/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/fixtures\\/admin\\.auth\\.setup\\.ts/"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "setup:onboarding",
+        "name": "setup:onboarding",
+        "testDir": "web/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/fixtures\\/onboarding\\.auth\\.setup\\.ts/"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "setup:customer-journeys",
+        "name": "setup:customer-journeys",
+        "testDir": "web/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/fixtures\\/customer-journeys\\.auth\\.setup\\.ts/"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium:public",
+        "name": "chromium:public",
+        "testDir": "web/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/e2e-ui\\/(smoke|full)\\/public-.+\\.spec\\.ts/"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium:signup",
+        "name": "chromium:signup",
+        "testDir": "web/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/e2e-ui\\/full\\/signup_to_paid_invoice\\.spec\\.ts/"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium:mocked",
+        "name": "chromium:mocked",
+        "testDir": "web/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/e2e-ui\\/mocked\\/.+\\.spec\\.ts/"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium",
+        "name": "chromium",
+        "testDir": "web/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/e2e-ui\\/(smoke|full)\\/(?!admin|public-|onboarding\\.|customer-journeys\\.|signup_to_paid_invoice\\.).+\\.spec\\.ts/"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium:onboarding",
+        "name": "chromium:onboarding",
+        "testDir": "web/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/e2e-ui\\/full\\/onboarding\\.spec\\.ts/"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium:customer-journeys",
+        "name": "chromium:customer-journeys",
+        "testDir": "web/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/e2e-ui\\/full\\/customer-journeys\\.spec\\.ts/"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "web/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium:admin",
+        "name": "chromium:admin",
+        "testDir": "web/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/e2e-ui\\/full\\/admin\\/.+\\.spec\\.ts/"
+        ],
+        "timeout": 30000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "json"
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.60.0",
+    "workers": 1,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "fixtures/auth.setup.ts",
+      "file": "fixtures/auth.setup.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "authenticate as customer",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 220000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "setup:user",
+              "projectName": "setup:user",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1196,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-07-13T01:32:30.160Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "6db7255f214771fc958b-8ad38d4213689c9057c1",
+          "file": "fixtures/auth.setup.ts",
+          "line": 110,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "title": "e2e-ui/full/polished_beta_staging_verify.spec.ts",
+      "file": "e2e-ui/full/polished_beta_staging_verify.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "Lane G - Merch mode pin controls are deferred to follow-up contract @staging_verify",
+          "ok": true,
+          "tags": [
+            "staging_verify"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 3,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-07-13T01:33:10.224Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "def1f8a49cd90f5801f0-2776e4334496a459571c",
+          "file": "e2e-ui/full/polished_beta_staging_verify.spec.ts",
+          "line": 413,
+          "column": 1
+        }
+      ],
+      "suites": [
+        {
+          "title": "Polished beta deployed staging verification",
+          "file": "e2e-ui/full/polished_beta_staging_verify.spec.ts",
+          "line": 217,
+          "column": 6,
+          "specs": [
+            {
+              "title": "Lane A - Merchandising hub renders rules and no legacy search canvas @staging_verify",
+              "ok": true,
+              "tags": [
+                "staging_verify"
+              ],
+              "tests": [
+                {
+                  "timeout": 240000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 10754,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-07-13T01:32:31.810Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "def1f8a49cd90f5801f0-5828c087c68fb3a649b6",
+              "file": "e2e-ui/full/polished_beta_staging_verify.spec.ts",
+              "line": 234,
+              "column": 2
+            },
+            {
+              "title": "Lane B - Rules tab slug lands on merchandising hub @staging_verify",
+              "ok": true,
+              "tags": [
+                "staging_verify"
+              ],
+              "tests": [
+                {
+                  "timeout": 240000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 4576,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-07-13T01:32:42.648Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "def1f8a49cd90f5801f0-4d7686fe716750862572",
+              "file": "e2e-ui/full/polished_beta_staging_verify.spec.ts",
+              "line": 274,
+              "column": 2
+            },
+            {
+              "title": "Lane C - Unified Search renders image-backed document cards @staging_verify",
+              "ok": true,
+              "tags": [
+                "staging_verify"
+              ],
+              "tests": [
+                {
+                  "timeout": 240000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 8278,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-07-13T01:32:47.231Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "def1f8a49cd90f5801f0-b2151b13d98869fcb40d",
+              "file": "e2e-ui/full/polished_beta_staging_verify.spec.ts",
+              "line": 294,
+              "column": 2
+            },
+            {
+              "title": "Lane D - Display Preferences exposes document card controls @staging_verify",
+              "ok": true,
+              "tags": [
+                "staging_verify"
+              ],
+              "tests": [
+                {
+                  "timeout": 240000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 6994,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-07-13T01:32:55.514Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "def1f8a49cd90f5801f0-6e291dc40cbcbaadfb5e",
+              "file": "e2e-ui/full/polished_beta_staging_verify.spec.ts",
+              "line": 317,
+              "column": 2
+            },
+            {
+              "title": "Lane E - Query metrics report hit count and processing time @staging_verify",
+              "ok": true,
+              "tags": [
+                "staging_verify"
+              ],
+              "tests": [
+                {
+                  "timeout": 240000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 7338,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-07-13T01:33:02.513Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "def1f8a49cd90f5801f0-0fde170802ba68ba807d",
+              "file": "e2e-ui/full/polished_beta_staging_verify.spec.ts",
+              "line": 342,
+              "column": 2
+            },
+            {
+              "title": "Lane F - Numbered pagination reaches first second and last pages @staging_verify",
+              "ok": false,
+              "tags": [
+                "staging_verify"
+              ],
+              "tests": [
+                {
+                  "timeout": 240000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 72,
+                      "error": {
+                        "message": "Error: seedIndexForCustomer customer create failed: 403 {\"error\":\"quota_exceeded\",\"limit\":\"max_indexes\",\"upgrade_url\":\"/billing/upgrade\"}",
+                        "stack": "Error: seedIndexForCustomer customer create failed: 403 {\"error\":\"quota_exceeded\",\"limit\":\"max_indexes\",\"upgrade_url\":\"/billing/upgrade\"}\n    at createIndexWithTransientRetries (web/tests/fixtures/searchable-index.ts:752:10)\n    at createIndexForCustomerViaTokenWithRetries (web/tests/fixtures/searchable-index.ts:809:2)\n    at seedSearchableIndexForCustomer (web/tests/fixtures/searchable-index.ts:951:3)\n    at openSearchWithDocuments (web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts:138:2)\n    at web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts:367:3",
+                        "location": {
+                          "file": "web/tests/fixtures/searchable-index.ts",
+                          "column": 10,
+                          "line": 752
+                        },
+                        "snippet": "\u001b[90m   at \u001b[39mfixtures/searchable-index.ts:752\n\n  750 |\n  751 | \t\tif (indexRes.status !== 429 && indexRes.status !== 500 && indexRes.status !== 503) {\n> 752 | \t\t\tthrow new Error(`${errorPrefix}: ${lastFailure}`);\n      | \t\t\t      ^\n  753 | \t\t}\n  754 |\n  755 | \t\tconst retryAfterSeconds = Number(indexRes.headers.get('retry-after') ?? '');"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "web/tests/fixtures/searchable-index.ts",
+                            "column": 10,
+                            "line": 752
+                          },
+                          "message": "Error: seedIndexForCustomer customer create failed: 403 {\"error\":\"quota_exceeded\",\"limit\":\"max_indexes\",\"upgrade_url\":\"/billing/upgrade\"}\n\n   at fixtures/searchable-index.ts:752\n\n  750 |\n  751 | \t\tif (indexRes.status !== 429 && indexRes.status !== 500 && indexRes.status !== 503) {\n> 752 | \t\t\tthrow new Error(`${errorPrefix}: ${lastFailure}`);\n      | \t\t\t      ^\n  753 | \t\t}\n  754 |\n  755 | \t\tconst retryAfterSeconds = Number(indexRes.headers.get('retry-after') ?? '');\n    at createIndexWithTransientRetries (web/tests/fixtures/searchable-index.ts:752:10)\n    at createIndexForCustomerViaTokenWithRetries (web/tests/fixtures/searchable-index.ts:809:2)\n    at seedSearchableIndexForCustomer (web/tests/fixtures/searchable-index.ts:951:3)\n    at openSearchWithDocuments (web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts:138:2)\n    at web/tests/e2e-ui/full/polished_beta_staging_verify.spec.ts:367:3"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-07-13T01:33:09.856Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "web/test-results/e2e-ui-full-polished_beta_-03901-d-last-pages-staging-verify-chromium/test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "web/test-results/e2e-ui-full-polished_beta_-03901-d-last-pages-staging-verify-chromium/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "web/tests/fixtures/searchable-index.ts",
+                        "column": 10,
+                        "line": 752
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "def1f8a49cd90f5801f0-405c4c824b3234706cc7",
+              "file": "e2e-ui/full/polished_beta_staging_verify.spec.ts",
+              "line": 363,
+              "column": 2
+            },
+            {
+              "title": "auth-call budget stays within shared-session ceiling",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 240000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": -1,
+                      "parallelIndex": -1,
+                      "status": "skipped",
+                      "duration": 0,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-07-13T01:33:09.972Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "skipped"
+                }
+              ],
+              "id": "def1f8a49cd90f5801f0-59b7a0ad39cf28afd9ba",
+              "file": "e2e-ui/full/polished_beta_staging_verify.spec.ts",
+              "line": 398,
+              "column": 2
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-07-13T01:32:29.777Z",
+    "duration": 40471.348,
+    "expected": 7,
+    "skipped": 1,
+    "unexpected": 1,
+    "flaky": 0
+  }
+}

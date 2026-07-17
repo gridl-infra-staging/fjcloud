@@ -1,0 +1,186 @@
+
+debbie sync -> staging
+  project: fjcloud
+  config:  
+<worktree-root>/fjcloud_dev/jul07_pm_2_polished_beta_staging_
+verify_rerun3/fjcloud_dev/.debbie.toml
+  DOWNSTREAM: wrangler-manual
+
+scrai strip: files_discovered=829 files_modified=352 candidates_removed=1532
+[main bd0285556] chore: debbie post-sync mirror update
+ 263 files changed, 6790 insertions(+), 2228 deletions(-)
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/ARTIFACT_INDEX.md
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/COMMANDS.md
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/SUMMARY.md
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/archive/archive_timeline_probe
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/archive/archive_timeline_probe_v2
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/archive/pricing_cdx_body
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/archive/pricing_cdx_headers
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/archive/pricing_cdx_meta
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/archive/snapshot_20260309122639_body
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/archive/snapshot_20260309122639_headers
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/archive/snapshot_20260309122639_meta
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/archive/snapshot_20260319040003_body
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/archive/snapshot_20260319040003_headers
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/archive/snapshot_20260319040003_meta
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/archive/snapshot_20260320212215_body
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/archive/snapshot_20260320212215_headers
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/archive/snapshot_20260320212215_meta
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/archive/snapshot_20260401152105_body
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/archive/snapshot_20260401152105_headers
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/archive/snapshot_20260401152105_meta
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/archive/snapshot_20260416142505_body
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/archive/snapshot_20260416142505_headers
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/archive/snapshot_20260416142505_meta
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/archive/snapshot_20260506161533_body
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/archive/snapshot_20260506161533_headers
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/archive/snapshot_20260506161533_meta
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/archive/snapshot_20260605225323_body
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/archive/snapshot_20260605225323_headers
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/archive/snapshot_20260605225323_meta
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/archive/snapshot_20260608054859_body
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/archive/snapshot_20260608054859_headers
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/archive/snapshot_20260608054859_meta
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/archive/snapshot_20260615100855_body
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/archive/snapshot_20260615100855_headers
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/archive/snapshot_20260615100855_meta
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/archive/snapshots_manifest
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/http/blog_algolia_pricing_body
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/http/blog_algolia_pricing_headers
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/http/blog_algolia_pricing_meta
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/http/blog_typesense_pricing_body
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/http/blog_typesense_pricing_headers
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/http/blog_typesense_pricing_meta
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/http/docs_cloud_billing_body
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/http/docs_cloud_billing_headers
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/http/docs_cloud_billing_meta
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/http/docs_cloud_plan_limits_body
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/http/docs_cloud_plan_limits_headers
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/http/docs_cloud_plan_limits_meta
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/http/docs_cloud_usage_based_body
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/http/docs_cloud_usage_based_headers
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/http/docs_cloud_usage_based_meta
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/http/llms_body
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/http/llms_headers
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/http/llms_meta
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/http/pricing_body
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/http/pricing_headers
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/http/pricing_meta
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/http/pricing_platform_body
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/http/pricing_platform_headers
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/http/pricing_platform_meta
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/http/usage_based_body
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/http/usage_based_headers
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/http/usage_based_meta
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/payloads/api_pricing_body
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/payloads/api_pricing_calculator_body
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/payloads/api_pricing_calculator_headers
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/payloads/api_pricing_calculator_meta
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/payloads/api_pricing_headers
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/payloads/api_pricing_meta
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/payloads/chunk_01_body
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/payloads/chunk_01_headers
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/payloads/chunk_01_meta
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/payloads/chunk_02_body
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/payloads/chunk_02_headers
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/payloads/chunk_02_meta
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/payloads/chunk_03_body
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/payloads/chunk_03_headers
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/payloads/chunk_03_meta
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/payloads/chunk_04_body
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/payloads/chunk_04_headers
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/payloads/chunk_04_meta
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/payloads/chunk_05_body
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/payloads/chunk_05_headers
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/payloads/chunk_05_meta
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/payloads/chunk_06_body
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/payloads/chunk_06_headers
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/payloads/chunk_06_meta
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/payloads/chunk_07_body
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/payloads/chunk_07_headers
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/payloads/chunk_07_meta
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/payloads/chunk_08_body
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/payloads/chunk_08_headers
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/payloads/chunk_08_meta
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/payloads/chunk_09_body
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/payloads/chunk_09_headers
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/payloads/chunk_09_meta
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/payloads/chunk_10_body
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/payloads/chunk_10_headers
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/payloads/chunk_10_meta
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/payloads/chunk_11_body
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/payloads/chunk_11_headers
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/payloads/chunk_11_meta
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/payloads/chunk_12_body
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/payloads/chunk_12_headers
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/payloads/chunk_12_meta
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/payloads/chunk_13_body
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/payloads/chunk_13_headers
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/payloads/chunk_13_meta
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/payloads/chunk_14_body
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/payloads/chunk_14_headers
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/payloads/chunk_14_meta
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/payloads/chunk_15_body
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/payloads/chunk_15_headers
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/payloads/chunk_15_meta
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/payloads/chunk_16_body
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/payloads/chunk_16_headers
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/payloads/chunk_16_meta
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/payloads/chunk_17_body
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/payloads/chunk_17_headers
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/payloads/chunk_17_meta
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/payloads/chunk_18_body
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/payloads/chunk_18_headers
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/payloads/chunk_18_meta
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/payloads/chunk_19_body
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/payloads/chunk_19_headers
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/payloads/chunk_19_meta
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/payloads/chunk_20_body
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/payloads/chunk_20_headers
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/payloads/chunk_20_meta
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/payloads/chunks_manifest
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/payloads/estimate_usage_body
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/payloads/estimate_usage_headers
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/payloads/estimate_usage_meta
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/payloads/estimate_usage_request
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/payloads/next_pricing_json_body
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/payloads/next_pricing_json_headers
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/payloads/next_pricing_json_meta
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/payloads/pricing_data_json_body
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/payloads/pricing_data_json_headers
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/payloads/pricing_data_json_meta
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/payloads/pricing_json_body
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/payloads/pricing_json_headers
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/payloads/pricing_json_meta
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/probes/current_page_absence_note
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/probes/current_page_pro_plan_probe
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/probes/estimator_code_snippets
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/probes/llms_pricing_probe
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/probes/pricing_script_srcs
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/probes/pricing_text_extract
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/probes/targeted_probe_results
+ create mode 100644 docs/runbooks/evidence/competitor-pricing/20260707T172320Z_meilisearch/raw/probes/xhr_payload_probe
+ delete mode 100644 infra/api/src/repos/pg_customer_repo.rs
+ create mode 100644 infra/api/src/repos/pg_customer_repo/DIRMAP.md
+ create mode 100644 infra/api/src/repos/pg_customer_repo/billing.rs
+ create mode 100644 infra/api/src/repos/pg_customer_repo/hard_delete.rs
+ create mode 100644 infra/api/src/repos/pg_customer_repo/lifecycle.rs
+ create mode 100644 infra/api/src/repos/pg_customer_repo/lockout.rs
+ create mode 100644 infra/api/src/repos/pg_customer_repo/mod.rs
+ rename infra/api/src/repos/{pg_customer_repo_password_reset_resend.rs => pg_customer_repo/password_reset.rs} (68%)
+ rename infra/api/src/repos/{pg_customer_repo_columns.rs => pg_customer_repo/projection.rs} (97%)
+ create mode 100644 infra/api/src/repos/pg_customer_repo/queries.rs
+ rename infra/api/src/repos/{pg_customer_repo_quota_warning.rs => pg_customer_repo/quota_warning.rs} (81%)
+ create mode 100644 infra/api/src/repos/pg_customer_repo/verification.rs
+ delete mode 100644 infra/api/src/services/migration_stage4_legacy.rs
+ delete mode 100644 infra/api/src/services/scheduler_stage4_legacy.rs
+ create mode 100644 infra/api/tests/auth_admin.rs
+ create mode 100644 infra/api/tests/billing.rs
+ create mode 100644 infra/api/tests/indexes.rs
+ rename infra/api/tests/{integration.rs => platform.rs} (65%)
+ delete mode 100644 infra/pricing-calculator/src/providers/meilisearch_usage_based.rs
+ mode change 100755 => 100644 scripts/dev/regenerate_integration_test_root.py
+ok Synced 9 dirs, 13 files
+   hook: executed
+
+ok fjcloud -> staging complete

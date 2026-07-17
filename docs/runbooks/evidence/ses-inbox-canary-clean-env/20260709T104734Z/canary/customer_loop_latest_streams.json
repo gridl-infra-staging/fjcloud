@@ -1,0 +1,35 @@
+{
+    "logStreams": [
+        {
+            "logStreamName": "2026/07/09/[$LATEST]ab7c2ac3c04b481bb2a29af5a26ecd55",
+            "creationTime": 1783596081829,
+            "firstEventTimestamp": 1783596076045,
+            "lastEventTimestamp": 1783596076045,
+            "lastIngestionTime": 1783596081843,
+            "uploadSequenceToken": "49039859678514288625466785599070350713550590816429940912",
+            "arn": "arn:aws:logs:us-east-1:213880904778:log-group:/aws/lambda/fjcloud-staging-customer-loop-canary:log-stream:2026/07/09/[$LATEST]ab7c2ac3c04b481bb2a29af5a26ecd55",
+            "storedBytes": 0
+        },
+        {
+            "logStreamName": "2026/07/09/[$LATEST]cc7b2f709e704aeb800ad987571e9466",
+            "creationTime": 1783595183041,
+            "firstEventTimestamp": 1783595176097,
+            "lastEventTimestamp": 1783595176097,
+            "lastIngestionTime": 1783595183052,
+            "uploadSequenceToken": "49039859678513093927307226078748028452310007773181648935",
+            "arn": "arn:aws:logs:us-east-1:213880904778:log-group:/aws/lambda/fjcloud-staging-customer-loop-canary:log-stream:2026/07/09/[$LATEST]cc7b2f709e704aeb800ad987571e9466",
+            "storedBytes": 0
+        },
+        {
+            "logStreamName": "2026/07/09/[$LATEST]2d5e3d1b5afb4826a410ae0d53796d48",
+            "creationTime": 1783594283936,
+            "firstEventTimestamp": 1783594276035,
+            "lastEventTimestamp": 1783594282770,
+            "lastIngestionTime": 1783594283944,
+            "uploadSequenceToken": "49039859678511898807782391894607373909650269058561089641",
+            "arn": "arn:aws:logs:us-east-1:213880904778:log-group:/aws/lambda/fjcloud-staging-customer-loop-canary:log-stream:2026/07/09/[$LATEST]2d5e3d1b5afb4826a410ae0d53796d48",
+            "storedBytes": 0
+        }
+    ],
+    "nextToken": "Kwfr0bfVKkYk4OrYazFRiXM2I6QD2138Stc0CCKMWq9yfz3fIdMMHiIpd5x-zn5jiI3RrxZk5ygLfsitfQjSqxqJBFE_dqD6UIMQi3QVfp1zEVs1InDM-IU7CDQ6WO5CBlOWi3Ungu4ocVDP-C2L0Mhkzz_1J7Ak757PTs7bHRiWlVz7Btq-8KDReIQQrm8Nd5ndYS6ch_XwS3u2Yd-cNGnYjh2MQbManSrezp3GJE6sEs5HHWJO_tAIoVaZHbkf7ExBSS7qZmbffPlc3pQSaqFt3qsYkkVOGEUF8OIyIQYmlc5LtSBma2D5ENjvQPEsVjC7_wSQPsBpJuFyeJXxDoW3Zmk-9RBWe80v5NurhTIRP0C3nGSlp9ow9RL4Dsq9_85rwzVNY_HXdS7cJtkEcqXGHSZfvPPmLahLorT_0lo"
+}

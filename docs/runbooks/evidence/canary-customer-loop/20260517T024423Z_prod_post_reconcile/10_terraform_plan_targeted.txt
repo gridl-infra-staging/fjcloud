@@ -1,0 +1,81 @@
+
+Warning: Deprecated Parameter
+
+The parameter "dynamodb_table" is deprecated. Use parameter "use_lockfile"
+instead.
+module.monitoring.aws_cloudwatch_event_rule.customer_loop_canary: Refreshing state... [id=fjcloud-prod-customer-loop-canary]
+module.monitoring.aws_ecr_repository.customer_loop_canary: Refreshing state... [id=fjcloud-prod-customer-loop-canary]
+module.monitoring.aws_iam_role.customer_loop_canary_lambda: Refreshing state... [id=fjcloud-prod-customer-loop-canary-lambda]
+module.monitoring.aws_lambda_function.customer_loop_canary: Refreshing state... [id=fjcloud-prod-customer-loop-canary]
+
+Terraform used the selected providers to generate the following execution
+plan. Resource actions are indicated with the following symbols:
+  ~ update in-place
+
+Terraform will perform the following actions:
+
+  # module.monitoring.aws_cloudwatch_event_rule.customer_loop_canary will be updated in-place
+  ~ resource "aws_cloudwatch_event_rule" "customer_loop_canary" {
+        id                  = "fjcloud-prod-customer-loop-canary"
+      ~ is_enabled          = false -> true
+        name                = "fjcloud-prod-customer-loop-canary"
+        tags                = {}
+        # (10 unchanged attributes hidden)
+    }
+
+  # module.monitoring.aws_lambda_function.customer_loop_canary will be updated in-place
+  ~ resource "aws_lambda_function" "customer_loop_canary" {
+      ~ architectures                  = [
+          ~ "x86_64" -> "arm64",
+        ]
+        id                             = "fjcloud-prod-customer-loop-canary"
+      ~ image_uri                      = "213880904778.dkr.ecr.us-east-1.amazonaws.com/fjcloud-prod-customer-loop-canary:pending-publication" -> "213880904778.dkr.ecr.us-east-1.amazonaws.com/fjcloud-prod-customer-loop-canary:ad592f80c25d"
+      ~ last_modified                  = "2026-05-14T03:17:56.564+0000" -> (known after apply)
+        tags                           = {}
+        # (28 unchanged attributes hidden)
+
+      ~ environment {
+          ~ variables = {
+              + "ADMIN_KEY"                = "/fjcloud/prod/admin_key"
+              + "API_URL"                  = "https://api.flapjack.foo"
+              + "CANARY_TEST_INBOX_DOMAIN" = "test.flapjack.foo"
+              + "CANARY_TEST_INBOX_S3_URI" = "s3://flapjack-cloud-releases/e2e-emails/"
+              + "DISCORD_WEBHOOK_URL"      = "/fjcloud/prod/discord_webhook_url"
+              + "SLACK_WEBHOOK_URL"        = "/fjcloud/prod/slack_webhook_url"
+              + "STRIPE_SECRET_KEY"        = "/fjcloud/prod/stripe_secret_key"
+                # (3 unchanged elements hidden)
+            }
+        }
+
+        # (4 unchanged blocks hidden)
+    }
+
+Plan: 0 to add, 2 to change, 0 to destroy.
+
+Changes to Outputs:
+  ~ customer_loop_canary_image_uri           = "213880904778.dkr.ecr.us-east-1.amazonaws.com/fjcloud-prod-customer-loop-canary:pending-publication" -> "213880904778.dkr.ecr.us-east-1.amazonaws.com/fjcloud-prod-customer-loop-canary:ad592f80c25d"
+
+Warning: Resource targeting is in effect
+
+You are creating a plan with the -target option, which means that the result
+of this plan may not represent all of the changes requested by the current
+configuration.
+
+The -target option is not for routine use, and is provided only for
+exceptional situations such as recovering from errors or mistakes, or when
+Terraform specifically suggests to use it as part of an error message.
+
+Warning: Argument is deprecated
+
+  with module.monitoring.aws_cloudwatch_event_rule.customer_loop_canary,
+  on ../monitoring/main.tf line 210, in resource "aws_cloudwatch_event_rule" "customer_loop_canary":
+ 210:   is_enabled          = var.canary_schedule.enabled
+
+is_enabled is deprecated. Use state instead.
+
+─────────────────────────────────────────────────────────────────────────────
+
+Saved the plan to: /tmp/stage2_canary.tfplan
+
+To perform exactly these actions, run the following command to apply:
+    terraform apply "/tmp/stage2_canary.tfplan"

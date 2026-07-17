@@ -1,0 +1,8 @@
+[customer-loop-canary] signup succeeded for canary+canary202607121905592624@test.flapjack.foo (customer=2dc1ca7d-fc81-4637-8265-20a2a8be1e16)
+[customer-loop-canary] email verification succeeded for canary+canary202607121905592624@test.flapjack.foo
+[customer-loop-canary] index created (canary-canary202607121905592624)
+[customer-loop-canary] index write succeeded (canary-canary202607121905592624)
+[customer-metrics-probe] summary written to docs/runbooks/evidence/customer-metrics-probe/20260712T190558Z/summary.json
+[customer-loop-canary] index deleted (canary-canary202607121905592624)
+[customer-loop-canary] account delete attempted for customer 2dc1ca7d-fc81-4637-8265-20a2a8be1e16
+[customer-loop-canary] admin cleanup completed for tenant 2dc1ca7d-fc81-4637-8265-20a2a8be1e16

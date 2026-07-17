@@ -1,0 +1,19 @@
+FAIL: function fjcloud-prod-customer-loop-canary threw Unhandled
+==response body==
+{"errorType":"Runtime.ExitError","errorMessage":"RequestId: cd7fea86-aca8-4231-ac0f-0ed3198f1f00 Error: Runtime exited with error: exit status 1"}==log tail (base64 in invoke response; decode if needed)==
+START RequestId: cd7fea86-aca8-4231-ac0f-0ed3198f1f00 Version: $LATEST
+Traceback (most recent call last):
+File "<stdin>", line 4, in <module>
+File "/usr/lib64/python3.9/json/__init__.py", line 293, in load
+return loads(fp.read(),
+File "/usr/lib64/python3.9/json/__init__.py", line 346, in loads
+return _default_decoder.decode(s)
+File "/usr/lib64/python3.9/json/decoder.py", line 337, in decode
+obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+File "/usr/lib64/python3.9/json/decoder.py", line 355, in raw_decode
+raise JSONDecodeError("Expecting value", s, err.value) from None
+json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+Exception ignored in: <_io.TextIOWrapper name='<stdout>' mode='w' encoding='utf-8'>
+BrokenPipeError: [Errno 32] Broken pipe
+END RequestId: cd7fea86-aca8-4231-ac0f-0ed3198f1f00
+REPORT RequestId: cd7fea86-aca8-4231-ac0f-0ed3198f1f00	Duration: 3144.30 ms	Billed Duration: 3145 ms	Memory Size: 512 MB	Max Memory Used: 132 MB	Status: error	Error Type: Runtime.ExitError

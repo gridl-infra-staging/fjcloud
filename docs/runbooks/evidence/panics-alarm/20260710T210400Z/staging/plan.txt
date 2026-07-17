@@ -1,0 +1,67 @@
+[33m╷[0m[0m
+[33m│[0m [0m[1m[33mWarning: [0m[0m[1mDeprecated Parameter[0m
+[33m│[0m [0m
+[33m│[0m [0m[0mThe parameter "dynamodb_table" is deprecated. Use parameter "use_lockfile"
+[33m│[0m [0minstead.
+[33m╵[0m[0m
+[0m[1mmodule.monitoring.aws_sns_topic.alerts: Refreshing state... [id=arn:aws:sns:us-east-1:213880904778:fjcloud-alerts-staging][0m
+
+Terraform used the selected providers to generate the following execution
+plan. Resource actions are indicated with the following symbols:
+  [32m+[0m create[0m
+
+Terraform will perform the following actions:
+
+[1m  # module.monitoring.aws_cloudwatch_metric_alarm.api_panics_high[0m will be created
+[0m  [32m+[0m[0m resource "aws_cloudwatch_metric_alarm" "api_panics_high" {
+      [32m+[0m[0m actions_enabled                       = true
+      [32m+[0m[0m alarm_actions                         = [
+          [32m+[0m[0m "arn:aws:sns:us-east-1:213880904778:fjcloud-alerts-staging",
+        ]
+      [32m+[0m[0m alarm_description                     = "API panic counter reported one or more panics in a one-minute period"
+      [32m+[0m[0m alarm_name                            = "fjcloud-staging-api-panics-high"
+      [32m+[0m[0m arn                                   = (known after apply)
+      [32m+[0m[0m comparison_operator                   = "GreaterThanThreshold"
+      [32m+[0m[0m datapoints_to_alarm                   = 1
+      [32m+[0m[0m dimensions                            = {
+          [32m+[0m[0m "Env" = "staging"
+        }
+      [32m+[0m[0m evaluate_low_sample_count_percentiles = (known after apply)
+      [32m+[0m[0m evaluation_periods                    = 1
+      [32m+[0m[0m id                                    = (known after apply)
+      [32m+[0m[0m metric_name                           = "PanicsPerPeriod"
+      [32m+[0m[0m namespace                             = "fjcloud/api"
+      [32m+[0m[0m ok_actions                            = [
+          [32m+[0m[0m "arn:aws:sns:us-east-1:213880904778:fjcloud-alerts-staging",
+        ]
+      [32m+[0m[0m period                                = 60
+      [32m+[0m[0m region                                = "us-east-1"
+      [32m+[0m[0m statistic                             = "Sum"
+      [32m+[0m[0m tags_all                              = {
+          [32m+[0m[0m "env"        = "staging"
+          [32m+[0m[0m "managed-by" = "terraform"
+          [32m+[0m[0m "service"    = "fjcloud"
+        }
+      [32m+[0m[0m threshold                             = 0
+      [32m+[0m[0m treat_missing_data                    = "notBreaching"
+    }
+
+[1mPlan:[0m [0m1 to add, 0 to change, 0 to destroy.
+[33m╷[0m[0m
+[33m│[0m [0m[1m[33mWarning: [0m[0m[1mResource targeting is in effect[0m
+[33m│[0m [0m
+[33m│[0m [0m[0mYou are creating a plan with the -target option, which means that the
+[33m│[0m [0mresult of this plan may not represent all of the changes requested by the
+[33m│[0m [0mcurrent configuration.
+[33m│[0m [0m
+[33m│[0m [0mThe -target option is not for routine use, and is provided only for
+[33m│[0m [0mexceptional situations such as recovering from errors or mistakes, or when
+[33m│[0m [0mTerraform specifically suggests to use it as part of an error message.
+[33m╵[0m[0m
+[90m
+─────────────────────────────────────────────────────────────────────────────[0m
+
+Saved the plan to: /tmp/panics_staging.tfplan
+
+To perform exactly these actions, run the following command to apply:
+    terraform apply "/tmp/panics_staging.tfplan"

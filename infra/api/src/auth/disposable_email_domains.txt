@@ -1,0 +1,11 @@
+# Disposable email domains blocked at signup.
+# Keep this snapshot sorted alphabetically and lowercase-only.
+10minutemail.com
+dispostable.com
+guerrillamail.com
+maildrop.cc
+mailinator.com
+temp-mail.org
+tempmail.com
+trashmail.com
+yopmail.com

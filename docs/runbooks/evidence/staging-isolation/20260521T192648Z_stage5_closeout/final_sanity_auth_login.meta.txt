@@ -1,0 +1,5 @@
+cached_hit=false
+command=curl -sS -H 'Content-Type: application/json' -d '{"email":"q@q.q","password":"qqqqqqqq"}' https://api.staging.flapjack.foo/auth/login
+head_sha=3cb1000bd4dabbde269ce2cfa37fad69414a1f09
+clean_tree=false
+exit_code=0

@@ -1,0 +1,5 @@
+== UTC 2026-04-29T14:56:04Z
+last_deploy_sha=f68856f7f93f7e5fb96b837d020415d2c64180af
+ses_configuration_set=fjcloud-staging-flapjack-foo-feedback
+host_SES_CONFIGURATION_SET=MISSING (rc=1)
+health={"status":"ok"}

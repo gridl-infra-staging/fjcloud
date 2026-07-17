@@ -1,0 +1,18 @@
+[
+    {
+        "Name": "/fjcloud/prod/admin_key",
+        "Version": 1
+    },
+    {
+        "Name": "/fjcloud/prod/aws_ami_id",
+        "Version": 1
+    },
+    {
+        "Name": "/fjcloud/prod/cloudflare_zone_id",
+        "Version": 1
+    },
+    {
+        "Name": "/fjcloud/prod/database_url",
+        "Version": 2
+    }
+]

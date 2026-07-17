@@ -1,0 +1,5 @@
+latest_prod_bundle=20260516T025533Z_prod_restore_verification
+bundle_age_days=9
+migrations_since_2026_05_16=10
+drill_needed=1
+reason=stale_bundle_and_migration_drift

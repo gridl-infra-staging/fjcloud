@@ -1,0 +1,61 @@
+Latest prod CI run id: 26319225529
+playwright	UNKNOWN STEP	2026-05-23T01:42:22.8598209Z  2026-05-23 01:32:34.218 UTC [62] LOG:  checkpoint complete: wrote 80 buffers (0.5%); 0 WAL file(s) added, 0 removed, 0 recycled; write=7.919 s, sync=0.001 s, total=7.921 s; sync files=34, longest=0.001 s, average=0.001 s; distance=278 kB, estimate=1059 kB; lsn=0/1B78F30, redo lsn=0/1B78EC0
+playwright	UNKNOWN STEP	2026-05-23T01:42:22.8599097Z  2026-05-23 01:37:26.318 UTC [62] LOG:  checkpoint starting: time
+playwright	UNKNOWN STEP	2026-05-23T01:42:22.8599993Z  2026-05-23 01:37:32.735 UTC [62] LOG:  checkpoint complete: wrote 65 buffers (0.4%); 0 WAL file(s) added, 0 removed, 0 recycled; write=6.415 s, sync=0.001 s, total=6.417 s; sync files=35, longest=0.001 s, average=0.001 s; distance=278 kB, estimate=981 kB; lsn=0/1BBE818, redo lsn=0/1BBE7A8
+playwright	UNKNOWN STEP	2026-05-23T01:42:22.8600926Z  selecting dynamic shared memory implementation ... posix
+playwright	UNKNOWN STEP	2026-05-23T01:42:22.8601253Z  selecting default max_connections ... 100
+playwright	UNKNOWN STEP	2026-05-23T01:42:22.8601536Z  selecting default shared_buffers ... 128MB
+playwright	UNKNOWN STEP	2026-05-23T01:42:22.8601806Z  selecting default time zone ... Etc/UTC
+playwright	UNKNOWN STEP	2026-05-23T01:42:22.8602064Z  creating configuration files ... ok
+playwright	UNKNOWN STEP	2026-05-23T01:42:22.8602325Z  running bootstrap script ... ok
+playwright	UNKNOWN STEP	2026-05-23T01:42:22.8602606Z  performing post-bootstrap initialization ... ok
+playwright	UNKNOWN STEP	2026-05-23T01:42:22.8602882Z  syncing data to disk ... ok
+playwright	UNKNOWN STEP	2026-05-23T01:42:22.8603095Z  
+playwright	UNKNOWN STEP	2026-05-23T01:42:22.8603259Z  
+playwright	UNKNOWN STEP	2026-05-23T01:42:22.8603678Z  Success. You can now start the database server using:
+playwright	UNKNOWN STEP	2026-05-23T01:42:22.8603961Z  
+playwright	UNKNOWN STEP	2026-05-23T01:42:22.8604194Z      pg_ctl -D /var/lib/postgresql/data -l logfile start
+playwright	UNKNOWN STEP	2026-05-23T01:42:22.8604464Z  
+playwright	UNKNOWN STEP	2026-05-23T01:42:22.8605061Z  waiting for server to start....2026-05-23 01:02:25.772 UTC [48] LOG:  starting PostgreSQL 16.14 (Debian 16.14-1.pgdg13+1) on x86_64-pc-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+playwright	UNKNOWN STEP	2026-05-23T01:42:22.8605868Z  2026-05-23 01:02:25.773 UTC [48] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+playwright	UNKNOWN STEP	2026-05-23T01:42:22.8606388Z  2026-05-23 01:02:25.776 UTC [51] LOG:  database system was shut down at 2026-05-23 01:02:25 UTC
+playwright	UNKNOWN STEP	2026-05-23T01:42:22.8606848Z  2026-05-23 01:02:25.781 UTC [48] LOG:  database system is ready to accept connections
+playwright	UNKNOWN STEP	2026-05-23T01:42:22.8607187Z   done
+playwright	UNKNOWN STEP	2026-05-23T01:42:22.8607361Z  server started
+playwright	UNKNOWN STEP	2026-05-23T01:42:22.8607541Z  CREATE DATABASE
+playwright	UNKNOWN STEP	2026-05-23T01:42:22.8607727Z  
+playwright	UNKNOWN STEP	2026-05-23T01:42:22.8607880Z  
+playwright	UNKNOWN STEP	2026-05-23T01:42:22.8608173Z  /usr/local/bin/docker-entrypoint.sh: ignoring /docker-entrypoint-initdb.d/*
+playwright	UNKNOWN STEP	2026-05-23T01:42:22.8608531Z  
+playwright	UNKNOWN STEP	2026-05-23T01:42:22.8608857Z  waiting for server to shut down...2026-05-23 01:02:25.978 UTC [48] LOG:  received fast shutdown request
+playwright	UNKNOWN STEP	2026-05-23T01:42:22.8609337Z  .2026-05-23 01:02:25.978 UTC [48] LOG:  aborting any active transactions
+playwright	UNKNOWN STEP	2026-05-23T01:42:22.8609871Z  2026-05-23 01:02:25.981 UTC [48] LOG:  background worker "logical replication launcher" (PID 54) exited with exit code 1
+playwright	UNKNOWN STEP	2026-05-23T01:42:22.8610364Z  2026-05-23 01:02:25.983 UTC [49] LOG:  shutting down
+playwright	UNKNOWN STEP	2026-05-23T01:42:22.8610721Z  2026-05-23 01:02:25.983 UTC [49] LOG:  checkpoint starting: shutdown immediate
+playwright	UNKNOWN STEP	2026-05-23T01:42:22.8611710Z  2026-05-23 01:02:26.000 UTC [49] LOG:  checkpoint complete: wrote 926 buffers (5.7%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.014 s, sync=0.002 s, total=0.017 s; sync files=301, longest=0.001 s, average=0.001 s; distance=4273 kB, estimate=4273 kB; lsn=0/191F0E8, redo lsn=0/191F0E8
+playwright	UNKNOWN STEP	2026-05-23T01:42:22.8612812Z  2026-05-23 01:02:26.008 UTC [48] LOG:  database system is shut down
+playwright	UNKNOWN STEP	2026-05-23T01:42:22.8613119Z   done
+playwright	UNKNOWN STEP	2026-05-23T01:42:22.8613283Z  server stopped
+playwright	UNKNOWN STEP	2026-05-23T01:42:22.8613631Z  
+playwright	UNKNOWN STEP	2026-05-23T01:42:22.8613858Z  PostgreSQL init process complete; ready for start up.
+playwright	UNKNOWN STEP	2026-05-23T01:42:22.8614279Z  
+playwright	UNKNOWN STEP	2026-05-23T01:42:22.8619610Z Stop and remove container: eb56c9c116954e439496e0244b06df71_postgres16_c3683f
+playwright	UNKNOWN STEP	2026-05-23T01:42:22.8624866Z ##[command]/usr/bin/docker rm --force ffdd4b272a36329266c3b1cb41b6ba1d8908c5f2940dfbc5786de273602d6d44
+playwright	UNKNOWN STEP	2026-05-23T01:42:22.9937377Z ffdd4b272a36329266c3b1cb41b6ba1d8908c5f2940dfbc5786de273602d6d44
+playwright	UNKNOWN STEP	2026-05-23T01:42:22.9962054Z Print service container logs: a6426f70ac1e4cf78033c5a95c7dfd39_axllentmailpitlatest_2d6424
+playwright	UNKNOWN STEP	2026-05-23T01:42:22.9964168Z ##[command]/usr/bin/docker logs --details 8dffecb0121160d1acee44b3b9ff030ba0c459dedfe39d099b621ca79754eb16
+playwright	UNKNOWN STEP	2026-05-23T01:42:23.0100890Z  time="2026/05/23 01:02:26" level=info msg="[smtpd] starting on [::]:1025 (no encryption)"
+playwright	UNKNOWN STEP	2026-05-23T01:42:23.0101725Z  time="2026/05/23 01:02:26" level=info msg="[cors] allowed API origins: "
+playwright	UNKNOWN STEP	2026-05-23T01:42:23.0102375Z  time="2026/05/23 01:02:26" level=info msg="[http] starting on [::]:8025"
+playwright	UNKNOWN STEP	2026-05-23T01:42:23.0103117Z  time="2026/05/23 01:02:26" level=info msg="[http] accessible via http://localhost:8025/"
+playwright	UNKNOWN STEP	2026-05-23T01:42:23.0114926Z Stop and remove container: a6426f70ac1e4cf78033c5a95c7dfd39_axllentmailpitlatest_2d6424
+playwright	UNKNOWN STEP	2026-05-23T01:42:23.0115786Z ##[command]/usr/bin/docker rm --force 8dffecb0121160d1acee44b3b9ff030ba0c459dedfe39d099b621ca79754eb16
+playwright	UNKNOWN STEP	2026-05-23T01:42:23.1225903Z 8dffecb0121160d1acee44b3b9ff030ba0c459dedfe39d099b621ca79754eb16
+playwright	UNKNOWN STEP	2026-05-23T01:42:23.1256246Z Remove container network: github_network_4eb07d9856e54227a25dbb132358ddbd
+playwright	UNKNOWN STEP	2026-05-23T01:42:23.1262660Z ##[command]/usr/bin/docker network rm github_network_4eb07d9856e54227a25dbb132358ddbd
+playwright	UNKNOWN STEP	2026-05-23T01:42:23.2361566Z github_network_4eb07d9856e54227a25dbb132358ddbd
+playwright	UNKNOWN STEP	2026-05-23T01:42:23.2427081Z Cleaning up orphan processes
+playwright	UNKNOWN STEP	2026-05-23T01:42:23.2646854Z Terminate orphan process: pid (14646) (node)
+playwright	UNKNOWN STEP	2026-05-23T01:42:23.2673568Z Terminate orphan process: pid (14663) (esbuild)
+playwright	UNKNOWN STEP	2026-05-23T01:42:23.2708552Z Terminate orphan process: pid (14734) (workerd)
+playwright	UNKNOWN STEP	2026-05-23T01:42:23.2826767Z ##[warning]Node.js 20 actions are deprecated. The following actions are running on Node.js 20 and may not work as expected: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5, actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808. Actions will be forced to run with Node.js 24 by default starting June 2nd, 2026. Node.js 20 will be removed from the runner on September 16th, 2026. Please check if updated versions of these actions are available that support Node.js 24. To opt into Node.js 24 now, set the FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true environment variable on the runner or in your workflow file. Once Node.js 24 becomes the default, you can temporarily opt out by setting ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION=true. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/

@@ -1,0 +1,2 @@
+GET https://api.cloudflare.com/client/v4/accounts
+auth=global_key_email_redacted

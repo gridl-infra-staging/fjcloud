@@ -1,0 +1,45 @@
+
+Running 1 test using 1 worker
+
+  ✘  1 [chromium:signup] › tests/e2e-ui/full/signup_to_paid_invoice.spec.ts:80:2 › Fresh signup to paid invoice › signs up, verifies email, reaches paid invoice evidence (37.7s)
+
+
+  1) [chromium:signup] › tests/e2e-ui/full/signup_to_paid_invoice.spec.ts:80:2 › Fresh signup to paid invoice › signs up, verifies email, reaches paid invoice evidence 
+
+    Error: fresh-signup email verification replay setup failed before reaching /verify-email/{token}. Current URL: https://cloud.flapjack.foo/verify-email/[REDACTED]
+    API URL: https://api.flapjack.foo
+    Admin key fingerprint: (present, len=32)
+    Visible alert text: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: getByRole('heading', { name: 'Email Verified' })
+    Expected: visible
+    Timeout: 30000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 30000ms[22m
+    [2m  - waiting for getByRole('heading', { name: 'Email Verified' })[22m
+    Login response: (none observed)
+    Remediation: Run scripts/bootstrap-env-local.sh to bootstrap .env.local, then start the local stack with scripts/local-dev-up.sh and the Rust API with scripts/api-dev.sh. If you override BASE_URL, start the web frontend with scripts/web-dev.sh too. See docs/runbooks/local-dev.md for setup instructions.
+
+       at fixtures/fixtures.ts:1029
+
+      1027 | 		return { verificationToken };
+      1028 | 	} catch (error) {
+    > 1029 | 		throw new Error(
+           | 		      ^
+      1030 | 			formatFixtureSetupFailure({
+      1031 | 				setupName: 'fresh-signup email verification replay setup',
+      1032 | 				expectedPath: '/verify-email/{token}',
+        at completeFreshSignupEmailVerificationViaRoute (/Users/stuart/repos/gridl-infra-dev/fjcloud_dev/web/tests/fixtures/fixtures.ts:1029:9)
+        at /Users/stuart/repos/gridl-infra-dev/fjcloud_dev/web/tests/e2e-ui/full/signup_to_paid_invoice.spec.ts:126:33
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/e2e-ui-full-signup_to_paid-43e41-aches-paid-invoice-evidence-chromium-signup/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/e2e-ui-full-signup_to_paid-43e41-aches-paid-invoice-evidence-chromium-signup/error-context.md
+
+  1 failed
+    [chromium:signup] › tests/e2e-ui/full/signup_to_paid_invoice.spec.ts:80:2 › Fresh signup to paid invoice › signs up, verifies email, reaches paid invoice evidence 
+exit=1

@@ -1,0 +1,28 @@
+stage4_run_timestamp_utc=2026-05-02T03:31:20Z
+scope=archive_legacy_fixed_tier_products_and_prices_only
+live_account_id=acct_1SyNWBGXI8zVz4UH
+sandbox_account_id=acct_1SyNWVKH9mdklKeI
+webhook_changes_made=no
+ssm_env_mapping_changes_made=no
+
+live_status=blocked
+live_blocker=missing_STRIPE_SECRET_KEY_flapjack_cloud
+live_key_source_checked=.secret/.env.secret
+stripe_cli_live_mode_key=not_available
+live_commands_executed=no
+
+sandbox_status=completed
+sandbox_commands_executed=yes
+sandbox_legacy_products_archived=prod_TwGDLouRNXOOXJ,prod_TwGEidVrV4QLjZ,prod_TwGF3jimx6jPU0,prod_TwGF4YX0N95n5h
+sandbox_legacy_prices_archived=price_1SyNgwKH9mdklKeIeMbTKAY0,price_1SyNiGKH9mdklKeISKMpbcmj,price_1SyNidKH9mdklKeI4aKsONvU,price_1SyNiyKH9mdklKeIlaMX7rPg
+sandbox_rate_products_verified_active=prod_UOZRhBQpI8xyYa,prod_UOZSoBvGj1hmfh,prod_UOZSa0Wckr1hUL,prod_UOZS2j55Xvgy7t,prod_UOZS16OvDxZPlF,prod_UOZSsjKYrAKSzr
+
+commands_executed_pattern=
+- STRIPE_API_KEY="$STRIPE_SECRET_KEY" stripe products retrieve <id>
+- STRIPE_API_KEY="$STRIPE_SECRET_KEY" stripe prices retrieve <id>
+- STRIPE_API_KEY="$STRIPE_SECRET_KEY" stripe products update <id> --active=false
+- STRIPE_API_KEY="$STRIPE_SECRET_KEY" stripe prices update <id> --active=false
+- jq -r .active <post_capture_json>
+
+notes=
+- sandbox legacy IDs for this run were resolved from stripe products list/prices list evidence and used for mutation/verification instead of relying on the docs owner path.

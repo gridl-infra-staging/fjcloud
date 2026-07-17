@@ -1,0 +1,15 @@
+[validate_customer_quickstart] quickstart markers: auth_register auth_verify_email indexes_create indexes_batch_add_object indexes_search
+[validate_customer_quickstart] migration markers: migration_indexes_list migration_indexes_create migration_indexes_batch_add_object migration_indexes_search migration_indexes_get_object migration_indexes_batch_update_object migration_indexes_delete_object migration_indexes_save_synonym migration_indexes_save_rule
+[validate_customer_quickstart] probe succeeded: GET /health (http=200)
+[validate_customer_quickstart] probe succeeded: GET /docs (http=200)
+[validate_customer_quickstart] documented method reachable: POST /auth/register (http=415)
+[validate_customer_quickstart] documented method reachable: POST /auth/verify-email (http=415)
+[validate_customer_quickstart] documented method reachable: GET /indexes (http=401)
+[validate_customer_quickstart] documented method reachable: POST /indexes (http=401)
+[validate_customer_quickstart] documented method reachable: POST /indexes/contract-check/batch (http=401)
+[validate_customer_quickstart] documented method reachable: POST /indexes/contract-check/search (http=401)
+[validate_customer_quickstart] documented method reachable: GET /indexes/contract-check/objects/contract-object (http=401)
+[validate_customer_quickstart] documented method reachable: DELETE /indexes/contract-check/objects/contract-object (http=401)
+[validate_customer_quickstart] documented method reachable: PUT /indexes/contract-check/synonyms/contract-synonym (http=401)
+[validate_customer_quickstart] documented method reachable: PUT /indexes/contract-check/rules/contract-rule (http=401)
+[validate_customer_quickstart] prod --contract-only completed non-destructive contract checks; full-flow coverage intentionally skipped

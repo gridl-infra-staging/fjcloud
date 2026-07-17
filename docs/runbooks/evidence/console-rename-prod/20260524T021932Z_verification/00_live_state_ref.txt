@@ -1,0 +1,3 @@
+latest_live_state=docs/live-state/20260524T022726Z
+5:Row format: `status` ∈ {OK, DRIFT, STALE, ACTION_REQUIRED, PROBE_ERROR, SKIP_NO_CREDS};
+41:- status: ACTION_REQUIRED

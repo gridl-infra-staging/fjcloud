@@ -1,0 +1,23 @@
+# Stage 2 Git Baseline
+captured_at_utc: 2026-05-20T21:25:04Z
+
+## dev
+path: $DEV_REPO_ROOT
+head_sha: 326238b98c67aa8f7ecc90c010cdb930087e50ec
+status_short_branch:
+## batman/may20_3pm_2_pipeline_propagation
+[redacted: local dirty worktree entries omitted from publishable evidence]
+
+## staging
+path: $HOME/repos/gridl-infra-staging/fjcloud
+head_sha: 6e5baf5f44d6b7b83351ad5626922ffdd3d406c2
+status_short_branch:
+## main...origin/main
+[redacted: local dirty worktree entries omitted from publishable evidence]
+
+## prod
+path: $HOME/repos/gridl-infra-prod/fjcloud
+head_sha: 4446067a7c2e7b0f595a3891400e5267caf26435
+status_short_branch:
+## main...origin/main
+[redacted: local dirty worktree entries omitted from publishable evidence]

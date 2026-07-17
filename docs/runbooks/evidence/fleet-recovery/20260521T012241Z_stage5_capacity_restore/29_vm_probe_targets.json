@@ -1,0 +1,65 @@
+{
+  "selected": [
+    {
+      "source": "stage2_baseline",
+      "hostname": "vm-shared-1f4d5f46.flapjack.foo",
+      "instance_id": "i-0c2ea206fe232f6d6",
+      "probe_url": "http://vm-shared-1f4d5f46.flapjack.foo:7700/health"
+    },
+    {
+      "source": "stage5_unhealthy_ranked",
+      "hostname": "vm-shared-480b5169.flapjack.foo",
+      "instance_id": "i-019d556392acdada7",
+      "probe_url": "http://vm-shared-480b5169.flapjack.foo:7700/health"
+    },
+    {
+      "source": "stage5_unhealthy_ranked",
+      "hostname": "vm-shared-c7f8cda3.flapjack.foo",
+      "instance_id": "i-02c0367ffe4f6d507",
+      "probe_url": "http://vm-shared-c7f8cda3.flapjack.foo:7700/health"
+    },
+    {
+      "source": "stage5_unhealthy_ranked",
+      "hostname": "vm-shared-a65c4ff9.flapjack.foo",
+      "instance_id": "i-0275ad8188825a1f9",
+      "probe_url": "http://vm-shared-a65c4ff9.flapjack.foo:7700/health"
+    },
+    {
+      "source": "stage5_unhealthy_ranked",
+      "hostname": "vm-shared-c47d2e32.flapjack.foo",
+      "instance_id": "i-02f6f821eaf7c6ce7",
+      "probe_url": "http://vm-shared-c47d2e32.flapjack.foo:7700/health"
+    }
+  ],
+  "unhealthy_host_counts": {
+    "vm-shared-480b5169.flapjack.foo": 3,
+    "vm-shared-1f4d5f46.flapjack.foo": 10,
+    "vm-shared-c7f8cda3.flapjack.foo": 1,
+    "vm-shared-a65c4ff9.flapjack.foo": 1,
+    "vm-shared-c47d2e32.flapjack.foo": 1,
+    "vm-shared-e15ebff6.flapjack.foo": 1,
+    "vm-shared-b322e2c3.flapjack.foo": 1,
+    "vm-shared-d81c0965.flapjack.foo": 1,
+    "vm-shared-f338a857.flapjack.foo": 1,
+    "vm-shared-f7a712ea.flapjack.foo": 1,
+    "vm-shared-8579b158.flapjack.foo": 1,
+    "vm-shared-6122c565.flapjack.foo": 1,
+    "vm-shared-f9b4725c.flapjack.foo": 1,
+    "vm-shared-7530816c.flapjack.foo": 1,
+    "vm-shared-72f72383.flapjack.foo": 1,
+    "vm-shared-3f5dd6f2.flapjack.foo": 1,
+    "vm-shared-4b34a919.flapjack.foo": 1,
+    "vm-shared-76672b2a.flapjack.foo": 1,
+    "vm-shared-dfc3d6e4.flapjack.foo": 1,
+    "vm-shared-2795f91e.flapjack.foo": 1,
+    "vm-shared-e1d3b51e.flapjack.foo": 1,
+    "vm-shared-03ff3efa.flapjack.foo": 1,
+    "vm-shared-cbe1f8ee.flapjack.foo": 1,
+    "vm-shared-835d996d.flapjack.foo": 1,
+    "vm-shared-26c8d813.flapjack.foo": 1,
+    "vm-shared-4d2fd397.flapjack.foo": 1,
+    "vm-shared-eb0b5c17.flapjack.foo": 1,
+    "vm-shared-d9dc45a6.flapjack.foo": 1,
+    "vm-shared-1cc4ec8f.flapjack.foo": 1
+  }
+}

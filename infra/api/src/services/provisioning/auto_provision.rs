@@ -344,7 +344,7 @@ pub(crate) fn normalize_local_dev_flapjack_url(raw_url: &str) -> Option<String> 
 
 pub(super) fn ensure_supported_vm_provider(vm_provider: &str) -> Result<(), ProvisioningError> {
     match vm_provider {
-        "aws" | "hetzner" | "gcp" | "oci" => Ok(()),
+        "aws" | "hetzner" | "gcp" | "oci" | "bare_metal" => Ok(()),
         _ => Err(ProvisioningError::ProvisionerFailed(format!(
             "unsupported VM provider '{vm_provider}'"
         ))),
@@ -426,7 +426,9 @@ pub(crate) fn build_user_data(
             region: region.to_string(),
         },
         // Supported non-AWS providers use direct secret delivery via cloud-init.
-        "hetzner" | "gcp" | "oci" => {
+        // (bare_metal is a real SSH-pool provider — vm_providers::BARE_METAL_VM_PROVIDER,
+        // registered in startup.rs; it was dropped from this allowlist by 0623f9f9cf.)
+        "hetzner" | "gcp" | "oci" | "bare_metal" => {
             let db_url = std::env::var("DATABASE_URL")
                 .unwrap_or_else(|_| "postgres://localhost/fjcloud".to_string());
             SecretDelivery::Direct {

@@ -76,12 +76,21 @@ build = health.get("build") if isinstance(health.get("build"), dict) else health
 version = first_string(build, "version") or first_string(health, "version")
 revision = first_string(build, "producer_revision", "revision")
 build_id = first_string(build, "build_id", "workspaceDigest")
-binary_sha = first_string(build, "binary_sha256", "sha256")
 dirty = build.get("dirty")
 capabilities = build.get("capabilities", health.get("capabilities"))
 
+# Runtime /health identity is anchored on the fields Flapjack actually emits:
+# version + revision + build_id/workspaceDigest + dirty + capabilities (see the
+# engine's build_info.rs BuildInfo schema and its /health allowlist test, which
+# deliberately excludes any binary hash). The compiled binary's FILE sha256 is an
+# ARTIFACT-layer anchor and is verified where the binary is obtained (CI
+# `sha256sum -c`, flapjack_binary.sh manifest/receipt comparison, and
+# probe_flapjack_build_identity.sh's installed-vs-expected sha) — NOT via /health,
+# which a running process cannot self-report. required_sha is therefore
+# intentionally NOT part of the runtime-identity requirement below; requiring it
+# here made this classifier fail `legacy_malformed_health` for every real engine.
 required_version, required_revision, required_build_id, required_sha, required_capability = sys.argv[2:7]
-exact_identity_required = bool(required_revision or required_build_id or required_sha)
+exact_identity_required = bool(required_revision or required_build_id)
 if not version:
     fail("legacy_malformed_health")
 if required_version and version != required_version:
@@ -95,15 +104,11 @@ if required_revision and not revision:
     fail("legacy_malformed_health")
 if required_build_id and not build_id:
     fail("legacy_malformed_health")
-if required_sha and not binary_sha:
-    fail("legacy_malformed_health")
 
 if required_revision and revision != required_revision:
     fail("revision_mismatch")
 if required_build_id and build_id != required_build_id:
     fail("build_id_mismatch")
-if required_sha and binary_sha != required_sha:
-    fail("checksum_mismatch")
 
 if required_capability:
     capability_present = False
@@ -114,7 +119,7 @@ if required_capability:
     if not capability_present:
         fail("missing_capability")
 
-if exact_identity_required and not (revision and build_id and binary_sha):
+if exact_identity_required and not (revision and build_id):
     fail("legacy_malformed_health")
 print("match")
 PY

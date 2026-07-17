@@ -32,9 +32,9 @@ fleet_identity_reason_with_mock_curl() {
     cat > "$tmp_dir/bin/curl" <<'SH'
 #!/usr/bin/env bash
 case "$*" in
-    *"match-one"*) printf '%s' '{"version":"1.0.10","producer_revision":"abc123","build_id":"build-1","binary_sha256":"sha-1","dirty":false,"capabilities":["preview_events_v1"]}' ;;
-    *"match-two"*) printf '%s' '{"version":"1.0.10","producer_revision":"abc123","build_id":"build-1","binary_sha256":"sha-1","dirty":false,"capabilities":["preview_events_v1"]}' ;;
-    *"drifted"*) printf '%s' '{"version":"1.0.10","producer_revision":"def456","build_id":"build-1","binary_sha256":"sha-1","dirty":false,"capabilities":["preview_events_v1"]}' ;;
+    *"match-one"*) printf '%s' '{"version":"1.0.10","producer_revision":"abc123","build_id":"build-1","dirty":false,"capabilities":["preview_events_v1"]}' ;;
+    *"match-two"*) printf '%s' '{"version":"1.0.10","producer_revision":"abc123","build_id":"build-1","dirty":false,"capabilities":["preview_events_v1"]}' ;;
+    *"drifted"*) printf '%s' '{"version":"1.0.10","producer_revision":"def456","build_id":"build-1","dirty":false,"capabilities":["preview_events_v1"]}' ;;
     *) exit 1 ;;
 esac
 SH
@@ -48,11 +48,11 @@ if run_with_mock_curl '{"capabilities":[]}' api_supports_capability http://api.t
 if run_with_mock_curl "{\"version\":\"$FJCLOUD_FLAPJACK_VERSION\",\"capabilities\":[\"vectorSearchLocal\"]}" flapjack_runtime_matches_required_version http://flapjack.test; then pass "Flapjack accepts pinned identity"; else fail "Flapjack should accept pinned identity"; fi
 if run_with_mock_curl '{"version":"0.0.1"}' flapjack_runtime_matches_required_version http://flapjack.test; then fail "Flapjack should reject wrong version"; else pass "Flapjack rejects wrong version"; fi
 
-clean_health='{"version":"1.0.10","producer_revision":"abc123","build_id":"build-1","binary_sha256":"sha-1","dirty":false,"capabilities":["preview_events_v1"]}'
-missing_dirty_health='{"version":"1.0.10","producer_revision":"abc123","build_id":"build-1","binary_sha256":"sha-1","capabilities":["preview_events_v1"]}'
-revision_health='{"version":"1.0.10","producer_revision":"def456","build_id":"build-1","binary_sha256":"sha-1","dirty":false,"capabilities":["preview_events_v1"]}'
-build_health='{"version":"1.0.10","producer_revision":"abc123","build_id":"build-2","binary_sha256":"sha-1","dirty":false,"capabilities":["preview_events_v1"]}'
-missing_capability_health='{"version":"1.0.10","producer_revision":"abc123","build_id":"build-1","binary_sha256":"sha-1","dirty":false,"capabilities":[]}'
+clean_health='{"version":"1.0.10","producer_revision":"abc123","build_id":"build-1","dirty":false,"capabilities":["preview_events_v1"]}'
+missing_dirty_health='{"version":"1.0.10","producer_revision":"abc123","build_id":"build-1","capabilities":["preview_events_v1"]}'
+revision_health='{"version":"1.0.10","producer_revision":"def456","build_id":"build-1","dirty":false,"capabilities":["preview_events_v1"]}'
+build_health='{"version":"1.0.10","producer_revision":"abc123","build_id":"build-2","dirty":false,"capabilities":["preview_events_v1"]}'
+missing_capability_health='{"version":"1.0.10","producer_revision":"abc123","build_id":"build-1","dirty":false,"capabilities":[]}'
 legacy_health='{"version":"1.0.10"}'
 
 test_selected_binary_identity_defaults_reject_runtime_drift() {
@@ -71,7 +71,7 @@ source_digest=build-1
 dirty=clean
 EOF
     printf 'binary_sha256=%s\n' "$binary_sha" >> "$receipt_path"
-    drifted_health='{"version":"1.0.10","producer_revision":"def456","build_id":"build-1","binary_sha256":"'"$binary_sha"'","dirty":false,"capabilities":["preview_events_v1"]}'
+    drifted_health='{"version":"1.0.10","producer_revision":"def456","build_id":"build-1","dirty":false,"capabilities":["preview_events_v1"]}'
 
     unset FJCLOUD_FLAPJACK_REQUIRED_REVISION
     unset FJCLOUD_FLAPJACK_REQUIRED_BUILD_ID
@@ -92,6 +92,18 @@ export FJCLOUD_FLAPJACK_REQUIRED_CAPABILITY="preview_events_v1"
 
 assert_eq "$(runtime_identity_reason_with_mock_curl "$clean_health")" "match" \
     "clean matching runtime identity should be accepted"
+
+# Regression: the identity contract previously required `build.binary_sha256` in
+# /health, which the Flapjack engine deliberately never emits (see the engine's
+# build_info.rs BuildInfo schema + its /health allowlist test). That made this
+# classifier fail `legacy_malformed_health` for every real engine. This fixture is
+# the REAL nested /health shape the engine serves (identity anchored on
+# revision + workspaceDigest + dirty; NO binary sha) and must classify as match.
+# The binary FILE sha256 is an artifact-layer anchor, verified where the binary is
+# obtained (CI sha256sum, flapjack_binary.sh manifest/receipt) — not via /health.
+real_nested_health='{"status":"ok","version":"1.0.10","build":{"version":"1.0.10","revision":"abc123","dirty":false,"workspaceDigest":"build-1","capabilities":{"preview_events_v1":true}},"capabilities":{"preview_events_v1":true}}'
+assert_eq "$(runtime_identity_reason_with_mock_curl "$real_nested_health")" "match" \
+    "real nested Flapjack /health (no binary_sha256) must be accepted under exact identity"
 assert_eq "$(runtime_identity_reason_with_mock_curl "$missing_dirty_health")" "legacy_malformed_health" \
     "exact runtime identity should reject health without dirty-state evidence"
 assert_eq "$(runtime_identity_reason_with_mock_curl "$revision_health")" "revision_mismatch" \

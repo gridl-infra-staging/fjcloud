@@ -28,6 +28,8 @@ use crate::common::support::pg_schema_harness::{
 #[test]
 fn reservation_lifetime_denominator_matches_model_and_schema_once() {
     let migration = include_str!("../../../migrations/056_algolia_import_jobs.sql");
+    let erased_ack_migration =
+        include_str!("../../../migrations/060_algolia_import_erased_ack_checks.sql");
     assert_migration_enum_values(
         migration,
         "CHECK (status IN (",
@@ -58,13 +60,23 @@ fn reservation_lifetime_denominator_matches_model_and_schema_once() {
         "publication_disposition = 'unchanged'",
         "engine_ack_state = 'pending'",
         "CHECK (status <> 'interrupted' OR (",
+        "CHECK (engine_ack_state <> 'not_applicable' OR (",
+        "CHECK (engine_ack_state <> 'seal_acknowledged' OR (",
+        "CHECK (engine_ack_state NOT IN ('outbox_pending', 'acknowledged') OR (",
+    ] {
+        assert!(
+            migration.contains(required_constraint),
+            "migration 056 must retain reservation denominator constraint {required_constraint}"
+        );
+    }
+    for required_constraint in [
         "CHECK (engine_ack_state <> 'not_applicable' OR erased_at IS NOT NULL OR (",
         "CHECK (engine_ack_state <> 'seal_acknowledged' OR erased_at IS NOT NULL OR (",
         "CHECK (engine_ack_state NOT IN ('outbox_pending', 'acknowledged') OR erased_at IS NOT NULL OR (",
     ] {
         assert!(
-            migration.contains(required_constraint),
-            "migration 056 must retain reservation denominator constraint {required_constraint}"
+            erased_ack_migration.contains(required_constraint),
+            "migration 060 must own erased tombstone ACK relaxation {required_constraint}"
         );
     }
 

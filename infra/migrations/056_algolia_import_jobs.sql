@@ -259,7 +259,7 @@ CREATE TABLE algolia_import_jobs (
         dispatch_intent_state <> 'absent'
         AND engine_job_id IS NOT NULL
     )),
-    CHECK (engine_ack_state <> 'not_applicable' OR erased_at IS NOT NULL OR (
+    CHECK (engine_ack_state <> 'not_applicable' OR (
         status = 'failed'
         AND publication_disposition = 'not_started'
         AND dispatch_intent_state = 'absent'
@@ -267,13 +267,13 @@ CREATE TABLE algolia_import_jobs (
         AND error_code IS NOT NULL
         AND retryable = FALSE
     )),
-    CHECK (engine_ack_state <> 'seal_acknowledged' OR erased_at IS NOT NULL OR (
+    CHECK (engine_ack_state <> 'seal_acknowledged' OR (
         status = 'interrupted'
         AND publication_disposition = 'not_started'
         AND dispatch_intent_state <> 'absent'
         AND engine_job_id IS NULL
     )),
-    CHECK (engine_ack_state NOT IN ('outbox_pending', 'acknowledged') OR erased_at IS NOT NULL OR (
+    CHECK (engine_ack_state NOT IN ('outbox_pending', 'acknowledged') OR (
         status IN ('cancelled', 'completed', 'completed_with_warnings', 'failed', 'interrupted')
         AND dispatch_intent_state <> 'absent'
         AND engine_job_id IS NOT NULL

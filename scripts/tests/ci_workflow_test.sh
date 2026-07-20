@@ -374,7 +374,8 @@ assert_deploy_uploads_use_git_sha() {
 assert_deploy_has_s3_overwrite_guard() {
   local deploy_block
   deploy_block="$(job_block "deploy-staging")"
-  if _grep -n 'aws s3 ls|aws s3api head-object|aws s3api list-objects-v2' <<<"$deploy_block" >/dev/null 2>&1; then
+  if _grep -n 'release_artifacts_existing_count fjcloud-releases-staging "\$\{ARTIFACT_PREFIX\}"' <<<"$deploy_block" >/dev/null 2>&1 \
+    && _grep -n 'aws s3api list-objects-v2' ops/scripts/lib/release_artifacts.sh >/dev/null 2>&1; then
     pass "deploy-staging checks artifact existence before upload"
   else
     fail "deploy-staging must check S3 artifact existence before upload to prevent overwrite"
@@ -540,6 +541,8 @@ assert_job_contains_regex "deploy-staging" 'role-to-assume:\s+\$\{\{\s*secrets\.
 assert_job_contains_regex "deploy-staging" 'name:\s+Build release binaries' "deploy-staging has build step"
 assert_job_contains_regex "deploy-staging" 'cargo build --release .* -p retention-job' "deploy-staging builds retention-job release binary"
 assert_job_contains_regex "deploy-prod" 'cargo build --release .* -p retention-job' "deploy-prod builds retention-job release binary"
+assert_job_contains_regex "deploy-prod" 'source ops/scripts/lib/release_artifacts\.sh' "deploy-prod uses shared release artifact helper"
+assert_job_contains_regex "deploy-prod" 'release_artifacts_reuse_existing fjcloud-releases-prod "\$\{ARTIFACT_PREFIX\}" infra/rollback_contract\.json' "deploy-prod reruns reuse matching prod artifacts"
 assert_job_not_contains_regex "deploy-staging" 'dnf install -y curl' "deploy-staging does not install curl package in Amazon Linux (curl-minimal conflict)"
 assert_job_not_contains_regex "deploy-staging" 'curl\s+https://sh\.rustup\.rs.*\|\s*sh' "deploy-staging avoids curl-pipe-shell remote installer execution"
 assert_job_contains_regex "deploy-staging" 'dnf install -y .*rust.*cargo' "deploy-staging installs rust/cargo from distro packages"
@@ -552,7 +555,9 @@ done
 assert_job_contains_regex "deploy-staging" "if:\s+github\\.repository == 'gridl-infra-staging/fjcloud' && github\\.ref == 'refs/heads/main' && github\\.event_name == 'push'" "deploy-staging is gated to main push on the staging mirror repo"
 assert_job_contains_regex "deploy-prod" "if:\s+github\\.repository == 'gridl-infra-prod/fjcloud' && github\\.ref == 'refs/heads/main' && github\\.event_name == 'push'" "deploy-prod is gated to main push on the prod mirror repo"
 assert_job_contains_regex "deploy-staging" 'ARTIFACT_PREFIX="staging/\$\{GITHUB_SHA\}/"' "deploy-staging scopes artifact prefix to staging SHA path"
-assert_job_contains_regex "deploy-staging" 'aws s3api list-objects-v2 --bucket fjcloud-releases-staging --prefix "\$\{ARTIFACT_PREFIX\}" --max-items 1' "deploy-staging performs pre-write S3 list-objects-v2 overwrite guard for staging bucket"
+assert_job_contains_regex "deploy-staging" 'source ops/scripts/lib/release_artifacts\.sh' "deploy-staging uses shared release artifact helper"
+assert_job_contains_regex "deploy-staging" 'release_artifacts_existing_count fjcloud-releases-staging "\$\{ARTIFACT_PREFIX\}"' "deploy-staging checks existing staging artifacts through shared helper"
+assert_job_contains_regex "deploy-staging" 'release_artifacts_reuse_existing fjcloud-releases-staging "\$\{ARTIFACT_PREFIX\}" infra/rollback_contract\.json' "deploy-staging reruns reuse matching staging artifacts"
 assert_job_contains_regex "deploy-staging" 'aws s3 cp infra/fjcloud-api s3://fjcloud-releases-staging/staging/\$\{GITHUB_SHA\}/fjcloud-api' "deploy-staging uploads fjcloud-api to staging SHA path"
 assert_job_contains_regex "deploy-staging" 'aws s3 cp infra/fj-metering-agent s3://fjcloud-releases-staging/staging/\$\{GITHUB_SHA\}/fj-metering-agent' "deploy-staging uploads fj-metering-agent to staging SHA path"
 assert_job_contains_regex "deploy-staging" 'aws s3 cp infra/fjcloud-aggregation-job s3://fjcloud-releases-staging/staging/\$\{GITHUB_SHA\}/fjcloud-aggregation-job' "deploy-staging uploads fjcloud-aggregation-job to staging SHA path"

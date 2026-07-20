@@ -167,7 +167,8 @@ assert_deploy_staging_role_to_assume_secret_only
 
 echo ""
 echo "--- Release bucket boundary checks ---"
-assert_file_contains "$workflow_file" 'aws s3api list-objects-v2 --bucket fjcloud-releases-staging --prefix "\$\{ARTIFACT_PREFIX\}" --max-items 1' "workflow enforces list-before-write against staging release bucket"
+assert_file_contains "$workflow_file" 'release_artifacts_existing_count fjcloud-releases-staging "\$\{ARTIFACT_PREFIX\}"' "workflow enforces list-before-write through shared staging release artifact helper"
+assert_file_contains "$workflow_file" 'release_artifacts_reuse_existing fjcloud-releases-staging "\$\{ARTIFACT_PREFIX\}" infra\/rollback_contract\.json' "workflow reuses existing staging release artifacts only through matching manifest helper"
 assert_file_contains "$workflow_file" 's3://fjcloud-releases-staging/staging/\$\{GITHUB_SHA\}/fjcloud-api' "workflow upload path is scoped to staging SHA for fjcloud-api"
 assert_file_contains "$workflow_file" 's3://fjcloud-releases-staging/staging/\$\{GITHUB_SHA\}/fj-metering-agent' "workflow upload path is scoped to staging SHA for fj-metering-agent"
 assert_file_contains "$workflow_file" 's3://fjcloud-releases-staging/staging/\$\{GITHUB_SHA\}/fjcloud-aggregation-job' "workflow upload path is scoped to staging SHA for fjcloud-aggregation-job"

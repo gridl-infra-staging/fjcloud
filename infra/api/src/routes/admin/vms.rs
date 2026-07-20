@@ -11,6 +11,7 @@ use crate::auth::AdminAuth;
 use crate::errors::ApiError;
 use crate::models::tenant::CustomerTenant;
 use crate::models::vm_inventory::VmInventory;
+use crate::provisioner::VmStatus;
 use crate::repos::advisory_lock::{advisory_lock, auto_provision_lock_key};
 use crate::repos::{
     VmDecommissionResult, VmRetirementAssessment, VmRetirementBlocker, VmRetirementConflict,
@@ -214,16 +215,35 @@ async fn active_shared_warm_floor_vms(
     provider: &str,
 ) -> Result<Vec<VmInventory>, ApiError> {
     let vms = state.vm_inventory_repo.list_active(Some(region)).await?;
-    Ok(vms
-        .into_iter()
-        .filter(|vm| vm.provider == provider)
-        .filter(|vm| {
-            is_canonical_shared_vm_hostname_for_domain(
+    let mut provider_verified_vms = Vec::new();
+    for vm in vms {
+        if vm.provider != provider
+            || !is_canonical_shared_vm_hostname_for_domain(
                 &vm.hostname,
                 &state.provisioning_service.dns_domain,
             )
-        })
-        .collect())
+        {
+            continue;
+        }
+
+        let provider_match = state
+            .vm_provisioner
+            .find_running_vm_by_hostname(provider, region, &vm.hostname)
+            .await
+            .map_err(|e| {
+                ApiError::ServiceUnavailable(format!(
+                    "failed to verify shared VM provider state: {e}"
+                ))
+            })?;
+        if provider_match
+            .as_ref()
+            .is_some_and(|instance| instance.status == VmStatus::Running)
+        {
+            provider_verified_vms.push(vm);
+        }
+    }
+
+    Ok(provider_verified_vms)
 }
 
 /// Resolve the provider VM ID by looking up deployments for tenants on this VM.

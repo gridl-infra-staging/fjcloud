@@ -1,3 +1,4 @@
+use api::provisioner::VmStatus;
 use api::repos::vm_inventory_repo::VmInventoryRepo;
 use axum::http::{Request, StatusCode};
 use serde_json::json;
@@ -39,6 +40,7 @@ fn warm_floor_test_app(
     vm_inventory_repo: Arc<crate::common::MockVmInventoryRepo>,
     vm_provisioner: Arc<api::provisioner::mock::MockVmProvisioner>,
 ) -> axum::Router {
+    vm_provisioner.set_create_status(VmStatus::Running);
     TestStateBuilder::new()
         .with_vm_inventory_repo(vm_inventory_repo)
         .with_provisioner(vm_provisioner)
@@ -149,6 +151,12 @@ async fn warm_floor_reuses_existing_canonical_shared_aws_vm_only() {
         .await
         .unwrap();
     let vm_provisioner = crate::common::mock_vm_provisioner();
+    vm_provisioner.seed_vm_for_hostname(
+        "vm-shared-existing.flapjack.foo",
+        "mock-existing",
+        VmStatus::Running,
+        "us-east-1",
+    );
     let app = warm_floor_test_app(vm_inventory_repo, vm_provisioner.clone());
 
     let response = post_warm_floor(
@@ -172,6 +180,41 @@ async fn warm_floor_reuses_existing_canonical_shared_aws_vm_only() {
 }
 
 #[tokio::test]
+async fn warm_floor_ignores_canonical_inventory_row_without_running_provider_match() {
+    let vm_inventory_repo = mock_vm_inventory_repo();
+    vm_inventory_repo.seed("us-east-1", "https://vm-shared-stale.flapjack.foo");
+    let vm_provisioner = crate::common::mock_vm_provisioner();
+    let app = warm_floor_test_app(vm_inventory_repo.clone(), vm_provisioner.clone());
+
+    let response = post_warm_floor(
+        app,
+        json!({"region":"us-east-1","provider":"aws","desired_count":1}),
+        Some(TEST_ADMIN_KEY),
+    )
+    .await;
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = response_json(response).await;
+    assert_eq!(body["before_count"], 0);
+    assert_eq!(body["created_count"], 1);
+    assert_eq!(body["active_count"], 1);
+    assert_eq!(vm_provisioner.create_call_count(), 1);
+
+    let created_vms = body["created_vms"].as_array().unwrap();
+    assert_eq!(created_vms.len(), 1);
+    assert_ne!(created_vms[0]["hostname"], "vm-shared-stale.flapjack.foo");
+    assert_eq!(
+        vm_inventory_repo
+            .list_active(Some("us-east-1"))
+            .await
+            .unwrap()
+            .len(),
+        2,
+        "the stale inventory row remains, but it must not satisfy the floor"
+    );
+}
+
+#[tokio::test]
 async fn warm_floor_ignores_canonical_shared_vm_from_different_dns_domain() {
     let vm_inventory_repo = mock_vm_inventory_repo();
     vm_inventory_repo.seed(
@@ -179,6 +222,7 @@ async fn warm_floor_ignores_canonical_shared_vm_from_different_dns_domain() {
         "http://vm-shared-staging.staging.flapjack.foo:7700",
     );
     let vm_provisioner = crate::common::mock_vm_provisioner();
+    vm_provisioner.set_create_status(VmStatus::Running);
     let app = TestStateBuilder::new()
         .with_dns_domain("flapjack.foo")
         .with_vm_inventory_repo(vm_inventory_repo.clone())
@@ -304,6 +348,12 @@ async fn warm_floor_concurrent_retry_at_one_does_not_call_provisioning() {
     let vm_inventory_repo = mock_vm_inventory_repo();
     vm_inventory_repo.seed("us-east-1", "https://vm-shared-existing.flapjack.foo");
     let vm_provisioner = crate::common::mock_vm_provisioner();
+    vm_provisioner.seed_vm_for_hostname(
+        "vm-shared-existing.flapjack.foo",
+        "mock-existing",
+        VmStatus::Running,
+        "us-east-1",
+    );
     let app = warm_floor_test_app(vm_inventory_repo.clone(), vm_provisioner.clone());
     let request = json!({"region":"us-east-1","provider":"aws","desired_count":1});
 

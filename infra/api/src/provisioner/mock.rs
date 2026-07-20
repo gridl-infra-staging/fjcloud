@@ -9,7 +9,9 @@ use super::{CreateVmRequest, VmInstance, VmProvisioner, VmProvisionerError, VmSt
 
 pub struct MockVmProvisioner {
     vms: Mutex<HashMap<String, VmInstance>>,
+    hostnames: Mutex<HashMap<String, String>>,
     last_create_request: Mutex<Option<CreateVmRequest>>,
+    create_status: Mutex<VmStatus>,
     create_calls: AtomicUsize,
     pub should_fail: Arc<AtomicBool>,
     pub omit_public_ip: Arc<AtomicBool>,
@@ -19,7 +21,9 @@ impl MockVmProvisioner {
     pub fn new() -> Self {
         Self {
             vms: Mutex::new(HashMap::new()),
+            hostnames: Mutex::new(HashMap::new()),
             last_create_request: Mutex::new(None),
+            create_status: Mutex::new(VmStatus::Pending),
             create_calls: AtomicUsize::new(0),
             should_fail: Arc::new(AtomicBool::new(false)),
             omit_public_ip: Arc::new(AtomicBool::new(false)),
@@ -37,6 +41,10 @@ impl MockVmProvisioner {
 
     pub fn set_should_fail(&self, fail: bool) {
         self.should_fail.store(fail, Ordering::SeqCst);
+    }
+
+    pub fn set_create_status(&self, status: VmStatus) {
+        *self.create_status.lock().unwrap() = status;
     }
 
     /// Returns the number of VMs currently tracked (for test assertions).
@@ -57,6 +65,20 @@ impl MockVmProvisioner {
             .lock()
             .unwrap()
             .insert(provider_vm_id.to_string(), instance);
+    }
+
+    pub fn seed_vm_for_hostname(
+        &self,
+        hostname: &str,
+        provider_vm_id: &str,
+        status: VmStatus,
+        region: &str,
+    ) {
+        self.seed_vm(provider_vm_id, status, region);
+        self.hostnames
+            .lock()
+            .unwrap()
+            .insert(hostname.to_string(), provider_vm_id.to_string());
     }
 
     fn check_failure(&self) -> Result<(), VmProvisionerError> {
@@ -93,12 +115,16 @@ impl VmProvisioner for MockVmProvisioner {
             provider_vm_id: provider_vm_id.clone(),
             public_ip,
             private_ip: Some("10.0.0.1".to_string()),
-            status: VmStatus::Pending,
+            status: self.create_status.lock().unwrap().clone(),
             region: config.region.clone(),
         };
 
         let mut vms = self.vms.lock().unwrap();
-        vms.insert(provider_vm_id, instance.clone());
+        vms.insert(provider_vm_id.clone(), instance.clone());
+        self.hostnames
+            .lock()
+            .unwrap()
+            .insert(config.hostname.clone(), provider_vm_id);
         Ok(instance)
     }
 
@@ -108,6 +134,10 @@ impl VmProvisioner for MockVmProvisioner {
         // Idempotent: matches real EC2 TerminateInstances behavior where destroying
         // an already-terminated (or non-existent) instance is a no-op.
         self.vms.lock().unwrap().remove(provider_vm_id);
+        self.hostnames
+            .lock()
+            .unwrap()
+            .retain(|_, vm_id| vm_id != provider_vm_id);
         Ok(())
     }
 
@@ -162,5 +192,31 @@ impl VmProvisioner for MockVmProvisioner {
             .ok_or_else(|| VmProvisionerError::VmNotFound(provider_vm_id.to_string()))?;
 
         Ok(vm.status.clone())
+    }
+
+    async fn find_running_vm_by_hostname(
+        &self,
+        provider: &str,
+        region: &str,
+        hostname: &str,
+    ) -> Result<Option<VmInstance>, VmProvisionerError> {
+        self.check_failure()?;
+        if provider != "aws" {
+            return Err(VmProvisionerError::Api(format!(
+                "mock provider cannot resolve provider {provider}"
+            )));
+        }
+
+        let Some(provider_vm_id) = self.hostnames.lock().unwrap().get(hostname).cloned() else {
+            return Ok(None);
+        };
+        let Some(vm) = self.vms.lock().unwrap().get(&provider_vm_id).cloned() else {
+            return Ok(None);
+        };
+        if vm.region == region && vm.status == VmStatus::Running {
+            Ok(Some(vm))
+        } else {
+            Ok(None)
+        }
     }
 }

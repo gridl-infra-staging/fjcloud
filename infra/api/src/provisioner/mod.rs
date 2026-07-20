@@ -64,6 +64,14 @@ pub trait VmProvisioner: Send + Sync {
     async fn stop_vm(&self, provider_vm_id: &str) -> Result<(), VmProvisionerError>;
     async fn start_vm(&self, provider_vm_id: &str) -> Result<(), VmProvisionerError>;
     async fn get_vm_status(&self, provider_vm_id: &str) -> Result<VmStatus, VmProvisionerError>;
+    async fn find_running_vm_by_hostname(
+        &self,
+        _provider: &str,
+        _region: &str,
+        _hostname: &str,
+    ) -> Result<Option<VmInstance>, VmProvisionerError> {
+        Err(VmProvisionerError::NotConfigured)
+    }
 }
 
 /// Returns `VmProvisionerError::NotConfigured` for all methods.

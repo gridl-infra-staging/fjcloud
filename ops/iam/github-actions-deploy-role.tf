@@ -36,7 +36,9 @@ resource "aws_iam_role" "fjcloud_deploy" {
         StringLike = {
           "token.actions.githubusercontent.com:sub" = [
             "repo:gridl-infra-staging/fjcloud:ref:refs/heads/main",
+            "repo:gridl-infra-staging@266610945/fjcloud@1304385248:ref:refs/heads/main",
             "repo:gridl-infra-prod/fjcloud:ref:refs/heads/main",
+            "repo:gridl-infra-prod@266611019/fjcloud@1304409978:ref:refs/heads/main",
           ]
         }
         StringEquals = {

@@ -69,6 +69,11 @@ run_post_strip_sync_commit_push() {
     chmod +x "$target_root/$script_path"
   done
 
+  # Private deploy proof can be present in a dirty dev worktree while a release
+  # is being promoted. It is intentionally excluded from the copy projection;
+  # prune any older mirror copy before committing so exclusions cannot strand it.
+  rm -rf "$target_root/docs/runbooks/evidence/prod-fleet-rebuild"
+
   dirty_state="$(git -C "$target_root" status --porcelain)"
   if [[ -z "$dirty_state" ]]; then
     return

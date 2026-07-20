@@ -1,8 +1,0 @@
-
-debbie sync -> staging
-  project: fjcloud
-  config:  
-/Users/stuart/.matt/merge-worktrees/fjcloud_stage4_release_7d4e49e82697/.debbie.
-toml
-  DOWNSTREAM: ci-automated: deploy-web step in mirror ci.yml deploy-staging
-

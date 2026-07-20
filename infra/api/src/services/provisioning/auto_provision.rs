@@ -28,6 +28,13 @@ struct SharedVmDraft {
     node_id: String,
 }
 
+struct SharedVmRegistration<'a> {
+    draft: &'a SharedVmDraft,
+    provider_vm_id: &'a str,
+    region: &'a str,
+    provider: &'a str,
+}
+
 impl ProvisioningService {
     pub async fn auto_provision_shared_vm(
         &self,
@@ -83,49 +90,27 @@ impl ProvisioningService {
             return Err(ProvisioningError::DnsFailed(e.to_string()));
         }
 
-        if matches!(
-            await_engine_health(
-                self.engine_health_client.clone(),
-                Some(draft.flapjack_url.clone()),
-                self.engine_health_wait_policy,
-            )
-            .await,
-            EngineHealthWaitStatus::DeadlineExhausted
-        ) {
-            self.cleanup_failed_shared_vm_registration(
-                &draft.hostname,
-                &vm_instance.provider_vm_id,
-                &draft.node_id,
-                region,
+        let registration = SharedVmRegistration {
+            draft: &draft,
+            provider_vm_id: &vm_instance.provider_vm_id,
+            region,
+            provider,
+        };
+        let vm_row = self
+            .register_shared_vm_inventory(vm_inventory_repo, &registration)
+            .await?;
+
+        if self.shared_vm_health_deadline_exhausted(&draft).await {
+            self.cleanup_unhealthy_shared_vm_registration(
+                vm_inventory_repo,
+                &vm_row,
+                &registration,
             )
             .await;
             return Err(ProvisioningError::ProvisionerFailed(
                 ENGINE_HEALTH_FAILURE_REASON.into(),
             ));
         }
-
-        let vm_row = match vm_inventory_repo
-            .create(NewVmInventory {
-                region: region.to_string(),
-                provider: provider.to_string(),
-                hostname: draft.hostname.clone(),
-                flapjack_url: draft.flapjack_url.clone(),
-                capacity: default_shared_vm_capacity(),
-            })
-            .await
-        {
-            Ok(vm) => vm,
-            Err(e) => {
-                self.cleanup_failed_shared_vm_registration(
-                    &draft.hostname,
-                    &vm_instance.provider_vm_id,
-                    &draft.node_id,
-                    region,
-                )
-                .await;
-                return Err(ProvisioningError::RepoError(e.to_string()));
-            }
-        };
 
         info!(
             region = %region,
@@ -136,6 +121,71 @@ impl ProvisioningService {
         );
 
         Ok(vm_row)
+    }
+
+    async fn register_shared_vm_inventory(
+        &self,
+        vm_inventory_repo: &(dyn VmInventoryRepo + Send + Sync),
+        registration: &SharedVmRegistration<'_>,
+    ) -> Result<VmInventory, ProvisioningError> {
+        match vm_inventory_repo
+            .create(NewVmInventory {
+                region: registration.region.to_string(),
+                provider: registration.provider.to_string(),
+                hostname: registration.draft.hostname.clone(),
+                flapjack_url: registration.draft.flapjack_url.clone(),
+                capacity: default_shared_vm_capacity(),
+            })
+            .await
+        {
+            Ok(vm) => Ok(vm),
+            Err(e) => {
+                self.cleanup_failed_shared_vm_registration(
+                    &registration.draft.hostname,
+                    registration.provider_vm_id,
+                    &registration.draft.node_id,
+                    registration.region,
+                )
+                .await;
+                Err(ProvisioningError::RepoError(e.to_string()))
+            }
+        }
+    }
+
+    async fn shared_vm_health_deadline_exhausted(&self, draft: &SharedVmDraft) -> bool {
+        matches!(
+            await_engine_health(
+                self.engine_health_client.clone(),
+                Some(draft.flapjack_url.clone()),
+                self.engine_health_wait_policy,
+            )
+            .await,
+            EngineHealthWaitStatus::DeadlineExhausted
+        )
+    }
+
+    async fn cleanup_unhealthy_shared_vm_registration(
+        &self,
+        vm_inventory_repo: &(dyn VmInventoryRepo + Send + Sync),
+        vm_row: &VmInventory,
+        registration: &SharedVmRegistration<'_>,
+    ) {
+        if let Err(e) = vm_inventory_repo
+            .set_status(vm_row.id, "decommissioned")
+            .await
+        {
+            error!(
+                "rollback: failed to decommission unhealthy shared VM inventory {}: {e}",
+                vm_row.id
+            );
+        }
+        self.cleanup_failed_shared_vm_registration(
+            &registration.draft.hostname,
+            registration.provider_vm_id,
+            &registration.draft.node_id,
+            registration.region,
+        )
+        .await;
     }
 
     fn build_shared_vm_draft(&self) -> SharedVmDraft {

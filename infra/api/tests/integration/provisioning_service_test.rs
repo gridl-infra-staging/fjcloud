@@ -873,14 +873,22 @@ async fn auto_provision_shared_vm_engine_health_never_answering_fails_and_cleans
     );
     assert_eq!(
         vm_inventory_repo.create_call_count(),
-        0,
-        "shared VM inventory must not be inserted before engine health is observed"
+        1,
+        "shared VM inventory must be registered before the long health wait"
+    );
+    assert!(
+        vm_inventory_repo
+            .list_active(Some("us-east-1"))
+            .await
+            .expect("list active shared VM rows")
+            .is_empty(),
+        "engine health failure must not leave an active shared VM inventory row"
     );
 }
 
 #[tokio::test]
 #[allow(clippy::await_holding_lock)]
-async fn auto_provision_shared_vm_engine_health_healthy_inserts_active_after_wait() {
+async fn auto_provision_shared_vm_engine_health_healthy_registers_before_wait() {
     let _env_guard = engine_health_env_lock();
     let _local_url = EnvVarGuard::unset("LOCAL_DEV_FLAPJACK_URL");
     let _regions = EnvVarGuard::unset("FLAPJACK_REGIONS");
@@ -916,8 +924,17 @@ async fn auto_provision_shared_vm_engine_health_healthy_inserts_active_after_wai
     .await;
     assert_eq!(
         vm_inventory_repo.create_call_count(),
-        0,
-        "healthy shared path must not insert vm_inventory while health is blocked"
+        1,
+        "shared warm floor must have an inventory owner before the long health wait can outlive the caller"
+    );
+    let active_rows = vm_inventory_repo
+        .list_active(Some("us-east-1"))
+        .await
+        .expect("list active shared VM rows");
+    assert_eq!(
+        active_rows.len(),
+        1,
+        "the provider VM must be product-owned while engine health is still pending"
     );
 
     engine_health.release_attempt();
@@ -934,8 +951,72 @@ async fn auto_provision_shared_vm_engine_health_healthy_inserts_active_after_wai
     assert_eq!(
         engine_health.attempts(),
         1,
-        "shared healthy path must observe the injected engine before inventory insert"
+        "shared healthy path must still observe the injected engine before returning"
     );
+}
+
+#[tokio::test]
+#[allow(clippy::await_holding_lock)]
+async fn auto_provision_shared_vm_caller_cancellation_after_dns_keeps_inventory_owner() {
+    let _env_guard = engine_health_env_lock();
+    let _local_url = EnvVarGuard::unset("LOCAL_DEV_FLAPJACK_URL");
+    let _regions = EnvVarGuard::unset("FLAPJACK_REGIONS");
+    let engine_health = crate::common::engine_health::EngineHealthClient::healthy_after_release();
+
+    let (
+        svc,
+        _customer_repo,
+        _deployment_repo,
+        vm_provisioner,
+        dns_manager,
+        _ssm,
+        vm_inventory_repo,
+    ) = default_service_with_vm_inventory_and_engine_health(Arc::clone(&engine_health));
+
+    let svc = Arc::clone(&svc);
+    let vm_inventory_for_task = Arc::clone(&vm_inventory_repo);
+    let mut provision = tokio::spawn(async move {
+        svc.auto_provision_shared_vm(
+            vm_inventory_for_task.as_ref(),
+            "us-east-1",
+            "aws",
+            SharedVmProvisioningMode::AllowLocalDevBypass,
+        )
+        .await
+    });
+
+    wait_for_blocked_engine_health_attempt(
+        engine_health.as_ref(),
+        &mut provision,
+        "shared cancelled engine-health gate",
+    )
+    .await;
+    provision.abort();
+    let join_error = provision
+        .await
+        .expect_err("simulated caller timeout should cancel the provisioning future");
+    assert!(join_error.is_cancelled());
+
+    assert_eq!(
+        vm_provisioner.vm_count(),
+        1,
+        "the simulated timeout occurs after provider VM creation"
+    );
+    assert_eq!(
+        dns_manager.get_records().len(),
+        1,
+        "the simulated timeout occurs after DNS registration"
+    );
+    let active_rows = vm_inventory_repo
+        .list_active(Some("us-east-1"))
+        .await
+        .expect("list active shared VM rows");
+    assert_eq!(
+        active_rows.len(),
+        1,
+        "caller timeout must not leave the running provider VM outside vm_inventory"
+    );
+    assert!(active_rows[0].hostname.starts_with("vm-shared-"));
 }
 
 #[tokio::test]

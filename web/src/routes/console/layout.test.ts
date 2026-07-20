@@ -617,6 +617,7 @@ describe('Dashboard layout sidebar navigation', () => {
 		renderLayout();
 
 		expect(screen.queryByRole('link', { name: 'Migrate' })).not.toBeInTheDocument();
+		expect(screen.queryByRole('link', { name: /migration history/i })).not.toBeInTheDocument();
 	});
 
 	it('treats /console/settings as an alias of /console/account for active nav styling', async () => {

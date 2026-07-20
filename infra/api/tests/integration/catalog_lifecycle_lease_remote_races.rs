@@ -1,8 +1,8 @@
 use super::*;
 
 fn take_reservation_race_result(
-    result: &Arc<Mutex<Option<Result<AlgoliaImportJob, RepoError>>>>,
-) -> Result<AlgoliaImportJob, RepoError> {
+    result: &Arc<Mutex<Option<Result<AlgoliaImportJob, AlgoliaImportJobAdmissionError>>>>,
+) -> Result<AlgoliaImportJob, AlgoliaImportJobAdmissionError> {
     result
         .lock()
         .unwrap()
@@ -35,8 +35,19 @@ async fn route_race_snapshot(pool: &PgPool, customer_id: Uuid, target: &str) -> 
     }
 }
 
+#[test]
+fn race_matrix_denominator_matches_blocking_inventory_once() {
+    catalog_lifecycle_lease_race_matrix::assert_denominator_matches_blocking_inventory_once();
+}
+
+#[test]
+fn expired_worker_claim_matrix_covers_retained_states_and_owner_families_once() {
+    catalog_lifecycle_lease_race_matrix::assert_expired_claim_matrix_covers_retained_states_once();
+}
+
 #[tokio::test]
-async fn create_index_on_shared_vm_reservation_wins_before_intent() {
+async fn create_index_on_shared_vm_reservation_races_after_intent_before_remote_work_reservation_wins(
+) {
     assert_create_route_refuses_reservation(
         "catalog_route_create_reservation_before_intent",
         ActiveReservationKind::Import,
@@ -161,7 +172,9 @@ async fn create_index_on_shared_vm_reservation_races_after_intent_before_remote_
     assert!(
         matches!(
             &reservation,
-            Err(RepoError::Conflict(message)) if message == "destination_changed"
+            Err(AlgoliaImportJobAdmissionError::Refused(
+                AlgoliaImportErrorCode::DestinationChanged
+            ))
         ),
         "route-owned provisioning intent must make the later reservation lose with destination_changed, got {reservation:?}"
     );
@@ -372,7 +385,7 @@ async fn create_index_on_shared_vm_remote_failure_rolls_back_owned_intent() {
 }
 
 #[tokio::test]
-async fn delete_index_reservation_wins_before_intent() {
+async fn delete_index_reservation_races_after_intent_before_finalization_reservation_wins() {
     assert_delete_route_refuses_reservation(
         "catalog_route_delete_reservation_before_intent",
         ActiveReservationKind::Replacement,
@@ -542,7 +555,9 @@ async fn delete_index_reservation_races_after_intent_before_finalization() {
     assert!(
         matches!(
             &reservation,
-            Err(RepoError::Conflict(message)) if message == "destination_conflict"
+            Err(AlgoliaImportJobAdmissionError::Refused(
+                AlgoliaImportErrorCode::DestinationConflict
+            ))
         ),
         "route-owned deleting intent must make the later reservation lose with a stable destination conflict, got {reservation:?}"
     );
@@ -599,7 +614,9 @@ async fn cold_tier_intent_blocks_replace_reservation_before_remote_export() {
     assert!(
         matches!(
             node_client.take_replace_reservation_result(),
-            Err(RepoError::Conflict(message)) if message == "destination_conflict"
+            Err(AlgoliaImportJobAdmissionError::Refused(
+                AlgoliaImportErrorCode::DestinationConflict
+            ))
         ),
         "the persisted cold intent must exclude replacement import admission"
     );
@@ -677,4 +694,281 @@ async fn cold_tier_failure_rollback_preserves_service_type_drift() {
         snapshots[0].status, "exporting",
         "stale rollback must not compensate the operation intent after identity drift"
     );
+}
+
+// ---------------------------------------------------------------------------
+// Canonical service-owner two-ordering race selections
+//
+// Owner-wins race bodies and ordinary-writer-wins reservation bodies live as
+// shared `assert_*` helpers in `catalog_lifecycle_leases`; the thin
+// `#[tokio::test]` wrappers below give both orderings the canonical
+// `race_matrix_focused_selection` names in this module without duplicating the
+// harness.
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn region_failover_races_after_intent_before_remote_work() {
+    assert_region_failover_promotion_race_after_intent().await;
+}
+
+#[test]
+fn region_failover_races_after_intent_before_remote_work_reservation_wins() {
+    region_failover_rejects_active_replace_reservation();
+}
+
+#[tokio::test]
+async fn replica_create_remove_races_after_intent_before_remote_work() {
+    assert_replica_create_race_after_intent().await;
+}
+
+#[test]
+fn replica_create_remove_races_after_intent_before_remote_work_reservation_wins_create() {
+    replica_service_create_replica_rejects_active_replace_reservation();
+}
+
+#[tokio::test]
+async fn replica_create_remove_races_after_intent_before_remote_work_remove() {
+    assert_replica_remove_race_after_intent().await;
+}
+
+#[test]
+fn replica_create_remove_races_after_intent_before_remote_work_reservation_wins_remove() {
+    replica_service_remove_replica_rejects_active_replace_reservation();
+}
+
+#[tokio::test]
+async fn restore_lifecycle_races_after_intent_before_remote_work() {
+    assert_restore_execute_race_after_intent().await;
+}
+
+#[test]
+fn restore_lifecycle_races_after_intent_before_remote_work_reservation_wins_initiate() {
+    restore_service_initiate_restore_rejects_active_replace_reservation();
+}
+
+#[tokio::test]
+async fn restore_lifecycle_races_after_intent_before_remote_work_initiate() {
+    assert_restore_initiate_race_after_intent().await;
+}
+
+/// Exercise every migration intent-window path (execute, rollback probe, failure
+/// probe) under the canonical migration selection. Each path proves the
+/// persisted `migrating` intent excludes competing import (`destination_changed`)
+/// and replacement (`destination_conflict`) admission before any remote HTTP work.
+#[tokio::test]
+async fn migration_lifecycle_races_after_intent_before_remote_work() {
+    for path in [
+        MigrationIntentPath::Execute,
+        MigrationIntentPath::ProbeRollback,
+        MigrationIntentPath::ProbeFailure,
+    ] {
+        assert_migration_intent_window_blocks_admission(path).await;
+    }
+}
+
+#[test]
+fn migration_lifecycle_races_after_intent_before_remote_work_reservation_wins_begin() {
+    migration_begin_rejects_active_replace_reservation();
+}
+
+#[test]
+fn migration_lifecycle_races_after_intent_before_remote_work_reservation_wins_rollback() {
+    migration_rollback_rejects_active_replace_reservation_before_remote_work();
+}
+
+#[test]
+fn cold_tier_intent_blocks_replace_reservation_before_remote_export_reservation_wins_snapshot() {
+    cold_tier_snapshot_rejects_active_replace_reservation();
+}
+
+#[test]
+fn cold_tier_intent_blocks_replace_reservation_before_remote_export_reservation_wins_import() {
+    cold_tier_snapshot_rejects_active_import_reservation();
+}
+
+/// Admin seed publishes its operation-owned provisioning intent before the
+/// remote secret work (`create_node_api_key`). A competing import reservation
+/// racing at that boundary must lose with the stable `destination_changed`
+/// conflict, the seed owner must issue zero flapjack index HTTP calls, and the
+/// seed must finalize to an active placement leaving no stale provisioning row.
+#[tokio::test]
+async fn admin_seed_create_races_after_intent_before_remote_secret_work() {
+    let Some(db) = connect_and_migrate("catalog_admin_seed_reservation_after_intent").await else {
+        return;
+    };
+    let customer_repo = mock_repo();
+    let customer = customer_repo
+        .seed_verified_shared_customer("Admin Seed Race", "admin-seed-race-after-intent@test.com");
+    insert_active_customer(&db.pool, customer.id, 1).await;
+    let route_pool = pooled_repo_connections_in_schema(&db.schema).await;
+    let http_client = Arc::new(MockFlapjackHttpClient::default());
+    let reservation_result = Arc::new(Mutex::new(None));
+    let before_remote_snapshot = Arc::new(Mutex::new(None));
+    let customer_id = customer.id;
+    let boundary_hook: LifecycleGuardPauseHook = {
+        let reservation_pool = pool_in_schema(&db.schema).await;
+        let reservation_result = Arc::clone(&reservation_result);
+        let snapshot_pool = pool_in_schema(&db.schema).await;
+        let before_remote_snapshot = Arc::clone(&before_remote_snapshot);
+        Arc::new(move || {
+            let reservation_pool = reservation_pool.clone();
+            let reservation_result = Arc::clone(&reservation_result);
+            let snapshot_pool = snapshot_pool.clone();
+            let before_remote_snapshot = Arc::clone(&before_remote_snapshot);
+            Box::pin(async move {
+                let snapshot = route_race_snapshot(&snapshot_pool, customer_id, "products").await;
+                let discovered =
+                    state_discovery_after_success(&snapshot_pool, customer_id, "products").await;
+                assert!(
+                    matches!(discovered, Err(DiscoveryError::NotFound)),
+                    "seed provisioning intent must not be discoverable before remote secret work, got {discovered:?}"
+                );
+                *before_remote_snapshot.lock().unwrap() = Some(snapshot);
+                let result = PgAlgoliaImportJobRepo::new(reservation_pool)
+                    .create(import_job(
+                        customer_id,
+                        "products",
+                        "admin-seed-race-after-intent",
+                    ))
+                    .await;
+                *reservation_result.lock().unwrap() = Some(result);
+            })
+        })
+    };
+    let node_secret_manager = Arc::new(ObservingSeedSecretManager::new_with_boundary_hook(
+        route_pool.clone(),
+        customer.id,
+        "products",
+        boundary_hook,
+    ));
+    let app = route_test_app_with_node_secret_manager(
+        route_pool.clone(),
+        customer_repo,
+        http_client.clone(),
+        node_secret_manager.clone(),
+    );
+    let before = route_race_snapshot(&db.pool, customer.id, "products").await;
+    assert!(before.tenants.is_empty());
+    assert!(before.deployments.is_empty());
+    assert!(before.replicas.is_empty());
+    assert!(before.operations.is_empty());
+
+    let response = app
+        .oneshot(seed_index_request(
+            customer.id,
+            "products",
+            Some("https://admin-seed-race.invalid"),
+        ))
+        .await
+        .expect("admin seed race response");
+
+    let response_status = response.status();
+    let response_body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("read admin seed race response body");
+    let reservation = take_reservation_race_result(&reservation_result);
+    let at_boundary = take_route_race_snapshot(&before_remote_snapshot);
+    assert_eq!(
+        at_boundary.tenants.len(),
+        1,
+        "seed must commit exactly one provisioning intent before remote secret work"
+    );
+    assert_eq!(at_boundary.tenants[0].tenant_id, "products");
+    assert_eq!(
+        at_boundary.tenants[0].tier, "provisioning",
+        "seed must publish a provisioning intent before remote secret work"
+    );
+    assert_eq!(
+        at_boundary.tenants[0].vm_id, None,
+        "provisioning seed intent must remain non-active before remote secret work"
+    );
+    assert_eq!(
+        at_boundary.tenants[0].service_type, "flapjack",
+        "seed-owned create intent must preserve the flapjack service owner"
+    );
+    assert_eq!(
+        at_boundary.deployments.len(),
+        1,
+        "seed must create exactly one deployment for the lifecycle intent"
+    );
+    assert_eq!(
+        at_boundary.tenants[0].deployment_id, at_boundary.deployments[0].id,
+        "provisioning seed tenant must point at the seed-created deployment"
+    );
+    assert_eq!(
+        at_boundary.replicas, before.replicas,
+        "remote-boundary seed intent must not mutate replica routing"
+    );
+    assert_eq!(
+        at_boundary.operations, before.operations,
+        "remote-boundary seed intent must not create an import operation"
+    );
+    assert_eq!(
+        node_secret_manager.observed_tiers(),
+        vec![Some("provisioning".to_string())],
+        "seed secret work must observe the committed provisioning intent exactly once"
+    );
+    assert_eq!(
+        http_client.request_count(),
+        0,
+        "admin seed create must not issue a flapjack index HTTP call"
+    );
+    assert_eq!(
+        response_status,
+        StatusCode::CREATED,
+        "seed owner must complete after rejecting the later reservation; body={} reservation={reservation:?}",
+        String::from_utf8_lossy(&response_body)
+    );
+    assert!(
+        matches!(
+            &reservation,
+            Err(AlgoliaImportJobAdmissionError::Refused(
+                AlgoliaImportErrorCode::DestinationChanged
+            ))
+        ),
+        "seed-owned provisioning intent must make the later reservation lose with destination_changed, got {reservation:?}"
+    );
+
+    let after = route_race_snapshot(&db.pool, customer.id, "products").await;
+    assert_eq!(after.tenants.len(), 1);
+    assert_eq!(after.tenants[0].tenant_id, "products");
+    assert_eq!(
+        after.tenants[0].tier, "active",
+        "seed must finalize the provisioning intent to an active placement"
+    );
+    assert!(
+        after.tenants[0].vm_id.is_some(),
+        "finalized seed must publish the prepared VM placement"
+    );
+    assert_eq!(after.deployments.len(), 1);
+    assert_eq!(after.tenants[0].deployment_id, after.deployments[0].id);
+    assert_eq!(
+        after.deployments, at_boundary.deployments,
+        "seed finalization must preserve the deployment identity published in the intent"
+    );
+    assert_eq!(
+        after.replicas, before.replicas,
+        "successful seed race must not leave replica mutations"
+    );
+    assert_eq!(
+        after.operations, before.operations,
+        "the losing reservation must not leave an import operation intent"
+    );
+    assert!(
+        after
+            .tenants
+            .iter()
+            .all(|tenant| tenant.tier != "provisioning"),
+        "successful seed race must not leave stale provisioning intents"
+    );
+}
+
+#[test]
+fn admin_seed_create_races_after_intent_before_remote_secret_work_reservation_wins_seed() {
+    seed_index_rejects_active_import_reservation();
+}
+
+#[test]
+fn admin_seed_create_races_after_intent_before_remote_secret_work_reservation_wins_resolve() {
+    resolve_existing_seed_index_rejects_active_replace_reservation();
 }

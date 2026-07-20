@@ -129,8 +129,8 @@
       "disposition": "privacy_transition"
     },
     {
-      "id": "catalog_writer__infra_api_src_routes_indexes_lifecycle__create_replica__replica_service_create_replica",
-      "owner_path": "infra/api/src/routes/indexes/lifecycle.rs",
+      "id": "catalog_writer__infra_api_src_routes_indexes_replicas__create_replica__replica_service_create_replica",
+      "owner_path": "infra/api/src/routes/indexes/replicas.rs",
       "source_anchor": "replica_service.create_replica",
       "disposition": "block_without_change"
     },
@@ -153,8 +153,8 @@
       "disposition": "block_without_change"
     },
     {
-      "id": "catalog_writer__infra_api_src_routes_indexes_lifecycle__delete_replica__replica_service_remove_replica",
-      "owner_path": "infra/api/src/routes/indexes/lifecycle.rs",
+      "id": "catalog_writer__infra_api_src_routes_indexes_replicas__delete_replica__replica_service_remove_replica",
+      "owner_path": "infra/api/src/routes/indexes/replicas.rs",
       "source_anchor": "replica_service.remove_replica",
       "disposition": "block_without_change"
     },

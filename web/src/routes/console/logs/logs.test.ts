@@ -176,6 +176,32 @@ describe('Dashboard logs page', () => {
 		expect(within(secondDataRow).getByText('12 ms')).toBeInTheDocument();
 	});
 
+	it('renders ordinary safe search and index activity with request and response details', async () => {
+		appendLogEntry(
+			makeSanitizedEntry({
+				url: '/api/v1/indexes/products/search',
+				method: 'POST',
+				body: { query: 'safe-shoes', filters: 'brand:nike' },
+				response: { hits: [{ objectID: 'shoe-1' }], nbHits: 1 }
+			})
+		);
+
+		render(LogsPage);
+
+		const row = screen.getByTestId('api-log-row-0');
+		expect(within(row).getByText('POST')).toBeInTheDocument();
+		expect(within(row).getByText('/api/v1/indexes/products/search')).toBeInTheDocument();
+
+		await fireEvent.click(row);
+
+		const details = screen.getByTestId('search-log-panel').querySelectorAll('pre');
+		expect(details).toHaveLength(2);
+		expect(details[0]?.textContent).toContain('"query": "safe-shoes"');
+		expect(details[0]?.textContent).toContain('"filters": "brand:nike"');
+		expect(details[1]?.textContent).toContain('"objectID": "shoe-1"');
+		expect(document.body).not.toHaveTextContent('canary-secret-key');
+	});
+
 	it('toggles row-local request and response details without reordering rows', async () => {
 		appendLogEntry(
 			makeSanitizedEntry({

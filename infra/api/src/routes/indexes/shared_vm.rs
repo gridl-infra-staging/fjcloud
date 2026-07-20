@@ -1,6 +1,6 @@
 use super::*;
-use crate::repos::RepoError;
 use crate::services::flapjack_proxy::ProxyError;
+use crate::services::provisioning::SharedVmProvisioningMode;
 use reqwest::Url;
 use std::time::Duration;
 use tokio::time::sleep;
@@ -131,7 +131,7 @@ pub(super) async fn create_index_on_shared_vm(
 async fn resolve_or_create_shared_vm_create_plan(
     state: &AppState,
     destination: &AdmittedIndexDestination,
-) -> Result<SharedVmCreatePlan, RepoError> {
+) -> Result<SharedVmCreatePlan, ApiError> {
     match state
         .tenant_repo
         .find_raw(destination.customer_id, &destination.index_name)
@@ -145,14 +145,10 @@ async fn resolve_or_create_shared_vm_create_plan(
 async fn create_shared_vm_create_plan(
     state: &AppState,
     destination: &AdmittedIndexDestination,
-) -> Result<SharedVmCreatePlan, RepoError> {
-    let selected_vm = reserve_shared_vm_destination(state, destination)
-        .await
-        .map_err(|error| RepoError::Other(format!("{error:?}")))?;
+) -> Result<SharedVmCreatePlan, ApiError> {
+    let selected_vm = reserve_shared_vm_destination(state, destination).await?;
     let vm = selected_vm.vm;
-    let (deployment_id, target) = create_shared_deployment(state, destination, &vm)
-        .await
-        .map_err(|error| RepoError::Other(format!("{error:?}")))?;
+    let (deployment_id, target) = create_shared_deployment(state, destination, &vm).await?;
     let intent = crate::repos::TenantRepo::create_lifecycle_intent(
         state.tenant_repo.as_ref(),
         destination.customer_id,
@@ -175,38 +171,38 @@ async fn resume_shared_vm_create_plan(
     state: &AppState,
     destination: &AdmittedIndexDestination,
     intent: crate::models::tenant::CustomerTenant,
-) -> Result<SharedVmCreatePlan, RepoError> {
+) -> Result<SharedVmCreatePlan, ApiError> {
     if !is_compatible_shared_vm_create_intent(&intent) {
-        return Err(RepoError::Conflict("destination_changed".into()));
+        return Err(ApiError::Conflict("destination_changed".into()));
     }
     let deployment = state
         .deployment_repo
         .find_by_id(intent.deployment_id)
         .await?
-        .ok_or(RepoError::Conflict("destination_changed".into()))?;
+        .ok_or(ApiError::Conflict("destination_changed".into()))?;
     if deployment.customer_id != destination.customer_id
         || deployment.region != destination.region
         || deployment.vm_type != "shared"
         || deployment.status == "terminated"
     {
-        return Err(RepoError::Conflict("destination_changed".into()));
+        return Err(ApiError::Conflict("destination_changed".into()));
     }
     let vm_id = deployment
         .provider_vm_id
         .as_deref()
         .and_then(|value| Uuid::parse_str(value).ok())
-        .ok_or(RepoError::Conflict("destination_changed".into()))?;
+        .ok_or(ApiError::Conflict("destination_changed".into()))?;
     let vm = state
         .vm_inventory_repo
         .get(vm_id)
         .await?
-        .ok_or(RepoError::Conflict("destination_changed".into()))?;
+        .ok_or(ApiError::Conflict("destination_changed".into()))?;
     if vm.region != destination.region
         || vm.provider != deployment.vm_provider
         || Some(vm.flapjack_url.as_str()) != deployment.flapjack_url.as_deref()
         || vm.status != "active"
     {
-        return Err(RepoError::Conflict("destination_changed".into()));
+        return Err(ApiError::Conflict("destination_changed".into()));
     }
 
     Ok(SharedVmCreatePlan {
@@ -538,7 +534,12 @@ pub(crate) async fn select_shared_vm_for_new_index(
 
     state
         .provisioning_service
-        .auto_provision_shared_vm(state.vm_inventory_repo.as_ref(), region, provider)
+        .auto_provision_shared_vm(
+            state.vm_inventory_repo.as_ref(),
+            region,
+            provider,
+            SharedVmProvisioningMode::AllowLocalDevBypass,
+        )
         .await
         .map(|vm| SelectedSharedVm {
             vm,

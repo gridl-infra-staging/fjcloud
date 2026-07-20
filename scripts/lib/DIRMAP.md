@@ -91,7 +91,6 @@ Single canonical owner for the three hydration primitives. |
 
 Stripe/Privacy.com object IDs are not credentials in the secret-key sense
 but they are PII-adjacent live-mode identifiers. |
-| integration_db_access.sh | Stub summary for scripts/lib/integration_db_access.sh. |
 | live_gate.sh | Live gate enforcement for bash scripts.
 
 When BACKEND_LIVE_GATE=1, precondition failures are fatal (exit 1).

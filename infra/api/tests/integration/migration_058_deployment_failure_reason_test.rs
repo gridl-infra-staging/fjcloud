@@ -83,9 +83,36 @@ fn migration_058_source_declares_nullable_text_failure_reason_engine_health() {
         migration.contains("ALTER TABLE customer_deployments"),
         "migration 058 must alter customer_deployments"
     );
+    let executable_sql = migration
+        .lines()
+        .map(|line| line.split_once("--").map_or(line, |(sql, _comment)| sql))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let normalized_sql = executable_sql
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .to_uppercase();
+    let failure_reason_statement = normalized_sql
+        .split(';')
+        .find(|statement| {
+            statement.contains("ALTER TABLE CUSTOMER_DEPLOYMENTS")
+                && statement.contains("ADD COLUMN FAILURE_REASON TEXT")
+        })
+        .expect("migration 058 must add failure_reason TEXT");
+
     assert!(
-        migration.contains("ADD COLUMN failure_reason TEXT")
-            || migration.contains("ADD COLUMN failure_reason text"),
-        "migration 058 must add failure_reason TEXT"
+        !failure_reason_statement.contains("NOT NULL"),
+        "migration 058 must leave failure_reason nullable; do not declare NOT NULL"
+    );
+    let not_null_tightening = normalized_sql.split(';').find(|statement| {
+        statement.contains("FAILURE_REASON")
+            && statement.contains("SET NOT NULL")
+            && !statement.contains("DROP NOT NULL")
+    });
+    assert!(
+        not_null_tightening.is_none(),
+        "migration 058 must not make failure_reason non-nullable in a later statement: {:?}",
+        not_null_tightening.map(str::trim)
     );
 }

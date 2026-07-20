@@ -14,6 +14,13 @@ const DEFAULT_SHARED_VM_TYPE_HETZNER: &str = "cpx31";
 const DEFAULT_SHARED_VM_TYPE_GCP: &str = "e2-standard-2";
 const DEFAULT_SHARED_VM_TYPE_OCI: &str = "VM.Standard.A1.Flex";
 const DEFAULT_SHARED_VM_TYPE_FALLBACK: &str = "shared";
+const SHARED_VM_HOSTNAME_PREFIX: &str = "vm-shared-";
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum SharedVmProvisioningMode {
+    AllowLocalDevBypass,
+    RequireManagedVm,
+}
 
 struct SharedVmDraft {
     hostname: String,
@@ -27,11 +34,14 @@ impl ProvisioningService {
         vm_inventory_repo: &(dyn VmInventoryRepo + Send + Sync),
         region: &str,
         provider: &str,
+        mode: SharedVmProvisioningMode,
     ) -> Result<VmInventory, ProvisioningError> {
         ensure_supported_vm_provider(provider)?;
 
-        if let Some(vm) = try_local_dev_provision(vm_inventory_repo, region, provider).await? {
-            return Ok(vm);
+        if mode == SharedVmProvisioningMode::AllowLocalDevBypass {
+            if let Some(vm) = try_local_dev_provision(vm_inventory_repo, region, provider).await? {
+                return Ok(vm);
+            }
         }
 
         let draft = self.build_shared_vm_draft();
@@ -131,7 +141,7 @@ impl ProvisioningService {
     fn build_shared_vm_draft(&self) -> SharedVmDraft {
         let shared_vm_id = Uuid::new_v4();
         let short_id = &shared_vm_id.to_string()[..8];
-        let hostname = format!("vm-shared-{short_id}.{}", self.dns_domain);
+        let hostname = format!("{SHARED_VM_HOSTNAME_PREFIX}{short_id}.{}", self.dns_domain);
 
         SharedVmDraft {
             // Shared flapjack VMs expose the engine directly on port 7700.
@@ -171,6 +181,10 @@ impl ProvisioningService {
         self.cleanup_shared_vm_instance(provider_vm_id, node_id, region)
             .await;
     }
+}
+
+pub(crate) fn is_canonical_shared_vm_hostname(hostname: &str) -> bool {
+    hostname.starts_with(SHARED_VM_HOSTNAME_PREFIX)
 }
 
 async fn try_local_dev_provision(

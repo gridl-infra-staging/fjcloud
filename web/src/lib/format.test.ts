@@ -3,6 +3,7 @@ import {
 	adminBadgeColor,
 	formatCents,
 	formatDate,
+	formatDateTime,
 	formatBytes,
 	formatNumber,
 	formatPeriod,
@@ -114,6 +115,30 @@ describe('formatDate', () => {
 	it('formats UTC midnight without date shift', () => {
 		// Midnight UTC should show as Feb 1, not Jan 31
 		expect(formatDate('2026-02-01T00:00:00Z')).toMatch(/Feb 1, 2026/);
+	});
+});
+
+describe('formatDateTime', () => {
+	it('formats an ISO datetime as an absolute date, time, and explicit UTC timezone', () => {
+		const formatted = formatDateTime('2026-07-19T18:30:00Z');
+		expect(formatted).toMatch(/Jul 19, 2026/);
+		expect(formatted).toMatch(/6:30/);
+		expect(formatted).toMatch(/UTC/);
+	});
+
+	it('renders the instant in UTC regardless of the wire offset', () => {
+		// 2026-07-19T20:30:00+02:00 is 18:30 UTC and must display as UTC.
+		const formatted = formatDateTime('2026-07-19T20:30:00+02:00');
+		expect(formatted).toMatch(/6:30/);
+		expect(formatted).toMatch(/UTC/);
+	});
+
+	it('returns em dash for null', () => {
+		expect(formatDateTime(null)).toBe('—');
+	});
+
+	it('returns em dash for an invalid date string', () => {
+		expect(formatDateTime('not-a-date')).toBe('—');
 	});
 });
 

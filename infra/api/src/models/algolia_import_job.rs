@@ -1,15 +1,22 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use utoipa::ToSchema;
 use uuid::Uuid;
 
+mod provider;
 mod row;
 mod state;
+mod target_binding;
 
+pub use provider::{
+    algolia_eligible_regions, validate_algolia_create_provider, AlgoliaReplaceTargetFacts,
+};
 pub(crate) use row::AlgoliaImportJobRow;
 pub use state::AlgoliaImportJobState;
+pub use target_binding::AlgoliaImportTargetBinding;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum AlgoliaImportJobStatus {
     Queued,
@@ -103,7 +110,7 @@ impl EngineResumeMirror {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum AlgoliaImportPublicationDisposition {
     NotStarted,
@@ -195,7 +202,7 @@ impl AlgoliaImportDispatchIntentState {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum AlgoliaImportErrorCode {
     InvalidCredentials,
@@ -245,7 +252,8 @@ impl AlgoliaImportErrorCode {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct AlgoliaImportSummary {
     pub documents_expected: i64,
     pub documents_imported: i64,
@@ -315,6 +323,7 @@ pub struct NewAlgoliaImportJob {
     idempotency_key: String,
     canonical_fingerprint: String,
     source_size_bytes: i64,
+    target_binding: Option<AlgoliaImportTargetBinding>,
 }
 
 #[derive(Debug, Clone)]
@@ -411,6 +420,7 @@ pub struct NewAlgoliaReplaceImportJob {
     logical_target: String,
     source: AlgoliaImportSource,
     idempotency_key: String,
+    target_binding: Option<AlgoliaImportTargetBinding>,
 }
 
 impl NewAlgoliaReplaceImportJob {
@@ -425,6 +435,7 @@ impl NewAlgoliaReplaceImportJob {
             logical_target: logical_target.into(),
             source,
             idempotency_key: idempotency_key.into(),
+            target_binding: None,
         }
     }
 
@@ -445,11 +456,12 @@ impl NewAlgoliaReplaceImportJob {
             destination,
             self.source,
             self.idempotency_key,
+            self.target_binding,
         )
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum AlgoliaImportDestinationKind {
     Create,
@@ -510,6 +522,14 @@ impl AlgoliaImportCreateDestination {
 }
 
 impl AuthenticatedAlgoliaReplacementTarget {
+    pub(crate) fn region(&self) -> &str {
+        &self.region
+    }
+
+    pub(crate) fn routing_identity(&self) -> &str {
+        &self.routing_identity
+    }
+
     pub(crate) fn from_existing_index(
         customer_id: Uuid,
         logical_target: impl Into<String>,
@@ -589,18 +609,13 @@ impl NewAlgoliaImportJob {
         source: AlgoliaImportSource,
         idempotency_key: impl Into<String>,
     ) -> Self {
-        let destination = AlgoliaImportDestination::Create(destination);
-        let canonical_fingerprint =
-            request_fingerprint(&source.canonical_fingerprint, &destination);
-        Self {
+        Self::from_destination(
             customer_id,
-            algolia_app_id: source.algolia_app_id,
-            destination,
-            source_name: source.source_name,
-            idempotency_key: idempotency_key.into(),
-            canonical_fingerprint,
-            source_size_bytes: source.source_size_bytes,
-        }
+            AlgoliaImportDestination::Create(destination),
+            source,
+            idempotency_key,
+            None,
+        )
     }
 
     pub fn replace(
@@ -608,8 +623,24 @@ impl NewAlgoliaImportJob {
         destination: AuthenticatedAlgoliaReplacementTarget,
         source: AlgoliaImportSource,
         idempotency_key: impl Into<String>,
+        target_binding: Option<AlgoliaImportTargetBinding>,
     ) -> Self {
-        let destination = AlgoliaImportDestination::Replace(destination);
+        Self::from_destination(
+            customer_id,
+            AlgoliaImportDestination::Replace(destination),
+            source,
+            idempotency_key,
+            target_binding,
+        )
+    }
+
+    fn from_destination(
+        customer_id: Uuid,
+        destination: AlgoliaImportDestination,
+        source: AlgoliaImportSource,
+        idempotency_key: impl Into<String>,
+        target_binding: Option<AlgoliaImportTargetBinding>,
+    ) -> Self {
         let canonical_fingerprint =
             request_fingerprint(&source.canonical_fingerprint, &destination);
         Self {
@@ -620,6 +651,7 @@ impl NewAlgoliaImportJob {
             idempotency_key: idempotency_key.into(),
             canonical_fingerprint,
             source_size_bytes: source.source_size_bytes,
+            target_binding,
         }
     }
 
@@ -681,71 +713,6 @@ fn request_fingerprint(source_fingerprint: &str, destination: &AlgoliaImportDest
         hasher.update([0]);
     }
     format!("sha256:{}", hex::encode(hasher.finalize()))
-}
-
-// ---------------------------------------------------------------------------
-// Provider gating for Algolia import destinations
-// ---------------------------------------------------------------------------
-
-use crate::provisioner::region_map::RegionConfig;
-
-/// Validate that a create-destination region is AWS-backed and available.
-pub fn validate_algolia_create_provider(
-    config: &RegionConfig,
-    region: &str,
-) -> Result<(), AlgoliaImportErrorCode> {
-    match config.get_available_region(region) {
-        Some(entry) if entry.provider == "aws" => Ok(()),
-        _ => Err(AlgoliaImportErrorCode::MigrationProviderUnsupported),
-    }
-}
-
-/// Return all available AWS-backed regions eligible for Algolia import create.
-pub fn algolia_eligible_regions(
-    config: &RegionConfig,
-) -> Vec<(&String, &crate::provisioner::region_map::RegionEntry)> {
-    config
-        .available_regions()
-        .into_iter()
-        .filter(|(_, entry)| entry.provider == "aws")
-        .collect()
-}
-
-/// Facts about a replacement target needed for eligibility gating.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AlgoliaReplaceTargetFacts {
-    pub provider: String,
-    pub vm_status: String,
-    pub deployment_status: String,
-    pub health_status: String,
-    pub service_type: String,
-    pub has_active_lifecycle_operation: bool,
-    pub has_active_import_lease: bool,
-    pub has_flapjack_url: bool,
-}
-
-impl AlgoliaReplaceTargetFacts {
-    pub fn validate(&self) -> Result<(), AlgoliaImportErrorCode> {
-        if self.provider != "aws" {
-            return Err(AlgoliaImportErrorCode::MigrationProviderUnsupported);
-        }
-        if self.service_type != "flapjack" {
-            return Err(AlgoliaImportErrorCode::MigrationHaNotSupported);
-        }
-        if self.vm_status != "active" || self.deployment_status != "active" {
-            return Err(AlgoliaImportErrorCode::BackendUnavailable);
-        }
-        if self.health_status != "healthy" {
-            return Err(AlgoliaImportErrorCode::BackendUnavailable);
-        }
-        if !self.has_flapjack_url {
-            return Err(AlgoliaImportErrorCode::BackendUnavailable);
-        }
-        if self.has_active_lifecycle_operation || self.has_active_import_lease {
-            return Err(AlgoliaImportErrorCode::DestinationConflict);
-        }
-        Ok(())
-    }
 }
 
 #[cfg(test)]

@@ -8,7 +8,8 @@ use api::repos::{CustomerRepo, DeploymentRepo, VmInventoryRepo};
 use api::secrets::mock::MockNodeSecretManager;
 use api::services::health_monitor::{EngineHealthWaitPolicy, HealthCheckClient};
 use api::services::provisioning::{
-    ProvisioningError, ProvisioningService, DEFAULT_DNS_DOMAIN, MAX_DEPLOYMENTS_PER_CUSTOMER,
+    ProvisioningError, ProvisioningService, SharedVmProvisioningMode, DEFAULT_DNS_DOMAIN,
+    MAX_DEPLOYMENTS_PER_CUSTOMER,
 };
 use serde_json::Value;
 use uuid::Uuid;
@@ -42,6 +43,57 @@ fn engine_health_env_lock() -> MutexGuard<'static, ()> {
         Ok(guard) => guard,
         Err(poisoned) => poisoned.into_inner(),
     }
+}
+
+const ENGINE_HEALTH_GATE_KAT_TIMEOUT: Duration = Duration::from_secs(5);
+const ENGINE_HEALTH_GATE_SCHEDULER_YIELDS: usize = 8;
+
+async fn assert_provisioning_task_suspended_on_engine_health<T>(
+    provision: &mut tokio::task::JoinHandle<T>,
+    context: &'static str,
+) {
+    for _ in 0..ENGINE_HEALTH_GATE_SCHEDULER_YIELDS {
+        tokio::select! {
+            join = &mut *provision => match join {
+                Ok(_) => panic!("{context}: provisioning task completed while engine health was blocked"),
+                Err(err) => {
+                    panic!("{context}: provisioning task ended while engine health was blocked: {err}")
+                }
+            },
+            _ = tokio::task::yield_now() => {}
+        }
+    }
+}
+
+async fn wait_for_blocked_engine_health_attempt<T>(
+    engine_health: &crate::common::engine_health::EngineHealthClient,
+    provision: &mut tokio::task::JoinHandle<T>,
+    context: &'static str,
+) {
+    tokio::select! {
+        _ = engine_health.wait_for_blocked_attempt() => {}
+        join = &mut *provision => match join {
+            Ok(_) => panic!("{context}: provisioning task completed before attempting engine health"),
+            Err(err) => {
+                panic!("{context}: provisioning task ended before attempting engine health: {err}")
+            }
+        },
+        _ = tokio::time::sleep(ENGINE_HEALTH_GATE_KAT_TIMEOUT) => {
+            panic!("{context}: timed out waiting for blocked engine health gate")
+        }
+    }
+
+    assert_provisioning_task_suspended_on_engine_health(provision, context).await;
+}
+
+async fn join_blocked_engine_health_task<T>(
+    provision: tokio::task::JoinHandle<T>,
+    context: &'static str,
+) -> T {
+    tokio::time::timeout(ENGINE_HEALTH_GATE_KAT_TIMEOUT, provision)
+        .await
+        .unwrap_or_else(|_| panic!("{context}: timed out waiting for provisioning task"))
+        .unwrap_or_else(|err| panic!("{context}: provisioning task failed to join: {err}"))
 }
 
 struct EnvVarGuard {
@@ -237,6 +289,43 @@ fn assert_no_provisioned_resources(
         0,
         "engine health failure must clean up node secrets"
     );
+}
+
+#[tokio::test]
+async fn blocked_engine_health_helper_rejects_detached_health_task_engine_health() {
+    let engine_health = crate::common::engine_health::EngineHealthClient::healthy_after_release();
+    let detached_health = Arc::clone(&engine_health);
+    let detached_health_task = tokio::spawn(async move { detached_health.check(None).await });
+
+    let detached_provision_health = Arc::clone(&engine_health);
+    let mut detached_provision = tokio::spawn(async move {
+        detached_provision_health.wait_for_blocked_attempt().await;
+        tokio::task::yield_now().await;
+    });
+
+    let helper_health = Arc::clone(&engine_health);
+    let helper = tokio::spawn(async move {
+        wait_for_blocked_engine_health_attempt(
+            helper_health.as_ref(),
+            &mut detached_provision,
+            "detached engine-health regression probe",
+        )
+        .await;
+    });
+
+    let helper_result = tokio::time::timeout(ENGINE_HEALTH_GATE_KAT_TIMEOUT, helper)
+        .await
+        .expect("detached helper regression probe must finish without hanging");
+    assert!(
+        matches!(helper_result, Err(ref err) if err.is_panic()),
+        "blocked-health helper must reject callers that continue while detached health remains blocked: {helper_result:?}"
+    );
+
+    engine_health.release_attempt();
+    tokio::time::timeout(ENGINE_HEALTH_GATE_KAT_TIMEOUT, detached_health_task)
+        .await
+        .expect("detached health task must finish after release")
+        .expect("detached health task should join cleanly");
 }
 
 #[test]
@@ -442,7 +531,7 @@ async fn complete_provisioning_engine_health_healthy_finalizes_once_after_wait()
     let _env_guard = engine_health_env_lock();
     let _local_url = EnvVarGuard::unset("LOCAL_DEV_FLAPJACK_URL");
     let _regions = EnvVarGuard::unset("FLAPJACK_REGIONS");
-    let engine_health = crate::common::engine_health::EngineHealthClient::healthy();
+    let engine_health = crate::common::engine_health::EngineHealthClient::healthy_after_release();
     let (svc, _customer_repo, deployment_repo, _vm, _dns, _ssm) =
         default_service_with_engine_health(Arc::clone(&engine_health));
 
@@ -458,7 +547,26 @@ async fn complete_provisioning_engine_health_healthy_finalizes_once_after_wait()
         .await
         .unwrap();
 
-    svc.complete_provisioning(deployment.id).await.unwrap();
+    let svc = Arc::clone(&svc);
+    let mut provision = tokio::spawn(async move { svc.complete_provisioning(deployment.id).await });
+
+    wait_for_blocked_engine_health_attempt(
+        engine_health.as_ref(),
+        &mut provision,
+        "dedicated healthy engine-health gate",
+    )
+    .await;
+    assert_eq!(
+        deployment_repo.update_provisioning_call_count(),
+        0,
+        "healthy engine path must not finalize endpoint fields while health is blocked"
+    );
+
+    engine_health.release_attempt();
+    join_blocked_engine_health_task(provision, "dedicated healthy engine-health gate")
+        .await
+        .expect("healthy engine should allow provisioning to complete");
+
     assert_eq!(
         deployment_repo.update_provisioning_call_count(),
         1,
@@ -480,18 +588,9 @@ async fn complete_provisioning_engine_health_healthy_finalizes_once_after_wait()
         "healthy engine path must leave the deployment running"
     );
     assert!(updated.flapjack_url.is_some());
-
-    let source = provisioning_source();
-    let wait_pos = source
-        .find("await_engine_health(")
-        .expect("dedicated VM provisioning must await engine health before success");
-    let finalize_pos = source
-        .find("update_provisioning(")
-        .expect("dedicated VM provisioning must finalize endpoint fields");
-    assert!(
-        wait_pos < finalize_pos,
-        "engine health must be observed before update_provisioning finalizes endpoint fields"
-    );
+    assert!(updated.provider_vm_id.is_some());
+    assert!(updated.ip_address.is_some());
+    assert!(updated.hostname.is_some());
 }
 
 #[tokio::test]
@@ -516,16 +615,23 @@ async fn complete_provisioning_engine_health_status_race_cleans_up() {
         .await
         .unwrap();
     let svc = Arc::clone(&svc);
-    let provision = tokio::spawn(async move { svc.complete_provisioning(deployment.id).await });
+    let mut provision = tokio::spawn(async move { svc.complete_provisioning(deployment.id).await });
 
-    engine_health.wait_for_attempt().await;
+    wait_for_blocked_engine_health_attempt(
+        engine_health.as_ref(),
+        &mut provision,
+        "dedicated status-race engine-health gate",
+    )
+    .await;
     assert!(
         deployment_repo.set_status(deployment.id, "terminated"),
         "status-race KAT must move the deployment out of provisioning while engine health is pending"
     );
     engine_health.release_attempt();
 
-    let result = provision.await.expect("join provisioning task");
+    let result =
+        join_blocked_engine_health_task(provision, "dedicated status-race engine-health gate")
+            .await;
     assert!(
         result.is_err(),
         "deployment leaving provisioning while engine health is pending must not return success"
@@ -616,7 +722,12 @@ async fn auto_provision_shared_vm_cleans_up_ssm_on_vm_failure() {
     vm_provisioner.set_should_fail(true);
 
     let result = svc
-        .auto_provision_shared_vm(vm_inventory_repo.as_ref(), "us-east-1", "aws")
+        .auto_provision_shared_vm(
+            vm_inventory_repo.as_ref(),
+            "us-east-1",
+            "aws",
+            SharedVmProvisioningMode::AllowLocalDevBypass,
+        )
         .await;
 
     assert!(
@@ -649,7 +760,12 @@ async fn auto_provision_shared_vm_cleans_up_vm_and_ssm_on_dns_failure() {
     dns_manager.set_should_fail(true);
 
     let result = svc
-        .auto_provision_shared_vm(vm_inventory_repo.as_ref(), "us-east-1", "aws")
+        .auto_provision_shared_vm(
+            vm_inventory_repo.as_ref(),
+            "us-east-1",
+            "aws",
+            SharedVmProvisioningMode::AllowLocalDevBypass,
+        )
         .await;
 
     assert!(
@@ -687,7 +803,12 @@ async fn auto_provision_shared_vm_cleans_up_all_on_db_failure() {
     vm_inventory_repo.set_should_fail(true);
 
     let result = svc
-        .auto_provision_shared_vm(vm_inventory_repo.as_ref(), "us-east-1", "aws")
+        .auto_provision_shared_vm(
+            vm_inventory_repo.as_ref(),
+            "us-east-1",
+            "aws",
+            SharedVmProvisioningMode::AllowLocalDevBypass,
+        )
         .await;
 
     assert!(
@@ -729,7 +850,12 @@ async fn auto_provision_shared_vm_engine_health_never_answering_fails_and_cleans
     ) = default_service_with_vm_inventory_and_engine_health(Arc::clone(&engine_health));
 
     let result = svc
-        .auto_provision_shared_vm(vm_inventory_repo.as_ref(), "us-east-1", "aws")
+        .auto_provision_shared_vm(
+            vm_inventory_repo.as_ref(),
+            "us-east-1",
+            "aws",
+            SharedVmProvisioningMode::AllowLocalDevBypass,
+        )
         .await;
 
     assert!(
@@ -758,7 +884,7 @@ async fn auto_provision_shared_vm_engine_health_healthy_inserts_active_after_wai
     let _env_guard = engine_health_env_lock();
     let _local_url = EnvVarGuard::unset("LOCAL_DEV_FLAPJACK_URL");
     let _regions = EnvVarGuard::unset("FLAPJACK_REGIONS");
-    let engine_health = crate::common::engine_health::EngineHealthClient::healthy();
+    let engine_health = crate::common::engine_health::EngineHealthClient::healthy_after_release();
 
     let (
         svc,
@@ -770,10 +896,34 @@ async fn auto_provision_shared_vm_engine_health_healthy_inserts_active_after_wai
         vm_inventory_repo,
     ) = default_service_with_vm_inventory_and_engine_health(Arc::clone(&engine_health));
 
-    let vm = svc
-        .auto_provision_shared_vm(vm_inventory_repo.as_ref(), "us-east-1", "aws")
+    let svc = Arc::clone(&svc);
+    let vm_inventory_for_task = Arc::clone(&vm_inventory_repo);
+    let mut provision = tokio::spawn(async move {
+        svc.auto_provision_shared_vm(
+            vm_inventory_for_task.as_ref(),
+            "us-east-1",
+            "aws",
+            SharedVmProvisioningMode::AllowLocalDevBypass,
+        )
         .await
-        .unwrap();
+    });
+
+    wait_for_blocked_engine_health_attempt(
+        engine_health.as_ref(),
+        &mut provision,
+        "shared healthy engine-health gate",
+    )
+    .await;
+    assert_eq!(
+        vm_inventory_repo.create_call_count(),
+        0,
+        "healthy shared path must not insert vm_inventory while health is blocked"
+    );
+
+    engine_health.release_attempt();
+    let vm = join_blocked_engine_health_task(provision, "shared healthy engine-health gate")
+        .await
+        .expect("healthy engine should allow shared VM provisioning to complete");
 
     assert_eq!(vm.status, "active");
     assert_eq!(
@@ -785,18 +935,6 @@ async fn auto_provision_shared_vm_engine_health_healthy_inserts_active_after_wai
         engine_health.attempts(),
         1,
         "shared healthy path must observe the injected engine before inventory insert"
-    );
-
-    let source = auto_provision_source();
-    let wait_pos = source
-        .find("await_engine_health(")
-        .expect("shared VM provisioning must await engine health before inventory insert");
-    let insert_pos = source
-        .find(".create(NewVmInventory")
-        .expect("shared VM provisioning must insert vm_inventory");
-    assert!(
-        wait_pos < insert_pos,
-        "shared VM inventory insert must happen only after engine health is observed"
     );
 }
 
@@ -822,7 +960,12 @@ async fn auto_provision_shared_vm_uses_local_dev_bypass_when_url_configured() {
     );
 
     let vm = svc
-        .auto_provision_shared_vm(vm_inventory_repo.as_ref(), "eu-west-1", "aws")
+        .auto_provision_shared_vm(
+            vm_inventory_repo.as_ref(),
+            "eu-west-1",
+            "aws",
+            SharedVmProvisioningMode::AllowLocalDevBypass,
+        )
         .await
         .expect("bypass should create vm inventory row in local mode");
 
@@ -875,7 +1018,12 @@ async fn auto_provision_shared_vm_reuses_existing_local_dev_vm_for_region() {
     );
 
     let vm = svc
-        .auto_provision_shared_vm(vm_inventory_repo.as_ref(), "us-east-1", "aws")
+        .auto_provision_shared_vm(
+            vm_inventory_repo.as_ref(),
+            "us-east-1",
+            "aws",
+            SharedVmProvisioningMode::AllowLocalDevBypass,
+        )
         .await
         .expect("local bypass should reuse existing vm inventory row");
 
@@ -918,7 +1066,12 @@ async fn auto_provision_shared_vm_trims_local_dev_flapjack_url_before_persisting
     );
 
     let vm = svc
-        .auto_provision_shared_vm(vm_inventory_repo.as_ref(), "us-east-1", "aws")
+        .auto_provision_shared_vm(
+            vm_inventory_repo.as_ref(),
+            "us-east-1",
+            "aws",
+            SharedVmProvisioningMode::AllowLocalDevBypass,
+        )
         .await
         .expect("trimmed local URL should still activate local bypass");
 
@@ -960,7 +1113,12 @@ async fn auto_provision_shared_vm_normalizes_trailing_slash_in_local_dev_flapjac
     );
 
     let vm = svc
-        .auto_provision_shared_vm(vm_inventory_repo.as_ref(), "us-east-1", "aws")
+        .auto_provision_shared_vm(
+            vm_inventory_repo.as_ref(),
+            "us-east-1",
+            "aws",
+            SharedVmProvisioningMode::AllowLocalDevBypass,
+        )
         .await
         .expect("local bypass with trailing slash should still succeed");
 
@@ -1008,7 +1166,12 @@ async fn auto_provision_shared_vm_normalizes_path_slash_without_mutating_query_s
     );
 
     let vm = svc
-        .auto_provision_shared_vm(vm_inventory_repo.as_ref(), "us-east-1", "aws")
+        .auto_provision_shared_vm(
+            vm_inventory_repo.as_ref(),
+            "us-east-1",
+            "aws",
+            SharedVmProvisioningMode::AllowLocalDevBypass,
+        )
         .await
         .expect("local bypass with query suffix should still succeed");
 
@@ -1053,7 +1216,12 @@ async fn auto_provision_shared_vm_without_local_dev_url_fails_with_unconfigured_
     );
 
     let result = svc
-        .auto_provision_shared_vm(vm_inventory_repo.as_ref(), "eu-west-1", "aws")
+        .auto_provision_shared_vm(
+            vm_inventory_repo.as_ref(),
+            "eu-west-1",
+            "aws",
+            SharedVmProvisioningMode::AllowLocalDevBypass,
+        )
         .await;
 
     assert!(
@@ -1085,7 +1253,12 @@ async fn auto_provision_shared_vm_with_blank_local_dev_url_fails_with_unconfigur
     );
 
     let result = svc
-        .auto_provision_shared_vm(vm_inventory_repo.as_ref(), "eu-west-1", "aws")
+        .auto_provision_shared_vm(
+            vm_inventory_repo.as_ref(),
+            "eu-west-1",
+            "aws",
+            SharedVmProvisioningMode::AllowLocalDevBypass,
+        )
         .await;
 
     assert!(
@@ -1117,7 +1290,12 @@ async fn auto_provision_shared_vm_rejects_non_loopback_local_dev_url() {
     );
 
     let result = svc
-        .auto_provision_shared_vm(vm_inventory_repo.as_ref(), "eu-west-1", "aws")
+        .auto_provision_shared_vm(
+            vm_inventory_repo.as_ref(),
+            "eu-west-1",
+            "aws",
+            SharedVmProvisioningMode::AllowLocalDevBypass,
+        )
         .await;
 
     assert!(
@@ -1149,7 +1327,12 @@ async fn auto_provision_shared_vm_with_empty_local_dev_url_fails_with_unconfigur
     );
 
     let result = svc
-        .auto_provision_shared_vm(vm_inventory_repo.as_ref(), "eu-west-1", "aws")
+        .auto_provision_shared_vm(
+            vm_inventory_repo.as_ref(),
+            "eu-west-1",
+            "aws",
+            SharedVmProvisioningMode::AllowLocalDevBypass,
+        )
         .await;
 
     assert!(
@@ -1180,7 +1363,12 @@ async fn auto_provision_shared_vm_cleans_up_vm_and_ssm_on_missing_public_ip() {
         .store(true, std::sync::atomic::Ordering::SeqCst);
 
     let result = svc
-        .auto_provision_shared_vm(vm_inventory_repo.as_ref(), "us-east-1", "aws")
+        .auto_provision_shared_vm(
+            vm_inventory_repo.as_ref(),
+            "us-east-1",
+            "aws",
+            SharedVmProvisioningMode::AllowLocalDevBypass,
+        )
         .await;
 
     assert!(

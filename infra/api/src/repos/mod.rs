@@ -41,9 +41,12 @@ pub mod vm_inventory_repo;
 pub mod webhook_event_repo;
 
 pub use algolia_import_job_repo::{
-    AlgoliaImportCancelDispatch, AlgoliaImportCancelOutcome, AlgoliaImportJobRepo,
-    AlgoliaImportResumeDispatch, AlgoliaImportResumeOutcome, CatalogLifecycleTargetGuard,
-    CatalogLifecycleTargetIdentity,
+    clamp_algolia_import_job_list_limit, AlgoliaImportCancelDispatch, AlgoliaImportCancelOutcome,
+    AlgoliaImportJobAdmissionError, AlgoliaImportJobListCursor, AlgoliaImportJobListPage,
+    AlgoliaImportJobRepo, AlgoliaImportResumeDispatch, AlgoliaImportResumeOutcome,
+    AlgoliaImportTransitionDisposition, AlgoliaLifecycleError, CatalogLifecycleTargetGuard,
+    CatalogLifecycleTargetIdentity, DestinationEligibilityError, DestinationEligibilitySnapshot,
+    ALGOLIA_IMPORT_JOB_LIST_DEFAULT_LIMIT, ALGOLIA_IMPORT_JOB_LIST_MAX_LIMIT,
 };
 pub use api_key_repo::ApiKeyRepo;
 pub use cold_snapshot_repo::ColdSnapshotRepo;
@@ -86,7 +89,10 @@ pub use storage_bucket_repo::StorageBucketRepo;
 pub use storage_key_repo::StorageKeyRepo;
 pub use tenant_repo::TenantRepo;
 pub use usage_repo::UsageRepo;
-pub use vm_inventory_repo::VmInventoryRepo;
+pub use vm_inventory_repo::{
+    VmDecommissionResult, VmInventoryRepo, VmRetirementAssessment, VmRetirementBlocker,
+    VmRetirementConflict,
+};
 pub use webhook_event_repo::WebhookEventRepo;
 
 #[cfg(test)]

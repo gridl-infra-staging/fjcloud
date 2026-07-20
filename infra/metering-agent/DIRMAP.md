@@ -6,6 +6,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| src | This is a Rust module with core components for a multi-tenant metrics or metering system, including configuration, counter logic, storage abstraction, and tenant mapping. |
-| src | This is a multi-tenant Rust application with configuration management, storage abstraction, usage counters, and tenant routing logic. |
+| src | This Rust module implements a multi-tenant application core with configuration management, storage, and counter/metric tracking capabilities. |
 <!-- [scrai:end] -->

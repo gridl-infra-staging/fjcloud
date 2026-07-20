@@ -26,6 +26,5 @@ unavailable so staging gets a clear outside-AWS outage signal. |
 
 | Directory | Summary |
 | --- | --- |
-| contracts | This directory contains contract and integration test scripts that validate end-to-end system behavior across authentication, billing, Algolia migration, Stripe webhooks, OAuth, and multi-tenant isolation—primarily through live probes against staging and production environments. |
-| contracts | This directory contains integration contract tests and safety probes that validate external system integrations (Algolia, Stripe, OAuth), authentication flows, and critical customer journeys across staging and production environments. |
+| contracts | The contracts directory contains shell-based integration tests and probes that validate critical system behaviors across fjcloud, including Algolia migrations, Stripe webhooks, OAuth flows, API authentication, and browser-based customer journeys. |
 <!-- [scrai:end] -->

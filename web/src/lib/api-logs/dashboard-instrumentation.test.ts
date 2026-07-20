@@ -1,4 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import {
+	EXPECTED_MIGRATION_LOG_EXCLUSION_OPERATIONS,
+	MIGRATION_LOG_EXCLUSION_MATRIX
+} from './migration_log_exclusion_cases';
 
 vi.mock('$app/environment', () => ({ browser: true }));
 
@@ -423,34 +427,48 @@ describe('deriveFetchLogEntry', () => {
 		expect(entry!.response).toEqual({ ok: true });
 	});
 
-	it('returns null for /migration/algolia/list-indexes', async () => {
-		const { deriveFetchLogEntry } = await import('./dashboard-instrumentation');
-		const entry = deriveFetchLogEntry({
-			method: 'POST',
-			url: '/migration/algolia/list-indexes',
-			status: 200,
-			duration: 100,
-			headers: {},
-			body: { algolia_api_key: 'secret' },
-			response: { indexes: [] }
-		});
+	it.each(MIGRATION_LOG_EXCLUSION_MATRIX)(
+		'delegates $operation migration fetch captures to the sanitizer exclusion',
+		async (row) => {
+			const { deriveFetchLogEntry } = await import('./dashboard-instrumentation');
+			const appIdCanary = `APPID_${row.operation}_CANARY`;
+			const apiKeyCanary = `APIKEY_${row.operation}_CANARY`;
+			const capture = {
+				method: row.method,
+				url: row.route,
+				status: row.operation === 'status' || row.operation === 'history' ? 200 : 202,
+				duration: 100,
+				headers: { Authorization: `Bearer ${apiKeyCanary}` },
+				body: {
+					operation: row.operation,
+					appId: appIdCanary,
+					apiKey: apiKeyCanary,
+					sourceIndex: `source_${row.operation}`
+				},
+				response: {
+					operation: row.operation,
+					appIdEcho: appIdCanary,
+					apiKeyEcho: apiKeyCanary,
+					jobId: `job_${row.operation}`
+				}
+			};
 
-		expect(entry).toBeNull();
-	});
+			expect(MIGRATION_LOG_EXCLUSION_MATRIX.map((item) => item.operation)).toEqual(
+				EXPECTED_MIGRATION_LOG_EXCLUSION_OPERATIONS
+			);
+			expect(JSON.stringify(capture)).toContain(appIdCanary);
+			expect(JSON.stringify(capture)).toContain(apiKeyCanary);
+			expect(deriveFetchLogEntry(capture)).toBeNull();
+		}
+	);
 
-	it('returns null for /migration/algolia/migrate', async () => {
-		const { deriveFetchLogEntry } = await import('./dashboard-instrumentation');
-		const entry = deriveFetchLogEntry({
-			method: 'POST',
-			url: '/migration/algolia/migrate',
-			status: 200,
-			duration: 250,
-			headers: {},
-			body: { algolia_api_key: 'secret', source_index: 'products' },
-			response: { taskId: 'task-1', message: 'ok' }
-		});
-
-		expect(entry).toBeNull();
+	it('does not treat the fetch exclusion matrix as a lossy subset of migration operations', () => {
+		expect(MIGRATION_LOG_EXCLUSION_MATRIX).toHaveLength(
+			EXPECTED_MIGRATION_LOG_EXCLUSION_OPERATIONS.length
+		);
+		expect(new Set(MIGRATION_LOG_EXCLUSION_MATRIX.map((row) => row.operation))).toEqual(
+			new Set(EXPECTED_MIGRATION_LOG_EXCLUSION_OPERATIONS)
+		);
 	});
 
 	it('strips sensitive fields from fetch request body', async () => {

@@ -2,7 +2,13 @@
 # Compatibility checks for independently running local stack services.
 
 FJCLOUD_API_PREVIEW_EVENTS_CAPABILITY="preview_events_v1"
-FJCLOUD_FLAPJACK_REQUIRED_CAPABILITY="${FJCLOUD_FLAPJACK_REQUIRED_CAPABILITY:-vectorSearchLocal}"
+# No capability is required by default (SSOT with the API constant removed from
+# infra/api/src/services/flapjack_proxy/mod.rs). No shipped flapjack build — release
+# musl, Docker, or the prod AMI — advertises a vector capability, so a hard
+# "vectorSearchLocal" default was unsatisfiable and rejected every real engine as
+# missing_capability (the local-dev-up-smoke blocker). Set the env var to require a
+# specific capability when local vector search is productized.
+FJCLOUD_FLAPJACK_REQUIRED_CAPABILITY="${FJCLOUD_FLAPJACK_REQUIRED_CAPABILITY:-}"
 
 api_supports_capability() {
     local api_base_url="$1" required_capability="$2" body

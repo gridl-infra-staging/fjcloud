@@ -428,8 +428,10 @@ impl MigrationService {
             self.recover_execute_failure(req, source_vm, dest_vm, migration_id, progress)
                 .await;
         }
-        self.record_failed_execute(migration_id, &error_message)
-            .await;
+        if !preserves_migration_row_on_failure(err) {
+            self.record_failed_execute(migration_id, &error_message)
+                .await;
+        }
         if !is_lifecycle_conflict(err) {
             self.reset_tenant_tier_after_execute_failure(req, progress.intent_identity.as_ref())
                 .await;
@@ -608,6 +610,10 @@ fn is_lifecycle_conflict(error: &MigrationError) -> bool {
         error,
         MigrationError::DestinationConflict | MigrationError::DestinationChanged
     )
+}
+
+fn preserves_migration_row_on_failure(error: &MigrationError) -> bool {
+    matches!(error, MigrationError::DestinationChanged)
 }
 
 pub(super) fn map_repo_error(error: RepoError) -> MigrationError {

@@ -22,6 +22,8 @@ pub struct EngineHealthClient {
     behaviors: Mutex<VecDeque<EngineHealthBehavior>>,
     attempts: AtomicUsize,
     attempt_entered: Notify,
+    blocked_attempts: AtomicUsize,
+    blocked_attempt_entered: Notify,
     attempt_release: Notify,
     release_requested: AtomicUsize,
 }
@@ -32,6 +34,8 @@ impl EngineHealthClient {
             behaviors: Mutex::new(behaviors.into()),
             attempts: AtomicUsize::new(0),
             attempt_entered: Notify::new(),
+            blocked_attempts: AtomicUsize::new(0),
+            blocked_attempt_entered: Notify::new(),
             attempt_release: Notify::new(),
             release_requested: AtomicUsize::new(0),
         })
@@ -73,6 +77,16 @@ impl EngineHealthClient {
         }
     }
 
+    pub fn blocked_attempts(&self) -> usize {
+        self.blocked_attempts.load(Ordering::SeqCst)
+    }
+
+    pub async fn wait_for_blocked_attempt(&self) {
+        while self.blocked_attempts() == 0 {
+            self.blocked_attempt_entered.notified().await;
+        }
+    }
+
     pub fn release_attempt(&self) {
         self.release_requested.fetch_add(1, Ordering::SeqCst);
         self.attempt_release.notify_waiters();
@@ -84,10 +98,13 @@ impl EngineHealthClient {
         }
     }
 
+    /// Resolves one scripted health-check behavior for paused-time awaiter tests.
     async fn resolve_behavior(&self, behavior: EngineHealthBehavior) -> HealthCheckResult {
         let behavior = match behavior {
             EngineHealthBehavior::BlockedUntilRelease(next) => {
+                self.blocked_attempts.fetch_add(1, Ordering::SeqCst);
                 self.attempt_entered.notify_waiters();
+                self.blocked_attempt_entered.notify_waiters();
                 self.wait_for_release().await;
                 *next
             }

@@ -46,6 +46,7 @@ struct DeletedAccountContext {
     email: &'static str,
     password: &'static str,
     original_customer_count: usize,
+    customer_before_delete: api::models::Customer,
 }
 
 async fn setup_deleted_account_context() -> DeletedAccountContext {
@@ -106,6 +107,7 @@ async fn setup_deleted_account_context() -> DeletedAccountContext {
         .expect("mock repo lookup should succeed")
         .expect("registered customer should exist");
     let customer_id = customer.id;
+    let customer_before_delete = customer.clone();
     let original_customer_count = repo
         .list()
         .await
@@ -137,7 +139,20 @@ async fn setup_deleted_account_context() -> DeletedAccountContext {
         email,
         password,
         original_customer_count,
+        customer_before_delete,
     }
+}
+
+fn assert_customer_identity_and_non_lifecycle_fields_unchanged(
+    before: &api::models::Customer,
+    after: &api::models::Customer,
+) {
+    assert_eq!(after.id, before.id);
+    assert_eq!(after.name, before.name);
+    assert_eq!(after.email, before.email);
+    assert_eq!(after.billing_plan, before.billing_plan);
+    assert_eq!(after.created_at, before.created_at);
+    assert_eq!(after.password_hash, before.password_hash);
 }
 
 #[tokio::test]
@@ -617,6 +632,25 @@ async fn delete_account_soft_delete_retains_row_for_audit_visibility() {
         .expect("soft-deleted customer row should still exist");
     assert_eq!(retained_customer.status, "deleted");
     assert_eq!(retained_customer.email, delete_context.email);
+    assert_eq!(
+        retained_customer.lifecycle_generation,
+        delete_context
+            .customer_before_delete
+            .lifecycle_generation
+            .checked_add(1)
+            .expect("generation increment should not overflow")
+    );
+    let deleted_at = retained_customer
+        .deleted_at
+        .expect("soft-delete should stamp deleted_at");
+    assert_eq!(
+        retained_customer.updated_at, deleted_at,
+        "soft-delete should stamp updated_at with the deletion timestamp"
+    );
+    assert_customer_identity_and_non_lifecycle_fields_unchanged(
+        &delete_context.customer_before_delete,
+        &retained_customer,
+    );
 
     let customers_after_delete = delete_context
         .repo
@@ -640,6 +674,52 @@ async fn delete_account_soft_delete_retains_row_for_audit_visibility() {
     assert_eq!(
         matching_email_customers[0].id, delete_context.customer_id,
         "retained row must keep the original customer ID"
+    );
+
+    let repeat_resp = delete_context
+        .app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("DELETE")
+                .uri("/account")
+                .header("authorization", format!("Bearer {}", delete_context.token))
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    serde_json::json!({ "password": delete_context.password }).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        repeat_resp.status(),
+        StatusCode::UNAUTHORIZED,
+        "post-delete auth should reject the retained deleted customer before delete_account runs"
+    );
+
+    let retained_after_repeat = delete_context
+        .repo
+        .find_by_id(delete_context.customer_id)
+        .await
+        .expect("mock repo find_by_id should succeed after repeat delete")
+        .expect("repeat delete should retain the deleted customer row");
+    assert_eq!(retained_after_repeat.status, "deleted");
+    assert_eq!(
+        retained_after_repeat.lifecycle_generation, retained_customer.lifecycle_generation,
+        "repeat request must not advance lifecycle generation"
+    );
+    assert_eq!(
+        retained_after_repeat.deleted_at,
+        retained_customer.deleted_at
+    );
+    assert_eq!(
+        retained_after_repeat.updated_at,
+        retained_customer.updated_at
+    );
+    assert_customer_identity_and_non_lifecycle_fields_unchanged(
+        &retained_customer,
+        &retained_after_repeat,
     );
 }
 
@@ -760,7 +840,7 @@ async fn delete_account_already_deleted_returns_401() {
     let repo = mock_repo();
     let customer = repo.seed_deleted("Gone", "gone@example.com");
     let token = create_test_jwt(customer.id);
-    let app = test_app(repo);
+    let app = test_app(repo.clone());
 
     let resp = app
         .oneshot(
@@ -777,6 +857,29 @@ async fn delete_account_already_deleted_returns_401() {
         .await
         .unwrap();
     assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+
+    let retained_after_rejected_request = repo
+        .find_by_id(customer.id)
+        .await
+        .expect("mock repo find_by_id should succeed")
+        .expect("deleted fixture should remain retained");
+    assert_eq!(retained_after_rejected_request.status, "deleted");
+    assert_eq!(
+        retained_after_rejected_request.lifecycle_generation,
+        customer.lifecycle_generation
+    );
+    assert_eq!(
+        retained_after_rejected_request.deleted_at,
+        customer.deleted_at
+    );
+    assert_eq!(
+        retained_after_rejected_request.updated_at,
+        customer.updated_at
+    );
+    assert_customer_identity_and_non_lifecycle_fields_unchanged(
+        &customer,
+        &retained_after_rejected_request,
+    );
 }
 
 /// DELETE /account without auth → 401.

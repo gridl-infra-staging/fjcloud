@@ -9,6 +9,5 @@
 | Directory | Summary |
 | --- | --- |
 | admin | — |
-| vlm_capture | VLM capture module for managing visual language model screenshot captures, with redirect guards during capture time and a canonical tuple source for screenshot configuration. |
-| vlm_capture | vlm_capture handles visual language model screenshot capture with manifest definitions, redirect guards to prevent navigation during capture, and canonical tuple definitions for the capture workflow. |
+| vlm_capture | This directory provides VLM screenshot capture functionality, managing what gets captured through a tuple-based configuration system and protecting against unwanted redirects during capture time. |
 <!-- [scrai:end] -->

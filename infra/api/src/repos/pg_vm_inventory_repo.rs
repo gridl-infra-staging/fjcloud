@@ -1,10 +1,19 @@
 use async_trait::async_trait;
-use sqlx::PgPool;
+use sqlx::{PgPool, Postgres, Transaction};
 use uuid::Uuid;
 
 use crate::models::vm_inventory::{NewVmInventory, VmInventory};
 use crate::repos::error::RepoError;
-use crate::repos::vm_inventory_repo::VmInventoryRepo;
+use crate::repos::vm_inventory_repo::{
+    validate_vm_retirement_candidate, VmDecommissionResult, VmInventoryRepo,
+    VmRetirementAssessment, VmRetirementBlocker, VmRetirementCandidateStatus, VmRetirementConflict,
+};
+
+#[derive(sqlx::FromRow)]
+struct LockedVmIdentity {
+    hostname: String,
+    status: String,
+}
 
 pub struct PgVmInventoryRepo {
     pool: PgPool,
@@ -13,6 +22,42 @@ pub struct PgVmInventoryRepo {
 impl PgVmInventoryRepo {
     pub fn new(pool: PgPool) -> Self {
         Self { pool }
+    }
+
+    async fn lock_vm_for_retirement(
+        transaction: &mut Transaction<'_, Postgres>,
+        id: Uuid,
+    ) -> Result<Option<LockedVmIdentity>, RepoError> {
+        sqlx::query_as(
+            "SELECT hostname, status
+             FROM vm_inventory
+             WHERE id = $1
+             FOR UPDATE",
+        )
+        .bind(id)
+        .fetch_optional(&mut **transaction)
+        .await
+        .map_err(Self::repo_error)
+    }
+
+    async fn load_retirement_blockers(
+        transaction: &mut Transaction<'_, Postgres>,
+        id: Uuid,
+    ) -> Result<Vec<VmRetirementBlocker>, RepoError> {
+        sqlx::query_as(
+            "SELECT owner, reference_column, blocker_count AS count
+             FROM vm_inventory_reference_blockers($1)
+             WHERE blocker_count > 0
+             ORDER BY owner, reference_column",
+        )
+        .bind(id)
+        .fetch_all(&mut **transaction)
+        .await
+        .map_err(Self::repo_error)
+    }
+
+    fn repo_error(error: sqlx::Error) -> RepoError {
+        RepoError::Other(error.to_string())
     }
 }
 
@@ -86,6 +131,80 @@ impl VmInventoryRepo for PgVmInventoryRepo {
             .await
             .map_err(|e| RepoError::Other(e.to_string()))?;
         Ok(())
+    }
+
+    async fn retirement_blockers(
+        &self,
+        id: Uuid,
+        expected_hostname: &str,
+    ) -> Result<VmRetirementAssessment, RepoError> {
+        let mut transaction = self.pool.begin().await.map_err(Self::repo_error)?;
+        let vm = Self::lock_vm_for_retirement(&mut transaction, id).await?;
+        let candidate = vm
+            .as_ref()
+            .map(|vm| (vm.hostname.as_str(), vm.status.as_str()));
+        let assessment = match validate_vm_retirement_candidate(id, expected_hostname, candidate) {
+            Err(conflict) => VmRetirementAssessment::Conflict(conflict),
+            Ok(VmRetirementCandidateStatus::Decommissioned) => {
+                VmRetirementAssessment::Conflict(VmRetirementConflict::InvalidStatus {
+                    actual_status: VmRetirementCandidateStatus::Decommissioned
+                        .as_str()
+                        .to_string(),
+                })
+            }
+            Ok(VmRetirementCandidateStatus::Active) => {
+                match Self::load_retirement_blockers(&mut transaction, id).await? {
+                    blockers if blockers.is_empty() => VmRetirementAssessment::Eligible,
+                    blockers => VmRetirementAssessment::Blocked(blockers),
+                }
+            }
+        };
+
+        transaction.commit().await.map_err(Self::repo_error)?;
+        Ok(assessment)
+    }
+
+    async fn decommission_if_unreferenced(
+        &self,
+        id: Uuid,
+        expected_hostname: &str,
+    ) -> Result<VmDecommissionResult, RepoError> {
+        let mut transaction = self.pool.begin().await.map_err(Self::repo_error)?;
+        let vm = Self::lock_vm_for_retirement(&mut transaction, id).await?;
+        let candidate = vm
+            .as_ref()
+            .map(|vm| (vm.hostname.as_str(), vm.status.as_str()));
+        let result = match validate_vm_retirement_candidate(id, expected_hostname, candidate) {
+            Err(conflict) => VmDecommissionResult::Conflict(conflict),
+            Ok(VmRetirementCandidateStatus::Decommissioned) => {
+                VmDecommissionResult::AlreadyDecommissioned
+            }
+            Ok(VmRetirementCandidateStatus::Active) => {
+                let blockers = Self::load_retirement_blockers(&mut transaction, id).await?;
+                if blockers.is_empty() {
+                    let update = sqlx::query(
+                        "UPDATE vm_inventory
+                     SET status = 'decommissioned', updated_at = NOW()
+                     WHERE id = $1 AND status = 'active'",
+                    )
+                    .bind(id)
+                    .execute(&mut *transaction)
+                    .await
+                    .map_err(Self::repo_error)?;
+                    if update.rows_affected() != 1 {
+                        return Err(RepoError::Other(
+                            "locked active VM was not decommissioned".to_string(),
+                        ));
+                    }
+                    VmDecommissionResult::Decommissioned
+                } else {
+                    VmDecommissionResult::Blocked(blockers)
+                }
+            }
+        };
+
+        transaction.commit().await.map_err(Self::repo_error)?;
+        Ok(result)
     }
 
     async fn find_by_hostname(&self, hostname: &str) -> Result<Option<VmInventory>, RepoError> {

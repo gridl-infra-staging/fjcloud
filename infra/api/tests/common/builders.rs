@@ -180,11 +180,11 @@ fn mock_provisioning_service(
     )
 }
 
-fn test_engine_health_client() -> Arc<dyn HealthCheckClient> {
+pub(crate) fn test_engine_health_client() -> Arc<dyn HealthCheckClient> {
     super::engine_health::EngineHealthClient::healthy()
 }
 
-fn test_engine_health_wait_policy() -> EngineHealthWaitPolicy {
+pub(crate) fn test_engine_health_wait_policy() -> EngineHealthWaitPolicy {
     EngineHealthWaitPolicy::new(
         std::time::Duration::from_millis(50),
         std::time::Duration::from_millis(10),
@@ -230,6 +230,7 @@ pub struct TestStateBuilder {
     dunning_emails_disabled: bool,
     algolia_migration_enabled: bool,
     algolia_source_service: Arc<dyn AlgoliaSourceLister>,
+    pool_override: Option<sqlx::PgPool>,
     webhook_event_repo: Arc<MockWebhookEventRepo>,
     object_store: Arc<InMemoryObjectStore>,
     cold_snapshot_repo: Arc<InMemoryColdSnapshotRepo>,
@@ -286,6 +287,7 @@ impl TestStateBuilder {
             email_service: mock_email_service() as Arc<dyn EmailService>,
             dunning_emails_disabled: false,
             algolia_migration_enabled: false,
+            pool_override: None,
             algolia_source_service: Arc::new(
                 AlgoliaSourceService::new(
                     Arc::new(
@@ -391,6 +393,15 @@ impl TestStateBuilder {
 
     pub fn with_algolia_migration_enabled(mut self, algolia_migration_enabled: bool) -> Self {
         self.algolia_migration_enabled = algolia_migration_enabled;
+        self
+    }
+
+    /// Back the built `AppState` with a real Postgres pool (e.g. from
+    /// `connect_and_migrate`) so route handlers that construct a
+    /// `PgAlgoliaImportJobRepo` from `state.pool` exercise real SQL instead of
+    /// the never-connecting lazy pool.
+    pub fn with_pool(mut self, pool: sqlx::PgPool) -> Self {
+        self.pool_override = Some(pool);
         self
     }
 
@@ -543,7 +554,7 @@ impl TestStateBuilder {
                 self.garage_proxy.clone(),
             ),
         );
-        let pool = lazy_pool();
+        let pool = self.pool_override.unwrap_or_else(lazy_pool);
 
         AppState {
             pool: pool.clone(),

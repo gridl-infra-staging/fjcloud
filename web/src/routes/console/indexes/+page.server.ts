@@ -4,6 +4,7 @@ import { ApiRequestError } from '$lib/api/client';
 import type { Index } from '$lib/api/types';
 import { createApiClient } from '$lib/server/api';
 import { DEFAULT_INTERNAL_REGIONS } from '$lib/format';
+import { validateIndexName } from '$lib/index-name';
 import type { IndexTemplateId } from '$lib/search_templates';
 import { getIndexTemplateServerSnapshot } from '$lib/search_templates/search_templates.server';
 import {
@@ -36,6 +37,15 @@ type TemplateSeedPhase = 'settings' | 'docs' | 'synonyms' | 'rules';
 const INDEX_NAME_PATTERN = /^[a-zA-Z0-9_-]+$/;
 const REGION_ID_PATTERN = /^[a-z0-9-]+$/i;
 
+/**
+ * Charset-only guard for names that identify an *existing* index.
+ *
+ * Creation is validated with the canonical `validateIndexName` instead. This
+ * looser check is deliberate for lookup and delete: indexes created before the
+ * full rule set was enforced may hold names it now rejects, and applying the
+ * creation rules here would leave those indexes impossible to delete. It only
+ * has to keep the name safe as a path segment.
+ */
 function isValidIndexName(name: string): boolean {
 	return INDEX_NAME_PATTERN.test(name);
 }
@@ -70,13 +80,9 @@ export const actions: Actions = {
 		const region = (data.get('region') as string)?.trim();
 		const rawTemplateId = (data.get('template_id') as string | null)?.trim();
 
-		if (!name) return fail(400, { error: 'Index name is required' });
+		const nameValidationError = validateIndexName(name ?? '');
+		if (nameValidationError) return fail(400, { error: nameValidationError });
 		if (!region) return fail(400, { error: 'Region is required' });
-		if (!isValidIndexName(name)) {
-			return fail(400, {
-				error: 'Index name may only contain letters, numbers, underscores, and hyphens.'
-			});
-		}
 		if (!isValidRegionId(region)) {
 			return fail(400, { error: 'Region is invalid' });
 		}

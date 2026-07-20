@@ -5,6 +5,8 @@
 //! Stub summary for mod.rs.
 
 pub mod admin_broadcast_test_support;
+pub mod admin_vm_retirement_test_support;
+pub mod algolia_import_reservation_lifetime;
 pub mod builders;
 pub mod capacity_profiles;
 pub mod engine_health;
@@ -26,6 +28,11 @@ pub mod storage_s3_object_route_support;
 pub mod storage_s3_signed_router_harness;
 pub mod stripe_webhook_test_support;
 pub mod support;
+pub mod vm_inventory_reference_guard_fixtures;
+pub mod vm_inventory_reference_guard_matrix;
+pub mod vm_inventory_reference_guard_races;
+pub mod vm_inventory_repo_contract;
+pub mod vm_inventory_repo_races;
 
 pub use builders::*;
 pub use mocks::*;

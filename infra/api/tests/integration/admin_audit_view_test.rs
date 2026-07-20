@@ -293,6 +293,13 @@ async fn delete_admin_tenants_id_writes_tenant_deleted_audit_row() {
     let customer_repo = crate::common::mock_repo();
     let customer = customer_repo.seed("Delete Me", "delete-me@example.com");
 
+    cleanup_target(&pool, customer.id).await;
+    assert_eq!(
+        audit_row_count(&pool, ACTION_TENANT_DELETED, customer.id).await,
+        0,
+        "audit fixture should start with no tenant-deleted rows"
+    );
+
     let app = app_with_live_audit_pool(
         pool.clone(),
         customer_repo,
@@ -304,6 +311,7 @@ async fn delete_admin_tenants_id_writes_tenant_deleted_audit_row() {
     );
 
     let resp = app
+        .clone()
         .oneshot(
             Request::builder()
                 .method(Method::DELETE)
@@ -319,6 +327,34 @@ async fn delete_admin_tenants_id_writes_tenant_deleted_audit_row() {
     assert_eq!(
         audit_row_count(&pool, ACTION_TENANT_DELETED, customer.id).await,
         1
+    );
+    assert_eq!(
+        audit_row_count_for_target(&pool, customer.id).await,
+        1,
+        "first delete must write only the tenant-deleted audit row for the target"
+    );
+
+    let repeat_resp = app
+        .oneshot(
+            Request::builder()
+                .method(Method::DELETE)
+                .uri(format!("/admin/tenants/{}", customer.id))
+                .header("x-admin-key", crate::common::TEST_ADMIN_KEY)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(repeat_resp.status(), StatusCode::NOT_FOUND);
+    assert_eq!(
+        audit_row_count(&pool, ACTION_TENANT_DELETED, customer.id).await,
+        1,
+        "repeat delete must not write a second tenant-deleted audit row"
+    );
+    assert_eq!(
+        audit_row_count_for_target(&pool, customer.id).await,
+        1,
+        "repeat delete must not write any second audit row for the target"
     );
 
     cleanup_target(&pool, customer.id).await;
@@ -463,6 +499,80 @@ async fn post_admin_customers_reactivate_writes_customer_reactivated_audit_row()
     );
 
     cleanup_target(&pool, customer.id).await;
+}
+
+#[tokio::test]
+#[ignore = "requires DATABASE_URL"]
+async fn post_admin_customers_reactivate_deleted_writes_no_audit_row() {
+    let Some(pool) = connect_and_migrate().await else {
+        return;
+    };
+
+    let customer_repo = crate::common::mock_repo();
+    let deleted =
+        customer_repo.seed_deleted("Deleted Reactivate User", "deleted-reactivate@example.com");
+    let suspended = customer_repo.seed(
+        "Suspended Reactivate User",
+        "suspended-reactivate@example.com",
+    );
+    customer_repo
+        .suspend(suspended.id)
+        .await
+        .expect("suspend control customer");
+
+    let app = app_with_live_audit_pool(
+        pool.clone(),
+        customer_repo,
+        crate::common::mock_tenant_repo(),
+        crate::common::mock_rate_card_repo(),
+        crate::common::mock_stripe_service(),
+        crate::common::mock_usage_repo(),
+        crate::common::mock_invoice_repo(),
+    );
+
+    // Deleted customer: 400 refusal writes zero reactivated audit rows.
+    let deleted_resp = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method(Method::POST)
+                .uri(format!("/admin/customers/{}/reactivate", deleted.id))
+                .header("x-admin-key", crate::common::TEST_ADMIN_KEY)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let (deleted_status, _deleted_body) = response_json(deleted_resp).await;
+    assert_eq!(deleted_status, StatusCode::BAD_REQUEST);
+    assert_eq!(
+        audit_row_count(&pool, ACTION_CUSTOMER_REACTIVATED, deleted.id).await,
+        0,
+        "a refused deleted-customer reactivation must write no audit row"
+    );
+
+    // Suspended control: the success path still writes exactly one audit row.
+    let suspended_resp = app
+        .oneshot(
+            Request::builder()
+                .method(Method::POST)
+                .uri(format!("/admin/customers/{}/reactivate", suspended.id))
+                .header("x-admin-key", crate::common::TEST_ADMIN_KEY)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let (suspended_status, _suspended_body) = response_json(suspended_resp).await;
+    assert_eq!(suspended_status, StatusCode::OK);
+    assert_eq!(
+        audit_row_count(&pool, ACTION_CUSTOMER_REACTIVATED, suspended.id).await,
+        1,
+        "the suspended success path must still write exactly one audit row"
+    );
+
+    cleanup_target(&pool, deleted.id).await;
+    cleanup_target(&pool, suspended.id).await;
 }
 
 #[tokio::test]

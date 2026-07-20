@@ -16,13 +16,16 @@ use api::repos::index_migration_repo::IndexMigrationRepo;
 use api::repos::invoice_repo::{InvoiceRepo, NewInvoice, NewLineItem};
 use api::repos::tenant_repo::TenantRepo;
 use api::repos::usage_repo::{rolling_window_for_days, UsageSummary};
-use api::repos::vm_inventory_repo::VmInventoryRepo;
+use api::repos::vm_inventory_repo::{
+    validate_vm_retirement_candidate, VmInventoryRepo, VmRetirementCandidateStatus,
+};
 use api::repos::webhook_event_repo::{WebhookEventRepo, WebhookEventRow};
 use api::repos::{
     CatalogLifecycleTargetIdentity, CustomerRepo, DeploymentRepo, InMemoryColdSnapshotRepo,
     InMemoryIndexReplicaRepo, RateCardRepo, RepoError, ResendPasswordResetOutcome,
     ResendPasswordResetReservation, ResendVerificationOutcome, ResendVerificationReservation,
-    UsageRepo, RESEND_VERIFICATION_COOLDOWN_SECONDS,
+    UsageRepo, VmDecommissionResult, VmRetirementAssessment, VmRetirementConflict,
+    RESEND_VERIFICATION_COOLDOWN_SECONDS,
 };
 use api::secrets::mock::MockNodeSecretManager;
 use api::services::alerting::MockAlertService;
@@ -60,6 +63,7 @@ pub struct MockCustomerRepo {
     oauth_identities: Mutex<HashMap<(String, String), Uuid>>,
     pub should_fail_suspend: Mutex<bool>,
     pub should_fail_reactivate: Mutex<bool>,
+    reactivate_calls: AtomicUsize,
     fail_next_soft_delete: AtomicBool,
     fail_next_hard_delete_open_invoices: AtomicBool,
     fail_next_oauth_link_not_found: AtomicBool,
@@ -134,6 +138,7 @@ impl MockCustomerRepo {
             oauth_identities: Mutex::new(HashMap::new()),
             should_fail_suspend: Mutex::new(false),
             should_fail_reactivate: Mutex::new(false),
+            reactivate_calls: AtomicUsize::new(0),
             fail_next_soft_delete: AtomicBool::new(false),
             fail_next_hard_delete_open_invoices: AtomicBool::new(false),
             fail_next_oauth_link_not_found: AtomicBool::new(false),
@@ -159,6 +164,10 @@ impl MockCustomerRepo {
 
     pub fn fail_next_find_by_id(&self) {
         self.fail_next_find_by_id.store(true, Ordering::SeqCst);
+    }
+
+    pub fn reactivate_call_count(&self) -> usize {
+        self.reactivate_calls.load(Ordering::SeqCst)
     }
 
     /// Force the next soft-delete call to report "not found" without mutating state.
@@ -1239,6 +1248,7 @@ impl CustomerRepo for MockCustomerRepo {
     /// is set (for error-path testing); returns `false` if the customer is not
     /// found or not currently suspended.
     async fn reactivate(&self, id: Uuid) -> Result<bool, RepoError> {
+        self.reactivate_calls.fetch_add(1, Ordering::SeqCst);
         if *self.should_fail_reactivate.lock().unwrap() {
             return Err(RepoError::Other("injected reactivate failure".into()));
         }
@@ -1643,6 +1653,7 @@ impl DeploymentRepo for MockDeploymentRepo {
             Some(d) => {
                 d.status = "terminated".to_string();
                 d.terminated_at = Some(Utc::now());
+                d.failure_reason = None;
                 Ok(true)
             }
             None => Ok(false),
@@ -3742,6 +3753,53 @@ impl VmInventoryRepo for MockVmInventoryRepo {
             Ok(())
         } else {
             Err(RepoError::NotFound)
+        }
+    }
+
+    async fn retirement_blockers(
+        &self,
+        id: Uuid,
+        expected_hostname: &str,
+    ) -> Result<VmRetirementAssessment, RepoError> {
+        self.check_failure()?;
+        let vms = self.vms.lock().unwrap();
+        let candidate = vms
+            .iter()
+            .find(|vm| vm.id == id)
+            .map(|vm| (vm.hostname.as_str(), vm.status.as_str()));
+        match validate_vm_retirement_candidate(id, expected_hostname, candidate) {
+            Ok(VmRetirementCandidateStatus::Active) => Ok(VmRetirementAssessment::Eligible),
+            Ok(status) => Ok(VmRetirementAssessment::Conflict(
+                VmRetirementConflict::InvalidStatus {
+                    actual_status: status.as_str().to_string(),
+                },
+            )),
+            Err(conflict) => Ok(VmRetirementAssessment::Conflict(conflict)),
+        }
+    }
+
+    async fn decommission_if_unreferenced(
+        &self,
+        id: Uuid,
+        expected_hostname: &str,
+    ) -> Result<VmDecommissionResult, RepoError> {
+        self.check_failure()?;
+        let mut vms = self.vms.lock().unwrap();
+        let vm = vms.iter_mut().find(|vm| vm.id == id);
+        let candidate = vm
+            .as_ref()
+            .map(|vm| (vm.hostname.as_str(), vm.status.as_str()));
+        match validate_vm_retirement_candidate(id, expected_hostname, candidate) {
+            Ok(VmRetirementCandidateStatus::Active) => {
+                let vm = vm.expect("validated active VM exists");
+                vm.status = "decommissioned".to_string();
+                vm.updated_at = Utc::now();
+                Ok(VmDecommissionResult::Decommissioned)
+            }
+            Ok(VmRetirementCandidateStatus::Decommissioned) => {
+                Ok(VmDecommissionResult::AlreadyDecommissioned)
+            }
+            Err(conflict) => Ok(VmDecommissionResult::Conflict(conflict)),
         }
     }
 

@@ -188,10 +188,45 @@ describe('Indexes page server load', () => {
 			expect.objectContaining({
 				status: 400,
 				data: expect.objectContaining({
-					error: 'Index name may only contain letters, numbers, underscores, and hyphens.'
+					error: 'Index name must start and end with a letter or number'
 				})
 			})
 		);
+		expect(createIndexMock).not.toHaveBeenCalled();
+	});
+
+	// The create action must enforce the whole canonical index-name contract, not
+	// just its charset half: a name accepted here becomes a real index, so every
+	// rule the onboarding form applies has to hold on this path too.
+	it('create action enforces every canonical index-name rule before API calls', async () => {
+		const rejectionCases = [
+			{ name: 'bad name', error: 'Only letters, numbers, hyphens, and underscores allowed' },
+			{ name: '-leading', error: 'Index name must start and end with a letter or number' },
+			{ name: 'trailing_', error: 'Index name must start and end with a letter or number' },
+			{ name: 'a'.repeat(65), error: 'Index name must be 64 characters or less' },
+			{ name: 'health', error: 'This name is reserved' },
+			{ name: 'metrics', error: 'This name is reserved' }
+		];
+
+		for (const rejectionCase of rejectionCases) {
+			const request = new Request('http://localhost/console/indexes', {
+				method: 'POST',
+				body: new URLSearchParams({ name: rejectionCase.name, region: 'us-east-1' })
+			});
+
+			const result = await actions.create({
+				request,
+				locals: { user: { token: 'jwt-token' } }
+			} as never);
+
+			expect(result, `expected "${rejectionCase.name}" to be rejected`).toEqual(
+				expect.objectContaining({
+					status: 400,
+					data: expect.objectContaining({ error: rejectionCase.error })
+				})
+			);
+		}
+
 		expect(createIndexMock).not.toHaveBeenCalled();
 	});
 

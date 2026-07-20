@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
@@ -10,6 +10,7 @@ use super::{CreateVmRequest, VmInstance, VmProvisioner, VmProvisionerError, VmSt
 pub struct MockVmProvisioner {
     vms: Mutex<HashMap<String, VmInstance>>,
     last_create_request: Mutex<Option<CreateVmRequest>>,
+    create_calls: AtomicUsize,
     pub should_fail: Arc<AtomicBool>,
     pub omit_public_ip: Arc<AtomicBool>,
 }
@@ -19,6 +20,7 @@ impl MockVmProvisioner {
         Self {
             vms: Mutex::new(HashMap::new()),
             last_create_request: Mutex::new(None),
+            create_calls: AtomicUsize::new(0),
             should_fail: Arc::new(AtomicBool::new(false)),
             omit_public_ip: Arc::new(AtomicBool::new(false)),
         }
@@ -27,6 +29,10 @@ impl MockVmProvisioner {
     /// Returns the last `CreateVmRequest` passed to `create_vm`, if any.
     pub fn last_create_request(&self) -> Option<CreateVmRequest> {
         self.last_create_request.lock().unwrap().clone()
+    }
+
+    pub fn create_call_count(&self) -> usize {
+        self.create_calls.load(Ordering::SeqCst)
     }
 
     pub fn set_should_fail(&self, fail: bool) {
@@ -72,6 +78,7 @@ impl Default for MockVmProvisioner {
 impl VmProvisioner for MockVmProvisioner {
     /// Generates a `mock-{uuid}` VM, stores it in the in-memory map, and records the request for later assertion. Respects `should_fail` (returns injected error) and `omit_public_ip` (leaves `public_ip` as `None`).
     async fn create_vm(&self, config: &CreateVmRequest) -> Result<VmInstance, VmProvisionerError> {
+        self.create_calls.fetch_add(1, Ordering::SeqCst);
         self.check_failure()?;
 
         *self.last_create_request.lock().unwrap() = Some(config.clone());

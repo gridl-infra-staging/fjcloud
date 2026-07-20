@@ -11,6 +11,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| algolia_import_job | Defines the database row model for Algolia import jobs and implements conversion logic to transform raw database strings into strongly-typed Rust domain models. |
-| algolia_import_job | Provides database row deserialization for Algolia import jobs and conversion to the domain model via helper parsing functions for enums like job status, error codes, and dispatch intent states. |
+| algolia_import_job | The algolia_import_job module handles importing data into Algolia search index with provider, row, and target binding components for managing the import workflow. |
 <!-- [scrai:end] -->

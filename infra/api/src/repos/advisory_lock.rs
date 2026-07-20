@@ -86,7 +86,12 @@ pub async fn advisory_lock<'a>(
     }
 }
 
-fn is_connection_error(err: &sqlx::Error) -> bool {
+pub(crate) async fn acquire_in_process_named_lock(lock_name: &str) -> OwnedMutexGuard<()> {
+    let key = in_process_named_lock_key(lock_name);
+    in_process_lock_slot(key).lock_owned().await
+}
+
+pub(crate) fn is_connection_error(err: &sqlx::Error) -> bool {
     matches!(
         err,
         sqlx::Error::Io(_)

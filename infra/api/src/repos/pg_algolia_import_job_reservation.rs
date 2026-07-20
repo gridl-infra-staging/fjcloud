@@ -3,26 +3,30 @@ use sqlx::{Postgres, Transaction};
 use uuid::Uuid;
 
 use super::{
-    active_reservation_predicate, repo_error, ActiveReservationRow, PgAlgoliaImportJobRepo,
-    ReservationPlan, VmCapacityRow, DEFAULT_ACTIVE_CUSTOMER_IMPORT_BYTES_LIMIT,
-    DEFAULT_ACTIVE_CUSTOMER_IMPORT_JOB_LIMIT, DEFAULT_ACTIVE_NODE_IMPORT_JOB_LIMIT,
-    DEFAULT_ACTIVE_NODE_TRANSIENT_BYTES_LIMIT, DEFAULT_INDEX_LIMIT, DEFAULT_STORAGE_LIMIT_BYTES,
+    active_reservation_predicate, customer_generation_admission_error, repo_error,
+    ActiveReservationRow, PgAlgoliaImportJobRepo, ReservationPlan, VmCapacityRow,
+    DEFAULT_ACTIVE_CUSTOMER_IMPORT_BYTES_LIMIT, DEFAULT_ACTIVE_CUSTOMER_IMPORT_JOB_LIMIT,
+    DEFAULT_ACTIVE_NODE_IMPORT_JOB_LIMIT, DEFAULT_ACTIVE_NODE_TRANSIENT_BYTES_LIMIT,
+    DEFAULT_INDEX_LIMIT, DEFAULT_STORAGE_LIMIT_BYTES,
 };
 use crate::models::algolia_import_job::{
     AlgoliaImportDestinationKind, AlgoliaImportErrorCode, AlgoliaImportJob, AlgoliaImportJobRow,
     NewAlgoliaImportJob,
 };
-use crate::repos::RepoError;
+use crate::repos::{AlgoliaImportJobAdmissionError, RepoError};
 
 impl PgAlgoliaImportJobRepo {
     pub(super) async fn build_reservation_plan(
         &self,
         tx: &mut Transaction<'_, Postgres>,
         job: &NewAlgoliaImportJob,
-    ) -> Result<ReservationPlan, RepoError> {
+    ) -> Result<ReservationPlan, AlgoliaImportJobAdmissionError> {
         let lifecycle_generation = self
             .lock_active_customer_generation(tx, job.customer_id())
-            .await?;
+            .await
+            .map_err(customer_generation_admission_error)?;
+        job.validate_target_binding(lifecycle_generation)
+            .map_err(AlgoliaImportJobAdmissionError::Refused)?;
         let overrides = self
             .customer_quota_overrides_for_update(tx, job.customer_id())
             .await?;
@@ -72,8 +76,8 @@ impl PgAlgoliaImportJobRepo {
         if active_tenant_count + active_reserved.reserved_index_count + reserved_index_count
             > index_limit
         {
-            return Err(RepoError::Conflict(
-                AlgoliaImportErrorCode::QuotaExceeded.as_str().into(),
+            return Err(AlgoliaImportJobAdmissionError::Refused(
+                AlgoliaImportErrorCode::QuotaExceeded,
             ));
         }
         if current_storage
@@ -81,8 +85,8 @@ impl PgAlgoliaImportJobRepo {
             + reserved_customer_storage_bytes
             > storage_limit
         {
-            return Err(RepoError::Conflict(
-                AlgoliaImportErrorCode::QuotaExceeded.as_str().into(),
+            return Err(AlgoliaImportJobAdmissionError::Refused(
+                AlgoliaImportErrorCode::QuotaExceeded,
             ));
         }
         enforce_active_import_limits(
@@ -104,8 +108,8 @@ impl PgAlgoliaImportJobRepo {
             if node_reserved.reserved_node_transient_bytes + reserved_node_transient_bytes
                 > headroom
             {
-                return Err(RepoError::Conflict(
-                    AlgoliaImportErrorCode::BackendUnavailable.as_str().into(),
+                return Err(AlgoliaImportJobAdmissionError::Refused(
+                    AlgoliaImportErrorCode::BackendUnavailable,
                 ));
             }
         }
@@ -331,8 +335,8 @@ fn active_reserved_totals(rows: &[ActiveReservationRow]) -> ReservationPlan {
     )
 }
 
-fn backend_unavailable() -> RepoError {
-    RepoError::Conflict(AlgoliaImportErrorCode::BackendUnavailable.as_str().into())
+fn backend_unavailable() -> AlgoliaImportJobAdmissionError {
+    AlgoliaImportJobAdmissionError::Refused(AlgoliaImportErrorCode::BackendUnavailable)
 }
 
 fn enforce_active_import_limits(
@@ -340,7 +344,7 @@ fn enforce_active_import_limits(
     job_limit: i64,
     bytes_limit: i64,
     incoming: &ReservationPlan,
-) -> Result<(), RepoError> {
+) -> Result<(), AlgoliaImportJobAdmissionError> {
     let active_totals = active_reserved_totals(active);
     if active.len() as i64 + 1 > job_limit {
         return Err(backend_unavailable());
@@ -358,7 +362,7 @@ fn enforce_active_node_import_limits(
     job_limit: i64,
     bytes_limit: i64,
     incoming: &ReservationPlan,
-) -> Result<(), RepoError> {
+) -> Result<(), AlgoliaImportJobAdmissionError> {
     let active_totals = active_reserved_totals(active);
     if active.len() as i64 + 1 > job_limit {
         return Err(backend_unavailable());
@@ -395,9 +399,12 @@ mod tests {
 
         let result = enforce_active_import_limits(&active, 2, 10_000, &incoming);
 
-        assert!(
-            matches!(result, Err(RepoError::Conflict(message)) if message == AlgoliaImportErrorCode::BackendUnavailable.as_str())
-        );
+        assert!(matches!(
+            result,
+            Err(AlgoliaImportJobAdmissionError::Refused(
+                AlgoliaImportErrorCode::BackendUnavailable
+            ))
+        ));
     }
 
     #[test]
@@ -412,9 +419,12 @@ mod tests {
 
         let result = enforce_active_import_limits(&active, 10, 10_000, &incoming);
 
-        assert!(
-            matches!(result, Err(RepoError::Conflict(message)) if message == AlgoliaImportErrorCode::BackendUnavailable.as_str())
-        );
+        assert!(matches!(
+            result,
+            Err(AlgoliaImportJobAdmissionError::Refused(
+                AlgoliaImportErrorCode::BackendUnavailable
+            ))
+        ));
     }
 
     #[test]
@@ -429,9 +439,12 @@ mod tests {
 
         let result = enforce_active_node_import_limits(&active, 2, 10_000, &incoming);
 
-        assert!(
-            matches!(result, Err(RepoError::Conflict(message)) if message == AlgoliaImportErrorCode::BackendUnavailable.as_str())
-        );
+        assert!(matches!(
+            result,
+            Err(AlgoliaImportJobAdmissionError::Refused(
+                AlgoliaImportErrorCode::BackendUnavailable
+            ))
+        ));
     }
 
     #[test]
@@ -446,8 +459,11 @@ mod tests {
 
         let result = enforce_active_node_import_limits(&active, 10, 10_000, &incoming);
 
-        assert!(
-            matches!(result, Err(RepoError::Conflict(message)) if message == AlgoliaImportErrorCode::BackendUnavailable.as_str())
-        );
+        assert!(matches!(
+            result,
+            Err(AlgoliaImportJobAdmissionError::Refused(
+                AlgoliaImportErrorCode::BackendUnavailable
+            ))
+        ));
     }
 }

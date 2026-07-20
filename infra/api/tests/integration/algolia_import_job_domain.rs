@@ -6,11 +6,11 @@ use std::sync::{Mutex, MutexGuard};
 use api::errors::ApiError;
 use api::models::algolia_import_job::{
     AlgoliaImportCreateDestination, AlgoliaImportDestinationKind, AlgoliaImportDispatchIntentState,
-    AlgoliaImportEngineAckState, AlgoliaImportErrorCode, AlgoliaImportJobState,
+    AlgoliaImportEngineAckState, AlgoliaImportErrorCode, AlgoliaImportJob, AlgoliaImportJobState,
     AlgoliaImportJobStatus, AlgoliaImportPublicationDisposition, AlgoliaImportSource,
-    AlgoliaImportSourceMetadata, AlgoliaImportSummary, AlgoliaImportTombstoneCleanupPhase,
-    AlgoliaReplaceTargetFacts, AlgoliaSealScrubWork, NewAlgoliaImportJob,
-    NewAlgoliaReplaceImportJob, UNKNOWN_ALGOLIA_SOURCE_SIZE_BYTES,
+    AlgoliaImportSourceMetadata, AlgoliaImportSummary, AlgoliaImportTargetBinding,
+    AlgoliaImportTombstoneCleanupPhase, AlgoliaReplaceTargetFacts, AlgoliaSealScrubWork,
+    NewAlgoliaImportJob, NewAlgoliaReplaceImportJob, UNKNOWN_ALGOLIA_SOURCE_SIZE_BYTES,
 };
 use api::secrets::mock::MockNodeSecretManager;
 use api::services::flapjack_proxy::FlapjackProxy;
@@ -44,8 +44,8 @@ fn seal_scrub_work_serializes_only_opaque_reconciliation_identifiers() {
 }
 use api::provisioner::region_map::RegionConfig;
 use api::repos::{
-    AlgoliaImportJobRepo, PgAlgoliaImportJobRepo, PgTenantRepo, RepoError, TenantRepo,
-    VmInventoryRepo,
+    AlgoliaImportJobAdmissionError, AlgoliaImportJobRepo, CustomerRepo, PgAlgoliaImportJobRepo,
+    PgCustomerRepo, PgTenantRepo, RepoError, TenantRepo, VmInventoryRepo,
 };
 use chrono::{Duration, Utc};
 use serde_json::json;
@@ -212,13 +212,18 @@ fn compatible_flapjack_proxy() -> Arc<FlapjackProxy> {
     }))
 }
 
-fn assert_engine_upgrade_required(error: ApiError, context: &str) {
+fn assert_engine_upgrade_required(
+    error: api::routes::indexes::AlgoliaCreateAdmissionError,
+    context: &str,
+) {
     match error {
-        ApiError::BadRequest(message) => assert_eq!(
-            message,
-            AlgoliaImportErrorCode::EngineUpgradeRequired.as_str(),
-            "{context}"
-        ),
+        api::routes::indexes::AlgoliaCreateAdmissionError::Route(ApiError::BadRequest(message)) => {
+            assert_eq!(
+                message,
+                AlgoliaImportErrorCode::EngineUpgradeRequired.as_str(),
+                "{context}"
+            )
+        }
         other => panic!("unexpected engine gate error: {other:?}"),
     }
 }
@@ -281,6 +286,50 @@ async fn insert_minimal(pool: &PgPool, customer_id: Uuid, suffix: &str) -> Uuid 
     .fetch_one(pool)
     .await
     .expect("insert minimal import job")
+}
+
+async fn soft_delete_customer(pool: &PgPool, customer_id: Uuid) {
+    assert!(
+        PgCustomerRepo::new(pool.clone())
+            .soft_delete(customer_id)
+            .await
+            .expect("soft-delete customer"),
+        "customer fixture should be active before soft-delete"
+    );
+}
+
+async fn serialized_import_job_row(pool: &PgPool, id: Uuid) -> serde_json::Value {
+    sqlx::query_scalar(
+        "SELECT to_jsonb(algolia_import_jobs.*)
+         FROM algolia_import_jobs WHERE id = $1",
+    )
+    .bind(id)
+    .fetch_one(pool)
+    .await
+    .expect("serialize retained import job row")
+}
+
+async fn import_job_count_for_customer(pool: &PgPool, customer_id: Uuid) -> i64 {
+    sqlx::query_scalar("SELECT COUNT(*) FROM algolia_import_jobs WHERE customer_id = $1")
+        .bind(customer_id)
+        .fetch_one(pool)
+        .await
+        .expect("count customer import jobs")
+}
+
+fn assert_destination_changed_admission(
+    result: Result<AlgoliaImportJob, AlgoliaImportJobAdmissionError>,
+    context: &str,
+) {
+    assert!(
+        matches!(
+            result,
+            Err(AlgoliaImportJobAdmissionError::Refused(
+                AlgoliaImportErrorCode::DestinationChanged
+            ))
+        ),
+        "{context}: expected destination_changed refusal, got {result:?}"
+    );
 }
 
 #[tokio::test]
@@ -514,6 +563,80 @@ async fn stale_customer_generation_cannot_commit_dispatch_intent() {
 }
 
 #[tokio::test]
+async fn soft_deleted_customer_refuses_create_admission_and_replay_without_mutating_retained_job() {
+    let Some(db) = connect_and_migrate("algolia_deleted_create_fence").await else {
+        return;
+    };
+    let customer_id = Uuid::new_v4();
+    insert_active_customer(&db.pool, customer_id, 7).await;
+    let repo = PgAlgoliaImportJobRepo::new(db.pool.clone());
+    let original_request = new_job(customer_id, "deleted-create-replay");
+    let retained = repo
+        .create(original_request.clone())
+        .await
+        .expect("admit active-generation import");
+    assert_eq!(retained.lifecycle_generation, 7);
+    let retained_before = serialized_import_job_row(&db.pool, retained.id).await;
+
+    soft_delete_customer(&db.pool, customer_id).await;
+
+    assert_destination_changed_admission(
+        repo.create(original_request).await,
+        "same-key replay after soft-delete",
+    );
+    assert_destination_changed_admission(
+        repo.create(new_job(customer_id, "deleted-create-new-key"))
+            .await,
+        "new create after soft-delete",
+    );
+    assert_eq!(
+        import_job_count_for_customer(&db.pool, customer_id).await,
+        1
+    );
+    assert_eq!(
+        serialized_import_job_row(&db.pool, retained.id).await,
+        retained_before
+    );
+}
+
+#[tokio::test]
+async fn soft_deleted_customer_refuses_dispatch_and_no_dispatch_finalizer_without_mutating_retained_job(
+) {
+    let Some(db) = connect_and_migrate("algolia_deleted_dispatch_fence").await else {
+        return;
+    };
+    let customer_id = Uuid::new_v4();
+    insert_active_customer(&db.pool, customer_id, 3).await;
+    let repo = PgAlgoliaImportJobRepo::new(db.pool.clone());
+    let retained = repo
+        .create(new_job(customer_id, "deleted-dispatch"))
+        .await
+        .expect("admit queued import");
+    let retained_before = serialized_import_job_row(&db.pool, retained.id).await;
+
+    soft_delete_customer(&db.pool, customer_id).await;
+
+    assert!(matches!(
+        repo.record_dispatch_intent_committed(retained.id, Uuid::new_v4())
+            .await,
+        Err(RepoError::Conflict(_))
+    ));
+    assert!(matches!(
+        repo.record_no_dispatch_failure(
+            retained.id,
+            AlgoliaImportErrorCode::BackendUnavailable,
+            Some("source unavailable")
+        )
+        .await,
+        Err(RepoError::Conflict(_))
+    ));
+    assert_eq!(
+        serialized_import_job_row(&db.pool, retained.id).await,
+        retained_before
+    );
+}
+
+#[tokio::test]
 async fn generic_state_update_cannot_write_dispatch_intent_or_engine_identity() {
     let Some(db) = connect_and_migrate("algolia_import_generic_no_dispatch").await else {
         return;
@@ -595,7 +718,9 @@ async fn repository_authenticates_replace_selector_and_derives_destination_ident
         .await;
     assert!(matches!(
         forged,
-        Err(RepoError::Conflict(message)) if message == "destination_changed"
+        Err(AlgoliaImportJobAdmissionError::Refused(
+            AlgoliaImportErrorCode::DestinationChanged
+        ))
     ));
 
     let job = repo
@@ -610,6 +735,60 @@ async fn repository_authenticates_replace_selector_and_derives_destination_ident
     assert_eq!(job.destination_vm_id, Some(vm_id));
     assert_eq!(job.physical_uid.as_deref(), Some(expected_uid.as_str()));
     assert_eq!(job.routing_identity.as_deref(), Some(expected_uid.as_str()));
+}
+
+#[tokio::test]
+async fn stale_replace_target_binding_is_refused_before_job_insertion() {
+    let Some(db) = connect_and_migrate("algolia_stale_replace_binding").await else {
+        return;
+    };
+    let customer_id = Uuid::new_v4();
+    insert_replace_target(&db.pool, customer_id, "products").await;
+    let lifecycle_generation: i64 =
+        sqlx::query_scalar("SELECT lifecycle_generation FROM customers WHERE id = $1")
+            .bind(customer_id)
+            .fetch_one(&db.pool)
+            .await
+            .expect("read lifecycle generation");
+    let binding = AlgoliaImportTargetBinding::replace(
+        customer_id,
+        "products",
+        "us-east-1",
+        lifecycle_generation,
+        api::services::flapjack_node::flapjack_index_uid(customer_id, "products"),
+    );
+    sqlx::query(
+        "UPDATE customers SET lifecycle_generation = lifecycle_generation + 1 WHERE id = $1",
+    )
+    .bind(customer_id)
+    .execute(&db.pool)
+    .await
+    .expect("advance lifecycle generation");
+
+    let result = PgAlgoliaImportJobRepo::new(db.pool.clone())
+        .create_replace(
+            NewAlgoliaReplaceImportJob::from_target_binding(
+                binding,
+                source_with_size("stale-binding", 12_345),
+                "stale-binding",
+            )
+            .expect("construct trusted replace request"),
+        )
+        .await;
+
+    assert!(matches!(
+        result,
+        Err(AlgoliaImportJobAdmissionError::Refused(
+            AlgoliaImportErrorCode::DestinationChanged
+        ))
+    ));
+    let persisted: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM algolia_import_jobs WHERE customer_id = $1")
+            .bind(customer_id)
+            .fetch_one(&db.pool)
+            .await
+            .expect("count import jobs");
+    assert_eq!(persisted, 0);
 }
 
 #[tokio::test]
@@ -985,7 +1164,12 @@ async fn same_key_same_size_changed_source_metadata_conflicts() {
         .await;
 
     assert!(
-        matches!(changed, Err(RepoError::Conflict(message)) if message.contains("different canonical fingerprint")),
+        matches!(
+            changed,
+            Err(AlgoliaImportJobAdmissionError::Refused(
+                AlgoliaImportErrorCode::DestinationConflict
+            ))
+        ),
         "same idempotency key plus changed authenticated source metadata must conflict"
     );
 }
@@ -1047,9 +1231,12 @@ async fn unknown_source_size_quota_failure_is_atomic() {
         ))
         .await;
 
-    assert!(
-        matches!(result, Err(RepoError::Conflict(message)) if message.contains("quota_exceeded"))
-    );
+    assert!(matches!(
+        result,
+        Err(AlgoliaImportJobAdmissionError::Refused(
+            AlgoliaImportErrorCode::QuotaExceeded
+        ))
+    ));
     let persisted: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM algolia_import_jobs
          WHERE customer_id = $1 AND idempotency_key = 'unknown-size-over-quota'",
@@ -1755,7 +1942,9 @@ async fn repository_owns_idempotency_and_canonical_updates() {
             "sha256:different-canonical-request"
         ))
         .await,
-        Err(RepoError::Conflict(_)),
+        Err(AlgoliaImportJobAdmissionError::Refused(
+            AlgoliaImportErrorCode::DestinationConflict
+        )),
     ));
     let other_customer_id = Uuid::new_v4();
     insert_active_customer(&db.pool, other_customer_id, 1).await;
@@ -2168,5 +2357,460 @@ fn algolia_replace_provider_check_takes_priority_over_other_failures() {
         facts.validate(),
         Err(AlgoliaImportErrorCode::MigrationProviderUnsupported),
         "provider check must be the first gate"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Credential-free replace-target eligibility snapshot (Stage 2, group 1)
+// ---------------------------------------------------------------------------
+//
+// The eligibility endpoint's `target` phase must read the current customer
+// routing generation and re-authenticate the concrete replace target before
+// issuing a signed binding, reusing the same locked-generation and
+// authenticated replace-target queries the create path already owns. These
+// tests pin that repository snapshot: it returns the current generation, the
+// authoritative destination region, and the derived routing identity for an
+// owned healthy standalone AWS flapjack target, and rejects every ineligible
+// state with the same typed codes create admission would raise — without
+// mutating any row.
+
+async fn seeded_customer_generation(pool: &PgPool, customer_id: Uuid) -> i64 {
+    sqlx::query_scalar("SELECT lifecycle_generation FROM customers WHERE id = $1")
+        .bind(customer_id)
+        .fetch_one(pool)
+        .await
+        .expect("read customer generation")
+}
+
+#[tokio::test]
+async fn algolia_cloud_job_eligibility_snapshot_authenticates_owned_healthy_target() {
+    let Some(db) = connect_and_migrate("algolia_eligibility_snapshot_ok").await else {
+        return;
+    };
+    let repo = PgAlgoliaImportJobRepo::new(db.pool.clone());
+    let customer_id = Uuid::new_v4();
+    insert_replace_target(&db.pool, customer_id, "products").await;
+    let expected_generation = seeded_customer_generation(&db.pool, customer_id).await;
+
+    let snapshot = repo
+        .snapshot_replace_target_eligibility(customer_id, "products")
+        .await
+        .expect("owned healthy AWS target is eligible");
+
+    assert_eq!(snapshot.lifecycle_generation, expected_generation);
+    assert_eq!(snapshot.region, "us-east-1");
+    assert_eq!(
+        snapshot.routing_identity,
+        api::services::flapjack_node::flapjack_index_uid(customer_id, "products")
+    );
+
+    // A snapshot is a read; it must not consume the reservation or leave a job.
+    let jobs: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM algolia_import_jobs")
+        .fetch_one(&db.pool)
+        .await
+        .expect("count import jobs");
+    assert_eq!(jobs, 0);
+}
+
+#[tokio::test]
+async fn algolia_cloud_job_eligibility_snapshot_rejects_missing_target() {
+    let Some(db) = connect_and_migrate("algolia_eligibility_snapshot_missing").await else {
+        return;
+    };
+    let repo = PgAlgoliaImportJobRepo::new(db.pool.clone());
+    let customer_id = Uuid::new_v4();
+    insert_active_customer(&db.pool, customer_id, 1).await;
+
+    let error = repo
+        .snapshot_replace_target_eligibility(customer_id, "does-not-exist")
+        .await
+        .expect_err("a replace target that does not exist is not eligible");
+    assert_eq!(
+        error,
+        api::repos::DestinationEligibilityError::TargetNotFound,
+        "got {error:?}"
+    );
+}
+
+#[tokio::test]
+async fn algolia_cloud_job_eligibility_snapshot_rejects_cross_customer_target() {
+    let Some(db) = connect_and_migrate("algolia_eligibility_snapshot_cross").await else {
+        return;
+    };
+    let repo = PgAlgoliaImportJobRepo::new(db.pool.clone());
+    let owner_id = Uuid::new_v4();
+    let intruder_id = Uuid::new_v4();
+    insert_replace_target(&db.pool, owner_id, "products").await;
+    insert_active_customer(&db.pool, intruder_id, 1).await;
+
+    let error = repo
+        .snapshot_replace_target_eligibility(intruder_id, "products")
+        .await
+        .expect_err("another customer's target must not be eligible");
+    assert_eq!(
+        error,
+        api::repos::DestinationEligibilityError::TargetNotFound,
+        "got {error:?}"
+    );
+}
+
+#[tokio::test]
+async fn algolia_cloud_job_eligibility_snapshot_rejects_inactive_customer() {
+    let Some(db) = connect_and_migrate("algolia_eligibility_snapshot_inactive").await else {
+        return;
+    };
+    let repo = PgAlgoliaImportJobRepo::new(db.pool.clone());
+    let customer_id = Uuid::new_v4();
+    insert_replace_target(&db.pool, customer_id, "products").await;
+    sqlx::query("UPDATE customers SET status = 'suspended' WHERE id = $1")
+        .bind(customer_id)
+        .execute(&db.pool)
+        .await
+        .expect("suspend customer lifecycle");
+
+    let error = repo
+        .snapshot_replace_target_eligibility(customer_id, "products")
+        .await
+        .expect_err("a non-active customer cannot pin a routing generation");
+    assert_eq!(
+        error,
+        api::repos::DestinationEligibilityError::LifecycleUnavailable,
+        "got {error:?}"
+    );
+}
+
+#[tokio::test]
+async fn algolia_cloud_job_eligibility_snapshot_rejects_unhealthy_target() {
+    let Some(db) = connect_and_migrate("algolia_eligibility_snapshot_unhealthy").await else {
+        return;
+    };
+    let repo = PgAlgoliaImportJobRepo::new(db.pool.clone());
+    let customer_id = Uuid::new_v4();
+    insert_replace_target(&db.pool, customer_id, "products").await;
+    sqlx::query(
+        "UPDATE customer_deployments SET health_status = 'degraded' WHERE customer_id = $1",
+    )
+    .bind(customer_id)
+    .execute(&db.pool)
+    .await
+    .expect("degrade target health");
+
+    let error = repo
+        .snapshot_replace_target_eligibility(customer_id, "products")
+        .await
+        .expect_err("an unhealthy target is not eligible");
+    assert_eq!(
+        error,
+        api::repos::DestinationEligibilityError::Ineligible(
+            AlgoliaImportErrorCode::BackendUnavailable
+        ),
+        "got {error:?}"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Tenant-scoped retained get / keyset list primitives (Stage 2, group 3)
+// ---------------------------------------------------------------------------
+
+async fn insert_retained_job(
+    pool: &PgPool,
+    customer_id: Uuid,
+    id: Uuid,
+    key_suffix: &str,
+    created_at: chrono::DateTime<Utc>,
+) {
+    // A distinct logical target per job avoids the partial unique index on
+    // active (customer_id, logical_target); retained get/list do not depend on
+    // target uniqueness.
+    let target = format!("products-{key_suffix}");
+    sqlx::query(
+        "INSERT INTO algolia_import_jobs
+         (id, customer_id, tenant_id, algolia_app_id, destination_kind, logical_target,
+          destination_region, destination_deployment_id, destination_vm_id, physical_uid,
+          source_name, idempotency_key, canonical_fingerprint, routing_identity,
+          source_size_bytes, lifecycle_generation, created_at, updated_at)
+         VALUES ($1, $2, $7, 'AB12CD34EF', 'replace', $7, 'us-east-1',
+                 $3, $4, 'physical', 'source', $5, 'sha256:fingerprint', 'tenant/products',
+                 100, 1, $6, $6)",
+    )
+    .bind(id)
+    .bind(customer_id)
+    .bind(Uuid::new_v4())
+    .bind(Uuid::new_v4())
+    .bind(format!("retained-key-{key_suffix}"))
+    .bind(created_at)
+    .bind(target)
+    .execute(pool)
+    .await
+    .expect("insert retained import job");
+}
+
+/// Drive a retained job into the fully-scrubbed erased shape the table's
+/// erasure check constraint requires (all business columns NULL, tombstone
+/// fields set), so retained get/list exclusion can be exercised.
+async fn erase_retained_job(pool: &PgPool, id: Uuid) {
+    sqlx::query(
+        "UPDATE algolia_import_jobs SET
+            erased_at = now(), erasure_handle = gen_random_uuid(),
+            cleanup_phase = 'engine_disposition_required',
+            customer_id = NULL, tenant_id = NULL, algolia_app_id = NULL, destination_kind = NULL,
+            logical_target = NULL, destination_region = NULL, destination_deployment_id = NULL,
+            destination_vm_id = NULL, physical_uid = NULL, source_name = NULL, cloud_job_id = NULL,
+            dispatch_intent_state = NULL, lifecycle_generation = NULL, idempotency_key = NULL,
+            canonical_fingerprint = NULL, routing_identity = NULL, source_size_bytes = NULL,
+            reserved_index_count = NULL, reserved_customer_storage_bytes = NULL,
+            reserved_node_transient_bytes = NULL, retryable = NULL, worker_claimed_at = NULL,
+            worker_lease_expires_at = NULL, cancel_requested_at = NULL,
+            resume_intent_generation = NULL, resume_checkpoint = NULL, resume_deadline = NULL,
+            resume_status_observed_at = NULL, resumable = NULL, resume_count = NULL,
+            documents_expected = NULL, documents_imported = NULL, documents_rejected = NULL,
+            settings_applied = NULL, settings_unsupported = NULL, synonyms_expected = NULL,
+            synonyms_imported = NULL, synonyms_rejected = NULL, rules_expected = NULL,
+            rules_imported = NULL, rules_rejected = NULL, warnings = NULL, error_code = NULL,
+            error_message = NULL, status = NULL, terminal_at = NULL
+         WHERE id = $1",
+    )
+    .bind(id)
+    .execute(pool)
+    .await
+    .expect("erase retained job");
+}
+
+#[test]
+fn algolia_cloud_job_list_limit_clamps_default_and_max() {
+    use api::repos::clamp_algolia_import_job_list_limit as clamp;
+    assert_eq!(clamp(None), 50);
+    assert_eq!(clamp(Some(0)), 50);
+    assert_eq!(clamp(Some(-5)), 50);
+    assert_eq!(clamp(Some(1)), 1);
+    assert_eq!(clamp(Some(50)), 50);
+    assert_eq!(clamp(Some(200)), 200);
+    assert_eq!(clamp(Some(201)), 200);
+    assert_eq!(clamp(Some(10_000)), 200);
+}
+
+#[tokio::test]
+async fn algolia_cloud_job_get_for_customer_enforces_ownership_in_sql() {
+    let Some(db) = connect_and_migrate("algolia_retained_get").await else {
+        return;
+    };
+    let repo = PgAlgoliaImportJobRepo::new(db.pool.clone());
+    let owner = Uuid::new_v4();
+    let intruder = Uuid::new_v4();
+    insert_active_customer(&db.pool, owner, 1).await;
+    insert_active_customer(&db.pool, intruder, 1).await;
+    let job_id = Uuid::new_v4();
+    insert_retained_job(&db.pool, owner, job_id, "get", Utc::now()).await;
+
+    assert!(repo
+        .get_for_customer(owner, job_id)
+        .await
+        .expect("owner read")
+        .is_some());
+    assert!(
+        repo.get_for_customer(intruder, job_id)
+            .await
+            .expect("intruder read")
+            .is_none(),
+        "ownership must be enforced in SQL, not by fetch-then-compare"
+    );
+
+    erase_retained_job(&db.pool, job_id).await;
+    assert!(repo
+        .get_for_customer(owner, job_id)
+        .await
+        .expect("erased read")
+        .is_none());
+}
+
+#[tokio::test]
+async fn algolia_cloud_job_list_for_customer_orders_newest_first_with_id_tiebreak() {
+    let Some(db) = connect_and_migrate("algolia_retained_order").await else {
+        return;
+    };
+    let repo = PgAlgoliaImportJobRepo::new(db.pool.clone());
+    let customer = Uuid::new_v4();
+    insert_active_customer(&db.pool, customer, 1).await;
+    let base = Utc::now();
+    let older = base - Duration::seconds(60);
+    // Two jobs share a created_at so the id tie-break (DESC) is exercised.
+    let tie_low = Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap();
+    let tie_high = Uuid::parse_str("ffffffff-0000-0000-0000-000000000000").unwrap();
+    let newest = Uuid::new_v4();
+    insert_retained_job(&db.pool, customer, tie_low, "tie-low", older).await;
+    insert_retained_job(&db.pool, customer, tie_high, "tie-high", older).await;
+    insert_retained_job(&db.pool, customer, newest, "newest", base).await;
+
+    let page = repo
+        .list_for_customer(customer, None, 10)
+        .await
+        .expect("list page");
+    let ids: Vec<Uuid> = page.jobs.iter().map(|job| job.id).collect();
+    // newest created_at first, then within the tie the larger id first.
+    assert_eq!(ids, vec![newest, tie_high, tie_low]);
+    assert!(
+        !page.has_more,
+        "three rows under a limit of ten cannot have another page"
+    );
+}
+
+#[tokio::test]
+async fn algolia_cloud_job_list_for_customer_keyset_paginates_without_gaps() {
+    let Some(db) = connect_and_migrate("algolia_retained_keyset").await else {
+        return;
+    };
+    let repo = PgAlgoliaImportJobRepo::new(db.pool.clone());
+    let customer = Uuid::new_v4();
+    insert_active_customer(&db.pool, customer, 1).await;
+    let base = Utc::now();
+    let mut expected = Vec::new();
+    for index in 0..5 {
+        let id = Uuid::new_v4();
+        // Distinct, strictly decreasing created_at so the expected order is stable.
+        insert_retained_job(
+            &db.pool,
+            customer,
+            id,
+            &format!("page-{index}"),
+            base - Duration::seconds(index),
+        )
+        .await;
+        expected.push((base - Duration::seconds(index), id));
+    }
+    // expected is already newest-first (index 0 is the newest).
+
+    let mut seen = Vec::new();
+    let mut cursor: Option<api::repos::AlgoliaImportJobListCursor> = None;
+    loop {
+        let page = repo
+            .list_for_customer(customer, cursor, 2)
+            .await
+            .expect("keyset page");
+        for job in &page.jobs {
+            seen.push(job.id);
+        }
+        let Some(last) = page.jobs.last() else {
+            break;
+        };
+        cursor = Some(api::repos::AlgoliaImportJobListCursor {
+            created_at: last.created_at,
+            id: last.id,
+        });
+        // The lookahead flag, not row count, decides when to stop paging.
+        if !page.has_more {
+            break;
+        }
+    }
+
+    let expected_ids: Vec<Uuid> = expected.iter().map(|(_, id)| *id).collect();
+    assert_eq!(
+        seen, expected_ids,
+        "keyset paging must have no gaps or duplicates"
+    );
+}
+
+#[tokio::test]
+async fn algolia_cloud_job_list_for_customer_excludes_erased_and_other_customers() {
+    let Some(db) = connect_and_migrate("algolia_retained_isolation").await else {
+        return;
+    };
+    let repo = PgAlgoliaImportJobRepo::new(db.pool.clone());
+    let customer = Uuid::new_v4();
+    let other = Uuid::new_v4();
+    insert_active_customer(&db.pool, customer, 1).await;
+    insert_active_customer(&db.pool, other, 1).await;
+    let base = Utc::now();
+    let kept = Uuid::new_v4();
+    let erased = Uuid::new_v4();
+    let foreign = Uuid::new_v4();
+    insert_retained_job(&db.pool, customer, kept, "kept", base).await;
+    insert_retained_job(
+        &db.pool,
+        customer,
+        erased,
+        "erased",
+        base - Duration::seconds(1),
+    )
+    .await;
+    insert_retained_job(&db.pool, other, foreign, "foreign", base).await;
+    erase_retained_job(&db.pool, erased).await;
+
+    let page = repo
+        .list_for_customer(customer, None, 50)
+        .await
+        .expect("list page");
+    let ids: Vec<Uuid> = page.jobs.iter().map(|job| job.id).collect();
+    assert_eq!(
+        ids,
+        vec![kept],
+        "erased rows and other customers must be excluded"
+    );
+}
+
+/// The repository's own `has_more` flag must come from a `limit + 1` lookahead,
+/// not from `len == limit`, so an exact-full page (and the final page of an
+/// exact multiple of the page size) reports no further page.
+#[tokio::test]
+async fn algolia_cloud_job_list_for_customer_exact_full_page_reports_no_more() {
+    let Some(db) = connect_and_migrate("algolia_retained_exact_full").await else {
+        return;
+    };
+    let repo = PgAlgoliaImportJobRepo::new(db.pool.clone());
+    let customer = Uuid::new_v4();
+    insert_active_customer(&db.pool, customer, 1).await;
+    let base = Utc::now();
+    let mut ids = Vec::new();
+    for index in 0..4 {
+        let id = Uuid::new_v4();
+        insert_retained_job(
+            &db.pool,
+            customer,
+            id,
+            &format!("full-{index}"),
+            base - Duration::seconds(index),
+        )
+        .await;
+        ids.push(id);
+    }
+
+    // Requesting exactly as many rows as exist: full page, but no lookahead row.
+    let page = repo
+        .list_for_customer(customer, None, 4)
+        .await
+        .expect("exact-full page");
+    assert_eq!(page.jobs.len(), 4);
+    assert!(
+        !page.has_more,
+        "an exact-full page with no further row must report has_more=false"
+    );
+
+    // Exact multiple of the page size: page one is full and has more; page two
+    // is full and is the final page.
+    let first = repo
+        .list_for_customer(customer, None, 2)
+        .await
+        .expect("first page");
+    assert_eq!(first.jobs.len(), 2);
+    assert!(
+        first.has_more,
+        "a full first page over a longer list must report has_more=true"
+    );
+    let last = first.jobs.last().unwrap();
+    let second = repo
+        .list_for_customer(
+            customer,
+            Some(api::repos::AlgoliaImportJobListCursor {
+                created_at: last.created_at,
+                id: last.id,
+            }),
+            2,
+        )
+        .await
+        .expect("second page");
+    let second_ids: Vec<Uuid> = second.jobs.iter().map(|job| job.id).collect();
+    assert_eq!(second_ids, vec![ids[2], ids[3]]);
+    assert!(
+        !second.has_more,
+        "the final full page of an exact multiple must report has_more=false"
     );
 }

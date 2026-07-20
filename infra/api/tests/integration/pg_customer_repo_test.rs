@@ -1,5 +1,8 @@
 /// SQL integration tests for PgCustomerRepo data contracts.
-use api::models::{AlgoliaImportTombstoneCleanupPhase, IngestQuotaWarningMetric};
+use api::models::{
+    AlgoliaImportEngineAckState, AlgoliaImportPublicationDisposition,
+    AlgoliaImportTombstoneCleanupPhase, Customer, IngestQuotaWarningMetric,
+};
 use api::repos::{
     CustomerHardDeleteKind, CustomerHardDeleteOutcome, CustomerRepo, PgCustomerRepo,
     ResendVerificationOutcome,
@@ -7,6 +10,7 @@ use api::repos::{
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 use sqlx::PgPool;
+use std::collections::HashSet;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -62,6 +66,26 @@ struct CustomerDeletionMetadataRaw {
     deleted_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
+#[derive(Debug, PartialEq, sqlx::FromRow)]
+struct CustomerLifecycleSnapshot {
+    id: Uuid,
+    email: String,
+    status: String,
+    lifecycle_generation: i64,
+    created_at: chrono::DateTime<chrono::Utc>,
+    updated_at: chrono::DateTime<chrono::Utc>,
+    deleted_at: Option<chrono::DateTime<chrono::Utc>>,
+}
+
+#[derive(Debug, PartialEq)]
+struct RetainedEvidenceSnapshot {
+    deployments: String,
+    vm_inventory: String,
+    tenants: String,
+    cold_snapshots: String,
+    algolia_import_jobs: String,
+}
+
 /// Reads deletion metadata via a schema-tolerant projection so the test can
 /// fail on missing behavior without requiring Stage 2 schema changes first.
 async fn fetch_customer_deletion_metadata(pool: &PgPool, id: Uuid) -> CustomerDeletionMetadataRaw {
@@ -77,6 +101,391 @@ async fn fetch_customer_deletion_metadata(pool: &PgPool, id: Uuid) -> CustomerDe
     .fetch_one(pool)
     .await
     .expect("fetch customer deletion metadata")
+}
+
+async fn fetch_customer_lifecycle_snapshot(pool: &PgPool, id: Uuid) -> CustomerLifecycleSnapshot {
+    sqlx::query_as(
+        "SELECT \
+            id, email, status, lifecycle_generation, created_at, updated_at, deleted_at \
+         FROM customers \
+         WHERE id = $1",
+    )
+    .bind(id)
+    .fetch_one(pool)
+    .await
+    .expect("fetch customer lifecycle snapshot")
+}
+
+async fn fetch_retained_evidence_snapshot(
+    pool: &PgPool,
+    customer_id: Uuid,
+) -> RetainedEvidenceSnapshot {
+    RetainedEvidenceSnapshot {
+        deployments: fetch_jsonb_rows(
+            pool,
+            "SELECT id, customer_id, node_id, region, vm_type, vm_provider, ip_address, \
+                    status, provider_vm_id, hostname, flapjack_url, health_status, \
+                    failure_reason, created_at, terminated_at, last_health_check_at \
+             FROM customer_deployments WHERE customer_id = $1",
+            customer_id,
+        )
+        .await,
+        vm_inventory: fetch_jsonb_rows(
+            pool,
+            "SELECT id, region, provider, hostname, flapjack_url, capacity, current_load, status, \
+                    created_at, updated_at, load_scraped_at \
+             FROM vm_inventory \
+             WHERE id IN (SELECT source_vm_id FROM cold_snapshots WHERE customer_id = $1)",
+            customer_id,
+        )
+        .await,
+        tenants: fetch_jsonb_rows(
+            pool,
+            "SELECT customer_id, tenant_id, deployment_id, created_at, vm_id, tier, \
+                    resource_quota, last_accessed_at, cold_snapshot_id, service_type \
+             FROM customer_tenants WHERE customer_id = $1",
+            customer_id,
+        )
+        .await,
+        cold_snapshots: fetch_jsonb_rows(
+            pool,
+            "SELECT id, customer_id, tenant_id, source_vm_id, object_key, size_bytes, checksum, \
+                    status, error, created_at, completed_at, expires_at \
+             FROM cold_snapshots WHERE customer_id = $1",
+            customer_id,
+        )
+        .await,
+        algolia_import_jobs: fetch_jsonb_rows(
+            pool,
+            "SELECT id, customer_id, tenant_id, algolia_app_id, destination_kind, logical_target, \
+                    destination_region, destination_deployment_id, destination_vm_id, \
+                    physical_uid, source_name, cloud_job_id, engine_job_id, \
+                    dispatch_intent_state, lifecycle_generation, idempotency_key, \
+                    canonical_fingerprint, routing_identity, source_size_bytes, \
+                    reserved_index_count, reserved_customer_storage_bytes, \
+                    reserved_node_transient_bytes, retryable, worker_claimed_at, \
+                    worker_lease_expires_at, cancel_requested_at, resume_intent_generation, \
+                    resume_checkpoint, resume_deadline, resume_status_observed_at, resumable, \
+                    resume_count, documents_expected, documents_imported, documents_rejected, \
+                    settings_applied, settings_unsupported, synonyms_expected, \
+                    synonyms_imported, synonyms_rejected, rules_expected, rules_imported, \
+                    rules_rejected, warnings, error_code, error_message, status, \
+                    publication_disposition, engine_ack_state, terminal_at, cleanup_phase, \
+                    created_at, updated_at \
+             FROM algolia_import_jobs WHERE customer_id = $1",
+            customer_id,
+        )
+        .await,
+    }
+}
+
+fn assert_algolia_recovery_metadata_seeded(evidence: &RetainedEvidenceSnapshot) {
+    let jobs: Vec<serde_json::Value> = serde_json::from_str(&evidence.algolia_import_jobs)
+        .expect("Algolia import job snapshot should deserialize");
+    assert!(
+        jobs.iter().any(|job| {
+            json_field_is_populated(job, "cleanup_phase")
+                && json_field_is_populated(job, "cancel_requested_at")
+                && json_field_is_populated(job, "cloud_job_id")
+        }),
+        "retained-evidence fixture must include populated cleanup_phase, \
+         cancel_requested_at, and cloud_job_id values"
+    );
+}
+
+fn json_field_is_populated(row: &serde_json::Value, field: &str) -> bool {
+    matches!(row.get(field), Some(value) if !value.is_null())
+}
+
+async fn fetch_jsonb_rows(pool: &PgPool, sql: &str, customer_id: Uuid) -> String {
+    let wrapped_sql = format!(
+        "SELECT COALESCE(jsonb_agg(to_jsonb(row_data) ORDER BY to_jsonb(row_data)::text)::text, '[]') \
+         FROM ({sql}) AS row_data"
+    );
+    sqlx::query_scalar::<_, String>(&wrapped_sql)
+        .bind(customer_id)
+        .fetch_one(pool)
+        .await
+        .expect("fetch retained evidence JSON rows")
+}
+
+async fn seed_soft_delete_recovery_evidence(
+    pool: &PgPool,
+    customer: &Customer,
+    lifecycle_generation: i64,
+) -> (Uuid, Uuid, Uuid) {
+    let deployment_id = Uuid::new_v4();
+    let vm_id = Uuid::new_v4();
+    let cold_snapshot_id = Uuid::new_v4();
+    let tenant_id = format!("retained-cold-{}", &Uuid::new_v4().to_string()[..8]);
+
+    sqlx::query(
+        "INSERT INTO customer_deployments \
+            (id, customer_id, node_id, region, vm_type, vm_provider, ip_address, status, \
+             provider_vm_id, hostname, flapjack_url, health_status) \
+         VALUES ($1, $2, $3, 'us-east-1', 't4g.small', 'aws', '10.0.0.7', 'running', \
+                 'i-retained-soft-delete', 'retained-node.internal', \
+                 'http://retained-node.internal:7700', 'healthy')",
+    )
+    .bind(deployment_id)
+    .bind(customer.id)
+    .bind(format!(
+        "retained-node-{}",
+        &Uuid::new_v4().to_string()[..8]
+    ))
+    .execute(pool)
+    .await
+    .expect("seed retained customer_deployments row");
+
+    sqlx::query(
+        "INSERT INTO vm_inventory \
+            (id, region, provider, hostname, flapjack_url, capacity, current_load, status) \
+         VALUES ($1, 'us-east-1', 'aws', $2, 'http://retained-vm.internal:7700', \
+                 '{\"storage_bytes\": 1000000, \"indexes\": 8}'::jsonb, \
+                 '{\"storage_bytes\": 123456, \"indexes\": 2}'::jsonb, 'active')",
+    )
+    .bind(vm_id)
+    .bind(format!(
+        "retained-vm-{}.internal",
+        &Uuid::new_v4().to_string()[..8]
+    ))
+    .execute(pool)
+    .await
+    .expect("seed retained vm_inventory row");
+
+    sqlx::query(
+        "INSERT INTO cold_snapshots \
+            (id, customer_id, tenant_id, source_vm_id, object_key, size_bytes, checksum, status, \
+             completed_at, expires_at) \
+         VALUES ($1, $2, $3, $4, 'cold/retained/index.snapshot', 4096, \
+                 'sha256:retained', 'completed', \
+                 NOW() - INTERVAL '1 hour', NOW() + INTERVAL '30 days')",
+    )
+    .bind(cold_snapshot_id)
+    .bind(customer.id)
+    .bind(&tenant_id)
+    .bind(vm_id)
+    .execute(pool)
+    .await
+    .expect("seed retained cold_snapshots row");
+
+    sqlx::query(
+        "INSERT INTO customer_tenants \
+            (customer_id, tenant_id, deployment_id, vm_id, tier, resource_quota, \
+             last_accessed_at, cold_snapshot_id, service_type) \
+         VALUES ($1, $2, $3, $4, 'cold', \
+                 '{\"records\": 25000, \"storage_bytes\": 1048576}'::jsonb, \
+                 NOW() - INTERVAL '2 days', $5, 'flapjack')",
+    )
+    .bind(customer.id)
+    .bind(&tenant_id)
+    .bind(deployment_id)
+    .bind(vm_id)
+    .bind(cold_snapshot_id)
+    .execute(pool)
+    .await
+    .expect("seed retained customer_tenants row");
+
+    seed_algolia_import_jobs(
+        pool,
+        customer.id,
+        deployment_id,
+        vm_id,
+        lifecycle_generation,
+    )
+    .await;
+
+    (deployment_id, vm_id, cold_snapshot_id)
+}
+
+async fn seed_algolia_import_jobs(
+    pool: &PgPool,
+    customer_id: Uuid,
+    deployment_id: Uuid,
+    vm_id: Uuid,
+    lifecycle_generation: i64,
+) {
+    seed_queued_import_job(pool, customer_id, lifecycle_generation).await;
+    seed_active_import_job(
+        pool,
+        customer_id,
+        deployment_id,
+        vm_id,
+        lifecycle_generation,
+    )
+    .await;
+    seed_failed_resumable_import_job(
+        pool,
+        customer_id,
+        deployment_id,
+        vm_id,
+        lifecycle_generation,
+    )
+    .await;
+    seed_acknowledged_terminal_import_job(
+        pool,
+        customer_id,
+        deployment_id,
+        vm_id,
+        lifecycle_generation,
+    )
+    .await;
+}
+
+async fn seed_queued_import_job(pool: &PgPool, customer_id: Uuid, lifecycle_generation: i64) {
+    sqlx::query(
+        "INSERT INTO algolia_import_jobs \
+            (customer_id, tenant_id, algolia_app_id, destination_kind, logical_target, \
+             destination_region, source_name, lifecycle_generation, idempotency_key, \
+             canonical_fingerprint, source_size_bytes, documents_expected, warnings) \
+         VALUES ($1, 'queued_target', 'QUEUE01', 'create', 'queued_target', 'us-east-1', \
+                 'queued_source', $2, $3, 'fingerprint-queued', 1024, 10, \
+                 '[\"queued warning\"]'::jsonb)",
+    )
+    .bind(customer_id)
+    .bind(lifecycle_generation)
+    .bind(format!("queued-{}", Uuid::new_v4()))
+    .execute(pool)
+    .await
+    .expect("seed queued Algolia import job");
+}
+
+async fn seed_active_import_job(
+    pool: &PgPool,
+    customer_id: Uuid,
+    deployment_id: Uuid,
+    vm_id: Uuid,
+    lifecycle_generation: i64,
+) {
+    sqlx::query(
+        "INSERT INTO algolia_import_jobs \
+            (customer_id, tenant_id, algolia_app_id, destination_kind, logical_target, \
+             destination_region, destination_deployment_id, destination_vm_id, physical_uid, \
+             source_name, cloud_job_id, engine_job_id, dispatch_intent_state, lifecycle_generation, \
+             idempotency_key, canonical_fingerprint, routing_identity, source_size_bytes, \
+             reserved_index_count, reserved_customer_storage_bytes, \
+             reserved_node_transient_bytes, worker_claimed_at, worker_lease_expires_at, \
+             cancel_requested_at, documents_expected, documents_imported, settings_applied, \
+             synonyms_expected, rules_expected, status, cleanup_phase) \
+         VALUES ($1, 'active_target', 'ACTIVE01', 'replace', 'active_target', 'us-east-1', \
+                 $2, $3, 'physical-active', 'active_source', $4, $5, 'committed', $6, $7, \
+                 'fingerprint-active', 'route-active', 2048, 1, 2048, 512, NOW(), \
+                 NOW() + INTERVAL '5 minutes', NOW() - INTERVAL '1 minute', 20, 7, 3, 4, 5, \
+                 'copying_documents', 'public')",
+    )
+    .bind(customer_id)
+    .bind(deployment_id)
+    .bind(vm_id)
+    .bind(Uuid::new_v4())
+    .bind(Uuid::new_v4())
+    .bind(lifecycle_generation)
+    .bind(format!("active-{}", Uuid::new_v4()))
+    .execute(pool)
+    .await
+    .expect("seed active Algolia import job");
+}
+
+async fn seed_failed_resumable_import_job(
+    pool: &PgPool,
+    customer_id: Uuid,
+    deployment_id: Uuid,
+    vm_id: Uuid,
+    lifecycle_generation: i64,
+) {
+    sqlx::query(
+        "INSERT INTO algolia_import_jobs \
+            (customer_id, tenant_id, algolia_app_id, destination_kind, logical_target, \
+             destination_region, destination_deployment_id, destination_vm_id, physical_uid, \
+             source_name, engine_job_id, dispatch_intent_state, lifecycle_generation, \
+             idempotency_key, canonical_fingerprint, routing_identity, source_size_bytes, \
+             retryable, resume_intent_generation, resume_checkpoint, resume_deadline, \
+             resume_status_observed_at, resumable, resume_count, documents_expected, \
+             documents_imported, documents_rejected, settings_applied, settings_unsupported, \
+             synonyms_expected, synonyms_imported, synonyms_rejected, rules_expected, \
+             rules_imported, rules_rejected, warnings, error_code, error_message, status, \
+             publication_disposition, engine_ack_state) \
+         VALUES ($1, 'failed_target', 'FAILED01', 'replace', 'failed_target', 'us-east-1', \
+                 $2, $3, 'physical-failed', 'failed_source', $4, 'committed', $5, $6, \
+                 'fingerprint-failed', 'route-failed', 4096, TRUE, 3, 'checkpoint-failed', \
+                 NOW() + INTERVAL '1 hour', NOW(), TRUE, 2, 30, 12, 1, 4, 2, 6, 3, 1, \
+                 5, 2, 1, '[\"retryable warning\"]'::jsonb, 'internal', \
+                 'retained failure details', 'failed', 'unchanged', 'pending')",
+    )
+    .bind(customer_id)
+    .bind(deployment_id)
+    .bind(vm_id)
+    .bind(Uuid::new_v4())
+    .bind(lifecycle_generation)
+    .bind(format!("failed-{}", Uuid::new_v4()))
+    .execute(pool)
+    .await
+    .expect("seed failed resumable Algolia import job");
+}
+
+async fn seed_acknowledged_terminal_import_job(
+    pool: &PgPool,
+    customer_id: Uuid,
+    deployment_id: Uuid,
+    vm_id: Uuid,
+    lifecycle_generation: i64,
+) {
+    sqlx::query(
+        "INSERT INTO algolia_import_jobs \
+            (customer_id, tenant_id, algolia_app_id, destination_kind, logical_target, \
+             destination_region, destination_deployment_id, destination_vm_id, physical_uid, \
+             source_name, engine_job_id, dispatch_intent_state, lifecycle_generation, \
+             idempotency_key, canonical_fingerprint, routing_identity, source_size_bytes, \
+             documents_expected, documents_imported, settings_applied, synonyms_expected, \
+             synonyms_imported, rules_expected, rules_imported, warnings, status, \
+             publication_disposition, engine_ack_state, terminal_at) \
+         VALUES ($1, 'completed_target', 'DONE001', 'replace', 'completed_target', 'us-east-1', \
+                 $2, $3, 'physical-completed', 'completed_source', $4, 'committed', $5, $6, \
+                 'fingerprint-completed', 'route-completed', 8192, 40, 40, 7, 8, 8, 9, 9, \
+                 '[\"terminal warning\"]'::jsonb, 'completed_with_warnings', 'promoted', \
+                 'acknowledged', NOW())",
+    )
+    .bind(customer_id)
+    .bind(deployment_id)
+    .bind(vm_id)
+    .bind(Uuid::new_v4())
+    .bind(lifecycle_generation)
+    .bind(format!("completed-{}", Uuid::new_v4()))
+    .execute(pool)
+    .await
+    .expect("seed acknowledged terminal Algolia import job");
+}
+
+async fn cleanup_soft_delete_recovery_evidence(pool: &PgPool, customer_id: Uuid, vm_id: Uuid) {
+    sqlx::query("DELETE FROM algolia_import_jobs WHERE customer_id = $1")
+        .bind(customer_id)
+        .execute(pool)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM customer_tenants WHERE customer_id = $1")
+        .bind(customer_id)
+        .execute(pool)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM cold_snapshots WHERE customer_id = $1")
+        .bind(customer_id)
+        .execute(pool)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM customer_deployments WHERE customer_id = $1")
+        .bind(customer_id)
+        .execute(pool)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM vm_inventory WHERE id = $1")
+        .bind(vm_id)
+        .execute(pool)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM customers WHERE id = $1")
+        .bind(customer_id)
+        .execute(pool)
+        .await
+        .ok();
 }
 
 async fn force_deleted_at_for_ids(
@@ -1137,6 +1546,89 @@ async fn soft_delete_increments_lifecycle_generation_exactly_once() {
 }
 
 #[tokio::test]
+async fn soft_delete_preserves_recovery_evidence_and_generation_fence() {
+    let Some(db) = pg_schema_harness::connect_and_migrate("it_soft_delete_recovery_evidence").await
+    else {
+        return;
+    };
+    let pool = db.pool.clone();
+    let repo = PgCustomerRepo::new(pool.clone());
+    let email = format!("soft-delete-evidence-{}@integration.test", Uuid::new_v4());
+    let initial_generation = 41_i64;
+    let customer = repo
+        .create_with_password("Soft Delete Evidence", &email, "$argon2id$integration_hash")
+        .await
+        .expect("create retained-evidence customer");
+
+    sqlx::query("UPDATE customers SET lifecycle_generation = $2 WHERE id = $1")
+        .bind(customer.id)
+        .bind(initial_generation)
+        .execute(&pool)
+        .await
+        .expect("seed explicit lifecycle generation");
+
+    let (_deployment_id, vm_id, _cold_snapshot_id) =
+        seed_soft_delete_recovery_evidence(&pool, &customer, initial_generation).await;
+    let customer_before_delete = fetch_customer_lifecycle_snapshot(&pool, customer.id).await;
+    let evidence_before_delete = fetch_retained_evidence_snapshot(&pool, customer.id).await;
+
+    assert_eq!(
+        customer_before_delete.lifecycle_generation,
+        initial_generation
+    );
+    assert_algolia_recovery_metadata_seeded(&evidence_before_delete);
+    assert!(
+        repo.soft_delete(customer.id)
+            .await
+            .expect("first soft_delete"),
+        "first soft_delete should report that it changed the active customer row"
+    );
+
+    let customer_after_delete = fetch_customer_lifecycle_snapshot(&pool, customer.id).await;
+    let evidence_after_delete = fetch_retained_evidence_snapshot(&pool, customer.id).await;
+    assert_eq!(customer_after_delete.id, customer_before_delete.id);
+    assert_eq!(customer_after_delete.email, customer_before_delete.email);
+    assert_eq!(
+        customer_after_delete.created_at,
+        customer_before_delete.created_at
+    );
+    assert_eq!(customer_after_delete.status, "deleted");
+    assert_eq!(
+        customer_after_delete.lifecycle_generation,
+        initial_generation + 1
+    );
+    let first_deleted_at = customer_after_delete
+        .deleted_at
+        .expect("first soft_delete should stamp deleted_at");
+    assert_eq!(
+        customer_after_delete.updated_at, first_deleted_at,
+        "first soft_delete should stamp updated_at and deleted_at together"
+    );
+    assert_ne!(
+        customer_after_delete.updated_at,
+        customer_before_delete.updated_at
+    );
+    assert_eq!(
+        evidence_after_delete, evidence_before_delete,
+        "soft_delete must preserve catalog, snapshot, VM, deployment, and import evidence"
+    );
+
+    assert!(
+        !repo
+            .soft_delete(customer.id)
+            .await
+            .expect("repeat soft_delete"),
+        "repeat soft_delete should report that no active row was changed"
+    );
+    let customer_after_repeat = fetch_customer_lifecycle_snapshot(&pool, customer.id).await;
+    let evidence_after_repeat = fetch_retained_evidence_snapshot(&pool, customer.id).await;
+    assert_eq!(customer_after_repeat, customer_after_delete);
+    assert_eq!(evidence_after_repeat, evidence_before_delete);
+
+    cleanup_soft_delete_recovery_evidence(&pool, customer.id, vm_id).await;
+}
+
+#[tokio::test]
 async fn reactivation_preserves_lifecycle_generation() {
     let Some(db) =
         pg_schema_harness::connect_and_migrate("it_customer_reactivation_generation").await
@@ -1681,16 +2173,48 @@ async fn hard_delete_removes_customer_and_dependents_then_404s_on_repeat() {
     .expect("seed customer_deployments");
 
     // customer_tenants has a deployment_id FK to customer_deployments(id).
+    let tenant_id = format!("tenant-{}", &Uuid::new_v4().to_string()[..6]);
     sqlx::query(
         "INSERT INTO customer_tenants (customer_id, tenant_id, deployment_id) \
          VALUES ($1, $2, $3)",
     )
     .bind(customer.id)
-    .bind(format!("tenant-{}", &Uuid::new_v4().to_string()[..6]))
+    .bind(&tenant_id)
     .bind(deployment_id)
     .execute(&pool)
     .await
     .expect("seed customer_tenants");
+
+    let primary_vm_id = Uuid::new_v4();
+    let replica_vm_id = Uuid::new_v4();
+    for (vm_id, region, role) in [
+        (primary_vm_id, "us-east-1", "primary"),
+        (replica_vm_id, "us-west-2", "replica"),
+    ] {
+        sqlx::query(
+            "INSERT INTO vm_inventory (id, region, provider, hostname, flapjack_url) \
+             VALUES ($1, $2, 'aws', $3, $4)",
+        )
+        .bind(vm_id)
+        .bind(region)
+        .bind(format!("hard-erase-{role}-{}", &vm_id.to_string()[..8]))
+        .bind(format!("http://{role}.hard-erase.test"))
+        .execute(&pool)
+        .await
+        .expect("seed replica VM inventory");
+    }
+    sqlx::query(
+        "INSERT INTO index_replicas \
+            (customer_id, tenant_id, primary_vm_id, replica_vm_id, replica_region) \
+         VALUES ($1, $2, $3, $4, 'us-west-2')",
+    )
+    .bind(customer.id)
+    .bind(&tenant_id)
+    .bind(primary_vm_id)
+    .bind(replica_vm_id)
+    .execute(&pool)
+    .await
+    .expect("seed index_replicas");
 
     sqlx::query(
         "INSERT INTO api_keys (customer_id, name, key_prefix, key_hash) \
@@ -1780,6 +2304,7 @@ async fn hard_delete_removes_customer_and_dependents_then_404s_on_repeat() {
     // Real DB row-count checks per dependent table; tightens the contract
     // so partial-delete regressions cannot pass.
     for table in [
+        "index_replicas",
         "customer_tenants",
         "customer_deployments",
         "api_keys",
@@ -1880,72 +2405,511 @@ async fn hard_delete_rejects_customers_with_open_invoices() {
     cleanup_customer_graph(&pool, &[customer.id]).await;
 }
 
-#[tokio::test]
-async fn hard_delete_scrubs_algolia_jobs_and_retains_reconciliation_tombstones() {
-    let Some(db) = pg_schema_harness::connect_and_migrate("hard_delete_algolia_tombstone").await
-    else {
-        return;
-    };
-    let pool = db.pool.clone();
-    let repo = PgCustomerRepo::new(pool.clone());
-    let engine_job_id = Uuid::new_v4();
-    let destination_vm_id = Uuid::new_v4();
-    let customer = repo
-        .create_with_password(
-            "PII_NAME_CANARY",
-            "pii_email_canary@example.test",
-            "$argon2id$pii_password_canary",
-        )
-        .await
-        .expect("create customer");
+#[derive(Debug, Clone)]
+struct AlgoliaHardDeleteMatrixCase {
+    name: &'static str,
+    status: &'static str,
+    dispatch_intent_state: &'static str,
+    destination_kind: &'static str,
+    destination_bound: bool,
+    engine_job_id: Option<Uuid>,
+    publication_disposition: AlgoliaImportPublicationDisposition,
+    engine_ack_state: AlgoliaImportEngineAckState,
+    retryable: bool,
+    resumable: bool,
+    worker_lease: bool,
+    cancel_requested: bool,
+    resume_metadata: bool,
+    elapsed_resume_deadline: bool,
+    error_code: Option<&'static str>,
+    terminal_at: bool,
+    expected_cleanup_phase: AlgoliaImportTombstoneCleanupPhase,
+    expected_engine_ack_state: AlgoliaImportEngineAckState,
+}
 
-    sqlx::query(
+#[derive(Debug)]
+struct SeededAlgoliaHardDeleteMatrixCase {
+    name: &'static str,
+    id: Uuid,
+    engine_job_id: Option<Uuid>,
+    destination_vm_id: Option<Uuid>,
+    publication_disposition: AlgoliaImportPublicationDisposition,
+    expected_cleanup_phase: AlgoliaImportTombstoneCleanupPhase,
+    expected_engine_ack_state: AlgoliaImportEngineAckState,
+}
+
+#[derive(Debug, sqlx::FromRow)]
+struct AlgoliaHardDeleteTombstoneRow {
+    id: Uuid,
+    erasure_handle: Uuid,
+    engine_job_id: Option<Uuid>,
+    destination_vm_id: Option<Uuid>,
+    publication_disposition: String,
+    engine_ack_state: String,
+    cleanup_phase: String,
+    erased_at: Option<chrono::DateTime<chrono::Utc>>,
+    tombstone_compacted_at: Option<chrono::DateTime<chrono::Utc>>,
+    lifecycle_generation: Option<i64>,
+}
+
+fn hard_delete_algolia_tombstone_matrix_cases() -> Vec<AlgoliaHardDeleteMatrixCase> {
+    vec![
+        AlgoliaHardDeleteMatrixCase {
+            name: "committed",
+            status: "copying_documents",
+            dispatch_intent_state: "committed",
+            destination_kind: "replace",
+            destination_bound: true,
+            engine_job_id: Some(Uuid::new_v4()),
+            publication_disposition: AlgoliaImportPublicationDisposition::Unchanged,
+            engine_ack_state: AlgoliaImportEngineAckState::Pending,
+            retryable: false,
+            resumable: false,
+            worker_lease: false,
+            cancel_requested: false,
+            resume_metadata: false,
+            elapsed_resume_deadline: false,
+            error_code: None,
+            terminal_at: false,
+            expected_cleanup_phase: AlgoliaImportTombstoneCleanupPhase::ExactTargetAbsenceRequired,
+            expected_engine_ack_state: AlgoliaImportEngineAckState::Pending,
+        },
+        AlgoliaHardDeleteMatrixCase {
+            name: "ambiguous",
+            status: "verifying",
+            dispatch_intent_state: "ambiguous",
+            destination_kind: "replace",
+            destination_bound: true,
+            engine_job_id: Some(Uuid::new_v4()),
+            publication_disposition: AlgoliaImportPublicationDisposition::Unknown,
+            engine_ack_state: AlgoliaImportEngineAckState::Pending,
+            retryable: false,
+            resumable: false,
+            worker_lease: false,
+            cancel_requested: false,
+            resume_metadata: false,
+            elapsed_resume_deadline: false,
+            error_code: None,
+            terminal_at: false,
+            expected_cleanup_phase: AlgoliaImportTombstoneCleanupPhase::ExactTargetAbsenceRequired,
+            expected_engine_ack_state: AlgoliaImportEngineAckState::Pending,
+        },
+        AlgoliaHardDeleteMatrixCase {
+            name: "pre_linkage",
+            status: "validating_source",
+            dispatch_intent_state: "committed",
+            destination_kind: "create",
+            destination_bound: false,
+            engine_job_id: None,
+            publication_disposition: AlgoliaImportPublicationDisposition::NotStarted,
+            engine_ack_state: AlgoliaImportEngineAckState::Pending,
+            retryable: false,
+            resumable: false,
+            worker_lease: false,
+            cancel_requested: false,
+            resume_metadata: false,
+            elapsed_resume_deadline: false,
+            error_code: None,
+            terminal_at: false,
+            expected_cleanup_phase: AlgoliaImportTombstoneCleanupPhase::ExactTargetAbsenceRequired,
+            expected_engine_ack_state: AlgoliaImportEngineAckState::Pending,
+        },
+        AlgoliaHardDeleteMatrixCase {
+            name: "cancelling",
+            status: "cancelling",
+            dispatch_intent_state: "committed",
+            destination_kind: "replace",
+            destination_bound: true,
+            engine_job_id: Some(Uuid::new_v4()),
+            publication_disposition: AlgoliaImportPublicationDisposition::Unchanged,
+            engine_ack_state: AlgoliaImportEngineAckState::Pending,
+            retryable: false,
+            resumable: false,
+            worker_lease: true,
+            cancel_requested: true,
+            resume_metadata: false,
+            elapsed_resume_deadline: false,
+            error_code: None,
+            terminal_at: false,
+            expected_cleanup_phase: AlgoliaImportTombstoneCleanupPhase::ExactTargetAbsenceRequired,
+            expected_engine_ack_state: AlgoliaImportEngineAckState::Pending,
+        },
+        AlgoliaHardDeleteMatrixCase {
+            name: "cancelled_before_ack",
+            status: "cancelled",
+            dispatch_intent_state: "committed",
+            destination_kind: "replace",
+            destination_bound: true,
+            engine_job_id: Some(Uuid::new_v4()),
+            publication_disposition: AlgoliaImportPublicationDisposition::Unchanged,
+            engine_ack_state: AlgoliaImportEngineAckState::OutboxPending,
+            retryable: false,
+            resumable: false,
+            worker_lease: false,
+            cancel_requested: true,
+            resume_metadata: false,
+            elapsed_resume_deadline: false,
+            error_code: None,
+            terminal_at: true,
+            expected_cleanup_phase: AlgoliaImportTombstoneCleanupPhase::ExactTargetAbsenceRequired,
+            expected_engine_ack_state: AlgoliaImportEngineAckState::OutboxPending,
+        },
+        AlgoliaHardDeleteMatrixCase {
+            name: "failed_resumable_with_lease",
+            status: "failed",
+            dispatch_intent_state: "committed",
+            destination_kind: "replace",
+            destination_bound: true,
+            engine_job_id: Some(Uuid::new_v4()),
+            publication_disposition: AlgoliaImportPublicationDisposition::Unchanged,
+            engine_ack_state: AlgoliaImportEngineAckState::Pending,
+            retryable: true,
+            resumable: true,
+            worker_lease: true,
+            cancel_requested: false,
+            resume_metadata: true,
+            elapsed_resume_deadline: false,
+            error_code: Some("internal"),
+            terminal_at: true,
+            expected_cleanup_phase: AlgoliaImportTombstoneCleanupPhase::ExactTargetAbsenceRequired,
+            expected_engine_ack_state: AlgoliaImportEngineAckState::Pending,
+        },
+        AlgoliaHardDeleteMatrixCase {
+            name: "credential_accepted_before_socket",
+            status: "validating_source",
+            dispatch_intent_state: "committed",
+            destination_kind: "create",
+            destination_bound: false,
+            engine_job_id: None,
+            publication_disposition: AlgoliaImportPublicationDisposition::NotStarted,
+            engine_ack_state: AlgoliaImportEngineAckState::Pending,
+            retryable: false,
+            resumable: false,
+            worker_lease: true,
+            cancel_requested: false,
+            resume_metadata: false,
+            elapsed_resume_deadline: false,
+            error_code: None,
+            terminal_at: false,
+            expected_cleanup_phase: AlgoliaImportTombstoneCleanupPhase::ExactTargetAbsenceRequired,
+            expected_engine_ack_state: AlgoliaImportEngineAckState::Pending,
+        },
+        AlgoliaHardDeleteMatrixCase {
+            name: "resuming",
+            status: "resuming",
+            dispatch_intent_state: "committed",
+            destination_kind: "replace",
+            destination_bound: true,
+            engine_job_id: Some(Uuid::new_v4()),
+            publication_disposition: AlgoliaImportPublicationDisposition::Unchanged,
+            engine_ack_state: AlgoliaImportEngineAckState::Pending,
+            retryable: false,
+            resumable: false,
+            worker_lease: true,
+            cancel_requested: false,
+            resume_metadata: true,
+            elapsed_resume_deadline: false,
+            error_code: None,
+            terminal_at: false,
+            expected_cleanup_phase: AlgoliaImportTombstoneCleanupPhase::ExactTargetAbsenceRequired,
+            expected_engine_ack_state: AlgoliaImportEngineAckState::Pending,
+        },
+        AlgoliaHardDeleteMatrixCase {
+            name: "resume_deadline_race",
+            status: "failed",
+            dispatch_intent_state: "ambiguous",
+            destination_kind: "replace",
+            destination_bound: true,
+            engine_job_id: Some(Uuid::new_v4()),
+            publication_disposition: AlgoliaImportPublicationDisposition::Unchanged,
+            engine_ack_state: AlgoliaImportEngineAckState::Pending,
+            retryable: true,
+            resumable: true,
+            worker_lease: false,
+            cancel_requested: false,
+            resume_metadata: true,
+            elapsed_resume_deadline: true,
+            error_code: Some("internal"),
+            terminal_at: true,
+            expected_cleanup_phase: AlgoliaImportTombstoneCleanupPhase::ExactTargetAbsenceRequired,
+            expected_engine_ack_state: AlgoliaImportEngineAckState::Pending,
+        },
+        AlgoliaHardDeleteMatrixCase {
+            name: "local_no_dispatch",
+            status: "failed",
+            dispatch_intent_state: "absent",
+            destination_kind: "create",
+            destination_bound: false,
+            engine_job_id: None,
+            publication_disposition: AlgoliaImportPublicationDisposition::NotStarted,
+            engine_ack_state: AlgoliaImportEngineAckState::NotApplicable,
+            retryable: false,
+            resumable: false,
+            worker_lease: false,
+            cancel_requested: false,
+            resume_metadata: false,
+            elapsed_resume_deadline: false,
+            error_code: Some("internal"),
+            terminal_at: true,
+            expected_cleanup_phase: AlgoliaImportTombstoneCleanupPhase::EngineDispositionRequired,
+            expected_engine_ack_state: AlgoliaImportEngineAckState::NotApplicable,
+        },
+        AlgoliaHardDeleteMatrixCase {
+            name: "seal_tombstone",
+            status: "interrupted",
+            dispatch_intent_state: "ambiguous",
+            destination_kind: "create",
+            destination_bound: false,
+            engine_job_id: None,
+            publication_disposition: AlgoliaImportPublicationDisposition::NotStarted,
+            engine_ack_state: AlgoliaImportEngineAckState::SealAcknowledged,
+            retryable: false,
+            resumable: false,
+            worker_lease: false,
+            cancel_requested: false,
+            resume_metadata: false,
+            elapsed_resume_deadline: false,
+            error_code: Some("interrupted"),
+            terminal_at: true,
+            expected_cleanup_phase: AlgoliaImportTombstoneCleanupPhase::EngineDispositionRequired,
+            expected_engine_ack_state: AlgoliaImportEngineAckState::SealAcknowledged,
+        },
+        AlgoliaHardDeleteMatrixCase {
+            name: "ambiguous_publication",
+            status: "promoting",
+            dispatch_intent_state: "ambiguous",
+            destination_kind: "replace",
+            destination_bound: true,
+            engine_job_id: Some(Uuid::new_v4()),
+            publication_disposition: AlgoliaImportPublicationDisposition::Unknown,
+            engine_ack_state: AlgoliaImportEngineAckState::Pending,
+            retryable: false,
+            resumable: false,
+            worker_lease: false,
+            cancel_requested: false,
+            resume_metadata: false,
+            elapsed_resume_deadline: false,
+            error_code: None,
+            terminal_at: false,
+            expected_cleanup_phase: AlgoliaImportTombstoneCleanupPhase::ExactTargetAbsenceRequired,
+            expected_engine_ack_state: AlgoliaImportEngineAckState::Pending,
+        },
+    ]
+}
+
+async fn seed_algolia_hard_delete_matrix_case(
+    pool: &PgPool,
+    customer_id: Uuid,
+    lifecycle_generation: i64,
+    ordinal: usize,
+    case: &AlgoliaHardDeleteMatrixCase,
+) -> SeededAlgoliaHardDeleteMatrixCase {
+    let destination_deployment_id = case.destination_bound.then(Uuid::new_v4);
+    let destination_vm_id = case.destination_bound.then(Uuid::new_v4);
+    let physical_uid = case
+        .destination_bound
+        .then(|| format!("PII_MATRIX_PHYSICAL_{}", case.name));
+    let routing_identity = case
+        .destination_bound
+        .then(|| format!("PII_MATRIX_ROUTING_{}", case.name));
+    let worker_claimed_at = case.worker_lease.then(chrono::Utc::now);
+    let worker_lease_expires_at = case
+        .worker_lease
+        .then(|| chrono::Utc::now() + chrono::Duration::minutes(5));
+    let cancel_requested_at = case.cancel_requested.then(chrono::Utc::now);
+    let resume_status_observed_at = case
+        .resume_metadata
+        .then(|| chrono::Utc::now() - chrono::Duration::minutes(10));
+    let resume_deadline = case.resume_metadata.then(|| {
+        if case.elapsed_resume_deadline {
+            chrono::Utc::now() - chrono::Duration::minutes(5)
+        } else {
+            chrono::Utc::now() + chrono::Duration::hours(1)
+        }
+    });
+    let terminal_at = case.terminal_at.then(chrono::Utc::now);
+    let resume_checkpoint = case
+        .resume_metadata
+        .then(|| format!("PII_MATRIX_CHECKPOINT_{}", case.name));
+    let error_message = case
+        .error_code
+        .map(|_| format!("PII_MATRIX_ERROR_{}", case.name));
+    let tenant_id = format!("PII_MATRIX_TENANT_{}", case.name);
+    let source_name = format!("PII_MATRIX_SOURCE_{}", case.name);
+    let idempotency_key = format!("PII_MATRIX_IDEMPOTENCY_{}_{}", ordinal, Uuid::new_v4());
+    let canonical_fingerprint = format!("PII_MATRIX_FINGERPRINT_{}", case.name);
+    let warnings = serde_json::json!([
+        format!("PII_MATRIX_WARNING_{}", case.name),
+        format!("PII_MATRIX_OBJECT_{}", case.name),
+    ]);
+
+    let id = sqlx::query_scalar::<_, Uuid>(
         "INSERT INTO algolia_import_jobs
          (customer_id, tenant_id, algolia_app_id, destination_kind, logical_target,
           destination_region, destination_deployment_id, destination_vm_id, physical_uid,
           source_name, engine_job_id, dispatch_intent_state, lifecycle_generation,
           idempotency_key, canonical_fingerprint, routing_identity, source_size_bytes,
-          cancel_requested_at, resume_checkpoint, resume_deadline, resume_status_observed_at,
-          documents_expected, documents_imported, documents_rejected, settings_applied,
-          settings_unsupported, synonyms_expected, synonyms_imported, synonyms_rejected,
-          rules_expected, rules_imported, rules_rejected, warnings, error_message,
-          status, publication_disposition)
-         VALUES ($1, 'PII_TENANT_CANARY', 'PIIAPP01', 'replace', 'PII_TENANT_CANARY',
-                 'pii_region_canary', $2, $3, 'PII_PHYSICAL_CANARY', 'PII_SOURCE_CANARY',
-                 $4, 'committed', $5, 'PII_IDEMPOTENCY_CANARY',
-                 'PII_FINGERPRINT_CANARY', 'PII_ROUTING_CANARY', 99,
-                 NOW(), 'PII_CHECKPOINT_CANARY', NOW() + INTERVAL '1 hour', NOW(),
-                 11, 7, 1, 2, 3, 5, 4, 1, 8, 6, 2,
-                 '[\"PII_WARNING_CANARY\", \"PII_OBJECT_ID_CANARY\"]'::jsonb,
-                 'PII_HISTORY_CANARY',
-                 'copying_documents', 'unchanged')",
+          reserved_index_count, reserved_customer_storage_bytes, reserved_node_transient_bytes,
+          retryable, worker_claimed_at, worker_lease_expires_at, cancel_requested_at,
+          resume_intent_generation, resume_checkpoint, resume_deadline,
+          resume_status_observed_at, resumable, resume_count, documents_expected,
+          documents_imported, documents_rejected, settings_applied, settings_unsupported,
+          synonyms_expected, synonyms_imported, synonyms_rejected, rules_expected,
+          rules_imported, rules_rejected, warnings, error_code, error_message, status,
+          publication_disposition, engine_ack_state, terminal_at)
+         VALUES ($1, $2, $3, $4, $2, $5, $6, $7, $8, $9, $10, $11, $12,
+                 $13, $14, $15, 4096, 1, 2048, 512, $16, $17, $18, $19,
+                 $20, $21, $22, $23, $24, $25, 31, 17, 2, 5, 1, 7, 6, 1,
+                 9, 8, 1, $26, $27, $28, $29, $30, $31, $32)
+         RETURNING id",
     )
-    .bind(customer.id)
-    .bind(Uuid::new_v4())
+    .bind(customer_id)
+    .bind(&tenant_id)
+    .bind(format!("PIIAPP{:02}", ordinal + 1))
+    .bind(case.destination_kind)
+    .bind(format!("PII_MATRIX_REGION_{}", case.name))
+    .bind(destination_deployment_id)
     .bind(destination_vm_id)
-    .bind(engine_job_id)
-    .bind(customer.lifecycle_generation)
-    .execute(&pool)
+    .bind(physical_uid)
+    .bind(&source_name)
+    .bind(case.engine_job_id)
+    .bind(case.dispatch_intent_state)
+    .bind(lifecycle_generation)
+    .bind(idempotency_key)
+    .bind(canonical_fingerprint)
+    .bind(routing_identity)
+    .bind(case.retryable)
+    .bind(worker_claimed_at)
+    .bind(worker_lease_expires_at)
+    .bind(cancel_requested_at)
+    .bind(if case.resume_metadata { 2_i64 } else { 0_i64 })
+    .bind(resume_checkpoint)
+    .bind(resume_deadline)
+    .bind(resume_status_observed_at)
+    .bind(case.resumable)
+    .bind(if case.resume_metadata { 1_i64 } else { 0_i64 })
+    .bind(warnings)
+    .bind(case.error_code)
+    .bind(error_message)
+    .bind(case.status)
+    .bind(case.publication_disposition.as_str())
+    .bind(case.engine_ack_state.as_str())
+    .bind(terminal_at)
+    .fetch_one(pool)
     .await
-    .expect("seed Algolia job with PII canaries");
-    sqlx::query(
-        "INSERT INTO algolia_import_jobs
-         (customer_id, tenant_id, algolia_app_id, destination_kind, logical_target,
-          destination_region, source_name, lifecycle_generation, idempotency_key,
-          canonical_fingerprint, source_size_bytes)
-         VALUES ($1, 'PII_SECOND_TENANT', 'PIIAPP02', 'create', 'PII_SECOND_TENANT',
-                 'pii_second_region', 'PII_SECOND_SOURCE', $2,
-                 'PII_SECOND_IDEMPOTENCY', 'PII_SECOND_FINGERPRINT', 1)",
-    )
-    .bind(customer.id)
-    .bind(customer.lifecycle_generation)
-    .execute(&pool)
-    .await
-    .expect("seed unlinked Algolia job with PII canaries");
+    .unwrap_or_else(|err| panic!("seed Algolia matrix case {}: {err}", case.name));
+
+    SeededAlgoliaHardDeleteMatrixCase {
+        name: case.name,
+        id,
+        engine_job_id: case.engine_job_id,
+        destination_vm_id,
+        publication_disposition: case.publication_disposition,
+        expected_cleanup_phase: case.expected_cleanup_phase,
+        expected_engine_ack_state: case.expected_engine_ack_state,
+    }
+}
+
+fn assert_algolia_matrix_pii_columns_are_null(tombstone: &serde_json::Value) {
+    for field in [
+        "customer_id",
+        "tenant_id",
+        "algolia_app_id",
+        "destination_kind",
+        "logical_target",
+        "destination_region",
+        "destination_deployment_id",
+        "physical_uid",
+        "source_name",
+        "cloud_job_id",
+        "dispatch_intent_state",
+        "lifecycle_generation",
+        "idempotency_key",
+        "canonical_fingerprint",
+        "routing_identity",
+        "source_size_bytes",
+        "reserved_index_count",
+        "reserved_customer_storage_bytes",
+        "reserved_node_transient_bytes",
+        "retryable",
+        "worker_claimed_at",
+        "worker_lease_expires_at",
+        "cancel_requested_at",
+        "resume_intent_generation",
+        "resume_checkpoint",
+        "resume_deadline",
+        "resume_status_observed_at",
+        "resumable",
+        "resume_count",
+        "documents_expected",
+        "documents_imported",
+        "documents_rejected",
+        "settings_applied",
+        "settings_unsupported",
+        "synonyms_expected",
+        "synonyms_imported",
+        "synonyms_rejected",
+        "rules_expected",
+        "rules_imported",
+        "rules_rejected",
+        "warnings",
+        "error_code",
+        "error_message",
+        "status",
+    ] {
+        assert!(
+            tombstone[field].is_null(),
+            "retained tombstone field {field} must be NULL after hard erasure: {tombstone}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn hard_delete_scrubs_algolia_jobs_and_retains_reconciliation_tombstone_matrix() {
+    let Some(db) =
+        pg_schema_harness::connect_and_migrate("hard_delete_algolia_tombstone_matrix").await
+    else {
+        return;
+    };
+    let pool = db.pool.clone();
+    let repo = PgCustomerRepo::new(pool.clone());
+    let customer = repo
+        .create_with_password(
+            "PII_MATRIX_NAME_CANARY",
+            "pii_matrix_email_canary@example.test",
+            "$argon2id$pii_matrix_password_canary",
+        )
+        .await
+        .expect("create customer");
+
+    repo.soft_delete(customer.id).await.expect("soft delete");
+    let deleted_customer = fetch_customer_lifecycle_snapshot(&pool, customer.id).await;
+    assert_eq!(deleted_customer.status, "deleted");
+    assert!(
+        deleted_customer.lifecycle_generation > customer.lifecycle_generation,
+        "matrix fixtures must use the post-soft-delete lifecycle generation"
+    );
+
+    let mut seeded_cases = Vec::new();
+    for (ordinal, case) in hard_delete_algolia_tombstone_matrix_cases()
+        .iter()
+        .enumerate()
+    {
+        seeded_cases.push(
+            seed_algolia_hard_delete_matrix_case(
+                &pool,
+                customer.id,
+                deleted_customer.lifecycle_generation,
+                ordinal,
+                case,
+            )
+            .await,
+        );
+    }
     sqlx::query(
         "INSERT INTO audit_log (actor_id, action, target_tenant_id, metadata)
-         VALUES ($1, 'PII_AUDIT_ACTION_CANARY', $2,
-                 '{\"history\":\"PII_AUDIT_METADATA_CANARY\"}'::jsonb)",
+         VALUES ($1, 'PII_MATRIX_AUDIT_ACTION_CANARY', $2,
+                 '{\"history\":\"PII_MATRIX_AUDIT_METADATA_CANARY\"}'::jsonb)",
     )
     .bind(Uuid::nil())
     .bind(customer.id)
@@ -1953,33 +2917,55 @@ async fn hard_delete_scrubs_algolia_jobs_and_retains_reconciliation_tombstones()
     .await
     .expect("seed audit metadata canary");
 
-    repo.soft_delete(customer.id).await.expect("soft delete");
+    let hard_delete_started_at = chrono::Utc::now();
     let outcome = repo
         .hard_delete(customer.id, CustomerHardDeleteKind::PrivacyErasure)
         .await
         .expect("hard delete");
+    let hard_delete_finished_at = chrono::Utc::now();
     let CustomerHardDeleteOutcome::Erased { seal_scrub_work } = outcome else {
         panic!("expected typed erased outcome, got {outcome:?}");
     };
-    assert_eq!(seal_scrub_work.len(), 2);
-    let linked_work = seal_scrub_work
-        .iter()
-        .find(|work| work.engine_job_id == Some(engine_job_id))
-        .expect("engine-linked seal/scrub work");
-    assert_eq!(linked_work.destination_vm_id, Some(destination_vm_id));
-    let unlinked_work = seal_scrub_work
-        .iter()
-        .find(|work| work.engine_job_id.is_none())
-        .expect("seal/scrub work must exist before engine linkage");
     assert_eq!(
-        unlinked_work.cleanup_phase,
-        AlgoliaImportTombstoneCleanupPhase::EngineDispositionRequired
+        seal_scrub_work.len(),
+        seeded_cases.len(),
+        "seal/scrub work must include each matrix row exactly once"
+    );
+    let unique_scrub_handles: HashSet<_> = seal_scrub_work
+        .iter()
+        .map(|work| work.erasure_handle)
+        .collect();
+    assert_eq!(
+        unique_scrub_handles.len(),
+        seeded_cases.len(),
+        "seal/scrub work must not duplicate erasure handles"
+    );
+
+    let seeded_ids: Vec<Uuid> = seeded_cases.iter().map(|case| case.id).collect();
+    let tombstone_rows = sqlx::query_as::<_, AlgoliaHardDeleteTombstoneRow>(
+        "SELECT id, erasure_handle, engine_job_id, destination_vm_id, publication_disposition,
+                engine_ack_state, cleanup_phase, erased_at, tombstone_compacted_at,
+                lifecycle_generation
+         FROM algolia_import_jobs
+         WHERE id = ANY($1)
+         ORDER BY id",
+    )
+    .bind(seeded_ids.clone())
+    .fetch_all(&pool)
+    .await
+    .expect("fetch matrix tombstones by original id");
+    assert_eq!(
+        tombstone_rows.len(),
+        seeded_cases.len(),
+        "hard erase must retain every matrix row as a tombstone"
     );
 
     let tombstones: serde_json::Value = sqlx::query_scalar(
         "SELECT COALESCE(jsonb_agg(to_jsonb(job) ORDER BY id), '[]'::jsonb)
-         FROM algolia_import_jobs AS job",
+         FROM algolia_import_jobs AS job
+         WHERE id = ANY($1)",
     )
+    .bind(seeded_ids.clone())
     .fetch_one(&pool)
     .await
     .expect("retained Algolia reconciliation tombstones");
@@ -1998,28 +2984,22 @@ async fn hard_delete_scrubs_algolia_jobs_and_retains_reconciliation_tombstones()
     let retained_evidence = format!("{serialized}{audit_rows}");
     for canary in [
         customer.id.to_string(),
-        "PII_NAME_CANARY".into(),
-        "pii_email_canary@example.test".into(),
-        "PII_TENANT_CANARY".into(),
-        "PIIAPP01".into(),
-        "pii_region_canary".into(),
-        "PII_PHYSICAL_CANARY".into(),
-        "PII_SOURCE_CANARY".into(),
-        "PII_IDEMPOTENCY_CANARY".into(),
-        "PII_FINGERPRINT_CANARY".into(),
-        "PII_ROUTING_CANARY".into(),
-        "PII_CHECKPOINT_CANARY".into(),
-        "PII_WARNING_CANARY".into(),
-        "PII_OBJECT_ID_CANARY".into(),
-        "PII_HISTORY_CANARY".into(),
-        "PII_SECOND_TENANT".into(),
-        "PIIAPP02".into(),
-        "pii_second_region".into(),
-        "PII_SECOND_SOURCE".into(),
-        "PII_SECOND_IDEMPOTENCY".into(),
-        "PII_SECOND_FINGERPRINT".into(),
-        "PII_AUDIT_ACTION_CANARY".into(),
-        "PII_AUDIT_METADATA_CANARY".into(),
+        "PII_MATRIX_NAME_CANARY".into(),
+        "pii_matrix_email_canary@example.test".into(),
+        "PII_MATRIX_TENANT".into(),
+        "PIIAPP".into(),
+        "PII_MATRIX_REGION".into(),
+        "PII_MATRIX_PHYSICAL".into(),
+        "PII_MATRIX_SOURCE".into(),
+        "PII_MATRIX_IDEMPOTENCY".into(),
+        "PII_MATRIX_FINGERPRINT".into(),
+        "PII_MATRIX_ROUTING".into(),
+        "PII_MATRIX_CHECKPOINT".into(),
+        "PII_MATRIX_WARNING".into(),
+        "PII_MATRIX_OBJECT".into(),
+        "PII_MATRIX_ERROR".into(),
+        "PII_MATRIX_AUDIT_ACTION_CANARY".into(),
+        "PII_MATRIX_AUDIT_METADATA_CANARY".into(),
     ] {
         assert!(
             !retained_evidence.contains(&canary),
@@ -2027,10 +3007,12 @@ async fn hard_delete_scrubs_algolia_jobs_and_retains_reconciliation_tombstones()
         );
     }
 
-    for tombstone in tombstones
+    let tombstone_json_rows = tombstones
         .as_array()
-        .expect("tombstone aggregate must be an array")
-    {
+        .expect("tombstone aggregate must be an array");
+    assert_eq!(tombstone_json_rows.len(), seeded_cases.len());
+    for tombstone in tombstone_json_rows {
+        assert_algolia_matrix_pii_columns_are_null(tombstone);
         let fields = tombstone
             .as_object()
             .expect("tombstone row must serialize as an object");
@@ -2056,26 +3038,108 @@ async fn hard_delete_scrubs_algolia_jobs_and_retains_reconciliation_tombstones()
         }
     }
 
-    let tombstone: serde_json::Value = sqlx::query_scalar(
-        "SELECT to_jsonb(job) FROM algolia_import_jobs AS job WHERE engine_job_id = $1",
-    )
-    .bind(engine_job_id)
-    .fetch_one(&pool)
-    .await
-    .expect("retained Algolia reconciliation tombstone");
-    assert_eq!(tombstone["engine_job_id"], engine_job_id.to_string());
-    assert_eq!(
-        tombstone["destination_vm_id"],
-        destination_vm_id.to_string()
-    );
-    assert_eq!(tombstone["cleanup_phase"], "exact_target_absence_required");
-    assert!(tombstone["erasure_handle"].as_str().is_some());
+    for expected in &seeded_cases {
+        let tombstone = tombstone_rows
+            .iter()
+            .find(|row| row.id == expected.id)
+            .unwrap_or_else(|| panic!("missing tombstone row for {}", expected.name));
+        assert_eq!(
+            tombstone.lifecycle_generation, None,
+            "{} tombstone must not preserve customer lifecycle identity",
+            expected.name
+        );
+        assert_eq!(
+            tombstone.engine_job_id, expected.engine_job_id,
+            "{} engine_job_id tombstone mismatch",
+            expected.name
+        );
+        assert_eq!(
+            tombstone.destination_vm_id, expected.destination_vm_id,
+            "{} destination_vm_id tombstone mismatch",
+            expected.name
+        );
+        assert_eq!(
+            tombstone.publication_disposition,
+            expected.publication_disposition.as_str(),
+            "{} publication_disposition tombstone mismatch",
+            expected.name
+        );
+        assert_eq!(
+            tombstone.engine_ack_state,
+            expected.expected_engine_ack_state.as_str(),
+            "{} engine_ack_state tombstone mismatch",
+            expected.name
+        );
+        assert_eq!(
+            tombstone.cleanup_phase,
+            expected.expected_cleanup_phase.as_str(),
+            "{} cleanup_phase tombstone mismatch",
+            expected.name
+        );
+        let erased_at = tombstone
+            .erased_at
+            .unwrap_or_else(|| panic!("{} erased_at must be populated", expected.name));
+        assert!(
+            erased_at >= hard_delete_started_at && erased_at <= hard_delete_finished_at,
+            "{} erased_at {erased_at:?} must come from this hard-delete call",
+            expected.name
+        );
+        assert_eq!(
+            tombstone.tombstone_compacted_at, None,
+            "{} must not compact during initial hard-delete scrub",
+            expected.name
+        );
 
-    let tombstone_id = Uuid::parse_str(tombstone["id"].as_str().expect("opaque tombstone id"))
-        .expect("valid tombstone UUID");
+        let scrub_work = if let Some(engine_job_id) = expected.engine_job_id {
+            seal_scrub_work
+                .iter()
+                .find(|work| work.engine_job_id == Some(engine_job_id))
+                .unwrap_or_else(|| {
+                    panic!(
+                        "missing seal/scrub work by engine_job_id for {}",
+                        expected.name
+                    )
+                })
+        } else {
+            seal_scrub_work
+                .iter()
+                .find(|work| work.erasure_handle == tombstone.erasure_handle)
+                .unwrap_or_else(|| {
+                    panic!(
+                        "missing seal/scrub work by erasure_handle for {}",
+                        expected.name
+                    )
+                })
+        };
+        assert_eq!(
+            scrub_work.destination_vm_id, expected.destination_vm_id,
+            "{} seal/scrub destination_vm_id mismatch",
+            expected.name
+        );
+        assert_eq!(
+            scrub_work.publication_disposition, expected.publication_disposition,
+            "{} seal/scrub publication_disposition mismatch",
+            expected.name
+        );
+        assert_eq!(
+            scrub_work.engine_ack_state, expected.expected_engine_ack_state,
+            "{} seal/scrub engine_ack_state mismatch",
+            expected.name
+        );
+        assert_eq!(
+            scrub_work.cleanup_phase, expected.expected_cleanup_phase,
+            "{} seal/scrub cleanup_phase mismatch",
+            expected.name
+        );
+    }
+
+    let compactable_tombstone = tombstone_rows
+        .iter()
+        .find(|row| row.cleanup_phase == "exact_target_absence_required")
+        .expect("matrix must include an exact-target tombstone for compaction guard");
     let early_compaction =
         sqlx::query("UPDATE algolia_import_jobs SET tombstone_compacted_at = NOW() WHERE id = $1")
-            .bind(tombstone_id)
+            .bind(compactable_tombstone.id)
             .execute(&pool)
             .await;
     assert!(
@@ -2088,7 +3152,7 @@ async fn hard_delete_scrubs_algolia_jobs_and_retains_reconciliation_tombstones()
              tombstone_compacted_at = NOW()
          WHERE id = $1",
     )
-    .bind(tombstone_id)
+    .bind(compactable_tombstone.id)
     .execute(&pool)
     .await
     .expect("compact only after exact-target absence and terminal ACK");
@@ -2342,4 +3406,112 @@ async fn reset_password_succeeds_even_when_deferred_reset_lockout_columns_are_ac
     );
 
     cleanup_customer(&pool, &email).await;
+}
+
+#[tokio::test]
+async fn reactivate_cannot_cross_soft_delete_generation_fence() {
+    let Some(db) = pg_schema_harness::connect_and_migrate("it_reactivate_soft_delete_fence").await
+    else {
+        return;
+    };
+    let pool = db.pool.clone();
+    let repo = PgCustomerRepo::new(pool.clone());
+    let generation = 7_i64;
+
+    // Control arm: a suspended customer at generation G reactivates to active and
+    // keeps generation G exactly — the existing admin transition still admits
+    // `suspended -> active`.
+    let suspended_email = format!("reactivate-suspended-{}@integration.test", Uuid::new_v4());
+    let suspended = repo
+        .create("Reactivate Suspended", &suspended_email)
+        .await
+        .expect("create suspended-arm customer");
+    sqlx::query("UPDATE customers SET lifecycle_generation = $2 WHERE id = $1")
+        .bind(suspended.id)
+        .bind(generation)
+        .execute(&pool)
+        .await
+        .expect("seed suspended-arm generation");
+    assert!(repo
+        .suspend(suspended.id)
+        .await
+        .expect("suspend control customer"));
+    assert!(
+        repo.reactivate(suspended.id)
+            .await
+            .expect("reactivate control customer"),
+        "suspended -> active reactivation must report it changed the row"
+    );
+    let reactivated = fetch_customer_lifecycle_snapshot(&pool, suspended.id).await;
+    assert_eq!(reactivated.status, "active");
+    assert_eq!(
+        reactivated.lifecycle_generation, generation,
+        "suspended -> active reactivation must preserve generation G exactly"
+    );
+
+    // Fence arm: a real soft-deleted customer at generation G + 1 cannot be
+    // reactivated and retains its deletion metadata and Stage 2 recovery evidence
+    // byte-for-byte.
+    let deleted_email = format!("reactivate-deleted-{}@integration.test", Uuid::new_v4());
+    let deleted = repo
+        .create_with_password(
+            "Reactivate Deleted",
+            &deleted_email,
+            "$argon2id$integration_hash",
+        )
+        .await
+        .expect("create fence-arm customer");
+    sqlx::query("UPDATE customers SET lifecycle_generation = $2 WHERE id = $1")
+        .bind(deleted.id)
+        .bind(generation)
+        .execute(&pool)
+        .await
+        .expect("seed fence-arm generation");
+    let (_deployment_id, vm_id, _cold_snapshot_id) =
+        seed_soft_delete_recovery_evidence(&pool, &deleted, generation).await;
+
+    assert!(
+        repo.soft_delete(deleted.id)
+            .await
+            .expect("soft delete fence-arm customer"),
+        "soft_delete must report it changed the active customer row"
+    );
+
+    let deletion_before = fetch_customer_lifecycle_snapshot(&pool, deleted.id).await;
+    let evidence_before = fetch_retained_evidence_snapshot(&pool, deleted.id).await;
+    assert_eq!(deletion_before.status, "deleted");
+    assert_eq!(
+        deletion_before.lifecycle_generation,
+        generation + 1,
+        "soft_delete must fence the generation at G + 1"
+    );
+    assert!(
+        deletion_before.deleted_at.is_some(),
+        "soft_delete must stamp the deletion timestamp"
+    );
+    assert_algolia_recovery_metadata_seeded(&evidence_before);
+
+    assert!(
+        !repo
+            .reactivate(deleted.id)
+            .await
+            .expect("reactivate must not error on a soft-deleted customer"),
+        "reactivate must refuse a soft-deleted customer at generation G + 1"
+    );
+
+    let deletion_after = fetch_customer_lifecycle_snapshot(&pool, deleted.id).await;
+    let evidence_after = fetch_retained_evidence_snapshot(&pool, deleted.id).await;
+    assert_eq!(
+        deletion_after, deletion_before,
+        "refused reactivation must leave status, generation, deletion timestamp, and \
+         updated_at unchanged byte-for-byte"
+    );
+    assert_eq!(
+        evidence_after, evidence_before,
+        "refused reactivation must retain catalog, snapshot, VM, deployment, and import evidence"
+    );
+
+    cleanup_soft_delete_recovery_evidence(&pool, deleted.id, vm_id).await;
+    cleanup_customer(&pool, &deleted_email).await;
+    cleanup_customer(&pool, &suspended_email).await;
 }

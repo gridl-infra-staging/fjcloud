@@ -47,7 +47,6 @@ pub enum ProxyError {
     Timeout,
 }
 
-const DEFAULT_REQUIRED_FLAPJACK_CAPABILITY: &str = "vectorSearchLocal";
 const REQUIRED_FLAPJACK_IDENTITY_ENV_NAMES: [&str; 4] = [
     "FJCLOUD_FLAPJACK_VERSION",
     "FJCLOUD_FLAPJACK_REQUIRED_REVISION",
@@ -107,8 +106,18 @@ impl FlapjackEngineRequirements {
             required_revision: configured_value("FJCLOUD_FLAPJACK_REQUIRED_REVISION"),
             required_build_id: configured_value("FJCLOUD_FLAPJACK_REQUIRED_BUILD_ID"),
             required_sha256: configured_value("FJCLOUD_FLAPJACK_REQUIRED_SHA256"),
-            required_capability: configured_value("FJCLOUD_FLAPJACK_REQUIRED_CAPABILITY")
-                .or_else(|| Some(DEFAULT_REQUIRED_FLAPJACK_CAPABILITY.to_string())),
+            // No capability is required by DEFAULT. fjcloud's search path forwards
+            // opaque query bodies and uses no engine feature (see search.rs), and NO
+            // shipped flapjack build advertises a vector capability — not the release
+            // Linux musl assets fjcloud downloads/bakes, not the Docker image, not the
+            // prod AMI (flapjack-1.0.2-pl13). A hard default of "vectorSearchLocal"
+            // could therefore never be satisfied by any real engine, turning the
+            // identity + Algolia-import admission gate into a permanent MissingCapability
+            // failure (this was the local-dev-up-smoke blocker). Identity stays anchored
+            // on version/revision/build_id/sha256; a specific required capability is
+            // opt-in via FJCLOUD_FLAPJACK_REQUIRED_CAPABILITY, ready to re-enable when
+            // local vector search is actually productized.
+            required_capability: configured_value("FJCLOUD_FLAPJACK_REQUIRED_CAPABILITY"),
         };
         let configured_identity = [
             requirements.expected_version.as_ref(),

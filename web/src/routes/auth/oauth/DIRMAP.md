@@ -6,6 +6,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| [provider] | I need the full file path to summarize the directory. |
-| [provider] | The [provider] directory handles callback logic for provider integrations, with a +server.ts file implementing server-side callback processing for webhooks or OAuth flows. |
+| [provider] | Handles OAuth authorization code exchange for auth tokens with CSRF protection via state cookie validation and login-fixation defenses through cookie clearing and header safety checks before setting authentication tokens. |
 <!-- [scrai:end] -->

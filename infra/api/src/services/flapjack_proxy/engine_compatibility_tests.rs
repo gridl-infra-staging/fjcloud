@@ -371,3 +371,51 @@ fn flapjack_engine_compatibility_engine_build_identity_populates_typed_runtime_s
     let observed_absent = observed_identity(without_map, without_map);
     assert!(observed_absent.runtime_security.is_none());
 }
+
+/// Regression (local-dev-up-smoke `missing_capability` blocker): with NO capability
+/// configured — the current default — `from_lookup` must leave `required_capability`
+/// as `None`. A hard "vectorSearchLocal" default was unsatisfiable by every shipped
+/// flapjack build (release musl, Docker, prod AMI), turning identity + Algolia-import
+/// admission into a permanent MissingCapability failure.
+#[test]
+fn flapjack_engine_compatibility_default_requires_no_capability() {
+    let configured = HashMap::from([
+        ("FJCLOUD_FLAPJACK_VERSION", "1.0.10"),
+        ("FJCLOUD_FLAPJACK_REQUIRED_REVISION", "abc123"),
+        ("FJCLOUD_FLAPJACK_REQUIRED_BUILD_ID", "build-1"),
+        ("FJCLOUD_FLAPJACK_REQUIRED_SHA256", "sha-1"),
+        // deliberately NO FJCLOUD_FLAPJACK_REQUIRED_CAPABILITY
+    ]);
+    let requirements = FlapjackEngineRequirements::from_lookup(|name| {
+        configured.get(name).map(|value| (*value).to_string())
+    })
+    .expect("complete Stage 1 identity without a capability must be accepted");
+    assert_eq!(
+        requirements.required_capability, None,
+        "no capability may be required by default"
+    );
+}
+
+/// Regression: when no capability is required, an engine whose identity matches is
+/// classified `Match` even though it advertises no vector capability — exactly the
+/// shape of every real flapjack `/health`. Locks the fix that unblocks the smoke.
+#[tokio::test]
+async fn flapjack_engine_compatibility_no_required_capability_accepts_engine_without_it() {
+    let requirements = FlapjackEngineRequirements::new(
+        Some("1.0.10"),
+        Some("abc123"),
+        Some("build-1"),
+        Some("sha-1"),
+        None, // no required capability
+    );
+    let health = json!({
+        "version": "1.0.10",
+        "producer_revision": "abc123",
+        "build_id": "build-1",
+        "binary_sha256": "sha-1",
+        "dirty": false,
+        "capabilities": []
+    });
+    let reason = classify_health(requirements, health).await;
+    assert_eq!(reason, FlapjackRuntimeIdentityReason::Match);
+}

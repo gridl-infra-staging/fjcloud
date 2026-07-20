@@ -18,7 +18,7 @@
 		"test:e2e:ui": "playwright test --ui",
 		"lint": "prettier --check . && eslint .",
 		"lint:e2e": "eslint --config tests/e2e-ui/eslint.config.mjs tests/e2e-ui/",
-		"lint:browser-tests": "pnpm run lint:e2e",
+		"lint:browser-tests": "npm run lint:e2e",
 		"format": "prettier --write ."
 	},
 	"devDependencies": {
@@ -54,12 +54,12 @@
 		"@stripe/stripe-js": "^8.8.0",
 		"@tailwindcss/vite": "^4.2.0",
 		"algoliasearch": "^5.49.2",
-		"d3-array": "^3.2.4",
 		"d3-scale": "^4.0.2",
 		"dompurify": "^3.4.5",
 		"instantsearch.js": "^4.91.0",
 		"layerchart": "^1.0.13",
 		"svelte-sonner": "^1.1.1",
 		"tailwindcss": "^4.2.0"
-	}
+	},
+	"packageManager": "npm@11.12.1"
 }

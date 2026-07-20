@@ -1,103 +1,50 @@
 import type {
-	AuthResponse,
-	MessageResponse,
-	MessageWithRetryAfterResponse,
-	RegisterRequest,
-	LoginRequest,
-	VerifyEmailRequest,
-	ForgotPasswordRequest,
-	ResetPasswordRequest,
-	OAuthExchangeRequest,
-	UsageSummaryResponse,
-	DailyUsageEntry,
-	InvoiceListItem,
-	InvoiceDetailResponse,
-	EstimatedBillResponse,
-	SetupIntentResponse,
-	CreateBillingPortalSessionRequest,
-	CreateBillingPortalSessionResponse,
-	BillingUpgradeResponse,
-	PaymentMethod,
-	ApiKeyListItem,
-	CreateApiKeyRequest,
-	CreateApiKeyResponse,
-	CustomerProfileResponse,
-	CustomerUpgradeStatusResponse,
-	AccountExportResponse,
-	UpdateProfileRequest,
-	ChangePasswordRequest,
-	Index,
-	CreateIndexResponse,
-	SearchResult,
-	PreviewEventRequest,
-	AddObjectsRequest,
-	AddObjectsResponse,
-	BrowseObjectsRequest,
-	BrowseObjectsResponse,
-	CreateIndexKeyRequest,
-	InternalRegion,
-	IndexReplicaSummary,
-	OnboardingStatus,
-	FreeTierLimits,
-	FlapjackCredentials,
-	FlapjackApiKey,
-	Rule,
-	RuleSearchResponse,
-	Synonym,
-	SynonymType,
-	SynonymSearchResponse,
-	PersonalizationStrategy,
-	PersonalizationProfile,
-	RecommendationsBatchRequest,
-	RecommendationsBatchResponse,
-	IndexChatRequest,
-	IndexChatResponse,
-	QsConfig,
-	QsBuildStatus,
-	AnalyticsTopSearchesResponse,
-	AnalyticsSearchCountResponse,
-	AnalyticsNoResultRateResponse,
-	AnalyticsDevicesResponse,
-	AnalyticsCountriesResponse,
-	AnalyticsFilterValuesResponse,
-	AnalyticsConversionRateResponse,
-	AnalyticsDateRangeParams,
-	AnalyticsRequiredDateRangeParams,
-	AnalyticsStatusResponse,
-	IndexMetricsResponse,
-	ConcludeExperimentRequest,
-	CreateExperimentRequest,
-	Experiment,
-	ExperimentActionResponse,
-	ExperimentListResponse,
-	ExperimentResults,
-	DebugEventsResponse,
-	DebugEventsFilters,
-	DictionaryLanguagesResponse,
-	DictionarySearchRequest,
-	DictionarySearchResponse,
-	DictionaryBatchRequest,
-	DictionaryBatchResponse,
-	SecuritySourcesResponse,
-	PricingCompareRequest,
-	PricingCompareResponse,
-	AlgoliaMigrationAvailabilityResponse,
-	ListAlgoliaIndexesRequest,
-	AlgoliaSourceListResponse
+	AuthResponse, MessageResponse, MessageWithRetryAfterResponse, RegisterRequest, LoginRequest,
+	VerifyEmailRequest, ForgotPasswordRequest, ResetPasswordRequest, OAuthExchangeRequest,
+	UsageSummaryResponse, DailyUsageEntry, InvoiceListItem, InvoiceDetailResponse,
+	EstimatedBillResponse, SetupIntentResponse, CreateBillingPortalSessionRequest,
+	CreateBillingPortalSessionResponse, BillingUpgradeResponse, PaymentMethod, ApiKeyListItem,
+	CreateApiKeyRequest, CreateApiKeyResponse, CustomerProfileResponse,
+	CustomerUpgradeStatusResponse, AccountExportResponse, UpdateProfileRequest,
+	ChangePasswordRequest, Index, CreateIndexResponse, SearchResult, PreviewEventRequest,
+	AddObjectsRequest, AddObjectsResponse, BrowseObjectsRequest, BrowseObjectsResponse,
+	CreateIndexKeyRequest, InternalRegion, IndexReplicaSummary, OnboardingStatus,
+	FlapjackCredentials, FlapjackApiKey, Rule, RuleSearchResponse, Synonym, SynonymType,
+	SynonymSearchResponse, PersonalizationStrategy, PersonalizationProfile,
+	RecommendationsBatchRequest, RecommendationsBatchResponse, IndexChatRequest,
+	IndexChatResponse, QsConfig, QsBuildStatus, AnalyticsTopSearchesResponse,
+	AnalyticsSearchCountResponse, AnalyticsNoResultRateResponse, AnalyticsDevicesResponse,
+	AnalyticsCountriesResponse, AnalyticsFilterValuesResponse, AnalyticsConversionRateResponse,
+	AnalyticsDateRangeParams, AnalyticsRequiredDateRangeParams, AnalyticsStatusResponse,
+	IndexMetricsResponse, ConcludeExperimentRequest, CreateExperimentRequest, Experiment,
+	ExperimentActionResponse, ExperimentListResponse, ExperimentResults, DebugEventsResponse,
+	DebugEventsFilters, DictionaryLanguagesResponse, DictionarySearchRequest,
+	DictionarySearchResponse, DictionaryBatchRequest, DictionaryBatchResponse,
+	SecuritySourcesResponse, PricingCompareRequest, PricingCompareResponse,
+	AlgoliaMigrationAvailabilityResponse, AlgoliaMigrationAvailabilityWire,
+	AlgoliaDestinationEligibilityRequest, AlgoliaDestinationEligibilityResponse,
+	ListAlgoliaIndexesRequest, AlgoliaSourceListResponse, CreateAlgoliaImportJobRequest,
+	ListAlgoliaImportJobsRequest, CancelAlgoliaImportJobRequest, ResumeAlgoliaImportJobRequest,
+	PublicAlgoliaImportJob,
+	PublicAlgoliaImportJobPage
 } from './types';
 import { BaseClient } from './base-client';
 import { retryAfterSecondsFromHeaders } from '$lib/http/retry_after';
 import { ApiRequestError } from './api_request_error';
+import {
+	algoliaSourceListRequest,
+	normalizeAlgoliaMigrationAvailability,
+	normalizeOnboardingStatus,
+	type LegacyOnboardingStatus
+} from './client_normalizers';
+import {
+	buildQueryString,
+	dictionaryPath,
+	experimentPath,
+	indexPath,
+	pathSegment
+} from './client_paths';
 export { ApiRequestError } from './api_request_error';
-
-type LegacyFreeTierLimits = Omit<FreeTierLimits, 'max_storage_mb'> & {
-	max_storage_mb?: number;
-	max_storage_gb?: number;
-};
-
-type LegacyOnboardingStatus = Omit<OnboardingStatus, 'free_tier_limits'> & {
-	free_tier_limits: LegacyFreeTierLimits | null;
-};
 
 export class ApiClient extends BaseClient {
 	private readonly token?: string;
@@ -131,75 +78,13 @@ export class ApiClient extends BaseClient {
 		method: string,
 		path: string,
 		body?: unknown,
-		options?: { includeAuth?: boolean }
+		options?: { includeAuth?: boolean; headers?: Record<string, string> }
 	): Promise<T> {
-		const init: RequestInit = { method };
+		const init: RequestInit = { method, headers: options?.headers };
 		if (body !== undefined) {
 			init.body = JSON.stringify(body);
 		}
 		return this.request<T>(path, init, options);
-	}
-
-	private buildQueryString(entries: Array<[string, string | number | undefined]>): string {
-		const params = new URLSearchParams();
-		for (const [key, value] of entries) {
-			if (value !== undefined) {
-				params.set(key, String(value));
-			}
-		}
-		const query = params.toString();
-		return query ? `?${query}` : '';
-	}
-
-	private pathSegment(value: string | number): string {
-		return encodeURIComponent(String(value));
-	}
-
-	private indexPath(indexName: string, suffix = ''): string {
-		return `/indexes/${this.pathSegment(indexName)}${suffix}`;
-	}
-
-	private experimentPath(indexName: string, id: number | string, suffix = ''): string {
-		return this.indexPath(indexName, `/experiments/${this.pathSegment(id)}${suffix}`);
-	}
-
-	private dictionaryPath(indexName: string, dictionaryName: string, suffix = ''): string {
-		return this.indexPath(indexName, `/dictionaries/${this.pathSegment(dictionaryName)}${suffix}`);
-	}
-
-	private normalizeStorageLimitMb(freeTierLimits: LegacyFreeTierLimits): number {
-		if (
-			typeof freeTierLimits.max_storage_mb === 'number' &&
-			Number.isFinite(freeTierLimits.max_storage_mb)
-		) {
-			return freeTierLimits.max_storage_mb;
-		}
-		if (
-			typeof freeTierLimits.max_storage_gb === 'number' &&
-			Number.isFinite(freeTierLimits.max_storage_gb)
-		) {
-			return Math.round(freeTierLimits.max_storage_gb * 1024);
-		}
-		throw new Error('Onboarding free-tier limits must include max_storage_mb or max_storage_gb');
-	}
-
-	private normalizeOnboardingStatus(payload: LegacyOnboardingStatus): OnboardingStatus {
-		if (!payload.free_tier_limits) {
-			return {
-				...payload,
-				free_tier_limits: null
-			};
-		}
-
-		return {
-			...payload,
-			free_tier_limits: {
-				max_searches_per_month: payload.free_tier_limits.max_searches_per_month,
-				max_records: payload.free_tier_limits.max_records,
-				max_storage_mb: this.normalizeStorageLimitMb(payload.free_tier_limits),
-				max_indexes: payload.free_tier_limits.max_indexes
-			}
-		};
 	}
 
 	// --- Public (no auth) ---
@@ -275,7 +160,7 @@ export class ApiClient extends BaseClient {
 	): Promise<AuthResponse> {
 		const headers = cookieHeader ? { Cookie: cookieHeader } : undefined;
 		return this.request<AuthResponse>(
-			`/auth/oauth/${this.pathSegment(provider)}/exchange`,
+			`/auth/oauth/${pathSegment(provider)}/exchange`,
 			{
 				method: 'POST',
 				body: JSON.stringify(body),
@@ -312,11 +197,11 @@ export class ApiClient extends BaseClient {
 	// --- Authenticated (tenant) ---
 
 	getUsage(month?: string): Promise<UsageSummaryResponse> {
-		return this.api('GET', `/usage${this.buildQueryString([['month', month]])}`);
+		return this.api('GET', `/usage${buildQueryString([['month', month]])}`);
 	}
 
 	getUsageDaily(month?: string): Promise<DailyUsageEntry[]> {
-		return this.api('GET', `/usage/daily${this.buildQueryString([['month', month]])}`);
+		return this.api('GET', `/usage/daily${buildQueryString([['month', month]])}`);
 	}
 
 	getInvoices(): Promise<InvoiceListItem[]> {
@@ -324,13 +209,13 @@ export class ApiClient extends BaseClient {
 	}
 
 	getInvoice(invoiceId: string): Promise<InvoiceDetailResponse> {
-		return this.api('GET', `/invoices/${this.pathSegment(invoiceId)}`);
+		return this.api('GET', `/invoices/${pathSegment(invoiceId)}`);
 	}
 
 	// --- Billing ---
 
 	getEstimatedBill(month?: string): Promise<EstimatedBillResponse> {
-		return this.api('GET', `/billing/estimate${this.buildQueryString([['month', month]])}`);
+		return this.api('GET', `/billing/estimate${buildQueryString([['month', month]])}`);
 	}
 
 	createSetupIntent(): Promise<SetupIntentResponse> {
@@ -342,11 +227,11 @@ export class ApiClient extends BaseClient {
 	}
 
 	deletePaymentMethod(pmId: string): Promise<void> {
-		return this.api('DELETE', `/billing/payment-methods/${this.pathSegment(pmId)}`);
+		return this.api('DELETE', `/billing/payment-methods/${pathSegment(pmId)}`);
 	}
 
 	setDefaultPaymentMethod(pmId: string): Promise<void> {
-		return this.api('POST', `/billing/payment-methods/${this.pathSegment(pmId)}/default`);
+		return this.api('POST', `/billing/payment-methods/${pathSegment(pmId)}/default`);
 	}
 
 	createBillingPortalSession(
@@ -370,7 +255,7 @@ export class ApiClient extends BaseClient {
 	}
 
 	deleteApiKey(id: string): Promise<void> {
-		return this.api('DELETE', `/api-keys/${this.pathSegment(id)}`);
+		return this.api('DELETE', `/api-keys/${pathSegment(id)}`);
 	}
 
 	// --- Account ---
@@ -410,11 +295,11 @@ export class ApiClient extends BaseClient {
 	}
 
 	getIndex(name: string): Promise<Index> {
-		return this.api('GET', this.indexPath(name));
+		return this.api('GET', indexPath(name));
 	}
 
 	getIndexMetrics(indexName: string): Promise<IndexMetricsResponse> {
-		return this.api('GET', this.indexPath(indexName, '/metrics'));
+		return this.api('GET', indexPath(indexName, '/metrics'));
 	}
 
 	createIndex(name: string, region: string): Promise<CreateIndexResponse> {
@@ -422,7 +307,7 @@ export class ApiClient extends BaseClient {
 	}
 
 	deleteIndex(name: string): Promise<void> {
-		return this.api('DELETE', this.indexPath(name), { confirm: true });
+		return this.api('DELETE', indexPath(name), { confirm: true });
 	}
 
 	restoreIndex(indexName: string): Promise<{
@@ -430,41 +315,41 @@ export class ApiClient extends BaseClient {
 		status: string;
 		poll_url: string;
 	}> {
-		return this.api('POST', this.indexPath(indexName, '/restore'));
+		return this.api('POST', indexPath(indexName, '/restore'));
 	}
 
 	testSearch(indexName: string, params: Record<string, unknown>): Promise<SearchResult> {
-		return this.api('POST', this.indexPath(indexName, '/search'), params);
+		return this.api('POST', indexPath(indexName, '/search'), params);
 	}
 
 	addObjects(indexName: string, requestBody: AddObjectsRequest): Promise<AddObjectsResponse> {
-		return this.api('POST', this.indexPath(indexName, '/batch'), requestBody);
+		return this.api('POST', indexPath(indexName, '/batch'), requestBody);
 	}
 
 	browseObjects(
 		indexName: string,
 		requestBody: BrowseObjectsRequest = {}
 	): Promise<BrowseObjectsResponse> {
-		return this.api('POST', this.indexPath(indexName, '/browse'), requestBody);
+		return this.api('POST', indexPath(indexName, '/browse'), requestBody);
 	}
 
 	getObject(indexName: string, objectID: string): Promise<Record<string, unknown>> {
-		return this.api('GET', this.indexPath(indexName, `/objects/${this.pathSegment(objectID)}`));
+		return this.api('GET', indexPath(indexName, `/objects/${pathSegment(objectID)}`));
 	}
 
 	deleteObject(indexName: string, objectID: string): Promise<Record<string, unknown>> {
-		return this.api('DELETE', this.indexPath(indexName, `/objects/${this.pathSegment(objectID)}`));
+		return this.api('DELETE', indexPath(indexName, `/objects/${pathSegment(objectID)}`));
 	}
 
 	getIndexSettings(indexName: string): Promise<Record<string, unknown>> {
-		return this.api('GET', this.indexPath(indexName, '/settings'));
+		return this.api('GET', indexPath(indexName, '/settings'));
 	}
 
 	updateIndexSettings(
 		indexName: string,
 		settings: Record<string, unknown>
 	): Promise<Record<string, unknown>> {
-		return this.api('PUT', this.indexPath(indexName, '/settings'), settings);
+		return this.api('PUT', indexPath(indexName, '/settings'), settings);
 	}
 
 	searchRules(
@@ -473,7 +358,7 @@ export class ApiClient extends BaseClient {
 		page = 0,
 		hitsPerPage = 50
 	): Promise<RuleSearchResponse> {
-		return this.api('POST', this.indexPath(indexName, '/rules/search'), {
+		return this.api('POST', indexPath(indexName, '/rules/search'), {
 			query,
 			page,
 			hitsPerPage
@@ -481,15 +366,15 @@ export class ApiClient extends BaseClient {
 	}
 
 	saveRule(indexName: string, objectID: string, rule: Rule): Promise<Record<string, unknown>> {
-		return this.api('PUT', this.indexPath(indexName, `/rules/${this.pathSegment(objectID)}`), rule);
+		return this.api('PUT', indexPath(indexName, `/rules/${pathSegment(objectID)}`), rule);
 	}
 
 	getRule(indexName: string, objectID: string): Promise<Rule> {
-		return this.api('GET', this.indexPath(indexName, `/rules/${this.pathSegment(objectID)}`));
+		return this.api('GET', indexPath(indexName, `/rules/${pathSegment(objectID)}`));
 	}
 
 	deleteRule(indexName: string, objectID: string): Promise<Record<string, unknown>> {
-		return this.api('DELETE', this.indexPath(indexName, `/rules/${this.pathSegment(objectID)}`));
+		return this.api('DELETE', indexPath(indexName, `/rules/${pathSegment(objectID)}`));
 	}
 
 	/**
@@ -512,7 +397,7 @@ export class ApiClient extends BaseClient {
 			body.type = synonymType;
 		}
 
-		return this.api('POST', this.indexPath(indexName, '/synonyms/search'), body);
+		return this.api('POST', indexPath(indexName, '/synonyms/search'), body);
 	}
 
 	saveSynonym(
@@ -520,47 +405,40 @@ export class ApiClient extends BaseClient {
 		objectID: string,
 		synonym: Synonym
 	): Promise<Record<string, unknown>> {
-		return this.api(
-			'PUT',
-			this.indexPath(indexName, `/synonyms/${this.pathSegment(objectID)}`),
-			synonym
-		);
+		return this.api('PUT', indexPath(indexName, `/synonyms/${pathSegment(objectID)}`), synonym);
 	}
 
 	getSynonym(indexName: string, objectID: string): Promise<Synonym> {
-		return this.api('GET', this.indexPath(indexName, `/synonyms/${this.pathSegment(objectID)}`));
+		return this.api('GET', indexPath(indexName, `/synonyms/${pathSegment(objectID)}`));
 	}
 
 	deleteSynonym(indexName: string, objectID: string): Promise<Record<string, unknown>> {
-		return this.api(
-			'DELETE',
-			this.indexPath(indexName, `/synonyms/${encodeURIComponent(objectID)}`)
-		);
+		return this.api('DELETE', indexPath(indexName, `/synonyms/${pathSegment(objectID)}`));
 	}
 
 	clearSynonyms(indexName: string): Promise<Record<string, unknown>> {
-		return this.api('POST', this.indexPath(indexName, '/synonyms/clear'));
+		return this.api('POST', indexPath(indexName, '/synonyms/clear'));
 	}
 
 	getPersonalizationStrategy(indexName: string): Promise<PersonalizationStrategy> {
-		return this.api('GET', this.indexPath(indexName, '/personalization/strategy'));
+		return this.api('GET', indexPath(indexName, '/personalization/strategy'));
 	}
 
 	savePersonalizationStrategy(
 		indexName: string,
 		strategy: PersonalizationStrategy
 	): Promise<Record<string, unknown>> {
-		return this.api('PUT', this.indexPath(indexName, '/personalization/strategy'), strategy);
+		return this.api('PUT', indexPath(indexName, '/personalization/strategy'), strategy);
 	}
 
 	deletePersonalizationStrategy(indexName: string): Promise<Record<string, unknown>> {
-		return this.api('DELETE', this.indexPath(indexName, '/personalization/strategy'));
+		return this.api('DELETE', indexPath(indexName, '/personalization/strategy'));
 	}
 
 	getPersonalizationProfile(indexName: string, userToken: string): Promise<PersonalizationProfile> {
 		return this.api(
 			'GET',
-			this.indexPath(indexName, `/personalization/profiles/${this.pathSegment(userToken)}`)
+			indexPath(indexName, `/personalization/profiles/${pathSegment(userToken)}`)
 		);
 	}
 
@@ -570,7 +448,7 @@ export class ApiClient extends BaseClient {
 	): Promise<Record<string, unknown>> {
 		return this.api(
 			'DELETE',
-			this.indexPath(indexName, `/personalization/profiles/${this.pathSegment(userToken)}`)
+			indexPath(indexName, `/personalization/profiles/${pathSegment(userToken)}`)
 		);
 	}
 
@@ -578,36 +456,36 @@ export class ApiClient extends BaseClient {
 		indexName: string,
 		requestBody: RecommendationsBatchRequest
 	): Promise<RecommendationsBatchResponse> {
-		return this.api('POST', this.indexPath(indexName, '/recommendations'), requestBody);
+		return this.api('POST', indexPath(indexName, '/recommendations'), requestBody);
 	}
 
 	chat(indexName: string, requestBody: IndexChatRequest): Promise<IndexChatResponse> {
-		return this.api('POST', this.indexPath(indexName, '/chat'), requestBody);
+		return this.api('POST', indexPath(indexName, '/chat'), requestBody);
 	}
 
 	getQsConfig(indexName: string): Promise<QsConfig> {
-		return this.api('GET', this.indexPath(indexName, '/suggestions'));
+		return this.api('GET', indexPath(indexName, '/suggestions'));
 	}
 
 	saveQsConfig(indexName: string, config: QsConfig): Promise<Record<string, unknown>> {
-		return this.api('PUT', this.indexPath(indexName, '/suggestions'), config);
+		return this.api('PUT', indexPath(indexName, '/suggestions'), config);
 	}
 
 	deleteQsConfig(indexName: string): Promise<Record<string, unknown>> {
-		return this.api('DELETE', this.indexPath(indexName, '/suggestions'));
+		return this.api('DELETE', indexPath(indexName, '/suggestions'));
 	}
 
 	getQsStatus(indexName: string): Promise<QsBuildStatus> {
-		return this.api('GET', this.indexPath(indexName, '/suggestions/status'));
+		return this.api('GET', indexPath(indexName, '/suggestions/status'));
 	}
 
 	triggerQsBuild(indexName: string): Promise<Record<string, unknown>> {
-		return this.api('POST', this.indexPath(indexName, '/suggestions/build'));
+		return this.api('POST', indexPath(indexName, '/suggestions/build'));
 	}
 
 	private analyticsQuery(params?: AnalyticsDateRangeParams): string {
 		if (!params) return '';
-		return this.buildQueryString([
+		return buildQueryString([
 			['startDate', params.startDate || undefined],
 			['endDate', params.endDate || undefined],
 			['limit', params.limit],
@@ -621,7 +499,7 @@ export class ApiClient extends BaseClient {
 	): Promise<AnalyticsTopSearchesResponse> {
 		return this.api(
 			'GET',
-			this.indexPath(indexName, `/analytics/searches${this.analyticsQuery(params)}`)
+			indexPath(indexName, `/analytics/searches${this.analyticsQuery(params)}`)
 		);
 	}
 
@@ -631,7 +509,7 @@ export class ApiClient extends BaseClient {
 	): Promise<AnalyticsSearchCountResponse> {
 		return this.api(
 			'GET',
-			this.indexPath(indexName, `/analytics/searches/count${this.analyticsQuery(params)}`)
+			indexPath(indexName, `/analytics/searches/count${this.analyticsQuery(params)}`)
 		);
 	}
 
@@ -641,7 +519,7 @@ export class ApiClient extends BaseClient {
 	): Promise<AnalyticsTopSearchesResponse> {
 		return this.api(
 			'GET',
-			this.indexPath(indexName, `/analytics/searches/noResults${this.analyticsQuery(params)}`)
+			indexPath(indexName, `/analytics/searches/noResults${this.analyticsQuery(params)}`)
 		);
 	}
 
@@ -651,12 +529,12 @@ export class ApiClient extends BaseClient {
 	): Promise<AnalyticsNoResultRateResponse> {
 		return this.api(
 			'GET',
-			this.indexPath(indexName, `/analytics/searches/noResultRate${this.analyticsQuery(params)}`)
+			indexPath(indexName, `/analytics/searches/noResultRate${this.analyticsQuery(params)}`)
 		);
 	}
 
 	getAnalyticsStatus(indexName: string): Promise<AnalyticsStatusResponse> {
-		return this.api('GET', this.indexPath(indexName, '/analytics/status'));
+		return this.api('GET', indexPath(indexName, '/analytics/status'));
 	}
 
 	// === AnalyticsTab subtab additions (Wave B 3E) ===
@@ -666,7 +544,7 @@ export class ApiClient extends BaseClient {
 	): Promise<AnalyticsDevicesResponse> {
 		return this.api(
 			'GET',
-			this.indexPath(indexName, `/analytics/devices${this.analyticsQuery(params)}`)
+			indexPath(indexName, `/analytics/devices${this.analyticsQuery(params)}`)
 		);
 	}
 
@@ -676,7 +554,7 @@ export class ApiClient extends BaseClient {
 	): Promise<AnalyticsCountriesResponse> {
 		return this.api(
 			'GET',
-			this.indexPath(indexName, `/analytics/countries${this.analyticsQuery(params)}`)
+			indexPath(indexName, `/analytics/countries${this.analyticsQuery(params)}`)
 		);
 	}
 
@@ -686,7 +564,7 @@ export class ApiClient extends BaseClient {
 	): Promise<AnalyticsFilterValuesResponse> {
 		return this.api(
 			'GET',
-			this.indexPath(indexName, `/analytics/filters${this.analyticsQuery(params)}`)
+			indexPath(indexName, `/analytics/filters${this.analyticsQuery(params)}`)
 		);
 	}
 
@@ -696,26 +574,23 @@ export class ApiClient extends BaseClient {
 	): Promise<AnalyticsConversionRateResponse> {
 		return this.api(
 			'GET',
-			this.indexPath(
-				indexName,
-				`/analytics/conversions/conversionRate${this.analyticsQuery(params)}`
-			)
+			indexPath(indexName, `/analytics/conversions/conversionRate${this.analyticsQuery(params)}`)
 		);
 	}
 
 	listExperiments(indexName: string): Promise<ExperimentListResponse> {
-		return this.api('GET', this.indexPath(indexName, '/experiments'));
+		return this.api('GET', indexPath(indexName, '/experiments'));
 	}
 
 	createExperiment(
 		indexName: string,
 		requestBody: CreateExperimentRequest
 	): Promise<ExperimentActionResponse> {
-		return this.api('POST', this.indexPath(indexName, '/experiments'), requestBody);
+		return this.api('POST', indexPath(indexName, '/experiments'), requestBody);
 	}
 
 	getExperiment(indexName: string, id: number | string): Promise<Experiment> {
-		return this.api('GET', this.experimentPath(indexName, id));
+		return this.api('GET', experimentPath(indexName, id));
 	}
 
 	updateExperiment(
@@ -723,19 +598,19 @@ export class ApiClient extends BaseClient {
 		id: number | string,
 		requestBody: Record<string, unknown>
 	): Promise<ExperimentActionResponse> {
-		return this.api('PUT', this.experimentPath(indexName, id), requestBody);
+		return this.api('PUT', experimentPath(indexName, id), requestBody);
 	}
 
 	deleteExperiment(indexName: string, id: number | string): Promise<ExperimentActionResponse> {
-		return this.api('DELETE', this.experimentPath(indexName, id));
+		return this.api('DELETE', experimentPath(indexName, id));
 	}
 
 	startExperiment(indexName: string, id: number | string): Promise<ExperimentActionResponse> {
-		return this.api('POST', this.experimentPath(indexName, id, '/start'));
+		return this.api('POST', experimentPath(indexName, id, '/start'));
 	}
 
 	stopExperiment(indexName: string, id: number | string): Promise<ExperimentActionResponse> {
-		return this.api('POST', this.experimentPath(indexName, id, '/stop'));
+		return this.api('POST', experimentPath(indexName, id, '/stop'));
 	}
 
 	concludeExperiment(
@@ -743,16 +618,16 @@ export class ApiClient extends BaseClient {
 		id: number | string,
 		requestBody: ConcludeExperimentRequest
 	): Promise<ExperimentActionResponse> {
-		return this.api('POST', this.experimentPath(indexName, id, '/conclude'), requestBody);
+		return this.api('POST', experimentPath(indexName, id, '/conclude'), requestBody);
 	}
 
 	getExperimentResults(indexName: string, id: number | string): Promise<ExperimentResults> {
-		return this.api('GET', this.experimentPath(indexName, id, '/results'));
+		return this.api('GET', experimentPath(indexName, id, '/results'));
 	}
 
 	getDebugEvents(indexName: string, filters?: DebugEventsFilters): Promise<DebugEventsResponse> {
 		const query = filters
-			? this.buildQueryString([
+			? buildQueryString([
 					['eventType', filters.eventType || undefined],
 					['status', filters.status || undefined],
 					['limit', filters.limit],
@@ -760,13 +635,13 @@ export class ApiClient extends BaseClient {
 					['until', filters.until]
 				])
 			: '';
-		return this.api('GET', this.indexPath(indexName, `/events/debug${query}`));
+		return this.api('GET', indexPath(indexName, `/events/debug${query}`));
 	}
 	postPreviewEvent(indexName: string, requestBody: PreviewEventRequest): Promise<void> {
-		return this.api('POST', this.indexPath(indexName, '/events'), requestBody);
+		return this.api('POST', indexPath(indexName, '/events'), requestBody);
 	}
 	getDictionaryLanguages(indexName: string): Promise<DictionaryLanguagesResponse> {
-		return this.api('GET', this.indexPath(indexName, '/dictionaries/languages'));
+		return this.api('GET', indexPath(indexName, '/dictionaries/languages'));
 	}
 
 	searchDictionaryEntries(
@@ -774,7 +649,7 @@ export class ApiClient extends BaseClient {
 		dictionaryName: string,
 		body: DictionarySearchRequest
 	): Promise<DictionarySearchResponse> {
-		return this.api('POST', this.dictionaryPath(indexName, dictionaryName, '/search'), body);
+		return this.api('POST', dictionaryPath(indexName, dictionaryName, '/search'), body);
 	}
 
 	batchDictionaryEntries(
@@ -782,60 +657,99 @@ export class ApiClient extends BaseClient {
 		dictionaryName: string,
 		body: DictionaryBatchRequest
 	): Promise<DictionaryBatchResponse> {
-		return this.api('POST', this.dictionaryPath(indexName, dictionaryName, '/batch'), body);
+		return this.api('POST', dictionaryPath(indexName, dictionaryName, '/batch'), body);
 	}
 
 	getSecuritySources(indexName: string): Promise<SecuritySourcesResponse> {
-		return this.api('GET', this.indexPath(indexName, '/security/sources'));
+		return this.api('GET', indexPath(indexName, '/security/sources'));
 	}
 
 	appendSecuritySource(
 		indexName: string,
 		body: { source: string; description: string }
 	): Promise<Record<string, unknown>> {
-		return this.api('POST', this.indexPath(indexName, '/security/sources'), body);
+		return this.api('POST', indexPath(indexName, '/security/sources'), body);
 	}
 
 	deleteSecuritySource(indexName: string, source: string): Promise<Record<string, unknown>> {
-		return this.api(
-			'DELETE',
-			this.indexPath(indexName, `/security/sources/${this.pathSegment(source)}`)
-		);
+		return this.api('DELETE', indexPath(indexName, `/security/sources/${pathSegment(source)}`));
 	}
 
 	createIndexKey(indexName: string, description: string, acl: string[]): Promise<FlapjackApiKey> {
-		return this.api('POST', this.indexPath(indexName, '/keys'), {
+		return this.api('POST', indexPath(indexName, '/keys'), {
 			description,
 			acl
 		} as CreateIndexKeyRequest);
 	}
 
 	listReplicas(indexName: string): Promise<IndexReplicaSummary[]> {
-		return this.api('GET', this.indexPath(indexName, '/replicas'));
+		return this.api('GET', indexPath(indexName, '/replicas'));
 	}
 
 	createReplica(indexName: string, region: string): Promise<IndexReplicaSummary> {
-		return this.api('POST', this.indexPath(indexName, '/replicas'), { region });
+		return this.api('POST', indexPath(indexName, '/replicas'), { region });
 	}
 
 	deleteReplica(indexName: string, replicaId: string): Promise<void> {
-		return this.api(
-			'DELETE',
-			this.indexPath(indexName, `/replicas/${this.pathSegment(replicaId)}`)
-		);
+		return this.api('DELETE', indexPath(indexName, `/replicas/${pathSegment(replicaId)}`));
 	}
 
 	getAlgoliaMigrationAvailability(): Promise<AlgoliaMigrationAvailabilityResponse> {
-		return this.api('GET', '/migration/algolia/availability');
+		return this.api('GET', '/migration/algolia/availability').then((payload) =>
+			normalizeAlgoliaMigrationAvailability(payload as AlgoliaMigrationAvailabilityWire)
+		);
 	}
 
 	listAlgoliaSourceIndexes(request: ListAlgoliaIndexesRequest): Promise<AlgoliaSourceListResponse> {
-		return this.api('POST', '/migration/algolia/list-indexes', request);
+		return this.api('POST', '/migration/algolia/list-indexes', algoliaSourceListRequest(request));
+	}
+
+	checkAlgoliaDestinationEligibility(
+		request: AlgoliaDestinationEligibilityRequest
+	): Promise<AlgoliaDestinationEligibilityResponse> {
+		return this.api('POST', '/migration/algolia/destination-eligibility', request);
+	}
+
+	createAlgoliaImportJob(
+		request: CreateAlgoliaImportJobRequest,
+		idempotencyKey: string
+	): Promise<PublicAlgoliaImportJob> {
+		return this.api('POST', '/migration/algolia/jobs', request, {
+			headers: { 'idempotency-key': idempotencyKey }
+		});
+	}
+
+	getAlgoliaImportJob(jobId: string): Promise<PublicAlgoliaImportJob> {
+		return this.api('GET', `/migration/algolia/jobs/${pathSegment(jobId)}`);
+	}
+
+	listAlgoliaImportJobs(
+		request: ListAlgoliaImportJobsRequest = {}
+	): Promise<PublicAlgoliaImportJobPage> {
+		const query = buildQueryString([
+			['limit', request.limit],
+			['cursor', request.cursor]
+		]);
+		return this.api('GET', `/migration/algolia/jobs${query}`);
+	}
+
+	cancelAlgoliaImportJob(
+		jobId: string,
+		request: CancelAlgoliaImportJobRequest = {}
+	): Promise<PublicAlgoliaImportJob> {
+		return this.api('POST', `/migration/algolia/jobs/${pathSegment(jobId)}/cancel`, request);
+	}
+
+	resumeAlgoliaImportJob(
+		jobId: string,
+		request: ResumeAlgoliaImportJobRequest
+	): Promise<PublicAlgoliaImportJob> {
+		return this.api('POST', `/migration/algolia/jobs/${pathSegment(jobId)}/resume`, request);
 	}
 
 	async getOnboardingStatus(): Promise<OnboardingStatus> {
 		const payload = await this.api<LegacyOnboardingStatus>('GET', '/onboarding/status');
-		return this.normalizeOnboardingStatus(payload);
+		return normalizeOnboardingStatus(payload);
 	}
 
 	generateCredentials(): Promise<FlapjackCredentials> {

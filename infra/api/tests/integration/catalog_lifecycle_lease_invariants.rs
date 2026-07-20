@@ -1,3 +1,8 @@
+use crate::common::algolia_import_reservation_lifetime::{
+    assert_algolia_import_job_unchanged_except_worker_claim, force_reservation_lifetime_case,
+    reservation_lifetime_denominator, ReservationExpectation,
+};
+
 use super::*;
 
 #[test]
@@ -71,7 +76,12 @@ fn replacement_fact_validation_maps_public_refusal_reasons() {
     for (label, facts, expected) in cases {
         assert_eq!(facts.validate(), Err(expected), "{label}");
     }
-    assert!(eligible_replace_facts().validate().is_ok());
+    let mut released_import_lease = eligible_replace_facts();
+    released_import_lease.has_active_import_lease = false;
+    assert!(
+        released_import_lease.validate().is_ok(),
+        "released import lease facts must not refuse replacement"
+    );
 }
 
 #[tokio::test]
@@ -194,29 +204,63 @@ async fn authenticated_replacement_target_rejects_active_migration() {
 
 #[tokio::test]
 async fn authenticated_replacement_target_rejects_active_lease_before_quota_checks() {
-    let Some(db) = connect_and_migrate("replace_auth_active_lease").await else {
+    let Some(db) = connect_and_migrate("replace_auth_active_lease_boundary").await else {
         return;
     };
-    let customer = Uuid::new_v4();
-    insert_replace_target(&db.pool, customer, "products").await;
     let repo = PgAlgoliaImportJobRepo::new(db.pool.clone());
-    repo.create_replace(replace_job(customer, "products", "active-lease"))
-        .await
-        .expect("active replacement reservation");
 
-    let replaced = repo
-        .create_replace(replace_job_with_source_size(
-            customer,
-            "products",
-            "fills-customer-quota",
-            10_737_418_240,
-        ))
-        .await;
+    for (index, case) in reservation_lifetime_denominator().iter().enumerate() {
+        let customer = Uuid::new_v4();
+        let target = format!("products-{index}");
+        insert_replace_target(&db.pool, customer, &target).await;
+        let active_job = repo
+            .create_replace(replace_job(customer, &target, &format!("active-{index}")))
+            .await
+            .unwrap_or_else(|error| panic!("active replacement reservation {index}: {error:?}"));
+        force_reservation_lifetime_case(&db.pool, active_job.id, case).await;
 
-    assert_conflict_code(
-        replaced,
-        AlgoliaImportErrorCode::DestinationConflict.as_str(),
-    );
+        let lifecycle_writer = IndexLifecycleLease::new(repo.clone())
+            .begin(customer, &target)
+            .await;
+        match case.expectation {
+            ReservationExpectation::Retain => {
+                assert!(
+                    matches!(
+                        lifecycle_writer,
+                        Err(RepoError::Conflict(message)) if message == "destination_conflict"
+                    ),
+                    "{} must block lifecycle lease admission with destination_conflict",
+                    case.label
+                );
+                let replaced = repo
+                    .create_replace(replace_job_with_source_size(
+                        customer,
+                        &target,
+                        &format!("fills-customer-quota-{index}"),
+                        10_737_418_240,
+                    ))
+                    .await;
+                assert_conflict_code(
+                    replaced,
+                    AlgoliaImportErrorCode::DestinationConflict.as_str(),
+                );
+            }
+            ReservationExpectation::Release => {
+                let guard = lifecycle_writer.unwrap_or_else(|error| {
+                    panic!(
+                        "{} must allow lifecycle lease admission: {error:?}",
+                        case.label
+                    )
+                });
+                drop(guard);
+                repo.create_replace(replace_job(customer, &target, &format!("released-{index}")))
+                    .await
+                    .unwrap_or_else(|error| {
+                        panic!("{} must allow replacement admission: {error:?}", case.label)
+                    });
+            }
+        }
+    }
 }
 
 fn replace_job_with_source_size(
@@ -272,22 +316,53 @@ async fn elapsed_resume_deadline_transfers_worker_lease_without_releasing_target
         before_claim,
         AlgoliaImportErrorCode::DestinationConflict.as_str(),
     );
+    let before_takeover = repo
+        .get(job.id)
+        .await
+        .expect("load before claim")
+        .expect("job exists before claim");
+    let old_worker_claimed_at = now - Duration::minutes(30);
+    let old_worker_lease_expires_at = now - Duration::minutes(1);
+    assert_eq!(
+        before_takeover.worker_claimed_at,
+        Some(old_worker_claimed_at)
+    );
+    assert_eq!(
+        before_takeover.worker_lease_expires_at,
+        Some(old_worker_lease_expires_at)
+    );
 
+    let new_lease_expiry = now + Duration::minutes(5);
     let claims = repo
-        .claim_elapsed_resume_deadlines(now, now + Duration::minutes(5), 10)
+        .claim_elapsed_resume_deadlines(now, new_lease_expiry, 10)
         .await
         .expect("claim elapsed resume deadline");
+    assert_eq!(claims.len(), 1);
+    let claim = claims.first().expect("one elapsed resume claim");
+    assert_eq!(claim.job_id, before_takeover.id);
+    assert_eq!(claim.cloud_job_id, before_takeover.cloud_job_id);
     assert_eq!(
-        claims.iter().map(|claim| claim.job_id).collect::<Vec<_>>(),
-        vec![job.id]
+        Some(claim.engine_job_id),
+        before_takeover.engine_job_id,
+        "claim must return the persisted non-null engine job id"
     );
+    assert_eq!(
+        claim.resume_intent_generation,
+        before_takeover.resume_intent_generation
+    );
+    assert_eq!(claim.resume_count, before_takeover.resume_count);
+    assert_eq!(
+        Some(claim.resume_deadline),
+        before_takeover.resume_deadline,
+        "claim must return the persisted non-null resume deadline"
+    );
+    assert_eq!(claim.worker_claimed_at, now);
+    assert_eq!(claim.worker_lease_expires_at, new_lease_expiry);
 
     let claimed = repo.get(job.id).await.unwrap().unwrap();
+    assert_algolia_import_job_unchanged_except_worker_claim(&before_takeover, &claimed);
     assert_eq!(claimed.worker_claimed_at, Some(now));
-    assert_eq!(
-        claimed.worker_lease_expires_at,
-        Some(now + Duration::minutes(5))
-    );
+    assert_eq!(claimed.worker_lease_expires_at, Some(new_lease_expiry));
     assert!(claimed.resumable);
     assert_eq!(claimed.publication_disposition.as_str(), "unchanged");
     assert_eq!(claimed.engine_ack_state.as_str(), "pending");
@@ -348,5 +423,80 @@ async fn resumable_credential_failure_keeps_target_excluded_through_resume_race(
     assert_conflict_code(
         competitor,
         AlgoliaImportErrorCode::DestinationConflict.as_str(),
+    );
+}
+
+/// A soft-deleted customer keeps its authenticated replacement target and active
+/// import-reservation evidence byte-for-byte, yet the credential-free eligibility
+/// snapshot refuses with exactly `LifecycleUnavailable`. The customer-generation
+/// gate is the single read-visibility fence: it refuses regardless of the retained
+/// target rows, and the refused read holds no lock and mutates nothing.
+#[tokio::test]
+async fn soft_deleted_customer_snapshot_eligibility_refuses_while_target_retained() {
+    let Some(db) = connect_and_migrate("catalog_lifecycle_soft_delete_snapshot").await else {
+        return;
+    };
+    let customer = Uuid::new_v4();
+    insert_replace_target(&db.pool, customer, "products").await;
+    let repo = PgAlgoliaImportJobRepo::new(db.pool.clone());
+    let reservation = repo
+        .create_replace(replace_job(
+            customer,
+            "products",
+            "retained-soft-delete-snapshot",
+        ))
+        .await
+        .expect("seed active replacement reservation at generation G");
+
+    let before_tenants = tenant_rows(&db.pool, customer).await;
+    let before_deployments = deployment_rows(&db.pool, customer).await;
+    let before_operations = import_operation_rows(&db.pool, customer, "products").await;
+    assert_eq!(
+        before_operations.len(),
+        1,
+        "reservation evidence must be present before the delete"
+    );
+    let reserved_generation = before_operations[0].lifecycle_generation;
+
+    // Real customer soft delete: status active -> deleted, generation G -> G+1.
+    assert!(
+        PgCustomerRepo::new(db.pool.clone())
+            .soft_delete(customer)
+            .await
+            .expect("soft delete active customer"),
+        "soft_delete must report it changed the active customer row"
+    );
+
+    let error = repo
+        .snapshot_replace_target_eligibility(customer, "products")
+        .await
+        .expect_err("a soft-deleted customer cannot pin a routing generation");
+    assert_eq!(
+        error,
+        DestinationEligibilityError::LifecycleUnavailable,
+        "soft-deleted customer eligibility must refuse with LifecycleUnavailable, got {error:?}"
+    );
+
+    // Refused read: retained target and reservation evidence is unchanged, and the
+    // reservation still carries the pre-delete generation G.
+    assert_eq!(
+        tenant_rows(&db.pool, customer).await,
+        before_tenants,
+        "refused eligibility read must not mutate the retained catalog target"
+    );
+    assert_eq!(
+        deployment_rows(&db.pool, customer).await,
+        before_deployments,
+        "refused eligibility read must not mutate deployment/routing rows"
+    );
+    let after_operations = import_operation_rows(&db.pool, customer, "products").await;
+    assert_eq!(
+        after_operations, before_operations,
+        "refused eligibility read must retain the active reservation byte-for-byte"
+    );
+    assert_eq!(after_operations[0].id, reservation.id);
+    assert_eq!(
+        after_operations[0].lifecycle_generation, reserved_generation,
+        "retained reservation must keep its pre-delete generation G"
     );
 }

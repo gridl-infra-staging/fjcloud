@@ -6,6 +6,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| callback | I need the actual file path or content of the `+server.ts` file to provide an accurate summary. |
-| callback | The callback directory contains a +server.ts file that handles server-side callback logic, likely for webhook or OAuth callback processing. |
+| callback | Exchanges OAuth authorization codes for auth tokens, validating CSRF state cookies and implementing login-fixation defenses by clearing cookies and validating header safety before setting the authentication token. |
 <!-- [scrai:end] -->

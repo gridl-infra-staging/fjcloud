@@ -14,7 +14,6 @@ the external secret source.
 
 Resolution order for each key:
   1. |
-| catalog_lifecycle_service_window_live_probe.sh | Stub summary for scripts/catalog_lifecycle_service_window_live_probe.sh. |
 | check-sizes.sh | Enforce hard file-size limits for source files.
 
 Limits are calibrated to flag genuinely-too-large source files while
@@ -264,28 +263,16 @@ shellcheck disable=SC1091. |
 
 | Directory | Summary |
 | --- | --- |
-| canary | The canary directory owns synthetic health probes and contract validation tests for staging and production environments, including customer signup flows, external system health checks, and end-to-end integration testing across authentication, billing, and Stripe webhooks. |
-| chaos | The chaos directory contains end-to-end proof scripts that validate system resilience by simulating regional failures, testing HA failover behavior, verifying health-monitor detection and recovery, and confirming correct behavior of the metering breaker under target failures. |
-| dev | The dev directory contains utility scripts for managing integration tests in the project: one for consolidating and migrating integration tests, and another for regenerating the integration test root structure. |
-| launch | The `launch/` directory contains deployment orchestration and verification scripts for fjcloud's multi-wave launch process, including billing validation, Stripe re-verification, E2E browser testing, and live-state probing across staging and production environments. |
-| lib | This is a collection of 40+ reusable shell script libraries providing shared infrastructure for fjcloud's bash automation — handling AWS identity, Stripe and Privacy.com integration, local/staging database access, health checks, validation gates, and webhook dispatch. |
-| load | The load directory contains regression testing utilities that compare load test results against baseline performance metrics across five core endpoints, with configurable thresholds for detecting latency degradation and throughput drops. |
-| reliability | The reliability directory contains automation scripts for capacity profiling and security validation of the fjcloud backend, including deterministic document seeding, metric capture across three tiers, security checks (cargo audit, secret scanning, unsafe code patterns), and VM inventory validation against EC2 infrastructure. |
-| stripe | This directory contains shell scripts for configuring Stripe integration with fjcloud, including billing portal setup and product catalog management, with support for multiple Stripe accounts. |
-| tests | The tests directory contains shell script smoke tests for customer broadcasting and SES event handling, along with a shared lib of reusable test helpers, assertions, and mock utilities for integration, E2E, and billing test scenarios. |
+| canary | The canary directory contains monitoring and health-check scripts that validate the fjcloud platform's critical paths, including end-to-end customer flows, deployment synchronization, external accessibility, email delivery, and contract/integration test probes. |
+| chaos | The chaos directory contains shell scripts for end-to-end testing of high availability and failover scenarios in a distributed cloud system, including region failure detection, HA promotion workflows, metering breaker alerts, and recovery verification. |
+| dev | Development utilities for managing the Rust API integration test suite: one script migrates tests into a dedicated integration directory with rewritten imports, while the other generates and maintains grouped root module files that organize tests into logical categories (auth, billing, indexes, platform). |
+| launch | This directory orchestrates the multi-wave launch pipeline with scripts for staged promotion from dev through staging to prod, verification gates at each stage, browser testing lanes, and guarded infrastructure rollouts. |
+| lib | This directory contains reusable shell script libraries providing shared utilities for AWS operations, Stripe integration, database access, HTTP/JSON transport, security validation, and billing orchestration. |
+| load | Load testing utilities and regression validation, including load_checks.sh which compares offline and live load harness results to verify performance consistency. |
+| reliability | The reliability directory contains profiling, security validation, and test-seeding scripts that run capacity benchmarks on different document tiers, execute automated security and backend reliability gates with machine-readable JSON output, and manage deterministic test profiles and infrastructure inventory reconciliation. |
+| stripe | This directory contains shell scripts for managing Stripe configuration and product catalogs, including customer portal setup and product catalog creation with support for multiple Stripe accounts. |
+| tests | The tests directory contains integration and smoke test scripts for key fjcloud services including catalog lifecycle, customer broadcast, and SES event handling, along with shared shell testing infrastructure and fixtures for inventory state manipulation. |
 | verify | — |
-| vlm | The vlm directory contains utilities for verdict aggregation and VLM judge operations, including a Python script for bundling verdicts and shell function libraries for environment variable handling and configuration. |
-| w3_triage | W3 triage is a workflow orchestration system for triaging and processing audit recommendations through multiple stages. |
-| canary | The canary directory contains staging and production health-check scripts that validate critical customer workflows (signup through Stripe integration), external system integrations (Algolia, Stripe, OAuth), email deliverability, and deployment synchronization, with integration contract tests and one-shot probes designed to fail fast on external outages. |
-| chaos | The chaos directory contains scripts for testing system resilience and failure detection, including HA failover validation, region health monitoring, circuit breaker alerts, and region restart recovery. |
-| dev | Developer utility scripts for managing the Rust API integration test suite structure: migrate_integration_tests_consolidation.py consolidates test files into a dedicated directory and rewrites module paths, while regenerate_integration_test_root.py generates grouped test root modules (auth_admin, billing, indexes, platform) that re-export integration tests with proper module visibility. |
-| launch | The `launch/` directory contains orchestration scripts for multi-stage deployment validation and promotion from dev through staging to production, including pre/post-deployment verification, billing cross-checks, multi-tenant isolation testing, and browser automation gates backed by evidence capture and anti-drift validation. |
-| lib | The `scripts/lib/` directory contains reusable shell and Python helpers for integration tests and operational tasks, with ownership clearly split between library-provided transport/infrastructure code (HTTP, database, alert dispatch, Stripe API) and caller-provided domain-specific metadata. |
-| load | The load directory contains load regression testing infrastructure that compares offline and live load harness results, enabling automated validation of system performance across different testing environments. |
-| reliability | Backend reliability and security validation suite providing capacity profiling across three document tiers, automated security checks (cargo audit, secrets, unsafe patterns), and VM inventory reconciliation against EC2. |
-| stripe | This directory contains shell scripts for configuring Stripe billing infrastructure, specifically for setting up the Stripe Customer Portal and creating the canonical Flapjack product catalog against specified Stripe accounts. |
-| tests | The tests directory provides focused smoke test coverage for customer broadcast and SES bounce/complaint workflows, backed by a shared library of shell utilities, assertions, and infrastructure for integration and E2E validation. |
-| verify | — |
-| vlm | The vlm directory contains a Python script for aggregating first verdict bundles and a lib module providing environment variable handling helpers extracted from deployment utilities. |
-| w3_triage | w3_triage is a staging system for processing audit recommendations and orchestrating their deployment. |
+| vlm | The vlm directory contains VLM-related utilities including a stub for aggregating verdict bundles and a self-contained library of environment helper functions for reading and processing environment variables with trimming support. |
+| w3_triage | W3 triage is an audit-driven dispatch system that bootstraps state from live audits, then parses recommendations, applies rules, and generates dispatch manifests across multiple stages. |
 <!-- [scrai:end] -->

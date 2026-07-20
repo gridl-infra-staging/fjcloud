@@ -102,6 +102,10 @@ pub const BEARER_SCHEME_NAME: &str = "bearer_jwt";
         crate::routes::indexes::analytics::get_analytics_no_results,
         crate::routes::indexes::analytics::get_analytics_no_result_rate,
         crate::routes::indexes::analytics::get_analytics_status,
+        crate::routes::indexes::analytics::get_analytics_devices,
+        crate::routes::indexes::analytics::get_analytics_countries,
+        crate::routes::indexes::analytics::get_analytics_filters,
+        crate::routes::indexes::analytics::get_analytics_conversion_rate,
         // Stage 5 — Experiments proxy
         crate::routes::indexes::experiments::list_experiments,
         crate::routes::indexes::experiments::create_experiment,
@@ -130,6 +134,8 @@ pub const BEARER_SCHEME_NAME: &str = "bearer_jwt";
         crate::routes::auth::ResetPasswordRequest,
         crate::routes::auth::MessageResponse,
         crate::errors::ErrorResponse,
+        crate::errors::MigrationErrorResponse,
+        crate::models::AlgoliaImportErrorCode,
         crate::models::customer::BillingPlan,
         crate::routes::onboarding::OnboardingStatusResponse,
         crate::routes::onboarding::FreeTierLimitsResponse,
@@ -176,6 +182,7 @@ pub const BEARER_SCHEME_NAME: &str = "bearer_jwt";
         crate::routes::indexes::CreateKeyRequest,
         crate::routes::indexes::PreviewEventRequest,
         // Stage 5 — Algolia migration DTOs
+        crate::routes::migration::AlgoliaMigrationCapabilities,
         crate::routes::migration::AlgoliaMigrationAvailabilityReason,
         crate::routes::migration::AlgoliaMigrationAvailabilityResponse,
         crate::routes::migration::ListAlgoliaIndexesRequest,

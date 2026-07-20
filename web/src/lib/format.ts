@@ -51,6 +51,27 @@ export function formatDate(dateStr: string | null | undefined): string {
 }
 
 /**
+ * Format an ISO datetime as an absolute timestamp with an explicit timezone,
+ * e.g. "Jul 19, 2026, 6:30 PM UTC", or "—" if null/invalid. Renders in UTC so
+ * the displayed instant is unambiguous regardless of the viewer's timezone —
+ * used where an exact deadline must be read the same way everywhere.
+ */
+export function formatDateTime(dateStr: string | null | undefined): string {
+	if (!dateStr) return '—';
+	const d = new Date(dateStr);
+	if (isNaN(d.getTime())) return '—';
+	return d.toLocaleString('en-US', {
+		month: 'short',
+		day: 'numeric',
+		year: 'numeric',
+		hour: 'numeric',
+		minute: '2-digit',
+		timeZone: 'UTC',
+		timeZoneName: 'short'
+	});
+}
+
+/**
  * Format a Date or ISO string as a coarse relative time for admin/operator views.
  */
 export function formatRelativeTime(

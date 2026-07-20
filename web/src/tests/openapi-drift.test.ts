@@ -250,7 +250,16 @@ const schemaDescriptors: SchemaDescriptor[] = [
 		properties: [
 			{ name: 'available', kind: 'primitive', type: 'boolean', required: true },
 			{ name: 'reason', kind: 'ref', ref: 'AlgoliaMigrationAvailabilityReason', required: true },
-			{ name: 'message', kind: 'primitive', type: 'string', required: true }
+			{ name: 'message', kind: 'primitive', type: 'string', required: true },
+			{ name: 'capabilities', kind: 'ref', ref: 'AlgoliaMigrationCapabilities', required: true }
+		]
+	},
+	{
+		schemaName: 'AlgoliaMigrationCapabilities',
+		properties: [
+			{ name: 'cancel', kind: 'primitive', type: 'boolean', required: true },
+			{ name: 'resume', kind: 'primitive', type: 'boolean', required: true },
+			{ name: 'replace', kind: 'primitive', type: 'boolean', required: true }
 		]
 	},
 	{
@@ -258,7 +267,8 @@ const schemaDescriptors: SchemaDescriptor[] = [
 		properties: [
 			{ name: 'appId', kind: 'primitive', type: 'string', required: true },
 			{ name: 'apiKey', kind: 'primitive', type: 'string', required: true },
-			{ name: 'cursor', kind: 'nullableString' }
+			{ name: 'cursor', kind: 'nullableString' },
+			{ name: 'hitsPerPage', kind: 'primitive', type: 'integer' }
 		]
 	},
 	{

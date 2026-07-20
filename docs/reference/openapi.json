@@ -1395,6 +1395,326 @@
         }
       }
     },
+    "/indexes/{name}/analytics/conversions/conversionRate": {
+      "get": {
+        "tags": [
+          "Analytics"
+        ],
+        "summary": "GET /indexes/:name/analytics/conversions/conversionRate — conversion rate in date range.",
+        "operationId": "get_analytics_conversion_rate",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Index name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Conversion rate in date range",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Index not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Index is in cold storage",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Index is restoring or endpoint not ready",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/indexes/{name}/analytics/countries": {
+      "get": {
+        "tags": [
+          "Analytics"
+        ],
+        "summary": "GET /indexes/:name/analytics/countries — top country breakdown in date range.",
+        "operationId": "get_analytics_countries",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Index name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Top countries in date range",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Index not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Index is in cold storage",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Index is restoring or endpoint not ready",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/indexes/{name}/analytics/devices": {
+      "get": {
+        "tags": [
+          "Analytics"
+        ],
+        "summary": "GET /indexes/:name/analytics/devices — top device breakdown in date range.",
+        "operationId": "get_analytics_devices",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Index name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Top devices in date range",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Index not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Index is in cold storage",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Index is restoring or endpoint not ready",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/indexes/{name}/analytics/filters": {
+      "get": {
+        "tags": [
+          "Analytics"
+        ],
+        "summary": "GET /indexes/:name/analytics/filters — top filter usage in date range.",
+        "operationId": "get_analytics_filters",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Index name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Top filters in date range",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Index not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Index is in cold storage",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Index is restoring or endpoint not ready",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/indexes/{name}/analytics/searches": {
       "get": {
         "tags": [
@@ -6235,6 +6555,7 @@
         "tags": [
           "Migration"
         ],
+        "summary": "TODO: Document list_algolia_indexes.",
         "operationId": "list_algolia_indexes",
         "requestBody": {
           "content": {
@@ -6262,7 +6583,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "$ref": "#/components/schemas/MigrationErrorResponse"
                 }
               }
             }
@@ -6282,7 +6603,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "$ref": "#/components/schemas/MigrationErrorResponse"
                 }
               }
             }
@@ -6292,7 +6613,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "$ref": "#/components/schemas/MigrationErrorResponse"
                 }
               }
             }
@@ -6592,8 +6913,34 @@
           }
         }
       },
+      "AlgoliaImportErrorCode": {
+        "type": "string",
+        "description": "TODO: Document AlgoliaImportErrorCode.",
+        "enum": [
+          "invalid_credentials",
+          "missing_source_permission",
+          "source_not_found",
+          "source_catalog_too_large",
+          "destination_conflict",
+          "quota_exceeded",
+          "source_too_large",
+          "insufficient_engine_storage",
+          "destination_changed",
+          "source_changed",
+          "incompatible_data",
+          "engine_upgrade_required",
+          "migration_ha_not_supported",
+          "migration_provider_unsupported",
+          "backend_unavailable",
+          "interrupted",
+          "cancel_not_permitted",
+          "not_resumable",
+          "internal"
+        ]
+      },
       "AlgoliaIndexMetadata": {
         "type": "object",
+        "description": "TODO: Document AlgoliaIndexMetadata.",
         "required": [
           "name",
           "entries",
@@ -6665,17 +7012,40 @@
         "required": [
           "available",
           "reason",
-          "message"
+          "message",
+          "capabilities"
         ],
         "properties": {
           "available": {
             "type": "boolean"
+          },
+          "capabilities": {
+            "$ref": "#/components/schemas/AlgoliaMigrationCapabilities"
           },
           "message": {
             "type": "string"
           },
           "reason": {
             "$ref": "#/components/schemas/AlgoliaMigrationAvailabilityReason"
+          }
+        }
+      },
+      "AlgoliaMigrationCapabilities": {
+        "type": "object",
+        "required": [
+          "cancel",
+          "resume",
+          "replace"
+        ],
+        "properties": {
+          "cancel": {
+            "type": "boolean"
+          },
+          "replace": {
+            "type": "boolean"
+          },
+          "resume": {
+            "type": "boolean"
           }
         }
       },
@@ -7705,6 +8075,24 @@
         "properties": {
           "message": {
             "type": "string"
+          }
+        }
+      },
+      "MigrationErrorResponse": {
+        "type": "object",
+        "description": "Shared coded error envelope for migration-family responses.",
+        "required": [
+          "error",
+          "code"
+        ],
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/AlgoliaImportErrorCode",
+            "description": "Stable migration error code for programmatic clients."
+          },
+          "error": {
+            "type": "string",
+            "description": "Human-readable error description."
           }
         }
       },

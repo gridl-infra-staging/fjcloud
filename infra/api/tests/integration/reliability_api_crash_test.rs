@@ -28,6 +28,10 @@ fn build_service(
         customer_repo,
         DEFAULT_DNS_DOMAIN.to_string(),
     ))
+    .with_engine_health_client_for_test(
+        crate::common::test_engine_health_client(),
+        crate::common::test_engine_health_wait_policy(),
+    )
 }
 
 type DefaultServiceDeps = (

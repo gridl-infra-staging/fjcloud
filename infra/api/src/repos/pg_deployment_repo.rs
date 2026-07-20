@@ -115,7 +115,8 @@ impl DeploymentRepo for PgDeploymentRepo {
 
     async fn terminate(&self, id: Uuid) -> Result<bool, RepoError> {
         let result = sqlx::query(
-            "UPDATE customer_deployments SET status = 'terminated', terminated_at = NOW() \
+            "UPDATE customer_deployments \
+             SET status = 'terminated', terminated_at = NOW(), failure_reason = NULL \
              WHERE id = $1 AND status != 'terminated'",
         )
         .bind(id)

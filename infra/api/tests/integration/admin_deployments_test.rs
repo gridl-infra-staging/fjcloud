@@ -1,11 +1,283 @@
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use http_body_util::BodyExt;
+use serde_json::json;
+use std::sync::Arc;
+use tokio::time::{sleep, timeout, Duration};
 use tower::ServiceExt;
+use uuid::Uuid;
+
+use api::repos::{DeploymentRepo, PgDeploymentRepo};
+use api::router::build_router;
+
+use crate::common::support::pg_schema_harness::{connect_and_migrate, pool_in_schema};
+use crate::common::vm_inventory_reference_guard_fixtures::insert_customer;
+use crate::common::{TestStateBuilder, TEST_ADMIN_KEY};
 
 async fn body_json(resp: axum::response::Response) -> serde_json::Value {
     let bytes = resp.into_body().collect().await.unwrap().to_bytes();
     serde_json::from_slice(&bytes).unwrap()
+}
+
+fn admin_deployment_pg_test_app(pool: sqlx::PgPool) -> axum::Router {
+    let mut state = TestStateBuilder::new().with_pool(pool.clone()).build();
+    state.deployment_repo = Arc::new(PgDeploymentRepo::new(pool));
+    build_router(state)
+}
+
+async fn post_fail_provisioning(
+    app: axum::Router,
+    deployment_id: Uuid,
+    body: serde_json::Value,
+    admin_key: Option<&str>,
+) -> axum::response::Response {
+    post_fail_provisioning_raw(app, deployment_id, body.to_string(), admin_key).await
+}
+
+async fn post_fail_provisioning_raw(
+    app: axum::Router,
+    deployment_id: Uuid,
+    body: String,
+    admin_key: Option<&str>,
+) -> axum::response::Response {
+    let mut builder = Request::builder()
+        .method("POST")
+        .uri(format!(
+            "/admin/deployments/{deployment_id}/fail-provisioning"
+        ))
+        .header("content-type", "application/json");
+    if let Some(admin_key) = admin_key {
+        builder = builder.header("x-admin-key", admin_key);
+    }
+    app.oneshot(builder.body(Body::from(body)).unwrap())
+        .await
+        .unwrap()
+}
+
+#[tokio::test]
+async fn fail_provisioning_requires_admin_and_exact_fixed_body() {
+    let customer_repo = crate::common::mock_repo();
+    let deployment_repo = crate::common::mock_deployment_repo();
+    let customer = customer_repo.seed("Acme Corp", "acme-fail@example.com");
+    let deployment = deployment_repo.seed(
+        customer.id,
+        "node-fail-provisioning",
+        "us-east-1",
+        "t4g.small",
+        "aws",
+        "provisioning",
+    );
+
+    let success = post_fail_provisioning(
+        crate::common::test_app_with_repos(customer_repo.clone(), deployment_repo.clone()),
+        deployment.id,
+        json!({"reason":"retired_dead_ami_fleet"}),
+        Some(TEST_ADMIN_KEY),
+    )
+    .await;
+    assert_eq!(success.status(), StatusCode::OK);
+    assert_eq!(
+        body_json(success).await,
+        json!({
+            "id": deployment.id,
+            "status": "failed",
+            "failure_reason": "retired_dead_ami_fleet"
+        })
+    );
+
+    let invalid_cases = [
+        (
+            None,
+            json!({"reason":"retired_dead_ami_fleet"}).to_string(),
+            StatusCode::UNAUTHORIZED,
+        ),
+        (
+            Some(TEST_ADMIN_KEY),
+            json!({}).to_string(),
+            StatusCode::UNPROCESSABLE_ENTITY,
+        ),
+        (
+            Some(TEST_ADMIN_KEY),
+            json!({"reason":"engine_health_check_failed"}).to_string(),
+            StatusCode::BAD_REQUEST,
+        ),
+        (
+            Some(TEST_ADMIN_KEY),
+            json!({"reason":"retired_dead_ami_fleet","extra":true}).to_string(),
+            StatusCode::UNPROCESSABLE_ENTITY,
+        ),
+        (
+            Some(TEST_ADMIN_KEY),
+            "{".to_string(),
+            StatusCode::BAD_REQUEST,
+        ),
+    ];
+
+    for (admin_key, body, expected_status) in invalid_cases {
+        let response = post_fail_provisioning_raw(
+            crate::common::test_app_with_repos(
+                crate::common::mock_repo(),
+                crate::common::mock_deployment_repo(),
+            ),
+            Uuid::new_v4(),
+            body,
+            admin_key,
+        )
+        .await;
+        assert_eq!(response.status(), expected_status);
+    }
+}
+
+#[tokio::test]
+async fn fail_provisioning_maps_absent_and_non_provisioning_rows() {
+    let absent = post_fail_provisioning(
+        crate::common::test_app_with_repos(
+            crate::common::mock_repo(),
+            crate::common::mock_deployment_repo(),
+        ),
+        Uuid::new_v4(),
+        json!({"reason":"retired_dead_ami_fleet"}),
+        Some(TEST_ADMIN_KEY),
+    )
+    .await;
+    assert_eq!(absent.status(), StatusCode::NOT_FOUND);
+
+    let customer_repo = crate::common::mock_repo();
+    let deployment_repo = crate::common::mock_deployment_repo();
+    let customer = customer_repo.seed("Acme Corp", "acme-running@example.com");
+    let deployment = deployment_repo.seed_provisioned(
+        customer.id,
+        "node-running-fail-reject",
+        "us-east-1",
+        "t4g.small",
+        "aws",
+        "running",
+        Some("https://vm-running.flapjack.foo"),
+    );
+
+    let conflict = post_fail_provisioning(
+        crate::common::test_app_with_repos(customer_repo, deployment_repo.clone()),
+        deployment.id,
+        json!({"reason":"retired_dead_ami_fleet"}),
+        Some(TEST_ADMIN_KEY),
+    )
+    .await;
+
+    assert_eq!(conflict.status(), StatusCode::CONFLICT);
+    let after = deployment_repo
+        .find_by_id(deployment.id)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(after.status, "running");
+    assert_eq!(after.failure_reason, None);
+    assert_eq!(after.provider_vm_id, deployment.provider_vm_id);
+}
+
+#[tokio::test]
+async fn fail_provisioning_postgres_clears_transient_fields() {
+    let Some(db) = connect_and_migrate("admin_deployment_fail_provisioning").await else {
+        return;
+    };
+    let customer_id = insert_customer(&db.pool, "admin_deployment_fail").await;
+    let repo = PgDeploymentRepo::new(db.pool.clone());
+    let deployment = repo
+        .create(
+            customer_id,
+            "node-pg-fail-provisioning",
+            "us-east-1",
+            "t4g.small",
+            "aws",
+            None,
+        )
+        .await
+        .unwrap();
+    sqlx::query(
+        "UPDATE customer_deployments
+         SET provider_vm_id = 'provisioning-lock:test',
+             ip_address = '203.0.113.55',
+             hostname = 'vm-pg-fail.flapjack.foo',
+             flapjack_url = 'https://vm-pg-fail.flapjack.foo'
+         WHERE id = $1",
+    )
+    .bind(deployment.id)
+    .execute(&db.pool)
+    .await
+    .unwrap();
+
+    let response = post_fail_provisioning(
+        admin_deployment_pg_test_app(db.pool.clone()),
+        deployment.id,
+        json!({"reason":"retired_dead_ami_fleet"}),
+        Some(TEST_ADMIN_KEY),
+    )
+    .await;
+
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(
+        body_json(response).await,
+        json!({
+            "id": deployment.id,
+            "status": "failed",
+            "failure_reason": "retired_dead_ami_fleet"
+        })
+    );
+    let updated = repo.find_by_id(deployment.id).await.unwrap().unwrap();
+    assert_eq!(updated.status, "failed");
+    assert_eq!(
+        updated.failure_reason.as_deref(),
+        Some("retired_dead_ami_fleet")
+    );
+    assert_eq!(updated.provider_vm_id, None);
+    assert_eq!(updated.ip_address, None);
+    assert_eq!(updated.hostname, None);
+    assert_eq!(updated.flapjack_url, None);
+}
+
+#[tokio::test]
+async fn fail_provisioning_postgres_race_reports_conflict_without_mutation() {
+    let Some(db) = connect_and_migrate("admin_deployment_fail_race").await else {
+        return;
+    };
+    let customer_id = insert_customer(&db.pool, "admin_deployment_fail_race").await;
+    let repo = PgDeploymentRepo::new(db.pool.clone());
+    let deployment = repo
+        .create(
+            customer_id,
+            "node-pg-fail-race",
+            "us-east-1",
+            "t4g.small",
+            "aws",
+            None,
+        )
+        .await
+        .unwrap();
+    let worker_pool = pool_in_schema(&db.schema, 1).await;
+    let route_pool = pool_in_schema(&db.schema, 1).await;
+    let mut transition = worker_pool.begin().await.unwrap();
+    sqlx::query("UPDATE customer_deployments SET status = 'running' WHERE id = $1")
+        .bind(deployment.id)
+        .execute(&mut *transition)
+        .await
+        .unwrap();
+
+    let route_task = tokio::spawn(post_fail_provisioning(
+        admin_deployment_pg_test_app(route_pool),
+        deployment.id,
+        json!({"reason":"retired_dead_ami_fleet"}),
+        Some(TEST_ADMIN_KEY),
+    ));
+    sleep(Duration::from_millis(50)).await;
+    transition.commit().await.unwrap();
+
+    let response = timeout(Duration::from_secs(2), route_task)
+        .await
+        .expect("fail-provisioning route must not deadlock")
+        .expect("route task joins");
+    assert_eq!(response.status(), StatusCode::CONFLICT);
+    let after = repo.find_by_id(deployment.id).await.unwrap().unwrap();
+    assert_eq!(after.status, "running");
+    assert_eq!(after.failure_reason, None);
 }
 
 // ===========================================================================

@@ -6,6 +6,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| oauth | — |
-| oauth | The oauth directory handles OAuth provider integrations with callback processing logic. |
+| oauth | The oauth directory handles OAuth authorization code exchange with CSRF protection through state cookie validation and login-fixation defenses. |
 <!-- [scrai:end] -->

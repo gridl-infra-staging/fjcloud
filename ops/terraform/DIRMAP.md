@@ -17,7 +17,6 @@ TDD red phase for Task 3 — Deploy/Migrate/Rollback Runtime Smoke
 
 These tests validate structural correctness of the deploy scripts
 without requiring AWS credentials or live infrastructure. |
-| tests_flapjack_ami_identity_static.sh | Stub summary for ops/terraform/tests_flapjack_ami_identity_static.sh. |
 | tests_provision_bootstrap_static.sh | Static contract tests for ops/scripts/provision_bootstrap.sh
 TDD red phase — tests written before the script exists
 
@@ -78,6 +77,5 @@ TDD: this test locks ownership, delegation, and secret-boundary contracts. |
 
 | Directory | Summary |
 | --- | --- |
-| support_email_canary | An AWS Lambda function that executes email deliverability canary tests for support email functionality, resolving optional webhook parameters from AWS Systems Manager before running validation scripts. |
-| support_email_canary | AWS Lambda handler that executes support email deliverability and inbound roundtrip validation canary scripts, with optional webhook notifications resolved from AWS SSM Parameter Store. |
+| support_email_canary | Lambda handler that runs a support email deliverability canary script, resolving Slack and Discord webhook URLs from AWS Systems Manager Parameter Store for notifications. |
 <!-- [scrai:end] -->

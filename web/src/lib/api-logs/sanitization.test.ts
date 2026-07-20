@@ -8,6 +8,10 @@ import {
 	type SanitizedLogEntry,
 	MAX_RESPONSE_BODY_LENGTH
 } from './sanitization';
+import {
+	EXPECTED_MIGRATION_LOG_EXCLUSION_OPERATIONS,
+	MIGRATION_LOG_EXCLUSION_MATRIX
+} from './migration_log_exclusion_cases';
 
 // ---------------------------------------------------------------------------
 // Schema: SanitizedLogEntry
@@ -129,16 +133,13 @@ describe('redactHeaders', () => {
 // ---------------------------------------------------------------------------
 
 describe('isExcludedRoute', () => {
-	it('excludes Algolia migration list-indexes route', () => {
-		expect(isExcludedRoute('/migration/algolia/list-indexes')).toBe(true);
-	});
-
-	it('excludes Algolia migration migrate route', () => {
-		expect(isExcludedRoute('/migration/algolia/migrate')).toBe(true);
-	});
-
-	it('excludes any /migration/ prefixed route', () => {
-		expect(isExcludedRoute('/migration/foo/bar')).toBe(true);
+	it('excludes the closed Algolia migration operation matrix', () => {
+		expect(MIGRATION_LOG_EXCLUSION_MATRIX.map((row) => row.operation)).toEqual(
+			EXPECTED_MIGRATION_LOG_EXCLUSION_OPERATIONS
+		);
+		for (const row of MIGRATION_LOG_EXCLUSION_MATRIX) {
+			expect(isExcludedRoute(row.route), row.operation).toBe(true);
+		}
 	});
 
 	it('does not exclude normal search routes', () => {
@@ -250,34 +251,56 @@ describe('sanitizeLogEntry credential exclusion', () => {
 // ---------------------------------------------------------------------------
 
 describe('sanitizeLogEntry excluded routes', () => {
-	it('returns null for /migration/algolia/list-indexes', () => {
-		const raw: RawLogCapture = {
-			source: 'fetch',
-			method: 'POST',
-			url: '/migration/algolia/list-indexes',
-			status: 200,
-			duration: 100,
-			body: { algolia_app_id: 'X', algolia_api_key: 'Y' },
-			response: { indexes: [] },
-			headers: { Authorization: 'Bearer tok' }
-		};
+	it.each(MIGRATION_LOG_EXCLUSION_MATRIX)(
+		'returns null for $operation migration operation payloads',
+		(row) => {
+			const appIdCanary = `APPID_${row.operation}_CANARY`;
+			const apiKeyCanary = `APIKEY_${row.operation}_CANARY`;
+			const bearerTokenCanary = `BEARER_${row.operation}_CANARY`;
+			const sourceCanary = `source_${row.operation}_CANARY`;
+			const jobCanary = `job_${row.operation}_CANARY`;
+			const responseCanary = `response_${row.operation}_CANARY`;
+			const raw: RawLogCapture = {
+				source: 'fetch',
+				method: row.method,
+				url: row.route,
+				status: row.operation === 'status' || row.operation === 'history' ? 200 : 202,
+				duration: 100,
+				body: {
+					operation: row.operation,
+					appId: appIdCanary,
+					apiKey: apiKeyCanary,
+					sourceIndex: sourceCanary,
+					jobId: jobCanary
+				},
+				response: {
+					operation: row.operation,
+					appIdEcho: appIdCanary,
+					apiKeyEcho: apiKeyCanary,
+					jobId: jobCanary,
+					result: responseCanary
+				},
+				headers: { Authorization: `Bearer ${bearerTokenCanary}` }
+			};
 
-		expect(sanitizeLogEntry(raw)).toBeNull();
-	});
+			expect(JSON.stringify(raw)).toContain(appIdCanary);
+			expect(JSON.stringify(raw)).toContain(apiKeyCanary);
+			expect(JSON.stringify(raw)).toContain(bearerTokenCanary);
+			expect(JSON.stringify(raw)).toContain(sourceCanary);
+			expect(JSON.stringify(raw)).toContain(jobCanary);
+			expect(JSON.stringify(raw)).toContain(responseCanary);
+			expect(isExcludedRoute(row.route)).toBe(true);
+			expect(sanitizeLogEntry(raw)).toBeNull();
+		}
+	);
 
-	it('returns null for /migration/algolia/migrate', () => {
-		const raw: RawLogCapture = {
-			source: 'fetch',
-			method: 'POST',
-			url: '/migration/algolia/migrate',
-			status: 200,
-			duration: 250,
-			body: { algolia_app_id: 'X', algolia_api_key: 'Y', source_index: 'products' },
-			response: { taskId: 'task-1', message: 'ok' },
-			headers: { Authorization: 'Bearer tok' }
-		};
-
-		expect(sanitizeLogEntry(raw)).toBeNull();
+	it('does not treat the closed matrix as a subset that can silently lose an operation', () => {
+		expect(MIGRATION_LOG_EXCLUSION_MATRIX).toHaveLength(
+			EXPECTED_MIGRATION_LOG_EXCLUSION_OPERATIONS.length
+		);
+		expect(new Set(MIGRATION_LOG_EXCLUSION_MATRIX.map((row) => row.operation))).toEqual(
+			new Set(EXPECTED_MIGRATION_LOG_EXCLUSION_OPERATIONS)
+		);
 	});
 });
 

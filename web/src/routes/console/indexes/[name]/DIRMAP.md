@@ -21,7 +21,6 @@
 
 | Directory | Summary |
 | --- | --- |
-| experiments | The experiments directory contains a SvelteKit route handler structure with a stub server page component that serves as a placeholder for future implementation. |
-| experiments | I need the actual directory path. |
+| experiments | The experiments directory contains SvelteKit page components with dynamic routing for individual experiment IDs, implementing server-side logic to handle experiment-specific page rendering and data fetching. |
 | tabs | — |
 <!-- [scrai:end] -->

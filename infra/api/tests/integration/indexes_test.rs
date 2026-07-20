@@ -601,7 +601,11 @@ async fn setup_capacity_exhaustion_with_vm_provisioner(
         deployment_repo.clone(),
         customer_repo.clone(),
         "flapjack.foo".to_string(),
-    ));
+    ))
+    .with_engine_health_client_for_test(
+        crate::common::builders::test_engine_health_client(),
+        crate::common::builders::test_engine_health_wait_policy(),
+    );
 
     let mut state = test_state_with_indexes_and_vm_inventory(
         customer_repo,
@@ -649,7 +653,11 @@ async fn setup_empty_region_auto_provision_with_vm_provisioner(
         deployment_repo.clone(),
         customer_repo.clone(),
         "flapjack.foo".to_string(),
-    ));
+    ))
+    .with_engine_health_client_for_test(
+        crate::common::builders::test_engine_health_client(),
+        crate::common::builders::test_engine_health_wait_policy(),
+    );
 
     let flapjack_proxy = Arc::new(FlapjackProxy::with_http_client(
         http_client.clone(),
@@ -4452,7 +4460,11 @@ async fn create_index_reuses_existing_shared_vm_when_load_snapshot_is_missing() 
         deployment_repo.clone(),
         customer_repo.clone(),
         "flapjack.foo".to_string(),
-    ));
+    ))
+    .with_engine_health_client_for_test(
+        crate::common::builders::test_engine_health_client(),
+        crate::common::builders::test_engine_health_wait_policy(),
+    );
     let mut state = crate::common::test_state_with_indexes_and_vm_inventory(
         customer_repo.clone(),
         deployment_repo.clone(),
@@ -4686,7 +4698,11 @@ async fn create_index_ignores_non_loopback_local_dev_flapjack_url_when_selecting
         deployment_repo.clone(),
         customer_repo.clone(),
         "flapjack.foo".to_string(),
-    ));
+    ))
+    .with_engine_health_client_for_test(
+        crate::common::builders::test_engine_health_client(),
+        crate::common::builders::test_engine_health_wait_policy(),
+    );
     let mut state = crate::common::test_state_with_indexes_and_vm_inventory(
         customer_repo,
         deployment_repo,
@@ -4822,7 +4838,11 @@ async fn shared_customer_with_existing_deployment_still_uses_scheduler_placement
         deployment_repo.clone(),
         customer_repo.clone(),
         "flapjack.foo".to_string(),
-    ));
+    ))
+    .with_engine_health_client_for_test(
+        crate::common::builders::test_engine_health_client(),
+        crate::common::builders::test_engine_health_wait_policy(),
+    );
 
     let mut state = crate::common::test_state_with_indexes_and_vm_inventory(
         customer_repo.clone(),
@@ -8458,7 +8478,11 @@ async fn create_index_zero_resource_fallback_prefers_vm_with_load_telemetry() {
         deployment_repo.clone(),
         customer_repo.clone(),
         "flapjack.foo".to_string(),
-    ));
+    ))
+    .with_engine_health_client_for_test(
+        crate::common::builders::test_engine_health_client(),
+        crate::common::builders::test_engine_health_wait_policy(),
+    );
     let mut state = crate::common::test_state_with_indexes_and_vm_inventory(
         customer_repo.clone(),
         deployment_repo.clone(),

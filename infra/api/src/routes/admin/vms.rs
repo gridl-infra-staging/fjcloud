@@ -1,12 +1,8 @@
-//! Admin VM inventory endpoints: list, detail, and local-mode process kill.
-//!
-//! The kill endpoint is local-dev-only: it sends SIGTERM to the Flapjack process
-//! bound to a VM's port. This lets the admin UI demonstrate HA failover by
-//! killing a node and watching the health monitor + region failover react.
-use axum::extract::{Path, State};
+use axum::extract::{Path, Query, State};
+use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::Json;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 use tracing::info;
 use uuid::Uuid;
@@ -15,7 +11,16 @@ use crate::auth::AdminAuth;
 use crate::errors::ApiError;
 use crate::models::tenant::CustomerTenant;
 use crate::models::vm_inventory::VmInventory;
+use crate::repos::advisory_lock::{advisory_lock, auto_provision_lock_key};
+use crate::repos::{
+    VmDecommissionResult, VmRetirementAssessment, VmRetirementBlocker, VmRetirementConflict,
+};
+use crate::services::provisioning::{is_canonical_shared_vm_hostname, SharedVmProvisioningMode};
 use crate::state::AppState;
+
+const WARM_FLOOR_REGION: &str = "us-east-1";
+const WARM_FLOOR_PROVIDER: &str = "aws";
+const WARM_FLOOR_DESIRED_COUNT: u32 = 1;
 
 #[derive(Debug, Serialize)]
 pub struct VmDetailResponse {
@@ -30,6 +35,44 @@ pub struct VmDetailVm {
     pub provider_vm_id: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct VmRetirementBlockersQuery {
+    pub expected_hostname: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct DecommissionVmRequest {
+    pub expected_hostname: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SharedWarmFloorRequest {
+    pub region: String,
+    pub provider: String,
+    pub desired_count: u32,
+}
+
+#[derive(Debug, Serialize)]
+pub struct VmRetirementResponse {
+    pub vm_id: Uuid,
+    pub hostname: String,
+    pub status: &'static str,
+    pub result: &'static str,
+    pub blockers: Vec<VmRetirementBlocker>,
+    pub blocking_reference_count: i64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct SharedWarmFloorResponse {
+    pub before_count: usize,
+    pub created_count: usize,
+    pub active_count: usize,
+    pub created_vms: Vec<VmInventory>,
+}
+
 fn normalize_provider_vm_id(provider: &str, provider_vm_id: &str) -> String {
     if let Some((prefix, raw)) = provider_vm_id.split_once(':') {
         if prefix == provider && !raw.is_empty() {
@@ -37,6 +80,143 @@ fn normalize_provider_vm_id(provider: &str, provider_vm_id: &str) -> String {
         }
     }
     provider_vm_id.to_string()
+}
+
+fn blocking_reference_count(blockers: &[VmRetirementBlocker]) -> i64 {
+    blockers.iter().map(|blocker| blocker.count).sum()
+}
+
+fn retirement_conflict_error(conflict: VmRetirementConflict) -> ApiError {
+    match conflict {
+        VmRetirementConflict::UnknownVm { vm_id } => {
+            ApiError::NotFound(format!("VM not found: {vm_id}"))
+        }
+        VmRetirementConflict::HostnameMismatch {
+            expected_hostname,
+            actual_hostname,
+        } => ApiError::Conflict(format!(
+            "hostname mismatch: expected {expected_hostname}, found {actual_hostname}"
+        )),
+        VmRetirementConflict::InvalidStatus { actual_status } => ApiError::Conflict(format!(
+            "VM status does not allow retirement: {actual_status}"
+        )),
+    }
+}
+
+fn retirement_blockers_response(
+    vm_id: Uuid,
+    hostname: String,
+    assessment: VmRetirementAssessment,
+) -> Result<VmRetirementResponse, ApiError> {
+    match assessment {
+        VmRetirementAssessment::Eligible => Ok(VmRetirementResponse {
+            vm_id,
+            hostname,
+            status: "active",
+            result: "eligible",
+            blockers: Vec::new(),
+            blocking_reference_count: 0,
+        }),
+        VmRetirementAssessment::Blocked(blockers) => Ok(VmRetirementResponse {
+            vm_id,
+            hostname,
+            status: "active",
+            result: "blocked",
+            blocking_reference_count: blocking_reference_count(&blockers),
+            blockers,
+        }),
+        VmRetirementAssessment::Conflict(conflict) => Err(retirement_conflict_error(conflict)),
+    }
+}
+
+fn decommission_response(
+    vm_id: Uuid,
+    hostname: String,
+    result: VmDecommissionResult,
+) -> Result<axum::response::Response, ApiError> {
+    match result {
+        VmDecommissionResult::Decommissioned => Ok(Json(VmRetirementResponse {
+            vm_id,
+            hostname,
+            status: "decommissioned",
+            result: "decommissioned",
+            blockers: Vec::new(),
+            blocking_reference_count: 0,
+        })
+        .into_response()),
+        VmDecommissionResult::AlreadyDecommissioned => Ok(Json(VmRetirementResponse {
+            vm_id,
+            hostname,
+            status: "decommissioned",
+            result: "already_decommissioned",
+            blockers: Vec::new(),
+            blocking_reference_count: 0,
+        })
+        .into_response()),
+        VmDecommissionResult::Blocked(blockers) => {
+            let response = VmRetirementResponse {
+                vm_id,
+                hostname,
+                status: "active",
+                result: "blocked",
+                blocking_reference_count: blocking_reference_count(&blockers),
+                blockers,
+            };
+            Ok((StatusCode::CONFLICT, Json(response)).into_response())
+        }
+        VmDecommissionResult::Conflict(conflict) => Err(retirement_conflict_error(conflict)),
+    }
+}
+
+fn validate_shared_warm_floor_request(
+    request: &SharedWarmFloorRequest,
+    state: &AppState,
+) -> Result<(), ApiError> {
+    if request.provider != WARM_FLOOR_PROVIDER {
+        return Err(ApiError::BadRequest(format!(
+            "shared VM warm floor supports only provider {WARM_FLOOR_PROVIDER}"
+        )));
+    }
+    if request.region != WARM_FLOOR_REGION {
+        return Err(ApiError::BadRequest(format!(
+            "shared VM warm floor supports only region {WARM_FLOOR_REGION}"
+        )));
+    }
+    if request.desired_count != WARM_FLOOR_DESIRED_COUNT {
+        return Err(ApiError::BadRequest(format!(
+            "shared VM warm floor desired_count must be {WARM_FLOOR_DESIRED_COUNT}"
+        )));
+    }
+    if state
+        .region_config
+        .get_available_region(&request.region)
+        .is_none()
+    {
+        return Err(ApiError::BadRequest(format!(
+            "region {} is not configured for shared VM warm floor",
+            request.region
+        )));
+    }
+    if state.region_config.provider_for_region(&request.region) != Some(request.provider.as_str()) {
+        return Err(ApiError::BadRequest(format!(
+            "region {} is not configured for provider {}",
+            request.region, request.provider
+        )));
+    }
+    Ok(())
+}
+
+async fn active_shared_warm_floor_vms(
+    state: &AppState,
+    region: &str,
+    provider: &str,
+) -> Result<Vec<VmInventory>, ApiError> {
+    let vms = state.vm_inventory_repo.list_active(Some(region)).await?;
+    Ok(vms
+        .into_iter()
+        .filter(|vm| vm.provider == provider)
+        .filter(|vm| is_canonical_shared_vm_hostname(&vm.hostname))
+        .collect())
 }
 
 /// Resolve the provider VM ID by looking up deployments for tenants on this VM.
@@ -141,6 +321,79 @@ pub async fn list_vms(
 ) -> Result<impl IntoResponse, ApiError> {
     let vms = state.vm_inventory_repo.list_active(None).await?;
     Ok(Json(vms))
+}
+
+pub async fn get_retirement_blockers(
+    _auth: AdminAuth,
+    State(state): State<AppState>,
+    Path(vm_id): Path<Uuid>,
+    Query(query): Query<VmRetirementBlockersQuery>,
+) -> Result<impl IntoResponse, ApiError> {
+    let assessment = state
+        .vm_inventory_repo
+        .retirement_blockers(vm_id, &query.expected_hostname)
+        .await?;
+    Ok(Json(retirement_blockers_response(
+        vm_id,
+        query.expected_hostname,
+        assessment,
+    )?))
+}
+
+pub async fn decommission_vm(
+    _auth: AdminAuth,
+    State(state): State<AppState>,
+    Path(vm_id): Path<Uuid>,
+    Json(request): Json<DecommissionVmRequest>,
+) -> Result<axum::response::Response, ApiError> {
+    let result = state
+        .vm_inventory_repo
+        .decommission_if_unreferenced(vm_id, &request.expected_hostname)
+        .await?;
+    decommission_response(vm_id, request.expected_hostname, result)
+}
+
+pub async fn warm_floor_shared_vm(
+    _auth: AdminAuth,
+    State(state): State<AppState>,
+    Json(request): Json<SharedWarmFloorRequest>,
+) -> Result<impl IntoResponse, ApiError> {
+    validate_shared_warm_floor_request(&request, &state)?;
+
+    let lock_key = auto_provision_lock_key(&state.pool, &request.region)
+        .await
+        .map_err(|e| ApiError::ServiceUnavailable(format!("failed to compute lock key: {e}")))?;
+    let _provisioning_lock = advisory_lock(&state.pool, lock_key).await.map_err(|e| {
+        ApiError::ServiceUnavailable(format!("failed to acquire advisory lock: {e}"))
+    })?;
+
+    let before_vms =
+        active_shared_warm_floor_vms(&state, &request.region, &request.provider).await?;
+    let mut created_vms = Vec::new();
+    if before_vms.is_empty() {
+        let created_vm = state
+            .provisioning_service
+            .auto_provision_shared_vm(
+                state.vm_inventory_repo.as_ref(),
+                &request.region,
+                &request.provider,
+                SharedVmProvisioningMode::RequireManagedVm,
+            )
+            .await
+            .map_err(|e| {
+                ApiError::ServiceUnavailable(format!("failed to auto-provision shared VM: {e}"))
+            })?;
+        created_vms.push(created_vm);
+    }
+
+    let active_vms =
+        active_shared_warm_floor_vms(&state, &request.region, &request.provider).await?;
+    Ok(Json(SharedWarmFloorResponse {
+        before_count: before_vms.len(),
+        created_count: created_vms.len(),
+        active_count: active_vms.len(),
+        created_vms,
+    }))
 }
 
 // ---------------------------------------------------------------------------

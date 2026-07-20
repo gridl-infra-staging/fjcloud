@@ -3,7 +3,9 @@ use super::shared_vm::{create_index_on_shared_vm, reserve_shared_vm_destination}
 use super::*;
 use crate::models::algolia_import_job::AlgoliaImportDestinationKind;
 use crate::models::{AlgoliaImportJob, NewAlgoliaImportJob};
-use crate::repos::{AlgoliaImportJobRepo, PgAlgoliaImportJobRepo, RepoError};
+use crate::repos::{
+    AlgoliaImportJobAdmissionError, AlgoliaImportJobRepo, PgAlgoliaImportJobRepo, RepoError,
+};
 use crate::services::engine_index_identity_observer::{
     record_physical_caller, PhysicalCallerObservation,
 };
@@ -13,6 +15,24 @@ use crate::services::flapjack_proxy::ProxyError;
 pub(crate) enum IndexAdmissionError {
     Api(ApiError),
     FreeTierMaxIndexes,
+}
+
+#[derive(Debug)]
+pub enum AlgoliaCreateAdmissionError {
+    Route(ApiError),
+    Job(AlgoliaImportJobAdmissionError),
+}
+
+impl From<ApiError> for AlgoliaCreateAdmissionError {
+    fn from(error: ApiError) -> Self {
+        Self::Route(error)
+    }
+}
+
+impl From<AlgoliaImportJobAdmissionError> for AlgoliaCreateAdmissionError {
+    fn from(error: AlgoliaImportJobAdmissionError) -> Self {
+        Self::Job(error)
+    }
 }
 
 impl From<ApiError> for IndexAdmissionError {
@@ -80,14 +100,15 @@ pub(crate) async fn admit_new_index_destination(
 pub async fn create_algolia_import_job(
     state: &AppState,
     job: NewAlgoliaImportJob,
-) -> Result<AlgoliaImportJob, ApiError> {
+) -> Result<AlgoliaImportJob, AlgoliaCreateAdmissionError> {
     let customer_id = job.customer_id();
     let logical_target = job.destination().logical_target().to_string();
     let region = job.destination().region().to_string();
     if job.destination().kind() != AlgoliaImportDestinationKind::Create {
         return Err(ApiError::BadRequest(
             "Algolia create admission requires a create destination".into(),
-        ));
+        )
+        .into());
     }
 
     let destination = admit_new_index_destination(state, customer_id, &logical_target, &region)
@@ -98,7 +119,8 @@ pub async fn create_algolia_import_job(
             crate::models::AlgoliaImportErrorCode::MigrationProviderUnsupported
                 .as_str()
                 .into(),
-        ));
+        )
+        .into());
     }
     let selected_vm = reserve_shared_vm_destination(state, &destination).await?;
     ensure_algolia_import_engine_compatible(state, selected_vm.flapjack_url()).await?;
@@ -109,7 +131,7 @@ pub async fn create_algolia_import_job(
     PgAlgoliaImportJobRepo::new(state.pool.clone())
         .create(admitted_job)
         .await
-        .map_err(ApiError::from)
+        .map_err(Into::into)
 }
 
 fn map_algolia_admission_error(error: IndexAdmissionError) -> ApiError {
@@ -446,19 +468,21 @@ async fn resolve_shared_vm_delete_target(
     let Some(vm_id) = tenant.vm_id else {
         return Ok(None);
     };
-    let deployment = state
+    let deployment = match state
         .deployment_repo
         .find_by_id(tenant.deployment_id)
         .await?
-        .ok_or(RepoError::Conflict("destination_changed".into()))?;
+    {
+        Some(deployment) => deployment,
+        None => return Ok(None),
+    };
     if deployment.customer_id != customer_id || deployment.status == "terminated" {
         return Err(RepoError::Conflict("destination_changed".into()));
     }
-    let vm = state
-        .vm_inventory_repo
-        .get(vm_id)
-        .await?
-        .ok_or(RepoError::Conflict("destination_changed".into()))?;
+    let vm = match state.vm_inventory_repo.get(vm_id).await? {
+        Some(vm) => vm,
+        None => return Ok(None),
+    };
     if vm.status != "active" {
         return Err(RepoError::Conflict("destination_changed".into()));
     }

@@ -14,10 +14,11 @@ use api::models::restore_job::RestoreJob;
 use api::models::vm_inventory::NewVmInventory;
 use api::provisioner::region_map::RegionConfig;
 use api::repos::{
-    AlgoliaImportJobRepo, CatalogLifecycleTargetIdentity, ColdSnapshotRepo, DeploymentRepo,
+    AlgoliaImportJobAdmissionError, AlgoliaImportJobRepo, CatalogLifecycleTargetIdentity,
+    ColdSnapshotRepo, CustomerRepo, DeploymentRepo, DestinationEligibilityError,
     IndexMigrationRepo, IndexReplicaRepo, PgAlgoliaImportJobRepo, PgColdSnapshotRepo,
-    PgDeploymentRepo, PgIndexMigrationRepo, PgIndexReplicaRepo, PgRestoreJobRepo, PgTenantRepo,
-    PgVmInventoryRepo, RepoError, RestoreJobRepo, TenantRepo, VmInventoryRepo,
+    PgCustomerRepo, PgDeploymentRepo, PgIndexMigrationRepo, PgIndexReplicaRepo, PgRestoreJobRepo,
+    PgTenantRepo, PgVmInventoryRepo, RepoError, RestoreJobRepo, TenantRepo, VmInventoryRepo,
 };
 use api::router::build_router;
 use api::secrets::{NodeSecretError, NodeSecretManager};
@@ -52,6 +53,10 @@ use tokio::sync::oneshot;
 use tower::ServiceExt;
 use uuid::Uuid;
 
+use crate::common::algolia_import_reservation_lifetime::{
+    force_reservation_lifetime_case, reservation_lifetime_denominator, ReservationExpectation,
+    ReservationLifetimeCase,
+};
 use crate::common::engine_index_identity_test_support::{
     assert_migration_request_sequence, ExpectedMigrationRequest,
 };
@@ -65,19 +70,23 @@ use crate::common::{
 
 const CATALOG_LIFECYCLE_WRITERS_JSON: &str =
     include_str!("../../../../scripts/tests/fixtures/catalog_lifecycle_writers.json");
+const CATALOG_LIFECYCLE_ACCEPTANCE_ORACLES_JSON: &str =
+    include_str!("../../../../scripts/tests/fixtures/catalog_lifecycle_acceptance_oracles.json");
 
 #[path = "catalog_lifecycle_lease_invariants.rs"]
 mod catalog_lifecycle_lease_invariants;
+#[path = "catalog_lifecycle_lease_race_matrix.rs"]
+mod catalog_lifecycle_lease_race_matrix;
 #[path = "catalog_lifecycle_lease_remote_races.rs"]
 mod catalog_lifecycle_lease_remote_races;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 struct CatalogLifecycleInventory {
     total_writer_count: usize,
     writers: Vec<CatalogLifecycleWriter>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 struct CatalogLifecycleWriter {
     id: String,
     owner_path: String,
@@ -85,11 +94,54 @@ struct CatalogLifecycleWriter {
     disposition: String,
 }
 
+/// Hand-calculated lifecycle acceptance oracle set.
+///
+/// This model is class-keyed only: it deliberately carries no writer IDs,
+/// `owner_path`, `source_anchor`, function names, source-discovery rules, or
+/// writer-to-class mappings. The writer denominator stays owned solely by
+/// `scripts/tests/fixtures/catalog_lifecycle_writers.json`; this fixture owns
+/// only the behavior expectation for each lifecycle class.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct AcceptanceOracles {
+    version: u32,
+    oracle_kind: String,
+    lane_composition: LaneComposition,
+    oracles: BTreeMap<String, ClassOracle>,
+}
+
+/// Downstream composition contract: after Lanes 11 and 20 are composed, Lane 20
+/// must execute every inventoried real caller with its resolved oracle before
+/// route activation, and a missing dependency is a failure rather than a skip.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct LaneComposition {
+    execute_every_inventoried_caller_before_route_activation: bool,
+    missing_dependency_disposition: String,
+}
+
+/// Per-class behavior expectation. Only the fields for the keyed class are
+/// populated; the other class's fields stay `None`.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ClassOracle {
+    #[allow(dead_code)]
+    summary: String,
+    // block_without_change acceptance fields.
+    leased_behavior: Option<String>,
+    release_trigger: Option<String>,
+    // privacy_transition acceptance fields.
+    soft_delete: Option<String>,
+    hard_delete: Option<String>,
+    reaper_scrub: Option<String>,
+}
+
 #[derive(Debug, Clone, Eq, Ord, PartialEq, PartialOrd)]
 struct WriterObservation {
     id: String,
     owner_path: String,
     source_anchor: String,
+    disposition: &'static str,
 }
 
 #[derive(Clone, Copy)]
@@ -100,14 +152,26 @@ struct CoverageRegistration {
     source_anchor: &'static str,
 }
 
+#[derive(Clone, Copy)]
+struct ExecutableScenarioSource<'a> {
+    scenario: &'static str,
+    coverage_registration_index: usize,
+    test_source: &'a str,
+    test_module: &'static str,
+    harness_source: &'a str,
+}
+
 #[derive(Debug, Default, PartialEq, Eq)]
 struct CoverageValidation {
     missing: BTreeSet<String>,
     duplicates: BTreeSet<String>,
+    duplicate_scenarios: BTreeSet<&'static str>,
     unknown: BTreeSet<String>,
     wrong_disposition: BTreeSet<String>,
+    wrong_scenarios: BTreeSet<String>,
     extra: BTreeSet<String>,
     empty_scenarios: BTreeSet<String>,
+    stale_scenarios: BTreeSet<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -160,6 +224,41 @@ struct ImportOperationRowSnapshot {
     complete_row: serde_json::Value,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct RetainedTargetSnapshot {
+    target: String,
+    tenants: Vec<TenantRowSnapshot>,
+    deployments: Vec<DeploymentRowSnapshot>,
+    operations: Vec<ImportOperationRowSnapshot>,
+}
+
+impl RetainedTargetSnapshot {
+    async fn load(pool: &PgPool, customer_id: Uuid, target: &str) -> Self {
+        Self {
+            target: target.to_string(),
+            tenants: tenant_rows(pool, customer_id).await,
+            deployments: deployment_rows(pool, customer_id).await,
+            operations: import_operation_rows(pool, customer_id, target).await,
+        }
+    }
+
+    async fn assert_unchanged_after(&self, pool: &PgPool, customer_id: Uuid, attempt: &str) {
+        let after = Self::load(pool, customer_id, &self.target).await;
+        assert_eq!(
+            after.tenants, self.tenants,
+            "{attempt} must not mutate catalog placement rows"
+        );
+        assert_eq!(
+            after.deployments, self.deployments,
+            "{attempt} must not mutate deployment/routing rows"
+        );
+        assert_eq!(
+            after.operations, self.operations,
+            "{attempt} must not mutate the retained active reservation"
+        );
+    }
+}
+
 #[derive(Clone, Copy)]
 enum ActiveReservationKind {
     Import,
@@ -184,6 +283,21 @@ enum RestoreIdentityDrift {
     ServiceType,
 }
 
+#[derive(Debug, Default, PartialEq, Eq)]
+struct IdentityDriftDenominatorValidation {
+    missing_labels: BTreeSet<&'static str>,
+    duplicate_labels: BTreeSet<&'static str>,
+    unexpected_labels: BTreeSet<&'static str>,
+}
+
+const RESTORE_IDENTITY_DRIFT_DENOMINATOR: [RestoreIdentityDrift; 5] = [
+    RestoreIdentityDrift::Tier,
+    RestoreIdentityDrift::VmId,
+    RestoreIdentityDrift::ColdSnapshotId,
+    RestoreIdentityDrift::DeploymentId,
+    RestoreIdentityDrift::ServiceType,
+];
+
 impl RestoreIdentityDrift {
     fn label(self) -> &'static str {
         match self {
@@ -194,6 +308,98 @@ impl RestoreIdentityDrift {
             Self::ServiceType => "service_type",
         }
     }
+}
+
+fn identity_drift_denominator() -> &'static [RestoreIdentityDrift] {
+    assert_closed_identity_drift_denominator();
+    &RESTORE_IDENTITY_DRIFT_DENOMINATOR
+}
+
+fn assert_closed_identity_drift_denominator() {
+    let expected = BTreeSet::from([
+        "deployment_id",
+        "vm_id",
+        "tier",
+        "cold_snapshot_id",
+        "service_type",
+    ]);
+    assert_eq!(
+        validate_identity_drift_labels(identity_drift_labels(), &expected),
+        IdentityDriftDenominatorValidation::default(),
+        "identity drift denominator must cover exactly the catalog target identity fields"
+    );
+}
+
+#[test]
+fn identity_drift_denominator_validator_rejects_malformed_labels() {
+    let expected = identity_drift_labels().into_iter().collect::<BTreeSet<_>>();
+    let mut malformed = identity_drift_labels();
+    let missing = malformed.remove(0);
+    malformed.push(malformed[0]);
+    malformed.push("unexpected_identity_field");
+    let mut expected_validation = IdentityDriftDenominatorValidation::default();
+    expected_validation.missing_labels.insert(missing);
+    expected_validation.duplicate_labels.insert(malformed[0]);
+    expected_validation
+        .unexpected_labels
+        .insert("unexpected_identity_field");
+
+    assert_eq!(
+        validate_identity_drift_labels(malformed, &expected),
+        expected_validation,
+        "identity drift label validator must classify missing, duplicate, and unexpected labels"
+    );
+}
+
+fn identity_drift_labels() -> Vec<&'static str> {
+    RESTORE_IDENTITY_DRIFT_DENOMINATOR
+        .iter()
+        .map(|drift| drift.label())
+        .collect()
+}
+
+fn validate_identity_drift_labels(
+    labels: Vec<&'static str>,
+    expected: &BTreeSet<&'static str>,
+) -> IdentityDriftDenominatorValidation {
+    let mut seen = BTreeSet::new();
+    let mut duplicates = BTreeSet::new();
+    for label in labels {
+        if !seen.insert(label) {
+            duplicates.insert(label);
+        }
+    }
+    IdentityDriftDenominatorValidation {
+        missing_labels: expected.difference(&seen).copied().collect(),
+        duplicate_labels: duplicates,
+        unexpected_labels: seen.difference(expected).copied().collect(),
+    }
+}
+
+fn assert_identity_drift_applied(
+    before: &CatalogLifecycleTargetIdentity,
+    after: &CatalogLifecycleTargetIdentity,
+    drift: RestoreIdentityDrift,
+    context: &str,
+) {
+    let changed_fields: BTreeSet<&str> = [
+        ("deployment_id", before.deployment_id != after.deployment_id),
+        ("vm_id", before.vm_id != after.vm_id),
+        ("tier", before.tier != after.tier),
+        (
+            "cold_snapshot_id",
+            before.cold_snapshot_id != after.cold_snapshot_id,
+        ),
+        ("service_type", before.service_type != after.service_type),
+    ]
+    .into_iter()
+    .filter_map(|(field, changed)| changed.then_some(field))
+    .collect();
+    assert_eq!(
+        changed_fields,
+        BTreeSet::from([drift.label()]),
+        "{context} must drift exactly the selected identity field"
+    );
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -438,7 +644,8 @@ struct CountingColdTierNodeClient {
     export_calls: AtomicUsize,
     delete_calls: AtomicUsize,
     replace_reservation_during_export: Mutex<Option<(PgPool, Uuid, String, String)>>,
-    replace_reservation_result: Mutex<Option<Result<AlgoliaImportJob, RepoError>>>,
+    replace_reservation_result:
+        Mutex<Option<Result<AlgoliaImportJob, AlgoliaImportJobAdmissionError>>>,
     service_type_drift_during_export: Mutex<Option<(PgPool, Uuid, String)>>,
     export_failure: Mutex<Option<String>>,
     delete_failure: Mutex<Option<String>>,
@@ -451,6 +658,7 @@ struct ObservingSeedSecretManager {
     customer_id: Uuid,
     tenant_id: String,
     observed_tiers: Mutex<Vec<Option<String>>>,
+    boundary_hook: Option<LifecycleGuardPauseHook>,
 }
 
 impl ObservingSeedSecretManager {
@@ -460,6 +668,26 @@ impl ObservingSeedSecretManager {
             customer_id,
             tenant_id: tenant_id.to_string(),
             observed_tiers: Mutex::new(Vec::new()),
+            boundary_hook: None,
+        }
+    }
+
+    /// Variant used by the admin-seed race test: `boundary_hook` fires inside
+    /// `create_node_api_key` — the seed's remote-secret-work boundary, after the
+    /// provisioning intent is committed but before any remote work — so a
+    /// competing reservation can race the persisted seed intent.
+    fn new_with_boundary_hook(
+        pool: PgPool,
+        customer_id: Uuid,
+        tenant_id: &str,
+        boundary_hook: LifecycleGuardPauseHook,
+    ) -> Self {
+        Self {
+            pool,
+            customer_id,
+            tenant_id: tenant_id.to_string(),
+            observed_tiers: Mutex::new(Vec::new()),
+            boundary_hook: Some(boundary_hook),
         }
     }
 
@@ -486,6 +714,9 @@ impl NodeSecretManager for ObservingSeedSecretManager {
         .await
         .expect("seed intent lookup should not fail");
         self.observed_tiers.lock().unwrap().push(observed_tier);
+        if let Some(hook) = &self.boundary_hook {
+            hook().await;
+        }
         Ok(format!("fj_live_seed_{node_id}"))
     }
 
@@ -593,7 +824,9 @@ impl CountingColdTierNodeClient {
         ));
     }
 
-    fn take_replace_reservation_result(&self) -> Result<AlgoliaImportJob, RepoError> {
+    fn take_replace_reservation_result(
+        &self,
+    ) -> Result<AlgoliaImportJob, AlgoliaImportJobAdmissionError> {
         self.replace_reservation_result
             .lock()
             .unwrap()
@@ -1140,69 +1373,1339 @@ const SERVICE_OWNER_COVERAGE: &[CoverageRegistration] = &[
     },
 ];
 
+const F5P1_SOFT_DELETE_PRIVACY_COVERAGE: &[CoverageRegistration] = &[
+    CoverageRegistration {
+        scenario: "soft_delete_increments_lifecycle_generation_exactly_once",
+        owner_path: "infra/api/src/repos/pg_customer_repo/lifecycle.rs",
+        function_name: "soft_delete",
+        source_anchor: "pg_customer_repo.soft_delete",
+    },
+    CoverageRegistration {
+        scenario: "delete_account_soft_delete_retains_row_for_audit_visibility",
+        owner_path: "infra/api/src/routes/account.rs",
+        function_name: "delete_account",
+        source_anchor: "customer_repo.soft_delete",
+    },
+    CoverageRegistration {
+        scenario: "delete_admin_tenants_id_writes_tenant_deleted_audit_row",
+        owner_path: "infra/api/src/routes/admin/tenants.rs",
+        function_name: "delete_tenant",
+        source_anchor: "customer_repo.soft_delete",
+    },
+];
+
+const F5P1_EXECUTABLE_SCENARIO_SOURCES: &[ExecutableScenarioSource<'static>] = &[
+    ExecutableScenarioSource {
+        scenario: "soft_delete_increments_lifecycle_generation_exactly_once",
+        coverage_registration_index: 0,
+        test_source: include_str!("pg_customer_repo_test.rs"),
+        test_module: "pg_customer_repo_test",
+        harness_source: include_str!("../platform.rs"),
+    },
+    ExecutableScenarioSource {
+        scenario: "delete_account_soft_delete_retains_row_for_audit_visibility",
+        coverage_registration_index: 1,
+        test_source: include_str!("account_test.rs"),
+        test_module: "account_test",
+        harness_source: include_str!("../platform.rs"),
+    },
+    ExecutableScenarioSource {
+        scenario: "delete_admin_tenants_id_writes_tenant_deleted_audit_row",
+        coverage_registration_index: 2,
+        test_source: include_str!("admin_audit_view_test.rs"),
+        test_module: "admin_audit_view_test",
+        harness_source: include_str!("../auth_admin.rs"),
+    },
+];
+
+const F5P2_HARD_DELETE_PRIVACY_WRITERS: &[CoverageRegistration] = &[
+    CoverageRegistration {
+        scenario: "hard_delete_removes_customer_and_dependents_then_404s_on_repeat",
+        owner_path: "infra/api/src/repos/pg_customer_repo/hard_delete.rs",
+        function_name: "delete_customer_dependents",
+        source_anchor: "pg_index_replica_repo.delete",
+    },
+    CoverageRegistration {
+        scenario: "hard_delete_removes_customer_and_dependents_then_404s_on_repeat",
+        owner_path: "infra/api/src/repos/pg_customer_repo/hard_delete.rs",
+        function_name: "delete_customer_dependents",
+        source_anchor: "pg_tenant_repo.delete",
+    },
+    CoverageRegistration {
+        scenario: "hard_delete_removes_customer_and_dependents_then_404s_on_repeat",
+        owner_path: "infra/api/src/repos/pg_customer_repo/hard_delete.rs",
+        function_name: "hard_delete",
+        source_anchor: "pg_customer_repo.hard_delete",
+    },
+    CoverageRegistration {
+        scenario: "retention_job_erases_only_api_selected_eligible_customer",
+        owner_path: "infra/api/src/routes/admin/tenants.rs",
+        function_name: "hard_erase_customer",
+        source_anchor: "customer_repo.hard_delete",
+    },
+];
+
+const F5P2_EXECUTABLE_SCENARIO_SOURCES: &[ExecutableScenarioSource<'static>] = &[
+    ExecutableScenarioSource {
+        scenario: "hard_delete_removes_customer_and_dependents_then_404s_on_repeat",
+        coverage_registration_index: 0,
+        test_source: include_str!("pg_customer_repo_test.rs"),
+        test_module: "pg_customer_repo_test",
+        harness_source: include_str!("../platform.rs"),
+    },
+    ExecutableScenarioSource {
+        scenario: "hard_delete_removes_customer_and_dependents_then_404s_on_repeat",
+        coverage_registration_index: 1,
+        test_source: include_str!("pg_customer_repo_test.rs"),
+        test_module: "pg_customer_repo_test",
+        harness_source: include_str!("../platform.rs"),
+    },
+    ExecutableScenarioSource {
+        scenario: "hard_delete_removes_customer_and_dependents_then_404s_on_repeat",
+        coverage_registration_index: 2,
+        test_source: include_str!("pg_customer_repo_test.rs"),
+        test_module: "pg_customer_repo_test",
+        harness_source: include_str!("../platform.rs"),
+    },
+    ExecutableScenarioSource {
+        scenario: "retention_job_erases_only_api_selected_eligible_customer",
+        coverage_registration_index: 3,
+        test_source: include_str!("retention_job_test.rs"),
+        test_module: "retention_job_test",
+        harness_source: include_str!("../platform.rs"),
+    },
+];
+
 #[test]
 fn catalog_lifecycle_inventory_matches_source_discovery() {
     let inventory: CatalogLifecycleInventory = serde_json::from_str(CATALOG_LIFECYCLE_WRITERS_JSON)
         .expect("catalog lifecycle writer inventory must be valid JSON");
-    let fixture = validate_fixture(&inventory);
     let observed = discover_catalog_lifecycle_writers();
 
+    assert_catalog_lifecycle_inventory_valid(&inventory, &observed);
+}
+
+#[test]
+fn catalog_lifecycle_inventory_shape_mutations_fail_closed() {
+    let inventory = canonical_catalog_lifecycle_inventory();
+    let observed = discover_catalog_lifecycle_writers();
+    let block_id = writer_id_for_disposition(&inventory, "block_without_change");
+    let privacy_id = writer_id_for_disposition(&inventory, "privacy_transition");
+    let duplicate_id = inventory.writers[0].id.clone();
+
+    let cases = [
+        (
+            "empty_writers",
+            {
+                let mut inventory = inventory.clone();
+                inventory.writers.clear();
+                inventory
+            },
+            "writers must not be empty".to_string(),
+        ),
+        (
+            "zero_total_writer_count",
+            {
+                let mut inventory = inventory.clone();
+                inventory.total_writer_count = 0;
+                inventory
+            },
+            "total_writer_count must be greater than zero".to_string(),
+        ),
+        (
+            "empty_block_without_change_class",
+            {
+                let mut inventory = inventory.clone();
+                inventory
+                    .writers
+                    .retain(|writer| writer.disposition != "block_without_change");
+                inventory.total_writer_count = inventory.writers.len();
+                inventory
+            },
+            "inventory must include block_without_change writers".to_string(),
+        ),
+        (
+            "empty_privacy_transition_class",
+            {
+                let mut inventory = inventory.clone();
+                inventory
+                    .writers
+                    .retain(|writer| writer.disposition != "privacy_transition");
+                inventory.total_writer_count = inventory.writers.len();
+                inventory
+            },
+            "inventory must include privacy_transition writers".to_string(),
+        ),
+        (
+            "duplicate_writer_ids",
+            {
+                let mut inventory = inventory.clone();
+                inventory.writers.push(inventory.writers[0].clone());
+                inventory.total_writer_count = inventory.writers.len();
+                inventory
+            },
+            format!("duplicate catalog lifecycle writer ID: {duplicate_id}"),
+        ),
+        (
+            "declared_total_writer_length_mismatch",
+            {
+                let mut inventory = inventory.clone();
+                inventory.total_writer_count += 1;
+                inventory
+            },
+            format!(
+                "total_writer_count must match the number of fixture writers: declared={} actual={}",
+                inventory.total_writer_count + 1,
+                inventory.writers.len()
+            ),
+        ),
+        (
+            "disposition_count_sum_mismatch",
+            {
+                let mut inventory = inventory.clone();
+                writer_mut(&mut inventory, &block_id).disposition = "drifted".to_string();
+                inventory
+            },
+            format!(
+                "disposition class counts must sum to total_writer_count: disposition_sum={} total={}",
+                inventory.total_writer_count - 1,
+                inventory.total_writer_count
+            ),
+        ),
+    ];
+
+    for (case_name, mutated, expected_finding) in cases {
+        assert_inventory_finding(case_name, &mutated, &observed, &expected_finding);
+    }
+
+    let mut privacy_as_block = inventory.clone();
+    writer_mut(&mut privacy_as_block, &privacy_id).disposition = "block_without_change".to_string();
+    assert_inventory_finding(
+        "privacy_transition_class_drift",
+        &privacy_as_block,
+        &observed,
+        &format!(
+            "disposition mismatch for {privacy_id}: fixture=block_without_change observed=privacy_transition"
+        ),
+    );
+}
+
+#[test]
+fn catalog_lifecycle_inventory_metadata_mutations_fail_closed() {
+    let inventory = canonical_catalog_lifecycle_inventory();
+    let observed = discover_catalog_lifecycle_writers();
+    let block_id = writer_id_for_disposition(&inventory, "block_without_change");
+    let privacy_id = writer_id_for_disposition(&inventory, "privacy_transition");
+    let block_source_anchor = writer(&inventory, &block_id).source_anchor.clone();
+    let privacy_source_anchor = writer(&inventory, &privacy_id).source_anchor.clone();
+
+    let cases = [
+        (
+            "empty_disposition",
+            {
+                let mut inventory = inventory.clone();
+                writer_mut(&mut inventory, &block_id).disposition.clear();
+                inventory
+            },
+            format!("disposition is required for {block_id}"),
+        ),
+        (
+            "unknown_disposition",
+            {
+                let mut inventory = inventory.clone();
+                writer_mut(&mut inventory, &block_id).disposition = "unknown".to_string();
+                inventory
+            },
+            format!("unknown catalog lifecycle writer disposition for {block_id}: unknown"),
+        ),
+        (
+            "drifted_owner_path",
+            {
+                let mut inventory = inventory.clone();
+                writer_mut(&mut inventory, &block_id).owner_path =
+                    "infra/api/src/routes/indexes/drifted.rs".to_string();
+                inventory
+            },
+            format!(
+                "owner_path mismatch for {block_id}: fixture=infra/api/src/routes/indexes/drifted.rs observed={}",
+                writer(&inventory, &block_id).owner_path
+            ),
+        ),
+        (
+            "drifted_source_anchor",
+            {
+                let mut inventory = inventory.clone();
+                writer_mut(&mut inventory, &block_id).source_anchor =
+                    "tenant_repo.drifted".to_string();
+                inventory
+            },
+            format!(
+                "source_anchor mismatch for {block_id}: fixture=tenant_repo.drifted observed={block_source_anchor}"
+            ),
+        ),
+        (
+            "drifted_block_without_change_class",
+            {
+                let mut inventory = inventory.clone();
+                writer_mut(&mut inventory, &block_id).disposition = "privacy_transition".to_string();
+                inventory
+            },
+            format!(
+                "disposition mismatch for {block_id}: fixture=privacy_transition observed=block_without_change"
+            ),
+        ),
+        (
+            "omitted_source_discovered_writer",
+            {
+                let mut inventory = inventory.clone();
+                inventory.writers.retain(|writer| writer.id != block_id);
+                inventory.total_writer_count = inventory.writers.len();
+                inventory
+            },
+            format!("missing source-discovered writer: {block_id}"),
+        ),
+        (
+            "fixture_only_writer",
+            {
+                let mut inventory = inventory.clone();
+                let mut fixture_only = inventory.writers[0].clone();
+                fixture_only.id = writer_id(
+                    "infra/api/src/routes/indexes/fixture_only.rs",
+                    "fixture_only_writer",
+                    "tenant_repo.set_vm_id",
+                );
+                fixture_only.owner_path = "infra/api/src/routes/indexes/fixture_only.rs".to_string();
+                fixture_only.source_anchor = "tenant_repo.set_vm_id".to_string();
+                fixture_only.disposition = "block_without_change".to_string();
+                inventory.writers.push(fixture_only.clone());
+                inventory.total_writer_count = inventory.writers.len();
+                inventory
+            },
+            "fixture-only writer absent from source discovery: catalog_writer__infra_api_src_routes_indexes_fixture_only__fixture_only_writer__tenant_repo_set_vm_id".to_string(),
+        ),
+    ];
+
+    for (case_name, mutated, expected_finding) in cases {
+        assert_inventory_finding(case_name, &mutated, &observed, &expected_finding);
+    }
+
+    let mut privacy_source_drift = inventory.clone();
+    writer_mut(&mut privacy_source_drift, &privacy_id).source_anchor =
+        "customer_repo.drifted".to_string();
+    assert_inventory_finding(
+        "privacy_transition_source_anchor_drift",
+        &privacy_source_drift,
+        &observed,
+        &format!(
+            "source_anchor mismatch for {privacy_id}: fixture=customer_repo.drifted observed={privacy_source_anchor}"
+        ),
+    );
+}
+
+/// The canonical acceptance oracle validates in isolation and joins cleanly onto
+/// every writer disposition in the canonical inventory.
+#[test]
+fn catalog_lifecycle_acceptance_oracle_matches_inventory_dispositions() {
+    let inventory = canonical_catalog_lifecycle_inventory();
+    let oracles = canonical_acceptance_oracles();
+
+    let mut findings = validate_oracles(&oracles);
+    findings.append(&mut validate_oracle_inventory_join(&inventory, &oracles));
+
     assert!(
-        inventory.total_writer_count > 0,
-        "catalog lifecycle writer inventory must not be empty"
+        findings.is_empty(),
+        "canonical acceptance oracle must validate and join cleanly onto the writer inventory: {findings:#?}"
     );
-    assert_eq!(
-        inventory.total_writer_count,
-        inventory.writers.len(),
-        "total_writer_count must match the number of fixture writers"
-    );
-    assert_eq!(
-        inventory.total_writer_count,
-        fixture.ids.len(),
-        "duplicate writer IDs are not allowed"
-    );
+}
+
+/// Schema-shape mutations of the oracle set must fail closed with the exact
+/// finding for a missing payload, empty map, missing class key, and unknown
+/// class key.
+#[test]
+fn catalog_lifecycle_oracle_schema_mutations_fail_closed() {
+    let oracles = canonical_acceptance_oracles();
+
+    // Missing oracle payload: an empty document cannot parse and must be
+    // reported rather than panicking.
+    let missing_payload = validate_oracles_json("");
     assert!(
-        fixture.dispositions.contains_key("block_without_change"),
-        "inventory must include block_without_change writers"
-    );
-    assert!(
-        fixture.dispositions.contains_key("privacy_transition"),
-        "inventory must include privacy_transition writers"
-    );
-    assert_eq!(
-        fixture.dispositions.values().sum::<usize>(),
-        inventory.total_writer_count,
-        "disposition class counts must sum to total_writer_count"
+        missing_payload
+            .iter()
+            .any(|finding| finding.starts_with("acceptance oracle payload must be valid JSON")),
+        "missing oracle payload must report a parse finding; actual findings={missing_payload:#?}"
     );
 
-    let observed_ids = observed
+    let block = oracles
+        .oracles
+        .get("block_without_change")
+        .expect("canonical oracle must include block_without_change")
+        .clone();
+
+    let cases = [
+        (
+            "wrong_oracle_version",
+            {
+                let mut oracles = oracles.clone();
+                oracles.version = 2;
+                oracles
+            },
+            "acceptance oracle version must be 1, got 2".to_string(),
+        ),
+        (
+            "wrong_oracle_kind",
+            {
+                let mut oracles = oracles.clone();
+                oracles.oracle_kind = "catalog_lifecycle_inventory".to_string();
+                oracles
+            },
+            "acceptance oracle kind must be catalog_lifecycle_acceptance, got catalog_lifecycle_inventory"
+                .to_string(),
+        ),
+        (
+            "empty_oracle_map",
+            {
+                let mut oracles = oracles.clone();
+                oracles.oracles.clear();
+                oracles
+            },
+            "acceptance oracle map must not be empty".to_string(),
+        ),
+        (
+            "missing_block_without_change",
+            {
+                let mut oracles = oracles.clone();
+                oracles.oracles.remove("block_without_change");
+                oracles
+            },
+            "acceptance oracle map must include the block_without_change class".to_string(),
+        ),
+        (
+            "missing_privacy_transition",
+            {
+                let mut oracles = oracles.clone();
+                oracles.oracles.remove("privacy_transition");
+                oracles
+            },
+            "acceptance oracle map must include the privacy_transition class".to_string(),
+        ),
+        (
+            "unknown_oracle_class",
+            {
+                let mut oracles = oracles.clone();
+                oracles.oracles.insert("reactivate".to_string(), block.clone());
+                oracles
+            },
+            "unknown acceptance oracle class: reactivate".to_string(),
+        ),
+    ];
+
+    for (case_name, mutated, expected_finding) in cases {
+        let findings = validate_oracles(&mutated);
+        assert!(
+            findings.contains(&expected_finding),
+            "{case_name} must report {expected_finding:?}; actual findings={findings:#?}"
+        );
+    }
+}
+
+/// Unknown fields at every schema layer must fail during deserialization rather
+/// than being silently ignored as non-contract metadata.
+#[test]
+fn catalog_lifecycle_oracle_rejects_unknown_fields() {
+    let canonical: serde_json::Value =
+        serde_json::from_str(CATALOG_LIFECYCLE_ACCEPTANCE_ORACLES_JSON)
+            .expect("canonical acceptance oracle must be valid JSON");
+
+    let cases = [
+        (
+            "unknown_top_level_field",
+            {
+                let mut value = canonical.clone();
+                value
+                    .as_object_mut()
+                    .expect("acceptance oracle must be an object")
+                    .insert("generated_at".to_string(), json!("2026-07-19T00:00:00Z"));
+                value
+            },
+            "unknown field `generated_at`",
+        ),
+        (
+            "unknown_lane_composition_field",
+            {
+                let mut value = canonical.clone();
+                value["lane_composition"]
+                    .as_object_mut()
+                    .expect("lane_composition must be an object")
+                    .insert("skip_missing_dependency".to_string(), json!(true));
+                value
+            },
+            "unknown field `skip_missing_dependency`",
+        ),
+        (
+            "unknown_class_field",
+            {
+                let mut value = canonical.clone();
+                value["oracles"]["block_without_change"]
+                    .as_object_mut()
+                    .expect("block_without_change oracle must be an object")
+                    .insert("retry_behavior".to_string(), json!("retry_once"));
+                value
+            },
+            "unknown field `retry_behavior`",
+        ),
+    ];
+
+    for (case_name, mutated, expected_finding) in cases {
+        let json = serde_json::to_string(&mutated).expect("mutated oracle must serialize");
+        let findings = validate_oracles_json(&json);
+        assert!(
+            findings
+                .iter()
+                .any(|finding| finding.contains(expected_finding)),
+            "{case_name} must report {expected_finding:?}; actual findings={findings:#?}"
+        );
+    }
+}
+
+/// Each class payload may carry only its own behavior fields. This prevents a
+/// class from accidentally accumulating a second, contradictory contract.
+#[test]
+fn catalog_lifecycle_oracle_rejects_cross_class_fields() {
+    let oracles = canonical_acceptance_oracles();
+
+    let cases = [
+        (
+            "block_carries_soft_delete",
+            {
+                let mut oracles = oracles.clone();
+                oracles
+                    .oracles
+                    .get_mut("block_without_change")
+                    .expect("block_without_change oracle")
+                    .soft_delete =
+                    Some("mark_deleted_bump_generation_fence_future_writes".to_string());
+                oracles
+            },
+            "block_without_change oracle must not contain privacy-transition field soft_delete"
+                .to_string(),
+        ),
+        (
+            "block_carries_hard_delete",
+            {
+                let mut oracles = oracles.clone();
+                oracles
+                    .oracles
+                    .get_mut("block_without_change")
+                    .expect("block_without_change oracle")
+                    .hard_delete = Some("purge_dependents_then_target".to_string());
+                oracles
+            },
+            "block_without_change oracle must not contain privacy-transition field hard_delete"
+                .to_string(),
+        ),
+        (
+            "block_carries_reaper_scrub",
+            {
+                let mut oracles = oracles.clone();
+                oracles
+                    .oracles
+                    .get_mut("block_without_change")
+                    .expect("block_without_change oracle")
+                    .reaper_scrub =
+                    Some("reaper_scrubs_catalog_target_after_hard_delete".to_string());
+                oracles
+            },
+            "block_without_change oracle must not contain privacy-transition field reaper_scrub"
+                .to_string(),
+        ),
+        (
+            "privacy_carries_leased_behavior",
+            {
+                let mut oracles = oracles.clone();
+                oracles
+                    .oracles
+                    .get_mut("privacy_transition")
+                    .expect("privacy_transition oracle")
+                    .leased_behavior = Some("refuse_without_mutation".to_string());
+                oracles
+            },
+            "privacy_transition oracle must not contain block-only field leased_behavior"
+                .to_string(),
+        ),
+        (
+            "privacy_carries_release_trigger",
+            {
+                let mut oracles = oracles.clone();
+                oracles
+                    .oracles
+                    .get_mut("privacy_transition")
+                    .expect("privacy_transition oracle")
+                    .release_trigger = Some("engine_ack".to_string());
+                oracles
+            },
+            "privacy_transition oracle must not contain block-only field release_trigger"
+                .to_string(),
+        ),
+    ];
+
+    for (case_name, mutated, expected_finding) in cases {
+        let findings = validate_oracles(&mutated);
+        assert!(
+            findings.contains(&expected_finding),
+            "{case_name} must report {expected_finding:?}; actual findings={findings:#?}"
+        );
+    }
+}
+
+/// Duplicate raw JSON object keys must fail closed before typed deserialization
+/// collapses them last-write-wins. serde_json keeps only the final value for a
+/// duplicated map key and rejects duplicated struct fields as an opaque parse
+/// error, both of which erase the evidence that the fixture carried conflicting
+/// entries; the duplicate-key pre-pass reports each repeated key by name.
+#[test]
+fn catalog_lifecycle_oracle_rejects_duplicate_json_keys() {
+    // Guard-can-pass: the canonical fixture has no duplicate keys, so the
+    // duplicate-key pre-pass adds no findings on clean data.
+    assert!(
+        validate_oracles_json(CATALOG_LIFECYCLE_ACCEPTANCE_ORACLES_JSON).is_empty(),
+        "canonical oracle payload must validate cleanly through the duplicate-key pre-pass"
+    );
+
+    // Duplicate class entry in the oracles map: serde_json would keep only the
+    // second block_without_change object and validate as if the first never
+    // existed.
+    let duplicate_class = r#"{
+        "version": 1,
+        "oracle_kind": "catalog_lifecycle_acceptance",
+        "lane_composition": {
+            "execute_every_inventoried_caller_before_route_activation": true,
+            "missing_dependency_disposition": "failure"
+        },
+        "oracles": {
+            "block_without_change": {
+                "summary": "first",
+                "leased_behavior": "refuse_without_mutation",
+                "release_trigger": "engine_ack"
+            },
+            "block_without_change": {
+                "summary": "second",
+                "leased_behavior": "mutate_anyway",
+                "release_trigger": "immediate"
+            },
+            "privacy_transition": {
+                "summary": "privacy",
+                "soft_delete": "mark_deleted_bump_generation_fence_future_writes",
+                "hard_delete": "purge_dependents_then_target",
+                "reaper_scrub": "reaper_scrubs_catalog_target_after_hard_delete"
+            }
+        }
+    }"#;
+    let class_findings = validate_oracles_json(duplicate_class);
+    assert!(
+        class_findings
+            .contains("acceptance oracle payload must not repeat object key block_without_change"),
+        "duplicate class entry must fail closed; actual findings={class_findings:#?}"
+    );
+
+    // Duplicate behavior field inside a class payload: last-write-wins would keep
+    // only the second soft_delete value and hide the conflicting first one.
+    let duplicate_field = r#"{
+        "version": 1,
+        "oracle_kind": "catalog_lifecycle_acceptance",
+        "lane_composition": {
+            "execute_every_inventoried_caller_before_route_activation": true,
+            "missing_dependency_disposition": "failure"
+        },
+        "oracles": {
+            "block_without_change": {
+                "summary": "block",
+                "leased_behavior": "refuse_without_mutation",
+                "release_trigger": "engine_ack"
+            },
+            "privacy_transition": {
+                "summary": "privacy",
+                "soft_delete": "mark_deleted_bump_generation_fence_future_writes",
+                "soft_delete": "purge_now",
+                "hard_delete": "purge_dependents_then_target",
+                "reaper_scrub": "reaper_scrubs_catalog_target_after_hard_delete"
+            }
+        }
+    }"#;
+    let field_findings = validate_oracles_json(duplicate_field);
+    assert!(
+        field_findings.contains("acceptance oracle payload must not repeat object key soft_delete"),
+        "duplicate behavior field must fail closed; actual findings={field_findings:#?}"
+    );
+}
+
+/// Join mutations between the inventory and the oracle set must fail closed:
+/// an inventory disposition without an oracle, and an oracle class the inventory
+/// never uses.
+#[test]
+fn catalog_lifecycle_oracle_inventory_join_mutations_fail_closed() {
+    let inventory = canonical_catalog_lifecycle_inventory();
+    let oracles = canonical_acceptance_oracles();
+
+    assert!(
+        validate_oracle_inventory_join(&inventory, &oracles).is_empty(),
+        "canonical inventory/oracle join must be clean before mutation"
+    );
+
+    let block = oracles
+        .oracles
+        .get("block_without_change")
+        .expect("canonical oracle must include block_without_change")
+        .clone();
+
+    // An inventory disposition with no oracle: drop block_without_change from the
+    // oracle set while the inventory still assigns writers to it.
+    let mut missing_oracle = oracles.clone();
+    missing_oracle.oracles.remove("block_without_change");
+    let missing_findings = validate_oracle_inventory_join(&inventory, &missing_oracle);
+    assert!(
+        missing_findings
+            .contains("inventory disposition block_without_change has no acceptance oracle"),
+        "dropping the block_without_change oracle must fail closed; actual findings={missing_findings:#?}"
+    );
+
+    // An oracle disposition unused by the inventory: add a class no writer uses.
+    let mut extra_class = oracles.clone();
+    extra_class.oracles.insert("reactivate".to_string(), block);
+    let extra_findings = validate_oracle_inventory_join(&inventory, &extra_class);
+    assert!(
+        extra_findings.contains("acceptance oracle class reactivate is unused by the inventory"),
+        "an oracle class unused by the inventory must fail closed; actual findings={extra_findings:#?}"
+    );
+}
+
+/// Behavior-expectation mutations must fail closed with the exact finding text:
+/// `block_without_change` refuses while leased and releases only after ACK,
+/// while `privacy_transition` encodes the soft-delete, hard-delete, and reaper
+/// scrub state machine. The lane-composition contract must also fail closed.
+#[test]
+fn catalog_lifecycle_oracle_behavior_mutations_fail_closed() {
+    let oracles = canonical_acceptance_oracles();
+
+    let cases = [
+        (
+            "block_allows_mutation_while_leased",
+            {
+                let mut oracles = oracles.clone();
+                oracles
+                    .oracles
+                    .get_mut("block_without_change")
+                    .expect("block_without_change oracle")
+                    .leased_behavior = Some("allow_mutation".to_string());
+                oracles
+            },
+            "block_without_change oracle must refuse while leased without mutation: leased_behavior=allow_mutation".to_string(),
+        ),
+        (
+            "block_releases_before_ack",
+            {
+                let mut oracles = oracles.clone();
+                oracles
+                    .oracles
+                    .get_mut("block_without_change")
+                    .expect("block_without_change oracle")
+                    .release_trigger = Some("immediate".to_string());
+                oracles
+            },
+            "block_without_change oracle must release only after engine ACK: release_trigger=immediate".to_string(),
+        ),
+        (
+            "privacy_wrong_soft_delete",
+            {
+                let mut oracles = oracles.clone();
+                oracles
+                    .oracles
+                    .get_mut("privacy_transition")
+                    .expect("privacy_transition oracle")
+                    .soft_delete = Some("purge_immediately".to_string());
+                oracles
+            },
+            "privacy_transition oracle must encode the soft-delete state machine: soft_delete=purge_immediately".to_string(),
+        ),
+        (
+            "privacy_wrong_hard_delete",
+            {
+                let mut oracles = oracles.clone();
+                oracles
+                    .oracles
+                    .get_mut("privacy_transition")
+                    .expect("privacy_transition oracle")
+                    .hard_delete = Some("keep_dependents".to_string());
+                oracles
+            },
+            "privacy_transition oracle must encode the hard-delete state machine: hard_delete=keep_dependents".to_string(),
+        ),
+        (
+            "privacy_wrong_reaper_scrub",
+            {
+                let mut oracles = oracles.clone();
+                oracles
+                    .oracles
+                    .get_mut("privacy_transition")
+                    .expect("privacy_transition oracle")
+                    .reaper_scrub = Some("never_scrub".to_string());
+                oracles
+            },
+            "privacy_transition oracle must encode the reaper scrub state machine: reaper_scrub=never_scrub".to_string(),
+        ),
+        (
+            "lane_composition_skips_missing_dependency",
+            {
+                let mut oracles = oracles.clone();
+                oracles.lane_composition.missing_dependency_disposition = "skip".to_string();
+                oracles
+            },
+            "lane composition must treat a missing dependency as failure, not skip".to_string(),
+        ),
+        (
+            "lane_composition_skips_caller_execution",
+            {
+                let mut oracles = oracles.clone();
+                oracles
+                    .lane_composition
+                    .execute_every_inventoried_caller_before_route_activation = false;
+                oracles
+            },
+            "lane composition must execute every inventoried caller before route activation".to_string(),
+        ),
+    ];
+
+    for (case_name, mutated, expected_finding) in cases {
+        let findings = validate_oracles(&mutated);
+        assert!(
+            findings.contains(&expected_finding),
+            "{case_name} must report {expected_finding:?}; actual findings={findings:#?}"
+        );
+    }
+}
+
+/// The oracle fixture must not duplicate the writer denominator: it carries no
+/// writer list and none of the writer-owned fields, so the join can only be
+/// satisfied through `scripts/tests/fixtures/catalog_lifecycle_writers.json`.
+#[test]
+fn catalog_lifecycle_acceptance_oracle_does_not_duplicate_writer_denominator() {
+    let value: serde_json::Value = serde_json::from_str(CATALOG_LIFECYCLE_ACCEPTANCE_ORACLES_JSON)
+        .expect("acceptance oracle fixture must be valid JSON");
+
+    let mut keys = BTreeSet::new();
+    collect_json_object_keys(&value, &mut keys);
+
+    let forbidden = [
+        "writers",
+        "writer",
+        "writer_id",
+        "writer_ids",
+        "writer_disposition",
+        "id",
+        "owner_path",
+        "source_anchor",
+        "disposition",
+        "total_writer_count",
+    ];
+    let copied = forbidden
         .iter()
-        .map(|writer| writer.id.clone())
+        .filter(|field| keys.contains(**field))
+        .collect::<Vec<_>>();
+    assert!(
+        copied.is_empty(),
+        "acceptance oracle must not copy writer-owned denominator fields: {copied:?}"
+    );
+
+    // No top-level writer list of any shape.
+    let object = value
+        .as_object()
+        .expect("acceptance oracle fixture must be a JSON object");
+    for (key, child) in object {
+        assert!(
+            !child.is_array() || key == "oracles",
+            "acceptance oracle must not carry a writer list at {key:?}"
+        );
+    }
+}
+
+#[test]
+fn soft_delete_privacy_transition_denominator_rejects_missing_duplicate_new_and_unexercised_writers(
+) {
+    let inventory = inventory_by_key();
+    let missing_registration = F5P1_SOFT_DELETE_PRIVACY_COVERAGE[0];
+    let missing_id = registration_id(&missing_registration);
+    let duplicate_registration = F5P1_SOFT_DELETE_PRIVACY_COVERAGE[1];
+    let duplicate_id = registration_id(&duplicate_registration);
+    let synthetic_registration = CoverageRegistration {
+        scenario: "synthetic_new_soft_delete_writer",
+        owner_path: "infra/api/src/routes/admin/tenants.rs",
+        function_name: "synthetic_soft_delete_privacy_transition",
+        source_anchor: "customer_repo.soft_delete",
+    };
+    let synthetic_id = registration_id(&synthetic_registration);
+    let unexercised_registration = CoverageRegistration {
+        scenario: "",
+        ..F5P1_SOFT_DELETE_PRIVACY_COVERAGE[2]
+    };
+    let unexercised_id = registration_id(&unexercised_registration);
+    let stale_scenario_registration = CoverageRegistration {
+        scenario: "stale_soft_delete_scenario_name",
+        ..F5P1_SOFT_DELETE_PRIVACY_COVERAGE[0]
+    };
+    let stale_scenario_id = registration_id(&stale_scenario_registration);
+    let mut swapped_registrations = F5P1_SOFT_DELETE_PRIVACY_COVERAGE.to_vec();
+    swapped_registrations[0].scenario = F5P1_SOFT_DELETE_PRIVACY_COVERAGE[1].scenario;
+    swapped_registrations[1].scenario = F5P1_SOFT_DELETE_PRIVACY_COVERAGE[0].scenario;
+    let swapped_ids = BTreeSet::from([
+        registration_id(&swapped_registrations[0]),
+        registration_id(&swapped_registrations[1]),
+    ]);
+    let mut reused_scenario_registrations = F5P1_SOFT_DELETE_PRIVACY_COVERAGE.to_vec();
+    reused_scenario_registrations[0].scenario = duplicate_registration.scenario;
+    let reused_scenario_id = registration_id(&reused_scenario_registrations[0]);
+
+    let cases = [
+        (
+            "missing",
+            {
+                let mut registrations = F5P1_SOFT_DELETE_PRIVACY_COVERAGE.to_vec();
+                registrations.remove(0);
+                registrations
+            },
+            CoverageValidation {
+                missing: BTreeSet::from([missing_id]),
+                ..CoverageValidation::default()
+            },
+        ),
+        (
+            "duplicate",
+            {
+                let mut registrations = F5P1_SOFT_DELETE_PRIVACY_COVERAGE.to_vec();
+                registrations.push(duplicate_registration);
+                registrations
+            },
+            CoverageValidation {
+                duplicates: BTreeSet::from([duplicate_id]),
+                duplicate_scenarios: BTreeSet::from([duplicate_registration.scenario]),
+                ..CoverageValidation::default()
+            },
+        ),
+        (
+            "synthetic",
+            {
+                let mut registrations = F5P1_SOFT_DELETE_PRIVACY_COVERAGE.to_vec();
+                registrations[0] = synthetic_registration;
+                registrations
+            },
+            CoverageValidation {
+                missing: BTreeSet::from([registration_id(&F5P1_SOFT_DELETE_PRIVACY_COVERAGE[0])]),
+                unknown: BTreeSet::from([synthetic_id]),
+                ..CoverageValidation::default()
+            },
+        ),
+        (
+            "unexercised",
+            {
+                let mut registrations = F5P1_SOFT_DELETE_PRIVACY_COVERAGE.to_vec();
+                registrations[2] = unexercised_registration;
+                registrations
+            },
+            CoverageValidation {
+                missing: BTreeSet::from([unexercised_id.clone()]),
+                empty_scenarios: BTreeSet::from([unexercised_id]),
+                ..CoverageValidation::default()
+            },
+        ),
+        (
+            "stale_scenario",
+            {
+                let mut registrations = F5P1_SOFT_DELETE_PRIVACY_COVERAGE.to_vec();
+                registrations[0] = stale_scenario_registration;
+                registrations
+            },
+            CoverageValidation {
+                missing: BTreeSet::from([stale_scenario_id.clone()]),
+                stale_scenarios: BTreeSet::from([stale_scenario_id]),
+                ..CoverageValidation::default()
+            },
+        ),
+        (
+            "swapped_scenarios",
+            swapped_registrations,
+            CoverageValidation {
+                missing: swapped_ids.clone(),
+                wrong_scenarios: swapped_ids,
+                ..CoverageValidation::default()
+            },
+        ),
+        (
+            "reused_scenario",
+            reused_scenario_registrations,
+            CoverageValidation {
+                missing: BTreeSet::from([reused_scenario_id.clone()]),
+                duplicate_scenarios: BTreeSet::from([duplicate_registration.scenario]),
+                wrong_scenarios: BTreeSet::from([reused_scenario_id]),
+                ..CoverageValidation::default()
+            },
+        ),
+    ];
+
+    for (case_name, registrations, expected) in cases {
+        assert_eq!(
+            validate_soft_delete_privacy_transition_exercises(&registrations, &inventory),
+            expected,
+            "{case_name} soft-delete privacy denominator defect must be classified exactly"
+        );
+    }
+}
+
+#[test]
+fn soft_delete_privacy_transition_exercises_match_f5p1_inventory_once() {
+    let inventory = inventory_by_key();
+    assert_eq!(
+        validate_soft_delete_privacy_transition_exercises(
+            F5P1_SOFT_DELETE_PRIVACY_COVERAGE,
+            &inventory
+        ),
+        CoverageValidation::default(),
+        "F5P1 soft-delete privacy coverage must exercise each canonical inventory writer exactly once"
+    );
+}
+
+#[test]
+fn soft_delete_privacy_transition_denominator_rejects_unregistered_test_scenarios() {
+    let inventory = inventory_by_key();
+    let registration = F5P1_SOFT_DELETE_PRIVACY_COVERAGE[0];
+    let registration_id = registration_id(&registration);
+    let scenario_source = F5P1_EXECUTABLE_SCENARIO_SOURCES[0];
+    let test_attribute = format!("#[tokio::test]\nasync fn {}", scenario_source.scenario);
+    let source_without_test_attribute = scenario_source.test_source.replacen(
+        &test_attribute,
+        &format!("async fn {}", scenario_source.scenario),
+        1,
+    );
+    assert_ne!(
+        source_without_test_attribute, scenario_source.test_source,
+        "negative case must remove the canonical scenario test attribute"
+    );
+    let mut sources_without_test_attribute = F5P1_EXECUTABLE_SCENARIO_SOURCES.to_vec();
+    sources_without_test_attribute[0].test_source = &source_without_test_attribute;
+
+    let module_route = format!(
+        "#[path = \"integration/{}.rs\"]\nmod {};",
+        scenario_source.test_module, scenario_source.test_module
+    );
+    let harness_without_module_route =
+        scenario_source
+            .harness_source
+            .replacen(&module_route, "", 1);
+    assert_ne!(
+        harness_without_module_route, scenario_source.harness_source,
+        "negative case must remove the canonical scenario module route"
+    );
+    let mut sources_without_module_route = F5P1_EXECUTABLE_SCENARIO_SOURCES.to_vec();
+    sources_without_module_route[0].harness_source = &harness_without_module_route;
+
+    let expected = CoverageValidation {
+        missing: BTreeSet::from([registration_id.clone()]),
+        stale_scenarios: BTreeSet::from([registration_id]),
+        ..CoverageValidation::default()
+    };
+    for (case_name, sources) in [
+        ("missing_test_attribute", sources_without_test_attribute),
+        ("missing_module_route", sources_without_module_route),
+    ] {
+        let executable_scenarios = executable_scenarios_from_sources(&sources);
+        assert_eq!(
+            validate_soft_delete_privacy_transition_exercises_with_scenarios(
+                F5P1_SOFT_DELETE_PRIVACY_COVERAGE,
+                &inventory,
+                &executable_scenarios,
+            ),
+            expected,
+            "{case_name} must make the affected writer unexercised"
+        );
+    }
+}
+
+#[test]
+fn privacy_transition_partition_assigns_hard_delete_writers_to_f5p2_and_excludes_reactivate() {
+    let inventory = inventory_by_key();
+    let privacy_ids = privacy_transition_inventory_ids(&inventory);
+    let f5p1_ids = f5p1_soft_delete_privacy_inventory_ids(&inventory);
+    let f5p2_ids = F5P2_HARD_DELETE_PRIVACY_WRITERS
+        .iter()
+        .map(registration_id)
         .collect::<BTreeSet<_>>();
-    let missing = observed_ids.difference(&fixture.ids).collect::<Vec<_>>();
-    let extra = fixture.ids.difference(&observed_ids).collect::<Vec<_>>();
+
+    assert_eq!(privacy_ids.len(), 7);
+    assert_eq!(f5p1_ids.len(), 3);
+    assert_eq!(f5p2_ids.len(), 4);
+    assert!(
+        f5p1_ids.is_disjoint(&f5p2_ids),
+        "F5P1 soft-delete and F5P2 hard-delete privacy partitions must not overlap"
+    );
+    assert_eq!(
+        f5p1_ids.union(&f5p2_ids).cloned().collect::<BTreeSet<_>>(),
+        privacy_ids,
+        "privacy_transition writers must partition exactly into F5P1 soft-delete and F5P2 hard-delete sets"
+    );
+
+    for registration in F5P2_HARD_DELETE_PRIVACY_WRITERS {
+        let key = inventory_key(
+            registration.owner_path,
+            registration.function_name,
+            registration.source_anchor,
+        );
+        let writer = inventory
+            .get(&key)
+            .expect("F5P2 hard-delete writer must exist in the canonical inventory");
+        assert_eq!(writer.disposition, "privacy_transition");
+        assert_eq!(
+            fixture_function_name(&writer.id),
+            Some(registration.function_name)
+        );
+        assert_eq!(writer.owner_path, registration.owner_path);
+        assert_eq!(writer.source_anchor, registration.source_anchor);
+    }
+
+    let reactivate_privacy_writers = inventory
+        .values()
+        .filter(|writer| {
+            writer.owner_path == "infra/api/src/repos/pg_customer_repo/billing.rs"
+                && fixture_function_name(&writer.id) == Some("reactivate")
+                && writer.disposition == "privacy_transition"
+        })
+        .collect::<Vec<_>>();
+    assert!(
+        reactivate_privacy_writers.is_empty(),
+        "pg_customer_repo billing::reactivate is suspended-only recovery and must not enter privacy_transition"
+    );
+}
+
+#[test]
+fn hard_delete_privacy_transition_exercises_match_f5p2_inventory_once() {
+    let inventory = inventory_by_key();
+    let privacy_ids = privacy_transition_inventory_ids(&inventory);
+    let f5p1_ids = f5p1_soft_delete_privacy_inventory_ids(&inventory);
+    let expected_f5p2_ids = privacy_ids
+        .difference(&f5p1_ids)
+        .cloned()
+        .collect::<BTreeSet<_>>();
+    let registered_f5p2_ids = F5P2_HARD_DELETE_PRIVACY_WRITERS
+        .iter()
+        .map(registration_id)
+        .collect::<BTreeSet<_>>();
+    let missing = expected_f5p2_ids
+        .difference(&registered_f5p2_ids)
+        .cloned()
+        .collect::<BTreeSet<_>>();
+    let extra = registered_f5p2_ids
+        .difference(&expected_f5p2_ids)
+        .cloned()
+        .collect::<BTreeSet<_>>();
+
     assert!(
         missing.is_empty() && extra.is_empty(),
-        "fixture IDs must match source discovery; missing={missing:?}; extra={extra:?}"
+        "F5P2 registrations must match the fixture-derived hard-delete privacy denominator; missing={missing:?}; extra={extra:?}"
     );
+    assert!(
+        f5p1_ids.is_disjoint(&registered_f5p2_ids),
+        "F5P1 and F5P2 privacy-transition writer sets must be disjoint"
+    );
+    assert_eq!(
+        f5p1_ids
+            .union(&registered_f5p2_ids)
+            .cloned()
+            .collect::<BTreeSet<_>>(),
+        privacy_ids,
+        "F5P1 and F5P2 writer sets must cover the full canonical privacy-transition inventory"
+    );
+    assert_eq!(
+        validate_hard_delete_privacy_transition_exercises(
+            F5P2_HARD_DELETE_PRIVACY_WRITERS,
+            &inventory,
+        ),
+        CoverageValidation::default(),
+        "F5P2 hard-delete privacy coverage must link every canonical writer to its expected executable scenario"
+    );
+    assert!(
+        inventory.values().all(|writer| {
+            !(writer.owner_path == "infra/api/src/repos/pg_customer_repo/billing.rs"
+                && fixture_function_name(&writer.id) == Some("reactivate")
+                && writer.disposition == "privacy_transition")
+        }),
+        "billing::reactivate must remain excluded from privacy-transition coverage"
+    );
+}
 
-    let observed_by_id = observed
-        .into_iter()
-        .map(|writer| (writer.id.clone(), writer))
-        .collect::<BTreeMap<_, _>>();
-    for writer in &inventory.writers {
-        let observed = observed_by_id
-            .get(&writer.id)
-            .expect("fixture ID must be observed above");
+#[test]
+fn hard_delete_privacy_transition_denominator_rejects_malformed_registrations() {
+    let inventory = inventory_by_key();
+    let baseline = F5P2_HARD_DELETE_PRIVACY_WRITERS.to_vec();
+
+    let missing_registration = baseline[0];
+    let missing_id = registration_id(&missing_registration);
+    let duplicate_registration = baseline[3];
+    let duplicate_id = registration_id(&duplicate_registration);
+    let synthetic_registration = CoverageRegistration {
+        scenario: baseline[0].scenario,
+        owner_path: "infra/api/src/routes/admin/tenants.rs",
+        function_name: "synthetic_hard_delete_privacy_transition",
+        source_anchor: "customer_repo.hard_delete",
+    };
+    let synthetic_id = registration_id(&synthetic_registration);
+    let empty_registration = CoverageRegistration {
+        scenario: "",
+        ..baseline[0]
+    };
+    let stale_registration = CoverageRegistration {
+        scenario: "stale_hard_delete_scenario_name",
+        ..baseline[0]
+    };
+    let f5p1_registration = F5P1_SOFT_DELETE_PRIVACY_COVERAGE[0];
+    let f5p1_id = registration_id(&f5p1_registration);
+    let wrong_disposition_registration = CoverageRegistration {
+        scenario: baseline[0].scenario,
+        owner_path: "infra/api/src/repos/pg_index_replica_repo.rs",
+        function_name: "delete",
+        source_anchor: "pg_index_replica_repo.delete",
+    };
+    let wrong_disposition_id = registration_id(&wrong_disposition_registration);
+    let wrong_owner_registration = CoverageRegistration {
+        owner_path: "infra/api/src/repos/pg_customer_repo/lifecycle.rs",
+        ..baseline[0]
+    };
+    let wrong_owner_id = registration_id(&wrong_owner_registration);
+    let wrong_source_anchor_registration = CoverageRegistration {
+        source_anchor: "pg_index_replica_repo.create",
+        ..baseline[0]
+    };
+    let wrong_source_anchor_id = registration_id(&wrong_source_anchor_registration);
+
+    let cases = [
+        (
+            "missing_registration",
+            {
+                let mut registrations = baseline.clone();
+                registrations.remove(0);
+                registrations
+            },
+            CoverageValidation {
+                missing: BTreeSet::from([missing_id.clone()]),
+                ..CoverageValidation::default()
+            },
+        ),
+        (
+            "duplicate_registration",
+            {
+                let mut registrations = baseline.clone();
+                registrations.push(duplicate_registration);
+                registrations
+            },
+            CoverageValidation {
+                duplicates: BTreeSet::from([duplicate_id]),
+                duplicate_scenarios: BTreeSet::from([duplicate_registration.scenario]),
+                ..CoverageValidation::default()
+            },
+        ),
+        (
+            "synthetic_unknown_registration",
+            {
+                let mut registrations = baseline.clone();
+                registrations[0] = synthetic_registration;
+                registrations
+            },
+            CoverageValidation {
+                missing: BTreeSet::from([missing_id.clone()]),
+                unknown: BTreeSet::from([synthetic_id]),
+                ..CoverageValidation::default()
+            },
+        ),
+        (
+            "empty_scenario",
+            {
+                let mut registrations = baseline.clone();
+                registrations[0] = empty_registration;
+                registrations
+            },
+            CoverageValidation {
+                missing: BTreeSet::from([missing_id.clone()]),
+                empty_scenarios: BTreeSet::from([missing_id.clone()]),
+                ..CoverageValidation::default()
+            },
+        ),
+        (
+            "stale_non_executable_scenario",
+            {
+                let mut registrations = baseline.clone();
+                registrations[0] = stale_registration;
+                registrations
+            },
+            CoverageValidation {
+                missing: BTreeSet::from([missing_id.clone()]),
+                stale_scenarios: BTreeSet::from([missing_id.clone()]),
+                ..CoverageValidation::default()
+            },
+        ),
+        (
+            "f5p1_writer_in_f5p2_set",
+            {
+                let mut registrations = baseline.clone();
+                registrations[0] = f5p1_registration;
+                registrations
+            },
+            CoverageValidation {
+                missing: BTreeSet::from([missing_id.clone()]),
+                extra: BTreeSet::from([f5p1_id]),
+                ..CoverageValidation::default()
+            },
+        ),
+        (
+            "wrong_disposition",
+            {
+                let mut registrations = baseline.clone();
+                registrations[0] = wrong_disposition_registration;
+                registrations
+            },
+            CoverageValidation {
+                missing: BTreeSet::from([missing_id.clone()]),
+                wrong_disposition: BTreeSet::from([wrong_disposition_id]),
+                ..CoverageValidation::default()
+            },
+        ),
+        (
+            "wrong_owner",
+            {
+                let mut registrations = baseline.clone();
+                registrations[0] = wrong_owner_registration;
+                registrations
+            },
+            CoverageValidation {
+                missing: BTreeSet::from([missing_id.clone()]),
+                unknown: BTreeSet::from([wrong_owner_id]),
+                ..CoverageValidation::default()
+            },
+        ),
+        (
+            "wrong_source_anchor",
+            {
+                let mut registrations = baseline.clone();
+                registrations[0] = wrong_source_anchor_registration;
+                registrations
+            },
+            CoverageValidation {
+                missing: BTreeSet::from([missing_id]),
+                unknown: BTreeSet::from([wrong_source_anchor_id]),
+                ..CoverageValidation::default()
+            },
+        ),
+    ];
+
+    for (case_name, registrations, expected) in cases {
         assert_eq!(
-            observed.owner_path, writer.owner_path,
-            "owner_path mismatch for {}",
-            writer.id
-        );
-        assert_eq!(
-            observed.source_anchor, writer.source_anchor,
-            "source_anchor mismatch for {}",
-            writer.id
+            validate_hard_delete_privacy_transition_exercises(&registrations, &inventory),
+            expected,
+            "{case_name} F5P2 registration defect must be classified exactly"
         );
     }
 }
@@ -1337,30 +2840,233 @@ fn service_owner_coverage_registrations_match_blocking_inventory_ids_once() {
     );
 }
 
+fn validate_soft_delete_privacy_transition_exercises(
+    registrations: &[CoverageRegistration],
+    inventory: &BTreeMap<(String, String), CatalogLifecycleWriter>,
+) -> CoverageValidation {
+    let executable_scenarios = f5p1_executable_scenarios();
+    validate_soft_delete_privacy_transition_exercises_with_scenarios(
+        registrations,
+        inventory,
+        &executable_scenarios,
+    )
+}
+
+fn validate_soft_delete_privacy_transition_exercises_with_scenarios(
+    registrations: &[CoverageRegistration],
+    inventory: &BTreeMap<(String, String), CatalogLifecycleWriter>,
+    executable_scenarios: &BTreeSet<&'static str>,
+) -> CoverageValidation {
+    let expected_ids = f5p1_soft_delete_privacy_inventory_ids(inventory);
+    let expected_scenarios = F5P1_EXECUTABLE_SCENARIO_SOURCES
+        .iter()
+        .map(|source| {
+            let registration = F5P1_SOFT_DELETE_PRIVACY_COVERAGE
+                .get(source.coverage_registration_index)
+                .expect("F5P1 executable scenario must reference a coverage registration");
+            (registration_id(registration), source.scenario)
+        })
+        .collect::<BTreeMap<_, _>>();
+    validate_coverage_registrations_for_disposition(
+        registrations,
+        &expected_ids,
+        inventory,
+        "privacy_transition",
+        false,
+        Some(executable_scenarios),
+        Some(&expected_scenarios),
+    )
+}
+
+fn validate_hard_delete_privacy_transition_exercises(
+    registrations: &[CoverageRegistration],
+    inventory: &BTreeMap<(String, String), CatalogLifecycleWriter>,
+) -> CoverageValidation {
+    let expected_ids = privacy_transition_inventory_ids(inventory)
+        .difference(&f5p1_soft_delete_privacy_inventory_ids(inventory))
+        .cloned()
+        .collect::<BTreeSet<_>>();
+    let executable_scenarios = executable_scenarios_from_sources(F5P2_EXECUTABLE_SCENARIO_SOURCES);
+    let expected_scenarios = F5P2_EXECUTABLE_SCENARIO_SOURCES
+        .iter()
+        .map(|source| {
+            let registration = F5P2_HARD_DELETE_PRIVACY_WRITERS
+                .get(source.coverage_registration_index)
+                .expect("F5P2 executable scenario must reference a coverage registration");
+            (registration_id(registration), source.scenario)
+        })
+        .collect::<BTreeMap<_, _>>();
+
+    validate_coverage_registrations_for_disposition(
+        registrations,
+        &expected_ids,
+        inventory,
+        "privacy_transition",
+        false,
+        Some(&executable_scenarios),
+        Some(&expected_scenarios),
+    )
+}
+
+fn f5p1_executable_scenarios() -> BTreeSet<&'static str> {
+    executable_scenarios_from_sources(F5P1_EXECUTABLE_SCENARIO_SOURCES)
+}
+
+fn executable_scenarios_from_sources(
+    scenario_sources: &[ExecutableScenarioSource<'_>],
+) -> BTreeSet<&'static str> {
+    scenario_sources
+        .iter()
+        .filter_map(|source| {
+            (source_has_test_attribute(source.test_source, source.scenario)
+                && harness_routes_test_module(source.harness_source, source.test_module))
+            .then_some(source.scenario)
+        })
+        .collect()
+}
+
+fn source_has_test_attribute(source: &str, scenario: &str) -> bool {
+    let signatures = [format!("async fn {scenario}("), format!("fn {scenario}(")];
+    signatures.iter().any(|signature| {
+        let Some(signature_start) = source.find(signature) else {
+            return false;
+        };
+        source[..signature_start]
+            .lines()
+            .rev()
+            .skip_while(|line| line.trim().is_empty())
+            .take_while(|line| line.trim().starts_with("#["))
+            .any(|line| matches!(line.trim(), "#[test]" | "#[tokio::test]"))
+    })
+}
+
+fn harness_routes_test_module(harness_source: &str, test_module: &str) -> bool {
+    let route = format!("#[path = \"integration/{test_module}.rs\"]\nmod {test_module};");
+    harness_source.replace("\r\n", "\n").contains(&route)
+}
+
+fn privacy_transition_inventory_ids(
+    inventory: &BTreeMap<(String, String), CatalogLifecycleWriter>,
+) -> BTreeSet<String> {
+    inventory
+        .values()
+        .filter(|writer| writer.disposition == "privacy_transition")
+        .map(|writer| writer.id.clone())
+        .collect()
+}
+
+fn f5p1_soft_delete_privacy_inventory_ids(
+    inventory: &BTreeMap<(String, String), CatalogLifecycleWriter>,
+) -> BTreeSet<String> {
+    inventory
+        .values()
+        .filter(|writer| {
+            writer.disposition == "privacy_transition"
+                && matches!(
+                    writer.source_anchor.as_str(),
+                    "pg_customer_repo.soft_delete" | "customer_repo.soft_delete"
+                )
+        })
+        .map(|writer| writer.id.clone())
+        .collect()
+}
+
 fn validate_coverage_registrations(
     registrations: &[CoverageRegistration],
     expected_ids: &BTreeSet<String>,
     inventory: &BTreeMap<(String, String), CatalogLifecycleWriter>,
 ) -> CoverageValidation {
+    validate_coverage_registrations_for_disposition(
+        registrations,
+        expected_ids,
+        inventory,
+        "block_without_change",
+        true,
+        None,
+        None,
+    )
+}
+
+fn validate_coverage_registrations_for_disposition(
+    registrations: &[CoverageRegistration],
+    expected_ids: &BTreeSet<String>,
+    inventory: &BTreeMap<(String, String), CatalogLifecycleWriter>,
+    expected_disposition: &str,
+    count_empty_scenario_as_seen: bool,
+    executable_scenarios: Option<&BTreeSet<&'static str>>,
+    expected_scenarios: Option<&BTreeMap<String, &'static str>>,
+) -> CoverageValidation {
     let mut validation = CoverageValidation::default();
     let mut seen_ids = BTreeSet::<String>::new();
+    let mut seen_scenario_counts = BTreeMap::<&'static str, usize>::new();
+    let expected_scenario_counts = expected_scenarios
+        .map(|scenarios| {
+            let mut counts = BTreeMap::<&'static str, usize>::new();
+            for scenario in scenarios.values() {
+                *counts.entry(*scenario).or_default() += 1;
+            }
+            counts
+        })
+        .unwrap_or_default();
 
     for registration in registrations {
         let id = registration_id(registration);
-        if registration.scenario.trim().is_empty() {
-            validation.empty_scenarios.insert(id.clone());
-        }
-        if !seen_ids.insert(id.clone()) {
-            validation.duplicates.insert(id.clone());
-        }
-
         let key = inventory_key(
             registration.owner_path,
             registration.function_name,
             registration.source_anchor,
         );
+        let is_expected_registration = inventory
+            .get(&key)
+            .is_some_and(|writer| writer.disposition == expected_disposition)
+            && expected_ids.contains(&id);
+        let has_scenario = !registration.scenario.trim().is_empty();
+        if !has_scenario {
+            validation.empty_scenarios.insert(id.clone());
+        }
+        if expected_scenarios.is_some() && has_scenario {
+            let seen_count = seen_scenario_counts
+                .entry(registration.scenario)
+                .or_default();
+            *seen_count += 1;
+            let allowed_count = expected_scenario_counts
+                .get(registration.scenario)
+                .copied()
+                .unwrap_or(1);
+            if *seen_count > allowed_count {
+                validation.duplicate_scenarios.insert(registration.scenario);
+            }
+        }
+        let has_executable_scenario = match executable_scenarios {
+            Some(scenarios)
+                if is_expected_registration
+                    && has_scenario
+                    && !scenarios.contains(registration.scenario) =>
+            {
+                validation.stale_scenarios.insert(id.clone());
+                false
+            }
+            Some(_) => has_scenario,
+            None => has_scenario,
+        };
+        let has_expected_scenario = match expected_scenarios {
+            Some(scenarios)
+                if is_expected_registration
+                    && has_executable_scenario
+                    && scenarios.get(&id).copied() != Some(registration.scenario) =>
+            {
+                validation.wrong_scenarios.insert(id.clone());
+                false
+            }
+            Some(_) => has_executable_scenario,
+            None => has_executable_scenario,
+        };
+        if (has_expected_scenario || count_empty_scenario_as_seen) && !seen_ids.insert(id.clone()) {
+            validation.duplicates.insert(id.clone());
+        }
+
         match inventory.get(&key) {
-            Some(writer) if writer.disposition != "block_without_change" => {
+            Some(writer) if writer.disposition != expected_disposition => {
                 validation.wrong_disposition.insert(id);
             }
             Some(_) if !expected_ids.contains(&id) => {
@@ -1453,36 +3159,564 @@ fn fixture_function_name(id: &str) -> Option<&str> {
 
 struct FixtureShape {
     ids: BTreeSet<String>,
-    dispositions: BTreeMap<&'static str, usize>,
+    findings: BTreeSet<String>,
 }
 
 fn validate_fixture(inventory: &CatalogLifecycleInventory) -> FixtureShape {
     let mut ids = BTreeSet::new();
     let mut dispositions = BTreeMap::new();
+    let mut findings = BTreeSet::new();
+    if inventory.writers.is_empty() {
+        findings.insert("writers must not be empty".to_string());
+    }
+    if inventory.total_writer_count == 0 {
+        findings.insert("total_writer_count must be greater than zero".to_string());
+    }
+    if inventory.total_writer_count != inventory.writers.len() {
+        findings.insert(format!(
+            "total_writer_count must match the number of fixture writers: declared={} actual={}",
+            inventory.total_writer_count,
+            inventory.writers.len()
+        ));
+    }
     for writer in &inventory.writers {
-        assert!(
-            ids.insert(writer.id.clone()),
-            "duplicate catalog lifecycle writer ID: {}",
-            writer.id
-        );
+        if !ids.insert(writer.id.clone()) {
+            findings.insert(format!(
+                "duplicate catalog lifecycle writer ID: {}",
+                writer.id
+            ));
+        }
         let disposition = match writer.disposition.as_str() {
-            "block_without_change" => "block_without_change",
-            "privacy_transition" => "privacy_transition",
-            other => panic!("unknown catalog lifecycle writer disposition: {other}"),
+            "" => {
+                findings.insert(format!("disposition is required for {}", writer.id));
+                None
+            }
+            "block_without_change" => Some("block_without_change"),
+            "privacy_transition" => Some("privacy_transition"),
+            other => {
+                findings.insert(format!(
+                    "unknown catalog lifecycle writer disposition for {}: {other}",
+                    writer.id
+                ));
+                None
+            }
         };
-        *dispositions.entry(disposition).or_insert(0) += 1;
-        assert!(
-            !writer.owner_path.trim().is_empty(),
-            "owner_path is required for {}",
-            writer.id
-        );
-        assert!(
-            !writer.source_anchor.trim().is_empty(),
-            "source_anchor is required for {}",
-            writer.id
+        if let Some(disposition) = disposition {
+            *dispositions.entry(disposition).or_insert(0) += 1;
+        }
+        if writer.owner_path.trim().is_empty() {
+            findings.insert(format!("owner_path is required for {}", writer.id));
+        }
+        if writer.source_anchor.trim().is_empty() {
+            findings.insert(format!("source_anchor is required for {}", writer.id));
+        }
+        if let Some(function_name) = fixture_function_name(&writer.id) {
+            let expected_id = writer_id(&writer.owner_path, function_name, &writer.source_anchor);
+            if expected_id != writer.id {
+                findings.insert(format!(
+                    "writer ID metadata does not match row fields for {}: expected_id={expected_id}",
+                    writer.id
+                ));
+            }
+        } else {
+            findings.insert(format!(
+                "writer ID must include an owner path, function name, and source anchor: {}",
+                writer.id
+            ));
+        }
+    }
+    for required_disposition in ["block_without_change", "privacy_transition"] {
+        if !dispositions.contains_key(required_disposition) {
+            findings.insert(format!(
+                "inventory must include {required_disposition} writers"
+            ));
+        }
+    }
+    let disposition_sum = dispositions.values().sum::<usize>();
+    if disposition_sum != inventory.total_writer_count {
+        findings.insert(format!(
+            "disposition class counts must sum to total_writer_count: disposition_sum={disposition_sum} total={}",
+            inventory.total_writer_count
+        ));
+    }
+    FixtureShape { ids, findings }
+}
+
+fn validate_catalog_lifecycle_inventory(
+    inventory: &CatalogLifecycleInventory,
+    observed: &BTreeSet<WriterObservation>,
+) -> BTreeSet<String> {
+    let fixture = validate_fixture(inventory);
+    let mut findings = fixture.findings;
+    let observed_ids = observed
+        .iter()
+        .map(|writer| writer.id.clone())
+        .collect::<BTreeSet<_>>();
+    for missing in observed_ids.difference(&fixture.ids) {
+        findings.insert(format!("missing source-discovered writer: {missing}"));
+    }
+    for extra in fixture.ids.difference(&observed_ids) {
+        findings.insert(format!(
+            "fixture-only writer absent from source discovery: {extra}"
+        ));
+    }
+
+    let observed_by_id = observed
+        .iter()
+        .map(|writer| (writer.id.clone(), writer))
+        .collect::<BTreeMap<_, _>>();
+    for writer in &inventory.writers {
+        let Some(observed) = observed_by_id.get(&writer.id) else {
+            continue;
+        };
+        if observed.owner_path != writer.owner_path {
+            findings.insert(format!(
+                "owner_path mismatch for {}: fixture={} observed={}",
+                writer.id, writer.owner_path, observed.owner_path
+            ));
+        }
+        if observed.source_anchor != writer.source_anchor {
+            findings.insert(format!(
+                "source_anchor mismatch for {}: fixture={} observed={}",
+                writer.id, writer.source_anchor, observed.source_anchor
+            ));
+        }
+        if matches!(
+            writer.disposition.as_str(),
+            "block_without_change" | "privacy_transition"
+        ) && observed.disposition != writer.disposition
+        {
+            findings.insert(format!(
+                "disposition mismatch for {}: fixture={} observed={}",
+                writer.id, writer.disposition, observed.disposition
+            ));
+        }
+    }
+
+    findings
+}
+
+fn assert_catalog_lifecycle_inventory_valid(
+    inventory: &CatalogLifecycleInventory,
+    observed: &BTreeSet<WriterObservation>,
+) {
+    let findings = validate_catalog_lifecycle_inventory(inventory, observed);
+    assert!(
+        findings.is_empty(),
+        "catalog lifecycle writer inventory must match source discovery: {findings:#?}"
+    );
+}
+
+fn assert_inventory_finding(
+    case_name: &str,
+    inventory: &CatalogLifecycleInventory,
+    observed: &BTreeSet<WriterObservation>,
+    expected_finding: &str,
+) {
+    let findings = validate_catalog_lifecycle_inventory(inventory, observed);
+    assert!(
+        findings.contains(expected_finding),
+        "{case_name} must report {expected_finding:?}; actual findings={findings:#?}"
+    );
+}
+
+fn canonical_catalog_lifecycle_inventory() -> CatalogLifecycleInventory {
+    serde_json::from_str(CATALOG_LIFECYCLE_WRITERS_JSON)
+        .expect("catalog lifecycle writer inventory must be valid JSON")
+}
+
+fn canonical_acceptance_oracles() -> AcceptanceOracles {
+    serde_json::from_str(CATALOG_LIFECYCLE_ACCEPTANCE_ORACLES_JSON)
+        .expect("catalog lifecycle acceptance oracles must be valid JSON")
+}
+
+/// Parse and validate the raw oracle payload, capturing a parse failure as a
+/// finding rather than panicking so a missing/empty payload fails closed.
+///
+/// The duplicate-key pre-pass runs independently of the typed parse because
+/// `serde_json::from_str::<AcceptanceOracles>` resolves duplicate object keys
+/// last-write-wins (for the `oracles` map) or as a bare parse error (for struct
+/// fields), both of which lose the evidence that the fixture carried conflicting
+/// duplicate entries. Its findings are merged into either parse branch so a
+/// duplicated class entry or duplicated behavior field always fails closed.
+fn validate_oracles_json(json: &str) -> BTreeSet<String> {
+    let mut duplicate_findings = detect_duplicate_json_keys(json);
+    match serde_json::from_str::<AcceptanceOracles>(json) {
+        Ok(oracles) => {
+            let mut findings = validate_oracles(&oracles);
+            findings.append(&mut duplicate_findings);
+            findings
+        }
+        Err(error) => {
+            let mut findings = BTreeSet::new();
+            findings.insert(format!(
+                "acceptance oracle payload must be valid JSON: {error}"
+            ));
+            findings.append(&mut duplicate_findings);
+            findings
+        }
+    }
+}
+
+/// A structural JSON parse that preserves every object entry in declaration
+/// order, including duplicate keys. serde_json's default map handling is
+/// last-write-wins, so deserializing into `Value`/`BTreeMap` would collapse
+/// duplicate keys before they can be detected; streaming each entry into a `Vec`
+/// keeps them so a duplicate-key pre-pass can reject the fixture.
+enum RawJsonNode {
+    Object(Vec<(String, RawJsonNode)>),
+    Array(Vec<RawJsonNode>),
+    Scalar,
+}
+
+impl<'de> Deserialize<'de> for RawJsonNode {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct RawJsonVisitor;
+
+        impl<'de> serde::de::Visitor<'de> for RawJsonVisitor {
+            type Value = RawJsonNode;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("any JSON value")
+            }
+
+            fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
+            where
+                A: serde::de::MapAccess<'de>,
+            {
+                let mut entries = Vec::new();
+                while let Some((key, value)) = map.next_entry::<String, RawJsonNode>()? {
+                    entries.push((key, value));
+                }
+                Ok(RawJsonNode::Object(entries))
+            }
+
+            fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+            where
+                A: serde::de::SeqAccess<'de>,
+            {
+                let mut items = Vec::new();
+                while let Some(item) = seq.next_element::<RawJsonNode>()? {
+                    items.push(item);
+                }
+                Ok(RawJsonNode::Array(items))
+            }
+
+            fn visit_bool<E>(self, _value: bool) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                Ok(RawJsonNode::Scalar)
+            }
+
+            fn visit_i64<E>(self, _value: i64) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                Ok(RawJsonNode::Scalar)
+            }
+
+            fn visit_u64<E>(self, _value: u64) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                Ok(RawJsonNode::Scalar)
+            }
+
+            fn visit_f64<E>(self, _value: f64) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                Ok(RawJsonNode::Scalar)
+            }
+
+            fn visit_str<E>(self, _value: &str) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                Ok(RawJsonNode::Scalar)
+            }
+
+            fn visit_none<E>(self) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                Ok(RawJsonNode::Scalar)
+            }
+
+            fn visit_unit<E>(self) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                Ok(RawJsonNode::Scalar)
+            }
+
+            fn visit_some<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                deserializer.deserialize_any(self)
+            }
+        }
+
+        deserializer.deserialize_any(RawJsonVisitor)
+    }
+}
+
+/// Walk a preserved-duplicate JSON tree and record every object key that appears
+/// more than once within the same object, anywhere in the tree.
+fn collect_duplicate_json_keys(node: &RawJsonNode, duplicates: &mut BTreeSet<String>) {
+    match node {
+        RawJsonNode::Object(entries) => {
+            let mut seen = BTreeSet::new();
+            for (key, value) in entries {
+                if !seen.insert(key.clone()) {
+                    duplicates.insert(key.clone());
+                }
+                collect_duplicate_json_keys(value, duplicates);
+            }
+        }
+        RawJsonNode::Array(items) => {
+            for item in items {
+                collect_duplicate_json_keys(item, duplicates);
+            }
+        }
+        RawJsonNode::Scalar => {}
+    }
+}
+
+/// Detect duplicate raw JSON object keys before typed deserialization collapses
+/// them. Returns one finding per duplicated key. A structural parse failure is
+/// left to `validate_oracles_json`'s typed parse, which reports it.
+fn detect_duplicate_json_keys(json: &str) -> BTreeSet<String> {
+    let mut findings = BTreeSet::new();
+    if let Ok(node) = serde_json::from_str::<RawJsonNode>(json) {
+        let mut duplicates = BTreeSet::new();
+        collect_duplicate_json_keys(&node, &mut duplicates);
+        for key in duplicates {
+            findings.insert(format!(
+                "acceptance oracle payload must not repeat object key {key}"
+            ));
+        }
+    }
+    findings
+}
+
+/// Validate the oracle set in isolation: class-key completeness, unknown
+/// classes, the lane-composition contract, and each class's behavior
+/// expectation. Returns the set of findings (empty when valid).
+fn validate_oracles(oracles: &AcceptanceOracles) -> BTreeSet<String> {
+    let mut findings = BTreeSet::new();
+    if oracles.version != 1 {
+        findings.insert(format!(
+            "acceptance oracle version must be 1, got {}",
+            oracles.version
+        ));
+    }
+    if oracles.oracle_kind != "catalog_lifecycle_acceptance" {
+        findings.insert(format!(
+            "acceptance oracle kind must be catalog_lifecycle_acceptance, got {}",
+            oracles.oracle_kind
+        ));
+    }
+    if oracles.oracles.is_empty() {
+        findings.insert("acceptance oracle map must not be empty".to_string());
+    }
+    for required in ["block_without_change", "privacy_transition"] {
+        if !oracles.oracles.contains_key(required) {
+            findings.insert(format!(
+                "acceptance oracle map must include the {required} class"
+            ));
+        }
+    }
+    for class in oracles.oracles.keys() {
+        if class != "block_without_change" && class != "privacy_transition" {
+            findings.insert(format!("unknown acceptance oracle class: {class}"));
+        }
+    }
+    if !oracles
+        .lane_composition
+        .execute_every_inventoried_caller_before_route_activation
+    {
+        findings.insert(
+            "lane composition must execute every inventoried caller before route activation"
+                .to_string(),
         );
     }
-    FixtureShape { ids, dispositions }
+    if oracles.lane_composition.missing_dependency_disposition != "failure" {
+        findings.insert(format!(
+            "lane composition must treat a missing dependency as failure, not {}",
+            oracles.lane_composition.missing_dependency_disposition
+        ));
+    }
+    for (class, oracle) in &oracles.oracles {
+        findings.append(&mut validate_class_behavior(class, oracle));
+    }
+    findings
+}
+
+/// Assert the exact hand-calculated behavior expectation for a lifecycle class.
+fn validate_class_behavior(class: &str, oracle: &ClassOracle) -> BTreeSet<String> {
+    let mut findings = BTreeSet::new();
+    match class {
+        "block_without_change" => {
+            for (field, value) in [
+                ("soft_delete", oracle.soft_delete.as_ref()),
+                ("hard_delete", oracle.hard_delete.as_ref()),
+                ("reaper_scrub", oracle.reaper_scrub.as_ref()),
+            ] {
+                if value.is_some() {
+                    findings.insert(format!(
+                        "block_without_change oracle must not contain privacy-transition field {field}"
+                    ));
+                }
+            }
+            if oracle.leased_behavior.as_deref() != Some("refuse_without_mutation") {
+                findings.insert(format!(
+                    "block_without_change oracle must refuse while leased without mutation: leased_behavior={}",
+                    oracle.leased_behavior.as_deref().unwrap_or("<missing>")
+                ));
+            }
+            if oracle.release_trigger.as_deref() != Some("engine_ack") {
+                findings.insert(format!(
+                    "block_without_change oracle must release only after engine ACK: release_trigger={}",
+                    oracle.release_trigger.as_deref().unwrap_or("<missing>")
+                ));
+            }
+        }
+        "privacy_transition" => {
+            for (field, value) in [
+                ("leased_behavior", oracle.leased_behavior.as_ref()),
+                ("release_trigger", oracle.release_trigger.as_ref()),
+            ] {
+                if value.is_some() {
+                    findings.insert(format!(
+                        "privacy_transition oracle must not contain block-only field {field}"
+                    ));
+                }
+            }
+            if oracle.soft_delete.as_deref()
+                != Some("mark_deleted_bump_generation_fence_future_writes")
+            {
+                findings.insert(format!(
+                    "privacy_transition oracle must encode the soft-delete state machine: soft_delete={}",
+                    oracle.soft_delete.as_deref().unwrap_or("<missing>")
+                ));
+            }
+            if oracle.hard_delete.as_deref() != Some("purge_dependents_then_target") {
+                findings.insert(format!(
+                    "privacy_transition oracle must encode the hard-delete state machine: hard_delete={}",
+                    oracle.hard_delete.as_deref().unwrap_or("<missing>")
+                ));
+            }
+            if oracle.reaper_scrub.as_deref()
+                != Some("reaper_scrubs_catalog_target_after_hard_delete")
+            {
+                findings.insert(format!(
+                    "privacy_transition oracle must encode the reaper scrub state machine: reaper_scrub={}",
+                    oracle.reaper_scrub.as_deref().unwrap_or("<missing>")
+                ));
+            }
+        }
+        _ => {}
+    }
+    findings
+}
+
+/// Join the writer denominator to the oracle set through each writer's
+/// inventory-owned `disposition`. Fails closed when an inventory disposition has
+/// no oracle or when the oracle carries a class the inventory never uses, so the
+/// join always depends on the writer fixture as the sole denominator.
+fn validate_oracle_inventory_join(
+    inventory: &CatalogLifecycleInventory,
+    oracles: &AcceptanceOracles,
+) -> BTreeSet<String> {
+    let mut findings = BTreeSet::new();
+    let inventory_dispositions = inventory
+        .writers
+        .iter()
+        .map(|writer| writer.disposition.clone())
+        .collect::<BTreeSet<_>>();
+
+    for writer in &inventory.writers {
+        let resolved = oracles
+            .oracles
+            .keys()
+            .filter(|class| **class == writer.disposition)
+            .count();
+        if resolved != 1 {
+            findings.insert(format!(
+                "inventory writer {} disposition {} must resolve to exactly one acceptance oracle, found {resolved}",
+                writer.id, writer.disposition
+            ));
+        }
+    }
+    for disposition in &inventory_dispositions {
+        if !oracles.oracles.contains_key(disposition) {
+            findings.insert(format!(
+                "inventory disposition {disposition} has no acceptance oracle"
+            ));
+        }
+    }
+    for class in oracles.oracles.keys() {
+        if !inventory_dispositions.contains(class) {
+            findings.insert(format!(
+                "acceptance oracle class {class} is unused by the inventory"
+            ));
+        }
+    }
+    findings
+}
+
+/// Recursively collect every object key in a JSON value, used to prove the
+/// oracle fixture does not copy any writer-owned field.
+fn collect_json_object_keys(value: &serde_json::Value, keys: &mut BTreeSet<String>) {
+    match value {
+        serde_json::Value::Object(map) => {
+            for (key, child) in map {
+                keys.insert(key.clone());
+                collect_json_object_keys(child, keys);
+            }
+        }
+        serde_json::Value::Array(items) => {
+            for item in items {
+                collect_json_object_keys(item, keys);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn writer_id_for_disposition(inventory: &CatalogLifecycleInventory, disposition: &str) -> String {
+    inventory
+        .writers
+        .iter()
+        .find(|writer| writer.disposition == disposition)
+        .unwrap_or_else(|| panic!("canonical inventory must include {disposition} writer"))
+        .id
+        .clone()
+}
+
+fn writer<'a>(inventory: &'a CatalogLifecycleInventory, id: &str) -> &'a CatalogLifecycleWriter {
+    inventory
+        .writers
+        .iter()
+        .find(|writer| writer.id == id)
+        .unwrap_or_else(|| panic!("canonical inventory must include writer {id}"))
+}
+
+fn writer_mut<'a>(
+    inventory: &'a mut CatalogLifecycleInventory,
+    id: &str,
+) -> &'a mut CatalogLifecycleWriter {
+    inventory
+        .writers
+        .iter_mut()
+        .find(|writer| writer.id == id)
+        .unwrap_or_else(|| panic!("canonical inventory must include writer {id}"))
 }
 
 fn discover_catalog_lifecycle_writers() -> BTreeSet<WriterObservation> {
@@ -1562,12 +3796,29 @@ fn observe_file(repo_root: &Path, path: &Path) -> BTreeSet<WriterObservation> {
                 id: writer_id(&owner_path, &current_fn, source_anchor),
                 owner_path: owner_path.clone(),
                 source_anchor: source_anchor.to_string(),
+                disposition: discovered_writer_disposition(&owner_path, source_anchor),
             });
         }
         pending_receiver = next_pending_receiver(line, pending_receiver);
     }
 
     observations
+}
+
+fn discovered_writer_disposition(owner_path: &str, source_anchor: &str) -> &'static str {
+    if owner_path == "infra/api/src/repos/pg_customer_repo/hard_delete.rs"
+        || matches!(
+            source_anchor,
+            "pg_customer_repo.soft_delete"
+                | "pg_customer_repo.hard_delete"
+                | "customer_repo.soft_delete"
+                | "customer_repo.hard_delete"
+        )
+    {
+        "privacy_transition"
+    } else {
+        "block_without_change"
+    }
 }
 
 fn function_name(line: &str) -> Option<&str> {
@@ -1890,6 +4141,7 @@ async fn apply_restore_identity_drift(
     target: &str,
     drift: RestoreIdentityDrift,
 ) -> CatalogLifecycleTargetIdentity {
+    let before = load_target_identity(pool, customer_id, target).await;
     match drift {
         RestoreIdentityDrift::Tier => {
             sqlx::query(
@@ -1970,7 +4222,9 @@ async fn apply_restore_identity_drift(
             .expect("drift restore service type");
         }
     }
-    load_target_identity(pool, customer_id, target).await
+    let after = load_target_identity(pool, customer_id, target).await;
+    assert_identity_drift_applied(&before, &after, drift, "restore identity drift helper");
+    after
 }
 
 async fn apply_migration_identity_drift(
@@ -1980,6 +4234,7 @@ async fn apply_migration_identity_drift(
     drift: RestoreIdentityDrift,
 ) -> CatalogLifecycleTargetIdentity {
     if matches!(drift, RestoreIdentityDrift::Tier) {
+        let before = load_target_identity(pool, customer_id, target).await;
         sqlx::query(
             "UPDATE customer_tenants
              SET tier = 'pinned'
@@ -1990,7 +4245,9 @@ async fn apply_migration_identity_drift(
         .execute(pool)
         .await
         .expect("drift migration tier");
-        return load_target_identity(pool, customer_id, target).await;
+        let after = load_target_identity(pool, customer_id, target).await;
+        assert_identity_drift_applied(&before, &after, drift, "migration identity drift helper");
+        return after;
     }
 
     apply_restore_identity_drift(pool, customer_id, target, drift).await
@@ -2568,21 +4825,34 @@ async fn force_resumable_credential_failure(
     .expect("force resumable credential failure");
 }
 
-async fn expire_worker_lease(pool: &PgPool, job_id: Uuid) {
-    let now = Utc::now();
+async fn expire_worker_lease(pool: &PgPool, job_id: Uuid, case: &ReservationLifetimeCase) {
+    force_reservation_lifetime_case(pool, job_id, case).await;
     sqlx::query(
         "UPDATE algolia_import_jobs
-         SET worker_claimed_at = $2,
-             worker_lease_expires_at = $3,
+         SET worker_claimed_at = NOW() - INTERVAL '20 minutes',
+             worker_lease_expires_at = NOW() - INTERVAL '10 minutes',
              updated_at = NOW()
+         WHERE id = $1 AND worker_lease_expires_at IS NULL",
+    )
+    .bind(job_id)
+    .execute(pool)
+    .await
+    .unwrap_or_else(|error| panic!("expire import worker lease for {}: {error}", case.label));
+
+    let persisted_is_expired = sqlx::query_scalar::<_, bool>(
+        "SELECT worker_lease_expires_at < NOW()
+         FROM algolia_import_jobs
          WHERE id = $1",
     )
     .bind(job_id)
-    .bind(now - Duration::minutes(20))
-    .bind(now - Duration::minutes(10))
-    .execute(pool)
+    .fetch_one(pool)
     .await
-    .expect("expire import worker lease");
+    .unwrap_or_else(|error| panic!("verify expired worker lease for {}: {error}", case.label));
+    assert!(
+        persisted_is_expired,
+        "persisted worker lease must be expired before writer invocation for {}",
+        case.label
+    );
 }
 
 async fn create_expired_import_reservation(
@@ -2590,12 +4860,13 @@ async fn create_expired_import_reservation(
     customer_id: Uuid,
     target: &str,
     key: &str,
+    case: &ReservationLifetimeCase,
 ) {
     let job = PgAlgoliaImportJobRepo::new(pool.clone())
         .create(import_job(customer_id, target, key))
         .await
         .expect("active import reservation");
-    expire_worker_lease(pool, job.id).await;
+    expire_worker_lease(pool, job.id, case).await;
 }
 
 async fn create_expired_replace_reservation(
@@ -2603,17 +4874,30 @@ async fn create_expired_replace_reservation(
     customer_id: Uuid,
     target: &str,
     key: &str,
+    case: &ReservationLifetimeCase,
 ) {
     let job = PgAlgoliaImportJobRepo::new(pool.clone())
         .create_replace(replace_job(customer_id, target, key))
         .await
         .expect("active replace reservation");
-    expire_worker_lease(pool, job.id).await;
+    expire_worker_lease(pool, job.id, case).await;
 }
 
-fn assert_conflict_code(result: Result<AlgoliaImportJob, RepoError>, code: &str) {
+fn admission_refusal_code(
+    result: &Result<AlgoliaImportJob, AlgoliaImportJobAdmissionError>,
+) -> Option<&'static str> {
+    match result {
+        Err(AlgoliaImportJobAdmissionError::Refused(code)) => Some(code.as_str()),
+        _ => None,
+    }
+}
+
+fn assert_conflict_code(
+    result: Result<AlgoliaImportJob, AlgoliaImportJobAdmissionError>,
+    code: &str,
+) {
     assert!(
-        matches!(&result, Err(RepoError::Conflict(message)) if message == code),
+        admission_refusal_code(&result) == Some(code),
         "expected conflict code {code}, got {result:?}"
     );
 }
@@ -2758,11 +5042,12 @@ fn route_test_state_with_node_secret_manager(
 }
 
 async fn insert_route_test_vm(pool: &PgPool, region: &str, flapjack_url: &str) -> Uuid {
+    let vm_id = Uuid::new_v4();
     let vm = PgVmInventoryRepo::new(pool.clone())
         .create(NewVmInventory {
             region: region.to_string(),
             provider: "aws".to_string(),
-            hostname: "route-test-shared-vm".to_string(),
+            hostname: format!("route-test-shared-vm-{vm_id}"),
             flapjack_url: flapjack_url.to_string(),
             capacity: json!({
                 "cpu_weight": 100.0,
@@ -3600,7 +5885,7 @@ async fn assert_service_window_blocks_admission_with_codes(
         ))
         .await;
     assert!(
-        matches!(&import, Err(RepoError::Conflict(message)) if message == expected_import_code),
+        admission_refusal_code(&import) == Some(expected_import_code),
         "open service window must block competing import admission with {expected_import_code}, got {import:?}"
     );
     let replace = repo
@@ -3611,7 +5896,7 @@ async fn assert_service_window_blocks_admission_with_codes(
         ))
         .await;
     assert!(
-        matches!(&replace, Err(RepoError::Conflict(message)) if message == expected_replace_code),
+        admission_refusal_code(&replace) == Some(expected_replace_code),
         "open service window must block competing replacement admission with {expected_replace_code}, got {replace:?}"
     );
 }
@@ -3631,7 +5916,7 @@ async fn assert_restore_intent_blocks_admission(
         ))
         .await;
     assert!(
-        matches!(&import, Err(RepoError::Conflict(message)) if message == "destination_changed"),
+        admission_refusal_code(&import) == Some("destination_changed"),
         "persisted restore intent must block competing import admission with destination_changed, got {import:?}"
     );
     let replace = repo
@@ -3642,7 +5927,7 @@ async fn assert_restore_intent_blocks_admission(
         ))
         .await;
     assert!(
-        matches!(&replace, Err(RepoError::Conflict(message)) if message == "destination_changed"),
+        admission_refusal_code(&replace) == Some("destination_changed"),
         "persisted restore intent must block competing replacement admission with destination_changed, got {replace:?}"
     );
 }
@@ -3850,9 +6135,10 @@ async fn replica_service_create_replica_rejects_active_replace_reservation() {
 /// Create-replica opens a service window: while the lifecycle guard is held,
 /// both import and replacement admission are excluded before the replica row is
 /// committed; on success exactly one provisioning replica exists and no import
-/// operation was admitted.
-#[tokio::test]
-async fn replica_service_create_replica_blocks_admission_before_commit() {
+/// operation was admitted. Driven under the canonical
+/// `replica_create_remove_races_after_intent_before_remote_work` selection in
+/// `catalog_lifecycle_lease_remote_races`.
+async fn assert_replica_create_race_after_intent() {
     let Some(db) = connect_and_migrate("catalog_lifecycle_replica_create_race").await else {
         return;
     };
@@ -3979,9 +6265,10 @@ async fn replica_service_remove_replica_rejects_active_replace_reservation() {
 /// Remove-replica opens a service window: while the lifecycle guard is held,
 /// both import and replacement admission are excluded before the replica row is
 /// deleted; on success only the targeted replica is removed and unrelated
-/// replica rows are untouched.
-#[tokio::test]
-async fn replica_service_remove_replica_blocks_admission_before_commit() {
+/// replica rows are untouched. Driven under the canonical
+/// `replica_create_remove_races_after_intent_before_remote_work` selection in
+/// `catalog_lifecycle_lease_remote_races`.
+async fn assert_replica_remove_race_after_intent() {
     let Some(db) = connect_and_migrate("catalog_lifecycle_replica_remove_race").await else {
         return;
     };
@@ -4136,9 +6423,10 @@ async fn region_failover_rejects_active_replace_reservation() {
 /// Failover promotion opens a service window: while the lifecycle guard is held,
 /// both import and replacement admission are excluded before the tenant is
 /// repointed and the replica suspended; on success the tenant is promoted onto
-/// the replica VM and the promoted replica is suspended.
-#[tokio::test]
-async fn region_failover_promotion_blocks_admission_before_commit() {
+/// the replica VM and the promoted replica is suspended. Driven under the
+/// canonical `region_failover_races_after_intent_before_remote_work` selection
+/// in `catalog_lifecycle_lease_remote_races`.
+async fn assert_region_failover_promotion_race_after_intent() {
     let Some(db) = connect_and_migrate("catalog_lifecycle_failover_promotion_race").await else {
         return;
     };
@@ -4367,8 +6655,12 @@ async fn assert_restore_initiation_rejects_active_reservation(kind: ActiveReserv
     );
 }
 
-#[tokio::test]
-async fn restore_service_initiate_restore_blocks_admission_while_guard_open() {
+/// Owner-wins restore-initiate race body: while the initiation guard is open the
+/// restore intent is not externally visible and competing admission is excluded.
+/// Driven under the canonical
+/// `restore_lifecycle_races_after_intent_before_remote_work_initiate` selection
+/// in `catalog_lifecycle_lease_remote_races`.
+async fn assert_restore_initiate_race_after_intent() {
     let Some(db) = connect_and_migrate("catalog_lifecycle_restore_initiate_window").await else {
         return;
     };
@@ -4437,8 +6729,12 @@ async fn restore_service_initiate_restore_blocks_admission_while_guard_open() {
     );
 }
 
-#[tokio::test]
-async fn restore_execute_restore_intent_blocks_admission_before_remote_work() {
+/// Owner-wins restore-execute race body: the persisted restore intent excludes
+/// competing admission at the pre-remote boundary before any remote import.
+/// Driven under the canonical
+/// `restore_lifecycle_races_after_intent_before_remote_work` selection in
+/// `catalog_lifecycle_lease_remote_races`.
+async fn assert_restore_execute_race_after_intent() {
     let Some(db) = connect_and_migrate("catalog_lifecycle_restore_execute_intent").await else {
         return;
     };
@@ -4505,13 +6801,7 @@ async fn restore_execute_restore_intent_blocks_admission_before_remote_work() {
 
 #[tokio::test]
 async fn restore_execute_restore_inner_rejects_identity_drift() {
-    for drift in [
-        RestoreIdentityDrift::Tier,
-        RestoreIdentityDrift::VmId,
-        RestoreIdentityDrift::ColdSnapshotId,
-        RestoreIdentityDrift::DeploymentId,
-        RestoreIdentityDrift::ServiceType,
-    ] {
+    for drift in identity_drift_denominator().iter().copied() {
         assert_restore_execute_rejects_identity_drift(drift).await;
     }
 }
@@ -5051,7 +7341,7 @@ async fn cold_tier_snapshot_intent_refuses_replacement_admission_during_export()
 
     let reservation = node_client.take_replace_reservation_result();
     assert!(
-        matches!(&reservation, Err(RepoError::Conflict(message)) if message == "destination_conflict"),
+        admission_refusal_code(&reservation) == Some("destination_conflict"),
         "committed cold intent must refuse replacement admission during export, got {reservation:?}"
     );
     assert_eq!(node_client.export_call_count(), 1);
@@ -5095,13 +7385,6 @@ async fn cold_tier_rollback_rejects_identity_drift_for_snapshot_state() {
     let Some(db) = connect_and_migrate("catalog_lifecycle_cold_tier_rollback_drift").await else {
         return;
     };
-    let drifts = [
-        RestoreIdentityDrift::Tier,
-        RestoreIdentityDrift::VmId,
-        RestoreIdentityDrift::ColdSnapshotId,
-        RestoreIdentityDrift::DeploymentId,
-        RestoreIdentityDrift::ServiceType,
-    ];
     // The guarded snapshot closures acquire a second connection while their
     // transaction is open, so drive them through a multi-connection pool.
     let pool = pooled_repo_connections_in_schema(&db.schema).await;
@@ -5109,7 +7392,7 @@ async fn cold_tier_rollback_rejects_identity_drift_for_snapshot_state() {
         ColdRollbackShape::BeginIntent,
         ColdRollbackShape::PublishedCold,
     ] {
-        for drift in drifts {
+        for drift in identity_drift_denominator().iter().copied() {
             assert_cold_tier_rollback_skips_on_drift(&pool, shape, drift).await;
         }
     }
@@ -5125,14 +7408,14 @@ async fn assert_cold_tier_rollback_skips_on_drift(
     insert_active_customer(pool, customer, 1).await;
     let source_vm_id = insert_authenticated_target_row(pool, customer, &target).await;
     let node_client = Arc::new(CountingColdTierNodeClient::default());
-    let expected_status = match shape {
+    let (expected_status, expected_delete_calls) = match shape {
         ColdRollbackShape::BeginIntent => {
             node_client.fail_export("stale-worker export outage");
-            "exporting"
+            ("exporting", 0)
         }
         ColdRollbackShape::PublishedCold => {
             node_client.fail_delete("stale-worker eviction outage");
-            "completed"
+            ("completed", 1)
         }
     };
     let service = cold_tier_service(pool, node_client.clone());
@@ -5177,6 +7460,13 @@ async fn assert_cold_tier_rollback_skips_on_drift(
         node_client.export_call_count(),
         1,
         "[{}/{}] rollback must not dispatch remote export work",
+        shape.label(),
+        drift.label()
+    );
+    assert_eq!(
+        node_client.delete_call_count(),
+        expected_delete_calls,
+        "[{}/{}] rollback must not dispatch stale remote delete work",
         shape.label(),
         drift.label()
     );
@@ -5381,22 +7671,66 @@ impl MigrationIntentPath {
             Self::ProbeFailure => "probe_failure",
         }
     }
+
+    fn expected_final_migration_status(self) -> &'static str {
+        match self {
+            Self::Execute => "completed",
+            Self::ProbeRollback => "rolled_back",
+            Self::ProbeFailure => "failed",
+        }
+    }
+
+    fn expected_final_vm_id(
+        self,
+        original_identity: &CatalogLifecycleTargetIdentity,
+        dest_vm_id: Uuid,
+    ) -> Option<Uuid> {
+        match self {
+            Self::Execute => Some(dest_vm_id),
+            Self::ProbeRollback | Self::ProbeFailure => original_identity.vm_id,
+        }
+    }
+
+    fn expected_source_restore_allowed(self) -> bool {
+        match self {
+            Self::Execute => false,
+            Self::ProbeRollback | Self::ProbeFailure => true,
+        }
+    }
+
+    fn assert_final_migration_error(self, error: Option<&str>) {
+        match self {
+            Self::Execute | Self::ProbeRollback => assert_eq!(error, None),
+            Self::ProbeFailure => assert!(
+                error.unwrap_or_default().contains(
+                    "engine index identity probe injected failure after replication start"
+                ),
+                "probe failure must persist the injected failure, got {error:?}"
+            ),
+        }
+    }
+
+    fn assert_final_completed_at(self, completed_at: Option<DateTime<Utc>>) {
+        match self {
+            Self::Execute => assert!(completed_at.is_some()),
+            Self::ProbeRollback | Self::ProbeFailure => assert_eq!(completed_at, None),
+        }
+    }
 }
 
-#[tokio::test]
-async fn probe_migration_execute_admission_window_blocks_import_and_replace_after_intent() {
-    assert_migration_intent_window_blocks_admission(MigrationIntentPath::Execute).await;
+struct MigrationIntentFinalState<'a> {
+    pool: &'a PgPool,
+    customer: Uuid,
+    target: &'static str,
+    migration_id: Uuid,
+    original_identity: &'a CatalogLifecycleTargetIdentity,
+    dest_vm_id: Uuid,
 }
 
-#[tokio::test]
-async fn probe_migration_rollback_admission_window_blocks_import_and_replace_after_intent() {
-    assert_migration_intent_window_blocks_admission(MigrationIntentPath::ProbeRollback).await;
-}
-
-#[tokio::test]
-async fn probe_migration_failure_admission_window_blocks_import_and_replace_after_intent() {
-    assert_migration_intent_window_blocks_admission(MigrationIntentPath::ProbeFailure).await;
-}
+// The migration intent-window owner-wins races now live under the canonical
+// `migration_lifecycle_races_after_intent_before_remote_work` selection in
+// `catalog_lifecycle_lease_remote_races`; every `MigrationIntentPath` is
+// exercised there through `assert_migration_intent_window_blocks_admission`.
 
 async fn assert_migration_intent_window_blocks_admission(path: MigrationIntentPath) {
     let schema = format!("catalog_lifecycle_migration_intent_window_{}", path.label());
@@ -5416,7 +7750,7 @@ async fn assert_migration_intent_window_blocks_admission(path: MigrationIntentPa
         .create_node_api_key(&format!("vm-{source_vm_id}"), "us-east-1")
         .await
         .expect("seed source VM API key");
-    node_secret_manager
+    let dest_key = node_secret_manager
         .create_node_api_key(&format!("vm-us-east-1-{dest_vm_id}"), "us-east-1")
         .await
         .expect("seed destination VM API key");
@@ -5429,7 +7763,7 @@ async fn assert_migration_intent_window_blocks_admission(path: MigrationIntentPa
         customer,
         "products",
         path.label(),
-        original_identity,
+        original_identity.clone(),
         http_client.clone(),
     )
     .await;
@@ -5445,37 +7779,163 @@ async fn assert_migration_intent_window_blocks_admission(path: MigrationIntentPa
         requested_by: "catalog-lifecycle-test".to_string(),
     };
 
-    let result = match path {
+    let migration_id = match path {
         MigrationIntentPath::Execute => service.execute(request).await,
         MigrationIntentPath::ProbeRollback => {
             service.probe_rollback_after_replication(request).await
         }
         MigrationIntentPath::ProbeFailure => service.probe_failure_after_replication(request).await,
-    };
-
-    assert!(
-        result.is_ok(),
-        "{} must complete after the intent-window assertions release, got {result:?}",
-        path.label()
-    );
+    }
+    .unwrap_or_else(|err| {
+        panic!(
+            "{} must complete after the intent-window assertions release, got {err:?}",
+            path.label()
+        )
+    });
     let requests = http_client.recorded_requests();
-    assert!(
-        !requests.is_empty(),
-        "{} must dispatch remote work after the intent window closes",
-        path.label()
-    );
     assert_migration_request_sequence(
-        &requests[..1],
-        &[ExpectedMigrationRequest::get(
-            format!(
-                "https://private.invalid/internal/ops?tenant_id={}&since_seq=0",
-                urlencoding::encode(&index_uid)
+        &requests,
+        &expected_migration_intent_requests(path, &index_uid, &source_key, &dest_key),
+    );
+    assert_migration_final_state(
+        path,
+        MigrationIntentFinalState {
+            pool: &db.pool,
+            customer,
+            target: "products",
+            migration_id,
+            original_identity: &original_identity,
+            dest_vm_id,
+        },
+    )
+    .await;
+}
+
+fn expected_migration_intent_requests(
+    path: MigrationIntentPath,
+    index_uid: &str,
+    source_key: &str,
+    dest_key: &str,
+) -> Vec<ExpectedMigrationRequest> {
+    let source_ops = ExpectedMigrationRequest::get(
+        format!(
+            "https://private.invalid/internal/ops?tenant_id={}&since_seq=0",
+            urlencoding::encode(index_uid)
+        ),
+        source_key,
+    );
+    let replicate = ExpectedMigrationRequest::post(
+        "https://private.invalid/internal/replicate".to_string(),
+        Some(json!({
+            "tenant_id": index_uid,
+            "ops": []
+        })),
+        dest_key,
+    );
+    match path {
+        MigrationIntentPath::Execute => vec![
+            source_ops,
+            replicate,
+            ExpectedMigrationRequest::get(
+                "https://private.invalid/metrics".to_string(),
+                source_key,
             ),
-            &source_key,
-        )],
+            ExpectedMigrationRequest::get("https://private.invalid/metrics".to_string(), dest_key),
+            ExpectedMigrationRequest::post(
+                format!("https://private.invalid/internal/pause/{index_uid}"),
+                None,
+                source_key,
+            ),
+            ExpectedMigrationRequest::get(
+                "https://private.invalid/metrics".to_string(),
+                source_key,
+            ),
+            ExpectedMigrationRequest::get("https://private.invalid/metrics".to_string(), dest_key),
+            ExpectedMigrationRequest::post(
+                format!("https://private.invalid/internal/resume/{index_uid}"),
+                None,
+                dest_key,
+            ),
+        ],
+        MigrationIntentPath::ProbeRollback => vec![
+            source_ops,
+            replicate,
+            ExpectedMigrationRequest::delete(
+                format!("https://private.invalid/1/indexes/{index_uid}"),
+                dest_key,
+            ),
+        ],
+        MigrationIntentPath::ProbeFailure => vec![
+            source_ops,
+            replicate,
+            ExpectedMigrationRequest::post(
+                format!("https://private.invalid/internal/resume/{index_uid}"),
+                None,
+                source_key,
+            ),
+            ExpectedMigrationRequest::delete(
+                format!("https://private.invalid/1/indexes/{index_uid}"),
+                dest_key,
+            ),
+        ],
+    }
+}
+
+async fn assert_migration_final_state(
+    path: MigrationIntentPath,
+    state: MigrationIntentFinalState<'_>,
+) {
+    let tenants = tenant_rows(state.pool, state.customer).await;
+    assert_eq!(tenants.len(), 1);
+    let tenant = &tenants[0];
+    assert_eq!(tenant.tenant_id, state.target);
+    assert_eq!(tenant.deployment_id, state.original_identity.deployment_id);
+    assert_eq!(
+        tenant.cold_snapshot_id,
+        state.original_identity.cold_snapshot_id
+    );
+    assert_eq!(tenant.service_type, state.original_identity.service_type);
+    assert_eq!(tenant.tier, "active");
+    assert_eq!(
+        tenant.vm_id,
+        path.expected_final_vm_id(state.original_identity, state.dest_vm_id)
+    );
+
+    let migration = PgIndexMigrationRepo::new(state.pool.clone())
+        .get(state.migration_id)
+        .await
+        .expect("load migration after intent-window path")
+        .expect("migration row remains after intent-window path");
+    assert_eq!(migration.index_name, state.target);
+    assert_eq!(migration.customer_id, state.customer);
+    assert_eq!(
+        migration.source_vm_id,
+        state.original_identity.vm_id.expect("source VM id")
+    );
+    assert_eq!(migration.dest_vm_id, state.dest_vm_id);
+    assert_eq!(migration.status, path.expected_final_migration_status());
+    path.assert_final_migration_error(migration.error.as_deref());
+    path.assert_final_completed_at(migration.completed_at);
+    let mut intent_identity = state.original_identity.clone();
+    intent_identity.tier = "migrating".to_string();
+    assert_eq!(
+        migration
+            .intent_target_identity()
+            .expect("migration metadata preserves intent identity"),
+        intent_identity
+    );
+    assert_eq!(
+        migration.source_restore_allowed(),
+        path.expected_source_restore_allowed()
     );
     assert!(
-        import_operation_rows(&db.pool, customer, "products")
+        replica_rows(state.pool, state.customer, state.target)
+            .await
+            .is_empty(),
+        "migration intent path must not create replica rows"
+    );
+    assert!(
+        import_operation_rows(state.pool, state.customer, state.target)
             .await
             .is_empty(),
         "losing import admission attempts inside {} intent window must not create rows",
@@ -5652,29 +8112,155 @@ async fn assert_migration_rollback_rejects_active_reservation(kind: ActiveReserv
     );
 }
 
-#[tokio::test]
-async fn expired_worker_lease_blocks_route_owned_writers() {
-    assert_expired_import_blocks_create_route().await;
-    assert_expired_replace_blocks_delete_route().await;
-    assert_expired_import_blocks_seed_route().await;
-    assert_expired_replace_blocks_seed_resolve_route().await;
+fn retained_reservation_cases() -> Vec<ReservationLifetimeCase> {
+    reservation_lifetime_denominator()
+        .into_iter()
+        .filter(|case| case.expectation == ReservationExpectation::Retain)
+        .collect()
 }
 
-async fn assert_expired_import_blocks_create_route() {
-    let Some(db) = connect_and_migrate("catalog_lifecycle_expired_route_create").await else {
+fn assert_retained_reservation_cases_present(family: &str, cases: &[ReservationLifetimeCase]) {
+    assert!(
+        !cases.is_empty(),
+        "{family} expired-claim proof must have retained denominator cases"
+    );
+}
+
+fn log_expired_worker_lease_cell(family: &str, case: &ReservationLifetimeCase) {
+    eprintln!(
+        "expired worker lease retained cell passed: {family} / {}",
+        case.label
+    );
+}
+
+#[tokio::test]
+async fn expired_worker_lease_blocks_create_shared_vm_route_family() {
+    let Some(db) = connect_and_migrate("expired_create_shared_vm_route_family").await else {
         return;
     };
+    let family = "CreateSharedVmRoute";
+    let cases = retained_reservation_cases();
+    assert_retained_reservation_cases_present(family, &cases);
+    for case in cases {
+        assert_expired_import_blocks_create_route(&db.pool, &case).await;
+        log_expired_worker_lease_cell(family, &case);
+    }
+}
+
+#[tokio::test]
+async fn expired_worker_lease_blocks_import_finalization_delete_family() {
+    let Some(db) = connect_and_migrate("expired_import_finalization_delete_family").await else {
+        return;
+    };
+    let family = "ImportReservationFinalizationVersusDelete";
+    let cases = retained_reservation_cases();
+    assert_retained_reservation_cases_present(family, &cases);
+    for case in cases {
+        assert_expired_replace_blocks_delete_route(&db.pool, &case).await;
+        log_expired_worker_lease_cell(family, &case);
+    }
+}
+
+#[tokio::test]
+async fn expired_worker_lease_blocks_admin_seed_create_family() {
+    let Some(db) = connect_and_migrate("expired_admin_seed_create_family").await else {
+        return;
+    };
+    let family = "AdminSeedCreate";
+    let cases = retained_reservation_cases();
+    assert_retained_reservation_cases_present(family, &cases);
+    for case in cases {
+        assert_expired_import_blocks_seed_route(&db.pool, &case).await;
+        assert_expired_replace_blocks_seed_resolve_route(&db.pool, &case).await;
+        log_expired_worker_lease_cell(family, &case);
+    }
+}
+
+#[tokio::test]
+async fn expired_worker_lease_blocks_replica_create_remove_family() {
+    let Some(db) = connect_and_migrate("expired_replica_create_remove_family").await else {
+        return;
+    };
+    let family = "ReplicaCreateRemove";
+    let cases = retained_reservation_cases();
+    assert_retained_reservation_cases_present(family, &cases);
+    for case in cases {
+        assert_expired_replace_blocks_replica_create(&db.pool, &case).await;
+        assert_expired_replace_blocks_replica_remove(&db.pool, &case).await;
+        log_expired_worker_lease_cell(family, &case);
+    }
+}
+
+#[tokio::test]
+async fn expired_worker_lease_blocks_region_failover_family() {
+    let Some(db) = connect_and_migrate("expired_region_failover_family").await else {
+        return;
+    };
+    let family = "RegionFailover";
+    let cases = retained_reservation_cases();
+    assert_retained_reservation_cases_present(family, &cases);
+    for case in cases {
+        assert_expired_replace_blocks_failover(&db.pool, &case).await;
+        log_expired_worker_lease_cell(family, &case);
+    }
+}
+
+#[tokio::test]
+async fn expired_worker_lease_blocks_restore_family() {
+    let Some(db) = connect_and_migrate("expired_restore_family").await else {
+        return;
+    };
+    let family = "Restore";
+    let cases = retained_reservation_cases();
+    assert_retained_reservation_cases_present(family, &cases);
+    for case in cases {
+        assert_expired_replace_blocks_restore(&db.pool, &case).await;
+        log_expired_worker_lease_cell(family, &case);
+    }
+}
+
+#[tokio::test]
+async fn expired_worker_lease_blocks_cold_transition_rollback_family() {
+    let Some(db) = connect_and_migrate("expired_cold_transition_rollback_family").await else {
+        return;
+    };
+    let family = "ColdTransitionRollback";
+    let cases = retained_reservation_cases();
+    assert_retained_reservation_cases_present(family, &cases);
+    for case in cases {
+        assert_expired_replace_blocks_cold_tier(&db.pool, &case).await;
+        log_expired_worker_lease_cell(family, &case);
+    }
+}
+
+#[tokio::test]
+async fn expired_worker_lease_blocks_migration_begin_rollback_family() {
+    let Some(db) = connect_and_migrate("expired_migration_begin_rollback_family").await else {
+        return;
+    };
+    let family = "MigrationBeginFinalizeRollbackRecovery";
+    let cases = retained_reservation_cases();
+    assert_retained_reservation_cases_present(family, &cases);
+    for case in cases {
+        let label = case.label.clone();
+        assert_expired_replace_blocks_migration_begin(&db.pool, &case).await;
+        assert_expired_replace_blocks_migration_rollback(&db.pool, &case).await;
+        eprintln!("expired worker lease retained cell passed: {family} / {label}");
+    }
+}
+
+async fn assert_expired_import_blocks_create_route(pool: &PgPool, case: &ReservationLifetimeCase) {
     let customer_repo = mock_repo();
     let customer =
         customer_repo.seed_verified_shared_customer("Expired Create", "expired-create@test.com");
-    insert_active_customer(&db.pool, customer.id, 1).await;
-    insert_route_test_vm(&db.pool, "us-east-1", "https://route-create.invalid").await;
-    create_expired_import_reservation(&db.pool, customer.id, "products", "expired-route-create")
+    insert_active_customer(pool, customer.id, 1).await;
+    insert_route_test_vm(pool, "us-east-1", "https://route-create.invalid").await;
+    create_expired_import_reservation(pool, customer.id, "products", "expired-route-create", case)
         .await;
     let http_client = Arc::new(MockFlapjackHttpClient::default());
-    let app = route_test_app(db.pool.clone(), customer_repo, http_client.clone());
-    let before_tenants = tenant_rows(&db.pool, customer.id).await;
-    let before_deployments = deployment_rows(&db.pool, customer.id).await;
+    let app = route_test_app(pool.clone(), customer_repo, http_client.clone());
+    let before_tenants = tenant_rows(pool, customer.id).await;
+    let before_deployments = deployment_rows(pool, customer.id).await;
 
     let response = app
         .oneshot(create_index_request(
@@ -5685,28 +8271,27 @@ async fn assert_expired_import_blocks_create_route() {
         .expect("create index response");
 
     assert_conflict_response(response, "destination_conflict").await;
-    assert_eq!(http_client.request_count(), 0);
-    assert_eq!(tenant_rows(&db.pool, customer.id).await, before_tenants);
+    assert_eq!(http_client.request_count(), 0, "{}", case.label);
     assert_eq!(
-        deployment_rows(&db.pool, customer.id).await,
-        before_deployments
+        tenant_rows(pool, customer.id).await,
+        before_tenants,
+        "{}",
+        case.label
     );
+    assert_eq!(deployment_rows(pool, customer.id).await, before_deployments);
 }
 
-async fn assert_expired_replace_blocks_delete_route() {
-    let Some(db) = connect_and_migrate("catalog_lifecycle_expired_route_delete").await else {
-        return;
-    };
+async fn assert_expired_replace_blocks_delete_route(pool: &PgPool, case: &ReservationLifetimeCase) {
     let customer_repo = mock_repo();
     let customer =
         customer_repo.seed_verified_shared_customer("Expired Delete", "expired-delete@test.com");
-    insert_replace_target(&db.pool, customer.id, "products").await;
-    create_expired_replace_reservation(&db.pool, customer.id, "products", "expired-route-delete")
+    insert_replace_target(pool, customer.id, "products").await;
+    create_expired_replace_reservation(pool, customer.id, "products", "expired-route-delete", case)
         .await;
     let http_client = Arc::new(MockFlapjackHttpClient::default());
-    let app = route_test_app(db.pool.clone(), customer_repo, http_client.clone());
-    let before_tenants = tenant_rows(&db.pool, customer.id).await;
-    let before_deployments = deployment_rows(&db.pool, customer.id).await;
+    let app = route_test_app(pool.clone(), customer_repo, http_client.clone());
+    let before_tenants = tenant_rows(pool, customer.id).await;
+    let before_deployments = deployment_rows(pool, customer.id).await;
 
     let response = app
         .oneshot(delete_index_request(
@@ -5717,28 +8302,22 @@ async fn assert_expired_replace_blocks_delete_route() {
         .expect("delete index response");
 
     assert_conflict_response(response, "destination_conflict").await;
-    assert_eq!(http_client.request_count(), 0);
-    assert_eq!(tenant_rows(&db.pool, customer.id).await, before_tenants);
-    assert_eq!(
-        deployment_rows(&db.pool, customer.id).await,
-        before_deployments
-    );
+    assert_eq!(http_client.request_count(), 0, "{}", case.label);
+    assert_eq!(tenant_rows(pool, customer.id).await, before_tenants);
+    assert_eq!(deployment_rows(pool, customer.id).await, before_deployments);
 }
 
-async fn assert_expired_import_blocks_seed_route() {
-    let Some(db) = connect_and_migrate("catalog_lifecycle_expired_admin_seed").await else {
-        return;
-    };
+async fn assert_expired_import_blocks_seed_route(pool: &PgPool, case: &ReservationLifetimeCase) {
     let customer_repo = mock_repo();
     let customer =
         customer_repo.seed_verified_shared_customer("Expired Seed", "expired-seed@test.com");
-    insert_active_customer(&db.pool, customer.id, 1).await;
-    create_expired_import_reservation(&db.pool, customer.id, "products", "expired-admin-seed")
+    insert_active_customer(pool, customer.id, 1).await;
+    create_expired_import_reservation(pool, customer.id, "products", "expired-admin-seed", case)
         .await;
     let http_client = Arc::new(MockFlapjackHttpClient::default());
-    let app = route_test_app(db.pool.clone(), customer_repo, http_client.clone());
-    let before_tenants = tenant_rows(&db.pool, customer.id).await;
-    let before_deployments = deployment_rows(&db.pool, customer.id).await;
+    let app = route_test_app(pool.clone(), customer_repo, http_client.clone());
+    let before_tenants = tenant_rows(pool, customer.id).await;
+    let before_deployments = deployment_rows(pool, customer.id).await;
 
     let response = app
         .oneshot(seed_index_request(customer.id, "products", None))
@@ -5746,28 +8325,31 @@ async fn assert_expired_import_blocks_seed_route() {
         .expect("seed index response");
 
     assert_conflict_response(response, "destination_conflict").await;
-    assert_eq!(http_client.request_count(), 0);
-    assert_eq!(tenant_rows(&db.pool, customer.id).await, before_tenants);
-    assert_eq!(
-        deployment_rows(&db.pool, customer.id).await,
-        before_deployments
-    );
+    assert_eq!(http_client.request_count(), 0, "{}", case.label);
+    assert_eq!(tenant_rows(pool, customer.id).await, before_tenants);
+    assert_eq!(deployment_rows(pool, customer.id).await, before_deployments);
 }
 
-async fn assert_expired_replace_blocks_seed_resolve_route() {
-    let Some(db) = connect_and_migrate("catalog_lifecycle_expired_admin_resolve").await else {
-        return;
-    };
+async fn assert_expired_replace_blocks_seed_resolve_route(
+    pool: &PgPool,
+    case: &ReservationLifetimeCase,
+) {
     let customer_repo = mock_repo();
     let customer =
         customer_repo.seed_verified_shared_customer("Expired Resolve", "expired-resolve@test.com");
-    insert_replace_target(&db.pool, customer.id, "products").await;
-    create_expired_replace_reservation(&db.pool, customer.id, "products", "expired-admin-resolve")
-        .await;
+    insert_replace_target(pool, customer.id, "products").await;
+    create_expired_replace_reservation(
+        pool,
+        customer.id,
+        "products",
+        "expired-admin-resolve",
+        case,
+    )
+    .await;
     let http_client = Arc::new(MockFlapjackHttpClient::default());
-    let app = route_test_app(db.pool.clone(), customer_repo, http_client.clone());
-    let before_tenants = tenant_rows(&db.pool, customer.id).await;
-    let before_deployments = deployment_rows(&db.pool, customer.id).await;
+    let app = route_test_app(pool.clone(), customer_repo, http_client.clone());
+    let before_tenants = tenant_rows(pool, customer.id).await;
+    let before_deployments = deployment_rows(pool, customer.id).await;
 
     let response = app
         .oneshot(seed_index_request(
@@ -5779,43 +8361,29 @@ async fn assert_expired_replace_blocks_seed_resolve_route() {
         .expect("resolve existing seed response");
 
     assert_conflict_response(response, "destination_conflict").await;
-    assert_eq!(http_client.request_count(), 0);
-    assert_eq!(tenant_rows(&db.pool, customer.id).await, before_tenants);
-    assert_eq!(
-        deployment_rows(&db.pool, customer.id).await,
-        before_deployments
-    );
+    assert_eq!(http_client.request_count(), 0, "{}", case.label);
+    assert_eq!(tenant_rows(pool, customer.id).await, before_tenants);
+    assert_eq!(deployment_rows(pool, customer.id).await, before_deployments);
 }
 
-#[tokio::test]
-async fn expired_worker_lease_blocks_service_owned_writers() {
-    assert_expired_replace_blocks_replica_create().await;
-    assert_expired_replace_blocks_replica_remove().await;
-    assert_expired_replace_blocks_failover().await;
-    assert_expired_replace_blocks_restore().await;
-    assert_expired_replace_blocks_cold_tier().await;
-    assert_expired_replace_blocks_migration_begin().await;
-    assert_expired_replace_blocks_migration_rollback().await;
-}
-
-async fn assert_expired_replace_blocks_replica_create() {
-    let Some(db) = connect_and_migrate("catalog_lifecycle_expired_replica_create").await else {
-        return;
-    };
+async fn assert_expired_replace_blocks_replica_create(
+    pool: &PgPool,
+    case: &ReservationLifetimeCase,
+) {
     let customer = Uuid::new_v4();
-    insert_replica_service_target(&db.pool, customer, "products").await;
-    create_expired_replace_reservation(&db.pool, customer, "products", "expired-replica-create")
+    insert_replica_service_target(pool, customer, "products").await;
+    create_expired_replace_reservation(pool, customer, "products", "expired-replica-create", case)
         .await;
     let service = ReplicaService::new(
-        Arc::new(PgIndexReplicaRepo::new(db.pool.clone())),
-        Arc::new(PgTenantRepo::new(db.pool.clone())),
-        Arc::new(PgVmInventoryRepo::new(db.pool.clone())),
+        Arc::new(PgIndexReplicaRepo::new(pool.clone())),
+        Arc::new(PgTenantRepo::new(pool.clone())),
+        Arc::new(PgVmInventoryRepo::new(pool.clone())),
         Arc::new(IndexLifecycleLease::new(PgAlgoliaImportJobRepo::new(
-            db.pool.clone(),
+            pool.clone(),
         ))),
         RegionConfig::defaults(),
     );
-    let before_replicas = replica_rows(&db.pool, customer, "products").await;
+    let before_replicas = replica_rows(pool, customer, "products").await;
 
     let result = service
         .create_replica(customer, "products", "eu-central-1")
@@ -5823,19 +8391,19 @@ async fn assert_expired_replace_blocks_replica_create() {
 
     assert!(matches!(result, Err(ReplicaError::DestinationConflict)));
     assert_eq!(
-        replica_rows(&db.pool, customer, "products").await,
+        replica_rows(pool, customer, "products").await,
         before_replicas
     );
 }
 
-async fn assert_expired_replace_blocks_replica_remove() {
-    let Some(db) = connect_and_migrate("catalog_lifecycle_expired_replica_remove").await else {
-        return;
-    };
+async fn assert_expired_replace_blocks_replica_remove(
+    pool: &PgPool,
+    case: &ReservationLifetimeCase,
+) {
     let customer = Uuid::new_v4();
     let (primary_vm_id, replica_vm_id) =
-        insert_replica_service_target(&db.pool, customer, "products").await;
-    let replica_repo = Arc::new(PgIndexReplicaRepo::new(db.pool.clone()));
+        insert_replica_service_target(pool, customer, "products").await;
+    let replica_repo = Arc::new(PgIndexReplicaRepo::new(pool.clone()));
     let replica = replica_repo
         .create(
             customer,
@@ -5846,42 +8414,39 @@ async fn assert_expired_replace_blocks_replica_remove() {
         )
         .await
         .expect("seed replica");
-    create_expired_replace_reservation(&db.pool, customer, "products", "expired-replica-remove")
+    create_expired_replace_reservation(pool, customer, "products", "expired-replica-remove", case)
         .await;
     let service = ReplicaService::new(
         replica_repo,
-        Arc::new(PgTenantRepo::new(db.pool.clone())),
-        Arc::new(PgVmInventoryRepo::new(db.pool.clone())),
+        Arc::new(PgTenantRepo::new(pool.clone())),
+        Arc::new(PgVmInventoryRepo::new(pool.clone())),
         Arc::new(IndexLifecycleLease::new(PgAlgoliaImportJobRepo::new(
-            db.pool.clone(),
+            pool.clone(),
         ))),
         RegionConfig::defaults(),
     );
-    let before_replicas = replica_rows(&db.pool, customer, "products").await;
+    let before_replicas = replica_rows(pool, customer, "products").await;
 
     let result = service.remove_replica(customer, replica.id).await;
 
     assert!(matches!(result, Err(ReplicaError::DestinationConflict)));
     assert_eq!(
-        replica_rows(&db.pool, customer, "products").await,
+        replica_rows(pool, customer, "products").await,
         before_replicas
     );
 }
 
-async fn assert_expired_replace_blocks_failover() {
-    let Some(db) = connect_and_migrate("catalog_lifecycle_expired_failover").await else {
-        return;
-    };
+async fn assert_expired_replace_blocks_failover(pool: &PgPool, case: &ReservationLifetimeCase) {
     let customer = Uuid::new_v4();
-    insert_region_failover_target(&db.pool, customer, "products").await;
-    create_expired_replace_reservation(&db.pool, customer, "products", "expired-failover").await;
+    insert_region_failover_target(pool, customer, "products").await;
+    create_expired_replace_reservation(pool, customer, "products", "expired-failover", case).await;
     let monitor = RegionFailoverMonitor::new(
-        Arc::new(PgVmInventoryRepo::new(db.pool.clone())),
-        Arc::new(PgTenantRepo::new(db.pool.clone())),
-        Arc::new(PgIndexReplicaRepo::new(db.pool.clone())),
+        Arc::new(PgVmInventoryRepo::new(pool.clone())),
+        Arc::new(PgTenantRepo::new(pool.clone())),
+        Arc::new(PgIndexReplicaRepo::new(pool.clone())),
         crate::common::mock_alert_service(),
         Arc::new(IndexLifecycleLease::new(PgAlgoliaImportJobRepo::new(
-            db.pool.clone(),
+            pool.clone(),
         ))),
         RegionFailoverConfig {
             cycle_interval_secs: 30,
@@ -5889,112 +8454,118 @@ async fn assert_expired_replace_blocks_failover() {
             recovery_threshold: 1,
         },
     );
-    let before_tenants = tenant_rows(&db.pool, customer).await;
-    let before_replicas = replica_rows(&db.pool, customer, "products").await;
+    let before_tenants = tenant_rows(pool, customer).await;
+    let before_replicas = replica_rows(pool, customer, "products").await;
 
     monitor
         .run_cycle_with_health(|url| !url.contains("us-east-1"))
         .await;
 
-    assert_eq!(tenant_rows(&db.pool, customer).await, before_tenants);
+    assert_eq!(tenant_rows(pool, customer).await, before_tenants);
     assert_eq!(
-        replica_rows(&db.pool, customer, "products").await,
+        replica_rows(pool, customer, "products").await,
         before_replicas
     );
 }
 
-async fn assert_expired_replace_blocks_restore() {
-    let Some(db) = connect_and_migrate("catalog_lifecycle_expired_restore").await else {
-        return;
-    };
+async fn assert_expired_replace_blocks_restore(pool: &PgPool, case: &ReservationLifetimeCase) {
     let customer = Uuid::new_v4();
-    insert_replace_target(&db.pool, customer, "products").await;
-    create_expired_replace_reservation(&db.pool, customer, "products", "expired-restore").await;
-    insert_restore_service_target(&db.pool, customer, "products").await;
-    let tenant_repo = Arc::new(PgTenantRepo::new(db.pool.clone()));
-    let restore_job_repo = Arc::new(PgRestoreJobRepo::new(db.pool.clone()));
+    insert_replace_target(pool, customer, "products").await;
+    create_expired_replace_reservation(pool, customer, "products", "expired-restore", case).await;
+    insert_restore_service_target(pool, customer, "products").await;
+    let tenant_repo = Arc::new(PgTenantRepo::new(pool.clone()));
+    let restore_job_repo = Arc::new(PgRestoreJobRepo::new(pool.clone()));
+    let node_client = Arc::new(CountingRestoreNodeClient::default());
     let service = RestoreService::new(
         RestoreConfig::default(),
         tenant_repo.clone(),
-        Arc::new(PgColdSnapshotRepo::new(db.pool.clone())),
+        Arc::new(PgColdSnapshotRepo::new(pool.clone())),
         restore_job_repo.clone(),
-        Arc::new(PgVmInventoryRepo::new(db.pool.clone())),
+        Arc::new(PgVmInventoryRepo::new(pool.clone())),
         Arc::new(RegionObjectStoreResolver::single(Arc::new(
             InMemoryObjectStore::new(),
         ))),
         Arc::new(MockAlertService::new()),
         Arc::new(DiscoveryService::with_ttl(
             tenant_repo,
-            Arc::new(PgVmInventoryRepo::new(db.pool.clone())),
+            Arc::new(PgVmInventoryRepo::new(pool.clone())),
             3600,
         )),
-        Arc::new(NoopRestoreNodeClient),
+        node_client.clone(),
         mock_node_secret_manager(),
         Arc::new(IndexLifecycleLease::new(PgAlgoliaImportJobRepo::new(
-            db.pool.clone(),
+            pool.clone(),
         ))),
     );
-    let before_tenants = tenant_rows(&db.pool, customer).await;
-    let before_restore_job_count = restore_job_repo.list_active().await.unwrap().len();
+    let before_tenants = tenant_rows(pool, customer).await;
+    let before_restore_jobs =
+        serde_json::to_value(restore_job_rows(pool, customer, "products").await)
+            .expect("serialize restore jobs before expired-claim refusal");
 
     let result = service.initiate_restore(customer, "products").await;
 
     assert!(matches!(result, Err(RestoreError::DestinationConflict)));
-    assert_eq!(tenant_rows(&db.pool, customer).await, before_tenants);
+    assert_eq!(node_client.remote_call_count(), 0, "{}", case.label);
+    assert_eq!(tenant_rows(pool, customer).await, before_tenants);
+    assert_eq!(
+        serde_json::to_value(restore_job_rows(pool, customer, "products").await)
+            .expect("serialize restore jobs after expired-claim refusal"),
+        before_restore_jobs
+    );
     assert_eq!(
         restore_job_repo.list_active().await.unwrap().len(),
-        before_restore_job_count
+        before_restore_jobs
+            .as_array()
+            .expect("restore jobs serialize as array")
+            .len()
     );
 }
 
-async fn assert_expired_replace_blocks_cold_tier() {
-    let Some(db) = connect_and_migrate("catalog_lifecycle_expired_cold").await else {
-        return;
-    };
+async fn assert_expired_replace_blocks_cold_tier(pool: &PgPool, case: &ReservationLifetimeCase) {
     let customer = Uuid::new_v4();
-    insert_replace_target(&db.pool, customer, "products").await;
-    create_expired_replace_reservation(&db.pool, customer, "products", "expired-cold").await;
-    let source_vm_id = load_target_identity(&db.pool, customer, "products")
+    insert_replace_target(pool, customer, "products").await;
+    create_expired_replace_reservation(pool, customer, "products", "expired-cold", case).await;
+    let source_vm_id = load_target_identity(pool, customer, "products")
         .await
         .vm_id
         .expect("cold-tier target has source VM");
     let node_client = Arc::new(CountingColdTierNodeClient::default());
-    let service = cold_tier_service(&db.pool, node_client.clone());
-    let candidate = cold_tier_candidate(&db.pool, customer, "products", source_vm_id).await;
-    let before_tenants = tenant_rows(&db.pool, customer).await;
-    let before_snapshots = cold_snapshot_rows(&db.pool, customer, "products").await;
+    let service = cold_tier_service(pool, node_client.clone());
+    let candidate = cold_tier_candidate(pool, customer, "products", source_vm_id).await;
+    let before_tenants = tenant_rows(pool, customer).await;
+    let before_snapshots = cold_snapshot_rows(pool, customer, "products").await;
 
     let result = service
         .snapshot_candidate(&candidate, "https://private.invalid", "us-east-1")
         .await;
 
     assert!(matches!(result, Err(ColdTierError::DestinationConflict)));
-    assert_eq!(node_client.remote_call_count(), 0);
-    assert_eq!(tenant_rows(&db.pool, customer).await, before_tenants);
+    assert_eq!(node_client.remote_call_count(), 0, "{}", case.label);
+    assert_eq!(tenant_rows(pool, customer).await, before_tenants);
     assert_eq!(
-        cold_snapshot_rows(&db.pool, customer, "products").await,
+        cold_snapshot_rows(pool, customer, "products").await,
         before_snapshots
     );
 }
 
-async fn assert_expired_replace_blocks_migration_begin() {
-    let Some(db) = connect_and_migrate("catalog_lifecycle_expired_migration_begin").await else {
-        return;
-    };
+async fn assert_expired_replace_blocks_migration_begin(
+    pool: &PgPool,
+    case: &ReservationLifetimeCase,
+) {
     let customer = Uuid::new_v4();
-    insert_replace_target(&db.pool, customer, "products").await;
-    let source_vm_id = load_target_identity(&db.pool, customer, "products")
+    insert_replace_target(pool, customer, "products").await;
+    let source_vm_id = load_target_identity(pool, customer, "products")
         .await
         .vm_id
         .expect("migration target has source VM");
     let dest_vm_id = Uuid::new_v4();
-    insert_vm(&db.pool, dest_vm_id).await;
-    create_expired_replace_reservation(&db.pool, customer, "products", "expired-migration-begin")
+    insert_vm(pool, dest_vm_id).await;
+    create_expired_replace_reservation(pool, customer, "products", "expired-migration-begin", case)
         .await;
     let http_client = Arc::new(CountingMigrationHttpClient::default());
-    let service = migration_service(&db.pool, http_client.clone());
-    let before_tenants = tenant_rows(&db.pool, customer).await;
-    let migration_repo = PgIndexMigrationRepo::new(db.pool.clone());
+    let service = migration_service(pool, http_client.clone());
+    let before_tenants = tenant_rows(pool, customer).await;
+    let migration_repo = PgIndexMigrationRepo::new(pool.clone());
     let before_migration_count = migration_repo.count_active().await.unwrap();
 
     let result = service
@@ -6007,30 +8578,35 @@ async fn assert_expired_replace_blocks_migration_begin() {
         })
         .await;
 
-    assert!(matches!(result, Err(MigrationError::DestinationConflict)));
-    assert_eq!(http_client.request_count(), 0);
+    assert!(
+        matches!(result, Err(MigrationError::DestinationConflict)),
+        "expired retained reservation case {} must block migration begin before mutation, got {result:?}",
+        case.label
+    );
+    assert_eq!(http_client.request_count(), 0, "{}", case.label);
     assert_eq!(
         migration_repo.count_active().await.unwrap(),
         before_migration_count
     );
-    assert_eq!(tenant_rows(&db.pool, customer).await, before_tenants);
+    assert_eq!(tenant_rows(pool, customer).await, before_tenants);
 }
 
-async fn assert_expired_replace_blocks_migration_rollback() {
-    let Some(db) = connect_and_migrate("catalog_lifecycle_expired_migration_rollback").await else {
-        return;
-    };
+async fn assert_expired_replace_blocks_migration_rollback(
+    pool: &PgPool,
+    case: &ReservationLifetimeCase,
+) {
     let customer = Uuid::new_v4();
-    insert_replace_target(&db.pool, customer, "products").await;
+    insert_replace_target(pool, customer, "products").await;
     create_expired_replace_reservation(
-        &db.pool,
+        pool,
         customer,
         "products",
         "expired-migration-rollback",
+        case,
     )
     .await;
-    let migration_id = insert_active_migration(&db.pool, customer, "products").await;
-    PgTenantRepo::new(db.pool.clone())
+    let migration_id = insert_active_migration(pool, customer, "products").await;
+    PgTenantRepo::new(pool.clone())
         .set_tier(customer, "products", "migrating")
         .await
         .expect("seed migration intent tier");
@@ -6039,9 +8615,9 @@ async fn assert_expired_replace_blocks_migration_rollback() {
         status: 200,
         body: "{}".to_string(),
     }));
-    let service = migration_service(&db.pool, http_client.clone());
-    let before_tenants = tenant_rows(&db.pool, customer).await;
-    let before_migration = PgIndexMigrationRepo::new(db.pool.clone())
+    let service = migration_service(pool, http_client.clone());
+    let before_tenants = tenant_rows(pool, customer).await;
+    let before_migration = PgIndexMigrationRepo::new(pool.clone())
         .get(migration_id)
         .await
         .unwrap()
@@ -6050,9 +8626,9 @@ async fn assert_expired_replace_blocks_migration_rollback() {
     let result = service.rollback(migration_id).await;
 
     assert!(matches!(result, Err(MigrationError::DestinationConflict)));
-    assert_eq!(http_client.request_count(), 0);
-    assert_eq!(tenant_rows(&db.pool, customer).await, before_tenants);
-    let after_migration = PgIndexMigrationRepo::new(db.pool.clone())
+    assert_eq!(http_client.request_count(), 0, "{}", case.label);
+    assert_eq!(tenant_rows(pool, customer).await, before_tenants);
+    let after_migration = PgIndexMigrationRepo::new(pool.clone())
         .get(migration_id)
         .await
         .unwrap()
@@ -6060,17 +8636,15 @@ async fn assert_expired_replace_blocks_migration_rollback() {
     assert_eq!(after_migration.status, before_migration.status);
     assert_eq!(after_migration.error, before_migration.error);
     assert_eq!(after_migration.metadata, before_migration.metadata);
+    PgIndexMigrationRepo::new(pool.clone())
+        .update_status(migration_id, "failed", Some("expired-claim test cleanup"))
+        .await
+        .expect("cleanup active migration fixture after expired-claim assertion");
 }
 
 #[tokio::test]
 async fn migration_rollback_rejects_tier_drift_after_remote_work() {
-    for drift in [
-        RestoreIdentityDrift::Tier,
-        RestoreIdentityDrift::VmId,
-        RestoreIdentityDrift::ColdSnapshotId,
-        RestoreIdentityDrift::DeploymentId,
-        RestoreIdentityDrift::ServiceType,
-    ] {
+    for drift in identity_drift_denominator().iter().copied() {
         assert_migration_rollback_rejects_identity_drift(drift).await;
     }
 }
@@ -6112,6 +8686,11 @@ async fn assert_migration_rollback_rejects_identity_drift(drift: RestoreIdentity
     );
     let service =
         migration_service_with_secrets(&db.pool, http_client.clone(), node_secret_manager);
+    let before_migration = PgIndexMigrationRepo::new(db.pool.clone())
+        .get(migration_id)
+        .await
+        .expect("load migration before stale rollback")
+        .expect("migration intent exists before stale rollback");
 
     let result = service.rollback(migration_id).await;
 
@@ -6139,17 +8718,19 @@ async fn assert_migration_rollback_rejects_identity_drift(drift: RestoreIdentity
         migration_after.status, "cutting_over",
         "stale rollback must not mark the migration rolled back"
     );
+    assert_eq!(migration_after.error, before_migration.error);
+    assert_eq!(migration_after.metadata, before_migration.metadata);
+    assert!(
+        import_operation_rows(&db.pool, customer, "products")
+            .await
+            .is_empty(),
+        "stale migration rollback must not create import-operation rows"
+    );
 }
 
 #[tokio::test]
 async fn migration_finalize_rejects_identity_drift_without_resuming_destination() {
-    for drift in [
-        RestoreIdentityDrift::Tier,
-        RestoreIdentityDrift::VmId,
-        RestoreIdentityDrift::ColdSnapshotId,
-        RestoreIdentityDrift::DeploymentId,
-        RestoreIdentityDrift::ServiceType,
-    ] {
+    for drift in identity_drift_denominator().iter().copied() {
         assert_migration_finalize_rejects_identity_drift(drift).await;
     }
 }
@@ -6228,6 +8809,28 @@ async fn assert_migration_finalize_rejects_identity_drift(drift: RestoreIdentity
     let identity_after = load_target_identity(&db.pool, customer, "products").await;
     let drifted_identity = http_client.take_drifted_identity();
     assert_eq!(identity_after, drifted_identity);
+    let migration_rows = sqlx::query_as::<_, (String, Option<String>, Option<DateTime<Utc>>)>(
+        "SELECT status, error, completed_at
+         FROM index_migrations
+         WHERE customer_id = $1 AND index_name = $2
+         ORDER BY started_at, id",
+    )
+    .bind(customer)
+    .bind("products")
+    .fetch_all(&db.pool)
+    .await
+    .expect("load migration rows after stale finalization");
+    assert_eq!(
+        migration_rows,
+        vec![("cutting_over".to_string(), None, None)],
+        "stale migration finalizer must leave the migration at the pre-publication boundary"
+    );
+    assert!(
+        import_operation_rows(&db.pool, customer, "products")
+            .await
+            .is_empty(),
+        "stale migration finalizer must not create import-operation rows"
+    );
     assert!(
         http_client.recorded_requests().iter().all(|request| {
             !request.url.contains(&format!(
@@ -6641,9 +9244,7 @@ async fn lifecycle_writer_blocks_replacement_reservation() {
         .create_replace(replace_job(customer, "products", "replace-key"))
         .await;
 
-    assert!(
-        matches!(replaced, Err(RepoError::Conflict(message)) if message == "destination_conflict")
-    );
+    assert!(admission_refusal_code(&replaced) == Some("destination_conflict"));
     service
         .commit(guard, Some(&expected_identity))
         .await
@@ -7112,9 +9713,7 @@ async fn lifecycle_writer_blocks_import_reservation() {
         .create(import_job(customer, "products", "import-key"))
         .await;
 
-    assert!(
-        matches!(imported, Err(RepoError::Conflict(message)) if message == "destination_conflict")
-    );
+    assert!(admission_refusal_code(&imported) == Some("destination_conflict"));
     service
         .commit(guard, None)
         .await
@@ -7202,4 +9801,115 @@ fn slug(value: &str) -> String {
         .filter(|part| !part.is_empty())
         .collect::<Vec<_>>()
         .join("_")
+}
+
+/// A soft-deleted customer's catalog target stays fenced across every lease
+/// entrypoint. `read_active_customer_generation` inside
+/// `begin_lifecycle_target_guard_inner` refuses `begin`, `guarded_mutation`, and
+/// `guarded_locked_mutation` with the existing `customer lifecycle is not active`
+/// conflict before any mutation callback runs, and the retained catalog target,
+/// deployment, and active-reservation rows are left byte-for-byte unchanged.
+#[tokio::test]
+async fn soft_deleted_customer_lease_entrypoints_refuse_without_running_mutation() {
+    let Some(db) = connect_and_migrate("catalog_lifecycle_soft_delete_lease").await else {
+        return;
+    };
+    let customer = Uuid::new_v4();
+    insert_replace_target(&db.pool, customer, "products").await;
+    let repo = PgAlgoliaImportJobRepo::new(db.pool.clone());
+    // Retained active reservation evidence, captured at the customer's active
+    // generation (G) before the delete.
+    repo.create_replace(replace_job(
+        customer,
+        "products",
+        "retained-soft-delete-lease",
+    ))
+    .await
+    .expect("seed active replacement reservation at generation G");
+
+    let before_delete = RetainedTargetSnapshot::load(&db.pool, customer, "products").await;
+    assert_eq!(
+        before_delete.operations.len(),
+        1,
+        "active reservation evidence must be present before the delete"
+    );
+
+    // Real customer soft delete: status active -> deleted, generation G -> G+1.
+    assert!(
+        PgCustomerRepo::new(db.pool.clone())
+            .soft_delete(customer)
+            .await
+            .expect("soft delete active customer"),
+        "soft_delete must report it changed the active customer row"
+    );
+
+    let lease = IndexLifecycleLease::new(repo.clone());
+
+    match lease.begin(customer, "products").await {
+        Err(RepoError::Conflict(message)) => assert_eq!(
+            message, "customer lifecycle is not active",
+            "begin must refuse a soft-deleted customer with the lifecycle conflict"
+        ),
+        Ok(_) => panic!("begin must refuse a soft-deleted customer, but a guard was granted"),
+        Err(other) => {
+            panic!("begin must refuse with the lifecycle conflict, got {other:?}")
+        }
+    }
+    before_delete
+        .assert_unchanged_after(&db.pool, customer, "begin")
+        .await;
+
+    let guarded_calls = Arc::new(AtomicUsize::new(0));
+    let before_guarded = RetainedTargetSnapshot::load(&db.pool, customer, "products").await;
+    let guarded = lease
+        .guarded_mutation(customer, "products", None, {
+            let guarded_calls = Arc::clone(&guarded_calls);
+            move || async move {
+                guarded_calls.fetch_add(1, Ordering::SeqCst);
+                Ok::<(), RepoError>(())
+            }
+        })
+        .await;
+    assert!(
+        matches!(
+            &guarded,
+            Err(RepoError::Conflict(message)) if message == "customer lifecycle is not active"
+        ),
+        "guarded_mutation must refuse a soft-deleted customer, got {guarded:?}"
+    );
+    assert_eq!(
+        guarded_calls.load(Ordering::SeqCst),
+        0,
+        "guarded_mutation callback must not run behind the deleted-customer fence"
+    );
+    before_guarded
+        .assert_unchanged_after(&db.pool, customer, "guarded_mutation")
+        .await;
+
+    let locked_calls = Arc::new(AtomicUsize::new(0));
+    let before_locked = RetainedTargetSnapshot::load(&db.pool, customer, "products").await;
+    let locked = lease
+        .guarded_locked_mutation(customer, "products", {
+            let locked_calls = Arc::clone(&locked_calls);
+            move || async move {
+                locked_calls.fetch_add(1, Ordering::SeqCst);
+                Ok::<(), RepoError>(())
+            }
+        })
+        .await;
+    assert!(
+        matches!(
+            &locked,
+            Err(RepoError::Conflict(message)) if message == "customer lifecycle is not active"
+        ),
+        "guarded_locked_mutation must refuse a soft-deleted customer, got {locked:?}"
+    );
+    assert_eq!(
+        locked_calls.load(Ordering::SeqCst),
+        0,
+        "guarded_locked_mutation callback must not run behind the deleted-customer fence"
+    );
+    before_locked
+        .assert_unchanged_after(&db.pool, customer, "guarded_locked_mutation")
+        .await;
 }

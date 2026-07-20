@@ -575,6 +575,45 @@ async fn terminate_sets_status_and_terminated_at() {
 }
 
 #[tokio::test]
+async fn terminate_clears_failure_reason_when_status_leaves_failed() {
+    let repo = setup();
+    let cid = Uuid::new_v4();
+    let dep = repo.seed_with_failure_reason(
+        cid,
+        "node-failed-terminate",
+        "us-east-1",
+        "t4g.small",
+        "aws",
+        "failed",
+        "engine_health_check_failed",
+    );
+    let pg_source = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/repos/pg_deployment_repo.rs"),
+    )
+    .expect("read pg_deployment_repo source");
+    let pg_body = crate::common::source_assertions::function_body(&pg_source, "terminate")
+        .expect("PgDeploymentRepo must implement terminate");
+
+    let result = repo.terminate(dep.id).await.unwrap();
+
+    assert!(
+        result,
+        "terminate should return true for failed non-terminated deployment"
+    );
+    let found = repo.find_by_id(dep.id).await.unwrap().unwrap();
+    assert_eq!(found.status, "terminated");
+    assert!(found.terminated_at.is_some());
+    assert_eq!(
+        found.failure_reason, None,
+        "terminating a failed deployment must clear stale failed-provisioning failure_reason"
+    );
+    assert!(
+        pg_body.contains("failure_reason = NULL"),
+        "PgDeploymentRepo::terminate must clear failure_reason when status leaves failed"
+    );
+}
+
+#[tokio::test]
 async fn terminate_already_terminated_returns_false() {
     let repo = setup();
     let cid = Uuid::new_v4();

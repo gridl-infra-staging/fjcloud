@@ -4,6 +4,7 @@
 | File | Summary |
 | --- | --- |
 | broadcast.rs | Stub summary for infra/api/src/routes/admin/broadcast.rs. |
+| deployments.rs | Stub summary for infra/api/src/routes/admin/deployments.rs. |
 | indexes.rs | Stub summary for infra/api/src/routes/admin/indexes.rs. |
 | invoices.rs | Stub summary for invoices.rs. |
 | migrations.rs | Stub summary for infra/api/src/routes/admin/migrations.rs. |
@@ -19,11 +20,5 @@ Adds an optional `purpose` discriminator: when set to "impersonation",
 the handler writes an `audit_log` row so there's a durable trail of
 
 who impersonated whom and when. |
-| vms.rs | Admin VM inventory endpoints: list, detail, and local-mode process kill.
-
-
-
-The kill endpoint is local-dev-only: it sends SIGTERM to the Flapjack process
-
-bound to a VM's port. |
+| vms.rs | Stub summary for infra/api/src/routes/admin/vms.rs. |
 <!-- [scrai:end] -->

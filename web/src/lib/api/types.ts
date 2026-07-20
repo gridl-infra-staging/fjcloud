@@ -168,8 +168,30 @@ export type {
 } from './types_pricing';
 
 export type {
+	AlgoliaMigrationCapabilities,
 	AlgoliaMigrationAvailabilityResponse,
+	AlgoliaMigrationAvailabilityWire,
 	ListAlgoliaIndexesRequest,
 	AlgoliaIndexMetadata,
-	AlgoliaSourceListResponse
+	AlgoliaSourceListResponse,
+	AlgoliaMigrationDestinationMode,
+	AlgoliaMigrationEligibilityPhase,
+	AlgoliaMigrationProvider,
+	AlgoliaDestinationEligibilityTargetRequest,
+	AlgoliaDestinationEligibilityRequest,
+	AlgoliaDestinationEligibilityTargetResponse,
+	AlgoliaDestinationEligibilityResponse,
+	CreateAlgoliaImportJobTargetRequest,
+	CreateAlgoliaImportJobRequest,
+	ListAlgoliaImportJobsRequest,
+	CancelAlgoliaImportJobRequest,
+	ResumeAlgoliaImportJobRequest,
+	AlgoliaImportJobStatus,
+	AlgoliaImportPublicationDisposition,
+	PublicAlgoliaImportDestination,
+	PublicAlgoliaImportSource,
+	PublicAlgoliaImportError,
+	AlgoliaImportSummary,
+	PublicAlgoliaImportJob,
+	PublicAlgoliaImportJobPage
 } from './types_algolia_migration';

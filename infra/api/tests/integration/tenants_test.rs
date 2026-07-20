@@ -11,6 +11,17 @@ async fn body_json(resp: axum::response::Response) -> serde_json::Value {
     serde_json::from_slice(&bytes).unwrap()
 }
 
+fn assert_customer_identity_and_non_lifecycle_fields_unchanged(
+    before: &api::models::Customer,
+    after: &api::models::Customer,
+) {
+    assert_eq!(after.id, before.id);
+    assert_eq!(after.name, before.name);
+    assert_eq!(after.email, before.email);
+    assert_eq!(after.billing_plan, before.billing_plan);
+    assert_eq!(after.created_at, before.created_at);
+}
+
 // ===========================================================================
 // POST /admin/tenants — create
 // ===========================================================================
@@ -614,7 +625,7 @@ async fn update_tenant_deleted_returns_404() {
 async fn delete_tenant_returns_204() {
     let repo = crate::common::mock_repo();
     let customer = repo.seed("Acme", "acme@example.com");
-    let app = crate::common::test_app_with_repo(repo);
+    let app = crate::common::test_app_with_repo(repo.clone());
 
     let req = Request::builder()
         .method("DELETE")
@@ -625,6 +636,26 @@ async fn delete_tenant_returns_204() {
 
     let resp = app.oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::NO_CONTENT);
+
+    let retained_customer = repo
+        .find_by_id(customer.id)
+        .await
+        .expect("mock repo lookup should succeed")
+        .expect("soft-deleted tenant row should be retained");
+    assert_eq!(retained_customer.status, "deleted");
+    assert_eq!(
+        retained_customer.lifecycle_generation,
+        customer.lifecycle_generation + 1,
+        "admin delete should advance lifecycle generation exactly once"
+    );
+    let deleted_at = retained_customer
+        .deleted_at
+        .expect("admin delete should stamp deleted_at");
+    assert_eq!(
+        retained_customer.updated_at, deleted_at,
+        "admin delete should stamp updated_at with deleted_at"
+    );
+    assert_customer_identity_and_non_lifecycle_fields_unchanged(&customer, &retained_customer);
 }
 
 #[tokio::test]
@@ -644,6 +675,38 @@ async fn delete_tenant_not_found_returns_404() {
 }
 
 #[tokio::test]
+async fn delete_tenant_returns_404_when_soft_delete_reports_missing() {
+    let repo = crate::common::mock_repo();
+    let customer = repo.seed("Acme", "acme@example.com");
+    repo.fail_next_soft_delete();
+    let app = crate::common::test_app_with_repo(repo.clone());
+
+    let req = Request::builder()
+        .method("DELETE")
+        .uri(format!("/admin/tenants/{}", customer.id))
+        .header("x-admin-key", crate::common::TEST_ADMIN_KEY)
+        .body(Body::empty())
+        .unwrap();
+
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+
+    let retained_customer = repo
+        .find_by_id(customer.id)
+        .await
+        .expect("mock repo lookup should succeed")
+        .expect("active tenant row should remain after soft_delete reports false");
+    assert_eq!(retained_customer.status, "active");
+    assert_eq!(
+        retained_customer.lifecycle_generation,
+        customer.lifecycle_generation
+    );
+    assert_eq!(retained_customer.deleted_at, customer.deleted_at);
+    assert_eq!(retained_customer.updated_at, customer.updated_at);
+    assert_customer_identity_and_non_lifecycle_fields_unchanged(&customer, &retained_customer);
+}
+
+#[tokio::test]
 async fn delete_tenant_already_deleted_returns_404() {
     let repo = crate::common::mock_repo();
     let customer = repo.seed("Acme", "acme@example.com");
@@ -659,9 +722,18 @@ async fn delete_tenant_already_deleted_returns_404() {
 
     let resp = app.oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::NO_CONTENT);
+    let retained_after_first_delete = repo
+        .find_by_id(customer.id)
+        .await
+        .expect("mock repo lookup should succeed after first delete")
+        .expect("soft-deleted tenant row should be retained");
+    assert_eq!(
+        retained_after_first_delete.lifecycle_generation,
+        customer.lifecycle_generation + 1
+    );
 
     // Second delete — 404
-    let app2 = crate::common::test_app_with_repo(repo);
+    let app2 = crate::common::test_app_with_repo(repo.clone());
     let req2 = Request::builder()
         .method("DELETE")
         .uri(format!("/admin/tenants/{}", customer.id))
@@ -671,6 +743,30 @@ async fn delete_tenant_already_deleted_returns_404() {
 
     let resp2 = app2.oneshot(req2).await.unwrap();
     assert_eq!(resp2.status(), StatusCode::NOT_FOUND);
+
+    let retained_after_repeat = repo
+        .find_by_id(customer.id)
+        .await
+        .expect("mock repo lookup should succeed after repeat delete")
+        .expect("repeat delete should retain the deleted tenant row");
+    assert_eq!(retained_after_repeat.status, "deleted");
+    assert_eq!(
+        retained_after_repeat.lifecycle_generation,
+        retained_after_first_delete.lifecycle_generation,
+        "repeat admin delete must not advance lifecycle generation"
+    );
+    assert_eq!(
+        retained_after_repeat.deleted_at,
+        retained_after_first_delete.deleted_at
+    );
+    assert_eq!(
+        retained_after_repeat.updated_at,
+        retained_after_first_delete.updated_at
+    );
+    assert_customer_identity_and_non_lifecycle_fields_unchanged(
+        &retained_after_first_delete,
+        &retained_after_repeat,
+    );
 }
 
 // ===========================================================================

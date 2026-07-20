@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use utoipa::ToSchema;
 
+use crate::models::AlgoliaImportErrorCode;
 use crate::repos::RepoError;
 use crate::services::flapjack_proxy::ProxyError;
 use crate::services::provisioning::ProvisioningError;
@@ -16,6 +17,15 @@ use crate::stripe::StripeError;
 pub struct ErrorResponse {
     /// Human-readable error description.
     pub error: String,
+}
+
+/// Shared coded error envelope for migration-family responses.
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct MigrationErrorResponse {
+    /// Human-readable error description.
+    pub error: String,
+    /// Stable migration error code for programmatic clients.
+    pub code: AlgoliaImportErrorCode,
 }
 
 #[derive(Debug)]
@@ -31,6 +41,12 @@ pub enum ApiError {
     },
     ServiceUnavailable(String),
     ServiceNotConfigured(String),
+    Migration {
+        status: StatusCode,
+        message: String,
+        code: AlgoliaImportErrorCode,
+        retry_after_seconds: Option<u64>,
+    },
     Gone(String),
     Internal(String),
 }
@@ -66,6 +82,34 @@ impl IntoResponse for ApiError {
                 .into_response();
         }
 
+        if let ApiError::Migration {
+            status,
+            message,
+            code,
+            retry_after_seconds,
+        } = self
+        {
+            if let Some(retry_after_seconds) = retry_after_seconds {
+                return (
+                    status,
+                    [("Retry-After", retry_after_seconds.to_string())],
+                    Json(MigrationErrorResponse {
+                        error: message,
+                        code,
+                    }),
+                )
+                    .into_response();
+            }
+            return (
+                status,
+                Json(MigrationErrorResponse {
+                    error: message,
+                    code,
+                }),
+            )
+                .into_response();
+        }
+
         let (status, message) = match &self {
             ApiError::NotFound(msg) => (StatusCode::NOT_FOUND, msg.as_str()),
             ApiError::Conflict(msg) => (StatusCode::CONFLICT, msg.as_str()),
@@ -78,6 +122,7 @@ impl IntoResponse for ApiError {
                 tracing::warn!("{service} service not configured");
                 (StatusCode::SERVICE_UNAVAILABLE, "service_not_configured")
             }
+            ApiError::Migration { .. } => unreachable!(),
             ApiError::Gone(msg) => (StatusCode::GONE, msg.as_str()),
             ApiError::Internal(msg) => {
                 tracing::error!("internal error: {msg}");
@@ -153,6 +198,8 @@ mod tests {
     use axum::body::Body;
     use http_body_util::BodyExt;
 
+    use crate::models::AlgoliaImportErrorCode;
+
     async fn error_status_and_body(err: ApiError) -> (StatusCode, serde_json::Value) {
         let resp = err.into_response();
         let status = resp.status();
@@ -203,6 +250,69 @@ mod tests {
             error_status_and_body(ApiError::Internal("db connection failed".into())).await;
         assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR);
         assert_eq!(body, json!({"error": "internal server error"}));
+    }
+
+    #[tokio::test]
+    async fn ordinary_errors_do_not_gain_code_field() {
+        let cases = [
+            (
+                ApiError::NotFound("tenant not found".into()),
+                StatusCode::NOT_FOUND,
+                json!({"error": "tenant not found"}),
+            ),
+            (
+                ApiError::BadRequest("invalid input".into()),
+                StatusCode::BAD_REQUEST,
+                json!({"error": "invalid input"}),
+            ),
+            (
+                ApiError::TooManyRequests {
+                    message: "rate limit exceeded".into(),
+                    retry_after_seconds: 30,
+                },
+                StatusCode::TOO_MANY_REQUESTS,
+                json!({"error": "rate limit exceeded"}),
+            ),
+            (
+                ApiError::ServiceNotConfigured("billing".into()),
+                StatusCode::SERVICE_UNAVAILABLE,
+                json!({"error": "service_not_configured"}),
+            ),
+        ];
+
+        for (err, expected_status, expected_body) in cases {
+            let (status, body) = error_status_and_body(err).await;
+            assert_eq!(status, expected_status);
+            assert_eq!(body, expected_body);
+            assert!(
+                body.get("code").is_none(),
+                "legacy body gained code: {body}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn migration_error_returns_required_canonical_code_and_human_error() {
+        let message = "invalid_algolia_credentials".to_string();
+        let code = AlgoliaImportErrorCode::InvalidCredentials;
+        let (status, body) = error_status_and_body(ApiError::Migration {
+            status: StatusCode::BAD_REQUEST,
+            message: message.clone(),
+            code,
+            retry_after_seconds: None,
+        })
+        .await;
+
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert_eq!(
+            body,
+            json!({
+                "error": message,
+                "code": code.as_str(),
+            })
+        );
+        assert!(body["code"].is_string());
+        assert!(!body["code"].is_null());
     }
 
     // ─── ProxyError → ApiError conversion tests ───────────────────────

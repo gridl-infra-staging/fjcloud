@@ -18,6 +18,7 @@ use crate::vm_providers::VALID_VM_PROVIDERS;
 // ---------------------------------------------------------------------------
 
 const VALID_STATUSES: &[&str] = &["provisioning", "running", "stopped", "failed"];
+const RETIRED_DEAD_AMI_FLEET_REASON: &str = "retired_dead_ami_fleet";
 
 // ---------------------------------------------------------------------------
 // DTOs
@@ -43,6 +44,19 @@ pub struct UpdateDeploymentRequest {
 #[derive(Debug, Deserialize)]
 pub struct ListDeploymentsQuery {
     pub include_terminated: Option<bool>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct FailProvisioningRequest {
+    pub reason: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct FailProvisioningResponse {
+    pub id: Uuid,
+    pub status: &'static str,
+    pub failure_reason: &'static str,
 }
 
 /// Admin-facing deployment DTO exposing all deployment fields including
@@ -222,6 +236,40 @@ pub async fn terminate_deployment(
         Ok(StatusCode::NO_CONTENT)
     } else {
         Err(ApiError::NotFound("deployment not found".into()))
+    }
+}
+
+pub async fn fail_provisioning_deployment(
+    _auth: AdminAuth,
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+    Json(request): Json<FailProvisioningRequest>,
+) -> Result<impl IntoResponse, ApiError> {
+    if request.reason != RETIRED_DEAD_AMI_FLEET_REASON {
+        return Err(ApiError::BadRequest(format!(
+            "reason must be {RETIRED_DEAD_AMI_FLEET_REASON}"
+        )));
+    }
+
+    let transitioned = state
+        .deployment_repo
+        .mark_failed_provisioning(id, Some(RETIRED_DEAD_AMI_FLEET_REASON))
+        .await?;
+    if transitioned {
+        return Ok(Json(FailProvisioningResponse {
+            id,
+            status: "failed",
+            failure_reason: RETIRED_DEAD_AMI_FLEET_REASON,
+        }));
+    }
+
+    let deployment = state.deployment_repo.find_by_id(id).await?;
+    match deployment {
+        None => Err(ApiError::NotFound("deployment not found".into())),
+        Some(deployment) => Err(ApiError::Conflict(format!(
+            "deployment is not in provisioning status: {}",
+            deployment.status
+        ))),
     }
 }
 

@@ -1,13 +1,23 @@
 use api::models::algolia_import_job::{
-    AlgoliaImportCreateDestination, AlgoliaImportSource, AlgoliaImportSourceMetadata,
-    NewAlgoliaImportJob, NewAlgoliaReplaceImportJob,
+    AlgoliaImportCreateDestination, AlgoliaImportErrorCode, AlgoliaImportJob, AlgoliaImportSource,
+    AlgoliaImportSourceMetadata, NewAlgoliaImportJob, NewAlgoliaReplaceImportJob,
 };
-use api::repos::{AlgoliaImportJobRepo, PgAlgoliaImportJobRepo, RepoError};
+use api::repos::{AlgoliaImportJobAdmissionError, AlgoliaImportJobRepo, PgAlgoliaImportJobRepo};
 use serde_json::json;
 use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::common::support::pg_schema_harness::connect_and_migrate;
+
+fn assert_admission_refused(
+    result: Result<AlgoliaImportJob, AlgoliaImportJobAdmissionError>,
+    expected: AlgoliaImportErrorCode,
+) {
+    assert!(
+        matches!(result, Err(AlgoliaImportJobAdmissionError::Refused(code)) if code == expected),
+        "expected admission refusal {expected:?}"
+    );
+}
 
 fn create_job_sized(
     customer_id: Uuid,
@@ -228,9 +238,7 @@ async fn create_reservation_rejects_customer_index_count_quota_race() {
         ))
         .await;
 
-    assert!(
-        matches!(result, Err(RepoError::Conflict(message)) if message.contains("quota_exceeded"))
-    );
+    assert_admission_refused(result, AlgoliaImportErrorCode::QuotaExceeded);
 }
 
 #[tokio::test]
@@ -260,9 +268,7 @@ async fn create_reservation_rejects_projected_customer_storage_quota_race() {
         ))
         .await;
 
-    assert!(
-        matches!(result, Err(RepoError::Conflict(message)) if message.contains("quota_exceeded"))
-    );
+    assert_admission_refused(result, AlgoliaImportErrorCode::QuotaExceeded);
 }
 
 #[tokio::test]
@@ -378,9 +384,7 @@ async fn replace_reservation_rejects_node_transient_capacity_race() {
         ))
         .await;
 
-    assert!(
-        matches!(result, Err(RepoError::Conflict(message)) if message.contains("backend_unavailable"))
-    );
+    assert_admission_refused(result, AlgoliaImportErrorCode::BackendUnavailable);
 }
 
 #[tokio::test]
@@ -412,9 +416,7 @@ async fn active_customer_import_job_limit_rejects_with_backend_unavailable() {
         ))
         .await;
 
-    assert!(
-        matches!(result, Err(RepoError::Conflict(message)) if message.contains("backend_unavailable"))
-    );
+    assert_admission_refused(result, AlgoliaImportErrorCode::BackendUnavailable);
 }
 
 #[tokio::test]
@@ -453,9 +455,7 @@ async fn active_customer_reserved_byte_limit_rejects_with_backend_unavailable() 
         ))
         .await;
 
-    assert!(
-        matches!(result, Err(RepoError::Conflict(message)) if message.contains("backend_unavailable"))
-    );
+    assert_admission_refused(result, AlgoliaImportErrorCode::BackendUnavailable);
 }
 
 #[tokio::test]
@@ -492,9 +492,7 @@ async fn active_node_import_job_limit_rejects_with_backend_unavailable() {
         ))
         .await;
 
-    assert!(
-        matches!(result, Err(RepoError::Conflict(message)) if message.contains("backend_unavailable"))
-    );
+    assert_admission_refused(result, AlgoliaImportErrorCode::BackendUnavailable);
 }
 
 #[tokio::test]

@@ -230,8 +230,8 @@ test_down_invalid_db_name_still_kills_processes() {
 
     local proc_dir
     proc_dir="$(mktemp -d)"
-    ln -sf /bin/sleep "$proc_dir/api"
-    "$proc_dir/api" 300 &
+    ln -sf /bin/sleep "$proc_dir/fjcloud-api"
+    "$proc_dir/fjcloud-api" 300 &
     local dummy_pid=$!
     echo "$dummy_pid" > "$pid_dir/api.pid"
 
@@ -266,12 +266,12 @@ test_teardown_handles_only_api_running() {
     local pid_dir="$REPO_ROOT/.integration"
     mkdir -p "$pid_dir"
 
-    # Start a dummy background process named "api" so kill_pid_file command
+    # Start a dummy background process named "fjcloud-api" so kill_pid_file command
     # verification treats it as the expected service.
     local proc_dir
     proc_dir="$(mktemp -d)"
-    ln -sf /bin/sleep "$proc_dir/api"
-    "$proc_dir/api" 300 &
+    ln -sf /bin/sleep "$proc_dir/fjcloud-api"
+    "$proc_dir/fjcloud-api" 300 &
     local dummy_pid=$!
     echo "$dummy_pid" > "$pid_dir/api.pid"
 

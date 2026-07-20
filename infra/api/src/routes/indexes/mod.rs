@@ -49,7 +49,7 @@ mod shared_vm;
 pub(crate) mod suggestions;
 pub(crate) mod synonyms;
 
-pub use lifecycle::create_algolia_import_job;
+pub use lifecycle::{create_algolia_import_job, AlgoliaCreateAdmissionError};
 
 pub(crate) const RESERVED_NAMES: &[&str] = &["_internal", "health", "metrics"];
 

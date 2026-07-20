@@ -135,6 +135,7 @@ ROOT_GROUPS: dict[str, tuple[str, ...]] = {
         "migration_053_disputes_test",
         "migration_054_password_reset_resend_cooldown_test",
         "migration_058_deployment_failure_reason_test",
+        "migration_059_vm_inventory_reference_guard_test",
         "migration_routes_test",
         "migration_test",
         "multi_provisioner_test",

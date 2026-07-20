@@ -150,6 +150,27 @@ test_index_detail_override_is_ratcheted_and_guarded() {
     rm -rf "$tmpdir"
 }
 
+test_lifecycle_override_is_retired() {
+    local tmpdir
+    tmpdir="$(mktemp -d)"
+
+    local copied_script="$tmpdir/scripts/check-sizes.sh"
+    local fixture_root="$tmpdir/repo"
+    local lifecycle_path="infra/api/src/routes/indexes/lifecycle.rs"
+    mkdir -p "$(dirname "$copied_script")" "$fixture_root"
+    cp "$CHECK_SCRIPT" "$copied_script"
+    chmod +x "$copied_script"
+    write_lines "$fixture_root/$lifecycle_path" 851
+
+    local output="" exit_code=0
+    output="$("$copied_script" "$fixture_root" 2>&1)" || exit_code=$?
+
+    assert_eq "$exit_code" "1" "retired lifecycle override restores the normal Rust limit"
+    assert_eq "$output" "FAIL: $lifecycle_path (851 lines, limit 850)" "reports the exact lifecycle size failure"
+
+    rm -rf "$tmpdir"
+}
+
 test_retired_now_doc_is_not_part_of_size_gate() {
     local tmpdir
     tmpdir="$(mktemp -d)"
@@ -174,6 +195,7 @@ echo ""
 test_script_accepts_limits_and_passes_at_boundaries
 test_script_fails_for_oversized_files_and_ignores_excluded_paths
 test_index_detail_override_is_ratcheted_and_guarded
+test_lifecycle_override_is_retired
 test_retired_now_doc_is_not_part_of_size_gate
 
 echo ""

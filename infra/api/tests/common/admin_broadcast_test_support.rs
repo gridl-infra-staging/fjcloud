@@ -22,6 +22,10 @@ pub struct EmailLogRow {
 }
 
 pub async fn connect_and_migrate() -> Option<DbHarness> {
+    if std::env::var("DATABASE_URL").is_err() {
+        eprintln!("SKIP: DATABASE_URL not set — skipping admin broadcast PostgreSQL test");
+        return None;
+    }
     pg_schema_harness::connect_and_migrate("it_admin_broadcast").await
 }
 
@@ -138,7 +142,10 @@ pub fn build_mock_broadcast_app(
         .with_email_service(email_service)
         .build();
     state.pool = PgPoolOptions::new()
-        .max_connections(1)
+        // Best-effort email_log writes are out of scope for mock broadcast
+        // tests; keep the dead pool from adding its own single-connection
+        // serialization on top of the route's delivery fan-out.
+        .max_connections(8)
         .acquire_timeout(std::time::Duration::from_millis(1))
         .connect_lazy("postgres://test:test@127.0.0.1:1/test")
         .expect("connect_lazy should never fail");

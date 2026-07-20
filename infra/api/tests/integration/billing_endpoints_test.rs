@@ -2235,6 +2235,44 @@ async fn reactivate_404_unknown_customer() {
     assert_eq!(body["error"], "customer not found");
 }
 
+#[tokio::test]
+async fn reactivate_deleted_customer_returns_400_without_calling_reactivate() {
+    let customer_repo = mock_repo();
+    let customer = customer_repo.seed_deleted("Deleted Acme", "deleted-acme@example.com");
+    let app = test_app_with_stripe(
+        customer_repo.clone(),
+        mock_invoice_repo(),
+        mock_stripe_service(),
+    );
+
+    let resp = app
+        .oneshot(
+            Request::post(format!("/admin/customers/{}/reactivate", customer.id))
+                .header("x-admin-key", TEST_ADMIN_KEY)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+    let body = body_json(resp).await;
+    assert_eq!(body, json!({ "error": "customer is not suspended" }));
+    assert_eq!(
+        customer_repo.reactivate_call_count(),
+        0,
+        "deleted customer pre-check must return 400 before calling reactivate"
+    );
+
+    // The deleted fixture is unchanged.
+    let after = customer_repo
+        .find_by_id(customer.id)
+        .await
+        .unwrap()
+        .expect("deleted customer row is retained");
+    assert_eq!(after.status, "deleted");
+}
+
 // ===========================================================================
 // Register + Stripe integration
 // ===========================================================================

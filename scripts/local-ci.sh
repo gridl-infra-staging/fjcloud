@@ -40,7 +40,9 @@
 #                    status-doc-consistency,
 #                    roadmap-v2-shape, local-dev-runbook-currency,
 #                    web-lint, secret-scan, evidence-secret-hygiene,
-#                    index-export-clientside-contract).
+#                    index-export-clientside-contract,
+#                    package-manager-consistency,
+#                    dirmap-merge-driver).
 #   --summary-only   Print prod deploy drift info without running any gate.
 #                    Exits 0 immediately. Useful for a quick drift check.
 #   --with-contracts Also run the opt-in live contract probes (uses real
@@ -109,7 +111,7 @@ render_prod_drift() {
 # preserved and no gates are scheduled or executed.
 if [ "$SUMMARY_ONLY" -eq 1 ]; then
     printf '=== local-ci summary (summary-only) ===\n'
-    printf 'Known gates: rust-test rust-lint migration-test web-test check-sizes source-pollution stripe-checks mirror-sync-contract deploy-currency-check-contract rc-wrapper-contract ses-coverage-a1 wave3-phase-receipt launch-closeout debbie-dry-run status-doc-consistency roadmap-v2-shape web-lint secret-scan evidence-secret-hygiene index-export-clientside-contract validate-bootstrap-parser validate-bootstrap-env-local publish-scripts-buildx algolia-safety-probe-contract flapjack-ami-pointer-contract\n'
+    printf 'Known gates: rust-test rust-lint migration-test web-test check-sizes source-pollution stripe-checks mirror-sync-contract deploy-currency-check-contract rc-wrapper-contract ses-coverage-a1 wave3-phase-receipt launch-closeout debbie-dry-run status-doc-consistency roadmap-v2-shape web-lint secret-scan evidence-secret-hygiene index-export-clientside-contract validate-bootstrap-parser validate-bootstrap-env-local publish-scripts-buildx algolia-safety-probe-contract flapjack-ami-pointer-contract package-manager-consistency dirmap-merge-driver\n'
     render_prod_drift
     exit 0
 fi
@@ -311,6 +313,26 @@ gate_status_doc_consistency() {
     bash "$REPO_ROOT/scripts/check_status_doc_consistency.sh"
 }
 
+gate_dirmap_merge_driver() {
+    # Asserts the DIRMAP anti-duplication mechanism is fully wired: the
+    # committed `**/DIRMAP.md merge=ours` declaration in .gitattributes AND the
+    # per-clone git-config registration of that driver. A clone with only the
+    # declaration is worse than plain union merge — DIRMAP.md merges conflict.
+    # Fix on failure: bash scripts/setup_git_merge_drivers.sh. Captured
+    # 2026-07-19; covered by scripts/tests/check_dirmap_merge_driver_test.sh.
+    bash "$REPO_ROOT/scripts/check_dirmap_merge_driver.sh"
+}
+
+gate_package_manager_consistency() {
+    # Asserts web/ declares exactly one package manager and that it is npm:
+    # package-lock.json present, no pnpm-lock.yaml/yarn.lock/bun.lockb, and any
+    # packageManager field naming npm. Captured 2026-07-19 after web/ was found
+    # tracking BOTH package-lock.json and pnpm-lock.yaml while CI only ever ran
+    # `npm ci`. Costs ~5ms; covered by
+    # scripts/tests/check_package_manager_consistency_test.sh.
+    bash "$REPO_ROOT/scripts/check_package_manager_consistency.sh"
+}
+
 gate_roadmap_v2_shape() {
     # Asserts ROADMAP.md keeps the doc-system v2 owner shape after the
     # Stage 2 refactor: Active + Planned + Archive, preserved live item
@@ -358,24 +380,31 @@ node_modules_fresh_or_fail() {
     # node_modules, which means a stale install (package-lock.json updated
     # but dependencies not re-installed) silently passes locally and fails in
     # CI. This guard makes that drift visible. (Real bug found 2026-04-30.)
+    #
+    # npm-only as of 2026-07-19. This function previously accepted EITHER
+    # npm's .package-lock.json or pnpm's .modules.yaml as proof of install,
+    # while its error messages told developers to run `pnpm install` — even
+    # though CI only ever runs `npm ci`. That let a pnpm-installed node_modules
+    # satisfy a gate protecting an npm-installed CI, and the working tree
+    # ended up carrying both markers at once. Accepting only npm's marker is
+    # what makes pnpm residue visible: a pnpm-installed tree has no
+    # .package-lock.json, so it now correctly reports "run npm ci".
+    # The single-lockfile invariant itself is owned by
+    # scripts/check_package_manager_consistency.sh (gate_package_manager_consistency).
     local lock="$REPO_ROOT/web/package-lock.json"
-    local npm_installed="$REPO_ROOT/web/node_modules/.package-lock.json"
-    local pnpm_installed="$REPO_ROOT/web/node_modules/.modules.yaml"
-    local installed=""
+    local installed="$REPO_ROOT/web/node_modules/.package-lock.json"
     if [ ! -d "$REPO_ROOT/web/node_modules" ]; then
-        echo "ERROR: web/node_modules missing — run 'cd web && pnpm install' first" >&2
+        echo "ERROR: web/node_modules missing — run 'cd web && npm ci' first" >&2
         return 1
     fi
-    if [ -f "$npm_installed" ]; then
-        installed="$npm_installed"
-    elif [ -f "$pnpm_installed" ]; then
-        installed="$pnpm_installed"
-    else
-        echo "ERROR: web/node_modules looks corrupt — run 'cd web && rm -rf node_modules && pnpm install'" >&2
+    if [ ! -f "$installed" ]; then
+        echo "ERROR: web/node_modules has no npm install marker (.package-lock.json)." >&2
+        echo "       It is missing or was installed by another package manager." >&2
+        echo "       Run 'cd web && rm -rf node_modules && npm ci'" >&2
         return 1
     fi
     if [ "$lock" -nt "$installed" ]; then
-        echo "ERROR: web/package-lock.json is newer than installed node_modules — run 'cd web && pnpm install' first" >&2
+        echo "ERROR: web/package-lock.json is newer than installed node_modules — run 'cd web && npm ci' first" >&2
         echo "       (CI runs a clean install which would catch this; local-ci skips that step for speed.)" >&2
         return 1
     fi
@@ -650,6 +679,8 @@ schedule source-pollution
 schedule stripe-checks
 schedule status-doc-consistency
 schedule roadmap-v2-shape
+schedule package-manager-consistency
+schedule dirmap-merge-driver
 schedule secret-scan
 schedule evidence-secret-hygiene
 schedule web-lint
@@ -686,7 +717,7 @@ if [ "${#SCHEDULED_GATES[@]}" -eq 0 ] \
     && [ "$RUN_RUST_TEST_SEQUENTIAL" -eq 0 ]; then
     if [ -n "$SINGLE_GATE" ]; then
         echo "ERROR: --gate '$SINGLE_GATE' did not match any known gate" >&2
-        echo "Known gates: rust-test rust-lint migration-test web-test check-sizes source-pollution stripe-checks mirror-sync-contract deploy-currency-check-contract rc-wrapper-contract ses-coverage-a1 wave3-phase-receipt launch-closeout debbie-dry-run status-doc-consistency roadmap-v2-shape web-lint secret-scan evidence-secret-hygiene index-export-clientside-contract validate-bootstrap-parser validate-bootstrap-env-local publish-scripts-buildx algolia-safety-probe-contract flapjack-ami-pointer-contract" >&2
+        echo "Known gates: rust-test rust-lint migration-test web-test check-sizes source-pollution stripe-checks mirror-sync-contract deploy-currency-check-contract rc-wrapper-contract ses-coverage-a1 wave3-phase-receipt launch-closeout debbie-dry-run status-doc-consistency roadmap-v2-shape web-lint secret-scan evidence-secret-hygiene index-export-clientside-contract validate-bootstrap-parser validate-bootstrap-env-local publish-scripts-buildx algolia-safety-probe-contract flapjack-ami-pointer-contract package-manager-consistency dirmap-merge-driver" >&2
         exit 2
     fi
     echo "ERROR: no gates scheduled" >&2
@@ -731,6 +762,8 @@ if [ "${#SCHEDULED_GATES[@]}" -gt 0 ]; then
             stripe-checks)   run_gate stripe-checks   gate_stripe_checks ;;
             status-doc-consistency) run_gate status-doc-consistency gate_status_doc_consistency ;;
             roadmap-v2-shape) run_gate roadmap-v2-shape gate_roadmap_v2_shape ;;
+            package-manager-consistency) run_gate package-manager-consistency gate_package_manager_consistency ;;
+            dirmap-merge-driver) run_gate dirmap-merge-driver gate_dirmap_merge_driver ;;
             secret-scan)     run_gate secret-scan     gate_secret_scan ;;
             evidence-secret-hygiene) run_gate evidence-secret-hygiene gate_evidence_secret_hygiene ;;
             web-lint)        run_gate web-lint        gate_web_lint ;;

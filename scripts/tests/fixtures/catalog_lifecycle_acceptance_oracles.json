@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "oracle_kind": "catalog_lifecycle_acceptance",
+  "lane_composition": {
+    "execute_every_inventoried_caller_before_route_activation": true,
+    "missing_dependency_disposition": "failure"
+  },
+  "oracles": {
+    "block_without_change": {
+      "summary": "A block_without_change writer must refuse to mutate the catalog while an IndexLifecycleLease guard is held, and may release its guard only after the engine acknowledges; it never changes catalog rows behind the lease.",
+      "leased_behavior": "refuse_without_mutation",
+      "release_trigger": "engine_ack"
+    },
+    "privacy_transition": {
+      "summary": "A privacy_transition writer drives the customer soft-delete, hard-delete, and reaper scrub state machine: soft delete marks the row deleted and bumps the generation to fence future writes, hard delete purges dependents before the target, and the reaper scrubs the catalog target only after the hard delete lands.",
+      "soft_delete": "mark_deleted_bump_generation_fence_future_writes",
+      "hard_delete": "purge_dependents_then_target",
+      "reaper_scrub": "reaper_scrubs_catalog_target_after_hard_delete"
+    }
+  }
+}

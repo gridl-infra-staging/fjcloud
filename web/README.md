@@ -20,7 +20,7 @@ npx sv create --template minimal --types ts --add eslint prettier --no-install w
 
 ## Developing
 
-Once you've created a project and installed dependencies with `npm install` (or `pnpm install` or `yarn`), start a development server:
+Once you've created a project and installed dependencies with `npm ci`, start a development server:
 
 ```sh
 npm run dev

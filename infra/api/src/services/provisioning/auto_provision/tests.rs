@@ -337,6 +337,61 @@ impl VmInventoryRepo for InMemoryVmRepo {
         Ok(())
     }
 
+    async fn retirement_blockers(
+        &self,
+        id: Uuid,
+        expected_hostname: &str,
+    ) -> Result<crate::repos::VmRetirementAssessment, crate::repos::RepoError> {
+        let vms = self.vms.lock().unwrap();
+        let candidate = vms
+            .iter()
+            .find(|vm| vm.id == id)
+            .map(|vm| (vm.hostname.as_str(), vm.status.as_str()));
+        match crate::repos::vm_inventory_repo::validate_vm_retirement_candidate(
+            id,
+            expected_hostname,
+            candidate,
+        ) {
+            Ok(crate::repos::vm_inventory_repo::VmRetirementCandidateStatus::Active) => {
+                Ok(crate::repos::VmRetirementAssessment::Eligible)
+            }
+            Ok(status) => Ok(crate::repos::VmRetirementAssessment::Conflict(
+                crate::repos::VmRetirementConflict::InvalidStatus {
+                    actual_status: status.as_str().to_string(),
+                },
+            )),
+            Err(conflict) => Ok(crate::repos::VmRetirementAssessment::Conflict(conflict)),
+        }
+    }
+
+    async fn decommission_if_unreferenced(
+        &self,
+        id: Uuid,
+        expected_hostname: &str,
+    ) -> Result<crate::repos::VmDecommissionResult, crate::repos::RepoError> {
+        let mut vms = self.vms.lock().unwrap();
+        let vm = vms.iter_mut().find(|vm| vm.id == id);
+        let candidate = vm
+            .as_ref()
+            .map(|vm| (vm.hostname.as_str(), vm.status.as_str()));
+        match crate::repos::vm_inventory_repo::validate_vm_retirement_candidate(
+            id,
+            expected_hostname,
+            candidate,
+        ) {
+            Ok(crate::repos::vm_inventory_repo::VmRetirementCandidateStatus::Active) => {
+                let vm = vm.expect("validated active VM exists");
+                vm.status = "decommissioned".to_string();
+                vm.updated_at = chrono::Utc::now();
+                Ok(crate::repos::VmDecommissionResult::Decommissioned)
+            }
+            Ok(crate::repos::vm_inventory_repo::VmRetirementCandidateStatus::Decommissioned) => {
+                Ok(crate::repos::VmDecommissionResult::AlreadyDecommissioned)
+            }
+            Err(conflict) => Ok(crate::repos::VmDecommissionResult::Conflict(conflict)),
+        }
+    }
+
     async fn find_by_hostname(
         &self,
         hostname: &str,

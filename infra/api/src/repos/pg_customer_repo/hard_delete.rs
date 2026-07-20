@@ -113,10 +113,14 @@ async fn scrub_algolia_jobs(
              rules_imported = NULL, rules_rejected = NULL, warnings = NULL,
              error_code = NULL, error_message = NULL, status = NULL,
              terminal_at = NULL,
-             engine_ack_state = 'pending', erasure_handle = gen_random_uuid(),
-             cleanup_phase = CASE WHEN engine_job_id IS NULL
-                 THEN 'engine_disposition_required'
-                 ELSE 'exact_target_absence_required' END,
+             erasure_handle = gen_random_uuid(),
+             cleanup_phase = CASE
+                 WHEN engine_ack_state = 'seal_acknowledged'
+                     THEN 'engine_disposition_required'
+                 WHEN dispatch_intent_state IN ('committed', 'ambiguous')
+                     THEN 'exact_target_absence_required'
+                 ELSE 'engine_disposition_required'
+             END,
              erased_at = NOW(), updated_at = NOW()
          WHERE customer_id = $1
          RETURNING erasure_handle, engine_job_id, destination_vm_id, cleanup_phase,

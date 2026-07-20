@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use api::models::vm_inventory::{NewVmInventory, VmInventory};
-use api::repos::{IndexMigrationRepo, TenantRepo, VmInventoryRepo};
+use api::repos::{CatalogLifecycleTargetIdentity, IndexMigrationRepo, TenantRepo, VmInventoryRepo};
 use api::secrets::mock::MockNodeSecretManager;
 use api::secrets::NodeSecretManager;
 use api::services::flapjack_proxy::FlapjackProxy;
@@ -404,6 +404,25 @@ async fn rollback_cleanup_uses_physical_uid_and_node_secret() {
         fixture.dest_vm.id,
         "replicating",
     );
+    let tenant = fixture
+        .tenant_repo
+        .find_raw(fixture.customer_id, INDEX_NAME)
+        .await
+        .unwrap()
+        .unwrap();
+    let identity = CatalogLifecycleTargetIdentity {
+        deployment_id: tenant.deployment_id,
+        vm_id: tenant.vm_id,
+        tier: tenant.tier,
+        cold_snapshot_id: tenant.cold_snapshot_id,
+        service_type: tenant.service_type,
+    };
+    let metadata = migration.metadata_with_intent_target_identity(&identity);
+    fixture
+        .migration_repo
+        .update_metadata(migration.id, metadata)
+        .await
+        .unwrap();
     fixture.http_client.enqueue(Ok(MigrationHttpResponse {
         status: 200,
         body: "{}".to_string(),
@@ -421,6 +440,39 @@ async fn rollback_cleanup_uses_physical_uid_and_node_secret() {
             ),
             &fixture.dest_key,
         )],
+    );
+}
+
+#[tokio::test]
+async fn rollback_refuses_missing_intent_target_identity_before_cleanup() {
+    let fixture = MigrationFixture::setup(INDEX_NAME).await;
+    let migration = fixture.migration_repo.seed(
+        INDEX_NAME,
+        fixture.customer_id,
+        fixture.source_vm.id,
+        fixture.dest_vm.id,
+        "replicating",
+    );
+
+    let err = fixture
+        .service
+        .rollback(migration.id)
+        .await
+        .expect_err("missing intent target identity should refuse rollback");
+    let api::services::migration::MigrationError::Protocol(message) = err else {
+        panic!("expected wrapped protocol error, got {err:?}");
+    };
+    assert!(
+        message.contains("cannot roll back without captured catalog lifecycle identity"),
+        "unexpected protocol message: {message}"
+    );
+    assert!(
+        message.contains("missing intent target identity"),
+        "unexpected protocol message: {message}"
+    );
+    assert!(
+        fixture.http_client.recorded_requests().is_empty(),
+        "rollback without intent identity must not attempt cleanup"
     );
 }
 

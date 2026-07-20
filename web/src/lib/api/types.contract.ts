@@ -84,7 +84,8 @@ const pricing = {
 const migration = {
 	available: false,
 	reason: 'temporarily_unavailable',
-	message: 'Algolia migration is temporarily unavailable while we replace the importer.'
+	message: 'Algolia migration is temporarily unavailable while we replace the importer.',
+	capabilities: { cancel: false, resume: false, replace: false }
 } satisfies AlgoliaMigrationAvailabilityResponse;
 
 const dictionary = {

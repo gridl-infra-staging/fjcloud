@@ -407,6 +407,26 @@ fn add_migration_routes(router: Router<AppState>) -> Router<AppState> {
             "/migration/algolia/list-indexes",
             post(migration::list_algolia_indexes),
         )
+        .route(
+            "/migration/algolia/destination-eligibility",
+            post(migration::check_algolia_destination_eligibility),
+        )
+        .route(
+            "/migration/algolia/jobs",
+            post(migration::create_algolia_import_job).get(migration::list_algolia_import_jobs),
+        )
+        .route(
+            "/migration/algolia/jobs/:id",
+            get(migration::get_algolia_import_job),
+        )
+        .route(
+            "/migration/algolia/jobs/:id/cancel",
+            post(migration::cancel_algolia_import_job),
+        )
+        .route(
+            "/migration/algolia/jobs/:id/resume",
+            post(migration::resume_algolia_import_job),
+        )
 }
 
 fn add_onboarding_routes(router: Router<AppState>) -> Router<AppState> {

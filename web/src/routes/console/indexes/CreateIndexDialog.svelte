@@ -3,6 +3,7 @@
 	import { resolve } from '$app/paths';
 	import type { SubmitFunction } from '@sveltejs/kit';
 	import type { InternalRegion } from '$lib/api/types';
+	import { validateIndexName } from '$lib/index-name';
 	import {
 		EMPTY_TEMPLATE_ID,
 		indexTemplateMetadata,
@@ -61,11 +62,12 @@
 
 	function validateName(rawName: string): string | null {
 		const trimmedName = rawName.trim();
-		if (!trimmedName) {
-			return 'Index name is required';
-		}
-		if (!/^[a-zA-Z0-9_-]+$/.test(trimmedName)) {
-			return 'Index name may only contain letters, numbers, underscores, and hyphens.';
+		// Shape rules come from the canonical owner so the dialog rejects exactly
+		// what the create action rejects. Duplicate detection stays here: it needs
+		// the names already loaded into this page, which the rule set has no view of.
+		const shapeError = validateIndexName(trimmedName);
+		if (shapeError) {
+			return shapeError;
 		}
 		if (normalizedExistingNames.includes(trimmedName.toLowerCase())) {
 			return `An index named "${trimmedName}" already exists.`;

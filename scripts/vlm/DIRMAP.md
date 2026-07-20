@@ -7,6 +7,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| lib | This lib directory contains VLM environment helper utilities, specifically a self-contained set of 5 shell functions extracted from deployment_common.sh to support environment variable reading and trimming operations for the VLM judge's contract. |
-| lib | This lib directory contains VLM environment helper functions extracted from a deployment utilities file, providing a self-contained closure of five functions that implement the read_env_value_trimmed contract for environment variable handling. |
+| lib | This directory contains VLM environment helper functions — a self-contained 5-function closure extracted from another project for reading and processing environment variable values with trimming support. |
 <!-- [scrai:end] -->

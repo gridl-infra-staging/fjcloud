@@ -13,6 +13,8 @@ use std::time::Duration;
 use thiserror::Error;
 use utoipa::ToSchema;
 
+use crate::models::algolia_import_job::{AlgoliaImportSource, AlgoliaImportSourceMetadata};
+
 type HmacSha256 = Hmac<Sha256>;
 
 const ALGOLIA_HITS_PER_PAGE: u32 = 100;
@@ -181,6 +183,28 @@ impl fmt::Debug for AlgoliaSourceListRequest {
     }
 }
 
+/// Trusted input for the final temporary-key source inspection performed at
+/// create admission. Carries only the volatile credentials plus the selected
+/// source index name; it deliberately holds no browser-supplied record counts
+/// or sizes, so those can never enter the source fingerprint or quota path.
+#[derive(Clone)]
+pub struct AlgoliaSourceInspectRequest {
+    pub app_id: String,
+    pub api_key: String,
+    pub source_name: String,
+}
+
+impl fmt::Debug for AlgoliaSourceInspectRequest {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("AlgoliaSourceInspectRequest")
+            .field("app_id", &"[REDACTED]")
+            .field("api_key", &"[REDACTED]")
+            .field("source_name", &self.source_name)
+            .finish()
+    }
+}
+
 #[derive(Debug, Clone, Serialize, ToSchema, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct AlgoliaSourceListResponse {
@@ -230,6 +254,8 @@ pub enum AlgoliaSourceError {
     InvalidCredentials,
     #[error("Algolia discovery requires the listIndexes ACL")]
     ListIndexesAclRequired,
+    #[error("final Algolia key lacks a required source permission (settings/browse)")]
+    SourcePermissionRequired,
     #[error("invalid discovery cursor")]
     InvalidCursor,
     #[error("invalid Algolia response")]
@@ -242,6 +268,8 @@ pub enum AlgoliaSourceError {
     SourceCatalogTooLarge,
     #[error("invalid cursor signing key")]
     InvalidCursorKey,
+    #[error("selected Algolia source index was not found")]
+    SourceIndexNotFound,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -266,6 +294,14 @@ pub trait AlgoliaSourceLister: Send + Sync {
         &self,
         request: AlgoliaSourceListRequest,
     ) -> Result<AlgoliaSourceListResponse, AlgoliaSourceError>;
+
+    /// Re-fetch the authoritative metadata for the selected source index using
+    /// the fresh temporary key and build the F3 `AlgoliaImportSource` from
+    /// server-reported figures only.
+    async fn inspect_source(
+        &self,
+        request: AlgoliaSourceInspectRequest,
+    ) -> Result<AlgoliaImportSource, AlgoliaSourceError>;
 }
 
 #[async_trait]
@@ -275,6 +311,13 @@ impl AlgoliaSourceLister for AlgoliaSourceService {
         request: AlgoliaSourceListRequest,
     ) -> Result<AlgoliaSourceListResponse, AlgoliaSourceError> {
         AlgoliaSourceService::list_indexes(self, request).await
+    }
+
+    async fn inspect_source(
+        &self,
+        request: AlgoliaSourceInspectRequest,
+    ) -> Result<AlgoliaImportSource, AlgoliaSourceError> {
+        AlgoliaSourceService::inspect_source(self, request).await
     }
 }
 
@@ -322,7 +365,103 @@ impl AlgoliaSourceService {
         self.build_response(progress, upstream, source_fingerprint)
     }
 
+    /// Inspect the selected source index with the fresh temporary key and
+    /// return an `AlgoliaImportSource` built from server-authoritative
+    /// metadata. Bounded by the same handler budget as discovery.
+    pub async fn inspect_source(
+        &self,
+        request: AlgoliaSourceInspectRequest,
+    ) -> Result<AlgoliaImportSource, AlgoliaSourceError> {
+        let trace_request = request.clone();
+        let operation = self.inspect_source_with_budget(request);
+        let result = match tokio::time::timeout(HANDLER_BUDGET, operation).await {
+            Ok(result) => result,
+            Err(_) => Err(AlgoliaSourceError::TimedOut),
+        };
+        if let Err(error) = &result {
+            tracing::warn!(
+                request = ?trace_request,
+                error = ?error,
+                "Algolia source inspection failed"
+            );
+        }
+        result
+    }
+
+    async fn inspect_source_with_budget(
+        &self,
+        request: AlgoliaSourceInspectRequest,
+    ) -> Result<AlgoliaImportSource, AlgoliaSourceError> {
+        let url = algolia_list_url(&request.app_id)?;
+        if request.api_key.is_empty() {
+            return Err(AlgoliaSourceError::InvalidCredentials);
+        }
+        if request.source_name.is_empty() {
+            return Err(AlgoliaSourceError::SourceIndexNotFound);
+        }
+        let mut page = 0;
+        let mut items_seen = 0usize;
+        loop {
+            let mut client_request = AlgoliaClientRequest::new(
+                url.clone(),
+                request.app_id.clone(),
+                request.api_key.clone(),
+                page,
+            );
+            client_request.hits_per_page = ALGOLIA_HITS_PER_PAGE;
+            let upstream = self.fetch_with_retries(client_request).await?;
+            let parsed: AlgoliaPage = serde_json::from_slice(&upstream.body)
+                .map_err(|_| AlgoliaSourceError::InvalidUpstreamResponse)?;
+            if parsed.page.unwrap_or(page) != page {
+                return Err(AlgoliaSourceError::InvalidUpstreamResponse);
+            }
+            if parsed.nb_pages > MAX_TOTAL_PAGES {
+                return Err(AlgoliaSourceError::SourceCatalogTooLarge);
+            }
+            if let Some(found) = parsed
+                .items
+                .iter()
+                .find(|item| item.name == request.source_name)
+            {
+                let source = inspected_source(&request.app_id, found);
+                // The final key must be able to read settings and browse the
+                // selected index, not merely list it, before we accept the job.
+                self.verify_final_key_permissions(
+                    &url,
+                    &request.app_id,
+                    &request.api_key,
+                    &request.source_name,
+                )
+                .await?;
+                return Ok(source);
+            }
+            items_seen = items_seen
+                .checked_add(parsed.items.len())
+                .filter(|seen| *seen <= MAX_TOTAL_ITEMS)
+                .ok_or(AlgoliaSourceError::SourceCatalogTooLarge)?;
+            page = page.saturating_add(1);
+            if page >= parsed.nb_pages {
+                return Err(AlgoliaSourceError::SourceIndexNotFound);
+            }
+        }
+    }
+
+    /// Fetch a discovery/listing page, mapping the terminal status the way the
+    /// list-indices probe requires (a 403 here means the listIndexes ACL).
     async fn fetch_with_retries(
+        &self,
+        request: AlgoliaClientRequest,
+    ) -> Result<AlgoliaClientResponse, AlgoliaSourceError> {
+        let response = self.fetch_terminal(request).await?;
+        interpret_list_status(response)
+    }
+
+    /// Retry transient upstream failures (429/5xx) up to [`MAX_RETRY_ATTEMPTS`]
+    /// and return the terminal response for the caller to interpret. Transport
+    /// and timeout failures are mapped immediately. This is the shared retry
+    /// core behind both the list-indices fetch and the final-key permission
+    /// probes, so the two never diverge on retry policy.
+    async fn fetch_terminal(
         &self,
         request: AlgoliaClientRequest,
     ) -> Result<AlgoliaClientResponse, AlgoliaSourceError> {
@@ -332,20 +471,37 @@ impl AlgoliaSourceService {
                 .list_indexes(request.clone())
                 .await
                 .map_err(map_client_error)?;
-            match response.status {
-                200 => return Ok(response),
-                401 => return Err(AlgoliaSourceError::InvalidCredentials),
-                403 => return Err(AlgoliaSourceError::ListIndexesAclRequired),
-                400 | 404 => return Err(AlgoliaSourceError::InvalidApplicationId),
-                429 | 500..=599 if attempt + 1 < MAX_RETRY_ATTEMPTS => {
-                    tokio::time::sleep(Duration::from_millis(50 * (attempt as u64 + 1))).await;
-                }
-                429 | 500..=599 => return Err(AlgoliaSourceError::Unavailable),
-                300..=399 => return Err(AlgoliaSourceError::Unavailable),
-                _ => return Err(AlgoliaSourceError::InvalidUpstreamResponse),
+            if matches!(response.status, 429 | 500..=599) && attempt + 1 < MAX_RETRY_ATTEMPTS {
+                tokio::time::sleep(Duration::from_millis(50 * (attempt as u64 + 1))).await;
+                continue;
             }
+            return Ok(response);
         }
+        // Unreachable: the final attempt always returns above.
         Err(AlgoliaSourceError::Unavailable)
+    }
+
+    /// Prove the final temporary key can actually run the migration against the
+    /// selected index by probing the two ACLs the engine needs beyond
+    /// `listIndexes`: `settings` (read index configuration) and `browse` (read
+    /// every record). A key that can only list indexes is refused here, before
+    /// the route persists any job. Probes reuse the redacted client, so the key
+    /// never leaks.
+    async fn verify_final_key_permissions(
+        &self,
+        base_url: &reqwest::Url,
+        app_id: &str,
+        api_key: &str,
+        source_name: &str,
+    ) -> Result<(), AlgoliaSourceError> {
+        for action in ["settings", "browse"] {
+            let url = algolia_index_action_url(base_url, source_name, action)?;
+            let request =
+                AlgoliaClientRequest::new(url, app_id.to_string(), api_key.to_string(), 0);
+            let response = self.fetch_terminal(request).await?;
+            interpret_permission_status(response.status)?;
+        }
+        Ok(())
     }
 
     fn decode_progress(
@@ -470,11 +626,76 @@ impl AlgoliaSourceService {
     }
 }
 
+/// Build an F3 `AlgoliaImportSource` from a server-authoritative index row.
+///
+/// Only the re-fetched server figures feed the source metadata: the on-disk
+/// `file_size` is the source size, `entries` the record count, and the reported
+/// `updated_at`/`last_build_time_s` pair the revision so a rebuild changes the
+/// fingerprint. No browser-supplied picker count or size participates.
+fn inspected_source(app_id: &str, item: &AlgoliaIndexMetadata) -> AlgoliaImportSource {
+    let metadata = AlgoliaImportSourceMetadata::new(
+        i64::try_from(item.file_size).ok(),
+        i64::try_from(item.entries).ok(),
+        format!(
+            "{}:{}",
+            item.updated_at.to_rfc3339(),
+            item.last_build_time_s
+        ),
+    );
+    AlgoliaImportSource::from_final_key_metadata(app_id, &item.name, metadata)
+}
+
 fn map_client_error(error: AlgoliaClientError) -> AlgoliaSourceError {
     match error {
         AlgoliaClientError::Timeout => AlgoliaSourceError::TimedOut,
         AlgoliaClientError::Transport => AlgoliaSourceError::Unavailable,
     }
+}
+
+/// Interpret the terminal status of a list-indices fetch. A 403 here means the
+/// key lacks the `listIndexes` ACL.
+fn interpret_list_status(
+    response: AlgoliaClientResponse,
+) -> Result<AlgoliaClientResponse, AlgoliaSourceError> {
+    match response.status {
+        200 => Ok(response),
+        401 => Err(AlgoliaSourceError::InvalidCredentials),
+        403 => Err(AlgoliaSourceError::ListIndexesAclRequired),
+        400 | 404 => Err(AlgoliaSourceError::InvalidApplicationId),
+        429 | 500..=599 | 300..=399 => Err(AlgoliaSourceError::Unavailable),
+        _ => Err(AlgoliaSourceError::InvalidUpstreamResponse),
+    }
+}
+
+/// Interpret the terminal status of a final-key permission probe (settings or
+/// browse). A 403 here means the required source permission is absent; a 404
+/// means the just-listed index vanished under a race.
+fn interpret_permission_status(status: u16) -> Result<(), AlgoliaSourceError> {
+    match status {
+        200 => Ok(()),
+        401 => Err(AlgoliaSourceError::InvalidCredentials),
+        403 => Err(AlgoliaSourceError::SourcePermissionRequired),
+        404 => Err(AlgoliaSourceError::SourceIndexNotFound),
+        400 => Err(AlgoliaSourceError::InvalidApplicationId),
+        429 | 500..=599 | 300..=399 => Err(AlgoliaSourceError::Unavailable),
+        _ => Err(AlgoliaSourceError::InvalidUpstreamResponse),
+    }
+}
+
+/// Build the `/1/indexes/{name}/{action}` URL for a per-index permission probe
+/// from the validated list base URL. The index name is percent-encoded as a
+/// path segment so an exotic name cannot escape the path.
+fn algolia_index_action_url(
+    base_url: &reqwest::Url,
+    source_name: &str,
+    action: &str,
+) -> Result<reqwest::Url, AlgoliaSourceError> {
+    let mut url = base_url.clone();
+    url.path_segments_mut()
+        .map_err(|_| AlgoliaSourceError::InvalidApplicationId)?
+        .push(source_name)
+        .push(action);
+    Ok(url)
 }
 
 fn algolia_list_url(app_id: &str) -> Result<reqwest::Url, AlgoliaSourceError> {

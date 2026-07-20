@@ -35,6 +35,10 @@ pub struct EngineHealthWaitPolicy {
 }
 
 impl EngineHealthWaitPolicy {
+    /// Builds the bounded wait policy for a newly provisioned engine health gate.
+    ///
+    /// All durations must be non-zero so the awaiter can always make one immediate
+    /// attempt and then either retry or exhaust against a real monotonic deadline.
     pub fn new(
         overall_deadline: Duration,
         attempt_timeout: Duration,

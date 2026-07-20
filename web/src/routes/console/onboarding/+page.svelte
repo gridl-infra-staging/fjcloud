@@ -5,6 +5,7 @@
 	import type { SubmitFunction } from '@sveltejs/kit';
 	import { copyToClipboard } from '$lib/clipboard';
 	import { REGIONS, SUPPORT_EMAIL } from '$lib/format';
+	import { validateIndexName } from '$lib/index-name';
 	import type { OnboardingStatus, FlapjackCredentials } from '$lib/api/types';
 
 	let { data, form: formResult } = $props();
@@ -49,41 +50,6 @@
 	// Form state for step 1
 	let indexName = $state('my-first-index');
 	let selectedRegion = $state('us-east-1');
-
-	const RESERVED_INDEX_NAMES = new Set(['_internal', 'health', 'metrics']);
-
-	function isAsciiAlphaNumeric(char: string | undefined): boolean {
-		return Boolean(
-			char &&
-			((char >= 'a' && char <= 'z') || (char >= 'A' && char <= 'Z') || (char >= '0' && char <= '9'))
-		);
-	}
-
-	function isAllowedIndexNameCharacter(char: string): boolean {
-		return isAsciiAlphaNumeric(char) || char === '-' || char === '_';
-	}
-
-	function hasOnlyAllowedIndexNameCharacters(name: string): boolean {
-		for (const char of name) {
-			if (!isAllowedIndexNameCharacter(char)) {
-				return false;
-			}
-		}
-
-		return true;
-	}
-
-	// Index name validation
-	function validateIndexName(name: string): string | null {
-		if (!name) return 'Index name is required';
-		if (name.length > 64) return 'Index name must be 64 characters or less';
-		if (!isAsciiAlphaNumeric(name[0]) || !isAsciiAlphaNumeric(name[name.length - 1]))
-			return 'Index name must start and end with a letter or number';
-		if (!hasOnlyAllowedIndexNameCharacters(name))
-			return 'Only letters, numbers, hyphens, and underscores allowed';
-		if (RESERVED_INDEX_NAMES.has(name)) return 'This name is reserved';
-		return null;
-	}
 
 	const validationError = $derived(validateIndexName(indexName));
 	const hasValidationError = $derived(indexName !== 'my-first-index' && validationError !== null);

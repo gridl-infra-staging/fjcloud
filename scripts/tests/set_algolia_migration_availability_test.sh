@@ -187,6 +187,7 @@ test_execute_writes_and_proves_true_without_opening_migration() {
   assert_contains "$(cat "$WORK_DIR/aws.log")" "--name /fjcloud/staging/algolia_migration_enabled" "execute writes the canonical parameter name"
   assert_contains "$(cat "$WORK_DIR/aws.log")" "--value true" "execute writes requested true value"
   assert_contains "$RUN_STDOUT" "Stage 1 remains fail-closed" "enabled true output does not claim migration is open"
+  assert_contains "$(cat "$WORK_DIR/aws.log")" 'for attempt in $(seq 1 60)' "execute waits for API readiness after restart"
 }
 
 test_execute_is_idempotent() {
@@ -214,7 +215,7 @@ test_execute_proves_each_selected_instance() {
   assert_contains "$(cat "$WORK_DIR/send.log")" "i-api-2|fjcloud algolia migration availability toggle" "second instance is proved"
 }
 
-test_execute_requires_probe_token() {
+test_execute_does_not_transport_probe_token() {
   setup_workspace
   RUN_EXIT_CODE=0
   RUN_STDOUT="$(
@@ -223,11 +224,14 @@ test_execute_requires_probe_token() {
     AWS_SEND_LOG="$WORK_DIR/send.log" \
     AWS_STATE="$WORK_DIR/state.env" \
     AWS_DEFAULT_REGION="us-east-1" \
+    EXPECTED_ENABLED=false \
+    EXPECTED_API_DEV_SHA="$SHA_A" \
+    EXPECTED_MIRROR_SHA="$SHA_B" \
     FJCLOUD_ALGOLIA_TOGGLE_POLL_SLEEP_SECONDS=0 \
     bash "$TARGET_SCRIPT" --env staging --enabled false --expected-api-dev-sha "$SHA_A" --expected-mirror-sha "$SHA_B" --execute 2>&1
   )" || RUN_EXIT_CODE=$?
-  assert_eq "$RUN_EXIT_CODE" "1" "execute without token should fail"
-  assert_contains "$RUN_STDOUT" "execute requires ALGOLIA_MIGRATION_PROBE_TOKEN" "missing token error names proof seam"
+  assert_eq "$RUN_EXIT_CODE" "0" "execute should not require a token transported through SSM"
+  assert_not_contains "$(cat "$WORK_DIR/aws.log")" "tenant-token" "execute does not put bearer tokens in AWS command history"
 }
 
 test_rejects_no_running_instances() {
@@ -254,7 +258,7 @@ test_execute_writes_and_proves_true_without_opening_migration
 test_execute_is_idempotent
 test_false_execute_stops_api_when_disabled_state_unproved
 test_execute_proves_each_selected_instance
-test_execute_requires_probe_token
+test_execute_does_not_transport_probe_token
 test_rejects_no_running_instances
 test_script_is_executable
 

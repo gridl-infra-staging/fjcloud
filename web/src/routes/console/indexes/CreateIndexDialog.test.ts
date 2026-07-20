@@ -118,11 +118,37 @@ describe('CreateIndexDialog', () => {
 
 		await fireEvent.input(nameInput, { target: { value: 'bad name' } });
 		await fireEvent.submit(form.querySelector('form') as HTMLFormElement);
-		expect(q.getByText(/letters, numbers, underscores, and hyphens/i)).toBeInTheDocument();
+		expect(q.getByText(/letters, numbers, hyphens, and underscores/i)).toBeInTheDocument();
 
 		await fireEvent.input(nameInput, { target: { value: 'products' } });
 		await fireEvent.submit(form.querySelector('form') as HTMLFormElement);
 		expect(q.getByText(/already exists/i)).toBeInTheDocument();
+	});
+
+	// The dialog and the create action must agree on what is rejected, otherwise
+	// the form lets a name through only for the server to refuse it.
+	it('applies the canonical index-name rules the create action enforces', async () => {
+		const rejectionCases = [
+			{ name: '-leading', pattern: /start and end with a letter or number/i },
+			{ name: 'trailing_', pattern: /start and end with a letter or number/i },
+			{ name: 'a'.repeat(65), pattern: /64 characters or less/i },
+			{ name: 'health', pattern: /reserved/i }
+		];
+
+		for (const rejectionCase of rejectionCases) {
+			renderDialog({ existingIndexNames: [] });
+			const form = screen.getByTestId('create-index-form');
+			const q = within(form);
+			const nameInput = q.getByLabelText(/index name/i) as HTMLInputElement;
+
+			await fireEvent.input(nameInput, { target: { value: rejectionCase.name } });
+			await fireEvent.submit(form.querySelector('form') as HTMLFormElement);
+			expect(
+				q.getByText(rejectionCase.pattern),
+				`expected "${rejectionCase.name}" to be rejected`
+			).toBeInTheDocument();
+			cleanup();
+		}
 	});
 
 	it('renders seed-phase errors with partial create context', () => {

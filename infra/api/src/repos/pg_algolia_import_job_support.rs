@@ -10,9 +10,16 @@ use crate::models::algolia_import_job::{
     NewAlgoliaImportJob,
 };
 use crate::repos::algolia_import_job_repo::{
-    AlgoliaImportResumeDeadlineClaim, CatalogLifecycleTargetIdentity,
+    AlgoliaImportJobAdmissionError, AlgoliaImportResumeDeadlineClaim,
+    CatalogLifecycleTargetIdentity,
 };
 use crate::repos::error::RepoError;
+
+const OWNED_FENCED_JOB_SQL: &str = "SELECT * FROM algolia_import_jobs
+             WHERE id = $1 AND customer_id = $2 AND erased_at IS NULL FOR UPDATE";
+const OWNED_JOB_LOGICAL_TARGET_SQL: &str = "SELECT logical_target
+             FROM algolia_import_jobs
+             WHERE id = $1 AND customer_id = $2 AND erased_at IS NULL";
 
 #[derive(sqlx::FromRow)]
 pub(super) struct AlgoliaImportResumeDeadlineClaimRow {
@@ -72,7 +79,7 @@ struct CatalogLifecycleTargetIdentityRow {
 }
 
 impl AuthenticatedReplaceTargetRow {
-    pub(super) fn validate(&self) -> Result<(), RepoError> {
+    fn facts(&self) -> AlgoliaReplaceTargetFacts {
         AlgoliaReplaceTargetFacts {
             provider: self.provider.clone(),
             vm_status: self.vm_status.clone(),
@@ -83,8 +90,19 @@ impl AuthenticatedReplaceTargetRow {
             has_active_import_lease: self.has_active_import_lease,
             has_flapjack_url: self.has_flapjack_url,
         }
-        .validate()
-        .map_err(|code| RepoError::Conflict(code.as_str().into()))
+    }
+
+    pub(super) fn validate(&self) -> Result<(), AlgoliaImportJobAdmissionError> {
+        self.facts()
+            .validate()
+            .map_err(AlgoliaImportJobAdmissionError::Refused)
+    }
+
+    /// Typed variant of [`validate`], returning the stable ineligibility code
+    /// directly so callers that need a code (rather than a `RepoError` string)
+    /// do not have to round-trip through `as_str`.
+    pub(super) fn eligibility_code(&self) -> Result<(), crate::models::AlgoliaImportErrorCode> {
+        self.facts().validate()
     }
 
     pub(super) fn destination(&self, customer_id: Uuid) -> AuthenticatedAlgoliaReplacementTarget {
@@ -132,6 +150,42 @@ impl PgAlgoliaImportJobRepo {
         customer_id: Uuid,
         logical_target: &str,
     ) -> Result<AuthenticatedReplaceTargetRow, RepoError> {
+        self.authenticate_replace_target_excluding_import(tx, customer_id, logical_target, None)
+            .await
+    }
+
+    pub(super) async fn validate_resume_replace_target_ready(
+        &self,
+        tx: &mut Transaction<'_, Postgres>,
+        current: &AlgoliaImportJob,
+    ) -> Result<(), AlgoliaImportJobAdmissionError> {
+        let target = self
+            .authenticate_replace_target_excluding_import(
+                tx,
+                current.customer_id,
+                &current.logical_target,
+                Some(current.id),
+            )
+            .await
+            .map_err(|_| {
+                AlgoliaImportJobAdmissionError::Refused(
+                    crate::models::AlgoliaImportErrorCode::BackendUnavailable,
+                )
+            })?;
+        target.eligibility_code().map_err(|_| {
+            AlgoliaImportJobAdmissionError::Refused(
+                crate::models::AlgoliaImportErrorCode::BackendUnavailable,
+            )
+        })
+    }
+
+    async fn authenticate_replace_target_excluding_import(
+        &self,
+        tx: &mut Transaction<'_, Postgres>,
+        customer_id: Uuid,
+        logical_target: &str,
+        excluded_import_id: Option<Uuid>,
+    ) -> Result<AuthenticatedReplaceTargetRow, RepoError> {
         sqlx::query_as::<_, AuthenticatedReplaceTargetRow>(&format!(
             "SELECT ct.tenant_id AS logical_target, cd.region, ct.deployment_id,
                     ct.vm_id, vm.provider, vm.status AS vm_status,
@@ -149,6 +203,7 @@ impl PgAlgoliaImportJobRepo {
                         SELECT 1 FROM algolia_import_jobs active_job
                         WHERE active_job.customer_id = ct.customer_id
                           AND active_job.logical_target = ct.tenant_id
+                          AND ($3::uuid IS NULL OR active_job.id <> $3)
                           AND ({})
                     ) AS has_active_import_lease,
                     (NULLIF(vm.flapjack_url, '') IS NOT NULL
@@ -163,10 +218,70 @@ impl PgAlgoliaImportJobRepo {
         ))
         .bind(customer_id)
         .bind(logical_target)
+        .bind(excluded_import_id)
         .fetch_optional(&mut **tx)
         .await
         .map_err(repo_error)?
         .ok_or(RepoError::NotFound)
+    }
+
+    /// Read-only replace-target eligibility snapshot. Opens a transaction so it
+    /// can reuse the same `FOR UPDATE` customer-generation and replace-target
+    /// queries create admission owns, then rolls back — eligibility must never
+    /// hold a lock or mutate a row. Returns the current generation plus the
+    /// authoritative destination region and derived routing identity.
+    pub(super) async fn snapshot_replace_target_eligibility_inner(
+        &self,
+        customer_id: Uuid,
+        logical_target: &str,
+    ) -> Result<
+        crate::repos::algolia_import_job_repo::DestinationEligibilitySnapshot,
+        crate::repos::algolia_import_job_repo::DestinationEligibilityError,
+    > {
+        use crate::repos::algolia_import_job_repo::{
+            DestinationEligibilityError, DestinationEligibilitySnapshot,
+        };
+        let mut tx = self
+            .pool
+            .begin()
+            .await
+            .map_err(|error| DestinationEligibilityError::Internal(error.to_string()))?;
+        let lifecycle_generation = match self
+            .lock_active_customer_generation(&mut tx, customer_id)
+            .await
+        {
+            Ok(generation) => generation,
+            Err(RepoError::NotFound) | Err(RepoError::Conflict(_)) => {
+                return Err(DestinationEligibilityError::LifecycleUnavailable)
+            }
+            Err(RepoError::Other(message)) => {
+                return Err(DestinationEligibilityError::Internal(message))
+            }
+        };
+        let target = match self
+            .authenticate_replace_target(&mut tx, customer_id, logical_target)
+            .await
+        {
+            Ok(target) => target,
+            Err(RepoError::NotFound) => return Err(DestinationEligibilityError::TargetNotFound),
+            Err(RepoError::Conflict(message)) => {
+                return Err(DestinationEligibilityError::Internal(message))
+            }
+            Err(RepoError::Other(message)) => {
+                return Err(DestinationEligibilityError::Internal(message))
+            }
+        };
+        target
+            .eligibility_code()
+            .map_err(DestinationEligibilityError::Ineligible)?;
+        let destination = target.destination(customer_id);
+        // Eligibility is a read: release the row locks without persisting.
+        let _ = tx.rollback().await;
+        Ok(DestinationEligibilitySnapshot {
+            lifecycle_generation,
+            region: destination.region().to_string(),
+            routing_identity: destination.routing_identity().to_string(),
+        })
     }
 
     pub(super) async fn acquire_catalog_target_advisory_lock(
@@ -174,24 +289,19 @@ impl PgAlgoliaImportJobRepo {
         tx: &mut Transaction<'_, Postgres>,
         customer_id: Uuid,
         logical_target: &str,
-    ) -> Result<(), RepoError> {
-        let acquired: bool = sqlx::query_scalar(
-            "SELECT pg_try_advisory_xact_lock(
-                hashtextextended('catalog_lifecycle_target:' || $1::text || ':' || $2, 0)
-             )",
-        )
-        .bind(customer_id)
-        .bind(logical_target)
-        .fetch_one(&mut **tx)
-        .await
-        .map_err(repo_error)?;
+    ) -> Result<(), AlgoliaImportJobAdmissionError> {
+        let lock_name = catalog_lifecycle_target_lock_name(customer_id, logical_target);
+        let acquired: bool =
+            sqlx::query_scalar("SELECT pg_try_advisory_xact_lock(hashtextextended($1, 0))")
+                .bind(lock_name)
+                .fetch_one(&mut **tx)
+                .await
+                .map_err(repo_error)?;
         if acquired {
             Ok(())
         } else {
-            Err(RepoError::Conflict(
-                crate::models::AlgoliaImportErrorCode::DestinationConflict
-                    .as_str()
-                    .into(),
+            Err(AlgoliaImportJobAdmissionError::Refused(
+                crate::models::AlgoliaImportErrorCode::DestinationConflict,
             ))
         }
     }
@@ -201,7 +311,7 @@ impl PgAlgoliaImportJobRepo {
         tx: &mut Transaction<'_, Postgres>,
         customer_id: Uuid,
         logical_target: &str,
-    ) -> Result<(), RepoError> {
+    ) -> Result<(), AlgoliaImportJobAdmissionError> {
         let active_job_id = sqlx::query_scalar::<_, Uuid>(&format!(
             "SELECT id FROM algolia_import_jobs
              WHERE customer_id = $1 AND logical_target = $2 AND ({})
@@ -215,10 +325,8 @@ impl PgAlgoliaImportJobRepo {
         .await
         .map_err(repo_error)?;
         if active_job_id.is_some() {
-            Err(RepoError::Conflict(
-                crate::models::AlgoliaImportErrorCode::DestinationConflict
-                    .as_str()
-                    .into(),
+            Err(AlgoliaImportJobAdmissionError::Refused(
+                crate::models::AlgoliaImportErrorCode::DestinationConflict,
             ))
         } else {
             Ok(())
@@ -231,7 +339,7 @@ impl PgAlgoliaImportJobRepo {
         customer_id: Uuid,
         logical_target: &str,
         expected_identity: Option<&CatalogLifecycleTargetIdentity>,
-    ) -> Result<(), RepoError> {
+    ) -> Result<(), AlgoliaImportJobAdmissionError> {
         let current_identity: Option<CatalogLifecycleTargetIdentity> =
             sqlx::query_as::<_, CatalogLifecycleTargetIdentityRow>(
                 "SELECT deployment_id, vm_id, tier, cold_snapshot_id, service_type
@@ -247,10 +355,8 @@ impl PgAlgoliaImportJobRepo {
         match (current_identity, expected_identity) {
             (None, None) => Ok(()),
             (Some(current), Some(expected)) if &current == expected => Ok(()),
-            _ => Err(RepoError::Conflict(
-                crate::models::AlgoliaImportErrorCode::DestinationChanged
-                    .as_str()
-                    .into(),
+            _ => Err(AlgoliaImportJobAdmissionError::Refused(
+                crate::models::AlgoliaImportErrorCode::DestinationChanged,
             )),
         }
     }
@@ -343,6 +449,37 @@ impl PgAlgoliaImportJobRepo {
         Ok(job)
     }
 
+    async fn lock_generation_fenced_job_for_customer(
+        &self,
+        tx: &mut Transaction<'_, Postgres>,
+        customer_id: Uuid,
+        id: Uuid,
+    ) -> Result<AlgoliaImportJob, RepoError> {
+        let current_generation = self
+            .lock_active_customer_generation(tx, customer_id)
+            .await
+            .map_err(|error| match error {
+                RepoError::NotFound => {
+                    RepoError::Conflict("customer lifecycle generation is stale".into())
+                }
+                other => other,
+            })?;
+        let job = sqlx::query_as::<_, AlgoliaImportJobRow>(OWNED_FENCED_JOB_SQL)
+            .bind(id)
+            .bind(customer_id)
+            .fetch_optional(&mut **tx)
+            .await
+            .map_err(repo_error)?
+            .map(AlgoliaImportJob::from)
+            .ok_or(RepoError::NotFound)?;
+        if job.lifecycle_generation != current_generation {
+            return Err(RepoError::Conflict(
+                "customer lifecycle generation is stale".into(),
+            ));
+        }
+        Ok(job)
+    }
+
     pub(super) async fn lock_generation_fenced_target_job(
         &self,
         tx: &mut Transaction<'_, Postgres>,
@@ -359,12 +496,56 @@ impl PgAlgoliaImportJobRepo {
         .map_err(repo_error)?
         .ok_or(RepoError::NotFound)?;
         self.acquire_catalog_target_advisory_lock(tx, job_key.0, &job_key.1)
-            .await?;
+            .await
+            .map_err(RepoError::from)?;
         self.lock_generation_fenced_job(tx, id).await
     }
+
+    pub(super) async fn lock_generation_fenced_target_job_for_customer(
+        &self,
+        tx: &mut Transaction<'_, Postgres>,
+        customer_id: Uuid,
+        id: Uuid,
+    ) -> Result<AlgoliaImportJob, RepoError> {
+        let logical_target = sqlx::query_scalar::<_, String>(OWNED_JOB_LOGICAL_TARGET_SQL)
+            .bind(id)
+            .bind(customer_id)
+            .fetch_optional(&mut **tx)
+            .await
+            .map_err(repo_error)?
+            .ok_or(RepoError::NotFound)?;
+        self.acquire_catalog_target_advisory_lock(tx, customer_id, &logical_target)
+            .await
+            .map_err(RepoError::from)?;
+        self.lock_generation_fenced_job_for_customer(tx, customer_id, id)
+            .await
+    }
+}
+
+pub(super) fn catalog_lifecycle_target_lock_name(
+    customer_id: Uuid,
+    logical_target: &str,
+) -> String {
+    format!("catalog_lifecycle_target:{customer_id}:{logical_target}")
 }
 pub(super) fn repo_error(error: sqlx::Error) -> RepoError {
     RepoError::Other(error.to_string())
+}
+
+pub(super) fn customer_generation_admission_error(
+    error: RepoError,
+) -> AlgoliaImportJobAdmissionError {
+    match error {
+        RepoError::NotFound | RepoError::Conflict(_) => AlgoliaImportJobAdmissionError::Refused(
+            crate::models::AlgoliaImportErrorCode::DestinationChanged,
+        ),
+        error => error.into(),
+    }
+}
+
+pub(super) fn is_stale_customer_generation_error(error: &RepoError) -> bool {
+    matches!(error, RepoError::Conflict(message) if message == "customer lifecycle is not active"
+        || message == "customer lifecycle generation is stale")
 }
 
 pub(super) const DEFAULT_INDEX_LIMIT: i64 = 10;
@@ -465,4 +646,25 @@ pub(super) fn persisted_replay_is_allowed(
         &existing.canonical_fingerprint,
         requested,
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{OWNED_FENCED_JOB_SQL, OWNED_JOB_LOGICAL_TARGET_SQL};
+
+    #[test]
+    fn owned_fenced_job_sql_filters_by_customer_before_locking() {
+        assert!(
+            OWNED_FENCED_JOB_SQL.contains("customer_id = $2"),
+            "customer-scoped fenced job lookup must filter by owner in SQL"
+        );
+    }
+
+    #[test]
+    fn owned_job_logical_target_sql_filters_by_customer_before_locking() {
+        assert!(
+            OWNED_JOB_LOGICAL_TARGET_SQL.contains("customer_id = $2"),
+            "customer-scoped logical-target lookup must filter by owner in SQL"
+        );
+    }
 }

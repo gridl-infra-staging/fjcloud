@@ -8,6 +8,6 @@
 
 | Directory | Summary |
 | --- | --- |
-| search | This directory contains client-side search utilities for handling search-as-you-type functionality, including analytics event delivery for search previews, browser-persisted storage of user search choices per index, and URL state management for search parameters. |
-| search | This directory implements the client-side search functionality with analytics tracking for search-preview events, browser persistence for search preferences per index, and URL state management for the search interface. |
+| search | This directory handles client-side search functionality, including analytics tracking for search preview interactions, browser-persistent storage of search preferences per index, and URL state management. |
+| migration | Provides presentation logic and type definitions for Algolia import jobs, including status labels, progress summaries, admission controls, and available actions. |
 <!-- [scrai:end] -->

@@ -6,6 +6,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| compare | A SvelteKit server route handler that processes pricing comparison POST requests, validating the payload and delegating to an API client with a fallback to a public canonical API for local development scenarios. |
-| compare | The compare directory contains a SvelteKit API route that handles comparison operations through a +server.ts endpoint. |
+| compare | The compare directory contains a server endpoint handler (+server.ts) that likely implements comparison functionality, possibly for displaying or analyzing differences between entities in the fjcloud platform. |
 <!-- [scrai:end] -->

@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use tower::ServiceExt;
 use utoipa::OpenApi;
 
+use api::models::AlgoliaImportErrorCode;
 use api::openapi::ApiDoc;
 
 const REGENERATE_OPENAPI_ARTIFACT_COMMAND: &str =
@@ -43,6 +44,17 @@ fn required_fields(spec: &serde_json::Value, schema_name: &str) -> Vec<String> {
         .collect::<Vec<_>>();
     fields.sort();
     fields
+}
+
+fn response_schema_ref<'a>(
+    spec: &'a serde_json::Value,
+    operation_ptr: &str,
+    status: &str,
+) -> Option<&'a str> {
+    spec.pointer(&format!(
+        "{operation_ptr}/responses/{status}/content/application~1json/schema/$ref"
+    ))
+    .and_then(|value| value.as_str())
 }
 
 #[test]
@@ -103,6 +115,43 @@ fn algolia_cloud_discovery_openapi_surface_is_narrow_and_client_bound() {
         "availability 200 response must use the dedicated schema"
     );
     assert_eq!(
+        required_fields(&spec, "AlgoliaMigrationAvailabilityResponse"),
+        vec![
+            "available".to_string(),
+            "capabilities".to_string(),
+            "message".to_string(),
+            "reason".to_string()
+        ],
+        "availability response must require every serialized field"
+    );
+    assert_eq!(
+        spec.pointer(
+            "/components/schemas/AlgoliaMigrationAvailabilityResponse/properties/capabilities/$ref"
+        )
+        .and_then(|value| value.as_str()),
+        Some("#/components/schemas/AlgoliaMigrationCapabilities"),
+        "availability capabilities must use the dedicated nested schema"
+    );
+    assert_eq!(
+        required_fields(&spec, "AlgoliaMigrationCapabilities"),
+        vec![
+            "cancel".to_string(),
+            "replace".to_string(),
+            "resume".to_string()
+        ],
+        "capabilities must require the complete operation set"
+    );
+    for operation in ["cancel", "resume", "replace"] {
+        assert_eq!(
+            spec.pointer(&format!(
+                "/components/schemas/AlgoliaMigrationCapabilities/properties/{operation}/type"
+            ))
+            .and_then(|value| value.as_str()),
+            Some("boolean"),
+            "{operation} capability must be documented as a boolean"
+        );
+    }
+    assert_eq!(
         spec.pointer(
             "/paths/~1migration~1algolia~1list-indexes/post/responses/200/content/application~1json/schema/$ref"
         )
@@ -116,12 +165,95 @@ fn algolia_cloud_discovery_openapi_surface_is_narrow_and_client_bound() {
         .and_then(|value| value.as_str()),
         Some("#/components/schemas/ListAlgoliaIndexesRequest")
     );
+    let list_indexes_operation = "/paths/~1migration~1algolia~1list-indexes/post";
+    for status in ["400", "403", "503"] {
+        assert_eq!(
+            response_schema_ref(&spec, list_indexes_operation, status),
+            Some("#/components/schemas/MigrationErrorResponse"),
+            "list-indexes {status} handler response must use coded migration errors"
+        );
+    }
+    assert_eq!(
+        response_schema_ref(&spec, list_indexes_operation, "401"),
+        Some("#/components/schemas/ErrorResponse"),
+        "middleware-owned auth errors remain legacy uncoded responses"
+    );
+    assert_eq!(
+        required_fields(&spec, "ErrorResponse"),
+        vec!["error".to_string()],
+        "legacy ErrorResponse must not falsely require migration code"
+    );
+    assert_eq!(
+        required_fields(&spec, "MigrationErrorResponse"),
+        vec!["code".to_string(), "error".to_string()],
+        "migration errors must require typed stable code and human error"
+    );
+    assert_eq!(
+        spec.pointer("/components/schemas/MigrationErrorResponse/properties/code/$ref")
+            .and_then(|value| value.as_str()),
+        Some("#/components/schemas/AlgoliaImportErrorCode")
+    );
+    let code_values = spec
+        .pointer("/components/schemas/AlgoliaImportErrorCode/enum")
+        .and_then(|value| value.as_array())
+        .expect("canonical Algolia import error code enum must be documented");
+    let expected_codes = [
+        AlgoliaImportErrorCode::InvalidCredentials,
+        AlgoliaImportErrorCode::MissingSourcePermission,
+        AlgoliaImportErrorCode::SourceNotFound,
+        AlgoliaImportErrorCode::SourceCatalogTooLarge,
+        AlgoliaImportErrorCode::DestinationConflict,
+        AlgoliaImportErrorCode::QuotaExceeded,
+        AlgoliaImportErrorCode::SourceTooLarge,
+        AlgoliaImportErrorCode::InsufficientEngineStorage,
+        AlgoliaImportErrorCode::DestinationChanged,
+        AlgoliaImportErrorCode::SourceChanged,
+        AlgoliaImportErrorCode::IncompatibleData,
+        AlgoliaImportErrorCode::EngineUpgradeRequired,
+        AlgoliaImportErrorCode::MigrationHaNotSupported,
+        AlgoliaImportErrorCode::MigrationProviderUnsupported,
+        AlgoliaImportErrorCode::BackendUnavailable,
+        AlgoliaImportErrorCode::Interrupted,
+        AlgoliaImportErrorCode::CancelNotPermitted,
+        AlgoliaImportErrorCode::NotResumable,
+        AlgoliaImportErrorCode::Internal,
+    ]
+    .into_iter()
+    .map(|code| serde_json::json!(code.as_str()))
+    .collect::<Vec<_>>();
+    assert_eq!(code_values, &expected_codes);
+    for absent_path in [
+        "/paths/~1migration~1algolia~1destination-eligibility/post",
+        "/paths/~1migration~1algolia~1jobs/post",
+        "/paths/~1migration~1algolia~1jobs/get",
+        "/paths/~1migration~1algolia~1jobs~1{id}/get",
+        "/paths/~1migration~1algolia~1jobs~1{id}~1cancel/post",
+        "/paths/~1migration~1algolia~1jobs~1{id}~1resume/post",
+    ] {
+        assert!(
+            spec.pointer(absent_path).is_none(),
+            "{absent_path} must stay absent until F11 activation"
+        );
+    }
     let required = spec
         .pointer("/components/schemas/ListAlgoliaIndexesRequest/required")
         .and_then(|value| value.as_array())
         .expect("list-indexes request must document required fields");
     assert!(required.contains(&serde_json::json!("appId")));
     assert!(required.contains(&serde_json::json!("apiKey")));
+    assert!(
+        !required.contains(&serde_json::json!("hitsPerPage")),
+        "list-indexes hitsPerPage must stay optional"
+    );
+    assert_eq!(
+        spec.pointer("/components/schemas/ListAlgoliaIndexesRequest/properties/hitsPerPage/type")
+            .and_then(|value| value.as_array()),
+        Some(&vec![
+            serde_json::json!("integer"),
+            serde_json::json!("null")
+        ]),
+        "list-indexes hitsPerPage must remain an optional nullable integer override"
+    );
     let mut expected_metadata_required = [
         "name",
         "entries",
@@ -208,9 +340,31 @@ fn algolia_cloud_discovery_openapi_surface_is_narrow_and_client_bound() {
         "client must expose Algolia source discovery"
     );
     assert!(
-        client_source.contains("this.api('POST', '/migration/algolia/list-indexes', request)"),
-        "client must call the source discovery route"
+        client_source.contains(
+            "return this.api('POST', '/migration/algolia/list-indexes', algoliaSourceListRequest(request));"
+        ),
+        "client must call the source discovery route with the canonical sanitized request body"
     );
+    for (method, route) in [
+        (
+            "checkAlgoliaDestinationEligibility(",
+            "/migration/algolia/destination-eligibility",
+        ),
+        ("createAlgoliaImportJob(", "/migration/algolia/jobs"),
+        ("getAlgoliaImportJob(", "/migration/algolia/jobs/"),
+        ("listAlgoliaImportJobs(", "/migration/algolia/jobs"),
+        ("cancelAlgoliaImportJob(", "/migration/algolia/jobs/"),
+        ("resumeAlgoliaImportJob(", "/migration/algolia/jobs/"),
+    ] {
+        assert!(
+            client_source.contains(method),
+            "client method {method} must be exposed for mounted route {route}"
+        );
+        assert!(
+            client_source.contains(route),
+            "client route binding {route} must be exposed after route activation"
+        );
+    }
 
     let types_source =
         std::fs::read_to_string(repo_root.join("web/src/lib/api/types_algolia_migration.ts"))
@@ -218,6 +372,18 @@ fn algolia_cloud_discovery_openapi_surface_is_narrow_and_client_bound() {
     assert!(
         types_source.contains("reason: 'temporarily_unavailable';"),
         "generated migration type must expose the fail-closed reason literal"
+    );
+    assert!(
+        types_source.contains("hitsPerPage?: number | null;"),
+        "generated migration request type must expose the optional hitsPerPage override"
+    );
+    assert!(
+        types_source.contains("resumeProvenance: string | null;"),
+        "generated migration job type must expose producer-authored resume provenance"
+    );
+    assert!(
+        !types_source.contains("resumeCheckpoint:"),
+        "public migration job types must not expose the internal engine resume checkpoint"
     );
     assert!(
         !types_source.contains("| 'available'"),
@@ -482,6 +648,26 @@ fn spec_stage5_documents_public_security_and_response_contracts() {
             "{operation_ptr} must document 503 for restoring or not-ready indexes"
         );
     }
+}
+
+#[test]
+fn spec_documents_all_runtime_analytics_operations() {
+    let spec = crate::common::openapi_spec_json();
+    let required_operation_ptrs = [
+        "/paths/~1indexes~1{name}~1analytics~1devices/get",
+        "/paths/~1indexes~1{name}~1analytics~1countries/get",
+        "/paths/~1indexes~1{name}~1analytics~1filters/get",
+        "/paths/~1indexes~1{name}~1analytics~1conversions~1conversionRate/get",
+    ];
+    let missing_operation_ptrs = required_operation_ptrs
+        .into_iter()
+        .filter(|operation_ptr| spec.pointer(operation_ptr).is_none())
+        .collect::<Vec<_>>();
+
+    assert!(
+        missing_operation_ptrs.is_empty(),
+        "OpenAPI spec is missing runtime analytics operations: {missing_operation_ptrs:?}"
+    );
 }
 
 // ===========================================================================

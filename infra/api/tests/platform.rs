@@ -114,6 +114,8 @@ mod migration_053_disputes_test;
 mod migration_054_password_reset_resend_cooldown_test;
 #[path = "integration/migration_058_deployment_failure_reason_test.rs"]
 mod migration_058_deployment_failure_reason_test;
+#[path = "integration/migration_059_vm_inventory_reference_guard_test.rs"]
+mod migration_059_vm_inventory_reference_guard_test;
 #[path = "integration/migration_routes_test.rs"]
 mod migration_routes_test;
 #[path = "integration/migration_test.rs"]

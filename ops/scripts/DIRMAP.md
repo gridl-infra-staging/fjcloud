@@ -75,8 +75,6 @@ Prerequisites checked:
 
 | Directory | Summary |
 | --- | --- |
-| lib | This lib directory contains shared deployment and infrastructure utilities: a pre-deployment validation adapter, an SSM parameter-to-environment-file generator for runtime service configuration on instances, and a database restore selection tool. |
-| tests | The tests directory contains fixture capture tooling for test data management. |
-| lib | The lib directory contains shared deployment and infrastructure utilities: pre-deployment validation checks, SSM parameter-to-environment-file generation for service configuration, and database restore selection logic. |
-| tests | The tests directory contains a single-purpose shell script that captures Cloudflare zone fixtures for use in testing. |
+| lib | The lib directory contains shared deployment and operational utilities: deploy_validation.sh for pre-deployment gate checks, generate_ssm_env.sh for managing runtime environment configuration from AWS SSM parameters, and rds_restore_selection.py for RDS restore operations. |
+| tests | This directory contains test fixtures and utilities, including a script for capturing Cloudflare zone data as test fixtures. |
 <!-- [scrai:end] -->

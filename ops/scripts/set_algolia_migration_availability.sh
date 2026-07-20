@@ -197,7 +197,18 @@ set -euo pipefail
 /opt/fjcloud/scripts/generate_ssm_env.sh "$ENVIRONMENT"
 systemctl restart fjcloud-api
 env_value="\$(grep '^FJCLOUD_ALGOLIA_MIGRATION_ENABLED=' /etc/fjcloud/env | tail -n1 | cut -d= -f2-)"
-version_json="\$(curl -fsS http://127.0.0.1:3001/version)"
+version_json=""
+for attempt in \$(seq 1 60); do
+  if version_json="\$(curl -fsS http://127.0.0.1:3001/version 2>/dev/null)"; then
+    break
+  fi
+  sleep 2
+done
+[ -n "\$version_json" ] || {
+  systemctl status fjcloud-api --no-pager >&2 || true
+  echo "fjcloud-api did not become ready after restart" >&2
+  exit 1
+}
 printf 'ENV_VALUE=%s\n' "\$env_value"
 printf 'VERSION_JSON=%s\n' "\$version_json"
 EOF

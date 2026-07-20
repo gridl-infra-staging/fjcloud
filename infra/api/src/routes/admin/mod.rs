@@ -41,6 +41,10 @@ pub fn admin_routes() -> Router<AppState> {
             put(deployments::update_deployment).delete(deployments::terminate_deployment),
         )
         .route(
+            "/deployments/:id/fail-provisioning",
+            post(deployments::fail_provisioning_deployment),
+        )
+        .route(
             "/deployments/:id/health-check",
             post(deployments::health_check_deployment),
         )
@@ -98,6 +102,12 @@ pub fn admin_routes() -> Router<AppState> {
         )
         .route("/billing/run", post(invoices::run_batch_billing))
         .route("/vms", get(vms::list_vms))
+        .route("/vms/shared/warm-floor", post(vms::warm_floor_shared_vm))
+        .route(
+            "/vms/:id/retirement-blockers",
+            get(vms::get_retirement_blockers),
+        )
+        .route("/vms/:id/decommission", post(vms::decommission_vm))
         .route("/vms/:id", get(vms::get_vm_detail))
         .route("/vms/:id/kill", post(vms::kill_vm))
         .route("/replicas", get(replicas::list_replicas))

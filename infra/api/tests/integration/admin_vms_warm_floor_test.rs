@@ -172,6 +172,49 @@ async fn warm_floor_reuses_existing_canonical_shared_aws_vm_only() {
 }
 
 #[tokio::test]
+async fn warm_floor_ignores_canonical_shared_vm_from_different_dns_domain() {
+    let vm_inventory_repo = mock_vm_inventory_repo();
+    vm_inventory_repo.seed(
+        "us-east-1",
+        "http://vm-shared-staging.staging.flapjack.foo:7700",
+    );
+    let vm_provisioner = crate::common::mock_vm_provisioner();
+    let app = TestStateBuilder::new()
+        .with_dns_domain("flapjack.foo")
+        .with_vm_inventory_repo(vm_inventory_repo.clone())
+        .with_provisioner(vm_provisioner.clone())
+        .build_app();
+
+    let response = post_warm_floor(
+        app,
+        json!({"region":"us-east-1","provider":"aws","desired_count":1}),
+        Some(TEST_ADMIN_KEY),
+    )
+    .await;
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = response_json(response).await;
+    assert_eq!(body["before_count"], 0);
+    assert_eq!(body["created_count"], 1);
+    assert_eq!(body["active_count"], 1);
+    assert_eq!(vm_provisioner.create_call_count(), 1);
+
+    let active_prod_rows: Vec<_> = vm_inventory_repo
+        .list_active(Some("us-east-1"))
+        .await
+        .unwrap()
+        .into_iter()
+        .filter(|vm| vm.provider == "aws" && vm.hostname.ends_with(".flapjack.foo"))
+        .filter(|vm| !vm.hostname.ends_with(".staging.flapjack.foo"))
+        .collect();
+    assert_eq!(active_prod_rows.len(), 1);
+    assert_eq!(
+        body["created_vms"],
+        expected_created_vms_json(&active_prod_rows)
+    );
+}
+
+#[tokio::test]
 async fn warm_floor_ignores_distractors_then_sequential_retry_reuses_created_vm() {
     let vm_inventory_repo = mock_vm_inventory_repo();
     vm_inventory_repo

@@ -6,5 +6,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| callback | Exchanges OAuth authorization codes for auth tokens, validating CSRF state cookies and implementing login-fixation defenses by clearing cookies and validating header safety before setting the authentication token. |
+| callback | The callback directory contains a SvelteKit server endpoint that handles callback requests, likely for OAuth authentication flows or webhook event processing based on the naming convention. |
 <!-- [scrai:end] -->

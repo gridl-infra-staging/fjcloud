@@ -206,6 +206,30 @@ fn default_shared_vm_type_maps_known_providers() {
 }
 
 #[test]
+fn canonical_shared_vm_hostname_for_domain_rejects_other_environment_subdomains() {
+    assert!(is_canonical_shared_vm_hostname_for_domain(
+        "vm-shared-abcd1234.flapjack.foo",
+        "flapjack.foo"
+    ));
+    assert!(is_canonical_shared_vm_hostname_for_domain(
+        "vm-shared-abcd1234.staging.flapjack.foo",
+        "staging.flapjack.foo"
+    ));
+    assert!(!is_canonical_shared_vm_hostname_for_domain(
+        "vm-shared-abcd1234.staging.flapjack.foo",
+        "flapjack.foo"
+    ));
+    assert!(!is_canonical_shared_vm_hostname_for_domain(
+        "manual-abcd1234.flapjack.foo",
+        "flapjack.foo"
+    ));
+    assert!(!is_canonical_shared_vm_hostname_for_domain(
+        "vm-shared-abcd1234.flapjack.foo",
+        ""
+    ));
+}
+
+#[test]
 fn build_user_data_capacity_has_required_fields() {
     let capacity = default_shared_vm_capacity();
     assert_eq!(capacity["cpu_weight"], 4.0);

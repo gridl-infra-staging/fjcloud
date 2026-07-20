@@ -6,5 +6,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| src | A scheduled batch job that automatically hard-erases deleted customer data from the database after a configurable retention period, with configurable safety bounds (dry-run mode, max erasures per run) and HTTP-based integration to trigger complete data removal via the API. |
+| src | The retention-job crate handles data lifecycle management and cleanup operations for the fjcloud platform, with configuration, job execution logic, and a main entry point for running retention tasks. |
 <!-- [scrai:end] -->

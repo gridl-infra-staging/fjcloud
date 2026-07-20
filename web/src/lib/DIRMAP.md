@@ -14,17 +14,17 @@
 | Directory | Summary |
 | --- | --- |
 | analytics | — |
-| api | Frontend API client library providing typed request/response handling and error management for communicating with the Axum backend. |
-| api-logs | This directory provides browser-side API logging infrastructure for the dashboard, including a session-storage-backed log store, sanitization layer for privacy, and instrumentation helpers to track API calls. |
+| api | This directory contains the web frontend's API client library for communicating with the Axum backend, including base client classes, typed request/response definitions, and error handling utilities. |
+| api-logs | API logging and instrumentation utilities for the dashboard frontend, providing a browser-based API log store with session persistence, sanitization of sensitive data, and helpers for exporting and instrumenting API calls. |
 | auth | — |
-| components | The components directory contains UI utilities and reusable components including EditorDialog helpers for normalization and validation, plus client-side search functionality with analytics tracking and browser state persistence. |
-| error-boundary | This directory contains error boundary utilities for client-side runtime error handling and recovery. |
-| events | The events directory contains utilities for time-series bucketing of debug events. |
-| http | The http directory contains HTTP protocol utilities, with a retry_after.ts file that handles retry-after header parsing and logic for managing request retries. |
-| recommendations | The recommendations directory contains configuration settings and logic for a recommendations feature, with config.ts serving as the primary configuration module. |
+| components | This components directory contains SvelteKit UI components and utilities for editor dialogs, migration workflow management with provider and job handling, and search functionality with analytics tracking and local persistence. |
+| error-boundary | Handles browser runtime errors (uncaught exceptions and unhandled rejections) by normalizing failures into a standard format and reporting them to the backend, while generating user-friendly error messages and deterministic support references based on error scope and HTTP status. |
+| events | The events directory contains utilities for managing event bucketing, with eventBuckets.ts providing the primary implementation. |
+| http | The http directory contains HTTP utilities, with retry_after.ts handling parsing and logic for the HTTP Retry-After header to manage request retry behavior. |
+| recommendations | The recommendations directory contains configuration code, specifically a TypeScript config file that appears to handle settings or setup for a recommendations module or feature. |
 | rules | — |
 | search_templates | — |
-| server | The server directory contains authentication and session management utilities for handling login flows, error classification, user impersonation, and API transience. |
+| server | Server-side authentication and session utilities, providing error classification for login failures, impersonation helpers for return-path validation, and retry logic for transient API failures. |
 | synonyms | — |
-| utils | Provides focus trap utilities for keyboard navigation, including a selector for focusable elements and a function to cycle focus through elements within a container using Tab and Shift+Tab keys. |
+| utils | The utils directory contains focus trap utilities for managing keyboard focus behavior in UI components. |
 <!-- [scrai:end] -->

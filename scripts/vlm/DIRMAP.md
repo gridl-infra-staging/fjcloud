@@ -7,5 +7,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| lib | This directory contains VLM environment helper functions — a self-contained 5-function closure extracted from another project for reading and processing environment variable values with trimming support. |
+| lib | This lib directory contains VLM env helpers, a self-contained shell script extracted from uff_dev providing environment variable reading functions for the VLM judge's read_env_value_trimmed contract. |
 <!-- [scrai:end] -->

@@ -8,6 +8,6 @@
 
 | Directory | Summary |
 | --- | --- |
-| src | The web/src directory contains the SvelteKit frontend application with shared TypeScript utilities, UI components, and authentication helpers in lib/, alongside route handlers for customer-facing features including billing, console dashboards, OAuth authentication, and admin tools. |
-| tests | The tests directory provides end-to-end UI testing infrastructure for the web frontend, including Playwright test fixtures, authentication setup helpers, and VLM-based screenshot capture for visual verification. |
+| src | The src directory contains the SvelteKit web frontend for fjcloud, organizing server-side hooks, client-side utilities (API clients, UI components, authentication), and pages/endpoints for the customer dashboard, authentication, administration, billing, and search functionality. |
+| tests | The tests directory provides end-to-end UI testing infrastructure for the SvelteKit web frontend, with the e2e-ui folder containing helpers for authentication, visual captures, and index detail flows, and the fixtures folder offering setup utilities for user authentication journeys, database/Stripe integration, and UI interactions. |
 <!-- [scrai:end] -->

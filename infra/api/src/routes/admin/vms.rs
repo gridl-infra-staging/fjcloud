@@ -15,7 +15,9 @@ use crate::repos::advisory_lock::{advisory_lock, auto_provision_lock_key};
 use crate::repos::{
     VmDecommissionResult, VmRetirementAssessment, VmRetirementBlocker, VmRetirementConflict,
 };
-use crate::services::provisioning::{is_canonical_shared_vm_hostname, SharedVmProvisioningMode};
+use crate::services::provisioning::{
+    is_canonical_shared_vm_hostname_for_domain, SharedVmProvisioningMode,
+};
 use crate::state::AppState;
 
 const WARM_FLOOR_REGION: &str = "us-east-1";
@@ -215,7 +217,12 @@ async fn active_shared_warm_floor_vms(
     Ok(vms
         .into_iter()
         .filter(|vm| vm.provider == provider)
-        .filter(|vm| is_canonical_shared_vm_hostname(&vm.hostname))
+        .filter(|vm| {
+            is_canonical_shared_vm_hostname_for_domain(
+                &vm.hostname,
+                &state.provisioning_service.dns_domain,
+            )
+        })
         .collect())
 }
 

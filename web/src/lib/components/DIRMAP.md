@@ -8,6 +8,6 @@
 
 | Directory | Summary |
 | --- | --- |
-| search | This directory handles client-side search functionality, including analytics tracking for search preview interactions, browser-persistent storage of search preferences per index, and URL state management. |
-| migration | Provides presentation logic and type definitions for Algolia import jobs, including status labels, progress summaries, admission controls, and available actions. |
+| migration | This directory contains SvelteKit components for managing migration workflows, including eligibility validation and presentation logic for providers, targets, and migration jobs. |
+| search | This directory contains utilities for managing search UI behavior, including analytics tracking for search previews, browser-local persistence of search-as-you-type preview preferences, and URL state management for search functionality. |
 <!-- [scrai:end] -->

@@ -13,10 +13,11 @@
 | pg_dispute_repo.rs | Stub summary for pg_dispute_repo.rs. |
 | pg_index_migration_repo.rs | Stub summary for infra/api/src/repos/pg_index_migration_repo.rs. |
 | pg_tenant_repo.rs | Stub summary for infra/api/src/repos/pg_tenant_repo.rs. |
+| pg_vm_inventory_repo.rs | Stub summary for infra/api/src/repos/pg_vm_inventory_repo.rs. |
 | pg_webhook_event_repo.rs | Stub summary for pg_webhook_event_repo.rs. |
 | usage_repo.rs | Stub summary for usage_repo.rs. |
 
 | Directory | Summary |
 | --- | --- |
-| pg_customer_repo | A Postgres-backed repository implementation for managing customer data, with modules handling billing operations, lifecycle management, hard deletion, and projection logic. |
+| pg_customer_repo | A Postgres-backed repository module that manages customer data and operations, with separate concerns for billing, lifecycle management, hard deletion, and data projection. |
 <!-- [scrai:end] -->

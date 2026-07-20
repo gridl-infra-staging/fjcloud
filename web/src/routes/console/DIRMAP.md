@@ -8,12 +8,12 @@
 
 | Directory | Summary |
 | --- | --- |
-| account | The account directory contains a SvelteKit server-side page handler that manages the account route. |
-| api-keys | The API keys management page server handler loads user API keys and available indexes, and processes server actions to create new API keys with configurable scopes and rate limits or revoke existing keys with idempotency checking. |
-| billing | The billing directory contains a SvelteKit server page component with stub implementation. |
-| indexes | This directory provides SvelteKit server-side data loading and business logic for an index management interface, with a root index listing page and parameterized [name] routes that handle detail views for multiple index types including analytics, chat, dictionaries, events, metrics, and other specialized features. |
-| migrate | The migrate directory contains a SvelteKit server load handler that fetches Algolia migration availability status from the API, falling back to a hardcoded unavailable state with an explanation message if the fetch fails or the user session is invalid. |
-| onboarding | The onboarding directory contains a single stub file (+page.server.ts) with no implementation details provided. |
-| resend-verification | I need to see the actual content of +server.ts to provide a meaningful summary. |
+| account | The account directory contains a SvelteKit server-side page component that likely handles user account-related functionality. |
+| api-keys | This directory contains the server-side implementation for an API keys management page, likely providing functionality to view, create, or manage API credentials within the web application. |
+| billing | This is the server-side handler for the admin billing page that loads and displays a sorted list of all customer invoices. |
+| indexes | The indexes directory contains a SvelteKit application's page server and management modules for index detail settings, including features for analytics, chat, dictionary, events, personalization, recommendations, rules, security, suggestions, and synonyms. |
+| migrate | The migrate directory contains a SvelteKit page server component for the console's migration interface. |
+| onboarding | The onboarding directory contains a SvelteKit page route that likely handles server-side logic for the application's onboarding flow. |
+| resend-verification | A SvelteKit server endpoint for resending verification messages or notifications, likely handling the backend logic to trigger a new verification attempt for users. |
 | settings | — |
 <!-- [scrai:end] -->

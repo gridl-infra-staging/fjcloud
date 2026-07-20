@@ -183,8 +183,20 @@ impl ProvisioningService {
     }
 }
 
-pub(crate) fn is_canonical_shared_vm_hostname(hostname: &str) -> bool {
-    hostname.starts_with(SHARED_VM_HOSTNAME_PREFIX)
+pub(crate) fn is_canonical_shared_vm_hostname_for_domain(hostname: &str, dns_domain: &str) -> bool {
+    let dns_domain = dns_domain.trim().trim_end_matches('.');
+    if dns_domain.is_empty() {
+        return false;
+    }
+
+    let Some(shared_name) = hostname.strip_prefix(SHARED_VM_HOSTNAME_PREFIX) else {
+        return false;
+    };
+    let Some(short_id) = shared_name.strip_suffix(&format!(".{dns_domain}")) else {
+        return false;
+    };
+
+    !short_id.is_empty() && !short_id.contains('.')
 }
 
 async fn try_local_dev_provision(

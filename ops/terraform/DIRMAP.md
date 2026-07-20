@@ -77,5 +77,5 @@ TDD: this test locks ownership, delegation, and secret-boundary contracts. |
 
 | Directory | Summary |
 | --- | --- |
-| support_email_canary | Lambda handler that runs a support email deliverability canary script, resolving Slack and Discord webhook URLs from AWS Systems Manager Parameter Store for notifications. |
+| support_email_canary | A Lambda handler that validates support email deliverability by resolving webhook URLs from AWS Systems Manager and executing a canary shell script, raising an error if the health check fails. |
 <!-- [scrai:end] -->

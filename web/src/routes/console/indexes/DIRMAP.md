@@ -7,5 +7,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| [name] | This directory contains SvelteKit server-side modules that implement data loading and business logic for managing various index detail features, including analytics, chat, dictionaries, events, metrics, personalization, recommendations, rules, security, suggestions, and experiments. |
+| [name] | This directory contains server-side management modules and helpers for various index detail settings features (analytics, chat, dictionary, events, personalization, recommendations, rules, security, suggestions, and synonyms) in a SvelteKit application, along with canonical dependency keys for metrics SSR invalidation and an experiments subdirectory for feature experiment pages. |
 <!-- [scrai:end] -->

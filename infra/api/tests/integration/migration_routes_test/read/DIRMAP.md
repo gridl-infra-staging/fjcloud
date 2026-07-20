@@ -8,5 +8,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| lifecycle | This directory contains integration tests for migration lifecycle operations, specifically testing the cancel and resume functionality within the migration routes read endpoints. |
+| lifecycle | Integration tests for lifecycle operations in migration routes, covering cancellation and resumption of migrations during the read phase. |
 <!-- [scrai:end] -->

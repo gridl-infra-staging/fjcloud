@@ -6,7 +6,7 @@
 
 | Directory | Summary |
 | --- | --- |
-| pricing | The pricing directory is an API route in the SvelteKit frontend that contains comparison functionality, with a compare subdirectory implementing server-side endpoint handlers for analyzing differences between pricing-related entities. |
-| search | The search directory contains a SvelteKit API route that handles name-filtered search requests by delegating to event-specific search logic in its events subdirectory. |
-| stripe | The stripe directory contains SvelteKit server route handlers for Stripe integration, including a publishable-key module that manages Stripe publishable API keys. |
+| pricing | — |
+| search | The search directory implements an API endpoint that handles search operations and event tracking, with the main logic in a +server.ts file and event-related code organized in a dedicated events subdirectory. |
+| stripe | — |
 <!-- [scrai:end] -->

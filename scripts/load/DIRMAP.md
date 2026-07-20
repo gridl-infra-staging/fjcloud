@@ -6,5 +6,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| lib | This lib directory contains shell utilities for load testing and regression verification, specifically a script that compares offline and live load harness results to catch performance regressions. |
+| lib | This directory contains shared utility scripts for deployment and infrastructure operations, including pre-deployment validation, SSM parameter-to-environment-file conversion for runtime configuration, RDS restore management, and release artifact handling. |
 <!-- [scrai:end] -->

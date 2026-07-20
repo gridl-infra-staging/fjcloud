@@ -19,7 +19,24 @@ Resolution order for each key:
 Limits are calibrated to flag genuinely-too-large source files while
 accommodating the line-count overhead that `prettier --write` adds when
 breaking long lines into multi-line form. |
+| check_dirmap_merge_driver.sh | check_dirmap_merge_driver.sh — assert the DIRMAP merge driver is fully wired.
+
+The DIRMAP anti-duplication mechanism has TWO halves that must agree:
+  1. |
 | check_doc_surface_allowlist.sh | Validate the doc-system v2 root/doc-directory surface against the checked-in allowlist. |
+| check_package_manager_consistency.sh | check_package_manager_consistency.sh — assert web/ uses exactly one package
+manager, and that it is npm.
+
+This gate is the canonical owner of the "one package manager" invariant.
+It exists because the repo genuinely forked (captured 2026-07-19):
+  - CI installs with `npm ci` in 5 places (.github/workflows/ci.yml:142,
+    235, 266, 491, 563) and never invokes pnpm anywhere.
+  - ~8 contract tests assert the literal string `npm ci`.
+  - Yet web/ also tracked pnpm-lock.yaml, and scripts/local-ci.sh told
+    developers to run `pnpm install` — three lines above a comment reading
+    "local devs already have node_modules from `npm install`".
+  - The working tree carried BOTH install markers (node_modules/.package-lock.json
+    from npm AND node_modules/.modules.yaml from pnpm), i.e. |
 | check_roadmap_v2_shape.sh | check_roadmap_v2_shape.sh — assert ROADMAP.md follows the v2 owner contract.
 
 Stage 2 of the doc-system v2 wave reshapes ROADMAP.md from its older
@@ -50,6 +67,7 @@ binaries from past sessions (`fjcloud-api`, `fj-metering-agent`,
 `flapjack`) end up with PPID=1 and survive forever. |
 | cleanup_dev_orphans.sh | cleanup_dev_orphans.sh — targeted cleanup for stale local E2E fixture DB rows. |
 | customer_broadcast.sh | customer_broadcast.sh — operator wrapper for POST /admin/broadcast. |
+| dedupe_dirmap.py | Stub summary for scripts/dedupe_dirmap.py. |
 | deploy_status.sh | deploy_status.sh — one-screen answer to "what's deployed?"
 
 Probes /version on the live API, compares dev_sha against `git rev-parse main`
@@ -231,6 +249,9 @@ See docs/runbooks/staging-access.md for full context. |
 Reuses the existing /admin/customers/:id/sync-stripe owner so this script
 does not create a parallel Stripe customer-linking path. |
 | set_status.sh | set_status.sh — update public /status vars in web/wrangler.toml. |
+| setup_git_merge_drivers.sh | setup_git_merge_drivers.sh — register this repo's custom git merge drivers.
+
+Run once per clone. |
 | staging_billing_dry_run.sh | staging_billing_dry_run.sh — safe staging billing preflight / rehearsal entrypoint.
 
 This script intentionally stays small and orchestration-focused. |
@@ -263,16 +284,16 @@ shellcheck disable=SC1091. |
 
 | Directory | Summary |
 | --- | --- |
-| canary | The canary directory contains monitoring and health-check scripts that validate the fjcloud platform's critical paths, including end-to-end customer flows, deployment synchronization, external accessibility, email delivery, and contract/integration test probes. |
-| chaos | The chaos directory contains shell scripts for end-to-end testing of high availability and failover scenarios in a distributed cloud system, including region failure detection, HA promotion workflows, metering breaker alerts, and recovery verification. |
-| dev | Development utilities for managing the Rust API integration test suite: one script migrates tests into a dedicated integration directory with rewritten imports, while the other generates and maintains grouped root module files that organize tests into logical categories (auth, billing, indexes, platform). |
-| launch | This directory orchestrates the multi-wave launch pipeline with scripts for staged promotion from dev through staging to prod, verification gates at each stage, browser testing lanes, and guarded infrastructure rollouts. |
-| lib | This directory contains reusable shell script libraries providing shared utilities for AWS operations, Stripe integration, database access, HTTP/JSON transport, security validation, and billing orchestration. |
-| load | Load testing utilities and regression validation, including load_checks.sh which compares offline and live load harness results to verify performance consistency. |
-| reliability | The reliability directory contains profiling, security validation, and test-seeding scripts that run capacity benchmarks on different document tiers, execute automated security and backend reliability gates with machine-readable JSON output, and manage deterministic test profiles and infrastructure inventory reconciliation. |
-| stripe | This directory contains shell scripts for managing Stripe configuration and product catalogs, including customer portal setup and product catalog creation with support for multiple Stripe accounts. |
-| tests | The tests directory contains integration and smoke test scripts for key fjcloud services including catalog lifecycle, customer broadcast, and SES event handling, along with shared shell testing infrastructure and fixtures for inventory state manipulation. |
+| canary | The canary directory owns staging and production health probes and contract tests, including synthetic customer-loop workflows (signup to Stripe setup), external health checks for AWS and email deliverability, and integration contract tests verifying API endpoints and external integrations against live staging and production environments. |
+| chaos | This directory contains chaos engineering test scripts for validating system resilience, including HA failover detection, region failure recovery, and metering breaker alerting. |
+| dev | This directory contains utility scripts for managing integration tests in the fjcloud project, including tools to consolidate and migrate integration test structures and regenerate the integration test root directory. |
+| launch | The launch directory contains orchestration scripts for fjcloud's multi-wave deployment process, including guarded promotion from dev to staging to production, staging validation, billing rehearsal verification, browser testing lanes, and evidence capture for compliance. |
+| lib | This lib directory contains reusable shell script utilities that provide shared primitives for operational workflows, including alert dispatch, AWS credential validation, billing rehearsal, database access, Stripe integration, security checks, and metering validation. |
+| load | The load directory contains shared utility scripts for deployment and infrastructure operations, including pre-deployment validation, environment configuration management via SSM parameters, RDS restore capabilities, and release artifact handling. |
+| reliability | This directory contains backend reliability profiling, security validation, and infrastructure verification scripts. |
+| stripe | This directory contains shell scripts for managing Stripe configuration and setup, specifically for configuring the Stripe Customer Portal and creating the product catalog against designated Stripe accounts. |
+| tests | This directory contains shell-based test suites with smoke coverage for customer broadcast and SES event handling, plus test fixtures that mutate JSON payloads to validate soft-delete scenarios and reusable helper libraries for mocking, assertions, and contract testing across shell scripts. |
 | verify | — |
-| vlm | The vlm directory contains VLM-related utilities including a stub for aggregating verdict bundles and a self-contained library of environment helper functions for reading and processing environment variables with trimming support. |
-| w3_triage | W3 triage is an audit-driven dispatch system that bootstraps state from live audits, then parses recommendations, applies rules, and generates dispatch manifests across multiple stages. |
+| vlm | The vlm directory provides Visual Language Model utilities for verdict aggregation and environment variable helpers to support the VLM judge's operational contract. |
+| w3_triage | The w3_triage directory contains tooling for a multi-stage triage process, starting with a preflight bootstrap that probes live state and discovers audit summaries, followed by parsing recommendations, authoring lane files, applying rules, and emitting dispatch manifests. |
 <!-- [scrai:end] -->

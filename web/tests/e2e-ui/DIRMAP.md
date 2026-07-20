@@ -6,5 +6,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| full | This directory contains E2E test helpers and utilities for the full UI test suite, including authentication flow helpers, index detail page helpers, and VLM screenshot capture functionality for visual testing. |
+| full | This directory contains end-to-end UI test helpers for authentication and index detail flows, along with utilities for managing visual language model screenshot captures and handling redirects during the capture process. |
 <!-- [scrai:end] -->

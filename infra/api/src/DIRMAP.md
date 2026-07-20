@@ -26,16 +26,16 @@ bootstrap, called in sequence by main(). |
 | Directory | Summary |
 | --- | --- |
 | auth | — |
-| dns | The dns directory contains DNS-related functionality, including a Cloudflare integration module (currently a stub implementation). |
-| invoicing | The invoicing directory contains Rust code for handling billing line items, likely supporting invoice generation and line-item management within the billing system. |
+| dns | — |
+| invoicing | The invoicing directory contains billing and invoice generation logic for the fjcloud platform. |
 | middleware | — |
-| models | The models directory contains database entity definitions and API conversion layers for core domain objects including customers, API keys, rate cards, and index migrations. |
-| provisioner | The provisioner directory contains cloud provider-specific implementations (AWS, Hetzner, OCI, GCP) for infrastructure provisioning, with a shared env_config module providing centralized, consistent environment-variable parsing and validation across all provisioners. |
-| repos | This directory contains Postgres-backed repository implementations for the fjcloud backend, providing data access and persistence layers for domain objects including jobs, disputes, migrations, tenants, webhooks, customers, and usage tracking. |
-| router | The router directory contains middleware handlers for authentication, rate limiting, security headers, CORS validation, and S3 signature verification, along with functions that assemble the complete HTTP router by composing route subtrees (auth-limited, tenant, admin, webhooks, internal, and v1 routes) with optional rate-limiting layers. |
-| routes | The routes directory contains HTTP API endpoint handlers for the application, organized into route modules covering user authentication, account management, billing, search indexes, S3-compatible storage operations, admin functions, and webhook integrations. |
-| secrets | The secrets directory contains AWS-related credential and configuration management code. |
-| services | The services module contains specialized business logic and infrastructure services for the fjcloud API, including audit logging for admin actions, email transactionalization, search index lifecycle management (cold storage archival), VM provisioning and load balancing via the scheduler, webhook handling, and integration with the Flapjack search engine. |
-| startup | The startup directory contains a stub Stripe service implementation used when Stripe is not configured, allowing the API to bootstrap and serve free-tier signups and admin tooling without requiring Stripe credentials. |
-| stripe | The stripe directory contains Rust modules for Stripe payment processing with separate implementations for production (live.rs) and local development (local.rs) environments. |
+| models | Database models and API conversion layers for core platform entities including customers, API keys, rate cards, and index migrations. |
+| provisioner | The provisioner directory contains cloud provider-specific provisioning implementations (AWS, Hetzner, OCI, GCP) with a centralized env_config module that provides typed, validated environment variable parsing for all provisioners. |
+| repos | The repos directory contains the data access layer for the fjcloud API, implementing PostgreSQL-backed repository modules for managing core entities like customers, tenants, disputes, usage metrics, and Algolia import jobs with separate concerns for lifecycle management and query operations. |
+| router | The router directory manages HTTP middleware (security headers, rate limiting, S3 authentication, CORS) and assembles all API routes into a single Axum router with appropriate middleware layers applied to different route groups (auth-limited, tenant-authenticated, admin). |
+| routes | The routes directory contains HTTP endpoint handlers for the fjcloud API server, including authentication, account management, billing, Algolia search index operations, S3-compatible storage, webhook processing, and administrative functions like rate card management and tenant provisioning. |
+| secrets | The secrets directory contains AWS credential and secret management functionality. |
+| services | The services module contains business-logic layers for the Rust API backend, including audit logging, email delivery, search-engine integration (Algolia/Flapjack), infrastructure provisioning, VM scheduling and load balancing, index lifecycle management, cold-storage tiering, webhooks, and health monitoring. |
+| startup | Stub Stripe service implementation that returns `NotConfigured` for all operations when the `STRIPE_SECRET_KEY` environment variable is not set, allowing the API to bootstrap with limited functionality. |
+| stripe | This directory contains Stripe environment-specific configuration and client initialization—live.rs for production Stripe and local.rs for local/testing environments. |
 <!-- [scrai:end] -->

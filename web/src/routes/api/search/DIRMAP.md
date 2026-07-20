@@ -6,5 +6,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| [name] | This directory contains a SvelteKit API route that handles search requests filtered by a dynamic name parameter, with the server handler delegating to event-specific search logic in the events subdirectory. |
+| [name] | This directory implements the API endpoint for a specific search resource, handling search operations and event tracking through its +server.ts file and events subdirectory. |
 <!-- [scrai:end] -->

@@ -657,13 +657,12 @@ schedule() {
 # `cargo check` + lint to catch most things). Use --full or
 # `--gate rust-test` to run it.
 #
-# rust-test is scheduled SEPARATELY (not in this parallel batch) because
-# `cargo test --workspace` saturates the CPU and starves vitest, which
-# has tight 5s per-test timeouts. CI doesn't see this because each CI
-# job runs on its own runner — locally, running them concurrently
-# produced false-FAIL on web-test that CI wouldn't have seen. (Real
-# bug found 2026-04-30 round-2 self-review.) See post-wait section
-# below for the sequential rust-test invocation.
+# web-test and rust-test are scheduled SEPARATELY (not in this parallel
+# batch) because CPU-heavy Rust gates can starve vitest, which has tight
+# 5s per-test timeouts. CI doesn't see this because each CI job runs on
+# its own runner — locally, running CPU-heavy gates concurrently produced
+# false-FAIL on web-test that CI wouldn't have seen. See the post-wait
+# section below for the sequential invocations.
 schedule check-sizes
 schedule script-exec-bits
 schedule port-collision-diagnose
@@ -684,7 +683,6 @@ schedule dirmap-merge-driver
 schedule secret-scan
 schedule evidence-secret-hygiene
 schedule web-lint
-schedule web-test
 schedule index-export-clientside-contract
 schedule rust-lint
 schedule migration-test
@@ -701,6 +699,13 @@ if [ -z "$SINGLE_GATE" ] || [ "$SINGLE_GATE" = "validate-bootstrap-env-local" ];
     RUN_BOOTSTRAP_ENV_LOCAL_SEQUENTIAL=1
 fi
 
+# Run web-test after the parallel batch so local CPU contention cannot turn
+# Vitest's tight per-test timeout into a false deploy-gate failure.
+RUN_WEB_TEST_SEQUENTIAL=0
+if [ -z "$SINGLE_GATE" ] || [ "$SINGLE_GATE" = "web-test" ]; then
+    RUN_WEB_TEST_SEQUENTIAL=1
+fi
+
 # Decide whether rust-test should run, and if so when. It must NOT run
 # in the parallel batch above (CPU contention with web-test). It runs
 # either as a single-gate invocation or after the parallel batch
@@ -714,6 +719,7 @@ fi
 
 if [ "${#SCHEDULED_GATES[@]}" -eq 0 ] \
     && [ "$RUN_BOOTSTRAP_ENV_LOCAL_SEQUENTIAL" -eq 0 ] \
+    && [ "$RUN_WEB_TEST_SEQUENTIAL" -eq 0 ] \
     && [ "$RUN_RUST_TEST_SEQUENTIAL" -eq 0 ]; then
     if [ -n "$SINGLE_GATE" ]; then
         echo "ERROR: --gate '$SINGLE_GATE' did not match any known gate" >&2
@@ -730,6 +736,9 @@ total_gates="${#SCHEDULED_GATES[@]}"
 if [ "$RUN_BOOTSTRAP_ENV_LOCAL_SEQUENTIAL" -eq 1 ]; then
     total_gates=$((total_gates + 1))
 fi
+if [ "$RUN_WEB_TEST_SEQUENTIAL" -eq 1 ]; then
+    total_gates=$((total_gates + 1))
+fi
 if [ "$RUN_RUST_TEST_SEQUENTIAL" -eq 1 ]; then
     total_gates=$((total_gates + 1))
 fi
@@ -737,6 +746,9 @@ fi
 gate_label_list="${SCHEDULED_GATES[*]:-}"
 if [ "$RUN_BOOTSTRAP_ENV_LOCAL_SEQUENTIAL" -eq 1 ]; then
     gate_label_list="${gate_label_list:+$gate_label_list }validate-bootstrap-env-local (sequential)"
+fi
+if [ "$RUN_WEB_TEST_SEQUENTIAL" -eq 1 ]; then
+    gate_label_list="${gate_label_list:+$gate_label_list }web-test (sequential)"
 fi
 if [ "$RUN_RUST_TEST_SEQUENTIAL" -eq 1 ]; then
     gate_label_list="${gate_label_list:+$gate_label_list } rust-test (sequential)"
@@ -767,7 +779,6 @@ if [ "${#SCHEDULED_GATES[@]}" -gt 0 ]; then
             secret-scan)     run_gate secret-scan     gate_secret_scan ;;
             evidence-secret-hygiene) run_gate evidence-secret-hygiene gate_evidence_secret_hygiene ;;
             web-lint)        run_gate web-lint        gate_web_lint ;;
-            web-test)        run_gate web-test        gate_web_test ;;
             index-export-clientside-contract) run_gate index-export-clientside-contract gate_index_export_clientside_contract ;;
             rust-lint)       run_gate rust-lint       gate_rust_lint ;;
             migration-test)  run_gate migration-test  gate_migration_test ;;
@@ -779,6 +790,13 @@ if [ "${#SCHEDULED_GATES[@]}" -gt 0 ]; then
     done
     # Wait for all backgrounded fast gates to finish before launching
     # the heavy sequential gate.
+    wait
+fi
+
+# Run web-test after the parallel batch so Vitest does not compete with
+# cargo/clippy and other CPU-heavy local-only checks.
+if [ "$RUN_WEB_TEST_SEQUENTIAL" -eq 1 ]; then
+    run_gate web-test gate_web_test
     wait
 fi
 

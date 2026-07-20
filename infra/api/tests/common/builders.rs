@@ -165,6 +165,7 @@ fn mock_provisioning_service(
     node_secret_manager: Arc<dyn api::secrets::NodeSecretManager>,
     deployment_repo: Arc<MockDeploymentRepo>,
     customer_repo: Arc<MockCustomerRepo>,
+    dns_domain: String,
 ) -> Arc<ProvisioningService> {
     Arc::new(ProvisioningService::new(
         vm_provisioner,
@@ -172,7 +173,7 @@ fn mock_provisioning_service(
         node_secret_manager,
         deployment_repo,
         customer_repo,
-        DEFAULT_DNS_DOMAIN.to_string(),
+        dns_domain,
     ))
     .with_engine_health_client_for_test(
         test_engine_health_client(),
@@ -253,6 +254,7 @@ pub struct TestStateBuilder {
     storage_master_key: [u8; 32],
     oauth: OAuthRuntimeConfig,
     metrics_cache: Arc<MetricsCache>,
+    dns_domain: String,
 }
 
 impl TestStateBuilder {
@@ -320,11 +322,17 @@ impl TestStateBuilder {
             storage_master_key: [0u8; 32],
             oauth: OAuthRuntimeConfig::default(),
             metrics_cache: Arc::new(MetricsCache::default()),
+            dns_domain: DEFAULT_DNS_DOMAIN.to_string(),
         }
     }
 
     pub fn with_metrics_cache(mut self, metrics_cache: Arc<MetricsCache>) -> Self {
         self.metrics_cache = metrics_cache;
+        self
+    }
+
+    pub fn with_dns_domain(mut self, dns_domain: &str) -> Self {
+        self.dns_domain = dns_domain.to_string();
         self
     }
 
@@ -541,6 +549,7 @@ impl TestStateBuilder {
             self.node_secret_manager.clone(),
             self.deployment_repo.clone(),
             self.customer_repo.clone(),
+            self.dns_domain,
         );
         let storage_service = Arc::new(StorageService::new(
             self.storage_bucket_repo.clone(),

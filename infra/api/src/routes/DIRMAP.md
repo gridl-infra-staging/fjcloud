@@ -15,11 +15,11 @@
 
 | Directory | Summary |
 | --- | --- |
-| admin | The admin directory contains API routes for administrative operations, including rate card CRUD and customer overrides, JWT token minting with optional impersonation audit logging, and VM inventory management with local-dev process control. |
+| admin | Admin routes for internal operations including JWT token minting with optional audit logging for impersonation, rate card CRUD with customer overrides, and administrative endpoints for deployments, migrations, tenants, VMs, and related infrastructure management. |
 | auth | — |
-| indexes | The indexes module provides HTTP route handlers for managing search indexes in the fjcloud API, covering index lifecycle, search queries, settings management, document operations, suggestions, replicas, and restore functionality. |
-| migration | Handles Algolia search index migrations, providing source-index discovery and destination eligibility validation through dedicated HTTP endpoints. |
+| indexes | This directory contains HTTP route handlers for index operations in the Algolia-based search platform, including lifecycle management, search, settings, suggestions, document handling, replicas, customer restore functionality, and import engine integration. |
+| migration | HTTP route handlers for Algolia index migrations, including source-index discovery, destination eligibility validation, and job management. |
 | oauth | — |
-| storage | This storage directory implements S3-compatible API route handlers for both bucket-level operations (create, list, delete, head) and object-level operations (get, put, delete, head) using path-style routing. |
-| webhooks | This directory implements webhook handlers for external integrations, with the main router dispatching incoming webhooks from various sources through private child modules. |
+| storage | This directory implements S3-compatible storage handlers for bucket and object operations, with mod.rs defining the HTTP route table and objects.rs handling object-level endpoints with integrated usage metering. |
+| webhooks | The webhooks directory handles incoming webhook routing and processing for external services, with specialized handlers for Stripe events including disputes. |
 <!-- [scrai:end] -->

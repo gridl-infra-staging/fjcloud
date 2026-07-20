@@ -6,5 +6,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| src | This Rust module implements a multi-tenant application core with configuration management, storage, and counter/metric tracking capabilities. |
+| src | The src directory contains core components including configuration management, a counter mechanism, tenant mapping, and storage abstraction, with main.rs serving as the entry point. |
 <!-- [scrai:end] -->

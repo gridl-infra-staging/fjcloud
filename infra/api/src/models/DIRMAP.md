@@ -11,5 +11,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| algolia_import_job | The algolia_import_job module handles importing data into Algolia search index with provider, row, and target binding components for managing the import workflow. |
+| algolia_import_job | Manages Algolia index import jobs by validating AWS provider configurations, mapping database rows to domain models, and coordinating target bindings for create and replace migration operations. |
 <!-- [scrai:end] -->

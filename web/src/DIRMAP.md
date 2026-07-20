@@ -7,7 +7,7 @@
 
 | Directory | Summary |
 | --- | --- |
-| lib | The lib directory is a collection of shared TypeScript utilities and client libraries for the web frontend, including API communication clients, UI components, error handling, authentication helpers, and various utility modules for HTTP requests, events, and accessibility features. |
-| routes | The routes directory provides SvelteKit server-side route handlers organized by feature, including authentication with OAuth, platform APIs for pricing and search, admin tools for operations and billing, a customer console dashboard, and a service status page. |
+| lib | The lib directory provides client-side utilities and helpers for the SvelteKit web frontend, including API client libraries, UI components, authentication utilities, error handling, and feature-specific helpers for pricing, search, and experiments. |
+| routes | The routes directory contains the SvelteKit server-side endpoints and pages for the fjcloud web frontend, organizing functionality across authentication (OAuth), administration, billing upgrades, search APIs, the main console dashboard, and status contracts. |
 | tests | — |
 <!-- [scrai:end] -->

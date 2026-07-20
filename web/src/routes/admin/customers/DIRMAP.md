@@ -8,5 +8,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| [id] | Admin customer detail page that loads comprehensive tenant information (deployments, usage, invoices, quotas, audit logs) via an admin client and provides server actions for quota management, account suspension/reactivation, Stripe sync, customer deletion, user impersonation, and deployment termination. |
+| [id] | Server-side handler for the admin customer detail page that loads comprehensive customer data including tenant details, deployments, usage metrics, invoices, rate cards, quotas, and audit logs. |
 <!-- [scrai:end] -->

@@ -15,5 +15,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| migration_routes_test | Integration test suite for migration route operations, covering creation, discovery, eligibility, and query functionality with lifecycle management for migration cancellation and resumption. |
+| migration_routes_test | Integration tests for the migration routes API covering lifecycle operations including creation, discovery, eligibility verification, and read-phase operations such as cancellation and resumption of migrations. |
 <!-- [scrai:end] -->

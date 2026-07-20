@@ -6,5 +6,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| upgrade | The upgrade directory contains a SvelteKit server route handler that appears to be a placeholder or minimal implementation for handling upgrade-related requests. |
+| upgrade | The upgrade directory contains a +server.ts file that serves as a server endpoint handler, likely for managing upgrade-related requests or operations in the SvelteKit application. |
 <!-- [scrai:end] -->

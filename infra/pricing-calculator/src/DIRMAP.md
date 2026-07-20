@@ -6,5 +6,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| providers | This directory contains pricing provider implementations for different services, including Flapjack Cloud's storage pricing calculator, with a central registry that manages all available providers. |
+| providers | The providers directory contains pricing calculator implementations for different platforms, with griddle.rs implementing Flapjack Cloud's flat per-MB hot storage pricing model and mod.rs registering all available providers. |
 <!-- [scrai:end] -->

@@ -21,6 +21,6 @@
 
 | Directory | Summary |
 | --- | --- |
-| experiments | The experiments directory contains SvelteKit page components with dynamic routing for individual experiment IDs, implementing server-side logic to handle experiment-specific page rendering and data fetching. |
+| experiments | The experiments directory contains feature experiment pages organized by [experimentId], each with a SvelteKit server-side page component serving as a stub or template. |
 | tabs | — |
 <!-- [scrai:end] -->

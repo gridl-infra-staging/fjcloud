@@ -4,6 +4,12 @@ use sqlx::postgres::PgPoolOptions;
 use sqlx::PgPool;
 use uuid::Uuid;
 
+pub fn postgres_timestamp(
+    timestamp: chrono::DateTime<chrono::Utc>,
+) -> chrono::DateTime<chrono::Utc> {
+    chrono::DateTime::from_timestamp_micros(timestamp.timestamp_micros()).unwrap_or(timestamp)
+}
+
 pub struct DbHarness {
     pub pool: PgPool,
     pub schema: String,

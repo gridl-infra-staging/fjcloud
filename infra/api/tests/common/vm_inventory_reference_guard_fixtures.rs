@@ -101,17 +101,23 @@ pub async fn insert_all_live_vm_references(
 }
 
 pub async fn insert_vm(pool: &PgPool, hostname: &str, status: &str) -> Uuid {
-    sqlx::query_scalar(
-        "INSERT INTO vm_inventory (region, provider, hostname, flapjack_url, status)
-         VALUES ('us-east-1', 'aws', $1, $2, $3)
-         RETURNING id",
+    let vm_id = Uuid::new_v4();
+    insert_vm_with_id(pool, vm_id, hostname, status).await;
+    vm_id
+}
+
+pub async fn insert_vm_with_id(pool: &PgPool, vm_id: Uuid, hostname: &str, status: &str) {
+    sqlx::query(
+        "INSERT INTO vm_inventory (id, region, provider, hostname, flapjack_url, status)
+         VALUES ($1, 'us-east-1', 'aws', $2, $3, $4)",
     )
+    .bind(vm_id)
     .bind(hostname)
     .bind(format!("https://{hostname}.test"))
     .bind(status)
-    .fetch_one(pool)
+    .execute(pool)
     .await
-    .expect("insert vm")
+    .expect("insert vm");
 }
 
 pub async fn insert_customer(pool: &PgPool, label: &str) -> Uuid {

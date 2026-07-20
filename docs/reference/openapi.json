@@ -6555,7 +6555,6 @@
         "tags": [
           "Migration"
         ],
-        "summary": "TODO: Document list_algolia_indexes.",
         "operationId": "list_algolia_indexes",
         "requestBody": {
           "content": {
@@ -6915,7 +6914,6 @@
       },
       "AlgoliaImportErrorCode": {
         "type": "string",
-        "description": "TODO: Document AlgoliaImportErrorCode.",
         "enum": [
           "invalid_credentials",
           "missing_source_permission",
@@ -6940,7 +6938,6 @@
       },
       "AlgoliaIndexMetadata": {
         "type": "object",
-        "description": "TODO: Document AlgoliaIndexMetadata.",
         "required": [
           "name",
           "entries",

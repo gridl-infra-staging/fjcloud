@@ -39,6 +39,16 @@ run_scrai_strip() {
   return 1
 }
 
+regenerate_openapi_artifact() {
+  local target_root="${1:?}"
+
+  (
+    cd "$target_root/infra"
+    UPDATE_OPENAPI_ARTIFACT=1 cargo test -p api --test platform \
+      openapi_spec_matches_committed_artifact -- --nocapture
+  )
+}
+
 run_post_strip_sync_commit_push() {
   local target_root="${1:?}"
   local dirty_state=""
@@ -74,4 +84,5 @@ run_post_strip_sync_commit_push() {
 }
 
 run_scrai_strip "${DEBBIE_TARGET_ROOT:?}"
+regenerate_openapi_artifact "${DEBBIE_TARGET_ROOT:?}"
 run_post_strip_sync_commit_push "${DEBBIE_TARGET_ROOT:?}"

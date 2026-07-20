@@ -66,7 +66,18 @@ echo "unexpected matt invocation: $*" >&2
 exit 98
 MOCK_MATT
 
-    chmod +x "$mock_dir/git" "$mock_dir/python3" "$mock_dir/matt"
+    cat > "$mock_dir/cargo" <<'MOCK_CARGO'
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "cargo:$*" >> "${POST_SYNC_HOOK_CALL_LOG:?}"
+target_root="$(cd .. && pwd)"
+if [[ -f "$target_root/.strip_generated_change" ]]; then
+    printf "regenerated after strip\n" > "$target_root/docs/reference/openapi.json"
+fi
+MOCK_CARGO
+
+    chmod +x "$mock_dir/git" "$mock_dir/python3" "$mock_dir/matt" "$mock_dir/cargo"
     echo "$mock_dir"
 }
 
@@ -79,10 +90,20 @@ create_git_fixture() {
     git -C "$target_repo" config user.name "Test User"
     git -C "$target_repo" config user.email "test@example.com"
     printf "baseline\n" > "$target_repo/tracked.txt"
-    mkdir -p "$target_repo/scripts"
-    printf '#!/usr/bin/env bash\n' > "$target_repo/scripts/seed_local.sh"
-    chmod 0755 "$target_repo/scripts/seed_local.sh"
-    git -C "$target_repo" add tracked.txt scripts/seed_local.sh
+    mkdir -p "$target_repo/infra" "$target_repo/docs/reference"
+    local script_path
+    for script_path in \
+        ops/scripts/deploy.sh \
+        scripts/algolia_source_discovery_live_probe.sh \
+        scripts/engine_index_identity_live_probe.sh \
+        scripts/probe_flapjack_source_rebuild.sh \
+        scripts/seed_local.sh; do
+        mkdir -p "$target_repo/$(dirname "$script_path")"
+        printf '#!/usr/bin/env bash\n' > "$target_repo/$script_path"
+        chmod 0755 "$target_repo/$script_path"
+    done
+    printf 'baseline openapi\n' > "$target_repo/docs/reference/openapi.json"
+    git -C "$target_repo" add tracked.txt ops/scripts scripts docs/reference/openapi.json
     git -C "$target_repo" commit -m "initial" >/dev/null 2>&1
 
     git init --bare "$bare_remote" >/dev/null 2>&1
@@ -167,6 +188,7 @@ test_post_sync_hook_strip_then_dirty_commit_push_contract() {
     assert_eq "$count_after_clean" "$baseline_count" "clean target should not create a commit"
     assert_eq "$(git -C "$target_repo" ls-files -s scripts/seed_local.sh | cut -d' ' -f1)" "100755" "hook should preserve the mirror seed script executable mode"
     assert_strip_invoked_for_target "$clean_calls" "$target_repo" "hook should invoke strip ownership for clean target"
+    assert_contains "$clean_calls" "cargo:test -p api --test platform openapi_spec_matches_committed_artifact -- --nocapture" "hook should regenerate OpenAPI after strip"
     assert_contains "$clean_calls" "git:-C $target_repo status --porcelain" "hook should evaluate dirtiness after strip"
     assert_not_contains "$clean_calls" "git:-C $target_repo commit -m" "clean target should not commit"
     assert_not_contains "$clean_calls" "git:-C $target_repo push origin" "clean target should not push"
@@ -186,15 +208,18 @@ test_post_sync_hook_strip_then_dirty_commit_push_contract() {
     assert_contains "$dirty_calls" "git:-C $target_repo update-index --chmod=+x scripts/seed_local.sh" "dirty run should restore executable mode after staging"
     assert_contains "$dirty_calls" "git:-C $target_repo commit -m chore: debbie post-sync mirror update" "dirty run should create deterministic commit"
     assert_contains "$dirty_calls" "git:-C $target_repo push origin main" "dirty run should push current branch"
+    assert_eq "$(git -C "$target_repo" show HEAD:docs/reference/openapi.json)" "regenerated after strip" "dirty run should commit the post-strip OpenAPI artifact"
 
     local strip_line
     local status_line
+    local openapi_line
     strip_line="$(first_strip_invocation_line "$call_log" "$target_repo")"
+    openapi_line="$(grep -n "cargo:test -p api --test platform openapi_spec_matches_committed_artifact" "$call_log" | head -n 1 | cut -d: -f1)"
     status_line="$(grep -n "git:-C $target_repo status --porcelain" "$call_log" | head -n 1 | cut -d: -f1)"
-    if [[ -n "$strip_line" && -n "$status_line" && "$strip_line" -lt "$status_line" ]]; then
-        pass "strip must run before git dirtiness evaluation"
+    if [[ -n "$strip_line" && -n "$openapi_line" && -n "$status_line" && "$strip_line" -lt "$openapi_line" && "$openapi_line" -lt "$status_line" ]]; then
+        pass "strip and OpenAPI regeneration must run before git dirtiness evaluation"
     else
-        fail "strip must run before git dirtiness evaluation"
+        fail "strip and OpenAPI regeneration must run before git dirtiness evaluation"
     fi
 
     local add_line

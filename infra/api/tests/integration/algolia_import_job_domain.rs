@@ -54,6 +54,7 @@ use uuid::Uuid;
 
 use crate::common::flapjack_proxy_test_support::MockFlapjackHttpClient;
 use crate::common::support::pg_schema_harness::{connect_and_migrate, insert_active_customer};
+use crate::common::vm_inventory_reference_guard_fixtures::insert_vm_with_id;
 
 static FLAPJACK_IDENTITY_ENV_LOCK: Mutex<()> = Mutex::new(());
 const FLAPJACK_IDENTITY_ENV_NAMES: [&str; 5] = [
@@ -269,6 +270,14 @@ fn new_job_with_fingerprint(
 
 async fn insert_minimal(pool: &PgPool, customer_id: Uuid, suffix: &str) -> Uuid {
     insert_active_customer(pool, customer_id, 1).await;
+    let destination_vm_id = Uuid::new_v4();
+    insert_vm_with_id(
+        pool,
+        destination_vm_id,
+        &format!("algolia-minimal-{destination_vm_id}"),
+        "active",
+    )
+    .await;
     sqlx::query_scalar(
         "INSERT INTO algolia_import_jobs
          (customer_id, tenant_id, algolia_app_id, destination_kind, logical_target,
@@ -281,7 +290,7 @@ async fn insert_minimal(pool: &PgPool, customer_id: Uuid, suffix: &str) -> Uuid 
     )
     .bind(customer_id)
     .bind(Uuid::new_v4())
-    .bind(Uuid::new_v4())
+    .bind(destination_vm_id)
     .bind(format!("key-{suffix}"))
     .fetch_one(pool)
     .await
@@ -2523,6 +2532,14 @@ async fn insert_retained_job(
     // active (customer_id, logical_target); retained get/list do not depend on
     // target uniqueness.
     let target = format!("products-{key_suffix}");
+    let destination_vm_id = Uuid::new_v4();
+    insert_vm_with_id(
+        pool,
+        destination_vm_id,
+        &format!("algolia-retained-{destination_vm_id}"),
+        "active",
+    )
+    .await;
     sqlx::query(
         "INSERT INTO algolia_import_jobs
          (id, customer_id, tenant_id, algolia_app_id, destination_kind, logical_target,
@@ -2536,7 +2553,7 @@ async fn insert_retained_job(
     .bind(id)
     .bind(customer_id)
     .bind(Uuid::new_v4())
-    .bind(Uuid::new_v4())
+    .bind(destination_vm_id)
     .bind(format!("retained-key-{key_suffix}"))
     .bind(created_at)
     .bind(target)

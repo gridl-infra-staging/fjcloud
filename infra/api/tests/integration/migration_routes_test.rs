@@ -33,6 +33,7 @@ use uuid::Uuid;
 use crate::common::flapjack_proxy_test_support::MockFlapjackHttpClient;
 use crate::common::integration_helpers::tracing_test_lock;
 use crate::common::support::pg_schema_harness::{connect_and_migrate, insert_active_customer};
+use crate::common::vm_inventory_reference_guard_fixtures::insert_vm_with_id;
 use api::router::build_router;
 
 #[derive(Clone)]

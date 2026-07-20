@@ -68,6 +68,14 @@ pub(super) async fn seed_retained_job_with_internals(
     created_at: chrono::DateTime<Utc>,
 ) -> Uuid {
     let id = Uuid::new_v4();
+    let destination_vm_id = Uuid::new_v4();
+    insert_vm_with_id(
+        pool,
+        destination_vm_id,
+        &format!("algolia-retained-{destination_vm_id}"),
+        "active",
+    )
+    .await;
     sqlx::query(
         "INSERT INTO algolia_import_jobs
          (id, customer_id, tenant_id, algolia_app_id, destination_kind, logical_target,
@@ -82,7 +90,7 @@ pub(super) async fn seed_retained_job_with_internals(
     .bind(id)
     .bind(customer_id)
     .bind(target)
-    .bind(Uuid::new_v4())
+    .bind(destination_vm_id)
     .bind(format!("idem-secret-{key}"))
     .bind(created_at)
     .execute(pool)
@@ -164,6 +172,14 @@ pub(super) async fn seed_resumable_retained_job(
 ) -> Uuid {
     let id = Uuid::new_v4();
     let engine_job_id = Uuid::new_v4();
+    let destination_vm_id = Uuid::new_v4();
+    insert_vm_with_id(
+        pool,
+        destination_vm_id,
+        &format!("algolia-resumable-{destination_vm_id}"),
+        "active",
+    )
+    .await;
     let observed_at = deadline - chrono::Duration::minutes(5);
     sqlx::query(
         "INSERT INTO algolia_import_jobs
@@ -184,7 +200,7 @@ pub(super) async fn seed_resumable_retained_job(
     .bind(id)
     .bind(customer_id)
     .bind(target)
-    .bind(Uuid::new_v4())
+    .bind(destination_vm_id)
     .bind(format!("idem-secret-{key}"))
     .bind(engine_job_id)
     .bind(observed_at)

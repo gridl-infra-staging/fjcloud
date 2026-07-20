@@ -460,7 +460,9 @@ fn map_resume_lifecycle_error(error: AlgoliaLifecycleError) -> ApiError {
 }
 
 fn validate_resume_candidate(job: &AlgoliaImportJob) -> Result<(), AlgoliaImportErrorCode> {
-    if job.resumable {
+    if job.resumable
+        || job.status == crate::models::algolia_import_job::AlgoliaImportJobStatus::Resuming
+    {
         return Ok(());
     }
     Err(AlgoliaImportErrorCode::NotResumable)
@@ -534,6 +536,15 @@ mod tests {
             validate_resume_candidate(&job),
             Err(AlgoliaImportErrorCode::NotResumable)
         );
+    }
+
+    #[test]
+    fn validate_resume_candidate_accepts_resuming_replays() {
+        let mut job = import_job_with_lifecycle_fields();
+        job.status = AlgoliaImportJobStatus::Resuming;
+        job.resumable = false;
+
+        assert_eq!(validate_resume_candidate(&job), Ok(()));
     }
 
     fn import_job_with_lifecycle_fields() -> AlgoliaImportJob {

@@ -285,7 +285,7 @@ async fn elapsed_resume_deadline_transfers_worker_lease_without_releasing_target
     let customer = Uuid::new_v4();
     insert_active_customer(&db.pool, customer, 1).await;
     let repo = PgAlgoliaImportJobRepo::new(db.pool.clone());
-    let now = Utc::now();
+    let now = crate::common::support::pg_schema_harness::postgres_timestamp(Utc::now());
     let job = repo
         .create(import_job(customer, "products", "resume-deadline"))
         .await

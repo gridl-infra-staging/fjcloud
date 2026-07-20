@@ -7,8 +7,9 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 LOCAL_CI="$REPO_ROOT/scripts/local-ci.sh"
-FIXTURE_PATH="$(mktemp "$REPO_ROOT/infra/api/tests/_local_ci_set_e_regression_fixture.XXXXXX.rs")"
-trap 'rm -f "$FIXTURE_PATH"' EXIT
+FIXTURE_TOKEN_DIR="$(mktemp -d "${TMPDIR:-/tmp}/fjcloud-local-ci-set-e.XXXXXX")"
+FIXTURE_PATH="$REPO_ROOT/infra/api/tests/_local_ci_set_e_regression_fixture.$(basename "$FIXTURE_TOKEN_DIR").rs"
+trap 'rm -f "$FIXTURE_PATH"; rmdir "$FIXTURE_TOKEN_DIR" 2>/dev/null || true' EXIT
 
 PASS_COUNT=0
 FAIL_COUNT=0

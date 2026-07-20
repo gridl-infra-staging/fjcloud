@@ -15,11 +15,8 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::common::support::pg_schema_harness;
-
-fn postgres_timestamp(timestamp: chrono::DateTime<chrono::Utc>) -> chrono::DateTime<chrono::Utc> {
-    let excess_nanos = i64::from(timestamp.timestamp_subsec_nanos() % 1_000);
-    timestamp - chrono::Duration::nanoseconds(excess_nanos)
-}
+use crate::common::support::pg_schema_harness::postgres_timestamp;
+use crate::common::vm_inventory_reference_guard_fixtures::insert_vm_with_id;
 
 async fn cleanup_customer(pool: &PgPool, email: &str) {
     sqlx::query("DELETE FROM customers WHERE email = $1")
@@ -2742,6 +2739,16 @@ async fn seed_algolia_hard_delete_matrix_case(
         format!("PII_MATRIX_WARNING_{}", case.name),
         format!("PII_MATRIX_OBJECT_{}", case.name),
     ]);
+
+    if let Some(destination_vm_id) = destination_vm_id {
+        insert_vm_with_id(
+            pool,
+            destination_vm_id,
+            &format!("algolia-matrix-{ordinal}-{destination_vm_id}"),
+            "active",
+        )
+        .await;
+    }
 
     let id = sqlx::query_scalar::<_, Uuid>(
         "INSERT INTO algolia_import_jobs

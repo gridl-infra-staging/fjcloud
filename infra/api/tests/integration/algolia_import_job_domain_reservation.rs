@@ -21,7 +21,9 @@ use crate::common::algolia_import_reservation_lifetime::{
     force_reservation_lifetime_case, reservation_lifetime_denominator,
     validate_reservation_lifetime_denominator, DenominatorValidation, ReservationExpectation,
 };
-use crate::common::support::pg_schema_harness::{connect_and_migrate, insert_active_customer};
+use crate::common::support::pg_schema_harness::{
+    connect_and_migrate, insert_active_customer, postgres_timestamp,
+};
 
 #[test]
 fn reservation_lifetime_denominator_matches_model_and_schema_once() {
@@ -785,7 +787,7 @@ async fn elapsed_resume_takeover_preserves_target_exclusion() {
         .expect("first create");
     force_failed_resumable(&db.pool, first.id).await;
 
-    let now = Utc::now();
+    let now = postgres_timestamp(Utc::now());
     let new_lease_expiry = now + chrono::Duration::minutes(15);
     expire_resume_worker_claim(&db.pool, first.id, now).await;
     let before_competitor = repo.create(create_job(customer, "products", "key-2")).await;

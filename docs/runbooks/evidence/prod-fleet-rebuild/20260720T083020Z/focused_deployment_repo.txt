@@ -1,0 +1,27 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.14s
+     Running tests/platform.rs (target/debug/deps/platform-411f10469af67f6e)
+
+running 20 tests
+test deployment_repo_test::update_health_nonexistent_returns_error ... ok
+test deployment_repo_test::terminate_sets_status_and_terminated_at ... ok
+test deployment_repo_test::update_health_sets_fields ... ok
+test deployment_repo_test::new_columns_default_correctly_on_create_find ... ok
+test deployment_repo_test::ordinary_failed_provisioning_has_null_failure_reason_engine_health ... ok
+test deployment_repo_test::mark_failed_provisioning_stores_engine_health_reason_and_preserves_guard ... ok
+test deployment_repo_test::terminate_already_terminated_returns_false ... ok
+test deployment_repo_test::terminated_deployment_has_terminated_at_set ... ok
+test deployment_repo_test::update_health_transitions_round_trip ... ok
+test deployment_repo_test::terminate_nonexistent_returns_false ... ok
+test deployment_repo_test::list_active_excludes_provisioning_without_url ... ok
+test deployment_repo_test::update_provisioning_sets_all_fields ... ok
+test deployment_repo_test::update_provisioning_nonexistent_returns_none ... ok
+test deployment_repo_test::update_clears_failure_reason_when_status_leaves_failed ... ok
+test deployment_repo_test::terminate_clears_failure_reason_when_status_leaves_failed ... ok
+test deployment_repo_test::mark_failed_provisioning_accepts_engine_health_failure_reason_contract ... ok
+test deployment_repo_test::list_active_includes_failed_with_flapjack_url ... ok
+test deployment_repo_test::list_active_includes_stopped_with_flapjack_url ... ok
+test deployment_repo_test::list_active_returns_running_with_flapjack_url ... ok
+test deployment_repo_test::list_by_customer_excludes_terminated_by_default ... ok
+
+test result: ok. 20 passed; 0 failed; 0 ignored; 0 measured; 1445 filtered out; finished in 0.00s
+

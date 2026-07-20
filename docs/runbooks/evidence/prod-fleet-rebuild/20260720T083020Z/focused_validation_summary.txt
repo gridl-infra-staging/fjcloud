@@ -1,0 +1,5 @@
+PASS cd infra && cargo test -p api --test platform migration_059_vm_inventory_reference_guard -- --nocapture: rc=0; total_running_tests=15; skip_present=False; log=docs/runbooks/evidence/prod-fleet-rebuild/20260720T083020Z/focused_migration_059.txt
+PASS cd infra && cargo test -p api --test auth_admin admin_vms -- --nocapture: rc=0; total_running_tests=19; skip_present=False; log=docs/runbooks/evidence/prod-fleet-rebuild/20260720T083020Z/focused_admin_vms.txt
+PASS cd infra && cargo test -p api --test auth_admin admin_deployments -- --nocapture: rc=0; total_running_tests=12; skip_present=False; log=docs/runbooks/evidence/prod-fleet-rebuild/20260720T083020Z/focused_admin_deployments.txt
+PASS cd infra && cargo test -p api --test platform deployment_repo -- --nocapture: rc=0; total_running_tests=20; skip_present=False; log=docs/runbooks/evidence/prod-fleet-rebuild/20260720T083020Z/focused_deployment_repo.txt
+PASS cd infra && cargo test -p api --test platform provisioning_service_test:: -- --nocapture: rc=0; total_running_tests=54; skip_present=False; log=docs/runbooks/evidence/prod-fleet-rebuild/20260720T083020Z/focused_provisioning_service.txt

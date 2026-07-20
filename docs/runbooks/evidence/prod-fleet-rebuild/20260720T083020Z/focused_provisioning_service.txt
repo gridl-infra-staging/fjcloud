@@ -1,0 +1,65 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.13s
+     Running tests/platform.rs (target/debug/deps/platform-411f10469af67f6e)
+
+running 54 tests
+
+thread 'provisioning_service_test::blocked_engine_health_helper_rejects_detached_health_task_engine_health' (323668493) panicked at api/tests/integration/provisioning_service_test.rs:58:26:
+detached engine-health regression probe: provisioning task completed while engine health was blocked
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test provisioning_service_test::blocked_engine_health_helper_rejects_detached_health_task_engine_health ... ok
+test provisioning_service_test::complete_provisioning_cleans_up_ssm_on_dns_failure ... ok
+test provisioning_service_test::complete_provisioning_cleans_up_on_update_provisioning_failure ... ok
+test provisioning_service_test::complete_provisioning_creates_vm_dns_updates_record ... ok
+test provisioning_service_test::complete_provisioning_creates_ssm_secret ... ok
+test provisioning_service_test::auto_provision_shared_vm_engine_health_never_answering_fails_and_cleans_up ... ok
+test provisioning_service_test::auto_provision_shared_vm_trims_local_dev_flapjack_url_before_persisting ... ok
+test provisioning_service_test::auto_provision_shared_vm_cleans_up_vm_and_ssm_on_missing_public_ip ... ok
+test provisioning_service_test::complete_provisioning_fails_when_no_public_ip ... ok
+test provisioning_service_test::auto_provision_shared_vm_normalizes_trailing_slash_in_local_dev_flapjack_url ... ok
+test provisioning_service_test::complete_provisioning_sets_failed_on_dns_error ... ok
+test provisioning_service_test::complete_provisioning_skips_non_provisioning_deployment ... ok
+test provisioning_service_test::complete_provisioning_fails_when_ssm_fails ... ok
+test provisioning_service_test::complete_provisioning_sets_failed_on_vm_error ... ok
+test provisioning_service_test::default_dns_domain_is_flapjack_foo ... ok
+test provisioning_service_test::auto_provision_shared_vm_with_blank_local_dev_url_fails_with_unconfigured_provisioner ... ok
+test provisioning_service_test::auto_provision_shared_vm_rejects_non_loopback_local_dev_url ... ok
+test provisioning_service_test::auto_provision_shared_vm_normalizes_path_slash_without_mutating_query_suffix ... ok
+test provisioning_service_test::auto_provision_shared_vm_uses_local_dev_bypass_when_url_configured ... ok
+test provisioning_service_test::deployment_limit_counts_active_not_failed ... ok
+test provisioning_service_test::auto_provision_shared_vm_reuses_existing_local_dev_vm_for_region ... ok
+test provisioning_service_test::deployment_limit_excludes_failed ... ok
+test provisioning_service_test::ownership_check_deployment_not_found ... ok
+test provisioning_service_test::deployment_limit_excludes_terminated ... ok
+test provisioning_service_test::provision_fails_for_deleted_customer ... ok
+test provisioning_service_test::ownership_check_not_owned ... ok
+test provisioning_service_test::provision_fails_for_nonexistent_customer ... ok
+test provisioning_service_test::auto_provision_shared_vm_cleans_up_all_on_db_failure ... ok
+test provisioning_service_test::provision_fails_when_deployment_limit_reached ... ok
+test provisioning_service_test::start_non_stopped_deployment_returns_invalid_state ... ok
+test provisioning_service_test::provision_fails_for_suspended_customer ... ok
+test provisioning_service_test::stop_deployment_without_provider_vm_id_returns_invalid_state ... ok
+test provisioning_service_test::stop_and_start_lifecycle ... ok
+test provisioning_service_test::terminate_already_terminated_returns_invalid_state ... ok
+test provisioning_service_test::terminate_cleans_up_ssm_secret ... ok
+test provisioning_service_test::provisioning_sources_route_through_engine_health_gate_engine_health ... ok
+test provisioning_service_test::stop_non_running_deployment_returns_invalid_state ... ok
+test provisioning_service_test::terminate_cleans_up_vm_dns_deployment ... ok
+test provisioning_service_test::terminate_cleans_up_ssm_even_when_ssm_delete_partially_fails ... ok
+test provisioning_service_test::terminate_fails_when_vm_destruction_fails ... ok
+test provisioning_service_test::terminate_succeeds_even_when_dns_cleanup_fails ... ok
+test provisioning_service_test::terminate_succeeds_when_vm_already_externally_terminated ... ok
+test provisioning_service_test::auto_provision_shared_vm_engine_health_healthy_inserts_active_after_wait ... ok
+test provisioning_service_test::auto_provision_shared_vm_without_local_dev_url_fails_with_unconfigured_provisioner ... ok
+test provisioning_service_test::auto_provision_shared_vm_cleans_up_vm_and_ssm_on_dns_failure ... ok
+test provisioning_service_test::auto_provision_shared_vm_with_empty_local_dev_url_fails_with_unconfigured_provisioner ... ok
+test provisioning_service_test::auto_provision_shared_vm_cleans_up_ssm_on_vm_failure ... ok
+test provisioning_service_test::complete_provisioning_engine_health_healthy_finalizes_once_after_wait ... ok
+test provisioning_service_test::complete_provisioning_engine_health_never_answering_fails_and_cleans_up ... ok
+test provisioning_service_test::complete_provisioning_engine_health_status_race_cleans_up ... ok
+test provisioning_service_test::provision_creates_deployment_with_provisioning_status ... ok
+test provisioning_service_test::provision_hostname_uses_flapjack_foo_domain ... ok
+test provisioning_service_test::aws_deployment_uses_ssm_secrets_in_cloud_init ... ok
+test provisioning_service_test::hetzner_deployment_uses_direct_secrets_in_cloud_init ... ok
+
+test result: ok. 54 passed; 0 failed; 0 ignored; 0 measured; 1411 filtered out; finished in 0.28s
+

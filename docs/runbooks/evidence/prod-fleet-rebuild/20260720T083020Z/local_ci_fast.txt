@@ -1,0 +1,48 @@
+Running 29 gate(s): check-sizes script-exec-bits port-collision-diagnose compose-project mirror-sync-contract deploy-currency-check-contract rc-wrapper-contract ses-coverage-a1 wave3-phase-receipt launch-closeout debbie-dry-run source-pollution stripe-checks status-doc-consistency roadmap-v2-shape package-manager-consistency dirmap-merge-driver secret-scan evidence-secret-hygiene web-lint web-test index-export-clientside-contract rust-lint migration-test validate-bootstrap-parser publish-scripts-buildx algolia-safety-probe-contract flapjack-ami-pointer-contract validate-bootstrap-env-local (sequential)
+Mode: fast
+
+
+=== local-ci summary (wall 122s) ===
+GATE                STATUS   SECS  LOG
+----                ------   ----  ---
+algolia-safety-probe-contract  PASS       11  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/algolia-safety-probe-contract.log
+check-sizes         PASS       16  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/check-sizes.log
+compose-project     PASS        0  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/compose-project.log
+debbie-dry-run      PASS        7  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/debbie-dry-run.log
+deploy-currency-check-contract  PASS       17  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/deploy-currency-check-contract.log
+dirmap-merge-driver  PASS        0  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/dirmap-merge-driver.log
+evidence-secret-hygiene  PASS       18  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/evidence-secret-hygiene.log
+flapjack-ami-pointer-contract  PASS       37  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/flapjack-ami-pointer-contract.log
+index-export-clientside-contract  PASS        1  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/index-export-clientside-contract.log
+launch-closeout     PASS        9  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/launch-closeout.log
+migration-test      PASS        4  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/migration-test.log
+mirror-sync-contract  PASS       23  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/mirror-sync-contract.log
+package-manager-consistency  PASS        0  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/package-manager-consistency.log
+port-collision-diagnose  PASS       10  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/port-collision-diagnose.log
+publish-scripts-buildx  PASS        0  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/publish-scripts-buildx.log
+rc-wrapper-contract  PASS      121  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/rc-wrapper-contract.log
+roadmap-v2-shape    PASS        0  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/roadmap-v2-shape.log
+rust-lint           PASS       81  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/rust-lint.log
+script-exec-bits    PASS        4  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/script-exec-bits.log
+secret-scan         PASS        2  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/secret-scan.log
+ses-coverage-a1     PASS       52  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/ses-coverage-a1.log
+source-pollution    PASS       16  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/source-pollution.log
+status-doc-consistency  PASS        0  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/status-doc-consistency.log
+stripe-checks       PASS       14  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/stripe-checks.log
+validate-bootstrap-env-local  PASS        1  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/validate-bootstrap-env-local.log
+validate-bootstrap-parser  PASS        0  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/validate-bootstrap-parser.log
+wave3-phase-receipt  PASS        4  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/wave3-phase-receipt.log
+web-lint            PASS       41  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/web-lint.log
+web-test            PASS       30  /var/folders/v6/b8qh29l57ql_p7hdw2qhpqkw0000gn/T//local-ci-last-logs/web-test.log
+
+## Prod deploy drift (informational — does not affect exit code)
+Prod deploy drift:
+  dev_sha:            0a07dd3b0e60a90fa199bd7db193b65d8a0cfbe5
+  build_time:         2026-07-15T09:19:00Z (119h 17m ago)
+  commits_behind:     905
+  deployable_drift:   true (behind)
+  doc_only_ahead:     false
+  dev_main_sha:       c9ffde14f70c
+
+Totals: pass=29 fail=0 skip=0
+Result: PASS

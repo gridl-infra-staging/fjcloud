@@ -12,5 +12,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| algolia_import_job | Data models and validation logic for Algolia search index import jobs, including database persistence structures, destination binding validation, and enum state parsing for tracking import progress and lifecycle operations. |
+| algolia_import_job | The algolia_import_job module provides functionality for importing data into Algolia, with components for managing data providers, individual import records, and target bindings. |
 <!-- [scrai:end] -->

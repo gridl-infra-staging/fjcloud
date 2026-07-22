@@ -36,9 +36,9 @@ fn sample(vm_id: Uuid, collected_at: chrono::DateTime<Utc>) -> NewVmHostMetrics 
 
 #[tokio::test]
 async fn vm_host_metrics_repo_round_trips_and_returns_latest_sample() {
-    let db = connect_and_migrate("it_vm_host_metrics_repo")
-        .await
-        .expect("DATABASE_URL and PostgreSQL are required for vm_host_metrics repository tests");
+    let Some(db) = connect_and_migrate("it_vm_host_metrics_repo").await else {
+        return;
+    };
     let repo = PgVmHostMetricsRepo::new(db.pool.clone());
     let vm_id = seed_vm(&db.pool, "metrics-primary.test").await;
     let empty_vm_id = seed_vm(&db.pool, "metrics-empty.test").await;

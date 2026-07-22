@@ -4,6 +4,8 @@ use crate::provisioner::CreateVmRequest;
 use crate::repos::VmInventoryRepo;
 use crate::services::health_monitor::{await_engine_health, EngineHealthWaitStatus};
 use reqwest::Url;
+use serde::ser::SerializeMap;
+use serde::{Serialize, Serializer};
 use tracing::{error, info};
 use uuid::Uuid;
 
@@ -21,6 +23,83 @@ pub enum SharedVmProvisioningMode {
     AllowLocalDevBypass,
     RequireManagedVm,
 }
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum VmTeardownPolicy {
+    HaltTeardown,
+    ContinueBestEffort,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum VmTeardownOutcome {
+    Removed,
+    Failed { message: String },
+    Indeterminate { message: String },
+    NotApplicable,
+    Skipped { reason: String },
+}
+
+impl VmTeardownOutcome {
+    fn status(&self) -> &'static str {
+        match self {
+            Self::Removed => "removed",
+            Self::Failed { .. } => "failed",
+            Self::Indeterminate { .. } => "indeterminate",
+            Self::NotApplicable => "not_applicable",
+            Self::Skipped { .. } => "skipped",
+        }
+    }
+
+    fn clean(&self) -> bool {
+        matches!(self, Self::Removed | Self::NotApplicable)
+    }
+}
+
+impl Serialize for VmTeardownOutcome {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let field_count = match self {
+            Self::Failed { .. } | Self::Indeterminate { .. } | Self::Skipped { .. } => 3,
+            Self::Removed | Self::NotApplicable => 2,
+        };
+        let mut map = serializer.serialize_map(Some(field_count))?;
+        map.serialize_entry("status", self.status())?;
+        map.serialize_entry("clean", &self.clean())?;
+        match self {
+            Self::Failed { message } | Self::Indeterminate { message } => {
+                map.serialize_entry("message", message)?;
+            }
+            Self::Skipped { reason } => {
+                map.serialize_entry("reason", reason)?;
+            }
+            Self::Removed | Self::NotApplicable => {}
+        }
+        map.end()
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct VmTeardownReport {
+    pub instance: VmTeardownOutcome,
+    pub dns_record: VmTeardownOutcome,
+    pub node_api_key: VmTeardownOutcome,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum VmInstanceTeardownTarget {
+    ProviderVmId(Option<String>),
+    Indeterminate { message: String },
+}
+
+impl VmInstanceTeardownTarget {
+    pub fn provider_vm_id(provider_vm_id: Option<&str>) -> Self {
+        Self::ProviderVmId(provider_vm_id.map(str::to_string))
+    }
+}
+
+const INSTANCE_TEARDOWN_FAILED_REASON: &str = "instance_teardown_failed";
 
 struct SharedVmDraft {
     hostname: String,
@@ -64,7 +143,14 @@ impl ProvisioningService {
         let vm_instance = match self.vm_provisioner.create_vm(&vm_request).await {
             Ok(vm) => vm,
             Err(e) => {
-                self.cleanup_shared_vm_secret(&draft.node_id, region).await;
+                self.teardown_vm_resources(
+                    None,
+                    VmInstanceTeardownTarget::provider_vm_id(None),
+                    &draft.node_id,
+                    region,
+                    VmTeardownPolicy::ContinueBestEffort,
+                )
+                .await;
                 return Err(ProvisioningError::ProvisionerFailed(e.to_string()));
             }
         };
@@ -72,10 +158,12 @@ impl ProvisioningService {
         let ip = match vm_instance.public_ip.as_deref() {
             Some(ip) => ip,
             None => {
-                self.cleanup_shared_vm_instance(
-                    &vm_instance.provider_vm_id,
+                self.teardown_vm_resources(
+                    None,
+                    VmInstanceTeardownTarget::provider_vm_id(Some(&vm_instance.provider_vm_id)),
                     &draft.node_id,
                     region,
+                    VmTeardownPolicy::ContinueBestEffort,
                 )
                 .await;
                 return Err(ProvisioningError::ProvisionerFailed(
@@ -85,8 +173,14 @@ impl ProvisioningService {
         };
 
         if let Err(e) = self.dns_manager.create_record(&draft.hostname, ip).await {
-            self.cleanup_shared_vm_instance(&vm_instance.provider_vm_id, &draft.node_id, region)
-                .await;
+            self.teardown_vm_resources(
+                Some(&draft.hostname),
+                VmInstanceTeardownTarget::provider_vm_id(Some(&vm_instance.provider_vm_id)),
+                &draft.node_id,
+                region,
+                VmTeardownPolicy::ContinueBestEffort,
+            )
+            .await;
             return Err(ProvisioningError::DnsFailed(e.to_string()));
         }
 
@@ -140,11 +234,12 @@ impl ProvisioningService {
         {
             Ok(vm) => Ok(vm),
             Err(e) => {
-                self.cleanup_failed_shared_vm_registration(
-                    &registration.draft.hostname,
-                    registration.provider_vm_id,
+                self.teardown_vm_resources(
+                    Some(&registration.draft.hostname),
+                    VmInstanceTeardownTarget::provider_vm_id(Some(registration.provider_vm_id)),
                     &registration.draft.node_id,
                     registration.region,
+                    VmTeardownPolicy::ContinueBestEffort,
                 )
                 .await;
                 Err(ProvisioningError::RepoError(e.to_string()))
@@ -179,11 +274,12 @@ impl ProvisioningService {
                 vm_row.id
             );
         }
-        self.cleanup_failed_shared_vm_registration(
-            &registration.draft.hostname,
-            registration.provider_vm_id,
+        self.teardown_vm_resources(
+            Some(&registration.draft.hostname),
+            VmInstanceTeardownTarget::provider_vm_id(Some(registration.provider_vm_id)),
             &registration.draft.node_id,
             registration.region,
+            VmTeardownPolicy::ContinueBestEffort,
         )
         .await;
     }
@@ -201,35 +297,100 @@ impl ProvisioningService {
         }
     }
 
-    async fn cleanup_shared_vm_secret(&self, node_id: &str, region: &str) {
-        if let Err(e) = self
+    /// Canonical owner for external VM teardown. Callers still own their DB row
+    /// transitions; this seam owns only provider instance, DNS, and node-key cleanup.
+    pub async fn teardown_vm_resources(
+        &self,
+        hostname: Option<&str>,
+        instance_target: VmInstanceTeardownTarget,
+        node_id: &str,
+        region: &str,
+        policy: VmTeardownPolicy,
+    ) -> VmTeardownReport {
+        // Destroy the instance first so a failed retirement path does not remove
+        // DNS/key evidence for a VM that may still be serving traffic.
+        let instance = self.teardown_vm_instance(instance_target).await;
+        if policy == VmTeardownPolicy::HaltTeardown
+            && matches!(
+                instance,
+                VmTeardownOutcome::Failed { .. } | VmTeardownOutcome::Indeterminate { .. }
+            )
+        {
+            return VmTeardownReport {
+                instance,
+                dns_record: skipped_after_instance_failure(),
+                node_api_key: skipped_after_instance_failure(),
+            };
+        }
+
+        VmTeardownReport {
+            instance,
+            dns_record: self.teardown_vm_dns_record(hostname).await,
+            node_api_key: self.teardown_vm_node_api_key(node_id, region).await,
+        }
+    }
+
+    async fn teardown_vm_instance(
+        &self,
+        instance_target: VmInstanceTeardownTarget,
+    ) -> VmTeardownOutcome {
+        let provider_vm_id = match instance_target {
+            VmInstanceTeardownTarget::ProviderVmId(Some(provider_vm_id)) => provider_vm_id,
+            VmInstanceTeardownTarget::ProviderVmId(None) => {
+                return VmTeardownOutcome::NotApplicable;
+            }
+            VmInstanceTeardownTarget::Indeterminate { message } => {
+                return VmTeardownOutcome::Indeterminate { message };
+            }
+        };
+
+        match self.vm_provisioner.destroy_vm(&provider_vm_id).await {
+            Ok(()) => VmTeardownOutcome::Removed,
+            Err(e) => {
+                error!("teardown: failed to destroy VM {provider_vm_id}: {e}");
+                VmTeardownOutcome::Failed {
+                    message: e.to_string(),
+                }
+            }
+        }
+    }
+
+    async fn teardown_vm_dns_record(&self, hostname: Option<&str>) -> VmTeardownOutcome {
+        let Some(hostname) = hostname else {
+            return VmTeardownOutcome::NotApplicable;
+        };
+
+        match self.dns_manager.delete_record(hostname).await {
+            Ok(()) => VmTeardownOutcome::Removed,
+            Err(e) => {
+                error!("teardown: failed to delete DNS record for {hostname}: {e}");
+                VmTeardownOutcome::Failed {
+                    message: e.to_string(),
+                }
+            }
+        }
+    }
+
+    async fn teardown_vm_node_api_key(&self, node_id: &str, region: &str) -> VmTeardownOutcome {
+        match self
             .node_secret_manager
             .delete_node_api_key(node_id, region)
             .await
         {
-            error!("rollback: failed to clean up shared VM key for {node_id}: {e}");
+            Ok(()) => VmTeardownOutcome::Removed,
+            Err(e) => {
+                error!("teardown: failed to delete node API keys for {node_id}: {e}");
+                VmTeardownOutcome::Failed {
+                    message: e.to_string(),
+                }
+            }
         }
     }
+}
 
-    async fn cleanup_shared_vm_instance(&self, provider_vm_id: &str, node_id: &str, region: &str) {
-        if let Err(e) = self.vm_provisioner.destroy_vm(provider_vm_id).await {
-            error!("rollback: failed to destroy shared VM {provider_vm_id}: {e}");
-        }
-        self.cleanup_shared_vm_secret(node_id, region).await;
-    }
-
-    async fn cleanup_failed_shared_vm_registration(
-        &self,
-        hostname: &str,
-        provider_vm_id: &str,
-        node_id: &str,
-        region: &str,
-    ) {
-        if let Err(e) = self.dns_manager.delete_record(hostname).await {
-            error!("rollback: failed to delete shared VM DNS record for {hostname}: {e}");
-        }
-        self.cleanup_shared_vm_instance(provider_vm_id, node_id, region)
-            .await;
+fn skipped_after_instance_failure() -> VmTeardownOutcome {
+    VmTeardownOutcome::Skipped {
+        reason: INSTANCE_TEARDOWN_FAILED_REASON.to_string(),
     }
 }
 

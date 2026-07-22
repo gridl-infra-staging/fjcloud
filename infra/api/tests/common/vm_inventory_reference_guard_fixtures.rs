@@ -12,6 +12,18 @@ pub const EXPECTED_VM_REFERENCE_COLUMNS: &[(&str, &str)] = &[
     ("algolia_import_jobs", "destination_vm_id"),
 ];
 
+pub const EXPECTED_PERSISTED_VM_REFERENCE_COLUMNS: &[(&str, &str)] = &[
+    ("customer_tenants", "vm_id"),
+    ("index_migrations", "source_vm_id"),
+    ("index_migrations", "dest_vm_id"),
+    ("cold_snapshots", "source_vm_id"),
+    ("restore_jobs", "dest_vm_id"),
+    ("index_replicas", "primary_vm_id"),
+    ("index_replicas", "replica_vm_id"),
+    ("algolia_import_jobs", "destination_vm_id"),
+    ("vm_host_metrics", "vm_id"),
+];
+
 #[derive(Clone, Copy)]
 pub struct AlgoliaReservationState<'a> {
     pub status: &'a str,

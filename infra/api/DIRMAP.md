@@ -7,6 +7,6 @@
 
 | Directory | Summary |
 | --- | --- |
-| src | The core HTTP API server for fjcloud's billing and infrastructure platform, built with Axum and implementing customer management, invoicing, multi-cloud provisioning (AWS/Hetzner), Stripe payment integration, authentication via JWT and API keys, search index management, webhooks, and operational services including audit logging and email delivery. |
-| tests | The tests directory contains the fjcloud API's integration test suite, with common/ providing shared test utilities and fixtures and integration/ holding domain-specific tests for Algolia import, catalog lifecycle, and migration routes. |
+| src | The infra/api/src directory is the Rust backend server (Axum-based) for fjcloud's billing and infrastructure platform, providing HTTP endpoints for customer account management, billing, search indexes, storage operations, and administrative functions alongside supporting services for email delivery, webhooks, multi-cloud provisioning (AWS, GCP, OCI, Hetzner), and invoice generation. |
+| tests | The tests directory provides integration tests and utilities for the API crate, validating critical workflows around VM inventory management, catalog leasing, and Algolia integration with comprehensive race-condition and invariant testing. |
 <!-- [scrai:end] -->

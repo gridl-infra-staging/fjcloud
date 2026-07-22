@@ -20,7 +20,7 @@ pub fn is_missing_node_secret_error(error: &NodeSecretError) -> bool {
                 || normalized.contains("parameter not found")
                 || normalized.contains("parameternotfound")
         }
-        NodeSecretError::NotConfigured => false,
+        NodeSecretError::NotConfigured | NodeSecretError::ListingUnsupported => false,
     }
 }
 

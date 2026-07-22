@@ -11,6 +11,7 @@ pub mod replicas;
 pub mod tenants;
 pub mod tokens;
 pub mod usage;
+pub mod vm_orphans;
 pub mod vms;
 pub mod webhook_events;
 
@@ -104,6 +105,7 @@ pub fn admin_routes() -> Router<AppState> {
         .route("/billing/run", post(invoices::run_batch_billing))
         .route("/billing/summary", get(invoices::billing_summary))
         .route("/vms", get(vms::list_vms))
+        .route("/vms/orphans", get(vm_orphans::get_vm_orphans))
         .route("/vms/shared/warm-floor", post(vms::warm_floor_shared_vm))
         .route(
             "/vms/:id/retirement-blockers",

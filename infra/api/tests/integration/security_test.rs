@@ -544,60 +544,6 @@ async fn resend_password_reset_rate_limit_sets_retry_after_header() {
     );
 }
 
-/// Test 6: Rate limit should reset after the window expires — requests are allowed again.
-#[tokio::test]
-async fn auth_rate_limit_resets_after_window() {
-    let app = build_router_with_auth_rate_config(
-        crate::common::test_state(),
-        1,                                     // 1 request per window
-        std::time::Duration::from_millis(200), // 200ms window
-    );
-
-    let ip = "203.0.113.20";
-
-    // First request succeeds
-    let resp1 = app
-        .clone()
-        .oneshot(json_post(
-            "/auth/forgot-password",
-            json!({ "email": "a@example.com" }),
-            ip,
-        ))
-        .await
-        .unwrap();
-    assert_eq!(resp1.status(), StatusCode::OK);
-
-    // Second request within window is blocked
-    let resp2 = app
-        .clone()
-        .oneshot(json_post(
-            "/auth/forgot-password",
-            json!({ "email": "b@example.com" }),
-            ip,
-        ))
-        .await
-        .unwrap();
-    assert_eq!(resp2.status(), StatusCode::TOO_MANY_REQUESTS);
-
-    // Wait for window to expire
-    tokio::time::sleep(std::time::Duration::from_millis(250)).await;
-
-    // Third request after window expires should succeed
-    let resp3 = app
-        .oneshot(json_post(
-            "/auth/forgot-password",
-            json!({ "email": "c@example.com" }),
-            ip,
-        ))
-        .await
-        .unwrap();
-    assert_eq!(
-        resp3.status(),
-        StatusCode::OK,
-        "rate limit should reset after window expires"
-    );
-}
-
 /// Test 7: Invalid zero-RPM config should be clamped to a safe minimum (1 RPM), not panic.
 #[tokio::test]
 async fn auth_rate_limit_zero_rpm_is_clamped_to_one() {

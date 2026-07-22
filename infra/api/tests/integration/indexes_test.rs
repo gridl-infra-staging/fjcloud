@@ -38,7 +38,7 @@ async fn advisory_lock_test_pool_with_current_env() -> Option<sqlx::PgPool> {
     let url = match std::env::var("DATABASE_URL") {
         Ok(u) => u,
         Err(_) => {
-            eprintln!("SKIP: DATABASE_URL not set — advisory lock tests require a real database");
+            eprintln!("SKIP: advisory lock tests require DATABASE_URL");
             return None;
         }
     };
@@ -5162,11 +5162,12 @@ async fn index_replica_crud_endpoints_round_trip() {
         replicas[0].get("replica_vm_hostname").is_none(),
         "replica_vm_hostname should not be in customer response"
     );
-    // Customer-facing response uses 'endpoint' instead of 'replica_flapjack_url'
-    assert!(
-        replicas[0]["endpoint"].is_string(),
-        "endpoint should be present"
-    );
+    // Keep the public response shape stable without leaking the replica engine URL.
+    assert_eq!(replicas[0]["endpoint"], serde_json::Value::Null);
+    assert!(replicas[0].get("replica_flapjack_url").is_none());
+    let customer_replica_json = replicas[0].to_string();
+    assert!(!customer_replica_json.contains("vm-replica.flapjack.foo"));
+    assert!(!customer_replica_json.contains("https://vm-replica.flapjack.foo"));
 
     let delete_resp = app
         .clone()

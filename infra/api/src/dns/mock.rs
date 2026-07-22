@@ -1,13 +1,17 @@
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
 
-use super::{DnsError, DnsManager};
+use chrono::{DateTime, Utc};
+
+use super::{DnsARecord, DnsError, DnsManager};
 
 pub struct MockDnsManager {
     records: Mutex<HashMap<String, String>>,
+    created_at: Mutex<HashMap<String, DateTime<Utc>>>,
+    delete_calls: AtomicUsize,
     pub should_fail: Arc<AtomicBool>,
 }
 
@@ -15,6 +19,8 @@ impl MockDnsManager {
     pub fn new() -> Self {
         Self {
             records: Mutex::new(HashMap::new()),
+            created_at: Mutex::new(HashMap::new()),
+            delete_calls: AtomicUsize::new(0),
             should_fail: Arc::new(AtomicBool::new(false)),
         }
     }
@@ -35,6 +41,21 @@ impl MockDnsManager {
     pub fn get_records(&self) -> HashMap<String, String> {
         self.records.lock().unwrap().clone()
     }
+
+    pub fn seed_a_record_at(&self, hostname: &str, ip: &str, created_at: DateTime<Utc>) {
+        self.records
+            .lock()
+            .unwrap()
+            .insert(hostname.to_string(), ip.to_string());
+        self.created_at
+            .lock()
+            .unwrap()
+            .insert(hostname.to_string(), created_at);
+    }
+
+    pub fn delete_call_count(&self) -> usize {
+        self.delete_calls.load(Ordering::SeqCst)
+    }
 }
 
 impl Default for MockDnsManager {
@@ -49,13 +70,34 @@ impl DnsManager for MockDnsManager {
         self.check_failure()?;
         let mut records = self.records.lock().unwrap();
         records.insert(hostname.to_string(), ip.to_string());
+        self.created_at
+            .lock()
+            .unwrap()
+            .insert(hostname.to_string(), Utc::now());
         Ok(())
     }
 
     async fn delete_record(&self, hostname: &str) -> Result<(), DnsError> {
+        self.delete_calls.fetch_add(1, Ordering::SeqCst);
         self.check_failure()?;
         let mut records = self.records.lock().unwrap();
         records.remove(hostname);
+        self.created_at.lock().unwrap().remove(hostname);
         Ok(())
+    }
+
+    async fn list_a_records(&self) -> Result<Vec<DnsARecord>, DnsError> {
+        self.check_failure()?;
+        let records = self.records.lock().unwrap();
+        let timestamps = self.created_at.lock().unwrap();
+        let mut listed = records
+            .keys()
+            .map(|hostname| DnsARecord {
+                hostname: hostname.clone(),
+                created_at: timestamps.get(hostname).cloned().unwrap_or_else(Utc::now),
+            })
+            .collect::<Vec<_>>();
+        listed.sort_by(|left, right| left.hostname.cmp(&right.hostname));
+        Ok(listed)
     }
 }

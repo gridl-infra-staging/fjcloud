@@ -13,6 +13,7 @@ pub struct MockVmProvisioner {
     last_create_request: Mutex<Option<CreateVmRequest>>,
     create_status: Mutex<VmStatus>,
     create_calls: AtomicUsize,
+    destroy_calls: AtomicUsize,
     pub should_fail: Arc<AtomicBool>,
     pub omit_public_ip: Arc<AtomicBool>,
 }
@@ -25,6 +26,7 @@ impl MockVmProvisioner {
             last_create_request: Mutex::new(None),
             create_status: Mutex::new(VmStatus::Pending),
             create_calls: AtomicUsize::new(0),
+            destroy_calls: AtomicUsize::new(0),
             should_fail: Arc::new(AtomicBool::new(false)),
             omit_public_ip: Arc::new(AtomicBool::new(false)),
         }
@@ -39,6 +41,10 @@ impl MockVmProvisioner {
         self.create_calls.load(Ordering::SeqCst)
     }
 
+    pub fn destroy_call_count(&self) -> usize {
+        self.destroy_calls.load(Ordering::SeqCst)
+    }
+
     pub fn set_should_fail(&self, fail: bool) {
         self.should_fail.store(fail, Ordering::SeqCst);
     }
@@ -50,6 +56,10 @@ impl MockVmProvisioner {
     /// Returns the number of VMs currently tracked (for test assertions).
     pub fn vm_count(&self) -> usize {
         self.vms.lock().unwrap().len()
+    }
+
+    pub fn has_vm(&self, provider_vm_id: &str) -> bool {
+        self.vms.lock().unwrap().contains_key(provider_vm_id)
     }
 
     /// Seed the mock with a VM in a specific state (for test setup).
@@ -129,6 +139,7 @@ impl VmProvisioner for MockVmProvisioner {
     }
 
     async fn destroy_vm(&self, provider_vm_id: &str) -> Result<(), VmProvisionerError> {
+        self.destroy_calls.fetch_add(1, Ordering::SeqCst);
         self.check_failure()?;
 
         // Idempotent: matches real EC2 TerminateInstances behavior where destroying
@@ -214,6 +225,32 @@ impl VmProvisioner for MockVmProvisioner {
             return Ok(None);
         };
         if vm.region == region && vm.status == VmStatus::Running {
+            Ok(Some(vm))
+        } else {
+            Ok(None)
+        }
+    }
+
+    async fn find_managed_vm_by_hostname(
+        &self,
+        provider: &str,
+        region: &str,
+        hostname: &str,
+    ) -> Result<Option<VmInstance>, VmProvisionerError> {
+        self.check_failure()?;
+        if provider != "aws" {
+            return Err(VmProvisionerError::Api(format!(
+                "mock provider cannot resolve provider {provider}"
+            )));
+        }
+
+        let Some(provider_vm_id) = self.hostnames.lock().unwrap().get(hostname).cloned() else {
+            return Ok(None);
+        };
+        let Some(vm) = self.vms.lock().unwrap().get(&provider_vm_id).cloned() else {
+            return Ok(None);
+        };
+        if vm.region == region && vm.status != VmStatus::Terminated {
             Ok(Some(vm))
         } else {
             Ok(None)

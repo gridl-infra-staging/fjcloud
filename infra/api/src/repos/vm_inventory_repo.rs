@@ -92,6 +92,9 @@ pub trait VmInventoryRepo {
     /// All VMs with status=active, optionally filtered by region.
     async fn list_active(&self, region: Option<&str>) -> Result<Vec<VmInventory>, RepoError>;
 
+    /// All VMs that still participate in fleet liveness, including draining VMs.
+    async fn list_non_decommissioned(&self) -> Result<Vec<VmInventory>, RepoError>;
+
     /// Get a single VM by id.
     async fn get(&self, id: Uuid) -> Result<Option<VmInventory>, RepoError>;
 

@@ -6,5 +6,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| publishable-key | The publishable-key directory contains a SvelteKit API route handler (+server.ts) that manages publishable key operations, likely for handling public API credentials or identifiers used by the billing/infrastructure platform. |
+| publishable-key | This API endpoint proxies authenticated requests to the backend's billing service to retrieve the Stripe publishable key, returning a 401 if the user is unauthenticated or a 503 if the upstream service is unavailable. |
 <!-- [scrai:end] -->

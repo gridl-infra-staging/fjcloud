@@ -3,23 +3,12 @@
 //! These are red KATs for the engine-health provisioning gate. They avoid
 //! production model fields so the integration binary still compiles before the
 //! migration and repository implementation exist.
-use sqlx::{PgPool, Row};
+use sqlx::Row;
 
-async fn connect_and_migrate() -> Option<PgPool> {
-    let Ok(url) = std::env::var("DATABASE_URL") else {
-        println!(
-            "SKIP: DATABASE_URL not set - skipping migration_058_deployment_failure_reason schema test"
-        );
-        return None;
-    };
-    let pool = PgPool::connect(&url)
-        .await
-        .expect("connect to integration test DB");
-    sqlx::migrate!("../migrations")
-        .run(&pool)
-        .await
-        .expect("run migrations");
-    Some(pool)
+use crate::common::support::pg_schema_harness;
+
+async fn connect_and_migrate() -> Option<pg_schema_harness::DbHarness> {
+    pg_schema_harness::connect_and_migrate("migration_058_failure_reason").await
 }
 
 #[tokio::test]
@@ -36,17 +25,17 @@ async fn migration_058_engine_health_failure_reason_is_present_in_compiled_set()
 
 #[tokio::test]
 async fn customer_deployments_failure_reason_schema_contract_engine_health() {
-    let Some(pool) = connect_and_migrate().await else {
+    let Some(db) = connect_and_migrate().await else {
         return;
     };
 
     let columns = sqlx::query(
         "SELECT column_name, is_nullable, data_type \
          FROM information_schema.columns \
-         WHERE table_schema = 'public' AND table_name = 'customer_deployments' \
+         WHERE table_schema = current_schema() AND table_name = 'customer_deployments' \
            AND column_name = 'failure_reason'",
     )
-    .fetch_all(&pool)
+    .fetch_all(&db.pool)
     .await
     .expect("query customer_deployments.failure_reason from information_schema");
 

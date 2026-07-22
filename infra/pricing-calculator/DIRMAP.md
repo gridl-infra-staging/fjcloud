@@ -6,5 +6,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| src | This directory contains modular pricing provider implementations for various cloud services, organized with a registry system to manage and coordinate them. |
+| src | The src directory implements a modular pricing calculator system with provider implementations managed through a registry, including providers for Griddle (flat per-MB storage pricing) and Algolia. |
 <!-- [scrai:end] -->

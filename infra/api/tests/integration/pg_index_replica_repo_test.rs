@@ -16,8 +16,8 @@
 /// If DATABASE_URL is not set, all tests in this file are skipped (they print
 /// "SKIP: DATABASE_URL not set" and return early).
 ///
-/// Migrations are applied automatically before the first test and are
-/// idempotent (IF NOT EXISTS), so running against an existing database is safe.
+/// Migrations are applied automatically in an isolated schema for each test, so
+/// running against a shared integration database is safe.
 ///
 /// ## Isolation
 ///
@@ -27,6 +27,8 @@
 use api::repos::{IndexReplicaRepo, PgIndexReplicaRepo, RepoError};
 use sqlx::PgPool;
 use uuid::Uuid;
+
+use crate::common::support::pg_schema_harness;
 
 // ---------------------------------------------------------------------------
 // Prerequisites
@@ -155,19 +157,8 @@ async fn cleanup_prereqs(pool: &PgPool, p: &Prereqs) {
 // Test pool helper — skips the whole test if DATABASE_URL is not set
 // ---------------------------------------------------------------------------
 
-async fn connect_and_migrate() -> Option<PgPool> {
-    let Ok(url) = std::env::var("DATABASE_URL") else {
-        println!("SKIP: DATABASE_URL not set — skipping PgIndexReplicaRepo SQL tests");
-        return None;
-    };
-    let pool = PgPool::connect(&url)
-        .await
-        .expect("connect to integration test DB");
-    sqlx::migrate!("../migrations")
-        .run(&pool)
-        .await
-        .expect("run migrations");
-    Some(pool)
+async fn connect_and_migrate() -> Option<pg_schema_harness::DbHarness> {
+    pg_schema_harness::connect_and_migrate("index_replica").await
 }
 
 // ---------------------------------------------------------------------------
@@ -176,9 +167,10 @@ async fn connect_and_migrate() -> Option<PgPool> {
 
 #[tokio::test]
 async fn pg_create_returns_correct_fields() {
-    let Some(pool) = connect_and_migrate().await else {
+    let Some(db) = connect_and_migrate().await else {
         return;
     };
+    let pool = db.pool.clone();
     let p = seed_prereqs(&pool).await;
     let repo = PgIndexReplicaRepo::new(pool.clone());
 
@@ -210,9 +202,10 @@ async fn pg_create_returns_correct_fields() {
 
 #[tokio::test]
 async fn pg_get_returns_inserted_row() {
-    let Some(pool) = connect_and_migrate().await else {
+    let Some(db) = connect_and_migrate().await else {
         return;
     };
+    let pool = db.pool.clone();
     let p = seed_prereqs(&pool).await;
     let repo = PgIndexReplicaRepo::new(pool.clone());
 
@@ -241,9 +234,10 @@ async fn pg_get_returns_inserted_row() {
 
 #[tokio::test]
 async fn pg_get_missing_id_returns_none() {
-    let Some(pool) = connect_and_migrate().await else {
+    let Some(db) = connect_and_migrate().await else {
         return;
     };
+    let pool = db.pool.clone();
     let repo = PgIndexReplicaRepo::new(pool);
 
     let result = repo.get(Uuid::new_v4()).await.expect("no DB error");
@@ -252,9 +246,10 @@ async fn pg_get_missing_id_returns_none() {
 
 #[tokio::test]
 async fn pg_list_by_index_filters_by_customer_and_tenant() {
-    let Some(pool) = connect_and_migrate().await else {
+    let Some(db) = connect_and_migrate().await else {
         return;
     };
+    let pool = db.pool.clone();
     let p = seed_prereqs(&pool).await;
     // Create a second replica VM for the second replica
     let replica_vm_id_2 = Uuid::new_v4();
@@ -326,9 +321,10 @@ async fn pg_list_by_index_filters_by_customer_and_tenant() {
 
 #[tokio::test]
 async fn pg_list_healthy_returns_only_active_status() {
-    let Some(pool) = connect_and_migrate().await else {
+    let Some(db) = connect_and_migrate().await else {
         return;
     };
+    let pool = db.pool.clone();
     let p = seed_prereqs(&pool).await;
     let replica_vm_id_2 = Uuid::new_v4();
     let vm2short = &replica_vm_id_2.to_string()[..8];
@@ -393,9 +389,10 @@ async fn pg_list_healthy_returns_only_active_status() {
 
 #[tokio::test]
 async fn pg_set_status_updates_updated_at_and_rejects_invalid_status() {
-    let Some(pool) = connect_and_migrate().await else {
+    let Some(db) = connect_and_migrate().await else {
         return;
     };
+    let pool = db.pool.clone();
     let p = seed_prereqs(&pool).await;
     let repo = PgIndexReplicaRepo::new(pool.clone());
 
@@ -442,9 +439,10 @@ async fn pg_set_status_updates_updated_at_and_rejects_invalid_status() {
 
 #[tokio::test]
 async fn pg_set_status_not_found_returns_error() {
-    let Some(pool) = connect_and_migrate().await else {
+    let Some(db) = connect_and_migrate().await else {
         return;
     };
+    let pool = db.pool.clone();
     let repo = PgIndexReplicaRepo::new(pool);
 
     let result = repo.set_status(Uuid::new_v4(), "active").await;
@@ -456,9 +454,10 @@ async fn pg_set_status_not_found_returns_error() {
 
 #[tokio::test]
 async fn pg_set_lag_does_not_update_updated_at() {
-    let Some(pool) = connect_and_migrate().await else {
+    let Some(db) = connect_and_migrate().await else {
         return;
     };
+    let pool = db.pool.clone();
     let p = seed_prereqs(&pool).await;
     let repo = PgIndexReplicaRepo::new(pool.clone());
 
@@ -496,9 +495,10 @@ async fn pg_set_lag_does_not_update_updated_at() {
 
 #[tokio::test]
 async fn pg_set_lag_not_found_returns_error() {
-    let Some(pool) = connect_and_migrate().await else {
+    let Some(db) = connect_and_migrate().await else {
         return;
     };
+    let pool = db.pool.clone();
     let repo = PgIndexReplicaRepo::new(pool);
 
     let result = repo.set_lag(Uuid::new_v4(), 100).await;
@@ -510,9 +510,10 @@ async fn pg_set_lag_not_found_returns_error() {
 
 #[tokio::test]
 async fn pg_delete_removes_row_and_returns_true() {
-    let Some(pool) = connect_and_migrate().await else {
+    let Some(db) = connect_and_migrate().await else {
         return;
     };
+    let pool = db.pool.clone();
     let p = seed_prereqs(&pool).await;
     let repo = PgIndexReplicaRepo::new(pool.clone());
 
@@ -544,9 +545,10 @@ async fn pg_delete_removes_row_and_returns_true() {
 
 #[tokio::test]
 async fn pg_count_by_index_returns_correct_count() {
-    let Some(pool) = connect_and_migrate().await else {
+    let Some(db) = connect_and_migrate().await else {
         return;
     };
+    let pool = db.pool.clone();
     let p = seed_prereqs(&pool).await;
     let replica_vm_id_2 = Uuid::new_v4();
     let vm2short = &replica_vm_id_2.to_string()[..8];
@@ -613,9 +615,10 @@ async fn pg_count_by_index_returns_correct_count() {
 
 #[tokio::test]
 async fn pg_list_actionable_excludes_failed_and_removing() {
-    let Some(pool) = connect_and_migrate().await else {
+    let Some(db) = connect_and_migrate().await else {
         return;
     };
+    let pool = db.pool.clone();
     let p = seed_prereqs(&pool).await;
 
     // Create three extra replica VMs for this test
@@ -681,9 +684,10 @@ async fn pg_list_actionable_excludes_failed_and_removing() {
 
 #[tokio::test]
 async fn pg_list_all_returns_every_status() {
-    let Some(pool) = connect_and_migrate().await else {
+    let Some(db) = connect_and_migrate().await else {
         return;
     };
+    let pool = db.pool.clone();
     let p = seed_prereqs(&pool).await;
     let replica_vm_id_2 = Uuid::new_v4();
     let vm2short = &replica_vm_id_2.to_string()[..8];
@@ -743,9 +747,10 @@ async fn pg_list_all_returns_every_status() {
 
 #[tokio::test]
 async fn pg_unique_constraint_rejects_duplicate_replica_vm() {
-    let Some(pool) = connect_and_migrate().await else {
+    let Some(db) = connect_and_migrate().await else {
         return;
     };
+    let pool = db.pool.clone();
     let p = seed_prereqs(&pool).await;
     let repo = PgIndexReplicaRepo::new(pool.clone());
 

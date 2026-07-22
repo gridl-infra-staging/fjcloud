@@ -91,6 +91,65 @@ mod tests {
     use chrono::{DateTime, TimeZone, Timelike, Utc};
     use sqlx::postgres::PgPoolOptions;
 
+    #[derive(Clone)]
+    struct ValidatedSql(String);
+
+    impl ValidatedSql {
+        fn as_str(&self) -> &str {
+            &self.0
+        }
+    }
+
+    enum SchemaOperation {
+        Create,
+        SetSearchPath,
+        Drop,
+    }
+
+    fn validated_schema_sql(schema_name: &str, operation: SchemaOperation) -> ValidatedSql {
+        assert!(
+            !schema_name.is_empty()
+                && schema_name
+                    .bytes()
+                    .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_'),
+            "schema name must be a valid SQL identifier"
+        );
+        let quoted_schema = format!("\"{schema_name}\"");
+        let statement = match operation {
+            SchemaOperation::Create => format!("CREATE SCHEMA {quoted_schema}"),
+            SchemaOperation::SetSearchPath => format!("SET search_path TO {quoted_schema}"),
+            SchemaOperation::Drop => format!("DROP SCHEMA {quoted_schema} CASCADE"),
+        };
+        ValidatedSql(statement)
+    }
+
+    #[test]
+    fn isolated_schema_sql_quotes_validated_identifiers() {
+        let schema_name = "host_metrics_0123456789abcdef";
+
+        assert_eq!(
+            validated_schema_sql(schema_name, SchemaOperation::Create).as_str(),
+            "CREATE SCHEMA \"host_metrics_0123456789abcdef\""
+        );
+        assert_eq!(
+            validated_schema_sql(schema_name, SchemaOperation::SetSearchPath).as_str(),
+            "SET search_path TO \"host_metrics_0123456789abcdef\""
+        );
+        assert_eq!(
+            validated_schema_sql(schema_name, SchemaOperation::Drop).as_str(),
+            "DROP SCHEMA \"host_metrics_0123456789abcdef\" CASCADE"
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "schema name must be a valid SQL identifier")]
+    fn isolated_schema_sql_rejects_untrusted_identifiers() {
+        validated_schema_sql(
+            "host_metrics_safe; DROP SCHEMA public",
+            SchemaOperation::Create,
+        );
+    }
+
     #[derive(Debug, PartialEq, sqlx::FromRow)]
     struct PersistedHostMetrics {
         vm_id: Uuid,
@@ -107,33 +166,32 @@ mod tests {
     struct TestDatabase {
         pool: sqlx::PgPool,
         admin_pool: sqlx::PgPool,
-        quoted_schema: String,
+        schema_name: String,
     }
 
     impl TestDatabase {
         async fn connect_and_migrate() -> Self {
             let database_url = std::env::var("DATABASE_URL")
                 .expect("DATABASE_URL must be set for the host metrics DB invariant test");
-            let quoted_schema = format!("\"host_metrics_{}\"", Uuid::new_v4().simple());
+            let schema_name = format!("host_metrics_{}", Uuid::new_v4().simple());
             let admin_pool = PgPoolOptions::new()
                 .max_connections(1)
                 .connect(&database_url)
                 .await
                 .expect("connect to host metrics test database");
-            let create_schema_sql = format!("CREATE SCHEMA {quoted_schema}");
-            sqlx::query(&create_schema_sql)
+            let create_schema = validated_schema_sql(&schema_name, SchemaOperation::Create);
+            sqlx::query(create_schema.as_str())
                 .execute(&admin_pool)
                 .await
                 .expect("create isolated host metrics schema");
 
-            let schema_for_connections = quoted_schema.clone();
+            let search_path = validated_schema_sql(&schema_name, SchemaOperation::SetSearchPath);
             let pool = PgPoolOptions::new()
                 .max_connections(1)
                 .after_connect(move |connection, _metadata| {
-                    let schema = schema_for_connections.clone();
+                    let search_path = search_path.clone();
                     Box::pin(async move {
-                        let set_search_path_sql = format!("SET search_path TO {schema}");
-                        sqlx::query(&set_search_path_sql)
+                        sqlx::query(search_path.as_str())
                             .execute(connection)
                             .await?;
                         Ok(())
@@ -150,14 +208,14 @@ mod tests {
             Self {
                 pool,
                 admin_pool,
-                quoted_schema,
+                schema_name,
             }
         }
 
         async fn cleanup(self) {
             self.pool.close().await;
-            let drop_schema_sql = format!("DROP SCHEMA {} CASCADE", self.quoted_schema);
-            sqlx::query(&drop_schema_sql)
+            let drop_schema = validated_schema_sql(&self.schema_name, SchemaOperation::Drop);
+            sqlx::query(drop_schema.as_str())
                 .execute(&self.admin_pool)
                 .await
                 .expect("drop isolated host metrics schema");

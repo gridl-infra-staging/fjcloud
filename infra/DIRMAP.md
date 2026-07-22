@@ -7,9 +7,9 @@
 | Directory | Summary |
 | --- | --- |
 | aggregation-job | — |
-| api | The API is an Axum-based HTTP server that implements core backend services for fjcloud's billing and infrastructure platform, including customer management, invoicing, multi-cloud provisioning, Stripe integration, JWT/API key authentication, search indexing, webhooks, audit logging, and email delivery. |
-| billing | The billing crate implements the core billing engine, aggregating raw metering records into billing-period summaries and applying configurable rate-card pricing to generate invoices. |
-| metering-agent | The metering-agent is a daemon that collects host resource metrics and usage counters from infrastructure, organizing and storing them by tenant for billing purposes. |
-| pricing-calculator | The pricing-calculator directory contains modular implementations of pricing providers for various cloud services, coordinated through a registry system. |
-| retention-job | The retention-job is a periodic task that identifies deleted customer accounts exceeding a configurable retention period (default 30 days) and purges their data via hard-erase API calls, with support for dry-run mode and per-run execution limits. |
+| api | The api crate is an Axum-based HTTP server providing core backend services for fjcloud's billing and infrastructure platform, exposing endpoints for account management, billing, search indexes, storage operations, and multi-cloud VM provisioning across AWS, GCP, OCI, and Hetzner alongside supporting services for webhooks, email delivery, and invoicing. |
+| billing | The billing crate implements the core billing engine, aggregating usage metering data into billing-period summaries and applying rate card pricing rules to calculate invoices. |
+| metering-agent | The metering-agent is a daemon that collects and reports resource consumption through host metrics collection, counter tracking, and storage management across multiple tenants. |
+| pricing-calculator | The pricing-calculator implements a modular pricing system with a registry-based architecture for managing provider implementations, including support for Griddle's flat per-MB storage pricing model and Algolia integration. |
+| retention-job | The retention-job crate is a batch cleanup service that hard-deletes customer records older than a configured retention period by querying deleted customers from the database and invoking HTTP API endpoints. |
 <!-- [scrai:end] -->

@@ -59,17 +59,19 @@ run_guard() {
 
 write_positive_leak_fixtures() {
     local fixture_root="$1"
-    local aws_access_key browser_stripe_secret stripe_secret webhook_secret txt_stripe_secret
+    local aws_access_key browser_stripe_secret flapjack_secret stripe_secret webhook_secret txt_stripe_secret
 
     mkdir -p \
         "$fixture_root/docs/runbooks/evidence/browser-evidence/20260711-leaky" \
         "$fixture_root/docs/runbooks/evidence/stripe-rehearsal/20260711-leaky" \
+        "$fixture_root/docs/runbooks/evidence/flapjack-live/20260711-leaky" \
         "$fixture_root/docs/runbooks/evidence/aws-canary/20260711-leaky" \
         "$fixture_root/docs/runbooks/evidence/announce-gate/20260711-leaky" \
         "$fixture_root/docs/runbooks/evidence/manual-notes/20260711-leaky"
 
     browser_stripe_secret="$(fake_secret_value "sk_live_" "HIDDENbyAllowlistButContainerMustFail")"
     stripe_secret="$(fake_secret_value "sk_live_" "STAGE1hygieneFakeSecret123456789")"
+    flapjack_secret="$(fake_secret_value "fj_live_" "0123456789abcdef0123456789abcdef")"
     webhook_secret="$(fake_secret_value "whsec_" "STAGE1hygieneFakeWebhook123456789")"
     txt_stripe_secret="$(fake_secret_value "sk_live_" "STAGE1txtLeakFakeSecret123456789")"
     aws_access_key="$(fake_secret_value "AKIA" "1234567890ABCDEF")"
@@ -95,6 +97,10 @@ JSON
   "api_key": "$stripe_secret"
 }
 JSON
+
+    cat > "$fixture_root/docs/runbooks/evidence/flapjack-live/20260711-leaky/node_key.txt" <<TXT
+node_api_key=$flapjack_secret
+TXT
 
     cat > "$fixture_root/docs/runbooks/evidence/aws-canary/20260711-leaky/session.txt" <<TXT
 aws_access_key_id=$aws_access_key
@@ -210,6 +216,10 @@ test_guard_reports_all_seeded_findings_without_exfiltrating_values() {
         "guard output names sk_live evidence path"
     assert_contains "$RUN_OUTPUT" "stripe_live_secret" \
         "guard output names sk_live pattern class"
+    assert_contains "$RUN_OUTPUT" "docs/runbooks/evidence/flapjack-live/20260711-leaky/node_key.txt" \
+        "guard output names fj_live evidence path"
+    assert_contains "$RUN_OUTPUT" "flapjack_live_secret" \
+        "guard output names fj_live pattern class"
     assert_contains "$RUN_OUTPUT" "docs/runbooks/evidence/aws-canary/20260711-leaky/session.txt" \
         "guard output names AKIA evidence path despite blanket txt allowlist"
     assert_contains "$RUN_OUTPUT" "aws_access_key_id" \
@@ -225,6 +235,8 @@ test_guard_reports_all_seeded_findings_without_exfiltrating_values() {
         "guard diagnostic does not print full Playwright fixture secret"
     assert_not_contains "$RUN_OUTPUT" "$(fake_secret_value "sk_live_" "STAGE1hygieneFakeSecret123456789")" \
         "guard diagnostic does not print full sk_live fixture secret"
+    assert_not_contains "$RUN_OUTPUT" "$(fake_secret_value "fj_live_" "0123456789abcdef0123456789abcdef")" \
+        "guard diagnostic does not print full fj_live fixture secret"
     assert_not_contains "$RUN_OUTPUT" "$(fake_secret_value "AKIA" "1234567890ABCDEF")" \
         "guard diagnostic does not print full AKIA fixture secret"
     assert_not_contains "$RUN_OUTPUT" "$(fake_secret_value "whsec_" "STAGE1hygieneFakeWebhook123456789")" \

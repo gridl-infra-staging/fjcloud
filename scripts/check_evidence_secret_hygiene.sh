@@ -91,6 +91,7 @@ scan_regex_class() {
 
 scan_playwright_web_server_env
 scan_regex_class 'sk_live_[A-Za-z0-9]{16,}' "stripe_live_secret"
+scan_regex_class 'fj_live_[0-9a-f]{32,}' "flapjack_live_secret"
 scan_regex_class 'AKIA[0-9A-Z]{16}' "aws_access_key_id"
 scan_regex_class 'whsec_[A-Za-z0-9]{16,}' "stripe_webhook_secret"
 

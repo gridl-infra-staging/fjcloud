@@ -10,16 +10,9 @@ fn project_root() -> PathBuf {
         .to_path_buf()
 }
 
-fn query_expression_contains_unsafe_concat(rest: &str) -> bool {
-    let expr_end = rest.find(')').unwrap_or(rest.len());
-    let query_expr = &rest[..expr_end];
-    query_expr.contains('+') || query_expr.starts_with("concat!")
-}
-
 fn scan_for_unsafe_sql_patterns(dir: &PathBuf) -> Vec<(String, String)> {
     let mut findings = Vec::new();
-
-    let unsafe_patterns = ["sqlx::query(&format!", "sqlx::query(&"];
+    let unsafe_pattern = "sqlx::query(&";
 
     if let Ok(entries) = std::fs::read_dir(dir) {
         for entry in entries.flatten() {
@@ -28,28 +21,18 @@ fn scan_for_unsafe_sql_patterns(dir: &PathBuf) -> Vec<(String, String)> {
                 findings.extend(scan_for_unsafe_sql_patterns(&path));
             } else if path.extension().is_some_and(|ext| ext == "rs") {
                 if let Ok(content) = std::fs::read_to_string(&path) {
-                    for pattern in &unsafe_patterns {
-                        let mut search_content = content.clone();
-                        while let Some(pos) = search_content.find(pattern) {
-                            let line_num = content[..content.len() - search_content.len() + pos]
-                                .matches('\n')
-                                .count()
-                                + 1;
-                            let file = path
-                                .file_name()
-                                .and_then(|n| n.to_str())
-                                .unwrap_or("unknown");
-
-                            if *pattern == "sqlx::query(&" {
-                                let rest = &search_content[pos + pattern.len()..];
-                                if query_expression_contains_unsafe_concat(rest) {
-                                    findings.push((file.to_string(), format!("line {}", line_num)));
-                                }
-                            } else {
-                                findings.push((file.to_string(), format!("line {}", line_num)));
-                            }
-                            search_content = search_content[pos + pattern.len()..].to_string();
-                        }
+                    let mut search_content = content.as_str();
+                    while let Some(pos) = search_content.find(unsafe_pattern) {
+                        let line_num = content[..content.len() - search_content.len() + pos]
+                            .matches('\n')
+                            .count()
+                            + 1;
+                        let file = path
+                            .file_name()
+                            .and_then(|n| n.to_str())
+                            .unwrap_or("unknown");
+                        findings.push((file.to_string(), format!("line {}", line_num)));
+                        search_content = &search_content[pos + unsafe_pattern.len()..];
                     }
                 }
             }
@@ -106,6 +89,11 @@ fn test_sql_guard_detects_unsafe_patterns_in_fixture() {
     assert!(
         findings.iter().any(|(file, _)| file.contains("unsafe_sql")),
         "Should find unsafe pattern in unsafe_sql_examples.rs"
+    );
+
+    assert!(
+        findings.iter().any(|(_, location)| location == "line 11"),
+        "SQL guard should detect a query string passed by variable reference"
     );
 }
 
@@ -168,8 +156,7 @@ fn test_sql_guard_does_not_flag_plus_outside_query_expression() {
         &fixture_file,
         r#"
 fn build_query() {
-    let query = String::from("SELECT 1");
-    let _ = sqlx::query(&query);
+    let _ = sqlx::query("SELECT 1");
     let _unrelated = 1 + 2;
 }
 "#,

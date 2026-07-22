@@ -17,6 +17,7 @@ use api::services::provisioning::ProvisioningService;
 use api::services::replica::ReplicaService;
 use api::services::restore::{RestoreConfig, RestoreService};
 use api::services::tenant_quota::{FreeTierLimits, TenantQuotaService};
+use api::services::vm_orphan_reconcile::{VmOrphanDependencies, VmOrphanReconciler};
 use api::services::webhook_http::{ReqwestWebhookHttpClient, WebhookHttpClient};
 use api::startup::StorageComponents;
 use api::startup_env::StartupEnvSnapshot;
@@ -64,6 +65,7 @@ struct WiredServices {
     node_client: Arc<dyn FlapjackNodeClient>,
     cold_snapshot_repo: Arc<dyn ColdSnapshotRepo + Send + Sync>,
     restore_service: Arc<RestoreService>,
+    vm_orphan_reconciler: Arc<VmOrphanReconciler>,
 }
 
 /// Startup bootstrap outputs needed to wire services and build AppState.
@@ -203,6 +205,7 @@ async fn wire_app_state_phase(bootstrap: StartupBootstrapPhase) -> anyhow::Resul
         node_client,
         cold_snapshot_repo,
         restore_service,
+        vm_orphan_reconciler,
     } = wired_services;
     let api::startup::StorageComponents {
         storage_bucket_repo,
@@ -266,6 +269,7 @@ async fn wire_app_state_phase(bootstrap: StartupBootstrapPhase) -> anyhow::Resul
         alert_service,
         vm_host_metrics_repo,
         vm_inventory_repo,
+        vm_orphan_reconciler,
         index_migration_repo,
         discovery_service,
         migration_service,
@@ -527,6 +531,16 @@ async fn wire_control_plane_services(
     inputs: &ServiceWireInputs<'_>,
     rt: RuntimeServices,
 ) -> anyhow::Result<WiredServices> {
+    let vm_orphan_reconciler = Arc::new(VmOrphanReconciler::new(
+        VmOrphanDependencies {
+            inventory: inputs.repos.vm_inventory_repo.clone()
+                as Arc<dyn api::repos::VmInventoryRepo + Send + Sync>,
+            dns: Arc::clone(&rt.dns_manager),
+            secrets: Arc::clone(&rt.node_secret_manager),
+            provisioner: Arc::clone(&rt.vm_provisioner),
+        },
+        rt.dns_domain.clone(),
+    ));
     let provisioning_service = Arc::new(ProvisioningService::new(
         Arc::clone(&rt.vm_provisioner),
         Arc::clone(&rt.dns_manager),
@@ -607,6 +621,7 @@ async fn wire_control_plane_services(
         node_client,
         cold_snapshot_repo,
         restore_service,
+        vm_orphan_reconciler,
     })
 }
 

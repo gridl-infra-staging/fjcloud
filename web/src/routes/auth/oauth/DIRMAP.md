@@ -6,5 +6,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| [provider] | The [provider] directory contains callback handling logic for a SvelteKit application, specifically a server route handler that processes callback requests from external providers. |
+| [provider] | The [provider] directory handles OAuth authentication callbacks by validating authorization codes and state parameters, then exchanging them for auth tokens through the API and setting secure session cookies. |
 <!-- [scrai:end] -->

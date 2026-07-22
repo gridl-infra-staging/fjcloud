@@ -42,6 +42,7 @@ use crate::services::storage::object_metering::S3ObjectMeteringService;
 use crate::services::storage::s3_proxy::GarageProxy;
 use crate::services::storage::StorageService;
 use crate::services::tenant_quota::{FreeTierLimits, TenantQuotaService};
+use crate::services::vm_orphan_reconcile::VmOrphanReconciler;
 use crate::services::webhook_http::WebhookHttpClient;
 use crate::stripe::StripeService;
 
@@ -200,6 +201,7 @@ pub struct AppState {
     pub alert_service: Arc<dyn AlertService>,
     pub vm_host_metrics_repo: Arc<dyn VmHostMetricsRepo + Send + Sync>,
     pub vm_inventory_repo: Arc<dyn VmInventoryRepo + Send + Sync>,
+    pub vm_orphan_reconciler: Arc<VmOrphanReconciler>,
     pub index_migration_repo: Arc<dyn IndexMigrationRepo + Send + Sync>,
     pub discovery_service: Arc<DiscoveryService>,
     pub migration_service: Arc<MigrationService>,

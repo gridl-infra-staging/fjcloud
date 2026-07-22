@@ -86,6 +86,15 @@ impl VmInventoryRepo for PgVmInventoryRepo {
         .map_err(|e| RepoError::Other(e.to_string()))
     }
 
+    async fn list_non_decommissioned(&self) -> Result<Vec<VmInventory>, RepoError> {
+        sqlx::query_as::<_, VmInventory>(
+            "SELECT * FROM vm_inventory WHERE status != 'decommissioned' ORDER BY created_at",
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(Self::repo_error)
+    }
+
     async fn get(&self, id: Uuid) -> Result<Option<VmInventory>, RepoError> {
         sqlx::query_as::<_, VmInventory>("SELECT * FROM vm_inventory WHERE id = $1")
             .bind(id)

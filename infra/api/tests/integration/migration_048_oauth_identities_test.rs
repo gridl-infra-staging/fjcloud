@@ -7,22 +7,7 @@
 use sqlx::{PgPool, Row};
 use uuid::Uuid;
 
-async fn connect_and_migrate() -> Option<PgPool> {
-    let Ok(url) = std::env::var("DATABASE_URL") else {
-        println!(
-            "SKIP: DATABASE_URL not set — skipping migration_048_oauth_identities schema test"
-        );
-        return None;
-    };
-    let pool = PgPool::connect(&url)
-        .await
-        .expect("connect to integration test DB");
-    sqlx::migrate!("../migrations")
-        .run(&pool)
-        .await
-        .expect("run migrations");
-    Some(pool)
-}
+use crate::common::support::pg_schema_harness;
 
 async fn cleanup_customer(pool: &PgPool, customer_id: Uuid) {
     let _ = sqlx::query("DELETE FROM customers WHERE id = $1")
@@ -33,16 +18,17 @@ async fn cleanup_customer(pool: &PgPool, customer_id: Uuid) {
 
 #[tokio::test]
 async fn oauth_identities_schema_contract_is_enforced() {
-    let Some(pool) = connect_and_migrate().await else {
+    let Some(db) = pg_schema_harness::connect_and_migrate("migration_048_oauth").await else {
         return;
     };
+    let pool = &db.pool;
 
     let columns = sqlx::query(
         "SELECT column_name, is_nullable, data_type \
          FROM information_schema.columns \
-         WHERE table_schema = 'public' AND table_name = 'oauth_identities'",
+         WHERE table_schema = current_schema() AND table_name = 'oauth_identities'",
     )
-    .fetch_all(&pool)
+    .fetch_all(pool)
     .await
     .expect("query oauth_identities columns");
 
@@ -72,12 +58,12 @@ async fn oauth_identities_schema_contract_is_enforced() {
          JOIN information_schema.key_column_usage kcu \
            ON tc.constraint_name = kcu.constraint_name \
           AND tc.table_schema = kcu.table_schema \
-         WHERE tc.table_schema = 'public' \
+         WHERE tc.table_schema = current_schema() \
            AND tc.table_name = 'oauth_identities' \
            AND tc.constraint_type = 'PRIMARY KEY' \
          ORDER BY kcu.ordinal_position",
     )
-    .fetch_all(&pool)
+    .fetch_all(pool)
     .await
     .expect("query oauth_identities primary key columns");
 
@@ -92,7 +78,7 @@ async fn oauth_identities_schema_contract_is_enforced() {
             "oauth-identity-primary-{}@integration.test",
             &primary_customer_id.to_string()[..8]
         ))
-        .execute(&pool)
+        .execute(pool)
         .await
         .expect("insert primary customer fixture");
 
@@ -103,7 +89,7 @@ async fn oauth_identities_schema_contract_is_enforced() {
             "oauth-identity-secondary-{}@integration.test",
             &secondary_customer_id.to_string()[..8]
         ))
-        .execute(&pool)
+        .execute(pool)
         .await
         .expect("insert secondary customer fixture");
 
@@ -114,7 +100,7 @@ async fn oauth_identities_schema_contract_is_enforced() {
     .bind(primary_customer_id)
     .bind("github")
     .bind("user-1")
-    .execute(&pool)
+    .execute(pool)
     .await
     .expect("insert first oauth identity");
 
@@ -125,7 +111,7 @@ async fn oauth_identities_schema_contract_is_enforced() {
     .bind(secondary_customer_id)
     .bind("github")
     .bind("user-1")
-    .execute(&pool)
+    .execute(pool)
     .await;
 
     assert!(
@@ -140,7 +126,7 @@ async fn oauth_identities_schema_contract_is_enforced() {
     .bind(primary_customer_id)
     .bind("github")
     .bind("user-2")
-    .execute(&pool)
+    .execute(pool)
     .await
     .expect("insert non-duplicate oauth identity for same provider");
 
@@ -151,7 +137,7 @@ async fn oauth_identities_schema_contract_is_enforced() {
     .bind(primary_customer_id)
     .bind("google")
     .bind("user-1")
-    .execute(&pool)
+    .execute(pool)
     .await
     .expect("insert non-duplicate oauth identity for same provider user id on different provider");
 
@@ -162,28 +148,28 @@ async fn oauth_identities_schema_contract_is_enforced() {
     .bind(secondary_customer_id)
     .bind("github")
     .bind("user-3")
-    .execute(&pool)
+    .execute(pool)
     .await
     .expect("insert second customer oauth identity with distinct provider tuple");
 
     let count_before_delete: i64 =
         sqlx::query_scalar("SELECT COUNT(*) FROM oauth_identities WHERE customer_id = $1")
             .bind(primary_customer_id)
-            .fetch_one(&pool)
+            .fetch_one(pool)
             .await
             .expect("count oauth identities before customer delete");
     assert_eq!(count_before_delete, 3);
 
     sqlx::query("DELETE FROM customers WHERE id = $1")
         .bind(primary_customer_id)
-        .execute(&pool)
+        .execute(pool)
         .await
         .expect("hard-delete primary customer fixture");
 
     let count_after_delete: i64 =
         sqlx::query_scalar("SELECT COUNT(*) FROM oauth_identities WHERE customer_id = $1")
             .bind(primary_customer_id)
-            .fetch_one(&pool)
+            .fetch_one(pool)
             .await
             .expect("count oauth identities after customer delete");
     assert_eq!(
@@ -194,11 +180,11 @@ async fn oauth_identities_schema_contract_is_enforced() {
     let secondary_count: i64 =
         sqlx::query_scalar("SELECT COUNT(*) FROM oauth_identities WHERE customer_id = $1")
             .bind(secondary_customer_id)
-            .fetch_one(&pool)
+            .fetch_one(pool)
             .await
             .expect("count oauth identities for secondary customer");
     assert_eq!(secondary_count, 1);
 
-    cleanup_customer(&pool, primary_customer_id).await;
-    cleanup_customer(&pool, secondary_customer_id).await;
+    cleanup_customer(pool, primary_customer_id).await;
+    cleanup_customer(pool, secondary_customer_id).await;
 }

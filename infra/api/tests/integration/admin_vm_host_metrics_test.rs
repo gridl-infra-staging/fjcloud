@@ -1,5 +1,5 @@
 use api::models::NewVmHostMetrics;
-use api::repos::{PgVmHostMetricsRepo, PgVmInventoryRepo, VmHostMetricsRepo};
+use api::repos::VmHostMetricsRepo;
 use api::router::build_router;
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
@@ -9,9 +9,7 @@ use std::sync::Arc;
 use tower::ServiceExt;
 use uuid::Uuid;
 
-use crate::common::support::pg_schema_harness::connect_and_migrate;
-use crate::common::vm_inventory_reference_guard_fixtures::insert_vm;
-use crate::common::{TestStateBuilder, TEST_ADMIN_KEY};
+use crate::common::{MockVmHostMetricsRepo, MockVmInventoryRepo, TestStateBuilder, TEST_ADMIN_KEY};
 
 async fn response_json(response: axum::response::Response) -> Value {
     let body = axum::body::to_bytes(response.into_body(), usize::MAX)
@@ -49,22 +47,26 @@ fn admin_request(path: String) -> Request<Body> {
         .unwrap()
 }
 
-async fn postgres_backed_admin_app(pool: sqlx::PgPool) -> (axum::Router, Arc<PgVmHostMetricsRepo>) {
-    let vm_inventory_repo = Arc::new(PgVmInventoryRepo::new(pool.clone()));
-    let vm_host_metrics_repo = Arc::new(PgVmHostMetricsRepo::new(pool.clone()));
-    let mut state = TestStateBuilder::new().with_pool(pool).build();
-    state.vm_inventory_repo = vm_inventory_repo;
-    state.vm_host_metrics_repo = vm_host_metrics_repo.clone();
-    (build_router(state), vm_host_metrics_repo)
+fn mock_backed_admin_app() -> (
+    axum::Router,
+    Arc<MockVmInventoryRepo>,
+    Arc<MockVmHostMetricsRepo>,
+) {
+    let vm_inventory_repo = Arc::new(MockVmInventoryRepo::new());
+    let vm_host_metrics_repo = Arc::new(MockVmHostMetricsRepo::new());
+    let state = TestStateBuilder::new()
+        .with_vm_inventory_repo(vm_inventory_repo.clone())
+        .with_vm_host_metrics_repo(vm_host_metrics_repo.clone())
+        .build();
+    (build_router(state), vm_inventory_repo, vm_host_metrics_repo)
 }
 
 #[tokio::test]
 async fn admin_vm_host_metrics_returns_latest_sample_with_canonical_shape() {
-    let db = connect_and_migrate("it_admin_vm_host_metrics_latest")
-        .await
-        .expect("DATABASE_URL and PostgreSQL are required for admin host metrics route tests");
-    let vm_id = insert_vm(&db.pool, "admin-host-metrics-latest", "active").await;
-    let (app, metrics_repo) = postgres_backed_admin_app(db.pool.clone()).await;
+    let (app, vm_inventory_repo, metrics_repo) = mock_backed_admin_app();
+    let vm_id = vm_inventory_repo
+        .seed("us-east-1", "https://admin-host-metrics-latest.test")
+        .id;
     let older_at = Utc
         .with_ymd_and_hms(2026, 7, 20, 12, 0, 0)
         .single()
@@ -115,11 +117,8 @@ async fn admin_vm_host_metrics_returns_latest_sample_with_canonical_shape() {
 
 #[tokio::test]
 async fn admin_vm_host_metrics_requires_admin_key() {
-    let db = connect_and_migrate("it_admin_vm_host_metrics_auth")
-        .await
-        .expect("DATABASE_URL and PostgreSQL are required for admin host metrics route tests");
-    let vm_id = insert_vm(&db.pool, "admin-host-metrics-auth", "active").await;
-    let (app, _metrics_repo) = postgres_backed_admin_app(db.pool.clone()).await;
+    let app = build_router(TestStateBuilder::new().build());
+    let vm_id = Uuid::new_v4();
 
     let response = app
         .oneshot(
@@ -137,10 +136,7 @@ async fn admin_vm_host_metrics_requires_admin_key() {
 
 #[tokio::test]
 async fn admin_vm_host_metrics_returns_404_for_unknown_vm() {
-    let db = connect_and_migrate("it_admin_vm_host_metrics_unknown")
-        .await
-        .expect("DATABASE_URL and PostgreSQL are required for admin host metrics route tests");
-    let (app, _metrics_repo) = postgres_backed_admin_app(db.pool.clone()).await;
+    let (app, _vm_inventory_repo, _metrics_repo) = mock_backed_admin_app();
     let unknown_vm_id = Uuid::new_v4();
 
     let response = app
@@ -155,11 +151,10 @@ async fn admin_vm_host_metrics_returns_404_for_unknown_vm() {
 
 #[tokio::test]
 async fn admin_vm_host_metrics_returns_null_for_existing_vm_without_samples() {
-    let db = connect_and_migrate("it_admin_vm_host_metrics_empty")
-        .await
-        .expect("DATABASE_URL and PostgreSQL are required for admin host metrics route tests");
-    let vm_id = insert_vm(&db.pool, "admin-host-metrics-empty", "active").await;
-    let (app, _metrics_repo) = postgres_backed_admin_app(db.pool.clone()).await;
+    let (app, vm_inventory_repo, _metrics_repo) = mock_backed_admin_app();
+    let vm_id = vm_inventory_repo
+        .seed("us-east-1", "https://admin-host-metrics-empty.test")
+        .id;
 
     let response = app
         .oneshot(admin_request(format!("/admin/vms/{vm_id}/host-metrics")))

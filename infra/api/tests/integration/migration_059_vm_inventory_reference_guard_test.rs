@@ -11,7 +11,8 @@ use crate::common::support::pg_schema_harness::connect_and_migrate;
 use crate::common::vm_inventory_reference_guard_fixtures::{
     insert_algolia_import_job, insert_cold_snapshot, insert_customer, insert_deployment,
     insert_index_migration, insert_index_replica, insert_restore_job, insert_tenant,
-    insert_tenant_without_vm, insert_vm, AlgoliaReservationState, EXPECTED_VM_REFERENCE_COLUMNS,
+    insert_tenant_without_vm, insert_vm, AlgoliaReservationState,
+    EXPECTED_PERSISTED_VM_REFERENCE_COLUMNS, EXPECTED_VM_REFERENCE_COLUMNS,
 };
 use crate::common::vm_inventory_reference_guard_matrix::assert_status_reference_mutations;
 use crate::common::vm_inventory_reference_guard_races::{
@@ -108,7 +109,7 @@ async fn migration_059_vm_inventory_reference_guard_denominator_is_complete() {
     .map(|row| (row.get("table_name"), row.get("column_name")))
     .collect();
 
-    let expected = EXPECTED_VM_REFERENCE_COLUMNS
+    let expected = EXPECTED_PERSISTED_VM_REFERENCE_COLUMNS
         .iter()
         .map(|(table, column)| ((*table).to_string(), (*column).to_string()))
         .collect();

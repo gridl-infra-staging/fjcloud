@@ -7,5 +7,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| events | API endpoint that handles POST requests for search preview result events, validating session authentication and event payload before forwarding to the backend. |
+| events | API route handler that accepts POST requests to record search preview result events, validating the session token and event payload before forwarding to the backend API. |
 <!-- [scrai:end] -->

@@ -7,5 +7,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| [name] | This directory contains the SvelteKit route handlers and server-side management modules for a comprehensive index detail page in a cloud console, organizing functionality across analytics, infrastructure, configuration, dictionaries, recommendations, security, and experiments. |
+| [name] | This is the SvelteKit route handler for the index detail page in the fjcloud console, managing configuration and display for a specific index identified by name, with modular management handlers for analytics, dictionary, experiments, infrastructure, metrics, personalization, recommendations, rules, security, suggestions, and synonyms features. |
 <!-- [scrai:end] -->

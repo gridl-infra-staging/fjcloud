@@ -127,6 +127,34 @@ impl VmProvisioner for MultiProviderProvisioner {
         instance.provider_vm_id = Self::encode_vm_id(provider, &instance.provider_vm_id);
         Ok(Some(instance))
     }
+
+    async fn find_managed_vm_by_hostname(
+        &self,
+        provider: &str,
+        region: &str,
+        hostname: &str,
+    ) -> Result<Option<VmInstance>, VmProvisionerError> {
+        let provider_impl = self.get_provider(provider)?;
+        let Some(region_config) = self.region_config.get_region(region) else {
+            return Err(VmProvisionerError::Api(format!("unknown region: {region}")));
+        };
+        if region_config.provider != provider {
+            return Err(VmProvisionerError::Api(format!(
+                "region {region} is not configured for provider {provider}"
+            )));
+        }
+
+        let mut instance = match provider_impl
+            .find_managed_vm_by_hostname(provider, &region_config.provider_location, hostname)
+            .await?
+        {
+            Some(instance) => instance,
+            None => return Ok(None),
+        };
+        instance.region = region.to_string();
+        instance.provider_vm_id = Self::encode_vm_id(provider, &instance.provider_vm_id);
+        Ok(Some(instance))
+    }
 }
 
 #[cfg(test)]

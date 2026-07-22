@@ -32,8 +32,8 @@ pub struct IndexReplicaSummary {
     pub created_at: DateTime<Utc>,
 }
 
-/// Customer-facing view — omits internal VM details while exposing the
-/// stable endpoint clients can use for this replica.
+/// Customer-facing view — omits internal VM details and never exposes a raw
+/// replica engine URL.
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct CustomerIndexReplicaSummary {
     pub id: Uuid,
@@ -51,7 +51,7 @@ impl IndexReplicaSummary {
             replica_region: self.replica_region.clone(),
             status: self.status.clone(),
             lag_ops: self.lag_ops,
-            endpoint: Some(self.replica_flapjack_url.clone()),
+            endpoint: None,
             created_at: self.created_at,
         }
     }
@@ -63,7 +63,7 @@ mod tests {
     use chrono::Utc;
 
     #[test]
-    fn customer_summary_exposes_endpoint_and_omits_internal_vm_details() {
+    fn customer_summary_hides_endpoint_and_omits_internal_vm_details() {
         let summary = IndexReplicaSummary {
             id: Uuid::parse_str("aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa").unwrap(),
             replica_region: "eu-central-1".to_string(),
@@ -71,12 +71,12 @@ mod tests {
             lag_ops: 37,
             replica_vm_id: Uuid::parse_str("bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb").unwrap(),
             replica_vm_hostname: "private-replica.internal".to_string(),
-            replica_flapjack_url: "https://replica-public.flapjack.foo".to_string(),
+            replica_flapjack_url: "http://198.51.100.20:7700".to_string(),
             created_at: Utc::now(),
         };
 
         let customer = serde_json::to_value(summary.to_customer_summary()).unwrap();
-        assert_eq!(customer["endpoint"], "https://replica-public.flapjack.foo");
+        assert!(customer["endpoint"].is_null());
 
         let serialized = customer.to_string();
         for forbidden in [
@@ -85,6 +85,8 @@ mod tests {
             "replica_vm_hostname",
             "private-replica.internal",
             "replica_flapjack_url",
+            "198.51.100.20",
+            "http://198.51.100.20:7700",
         ] {
             assert!(
                 !serialized.contains(forbidden),

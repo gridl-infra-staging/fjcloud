@@ -6,6 +6,6 @@
 
 | Directory | Summary |
 | --- | --- |
-| common | This directory contains test support utilities and fixtures for the API's integration tests, including mock implementations, test helpers for VM inventory operations (fixtures, race conditions, contract tests), and support modules for specific features like Algolia import, admin VM retirement, and Flapjack proxy integration. |
-| integration | This directory contains integration tests for the fjcloud API, covering critical domains like Algolia import job management, catalog lifecycle and lease operations, and migration routes. |
+| common | This directory contains test utilities and fixtures for the API test suite, providing mock infrastructure, test helpers, and contract/race-condition testing harnesses—primarily focused on VM inventory management, reference guards, and integration with external services like Algolia and Flapjack. |
+| integration | This directory contains integration tests for the API crate, covering core domain workflows including Algolia import job lifecycle and accounting, catalog lease management with race condition and invariant validation, and migration route operations. |
 <!-- [scrai:end] -->

@@ -8,6 +8,6 @@
 
 | Directory | Summary |
 | --- | --- |
-| migration | Components for managing data migration workflows, including eligibility validation for different providers and targets, plus job presentation logic. |
-| search | This directory provides client-side search functionality including analytics event tracking for search previews, browser-based persistence for search preferences per index, and URL state management for search operations. |
+| migration | The migration directory contains components for managing data migration eligibility checks and job presentation, with separate modules handling overall eligibility logic, provider and target eligibility validation, and user-facing job display. |
+| search | This directory contains client-side utilities for a search feature, including analytics tracking for search preview events, browser-based persistence for search selections, and URL state management. |
 <!-- [scrai:end] -->

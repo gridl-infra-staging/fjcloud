@@ -9,5 +9,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| read | This directory contains integration tests for migration route reading operations, with lifecycle tests validating Algolia cloud job cancel and resume API endpoints including authorization, state validation, and error handling scenarios. |
+| read | This directory contains integration tests for read migration routes, with test support utilities and lifecycle tests for cancel and resume operations on read migrations. |
 <!-- [scrai:end] -->

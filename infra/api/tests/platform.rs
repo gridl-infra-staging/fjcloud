@@ -161,6 +161,8 @@ mod pricing_compare_test;
 mod provisioner_test;
 #[path = "integration/provisioning_service_test.rs"]
 mod provisioning_service_test;
+#[path = "integration/provisioning_teardown_seam_test.rs"]
+mod provisioning_teardown_seam_test;
 #[path = "integration/public_infrastructure_test.rs"]
 mod public_infrastructure_test;
 #[path = "integration/public_site_test.rs"]
@@ -193,6 +195,8 @@ mod ses_bounce_complaint_handler_test;
 mod signup_abuse_test;
 #[path = "integration/ssh_provisioner_test.rs"]
 mod ssh_provisioner_test;
+#[path = "integration/ssm_live_test.rs"]
+mod ssm_live_test;
 #[path = "integration/storage_bucket_repo_test.rs"]
 mod storage_bucket_repo_test;
 #[path = "integration/storage_key_repo_test.rs"]

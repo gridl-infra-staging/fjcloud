@@ -72,6 +72,14 @@ pub trait VmProvisioner: Send + Sync {
     ) -> Result<Option<VmInstance>, VmProvisionerError> {
         Err(VmProvisionerError::NotConfigured)
     }
+    async fn find_managed_vm_by_hostname(
+        &self,
+        _provider: &str,
+        _region: &str,
+        _hostname: &str,
+    ) -> Result<Option<VmInstance>, VmProvisionerError> {
+        Err(VmProvisionerError::NotConfigured)
+    }
 }
 
 /// Returns `VmProvisionerError::NotConfigured` for all methods.

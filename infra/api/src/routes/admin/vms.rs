@@ -17,7 +17,8 @@ use crate::repos::{
     VmDecommissionResult, VmRetirementAssessment, VmRetirementBlocker, VmRetirementConflict,
 };
 use crate::services::provisioning::{
-    is_canonical_shared_vm_hostname_for_domain, SharedVmProvisioningMode,
+    is_canonical_shared_vm_hostname_for_domain, SharedVmProvisioningMode, VmInstanceTeardownTarget,
+    VmTeardownPolicy, VmTeardownReport,
 };
 use crate::services::vm_health_rollup::{health_rollup_for_tenants, VmHealth};
 use crate::state::AppState;
@@ -76,6 +77,8 @@ pub struct VmRetirementResponse {
     pub result: &'static str,
     pub blockers: Vec<VmRetirementBlocker>,
     pub blocking_reference_count: i64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub teardown: Option<VmTeardownReport>,
 }
 
 #[derive(Debug, Serialize)]
@@ -129,6 +132,7 @@ fn retirement_blockers_response(
             result: "eligible",
             blockers: Vec::new(),
             blocking_reference_count: 0,
+            teardown: None,
         }),
         VmRetirementAssessment::Blocked(blockers) => Ok(VmRetirementResponse {
             vm_id,
@@ -137,6 +141,7 @@ fn retirement_blockers_response(
             result: "blocked",
             blocking_reference_count: blocking_reference_count(&blockers),
             blockers,
+            teardown: None,
         }),
         VmRetirementAssessment::Conflict(conflict) => Err(retirement_conflict_error(conflict)),
     }
@@ -146,6 +151,7 @@ fn decommission_response(
     vm_id: Uuid,
     hostname: String,
     result: VmDecommissionResult,
+    teardown: Option<VmTeardownReport>,
 ) -> Result<axum::response::Response, ApiError> {
     match result {
         VmDecommissionResult::Decommissioned => Ok(Json(VmRetirementResponse {
@@ -155,6 +161,7 @@ fn decommission_response(
             result: "decommissioned",
             blockers: Vec::new(),
             blocking_reference_count: 0,
+            teardown,
         })
         .into_response()),
         VmDecommissionResult::AlreadyDecommissioned => Ok(Json(VmRetirementResponse {
@@ -164,6 +171,7 @@ fn decommission_response(
             result: "already_decommissioned",
             blockers: Vec::new(),
             blocking_reference_count: 0,
+            teardown,
         })
         .into_response()),
         VmDecommissionResult::Blocked(blockers) => {
@@ -174,6 +182,7 @@ fn decommission_response(
                 result: "blocked",
                 blocking_reference_count: blocking_reference_count(&blockers),
                 blockers,
+                teardown: None,
             };
             Ok((StatusCode::CONFLICT, Json(response)).into_response())
         }
@@ -259,8 +268,8 @@ async fn active_shared_warm_floor_vms(
 /// Resolve the provider VM ID by looking up deployments for tenants on this VM.
 ///
 /// Filters deployments to those matching the VM's provider and flapjack_url,
-/// normalizes provider VM IDs, and returns the ID only if exactly one unique
-/// value is found. Returns `None` on zero or ambiguous matches.
+/// and returns the stored provider VM ID only if exactly one unique value is
+/// found. Returns `None` on zero or ambiguous matches.
 async fn provider_vm_id_from_tenants(
     state: &AppState,
     vm: &VmInventory,
@@ -280,7 +289,7 @@ async fn provider_vm_id_from_tenants(
                 continue;
             }
             if let Some(provider_vm_id) = deployment.provider_vm_id {
-                provider_ids.insert(normalize_provider_vm_id(&vm.provider, &provider_vm_id));
+                provider_ids.insert(provider_vm_id);
             }
         }
     }
@@ -307,9 +316,64 @@ async fn provider_vm_id_from_fleet(
                 && d.flapjack_url.as_deref() == Some(vm.flapjack_url.as_str())
                 && d.provider_vm_id.is_some()
         })
-        .and_then(|d| d.provider_vm_id)
-        .map(|id| normalize_provider_vm_id(&vm.provider, &id));
+        .and_then(|d| d.provider_vm_id);
     Ok(provider_vm_id)
+}
+
+async fn retirement_instance_target(
+    state: &AppState,
+    vm: &VmInventory,
+) -> Result<VmInstanceTeardownTarget, ApiError> {
+    let tenants = state.tenant_repo.list_by_vm(vm.id).await?;
+    // Resolution order follows the existing route helpers first because
+    // vm_inventory has no provider_vm_id column; deployments are the persisted
+    // owner of provider instance identity when a tenant or fleet record still
+    // references this VM.
+    if let Some(provider_vm_id) = provider_vm_id_from_tenants(state, vm, &tenants).await? {
+        return Ok(VmInstanceTeardownTarget::ProviderVmId(Some(provider_vm_id)));
+    }
+    if let Some(provider_vm_id) = provider_vm_id_from_fleet(state, vm).await? {
+        return Ok(VmInstanceTeardownTarget::ProviderVmId(Some(provider_vm_id)));
+    }
+
+    // Retirement fail-fasts DNS/key cleanup when instance lookup is failed or
+    // indeterminate so operators do not erase evidence for a VM that might
+    // still be serving traffic under its hostname and node credential.
+    match state
+        .vm_provisioner
+        .find_managed_vm_by_hostname(&vm.provider, &vm.region, &vm.hostname)
+        .await
+    {
+        Ok(Some(instance)) => Ok(VmInstanceTeardownTarget::ProviderVmId(Some(
+            instance.provider_vm_id,
+        ))),
+        Ok(None) => Ok(VmInstanceTeardownTarget::ProviderVmId(None)),
+        Err(error) => Ok(VmInstanceTeardownTarget::Indeterminate {
+            message: error.to_string(),
+        }),
+    }
+}
+
+async fn teardown_retired_vm_resources(
+    state: &AppState,
+    vm_id: Uuid,
+) -> Result<VmTeardownReport, ApiError> {
+    let vm = state
+        .vm_inventory_repo
+        .get(vm_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound(format!("VM not found: {vm_id}")))?;
+    let instance_target = retirement_instance_target(state, &vm).await?;
+    Ok(state
+        .provisioning_service
+        .teardown_vm_resources(
+            Some(&vm.hostname),
+            instance_target,
+            vm.node_secret_id(),
+            &vm.region,
+            VmTeardownPolicy::HaltTeardown,
+        )
+        .await)
 }
 
 /// `GET /admin/vms/{id}` — retrieve VM inventory detail with tenants and provider ID.
@@ -332,7 +396,8 @@ pub async fn get_vm_detail(
     let provider_vm_id = match provider_vm_id_from_tenants(&state, &vm, &tenants).await? {
         Some(id) => Some(id),
         None => provider_vm_id_from_fleet(&state, &vm).await?,
-    };
+    }
+    .map(|id| normalize_provider_vm_id(&vm.provider, &id));
 
     Ok(Json(VmDetailResponse {
         vm: VmDetailVm {
@@ -424,7 +489,13 @@ pub async fn decommission_vm(
         .vm_inventory_repo
         .decommission_if_unreferenced(vm_id, &request.expected_hostname)
         .await?;
-    decommission_response(vm_id, request.expected_hostname, result)
+    let teardown = match &result {
+        VmDecommissionResult::Decommissioned | VmDecommissionResult::AlreadyDecommissioned => {
+            Some(teardown_retired_vm_resources(&state, vm_id).await?)
+        }
+        VmDecommissionResult::Blocked(_) | VmDecommissionResult::Conflict(_) => None,
+    };
+    decommission_response(vm_id, request.expected_hostname, result, teardown)
 }
 
 pub async fn warm_floor_shared_vm(

@@ -2,42 +2,28 @@
 //!
 //! Proves the 9 lockout/rate-limit columns exist on `customers` with the
 //! correct nullability and data types after the full migration chain runs.
-use sqlx::{PgPool, Row};
+use sqlx::Row;
 
-async fn connect_and_migrate() -> Option<PgPool> {
-    let Ok(url) = std::env::var("DATABASE_URL") else {
-        println!(
-            "SKIP: DATABASE_URL not set — skipping migration_052_auth_lockout_state schema test"
-        );
-        return None;
-    };
-    let pool = PgPool::connect(&url)
-        .await
-        .expect("connect to integration test DB");
-    sqlx::migrate!("../migrations")
-        .run(&pool)
-        .await
-        .expect("run migrations");
-    Some(pool)
-}
+use crate::common::support::pg_schema_harness;
 
 #[tokio::test]
 async fn auth_lockout_columns_schema_contract() {
-    let Some(pool) = connect_and_migrate().await else {
+    let Some(db) = pg_schema_harness::connect_and_migrate("migration_052_lockout").await else {
         return;
     };
+    let pool = &db.pool;
 
     let columns = sqlx::query(
         "SELECT column_name, is_nullable, data_type, column_default \
          FROM information_schema.columns \
-         WHERE table_schema = 'public' AND table_name = 'customers' \
+         WHERE table_schema = current_schema() AND table_name = 'customers' \
            AND column_name IN ( \
                'failed_login_count', 'failed_login_window_start', 'login_locked_until', \
                'failed_verify_count', 'failed_verify_window_start', 'verify_locked_until', \
                'failed_reset_count', 'failed_reset_window_start', 'reset_locked_until' \
            )",
     )
-    .fetch_all(&pool)
+    .fetch_all(pool)
     .await
     .expect("query lockout columns from information_schema");
 

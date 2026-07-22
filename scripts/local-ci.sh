@@ -460,6 +460,22 @@ gate_web_test() {
     npm test || return $?
 }
 
+should_skip_env_local_isolation_for_set_e_regression() {
+    local fixture_path="${LOCAL_CI_SET_E_REGRESSION_FIXTURE:-}"
+
+    if [ "${LOCAL_CI_SKIP_SET_E_REGRESSION_TEST:-0}" != "1" ]; then
+        return 1
+    fi
+    case "$fixture_path" in
+        "$REPO_ROOT"/infra/api/tests/_local_ci_set_e_regression_fixture.*.rs)
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+    [ -f "$fixture_path" ]
+}
+
 gate_rust_lint() {
     # Mirrors rust-lint: ci_workflow_test, generate_ssm_env_test,
     # local_ci_gate_set_e_test, support email unit seams, cargo fmt
@@ -476,6 +492,9 @@ gate_rust_lint() {
     bash "$REPO_ROOT/scripts/tests/playwright_local_stack_test.sh" || return $?
     bash "$REPO_ROOT/scripts/tests/local_stack_contract_test.sh" || return $?
     bash "$REPO_ROOT/scripts/tests/e2e_preflight_test.sh" || return $?
+    if ! should_skip_env_local_isolation_for_set_e_regression; then
+        bash "$REPO_ROOT/scripts/tests/local_ci_env_local_isolation_test.sh" || return $?
+    fi
     bash "$REPO_ROOT/scripts/tests/ci_e2e_deployed_pages_parity_test.sh" || return $?
     bash "$REPO_ROOT/scripts/tests/ci_deploy_web_contract_test.sh" || return $?
     bash "$REPO_ROOT/scripts/tests/ci_lane24_deploy_contract_test.sh" || return $?
@@ -698,9 +717,9 @@ schedule algolia-safety-probe-contract
 schedule flapjack-ami-pointer-contract
 schedule engine-exposure-probe-contract
 
-# bootstrap_env_local_test.sh temporarily replaces the repository-root
-# .env.local file. gate_rust_lint runs e2e_preflight_test.sh, which protects
-# the same file, so the bootstrap gate must run after the parallel batch.
+# Keep the bootstrap env-local test in the existing sequential lane until the
+# Stage 3 parallel-safety cleanup retires this scheduling workaround. The test
+# itself is fixture-isolated; only the local-ci sequencing contract is retained.
 RUN_BOOTSTRAP_ENV_LOCAL_SEQUENTIAL=0
 if [ -z "$SINGLE_GATE" ] || [ "$SINGLE_GATE" = "validate-bootstrap-env-local" ]; then
     RUN_BOOTSTRAP_ENV_LOCAL_SEQUENTIAL=1

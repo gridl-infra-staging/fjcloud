@@ -77,5 +77,5 @@ TDD: this test locks ownership, delegation, and secret-boundary contracts. |
 
 | Directory | Summary |
 | --- | --- |
-| support_email_canary | The support_email_canary directory contains an AWS Lambda function handler for monitoring support email systems. |
+| support_email_canary | A Lambda handler that runs email deliverability and inbound email roundtrip validation canary checks, with optional Slack or Discord webhook notifications resolved from AWS SSM Parameter Store. |
 <!-- [scrai:end] -->

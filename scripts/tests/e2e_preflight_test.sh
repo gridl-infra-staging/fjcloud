@@ -11,10 +11,22 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+SOURCE_REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+SUITE_TMP_DIR="$(mktemp -d)"
+REPO_ROOT="$SUITE_TMP_DIR/repo"
+trap 'rm -rf "$SUITE_TMP_DIR"' EXIT
 PREFLIGHT_SCRIPT="$REPO_ROOT/scripts/e2e-preflight.sh"
 PLAYWRIGHT_CONTRACT_FILE="$REPO_ROOT/web/playwright.config.contract.ts"
 LOCAL_DEV_RUNBOOK_FILE="$REPO_ROOT/docs/runbooks/local-dev.md"
+
+mkdir -p "$REPO_ROOT/scripts/lib" "$REPO_ROOT/web" "$REPO_ROOT/docs/runbooks"
+cp "$SOURCE_REPO_ROOT/scripts/e2e-preflight.sh" "$PREFLIGHT_SCRIPT"
+cp "$SOURCE_REPO_ROOT/scripts/lib/env.sh" "$REPO_ROOT/scripts/lib/env.sh"
+cp "$SOURCE_REPO_ROOT/scripts/lib/web_runtime.sh" "$REPO_ROOT/scripts/lib/web_runtime.sh"
+cp "$SOURCE_REPO_ROOT/scripts/lib/flapjack_binary.sh" "$REPO_ROOT/scripts/lib/flapjack_binary.sh"
+cp "$SOURCE_REPO_ROOT/scripts/lib/local_stack_contract.sh" "$REPO_ROOT/scripts/lib/local_stack_contract.sh"
+cp "$SOURCE_REPO_ROOT/web/playwright.config.contract.ts" "$PLAYWRIGHT_CONTRACT_FILE"
+cp "$SOURCE_REPO_ROOT/docs/runbooks/local-dev.md" "$LOCAL_DEV_RUNBOOK_FILE"
 
 PASS_COUNT=0
 FAIL_COUNT=0
@@ -36,39 +48,17 @@ source "$SCRIPT_DIR/lib/test_helpers.sh"
 # shellcheck source=lib/local_dev_test_state.sh
 source "$SCRIPT_DIR/lib/local_dev_test_state.sh"
 
-# stage-2 preflight tests also exercise web/.env.local layering, so mirror the
-# repo .env.local backup/restore helper for the web-side env file.
-backup_web_env_file() {
-    local backup_path="$1"
-    if [ -f "$REPO_ROOT/web/.env.local" ]; then
-        cp "$REPO_ROOT/web/.env.local" "$backup_path"
-        return 0
-    fi
-    return 1
-}
-
-restore_web_env_file() {
-    local backup_path="$1"
-    if [ -f "$backup_path" ]; then
-        cp "$backup_path" "$REPO_ROOT/web/.env.local"
-    else
-        rm -f "$REPO_ROOT/web/.env.local"
-    fi
+reset_preflight_fixture_state() {
+    rm -f "$REPO_ROOT/.env.local" "$REPO_ROOT/web/.env.local"
+    rm -rf "$REPO_ROOT/web/node_modules"
 }
 
 backup_preflight_env_files() {
-    local tmp_dir="$1"
-    backup_repo_env_file "$tmp_dir/env_backup" || true
-    backup_web_env_file "$tmp_dir/web_env_backup" || true
-    PREFLIGHT_VITE_BACKUP=$(backup_repo_path "$REPO_ROOT/web/node_modules/.bin/vite" "$tmp_dir/vite.backup")
+    reset_preflight_fixture_state
 }
 
 restore_preflight_env_files() {
-    local tmp_dir="$1"
-    restore_repo_env_file "$tmp_dir/env_backup"
-    restore_web_env_file "$tmp_dir/web_env_backup"
-    restore_repo_path "$REPO_ROOT/web/node_modules/.bin/vite" "${PREFLIGHT_VITE_BACKUP:-}"
-    PREFLIGHT_VITE_BACKUP=""
+    reset_preflight_fixture_state
 }
 
 read_playwright_contract() {
@@ -135,6 +125,17 @@ run_preflight_isolated() {
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
+
+test_suite_uses_isolated_fixture_repo() {
+    assert_ne "$REPO_ROOT" "$SOURCE_REPO_ROOT" \
+        "e2e preflight tests should target an isolated fixture repo"
+    assert_file_exists "$PREFLIGHT_SCRIPT" \
+        "e2e preflight fixture should include the preflight script"
+    assert_file_exists "$PLAYWRIGHT_CONTRACT_FILE" \
+        "e2e preflight fixture should include the Playwright contract"
+    assert_file_exists "$LOCAL_DEV_RUNBOOK_FILE" \
+        "e2e preflight fixture should include the local-dev runbook"
+}
 
 test_admin_key_resolves_from_env_local() {
     local tmp_dir
@@ -821,6 +822,7 @@ main() {
     echo "=== e2e-preflight.sh tests ==="
     echo ""
 
+    test_suite_uses_isolated_fixture_repo
     test_admin_key_resolves_from_env_local
     test_preflight_uses_shared_flapjack_provenance_check
     test_preflight_rejects_path_fallback_after_selected_source_failure

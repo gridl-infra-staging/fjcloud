@@ -3,38 +3,27 @@
 //! Proves the durable password-reset resend cooldown column exists on
 //! `customers` with the expected nullability and type after the full migration
 //! chain runs.
-use sqlx::{PgPool, Row};
+use sqlx::Row;
 
-async fn connect_and_migrate() -> Option<PgPool> {
-    let Ok(url) = std::env::var("DATABASE_URL") else {
-        println!(
-            "SKIP: DATABASE_URL not set — skipping migration_054_password_reset_resend_cooldown schema test"
-        );
-        return None;
-    };
-    let pool = PgPool::connect(&url)
-        .await
-        .expect("connect to integration test DB");
-    sqlx::migrate!("../migrations")
-        .run(&pool)
-        .await
-        .expect("run migrations");
-    Some(pool)
+use crate::common::support::pg_schema_harness;
+
+async fn connect_and_migrate() -> Option<pg_schema_harness::DbHarness> {
+    pg_schema_harness::connect_and_migrate("migration_054_password_reset").await
 }
 
 #[tokio::test]
 async fn password_reset_resend_cooldown_column_schema_contract() {
-    let Some(pool) = connect_and_migrate().await else {
+    let Some(db) = connect_and_migrate().await else {
         return;
     };
 
     let columns = sqlx::query(
         "SELECT column_name, is_nullable, data_type \
          FROM information_schema.columns \
-         WHERE table_schema = 'public' AND table_name = 'customers' \
+         WHERE table_schema = current_schema() AND table_name = 'customers' \
            AND column_name = 'resend_password_reset_sent_at'",
     )
-    .fetch_all(&pool)
+    .fetch_all(&db.pool)
     .await
     .expect("query resend password reset cooldown column from information_schema");
 

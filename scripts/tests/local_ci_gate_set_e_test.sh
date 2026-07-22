@@ -19,6 +19,7 @@ fail() { echo "FAIL: $*" >&2; FAIL_COUNT=$((FAIL_COUNT+1)); }
 
 GENERATE_SSM_HOOK_REGEX='^[[:space:]]*bash[[:space:]]+"\$REPO_ROOT/scripts/tests/generate_ssm_env_test\.sh"([[:space:]]*\|\|.*)?$'
 SET_E_HOOK_REGEX='^[[:space:]]*bash[[:space:]]+"\$REPO_ROOT/scripts/tests/local_ci_gate_set_e_test\.sh"([[:space:]]*\|\|.*)?$'
+ENV_LOCAL_ISOLATION_HOOK_REGEX='^[[:space:]]*bash[[:space:]]+"\$REPO_ROOT/scripts/tests/local_ci_env_local_isolation_test\.sh"([[:space:]]*\|\|.*)?$'
 NODE_MODULES_GUARD_HOOK_REGEX='^[[:space:]]*bash[[:space:]]+"\$REPO_ROOT/scripts/tests/local_ci_node_modules_guard_test\.sh"([[:space:]]*\|\|.*)?$'
 LAYOUT_HOOK_REGEX='^[[:space:]]*bash[[:space:]]+"\$REPO_ROOT/scripts/tests/integration_test_layout_test\.sh"([[:space:]]*\|\|.*)?$'
 SOURCE_POLLUTION_HOOK_REGEX='^[[:space:]]*bash[[:space:]]+"\$REPO_ROOT/scripts/tests/source_pollution_contract_test\.sh"([[:space:]]*\|\|.*)?$'
@@ -27,6 +28,7 @@ MOCKED_SPEC_HOOK_REGEX='^[[:space:]]*if[[:space:]]+bash[[:space:]]+scripts/canar
 ADMIN_CLEANUP_HOOK_REGEX='^[[:space:]]*if[[:space:]]+bash[[:space:]]+scripts/canary/contracts/customer_loop_admin_cleanup_live_contract\.sh;[[:space:]]*then$'
 CUSTOMER_METRICS_PROBE_HOOK_REGEX='^[[:space:]]*bash[[:space:]]+scripts/canary/contracts/customer_metrics_endpoint_authenticated_probe\.sh[[:space:]]+--staging-only;[[:space:]]*then$'
 CUSTOMER_METRICS_PROBE_SKIP_BRANCH_REGEX='^[[:space:]]*if[[:space:]]+\[[[:space:]]*"\$metrics_probe_rc"[[:space:]]+-eq[[:space:]]+"\$SKIP_EXIT_CODE"[[:space:]]*\];[[:space:]]*then$'
+ENV_LOCAL_ISOLATION_SKIP_VAR='LOCAL_CI_SKIP_ENV_LOCAL_ISOLATION_TEST'
 
 extract_function_block() {
     local function_name="$1"
@@ -80,7 +82,7 @@ test_local_ci_rust_lint_fails_on_real_fmt_violation() {
 
         local out_skip
         local skip_status=0
-        out_skip="$(LOCAL_CI_SKIP_SET_E_REGRESSION_TEST=1 bash "$LOCAL_CI" --gate rust-lint 2>&1)" || skip_status=$?
+        out_skip="$(LOCAL_CI_SKIP_SET_E_REGRESSION_TEST=1 LOCAL_CI_SET_E_REGRESSION_FIXTURE="$fixture_path" bash "$LOCAL_CI" --gate rust-lint 2>&1)" || skip_status=$?
         rm -f "$fixture_path"
         if [[ "$skip_status" -ne 1 ]]; then
             fail "local-ci.sh --gate rust-lint returned $skip_status on bash<4; expected 1 because cargo fmt violation should still fail the gate. Output tail: $(echo "$out_skip" | tail -20)"
@@ -103,7 +105,7 @@ test_local_ci_rust_lint_fails_on_real_fmt_violation() {
 
     local out
     local status=0
-    out="$(LOCAL_CI_SKIP_SET_E_REGRESSION_TEST=1 bash "$LOCAL_CI" --gate rust-lint 2>&1)" || status=$?
+    out="$(LOCAL_CI_SKIP_SET_E_REGRESSION_TEST=1 LOCAL_CI_SET_E_REGRESSION_FIXTURE="$fixture_path" bash "$LOCAL_CI" --gate rust-lint 2>&1)" || status=$?
 
     rm -f "$fixture_path"
 
@@ -160,6 +162,39 @@ test_set_e_hook_detection_rejects_comment_only_mentions() {
         fail "set-e hook detection accepted a comment-only mention; expected executable invocation requirement"
     else
         pass "set-e hook detection rejects comment-only mentions of local_ci_gate_set_e_test.sh"
+    fi
+}
+
+test_local_ci_rust_lint_includes_env_local_isolation_hook() {
+    local rust_lint_block
+    rust_lint_block="$(extract_function_block gate_rust_lint)"
+
+    if block_has_regex "$rust_lint_block" "$ENV_LOCAL_ISOLATION_HOOK_REGEX"; then
+        pass "gate_rust_lint executes local_ci_env_local_isolation_test.sh"
+    else
+        fail "gate_rust_lint is missing local_ci_env_local_isolation_test.sh regression hook"
+    fi
+}
+
+test_env_local_isolation_hook_detection_rejects_comment_only_mentions() {
+    local comment_only_block
+    comment_only_block=$'gate_rust_lint() {\n    # scripts/tests/local_ci_env_local_isolation_test.sh is documented here only\n    bash "$REPO_ROOT/scripts/tests/ci_workflow_test.sh" || return $?\n}'
+
+    if block_has_regex "$comment_only_block" "$ENV_LOCAL_ISOLATION_HOOK_REGEX"; then
+        fail "env-local isolation hook detection accepted a comment-only mention; expected executable invocation requirement"
+    else
+        pass "env-local isolation hook detection rejects comment-only mentions"
+    fi
+}
+
+test_local_ci_rust_lint_has_no_ambient_env_local_isolation_skip() {
+    local rust_lint_block
+    rust_lint_block="$(extract_function_block gate_rust_lint)"
+
+    if [[ "$rust_lint_block" == *"$ENV_LOCAL_ISOLATION_SKIP_VAR"* ]]; then
+        fail "gate_rust_lint contains ambient $ENV_LOCAL_ISOLATION_SKIP_VAR bypass"
+    else
+        pass "gate_rust_lint has no ambient env-local isolation bypass"
     fi
 }
 
@@ -411,6 +446,9 @@ main() {
     test_local_ci_rust_lint_includes_set_e_regression_hook
     test_hook_detection_rejects_comment_only_mentions
     test_set_e_hook_detection_rejects_comment_only_mentions
+    test_local_ci_rust_lint_includes_env_local_isolation_hook
+    test_env_local_isolation_hook_detection_rejects_comment_only_mentions
+    test_local_ci_rust_lint_has_no_ambient_env_local_isolation_skip
     test_local_ci_rust_lint_includes_node_modules_guard_contract
     test_node_modules_guard_hook_detection_rejects_comment_only_mentions
     test_local_ci_rust_lint_includes_integration_test_layout_hook

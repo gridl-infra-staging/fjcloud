@@ -261,6 +261,51 @@ impl AwsVmProvisioner {
             ))),
         }
     }
+
+    async fn describe_managed_vm_by_hostname(
+        &self,
+        hostname: &str,
+        region: &str,
+    ) -> Result<Option<VmInstance>, VmProvisionerError> {
+        let output = self
+            .client
+            .describe_instances()
+            .filters(
+                Filter::builder()
+                    .name("tag:Name")
+                    .values(format!("fj-{hostname}"))
+                    .build(),
+            )
+            .filters(
+                Filter::builder()
+                    .name("tag:managed-by")
+                    .values("fjcloud")
+                    .build(),
+            )
+            .send()
+            .await
+            .map_err(|e| VmProvisionerError::Api(format!("EC2 DescribeInstances failed: {e}")))?;
+
+        let instances: Vec<_> = output
+            .reservations()
+            .iter()
+            .flat_map(|reservation| reservation.instances())
+            .filter(|instance| {
+                instance
+                    .state()
+                    .and_then(|state| state.name())
+                    .map(|state| map_ec2_state(state.as_str()) != VmStatus::Terminated)
+                    .unwrap_or(true)
+            })
+            .collect();
+        match instances.as_slice() {
+            [] => Ok(None),
+            [instance] => Ok(Some(Self::instance_to_vm_instance(instance, region)?)),
+            _ => Err(VmProvisionerError::Api(format!(
+                "multiple managed EC2 instances matched hostname {hostname}"
+            ))),
+        }
+    }
 }
 
 #[async_trait]
@@ -405,6 +450,20 @@ impl VmProvisioner for AwsVmProvisioner {
         }
         self.describe_running_managed_vm_by_hostname(hostname, region)
             .await
+    }
+
+    async fn find_managed_vm_by_hostname(
+        &self,
+        provider: &str,
+        region: &str,
+        hostname: &str,
+    ) -> Result<Option<VmInstance>, VmProvisionerError> {
+        if provider != "aws" {
+            return Err(VmProvisionerError::Api(format!(
+                "AWS provisioner cannot resolve provider {provider}"
+            )));
+        }
+        self.describe_managed_vm_by_hostname(hostname, region).await
     }
 }
 

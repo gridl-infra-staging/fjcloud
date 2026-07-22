@@ -1,10 +1,31 @@
 use async_trait::async_trait;
+use chrono::{DateTime, Utc};
 use reqwest::Client;
+use serde::Deserialize;
 use serde_json::{json, Value};
 
-use super::{hostname_for_domain, DnsError, DnsManager};
+use super::{hostname_for_domain, DnsARecord, DnsError, DnsManager};
 
 const CLOUDFLARE_API_BASE: &str = "https://api.cloudflare.com/client/v4";
+const CLOUDFLARE_LIST_PAGE_SIZE: u32 = 100;
+
+#[derive(Deserialize)]
+struct CloudflareARecord {
+    name: String,
+    created_on: DateTime<Utc>,
+}
+
+#[derive(Deserialize)]
+struct CloudflareResultInfo {
+    page: u32,
+    total_pages: u32,
+}
+
+#[derive(Deserialize)]
+struct CloudflareListPage {
+    result: Vec<CloudflareARecord>,
+    result_info: CloudflareResultInfo,
+}
 
 pub struct CloudflareDnsManager {
     client: Client,
@@ -152,6 +173,43 @@ impl DnsManager for CloudflareDnsManager {
         .await?;
         Ok(())
     }
+
+    async fn list_a_records(&self) -> Result<Vec<DnsARecord>, DnsError> {
+        let mut page_number = 1;
+        let mut records = Vec::new();
+
+        loop {
+            let body = self
+                .request_json(
+                    self.client.get(self.records_endpoint()).query(&[
+                        ("type", "A".to_string()),
+                        ("page", page_number.to_string()),
+                        ("per_page", CLOUDFLARE_LIST_PAGE_SIZE.to_string()),
+                    ]),
+                    "list",
+                )
+                .await?;
+            let page: CloudflareListPage = serde_json::from_value(body).map_err(|error| {
+                DnsError::Api(format!("Cloudflare list response is incomplete: {error}"))
+            })?;
+            if page.result_info.page != page_number
+                || page.result_info.total_pages < page.result_info.page
+            {
+                return Err(DnsError::Api(format!(
+                    "Cloudflare list pagination is inconsistent at page {page_number}"
+                )));
+            }
+            records.extend(page.result.into_iter().map(|record| DnsARecord {
+                hostname: record.name.trim_end_matches('.').to_string(),
+                created_at: record.created_on,
+            }));
+
+            if page_number == page.result_info.total_pages {
+                return Ok(records);
+            }
+            page_number += 1;
+        }
+    }
 }
 
 #[cfg(test)]
@@ -227,5 +285,56 @@ mod tests {
             .delete_record("vm-missing.flapjack.foo")
             .await
             .expect("delete should be idempotent when record does not exist");
+    }
+
+    #[tokio::test]
+    async fn orphan_report_cloudflare_listing_exhausts_all_a_record_pages() {
+        let server = MockServer::start().await;
+        for (page, hostname) in [
+            (1, "vm-shared-first.flapjack.foo"),
+            (2, "vm-shared-second.flapjack.foo"),
+        ] {
+            Mock::given(method("GET"))
+                .and(path("/client/v4/zones/zone_123/dns_records"))
+                .and(query_param("type", "A"))
+                .and(query_param("page", page.to_string()))
+                .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                    "success": true,
+                    "errors": [],
+                    "result": [{
+                        "id": format!("record_{page}"),
+                        "name": hostname,
+                        "type": "A",
+                        "created_on": "2026-07-20T12:00:00Z"
+                    }],
+                    "result_info": {
+                        "page": page,
+                        "per_page": 100,
+                        "count": 1,
+                        "total_count": 2,
+                        "total_pages": 2
+                    }
+                })))
+                .expect(1)
+                .mount(&server)
+                .await;
+        }
+
+        let manager = CloudflareDnsManager::with_api_base(
+            Client::new(),
+            "token_123".to_string(),
+            "zone_123".to_string(),
+            "flapjack.foo".to_string(),
+            format!("{}/client/v4", server.uri()),
+        );
+
+        let records = manager
+            .list_a_records()
+            .await
+            .expect("all Cloudflare pages should be listed");
+
+        assert_eq!(records.len(), 2);
+        assert_eq!(records[0].hostname, "vm-shared-first.flapjack.foo");
+        assert_eq!(records[1].hostname, "vm-shared-second.flapjack.foo");
     }
 }

@@ -18,6 +18,8 @@ use sqlx::PgPool;
 use tower::ServiceExt;
 use uuid::Uuid;
 
+use crate::common::support::pg_schema_harness;
+
 const TRUSTED_SNS_HOST: &str = "sns.us-east-1.amazonaws.com";
 const TRUSTED_SIGNING_CERT_URL: &str =
     "https://sns.us-east-1.amazonaws.com/SimpleNotificationService-test.pem";
@@ -260,21 +262,8 @@ fn webhook_http_client_for_fixture(
     webhook_http_client
 }
 
-async fn connect_and_migrate() -> Option<PgPool> {
-    let Ok(url) = std::env::var("DATABASE_URL") else {
-        println!("SKIP: DATABASE_URL not set — skipping SES SNS webhook integration tests");
-        return None;
-    };
-
-    let pool = PgPool::connect(&url)
-        .await
-        .expect("connect to integration test DB");
-    sqlx::migrate!("../migrations")
-        .run(&pool)
-        .await
-        .expect("run migrations");
-
-    Some(pool)
+async fn connect_and_migrate() -> Option<pg_schema_harness::DbHarness> {
+    pg_schema_harness::connect_and_migrate("ses_bounce_complaint").await
 }
 
 async fn response_json(resp: axum::http::Response<Body>) -> (StatusCode, serde_json::Value) {
@@ -507,9 +496,10 @@ async fn ses_sns_route_rejects_invalid_signature() {
 
 #[tokio::test]
 async fn hard_bounce_suppresses_recipient_and_writes_correlated_audit_row() {
-    let Some(pool) = connect_and_migrate().await else {
+    let Some(db) = connect_and_migrate().await else {
         return;
     };
+    let pool = db.pool.clone();
 
     let customer_repo = crate::common::mock_repo();
     let alert_service = crate::common::mock_alert_service();
@@ -588,9 +578,10 @@ async fn hard_bounce_suppresses_recipient_and_writes_correlated_audit_row() {
 
 #[tokio::test]
 async fn complaint_suppresses_recipient_and_writes_correlated_audit_row() {
-    let Some(pool) = connect_and_migrate().await else {
+    let Some(db) = connect_and_migrate().await else {
         return;
     };
+    let pool = db.pool.clone();
 
     let customer_repo = crate::common::mock_repo();
     let alert_service = crate::common::mock_alert_service();
@@ -663,9 +654,10 @@ async fn complaint_suppresses_recipient_and_writes_correlated_audit_row() {
 
 #[tokio::test]
 async fn transient_bounce_event_is_ignored_without_suppression_or_audit() {
-    let Some(pool) = connect_and_migrate().await else {
+    let Some(db) = connect_and_migrate().await else {
         return;
     };
+    let pool = db.pool.clone();
 
     let customer_repo = crate::common::mock_repo();
     let customer = customer_repo.seed("Transient Bounce", "transient@example.com");

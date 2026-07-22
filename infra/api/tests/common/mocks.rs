@@ -3700,6 +3700,7 @@ pub struct MockVmInventoryRepo {
     vms: Mutex<Vec<VmInventory>>,
     get_calls: Mutex<usize>,
     create_calls: Mutex<usize>,
+    status_mutation_calls: AtomicUsize,
     pub should_fail: Arc<AtomicBool>,
 }
 
@@ -3709,6 +3710,7 @@ impl MockVmInventoryRepo {
             vms: Mutex::new(Vec::new()),
             get_calls: Mutex::new(0),
             create_calls: Mutex::new(0),
+            status_mutation_calls: AtomicUsize::new(0),
             should_fail: Arc::new(AtomicBool::new(false)),
         }
     }
@@ -3719,6 +3721,10 @@ impl MockVmInventoryRepo {
 
     pub fn create_call_count(&self) -> usize {
         *self.create_calls.lock().unwrap()
+    }
+
+    pub fn status_mutation_call_count(&self) -> usize {
+        self.status_mutation_calls.load(Ordering::SeqCst)
     }
 
     pub fn set_should_fail(&self, fail: bool) {
@@ -3781,6 +3787,18 @@ impl VmInventoryRepo for MockVmInventoryRepo {
         Ok(results)
     }
 
+    async fn list_non_decommissioned(&self) -> Result<Vec<VmInventory>, RepoError> {
+        self.check_failure()?;
+        Ok(self
+            .vms
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|vm| vm.status != "decommissioned")
+            .cloned()
+            .collect())
+    }
+
     async fn get(&self, id: Uuid) -> Result<Option<VmInventory>, RepoError> {
         let mut calls = self.get_calls.lock().unwrap();
         *calls += 1;
@@ -3829,6 +3847,7 @@ impl VmInventoryRepo for MockVmInventoryRepo {
     }
 
     async fn set_status(&self, id: Uuid, status: &str) -> Result<(), RepoError> {
+        self.status_mutation_calls.fetch_add(1, Ordering::SeqCst);
         let mut vms = self.vms.lock().unwrap();
         if let Some(vm) = vms.iter_mut().find(|v| v.id == id) {
             vm.status = status.to_string();
@@ -3866,6 +3885,7 @@ impl VmInventoryRepo for MockVmInventoryRepo {
         id: Uuid,
         expected_hostname: &str,
     ) -> Result<VmDecommissionResult, RepoError> {
+        self.status_mutation_calls.fetch_add(1, Ordering::SeqCst);
         self.check_failure()?;
         let mut vms = self.vms.lock().unwrap();
         let vm = vms.iter_mut().find(|vm| vm.id == id);

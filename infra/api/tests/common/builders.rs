@@ -28,6 +28,7 @@ use api::services::restore::RestoreService;
 use api::services::storage::s3_proxy::{GarageProxy, GarageProxyConfig};
 use api::services::storage::{GarageAdminClient, StorageService};
 use api::services::tenant_quota::{FreeTierLimits, QuotaDefaults, TenantQuotaService};
+use api::services::vm_orphan_reconcile::{VmOrphanDependencies, VmOrphanReconciler};
 use api::state::AppState;
 use api::state::MetricsCache;
 use api::state::{OAuthCookieSameSite, OAuthProviderRuntimeConfig, OAuthRuntimeConfig};
@@ -554,6 +555,15 @@ impl TestStateBuilder {
             discovery_service.clone(),
             self.node_secret_manager.clone(),
         );
+        let vm_orphan_reconciler = Arc::new(VmOrphanReconciler::new(
+            VmOrphanDependencies {
+                inventory: self.vm_inventory_repo.clone(),
+                dns: self.dns_manager.clone(),
+                secrets: self.node_secret_manager.clone(),
+                provisioner: self.vm_provisioner.clone(),
+            },
+            self.dns_domain.clone(),
+        ));
         let provisioning_service = mock_provisioning_service(
             self.vm_provisioner.clone(),
             self.dns_manager.clone(),
@@ -610,6 +620,7 @@ impl TestStateBuilder {
             alert_service: self.alert_service,
             vm_host_metrics_repo: self.vm_host_metrics_repo,
             vm_inventory_repo: self.vm_inventory_repo,
+            vm_orphan_reconciler,
             index_migration_repo: self.index_migration_repo,
             discovery_service,
             migration_service,

@@ -4,7 +4,7 @@
 //! `subscriptions` table at the schema boundary while metered-billing
 //! paths continue to live on `customers.billing_plan`. This test
 //! pins the contract: after the full migration chain runs against a
-//! real Postgres, `to_regclass('public.subscriptions')` must be NULL.
+//! real Postgres, `subscriptions` must be absent from the migrated schema.
 //!
 //! ## Running
 //!
@@ -22,45 +22,34 @@
 //! caught by compile-time SQL checks (the runtime queries are all
 //! string literals). This test asserts the post-migration schema
 //! state directly so any regression flips it red.
-use sqlx::PgPool;
+use crate::common::support::pg_schema_harness;
 
-async fn connect_and_migrate() -> Option<PgPool> {
-    let Ok(url) = std::env::var("DATABASE_URL") else {
-        println!(
-            "SKIP: DATABASE_URL not set — skipping migration_046_drops_subscriptions schema test"
-        );
-        return None;
-    };
-    let pool = PgPool::connect(&url)
-        .await
-        .expect("connect to integration test DB");
-    sqlx::migrate!("../migrations")
-        .run(&pool)
-        .await
-        .expect("run migrations");
-    Some(pool)
+async fn connect_and_migrate() -> Option<pg_schema_harness::DbHarness> {
+    pg_schema_harness::connect_and_migrate("migration_046_subscriptions").await
 }
 
 #[tokio::test]
 async fn subscriptions_table_is_absent_after_migrations() {
-    let Some(pool) = connect_and_migrate().await else {
+    let Some(db) = connect_and_migrate().await else {
         return;
     };
 
-    // `to_regclass` returns NULL when the relation does not exist,
-    // and the qualified OID otherwise. We assert NULL — anything else
-    // means migration 046 (or its successor) has stopped dropping
-    // `subscriptions`.
-    let regclass: Option<String> =
-        sqlx::query_scalar("SELECT to_regclass('public.subscriptions')::text")
-            .fetch_one(&pool)
-            .await
-            .expect("query to_regclass for subscriptions");
+    let exists: bool = sqlx::query_scalar(
+        "SELECT EXISTS (
+            SELECT 1
+            FROM information_schema.tables
+            WHERE table_schema = current_schema()
+              AND table_name = 'subscriptions'
+        )",
+    )
+    .fetch_one(&db.pool)
+    .await
+    .expect("query subscriptions table existence");
 
     assert!(
-        regclass.is_none(),
+        !exists,
         "subscriptions table must be absent after migrations \
-         (to_regclass returned {regclass:?}); migration 046 \
+         (information_schema reported exists={exists}); migration 046 \
          (drop_subscriptions) is the schema owner for this contract"
     );
 }

@@ -7636,7 +7636,7 @@
       },
       "CustomerIndexReplicaSummary": {
         "type": "object",
-        "description": "Customer-facing view — omits internal VM details while exposing the\nstable endpoint clients can use for this replica.",
+        "description": "Customer-facing view — omits internal VM details and never exposes a raw\nreplica engine URL.",
         "required": [
           "id",
           "replica_region",

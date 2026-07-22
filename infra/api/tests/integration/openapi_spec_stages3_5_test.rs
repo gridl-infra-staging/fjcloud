@@ -499,6 +499,7 @@ fn algolia_cloud_discovery_spec_contains_only_stage_1_through_5_paths() {
         "/usage",
         "/invoices",
         "/pricing",
+        "/public/",
         "/migration",
     ];
 

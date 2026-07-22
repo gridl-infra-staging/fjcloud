@@ -1,8 +1,15 @@
 use async_trait::async_trait;
+use chrono::{TimeZone, Utc};
 use rand::RngCore;
+use std::collections::HashSet;
 
-use super::{NodeSecretError, NodeSecretManager};
+use super::{NodeSecretError, NodeSecretManager, NodeSecretRecord};
 use aws_sdk_ssm::operation::get_parameter::GetParameterError;
+
+const NODE_PARAMETER_PREFIX: &str = "/fjcloud/";
+const NODE_KEY_SUFFIX: &str = "/api-key";
+const PREVIOUS_NODE_KEY_SUFFIX: &str = "/api-key-previous";
+const SSM_LIST_PAGE_SIZE: i32 = 50;
 
 /// AWS SSM Parameter Store implementation of `NodeSecretManager`.
 ///
@@ -29,6 +36,30 @@ impl SsmNodeSecretManager {
 
     fn previous_parameter_name(node_id: &str) -> String {
         format!("/fjcloud/{node_id}/api-key-previous")
+    }
+
+    fn listed_node_id(path: &str) -> Option<&str> {
+        let path = path.strip_prefix(NODE_PARAMETER_PREFIX)?;
+        let node_id = path
+            .strip_suffix(PREVIOUS_NODE_KEY_SUFFIX)
+            .or_else(|| path.strip_suffix(NODE_KEY_SUFFIX))?;
+        (!node_id.is_empty() && !node_id.contains('/')).then_some(node_id)
+    }
+
+    async fn delete_parameter_if_present(&self, param_name: &str) -> Result<(), NodeSecretError> {
+        match self.client.delete_parameter().name(param_name).send().await {
+            Ok(_) => Ok(()),
+            // ParameterNotFound is not an error during cleanup — the param may
+            // never have been created (e.g. provisioning failed before SSM write).
+            Err(aws_sdk_ssm::error::SdkError::ServiceError(ref se))
+                if se.err().is_parameter_not_found() =>
+            {
+                Ok(())
+            }
+            Err(e) => Err(NodeSecretError::Api(format!(
+                "SSM DeleteParameter failed for {param_name}: {e}"
+            ))),
+        }
     }
 
     /// Preserve modeled missing-parameter errors before the AWS SDK's Display
@@ -76,34 +107,27 @@ impl NodeSecretManager for SsmNodeSecretManager {
         Ok(api_key)
     }
 
-    /// Deletes the SSM parameter for the node. Idempotent: treats
-    /// `ParameterNotFound` as success.
+    /// Deletes the current and previous SSM parameters for the node. Idempotent:
+    /// treats `ParameterNotFound` as success and attempts both deletes before
+    /// returning the first non-idempotent failure.
     async fn delete_node_api_key(
         &self,
         node_id: &str,
         _region: &str,
     ) -> Result<(), NodeSecretError> {
-        let param_name = Self::parameter_name(node_id);
+        let parameter_names = [
+            Self::parameter_name(node_id),
+            Self::previous_parameter_name(node_id),
+        ];
+        let mut first_error = None;
 
-        match self
-            .client
-            .delete_parameter()
-            .name(&param_name)
-            .send()
-            .await
-        {
-            Ok(_) => Ok(()),
-            // ParameterNotFound is not an error during cleanup — the param may
-            // never have been created (e.g. provisioning failed before SSM write).
-            Err(aws_sdk_ssm::error::SdkError::ServiceError(ref se))
-                if se.err().is_parameter_not_found() =>
-            {
-                Ok(())
+        for param_name in &parameter_names {
+            if let Err(error) = self.delete_parameter_if_present(param_name).await {
+                first_error.get_or_insert(error);
             }
-            Err(e) => Err(NodeSecretError::Api(format!(
-                "SSM DeleteParameter failed: {e}"
-            ))),
         }
+
+        first_error.map_or(Ok(()), Err)
     }
 
     /// Retrieves and decrypts the SSM parameter for the node.s API key.
@@ -233,6 +257,71 @@ impl NodeSecretManager for SsmNodeSecretManager {
             ))),
         }
     }
+
+    async fn list_node_api_keys(&self) -> Result<Vec<NodeSecretRecord>, NodeSecretError> {
+        let name_filter = aws_sdk_ssm::types::ParameterStringFilter::builder()
+            .key("Name")
+            .option("BeginsWith")
+            .values(NODE_PARAMETER_PREFIX)
+            .build()
+            .map_err(|error| NodeSecretError::Api(format!("invalid SSM list filter: {error}")))?;
+        let mut records = Vec::new();
+        let mut next_token: Option<String> = None;
+        let mut seen_tokens = HashSet::new();
+
+        loop {
+            let output = self
+                .client
+                .describe_parameters()
+                .parameter_filters(name_filter.clone())
+                .max_results(SSM_LIST_PAGE_SIZE)
+                .set_next_token(next_token.clone())
+                .send()
+                .await
+                .map_err(|error| {
+                    NodeSecretError::Api(format!("SSM DescribeParameters failed: {error}"))
+                })?;
+
+            for parameter in output.parameters() {
+                let Some(path) = parameter.name() else {
+                    return Err(NodeSecretError::Api(
+                        "SSM listed a parameter without a name".to_string(),
+                    ));
+                };
+                let Some(node_id) = Self::listed_node_id(path) else {
+                    continue;
+                };
+                let modified = parameter.last_modified_date().ok_or_else(|| {
+                    NodeSecretError::Api(format!(
+                        "SSM parameter {path} has no last-modified timestamp"
+                    ))
+                })?;
+                let last_modified_at = Utc
+                    .timestamp_opt(modified.secs(), modified.subsec_nanos())
+                    .single()
+                    .ok_or_else(|| {
+                        NodeSecretError::Api(format!(
+                            "SSM parameter {path} has an invalid last-modified timestamp"
+                        ))
+                    })?;
+                records.push(NodeSecretRecord {
+                    node_id: node_id.to_string(),
+                    path: path.to_string(),
+                    last_modified_at,
+                });
+            }
+
+            let Some(token) = output.next_token().map(str::to_string) else {
+                return Ok(records);
+            };
+            if !seen_tokens.insert(token.clone()) {
+                return Err(NodeSecretError::Api(
+                    "SSM DescribeParameters repeated a pagination token".to_string(),
+                ));
+            }
+            next_token = Some(token);
+        }
+    }
 }
 
 #[cfg(test)]
@@ -240,6 +329,29 @@ mod tests {
     use super::*;
     use aws_sdk_ssm::error::SdkError;
     use aws_sdk_ssm::types::error::ParameterNotFound;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Arc;
+    use wiremock::matchers::method;
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    async fn ssm_client_for_mock_server(server: &MockServer) -> aws_sdk_ssm::Client {
+        let aws_config = aws_config::defaults(aws_config::BehaviorVersion::latest())
+            .region(aws_sdk_ssm::config::Region::new("us-east-1"))
+            .load()
+            .await;
+        let credentials = aws_sdk_ssm::config::Credentials::new(
+            "test-access-key",
+            "test-secret-key",
+            None,
+            None,
+            "orphan-report-test",
+        );
+        let config = aws_sdk_ssm::config::Builder::from(&aws_config)
+            .endpoint_url(server.uri())
+            .credentials_provider(credentials)
+            .build();
+        aws_sdk_ssm::Client::from_conf(config)
+    }
 
     /// Verifies the generated key has the `fj_live_` prefix and is 72
     /// characters long.
@@ -277,6 +389,54 @@ mod tests {
             SsmNodeSecretManager::parameter_name("node-abc123"),
             "/fjcloud/node-abc123/api-key"
         );
+    }
+
+    #[tokio::test]
+    async fn orphan_report_ssm_listing_exhausts_current_and_previous_key_pages() {
+        let server = MockServer::start().await;
+        let calls = Arc::new(AtomicUsize::new(0));
+        let responder_calls = calls.clone();
+        Mock::given(method("POST"))
+            .respond_with(move |_request: &wiremock::Request| {
+                let page = responder_calls.fetch_add(1, Ordering::SeqCst);
+                match page {
+                    0 => ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                        "Parameters": [{
+                            "Name": "/fjcloud/vm-shared-first.flapjack.foo/api-key",
+                            "LastModifiedDate": 1784548800.0
+                        }],
+                        "NextToken": "page-two"
+                    })),
+                    1 => ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                        "Parameters": [{
+                            "Name": "/fjcloud/vm-shared-second.flapjack.foo/api-key-previous",
+                            "LastModifiedDate": 1784548800.0
+                        }]
+                    })),
+                    unexpected => panic!("unexpected SSM page request {unexpected}"),
+                }
+            })
+            .mount(&server)
+            .await;
+
+        let manager = SsmNodeSecretManager::new(ssm_client_for_mock_server(&server).await);
+        let records = manager
+            .list_node_api_keys()
+            .await
+            .expect("all SSM pages should be listed");
+
+        assert_eq!(calls.load(Ordering::SeqCst), 2);
+        assert_eq!(records.len(), 2);
+        assert_eq!(
+            records[0].path,
+            "/fjcloud/vm-shared-first.flapjack.foo/api-key"
+        );
+        assert_eq!(records[0].node_id, "vm-shared-first.flapjack.foo");
+        assert_eq!(
+            records[1].path,
+            "/fjcloud/vm-shared-second.flapjack.foo/api-key-previous"
+        );
+        assert_eq!(records[1].node_id, "vm-shared-second.flapjack.foo");
     }
 
     #[test]

@@ -37,12 +37,12 @@ admin write paths whose abuse would be a customer-trust incident
 
 | Directory | Summary |
 | --- | --- |
-| algolia_source | Tests for the AlgoliaSourceService, covering pagination with cursor validation, credential redaction, permission probing (settings and browse ACLs), error mapping, retry logic, and metadata handling for Algolia cloud index discovery. |
-| cold_tier | The cold_tier module implements an automated system for archiving idle indexes to cold storage, featuring a background service that detects candidates based on access patterns, orchestrates snapshot export-upload-eviction pipelines with guarded lifecycle mutations, and manages retries with alerting and rollback on failure. |
-| email | Email service module for rendering and sending transactional emails, with Mailpit integration for delivery and testing. |
-| flapjack_proxy | The flapjack_proxy module provides integration with the Flapjack search-engine proxy, including settings normalization, lifecycle management, metrics scraping, and engine compatibility testing. |
-| migration | The migration service module provides protocol definitions and recovery mechanisms for data migrations in the billing platform's API. |
-| provisioning | The provisioning module automates the creation of shared VMs across multiple cloud providers (AWS, Hetzner, GCP, OCI) with DNS registration, API key management, and health verification, while supporting a local development bypass mode. |
-| scheduler | The scheduler service periodically scrapes Prometheus metrics from VMs to monitor utilization across CPU, memory, disk, and query/indexing throughput dimensions, then triggers index migrations when sustained overload, underload, or noisy-neighbor quota violations are detected. |
+| algolia_source | The algolia_source directory contains test stubs for the Algolia search integration service within the API crate. |
+| cold_tier | The cold_tier module implements an automated index archival service that periodically scans for idle tenants and migrates them to cold storage through a coordinated snapshot pipeline (export, upload, transition, evict, verify). |
+| email | The email directory is a service module that handles email functionality, including template management, email rendering from templates, and integration with Mailpit for local email testing and delivery. |
+| flapjack_proxy | The flapjack_proxy service module provides integration with Flapjack search engine, including lifecycle management, metrics scraping, compatibility testing, and settings normalization for the proxy layer. |
+| migration | The migration service defines protocols for data and schema migrations, with support for recovery and error handling when migrations fail or need to be retried. |
+| provisioning | Handles automatic provisioning of shared VMs for capacity fallback across multiple cloud providers (AWS, Hetzner, GCP, OCI, bare metal), including VM creation, DNS registration, inventory tracking, health verification, and comprehensive rollback on failure. |
+| scheduler | The scheduler service periodically scrapes Prometheus metrics from all active VMs to monitor resource utilization across CPU, memory, disk, query RPS, and indexing RPS dimensions, then triggers index migrations when sustained overload, underload, or noisy-neighbor quota violations are detected. |
 | storage | — |
 <!-- [scrai:end] -->

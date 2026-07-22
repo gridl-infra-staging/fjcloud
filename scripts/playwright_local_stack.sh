@@ -254,6 +254,7 @@ if [ "$FORCE_API_RESTART" = "1" ]; then
 	kill_owned_api_listener_for_restart
 fi
 
+if ! curl -fsS "$API_HEALTH_URL" >/dev/null 2>&1; then require_local_database_url; fi
 ensure_local_flapjack_ready
 flapjack_identity_reason="$(flapjack_runtime_identity_reason "$FLAPJACK_URL")"
 if [ "$flapjack_identity_reason" != "match" ]; then

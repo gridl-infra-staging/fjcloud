@@ -3,6 +3,13 @@ pub mod mock;
 pub mod route53;
 
 use async_trait::async_trait;
+use chrono::{DateTime, Utc};
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DnsARecord {
+    pub hostname: String,
+    pub created_at: DateTime<Utc>,
+}
 
 #[derive(Debug, thiserror::Error)]
 pub enum DnsError {
@@ -14,6 +21,9 @@ pub enum DnsError {
 
     #[error("DNS record not found: {0}")]
     RecordNotFound(String),
+
+    #[error("DNS record listing is not supported")]
+    ListingUnsupported,
 }
 
 #[async_trait]
@@ -23,6 +33,12 @@ pub trait DnsManager: Send + Sync {
 
     /// Delete the A record for the given hostname. Idempotent — returns Ok if not found.
     async fn delete_record(&self, hostname: &str) -> Result<(), DnsError>;
+
+    /// Enumerate every A record owned by this manager. Implementations that do
+    /// not provide a complete read-only listing must fail closed.
+    async fn list_a_records(&self) -> Result<Vec<DnsARecord>, DnsError> {
+        Err(DnsError::ListingUnsupported)
+    }
 }
 
 /// Returns `DnsError::NotConfigured` for all methods.

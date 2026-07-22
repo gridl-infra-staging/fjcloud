@@ -321,6 +321,17 @@ impl VmInventoryRepo for InMemoryVmRepo {
         Ok(self.vms.lock().unwrap().clone())
     }
 
+    async fn list_non_decommissioned(&self) -> Result<Vec<VmInventory>, crate::repos::RepoError> {
+        Ok(self
+            .vms
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|vm| vm.status != "decommissioned")
+            .cloned()
+            .collect())
+    }
+
     async fn get(&self, id: Uuid) -> Result<Option<VmInventory>, crate::repos::RepoError> {
         Ok(self
             .vms

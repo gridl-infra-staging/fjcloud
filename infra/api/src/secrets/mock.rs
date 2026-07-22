@@ -3,15 +3,19 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
+use chrono::{DateTime, Utc};
 
-use super::{NodeSecretError, NodeSecretManager};
+use super::{NodeSecretError, NodeSecretManager, NodeSecretRecord};
 
 pub struct MockNodeSecretManager {
     secrets: Mutex<HashMap<String, String>>,
     previous_secrets: Mutex<HashMap<String, String>>,
+    modified_at: Mutex<HashMap<String, DateTime<Utc>>>,
+    previous_modified_at: Mutex<HashMap<String, DateTime<Utc>>>,
     pub should_fail: Arc<AtomicBool>,
     next_key_counter: Mutex<u64>,
     get_call_count: AtomicU64,
+    delete_call_count: AtomicU64,
 }
 
 impl MockNodeSecretManager {
@@ -19,9 +23,12 @@ impl MockNodeSecretManager {
         Self {
             secrets: Mutex::new(HashMap::new()),
             previous_secrets: Mutex::new(HashMap::new()),
+            modified_at: Mutex::new(HashMap::new()),
+            previous_modified_at: Mutex::new(HashMap::new()),
             should_fail: Arc::new(AtomicBool::new(false)),
             next_key_counter: Mutex::new(0),
             get_call_count: AtomicU64::new(0),
+            delete_call_count: AtomicU64::new(0),
         }
     }
 
@@ -32,6 +39,33 @@ impl MockNodeSecretManager {
 
     pub fn set_should_fail(&self, fail: bool) {
         self.should_fail.store(fail, Ordering::SeqCst);
+    }
+
+    pub fn delete_call_count(&self) -> u64 {
+        self.delete_call_count.load(Ordering::SeqCst)
+    }
+
+    pub fn seed_listed_key_at(&self, node_id: &str, previous: bool, modified_at: DateTime<Utc>) {
+        let key = format!("seed-{node_id}");
+        if previous {
+            self.previous_secrets
+                .lock()
+                .unwrap()
+                .insert(node_id.to_string(), key);
+            self.previous_modified_at
+                .lock()
+                .unwrap()
+                .insert(node_id.to_string(), modified_at);
+        } else {
+            self.secrets
+                .lock()
+                .unwrap()
+                .insert(node_id.to_string(), key);
+            self.modified_at
+                .lock()
+                .unwrap()
+                .insert(node_id.to_string(), modified_at);
+        }
     }
 
     /// Returns the number of secrets currently stored (for test assertions).
@@ -87,6 +121,10 @@ impl NodeSecretManager for MockNodeSecretManager {
             .lock()
             .unwrap()
             .insert(node_id.to_string(), key.clone());
+        self.modified_at
+            .lock()
+            .unwrap()
+            .insert(node_id.to_string(), Utc::now());
 
         Ok(key)
     }
@@ -96,8 +134,12 @@ impl NodeSecretManager for MockNodeSecretManager {
         node_id: &str,
         _region: &str,
     ) -> Result<(), NodeSecretError> {
+        self.delete_call_count.fetch_add(1, Ordering::SeqCst);
         self.check_failure()?;
         self.secrets.lock().unwrap().remove(node_id);
+        self.previous_secrets.lock().unwrap().remove(node_id);
+        self.modified_at.lock().unwrap().remove(node_id);
+        self.previous_modified_at.lock().unwrap().remove(node_id);
         Ok(())
     }
 
@@ -133,8 +175,16 @@ impl NodeSecretManager for MockNodeSecretManager {
             .ok_or_else(|| NodeSecretError::Api(format!("no key found for node {node_id}")))?;
 
         previous.insert(node_id.to_string(), old_key.clone());
+        self.previous_modified_at
+            .lock()
+            .unwrap()
+            .insert(node_id.to_string(), Utc::now());
         let new_key = self.generate_key();
         secrets.insert(node_id.to_string(), new_key.clone());
+        self.modified_at
+            .lock()
+            .unwrap()
+            .insert(node_id.to_string(), Utc::now());
 
         Ok((old_key, new_key))
     }
@@ -154,8 +204,40 @@ impl NodeSecretManager for MockNodeSecretManager {
             .is_some_and(|previous| previous == old_key)
         {
             previous.remove(node_id);
+            self.previous_modified_at.lock().unwrap().remove(node_id);
         }
 
         Ok(())
+    }
+
+    async fn list_node_api_keys(&self) -> Result<Vec<NodeSecretRecord>, NodeSecretError> {
+        self.check_failure()?;
+        let current = self.secrets.lock().unwrap();
+        let current_modified = self.modified_at.lock().unwrap();
+        let previous = self.previous_secrets.lock().unwrap();
+        let previous_modified = self.previous_modified_at.lock().unwrap();
+        let mut listed = current
+            .keys()
+            .map(|node_id| NodeSecretRecord {
+                node_id: node_id.clone(),
+                path: format!("/fjcloud/nodes/{node_id}/api-key"),
+                last_modified_at: current_modified
+                    .get(node_id)
+                    .cloned()
+                    .unwrap_or_else(Utc::now),
+            })
+            .chain(previous.keys().map(|node_id| {
+                NodeSecretRecord {
+                    node_id: node_id.clone(),
+                    path: format!("/fjcloud/nodes/{node_id}/api-key-previous"),
+                    last_modified_at: previous_modified
+                        .get(node_id)
+                        .cloned()
+                        .unwrap_or_else(Utc::now),
+                }
+            }))
+            .collect::<Vec<_>>();
+        listed.sort_by(|left, right| left.path.cmp(&right.path));
+        Ok(listed)
     }
 }

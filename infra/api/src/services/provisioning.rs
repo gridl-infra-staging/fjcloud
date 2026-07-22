@@ -16,7 +16,10 @@ use crate::services::health_monitor::{
 mod auto_provision;
 pub(crate) use auto_provision::is_canonical_shared_vm_hostname_for_domain;
 pub(crate) use auto_provision::normalize_local_dev_flapjack_url;
-pub use auto_provision::SharedVmProvisioningMode;
+pub use auto_provision::{
+    SharedVmProvisioningMode, VmInstanceTeardownTarget, VmTeardownOutcome, VmTeardownPolicy,
+    VmTeardownReport,
+};
 
 /// Maximum number of non-terminated deployments per customer.
 pub const MAX_DEPLOYMENTS_PER_CUSTOMER: usize = 5;
@@ -331,8 +334,14 @@ impl ProvisioningService {
         let vm_instance = match self.vm_provisioner.create_vm(&vm_request).await {
             Ok(vm) => vm,
             Err(e) => {
-                self.cleanup_node_secret(&deployment.node_id, &deployment.region)
-                    .await;
+                self.teardown_vm_resources(
+                    None,
+                    VmInstanceTeardownTarget::provider_vm_id(None),
+                    &deployment.node_id,
+                    &deployment.region,
+                    VmTeardownPolicy::ContinueBestEffort,
+                )
+                .await;
                 return Err(ProvisioningError::ProvisionerFailed(e.to_string()));
             }
         };
@@ -432,38 +441,22 @@ impl ProvisioningService {
         }
     }
 
-    /// Clean up provisioned resources in reverse creation order. Each resource
-    /// is optional — only populated resources are cleaned up. Cleanup errors
-    /// are logged but do not propagate (best-effort).
+    /// Clean up provisioned resources after a provisioning failure. Cleanup
+    /// errors are reported by the canonical teardown seam but do not propagate.
     async fn rollback_provisioned_resources(
         &self,
         deployment: &Deployment,
         provider_vm_id: Option<&str>,
         dns_hostname: Option<&str>,
     ) {
-        if let Some(hostname) = dns_hostname {
-            if let Err(e) = self.dns_manager.delete_record(hostname).await {
-                error!("rollback: failed to delete DNS record for {hostname}: {e}");
-            }
-        }
-        if let Some(vm_id) = provider_vm_id {
-            if let Err(e) = self.vm_provisioner.destroy_vm(vm_id).await {
-                error!("rollback: failed to destroy VM {vm_id}: {e}");
-            }
-        }
-        self.cleanup_node_secret(&deployment.node_id, &deployment.region)
-            .await;
-    }
-
-    /// Delete a node's API key. Logs errors but does not propagate them.
-    async fn cleanup_node_secret(&self, node_id: &str, region: &str) {
-        if let Err(e) = self
-            .node_secret_manager
-            .delete_node_api_key(node_id, region)
-            .await
-        {
-            error!("rollback: failed to clean up SSM key for {node_id}: {e}");
-        }
+        self.teardown_vm_resources(
+            dns_hostname,
+            VmInstanceTeardownTarget::provider_vm_id(provider_vm_id),
+            &deployment.node_id,
+            &deployment.region,
+            VmTeardownPolicy::ContinueBestEffort,
+        )
+        .await;
     }
 
     /// Stop a running deployment.
@@ -557,35 +550,18 @@ impl ProvisioningService {
             ));
         }
 
-        // Destroy VM if we have a provider ID
-        if let Some(ref provider_vm_id) = deployment.provider_vm_id {
-            self.vm_provisioner
-                .destroy_vm(provider_vm_id)
-                .await
-                .map_err(|e| ProvisioningError::ProvisionerFailed(e.to_string()))?;
-        }
+        let teardown_report = self
+            .teardown_vm_resources(
+                deployment.hostname.as_deref(),
+                VmInstanceTeardownTarget::provider_vm_id(deployment.provider_vm_id.as_deref()),
+                &deployment.node_id,
+                &deployment.region,
+                VmTeardownPolicy::HaltTeardown,
+            )
+            .await;
 
-        // Delete DNS record if we have a hostname — best effort.
-        // The VM is already destroyed at this point, so DNS failure must not
-        // prevent the deployment from being marked as terminated.
-        if let Some(ref hostname) = deployment.hostname {
-            if let Err(e) = self.dns_manager.delete_record(hostname).await {
-                error!(
-                    "failed to delete DNS record for {hostname} during termination of {deployment_id}: {e}"
-                );
-            }
-        }
-
-        // Delete per-node SSM API key — best effort cleanup
-        if let Err(e) = self
-            .node_secret_manager
-            .delete_node_api_key(&deployment.node_id, &deployment.region)
-            .await
-        {
-            error!(
-                "failed to delete SSM key for {} during termination of {deployment_id}: {e}",
-                deployment.node_id
-            );
+        if let VmTeardownOutcome::Failed { message } = teardown_report.instance {
+            return Err(ProvisioningError::ProvisionerFailed(message));
         }
 
         // Mark terminated in DB

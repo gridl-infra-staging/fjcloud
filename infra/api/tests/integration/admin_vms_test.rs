@@ -1,6 +1,8 @@
+use api::dns::DnsManager;
 use api::repos::tenant_repo::TenantRepo;
 use api::repos::vm_inventory_repo::VmInventoryRepo;
 use api::repos::DeploymentRepo;
+use api::secrets::NodeSecretManager;
 use axum::http::{Request, StatusCode};
 use serde_json::json;
 use serde_json::Value;
@@ -14,9 +16,10 @@ use crate::common::vm_inventory_reference_guard_fixtures::{
 };
 use crate::common::{
     admin_vm_retirement_test_support::{
-        admin_vm_pg_test_app, assert_admin_route_inventory_lock_wins_publication,
+        admin_vm_pg_test_app, admin_vm_pg_test_app_with_state_mocks,
+        assert_admin_route_inventory_lock_wins_publication,
         assert_admin_route_reference_publication_wins, expected_live_blockers_json,
-        insert_terminal_reference_modes, inventory_status,
+        insert_terminal_reference_modes, inventory_status, AdminVmPgTestAppWithStateMocks,
     },
     mock_flapjack_proxy_with_secrets, mock_vm_inventory_repo, MockCustomerRepo, MockDeploymentRepo,
     TEST_ADMIN_KEY,
@@ -100,6 +103,114 @@ fn vm_entry<'a>(entries: &'a [Value], vm_id: Uuid, label: &str) -> &'a Value {
         .iter()
         .find(|entry| entry["id"] == json!(vm_id))
         .unwrap_or_else(|| panic!("{label} is present in /admin/vms response"))
+}
+
+fn removed_teardown_json() -> Value {
+    json!({
+        "instance": {"status": "removed", "clean": true},
+        "dns_record": {"status": "removed", "clean": true},
+        "node_api_key": {"status": "removed", "clean": true}
+    })
+}
+
+fn no_instance_teardown_json() -> Value {
+    json!({
+        "instance": {"status": "not_applicable", "clean": true},
+        "dns_record": {"status": "removed", "clean": true},
+        "node_api_key": {"status": "removed", "clean": true}
+    })
+}
+
+fn skipped_after_indeterminate_instance_json() -> Value {
+    json!({
+        "instance": {
+            "status": "indeterminate",
+            "clean": false,
+            "message": "VM provisioner API error: injected failure"
+        },
+        "dns_record": {
+            "status": "skipped",
+            "clean": false,
+            "reason": "instance_teardown_failed"
+        },
+        "node_api_key": {
+            "status": "skipped",
+            "clean": false,
+            "reason": "instance_teardown_failed"
+        }
+    })
+}
+
+async fn seed_retirement_resources(
+    mocks: &AdminVmPgTestAppWithStateMocks,
+    hostname: &str,
+    provider_vm_id: &str,
+) {
+    mocks.vm_provisioner.seed_vm_for_hostname(
+        hostname,
+        provider_vm_id,
+        api::provisioner::VmStatus::Running,
+        "us-east-1",
+    );
+    mocks
+        .dns_manager
+        .create_record(hostname, "203.0.113.10")
+        .await
+        .expect("seed DNS record");
+    mocks
+        .node_secret_manager
+        .create_node_api_key(hostname, "us-east-1")
+        .await
+        .expect("seed node key");
+    mocks
+        .node_secret_manager
+        .rotate_node_api_key(hostname, "us-east-1")
+        .await
+        .expect("seed previous node key");
+}
+
+async fn seed_fleet_provider_id(
+    mocks: &AdminVmPgTestAppWithStateMocks,
+    hostname: &str,
+    provider_vm_id: &str,
+) {
+    let customer_id = Uuid::new_v4();
+    let deployment = mocks
+        .deployment_repo
+        .create(customer_id, hostname, "us-east-1", "t4g.small", "aws", None)
+        .await
+        .expect("seed fleet deployment");
+    mocks
+        .deployment_repo
+        .update_provisioning(
+            deployment.id,
+            provider_vm_id,
+            "203.0.113.10",
+            hostname,
+            &format!("https://{hostname}.test"),
+        )
+        .await
+        .expect("seed fleet provider id");
+}
+
+async fn post_decommission(
+    app: axum::Router,
+    vm_id: Uuid,
+    expected_hostname: &str,
+) -> axum::response::Response {
+    app.oneshot(
+        Request::builder()
+            .method("POST")
+            .uri(format!("/admin/vms/{vm_id}/decommission"))
+            .header("x-admin-key", TEST_ADMIN_KEY)
+            .header("content-type", "application/json")
+            .body(axum::body::Body::from(
+                json!({"expected_hostname": expected_hostname}).to_string(),
+            ))
+            .unwrap(),
+    )
+    .await
+    .unwrap()
 }
 
 #[tokio::test]
@@ -488,7 +599,8 @@ async fn decommission_transitions_eligible_vm_through_atomic_repo_owner() {
             "status": "decommissioned",
             "result": "decommissioned",
             "blockers": [],
-            "blocking_reference_count": 0
+            "blocking_reference_count": 0,
+            "teardown": no_instance_teardown_json()
         })
     );
     assert_eq!(
@@ -657,23 +769,11 @@ async fn decommission_endpoint_handles_postgres_success_and_idempotency() {
         return;
     };
     let vm_id = insert_vm(&db.pool, "admin-retire-once", "active").await;
-    let app = admin_vm_pg_test_app(db.pool.clone());
+    let mocks = admin_vm_pg_test_app_with_state_mocks(db.pool.clone());
+    seed_retirement_resources(&mocks, "admin-retire-once", "mock-admin-retire-once").await;
+    seed_fleet_provider_id(&mocks, "admin-retire-once", "mock-admin-retire-once").await;
 
-    let first = app
-        .clone()
-        .oneshot(
-            Request::builder()
-                .method("POST")
-                .uri(format!("/admin/vms/{vm_id}/decommission"))
-                .header("x-admin-key", TEST_ADMIN_KEY)
-                .header("content-type", "application/json")
-                .body(axum::body::Body::from(
-                    json!({"expected_hostname": "admin-retire-once"}).to_string(),
-                ))
-                .unwrap(),
-        )
-        .await
-        .unwrap();
+    let first = post_decommission(mocks.app.clone(), vm_id, "admin-retire-once").await;
     assert_eq!(first.status(), StatusCode::OK);
     assert_eq!(
         response_json(first).await,
@@ -683,25 +783,32 @@ async fn decommission_endpoint_handles_postgres_success_and_idempotency() {
             "status": "decommissioned",
             "result": "decommissioned",
             "blockers": [],
-            "blocking_reference_count": 0
+            "blocking_reference_count": 0,
+            "teardown": removed_teardown_json()
         })
     );
     assert_eq!(inventory_status(&db.pool, vm_id).await, "decommissioned");
+    assert_eq!(mocks.vm_provisioner.vm_count(), 0);
+    assert!(
+        mocks.dns_manager.get_records().is_empty(),
+        "DNS record must be removed after successful retirement"
+    );
+    assert!(
+        mocks
+            .node_secret_manager
+            .get_secret("admin-retire-once")
+            .is_none(),
+        "current node key must be removed after successful retirement"
+    );
+    assert!(
+        mocks
+            .node_secret_manager
+            .get_previous_secret("admin-retire-once")
+            .is_none(),
+        "previous node key must be removed after successful retirement"
+    );
 
-    let retry = app
-        .oneshot(
-            Request::builder()
-                .method("POST")
-                .uri(format!("/admin/vms/{vm_id}/decommission"))
-                .header("x-admin-key", TEST_ADMIN_KEY)
-                .header("content-type", "application/json")
-                .body(axum::body::Body::from(
-                    json!({"expected_hostname": "admin-retire-once"}).to_string(),
-                ))
-                .unwrap(),
-        )
-        .await
-        .unwrap();
+    let retry = post_decommission(mocks.app, vm_id, "admin-retire-once").await;
     assert_eq!(retry.status(), StatusCode::OK);
     assert_eq!(
         response_json(retry).await,
@@ -711,8 +818,55 @@ async fn decommission_endpoint_handles_postgres_success_and_idempotency() {
             "status": "decommissioned",
             "result": "already_decommissioned",
             "blockers": [],
-            "blocking_reference_count": 0
+            "blocking_reference_count": 0,
+            "teardown": removed_teardown_json()
         })
+    );
+}
+
+#[tokio::test]
+async fn decommission_endpoint_reports_indeterminate_provider_lookup_and_preserves_later_resources()
+{
+    let Some(db) = connect_and_migrate("admin_vm_decommission_unresolved_provider").await else {
+        return;
+    };
+    let hostname = "admin-retire-provider-lookup";
+    let vm_id = insert_vm(&db.pool, hostname, "active").await;
+    let mocks = admin_vm_pg_test_app_with_state_mocks(db.pool.clone());
+    seed_retirement_resources(&mocks, hostname, "mock-provider-lookup").await;
+    mocks.vm_provisioner.set_should_fail(true);
+
+    let response = post_decommission(mocks.app, vm_id, hostname).await;
+
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(
+        response_json(response).await,
+        json!({
+            "vm_id": vm_id,
+            "hostname": hostname,
+            "status": "decommissioned",
+            "result": "decommissioned",
+            "blockers": [],
+            "blocking_reference_count": 0,
+            "teardown": skipped_after_indeterminate_instance_json()
+        })
+    );
+    assert_eq!(inventory_status(&db.pool, vm_id).await, "decommissioned");
+    assert_eq!(mocks.vm_provisioner.vm_count(), 1);
+    assert_eq!(
+        mocks.dns_manager.get_records().get(hostname),
+        Some(&"203.0.113.10".to_string())
+    );
+    assert!(
+        mocks.node_secret_manager.get_secret(hostname).is_some(),
+        "current node key must remain after indeterminate provider lookup"
+    );
+    assert!(
+        mocks
+            .node_secret_manager
+            .get_previous_secret(hostname)
+            .is_some(),
+        "previous node key must remain after indeterminate provider lookup"
     );
 }
 
@@ -735,26 +889,14 @@ async fn decommission_endpoint_rejects_blocked_and_mismatched_postgres_rows() {
     .await
     .expect("insert blocking tenant");
     let decommissioned_vm_id = insert_vm(&db.pool, "admin-retired-mismatch", "active").await;
-    let app = admin_vm_pg_test_app(db.pool.clone());
+    let mocks = admin_vm_pg_test_app_with_state_mocks(db.pool.clone());
+    seed_retirement_resources(&mocks, "admin-blocked-retire", "mock-blocked-retire").await;
 
-    let blocked = app
-        .clone()
-        .oneshot(
-            Request::builder()
-                .method("POST")
-                .uri(format!("/admin/vms/{blocked_vm_id}/decommission"))
-                .header("x-admin-key", TEST_ADMIN_KEY)
-                .header("content-type", "application/json")
-                .body(axum::body::Body::from(
-                    json!({"expected_hostname": "admin-blocked-retire"}).to_string(),
-                ))
-                .unwrap(),
-        )
-        .await
-        .unwrap();
+    let blocked = post_decommission(mocks.app.clone(), blocked_vm_id, "admin-blocked-retire").await;
     assert_eq!(blocked.status(), StatusCode::CONFLICT);
+    let blocked_json = response_json(blocked).await;
     assert_eq!(
-        response_json(blocked).await,
+        blocked_json,
         json!({
             "vm_id": blocked_vm_id,
             "hostname": "admin-blocked-retire",
@@ -768,44 +910,38 @@ async fn decommission_endpoint_rejects_blocked_and_mismatched_postgres_rows() {
             "blocking_reference_count": 1
         })
     );
+    assert!(blocked_json.get("teardown").is_none());
     assert_eq!(inventory_status(&db.pool, blocked_vm_id).await, "active");
+    assert_eq!(mocks.vm_provisioner.vm_count(), 1);
+    assert_eq!(
+        mocks.dns_manager.get_records().get("admin-blocked-retire"),
+        Some(&"203.0.113.10".to_string())
+    );
+    assert!(mocks
+        .node_secret_manager
+        .get_secret("admin-blocked-retire")
+        .is_some());
+    assert!(mocks
+        .node_secret_manager
+        .get_previous_secret("admin-blocked-retire")
+        .is_some());
 
-    let retired = app
-        .clone()
-        .oneshot(
-            Request::builder()
-                .method("POST")
-                .uri(format!("/admin/vms/{decommissioned_vm_id}/decommission"))
-                .header("x-admin-key", TEST_ADMIN_KEY)
-                .header("content-type", "application/json")
-                .body(axum::body::Body::from(
-                    json!({"expected_hostname": "admin-retired-mismatch"}).to_string(),
-                ))
-                .unwrap(),
-        )
-        .await
-        .unwrap();
+    let retired = post_decommission(
+        mocks.app.clone(),
+        decommissioned_vm_id,
+        "admin-retired-mismatch",
+    )
+    .await;
     assert_eq!(retired.status(), StatusCode::OK);
 
-    let mismatch_retry = app
-        .oneshot(
-            Request::builder()
-                .method("POST")
-                .uri(format!("/admin/vms/{decommissioned_vm_id}/decommission"))
-                .header("x-admin-key", TEST_ADMIN_KEY)
-                .header("content-type", "application/json")
-                .body(axum::body::Body::from(
-                    json!({"expected_hostname": "wrong-hostname"}).to_string(),
-                ))
-                .unwrap(),
-        )
-        .await
-        .unwrap();
+    let mismatch_retry = post_decommission(mocks.app, decommissioned_vm_id, "wrong-hostname").await;
     assert_eq!(mismatch_retry.status(), StatusCode::CONFLICT);
+    let mismatch_json = response_json(mismatch_retry).await;
     assert_eq!(
-        response_json(mismatch_retry).await,
+        mismatch_json,
         json!({"error": "hostname mismatch: expected wrong-hostname, found admin-retired-mismatch"})
     );
+    assert!(mismatch_json.get("teardown").is_none());
     assert_eq!(
         inventory_status(&db.pool, decommissioned_vm_id).await,
         "decommissioned"

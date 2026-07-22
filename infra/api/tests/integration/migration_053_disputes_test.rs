@@ -1,42 +1,33 @@
-use sqlx::{PgPool, Row};
+use sqlx::Row;
+
+use crate::common::support::pg_schema_harness;
 
 const DISPUTES_COLUMNS_SQL: &str = "SELECT column_name, is_nullable, data_type
          FROM information_schema.columns
-         WHERE table_schema = 'public' AND table_name = 'disputes'";
+         WHERE table_schema = current_schema() AND table_name = 'disputes'";
 
 const DISPUTES_UNIQUE_CONSTRAINT_SQL: &str = "SELECT tc.constraint_name
          FROM information_schema.table_constraints tc
          JOIN information_schema.constraint_column_usage ccu
            ON tc.constraint_name = ccu.constraint_name
           AND tc.table_schema = ccu.table_schema
-         WHERE tc.table_schema = 'public'
+         WHERE tc.table_schema = current_schema()
            AND tc.table_name = 'disputes'
            AND tc.constraint_type = 'UNIQUE'
            AND ccu.column_name = 'stripe_dispute_id'";
 
-async fn connect_and_migrate() -> Option<PgPool> {
-    let Ok(url) = std::env::var("DATABASE_URL") else {
-        println!("SKIP: DATABASE_URL not set — skipping migration_053_disputes schema test");
-        return None;
-    };
-    let pool = PgPool::connect(&url)
-        .await
-        .expect("connect to integration test DB");
-    sqlx::migrate!("../migrations")
-        .run(&pool)
-        .await
-        .expect("run migrations");
-    Some(pool)
+async fn connect_and_migrate() -> Option<pg_schema_harness::DbHarness> {
+    pg_schema_harness::connect_and_migrate("migration_053_disputes").await
 }
 
 #[tokio::test]
 async fn disputes_table_matches_stage1_contract() {
-    let Some(pool) = connect_and_migrate().await else {
+    let Some(db) = connect_and_migrate().await else {
         return;
     };
 
     let columns = sqlx::query(DISPUTES_COLUMNS_SQL)
-        .fetch_all(&pool)
+        .fetch_all(&db.pool)
         .await
         .expect("query disputes columns");
 
@@ -81,7 +72,7 @@ async fn disputes_table_matches_stage1_contract() {
     );
 
     let unique_constraints: Vec<String> = sqlx::query_scalar(DISPUTES_UNIQUE_CONSTRAINT_SQL)
-        .fetch_all(&pool)
+        .fetch_all(&db.pool)
         .await
         .expect("query unique constraints for stripe_dispute_id");
 

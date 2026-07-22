@@ -89,7 +89,10 @@ impl RateLimiter {
     /// Check if a request with the given key is allowed. Returns `None` if allowed
     /// (and records the request), or `Some(retry_after_seconds)` if rate-limited.
     fn check(&self, key: &str) -> Option<u64> {
-        let now = Instant::now();
+        self.check_at(key, Instant::now())
+    }
+
+    fn check_at(&self, key: &str, now: Instant) -> Option<u64> {
         let window_start = now - self.window;
         let mut state = self.state.lock().unwrap_or_else(|poisoned| {
             tracing::warn!("rate limiter state mutex poisoned, recovering");
@@ -296,7 +299,29 @@ fn build_router_inner(
 
 #[cfg(test)]
 mod tests {
-    use super::panic_error_message;
+    use std::time::{Duration, Instant};
+
+    use super::{panic_error_message, RateLimiter};
+
+    #[test]
+    fn rate_limiter_resets_exactly_at_window_boundary() {
+        let window = Duration::from_secs(60);
+        let limiter = RateLimiter::new(1, window);
+        let window_started_at = Instant::now();
+
+        assert_eq!(limiter.check_at("203.0.113.20", window_started_at), None);
+        assert_eq!(
+            limiter.check_at(
+                "203.0.113.20",
+                window_started_at + window - Duration::from_nanos(1)
+            ),
+            Some(1)
+        );
+        assert_eq!(
+            limiter.check_at("203.0.113.20", window_started_at + window),
+            None
+        );
+    }
 
     #[test]
     fn panic_error_message_keeps_string_payload_for_logs() {

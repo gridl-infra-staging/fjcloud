@@ -1,7 +1,10 @@
 use std::sync::Arc;
 
+use api::dns::mock::MockDnsManager;
+use api::provisioner::mock::MockVmProvisioner;
 use api::repos::PgVmInventoryRepo;
 use api::router::build_router;
+use api::secrets::mock::MockNodeSecretManager;
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use axum::Router;
@@ -22,10 +25,41 @@ use super::vm_inventory_reference_guard_races::{
 };
 use super::TestStateBuilder;
 
+pub struct AdminVmPgTestAppWithStateMocks {
+    pub app: Router,
+    pub deployment_repo: Arc<super::MockDeploymentRepo>,
+    pub vm_provisioner: Arc<MockVmProvisioner>,
+    pub dns_manager: Arc<MockDnsManager>,
+    pub node_secret_manager: Arc<MockNodeSecretManager>,
+}
+
 pub fn admin_vm_pg_test_app(pool: PgPool) -> Router {
     let mut state = TestStateBuilder::new().with_pool(pool.clone()).build();
     state.vm_inventory_repo = Arc::new(PgVmInventoryRepo::new(pool));
     build_router(state)
+}
+
+pub fn admin_vm_pg_test_app_with_state_mocks(pool: PgPool) -> AdminVmPgTestAppWithStateMocks {
+    let deployment_repo = Arc::new(super::MockDeploymentRepo::new());
+    let vm_provisioner = Arc::new(MockVmProvisioner::new());
+    let dns_manager = Arc::new(MockDnsManager::new());
+    let node_secret_manager = Arc::new(MockNodeSecretManager::new());
+    let mut state = TestStateBuilder::new()
+        .with_pool(pool.clone())
+        .with_deployment_repo(deployment_repo.clone())
+        .with_provisioner(vm_provisioner.clone())
+        .with_dns_manager(dns_manager.clone())
+        .with_node_secret_manager(node_secret_manager.clone())
+        .build();
+    state.vm_inventory_repo = Arc::new(PgVmInventoryRepo::new(pool));
+
+    AdminVmPgTestAppWithStateMocks {
+        app: build_router(state),
+        deployment_repo,
+        vm_provisioner,
+        dns_manager,
+        node_secret_manager,
+    }
 }
 
 pub fn expected_live_blockers_json() -> serde_json::Value {

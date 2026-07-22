@@ -3,6 +3,7 @@ use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::Json;
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 use uuid::Uuid;
 
 use crate::auth::AdminAuth;
@@ -13,7 +14,7 @@ use crate::invoicing::stripe_sync::{
 };
 use crate::invoicing::GeneratedInvoice;
 use crate::repos::error::RepoError;
-use crate::repos::invoice_repo::NewInvoice;
+use crate::repos::invoice_repo::{AdminInvoiceSummaryRow, NewInvoice};
 use crate::routes::invoices::{build_detail_response, InvoiceListItem};
 use crate::routes::usage::parse_month;
 use crate::state::AppState;
@@ -34,6 +35,21 @@ pub async fn list_tenant_invoices(
 
     let items: Vec<InvoiceListItem> = invoices.iter().map(InvoiceListItem::from).collect();
     Ok(Json(items))
+}
+
+/// `GET /admin/invoices/{id}` — read stored invoice details for operator drill-in.
+pub async fn get_admin_invoice_detail(
+    _auth: AdminAuth,
+    State(state): State<AppState>,
+    Path(invoice_id): Path<Uuid>,
+) -> Result<impl IntoResponse, ApiError> {
+    let invoice = state
+        .invoice_repo
+        .find_by_id(invoice_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("invoice not found".into()))?;
+    let line_items = state.invoice_repo.get_line_items(invoice_id).await?;
+    Ok(Json(build_detail_response(&invoice, line_items)))
 }
 
 pub async fn generate_invoice(
@@ -142,6 +158,187 @@ pub struct BatchBillingResponse {
     pub invoices_created: usize,
     pub invoices_skipped: usize,
     pub results: Vec<BatchBillingResult>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct BillingStatusTotal {
+    pub total_cents: i64,
+    pub count: usize,
+}
+
+#[derive(Debug, Serialize)]
+pub struct BillingMonthBucket {
+    pub month: String,
+    pub paid_total_cents: i64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct AdminBillingInvoiceRow {
+    pub id: Uuid,
+    pub customer_id: Uuid,
+    pub customer_name: String,
+    pub customer_email: String,
+    pub period_start: chrono::NaiveDate,
+    pub period_end: chrono::NaiveDate,
+    pub subtotal_cents: i64,
+    pub tax_cents: i64,
+    pub total_cents: i64,
+    pub currency: String,
+    pub status: String,
+    pub minimum_applied: bool,
+    pub stripe_invoice_id: Option<String>,
+    pub hosted_invoice_url: Option<String>,
+    pub pdf_url: Option<String>,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub finalized_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub paid_at: Option<chrono::DateTime<chrono::Utc>>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct AdminBillingSummaryResponse {
+    pub status_totals: BTreeMap<String, BillingStatusTotal>,
+    pub pending_total_cents: i64,
+    pub pending_count: usize,
+    pub total_count: usize,
+    pub by_month: Vec<BillingMonthBucket>,
+    pub mrr_proxy_cents: i64,
+    pub invoices: Vec<AdminBillingInvoiceRow>,
+}
+
+const ADMIN_BILLING_STATUSES: [&str; 5] = ["paid", "draft", "finalized", "failed", "refunded"];
+
+fn empty_status_totals() -> BTreeMap<String, BillingStatusTotal> {
+    ADMIN_BILLING_STATUSES
+        .iter()
+        .map(|status| {
+            (
+                (*status).to_string(),
+                BillingStatusTotal {
+                    total_cents: 0,
+                    count: 0,
+                },
+            )
+        })
+        .collect()
+}
+
+fn checked_revenue_sum(current: i64, addition: i64) -> Result<i64, ApiError> {
+    current
+        .checked_add(addition)
+        .ok_or_else(|| ApiError::Internal("admin billing summary cents overflow".into()))
+}
+
+pub fn checked_revenue_product(amount_cents: i64, count: i64) -> Result<i64, ApiError> {
+    amount_cents
+        .checked_mul(count)
+        .ok_or_else(|| ApiError::Internal("admin billing summary MRR overflow".into()))
+}
+
+fn add_status_total(
+    totals: &mut BTreeMap<String, BillingStatusTotal>,
+    status: &str,
+    amount_cents: i64,
+) -> Result<(), ApiError> {
+    let total = totals
+        .get_mut(status)
+        .ok_or_else(|| ApiError::Internal(format!("unknown persisted invoice status: {status}")))?;
+    total.total_cents = checked_revenue_sum(total.total_cents, amount_cents)?;
+    total.count += 1;
+    Ok(())
+}
+
+fn invoice_summary_response_row(row: &AdminInvoiceSummaryRow) -> AdminBillingInvoiceRow {
+    AdminBillingInvoiceRow {
+        id: row.id,
+        customer_id: row.customer_id,
+        customer_name: row.customer_name.clone(),
+        customer_email: row.customer_email.clone(),
+        period_start: row.period_start,
+        period_end: row.period_end,
+        subtotal_cents: row.subtotal_cents,
+        tax_cents: row.tax_cents,
+        total_cents: row.total_cents,
+        currency: row.currency.clone(),
+        status: row.status.clone(),
+        minimum_applied: row.minimum_applied,
+        stripe_invoice_id: row.stripe_invoice_id.clone(),
+        hosted_invoice_url: row.hosted_invoice_url.clone(),
+        pdf_url: row.pdf_url.clone(),
+        created_at: row.created_at,
+        finalized_at: row.finalized_at,
+        paid_at: row.paid_at,
+    }
+}
+
+pub fn summarize_billing_rows(
+    rows: &[AdminInvoiceSummaryRow],
+) -> Result<AdminBillingSummaryResponse, ApiError> {
+    let mut status_totals = empty_status_totals();
+    let mut pending_total_cents = 0;
+    let mut pending_count = 0;
+    let mut month_totals: BTreeMap<String, i64> = BTreeMap::new();
+
+    for row in rows {
+        add_status_total(&mut status_totals, &row.status, row.total_cents)?;
+
+        if row.status == "draft" || row.status == "finalized" {
+            pending_total_cents = checked_revenue_sum(pending_total_cents, row.total_cents)?;
+            pending_count += 1;
+        }
+
+        if row.status == "paid" {
+            let month = row.period_start.format("%Y-%m").to_string();
+            let total = month_totals.entry(month).or_insert(0);
+            *total = checked_revenue_sum(*total, row.total_cents)?;
+        }
+    }
+
+    let by_month = month_totals
+        .into_iter()
+        .map(|(month, paid_total_cents)| BillingMonthBucket {
+            month,
+            paid_total_cents,
+        })
+        .collect();
+
+    Ok(AdminBillingSummaryResponse {
+        status_totals,
+        pending_total_cents,
+        pending_count,
+        total_count: rows.len(),
+        by_month,
+        mrr_proxy_cents: 0,
+        invoices: rows.iter().map(invoice_summary_response_row).collect(),
+    })
+}
+
+pub async fn billing_summary(
+    _auth: AdminAuth,
+    State(state): State<AppState>,
+) -> Result<impl IntoResponse, ApiError> {
+    let rows = state.invoice_repo.revenue_summary().await?;
+    let mut response = summarize_billing_rows(&rows)?;
+    let customers = state.customer_repo.list().await?;
+    let rate_card = state
+        .rate_card_repo
+        .get_active()
+        .await?
+        .ok_or_else(|| ApiError::NotFound("no active rate card".into()))?;
+
+    let active_shared_count = customers
+        .iter()
+        .filter(|customer| {
+            customer.status == "active"
+                && customer.billing_plan_for_billing() == crate::models::BillingPlan::Shared
+        })
+        .count();
+    let active_shared_count = i64::try_from(active_shared_count)
+        .map_err(|_| ApiError::Internal("active shared customer count overflow".into()))?;
+    // Recurring floor is enforced in infra/api/src/invoicing.rs and infra/api/src/invoicing/line_items.rs.
+    response.mrr_proxy_cents =
+        checked_revenue_product(rate_card.shared_minimum_spend_cents, active_shared_count)?;
+
+    Ok(Json(response))
 }
 
 fn build_new_invoice(customer_id: Uuid, generated: &GeneratedInvoice) -> NewInvoice {

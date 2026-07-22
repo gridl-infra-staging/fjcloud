@@ -43,6 +43,16 @@ afterEach(() => {
 	vi.clearAllMocks();
 });
 
+function authenticatedDetailLoadContext(overrides: Record<string, unknown>) {
+	const adminSession = createAdminSession(3600);
+	return {
+		cookies: {
+			get: (name: string) => (name === ADMIN_SESSION_COOKIE ? adminSession.id : undefined)
+		},
+		...overrides
+	} as never;
+}
+
 describe('Admin customer detail', () => {
 	it('detail fixture omits legacy subscription field from tenant contract', () => {
 		expect(DETAIL_FIXTURE.tenant).not.toHaveProperty(LEGACY_SUBSCRIPTION_FIELD);
@@ -62,12 +72,12 @@ describe('Admin customer detail', () => {
 						email: 'ops@acme.dev',
 						status: 'active',
 						billing_plan: 'shared',
+						index_count: 3,
 						last_accessed_at: '2026-04-20T12:00:00Z',
 						overdue_invoice_count: 0,
 						billing_health: 'green',
 						created_at: '2026-04-25T12:00:00Z',
-						updated_at: '2026-04-20T12:00:00Z',
-						index_count: null
+						updated_at: '2026-04-20T12:00:00Z'
 					}
 				]
 			}
@@ -86,7 +96,8 @@ describe('Admin customer detail', () => {
 		const { load } = await import('./[id]/+page.server');
 
 		await expect(
-			load({
+			load(
+				authenticatedDetailLoadContext({
 				fetch: async () =>
 					new Response(JSON.stringify({ error: 'customer not found' }), {
 						status: 404,
@@ -94,7 +105,8 @@ describe('Admin customer detail', () => {
 					}),
 				params: { id: 'missing-customer' },
 				depends: vi.fn()
-			} as never)
+				})
+			)
 		).rejects.toMatchObject({
 			status: 404
 		});
@@ -104,7 +116,8 @@ describe('Admin customer detail', () => {
 		const { load } = await import('./[id]/+page.server');
 
 		await expect(
-			load({
+			load(
+				authenticatedDetailLoadContext({
 				fetch: async () =>
 					new Response(JSON.stringify({ error: 'tenant service unavailable' }), {
 						status: 500,
@@ -112,7 +125,8 @@ describe('Admin customer detail', () => {
 					}),
 				params: { id: 'broken-customer' },
 				depends: vi.fn()
-			} as never)
+				})
+			)
 		).rejects.toMatchObject({
 			name: 'AdminClientError',
 			status: 500,
@@ -130,7 +144,7 @@ describe('Admin customer detail', () => {
 				headers: { 'content-type': 'application/json' }
 			});
 
-		const result = await load({
+		const result = await load(authenticatedDetailLoadContext({
 			fetch: async (input: string | URL | Request) => {
 				const url =
 					typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
@@ -141,6 +155,10 @@ describe('Admin customer detail', () => {
 
 				if (url.includes(`/admin/tenants/${tenantId}/invoices`)) {
 					return new Response('invoice service unavailable', { status: 503 });
+				}
+
+				if (url.includes(`/admin/tenants/${tenantId}/indexes`)) {
+					return json(DETAIL_FIXTURE.indexes);
 				}
 
 				if (url.includes(`/admin/tenants/${tenantId}/usage`)) {
@@ -163,11 +181,79 @@ describe('Admin customer detail', () => {
 			},
 			params: { id: tenantId },
 			depends: vi.fn()
-		} as never);
+		}));
 
 		expect((result as { deployments: null }).deployments).toBeNull();
 		expect((result as { invoices: null }).invoices).toBeNull();
+		expect((result as { indexes: typeof DETAIL_FIXTURE.indexes }).indexes).toEqual(
+			DETAIL_FIXTURE.indexes
+		);
 		expect((result as { usage: typeof DETAIL_FIXTURE.usage }).usage).toEqual(DETAIL_FIXTURE.usage);
+	});
+
+	it('detail load requests tenant indexes and maps exact table fields', async () => {
+		const { load } = await import('./[id]/+page.server');
+		const tenantId = DETAIL_FIXTURE.tenant.id;
+		const indexesPath = `/admin/tenants/${tenantId}/indexes`;
+		const requestedUrls: string[] = [];
+
+		const json = (body: unknown) =>
+			new Response(JSON.stringify(body), {
+				status: 200,
+				headers: { 'content-type': 'application/json' }
+			});
+
+		const result = await load(authenticatedDetailLoadContext({
+			fetch: async (input: string | URL | Request) => {
+				const url =
+					typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+				requestedUrls.push(url);
+
+				if (url.includes(indexesPath)) {
+					return json([
+						{
+							name: 'alpha',
+							region: 'us-east-1',
+							endpoint: 'https://alpha.flapjack.test',
+							entries: 0,
+							data_size_bytes: 0,
+							status: 'running',
+							tier: 'active',
+							created_at: '2026-04-01T00:00:00Z'
+						}
+					]);
+				}
+				if (url.includes(`/admin/tenants/${tenantId}/deployments`)) {
+					return json(DETAIL_FIXTURE.deployments);
+				}
+				if (url.includes(`/admin/tenants/${tenantId}/usage`)) {
+					return json(DETAIL_FIXTURE.usage);
+				}
+				if (url.includes(`/admin/tenants/${tenantId}/invoices`)) {
+					return json(DETAIL_FIXTURE.invoices);
+				}
+				if (url.includes(`/admin/tenants/${tenantId}/rate-card`)) {
+					return json(DETAIL_FIXTURE.rateCard);
+				}
+				if (url.includes(`/admin/tenants/${tenantId}/quotas`)) {
+					return json(DETAIL_FIXTURE.quotas);
+				}
+				if (url.includes(`/admin/customers/${tenantId}/audit`)) {
+					return json(POPULATED_AUDIT_FIXTURE_ROWS);
+				}
+				if (url.includes(`/admin/tenants/${tenantId}`)) {
+					return json(DETAIL_FIXTURE.tenant);
+				}
+				return new Response('not found', { status: 404 });
+			},
+			params: { id: tenantId },
+			depends: vi.fn()
+		}));
+
+		expect(requestedUrls.some((url) => url.includes(indexesPath))).toBe(true);
+		expect((result as { indexes: unknown }).indexes).toEqual([
+			{ name: 'alpha', region: 'us-east-1', status: 'running', entries: 0, tier: 'active' }
+		]);
 	});
 
 	it('detail load requests customer audit rows and keeps an unavailable sentinel on optional failure', async () => {
@@ -182,7 +268,7 @@ describe('Admin customer detail', () => {
 			});
 
 		const requestedUrls: string[] = [];
-		const successful = await load({
+		const successful = await load(authenticatedDetailLoadContext({
 			fetch: async (input: string | URL | Request) => {
 				const url =
 					typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
@@ -194,6 +280,9 @@ describe('Admin customer detail', () => {
 				if (url.includes(`/admin/tenants/${tenantId}/usage`)) {
 					return json(DETAIL_FIXTURE.usage);
 				}
+				if (url.includes(`/admin/tenants/${tenantId}/indexes`)) {
+					return json(DETAIL_FIXTURE.indexes);
+				}
 				if (url.includes(`/admin/tenants/${tenantId}/rate-card`)) {
 					return json(DETAIL_FIXTURE.rateCard);
 				}
@@ -213,14 +302,14 @@ describe('Admin customer detail', () => {
 			},
 			params: { id: tenantId },
 			depends: vi.fn()
-		} as never);
+		}));
 
 		expect(requestedUrls.some((url) => url.includes(auditPath))).toBe(true);
 		expect((successful as { audit: typeof POPULATED_AUDIT_FIXTURE_ROWS }).audit).toEqual(
 			POPULATED_AUDIT_FIXTURE_ROWS
 		);
 
-		const withAuditFailure = await load({
+		const withAuditFailure = await load(authenticatedDetailLoadContext({
 			fetch: async (input: string | URL | Request) => {
 				const url =
 					typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
@@ -231,6 +320,9 @@ describe('Admin customer detail', () => {
 				if (url.includes(`/admin/tenants/${tenantId}/usage`)) {
 					return json(DETAIL_FIXTURE.usage);
 				}
+				if (url.includes(`/admin/tenants/${tenantId}/indexes`)) {
+					return json(DETAIL_FIXTURE.indexes);
+				}
 				if (url.includes(`/admin/tenants/${tenantId}/rate-card`)) {
 					return json(DETAIL_FIXTURE.rateCard);
 				}
@@ -250,7 +342,7 @@ describe('Admin customer detail', () => {
 			},
 			params: { id: tenantId },
 			depends: vi.fn()
-		} as never);
+		}));
 
 		expect((withAuditFailure as { audit: null }).audit).toBeNull();
 		expect((withAuditFailure as { tenant: { id: string } }).tenant.id).toBe(tenantId);

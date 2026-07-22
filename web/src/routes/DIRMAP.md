@@ -7,20 +7,21 @@
 
 | Directory | Summary |
 | --- | --- |
-| admin | The admin directory contains the SvelteKit server-side routes and components for the administrative interface, providing functionality to manage system alerts, billing operations, customer details, and database migrations. |
-| api | The api directory provides search endpoints for handling user queries and related operations, with the core implementation in a +server.ts file and dedicated event tracking logic organized in a separate events subdirectory. |
-| auth | The auth directory contains OAuth authentication infrastructure, with provider-specific SvelteKit server endpoints in the oauth/ subdirectory that handle authentication callbacks and webhook event processing for external authentication providers. |
-| billing | The billing directory contains upgrade-related functionality, with a SvelteKit server endpoint handler in upgrade/+server.ts that manages upgrade requests or operations for the billing system. |
-| console | The console directory is the main SvelteKit dashboard application for the web frontend, providing user-facing functionality for account management, API key administration, billing and invoicing, index settings and analytics, migration workflows, onboarding flows, and account verification. |
+| admin | — |
+| api | The api directory contains SvelteKit server endpoints for core business functionality including pricing comparisons, event search with dynamic parameters, and Stripe payment integration. |
+| auth | — |
+| billing | The billing directory contains upgrade-related server-side logic implemented as a SvelteKit endpoint that handles upgrade operations for the customer-facing dashboard. |
+| console | The console is a SvelteKit customer dashboard route with server-side handlers for account management, API keys, billing, search indexes, onboarding, and verification. |
 | dashboard | — |
 | dev_editor_dialog_demo | — |
 | forgot-password | — |
 | health | — |
+| infrastructure | This directory implements a public-facing infrastructure status page that fetches and displays regional cloud infrastructure health and utilization metrics from the API. |
 | login | — |
 | logout | — |
 | pricing | — |
 | reset-password | — |
 | signup | — |
-| status | The status directory contains type contracts and interface definitions for status-related functionality, defined in status_contract.ts as TypeScript type contracts. |
+| status | The status directory contains a contract module for the `/status` route that defines TypeScript types and utilities for service status reporting, including status states (operational, degraded, outage, unknown), route data structures, and helper functions for parsing and labeling status values. |
 | verify-email | — |
 <!-- [scrai:end] -->

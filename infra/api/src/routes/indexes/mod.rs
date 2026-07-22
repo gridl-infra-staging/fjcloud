@@ -36,6 +36,7 @@ pub(crate) mod dictionaries;
 pub(crate) mod documents;
 pub(crate) mod experiments;
 pub(crate) mod index_metrics_route;
+pub(crate) mod infrastructure;
 pub(crate) mod lifecycle;
 pub(crate) mod personalization;
 pub(crate) mod recommendations;
@@ -113,6 +114,24 @@ pub struct IndexResponse {
     pub created_at: String,
 }
 
+pub(crate) fn index_response_from_summary(
+    summary: CustomerTenantSummary,
+    cold_since: Option<String>,
+) -> IndexResponse {
+    IndexResponse {
+        name: summary.tenant_id,
+        region: summary.region,
+        endpoint: summary.flapjack_url,
+        entries: 0,
+        data_size_bytes: 0,
+        status: summary.health_status,
+        tier: summary.tier,
+        last_accessed_at: summary.last_accessed_at.map(|ts| ts.to_rfc3339()),
+        cold_since,
+        created_at: summary.created_at.to_rfc3339(),
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Validation
 // ---------------------------------------------------------------------------
@@ -166,6 +185,7 @@ pub fn validate_index_name(name: &str) -> Result<(), ApiError> {
 }
 
 pub(crate) struct ResolvedFlapjackTarget {
+    pub vm_id: Uuid,
     pub flapjack_url: String,
     pub node_id: String,
     pub region: String,
@@ -392,6 +412,7 @@ pub(crate) async fn resolve_flapjack_target(
     let flapjack_url = vm.flapjack_url;
 
     Ok(Some(ResolvedFlapjackTarget {
+        vm_id,
         flapjack_url,
         node_id,
         region: deployment.region,
@@ -634,6 +655,7 @@ pub use experiments::{
     get_experiment_results, list_experiments, start_experiment, stop_experiment, update_experiment,
 };
 pub use index_metrics_route::get_index_metrics;
+pub use infrastructure::get_index_infrastructure;
 pub use lifecycle::{create_index, create_key, delete_index, get_index, list_indexes};
 pub use personalization::{
     delete_personalization_profile, delete_personalization_strategy, get_personalization_profile,

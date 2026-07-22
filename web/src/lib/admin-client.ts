@@ -4,7 +4,9 @@ import { env } from '$env/dynamic/private';
 import { getApiBaseUrl } from '$lib/config';
 import type { RuntimeEnv } from '$lib/server/runtime-env';
 import type { InvoiceDetailResponse, InvoiceListItem, UsageSummaryResponse } from '$lib/api/types';
+import type { Index } from '$lib/api/types/indexes';
 import { BaseClient } from '$lib/api/base-client';
+import { pathSegment } from '$lib/api/client_paths';
 
 export interface AdminFleetDeployment {
 	id: string;
@@ -39,6 +41,7 @@ export interface AdminTenant {
 	email: string;
 	status: string;
 	billing_plan: string;
+	index_count: number;
 	last_accessed_at: string | null;
 	overdue_invoice_count: number;
 	billing_health: BillingHealthStatus;
@@ -49,6 +52,8 @@ export interface AdminTenant {
 export interface AdminTenantDetail extends AdminTenant {
 	stripe_customer_id?: string | null;
 }
+
+export type AdminTenantIndex = Index;
 
 export interface AdminRateCard {
 	id: string;
@@ -86,6 +91,47 @@ export interface BatchBillingResponse {
 	invoices_created: number;
 	invoices_skipped: number;
 	results: BatchBillingResult[];
+}
+
+export interface AdminBillingStatusTotal {
+	total_cents: number;
+	count: number;
+}
+
+export interface AdminBillingMonthBucket {
+	month: string;
+	paid_total_cents: number;
+}
+
+export interface AdminBillingInvoiceRow {
+	id: string;
+	customer_id: string;
+	customer_name: string;
+	customer_email: string;
+	period_start: string;
+	period_end: string;
+	subtotal_cents: number;
+	tax_cents: number;
+	total_cents: number;
+	currency: string;
+	status: string;
+	minimum_applied: boolean;
+	stripe_invoice_id: string | null;
+	hosted_invoice_url: string | null;
+	pdf_url: string | null;
+	created_at: string;
+	finalized_at: string | null;
+	paid_at: string | null;
+}
+
+export interface AdminBillingSummaryResponse {
+	status_totals: Record<string, AdminBillingStatusTotal>;
+	pending_total_cents: number;
+	pending_count: number;
+	total_count: number;
+	by_month: AdminBillingMonthBucket[];
+	mrr_proxy_cents: number;
+	invoices: AdminBillingInvoiceRow[];
 }
 
 export type AlertSeverity = 'info' | 'warning' | 'critical';
@@ -152,8 +198,25 @@ export interface VmInventoryItem {
 	capacity: Record<string, number>;
 	current_load: Record<string, number>;
 	status: string;
+	tenant_count: number;
+	index_count: number;
+	health: 'healthy' | 'unhealthy' | 'unknown';
 	created_at: string;
 	updated_at: string;
+}
+
+export interface VmHostMetricsResponse {
+	id: string;
+	vm_id: string;
+	collected_at: string;
+	cpu_pct: number;
+	mem_used_bytes: number;
+	mem_total_bytes: number;
+	disk_used_bytes: number | null;
+	disk_total_bytes: number | null;
+	net_rx_bytes: number;
+	net_tx_bytes: number;
+	created_at: string;
 }
 
 /** Response from POST /admin/vms/{id}/kill (local-mode only). */
@@ -384,6 +447,10 @@ export class AdminClient extends BaseClient {
 		return this.get<InvoiceListItem[]>(`/admin/tenants/${id}/invoices`);
 	}
 
+	getTenantIndexes(id: string): Promise<Index[]> {
+		return this.get<Index[]>(`/admin/tenants/${id}/indexes`);
+	}
+
 	getTenantRateCard(id: string): Promise<AdminRateCard> {
 		return this.get<AdminRateCard>(`/admin/tenants/${id}/rate-card`);
 	}
@@ -445,8 +512,16 @@ export class AdminClient extends BaseClient {
 		return this.post<BatchBillingResponse>('/admin/billing/run', { month });
 	}
 
+	getBillingSummary(): Promise<AdminBillingSummaryResponse> {
+		return this.get<AdminBillingSummaryResponse>('/admin/billing/summary');
+	}
+
 	finalizeInvoice(id: string): Promise<InvoiceDetailResponse> {
-		return this.post<InvoiceDetailResponse>(`/admin/invoices/${id}/finalize`);
+		return this.post<InvoiceDetailResponse>(`/admin/invoices/${pathSegment(id)}/finalize`);
+	}
+
+	getAdminInvoiceDetail(id: string): Promise<InvoiceDetailResponse> {
+		return this.get<InvoiceDetailResponse>(`/admin/invoices/${id}`);
 	}
 
 	getAlerts(limit = 100, severity?: AlertSeverity): Promise<AdminAlertRecord[]> {
@@ -480,6 +555,10 @@ export class AdminClient extends BaseClient {
 
 	getVmDetail(id: string): Promise<VmDetail> {
 		return this.get<VmDetail>(`/admin/vms/${id}`);
+	}
+
+	getVmHostMetrics(id: string): Promise<VmHostMetricsResponse | null> {
+		return this.get<VmHostMetricsResponse | null>(`/admin/vms/${id}/host-metrics`);
 	}
 
 	/** Kill the local Flapjack process for a VM (POST /admin/vms/{id}/kill).

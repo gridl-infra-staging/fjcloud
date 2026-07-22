@@ -1,10 +1,32 @@
 use async_trait::async_trait;
-use chrono::NaiveDate;
+use chrono::{DateTime, NaiveDate, Utc};
 use rust_decimal::Decimal;
 use uuid::Uuid;
 
 use crate::models::{InvoiceLineItemRow, InvoiceRow};
 use crate::repos::error::RepoError;
+
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub struct AdminInvoiceSummaryRow {
+    pub id: Uuid,
+    pub customer_id: Uuid,
+    pub customer_name: String,
+    pub customer_email: String,
+    pub period_start: NaiveDate,
+    pub period_end: NaiveDate,
+    pub subtotal_cents: i64,
+    pub tax_cents: i64,
+    pub total_cents: i64,
+    pub currency: String,
+    pub status: String,
+    pub minimum_applied: bool,
+    pub stripe_invoice_id: Option<String>,
+    pub hosted_invoice_url: Option<String>,
+    pub pdf_url: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub finalized_at: Option<DateTime<Utc>>,
+    pub paid_at: Option<DateTime<Utc>>,
+}
 
 pub struct NewInvoice {
     pub customer_id: Uuid,
@@ -39,6 +61,8 @@ pub trait InvoiceRepo {
     ) -> Result<(InvoiceRow, Vec<InvoiceLineItemRow>), RepoError>;
 
     async fn list_by_customer(&self, customer_id: Uuid) -> Result<Vec<InvoiceRow>, RepoError>;
+
+    async fn revenue_summary(&self) -> Result<Vec<AdminInvoiceSummaryRow>, RepoError>;
 
     async fn find_by_id(&self, id: Uuid) -> Result<Option<InvoiceRow>, RepoError>;
 

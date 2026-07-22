@@ -25,22 +25,24 @@ admin write paths whose abuse would be a customer-trust incident
 | index_lifecycle_lease.rs | Stub summary for infra/api/src/services/index_lifecycle_lease.rs. |
 | panics.rs | Stub summary for infra/api/src/services/panics.rs. |
 | provisioning.rs | Stub summary for infra/api/src/services/provisioning.rs. |
+| public_topology.rs | Stub summary for infra/api/src/services/public_topology.rs. |
 | region_failover.rs | Stub summary for infra/api/src/services/region_failover.rs. |
 | replica.rs | Stub summary for infra/api/src/services/replica.rs. |
 | replication.rs | Stub summary for replication.rs. |
 | restore.rs | Stub summary for infra/api/src/services/restore.rs. |
 | tenant_quota.rs | Stub summary for tenant_quota.rs. |
+| vm_health_rollup.rs | Stub summary for infra/api/src/services/vm_health_rollup.rs. |
 | webhook_http.rs | Stub summary for webhook_http.rs. |
 | webhook_lag.rs | Stub summary for webhook_lag.rs. |
 
 | Directory | Summary |
 | --- | --- |
-| algolia_source | The algolia_source directory contains tests for an Algolia cloud discovery service that handles paginated index listing, credential redaction, cursor-based state management, and permission validation for importing Algolia search indexes into a billing platform. |
-| cold_tier | The cold_tier service manages automatic migration of idle customer indexes from hot storage (Flapjack VMs) to cold storage (object store snapshots), with configurable idleness thresholds, concurrent snapshot limits, retry logic with alerts, and lifecycle-guarded state transitions to prevent concurrent catalog conflicts. |
-| email | The email service module handles email rendering, templating, and delivery with support for Mailpit integration for testing. |
-| flapjack_proxy | The flapjack_proxy directory provides a proxy layer for the Flapjack search engine, handling lifecycle management, settings normalization, compatibility testing, and metrics collection. |
-| migration | The migration service handles protocol definitions and recovery mechanisms for migrations within the API infrastructure. |
-| provisioning | The provisioning service automates the creation and lifecycle management of shared virtual machines across multiple cloud providers (AWS, Hetzner, GCP, OCI), handling VM instantiation, API key generation, DNS registration, and engine health verification. |
-| scheduler | The scheduler module implements VM load balancing by periodically scraping Prometheus metrics from active VMs, computing per-dimension utilization, and triggering index migrations when sustained overload, underload, or noisy-neighbor violations are detected. |
+| algolia_source | The algolia_source directory contains service code for integrating with Algolia, with tests.rs providing test coverage for this integration module. |
+| cold_tier | — |
+| email | The email directory contains email service implementations for the API server, including a Mailpit integration for local development email delivery, rendering logic for generating email content, and template definitions for various notification types like verification, invoice, password reset, and billing-related emails. |
+| flapjack_proxy | The flapjack_proxy module provides a proxy service layer for the Flapjack search engine, handling engine compatibility testing, index metrics collection, service lifecycle management, and settings configuration. |
+| migration | The migration service executes a three-phase protocol for moving indexes between VMs (begin replication, cut-over with lag convergence, and finalization), with comprehensive rollback and failure recovery mechanisms to restore the source index and maintain consistency throughout the migration lifecycle. |
+| provisioning | The provisioning directory implements automatic shared VM provisioning across cloud providers (AWS, Hetzner, GCP, OCI) with DNS registration, health verification, and provider-specific cloud-init secret delivery, plus optional local development bypass. |
+| scheduler | The scheduler service orchestrates VM load balancing by periodically scraping Prometheus metrics from all active nodes, computing per-dimension utilization, and triggering index migrations when sustained overload, underload, or noisy-neighbor quota violations are detected. |
 | storage | — |
 <!-- [scrai:end] -->

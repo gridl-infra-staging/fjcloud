@@ -658,7 +658,9 @@ async function connectAndSelectReplaceSource(
 ) {
 	const listAlgoliaSourceIndexes = vi
 		.fn()
-		.mockResolvedValue(listResponse(sourceNames.map((sourceName) => sourceIndex({ name: sourceName }))));
+		.mockResolvedValue(
+			listResponse(sourceNames.map((sourceName) => sourceIndex({ name: sourceName })))
+		);
 	const result = renderFlow(listAlgoliaSourceIndexes, overrides, {
 		providerEligibility: ELIGIBLE_AWS_REPLACE_PROVIDER,
 		capabilities: REPLACE_CAPABILITY
@@ -685,8 +687,12 @@ describe('MigrationCreateFlow - replace target eligibility and start', () => {
 			target: { region: 'us-west-2', name: 'existing_products' },
 			eligibilityToken: 'replace-provider-eligibility-token'
 		});
-		expect(JSON.stringify(checkAlgoliaDestinationEligibility.mock.calls)).not.toContain(APP_ID_CANARY);
-		expect(JSON.stringify(checkAlgoliaDestinationEligibility.mock.calls)).not.toContain(API_KEY_CANARY);
+		expect(JSON.stringify(checkAlgoliaDestinationEligibility.mock.calls)).not.toContain(
+			APP_ID_CANARY
+		);
+		expect(JSON.stringify(checkAlgoliaDestinationEligibility.mock.calls)).not.toContain(
+			API_KEY_CANARY
+		);
 
 		const review = await screen.findByTestId('migration-create-review');
 		expect(review).toHaveTextContent('existing_products');

@@ -3,6 +3,7 @@ import { ApiRequestError } from '$lib/api/client';
 import {
 	apiClientFactoryFor,
 	createMockFns,
+	DEFAULT_INFRASTRUCTURE,
 	DEFAULT_INDEX,
 	EMPTY_DOCUMENTS,
 	EMPTY_DICTIONARIES,
@@ -10,10 +11,6 @@ import {
 	setupDefaultLoadMocks,
 	makeLoadArgs
 } from './detail.server.test.shared';
-
-// ---------------------------------------------------------------------------
-// Mock function references (must be declared before vi.mock)
-// ---------------------------------------------------------------------------
 
 const { apiClientFactoryForMock, mocks } = await vi.hoisted(async () => {
 	const shared = await import('./detail.server.test.shared');
@@ -37,6 +34,7 @@ const {
 	getAnalyticsNoResultRate: getAnalyticsNoResultRateMock,
 	getAnalyticsStatus: getAnalyticsStatusMock,
 	getIndexMetrics: getIndexMetricsMock,
+	getIndexInfrastructure: getIndexInfrastructureMock,
 	getDebugEvents: getDebugEventsMock,
 	listExperiments: listExperimentsMock,
 	getExperimentResults: getExperimentResultsMock,
@@ -46,23 +44,15 @@ const {
 	getIndexes: getIndexesMock
 } = mocks;
 
-// ---------------------------------------------------------------------------
-// vi.mock (top-level, as required by vitest)
-// ---------------------------------------------------------------------------
-
 vi.mock('$lib/server/api', () => apiClientFactoryForMock(mocks, vi.fn));
-
-// ---------------------------------------------------------------------------
-// Module under test (imported AFTER vi.mock)
-// ---------------------------------------------------------------------------
 
 import { load } from './+page.server';
 
 type LoadResult = Exclude<Awaited<ReturnType<typeof load>>, void>;
-
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
+type InfrastructureLoadResult = LoadResult & {
+	infrastructure?: Record<string, unknown> | null;
+	infrastructureError?: { code: number; message: string } | null;
+};
 
 describe('Index detail page server -- load', () => {
 	it('apiClientFactoryFor throws when a split test leaves an API method unstubbed', () => {
@@ -747,5 +737,64 @@ describe('Index detail page server -- load', () => {
 			code: 403,
 			message: 'You are not authorized to view metrics for this index'
 		});
+	});
+
+	it('load returns infrastructure alongside the existing detail payload and dependency key', async () => {
+		const dependsSpy = vi.fn();
+
+		const result = (await load(
+			makeLoadArgs('', { depends: dependsSpy }) as never
+		)) as InfrastructureLoadResult;
+
+		expect(getIndexInfrastructureMock).toHaveBeenCalledWith('products');
+		expect(result.index).toEqual({ ...DEFAULT_INDEX });
+		expect(result.documents).toEqual({ ...EMPTY_DOCUMENTS });
+		expect(result.infrastructure).toEqual(DEFAULT_INFRASTRUCTURE);
+		expect(result.infrastructureError).toBeNull();
+		expect(dependsSpy).toHaveBeenCalledWith('app:index-infrastructure:products');
+	});
+
+	it.each([
+		{
+			status: 401,
+			expectedMessage: 'You are not authorized to view infrastructure for this index'
+		},
+		{
+			status: 403,
+			expectedMessage: 'You are not authorized to view infrastructure for this index'
+		},
+		{ status: 404, expectedMessage: 'Infrastructure is not available for this index yet' },
+		{ status: 429, expectedMessage: 'Infrastructure is temporarily unavailable' },
+		{ status: 503, expectedMessage: 'Infrastructure service unavailable' }
+	])(
+		'load maps Infrastructure $status failures without exposing backend details',
+		async ({ status, expectedMessage }) => {
+			const rawDetail = `tenant cust-1 infrastructure detail for ${status}`;
+			getIndexInfrastructureMock.mockRejectedValue(new ApiRequestError(status, rawDetail));
+
+			const result = (await load(makeLoadArgs() as never)) as InfrastructureLoadResult;
+
+			expect(result.index).toEqual({ ...DEFAULT_INDEX });
+			expect(result.rules).not.toBeNull();
+			expect(result.documents).toEqual({ ...EMPTY_DOCUMENTS });
+			expect(result.infrastructure).toBeNull();
+			expect(result.infrastructureError).toEqual({ code: status, message: expectedMessage });
+			expect(result.infrastructureError?.message).not.toContain(rawDetail);
+		}
+	);
+
+	it('load maps unexpected Infrastructure failures to a fixed generic 503 error', async () => {
+		const rawDetail = 'socket exposed internal host vm-123';
+		getIndexInfrastructureMock.mockRejectedValue(new Error(rawDetail));
+
+		const result = (await load(makeLoadArgs() as never)) as InfrastructureLoadResult;
+
+		expect(result.index).toEqual({ ...DEFAULT_INDEX });
+		expect(result.infrastructure).toBeNull();
+		expect(result.infrastructureError).toEqual({
+			code: 503,
+			message: 'Infrastructure service unavailable'
+		});
+		expect(result.infrastructureError?.message).not.toContain(rawDetail);
 	});
 });

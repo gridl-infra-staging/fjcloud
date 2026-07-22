@@ -10,16 +10,17 @@
 | migration.rs | Stub summary for infra/api/src/routes/migration.rs. |
 | oauth.rs | Stub summary for oauth.rs. |
 | onboarding.rs | Stub summary for onboarding.rs. |
+| public_infrastructure.rs | Stub summary for infra/api/src/routes/public_infrastructure.rs. |
 | public_site.rs | Stub summary for public_site.rs. |
 | version.rs | Stub summary for version.rs. |
 
 | Directory | Summary |
 | --- | --- |
-| admin | Admin routes for internal operations including JWT token minting with optional audit logging for impersonation, rate card CRUD with customer overrides, and administrative endpoints for deployments, migrations, tenants, VMs, and related infrastructure management. |
+| admin | The admin directory contains HTTP route handlers for administrative API operations, including customer JWT token minting with impersonation audit logging, rate card CRUD and customer overrides, and infrastructure management endpoints like deployments, migrations, and indexes. |
 | auth | — |
-| indexes | This directory contains HTTP route handlers for index operations in the Algolia-based search platform, including lifecycle management, search, settings, suggestions, document handling, replicas, customer restore functionality, and import engine integration. |
-| migration | HTTP route handlers for Algolia index migrations, including source-index discovery, destination eligibility validation, and job management. |
+| indexes | The indexes directory contains API route handlers for managing search indexes, including operations for document management, search and suggestions, settings configuration, replica management, lifecycle control, metrics reporting, and customer restore functionality for cold indexes. |
+| migration | Migration API surface for Algolia search index migrations, providing endpoints to discover source indexes, validate destination eligibility, manage migration jobs, and report capabilities with stable error code mapping. |
 | oauth | — |
-| storage | This directory implements S3-compatible storage handlers for bucket and object operations, with mod.rs defining the HTTP route table and objects.rs handling object-level endpoints with integrated usage metering. |
-| webhooks | The webhooks directory handles incoming webhook routing and processing for external services, with specialized handlers for Stripe events including disputes. |
+| storage | The storage directory implements S3-compatible bucket and object operations via axum route handlers, providing REST endpoints for standard S3 operations including bucket management, object CRUD, and metadata queries with inline metering instrumentation. |
+| webhooks | The webhooks module handles incoming webhook events from external services, primarily Stripe payment events and disputes, with a modular architecture that organizes handlers by source. |
 <!-- [scrai:end] -->

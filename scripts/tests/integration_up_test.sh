@@ -660,7 +660,7 @@ test_up_prints_shared_source_provenance_for_selected_checkout() {
 echo "cwd=$(pwd) args=$*" >> "'"$cargo_log"'"
 case "$*" in
     "build -p api -p metering-agent")
-        api_bin="$(pwd)/target/debug/api"
+        api_bin="$(pwd)/target/debug/fjcloud-api"
         metering_bin="$(pwd)/target/debug/fj-metering-agent"
         mkdir -p "$(dirname "$api_bin")"
         printf "#!/usr/bin/env bash\nexit 0\n" > "$api_bin"
@@ -809,7 +809,7 @@ test_check_prerequisites_redacts_effective_admin_key() {
         "check-prerequisites should redact the effective flapjack admin key"
 }
 
-test_startup_uses_loopback_and_nonpredictable_runtime_secrets() {
+test_startup_uses_isolated_local_api_environment() {
     local tmp_dir
     tmp_dir="$(mktemp -d)"
     setup_startup_mocks "$tmp_dir"
@@ -820,6 +820,7 @@ test_startup_uses_loopback_and_nonpredictable_runtime_secrets() {
     output=$(
         PATH="$tmp_dir:/usr/bin:/bin" \
         FLAPJACK_DEV_DIR="/nonexistent" \
+        INTEGRATION_INTERNAL_AUTH_TOKEN="integration-up-shared-token" \
         INTEGRATION_UP_API_ENV_LOG="$api_env_log" \
         bash "$REPO_ROOT/scripts/integration-up.sh" 2>&1
     ) || exit_code=$?
@@ -844,6 +845,14 @@ test_startup_uses_loopback_and_nonpredictable_runtime_secrets() {
         "startup should not use the predictable admin key fallback"
     assert_not_contains "$env_log" "STORAGE_ENCRYPTION_KEY=0000000000000000000000000000000000000000000000000000000000000000" \
         "startup should not use the all-zero storage encryption key fallback"
+    assert_contains "$env_log" "ENVIRONMENT=local" \
+        "startup should use the API's explicit local environment"
+    assert_contains "$env_log" "SKIP_EMAIL_VERIFICATION=1" \
+        "startup should auto-verify integration registrations without external email delivery"
+    assert_contains "$env_log" "INTERNAL_AUTH_TOKEN=integration-up-shared-token" \
+        "startup should pass the caller-provided integration internal auth token to the API"
+    assert_contains "$env_log" "AUTH_RATE_LIMIT_RPM=120" \
+        "startup should raise the auth rate limit for the full integration suite"
 }
 
 test_startup_summary_includes_node_secret_backend() {
@@ -937,7 +946,7 @@ main() {
     echo "--- Docker Fallback + Startup Env ---"
     test_docker_fallback_failure_names_specific_blocker
     test_check_prerequisites_redacts_effective_admin_key
-    test_startup_uses_loopback_and_nonpredictable_runtime_secrets
+    test_startup_uses_isolated_local_api_environment
     test_startup_summary_includes_node_secret_backend
     test_startup_summary_includes_local_dev_flapjack_url
 

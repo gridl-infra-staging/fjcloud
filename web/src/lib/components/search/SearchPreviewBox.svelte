@@ -117,7 +117,7 @@
 			type="text"
 			value={filterExpression}
 			aria-label="Advanced filter expression"
-			placeholder='brand = "Acme" AND price < 100'
+			placeholder="brand = &quot;Acme&quot; AND price &lt; 100"
 			class="w-full rounded-md border border-flapjack-ink/25 px-3 py-2 text-sm"
 			oninput={(event) => onFilterExpressionChange((event.currentTarget as HTMLInputElement).value)}
 		/>

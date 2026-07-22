@@ -6,5 +6,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| callback | The callback directory contains a SvelteKit server endpoint that handles callback requests, likely for OAuth authentication flows or webhook event processing based on the naming convention. |
+| callback | The callback directory contains the OAuth callback route handler that processes OAuth provider responses, validates authorization codes against CSRF tokens stored in secure cookies, and exchanges them for JWT tokens before redirecting to the console. |
 <!-- [scrai:end] -->

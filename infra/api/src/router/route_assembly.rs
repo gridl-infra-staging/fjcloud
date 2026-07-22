@@ -17,6 +17,7 @@ use crate::routes::migration;
 use crate::routes::oauth;
 use crate::routes::onboarding;
 use crate::routes::pricing;
+use crate::routes::public_infrastructure;
 use crate::routes::public_site;
 use crate::routes::version;
 use crate::routes::webhooks;
@@ -101,6 +102,10 @@ pub(super) fn build_router_without_layers(
         )
         .merge(auth_rate_limited_routes)
         .route("/health", get(health::health))
+        .route(
+            "/public/infrastructure",
+            get(public_infrastructure::get_public_infrastructure),
+        )
         // /version is the live-system probe for "what code is this?" —
         // returns build-time-baked dev_sha, mirror_sha, synced_at, build_time.
         // Sibling to /health: unauthenticated, infra-info, cheap.
@@ -223,6 +228,10 @@ fn add_index_lifecycle_and_replica_routes(router: Router<AppState>) -> Router<Ap
         .route(
             "/indexes/:name/replicas",
             get(indexes::list_replicas).post(indexes::create_replica),
+        )
+        .route(
+            "/indexes/:name/infrastructure",
+            get(indexes::get_index_infrastructure),
         )
         .route(
             "/indexes/:name/replicas/:replica_id",

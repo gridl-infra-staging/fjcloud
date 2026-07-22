@@ -487,6 +487,8 @@ export function createMockPageData(overrides: Record<string, unknown> = {}) {
 		eventsLoadError: '',
 		metrics: null,
 		metricsError: null,
+		infrastructure: null,
+		infrastructureError: null,
 		dictionaries: sampleDictionaries,
 		dictionaryBrowseError: '',
 		securitySources: sampleSecuritySources,

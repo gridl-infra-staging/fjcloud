@@ -6,5 +6,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| [experimentId] | The [experimentId] directory contains a SvelteKit server-side page component that appears to be a stub or template file. |
+| [experimentId] | This directory contains a SvelteKit page with server-side logic, likely handling routing and data loading for an experiment-related view based on the directory name. |
 <!-- [scrai:end] -->

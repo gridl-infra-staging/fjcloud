@@ -3,6 +3,7 @@
 
 | File | Summary |
 | --- | --- |
+| +page.server.ts | Stub summary for web/src/routes/console/indexes/[name]/+page.server.ts. |
 | analytics-management.server.ts | Stub summary for analytics-management.server.ts. |
 | chat-management.server.ts | Stub summary for chat-management.server.ts. |
 | detail_settings_test_helpers.ts | Test helpers for index detail settings views. |
@@ -11,6 +12,8 @@
 | dictionary-helpers.ts | Stub summary for dictionary-helpers.ts. |
 | dictionary-management.server.ts | Stub summary for dictionary-management.server.ts. |
 | events-management.server.ts | Stub summary for events-management.server.ts. |
+| infrastructure-keys.ts | Canonical dependency key for index-detail Infrastructure payload invalidation. |
+| infrastructure-management.server.ts | Stub summary for web/src/routes/console/indexes/[name]/infrastructure-management.server.ts. |
 | metrics-keys.ts | Canonical dependency key for index-detail metrics SSR payload invalidation. |
 | personalization-management.server.ts | Stub summary for personalization-management.server.ts. |
 | recommendations-management.server.ts | Stub summary for recommendations-management.server.ts. |
@@ -21,6 +24,6 @@
 
 | Directory | Summary |
 | --- | --- |
-| experiments | The experiments directory contains feature experiment pages organized by [experimentId], each with a SvelteKit server-side page component serving as a stub or template. |
+| experiments | The experiments directory contains SvelteKit pages for displaying and managing experiment details, with server-side routing and data loading logic organized by individual experiment ID. |
 | tabs | — |
 <!-- [scrai:end] -->

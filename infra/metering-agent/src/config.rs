@@ -1,6 +1,8 @@
 use std::net::IpAddr;
+use std::path::PathBuf;
 use std::time::Duration;
 use thiserror::Error;
+use uuid::Uuid;
 
 /// All configuration is supplied via environment variables (12-factor).
 #[derive(Debug, Clone)]
@@ -15,7 +17,7 @@ pub struct Config {
     /// API key (HTTP 403, "Invalid Application-ID or API key"), so this
     /// must be set or the engine endpoints will all 403 — which is what
     /// caused the staging metering pipeline to silently produce zero
-    /// usage_records before this field was wired up. Defaults to
+    /// usage events before this field was wired up. Defaults to
     /// "flapjack" to match the value the synthetic-traffic seeder uses.
     pub flapjack_application_id: String,
     /// Internal auth token for control-plane `/internal/*` endpoints.
@@ -29,6 +31,16 @@ pub struct Config {
     pub storage_poll_interval: Duration,
     /// How often to refresh the tenant map from the control-plane API.
     pub tenant_map_refresh_interval: Duration,
+    /// Whether host-level telemetry collection is enabled.
+    pub host_metrics_enabled: bool,
+    /// How often to collect and persist host-level telemetry.
+    pub host_metrics_interval: Duration,
+    /// Root directory containing Linux procfs files.
+    pub proc_root: PathBuf,
+    /// Filesystem path whose capacity is reported as host disk telemetry.
+    pub host_disk_path: PathBuf,
+    /// Optional canonical VM inventory identifier. Hostname lookup is used when absent.
+    pub vm_id: Option<Uuid>,
     /// PostgreSQL connection string for writing usage records.
     pub database_url: String,
     /// Node-level owner label used only for logs and breaker alerts.
@@ -72,6 +84,14 @@ pub enum ConfigError {
     Invalid { var: String, reason: String },
 }
 
+struct HostMetricsConfig {
+    enabled: bool,
+    interval: Duration,
+    proc_root: PathBuf,
+    disk_path: PathBuf,
+    vm_id: Option<Uuid>,
+}
+
 impl Config {
     /// Load configuration from the process environment.
     pub fn from_env() -> Result<Self, ConfigError> {
@@ -89,22 +109,6 @@ impl Config {
         F: Fn(&str) -> Result<String, std::env::VarError>,
     {
         let require = |key: &str| read(key).map_err(|_| ConfigError::Missing(key.to_string()));
-
-        let parse_u64_opt = |key: &str, default: u64| -> Result<u64, ConfigError> {
-            match read(key) {
-                Err(_) => Ok(default),
-                Ok(val) => val.trim().parse::<u64>().map_err(|e| ConfigError::Invalid {
-                    var: key.to_string(),
-                    reason: e.to_string(),
-                }),
-            }
-        };
-        let read_optional_trimmed = |key: &str| {
-            read(key)
-                .ok()
-                .map(|value| value.trim().to_string())
-                .filter(|value| !value.is_empty())
-        };
 
         let flapjack_url = validate_service_url("FLAPJACK_URL", &require("FLAPJACK_URL")?)?;
         let flapjack_api_key = require("FLAPJACK_API_KEY")?;
@@ -124,21 +128,25 @@ impl Config {
                 }
             })
             .unwrap_or_else(|_| "unknown".to_string());
-        let slack_webhook_url = read_optional_trimmed("SLACK_WEBHOOK_URL")
+        let slack_webhook_url = read_optional_trimmed(&read, "SLACK_WEBHOOK_URL")
             .map(|url| validate_https_or_loopback_url("SLACK_WEBHOOK_URL", &url))
             .transpose()?;
-        let discord_webhook_url = read_optional_trimmed("DISCORD_WEBHOOK_URL")
+        let discord_webhook_url = read_optional_trimmed(&read, "DISCORD_WEBHOOK_URL")
             .map(|url| validate_https_or_loopback_url("DISCORD_WEBHOOK_URL", &url))
             .transpose()?;
 
         let customer_id = require("CUSTOMER_ID")?.trim().to_string();
 
-        let scrape_interval = Duration::from_secs(parse_u64_opt("SCRAPE_INTERVAL_SECS", 60)?);
+        let scrape_interval = Duration::from_secs(parse_u64_or(&read, "SCRAPE_INTERVAL_SECS", 60)?);
         let storage_poll_interval =
-            Duration::from_secs(parse_u64_opt("STORAGE_POLL_INTERVAL_SECS", 300)?);
-        let tenant_map_refresh_interval =
-            Duration::from_secs(parse_u64_opt("TENANT_MAP_REFRESH_INTERVAL_SECS", 300)?);
-        let health_port_raw = parse_u64_opt("HEALTH_PORT", 9091)?;
+            Duration::from_secs(parse_u64_or(&read, "STORAGE_POLL_INTERVAL_SECS", 300)?);
+        let tenant_map_refresh_interval = Duration::from_secs(parse_u64_or(
+            &read,
+            "TENANT_MAP_REFRESH_INTERVAL_SECS",
+            300,
+        )?);
+        let host_metrics = parse_host_metrics_config(&read)?;
+        let health_port_raw = parse_u64_or(&read, "HEALTH_PORT", 9091)?;
         let health_port = u16::try_from(health_port_raw).map_err(|_| ConfigError::Invalid {
             var: "HEALTH_PORT".to_string(),
             reason: format!("must be between 0 and {}", u16::MAX),
@@ -155,24 +163,9 @@ impl Config {
             }),
         )?;
 
-        if customer_id.is_empty() {
-            return Err(ConfigError::Invalid {
-                var: "CUSTOMER_ID".to_string(),
-                reason: "must not be empty".to_string(),
-            });
-        }
-        if node_id.is_empty() {
-            return Err(ConfigError::Invalid {
-                var: "NODE_ID".to_string(),
-                reason: "must not be empty".to_string(),
-            });
-        }
-        if region.is_empty() {
-            return Err(ConfigError::Invalid {
-                var: "REGION".to_string(),
-                reason: "must not be empty".to_string(),
-            });
-        }
+        validate_nonempty("CUSTOMER_ID", &customer_id)?;
+        validate_nonempty("NODE_ID", &node_id)?;
+        validate_nonempty("REGION", &region)?;
 
         Ok(Config {
             flapjack_url,
@@ -182,6 +175,11 @@ impl Config {
             scrape_interval,
             storage_poll_interval,
             tenant_map_refresh_interval,
+            host_metrics_enabled: host_metrics.enabled,
+            host_metrics_interval: host_metrics.interval,
+            proc_root: host_metrics.proc_root,
+            host_disk_path: host_metrics.disk_path,
+            vm_id: host_metrics.vm_id,
             database_url,
             customer_id,
             node_id,
@@ -211,6 +209,87 @@ impl Config {
     pub fn cold_storage_usage_url(&self) -> String {
         self.cold_storage_usage_url.clone()
     }
+}
+
+fn parse_u64_or<F>(read: &F, key: &str, default: u64) -> Result<u64, ConfigError>
+where
+    F: Fn(&str) -> Result<String, std::env::VarError>,
+{
+    match read(key) {
+        Err(_) => Ok(default),
+        Ok(value) => value
+            .trim()
+            .parse::<u64>()
+            .map_err(|error| ConfigError::Invalid {
+                var: key.to_string(),
+                reason: error.to_string(),
+            }),
+    }
+}
+
+fn parse_bool_or<F>(read: &F, key: &str, default: bool) -> Result<bool, ConfigError>
+where
+    F: Fn(&str) -> Result<String, std::env::VarError>,
+{
+    match read(key) {
+        Err(_) => Ok(default),
+        Ok(value) => value
+            .trim()
+            .parse::<bool>()
+            .map_err(|error| ConfigError::Invalid {
+                var: key.to_string(),
+                reason: error.to_string(),
+            }),
+    }
+}
+
+fn read_optional_trimmed<F>(read: &F, key: &str) -> Option<String>
+where
+    F: Fn(&str) -> Result<String, std::env::VarError>,
+{
+    read(key)
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+}
+
+fn parse_host_metrics_config<F>(read: &F) -> Result<HostMetricsConfig, ConfigError>
+where
+    F: Fn(&str) -> Result<String, std::env::VarError>,
+{
+    let interval_seconds = parse_u64_or(read, "HOST_METRICS_INTERVAL_SECS", 60)?;
+    if interval_seconds == 0 {
+        return Err(ConfigError::Invalid {
+            var: "HOST_METRICS_INTERVAL_SECS".to_string(),
+            reason: "must be greater than zero".to_string(),
+        });
+    }
+    let vm_id = read_optional_trimmed(read, "VM_ID")
+        .map(|value| {
+            Uuid::parse_str(&value).map_err(|error| ConfigError::Invalid {
+                var: "VM_ID".to_string(),
+                reason: error.to_string(),
+            })
+        })
+        .transpose()?;
+
+    Ok(HostMetricsConfig {
+        enabled: parse_bool_or(read, "HOST_METRICS_ENABLED", false)?,
+        interval: Duration::from_secs(interval_seconds),
+        proc_root: PathBuf::from(read("PROC_ROOT").unwrap_or_else(|_| "/proc".to_string())),
+        disk_path: PathBuf::from(read("HOST_DISK_PATH").unwrap_or_else(|_| "/".to_string())),
+        vm_id,
+    })
+}
+
+fn validate_nonempty(var: &str, value: &str) -> Result<(), ConfigError> {
+    if value.is_empty() {
+        return Err(ConfigError::Invalid {
+            var: var.to_string(),
+            reason: "must not be empty".to_string(),
+        });
+    }
+    Ok(())
 }
 
 fn validate_service_url(var: &str, raw: &str) -> Result<String, ConfigError> {
@@ -328,6 +407,97 @@ mod tests {
             cfg.cold_storage_usage_url(),
             "http://127.0.0.1:3001/internal/cold-storage-usage"
         );
+    }
+
+    #[test]
+    fn host_metrics_config_uses_opt_in_defaults() {
+        let cfg = Config::from_reader(valid_env).expect("should parse");
+
+        assert!(!cfg.host_metrics_enabled);
+        assert_eq!(cfg.host_metrics_interval, Duration::from_secs(60));
+        assert_eq!(cfg.proc_root, std::path::PathBuf::from("/proc"));
+        assert_eq!(cfg.host_disk_path, std::path::PathBuf::from("/"));
+        assert_eq!(cfg.vm_id, None);
+    }
+
+    #[test]
+    fn host_metrics_config_accepts_explicit_values() {
+        let expected_vm_id = uuid::Uuid::parse_str("4fa85f64-5717-4562-b3fc-2c963f66afa6")
+            .expect("fixture UUID should parse");
+        let cfg = Config::from_reader(|key| match key {
+            "HOST_METRICS_ENABLED" => Ok("true".into()),
+            "HOST_METRICS_INTERVAL_SECS" => Ok("15".into()),
+            "PROC_ROOT" => Ok("/fixtures/proc".into()),
+            "HOST_DISK_PATH" => Ok("/srv/flapjack".into()),
+            "VM_ID" => Ok(expected_vm_id.to_string()),
+            other => valid_env(other),
+        })
+        .expect("explicit host metrics config should parse");
+
+        assert!(cfg.host_metrics_enabled);
+        assert_eq!(cfg.host_metrics_interval, Duration::from_secs(15));
+        assert_eq!(cfg.proc_root, std::path::PathBuf::from("/fixtures/proc"));
+        assert_eq!(
+            cfg.host_disk_path,
+            std::path::PathBuf::from("/srv/flapjack")
+        );
+        assert_eq!(cfg.vm_id, Some(expected_vm_id));
+    }
+
+    #[test]
+    fn malformed_host_metrics_enabled_returns_error() {
+        let err = Config::from_reader(|key| match key {
+            "HOST_METRICS_ENABLED" => Ok("sometimes".into()),
+            other => valid_env(other),
+        })
+        .unwrap_err();
+
+        assert!(matches!(
+            err,
+            ConfigError::Invalid { ref var, .. } if var == "HOST_METRICS_ENABLED"
+        ));
+    }
+
+    #[test]
+    fn malformed_host_metrics_interval_returns_error() {
+        let err = Config::from_reader(|key| match key {
+            "HOST_METRICS_INTERVAL_SECS" => Ok("often".into()),
+            other => valid_env(other),
+        })
+        .unwrap_err();
+
+        assert!(matches!(
+            err,
+            ConfigError::Invalid { ref var, .. } if var == "HOST_METRICS_INTERVAL_SECS"
+        ));
+    }
+
+    #[test]
+    fn zero_host_metrics_interval_returns_error() {
+        let err = Config::from_reader(|key| match key {
+            "HOST_METRICS_INTERVAL_SECS" => Ok("0".into()),
+            other => valid_env(other),
+        })
+        .unwrap_err();
+
+        assert!(matches!(
+            err,
+            ConfigError::Invalid { ref var, .. } if var == "HOST_METRICS_INTERVAL_SECS"
+        ));
+    }
+
+    #[test]
+    fn malformed_vm_id_returns_error() {
+        let err = Config::from_reader(|key| match key {
+            "VM_ID" => Ok("not-a-uuid".into()),
+            other => valid_env(other),
+        })
+        .unwrap_err();
+
+        assert!(matches!(
+            err,
+            ConfigError::Invalid { ref var, .. } if var == "VM_ID"
+        ));
     }
 
     #[test]

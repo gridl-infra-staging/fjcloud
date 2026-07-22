@@ -8,6 +8,6 @@
 
 | Directory | Summary |
 | --- | --- |
-| fixtures | Test fixture utility that mutates catalog lifecycle inventory JSON payloads by applying transformations like removing writers, duplicating entries, or altering properties (disposition, owner path, source anchor) to test soft-delete contract scenarios. |
-| lib | A collection of shell script helper libraries and test harnesses that provide reusable functions for mocking, assertions, environment setup, and contract testing across the project's shell-based test suite. |
+| fixtures | — |
+| lib | — |
 <!-- [scrai:end] -->

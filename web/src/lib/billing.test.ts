@@ -3,6 +3,7 @@ import { ApiRequestError } from '$lib/api/client';
 import {
 	isBillingServiceNotConfiguredError,
 	isBillingCustomerMissingError,
+	safeExternalUrl,
 	SERVICE_NOT_CONFIGURED_ERROR
 } from './billing';
 
@@ -59,5 +60,45 @@ describe('isBillingCustomerMissingError', () => {
 
 	it('returns false for undefined', () => {
 		expect(isBillingCustomerMissingError(undefined)).toBe(false);
+	});
+});
+
+describe('safeExternalUrl', () => {
+	it('returns normalized HTTPS URLs', () => {
+		expect(safeExternalUrl('https://invoice.stripe.com/i/acct_x/test_123')).toBe(
+			'https://invoice.stripe.com/i/acct_x/test_123'
+		);
+	});
+
+	it('rejects remote HTTP URLs unless loopback is explicitly allowed', () => {
+		expect(safeExternalUrl('http://billing.example.com/invoice.pdf')).toBeNull();
+		expect(safeExternalUrl('http://billing.example.com/invoice.pdf', true)).toBeNull();
+	});
+
+	it.each([
+		'javascript:alert(1)',
+		'data:text/html,<script>alert(1)</script>',
+		'mailto:test@example.com'
+	])('rejects non-HTTP scheme %s', (rawUrl) => {
+		expect(safeExternalUrl(rawUrl)).toBeNull();
+	});
+
+	it('rejects malformed or empty URLs', () => {
+		expect(safeExternalUrl('not a url')).toBeNull();
+		expect(safeExternalUrl('')).toBeNull();
+		expect(safeExternalUrl(null)).toBeNull();
+	});
+
+	it('allows loopback HTTP only when explicitly requested', () => {
+		expect(safeExternalUrl('http://localhost:8025/local-invoice/in_local/pdf')).toBeNull();
+		expect(safeExternalUrl('http://localhost:8025/local-invoice/in_local/pdf', true)).toBe(
+			'http://localhost:8025/local-invoice/in_local/pdf'
+		);
+		expect(safeExternalUrl('http://127.0.0.1:8025/local-invoice/in_local/pdf', true)).toBe(
+			'http://127.0.0.1:8025/local-invoice/in_local/pdf'
+		);
+		expect(safeExternalUrl('http://[::1]:8025/local-invoice/in_local/pdf', true)).toBe(
+			'http://[::1]:8025/local-invoice/in_local/pdf'
+		);
 	});
 });

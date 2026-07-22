@@ -235,6 +235,12 @@ describe('formatBytes', () => {
 		expect(formatBytes(2147483648)).toBe('2.0 GB');
 	});
 
+	it('formats tebibytes and larger byte counts with defined units', () => {
+		expect(formatBytes(1099511627776)).toBe('1.0 TB');
+		expect(formatBytes(1649267441664)).toBe('1.5 TB');
+		expect(formatBytes(1125899906842624)).toBe('1.0 PB');
+	});
+
 	it('formats fractional values', () => {
 		expect(formatBytes(1536)).toBe('1.5 KB');
 		expect(formatBytes(1572864)).toBe('1.5 MB');

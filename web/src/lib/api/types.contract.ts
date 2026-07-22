@@ -3,6 +3,7 @@ import type {
 	AuthResponse,
 	DictionaryEntry,
 	Index,
+	IndexInfrastructureResponse,
 	IndexMetricsResponse,
 	InvoiceDetailResponse,
 	PricingCompareResponse,
@@ -67,6 +68,31 @@ const metrics = {
 	fetched_at: '2026-01-01T00:00:00Z'
 } satisfies IndexMetricsResponse;
 
+const infrastructure = {
+	index: 'products',
+	primary: {
+		region: 'us-east-1',
+		status: 'ready',
+		utilization: 'green'
+	},
+	replicas: [
+		{
+			region: 'us-west-2',
+			status: 'ready',
+			lag_ops: 3,
+			utilization: null
+		}
+	],
+	footprint: {
+		documents_count: 10,
+		storage_bytes: 2048,
+		search_requests_total: 30,
+		write_operations_total: 4
+	},
+	headroom: 'comfortable',
+	minimum_refresh_interval_seconds: 60
+} satisfies IndexInfrastructureResponse;
+
 const pricing = {
 	workload: {
 		document_count: 0,
@@ -93,4 +119,4 @@ const dictionary = {
 	language: 'en'
 } satisfies DictionaryEntry;
 
-void [auth, invoice, index, rule, synonym, metrics, pricing, migration, dictionary];
+void [auth, invoice, index, rule, synonym, metrics, infrastructure, pricing, migration, dictionary];

@@ -105,6 +105,33 @@ describe('VM detail page', () => {
 		expect(diskBar).toBeInTheDocument();
 		expect(diskBar.textContent).toContain('45%');
 	});
+
+	it('vm_detail_renders_duplicate_tenant_names_from_distinct_deployments', async () => {
+		const VmDetailPage = (await import('./+page.svelte')).default;
+
+		render(VmDetailPage, {
+			data: {
+				environment: 'test',
+				isAuthenticated: true,
+				...VM_DETAIL_FIXTURE,
+				tenants: [
+					{
+						...VM_DETAIL_FIXTURE.tenants[0],
+						tenant_id: 'shared-search',
+						deployment_id: 'cccccccc-0001-0000-0000-000000000001'
+					},
+					{
+						...VM_DETAIL_FIXTURE.tenants[1],
+						tenant_id: 'shared-search',
+						deployment_id: 'cccccccc-0002-0000-0000-000000000002'
+					}
+				]
+			}
+		});
+
+		const indexTable = screen.getByTestId('tenant-breakdown-table');
+		expect(within(indexTable).getAllByText('shared-search')).toHaveLength(2);
+	});
 });
 
 describe('VM detail page server load', () => {

@@ -1,21 +1,9 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { ApiClient } from './client';
 import type {
-	Index,
-	IndexMetricsResponse,
-	SearchResult,
-	InternalRegion,
-	Rule,
-	RuleSearchResponse,
-	Synonym,
-	SynonymSearchResponse,
-	QsConfig,
-	QsBuildStatus,
-	FlapjackApiKey,
-	DictionarySearchRequest,
-	DictionarySearchResponse,
-	DictionaryBatchRequest,
-	DictionaryBatchResponse
+	Index, IndexInfrastructureResponse, IndexMetricsResponse, SearchResult, InternalRegion, Rule,
+	RuleSearchResponse, Synonym, SynonymSearchResponse, QsConfig, QsBuildStatus, FlapjackApiKey,
+	DictionarySearchRequest, DictionarySearchResponse, DictionaryBatchRequest, DictionaryBatchResponse
 } from './types';
 import { BASE_URL, mockFetch, createAuthenticatedClient } from './client.test.shared';
 
@@ -779,6 +767,55 @@ describe('ApiClient - index endpoints', () => {
 
 			expect(fetch).toHaveBeenCalledWith(
 				`${BASE_URL}/indexes/..%2Fbilling%2Fsubscription/metrics`,
+				expect.any(Object)
+			);
+		});
+
+		it('GET /indexes/:name/infrastructure returns the customer infrastructure response', async () => {
+			const expected: IndexInfrastructureResponse = {
+				index: 'products',
+				primary: {
+					region: 'us-east-1',
+					status: 'ready',
+					utilization: 'yellow'
+				},
+				replicas: [
+					{
+						region: 'us-west-2',
+						status: 'ready',
+						lag_ops: 2,
+						utilization: null
+					}
+				],
+				footprint: {
+					documents_count: 1500,
+					storage_bytes: 4096,
+					search_requests_total: 9876,
+					write_operations_total: 321
+				},
+				headroom: 'busy',
+				minimum_refresh_interval_seconds: 60
+			};
+			const fetch = mockFetch(200, expected);
+			client.setFetch(fetch);
+
+			const result = await client.getIndexInfrastructure('products');
+
+			expect(fetch).toHaveBeenCalledWith(`${BASE_URL}/indexes/products/infrastructure`, {
+				method: 'GET',
+				headers: { 'Content-Type': 'application/json', Authorization: 'Bearer my-jwt-token' }
+			});
+			expect(result).toEqual(expected);
+		});
+
+		it('GET /indexes/:name/infrastructure encodes untrusted index names', async () => {
+			const fetch = mockFetch(200, {});
+			client.setFetch(fetch);
+
+			await client.getIndexInfrastructure('../billing/subscription');
+
+			expect(fetch).toHaveBeenCalledWith(
+				`${BASE_URL}/indexes/..%2Fbilling%2Fsubscription/infrastructure`,
 				expect.any(Object)
 			);
 		});

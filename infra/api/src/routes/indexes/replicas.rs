@@ -1,14 +1,7 @@
-//! Stub summary for infra/api/src/routes/indexes/replicas.rs.
-//!
-//! Split out of `lifecycle.rs` when that file crossed the 850-line gate. The
-//! `record_caller` identity labels below intentionally keep their
-//! `routes.indexes.lifecycle.*` prefix: they are an observed identity contract
-//! asserted verbatim in `tests/common/engine_index_identity_test_support.rs`,
-//! not a reflection of which file the handler lives in.
 use super::*;
 use crate::services::engine_index_identity_observer::record_caller;
 
-fn map_replica_error(error: ReplicaError) -> ApiError {
+pub(super) fn map_replica_error(error: ReplicaError) -> ApiError {
     match error {
         ReplicaError::IndexNotFound | ReplicaError::ReplicaNotFound => {
             ApiError::NotFound(error.to_string())

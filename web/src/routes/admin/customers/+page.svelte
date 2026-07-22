@@ -132,6 +132,7 @@
 						<th scope="col" class="px-4 py-3">Name</th>
 						<th scope="col" class="px-4 py-3">Email</th>
 						<th scope="col" class="px-4 py-3">Status</th>
+						<th scope="col" class="px-4 py-3">Plan</th>
 						<th scope="col" class="px-4 py-3">Created</th>
 						<th scope="col" class="px-4 py-3">Last activity</th>
 						<th scope="col" class="px-4 py-3">Indexes</th>
@@ -175,6 +176,9 @@
 									{customer.status}
 								</span>
 							</td>
+							<td class="px-4 py-3 text-slate-300" data-testid="customer-plan"
+								>{customer.billing_plan}</td
+							>
 							<td class="px-4 py-3 text-xs text-slate-400">{formatDate(customer.created_at)}</td>
 							<td
 								class="px-4 py-3 text-slate-300"

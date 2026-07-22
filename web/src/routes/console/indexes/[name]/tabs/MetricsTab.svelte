@@ -14,9 +14,10 @@
 		metrics: IndexMetricsResponse | null;
 		error: MetricsError | null;
 		indexName: string;
+		infrastructureTabHref: string;
 	};
 
-	let { metrics, error, indexName }: Props = $props();
+	let { metrics, error, indexName, infrastructureTabHref }: Props = $props();
 
 	let refreshInFlight = $state(false);
 
@@ -88,6 +89,15 @@
 			</p>
 		</div>
 		<div class="flex flex-col items-start gap-2 sm:items-end">
+			<!-- eslint-disable svelte/no-navigation-without-resolve -- the shell owns this resolved tab URL; resolving the query-bearing prop again would duplicate its URL contract. -->
+			<a
+				href={infrastructureTabHref}
+				class="text-sm font-medium text-flapjack-rose hover:underline"
+				data-testid="metrics-view-infrastructure-link"
+			>
+				View infrastructure and headroom
+			</a>
+			<!-- eslint-enable svelte/no-navigation-without-resolve -->
 			<button
 				type="button"
 				class="rounded-md border border-flapjack-ink/25 px-3 py-1.5 text-sm font-medium text-flapjack-ink hover:bg-flapjack-cream/70 disabled:cursor-not-allowed disabled:opacity-50"

@@ -9,15 +9,51 @@
  */
 
 import { expect, test } from '../../../fixtures/fixtures';
+import type { VmHostMetricsResponse } from '../../../../src/lib/admin-client';
+import { formatBytes } from '../../../../src/lib/format';
+import { utilPercent } from '../../../../src/lib/vm-capacity';
+
+type ArrangeFleetSeedParams = {
+	createUser: (
+		email: string,
+		password: string,
+		name?: string
+	) => Promise<{ customerId: string; token: string; email: string; password: string }>;
+	ensureLocalSharedVmInventory: (region: string) => Promise<void>;
+	seedAdminDeployment: (
+		customer: { customerId: string; token: string; email: string; password: string },
+		options?: { region?: string }
+	) => Promise<unknown>;
+	testRegion: string;
+};
+
+async function arrangeSeededFleet({
+	createUser,
+	ensureLocalSharedVmInventory,
+	seedAdminDeployment,
+	testRegion
+}: ArrangeFleetSeedParams): Promise<string> {
+	const seed = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+	const seededRegion = `${testRegion}-${seed}`;
+	await ensureLocalSharedVmInventory(seededRegion);
+	const customer = await createUser(
+		`fleet-capacity-${seed}@e2e.griddle.test`,
+		'TestPassword123!',
+		`Fleet Capacity ${seed}`
+	);
+	await seedAdminDeployment(customer, { region: seededRegion });
+	return seededRegion;
+}
 
 async function gotoFleetWithRows(page: import('@playwright/test').Page): Promise<number> {
 	await page.goto('/admin/fleet');
 	await expect(page.getByRole('heading', { name: 'Fleet Overview' })).toBeVisible();
+	const fleetRows = page.getByTestId(/^fleet-row-/);
 
 	await expect
 		.poll(
 			async () => {
-				const rowCount = await page.getByTestId('fleet-table-body').locator('tr').count();
+				const rowCount = await fleetRows.count();
 				if (rowCount > 0) {
 					return rowCount;
 				}
@@ -38,17 +74,18 @@ async function gotoFleetWithRows(page: import('@playwright/test').Page): Promise
 		)
 		.toBeGreaterThan(0);
 
-	return page.getByTestId('fleet-table-body').locator('tr').count();
+	return fleetRows.count();
 }
 
 async function gotoFleetWithVmRows(page: import('@playwright/test').Page): Promise<number> {
 	await page.goto('/admin/fleet');
 	await expect(page.getByRole('heading', { name: 'Fleet Overview' })).toBeVisible();
+	const capacityRows = page.getByTestId(/^capacity-row-/);
 
 	await expect
 		.poll(
 			async () => {
-				const rowCount = await page.getByTestId('vm-table-body').locator('tr').count();
+				const rowCount = await capacityRows.count();
 				if (rowCount > 0) {
 					return rowCount;
 				}
@@ -66,7 +103,31 @@ async function gotoFleetWithVmRows(page: import('@playwright/test').Page): Promi
 		)
 		.toBeGreaterThan(0);
 
-	return page.getByTestId('vm-table-body').locator('tr').count();
+	return capacityRows.count();
+}
+
+function expectedHostMetricCells(
+	metrics: VmHostMetricsResponse | null
+): [string, string, string, string] {
+	if (!metrics) {
+		return ['No host data', 'No host data', 'No host data', 'No host data'];
+	}
+	const disk =
+		metrics.disk_used_bytes === null ||
+		metrics.disk_total_bytes === null ||
+		metrics.disk_total_bytes <= 0
+			? '—'
+			: `${utilPercent(metrics.disk_used_bytes, metrics.disk_total_bytes)}%`;
+	const ram =
+		metrics.mem_total_bytes <= 0
+			? '—'
+			: `${utilPercent(metrics.mem_used_bytes, metrics.mem_total_bytes)}%`;
+	return [
+		disk,
+		`${metrics.cpu_pct}%`,
+		ram,
+		`RX total ${formatBytes(metrics.net_rx_bytes)} / TX total ${formatBytes(metrics.net_tx_bytes)}`
+	];
 }
 
 test.describe('Admin fleet overview', () => {
@@ -79,11 +140,22 @@ test.describe('Admin fleet overview', () => {
 	});
 
 	test('seeded fleet rows render and filter controls narrow that same visible row set', async ({
-		page
+		page,
+		createUser,
+		ensureLocalSharedVmInventory,
+		seedAdminDeployment,
+		testRegion
 	}) => {
+		await arrangeSeededFleet({
+			createUser,
+			ensureLocalSharedVmInventory,
+			seedAdminDeployment,
+			testRegion
+		});
 		const initialRowCount = await gotoFleetWithRows(page);
+		await page.getByRole('checkbox', { name: 'Auto-refresh (5s)' }).uncheck();
 		const tableBody = page.getByTestId('fleet-table-body');
-		const rows = tableBody.locator('tr');
+		const rows = page.getByTestId(/^fleet-row-/);
 		expect(
 			initialRowCount,
 			'missing seeded fleet rows required to prove fleet-table-body rendering'
@@ -92,11 +164,11 @@ test.describe('Admin fleet overview', () => {
 
 		const rowDetails = await Promise.all(
 			Array.from({ length: initialRowCount }, async (_, index) => {
-				const row = rows.nth(index);
+				const cellText = await rows.nth(index).getByRole('cell').allTextContents();
 				return {
-					shortId: (await row.locator('td').nth(0).textContent())?.trim() ?? '',
-					provider: (await row.locator('td').nth(1).textContent())?.trim() ?? '',
-					status: (await row.locator('td').nth(3).textContent())?.trim() ?? ''
+					shortId: cellText[0]?.trim() ?? '',
+					provider: cellText[1]?.trim() ?? '',
+					status: cellText[3]?.trim() ?? ''
 				};
 			})
 		);
@@ -134,10 +206,9 @@ test.describe('Admin fleet overview', () => {
 			await expect(rows).toHaveCount(matchingStatusCount);
 			expect(matchingStatusCount).toBeLessThan(initialRowCount);
 			await expect(tableBody).toContainText(statusProbeRow!.shortId);
-
-			for (let index = 0; index < matchingStatusCount; index += 1) {
-				await expect(rows.nth(index).locator('td').nth(3)).toContainText(seededStatus);
-			}
+			await expect(tableBody.getByRole('cell', { name: seededStatus, exact: true })).toHaveCount(
+				matchingStatusCount
+			);
 		} else {
 			await page.getByTestId('status-filter').selectOption(uniqueStatuses[0] ?? 'all');
 			await expect(rows).toHaveCount(initialRowCount);
@@ -158,32 +229,43 @@ test.describe('Admin fleet overview', () => {
 			await expect(rows).toHaveCount(matchingProviderCount);
 			expect(matchingProviderCount).toBeLessThan(initialRowCount);
 			await expect(tableBody).toContainText(providerProbeRow!.shortId);
-
-			for (let index = 0; index < matchingProviderCount; index += 1) {
-				await expect(rows.nth(index).locator('td').nth(1)).toContainText(seededProvider);
-			}
+			await expect(tableBody.getByRole('cell', { name: seededProvider, exact: true })).toHaveCount(
+				matchingProviderCount
+			);
 		} else {
 			await page.getByTestId('provider-filter').selectOption(uniqueProviders[0] ?? 'all');
 			await expect(rows).toHaveCount(initialRowCount);
 		}
 	});
 
-	test('VM infrastructure hostname opens the VM detail page', async ({ page }) => {
+	test('VM infrastructure hostname opens the VM detail page', async ({
+		page,
+		createUser,
+		ensureLocalSharedVmInventory,
+		seedAdminDeployment,
+		testRegion
+	}) => {
+		const seededRegion = await arrangeSeededFleet({
+			createUser,
+			ensureLocalSharedVmInventory,
+			seedAdminDeployment,
+			testRegion
+		});
 		await gotoFleetWithVmRows(page);
 		await page.getByTestId('auto-refresh-toggle').uncheck();
 
-		const vmTable = page.getByTestId('vm-table-body');
-		const seededHostnameLink = vmTable.getByRole('link', { name: /^e2e-seed-/ }).first();
-		const firstHostnameLink = (await seededHostnameLink.count())
-			? seededHostnameLink
-			: vmTable.getByRole('link').first();
-		await expect(firstHostnameLink).toBeVisible();
-		const hostname = (await firstHostnameLink.textContent())?.trim() ?? '';
+		const vmTable = page.getByTestId('capacity-table-body');
+		const seededHostnameLink = vmTable.getByRole('link', { name: `local-dev-${seededRegion}` });
+		await expect(seededHostnameLink).toBeVisible();
+		const hostname = (await seededHostnameLink.textContent())?.trim() ?? '';
 		expect(hostname, 'VM hostname link should have visible text').not.toBe('');
+		const detailHref = await seededHostnameLink.getAttribute('href');
+		expect(detailHref, 'VM hostname link should target the VM detail route').toMatch(
+			/^\/admin\/fleet\/[^/]+$/
+		);
 
-		await firstHostnameLink.click();
+		await Promise.all([page.waitForURL(`**${detailHref}`), seededHostnameLink.click()]);
 
-		await expect(page).toHaveURL(/\/admin\/fleet\/[^/]+$/);
 		const vmInfoSection = page.getByTestId('vm-info-section');
 		await expect(vmInfoSection).toBeVisible({ timeout: 30_000 });
 		await expect(vmInfoSection).toContainText(hostname);
@@ -192,6 +274,99 @@ test.describe('Admin fleet overview', () => {
 			'href',
 			'/admin/fleet'
 		);
+	});
+
+	test('seeded VM capacity row and region rollup render exact capacity evidence', async ({
+		page,
+		createUser,
+		ensureLocalSharedVmInventory,
+		seedAdminDeployment,
+		readAdminVmHostMetricsEvidence,
+		elementHasHorizontalOverflow,
+		testRegion
+	}) => {
+		await page.setViewportSize({ width: 390, height: 844 });
+		const seededRegion = await arrangeSeededFleet({
+			createUser,
+			ensureLocalSharedVmInventory,
+			seedAdminDeployment,
+			testRegion
+		});
+		const hostMetricsBeforeLoad = await readAdminVmHostMetricsEvidence({ region: seededRegion });
+		await gotoFleetWithVmRows(page);
+		await page.getByRole('checkbox', { name: 'Auto-refresh (5s)' }).uncheck();
+		const hostMetricsAfterLoad = await readAdminVmHostMetricsEvidence({
+			vmId: hostMetricsBeforeLoad.vmId
+		});
+		const heading = page.getByRole('heading', { name: 'Fleet Overview' });
+		const refreshControl = page.getByText('Auto-refresh (5s)', { exact: true });
+		await expect(heading).toBeVisible();
+		await expect(refreshControl).toBeVisible();
+		const headingBox = await heading.boundingBox();
+		const toggleBox = await refreshControl.boundingBox();
+		expect(headingBox, 'mobile heading should have a rendered box').not.toBeNull();
+		expect(toggleBox, 'mobile auto-refresh control should have a rendered box').not.toBeNull();
+		expect(headingBox!.x + headingBox!.width).toBeLessThanOrEqual(toggleBox!.x);
+
+		const capacityTable = page.getByTestId('capacity-table-body');
+		const capacityTableScroll = page.getByTestId('capacity-table-scroll');
+		expect(
+			await elementHasHorizontalOverflow(capacityTableScroll),
+			'mobile capacity table should preserve access through horizontal overflow'
+		).toBe(true);
+		const seededHostname = `local-dev-${seededRegion}`;
+		const seededHostnameLink = capacityTable.getByRole('link', { name: seededHostname });
+		await expect(seededHostnameLink).toBeVisible();
+		const seededVmHref = await seededHostnameLink.getAttribute('href');
+		expect(seededVmHref, 'seeded VM hostname should target its detail route').toMatch(
+			/^\/admin\/fleet\/[^/]+$/
+		);
+		const seededVmId = seededVmHref!.slice('/admin/fleet/'.length);
+		expect(seededVmId).toBe(hostMetricsBeforeLoad.vmId);
+		const seededRow = page.getByTestId(`capacity-row-${seededVmId}`);
+		await expect(seededRow).toContainText(seededHostname);
+		await expect(seededRow).toContainText(seededRegion);
+		await expect(seededRow).toContainText('local');
+		await expect(page.getByTestId(`vm-health-${seededVmId}`)).toHaveText('unknown');
+		await expect(page.getByTestId(`tenant-count-${seededVmId}`)).toHaveText('0');
+		await expect(page.getByTestId(`index-count-${seededVmId}`)).toHaveText('0');
+
+		const diskCell = page.getByTestId(`capacity-util-${seededVmId}-disk_bytes`);
+		await expect(diskCell).toHaveText('0%');
+		const renderedHostCells = [
+			await page.getByTestId(`host-disk-${seededVmId}`).textContent(),
+			await page.getByTestId(`host-cpu-${seededVmId}`).textContent(),
+			await page.getByTestId(`host-ram-${seededVmId}`).textContent(),
+			await page.getByTestId(`host-net-${seededVmId}`).textContent()
+		].map((value) => value?.trim() ?? '') as [string, string, string, string];
+		expect([
+			expectedHostMetricCells(hostMetricsBeforeLoad.metrics),
+			expectedHostMetricCells(hostMetricsAfterLoad.metrics)
+		]).toContainEqual(renderedHostCells);
+
+		// The seeded region is unique to this test and ensureLocalSharedVmInventory
+		// creates no replica rows, so this VM deterministically has neither replica
+		// role. Exact primary/replica join correctness is covered by the component test.
+		await expect(page.getByRole('columnheader', { name: 'Replica placement' })).toBeVisible();
+		await expect(page.getByTestId(`capacity-replicas-${seededVmId}`)).toHaveText('No replicas');
+		const killControl = page.getByTestId(`kill-vm-${seededVmId}`);
+		await killControl.scrollIntoViewIfNeeded();
+		await expect(killControl).toBeVisible();
+
+		const regionRollup = page.getByTestId(`region-rollup-${seededRegion}`);
+		await expect(regionRollup).toBeVisible();
+		await expect(regionRollup).toContainText(seededRegion);
+		await expect(regionRollup).toContainText('1 VM');
+		await expect(regionRollup).toContainText('Aggregate disk utilization');
+		await expect(regionRollup).toContainText('0%');
+
+		const deploymentTableScroll = page.getByTestId('deployment-table-scroll');
+		expect(
+			await elementHasHorizontalOverflow(deploymentTableScroll),
+			'mobile deployment table should preserve access through horizontal overflow'
+		).toBe(true);
+		await page.getByTestId('status-filter').scrollIntoViewIfNeeded();
+		await expect(page.getByTestId('status-filter')).toBeVisible();
 	});
 
 	test('admin navigation links are all present', async ({ page }) => {

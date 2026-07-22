@@ -50,6 +50,7 @@ pub struct TenantResponse {
     pub email: String,
     pub status: String,
     pub billing_plan: String,
+    pub index_count: i64,
     pub last_accessed_at: Option<DateTime<Utc>>,
     pub overdue_invoice_count: i64,
     pub billing_health: BillingHealth,
@@ -100,6 +101,7 @@ pub struct CustomerSnapshotResponse {
 fn tenant_response_from_signals(
     customer: Customer,
     invoice_signals: InvoiceSignals,
+    index_count: i64,
 ) -> TenantResponse {
     let signals = BillingHealthSignals {
         overdue_invoice_count: customer.overdue_invoice_count,
@@ -116,6 +118,7 @@ fn tenant_response_from_signals(
         email: customer.email,
         status: customer.status,
         billing_plan,
+        index_count,
         last_accessed_at: customer.last_accessed_at,
         overdue_invoice_count: customer.overdue_invoice_count,
         billing_health,
@@ -253,7 +256,7 @@ pub async fn create_tenant(
     // A freshly created customer has no invoices yet, so default signals are
     // accurate here AND avoid adding a fallible repo read after the
     // create has already committed.
-    let response = tenant_response_from_signals(customer, InvoiceSignals::default());
+    let response = tenant_response_from_signals(customer, InvoiceSignals::default(), 0);
     Ok((StatusCode::CREATED, Json(response)))
 }
 
@@ -265,7 +268,8 @@ pub async fn list_tenants(
     let mut tenants: Vec<TenantResponse> = Vec::with_capacity(customers.len());
     for customer in customers {
         let signals = fetch_invoice_signals(&state, customer.id, &customer.status).await?;
-        tenants.push(tenant_response_from_signals(customer, signals));
+        let index_count = state.tenant_repo.count_by_customer(customer.id).await?;
+        tenants.push(tenant_response_from_signals(customer, signals, index_count));
     }
     Ok(Json(tenants))
 }
@@ -281,7 +285,12 @@ pub async fn get_tenant(
         .await?
         .ok_or_else(|| ApiError::NotFound("tenant not found".into()))?;
     let signals = fetch_invoice_signals(&state, customer.id, &customer.status).await?;
-    Ok(Json(tenant_response_from_signals(customer, signals)))
+    let index_count = state.tenant_repo.count_by_customer(customer.id).await?;
+    Ok(Json(tenant_response_from_signals(
+        customer,
+        signals,
+        index_count,
+    )))
 }
 
 /// `PUT /admin/tenants/{id}` — partial update of tenant fields.
@@ -350,6 +359,10 @@ pub async fn update_tenant(
     // post-write failures from turning a committed update into an error.
     let invoice_signals =
         fetch_invoice_signals(&state, existing_customer.id, &existing_customer.status).await?;
+    let index_count = state
+        .tenant_repo
+        .count_by_customer(existing_customer.id)
+        .await?;
 
     let mut customer = if name.is_some() || email.is_some() {
         state
@@ -385,6 +398,7 @@ pub async fn update_tenant(
     Ok(Json(tenant_response_from_signals(
         customer,
         invoice_signals,
+        index_count,
     )))
 }
 

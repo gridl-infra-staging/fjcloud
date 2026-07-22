@@ -326,6 +326,31 @@ flapjack_receipt_value() {
     grep -E "^${key}=" "$receipt_path" | head -n 1 | cut -d= -f2-
 }
 
+flapjack_binary_workspace_digest() {
+    local binary_path="$1"
+    local build_info
+    build_info="$("$binary_path" build-info --json 2>/dev/null)" || return 1
+    python3 - "$build_info" <<'PY'
+import json
+import sys
+
+try:
+    payload = json.loads(sys.argv[1])
+except (json.JSONDecodeError, OSError):
+    raise SystemExit(1)
+
+build = payload.get("build") if isinstance(payload.get("build"), dict) else payload
+if not isinstance(build, dict):
+    raise SystemExit(1)
+
+workspace_digest = build.get("workspaceDigest") or build.get("build_id")
+if not isinstance(workspace_digest, str) or not workspace_digest:
+    raise SystemExit(1)
+
+print(workspace_digest)
+PY
+}
+
 flapjack_provenance_token_after() {
     local provenance="$1" token="$2"
     python3 - "$provenance" "$token" <<'PY'
@@ -391,9 +416,12 @@ flapjack_source_receipt_is_current() {
     [ -x "$binary_path" ] || return 1
     [ -f "$receipt_path" ] || return 1
 
-    local expected_binary_sha actual_binary_sha
+    local expected_binary_sha actual_binary_sha expected_build_id actual_build_id
     expected_binary_sha="$(flapjack_receipt_value "$receipt_path" "binary_sha256" || true)"
     actual_binary_sha="$(flapjack_binary_sha256 "$binary_path")"
+    expected_build_id="$(flapjack_receipt_value "$receipt_path" "workspaceDigest" || true)"
+    [ -n "$expected_build_id" ] || expected_build_id="$(flapjack_receipt_value "$receipt_path" "build_id" || true)"
+    actual_build_id="$(flapjack_binary_workspace_digest "$binary_path" || true)"
 
     [ "$(flapjack_receipt_value "$receipt_path" "checkout_path" || true)" = "$source_root" ] || return 1
     [ "$(flapjack_receipt_value "$receipt_path" "source_digest" || true)" = "$source_digest" ] || return 1
@@ -401,15 +429,21 @@ flapjack_source_receipt_is_current() {
     [ "$(flapjack_receipt_value "$receipt_path" "cargo_package" || true)" = "$FJCLOUD_FLAPJACK_BUILD_PACKAGE" ] || return 1
     [ -n "$expected_binary_sha" ] || return 1
     [ "$expected_binary_sha" = "$actual_binary_sha" ] || return 1
+    [ -n "$expected_build_id" ] || return 1
+    [ "$expected_build_id" = "$actual_build_id" ] || return 1
 }
 
 write_flapjack_source_receipt() {
     local source_root="$1" source_digest="$2" dirty_bit="$3" build_log="$4"
-    local receipt_path receipt_dir receipt_tmp binary_path binary_sha built_at target_triple git_revision
+    local receipt_path receipt_dir receipt_tmp binary_path binary_sha built_at target_triple git_revision workspace_digest
     receipt_path="$(flapjack_receipt_path_for_source "$source_root")"
     receipt_dir="$(dirname "$receipt_path")"
     binary_path="$source_root/target/debug/flapjack"
     binary_sha="$(flapjack_binary_sha256 "$binary_path")"
+    workspace_digest="$(flapjack_binary_workspace_digest "$binary_path")" || {
+        printf 'Flapjack binary did not report build-info workspaceDigest: %s\n' "$binary_path" >&2
+        return 1
+    }
     built_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
     target_triple="$(rustc -vV 2>/dev/null | awk -F': ' '/^host:/ {print $2; exit}')"
     git_revision="$(git -C "$source_root" rev-parse HEAD 2>/dev/null || printf 'unknown')"
@@ -419,7 +453,8 @@ write_flapjack_source_receipt() {
         printf 'checkout_path=%s\n' "$source_root"
         printf 'git_revision=%s\n' "$git_revision"
         printf 'source_digest=%s\n' "$source_digest"
-        printf 'build_id=%s\n' "$source_digest"
+        printf 'workspaceDigest=%s\n' "$workspace_digest"
+        printf 'build_id=%s\n' "$workspace_digest"
         printf 'dirty=%s\n' "$dirty_bit"
         printf 'cargo_package=%s\n' "$FJCLOUD_FLAPJACK_BUILD_PACKAGE"
         printf 'cargo_profile=debug\n'
@@ -475,7 +510,10 @@ resolve_source_backed_flapjack_binary() {
         release_flapjack_source_lock "$lock_path"
         return 1
     }
-    write_flapjack_source_receipt "$source_root" "$source_digest" "$dirty_bit" "$build_log"
+    if ! write_flapjack_source_receipt "$source_root" "$source_digest" "$dirty_bit" "$build_log"; then
+        release_flapjack_source_lock "$lock_path"
+        return 1
+    fi
     set_flapjack_binary_provenance "source-build:$receipt_path"
     printf '%s\n' "$binary_path"
     release_flapjack_source_lock "$lock_path"

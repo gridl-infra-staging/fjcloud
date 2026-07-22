@@ -19,6 +19,7 @@ use crate::repos::{
 use crate::services::provisioning::{
     is_canonical_shared_vm_hostname_for_domain, SharedVmProvisioningMode,
 };
+use crate::services::vm_health_rollup::{health_rollup_for_tenants, VmHealth};
 use crate::state::AppState;
 
 const WARM_FLOOR_REGION: &str = "us-east-1";
@@ -36,6 +37,15 @@ pub struct VmDetailVm {
     #[serde(flatten)]
     pub inventory: VmInventory,
     pub provider_vm_id: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct VmListEntry {
+    #[serde(flatten)]
+    pub inventory: VmInventory,
+    pub tenant_count: i64,
+    pub index_count: i64,
+    pub health: VmHealth,
 }
 
 #[derive(Debug, Deserialize)]
@@ -333,6 +343,20 @@ pub async fn get_vm_detail(
     }))
 }
 
+pub async fn get_vm_host_metrics(
+    _auth: AdminAuth,
+    State(state): State<AppState>,
+    Path(vm_id): Path<Uuid>,
+) -> Result<impl IntoResponse, ApiError> {
+    state
+        .vm_inventory_repo
+        .get(vm_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("VM not found".into()))?;
+
+    Ok(Json(state.vm_host_metrics_repo.latest_for_vm(vm_id).await?))
+}
+
 // ---------------------------------------------------------------------------
 // VM list endpoint
 // ---------------------------------------------------------------------------
@@ -347,7 +371,30 @@ pub async fn list_vms(
     State(state): State<AppState>,
 ) -> Result<impl IntoResponse, ApiError> {
     let vms = state.vm_inventory_repo.list_active(None).await?;
-    Ok(Json(vms))
+    let mut entries = Vec::with_capacity(vms.len());
+    for vm in vms {
+        let tenants = state.tenant_repo.list_by_vm(vm.id).await?;
+        let tenant_count = i64::try_from(
+            tenants
+                .iter()
+                .map(|tenant| tenant.customer_id)
+                .collect::<BTreeSet<_>>()
+                .len(),
+        )
+        .map_err(|_| ApiError::Internal("VM tenant count overflowed i64".into()))?;
+        let index_count = i64::try_from(tenants.len())
+            .map_err(|_| ApiError::Internal("VM index count overflowed i64".into()))?;
+
+        let health = health_rollup_for_tenants(&tenants, state.deployment_repo.as_ref()).await?;
+
+        entries.push(VmListEntry {
+            inventory: vm,
+            tenant_count,
+            index_count,
+            health,
+        });
+    }
+    Ok(Json(entries))
 }
 
 pub async fn get_retirement_blockers(

@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/svelte';
 import { fireEvent } from '@testing-library/dom';
 import { formatDate } from '$lib/format';
+import type { InvoiceDetailResponse } from '$lib/api/types';
 import { DETAIL_FIXTURE, EMPTY_AUDIT_FIXTURE_ROWS } from './admin-customer-detail.test-fixtures';
 
 vi.mock('$app/forms', () => ({
@@ -30,7 +31,7 @@ vi.mock('$env/dynamic/private', () => ({
 
 const EMPTY_DETAIL_FIXTURE = {
 	...DETAIL_FIXTURE,
-	indexes: null,
+	indexes: [],
 	deployments: [],
 	usage: null,
 	invoices: [],
@@ -50,16 +51,20 @@ const UNAVAILABLE_DETAIL_FIXTURE = {
 	audit: null
 };
 
-async function renderCustomerDetailPage(overrides = {}) {
+async function renderCustomerDetailPage(
+	overrides: Record<string, unknown> = {},
+	form?: { error?: string; message?: string; invoiceDetail?: InvoiceDetailResponse }
+) {
 	const CustomerDetailPage = (await import('./[id]/+page.svelte')).default;
 
-	render(CustomerDetailPage, {
+	return render(CustomerDetailPage, {
 		data: {
 			environment: 'test',
 			isAuthenticated: true,
 			...DETAIL_FIXTURE,
 			...overrides
-		}
+		},
+		form
 	});
 }
 
@@ -101,6 +106,27 @@ describe('Customer detail tab content', () => {
 		vi.clearAllMocks();
 	});
 
+	it('indexes tab renders real inventory rows from fixture data', async () => {
+		await renderCustomerDetailPage({
+			indexes: [
+				{ name: 'alpha', region: 'us-east-1', status: 'running', entries: 0, tier: 'active' }
+			]
+		});
+
+		await openTab('Indexes');
+
+		expect(screen.queryByText('Index data unavailable.')).not.toBeInTheDocument();
+		const indexesSection = getSectionByHeading('Indexes');
+		const rows = within(indexesSection).getAllByRole('row');
+		expect(rows).toHaveLength(2);
+		const alphaRow = rows[1];
+		expect(within(alphaRow).getByRole('cell', { name: 'alpha' })).toBeInTheDocument();
+		expect(within(alphaRow).getByRole('cell', { name: 'us-east-1' })).toBeInTheDocument();
+		expect(within(alphaRow).getByRole('cell', { name: 'running' })).toBeInTheDocument();
+		expect(within(alphaRow).getByRole('cell', { name: '0' })).toBeInTheDocument();
+		expect(within(alphaRow).getByTestId('tier-badge')).toHaveTextContent('active');
+	});
+
 	// --- Indexes null sentinel ---
 
 	it('shows "Index data unavailable." when indexes is null', async () => {
@@ -123,6 +149,7 @@ describe('Customer detail tab content', () => {
 		expect(getDefinitionValue(infoSection, 'Name')).toHaveTextContent('Beta Labs');
 		expect(getDefinitionValue(infoSection, 'Email')).toHaveTextContent('billing@beta.dev');
 		expect(getDefinitionValue(infoSection, 'Status')).toHaveTextContent('suspended');
+		expect(getDefinitionValue(infoSection, 'Plan')).toHaveTextContent('shared');
 		expect(getDefinitionValue(infoSection, 'Created')).toHaveTextContent(
 			formatDate(DETAIL_FIXTURE.tenant.created_at)
 		);
@@ -237,6 +264,174 @@ describe('Customer detail tab content', () => {
 		expect(screen.getByText('Deployment ID is required')).toBeInTheDocument();
 	});
 
+	it('invoices tab renders view forms for each invoice row', async () => {
+		await renderCustomerDetailPage();
+
+		await openTab('Invoices');
+
+		const invoicesSection = getSectionByHeading('Invoices');
+		const rows = within(invoicesSection).getAllByRole('row').slice(1);
+		expect(rows).toHaveLength(DETAIL_FIXTURE.invoices.length);
+
+		for (const [index, row] of rows.entries()) {
+			const button = within(row).getByRole('button', { name: 'View' });
+			expect(button).toHaveAttribute('type', 'submit');
+			const form = button.closest('form');
+			expect(form).toBeInstanceOf(HTMLFormElement);
+			expect(form).toHaveAttribute('method', 'POST');
+			expect(form).toHaveAttribute('action', '?/viewInvoice');
+			const hiddenInvoiceId = form?.querySelector('input[name="invoice_id"]');
+			expect(hiddenInvoiceId).toBeInstanceOf(HTMLInputElement);
+			expect(hiddenInvoiceId).toHaveAttribute('type', 'hidden');
+			expect(hiddenInvoiceId).toHaveValue(DETAIL_FIXTURE.invoices[index].id);
+		}
+	});
+
+	it('invoices tab keeps active panel and renders selected Stripe invoice drill-in links exactly', async () => {
+		const invoiceDetail: InvoiceDetailResponse = {
+			id: DETAIL_FIXTURE.invoices[0].id,
+			customer_id: DETAIL_FIXTURE.tenant.id,
+			period_start: '2026-01-01',
+			period_end: '2026-01-31',
+			subtotal_cents: 12000,
+			total_cents: 13000,
+			tax_cents: 1000,
+			currency: 'usd',
+			status: 'paid',
+			minimum_applied: false,
+			stripe_invoice_id: 'in_test_123',
+			hosted_invoice_url: 'https://invoice.stripe.com/i/acct_x/test_123',
+			pdf_url: 'https://invoice.stripe.com/i/acct_x/test_123/pdf',
+			line_items: [],
+			created_at: '2026-02-01T00:00:00Z',
+			finalized_at: '2026-02-01T01:00:00Z',
+			paid_at: '2026-02-02T00:00:00Z'
+		};
+
+		const view = await renderCustomerDetailPage();
+		await openTab('Invoices');
+		await view.rerender({
+			data: {
+				environment: 'test',
+				isAuthenticated: true,
+				...DETAIL_FIXTURE
+			},
+			form: { invoiceDetail }
+		});
+
+		expect(screen.getByRole('heading', { name: 'Invoices' })).toBeInTheDocument();
+		expect(screen.queryByRole('heading', { name: 'Customer Info' })).not.toBeInTheDocument();
+		const panel = screen.getByTestId('invoice-drill-in');
+		expect(within(panel).getByText('in_test_123')).toBeInTheDocument();
+		const hosted = within(panel).getByRole('link', {
+			name: 'https://invoice.stripe.com/i/acct_x/test_123'
+		});
+		expect(hosted).toHaveAttribute('href', 'https://invoice.stripe.com/i/acct_x/test_123');
+		expect(hosted).toHaveAttribute('target', '_blank');
+		expect(hosted).toHaveAttribute('rel', 'noopener');
+		const pdf = within(panel).getByRole('link', {
+			name: 'https://invoice.stripe.com/i/acct_x/test_123/pdf'
+		});
+		expect(pdf).toHaveAttribute('href', 'https://invoice.stripe.com/i/acct_x/test_123/pdf');
+		expect(pdf).toHaveAttribute('target', '_blank');
+		expect(pdf).toHaveAttribute('rel', 'noopener');
+	});
+
+	it('invoices tab renders not-available text instead of links for missing Stripe URLs', async () => {
+		const invoiceDetail: InvoiceDetailResponse = {
+			id: DETAIL_FIXTURE.invoices[1].id,
+			customer_id: DETAIL_FIXTURE.tenant.id,
+			period_start: '2026-02-01',
+			period_end: '2026-02-28',
+			subtotal_cents: 18000,
+			total_cents: 18000,
+			tax_cents: 0,
+			currency: 'usd',
+			status: 'open',
+			minimum_applied: false,
+			stripe_invoice_id: 'in_test_missing_urls',
+			hosted_invoice_url: null,
+			pdf_url: null,
+			line_items: [],
+			created_at: '2026-03-01T00:00:00Z',
+			finalized_at: null,
+			paid_at: null
+		};
+
+		await renderCustomerDetailPage({}, { invoiceDetail });
+
+		await openTab('Invoices');
+
+		const panel = screen.getByTestId('invoice-drill-in');
+		expect(within(panel).getByText('in_test_missing_urls')).toBeInTheDocument();
+		expect(within(panel).getAllByText('Not available')).toHaveLength(2);
+		expect(within(panel).queryByRole('link')).not.toBeInTheDocument();
+	});
+
+	it('invoices tab renders not-available text instead of links for unsafe Stripe URLs', async () => {
+		const invoiceDetail: InvoiceDetailResponse = {
+			id: DETAIL_FIXTURE.invoices[1].id,
+			customer_id: DETAIL_FIXTURE.tenant.id,
+			period_start: '2026-02-01',
+			period_end: '2026-02-28',
+			subtotal_cents: 18000,
+			total_cents: 18000,
+			tax_cents: 0,
+			currency: 'usd',
+			status: 'open',
+			minimum_applied: false,
+			stripe_invoice_id: 'in_test_unsafe_urls',
+			hosted_invoice_url: 'javascript:alert(1)',
+			pdf_url: 'http://billing.example.com/invoice.pdf',
+			line_items: [],
+			created_at: '2026-03-01T00:00:00Z',
+			finalized_at: null,
+			paid_at: null
+		};
+
+		await renderCustomerDetailPage({}, { invoiceDetail });
+
+		await openTab('Invoices');
+
+		const panel = screen.getByTestId('invoice-drill-in');
+		expect(within(panel).getByText('in_test_unsafe_urls')).toBeInTheDocument();
+		expect(within(panel).getAllByText('Not available')).toHaveLength(2);
+		expect(within(panel).queryByRole('link')).not.toBeInTheDocument();
+	});
+
+	it('invoices tab preserves loopback PDF links that the canonical billing invoice screen allows', async () => {
+		const invoiceDetail: InvoiceDetailResponse = {
+			id: DETAIL_FIXTURE.invoices[1].id,
+			customer_id: DETAIL_FIXTURE.tenant.id,
+			period_start: '2026-02-01',
+			period_end: '2026-02-28',
+			subtotal_cents: 18000,
+			total_cents: 18000,
+			tax_cents: 0,
+			currency: 'usd',
+			status: 'open',
+			minimum_applied: false,
+			stripe_invoice_id: 'in_test_loopback_pdf',
+			hosted_invoice_url: null,
+			pdf_url: 'http://localhost:8025/local-invoice/in_local/pdf',
+			line_items: [],
+			created_at: '2026-03-01T00:00:00Z',
+			finalized_at: null,
+			paid_at: null
+		};
+
+		await renderCustomerDetailPage({}, { invoiceDetail });
+
+		await openTab('Invoices');
+
+		const panel = screen.getByTestId('invoice-drill-in');
+		const pdf = within(panel).getByRole('link', {
+			name: 'http://localhost:8025/local-invoice/in_local/pdf'
+		});
+		expect(pdf).toHaveAttribute('href', 'http://localhost:8025/local-invoice/in_local/pdf');
+		expect(within(panel).getByText('Not available')).toBeInTheDocument();
+	});
+
 	it('audit tab renders populated timeline labels and relative timestamps', async () => {
 		vi.useFakeTimers();
 		vi.setSystemTime(new Date('2026-04-01T12:00:00Z'));
@@ -257,8 +452,15 @@ describe('Customer detail tab content', () => {
 	// --- Empty / unavailable state tests ---
 
 	describe('empty and unavailable states', () => {
-		it('indexes tab shows unavailable when null', async () => {
+		it('indexes tab shows empty message when array is empty', async () => {
 			await renderCustomerDetailPage(EMPTY_DETAIL_FIXTURE);
+
+			await openTab('Indexes');
+			expect(screen.getByText('No indexes found for this customer.')).toBeInTheDocument();
+		});
+
+		it('indexes tab shows unavailable when null', async () => {
+			await renderCustomerDetailPage(UNAVAILABLE_DETAIL_FIXTURE);
 
 			await openTab('Indexes');
 			expect(screen.getByText('Index data unavailable.')).toBeInTheDocument();

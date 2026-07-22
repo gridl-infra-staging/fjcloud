@@ -23,6 +23,7 @@ use crate::repos::StorageBucketRepo;
 use crate::repos::StorageKeyRepo;
 use crate::repos::TenantRepo;
 use crate::repos::UsageRepo;
+use crate::repos::VmHostMetricsRepo;
 use crate::repos::VmInventoryRepo;
 use crate::repos::WebhookEventRepo;
 use crate::services::alerting::AlertService;
@@ -197,6 +198,7 @@ pub struct AppState {
     pub provisioning_service: Arc<ProvisioningService>,
     pub flapjack_proxy: Arc<FlapjackProxy>,
     pub alert_service: Arc<dyn AlertService>,
+    pub vm_host_metrics_repo: Arc<dyn VmHostMetricsRepo + Send + Sync>,
     pub vm_inventory_repo: Arc<dyn VmInventoryRepo + Send + Sync>,
     pub index_migration_repo: Arc<dyn IndexMigrationRepo + Send + Sync>,
     pub discovery_service: Arc<DiscoveryService>,

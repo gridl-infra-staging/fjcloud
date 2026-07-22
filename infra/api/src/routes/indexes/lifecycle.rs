@@ -221,18 +221,7 @@ pub async fn list_indexes(
     let mut responses = Vec::with_capacity(summaries.len());
     for s in summaries {
         let cold_since = resolve_cold_since(&state, s.cold_snapshot_id).await?;
-        responses.push(IndexResponse {
-            name: s.tenant_id,
-            region: s.region,
-            endpoint: s.flapjack_url,
-            entries: 0,
-            data_size_bytes: 0,
-            status: s.health_status,
-            tier: s.tier,
-            last_accessed_at: s.last_accessed_at.map(|ts| ts.to_rfc3339()),
-            cold_since,
-            created_at: s.created_at.to_rfc3339(),
-        });
+        responses.push(index_response_from_summary(s, cold_since));
     }
 
     Ok(Json(responses))
@@ -489,6 +478,7 @@ async fn resolve_shared_vm_delete_target(
     let node_id = super::resolve_shared_vm_proxy_node_id(state, &vm, &deployment).await;
 
     Ok(Some(ResolvedFlapjackTarget {
+        vm_id,
         flapjack_url: vm.flapjack_url,
         node_id,
         region: deployment.region,

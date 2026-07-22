@@ -10,6 +10,7 @@ export const INDEX_DETAIL_TAB_PANEL_TEST_IDS = {
 	suggestions: 'suggestions-section',
 	analytics: 'analytics-section',
 	metrics: 'metrics-tab-panel',
+	infrastructure: 'infrastructure-tab-panel',
 	merchandising: 'merchandising-section',
 	experiments: 'experiments-section',
 	events: 'events-section',
@@ -77,6 +78,11 @@ export const INDEX_DETAIL_TABS = [
 		id: 'metrics',
 		label: 'Metrics',
 		panelTestId: INDEX_DETAIL_TAB_PANEL_TEST_IDS.metrics
+	},
+	{
+		id: 'infrastructure',
+		label: 'Infrastructure',
+		panelTestId: INDEX_DETAIL_TAB_PANEL_TEST_IDS.infrastructure
 	},
 	{
 		id: 'merchandising',

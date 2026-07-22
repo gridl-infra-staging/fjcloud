@@ -20,7 +20,7 @@ The page shows `Customer Management`, search and status-filter controls, and one
 - Unavailable/error: unavailable dataset state shows `Customer data unavailable.` when server returns `customers === null`.
 - Empty: dataset-empty state shows `No customers found.` when `customers.length === 0`.
 - Filter-empty: when dataset exists but search/filter excludes all rows, page shows `No customers match the current filters.`
-- Populated/success: table renders truthful name/email/status/created/last-activity/index-count/billing-health values, supports search and status filter, supports billing-health sort, and exposes quick actions where applicable.
+- Populated/success: table renders truthful name/email/status/plan-tier/created/last-activity/index-count/billing-health values, including exact `index_count` values from the loaded admin tenant response; the unknown marker (`—`) is reserved for an explicit `null` value. The table supports search and status filter, supports billing-health sort, and exposes quick actions where applicable.
 
 ## Mobile Narrow Contract
 
@@ -38,6 +38,8 @@ Baseline viewport: 390px wide (iPhone 14). The page keeps heading, search input,
 
 - [ ] Heading and correct state branch (unavailable, dataset-empty, filter-empty, or table) render from data.
 - [ ] Search plus status filter narrows rows by truthful route data.
+- [ ] Customer rows render the exact plan tier from the loaded customer data.
+- [ ] Customer rows render the exact `index_count` from the loaded customer data, using `—` only when that field is explicitly `null`.
 - [ ] Table rows render last-activity and billing-health semantics from mapped formatter/test owners.
 - [ ] Active customer rows expose quick suspend and quick impersonate actions with detail-route action URLs.
 - [ ] Mobile narrow layout keeps controls and row/actions access usable at 390px.
@@ -49,5 +51,5 @@ Current browser tests cover active-row actions and truthfulness; broader list pa
 ## Automated Coverage
 
 - Browser-unmocked tests: `web/tests/e2e-ui/full/admin/admin-pages.spec.ts`; `web/tests/e2e-ui/full/admin/customer-detail.spec.ts`
-- Component tests: `web/src/routes/admin/customers/admin-customers-list.test.ts`; `web/src/routes/admin/customers/admin-customers.test.ts`
-- Server/contract tests: admin customer route tests.
+- Component tests: `web/src/routes/admin/customers/admin-customers-list.test.ts` covers exact plan-tier values, exact index-count values, and table semantics; `web/src/routes/admin/customers/admin-customers.test.ts`
+- Server/contract tests: admin customer route tests; `infra/api/tests/integration/tenants_test.rs::list_tenants_returns_index_count`

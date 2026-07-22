@@ -4,7 +4,7 @@ use uuid::Uuid;
 
 use crate::models::{InvoiceLineItemRow, InvoiceRow};
 use crate::repos::error::{is_unique_violation, RepoError};
-use crate::repos::invoice_repo::{InvoiceRepo, NewInvoice, NewLineItem};
+use crate::repos::invoice_repo::{AdminInvoiceSummaryRow, InvoiceRepo, NewInvoice, NewLineItem};
 
 pub struct PgInvoiceRepo {
     pool: PgPool,
@@ -83,6 +83,36 @@ impl InvoiceRepo for PgInvoiceRepo {
             "SELECT * FROM invoices WHERE customer_id = $1 ORDER BY period_start DESC",
         )
         .bind(customer_id)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| RepoError::Other(e.to_string()))
+    }
+
+    async fn revenue_summary(&self) -> Result<Vec<AdminInvoiceSummaryRow>, RepoError> {
+        sqlx::query_as::<_, AdminInvoiceSummaryRow>(
+            "SELECT \
+                invoices.id, \
+                invoices.customer_id, \
+                customers.name AS customer_name, \
+                customers.email AS customer_email, \
+                invoices.period_start, \
+                invoices.period_end, \
+                invoices.subtotal_cents, \
+                invoices.tax_cents, \
+                invoices.total_cents, \
+                invoices.currency, \
+                invoices.status, \
+                invoices.minimum_applied, \
+                invoices.stripe_invoice_id, \
+                invoices.hosted_invoice_url, \
+                invoices.pdf_url, \
+                invoices.created_at, \
+                invoices.finalized_at, \
+                invoices.paid_at \
+             FROM invoices \
+             JOIN customers ON customers.id = invoices.customer_id \
+             ORDER BY invoices.period_start DESC, invoices.created_at DESC, invoices.id",
+        )
         .fetch_all(&self.pool)
         .await
         .map_err(|e| RepoError::Other(e.to_string()))

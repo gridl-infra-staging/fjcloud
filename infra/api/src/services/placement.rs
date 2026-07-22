@@ -4,7 +4,7 @@ use uuid::Uuid;
 
 use crate::models::resource_vector::ResourceVector;
 
-const DEFAULT_LOAD_STALENESS_THRESHOLD: Duration = Duration::from_secs(300);
+pub(crate) const DEFAULT_LOAD_STALENESS_THRESHOLD: Duration = Duration::from_secs(300);
 
 /// A VM with its current aggregate load, used as input to placement decisions.
 #[derive(Debug, Clone)]
@@ -87,7 +87,7 @@ pub fn place_index(index_vector: &ResourceVector, vms: &[VmWithLoad]) -> Option<
     best.map(|(id, _)| id)
 }
 
-fn is_fresh_load(
+pub(crate) fn is_fresh_load(
     load_scraped_at: Option<DateTime<Utc>>,
     now: DateTime<Utc>,
     threshold: Duration,

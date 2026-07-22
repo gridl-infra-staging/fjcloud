@@ -207,6 +207,7 @@ async fn resume_shared_vm_create_plan(
 
     Ok(SharedVmCreatePlan {
         target: ResolvedFlapjackTarget {
+            vm_id,
             flapjack_url: vm.flapjack_url.clone(),
             node_id: super::shared_vm_secret_id(&vm).to_string(),
             region: destination.region.clone(),
@@ -657,6 +658,7 @@ pub(crate) async fn create_shared_deployment(
     Ok((
         deployment.id,
         ResolvedFlapjackTarget {
+            vm_id: vm.id,
             flapjack_url: vm.flapjack_url.clone(),
             node_id: super::shared_vm_secret_id(vm).to_string(),
             region: destination.region.clone(),

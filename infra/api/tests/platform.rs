@@ -161,6 +161,8 @@ mod pricing_compare_test;
 mod provisioner_test;
 #[path = "integration/provisioning_service_test.rs"]
 mod provisioning_service_test;
+#[path = "integration/public_infrastructure_test.rs"]
+mod public_infrastructure_test;
 #[path = "integration/public_site_test.rs"]
 mod public_site_test;
 #[path = "integration/rate_card_test.rs"]
@@ -225,6 +227,10 @@ mod tenant_repo_test;
 mod tenants_test;
 #[path = "integration/version_test.rs"]
 mod version_test;
+#[path = "integration/vm_health_rollup_test.rs"]
+mod vm_health_rollup_test;
+#[path = "integration/vm_host_metrics_repo_test.rs"]
+mod vm_host_metrics_repo_test;
 #[path = "integration/vm_inventory_test.rs"]
 mod vm_inventory_test;
 #[path = "integration/webhook_alert_test.rs"]

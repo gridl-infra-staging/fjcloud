@@ -8,5 +8,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| [id] | Server-side handler for the admin customer detail page that loads comprehensive customer data including tenant details, deployments, usage metrics, invoices, rate cards, quotas, and audit logs. |
+| [id] | Loads and displays detailed admin information for a specific customer, including tenant metadata, indexes, deployments, usage, invoices, and quotas. |
 <!-- [scrai:end] -->

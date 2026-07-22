@@ -6,5 +6,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| oauth | The oauth directory contains provider-specific subdirectories with SvelteKit server endpoints that handle OAuth authentication callbacks and webhook event processing for external authentication providers. |
+| oauth | The oauth directory implements OAuth provider authentication handlers that process provider responses and validate authorization codes against CSRF tokens to securely exchange them for JWT tokens. |
 <!-- [scrai:end] -->

@@ -6,11 +6,11 @@
 | broadcast.rs | Stub summary for infra/api/src/routes/admin/broadcast.rs. |
 | deployments.rs | Stub summary for infra/api/src/routes/admin/deployments.rs. |
 | indexes.rs | Stub summary for infra/api/src/routes/admin/indexes.rs. |
-| invoices.rs | Stub summary for invoices.rs. |
+| invoices.rs | Stub summary for infra/api/src/routes/admin/invoices.rs. |
 | migrations.rs | Stub summary for infra/api/src/routes/admin/migrations.rs. |
 | mod.rs | Stub summary for infra/api/src/routes/admin/mod.rs. |
 | rate_cards.rs | Admin rate card routes: CRUD and customer override management. |
-| tenants.rs | Stub summary for tenants.rs. |
+| tenants.rs | Stub summary for infra/api/src/routes/admin/tenants.rs. |
 | tokens.rs | `POST /admin/tokens` — mint a JWT for a given customer.
 
 

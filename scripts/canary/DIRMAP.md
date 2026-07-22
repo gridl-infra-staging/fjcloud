@@ -26,5 +26,5 @@ unavailable so staging gets a clear outside-AWS outage signal. |
 
 | Directory | Summary |
 | --- | --- |
-| contracts | This directory contains integration and contract test scripts that verify system components, external integrations (Algolia, Stripe, OAuth), and API endpoints meet their expected specifications through live and mocked probes, running against staging and production environments. |
+| contracts | — |
 <!-- [scrai:end] -->

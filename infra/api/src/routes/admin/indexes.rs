@@ -12,6 +12,7 @@ use crate::helpers::require_active_customer;
 use crate::models::resource_vector::ResourceVector;
 use crate::models::vm_inventory::NewVmInventory;
 use crate::repos::RepoError;
+use crate::routes::indexes::{index_response_from_summary, IndexResponse};
 use crate::state::AppState;
 use crate::vm_providers::{AWS_VM_PROVIDER, BARE_METAL_VM_PROVIDER};
 
@@ -80,6 +81,25 @@ fn validate_seed_flapjack_url(flapjack_url: &str) -> Result<(), ApiError> {
 // ---------------------------------------------------------------------------
 // Handlers
 // ---------------------------------------------------------------------------
+
+/// GET /admin/tenants/:id/indexes
+pub async fn list_tenant_indexes(
+    _auth: AdminAuth,
+    State(state): State<AppState>,
+    Path(customer_id): Path<Uuid>,
+) -> Result<impl IntoResponse, ApiError> {
+    require_active_customer(state.customer_repo.as_ref(), customer_id).await?;
+
+    let indexes: Vec<IndexResponse> = state
+        .tenant_repo
+        .find_by_customer(customer_id)
+        .await?
+        .into_iter()
+        .map(|summary| index_response_from_summary(summary, None))
+        .collect();
+
+    Ok(Json(indexes))
+}
 
 /// POST /admin/tenants/:id/indexes
 ///

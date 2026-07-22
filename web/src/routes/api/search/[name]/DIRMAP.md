@@ -7,5 +7,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| events | The events directory contains a SvelteKit API endpoint that handles search event operations for a specific search query, exposing event data or actions through the `/api/search/[name]/events/` route. |
+| events | This is a SvelteKit API endpoint handler that serves events search results, accepting a dynamic name parameter and returning matching events data. |
 <!-- [scrai:end] -->

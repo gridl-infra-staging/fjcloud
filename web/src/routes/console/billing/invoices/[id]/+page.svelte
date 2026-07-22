@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import type { InvoiceDetailResponse } from '$lib/api/types';
+	import { safeExternalUrl } from '$lib/billing';
 	import {
 		formatPeriod,
 		formatCents,
@@ -13,31 +14,6 @@
 	let { data } = $props();
 
 	const invoice: InvoiceDetailResponse = $derived(data.invoice);
-	function isLoopbackHttpUrl(parsed: URL): boolean {
-		return (
-			parsed.protocol === 'http:' &&
-			(parsed.hostname === 'localhost' ||
-				parsed.hostname === '127.0.0.1' ||
-				parsed.hostname === '[::1]')
-		);
-	}
-
-	function safeExternalUrl(rawUrl: string | null, allowLoopbackHttp = false): string | null {
-		if (!rawUrl) {
-			return null;
-		}
-
-		try {
-			const parsed = new URL(rawUrl);
-			if (parsed.protocol === 'https:' || (allowLoopbackHttp && isLoopbackHttpUrl(parsed))) {
-				return parsed.toString();
-			}
-			return null;
-		} catch {
-			return null;
-		}
-	}
-
 	const payUrl = $derived(safeExternalUrl(invoice.hosted_invoice_url));
 	const pdfUrl = $derived(safeExternalUrl(invoice.pdf_url, true));
 

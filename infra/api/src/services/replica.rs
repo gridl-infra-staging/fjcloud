@@ -287,6 +287,7 @@ impl ReplicaService {
                 replica_region: replica.replica_region,
                 status: replica.status,
                 lag_ops: replica.lag_ops,
+                replica_vm_id: replica.replica_vm_id,
                 replica_vm_hostname: hostname,
                 replica_flapjack_url: flapjack_url,
                 created_at: replica.created_at,

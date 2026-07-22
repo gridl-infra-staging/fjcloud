@@ -43,6 +43,7 @@ export interface MockFns {
 	getAnalyticsFilters: ReturnType<typeof ViType.fn>;
 	getAnalyticsConversionRate: ReturnType<typeof ViType.fn>;
 	getIndexMetrics: ReturnType<typeof ViType.fn>;
+	getIndexInfrastructure: ReturnType<typeof ViType.fn>;
 	getDebugEvents: ReturnType<typeof ViType.fn>;
 	listExperiments: ReturnType<typeof ViType.fn>;
 	getExperiment: ReturnType<typeof ViType.fn>;
@@ -116,6 +117,31 @@ export const EMPTY_DOCUMENTS = {
 	params: ''
 } as const;
 
+export const DEFAULT_INFRASTRUCTURE = {
+	index: 'products',
+	primary: {
+		region: 'us-east-1',
+		status: 'ready',
+		utilization: 'green'
+	},
+	replicas: [
+		{
+			region: 'us-west-2',
+			status: 'ready',
+			lag_ops: 2,
+			utilization: null
+		}
+	],
+	footprint: {
+		documents_count: 1500,
+		storage_bytes: 4096,
+		search_requests_total: 9876,
+		write_operations_total: 321
+	},
+	headroom: 'comfortable',
+	minimum_refresh_interval_seconds: 60
+} as const;
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -159,6 +185,7 @@ export function setupDefaultLoadMocks(m: MockFns): void {
 		write_operations_total: 0,
 		fetched_at: '2026-03-01T10:00:00Z'
 	});
+	m.getIndexInfrastructure.mockResolvedValue({ ...DEFAULT_INFRASTRUCTURE });
 	m.listExperiments.mockResolvedValue({ ...EMPTY_EXPERIMENTS });
 	m.getDebugEvents.mockResolvedValue({ events: [], count: 0 });
 	m.getDictionaryLanguages.mockResolvedValue(null);
@@ -232,6 +259,7 @@ export function apiClientFactoryFor(
 			getAnalyticsFilters: m.getAnalyticsFilters,
 			getAnalyticsConversionRate: m.getAnalyticsConversionRate,
 			getIndexMetrics: m.getIndexMetrics,
+			getIndexInfrastructure: m.getIndexInfrastructure,
 			getDebugEvents: m.getDebugEvents,
 			listExperiments: m.listExperiments,
 			getExperiment: m.getExperiment,
@@ -298,6 +326,7 @@ export function createMockFns(makeFn: () => ReturnType<typeof ViType.fn>): MockF
 		getAnalyticsFilters: makeFn(),
 		getAnalyticsConversionRate: makeFn(),
 		getIndexMetrics: makeFn(),
+		getIndexInfrastructure: makeFn(),
 		getDebugEvents: makeFn(),
 		listExperiments: makeFn(),
 		getExperiment: makeFn(),

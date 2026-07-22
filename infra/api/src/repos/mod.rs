@@ -29,6 +29,7 @@ pub mod pg_storage_bucket_repo;
 pub mod pg_storage_key_repo;
 pub mod pg_tenant_repo;
 pub mod pg_usage_repo;
+pub mod pg_vm_host_metrics_repo;
 pub mod pg_vm_inventory_repo;
 pub mod pg_webhook_event_repo;
 pub mod rate_card_repo;
@@ -37,6 +38,7 @@ pub mod storage_bucket_repo;
 pub mod storage_key_repo;
 pub mod tenant_repo;
 pub mod usage_repo;
+pub mod vm_host_metrics_repo;
 pub mod vm_inventory_repo;
 pub mod webhook_event_repo;
 
@@ -81,6 +83,7 @@ pub use pg_storage_bucket_repo::PgStorageBucketRepo;
 pub use pg_storage_key_repo::PgStorageKeyRepo;
 pub use pg_tenant_repo::PgTenantRepo;
 pub use pg_usage_repo::PgUsageRepo;
+pub use pg_vm_host_metrics_repo::PgVmHostMetricsRepo;
 pub use pg_vm_inventory_repo::PgVmInventoryRepo;
 pub use pg_webhook_event_repo::PgWebhookEventRepo;
 pub use rate_card_repo::RateCardRepo;
@@ -89,6 +92,7 @@ pub use storage_bucket_repo::StorageBucketRepo;
 pub use storage_key_repo::StorageKeyRepo;
 pub use tenant_repo::TenantRepo;
 pub use usage_repo::UsageRepo;
+pub use vm_host_metrics_repo::VmHostMetricsRepo;
 pub use vm_inventory_repo::{
     VmDecommissionResult, VmInventoryRepo, VmRetirementAssessment, VmRetirementBlocker,
     VmRetirementConflict,

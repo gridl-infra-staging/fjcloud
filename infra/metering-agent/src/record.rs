@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use chrono::{DateTime, Timelike, Utc};
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -49,28 +49,24 @@ pub struct UsageRecord {
 
 /// Build a stable idempotency key that is safe to replay.
 ///
-/// Format: `{node_id}:{event_type}:{tenant_id}:{timestamp_bucket_utc}`
+/// Format: `{node_id}:{event_type}:{tenant_id}:{scrape_timestamp_utc}`
 ///
-/// The timestamp is bucketed to the minute so that a retry within the same
-/// scrape window produces the same key and is deduplicated by the DB unique
-/// constraint on `idempotency_key`.
+/// The full scrape timestamp distinguishes separate deltas even when the
+/// configured scrape interval is shorter than one minute. Replaying the same
+/// scrape retains the same key and is deduplicated by the DB unique constraint
+/// on `idempotency_key`.
 pub fn make_idempotency_key(
     node_id: &str,
     event_type: &EventType,
     tenant_id: &str,
     ts: DateTime<Utc>,
 ) -> String {
-    let bucket = ts
-        .date_naive()
-        .and_hms_opt(ts.hour(), ts.minute(), 0)
-        .map(|naive| naive.and_utc())
-        .unwrap_or(ts);
     format!(
         "{}:{}:{}:{}",
         node_id,
         event_type.as_str(),
         tenant_id,
-        bucket.format("%Y%m%dT%H%M%SZ"),
+        ts.format("%Y%m%dT%H%M%S%.9fZ"),
     )
 }
 
@@ -143,7 +139,7 @@ const WRITE_USAGE_RECORD_SQL: &str = r#"
 /// Persist a single [`UsageRecord`] to the `usage_records` table.
 ///
 /// Uses an `ON CONFLICT (idempotency_key) DO NOTHING` guard so that retries
-/// or replays within the same scrape-minute window are idempotent: a record
+/// or exact scrape replays are idempotent: a record
 /// with a key that already exists in the table is silently dropped rather
 /// than producing a duplicate charge.
 ///
@@ -229,10 +225,17 @@ mod tests {
     }
 
     #[test]
-    fn idempotency_key_is_bucketed_to_the_minute() {
-        // Two different seconds within the same minute → same key.
+    fn distinct_scrapes_within_same_minute_produce_different_keys() {
         let k1 = make_idempotency_key("n", &EventType::WriteOperations, "idx", ts(10, 5, 0));
         let k2 = make_idempotency_key("n", &EventType::WriteOperations, "idx", ts(10, 5, 59));
+        assert_ne!(k1, k2);
+    }
+
+    #[test]
+    fn exact_scrape_replay_produces_the_same_key() {
+        let scrape_timestamp = ts(10, 5, 17);
+        let k1 = make_idempotency_key("n", &EventType::WriteOperations, "idx", scrape_timestamp);
+        let k2 = make_idempotency_key("n", &EventType::WriteOperations, "idx", scrape_timestamp);
         assert_eq!(k1, k2);
     }
 
@@ -270,8 +273,10 @@ mod tests {
     #[test]
     fn key_format_is_human_readable() {
         let key = make_idempotency_key("node-a", &EventType::StorageBytes, "products", ts(9, 0, 0));
-        // Should look like: "node-a:storage_bytes:products:20260215T090000Z"
-        assert_eq!(key, "node-a:storage_bytes:products:20260215T090000Z");
+        assert_eq!(
+            key,
+            "node-a:storage_bytes:products:20260215T090000.000000000Z"
+        );
     }
 
     #[test]

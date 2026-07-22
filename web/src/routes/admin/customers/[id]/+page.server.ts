@@ -19,11 +19,18 @@ import type {
 	AdminTenantDetail,
 	TenantQuotasResponse
 } from '$lib/admin-client';
-import type { InvoiceListItem, UsageSummaryResponse } from '$lib/api/types';
+import type { InvoiceDetailResponse, InvoiceListItem, UsageSummaryResponse } from '$lib/api/types';
+import type { Index } from '$lib/api/types/indexes';
 
 type CustomerDetailData = {
 	tenant: AdminTenantDetail;
-	indexes: Array<{ name: string; region: string; status: string; entries: number }> | null;
+	indexes: Array<{
+		name: string;
+		region: string;
+		status: string;
+		entries: number;
+		tier: string;
+	}> | null;
 	deployments: AdminFleetDeployment[] | null;
 	usage: UsageSummaryResponse | null;
 	invoices: InvoiceListItem[] | null;
@@ -65,6 +72,16 @@ function loadOptional<T>(operation: () => Promise<T>): Promise<T | null> {
 	return operation().catch(() => null);
 }
 
+function toCustomerDetailIndex(index: Index) {
+	return {
+		name: index.name,
+		region: index.region,
+		status: index.status,
+		entries: index.entries,
+		tier: index.tier
+	};
+}
+
 async function runAdminAction(
 	context: AdminActionContext,
 	successMessage: string,
@@ -84,10 +101,10 @@ async function runAdminAction(
 	}
 }
 
-export const load: PageServerLoad = async ({ fetch, params, depends, platform }) => {
+export const load: PageServerLoad = async ({ fetch, params, depends, cookies, platform }) => {
 	depends(`admin:customers:detail:${params.id}`);
 
-	const client = adminClient(fetch, platform?.env);
+	const client = authenticatedAdminClient(fetch, cookies, platform?.env);
 
 	let tenant: AdminTenantDetail;
 	try {
@@ -99,7 +116,8 @@ export const load: PageServerLoad = async ({ fetch, params, depends, platform })
 		throw err;
 	}
 
-	const [deployments, usage, invoices, rateCard, quotas, audit] = await Promise.all([
+	const [indexes, deployments, usage, invoices, rateCard, quotas, audit] = await Promise.all([
+		loadOptional(() => retryTransientAdminApiRequest(() => client.getTenantIndexes(params.id))),
 		loadOptional(() => retryTransientAdminApiRequest(() => client.getTenantDeployments(params.id))),
 		loadOptional(() => retryTransientAdminApiRequest(() => client.getTenantUsage(params.id))),
 		loadOptional(() => retryTransientAdminApiRequest(() => client.getTenantInvoices(params.id))),
@@ -110,7 +128,7 @@ export const load: PageServerLoad = async ({ fetch, params, depends, platform })
 
 	return {
 		tenant,
-		indexes: null as CustomerDetailData['indexes'],
+		indexes: indexes?.map(toCustomerDetailIndex) ?? null,
 		deployments,
 		usage,
 		invoices,
@@ -239,6 +257,37 @@ export const actions = {
 			};
 		} catch (err) {
 			return actionError(err, 'Failed to terminate deployment');
+		}
+	},
+
+	viewInvoice: async ({ request, params, fetch, cookies, platform }) => {
+		const client = authenticatedAdminClient(fetch, cookies, platform?.env);
+
+		const formData = await request.formData();
+		const invoiceId = formData.get('invoice_id');
+		if (typeof invoiceId !== 'string' || invoiceId.trim().length === 0) {
+			return fail(400, {
+				success: false,
+				error: 'Invoice ID is required'
+			});
+		}
+
+		try {
+			const invoiceDetail = await retryTransientAdminApiRequest(() =>
+				client.getAdminInvoiceDetail(invoiceId)
+			);
+			if (invoiceDetail.customer_id !== params.id) {
+				return fail(400, {
+					success: false,
+					error: 'Invoice does not belong to this customer'
+				});
+			}
+			return {
+				success: true,
+				invoiceDetail: invoiceDetail satisfies InvoiceDetailResponse
+			};
+		} catch (err) {
+			return actionError(err, 'Failed to load invoice detail');
 		}
 	}
 } satisfies Actions;

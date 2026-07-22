@@ -151,21 +151,8 @@
 			: null;
 	}
 
-	function normalizeTotalPages(result: SearchResult, requestedHitsPerPage: number): number {
-		const rawTotalPages =
-			typeof result.totalPages === 'number' ? result.totalPages : result.nbPages;
-		const explicitTotalPages = positiveIntegerOrNull(rawTotalPages);
-		const requestedPageSize = positiveIntegerOrNull(requestedHitsPerPage);
-		const resultHitsPerPage = positiveIntegerOrNull(result.hitsPerPage);
-		const effectiveHitsPerPage = requestedPageSize ?? resultHitsPerPage;
-		const totalHits = positiveIntegerOrNull(result.nbHits);
-
-		if (effectiveHitsPerPage !== null && totalHits !== null) {
-			const inferredTotalPages = Math.max(1, Math.ceil(totalHits / effectiveHitsPerPage));
-			return Math.max(explicitTotalPages ?? 1, inferredTotalPages);
-		}
-
-		return explicitTotalPages ?? 1;
+	function normalizeTotalPages(result: SearchResult): number {
+		return positiveIntegerOrNull(result.totalPages) ?? positiveIntegerOrNull(result.nbPages) ?? 1;
 	}
 
 	async function runSearch(nextQuery: string): Promise<void> {
@@ -196,7 +183,7 @@
 
 			const result = (response.results[0] ?? {}) as SearchResult;
 			const nextHits = Array.isArray(result.hits) ? result.hits : [];
-			const responseTotalPages = normalizeTotalPages(result, hitsPerPage);
+			const responseTotalPages = normalizeTotalPages(result);
 			hits = nextHits;
 			applyDeterministicDisplayDefaults(nextHits);
 			nbHits = typeof result.nbHits === 'number' ? result.nbHits : nextHits.length;

@@ -625,6 +625,18 @@ describe('playwright config contract', () => {
 		expect(runtime.webServerEnv.FLAPJACK_URL).toBe('http://127.0.0.1:7799');
 	});
 
+	it('resolvePlaywrightRuntime lets explicit process env override stale repo Flapjack source config', () => {
+		const processEnv: MutableEnv = { FLAPJACK_DEV_DIR: '/tmp/flapjack-clean' };
+		const runtime = resolvePlaywrightRuntime({
+			processEnv,
+			repoEnv: { FLAPJACK_DEV_DIR: '/tmp/flapjack-dirty' },
+			webEnv: {},
+			fallbackJwtSecret: 'fallback-jwt'
+		});
+
+		expect(runtime.webServerEnv.FLAPJACK_DEV_DIR).toBe('/tmp/flapjack-clean');
+	});
+
 	it('uses the local stack launcher base command so setup:user has API availability without manual startup', () => {
 		expect(PLAYWRIGHT_WEB_SERVER_COMMAND).toBe(
 			'../scripts/playwright_local_stack.sh --force-api-restart'

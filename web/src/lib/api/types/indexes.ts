@@ -8,6 +8,8 @@ export interface Index {
 	data_size_bytes: number;
 	status: string;
 	tier: string;
+	last_accessed_at?: string | null;
+	cold_since?: string | null;
 	created_at: string;
 }
 
@@ -95,7 +97,7 @@ export interface IndexReplicaSummary {
 	replica_region: string;
 	status: string;
 	lag_ops: number;
-	endpoint: string;
+	endpoint: string | null;
 	created_at: string;
 }
 
@@ -108,4 +110,37 @@ export interface IndexMetricsResponse {
 	search_requests_total: number;
 	write_operations_total: number;
 	fetched_at: string;
+}
+
+export type UtilizationBucket = 'green' | 'yellow' | 'red';
+
+export type HeadroomStatus = 'comfortable' | 'busy' | 'approaching_limits';
+
+export interface InfrastructurePrimary {
+	region: string;
+	status: string;
+	utilization: UtilizationBucket | null;
+}
+
+export interface InfrastructureReplica {
+	region: string;
+	status: string;
+	lag_ops: number;
+	utilization: UtilizationBucket | null;
+}
+
+export interface InfrastructureFootprint {
+	documents_count: number;
+	storage_bytes: number;
+	search_requests_total: number;
+	write_operations_total: number;
+}
+
+export interface IndexInfrastructureResponse {
+	index: string;
+	primary: InfrastructurePrimary;
+	replicas: InfrastructureReplica[];
+	footprint: InfrastructureFootprint;
+	headroom: HeadroomStatus;
+	minimum_refresh_interval_seconds: number;
 }

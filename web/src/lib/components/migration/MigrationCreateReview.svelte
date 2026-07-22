@@ -77,9 +77,9 @@
 			data-testid="migration-replace-cutover-warning"
 			class="rounded border border-flapjack-yellow/50 p-3 text-sm text-flapjack-ink"
 		>
-			Pause writes to both the Algolia source and the destination index until the cutover
-			completes. Changes made during the import are not migrated and can be lost when the
-			destination is promoted.
+			Pause writes to both the Algolia source and the destination index until the cutover completes.
+			Changes made during the import are not migrated and can be lost when the destination is
+			promoted.
 		</p>
 		<div class="space-y-1">
 			<label

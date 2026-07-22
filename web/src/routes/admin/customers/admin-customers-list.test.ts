@@ -4,6 +4,11 @@ import { fireEvent } from '@testing-library/dom';
 import type { AdminCustomerListItem } from './+page.server';
 import { load } from './+page.server';
 import { adminBadgeColor } from '$lib/format';
+import {
+	ADMIN_SESSION_COOKIE,
+	clearAdminSessionsForTest,
+	createAdminSession
+} from '$lib/server/admin-session';
 
 const applyActionMock = vi.fn();
 const invalidateMock = vi.fn();
@@ -64,7 +69,7 @@ const CUSTOMER_FIXTURES: AdminCustomerListItem[] = [
 		billing_health: 'green',
 		created_at: '2026-04-25T12:00:00Z',
 		updated_at: '2026-04-20T12:00:00Z',
-		index_count: null
+		index_count: 3
 	},
 	{
 		id: YELLOW_INCOMPLETE_ID,
@@ -77,7 +82,7 @@ const CUSTOMER_FIXTURES: AdminCustomerListItem[] = [
 		billing_health: 'yellow',
 		created_at: '2026-04-24T18:00:00Z',
 		updated_at: '2026-04-27T10:00:00Z',
-		index_count: null
+		index_count: 1
 	},
 	{
 		id: GREY_NO_SUB_ID,
@@ -90,7 +95,7 @@ const CUSTOMER_FIXTURES: AdminCustomerListItem[] = [
 		billing_health: 'grey',
 		created_at: '2026-04-24T12:00:00Z',
 		updated_at: '2026-04-24T12:00:00Z',
-		index_count: null
+		index_count: 0
 	},
 	{
 		id: DELETED_CUSTOMER_ID,
@@ -103,7 +108,7 @@ const CUSTOMER_FIXTURES: AdminCustomerListItem[] = [
 		billing_health: 'grey',
 		created_at: '2026-04-23T12:00:00Z',
 		updated_at: '2026-04-10T08:00:00Z',
-		index_count: null
+		index_count: 0
 	},
 	{
 		id: YELLOW_OVERDUE_ID,
@@ -116,7 +121,7 @@ const CUSTOMER_FIXTURES: AdminCustomerListItem[] = [
 		billing_health: 'yellow',
 		created_at: '2026-04-22T12:00:00Z',
 		updated_at: '2026-04-27T11:56:00Z',
-		index_count: null
+		index_count: 2
 	},
 	{
 		id: SUSPENDED_CUSTOMER_ID,
@@ -129,7 +134,7 @@ const CUSTOMER_FIXTURES: AdminCustomerListItem[] = [
 		billing_health: 'red',
 		created_at: '2026-04-21T12:00:00Z',
 		updated_at: '2026-04-18T09:00:00Z',
-		index_count: null
+		index_count: 1
 	}
 ];
 
@@ -167,11 +172,13 @@ async function getEnhanceResultHandler(actionName: 'suspend' | 'impersonate') {
 
 beforeEach(() => {
 	process.env.ADMIN_KEY = 'test-admin-key';
+	clearAdminSessionsForTest();
 	enhanceCalls.length = 0;
 });
 
 afterEach(() => {
 	cleanup();
+	clearAdminSessionsForTest();
 	delete process.env.ADMIN_KEY;
 	vi.useRealTimers();
 	applyActionMock.mockReset();
@@ -179,9 +186,32 @@ afterEach(() => {
 	vi.clearAllMocks();
 });
 
+function authenticatedListLoadContext(overrides: Record<string, unknown>) {
+	const adminSession = createAdminSession(3600);
+	return {
+		cookies: {
+			get: (name: string) => (name === ADMIN_SESSION_COOKIE ? adminSession.id : undefined)
+		},
+		...overrides
+	} as never;
+}
+
 describe('Admin customers list', () => {
+	it('load redirects to admin login when the session is missing', async () => {
+		await expect(
+			load({
+				fetch: async () => new Response(JSON.stringify([]), { status: 200 }),
+				depends: vi.fn(),
+				cookies: { get: () => undefined }
+			} as never)
+		).rejects.toMatchObject({
+			status: 303,
+			location: '/admin/login'
+		});
+	});
+
 	it('load omits legacy subscription field from list rows', async () => {
-		const result = (await load({
+		const result = (await load(authenticatedListLoadContext({
 			fetch: async () =>
 				new Response(
 					JSON.stringify([
@@ -195,6 +225,7 @@ describe('Admin customers list', () => {
 							[LEGACY_SUBSCRIPTION_FIELD]: 'active',
 							overdue_invoice_count: 0,
 							billing_health: 'green',
+							index_count: 3,
 							created_at: '2026-04-25T12:00:00Z',
 							updated_at: '2026-04-20T12:00:00Z'
 						}
@@ -202,13 +233,13 @@ describe('Admin customers list', () => {
 					{ status: 200, headers: { 'content-type': 'application/json' } }
 				),
 			depends: vi.fn()
-		} as never)) as { customers: AdminCustomerListItem[] | null };
+		}))) as { customers: AdminCustomerListItem[] | null };
 
 		expect(result.customers).not.toBeNull();
 		expect(result.customers?.[0]).not.toHaveProperty(LEGACY_SUBSCRIPTION_FIELD);
 		expect(result.customers?.[0]).toMatchObject({
 			id: ACTIVE_CUSTOMER_ID,
-			index_count: null,
+			index_count: 3,
 			billing_health: 'green'
 		});
 	});
@@ -220,6 +251,7 @@ describe('Admin customers list', () => {
 		expect(screen.getByRole('columnheader', { name: /name/i })).toBeInTheDocument();
 		expect(screen.getByRole('columnheader', { name: /email/i })).toBeInTheDocument();
 		expect(screen.getByRole('columnheader', { name: /status/i })).toBeInTheDocument();
+		expect(screen.getByRole('columnheader', { name: /^plan$/i })).toBeInTheDocument();
 		expect(screen.getByRole('columnheader', { name: /last activity/i })).toBeInTheDocument();
 		expect(screen.getByRole('columnheader', { name: /billing health/i })).toBeInTheDocument();
 		expect(screen.queryByRole('columnheader', { name: /last invoice/i })).not.toBeInTheDocument();
@@ -232,6 +264,16 @@ describe('Admin customers list', () => {
 			'Acme Corp'
 		);
 		expect(within(customerRow(ACTIVE_CUSTOMER_ID)).getByText('ops@acme.dev')).toBeInTheDocument();
+		expect(within(customerRow(ACTIVE_CUSTOMER_ID)).getByTestId('customer-plan')).toHaveTextContent(
+			'shared'
+		);
+		expect(within(customerRow(GREY_NO_SUB_ID)).getByTestId('customer-plan')).toHaveTextContent(
+			'free'
+		);
+		expect(within(customerRow(ACTIVE_CUSTOMER_ID)).getByTestId('index-count')).toHaveTextContent(
+			'3'
+		);
+		expect(within(customerRow(GREY_NO_SUB_ID)).getByTestId('index-count')).toHaveTextContent('0');
 		expectStateTextAbsent(
 			CUSTOMERS_UNAVAILABLE_HEADING,
 			CUSTOMERS_UNAVAILABLE_BODY,
@@ -318,9 +360,8 @@ describe('Admin customers list', () => {
 	});
 
 	it('renders "—" in Indexes column when index_count is null', async () => {
-		await renderCustomersPage();
+		await renderCustomersPage([{ ...CUSTOMER_FIXTURES[0], index_count: null }]);
 
-		// All fixtures have index_count: null, so every row should show "—"
 		const rows = within(screen.getByTestId('customers-table-body')).getAllByRole('row');
 		for (const row of rows) {
 			expect(within(row).getByTestId('index-count')).toHaveTextContent('—');

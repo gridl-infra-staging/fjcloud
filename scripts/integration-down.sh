@@ -141,7 +141,7 @@ source "$SCRIPT_DIR/lib/process.sh"
 # ---------------------------------------------------------------------------
 # 1. Stop processes
 # ---------------------------------------------------------------------------
-kill_pid_file "$METERING_AGENT_PID" "metering-agent" "metering-agent"
+kill_pid_file "$METERING_AGENT_PID" "metering-agent" "fj-metering-agent"
 kill_pid_file "$API_PID" "fjcloud API" "fjcloud-api"
 kill_pid_file "$FLAPJACK_PID" "flapjack" "flapjack"
 

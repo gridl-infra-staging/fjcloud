@@ -9,6 +9,7 @@ describe('Admin customers loader SSOT guard', () => {
 		expect(pageServerSource).not.toContain('loadLastInvoiceStatus');
 		expect(pageServerSource).not.toContain('latestInvoiceStatus');
 		expect(pageServerSource).not.toContain('getTenantInvoices');
+		expect(pageServerSource).not.toContain('getTenantIndexes');
 		expect(pageServerSource).not.toContain('last_invoice_status');
 		expect(pageServerSource).not.toContain('Promise.all(');
 		expect(pageServerSource).not.toMatch(/tenants\.map\(\s*async/m);

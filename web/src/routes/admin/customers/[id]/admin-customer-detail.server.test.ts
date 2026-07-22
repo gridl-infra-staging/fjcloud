@@ -8,6 +8,7 @@ import {
 	clearAdminSessionsForTest,
 	createAdminSession
 } from '$lib/server/admin-session';
+import { DETAIL_FIXTURE } from '../admin-customer-detail.test-fixtures';
 
 vi.mock('$env/dynamic/private', () => ({
 	env: new Proxy({}, { get: (_target, prop) => process.env[prop as string] })
@@ -106,19 +107,46 @@ function actionContext(
 	} as never;
 }
 
-function loadContext(fetchHandler: (url: string, init?: RequestInit) => Promise<Response>) {
+function jsonResponse(body: unknown) {
+	return new Response(JSON.stringify(body), {
+		status: 200,
+		headers: { 'content-type': 'application/json' }
+	});
+}
+
+function loadContext(
+	fetchHandler: (url: string, init?: RequestInit) => Promise<Response>,
+	tenantId = 'aaaaaaaa-0002-0000-0000-000000000002',
+	withSession = true
+) {
+	const adminSession = withSession ? createAdminSession(3600) : null;
 	return {
 		fetch: async (input: string | URL | Request, init?: RequestInit) => {
 			const url =
 				typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
 			return fetchHandler(url, init);
 		},
-		params: { id: 'aaaaaaaa-0002-0000-0000-000000000002' },
-		depends: vi.fn()
+		params: { id: tenantId },
+		depends: vi.fn(),
+		cookies: {
+			get: (name: string) =>
+				name === ADMIN_SESSION_COOKIE && adminSession ? adminSession.id : undefined
+		}
 	} as never;
 }
 
 describe('load', () => {
+	it('redirects to admin login when the session is missing', async () => {
+		const { load } = await import('./+page.server');
+
+		await expect(load(loadContext(async () => jsonResponse({}), undefined, false))).rejects.toMatchObject(
+			{
+				status: 303,
+				location: '/admin/login'
+			}
+		);
+	});
+
 	it('retries transient tenant-detail failures before succeeding', async () => {
 		const { load } = await import('./+page.server');
 		vi.useFakeTimers();
@@ -137,6 +165,8 @@ describe('load', () => {
 						name: 'Retry Target',
 						email: 'retry-target@example.com',
 						status: 'active',
+						billing_plan: 'shared',
+						index_count: 1,
 						stripe_customer_id: null,
 						created_at: '2026-03-27T00:00:00Z',
 						updated_at: '2026-03-27T00:00:00Z',
@@ -146,7 +176,7 @@ describe('load', () => {
 				);
 			}
 
-			if (url.endsWith('/deployments') || url.endsWith('/invoices')) {
+			if (url.endsWith('/indexes') || url.endsWith('/deployments') || url.endsWith('/invoices')) {
 				return new Response(JSON.stringify([]), { status: 200 });
 			}
 
@@ -159,6 +189,86 @@ describe('load', () => {
 
 		expect(tenantAttempts).toBe(2);
 		expect(result.tenant.name).toBe('Retry Target');
+	});
+
+	it('requests tenant indexes and maps exact table fields', async () => {
+		const { load } = await import('./+page.server');
+		const tenantId = DETAIL_FIXTURE.tenant.id;
+		const indexesPath = `/admin/tenants/${tenantId}/indexes`;
+		const requestedUrls: string[] = [];
+
+		const ctx = loadContext(async (url) => {
+			requestedUrls.push(url);
+
+			if (url.endsWith(indexesPath)) {
+				return jsonResponse([
+					{
+						name: 'alpha',
+						region: 'us-east-1',
+						endpoint: 'https://alpha.flapjack.test',
+						entries: 0,
+						data_size_bytes: 0,
+						status: 'running',
+						tier: 'active',
+						last_accessed_at: null,
+						cold_since: null,
+						created_at: '2026-04-01T00:00:00Z'
+					}
+				]);
+			}
+			if (url.endsWith(`/admin/tenants/${tenantId}`)) {
+				return jsonResponse(DETAIL_FIXTURE.tenant);
+			}
+
+			return jsonResponse([]);
+		}, tenantId);
+
+		const result = await load(ctx);
+
+		expect(requestedUrls.some((url) => url.endsWith(indexesPath))).toBe(true);
+		expect((result as { indexes: unknown }).indexes).toEqual([
+			{ name: 'alpha', region: 'us-east-1', status: 'running', entries: 0, tier: 'active' }
+		]);
+	});
+
+	it('preserves an empty index catalog', async () => {
+		const { load } = await import('./+page.server');
+		const tenantId = DETAIL_FIXTURE.tenant.id;
+
+		const ctx = loadContext(async (url) => {
+			if (url.endsWith(`/admin/tenants/${tenantId}/indexes`)) {
+				return jsonResponse([]);
+			}
+			if (url.endsWith(`/admin/tenants/${tenantId}`)) {
+				return jsonResponse(DETAIL_FIXTURE.tenant);
+			}
+
+			return jsonResponse([]);
+		}, tenantId);
+
+		const result = await load(ctx);
+
+		expect((result as { indexes: unknown[] }).indexes).toEqual([]);
+	});
+
+	it('uses null only when the optional index fetch fails', async () => {
+		const { load } = await import('./+page.server');
+		const tenantId = DETAIL_FIXTURE.tenant.id;
+
+		const ctx = loadContext(async (url) => {
+			if (url.endsWith(`/admin/tenants/${tenantId}/indexes`)) {
+				return new Response('index catalog unavailable', { status: 400 });
+			}
+			if (url.endsWith(`/admin/tenants/${tenantId}`)) {
+				return jsonResponse(DETAIL_FIXTURE.tenant);
+			}
+
+			return jsonResponse([]);
+		}, tenantId);
+
+		const result = await load(ctx);
+
+		expect((result as { indexes: null }).indexes).toBeNull();
 	});
 });
 
@@ -288,6 +398,114 @@ describe('actions.terminateDeployment', () => {
 		const data = (result as { data: { success: boolean; error: string } }).data;
 		expect(data.success).toBe(false);
 		expect(data.error).toBeTruthy();
+	});
+});
+
+describe('actions.viewInvoice', () => {
+	it('fails with 400 when invoice_id is missing', async () => {
+		const { actions } = await import('./+page.server');
+
+		const fetchSpy = vi.fn();
+		const ctx = actionContext({}, fetchSpy);
+
+		const result = await actions.viewInvoice(ctx);
+
+		const data = (result as { data: { success: boolean; error: string } }).data;
+		expect(data.success).toBe(false);
+		expect(data.error).toBe('Invoice ID is required');
+		expect(fetchSpy).not.toHaveBeenCalled();
+	});
+
+	it('loads exact invoice detail for the submitted invoice id', async () => {
+		const { actions } = await import('./+page.server');
+
+		let capturedUrl = '';
+		let capturedMethod = '';
+		const invoiceId = 'cccccccc-0001-0000-0000-000000000001';
+		const invoiceDetail = {
+			id: invoiceId,
+			customer_id: 'aaaaaaaa-0002-0000-0000-000000000002',
+			period_start: '2026-01-01',
+			period_end: '2026-01-31',
+			subtotal_cents: 12000,
+			total_cents: 13000,
+			tax_cents: 1000,
+			currency: 'usd',
+			status: 'paid',
+			minimum_applied: false,
+			stripe_invoice_id: 'in_test_123',
+			hosted_invoice_url: 'https://invoice.stripe.com/i/acct_x/test_123',
+			pdf_url: 'https://invoice.stripe.com/i/acct_x/test_123/pdf',
+			line_items: [
+				{
+					id: 'dddddddd-0001-0000-0000-000000000001',
+					description: 'Hot storage',
+					quantity: '42.5',
+					unit: 'mb_month',
+					unit_price_cents: '5',
+					amount_cents: 12000,
+					region: 'us-east-1'
+				}
+			],
+			created_at: '2026-02-01T00:00:00Z',
+			finalized_at: '2026-02-01T01:00:00Z',
+			paid_at: '2026-02-02T00:00:00Z'
+		};
+
+		const ctx = actionContext({ invoice_id: invoiceId }, async (url, init) => {
+			capturedUrl = url;
+			capturedMethod = init?.method ?? 'GET';
+			return new Response(JSON.stringify(invoiceDetail), {
+				status: 200,
+				headers: { 'content-type': 'application/json' }
+			});
+		});
+
+		const result = await actions.viewInvoice(ctx);
+
+		expect(result).toEqual({ success: true, invoiceDetail });
+		expect(capturedUrl).toContain(`/admin/invoices/${invoiceId}`);
+		expect(capturedMethod).toBe('GET');
+	});
+
+	it('rejects invoice detail for a different customer', async () => {
+		const { actions } = await import('./+page.server');
+
+		const invoiceId = 'cccccccc-0002-0000-0000-000000000002';
+		const ctx = actionContext(
+			{ invoice_id: invoiceId },
+			async () =>
+				new Response(
+					JSON.stringify({
+						id: invoiceId,
+						customer_id: 'aaaaaaaa-9999-0000-0000-000000000999',
+						period_start: '2026-02-01',
+						period_end: '2026-02-28',
+						subtotal_cents: 18000,
+						total_cents: 18000,
+						tax_cents: 0,
+						currency: 'usd',
+						status: 'paid',
+						minimum_applied: false,
+						stripe_invoice_id: 'in_wrong_customer',
+						hosted_invoice_url: null,
+						pdf_url: null,
+						line_items: [],
+						created_at: '2026-03-01T00:00:00Z',
+						finalized_at: null,
+						paid_at: null
+					}),
+					{ status: 200, headers: { 'content-type': 'application/json' } }
+				)
+		);
+
+		const result = await actions.viewInvoice(ctx);
+
+		const data = (result as { data: { success: boolean; error: string; invoiceDetail?: unknown } })
+			.data;
+		expect(data.success).toBe(false);
+		expect(data.error).toBe('Invoice does not belong to this customer');
+		expect(data.invoiceDetail).toBeUndefined();
 	});
 });
 

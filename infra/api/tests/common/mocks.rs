@@ -7,13 +7,13 @@ use api::models::vm_inventory::{NewVmInventory, VmInventory};
 use api::models::{
     Customer, CustomerRateOverrideRow, CustomerTenant, CustomerTenantSummary, Deployment,
     IngestQuotaWarningMetric, IngestQuotaWarningsSentState, InvoiceLineItemRow, InvoiceRow,
-    RateCardRow, UsageDaily,
+    NewVmHostMetrics, RateCardRow, UsageDaily, VmHostMetrics,
 };
 use api::provisioner::mock::MockVmProvisioner;
 use api::repos::api_key_repo::{ApiKeyManagedKeyParams, ApiKeyRepo};
 use api::repos::dispute_repo::{DisputeRepo, DisputeRow, DisputeUpsertInput};
 use api::repos::index_migration_repo::IndexMigrationRepo;
-use api::repos::invoice_repo::{InvoiceRepo, NewInvoice, NewLineItem};
+use api::repos::invoice_repo::{AdminInvoiceSummaryRow, InvoiceRepo, NewInvoice, NewLineItem};
 use api::repos::tenant_repo::TenantRepo;
 use api::repos::usage_repo::{rolling_window_for_days, UsageSummary};
 use api::repos::vm_inventory_repo::{
@@ -24,8 +24,8 @@ use api::repos::{
     CatalogLifecycleTargetIdentity, CustomerRepo, DeploymentRepo, InMemoryColdSnapshotRepo,
     InMemoryIndexReplicaRepo, RateCardRepo, RepoError, ResendPasswordResetOutcome,
     ResendPasswordResetReservation, ResendVerificationOutcome, ResendVerificationReservation,
-    UsageRepo, VmDecommissionResult, VmRetirementAssessment, VmRetirementConflict,
-    RESEND_VERIFICATION_COOLDOWN_SECONDS,
+    UsageRepo, VmDecommissionResult, VmHostMetricsRepo, VmRetirementAssessment,
+    VmRetirementConflict, RESEND_VERIFICATION_COOLDOWN_SECONDS,
 };
 use api::secrets::mock::MockNodeSecretManager;
 use api::services::alerting::MockAlertService;
@@ -63,6 +63,7 @@ pub struct MockCustomerRepo {
     oauth_identities: Mutex<HashMap<(String, String), Uuid>>,
     pub should_fail_suspend: Mutex<bool>,
     pub should_fail_reactivate: Mutex<bool>,
+    list_calls: AtomicUsize,
     reactivate_calls: AtomicUsize,
     fail_next_soft_delete: AtomicBool,
     fail_next_hard_delete_open_invoices: AtomicBool,
@@ -138,6 +139,7 @@ impl MockCustomerRepo {
             oauth_identities: Mutex::new(HashMap::new()),
             should_fail_suspend: Mutex::new(false),
             should_fail_reactivate: Mutex::new(false),
+            list_calls: AtomicUsize::new(0),
             reactivate_calls: AtomicUsize::new(0),
             fail_next_soft_delete: AtomicBool::new(false),
             fail_next_hard_delete_open_invoices: AtomicBool::new(false),
@@ -168,6 +170,10 @@ impl MockCustomerRepo {
 
     pub fn reactivate_call_count(&self) -> usize {
         self.reactivate_calls.load(Ordering::SeqCst)
+    }
+
+    pub fn list_call_count(&self) -> usize {
+        self.list_calls.load(Ordering::SeqCst)
     }
 
     /// Force the next soft-delete call to report "not found" without mutating state.
@@ -396,6 +402,7 @@ impl MockCustomerRepo {
 #[async_trait]
 impl CustomerRepo for MockCustomerRepo {
     async fn list(&self) -> Result<Vec<Customer>, RepoError> {
+        self.list_calls.fetch_add(1, Ordering::SeqCst);
         let customers = self.customers.lock().unwrap();
         Ok(customers.iter().cloned().collect())
     }
@@ -2013,6 +2020,8 @@ pub fn mock_rate_card_repo() -> Arc<MockRateCardRepo> {
 pub struct MockInvoiceRepo {
     invoices: Mutex<Vec<InvoiceRow>>,
     line_items: Mutex<Vec<InvoiceLineItemRow>>,
+    revenue_summary_rows: Mutex<Vec<AdminInvoiceSummaryRow>>,
+    revenue_summary_calls: AtomicUsize,
     fail_next_finalize: Mutex<bool>,
     fail_next_mark_paid: Mutex<bool>,
     fail_list_by_customer: AtomicBool,
@@ -2033,6 +2042,8 @@ impl MockInvoiceRepo {
         Self {
             invoices: Mutex::new(Vec::new()),
             line_items: Mutex::new(Vec::new()),
+            revenue_summary_rows: Mutex::new(Vec::new()),
+            revenue_summary_calls: AtomicUsize::new(0),
             fail_next_finalize: Mutex::new(false),
             fail_next_mark_paid: Mutex::new(false),
             fail_list_by_customer: AtomicBool::new(false),
@@ -2116,6 +2127,14 @@ impl MockInvoiceRepo {
     /// Return how many times `mark_paid` was invoked.
     pub fn mark_paid_call_count(&self) -> usize {
         self.mark_paid_calls.load(Ordering::SeqCst)
+    }
+
+    pub fn seed_revenue_summary_rows(&self, rows: Vec<AdminInvoiceSummaryRow>) {
+        *self.revenue_summary_rows.lock().unwrap() = rows;
+    }
+
+    pub fn revenue_summary_call_count(&self) -> usize {
+        self.revenue_summary_calls.load(Ordering::SeqCst)
     }
 
     /// Force every subsequent `list_by_customer` call to error. Used to
@@ -2303,6 +2322,18 @@ impl InvoiceRepo for MockInvoiceRepo {
             .collect();
         result.sort_by_key(|row| std::cmp::Reverse(row.period_start));
         Ok(result)
+    }
+
+    async fn revenue_summary(&self) -> Result<Vec<AdminInvoiceSummaryRow>, RepoError> {
+        self.revenue_summary_calls.fetch_add(1, Ordering::SeqCst);
+        let mut rows = self.revenue_summary_rows.lock().unwrap().clone();
+        rows.sort_by(|a, b| {
+            b.period_start
+                .cmp(&a.period_start)
+                .then_with(|| b.created_at.cmp(&a.created_at))
+                .then_with(|| a.id.cmp(&b.id))
+        });
+        Ok(rows)
     }
 
     async fn find_by_id(&self, id: Uuid) -> Result<Option<InvoiceRow>, RepoError> {
@@ -3607,6 +3638,58 @@ impl ApiKeyRepo for MockApiKeyRepo {
 
 pub fn mock_api_key_repo() -> Arc<MockApiKeyRepo> {
     Arc::new(MockApiKeyRepo::new())
+}
+
+// ---------------------------------------------------------------------------
+// MockVmHostMetricsRepo
+// ---------------------------------------------------------------------------
+
+pub struct MockVmHostMetricsRepo {
+    samples: Mutex<Vec<VmHostMetrics>>,
+}
+
+impl MockVmHostMetricsRepo {
+    pub fn new() -> Self {
+        Self {
+            samples: Mutex::new(Vec::new()),
+        }
+    }
+}
+
+#[async_trait]
+impl VmHostMetricsRepo for MockVmHostMetricsRepo {
+    async fn insert(&self, metrics: &NewVmHostMetrics) -> Result<VmHostMetrics, RepoError> {
+        let sample = VmHostMetrics {
+            id: Uuid::new_v4(),
+            vm_id: metrics.vm_id,
+            collected_at: metrics.collected_at,
+            cpu_pct: metrics.cpu_pct,
+            mem_used_bytes: metrics.mem_used_bytes,
+            mem_total_bytes: metrics.mem_total_bytes,
+            disk_used_bytes: metrics.disk_used_bytes,
+            disk_total_bytes: metrics.disk_total_bytes,
+            net_rx_bytes: metrics.net_rx_bytes,
+            net_tx_bytes: metrics.net_tx_bytes,
+            created_at: Utc::now(),
+        };
+        self.samples.lock().unwrap().push(sample.clone());
+        Ok(sample)
+    }
+
+    async fn latest_for_vm(&self, vm_id: Uuid) -> Result<Option<VmHostMetrics>, RepoError> {
+        Ok(self
+            .samples
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|sample| sample.vm_id == vm_id)
+            .max_by_key(|sample| sample.collected_at)
+            .cloned())
+    }
+}
+
+pub fn mock_vm_host_metrics_repo() -> Arc<MockVmHostMetricsRepo> {
+    Arc::new(MockVmHostMetricsRepo::new())
 }
 
 // ---------------------------------------------------------------------------

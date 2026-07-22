@@ -13,6 +13,8 @@ mod admin_replicas_test;
 mod discovery_test;
 #[path = "integration/flapjack_proxy_analytics_experiments_debug_test.rs"]
 mod flapjack_proxy_analytics_experiments_debug_test;
+#[path = "integration/index_infrastructure_test.rs"]
+mod index_infrastructure_test;
 #[path = "integration/index_metrics_scrape_test.rs"]
 mod index_metrics_scrape_test;
 #[path = "integration/index_replica_repo_test.rs"]

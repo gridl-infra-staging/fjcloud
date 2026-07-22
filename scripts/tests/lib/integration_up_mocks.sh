@@ -21,6 +21,10 @@ if [ -n "${INTEGRATION_UP_API_ENV_LOG:-}" ]; then
         echo "JWT_SECRET=${JWT_SECRET:-}"
         echo "ADMIN_KEY=${ADMIN_KEY:-}"
         echo "STORAGE_ENCRYPTION_KEY=${STORAGE_ENCRYPTION_KEY:-}"
+        echo "ENVIRONMENT=${ENVIRONMENT:-}"
+        echo "SKIP_EMAIL_VERIFICATION=${SKIP_EMAIL_VERIFICATION:-}"
+        echo "INTERNAL_AUTH_TOKEN=${INTERNAL_AUTH_TOKEN:-}"
+        echo "AUTH_RATE_LIMIT_RPM=${AUTH_RATE_LIMIT_RPM:-}"
     } >> "$INTEGRATION_UP_API_ENV_LOG"
 fi
 exit 0
@@ -39,7 +43,7 @@ MOCK
 }
 
 create_fake_api_binary() {
-    local api_bin="$REPO_ROOT/infra/target/debug/api"
+    local api_bin="$REPO_ROOT/infra/target/debug/fjcloud-api"
     local backup_file=""
     if [ -e "$api_bin" ]; then
         backup_file="$(mktemp)"
@@ -51,7 +55,7 @@ create_fake_api_binary() {
 
 restore_fake_api_binary() {
     local backup_file="$1"
-    local api_bin="$REPO_ROOT/infra/target/debug/api"
+    local api_bin="$REPO_ROOT/infra/target/debug/fjcloud-api"
     if [ -n "$backup_file" ] && [ -f "$backup_file" ]; then
         cp "$backup_file" "$api_bin"
         rm -f "$backup_file"
@@ -72,7 +76,7 @@ setup_startup_mocks() {
     # build so the startup env assertions observe the process integration-up
     # actually launches.
     write_mock_script "$tmp_dir/cargo" '
-api_bin="$(pwd)/target/debug/api"
+api_bin="$(pwd)/target/debug/fjcloud-api"
 metering_bin="$(pwd)/target/debug/fj-metering-agent"
 mkdir -p "$(dirname "$api_bin")"
 cat > "$api_bin" <<'\''MOCK_API'\''
@@ -84,6 +88,10 @@ if [ -n "${INTEGRATION_UP_API_ENV_LOG:-}" ]; then
         echo "JWT_SECRET=${JWT_SECRET:-}"
         echo "ADMIN_KEY=${ADMIN_KEY:-}"
         echo "STORAGE_ENCRYPTION_KEY=${STORAGE_ENCRYPTION_KEY:-}"
+        echo "ENVIRONMENT=${ENVIRONMENT:-}"
+        echo "SKIP_EMAIL_VERIFICATION=${SKIP_EMAIL_VERIFICATION:-}"
+        echo "INTERNAL_AUTH_TOKEN=${INTERNAL_AUTH_TOKEN:-}"
+        echo "AUTH_RATE_LIMIT_RPM=${AUTH_RATE_LIMIT_RPM:-}"
     } >> "$INTEGRATION_UP_API_ENV_LOG"
 fi
 exit 0

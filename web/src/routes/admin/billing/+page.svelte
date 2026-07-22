@@ -4,31 +4,44 @@
 	import type { ActionResult, SubmitFunction } from '@sveltejs/kit';
 	import { resolve } from '$app/paths';
 	import type { BillingInvoice } from './+page.server';
+	import type { AdminBillingSummaryResponse } from '$lib/admin-client';
 	import { formatCents, formatDate } from '$lib/format';
 
 	let { data, form } = $props<{
-		data: { invoices: BillingInvoice[] };
+		data: { summary: AdminBillingSummaryResponse; invoices: BillingInvoice[] };
 		form?: { error?: string; message?: string };
 	}>();
 
 	let showBillingConfirm = $state(false);
 	let billingMonth = $state(formatBillingMonthValue(new Date()));
 
+	const summary = $derived(data.summary);
 	const invoices = $derived(data.invoices as BillingInvoice[]);
 
 	const failedInvoices = $derived(invoices.filter((i) => i.status === 'failed'));
 	const draftInvoices = $derived(invoices.filter((i) => i.status === 'draft'));
 
-	const totalCount = $derived(invoices.length);
-	const paidCount = $derived(invoices.filter((i) => i.status === 'paid').length);
-	const failedCount = $derived(failedInvoices.length);
-	const pendingCount = $derived(
-		draftInvoices.length + invoices.filter((i) => i.status === 'finalized').length
+	const totalRevenueCents = $derived(summary.status_totals.paid.total_cents);
+	const currentUtcMonth = $derived(formatUtcBillingMonthValue(new Date()));
+	const currentMonthBucket = $derived(
+		summary.by_month.find(
+			(bucket: { month: string; paid_total_cents: number }) => bucket.month === currentUtcMonth
+		)
 	);
+	const thisMonthRevenueCents = $derived(currentMonthBucket?.paid_total_cents ?? 0);
+	const totalCount = $derived(summary.total_count);
+	const paidCount = $derived(summary.status_totals.paid.count);
+	const failedCount = $derived(summary.status_totals.failed.count);
+	const pendingCount = $derived(summary.pending_count);
 
 	function formatBillingMonthValue(date: Date): string {
 		const month = `${date.getMonth() + 1}`.padStart(2, '0');
 		return `${date.getFullYear()}-${month}`;
+	}
+
+	function formatUtcBillingMonthValue(date: Date): string {
+		const month = `${date.getUTCMonth() + 1}`.padStart(2, '0');
+		return `${date.getUTCFullYear()}-${month}`;
 	}
 
 	const refreshBillingAfterAction: SubmitFunction = () => {
@@ -66,7 +79,25 @@
 	{/if}
 
 	<!-- Summary cards -->
-	<div class="grid grid-cols-2 gap-4 md:grid-cols-4">
+	<div class="grid grid-cols-2 gap-4 md:grid-cols-4 lg:grid-cols-7">
+		<div class="rounded-lg border border-slate-700 bg-slate-800/60 p-4">
+			<p class="text-xs font-medium uppercase tracking-wide text-slate-400">Total Revenue</p>
+			<p class="mt-1 text-2xl font-bold text-white" data-testid="kpi-total-revenue">
+				{formatCents(totalRevenueCents)}
+			</p>
+		</div>
+		<div class="rounded-lg border border-green-700/40 bg-slate-800/60 p-4">
+			<p class="text-xs font-medium uppercase tracking-wide text-green-400">MRR</p>
+			<p class="mt-1 text-2xl font-bold text-green-300" data-testid="kpi-mrr">
+				{formatCents(summary.mrr_proxy_cents)}
+			</p>
+		</div>
+		<div class="rounded-lg border border-violet-700/40 bg-slate-800/60 p-4">
+			<p class="text-xs font-medium uppercase tracking-wide text-violet-300">This Month</p>
+			<p class="mt-1 text-2xl font-bold text-violet-200" data-testid="kpi-this-month">
+				{formatCents(thisMonthRevenueCents)}
+			</p>
+		</div>
 		<div class="rounded-lg border border-slate-700 bg-slate-800/60 p-4">
 			<p class="text-xs font-medium uppercase tracking-wide text-slate-400">Total Invoices</p>
 			<p class="mt-1 text-2xl font-bold text-white" data-testid="total-invoices">{totalCount}</p>

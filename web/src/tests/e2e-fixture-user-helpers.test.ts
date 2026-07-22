@@ -819,10 +819,7 @@ describe('e2e fixture user helpers', () => {
 
 	it('keeps tracked-customer email verification local when remote target is set against a local API', () => {
 		expect(
-			__fixtureTestSeams.shouldVerifyTrackedCustomerEmailViaStaging(
-				'http://127.0.0.1:3001',
-				true
-			)
+			__fixtureTestSeams.shouldVerifyTrackedCustomerEmailViaStaging('http://127.0.0.1:3001', true)
 		).toBe(false);
 		expect(
 			__fixtureTestSeams.shouldVerifyTrackedCustomerEmailViaStaging(

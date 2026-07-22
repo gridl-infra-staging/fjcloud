@@ -210,7 +210,14 @@ if [ "$*" != "build -p flapjack-server" ]; then
     exit 17
 fi
 mkdir -p target/debug
-printf "#!/usr/bin/env bash\nexit 0\n" > target/debug/flapjack
+{
+    printf "#!/usr/bin/env bash\n"
+    printf "if [ \"\${1:-}\" = \"build-info\" ] && [ \"\${2:-}\" = \"--json\" ]; then\n"
+    printf "    printf '\''{\"build\":{\"workspaceDigest\":\"mock-workspace-digest\"}}\\\\n'\''\n"
+    printf "    exit 0\n"
+    printf "fi\n"
+    printf "exit 0\n"
+} > target/debug/flapjack
 chmod +x target/debug/flapjack
 '
 
@@ -224,6 +231,28 @@ chmod +x target/debug/flapjack
         "preflight should surface the helper-owned receipt path"
     assert_not_contains "$output" "legacy-release" \
         "preflight should not replace selected source provenance with PATH release provenance"
+}
+
+test_repo_path_backup_restores_relative_symlink() {
+    local tmp_dir link_path restore_token
+    tmp_dir="$(mktemp -d)"
+    trap 'rm -rf "'"$tmp_dir"'"' RETURN
+    mkdir -p "$tmp_dir/repo/web/node_modules/.bin" "$tmp_dir/repo/web/node_modules/vite/bin"
+    link_path="$tmp_dir/repo/web/node_modules/.bin/vite"
+    cat > "$tmp_dir/repo/web/node_modules/vite/bin/vite.js" <<'EOF'
+#!/usr/bin/env bash
+printf 'vite-ok\n'
+EOF
+    chmod +x "$tmp_dir/repo/web/node_modules/vite/bin/vite.js"
+    ln -s ../vite/bin/vite.js "$link_path"
+
+    restore_token="$(backup_repo_path "$link_path" "$tmp_dir/vite.backup")"
+    restore_repo_path "$link_path" "$restore_token"
+
+    assert_eq "$(readlink "$link_path")" "../vite/bin/vite.js" \
+        "repo path restore should preserve moved relative symlink targets"
+    assert_eq "$("$link_path")" "vite-ok" \
+        "restored repo symlink should still execute its original target"
 }
 
 test_admin_key_is_optional_when_playwright_owns_web_server() {
@@ -796,6 +825,7 @@ main() {
     test_preflight_uses_shared_flapjack_provenance_check
     test_preflight_rejects_path_fallback_after_selected_source_failure
     test_preflight_prints_shared_source_provenance_for_selected_checkout
+    test_repo_path_backup_restores_relative_symlink
     test_admin_key_is_optional_when_playwright_owns_web_server
     test_seeded_user_credentials_default_from_seed
     test_explicit_e2e_overrides_preserved

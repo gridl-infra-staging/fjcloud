@@ -28,6 +28,7 @@ function defaultProps(overrides: Partial<MetricsTabProps> = {}): MetricsTabProps
 		metrics: baselineMetrics,
 		error: null,
 		indexName: 'products',
+		infrastructureTabHref: '/console/indexes/products?tab=infrastructure',
 		...overrides
 	};
 }
@@ -109,5 +110,14 @@ describe('MetricsTab', () => {
 		await fireEvent.click(screen.getByTestId('metrics-refresh-btn'));
 
 		expect(invalidateMock).toHaveBeenCalledWith('app:index-metrics:products');
+	});
+
+	it('links to the shell-owned Infrastructure destination', () => {
+		render(MetricsTab, defaultProps());
+
+		expect(screen.getByRole('link', { name: 'View infrastructure and headroom' })).toHaveAttribute(
+			'href',
+			'/console/indexes/products?tab=infrastructure'
+		);
 	});
 });

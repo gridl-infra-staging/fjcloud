@@ -13,6 +13,7 @@ pub mod migration;
 pub mod oauth;
 pub mod onboarding;
 pub mod pricing;
+pub mod public_infrastructure;
 pub mod public_site;
 pub mod storage;
 pub mod usage;

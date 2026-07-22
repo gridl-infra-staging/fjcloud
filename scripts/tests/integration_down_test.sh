@@ -169,6 +169,16 @@ test_down_log_files_cleaned() {
     assert_contains "$output" "torn down" "teardown should still report completion after log cleanup"
 }
 
+test_down_tracks_built_metering_binary_identity() {
+    local script_text
+    script_text="$(cat "$REPO_ROOT/scripts/integration-down.sh")"
+
+    assert_contains \
+        "$script_text" \
+        'kill_pid_file "$METERING_AGENT_PID" "metering-agent" "fj-metering-agent"' \
+        "teardown should match the fj-metering-agent binary built by integration-up"
+}
+
 test_down_succeeds_when_psql_unavailable() {
     local tmp_dir
     tmp_dir="$(mktemp -d)"
@@ -333,6 +343,7 @@ main() {
     test_teardown_with_stale_pid_file
     test_down_stale_pid_pointing_to_different_process
     test_down_log_files_cleaned
+    test_down_tracks_built_metering_binary_identity
     test_down_succeeds_when_psql_unavailable
     test_down_psql_query_failure_reports_query_skip
     test_down_invalid_db_name_still_kills_processes

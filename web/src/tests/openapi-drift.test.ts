@@ -10,6 +10,7 @@ type JsonSchema = {
 	items?: JsonSchema;
 	$ref?: string;
 	oneOf?: JsonSchema[];
+	enum?: string[];
 	additionalProperties?: JsonSchema | boolean;
 };
 
@@ -68,6 +69,12 @@ type PropertyDescriptor =
 	  }
 	| {
 			name: string;
+			kind: 'nullableRef';
+			ref: string;
+			required?: boolean;
+	  }
+	| {
+			name: string;
 			kind: 'object';
 			required?: boolean;
 	  }
@@ -94,6 +101,11 @@ type ObjectResponseDescriptor = {
 	method: 'get' | 'post';
 	status: string;
 	ref: string;
+};
+
+type EnumSchemaDescriptor = {
+	schemaName: string;
+	values: string[];
 };
 
 const openApiPath = resolve(
@@ -154,6 +166,48 @@ const schemaDescriptors: SchemaDescriptor[] = [
 			{ name: 'search_requests_total', kind: 'primitive', type: 'integer', required: true },
 			{ name: 'write_operations_total', kind: 'primitive', type: 'integer', required: true },
 			{ name: 'fetched_at', kind: 'primitive', type: 'string', required: true }
+		]
+	},
+	{
+		schemaName: 'IndexInfrastructureResponse',
+		properties: [
+			{ name: 'index', kind: 'primitive', type: 'string', required: true },
+			{ name: 'primary', kind: 'ref', ref: 'InfrastructurePrimary', required: true },
+			{ name: 'replicas', kind: 'refArray', ref: 'InfrastructureReplica', required: true },
+			{ name: 'footprint', kind: 'ref', ref: 'InfrastructureFootprint', required: true },
+			{ name: 'headroom', kind: 'ref', ref: 'HeadroomStatus', required: true },
+			{
+				name: 'minimum_refresh_interval_seconds',
+				kind: 'primitive',
+				type: 'integer',
+				required: true
+			}
+		]
+	},
+	{
+		schemaName: 'InfrastructurePrimary',
+		properties: [
+			{ name: 'region', kind: 'primitive', type: 'string', required: true },
+			{ name: 'status', kind: 'primitive', type: 'string', required: true },
+			{ name: 'utilization', kind: 'nullableRef', ref: 'UtilizationBucket', required: true }
+		]
+	},
+	{
+		schemaName: 'InfrastructureReplica',
+		properties: [
+			{ name: 'region', kind: 'primitive', type: 'string', required: true },
+			{ name: 'status', kind: 'primitive', type: 'string', required: true },
+			{ name: 'lag_ops', kind: 'primitive', type: 'integer', required: true },
+			{ name: 'utilization', kind: 'nullableRef', ref: 'UtilizationBucket', required: true }
+		]
+	},
+	{
+		schemaName: 'InfrastructureFootprint',
+		properties: [
+			{ name: 'documents_count', kind: 'primitive', type: 'integer', required: true },
+			{ name: 'storage_bytes', kind: 'primitive', type: 'integer', required: true },
+			{ name: 'search_requests_total', kind: 'primitive', type: 'integer', required: true },
+			{ name: 'write_operations_total', kind: 'primitive', type: 'integer', required: true }
 		]
 	},
 	{
@@ -304,7 +358,18 @@ const objectResponseDescriptors: ObjectResponseDescriptor[] = [
 		method: 'post',
 		status: '200',
 		ref: 'AlgoliaSourceListResponse'
+	},
+	{
+		path: '/indexes/{name}/infrastructure',
+		method: 'get',
+		status: '200',
+		ref: 'IndexInfrastructureResponse'
 	}
+];
+
+const enumSchemaDescriptors: EnumSchemaDescriptor[] = [
+	{ schemaName: 'HeadroomStatus', values: ['comfortable', 'busy', 'approaching_limits'] },
+	{ schemaName: 'UtilizationBucket', values: ['green', 'yellow', 'red'] }
 ];
 
 function componentSchema(schemaName: string): JsonSchema {
@@ -362,11 +427,7 @@ function assertRefArray(schemaName: string, propertyName: string, refName: strin
 	);
 }
 
-function assertPrimitiveArray(
-	schemaName: string,
-	propertyName: string,
-	type: PrimitiveKind
-): void {
+function assertPrimitiveArray(schemaName: string, propertyName: string, type: PrimitiveKind): void {
 	const property = propertySchema(schemaName, propertyName);
 	expect(property.type, `${schemaName}.${propertyName} array type drift`).toBe('array');
 	expect(property.items?.type, `${schemaName}.${propertyName} array item type drift`).toBe(type);
@@ -377,6 +438,21 @@ function assertRef(schemaName: string, propertyName: string, refName: string): v
 	expect(property.$ref, `${schemaName}.${propertyName} ref drift`).toBe(
 		`#/components/schemas/${refName}`
 	);
+}
+
+function assertNullableRef(schemaName: string, propertyName: string, refName: string): void {
+	const property = propertySchema(schemaName, propertyName);
+	expect(property.oneOf, `${schemaName}.${propertyName} nullable ref drift`).toEqual([
+		{ type: 'null' },
+		{ $ref: `#/components/schemas/${refName}` }
+	]);
+}
+
+function assertEnumSchema(descriptor: EnumSchemaDescriptor): void {
+	const schema = openApi.components?.schemas?.[descriptor.schemaName];
+	expect(schema, `${descriptor.schemaName} component schema must exist`).toBeDefined();
+	expect(schema?.type, `${descriptor.schemaName} enum type drift`).toBe('string');
+	expect(schema?.enum, `${descriptor.schemaName} enum values drift`).toEqual(descriptor.values);
 }
 
 function assertObjectContainer(schemaName: string, propertyName: string): void {
@@ -417,8 +493,9 @@ function assertJsonArrayResponseRef(descriptor: ArrayResponseDescriptor): void {
 
 function assertJsonObjectResponseRef(descriptor: ObjectResponseDescriptor): void {
 	const responseName = `${descriptor.method.toUpperCase()} ${descriptor.path} ${descriptor.status}`;
-	const schema = openApi.paths?.[descriptor.path]?.[descriptor.method]?.responses?.[descriptor.status]
-		?.content?.['application/json']?.schema;
+	const schema =
+		openApi.paths?.[descriptor.path]?.[descriptor.method]?.responses?.[descriptor.status]
+			?.content?.['application/json']?.schema;
 	expect(schema?.$ref, `${responseName} response ref drift`).toBe(
 		`#/components/schemas/${descriptor.ref}`
 	);
@@ -445,6 +522,10 @@ function assertProperty(schemaName: string, descriptor: PropertyDescriptor): voi
 	}
 	if (descriptor.kind === 'ref') {
 		assertRef(schemaName, descriptor.name, descriptor.ref);
+		return;
+	}
+	if (descriptor.kind === 'nullableRef') {
+		assertNullableRef(schemaName, descriptor.name, descriptor.ref);
 		return;
 	}
 	if (descriptor.kind === 'object') {
@@ -478,4 +559,8 @@ describe('OpenAPI frontend type drift guard', () => {
 			assertJsonObjectResponseRef(descriptor);
 		}
 	);
+
+	it.each(enumSchemaDescriptors)('$schemaName matches the frontend enum owner', (descriptor) => {
+		assertEnumSchema(descriptor);
+	});
 });

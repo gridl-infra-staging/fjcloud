@@ -16,6 +16,7 @@ use crate::services::alerting::AlertService;
 use crate::services::prometheus_parser::{
     extract_resource_vectors, parse_internal_storage_bytes, parse_metrics, CounterSnapshot,
 };
+use crate::services::public_topology::PUBLIC_TOPOLOGY_MIN_REFRESH_INTERVAL_SECS;
 use crate::services::replication_error::{INTERNAL_APP_ID_HEADER, INTERNAL_AUTH_HEADER};
 use crate::services::tenant_quota::QuotaDefaults;
 
@@ -82,7 +83,8 @@ impl SchedulerConfig {
                 &read,
                 "SCHEDULER_SCRAPE_INTERVAL_SECS",
                 DEFAULT_SCRAPE_INTERVAL_SECS,
-            ),
+            )
+            .max(PUBLIC_TOPOLOGY_MIN_REFRESH_INTERVAL_SECS),
             overload_threshold: parse_with_default(
                 &read,
                 "SCHEDULER_OVERLOAD_THRESHOLD",

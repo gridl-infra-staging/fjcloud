@@ -52,7 +52,9 @@ Restore API command construction remains delegated to rds_restore_drill.sh. |
 Does NOT run migrations (never roll back migrations).
 
 Usage: rollback.sh <env> <previous-sha>. |
-| set_algolia_migration_availability.sh | Stub summary for ops/scripts/set_algolia_migration_availability.sh. |
+| set_algolia_migration_availability.sh | set_algolia_migration_availability.sh — bounded Algolia migration toggle.
+
+Dry-run by default. |
 | set_flapjack_ami_pointer.sh | Guarded owner for /fjcloud/<env>/aws_ami_id operational values.
 Dry-run is the default; --execute and --rollback are explicit mutations.
 Live mutation uses a cooperative DynamoDB lock. |
@@ -73,6 +75,6 @@ Prerequisites checked:
 
 | Directory | Summary |
 | --- | --- |
-| lib | This directory contains shared utility scripts for deployment operations, including pre-deployment validation, AWS SSM parameter-to-environment-variable mapping for service configuration, RDS restore utilities, and release artifact management. |
-| tests | The tests directory contains a bash script that captures a Cloudflare zone fixture in a single run, likely for testing purposes. |
+| lib | — |
+| tests | — |
 <!-- [scrai:end] -->

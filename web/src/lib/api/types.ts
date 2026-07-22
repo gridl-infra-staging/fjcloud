@@ -60,7 +60,13 @@ export type {
 	BrowseObjectsRequest,
 	BrowseObjectsResponse,
 	IndexReplicaSummary,
-	IndexMetricsResponse
+	IndexMetricsResponse,
+	UtilizationBucket,
+	HeadroomStatus,
+	InfrastructurePrimary,
+	InfrastructureReplica,
+	InfrastructureFootprint,
+	IndexInfrastructureResponse
 } from './types/indexes';
 
 export type {
@@ -145,6 +151,14 @@ export type { CreateIndexKeyRequest, FlapjackApiKey } from './types/flapjack';
 export type { OnboardingStatus, FreeTierLimits, FlapjackCredentials } from './types/onboarding';
 
 export type { SecuritySource, SecuritySourcesResponse } from './types/security_sources';
+
+export type {
+	PublicRegionHealth,
+	PublicRegionUtilization,
+	PublicRegionInfrastructure,
+	PublicInfrastructureOverall,
+	PublicInfrastructureResponse
+} from './types/public_infrastructure';
 
 export type {
 	DictionaryName,

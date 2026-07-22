@@ -57,6 +57,40 @@ export FLAPJACK_ADMIN_KEY="${FLAPJACK_ADMIN_KEY:-$DEFAULT_LOCAL_FLAPJACK_ADMIN_K
 
 log() { echo "[playwright_local_stack] $*"; }
 
+require_local_database_url() {
+	local database_host
+	[ -n "${DATABASE_URL:-}" ] || {
+		echo "[playwright_local_stack] ERROR: DATABASE_URL is required before applying local Playwright migrations." >&2
+		exit 1
+	}
+
+	database_host="$(python3 - "$DATABASE_URL" <<'PY'
+import sys
+from urllib.parse import urlsplit
+
+try:
+    parsed = urlsplit(sys.argv[1])
+    if parsed.scheme not in {"postgres", "postgresql"} or not parsed.hostname:
+        raise ValueError
+except (TypeError, ValueError):
+    raise SystemExit(1)
+
+print(parsed.hostname.lower())
+PY
+	)" || {
+		echo "[playwright_local_stack] ERROR: DATABASE_URL must be a valid PostgreSQL URL before applying local Playwright migrations." >&2
+		exit 1
+	}
+
+	case "$database_host" in
+		localhost|127.0.0.1|::1) ;;
+		*)
+			echo "[playwright_local_stack] ERROR: refusing to apply local Playwright migrations to a non-loopback DATABASE_URL." >&2
+			exit 1
+			;;
+	esac
+}
+
 if [ "${1:-}" = "--force-api-restart" ]; then
 	FORCE_API_RESTART="1"
 	shift
@@ -230,6 +264,8 @@ fi
 ensure_flapjack_experiments_api_ready
 
 if ! curl -fsS "$API_HEALTH_URL" >/dev/null 2>&1; then
+	require_local_database_url
+	bash "$SCRIPT_DIR/local-dev-migrate.sh"
 	bash "$SCRIPT_DIR/api-dev.sh" >"$API_LOG_PATH" 2>&1 &
 	api_pid="$!"
 	started_api="1"

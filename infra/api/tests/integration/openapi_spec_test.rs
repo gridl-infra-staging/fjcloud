@@ -58,6 +58,28 @@ fn response_schema_ref<'a>(
 }
 
 #[test]
+fn public_infrastructure_openapi_surface_is_public_and_schema_bound() {
+    let spec = crate::common::openapi_spec_json();
+    let operation = spec
+        .pointer("/paths/~1public~1infrastructure/get")
+        .expect("GET /public/infrastructure must be registered in OpenAPI");
+
+    assert_eq!(
+        operation
+            .pointer("/responses/200/content/application~1json/schema/$ref")
+            .and_then(|value| value.as_str()),
+        Some("#/components/schemas/PublicInfrastructureResponse")
+    );
+    assert_eq!(
+        operation
+            .pointer("/security")
+            .and_then(|value| value.as_array()),
+        Some(&vec![serde_json::json!({})]),
+        "public infrastructure must override global bearer auth"
+    );
+}
+
+#[test]
 fn openapi_spec_matches_committed_artifact() {
     let artifact_path = openapi_artifact_path();
     let generated_spec = ApiDoc::openapi()

@@ -17,5 +17,5 @@ Usage: generate_ssm_env.sh <env>
 
 Requires: aws CLI with IAM role that can ssm:GetParametersByPath + kms:Decrypt. |
 | rds_restore_selection.py | Stub summary for rds_restore_selection.py. |
-| release_artifacts.sh | Stub summary for ops/scripts/lib/release_artifacts.sh. |
+| release_artifacts.sh | Shared release-artifact publication helpers for GitHub Actions deploy jobs. |
 <!-- [scrai:end] -->

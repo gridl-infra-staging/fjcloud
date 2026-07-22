@@ -3,6 +3,7 @@ use api::repos::vm_inventory_repo::VmInventoryRepo;
 use api::repos::DeploymentRepo;
 use axum::http::{Request, StatusCode};
 use serde_json::json;
+use serde_json::Value;
 use std::sync::Arc;
 use tower::ServiceExt;
 use uuid::Uuid;
@@ -41,6 +42,149 @@ fn admin_vm_test_app(vm_inventory_repo: Arc<crate::common::MockVmInventoryRepo>)
         ),
         vm_inventory_repo,
     )
+}
+
+async fn create_vm_fixture(
+    vm_inventory_repo: &crate::common::MockVmInventoryRepo,
+    region: &str,
+    hostname: &str,
+    capacity: Value,
+) -> api::models::vm_inventory::VmInventory {
+    vm_inventory_repo
+        .create(api::models::vm_inventory::NewVmInventory {
+            region: region.into(),
+            provider: "aws".into(),
+            hostname: hostname.into(),
+            flapjack_url: format!("https://{hostname}"),
+            capacity,
+        })
+        .await
+        .unwrap()
+}
+
+async fn create_deployment_with_health(
+    deployment_repo: &MockDeploymentRepo,
+    customer_id: Uuid,
+    node_id: &str,
+    health_status: &str,
+) -> Uuid {
+    let deployment = deployment_repo
+        .create(customer_id, node_id, "us-east-1", "t4g.medium", "aws", None)
+        .await
+        .unwrap();
+    deployment_repo
+        .update_health(deployment.id, health_status, chrono::Utc::now())
+        .await
+        .unwrap();
+    deployment.id
+}
+
+async fn assign_tenant_to_vm(
+    tenant_repo: &crate::common::MockTenantRepo,
+    vm_id: Uuid,
+    tenant: (Uuid, &str, Uuid),
+) {
+    let (customer_id, tenant_id, deployment_id) = tenant;
+    tenant_repo
+        .create(customer_id, tenant_id, deployment_id)
+        .await
+        .unwrap();
+    tenant_repo
+        .set_vm_id(customer_id, tenant_id, vm_id)
+        .await
+        .unwrap();
+}
+
+fn vm_entry<'a>(entries: &'a [Value], vm_id: Uuid, label: &str) -> &'a Value {
+    entries
+        .iter()
+        .find(|entry| entry["id"] == json!(vm_id))
+        .unwrap_or_else(|| panic!("{label} is present in /admin/vms response"))
+}
+
+#[tokio::test]
+async fn get_admin_vms_returns_counts_and_health_contract() {
+    let customer_a = Uuid::new_v4();
+    let customer_b = Uuid::new_v4();
+
+    let vm_inventory_repo = mock_vm_inventory_repo();
+    let vm_a = create_vm_fixture(
+        &vm_inventory_repo,
+        "us-east-1",
+        "vm-a.flapjack.foo",
+        json!({"cpu_cores": 8, "ram_mb": 16384, "disk_gb": 200}),
+    )
+    .await;
+    let vm_b = create_vm_fixture(
+        &vm_inventory_repo,
+        "us-west-2",
+        "vm-b.flapjack.foo",
+        json!({"cpu_cores": 4, "ram_mb": 8192, "disk_gb": 100}),
+    )
+    .await;
+    let tenant_repo = crate::common::mock_tenant_repo();
+    let deployment_repo = MockDeploymentRepo::new();
+    let dep_a_1 =
+        create_deployment_with_health(&deployment_repo, customer_a, "vm-a-node-1", "healthy").await;
+    let dep_a_2 =
+        create_deployment_with_health(&deployment_repo, customer_a, "vm-a-node-2", "unhealthy")
+            .await;
+    let dep_b_1 =
+        create_deployment_with_health(&deployment_repo, customer_b, "vm-a-node-3", "healthy").await;
+
+    for (customer_id, tenant_id, deployment_id) in [
+        (customer_a, "products", dep_a_1),
+        (customer_a, "orders", dep_a_2),
+        (customer_b, "reports", dep_b_1),
+    ] {
+        assign_tenant_to_vm(
+            &tenant_repo,
+            vm_a.id,
+            (customer_id, tenant_id, deployment_id),
+        )
+        .await;
+    }
+
+    let app = crate::common::test_app_with_indexes_and_vm_inventory(
+        Arc::new(MockCustomerRepo::new()),
+        Arc::new(deployment_repo),
+        tenant_repo,
+        mock_flapjack_proxy_with_secrets(
+            Arc::new(api::secrets::mock::MockNodeSecretManager::new()),
+        ),
+        vm_inventory_repo,
+    );
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/admin/vms")
+                .header("x-admin-key", TEST_ADMIN_KEY)
+                .body(axum::body::Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let json = response_json(response).await;
+    let entries = json.as_array().expect("GET /admin/vms returns an array");
+    let vm_a_json = vm_entry(entries, vm_a.id, "VM-A");
+    let vm_b_json = vm_entry(entries, vm_b.id, "VM-B");
+
+    assert_eq!(vm_a_json["hostname"], "vm-a.flapjack.foo");
+    assert_eq!(vm_a_json["region"], "us-east-1");
+    assert_eq!(vm_a_json["provider"], "aws");
+    assert_eq!(vm_a_json["status"], "active");
+    assert_eq!(vm_a_json["capacity"]["cpu_cores"], 8);
+    assert_eq!(vm_a_json["tenant_count"], 2);
+    assert_eq!(vm_a_json["index_count"], 3);
+    assert_eq!(vm_a_json["health"], "unhealthy");
+
+    assert_eq!(vm_b_json["tenant_count"], 0);
+    assert_eq!(vm_b_json["index_count"], 0);
+    assert_eq!(vm_b_json["health"], "unknown");
 }
 
 #[tokio::test]

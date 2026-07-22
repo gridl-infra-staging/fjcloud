@@ -585,9 +585,9 @@ export function resolvePlaywrightRuntime({
 	processEnv.API_BASE_URL = apiBaseUrl;
 	processEnv.API_URL = apiUrl;
 	const webServerEnv = sanitizeWebServerEnv({
-		...processEnv,
 		...repoEnv,
 		...webEnv,
+		...processEnv,
 		API_BASE_URL: apiBaseUrl,
 		API_URL: apiUrl,
 		[PLAYWRIGHT_API_PORT_ENV]: String(apiPort),
@@ -702,9 +702,7 @@ function isAllowlistedRemoteTargetHost(hostname: string): boolean {
 
 function assertSafeRemoteTargetUrl(varName: string, parsed: URL): void {
 	if (parsed.username || parsed.password) {
-		throw new Error(
-			`${varName} must not embed URL credentials when ${REMOTE_TARGET_OPT_IN_ENV}=1`
-		);
+		throw new Error(`${varName} must not embed URL credentials when ${REMOTE_TARGET_OPT_IN_ENV}=1`);
 	}
 	if (parsed.port && parsed.port !== '443') {
 		throw new Error(

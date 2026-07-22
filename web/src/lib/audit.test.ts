@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { auditActionLabel } from './audit';
+import { auditActionLabel, auditMetadataDisplay } from './audit';
 
 describe('auditActionLabel', () => {
 	it.each([
@@ -19,5 +19,18 @@ describe('auditActionLabel', () => {
 	it('falls back safely for unknown future action names', () => {
 		expect(auditActionLabel('new_future_action')).toBe('New Future Action');
 		expect(auditActionLabel('')).toBe('Unknown action');
+	});
+});
+
+describe('auditMetadataDisplay', () => {
+	it('renders compact key-value metadata deterministically', () => {
+		expect(auditMetadataDisplay({ reason: 'billing_review', duration_secs: 42 })).toBe(
+			'duration_secs: 42, reason: billing_review'
+		);
+	});
+
+	it('suppresses absent and empty metadata', () => {
+		expect(auditMetadataDisplay({})).toBeNull();
+		expect(auditMetadataDisplay(null)).toBeNull();
 	});
 });

@@ -22,6 +22,7 @@
 		ExperimentListResponse,
 		ExperimentResults,
 		Index,
+		IndexInfrastructureResponse,
 		IndexMetricsResponse,
 		IndexChatResponse,
 		IndexReplicaSummary,
@@ -40,6 +41,7 @@
 	import ExperimentsTab from './tabs/ExperimentsTab.svelte';
 	import MerchandisingTab from './tabs/MerchandisingTab.svelte';
 	import MetricsTab from './tabs/MetricsTab.svelte';
+	import InfrastructureTab from './tabs/InfrastructureTab.svelte';
 	import DocumentsTab from './tabs/DocumentsTab.svelte';
 	import DictionariesTab from './tabs/DictionariesTab.svelte';
 	import OverviewTab from './tabs/OverviewTab.svelte';
@@ -99,6 +101,8 @@
 		eventsLoadError?: string;
 		metrics?: IndexMetricsResponse | null;
 		metricsError?: { code: number; message: string } | null;
+		infrastructure?: IndexInfrastructureResponse | null;
+		infrastructureError?: { code: number; message: string } | null;
 	};
 
 	type IndexDetailShellFormData = Record<string, unknown> & {
@@ -258,6 +262,10 @@
 	const metrics: IndexMetricsResponse | null = $derived(data.metrics ?? null);
 	const metricsError: { code: number; message: string } | null = $derived(
 		data.metricsError ?? null
+	);
+	const infrastructure: IndexInfrastructureResponse | null = $derived(data.infrastructure ?? null);
+	const infrastructureError: { code: number; message: string } | null = $derived(
+		data.infrastructureError ?? null
 	);
 
 	const analyticsUnavailable: boolean = $derived(
@@ -483,6 +491,7 @@
 	}
 
 	const overviewAnalyticsTabHref = $derived(buildTabHref(page.url, 'analytics'));
+	const infrastructureTabHref = $derived(buildTabHref(page.url, 'infrastructure'));
 
 	$effect(() => {
 		const currentUrl = page.url;
@@ -556,7 +565,9 @@
 					index.status
 				)}"
 			>
-				<span aria-hidden="true">{index.status === 'ready' || index.status === 'healthy' ? '●' : '◌'}</span>
+				<span aria-hidden="true"
+					>{index.status === 'ready' || index.status === 'healthy' ? '●' : '◌'}</span
+				>
 				{indexStatusLabel(index.status)}
 			</span>
 			<Tooltip
@@ -735,7 +746,13 @@
 
 	{#if visitedTabs.metrics}
 		<div hidden={activeTab !== 'metrics'}>
-			<MetricsTab {metrics} error={metricsError} indexName={index.name} />
+			<MetricsTab {metrics} error={metricsError} indexName={index.name} {infrastructureTabHref} />
+		</div>
+	{/if}
+
+	{#if visitedTabs.infrastructure}
+		<div hidden={activeTab !== 'infrastructure'}>
+			<InfrastructureTab {infrastructure} error={infrastructureError} indexName={index.name} />
 		</div>
 	{/if}
 
@@ -802,5 +819,4 @@
 			/>
 		</div>
 	{/if}
-
 </div>

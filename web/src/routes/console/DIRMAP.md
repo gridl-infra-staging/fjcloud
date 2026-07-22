@@ -8,12 +8,14 @@
 
 | Directory | Summary |
 | --- | --- |
-| account | The account directory contains a SvelteKit server-side page component that likely handles user account-related functionality. |
-| api-keys | This directory contains the server-side implementation for an API keys management page, likely providing functionality to view, create, or manage API credentials within the web application. |
-| billing | This is the server-side handler for the admin billing page that loads and displays a sorted list of all customer invoices. |
-| indexes | The indexes directory contains a SvelteKit application's page server and management modules for index detail settings, including features for analytics, chat, dictionary, events, personalization, recommendations, rules, security, suggestions, and synonyms. |
-| migrate | The migrate directory contains a SvelteKit page server component for the console's migration interface. |
-| onboarding | The onboarding directory contains a SvelteKit page route that likely handles server-side logic for the application's onboarding flow. |
-| resend-verification | A SvelteKit server endpoint for resending verification messages or notifications, likely handling the backend logic to trigger a new verification attempt for users. |
+| account | Server-side page handler for the account management dashboard, implementing four actions: profile updates, password changes, account deletion with password verification, and account data export. |
+| api-keys | The api-keys directory is a SvelteKit route for managing API keys, with server-side logic handling key operations. |
+| billing | I'd be happy to summarize the billing directory, but I need clarification: are you asking me to (1) read the actual billing directory and provide a summary, or (2) expand on the stub summary you've provided?
+
+Also, which billing directory — is it `infra/billing/` (the Rust billing engine crate) or a web route under `web/src/routes/`?. |
+| indexes | A SvelteKit console route for managing indexes with comprehensive server-side logic spanning analytics, infrastructure, security, recommendations, experiments, and configuration domains. |
+| migrate | Server-side page handler for the console migration feature that fetches Algolia migration availability from the API and returns the status to the client. |
+| onboarding | The onboarding page server handles customer onboarding flows including index creation and API credential generation, with retry logic and session error handling. |
+| resend-verification | The resend-verification directory contains a SvelteKit server endpoint that handles requests to resend verification emails to users. |
 | settings | — |
 <!-- [scrai:end] -->

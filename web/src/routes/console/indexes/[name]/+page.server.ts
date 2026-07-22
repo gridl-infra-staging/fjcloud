@@ -59,6 +59,8 @@ import {
 } from './analytics-management.server';
 import { loadMetricsPayload } from './metrics-management.server';
 import { metricsDependencyKey } from './metrics-keys';
+import { loadInfrastructurePayload } from './infrastructure-management.server';
+import { infrastructureDependencyKey } from './infrastructure-keys';
 import {
 	deleteQsConfigAction,
 	rebuildQsConfigAction,
@@ -129,6 +131,7 @@ function ensureExperimentActionAllowed(
 
 export const load: PageServerLoad = async ({ locals, params, url, depends }) => {
 	depends?.(metricsDependencyKey(params.name));
+	depends?.(infrastructureDependencyKey(params.name));
 
 	const api = createApiClient(locals.user?.token);
 	const { name } = params;
@@ -151,6 +154,7 @@ export const load: PageServerLoad = async ({ locals, params, url, depends }) => 
 			qsStatus,
 			analyticsPayload,
 			metricsPayload,
+			infrastructurePayload,
 			experiments,
 			debugEventsResult,
 			allIndexes
@@ -169,6 +173,7 @@ export const load: PageServerLoad = async ({ locals, params, url, depends }) => 
 			api.getQsStatus(name).catch(() => null),
 			loadAnalyticsPayload(api, name, url.searchParams.get('period')),
 			loadMetricsPayload(api, name),
+			loadInfrastructurePayload(api, name),
 			api.listExperiments(name).catch(() => null),
 			api
 				.getDebugEvents(name, {
@@ -242,6 +247,8 @@ export const load: PageServerLoad = async ({ locals, params, url, depends }) => 
 			...analyticsPayload,
 			metrics: metricsPayload.metrics,
 			metricsError: metricsPayload.error,
+			infrastructure: infrastructurePayload.infrastructure,
+			infrastructureError: infrastructurePayload.error,
 			debugEvents: debugEventsResult.debugEvents,
 			eventsLoadError: debugEventsResult.eventsLoadError,
 			dictionaries: dictionariesResult.payload,

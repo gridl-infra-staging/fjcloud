@@ -19,7 +19,7 @@ backup_repo_path() {
     local original_path="$1"
     local backup_path="$2"
 
-    if [ ! -e "$original_path" ]; then
+    if [ ! -e "$original_path" ] && [ ! -L "$original_path" ]; then
         # Signal that the original didn't exist so restore_repo_path can
         # clean up whatever the test creates without confusing this with
         # the leaked-RETURN-trap case (empty string after caller clears).
@@ -42,7 +42,7 @@ restore_repo_path() {
     if [ "$backup_path" = "__NO_ORIGINAL__" ]; then
         # Original didn't exist before the test — remove whatever it created.
         rm -rf "$original_path"
-    elif [ -n "$backup_path" ] && [ -e "$backup_path" ]; then
+    elif [ -n "$backup_path" ] && { [ -e "$backup_path" ] || [ -L "$backup_path" ]; }; then
         rm -rf "$original_path"
         mv "$backup_path" "$original_path"
     fi

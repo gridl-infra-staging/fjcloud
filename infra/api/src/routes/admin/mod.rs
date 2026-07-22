@@ -63,6 +63,7 @@ pub fn admin_routes() -> Router<AppState> {
             "/tenants/:id/invoices",
             get(invoices::list_tenant_invoices).post(invoices::generate_invoice),
         )
+        .route("/invoices/:id", get(invoices::get_admin_invoice_detail))
         .route("/invoices/:id/finalize", post(invoices::finalize_invoice))
         .route("/customers/:id/sync-stripe", post(tenants::sync_stripe))
         .route(
@@ -101,6 +102,7 @@ pub fn admin_routes() -> Router<AppState> {
             post(migrations::probe_failure_after_replication),
         )
         .route("/billing/run", post(invoices::run_batch_billing))
+        .route("/billing/summary", get(invoices::billing_summary))
         .route("/vms", get(vms::list_vms))
         .route("/vms/shared/warm-floor", post(vms::warm_floor_shared_vm))
         .route(
@@ -108,10 +110,14 @@ pub fn admin_routes() -> Router<AppState> {
             get(vms::get_retirement_blockers),
         )
         .route("/vms/:id/decommission", post(vms::decommission_vm))
+        .route("/vms/:id/host-metrics", get(vms::get_vm_host_metrics))
         .route("/vms/:id", get(vms::get_vm_detail))
         .route("/vms/:id/kill", post(vms::kill_vm))
         .route("/replicas", get(replicas::list_replicas))
-        .route("/tenants/:id/indexes", post(indexes::seed_index))
+        .route(
+            "/tenants/:id/indexes",
+            get(indexes::list_tenant_indexes).post(indexes::seed_index),
+        )
         .route("/webhook-events", get(webhook_events::get_webhook_event))
 }
 

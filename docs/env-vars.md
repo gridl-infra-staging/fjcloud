@@ -11,6 +11,7 @@ All environment variables used by the fjcloud API and web portal.
 | `ADMIN_KEY`                         | Yes      | —                            | Admin API authentication key (compared via constant-time `subtle` crate)                                                                                                                                                                                                                                                                      |
 | `LISTEN_ADDR`                       | No       | `0.0.0.0:3001`               | Address and port the API server binds to                                                                                                                                                                                                                                                                                                      |
 | `RUST_LOG`                          | No       | `info,api=debug`             | Log level filter (standard `tracing_subscriber` format)                                                                                                                                                                                                                                                                                       |
+| `SCHEDULER_SCRAPE_INTERVAL_SECS`    | No       | `300`                        | Scheduler VM telemetry scrape interval in seconds. `SchedulerConfig::from_reader` enforces a minimum of `60`.                                                                                                                                                                                                                                |
 | `ENVIRONMENT`                       | No       | `unknown`                    | Environment name included in alert messages (e.g., `staging`, `prod`). Set to `local`, `dev`, or `development` together with `NODE_SECRET_BACKEND=memory` to enable local zero-dependency fallbacks. When set to `prod` or `production`, startup requires at least one non-blank alert webhook (`SLACK_WEBHOOK_URL` or `DISCORD_WEBHOOK_URL`) |
 | `NODE_SECRET_BACKEND`               | No       | `auto`                       | Node secret backend: `auto` (SSM when AWS provisioner is configured), `ssm`, `memory` (local dev), or `disabled`                                                                                                                                                                                                                              |
 | `APP_BASE_URL`                      | No       | `https://cloud.flapjack.foo` | Canonical browser application base URL used when rendering transactional links and OAuth callback URLs. Startup trims a trailing slash so templates do not emit double slashes, and OAuth state-cookie policy follows its scheme (`https` => `Secure; SameSite=None`, local `http` => non-`Secure`; `SameSite=Lax`)                           |
@@ -25,6 +26,36 @@ All environment variables used by the fjcloud API and web portal.
 **Flapjack identity note:** Algolia import admission fails closed unless `FJCLOUD_FLAPJACK_VERSION`, `FJCLOUD_FLAPJACK_REQUIRED_REVISION`, `FJCLOUD_FLAPJACK_REQUIRED_BUILD_ID`, and `FJCLOUD_FLAPJACK_REQUIRED_SHA256` are all non-blank. Other API routes can run without this import-specific configuration.
 
 **Cloud API notes:** The `customers` table includes a `service_type` column (default: `flapjack`) added in Stage 1. This column identifies the managed search engine type per tenant and is included in service discovery responses.
+
+## Metering Agent
+
+The metering agent also reuses shared variables documented elsewhere in this
+file:
+
+- `DATABASE_URL` from `API Core`
+- `ENVIRONMENT` from `API Core`
+- `SLACK_WEBHOOK_URL` and `DISCORD_WEBHOOK_URL` from `Alerting`
+
+| Variable                     | Required | Default                    | Description |
+| ---------------------------- | -------- | -------------------------- | ----------- |
+| `FLAPJACK_URL`               | Yes      | —                          | Base URL of the local Flapjack node scraped for `/metrics` and `/internal/storage`. Trailing slashes are trimmed. |
+| `FLAPJACK_API_KEY`           | Yes      | —                          | API key sent to local Flapjack engine endpoints as `X-Algolia-API-Key`. |
+| `FLAPJACK_APPLICATION_ID`    | No       | `flapjack`                 | Application id sent to local Flapjack engine endpoints as `X-Algolia-Application-Id`. |
+| `INTERNAL_KEY`               | No       | Falls back to `FLAPJACK_API_KEY` | Internal auth token sent to control-plane `/internal/*` endpoints. |
+| `CUSTOMER_ID`                | Yes      | —                          | Node-level owner label used in breaker alerts and logs. This may be a shared-host label like `staging`; per-record billing attribution still comes from the tenant map. |
+| `NODE_ID`                    | Yes      | —                          | Stable node identifier. When `VM_ID` is unset, host telemetry resolves `vm_inventory.id` by matching this value against `vm_inventory.hostname`. |
+| `REGION`                     | Yes      | —                          | Region label attached to persisted usage records and breaker metadata. |
+| `SCRAPE_INTERVAL_SECS`       | No       | `60`                       | Interval in seconds between `/metrics` scrape cycles. |
+| `STORAGE_POLL_INTERVAL_SECS` | No       | `300`                      | Interval in seconds between `/internal/storage` polling cycles. |
+| `TENANT_MAP_REFRESH_INTERVAL_SECS` | No | `300`                      | Interval in seconds between control-plane tenant-map refreshes. |
+| `TENANT_MAP_URL`             | No       | `http://127.0.0.1:3001/internal/tenant-map` | Control-plane endpoint used to refresh tenant-to-customer attribution. Must use `https` unless the host is loopback. |
+| `COLD_STORAGE_USAGE_URL`     | No       | `http://127.0.0.1:3001/internal/cold-storage-usage` | Control-plane endpoint used to fetch completed cold-storage sizes. Must use `https` unless the host is loopback. |
+| `HEALTH_PORT`                | No       | `9091`                     | Port exposed by the metering agent health endpoint. |
+| `VM_ID`                      | No       | Lookup by `NODE_ID` hostname | Canonical `vm_inventory.id` used for host telemetry. When absent, the agent resolves `vm_inventory.id` by matching `vm_inventory.hostname` to `NODE_ID`. The resolved inventory row must already exist; the agent never creates one. |
+| `HOST_METRICS_ENABLED`       | No       | `false`                    | Enables periodic host telemetry collection and persistence to `vm_host_metrics`. |
+| `HOST_METRICS_INTERVAL_SECS` | No       | `60`                       | Interval in seconds between host telemetry collection cycles. |
+| `PROC_ROOT`                  | No       | `/proc`                    | Root path used to read Linux `meminfo`, `net/dev`, and `stat` telemetry files. Tests may point this at a fixture proc tree. |
+| `HOST_DISK_PATH`             | No       | `/`                        | Filesystem path passed to `statvfs` for disk usage. Unavailable readings persist as `NULL` without dropping the rest of the sample. |
 
 ## Algolia Migration Operations
 

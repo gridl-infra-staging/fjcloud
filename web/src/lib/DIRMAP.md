@@ -3,28 +3,30 @@
 
 | File | Summary |
 | --- | --- |
-| admin-client.ts | Stub summary for admin-client.ts. |
+| admin-client.ts | Stub summary for web/src/lib/admin-client.ts. |
+| audit.ts | Stub summary for web/src/lib/audit.ts. |
 | experiment_helpers.ts | Stub summary for experiment_helpers.ts. |
 | flapjack-search-client.ts | Stub summary for web/src/lib/flapjack-search-client.ts. |
 | index-name.ts | Canonical destination index-name rules. |
 | landing-pricing.ts | Landing-page pricing helpers. |
 | pricing.ts | Shared marketing pricing constants used by the landing page pricing table. |
 | public_api.ts | Canonical public API origin used by unauthenticated marketing surfaces. |
+| vm-capacity.ts | Stub summary for web/src/lib/vm-capacity.ts. |
 
 | Directory | Summary |
 | --- | --- |
 | analytics | — |
-| api | This directory contains the web frontend's API client library for communicating with the Axum backend, including base client classes, typed request/response definitions, and error handling utilities. |
-| api-logs | API logging and instrumentation utilities for the dashboard frontend, providing a browser-based API log store with session persistence, sanitization of sensitive data, and helpers for exporting and instrumenting API calls. |
+| api | This api directory contains the frontend's TypeScript client library for communicating with the Axum backend, including a base client class, request/response type definitions matching the API contract, and client implementations with request normalization and error handling. |
+| api-logs | — |
 | auth | — |
-| components | This components directory contains SvelteKit UI components and utilities for editor dialogs, migration workflow management with provider and job handling, and search functionality with analytics tracking and local persistence. |
-| error-boundary | Handles browser runtime errors (uncaught exceptions and unhandled rejections) by normalizing failures into a standard format and reporting them to the backend, while generating user-friendly error messages and deterministic support references based on error scope and HTTP status. |
-| events | The events directory contains utilities for managing event bucketing, with eventBuckets.ts providing the primary implementation. |
-| http | The http directory contains HTTP utilities, with retry_after.ts handling parsing and logic for the HTTP Retry-After header to manage request retry behavior. |
-| recommendations | The recommendations directory contains configuration code, specifically a TypeScript config file that appears to handle settings or setup for a recommendations module or feature. |
+| components | This components directory contains SvelteKit UI components for the web frontend, including editor dialog utilities for normalization and validation, migration workflow handlers for provider eligibility and job status, and client-side search functionality with state persistence and URL management. |
+| error-boundary | The error-boundary directory provides client-side error handling and recovery mechanisms, with client-runtime.ts managing runtime error interception and recovery-copy.ts handling error recovery logic. |
+| events | — |
+| http | The http directory contains utilities for handling HTTP protocol concerns, including retry-after header parsing and management for implementing exponential backoff and request retry logic. |
+| recommendations | The recommendations directory contains configuration code for managing recommendation-related settings. |
 | rules | — |
 | search_templates | — |
-| server | Server-side authentication and session utilities, providing error classification for login failures, impersonation helpers for return-path validation, and retry logic for transient API failures. |
+| server | — |
 | synonyms | — |
-| utils | The utils directory contains focus trap utilities for managing keyboard focus behavior in UI components. |
+| utils | — |
 <!-- [scrai:end] -->

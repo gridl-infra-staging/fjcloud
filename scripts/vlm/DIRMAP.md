@@ -7,5 +7,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| lib | This lib directory contains VLM env helpers, a self-contained shell script extracted from uff_dev providing environment variable reading functions for the VLM judge's read_env_value_trimmed contract. |
+| lib | — |
 <!-- [scrai:end] -->

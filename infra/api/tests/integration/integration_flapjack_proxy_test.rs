@@ -6,9 +6,13 @@
 // Run with: INTEGRATION=1 cargo test -p api --test platform integration_flapjack_proxy_test:: -- --test-threads=1
 
 use crate::common::integration_helpers::{
-    api_base, flapjack_base, http_client, register_and_login,
+    api_base, db_url, flapjack_base, http_client, register_and_login,
+};
+use api::services::flapjack_node::{
+    flapjack_index_uid, FLAPJACK_APP_ID_HEADER, FLAPJACK_APP_ID_VALUE,
 };
 use serde_json::{json, Value};
+use std::collections::BTreeSet;
 use std::future::Future;
 use std::time::Duration;
 use uuid::Uuid;
@@ -27,6 +31,18 @@ fn unique_email(prefix: &str) -> String {
 fn unique_index_name(prefix: &str) -> String {
     let id = Uuid::new_v4().to_string()[..8].to_string();
     format!("{prefix}-{id}")
+}
+
+async fn flapjack_index_uid_for_customer(email: &str, index_name: &str) -> String {
+    let pool = sqlx::PgPool::connect(&db_url())
+        .await
+        .expect("failed to connect to integration DB for customer lookup");
+    let customer_id: Uuid = sqlx::query_scalar("SELECT id FROM customers WHERE email = $1")
+        .bind(email)
+        .fetch_one(&pool)
+        .await
+        .expect("registered integration customer should exist");
+    flapjack_index_uid(customer_id, index_name)
 }
 
 fn assert_search_hits_contain_titles(
@@ -76,6 +92,109 @@ fn assert_exact_string_array(body: &Value, field: &str, expected: &[&str]) -> Re
             expected, current_values
         ))
     }
+}
+
+async fn search_index(
+    client: &reqwest::Client,
+    token: &str,
+    index_name: &str,
+    request_body: Value,
+) -> Result<(u16, Value), String> {
+    let response = client
+        .post(format!("{}/indexes/{index_name}/search", api_base()))
+        .bearer_auth(token)
+        .json(&request_body)
+        .send()
+        .await
+        .map_err(|error| format!("search request failed: {error}"))?;
+    let status = response.status().as_u16();
+    let body = response
+        .json()
+        .await
+        .map_err(|error| format!("search response not JSON: {error}"))?;
+    Ok((status, body))
+}
+
+fn search_hit_id_title_pairs(body: &Value) -> Result<BTreeSet<(String, String)>, String> {
+    body["hits"]
+        .as_array()
+        .ok_or_else(|| format!("search response missing 'hits' array: {body}"))?
+        .iter()
+        .map(|hit| {
+            let id = hit["objectID"]
+                .as_str()
+                .ok_or_else(|| format!("search hit missing string objectID: {hit}"))?;
+            let title = hit["title"]
+                .as_str()
+                .ok_or_else(|| format!("search hit missing string title: {hit}"))?;
+            Ok((id.to_string(), title.to_string()))
+        })
+        .collect()
+}
+
+fn search_hit_ids(body: &Value) -> Result<BTreeSet<String>, String> {
+    search_hit_id_title_pairs(body).map(|pairs| pairs.into_iter().map(|(id, _)| id).collect())
+}
+
+fn assert_pagination_metadata(body: &Value, expected_page: u64) {
+    assert_eq!(body["nbHits"], 3, "engine should report three raw hits");
+    assert_eq!(body["nbPages"], 2, "engine should report two raw pages");
+    assert_eq!(body["hitsPerPage"], 2, "engine should echo page size");
+    assert_eq!(body["page"], expected_page, "engine should echo page");
+}
+
+async fn create_search_key(
+    client: &reqwest::Client,
+    base: &str,
+    token: &str,
+    index_name: &str,
+) -> String {
+    let response = client
+        .post(format!("{base}/indexes/{index_name}/keys"))
+        .bearer_auth(token)
+        .json(&json!({
+            "description": "integration test key",
+            "acl": ["search", "addObject"]
+        }))
+        .send()
+        .await
+        .expect("create key request failed");
+    assert_eq!(
+        response.status().as_u16(),
+        201,
+        "key creation should succeed"
+    );
+    let body: Value = response.json().await.expect("key response not JSON");
+    body["key"]
+        .as_str()
+        .expect("key response should contain 'key'")
+        .to_string()
+}
+
+async fn ingest_documents(
+    client: &reqwest::Client,
+    index_name: &str,
+    search_key: &str,
+    documents: &[Value],
+) {
+    let requests = documents
+        .iter()
+        .map(|document| json!({"action": "addObject", "body": document}))
+        .collect::<Vec<_>>();
+    let response = client
+        .post(format!("{}/1/indexes/{index_name}/batch", flapjack_base()))
+        .header("X-Algolia-API-Key", search_key)
+        .header(FLAPJACK_APP_ID_HEADER, FLAPJACK_APP_ID_VALUE)
+        .json(&json!({"requests": requests}))
+        .send()
+        .await
+        .expect("document ingest request failed");
+    let status = response.status().as_u16();
+    let response_body = response.text().await.unwrap_or_default();
+    assert!(
+        (200..300).contains(&status),
+        "document ingest should succeed, got {status}: {response_body}"
+    );
 }
 
 async fn retry_with_delay<F, Fut, T, E>(
@@ -184,7 +303,7 @@ async fn seed_shared_vm(region: &str) -> Uuid {
 
     sqlx::query(
         "INSERT INTO vm_inventory (id, provider, region, hostname, flapjack_url, status, capacity, current_load, created_at, updated_at)
-         VALUES ($1, 'integration', $2, $3, $4, 'active',
+         VALUES ($1, 'local', $2, $3, $4, 'active',
                  '{\"cpu_cores\": 8, \"memory_gb\": 32, \"disk_gb\": 500}',
                  '{\"cpu_cores\": 0, \"memory_gb\": 0, \"disk_gb\": 0}',
                  NOW(), NOW())
@@ -316,7 +435,6 @@ crate::integration_test!(integration_flapjack_proxy_create_index, async {
 crate::integration_test!(integration_flapjack_proxy_ingest_and_search, async {
     let client = http_client();
     let base = api_base();
-    let fj_base = flapjack_base();
     let email = unique_email("proxy-search");
     let index_name = unique_index_name("search-idx");
 
@@ -332,47 +450,17 @@ crate::integration_test!(integration_flapjack_proxy_ingest_and_search, async {
     );
 
     // Create a search key via fjcloud so we can push docs directly to flapjack
-    let key_resp = client
-        .post(format!("{base}/indexes/{index_name}/keys"))
-        .bearer_auth(&token)
-        .json(&json!({
-            "description": "integration test key",
-            "acl": ["search", "addObject"]
-        }))
-        .send()
-        .await
-        .expect("create key request failed");
-    assert_eq!(
-        key_resp.status().as_u16(),
-        201,
-        "key creation should succeed"
-    );
-    let key_body: Value = key_resp.json().await.expect("key response not JSON");
-    let search_key = key_body["key"]
-        .as_str()
-        .expect("key response should contain 'key'");
+    let search_key = create_search_key(&client, &base, &token, &index_name).await;
 
     // Push documents directly to flapjack using the search key
-    let docs = json!([
-        {"id": "doc1", "title": "Rust Programming Language", "body": "Systems programming"},
-        {"id": "doc2", "title": "TypeScript Handbook", "body": "JavaScript with types"},
-        {"id": "doc3", "title": "Rust Async Book", "body": "Futures and async/await in Rust"}
-    ]);
+    let docs = [
+        json!({"id": "doc1", "title": "Rust Programming Language", "body": "Systems programming"}),
+        json!({"id": "doc2", "title": "TypeScript Handbook", "body": "JavaScript with types"}),
+        json!({"id": "doc3", "title": "Rust Async Book", "body": "Futures and async/await in Rust"}),
+    ];
 
-    let ingest_resp = client
-        .post(format!("{fj_base}/1/indexes/{index_name}/documents"))
-        .header("X-Algolia-API-Key", search_key)
-        .json(&docs)
-        .send()
-        .await
-        .expect("document ingest request failed");
-
-    // Flapjack may return 200 or 202 for async indexing
-    let ingest_status = ingest_resp.status().as_u16();
-    assert!(
-        (200..300).contains(&ingest_status),
-        "document ingest should succeed, got {ingest_status}"
-    );
+    let flapjack_uid = flapjack_index_uid_for_customer(&email, &index_name).await;
+    ingest_documents(&client, &flapjack_uid, &search_key, &docs).await;
 
     // Poll search until the expected documents are visible to avoid fixed delays.
     let search_body = retry_with_delay(15, Duration::from_millis(75), || async {
@@ -410,6 +498,101 @@ crate::integration_test!(integration_flapjack_proxy_ingest_and_search, async {
     assert!(
         search_body["hits"].is_array(),
         "final search_body should contain hits array"
+    );
+});
+
+crate::integration_test!(integration_flapjack_proxy_pagination, async {
+    let client = http_client();
+    let base = api_base();
+    let index_name = unique_index_name("pagination-idx");
+    let email = unique_email("proxy-pagination");
+    let expected_pairs = BTreeSet::from([
+        (
+            "pagination-doc-1".to_string(),
+            "pagination-root alpha".to_string(),
+        ),
+        (
+            "pagination-doc-2".to_string(),
+            "pagination-root beta".to_string(),
+        ),
+        (
+            "pagination-doc-3".to_string(),
+            "pagination-root gamma".to_string(),
+        ),
+    ]);
+    let expected_ids = expected_pairs
+        .iter()
+        .map(|(id, _)| id.clone())
+        .collect::<BTreeSet<_>>();
+
+    seed_shared_vm("us-east-1").await;
+    let token = register_and_login(&client, &base, &email).await;
+    let create_response =
+        create_index_via_api(&client, &base, &token, &index_name, "us-east-1").await;
+    assert_eq!(create_response.status().as_u16(), 201);
+
+    let search_key = create_search_key(&client, &base, &token, &index_name).await;
+
+    let documents = [
+        json!({"objectID": "pagination-doc-1", "title": "pagination-root alpha"}),
+        json!({"objectID": "pagination-doc-2", "title": "pagination-root beta"}),
+        json!({"objectID": "pagination-doc-3", "title": "pagination-root gamma"}),
+    ];
+    let flapjack_uid = flapjack_index_uid_for_customer(&email, &index_name).await;
+    ingest_documents(&client, &flapjack_uid, &search_key, &documents).await;
+
+    retry_with_delay(15, Duration::from_millis(75), || async {
+        let (status, body) = search_index(
+            &client,
+            &token,
+            &index_name,
+            json!({"query": "pagination-root", "hitsPerPage": 3, "page": 0}),
+        )
+        .await?;
+        if status != 200 {
+            return Err(format!("search should return 200, got {status}: {body}"));
+        }
+        let actual_pairs = search_hit_id_title_pairs(&body)?;
+        if actual_pairs != expected_pairs {
+            return Err(format!("seeded documents not ready: {body}"));
+        }
+        Ok(())
+    })
+    .await
+    .unwrap_or_else(|error| panic!("search never became consistent: {error}"));
+
+    let (page_0_status, page_0) = search_index(
+        &client,
+        &token,
+        &index_name,
+        json!({"query": "pagination-root", "hitsPerPage": 2, "page": 0}),
+    )
+    .await
+    .expect("page 0 search failed");
+    let (page_1_status, page_1) = search_index(
+        &client,
+        &token,
+        &index_name,
+        json!({"query": "pagination-root", "hitsPerPage": 2, "page": 1}),
+    )
+    .await
+    .expect("page 1 search failed");
+
+    assert_eq!(page_0_status, 200);
+    assert_eq!(page_1_status, 200);
+    assert_pagination_metadata(&page_0, 0);
+    assert_pagination_metadata(&page_1, 1);
+    let page_0_ids = search_hit_ids(&page_0).expect("page 0 should contain identifiable hits");
+    let page_1_ids = search_hit_ids(&page_1).expect("page 1 should contain identifiable hits");
+    assert_eq!(page_0_ids.len(), 2);
+    assert_eq!(page_1_ids.len(), 1);
+    assert!(page_0_ids.is_disjoint(&page_1_ids));
+    assert_eq!(
+        page_0_ids
+            .union(&page_1_ids)
+            .cloned()
+            .collect::<BTreeSet<_>>(),
+        expected_ids
     );
 });
 
@@ -541,11 +724,13 @@ crate::integration_test!(
         assert_eq!(key_resp.status().as_u16(), 201);
         let key_body: Value = key_resp.json().await.unwrap();
         let search_key = key_body["key"].as_str().unwrap();
+        let flapjack_uid = flapjack_index_uid_for_customer(&email, &index_name).await;
 
         // Use key directly against flapjack's search endpoint
         let fj_search = client
-            .post(format!("{fj_base}/1/indexes/{index_name}/query"))
+            .post(format!("{fj_base}/1/indexes/{flapjack_uid}/query"))
             .header("X-Algolia-API-Key", search_key)
+            .header(FLAPJACK_APP_ID_HEADER, FLAPJACK_APP_ID_VALUE)
             .json(&json!({"query": "", "hitsPerPage": 1}))
             .send()
             .await

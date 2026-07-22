@@ -8,5 +8,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| lifecycle | Integration tests for lifecycle operations in migration routes, covering cancellation and resumption of migrations during the read phase. |
+| lifecycle | This lifecycle directory contains integration tests for migration read operations, specifically testing lifecycle management actions like cancellation and resumption of migrations through API routes. |
 <!-- [scrai:end] -->

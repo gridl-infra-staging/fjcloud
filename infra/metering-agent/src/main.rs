@@ -3,6 +3,8 @@ mod config;
 mod counter;
 mod delta;
 pub mod health;
+mod host_metrics;
+mod host_metrics_writer;
 mod record;
 mod scraper;
 mod storage;
@@ -26,6 +28,7 @@ const CRITICAL_SEVERITY: &str = "critical";
 const CRITICAL_SLACK_COLOR: &str = "#d00000";
 const CRITICAL_DISCORD_COLOR: u32 = 0xd00000;
 const BREAKER_OPEN_ALERT_TITLE: &str = "metering-agent circuit breaker open";
+const HOST_CPU_SAMPLE_INTERVAL: Duration = Duration::from_secs(1);
 
 /// Shared read-only inputs for each scrape cycle.
 struct ScrapeContext<'a> {
@@ -73,6 +76,7 @@ async fn run(cfg: Config, pool: sqlx::PgPool) -> Result<()> {
     let tenant_state: TenantStateMap = Arc::new(dashmap::DashMap::new());
     let tenant_map: TenantCustomerMap = Arc::new(dashmap::DashMap::new());
     let writer = record::PgUsageRecordWriter { pool: &pool };
+    let host_metrics_writer = host_metrics_writer::VmHostMetricsWriter { pool: &pool };
     let http = reqwest::Client::builder()
         .timeout(Duration::from_secs(10))
         .build()?;
@@ -91,6 +95,8 @@ async fn run(cfg: Config, pool: sqlx::PgPool) -> Result<()> {
     let mut scrape_ticker = tokio::time::interval(cfg.scrape_interval);
     let mut storage_ticker = tokio::time::interval(cfg.storage_poll_interval);
     let mut tenant_map_ticker = tokio::time::interval(cfg.tenant_map_refresh_interval);
+    let mut host_metrics_ticker = tokio::time::interval(cfg.host_metrics_interval);
+    let branch_gates = runtime_branch_gates(&cfg);
     let scrape_context = ScrapeContext {
         cfg: &cfg,
         writer: &writer,
@@ -102,16 +108,19 @@ async fn run(cfg: Config, pool: sqlx::PgPool) -> Result<()> {
 
     loop {
         tokio::select! {
-            _ = scrape_ticker.tick() => {
+            _ = scrape_ticker.tick(), if branch_gates.scrape => {
                 let next =
                     handle_scrape_cycle(&scrape_context, &mut circuit_breaker, &health_state).await;
                 scrape_ticker = tokio::time::interval(next);
                 scrape_ticker.tick().await;
             }
-            _ = storage_ticker.tick() => {
+            _ = storage_ticker.tick(), if branch_gates.storage => {
                 handle_storage_cycle(&cfg, &writer, &http, &tenant_map, &health_state).await;
             }
-            _ = tenant_map_ticker.tick() => {
+            _ = host_metrics_ticker.tick(), if branch_gates.host_metrics => {
+                handle_host_metrics_cycle(&cfg, &host_metrics_writer).await;
+            }
+            _ = tenant_map_ticker.tick(), if branch_gates.tenant_map => {
                 handle_tenant_map_refresh(&cfg, &http, &tenant_map).await;
             }
             _ = tokio::signal::ctrl_c() => {
@@ -359,6 +368,33 @@ async fn handle_storage_cycle(
     }
 }
 
+struct RuntimeBranchGates {
+    scrape: bool,
+    storage: bool,
+    tenant_map: bool,
+    host_metrics: bool,
+}
+
+fn runtime_branch_gates(cfg: &Config) -> RuntimeBranchGates {
+    RuntimeBranchGates {
+        scrape: true,
+        storage: true,
+        tenant_map: true,
+        host_metrics: cfg.host_metrics_enabled,
+    }
+}
+
+async fn handle_host_metrics_cycle(
+    cfg: &Config,
+    writer: &host_metrics_writer::VmHostMetricsWriter<'_>,
+) {
+    if let Err(error) =
+        host_metrics_writer::run_host_metrics_cycle(cfg, writer, HOST_CPU_SAMPLE_INTERVAL).await
+    {
+        tracing::error!("host metrics cycle failed: {error:#}");
+    }
+}
+
 /// Refresh the in-memory tenant→customer mapping from `/internal/tenant-map`.
 async fn handle_tenant_map_refresh(
     cfg: &Config,
@@ -452,6 +488,18 @@ mod tests {
             tenant_state,
             tenant_map,
         }
+    }
+
+    #[test]
+    fn host_metrics_branch_is_inert_when_disabled() {
+        let cfg = test_config_with_webhooks(None, None);
+
+        let branch_gates = runtime_branch_gates(&cfg);
+
+        assert!(branch_gates.scrape);
+        assert!(branch_gates.storage);
+        assert!(branch_gates.tenant_map);
+        assert!(!branch_gates.host_metrics);
     }
 
     fn assert_critical_slack_breaker_payload(body: &Value) {

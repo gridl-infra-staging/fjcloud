@@ -1,6 +1,7 @@
 use std::sync::Arc;
 use std::sync::Mutex;
 
+use api::models::{Customer, CustomerTenant};
 use api::repos::deployment_repo::DeploymentRepo;
 use api::repos::tenant_repo::TenantRepo;
 use api::repos::vm_inventory_repo::VmInventoryRepo;
@@ -12,11 +13,12 @@ use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use serde_json::json;
 use tower::ServiceExt;
+use uuid::Uuid;
 
 use crate::common::{
     create_test_jwt, flapjack_proxy_test_support::MockFlapjackHttpClient,
     mock_flapjack_proxy_with_secrets, mock_vm_inventory_repo, MockCustomerRepo, MockDeploymentRepo,
-    TEST_ADMIN_KEY,
+    MockTenantRepo, TestStateBuilder, TEST_ADMIN_KEY,
 };
 
 #[derive(Default)]
@@ -76,6 +78,236 @@ impl NodeSecretManager for FailOnSecondCreateSecretManager {
         _old_key: &str,
     ) -> Result<(), NodeSecretError> {
         Ok(())
+    }
+}
+
+#[tokio::test]
+async fn admin_index_inventory_returns_customer_indexes_and_is_tenant_isolated() {
+    let fixture = admin_index_inventory_fixture().await;
+
+    let alpha_rows = get_admin_index_inventory(
+        fixture.app.clone(),
+        fixture.customer_a.id,
+        Some(TEST_ADMIN_KEY),
+    )
+    .await
+    .into_success_json()
+    .await;
+    assert_eq!(alpha_rows.as_array().unwrap().len(), 1);
+    assert_index_row(
+        &alpha_rows[0],
+        ExpectedIndexRow {
+            name: "alpha",
+            region: "us-east-1",
+            endpoint: "https://alpha.flapjack.test",
+            status: "healthy",
+            tier: "shared",
+            created_at: fixture.alpha.created_at.to_rfc3339(),
+        },
+    );
+    assert_index_absent(&alpha_rows, "beta", "https://beta.flapjack.test");
+
+    let beta_rows =
+        get_admin_index_inventory(fixture.app, fixture.customer_b.id, Some(TEST_ADMIN_KEY))
+            .await
+            .into_success_json()
+            .await;
+    assert_eq!(beta_rows.as_array().unwrap().len(), 1);
+    assert_index_row(
+        &beta_rows[0],
+        ExpectedIndexRow {
+            name: "beta",
+            region: "eu-west-1",
+            endpoint: "https://beta.flapjack.test",
+            status: "degraded",
+            tier: "dedicated",
+            created_at: fixture.beta.created_at.to_rfc3339(),
+        },
+    );
+    assert_index_absent(&beta_rows, "alpha", "https://alpha.flapjack.test");
+}
+
+#[tokio::test]
+async fn admin_index_inventory_rejects_missing_wrong_and_unknown_customer() {
+    let customer_repo = Arc::new(MockCustomerRepo::new());
+    let customer = customer_repo.seed("Customer A", "a@test.com");
+
+    let tenant_repo = crate::common::mock_tenant_repo();
+    let deployment = Uuid::new_v4();
+    tenant_repo.seed_deployment(
+        deployment,
+        "us-east-1",
+        Some("https://alpha.flapjack.test"),
+        "healthy",
+        "running",
+    );
+    tenant_repo
+        .create(customer.id, "alpha", deployment)
+        .await
+        .unwrap();
+
+    let app = TestStateBuilder::new()
+        .with_customer_repo(customer_repo)
+        .with_tenant_repo(tenant_repo)
+        .build_app();
+
+    let missing_key = get_admin_index_inventory(app.clone(), customer.id, None).await;
+    assert_eq!(missing_key.status(), StatusCode::UNAUTHORIZED);
+
+    let wrong_key = get_admin_index_inventory(app.clone(), customer.id, Some("wrong-key")).await;
+    assert_eq!(wrong_key.status(), StatusCode::UNAUTHORIZED);
+
+    let unknown_customer =
+        get_admin_index_inventory(app, Uuid::new_v4(), Some(TEST_ADMIN_KEY)).await;
+    assert_eq!(unknown_customer.status(), StatusCode::NOT_FOUND);
+    let body = axum::body::to_bytes(unknown_customer.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let body: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_ne!(body["name"], "alpha");
+    assert_ne!(body["endpoint"], "https://alpha.flapjack.test");
+}
+
+struct ExpectedIndexRow {
+    name: &'static str,
+    region: &'static str,
+    endpoint: &'static str,
+    status: &'static str,
+    tier: &'static str,
+    created_at: String,
+}
+
+struct AdminIndexInventoryFixture {
+    app: axum::Router,
+    customer_a: Customer,
+    customer_b: Customer,
+    alpha: CustomerTenant,
+    beta: CustomerTenant,
+}
+
+struct IndexSeedSpec {
+    name: &'static str,
+    region: &'static str,
+    endpoint: &'static str,
+    health_status: &'static str,
+    tier: &'static str,
+}
+
+async fn admin_index_inventory_fixture() -> AdminIndexInventoryFixture {
+    let customer_repo = Arc::new(MockCustomerRepo::new());
+    let customer_a = customer_repo.seed("Customer A", "a@test.com");
+    let customer_b = customer_repo.seed("Customer B", "b@test.com");
+    let tenant_repo = crate::common::mock_tenant_repo();
+
+    let alpha = seed_customer_index(
+        tenant_repo.as_ref(),
+        customer_a.id,
+        IndexSeedSpec {
+            name: "alpha",
+            region: "us-east-1",
+            endpoint: "https://alpha.flapjack.test",
+            health_status: "healthy",
+            tier: "shared",
+        },
+    )
+    .await;
+    let beta = seed_customer_index(
+        tenant_repo.as_ref(),
+        customer_b.id,
+        IndexSeedSpec {
+            name: "beta",
+            region: "eu-west-1",
+            endpoint: "https://beta.flapjack.test",
+            health_status: "degraded",
+            tier: "dedicated",
+        },
+    )
+    .await;
+
+    let app = TestStateBuilder::new()
+        .with_customer_repo(customer_repo)
+        .with_tenant_repo(tenant_repo)
+        .build_app();
+
+    AdminIndexInventoryFixture {
+        app,
+        customer_a,
+        customer_b,
+        alpha,
+        beta,
+    }
+}
+
+async fn seed_customer_index(
+    tenant_repo: &MockTenantRepo,
+    customer_id: Uuid,
+    spec: IndexSeedSpec,
+) -> CustomerTenant {
+    let deployment_id = Uuid::new_v4();
+    tenant_repo.seed_deployment(
+        deployment_id,
+        spec.region,
+        Some(spec.endpoint),
+        spec.health_status,
+        "running",
+    );
+    let tenant = tenant_repo
+        .create(customer_id, spec.name, deployment_id)
+        .await
+        .unwrap();
+    tenant_repo
+        .set_tier(customer_id, spec.name, spec.tier)
+        .await
+        .unwrap();
+    tenant
+}
+
+fn assert_index_row(row: &serde_json::Value, expected: ExpectedIndexRow) {
+    assert_eq!(row["name"], expected.name);
+    assert_eq!(row["region"], expected.region);
+    assert_eq!(row["endpoint"], expected.endpoint);
+    assert_eq!(row["status"], expected.status);
+    assert_eq!(row["tier"], expected.tier);
+    assert_eq!(row["created_at"], expected.created_at);
+    assert_eq!(row["entries"], 0);
+    assert_eq!(row["data_size_bytes"], 0);
+}
+
+fn assert_index_absent(rows: &serde_json::Value, name: &str, endpoint: &str) {
+    assert!(rows
+        .as_array()
+        .unwrap()
+        .iter()
+        .all(|row| { row["name"] != name && row["endpoint"] != endpoint }));
+}
+
+async fn get_admin_index_inventory(
+    app: axum::Router,
+    customer_id: Uuid,
+    admin_key: Option<&str>,
+) -> axum::response::Response {
+    let mut request = Request::builder()
+        .method("GET")
+        .uri(format!("/admin/tenants/{customer_id}/indexes"));
+    if let Some(admin_key) = admin_key {
+        request = request.header("X-Admin-Key", admin_key);
+    }
+    app.oneshot(request.body(Body::empty()).unwrap())
+        .await
+        .unwrap()
+}
+
+trait AdminIndexInventoryResponseExt {
+    async fn into_success_json(self) -> serde_json::Value;
+}
+
+impl AdminIndexInventoryResponseExt for axum::response::Response {
+    async fn into_success_json(self) -> serde_json::Value {
+        assert_eq!(self.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(self.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        serde_json::from_slice(&body).unwrap()
     }
 }
 

@@ -49,11 +49,17 @@ export class SharedAuthCallCounter {
 		this.countRequest(request.method(), request.url());
 	}
 
-	private countFetchRequest(input: Parameters<typeof fetch>[0], init: Parameters<typeof fetch>[1]): void {
+	private countFetchRequest(
+		input: Parameters<typeof fetch>[0],
+		init: Parameters<typeof fetch>[1]
+	): void {
 		this.countRequest(this.fetchMethod(input, init), this.fetchUrl(input));
 	}
 
-	private fetchMethod(input: Parameters<typeof fetch>[0], init: Parameters<typeof fetch>[1]): string {
+	private fetchMethod(
+		input: Parameters<typeof fetch>[0],
+		init: Parameters<typeof fetch>[1]
+	): string {
 		if (init?.method) {
 			return init.method;
 		}

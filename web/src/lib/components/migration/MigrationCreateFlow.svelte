@@ -177,7 +177,8 @@
 	);
 	const targetEligibilityInputsBinding = $derived(
 		buildTargetEligibilityInputsBinding({
-			providerEligibilityBinding: currentProviderEligibility !== null ? currentProviderBinding : null,
+			providerEligibilityBinding:
+				currentProviderEligibility !== null ? currentProviderBinding : null,
 			mode: migrationMode,
 			sourceName: selectedSourceName,
 			destinationName: eligibilityTargetName,

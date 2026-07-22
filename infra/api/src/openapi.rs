@@ -50,6 +50,7 @@ pub const BEARER_SCHEME_NAME: &str = "bearer_jwt";
         crate::routes::indexes::replicas::create_replica,
         crate::routes::indexes::replicas::list_replicas,
         crate::routes::indexes::replicas::delete_replica,
+        crate::routes::indexes::infrastructure::get_index_infrastructure,
         crate::routes::indexes::restore::restore_index,
         crate::routes::indexes::restore::restore_status,
         // Stage 4 — Configuration proxy
@@ -96,6 +97,7 @@ pub const BEARER_SCHEME_NAME: &str = "bearer_jwt";
         crate::routes::invoices::get_invoice,
         // Stage 5 — Pricing (public, no auth)
         crate::routes::pricing::compare,
+        crate::routes::public_infrastructure::get_public_infrastructure,
         // Stage 5 — Analytics proxy
         crate::routes::indexes::analytics::get_analytics_searches,
         crate::routes::indexes::analytics::get_analytics_searches_count,
@@ -171,6 +173,17 @@ pub const BEARER_SCHEME_NAME: &str = "bearer_jwt";
         crate::routes::indexes::BrowseDocumentsRequest,
         // Customer metrics DTO
         crate::state::CustomerIndexMetricsResponse,
+        // Customer infrastructure DTOs
+        crate::routes::indexes::infrastructure::IndexInfrastructureResponse,
+        crate::routes::indexes::infrastructure::InfrastructurePrimary,
+        crate::routes::indexes::infrastructure::InfrastructureReplica,
+        crate::routes::indexes::infrastructure::InfrastructureFootprint,
+        crate::routes::indexes::infrastructure::HeadroomStatus,
+        crate::routes::public_infrastructure::PublicInfrastructureResponse,
+        crate::routes::public_infrastructure::PublicInfrastructureOverall,
+        crate::routes::public_infrastructure::PublicRegionInfrastructure,
+        crate::routes::public_infrastructure::PublicRegionHealth,
+        crate::services::public_topology::UtilizationBucket,
         // Stage 5 — Usage and invoice DTOs
         crate::usage::DailyUsageEntry,
         crate::usage::UsageSummaryResponse,

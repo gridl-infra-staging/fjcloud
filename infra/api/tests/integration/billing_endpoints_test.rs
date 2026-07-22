@@ -6,7 +6,7 @@
 use api::models::cold_snapshot::NewColdSnapshot;
 use api::models::RateCardRow;
 use api::repos::cold_snapshot_repo::ColdSnapshotRepo;
-use api::repos::invoice_repo::{InvoiceRepo, NewLineItem};
+use api::repos::invoice_repo::{AdminInvoiceSummaryRow, InvoiceRepo, NewLineItem};
 use api::repos::CustomerRepo;
 use api::services::tenant_quota::FreeTierLimits;
 use api::stripe::{
@@ -14,7 +14,7 @@ use api::stripe::{
 };
 use axum::body::Body;
 use axum::http::{Method, Request, StatusCode};
-use chrono::NaiveDate;
+use chrono::{NaiveDate, Utc};
 use http_body_util::BodyExt;
 use rust_decimal_macros::dec;
 use serde_json::json;
@@ -257,6 +257,89 @@ async fn seed_stripe_customer(
     .await
     .unwrap();
     repo.find_by_id(customer.id).await.unwrap().unwrap()
+}
+
+#[tokio::test]
+async fn admin_invoice_detail_exposes_stripe_urls() {
+    let customer_repo = mock_repo();
+    let invoice_repo = mock_invoice_repo();
+    let customer = customer_repo.seed("Invoice Detail", "invoice-detail@example.com");
+    let invoice = invoice_repo.seed(
+        customer.id,
+        NaiveDate::from_ymd_opt(2026, 1, 1).unwrap(),
+        NaiveDate::from_ymd_opt(2026, 1, 31).unwrap(),
+        12000,
+        13000,
+        false,
+        vec![NewLineItem {
+            description: "Hot storage".to_string(),
+            quantity: dec!(42.5),
+            unit: "mb_month".to_string(),
+            unit_price_cents: dec!(5),
+            amount_cents: 12000,
+            region: "us-east-1".to_string(),
+            metadata: Some(json!({"source": "test"})),
+        }],
+    );
+    invoice_repo
+        .set_stripe_fields(
+            invoice.id,
+            "in_test_x",
+            "https://invoice.stripe.com/i/acct_x/test_x",
+            Some("https://invoice.stripe.com/i/acct_x/test_x/pdf"),
+        )
+        .await
+        .unwrap();
+
+    let app = TestStateBuilder::new()
+        .with_customer_repo(customer_repo)
+        .with_invoice_repo(invoice_repo)
+        .build_app();
+
+    let req = Request::builder()
+        .uri(format!("/admin/invoices/{}", invoice.id))
+        .header("x-admin-key", TEST_ADMIN_KEY)
+        .body(Body::empty())
+        .unwrap();
+    let resp = app.clone().oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let json = body_json(resp).await;
+    assert_eq!(json["id"], invoice.id.to_string());
+    assert_eq!(json["customer_id"], customer.id.to_string());
+    assert_eq!(json["stripe_invoice_id"], "in_test_x");
+    assert_eq!(
+        json["hosted_invoice_url"],
+        "https://invoice.stripe.com/i/acct_x/test_x"
+    );
+    assert_eq!(
+        json["pdf_url"],
+        "https://invoice.stripe.com/i/acct_x/test_x/pdf"
+    );
+    assert_eq!(json["line_items"][0]["description"], "Hot storage");
+
+    let missing_req = Request::builder()
+        .uri(format!("/admin/invoices/{}", Uuid::new_v4()))
+        .header("x-admin-key", TEST_ADMIN_KEY)
+        .body(Body::empty())
+        .unwrap();
+    let missing_resp = app.clone().oneshot(missing_req).await.unwrap();
+    assert_eq!(missing_resp.status(), StatusCode::NOT_FOUND);
+
+    let no_key_req = Request::builder()
+        .uri(format!("/admin/invoices/{}", invoice.id))
+        .body(Body::empty())
+        .unwrap();
+    let no_key_resp = app.clone().oneshot(no_key_req).await.unwrap();
+    assert_eq!(no_key_resp.status(), StatusCode::UNAUTHORIZED);
+
+    let wrong_key_req = Request::builder()
+        .uri(format!("/admin/invoices/{}", invoice.id))
+        .header("x-admin-key", "wrong-key")
+        .body(Body::empty())
+        .unwrap();
+    let wrong_key_resp = app.oneshot(wrong_key_req).await.unwrap();
+    assert_eq!(wrong_key_resp.status(), StatusCode::UNAUTHORIZED);
 }
 
 fn seed_draft_invoice(
@@ -2312,6 +2395,278 @@ fn test_rate_card() -> RateCardRow {
         object_storage_egress_rate_per_gb: dec!(0.01),
         created_at: chrono::Utc::now(),
     }
+}
+
+fn admin_summary_row(
+    customer_id: Uuid,
+    customer_name: &str,
+    customer_email: &str,
+    period_start: NaiveDate,
+    total_cents: i64,
+    status: &str,
+) -> AdminInvoiceSummaryRow {
+    AdminInvoiceSummaryRow {
+        id: Uuid::new_v4(),
+        customer_id,
+        customer_name: customer_name.to_string(),
+        customer_email: customer_email.to_string(),
+        period_start,
+        period_end: period_start
+            .checked_add_days(chrono::Days::new(30))
+            .expect("fixture period end"),
+        subtotal_cents: total_cents,
+        tax_cents: 0,
+        total_cents,
+        currency: "usd".to_string(),
+        status: status.to_string(),
+        minimum_applied: false,
+        stripe_invoice_id: None,
+        hosted_invoice_url: None,
+        pdf_url: None,
+        created_at: Utc::now(),
+        finalized_at: None,
+        paid_at: (status == "paid").then(Utc::now),
+    }
+}
+
+async fn get_admin_billing_summary(
+    app: axum::Router,
+    admin_key: Option<&str>,
+) -> axum::response::Response {
+    let mut request = Request::get("/admin/billing/summary");
+    if let Some(admin_key) = admin_key {
+        request = request.header("x-admin-key", admin_key);
+    }
+    app.oneshot(request.body(Body::empty()).unwrap())
+        .await
+        .unwrap()
+}
+
+#[tokio::test]
+async fn admin_billing_summary_sums_hand_calculated_dollars() {
+    let customer_repo = mock_repo();
+    let invoice_repo = mock_invoice_repo();
+    let rate_card_repo = mock_rate_card_repo();
+
+    let mut rate_card = test_rate_card();
+    rate_card.shared_minimum_spend_cents = 400;
+    rate_card_repo.seed_active_card(rate_card);
+
+    let shared_a = seed_stripe_customer(&customer_repo, "Shared A", "shared-a@example.com").await;
+    customer_repo
+        .set_billing_plan(shared_a.id, "shared")
+        .await
+        .unwrap();
+    let shared_b = seed_stripe_customer(&customer_repo, "Shared B", "shared-b@example.com").await;
+    customer_repo
+        .set_billing_plan(shared_b.id, "shared")
+        .await
+        .unwrap();
+    let malformed_plan = seed_stripe_customer(
+        &customer_repo,
+        "Malformed Plan",
+        "malformed-plan@example.com",
+    )
+    .await;
+    customer_repo
+        .set_billing_plan(malformed_plan.id, "malformed")
+        .await
+        .unwrap();
+    let free = seed_stripe_customer(&customer_repo, "Free", "free-summary@example.com").await;
+    customer_repo
+        .set_billing_plan(free.id, "free")
+        .await
+        .unwrap();
+    let suspended =
+        seed_stripe_customer(&customer_repo, "Suspended", "suspended-summary@example.com").await;
+    customer_repo
+        .set_billing_plan(suspended.id, "shared")
+        .await
+        .unwrap();
+    customer_repo.suspend(suspended.id).await.unwrap();
+
+    let current = NaiveDate::from_ymd_opt(2026, 7, 1).unwrap();
+    let preceding = NaiveDate::from_ymd_opt(2026, 6, 1).unwrap();
+    invoice_repo.seed_revenue_summary_rows(vec![
+        admin_summary_row(
+            shared_a.id,
+            "Shared A",
+            "shared-a@example.com",
+            current,
+            1000,
+            "paid",
+        ),
+        admin_summary_row(
+            shared_b.id,
+            "Shared B",
+            "shared-b@example.com",
+            current,
+            2500,
+            "paid",
+        ),
+        admin_summary_row(
+            shared_a.id,
+            "Shared A",
+            "shared-a@example.com",
+            preceding,
+            500,
+            "paid",
+        ),
+        admin_summary_row(
+            shared_a.id,
+            "Shared A",
+            "shared-a@example.com",
+            current,
+            1000,
+            "draft",
+        ),
+        admin_summary_row(
+            shared_b.id,
+            "Shared B",
+            "shared-b@example.com",
+            current,
+            2000,
+            "finalized",
+        ),
+        admin_summary_row(
+            free.id,
+            "Free",
+            "free-summary@example.com",
+            current,
+            900,
+            "failed",
+        ),
+        admin_summary_row(
+            suspended.id,
+            "Suspended",
+            "suspended-summary@example.com",
+            current,
+            700,
+            "refunded",
+        ),
+    ]);
+
+    let app = TestStateBuilder::new()
+        .with_customer_repo(customer_repo.clone())
+        .with_invoice_repo(invoice_repo.clone())
+        .with_rate_card_repo(rate_card_repo.clone())
+        .build_app();
+
+    let resp = get_admin_billing_summary(app, Some(TEST_ADMIN_KEY)).await;
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = body_json(resp).await;
+
+    assert_eq!(body["status_totals"]["paid"]["total_cents"], 4000);
+    assert_eq!(body["status_totals"]["paid"]["count"], 3);
+    assert_eq!(body["status_totals"]["draft"]["total_cents"], 1000);
+    assert_eq!(body["status_totals"]["draft"]["count"], 1);
+    assert_eq!(body["status_totals"]["finalized"]["total_cents"], 2000);
+    assert_eq!(body["status_totals"]["finalized"]["count"], 1);
+    assert_eq!(body["status_totals"]["failed"]["total_cents"], 900);
+    assert_eq!(body["status_totals"]["failed"]["count"], 1);
+    assert_eq!(body["status_totals"]["refunded"]["total_cents"], 700);
+    assert_eq!(body["status_totals"]["refunded"]["count"], 1);
+    assert_eq!(body["pending_total_cents"], 3000);
+    assert_eq!(body["pending_count"], 2);
+    assert_eq!(body["total_count"], 7);
+    assert_eq!(body["mrr_proxy_cents"], 1200);
+    assert_eq!(body["by_month"][0]["month"], "2026-06");
+    assert_eq!(body["by_month"][0]["paid_total_cents"], 500);
+    assert_eq!(body["by_month"][1]["month"], "2026-07");
+    assert_eq!(body["by_month"][1]["paid_total_cents"], 3500);
+    assert_eq!(body["invoices"].as_array().unwrap().len(), 7);
+
+    assert_eq!(invoice_repo.revenue_summary_call_count(), 1);
+    assert_eq!(customer_repo.list_call_count(), 1);
+    assert_eq!(rate_card_repo.get_active_call_count(), 1);
+    assert_eq!(rate_card_repo.get_override_call_count(), 0);
+}
+
+#[tokio::test]
+async fn admin_billing_summary_unknown_status_returns_500() {
+    let customer_repo = mock_repo();
+    let invoice_repo = mock_invoice_repo();
+    let rate_card_repo = mock_rate_card_repo();
+    rate_card_repo.seed_active_card(test_rate_card());
+    let customer =
+        seed_stripe_customer(&customer_repo, "Unknown", "unknown-summary@example.com").await;
+    invoice_repo.seed_revenue_summary_rows(vec![admin_summary_row(
+        customer.id,
+        "Unknown",
+        "unknown-summary@example.com",
+        NaiveDate::from_ymd_opt(2026, 7, 1).unwrap(),
+        100,
+        "void",
+    )]);
+
+    let app = TestStateBuilder::new()
+        .with_customer_repo(customer_repo)
+        .with_invoice_repo(invoice_repo)
+        .with_rate_card_repo(rate_card_repo)
+        .build_app();
+
+    let resp = get_admin_billing_summary(app, Some(TEST_ADMIN_KEY)).await;
+    assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
+}
+
+#[tokio::test]
+async fn admin_billing_summary_checked_addition_overflow_returns_500() {
+    let customer_repo = mock_repo();
+    let invoice_repo = mock_invoice_repo();
+    let rate_card_repo = mock_rate_card_repo();
+    rate_card_repo.seed_active_card(test_rate_card());
+    let customer =
+        seed_stripe_customer(&customer_repo, "Overflow", "overflow-summary@example.com").await;
+    let month = NaiveDate::from_ymd_opt(2026, 7, 1).unwrap();
+    invoice_repo.seed_revenue_summary_rows(vec![
+        admin_summary_row(
+            customer.id,
+            "Overflow",
+            "overflow-summary@example.com",
+            month,
+            i64::MAX,
+            "paid",
+        ),
+        admin_summary_row(
+            customer.id,
+            "Overflow",
+            "overflow-summary@example.com",
+            month,
+            1,
+            "paid",
+        ),
+    ]);
+
+    let app = TestStateBuilder::new()
+        .with_customer_repo(customer_repo)
+        .with_invoice_repo(invoice_repo)
+        .with_rate_card_repo(rate_card_repo)
+        .build_app();
+
+    let resp = get_admin_billing_summary(app, Some(TEST_ADMIN_KEY)).await;
+    assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
+}
+
+#[test]
+fn admin_billing_summary_checked_multiplication_overflow_returns_error() {
+    assert!(
+        api::routes::admin::invoices::checked_revenue_product(i64::MAX, 2).is_err(),
+        "MRR proxy multiplication must fail closed on overflow"
+    );
+}
+
+#[tokio::test]
+async fn admin_billing_summary_missing_key_returns_401() {
+    let app = TestStateBuilder::new().build_app();
+    let resp = get_admin_billing_summary(app, None).await;
+    assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn admin_billing_summary_wrong_key_returns_401() {
+    let app = TestStateBuilder::new().build_app();
+    let resp = get_admin_billing_summary(app, Some("not-the-admin-key")).await;
+    assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
 }
 
 #[tokio::test]

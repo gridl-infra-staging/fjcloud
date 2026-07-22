@@ -380,13 +380,13 @@ describe('InstantSearch', () => {
 		expect(screen.getByRole('button', { name: 'Next page' })).not.toBeDisabled();
 	});
 
-	it('infers pagination page count from hit count when the search response omits page metadata', async () => {
+	it('falls back to one page when explicit page metadata is missing or invalid', async () => {
 		vi.stubGlobal(
 			'fetch',
 			vi.fn().mockResolvedValue(
 				createSearchResponse({
 					nbHits: 45,
-					nbPages: undefined,
+					nbPages: 0,
 					totalPages: undefined,
 					hits: Array.from({ length: 20 }, (_, index) => ({
 						objectID: `doc-${index + 1}`,
@@ -408,12 +408,11 @@ describe('InstantSearch', () => {
 		await screen.findByText('Rust Guide 1');
 
 		expect(screen.getByText('45 hits in 5ms')).toBeInTheDocument();
-		expect(screen.getByRole('button', { name: 'Page 2' })).toBeInTheDocument();
-		expect(screen.getByRole('button', { name: 'Page 3' })).toBeInTheDocument();
-		expect(screen.getByRole('button', { name: 'Next page' })).not.toBeDisabled();
+		expect(screen.queryByRole('button', { name: 'Page 2' })).not.toBeInTheDocument();
+		expect(screen.getByRole('button', { name: 'Next page' })).toBeDisabled();
 	});
 
-	it('uses the requested hits per page when sparse response metadata reports the engine default', async () => {
+	it('does not increase explicit nbPages from hit count or either page size', async () => {
 		const hits = Array.from({ length: 20 }, (_, index) => ({ objectID: `doc-${index + 1}` }));
 		vi.stubGlobal(
 			'fetch',
@@ -437,8 +436,8 @@ describe('InstantSearch', () => {
 		await fireEvent.keyDown(screen.getByLabelText('Search preview query'), { key: 'Enter' });
 		await screen.findByText('45 hits in 5ms');
 
-		expect(screen.getByRole('button', { name: 'Page 2' })).toBeInTheDocument();
-		expect(screen.getByRole('button', { name: 'Next page' })).not.toBeDisabled();
+		expect(screen.queryByRole('button', { name: 'Page 2' })).not.toBeInTheDocument();
+		expect(screen.getByRole('button', { name: 'Next page' })).toBeDisabled();
 	});
 
 	it('drops stale responses via activeRequest when a newer search finishes later', async () => {

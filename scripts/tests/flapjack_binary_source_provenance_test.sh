@@ -48,10 +48,15 @@ if [ "$*" != "build -p flapjack-server" ]; then
     exit 17
 fi
 mkdir -p target/debug
-{
-    printf "#!/usr/bin/env bash\n"
-    printf "printf source-build:%s\\\\n\n" "$(date +%s%N)"
-} > target/debug/flapjack
+build_token="$(date +%s%N)"
+cat > target/debug/flapjack <<MOCK_FLAPJACK
+#!/usr/bin/env bash
+if [ "\$1" = "build-info" ] && [ "\$2" = "--json" ]; then
+    printf "{\"workspaceDigest\":\"runtime-workspace-digest\",\"revision\":\"mock-revision\"}\n"
+    exit 0
+fi
+printf "source-build:${build_token}\n"
+MOCK_FLAPJACK
 chmod +x target/debug/flapjack
 '
 }
@@ -88,6 +93,8 @@ assert_clean_source_receipt() {
         "source receipt should record default feature selection"
     assert_contains "$receipt_text" "binary_sha256=$binary_sha" \
         "source receipt should bind to the built binary digest"
+    assert_contains "$receipt_text" "build_id=runtime-workspace-digest" \
+        "source receipt should use the runtime workspaceDigest as the required build id"
 }
 
 assert_concurrent_resolver_outputs() {
@@ -110,6 +117,8 @@ assert_concurrent_receipt() {
         "concurrent source resolution must not accept a stale same-version binary"
     assert_contains "$(cat "$receipt_path")" "binary_sha256=$final_sha" \
         "concurrent source resolution should publish a complete binary-bound receipt"
+    assert_contains "$(cat "$receipt_path")" "build_id=concurrent-runtime-digest" \
+        "concurrent source resolution should publish the runtime workspaceDigest"
     [ ! -d "$receipt_path.lock" ] || fail "concurrent source resolution should release the helper-owned lock"
 }
 
@@ -313,10 +322,14 @@ if [ "$*" != "build -p flapjack-server" ]; then
 fi
 sleep 1
 mkdir -p target/debug
-{
-    printf "#!/usr/bin/env bash\n"
-    printf "printf concurrent-source-build\\\\n\n"
-} > target/debug/flapjack
+cat > target/debug/flapjack <<MOCK_FLAPJACK
+#!/usr/bin/env bash
+if [ "\$1" = "build-info" ] && [ "\$2" = "--json" ]; then
+    printf "{\"workspaceDigest\":\"concurrent-runtime-digest\",\"revision\":\"mock-revision\"}\n"
+    exit 0
+fi
+printf "concurrent-source-build\n"
+MOCK_FLAPJACK
 chmod +x target/debug/flapjack
 echo "cargo-finish cwd=$(pwd) args=$*" >> "'"$call_log"'"
 '

@@ -9,5 +9,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| read | The 'read' directory contains integration test utilities and lifecycle operation tests for the migration routes API, specifically covering cancellation and resumption of migrations during the read phase. |
+| read | This directory contains integration tests for migration read operations and API routes, including support utilities and lifecycle management tests for actions like cancellation and resumption of migrations. |
 <!-- [scrai:end] -->

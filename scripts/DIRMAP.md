@@ -67,7 +67,11 @@ binaries from past sessions (`fjcloud-api`, `fj-metering-agent`,
 `flapjack`) end up with PPID=1 and survive forever. |
 | cleanup_dev_orphans.sh | cleanup_dev_orphans.sh — targeted cleanup for stale local E2E fixture DB rows. |
 | customer_broadcast.sh | customer_broadcast.sh — operator wrapper for POST /admin/broadcast. |
-| dedupe_dirmap.py | Stub summary for scripts/dedupe_dirmap.py. |
+| dedupe_dirmap.py | Remove duplicated table rows from generated DIRMAP.md files.
+
+WHY THIS EXISTS (measured 2026-07-19)
+-------------------------------------
+`.gitattributes` carried `**/DIRMAP.md merge=union`. |
 | deploy_status.sh | deploy_status.sh — one-screen answer to "what's deployed?"
 
 Probes /version on the live API, compares dev_sha against `git rev-parse main`
@@ -284,16 +288,17 @@ shellcheck disable=SC1091. |
 
 | Directory | Summary |
 | --- | --- |
-| canary | The canary directory owns staging and production health probes and contract tests, including synthetic customer-loop workflows (signup to Stripe setup), external health checks for AWS and email deliverability, and integration contract tests verifying API endpoints and external integrations against live staging and production environments. |
-| chaos | This directory contains chaos engineering test scripts for validating system resilience, including HA failover detection, region failure recovery, and metering breaker alerting. |
-| dev | This directory contains utility scripts for managing integration tests in the fjcloud project, including tools to consolidate and migrate integration test structures and regenerate the integration test root directory. |
-| launch | The launch directory contains orchestration scripts for fjcloud's multi-wave deployment process, including guarded promotion from dev to staging to production, staging validation, billing rehearsal verification, browser testing lanes, and evidence capture for compliance. |
-| lib | This lib directory contains reusable shell script utilities that provide shared primitives for operational workflows, including alert dispatch, AWS credential validation, billing rehearsal, database access, Stripe integration, security checks, and metering validation. |
-| load | The load directory contains shared utility scripts for deployment and infrastructure operations, including pre-deployment validation, environment configuration management via SSM parameters, RDS restore capabilities, and release artifact handling. |
-| reliability | This directory contains backend reliability profiling, security validation, and infrastructure verification scripts. |
-| stripe | This directory contains shell scripts for managing Stripe configuration and setup, specifically for configuring the Stripe Customer Portal and creating the product catalog against designated Stripe accounts. |
-| tests | This directory contains shell-based test suites with smoke coverage for customer broadcast and SES event handling, plus test fixtures that mutate JSON payloads to validate soft-delete scenarios and reusable helper libraries for mocking, assertions, and contract testing across shell scripts. |
+| canary | — |
+| chaos | — |
+| dev | — |
+| launch | — |
+| lib | — |
+| load | — |
+| reliability | — |
+| security | — |
+| stripe | — |
+| tests | — |
 | verify | — |
-| vlm | The vlm directory provides Visual Language Model utilities for verdict aggregation and environment variable helpers to support the VLM judge's operational contract. |
-| w3_triage | The w3_triage directory contains tooling for a multi-stage triage process, starting with a preflight bootstrap that probes live state and discovers audit summaries, followed by parsing recommendations, authoring lane files, applying rules, and emitting dispatch manifests. |
+| vlm | — |
+| w3_triage | — |
 <!-- [scrai:end] -->

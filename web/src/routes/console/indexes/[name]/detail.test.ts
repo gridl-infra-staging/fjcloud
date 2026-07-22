@@ -212,6 +212,14 @@ describe('Index detail page — Documents and Dictionaries tab shell contract', 
 		await openTab('Overview');
 		expect(container.querySelector('[data-testid="metrics-tab-panel"]')).not.toBeNull();
 	});
+	it('selects and lazy-mounts the Infrastructure tab from the tab query parameter', async () => {
+		setMockPageUrl('http://localhost/console/indexes/products?tab=infrastructure');
+		const { container } = renderPage();
+		expect(screen.getByTestId('tab-infrastructure')).toHaveAttribute('aria-selected', 'true');
+		expect(screen.getByTestId('infrastructure-tab-panel')).toBeInTheDocument();
+		await openTab('Overview');
+		expect(container.querySelector('[data-testid="infrastructure-tab-panel"]')).not.toBeNull();
+	});
 	it('keeps documents and dictionaries mounted after first activation so drafts survive tab switches', async () => {
 		const { container } = renderPage();
 		await openTab('Documents');
@@ -373,11 +381,28 @@ describe('Index detail page — tab navigation', () => {
 	const expectedTabLabels = INDEX_DETAIL_TABS.map((tab) => tab.label);
 
 	it('keeps the canonical tab list complete', () => {
-		expect(INDEX_DETAIL_TABS).toHaveLength(16);
-		expect(expectedTabLabels).toContain('Metrics');
-		expect(expectedTabLabels).toContain('Merchandising');
+		expect(INDEX_DETAIL_TABS).toHaveLength(17);
+		expect(expectedTabLabels).toEqual([
+			'Overview',
+			'Search',
+			'Settings',
+			'Documents',
+			'Dictionaries',
+			'Synonyms',
+			'Personalization',
+			'Recommendations',
+			'Chat',
+			'Suggestions',
+			'Analytics',
+			'Metrics',
+			'Infrastructure',
+			'Merchandising',
+			'Experiments',
+			'Events',
+			'Security Sources'
+		]);
+		expect(INDEX_DETAIL_TAB_PANEL_TEST_IDS.infrastructure).toBe('infrastructure-tab-panel');
 		expect(expectedTabLabels).not.toContain('Rules');
-		expect(expectedTabLabels).toContain('Security Sources');
 	});
 
 	it('renders all tab buttons', () => {
@@ -387,6 +412,7 @@ describe('Index detail page — tab navigation', () => {
 		}
 		expect(screen.queryByRole('tab', { name: 'Rules' })).not.toBeInTheDocument();
 		expect(screen.queryByTestId('tab-rules')).not.toBeInTheDocument();
+		expect(screen.getByTestId('tab-infrastructure')).toBeInTheDocument();
 	});
 	it.each(expectedTabLabels)('marks the %s tab as selected when clicked', async (label) => {
 		renderPage();

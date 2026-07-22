@@ -6,6 +6,6 @@
 
 | Directory | Summary |
 | --- | --- |
-| common | This directory contains test utilities, mocks, and fixtures for the API integration tests, with a focus on VM inventory management, reference guard operations, race condition testing, and support helpers for various subsystems like Algolia imports and admin operations. |
-| integration | This directory contains integration tests for the fjcloud API, covering Algolia import job lifecycle and state transitions, catalog lease management including race condition and concurrent operation scenarios, engine index identity verification, and migration routes API operations from creation through lifecycle completion. |
+| common | — |
+| integration | This integration test directory covers critical domain operations for the billing and catalog system, including Algolia data import job lifecycle and accounting, catalog lease management with race condition handling, and migration API route operations with eligibility and lifecycle workflows. |
 <!-- [scrai:end] -->

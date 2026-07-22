@@ -2,6 +2,7 @@
 	import { resolve } from '$app/paths';
 	import type { PageData } from './$types';
 	import { adminBadgeColor, formatDate } from '$lib/format';
+	import { capacityDimensions, utilPercent } from '$lib/vm-capacity';
 
 	let { data } = $props<{ data: PageData }>();
 
@@ -20,25 +21,11 @@
 		}
 	}
 
-	type ResourceDimension = { key: string; label: string; used: number; total: number };
-
-	const dimensions: ResourceDimension[] = $derived.by(() => {
-		const cap = data.vm.capacity ?? {};
-		const load = data.vm.current_load ?? {};
-		return Object.keys(cap)
-			.filter((k) => typeof cap[k] === 'number' && typeof load[k] === 'number')
-			.map((k) => ({
-				key: k,
-				label: k,
-				used: load[k] as number,
-				total: cap[k] as number
-			}));
-	});
-
-	function utilPercent(used: number, total: number): number {
-		if (total <= 0) return 0;
-		return Math.round((used / total) * 100);
+	function tenantRowKey(tenant: PageData['tenants'][number]): string {
+		return `${tenant.deployment_id}:${tenant.tenant_id}`;
 	}
+
+	const dimensions = $derived(capacityDimensions(data.vm.capacity, data.vm.current_load));
 
 	function barColor(pct: number): string {
 		if (pct >= 85) return 'bg-red-500';
@@ -149,7 +136,7 @@
 						</tr>
 					</thead>
 					<tbody class="divide-y divide-slate-700/50">
-						{#each data.tenants as tenant (tenant.tenant_id)}
+						{#each data.tenants as tenant (tenantRowKey(tenant))}
 							<tr class="transition hover:bg-slate-800/40">
 								<td class="px-4 py-3 text-slate-100">{tenant.tenant_id}</td>
 								<td class="px-4 py-3 font-mono text-xs text-slate-400">

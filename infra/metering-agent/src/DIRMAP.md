@@ -3,9 +3,11 @@
 
 | File | Summary |
 | --- | --- |
-| config.rs | Stub summary for config.rs. |
+| config.rs | Stub summary for infra/metering-agent/src/config.rs. |
 | counter.rs | Stub summary for counter.rs. |
-| main.rs | Stub summary for main.rs. |
-| storage.rs | Stub summary for storage.rs. |
-| tenant_map.rs | Stub summary for tenant_map.rs. |
+| host_metrics.rs | Stub summary for infra/metering-agent/src/host_metrics.rs. |
+| host_metrics_writer.rs | Stub summary for infra/metering-agent/src/host_metrics_writer.rs. |
+| main.rs | Stub summary for infra/metering-agent/src/main.rs. |
+| storage.rs | Stub summary for infra/metering-agent/src/storage.rs. |
+| tenant_map.rs | Stub summary for infra/metering-agent/src/tenant_map.rs. |
 <!-- [scrai:end] -->

@@ -9,5 +9,5 @@
 | Directory | Summary |
 | --- | --- |
 | admin | — |
-| vlm_capture | The vlm_capture directory contains utilities for managing visual language model screenshot captures, including a single source of truth for capture tuple definitions and a guard to handle redirects during the capture process. |
+| vlm_capture | This directory contains utilities for VLM screenshot capture, including redirect handling during captures and a central tuple definition for screenshot capture configuration. |
 <!-- [scrai:end] -->

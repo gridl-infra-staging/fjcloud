@@ -3,8 +3,10 @@
 	import { invalidate } from '$app/navigation';
 	import type { ActionResult, SubmitFunction } from '@sveltejs/kit';
 	import type { PageData } from './$types';
+	import { safeExternalUrl } from '$lib/billing';
 	import { adminBadgeColor, formatDate } from '$lib/format';
 	import AuditTimeline from './AuditTimeline.svelte';
+	import type { InvoiceDetailResponse } from '$lib/api/types';
 
 	type TabId =
 		| 'info'
@@ -16,7 +18,10 @@
 		| 'quotas'
 		| 'audit';
 
-	let { data, form } = $props<{ data: PageData; form?: { error?: string; message?: string } }>();
+	let { data, form } = $props<{
+		data: PageData;
+		form?: { error?: string; message?: string; invoiceDetail?: InvoiceDetailResponse };
+	}>();
 	let activeTab = $state<TabId>('info');
 
 	const tabs: Array<{ id: TabId; label: string }> = [
@@ -52,6 +57,11 @@
 				return 'bg-slate-500/20 text-slate-300 border-slate-500/40';
 		}
 	}
+
+	const selectedHostedInvoiceUrl = $derived(
+		safeExternalUrl(form?.invoiceDetail?.hosted_invoice_url ?? null)
+	);
+	const selectedPdfUrl = $derived(safeExternalUrl(form?.invoiceDetail?.pdf_url ?? null, true));
 
 	const refreshDetailAfterAction: SubmitFunction = () => {
 		return async ({ result }: { result: ActionResult }) => {
@@ -186,6 +196,12 @@
 				<div>
 					<dt class="text-slate-400">Status</dt>
 					<dd class="text-slate-100">{data.tenant.status}</dd>
+				</div>
+				<div>
+					<dt class="text-slate-400">Plan</dt>
+					<dd data-testid="customer-detail-plan" class="text-slate-100">
+						{data.tenant.billing_plan}
+					</dd>
 				</div>
 				<div>
 					<dt class="text-slate-400">Created</dt>
@@ -382,6 +398,7 @@
 								<th class="px-4 py-3">Amount</th>
 								<th class="px-4 py-3">Status</th>
 								<th class="px-4 py-3">Created</th>
+								<th class="px-4 py-3">Action</th>
 							</tr>
 						</thead>
 						<tbody class="divide-y divide-slate-700/50">
@@ -401,11 +418,82 @@
 										</span>
 									</td>
 									<td class="px-4 py-3 text-xs text-slate-400">{formatDate(invoice.created_at)}</td>
+									<td class="px-4 py-3">
+										<form
+											method="POST"
+											action="?/viewInvoice"
+											data-testid="view-invoice-form"
+											use:enhance
+										>
+											<input type="hidden" name="invoice_id" value={invoice.id} />
+											<button
+												type="submit"
+												data-testid="view-invoice-button"
+												class="rounded-md border border-slate-500/60 bg-slate-700 px-2 py-1 text-xs font-medium text-slate-100 hover:bg-slate-600"
+											>
+												View
+											</button>
+										</form>
+									</td>
 								</tr>
 							{/each}
 						</tbody>
 					</table>
 				</div>
+				{#if form?.invoiceDetail}
+					<div
+						data-testid="invoice-drill-in"
+						class="mt-4 rounded-md border border-slate-700 bg-slate-800/60 p-4 text-sm"
+					>
+						<h4 class="text-sm font-semibold text-slate-100">Invoice Detail</h4>
+						<dl class="mt-3 grid gap-3 md:grid-cols-3">
+							<div>
+								<dt class="text-slate-400">Stripe Invoice ID</dt>
+								<dd class="font-mono text-xs text-slate-100">
+									{form.invoiceDetail.stripe_invoice_id ?? 'Not available'}
+								</dd>
+							</div>
+							<div>
+								<dt class="text-slate-400">Hosted Invoice</dt>
+								<dd class="text-slate-100">
+									{#if selectedHostedInvoiceUrl}
+										<!-- eslint-disable svelte/no-navigation-without-resolve -- stored Stripe hosted invoice URLs are external absolute URLs, not SvelteKit routes. -->
+										<a
+											href={selectedHostedInvoiceUrl}
+											target="_blank"
+											rel="noopener"
+											class="text-violet-300 hover:text-violet-200"
+										>
+											{selectedHostedInvoiceUrl}
+										</a>
+										<!-- eslint-enable svelte/no-navigation-without-resolve -->
+									{:else}
+										Not available
+									{/if}
+								</dd>
+							</div>
+							<div>
+								<dt class="text-slate-400">PDF</dt>
+								<dd class="text-slate-100">
+									{#if selectedPdfUrl}
+										<!-- eslint-disable svelte/no-navigation-without-resolve -- stored Stripe invoice PDF URLs are external absolute URLs, not SvelteKit routes. -->
+										<a
+											href={selectedPdfUrl}
+											target="_blank"
+											rel="noopener"
+											class="text-violet-300 hover:text-violet-200"
+										>
+											{selectedPdfUrl}
+										</a>
+										<!-- eslint-enable svelte/no-navigation-without-resolve -->
+									{:else}
+										Not available
+									{/if}
+								</dd>
+							</div>
+						</dl>
+					</div>
+				{/if}
 			{/if}
 		</div>
 	{/if}

@@ -251,6 +251,115 @@ SH
 		"playwright stack should explain the missing exact identity evidence"
 }
 
+test_playwright_stack_applies_migrations_before_api_start() {
+	local temp_dir fake_bin output remote_output remote_exit_code=0 exit_code=0
+	mkdir -p "$REPO_ROOT/.local"
+	temp_dir="$(mktemp -d "$REPO_ROOT/.local/playwright-stack-test.XXXXXX")"
+	fake_bin="$temp_dir/bin"
+	mkdir -p "$fake_bin" "$temp_dir/scripts/lib" "$temp_dir/.local"
+	trap 'rm -rf "'"$temp_dir"'"' RETURN
+
+	cp "$REPO_ROOT/scripts/playwright_local_stack.sh" "$temp_dir/scripts/playwright_local_stack.sh"
+	cp "$REPO_ROOT/scripts/lib/local_stack_contract.sh" "$temp_dir/scripts/lib/local_stack_contract.sh"
+	chmod +x "$temp_dir/scripts/playwright_local_stack.sh"
+
+	cat > "$temp_dir/scripts/lib/env.sh" <<'SH'
+DEFAULT_LOCAL_FLAPJACK_ADMIN_KEY="local-test-key"
+load_env_file() { :; }
+SH
+	cat > "$temp_dir/scripts/lib/health.sh" <<'SH'
+wait_for_health() {
+	for _ in $(seq 1 40); do
+		curl -fsS "$1" >/dev/null 2>&1 && return 0
+		sleep 0.05
+	done
+	return 1
+}
+SH
+	cat > "$temp_dir/scripts/lib/flapjack_binary.sh" <<'SH'
+FJCLOUD_FLAPJACK_VERSION="1.0.10"
+FJCLOUD_FLAPJACK_SOURCE_RESOLUTION_FAILURE_STATUS=2
+find_restart_ready_flapjack_binary() { printf '%s\n' "$TEST_STACK_RUN_DIR/flapjack-server"; }
+flapjack_source_provenance_summary() { printf 'test-source\n'; }
+flapjack_export_required_runtime_identity() {
+	export FJCLOUD_FLAPJACK_REQUIRED_REVISION="test-revision"
+	export FJCLOUD_FLAPJACK_REQUIRED_BUILD_ID="test-digest"
+	export FJCLOUD_FLAPJACK_REQUIRED_SHA256="test-sha"
+}
+SH
+	cat > "$fake_bin/lsof" <<'SH'
+#!/usr/bin/env bash
+exit 0
+SH
+	chmod +x "$fake_bin/lsof"
+	write_stack_harness_curl "$fake_bin/curl"
+	write_stack_harness_sleeping_service "$temp_dir/flapjack-server" \
+		"flapjack_child.pid" "flapjack_ready" "flapjack_terminated"
+	cat > "$temp_dir/scripts/local-dev-migrate.sh" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+touch "${TEST_STACK_RUN_DIR:?}/migrations_applied"
+SH
+	chmod +x "$temp_dir/scripts/local-dev-migrate.sh"
+	cat > "$temp_dir/scripts/api-dev.sh" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+run_dir="${TEST_STACK_RUN_DIR:?}"
+if [ ! -f "$run_dir/migrations_applied" ]; then
+	echo "api started before migrations" >&2
+	exit 1
+fi
+echo "$$" > "$run_dir/api_child.pid"
+touch "$run_dir/api_ready"
+trap 'touch "$run_dir/api_terminated"; exit 0' TERM INT
+while true; do sleep 1; done
+SH
+	chmod +x "$temp_dir/scripts/api-dev.sh"
+	cat > "$temp_dir/scripts/web-dev.sh" <<'SH'
+#!/usr/bin/env bash
+exit 0
+SH
+	chmod +x "$temp_dir/scripts/web-dev.sh"
+
+	remote_output=$(
+		TEST_STACK_RUN_DIR="$temp_dir" \
+		PATH="$fake_bin:$PATH" \
+		DATABASE_URL="postgresql://playwright:secret@db.production.example:5432/fjcloud" \
+		FLAPJACK_URL="http://127.0.0.1:7715" \
+		API_BASE_URL="http://127.0.0.1:3205" \
+		API_URL="http://127.0.0.1:3205" \
+		LISTEN_ADDR="127.0.0.1:3205" \
+		PLAYWRIGHT_API_READY_TIMEOUT_SECONDS="3" \
+		bash "$temp_dir/scripts/playwright_local_stack.sh" 2>&1
+	) || remote_exit_code=$?
+
+	assert_eq "$remote_exit_code" "1" \
+		"playwright stack should reject automatic migrations for a non-loopback database"
+	assert_contains "$remote_output" "refusing to apply local Playwright migrations to a non-loopback DATABASE_URL" \
+		"playwright stack should explain the database safety rejection without printing credentials"
+	[ ! -f "$temp_dir/migrations_applied" ] || \
+		fail "playwright stack must reject a remote database before invoking migrations"
+
+	output=$(
+		TEST_STACK_RUN_DIR="$temp_dir" \
+		PATH="$fake_bin:$PATH" \
+		DATABASE_URL="postgresql://playwright:secret@127.0.0.1:5432/fjcloud" \
+		FLAPJACK_URL="http://127.0.0.1:7715" \
+		API_BASE_URL="http://127.0.0.1:3205" \
+		API_URL="http://127.0.0.1:3205" \
+		LISTEN_ADDR="127.0.0.1:3205" \
+		PLAYWRIGHT_API_READY_TIMEOUT_SECONDS="3" \
+		bash "$temp_dir/scripts/playwright_local_stack.sh" 2>&1
+	) || exit_code=$?
+
+	assert_eq "$exit_code" "0" \
+		"playwright stack should apply local migrations before API startup"
+	assert_file_eventually_exists "$temp_dir/migrations_applied" \
+		"playwright stack should invoke the local migration script"
+	assert_not_contains "$output" "api started before migrations" \
+		"API should not start before the migration prerequisite"
+}
+
 write_stack_harness_curl() {
 	local curl_path="$1"
 
@@ -373,6 +482,11 @@ SH
 	write_stack_harness_curl "$fake_bin/curl"
 	write_stack_harness_sleeping_service "$temp_dir/flapjack-server" \
 		"flapjack_child.pid" "flapjack_ready" "flapjack_terminated"
+	cat > "$temp_dir/scripts/local-dev-migrate.sh" <<'SH'
+#!/usr/bin/env bash
+exit 0
+SH
+	chmod +x "$temp_dir/scripts/local-dev-migrate.sh"
 	write_stack_harness_sleeping_service "$temp_dir/scripts/api-dev.sh" \
 		"api_child.pid" "api_ready" "api_terminated"
 	write_stack_harness_sleeping_service "$temp_dir/scripts/web-dev.sh" \
@@ -380,6 +494,7 @@ SH
 
 	TEST_STACK_RUN_DIR="$temp_dir" \
 		PATH="$fake_bin:$PATH" \
+		DATABASE_URL="postgresql://playwright:secret@127.0.0.1:5432/fjcloud" \
 		FLAPJACK_URL="http://127.0.0.1:7715" \
 		API_BASE_URL="http://127.0.0.1:3205" \
 		API_URL="http://127.0.0.1:3205" \
@@ -433,6 +548,7 @@ test_flapjack_bootstrap_initializes_experiment_storage
 	test_playwright_stack_surfaces_helper_source_provenance
 	test_playwright_stack_rejects_healthy_runtime_when_source_resolution_fails
 	test_playwright_stack_rejects_healthy_runtime_without_exact_identity_evidence
+	test_playwright_stack_applies_migrations_before_api_start
 	test_stack_pid_termination_cleans_children_after_web_start
 
 run_test_summary

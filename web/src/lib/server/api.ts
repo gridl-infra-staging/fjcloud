@@ -3,6 +3,8 @@ import { ApiClient } from '$lib/api/client';
 import { deriveApiBaseUrl } from '$lib/config';
 import { CANONICAL_PUBLIC_API_BASE_URL } from '$lib/public_api';
 
+const LOCAL_REQUEST_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
+
 export function createApiClientForBaseUrl(
 	baseUrl: string,
 	token?: string,
@@ -29,5 +31,15 @@ export function createApiClient(token?: string, fetchFn?: typeof globalThis.fetc
 }
 
 export function createCanonicalPublicApiClient(fetchFn?: typeof globalThis.fetch): ApiClient {
-	return createApiClientForBaseUrl(CANONICAL_PUBLIC_API_BASE_URL, undefined, fetchFn);
+	let publicApiBaseUrl = CANONICAL_PUBLIC_API_BASE_URL;
+	try {
+		const event = getRequestEvent();
+		if (LOCAL_REQUEST_HOSTS.has(event.url.hostname)) {
+			publicApiBaseUrl = event.locals.apiBaseUrl || deriveApiBaseUrl(event.url.hostname);
+		}
+	} catch {
+		// Calls outside a request retain the canonical public origin.
+	}
+
+	return createApiClientForBaseUrl(publicApiBaseUrl, undefined, fetchFn);
 }

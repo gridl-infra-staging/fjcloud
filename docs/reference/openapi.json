@@ -3767,6 +3767,67 @@
         }
       }
     },
+    "/indexes/{name}/infrastructure": {
+      "get": {
+        "tags": [
+          "Index Infrastructure"
+        ],
+        "operationId": "get_index_infrastructure",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Index name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Index infrastructure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IndexInfrastructureResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Index not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Backend temporarily unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/indexes/{name}/keys": {
       "post": {
         "tags": [
@@ -6784,6 +6845,39 @@
         ]
       }
     },
+    "/public/infrastructure": {
+      "get": {
+        "tags": [
+          "Public"
+        ],
+        "operationId": "get_public_infrastructure",
+        "responses": {
+          "200": {
+            "description": "Public infrastructure health by region",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicInfrastructureResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Repository unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {}
+        ]
+      }
+    },
     "/usage": {
       "get": {
         "tags": [
@@ -7542,13 +7636,12 @@
       },
       "CustomerIndexReplicaSummary": {
         "type": "object",
-        "description": "Customer-facing view — omits VM hostname, renames flapjack_url to endpoint.",
+        "description": "Customer-facing view — omits internal VM details and never exposes a raw\nreplica engine URL.",
         "required": [
           "id",
           "replica_region",
           "status",
           "lag_ops",
-          "endpoint",
           "created_at"
         ],
         "properties": {
@@ -7557,7 +7650,10 @@
             "format": "date-time"
           },
           "endpoint": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "id": {
             "type": "string",
@@ -7782,6 +7878,50 @@
           }
         }
       },
+      "HeadroomStatus": {
+        "type": "string",
+        "enum": [
+          "comfortable",
+          "busy",
+          "approaching_limits"
+        ]
+      },
+      "IndexInfrastructureResponse": {
+        "type": "object",
+        "required": [
+          "index",
+          "primary",
+          "replicas",
+          "footprint",
+          "headroom",
+          "minimum_refresh_interval_seconds"
+        ],
+        "properties": {
+          "footprint": {
+            "$ref": "#/components/schemas/InfrastructureFootprint"
+          },
+          "headroom": {
+            "$ref": "#/components/schemas/HeadroomStatus"
+          },
+          "index": {
+            "type": "string"
+          },
+          "minimum_refresh_interval_seconds": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "primary": {
+            "$ref": "#/components/schemas/InfrastructurePrimary"
+          },
+          "replicas": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InfrastructureReplica"
+            }
+          }
+        }
+      },
       "IndexResponse": {
         "type": "object",
         "required": [
@@ -7836,6 +7976,94 @@
           },
           "tier": {
             "type": "string"
+          }
+        }
+      },
+      "InfrastructureFootprint": {
+        "type": "object",
+        "required": [
+          "documents_count",
+          "storage_bytes",
+          "search_requests_total",
+          "write_operations_total"
+        ],
+        "properties": {
+          "documents_count": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "search_requests_total": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "storage_bytes": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "write_operations_total": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
+      "InfrastructurePrimary": {
+        "type": "object",
+        "required": [
+          "region",
+          "status",
+          "utilization"
+        ],
+        "properties": {
+          "region": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "utilization": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/UtilizationBucket"
+              }
+            ]
+          }
+        }
+      },
+      "InfrastructureReplica": {
+        "type": "object",
+        "required": [
+          "region",
+          "status",
+          "lag_ops",
+          "utilization"
+        ],
+        "properties": {
+          "lag_ops": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "region": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "utilization": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/UtilizationBucket"
+              }
+            ]
           }
         }
       },
@@ -8217,6 +8445,99 @@
           }
         }
       },
+      "PublicInfrastructureOverall": {
+        "type": "object",
+        "required": [
+          "total_regions",
+          "total_vms"
+        ],
+        "properties": {
+          "availability_pct": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "total_regions": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "total_vms": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "PublicInfrastructureResponse": {
+        "type": "object",
+        "required": [
+          "regions",
+          "overall"
+        ],
+        "properties": {
+          "overall": {
+            "$ref": "#/components/schemas/PublicInfrastructureOverall"
+          },
+          "regions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PublicRegionInfrastructure"
+            }
+          }
+        }
+      },
+      "PublicRegionHealth": {
+        "type": "string",
+        "enum": [
+          "operational",
+          "degraded",
+          "outage",
+          "unknown"
+        ]
+      },
+      "PublicRegionInfrastructure": {
+        "type": "object",
+        "required": [
+          "region",
+          "provider",
+          "display_name",
+          "provider_location",
+          "health",
+          "vm_count"
+        ],
+        "properties": {
+          "display_name": {
+            "type": "string"
+          },
+          "health": {
+            "$ref": "#/components/schemas/PublicRegionHealth"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "provider_location": {
+            "type": "string"
+          },
+          "region": {
+            "type": "string"
+          },
+          "utilization": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/UtilizationBucket"
+              }
+            ]
+          },
+          "vm_count": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
       "PublishableKeyResponse": {
         "type": "object",
         "required": [
@@ -8422,6 +8743,14 @@
             "format": "int64"
           }
         }
+      },
+      "UtilizationBucket": {
+        "type": "string",
+        "enum": [
+          "green",
+          "yellow",
+          "red"
+        ]
       },
       "VerifyEmailRequest": {
         "type": "object",

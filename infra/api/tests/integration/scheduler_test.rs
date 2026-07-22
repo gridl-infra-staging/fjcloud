@@ -45,7 +45,7 @@ fn scheduler_config_reads_env_values() {
         ("SCHEDULER_UNDERLOAD_DURATION_SECS", "2400"),
     ])));
 
-    assert_eq!(cfg.scrape_interval_secs, 42);
+    assert_eq!(cfg.scrape_interval_secs, 60);
     assert!((cfg.overload_threshold - 0.91).abs() < f64::EPSILON);
     assert!((cfg.underload_threshold - 0.12).abs() < f64::EPSILON);
     assert_eq!(cfg.max_concurrent_migrations, 7);
@@ -70,6 +70,29 @@ fn scheduler_config_invalid_values_fall_back_to_defaults() {
     assert_eq!(cfg.max_concurrent_migrations, 3);
     assert_eq!(cfg.overload_duration_secs, 600);
     assert_eq!(cfg.underload_duration_secs, 1800);
+}
+
+#[test]
+fn scheduler_config_enforces_public_refresh_floor() {
+    let cases = [
+        (None, 300),
+        (Some("invalid"), 300),
+        (Some("42"), 60),
+        (Some("60"), 60),
+        (Some("300"), 300),
+    ];
+
+    for (configured, expected) in cases {
+        let cfg = SchedulerConfig::from_reader(|key| {
+            (key == "SCHEDULER_SCRAPE_INTERVAL_SECS")
+                .then(|| configured.map(str::to_owned))
+                .flatten()
+        });
+        assert_eq!(
+            cfg.scrape_interval_secs, expected,
+            "configured={configured:?}"
+        );
+    }
 }
 
 fn new_vm_with_capacity(

@@ -23,10 +23,7 @@ const STATUS_LABELS: Record<ServiceStatus, string> = {
 
 function isServiceStatus(value: unknown): value is ServiceStatus {
 	return (
-		value === 'operational' ||
-		value === 'degraded' ||
-		value === 'outage' ||
-		value === 'unknown'
+		value === 'operational' || value === 'degraded' || value === 'outage' || value === 'unknown'
 	);
 }
 

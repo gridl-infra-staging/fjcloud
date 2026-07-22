@@ -1,4 +1,4 @@
-use api::repos::CustomerRepo;
+use api::repos::{CustomerRepo, TenantRepo};
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use chrono::{DateTime, Duration, NaiveDate, Utc};
@@ -279,6 +279,101 @@ async fn list_tenants_returns_billing_health_from_invoice_signals() {
     assert_eq!(find_tenant("Grey Deleted")["billing_health"], "grey");
 
     let _ = grey_deleted;
+}
+
+#[tokio::test]
+async fn list_tenants_returns_index_count() {
+    let customer_repo = crate::common::mock_repo();
+    let tenant_repo = crate::common::mock_tenant_repo();
+
+    let customer_a = customer_repo.seed("Catalog A", "catalog-a@example.com");
+    let customer_b = customer_repo.seed("Catalog B", "catalog-b@example.com");
+
+    let active_deployment_a = Uuid::new_v4();
+    let other_active_deployment_a = Uuid::new_v4();
+    let terminated_deployment_a = Uuid::new_v4();
+    let active_deployment_b = Uuid::new_v4();
+
+    tenant_repo.seed_deployment(
+        active_deployment_a,
+        "us-east-1",
+        Some("https://a1.flapjack.test"),
+        "running",
+        "running",
+    );
+    tenant_repo.seed_deployment(
+        other_active_deployment_a,
+        "us-west-2",
+        Some("https://a2.flapjack.test"),
+        "running",
+        "running",
+    );
+    tenant_repo.seed_deployment(
+        terminated_deployment_a,
+        "us-east-2",
+        Some("https://dead.flapjack.test"),
+        "terminated",
+        "terminated",
+    );
+    tenant_repo.seed_deployment(
+        active_deployment_b,
+        "eu-west-1",
+        Some("https://b1.flapjack.test"),
+        "running",
+        "running",
+    );
+
+    tenant_repo
+        .create(customer_a.id, "alpha", active_deployment_a)
+        .await
+        .unwrap();
+    tenant_repo
+        .create(customer_a.id, "bravo", active_deployment_a)
+        .await
+        .unwrap();
+    tenant_repo
+        .create(customer_a.id, "charlie", other_active_deployment_a)
+        .await
+        .unwrap();
+    tenant_repo
+        .create(customer_a.id, "terminated", terminated_deployment_a)
+        .await
+        .unwrap();
+    tenant_repo
+        .create(customer_b.id, "delta", active_deployment_b)
+        .await
+        .unwrap();
+
+    let app = crate::common::TestStateBuilder::new()
+        .with_customer_repo(customer_repo)
+        .with_tenant_repo(tenant_repo)
+        .build_app();
+
+    let req = Request::builder()
+        .uri("/admin/tenants")
+        .header("x-admin-key", crate::common::TEST_ADMIN_KEY)
+        .body(Body::empty())
+        .unwrap();
+
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let json = body_json(resp).await;
+    let tenants = json.as_array().expect("response should be an array");
+
+    let find_tenant = |id: Uuid| -> &serde_json::Value {
+        tenants
+            .iter()
+            .find(|tenant| tenant["id"] == id.to_string())
+            .unwrap_or_else(|| panic!("tenant '{id}' should be present"))
+    };
+
+    assert_eq!(find_tenant(customer_a.id)["index_count"], 3);
+    assert_eq!(
+        find_tenant(customer_b.id)["index_count"],
+        1,
+        "index_count must remain tenant-isolated"
+    );
 }
 
 #[tokio::test]

@@ -9,13 +9,14 @@
  * BROWSER_TESTING_STANDARDS_2.md.  They must never appear in *.spec.ts files.
  */
 
-import { test as base, expect, type Page } from '@playwright/test';
+import { test as base, expect, type Locator, type Page } from '@playwright/test';
 import { existsSync, readFileSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import {
 	createMetricsReadySearchableIndexSeedOptions,
 	createSeedSearchableIndexFactory,
+	seedSearchableIndexForCustomer,
 	type SeedMetricsSearchableIndexFn,
 	type SeedSearchableIndexFn
 } from './searchable-index';
@@ -49,12 +50,18 @@ import type {
 	ApiKeyListItem,
 	DebugEvent,
 	EstimatedBillResponse,
+	IndexInfrastructureResponse,
 	Rule,
 	RuleSearchResponse,
 	Synonym,
 	SynonymSearchResponse
 } from '../../src/lib/api/types';
-import type { AdminRateCard } from '../../src/lib/admin-client';
+import { formatBytes, formatNumber, statusLabel } from '../../src/lib/format';
+import type {
+	AdminRateCard,
+	VmHostMetricsResponse,
+	VmInventoryItem
+} from '../../src/lib/admin-client';
 import {
 	pricingContractSnapshotFromAdminRateCard,
 	type MarketingPricingContractSnapshot
@@ -140,7 +147,12 @@ function isLoopbackApiUrl(apiUrl: string): boolean {
 	} catch {
 		return false;
 	}
-	return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1' || hostname === '[::1]';
+	return (
+		hostname === 'localhost' ||
+		hostname === '127.0.0.1' ||
+		hostname === '::1' ||
+		hostname === '[::1]'
+	);
 }
 
 // Resolve fixture env lazily so unit tests can import this module without
@@ -401,6 +413,145 @@ WHERE provider = 'local'
 `,
 		`local vm_inventory refresh for ${safeRegion}`
 	);
+}
+
+type SeedInfrastructureTopologyInput = {
+	customerId: string;
+	indexName: string;
+	replicaRegion: string;
+	flapjackUrl: string;
+};
+
+type SeedInfrastructureTopologyResult = {
+	replicaVmId: string;
+	replicaHostname: string;
+};
+
+function seedInfrastructureReplicaTopology({
+	customerId,
+	indexName,
+	replicaRegion,
+	flapjackUrl
+}: SeedInfrastructureTopologyInput): SeedInfrastructureTopologyResult {
+	const seed = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+	const replicaHostname = `e2e-infrastructure-replica-${seed}`;
+	const output = runFixtureSql(
+		`
+WITH primary_target AS (
+    SELECT vm_id
+    FROM customer_tenants
+    WHERE customer_id = ${quoteSqlLiteral(customerId)}::uuid
+      AND tenant_id = ${quoteSqlLiteral(indexName)}
+), replica_vm AS (
+    INSERT INTO vm_inventory (
+        provider,
+        hostname,
+        flapjack_url,
+        region,
+        capacity,
+        current_load,
+        load_scraped_at,
+        created_at,
+        updated_at
+    )
+    VALUES (
+        'local',
+        ${quoteSqlLiteral(replicaHostname)},
+        ${quoteSqlLiteral(flapjackUrl)},
+        ${quoteSqlLiteral(replicaRegion)},
+        ${quoteSqlLiteral(LOCAL_VM_CAPACITY_JSON)}::jsonb,
+        '{"cpu_weight":2.4,"mem_rss_bytes":5153960755,"disk_bytes":64424509440,"query_rps":300.0,"indexing_rps":120.0}'::jsonb,
+        NOW(),
+        NOW(),
+        NOW()
+    )
+    RETURNING id
+), created_replica AS (
+    INSERT INTO index_replicas (
+        customer_id,
+        tenant_id,
+        primary_vm_id,
+        replica_vm_id,
+        replica_region,
+        status,
+        lag_ops
+    )
+    SELECT
+        ${quoteSqlLiteral(customerId)}::uuid,
+        ${quoteSqlLiteral(indexName)},
+        primary_target.vm_id,
+        replica_vm.id,
+        ${quoteSqlLiteral(replicaRegion)},
+        'active',
+        37
+    FROM primary_target, replica_vm
+    RETURNING replica_vm_id
+)
+SELECT replica_vm_id::text FROM created_replica;
+`,
+		`seed Infrastructure topology for ${indexName}`
+	);
+	if (!output) {
+		throw new Error(`seed Infrastructure topology returned no replica VM for ${indexName}`);
+	}
+	return {
+		replicaVmId: output,
+		replicaHostname
+	};
+}
+
+function infrastructureBrowserContract(
+	indexName: string,
+	payload: IndexInfrastructureResponse,
+	replicaRegion: string,
+	replicaHostname: string
+): IndexInfrastructureBrowserContract {
+	const replica = payload.replicas.find((candidate) => candidate.region === replicaRegion);
+	if (
+		payload.primary.utilization !== 'green' ||
+		!replica ||
+		replica.status !== 'active' ||
+		replica.lag_ops !== 37 ||
+		replica.utilization !== 'yellow' ||
+		payload.headroom !== 'comfortable'
+	) {
+		throw new Error(`seeded Infrastructure contract did not converge for ${indexName}`);
+	}
+
+	return {
+		indexName,
+		primary: {
+			region: payload.primary.region,
+			status: statusLabel(payload.primary.status),
+			utilization: 'Green'
+		},
+		replica: {
+			region: replica.region,
+			status: 'Active',
+			lagOperations: 37,
+			utilization: 'Yellow'
+		},
+		headroom: 'Comfortable',
+		failover: `Automatic cross-region failover is available in ${replica.region}.`,
+		forbiddenText: [
+			replicaHostname,
+			'hostname',
+			'flapjack_url',
+			'vm_id',
+			'replica_vm_id',
+			'capacity',
+			'current_load',
+			'query_rps',
+			'indexing_rps',
+			'load_scraped_at'
+		],
+		footprint: {
+			documents: formatNumber(payload.footprint.documents_count),
+			storage: formatBytes(payload.footprint.storage_bytes),
+			searchRequests: formatNumber(payload.footprint.search_requests_total),
+			writeOperations: formatNumber(payload.footprint.write_operations_total)
+		}
+	};
 }
 
 const STALE_FIXTURE_INDEX_PREFIXES = readStaleFixtureIndexPrefixes();
@@ -1667,6 +1818,62 @@ RETURNING id::text || '|' || region || '|' || status;
 		throw new Error(`seed admin deployment returned an unexpected row: ${output}`);
 	}
 	return { id, region: returnedRegion, status };
+}
+
+async function readAdminVmHostMetricsEvidenceForFixture({
+	region,
+	vmId
+}: ReadAdminVmHostMetricsEvidenceParams): Promise<AdminVmHostMetricsEvidence> {
+	const vmsResponse = await callJsonApi(fetch, fixtureEnv.apiUrl, 'GET', '/admin/vms', {
+		'x-admin-key': requireAdminApiKey(fixtureEnv.adminKey)
+	});
+	if (!vmsResponse.ok) {
+		throw new Error(
+			`readAdminVmHostMetricsEvidence /admin/vms failed: ${vmsResponse.status} ${await vmsResponse.text()}`
+		);
+	}
+	const vms = (await vmsResponse.json()) as VmInventoryItem[];
+	const resolvedVmId = vmId ?? resolveAdminVmIdFromRegion(vms, region);
+	if (!vms.some((vm) => vm.id === resolvedVmId)) {
+		throw new Error(
+			`readAdminVmHostMetricsEvidence could not find VM ${resolvedVmId} in /admin/vms`
+		);
+	}
+
+	const metricsResponse = await callJsonApi(
+		fetch,
+		fixtureEnv.apiUrl,
+		'GET',
+		`/admin/vms/${encodeURIComponent(resolvedVmId)}/host-metrics`,
+		{ 'x-admin-key': requireAdminApiKey(fixtureEnv.adminKey) }
+	);
+	if (!metricsResponse.ok) {
+		throw new Error(
+			`readAdminVmHostMetricsEvidence /admin/vms/${resolvedVmId}/host-metrics failed: ${metricsResponse.status} ${await metricsResponse.text()}`
+		);
+	}
+	const metrics = (await metricsResponse.json()) as VmHostMetricsResponse | null;
+	if (metrics && metrics.vm_id !== resolvedVmId) {
+		throw new Error(
+			`readAdminVmHostMetricsEvidence expected vm_id ${resolvedVmId}, got ${metrics.vm_id}`
+		);
+	}
+	return { vmId: resolvedVmId, metrics };
+}
+
+function resolveAdminVmIdFromRegion(vms: VmInventoryItem[], region: string | undefined): string {
+	const safeRegion = requireNonEmptyString(
+		region ?? '',
+		'readAdminVmHostMetricsEvidence requires region when vmId is omitted'
+	);
+	const expectedHostname = `local-dev-${safeRegion}`;
+	const matches = vms.filter((vm) => vm.hostname === expectedHostname);
+	if (matches.length !== 1) {
+		throw new Error(
+			`readAdminVmHostMetricsEvidence expected exactly one ${expectedHostname} VM, found ${matches.length}`
+		);
+	}
+	return matches[0].id;
 }
 
 async function runTrackedIndexCleanup(
@@ -3531,6 +3738,11 @@ type ClearSynonymsFn = (indexName: string) => Promise<void>;
 type AssertIndexNeverReadableFn = (indexName: string) => Promise<void>;
 type WriteSynonymsProofManifestFn = (input: WriteSynonymsProofManifestInput) => Promise<void>;
 type ListApiKeysFn = () => Promise<ApiKeyListItem[]>;
+type GetPublicInfrastructureRawFn = () => Promise<{
+	status: number;
+	body: unknown;
+	text: string;
+}>;
 type DiscoverWithApiKeyFn = (
 	indexName: string,
 	apiKey: string
@@ -3598,6 +3810,18 @@ type SeedAdminDeploymentFn = (
 	customer: CreatedFixtureUser,
 	options?: { region?: string }
 ) => Promise<AdminDeploymentFixture>;
+type ReadAdminVmHostMetricsEvidenceParams = {
+	region?: string;
+	vmId?: string;
+};
+type AdminVmHostMetricsEvidence = {
+	vmId: string;
+	metrics: VmHostMetricsResponse | null;
+};
+type ReadAdminVmHostMetricsEvidenceFn = (
+	params: ReadAdminVmHostMetricsEvidenceParams
+) => Promise<AdminVmHostMetricsEvidence>;
+type ElementHasHorizontalOverflowFn = (locator: Locator) => Promise<boolean>;
 type GetDisposableTenantRateCardSnapshotFn = () => Promise<MarketingPricingContractSnapshot>;
 type ArrangeBillingPortalCustomerFn = () => Promise<ArrangeBillingPortalCustomerResult>;
 type CreateFreshSignupIdentityFn = () => FreshSignupIdentity;
@@ -3611,6 +3835,26 @@ type CompleteFreshSignupEmailVerificationFn = (
 	password?: string
 ) => Promise<{ verificationToken: string }>;
 type EnsureLocalSharedVmInventoryFn = (region: string) => Promise<void>;
+type IndexInfrastructureBrowserContract = {
+	indexName: string;
+	primary: { region: string; status: string; utilization: 'Green' };
+	replica: { region: string; status: 'Active'; lagOperations: 37; utilization: 'Yellow' };
+	headroom: 'Comfortable';
+	failover: string;
+	forbiddenText: string[];
+	footprint: {
+		documents: string;
+		storage: string;
+		searchRequests: string;
+		writeOperations: string;
+	};
+};
+type ArrangeIndexInfrastructureFn = (
+	customer: CreatedFixtureUser,
+	indexName: string,
+	primaryRegion: string,
+	replicaRegion: string
+) => Promise<IndexInfrastructureBrowserContract>;
 type ArrangePaidInvoiceForFreshSignupFn = (
 	email: string,
 	password: string
@@ -3668,6 +3912,8 @@ type E2eFixtures = {
 	readClipboardText: ReadClipboardTextFn;
 	/** Read API-key rows for the authenticated customer through fixture-owned API access. */
 	listApiKeys: ListApiKeysFn;
+	/** Read the anonymous public infrastructure response without browser auth state. */
+	getPublicInfrastructureRaw: GetPublicInfrastructureRawFn;
 	/** Call /discover with a bearer API key through fixture-owned API access. */
 	discoverWithApiKey: DiscoverWithApiKeyFn;
 	/** Temporarily switch the authenticated customer between free and shared plans. */
@@ -3704,6 +3950,10 @@ type E2eFixtures = {
 	adminSuspendCustomer: AdminSuspendCustomerFn;
 	/** Seed a real admin-visible deployment row for a disposable customer. */
 	seedAdminDeployment: SeedAdminDeploymentFn;
+	/** Read raw admin VM host-metrics evidence without formatting browser expectations. */
+	readAdminVmHostMetricsEvidence: ReadAdminVmHostMetricsEvidenceFn;
+	/** Measure horizontal overflow through fixture-owned DOM inspection. */
+	elementHasHorizontalOverflow: ElementHasHorizontalOverflowFn;
 	/** Create a disposable tenant and return a normalized snapshot of /admin/tenants/{id}/rate-card. */
 	getDisposableTenantRateCardSnapshot: GetDisposableTenantRateCardSnapshotFn;
 	/** Provision a disposable customer fixture that can access Stripe portal with subscription state arranged. */
@@ -3718,6 +3968,8 @@ type E2eFixtures = {
 	completeFreshSignupEmailVerification: CompleteFreshSignupEmailVerificationFn;
 	/** Keep local browser create-index placement pointed at the current Flapjack process. */
 	ensureLocalSharedVmInventory: EnsureLocalSharedVmInventoryFn;
+	/** Arrange the customer-safe Infrastructure payload and its exact browser expectations. */
+	arrangeIndexInfrastructure: ArrangeIndexInfrastructureFn;
 	/** Advance a fresh verified signup through paid billing and invoice-email evidence. */
 	arrangePaidInvoiceForFreshSignup: ArrangePaidInvoiceForFreshSignupFn;
 	/** Create a fresh signup through UI and land on /console with remote-target fallback. */
@@ -3858,6 +4110,79 @@ export const test = base.extend<E2eFixtures & E2eInternalFixtures, E2eWorkerFixt
 
 	ensureLocalSharedVmInventory: async ({}, use) => {
 		await use((region: string) => ensureLocalSharedVmInventoryForRegion(region));
+	},
+
+	arrangeIndexInfrastructure: async ({ ensureLocalSharedVmInventory }, use) => {
+		const created: Array<{ token: string; indexName: string; replicaVmId?: string }> = [];
+		const factory: ArrangeIndexInfrastructureFn = async (
+			customer,
+			indexName,
+			primaryRegion,
+			replicaRegion
+		) => {
+			const tracked: { token: string; indexName: string; replicaVmId?: string } = {
+				token: customer.token,
+				indexName
+			};
+			created.push(tracked);
+			await ensureLocalSharedVmInventory(primaryRegion);
+			await seedSearchableIndexForCustomer({
+				apiUrl: fixtureEnv.apiUrl,
+				adminKey: fixtureEnv.adminKey,
+				customerId: customer.customerId,
+				token: customer.token,
+				name: indexName,
+				region: primaryRegion,
+				flapjackUrl: fixtureEnv.flapjackUrl,
+				...createMetricsReadySearchableIndexSeedOptions()
+			});
+
+			const seededTopology = seedInfrastructureReplicaTopology({
+				customerId: customer.customerId,
+				indexName,
+				replicaRegion,
+				flapjackUrl: fixtureEnv.flapjackUrl
+			});
+			tracked.replicaVmId = seededTopology.replicaVmId;
+			const response = await callJsonApi(
+				fetch,
+				fixtureEnv.apiUrl,
+				'GET',
+				`/indexes/${encodeURIComponent(indexName)}/infrastructure`,
+				{ Authorization: `Bearer ${customer.token}` }
+			);
+			if (!response.ok) {
+				throw new Error(
+					`seeded Infrastructure payload failed: ${response.status} ${await response.text()}`
+				);
+			}
+			return infrastructureBrowserContract(
+				indexName,
+				(await response.json()) as IndexInfrastructureResponse,
+				replicaRegion,
+				seededTopology.replicaHostname
+			);
+		};
+
+		await use(factory);
+
+		for (const entry of created.reverse()) {
+			await callJsonApi(
+				fetch,
+				fixtureEnv.apiUrl,
+				'DELETE',
+				`/indexes/${encodeURIComponent(entry.indexName)}`,
+				{ Authorization: `Bearer ${entry.token}` },
+				{ confirm: true }
+			).catch(() => undefined);
+			if (entry.replicaVmId) {
+				runFixtureSql(
+					`DELETE FROM index_replicas WHERE replica_vm_id = ${quoteSqlLiteral(entry.replicaVmId)}::uuid;
+DELETE FROM vm_inventory WHERE id = ${quoteSqlLiteral(entry.replicaVmId)}::uuid;`,
+					`clean Infrastructure topology for ${entry.indexName}`
+				);
+			}
+		}
 	},
 
 	arrangePaidInvoiceForFreshSignup: async ({ _trackCustomerForCleanup }, use) => {
@@ -4021,6 +4346,16 @@ export const test = base.extend<E2eFixtures & E2eInternalFixtures, E2eWorkerFixt
 
 	seedAdminDeployment: async ({}, use) => {
 		await use((customer, options) => seedAdminDeploymentForCustomer(customer, options));
+	},
+
+	readAdminVmHostMetricsEvidence: async ({}, use) => {
+		await use((params) => readAdminVmHostMetricsEvidenceForFixture(params));
+	},
+
+	elementHasHorizontalOverflow: async ({}, use) => {
+		await use((locator) =>
+			locator.evaluate((element) => element.scrollWidth > element.clientWidth)
+		);
 	},
 
 	registerIndexForCleanup: async ({ _trackIndexForCleanup }, use) => {
@@ -4388,6 +4723,27 @@ export const test = base.extend<E2eFixtures & E2eInternalFixtures, E2eWorkerFixt
 				throw new Error('listApiKeys failed: expected array response from /api-keys');
 			}
 			return data as ApiKeyListItem[];
+		});
+	},
+
+	getPublicInfrastructureRaw: async ({}, use) => {
+		await use(async () => {
+			const response = await callJsonApi(
+				fetch,
+				fixtureEnv.apiUrl,
+				'GET',
+				'/public/infrastructure',
+				{}
+			);
+			const text = await response.text();
+			let body: unknown = null;
+			try {
+				body = JSON.parse(text) as unknown;
+			} catch {
+				body = null;
+			}
+
+			return { status: response.status, body, text };
 		});
 	},
 

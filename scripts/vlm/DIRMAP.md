@@ -7,5 +7,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| lib | — |
+| lib | This directory contains VLM environment helper functions extracted from deployment tooling, providing self-contained utilities for reading and processing environment variables with the read_env_value_trimmed contract. |
 <!-- [scrai:end] -->

@@ -6,5 +6,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| [name] | This is a SvelteKit API endpoint that handles event search queries, accepting a dynamic name parameter and returning matching event data. |
+| [name] | The `/api/search/[name]/` directory provides API endpoints for search functionality, including event tracking for search preview results with session validation and backend forwarding. |
 <!-- [scrai:end] -->

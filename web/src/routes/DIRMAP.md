@@ -7,21 +7,21 @@
 
 | Directory | Summary |
 | --- | --- |
-| admin | — |
-| api | The api directory contains SvelteKit server endpoints for core business functionality including pricing comparisons, event search with dynamic parameters, and Stripe payment integration. |
-| auth | — |
-| billing | The billing directory contains upgrade-related server-side logic implemented as a SvelteKit endpoint that handles upgrade operations for the customer-facing dashboard. |
-| console | The console is a SvelteKit customer dashboard route with server-side handlers for account management, API keys, billing, search indexes, onboarding, and verification. |
+| admin | The admin directory provides a comprehensive administrative dashboard for fjcloud with dedicated pages for managing alerts, billing operations, customer tenants, fleet resources, and database migrations, each with server-side data loading and administrative actions like quota updates, customer suspension, and deployment termination. |
+| api | The api directory contains SvelteKit server-side route handlers for core platform features: pricing comparisons, search functionality with event tracking, and Stripe billing integration including publishable key management. |
+| auth | The auth directory contains OAuth provider callback handlers implemented as SvelteKit server routes, with provider-specific subdirectories that complete the authentication flow for different OAuth providers. |
+| billing | — |
+| console | The console directory is a SvelteKit-based customer dashboard that provides user account management, API key administration, billing views, infrastructure index management, and account onboarding functionality. |
 | dashboard | — |
 | dev_editor_dialog_demo | — |
 | forgot-password | — |
 | health | — |
-| infrastructure | This directory implements a public-facing infrastructure status page that fetches and displays regional cloud infrastructure health and utilization metrics from the API. |
+| infrastructure | The infrastructure directory contains a SvelteKit server-side page component and a contracts file that likely defines data structures or interfaces for infrastructure-related functionality in the web frontend. |
 | login | — |
 | logout | — |
 | pricing | — |
 | reset-password | — |
 | signup | — |
-| status | The status directory contains a contract module for the `/status` route that defines TypeScript types and utilities for service status reporting, including status states (operational, degraded, outage, unknown), route data structures, and helper functions for parsing and labeling status values. |
+| status | The status directory implements a service status page route that displays the operational status of the system through a contract-driven model defining ServiceStatus types (operational, degraded, outage, unknown) and label mappings. |
 | verify-email | — |
 <!-- [scrai:end] -->

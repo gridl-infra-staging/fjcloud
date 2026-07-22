@@ -7,5 +7,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| events | This is a SvelteKit API endpoint handler that serves events search results, accepting a dynamic name parameter and returning matching events data. |
+| events | API endpoint that handles POST requests for search preview result events, validating session authentication and event payload before forwarding to the backend. |
 <!-- [scrai:end] -->

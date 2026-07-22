@@ -43,6 +43,7 @@ VERIFY_MIRROR_HEAD=""
 VERIFY_SYNCED_DEV_SHA=""
 VERIFY_RUN_ID=""
 VERIFY_RUN_URL=""
+VERIFY_RUN_CONCLUSION=""
 VERIFY_JOB_CONCLUSIONS=""
 VERIFY_WALL_SECONDS="0"
 
@@ -175,6 +176,7 @@ MIRROR_HEAD: ${VERIFY_MIRROR_HEAD:-}
 SYNCED_DEV_SHA: ${VERIFY_SYNCED_DEV_SHA:-}
 RUN_ID: ${VERIFY_RUN_ID:-}
 RUN_URL: ${VERIFY_RUN_URL:-}
+RUN_CONCLUSION: ${VERIFY_RUN_CONCLUSION:-}
 job_conclusions: ${VERIFY_JOB_CONCLUSIONS:-none}
 wall_seconds: ${VERIFY_WALL_SECONDS}
 verdict: $verdict
@@ -207,6 +209,11 @@ extract_job_conclusion_lines() {
   jq -r '.jobs[]? | "\(.name)=\(.conclusion // "in_progress")"' <<< "$jobs_json"
 }
 
+run_conclusion_is_pending() {
+  local conclusion="$1"
+  [ -z "$conclusion" ] || [ "$conclusion" = "null" ] || [ "$conclusion" = "in_progress" ]
+}
+
 attempt_ci_verdict_for_current_mirror_head() {
   local evidence_dir="$1"
   local start_ms="$2"
@@ -220,6 +227,7 @@ attempt_ci_verdict_for_current_mirror_head() {
   run_json="$({ github_latest_ci_run_for_sha "$VERIFY_MIRROR_REPO" "$VERIFY_MIRROR_HEAD" 2>/dev/null; } || true)"
   VERIFY_RUN_ID="$(jq -r '.[0].databaseId // empty' <<< "$run_json" 2>/dev/null || true)"
   VERIFY_RUN_URL="$(jq -r '.[0].url // empty' <<< "$run_json" 2>/dev/null || true)"
+  VERIFY_RUN_CONCLUSION="$(jq -r '.[0].conclusion // "in_progress"' <<< "$run_json" 2>/dev/null || true)"
   if [ -z "$VERIFY_RUN_ID" ]; then
     return 2
   fi
@@ -234,6 +242,10 @@ attempt_ci_verdict_for_current_mirror_head() {
   local deploy_conclusion e2e_conclusion
   deploy_conclusion="$(extract_job_conclusion "$jobs_json" "deploy-staging" 2>/dev/null || true)"
   e2e_conclusion="$(extract_job_conclusion "$jobs_json" "e2e-deployed" 2>/dev/null || true)"
+
+  if run_conclusion_is_pending "$VERIFY_RUN_CONCLUSION" && { [ -z "$deploy_conclusion" ] || [ -z "$e2e_conclusion" ]; }; then
+    return 2
+  fi
 
   if [ -z "$deploy_conclusion" ]; then
     record_wall_seconds "$start_ms"
@@ -271,6 +283,7 @@ attempt_ci_verdict_for_current_mirror_head() {
 run_gate() {
   local start_ms
   start_ms="$(ms_now)"
+  local synced_manifest_observed=0
 
   VERIFY_DEV_HEAD="$(resolve_dev_head)"
   if ! is_hex_sha40 "$VERIFY_DEV_HEAD"; then
@@ -291,8 +304,13 @@ run_gate() {
     elapsed_seconds=$(( (now_ms - start_ms) / 1000 ))
     if [ "$elapsed_seconds" -ge "$VERIFY_TIMEOUT_SECONDS" ]; then
       record_wall_seconds "$start_ms"
-      write_summary "fail" "manifest_timeout" "expected DEV_HEAD did not appear in mirror sync_manifest within budget" "$evidence_dir"
-      echo "FAIL: expected DEV_HEAD did not appear in mirror sync_manifest within budget" >&2
+      if [ "$synced_manifest_observed" -eq 1 ]; then
+        write_summary "fail" "ci_timeout" "required mirror CI jobs did not reach a terminal successful state within budget" "$evidence_dir"
+        echo "FAIL: required mirror CI jobs did not reach a terminal successful state within budget" >&2
+      else
+        write_summary "fail" "manifest_timeout" "expected DEV_HEAD did not appear in mirror sync_manifest within budget" "$evidence_dir"
+        echo "FAIL: expected DEV_HEAD did not appear in mirror sync_manifest within budget" >&2
+      fi
       return 1
     fi
 
@@ -307,6 +325,7 @@ run_gate() {
       sleep_with_budget "$start_ms" "$VERIFY_TIMEOUT_SECONDS" 30 || true
       continue
     fi
+    synced_manifest_observed=1
 
     if attempt_ci_verdict_for_current_mirror_head "$evidence_dir" "$start_ms"; then
       echo "PASS: deploy-staging and e2e-deployed are both success"

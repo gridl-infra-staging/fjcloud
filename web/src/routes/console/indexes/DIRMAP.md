@@ -7,5 +7,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| [name] | This is a SvelteKit console route for managing a specific index, providing server-side logic for multiple feature domains including analytics, infrastructure, security, recommendations, experiments, and configuration management. |
+| [name] | This directory contains the SvelteKit route handlers and server-side management modules for a comprehensive index detail page in a cloud console, organizing functionality across analytics, infrastructure, configuration, dictionaries, recommendations, security, and experiments. |
 <!-- [scrai:end] -->

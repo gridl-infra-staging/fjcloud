@@ -6,7 +6,7 @@
 
 | Directory | Summary |
 | --- | --- |
-| pricing | The pricing directory contains API routes for pricing-related functionality, with a compare route that currently functions as a stub implementation with minimal features. |
-| search | A SvelteKit API endpoint that accepts a dynamic name parameter to search and return matching event data. |
-| stripe | The stripe directory contains SvelteKit server endpoints for Stripe integration, including a publishable-key endpoint for managing or retrieving Stripe publishable keys used by the frontend. |
+| pricing | The pricing directory is a SvelteKit route that contains server-side logic for handling pricing-related features, including a comparison endpoint that processes pricing comparisons on the server. |
+| search | The `/api/search/[name]/` directory provides API endpoints for search functionality with event tracking for search preview results. |
+| stripe | The stripe directory contains SvelteKit API route handlers for Stripe integration, including publishable key management for handling public API credentials used by the billing platform. |
 <!-- [scrai:end] -->

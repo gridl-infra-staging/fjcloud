@@ -16,11 +16,11 @@
 
 | Directory | Summary |
 | --- | --- |
-| admin | The admin directory contains HTTP route handlers for administrative API operations, including customer JWT token minting with impersonation audit logging, rate card CRUD and customer overrides, and infrastructure management endpoints like deployments, migrations, and indexes. |
+| admin | The admin directory contains API routes for administrative operations, with fully implemented functionality for rate card management (CRUD and customer overrides) and JWT token minting with optional audit logging for impersonation tracking. |
 | auth | — |
-| indexes | The indexes directory contains API route handlers for managing search indexes, including operations for document management, search and suggestions, settings configuration, replica management, lifecycle control, metrics reporting, and customer restore functionality for cold indexes. |
-| migration | Migration API surface for Algolia search index migrations, providing endpoints to discover source indexes, validate destination eligibility, manage migration jobs, and report capabilities with stable error code mapping. |
+| indexes | The indexes module provides HTTP route handlers for managing search indexes, including operations for searching, configuring settings, handling suggestions, restoring cold indexes, managing replicas, and tracking metrics. |
+| migration | Algolia migration API routes handling source-index discovery, destination eligibility validation, and job management with error-to-code mapping for the migration service. |
 | oauth | — |
-| storage | The storage directory implements S3-compatible bucket and object operations via axum route handlers, providing REST endpoints for standard S3 operations including bucket management, object CRUD, and metadata queries with inline metering instrumentation. |
-| webhooks | The webhooks module handles incoming webhook events from external services, primarily Stripe payment events and disputes, with a modular architecture that organizes handlers by source. |
+| storage | The storage module implements S3-compatible object storage with route handlers for bucket and object operations (create, list, get, put, delete, head) across both levels. |
+| webhooks | The webhooks module handles inbound webhook events from external services like Stripe, with mod.rs serving as the main router and stripe.rs/stripe_disputes.rs providing specialized event processing for Stripe payments and disputes. |
 <!-- [scrai:end] -->

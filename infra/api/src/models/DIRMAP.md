@@ -12,5 +12,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| algolia_import_job | Models and validation for Algolia import jobs, including the database persistence layer, provider and region constraints, and target destination binding logic for create and replace operations. |
+| algolia_import_job | Data models and validation logic for Algolia search index import jobs, including database persistence structures, destination binding validation, and enum state parsing for tracking import progress and lifecycle operations. |
 <!-- [scrai:end] -->

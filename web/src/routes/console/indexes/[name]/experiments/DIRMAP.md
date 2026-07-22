@@ -6,5 +6,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| [experimentId] | This directory contains a SvelteKit page with server-side logic, likely handling routing and data loading for an experiment-related view based on the directory name. |
+| [experimentId] | This directory contains a SvelteKit route handler for a dynamic experiment detail page. |
 <!-- [scrai:end] -->

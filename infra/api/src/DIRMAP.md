@@ -26,16 +26,16 @@ bootstrap, called in sequence by main(). |
 | Directory | Summary |
 | --- | --- |
 | auth | — |
-| dns | — |
-| invoicing | The invoicing module handles invoice generation and billing calculations, managing line items with fractional-cent carryforward logic for object storage egress, computing storage metrics from snapshots and buckets, and synchronizing invoice data to Stripe. |
+| dns | The dns directory contains Cloudflare DNS integration code, specifically a cloudflare.rs module for interacting with Cloudflare's DNS services. |
+| invoicing | The invoicing directory handles invoice line item management and represents core billing functionality for the fjcloud platform. |
 | middleware | — |
-| models | API data models including customers, API keys, rate cards, index metadata, and Algolia import operations with database persistence and validation. |
-| provisioner | The provisioner module coordinates cloud infrastructure provisioning across multiple providers (AWS, Hetzner, OCI, GCP) with centralized environment configuration parsing and validation. |
-| repos | This directory contains Rust repository implementations providing data access and persistence for a billing platform's core entities—customers, invoices, disputes, usage, tenants, VM infrastructure, and Algolia indexing jobs—all backed by PostgreSQL with specialized operations for billing cycles, lifecycle management, and event tracking. |
-| router | — |
-| routes | — |
-| secrets | The secrets directory provides secret management abstractions for storing and rotating node API keys across different backends. |
-| services | — |
-| startup | This directory contains a stub StripeService that safely disables all Stripe operations when the secret key is unavailable, allowing the API to bootstrap for free-tier signups and admin features while cleanly returning NotConfigured for Stripe-gated handlers. |
-| stripe | The stripe directory contains Stripe payment integration code with separate implementations for live and local environments. |
+| models | The models directory contains database entity definitions and API conversion layers for core domain objects including customers, API keys, index migrations, replicas, rate cards, and Algolia import jobs, with a dedicated submodule providing validation logic and state-tracking structures for managing search index import operations. |
+| provisioner | The provisioner directory contains multi-cloud infrastructure provisioning implementations for AWS, Hetzner, and other providers, with a shared env_config module that centrally handles typed environment-variable parsing, trimming, and validation across all provisioners. |
+| repos | The repos directory contains a collection of Postgres-backed repository implementations for managing core domain entities in the billing platform, including customers, invoices, disputes, Algolia import jobs, index migrations, VMs, webhooks, and usage data. |
+| router | The router directory implements the HTTP routing layer and middleware for the Axum API server, including rate limiting (auth, tenant, admin, S3), security headers, CORS, JWT authentication, and route assembly that merges all endpoint subtrees (auth, billing, indexes, migrations, webhooks, etc.) with optional middleware layers. |
+| routes | The routes module contains HTTP endpoint handlers for the API server, organizing functionality across authentication, billing, search indexes, admin operations, webhooks, and object storage. |
+| secrets | The secrets directory contains credential and authentication management code, with AWS-specific secrets handling in aws.rs. |
+| services | The services module provides the operational backbone for fjcloud's API, including audit logging for sensitive admin actions, transactional email delivery, VM provisioning across multiple cloud providers, metrics-based scheduler for index load balancing, and background systems for cold storage archival, replication, and webhook management. |
+| startup | This module provides a stub Stripe service implementation that returns `NotConfigured` for all operations, enabling the API to bootstrap and handle free-tier signups and admin functions when the `STRIPE_SECRET_KEY` environment variable is not configured. |
+| stripe | The stripe directory contains Stripe integration code for different environments, with separate modules for live production and local development Stripe configurations. |
 <!-- [scrai:end] -->

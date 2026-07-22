@@ -8,14 +8,12 @@
 
 | Directory | Summary |
 | --- | --- |
-| account | Server-side page handler for the account management dashboard, implementing four actions: profile updates, password changes, account deletion with password verification, and account data export. |
-| api-keys | The api-keys directory is a SvelteKit route for managing API keys, with server-side logic handling key operations. |
-| billing | I'd be happy to summarize the billing directory, but I need clarification: are you asking me to (1) read the actual billing directory and provide a summary, or (2) expand on the stub summary you've provided?
-
-Also, which billing directory — is it `infra/billing/` (the Rust billing engine crate) or a web route under `web/src/routes/`?. |
-| indexes | A SvelteKit console route for managing indexes with comprehensive server-side logic spanning analytics, infrastructure, security, recommendations, experiments, and configuration domains. |
-| migrate | Server-side page handler for the console migration feature that fetches Algolia migration availability from the API and returns the status to the client. |
-| onboarding | The onboarding page server handles customer onboarding flows including index creation and API credential generation, with retry logic and session error handling. |
-| resend-verification | The resend-verification directory contains a SvelteKit server endpoint that handles requests to resend verification emails to users. |
+| account | The account directory provides user account management functionality, including profile updates, password changes, account deletion, and data export, with server-side validation and error handling that maps API responses to customer-facing messages. |
+| api-keys | The api-keys directory contains a SvelteKit page for managing API keys, with server-side logic in +page.server.ts to handle key operations like creation, retrieval, and deletion. |
+| billing | I need to see the actual content of the billing directory to provide an accurate summary. |
+| indexes | The indexes directory provides SvelteKit routes for managing cloud infrastructure indexes in the console, including a main indexes list page and detail pages for individual indexes. |
+| migrate | This directory contains a SvelteKit server-side route handler for the console migration page, implementing the backend logic for user migration functionality in the fjcloud web dashboard. |
+| onboarding | I need the file path to the onboarding directory to read and summarize it properly. |
+| resend-verification | A SvelteKit server endpoint handler for resending verification, currently implemented as a stub awaiting full functionality. |
 | settings | — |
 <!-- [scrai:end] -->

@@ -7,14 +7,14 @@
 
 | Directory | Summary |
 | --- | --- |
-| alerts | Server-side loader for the admin alerts page that fetches alerts from an admin client and filters them by severity level (info, warning, critical, or all). |
-| billing | Admin billing page server component that loads and displays billing summary data including invoices, status breakdowns, and monthly totals, while providing server actions for running batch billing operations and bulk finalizing invoices with comprehensive data normalization and validation. |
+| alerts | Server-side loader for the admin alerts page that fetches alert records with optional severity filtering (info, warning, critical) from an admin API client. |
+| billing | The billing directory contains the admin interface for managing billing operations, with a server-side page component that loads data for the billing administration dashboard. |
 | cold | — |
-| customers | Admin interface for viewing and managing customer details, displaying tenant metadata, indexes, deployments, usage, invoices, and quotas. |
+| customers | Admin customer management interface that loads and displays comprehensive tenant data including indexes, deployments, usage, invoices, and audit logs, with server actions for quota updates, customer suspension/reactivation, impersonation, Stripe synchronization, and deployment termination. |
 | end-impersonation | — |
-| fleet | The fleet directory contains admin functionality for managing fleets, with a Svelte page server component handling the backend logic and test fixtures supporting admin fleet operations. |
+| fleet | This directory contains the admin interface for fleet management in fjcloud, with a SvelteKit server page component and associated test fixtures for managing cloud resources. |
 | login | — |
 | logout | — |
-| migrations | This directory contains a SvelteKit admin page for managing migrations, with a server-side page handler that likely loads and displays migration data or status for administrative operations. |
+| migrations | Admin migrations page that loads active and recent database migrations, filtering them by status and separating in-progress migrations from completed ones. |
 | replicas | — |
 <!-- [scrai:end] -->

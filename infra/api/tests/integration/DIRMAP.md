@@ -15,5 +15,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| migration_routes_test | Integration tests for migration API routes covering creation, discovery, eligibility checking, and read operations, including lifecycle management for migration actions like cancellation and resumption. |
+| migration_routes_test | Integration test suite for migration routes covering creation, discovery, eligibility, and reading operations with comprehensive lifecycle tests for Algolia cloud job management including authorization, state validation, and error handling scenarios. |
 <!-- [scrai:end] -->

@@ -69,5 +69,5 @@ deployment linkage markers. |
 | Directory | Summary |
 | --- | --- |
 | fixtures | — |
-| lib | — |
+| lib | This library provides shared utilities for reliability profiling and backend validation, including metric capture functions, capacity profile extraction from Rust source, and modular security checks for the reliability gate. |
 <!-- [scrai:end] -->

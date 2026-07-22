@@ -120,7 +120,8 @@ mod tests {
                 .connect(&database_url)
                 .await
                 .expect("connect to host metrics test database");
-            sqlx::query(&format!("CREATE SCHEMA {quoted_schema}"))
+            let create_schema_sql = format!("CREATE SCHEMA {quoted_schema}");
+            sqlx::query(&create_schema_sql)
                 .execute(&admin_pool)
                 .await
                 .expect("create isolated host metrics schema");
@@ -131,7 +132,8 @@ mod tests {
                 .after_connect(move |connection, _metadata| {
                     let schema = schema_for_connections.clone();
                     Box::pin(async move {
-                        sqlx::query(&format!("SET search_path TO {schema}"))
+                        let set_search_path_sql = format!("SET search_path TO {schema}");
+                        sqlx::query(&set_search_path_sql)
                             .execute(connection)
                             .await?;
                         Ok(())
@@ -154,7 +156,8 @@ mod tests {
 
         async fn cleanup(self) {
             self.pool.close().await;
-            sqlx::query(&format!("DROP SCHEMA {} CASCADE", self.quoted_schema))
+            let drop_schema_sql = format!("DROP SCHEMA {} CASCADE", self.quoted_schema);
+            sqlx::query(&drop_schema_sql)
                 .execute(&self.admin_pool)
                 .await
                 .expect("drop isolated host metrics schema");

@@ -6,5 +6,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| providers | The providers directory contains implementations of different pricing calculators, with a registry in mod.rs that registers available providers such as Griddle for Flapjack Cloud's storage-based pricing model. |
+| providers | This directory contains pricing provider implementations for various cloud services, with a registry system to manage them. |
 <!-- [scrai:end] -->

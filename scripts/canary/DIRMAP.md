@@ -26,5 +26,5 @@ unavailable so staging gets a clear outside-AWS outage signal. |
 
 | Directory | Summary |
 | --- | --- |
-| contracts | — |
+| contracts | The `contracts/` directory contains end-to-end verification scripts that probe live and mocked system behavior across authentication, payment, Algolia migrations, and API contracts. |
 <!-- [scrai:end] -->

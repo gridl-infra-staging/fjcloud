@@ -77,5 +77,5 @@ TDD: this test locks ownership, delegation, and secret-boundary contracts. |
 
 | Directory | Summary |
 | --- | --- |
-| support_email_canary | — |
+| support_email_canary | The support_email_canary directory contains an AWS Lambda function handler for monitoring support email systems. |
 <!-- [scrai:end] -->

@@ -163,6 +163,10 @@ configure_completed_run_fixture() {
   MOCK_RUN_LIST_JSON='[{"databaseId":42,"conclusion":"failure","headSha":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","createdAt":"2026-05-23T00:00:00Z","url":"https://example.test/runs/42"}]'
 }
 
+configure_in_progress_run_fixture() {
+  MOCK_RUN_LIST_JSON='[{"databaseId":42,"conclusion":null,"headSha":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","createdAt":"2026-05-23T00:00:00Z","url":"https://example.test/runs/42"}]'
+}
+
 assert_failure_summary_contract() {
   local evidence_dir="$1"
   local expected_reason="$2"
@@ -238,6 +242,20 @@ test_job_absent_deploy_contract() {
 
   assert_ne "$RUN_EXIT_CODE" "0" "missing deploy-staging job exits non-zero"
   assert_failure_summary_contract "$TEST_WORKSPACE/job-absent-deploy" "job_absent_deploy_staging" "deploy-staging job absent from CI run"
+}
+
+test_in_progress_run_with_absent_jobs_waits_for_terminal_ci_state() {
+  setup_workspace
+  configure_in_progress_run_fixture
+  MOCK_RUN_VIEW_JSON='{"jobs":[{"name":"web-lint","conclusion":"success"}]}'
+  run_verifier --expected-dev-sha "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" --timeout-seconds 1 --evidence-dir "$TEST_WORKSPACE/job-absent-in-progress"
+
+  assert_ne "$RUN_EXIT_CODE" "0" "in-progress run with absent jobs exits non-zero after timeout"
+  assert_failure_summary_contract "$TEST_WORKSPACE/job-absent-in-progress" "ci_timeout" "required mirror CI jobs did not reach a terminal successful state within budget"
+  local summary
+  summary="$(cat "$TEST_WORKSPACE/job-absent-in-progress/SUMMARY.FAIL.md")"
+  assert_not_contains "$summary" "reason: job_absent_deploy_staging" "in-progress runs must not fail terminally on absent deploy-staging"
+  assert_not_contains "$summary" "reason: job_absent_e2e_deployed" "in-progress runs must not fail terminally on absent e2e-deployed"
 }
 
 test_job_failure_deploy_contract() {
@@ -324,6 +342,7 @@ run_all_tests() {
   test_default_evidence_dir_and_job_absent_e2e_contract
   test_manifest_timeout_contract
   test_job_absent_deploy_contract
+  test_in_progress_run_with_absent_jobs_waits_for_terminal_ci_state
   test_job_failure_deploy_contract
   test_job_failure_e2e_contract
   test_success_summary_exclusive_contract

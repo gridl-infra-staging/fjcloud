@@ -8,6 +8,6 @@
 
 | Directory | Summary |
 | --- | --- |
-| migration | A collection of SvelteKit components for handling migration workflows, including eligibility validation for providers and targets, general eligibility assessment, and job status presentation. |
-| search | This directory manages client-side search functionality including real-time search preview analytics, browser persistence for search-as-you-type state per index, and URL-based search state management. |
+| migration | Components for managing data migration workflows, including eligibility validation for different providers and targets, plus job presentation logic. |
+| search | This directory provides client-side search functionality including analytics event tracking for search previews, browser-based persistence for search preferences per index, and URL state management for search operations. |
 <!-- [scrai:end] -->

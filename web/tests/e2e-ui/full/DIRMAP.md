@@ -9,5 +9,5 @@
 | Directory | Summary |
 | --- | --- |
 | admin | — |
-| vlm_capture | This directory contains utilities for VLM screenshot capture, including redirect handling during captures and a central tuple definition for screenshot capture configuration. |
+| vlm_capture | VLM screenshot capture utilities providing redirect protection during capture operations and centralized configuration for capture tuples. |
 <!-- [scrai:end] -->

@@ -265,6 +265,9 @@ describe('Fleet page server actions', () => {
 			fetch: fetchSpy
 		} as never);
 
+		if (!result || !('status' in result) || !('data' in result)) {
+			throw new Error('killVm should return a validation failure');
+		}
 		expect(result.status).toBe(400);
 		expect(result.data).toEqual({ error: 'Invalid vmId' });
 		expect(fetchSpy).not.toHaveBeenCalled();

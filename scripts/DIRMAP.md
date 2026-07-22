@@ -288,17 +288,17 @@ shellcheck disable=SC1091. |
 
 | Directory | Summary |
 | --- | --- |
-| canary | — |
-| chaos | — |
-| dev | — |
-| launch | — |
-| lib | — |
-| load | — |
-| reliability | — |
-| security | — |
-| stripe | — |
-| tests | — |
+| canary | The canary directory contains end-to-end synthetic monitoring and health-check scripts that verify customer workflows (signup through billing), deployment synchronization, external service availability, email delivery, and API contracts. |
+| chaos | The chaos directory contains resilience testing scripts that validate HA failover, region failures, and metering circuit breaker behavior by simulating real failure scenarios and verifying the system's detection and recovery mechanisms. |
+| dev | The dev directory contains utility scripts for managing integration tests, including migration tools for consolidating tests and a regenerator for the integration test root structure. |
+| launch | Launch orchestration scripts for fjcloud that handle deployment verification, billing validation, SES coverage testing, browser specs, multi-tenant isolation probing, and guarded production syncing. |
+| lib | This directory contains reusable bash library modules that provide shared utilities for shell scripts across the fjcloud project, including AWS credential checks, billing operations, Docker daemon validation, environment parsing, database access, Stripe integration, HTTP requests, migrations, security audits, and health checks. |
+| load | Load is a shell utility library for regression testing that compares load test results between offline and live environments to validate performance characteristics. |
+| reliability | This directory contains shell scripts for automated capacity profiling, reliability validation, and security auditing of the backend infrastructure, including VM inventory reconciliation and configurable gate checks that produce machine-readable JSON summaries. |
+| security | This directory contains security tooling for probing engine exposure. |
+| stripe | The stripe directory contains scripts for managing Stripe integration setup, including configuration of the customer billing portal and creation of the product catalog, both supporting multi-account selection through environment variables. |
+| tests | This tests directory contains smoke tests for shell scripts (customer broadcast and SES bounce/complaint handling) along with shared testing infrastructure including fixtures for catalog and inventory operations and reusable test helpers and assertion utilities. |
 | verify | — |
-| vlm | — |
-| w3_triage | — |
+| vlm | This directory contains VLM (Visual Language Model) tooling for verdict aggregation and environment management, featuring a verdict-bundling aggregator and a library of deployment-helper utilities for reading and processing environment variables with consistent trimming contracts. |
+| w3_triage | W3 triage is an orchestration system that bootstraps preflight state by probing live systems and discovering audit summaries, then parses recommendations, applies rules, authors execution lane files, and emits dispatch manifests for multi-stage triage work. |
 <!-- [scrai:end] -->

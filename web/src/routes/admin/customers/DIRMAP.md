@@ -8,5 +8,5 @@
 
 | Directory | Summary |
 | --- | --- |
-| [id] | Loads and displays detailed admin information for a specific customer, including tenant metadata, indexes, deployments, usage, invoices, and quotas. |
+| [id] | Server-side logic for the admin customer detail page that loads comprehensive tenant data (indexes, deployments, usage, invoices, quotas, audit logs) and provides server actions for customer management operations (update quotas, reactivate, suspend, impersonate, delete, sync Stripe, view invoices, terminate deployments). |
 <!-- [scrai:end] -->

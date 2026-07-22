@@ -501,6 +501,7 @@ fn algolia_cloud_discovery_spec_contains_only_stage_1_through_5_paths() {
         "/pricing",
         "/public/",
         "/migration",
+        "/public/infrastructure",
     ];
 
     // Admin routes are out of scope — must NOT appear
@@ -537,6 +538,7 @@ fn algolia_cloud_discovery_spec_contains_only_stage_1_through_5_paths() {
         "/migration/algolia/availability",
         "/migration/algolia/list-indexes",
         "/pricing/compare",
+        "/public/infrastructure",
     ];
 
     for required in &required_stage5_paths {
@@ -545,4 +547,25 @@ fn algolia_cloud_discovery_spec_contains_only_stage_1_through_5_paths() {
             "spec must contain Stage 5 path: {required}"
         );
     }
+}
+
+#[test]
+fn spec_public_infrastructure_documents_runtime_error_contract() {
+    let spec = crate::common::openapi_spec_json();
+    let error_ref = spec
+        .pointer(
+            "/paths/~1public~1infrastructure/get/responses/500/content/application~1json/schema/$ref",
+        )
+        .and_then(|value| value.as_str());
+
+    assert_eq!(
+        error_ref,
+        Some("#/components/schemas/ErrorResponse"),
+        "public infrastructure must document the 500 ErrorResponse returned by repository failures"
+    );
+    assert!(
+        spec.pointer("/paths/~1public~1infrastructure/get/responses/503")
+            .is_none(),
+        "public infrastructure must not advertise a 503 response it never returns"
+    );
 }

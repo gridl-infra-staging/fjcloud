@@ -52,7 +52,7 @@ use async_trait::async_trait;
 use chrono::{DateTime, NaiveDate, Utc};
 use rust_decimal::Decimal;
 use sqlx::types::Json;
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{BTreeSet, HashMap, HashSet, VecDeque};
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use tokio::sync::Notify;
@@ -1404,6 +1404,8 @@ pub async fn seed_mock_stripe_customer(
 
 pub struct MockDeploymentRepo {
     deployments: Mutex<Vec<Deployment>>,
+    find_by_id_calls: AtomicUsize,
+    find_by_ids_calls: AtomicUsize,
     update_provisioning_calls: AtomicUsize,
 }
 
@@ -1411,8 +1413,18 @@ impl MockDeploymentRepo {
     pub fn new() -> Self {
         Self {
             deployments: Mutex::new(Vec::new()),
+            find_by_id_calls: AtomicUsize::new(0),
+            find_by_ids_calls: AtomicUsize::new(0),
             update_provisioning_calls: AtomicUsize::new(0),
         }
+    }
+
+    pub fn find_by_id_call_count(&self) -> usize {
+        self.find_by_id_calls.load(Ordering::SeqCst)
+    }
+
+    pub fn find_by_ids_call_count(&self) -> usize {
+        self.find_by_ids_calls.load(Ordering::SeqCst)
     }
 
     pub fn update_provisioning_call_count(&self) -> usize {
@@ -1564,8 +1576,20 @@ impl DeploymentRepo for MockDeploymentRepo {
     }
 
     async fn find_by_id(&self, id: Uuid) -> Result<Option<Deployment>, RepoError> {
+        self.find_by_id_calls.fetch_add(1, Ordering::SeqCst);
         let deployments = self.deployments.lock().unwrap();
         Ok(deployments.iter().find(|d| d.id == id).cloned())
+    }
+
+    async fn find_by_ids(&self, ids: &[Uuid]) -> Result<Vec<Deployment>, RepoError> {
+        self.find_by_ids_calls.fetch_add(1, Ordering::SeqCst);
+        let requested_ids = ids.iter().copied().collect::<BTreeSet<_>>();
+        let deployments = self.deployments.lock().unwrap();
+        Ok(deployments
+            .iter()
+            .filter(|deployment| requested_ids.contains(&deployment.id))
+            .cloned()
+            .collect())
     }
 
     /// Implements `DeploymentRepo::create`. Inserts a new deployment with status
@@ -3698,6 +3722,7 @@ pub fn mock_vm_host_metrics_repo() -> Arc<MockVmHostMetricsRepo> {
 
 pub struct MockVmInventoryRepo {
     vms: Mutex<Vec<VmInventory>>,
+    list_active_calls: AtomicUsize,
     get_calls: Mutex<usize>,
     create_calls: Mutex<usize>,
     status_mutation_calls: AtomicUsize,
@@ -3708,6 +3733,7 @@ impl MockVmInventoryRepo {
     pub fn new() -> Self {
         Self {
             vms: Mutex::new(Vec::new()),
+            list_active_calls: AtomicUsize::new(0),
             get_calls: Mutex::new(0),
             create_calls: Mutex::new(0),
             status_mutation_calls: AtomicUsize::new(0),
@@ -3717,6 +3743,10 @@ impl MockVmInventoryRepo {
 
     pub fn get_call_count(&self) -> usize {
         *self.get_calls.lock().unwrap()
+    }
+
+    pub fn list_active_call_count(&self) -> usize {
+        self.list_active_calls.load(Ordering::SeqCst)
     }
 
     pub fn create_call_count(&self) -> usize {
@@ -3776,6 +3806,7 @@ impl MockVmInventoryRepo {
 #[async_trait]
 impl VmInventoryRepo for MockVmInventoryRepo {
     async fn list_active(&self, region: Option<&str>) -> Result<Vec<VmInventory>, RepoError> {
+        self.list_active_calls.fetch_add(1, Ordering::SeqCst);
         self.check_failure()?;
         let vms = self.vms.lock().unwrap();
         let results: Vec<VmInventory> = vms
@@ -4091,6 +4122,8 @@ struct DeploymentInfo {
 pub struct MockTenantRepo {
     tenants: Mutex<Vec<CustomerTenant>>,
     deployments: Mutex<HashMap<Uuid, DeploymentInfo>>,
+    list_by_vm_calls: AtomicUsize,
+    list_by_vms_calls: AtomicUsize,
     find_raw_calls: Mutex<usize>,
     last_accessed_updates: Mutex<Vec<(Uuid, String, DateTime<Utc>)>>,
     update_last_accessed_calls: Mutex<usize>,
@@ -4103,6 +4136,8 @@ impl MockTenantRepo {
         Self {
             tenants: Mutex::new(Vec::new()),
             deployments: Mutex::new(HashMap::new()),
+            list_by_vm_calls: AtomicUsize::new(0),
+            list_by_vms_calls: AtomicUsize::new(0),
             find_raw_calls: Mutex::new(0),
             last_accessed_updates: Mutex::new(Vec::new()),
             update_last_accessed_calls: Mutex::new(0),
@@ -4113,6 +4148,14 @@ impl MockTenantRepo {
 
     pub fn find_raw_call_count(&self) -> usize {
         *self.find_raw_calls.lock().unwrap()
+    }
+
+    pub fn list_by_vm_call_count(&self) -> usize {
+        self.list_by_vm_calls.load(Ordering::SeqCst)
+    }
+
+    pub fn list_by_vms_call_count(&self) -> usize {
+        self.list_by_vms_calls.load(Ordering::SeqCst)
     }
 
     pub fn last_accessed_updates(&self) -> Vec<(Uuid, String, DateTime<Utc>)> {
@@ -4493,10 +4536,29 @@ impl TenantRepo for MockTenantRepo {
     }
 
     async fn list_by_vm(&self, vm_id: Uuid) -> Result<Vec<CustomerTenant>, RepoError> {
+        self.list_by_vm_calls.fetch_add(1, Ordering::SeqCst);
         let tenants = self.tenants.lock().unwrap();
         let mut results: Vec<CustomerTenant> = tenants
             .iter()
             .filter(|t| t.vm_id == Some(vm_id))
+            .cloned()
+            .collect();
+        results.sort_by_key(|row| std::cmp::Reverse(row.created_at));
+        Ok(results)
+    }
+
+    async fn list_by_vms(&self, vm_ids: &[Uuid]) -> Result<Vec<CustomerTenant>, RepoError> {
+        self.list_by_vms_calls.fetch_add(1, Ordering::SeqCst);
+        let requested_vm_ids = vm_ids.iter().copied().collect::<BTreeSet<_>>();
+        let tenants = self.tenants.lock().unwrap();
+        let mut results: Vec<_> = tenants
+            .iter()
+            .filter(|tenant| {
+                tenant
+                    .vm_id
+                    .map(|vm_id| requested_vm_ids.contains(&vm_id))
+                    .unwrap_or(false)
+            })
             .cloned()
             .collect();
         results.sort_by_key(|row| std::cmp::Reverse(row.created_at));

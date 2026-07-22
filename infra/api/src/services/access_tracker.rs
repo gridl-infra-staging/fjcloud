@@ -191,6 +191,12 @@ mod tests {
         ) -> Result<Vec<crate::models::tenant::CustomerTenant>, crate::repos::RepoError> {
             unimplemented!()
         }
+        async fn list_by_vms(
+            &self,
+            _: &[Uuid],
+        ) -> Result<Vec<crate::models::tenant::CustomerTenant>, crate::repos::RepoError> {
+            unimplemented!()
+        }
         async fn list_migrating(
             &self,
         ) -> Result<Vec<crate::models::tenant::CustomerTenant>, crate::repos::RepoError> {

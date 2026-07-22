@@ -292,6 +292,9 @@ async fn wire_app_state_phase(bootstrap: StartupBootstrapPhase) -> anyhow::Resul
         storage_master_key,
         oauth: build_oauth_runtime_config(&cfg, &startup_env),
         metrics_cache: std::sync::Arc::new(api::state::MetricsCache::default()),
+        public_infrastructure_cache: std::sync::Arc::new(
+            api::state::PublicInfrastructureCache::default(),
+        ),
     };
     let background_deps = api::startup::BackgroundDeps {
         node_secret_manager,

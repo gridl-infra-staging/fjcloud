@@ -364,6 +364,21 @@ impl TenantRepo for PgTenantRepo {
         .map_err(|e| RepoError::Other(e.to_string()))
     }
 
+    async fn list_by_vms(&self, vm_ids: &[Uuid]) -> Result<Vec<CustomerTenant>, RepoError> {
+        if vm_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        // Raw VM lookup intentionally keeps tenants whose deployments are terminated.
+        sqlx::query_as::<_, CustomerTenant>(
+            "SELECT * FROM customer_tenants WHERE vm_id = ANY($1) ORDER BY created_at DESC",
+        )
+        .bind(vm_ids.to_vec())
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| RepoError::Other(e.to_string()))
+    }
+
     async fn list_migrating(&self) -> Result<Vec<CustomerTenant>, RepoError> {
         sqlx::query_as::<_, CustomerTenant>(
             "SELECT * FROM customer_tenants WHERE tier = 'migrating' ORDER BY created_at DESC",

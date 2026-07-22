@@ -2,10 +2,98 @@ use chrono::Utc;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use api::repos::DeploymentRepo;
+use api::models::Deployment;
+use api::repos::{DeploymentRepo, PgDeploymentRepo};
 
 fn setup() -> Arc<crate::common::MockDeploymentRepo> {
     crate::common::mock_deployment_repo()
+}
+
+#[test]
+fn pg_deployment_bulk_lookup_is_single_any_query() {
+    let source = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/repos/pg_deployment_repo.rs"),
+    )
+    .expect("read pg_deployment_repo source");
+    let body = crate::common::source_assertions::function_body(&source, "find_by_ids")
+        .expect("PgDeploymentRepo must implement find_by_ids");
+
+    assert!(
+        body.contains("ANY($1)"),
+        "PgDeploymentRepo::find_by_ids must use a single PostgreSQL ANY($1) lookup"
+    );
+    assert_eq!(
+        body.matches("sqlx::query_as::<_, Deployment>").count(),
+        1,
+        "PgDeploymentRepo::find_by_ids must construct exactly one Deployment query"
+    );
+    assert!(
+        !body.contains("find_by_id"),
+        "PgDeploymentRepo::find_by_ids must not fan out through find_by_id"
+    );
+}
+
+#[tokio::test]
+async fn pg_deployment_bulk_lookup_matches_any_status_find_semantics() {
+    let Some(db) =
+        crate::common::support::pg_schema_harness::connect_and_migrate("deployment_bulk_lookup")
+            .await
+    else {
+        return;
+    };
+    let repo = PgDeploymentRepo::new(db.pool.clone());
+    let customer_id = Uuid::new_v4();
+    let running_id = Uuid::new_v4();
+    let terminated_id = Uuid::new_v4();
+    let no_url_id = Uuid::new_v4();
+    let missing_id = Uuid::new_v4();
+
+    crate::common::support::pg_schema_harness::insert_active_customer(&db.pool, customer_id, 1)
+        .await;
+    insert_deployment_row(
+        &db.pool,
+        running_id,
+        customer_id,
+        "deployment-bulk-running",
+        "running",
+        Some("http://deployment-bulk-running:7700"),
+        "healthy",
+    )
+    .await;
+    insert_deployment_row(
+        &db.pool,
+        terminated_id,
+        customer_id,
+        "deployment-bulk-terminated",
+        "terminated",
+        Some("http://deployment-bulk-terminated:7700"),
+        "unhealthy",
+    )
+    .await;
+    insert_deployment_row(
+        &db.pool,
+        no_url_id,
+        customer_id,
+        "deployment-bulk-no-url",
+        "running",
+        None,
+        "unknown",
+    )
+    .await;
+
+    let ids = [running_id, terminated_id, no_url_id, missing_id];
+    let bulk = repo.find_by_ids(&ids).await.unwrap();
+    let mut per_id = Vec::new();
+    for id in ids {
+        if let Some(deployment) = repo.find_by_id(id).await.unwrap() {
+            per_id.push(deployment);
+        }
+    }
+
+    assert_eq!(
+        deployment_rows_by_stable_values(bulk),
+        deployment_rows_by_stable_values(per_id)
+    );
 }
 
 // ===========================================================================
@@ -639,4 +727,50 @@ async fn terminate_nonexistent_returns_false() {
 
     let result = repo.terminate(Uuid::new_v4()).await.unwrap();
     assert!(!result, "terminate on nonexistent should return false");
+}
+
+async fn insert_deployment_row(
+    pool: &sqlx::PgPool,
+    id: Uuid,
+    customer_id: Uuid,
+    node_id: &str,
+    status: &str,
+    flapjack_url: Option<&str>,
+    health_status: &str,
+) {
+    sqlx::query(
+        "INSERT INTO customer_deployments \
+         (id, customer_id, node_id, region, vm_type, vm_provider, status, flapjack_url, \
+          health_status, terminated_at) \
+         VALUES ($1, $2, $3, 'us-east-1', 'shared', 'aws', $4, $5, $6, \
+                 CASE WHEN $4 = 'terminated' THEN NOW() ELSE NULL END)",
+    )
+    .bind(id)
+    .bind(customer_id)
+    .bind(node_id)
+    .bind(status)
+    .bind(flapjack_url)
+    .bind(health_status)
+    .execute(pool)
+    .await
+    .expect("insert deployment row");
+}
+
+fn deployment_rows_by_stable_values(
+    mut deployments: Vec<Deployment>,
+) -> Vec<(Uuid, String, String, Option<String>, String)> {
+    let mut rows = deployments
+        .drain(..)
+        .map(|deployment| {
+            (
+                deployment.id,
+                deployment.node_id,
+                deployment.status,
+                deployment.flapjack_url,
+                deployment.health_status,
+            )
+        })
+        .collect::<Vec<_>>();
+    rows.sort();
+    rows
 }

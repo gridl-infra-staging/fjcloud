@@ -1,5 +1,7 @@
 use crate::common::MockTenantRepo;
+use api::models::tenant::CustomerTenant;
 use api::repos::tenant_repo::TenantRepo;
+use api::repos::PgTenantRepo;
 use api::repos::RepoError;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -19,6 +21,124 @@ fn setup() -> (Arc<MockTenantRepo>, Uuid, Uuid) {
     );
 
     (repo, customer_id, deployment_id)
+}
+
+#[test]
+fn pg_tenant_bulk_lookup_is_single_any_query() {
+    let source = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/repos/pg_tenant_repo.rs"),
+    )
+    .expect("read pg_tenant_repo source");
+    let body = crate::common::source_assertions::function_body(&source, "list_by_vms")
+        .expect("PgTenantRepo must implement list_by_vms");
+
+    assert!(
+        body.contains("ANY($1)"),
+        "PgTenantRepo::list_by_vms must use a single PostgreSQL ANY($1) lookup"
+    );
+    assert_eq!(
+        body.matches("sqlx::query_as::<_, CustomerTenant>").count(),
+        1,
+        "PgTenantRepo::list_by_vms must construct exactly one CustomerTenant query"
+    );
+    assert!(
+        !body.contains("list_by_vm"),
+        "PgTenantRepo::list_by_vms must not fan out through list_by_vm"
+    );
+}
+
+#[tokio::test]
+async fn pg_tenant_bulk_lookup_matches_raw_per_vm_semantics() {
+    let Some(db) =
+        crate::common::support::pg_schema_harness::connect_and_migrate("tenant_bulk_lookup").await
+    else {
+        return;
+    };
+    let repo = PgTenantRepo::new(db.pool.clone());
+    let customer_id = Uuid::new_v4();
+    let vm_with_two_tenants = Uuid::new_v4();
+    let vm_with_terminated_tenant = Uuid::new_v4();
+    let vm_with_zero_tenants = Uuid::new_v4();
+    let running_deployment_id = Uuid::new_v4();
+    let second_running_deployment_id = Uuid::new_v4();
+    let terminated_deployment_id = Uuid::new_v4();
+
+    crate::common::support::pg_schema_harness::insert_active_customer(&db.pool, customer_id, 1)
+        .await;
+    for (vm_id, hostname) in [
+        (vm_with_two_tenants, "tenant-bulk-a"),
+        (vm_with_terminated_tenant, "tenant-bulk-b"),
+        (vm_with_zero_tenants, "tenant-bulk-empty"),
+    ] {
+        insert_vm_inventory(&db.pool, vm_id, hostname).await;
+    }
+    insert_deployment(
+        &db.pool,
+        running_deployment_id,
+        customer_id,
+        "tenant-bulk-running-a",
+        "running",
+        Some("http://tenant-bulk-running-a:7700"),
+    )
+    .await;
+    insert_deployment(
+        &db.pool,
+        second_running_deployment_id,
+        customer_id,
+        "tenant-bulk-running-b",
+        "running",
+        Some("http://tenant-bulk-running-b:7700"),
+    )
+    .await;
+    insert_deployment(
+        &db.pool,
+        terminated_deployment_id,
+        customer_id,
+        "tenant-bulk-terminated",
+        "terminated",
+        None,
+    )
+    .await;
+    insert_tenant(
+        &db.pool,
+        customer_id,
+        "tenant-a",
+        running_deployment_id,
+        vm_with_two_tenants,
+    )
+    .await;
+    insert_tenant(
+        &db.pool,
+        customer_id,
+        "tenant-b",
+        second_running_deployment_id,
+        vm_with_two_tenants,
+    )
+    .await;
+    insert_tenant(
+        &db.pool,
+        customer_id,
+        "tenant-terminated",
+        terminated_deployment_id,
+        vm_with_terminated_tenant,
+    )
+    .await;
+
+    let vm_ids = [
+        vm_with_two_tenants,
+        vm_with_terminated_tenant,
+        vm_with_zero_tenants,
+    ];
+    let bulk = repo.list_by_vms(&vm_ids).await.unwrap();
+    let mut per_vm = Vec::new();
+    for vm_id in vm_ids {
+        per_vm.extend(repo.list_by_vm(vm_id).await.unwrap());
+    }
+
+    assert_eq!(
+        tenant_rows_by_stable_values(bulk),
+        tenant_rows_by_stable_values(per_vm)
+    );
 }
 
 #[tokio::test]
@@ -302,4 +422,79 @@ async fn find_by_deployment_returns_all_indexes_on_vm() {
 
     let on_empty = repo.find_by_deployment(Uuid::new_v4()).await.unwrap();
     assert!(on_empty.is_empty());
+}
+
+async fn insert_vm_inventory(pool: &sqlx::PgPool, id: Uuid, hostname: &str) {
+    sqlx::query(
+        "INSERT INTO vm_inventory (id, region, provider, hostname, flapjack_url, capacity) \
+         VALUES ($1, 'us-east-1', 'aws', $2, $3, '{}')",
+    )
+    .bind(id)
+    .bind(hostname)
+    .bind(format!("http://{hostname}:7700"))
+    .execute(pool)
+    .await
+    .expect("insert VM inventory row");
+}
+
+async fn insert_deployment(
+    pool: &sqlx::PgPool,
+    id: Uuid,
+    customer_id: Uuid,
+    node_id: &str,
+    status: &str,
+    flapjack_url: Option<&str>,
+) {
+    sqlx::query(
+        "INSERT INTO customer_deployments \
+         (id, customer_id, node_id, region, vm_type, vm_provider, status, flapjack_url, terminated_at) \
+         VALUES ($1, $2, $3, 'us-east-1', 'shared', 'aws', $4, $5, \
+                 CASE WHEN $4 = 'terminated' THEN NOW() ELSE NULL END)",
+    )
+    .bind(id)
+    .bind(customer_id)
+    .bind(node_id)
+    .bind(status)
+    .bind(flapjack_url)
+    .execute(pool)
+    .await
+    .expect("insert deployment row");
+}
+
+async fn insert_tenant(
+    pool: &sqlx::PgPool,
+    customer_id: Uuid,
+    tenant_id: &str,
+    deployment_id: Uuid,
+    vm_id: Uuid,
+) {
+    sqlx::query(
+        "INSERT INTO customer_tenants (customer_id, tenant_id, deployment_id, vm_id) \
+         VALUES ($1, $2, $3, $4)",
+    )
+    .bind(customer_id)
+    .bind(tenant_id)
+    .bind(deployment_id)
+    .bind(vm_id)
+    .execute(pool)
+    .await
+    .expect("insert tenant row");
+}
+
+fn tenant_rows_by_stable_values(
+    mut tenants: Vec<CustomerTenant>,
+) -> Vec<(Uuid, String, Uuid, Uuid)> {
+    let mut rows = tenants
+        .drain(..)
+        .map(|tenant| {
+            (
+                tenant.customer_id,
+                tenant.tenant_id,
+                tenant.deployment_id,
+                tenant.vm_id.expect("bulk test tenants are VM-placed"),
+            )
+        })
+        .collect::<Vec<_>>();
+    rows.sort();
+    rows
 }

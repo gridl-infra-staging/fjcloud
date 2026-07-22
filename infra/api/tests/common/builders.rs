@@ -29,8 +29,7 @@ use api::services::storage::s3_proxy::{GarageProxy, GarageProxyConfig};
 use api::services::storage::{GarageAdminClient, StorageService};
 use api::services::tenant_quota::{FreeTierLimits, QuotaDefaults, TenantQuotaService};
 use api::services::vm_orphan_reconcile::{VmOrphanDependencies, VmOrphanReconciler};
-use api::state::AppState;
-use api::state::MetricsCache;
+use api::state::{AppState, MetricsCache, PublicInfrastructureCache};
 use api::state::{OAuthCookieSameSite, OAuthProviderRuntimeConfig, OAuthRuntimeConfig};
 use axum::Router;
 use sqlx::postgres::PgPoolOptions;
@@ -257,6 +256,7 @@ pub struct TestStateBuilder {
     storage_master_key: [u8; 32],
     oauth: OAuthRuntimeConfig,
     metrics_cache: Arc<MetricsCache>,
+    public_infrastructure_cache: Arc<PublicInfrastructureCache>,
     dns_domain: String,
 }
 
@@ -326,12 +326,21 @@ impl TestStateBuilder {
             storage_master_key: [0u8; 32],
             oauth: OAuthRuntimeConfig::default(),
             metrics_cache: Arc::new(MetricsCache::default()),
+            public_infrastructure_cache: Arc::new(PublicInfrastructureCache::default()),
             dns_domain: DEFAULT_DNS_DOMAIN.to_string(),
         }
     }
 
     pub fn with_metrics_cache(mut self, metrics_cache: Arc<MetricsCache>) -> Self {
         self.metrics_cache = metrics_cache;
+        self
+    }
+
+    pub fn with_public_infrastructure_cache(
+        mut self,
+        public_infrastructure_cache: Arc<PublicInfrastructureCache>,
+    ) -> Self {
+        self.public_infrastructure_cache = public_infrastructure_cache;
         self
     }
 
@@ -516,6 +525,11 @@ impl TestStateBuilder {
         self
     }
 
+    pub fn with_region_config(mut self, region_config: RegionConfig) -> Self {
+        self.region_config = region_config;
+        self
+    }
+
     pub fn without_stripe_webhook_secret(mut self) -> Self {
         self.stripe_webhook_secret = None;
         self
@@ -641,6 +655,7 @@ impl TestStateBuilder {
             storage_master_key: self.storage_master_key,
             oauth: self.oauth,
             metrics_cache: self.metrics_cache,
+            public_infrastructure_cache: self.public_infrastructure_cache,
         }
     }
 

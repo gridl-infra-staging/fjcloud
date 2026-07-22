@@ -18,6 +18,10 @@ pub trait DeploymentRepo {
 
     async fn find_by_id(&self, id: Uuid) -> Result<Option<Deployment>, RepoError>;
 
+    /// Finds the requested deployments with the same raw inclusion semantics
+    /// as `find_by_id`; status and `flapjack_url` are not filtered.
+    async fn find_by_ids(&self, ids: &[Uuid]) -> Result<Vec<Deployment>, RepoError>;
+
     async fn create(
         &self,
         customer_id: Uuid,

@@ -94,6 +94,10 @@ pub trait TenantRepo {
     /// All indexes on a specific physical VM.
     async fn list_by_vm(&self, vm_id: Uuid) -> Result<Vec<CustomerTenant>, RepoError>;
 
+    /// All indexes on the requested physical VMs, with the same raw inclusion
+    /// semantics as `list_by_vm`; deployment status is not filtered.
+    async fn list_by_vms(&self, vm_ids: &[Uuid]) -> Result<Vec<CustomerTenant>, RepoError>;
+
     /// All indexes currently in the migrating tier.
     async fn list_migrating(&self) -> Result<Vec<CustomerTenant>, RepoError>;
 

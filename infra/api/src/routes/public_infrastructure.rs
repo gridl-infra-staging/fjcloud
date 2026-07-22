@@ -1,12 +1,15 @@
 use axum::extract::State;
 use axum::Json;
+use chrono::{DateTime, Utc};
 use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet};
+use uuid::Uuid;
 
 use crate::errors::ApiError;
-use crate::provisioner::region_map::RegionEntry;
+use crate::provisioner::region_map::{RegionConfig, RegionEntry};
+use crate::repos::{DeploymentRepo, TenantRepo, VmInventoryRepo};
 use crate::services::public_topology::{to_public_topology, UtilizationBucket};
-use crate::services::vm_health_rollup::{health_rollup_for_tenants, VmHealth};
+use crate::services::vm_health_rollup::{health_rollup_from_deployment_healths, VmHealth};
 use crate::state::AppState;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, utoipa::ToSchema)]
@@ -55,14 +58,37 @@ pub struct PublicInfrastructureResponse {
     security(()),
     responses(
         (status = 200, description = "Public infrastructure health by region", body = PublicInfrastructureResponse),
-        (status = 503, description = "Repository unavailable", body = crate::errors::ErrorResponse),
+        (status = 500, description = "Internal server error", body = crate::errors::ErrorResponse),
     )
 )]
 pub async fn get_public_infrastructure(
     State(state): State<AppState>,
 ) -> Result<Json<PublicInfrastructureResponse>, ApiError> {
-    let active_vms = state.vm_inventory_repo.list_active(None).await?;
-    let available_regions = state.region_config.available_regions();
+    if let Some(response) = state.public_infrastructure_cache.get() {
+        return Ok(Json(response));
+    }
+
+    let response = compute_public_infrastructure(
+        state.vm_inventory_repo.as_ref(),
+        state.tenant_repo.as_ref(),
+        state.deployment_repo.as_ref(),
+        &state.region_config,
+        Utc::now(),
+    )
+    .await?;
+    state.public_infrastructure_cache.insert(response.clone());
+    Ok(Json(response))
+}
+
+pub async fn compute_public_infrastructure(
+    vm_inventory_repo: &(dyn VmInventoryRepo + Send + Sync),
+    tenant_repo: &(dyn TenantRepo + Send + Sync),
+    deployment_repo: &(dyn DeploymentRepo + Send + Sync),
+    region_config: &RegionConfig,
+    now: DateTime<Utc>,
+) -> Result<PublicInfrastructureResponse, ApiError> {
+    let active_vms = vm_inventory_repo.list_active(None).await?;
+    let available_regions = region_config.available_regions();
     let available_region_ids: BTreeSet<_> = available_regions
         .iter()
         .map(|(region, _)| region.as_str())
@@ -72,13 +98,47 @@ pub async fn get_public_infrastructure(
         .filter(|vm| available_region_ids.contains(vm.region.as_str()))
         .collect();
 
+    if published_vms.is_empty() {
+        let regions = available_regions
+            .into_iter()
+            .map(|(region, entry)| build_region_response(region, entry, &[]))
+            .collect::<Vec<_>>();
+        return Ok(PublicInfrastructureResponse {
+            overall: build_overall_response(regions.len(), &[]),
+            regions,
+        });
+    }
+
     let public_vm_refs: Vec<_> = published_vms.iter().collect();
-    let public_topology = to_public_topology(&public_vm_refs, chrono::Utc::now());
+    let public_topology = to_public_topology(&public_vm_refs, now);
     let mut signals_by_region: BTreeMap<String, Vec<RegionVmSignal>> = BTreeMap::new();
+    let published_vm_ids = published_vms.iter().map(|vm| vm.id).collect::<Vec<_>>();
+    let tenants = tenant_repo.list_by_vms(&published_vm_ids).await?;
+    let mut tenants_by_vm: BTreeMap<Uuid, Vec<_>> = BTreeMap::new();
+    let mut deployment_ids = BTreeSet::new();
+
+    for tenant in tenants {
+        if let Some(vm_id) = tenant.vm_id {
+            deployment_ids.insert(tenant.deployment_id);
+            tenants_by_vm.entry(vm_id).or_default().push(tenant);
+        }
+    }
+
+    let deployments = if deployment_ids.is_empty() {
+        Vec::new()
+    } else {
+        deployment_repo
+            .find_by_ids(&deployment_ids.into_iter().collect::<Vec<_>>())
+            .await?
+    };
+    let deployment_healths_by_id: BTreeMap<Uuid, String> = deployments
+        .into_iter()
+        .map(|deployment| (deployment.id, deployment.health_status))
+        .collect();
 
     for (vm, public_view) in published_vms.iter().zip(public_topology) {
-        let tenants = state.tenant_repo.list_by_vm(vm.id).await?;
-        let health = health_rollup_for_tenants(&tenants, state.deployment_repo.as_ref()).await?;
+        let tenants = tenants_by_vm.get(&vm.id).map(Vec::as_slice).unwrap_or(&[]);
+        let health = health_rollup_from_deployment_healths(tenants, &deployment_healths_by_id);
         signals_by_region
             .entry(vm.region.clone())
             .or_default()
@@ -101,10 +161,10 @@ pub async fn get_public_infrastructure(
         })
         .collect::<Vec<_>>();
 
-    Ok(Json(PublicInfrastructureResponse {
+    Ok(PublicInfrastructureResponse {
         overall: build_overall_response(regions.len(), &all_signals),
         regions,
-    }))
+    })
 }
 
 fn build_region_response(
@@ -325,7 +385,7 @@ mod tests {
 
     #[test]
     fn overall_rollup_counts_unknown_and_unhealthy_in_denominator() {
-        let regions = vec![
+        let regions = [
             build_region_response(
                 "us-east-1",
                 &region_entry(),

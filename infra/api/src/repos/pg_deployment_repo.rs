@@ -53,6 +53,19 @@ impl DeploymentRepo for PgDeploymentRepo {
             .map_err(|e| RepoError::Other(e.to_string()))
     }
 
+    async fn find_by_ids(&self, ids: &[Uuid]) -> Result<Vec<Deployment>, RepoError> {
+        if ids.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        // Raw deployment lookup intentionally keeps any status and rows without flapjack_url.
+        sqlx::query_as::<_, Deployment>("SELECT * FROM customer_deployments WHERE id = ANY($1)")
+            .bind(ids.to_vec())
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| RepoError::Other(e.to_string()))
+    }
+
     /// INSERT RETURNING for a new deployment. Unique violation on node_id
     /// returns `Conflict`.
     async fn create(

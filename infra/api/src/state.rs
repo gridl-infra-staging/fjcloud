@@ -1,7 +1,7 @@
 use sqlx::postgres::PgPool;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use chrono::{DateTime, Utc};
 use serde::Serialize;
@@ -26,6 +26,7 @@ use crate::repos::UsageRepo;
 use crate::repos::VmHostMetricsRepo;
 use crate::repos::VmInventoryRepo;
 use crate::repos::WebhookEventRepo;
+use crate::routes::public_infrastructure::PublicInfrastructureResponse;
 use crate::services::alerting::AlertService;
 use crate::services::algolia_source::AlgoliaSourceLister;
 use crate::services::discovery::DiscoveryService;
@@ -106,6 +107,7 @@ pub struct CustomerIndexMetricsResponse {
 }
 
 pub const DEFAULT_METRICS_CACHE_TTL: Duration = Duration::from_secs(60);
+pub const DEFAULT_PUBLIC_INFRASTRUCTURE_CACHE_TTL: Duration = Duration::from_secs(10);
 
 type MetricsCacheKey = (Uuid, String);
 
@@ -165,6 +167,53 @@ impl MetricsCache {
     }
 }
 
+pub struct PublicInfrastructureCache {
+    entry: RwLock<Option<(Instant, PublicInfrastructureResponse)>>,
+    ttl: Duration,
+}
+
+impl Default for PublicInfrastructureCache {
+    fn default() -> Self {
+        Self {
+            entry: RwLock::new(None),
+            ttl: DEFAULT_PUBLIC_INFRASTRUCTURE_CACHE_TTL,
+        }
+    }
+}
+
+impl PublicInfrastructureCache {
+    pub fn with_ttl(ttl: Duration) -> Self {
+        Self {
+            entry: RwLock::new(None),
+            ttl,
+        }
+    }
+
+    pub fn ttl(&self) -> Duration {
+        self.ttl
+    }
+
+    pub fn get(&self) -> Option<PublicInfrastructureResponse> {
+        let entry = self.entry.read().unwrap();
+        let (inserted_at, response) = entry.as_ref()?;
+        if inserted_at.elapsed() < self.ttl {
+            Some(response.clone())
+        } else {
+            None
+        }
+    }
+
+    pub fn insert(&self, response: PublicInfrastructureResponse) {
+        let mut entry = self.entry.write().unwrap();
+        *entry = Some((Instant::now(), response));
+    }
+
+    pub fn expire_for_test(&self) {
+        let mut entry = self.entry.write().unwrap();
+        *entry = None;
+    }
+}
+
 /// Central shared application state cloned into every request handler.
 #[derive(Clone)]
 pub struct AppState {
@@ -220,11 +269,68 @@ pub struct AppState {
     pub storage_master_key: [u8; 32],
     pub oauth: OAuthRuntimeConfig,
     pub metrics_cache: Arc<MetricsCache>,
+    pub public_infrastructure_cache: Arc<PublicInfrastructureCache>,
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::routes::public_infrastructure::{
+        PublicInfrastructureOverall, PublicInfrastructureResponse, PublicRegionHealth,
+        PublicRegionInfrastructure,
+    };
+
+    fn public_infrastructure_response() -> PublicInfrastructureResponse {
+        PublicInfrastructureResponse {
+            regions: vec![PublicRegionInfrastructure {
+                region: "alpha-1".to_string(),
+                provider: "aws".to_string(),
+                display_name: "Alpha Region".to_string(),
+                provider_location: "alpha-location".to_string(),
+                health: PublicRegionHealth::Operational,
+                utilization: None,
+                vm_count: 2,
+            }],
+            overall: PublicInfrastructureOverall {
+                availability_pct: Some(100.0),
+                total_regions: 1,
+                total_vms: 2,
+            },
+        }
+    }
+
+    #[test]
+    fn public_infrastructure_cache_uses_default_and_injected_ttl() {
+        assert_eq!(
+            PublicInfrastructureCache::default().ttl(),
+            DEFAULT_PUBLIC_INFRASTRUCTURE_CACHE_TTL
+        );
+        assert_eq!(
+            PublicInfrastructureCache::with_ttl(Duration::from_secs(3)).ttl(),
+            Duration::from_secs(3)
+        );
+    }
+
+    #[test]
+    fn public_infrastructure_cache_insert_get_roundtrip() {
+        let cache = PublicInfrastructureCache::default();
+        let response = public_infrastructure_response();
+
+        cache.insert(response.clone());
+
+        assert_eq!(cache.get(), Some(response));
+    }
+
+    #[test]
+    fn public_infrastructure_cache_expire_for_test_removes_entry() {
+        let cache = PublicInfrastructureCache::default();
+
+        cache.insert(public_infrastructure_response());
+        assert!(cache.get().is_some());
+
+        cache.expire_for_test();
+        assert!(cache.get().is_none());
+    }
 
     #[test]
     fn metrics_cache_insert_get_roundtrip() {

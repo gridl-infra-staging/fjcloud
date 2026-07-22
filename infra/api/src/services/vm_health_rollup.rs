@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use crate::models::CustomerTenant;
 use crate::repos::{DeploymentRepo, RepoError};
@@ -44,9 +44,24 @@ pub async fn health_rollup_for_tenants(
     Ok(vm_health_rollup(&deployment_health_refs))
 }
 
+pub fn health_rollup_from_deployment_healths(
+    tenants: &[CustomerTenant],
+    deployment_healths_by_id: &BTreeMap<uuid::Uuid, String>,
+) -> VmHealth {
+    let deployment_ids: BTreeSet<_> = tenants.iter().map(|tenant| tenant.deployment_id).collect();
+    let deployment_healths = deployment_ids
+        .iter()
+        .filter_map(|deployment_id| deployment_healths_by_id.get(deployment_id))
+        .map(String::as_str)
+        .collect::<Vec<_>>();
+
+    // Delegate classification so `vm_health_rollup` remains the single health-rule owner.
+    vm_health_rollup(&deployment_healths)
+}
+
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
+    use std::collections::{BTreeMap, HashMap};
     use std::sync::Mutex;
 
     use async_trait::async_trait;
@@ -93,6 +108,14 @@ mod tests {
         async fn find_by_id(&self, id: Uuid) -> Result<Option<Deployment>, RepoError> {
             self.find_calls.lock().unwrap().push(id);
             Ok(self.deployments.lock().unwrap().get(&id).cloned())
+        }
+
+        async fn find_by_ids(&self, ids: &[Uuid]) -> Result<Vec<Deployment>, RepoError> {
+            let deployments = self.deployments.lock().unwrap();
+            Ok(ids
+                .iter()
+                .filter_map(|id| deployments.get(id).cloned())
+                .collect())
         }
 
         async fn create(
@@ -216,5 +239,55 @@ mod tests {
         let mut expected_calls = vec![healthy_id, unhealthy_id];
         expected_calls.sort();
         assert_eq!(find_calls, expected_calls);
+    }
+
+    #[test]
+    fn health_rollup_from_deployment_healths_deduplicates_and_ignores_missing_ids() {
+        let healthy_id = Uuid::new_v4();
+        let missing_id = Uuid::new_v4();
+        let customer_id = Uuid::new_v4();
+        let tenants = vec![
+            tenant(customer_id, "products", healthy_id),
+            tenant(customer_id, "orders", healthy_id),
+            tenant(customer_id, "logs", missing_id),
+        ];
+        let deployment_healths = BTreeMap::from([(healthy_id, "healthy".to_string())]);
+
+        let health = health_rollup_from_deployment_healths(&tenants, &deployment_healths);
+
+        assert_eq!(health, VmHealth::Healthy);
+    }
+
+    #[test]
+    fn health_rollup_from_deployment_healths_classifies_mixed_values() {
+        let healthy_id = Uuid::new_v4();
+        let unhealthy_id = Uuid::new_v4();
+        let unknown_id = Uuid::new_v4();
+        let customer_id = Uuid::new_v4();
+        let tenants = vec![
+            tenant(customer_id, "products", healthy_id),
+            tenant(customer_id, "orders", unhealthy_id),
+            tenant(customer_id, "logs", unknown_id),
+        ];
+        let deployment_healths = BTreeMap::from([
+            (healthy_id, "healthy".to_string()),
+            (unhealthy_id, "unhealthy".to_string()),
+            (unknown_id, "unknown".to_string()),
+        ]);
+
+        let health = health_rollup_from_deployment_healths(&tenants, &deployment_healths);
+
+        assert_eq!(health, VmHealth::Unhealthy);
+    }
+
+    #[test]
+    fn health_rollup_from_deployment_healths_returns_unknown_without_evidence() {
+        let customer_id = Uuid::new_v4();
+        let tenants = vec![tenant(customer_id, "products", Uuid::new_v4())];
+        let deployment_healths = BTreeMap::new();
+
+        let health = health_rollup_from_deployment_healths(&tenants, &deployment_healths);
+
+        assert_eq!(health, VmHealth::Unknown);
     }
 }

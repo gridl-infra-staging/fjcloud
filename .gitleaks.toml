@@ -97,6 +97,10 @@ paths = [
 regexes = [
     '''sk_test_[A-Za-z0-9]{16,}''',
     '''rk_test_[A-Za-z0-9]{16,}''',
+    # Consecutive empty Algolia live-probe variables make generic-api-key span
+    # two lines and extract the literal `IDEMPOTENCY_KEY=` as its "secret".
+    # Match only that empty extracted value; any populated key still scans.
+    '''^IDEMPOTENCY_KEY=$''',
     # AWS AMI IDs are public resource identifiers, not credentials. Terraform
     # examples and live-evidence wrappers use api_ami_id/flapjack_ami_id
     # variables heavily; gitleaks generic-api-key flags those values because

@@ -99,6 +99,14 @@ JSON
                             printf 'sk_%s_probe_dummy\n' live
                             exit 0
                             ;;
+                        /fjcloud/staging/database_url)
+                            printf 'postgresql://metering_user:stage2_db_password@staging-db.internal:5432/fjcloud\n'
+                            exit 0
+                            ;;
+                        /fjcloud/prod/database_url)
+                            printf 'postgresql://metering_user:stage2_db_password@prod-db.internal:5432/fjcloud\n'
+                            exit 0
+                            ;;
                         /fjcloud/staging/aws_ami_id)
                             if [ "${AWS_STUB_SCENARIO:-}" = "fleet_pointer_missing" ]; then
                                 printf 'An error occurred (ParameterNotFound) when calling the GetParameter operation: parameter not found\n' >&2
@@ -141,6 +149,16 @@ JSON
         fi
 
         if [ "${1:-}" = "ec2" ] && [ "${2:-}" = "describe-instances" ]; then
+            case "$*" in
+                *Name=tag:Name,Values=fjcloud-api-staging*)
+                    printf 'i-staging-api\n'
+                    exit 0
+                    ;;
+                *Name=tag:Name,Values=fjcloud-api-prod*)
+                    printf 'i-prod-api\n'
+                    exit 0
+                    ;;
+            esac
             has_starting_token=0
             has_no_paginate=0
             for arg in "$@"; do
@@ -165,6 +183,44 @@ JSON
 JSON
             fi
             exit 0
+        fi
+
+        if [ "${1:-}" = "ssm" ] && [ "${2:-}" = "send-command" ]; then
+            case "$*" in
+                *--instance-ids\ i-staging-api*)
+                    printf 'cmd-staging\n'
+                    ;;
+                *--instance-ids\ i-prod-api*)
+                    printf 'cmd-prod\n'
+                    ;;
+                *)
+                    exit 2
+                    ;;
+            esac
+            exit 0
+        fi
+
+        if [ "${1:-}" = "ssm" ] && [ "${2:-}" = "get-command-invocation" ]; then
+            case "$*" in
+                *--command-id\ cmd-staging*)
+                    if [ "${USAGE_STAGING_QUERY_FAIL:-0}" = "1" ]; then
+                        printf '%s\n' '{"status":"Failed","stdout":"","stderr":"synthetic SQL failure"}'
+                    else
+                        printf '%s\n' \
+                            '{"status":"Success","stdout":"{\"schema_version\":1,\"query_outcome\":\"ok\",\"total_rows\":4,\"fresh_rows\":2,\"latest_aggregated_at\":\"2026-07-23T12:00:00Z\"}\n","stderr":""}'
+                    fi
+                    exit 0
+                    ;;
+                *--command-id\ cmd-prod*)
+                    if [ "${USAGE_PROD_QUERY_FAIL:-0}" = "1" ]; then
+                        printf '%s\n' '{"status":"Failed","stdout":"","stderr":"synthetic SQL failure"}'
+                    else
+                        printf '%s\n' \
+                            '{"status":"Success","stdout":"{\"schema_version\":1,\"query_outcome\":\"ok\",\"total_rows\":3,\"fresh_rows\":0,\"latest_aggregated_at\":\"2026-07-20T12:00:00Z\"}\n","stderr":""}'
+                    fi
+                    exit 0
+                    ;;
+            esac
         fi
 
         if [ "${1:-}" = "ssm" ] && [ "${2:-}" = "describe-instance-information" ]; then
@@ -444,6 +500,8 @@ validate_live_state_artifact() {
         '^### api_health$'
         '^### fleet_dataplane$'
         '^### flapjack_build_identity$'
+        '^### usage_rollup_freshness_staging$'
+        '^### usage_rollup_freshness_prod$'
         '^### staging_rds$'
         '^### privacy_com$'
     )
@@ -457,6 +515,8 @@ validate_live_state_artifact() {
         'api health row heading'
         'fleet dataplane row heading'
         'flapjack build identity row heading'
+        'staging usage-rollup freshness row heading'
+        'prod usage-rollup freshness row heading'
         'staging RDS row heading'
         'privacy row heading'
     )
@@ -469,6 +529,8 @@ validate_live_state_artifact() {
         api_health
         fleet_dataplane
         flapjack_build_identity
+        usage_rollup_freshness_staging
+        usage_rollup_freshness_prod
         staging_rds
         privacy_com
     )
@@ -930,6 +992,10 @@ run_alternate_output_bundle_isolation_regression() {
     assert_file_exists "$summary_path" "alternate summary is written at the requested path"
     assert_file_exists "$bundle_dir/manifest.txt" "alternate output owns its sibling manifest"
     assert_file_exists "$bundle_dir/fleet_dataplane.json" "alternate output owns its sibling fleet evidence"
+    assert_file_exists "$bundle_dir/usage_rollup_freshness_staging.json" \
+        "alternate output owns its sibling staging rollup evidence"
+    assert_file_exists "$bundle_dir/usage_rollup_freshness_prod.json" \
+        "alternate output owns its sibling prod rollup evidence"
     timestamp="$(sed -n 's/^# fjcloud live-state snapshot — //p' "$summary_path" | head -n1)"
     canonical_summary="$alternate_work/docs/live-state/$timestamp/SUMMARY.md"
     if [ -e "$canonical_summary" ]; then
@@ -1060,6 +1126,78 @@ STUB
     chmod +x "$path"
 }
 
+write_stub_usage_rollup_freshness_probe() {
+    local path="$1"
+    cat > "$path" <<'STUB'
+#!/usr/bin/env bash
+set -u
+
+evidence_path=""
+if [ "${1:-}" = "--evidence" ]; then
+    evidence_path="${2:-}"
+fi
+if [ -n "${STUB_USAGE_CALL_LOG:-}" ]; then
+    basename "$evidence_path" >> "$STUB_USAGE_CALL_LOG"
+fi
+
+case "$(basename "$evidence_path")" in
+    usage_rollup_freshness_staging.json)
+        result="${STUB_USAGE_STAGING_RESULT:-ok}"
+        ;;
+    usage_rollup_freshness_prod.json)
+        result="${STUB_USAGE_PROD_RESULT:-ok}"
+        ;;
+    *)
+        result="invalid"
+        ;;
+esac
+
+case "$result" in
+    ok)
+        printf 'USAGE_ROLLUP_FRESHNESS_STATUS: OK reason=fresh_rollups_present\n'
+        exit 0
+        ;;
+    no_rollups)
+        printf 'USAGE_ROLLUP_FRESHNESS_STATUS: ACTION_REQUIRED reason=no_rollups\n'
+        exit 1
+        ;;
+    stale)
+        printf 'USAGE_ROLLUP_FRESHNESS_STATUS: ACTION_REQUIRED reason=rollups_stale\n'
+        exit 1
+        ;;
+    query_failed)
+        printf 'USAGE_ROLLUP_FRESHNESS_STATUS: PROBE_ERROR reason=query_failed\n'
+        exit 1
+        ;;
+    malformed)
+        printf 'USAGE_ROLLUP_FRESHNESS_STATUS: PROBE_ERROR reason=malformed_evidence\n'
+        exit 1
+        ;;
+    mismatch)
+        printf 'USAGE_ROLLUP_FRESHNESS_STATUS: OK reason=fresh_rollups_present\n'
+        exit 1
+        ;;
+    multiple)
+        printf 'USAGE_ROLLUP_FRESHNESS_STATUS: OK reason=fresh_rollups_present\n'
+        printf 'USAGE_ROLLUP_FRESHNESS_STATUS: ACTION_REQUIRED reason=rollups_stale\n'
+        exit 1
+        ;;
+    non_utf8)
+        printf '\\377\\376\n'
+        exit 1
+        ;;
+    empty)
+        exit 1
+        ;;
+    *)
+        printf 'USAGE_ROLLUP_FRESHNESS_STATUS: BAD reason=invalid\n'
+        exit 1
+        ;;
+esac
+STUB
+    chmod +x "$path"
+}
+
 run_live_state_with_fleet_probe() {
     local aws_scenario="$1" fleet_result="$2"
     local secret_mode="${3:-fleet_specific}"
@@ -1134,6 +1272,62 @@ EOF
         bash "$PROBE_SCRIPT_DEFAULT" >/dev/null 2>&1 || true
 
     printf '%s|%s|%s\n' "$output_path" "$aws_log" "$curl_log"
+}
+
+run_live_state_with_usage_rollup_probe() {
+    local aws_scenario="$1" staging_result="$2" prod_result="$3"
+    local probe_mode="${4:-stub}"
+    local stub_dir primary_secret fallback_secret output_path aws_log usage_log usage_probe
+    stub_dir="$(mktemp -d)"; TMP_PATHS+=("$stub_dir")
+    primary_secret="$(mktemp)"; register_tmp_path "$primary_secret"
+    fallback_secret="$(mktemp)"; register_tmp_path "$fallback_secret"
+    aws_log="$(mktemp)"; register_tmp_path "$aws_log"
+    usage_log="$(mktemp)"; register_tmp_path "$usage_log"
+    create_temp_bundle_summary output_path
+
+    create_stubbed_vendor_tools "$stub_dir"
+    write_stub_build_identity_probe "$stub_dir/flapjack_identity"
+    write_stub_fleet_dataplane_probe "$stub_dir/fleet_probe"
+    write_stub_usage_rollup_freshness_probe "$stub_dir/usage_probe"
+    usage_probe="$stub_dir/usage_probe"
+    if [ "$probe_mode" = "real" ]; then
+        usage_probe="$REPO_ROOT/scripts/probe_usage_rollup_freshness.sh"
+    fi
+
+    cat > "$primary_secret" <<'EOF'
+STRIPE_SECRET_KEY=sk_test_probe_dummy
+CLOUDFLARE_GLOBAL_API_KEY=test_key
+CLOUDFLARE_EMAIL=test@example.com
+FLEET_STAGING_ADMIN_KEY=staging-admin-redacted
+FLEET_PROD_ADMIN_KEY=prod-admin-redacted
+EOF
+    cat > "$fallback_secret" <<'EOF'
+CLOUDFLARE_ACCOUNT_ID=test_account
+CLOUDFLARE_GLOBAL_API_KEY=test_key
+CLOUDFLARE_EMAIL=test@example.com
+EOF
+
+    PATH="${stub_dir}:$PATH" \
+        AWS_STUB_SCENARIO="$aws_scenario" \
+        AWS_DEFAULT_REGION="us-test-1" \
+        GH_STUB_SCENARIO="healthy" \
+        AWS_STUB_LOG_PATH="$aws_log" \
+        FJCLOUD_SECRET_FILE="$primary_secret" \
+        CLOUDFLARE_FALLBACK_SECRET_FILE="$fallback_secret" \
+        LIVE_STATE_SKIP_STAGING_RDS=1 \
+        LIVE_STATE_OUTPUT_PATH="$output_path" \
+        FLAPJACK_BUILD_IDENTITY_PROBE="$stub_dir/flapjack_identity" \
+        FLEET_DATAPLANE_PROBE="$stub_dir/fleet_probe" \
+        STUB_FLEET_RESULT="ok" \
+        STUB_USAGE_CALL_LOG="$usage_log" \
+        STUB_USAGE_STAGING_RESULT="$staging_result" \
+        STUB_USAGE_PROD_RESULT="$prod_result" \
+        USAGE_STAGING_QUERY_FAIL="${USAGE_STAGING_QUERY_FAIL:-0}" \
+        USAGE_PROD_QUERY_FAIL="${USAGE_PROD_QUERY_FAIL:-0}" \
+        USAGE_ROLLUP_FRESHNESS_PROBE="$usage_probe" \
+        bash "$PROBE_SCRIPT_DEFAULT" >/dev/null 2>&1 || true
+
+    printf '%s|%s|%s\n' "$output_path" "$aws_log" "$usage_log"
 }
 
 run_flapjack_build_identity_probe() {
@@ -1243,6 +1437,134 @@ run_flapjack_build_identity_evidence_regression() {
     assert_not_contains "$section" "aws_ami_id" "flapjack section does not read AMI tags as the oracle"
     assert_not_contains "$section" "custom_data" "flapjack section does not read Packer custom data as the oracle"
     assert_not_contains "$section" "ETag" "flapjack section does not read S3 ETags as the oracle"
+}
+
+run_usage_rollup_freshness_mapping_regression() {
+    local validator mapper reason_mapper
+    validator="$(sed -n '/^usage_rollup_freshness_valid_classification()/,/^}/p' "$PROBE_SCRIPT_DEFAULT")"
+    mapper="$(sed -n '/^usage_rollup_freshness_row_status()/,/^}/p' "$PROBE_SCRIPT_DEFAULT")"
+    reason_mapper="$(sed -n '/^usage_rollup_freshness_reason()/,/^}/p' "$PROBE_SCRIPT_DEFAULT")"
+    if [ -z "$validator" ] || [ -z "$mapper" ] || [ -z "$reason_mapper" ]; then
+        fail "probe_live_state.sh owns one usage-rollup token validator and its status/reason mappers"
+        return
+    fi
+    eval "$validator"
+    eval "$mapper"
+    eval "$reason_mapper"
+
+    assert_eq \
+        "$(usage_rollup_freshness_row_status "USAGE_ROLLUP_FRESHNESS_STATUS: OK reason=fresh_rollups_present" 0)" \
+        "OK" \
+        "usage-rollup OK token with exit 0 maps to OK"
+    assert_eq \
+        "$(usage_rollup_freshness_row_status "USAGE_ROLLUP_FRESHNESS_STATUS: ACTION_REQUIRED reason=no_rollups" 1)" \
+        "ACTION_REQUIRED" \
+        "usage-rollup empty token maps to ACTION_REQUIRED"
+    assert_eq \
+        "$(usage_rollup_freshness_row_status "USAGE_ROLLUP_FRESHNESS_STATUS: ACTION_REQUIRED reason=rollups_stale" 1)" \
+        "ACTION_REQUIRED" \
+        "usage-rollup stale token maps to ACTION_REQUIRED"
+    assert_eq \
+        "$(usage_rollup_freshness_row_status "USAGE_ROLLUP_FRESHNESS_STATUS: PROBE_ERROR reason=query_failed" 1)" \
+        "PROBE_ERROR" \
+        "usage-rollup query-failure token maps to PROBE_ERROR"
+    assert_eq \
+        "$(usage_rollup_freshness_row_status "USAGE_ROLLUP_FRESHNESS_STATUS: OK reason=fresh_rollups_present" 1)" \
+        "PROBE_ERROR" \
+        "usage-rollup token/exit mismatch fails closed"
+    assert_eq \
+        "$(usage_rollup_freshness_row_status $'USAGE_ROLLUP_FRESHNESS_STATUS: OK reason=fresh_rollups_present\ndiagnostic' 0)" \
+        "PROBE_ERROR" \
+        "multiline usage-rollup output fails closed"
+    assert_eq "$(usage_rollup_freshness_row_status "" 1)" "PROBE_ERROR" \
+        "empty usage-rollup output fails closed"
+    assert_eq \
+        "$(usage_rollup_freshness_reason "USAGE_ROLLUP_FRESHNESS_STATUS: ACTION_REQUIRED reason=rollups_stale" 1)" \
+        "rollups_stale" \
+        "usage-rollup mapper preserves a valid classifier reason"
+    assert_eq \
+        "$(usage_rollup_freshness_reason "USAGE_ROLLUP_FRESHNESS_STATUS: OK reason=no_rollups" 0)" \
+        "classifier_output_invalid" \
+        "invalid usage-rollup status/reason pairing fails closed"
+}
+
+run_usage_rollup_freshness_collection_contract() {
+    local run_info summary aws_log usage_log bundle_dir staging_raw prod_raw manifest
+    run_info="$(run_live_state_with_usage_rollup_probe healthy ignored ignored real)"
+    summary="${run_info%%|*}"
+    aws_log="$(printf '%s' "$run_info" | cut -d'|' -f2)"
+    usage_log="$(printf '%s' "$run_info" | cut -d'|' -f3)"
+    bundle_dir="$(dirname "$summary")"
+    staging_raw="$bundle_dir/usage_rollup_freshness_staging.json"
+    prod_raw="$bundle_dir/usage_rollup_freshness_prod.json"
+    manifest="$bundle_dir/manifest.txt"
+
+    assert_eq "$(extract_vendor_status "$summary" "usage_rollup_freshness_staging")" "OK" \
+        "successful staging evidence with fresh rows maps to OK"
+    assert_eq "$(extract_vendor_status "$summary" "usage_rollup_freshness_prod")" "ACTION_REQUIRED" \
+        "successful prod evidence with stale rows maps to ACTION_REQUIRED"
+    assert_file_exists "$staging_raw" "staging usage-rollup raw evidence is written"
+    assert_file_exists "$prod_raw" "prod usage-rollup raw evidence is written"
+    assert_file_occurrence_count "$manifest" "usage_rollup_freshness_staging.json" "1" \
+        "manifest registers staging usage-rollup evidence exactly once"
+    assert_file_occurrence_count "$manifest" "usage_rollup_freshness_prod.json" "1" \
+        "manifest registers prod usage-rollup evidence exactly once"
+    assert_file_contains "$aws_log" "ssm get-parameter --name /fjcloud/staging/database_url --with-decryption" \
+        "collector hydrates the canonical staging database parameter with decryption"
+    assert_file_contains "$aws_log" "ssm get-parameter --name /fjcloud/prod/database_url --with-decryption" \
+        "collector hydrates the canonical prod database parameter with decryption"
+    assert_file_contains "$aws_log" "Name=tag:Name,Values=fjcloud-api-staging" \
+        "staging database query resolves the staging API instance"
+    assert_file_contains "$aws_log" "Name=tag:Name,Values=fjcloud-api-prod" \
+        "prod database query resolves the prod API instance"
+    assert_file_contains "$aws_log" "ssm send-command --region us-test-1 --instance-ids i-staging-api" \
+        "staging SQL runs through its selected SSM instance"
+    assert_file_contains "$aws_log" "ssm send-command --region us-test-1 --instance-ids i-prod-api" \
+        "prod SQL runs through its selected SSM instance"
+    assert_eq "$(cat "$usage_log")" "" \
+        "real classifier path does not invoke the injected classifier stub"
+    assert_file_not_matching_regex "$summary" 'stage2_db_password|postgres(ql)?://' \
+        "usage-rollup summary omits database credentials"
+    assert_file_not_matching_regex "$staging_raw" 'stage2_db_password|postgres(ql)?://' \
+        "staging usage-rollup evidence omits database credentials"
+    assert_file_not_matching_regex "$prod_raw" 'stage2_db_password|postgres(ql)?://' \
+        "prod usage-rollup evidence omits database credentials"
+}
+
+run_usage_rollup_freshness_failure_contract() {
+    local run_info summary staging_raw
+    run_info="$(USAGE_STAGING_QUERY_FAIL=1 \
+        run_live_state_with_usage_rollup_probe healthy ignored ignored real)"
+    summary="${run_info%%|*}"
+    staging_raw="$(dirname "$summary")/usage_rollup_freshness_staging.json"
+
+    assert_eq "$(extract_vendor_status "$summary" "usage_rollup_freshness_staging")" "PROBE_ERROR" \
+        "failed staging SQL maps through classifier to PROBE_ERROR"
+    assert_file_contains "$staging_raw" '"query_outcome":"failed"' \
+        "failed staging SQL writes sanitized failed evidence"
+
+    run_info="$(run_live_state_with_usage_rollup_probe healthy multiple non_utf8 stub)"
+    summary="${run_info%%|*}"
+    assert_eq "$(extract_vendor_status "$summary" "usage_rollup_freshness_staging")" "PROBE_ERROR" \
+        "multiline classifier output fails closed in the integrated row"
+    assert_eq "$(extract_vendor_status "$summary" "usage_rollup_freshness_prod")" "PROBE_ERROR" \
+        "non-UTF-8 classifier output fails closed in the integrated row"
+    assert_file_contains "$summary" "reason=classifier_output_invalid" \
+        "invalid classifier output records the fail-closed reason"
+}
+
+run_usage_rollup_freshness_missing_creds_contract() {
+    local run_info summary usage_log
+    run_info="$(run_live_state_with_usage_rollup_probe all_degraded ok ok stub)"
+    summary="${run_info%%|*}"
+    usage_log="$(printf '%s' "$run_info" | cut -d'|' -f3)"
+
+    assert_eq "$(extract_vendor_status "$summary" "usage_rollup_freshness_staging")" "SKIP_NO_CREDS" \
+        "missing credentials skip the staging usage-rollup classifier"
+    assert_eq "$(extract_vendor_status "$summary" "usage_rollup_freshness_prod")" "SKIP_NO_CREDS" \
+        "missing credentials skip the prod usage-rollup classifier"
+    assert_eq "$(cat "$usage_log")" "" \
+        "missing credentials invoke the usage-rollup classifier zero times"
 }
 
 run_fleet_dataplane_mapping_regression() {
@@ -1361,6 +1683,7 @@ run_fleet_dataplane_probe_output_contract() {
 
 run_fleet_dataplane_collection_contract() {
     local run_info summary aws_log curl_log status
+    local send_command_count staging_sql_count prod_sql_count
     run_info="$(run_live_state_with_fleet_probe fleet_contract ok)"
     summary="${run_info%%|*}"
     aws_log="$(printf '%s' "$run_info" | cut -d'|' -f2)"
@@ -1400,7 +1723,13 @@ run_fleet_dataplane_collection_contract() {
     else
         pass "fleet browse request omits the rejected limit field"
     fi
-    if grep -Eq '(send-command|start-session|run-instances|terminate-instances|/indexes/demo-shared-free/search)' "$aws_log" "$curl_log"; then
+    send_command_count="$(grep -Ec 'ssm send-command' "$aws_log" || true)"
+    staging_sql_count="$(grep -Ec 'ssm send-command .*--instance-ids i-staging-api( |$)' "$aws_log" || true)"
+    prod_sql_count="$(grep -Ec 'ssm send-command .*--instance-ids i-prod-api( |$)' "$aws_log" || true)"
+    if grep -Eq '(start-session|run-instances|terminate-instances|/indexes/demo-shared-free/search)' "$aws_log" "$curl_log" \
+        || [ "$send_command_count" -ne 2 ] \
+        || [ "$staging_sql_count" -ne 1 ] \
+        || [ "$prod_sql_count" -ne 1 ]; then
         fail "fleet collection avoids forbidden mutation and stale search routes"
     else
         pass "fleet collection avoids forbidden mutation and stale search routes"
@@ -1539,6 +1868,18 @@ if [ -n "${PROBE_TEST_CASE:-}" ]; then
         fleet_probe_output_contract)
             run_fleet_dataplane_probe_output_contract
             ;;
+        usage_rollup_mapping_contract)
+            run_usage_rollup_freshness_mapping_regression
+            ;;
+        usage_rollup_collection_contract)
+            run_usage_rollup_freshness_collection_contract
+            ;;
+        usage_rollup_failure_contract)
+            run_usage_rollup_freshness_failure_contract
+            ;;
+        usage_rollup_missing_creds_contract)
+            run_usage_rollup_freshness_missing_creds_contract
+            ;;
         alternate_output_bundle_isolation)
             run_alternate_output_bundle_isolation_regression
             ;;
@@ -1565,6 +1906,10 @@ else
     run_fleet_dataplane_pointer_missing_contract
     run_fleet_dataplane_canonical_admin_contract
     run_fleet_dataplane_browse_parser_contract
+    run_usage_rollup_freshness_mapping_regression
+    run_usage_rollup_freshness_collection_contract
+    run_usage_rollup_freshness_failure_contract
+    run_usage_rollup_freshness_missing_creds_contract
     run_flapjack_build_identity_mapping_regression
     run_flapjack_build_identity_evidence_regression
 fi

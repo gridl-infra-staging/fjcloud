@@ -38,8 +38,30 @@ metering_usage_records_populated_sql() {
     printf '%s\n' "SELECT COUNT(*) FROM usage_records"
 }
 
+metering_rollup_freshness_predicate_sql() {
+    printf '%s\n' "aggregated_at >= NOW() - INTERVAL '48 hours'"
+}
+
 metering_rollup_current_sql() {
-    printf '%s\n' "SELECT COUNT(*) FROM usage_daily WHERE aggregated_at >= NOW() - INTERVAL '48 hours'"
+    printf 'SELECT COUNT(*) FROM usage_daily WHERE %s\n' \
+        "$(metering_rollup_freshness_predicate_sql)"
+}
+
+metering_rollup_freshness_evidence_sql() {
+    local freshness_predicate
+    freshness_predicate="$(metering_rollup_freshness_predicate_sql)"
+    cat <<SQL
+COPY (
+  SELECT json_build_object(
+    'schema_version', 1,
+    'query_outcome', 'ok',
+    'total_rows', COUNT(*),
+    'fresh_rows', COUNT(*) FILTER (WHERE $freshness_predicate),
+    'latest_aggregated_at', to_char(MAX(aggregated_at) AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')
+  )
+  FROM usage_daily
+) TO STDOUT;
+SQL
 }
 
 _run_metering_query() {

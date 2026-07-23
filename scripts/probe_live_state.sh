@@ -44,6 +44,8 @@ set -uo pipefail
 # NOTE: deliberately NOT `set -e` — per-vendor errors must not abort the script.
 # Each section captures its own error state into the SUMMARY.
 
+PROBE_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 # ---------------------------------------------------------------------------
 # 0. Bootstrap
 # ---------------------------------------------------------------------------
@@ -119,6 +121,10 @@ fi
 
 if [ -n "${FLEET_DATAPLANE_PROBE:-}" ] && [ -z "${LIVE_STATE_OUTPUT_PATH:-}" ]; then
   echo "FAIL_UNSAFE_PROBE_OVERRIDE: FLEET_DATAPLANE_PROBE requires LIVE_STATE_OUTPUT_PATH" >&2
+  exit 2
+fi
+if [ -n "${USAGE_ROLLUP_FRESHNESS_PROBE:-}" ] && [ -z "${LIVE_STATE_OUTPUT_PATH:-}" ]; then
+  echo "FAIL_UNSAFE_PROBE_OVERRIDE: USAGE_ROLLUP_FRESHNESS_PROBE requires LIVE_STATE_OUTPUT_PATH" >&2
   exit 2
 fi
 
@@ -955,6 +961,11 @@ fleet_dataplane_probe_valid_classification() {
 
 fleet_dataplane_read_classifier_stdout() {
   local stdout_path="$1"
+  read_single_utf8_classifier_line "$stdout_path"
+}
+
+read_single_utf8_classifier_line() {
+  local stdout_path="$1"
   python3 - "$stdout_path" <<'PY'
 import sys
 from pathlib import Path
@@ -1470,6 +1481,161 @@ print(obj.get("classification", "investigate"), obj.get("reason", ""))')"
   done
   add_row "flapjack_build_identity" "$flapjack_worst_status" "false" "installed-byte + runtime engine identity (staging+prod) — see raw" "flapjack_build_identity.txt"
 fi
+
+# ---------------------------------------------------------------------------
+# 7d. Usage-rollup freshness (staging + prod)
+# ---------------------------------------------------------------------------
+
+usage_rollup_freshness_valid_classification() {
+  local output="$1" rc="$2"
+  case "$output:$rc" in
+    "USAGE_ROLLUP_FRESHNESS_STATUS: OK reason=fresh_rollups_present:0" \
+    |"USAGE_ROLLUP_FRESHNESS_STATUS: ACTION_REQUIRED reason=no_rollups:1" \
+    |"USAGE_ROLLUP_FRESHNESS_STATUS: ACTION_REQUIRED reason=rollups_stale:1" \
+    |"USAGE_ROLLUP_FRESHNESS_STATUS: PROBE_ERROR reason=query_failed:1" \
+    |"USAGE_ROLLUP_FRESHNESS_STATUS: PROBE_ERROR reason=malformed_evidence:1")
+      printf '%s\n' "$output"
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+usage_rollup_freshness_row_status() {
+  local output="$1" rc="$2" token_line
+  if ! token_line="$(usage_rollup_freshness_valid_classification "$output" "$rc")"; then
+    printf 'PROBE_ERROR\n'
+    return
+  fi
+  printf '%s\n' "$token_line" \
+    | sed -n 's/^USAGE_ROLLUP_FRESHNESS_STATUS: \([A-Z_]*\) reason=[a-z0-9_]*$/\1/p'
+}
+
+usage_rollup_freshness_reason() {
+  local output="$1" rc="$2" token_line
+  if ! token_line="$(usage_rollup_freshness_valid_classification "$output" "$rc")"; then
+    printf 'classifier_output_invalid\n'
+    return
+  fi
+  printf '%s\n' "$token_line" \
+    | sed -n 's/^USAGE_ROLLUP_FRESHNESS_STATUS: [A-Z_]* reason=\([a-z0-9_]*\)$/\1/p'
+}
+
+usage_rollup_write_failed_evidence() {
+  local evidence_path="$1"
+  printf '%s\n' '{"schema_version":1,"query_outcome":"failed"}' > "$evidence_path"
+}
+
+usage_rollup_normalize_sql_output() {
+  local sql_output_path="$1" evidence_path="$2"
+  python3 - "$sql_output_path" "$evidence_path" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+source_path, destination_path = map(Path, sys.argv[1:])
+try:
+    document = json.loads(source_path.read_text(encoding="utf-8"))
+except (OSError, UnicodeError, json.JSONDecodeError):
+    raise SystemExit(1)
+if not isinstance(document, dict):
+    raise SystemExit(1)
+destination_path.write_text(
+    json.dumps(document, separators=(",", ":"), sort_keys=True) + "\n",
+    encoding="utf-8",
+)
+PY
+}
+
+usage_rollup_classify_evidence() {
+  local evidence_path="$1" probe="$2"
+  local stdout_file output rc
+  if [ ! -x "$probe" ]; then
+    printf '%s|%s\n' "" "1"
+    return
+  fi
+
+  stdout_file="$(mktemp)" || {
+    printf '%s|%s\n' "" "1"
+    return
+  }
+  "$probe" --evidence "$evidence_path" > "$stdout_file" 2>/dev/null
+  rc=$?
+  if ! output="$(read_single_utf8_classifier_line "$stdout_file")"; then
+    output=""
+  fi
+  rm -f "$stdout_file"
+  printf '%s|%s\n' "$output" "$rc"
+}
+
+# Source the private-RDS execution owner directly. Metering checks set shell
+# options at load time, so obtain their canonical SQL in an isolated subshell.
+# shellcheck source=lib/staging_db.sh
+source "$PROBE_SCRIPT_DIR/lib/staging_db.sh"
+usage_rollup_sql="$(
+  (
+    # shellcheck source=lib/metering_checks.sh
+    source "$PROBE_SCRIPT_DIR/lib/metering_checks.sh"
+    metering_rollup_freshness_evidence_sql
+  )
+)" || usage_rollup_sql=""
+usage_rollup_probe="${USAGE_ROLLUP_FRESHNESS_PROBE:-$PROBE_SCRIPT_DIR/probe_usage_rollup_freshness.sh}"
+
+for env in staging prod; do
+  usage_rollup_raw_name="usage_rollup_freshness_${env}.json"
+  usage_rollup_raw="$OUT/$usage_rollup_raw_name"
+  register_raw "$usage_rollup_raw_name"
+  usage_rollup_param="/fjcloud/${env}/database_url"
+
+  if [ "$AWS_OK" -eq 0 ]; then
+    usage_rollup_write_failed_evidence "$usage_rollup_raw"
+    add_row "usage_rollup_freshness_${env}" "SKIP_NO_CREDS" "false" \
+      "usage-rollup freshness skipped because AWS credentials are unavailable" \
+      "$usage_rollup_raw_name"
+    continue
+  fi
+
+  usage_rollup_db_url="$(
+    aws ssm get-parameter \
+      --name "$usage_rollup_param" \
+      --with-decryption \
+      --query Parameter.Value \
+      --output text \
+      --region "${AWS_DEFAULT_REGION:-us-east-1}" 2>/dev/null
+  )" || usage_rollup_db_url=""
+  usage_rollup_query_output="$(mktemp)" || usage_rollup_query_output=""
+  usage_rollup_query_ok=0
+  if [ -n "$usage_rollup_db_url" ] \
+    && [ "$usage_rollup_db_url" != "None" ] \
+    && [ -n "$usage_rollup_sql" ] \
+    && [ -n "$usage_rollup_query_output" ]; then
+    if DATABASE_URL_SSM_PARAM="$usage_rollup_param" \
+      staging_db_run_sql "$usage_rollup_db_url" "$usage_rollup_sql" \
+      > "$usage_rollup_query_output" 2>/dev/null \
+      && usage_rollup_normalize_sql_output "$usage_rollup_query_output" "$usage_rollup_raw" \
+      2>/dev/null; then
+      usage_rollup_query_ok=1
+    fi
+  fi
+  if [ -n "$usage_rollup_query_output" ]; then
+    rm -f "$usage_rollup_query_output"
+  fi
+  unset usage_rollup_db_url
+
+  if [ "$usage_rollup_query_ok" -ne 1 ]; then
+    usage_rollup_write_failed_evidence "$usage_rollup_raw"
+  fi
+
+  usage_rollup_classification="$(usage_rollup_classify_evidence "$usage_rollup_raw" "$usage_rollup_probe")"
+  usage_rollup_rc="${usage_rollup_classification##*|}"
+  usage_rollup_output="${usage_rollup_classification%|*}"
+  usage_rollup_status="$(usage_rollup_freshness_row_status "$usage_rollup_output" "$usage_rollup_rc")"
+  usage_rollup_reason="$(usage_rollup_freshness_reason "$usage_rollup_output" "$usage_rollup_rc")"
+  add_row "usage_rollup_freshness_${env}" "$usage_rollup_status" "false" \
+    "usage-rollup freshness classifier reason=${usage_rollup_reason}" \
+    "$usage_rollup_raw_name"
+done
 
 # ---------------------------------------------------------------------------
 # 8. Staging RDS — customer count + test-pattern emails

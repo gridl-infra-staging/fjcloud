@@ -43,6 +43,7 @@
 #                    index-export-clientside-contract,
 #                    engine-exposure-probe-contract,
 #                    fleet-dataplane-probe-contract,
+#                    usage-rollup-freshness-contract,
 #                    package-manager-consistency,
 #                    dirmap-merge-driver).
 #   --summary-only   Print prod deploy drift info without running any gate.
@@ -153,7 +154,7 @@ render_prod_drift() {
 # preserved and no gates are scheduled or executed.
 if [ "$SUMMARY_ONLY" -eq 1 ]; then
     printf '=== local-ci summary (summary-only) ===\n'
-    printf 'Known gates: rust-test rust-lint migration-test web-test check-sizes source-pollution stripe-checks mirror-sync-contract deploy-currency-check-contract rc-wrapper-contract ses-coverage-a1 wave3-phase-receipt launch-closeout debbie-dry-run status-doc-consistency roadmap-v2-shape web-lint secret-scan evidence-secret-hygiene index-export-clientside-contract validate-bootstrap-parser validate-bootstrap-env-local publish-scripts-buildx algolia-safety-probe-contract flapjack-ami-pointer-contract engine-exposure-probe-contract fleet-dataplane-probe-contract package-manager-consistency dirmap-merge-driver\n'
+    printf 'Known gates: rust-test rust-lint migration-test web-test check-sizes source-pollution stripe-checks mirror-sync-contract deploy-currency-check-contract rc-wrapper-contract ses-coverage-a1 wave3-phase-receipt launch-closeout debbie-dry-run status-doc-consistency roadmap-v2-shape web-lint secret-scan evidence-secret-hygiene index-export-clientside-contract validate-bootstrap-parser validate-bootstrap-env-local publish-scripts-buildx algolia-safety-probe-contract flapjack-ami-pointer-contract engine-exposure-probe-contract fleet-dataplane-probe-contract usage-rollup-freshness-contract package-manager-consistency dirmap-merge-driver\n'
     render_prod_drift
     exit 0
 fi
@@ -687,6 +688,11 @@ gate_fleet_dataplane_probe_contract() {
     bash "$REPO_ROOT/scripts/tests/probe_fleet_dataplane_test.sh" || return $?
 }
 
+gate_usage_rollup_freshness_contract() {
+    bash "$REPO_ROOT/scripts/tests/probe_usage_rollup_freshness_test.sh" || return $?
+    bash "$REPO_ROOT/scripts/test_probe_live_state.sh" || return $?
+}
+
 gate_flapjack_ami_pointer_contract() {
     bash "$REPO_ROOT/ops/terraform/tests_flapjack_ami_pointer_static.sh" || return $?
     bash "$REPO_ROOT/ops/terraform/tests_flapjack_ami_pointer_plan.sh" || return $?
@@ -776,6 +782,7 @@ schedule algolia-safety-probe-contract
 schedule flapjack-ami-pointer-contract
 schedule engine-exposure-probe-contract
 schedule fleet-dataplane-probe-contract
+schedule usage-rollup-freshness-contract
 
 # Run web-test after the parallel batch so local CPU contention cannot turn
 # Vitest's tight per-test timeout into a false deploy-gate failure.
@@ -800,7 +807,7 @@ if [ "${#SCHEDULED_GATES[@]}" -eq 0 ] \
     && [ "$RUN_RUST_TEST_SEQUENTIAL" -eq 0 ]; then
     if [ -n "$SINGLE_GATE" ]; then
         echo "ERROR: --gate '$SINGLE_GATE' did not match any known gate" >&2
-        echo "Known gates: rust-test rust-lint migration-test web-test check-sizes source-pollution stripe-checks mirror-sync-contract deploy-currency-check-contract rc-wrapper-contract ses-coverage-a1 wave3-phase-receipt launch-closeout debbie-dry-run status-doc-consistency roadmap-v2-shape web-lint secret-scan evidence-secret-hygiene index-export-clientside-contract validate-bootstrap-parser validate-bootstrap-env-local publish-scripts-buildx algolia-safety-probe-contract flapjack-ami-pointer-contract engine-exposure-probe-contract fleet-dataplane-probe-contract package-manager-consistency dirmap-merge-driver" >&2
+        echo "Known gates: rust-test rust-lint migration-test web-test check-sizes source-pollution stripe-checks mirror-sync-contract deploy-currency-check-contract rc-wrapper-contract ses-coverage-a1 wave3-phase-receipt launch-closeout debbie-dry-run status-doc-consistency roadmap-v2-shape web-lint secret-scan evidence-secret-hygiene index-export-clientside-contract validate-bootstrap-parser validate-bootstrap-env-local publish-scripts-buildx algolia-safety-probe-contract flapjack-ami-pointer-contract engine-exposure-probe-contract fleet-dataplane-probe-contract usage-rollup-freshness-contract package-manager-consistency dirmap-merge-driver" >&2
         exit 2
     fi
     echo "ERROR: no gates scheduled" >&2
@@ -863,6 +870,7 @@ if [ "${#SCHEDULED_GATES[@]}" -gt 0 ]; then
             flapjack-ami-pointer-contract) run_gate flapjack-ami-pointer-contract gate_flapjack_ami_pointer_contract ;;
             engine-exposure-probe-contract) run_gate engine-exposure-probe-contract gate_engine_exposure_probe_contract ;;
             fleet-dataplane-probe-contract) run_gate fleet-dataplane-probe-contract gate_fleet_dataplane_probe_contract ;;
+            usage-rollup-freshness-contract) run_gate usage-rollup-freshness-contract gate_usage_rollup_freshness_contract ;;
         esac
     done
     # Wait for all backgrounded fast gates to finish before launching

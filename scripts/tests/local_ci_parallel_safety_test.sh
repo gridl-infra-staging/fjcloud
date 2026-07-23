@@ -167,6 +167,20 @@ test_throttle_parallel_actually_caps_concurrency() {
   fi
 }
 
+test_exit_cleanup_waits_before_persisting_logs() {
+  local cleanup_line wait_line move_line
+  cleanup_line="$(first_match_line '^cleanup_local_ci_logs\(\) \{')"
+  wait_line="$(grep -n -E '^[[:space:]]*wait[[:space:]]+2>/dev/null[[:space:]]*\|\|[[:space:]]*true$' "$LOCAL_CI" | cut -d: -f1 | head -1 || true)"
+  move_line="$(first_match_line 'mv "\$LOG_DIR" "\$KEEP_LOG_DIR"')"
+
+  assert_line_after "$cleanup_line" "$wait_line" \
+    "cleanup_local_ci_logs waits for background gate writers"
+  assert_line_after "$wait_line" "$move_line" \
+    "cleanup waits before moving the temp log directory"
+  assert_contains "$LOCAL_CI_TEXT" "trap cleanup_local_ci_logs EXIT" \
+    "EXIT trap uses the cleanup function"
+}
+
 test_bootstrap_env_gate_is_scheduled_in_parallel
 test_web_test_gate_is_not_scheduled_in_parallel
 test_bootstrap_env_gate_has_parallel_dispatch_arm
@@ -183,4 +197,5 @@ test_max_parallel_cap_is_configurable
 test_dispatch_loop_throttles_before_launching_gates
 test_throttle_uses_bash32_safe_idiom
 test_throttle_parallel_actually_caps_concurrency
+test_exit_cleanup_waits_before_persisting_logs
 run_test_summary

@@ -4,7 +4,7 @@ use super::*;
 use crate::models::algolia_import_job::{
     AlgoliaImportCreatePlacement, AlgoliaImportDestinationKind,
 };
-use crate::models::{AlgoliaImportJob, NewAlgoliaImportJob};
+use crate::models::{AlgoliaImportErrorCode, AlgoliaImportJob, NewAlgoliaImportJob};
 use crate::repos::{
     AlgoliaImportJobAdmissionError, AlgoliaImportJobRepo, PgAlgoliaImportJobRepo, RepoError,
 };
@@ -143,11 +143,29 @@ pub(crate) async fn prepare_algolia_create_target(
         .into());
     }
     let selected_vm = reserve_shared_vm_destination(state, &destination).await?;
-    ensure_algolia_import_engine_compatible(state, selected_vm.flapjack_url()).await?;
+    ensure_algolia_import_engine_compatible(state, selected_vm.flapjack_url())
+        .await
+        .map_err(map_algolia_create_job_error)?;
     Ok(AlgoliaImportCreatePlacement {
         vm_id: selected_vm.vm_id(),
         physical_uid: destination.flapjack_uid(),
     })
+}
+
+fn map_algolia_create_job_error(error: AlgoliaImportJobAdmissionError) -> ApiError {
+    match error {
+        AlgoliaImportJobAdmissionError::Refused(code) => map_algolia_create_refusal(code),
+        AlgoliaImportJobAdmissionError::Repository(error) => ApiError::from(error),
+    }
+}
+
+fn map_algolia_create_refusal(code: AlgoliaImportErrorCode) -> ApiError {
+    match code {
+        AlgoliaImportErrorCode::BackendUnavailable => {
+            ApiError::ServiceUnavailable(code.as_str().into())
+        }
+        other => ApiError::BadRequest(other.as_str().into()),
+    }
 }
 
 fn map_algolia_admission_error(error: IndexAdmissionError) -> ApiError {

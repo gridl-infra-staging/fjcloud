@@ -175,7 +175,15 @@ LOG_DIR="$(mktemp -d)"
 # already-deleted files. (Real bug found 2026-04-30 self-review.)
 KEEP_LOG_DIR="${TMPDIR:-/tmp}/local-ci-last-logs"
 rm -rf "$KEEP_LOG_DIR"
-trap 'rm -rf "$KEEP_LOG_DIR" && mv "$LOG_DIR" "$KEEP_LOG_DIR" 2>/dev/null || true' EXIT
+cleanup_local_ci_logs() {
+    local rc=$?
+    trap - EXIT
+    wait 2>/dev/null || true
+    rm -rf "$KEEP_LOG_DIR"
+    mv "$LOG_DIR" "$KEEP_LOG_DIR" 2>/dev/null || true
+    exit "$rc"
+}
+trap cleanup_local_ci_logs EXIT
 
 # Per-gate result registry: name | status | seconds | log_path
 RESULTS_FILE="$LOG_DIR/results.txt"

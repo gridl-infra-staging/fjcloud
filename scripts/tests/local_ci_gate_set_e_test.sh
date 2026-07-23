@@ -429,13 +429,20 @@ test_with_contracts_block_handles_customer_metrics_probe_skip_as_skip() {
 }
 
 test_local_ci_exit_trap_replaces_nested_keep_log_dir() {
-    local script_text
+    local script_text cleanup_block rm_line mv_line
     script_text="$(cat "$LOCAL_CI")"
+    cleanup_block="$(extract_function_block cleanup_local_ci_logs)"
 
-    if [[ "$script_text" == *'trap '\''rm -rf "$KEEP_LOG_DIR" && mv "$LOG_DIR" "$KEEP_LOG_DIR" 2>/dev/null || true'\'' EXIT'* ]]; then
-        pass "local-ci EXIT trap replaces nested local-ci-last-logs before persisting parent logs"
+    rm_line="$(grep -nF 'rm -rf "$KEEP_LOG_DIR"' <<< "$cleanup_block" | head -1 | cut -d: -f1)"
+    mv_line="$(grep -nF 'mv "$LOG_DIR" "$KEEP_LOG_DIR" 2>/dev/null || true' <<< "$cleanup_block" | head -1 | cut -d: -f1)"
+
+    if [[ "$script_text" == *"trap cleanup_local_ci_logs EXIT"* ]] \
+        && [[ -n "$rm_line" ]] \
+        && [[ -n "$mv_line" ]] \
+        && [[ "$rm_line" -lt "$mv_line" ]]; then
+        pass "local-ci EXIT cleanup replaces nested local-ci-last-logs before persisting parent logs"
     else
-        fail "local-ci EXIT trap must remove a nested/pre-existing KEEP_LOG_DIR before mv so summary log paths stay readable"
+        fail "local-ci EXIT cleanup must remove a nested/pre-existing KEEP_LOG_DIR before mv so summary log paths stay readable"
     fi
 }
 

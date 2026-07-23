@@ -120,6 +120,15 @@ impl VmInventoryRepo for FixedVmRepo {
         Ok(self.vm.clone().into_iter().collect())
     }
 
+    async fn list_non_decommissioned(&self) -> Result<Vec<VmInventory>, RepoError> {
+        Ok(self
+            .vm
+            .clone()
+            .filter(|vm| vm.status != "decommissioned")
+            .into_iter()
+            .collect())
+    }
+
     async fn get(&self, id: Uuid) -> Result<Option<VmInventory>, RepoError> {
         Ok(self.vm.clone().filter(|vm| vm.id == id))
     }

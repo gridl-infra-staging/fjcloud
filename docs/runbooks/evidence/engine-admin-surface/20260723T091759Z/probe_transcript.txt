@@ -1,0 +1,46 @@
+engine_admin_surface_stage3_evidence_bundle=20260723T091759Z
+purpose=Preserve Stage 2 live-fleet proof for the engine admin surface without closing the public-engine P0.
+
+provenance:
+- /Users/stuart/.matt/projects/fjcloud_dev-736ef5f3/jul22_5pm_1_engine_admin_surface_off.md-fa5c8ca0/checklists/stage_02_checklist.md
+- /Users/stuart/.matt/projects/fjcloud_dev-736ef5f3/jul22_5pm_1_engine_admin_surface_off.md-fa5c8ca0/session_handoffs/stage_02/s12_build_deployed-live-dashboard-lock.md
+- /Users/stuart/.matt/projects/fjcloud_dev-736ef5f3/jul22_5pm_1_engine_admin_surface_off.md-fa5c8ca0/session_handoffs/stage_02/s14_clean_review_verified-stage2-deploy-gate.md
+- /Users/stuart/.matt/projects/fjcloud_dev-736ef5f3/jul22_5pm_1_engine_admin_surface_off.md-fa5c8ca0/validation_cache.jsonl
+
+binary_backed_deploy_reason=The pre-replacement live staging binary accepted FLAPJACK_DISABLE_DASHBOARD=1 in the process environment but did not contain the FLAPJACK_DISABLE_DASHBOARD support string, so Stage 2 had to deploy a binary containing the engine-owned dashboard/docs control before the live admin/docs routes changed.
+engine_commit=322972136551351121c4022768f82c04e0c83399
+artifact_sha256=89861f07e1134f890400dd2ab5581aafd8225c84d54aac4fdc30b055762510ed
+staging_s3_object=s3://fjcloud-releases-staging/manual-stage2-dashboard-disable/322972136551351121c4022768f82c04e0c83399/flapjack-aarch64-unknown-linux-gnu
+prod_s3_object=s3://fjcloud-releases-prod/manual-stage2-dashboard-disable/322972136551351121c4022768f82c04e0c83399/flapjack-aarch64-unknown-linux-gnu
+exact_send_command_invocation=not_recorded
+semantic_send_command_contract=AWS-RunShellScript binary install plus idempotent env append of FLAPJACK_DISABLE_DASHBOARD=1 to /etc/flapjack/env followed by systemctl restart flapjack; do not rewrite the env file because it owns DATABASE_URL and FLAPJACK_API_KEY.
+
+ssm_results:
+- environment=staging command_id=7ea4ca25-1ec7-4889-ba7a-df1d57194a59 terminal_status=Success response_code=0 instance_ids=i-0c74e2fe5fa24b116,i-00a3b28ba4c00433a,i-0b2188437baeeacdf,i-019d556392acdada7,i-0f9b2a9bd8cbaeeec
+- environment=prod command_id=24cc1471-b895-4294-8421-125a3d0ae4ed terminal_status=Success response_code=0 instance_ids=i-072d4333322ffd0eb
+
+fleet_denominator=6
+reachable_verified=2
+unreachable=4
+
+before_public_statuses:
+- instance_id=i-00a3b28ba4c00433a dns=ec2-44-220-133-5.compute-1.amazonaws.com environment=staging /dashboard=200 /health=200
+- instance_id=i-0c74e2fe5fa24b116 dns=ec2-54-173-50-206.compute-1.amazonaws.com environment=staging /dashboard=000 /health=000
+- instance_id=i-0b2188437baeeacdf dns=ec2-100-27-229-251.compute-1.amazonaws.com environment=staging /dashboard=000 /health=000
+- instance_id=i-019d556392acdada7 dns=ec2-54-163-206-24.compute-1.amazonaws.com environment=staging /dashboard=000 /health=000
+- instance_id=i-0f9b2a9bd8cbaeeec dns=ec2-54-81-17-133.compute-1.amazonaws.com environment=staging /dashboard=000 /health=000
+- instance_id=i-072d4333322ffd0eb dns=ec2-34-228-66-185.compute-1.amazonaws.com environment=prod /dashboard=200 /health=200
+
+after_public_statuses:
+- instance_id=i-00a3b28ba4c00433a dns=ec2-44-220-133-5.compute-1.amazonaws.com environment=staging verification=reachable /dashboard=404 /swagger-ui=404 /api-docs/openapi.json=404 /health=200 /1/indexes=403
+- instance_id=i-072d4333322ffd0eb dns=ec2-34-228-66-185.compute-1.amazonaws.com environment=prod verification=reachable /dashboard=404 /swagger-ui=404 /api-docs/openapi.json=404 /health=200 /1/indexes=403
+- instance_id=i-0c74e2fe5fa24b116 dns=ec2-54-173-50-206.compute-1.amazonaws.com environment=staging verification=configured-but-unverified /dashboard=000 /swagger-ui=000 /api-docs/openapi.json=000 /health=000 /1/indexes=000
+- instance_id=i-0b2188437baeeacdf dns=ec2-100-27-229-251.compute-1.amazonaws.com environment=staging verification=configured-but-unverified /dashboard=000 /swagger-ui=000 /api-docs/openapi.json=000 /health=000 /1/indexes=000
+- instance_id=i-019d556392acdada7 dns=ec2-54-163-206-24.compute-1.amazonaws.com environment=staging verification=configured-but-unverified /dashboard=000 /swagger-ui=000 /api-docs/openapi.json=000 /health=000 /1/indexes=000
+- instance_id=i-0f9b2a9bd8cbaeeec dns=ec2-54-81-17-133.compute-1.amazonaws.com environment=staging verification=configured-but-unverified /dashboard=000 /swagger-ui=000 /api-docs/openapi.json=000 /health=000 /1/indexes=000
+
+stage3_scope_limits:
+- The current live proof covers the two reachable engines only.
+- Four staging VMs are configured-but-unverified from the public listener because they remained externally unreachable on public tcp/7700 before and after Stage 2.
+- The normal Packer/AMI path remains unproven for future or replaced VMs because Stage 2 had to replace the baked binary to obtain FLAPJACK_DISABLE_DASHBOARD behavior.
+- Public tcp/7700 ingress removal, the Terraform plan-time guard, durable AMI/reprovision proof, and a future scripts/security/probe_engine_exposure.sh non-EXPOSED verdict remain open.

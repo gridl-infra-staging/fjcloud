@@ -122,6 +122,8 @@ assert_file_exists "$bootstrap_script" "bootstrap.sh exists"
 assert_file_contains "$bootstrap_script" 'X-aws-ec2-metadata-token-ttl-seconds: 21600' "bootstrap.sh uses IMDS token TTL 21600"
 assert_file_contains "$bootstrap_script" 'meta-data/tags/instance/customer_id' "bootstrap.sh reads customer_id from IMDS tags"
 assert_file_contains "$bootstrap_script" 'meta-data/tags/instance/node_id' "bootstrap.sh reads node_id from IMDS tags"
+assert_file_contains "$bootstrap_script" 'FLAPJACK_DISABLE_DASHBOARD=1' "bootstrap.sh disables unauthenticated Flapjack dashboard"
+assert_file_contains "$bootstrap_script" 'umask 077' "bootstrap.sh restricts secret env file permissions from first write"
 
 assert_file_exists "$cloud_init_file" "cloud_init.rs exists"
 assert_file_contains "$cloud_init_file" 'FLAPJACK_URL=' "cloud_init.rs writes FLAPJACK_URL to metering env"
@@ -129,6 +131,7 @@ assert_file_contains "$cloud_init_file" 'NODE_ID=' "cloud_init.rs writes NODE_ID
 assert_file_contains "$cloud_init_file" 'INTERNAL_KEY=' "cloud_init.rs writes INTERNAL_KEY to metering env"
 assert_file_contains "$cloud_init_file" 'TENANT_MAP_URL=' "cloud_init.rs writes TENANT_MAP_URL to metering env"
 assert_file_contains "$cloud_init_file" 'COLD_STORAGE_USAGE_URL=' "cloud_init.rs writes COLD_STORAGE_USAGE_URL to metering env"
+assert_file_contains "$cloud_init_file" 'umask 077' "cloud_init.rs restricts secret env file permissions from first write"
 
 assert_file_exists "$packer_file" "flapjack-ami.pkr.hcl exists"
 assert_file_contains "$packer_file" 'source "amazon-ebs"' "packer template uses amazon-ebs source"

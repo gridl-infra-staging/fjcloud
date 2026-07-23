@@ -108,6 +108,10 @@ DISCORD_WEBHOOK_URL=$(get_optional_ssm "/fjcloud/$ENVIRONMENT/discord_webhook_ur
 
 mkdir -p /etc/flapjack /etc/fjcloud
 
+# Create secret-bearing env files with restrictive permissions from first write.
+(
+umask 077
+
 # Flapjack engine env
 cat > /etc/flapjack/env <<ENVEOF
 DATABASE_URL=$DB_URL
@@ -116,6 +120,8 @@ FLAPJACK_API_KEY=$API_KEY
 # node hostname, not loopback) and the API security group can reach the engine.
 # Network exposure is gated by the AWS SG + firewalld, not by the bind address.
 FLAPJACK_BIND_ADDR=0.0.0.0:7700
+# The publicly bound engine listener must not serve the admin UI or Swagger surface.
+FLAPJACK_DISABLE_DASHBOARD=1
 ENVEOF
 
 # Metering agent env — var names match what the binary expects
@@ -134,6 +140,7 @@ COLD_STORAGE_USAGE_URL=https://api.$DNS_DOMAIN/internal/cold-storage-usage
 SLACK_WEBHOOK_URL=$SLACK_WEBHOOK_URL
 DISCORD_WEBHOOK_URL=$DISCORD_WEBHOOK_URL
 ENVEOF
+)
 
 chmod 600 /etc/flapjack/env /etc/fjcloud/metering-env
 chown flapjack:flapjack /etc/flapjack/env
